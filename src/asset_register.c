@@ -21,7 +21,8 @@ ar_sprite_slot  g_ar_sprite_slots[AR_SPRITE_SLOT_COUNT];
 ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 ar_sprite_slot  g_ar_sprite_ramp_slots[AR_SPRITE_RAMP_COUNT];
 ar_sprite_slot *g_ar_sprite_ramp_table[AR_SPRITE_RAMP_COUNT];
-uint32_t        g_ar_sprite_flags[AR_SPRITE_FLAGS_COUNT];
+ar_info_entry   g_ar_info_entries[AR_INFO_ENTRY_COUNT];
+ar_info_entry  *g_ar_info_table[AR_INFO_ENTRY_COUNT];
 ar_gdi_slot     g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 ar_gdi_slot    *g_ar_gdi_table[AR_GDI_SLOT_COUNT];
 ar_sound_slot   g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
@@ -31,7 +32,7 @@ void ar_state_init(void)
 {
     memset(g_ar_sprite_slots,      0, sizeof g_ar_sprite_slots);
     memset(g_ar_sprite_ramp_slots, 0, sizeof g_ar_sprite_ramp_slots);
-    memset(g_ar_sprite_flags,      0, sizeof g_ar_sprite_flags);
+    memset(g_ar_info_entries,      0, sizeof g_ar_info_entries);
     memset(g_ar_gdi_slots,         0, sizeof g_ar_gdi_slots);
     memset(g_ar_sound_slots,       0, sizeof g_ar_sound_slots);
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
@@ -39,6 +40,9 @@ void ar_state_init(void)
     }
     for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
         g_ar_sprite_ramp_table[i] = &g_ar_sprite_ramp_slots[i];
+    }
+    for (int i = 0; i < AR_INFO_ENTRY_COUNT; i++) {
+        g_ar_info_table[i] = &g_ar_info_entries[i];
     }
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++) {
         g_ar_gdi_table[i] = &g_ar_gdi_slots[i];
@@ -383,10 +387,10 @@ void ar_sprite_slot_clone(ar_sprite_slot *dst, const ar_sprite_slot *src)
 void ar_info_entry_clear(ar_info_entry *entry)
 {
     /* Retail writes: word@+0, dword@+4/+8/+12.  Pad@+2..+3 untouched. */
-    entry->marker = 0;
-    entry->flag   = 0;
-    entry->data   = NULL;
-    entry->f_0c   = 0;
+    entry->marker  = 0;
+    entry->flag    = 0;
+    entry->data    = NULL;
+    entry->palette = NULL;
 }
 
 /* ─── FUN_005b5d90 — pack a COLORREF into a PALETTEENTRY ────────── */
@@ -1192,11 +1196,12 @@ static void ar_run_palette_ramp(const struct ar_palette_ramp_entry *e,
 
 /* Portrait entry — same idx-relative-to-0x8a7640 convention as
  * ar_main_sprite_entry, with an extra (flags_idx, flags_value) pair
- * for the `g_ar_sprite_flags[flags_idx] = flags_value` write that
- * follows each portrait register in retail. */
+ * for the
+ * `g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + flags_idx]->flag = flags_value`
+ * write that follows each portrait register in retail. */
 struct ar_ramp_extra_entry {
     uint8_t   idx;          /* g_ar_sprite_slots[idx] */
-    uint8_t   flags_idx;    /* g_ar_sprite_flags[flags_idx] */
+    uint8_t   flags_idx;    /* 0..13 within AR_INFO_RAMP_FLAGS_COUNT */
     uint32_t  flags_value;  /* 0 or 3 */
     uint16_t  id;
     uint16_t  width;
@@ -1281,14 +1286,17 @@ void ar_register_palette_ramps(void *zdd, uint16_t group, void *settings,
     }
 
     /* 14 portrait blocks — each is FUN_005748c0 followed by a write
-     * of `flags_value` (0 or 3) into g_ar_sprite_flags[flags_idx].
-     * All portraits share width=0x50, type=0, scale_flag=0,
-     * colorkey=0x1ffffff (except the four 0xff00ff colorkey'd entries
-     * at the tail).
+     * of `flags_value` (0 or 3) into
+     * g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + flags_idx]->flag.
+     * Retail's `*(int *)(DAT_008a85xx + 4) = N` pattern, where the
+     * DAT slot holds the ar_info_entry pointer.  All portraits share
+     * width=0x50, type=0, scale_flag=0, colorkey=0x1ffffff (except
+     * the four 0xff00ff colorkey'd entries at the tail).
      *
      * Retail iterates them in the order listed — the flag index
      * matches the sprite-slot's position in the 0x8a7744..0x8a7778
-     * BSS range one-to-one. */
+     * BSS range one-to-one (which also matches the info-entry pool's
+     * BSS layout one-to-one). */
     static const struct ar_ramp_extra_entry portraits[] = {
         /* idx, flag,val,  id,    w,    h,     ck,         scale, type */
         { 65,  0, 3,  1000,  0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a7744, flags @0x8a8578 */
@@ -1312,7 +1320,8 @@ void ar_register_palette_ramps(void *zdd, uint16_t group, void *settings,
             zdd, settings, e->id,
             e->width, e->height, e->colorkey,
             e->scale_flag, e->type, group);
-        g_ar_sprite_flags[e->flags_idx] = e->flags_value;
+        g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + e->flags_idx]->flag =
+            e->flags_value;
     }
 }
 

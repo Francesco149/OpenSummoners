@@ -894,8 +894,8 @@ int test_palette_ramps_portrait_flags_written_per_register(void)
 
     /* Sentinel: make sure the flag writes overwrite the BSS init
      * (which we just zeroed via ar_state_init). */
-    for (int i = 0; i < AR_SPRITE_FLAGS_COUNT; i++) {
-        g_ar_sprite_flags[i] = 0xdeadbeefu;
+    for (int i = 0; i < AR_INFO_RAMP_FLAGS_COUNT; i++) {
+        g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + i]->flag = 0xdeadbeefu;
     }
 
     ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2,
@@ -903,11 +903,13 @@ int test_palette_ramps_portrait_flags_written_per_register(void)
 
     /* Expected per the 14-entry portrait table (retail issue order
      * doesn't matter — the writes are independent + indexed). */
-    static const uint32_t expected[AR_SPRITE_FLAGS_COUNT] = {
+    static const uint32_t expected[AR_INFO_RAMP_FLAGS_COUNT] = {
         3, 0, 0, 3, 0, 0, 0, 3, 0, 3, 3, 3, 3, 3,
     };
-    for (int i = 0; i < AR_SPRITE_FLAGS_COUNT; i++) {
-        T_ASSERT_EQ_U(g_ar_sprite_flags[i], expected[i]);
+    for (int i = 0; i < AR_INFO_RAMP_FLAGS_COUNT; i++) {
+        T_ASSERT_EQ_U(
+            g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + i]->flag,
+            expected[i]);
     }
 
     palette_ramps_teardown();

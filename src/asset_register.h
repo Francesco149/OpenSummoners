@@ -207,17 +207,25 @@ _Static_assert(offsetof(ar_sound_slot, settings)    == 0x10, "sound settings off
 _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset");
 #endif
 
-/* ─── ar_info_entry — parallel-info-table entry (16 B) ───────────── */
+/* ─── ar_info_entry — SS_MGR-pool entry (20 B) ───────────────────── */
 
-/* Reverse-engineered from FUN_00582d00 (the 14-byte clear routine)
- * plus the surrounding copy chain in FUN_0057ca40 (around 0x57fa90).
- * Each entry is referenced via a 4-byte pointer slot in the table at
- * retail BSS 0x008a8578..0x008a8b14 — the ~357-entry "g_ar_sprite_flags
- * extension" called out in `docs/findings/0057ca40-rabbit-hole.md`.
+/* Reverse-engineered from FUN_00582d00 (the 14-byte clear routine),
+ * the surrounding copy chain in FUN_0057ca40 (around 0x57fa90), and
+ * the pool allocator at FUN_00562ea0:225-253 which pins the 20-byte
+ * size and the +0x10 field that the clear doesn't touch.
+ *
+ * Allocator (FUN_00562ea0:225-253) runs a single 909-iteration loop
+ * that initialises TWO parallel pools side-by-side:
+ *   - 0x8a760c..0x8a8440 — 909 × 0x44-byte sprite slot bodies
+ *     (`g_ar_sprite_ramp_slots` + `g_ar_sprite_slots` view the same pool).
+ *   - 0x8a8440..0x8a9270 — 909 × 0x14-byte ar_info_entry bodies.
+ * Each pool slot in BSS holds a heap pointer.  The "parallel-info-
+ * table" the rabbit-hole originally described as ~357 entries at
+ * 0x8a8578..0x8a8b14 is just a subset of this 909-entry pool.
  *
  * Disasm sequence at one call site (0x57fa93..0x57facb):
  *   call FUN_00582b80          ; clone sprite slot (this=src, arg=dst)
- *   mov  ecx, [0x8a8a40]       ; load entry-ptr from parallel table
+ *   mov  ecx, [0x8a8a40]       ; load entry-ptr from the pool
  *   call FUN_00582d00          ; clear *entry  (word@+0, dwords@+4/+8/+12)
  *   ; then: copy *[0x8a8a34] (template-entry) → *entry at offsets 0 and 4
  *   ; then: *(entry + 8) = &DAT_006752f8   (const PE rdata pointer)
@@ -226,35 +234,40 @@ _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset
  *   +0x00 (u16):  live/active marker — values 1 or 2 in the prefix
  *                 table breakdown (see 0057ca40-rabbit-hole.md table).
  *                 Cleared to 0 by ar_info_entry_clear.
- *   +0x02 (u16):  pad — NEVER touched by either the clear or the
- *                 template-copy chain.  Untouched in every observed
- *                 retail write.
- *   +0x04 (u32):  flag/state — 0/1/2 in observed writes (copied
- *                 verbatim from the template entry).
+ *   +0x02 (u16):  pad — never touched by the clear or the template-
+ *                 copy chain.  Untouched in every observed retail write.
+ *   +0x04 (u32):  flag/state — 0/1/2/3 in observed writes/reads
+ *                 (FUN_00586010:727-822 dispatches on the value).
  *   +0x08 (void*):const PE rdata pointer (e.g. &DAT_006752f8,
- *                 &DAT_006748d0, &DAT_00674ad8 — see 0057ca40
- *                 rabbit-hole "98 const-data-pointer writes" line).
- *   +0x0c (u32):  cleared to 0 by the clear; never written elsewhere
- *                 in the observed cluster.  Semantic role unknown.
- *
- * No consumer is ported yet — the struct exists solely so the
- * FUN_00582d00 port has a typed `this`.  Once the table indexing in
- * FUN_0057ca40 lands, this will be backed by an extension of the
- * g_ar_sprite_flags pool (currently a flat 14-entry uint32 array). */
+ *                 &DAT_006748d0, &DAT_00674ad8 — the 98 const-data-
+ *                 pointer writes).  Re-written at runtime by
+ *                 FUN_00587e00 for many entries.
+ *   +0x0c (void*):palette buffer pointer (256-entry, 1024 B).  Read
+ *                 by FUN_00586010:755 as `*(int ***)(entry + 0xc)` —
+ *                 if non-NULL it overrides the ar_palette_session_begin
+ *                 result; entries iterate it in parallel with the
+ *                 local palette for ar_color_lerp-style modifiers.
+ *                 Cleared to NULL by ar_info_entry_clear.
+ *   +0x10 (u32):  zeroed by the allocator; semantics unknown.  NOT
+ *                 touched by ar_info_entry_clear (14 B clear stops at
+ *                 +0x0e), so bytes 14..19 retain alloc-time zero plus
+ *                 whatever runtime writes happen elsewhere. */
 typedef struct ar_info_entry {
-    uint16_t   marker;     /* +0x00 */
-    uint16_t   _pad02;     /* +0x02 — untouched by the routines we model */
-    uint32_t   flag;       /* +0x04 */
-    const void *data;      /* +0x08 — const PE rdata pointer */
-    uint32_t   f_0c;       /* +0x0c */
+    uint16_t    marker;     /* +0x00 */
+    uint16_t    _pad02;     /* +0x02 — untouched by the routines we model */
+    uint32_t    flag;       /* +0x04 */
+    const void *data;       /* +0x08 — const PE rdata pointer */
+    void       *palette;    /* +0x0c — 1024 B palette buffer (256 RGBA) */
+    uint32_t    f_10;       /* +0x10 — alloc-zeroed; runtime semantics unknown */
 } ar_info_entry;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
-_Static_assert(sizeof(ar_info_entry)            == 0x10, "ar_info_entry must be 16 bytes");
-_Static_assert(offsetof(ar_info_entry, marker)  == 0x00, "info_entry marker offset");
-_Static_assert(offsetof(ar_info_entry, flag)    == 0x04, "info_entry flag offset");
-_Static_assert(offsetof(ar_info_entry, data)    == 0x08, "info_entry data offset");
-_Static_assert(offsetof(ar_info_entry, f_0c)    == 0x0c, "info_entry f_0c offset");
+_Static_assert(sizeof(ar_info_entry)             == 0x14, "ar_info_entry must be 20 bytes");
+_Static_assert(offsetof(ar_info_entry, marker)   == 0x00, "info_entry marker offset");
+_Static_assert(offsetof(ar_info_entry, flag)     == 0x04, "info_entry flag offset");
+_Static_assert(offsetof(ar_info_entry, data)     == 0x08, "info_entry data offset");
+_Static_assert(offsetof(ar_info_entry, palette)  == 0x0c, "info_entry palette offset");
+_Static_assert(offsetof(ar_info_entry, f_10)     == 0x10, "info_entry f_10 offset");
 #endif
 
 /* ─── globals — mirror retail BSS slot tables ────────────────────── */
@@ -312,29 +325,42 @@ extern ar_gdi_slot *g_ar_gdi_table[AR_GDI_SLOT_COUNT];   /* table[i] == &slots[i
 extern ar_sprite_slot  g_ar_sprite_ramp_slots[AR_SPRITE_RAMP_COUNT];
 extern ar_sprite_slot *g_ar_sprite_ramp_table[AR_SPRITE_RAMP_COUNT];
 
-/* Per-sprite parallel flags table — models the 14-entry retail BSS
- * region at 0x008a8578..0x008a85ac.  Each retail entry is itself a
- * POINTER to some still-unidentified struct (set up by some prior
- * init function we have not yet ported); the only observed write is
- * `*(uint32_t*)(*ptr + 4) = 0 or 3`, paired one-to-one with the 14
- * trailing FUN_005748c0 register calls in ar_register_palette_ramps.
+/* ar_info_entry pool — models the 909-entry retail BSS pointer table
+ * at 0x008a8440..0x008a9270.  The pool is allocated by FUN_00562ea0:225-253
+ * in lockstep with the sprite-slot pool (see g_ar_sprite_slots above):
+ * a single 909-iteration loop heap-allocs one 68 B sprite slot AND one
+ * 20 B info_entry per index, storing both pointers in adjacent BSS
+ * regions.  Our host model mirrors retail's pointer-indirected access:
+ * `g_ar_info_table[i]->field` is the equivalent of retail's
+ * `(*(struct **)(0x008a8440 + i*4))->field` and surfaces every write
+ * the disassembly performs through the +4 / +8 / +0xc offsets.
  *
- * We model just the observable +4 write as a flat 14-entry uint32
- * array, indexed in retail BSS order:
+ * Index → retail BSS pointer-slot map (each slot is 4 bytes; the
+ * pointed-to entry is 20 bytes):
  *
- *   flags[ 0] → 0x008a8578 (paired with sprite at 0x8a7744, id=1000)
- *   flags[ 1] → 0x008a857c (paired with sprite at 0x8a7748, id=0x3e9)
- *   flags[ 2] → 0x008a8580 (paired with sprite at 0x8a774c, id=0x7e4)
- *   ... 11 more ...
- *   flags[13] → 0x008a85ac (paired with sprite at 0x8a7778, id=0x6b9)
+ *   pool[  0] → 0x008a8440   pool[  1] → 0x008a8444   ...
+ *   pool[ 78] → 0x008a8578   (first "g_ar_sprite_flags" entry — the
+ *                             portrait-flag pairs the palette-ramp
+ *                             register batch writes)
+ *   pool[ 91] → 0x008a85ac   (last "g_ar_sprite_flags" entry)
+ *   pool[ 92] → 0x008a85b0   (first FUN_0057ca40 inline-template write)
+ *   pool[437] → 0x008a8b14   (last FUN_0057ca40 write — the "+4 = 2"
+ *                             tail entry; rabbit-hole table row 7)
+ *   pool[908] → 0x008a926c   (pool end; pool[909] would be 0x008a9270
+ *                             which is the start of the W_MGR pool —
+ *                             see g_ar_gdi_slots below)
  *
- * Semantic meaning unknown (likely a frame-count or facing flag for
- * portrait/character art).  Value is 0 or 3 per write; no consumer
- * is ported yet.  Modelled here so the observable behaviour of
- * ar_register_palette_ramps survives the port without requiring the
- * unknown backing struct. */
-#define AR_SPRITE_FLAGS_COUNT 14
-extern uint32_t g_ar_sprite_flags[AR_SPRITE_FLAGS_COUNT];
+ * Most pool entries past 437 are not touched at boot by any function
+ * we've decompiled.  Capacity matches retail exactly. */
+#define AR_INFO_ENTRY_COUNT 909
+extern ar_info_entry  g_ar_info_entries[AR_INFO_ENTRY_COUNT];
+extern ar_info_entry *g_ar_info_table[AR_INFO_ENTRY_COUNT];
+
+/* Portrait-flag region — 14 entries written by ar_register_palette_ramps
+ * with values 0 or 3 (paired one-to-one with the 14 trailing
+ * FUN_005748c0 register calls).  Retail pool indices 78..91. */
+#define AR_INFO_RAMP_FLAGS_BASE  78
+#define AR_INFO_RAMP_FLAGS_COUNT 14
 
 /* Sound slots — start at DAT_008a6ec4.  The first 12 entries
  * (DAT_008a6ec4..6ef0) are the "main sounds" populated by FUN_00579a00.
@@ -849,9 +875,9 @@ void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
  *   3. 14 portrait-sprite blocks — each registers a tall portrait
  *      sprite (typically 80×352 / 80×480 / 80×320 / 80×144 type=0) at
  *      retail addrs 0x8a7744..0x8a7778 (indices 65..78 in main pool)
- *      AND writes a "flags" value (0 or 3) into the parallel
- *      g_ar_sprite_flags[] table.  See the AR_SPRITE_FLAGS_COUNT
- *      doc-comment for the +4 indirection pattern.
+ *      AND writes a "flag" value (0 or 3) into
+ *      `g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + i]->flag`.  See
+ *      AR_INFO_ENTRY_COUNT for the pool layout.
  *
  * The function-level stack-local `bitmap_session` in retail is a
  * vestigial SEH-protected RAII placeholder — bs_release_no_free'd at
@@ -950,16 +976,17 @@ void ar_register_fonts(void *zdd, uint16_t group, void *settings);
  *      slot).  **PORTED HERE** as a 233-entry static table iterated
  *      through ar_sprite_slot_register.
  *
- *   2. **~380 parallel-table writes** at retail BSS 0x008a8578..0x008a8b14
- *      — `g_ar_sprite_flags[14..28] = 1` (15 writes in the same flat
- *      shape the previous batch wrote) PLUS ~360 writes at higher
- *      offsets that touch *different* fields of the same conceptual
- *      parallel pool (the pool entry is a pointer to a struct with at
- *      least +0/+4/+8 fields; we'd previously only modelled the +4
- *      slot).  **DEFERRED** — modeling requires extending g_ar_sprite_flags
- *      from flat-u32 to a proper struct array.  No consumer is ported
- *      yet, so behaviour-observable downstream code can't tell the
- *      difference.  See docs/findings/0057ca40-rabbit-hole.md.
+ *   2. **~380 ar_info_entry writes** at retail BSS 0x008a8578..0x008a8b14
+ *      — 15 `entry->flag = 1` writes extending the portrait-flag region
+ *      past idx 91 (the palette-ramp batch's tail), plus ~360 writes
+ *      that touch entry->flag / entry->data / entry->palette across
+ *      pool indices 92..437.  The pool itself (909 entries × 20 bytes)
+ *      is now modelled (see AR_INFO_ENTRY_COUNT), so what's left here
+ *      is the per-call-site indexing and the per-prefix semantics
+ *      (values 1 vs 2 in the flag, the const-data pointers, the
+ *      palette overrides).  **DEFERRED** — no consumer of these
+ *      writes is ported yet (FUN_00586010 reads them but is itself a
+ *      large draw routine).  See docs/findings/0057ca40-rabbit-hole.md.
  *
  *   3. **94 FUN_004179b0 calls** — SS_MGR thiscall "clone slot from
  *      another slot" operations (dst, src).  Clones one slot's metadata

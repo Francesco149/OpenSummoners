@@ -6,6 +6,49 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — ar_info_entry pool (909 entries) + allocator finding
+
+Followed the "where do the parallel-table pointer slots come from"
+thread to its root and unblocked the full pool model.  The allocator
+is **FUN_00562ea0:225-253** — a single 909-iteration loop that runs
+right before the "SS_MGR_Preparation" log line.  It heap-allocates
+two parallel pools side-by-side: a 0x44-byte sprite slot AND a
+0x14-byte info entry per index, stored in adjacent BSS pointer
+tables at 0x8a760c..0x8a8440 and 0x8a8440..0x8a9270.
+
+That pins three corrections we'd been waving past:
+
+  - **`ar_info_entry` is 20 bytes, not 16.**  The allocator zeros
+    five dwords (the last being `+0x10`); the existing `clear`
+    routine only touches the first 14 bytes.  Struct + static
+    asserts updated.
+  - **`+0x0c` is a palette pointer**, not the "f_0c semantics
+    unknown" placeholder.  FUN_00586010:755 reads it as
+    `*(int ***)(DAT + 0xc)`, uses it directly as the source of a
+    256-entry palette modifier loop when non-NULL, or falls back to
+    `ar_palette_session_begin` + `FUN_00417bc0(entry->data, ...)`
+    when NULL.  Renamed `f_0c` → `palette`.
+  - **The "parallel pool" is 909 entries, not ~357.**  Retail BSS
+    range 0x8a8578..0x8a8b14 (the rabbit-hole's "extends to ~357
+    entries" estimate) is just pool indices 78..437 of the full
+    909-entry table.
+
+`g_ar_sprite_flags[14]` (flat uint32) replaced by
+`g_ar_info_entries[909]` + `g_ar_info_table[909]`.  `ar_state_init`
+wires the table.  `ar_register_palette_ramps` now writes through the
+table: `g_ar_info_table[AR_INFO_RAMP_FLAGS_BASE + i]->flag = N`,
+matching retail's `*(int *)(DAT_008a85xx + 4) = N` pattern.
+
+One new pool-init test (168 pass / 0 fail / 4 skip, up from 167).
+Two existing info-entry tests refactored for the new field name
+(`f_0c` → `palette`) and the +0x10 field's leave-untouched
+guarantee.  `docs/findings/0057ca40-rabbit-hole.md` extended with
+sections 5 (allocator finding) and 6 (FUN_00586010 + FUN_00587e00
+consumer evidence).  HANDOFF's "Open RE threads" entries on
+g_ar_sprite_flags and the parallel-pool are now obsolete.
+
+---
+
 ## 2026-05-24 — FUN_00582b80 (slot clone) + FUN_00582d00 (info entry clear)
 
 Ported the next two functions from FUN_0057ca40's deferred subsystem

@@ -78,8 +78,9 @@ struct test_case {
     X(sprite_clone_deep_copies_aux_buf)                        \
     X(sprite_clone_no_aux_when_src_aux_null)                   \
     X(sprite_clone_resets_dst_id_and_group_to_uint16)          \
-    X(info_entry_clear_zeroes_marker_flag_data_f0c)            \
+    X(info_entry_clear_zeroes_marker_flag_data_palette)        \
     X(info_entry_clear_leaves_pad_untouched)                   \
+    X(info_entry_pool_wired_by_state_init)                     \
     X(gdi_destroy_deletes_each_handle)                         \
     X(gdi_reset_clears_then_allocates)                         \
     X(make_font_family_courier)                                \

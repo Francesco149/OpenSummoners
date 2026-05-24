@@ -609,21 +609,24 @@ int test_sprite_clone_resets_dst_id_and_group_to_uint16(void)
 
 /* ─── ar_info_entry_clear (FUN_00582d00) ─────────────────────────── */
 
-int test_info_entry_clear_zeroes_marker_flag_data_f0c(void)
+int test_info_entry_clear_zeroes_marker_flag_data_palette(void)
 {
     /* All four written fields go to 0/NULL. */
     ar_info_entry e;
-    e.marker = 0x1234;
-    e.flag   = 0xdeadbeefu;
-    e.data   = (const void *)0xcafebabeu;
-    e.f_0c   = 0x55555555u;
+    e.marker  = 0x1234;
+    e.flag    = 0xdeadbeefu;
+    e.data    = (const void *)0xcafebabeu;
+    e.palette = (void *)0x55555555u;
+    e.f_10    = 0x12345678u;  /* outside the 14-byte clear window */
 
     ar_info_entry_clear(&e);
 
     T_ASSERT_EQ_U(e.marker, 0u);
     T_ASSERT_EQ_U(e.flag,   0u);
     T_ASSERT_EQ_P(e.data,   NULL);
-    T_ASSERT_EQ_U(e.f_0c,   0u);
+    T_ASSERT_EQ_P(e.palette, NULL);
+    /* +0x10 lives past the 14-byte clear stride — must stay intact. */
+    T_ASSERT_EQ_U(e.f_10,   0x12345678u);
     return 0;
 }
 
@@ -631,14 +634,14 @@ int test_info_entry_clear_leaves_pad_untouched(void)
 {
     /* Retail writes `ax` to +0 (not eax), so the +2..+3 pad bytes
      * stay at whatever they were.  Pin that — the pad is part of the
-     * 16-byte struct and the rest of FUN_0057ca40's copy chain never
+     * 20-byte struct and the rest of FUN_0057ca40's copy chain never
      * touches it either. */
     ar_info_entry e;
     e.marker  = 0xabcd;
     e._pad02  = 0xface;
     e.flag    = 1u;
     e.data    = (const void *)0xfeedfaceu;
-    e.f_0c    = 9u;
+    e.palette = (void *)0x9u;
 
     ar_info_entry_clear(&e);
 
@@ -647,7 +650,27 @@ int test_info_entry_clear_leaves_pad_untouched(void)
     T_ASSERT_EQ_U(e.marker, 0u);
     T_ASSERT_EQ_U(e.flag,   0u);
     T_ASSERT_EQ_P(e.data,   NULL);
-    T_ASSERT_EQ_U(e.f_0c,   0u);
+    T_ASSERT_EQ_P(e.palette, NULL);
+    return 0;
+}
+
+int test_info_entry_pool_wired_by_state_init(void)
+{
+    /* ar_state_init mimics FUN_00562ea0:225-253's pool-init loop:
+     * every g_ar_info_table[i] should point into g_ar_info_entries[],
+     * and every entry should be zeroed. */
+    ar_state_init();
+    for (int i = 0; i < AR_INFO_ENTRY_COUNT; i++) {
+        T_ASSERT_EQ_P(g_ar_info_table[i], &g_ar_info_entries[i]);
+        T_ASSERT_EQ_U(g_ar_info_entries[i].marker, 0u);
+        T_ASSERT_EQ_U(g_ar_info_entries[i].flag,   0u);
+        T_ASSERT_EQ_P(g_ar_info_entries[i].data,   NULL);
+        T_ASSERT_EQ_P(g_ar_info_entries[i].palette, NULL);
+        T_ASSERT_EQ_U(g_ar_info_entries[i].f_10,   0u);
+    }
+    /* Ramp-flag base maps to retail BSS 0x008a8578 — i.e. pool[78]. */
+    T_ASSERT_EQ_I(AR_INFO_RAMP_FLAGS_BASE, 78);
+    T_ASSERT_EQ_I(AR_INFO_RAMP_FLAGS_COUNT, 14);
     return 0;
 }
 
