@@ -464,6 +464,25 @@ void ar_register_game_sounds(void *zds, uint16_t group, void *settings)
     }
 }
 
+/* ─── 4 inline `FUN_00563ef0` calls at FUN_00562ea0:617-620 ──────── */
+
+void ar_register_aux_sounds(void *zds, uint16_t group, void *settings)
+{
+    /* Issue order from FUN_00562ea0:617-620 (idx, resource_id).  Count
+     * is 2 for every entry.  The retail caller hardcodes group=2; we
+     * accept it as a parameter for API symmetry. */
+    static const struct { uint16_t idx; uint16_t id; } entries[4] = {
+        { 22, 0x4cb },
+        { 23, 0x4ca },
+        { 24, 0x4c8 },
+        { 25, 0x4c9 },
+    };
+    for (size_t i = 0; i < 4; i++) {
+        ar_sound_slot_init(g_ar_sound_table[entries[i].idx], zds, settings,
+                           entries[i].id, /*count=*/2, group);
+    }
+}
+
 /* ─── FUN_00579bd0 — top-level boot register batch ──────────────── */
 
 void ar_register_fonts(void *zdd, uint16_t group, void *settings)

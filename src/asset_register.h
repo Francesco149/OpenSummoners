@@ -451,14 +451,37 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings);
  *      Observable end state is identical to the inline path; all 174
  *      entries flow through `ar_sound_slot_init` here.
  *
- * Deferred — NOT in this function: the 4 inline `FUN_00563ef0` calls
- * the caller (FUN_00562ea0:617-620) issues at indices 22..25 with
- * group=2 (IDs 0x4c8..0x4cb), and the conditional locale-table loop
+ * Deferred — NOT in this function: the conditional locale-table loop
  * at the end of retail FUN_0057b280 (walks the 0x24-stride table at
  * &DAT_00691018, dispatches into the same pool keyed on locale state
- * at DAT_008a6e68/_6e70/_6e80).  Both will need their own ports when
- * the locale + per-scene paths land. */
+ * at DAT_008a6e68/_6e70/_6e80).  Will need its own port when the
+ * locale path lands.  The 4 inline `FUN_00563ef0` calls the caller
+ * (FUN_00562ea0:617-620) issues at indices 22..25 with group=2 are
+ * exposed separately as `ar_register_aux_sounds`. */
 void ar_register_game_sounds(void *zds, uint16_t group, void *settings);
+
+/* 4 inline `FUN_00563ef0` calls at FUN_00562ea0:617-620.
+ *
+ * Sit in the boot-driver register sequence BETWEEN FUN_0057a330
+ * (group 2 sprite register) and FUN_0057ca40 (group 3) — the four
+ * calls share group 2 with FUN_0057a330 and effectively tail it on
+ * the sound side.  Not part of FUN_0057b280 even though they
+ * populate four indices in the same pool range (22..25).
+ *
+ * Retail call shape, exactly as observed in the boot driver:
+ *
+ *   ar_sound_slot::FUN_00563ef0(&pool[22], zds, settings, 0x4cb, 2, 2, 0);
+ *   ar_sound_slot::FUN_00563ef0(&pool[23], zds, settings, 0x4ca, 2, 2, 0);
+ *   ar_sound_slot::FUN_00563ef0(&pool[24], zds, settings, 0x4c8, 2, 2, 0);
+ *   ar_sound_slot::FUN_00563ef0(&pool[25], zds, settings, 0x4c9, 2, 2, 0);
+ *
+ * All four pass `load_flag = 0`, so the lazy wave-load branch is
+ * dead — `ar_sound_slot_init` semantics apply (same six writes as
+ * ar_register_sounds / ar_register_game_sounds).
+ *
+ * Group is parameterised for symmetry with the other register
+ * batches, but retail always passes 2. */
+void ar_register_aux_sounds(void *zds, uint16_t group, void *settings);
 
 /* ─── top-level driver calls ─────────────────────────────────────── */
 

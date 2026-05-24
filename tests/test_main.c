@@ -107,6 +107,9 @@ struct test_case {
     X(game_sounds_resource_ids_unique)                         \
     X(game_sounds_coexists_with_main_sounds)                   \
     X(game_sounds_buffer_pointer_preserved)                    \
+    X(aux_sounds_writes_four_entries)                          \
+    X(aux_sounds_fills_game_sounds_gap)                        \
+    X(aux_sounds_buffer_pointer_preserved)                     \
     X(ar_layout_matches_retail)                                \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \

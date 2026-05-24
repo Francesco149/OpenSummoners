@@ -1411,6 +1411,95 @@ int test_game_sounds_buffer_pointer_preserved(void)
     return 0;
 }
 
+/* ─── ar_register_aux_sounds (4 inline calls at 562ea0:617-620) ──── */
+
+int test_aux_sounds_writes_four_entries(void)
+{
+    /* Indices 22..25 must each have id/count/group/zds/settings/state
+     * matching the retail call shape; index 21 and 26 must stay
+     * untouched (the batch is exactly 4 entries). */
+    ar_state_init();
+    void *zds = (void *)0xa1d;
+    void *settings = (void *)0x5e7;
+    ar_register_aux_sounds(zds, /*group=*/2, settings);
+
+    struct exp { int idx; uint16_t id; };
+    static const struct exp checks[] = {
+        { 22, 0x4cb },   /* DAT_008a6f1c */
+        { 23, 0x4ca },   /* DAT_008a6f20 */
+        { 24, 0x4c8 },   /* DAT_008a6f24 */
+        { 25, 0x4c9 },   /* DAT_008a6f28 */
+    };
+    for (size_t i = 0; i < sizeof(checks)/sizeof(checks[0]); i++) {
+        const struct exp *e = &checks[i];
+        const ar_sound_slot *s = &g_ar_sound_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("slot[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        T_ASSERT_EQ_U(s->count, 2u);
+        T_ASSERT_EQ_P(s->zds, zds);
+        T_ASSERT_EQ_P(s->settings, settings);
+        T_ASSERT_EQ_U(s->group, 2u);
+        T_ASSERT_EQ_U(s->state, 0u);
+        T_ASSERT_EQ_P(s->buffer, NULL);
+    }
+    /* Flanking slots untouched. */
+    T_ASSERT_EQ_P(g_ar_sound_slots[21].zds, NULL);
+    T_ASSERT_EQ_P(g_ar_sound_slots[26].zds, NULL);
+    return 0;
+}
+
+int test_aux_sounds_fills_game_sounds_gap(void)
+{
+    /* In the boot driver, ar_register_aux_sounds runs BEFORE
+     * ar_register_game_sounds — the 22..25 gap reported by the
+     * game-sounds index-range test is exactly what aux_sounds owns.
+     * Running both back-to-back must yield a contiguous 12..25
+     * pool: 12..13 (game_sounds thiscall), 14..21 (game_sounds
+     * inline), 22..25 (aux_sounds), 26+ (game_sounds again).
+     *
+     * Catches: aux_sounds drifting off-range, or game_sounds
+     * accidentally writing to 22..25 itself (which would stomp the
+     * group=2 tag aux_sounds just stamped). */
+    ar_state_init();
+    ar_register_aux_sounds((void *)0xa, /*group=*/2, (void *)0xb);
+    ar_register_game_sounds((void *)0xc, /*group=*/3, (void *)0xd);
+
+    /* aux_sounds' slots survive game_sounds with group 2 + their IDs. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[22].group, 2u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[22].resource_id, 0x4cbu);
+    T_ASSERT_EQ_U(g_ar_sound_slots[25].group, 2u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[25].resource_id, 0x4c9u);
+    /* Neighbouring game_sounds slots survive with group 3. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[21].group, 3u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[21].resource_id, 0x4c6u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[26].group, 3u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[26].resource_id, 0x4bfu);
+
+    /* Contiguous-fill check: every idx 12..26 is now populated. */
+    for (int i = 12; i <= 26; i++) {
+        if (g_ar_sound_slots[i].zds == NULL)
+            T_FAIL("slot[%d] still zero after aux + game_sounds", i);
+    }
+    return 0;
+}
+
+int test_aux_sounds_buffer_pointer_preserved(void)
+{
+    /* Same lazy-load invariant as the other sound registers — if the
+     * wave loader has populated `buffer`, calling the register AGAIN
+     * must not stomp it. */
+    ar_state_init();
+    g_ar_sound_table[22]->buffer = (void *)0xdead1;
+    g_ar_sound_table[25]->buffer = (void *)0xdead2;
+
+    ar_register_aux_sounds(NULL, 0, NULL);
+
+    T_ASSERT_EQ_P(g_ar_sound_table[22]->buffer, (void *)0xdead1);
+    T_ASSERT_EQ_P(g_ar_sound_table[25]->buffer, (void *)0xdead2);
+    return 0;
+}
+
 /* ─── layout parity (32-bit only) ────────────────────────────────── */
 
 int test_ar_layout_matches_retail(void)
