@@ -14,19 +14,17 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  Three modules are now ported:
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 19 functions ported.  Pure logic with GDI
+- **Asset-Register** — 21 functions ported.  Pure logic with GDI
   wrappers split into `asset_register_win32.c` (real build only).
-  Latest adds close out the FUN_0057b280 backlog:
-  - `ar_register_aux_sounds` — the 4 inline `FUN_00563ef0` calls
-    the boot driver issues at `FUN_00562ea0:617-620` (indices
-    22..25, group 2, IDs 0x4cb / 0x4ca / 0x4c8 / 0x4c9).
-  - `ar_register_locale_sounds` — the conditional locale-table
-    loop at the tail of retail FUN_0057b280 (walks the 283-entry
-    rdata table at `0x00691018` keyed on an `ar_locale_state`
-    struct the boot driver will populate from
-    DAT_008a6e68 / _6e70 / _6e80+0x1c8).  Touched indices span
-    160..464; pool capacity bumped 256 → 512 to fit the retail
-    465-slot W_MGR allocation (`AR_SOUND_POOL_COUNT = 465`).
+  Latest adds the two leaf halves of the palette trio:
+  - `ar_palette_pack_entry` (FUN_005b5d90) — pack a COLORREF into a
+    Win32 PALETTEENTRY.  Independent of any container.
+  - `ar_palette_install` (FUN_00491770) — lazy-install a 1024-byte
+    palette onto `ar_sprite_slot.entries[0].b`.  Leak-clean against
+    the existing destructor.
+  Third piece — `FUN_004178e0` (begin palette session, PE-resource
+  decoder front-end) — deferred; see `docs/findings/palette-session.md`
+  for the rabbit-hole notes and the blocking ECX question.
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c` (the pump's spin-loop
@@ -35,7 +33,7 @@ methodical port-and-test.  Three modules are now ported:
   (paint helper, input acquire, ZDM, app pause, post-activate
   scrub) — all are no-op placeholders in `wnd_proc_win32.c`.
 
-Total host tests across all three modules: **111 pass, 0 fail, 3
+Total host tests across all three modules: **117 pass, 0 fail, 3
 skip** (the 3 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -48,16 +46,16 @@ wrapper.  The 8 asset-register thiscalls are tagged.  See
 
 Most recent commits (newest first):
 
+- `6db790d` docs: capture palette-session + PE-resource decoder rabbit hole
+- `d3e8a00` Asset-Register: port palette-trio leaves (FUN_005b5d90 + FUN_00491770)
+- `811f56c` docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
 - `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
 - `d4198b0` Asset-Register: port ar_register_aux_sounds (FUN_00562ea0:617-620)
-- (pending) docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
 - `09c2bfd` docs: capture FUN_0057b280 locale-table layout finding
 - `40aabdf` docs: HANDOFF + PROGRESS for FUN_0057b280 checkpoint
 - `5814772` Asset-Register: port FUN_0057b280 (ar_register_game_sounds)
 - `f96f375` WndProc: port FUN_005b12e0 (wp_handle_message)
 - `2a94b02` tools: ghidra-tag-and-export.sh convenience wrapper
-- `b8de62b` tools: TagThiscallFunctions script + bump decomp payload limit
-- `fc71279` docs: C++ class-recovery workflow + Kaiju extension
 
 ## Active goal
 
@@ -68,21 +66,29 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-The FUN_0057b280 sound-batch backlog is now fully ported.  Next-
-biggest unblocked items:
+The palette-trio leaves are done.  The "begin palette session" half
+(`FUN_004178e0`) is still deferred — the only sensible way to unblock
+it is to first model the bitmap-session struct in Ghidra so the
+typed decomp reveals which `this` `FUN_005b7800` actually runs on.
 
-1. **(recommended) Palette-session trio** (FUN_004178e0 +
-   FUN_00491770 + FUN_005b5d90).  FUN_005b5d90 is a 3-byte COLORREF
-   pack — trivial.  FUN_00491770 copies a 1024-byte palette into
-   `**this+4`.  FUN_004178e0 is the hard one: opens the sprite's
-   PE-resource handle via FUN_005b7800 (359 B, calls FUN_005b71f0 /
-   FUN_005b7c10 for the actual decode), checks if 8-bit-indexed via
-   FUN_005b6f00, conditionally replaces its palette via FUN_005b7b90.
-   Whole PE-resource decoder needed (FUN_005b7800 + FUN_005b71f0 +
-   FUN_005b7c10) — this is the biggest blocker for indexed-sprite
-   work.  Unblocks the deferred palette ramps in FUN_005749b0 AND
-   the entire FUN_0057a330 batch (the second-biggest sprite-
-   register call at boot).
+1. **(recommended) Tag the bitmap_session class in Ghidra + port the
+   PE-resource decoder.**  Steps:
+   a. Create `src/bitmap_session.h` with the inferred struct layout
+      from `docs/findings/palette-session.md` (offsets +0x00 pixel
+      buffer, +0x04 stride, +0x0c BITMAPINFOHEADER, +0x34 palette).
+   b. Add rows to `tools/ghidra-scripts/TagThiscallFunctions.java`
+      TAGS array for the 8 bitmap-session thiscalls:
+      `FUN_005b71f0`, `FUN_005b6e70`, `FUN_005b6e90`,
+      `FUN_005b6f00`, `FUN_005b6f10`, `FUN_005b7800`, `FUN_005b7b90`,
+      `FUN_005b7c10`.
+   c. Run `./tools/ghidra-tag-and-export.sh` and re-read the
+      re-exported decomps.  The typed decomp should reveal whether
+      `FUN_005b7800`'s ECX in `FUN_004178e0` is the same `this` or
+      a sibling object.
+   d. Port the decoder + `FUN_004178e0` + wire the palette ramp in
+      `ar_register_main_sprites` (`src/asset_register.c:954`).
+      Unblocks indexed-sprite work AND the entire `FUN_0057a330`
+      batch (second-biggest sprite-register call at boot).
 
 2. **WndProc dependency formalization** — model the layouts of the
    5 "deep engine" structs (paint context with +0x164 state and
@@ -102,8 +108,8 @@ biggest unblocked items:
    implementation.
 
 4. **`FUN_0057a330`** (3919 B) — heavy palette-ramp work per
-   sprite.  Blocked on the palette-session trio (#1).  Big — that's
-   a PE-resource decoder for indexed sprites.
+   sprite.  Blocked on the palette-session front half (#1).  Big —
+   that's PE-resource decoding for indexed sprites.
 
 5. **`FUN_0057ca40`** (24884 B) — Ghidra decompile FAILS (response
    buffer exceeded).  Will need radare2 hand-disasm or chunked
@@ -120,7 +126,7 @@ src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
-  asset_register.c/h        Asset-register slots (GDI, sprite, sound) — 19 functions
+  asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette) — 21 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   wnd_proc.c/h              Main game window WndProc — pure dispatch
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + 5 placeholder hooks
@@ -132,13 +138,14 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     60 tests for Asset-Register
+  test_asset_register.c     66 tests for Asset-Register
   test_wnd_proc.c           20 tests for WndProc
 
 tools/
   frida_capture.py          headless retail harness driver
   frida/opensummoners-agent.js   Frida agent
   run-retail.sh             single-source-of-truth dev loop
+  ghidra-tag-and-export.sh  one-shot wrapper for Ghidra re-tag + re-export
 ```
 
 ## Open RE threads (not picked up yet)
@@ -185,13 +192,19 @@ tools/
   per-scene asset loads later in the engine will need it.
 - FUN_005749b0's palette ramp section (between inline slot 5 and
   slot 9 writes) is documented in the driver but skipped — depends on
-  the palette-session trio AND a PE-resource decoder.  The slot at
-  idx 0 (DAT_008a7640, id 0x90b from sotesp.dll) HAS been registered;
-  only the palette upload step is missing.
+  the palette-session FRONT half (`FUN_004178e0` + PE-resource decoder
+  — see `docs/findings/palette-session.md`).  The two LEAF halves
+  (`ar_palette_pack_entry`, `ar_palette_install`) are now in place.
+  The slot at idx 0 (DAT_008a7640, id 0x90b from sotesp.dll) HAS been
+  registered; only the seed + install steps are missing.
 - The 5 "deep engine" structs the WndProc port depends on
   (paint context, input device, ZDM, input manager singleton, log
   singleton) are modelled as opaque void* in the port — see
   "Next move" #2 for the formalization track.
+- The bitmap_session struct (inferred layout in
+  `docs/findings/palette-session.md`) is NOT yet in any header.  It
+  needs to be the FIRST step of the recommended #1 next-move so
+  Ghidra can type the `FUN_005b78xx` family with `this->field` reads.
 - Locale-table magic / sequence fields: the +0x00 magic field has
   23 distinct values (0xc35a..0xc35d, 0xc4ae, 0xc7xx family,
   0xc8xx family, 0xe2a4..0xe2a8, 0x1874e..0x18759) — the loop only

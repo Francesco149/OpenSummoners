@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: palette-trio leaves (FUN_005b5d90 + FUN_00491770)
+
+Ported the two leaf halves of the FUN_005749b0 palette-ramp trio
+that don't need the PE-resource decoder:
+
+**`ar_palette_pack_entry`** (FUN_005b5d90, 33 B) — pack a Win32
+`COLORREF` (`0x00BBGGRR`) into one `PALETTEENTRY` (peRed, peGreen,
+peBlue, peFlags=0).  Independent of any container.  Used between
+the seed step and install step to override or lerp individual
+palette entries.
+
+**`ar_palette_install`** (FUN_00491770, 52 B) — lazy-install a
+256-entry (1024-byte) palette onto a sprite slot's first entry.
+Allocates `s->entries[0].b` on first call; the existing
+`ar_sprite_slot_destroy` already frees it iff non-zero, so the
+round trip is leak-clean.  The Ghidra decomp's
+`*(int *)(*in_ECX + 4)` pattern is `(*this)+4` →
+`entries[0].b` of `ar_sprite_entry` — `entries[0].b` is the
+owned-pointer half of the entry record.
+
+The third piece — `FUN_004178e0`, "begin palette session" — is NOT
+ported.  It needs the whole PE-resource decoder chain
+(`FUN_005b7800` + `FUN_005b71f0` + `FUN_005b7c10` + the small
+release-helper group + `FUN_005b7b90` RGBA↔BGRA swap).  Blocking
+question: which `this` does `FUN_005b7800` actually run on?  The
+offsets `+0x3c` / `+0x40` in FUN_004178e0 match `ar_sprite_slot`
+(`settings`, `resource_id`), but the bitmap-session layout
+FUN_005b7800 needs (pixel buffer at +0x00, palette at +0x34..+0x434)
+doesn't fit overlaid on an `ar_sprite_slot` (which has `entries`
+at +0x00 and `aux_buf` at +0x34).  Most likely the actual ECX is
+reset before the FUN_005b7800 call — the Ghidra decomp drops
+__thiscall ECX setups for un-tagged callsites.  Full layout
+analysis and resolution path are in
+`docs/findings/palette-session.md`.
+
+Tests: +6 (pack basic / top-byte ignore / overwrite; install
+lazy-alloc / reuse / destroy round trip).  **117 pass, 0 fail,
+3 skip**.  Win32 cross build clean.  Commits: `d3e8a00`, `6db790d`.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_0057b280 tail (ar_register_locale_sounds + ar_register_aux_sounds)
 
 Closed FUN_0057b280's deferred backlog from the previous checkpoint
