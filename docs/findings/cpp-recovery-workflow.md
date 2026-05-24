@@ -65,16 +65,15 @@ function and define its `this` type once** in Ghidra.  This restores
 the dropped ECX setups across all callers without needing a class
 analyzer.
 
-### Workflow
+### Workflow (manual / GUI — for one-off exploration)
 
 For each function we've identified as `__thiscall` (i.e. the first
 ECX-from-DAT pattern we see in radare2):
 
 1. **Define the `this` struct as a Ghidra Data Type** if not already.
-   Window → Data Type Manager → right-click the program folder →
-   "New" → Structure.  Match the C struct in `src/asset_register.h`
-   field-by-field (offsets matter; padding bytes that the static
-   asserts pin should also appear in the Ghidra struct).
+   Either via Window → Data Type Manager → right-click → "New" →
+   Structure, OR via File → Parse C Source on the relevant header
+   under `src/`.
 2. **Open the function in the Listing view**, right-click its
    signature → "Edit Function Signature".
 3. Change **Calling Convention** to `__thiscall`.
@@ -83,6 +82,10 @@ ECX-from-DAT pattern we see in radare2):
    now appear as `this->field` accesses, and call sites that pass
    slot pointers via ECX should now show the slot pointer as the
    first argument.
+
+For systematic batch work, prefer the headless wrapper documented
+in the next section — it does all this in one command using the
+TAGS table baked into TagThiscallFunctions.java.
 
 ### Concrete test target
 
@@ -140,34 +143,76 @@ When that day arrives, the order of operations:
 5. **If we're swamped**: install Pharos + run OOAnalyzer against the
    exe to JSON, import via Kaiju's OOAnalyzer JSON importer.
 
-## Automated tagging — `TagThiscallFunctions.java`
+## Automated parsing + tagging — `ParseCSource.java` + `TagThiscallFunctions.java`
 
-For tagging many functions at once, edit the `TAGS` array in
-`tools/ghidra-scripts/TagThiscallFunctions.java`, save + close Ghidra,
-then:
+For applying many tags at once, edit the `TAGS` array in
+`tools/ghidra-scripts/TagThiscallFunctions.java`, ensure any new
+struct shape is defined in one of the headers listed in
+`tools/ghidra-tag-and-export.sh`'s `HEADERS=(...)` array
+(currently `src/asset_register.h`, `src/bitmap_session.h`,
+`src/wnd_proc.h`), then:
 
 ```bash
 nix develop -c ./tools/ghidra-tag-and-export.sh
 ```
 
-Which is just a wrapper for these two underlying commands in sequence:
+Which is three stages in one analyzeHeadless session:
 
 ```bash
-# Apply the tags
 nix develop -c ghidra-analyzeHeadless ghidra/projects opensummoners \
     -process sotes.unpacked.exe \
     -noanalysis \
     -scriptPath tools/ghidra-scripts \
+    -postScript ParseCSource.java src/asset_register.h src/bitmap_session.h src/wnd_proc.h \
     -postScript TagThiscallFunctions.java
 
 # Re-export the C dump so the new this->field accesses show up
 nix develop -c ./tools/ghidra-headless.sh
 ```
 
-The Java port exists because Ghidra-on-nix is built without PyGhidra,
-so the equivalent `.py` script fails with "Python is not available"
-under headless.  A `.py` twin lives next to the `.java` for reference
-and works from the GUI Script Manager if you ever want it there.
+### How ParseCSource handles our headers
+
+Our headers `#include <stdint.h>` / `<stddef.h>` / `<stdbool.h>` and
+use `_Static_assert(sizeof(...) == N, "...")` for compile-time
+layout checks.  Ghidra's bundled CPP preprocessor has neither a
+libc on its include path nor knowledge of the C11 `_Static_assert`
+keyword, so a naive parse fails with "Encountered ... uintptr_t".
+
+`ParseCSource.java` papers over both:
+
+- **Include path**: hardcoded to `tools/ghidra-cpp-shim/` —
+  contains minimal `stdint.h` / `stddef.h` / `stdbool.h` that
+  typedef the integer types as 32-bit-target equivalents (e.g.
+  `uintptr_t = unsigned int`).  Only the typedefs our headers
+  use are provided.
+- **Preprocessor args**: `-D_Static_assert(c,m)=` makes the
+  `_Static_assert` keyword expand to nothing.  CPP-style macro
+  with 2 args matches the C11 syntax exactly.
+
+The shim is for Ghidra parse ONLY — the C build uses the real
+`<stdint.h>` from the mingw toolchain.  Do not include the shim
+headers from production C code.
+
+### Discipline for new headers
+
+When you add a new struct shape that gets named in
+`TagThiscallFunctions.java`'s TAGS:
+
+1. Define the struct in an `.h` under `src/`.  Use plain types
+   (`uint32_t`, `void *`, etc.) — the shim resolves these.
+2. Add `_Static_assert(offsetof(...) == ..., "...")` lines to
+   pin key offsets at C compile time.  These are stripped before
+   Ghidra sees them.
+3. Add the `.h` to the `HEADERS=(...)` array in
+   `tools/ghidra-tag-and-export.sh`.
+4. Add the TAGS row referencing the struct name as the class.
+5. Run `nix develop -c ./tools/ghidra-tag-and-export.sh`.
+
+The Java port of TagThiscallFunctions exists because Ghidra-on-nix
+is built without PyGhidra, so the equivalent `.py` script fails
+with "Python is not available" under headless.  A `.py` twin lives
+next to the `.java` for reference and works from the GUI Script
+Manager if you ever want it there.
 
 ### Batching guidance
 

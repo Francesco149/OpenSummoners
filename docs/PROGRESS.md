@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Headless Parse C Source automation
+
+Ported the `ParseCSource.java` script from sibling OpenMare to
+`tools/ghidra-scripts/`, plus a `tools/ghidra-cpp-shim/` directory
+with minimal `stdint.h` / `stddef.h` / `stdbool.h` shims for
+Ghidra's bundled CPP (it has no libc).  ParseCSource passes the
+shim dir as an include path and `-D_Static_assert(c,m)=` to strip
+the C11 keyword from our headers, so `src/asset_register.h`,
+`src/bitmap_session.h`, and `src/wnd_proc.h` parse cleanly into
+Ghidra's DTM in headless mode.
+
+`tools/ghidra-tag-and-export.sh` upgraded to a 3-stage pipeline
+running in one analyzeHeadless session: ParseCSource → TagThiscall
+Functions → ExportDecompiledC.  Verified end-to-end: all 14 structs
+parsed (sizes match — paint_ctx=368, zdm_entry=56, log_singleton=1284,
+etc.), 24/24 tags applied, 1768 functions re-exported.
+
+Immediate payoff: the bodies of the 7 WndProc-dep thiscalls now
+show typed `this->field` accesses.  paint_ctx::FUN_005b9130 reads
+`if (this->state == 2) { BitBlt(hdc, this->blit_x, this->blit_y,
+this->blit_w, this->blit_h, ...); FUN_005b94e0(this->back_ctx, ...); }`.
+The WndProc itself reads as a clean class-dispatched function
+(`input_mgr::FUN_0058ffa0((input_mgr *)&DAT_008a6b60, 1)`,
+`zdm::FUN_005bbd20(DAT_008a93e4, ...)`, etc.).  No more
+"open Ghidra GUI + Parse C Source" manual step — `nix develop -c
+./tools/ghidra-tag-and-export.sh` is the single command for
+struct-edit → typed-decomp.
+
+See `docs/findings/cpp-recovery-workflow.md` "Automated parsing +
+tagging" section for the full how-to + new-header discipline.
+
+---
+
 ## 2026-05-24 — WndProc dependency formalization
 
 Modeled the 5 "deep engine" struct shapes the WndProc reaches through

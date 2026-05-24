@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# tools/ghidra-tag-and-export.sh — apply thiscall tags + re-export decomp.
+# tools/ghidra-tag-and-export.sh — parse C headers, apply thiscall tags,
+# re-export decomp.
 #
-# Convenience wrapper that runs TagThiscallFunctions.java against the
-# existing Ghidra project, then re-exports the C dump via the existing
-# ghidra-headless.sh.  Use this after editing the TAGS array in
-# tools/ghidra-scripts/TagThiscallFunctions.java to apply new tags
-# without manually invoking analyzeHeadless twice.
+# Three stages in one analyzeHeadless session (DTM survives across them):
+#   1. ParseCSource.java — parse src/*.h into Ghidra's Data Type Manager
+#      so the class names referenced by TagThiscallFunctions's TAGS
+#      table resolve to typed `this *` (not `void *`).
+#   2. TagThiscallFunctions.java — apply (address, class, prototype)
+#      tags from the in-script TAGS table.
+#   3. ghidra-headless.sh — re-run full re-export of docs/decompiled/.
 #
-# Workflow context:
-#   1. Edit tools/ghidra-scripts/TagThiscallFunctions.java — add rows to
-#      the TAGS array for each new thiscall function being tagged.
-#   2. Close Ghidra (headless needs the project's write lock).
+# Workflow:
+#   1. Edit src/*.h (struct shapes) AND/OR
+#      tools/ghidra-scripts/TagThiscallFunctions.java (TAGS rows).
+#   2. Close any Ghidra GUI instance that holds the project's write lock.
 #   3. Run this script.
-#   4. The updated decomps land in docs/decompiled/*.c with typed
-#      this->field accesses for all newly-tagged functions, plus
-#      typed call-sites in their callers.
+#   4. Updated decomps land in docs/decompiled/*.c with typed this->field
+#      accesses across the family.
 #
-# Re-runs are idempotent: the tag step skips functions already tagged
-# to the target state, and the export step rewrites the dump from
-# scratch.
+# Re-runs are idempotent: parse step pre-cleans stale DTM entries before
+# re-parse, tag step skips already-applied tags, export rewrites the
+# dump from scratch.
 #
 # See docs/findings/cpp-recovery-workflow.md.
 
@@ -31,6 +33,16 @@ INPUT="$ROOT/vendor/unpacked/sotes.unpacked.exe"
 PROJ_DIR="$ROOT/ghidra/projects"
 PROJ_NAME="opensummoners"
 SCRIPT_DIR="$ROOT/tools/ghidra-scripts"
+
+# Headers that define structs referenced by TagThiscallFunctions.java's
+# TAGS table (class-name column).  Order matters only if one header
+# includes another; ours are self-contained so any order works.
+HEADERS=(
+    "$ROOT/src/asset_register.h"    # ar_sprite_slot, ar_gdi_slot, ar_sound_slot
+    "$ROOT/src/bitmap_session.h"    # bitmap_session
+    "$ROOT/src/wnd_proc.h"          # paint_ctx, input_dev, zdm, zdm_entry,
+                                    # input_mgr, log_singleton, wp_app_ctx
+)
 
 bold()   { printf "\033[1m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
@@ -49,21 +61,32 @@ if ! command -v ghidra-analyzeHeadless >/dev/null 2>&1; then
     exit 1
 fi
 
-if [[ ! -f "$SCRIPT_DIR/TagThiscallFunctions.java" ]]; then
-    red "Missing $SCRIPT_DIR/TagThiscallFunctions.java (should be tracked in git)"
-    exit 1
-fi
+for f in "$SCRIPT_DIR/ParseCSource.java" "$SCRIPT_DIR/TagThiscallFunctions.java"; do
+    if [[ ! -f "$f" ]]; then
+        red "Missing $f (should be tracked in git)"
+        exit 1
+    fi
+done
 
-bold "[1/2] Applying thiscall tags"
-yellow "  via TagThiscallFunctions.java — typically a few seconds"
+for h in "${HEADERS[@]}"; do
+    if [[ ! -f "$h" ]]; then
+        red "Missing header: $h"
+        exit 1
+    fi
+done
+
+bold "[1/2] Parsing headers + applying thiscall tags"
+green "  headers: ${HEADERS[*]##*/}"
+yellow "  via ParseCSource.java + TagThiscallFunctions.java — typically a few seconds"
 
 ghidra-analyzeHeadless "$PROJ_DIR" "$PROJ_NAME" \
     -process "$(basename "$INPUT")" \
     -noanalysis \
     -scriptPath "$SCRIPT_DIR" \
+    -postScript ParseCSource.java "${HEADERS[@]}" \
     -postScript TagThiscallFunctions.java 2>&1 \
-    | grep -E 'TagThiscallFunctions|Result:|ERROR|REPORT.*Save' \
-    || { red "tag step failed (see full output above)"; exit 1; }
+    | grep -E 'ParseCSource|TagThiscallFunctions|parsed|Result:|ERROR|WARNING|REPORT.*Save' \
+    || { red "parse/tag step failed (see full output above)"; exit 1; }
 
 echo
 bold "[2/2] Re-exporting C decomp"

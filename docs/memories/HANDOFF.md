@@ -43,16 +43,22 @@ previously called "Ghidra-fails" decomps cleanly now with the typed
 structs in scope.  See `docs/findings/cpp-recovery-workflow.md` for
 the full workflow.
 
-The 7 new WndProc-dep tags (paint_ctx/input_dev/zdm/input_mgr/
-log_singleton) currently fall back to `void *this` in the bodies
-because the new struct definitions in `src/wnd_proc.h` haven't been
-parsed into Ghidra's DTM yet.  Call sites already show the explicit
-`this` arg though; full upgrade to typed `this->field` reads
-requires a one-time GUI step (see "Next move" #1 below).
+**The full pipeline is now headless.**  `tools/ghidra-tag-and-export.sh`
+runs in three stages in a single analyzeHeadless session:
+ParseCSource.java parses `src/asset_register.h`, `src/bitmap_session.h`,
+`src/wnd_proc.h` into the DTM (with a `tools/ghidra-cpp-shim/`
+include path that supplies minimal `stdint.h`/`stddef.h`/`stdbool.h`
+since Ghidra's bundled CPP has no libc, and `-D_Static_assert(c,m)=`
+to strip the C11 keyword), TagThiscallFunctions.java applies the
+TAGS, then ExportDecompiledC.java re-exports.  Every typed
+`this->field` access lands in the decomp — no more GUI Parse C
+Source step.
 
 Most recent commits (newest first):
 
-- (current) WndProc: model 5 deep-engine struct shapes + tag thiscall deps
+- (current) tooling: automate Parse C Source headlessly in tag-and-export wrapper
+- `8a3629c` WndProc: correct paint_ctx — add +0x16c back_ctx pointer
+- `40dc757` WndProc: model 5 deep-engine struct shapes + tag thiscall deps
 - `edbaf19` Asset-Register: port FUN_0057ca40 slot-register subset (ar_register_group3_sprites)
 - `39d9602` Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
 - `dcc3d15` Asset-Register: port ar_register_palette_ramps (FUN_0057a330)
@@ -73,45 +79,27 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 ## Next move (pick one — recommendation first)
 
 The 5 deep-engine struct shapes (paint_ctx, input_dev, zdm,
-input_mgr, log_singleton) are now defined in `src/wnd_proc.h` and
-the corresponding 7 thiscall functions (FUN_005b9130, FUN_005b94e0,
-FUN_005b9500, FUN_005ba290, FUN_005bbd20, FUN_0058ffa0, FUN_00408b90)
-are tagged with class namespace + `__thiscall` + typed prototype.
-Re-exported decomps show the call sites with explicit `this` args.
-The struct *bodies* still decompile as `*(int *)(this + 0xN)`-style
-casts because Ghidra's DTM doesn't have the struct definitions yet
-— the typed prototype only types the `this` arg, not the deref reads.
+input_mgr, log_singleton) are now defined in `src/wnd_proc.h`, the
+7 thiscall functions (FUN_005b9130, FUN_005b94e0, FUN_005b9500,
+FUN_005ba290, FUN_005bbd20, FUN_0058ffa0, FUN_00408b90) are tagged,
+and the re-export landed typed `this->field` reads across the
+family.  Example: `paint_ctx::FUN_005b9130(paint_ctx *this, HWND target)`
+now reads `if (this->state == 2) { ... BitBlt(hdc, this->blit_x,
+this->blit_y, this->blit_w, this->blit_h, ...); FUN_005b94e0(this->back_ctx, &target); }`.
+The WndProc itself reads as a clean class-dispatched function:
+`input_mgr::FUN_0058ffa0((input_mgr *)&DAT_008a6b60, 1)`,
+`zdm::FUN_005bbd20(DAT_008a93e4, ...)`,
+`log_singleton::FUN_00408b90((log_singleton *)&DAT_008a6620, "ActivateInputDevice CP1", 0, &CRLF)`.
 
-1. **(recommended) Parse C Source on wnd_proc.h in Ghidra GUI** —
-   one-time manual step (~30s):
-   - Open Ghidra GUI on the opensummoners project.
-   - File → Parse C Source → add `src/wnd_proc.h` to the source file
-     list (and ensure `src/asset_register.h` + `src/bitmap_session.h`
-     are still there from prior parses; the dialog remembers them).
-   - "Parse to Program" so the 5 new structs (paint_ctx, input_dev,
-     zdm, zdm_entry, input_mgr, log_singleton) land in the program's
-     DTM.
-   - Close Ghidra.
-   - Re-run `nix develop -c ./tools/ghidra-tag-and-export.sh` — the
-     7 WndProc-dep tags will then re-apply with typed `this`, and
-     the re-exported decomp will show e.g.
-     `paint_ctx::FUN_005b9130(paint_ctx *this, HWND target) {
-        if (this->state == 2) { ... BitBlt(hdc, this->blit_x, ...); }
-      }`.
-   - Confirms the offset model is right.
+1. **(recommended) DDraw ZDD wrapper** (`FUN_005b7ee0`,
+   `FUN_005b88c0`, et al).  Can't be cleanly unit-tested without a
+   DDraw mock layer; verify via Frida smoke harness end-to-end.
+   Unblocks actual rendering AND lets the WndProc's `wp_paint_check`
+   hook get a real implementation.  Also unblocked by the paint_ctx
+   struct shape — the `+0x2c zdd_device` field connects this
+   directly to FUN_005b9130/_94e0/_9500.
 
-   See `docs/findings/cpp-recovery-workflow.md` PREREQUISITES section
-   for the general pattern.
-
-2. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
-   Can't be cleanly unit-tested without a DDraw mock layer; verify
-   via Frida smoke harness end-to-end.  Unblocks actual rendering
-   AND lets the WndProc's `wp_paint_check` hook get a real
-   implementation.  Now also unblocked by the paint_ctx struct
-   shape — the `+0x2c zdd_device` field connects this directly to
-   FUN_005b9130/_94e0/_9500.
-
-3. **Wire ar_boot_register_all into the drop-in's WinMain.** —
+2. **Wire ar_boot_register_all into the drop-in's WinMain.** —
    currently every batch is a module in isolation; the function
    exists but no real drop-in caller invokes it.  Wiring requires the
    drop-in to own the engine init (currently retail does this).
@@ -120,7 +108,7 @@ casts because Ghidra's DTM doesn't have the struct definitions yet
    but has no observable effect because the drop-in's drawing path is
    still retail's.
 
-4. **FUN_0057ca40 deferred subsystems** — pick one of:
+3. **FUN_0057ca40 deferred subsystems** — pick one of:
    - **Parallel-info-table writes** (~380 writes at retail BSS
      0x008a8578..0x008a8b14).  Requires extending `g_ar_sprite_flags[]`
      from flat-u32 to a ~357-entry pointer-to-struct array.  Useful
@@ -134,7 +122,7 @@ casts because Ghidra's DTM doesn't have the struct definitions yet
      depends on the slot-clone semantics being modelled.
    See `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown.
 
-5. **`FUN_00563ef0` wave-load half** — defer until we have a reason
+4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
    Big DSound+mmio+resource mock layer for code that is dead at boot.
 
