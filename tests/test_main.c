@@ -61,6 +61,12 @@ struct test_case {
     X(ar_color_lerp_midpoint)                                  \
     X(ar_color_lerp_descending)                                \
     X(ar_color_lerp_ignores_alpha)                             \
+    X(palette_pack_entry_basic)                                \
+    X(palette_pack_entry_ignores_top_byte)                     \
+    X(palette_pack_entry_overwrites_existing)                  \
+    X(palette_install_lazy_allocates_first_time)               \
+    X(palette_install_reuses_existing_buffer)                  \
+    X(palette_install_destroy_frees_buffer)                    \
     X(sprite_destroy_frees_aux_and_entries)                    \
     X(sprite_destroy_safe_on_zero_slot)                        \
     X(sprite_register_writes_all_named_fields)                 \

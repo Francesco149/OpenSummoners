@@ -329,6 +329,31 @@ void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
     s->f_38        = 0;
 }
 
+/* ─── FUN_005b5d90 — pack a COLORREF into a PALETTEENTRY ────────── */
+
+void ar_palette_pack_entry(uint8_t *out, uint32_t colorref)
+{
+    out[0] = (uint8_t)(colorref       & 0xffu);  /* peRed   = COLORREF lo */
+    out[1] = (uint8_t)((colorref >> 8) & 0xffu); /* peGreen = COLORREF mid */
+    out[2] = (uint8_t)((colorref >>16) & 0xffu); /* peBlue  = COLORREF hi */
+    out[3] = 0;                                  /* peFlags = 0 */
+}
+
+/* ─── FUN_00491770 — install a 256-entry palette on a sprite slot ── */
+
+void ar_palette_install(ar_sprite_slot *s, const uint8_t palette[1024])
+{
+    /* Lazy-alloc the 0x400-byte palette buffer on entry[0].b — the
+     * destructor frees it iff non-zero, so this is leak-clean.
+     * Caller's responsibility (matches retail): entries[] must already
+     * be non-NULL with entry_count >= 1, i.e. ar_sprite_slot_register
+     * has run for this slot. */
+    if (s->entries[0].b == NULL) {
+        s->entries[0].b = malloc(1024);
+    }
+    memcpy(s->entries[0].b, palette, 1024);
+}
+
 /* ─── FUN_00563ef0 first half — sound slot field init ─────────── */
 
 void ar_sound_slot_init(ar_sound_slot *s, void *zds, void *settings,

@@ -185,6 +185,115 @@ int test_ar_color_lerp_ignores_alpha(void)
     return 0;
 }
 
+/* ─── ar_palette_pack_entry (FUN_005b5d90) ───────────────────────── */
+
+int test_palette_pack_entry_basic(void)
+{
+    /* COLORREF 0x00BBGGRR → PALETTEENTRY {peRed=R, peGreen=G, peBlue=B, 0}.
+     * 0x00112233 should pack as 0x33, 0x22, 0x11, 0x00 (R,G,B,peFlags). */
+    uint8_t out[4] = {0xee, 0xee, 0xee, 0xee};
+    ar_palette_pack_entry(out, 0x00112233u);
+    T_ASSERT_EQ_U(out[0], 0x33u);
+    T_ASSERT_EQ_U(out[1], 0x22u);
+    T_ASSERT_EQ_U(out[2], 0x11u);
+    T_ASSERT_EQ_U(out[3], 0x00u);
+    return 0;
+}
+
+int test_palette_pack_entry_ignores_top_byte(void)
+{
+    /* The top byte of `colorref` is dropped — the retail body only
+     * shifts by 0/8/16.  A poisoned top byte must not leak into out[3]. */
+    uint8_t out[4] = {0};
+    ar_palette_pack_entry(out, 0xff808080u);
+    T_ASSERT_EQ_U(out[0], 0x80u);
+    T_ASSERT_EQ_U(out[1], 0x80u);
+    T_ASSERT_EQ_U(out[2], 0x80u);
+    T_ASSERT_EQ_U(out[3], 0x00u);  /* peFlags forced to 0, not 0xff */
+    return 0;
+}
+
+int test_palette_pack_entry_overwrites_existing(void)
+{
+    /* Writes are unconditional — pre-existing bytes get replaced. */
+    uint8_t out[4] = {0xaa, 0xbb, 0xcc, 0xdd};
+    ar_palette_pack_entry(out, 0u);
+    T_ASSERT_EQ_U(out[0], 0x00u);
+    T_ASSERT_EQ_U(out[1], 0x00u);
+    T_ASSERT_EQ_U(out[2], 0x00u);
+    T_ASSERT_EQ_U(out[3], 0x00u);
+    return 0;
+}
+
+/* ─── ar_palette_install (FUN_00491770) ──────────────────────────── */
+
+static void make_palette(uint8_t pal[1024], uint8_t seed)
+{
+    for (int i = 0; i < 1024; i++) pal[i] = (uint8_t)(seed + (uint8_t)i);
+}
+
+int test_palette_install_lazy_allocates_first_time(void)
+{
+    /* On a fresh slot with entry[0].b == NULL, the helper should
+     * allocate a 1024-byte buffer and copy the palette in. */
+    ar_sprite_slot s = {0};
+    s.entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
+    s.entry_count = 1;
+
+    uint8_t pal[1024];
+    make_palette(pal, 0x10);
+
+    ar_palette_install(&s, pal);
+
+    T_ASSERT(s.entries[0].b != NULL);
+    T_ASSERT_MEM_EQ(s.entries[0].b, pal, 1024);
+
+    ar_sprite_slot_destroy(&s);   /* free without leaks (ASan-checked) */
+    return 0;
+}
+
+int test_palette_install_reuses_existing_buffer(void)
+{
+    /* On a second call the helper must reuse the existing buffer (no
+     * realloc).  Pin this by capturing the pointer before and after. */
+    ar_sprite_slot s = {0};
+    s.entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
+    s.entry_count = 1;
+
+    uint8_t pal_a[1024], pal_b[1024];
+    make_palette(pal_a, 0x10);
+    make_palette(pal_b, 0xa0);
+
+    ar_palette_install(&s, pal_a);
+    void *first = s.entries[0].b;
+    ar_palette_install(&s, pal_b);
+    void *second = s.entries[0].b;
+
+    T_ASSERT_EQ_P(first, second);
+    T_ASSERT_MEM_EQ(s.entries[0].b, pal_b, 1024);
+
+    ar_sprite_slot_destroy(&s);
+    return 0;
+}
+
+int test_palette_install_destroy_frees_buffer(void)
+{
+    /* The destructor already frees entry[0].b — confirm the round-trip
+     * (install then destroy) leaves no leaks.  ASan does the work; this
+     * test just exercises the code path. */
+    ar_sprite_slot s = {0};
+    s.entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
+    s.entry_count = 1;
+
+    uint8_t pal[1024];
+    make_palette(pal, 0x55);
+    ar_palette_install(&s, pal);
+    ar_sprite_slot_destroy(&s);
+
+    T_ASSERT_EQ_P(s.entries, NULL);
+    return 0;
+}
+
 /* ─── ar_sprite_slot_destroy ─────────────────────────────────────── */
 
 int test_sprite_destroy_frees_aux_and_entries(void)

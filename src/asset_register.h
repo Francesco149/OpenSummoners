@@ -388,6 +388,54 @@ void ar_gdi_slot_set_pen_gradient(uint32_t index, uint16_t group, uint16_t capac
 
 /* ─── sound-bank slot setter (used by ar_register_sounds) ────────── */
 
+/* ─── sprite palette helpers (palette-session trio, leaf half) ─────
+ *
+ * Two of the three FUN_005749b0 palette-ramp primitives.  The third
+ * piece — FUN_004178e0, the "begin palette session" wrapper that
+ * pulls the source palette out of a PE bitmap resource via
+ * FUN_005b7800 — is NOT ported.  It needs the full PE-resource
+ * decoder, which is a separate (much bigger) checkpoint; see
+ * `docs/findings/palette-session.md` for the rabbit-hole notes.
+ *
+ * Both helpers here are usable standalone: the caller can construct
+ * a 256-entry PALETTEENTRY buffer in user memory using
+ * `ar_palette_pack_entry`, then commit it to a sprite slot using
+ * `ar_palette_install`.  Wiring them into ar_register_main_sprites'
+ * idx-0 palette ramp waits on the PE decoder. */
+
+/* FUN_005b5d90 — pack a Win32 COLORREF into one 4-byte PALETTEENTRY.
+ *
+ * PALETTEENTRY layout (wingdi.h): peRed, peGreen, peBlue, peFlags.
+ * COLORREF layout:                0x00BBGGRR — low byte = R, mid = G,
+ *                                 high = B.  So the retail body's
+ *                                 `out[0] = colorref & 0xff;
+ *                                  out[1] = (colorref >> 8) & 0xff;
+ *                                  out[2] = (colorref >> 16) & 0xff;
+ *                                  out[3] = 0`
+ * is exactly the R/G/B/peFlags=0 PALETTEENTRY shape.
+ *
+ * Independent of any container — caller owns `out` (must point to at
+ * least 4 bytes). */
+void ar_palette_pack_entry(uint8_t *out, uint32_t colorref);
+
+/* FUN_00491770 — lazy-install a 256-entry (1024-byte) palette onto a
+ * sprite slot's first entry.
+ *
+ * Retail body:
+ *   if (this->entries[0].b == NULL)
+ *       this->entries[0].b = operator_new(0x400);
+ *   memcpy(this->entries[0].b, palette, 0x400);
+ *
+ * The `b` field is the owned-pointer half of an ar_sprite_entry; the
+ * sprite slot destructor (ar_sprite_slot_destroy) already frees it
+ * iff non-zero, so this install is leak-clean on slot teardown.
+ *
+ * Caller is responsible for ensuring `s->entries` is non-NULL and
+ * `s->entry_count >= 1` — typically by having run
+ * ar_sprite_slot_register first.  The retail call sites all do, so
+ * this matches observable retail behaviour. */
+void ar_palette_install(ar_sprite_slot *s, const uint8_t palette[1024]);
+
 /* FUN_00563ef0 first half — the pure field-write half (no wave load).
  *
  * Equivalent to FUN_00563ef0 called with `load_flag = 0` (the form
