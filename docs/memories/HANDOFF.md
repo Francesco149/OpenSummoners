@@ -174,6 +174,32 @@ tools/
   walking `&DAT_00691018` (0x24 stride, branches on DAT_008a6e68/
   _6e70/_6e80).  See PROGRESS 2026-05-24 game-sounds entry and
   "Next move" #2.
+
+  Table layout (entry stride = 0x24 bytes, terminator = u32@+0 == 0):
+    +0x00 (u32): magic — 0xc35a in all observed live entries.  When
+                 zero the loop exits.  Verified at file offset
+                 0x00691018 via `r2 px @ 0x691018`.
+    +0x04 (u32): ? (1, 2, 3 ... in order — likely a locale/language
+                    selector or sequence number)
+    +0x08 (u16): slot index into &DAT_008a6ec4 pool (highest seen so
+                 far is 0xf5 = 245, just over FUN_0057b280's max
+                 244 — pool cap 256 still fits; keep an eye on
+                 anything past 255 once a full extraction lands)
+    +0x0a (u16): resource_id (primary)
+    +0x0c (u32): ? (0xc8 = 200 in first row — looks scalar)
+    +0x10 (u32): ? (zero in first row)
+    +0x14 (i16): count_add  (call passes sVar1 + 2 as `count`)
+    +0x16 (u16): pad? (always 0 in first row)
+    +0x18 (i32): flag — `== -1` skips the override branch and
+                 forces the param_3/DAT_008a6e68 settings path
+    +0x1c (u16): override_id — used iff flag != -1 && override != 0
+                 && DAT_008a6e70 != NULL && *(DAT_008a6e80+0x1c8)==0;
+                 `0x7fff` is the explicit "skip entry" sentinel
+    +0x1e..+0x23: 6 bytes of pad / unknown (mostly zero observed)
+  Launcher-settings deps to model: DAT_008a6e80 is a pointer-to-
+  pointer-to-launcher-settings; the loop reads `*(int*)(*DAT_008a6e80
+  + 0x1c8)`.  DAT_008a6e68 and DAT_008a6e70 are direct settings
+  pointers selected for the "this-locale" vs "fallback" path.
 - The WndProc port is also a module in isolation — `wp_handle_message`
   is not wired into any RegisterClassExA call yet.  Wiring requires
   the drop-in to actually own the main game window registration
