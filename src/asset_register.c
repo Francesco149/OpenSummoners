@@ -2734,6 +2734,56 @@ void ar_apply_group3_clones(void)
     }
 }
 
+/* ─── FUN_0057ca40 — group-3 inline FUN_00582b80 slot-clones ─────
+ *
+ * 9 FUN_00582b80(target_slot) calls in retail issue order.  Each call
+ * is a __thiscall on the source slot (ECX = the last `paVar1 = DAT_X`
+ * assignment in the cluster); it clones source metadata + aux_buf
+ * into the target slot via `ar_sprite_slot_clone`.
+ *
+ * Distinct sources: 3 (pool 383, 390, 402 — all themselves registered
+ * by the slot-register pass above).  Distinct targets: 9.  src/dst
+ * sets are disjoint (asserted by the extractor and by a unit test),
+ * so apply order is independent of the SS_MGR clone pass and the
+ * info-event pass.
+ *
+ * Info-entry side (zero + marker/flag-copy + data-ptr for the 4 early
+ * clusters; 20-byte STRUCT_COPY for the 5 late ones) is NOT here —
+ * those events live in group3_info_events[] and are replayed by
+ * ar_apply_group3_info_events().  Together with this walker that
+ * closes the last subsystem of FUN_0057ca40; see rabbit-hole §4.
+ *
+ * Re-run tools/extract/57ca40_inline_clone_table.py after re-exporting
+ * the decomp to catch drift. */
+struct ar_group3_inline_clone {
+    uint16_t  dst_idx;
+    uint16_t  src_idx;
+};
+
+static const struct ar_group3_inline_clone group3_inline_clones[] = {
+    /*  dst,    src      (retail issue order; 57ca40.c line) */
+    { 0x180, 0x17f },  /* L2138  0x008a7c0c <- 0x008a7c08 */
+    { 0x181, 0x17f },  /* L2143  0x008a7c10 <- 0x008a7c08 */
+    { 0x187, 0x186 },  /* L2282  0x008a7c28 <- 0x008a7c24 */
+    { 0x188, 0x186 },  /* L2287  0x008a7c2c <- 0x008a7c24 */
+    { 0x101, 0x192 },  /* L3082  0x008a7a10 <- 0x008a7c54 */
+    { 0x102, 0x192 },  /* L3090  0x008a7a14 <- 0x008a7c54 */
+    { 0x103, 0x192 },  /* L3098  0x008a7a18 <- 0x008a7c54 */
+    { 0x104, 0x192 },  /* L3106  0x008a7a1c <- 0x008a7c54 */
+    { 0x105, 0x192 },  /* L3114  0x008a7a20 <- 0x008a7c54 */
+};
+#define GROUP3_INLINE_CLONES_COUNT  9
+
+void ar_apply_group3_inline_clones(void)
+{
+    for (size_t i = 0; i < GROUP3_INLINE_CLONES_COUNT; i++) {
+        const struct ar_group3_inline_clone *c = &group3_inline_clones[i];
+        ar_sprite_slot *dst = ar_pool_get_slot(c->dst_idx);
+        ar_sprite_slot *src = ar_pool_get_slot(c->src_idx);
+        ar_sprite_slot_clone(dst, src);
+    }
+}
+
 void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
 {
     for (size_t i = 0; i < GROUP3_SPRITES_COUNT; i++) {
@@ -2745,8 +2795,8 @@ void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
     }
     /* Retail issue order: in FUN_0057ca40 the 4th-pass info-entry
      * writes (FLAG/MARKER/DATA_SET etc.) are interleaved with the
-     * slot-register calls and the SS_MGR clones.  Order of those three
-     * passes is observably independent because:
+     * slot-register calls, the SS_MGR clones, and the inline clones.
+     * Order of those four passes is observably independent because:
      *
      *   - The info-event pass touches `g_ar_info_table[*]` only.
      *   - The slot-register pass touches `g_ar_sprite_slots[*]` only.
@@ -2754,10 +2804,16 @@ void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
      *     info) — and the clone table's source indices are ALL outside
      *     the destination set (see test), so source state is whatever
      *     the slot pass + info pass left.
+     *   - Inline clones touch only the slot side (info-entry side of
+     *     each cluster lives in group3_info_events[]); src/dst sets
+     *     are disjoint, and the 3 sources (383/390/402) are
+     *     themselves registered by the slot pass above.
      *
-     * So we replay them sequentially: registers, info events, clones. */
+     * So we replay them sequentially: registers, info events, SS_MGR
+     * clones, inline clones. */
     ar_apply_group3_info_events();
     ar_apply_group3_clones();
+    ar_apply_group3_inline_clones();
 }
 
 /* ─── FUN_00562ea0:613-624 — boot-driver register wiring ─────────── */

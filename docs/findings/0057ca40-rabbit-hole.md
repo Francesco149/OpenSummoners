@@ -169,7 +169,47 @@ The 94 calls themselves are extracted by
 order by `ar_apply_group3_clones()`, called from the tail of
 `ar_register_group3_sprites` after the info-events pass.
 
-### 4. 9 FUN_00582b80 + 1 FUN_00582d00 — **PORTED 2026-05-24** (subset)
+### 4. 9 FUN_00582b80 + 1 FUN_00582d00 — **FULLY PORTED 2026-05-25**
+
+**Update 2026-05-25:** the 9 FUN_00582b80 call-cluster wiring landed
+as the 6th and final pass of FUN_0057ca40.  The 9 calls are extracted
+by `tools/extract/57ca40_inline_clone_table.py` and replayed in
+retail issue order by `ar_apply_group3_inline_clones`, called from
+the tail of `ar_register_group3_sprites` after the SS_MGR clones.
+Each replay calls `ar_sprite_slot_clone(pool[dst], pool[src])` —
+info-entry side of each cluster (zero + marker/flag-copy + data-ptr
+for the 4 early clusters; 20-byte STRUCT_COPY for the 5 late ones)
+is already covered by the 4th-pass info-events table.
+
+Final cluster source/target mapping (3 distinct sources, 9 disjoint
+targets):
+
+| line | src pool | dst pool | shape          |
+| ---- | -------- | -------- | -------------- |
+| 2138 | 383      | 384      | early (data=0x6752f8) |
+| 2143 | 383      | 385      | early (data=0x6752f8) |
+| 2282 | 390      | 391      | early (data=0x675500) |
+| 2287 | 390      | 392      | early (data=0x675500) |
+| 3082 | 402      | 257      | late (STRUCT_COPY src=139) |
+| 3090 | 402      | 258      | late (STRUCT_COPY src=140) |
+| 3098 | 402      | 259      | late (STRUCT_COPY src=141) |
+| 3106 | 402      | 260      | late (STRUCT_COPY src=143) |
+| 3114 | 402      | 261      | late (STRUCT_COPY src=145) |
+
+All 3 sources (383, 390, 402) are themselves inline-registered by
+the 1st-pass slot-register table — so by the time
+`ar_apply_group3_inline_clones` runs, the source slots already hold
+their template metadata.  src/dst sets are pairwise disjoint, so
+apply order is independent of every other pass.
+
+With this pass landed, FUN_0057ca40 is functionally complete: 6
+passes (slot register, info events, SS_MGR clones, inline clones,
+plus their primitives) cover every retail-observable write the
+function performs.
+
+---
+
+#### Original 2026-05-24 finding (primitive ports — kept for reference)
 
 `FUN_00582b80(target_slot)` is a `__thiscall` on the source slot — it
 clones source metadata into `target_slot` (zdd, width, height,

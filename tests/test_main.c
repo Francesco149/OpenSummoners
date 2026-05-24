@@ -157,6 +157,11 @@ struct test_case {
     X(group3_clones_dst_pool_range)                            \
     X(group3_clones_first_entry_propagates_resource_id)        \
     X(group3_clones_fires_from_register_group3_sprites)        \
+    X(inline_clones_targets_populated_after_register)          \
+    X(inline_clones_propagate_source_metadata)                 \
+    X(inline_clones_late_cluster_shares_one_source)            \
+    X(inline_clones_apply_is_idempotent)                       \
+    X(inline_clones_src_dst_sets_disjoint)                     \
     X(boot_register_all_group_tags_per_batch)                  \
     X(boot_register_all_zdd_vs_zds_routing)                    \
     X(boot_register_all_sotesp_module_for_special_slots)       \

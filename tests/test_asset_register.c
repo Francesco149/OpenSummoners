@@ -2071,12 +2071,10 @@ int test_locale_sounds_buffer_pointer_preserved(void)
 
 int test_group3_sprites_writes_233_distinct_slots(void)
 {
-    /* 233 distinct REGISTER-pass slots + 94 SS_MGR-clone-pass slots
-     * = 327 unique populated slots after ar_register_group3_sprites.
-     * The clone pass leaves the register pass's slots untouched (all
-     * 94 dst indices are distinct from each other AND from the 233
-     * register indices — pinned by the no_overlap and clones-dst-range
-     * tests). */
+    /* 233 REGISTER + 94 SS_MGR-clone + 9 inline-clone slots = 336
+     * unique populated slots after ar_register_group3_sprites.  All
+     * three sets are pairwise disjoint (pinned by the no_overlap,
+     * group3_clones_dst_pool_range, and inline_clones_disjoint tests). */
     ar_state_init();
     ar_register_group3_sprites((void *)0xd00d, /*group=*/3, (void *)0xbeef);
 
@@ -2084,7 +2082,7 @@ int test_group3_sprites_writes_233_distinct_slots(void)
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
         if (g_ar_sprite_slots[i].entries != NULL) written++;
     }
-    T_ASSERT_EQ_U(written, 233u + 94u);
+    T_ASSERT_EQ_U(written, 233u + 94u + 9u);
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
@@ -2094,9 +2092,9 @@ int test_group3_sprites_writes_233_distinct_slots(void)
 int test_group3_sprites_group_tag_stamped(void)
 {
     /* All 233 register entries get the caller's group tag.  The 94
-     * SS_MGR clones copy group from src — and every src is one of the
-     * 233 register entries, so the clone targets also carry the same
-     * tag.  327 slots, one expected group value. */
+     * SS_MGR clones and the 9 inline clones both copy group from src
+     * — every src is one of the 233 register entries, so all cloned
+     * targets carry the same tag.  336 slots, one expected group. */
     ar_state_init();
     ar_register_group3_sprites((void *)0x1, /*group=*/0xc0de, (void *)0x2);
 
@@ -2107,7 +2105,7 @@ int test_group3_sprites_group_tag_stamped(void)
             seen++;
         }
     }
-    T_ASSERT_EQ_U(seen, 233u + 94u);
+    T_ASSERT_EQ_U(seen, 233u + 94u + 9u);
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
@@ -2596,6 +2594,151 @@ int test_group3_clones_fires_from_register_group3_sprites(void)
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+/* ─── ar_apply_group3_inline_clones (6th pass of FUN_0057ca40) ─── */
+
+int test_inline_clones_targets_populated_after_register(void)
+{
+    /* Each of the 9 inline-clone targets should have a fresh 1-entry
+     * entries[] allocated after ar_register_group3_sprites completes.
+     * The targets (pool 257..261, 384..385, 391..392) are NOT in the
+     * 233-slot register table — they only appear in the pool through
+     * the inline-clone pass. */
+    static const uint16_t pool_targets[9] = {
+        0x101, 0x102, 0x103, 0x104, 0x105,   /* 257..261 */
+        0x180, 0x181,                          /* 384, 385 */
+        0x187, 0x188,                          /* 391, 392 */
+    };
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    for (int i = 0; i < 9; i++) {
+        ar_sprite_slot *s = ar_pool_get_slot(pool_targets[i]);
+        T_ASSERT(s->entries != NULL);
+        T_ASSERT_EQ_U(s->entry_count, 1u);
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_inline_clones_propagate_source_metadata(void)
+{
+    /* Source pool[383] (g_ar_sprite_slots[370]) is registered with:
+     *   rid=0x590, w=0x20, h=0x20, ck=0x1ffffff, sf=1, type=0.
+     * Inline clones 1-2 copy that into pool[384] and pool[385].
+     * Spot-check both clone targets carry the source's metadata. */
+    ar_state_init();
+    void *zdd = (void *)0xaaaa, *settings = (void *)0xbbbb;
+    ar_register_group3_sprites(zdd, /*group=*/3, settings);
+
+    ar_sprite_slot *src = ar_pool_get_slot(0x17f);  /* pool 383 */
+    T_ASSERT_EQ_U(src->resource_id, 0x590u);
+    T_ASSERT_EQ_U(src->width,       0x20u);
+    T_ASSERT_EQ_U(src->colorkey,    0x1ffffffu);
+
+    for (uint16_t dst_idx = 0x180; dst_idx <= 0x181; dst_idx++) {
+        ar_sprite_slot *d = ar_pool_get_slot(dst_idx);
+        T_ASSERT_EQ_P(d->zdd,         zdd);
+        T_ASSERT_EQ_P(d->settings,    settings);
+        T_ASSERT_EQ_U(d->resource_id, 0x590u);
+        T_ASSERT_EQ_U(d->width,       0x20u);
+        T_ASSERT_EQ_U(d->height,      0x20u);
+        T_ASSERT_EQ_U(d->colorkey,    0x1ffffffu);
+        T_ASSERT_EQ_U(d->scale_flag,  1u);
+        T_ASSERT_EQ_U(d->type,        0u);
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_inline_clones_late_cluster_shares_one_source(void)
+{
+    /* The 5 late clusters (pool[257..261]) all clone from the SAME
+     * source pool[402] (g_ar_sprite_slots[389], rid=0x8b9, 160×192,
+     * sf=0, type=2).  Spot-check the source's rid and that all 5
+     * targets carry it. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    ar_sprite_slot *src = ar_pool_get_slot(0x192);  /* pool 402 */
+    T_ASSERT_EQ_U(src->resource_id, 0x8b9u);
+    T_ASSERT_EQ_U(src->width,       0xa0u);
+    T_ASSERT_EQ_U(src->height,      0xc0u);
+    T_ASSERT_EQ_U(src->type,        2u);
+
+    for (uint16_t dst_idx = 0x101; dst_idx <= 0x105; dst_idx++) {
+        ar_sprite_slot *d = ar_pool_get_slot(dst_idx);
+        T_ASSERT_EQ_U(d->resource_id, 0x8b9u);
+        T_ASSERT_EQ_U(d->width,       0xa0u);
+        T_ASSERT_EQ_U(d->height,      0xc0u);
+        T_ASSERT_EQ_U(d->type,        2u);
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_inline_clones_apply_is_idempotent(void)
+{
+    /* Re-running ar_apply_group3_inline_clones should leave the dst
+     * slots in the same state — each clone destroys the old entries[]
+     * and allocates a fresh one with the same metadata source.  Slot
+     * count stays unchanged across the second call. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0xc0c0, /*group=*/3, (void *)0xd0d0);
+
+    int before = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        if (g_ar_sprite_slots[i].entries != NULL) before++;
+
+    ar_apply_group3_inline_clones();
+
+    int after = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        if (g_ar_sprite_slots[i].entries != NULL) after++;
+    T_ASSERT_EQ_U(after, before);
+
+    /* Late-cluster spot check: target pool[257] still mirrors src
+     * pool[402]'s rid even after a second clone pass. */
+    T_ASSERT_EQ_U(ar_pool_get_slot(0x101)->resource_id,
+                  ar_pool_get_slot(0x192)->resource_id);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_inline_clones_src_dst_sets_disjoint(void)
+{
+    /* The 3 source pool indices (383, 390, 402) must NOT overlap with
+     * the 9 destination indices (257..261, 384, 385, 391, 392).  This
+     * pins the apply-order independence claim in
+     * ar_apply_group3_inline_clones's doc.  No state needed — pure
+     * table check. */
+    static const uint16_t sources[3]      = { 0x17f, 0x186, 0x192 };
+    static const uint16_t destinations[9] = {
+        0x180, 0x181, 0x187, 0x188,
+        0x101, 0x102, 0x103, 0x104, 0x105,
+    };
+    for (size_t i = 0; i < 3; i++) {
+        for (size_t j = 0; j < 9; j++) {
+            T_ASSERT(sources[i] != destinations[j]);
+        }
+    }
+    /* And all 9 destinations are themselves distinct (pinned by the
+     * extractor, but worth re-asserting at runtime). */
+    for (size_t i = 0; i < 9; i++) {
+        for (size_t j = i + 1; j < 9; j++) {
+            T_ASSERT(destinations[i] != destinations[j]);
+        }
+    }
     return 0;
 }
 

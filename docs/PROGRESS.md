@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — FUN_0057ca40 6th pass: 9 inline slot-clones PORTED (function functionally complete)
+
+Closes the last deferred subsystem of FUN_0057ca40.  The 9 inline
+FUN_00582b80 calls (the ones taking ECX = a `paVar1 = DAT_X` source
+slot rather than going through the SS_MGR table) are extracted by
+`tools/extract/57ca40_inline_clone_table.py` and replayed in retail
+issue order by `ar_apply_group3_inline_clones`, called from the tail
+of `ar_register_group3_sprites` after the SS_MGR clone pass.  3
+distinct source pool indices (383, 390, 402) — all themselves
+populated by the 1st-pass slot-register table — fan out into 9
+disjoint targets (257..261, 384..385, 391..392).
+
+No new primitive needed: each replay is just
+`ar_sprite_slot_clone(pool[dst], pool[src])`.  The info-entry side
+of each cluster (zero + marker/flag-copy + data-ptr for the 4 early
+clusters; 20-byte STRUCT_COPY for the 5 late ones) is already
+covered by the 4th-pass `ar_apply_group3_info_events` — verified by
+re-running the audit tool `57ca40_pool_map.py` (0 orphans across all
+443 pool writes).
+
+With this pass landed, FUN_0057ca40's six retail-observable
+subsystems (slot register, info events, SS_MGR clones, inline
+clones, plus the two thiscall primitives) all replay in the port.
+The next consumer of this state is `FUN_00586010` (palette-draw with
+flag dispatch — see rabbit-hole §6); porting it will pin the
+per-prefix flag semantics from the read side.
+
+Tests now: **192 pass, 0 fail, 4 skip** (up from 187).  5 new tests
+cover: target population after register, late-cluster shared-source
+metadata propagation, early-cluster metadata propagation, apply
+idempotency, src/dst-set disjointness.  Updated 2 existing tests
+to reflect the new slot-count expectation (327 → 336).
+
+See `docs/findings/0057ca40-rabbit-hole.md` §4 for the cluster
+source/target table.
+
+---
+
 ## 2026-05-25 — FUN_0057ca40 5th pass: 94 SS_MGR slot-clones PORTED
 
 Last of the sprite-slot work in FUN_0057ca40.  The 94 FUN_004179b0
