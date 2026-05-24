@@ -6,6 +6,64 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — ZDD wrapper first slice PORTED (8 functions)
+
+First slice of the DirectDraw 7 wrapper class HANDOFF flagged as the
+recommended "next move" — the eight leaf functions in
+`docs/findings/ddraw-init.md`'s call graph that together cover the
+class lifecycle + DDraw init + DDERR error logging.  Lands in
+`src/zdd.{c,h}` + `src/zdd_win32.c` + `tests/test_zdd.c`.
+
+Ports (in size-ascending order):
+
+  - FUN_005b8da0  `zdd_restore_cursor_on_release`     33 bytes
+  - FUN_005b88c0  `zdd_directdraw_create_ex`          57 bytes
+  - FUN_005b89d0  `zdd_set_coop_level`                71 bytes
+  - FUN_005b7fe0  `zdd_dtor`                          90 bytes
+  - FUN_005b7f80  `zdd_ctor`                          94 bytes
+  - FUN_005b8040  `zdd_release_children`             139 bytes
+  - FUN_005b7ee0  `zdd_create`                       153 bytes
+  - FUN_005b80d0  `zdd_log_dderr`                    826 bytes
+
+Pure-logic split matches the established bitmap_session / wnd_proc
+pattern: ctor, dtor decision tree, DDERR-to-string mapping, and the
+log-message builder live in zdd.c; the six Win32 primitives
+(ShowCursor, OutputDebugStringA, IUnknown::Release via vtable[2],
+DirectDrawCreateEx, IDirectDraw7::SetCooperativeLevel via vtable+0x50,
+placeholder ZDDObject destroyer) live in zdd_win32.c.  Host tests
+exercise the pure logic with controllable stubs.
+
+The DDERR log message format was a small detective exercise: r2
+pszj on each of the seven strings the helper concatenates (verified
+against `docs/decompiled/by-address/5b80d0.c` and a fresh
+`vendor/unpacked/sotes.unpacked.exe` read) showed retail uses commas-
+in-place-of-periods in "Warning,exists ZDD errors," and " failed,Error
+Code " — not typos, intentional.  The 18-entry HRESULT → DDERR_xxx
+table in `k_dderr_table[]` mirrors the switch ladder in FUN_005b80d0
+verbatim; format output is fully exercised by 4 host tests covering
+known/empty-prefix/unknown-hresult/null-input paths.
+
+Open follow-ups now:
+- ZDDObject (`FUN_005b9350` ctor + the FUN_005b9390 cleanup chain) is
+  still unported; `zdd_obj_destroy` in zdd_win32.c is a `free()`
+  placeholder that will dispatch through the cleanup chain once
+  ZDDObject lands.  Host tests don't touch it.
+- Vtable indices for the COM Release calls (+0x128 / +0x12c) match
+  IUnknown's standard but the semantic role of those two com pointers
+  hasn't been pinned — `com_a` / `com_b` are deliberately vague.
+  Likely IDirectDrawPalette + IDirectDrawClipper given the surrounding
+  code, confirm when their setters land.
+- `pixel_format_mode` / `pixel_format_bpp` (+0x164/+0x168) are written
+  by paths we haven't ported yet (FUN_005b8c00 reads them when building
+  DDSURFACEDESC2 in `mode == 2` paths).  Modelled as fields for size
+  correctness; no consumer in this checkpoint.
+
+Tests now: **217 pass, 0 fail, 5 skip** (up from 200 pass / 4 skip;
+the new skip is `zdd_layout_matches_retail_offsets`, 32-bit only).
+Real mingw build adds `-lddraw -ldxguid`.
+
+---
+
 ## 2026-05-25 — Pixel-Drawer boot-time slot tables PORTED
 
 Picks up an open-thread item from HANDOFF (the 5 fixed-size sprite-slot

@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (Pixel-Drawer boot loops PORTED)
+# Session handoff — last updated 2026-05-25 (ZDD wrapper first slice PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -11,7 +11,7 @@ to pick up *right now*".
 The harness boots retail headlessly + the engine reaches per-frame
 ticks under `--turbo --hide-window`.  Phase 1 surface mapping and
 Phase 2 file-format extraction are complete enough to support
-methodical port-and-test.  **Four modules ported now:**
+methodical port-and-test.  **Five modules ported now:**
 
 - **Pixel-Drawer** — 8 functions including the boot driver (69 fixed
   slots in 5 groups + 4 special-colour writes — see `winmain-and-
@@ -37,9 +37,18 @@ methodical port-and-test.  **Four modules ported now:**
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
+- **ZDD wrapper** — **8 functions** covering the DirectDraw 7
+  wrapper class lifecycle: ctor / dtor / child-release loop /
+  cursor-restore / DDERR log builder / DirectDrawCreateEx /
+  SetCooperativeLevel / top-level create driver.  Pure logic
+  (ctor + dtor decision tree + DDERR-to-string + log builder) in
+  `src/zdd.c`; Win32 primitives (DDraw, COM Release, ShowCursor,
+  OutputDebugStringA) in `src/zdd_win32.c`.  Surface alloc /
+  CreateSurface / clipper attach are NOT in this slice — see
+  ddraw-init.md for the rest of the call graph.
 
-Total host tests across all four modules: **200 pass, 0 fail, 4
-skip** (up from 192; the 4 skips are 32-bit-only layout asserts
+Total host tests across all five modules: **217 pass, 0 fail, 5
+skip** (up from 200; the 5 skips are 32-bit-only layout asserts
 that fire at compile time on the cross build).
 
 **Ghidra C++ recovery infrastructure** — Kaiju extension installed,
@@ -69,7 +78,8 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
+- (current) ZDD: port ctor/dtor + DDERR log helper + DirectDraw init wrappers
+- `90de1ba` Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
 - `5377460` Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
 - `63e14bb` Asset-Register: port FUN_0057ca40 5th pass — 94 SS_MGR slot-clones
 - `ea08d2a` Asset-Register: port FUN_0057ca40 4th pass — 443 info-entry pool writes
@@ -81,7 +91,6 @@ Most recent commits (newest first):
 - `f8344bb` Asset-Register: port FUN_00582b80 (slot clone) + FUN_00582d00 (info entry clear)
 - `efa18c5` tooling: automate Parse C Source headlessly in tag-and-export wrapper
 - `8a3629c` WndProc: correct paint_ctx — add +0x16c back_ctx pointer
-- `40dc757` WndProc: model 5 deep-engine struct shapes + tag thiscall deps
 
 ## Active goal
 
@@ -92,40 +101,45 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-The asset-register batch side and the pixel-drawer slot bank are now
-both in port-and-test parity with retail.  Remaining gap to "title
-menu renders" is the **drawing path**.
+ZDD wrapper's first slice (8 functions) is in port-and-test parity.
+The remaining gap to "title menu renders" is still the **drawing
+path**, but with a clear next layer above ZDD.
 
-1. **(recommended) DDraw ZDD wrapper** (`FUN_005b7ee0`,
-   `FUN_005b88c0`, et al).  Most functions are tiny (16-73 lines —
-   see `docs/findings/ddraw-init.md`).  Can't be cleanly unit-tested
-   without a DDraw mock layer; verify via Frida smoke harness end-
-   to-end.  Unblocks actual rendering AND lets the WndProc's
-   `wp_paint_check` hook get a real implementation.  Also unblocked
-   by the paint_ctx struct shape — the `+0x2c zdd_device` field
-   connects this directly to FUN_005b9130/_94e0/_9500.  Suggested
-   shape: `zdd.c` (pure logic: DDSURFACEDESC2 builder, color-key
-   sentinel) + `zdd_ddraw.c` (Win32-only DDraw API wrappers).
+1. **(recommended) ZDDObject ctor + cleanup chain** —
+   `FUN_005b9350` (ZDDObject::ctor, 0xd8-byte struct) +
+   `FUN_005b9390` (per-object cleanup chain) + the small
+   FUN_005b97e0 / FUN_005b9830 / FUN_005b98c0 helpers around it.
+   Replaces the placeholder `zdd_obj_destroy` in zdd_win32.c with
+   a real cleanup walk.  Small, naturally extends the ZDD checkpoint,
+   and is a prereq for FUN_005b8b40 (CreateSurfacePair) and
+   FUN_005b95c0 (the per-surface alloc orchestrator).
 
-2. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
+2. **Surface alloc orchestrator** — `FUN_005b95c0` (110 bytes,
+   pure orchestration over FUN_005b97e0 + FUN_005b8c00 +
+   FUN_005b98c0 + FUN_005b9830) + `FUN_005b8c00` (372 bytes,
+   the DDSURFACEDESC2 builder + actual CreateSurface call).  This
+   is the meatier "actually create a DDraw surface" path.  Best
+   tackled AFTER #1 lands because the orchestrator calls into
+   ZDDObject's state-setter helpers.  Carries the 0x1ffffff
+   "no color key" sentinel logic which is interesting pure-logic
+   to test.
+
+3. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
    WinMain.** — currently every batch is a module in isolation; the
    functions exist but no real drop-in caller invokes them.  Wiring
    requires the drop-in to own the engine init (currently retail does
-   this).  Pre-req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0,
-   FUN_005b9cf0, FUN_005bbb10).  Without those, the calls can run with
-   stub pointers but have no observable effect because the drop-in's
-   drawing path is still retail's.
+   this).  Pre-req: complete enough ZDD/ZDS/ZDM init.  Without those,
+   the calls can run with stub pointers but have no observable effect
+   because the drop-in's drawing path is still retail's.
 
-3. **`FUN_00586010` palette-draw consumer** — first ported reader of
+4. **`FUN_00586010` palette-draw consumer** — first ported reader of
    the `ar_info_entry` pool.  Big function (1035 lines, 61 unique
    FUN_ callees) — would be a multi-checkpoint port and most callees
    are unported.  Closes the "no consumer reads info-entry fields
    yet" open thread; pins per-prefix flag semantics (the 0/1/2/3
-   dispatch) from the consumer side.  Pre-req work would be cheaper
-   AFTER ZDD wrapper exists (so the surface format reads have a real
-   source).
+   dispatch) from the consumer side.
 
-4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
+5. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
    Big DSound+mmio+resource mock layer for code that is dead at boot.
 
@@ -148,7 +162,11 @@ src/
   bitmap_session_win32.c    LocalAlloc/Free + FindResource/LoadResource/LockResource wrappers
   wnd_proc.c/h              Main game window WndProc — pure dispatch
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + 5 placeholder hooks
-  Makefile                  single-TU mingw cross-build
+  zdd.c/h                   ZDD wrapper — ctor/dtor + DDERR log + create
+                            driver (pure logic for the 8 leaf functions)
+  zdd_win32.c               DirectDrawCreateEx/SetCooperativeLevel +
+                            ShowCursor/OutputDebugStringA/IUnknown::Release
+  Makefile                  single-TU mingw cross-build (-lddraw -ldxguid)
 
 tests/
   Makefile                  host gcc + ASan/UBSan; `make -C tests run`
@@ -162,6 +180,7 @@ tests/
                             2 info-entry-clear + 1 info-entry-pool)
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
+  test_zdd.c                18 tests for ZDD (1 32-bit-only skip)
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -182,6 +201,19 @@ tools/
 
 ## Open RE threads (not picked up yet)
 
+- ZDDObject (`FUN_005b9350` ctor + `FUN_005b9390` cleanup chain) is
+  unported; `zdd_obj_destroy` in `src/zdd_win32.c` is a placeholder
+  that just heap-frees.  The full cleanup walk lands next when
+  ZDDObject is ported.
+- ZDD's two opaque COM handles (+0x128 `com_a`, +0x12c `com_b`) have
+  unpinned semantic roles.  Likely IDirectDrawPalette and
+  IDirectDrawClipper given the surrounding code (`FUN_005b9520`
+  attaches a clipper to a surface), confirm when their setters land.
+- ZDD's pixel-format hint fields (`pixel_format_mode` at +0x164,
+  `pixel_format_bpp` at +0x168) are read by FUN_005b8c00 when building
+  DDSURFACEDESC2 in `mode == 2` paths but are not written by any
+  ported function yet — modelled as fields for size correctness, no
+  consumer in port land.
 - `FUN_005bd040` mode 3 / mode 4 LUT formulas have arithmetic whose
   "floor-correction" terms are zero for valid weight ranges but kept
   literally in the port.  Audit if out-of-range weights ever flow.
