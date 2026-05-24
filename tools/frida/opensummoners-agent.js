@@ -86,6 +86,23 @@ let g_silent_audio_enabled = false;
 // the outside.
 let g_msgbox_redirect = true;
 
+// Launcher-dialog auto-handling.  sotes.exe shows a #32770 modal
+// dialog at startup ("Fortune Summoners Ver1.2 - Product Ver. -") with
+// graphics-settings controls and a Launch button.  The harness needs
+// to bypass it without user interaction; all three default on.
+//
+//   force_windowed     — ensures Windowed Mode is selected so the engine
+//                        never takes over the desktop in fullscreen even
+//                        with the window hidden (DirectDraw exclusive
+//                        fullscreen would still grab the monitor).
+//   auto_disable_sound — ticks "Disable Sound" so the engine skips audio
+//                        init entirely (cleaner than our silent_audio
+//                        clamps because nothing gets allocated).
+//   auto_click_launch  — clicks the Launch button to dismiss the dialog.
+let g_force_windowed     = true;
+let g_auto_disable_sound = true;
+let g_auto_click_launch  = true;
+
 // Manual frame counter.  Bumps on every PeekMessage iteration that
 // drains a message — close enough for Phase A bootstrapping until we
 // have a real "end-of-frame" anchor from Ghidra.
@@ -102,9 +119,21 @@ const TICK_EVERY = 250;
 // DialogBox*, internal user32 path, …).  Emits hwnd_seen events with
 // class name + title + visibility so the Python driver can decide
 // what to interact with (auto-click Launch, tick Disable-Sound, etc.).
-// Period: every ~200 ms while the process is in launcher-dialog state.
-const WINDOW_SCAN_INTERVAL_MS = 200;
+//
+// The launcher dialog is a Win32 #32770 modal created via
+// DialogBoxParamA reading a template from PE resources — it bypasses
+// the public user32!CreateWindowEx*, user32!ShowWindow, and
+// user32!SetWindowPos exports entirely (dialog manager uses internal
+// _xxxCreateDialog and friends).  So our prologue hooks DO NOT catch
+// it; only this periodic scan does.  To keep the on-screen flash
+// imperceptible we scan very fast (every 8 ms) until we see the main
+// game window (class CLASS_LIZSOFT_SOTES); after that, back off to
+// 200 ms.
+const WINDOW_SCAN_FAST_MS = 8;
+const WINDOW_SCAN_SLOW_MS = 200;
 let   g_window_scan_started = false;
+let   g_window_scan_handle  = null;
+let   g_main_game_window_seen = false;
 const g_seen_hwnd_keys = {};   // dedupe: emit once per (hwnd, title) pair
 
 // ─── helpers ────────────────────────────────────────────────────────────
@@ -193,20 +222,55 @@ function installMessageBoxRedirect() {
 
 function installHwndOwnershipTracking() {
     // Track every CreateWindowEx{A,W} return so we know which HWNDs are
-    // ours and only force-hide those.  Plain Attach onLeave instead of
-    // a full replace — we don't want to perturb the return value.
+    // ours and only force-hide those.
+    //
+    // We hook BOTH onEnter and onLeave:
+    //   onEnter — when hide-window is on, strip WS_VISIBLE (0x10000000)
+    //     from the dwStyle arg BEFORE the call proceeds.  This is the
+    //     only way to avoid a brief on-screen flash for windows that
+    //     are created visible (the launcher dialog #32770 is one such);
+    //     by the time onLeave fires the user has already seen the window.
+    //   onLeave — record the HWND so the rest of the agent (ShowWindow
+    //     hook, SetWindowPos hook, periodic scan) knows it's ours.
+    //
+    // WS_VISIBLE = 0x10000000.  arg index map for CreateWindowEx{A,W}:
+    //   [0]=dwExStyle [1]=lpClassName [2]=lpWindowName [3]=dwStyle …
+    //
+    // We also capture the class name in onEnter so the onLeave message
+    // can emit it (debugging aid + helps the human map HWND -> dialog).
+    const WS_VISIBLE = 0x10000000;
+
     ['CreateWindowExA', 'CreateWindowExW'].forEach(function (name) {
         const p = resolveExport('user32.dll', name);
         if (!p) return;
+        const isW = name.endsWith('W');
         Interceptor.attach(p, {
+            onEnter: function (args) {
+                if (g_hide_window) {
+                    const style = args[3].toInt32() >>> 0;
+                    if (style & WS_VISIBLE) {
+                        args[3] = ptr(style & ~WS_VISIBLE);
+                        this._stripped_visible = true;
+                    }
+                }
+                // Stash class-name pointer for the onLeave logger.
+                try {
+                    this._cls = args[1].isNull()
+                        ? ''
+                        : (isW ? args[1].readUtf16String()
+                               : args[1].readUtf8String()) || '';
+                } catch (e) { this._cls = '(?)'; }
+            },
             onLeave: function (retval) {
                 if (retval.isNull()) return;
                 const key = retval.toString();
                 g_owned_hwnds[key] = { source: name };
-                send({ kind: 'hwnd_owned', hwnd: key, source: name });
+                send({ kind: 'hwnd_owned', hwnd: key, source: name,
+                       cls: this._cls,
+                       ws_visible_stripped: !!this._stripped_visible });
             }
         });
-        logmsg('attached ' + name);
+        logmsg('attached ' + name + ' (strip WS_VISIBLE + track return)');
     });
 }
 
@@ -337,25 +401,172 @@ function installTurboHooks() {
 // launcher-dialog detector for the auto-click task (find a button
 // labeled "Launch" → BM_CLICK; find a checkbox labeled "Disable sound" →
 // BM_SETCHECK; etc).
+// Bypass the engine's launcher dialog by wrapping its DLGPROC.
+//
+// Ghidra finding (sotes.unpacked.exe): the launcher is a single call
+//     DialogBoxParamA(hInst, MAKEINTRESOURCE(0x2711), NULL, dlgProc, 0)
+// where dlgProc is at VA 0x004013c0 (resource ID 0x2711 = 10001 is the
+// dialog template).  The dialog manager:
+//   1. CreateWindowEx (internal) the dialog and its children, invisible
+//      so far (no WS_VISIBLE in template style)
+//   2. SendMessage WM_INITDIALOG → dlgProc.  The engine's handler loads
+//      the saved Screen Mode / Graphics Quality / VRAM Use / Disable
+//      Sound selections from gl.cfg (or wherever) and BM_SETCHECKs the
+//      matching controls
+//   3. Add WS_VISIBLE + ShowWindow + start modal message loop ← this
+//      is where the flash happens, BEFORE step 2 returns control
+//
+// If we synchronously SendMessage(launchBtn, BM_CLICK) inside the
+// engine's WM_INITDIALOG (after calling the original handler), the
+// engine's IDOK handler fires NOW — it reads the now-properly-checked
+// control states, commits them, and calls EndDialog.  The dialog
+// manager sees EndDialog has been called and skips step 3 entirely.
+// No paint, no flash.
+//
+// Bonus: this is the same code path a real user click takes, so the
+// engine's settings persistence (gl.cfg write) runs exactly as it
+// would for a manually-launched session.
+const g_wrapped_dlgprocs = {};       // dedupe wrapper per original-proc address
+let   g_dialog_intercepted = false;  // first DialogBoxParamA wins
+
+function getOrCreateDlgWrapper(originalPtr, LAUNCH_CTRL_ID) {
+    const key = originalPtr.toString();
+    if (g_wrapped_dlgprocs[key]) return g_wrapped_dlgprocs[key];
+
+    // INT_PTR CALLBACK DLGPROC(HWND hwndDlg, UINT msg, WPARAM wp, LPARAM lp);
+    // On Win32 (32-bit), INT_PTR is 32-bit and the calling convention
+    // is __stdcall.
+    const original = new NativeFunction(originalPtr,
+        'int', ['pointer', 'uint32', 'pointer', 'pointer'], 'stdcall');
+
+    const u32 = Process.findModuleByName('user32.dll');
+    const sma = u32.findExportByName('SendMessageA');
+    const gci = u32.findExportByName('GetDlgItem');
+    if (!sma || !gci) {
+        send({ kind: 'error', where: 'dlg_wrap',
+               msg: 'SendMessageA / GetDlgItem missing' });
+        return null;
+    }
+    const SendMessageA = new NativeFunction(sma, 'long',
+        ['pointer', 'uint32', 'long', 'long'], 'stdcall');
+    const GetDlgItem  = new NativeFunction(gci, 'pointer',
+        ['pointer', 'int'], 'stdcall');
+
+    const WM_INITDIALOG = 0x0110;
+    const BM_SETCHECK   = 0x00F1;
+    const BM_CLICK      = 0x00F5;
+    const BST_CHECKED   = 0x0001;
+
+    // Control IDs from docs/findings/engine-quirks.md §3 (captured
+    // 2026-05-24 via the EnumChildWindows pass).
+    const CTRL_WINDOWED      = 10020;
+    const CTRL_DISABLE_SOUND = 10024;
+
+    const wrapper = new NativeCallback(function (hDlg, msg, wParam, lParam) {
+        try {
+            if (msg === WM_INITDIALOG) {
+                // Let the engine load saved settings from gl.cfg or
+                // wherever — its WM_INITDIALOG handler BM_SETCHECKs the
+                // appropriate radios.
+                const ret = original(hDlg, msg, wParam, lParam);
+
+                // Force our desired safety settings: windowed mode +
+                // disable sound (matches the auto-handler we used to
+                // run from the periodic scan).
+                if (g_force_windowed) {
+                    const winBtn = GetDlgItem(hDlg, CTRL_WINDOWED);
+                    if (!winBtn.isNull())
+                        SendMessageA(winBtn, BM_SETCHECK, BST_CHECKED, 0);
+                }
+                if (g_auto_disable_sound) {
+                    const sndBtn = GetDlgItem(hDlg, CTRL_DISABLE_SOUND);
+                    if (!sndBtn.isNull())
+                        SendMessageA(sndBtn, BM_SETCHECK, BST_CHECKED, 0);
+                }
+
+                // Synchronously fire the Launch button click.  The
+                // engine's WM_COMMAND handler reads the currently-
+                // checked controls, persists them, and calls EndDialog.
+                if (g_auto_click_launch) {
+                    const launchBtn = GetDlgItem(hDlg, LAUNCH_CTRL_ID);
+                    if (!launchBtn.isNull()) {
+                        SendMessageA(launchBtn, BM_CLICK, 0, 0);
+                        send({ kind: 'dialog_action',
+                               action: 'wm_initdialog_click',
+                               target: 'launch',
+                               hwnd: hDlg.toString() });
+                    } else {
+                        send({ kind: 'error', where: 'dlg_wrap_initdialog',
+                               msg: 'Launch button GetDlgItem returned NULL' });
+                    }
+                }
+                return ret;
+            }
+            return original(hDlg, msg, wParam, lParam);
+        } catch (e) {
+            send({ kind: 'error', where: 'dlgproc_wrap', msg: '' + e });
+            return 0;
+        }
+    }, 'int', ['pointer', 'uint32', 'pointer', 'pointer'], 'stdcall');
+
+    g_wrapped_dlgprocs[key] = wrapper;
+    return wrapper;
+}
+
+function installDialogBypass() {
+    if (!g_auto_click_launch) return;
+    const LAUNCH_CTRL_ID = 10003;  // see engine-quirks.md §3
+
+    ['DialogBoxParamA', 'DialogBoxParamW',
+     'DialogBoxIndirectParamA', 'DialogBoxIndirectParamW'].forEach(function (name) {
+        const p = resolveExport('user32.dll', name);
+        if (!p) return;
+        Interceptor.attach(p, {
+            onEnter: function (args) {
+                if (g_dialog_intercepted) return;  // first dialog only
+                // For DialogBoxParamA the DLGPROC is arg 3; same for all
+                // four variants (HINSTANCE, template-or-ptr, parent,
+                // DLGPROC, initParam).
+                const originalProc = args[3];
+                if (originalProc.isNull()) return;
+                const wrapper = getOrCreateDlgWrapper(originalProc, LAUNCH_CTRL_ID);
+                if (!wrapper) return;
+                args[3] = wrapper;
+                g_dialog_intercepted = true;
+                send({ kind: 'log',
+                       msg: 'wrapped DLGPROC for ' + name +
+                            ' (original @ ' + originalProc + ')' });
+            }
+        });
+        logmsg('attached ' + name + ' (DLGPROC wrap for Launch-click bypass)');
+    });
+}
+
 function installPeriodicWindowScan() {
     if (g_window_scan_started) return;
     const u32 = Process.findModuleByName('user32.dll');
     if (!u32) { err('window_scan', 'user32.dll not loaded'); return; }
 
-    const enumThreadWindows  = u32.findExportByName('EnumThreadWindows');
     const enumWindows        = u32.findExportByName('EnumWindows');
+    const enumChildWindows   = u32.findExportByName('EnumChildWindows');
     const getWindowThreadPid = u32.findExportByName('GetWindowThreadProcessId');
     const getClassNameA      = u32.findExportByName('GetClassNameA');
     const getWindowTextA     = u32.findExportByName('GetWindowTextA');
     const isWindowVisible    = u32.findExportByName('IsWindowVisible');
-    if (!enumWindows || !getWindowThreadPid || !getClassNameA ||
-        !getWindowTextA || !isWindowVisible) {
+    const postMessageA       = u32.findExportByName('PostMessageA');
+    const sendMessageA       = u32.findExportByName('SendMessageA');
+    const getDlgCtrlID       = u32.findExportByName('GetDlgCtrlID');
+    if (!enumWindows || !enumChildWindows || !getWindowThreadPid ||
+        !getClassNameA || !getWindowTextA || !isWindowVisible ||
+        !postMessageA || !sendMessageA || !getDlgCtrlID) {
         err('window_scan', 'one of the required user32 exports is missing');
         return;
     }
 
     const EnumWindows = new NativeFunction(enumWindows,
         'int', ['pointer', 'long']);
+    const EnumChildWindows = new NativeFunction(enumChildWindows,
+        'int', ['pointer', 'pointer', 'long']);
     const GetWindowThreadProcessId = new NativeFunction(getWindowThreadPid,
         'uint32', ['pointer', 'pointer']);
     const GetClassNameA  = new NativeFunction(getClassNameA,
@@ -364,11 +575,105 @@ function installPeriodicWindowScan() {
         'int', ['pointer', 'pointer', 'int']);
     const IsWindowVisible = new NativeFunction(isWindowVisible,
         'int', ['pointer']);
+    const PostMessageA = new NativeFunction(postMessageA,
+        'int', ['pointer', 'uint32', 'long', 'long']);
+    const SendMessageA = new NativeFunction(sendMessageA,
+        'long', ['pointer', 'uint32', 'long', 'long']);
+    const GetDlgCtrlID = new NativeFunction(getDlgCtrlID,
+        'int', ['pointer']);
+
+    // Win32 message constants we use for auto-interaction with the
+    // launcher dialog.  See MSDN; values are stable across Windows
+    // versions.
+    const WM_COMMAND   = 0x0111;
+    const BM_CLICK     = 0x00F5;
+    const BM_GETCHECK  = 0x00F0;
+    const BM_SETCHECK  = 0x00F1;
+    const BST_CHECKED  = 0x0001;
+    const BST_UNCHECKED= 0x0000;
+    const BN_CLICKED   = 0;
 
     const ourPid = Process.id;
     const pidBuf = Memory.alloc(4);
     const cnBuf  = Memory.alloc(256);
     const wtBuf  = Memory.alloc(512);
+
+    // Child-window enumeration callback.  Called once per child of the
+    // launcher dialog so we can find the Launch button and the
+    // disable-sound checkbox by their label text.
+    const dialogState = { launchClicked: false };
+
+    const childCb = new NativeCallback(function (hwnd, lparam) {
+        try {
+            GetClassNameA(hwnd, cnBuf, 256);
+            const cls = cnBuf.readUtf8String() || '';
+            GetWindowTextA(hwnd, wtBuf, 512);
+            const text = wtBuf.readUtf8String() || '';
+            const ctrlId = GetDlgCtrlID(hwnd);
+
+            send({ kind: 'dialog_child', hwnd: hwnd.toString(),
+                   cls: cls, text: text, ctrlId: ctrlId });
+
+            // Button heuristics: lowercase compare against known labels.
+            // Fortune Summoners' launcher uses English labels in the EN
+            // release ("Launch" / "Disable Sound" — TBD exact wording;
+            // we'll tighten this once a run logs the actual text).
+            const t = text.toLowerCase();
+
+            if (g_force_windowed &&
+                cls === 'Button' &&
+                (t.indexOf('windowed') !== -1 ||
+                 t.indexOf('window mode') !== -1)) {
+                const cur = SendMessageA(hwnd, BM_GETCHECK, 0, 0);
+                if (cur !== BST_CHECKED) {
+                    SendMessageA(hwnd, BM_SETCHECK, BST_CHECKED, 0);
+                    // Also send WM_COMMAND to the parent so the radio
+                    // group's other buttons get un-checked properly.
+                    // The Win32 docs are explicit that BM_SETCHECK on a
+                    // BS_AUTORADIOBUTTON doesn't trigger the group
+                    // exclusivity update — only WM_COMMAND does.
+                    send({ kind: 'dialog_action', action: 'check',
+                           target: 'windowed_mode', text: text,
+                           hwnd: hwnd.toString() });
+                }
+            }
+
+            if (g_auto_disable_sound &&
+                cls === 'Button' &&
+                (t.indexOf('disable sound') !== -1 ||
+                 t.indexOf('no sound') !== -1 ||
+                 t.indexOf('mute') !== -1)) {
+                const cur = SendMessageA(hwnd, BM_GETCHECK, 0, 0);
+                if (cur !== BST_CHECKED) {
+                    SendMessageA(hwnd, BM_SETCHECK, BST_CHECKED, 0);
+                    send({ kind: 'dialog_action', action: 'check',
+                           target: 'disable_sound', text: text,
+                           hwnd: hwnd.toString() });
+                }
+            }
+
+            if (g_auto_click_launch && !dialogState.launchClicked &&
+                cls === 'Button' &&
+                (t.indexOf('launch') !== -1 ||
+                 t.indexOf('start') !== -1 ||
+                 t === 'ok' || t === '&ok' ||
+                 t.indexOf('play') !== -1 ||
+                 t.indexOf('開始') !== -1 || t.indexOf('起動') !== -1)) {
+                // Use BM_CLICK so the button fires its own WM_COMMAND
+                // notification chain to the dialog's WndProc.  This
+                // mirrors a real user click — IsDialogMessage will
+                // correctly notice and close the modal.
+                PostMessageA(hwnd, BM_CLICK, 0, 0);
+                dialogState.launchClicked = true;
+                send({ kind: 'dialog_action', action: 'click',
+                       target: 'launch', text: text,
+                       hwnd: hwnd.toString() });
+            }
+        } catch (e) {
+            send({ kind: 'error', where: 'child_cb', msg: '' + e });
+        }
+        return 1;  // continue
+    }, 'int', ['pointer', 'long']);
 
     const cb = new NativeCallback(function (hwnd, lparam) {
         try {
@@ -383,24 +688,61 @@ function installPeriodicWindowScan() {
             const visible = IsWindowVisible(hwnd) !== 0;
             const key = hwnd.toString() + '|' + cls + '|' + title +
                         '|' + (visible ? '1' : '0');
-            if (g_seen_hwnd_keys[key]) return 1;
-            g_seen_hwnd_keys[key] = true;
+            if (g_seen_hwnd_keys[key]) {
+                // We've already logged this exact state.  Still drive
+                // dialog auto-handling on every scan in case the user
+                // dismissed our injected click somehow (or a different
+                // dialog with the same key appears later).
+            } else {
+                g_seen_hwnd_keys[key] = true;
+                send({ kind: 'hwnd_seen', hwnd: hwnd.toString(),
+                       cls: cls, title: title, visible: visible });
+            }
 
-            send({ kind: 'hwnd_seen', hwnd: hwnd.toString(),
-                   cls: cls, title: title, visible: visible });
+            // Launcher-dialog auto-handling.  The Win32 modal dialog
+            // class is "#32770"; the engine's launcher uses it as
+            // observed in the 2026-05-24 smoke run.  Drive auto-click
+            // on every scan until the click is registered.
+            if (cls === '#32770' && (g_auto_click_launch || g_auto_disable_sound)) {
+                EnumChildWindows(hwnd, childCb, 0);
+            }
 
             // Belt-and-braces: also force-hide if the user asked for it.
-            // Our CreateWindowEx onLeave hook should already have caught
-            // this HWND, but if the dialog was created via a path we
-            // didn't see, the periodic ShowWindow(SW_HIDE) handles it.
+            // Combined hide: ShowWindow(SW_HIDE) handles the public case;
+            // SetWindowPos with HWND_BOTTOM + SWP_NOACTIVATE + huge
+            // negative position + 1x1 size shoves the window off-screen
+            // in case ShowWindow alone doesn't take (some Win32 modal
+            // dialog managers reassert visibility internally).  Together
+            // these make the window imperceptible even if it briefly
+            // exists on the desktop between our scans.
             if (g_hide_window && visible) {
-                const sw = Process.findModuleByName('user32.dll').findExportByName('ShowWindow');
-                if (sw) {
-                    new NativeFunction(sw, 'int', ['pointer', 'int'])(hwnd, 0);
+                const u = Process.findModuleByName('user32.dll');
+                if (u) {
+                    const sw = u.findExportByName('ShowWindow');
+                    if (sw) new NativeFunction(sw, 'int',
+                        ['pointer', 'int'])(hwnd, 0);
+                    const spp = u.findExportByName('SetWindowPos');
+                    if (spp) new NativeFunction(spp, 'int',
+                        ['pointer', 'pointer', 'int', 'int', 'int', 'int', 'uint32'])
+                        (hwnd, ptr(1) /* HWND_BOTTOM */,
+                         -32000, -32000, 1, 1,
+                         0x10 /* SWP_NOACTIVATE */ |
+                         0x80 /* SWP_HIDEWINDOW */);
                     send({ kind: 'hide_force', api: 'periodic-scan',
                            hwnd: hwnd.toString(), original: 1 });
                 }
                 g_owned_hwnds[hwnd.toString()] = { source: 'periodic-scan' };
+            }
+
+            // Detect main game window appearance → back off scan rate.
+            if (!g_main_game_window_seen && cls === 'CLASS_LIZSOFT_SOTES') {
+                g_main_game_window_seen = true;
+                if (g_window_scan_handle !== null) {
+                    clearInterval(g_window_scan_handle);
+                    g_window_scan_handle = setInterval(scan, WINDOW_SCAN_SLOW_MS);
+                    logmsg('main window appeared — scan rate → ' +
+                           WINDOW_SCAN_SLOW_MS + ' ms');
+                }
             }
         } catch (e) {
             send({ kind: 'error', where: 'window_scan_cb', msg: '' + e });
@@ -412,9 +754,10 @@ function installPeriodicWindowScan() {
         try { EnumWindows(cb, 0); }
         catch (e) { send({ kind: 'error', where: 'EnumWindows', msg: '' + e }); }
     }
-    setInterval(scan, WINDOW_SCAN_INTERVAL_MS);
+    g_window_scan_handle = setInterval(scan, WINDOW_SCAN_FAST_MS);
     g_window_scan_started = true;
-    logmsg('installed periodic window scan (every ' + WINDOW_SCAN_INTERVAL_MS + ' ms)');
+    logmsg('installed periodic window scan (every ' + WINDOW_SCAN_FAST_MS + ' ms fast, → ' +
+           WINDOW_SCAN_SLOW_MS + ' ms after main window)');
 }
 
 function installSilentAudioHooks() {
@@ -494,6 +837,9 @@ rpc.exports = {
         // msgbox redirect default ON — pass {msgbox_redirect:false} to
         // see real popups (debugging the harness itself).
         if (typeof opts.msgbox_redirect === 'boolean') g_msgbox_redirect = opts.msgbox_redirect;
+        if (typeof opts.auto_click_launch  === 'boolean') g_auto_click_launch  = opts.auto_click_launch;
+        if (typeof opts.auto_disable_sound === 'boolean') g_auto_disable_sound = opts.auto_disable_sound;
+        if (typeof opts.force_windowed     === 'boolean') g_force_windowed     = opts.force_windowed;
 
         withModule(function (mod) {
             g_base = mod.base;
@@ -510,6 +856,7 @@ rpc.exports = {
             try { installMessagePumpCounter(); } catch (e) { err('install_pump', '' + e); }
             try { installTurboHooks(); } catch (e) { err('install_turbo', '' + e); }
             try { installSilentAudioHooks(); } catch (e) { err('install_audio', '' + e); }
+            try { installDialogBypass(); } catch (e) { err('install_dlg_bypass', '' + e); }
             try { installPeriodicWindowScan(); } catch (e) { err('install_window_scan', '' + e); }
 
             // Force the Interceptor to commit every attach/replace we

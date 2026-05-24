@@ -142,11 +142,14 @@ def ensure_frida_server(remote: str, exe_wsl_path: Path,
 
 @dataclass
 class CaptureConfig:
-    hide_window:       bool = True
-    turbo:             bool = True
-    silent_audio:      bool = True
-    msgbox_redirect:   bool = True
-    turbo_step_ms:     int  = 17
+    hide_window:        bool = True
+    turbo:              bool = True
+    silent_audio:       bool = True
+    msgbox_redirect:    bool = True
+    auto_click_launch:  bool = True
+    auto_disable_sound: bool = True
+    force_windowed:     bool = True
+    turbo_step_ms:      int  = 17
 
     max_frames:        int  = 600
     duration_ms:       int  = 30_000
@@ -258,6 +261,18 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary["msg_ticks"] += 1
         elif kind == "turbo_tick":
             summary["turbo_ticks"] += 1
+        elif kind == "dialog_child":
+            print(f"[frida_capture] dialog_child: cls={payload.get('cls')!r} "
+                  f"text={payload.get('text')!r} ctrlId={payload.get('ctrlId')} "
+                  f"hwnd={payload.get('hwnd')}", file=sys.stderr)
+            summary.setdefault("dialog_children", 0)
+            summary["dialog_children"] += 1
+        elif kind == "dialog_action":
+            print(f"[frida_capture] dialog_action: {payload.get('action')} "
+                  f"→ {payload.get('target')} ({payload.get('text')!r}) "
+                  f"hwnd={payload.get('hwnd')}", file=sys.stderr)
+            summary.setdefault("dialog_actions", 0)
+            summary["dialog_actions"] += 1
         elif kind == "error":
             print(f"[frida_capture] agent error in {payload.get('where')}: "
                   f"{payload.get('msg')}", file=sys.stderr)
@@ -269,11 +284,14 @@ def run_capture(cfg: CaptureConfig) -> int:
     # Drive the agent's init() RPC with our config.  Hooks install before
     # any engine code has run because the process is still suspended.
     script.exports_sync.init({
-        "hide_window":     cfg.hide_window,
-        "turbo":           cfg.turbo,
-        "silent_audio":    cfg.silent_audio,
-        "msgbox_redirect": cfg.msgbox_redirect,
-        "turbo_step_ms":   cfg.turbo_step_ms,
+        "hide_window":        cfg.hide_window,
+        "turbo":              cfg.turbo,
+        "silent_audio":       cfg.silent_audio,
+        "msgbox_redirect":    cfg.msgbox_redirect,
+        "auto_click_launch":  cfg.auto_click_launch,
+        "auto_disable_sound": cfg.auto_disable_sound,
+        "force_windowed":     cfg.force_windowed,
+        "turbo_step_ms":      cfg.turbo_step_ms,
     })
 
     device.resume(pid)
