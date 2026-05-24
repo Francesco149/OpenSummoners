@@ -145,6 +145,15 @@ struct test_case {
     X(palette_session_begin_returns_false_on_24bpp)            \
     X(main_sprites_installs_palette_when_resource_8bpp)        \
     X(main_sprites_skips_palette_when_resource_missing)        \
+    X(palette_ramps_installs_palettes_on_all_12_slots)         \
+    X(palette_ramps_ramp0_three_color_overrides)               \
+    X(palette_ramps_ramp4_uses_blue_bg)                        \
+    X(palette_ramps_skip_install_when_resource_missing)        \
+    X(palette_ramps_ramp_slot_field_writes)                    \
+    X(palette_ramps_extras_use_caller_settings)                \
+    X(palette_ramps_portrait_flags_written_per_register)       \
+    X(palette_ramps_portrait_slot_field_writes)                \
+    X(palette_ramps_coexist_with_main_pool_unwritten)          \
     X(bitmap_session_layout_matches_retail)                    \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \

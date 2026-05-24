@@ -6,6 +6,57 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — ar_register_palette_ramps (FUN_0057a330) ported
+
+Ported the 3919-byte sprite-batch palette function as
+**`ar_register_palette_ramps`** — second-biggest sprite-register call
+at boot.  Three observable sections, all wired in this checkpoint:
+
+**12 palette-ramp blocks** — each registers a small (24×24 or 32×32)
+type-2 sprite at one of 12 new `g_ar_sprite_ramp_slots[i]` (retail
+BSS 0x008a7610..0x008a763c, a 12-pointer table that precedes the
+main sprite pool's 0x008a7640 base), runs the same 3-color palette
+ramp scheme as `ar_register_main_sprites`
+(palette[1]=bg, [41..50]=mid, [51..70]=lerp(mid→fg, i/20)) with
+per-ramp colors, then installs.  All 12 share the
+`ar_palette_session_begin` / `ar_palette_install` path that landed
+in the previous checkpoint — no new decoder code needed; the family
+is now reused.  When the resource decoder fails (wrong bit depth
+or missing resource) the install is skipped, matching the main
+sprites ramp behaviour.
+
+**23 trailing sprite registers** — main-pool indices 33..61 with
+mixed icon / panel shapes.  Two of these (idx 36 at retail 0x76d0
+and idx 38 at retail 0x76d8) are spelled inline as the
+destructor-plus-field-writes pattern in retail; same observable end
+state as `ar_sprite_slot_register`, so all 23 flow through the
+helper here.  One entry (idx 37 at retail 0x76d4) is the only
+register-call in the file that passes `settings=NULL` instead of
+the launcher settings — special-cased in the iteration loop.
+
+**14 portrait blocks** — each is a register-call at retail
+0x8a7744..0x8a7778 (main pool indices 65..78, portrait/character art
+80×{352,480,320,144,400}) followed by a write of a flag value (0 or
+3) into a new parallel `g_ar_sprite_flags[]` table (14 entries
+modelling the retail BSS region 0x008a8578..0x008a85ac).  The flag's
+semantic meaning is unknown — likely a frame-count or facing-direction
+override; no consumer is ported yet so we capture just the observable
++4 write into a flat uint32 array (the retail pointer-to-struct
+indirection is unmodelled).
+
+Function-level stack-local `bitmap_session` in retail is a vestigial
+SEH-protected RAII placeholder — `bs_release_no_free`'d at entry,
+`bs_release`'d at exit, never used.  No observable effect; not
+modelled.
+
+Tests: +9 new tests in `tests/test_bitmap_session.c` covering all
+three sections.  **147 pass, 0 fail, 4 skip** (was 138 / 0 / 4).
+Cross-build clean.  Ghidra TAGS array also gained the two thiscall
+helpers it uses (FUN_004178e0 / FUN_00491770) so the re-exported
+decomp shows typed `this->field` access through the family.
+
+---
+
 ## 2026-05-24 — bitmap_session module + palette ramp wired end-to-end
 
 New module **src/bitmap_session.[ch] + src/bitmap_session_win32.c** —

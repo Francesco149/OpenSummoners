@@ -243,6 +243,49 @@ extern ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 extern ar_gdi_slot  g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 extern ar_gdi_slot *g_ar_gdi_table[AR_GDI_SLOT_COUNT];   /* table[i] == &slots[i] post-init */
 
+/* Palette-ramp slot pool — models the 12-entry retail BSS region at
+ * 0x008a7610..0x008a763c (preceding the main sprite pool's base
+ * 0x008a7640).  These 12 slots are exclusively touched by
+ * `ar_register_palette_ramps` (FUN_0057a330) — one per ramp — and
+ * never cross-indexed with the main pool, so they live in their own
+ * 12-entry array.
+ *
+ * Index → retail address map (slots laid out in retail BSS order):
+ *
+ *   ramp[ 0] → 0x008a7610   ramp[ 4] → 0x008a7620   ramp[ 8] → 0x008a7630
+ *   ramp[ 1] → 0x008a7614   ramp[ 5] → 0x008a7624   ramp[ 9] → 0x008a7634
+ *   ramp[ 2] → 0x008a7618   ramp[ 6] → 0x008a7628   ramp[10] → 0x008a7638
+ *   ramp[ 3] → 0x008a761c   ramp[ 7] → 0x008a762c   ramp[11] → 0x008a763c
+ *
+ * Index = (retail_addr - 0x008a7610) / 4. */
+#define AR_SPRITE_RAMP_COUNT 12
+extern ar_sprite_slot  g_ar_sprite_ramp_slots[AR_SPRITE_RAMP_COUNT];
+extern ar_sprite_slot *g_ar_sprite_ramp_table[AR_SPRITE_RAMP_COUNT];
+
+/* Per-sprite parallel flags table — models the 14-entry retail BSS
+ * region at 0x008a8578..0x008a85ac.  Each retail entry is itself a
+ * POINTER to some still-unidentified struct (set up by some prior
+ * init function we have not yet ported); the only observed write is
+ * `*(uint32_t*)(*ptr + 4) = 0 or 3`, paired one-to-one with the 14
+ * trailing FUN_005748c0 register calls in ar_register_palette_ramps.
+ *
+ * We model just the observable +4 write as a flat 14-entry uint32
+ * array, indexed in retail BSS order:
+ *
+ *   flags[ 0] → 0x008a8578 (paired with sprite at 0x8a7744, id=1000)
+ *   flags[ 1] → 0x008a857c (paired with sprite at 0x8a7748, id=0x3e9)
+ *   flags[ 2] → 0x008a8580 (paired with sprite at 0x8a774c, id=0x7e4)
+ *   ... 11 more ...
+ *   flags[13] → 0x008a85ac (paired with sprite at 0x8a7778, id=0x6b9)
+ *
+ * Semantic meaning unknown (likely a frame-count or facing flag for
+ * portrait/character art).  Value is 0 or 3 per write; no consumer
+ * is ported yet.  Modelled here so the observable behaviour of
+ * ar_register_palette_ramps survives the port without requiring the
+ * unknown backing struct. */
+#define AR_SPRITE_FLAGS_COUNT 14
+extern uint32_t g_ar_sprite_flags[AR_SPRITE_FLAGS_COUNT];
+
 /* Sound slots — start at DAT_008a6ec4.  The first 12 entries
  * (DAT_008a6ec4..6ef0) are the "main sounds" populated by FUN_00579a00.
  * FUN_0057b280 (the game-sounds batch, group 3) extends the pool out
@@ -669,6 +712,57 @@ void ar_register_locale_sounds(void *zds, uint16_t group, void *settings,
  * the resource isn't 8bpp). */
 void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
                               void *sotesp_module);
+
+/* FUN_0057a330 — palette-ramp + portrait sprite-register batch.
+ *
+ * Called by the boot driver (FUN_00562ea0) AFTER ar_register_aux_sounds
+ * and BEFORE FUN_0057ca40 (Ghidra-fail deferred function).  Retail call
+ * shape: `FUN_0057a330(ZDD, 2, settings)` — `group` = 2.
+ *
+ * The fourth parameter `sotesp_module` is the sotesp.dll HMODULE — the
+ * same DAT_008a6e74 value `ar_register_main_sprites` consumes.  In
+ * retail the value is loaded directly from `DAT_008a6e74` at the call
+ * site; we parameterise so the boot driver port owns the module
+ * pointer.
+ *
+ * The function does three things in sequence:
+ *
+ *   1. 12 palette-ramp blocks — each registers a small (24×24 or 32×32)
+ *      type-2 sprite at one of the 12 g_ar_sprite_ramp_slots and runs
+ *      a per-sprite palette ramp via ar_palette_session_begin /
+ *      ar_palette_install.  The ramp overrides:
+ *          palette[1]      = bg_color
+ *          palette[41..50] = mid_color (10 entries)
+ *          palette[51..70] = ar_color_lerp(mid_color, fg_color, i, 20)
+ *                            for i=1..20
+ *      All 12 sprites use the SAME PE resource ID for their palette
+ *      source — but the resource IDs and dimensions differ per ramp
+ *      (0x412 32×32 OR 0x413 24×24).  See the ramps[] table in the
+ *      port for the full color tuples.  When the decoder fails (no
+ *      such resource, wrong bit depth) the ramp body is a no-op,
+ *      matching ar_register_main_sprites' palette ramp.
+ *
+ *   2. 23 trailing FUN_005748c0 calls — sprite slots in the main pool
+ *      at retail addrs 0x8a76c4..0x8a7734 (indices 33..61).  Two of
+ *      these (idx 36 and 38) are spelled inline as the
+ *      destructor-plus-field-writes pattern in retail; same observable
+ *      end state as ar_sprite_slot_register, so all 23 flow through
+ *      the helper here.  Mix of small icons (32×32 type=2),
+ *      medium (96×64 type=2), and panel-sized (192×128 type=2) shapes.
+ *
+ *   3. 14 portrait-sprite blocks — each registers a tall portrait
+ *      sprite (typically 80×352 / 80×480 / 80×320 / 80×144 type=0) at
+ *      retail addrs 0x8a7744..0x8a7778 (indices 65..78 in main pool)
+ *      AND writes a "flags" value (0 or 3) into the parallel
+ *      g_ar_sprite_flags[] table.  See the AR_SPRITE_FLAGS_COUNT
+ *      doc-comment for the +4 indirection pattern.
+ *
+ * The function-level stack-local `bitmap_session` in retail is a
+ * vestigial SEH-protected RAII placeholder — bs_release_no_free'd at
+ * entry, bs_release'd at exit, never otherwise touched.  No
+ * observable effect; we don't model it. */
+void ar_register_palette_ramps(void *zdd, uint16_t group, void *settings,
+                               void *sotesp_module);
 
 /* FUN_0056e190 — "hundreds of sprites" register batch.
  *

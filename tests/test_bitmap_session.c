@@ -675,6 +675,302 @@ int test_main_sprites_skips_palette_when_resource_missing(void)
     return 0;
 }
 
+/* ─── ar_register_palette_ramps (FUN_0057a330) ───────────────────── */
+
+/* Shared teardown for the palette-ramp tests: destroy every sprite
+ * slot we may have touched + assert the heap is leak-free.  Covers
+ * both the main pool (for the trailing batches + portraits) and the
+ * 12 ramp slots. */
+static void palette_ramps_teardown(void)
+{
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    }
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
+        ar_sprite_slot_destroy(&g_ar_sprite_ramp_slots[i]);
+    }
+}
+
+int test_palette_ramps_installs_palettes_on_all_12_slots(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *sotesp = (void *)0xfeed;
+    /* Both ramp resource IDs (0x412, 0x413) need to resolve to an
+     * 8bpp compressed resource for the install branch to run.  We
+     * point both to the same resource since the ramp doesn't read
+     * the pixel bytes — only the palette. */
+    build_compressed_resource(2, 2, /*bpp=*/8, /*pixel_off=*/0);
+    memset(g_compressed + 0x458, 0, 4);
+    stub_register(sotesp, 0x412, "DATA", g_compressed);
+    stub_register(sotesp, 0x413, "DATA", g_compressed);
+
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2, sotesp);
+
+    /* All 12 ramps should now have entries[0].b populated (palette
+     * was installed). */
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
+        ar_sprite_slot *s = &g_ar_sprite_ramp_slots[i];
+        T_ASSERT(s->entries != NULL);
+        T_ASSERT_EQ_U(s->entry_count, 1u);
+        T_ASSERT(s->entries[0].b != NULL);
+    }
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_ramp0_three_color_overrides(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *sotesp = (void *)0xfeed;
+    build_compressed_resource(2, 2, /*bpp=*/8, /*pixel_off=*/0);
+    memset(g_compressed + 0x458, 0, 4);
+    stub_register(sotesp, 0x412, "DATA", g_compressed);
+    stub_register(sotesp, 0x413, "DATA", g_compressed);
+
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2, sotesp);
+
+    /* Ramp 0 (slot 0x8a7610): bg=0x404040, mid=0x404040, fg=0xffffff. */
+    const uint8_t *p = (const uint8_t *)g_ar_sprite_ramp_slots[0].entries[0].b;
+    /* palette[1] = bg = 0x404040 */
+    T_ASSERT_EQ_U(p[1 * 4 + 0], 0x40);
+    T_ASSERT_EQ_U(p[1 * 4 + 1], 0x40);
+    T_ASSERT_EQ_U(p[1 * 4 + 2], 0x40);
+    /* palette[41..50] = mid = 0x404040 */
+    T_ASSERT_EQ_U(p[45 * 4 + 0], 0x40);
+    T_ASSERT_EQ_U(p[45 * 4 + 1], 0x40);
+    T_ASSERT_EQ_U(p[45 * 4 + 2], 0x40);
+    /* palette[70] = lerp(0x404040, 0xffffff, 20, 20) = 0xffffff */
+    T_ASSERT_EQ_U(p[70 * 4 + 0], 0xff);
+    T_ASSERT_EQ_U(p[70 * 4 + 1], 0xff);
+    T_ASSERT_EQ_U(p[70 * 4 + 2], 0xff);
+    /* palette[51] = lerp(0x404040, 0xffffff, 1, 20)
+     *             = 0x40 + (0xff - 0x40) * 1 / 20 = 0x40 + 0x09 = 0x49 */
+    T_ASSERT_EQ_U(p[51 * 4 + 0], 0x49);
+    T_ASSERT_EQ_U(p[51 * 4 + 1], 0x49);
+    T_ASSERT_EQ_U(p[51 * 4 + 2], 0x49);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_ramp4_uses_blue_bg(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *sotesp = (void *)0xfeed;
+    build_compressed_resource(2, 2, /*bpp=*/8, /*pixel_off=*/0);
+    memset(g_compressed + 0x458, 0, 4);
+    stub_register(sotesp, 0x412, "DATA", g_compressed);
+    stub_register(sotesp, 0x413, "DATA", g_compressed);
+
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2, sotesp);
+
+    /* Ramp 4 (slot 0x8a7620): bg=0x0000ff, mid=0x6c6ccc, fg=0xffffff.
+     * BGRA-packed: palette[1] = (R=0xff, G=0, B=0). */
+    const uint8_t *p = (const uint8_t *)g_ar_sprite_ramp_slots[4].entries[0].b;
+    T_ASSERT_EQ_U(p[1 * 4 + 0], 0xff);
+    T_ASSERT_EQ_U(p[1 * 4 + 1], 0x00);
+    T_ASSERT_EQ_U(p[1 * 4 + 2], 0x00);
+    /* palette[41..50] = mid = 0x6c6ccc. */
+    T_ASSERT_EQ_U(p[41 * 4 + 0], 0xcc);
+    T_ASSERT_EQ_U(p[41 * 4 + 1], 0x6c);
+    T_ASSERT_EQ_U(p[41 * 4 + 2], 0x6c);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_skip_install_when_resource_missing(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    /* No stub_register — decoder fails, ramp install skipped. */
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2,
+                              /*sotesp=*/(void *)0xfeed);
+
+    /* All 12 ramp slots are still registered (entries allocated) but
+     * the palette was not installed (entries[0].b is NULL). */
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
+        ar_sprite_slot *s = &g_ar_sprite_ramp_slots[i];
+        T_ASSERT(s->entries != NULL);
+        T_ASSERT_EQ_P(s->entries[0].b, NULL);
+    }
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_ramp_slot_field_writes(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *zdd      = (void *)0xaaaaaaaau;
+    void *sotesp   = (void *)0xbbbbbbbbu;
+    void *settings = (void *)0xccccccccu;
+
+    ar_register_palette_ramps(zdd, /*group=*/0x1234, settings, sotesp);
+
+    /* Spot check a 24×24 ramp (idx 0, id 0x413) and a 32×32 ramp
+     * (idx 1, id 0x412).  All ramps use the sotesp_module as their
+     * `settings`, NOT the caller's `settings`. */
+    ar_sprite_slot *r0 = &g_ar_sprite_ramp_slots[0];
+    T_ASSERT_EQ_P(r0->zdd, zdd);
+    T_ASSERT_EQ_P(r0->settings, sotesp);
+    T_ASSERT_EQ_U(r0->resource_id, 0x413u);
+    T_ASSERT_EQ_U(r0->width,  0x18u);
+    T_ASSERT_EQ_U(r0->height, 0x18u);
+    T_ASSERT_EQ_U(r0->type, 2u);
+    T_ASSERT_EQ_U(r0->scale_flag, 0u);
+    T_ASSERT_EQ_U(r0->colorkey, 0u);
+    T_ASSERT_EQ_U(r0->group, 0x1234u);
+
+    ar_sprite_slot *r1 = &g_ar_sprite_ramp_slots[1];
+    T_ASSERT_EQ_P(r1->settings, sotesp);
+    T_ASSERT_EQ_U(r1->resource_id, 0x412u);
+    T_ASSERT_EQ_U(r1->width,  0x20u);
+    T_ASSERT_EQ_U(r1->height, 0x20u);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_extras_use_caller_settings(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *zdd      = (void *)0xaaaaaaaau;
+    void *sotesp   = (void *)0xbbbbbbbbu;
+    void *settings = (void *)0xccccccccu;
+
+    ar_register_palette_ramps(zdd, /*group=*/2, settings, sotesp);
+
+    /* Extras spot checks — every entry except idx 37 uses caller's
+     * `settings`, not the sotesp_module. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[36].resource_id, 0x44fu);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[36].settings, settings);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[36].width, 0x20u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[36].group, 2u);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[38].resource_id, 0x76du);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[38].settings, settings);
+
+    /* idx 37 is the special case: settings = NULL in retail. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[37].resource_id, 0x5abu);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[37].settings, NULL);
+
+    /* Pick a few mid-range extras to confirm shape. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[33].resource_id, 0x44eu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[33].width, 0x80u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[33].type,  0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[33].scale_flag, 1u);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[54].resource_id, 0x454u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[54].width, 400u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[54].colorkey, 0xff00ffu);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_portrait_flags_written_per_register(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    /* Sentinel: make sure the flag writes overwrite the BSS init
+     * (which we just zeroed via ar_state_init). */
+    for (int i = 0; i < AR_SPRITE_FLAGS_COUNT; i++) {
+        g_ar_sprite_flags[i] = 0xdeadbeefu;
+    }
+
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2,
+                              /*sotesp=*/(void *)0xfeed);
+
+    /* Expected per the 14-entry portrait table (retail issue order
+     * doesn't matter — the writes are independent + indexed). */
+    static const uint32_t expected[AR_SPRITE_FLAGS_COUNT] = {
+        3, 0, 0, 3, 0, 0, 0, 3, 0, 3, 3, 3, 3, 3,
+    };
+    for (int i = 0; i < AR_SPRITE_FLAGS_COUNT; i++) {
+        T_ASSERT_EQ_U(g_ar_sprite_flags[i], expected[i]);
+    }
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_portrait_slot_field_writes(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    void *zdd      = (void *)0x111;
+    void *settings = (void *)0x222;
+    ar_register_palette_ramps(zdd, /*group=*/2, settings, /*sotesp=*/(void *)0x333);
+
+    /* First portrait at slot 65 (retail 0x8a7744), id=1000, 80×352. */
+    ar_sprite_slot *s0 = &g_ar_sprite_slots[65];
+    T_ASSERT_EQ_P(s0->zdd, zdd);
+    T_ASSERT_EQ_P(s0->settings, settings);
+    T_ASSERT_EQ_U(s0->resource_id, 1000u);
+    T_ASSERT_EQ_U(s0->width,  0x50u);
+    T_ASSERT_EQ_U(s0->height, 0x160u);
+    T_ASSERT_EQ_U(s0->colorkey, 0x1ffffffu);
+    T_ASSERT_EQ_U(s0->scale_flag, 0u);
+    T_ASSERT_EQ_U(s0->type, 0u);
+    T_ASSERT_EQ_U(s0->group, 2u);
+
+    /* Last portrait at slot 78 (retail 0x8a7778), id=0x6b9, 80×144. */
+    ar_sprite_slot *s13 = &g_ar_sprite_slots[78];
+    T_ASSERT_EQ_U(s13->resource_id, 0x6b9u);
+    T_ASSERT_EQ_U(s13->height, 0x90u);
+    T_ASSERT_EQ_U(s13->colorkey, 0xff00ffu);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
+int test_palette_ramps_coexist_with_main_pool_unwritten(void)
+{
+    stub_reset();
+    ar_state_init();
+
+    ar_register_palette_ramps((void *)0x1, /*group=*/2, (void *)0x2,
+                              /*sotesp=*/(void *)0xfeed);
+
+    /* The main pool indices [0..32] and [42..43] and [46..47, 50, 55]
+     * are NOT touched here (those belong to other batches).  Spot
+     * check a few to make sure ar_register_palette_ramps doesn't bleed
+     * into them. */
+    for (int i = 0; i < 33; i++) {
+        T_ASSERT_EQ_P(g_ar_sprite_slots[i].entries, NULL);
+    }
+    T_ASSERT_EQ_P(g_ar_sprite_slots[42].entries, NULL);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[43].entries, NULL);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[46].entries, NULL);
+
+    palette_ramps_teardown();
+    T_ASSERT_EQ_I(g_live_allocs, 0);
+    return 0;
+}
+
 /* ─── layout ─────────────────────────────────────────────────────── */
 
 int test_bitmap_session_layout_matches_retail(void)

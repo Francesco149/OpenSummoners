@@ -103,6 +103,16 @@ public class TagThiscallFunctions extends GhidraScript {
             "void * resource_type, int compressed_flag)" },
         { 0x005b7b90L, "bitmap_session",
             "void FUN_005b7b90(void * dest_palette)" },
+
+        // Palette-session thiscall pair on ar_sprite_slot.  Tagged so
+        // the dozen call-sites inside FUN_0057a330 show typed
+        // this->field accesses (rather than the bare `FUN_004178e0(buf)`
+        // / `FUN_00491770(buf)` calls Ghidra otherwise emits — the ECX
+        // setup is dropped from the decompile without these tags).
+        { 0x004178e0L, "ar_sprite_slot",
+            "bool FUN_004178e0(void * out_palette)" },
+        { 0x00491770L, "ar_sprite_slot",
+            "void FUN_00491770(void * palette)" },
         // NB: FUN_005b7c10 was listed alongside the bitmap-session
         // helpers in HANDOFF (palette-session next-move), but its
         // decomp shows no in_ECX reads — the destination it writes to

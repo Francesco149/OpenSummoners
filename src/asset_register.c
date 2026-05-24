@@ -19,6 +19,9 @@
 
 ar_sprite_slot  g_ar_sprite_slots[AR_SPRITE_SLOT_COUNT];
 ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
+ar_sprite_slot  g_ar_sprite_ramp_slots[AR_SPRITE_RAMP_COUNT];
+ar_sprite_slot *g_ar_sprite_ramp_table[AR_SPRITE_RAMP_COUNT];
+uint32_t        g_ar_sprite_flags[AR_SPRITE_FLAGS_COUNT];
 ar_gdi_slot     g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 ar_gdi_slot    *g_ar_gdi_table[AR_GDI_SLOT_COUNT];
 ar_sound_slot   g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
@@ -26,11 +29,16 @@ ar_sound_slot  *g_ar_sound_table[AR_SOUND_SLOT_COUNT];
 
 void ar_state_init(void)
 {
-    memset(g_ar_sprite_slots, 0, sizeof g_ar_sprite_slots);
-    memset(g_ar_gdi_slots,    0, sizeof g_ar_gdi_slots);
-    memset(g_ar_sound_slots,  0, sizeof g_ar_sound_slots);
+    memset(g_ar_sprite_slots,      0, sizeof g_ar_sprite_slots);
+    memset(g_ar_sprite_ramp_slots, 0, sizeof g_ar_sprite_ramp_slots);
+    memset(g_ar_sprite_flags,      0, sizeof g_ar_sprite_flags);
+    memset(g_ar_gdi_slots,         0, sizeof g_ar_gdi_slots);
+    memset(g_ar_sound_slots,       0, sizeof g_ar_sound_slots);
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
         g_ar_sprite_table[i] = &g_ar_sprite_slots[i];
+    }
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
+        g_ar_sprite_ramp_table[i] = &g_ar_sprite_ramp_slots[i];
     }
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++) {
         g_ar_gdi_table[i] = &g_ar_gdi_slots[i];
@@ -1080,6 +1088,180 @@ void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
             zdd, settings, e->id,
             e->width, e->height, e->colorkey,
             e->scale_flag, e->type, group);
+    }
+}
+
+/* ─── FUN_0057a330 — palette-ramp + portrait sprite register batch ─ */
+
+/* One palette ramp.  Each ramp registers a small sprite from sotesp.dll
+ * at g_ar_sprite_ramp_slots[idx], then overrides three palette regions
+ * (entry 1, entries 41..50, entries 51..70) using the same 3-color
+ * scheme ar_register_main_sprites uses but with per-ramp colors. */
+struct ar_palette_ramp_entry {
+    uint8_t   idx;       /* index into g_ar_sprite_ramp_slots[] */
+    uint16_t  id;        /* PE resource ID (sotesp.dll) */
+    uint16_t  width;     /* sprite width */
+    uint16_t  height;    /* sprite height */
+    uint32_t  bg;        /* palette[1]      = bg     (one COLORREF) */
+    uint32_t  mid;       /* palette[41..50] = mid    (10 entries) */
+    uint32_t  fg;        /* palette[51..70] = lerp(mid → fg, i/20) */
+};
+
+/* Helper: run one palette-ramp block (register sprite + run palette
+ * session + install).  Matches the repeated body that retail issues 12
+ * times inside FUN_0057a330; all 12 share the same three-region ramp
+ * scheme so the only per-ramp variation is the slot/id/dimensions/colors
+ * captured in `e`.
+ *
+ * No-op on the palette section when ar_palette_session_begin returns
+ * false (resource missing or wrong bit depth) — matches retail's
+ * implicit early-out via the if-guard around the install. */
+static void ar_run_palette_ramp(const struct ar_palette_ramp_entry *e,
+                                 void *zdd, void *sotesp_module, uint16_t group)
+{
+    ar_sprite_slot *s = &g_ar_sprite_ramp_slots[e->idx];
+    ar_sprite_slot_register(s, zdd, sotesp_module, e->id,
+                            e->width, e->height,
+                            /*colorkey=*/0, /*scale_flag=*/0,
+                            /*type=*/2, group);
+
+    uint8_t palette[1024];
+    if (ar_palette_session_begin(s, palette)) {
+        ar_palette_pack_entry(&palette[1 * 4], e->bg);
+        for (int i = 0; i < 10; i++) {
+            ar_palette_pack_entry(&palette[(41 + i) * 4], e->mid);
+        }
+        for (int i = 1; i <= 20; i++) {
+            uint32_t c = ar_color_lerp(e->mid, e->fg, i, 20);
+            ar_palette_pack_entry(&palette[(50 + i) * 4], c);
+        }
+        ar_palette_install(s, palette);
+    }
+}
+
+/* Portrait entry — same idx-relative-to-0x8a7640 convention as
+ * ar_main_sprite_entry, with an extra (flags_idx, flags_value) pair
+ * for the `g_ar_sprite_flags[flags_idx] = flags_value` write that
+ * follows each portrait register in retail. */
+struct ar_ramp_extra_entry {
+    uint8_t   idx;          /* g_ar_sprite_slots[idx] */
+    uint8_t   flags_idx;    /* g_ar_sprite_flags[flags_idx] */
+    uint32_t  flags_value;  /* 0 or 3 */
+    uint16_t  id;
+    uint16_t  width;
+    uint16_t  height;
+    uint32_t  colorkey;
+    uint8_t   scale_flag;
+    uint8_t   type;
+};
+
+void ar_register_palette_ramps(void *zdd, uint16_t group, void *settings,
+                               void *sotesp_module)
+{
+    /* The 12 palette ramps.  All ramps register from sotesp.dll (NOT
+     * the launcher settings), match the same 3-color scheme, and use
+     * type=2 / colorkey=0 / scale_flag=0.  Index order matches retail
+     * BSS order (slots at 0x8a7610 stride 4 → idx 0..11), which is
+     * NOT the order retail issues them — but iteration is independent
+     * so we list by ramp_slot idx for readability. */
+    static const struct ar_palette_ramp_entry ramps[] = {
+        /* idx, id,    w,    h,    bg,        mid,        fg */
+        {  0,  0x413, 0x18, 0x18, 0x404040,  0x404040,   0xffffff },  /* 0x8a7610 */
+        {  1,  0x412, 0x20, 0x20, 0x404040,  0x404040,   0xffffff },  /* 0x8a7614 */
+        {  2,  0x413, 0x18, 0x18, 0xff00f0,  0xcc6ccc,   0xffffff },  /* 0x8a7618 */
+        {  3,  0x412, 0x20, 0x20, 0xff00f0,  0xcc6ccc,   0xffffff },  /* 0x8a761c */
+        {  4,  0x413, 0x18, 0x18, 0x0000ff,  0x6c6ccc,   0xffffff },  /* 0x8a7620 */
+        {  5,  0x412, 0x20, 0x20, 0x0000ff,  0x6c6ccc,   0xffffff },  /* 0x8a7624 */
+        {  6,  0x413, 0x18, 0x18, 0xff0000,  0xcc6c6c,   0xffffff },  /* 0x8a7628 */
+        {  7,  0x412, 0x20, 0x20, 0x008000,  0x40c040,   0xc0ffc0 },  /* 0x8a762c */
+        {  8,  0x413, 0x18, 0x18, 0x404040,  0x00c0ff,   0xc0f0ff },  /* 0x8a7630 */
+        {  9,  0x412, 0x20, 0x20, 0x404040,  0x00c0ff,   0xc0f0ff },  /* 0x8a7634 */
+        { 10,  0x413, 0x18, 0x18, 0x404040,  0x0000c0,   0xc0c0ff },  /* 0x8a7638 */
+        { 11,  0x413, 0x18, 0x18, 0x0080ff,  0x0080ff,   0xffffff },  /* 0x8a763c */
+    };
+    for (size_t i = 0; i < sizeof(ramps) / sizeof(ramps[0]); i++) {
+        ar_run_palette_ramp(&ramps[i], zdd, sotesp_module, group);
+    }
+
+    /* 23 trailing FUN_005748c0 calls + 2 inlined-equivalent register
+     * blocks (retail addrs 0x8a76d0 and 0x8a76d8 — spelled as the
+     * open-coded destructor + field-writes pattern, but same
+     * observable end state as ar_sprite_slot_register).  Indices are
+     * relative to the main sprite pool base 0x008a7640.
+     *
+     * `settings` (NOT sotesp_module) is the +0x3c value for every
+     * entry here — these registers load from the launcher settings
+     * record, not sotesp.dll. */
+    static const struct ar_main_sprite_entry extras[] = {
+        /* idx, id,    w,     h,    colorkey,    scale, type */
+        { 36, 0x44f, 0x20,  0x20,  0,           0, 2 },  /* 0x8a76d0 (inline-shaped in retail) */
+        { 38, 0x76d, 0x20,  0x20,  0,           0, 2 },  /* 0x8a76d8 (inline-shaped in retail) */
+        { 37, 0x5ab, 0x20,  0x20,  0,           0, 2 },  /* 0x8a76d4 — settings=NULL in retail */
+        { 44, 0x450, 0x30,  0x30,  0,           0, 2 },  /* 0x8a76f0 */
+        { 45, 0x451, 0x40,  0x40,  0,           1, 2 },  /* 0x8a76f4 */
+        { 49, 0x776, 0xc0,  0x40,  0,           0, 2 },  /* 0x8a7704 */
+        { 57, 1099,  0x160, 0x60,  0,           0, 2 },  /* 0x8a7724 — id 0x44b */
+        { 58, 0x778, 0x60,  0x40,  0,           1, 2 },  /* 0x8a7728 */
+        { 51, 0x44d, 0x20,  0x20,  0,           1, 0 },  /* 0x8a770c */
+        { 52, 0x44a, 0xc0,  0x40,  0,           0, 2 },  /* 0x8a7710 */
+        { 39, 0x76c, 0x28,  0x28,  0,           0, 2 },  /* 0x8a76dc */
+        { 56, 0x775, 0x30,  0x10,  0xff00ff,    0, 2 },  /* 0x8a7720 */
+        { 59, 0x601, 0x60,  0x60,  0xff00ff,    1, 2 },  /* 0x8a772c */
+        { 60, 0x602, 0x60,  0x60,  0xff00ff,    1, 2 },  /* 0x8a7730 */
+        { 61, 0x603, 0x60,  0x60,  0xff00ff,    1, 2 },  /* 0x8a7734 */
+        { 53, 0x449, 0x140, 0x80,  0,           1, 2 },  /* 0x8a7714 */
+        { 54, 0x454, 400,   0x80,  0xff00ff,    1, 2 },  /* 0x8a7718 — id 0x190 */
+        { 40, 0x458, 0x40,  4,     0x1ffffff,   1, 0 },  /* 0x8a76e0 */
+        { 41, 0x583, 0x40,  4,     0x1ffffff,   0, 0 },  /* 0x8a76e4 */
+        { 33, 0x44e, 0x80,  0x10,  0,           1, 0 },  /* 0x8a76c4 */
+        { 34, 0x777, 0xc0,  0x10,  0,           1, 0 },  /* 0x8a76c8 */
+        { 35, 0x909, 0x20,  0xf0,  0,           1, 0 },  /* 0x8a76cc */
+    };
+    /* Retail's 0x8a76d4 entry passes `settings=NULL` (not the caller's
+     * settings) — the only entry in the extras list with that special
+     * shape.  Issue it separately so the table stays uniform. */
+    for (size_t i = 0; i < sizeof(extras) / sizeof(extras[0]); i++) {
+        const struct ar_main_sprite_entry *e = &extras[i];
+        void *slot_settings = (e->idx == 37) ? NULL : settings;
+        ar_sprite_slot_register(&g_ar_sprite_slots[e->idx],
+            zdd, slot_settings, e->id,
+            e->width, e->height, e->colorkey,
+            e->scale_flag, e->type, group);
+    }
+
+    /* 14 portrait blocks — each is FUN_005748c0 followed by a write
+     * of `flags_value` (0 or 3) into g_ar_sprite_flags[flags_idx].
+     * All portraits share width=0x50, type=0, scale_flag=0,
+     * colorkey=0x1ffffff (except the four 0xff00ff colorkey'd entries
+     * at the tail).
+     *
+     * Retail iterates them in the order listed — the flag index
+     * matches the sprite-slot's position in the 0x8a7744..0x8a7778
+     * BSS range one-to-one. */
+    static const struct ar_ramp_extra_entry portraits[] = {
+        /* idx, flag,val,  id,    w,    h,     ck,         scale, type */
+        { 65,  0, 3,  1000,  0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a7744, flags @0x8a8578 */
+        { 66,  1, 0,  0x3e9, 0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a7748, flags @0x8a857c */
+        { 67,  2, 0,  0x7e4, 0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a774c, flags @0x8a8580 */
+        { 68,  3, 3,  0x7b3, 0x50, 0x1e0, 0x1ffffff,  0, 0 },  /* 0x8a7750, flags @0x8a8584 */
+        { 69,  4, 0,  0x7b4, 0x50, 0x1e0, 0x1ffffff,  0, 0 },  /* 0x8a7754, flags @0x8a8588 */
+        { 72,  7, 3,  0x3ea, 0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a7760, flags @0x8a8594 */
+        { 73,  8, 0,  0x3eb, 0x50, 0x160, 0x1ffffff,  0, 0 },  /* 0x8a7764, flags @0x8a8598 */
+        { 74,  9, 3,  0x439, 0x50, 0x140, 0xff00ff,   0, 0 },  /* 0x8a7768, flags @0x8a859c */
+        { 75, 10, 3,  0x43a, 0x50, 0x100, 0,          0, 0 },  /* 0x8a776c, flags @0x8a85a0 */
+        { 76, 11, 3,  0x6ba, 0x50, 0xc0,  0,          0, 0 },  /* 0x8a7770, flags @0x8a85a4 */
+        { 77, 12, 3,  0x6b8, 0x50, 0x140, 0xff00ff,   0, 0 },  /* 0x8a7774, flags @0x8a85a8 */
+        { 78, 13, 3,  0x6b9, 0x50, 0x90,  0xff00ff,   0, 0 },  /* 0x8a7778, flags @0x8a85ac */
+        { 70,  5, 0,  0x879, 0x50, 0x1e0, 0x1ffffff,  0, 0 },  /* 0x8a7758, flags @0x8a858c */
+        { 71,  6, 0,  0x87c, 0x50, 0x140, 0xff00ff,   0, 0 },  /* 0x8a775c, flags @0x8a8590 */
+    };
+    for (size_t i = 0; i < sizeof(portraits) / sizeof(portraits[0]); i++) {
+        const struct ar_ramp_extra_entry *e = &portraits[i];
+        ar_sprite_slot_register(&g_ar_sprite_slots[e->idx],
+            zdd, settings, e->id,
+            e->width, e->height, e->colorkey,
+            e->scale_flag, e->type, group);
+        g_ar_sprite_flags[e->flags_idx] = e->flags_value;
     }
 }
 

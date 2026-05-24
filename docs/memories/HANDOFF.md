@@ -14,20 +14,21 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  **Four modules ported now:**
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 22 functions ported.  Pure logic with GDI
+- **Asset-Register** — 23 functions ported.  Pure logic with GDI
   wrappers split into `asset_register_win32.c` (real build only).
-  Latest: `ar_palette_session_begin` (FUN_004178e0) and the
-  palette-ramp section in `ar_register_main_sprites` is now wired
-  end-to-end against the new bitmap_session module.
-- **Bitmap-Session** — new module, 8 functions (7 thiscalls + 1
-  free function FUN_005b7c10).  Pure PE-resource bitmap decoder,
-  Win32-free body with `bs_local_alloc_zeroed` / `bs_local_free` /
+  Latest: `ar_register_palette_ramps` (FUN_0057a330) — 12 per-sprite
+  palette ramps + 23 trailing sprite registers + 14 portrait blocks
+  with parallel flag-table writes.  Reuses the bitmap_session-backed
+  palette-session pair end-to-end.
+- **Bitmap-Session** — 8 functions (7 thiscalls + 1 free function
+  FUN_005b7c10).  Pure PE-resource bitmap decoder, Win32-free body
+  with `bs_local_alloc_zeroed` / `bs_local_free` /
   `bs_load_pe_resource` externs in `bitmap_session_win32.c`.
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
 
-Total host tests across all four modules: **138 pass, 0 fail, 4
+Total host tests across all four modules: **147 pass, 0 fail, 4
 skip** (the 4 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -35,9 +36,10 @@ compile time on the cross build).
 `tools/ghidra-scripts/TagThiscallFunctions.java` applies class-
 namespace + `__thiscall` + typed prototype to a batch of functions
 headlessly, and `tools/ghidra-tag-and-export.sh` is the one-shot
-wrapper.  15 functions tagged now (8 asset-register + 7
-bitmap_session).  Re-exported decomps in `docs/decompiled/` show
-typed `this->field` accesses across the family.  See
+wrapper.  17 functions tagged now (8 asset-register + 7
+bitmap_session + 2 palette-session helpers FUN_004178e0 / 00491770).
+Re-exported decomps in `docs/decompiled/` show typed `this->field`
+accesses across the family.  See
 `docs/findings/cpp-recovery-workflow.md` for the full workflow.
 **One-time prereq when adding a new struct to the TAGS array**:
 GUI Parse C Source on the new header (e.g. `src/bitmap_session.h`)
@@ -46,6 +48,7 @@ but less so).
 
 Most recent commits (newest first):
 
+- (current) Asset-Register: port FUN_0057a330 (palette-ramp batch)
 - `4f89867` bitmap_session: port the PE-resource decoder + palette-ramp wiring
 - `8cb9fd8` RE: resolve bitmap_session ECX puzzle + tag the 7 methods
 - `b29ff82` docs: HANDOFF + PROGRESS for palette-trio-leaves checkpoint
@@ -55,7 +58,6 @@ Most recent commits (newest first):
 - `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
 - `d4198b0` Asset-Register: port ar_register_aux_sounds (FUN_00562ea0:617-620)
 - `09c2bfd` docs: capture FUN_0057b280 locale-table layout finding
-- `40aabdf` docs: HANDOFF + PROGRESS for FUN_0057b280 checkpoint
 
 ## Active goal
 
@@ -66,20 +68,27 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-The palette-session is fully ported and wired.  The next significant
-boundaries are the sprite-batch palette work (FUN_0057a330) that
-depends on the same decoder family + a separate per-sprite palette
-ramp shape, and the WndProc subsystem ports.  The decoder family is
-now ready to be reused.
+`ar_register_palette_ramps` (FUN_0057a330) is ported.  The major
+remaining boot-driver register calls are FUN_0057ca40 (24884 B
+Ghidra-fails) and the un-ported subsystem ports (DDraw / WndProc
+deep structs).  Two new opportunities surfaced:
 
-1. **(recommended) `FUN_0057a330`** (3919 B) — second-biggest sprite-
-   register call at boot.  Per-sprite palette-ramp work that uses the
-   exact same decoder family we just ported.  Re-export the decomp
-   first (already done in this session — see
-   `docs/decompiled/by-address/57a330.c`) to confirm the call shape
-   now that the bitmap_session class is typed.  Likely structure:
-   for each sprite in a fixed table, register_sprite() + (sometimes)
-   palette ramp via the same ar_palette_session_begin we just ported.
+1. **(recommended) Boot driver wiring (FUN_00562ea0)** — every
+   register batch is now ported in isolation: `ar_register_fonts`,
+   `ar_register_main_sprites`, `ar_register_game_sprites`,
+   `ar_register_sounds`, `ar_register_aux_sounds`,
+   `ar_register_game_sounds`, `ar_register_locale_sounds`,
+   `ar_register_palette_ramps`.  The boot driver itself
+   (FUN_00562ea0) is unported — wiring them together gives us
+   "register every asset slot at boot" as a single port call.  Will
+   also surface the locale-state plumbing (DAT_008a6e68 / _6e70 /
+   _6e80+0x1c8) that's currently passed in as a struct by the test
+   harness.  Port style: read FUN_00562ea0's decomp, identify the
+   order of register calls + the global setup before/around them,
+   wire it as `ar_boot_register_all(zdd, zds, settings, sotesp,
+   locale)` or similar.  Doesn't need the deferred FUN_0057ca40 if
+   we model it as a stub (it's the only ungated function in the
+   sequence).
 
 2. **WndProc dependency formalization** — model the layouts of the
    5 "deep engine" structs (paint context with +0x164 state and
@@ -113,7 +122,7 @@ src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
-  asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette) — 22 functions
+  asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette) — 23 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   bitmap_session.c/h        PE-resource bitmap decoder (the ar_palette_session_begin backend) — 8 functions
   bitmap_session_win32.c    LocalAlloc/Free + FindResource/LoadResource/LockResource wrappers
@@ -128,7 +137,7 @@ tests/
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
   test_asset_register.c     66 tests for Asset-Register
-  test_bitmap_session.c     22 tests for bitmap_session (incl. ar_palette_session_begin + ramp integration)
+  test_bitmap_session.c     31 tests for bitmap_session (incl. ar_palette_session_begin + ramps for both main_sprites + FUN_0057a330)
   test_wnd_proc.c           20 tests for WndProc
 
 tools/
@@ -156,13 +165,23 @@ tools/
   `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
 - `ar_register_fonts` + `ar_register_sounds` + `ar_register_main_sprites`
   + `ar_register_game_sprites` + `ar_register_game_sounds` +
-  `ar_register_aux_sounds` + `ar_register_locale_sounds` are all
-  ported but **not yet called from the drop-in's boot path** —
-  they're modules in isolation.  Wire them in once enough adjacent
-  register batches land that calling them actually has a visible
-  effect.  `ar_register_locale_sounds` ALSO needs the boot driver
-  to populate an `ar_locale_state` from the launcher-settings
-  globals — see next bullet.
+  `ar_register_aux_sounds` + `ar_register_locale_sounds` +
+  `ar_register_palette_ramps` are all ported but **not yet called
+  from the drop-in's boot path** — they're modules in isolation.
+  Wire them in once enough adjacent register batches land that
+  calling them actually has a visible effect (Next-move #1 is the
+  boot-driver wiring port that picks them all up).
+  `ar_register_locale_sounds` ALSO needs the boot driver to populate
+  an `ar_locale_state` from the launcher-settings globals — see
+  next bullet.
+- `g_ar_sprite_flags[14]` (retail BSS 0x008a8578..0x008a85ac) —
+  parallel per-portrait flag table written by
+  `ar_register_palette_ramps`'s portrait blocks (values 0 or 3).
+  Semantic meaning unknown — likely a frame-count or facing
+  direction.  In retail each entry is a POINTER to an unknown
+  backing struct (the +4 indirection pattern); we model just the
+  observable +4 write as a flat uint32 array.  No consumer ported
+  yet; revisit when porting whatever subsystem reads them.
 - `ar_locale_state` modelling: the locale loop's three globals
   (DAT_008a6e68, _6e70, *DAT_008a6e80+0x1c8) are passed in as a
   struct in our port.  The boot driver port will need to read them
