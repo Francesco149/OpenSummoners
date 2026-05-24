@@ -136,4 +136,46 @@ void pd_blend_init(PdBlend *b);
  * encode/allocate LUTs — that's a separate commit step (TBD). */
 void pd_blend_set_color(PdBlend *b, uint16_t r, uint16_t g, uint16_t b_chan);
 
+/* FUN_005bd040.  Build (or share) the channel's LUT.
+ *
+ * `prev` is the previously-built channel (or NULL).  When `prev` is
+ * non-NULL and has the same channel weight as `chan`, this is the
+ * **shared-LUT short-circuit**: `chan->lut` is aliased to `prev->lut`
+ * and lut_allocated stays at 0 (we don't own it, the previous channel
+ * does — pd_channel_free_lut is correctly a no-op on shared aliases).
+ *
+ * Otherwise allocates and fills one of two LUT shapes based on
+ * `slot->state`:
+ *
+ *   state == 0 or 2 → 32-byte 1-D LUT: lut[k] = clamp(w*k / 1000),
+ *                     where w is the channel weight and k is either
+ *                     the index or its bit-reversed twin (32-k) when
+ *                     `slot->invert` is set.  This is the "identity
+ *                     scaling" LUT used when the slot is idle or in
+ *                     the simple-attenuation state.
+ *
+ *   state == 1     → 1024-byte 2-D LUT (32 × 32 rows of bytes), filled
+ *                     by one of five blend formulas selected by
+ *                     `slot->mode`:
+ *                     • 1 = "add": out = i + W*s/1000, clamped ≥ i
+ *                     • 2 = "sub": out = i - W*s/1000, clamped ≤ i
+ *                     • 3 = "lerp variant A": (1-W)*i + (s-i)*W
+ *                     • 4 = "channel-weight-coupled lerp" (mixes
+ *                       channel weight `w` into the formula directly
+ *                       and skips the final `*w/1000` scaling)
+ *                     • other = identity unless s != i, then case-3 form
+ *                     For modes 1/2/3/default the result is post-scaled
+ *                     by channel weight before clamping to [0, 31].
+ *                     `s` is either `inner` (column) or `32 - inner`
+ *                     when `slot->invert` is set.
+ *
+ *   anything else  → no-op (no allocation).
+ *
+ * After this returns `chan->lut` may be either a fresh allocation
+ * (lut_allocated=1, free with pd_channel_free_lut) or a shared
+ * pointer into `prev->lut` (lut_allocated=0). */
+void pd_blend_build_channel_lut(PdBlend  *slot,
+                                PdChannel *chan,
+                                PdChannel *prev);
+
 #endif /* OPENSUMMONERS_PIXEL_DRAWER_H */

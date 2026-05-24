@@ -209,6 +209,234 @@ int test_pd_blend_set_color_does_not_touch_other_fields(void)
 }
 
 
+/* ─── pd_blend_build_channel_lut ───────────────────────────────────── */
+
+/* Shared-LUT short-circuit: when prev has the same channel weight as
+ * chan, chan->lut is aliased to prev->lut and lut_allocated stays at
+ * 0 (the alias must NOT transfer ownership — pd_channel_free_lut on
+ * the alias must be a no-op).  This is the engine's optimisation for
+ * grey-ramp slots where all three channels share a weight. */
+int test_pd_lut_shared_short_circuit(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 1;
+    pd_blend_set_color(&b, 500, 500, 500);
+
+    /* Build the R channel's LUT first (no prev → real alloc). */
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+    T_ASSERT_EQ_U(b.r.lut_allocated, 1);
+
+    /* Build the G channel with R as prev — same weight → share. */
+    pd_blend_build_channel_lut(&b, &b.g, &b.r);
+    T_ASSERT_EQ_P(b.g.lut, b.r.lut);
+    T_ASSERT_EQ_U(b.g.lut_allocated, 0);   /* alias, not owned */
+
+    /* pd_channel_free_lut on the alias must NOT free b.r.lut. */
+    pd_channel_free_lut(&b.g);
+    T_ASSERT(b.r.lut != NULL);   /* still valid */
+
+    /* Free R for real to keep ASan happy. */
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* When prev has a *different* channel weight, no sharing — chan gets
+ * its own fresh allocation. */
+int test_pd_lut_different_weight_allocates_fresh(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 1;
+    pd_blend_set_color(&b, 500, 700, 800);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    pd_blend_build_channel_lut(&b, &b.g, &b.r);   /* different weights */
+
+    T_ASSERT(b.r.lut != NULL);
+    T_ASSERT(b.g.lut != NULL);
+    T_ASSERT(b.r.lut != b.g.lut);
+    T_ASSERT_EQ_U(b.r.lut_allocated, 1);
+    T_ASSERT_EQ_U(b.g.lut_allocated, 1);
+
+    pd_channel_free_lut(&b.r);
+    pd_channel_free_lut(&b.g);
+    return 0;
+}
+
+/* State 3+ → no LUT allocated, chan->lut untouched. */
+int test_pd_lut_invalid_state_is_noop(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 5;
+    pd_blend_set_color(&b, 500, 500, 500);
+
+    /* Seed chan->lut with a known sentinel so we can tell it was NOT
+     * overwritten by the builder. */
+    uint8_t marker = 0;
+    b.r.lut           = &marker;
+    b.r.lut_allocated = 0;
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+
+    T_ASSERT_EQ_P(b.r.lut, &marker);
+    T_ASSERT_EQ_U(b.r.lut_allocated, 0);
+    return 0;
+}
+
+/* State 0 / 2 → small (32-byte) LUT: lut[k] = clamp(w*k / 1000). */
+int test_pd_lut_small_identity_weight_1000(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 0;
+    pd_blend_set_color(&b, 1000, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+    /* w=1000: lut[k] = k for k=0..31 */
+    for (int k = 0; k < 32; k++) {
+        T_ASSERT_EQ_U(b.r.lut[k], (uint8_t)k);
+    }
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+int test_pd_lut_small_half_weight_500(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 2;                 /* both 0 and 2 go through small LUT */
+    pd_blend_set_color(&b, 500, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+    /* w=500: lut[k] = (500 * k) / 1000.
+     * Truncating int division: k=0..1 → 0, k=2..3 → 1, …, k=30..31 → 15.
+     * (k * 500) / 1000 == k / 2 (integer division). */
+    for (int k = 0; k < 32; k++) {
+        T_ASSERT_EQ_U(b.r.lut[k], (uint8_t)(k / 2));
+    }
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+int test_pd_lut_small_zero_weight(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state = 0;
+    pd_blend_set_color(&b, 0, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+    for (int k = 0; k < 32; k++) {
+        T_ASSERT_EQ_U(b.r.lut[k], 0);
+    }
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Invert flag flips the input axis: lut[k] = (w * (32-k)) / 1000.
+ * For w=1000: lut[0] = 32 → clamped to 31; lut[1] = 31; …; lut[31] = 1.
+ * (j starts at 32 and decrements each iteration, so at the k-th
+ * iteration j == 32 - k.) */
+int test_pd_lut_small_invert(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state  = 0;
+    b.invert = 1;
+    pd_blend_set_color(&b, 1000, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+    for (int k = 0; k < 32; k++) {
+        int expected = 32 - k;
+        if (expected > 31) expected = 31;
+        T_ASSERT_EQ_U(b.r.lut[k], (uint8_t)expected);
+    }
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Large LUT, mode 1 (add), W=1000 w=1000 → lut[inner*32 + outer] =
+ * clamp(inner + outer, 0, 31).  Spot-check a handful of cells. */
+int test_pd_lut_large_mode1_add(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state  = 1;
+    b.mode   = 1;
+    b.weight = 1000;       /* slot W */
+    pd_blend_set_color(&b, 1000, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+
+    /* Cells we hand-compute: (inner=5, outer=10) → 15; (20, 20) → 31
+     * (40 clamps); (0, 0) → 0; (31, 31) → 31. */
+    T_ASSERT_EQ_U(b.r.lut[5 * 32 + 10],  15);
+    T_ASSERT_EQ_U(b.r.lut[20 * 32 + 20], 31);
+    T_ASSERT_EQ_U(b.r.lut[0 * 32 + 0],    0);
+    T_ASSERT_EQ_U(b.r.lut[31 * 32 + 31], 31);
+    /* clamp >= outer means (inner=0, outer=10) → max(0+10, 10) = 10. */
+    T_ASSERT_EQ_U(b.r.lut[0 * 32 + 10],  10);
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Mode 2 (sub), W=1000 w=1000 → clamp(outer - inner, 0, 31), then
+ * also clamped above by `if (v > outer) v = outer` which is moot for
+ * v = outer-inner with inner >= 0. */
+int test_pd_lut_large_mode2_sub(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state  = 1;
+    b.mode   = 2;
+    b.weight = 1000;
+    pd_blend_set_color(&b, 1000, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+
+    T_ASSERT_EQ_U(b.r.lut[5 * 32 + 10],  5);    /* 10 - 5 = 5 */
+    T_ASSERT_EQ_U(b.r.lut[0 * 32 + 10], 10);    /* 10 - 0 = 10 */
+    T_ASSERT_EQ_U(b.r.lut[20 * 32 + 10], 0);    /* 10 - 20 = -10 → 0 */
+    T_ASSERT_EQ_U(b.r.lut[31 * 32 + 31], 0);    /* 0 */
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Default mode (anything other than 1..4), W=1000 w=1000 →
+ * lut[inner*32 + outer] = inner (when inner != outer) or outer (when
+ * inner == outer; identical in that case).  So effectively lut = inner. */
+int test_pd_lut_large_default_mode(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.state  = 1;
+    b.mode   = 99;            /* unrecognised → default branch */
+    b.weight = 1000;
+    pd_blend_set_color(&b, 1000, 0, 0);
+
+    pd_blend_build_channel_lut(&b, &b.r, NULL);
+    T_ASSERT(b.r.lut != NULL);
+
+    for (int inner = 0; inner < 32; inner++) {
+        for (int outer = 0; outer < 32; outer++) {
+            uint8_t expected = (uint8_t)inner;
+            T_ASSERT_EQ_U(b.r.lut[inner * 32 + outer], expected);
+        }
+    }
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+
 /* ─── struct layout parity ─────────────────────────────────────────── */
 
 int test_pd_blend_layout_matches_retail_offsets(void)

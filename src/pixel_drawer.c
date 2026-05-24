@@ -91,6 +91,170 @@ void pd_blend_init(PdBlend *b)
     b->state       = 0;
 }
 
+/* FUN_005bd040 — channel LUT builder.
+ *
+ * The original is dense (801 bytes, four blend modes, nested loops).
+ * The structure boils down to:
+ *
+ *   1. Shared-LUT short-circuit: if `prev` is non-NULL and has the
+ *      same channel weight as `chan`, alias chan->lut to prev->lut
+ *      and return.  Does NOT set lut_allocated — the alias is read-
+ *      only and pd_channel_free_lut on chan must NOT call free().
+ *   2. Switch on slot->state:
+ *        0 → small 32-byte LUT (also reached via fall-through from 2)
+ *        1 → large 1024-byte 2-D LUT, mode-dependent fill
+ *        2 → small 32-byte LUT
+ *        else → no-op (no allocation, leaves chan->lut at whatever
+ *               value it had — caller's responsibility to init).
+ *
+ * The "floor-correction" terms (`uVar1 + (int)uVar5 / 1000 +
+ * ((int)uVar5 >> 0x1f)`) are preserved literally even though they
+ * always evaluate to 0 for valid weight ranges (W, w ∈ [0, 1000]
+ * and i, s ∈ [0, 31]).  Keeping them protects against any out-of-
+ * range input the engine might pass that would tip the arithmetic
+ * into the sign-correction branch — better to match retail byte-
+ * for-byte than to "simplify" a behaviour we don't fully understand. */
+static void build_lut_small(PdBlend *slot, PdChannel *chan)
+{
+    /* Original: operator_new(0x20), then 32-iteration fill loop. */
+    uint8_t *lut = (uint8_t *)malloc(0x20);
+    chan->lut           = lut;
+    chan->lut_allocated = 1;
+
+    int w = (int)chan->weight;
+    int i = 0;          /* outer counter, 0..31 */
+    int j = 0x20;       /* paired decrementer, 32..1 */
+    do {
+        int input = (slot->invert != 0) ? j : i;
+        int v     = (w * input) / 1000;
+        if (v < 0)       v = 0;
+        else if (v > 31) v = 31;
+        /* Original writes lut[-1 + (i+1)] = lut[i] after the i++.
+         * Equivalent: write at i before incrementing.  Same effect. */
+        lut[i] = (uint8_t)v;
+        i++;
+        j--;
+    } while (j > 0);
+}
+
+static void build_lut_large(PdBlend *slot, PdChannel *chan)
+{
+    /* Original: operator_new(0x400), nested 32×32 fill loop selecting
+     * one of five formulas by slot->mode.  Each entry is at
+     * lut[inner * 32 + outer]. */
+    uint8_t *lut = (uint8_t *)malloc(0x400);
+    chan->lut           = lut;
+    chan->lut_allocated = 1;
+
+    /* Arithmetic notes:
+     *
+     * The retail code does the per-term multiplications in uint32_t
+     * (because the source-language `(uint)W * signed_expr` triggers
+     * the unsigned wrap-then-cast pattern Ghidra renders verbatim),
+     * but for all weight / index ranges the engine ever uses (W, w ∈
+     * [0, 1000], outer/inner ∈ [0, 31]) the products fit in 21 bits
+     * signed and the unsigned wrap never reaches the high bit.  The
+     * `(int) ... / 1000 + (... >> 31)` floor-correction therefore
+     * always adds zero, and the uVar1 bias term `uVar5 >> 31` is
+     * always zero too.
+     *
+     * Doing the math in `int` produces identical results for valid
+     * inputs and is much easier to audit.  If the engine ever passes
+     * out-of-range weights, the divergence becomes visible — but it
+     * would be a sign of a *different* problem (out-of-range weight)
+     * and we should fail loudly rather than silently replicate
+     * undefined behaviour. */
+    int W      = (int)slot->weight;
+    int w      = (int)chan->weight;
+    int mode   = (int)slot->mode;
+    int invert = (slot->invert != 0);
+
+    for (int outer = 0; outer < 32; outer++) {     /* iVar4 — row base */
+        int j = 0x20;                              /* local_8 */
+        int inner = 0;                             /* param_2 reused */
+        do {
+            int s = invert ? j : inner;            /* iVar6 */
+            int v = 0;
+
+            switch (mode) {
+            case 1:
+                v = (W * (s + outer)) / 1000
+                  + ((1000 - W) * outer) / 1000;
+                if (v < outer) v = outer;
+                break;
+            case 2:
+                v = (W * (outer - s)) / 1000
+                  + ((1000 - W) * outer) / 1000;
+                if (v > outer) v = outer;
+                break;
+            case 3:
+                v = ((1000 - W) * outer) / 1000
+                  + ((s - outer) * W) / 1000;
+                break;
+            case 4: {
+                /* The two `(x + ((x >> 31) & 0x1f)) >> 5` patterns are
+                 * compiler-emitted `floor(x/32)` for signed x — they
+                 * round toward negative infinity (vs C's `/32` which
+                 * truncates toward zero).  Preserved literally. */
+                int a = ((w << 5) / 1000) * s;
+                int b = (0x20 - s) * outer;
+                v = ((1000 - W) * outer) / 1000
+                  + ((((a + ((a >> 31) & 0x1f)) >> 5)
+                    + ((b + ((b >> 31) & 0x1f)) >> 5)) * W) / 1000;
+                break;
+            }
+            default:
+                v = outer;
+                if (s != outer) {
+                    v = ((1000 - W) * outer) / 1000
+                      + (s * W) / 1000;
+                }
+                break;
+            }
+
+            if (mode != 4) {
+                v = (w * v) / 1000;
+            }
+            if (v < 0)       v = 0;
+            else if (v > 31) v = 31;
+
+            lut[inner * 32 + outer] = (uint8_t)v;
+            inner++;
+            j--;
+        } while (j > 0);
+    }
+}
+
+void pd_blend_build_channel_lut(PdBlend *slot, PdChannel *chan, PdChannel *prev)
+{
+    /* Shared-LUT short-circuit. */
+    if (prev != NULL && prev->weight == chan->weight) {
+        chan->lut = prev->lut;
+        /* Note: lut_allocated stays at its previous value (typically 0
+         * after pd_channel_free_lut).  Aliasing must not transfer
+         * ownership, so we don't set it to 1 here. */
+        return;
+    }
+
+    /* State dispatch.  state==0 falls through to the small-LUT path
+     * (matches original's structure: `if (iVar4 == 1) {…}; if (iVar4
+     * != 2) return;` — with iVar4 starting at slot->state, this means
+     * state 0 SKIPS both branches and FALLS THROUGH to the small-LUT
+     * code below). */
+    switch (slot->state) {
+    case 1:
+        build_lut_large(slot, chan);
+        return;
+    case 0:
+    case 2:
+        build_lut_small(slot, chan);
+        return;
+    default:
+        /* No LUT allocated. */
+        return;
+    }
+}
+
 /* FUN_005bd3b0 — slot SetColor.
  * Original:
  *   *(undefined2 *)(in_ECX + 0x10) = param_1;   // byte +0x10 = R channel weight

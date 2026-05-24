@@ -38,6 +38,16 @@ struct test_case {
     X(pd_blend_set_color_writes_per_channel_weights)           \
     X(pd_blend_set_color_does_not_touch_other_fields)          \
     X(pd_blend_layout_matches_retail_offsets)                  \
+    X(pd_lut_shared_short_circuit)                             \
+    X(pd_lut_different_weight_allocates_fresh)                 \
+    X(pd_lut_invalid_state_is_noop)                            \
+    X(pd_lut_small_identity_weight_1000)                       \
+    X(pd_lut_small_half_weight_500)                            \
+    X(pd_lut_small_zero_weight)                                \
+    X(pd_lut_small_invert)                                     \
+    X(pd_lut_large_mode1_add)                                  \
+    X(pd_lut_large_mode2_sub)                                  \
+    X(pd_lut_large_default_mode)                               \
 
 #define X(n) extern int test_##n(void);
 TESTS
