@@ -14,19 +14,19 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  **Four modules ported now:**
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 24 functions ported, **including the boot-driver
-  wiring**: `ar_boot_register_all` replays FUN_00562ea0:613-624 in retail
-  issue order.  Pure logic with GDI wrappers split into
-  `asset_register_win32.c` (real build only).
+- **Asset-Register** — **25 functions ported including the boot-driver
+  wiring**: `ar_boot_register_all` replays FUN_00562ea0:613-624 in
+  retail issue order — and **NOW INCLUDES** the slot-register subset
+  of FUN_0057ca40 (group 3) via `ar_register_group3_sprites`.  Pure
+  logic with GDI wrappers split into `asset_register_win32.c` (real
+  build only).
 - **Bitmap-Session** — 8 functions (7 thiscalls + 1 free function
-  FUN_005b7c10).  Pure PE-resource bitmap decoder, Win32-free body
-  with `bs_local_alloc_zeroed` / `bs_local_free` /
-  `bs_load_pe_resource` externs in `bitmap_session_win32.c`.
+  FUN_005b7c10).  Pure PE-resource bitmap decoder, Win32-free body.
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
 
-Total host tests across all four modules: **153 pass, 0 fail, 4
+Total host tests across all four modules: **160 pass, 0 fail, 4
 skip** (the 4 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -35,18 +35,17 @@ compile time on the cross build).
 namespace + `__thiscall` + typed prototype to a batch of functions
 headlessly, and `tools/ghidra-tag-and-export.sh` is the one-shot
 wrapper.  17 functions tagged now (8 asset-register + 7
-bitmap_session + 2 palette-session helpers FUN_004178e0 / 00491770).
-Re-exported decomps in `docs/decompiled/` show typed `this->field`
-accesses across the family.  See
-`docs/findings/cpp-recovery-workflow.md` for the full workflow.
-**One-time prereq when adding a new struct to the TAGS array**:
-GUI Parse C Source on the new header (e.g. `src/bitmap_session.h`)
-— without that, the auto-this falls back to `void *` (still useful,
-but less so).
+bitmap_session + 2 palette-session helpers).  Re-exported decomps in
+`docs/decompiled/` show typed `this->field` accesses across the
+family.  **The typed-prototype workflow ALSO repaired Ghidra's
+ability to decompile FUN_0057ca40** — what HANDOFF previously called
+"Ghidra-fails" decomps cleanly now with the typed structs in scope.
+See `docs/findings/cpp-recovery-workflow.md` for the full workflow.
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
+- (current) Asset-Register: port FUN_0057ca40 slot-register subset (ar_register_group3_sprites)
+- `39d9602` Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
 - `dcc3d15` Asset-Register: port ar_register_palette_ramps (FUN_0057a330)
 - `4f89867` bitmap_session: port the PE-resource decoder + palette-ramp wiring
 - `8cb9fd8` RE: resolve bitmap_session ECX puzzle + tag the 7 methods
@@ -55,7 +54,6 @@ Most recent commits (newest first):
 - `d3e8a00` Asset-Register: port palette-trio leaves (FUN_005b5d90 + FUN_00491770)
 - `811f56c` docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
 - `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
-- `d4198b0` Asset-Register: port ar_register_aux_sounds (FUN_00562ea0:617-620)
 
 ## Active goal
 
@@ -66,57 +64,53 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-`ar_boot_register_all` is now wired — every ported register batch
-runs in retail issue order with one call.  The asset-register module
-is *content-complete* for the title-scene boot path modulo the
-deferred FUN_0057ca40 (group 3 sprite batch, Ghidra-fails).  Next
-steps narrow to either un-blocking that deferred function OR moving
-to the runtime subsystems the title scene actually exercises.
+`ar_register_group3_sprites` ported the 233 sprite-slot registers
+inside FUN_0057ca40 — the well-understood subset.  The function's
+remaining ~480 ops (94 SS_MGR slot-clones, ~380 parallel-info-table
+writes, 9 FUN_00582b80 + 1 FUN_00582d00 calls) are documented in
+`docs/findings/0057ca40-rabbit-hole.md` and deferred.  No ported
+consumer reads the deferred state today, so the asset-register
+module is now **functionally complete for the title-scene boot path**.
 
-1. **(recommended) Crack FUN_0057ca40** (24884 B) — the one un-ported
-   register call in `ar_boot_register_all`.  Ghidra's decompile fails
-   (response buffer exceeded).  Approach options:
-     - **radare2 hand-disasm** of the function in chunks.  Pattern is
-       likely the same FUN_005748c0 + palette-ramp + maybe ar_sound
-       mix as the other group-3 batches.  Use `r2 -c 'pdf @
-       0x0057ca40' | wc -l` to estimate function size, then walk it in
-       0x200-byte chunks via `pD 0x200 @ ...` while cross-referencing
-       string xrefs.
-     - **Chunked Ghidra** — Ghidra's "decompile a region" can work on
-       sub-ranges by setting function boundaries manually.  Slower but
-       gives typed pseudo-C.
-     - **Frida watchpoint** at function entry; log every memory write
-       it issues to the asset-register pool slots.  Gives us the
-       observable end-state without the body decomp — sufficient to
-       reproduce the slot writes table-driven.  This is the most
-       pragmatic approach given the function's size; the body is
-       almost certainly "register N sprites" boilerplate.
-
-2. **WndProc dependency formalization** — model the layouts of the
-   5 "deep engine" structs (paint context with +0x164 state and
-   +0x138 blit rect, input device with +0x04 vtable + +0x08
+1. **(recommended) WndProc dependency formalization** — model the
+   layouts of the 5 "deep engine" structs (paint context with +0x164
+   state and +0x138 blit rect, input device with +0x04 vtable + +0x08
    acquired flag, ZDM with +0x18 device array + +0x1c count, input
    manager singleton with +0x2884 ZDM pointer, log singleton with
-   +0x404 file handle).  Once each struct is in a header AND added
-   to TagThiscallFunctions.java's TAGS, run
-   `./tools/ghidra-tag-and-export.sh` to get `this->field` reads
-   in the decomp.  Pre-req for actually porting any of those
-   subsystems beyond the no-op stubs.
+   +0x404 file handle).  Once each struct is in a header AND added to
+   TagThiscallFunctions.java's TAGS, run
+   `./tools/ghidra-tag-and-export.sh` to get `this->field` reads in
+   the decomp.  Pre-req for actually porting any of those subsystems
+   beyond the no-op stubs.
 
-3. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
+2. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
    Can't be cleanly unit-tested without a DDraw mock layer; verify
    via Frida smoke harness end-to-end.  Unblocks actual rendering
    AND lets the WndProc's `wp_paint_check` hook get a real
    implementation.
 
-4. **Wire ar_boot_register_all into the drop-in's WinMain.** —
+3. **Wire ar_boot_register_all into the drop-in's WinMain.** —
    currently every batch is a module in isolation; the function
    exists but no real drop-in caller invokes it.  Wiring requires the
-   drop-in to own the engine init (currently retail does this).  Pre-
-   req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0, FUN_005b9cf0,
+   drop-in to own the engine init (currently retail does this).
+   Pre-req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0, FUN_005b9cf0,
    FUN_005bbb10).  Without those, the call can run with stub pointers
    but has no observable effect because the drop-in's drawing path is
    still retail's.
+
+4. **FUN_0057ca40 deferred subsystems** — pick one of:
+   - **Parallel-info-table writes** (~380 writes at retail BSS
+     0x008a8578..0x008a8b14).  Requires extending `g_ar_sprite_flags[]`
+     from flat-u32 to a ~357-entry pointer-to-struct array.  Useful
+     once we know what reads from it — see "Open RE threads" for the
+     `g_ar_sprite_flags` consumer hunt.
+   - **SS_MGR slot-clones** (94 FUN_004179b0 calls) — needs the SS_MGR
+     singleton modelled (DAT_008a8440, 0xaac slot table + 0x18e0
+     parallel table).
+   - **FUN_00582b80 tail** (9 calls + 5×20-byte memcpy tail) — a
+     `__thiscall` clone-from-this-slot helper.  Smaller scope but
+     depends on the slot-clone semantics being modelled.
+   See `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown.
 
 5. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
@@ -130,7 +124,7 @@ src/
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
   asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette,
-                            BOOT-DRIVER WIRING) — 24 functions
+                            BOOT-DRIVER WIRING + group-3 sprites) — 25 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   bitmap_session.c/h        PE-resource bitmap decoder (the ar_palette_session_begin backend) — 8 functions
   bitmap_session_win32.c    LocalAlloc/Free + FindResource/LoadResource/LockResource wrappers
@@ -144,8 +138,9 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     72 tests for Asset-Register (incl. 6 ar_boot_register_all)
-  test_bitmap_session.c     31 tests for bitmap_session (incl. ar_palette_session_begin + ramps for both main_sprites + FUN_0057a330)
+  test_asset_register.c     79 tests for Asset-Register (incl. 7 group3_sprites +
+                            6 ar_boot_register_all)
+  test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
 
 tools/
@@ -153,6 +148,8 @@ tools/
   frida/opensummoners-agent.js   Frida agent
   run-retail.sh             single-source-of-truth dev loop
   ghidra-tag-and-export.sh  one-shot wrapper for Ghidra re-tag + re-export
+  extract/57ca40_sprite_table.py
+                            regenerator for the group-3 sprite table
 ```
 
 ## Open RE threads (not picked up yet)
@@ -167,7 +164,8 @@ tools/
   reading those slots.
 - SS_MGR / W_MGR / GD_MGR boot-pool allocators (DAT_008a8440 / _6ec4
   / _9274) are dependency-of ~30 functions; defer until consumer
-  semantics map cleanly.
+  semantics map cleanly.  **FUN_0057ca40's deferred clone subsystem
+  needs SS_MGR modelled** — first concrete consumer.
 - `PTR_DAT_0056bfa4` jumptable inside the title-menu runner
   (`FUN_0056aea0`) — Ghidra-flagged unrecovered.  Read with
   `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
@@ -177,27 +175,22 @@ tools/
   the engine init (currently retail does that), which means porting
   the ZDD/ZDS/ZDM device init (`FUN_005b7ee0`, `FUN_005b9cf0`,
   `FUN_005bbb10`) first so we have real device pointers to pass in.
-- `g_ar_sprite_flags[14]` (retail BSS 0x008a8578..0x008a85ac) —
-  parallel per-portrait flag table written by
-  `ar_register_palette_ramps`'s portrait blocks (values 0 or 3).
-  Semantic meaning unknown — likely a frame-count or facing
-  direction.  In retail each entry is a POINTER to an unknown
-  backing struct (the +4 indirection pattern); we model just the
-  observable +4 write as a flat uint32 array.  No consumer ported
-  yet; revisit when porting whatever subsystem reads them.
+- `g_ar_sprite_flags[]` — modelled as a flat 14-entry uint32 array
+  (retail BSS 0x008a8578..0x008a85ac).  In retail the table is much
+  bigger: FUN_0057ca40's deferred parallel-table writes show it
+  extends to 0x008a8b14 (~357 entries) AND each entry is itself a
+  POINTER to a struct with at least +0/+4/+8 fields (the values 1 vs
+  2 in the writes suggest distinct flag semantics per slot).  Modeling
+  this needs a refactor: flat-u32 → pointer-to-struct array.  See
+  `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown of
+  observed writes.  No consumer ported yet.
 - `ar_locale_state` modelling: the locale loop's three globals
   (DAT_008a6e68, _6e70, *DAT_008a6e80+0x1c8) are passed in as a
   struct in our port.  The boot driver port will need to read them
-  from the real BSS / launcher-settings record.  DAT_008a6e80 is a
-  pointer-to-pointer-to-launcher-settings; the loop reads
-  `*(int*)(*DAT_008a6e80 + 0x1c8)`.  Field 0x1c8 of the launcher-
-  settings struct is unmodelled — its specific semantics are
-  unknown (likely a "force-default-language" override toggle).
+  from the real BSS / launcher-settings record.
 - The WndProc port is also a module in isolation — `wp_handle_message`
   is not wired into any RegisterClassExA call yet.  Wiring requires
-  the drop-in to actually own the main game window registration
-  (currently retail does that during its init), which means porting
-  the WinMain → CreateWindow → message-pump scaffold first.
+  the drop-in to actually own the main game window registration.
 - `FUN_00563ef0` wave-load second half is unported (the `if
   (param_6 != 0 && ...)` branch that allocates DSound buffers).  Boot
   callers all pass `load_flag = 0` so it's dead code at boot, but the
@@ -205,7 +198,7 @@ tools/
 - The 5 "deep engine" structs the WndProc port depends on
   (paint context, input device, ZDM, input manager singleton, log
   singleton) are modelled as opaque void* in the port — see
-  "Next move" #2 for the formalization track.
+  "Next move" #1 for the formalization track.
 - Locale-table magic / sequence fields: the +0x00 magic field has
   23 distinct values (0xc35a..0xc35d, 0xc4ae, 0xc7xx family,
   0xc8xx family, 0xe2a4..0xe2a8, 0x1874e..0x18759) — the loop only
@@ -213,9 +206,12 @@ tools/
   zone/area tag some OTHER subsystem reads.  Field 0x04 is a
   per-locale group selector 1..73 (with gaps) that's monotonic
   per magic — looks like a "scene_id" the locale pre-loader may
-  filter on.  Both fields are extracted into the comment above
-  the `locale_sounds[]` array but not retained in our entry
-  struct.  Revisit when porting the scene loader.
+  filter on.  Revisit when porting the scene loader.
+- **FUN_0057ca40 deferred subsystems** (see "Next move" #4):
+    - ~380 parallel-info-table writes touching 0x008a8578..0x008a8b14
+    - 94 FUN_004179b0 slot-clone calls (SS_MGR thiscall)
+    - 9 FUN_00582b80 + 1 FUN_00582d00 tail calls
+    - 98 const-data-pointer writes into the parallel-info-table
 
 ## How to apply
 

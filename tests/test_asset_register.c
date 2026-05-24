@@ -1833,6 +1833,152 @@ int test_locale_sounds_buffer_pointer_preserved(void)
     return 0;
 }
 
+/* ─── ar_register_group3_sprites (FUN_0057ca40 partial port) ────── */
+
+int test_group3_sprites_writes_233_distinct_slots(void)
+{
+    /* Every entry hits a unique slot index — order between entries
+     * doesn't matter (each register writes a different slot). */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0xd00d, /*group=*/3, (void *)0xbeef);
+
+    int written = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries != NULL) written++;
+    }
+    T_ASSERT_EQ_U(written, 233u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_group_tag_stamped(void)
+{
+    /* All 233 entries get the same group tag — pin it to caller's
+     * value, not a hardcoded constant. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/0xc0de, (void *)0x2);
+
+    int seen = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries != NULL) {
+            T_ASSERT_EQ_U(g_ar_sprite_slots[i].group, 0xc0deu);
+            seen++;
+        }
+    }
+    T_ASSERT_EQ_U(seen, 233u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_zdd_and_settings_uniform(void)
+{
+    /* Every entry receives the same (zdd, settings) pair — uniform
+     * routing (no NULL-special-case entries unlike main_sprites idx
+     * 37 which has settings=NULL). */
+    ar_state_init();
+    void *zdd = (void *)0xaaaa, *settings = (void *)0xbbbb;
+    ar_register_group3_sprites(zdd, 3, settings);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries != NULL) {
+            T_ASSERT_EQ_P(g_ar_sprite_slots[i].zdd,      zdd);
+            T_ASSERT_EQ_P(g_ar_sprite_slots[i].settings, settings);
+        }
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_spotcheck_first_entry(void)
+{
+    /* First decomp block (line 12, retail 0x008a777c → idx 79):
+     *   resource_id=0x423, width=0x20, height=0x20, colorkey=0,
+     *   scale_flag=0, type=2 */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].resource_id, 0x423u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].width,       0x20u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].height,      0x20u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].colorkey,    0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].scale_flag,  0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].type,        2u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_spotcheck_max_idx(void)
+{
+    /* Last entry in the slot pool — retail 0x008a7cdc → idx 423.
+     * (Resource id 0x480, 80×80, scale=1, type=2.)  Pins both the
+     * widest pool reach and a sample of the high-numbered slots. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[423].resource_id, 0x480u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[423].width,       0x50u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[423].height,      0x50u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[423].scale_flag,  1u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[423].type,        2u);
+    /* idx 422 is its twin (retail 0x008a7cd8). */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[422].resource_id, 0x47fu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[422].width,       0x28u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_spotcheck_colorkey_entry(void)
+{
+    /* idx 81 (retail 0x008a7784): a portrait-shaped entry —
+     *   resource_id=0x6a6, w=0xc0, h=0xa0, colorkey=0x1ffffff,
+     *   scale=0, type=0  (the "1ffffff" magic colorkey is the
+     *   "no-colorkey" sentinel used by the engine's portrait
+     *   sprites — see ar_register_palette_ramps portraits). */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, 3, (void *)0x2);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[81].resource_id, 0x6a6u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[81].width,       0xc0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[81].height,      0xa0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[81].colorkey,    0x1ffffffu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[81].type,        0u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_sprites_no_overlap_with_main_sprite_indices(void)
+{
+    /* Group-3 should NOT touch indices 0..78 (those are owned by
+     * ar_register_fonts / main_sprites / palette_ramps / game_sprites)
+     * — its lowest written idx is 79.  Also verify it doesn't reach
+     * the game_sprites-only range (above 423 in this function). */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, 3, (void *)0x2);
+
+    for (int i = 0; i < 79; i++) {
+        T_ASSERT(g_ar_sprite_slots[i].entries == NULL);
+    }
+    for (int i = 424; i < AR_SPRITE_SLOT_COUNT; i++) {
+        T_ASSERT(g_ar_sprite_slots[i].entries == NULL);
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
 /* ─── ar_boot_register_all (FUN_00562ea0:613-624 wiring) ─────────── */
 
 /* Boot driver replays every ported register batch in retail issue
@@ -2017,6 +2163,10 @@ int test_boot_register_all_touches_every_batch_signature_slot(void)
     T_ASSERT_EQ_U(g_ar_sprite_ramp_slots[0].resource_id, 0x413u);
     /* ar_register_aux_sounds — sound_table[22] gets id 0x4cb. */
     T_ASSERT_EQ_U(g_ar_sound_table[22]->resource_id, 0x4cbu);
+    /* ar_register_group3_sprites — sprite_slots[79] gets id 0x423
+     * (first decomp block of FUN_0057ca40). */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].resource_id, 0x423u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[79].group,       3u);
     /* ar_register_game_sounds — sound_table[14] gets id 0x513. */
     T_ASSERT_EQ_U(g_ar_sound_table[14]->resource_id, 0x513u);
     /* ar_register_locale_sounds — sound_table[245] gets primary 0x53d

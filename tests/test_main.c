@@ -123,6 +123,13 @@ struct test_case {
     X(locale_sounds_override_7fff_skips_under_locale)          \
     X(locale_sounds_coexists_with_game_sounds)                 \
     X(locale_sounds_buffer_pointer_preserved)                  \
+    X(group3_sprites_writes_233_distinct_slots)                \
+    X(group3_sprites_group_tag_stamped)                        \
+    X(group3_sprites_zdd_and_settings_uniform)                 \
+    X(group3_sprites_spotcheck_first_entry)                    \
+    X(group3_sprites_spotcheck_max_idx)                        \
+    X(group3_sprites_spotcheck_colorkey_entry)                 \
+    X(group3_sprites_no_overlap_with_main_sprite_indices)      \
     X(boot_register_all_group_tags_per_batch)                  \
     X(boot_register_all_zdd_vs_zds_routing)                    \
     X(boot_register_all_sotesp_module_for_special_slots)       \

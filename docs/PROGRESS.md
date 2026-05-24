@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — ar_register_group3_sprites (FUN_0057ca40 partial)
+
+Ported the 233 sprite-slot register operations inside FUN_0057ca40 —
+the "Ghidra-fails 24884 B body" from the prior HANDOFF turned out to
+decompile cleanly once the typed-struct workflow from the previous
+checkpoint was in scope (the `cpp-recovery-workflow` infra silently
+fixed it).  3124-line decomp is at `docs/decompiled/by-address/57ca40.c`.
+
+But the body isn't just "register N sprites" — it has FOUR
+subsystems.  Only the first is ported here:
+
+  1. **233 sprite-slot registers** (91 inlined + 142 helper-style
+     calls).  Slot indices 79..423, all using uniform (zdd, settings,
+     group) routing from the caller.  Table-driven through
+     `ar_sprite_slot_register`.  **PORTED** as
+     `ar_register_group3_sprites` and wired into `ar_boot_register_all`
+     between aux_sounds and game_sounds (matches retail issue order).
+  2. ~380 parallel-info-table writes (0x008a8578..0x008a8b14).
+     **DEFERRED** — needs `g_ar_sprite_flags[]` refactored from flat-u32
+     to pointer-to-struct array (~357 entries).
+  3. 94 FUN_004179b0 SS_MGR slot-clones.  **DEFERRED** — needs SS_MGR.
+  4. 9 FUN_00582b80 + 1 FUN_00582d00 tail.  **DEFERRED**.
+
+See `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown.
+Generator at `tools/extract/57ca40_sprite_table.py` — re-run after
+re-exporting the decomp to spot drift.
+
+Tests: +7 new tests in `tests/test_asset_register.c` (distinct-slot
+canary, group-tag stamping, uniform routing, three spot-checks for
+specific entries, no-overlap-with-other-batches assertion).  Plus
+the existing `boot_register_all_touches_every_batch_signature_slot`
+test now also pins the group-3 spot-check on sprite[79].
+**160 pass, 0 fail, 4 skip** (was 153 / 0 / 4).  Cross-build clean.
+
+Asset-register module is now **functionally complete for the title-
+scene boot path** — every `ar_register_*` batch that the boot driver
+calls is ported, and no ported consumer reads the deferred FUN_0057ca40
+state.
+
+---
+
 ## 2026-05-24 — ar_boot_register_all wired
 
 The 8 ported `ar_register_*` batches are no longer modules in isolation
