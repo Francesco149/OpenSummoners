@@ -56,6 +56,32 @@ struct test_case {
     X(pd_commit_nondefault_mode_state_1)                       \
     X(pd_commit_idempotent_frees_old_luts)                     \
     X(pd_commit_b_uses_r_as_prev_not_g)                        \
+    X(ar_xfree_null_safe)                                      \
+    X(ar_color_lerp_endpoints)                                 \
+    X(ar_color_lerp_midpoint)                                  \
+    X(ar_color_lerp_descending)                                \
+    X(ar_color_lerp_ignores_alpha)                             \
+    X(sprite_destroy_frees_aux_and_entries)                    \
+    X(sprite_destroy_safe_on_zero_slot)                        \
+    X(gdi_destroy_deletes_each_handle)                         \
+    X(gdi_reset_clears_then_allocates)                         \
+    X(make_font_family_courier)                                \
+    X(make_font_family_times)                                  \
+    X(make_font_family_arial)                                  \
+    X(make_font_family_courier_italic)                         \
+    X(make_font_unknown_family_skips_face)                     \
+    X(set_font_writes_slot_and_handle)                         \
+    X(set_font_destroys_existing)                              \
+    X(set_pen_bumps_count)                                     \
+    X(set_brush_bumps_count)                                   \
+    X(set_pen_capacity_zero_no_op)                             \
+    X(pen_gradient_endpoints_and_lerp)                         \
+    X(pen_gradient_capacity_two)                               \
+    X(pen_gradient_capacity_one)                               \
+    X(register_fonts_sprite_slots)                             \
+    X(register_fonts_gdi_indices)                              \
+    X(register_fonts_dimensions_in_call_order)                 \
+    X(ar_layout_matches_retail)                                \
 
 #define X(n) extern int test_##n(void);
 TESTS
