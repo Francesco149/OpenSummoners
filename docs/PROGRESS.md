@@ -6,6 +6,93 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Phase 1+2 push: audio, asset loader, config.dat, DDraw surface builder
+
+Long unattended session.  Six commits, four new findings docs, two
+new extractors.  Highlights:
+
+**Audio + Input init (`docs/findings/audio-init.md`):** corrected the
+prior mis-labeling of `FUN_005b9fc0` as "wave audio" — it's actually
+the DInput keyboard sub-device, following `FUN_005b9cf0` (ZDI main /
+`DirectInputCreateEx` with version `0x0700`).  DSound primary buffer
+is created with `DSBCAPS_CTRLVOLUME` so the engine can master-attenuate
+via `SetVolume`.  The launcher's "Disable Sound" gates ZDM (music
+mgr) init only — DSound still inits either way.  ZDM allocates 50 ×
+576-byte voice slots.  DInput is loaded by `Ordinal_1()` (= legacy
+`DirectSoundCreate`), not by name — a quirk in `FUN_005bb180`.
+
+**DDraw surface alloc (`docs/findings/ddraw-init.md`):** decompiled
+`FUN_005b95c0` + `FUN_005b8c00` — the actual `IDirectDraw7::CreateSurface`
+path.  Identified the engine's `0x01FFFFFF` "no color key" sentinel
+(was previously mis-read as an "unlimited hint"), the 24bpp→32bpp
+case fallthrough in the pixelformat switch, and corrected the
+IDirectDrawSurface7 vtable cheat sheet (Lock at offset 0x64 not 0x60,
+Unlock at 0x80 not 0x7c — 0x7c is SetPalette).
+
+**Asset loader (`docs/findings/asset-loader.md` + `tools/extract/sotes_resources.py`):**
+the three companion DLLs are pure resource-only PEs.  Wrote a
+zero-dep PE-resource walker that dumps every entry to `type=<T>/<ID>.bin`
+with a manifest.  Real content map:
+
+- **sotesp.dll**: 31 WAVE SFX + signature blob
+- **sotesw.dll**: 47 WMA music files (in `DATA` type, despite the
+  earlier "MUSICWMA" speculation)
+- **sotesd.dll**: 759 DATA blobs (~135 MB) + 436 WAVE SFX (~26 MB)
+
+`FUN_005b6340`'s "kind 2 source" turns out to be a chunked-memory
+abstraction (`FUN_005b67c0` spans 676996-byte chunks) — NOT
+decompression as initially guessed.  This means sotesd 1000–1004
+(each exactly 676996 bytes) is one logical 3.4 MB blob assembled
+at boot.  Assets are stored RAW.  Sample DATA inspection shows
+Lizsoft sprites have a 32-byte header + 256-entry BGRA palette
++ pixel data.
+
+**Signature integrity checks (new engine-quirk §13):** all three
+DLLs carry the same byte-encoded ASCII signature scheme.  Each
+DLL has a resource that decodes (byte + `0x41`) to a known string:
+
+| dll          | resource ID  | signature                                                    | min ver |
+|--------------|--------------|--------------------------------------------------------------|---------|
+| `sotesd.dll` | 0x7DE (2014) | `JFDGGIUABCVJIEKAUYLPOFDEQBVGSKOLJSCKPIFAXMHGYELSDOBFRKVGBAKB` | 0x2713 |
+| `sotesw.dll` | 0x40F (1039) | `MUSICWMA`                                                   | 0x2712  |
+| `sotesp.dll` | 0x407 (1031) | `FSPATCHR`                                                   | 0x2711  |
+
+Our drop-in port can no-op these — they're integrity seals for the
+ship-time DLLs, irrelevant when the user provides their own legit
+copies.
+
+**config.dat extractor (`tools/extract/config_dat.py` +
+`docs/formats/config-dat.md`):** 16-byte plaintext header + 820-byte
+XOR-obfuscated body (key `0x88`, confirmed by abundance of
+`88 88 88 88` runs).  Body parses as one leading u32 + 102 `(u32,u32)`
+pairs (`field_id`, `value`).  Field-ID semantics TBD but pattern is
+clearly a typed key/value store matching the engine's `FUN_005afb90`
+schema-registration with 101 fields.
+
+**Harness turbo fixes (`tools/frida/opensummoners-agent.js`):**
+GetTickCount virtualization (gated on first PeekMessage entry to
+avoid pre-pump init livelock), WaitMessage stub (main-thread only),
+Sleep → Sleep(0) (yield not noop, so background threads don't
+starve), and PostMessage WM_ACTIVATEAPP(TRUE) to the main game
+window as soon as the periodic scan finds it (without this the
+pump spins on `DAT_008a952c == 0` forever because hidden windows
+don't naturally receive the activation message).  Also corrected
+the WndProc/class doc — `0x401210` is `CLASS_LIZSOFT_WAIT` (the
+"Please wait." splash), the main game window is
+`CLASS_LIZSOFT_SOTES` with WndProc `0x5b12e0`.
+
+Engine quirks file grew from 8 entries to 14, with the most
+load-bearing additions being §10 (WM_ACTIVATEAPP gating) and §13
+(the three-DLL signature scheme).
+
+Status: phase 1 surface mapping complete.  Phase 2 file-format
+extraction started with config.dat and the resource walker.  Next
+session is likely the Lizsoft sprite format spec + the chunked
+sotesd 1000-1004 blob identification (needs DDraw Lock-hook capture
+of a known sprite, then byte-diff against the extracted DATA bytes).
+
+---
+
 ## 2026-05-24 — Harness turbo fixes + WndProc-class correction
 
 Phase 1 surface mapping (the previous entry) flagged three TODOs that

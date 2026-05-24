@@ -263,6 +263,44 @@ companion DLLs encode them.
   (TBD format).
 - `0x5af6ac` (radare2 only) — sotesd.dll 60-byte signature check.
 
+## Sample DATA content shape
+
+Quick `od` sampling of the standalone (non-chunked) DATA entries in
+sotesd.dll (1011+) reveals a recurring pattern:
+
+```
+offset 0x00..0x1f : 32-byte header (8 × little-endian u32)
+offset 0x20..0x41f: 256-entry palette (4 BGRA bytes each, BMP-style)
+offset 0x420..    : pixel data
+```
+
+Sample header from sotesd 1011 vs 1012 (offset hex bytes):
+
+```
+1011:  5f 42 00 00  8b 36 00 00  5b 33 00 00  57 b7 00 00  ...
+1012:  5f 42 00 00  8b 36 00 00  7b 33 00 00  57 b7 00 00  ...
+                                  ^^ only the 3rd u32 differs by 0x20
+```
+
+The shared first u32 (`0x425f`) and identical palette suggest these
+two are different frames of the same sprite (offsets differ but
+layout is the same).  The palette starts with the standard 16-color
+VGA palette (black, red, green, yellow, blue, magenta, cyan, gray, …)
+then a 16-step grayscale ramp at indices 247–254 — looks hand-tuned
+for a low-color 2D engine.
+
+So the sotesd.dll DATA format is a **palettized 8-bit Lizsoft sprite**
+with a custom 32-byte header.  Spec-it work is deferred to Phase 4
+when we need to render sprites; for now the extractor dumps the raw
+bytes and downstream tools can do the rest.
+
+The chunked logical-blob (sotesd 1000-1004) has a different header —
+`67 ee 00 00 93 66 00 00 f1 57 00 00 …` — and isn't a palettized
+sprite shape.  Probably a different asset family (scenario data?
+sprite atlas? font glyphs?).  Differential Frida hook on
+`IDirectDrawSurface7::Lock` writes during a retail boot will reveal
+which.
+
 ## Next stops for Phase 2 extraction work
 
 1. ✅ ~~Decompile `FUN_005b68f0`~~ — done.  It's a chunked-memory
