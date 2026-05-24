@@ -229,6 +229,24 @@ struct test_case {
     X(wp_timer_no_ctx_consumed)                                \
     X(wp_state_init_clears_all_globals)                        \
     X(wp_app_ctx_layout_matches_retail)                        \
+    X(zdd_layout_matches_retail_offsets)                       \
+    X(zdd_ctor_zeros_struct)                                   \
+    X(zdd_dderr_name_known_entries)                            \
+    X(zdd_dderr_name_unknown_returns_null)                     \
+    X(zdd_log_dderr_format_known_hresult)                      \
+    X(zdd_log_dderr_format_empty_prefix1)                      \
+    X(zdd_log_dderr_format_unknown_hresult)                    \
+    X(zdd_log_dderr_format_null_prefixes_tolerated)            \
+    X(zdd_restore_cursor_noop_when_shown)                      \
+    X(zdd_restore_cursor_shows_when_hidden)                    \
+    X(zdd_release_children_in_order_and_zeros_fields)          \
+    X(zdd_release_children_skips_nulls)                        \
+    X(zdd_dtor_releases_everything_and_flushes_log)            \
+    X(zdd_dtor_quiet_when_clean)                               \
+    X(zdd_dtor_open_objects_warns_only)                        \
+    X(zdd_dtor_flushes_log_buffer_if_nonempty)                 \
+    X(zdd_create_success_path)                                 \
+    X(zdd_create_failure_path_tears_down)                      \
 
 #define X(n) extern int test_##n(void);
 TESTS
