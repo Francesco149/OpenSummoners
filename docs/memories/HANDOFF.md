@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-24
+# Session handoff — last updated 2026-05-24 (per-call-site indexing confirmed)
 
 **This is the first thing to read at the start of every session.**
 
@@ -64,7 +64,9 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: ar_info_entry pool (909 entries) + allocator finding
+- (current) RE: FUN_0057ca40 per-call-site pool indexing confirmed (pool[i] shadows slot[i])
+- `2f36d6a` RE: SS_MGR singleton == input_mgr (both at 0x008a6b60)
+- `e748f99` Asset-Register: ar_info_entry pool (909 entries) + allocator finding
 - `f8344bb` Asset-Register: port FUN_00582b80 (slot clone) + FUN_00582d00 (info entry clear)
 - `efa18c5` tooling: automate Parse C Source headlessly in tag-and-export wrapper
 - `8a3629c` WndProc: correct paint_ctx — add +0x16c back_ctx pointer
@@ -117,16 +119,13 @@ The WndProc itself reads as a clean class-dispatched function:
    still retail's.
 
 3. **FUN_0057ca40 deferred subsystems** — pick one of:
-   - **info-entry-pool per-call-site indexing** (~380 writes to pool
-     indices 78..437).  Pool itself is now modelled
-     (`g_ar_info_entries[909]` + `g_ar_info_table[909]`) and the
-     entry struct is pinned (20 B, palette ptr at +0xc).  Open work
-     is walking FUN_0057ca40's call-site addresses (`DAT_008a85xx`)
-     and mapping them to pool indices + sprite slot pairings.  The
-     natural model is "pool[i] shadows sprite slot at retail BSS
-     0x8a760c + i*4" — but that needs verification on a handful of
-     sites.  No consumer of these writes is ported yet, so the
-     deferral is still behaviourally invisible.
+   - **info-entry-pool indexing PORT** — the per-call-site mapping is
+     now CONFIRMED (rabbit-hole §2): pool[i] shadows slot[i] across
+     all 909 entries, 0 orphans across 434 pool writes inside the
+     function.  Audit tool: `tools/extract/57ca40_pool_map.py`.
+     What remains is to actually port the writes (138 marker, 194
+     flag, 94 data-ptr) as a fourth pass in `ar_register_group3_sprites`
+     — but still no consumer reads them, so the deferral is invisible.
    - **SS_MGR slot-clones** (94 FUN_004179b0 calls) — `ecx = 0x8a6b60`
      each call, which is the SAME singleton our WndProc port models as
      `input_mgr` (see rabbit-hole §7).  The struct owns the sprite slot
@@ -216,9 +215,9 @@ tools/
   `docs/findings/0057ca40-rabbit-hole.md` §5 for the FUN_00562ea0
   allocator finding and §6 for FUN_00586010 reader / FUN_00587e00
   writer evidence).  Open follow-ups:
-    - Per-call-site indexing inside FUN_0057ca40 (the 380 writes
-      currently land in the pool but aren't yet sourced from a
-      portable mapping).
+    - **Per-call-site indexing CONFIRMED** (this checkpoint): pool[i]
+      shadows slot[i].  The actual port of the 434 writes is still
+      pending but is now mechanical — see HANDOFF "Next move" #3.
     - `ar_info_entry::f_10` semantics — zeroed at alloc; no observed
       write or read in any decompiled function.
     - Pool index 0 (retail addr 0x8a760c, one slot before
@@ -252,13 +251,15 @@ tools/
   per magic — looks like a "scene_id" the locale pre-loader may
   filter on.  Revisit when porting the scene loader.
 - **FUN_0057ca40 deferred subsystems** (see "Next move" #3):
-    - ~380 info-entry writes at pool indices 78..437 — pool itself
-      modelled, per-call-site indexing still pending
-    - 94 FUN_004179b0 slot-clone calls (SS_MGR thiscall)
-    - **9 FUN_00582b80 + 1 FUN_00582d00 clusters — primitives PORTED
+    - **434 info-entry writes at pool indices 92..437 — per-call-site
+      indexing CONFIRMED**, pool[i] shadows slot[i] (0 orphans), port
+      itself still pending (no consumer reads yet).  See rabbit-hole §2.
+    - 94 FUN_004179b0 slot-clone calls (SS_MGR thiscall on
+      input_mgr/SS_MGR singleton at 0x008a6b60)
+    - **9 FUN_00582b80 + 4 FUN_00582d00 clusters — primitives PORTED
       (`ar_sprite_slot_clone` + `ar_info_entry_clear`), call-cluster
       wiring still pending**
-    - 98 const-data-pointer writes into `entry->data` (+0x08)
+    - 94 const-data-pointer writes into `entry->data` (byte offset +8)
     - The FUN_00587e00 const-data-pointer refresh routine is a
       potential CONSUMER (writes entry->data); not ported yet
 

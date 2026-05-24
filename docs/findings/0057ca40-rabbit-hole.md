@@ -37,64 +37,103 @@ distinct subsystems:
 This is what `ar_register_group3_sprites` ports.  Table-driven; the
 generator that extracted the table is `tools/extract-57ca40.py`.
 
-### 2. ~380 ar_info_entry-pool writes — **POOL MODELED, INDEXING DEFERRED**
+### 2. ~380 ar_info_entry-pool writes — **POOL MODELED, INDEXING CONFIRMED 2026-05-24**
 
-**Update 2026-05-24:** the "parallel pool" was elevated from a 14-entry
-flat-uint32 model to a full 909-entry `ar_info_entry` pool — see
-section 5 below for the allocator finding that pinned this.  Per-call-
-site indexing (which sprite slot pairs with which entry index) is
-still pending.
+**Update 2026-05-24 (allocator):** the "parallel pool" was elevated
+from a 14-entry flat-uint32 model to a full 909-entry `ar_info_entry`
+pool — see section 5 below for the allocator finding.
 
-The function writes to the info-entry pool's BSS window
-`0x008a8578..0x008a8b14`:
+**Update 2026-05-24 (per-call-site indexing — CONFIRMED):** walked
+all 466 info-entry references inside FUN_0057ca40 and matched them
+to slot decls / clone targets in the same function.  The result:
+**pool[i] one-to-one shadows slot[i]** across all 909 entries.  The
+per-call-site mapping is implicit — every info-entry write at retail
+BSS address `0x8a8440 + i*4` corresponds to the slot at retail BSS
+address `0x8a760c + i*4`.  Evidence (from `tools/extract/57ca40_pool_map.py`):
 
-| prefix    | writes | offsets       | values  | meaning                  |
-| --------- | ------ | ------------- | ------- | ------------------------ |
-| 0x008a85xx | 15     | +4            | 1       | extends `g_ar_sprite_flags` past the 14-entry boundary the previous batch reached |
-| 0x008a86xx | 39     | +4, +8        | 1, 2    | flag-style |
-| 0x008a87xx | 34     | +4            | 2       | always-2 flag |
-| 0x008a88xx | 22     | +4            | 2       | always-2 flag |
-| 0x008a89xx | 45     | +4, +8        | 1, 2    | mixed |
-| 0x008a8axx | 35     | +4, +8        | 1, 2    | mixed |
-| 0x008a8bxx | 4      | +4            | 2       | tail |
+- 243 slot decls (inline + helper) in the function.
+- 229 of those have ≥1 info-entry write in the cluster between
+  this slot decl and the next.
+- 226 of the 229 (98.7%) have their FIRST info-entry write land
+  at pool[slot_idx] — i.e., the slot's own shadow entry.
+- The 3 "deviations" are not real: they're clusters where the
+  FUN_00582b80 inline-clone primitive runs BEFORE the cluster's
+  own info-write, and its clone-target's info-entry is touched
+  first.  Once those clone targets are counted as slot
+  declarations (the clone IS the decl, since it produces a new
+  populated slot), 0 / 466 info-entry writes are orphaned.
+- 27 slot decls write NO info-entry — these slots leave their
+  shadow entry in the allocator-zeroed state.  No anomaly.
+- Distinct slot indices produced (decl + SS_MGR clone target +
+  inline-clone target): 346, range 92..437.
+- Distinct pool indices touched: 319, range 92..437.  All 319
+  are within the 346 produced slot indices.
 
-Plus 98 const-data-pointer writes at offset +8 (or +16, depending on
-the entry width — needs disasm to confirm) pointing into the PE rdata
-section (`&DAT_006748d0`, `&DAT_00674ad8`, `&DAT_006752f8`, etc.).
+The natural port model is therefore:
 
-Plus 88 prologue-style `*DAT = N` writes at the same addresses (the
-"+0 = 0 prologue" pattern we first saw in `ar_register_palette_ramps`
-at flag idx 19).
+  pool_idx == slot_idx,  for both byte-direct and SS_MGR-table-mediated
+  access (since `input_mgr->info_entry_table[i]` at +0x18e0 + i*4
+  IS the same pointer as the BSS-address-per-write retail uses).
+
+**Ghidra rendering gotcha (NEW finding):** different `DAT_008a8XXX`
+variables get DIFFERENT C types in Ghidra — some are byte-typed
+(source-level offset = byte offset), others are short-typed
+(source-level offset = byte offset / 2).  Disasm confirms:
+
+  | Ghidra source                              | DAT type | byte offset | field          |
+  | ------------------------------------------ | -------- | ----------- | -------------- |
+  | `*(undefined4*)(DAT_008a85b0 + 4) = 1`     | byte*    | +4          | flag           |
+  | `*(undefined4*)(DAT_008a85c4 + 2) = 1`     | short*   | +4          | flag (same!)   |
+  | `*DAT_X = 0x1c`                            | (either) | +0          | marker (u16)   |
+  | `*(undefined**)(DAT_X + 8) = &DAT_006752f8`| byte*    | +8          | data ptr       |
+  | `*(undefined**)(DAT_X + 4) = &DAT_006752f8`| short*   | +8          | data ptr (same)|
+
+So the source-level offsets in the prefix table above (`+4`, `+8`) are
+NOT meaningful — what matters is the disasm byte offset, which is
+always +4 (flag) or +8 (data) regardless of Ghidra rendering.  The
+~115 source `+2` writes the previous version of this section called
+"info_pad2" are actually flag writes at byte offset +4 (i.e. pad
++2..+3 is genuinely never touched).
+
+Final event-kind breakdown across all clusters (after the offset
+correction):
+
+  - 138 marker writes (`*DAT = N`)  — byte offset +0
+  - 194 flag writes (Ghidra source `+4` for byte* or `+2` for short*)
+    — byte offset +4
+  - 94 data-ptr writes (Ghidra source `+8` for byte* or `+4` for
+    short*) — byte offset +8
+  - 94 SS_MGR clone calls (`FUN_004179b0(dst, src)`)
+  - 9 inline-clone calls (`FUN_00582b80(target_slot)`)
+  - 4 clear-entry calls (`FUN_00582d00()`)
+  - 4 marker-copy-from-template + 4 flag-copy-from-template (the
+    FUN_00582d00 follow-up that populates the cleared entry from
+    a template entry)
 
 **DONE 2026-05-24:**
 
 - `g_ar_sprite_flags[]` (flat 14-entry uint32) replaced by
   `g_ar_info_entries[909]` + `g_ar_info_table[909]` — modelled
   one-to-one against retail's pool at 0x8a8440..0x8a9270 (sized by
-  the allocator in §5).  The "0x8a8578..0x8a8b14" range we obsessed
-  over is just pool indices 78..437; the pool itself is much wider.
+  the allocator in §5).
 - Per-entry struct layout extended to 20 bytes: marker u16@0,
   flag u32@4, data (const void *)@8, palette (void *)@0xc,
   f_10 u32@0x10.  Reads from FUN_00586010 confirm both `+0xc` as a
   256-entry palette pointer and `+4` as a 0/1/2/3 dispatch value.
+- Per-call-site indexing confirmed — pool[i] shadows slot[i].
+- Ghidra rendering gotcha (byte-typed vs short-typed DAT) characterised.
 
 **Still deferred:**
 
-- Per-call-site indexing inside FUN_0057ca40 — the 380 writes don't
-  yet have a host-side equivalent because the retail code's
-  BSS-address-per-write pattern doesn't translate directly without
-  a sprite-slot ↔ info-entry pairing table.  The natural model is
-  *implicit*: pool[i] is the info-entry that "shadows" sprite slot
-  at retail BSS 0x8a760c + i*4, so pool[78] shadows
-  g_ar_sprite_slots[65] (retail addr 0x8a7744).  Confirming this
-  needs the per-call-site indices walked once.
+- The port itself.  The mapping is clean now (write at pool[slot_idx]),
+  but no consumer of these writes is ported yet, so the deferral is
+  behaviourally invisible to downstream code today.  Port becomes
+  natural once the first FUN_00586010-style consumer (palette draw
+  with flag-dispatch) is in scope.
 - Per-prefix semantics (values 1 vs 2 in the flag).  FUN_00586010's
   switch on `flag == 0/1/2/3` is the strongest evidence so far that
   these are functional state values rather than just "live" markers.
   Mapping each pool-index range to its flag's meaning is open work.
-
-No consumer of these writes is ported yet, so the indexing deferral
-is behaviourally invisible to downstream code today.
 
 ### 3. 94 FUN_004179b0 calls — **DEFERRED**
 

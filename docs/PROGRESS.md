@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — FUN_0057ca40 per-call-site indexing confirmed
+
+Walked all 466 info-entry references inside FUN_0057ca40 and matched
+them against slot decls + clone targets in the same function.  The
+implicit "pool[i] shadows slot[i]" model is fully confirmed: 0 of
+434 pool writes are orphaned (i.e. every info-entry write at retail
+BSS `0x8a8440 + i*4` corresponds to a slot at `0x8a760c + i*4`,
+where the slot is either declared inline, declared via the helper,
+or produced by SS_MGR clone / inline-template clone).  Audit script:
+`tools/extract/57ca40_pool_map.py` — rerun after re-export to catch
+drift.
+
+The walk also surfaced a Ghidra rendering gotcha for `DAT_008a8XXX`
+references: different DAT vars carry different inferred C types
+(byte-typed vs short-typed), so source-level offsets like `+2` vs
+`+4` can both denote the same disasm byte offset (+4 = flag).
+Verified by disasm at 0x57cad7 (byte-typed, mov [eax+4]) vs
+0x57cf3d (short-typed, mov [ecx+4] but Ghidra source says +2).
+Rabbit-hole §2 rewritten with the correction; the "pad +2..+3 is
+never touched" claim from §4 is reaffirmed (no Ghidra +2 source
+write actually targets byte +2 in retail).
+
+This unblocks the 434-write port — it's now mechanical (compose
+slot-idx → flag/marker/data tuples in retail issue order, replay
+into `g_ar_info_table[i]`).  Deferred because no consumer reads the
+info-entry pool yet; the first FUN_00586010-style palette draw with
+flag-dispatch will need it.
+
+---
+
 ## 2026-05-24 — ar_info_entry pool (909 entries) + allocator finding
 
 Followed the "where do the parallel-table pointer slots come from"
