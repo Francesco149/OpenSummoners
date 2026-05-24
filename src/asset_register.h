@@ -158,6 +158,53 @@ _Static_assert(offsetof(ar_sprite_slot, resource_id) == 0x40, "sprite resource_i
 _Static_assert(offsetof(ar_sprite_slot, group)       == 0x42, "sprite group offset");
 #endif
 
+/* ─── ar_sound_slot — Type C, sound-bank descriptor (0x18 B) ─────── */
+
+/* Used by the SOUND family (FUN_00579a00, FUN_00563ef0 et al).  Each
+ * slot is a pointer-target in the table at DAT_008a6ec4 (the "W_MGR
+ * boot-pool" — see HANDOFF "Open RE threads").  Allocation of the
+ * slot bodies themselves is some other init function's job; this
+ * module reads `g_ar_sound_table[i]` as already-pointing-at storage.
+ *
+ * Layout reverse-engineered from FUN_00579a00 (inline write pattern)
+ * and FUN_00563ef0 (thiscall slot setter + lazy wave-loader):
+ *
+ *   +0x00 (u16): "count" — number of buffer entries (kind 2 or 4 in
+ *                the boot batch).  Doubles as a channel-count-ish
+ *                value when FUN_00563ef0 actually loads waves.
+ *   +0x02 (u16): zero — possibly a state bit; always cleared.
+ *   +0x04 (u32): "buffer ptr" — set by the wave-load path to a
+ *                count*8 B array of DSound buffer descriptors.
+ *                NULL means "not yet loaded".  Boot-time inits leave
+ *                this at 0.
+ *   +0x08 (u32): ZDS (DirectSound manager) pointer.
+ *   +0x0c (u16): PE resource ID for the wave bytes (sotesd.dll).
+ *   +0x0e (u16): pad — never written.
+ *   +0x10 (u32): settings pointer (launcher settings record).
+ *   +0x14 (u16): asset-group tag.
+ *   +0x16 (u16): pad — never written. */
+typedef struct ar_sound_slot {
+    uint16_t  count;          /* +0x00 */
+    uint16_t  state;          /* +0x02 */
+    void     *buffer;         /* +0x04 — lazily allocated by wave loader */
+    void     *zds;            /* +0x08 */
+    uint16_t  resource_id;    /* +0x0c */
+    uint16_t  _pad0e;
+    void     *settings;       /* +0x10 */
+    uint16_t  group;          /* +0x14 */
+    uint16_t  _pad16;
+} ar_sound_slot;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(sizeof(ar_sound_slot)          == 0x18, "ar_sound_slot must be 24 bytes");
+_Static_assert(offsetof(ar_sound_slot, state)       == 0x02, "sound state offset");
+_Static_assert(offsetof(ar_sound_slot, buffer)      == 0x04, "sound buffer offset");
+_Static_assert(offsetof(ar_sound_slot, zds)         == 0x08, "sound zds offset");
+_Static_assert(offsetof(ar_sound_slot, resource_id) == 0x0c, "sound resource_id offset");
+_Static_assert(offsetof(ar_sound_slot, settings)    == 0x10, "sound settings offset");
+_Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset");
+#endif
+
 /* ─── globals — mirror retail BSS slot tables ────────────────────── */
 
 /* g_ar_sprite_slots[0] mirrors DAT_008a76e8 (font texture id 0x457).
@@ -172,6 +219,13 @@ extern ar_sprite_slot g_ar_sprite_slots[2];
 #define AR_GDI_SLOT_COUNT 32
 extern ar_gdi_slot  g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 extern ar_gdi_slot *g_ar_gdi_table[AR_GDI_SLOT_COUNT];   /* table[i] == &slots[i] post-init */
+
+/* Sound slots — DAT_008a6ec4..6ef0, 12 entries (4-byte stride =
+ * 12 pointers in BSS, each pointing at an ar_sound_slot).  The "W_MGR"
+ * pool referenced in HANDOFF.  FUN_00579a00 touches all 12. */
+#define AR_SOUND_SLOT_COUNT 12
+extern ar_sound_slot  g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
+extern ar_sound_slot *g_ar_sound_table[AR_SOUND_SLOT_COUNT];
 
 /* Initialise the global slot tables: zeros all slot bodies and wires
  * g_ar_gdi_table[i] = &g_ar_gdi_slots[i].  Must run before any
@@ -273,6 +327,51 @@ void ar_gdi_slot_set_pen_gradient(uint32_t index, uint16_t group, uint16_t capac
                                    uint32_t color_a, uint32_t color_mid,
                                    uint32_t color_c, uint32_t width_a,
                                    uint32_t width_step, uint32_t width_c);
+
+/* ─── sound-bank slot setter (used by ar_register_sounds) ────────── */
+
+/* FUN_00563ef0 first half — the pure field-write half (no wave load).
+ *
+ * Equivalent to FUN_00563ef0 called with `load_flag = 0` (the form
+ * the boot-time register passes).  Writes the 6 named fields and
+ * clears `state`.  Leaves `buffer` untouched — the lazy wave loader
+ * (the FUN_00563ef0 `if (param_6 != 0 && ...)` branch — not ported)
+ * is the only thing that ever populates it.
+ *
+ * Provenance: matches the inline 11-slot pattern in FUN_00579a00 and
+ * the field-init body of FUN_00563ef0. */
+void ar_sound_slot_init(ar_sound_slot *s, void *zds, void *settings,
+                        uint16_t resource_id, uint16_t count, uint16_t group);
+
+/* FUN_00579a00 — register 12 sound-bank slots at boot.
+ *
+ * Each entry has the form (id, kind):
+ *   table[ 0]: id=0x50f kind=2
+ *   table[ 1]: id=0x50e kind=2
+ *   table[ 2]: id=0x508 kind=2
+ *   table[ 3]: id=0x510 kind=2
+ *   table[ 4]: id=0x903 kind=2
+ *   table[ 5]: id=0x509 kind=4
+ *   table[ 6]: id=0x506 kind=4
+ *   table[ 7]: id=0x507 kind=2
+ *   table[ 8]: id=0x50c kind=4   ← only entry written via FUN_00563ef0
+ *   table[ 9]: id=0x50d kind=4
+ *   table[10]: id=0x4d8 kind=2
+ *   table[11]: id=0x4d9 kind=2
+ *
+ * Retail writes entries 0..7, 9..11 inline (sharing one register-
+ * passed group/settings/zds across them all), then dispatches entry
+ * 8 through FUN_00563ef0(zds, settings, 0x50c, 4, group, 0).  We
+ * route all 12 through the same `ar_sound_slot_init` helper since the
+ * field-writes are identical and `load_flag = 0` means the lazy-load
+ * branch is dead code at boot.  Verified equivalent via disasm at
+ * 0x579b89-0x579bb9.
+ *
+ * Note the kind=2 / kind=4 alternation: 0x506 / 0x509 / 0x50c / 0x50d
+ * are the kind-4 slots.  No obvious pattern in the resource IDs;
+ * likely the 4-channel sound effects (footsteps?  combat hits?  unknown
+ * without deeper RE). */
+void ar_register_sounds(void *zds, uint16_t group, void *settings);
 
 /* ─── top-level driver call ──────────────────────────────────────── */
 

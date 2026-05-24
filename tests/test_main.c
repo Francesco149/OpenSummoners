@@ -81,6 +81,10 @@ struct test_case {
     X(register_fonts_sprite_slots)                             \
     X(register_fonts_gdi_indices)                              \
     X(register_fonts_dimensions_in_call_order)                 \
+    X(sound_slot_init_writes_fields)                           \
+    X(sound_slot_init_clears_state)                            \
+    X(register_sounds_all_ids_and_kinds)                       \
+    X(register_sounds_buffer_pointer_preserved)                \
     X(ar_layout_matches_retail)                                \
 
 #define X(n) extern int test_##n(void);

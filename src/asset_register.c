@@ -19,13 +19,19 @@
 ar_sprite_slot  g_ar_sprite_slots[2];
 ar_gdi_slot     g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 ar_gdi_slot    *g_ar_gdi_table[AR_GDI_SLOT_COUNT];
+ar_sound_slot   g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
+ar_sound_slot  *g_ar_sound_table[AR_SOUND_SLOT_COUNT];
 
 void ar_state_init(void)
 {
     memset(g_ar_sprite_slots, 0, sizeof g_ar_sprite_slots);
     memset(g_ar_gdi_slots,    0, sizeof g_ar_gdi_slots);
+    memset(g_ar_sound_slots,  0, sizeof g_ar_sound_slots);
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++) {
         g_ar_gdi_table[i] = &g_ar_gdi_slots[i];
+    }
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        g_ar_sound_table[i] = &g_ar_sound_slots[i];
     }
 }
 
@@ -313,6 +319,52 @@ static void ar_sprite_slot_register_init(ar_sprite_slot *s,
     s->type        = type;
     s->group       = group;
     s->f_38        = 0;
+}
+
+/* ─── FUN_00563ef0 first half — sound slot field init ─────────── */
+
+void ar_sound_slot_init(ar_sound_slot *s, void *zds, void *settings,
+                        uint16_t resource_id, uint16_t count, uint16_t group)
+{
+    /* Order matches FUN_00563ef0 exactly (group → id → settings → zds
+     * → count → state).  FUN_00579a00's 11 inline blocks reorder the
+     * writes (zds first), but since all stores are independent the
+     * observable end state is identical. */
+    s->group       = group;
+    s->resource_id = resource_id;
+    s->settings    = settings;
+    s->zds         = zds;
+    s->count       = count;
+    s->state       = 0;
+    /* `buffer` is NOT touched.  FUN_00563ef0 reads it as the
+     * "already loaded?" sentinel before the lazy-load branch; clearing
+     * it here would defeat that. */
+}
+
+/* ─── FUN_00579a00 — sound boot register batch ───────────────────── */
+
+void ar_register_sounds(void *zds, uint16_t group, void *settings)
+{
+    /* Table indexed [0..11]; (resource_id, count/kind).  See header
+     * docstring for the full list. */
+    static const struct { uint16_t id; uint16_t count; } entries[AR_SOUND_SLOT_COUNT] = {
+        { 0x50f, 2 },
+        { 0x50e, 2 },
+        { 0x508, 2 },
+        { 0x510, 2 },
+        { 0x903, 2 },
+        { 0x509, 4 },
+        { 0x506, 4 },
+        { 0x507, 2 },
+        { 0x50c, 4 },   /* retail dispatches this through FUN_00563ef0 */
+        { 0x50d, 4 },
+        { 0x4d8, 2 },
+        { 0x4d9, 2 },
+    };
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        ar_sound_slot_init(g_ar_sound_table[i], zds, settings,
+                           entries[i].id, entries[i].count, group);
+    }
 }
 
 /* ─── FUN_00579bd0 — top-level boot register batch ──────────────── */

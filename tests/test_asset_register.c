@@ -631,6 +631,90 @@ int test_register_fonts_dimensions_in_call_order(void)
     return 0;
 }
 
+/* ─── ar_sound_slot_init / ar_register_sounds ────────────────────── */
+
+int test_sound_slot_init_writes_fields(void)
+{
+    ar_sound_slot s = {0};
+    /* Pre-populate `buffer` to verify the setter does NOT touch it. */
+    s.buffer = (void *)0xdeadbeef;
+
+    ar_sound_slot_init(&s,
+                       /*zds=*/(void *)0x111,
+                       /*settings=*/(void *)0x222,
+                       /*resource_id=*/0x4cb,
+                       /*count=*/2,
+                       /*group=*/0x1234);
+
+    T_ASSERT_EQ_U(s.count, 2u);
+    T_ASSERT_EQ_U(s.state, 0u);
+    T_ASSERT_EQ_P(s.buffer, (void *)0xdeadbeef);    /* untouched */
+    T_ASSERT_EQ_P(s.zds, (void *)0x111);
+    T_ASSERT_EQ_U(s.resource_id, 0x4cbu);
+    T_ASSERT_EQ_P(s.settings, (void *)0x222);
+    T_ASSERT_EQ_U(s.group, 0x1234u);
+    return 0;
+}
+
+int test_sound_slot_init_clears_state(void)
+{
+    ar_sound_slot s = {0};
+    s.state = 0x99;
+    ar_sound_slot_init(&s, NULL, NULL, 0x100, 2, 0);
+    T_ASSERT_EQ_U(s.state, 0u);
+    return 0;
+}
+
+int test_register_sounds_all_ids_and_kinds(void)
+{
+    ar_state_init();
+
+    void *zds = (void *)0xabc;
+    void *settings = (void *)0xdef;
+    ar_register_sounds(zds, /*group=*/0x77, settings);
+
+    /* The full 12-entry roster from FUN_00579a00, in table-index
+     * order.  These are baked into the engine's sound bank semantics —
+     * if they ever shift, audio playback would route to the wrong
+     * sotesd.dll resource. */
+    struct exp { uint16_t id; uint16_t count; };
+    static const struct exp expected[AR_SOUND_SLOT_COUNT] = {
+        { 0x50f, 2 }, { 0x50e, 2 }, { 0x508, 2 }, { 0x510, 2 },
+        { 0x903, 2 }, { 0x509, 4 }, { 0x506, 4 }, { 0x507, 2 },
+        { 0x50c, 4 }, { 0x50d, 4 }, { 0x4d8, 2 }, { 0x4d9, 2 },
+    };
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        const ar_sound_slot *s = g_ar_sound_table[i];
+        if (s->resource_id != expected[i].id)
+            T_FAIL("sound[%d] id 0x%x, want 0x%x",
+                   i, (unsigned)s->resource_id, (unsigned)expected[i].id);
+        if (s->count != expected[i].count)
+            T_FAIL("sound[%d] count %u, want %u",
+                   i, (unsigned)s->count, (unsigned)expected[i].count);
+        T_ASSERT_EQ_P(s->zds, zds);
+        T_ASSERT_EQ_P(s->settings, settings);
+        T_ASSERT_EQ_U(s->group, 0x77u);
+        T_ASSERT_EQ_U(s->state, 0u);
+        T_ASSERT_EQ_P(s->buffer, NULL);
+    }
+    return 0;
+}
+
+int test_register_sounds_buffer_pointer_preserved(void)
+{
+    /* If a slot was previously populated with a wave buffer, calling
+     * register_sounds AGAIN must not stomp it — the engine's lazy load
+     * uses `buffer != NULL` as "already loaded".  Note: ar_state_init
+     * zeros buffer, so we set it after init. */
+    ar_state_init();
+    g_ar_sound_table[5]->buffer = (void *)0xc0ffee;
+
+    ar_register_sounds(NULL, 0, NULL);
+
+    T_ASSERT_EQ_P(g_ar_sound_table[5]->buffer, (void *)0xc0ffee);
+    return 0;
+}
+
 /* ─── layout parity (32-bit only) ────────────────────────────────── */
 
 int test_ar_layout_matches_retail(void)
@@ -644,5 +728,6 @@ int test_ar_layout_matches_retail(void)
     T_ASSERT(sizeof(ar_gdi_slot) == 12);
     T_ASSERT(sizeof(ar_sprite_slot) == 0x44);
     T_ASSERT(sizeof(ar_sprite_entry) == 8);
+    T_ASSERT(sizeof(ar_sound_slot) == 0x18);
     return 0;
 }
