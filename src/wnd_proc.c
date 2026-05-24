@@ -16,10 +16,10 @@
 
 wp_app_ctx *g_wp_app_ctx;
 uint32_t    g_wp_active_flag;
-void       *g_wp_paint_check_this;
-void       *g_wp_input_dev_extra;
-void       *g_wp_input_devs[2];
-void       *g_wp_zdm;
+paint_ctx  *g_wp_paint_check_this;
+input_dev  *g_wp_input_dev_extra;
+input_dev  *g_wp_input_devs[2];
+zdm        *g_wp_zdm;
 wp_hwnd     g_wp_paint_hwnd;
 uint32_t    g_wp_log_quiet;
 

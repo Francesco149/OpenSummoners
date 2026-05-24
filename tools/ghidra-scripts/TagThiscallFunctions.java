@@ -20,6 +20,8 @@
 //         src/asset_register.h   → ar_sprite_slot, ar_gdi_slot,
 //                                  ar_sound_slot
 //         src/bitmap_session.h   → bitmap_session
+//         src/wnd_proc.h         → paint_ctx, input_dev, zdm,
+//                                  input_mgr, log_singleton
 //      Without a matching struct in the Data Type Manager, the
 //      auto-this on the class namespace falls back to `void *` and
 //      the decompile improvement is much smaller (the tags still
@@ -121,6 +123,64 @@ public class TagThiscallFunctions extends GhidraScript {
         // __thiscall member function.  Do not tag it as bitmap_session;
         // its job is to populate a transient BITMAPINFO before the
         // caller hands it off to FUN_005b71f0.
+
+        // WndProc-dependency thiscalls.  Each one shows up in the
+        // FUN_005b12e0 dispatch (or one of its helpers).  The 5
+        // distinct `this` types are pinned in src/wnd_proc.h's
+        // "deep-engine struct shapes" section — Parse C Source on
+        // that header before running this script.
+        //
+        // FUN_005b9130 (paint-check / blit-from-backbuffer):
+        //   ECX = DAT_008a93cc, a paint_ctx*.  Reads +0x164 state,
+        //   +0x138..+0x144 dest rect.  Returns 1 iff the WM_PAINT was
+        //   consumed (state==2 path), 0 to fall through to
+        //   DefWindowProc.  The HWND arg is the target window the
+        //   paint blits onto (g_wp_paint_hwnd in our port).
+        { 0x005b9130L, "paint_ctx",
+            "undefined4 FUN_005b9130(HWND target)" },
+
+        // FUN_005b94e0 / FUN_005b9500 are vtable trampolines on the
+        // same paint_ctx — they call paint_ctx->zdd_device->vtable[N]
+        // for begin/end frame.  Tagging them too keeps the paint_ctx
+        // family consistent in the decomp.
+        { 0x005b94e0L, "paint_ctx",
+            "undefined4 FUN_005b94e0(void * begin_arg)" },
+        { 0x005b9500L, "paint_ctx",
+            "void FUN_005b9500(void * end_arg)" },
+
+        // FUN_005ba290 (input device acquire):
+        //   ECX = an input_dev*.  Calls *this->dev_obj->vtable[7]
+        //   (vtable byte offset 0x1c) — the IDirectInputDevice::Acquire
+        //   equivalent.  On success sets this->acquired=1.
+        { 0x005ba290L, "input_dev",
+            "undefined4 FUN_005ba290(void)" },
+
+        // FUN_005bbd20 (ZDM set-active):
+        //   ECX = a zdm*.  Iterates this->entries[0..this->count-1]
+        //   and brings each entry to the requested active state by
+        //   calling activate/deactivate methods on the entry's
+        //   sub-objects.  param_1 is the requested state (0/1).
+        { 0x005bbd20L, "zdm",
+            "void FUN_005bbd20(int active)" },
+
+        // FUN_0058ffa0 (input manager pause-on-deactivate forwarder):
+        //   ECX = the input_mgr singleton at &DAT_008a6b60.  If
+        //   this->zdm_ptr (+0x2884) is non-NULL, forwards to
+        //   FUN_005bbd20(param_1).  Effectively
+        //   "input_mgr.zdm.set_active(arg)" with a NULL-guard.
+        { 0x0058ffa0L, "input_mgr",
+            "void FUN_0058ffa0(int active)" },
+
+        // FUN_00408b90 (log-singleton emit message):
+        //   ECX = the log_singleton at &DAT_008a6620.  Writes the tag
+        //   (+ optional GetLastError decoration when param_2!=0) to
+        //   OutputDebugString AND to a file opened at this->path
+        //   (+0x404).  param_1 = main message LPCSTR, param_2 = "also
+        //   decode GetLastError" flag, param_3 = trailing LPCSTR
+        //   (always &DAT_008a9b6c — engine's CRLF buffer — at every
+        //   call site we've seen).
+        { 0x00408b90L, "log_singleton",
+            "void FUN_00408b90(LPCSTR msg, int errno_decorate, LPCSTR trailer)" },
     };
 
     @Override

@@ -99,6 +99,199 @@ _Static_assert(offsetof(wp_app_ctx, loaded) == 0x08, "loaded offset");
 _Static_assert(offsetof(wp_app_ctx, timer)  == 0x1c, "timer offset");
 #endif
 
+/* ─── deep-engine struct shapes ──────────────────────────────────────
+ *
+ * These structs are NOT ports — they're field-offset shells used to
+ * make Ghidra's decomp readable (Parse C Source on this header,
+ * then re-run tools/ghidra-tag-and-export.sh).  Only the offsets the
+ * WndProc and its 5 thiscall callees actually touch are named; the
+ * rest is opaque padding to preserve layout.
+ *
+ * When any of these subsystems are *actually ported*, the host port
+ * gets its own typed struct (typically renamed without the `wp_`
+ * prefix) and the shape here can be merged into that file.  Until
+ * then, these definitions live alongside the WndProc because the
+ * WndProc is the only consumer that needs them right now.
+ */
+
+/* wp_paint_ctx — DAT_008a93cc.  The ECX `this` for FUN_005b9130
+ * (wp_paint_check), FUN_005b94e0 (begin-frame helper), and
+ * FUN_005b9500 (end-frame helper).
+ *
+ *   +0x02c: ZDD device pointer.  vtable+0x44 = begin-frame method,
+ *           vtable+0x68 = end-frame method.  Both called as
+ *           `(*dev->vtable[offset])(dev, hwnd_arg)` — i.e. the helpers
+ *           ride atop a DirectDraw-style class.
+ *   +0x138..+0x144: BitBlt destination rect (x, y, w, h) — the
+ *           paint helper does `BitBlt(hdc, x, y, w, h, dev_hdc,
+ *           0, 0, SRCCOPY)`.
+ *   +0x164: state machine.  Paint is only consumed when this reads
+ *           exactly 2; other values fall through to DefWindowProc.
+ *           Likely "front-buffer-locked / ready-to-blit" state.
+ */
+typedef struct paint_ctx {
+    uint8_t  _pad000[0x02c];
+    void    *zdd_device;       /* +0x02c */
+    uint8_t  _pad030[0x138 - 0x030];
+    int32_t  blit_x;           /* +0x138 */
+    int32_t  blit_y;           /* +0x13c */
+    int32_t  blit_w;           /* +0x140 */
+    int32_t  blit_h;           /* +0x144 */
+    uint8_t  _pad148[0x164 - 0x148];
+    int32_t  state;            /* +0x164 — == 2 means "ready to blit" */
+} paint_ctx;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(paint_ctx, zdd_device) == 0x02c, "paint_ctx zdd_device");
+_Static_assert(offsetof(paint_ctx, blit_x)     == 0x138, "paint_ctx blit_x");
+_Static_assert(offsetof(paint_ctx, blit_h)     == 0x144, "paint_ctx blit_h");
+_Static_assert(offsetof(paint_ctx, state)      == 0x164, "paint_ctx state");
+#endif
+
+/* input_dev — DAT_008a93d8 (extra/keyboard) and DAT_008a93dc[2]
+ * (mouse + optional joystick).  Each pointer points to one of these.
+ * The ECX `this` for FUN_005ba290 (input acquire).
+ *
+ *   +0x04: pointer to underlying device object that owns the
+ *          vtable.  `(*(*this->dev_obj)->vtable[7])(dev_obj)` is the
+ *          Acquire call — vtable index 7 = byte offset 0x1c.
+ *   +0x08: "acquired" flag.  Set to 1 on successful Acquire; the
+ *          WndProc doesn't read it but the rest of the input
+ *          subsystem does.
+ *
+ * Real shape is larger (probably ~0x20-0x40 bytes of state for the
+ * wrapper); only these two fields are pinned here.
+ */
+typedef struct input_dev {
+    uint32_t _pad00;
+    void    *dev_obj;          /* +0x04 — vtable owner */
+    uint32_t acquired;         /* +0x08 — 0 = not yet, 1 = held */
+} input_dev;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(input_dev, dev_obj)  == 0x04, "input_dev dev_obj");
+_Static_assert(offsetof(input_dev, acquired) == 0x08, "input_dev acquired");
+#endif
+
+/* zdm_entry — one element of the array pointed to by zdm.entries.
+ * Stride is 0x38 bytes (observed in FUN_005bbd20's `i * 0x38` indexing).
+ *
+ *   +0x00: device pointer.  NULL entries are skipped by zdm_set_active.
+ *   +0x08: secondary device pointer with its own vtable.  Used by
+ *          FUN_005bad20 (vtable+0x1c, deactivate) and FUN_005bad40
+ *          (vtable+0x24, activate).  Probably the actual DirectInput
+ *          device wrapper.
+ *   +0x0c: tertiary device pointer.  Used by FUN_005bae30
+ *          (vtable+0x38, set-format/activate-with-state) and
+ *          FUN_005bae70 (vtable+0x3c, get-state cookie).  Distinct
+ *          vtable from +0x08.
+ *   +0x20: "active" state.  Compared to the requested state in
+ *          zdm_set_active; entries already in the requested state are
+ *          left alone.
+ *   +0x24: second state dword.  Written together with the active
+ *          flag.
+ *   +0x28: 8-byte cookie pair (passed to FUN_005bae30 on deactivate,
+ *          overwritten by FUN_005bae70's return value on activate).
+ *          Probably a "device state handle" the engine uses to
+ *          remember what to restore.
+ */
+typedef struct zdm_entry {
+    void    *dev;              /* +0x00 */
+    uint32_t _pad04;
+    void    *dev_b;            /* +0x08 */
+    void    *dev_c;            /* +0x0c */
+    uint8_t  _pad10[0x10];
+    uint32_t active;           /* +0x20 */
+    uint32_t state2;           /* +0x24 */
+    uint64_t cookie;           /* +0x28 — 8 bytes, 2 dwords */
+    uint8_t  _pad30[0x38 - 0x30];
+} zdm_entry;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(sizeof(zdm_entry) == 0x38, "zdm_entry 0x38 stride");
+_Static_assert(offsetof(zdm_entry, dev_b)  == 0x08, "zdm_entry dev_b");
+_Static_assert(offsetof(zdm_entry, dev_c)  == 0x0c, "zdm_entry dev_c");
+_Static_assert(offsetof(zdm_entry, active) == 0x20, "zdm_entry active");
+_Static_assert(offsetof(zdm_entry, cookie) == 0x28, "zdm_entry cookie");
+#endif
+
+/* zdm — DAT_008a93e4.  The ECX `this` for FUN_005bbd20
+ * (zdm_set_active).  In retail this is "Z Direct Manager" or similar
+ * — an input-multiplexer that fans the WndProc's activate/deactivate
+ * call across N input devices.
+ *
+ *   +0x18: pointer to entries array (stride 0x38 — see zdm_entry).
+ *   +0x1c: ushort entry count.
+ *   +0x2c: name string (CHAR buffer inside the struct).  Other
+ *          callers in the engine pass `&zdm->name[0]` as an LPCSTR
+ *          to the log singleton — confirms it's an inline C-string.
+ *
+ * Real shape is larger (the name buffer alone is presumably 0x20-0x40
+ * chars); only the offsets the WndProc / zdm_set_active touch are
+ * pinned.  The 0x40-byte size assumption keeps the struct large
+ * enough to span the name field.
+ */
+typedef struct zdm {
+    uint8_t   _pad00[0x18];
+    zdm_entry *entries;        /* +0x18 */
+    uint16_t  count;           /* +0x1c */
+    uint8_t   _pad1e[0x2c - 0x1e];
+    char      name[0x14];      /* +0x2c — inline C-string */
+} zdm;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(zdm, entries) == 0x18, "zdm entries");
+_Static_assert(offsetof(zdm, count)   == 0x1c, "zdm count");
+_Static_assert(offsetof(zdm, name)    == 0x2c, "zdm name");
+#endif
+
+/* input_mgr — DAT_008a6b60 + neighbours; lives at a fixed BSS address
+ * (NOT a pointer; the ECX setup in the disasm is `mov ecx,
+ * 0x8a6b60`).  The ECX `this` for FUN_0058ffa0 (input pause-on-
+ * deactivate), called by the WndProc with arg=1.  FUN_0058ffa0
+ * forwards to FUN_005bbd20 (zdm_set_active) — so the input manager
+ * essentially OWNS the zdm pointer at +0x2884 and the deactivate path
+ * just chains through.
+ *
+ * The 0x2884 offset is unusually large for a one-field struct — the
+ * input manager presumably has 0x2884 bytes of unrelated state ahead
+ * of the zdm pointer (key-state arrays, button-state buffers, etc.).
+ * Nothing else in the WndProc-reachable code reads it, so leave the
+ * head as opaque padding.
+ */
+typedef struct input_mgr {
+    uint8_t _pad000[0x2884];
+    zdm    *zdm_ptr;           /* +0x2884 */
+} input_mgr;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(input_mgr, zdm_ptr) == 0x2884, "input_mgr zdm_ptr");
+#endif
+
+/* log_singleton — DAT_008a6620 + neighbours; lives at a fixed BSS
+ * address (NOT a pointer; the ECX setup in the disasm for every
+ * "ActivateInputDevice CPx" call is `mov ecx, 0x8a6620`).  The ECX
+ * `this` for FUN_00408b90 (log a message + optional GetLastError
+ * decoration).
+ *
+ *   +0x404: CHAR buffer holding the log-file path.  Passed as the
+ *           first arg to FUN_005bf4e8 (fopen-with-mode "r+") which
+ *           returns a FILE* (or equivalent) that the log fn writes
+ *           to.  Length is at least MAX_PATH (0x100); the surrounding
+ *           pad is reserved for the buffer.
+ *
+ * The 0x404 head is presumably a 0x404-byte input buffer
+ * (formatting scratch + state).  Nothing the WndProc cares about.
+ */
+typedef struct log_singleton {
+    uint8_t _pad000[0x404];
+    char    path[0x100];       /* +0x404 — log-file path */
+} log_singleton;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(log_singleton, path) == 0x404, "log_singleton path");
+#endif
+
 /* ─── module globals — mirror retail BSS slots ───────────────────── */
 
 /* DAT_008a9b64 — app context pointer.  NULL pre-init; the engine
@@ -115,20 +308,20 @@ extern uint32_t g_wp_active_flag;
 /* DAT_008a93cc — paint-check thiscall context.  Only inspected for
  * non-NULL by the WndProc itself; the actual paint helper uses it
  * as ECX and uses g_wp_paint_hwnd as the BeginPaint/EndPaint target. */
-extern void *g_wp_paint_check_this;
+extern paint_ctx *g_wp_paint_check_this;
 
 /* DAT_008a93d8 — "extra" input device pointer.  Acquired individually
  * before the 2-iteration loop with its own "ActivateInputDevice
  * CP1/CP2" log surround.  In retail this is the keyboard device; the
  * 2-loop holds the mouse + the optional joystick. */
-extern void *g_wp_input_dev_extra;
+extern input_dev *g_wp_input_dev_extra;
 
 /* DAT_008a93dc / DAT_008a93e0 — 2 input device pointers, iterated in
  * order.  Each non-NULL entry gets acquired; no per-iteration log. */
-extern void *g_wp_input_devs[2];
+extern input_dev *g_wp_input_devs[2];
 
 /* DAT_008a93e4 — ZDM (input multiplexer) thiscall context. */
-extern void *g_wp_zdm;
+extern zdm *g_wp_zdm;
 
 /* DAT_008a93ec — paint operation's target HWND.  Note: this is
  * SEPARATE from the WndProc's own `hwnd` parameter — the paint helper
@@ -249,7 +442,7 @@ void wp_app_pause(void);
 /* FUN_005ba290 thiscall on an input-device wrapper.  Acquire the
  * underlying IDirectInputDevice (or equivalent).  Called once per
  * non-NULL input device on the activation path. */
-void wp_input_acquire(void *dev);
+void wp_input_acquire(input_dev *dev);
 
 /* FUN_005bbd20 thiscall on g_wp_zdm.  Set the multiplexer's
  * activation state (1 = active, 0 = inactive). */

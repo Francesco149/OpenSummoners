@@ -72,7 +72,7 @@ void wp_app_pause(void)
      * deactivate.  No-op until the input manager is ported. */
 }
 
-void wp_input_acquire(void *dev)
+void wp_input_acquire(input_dev *dev)
 {
     /* Placeholder for FUN_005ba290 — IDirectInputDevice::Acquire on
      * the wrapper at `dev`.  No-op until the input device wrappers

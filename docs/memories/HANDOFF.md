@@ -34,17 +34,26 @@ compile time on the cross build).
 `tools/ghidra-scripts/TagThiscallFunctions.java` applies class-
 namespace + `__thiscall` + typed prototype to a batch of functions
 headlessly, and `tools/ghidra-tag-and-export.sh` is the one-shot
-wrapper.  17 functions tagged now (8 asset-register + 7
-bitmap_session + 2 palette-session helpers).  Re-exported decomps in
-`docs/decompiled/` show typed `this->field` accesses across the
-family.  **The typed-prototype workflow ALSO repaired Ghidra's
-ability to decompile FUN_0057ca40** — what HANDOFF previously called
-"Ghidra-fails" decomps cleanly now with the typed structs in scope.
-See `docs/findings/cpp-recovery-workflow.md` for the full workflow.
+wrapper.  **24 functions tagged now** (8 asset-register + 7
+bitmap_session + 2 palette-session helpers + **7 WndProc-deps**).
+Re-exported decomps in `docs/decompiled/` show typed `this->field`
+accesses across the family.  **The typed-prototype workflow ALSO
+repaired Ghidra's ability to decompile FUN_0057ca40** — what HANDOFF
+previously called "Ghidra-fails" decomps cleanly now with the typed
+structs in scope.  See `docs/findings/cpp-recovery-workflow.md` for
+the full workflow.
+
+The 7 new WndProc-dep tags (paint_ctx/input_dev/zdm/input_mgr/
+log_singleton) currently fall back to `void *this` in the bodies
+because the new struct definitions in `src/wnd_proc.h` haven't been
+parsed into Ghidra's DTM yet.  Call sites already show the explicit
+`this` arg though; full upgrade to typed `this->field` reads
+requires a one-time GUI step (see "Next move" #1 below).
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: port FUN_0057ca40 slot-register subset (ar_register_group3_sprites)
+- (current) WndProc: model 5 deep-engine struct shapes + tag thiscall deps
+- `edbaf19` Asset-Register: port FUN_0057ca40 slot-register subset (ar_register_group3_sprites)
 - `39d9602` Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
 - `dcc3d15` Asset-Register: port ar_register_palette_ramps (FUN_0057a330)
 - `4f89867` bitmap_session: port the PE-resource decoder + palette-ramp wiring
@@ -53,7 +62,6 @@ Most recent commits (newest first):
 - `6db790d` docs: capture palette-session + PE-resource decoder rabbit hole
 - `d3e8a00` Asset-Register: port palette-trio leaves (FUN_005b5d90 + FUN_00491770)
 - `811f56c` docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
-- `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
 
 ## Active goal
 
@@ -64,30 +72,44 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-`ar_register_group3_sprites` ported the 233 sprite-slot registers
-inside FUN_0057ca40 — the well-understood subset.  The function's
-remaining ~480 ops (94 SS_MGR slot-clones, ~380 parallel-info-table
-writes, 9 FUN_00582b80 + 1 FUN_00582d00 calls) are documented in
-`docs/findings/0057ca40-rabbit-hole.md` and deferred.  No ported
-consumer reads the deferred state today, so the asset-register
-module is now **functionally complete for the title-scene boot path**.
+The 5 deep-engine struct shapes (paint_ctx, input_dev, zdm,
+input_mgr, log_singleton) are now defined in `src/wnd_proc.h` and
+the corresponding 7 thiscall functions (FUN_005b9130, FUN_005b94e0,
+FUN_005b9500, FUN_005ba290, FUN_005bbd20, FUN_0058ffa0, FUN_00408b90)
+are tagged with class namespace + `__thiscall` + typed prototype.
+Re-exported decomps show the call sites with explicit `this` args.
+The struct *bodies* still decompile as `*(int *)(this + 0xN)`-style
+casts because Ghidra's DTM doesn't have the struct definitions yet
+— the typed prototype only types the `this` arg, not the deref reads.
 
-1. **(recommended) WndProc dependency formalization** — model the
-   layouts of the 5 "deep engine" structs (paint context with +0x164
-   state and +0x138 blit rect, input device with +0x04 vtable + +0x08
-   acquired flag, ZDM with +0x18 device array + +0x1c count, input
-   manager singleton with +0x2884 ZDM pointer, log singleton with
-   +0x404 file handle).  Once each struct is in a header AND added to
-   TagThiscallFunctions.java's TAGS, run
-   `./tools/ghidra-tag-and-export.sh` to get `this->field` reads in
-   the decomp.  Pre-req for actually porting any of those subsystems
-   beyond the no-op stubs.
+1. **(recommended) Parse C Source on wnd_proc.h in Ghidra GUI** —
+   one-time manual step (~30s):
+   - Open Ghidra GUI on the opensummoners project.
+   - File → Parse C Source → add `src/wnd_proc.h` to the source file
+     list (and ensure `src/asset_register.h` + `src/bitmap_session.h`
+     are still there from prior parses; the dialog remembers them).
+   - "Parse to Program" so the 5 new structs (paint_ctx, input_dev,
+     zdm, zdm_entry, input_mgr, log_singleton) land in the program's
+     DTM.
+   - Close Ghidra.
+   - Re-run `nix develop -c ./tools/ghidra-tag-and-export.sh` — the
+     7 WndProc-dep tags will then re-apply with typed `this`, and
+     the re-exported decomp will show e.g.
+     `paint_ctx::FUN_005b9130(paint_ctx *this, HWND target) {
+        if (this->state == 2) { ... BitBlt(hdc, this->blit_x, ...); }
+      }`.
+   - Confirms the offset model is right.
+
+   See `docs/findings/cpp-recovery-workflow.md` PREREQUISITES section
+   for the general pattern.
 
 2. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
    Can't be cleanly unit-tested without a DDraw mock layer; verify
    via Frida smoke harness end-to-end.  Unblocks actual rendering
    AND lets the WndProc's `wp_paint_check` hook get a real
-   implementation.
+   implementation.  Now also unblocked by the paint_ctx struct
+   shape — the `+0x2c zdd_device` field connects this directly to
+   FUN_005b9130/_94e0/_9500.
 
 3. **Wire ar_boot_register_all into the drop-in's WinMain.** —
    currently every batch is a module in isolation; the function
@@ -196,9 +218,13 @@ tools/
   callers all pass `load_flag = 0` so it's dead code at boot, but the
   per-scene asset loads later in the engine will need it.
 - The 5 "deep engine" structs the WndProc port depends on
-  (paint context, input device, ZDM, input manager singleton, log
-  singleton) are modelled as opaque void* in the port — see
-  "Next move" #1 for the formalization track.
+  (paint_ctx, input_dev, zdm + zdm_entry, input_mgr, log_singleton)
+  now have field-offset shells in `src/wnd_proc.h`'s
+  "deep-engine struct shapes" section.  Only the offsets the
+  WndProc + its 5 thiscall callees touch are pinned; everything
+  else is opaque padding.  Once any of these subsystems gets a
+  real port, the struct moves to its own header (likely renamed
+  without coupling to wnd_proc.h).
 - Locale-table magic / sequence fields: the +0x00 magic field has
   23 distinct values (0xc35a..0xc35d, 0xc4ae, 0xc7xx family,
   0xc8xx family, 0xe2a4..0xe2a8, 0x1874e..0x18759) — the loop only

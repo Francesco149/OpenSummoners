@@ -106,7 +106,7 @@ void wp_app_pause(void)
     (void)hk_push(HK_APP_PAUSE);
 }
 
-void wp_input_acquire(void *dev)
+void wp_input_acquire(input_dev *dev)
 {
     hook_event *e = hk_push(HK_INPUT_ACQUIRE);
     e->arg_uptr_a = (uintptr_t)dev;

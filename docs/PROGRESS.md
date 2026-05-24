@@ -6,6 +6,53 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — WndProc dependency formalization
+
+Modeled the 5 "deep engine" struct shapes the WndProc reaches through
+its 5 thiscall callees, and tagged each callee in Ghidra so its
+prototype and class namespace get applied to the decomp.  The structs
+live in `src/wnd_proc.h`'s new "deep-engine struct shapes" section
+and pin only the offsets observed in the disasm:
+
+  - **paint_ctx** (DAT_008a93cc) — +0x2c zdd_device, +0x138 blit
+    rect (x/y/w/h), +0x164 state.  `this` for FUN_005b9130 (the
+    BitBlt-from-backbuffer paint helper), FUN_005b94e0 (begin-frame
+    vtable trampoline at zdd_device->vtable[0x44]), and FUN_005b9500
+    (end-frame at vtable[0x68]).
+  - **input_dev** (DAT_008a93d8, DAT_008a93dc[2]) — +0x04 dev_obj
+    (vtable[0x1c] = Acquire), +0x08 acquired flag.  `this` for
+    FUN_005ba290.
+  - **zdm** (DAT_008a93e4) — +0x18 entries pointer, +0x1c count,
+    +0x2c inline name string.  `this` for FUN_005bbd20 (the
+    multiplexer set-active fan-out).  Per-entry struct **zdm_entry**
+    has stride 0x38 with +0x00 dev, +0x08/+0x0c sub-device pointers
+    (each with own vtable), +0x20 active, +0x24 state2, +0x28
+    8-byte cookie.
+  - **input_mgr** (singleton at &DAT_008a6b60) — +0x2884 zdm_ptr.
+    `this` for FUN_0058ffa0 (input pause-on-deactivate; just NULL-
+    guards and forwards to FUN_005bbd20).
+  - **log_singleton** (singleton at &DAT_008a6620) — +0x404 path
+    CHAR buffer.  `this` for FUN_00408b90 (the engine's
+    OutputDebugString + log-file writer).
+
+The wnd_proc.h externs (`g_wp_paint_check_this`, `g_wp_input_dev_extra`,
+`g_wp_input_devs[2]`, `g_wp_zdm`) were upgraded from `void *` to the
+typed pointer forms, and `wp_input_acquire`'s parameter became
+`input_dev *` accordingly.
+
+7 new tags added to `tools/ghidra-scripts/TagThiscallFunctions.java`
+(now 24 total).  Headless tag step verified: 24/24 applied.  The
+re-export was kicked off — the 7 new functions now show in the decomp
+with class namespace + explicit `this` arg at every call site
+(typed-body upgrade requires Parse C Source on wnd_proc.h in the
+Ghidra GUI, then re-running the script — see HANDOFF "Next move" #1).
+
+Tests unchanged at **160 pass, 0 fail, 4 skip** — the WndProc test
+suite still binds `(void *)0xN` literal addresses into the new typed
+globals via implicit `void *` → `T *` conversion.  Cross-build clean.
+
+---
+
 ## 2026-05-24 — ar_register_group3_sprites (FUN_0057ca40 partial)
 
 Ported the 233 sprite-slot register operations inside FUN_0057ca40 —
