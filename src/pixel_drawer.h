@@ -136,6 +136,50 @@ void pd_blend_init(PdBlend *b);
  * encode/allocate LUTs — that's a separate commit step (TBD). */
 void pd_blend_set_color(PdBlend *b, uint16_t r, uint16_t g, uint16_t b_chan);
 
+/* PdFormat — the three RGB bitmasks the commit needs from the active
+ * DDraw surface.  Matches the offsets the retail engine reads from the
+ * ZDD wrapper (FUN_005b8ae0 reads `this[1]`, `this[2]`, `this[3]` —
+ * byte offsets 4, 8, 0xc).  We don't pull in the whole ZDD wrapper for
+ * the leaf module's tests; the renderer-side glue can adapt.
+ *
+ * Pass NULL to pd_blend_commit for the engine's default RGB565
+ * (R=0xF800, G=0x07E0, B=0x001F) — what the retail code uses when its
+ * ZDD ptr argument is NULL. */
+typedef struct PdFormat {
+    uint32_t r_mask;
+    uint32_t g_mask;
+    uint32_t b_mask;
+} PdFormat;
+
+/* FUN_005bd3d0.  Slot "commit" — re-encodes the per-channel masks from
+ * the surface's pixel format, updates the slot state machine, and
+ * (re)builds the three channel LUTs.
+ *
+ * Sequence:
+ *   1. Frees any existing LUTs on R/G/B (`pd_channel_free_lut`).
+ *   2. Reads R/G/B masks: from `fmt` if non-NULL, else RGB565 defaults.
+ *   3. For each channel: stores the mask and its
+ *      `pd_channel_mask_to_shift`-encoded shift.
+ *   4. Resolves slot->state from the slot-level fields:
+ *        commit_flag == 1                          → state 2 (forced apply)
+ *        weight == 1000 AND mode == 0              → state 0 (identity)
+ *        otherwise                                 → state 1 (full LUT)
+ *   5. Builds the three channel LUTs in order R, G, B, passing
+ *      R as `prev` to both G and B (matches the retail quirk —
+ *      B can share-alias with R but never with G).
+ *
+ * After this returns, the slot is "live": surface blits use the
+ * channel LUTs to translate pixel values. */
+void pd_blend_commit(PdBlend *slot, const PdFormat *fmt);
+
+/* FUN_005b8ae0.  Read the active surface's RGB masks into three output
+ * locations.  The retail signature is `void(this, *r, *g, *b)` with the
+ * ZDD wrapper as `this` — we model that as a PdFormat argument.  Kept
+ * as a standalone export so a future ZDD-wrapper module can expose it
+ * verbatim. */
+void pd_format_get_masks(const PdFormat *fmt,
+                         uint32_t *r_out, uint32_t *g_out, uint32_t *b_out);
+
 /* FUN_005bd040.  Build (or share) the channel's LUT.
  *
  * `prev` is the previously-built channel (or NULL).  When `prev` is

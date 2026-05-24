@@ -255,6 +255,76 @@ void pd_blend_build_channel_lut(PdBlend *slot, PdChannel *chan, PdChannel *prev)
     }
 }
 
+/* FUN_005b8ae0 — read RGB masks from the (ZDD-equivalent) format.
+ *
+ * Trivial getter; kept as its own function because the eventual ZDD
+ * wrapper port will export it under this name and the indirection
+ * preserves the "wrapper hides surface format" abstraction. */
+void pd_format_get_masks(const PdFormat *fmt,
+                         uint32_t *r_out, uint32_t *g_out, uint32_t *b_out)
+{
+    *r_out = fmt->r_mask;
+    *g_out = fmt->g_mask;
+    *b_out = fmt->b_mask;
+}
+
+/* FUN_005bd3d0 — slot commit.
+ *
+ * See the header for the full sequence.  One quirk worth flagging in
+ * the body: the LUT-build call order is `(R, NULL), (G, R), (B, R)` —
+ * note the third call passes R (not G) as the previous channel.  This
+ * means B will share R's LUT when R.weight == B.weight, but B will
+ * NEVER share G's LUT even if G.weight == B.weight.  Preserved
+ * verbatim from the retail call sequence at 5bd456 / 5bd45f / 5bd468. */
+void pd_blend_commit(PdBlend *slot, const PdFormat *fmt)
+{
+    /* 1. Drop any LUTs left over from a previous commit. */
+    pd_channel_free_lut(&slot->r);
+    pd_channel_free_lut(&slot->g);
+    pd_channel_free_lut(&slot->b);
+
+    /* 2. Resolve the surface format — RGB565 defaults when fmt is
+     * NULL (matches retail's `if (param_1 == 0)` branch). */
+    uint32_t r_mask, g_mask, b_mask;
+    if (fmt == NULL) {
+        r_mask = 0x0000F800;
+        g_mask = 0x000007E0;
+        b_mask = 0x0000001F;
+    } else {
+        pd_format_get_masks(fmt, &r_mask, &g_mask, &b_mask);
+    }
+
+    /* 3. Per-channel mask + shift.  Original-order subtlety: the
+     * retail code stores mask then shift for R/G and shift then mask
+     * for B (Ghidra lines 30/31, 33/34, 36/37 — instruction order
+     * differs by channel for no semantic reason).  Order is irrelevant
+     * to the LUT builder that runs next, so we just pick one. */
+    slot->r.shift = pd_channel_mask_to_shift(r_mask);
+    slot->r.mask  = r_mask;
+    slot->g.shift = pd_channel_mask_to_shift(g_mask);
+    slot->g.mask  = g_mask;
+    slot->b.shift = pd_channel_mask_to_shift(b_mask);
+    slot->b.mask  = b_mask;
+
+    /* 4. Slot state machine.  Three branches in priority order:
+     *      commit_flag == 1                      → state 2 (forced)
+     *      weight == 1000 AND mode == 0          → state 0 (identity)
+     *      otherwise                             → state 1 (full LUT) */
+    if (slot->commit_flag == 1) {
+        slot->state = 2;
+    } else if (slot->weight == 1000 && slot->mode == 0) {
+        slot->state = 0;
+    } else {
+        slot->state = 1;
+    }
+
+    /* 5. Build channel LUTs in R, G, B order — both G and B see R as
+     * prev (NOT G->B chain — see header note). */
+    pd_blend_build_channel_lut(slot, &slot->r, NULL);
+    pd_blend_build_channel_lut(slot, &slot->g, &slot->r);
+    pd_blend_build_channel_lut(slot, &slot->b, &slot->r);
+}
+
 /* FUN_005bd3b0 — slot SetColor.
  * Original:
  *   *(undefined2 *)(in_ECX + 0x10) = param_1;   // byte +0x10 = R channel weight

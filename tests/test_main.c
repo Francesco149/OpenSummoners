@@ -48,6 +48,14 @@ struct test_case {
     X(pd_lut_large_mode1_add)                                  \
     X(pd_lut_large_mode2_sub)                                  \
     X(pd_lut_large_default_mode)                               \
+    X(pd_format_get_masks_reads_struct)                        \
+    X(pd_commit_null_fmt_uses_rgb565_defaults)                 \
+    X(pd_commit_custom_format)                                 \
+    X(pd_commit_flag_forces_state_2)                           \
+    X(pd_commit_nondefault_weight_state_1)                     \
+    X(pd_commit_nondefault_mode_state_1)                       \
+    X(pd_commit_idempotent_frees_old_luts)                     \
+    X(pd_commit_b_uses_r_as_prev_not_g)                        \
 
 #define X(n) extern int test_##n(void);
 TESTS

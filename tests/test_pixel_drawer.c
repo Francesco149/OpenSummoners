@@ -437,6 +437,175 @@ int test_pd_lut_large_default_mode(void)
 }
 
 
+/* ─── pd_format_get_masks ──────────────────────────────────────────── */
+
+int test_pd_format_get_masks_reads_struct(void)
+{
+    PdFormat f = { .r_mask = 0xAAAA, .g_mask = 0xBBBB, .b_mask = 0xCCCC };
+    uint32_t r, g, b;
+    pd_format_get_masks(&f, &r, &g, &b);
+    T_ASSERT_EQ_U(r, 0xAAAA);
+    T_ASSERT_EQ_U(g, 0xBBBB);
+    T_ASSERT_EQ_U(b, 0xCCCC);
+    return 0;
+}
+
+
+/* ─── pd_blend_commit ──────────────────────────────────────────────── */
+
+/* NULL fmt → RGB565 defaults (0xF800 / 0x07E0 / 0x001F) with shifts
+ * 11 / 6 / 0.  Slot starts with weight=1000, mode=0, commit_flag=0,
+ * so the state should resolve to 0 (identity), and the LUTs are the
+ * small 32-byte kind. */
+int test_pd_commit_null_fmt_uses_rgb565_defaults(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    pd_blend_set_color(&b, 1000, 1000, 1000);
+
+    pd_blend_commit(&b, NULL);
+
+    T_ASSERT_EQ_U(b.r.mask,  0x0000F800);
+    T_ASSERT_EQ_U(b.g.mask,  0x000007E0);
+    T_ASSERT_EQ_U(b.b.mask,  0x0000001F);
+    T_ASSERT_EQ_I(b.r.shift, 11);
+    T_ASSERT_EQ_I(b.g.shift,  6);
+    T_ASSERT_EQ_I(b.b.shift,  0);
+
+    /* weight=1000, mode=0, commit_flag=0 → state 0 (identity small LUT). */
+    T_ASSERT_EQ_U(b.state, 0);
+    T_ASSERT(b.r.lut != NULL);
+    /* All three channels share the same weight (1000) so G and B
+     * alias R's LUT — that's the engine's shared-LUT short-circuit. */
+    T_ASSERT_EQ_P(b.g.lut, b.r.lut);
+    T_ASSERT_EQ_P(b.b.lut, b.r.lut);
+    T_ASSERT_EQ_U(b.g.lut_allocated, 0);
+    T_ASSERT_EQ_U(b.b.lut_allocated, 0);
+
+    pd_channel_free_lut(&b.r);   /* G/B are aliases; only R owns. */
+    return 0;
+}
+
+/* Non-NULL fmt → uses the struct's masks. */
+int test_pd_commit_custom_format(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    pd_blend_set_color(&b, 1000, 1000, 1000);
+
+    PdFormat f = { 0x7C00, 0x03E0, 0x001F };   /* RGB555 */
+    pd_blend_commit(&b, &f);
+
+    T_ASSERT_EQ_U(b.r.mask,  0x7C00);
+    T_ASSERT_EQ_U(b.g.mask,  0x03E0);
+    T_ASSERT_EQ_U(b.b.mask,  0x001F);
+    T_ASSERT_EQ_I(b.r.shift, 10);
+    T_ASSERT_EQ_I(b.g.shift,  5);
+    T_ASSERT_EQ_I(b.b.shift,  0);
+
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Commit-flag forces state 2 regardless of weight/mode. */
+int test_pd_commit_flag_forces_state_2(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.commit_flag = 1;
+    pd_blend_set_color(&b, 500, 500, 500);
+
+    pd_blend_commit(&b, NULL);
+    T_ASSERT_EQ_U(b.state, 2);
+
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* weight != 1000 OR mode != 0 → state 1 (full LUT). */
+int test_pd_commit_nondefault_weight_state_1(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.weight = 500;
+    pd_blend_set_color(&b, 500, 500, 500);
+
+    pd_blend_commit(&b, NULL);
+    T_ASSERT_EQ_U(b.state, 1);
+
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+int test_pd_commit_nondefault_mode_state_1(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.mode = 1;
+    pd_blend_set_color(&b, 1000, 1000, 1000);
+
+    pd_blend_commit(&b, NULL);
+    T_ASSERT_EQ_U(b.state, 1);
+
+    pd_channel_free_lut(&b.r);
+    return 0;
+}
+
+/* Commit is idempotent: calling twice should free the first LUTs and
+ * not leak.  ASan will scream if pd_channel_free_lut isn't called on
+ * the previous-allocation pointers before they're overwritten. */
+int test_pd_commit_idempotent_frees_old_luts(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.weight = 500;                  /* force state 1 → real allocations */
+    pd_blend_set_color(&b, 100, 200, 300);
+
+    pd_blend_commit(&b, NULL);
+    uint8_t *r_lut_first = b.r.lut;
+    T_ASSERT(r_lut_first != NULL);
+
+    pd_blend_commit(&b, NULL);       /* second commit must free + realloc */
+    T_ASSERT(b.r.lut != NULL);
+    /* The new allocation might land at the same address — we only care
+     * that ASan didn't fire on a double-free or leak. */
+
+    pd_channel_free_lut(&b.r);
+    pd_channel_free_lut(&b.g);
+    pd_channel_free_lut(&b.b);
+    return 0;
+}
+
+/* The retail call sequence is (R, NULL), (G, R), (B, R) — so B can
+ * share with R but never with G.  Verify by giving G the same weight
+ * as B but a different weight from R: B should still allocate its own
+ * LUT (because its prev is R, not G). */
+int test_pd_commit_b_uses_r_as_prev_not_g(void)
+{
+    PdBlend b;
+    pd_blend_init(&b);
+    b.weight = 500;                   /* state 1 path */
+    /* R=300, G=400, B=400 — G and B match, but B's prev is R (300). */
+    pd_blend_set_color(&b, 300, 400, 400);
+
+    pd_blend_commit(&b, NULL);
+
+    T_ASSERT(b.r.lut != NULL);
+    T_ASSERT(b.g.lut != NULL);
+    T_ASSERT(b.b.lut != NULL);
+    T_ASSERT(b.g.lut != b.r.lut);    /* different weights → fresh alloc */
+    T_ASSERT(b.b.lut != b.r.lut);    /* different weights → fresh alloc */
+    T_ASSERT(b.b.lut != b.g.lut);    /* B never sees G as prev */
+    T_ASSERT_EQ_U(b.g.lut_allocated, 1);
+    T_ASSERT_EQ_U(b.b.lut_allocated, 1);
+
+    pd_channel_free_lut(&b.r);
+    pd_channel_free_lut(&b.g);
+    pd_channel_free_lut(&b.b);
+    return 0;
+}
+
+
 /* ─── struct layout parity ─────────────────────────────────────────── */
 
 int test_pd_blend_layout_matches_retail_offsets(void)
