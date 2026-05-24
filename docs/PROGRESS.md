@@ -6,6 +6,65 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — WndProc: FUN_005b12e0 (wp_handle_message)
+
+Ported the main game window's WndProc — the message handler
+RegisterClassExA wires up for the engine's primary window.  The
+function is small in code (441 bytes / 84 decomp lines) but
+load-bearing: it owns `DAT_008a952c`, the "WM_ACTIVATEAPP wParam
+mirror" the engine's outer pump (`FUN_005b1030`) spins waiting for.
+The current Frida agent posts a fake `WM_ACTIVATEAPP(TRUE)` to flip
+this flag because hidden retail windows don't naturally see the
+message from the shell; a correctly-ported WndProc unblocks dropping
+that workaround once we own the window registration.
+
+Split into three TUs following the asset-register pattern:
+
+- **`src/wnd_proc.c`** — pure logic, Win32-free.  Decodes the 9
+  message classes the dispatch cares about (WM_DESTROY/MOVE/SIZE/
+  PAINT/CLOSE/ACTIVATEAPP/KEYDOWN/TIMER + default→DefWindowProc),
+  with the WM_ACTIVATEAPP activation half being the meaty branch —
+  acquires the "extra" input device (with CP1/CP2 log surround),
+  iterates the 2-slot device array, emits the unconditional CP3 log,
+  flips the ZDM activation state, then runs the post-activate hook.
+
+- **`src/wnd_proc_win32.c`** — Win32 adapters.  `wp_def_window_proc`
+  → DefWindowProcA, `wp_app_exit` → ExitProcess, `wp_log_cp` →
+  OutputDebugStringA.  The five "deep engine" hooks (paint_check,
+  app_pause, input_acquire, zdm_set_active, post_activate) are
+  placeholder no-ops — none of those subsystems are ported yet, but
+  swapping each for a real call is a one-line change once they are.
+
+- **`src/wnd_proc.h`** — typedefs Win32 message types as pointer-
+  sized integers so the pure logic compiles + tests on Linux.
+  Models `wp_app_ctx` with just the fields FUN_005b12e0 reads
+  (`f00` head of the device-init pointer chain, `loaded`, `timer`).
+
+The "device init flag" subtlety: retail's activation path computes
+`bVar1 = !(ctx->f00 && *ctx->f00 && (*ctx->f00)[+0x18])` then passes
+`!bVar1` to ZDM.  I.e. the ZDM arg = "the chain is fully wired".
+Disasm at 0x5b13b5..0x5b13c8 + 0x5b1462..0x5b146a confirms this is
+literal pointer-deref-pointer-deref + +0x18 read.  Modelled with two
+test cases that build the chain explicitly with stack-local int
+buffers + a sub-pointer.
+
+Tests: +20 (harmless messages, close→exit, paint short-circuit
+combinations, ACTIVATEAPP flag-write semantics, full call-order
+spec for the activation path, log-quiet gate, sparse loop, ZDM
+arg = init_flag both true and false, timer field-clear, state
+reset, layout assert).  Total **95 pass, 0 fail, 3 skip**.  Win32
+cross build clean (single-TU mingw picks the new .c files up
+automatically).
+
+Not done in this commit: tagging the WndProc's dependency thiscalls
+(FUN_005b14c0 / _0058ffa0 / _005ba290 / _005bbd20 / _005b9130 /
+_00408b90) in Ghidra.  The script needs each class struct in the
+DTM via Parse C Source, and we only modelled one (`wp_app_ctx`) —
+the rest are opaque void* in the port.  Defer to a follow-up that
+formalizes the input/ZDM/paint-context layouts.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_0056e190 (ar_register_game_sprites)
 
 The "hundreds of sprites" boot-register batch — the fifth call in

@@ -102,6 +102,27 @@ struct test_case {
     X(game_sprites_untouched_indices_stay_zero)                \
     X(game_sprites_coexists_with_main_sprites)                 \
     X(ar_layout_matches_retail)                                \
+    X(wp_harmless_messages_consumed)                           \
+    X(wp_close_calls_exit_zero)                                \
+    X(wp_default_forwards_to_defwindowproc)                    \
+    X(wp_paint_no_ctx_falls_through)                           \
+    X(wp_paint_ctx_but_no_paint_this_falls_through)            \
+    X(wp_paint_helper_returns_zero_falls_through)              \
+    X(wp_paint_consumed_no_defwindowproc)                      \
+    X(wp_activateapp_writes_flag_without_ctx)                  \
+    X(wp_activateapp_loaded_zero_skips_body)                   \
+    X(wp_activateapp_deactivate_calls_pause)                   \
+    X(wp_activateapp_activate_minimal_emits_cp3_and_post)      \
+    X(wp_activateapp_full_chain_call_order)                    \
+    X(wp_activateapp_quiet_suppresses_logs_only)               \
+    X(wp_activateapp_extra_null_sparse_loop)                   \
+    X(wp_activateapp_device_chain_sets_zdm_active)             \
+    X(wp_activateapp_device_chain_partial_zdm_inactive)        \
+    X(wp_activateapp_null_zdm_skips_zdm_call)                  \
+    X(wp_timer_clears_ctx_timer_field)                         \
+    X(wp_timer_no_ctx_consumed)                                \
+    X(wp_state_init_clears_all_globals)                        \
+    X(wp_app_ctx_layout_matches_retail)                        \
 
 #define X(n) extern int test_##n(void);
 TESTS
