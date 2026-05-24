@@ -143,18 +143,24 @@ When that day arrives, the order of operations:
 ## Automated tagging — `TagThiscallFunctions.java`
 
 For tagging many functions at once, edit the `TAGS` array in
-`tools/ghidra-scripts/TagThiscallFunctions.java`, then run:
+`tools/ghidra-scripts/TagThiscallFunctions.java`, save + close Ghidra,
+then:
 
 ```bash
-# 1. Save + close Ghidra (headless needs the project lock)
-# 2. Apply the tags
+nix develop -c ./tools/ghidra-tag-and-export.sh
+```
+
+Which is just a wrapper for these two underlying commands in sequence:
+
+```bash
+# Apply the tags
 nix develop -c ghidra-analyzeHeadless ghidra/projects opensummoners \
     -process sotes.unpacked.exe \
     -noanalysis \
     -scriptPath tools/ghidra-scripts \
     -postScript TagThiscallFunctions.java
 
-# 3. Re-export the C dump so the new this->field accesses show up
+# Re-export the C dump so the new this->field accesses show up
 nix develop -c ./tools/ghidra-headless.sh
 ```
 

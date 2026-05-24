@@ -33,14 +33,26 @@ Total host tests across both modules: **75 pass, 0 fail, 2 skip** (the
 skips are 32-bit-only layout asserts that fire at compile time on the
 cross build).
 
+**Ghidra C++ recovery infrastructure landed this session** — Kaiju
+extension installed, `tools/ghidra-scripts/TagThiscallFunctions.java`
+applies class-namespace + `__thiscall` + typed prototype to a batch
+of functions headlessly, and `tools/ghidra-tag-and-export.sh` is the
+one-shot wrapper.  The 8 known asset-register thiscalls
+(`FUN_005748c0`, `_00417b50`, `_00562a10`, `_00579ec0`, `_0057a030`,
+`_0057a1a0`, `_0057a260`, `_00563ef0`) are now tagged in the project
+— `docs/decompiled/by-address/*.c` shows `this->field` accesses
+throughout, plus typed slot pointers as explicit args in every caller.
+See `docs/findings/cpp-recovery-workflow.md` for the full workflow.
+
 Most recent commits (newest first):
 
-- (pending) Asset-Register: port FUN_0056e190 (ar_register_game_sprites)
+- (pending) tools: ghidra-tag-and-export.sh convenience wrapper
+- `b8de62b` tools: TagThiscallFunctions script + bump decomp payload limit
+- `fc71279` docs: C++ class-recovery workflow + Kaiju extension
+- `24fc87f` docs: HANDOFF + PROGRESS for FUN_0056e190 checkpoint
+- `d4fd73a` Asset-Register: port FUN_0056e190 (ar_register_game_sprites)
 - `f42354c` docs: HANDOFF + PROGRESS for FUN_005749b0 checkpoint
 - `e26712c` Asset-Register: port FUN_005749b0 (ar_register_main_sprites)
-- `a30fc2e` docs: HANDOFF + PROGRESS for FUN_005748c0 checkpoint
-- `effb3f2` Asset-Register: port FUN_005748c0 (ar_sprite_slot_register)
-- `9cd6873` docs: HANDOFF + PROGRESS for FUN_00579a00 sound batch
 
 ## Active goal
 
@@ -89,7 +101,9 @@ FUN_0056e190  (group 5)  ✅ ar_register_game_sprites  — done
    ZDM activate, and a few input-device helpers — moderate scope.
    Independent of the remaining asset-register batches, so it
    unblocks Frida-hack removal without waiting on the palette-session
-   trio.
+   trio.  Likely several thiscalls in the input chain — add them to
+   `TagThiscallFunctions.java`'s `TAGS` array as you go, then run
+   `./tools/ghidra-tag-and-export.sh` once at the end.
 
 2. **Palette-session trio** (FUN_004178e0 + FUN_00491770 +
    FUN_005b5d90).  FUN_005b5d90 is a 3-byte COLORREF pack — trivial.
