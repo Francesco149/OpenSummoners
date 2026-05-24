@@ -205,9 +205,10 @@ tools/
   / _9274) are dependency-of ~30 functions; defer until consumer
   semantics map cleanly.  **FUN_0057ca40's deferred clone subsystem
   needs SS_MGR modelled** — first concrete consumer.
-- `PTR_DAT_0056bfa4` jumptable inside the title-menu runner
-  (`FUN_0056aea0`) — Ghidra-flagged unrecovered.  Read with
-  `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
+- `PTR_DAT_0056bfa4` jumptable inside the title-menu runner — read
+  this checkpoint via radare2, 11 entries → 7 distinct phase
+  handlers.  See `docs/findings/title-scene.md` "Inner scene-phase
+  dispatch" for the resolved table.
 - `ar_boot_register_all` exists but **is not yet called from the
   drop-in's WinMain** — every batch (and the wiring) is still a
   module in isolation.  Wiring requires the drop-in to actually own

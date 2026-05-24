@@ -53,10 +53,29 @@ crosses a per-phase threshold.
 | 10    | end-of-flow gate        | (after phase ≥ 10) jumps to `LAB_0056ba69` which returns to the dispatch table at `PTR_DAT_0056bfa4[local_64]` for menu-action resolution |
 
 After phase ≥ 10 the function jumps to `LAB_0056bb55` which dispatches
-through an indirect-jumptable `PTR_DAT_0056bfa4[local_64]` — Ghidra
-warned it couldn't recover the jumptable, so we'll need radare2 to
-read it out when we want to know what each menu action does.  Plain
-return values:
+through an indirect-jumptable `PTR_DAT_0056bfa4[local_64]`.  Ghidra
+couldn't recover it ("too many branches" — table has duplicate
+targets) but `radare2 -c 'pxw 0x2c @ 0x56bfa4'` reads it cleanly.
+The table is 11 dwords (one per `local_64` phase 0..10) → 7 distinct
+handler addresses:
+
+| local_64 | handler addr | meaning                                            |
+|----------|--------------|----------------------------------------------------|
+| 0, 1, 2  | `0x0056bb5c` | studio-logo phases — shared early-intro handler    |
+| 3, 4     | `0x0056bbd4` | title-logo phases — shared logo handler            |
+| 5        | `0x0056bc4d` | "press button" fade-in                             |
+| 6        | `0x0056bca2` | "press button" hold + ambient                      |
+| 7        | `0x0056bcf7` | sparkle-spawn-then-handoff                         |
+| 8, 9     | `0x0056bdb9` | menu phases — top-level menu / fade-out transition |
+| 10       | `0x0056be85` | end-of-flow gate (post-menu)                       |
+
+Note that the call site is `(*(code *)(&PTR_DAT_0056bfa4)[local_64])();`
+— it's a **call** through the table (function-pointer dispatch, not a
+fallthrough switch).  Each handler is a small bridge routine that runs
+the phase-specific drawing then returns.  Phase counts in the table
+(11) match the `local_64 < 0xb` bounds check at line 152.
+
+Plain return values:
 
 - `local_64 == 0` → `FUN_005b9410()` first (resets something), then
   `PTR_DAT_0056bfa4[0]()` is called.
@@ -141,6 +160,6 @@ Once we're in the default branch (after phase 7 hands off), each frame:
 
 - `docs/decompiled/by-address/56aea0.c` — full function (3441 B).
 - `docs/decompiled/by-address/562ea0.c` — caller (post-launch driver).
-- `PTR_DAT_0056bfa4` — Ghidra-flagged jumptable at offset 0x56bfa4,
-  unrecovered.  Read with `radare2 -c 'pxw 0x60 @ 0x56bfa4'` (size
-  guess: ~24 bytes, one entry per phase value up to 10ish).
+- `PTR_DAT_0056bfa4` — 11-entry phase-handler dispatch table at
+  0x56bfa4 (44 bytes), recovered via radare2 — see "Inner scene-phase
+  dispatch" above for the resolved targets.
