@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_005748c0 (ar_sprite_slot_register)
+
+Exposes the single-entry sprite-slot register as a public helper —
+the same shape used by FUN_005749b0, FUN_0057a330, and the hundreds-
+of-sprites mega-register FUN_0056e190.  Previously this lived as a
+static helper (`ar_sprite_slot_register_init`) inside the module,
+parametrized over `entry_count`.  All known retail callers pass
+entry_count=1, so the public form hardcodes it — matches FUN_005748c0
+exactly (operator_new(8) + 1-entry zero-loop + named field writes).
+
+`ar_register_fonts` now calls the public helper instead.  Field-init
+behaviour is unchanged; the test `register_fonts_sprite_slots` still
+passes and pins the same slot state.
+
+**Pivot vs handoff recommendation**: deferred the FUN_00563ef0 wave-
+load second half.  Per-resource WAVE loading at boot is dead code
+(boot batch passes load_flag=0 everywhere), and the dep chain pulls
+in DSound vtable mocks + mmio + PE-resource — sizable test scaffolding
+for code that doesn't run.  Instead picked the highest-leverage
+building block on the title-menu critical path: the per-slot register
+that the next three boot-driver calls (5749b0/57a330/56e190) all share.
+
+Tests: +4 (full field-init map, destroy-on-reregister with aux_buf
++ multi-entry array, uint16 truncation, retail call-shape spot check
+against FUN_0057a330's first arg list).  Total 63 pass, 0 fail, 2
+skip.  32-bit cross build clean — `ar_sprite_slot` still 0x44 B.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_00579a00 (sound batch)
 
 Second port in the asset-register batch — `FUN_00579a00` registers 12
