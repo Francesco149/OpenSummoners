@@ -8,47 +8,57 @@ plus its own embedded `.rsrc` section.
 All three are **resource-only DLLs** — tiny `.text` (~11 KB DllMain
 stub) and `.data`, plus a massive `.rsrc` section holding the assets:
 
-| dll          | `.rsrc` size | role                                 |
-|--------------|--------------|--------------------------------------|
-| `sotesd.dll` | 168 MB       | "D" group — sprite/scenario/text data |
-| `sotesw.dll` | 78 MB        | "W" group — wave / music             |
-| `sotesp.dll` | 1.1 MB       | "P" group — small misc data          |
-
-Reach: the engine refers to them as the "B" / "W" / "P" resource
-groups in error messages.  TBD which letter maps to which DLL — the
-"Necessary resource (B) is not found." string fires when sotesd.dll
-fails, suggesting "B" = "data" (basic? bulk?  Or just a poor naming).
-
-## PE resource layout (sotesd.dll example)
-
-Two resource types, both unnamed-but-typed:
-
-- `'DATA'` — bulk assets, 759 entries with integer IDs starting at 1000
-- `'BITMAP'` (?) — 436 entries (TBD which type; wrestool reports them
-  as the unnamed second branch)
-- one `--type=16` (RT_VERSION) entry — standard PE version info
+| dll          | `.rsrc` size | actual content (from extractor)               |
+|--------------|--------------|-----------------------------------------------|
+| `sotesp.dll` | 1.1 MB       | 31 `WAVE` SFX (RIFF) + 1 small `DATA` blob   |
+| `sotesw.dll` | 78 MB        | 47 `DATA` entries, every one a WMA (ASF) file|
+| `sotesd.dll` | 168 MB       | 759 `DATA` blobs + 436 `WAVE` SFX             |
 
 All entries are tagged with language 1041 = Japanese (0x411).  The
-engine's `FindResourceA` calls don't pass a language so DDU's default
-language-selection picks the only available variant.
+engine's `FindResourceA` calls don't pass a language so the OS picks
+the only available variant.
 
-Many DATA entries are exactly 676996 bytes (chunked uniformly):
+So the "P / W / D" naming convention is:
+- **P** = small sound effects pack (`WAVE`)
+- **W** = music (`DATA` blobs containing WMA audio)
+- **D** = bulk data — game scenarios, sprites, plus larger sound
+  effects (`DATA` + `WAVE`)
+
+### sotesd.dll content shape
+
+759 entries of type `DATA` total ~135 MB.  IDs 1000–1004 are each
+exactly 676996 bytes (645 KB) — almost certainly a single logical
+blob chunked because individual PE resource entries get awkward past
+a few hundred KB.  IDs 1011+ are smaller bespoke entries:
 
 ```
-'DATA' name=1000 size=676996
-'DATA' name=1001 size=676996
-'DATA' name=1002 size=676996
-'DATA' name=1003 size=676996
-'DATA' name=1004 size=148612      ← first non-multiple
-'DATA' name=1011 size=11382       ← jump (1005-1010 not used)
+'DATA' name=1000 size=676996       ← chunked logical-blob part 1
+'DATA' name=1001 size=676996       ← part 2
+'DATA' name=1002 size=676996       ← part 3
+'DATA' name=1003 size=676996       ← part 4
+'DATA' name=1004 size=148612       ← part 5 (final, partial)
+'DATA' name=1011 size=11382        ← jump (1005-1010 unused) — standalone entries from here
+'DATA' name=1012 size=19574
 ...
 ```
 
-Suggests 1000–1004 are a single huge logical blob (maybe a sprite
-atlas?) chunked at 676996 bytes (≈ 645 KB) per resource — possibly
-hitting a Windows PE resource-size cap (older Windows versions
-had ~1 MB practical limits on single `.rsrc` entries, so engines
-that needed bigger blobs broke them into 1 MB-ish chunks).
+The 5-part split lines up exactly with the "kind 2 chunked memory
+stream" reader pattern (FUN_005b67c0 spans chunks with stride
+`stream->[1]`).  Strongly suggests the engine treats 1000-1004 as a
+single in-memory blob assembled at boot.
+
+### sotesw.dll content shape
+
+47 entries, all `DATA` type, every one a complete WMA file (ASF
+container).  Sizes 1.5–3 MB each.  The launcher reads "Disable
+Sound" → settings->[0x21c] gates ZDM (music mgr) init; if music is
+disabled, sotesw.dll is loaded but its resources are never queried.
+
+### sotesp.dll content shape
+
+31 `WAVE` entries plus a single 12-byte `DATA` blob and the standard
+RT_VERSION.  Small enough that the contents are likely UI feedback
+clicks + early-boot SFX.
 
 ## Load sequence (from `FUN_005a4770`)
 
@@ -77,15 +87,30 @@ polymorphic reader keyed off `source_kind`:
 | kind | meaning                                                  |
 |------|----------------------------------------------------------|
 | 1    | PE resource (cursor advances through LockResource ptr)   |
-| 2    | compressed/decoded stream via `FUN_005b68f0`             |
+| 2    | **chunked memory stream** via `FUN_005b68f0` → `FUN_005b67c0`  |
 | 3    | raw file via `ReadFile(in_ECX[3]=hFile, ...)`            |
 
-So the engine has a unified reader abstraction over PE resources,
-files, and a third compressed-source kind.  TBD what `FUN_005b68f0`
-actually decodes — best guess from naming patterns is a Lizsoft
-proprietary RLE or LZSS-style decoder.  When we move on to actually
-extracting assets (`tools/extract/sotesd_dat.py` etc.), this is the
-next stop.
+The "kind 2" backend is **not a decompressor** — it's a chunked
+memory abstraction (the engine's `FUN_005b6520` error string calls
+it `"[RAM Disk Error]"`).  Stream descriptor:
+
+- `[0]` = pointer to an array of chunk pointers
+- `[1]` = chunk size (e.g. 676996 bytes for the sotesd.dll multi-part
+  resource sets)
+- `[0x10]` = current cursor offset
+- `[0x14]` = state flag (must equal 1 to read)
+
+`FUN_005b67c0(dst, offset, len, dir)` slices `len` bytes from logical
+offset `offset` of the chunked stream into `dst`, transparently
+spanning chunk boundaries by indexing the chunk array as
+`offset / chunk_size`.  Direction 0 = read, !=0 = write (used by
+the save system?).
+
+So all assets are stored **uncompressed** in the resource DLLs, just
+chunked at 676996-byte boundaries when they exceed a single PE
+resource's practical size cap.  Extraction tools can dump raw bytes
+with `wrestool` or `pefile` directly — no decoding pass needed for
+the bulk-data stream.
 
 ## "Asset register" calls in the boot driver
 
@@ -175,25 +200,52 @@ user might run our drop-in alongside an updated sotesd.dll someday.
 
 > See `docs/findings/engine-quirks.md` (will add §14 for this).
 
-## Quirk — DSound primary buffer reads from sotesw.dll resource ID 0x2712 with type "MUSICWMA"
+## Quirk — `sotesw.dll` ALSO carries a (shorter) signature check
 
-The post-LoadLibrary path for sotesw.dll calls:
+Like sotesd.dll, sotesw.dll is integrity-checked at boot — but the
+check is **8 bytes against "MUSICWMA"** instead of 60 against the
+random string.  The call site (`0x5753af` after the LoadLibraryA) is:
 
 ```c
-FUN_00579740(hMod, 1039, "MUSICWMA", 0x2712, 1, 8);
+FUN_00579740(hMod_sotesw, 1039, "MUSICWMA", 0x2712, 1, 8);
 ```
 
-That requests resource `0x2712 = 10002` with type `"MUSICWMA"` from
-sotesw.dll.  Failure logs `"Sotesw.dll is broken."`.
+Signature: `FUN_00579740(hMod, resource_id, expected_str, min_version, ?, sig_len)`.
 
-wrestool doesn't surface a `"MUSICWMA"` type in sotesw.dll (only
-'DATA' and the version info entry), so either:
-- the type is enumerated by wrestool under a different label, or
-- the engine probes for the type and falls back gracefully when it's
-  absent, or
-- the type IS present but wrestool can't see custom 8-byte type names
+The routine:
 
-Verify via Frida hook on `FindResourceA` during a retail boot.
+1. Reads resource ID `1039 = 0x40F` from sotesw.dll (type='DATA').
+2. Reads 4 bytes for `version`, then `sig_len` (8) bytes for sig.
+3. Adds `'A'` to each sig byte → decoded string.
+4. Compares `version >= min_version (0x2712)` AND decoded sig == `"MUSICWMA"`.
+5. Fail → log `"Sotesw.dll is broken."`, but the engine **continues**
+   (just sets `DAT_008a6e78 = NULL` so later music loads no-op).
+
+So `"MUSICWMA"` is NOT a PE resource type — it's the **decoded
+8-byte expected signature** for sotesw.dll's resource 1039.
+
+The sotesd.dll check uses the same byte-encoding scheme but inlined
+(no helper) — see "sotesd.dll 60-byte signature integrity check"
+above.  Likely the sotesw check came later, and the engine had
+refactored it into the reusable `FUN_00579740` helper by then.
+
+Verified: **`sotesp.dll` has the same scheme too**, in its sole 12-byte
+`DATA` entry (resource ID 1031).  Decoding the trailing 8 bytes
+(`05 12 0F 00 13 02 07 11` + `0x41` each) yields the string
+**`"FSPATCHR"`** ("Fortune Summoners Patcher" probably, given the P
+in the DLL name).  Min version is `0x2711` (one less than sotesw's
+`0x2712`).
+
+So all three DLLs are signature-checked at boot with the same
+byte-encoding scheme.  The signatures themselves are arbitrary ASCII
+tags the engine knows about a priori; only the bytes in the
+companion DLLs encode them.
+
+| dll          | sig resource ID | sig string                                                   | min ver |
+|--------------|-----------------|--------------------------------------------------------------|---------|
+| `sotesd.dll` | 0x7DE = 2014    | `JFDGGIUABCVJIEKAUYLPOFDEQBVGSKOLJSCKPIFAXMHGYELSDOBFRKVGBAKB` | 0x2713 |
+| `sotesw.dll` | 0x40F = 1039    | `MUSICWMA`                                                   | 0x2712  |
+| `sotesp.dll` | 0x407 = 1031    | `FSPATCHR`                                                   | 0x2711  |
 
 ## Files referenced
 
@@ -213,13 +265,19 @@ Verify via Frida hook on `FindResourceA` during a retail boot.
 
 ## Next stops for Phase 2 extraction work
 
-1. Decompile `FUN_005b68f0` and identify its compression scheme.
-   It's the gating step for any extractor that needs to operate on
-   the "kind 2" sources.
-2. Spec the 759-entry sotesd.dll DATA structure: chunk the sprites
-   first (676996-byte aligned IDs 1000-1004), then enumerate the
-   smaller entries.
-3. Build `tools/extract/sotesd_dat.py` to dump the raw resource
-   bytes per ID + a thumbnail BMP for the visual ones.
-4. Spec `sotesp.dll` (small enough to enumerate by hand).
-5. Identify what 'MUSICWMA' actually resolves to in sotesw.dll.
+1. ✅ ~~Decompile `FUN_005b68f0`~~ — done.  It's a chunked-memory
+   abstraction, NOT a decompressor; assets are stored raw.
+2. Build `tools/extract/sotes_resources.py` — dump every resource from
+   sotesd/sotesw/sotesp.dll's `'DATA'` type to per-ID files.  Easy
+   first pass with `pefile` or `wrestool`; harder pass joins the
+   chunked multi-part resources (sotesd 1000-1004) into single blobs.
+3. Identify what each chunked resource is by content-sniffing
+   (BMP/WAV/RIFF magic, plaintext, custom).  Build extractor scripts
+   for the formats we recognize.
+4. Spec `sotesp.dll`'s 1.1 MB content (smallest of the three —
+   probably small atlases or scenario data; quickest win).
+5. Identify what 'MUSICWMA' actually resolves to in sotesw.dll —
+   probably just a WMA-format asset that wrestool can't preview
+   because it doesn't recognize the type name.  A Frida hook on
+   `FindResourceA` during a retail boot will reveal the actual type
+   string the engine queries with.
