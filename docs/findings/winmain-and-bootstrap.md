@@ -233,12 +233,12 @@ init):
 | `The environmental setting was read`    | reads `*DAT_008a6e80` (settings struct, in-memory `config.dat`); writes `state->offset_0x04` ∈ {0,1,2,3,4} = frame style |
 | `An intermittent timer was set`         | `SetTimer(hWnd, 1, 10, NULL)`                          |
 | `The window was set`                    | `SetWindowLong + SetWindowPos` switch on mode          |
-| (no log)                                | `FUN_005b9cf0(&DAT_008a93d0, hInst)` — **DInput init (ZDI)** |
-| (no log)                                | `FUN_005b9fc0(&DAT_008a93d8, hWnd)` — **wave audio (ZDW?) init** |
+| (no log)                                | `FUN_005b9cf0(&DAT_008a93d0, hInst)` — **DInput7 main init (ZDI)** |
+| (no log)                                | `FUN_005b9fc0(&DAT_008a93d8, hWnd)` — **DInput keyboard sub-device** |
 | `ZDI was set`                           | input subsystem ready                                  |
-| `FUN_005baed0(&DAT_008a93d4, hWnd)`     | DSound init                                            |
+| `FUN_005baed0(&DAT_008a93d4, hWnd)`     | **DSound init (ZDS)** — primary buffer w/ CTRLVOLUME   |
 | `ZDS was set`                           | audio subsystem ready                                  |
-| (conditional, if `*(*settings + 0x21c) != 1`) | `FUN_005bbb10()` — music mgr (ZDM)              |
+| (conditional, if `*(*settings + 0x21c) != 1`) | `FUN_005bbb10()` + `FUN_005bbeb0(0x32, 8)` — music mgr (ZDM), 50 voices |
 | `ZDM was set`                           | music subsystem ready (only if not disabled)           |
 | `FUN_005b7ee0(&DAT_008a93cc)`           | **DDraw7 core** (ZDD)                                  |
 | `ZDD was set`                           | DDraw subsystem ready                                  |
