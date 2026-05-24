@@ -139,14 +139,18 @@ public class TagThiscallFunctions extends GhidraScript {
         { 0x005b9130L, "paint_ctx",
             "undefined4 FUN_005b9130(HWND target)" },
 
-        // FUN_005b94e0 / FUN_005b9500 are vtable trampolines on the
-        // same paint_ctx — they call paint_ctx->zdd_device->vtable[N]
-        // for begin/end frame.  Tagging them too keeps the paint_ctx
-        // family consistent in the decomp.
+        // FUN_005b94e0 / FUN_005b9500 are vtable trampolines invoked
+        // by FUN_005b9130 with `this = parent->back_ctx` (+0x16c) —
+        // NOT the parent paint_ctx itself.  Both this->zdd_device
+        // (+0x2c) entries get called via vtable[0x44] (begin frame)
+        // and vtable[0x68] (end frame).  paint_ctx is recursive
+        // (front/back sibling pair) so the same struct type fits:
+        // tagging them as paint_ctx is correct, and Ghidra infers the
+        // +0x16c indirection at the call sites in FUN_005b9130.
         { 0x005b94e0L, "paint_ctx",
-            "undefined4 FUN_005b94e0(void * begin_arg)" },
+            "undefined4 FUN_005b94e0(HWND * out_src_hdc)" },
         { 0x005b9500L, "paint_ctx",
-            "void FUN_005b9500(void * end_arg)" },
+            "void FUN_005b9500(HWND src_hdc)" },
 
         // FUN_005ba290 (input device acquire):
         //   ECX = an input_dev*.  Calls *this->dev_obj->vtable[7]

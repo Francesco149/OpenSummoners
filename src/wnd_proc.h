@@ -114,31 +114,41 @@ _Static_assert(offsetof(wp_app_ctx, timer)  == 0x1c, "timer offset");
  * WndProc is the only consumer that needs them right now.
  */
 
-/* wp_paint_ctx — DAT_008a93cc.  The ECX `this` for FUN_005b9130
- * (wp_paint_check), FUN_005b94e0 (begin-frame helper), and
- * FUN_005b9500 (end-frame helper).
+/* paint_ctx — DAT_008a93cc.  The ECX `this` for FUN_005b9130
+ * (the BitBlt-from-backbuffer paint helper).  Disasm at 0x005b9130
+ * pinned these field offsets:
  *
  *   +0x02c: ZDD device pointer.  vtable+0x44 = begin-frame method,
  *           vtable+0x68 = end-frame method.  Both called as
  *           `(*dev->vtable[offset])(dev, hwnd_arg)` — i.e. the helpers
- *           ride atop a DirectDraw-style class.
+ *           ride atop a DirectDraw-style class.  FUN_005b9130 itself
+ *           does NOT read +0x2c — FUN_005b94e0 / FUN_005b9500 do, on
+ *           their own `this`, which is `parent->back_ctx` (+0x16c).
  *   +0x138..+0x144: BitBlt destination rect (x, y, w, h) — the
- *           paint helper does `BitBlt(hdc, x, y, w, h, dev_hdc,
- *           0, 0, SRCCOPY)`.
+ *           paint helper does `BitBlt(hdc, x, y, w, h, src_hdc,
+ *           0, 0, SRCCOPY)` after FUN_005b94e0 fills in src_hdc.
  *   +0x164: state machine.  Paint is only consumed when this reads
  *           exactly 2; other values fall through to DefWindowProc.
  *           Likely "front-buffer-locked / ready-to-blit" state.
+ *   +0x16c: pointer to the "back buffer" paint_ctx — a sibling
+ *           instance of the same struct.  FUN_005b9130 hands this
+ *           pointer to FUN_005b94e0 / FUN_005b9500 as their ECX.
+ *           Confirms paint_ctx is a recursive type with front/back
+ *           pair semantics (front owns the BitBlt rect, back owns
+ *           the ZDD device).
  */
 typedef struct paint_ctx {
     uint8_t  _pad000[0x02c];
-    void    *zdd_device;       /* +0x02c */
+    void    *zdd_device;          /* +0x02c — used via back_ctx */
     uint8_t  _pad030[0x138 - 0x030];
-    int32_t  blit_x;           /* +0x138 */
-    int32_t  blit_y;           /* +0x13c */
-    int32_t  blit_w;           /* +0x140 */
-    int32_t  blit_h;           /* +0x144 */
+    int32_t  blit_x;              /* +0x138 */
+    int32_t  blit_y;              /* +0x13c */
+    int32_t  blit_w;              /* +0x140 */
+    int32_t  blit_h;              /* +0x144 */
     uint8_t  _pad148[0x164 - 0x148];
-    int32_t  state;            /* +0x164 — == 2 means "ready to blit" */
+    int32_t  state;               /* +0x164 — == 2 means "ready to blit" */
+    uint8_t  _pad168[0x16c - 0x168];
+    struct paint_ctx *back_ctx;   /* +0x16c — back-buffer sibling */
 } paint_ctx;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
@@ -146,6 +156,7 @@ _Static_assert(offsetof(paint_ctx, zdd_device) == 0x02c, "paint_ctx zdd_device")
 _Static_assert(offsetof(paint_ctx, blit_x)     == 0x138, "paint_ctx blit_x");
 _Static_assert(offsetof(paint_ctx, blit_h)     == 0x144, "paint_ctx blit_h");
 _Static_assert(offsetof(paint_ctx, state)      == 0x164, "paint_ctx state");
+_Static_assert(offsetof(paint_ctx, back_ctx)   == 0x16c, "paint_ctx back_ctx");
 #endif
 
 /* input_dev — DAT_008a93d8 (extra/keyboard) and DAT_008a93dc[2]
