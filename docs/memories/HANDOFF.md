@@ -14,10 +14,15 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  Three modules are now ported:
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 16 functions ported.  Pure logic with GDI
+- **Asset-Register** — 17 functions ported.  Pure logic with GDI
   wrappers split into `asset_register_win32.c` (real build only).
-  Latest add is `ar_register_game_sprites` (FUN_0056e190) — 442
-  single-entry sprite registers packed into a table-driven port.
+  Latest add is `ar_register_game_sounds` (FUN_0057b280 partial) —
+  174 sound-bank slots (idx 12..244) covering the inline + thiscall
+  halves of the retail batch; the conditional locale-loop tail and
+  the 4 inline calls at the caller `562ea0:617-620` are deferred.
+  Pool capacity bumped from 12 to 256 to fit; `ar_register_sounds`
+  still owns the original 12-entry main batch via the renamed
+  `AR_SOUND_MAIN_COUNT`.
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c` (the pump's spin-loop
@@ -26,7 +31,7 @@ methodical port-and-test.  Three modules are now ported:
   (paint helper, input acquire, ZDM, app pause, post-activate
   scrub) — all are no-op placeholders in `wnd_proc_win32.c`.
 
-Total host tests across all three modules: **95 pass, 0 fail, 3
+Total host tests across all three modules: **101 pass, 0 fail, 3
 skip** (the 3 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -39,7 +44,9 @@ wrapper.  The 8 asset-register thiscalls are tagged.  See
 
 Most recent commits (newest first):
 
-- (pending) WndProc: port FUN_005b12e0 + 20 host tests
+- `5814772` Asset-Register: port FUN_0057b280 (ar_register_game_sounds)
+- (pending) docs: HANDOFF + PROGRESS for FUN_0057b280 checkpoint
+- `f96f375` WndProc: port FUN_005b12e0 (wp_handle_message)
 - `2a94b02` tools: ghidra-tag-and-export.sh convenience wrapper
 - `b8de62b` tools: TagThiscallFunctions script + bump decomp payload limit
 - `fc71279` docs: C++ class-recovery workflow + Kaiju extension
@@ -57,10 +64,9 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-The asset-register batch is the path of least resistance for forward
-progress (independent of any engine subsystem we don't have).  The
-WndProc port unblocked the Frida-hack removal direction but didn't
-land any of the deep engine layers yet.  Pick by appetite.
+FUN_0057b280's main body is done; the remaining asset-register
+backlog is heavier (PE-resource decoder or chunked-Ghidra work) and
+the WndProc port still has no live wiring.  Pick by appetite.
 
 1. **(recommended) Palette-session trio** (FUN_004178e0 +
    FUN_00491770 + FUN_005b5d90).  FUN_005b5d90 is a 3-byte COLORREF
@@ -72,12 +78,16 @@ land any of the deep engine layers yet.  Pick by appetite.
    ramps in FUN_005749b0 AND the entire FUN_0057a330 batch (the
    second-biggest sprite-register call at boot).
 
-2. **`FUN_0057b280` partial** — likely another sprite-register
-   style batch given its position in the boot driver.  Skim Ghidra
-   decomp to confirm shape; if it's another hundreds-of-sprites
-   table, the same extraction script used for FUN_0056e190 can be
-   reused verbatim.  Drains the remaining sprite-register backlog
-   without needing the palette decoder.
+2. **FUN_0057b280 tail bits** — port the deferred halves of the
+   game-sounds path: (a) the 4 inline `FUN_00563ef0` calls at the
+   caller `FUN_00562ea0:617-620` (idx 22..25, group 2, IDs
+   0x4c8..0x4cb), and (b) the conditional locale-table loop at the
+   end of FUN_0057b280 (walks the 0x24-stride rdata table at
+   `&DAT_00691018`, branches on launcher-settings fields at
+   DAT_008a6e68/_6e70/_6e80).  Needs reading the rdata table out of
+   the binary and modelling 3 launcher-settings struct fields the
+   loop dereferences.  Small in code, finishes the asset-register's
+   sound backlog cleanly.
 
 3. **WndProc dependency formalization** — model the layouts of the
    5 "deep engine" structs (paint context with +0x164 state and
@@ -115,7 +125,7 @@ src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
-  asset_register.c/h        Asset-register slots (GDI, sprite, sound) — 16 functions
+  asset_register.c/h        Asset-register slots (GDI, sprite, sound) — 17 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   wnd_proc.c/h              Main game window WndProc — pure dispatch
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + 5 placeholder hooks
@@ -127,7 +137,7 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     44 tests for Asset-Register
+  test_asset_register.c     50 tests for Asset-Register
   test_wnd_proc.c           20 tests for WndProc
 
 tools/
@@ -153,10 +163,17 @@ tools/
   (`FUN_0056aea0`) — Ghidra-flagged unrecovered.  Read with
   `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
 - `ar_register_fonts` + `ar_register_sounds` + `ar_register_main_sprites`
-  + `ar_register_game_sprites` are ported but **not yet called from
-  the drop-in's boot path** — they're modules in isolation.  Wire
-  them in once enough adjacent register batches land that calling
-  them actually has a visible effect.
+  + `ar_register_game_sprites` + `ar_register_game_sounds` are
+  ported but **not yet called from the drop-in's boot path** —
+  they're modules in isolation.  Wire them in once enough adjacent
+  register batches land that calling them actually has a visible
+  effect.
+- FUN_0057b280's deferred tail: the 4 inline `FUN_00563ef0` calls
+  at the caller `562ea0:617-620` (group=2, indices 22..25, IDs
+  0x4c8/0x4ca/0x4c9/0x4cb) AND the conditional locale-table loop
+  walking `&DAT_00691018` (0x24 stride, branches on DAT_008a6e68/
+  _6e70/_6e80).  See PROGRESS 2026-05-24 game-sounds entry and
+  "Next move" #2.
 - The WndProc port is also a module in isolation — `wp_handle_message`
   is not wired into any RegisterClassExA call yet.  Wiring requires
   the drop-in to actually own the main game window registration

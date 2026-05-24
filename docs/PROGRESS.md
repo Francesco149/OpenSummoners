@@ -6,6 +6,57 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_0057b280 (ar_register_game_sounds)
+
+The "game sounds" boot-register batch — the sixth call in
+`FUN_00562ea0`'s asset-register sequence (right after `FUN_0057ca40`,
+called as `FUN_0057b280(ZDS, 3, settings)`).  Populates **174
+single-slot sound-bank entries** in `g_ar_sound_table[]` covering
+pool indices 12..244 (with 59 sparse gaps in that range).  Same
+six-field write pattern as `ar_register_sounds` — every entry routes
+through `ar_sound_slot_init` since the retail compiler's choice
+between inline blocks (122 entries) and `FUN_00563ef0` thiscall
+dispatches (52 entries) is observably identical (load_flag=0,
+buffer untouched).
+
+The pool-pointer table at `(&DAT_008a6ec4)[i]` only ran out to idx 11
+in the previous port (the original AR_SOUND_SLOT_COUNT cap of 12 came
+from `ar_register_sounds`).  Bumped `AR_SOUND_SLOT_COUNT` to **256**
+(covers FUN_0057b280's max idx 244 with headroom) and renamed the
+old 12-cap constant to `AR_SOUND_MAIN_COUNT` so `ar_register_sounds`
+still loops over its exact 12-entry roster.  No retail BSS size for
+the contiguous pool past 0x008a6ec4 is documented yet; bump again if
+a later batch overruns.
+
+Entry data lifted from the Ghidra decomp via a quick regex sweep
+(122 `puVar2 = DAT_…; … puVar2[6] = ID;` blocks + 52 thiscall calls);
+issue order preserved so any future call-trace test matches without
+renormalisation.
+
+**Deferred** — NOT in this port:
+
+1. The 4 inline `FUN_00563ef0` calls the caller (`FUN_00562ea0:617-620`)
+   issues at indices 22..25 with group=2 (IDs 0x4c8..0x4cb).  These
+   sit between FUN_0057a330 and FUN_0057b280 in the boot sequence and
+   write three slots in the "gap" of FUN_0057b280's range; need their
+   own tiny helper when the boot driver gets ported.
+2. The conditional locale-table loop at the tail of retail
+   FUN_0057b280 (walks the 0x24-stride table at `&DAT_00691018`,
+   dispatches into the pool keyed on locale state at DAT_008a6e68 /
+   _6e70 / _6e80).  This is the language-pack / per-locale sound
+   override path — needs reading the structured rdata table at
+   0x00691018 and modelling the launcher-settings struct fields the
+   branch reads.
+
+Tests: +6 (total-entry-count 174, index range bounds + sample gaps,
+field-write spot check across all 5 count buckets {1,2,4,6,8,16},
+all-pairs distinct resource IDs, coexistence with `ar_register_sounds`
+without group-tag stomping, lazy-load `buffer` preservation on re-
+register).  Total **101 pass, 0 fail, 3 skip**.  Win32 cross build
+clean.
+
+---
+
 ## 2026-05-24 — WndProc: FUN_005b12e0 (wp_handle_message)
 
 Ported the main game window's WndProc — the message handler
