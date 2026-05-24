@@ -6,6 +6,77 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Test harness scaffold + first ported module (Pixel-Drawer)
+
+Pivoted from "extract assets to spec the format" → "RE the init sequence
+and reimplement methodically with tests" (the openrecet model).  Six
+commits across one session.
+
+**Harness fix (`8d6855c`)**: the `--max-frames` cap formula in
+`frida_capture.py` was `msg_ticks * 250 >= max_frames`, which at the
+default `max_frames=600` fired at just 3 emitted batches (~750
+drained messages) and pre-empted any `--duration-ms` longer than
+~12 s.  Now compares against the true running count carried on each
+`msg` event; default bumped to 30000.
+
+**Sprite format spec (`a2e5cb0`)**: archaeology pass on the
+`sotesd.dll` DATA blobs spec'd the `0x425f` sprite family layout
+(32 B outer magic + 1024 B BGRA palette + 64 B sub-table + 14 B
+BMFH-style preamble + 8 B sub-sig + W×H 8bpp pixels).  213 of 759
+DATA blobs parse cleanly.  W/H aren't in the file — they come from
+`FUN_0056e190`-family registration calls.  Extractor at
+`tools/extract/lizsoft_sprite.py`.  User redirected away from
+chasing the asset extraction further: "we will load sprites the
+same way as retail exe does it" once the init replay catches up.
+
+**Title-scene runner (`07088a7`)**: `FUN_0056aea0` mapped fully.
+8-phase intro animation (studio-logo fade → title fade → "press
+button" → particle hand-off), pump+frame-budget cadence, the
+default-branch menu-action latch via `FUN_0043ce50`, lazy DInput
+pad attach on first menu-confirm.  Also extended
+`winmin-and-bootstrap.md` with the state-code → next-scene map for
+the outer driver's 0/6/8/9/0x1a..0x1e codes, and the Pixel-Drawer
+slot-table allocation phase (69 slots in 5 fixed-size groups).
+This is the first-rendered-frame bridge from boot done to actual
+DDraw Flip.
+
+**Test harness scaffold + Pixel-Drawer leaf primitives (`a53c141`)**:
+`tests/{t.h, test_main.c, Makefile}` mirroring openrecet's pattern —
+host gcc + ASan/UBSan, X-macro registry, `T_ASSERT_*` macros,
+name-filter via `$F`.  Ported the 5 leaf primitives of `FUN_005bd*`:
+mask→shift encoder, channel ctor, channel free-LUT, slot ctor, slot
+SetColor.  13 tests; layout parity enforced via `_Static_assert`
+blocks active on the 32-bit cross build.
+
+**Pixel-Drawer LUT builder (`bb8c706`)**: `FUN_005bd040` (801 B,
+four blend formulas + shared-LUT short-circuit).  Modes: 1=add,
+2=sub, 3=lerp-variant-A, 4=channel-weight-coupled, default=lerp.
+Floor-correction terms preserved literally even where they're
+always-zero for valid weights, in case the engine ever passes
+out-of-range inputs.  10 new tests with hand-computed expectations.
+
+**Pixel-Drawer slot commit + mask reader (`aa0e62c`)**: `FUN_005bd3d0`
+ties the leaf primitives together (free LUTs → resolve format from
+PdFormat or RGB565 default → encode masks → resolve slot.state →
+rebuild LUTs in R/G/B order with B sharing R-not-G).  The 8-byte
+sub-detail that "B can share with R but never with G" preserved
+verbatim from the retail call sequence at 5bd456/45f/468.
+Pixel-Drawer module is now complete: 7 functions ported, 30 tests
+passing on host (1 layout-test host-skip), 32-bit cross build clean.
+
+Status: test harness is established and the first complete module
+is in.  Next sessions should look at the remaining boot-driver
+phases that have clear consumer relationships — likely the
+ZDD wrapper (DDraw surface mgmt — Win32 heavy, needs mock layer or
+just port + verify via the smoke harness) or the asset register
+batch (`FUN_00579bd0` fonts, `FUN_0056e190` sprite slots et al —
+consumes Pixel-Drawer slots so it integrates our work directly).
+Skip the SS_MGR/W_MGR/GD_MGR boot pools until we know their
+consumer semantics — they're just `operator_new` loops in
+isolation.
+
+---
+
 ## 2026-05-24 — Phase 1+2 push: audio, asset loader, config.dat, DDraw surface builder
 
 Long unattended session.  Six commits, four new findings docs, two
