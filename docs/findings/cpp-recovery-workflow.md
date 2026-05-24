@@ -34,7 +34,7 @@ real-world payoff on this binary.
 Successor to the OOAnalyzer Ghidra plugin.  Maintained by the CERTCC
 Pharos team, supports Ghidra 12.0.x and 12.1.x with pre-built zips.
 
-- **Path on disk**: `~/.ghidra/ghidra_12.0.4_NIX/Extensions/kaiju/`
+- **Path on disk**: `~/.config/ghidra/ghidra_12.0.4_NIX/Extensions/kaiju/`
 - **Source**: <https://github.com/CERTCC/kaiju>
 - **Release used**: tag `260515` (2026-05-15), file
   `ghidra_12.0.4_PUBLIC_20260515_kaiju.zip`
@@ -140,10 +140,83 @@ When that day arrives, the order of operations:
 5. **If we're swamped**: install Pharos + run OOAnalyzer against the
    exe to JSON, import via Kaiju's OOAnalyzer JSON importer.
 
+## Automated tagging — `TagThiscallFunctions.java`
+
+For tagging many functions at once, edit the `TAGS` array in
+`tools/ghidra-scripts/TagThiscallFunctions.java`, then run:
+
+```bash
+# 1. Save + close Ghidra (headless needs the project lock)
+# 2. Apply the tags
+nix develop -c ghidra-analyzeHeadless ghidra/projects opensummoners \
+    -process sotes.unpacked.exe \
+    -noanalysis \
+    -scriptPath tools/ghidra-scripts \
+    -postScript TagThiscallFunctions.java
+
+# 3. Re-export the C dump so the new this->field accesses show up
+nix develop -c ./tools/ghidra-headless.sh
+```
+
+The Java port exists because Ghidra-on-nix is built without PyGhidra,
+so the equivalent `.py` script fails with "Python is not available"
+under headless.  A `.py` twin lives next to the `.java` for reference
+and works from the GUI Script Manager if you ever want it there.
+
+### Batching guidance
+
+The tagging step is effectively instant.  The re-export takes ~3 min
+because it re-decompiles all ~1768 functions from scratch.  So:
+
+- **Accumulate edits to the `TAGS` table before re-exporting** — when
+  porting a new module, tag every thiscall in that module in one
+  session, then re-export once.
+- **Don't re-export to spot-check a single function** — if you're
+  iterating on a tag, open Ghidra GUI, see the change live, then
+  batch up several changes and re-export only when you're done.
+
+If we ever need cheaper iteration, the obvious enhancement is adding a
+function-address filter argument to `ExportDecompiledC.java` so we can
+re-export just N functions instead of all 1768.
+
+## Gotchas worth remembering
+
+- **Decompiler "Response buffer size exceeded"** on `FUN_0056e190`
+  after tagging `FUN_005748c0` as `__thiscall` — Ghidra's default
+  per-function decomp output cap (50 MB) is too small once each
+  trailing call grows by one explicit arg.  Fix:
+  Edit → Tool Options → Decompiler → Analysis → bump
+  **"Payload Limit"** to 200 (or 500) MB.  This is permanent across
+  the project once set.
+
+- **Settings dir on Nix Ghidra is `~/.config/ghidra/...`**, NOT the
+  upstream NSA convention `~/.ghidra/...`.  Extensions dropped in
+  the latter are invisible to Ghidra.
+
 ## Provenance / verification log
 
-- Kaiju zip SHA256 — to be filled in after first GUI launch confirms
-  the plugin loads (just so we know it's the exact distributed
-  artifact, not a tampered copy).
-- Plugin enable verified — TODO on next Ghidra launch.
-- Thiscall workflow tested on `FUN_005748c0` — TODO.
+- 2026-05-24: Kaiju 260515 installed to
+  `~/.config/ghidra/ghidra_12.0.4_NIX/Extensions/kaiju/` and the
+  "CERT Kaiju" extension appeared in File → Install Extensions on
+  next launch (verified by user in GUI).
+- 2026-05-24: Manual `__thiscall` workflow validated on
+  `FUN_005748c0`.  After tagging + retyping `this` as
+  `ar_sprite_slot *`, the function body decompiles as
+  `this->entries`, `this->aux_buf`, `this->resource_id` etc., and
+  `FUN_0056e190`'s 349 trailing calls now show their slot pointer
+  (`DAT_008a7e58`, `DAT_008a7e5c`, …) as the first argument —
+  exactly the data that previously required radare2 disasm to
+  recover.  Required bumping the decompiler payload limit (see
+  Gotchas above).
+- 2026-05-24: `TagThiscallFunctions.java` ran headlessly against the
+  full 8-function asset-register batch.  All 8 tagged in one shot;
+  re-exported decomps show typed `this->field` accesses throughout.
+  Side wins from the typed pointers:
+  - `FUN_00562a10` now shows `DeleteObject(this->array[uVar1])`
+    (the `ar_gdi_handle` carries the Win32 HGDIOBJ alias through).
+  - `FUN_00563ef0` wave-load second half — previously opaque, listed
+    in HANDOFF as a deferred port — is now readable enough to port
+    when needed (typed `this->buffer`, `this->settings`,
+    `this->resource_id` reads visible into the FUN_005bb250 dispatch).
+  - `ExportDecompiledC.java` payload limit bumped 50 → 500 MB so
+    `FUN_0056e190` decompiles end-to-end.

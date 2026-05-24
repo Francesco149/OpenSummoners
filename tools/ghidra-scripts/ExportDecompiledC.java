@@ -43,6 +43,12 @@ public class ExportDecompiledC extends GhidraScript {
 
         DecompInterface decomp = new DecompInterface();
         DecompileOptions opts = new DecompileOptions();
+        // FUN_0056e190 (the hundreds-of-sprites register batch) blows
+        // through the 50 MB default once thiscall sites are typed —
+        // each call site grows by the explicit ECX arg.  Bump to 500 MB
+        // so the exporter matches what the GUI tool option (Decompiler
+        // → Analysis → Payload Limit) does there.
+        opts.setMaxPayloadMBytes(500);
         decomp.setOptions(opts);
         decomp.openProgram(currentProgram);
 
