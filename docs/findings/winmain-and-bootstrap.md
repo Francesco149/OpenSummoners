@@ -246,7 +246,7 @@ init):
 | `CooperativeLevel was set`              |                                                        |
 | `FUN_005b8b40(...)` + `FUN_005b9520`    | surface alloc + screen mode set                        |
 | `The screen was set`                    |                                                        |
-| (large palette / color table fills)     |                                                        |
+| (Pixel-Drawer slot-table allocation; see §"Pixel Drawer slot tables" below) | |
 | `Pixel Drawer was set`                  |                                                        |
 | `FUN_00579bd0/00579a00/0057a330/...`    | load asset blobs from `sotesd.dll`/`sotesw.dll` (TBD)  |
 | `The resource was set`                  |                                                        |
@@ -287,6 +287,59 @@ not a single PeekMessage/Dispatch/Tick loop.
 
 The pump (`FUN_005b1030`) is called from **at least 10 places** in
 the decompiled output (every scene function has its own pump call).
+
+### State-code → next-scene map
+
+Resolved by reading `FUN_00562ea0` lines 668-718 and the title-menu
+runner (`FUN_0056aea0`) which seeds menu-item action IDs matching
+these codes:
+
+| code  | next                                                              |
+|-------|-------------------------------------------------------------------|
+| 0     | cycles through `FUN_0059e230` / `FUN_0059e5d0(1/2)` — looks like an introductory cinematic sequence (3 segments, one per outer iteration) |
+| 6, 8  | clean exit (returns `iVar11` to WinMain — drives the `do…while` outer loop in WinMain to its end) |
+| 9     | restart game (WinMain re-enters `FUN_00562ea0` from the top) |
+| 0x1a  | `FUN_00564160` + `FUN_0056cd20` + `FUN_0059ec30(0,0,0x3f2)` — appears to be "new game from continue point", with `0x3f2` (1010) as a scene/area id |
+| 0x1b  | `FUN_0059ec30(0x2724, 0, 0)` — `0x2724` is the WINDOWED-MODE control ID from the launcher (10020), but here it's almost certainly a scene/area id reusing the same numeric value |
+| 0x1c  | `FUN_0056a670(...)` — **save-data list** scan; if returns `0xc`, calls `FUN_0059ec30(area, slot, …)` to enter the loaded save |
+| 0x1d  | `FUN_0040a5d0(0,0,0,0,1)` + `FUN_00568de0(0)` — debug/credits screen? |
+| 0x1e  | `FUN_00583fe0` — options menu |
+
+See `docs/findings/title-scene.md` for the title-menu runner's
+internal phases and how it picks among these codes.
+
+## Pixel Drawer slot tables
+
+Between "The screen was set" and "Pixel Drawer was set",
+`FUN_00562ea0` allocates a bank of **0x50-byte sprite slot objects**
+via repeated `FUN_005bd4d0()` factory calls into fixed global arrays:
+
+| array base      | count | per-element u32[0x40] (set)         | per-element u32[0x44] (set) | notes                       |
+|-----------------|-------|--------------------------------------|------------------------------|------------------------------|
+| `DAT_008a92b8`  | 20    | `(iVar20/20)` ramp from 1000        | `1`                          | sprite-slot group A          |
+| `DAT_008a9308`  | 20    | `(iVar20/22)` ramp from 1000        | (unset)                      | sprite-slot group B          |
+| `DAT_008a9358`  | 5     | (unset)                              | `FUN_005bd3b0(c,c,c)` with c = `0x44c + iVar20/5` ramp | grey-ramp slot group |
+| `DAT_008a93bc`  | 4     | (unset)                              | (unset)                      | small sub-group               |
+| `DAT_008a936c`  | 20    | `(iVar20/20)` ramp from 1000        | `2`                          | sprite-slot group C          |
+
+Total: 69 slots in fixed positions, plus four individual special-case
+slots set via `FUN_005bd3b0(R, G, B)` + `FUN_005bd3d0(ZDD)` at
+specific colours (`600,600,600`; `1000,600,600`; `1000,0x708,2000`;
+`900,0x398,0x3a2` — likely UI text colours or fade-blend targets).
+
+`FUN_005bd3b0` is the **Pixel Drawer "set colour"** primitive (3
+component args); `FUN_005bd3d0(ZDD)` is the **commit / publish** —
+binds the most-recently-set colour into the ZDD's palette/blend state.
+`FUN_005bd4d0` is the **slot factory** (returns a 0x50-byte
+descriptor pointer).
+
+These slots are what `FUN_0056e190` (and the other 4 asset-register
+calls in the boot driver) then **populate** with sprite metadata (PE
+resource ID, dimensions, colorkey, scale flag) — see `docs/findings/asset-loader.md`.
+
+The sub-group `DAT_008a93bc` (4 slots) is special: no per-loop field
+writes, suggesting these are filled-in later by code we haven't yet
+mapped (probably the post-resource phase or scene-on-demand).
 
 ## Window sizing — `state->offset_0x04` modes
 
