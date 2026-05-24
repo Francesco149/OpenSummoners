@@ -141,3 +141,84 @@ Next session — Phase 1 priorities:
      `IDirectDraw7::SetCooperativeLevel` → primary surface alloc).
 
 ---
+
+## 2026-05-24 — Phase 1 surface mapping (#1)
+
+Three findings docs landed in one session, covering the three
+priorities the prior entry queued up.  All entries cross-link, and
+`engine-quirks.md` grew four new items folded in along the way.
+
+`docs/findings/launcher-dialog.md` — full reverse of the launcher
+DLGPROC at **`0x004013c0`** plus its sibling helper `FUN_00401730`.
+Ghidra missed both because they're only reached via function
+pointers; disassembled with `radare2 -c 'af; pdf'`.  The proc handles
+just `WM_INITDIALOG` and `WM_COMMAND`; click on Launch (`ctrlID 10003`)
+sets `DAT_008a9a40 = 1` and scrapes the four radio/checkbox groups
+into `DAT_008a9b48/4a/4c/4e` (screen mode / VRAM / quality / disable
+sound).  Engine quirk: **radio enums start at 3, not 0** — saved
+file values are 3/4/5 per group.  Engine quirk: control `0x272A`
+(Zoom 1920×1440) is unconditionally `ShowWindow(SW_HIDE)`'d at
+`WM_INITDIALOG` — exists in the dialog resource but the user never
+sees it.  Engine quirk: three controls (`0x271C-0x271E`) are
+`EnableWindow(false)`'d on every init with no path to re-enable.
+
+`vendor/original/user/config.dat` (840 bytes) is XOR-obfuscated with a
+**16-byte plaintext header** (`hdr=16`, `ver=0x2711` matching the
+dialog resource id, `data_size=820`, checksum) followed by 824
+obfuscated bytes.  Key byte `0x88` — confirmed by the dead-obvious
+runs of `88 88 88 88` (zero plaintext).  Format spec deferred to
+Phase 2 `docs/formats/config-dat.md` once we wire the extractor.
+
+`docs/findings/winmain-and-bootstrap.md` — full call graph from
+`entry @ 0x5c0a8f` through `WinMain @ 0x562210` and the post-launch
+driver `FUN_00562ea0`.  Mapped:
+  - **WndProc @ 0x401210** (missed by Ghidra — pointer-only ref).
+    Only handles `WM_PAINT` (loading-screen text + frame blit);
+    everything else delegates to `DefWindowProcA`.  No `WM_CLOSE`
+    handler — click-X just destroys the window without `WM_QUIT`,
+    hanging the process.
+  - **Message pump + frame limiter at `FUN_005b1030`**:
+    `PeekMessageA` → if `WM_QUIT` (0x12) → `ExitProcess(0)`;
+    `WaitMessage` to block on a `SetTimer(hWnd, 1, 10ms, NULL)`
+    that's installed in `FUN_00562ea0`.  Frame-readiness flag at
+    `state->[0x1c]` is set when `GetTickCount - last_tick < 5` ms.
+  - **Class registration**: `RegisterClassExA` inside the 46 KB
+    `FUN_005a4770` at `0x5a4ca8` — `CLASS_LIZSOFT_SOTES`, style
+    `CS_HREDRAW|CS_VREDRAW`, WndProc `0x401210`, default arrow cursor.
+  - **No global main loop** — each scene function runs its own
+    pump+tick loop until it returns a state code to the outer scene
+    state-machine in `FUN_00562ea0`.  Scene code = 9 means
+    "restart game", caught by WinMain's `do…while`.
+
+Critical insight for the Frida harness: **the engine uses
+`GetTickCount` exclusively** — `iiq~timeGetTime` on the unpacked
+binary returns nothing; the timeGetTime hook our agent inherited
+from openrecet/OpenMare is a no-op here.  We need to add
+`GetTickCount` virtualization + a `WaitMessage` stub to actually
+achieve turbo speed.  TODO in the agent.
+
+`docs/findings/ddraw-init.md` — DirectDraw 7 init flow:
+`FUN_005b7ee0` (ZDD wrapper ctor)  →  `FUN_005b88c0`
+(`DirectDrawCreateEx(NULL, &ddraw7, &IID_IDirectDraw7, NULL)` —
+IID at `DAT_00850eb0`) → `FUN_005b89d0` (`SetCooperativeLevel`
+with `DDSCL_EXCLUSIVE|FULLSCREEN|ALLOWREBOOT = 0x13` in fullscreen
+or `DDSCL_NORMAL = 8` windowed) → `FUN_00582e90` (CreateScreen
+mode dispatch — calls `FUN_005b8b40` which builds DDSURFACEDESC2
++ `IDirectDraw7::CreateSurface`) → `FUN_005b9520` (clipper create
++ attach to primary surface).  Catalogued the vtable offsets for
+`IDirectDraw7` / `IDirectDrawSurface7` / `IDirectDrawClipper` so
+the Phase-A `Lock`/`Flip`/`Blt` hooks land at the right offsets.
+
+Two follow-ups recorded in the new docs for the next push:
+  - **Decompile `FUN_005b95c0`** (the DDSURFACEDESC2 builder) when
+    we move on to the renderer port — easier than chasing the
+    46 KB `FUN_005a4770`.
+  - **Add `GetTickCount` + `WaitMessage` hooks** to
+    `tools/frida/opensummoners-agent.js` so turbo actually works.
+
+Suggest `/clear` before the next subsystem (likely audio/DSound,
+the asset loader, or the renderer port).  The Ghidra reads in this
+session pulled in a lot of context that the next milestone won't
+need.
+
+---

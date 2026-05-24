@@ -107,3 +107,64 @@ file.
 
 > 📍 `tools/setup.sh` does the detection (objdump section list) +
 > unpacking.  See `docs/PROGRESS.md` 2026-05-24 for the SHAs.
+
+---
+
+## 5. `Zoom Mode(1920x1440)` is in the dialog resource but unconditionally hidden
+
+Control `0x272A` (10026) — "Zoom Mode(1920x1440)" — exists in the launcher
+dialog resource (§3 enumerates it) but the DLGPROC calls
+`ShowWindow(GetDlgItem(hDlg, 0x272A), SW_HIDE)` on every WM_INITDIALOG.
+The scrape path at `0x00401424+` doesn't read its state either.
+
+So Zoom mode in this build means only 1280x960, despite the .rc suggesting
+two choices.  Best guess: 1920x1440 was either too expensive on 2012-era
+hardware or never finished; the dev took the toggle out of the UX without
+ripping the control out of the resource file.
+
+> 📍 See `docs/findings/launcher-dialog.md` for the WM_INITDIALOG flow.
+
+---
+
+## 6. Launcher radio enums start at 3, not 0
+
+Every saved radio in the launcher dialog uses **3 / 4 / 5** as the three
+possible enum values; the "Disable Sound" checkbox writes 3 or 4 (not
+0/1).  The same +3 offset appears in `config.dat`'s on-disk layout — when
+we ship our extractor + writer, we have to faithfully reproduce this
+offset.  Looks like the enum was re-numbered at some point and they
+didn't rebase to zero.
+
+> 📍 `DAT_008a9b48/4a/4c/4e` in `docs/findings/launcher-dialog.md`.
+
+---
+
+## 7. Three launcher controls are permanently EnableWindow(false)'d
+
+IDs `0x271C / 0x271D / 0x271E` (10012/10013/10014) are greyed out at every
+`WM_INITDIALOG` with no path to ever re-enable them.  Visible but
+non-interactive in the dialog — probably correspond to abandoned options.
+
+> 📍 `docs/findings/launcher-dialog.md` §"WM_INITDIALOG".
+
+---
+
+## 8. `config.dat` is XOR-obfuscated with a plaintext header
+
+`vendor/original/user/config.dat` (840 bytes) carries a 16-byte plaintext
+header followed by 824 bytes of XOR-obfuscated body.  The key byte 0x88
+is dead obvious because runs of zero plaintext decode to `88 88 88 88`
+sequences in the file, and the file is *full* of them.
+
+```
+000000 10 00 00 00 11 27 00 00 34 03 00 00 db 56 00 00
+       [hdr=16   ][ver=0x2711][datsz=820][checksum   ]
+000010 34 51 bc 3d 8c 88 88 88 f5 05 63 88 8a e3 67 88 …obfuscated…
+```
+
+`0x2711` is the `DialogBoxParamA` resource ID for the launcher dialog —
+nice cross-confirmation that this file is "the launcher's settings".
+Format details TBD; defer to Phase 2's `docs/formats/config-dat.md`
+when we write the extractor.
+
+> 📍 Hex peek: `od -A x -t x1z -v vendor/original/user/config.dat`.
