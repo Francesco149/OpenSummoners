@@ -6,6 +6,62 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Harness turbo fixes + WndProc-class correction
+
+Phase 1 surface mapping (the previous entry) flagged three TODOs that
+this push addressed in `tools/frida/opensummoners-agent.js`:
+
+1. **`GetTickCount` virtualization.**  Replaces `timeGetTime` as the
+   simulation clock — Fortune Summoners never imports `timeGetTime`.
+   The hook is gated by `g_pump_entered`: pre-pump init has busy-waits
+   that livelock if the clock jumps 17 ms per call instead of advancing
+   with real wall-clock.  After first `PeekMessageA` entry from main
+   thread, the virtualization activates.
+2. **`WaitMessage` stub** (main-thread only).  The pump uses
+   `WaitMessage` to yield between frames; with virtual clock the OS
+   timer never fires, so `WaitMessage` would hang.  Stub returns 1
+   immediately on the main thread; background threads keep real OS
+   semantics (audio mixer, file I/O may use `WaitMessage` for real
+   waits).
+3. **`Sleep` → `Sleep(0)`** instead of true no-op.  True-noop starves
+   background threads of CPU, and the main thread often polls flags
+   set by exactly such threads.  `Sleep(0)` yields the timeslice
+   without actually sleeping — fast enough for turbo, correct enough
+   for background work.
+
+Discovered in the process: a hidden window never naturally gets
+`WM_ACTIVATEAPP` from the OS, and `FUN_005b1030`'s spin loop only
+breaks when `DAT_008a952c != 0` — which is set by the WndProc on
+`WM_ACTIVATEAPP`.  Fix: agent posts `WM_ACTIVATEAPP(TRUE)` to the
+main game window as soon as the periodic scan finds it
+(`installPeriodicWindowScan`).  Without this, `msg_ticks` stayed at
+0 forever with `--turbo --hide-window`; with it, pump enters and
+the engine progresses into per-scene loops.
+
+Also folded in a WndProc-class correction.  The Phase 1 notes claimed
+the main game window's WndProc was `0x401210`; that's actually the
+**`CLASS_LIZSOFT_WAIT`** ("Please wait." splash) WndProc.  The main
+game window uses **`CLASS_LIZSOFT_SOTES`** with WndProc `0x5b12e0`
+— a 441-byte handler that includes the load-bearing `WM_ACTIVATEAPP`
+case plus `WM_CLOSE → ExitProcess(0)`.  Both classes are registered
+in `FUN_005a4770`, sites `0x5a4ca8` and `0x5af314` respectively.
+The `0x5b12e0` site does `mov dword [esp+0x50], 0x5b12e0` (lpfnWndProc
+slot in WNDCLASSEXA at offset 8) — visible at `0x5af2c7`.
+
+Quirks doc grew §9 (two WndProcs / two classes), §10 (WM_ACTIVATEAPP
+as load-bearing pump-unlock), §11 (function-pointer-only callbacks
+that Ghidra misses).  Engine-bootstrap doc updated to document both
+WndProcs and the harness fix recipe.
+
+Status: harness now reaches per-frame ticks in `--turbo --hide-window`
+mode.  Steady-state frame rate still partial — `msg_ticks` reaches
+~250 in some runs and 0 in others within a 30 s window, suggesting
+init-phase race conditions remain (likely asset loading from
+`sotesd.dll` / `sotesw.dll` — Phase 2 work).  Good enough to land as
+a checkpoint; remaining bring-up TBD as the asset-loader RE goes.
+
+---
+
 ## 2026-05-24 — Bootstrap (Phase 0)
 
 Initial commit run.  Set up the project shape: nix flake with mingw-w64

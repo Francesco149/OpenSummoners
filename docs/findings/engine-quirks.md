@@ -168,3 +168,77 @@ Format details TBD; defer to Phase 2's `docs/formats/config-dat.md`
 when we write the extractor.
 
 > 📍 Hex peek: `od -A x -t x1z -v vendor/original/user/config.dat`.
+
+---
+
+## 9. The "main game window" uses a different WndProc than the "Please wait" window
+
+The engine registers **two** window classes inside `FUN_005a4770`:
+
+- `CLASS_LIZSOFT_WAIT` (reg site `0x5a4ca8`, WndProc `0x401210`) — the
+  splash window that paints "Please wait." while the bootstrap runs.
+- `CLASS_LIZSOFT_SOTES` (reg site `0x5af314`, WndProc `0x5b12e0`) — the
+  actual main game window the player sees.
+
+Both register the same WNDCLASSEX layout (style `CS_HREDRAW|CS_VREDRAW`,
+default cursor, no menu) just with different class names + WndProcs.
+An earlier read assumed both used `0x401210`; the WAIT one does, but
+the main game window's WndProc is `0x5b12e0`, which is what handles
+WM_PAINT-for-the-real-game, WM_CLOSE→ExitProcess, WM_ACTIVATEAPP, and
+WM_TIMER.
+
+> 📍 See `docs/findings/winmain-and-bootstrap.md` "Two WndProcs, two
+> classes" section.
+
+---
+
+## 10. The pump only breaks out when `DAT_008a952c != 0` (WM_ACTIVATEAPP flag)
+
+`FUN_005b1030`'s outer spin loop:
+
+```c
+while (1) {
+    while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) { ...dispatch... }
+    if (DAT_008a952c != 0 && state->[0x1c] == 0) break;
+    WaitMessage();
+}
+```
+
+`DAT_008a952c` is set by the main-window WndProc on `WM_ACTIVATEAPP`
+(see quirk §9).  A hidden window in our harness doesn't naturally
+get focus-activated by the OS, so the flag stays 0 and the pump
+spins forever the first time the engine calls into it.  The Frida
+harness fixes this by `PostMessageA(hwnd, WM_ACTIVATEAPP, TRUE, 0)`
+to the main game window as soon as the periodic window scan finds
+it.
+
+This is also why early bring-up runs (before this fix) saw
+`msg_ticks == 0` even with `--turbo --hide-window`: not that the
+engine couldn't pump, but that pump entered, found no activation
+flag, and spun.
+
+> 📍 See `tools/frida/opensummoners-agent.js installPeriodicWindowScan`
+> "main window appearance" branch.
+
+---
+
+## 11. PE has 1768 Ghidra-recovered functions but several "load-bearing" ones are reached only via function pointer
+
+Ghidra's auto-analysis misses functions that are never the target of a
+direct call — common when the engine uses C++-style vtables or stores
+callbacks in globals.  Confirmed misses so far:
+
+- `0x4013c0` — launcher DLGPROC (passed to `DialogBoxParamA`)
+- `0x401210` — `CLASS_LIZSOFT_WAIT` WndProc (stored in WNDCLASSEX)
+- `0x401730` — VRAM-group enable helper (called from the missed DLGPROC)
+- `0x5b12e0` — `CLASS_LIZSOFT_SOTES` WndProc — actually Ghidra DID pick
+  this up (decompiled output exists) but it has no callers; only
+  reachable via a stored function pointer in the second WNDCLASSEX.
+
+Workflow: when grepping Ghidra output for callers of a callback type
+(WndProc, DLGPROC, vtable entry) and getting zero hits, fall back to
+radare2 (`af @ <addr>; pdf`) on the address you find by scanning for
+the function-pointer write site, not by Ghidra's call graph.
+
+> 📍 Pattern documented under `docs/AGENT-WORKFLOW.md` (Reading the
+> decompiled output) — radare2 is the second-line tool.

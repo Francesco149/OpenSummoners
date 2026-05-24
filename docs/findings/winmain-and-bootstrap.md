@@ -86,10 +86,25 @@ The post-creation `SetWindowPos` / `SetWindowLongA` calls in
 `FUN_00562ea0` resize and apply the correct frame style based on the
 launcher's screen-mode selection.  See "Window sizing" below.
 
-## WndProc @ 0x401210
+## Two WndProcs, two classes
 
-Ghidra missed this one too (function pointer, never as a direct call).
-Disassembled from radare2.  Only handles **WM_PAINT** specially:
+The engine registers **two** window classes inside `FUN_005a4770`:
+
+| reg site   | class string         | WndProc      | what it is                |
+|------------|----------------------|--------------|---------------------------|
+| `0x5a4ca8` | `CLASS_LIZSOFT_WAIT` | `0x401210`   | "Please wait." splash     |
+| `0x5af314` | `CLASS_LIZSOFT_SOTES`| `0x5b12e0`   | main game window          |
+
+Earlier this doc claimed both used `0x401210`; that was wrong — confirmed
+by harness runs where `CreateWindowExA` returns the `CLASS_LIZSOFT_WAIT`
+HWND first, with `0x401210` as its WndProc, and the main `CLASS_LIZSOFT_SOTES`
+window appears later with `0x5b12e0` (set at `0x5af2c7`:
+`mov dword [esp+0x50], 0x5b12e0`).
+
+## CLASS_LIZSOFT_WAIT WndProc @ 0x401210
+
+Disassembled from radare2 (Ghidra missed it; function pointer only).
+Only handles **WM_PAINT** specially:
 
 ```c
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -114,18 +129,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 }
 ```
 
-That's the entire WndProc — no `WM_DESTROY`/`PostQuitMessage` handler,
-no `WM_CLOSE`/`WM_KEYDOWN`/etc.  Input goes through DirectInput; exit
-goes through `ExitProcess` calls inside the engine.  This means clicking
-the X on the title bar **doesn't** trigger a graceful shutdown — the
-default `DefWindowProcA` destroys the window, and the next pump iter
-sees `PeekMessageA` return 0 forever (no WM_QUIT was posted), hanging
-the process.
+That's the entire WAIT-window WndProc — its only job is to draw a
+"Please wait." splash while the main bootstrap runs.  All other
+messages delegate to `DefWindowProcA`.
 
-> Engine quirk worth noting (folded into engine-quirks.md): the engine
-> has no civil close handler.  Steam-overlay-induced WM_CLOSE is
-> swallowed silently; the only exit path is via the engine's own
-> ExitProcess calls (or a `kill`).
+## CLASS_LIZSOFT_SOTES WndProc @ 0x5b12e0
+
+The main game window's WndProc — 441 bytes, Ghidra picked it up.
+Handles these messages explicitly; everything else delegates:
+
+| msg              | handler                                                         |
+|------------------|-----------------------------------------------------------------|
+| `WM_DESTROY`(0x2) `WM_MOVE`(0x3) `WM_SIZE`(0x5) | `break` (no-op)                       |
+| `WM_PAINT` (0xf) | call render path if `state` + DDraw + DAT_008a93ec gates pass   |
+| `WM_CLOSE` (0x10)| `ExitProcess(0)` — direct, immediate                            |
+| `WM_ACTIVATEAPP` (0x1c) | **`DAT_008a952c = wParam`** — see below                  |
+| `WM_KEYDOWN` (0x100), default → DefWindowProcA                                     |
+| `WM_TIMER` (0x113)| clear `state[7]` (timer ack)                                   |
+
+**`WM_ACTIVATEAPP` is load-bearing.**  The pump (`FUN_005b1030`) only
+breaks out of its outer spin loop when `DAT_008a952c != 0` — i.e. only
+when the engine has been told the app is in foreground.  A hidden
+window in our harness never gets that activation from the OS, so the
+pump spins forever and the engine never advances past whatever called
+it.  Fix: the Frida agent posts `WM_ACTIVATEAPP(TRUE)` to the main
+window as soon as it appears (see `installPeriodicWindowScan` in
+`tools/frida/opensummoners-agent.js`).
+
+When activation hits, the WndProc additionally activates DInput
+devices via `FUN_005ba290` and logs `ActivateInputDevice_CPx` —
+but only if `DAT_008a9b64[2]` is non-zero (i.e. game state struct
+is set up).  Early in init the gate is zero, so the activation
+handler just sets the flag and returns immediately.
+
+There is **no `WM_CLOSE` polite handler** — the only handler is
+`ExitProcess(0)`.  Steam-overlay-induced WM_CLOSE is swallowed by
+that.  Clicking the X on the title bar destroys the window and
+the pump (`PeekMessage(NULL,…)` returns 0 forever), hanging the
+process unless the engine's own `ExitProcess` call fires first.
 
 ## Main message pump + frame limiter — `FUN_005b1030`
 
@@ -284,12 +325,22 @@ or 1920×1440 client size.
 
 ## Notes for the harness
 
-1. **Stub `GetTickCount` for turbo**, not `timeGetTime`.  Confirmed: the
-   engine never imports `timeGetTime`.
-2. **Stub `WaitMessage`** to return immediately.  The pump yields there
-   between frames; stubbing it lets PeekMessage spin and tick frames
-   as fast as the OS can deliver `WM_TIMER` messages.
-3. The pump's `WM_QUIT` handler is `ExitProcess(0)`.  If we post
+1. **Virtualize `GetTickCount` for turbo**, not `timeGetTime`.  Confirmed:
+   the engine never imports `timeGetTime`.  *Gate the virtualization
+   on first PeekMessage entry* — pre-pump init has busy-waits keyed
+   off GetTickCount that livelock if the clock jumps 17 ms per call.
+2. **Stub `WaitMessage`** to return immediately *on the main thread
+   only*.  The pump yields there between frames; stubbing it lets
+   PeekMessage spin and tick frames as fast as the OS can deliver
+   `WM_TIMER` messages.  Background threads (audio mixer, file I/O)
+   may use WaitMessage for real OS waits — keep their semantics.
+3. **`Sleep` → `Sleep(0)`** (yield) instead of true no-op.  A true
+   no-op starves background threads of CPU, and the main thread
+   may be polling a flag set by exactly such a thread.
+4. **Post `WM_ACTIVATEAPP(TRUE)`** to the main game window as soon as
+   it appears.  Without this the pump spins on `DAT_008a952c == 0`
+   forever — see CLASS_LIZSOFT_SOTES WndProc section above.
+5. The pump's `WM_QUIT` handler is `ExitProcess(0)`.  If we post
    `WM_QUIT` from the harness, the process exits cleanly *only if*
    PeekMessage sees it before the engine's own state-machine exits.
 

@@ -114,6 +114,14 @@ let g_msg_event_count = 0;
 // channel.
 const TICK_EVERY = 250;
 
+// Gate for GetTickCount virtualization.  The engine has several
+// pre-pump init busy-waits (asset loader progress polls, DDraw mode
+// settle, DInput device enum) that livelock if the clock jumps
+// forward 17 ms per call instead of with real wall-clock.  Flip this
+// to true once we see the first PeekMessage call from main thread —
+// that's the engine entering steady-state per-scene loops.
+let g_pump_entered = false;
+
 // Periodic window-enumeration pass.  Catches *any* HWND owned by our
 // process regardless of which API created it (CreateWindowEx*,
 // DialogBox*, internal user32 path, …).  Emits hwnd_seen events with
@@ -134,6 +142,7 @@ const WINDOW_SCAN_SLOW_MS = 200;
 let   g_window_scan_started = false;
 let   g_window_scan_handle  = null;
 let   g_main_game_window_seen = false;
+let   g_activateapp_posts = 0;
 const g_seen_hwnd_keys = {};   // dedupe: emit once per (hwnd, title) pair
 
 // ─── helpers ────────────────────────────────────────────────────────────
@@ -336,10 +345,23 @@ function installMessagePumpCounter() {
     // Tick the manual frame counter on PeekMessage/GetMessage.  This is a
     // coarse proxy for "the engine ran a frame" until we have a real
     // end-of-frame anchor.
+    //
+    // Side effect: flip g_pump_entered on the first non-zero return so
+    // the GetTickCount/WaitMessage virtualization gates open.  We use
+    // PeekMessage's call entry (regardless of return value) as the
+    // gate because the very first pump invocation might have zero
+    // messages but we still want clock virt active from then on.
     ['PeekMessageA', 'PeekMessageW', 'GetMessageA', 'GetMessageW'].forEach(function (name) {
         const p = resolveExport('user32.dll', name);
         if (!p) return;
         Interceptor.attach(p, {
+            onEnter: function () {
+                if (!g_pump_entered) {
+                    g_pump_entered = true;
+                    send({ kind: 'log',
+                           msg: 'pump entered (' + name + ') — clock virt active' });
+                }
+            },
             onLeave: function (retval) {
                 // PeekMessage returns BOOL: 0 = no message.  Only count
                 // non-zero returns so we approximate "real frames done".
@@ -357,21 +379,25 @@ function installMessagePumpCounter() {
 function installTurboHooks() {
     if (!g_turbo_enabled) return;
 
-    // Sleep → 0 ms.  Both kernel32!Sleep and the engine's Sleep-equivalent
-    // any winmm-backed timer.  Same shape as OpenMare's turbo v2.
+    // Sleep → Sleep(0).  Yields the timeslice but doesn't actually
+    // wait.  We can't true-noop Sleep because a busy main thread that
+    // never yields will starve any background thread (audio mixer,
+    // asset loader I/O) that needs CPU to make progress — and the
+    // main thread is often polling a flag set by exactly such a
+    // thread.  Sleep(0) keeps the engine fast without livelock.
     const sleep = resolveExport('kernel32.dll', 'Sleep');
     if (sleep) {
+        const realSleep = new NativeFunction(sleep, 'void', ['uint']);
         Interceptor.replace(sleep, new NativeCallback(function (ms) {
-            // No-op.  The engine immediately re-enters the loop.
+            realSleep(0);
         }, 'void', ['uint']));
-        logmsg('Interceptor.replace Sleep (no-op)');
+        logmsg('Interceptor.replace Sleep (yield via Sleep(0))');
     }
 
-    // Virtualised timeGetTime.  When the engine reads "current time" to
-    // compute a frame delta, return our monotonically bumped counter.
-    // Pinning to the main thread avoids accidentally lying to background
-    // threads (audio mixer, file I/O) that might use the same API and
-    // depend on real wall-clock.
+    // Virtualised timeGetTime.  Kept for cross-project compatibility but
+    // Fortune Summoners does NOT import timeGetTime — see
+    // docs/findings/winmain-and-bootstrap.md.  GetTickCount below is the
+    // real cadence source for this engine.
     const tgt = resolveExport('winmm.dll', 'timeGetTime');
     if (tgt) {
         const realTimeGetTime = new NativeFunction(tgt, 'uint32', []);
@@ -392,6 +418,68 @@ function installTurboHooks() {
         }, 'uint32', []));
         g_clock_virtualised = true;
         logmsg('Interceptor.replace timeGetTime (virtual)');
+    }
+
+    // Virtualised GetTickCount — the actual cadence source.  Fortune
+    // Summoners' frame limiter (FUN_005b1030) and ~30 scene functions
+    // call GetTickCount to decide whether enough time has passed since
+    // the last tick.  Pin to the main thread so background threads
+    // (audio mixer, asset loader I/O) still see real wall-clock.
+    //
+    // Gate: only virtualise AFTER the main game window appears.  The
+    // engine's pre-window init has its own busy-wait loops keyed off
+    // GetTickCount (e.g., asset loader progress polls, DDraw mode-set
+    // settling waits) that livelock if the clock advances 17 ms per
+    // call instead of monotonically with real wall-clock.
+    const gtc = resolveExport('kernel32.dll', 'GetTickCount');
+    if (gtc) {
+        const realGetTickCount = new NativeFunction(gtc, 'uint32', []);
+        Interceptor.replace(gtc, new NativeCallback(function () {
+            const tid = Process.getCurrentThreadId();
+            if (g_main_thread_id === -1) {
+                g_main_thread_id = tid;
+                logmsg('main thread captured (via GetTickCount): tid=' + tid);
+            }
+            // Virtualise only after the pump has been entered.
+            // Pre-pump init has its own busy-waits keyed off
+            // GetTickCount; those livelock if the clock advances 17 ms
+            // per call instead of with real wall-clock.
+            if (g_clock_virtualised && tid === g_main_thread_id &&
+                g_pump_entered) {
+                g_virtual_now_ms += g_turbo_step_ms;
+                if ((g_virtual_now_ms / g_turbo_step_ms) % TICK_EVERY === 0) {
+                    send({ kind: 'turbo_tick', virtual_ms: g_virtual_now_ms });
+                }
+                return g_virtual_now_ms;
+            }
+            return realGetTickCount();
+        }, 'uint32', []));
+        g_clock_virtualised = true;
+        logmsg('Interceptor.replace GetTickCount (virtual after pump enters)');
+    }
+
+    // Stub WaitMessage so the pump never blocks.  FUN_005b1030 calls
+    // WaitMessage to yield until the 10 ms SetTimer fires; with the
+    // virtualised clock above, real time has stopped and the timer
+    // would never deliver, so WaitMessage would hang forever.
+    // Returning immediately turns the pump into a busy-spin which is
+    // what we want for turbo.
+    //
+    // Pin to the main thread for the same reason as the clock hooks:
+    // background threads (audio mixer, asset loader) may use
+    // WaitMessage to wait on real OS events, and they need real OS
+    // semantics to avoid livelock.
+    const wait = resolveExport('user32.dll', 'WaitMessage');
+    if (wait) {
+        const realWaitMessage = new NativeFunction(wait, 'int', []);
+        Interceptor.replace(wait, new NativeCallback(function () {
+            const tid = Process.getCurrentThreadId();
+            if (g_main_thread_id !== -1 && tid === g_main_thread_id) {
+                return 1;
+            }
+            return realWaitMessage();
+        }, 'int', []));
+        logmsg('Interceptor.replace WaitMessage (main thread → no-block)');
     }
 }
 
@@ -734,14 +822,35 @@ function installPeriodicWindowScan() {
                 g_owned_hwnds[hwnd.toString()] = { source: 'periodic-scan' };
             }
 
-            // Detect main game window appearance → back off scan rate.
-            if (!g_main_game_window_seen && cls === 'CLASS_LIZSOFT_SOTES') {
-                g_main_game_window_seen = true;
-                if (g_window_scan_handle !== null) {
-                    clearInterval(g_window_scan_handle);
-                    g_window_scan_handle = setInterval(scan, WINDOW_SCAN_SLOW_MS);
-                    logmsg('main window appeared — scan rate → ' +
-                           WINDOW_SCAN_SLOW_MS + ' ms');
+            // Detect main game window appearance → back off scan rate
+            // AND post WM_ACTIVATEAPP(TRUE) so the engine's WndProc
+            // (FUN_005b12e0) flips its DAT_008a952c "app is active"
+            // flag.  Without that, FUN_005b1030's pump loop never
+            // breaks out and the engine never advances past init —
+            // hidden windows don't naturally receive WM_ACTIVATEAPP
+            // from the OS when no real focus change happens.
+            //
+            // Post on EVERY scan iteration (not just first sight) for
+            // a short retry window — the first post can race the
+            // engine's pump entry, and a single missed post means
+            // hangs until something else activates the app.
+            if (cls === 'CLASS_LIZSOFT_SOTES') {
+                if (!g_main_game_window_seen) {
+                    g_main_game_window_seen = true;
+                    if (g_window_scan_handle !== null) {
+                        clearInterval(g_window_scan_handle);
+                        g_window_scan_handle = setInterval(scan, WINDOW_SCAN_SLOW_MS);
+                        logmsg('main window appeared — scan rate → ' +
+                               WINDOW_SCAN_SLOW_MS + ' ms');
+                    }
+                }
+                const WM_ACTIVATEAPP = 0x001C;
+                const rc = PostMessageA(hwnd, WM_ACTIVATEAPP, 1, 0);
+                if (g_activateapp_posts < 3) {
+                    send({ kind: 'log',
+                           msg: 'posted WM_ACTIVATEAPP(TRUE) → ' +
+                                hwnd.toString() + ' rc=' + rc });
+                    g_activateapp_posts++;
                 }
             }
         } catch (e) {
