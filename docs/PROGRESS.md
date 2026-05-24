@@ -6,6 +6,52 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — bitmap_session module + palette ramp wired end-to-end
+
+New module **src/bitmap_session.[ch] + src/bitmap_session_win32.c** —
+the 7-method `__thiscall` class behind the PE-resource bitmap decoder
+in FUN_004178e0's palette-session front half, plus FUN_005b7c10
+(compressed-resource header parser, a free function despite living in
+the same family).  Lifecycle is entirely stack-managed in
+FUN_004178e0 — the bitmap_session is `[esp+8]` over a 0x444-byte
+frame.  Win32-free body; `bs_local_alloc_zeroed` / `bs_local_free` /
+`bs_load_pe_resource` are externs supplied per build target.
+
+The blocking ECX puzzle from the prior session's deferral (which
+`this` does FUN_005b7800 actually run on?) was resolved by r2 disasm
+of FUN_004178e0 — every callsite does `lea ecx, [esp+8]` before the
+call, confirming the stack-local interpretation.  Outer this
+(sprite_slot * in ESI) is read only for the HMODULE+resource_id pair
+passed to FindResourceA.  Resource type string is "DATA", not "BMP"
+as the prior findings draft assumed.
+
+**ar_palette_session_begin** (FUN_004178e0, ar_sprite_slot method)
+lands in asset_register.c — builds the stack session, calls
+`bs_decode_resource(..., "DATA", 1)`, emits the BGRA palette into a
+caller buffer iff the source was 8bpp.  Then
+**ar_register_main_sprites' palette-ramp section** (previously
+deferred) is now wired: allocate a 1024-byte buffer, seed via
+ar_palette_session_begin from sotesp.dll/0x90b, override palette[1]=0,
+palette[41..50]=0x383838, palette[51..70]=lerp(0x383838→0xffffff,
+i=1..20 / 20), install onto slot[0] via ar_palette_install.  No-op
+when the decoder can't return a palette.
+
+Ghidra workflow improvement: TagThiscallFunctions.java's TAGS array
+gained the 7 bitmap_session methods; re-export shows
+`__thiscall bitmap_session::FUN_…(bitmap_session *this, …)`
+throughout the family and `bitmap_session local_444[1080]` as the
+typed stack local in FUN_004178e0.
+
+Tests: +21 new bitmap_session tests (basic state, init/release,
+compressed-header signature mismatch + happy path, raw + compressed
+decode paths, ar_palette_session_begin BGRA emit + 24bpp skip, and
+end-to-end ar_register_main_sprites integration).  **138 pass, 0
+fail, 4 skip** (was 117 / 0 / 3 — the new skip is the
+bitmap_session layout test, 32-bit-only).  Win32 cross build clean.
+Commits: `8cb9fd8` (struct+tags+findings), `4f89867` (port+tests).
+
+---
+
 ## 2026-05-24 — Asset-Register: palette-trio leaves (FUN_005b5d90 + FUN_00491770)
 
 Ported the two leaf halves of the FUN_005749b0 palette-ramp trio
