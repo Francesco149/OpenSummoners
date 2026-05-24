@@ -114,12 +114,14 @@
             export MINGW_AR=i686-w64-mingw32-ar
             export MINGW_STRIP=i686-w64-mingw32-strip
 
-            # Shared Frida instance — one frida-server.exe on the Windows
-            # host serves all three sibling RE projects.  Falls back to
-            # the openrecet env var if present so a one-time setup still
-            # works.  Override OPENSUMMONERS_FRIDA_REMOTE explicitly to
-            # use a project-specific server.
-            export OPENSUMMONERS_FRIDA_REMOTE="''${OPENSUMMONERS_FRIDA_REMOTE:-''${OPENRECET_FRIDA_REMOTE:-127.0.0.1:27042}}"
+            # Shared Frida instance.  cutestation.soy is the Windows host's
+            # LAN-resolvable name; frida-server.exe binds 0.0.0.0:27042 there
+            # and serves all three sibling RE projects.  We do NOT default to
+            # 127.0.0.1 because WSL2's NAT layer doesn't loop back to the
+            # Windows host's localhost binding — the LAN hostname is the
+            # reliable path.  Override OPENSUMMONERS_FRIDA_REMOTE explicitly
+            # to use a different host/port.
+            export OPENSUMMONERS_FRIDA_REMOTE="''${OPENSUMMONERS_FRIDA_REMOTE:-cutestation.soy:27042}"
 
             echo "opensummoners dev shell ready"
             echo "  game dir:   $OPENSUMMONERS_GAME_DIR"
