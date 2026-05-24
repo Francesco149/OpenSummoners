@@ -6,6 +6,50 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_0056e190 (ar_register_game_sprites)
+
+The "hundreds of sprites" boot-register batch — the fifth call in
+`FUN_00562ea0`'s asset-register sequence (right after
+`ar_register_main_sprites`, called as `FUN_0056e190(ZDD, 5, settings)`).
+By far the biggest sprite batch at boot: **442 single-entry sprite
+registers** packed into a table-driven port that iterates
+`ar_sprite_slot_register` once per entry.
+
+The retail decomp is 2782 lines structured as:
+
+- **93 inline blocks** at idx 425..517 (BSS 0x008a7ce4..0x008a7e54)
+  — the compiler chose to open-code the destructor + field-write
+  sequence rather than emit a call, because the `this` pointer was
+  visible as a global.  Resource IDs are sequential 0x592..0x5fb.
+  72 use shape (0xa0×0xb0, scale=1, type=0); 21 (resource IDs
+  0x71f..0x733, idx 467..487) use (0xb0×0x90, scale=1, type=0).
+
+- **349 trailing FUN_005748c0 thiscalls** with implicit-ECX slot
+  pointers that Ghidra dropped from the C view (only the 8
+  non-ECX args show up).  Re-extracted the ECX setups via
+  `r2 -c 'pD 0x672c @ 0x56e190' | awk '/mov ecx, dword \[0x8a/{last=...} /call 0x5748c0/{print last}'`
+  → paired one-to-one with the 349 C-decomp arg lists by file
+  order.  Three sprite shapes: 0xa0×0xb0 / 0xb0×0x90 (type=0, scale=1)
+  and 0x80×0x80 (type=2, scale=0 — small icon).  Touches 346
+  indices in idx 518..863 plus the low-index stragglers at idx 62/63/64
+  (resource IDs 0x608/0x609/0x60a, the 0x80×0x80 icon shape).
+
+**Pool refactor**: `AR_SPRITE_SLOT_COUNT` bumped 64 → 1024 to fit
+the new high-water-mark (idx 863) with headroom for the remaining
+batches (FUN_0057a330, _57ca40, _57b280 likely add a few dozen more
+slots).  Retail's contiguous BSS region past 0x8a7640 is plenty
+large; storage cost is ~70 KB BSS.
+
+Tests: +6 (inline-block field-map at shape-shift boundaries,
+trailing-call shape spot-check across all three shapes + low-idx
+stragglers, total slot count = 442, resource-id uniqueness pin
+across the whole batch, untouched-indices stay zero, coexistence
+with `ar_register_main_sprites`).  Total **75 pass, 0 fail, 2
+skip**.  32-bit cross build clean — pool capacity bump verified at
+compile time.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_005749b0 (ar_register_main_sprites)
 
 UI/menu sprite-register batch — the fourth call in `FUN_00562ea0`'s
