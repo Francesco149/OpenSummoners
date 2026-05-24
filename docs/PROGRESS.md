@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_00579a00 (sound batch)
+
+Second port in the asset-register batch — `FUN_00579a00` registers 12
+sound-bank slots at DAT_008a6ec4..6ef0 ("W_MGR" pool).  Adds the
+`ar_sound_slot` type (0x18 B; layout asserted) and the matching field-
+init helper `ar_sound_slot_init` — which is also the first half of
+`FUN_00563ef0` (the boot batch passes `load_flag = 0` so the wave-load
+second half is dead code at boot).
+
+The roster is a 12-entry table of (resource_id, count/kind) — 8 kind-2
+slots, 4 kind-4 slots, hitting IDs in two ranges (0x506..0x510 and
+0x4d8..0x4d9, plus one outlier at 0x903).  Eleven are written inline
+in retail; the twelfth (table[8], id 0x50c) dispatches through
+FUN_00563ef0 with load_flag=0 — disasm confirms the field-writes are
+identical, so the port routes all 12 through the shared helper.
+
+The `buffer` field at +0x04 is the lazy-load "already loaded?"
+sentinel.  The init helper deliberately leaves it untouched; the test
+`register_sounds_buffer_pointer_preserved` pins this so a future
+refactor can't accidentally clobber it.
+
+Tests: +4 (field-init, state clear, full 12-slot roster verification,
+buffer preservation).  Total 59 pass, 0 fail, 2 skip.  32-bit cross
+build clean.  Cumulative across the session: 13 functions ported into
+the Asset-Register module across the FUN_00579bd0 and FUN_00579a00
+boot batches.
+
+---
+
 ## 2026-05-24 — Asset-Register module: FUN_00579bd0 family
 
 Second ported module lands.  `FUN_00579bd0` is the first asset-register
