@@ -292,29 +292,33 @@ void ar_gdi_slot_set_pen_gradient(uint32_t index, uint16_t group, uint16_t capac
     }
 }
 
-/* ─── helper used twice for the sprite slot prologue ────────────── */
+/* ─── FUN_005748c0 — register one sprite slot ───────────────────── */
 
-static void ar_sprite_slot_register_init(ar_sprite_slot *s,
-                                         void *zdd, uint16_t entry_count,
-                                         void *settings, uint16_t resource_id,
-                                         uint32_t width, uint32_t height,
-                                         uint32_t colorkey, uint32_t scale_flag,
-                                         uint32_t type, uint16_t group)
+void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
+                              uint16_t resource_id,
+                              uint32_t width, uint32_t height,
+                              uint32_t colorkey, uint32_t scale_flag,
+                              uint32_t type, uint16_t group)
 {
+    /* FUN_005748c0 prologue is an inline expansion of
+     * ar_sprite_slot_destroy: frees aux_buf, then walks the entries
+     * array freeing each entry's `b` pointer, then frees the array.
+     * Observable end state matches calling the helper. */
     ar_sprite_slot_destroy(s);
+
+    /* Retail: operator_new(8); entry_count = 1.  Then a zero-loop runs
+     * for entry_count iterations writing 0 to entries[i].a and
+     * entries[i].b.  calloc(1, 8) handles both at once. */
     s->zdd         = zdd;
-    s->entry_count = entry_count;
-    s->entries     = (ar_sprite_entry *)calloc(entry_count, sizeof(ar_sprite_entry));
-    /* Retail also runs the explicit zero loop for entries[0..count] —
-     * calloc gives us that already.  The loop is a memset in
-     * disguise. */
+    s->entry_count = 1;
+    s->entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
     s->settings    = settings;
-    s->f_08        = 0;
-    s->f_18        = 0;
     s->resource_id = resource_id;
     s->width       = width;
     s->height      = height;
     s->colorkey    = colorkey;
+    s->f_08        = 0;
+    s->f_18        = 0;
     s->scale_flag  = scale_flag;
     s->type        = type;
     s->group       = group;
@@ -372,9 +376,8 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings)
 void ar_register_fonts(void *zdd, uint16_t group, void *settings)
 {
     /* sprite[0] — DAT_008a76e8 (font texture sprite id 0x457, 32×32). */
-    ar_sprite_slot_register_init(&g_ar_sprite_slots[0],
-        zdd, /*entry_count=*/1, settings,
-        /*resource_id=*/0x457,
+    ar_sprite_slot_register(&g_ar_sprite_slots[0],
+        zdd, settings, /*resource_id=*/0x457,
         /*width=*/0x20, /*height=*/0x20,
         /*colorkey=*/0,
         /*scale_flag=*/0,
@@ -385,9 +388,8 @@ void ar_register_fonts(void *zdd, uint16_t group, void *settings)
      * scale=1).  Retail writes f_08/f_18 before settings on this slot
      * (different ordering vs sprite[0]) — neither order is observable
      * since they're independent stores. */
-    ar_sprite_slot_register_init(&g_ar_sprite_slots[1],
-        zdd, /*entry_count=*/1, settings,
-        /*resource_id=*/0x455,
+    ar_sprite_slot_register(&g_ar_sprite_slots[1],
+        zdd, settings, /*resource_id=*/0x455,
         /*width=*/0x20, /*height=*/0x30,
         /*colorkey=*/0,
         /*scale_flag=*/1,

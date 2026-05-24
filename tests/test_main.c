@@ -63,6 +63,10 @@ struct test_case {
     X(ar_color_lerp_ignores_alpha)                             \
     X(sprite_destroy_frees_aux_and_entries)                    \
     X(sprite_destroy_safe_on_zero_slot)                        \
+    X(sprite_register_writes_all_named_fields)                 \
+    X(sprite_register_frees_existing_aux_and_entries)          \
+    X(sprite_register_truncates_id_and_group_to_uint16)        \
+    X(sprite_register_matches_FUN_005748c0_arg_shape)          \
     X(gdi_destroy_deletes_each_handle)                         \
     X(gdi_reset_clears_then_allocates)                         \
     X(make_font_family_courier)                                \

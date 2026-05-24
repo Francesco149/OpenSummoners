@@ -213,6 +213,124 @@ int test_sprite_destroy_safe_on_zero_slot(void)
     return 0;
 }
 
+/* ─── ar_sprite_slot_register (FUN_005748c0) ─────────────────────── */
+
+int test_sprite_register_writes_all_named_fields(void)
+{
+    /* Fresh slot — verify every named field gets the value we pass and
+     * every "cleared" field is zero.  This pins the field map against
+     * FUN_005748c0's retail write set. */
+    ar_sprite_slot s = {0};
+    /* Pre-poison the cleared fields to prove the register actively
+     * clears them rather than relying on prior zeros. */
+    s.f_08 = 0xdeadu;
+    s.f_18 = 0xbeefu;
+    s.f_38 = 0xcafeu;
+
+    ar_sprite_slot_register(&s,
+        /*zdd=*/(void *)0x1111, /*settings=*/(void *)0x2222,
+        /*resource_id=*/0x90b,
+        /*width=*/0x20, /*height=*/0x20,
+        /*colorkey=*/0,
+        /*scale_flag=*/0,
+        /*type=*/2,
+        /*group=*/0x55);
+
+    T_ASSERT_EQ_P(s.zdd, (void *)0x1111);
+    T_ASSERT_EQ_P(s.settings, (void *)0x2222);
+    T_ASSERT_EQ_U(s.resource_id, 0x90bu);
+    T_ASSERT_EQ_U(s.width, 0x20u);
+    T_ASSERT_EQ_U(s.height, 0x20u);
+    T_ASSERT_EQ_U(s.colorkey, 0u);
+    T_ASSERT_EQ_U(s.scale_flag, 0u);
+    T_ASSERT_EQ_U(s.type, 2u);
+    T_ASSERT_EQ_U(s.group, 0x55u);
+
+    /* Cleared fields. */
+    T_ASSERT_EQ_U(s.f_08, 0u);
+    T_ASSERT_EQ_U(s.f_18, 0u);
+    T_ASSERT_EQ_U(s.f_38, 0u);
+
+    /* entries: a 1-entry calloc'd array. */
+    T_ASSERT_EQ_U(s.entry_count, 1u);
+    T_ASSERT(s.entries != NULL);
+    T_ASSERT_EQ_U(s.entries[0].a, 0u);
+    T_ASSERT_EQ_P(s.entries[0].b, NULL);
+
+    ar_sprite_slot_destroy(&s);
+    return 0;
+}
+
+int test_sprite_register_frees_existing_aux_and_entries(void)
+{
+    /* Re-registering a slot that already has aux_buf + entries: the
+     * prologue (FUN_005748c0's inline destroy) must free both — ASan
+     * catches the leak if we forget. */
+    ar_sprite_slot s = {0};
+    s.aux_buf     = malloc(32);
+    s.entry_count = 2;
+    s.entries     = (ar_sprite_entry *)calloc(2, sizeof(ar_sprite_entry));
+    s.entries[0].b = malloc(16);
+    s.entries[1].b = malloc(16);
+
+    ar_sprite_slot_register(&s, NULL, NULL, /*id=*/0x100,
+                            /*w=*/32, /*h=*/32, /*ck=*/0,
+                            /*scale=*/0, /*type=*/0, /*group=*/0);
+
+    /* aux_buf was destroyed and never re-populated. */
+    T_ASSERT_EQ_P(s.aux_buf, NULL);
+    /* entries got reallocated (count=1).  The old 2-entry buffer was
+     * freed first; its `b` pointers were each freed too — any leak
+     * would surface in ASan. */
+    T_ASSERT_EQ_U(s.entry_count, 1u);
+    T_ASSERT(s.entries != NULL);
+
+    ar_sprite_slot_destroy(&s);
+    return 0;
+}
+
+int test_sprite_register_truncates_id_and_group_to_uint16(void)
+{
+    /* Retail stores resource_id at +0x40 (u16) and group at +0x42 (u16).
+     * The function takes them as uint16_t — passing values that would
+     * "look" larger in retail's int param goes through the implicit
+     * narrowing.  Pin the narrowing behaviour. */
+    ar_sprite_slot s = {0};
+    ar_sprite_slot_register(&s, NULL, NULL,
+                            /*resource_id=*/(uint16_t)0xffff,
+                            /*w=*/1, /*h=*/1, /*ck=*/0,
+                            /*scale=*/0, /*type=*/0,
+                            /*group=*/(uint16_t)0xabcd);
+    T_ASSERT_EQ_U(s.resource_id, 0xffffu);
+    T_ASSERT_EQ_U(s.group, 0xabcdu);
+
+    ar_sprite_slot_destroy(&s);
+    return 0;
+}
+
+int test_sprite_register_matches_FUN_005748c0_arg_shape(void)
+{
+    /* The exact arg shape FUN_0057a330 passes for the first sprite:
+     *   FUN_005748c0(zdd, settings, 0x413, 0x18, 0x18, 0, 0, 2, group)
+     * Cross-checks that the field map (id, w, h, colorkey, scale,
+     * type, group) matches retail's literal call. */
+    ar_sprite_slot s = {0};
+    ar_sprite_slot_register(&s, (void *)0xabc, (void *)0xdef,
+                            /*id=*/0x413,
+                            /*w=*/0x18, /*h=*/0x18,
+                            /*colorkey=*/0,
+                            /*scale_flag=*/0,
+                            /*type=*/2,
+                            /*group=*/0x7);
+    T_ASSERT_EQ_U(s.resource_id, 0x413u);
+    T_ASSERT_EQ_U(s.width, 0x18u);
+    T_ASSERT_EQ_U(s.height, 0x18u);
+    T_ASSERT_EQ_U(s.type, 2u);
+
+    ar_sprite_slot_destroy(&s);
+    return 0;
+}
+
 /* ─── ar_gdi_slot_destroy / reset ────────────────────────────────── */
 
 int test_gdi_destroy_deletes_each_handle(void)

@@ -12,6 +12,7 @@
  *   - FUN_005bef0e   ar_xfree              (operator delete[] thunk)
  *   - FUN_005b5f50   ar_color_lerp         (per-channel COLORREF lerp)
  *   - FUN_00417b50   ar_sprite_slot_destroy
+ *   - FUN_005748c0   ar_sprite_slot_register  (single-entry sprite register)
  *   - FUN_00562a10   ar_gdi_slot_destroy
  *   - FUN_00579ec0   ar_gdi_slot_reset
  *   - FUN_00579f40   ar_make_font          (LOGFONTA + CreateFontIndirectA)
@@ -249,6 +250,35 @@ uint32_t ar_color_lerp(uint32_t src, uint32_t dst, int32_t num, int32_t denom);
  * untouched (the register pass that follows overwrites those
  * fields). */
 void ar_sprite_slot_destroy(ar_sprite_slot *s);
+
+/* FUN_005748c0 — register one sprite slot (single 8-byte entry).
+ *
+ * Calls ar_sprite_slot_destroy first, then allocates a fresh 1-entry
+ * `entries` array, zero-fills it, and stamps the named fields.
+ * entry_count is always 1 in retail callers — every known dispatcher
+ * (FUN_005749b0 inline blocks, FUN_0057a330 batch, FUN_0056e190
+ * hundreds-of-sprites mega-register, and the FUN_00579bd0 sprites in
+ * this module) passes the same single-entry shape.
+ *
+ * Fields touched (writes match retail order; observable end state):
+ *   entries     ← new calloc(1, 8)
+ *   entry_count ← 1
+ *   zdd         ← zdd
+ *   settings    ← settings
+ *   resource_id ← resource_id (low 16 of param_3)
+ *   width, height, colorkey, scale_flag, type ← as passed
+ *   group       ← group (low 16 of param_9)
+ *   f_08 = f_18 = f_38 ← 0
+ *
+ * Fields left untouched: f_0c, f_10, f_14 (BSS or prior state); aux_buf
+ * is freed in the prologue (via ar_sprite_slot_destroy).
+ *
+ * Returns nothing (retail returns 1; the value is dead in every caller). */
+void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
+                              uint16_t resource_id,
+                              uint32_t width, uint32_t height,
+                              uint32_t colorkey, uint32_t scale_flag,
+                              uint32_t type, uint16_t group);
 
 /* FUN_00562a10 — destroy a GDI slot.
  * DeleteObject's every non-null handle in `array`, frees `array`,
