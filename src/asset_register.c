@@ -393,6 +393,44 @@ void ar_info_entry_clear(ar_info_entry *entry)
     entry->palette = NULL;
 }
 
+/* ─── unified sprite-slot pool accessor ──────────────────────────── */
+
+ar_sprite_slot *ar_pool_get_slot(uint16_t pool_idx)
+{
+    /* Pool index 0 (retail 0x008a760c) is the allocator-zeroed sentinel
+     * with no observed consumer — see rabbit-hole §5/§7.  No real call
+     * site touches it; return NULL so accidental usage trips immediately
+     * instead of aliasing some other slot. */
+    if (pool_idx == 0)                return NULL;
+    if (pool_idx <  AR_SPRITE_RAMP_COUNT + 1)
+        return &g_ar_sprite_ramp_slots[pool_idx - 1];
+    return &g_ar_sprite_slots[pool_idx - (AR_SPRITE_RAMP_COUNT + 1)];
+}
+
+/* ─── FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices ──── */
+
+void ar_ss_mgr_clone_slot(uint16_t dst_pool_idx, uint16_t src_pool_idx)
+{
+    /* Slot side mirrors ar_sprite_slot_clone exactly (FUN_004179b0 and
+     * FUN_00582b80 share the same prologue/destroy + field-stamp +
+     * entries-alloc + aux_buf-copy shape).  The only delta is the
+     * thiscall indirection through input_mgr's +0xaac sprite-slot
+     * pointer table — see rabbit-hole §7 for the SS_MGR == input_mgr
+     * (0x008a6b60) identity. */
+    ar_sprite_slot_clone(ar_pool_get_slot(dst_pool_idx),
+                         ar_pool_get_slot(src_pool_idx));
+
+    /* Info-entry side: zero dst (the 14-byte clear shape — same as
+     * ar_info_entry_clear), then copy marker (word@+0) and flag
+     * (dword@+4) from src.  data (+8), palette (+0xc), and f_10 (+0x10)
+     * stay zero — retail's FUN_004179b0 does NOT propagate them. */
+    ar_info_entry *dst_info = g_ar_info_table[dst_pool_idx];
+    ar_info_entry *src_info = g_ar_info_table[src_pool_idx];
+    ar_info_entry_clear(dst_info);
+    dst_info->marker = src_info->marker;
+    dst_info->flag   = src_info->flag;
+}
+
 /* ─── FUN_005b5d90 — pack a COLORREF into a PALETTEENTRY ────────── */
 
 void ar_palette_pack_entry(uint8_t *out, uint32_t colorref)
@@ -2571,6 +2609,131 @@ void ar_apply_group3_info_events(void)
     }
 }
 
+/* ─── FUN_0057ca40 — group-3 SS_MGR slot-clone calls ────────────
+ *
+ * 94 FUN_004179b0(dst_pool_idx, src_pool_idx) calls in retail
+ * issue order — the SS_MGR singleton slot-clone subset that the
+ * 2026-05-24 partial port left deferred.  See
+ * docs/findings/0057ca40-rabbit-hole.md §3 for the call shape and
+ * §7 for the SS_MGR == input_mgr (at 0x008a6b60) finding.
+ *
+ * Distinct sources: 54.  Distinct destinations: 94.
+ *
+ * Pool indices index the unified 909-entry pool (see
+ * ar_pool_get_slot above).  Re-run tools/extract/57ca40_clone_table.py
+ * after re-exporting the decomp to catch drift. */
+struct ar_group3_clone {
+    uint16_t  dst_idx;    /* pool index — destination slot */
+    uint16_t  src_idx;    /* pool index — source slot */
+};
+
+static const struct ar_group3_clone group3_clones[] = {
+    /*  dst,    src      (retail issue order; 57ca40.c line) */
+    { 0x124, 0x123 },  /* L2492 */
+    { 0x125, 0x123 },  /* L2494 */
+    { 0x127, 0x126 },  /* L2499 */
+    { 0x128, 0x126 },  /* L2501 */
+    { 0x121, 0x120 },  /* L2506 */
+    { 0x122, 0x120 },  /* L2508 */
+    { 0x12a, 0x129 },  /* L2513 */
+    { 0x12c, 0x12b },  /* L2518 */
+    { 0x12e, 0x12d },  /* L2523 */
+    { 0x137, 0x135 },  /* L2531 */
+    { 0x138, 0x135 },  /* L2533 */
+    { 0x139, 0x135 },  /* L2536 */
+    { 0x140, 0x13f },  /* L2562 */
+    { 0x109, 0x108 },  /* L2573 */
+    { 0x10b, 0x10a },  /* L2578 */
+    { 0x143, 0x142 },  /* L2583 */
+    { 0x144, 0x142 },  /* L2585 */
+    { 0x145, 0x142 },  /* L2587 */
+    { 0x13d, 0x13c },  /* L2592 */
+    { 0x13b, 0x13a },  /* L2597 */
+    { 0x11c, 0x11b },  /* L2602 */
+    { 0x11d, 0x11b },  /* L2604 */
+    { 0x11f, 0x11e },  /* L2609 */
+    { 0x10e, 0x10c },  /* L2617 */
+    { 0x10f, 0x10c },  /* L2619 */
+    { 0x110, 0x10d },  /* L2621 */
+    { 0x111, 0x10c },  /* L2623 */
+    { 0x112, 0x10d },  /* L2625 */
+    { 0x113, 0x10c },  /* L2627 */
+    { 0x114, 0x10d },  /* L2629 */
+    { 0x115, 0x10c },  /* L2631 */
+    { 0x116, 0x10d },  /* L2633 */
+    { 0x118, 0x117 },  /* L2637 */
+    { 0x119, 0x117 },  /* L2639 */
+    { 0x14a, 0x149 },  /* L2655 */
+    { 0x14b, 0x149 },  /* L2657 */
+    { 0x14d, 0x14c },  /* L2662 */
+    { 0x14f, 0x14e },  /* L2667 */
+    { 0x0ff, 0x0fe },  /* L2817 */
+    { 0x100, 0x0fe },  /* L2819 */
+    { 0x094, 0x093 },  /* L2824 */
+    { 0x096, 0x095 },  /* L2829 */
+    { 0x098, 0x097 },  /* L2834 */
+    { 0x09a, 0x099 },  /* L2839 */
+    { 0x09b, 0x099 },  /* L2841 */
+    { 0x09d, 0x09c },  /* L2846 */
+    { 0x0a3, 0x0a2 },  /* L2863 */
+    { 0x0a4, 0x0a2 },  /* L2865 */
+    { 0x0a6, 0x0a5 },  /* L2870 */
+    { 0x0a7, 0x0a5 },  /* L2872 */
+    { 0x0a8, 0x0a5 },  /* L2874 */
+    { 0x0aa, 0x0a9 },  /* L2879 */
+    { 0x0ab, 0x0a9 },  /* L2881 */
+    { 0x0ac, 0x0a9 },  /* L2883 */
+    { 0x0ae, 0x0ad },  /* L2888 */
+    { 0x0af, 0x0ad },  /* L2890 */
+    { 0x0b7, 0x0b6 },  /* L2895 */
+    { 0x0b9, 0x0b8 },  /* L2900 */
+    { 0x0ba, 0x0b8 },  /* L2902 */
+    { 0x0bc, 0x0bb },  /* L2907 */
+    { 0x0bd, 0x0bb },  /* L2909 */
+    { 0x0bf, 0x0be },  /* L2914 */
+    { 0x0c0, 0x0be },  /* L2916 */
+    { 0x0c2, 0x0c1 },  /* L2921 */
+    { 0x0c3, 0x0c1 },  /* L2923 */
+    { 0x0c5, 0x0c4 },  /* L2928 */
+    { 0x0b1, 0x0b0 },  /* L2948 */
+    { 0x0b2, 0x0b0 },  /* L2950 */
+    { 0x0cd, 0x0cc },  /* L2964 */
+    { 0x0ce, 0x0cc },  /* L2966 */
+    { 0x0d1, 0x0d0 },  /* L2974 */
+    { 0x0d3, 0x0d2 },  /* L2979 */
+    { 0x0d5, 0x0d4 },  /* L2984 */
+    { 0x0d8, 0x0d7 },  /* L2992 */
+    { 0x0da, 0x0d9 },  /* L2997 */
+    { 0x0de, 0x0dd },  /* L3008 */
+    { 0x0df, 0x0dd },  /* L3010 */
+    { 0x0e0, 0x0dd },  /* L3012 */
+    { 0x0e2, 0x0e1 },  /* L3017 */
+    { 0x0e6, 0x0e5 },  /* L3028 */
+    { 0x0e7, 0x0e5 },  /* L3030 */
+    { 0x0e9, 0x0e8 },  /* L3035 */
+    { 0x0ea, 0x0e8 },  /* L3037 */
+    { 0x0ec, 0x0eb },  /* L3042 */
+    { 0x0ed, 0x0eb },  /* L3044 */
+    { 0x0ef, 0x0ee },  /* L3049 */
+    { 0x0f1, 0x0f0 },  /* L3054 */
+    { 0x0f3, 0x0f2 },  /* L3059 */
+    { 0x0f4, 0x0f2 },  /* L3061 */
+    { 0x0f6, 0x0f5 },  /* L3066 */
+    { 0x0f7, 0x0f5 },  /* L3068 */
+    { 0x0fa, 0x0f9 },  /* L3073 */
+    { 0x0fb, 0x0f9 },  /* L3075 */
+    { 0x0fc, 0x0f9 },  /* L3077 */
+};
+#define GROUP3_CLONES_COUNT  94
+
+void ar_apply_group3_clones(void)
+{
+    for (size_t i = 0; i < GROUP3_CLONES_COUNT; i++) {
+        const struct ar_group3_clone *c = &group3_clones[i];
+        ar_ss_mgr_clone_slot(c->dst_idx, c->src_idx);
+    }
+}
+
 void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
 {
     for (size_t i = 0; i < GROUP3_SPRITES_COUNT; i++) {
@@ -2580,7 +2743,21 @@ void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
             e->width, e->height, e->colorkey,
             e->scale_flag, e->type, group);
     }
+    /* Retail issue order: in FUN_0057ca40 the 4th-pass info-entry
+     * writes (FLAG/MARKER/DATA_SET etc.) are interleaved with the
+     * slot-register calls and the SS_MGR clones.  Order of those three
+     * passes is observably independent because:
+     *
+     *   - The info-event pass touches `g_ar_info_table[*]` only.
+     *   - The slot-register pass touches `g_ar_sprite_slots[*]` only.
+     *   - SS_MGR clones read src (slot + info) and write dst (slot +
+     *     info) — and the clone table's source indices are ALL outside
+     *     the destination set (see test), so source state is whatever
+     *     the slot pass + info pass left.
+     *
+     * So we replay them sequentially: registers, info events, clones. */
     ar_apply_group3_info_events();
+    ar_apply_group3_clones();
 }
 
 /* ─── FUN_00562ea0:613-624 — boot-driver register wiring ─────────── */

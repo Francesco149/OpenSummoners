@@ -137,20 +137,37 @@ correction):
   these are functional state values rather than just "live" markers.
   Mapping each pool-index range to its flag's meaning is open work.
 
-### 3. 94 FUN_004179b0 calls — **DEFERRED**
+### 3. 94 FUN_004179b0 calls — **PORTED 2026-05-25**
 
 `FUN_004179b0(dst_idx, src_idx)` is a `__thiscall` on the SS_MGR
 singleton.  It clones one slot's metadata (`zdd`, `settings`, resource
-id, dims, etc.) into another slot, plus copies a 24-byte aux buffer
-and a parallel-table entry at `+0x18e0 + idx*4`.
+id, dims, etc.) into another slot, plus zeroes the destination
+info-entry and copies the source info-entry's marker (word@+0) and
+flag (dword@+4).  `data` (+8) and `palette` (+0xc) are NOT propagated
+— they stay zero after the 14-byte clear.
 
 54 distinct source indices, each with 1-5 clone targets — looks like
 a "sprite-frame-variant" expansion (each "source" sprite has N
 visual variants that share metadata but get separate slot identities).
+All 94 dst indices are distinct and disjoint from the 233 register-pass
+slot indices (verified by integration test: register + apply lands
+exactly 327 unique slots in `g_ar_sprite_slots[]`).
 
-Modeling needs the SS_MGR struct (which we haven't mapped beyond
-"the singleton at DAT_008a8440 lives in the SS_MGR boot-pool, see
-HANDOFF").
+Port lives in `src/asset_register.c` as `ar_ss_mgr_clone_slot(dst, src)`,
+which reuses the existing `ar_sprite_slot_clone` + `ar_info_entry_clear`
+primitives for the slot- and info-side work — they share the exact
+same shape as FUN_004179b0's body, the only delta being the SS_MGR
+thiscall indirection through `input_mgr->sprite_table[]` at +0x0aac.
+The indirection is replaced with a unified-pool accessor
+`ar_pool_get_slot(pool_idx)` that maps pool indices 1..12 to
+`g_ar_sprite_ramp_slots[]` and pool indices 13..908 to
+`g_ar_sprite_slots[]` (see §7 for the SS_MGR == input_mgr identity
+that justifies dropping the `this` pointer).
+
+The 94 calls themselves are extracted by
+`tools/extract/57ca40_clone_table.py` and replayed in retail issue
+order by `ar_apply_group3_clones()`, called from the tail of
+`ar_register_group3_sprites` after the info-events pass.
 
 ### 4. 9 FUN_00582b80 + 1 FUN_00582d00 — **PORTED 2026-05-24** (subset)
 

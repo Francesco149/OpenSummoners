@@ -2071,8 +2071,12 @@ int test_locale_sounds_buffer_pointer_preserved(void)
 
 int test_group3_sprites_writes_233_distinct_slots(void)
 {
-    /* Every entry hits a unique slot index — order between entries
-     * doesn't matter (each register writes a different slot). */
+    /* 233 distinct REGISTER-pass slots + 94 SS_MGR-clone-pass slots
+     * = 327 unique populated slots after ar_register_group3_sprites.
+     * The clone pass leaves the register pass's slots untouched (all
+     * 94 dst indices are distinct from each other AND from the 233
+     * register indices — pinned by the no_overlap and clones-dst-range
+     * tests). */
     ar_state_init();
     ar_register_group3_sprites((void *)0xd00d, /*group=*/3, (void *)0xbeef);
 
@@ -2080,7 +2084,7 @@ int test_group3_sprites_writes_233_distinct_slots(void)
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
         if (g_ar_sprite_slots[i].entries != NULL) written++;
     }
-    T_ASSERT_EQ_U(written, 233u);
+    T_ASSERT_EQ_U(written, 233u + 94u);
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
@@ -2089,8 +2093,10 @@ int test_group3_sprites_writes_233_distinct_slots(void)
 
 int test_group3_sprites_group_tag_stamped(void)
 {
-    /* All 233 entries get the same group tag — pin it to caller's
-     * value, not a hardcoded constant. */
+    /* All 233 register entries get the caller's group tag.  The 94
+     * SS_MGR clones copy group from src — and every src is one of the
+     * 233 register entries, so the clone targets also carry the same
+     * tag.  327 slots, one expected group value. */
     ar_state_init();
     ar_register_group3_sprites((void *)0x1, /*group=*/0xc0de, (void *)0x2);
 
@@ -2101,7 +2107,7 @@ int test_group3_sprites_group_tag_stamped(void)
             seen++;
         }
     }
-    T_ASSERT_EQ_U(seen, 233u);
+    T_ASSERT_EQ_U(seen, 233u + 94u);
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
@@ -2339,6 +2345,254 @@ int test_group3_info_events_fires_from_register_group3_sprites(void)
     T_ASSERT_EQ_U(g_ar_info_table[92]->flag,   1u);
     T_ASSERT_EQ_U(g_ar_info_table[291]->marker, 0x1cu);
     T_ASSERT_EQ_P(g_ar_info_table[384]->data, (const void *)0x006752f8u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+/* ─── ar_pool_get_slot + ar_ss_mgr_clone_slot (FUN_004179b0) ─────── */
+
+int test_pool_get_slot_sentinel_returns_null(void)
+{
+    /* pool[0] is the allocator-zeroed sentinel at 0x008a760c — no
+     * decompiled consumer touches it.  Accessor returns NULL so any
+     * accidental call site faults immediately rather than aliasing. */
+    ar_state_init();
+    T_ASSERT_EQ_P(ar_pool_get_slot(0), NULL);
+    return 0;
+}
+
+int test_pool_get_slot_ramp_range(void)
+{
+    /* pool[1..12] → g_ar_sprite_ramp_slots[0..11] (the 12 retail BSS
+     * slots at 0x008a7610..0x008a763c). */
+    ar_state_init();
+    for (int i = 1; i <= AR_SPRITE_RAMP_COUNT; i++) {
+        T_ASSERT_EQ_P(ar_pool_get_slot((uint16_t)i),
+                      &g_ar_sprite_ramp_slots[i - 1]);
+    }
+    return 0;
+}
+
+int test_pool_get_slot_main_range(void)
+{
+    /* pool[13] is the first main slot (retail 0x008a7640). */
+    ar_state_init();
+    T_ASSERT_EQ_P(ar_pool_get_slot(13), &g_ar_sprite_slots[0]);
+    T_ASSERT_EQ_P(ar_pool_get_slot(14), &g_ar_sprite_slots[1]);
+    /* Spot-check a high pool index from the clone table (0x14f = 335,
+     * the largest dst that lands). */
+    T_ASSERT_EQ_P(ar_pool_get_slot(0x14f),
+                  &g_ar_sprite_slots[0x14f - 13]);
+    return 0;
+}
+
+int test_ss_mgr_clone_copies_slot_metadata(void)
+{
+    /* Set up a source slot via ar_sprite_slot_register, then clone it
+     * to a fresh dst via the SS_MGR primitive — verify all 9 copied
+     * fields land (zdd, settings, resource_id, w, h, ck, sf, type,
+     * group).  Use main_slot indices well above the ramp range. */
+    ar_state_init();
+    ar_sprite_slot *src = ar_pool_get_slot(0x100);  /* main_slot 243 */
+    ar_sprite_slot_register(src,
+        (void *)0xaaaa, (void *)0xbbbb, /*rid=*/0x1234,
+        0x40, 0x30, 0xdeadbeefu, /*sf=*/1, /*type=*/2, /*group=*/7);
+
+    ar_ss_mgr_clone_slot(0x140, 0x100);
+
+    ar_sprite_slot *dst = ar_pool_get_slot(0x140);
+    T_ASSERT_EQ_P(dst->zdd,         (void *)0xaaaa);
+    T_ASSERT_EQ_P(dst->settings,    (void *)0xbbbb);
+    T_ASSERT_EQ_U(dst->resource_id, 0x1234u);
+    T_ASSERT_EQ_U(dst->width,       0x40u);
+    T_ASSERT_EQ_U(dst->height,      0x30u);
+    T_ASSERT_EQ_U(dst->colorkey,    0xdeadbeefu);
+    T_ASSERT_EQ_U(dst->scale_flag,  1u);
+    T_ASSERT_EQ_U(dst->type,        2u);
+    T_ASSERT_EQ_U(dst->group,       7u);
+    /* Fresh 1-entry entries[] alloc, not the source's pointer. */
+    T_ASSERT_EQ_U(dst->entry_count, 1u);
+    T_ASSERT(dst->entries != NULL);
+    T_ASSERT(dst->entries != src->entries);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_ss_mgr_clone_copies_info_marker_and_flag(void)
+{
+    /* Set marker+flag on src info-entry; clone; verify dst info-entry
+     * gets the same marker (word@+0) and flag (dword@+4). */
+    ar_state_init();
+    ar_sprite_slot_register(ar_pool_get_slot(0x100),
+        NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
+    g_ar_info_table[0x100]->marker = 0xbeef;  /* fits in u16 */
+    g_ar_info_table[0x100]->flag   = 0xcafebabeu;
+
+    ar_ss_mgr_clone_slot(0x140, 0x100);
+
+    T_ASSERT_EQ_U(g_ar_info_table[0x140]->marker, 0xbeefu);
+    T_ASSERT_EQ_U(g_ar_info_table[0x140]->flag,   0xcafebabeu);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_ss_mgr_clone_clears_dst_info_data_and_palette(void)
+{
+    /* Pre-fill src AND dst info-entry's data/palette fields with junk.
+     * After clone: dst->data and dst->palette must both be NULL
+     * (FUN_004179b0 zeroes them via the 14-byte clear, then only
+     * copies marker+flag from src — data/palette are NOT propagated). */
+    ar_state_init();
+    ar_sprite_slot_register(ar_pool_get_slot(0x100),
+        NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
+    g_ar_info_table[0x100]->data    = (const void *)0xdeadbeefu;
+    g_ar_info_table[0x100]->palette = (void *)0xfeedface;
+    g_ar_info_table[0x140]->data    = (const void *)0xbaadf00du;
+    g_ar_info_table[0x140]->palette = (void *)0xc0debead;
+
+    ar_ss_mgr_clone_slot(0x140, 0x100);
+
+    T_ASSERT_EQ_P(g_ar_info_table[0x140]->data,    NULL);
+    T_ASSERT_EQ_P(g_ar_info_table[0x140]->palette, NULL);
+    /* Source untouched. */
+    T_ASSERT_EQ_P(g_ar_info_table[0x100]->data,    (const void *)0xdeadbeefu);
+    T_ASSERT_EQ_P(g_ar_info_table[0x100]->palette, (void *)0xfeedface);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_ss_mgr_clone_destroys_old_dst_entries(void)
+{
+    /* If dst already has an entries[] allocation, the clone must free
+     * it before allocating the fresh single-entry array (ASan would
+     * scream otherwise — this test exists mainly to pin that path is
+     * exercised under sanitizer). */
+    ar_state_init();
+    ar_sprite_slot_register(ar_pool_get_slot(0x100),
+        NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
+    ar_sprite_slot_register(ar_pool_get_slot(0x140),
+        NULL, NULL, 1, 1, 1, 1, 1, 1, 1);
+
+    ar_ss_mgr_clone_slot(0x140, 0x100);
+
+    /* No ASan failure ⇒ pre-existing entries[] was freed before the
+     * fresh alloc.  Also verify the metadata reset. */
+    T_ASSERT_EQ_U(ar_pool_get_slot(0x140)->resource_id, 0u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+/* ─── ar_apply_group3_clones (5th pass of FUN_0057ca40) ─────────── */
+
+int test_group3_clones_apply_is_idempotent(void)
+{
+    /* After the integration path runs, ar_apply_group3_clones should
+     * be safe to re-run: each dst slot gets its old entries[] freed
+     * and a fresh one allocated, with metadata recopied from src.
+     * Pin the second-call invariants — slot count unchanged, dst
+     * metadata still matches src. */
+    ar_state_init();
+    void *zdd = (void *)0xc0c0, *settings = (void *)0xd0d0;
+    ar_register_group3_sprites(zdd, /*group=*/5, settings);
+
+    int before = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        if (g_ar_sprite_slots[i].entries != NULL) before++;
+
+    ar_apply_group3_clones();
+
+    int after = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        if (g_ar_sprite_slots[i].entries != NULL) after++;
+    /* Idempotent: every dst slot was already populated; the second
+     * pass just freed + re-allocated each entries[] in place. */
+    T_ASSERT_EQ_U(after, before);
+
+    /* Spot-check: clone(0x14f, 0x14e) still has main_slot[322].rid ==
+     * main_slot[321].rid after the second pass. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[322].resource_id,
+                  g_ar_sprite_slots[321].resource_id);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_clones_dst_pool_range(void)
+{
+    /* Dst pool indices span [0x094, 0x14f] = [148, 335] (rabbit-hole §3).
+     * Verify the wired apply touches main_slot[135..322] only (no ramp
+     * slots, no high-index spill). */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    /* Ramp slots untouched. */
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++) {
+        T_ASSERT_EQ_P(g_ar_sprite_ramp_slots[i].entries, NULL);
+    }
+    /* main_slot indices below 135 still hold only the register-pass
+     * entries (which start at 79).  Indices 0..78 must be empty. */
+    for (int i = 0; i < 79; i++) {
+        T_ASSERT_EQ_P(g_ar_sprite_slots[i].entries, NULL);
+    }
+    /* main_slot indices above 322 still hold only register-pass
+     * entries.  Indices above 423 must be empty. */
+    for (int i = 424; i < AR_SPRITE_SLOT_COUNT; i++) {
+        T_ASSERT_EQ_P(g_ar_sprite_slots[i].entries, NULL);
+    }
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_clones_first_entry_propagates_resource_id(void)
+{
+    /* First clone in retail issue order: clone(0x124, 0x123).
+     * 0x123 = pool 291 = main_slot 278; first decomp register at L2491:
+     * `paVar1 = DAT_008a7a84; ...; rid = 0x6a8; ...`.  After the full
+     * boot path, main_slot[278] has rid 0x6a8, and main_slot[279]
+     * (pool 0x124 = 292 → main_slot 279) should be its clone. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    T_ASSERT_EQ_U(g_ar_sprite_slots[278].resource_id,
+                  g_ar_sprite_slots[279].resource_id);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_group3_clones_fires_from_register_group3_sprites(void)
+{
+    /* ar_register_group3_sprites's tail calls ar_apply_group3_clones
+     * after the info-events pass — verify the integration.  Spot-check
+     * a couple of clone destinations are populated, with metadata
+     * propagated from their sources. */
+    ar_state_init();
+    void *zdd = (void *)0xa1, *settings = (void *)0xb2;
+    ar_register_group3_sprites(zdd, /*group=*/3, settings);
+
+    /* clone(0x094, 0x093) → main_slot[135] from main_slot[134]. */
+    T_ASSERT(g_ar_sprite_slots[135].entries != NULL);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[135].zdd, zdd);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[135].resource_id,
+                  g_ar_sprite_slots[134].resource_id);
+    /* clone(0x14f, 0x14e) → main_slot[322] from main_slot[321]. */
+    T_ASSERT(g_ar_sprite_slots[322].entries != NULL);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[322].resource_id,
+                  g_ar_sprite_slots[321].resource_id);
 
     for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
         ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);

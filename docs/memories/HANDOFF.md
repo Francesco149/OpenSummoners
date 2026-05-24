@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (info-entry pool writes PORTED)
+# Session handoff — last updated 2026-05-25 (SS_MGR slot-clones PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -14,31 +14,29 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  **Four modules ported now:**
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — **28 functions ported including the boot-driver
+- **Asset-Register** — **30 functions ported including the boot-driver
   wiring**: `ar_boot_register_all` replays FUN_00562ea0:613-624 in
   retail issue order, plus the slot-register subset of FUN_0057ca40
   (group 3) via `ar_register_group3_sprites`, plus `ar_sprite_slot_clone`
-  (FUN_00582b80, a `__thiscall` slot metadata clone) and
-  `ar_info_entry_clear` (FUN_00582d00).  **NEW this checkpoint:** the
-  **443-event 4th pass of FUN_0057ca40** lands via
-  `ar_apply_group3_info_events` — a single static table walked from
-  the tail of `ar_register_group3_sprites`, covering every
-  `ar_info_entry` write the function performs (138 marker, 194 flag,
-  98 data-ptr, 5 struct-copy, 4 marker-copy, 4 flag-copy events at
-  pool indices 92..437).  DATA_SET payloads are retail PE rdata
-  addresses (0x006748d0 etc.) stored as opaque uintptr_t —
-  observability-only until the first FUN_00586010-style palette
-  consumer is ported.  Pure logic with GDI wrappers split into
-  `asset_register_win32.c` (real build only).
+  (FUN_00582b80, a `__thiscall` slot metadata clone), `ar_info_entry_clear`
+  (FUN_00582d00), the 443-event 4th pass (`ar_apply_group3_info_events`),
+  **and NEW this checkpoint: the 94 SS_MGR slot-clones (FUN_004179b0)
+  via `ar_apply_group3_clones`** — a 94-row static table walked from
+  the tail of `ar_register_group3_sprites` (after the info-events
+  pass).  Each clone reuses `ar_sprite_slot_clone` for the slot side
+  and `ar_info_entry_clear` + marker/flag copy for the info side; the
+  unified-pool accessor `ar_pool_get_slot()` maps pool indices 1..12
+  → ramp slots, 13..908 → main slots.  Pure logic with GDI wrappers
+  split into `asset_register_win32.c` (real build only).
 - **Bitmap-Session** — 8 functions (7 thiscalls + 1 free function
   FUN_005b7c10).  Pure PE-resource bitmap decoder, Win32-free body.
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
 
-Total host tests across all four modules: **176 pass, 0 fail, 4
-skip** (the 4 skips are 32-bit-only layout asserts that fire at
-compile time on the cross build).
+Total host tests across all four modules: **187 pass, 0 fail, 4
+skip** (up from 176; the 4 skips are 32-bit-only layout asserts
+that fire at compile time on the cross build).
 
 **Ghidra C++ recovery infrastructure** — Kaiju extension installed,
 `tools/ghidra-scripts/TagThiscallFunctions.java` applies class-
@@ -67,7 +65,8 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: port FUN_0057ca40 4th pass — 443 info-entry pool writes
+- (current) Asset-Register: port FUN_004179b0 SS_MGR slot-clones (94 calls)
+- `ea08d2a` Asset-Register: port FUN_0057ca40 4th pass — 443 info-entry pool writes
 - `76db8f2` RE: recover PTR_DAT_0056bfa4 jumptable (title-menu phase dispatch)
 - `dfdb1cf` RE: FUN_0057ca40 tail memcpy loops are intra-pool info-entry copies
 - `6a6e87d` RE: FUN_0057ca40 per-call-site pool indexing confirmed (pool[i] == slot[i])
@@ -82,8 +81,6 @@ Most recent commits (newest first):
 - `dcc3d15` Asset-Register: port ar_register_palette_ramps (FUN_0057a330)
 - `4f89867` bitmap_session: port the PE-resource decoder + palette-ramp wiring
 - `8cb9fd8` RE: resolve bitmap_session ECX puzzle + tag the 7 methods
-- `b29ff82` docs: HANDOFF + PROGRESS for palette-trio-leaves checkpoint
-- `d3e8a00` Asset-Register: port palette-trio leaves (FUN_005b5d90 + FUN_00491770)
 
 ## Active goal
 
@@ -94,18 +91,12 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-The 5 deep-engine struct shapes (paint_ctx, input_dev, zdm,
-input_mgr, log_singleton) are now defined in `src/wnd_proc.h`, the
-7 thiscall functions (FUN_005b9130, FUN_005b94e0, FUN_005b9500,
-FUN_005ba290, FUN_005bbd20, FUN_0058ffa0, FUN_00408b90) are tagged,
-and the re-export landed typed `this->field` reads across the
-family.  Example: `paint_ctx::FUN_005b9130(paint_ctx *this, HWND target)`
-now reads `if (this->state == 2) { ... BitBlt(hdc, this->blit_x,
-this->blit_y, this->blit_w, this->blit_h, ...); FUN_005b94e0(this->back_ctx, &target); }`.
-The WndProc itself reads as a clean class-dispatched function:
-`input_mgr::FUN_0058ffa0((input_mgr *)&DAT_008a6b60, 1)`,
-`zdm::FUN_005bbd20(DAT_008a93e4, ...)`,
-`log_singleton::FUN_00408b90((log_singleton *)&DAT_008a6620, "ActivateInputDevice CP1", 0, &CRLF)`.
+With the SS_MGR slot-clones landed, FUN_0057ca40's port is now down
+to ONE remaining subsystem: the 9 inline-clone clusters that combine
+`ar_sprite_slot_clone` with an inline template-slot init.  The
+sprite-slot side of those clusters is still missing; the info-entry
+side (5 STRUCT_COPY tails + 4 MARKER_COPY / 4 FLAG_COPY pairs) was
+already covered by the 4th-pass info-events table.
 
 1. **(recommended) DDraw ZDD wrapper** (`FUN_005b7ee0`,
    `FUN_005b88c0`, et al).  Can't be cleanly unit-tested without a
@@ -124,24 +115,19 @@ The WndProc itself reads as a clean class-dispatched function:
    but has no observable effect because the drop-in's drawing path is
    still retail's.
 
-3. **FUN_0057ca40 deferred subsystems** — pick one of:
-   - **SS_MGR slot-clones** (94 FUN_004179b0 calls) — `ecx = 0x8a6b60`
-     each call, which is the SAME singleton our WndProc port models as
-     `input_mgr` (see rabbit-hole §7).  The struct owns the sprite slot
-     table at +0x0aac, info-entry table at +0x18e0, and the zdm pointer
-     at +0x2884.  Porting requires either: (a) plumbing the singleton
-     through SS_MGR thiscalls, or (b) building a unified-pool-index
-     accessor since our standalone `g_ar_sprite_*_table` arrays index
-     differently than retail's flat 909-entry pool.  After this, the
-     94 SS_MGR-cloned sprite slots would land; the info entries for
-     those indices are ALREADY written by the 4th pass.
-   - **FUN_00582b80 call-cluster wiring** — `ar_sprite_slot_clone` is
-     ported; the 9 clusters in FUN_0057ca40 that combine it with the
-     inline template-slot init now have the storage they need.  The
-     remaining gap is mapping each cluster's source/target slot-pool
-     pair (the info-entry side of these clusters — the struct copies
-     and clear-entry pairs — is covered by the 4th pass).
-   See `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown.
+3. **FUN_0057ca40 last deferred subsystem — 9 FUN_00582b80
+   call-cluster wiring** — `ar_sprite_slot_clone` is ported; the
+   9 clusters in FUN_0057ca40 that combine it with the inline
+   template-slot init now have the storage they need.  The remaining
+   gap is mapping each cluster's source/target slot-pool pair (the
+   info-entry side of these clusters — the struct copies and
+   clear-entry pairs — is covered by the 4th pass).  Each cluster
+   constructs a stack-local template slot via inline field-writes,
+   passes it as ECX to FUN_00582b80 to clone into a target slot, then
+   discards the template.  Modeling needs decomp surgery on each
+   cluster's open-coded template setup — not table-driven extraction
+   like the previous passes.  See `docs/findings/0057ca40-rabbit-hole.md`
+   §4 for the cluster structure.
 
 4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
@@ -157,7 +143,8 @@ src/
   asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette,
                             BOOT-DRIVER WIRING + group-3 sprites + slot-clone
                             + info-entry clear + info-entry pool + 4th-pass
-                            info-entry writes) — 28 functions
+                            info-entry writes + 5th-pass SS_MGR clones
+                            + unified-pool accessor) — 30 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   bitmap_session.c/h        PE-resource bitmap decoder (the ar_palette_session_begin backend) — 8 functions
   bitmap_session_win32.c    LocalAlloc/Free + FindResource/LoadResource/LockResource wrappers
@@ -171,8 +158,8 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     95 tests for Asset-Register (incl. 7 group3_sprites +
-                            8 group3_info_events + 6 ar_boot_register_all +
+  test_asset_register.c     106 tests for Asset-Register (incl. 7 group3_sprites +
+                            8 group3_info_events + 11 SS_MGR-clone + 6 ar_boot_register_all +
                             5 slot-clone + 2 info-entry-clear + 1 info-entry-pool)
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
@@ -183,9 +170,11 @@ tools/
   run-retail.sh             single-source-of-truth dev loop
   ghidra-tag-and-export.sh  one-shot wrapper for Ghidra re-tag + re-export
   extract/57ca40_sprite_table.py
-                            regenerator for the group-3 sprite table
+                            regenerator for the group-3 sprite-register table
   extract/57ca40_info_table.py
                             regenerator for the 4th-pass info-event table
+  extract/57ca40_clone_table.py
+                            regenerator for the 5th-pass SS_MGR clone table
   extract/57ca40_pool_map.py
                             audit tool for FUN_0057ca40 pool-write coverage
 ```
@@ -202,8 +191,10 @@ tools/
   reading those slots.
 - SS_MGR / W_MGR / GD_MGR boot-pool allocators (DAT_008a8440 / _6ec4
   / _9274) are dependency-of ~30 functions; defer until consumer
-  semantics map cleanly.  **FUN_0057ca40's deferred clone subsystem
-  needs SS_MGR modelled** — first concrete consumer.
+  semantics map cleanly.  **FUN_0057ca40's SS_MGR clone subsystem is
+  now ported** without modeling the singleton itself — the
+  `ar_pool_get_slot` accessor sidesteps the `this` pointer because
+  SS_MGR == input_mgr and both pool tables are already host globals.
 - `PTR_DAT_0056bfa4` jumptable inside the title-menu runner — read
   this checkpoint via radare2, 11 entries → 7 distinct phase
   handlers.  See `docs/findings/title-scene.md` "Inner scene-phase
@@ -229,6 +220,8 @@ tools/
     - Pool index 0 (retail addr 0x8a760c, one slot before
       `g_ar_sprite_ramp_slots[0]`) is allocated by the same loop but
       has no observed consumer.  May be a sentinel.
+      `ar_pool_get_slot(0)` returns NULL so accidental usage faults
+      immediately.
 - `ar_locale_state` modelling: the locale loop's three globals
   (DAT_008a6e68, _6e70, *DAT_008a6e80+0x1c8) are passed in as a
   struct in our port.  The boot driver port will need to read them
@@ -256,15 +249,12 @@ tools/
   per-locale group selector 1..73 (with gaps) that's monotonic
   per magic — looks like a "scene_id" the locale pre-loader may
   filter on.  Revisit when porting the scene loader.
-- **FUN_0057ca40 still-deferred subsystems** (see "Next move" #3):
-    - 94 FUN_004179b0 slot-clone calls (SS_MGR thiscall on
-      input_mgr/SS_MGR singleton at 0x008a6b60) — produces 94 SS_MGR
-      slot entries.  Info entries for those slots ARE written by the
-      4th pass; only the slot side is missing.
-    - **9 FUN_00582b80 + 4 FUN_00582d00 clusters — primitives PORTED
-      (`ar_sprite_slot_clone` + `ar_info_entry_clear`), 5 STRUCT_COPY
-      info-entry tails PORTED in the 4th pass; sprite-slot side of the
-      9 clusters still pending**
+- **FUN_0057ca40 last deferred subsystem** (see "Next move" #3):
+    - 9 FUN_00582b80 cluster wiring — primitives PORTED
+      (`ar_sprite_slot_clone` + `ar_info_entry_clear`); 5 STRUCT_COPY
+      info-entry tails PORTED in the 4th pass; sprite-slot side of
+      the 9 clusters still pending (open-coded template-slot init per
+      cluster — not table-extractable like the SS_MGR clones).
     - The FUN_00587e00 const-data-pointer refresh routine is a
       potential CONSUMER of `entry->data` (writes it at runtime); not
       ported yet — first audit on what reads back the rewritten pointer.

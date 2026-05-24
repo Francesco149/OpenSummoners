@@ -474,6 +474,43 @@ void ar_sprite_slot_clone(ar_sprite_slot *dst, const ar_sprite_slot *src);
  * populates the cleared entry.  Module-isolation: no consumer ported. */
 void ar_info_entry_clear(ar_info_entry *entry);
 
+/* Unified sprite-slot pool accessor — maps a retail pool index (0..908,
+ * matching `0x008a760c + i*4`) to the host slot pointer.
+ *
+ *   pool[0]      → NULL (the allocator-zeroed sentinel at 0x008a760c;
+ *                  no decompiled consumer touches it; see rabbit-hole §5).
+ *   pool[1..12]  → &g_ar_sprite_ramp_slots[pool_idx - 1].
+ *   pool[13..908]→ &g_ar_sprite_slots[pool_idx - 13].
+ *
+ * Mirrors the SS_MGR singleton's `this->sprite_table[i]` (at +0x0aac,
+ * see docs/findings/0057ca40-rabbit-hole.md §7).  Use whenever a
+ * ported function indexes the unified pool (e.g. FUN_004179b0); the
+ * standalone batches keep using their own range-specific arrays. */
+ar_sprite_slot *ar_pool_get_slot(uint16_t pool_idx);
+
+/* FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices.
+ *
+ * Retail prototype: `void __thiscall SS_MGR::clone_slot(SS_MGR *this,
+ * uint16_t dst_pool_idx, uint16_t src_pool_idx)`.  Both indices are
+ * unified pool indices (see `ar_pool_get_slot`); the SS_MGR singleton
+ * is the same struct WndProc models as `input_mgr` at 0x008a6b60 (see
+ * rabbit-hole §7).
+ *
+ * Behaviour:
+ *   1. Slot side — identical to `ar_sprite_slot_clone` (FUN_00582b80):
+ *      destroys dst, stamps metadata (zdd, settings, resource_id, dims,
+ *      colorkey, scale_flag, type, group), allocates a fresh 1-entry
+ *      `entries[]`, deep-copies src->aux_buf when present.
+ *   2. Info-entry side — zeros 14 bytes of dst (same shape as
+ *      `ar_info_entry_clear`), then copies `marker` (word@+0) and
+ *      `flag` (dword@+4) from src.  `data`/`palette`/`f_10` stay zero.
+ *
+ * Used by FUN_0057ca40 in 94 calls to expand 54 distinct sources into
+ * 94 distinct sprite-frame-variant targets — see
+ * `ar_apply_group3_clones` and rabbit-hole §3 for the call-site
+ * breakdown.  No other ported caller wires it yet. */
+void ar_ss_mgr_clone_slot(uint16_t dst_pool_idx, uint16_t src_pool_idx);
+
 /* FUN_00562a10 — destroy a GDI slot.
  * DeleteObject's every non-null handle in `array`, frees `array`,
  * resets count/capacity to 0.  Safe to call on a fresh BSS-zero slot. */
@@ -989,12 +1026,18 @@ void ar_register_fonts(void *zdd, uint16_t group, void *settings);
  *      `tools/extract/57ca40_pool_map.py` (0 orphans).
  *
  *   3. **94 FUN_004179b0 calls** — SS_MGR thiscall "clone slot from
- *      another slot" operations (dst, src).  Clones one slot's metadata
- *      to another, plus copies a +0x18e0 parallel-table entry.
- *      **DEFERRED** — depends on SS_MGR singleton modeling and the
- *      clone-target slots are non-trivial (the 54 distinct source slots
- *      need to be set up FIRST in some preceding init we haven't found
- *      yet).  Likely a sprite-frame-variant table.
+ *      another slot" operations (dst_pool_idx, src_pool_idx).  Clones
+ *      one slot's metadata to another, plus zeroes the destination
+ *      info-entry and copies the source info-entry's marker (word@+0)
+ *      and flag (dword@+4).  **PORTED HERE** as the 5th pass: a
+ *      94-entry static table walked by `ar_apply_group3_clones`, called
+ *      from the tail of `ar_register_group3_sprites` (after the 4th
+ *      info-events pass).  Both indices flow through the unified pool
+ *      accessor `ar_pool_get_slot`; the SS_MGR singleton == input_mgr
+ *      identity (rabbit-hole §7) means we don't need to plumb a
+ *      `this` pointer through the call.  Sources span 54 distinct
+ *      pool indices (147..335) — all within the 233 slots the
+ *      register pass populates, which is why the clones come AFTER.
  *
  *   4. **9 FUN_00582b80 calls + 4 FUN_00582d00** at the tail —
  *      another SS_MGR-style thiscall pattern that clones fields from
@@ -1024,6 +1067,24 @@ void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings);
  * loop.  All writes target `g_ar_info_table[i]` indices that the
  * pool allocator already wired up in `ar_state_init`. */
 void ar_apply_group3_info_events(void);
+
+/* 5th pass of FUN_0057ca40 — replay 94 SS_MGR slot-clone calls
+ * (FUN_004179b0) in retail issue order via `ar_ss_mgr_clone_slot`.
+ * Called from the tail of `ar_register_group3_sprites` (after the
+ * info-events pass), also exposed standalone for unit tests.
+ *
+ * Each clone reads (slot + info) at the source pool index and writes
+ * (slot + info) at the destination pool index.  All 94 sources are
+ * distinct from the 94 destinations, so the order between clones is
+ * observably irrelevant — we replay in retail issue order anyway for
+ * provenance.
+ *
+ * Sources MUST be populated before this runs.  In the boot driver,
+ * that's true: the slot-register pass populates the sources first
+ * (sources span pool indices 147..335 which overlap the 233-slot
+ * register region), and the info-events pass primes the source info
+ * entries' marker+flag fields. */
+void ar_apply_group3_clones(void);
 
 /* FUN_00562ea0:613-624 — boot-driver asset-register wiring.
  *

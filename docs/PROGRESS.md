@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — FUN_0057ca40 5th pass: 94 SS_MGR slot-clones PORTED
+
+Last of the sprite-slot work in FUN_0057ca40.  The 94 FUN_004179b0
+calls inside the function are extracted by
+`tools/extract/57ca40_clone_table.py` and replayed in retail issue
+order by `ar_apply_group3_clones`, called from the tail of
+`ar_register_group3_sprites` after the 4th-pass info-events apply.
+Total clones: 94 (54 distinct sources, 94 distinct destinations;
+sources span main_slot 134..321, destinations span main_slot 135..322,
+all within the 233-slot register region populated by the same
+function's earlier pass).
+
+The primitive `ar_ss_mgr_clone_slot(dst_pool_idx, src_pool_idx)`
+reuses the existing `ar_sprite_slot_clone` (slot-metadata copy) and
+`ar_info_entry_clear` (info-entry zero) primitives, since
+FUN_004179b0's body is structurally identical to those primitives'
+bodies — only the indirection differs.  Modeling sidesteps the SS_MGR
+`this` pointer via a new unified-pool accessor `ar_pool_get_slot`
+that maps pool indices 1..12 → ramp slots and 13..908 → main slots
+(see rabbit-hole §7: SS_MGR == input_mgr at 0x008a6b60, so the host
+already owns both tables as globals).
+
+Tests now: **187 pass, 0 fail, 4 skip** (up from 176).  11 new tests
+cover: pool accessor on sentinel/ramp/main ranges, primitive-level
+clone (metadata propagation, info marker+flag copy, info data/palette
+stay null, dst-entries destruction under ASan), table-walker (apply
+idempotency, dst pool range, first-clone metadata propagation,
+integration with register_group3_sprites).  Integration count test
+updated: register pass writes 233 slots + clone pass writes 94 more
+= 327 unique populated slots.
+
+The remaining FUN_0057ca40 deferred work is now strictly on the **9
+FUN_00582b80 cluster wiring** — open-coded template-slot init per
+cluster, not table-extractable.  See HANDOFF "Next move" #3.
+
+---
+
 ## 2026-05-25 — FUN_0057ca40 4th pass: 443 info-entry pool writes PORTED
 
 Mechanical follow-on to the per-call-site indexing confirmation:

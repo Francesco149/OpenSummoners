@@ -146,6 +146,17 @@ struct test_case {
     X(group3_info_events_struct_copy_from_zero_init)           \
     X(group3_info_events_dst_indices_in_92_to_437_range)       \
     X(group3_info_events_fires_from_register_group3_sprites)   \
+    X(pool_get_slot_sentinel_returns_null)                     \
+    X(pool_get_slot_ramp_range)                                \
+    X(pool_get_slot_main_range)                                \
+    X(ss_mgr_clone_copies_slot_metadata)                       \
+    X(ss_mgr_clone_copies_info_marker_and_flag)                \
+    X(ss_mgr_clone_clears_dst_info_data_and_palette)           \
+    X(ss_mgr_clone_destroys_old_dst_entries)                   \
+    X(group3_clones_apply_is_idempotent)                       \
+    X(group3_clones_dst_pool_range)                            \
+    X(group3_clones_first_entry_propagates_resource_id)        \
+    X(group3_clones_fires_from_register_group3_sprites)        \
     X(boot_register_all_group_tags_per_batch)                  \
     X(boot_register_all_zdd_vs_zds_routing)                    \
     X(boot_register_all_sotesp_module_for_special_slots)       \
