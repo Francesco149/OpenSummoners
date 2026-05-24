@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_005749b0 (ar_register_main_sprites)
+
+UI/menu sprite-register batch — the fourth call in `FUN_00562ea0`'s
+asset-register sequence (after `FUN_00579bd0`, `FUN_00579a00`, and
+the four `FUN_00563ef0` sound-bank loads).  Populates 34 sprite
+slots: 9 inline registers, 1 special transient register (idx 0, id
+0x90b loaded from sotesp.dll instead of the launcher settings
+record), and 24 trailing single-call registers.  Most slots are
+640×480 full-screen backgrounds and 368×276 UI panels; the
+stragglers at indices 46/47/50/55 are small icons (32×32 / 64×64).
+
+**The ECX-hidden mystery**: the C decomp shows one `FUN_005748c0`
+call without an obvious `this` pointer — Ghidra dropped the thiscall
+ECX setup.  radare2 disasm at 0x00574e0a reveals
+`mov ecx, dword [0x8a7640]` — the slot at DAT_008a7640 (idx 0 in
+our unified pool).  Same slot is also the target of the palette
+ramp that follows.  So this one slot is BOTH register-populated
+AND palette-decorated, while the inline slots and trailing calls
+get only the register pass.
+
+**Refactor**: `g_ar_sprite_slots` went from a 2-entry array
+(FUN_00579bd0-specific) to a 64-entry unified pool indexed by
+`(retail_BSS_addr - 0x008a7640) / 4`.  FUN_00579bd0's two
+font-texture slots now live at `AR_SPR_FONT_TEX_457` (= 42) and
+`_455` (= 43).  Existing tests updated mechanically.  Future
+batches (FUN_0057a330, FUN_0056e190) plug into the same pool —
+bumping `AR_SPRITE_SLOT_COUNT` as needed.
+
+**Skipped**: the palette ramp section between the slot-5 and slot-9
+inline writes — builds a 256-entry palette via the palette-session
+trio (FUN_004178e0 / _005b5d90 / _00491770) and installs it onto
+the idx-0 slot.  Documented in the driver docstring; will land
+when the palette-session trio + PE-resource decoder do.
+
+Tests: +6 (inline-slots field map, transient sotesp slot, trailing
+IDs in index order, untouched indices stay zero, total slot count,
+coexistence with `ar_register_fonts`).  Total 69 pass, 0 fail, 2
+skip.  32-bit cross build clean.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_005748c0 (ar_sprite_slot_register)
 
 Exposes the single-entry sprite-slot register as a public helper —
