@@ -45,6 +45,7 @@
 #ifndef OPENSUMMONERS_ASSET_REGISTER_H
 #define OPENSUMMONERS_ASSET_REGISTER_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -418,6 +419,32 @@ void ar_gdi_slot_set_pen_gradient(uint32_t index, uint16_t group, uint16_t capac
  * least 4 bytes). */
 void ar_palette_pack_entry(uint8_t *out, uint32_t colorref);
 
+/* FUN_004178e0 — begin a palette session: decode the sprite slot's PE
+ * bitmap resource and emit a 256-entry BGRA palette into a caller
+ * buffer.
+ *
+ * Reads `s->settings` (used as HMODULE — the sotesp.dll handle when
+ * called on idx 0 from ar_register_main_sprites) and `s->resource_id`,
+ * then runs `bs_decode_resource(…, "DATA", 1)` on a stack-local
+ * bitmap_session.  If the decoded bitmap is 8bpp, emits its palette
+ * via bs_emit_palette_bgra into `out_palette` and returns true.  Any
+ * other depth (or a resource-load failure) returns false WITHOUT
+ * touching out_palette — caller's buffer is undefined on false.
+ *
+ * Caller is responsible for the 1024-byte storage at out_palette.
+ * The pixel data decoded into the session is discarded — only the
+ * palette is exported.
+ *
+ * Behaviour vs retail: matches FUN_004178e0 modulo C++-exception
+ * cleanup.  The retail body uses MSVC SEH (`mov fs:[0], …`) to
+ * guarantee bs_release runs on unwind; our port has no exceptions
+ * and the explicit bs_release in the success path covers normal
+ * teardown.  The defensive `bs_release` retail does TWICE on the
+ * success path (once inside the if, once after) is also unnecessary
+ * here — bs_release is idempotent and the second call has no
+ * additional effect we'd lose. */
+bool ar_palette_session_begin(ar_sprite_slot *s, uint8_t out_palette[1024]);
+
 /* FUN_00491770 — lazy-install a 256-entry (1024-byte) palette onto a
  * sprite slot's first entry.
  *
@@ -632,19 +659,14 @@ void ar_register_locale_sounds(void *zds, uint16_t group, void *settings,
  *                              (indices 42/43) and other batches will
  *                              fill in.
  *
- * Palette ramp section (NOT PORTED): retail constructs a 256-entry
- * palette between the slot-5 inline write and the slot-9 inline
- * write — calls FUN_004178e0 (palette session begin), then
- * FUN_005b5d90 ten times to write background entries, then
- * FUN_005b5f50 + FUN_005b5d90 twenty times to lerp from 0x383838
- * to 0xffffff, then FUN_00491770 (install palette onto the
- * sprite slot at idx 0).  Depends on the palette-session trio
- * (FUN_004178e0 / _005b5d90 / _00491770) — deferred.  The slot's
- * resource-id / dimension fields ARE written by the line-230
- * FUN_005748c0 call (already ported below); only the palette
- * upload step is skipped.  When the PE-resource decoder lands,
- * port the palette ramp and call it from this driver between the
- * inline-slot writes and the trailing-call batch. */
+ * Palette ramp section (PORTED 2026-05-24): between the idx-0 inline
+ * register and the trailing-call batch, retail builds a 256-entry
+ * palette via ar_palette_session_begin (sotesp.dll 0x90b as the
+ * 8bpp source), overrides palette[1]=0, palette[41..50]=0x383838,
+ * palette[51..70]=lerp(0x383838→0xffffff, 1/20..20/20), then installs
+ * it onto the idx-0 sprite slot via ar_palette_install.  The whole
+ * ramp is a no-op when ar_palette_session_begin returns false (e.g.
+ * the resource isn't 8bpp). */
 void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
                               void *sotesp_module);
 

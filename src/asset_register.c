@@ -10,6 +10,7 @@
  * Per-function provenance is in asset_register.h.
  */
 #include "asset_register.h"
+#include "bitmap_session.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -352,6 +353,35 @@ void ar_palette_install(ar_sprite_slot *s, const uint8_t palette[1024])
         s->entries[0].b = malloc(1024);
     }
     memcpy(s->entries[0].b, palette, 1024);
+}
+
+/* ─── FUN_004178e0 — begin palette session ───────────────────────── */
+
+bool ar_palette_session_begin(ar_sprite_slot *s, uint8_t out_palette[1024])
+{
+    /* Stack-local bitmap_session — matches retail's `[esp+8]` frame
+     * (the 0x444 SUB ESP + 4 SEH guard).  Defensive release first:
+     * the stack frame is uninitialised on entry, so the bs_release
+     * inside bs_decode_resource needs to see pixels==NULL to skip the
+     * free of garbage. */
+    bitmap_session session;
+    bs_release_no_free(&session);
+
+    int ok = bs_decode_resource(&session,
+                                s->settings,      /* HMODULE — see header */
+                                s->resource_id,
+                                "DATA", 1);
+    if (!ok) {
+        bs_release(&session);                     /* idempotent on NULL */
+        return false;
+    }
+
+    bool emitted = (bs_get_bit_count(&session) == 8);
+    if (emitted) {
+        bs_emit_palette_bgra(&session, out_palette);
+    }
+    bs_release(&session);
+    return emitted;
 }
 
 /* ─── FUN_00563ef0 first half — sound slot field init ─────────── */
@@ -976,10 +1006,41 @@ void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
         /*type=*/2,
         group);
 
-    /* Palette ramp section — NOT PORTED (see header docstring).  Retail
-     * builds a palette session here that targets the same slot at
-     * idx 0 and installs it via FUN_00491770.  Skipped until the
-     * palette-session trio + PE-resource decoder land. */
+    /* Palette ramp section (retail FUN_005749b0:0x574e1b..0x574eb0):
+     *
+     *   1. Allocate a 1024-byte palette on stack (256 RGBQUADs).
+     *   2. Seed it from sotesp.dll resource 0x90b via the bitmap
+     *      decoder (ar_palette_session_begin) — populates all 256
+     *      entries with the resource's palette.
+     *   3. Override palette[1] with 0 (one packed-COLORREF write).
+     *   4. Override palette[41..50] (10 entries) with 0x383838 (dark gray).
+     *   5. Override palette[51..70] (20 entries) with linear lerp from
+     *      0x383838 to 0xffffff using ar_color_lerp(i, 20) for i=1..20.
+     *   6. Install the resulting palette onto sprite slot at idx 0.
+     *
+     * Index-distribution provenance: retail allocates the 1024-byte
+     * buffer as 4 stack vars (local_400[4], local_3fc[160], local_35c[40],
+     * local_334[820]) — Ghidra's reverse-order naming means the buffer
+     * starts at local_400.  Palette indices: local_3fc = palette[1],
+     * local_35c = palette[41], local_334 = palette[51].
+     *
+     * No-op when the decoder fails to emit a palette (e.g. 24bpp
+     * source — won't actually happen for idx 0's 0x90b resource, but
+     * keeps the wiring leak-clean if the resource ever changes). */
+    {
+        uint8_t palette[1024];
+        if (ar_palette_session_begin(&g_ar_sprite_slots[0], palette)) {
+            ar_palette_pack_entry(&palette[1 * 4], 0);
+            for (int i = 0; i < 10; i++) {
+                ar_palette_pack_entry(&palette[(41 + i) * 4], 0x383838);
+            }
+            for (int i = 1; i <= 20; i++) {
+                uint32_t c = ar_color_lerp(0x383838, 0xffffff, i, 20);
+                ar_palette_pack_entry(&palette[(50 + i) * 4], c);
+            }
+            ar_palette_install(&g_ar_sprite_slots[0], palette);
+        }
+    }
 
     /* 24 trailing FUN_005748c0 calls.  The first 20 hit indices 10..29
      * (contiguous in the retail BSS pointer table); the last 4 are

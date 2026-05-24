@@ -22,8 +22,10 @@ CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
            -I../src $(SAN)
 LDFLAGS := $(SAN)
 
-SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c ../src/wnd_proc.c
-SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c test_wnd_proc.c
+SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
+                ../src/bitmap_session.c ../src/wnd_proc.c
+SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
+                test_bitmap_session.c test_wnd_proc.c
 
 OUT := build/run_tests
 

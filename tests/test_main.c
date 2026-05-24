@@ -124,6 +124,28 @@ struct test_case {
     X(locale_sounds_coexists_with_game_sounds)                 \
     X(locale_sounds_buffer_pointer_preserved)                  \
     X(ar_layout_matches_retail)                                \
+    X(bs_release_no_free_nulls_pixels)                         \
+    X(bs_release_is_idempotent_on_null)                        \
+    X(bs_release_frees_pixels)                                 \
+    X(bs_get_set_bit_count_recomputes_stride)                  \
+    X(bs_init_bitmap_stamps_BIH)                               \
+    X(bs_init_bitmap_24bpp_size)                               \
+    X(bs_emit_palette_bgra_swaps_RGB_to_BGR)                   \
+    X(decode_returns_zero_on_missing_resource)                 \
+    X(decode_raw_8bpp_copies_palette_and_pixels)               \
+    X(decode_raw_24bpp_skips_palette_copy)                     \
+    X(decode_raw_unsupported_depth_releases_pixels)            \
+    X(compressed_header_signature_mismatch_returns_zero)       \
+    X(compressed_header_pixel_offset_too_large)                \
+    X(compressed_header_happy_path)                            \
+    X(decode_compressed_path_8bpp)                             \
+    X(decode_compressed_signature_mismatch_returns_zero)       \
+    X(palette_session_begin_emits_BGRA_on_8bpp)                \
+    X(palette_session_begin_returns_false_on_missing_resource) \
+    X(palette_session_begin_returns_false_on_24bpp)            \
+    X(main_sprites_installs_palette_when_resource_8bpp)        \
+    X(main_sprites_skips_palette_when_resource_missing)        \
+    X(bitmap_session_layout_matches_retail)                    \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \
     X(wp_default_forwards_to_defwindowproc)                    \
