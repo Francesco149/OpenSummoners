@@ -208,9 +208,27 @@ _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset
 
 /* ─── globals — mirror retail BSS slot tables ────────────────────── */
 
-/* g_ar_sprite_slots[0] mirrors DAT_008a76e8 (font texture id 0x457).
- * g_ar_sprite_slots[1] mirrors DAT_008a76ec (font texture id 0x455). */
-extern ar_sprite_slot g_ar_sprite_slots[2];
+/* Sprite slot pool — models the retail BSS region
+ * 0x008a7640..0x008a771c.  Logical index = (retail_addr - 0x008a7640) / 4.
+ * Multiple register batches (FUN_00579bd0, FUN_005749b0, FUN_0057a330,
+ * FUN_0056e190, ...) all populate slots in this same pool — keying by
+ * index keeps the field-write behaviour observable across batches
+ * without modelling each retail BSS sub-range separately.
+ *
+ * Capacity 64 covers all currently-known register batches with
+ * headroom (FUN_0056e190 will need more — bump when that lands).
+ *
+ * Named index constants for the slots whose semantic role is known
+ * are defined below; everything else is referenced by raw index in
+ * the batch driver and its tests. */
+#define AR_SPRITE_SLOT_COUNT 64
+extern ar_sprite_slot  g_ar_sprite_slots[AR_SPRITE_SLOT_COUNT];
+extern ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
+
+/* FUN_00579bd0 font-texture sprites.  Retail addresses 0x008a76e8 and
+ * 0x008a76ec → indices 42 and 43 in the pool. */
+#define AR_SPR_FONT_TEX_457  42  /* 32×32 type=2 (DAT_008a76e8) */
+#define AR_SPR_FONT_TEX_455  43  /* 32×48 type=2 (DAT_008a76ec) */
 
 /* The retail table is at &DAT_008a9274.  Index 0 lives there; index 1
  * is DAT_008a9278; ...; index 13 (FUN_00582d10 max in this batch) is
@@ -403,7 +421,59 @@ void ar_sound_slot_init(ar_sound_slot *s, void *zds, void *settings,
  * without deeper RE). */
 void ar_register_sounds(void *zds, uint16_t group, void *settings);
 
-/* ─── top-level driver call ──────────────────────────────────────── */
+/* ─── top-level driver calls ─────────────────────────────────────── */
+
+/* FUN_005749b0 — UI/menu sprite-register batch.
+ *
+ * Called by the boot driver (FUN_00562ea0) right after the third
+ * `FUN_00563ef0` sound-bank load and before `FUN_0056e190`.  Retail
+ * caller: `FUN_005749b0(ZDD, 4, settings)` — `group` = 4.
+ *
+ * Populates 34 sprite slots in `g_ar_sprite_slots[]`:
+ *
+ *   - idx 0   (DAT_008a7640): id 0x90b 32×32 — special, loaded from
+ *                              sotesp.dll (passed as `sotesp_module`
+ *                              instead of `settings`).  Retail loads
+ *                              this via `FUN_005748c0` with `settings
+ *                              = DAT_008a6e74` (the sotesp HMODULE),
+ *                              presumably so the small SFX-pack
+ *                              companion DLL is queried for this
+ *                              one font texture.  Same slot is also
+ *                              the target of the palette ramp (see
+ *                              "Palette ramp section" below).
+ *   - idx 1..9  (DAT_008a7644..0x7664): 9 inline registers — IDs
+ *                              0x49f, 0x448, 0x4a2, 0x49d, 0x913,
+ *                              0x91b, 0x91c, 0x91d, 0x8df.  Sizes /
+ *                              types vary; see the driver body.
+ *                              Note retail writes them in shuffled
+ *                              order (1,2,3,4,6,7,8,5,9) — output is
+ *                              order-independent so we batch them.
+ *   - idx 10..29 (DAT_008a7668..0x76b4): 20 trailing FUN_005748c0
+ *                              calls.  Mostly the 368×276 panel set
+ *                              (0x8df-family follow-ups) plus 640×480
+ *                              full-screen backgrounds.
+ *   - idx 46, 47, 50, 55 (DAT_008a76f8, _76fc, _7708, _771c): 4
+ *                              straggler small-icon registers.  The
+ *                              gap between 30..45 and 44..49 is where
+ *                              FUN_00579bd0's font textures live
+ *                              (indices 42/43) and other batches will
+ *                              fill in.
+ *
+ * Palette ramp section (NOT PORTED): retail constructs a 256-entry
+ * palette between the slot-5 inline write and the slot-9 inline
+ * write — calls FUN_004178e0 (palette session begin), then
+ * FUN_005b5d90 ten times to write background entries, then
+ * FUN_005b5f50 + FUN_005b5d90 twenty times to lerp from 0x383838
+ * to 0xffffff, then FUN_00491770 (install palette onto the
+ * sprite slot at idx 0).  Depends on the palette-session trio
+ * (FUN_004178e0 / _005b5d90 / _00491770) — deferred.  The slot's
+ * resource-id / dimension fields ARE written by the line-230
+ * FUN_005748c0 call (already ported below); only the palette
+ * upload step is skipped.  When the PE-resource decoder lands,
+ * port the palette ramp and call it from this driver between the
+ * inline-slot writes and the trailing-call batch. */
+void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
+                              void *sotesp_module);
 
 /* FUN_00579bd0 — boot-driver asset-register batch (fonts).
  *

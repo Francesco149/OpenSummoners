@@ -16,7 +16,8 @@
 
 /* ─── globals ────────────────────────────────────────────────────── */
 
-ar_sprite_slot  g_ar_sprite_slots[2];
+ar_sprite_slot  g_ar_sprite_slots[AR_SPRITE_SLOT_COUNT];
+ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 ar_gdi_slot     g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 ar_gdi_slot    *g_ar_gdi_table[AR_GDI_SLOT_COUNT];
 ar_sound_slot   g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
@@ -27,6 +28,9 @@ void ar_state_init(void)
     memset(g_ar_sprite_slots, 0, sizeof g_ar_sprite_slots);
     memset(g_ar_gdi_slots,    0, sizeof g_ar_gdi_slots);
     memset(g_ar_sound_slots,  0, sizeof g_ar_sound_slots);
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        g_ar_sprite_table[i] = &g_ar_sprite_slots[i];
+    }
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++) {
         g_ar_gdi_table[i] = &g_ar_gdi_slots[i];
     }
@@ -375,8 +379,8 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings)
 
 void ar_register_fonts(void *zdd, uint16_t group, void *settings)
 {
-    /* sprite[0] — DAT_008a76e8 (font texture sprite id 0x457, 32×32). */
-    ar_sprite_slot_register(&g_ar_sprite_slots[0],
+    /* sprite[42] — DAT_008a76e8 (font texture sprite id 0x457, 32×32). */
+    ar_sprite_slot_register(&g_ar_sprite_slots[AR_SPR_FONT_TEX_457],
         zdd, settings, /*resource_id=*/0x457,
         /*width=*/0x20, /*height=*/0x20,
         /*colorkey=*/0,
@@ -384,11 +388,11 @@ void ar_register_fonts(void *zdd, uint16_t group, void *settings)
         /*type=*/2,
         group);
 
-    /* sprite[1] — DAT_008a76ec (font texture sprite id 0x455, 32×48,
+    /* sprite[43] — DAT_008a76ec (font texture sprite id 0x455, 32×48,
      * scale=1).  Retail writes f_08/f_18 before settings on this slot
-     * (different ordering vs sprite[0]) — neither order is observable
+     * (different ordering vs sprite[42]) — neither order is observable
      * since they're independent stores. */
-    ar_sprite_slot_register(&g_ar_sprite_slots[1],
+    ar_sprite_slot_register(&g_ar_sprite_slots[AR_SPR_FONT_TEX_455],
         zdd, settings, /*resource_id=*/0x455,
         /*width=*/0x20, /*height=*/0x30,
         /*colorkey=*/0,
@@ -433,4 +437,107 @@ void ar_register_fonts(void *zdd, uint16_t group, void *settings)
     ar_gdi_slot_set_pen_gradient(10,  group, 4, 0x200000, 0x804030, 0xcfa090, 0xf, 4, 1);
     ar_gdi_slot_set_pen_gradient(0xb, group, 4, 0x000030, 0x405080, 0x8090bf, 0xf, 4, 1);
     ar_gdi_slot_set_pen_gradient(0xd, group, 4, 0x300020, 0x804060, 0xb090a0, 0xf, 4, 1);
+}
+
+/* ─── FUN_005749b0 — UI/menu sprite register batch ──────────────── */
+
+/* One entry of the sprite-register table.  All fields below carry
+ * straight through to ar_sprite_slot_register; idx is the pool index
+ * (= (retail_BSS_addr - 0x008a7640) / 4). */
+struct ar_main_sprite_entry {
+    uint8_t   idx;
+    uint16_t  id;
+    uint32_t  width;
+    uint32_t  height;
+    uint32_t  colorkey;
+    uint8_t   scale_flag;
+    uint8_t   type;
+};
+
+void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
+                              void *sotesp_module)
+{
+    /* The 9 inline sprite-slot registers from retail.  Retail writes
+     * them in a shuffled order (idx 5 lands after idx 8 in source —
+     * see FUN_005749b0 0x574d78), but each register is independent so
+     * the iteration order has no observable effect.  We list by
+     * ascending index. */
+    static const struct ar_main_sprite_entry inline_slots[] = {
+        { 1, 0x49f, 0xe0,  0xe0,  0,         1, 2 },
+        { 2, 0x448, 0x98,  0x28,  0,         1, 2 },
+        { 3, 0x4a2, 0x90,  0x6c,  0,         1, 2 },
+        { 4, 0x49d, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 5, 0x913, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 6, 0x91b, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 7, 0x91c, 0xa0,  0x20,  0x1ffffff, 1, 0 },
+        { 8, 0x91d, 0x20,  0x20,  0,         1, 2 },
+        { 9, 0x8df, 0x170, 0x114, 0x1ffffff, 1, 0 },
+    };
+    for (size_t i = 0; i < sizeof(inline_slots) / sizeof(inline_slots[0]); i++) {
+        const struct ar_main_sprite_entry *e = &inline_slots[i];
+        ar_sprite_slot_register(&g_ar_sprite_slots[e->idx],
+            zdd, settings, e->id,
+            e->width, e->height, e->colorkey,
+            e->scale_flag, e->type, group);
+    }
+
+    /* Transient slot at idx 0 (DAT_008a7640): id=0x90b loaded from
+     * sotesp.dll instead of the launcher settings record.  Note
+     * `sotesp_module` takes the `settings` parameter slot — the same
+     * +0x3c field — which the resource decoder dereferences as the
+     * source HMODULE.  Retail's `FUN_005748c0(zdd, DAT_008a6e74,
+     * 0x90b, 0x20, 0x20, 0, 0, 2, group)` at 0x574e1b — the implicit
+     * ECX is `DAT_008a7640` (the slot pointer for idx 0). */
+    ar_sprite_slot_register(&g_ar_sprite_slots[0],
+        zdd, sotesp_module, /*resource_id=*/0x90b,
+        /*width=*/0x20, /*height=*/0x20,
+        /*colorkey=*/0,
+        /*scale_flag=*/0,
+        /*type=*/2,
+        group);
+
+    /* Palette ramp section — NOT PORTED (see header docstring).  Retail
+     * builds a palette session here that targets the same slot at
+     * idx 0 and installs it via FUN_00491770.  Skipped until the
+     * palette-session trio + PE-resource decoder land. */
+
+    /* 24 trailing FUN_005748c0 calls.  The first 20 hit indices 10..29
+     * (contiguous in the retail BSS pointer table); the last 4 are
+     * stragglers at non-contiguous indices.  All use `settings` from
+     * the caller (not sotesp_module). */
+    static const struct ar_main_sprite_entry trailing_calls[] = {
+        /* idx 10..29: panels + full-screen backgrounds */
+        { 10, 0x8e0, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 11, 0x8e1, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 12, 0x8e2, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 13, 0x8e3, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 14, 0x8e4, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 15, 0x8e5, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 16, 0x90e, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 17, 0x8de, 0x190, 0xa0,  0x1ffffff, 1, 0 },
+        { 18, 0x919, 0x150, 0x50,  0x1ffffff, 1, 0 },
+        { 19, 0x712, 0x160, 0xb0,  0x1ffffff, 1, 0 },
+        { 20, 0x6f8, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 21, 0x6f9, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 22, 0x715, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 23, 0x77f, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 24, 0x714, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 25, 0x7d9, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 26, 0x7a4, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 27, 0x7d8, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 28, 0x90c, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 29, 0x90d, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        /* stragglers: small icon registers */
+        { 50, 0x456, 0x20,  0x20,  0,         0, 2 },  /* DAT_008a7708 */
+        { 46, 0x453, 0x40,  0x40,  0,         0, 2 },  /* DAT_008a76f8 */
+        { 47, 0x660, 0xa0,  0x20,  0,         0, 2 },  /* DAT_008a76fc */
+        { 55, 0x6fa, 0x20,  0x20,  0,         0, 2 },  /* DAT_008a771c */
+    };
+    for (size_t i = 0; i < sizeof(trailing_calls) / sizeof(trailing_calls[0]); i++) {
+        const struct ar_main_sprite_entry *e = &trailing_calls[i];
+        ar_sprite_slot_register(&g_ar_sprite_slots[e->idx],
+            zdd, settings, e->id,
+            e->width, e->height, e->colorkey,
+            e->scale_flag, e->type, group);
+    }
 }

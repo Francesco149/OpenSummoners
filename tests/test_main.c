@@ -89,6 +89,12 @@ struct test_case {
     X(sound_slot_init_clears_state)                            \
     X(register_sounds_all_ids_and_kinds)                       \
     X(register_sounds_buffer_pointer_preserved)                \
+    X(main_sprites_inline_slots_field_map)                     \
+    X(main_sprites_transient_idx0_uses_sotesp_module)          \
+    X(main_sprites_trailing_ids_in_index_order)                \
+    X(main_sprites_untouched_indices_stay_zero)                \
+    X(main_sprites_total_slot_count)                           \
+    X(main_sprites_coexists_with_register_fonts)               \
     X(ar_layout_matches_retail)                                \
 
 #define X(n) extern int test_##n(void);

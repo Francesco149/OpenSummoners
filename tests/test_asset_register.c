@@ -632,29 +632,29 @@ int test_register_fonts_sprite_slots(void)
     ar_register_fonts(zdd, /*group=*/0xabcd, settings);
 
     /* sprite[0]: id 0x457, 32×32, scale=0. */
-    T_ASSERT_EQ_P(g_ar_sprite_slots[0].zdd, zdd);
-    T_ASSERT_EQ_P(g_ar_sprite_slots[0].settings, settings);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].resource_id, 0x457u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].width, 0x20u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].height, 0x20u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].colorkey, 0u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].scale_flag, 0u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].type, 2u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].group, 0xabcdu);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].entry_count, 1u);
-    T_ASSERT(g_ar_sprite_slots[0].entries != NULL);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[0].entries[0].a, 0u);
-    T_ASSERT_EQ_P(g_ar_sprite_slots[0].entries[0].b, NULL);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].zdd, zdd);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].settings, settings);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].resource_id, 0x457u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].width, 0x20u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].height, 0x20u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].colorkey, 0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].scale_flag, 0u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].type, 2u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].group, 0xabcdu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entry_count, 1u);
+    T_ASSERT(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries != NULL);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries[0].a, 0u);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries[0].b, NULL);
 
     /* sprite[1]: id 0x455, 32×48, scale=1. */
-    T_ASSERT_EQ_U(g_ar_sprite_slots[1].resource_id, 0x455u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[1].height, 0x30u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[1].scale_flag, 1u);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0xabcdu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_455].resource_id, 0x455u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_455].height, 0x30u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_455].scale_flag, 1u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_455].group, 0xabcdu);
 
     /* Clean up to keep ASan happy across test runs. */
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[0]);
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[1]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_457]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_455]);
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++)
         ar_gdi_slot_destroy(g_ar_gdi_table[i]);
     return 0;
@@ -715,8 +715,8 @@ int test_register_fonts_gdi_indices(void)
     T_ASSERT_EQ_I(stub_count_kind(STUB_BRUSH), 1);
 
     /* Cleanup */
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[0]);
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[1]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_457]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_455]);
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++)
         ar_gdi_slot_destroy(g_ar_gdi_table[i]);
     return 0;
@@ -742,8 +742,8 @@ int test_register_fonts_dimensions_in_call_order(void)
     }
 
     /* Cleanup */
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[0]);
-    ar_sprite_slot_destroy(&g_ar_sprite_slots[1]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_457]);
+    ar_sprite_slot_destroy(&g_ar_sprite_slots[AR_SPR_FONT_TEX_455]);
     for (int i = 0; i < AR_GDI_SLOT_COUNT; i++)
         ar_gdi_slot_destroy(g_ar_gdi_table[i]);
     return 0;
@@ -830,6 +830,218 @@ int test_register_sounds_buffer_pointer_preserved(void)
     ar_register_sounds(NULL, 0, NULL);
 
     T_ASSERT_EQ_P(g_ar_sound_table[5]->buffer, (void *)0xc0ffee);
+    return 0;
+}
+
+/* ─── ar_register_main_sprites (FUN_005749b0) ────────────────────── */
+
+/* Helper: tear down all sprite slots after a driver test so ASan stays
+ * happy across runs. */
+static void destroy_all_sprite_slots(void)
+{
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    }
+}
+
+int test_main_sprites_inline_slots_field_map(void)
+{
+    /* The 9 inline slots — verify every (id, w, h, ck, scale, type) tuple
+     * matches retail.  These pin the asset-bank semantics: the title
+     * scene scans these IDs into sotesd.dll resource lookups, so a
+     * mismatch would route the wrong sprite to the wrong on-screen
+     * slot. */
+    ar_state_init();
+    void *zdd = (void *)0x1111;
+    void *settings = (void *)0x2222;
+    ar_register_main_sprites(zdd, /*group=*/0x4, settings,
+                             /*sotesp_module=*/(void *)0x3333);
+
+    struct exp { int idx; uint16_t id; uint32_t w; uint32_t h;
+                 uint32_t ck; uint32_t scale; uint32_t type; };
+    static const struct exp inline_expected[] = {
+        { 1, 0x49f, 0xe0,  0xe0,  0,         1, 2 },
+        { 2, 0x448, 0x98,  0x28,  0,         1, 2 },
+        { 3, 0x4a2, 0x90,  0x6c,  0,         1, 2 },
+        { 4, 0x49d, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 5, 0x913, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 6, 0x91b, 0x280, 0x1e0, 0x1ffffff, 1, 0 },
+        { 7, 0x91c, 0xa0,  0x20,  0x1ffffff, 1, 0 },
+        { 8, 0x91d, 0x20,  0x20,  0,         1, 2 },
+        { 9, 0x8df, 0x170, 0x114, 0x1ffffff, 1, 0 },
+    };
+    for (size_t i = 0; i < sizeof(inline_expected) / sizeof(inline_expected[0]); i++) {
+        const struct exp *e = &inline_expected[i];
+        const ar_sprite_slot *s = &g_ar_sprite_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("slot[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        if (s->width != e->w || s->height != e->h)
+            T_FAIL("slot[%d] %ux%u, want %ux%u",
+                   e->idx, (unsigned)s->width, (unsigned)s->height,
+                   (unsigned)e->w, (unsigned)e->h);
+        T_ASSERT_EQ_U(s->colorkey, e->ck);
+        T_ASSERT_EQ_U(s->scale_flag, e->scale);
+        T_ASSERT_EQ_U(s->type, e->type);
+        T_ASSERT_EQ_U(s->group, 0x4u);
+        T_ASSERT_EQ_P(s->zdd, zdd);
+        T_ASSERT_EQ_P(s->settings, settings);
+        T_ASSERT_EQ_U(s->entry_count, 1u);
+        T_ASSERT(s->entries != NULL);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_main_sprites_transient_idx0_uses_sotesp_module(void)
+{
+    /* idx 0 (DAT_008a7640) — id 0x90b loaded from sotesp.dll.  The
+     * settings field must be the sotesp_module pointer, NOT the
+     * launcher settings record.  This is the only slot in the driver
+     * whose settings pointer diverges; if it slips into using
+     * `settings` the engine would query the wrong companion DLL for
+     * this font texture. */
+    ar_state_init();
+    void *zdd = (void *)0xaaaa;
+    void *settings = (void *)0xbbbb;
+    void *sotesp = (void *)0xcccc;
+    ar_register_main_sprites(zdd, /*group=*/0x7, settings, sotesp);
+
+    const ar_sprite_slot *s = &g_ar_sprite_slots[0];
+    T_ASSERT_EQ_U(s->resource_id, 0x90bu);
+    T_ASSERT_EQ_U(s->width, 0x20u);
+    T_ASSERT_EQ_U(s->height, 0x20u);
+    T_ASSERT_EQ_U(s->colorkey, 0u);
+    T_ASSERT_EQ_U(s->scale_flag, 0u);
+    T_ASSERT_EQ_U(s->type, 2u);
+    T_ASSERT_EQ_U(s->group, 0x7u);
+    T_ASSERT_EQ_P(s->zdd, zdd);
+    T_ASSERT_EQ_P(s->settings, sotesp);              /* not `settings`! */
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_main_sprites_trailing_ids_in_index_order(void)
+{
+    /* The 24 trailing FUN_005748c0 calls — verify the (idx, id) map.
+     * 20 contiguous at idx 10..29, then 4 stragglers at 46, 47, 50, 55.
+     * The straggler-index gap reflects retail's non-contiguous BSS
+     * layout for those calls. */
+    ar_state_init();
+    ar_register_main_sprites((void *)0x1, /*group=*/0x9, (void *)0x2,
+                             /*sotesp=*/(void *)0x3);
+
+    /* (idx, id, w, h, ck, scale, type) — matches asset_register.c
+     * trailing_calls table.  Out-of-order so the slot/index association
+     * gets pinned independently of any iteration-order assumption. */
+    struct exp { int idx; uint16_t id; uint32_t w; uint32_t h;
+                 uint32_t ck; uint32_t scale; uint32_t type; };
+    static const struct exp trailing_expected[] = {
+        { 10, 0x8e0, 0x170, 0x114, 0x1ffffff, 1, 0 },
+        { 17, 0x8de, 0x190, 0xa0,  0x1ffffff, 1, 0 },
+        { 19, 0x712, 0x160, 0xb0,  0x1ffffff, 1, 0 },
+        { 20, 0x6f8, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 29, 0x90d, 0x280, 0x1e0, 0x1ffffff, 0, 0 },
+        { 46, 0x453, 0x40,  0x40,  0,         0, 2 },
+        { 47, 0x660, 0xa0,  0x20,  0,         0, 2 },
+        { 50, 0x456, 0x20,  0x20,  0,         0, 2 },
+        { 55, 0x6fa, 0x20,  0x20,  0,         0, 2 },
+    };
+    for (size_t i = 0; i < sizeof(trailing_expected) / sizeof(trailing_expected[0]); i++) {
+        const struct exp *e = &trailing_expected[i];
+        const ar_sprite_slot *s = &g_ar_sprite_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("slot[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        T_ASSERT_EQ_U(s->width, e->w);
+        T_ASSERT_EQ_U(s->height, e->h);
+        T_ASSERT_EQ_U(s->colorkey, e->ck);
+        T_ASSERT_EQ_U(s->scale_flag, e->scale);
+        T_ASSERT_EQ_U(s->type, e->type);
+        T_ASSERT_EQ_U(s->group, 0x9u);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_main_sprites_untouched_indices_stay_zero(void)
+{
+    /* The driver fills slots at 0..29 + {46, 47, 50, 55}.  Slots at
+     * other indices in the pool (e.g. 30..45, 48, 49) must remain
+     * zero-initialised — proves the driver isn't sweeping the whole
+     * table.  Also leaves room for FUN_00579bd0 to populate 42/43 in
+     * a later run without conflict. */
+    ar_state_init();
+    ar_register_main_sprites(NULL, 0, NULL, NULL);
+
+    for (int i = 30; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (i == 46 || i == 47 || i == 50 || i == 55) continue;
+        const ar_sprite_slot *s = &g_ar_sprite_slots[i];
+        if (s->entries != NULL)
+            T_FAIL("slot[%d] entries populated unexpectedly", i);
+        T_ASSERT_EQ_U(s->resource_id, 0u);
+        T_ASSERT_EQ_U(s->group, 0u);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_main_sprites_total_slot_count(void)
+{
+    /* Spot-check: exactly 34 slots get an entries allocation
+     * (10 inline + 24 trailing).  Detects accidental drift if a slot
+     * is added or removed from the driver. */
+    ar_state_init();
+    ar_register_main_sprites((void *)0x1, 0x1, (void *)0x2, (void *)0x3);
+
+    int populated = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries != NULL) populated++;
+    }
+    T_ASSERT_EQ_I(populated, 34);
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_main_sprites_coexists_with_register_fonts(void)
+{
+    /* FUN_00579bd0 writes idx 42/43; FUN_005749b0 writes 0..29 + 4
+     * stragglers (46, 47, 50, 55).  Running both in either order must
+     * leave the union populated correctly with no clobbering.  Order
+     * tested: main first, then fonts. */
+    ar_state_init();
+    void *zdd = (void *)0x100;
+    void *settings = (void *)0x200;
+    ar_register_main_sprites(zdd, /*group=*/0x4, settings,
+                             /*sotesp=*/(void *)0x300);
+    ar_register_fonts(zdd, /*group=*/0x1, settings);
+
+    /* Main-sprite slots survived. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].resource_id, 0x49fu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0x4u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[20].resource_id, 0x6f8u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[55].resource_id, 0x6fau);
+
+    /* Font-texture slots present at the named indices. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].resource_id, 0x457u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_455].resource_id, 0x455u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].group, 0x1u);
+
+    /* Run main again — re-registers free old entries (ASan would
+     * surface any double-free or leak) and overwrite fresh. */
+    ar_register_main_sprites(zdd, /*group=*/0x5, settings, (void *)0x300);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0x5u);
+    /* Font slots still intact — main doesn't touch them. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].resource_id, 0x457u);
+
+    destroy_all_sprite_slots();
+    for (int i = 0; i < AR_GDI_SLOT_COUNT; i++)
+        ar_gdi_slot_destroy(g_ar_gdi_table[i]);
     return 0;
 }
 
