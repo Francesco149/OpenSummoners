@@ -341,3 +341,113 @@ void pd_blend_set_color(PdBlend *b,
     b->g.weight = g;
     b->b.weight = b_chan;
 }
+
+/* ─── Boot-time slot tables (FUN_00562ea0:462-576) ────────────────────── */
+
+PdBlend g_pd_boot_group_a[PD_BOOT_GROUP_A_COUNT];
+PdBlend g_pd_boot_group_b[PD_BOOT_GROUP_B_COUNT];
+PdBlend g_pd_boot_group_c[PD_BOOT_GROUP_C_COUNT];
+PdBlend g_pd_boot_group_d[PD_BOOT_GROUP_D_COUNT];
+PdBlend g_pd_boot_group_e[PD_BOOT_GROUP_E_COUNT];
+
+void pd_boot_init_slots(const PdFormat *fmt)
+{
+    /* Re-runnable cleanup.  The retail engine `operator_new`s a fresh
+     * slot every boot pass, but our static storage carries LUT pointers
+     * across calls.  pd_blend_init overwrites those pointers without
+     * freeing (it can't tell garbage from a live LUT) — so we explicitly
+     * release before re-init.  No-op on the first call (zero-initialized
+     * BSS makes pd_channel_free_lut see lut_allocated == 0 everywhere). */
+    pd_boot_release_slots();
+
+    /* Group A — 20 slots, weight ramp /20, mode=1.  Retail:
+     *   piVar17 = &DAT_008a92b8;  iVar20 = 1000;  iVar11 = 20;
+     *   do { ctor; *0x40 = (short)(iVar20/20); *0x44 = 1; commit;
+     *        iVar20 += 1000; … } while (--iVar11); */
+    for (int i = 0; i < PD_BOOT_GROUP_A_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_a[i];
+        pd_blend_init(s);
+        s->weight = (uint16_t)((1000 * (i + 1)) / 20);   /* 50, 100, …, 1000 */
+        s->mode   = 1;
+        pd_blend_commit(s, fmt);
+    }
+
+    /* Group B — 20 slots, weight ramp /22, mode left at 0. */
+    for (int i = 0; i < PD_BOOT_GROUP_B_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_b[i];
+        pd_blend_init(s);
+        s->weight = (uint16_t)((1000 * (i + 1)) / 22);   /* 45, 90, …, 909 */
+        pd_blend_commit(s, fmt);
+    }
+
+    /* Group C — 5 grey-ramp slots, mode left at 0, slot weight left at
+     * 1000.  Each slot gets a per-channel weight of c = 0x44c + iVar20/5,
+     * with iVar20 walking 0, 800, 1600, 2400, 3200.  All three channels
+     * get the same `c` (R=G=B for a neutral grey-ramp tint). */
+    for (int i = 0; i < PD_BOOT_GROUP_C_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_c[i];
+        pd_blend_init(s);
+        uint16_t c = (uint16_t)(0x44c + (800 * i) / 5);  /* 1100, 1260, …, 1740 */
+        pd_blend_set_color(s, c, c, c);
+        pd_blend_commit(s, fmt);
+    }
+
+    /* Group D — 4 slots: loop just constructs (no per-loop SetColor/commit).
+     * The 4 special-colour writes below fill them in (verified via radare2
+     * at FUN_00562ea0:0x005637f1-0x005638b6 — see header comment). */
+    for (int i = 0; i < PD_BOOT_GROUP_D_COUNT; i++) {
+        pd_blend_init(&g_pd_boot_group_d[i]);
+    }
+
+    /* Special D[0]: SetColor(600, 600, 600); commit. */
+    pd_blend_set_color(&g_pd_boot_group_d[0], 600, 600, 600);
+    pd_blend_commit(&g_pd_boot_group_d[0], fmt);
+
+    /* Special D[1]: SetColor(1000, 600, 600); commit. */
+    pd_blend_set_color(&g_pd_boot_group_d[1], 1000, 600, 600);
+    pd_blend_commit(&g_pd_boot_group_d[1], fmt);
+
+    /* Special D[3]: commit_flag=1; SetColor(1000, 1800, 2000); commit.
+     * Note retail order: D[3] is touched *before* D[2]. */
+    g_pd_boot_group_d[3].commit_flag = 1;
+    pd_blend_set_color(&g_pd_boot_group_d[3], 1000, 1800, 2000);
+    pd_blend_commit(&g_pd_boot_group_d[3], fmt);
+
+    /* Special D[2]: commit_flag=1; SetColor(900, 920, 930); commit. */
+    g_pd_boot_group_d[2].commit_flag = 1;
+    pd_blend_set_color(&g_pd_boot_group_d[2], 900, 920, 930);
+    pd_blend_commit(&g_pd_boot_group_d[2], fmt);
+
+    /* Group E — 20 slots, weight ramp /20, mode=2.  Same shape as group
+     * A but with mode 2 (subtract-blend) instead of mode 1 (add-blend). */
+    for (int i = 0; i < PD_BOOT_GROUP_E_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_e[i];
+        pd_blend_init(s);
+        s->weight = (uint16_t)((1000 * (i + 1)) / 20);
+        s->mode   = 2;
+        pd_blend_commit(s, fmt);
+    }
+}
+
+void pd_boot_release_slots(void)
+{
+    PdBlend *groups[] = {
+        g_pd_boot_group_a, g_pd_boot_group_b, g_pd_boot_group_c,
+        g_pd_boot_group_d, g_pd_boot_group_e,
+    };
+    const int counts[] = {
+        PD_BOOT_GROUP_A_COUNT, PD_BOOT_GROUP_B_COUNT, PD_BOOT_GROUP_C_COUNT,
+        PD_BOOT_GROUP_D_COUNT, PD_BOOT_GROUP_E_COUNT,
+    };
+    for (size_t g = 0; g < sizeof(groups) / sizeof(groups[0]); g++) {
+        for (int i = 0; i < counts[g]; i++) {
+            PdBlend *s = &groups[g][i];
+            /* B may alias R via the shared-LUT short-circuit; G never does.
+             * Free B first (no-op when aliased: lut_allocated stays 0),
+             * then R (the owner), then G. */
+            pd_channel_free_lut(&s->b);
+            pd_channel_free_lut(&s->r);
+            pd_channel_free_lut(&s->g);
+        }
+    }
+}

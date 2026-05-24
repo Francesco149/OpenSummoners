@@ -56,6 +56,14 @@ struct test_case {
     X(pd_commit_nondefault_mode_state_1)                       \
     X(pd_commit_idempotent_frees_old_luts)                     \
     X(pd_commit_b_uses_r_as_prev_not_g)                        \
+    X(pd_boot_group_a_weight_ramp_and_mode)                    \
+    X(pd_boot_group_b_weight_ramp_div_22)                      \
+    X(pd_boot_group_c_grey_ramp)                               \
+    X(pd_boot_group_d_special_colours)                         \
+    X(pd_boot_group_e_weight_ramp_and_mode)                    \
+    X(pd_boot_all_slots_committed_against_fmt)                 \
+    X(pd_boot_custom_fmt_propagates)                           \
+    X(pd_boot_init_is_idempotent)                              \
     X(ar_xfree_null_safe)                                      \
     X(ar_color_lerp_endpoints)                                 \
     X(ar_color_lerp_midpoint)                                  \

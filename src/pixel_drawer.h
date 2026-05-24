@@ -132,8 +132,11 @@ void pd_channel_free_lut(PdChannel *c);
  * `winmain-and-bootstrap.md` Pixel Drawer slot-tables). */
 void pd_blend_init(PdBlend *b);
 
-/* FUN_005bd3b0.  Set the per-channel weights (0..1000 each).  Does NOT
- * encode/allocate LUTs — that's a separate commit step (TBD). */
+/* FUN_005bd3b0.  Set the per-channel weights.  Does NOT encode/allocate
+ * LUTs — that's a separate commit step.  Most slots stay in [0..1000]
+ * but the boot-time "grey-ramp" and "special-color" slots deliberately
+ * use values up to ~2000 to produce over-bright tints — the field is a
+ * u16 specifically to allow this. */
 void pd_blend_set_color(PdBlend *b, uint16_t r, uint16_t g, uint16_t b_chan);
 
 /* PdFormat — the three RGB bitmasks the commit needs from the active
@@ -179,6 +182,74 @@ void pd_blend_commit(PdBlend *slot, const PdFormat *fmt);
  * verbatim. */
 void pd_format_get_masks(const PdFormat *fmt,
                          uint32_t *r_out, uint32_t *g_out, uint32_t *b_out);
+
+/* ─── Boot-time slot tables (FUN_00562ea0:462-576) ──────────────────────
+ *
+ * Five fixed-size slot groups (20 + 20 + 5 + 4 + 20 = 69 slots) plus
+ * four special-colour writes into the 4-slot group D.  The retail
+ * driver allocates 69 zero-initialized 0x50-byte slot objects via
+ * `operator_new(0x50)` and stores pointers in five global arrays:
+ *
+ *   group  retail addr   count   per-slot fields set in the loop
+ *   ──────────────────────────────────────────────────────────────────────
+ *   A      DAT_008a92b8  20      weight = iVar20/20,  mode = 1
+ *   B      DAT_008a9308  20      weight = iVar20/22 (mode untouched, = 0)
+ *   C      DAT_008a9358   5      set_color(c,c,c) with c = 0x44c + iVar20/5
+ *   D      DAT_008a93bc   4      none in loop; filled by 4 special writes
+ *   E      DAT_008a936c  20      weight = iVar20/20,  mode = 2
+ *
+ * `iVar20` in groups A/B/E walks 1000, 2000, …, 20000.  In group C it
+ * walks 0, 800, 1600, 2400, 3200 (so c = 1100, 1260, 1420, 1580, 1740).
+ *
+ * The four special-colour writes (FUN_00562ea0:0x5637f1-0x5638b6,
+ * disassembly-verified — Ghidra's source view omits the explicit
+ * `mov ecx, [addr]` before each thiscall, so the target slot of each
+ * pair is ambiguous from the decomp alone):
+ *
+ *   target   commit_flag  set_color args
+ *   ───────────────────────────────────────────────
+ *   D[0]     (stays 0)    ( 600,  600,  600)
+ *   D[1]     (stays 0)    (1000,  600,  600)
+ *   D[3]     ← 1          (1000, 1800, 2000)
+ *   D[2]     ← 1          ( 900,  920,  930)
+ *
+ * Each slot then gets pd_blend_commit invoked with the active surface
+ * format (the retail `ZDD` ptr at DAT_008a93cc).
+ *
+ * For the port we use *static* PdBlend arrays rather than heap allocations:
+ * the retail engine never frees these (process-lifetime), and static
+ * storage keeps the host tests deterministic and ASan-quiet across
+ * repeated runs of the boot driver.  If a future consumer ever needs
+ * pointer arrays matching the retail BSS layout, expose a parallel
+ * `PdBlend *g_pd_boot_*_ptrs[]` view then. */
+
+enum {
+    PD_BOOT_GROUP_A_COUNT = 20,
+    PD_BOOT_GROUP_B_COUNT = 20,
+    PD_BOOT_GROUP_C_COUNT = 5,
+    PD_BOOT_GROUP_D_COUNT = 4,
+    PD_BOOT_GROUP_E_COUNT = 20,
+};
+
+extern PdBlend g_pd_boot_group_a[PD_BOOT_GROUP_A_COUNT];   /* DAT_008a92b8 */
+extern PdBlend g_pd_boot_group_b[PD_BOOT_GROUP_B_COUNT];   /* DAT_008a9308 */
+extern PdBlend g_pd_boot_group_c[PD_BOOT_GROUP_C_COUNT];   /* DAT_008a9358 */
+extern PdBlend g_pd_boot_group_d[PD_BOOT_GROUP_D_COUNT];   /* DAT_008a93bc */
+extern PdBlend g_pd_boot_group_e[PD_BOOT_GROUP_E_COUNT];   /* DAT_008a936c */
+
+/* Allocate-and-commit every boot slot in the five groups.  Re-runnable:
+ * each call drops any LUTs left over from a previous run (pd_blend_commit
+ * does this internally) and re-encodes against the current `fmt`.
+ *
+ * `fmt` is the active DDraw surface format, or NULL to use the engine's
+ * RGB565 defaults (same convention as pd_blend_commit). */
+void pd_boot_init_slots(const PdFormat *fmt);
+
+/* Free every LUT currently held by the boot slots.  The retail engine
+ * leaves these allocated for the process lifetime (the OS reclaims at
+ * exit), so the real drop-in does not need to call this — it exists
+ * purely so host-side ASan/unit tests can release after each run. */
+void pd_boot_release_slots(void);
 
 /* FUN_005bd040.  Build (or share) the channel's LUT.
  *

@@ -1,15 +1,15 @@
 /*
  * tests/test_pixel_drawer.c — unit tests for src/pixel_drawer.c.
  *
- * Covers the five leaf primitives ported in the first Pixel-Drawer pass:
+ * Covers the leaf primitives + LUT builder + commit + boot driver:
  *   pd_channel_mask_to_shift    (FUN_005bd380)
  *   pd_channel_init             (FUN_005bd020)
  *   pd_channel_free_lut         (FUN_005bcff0)
  *   pd_blend_init               (FUN_005bd4d0)
  *   pd_blend_set_color          (FUN_005bd3b0)
- *
- * The LUT builder (FUN_005bd040) and the commit (FUN_005bd3d0) are not
- * yet ported and hence not yet tested.
+ *   pd_blend_build_channel_lut  (FUN_005bd040)
+ *   pd_blend_commit             (FUN_005bd3d0)
+ *   pd_boot_init_slots          (FUN_00562ea0:462-576)
  */
 #include "t.h"
 #include "pixel_drawer.h"
@@ -602,6 +602,198 @@ int test_pd_commit_b_uses_r_as_prev_not_g(void)
     pd_channel_free_lut(&b.r);
     pd_channel_free_lut(&b.g);
     pd_channel_free_lut(&b.b);
+    return 0;
+}
+
+
+/* ─── boot-time slot tables (pd_boot_init_slots) ───────────────────── */
+
+/* Group A: 20 slots, weight = (i+1)*50, mode = 1 (state = 1 forced
+ * because mode != 0).  Per-channel weights stay at the init default
+ * 1000 (no SetColor in this group). */
+int test_pd_boot_group_a_weight_ramp_and_mode(void)
+{
+    pd_boot_init_slots(NULL);
+
+    for (int i = 0; i < PD_BOOT_GROUP_A_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_a[i];
+        T_ASSERT_EQ_U(s->weight, (uint16_t)((i + 1) * 50));
+        T_ASSERT_EQ_U(s->mode,   1);
+        T_ASSERT_EQ_U(s->state,  1);    /* weight != 1000 OR mode != 0 */
+        T_ASSERT_EQ_U(s->r.weight, 1000);
+        T_ASSERT_EQ_U(s->g.weight, 1000);
+        T_ASSERT_EQ_U(s->b.weight, 1000);
+    }
+    /* Spot-check the endpoints to catch off-by-one in the ramp. */
+    T_ASSERT_EQ_U(g_pd_boot_group_a[0].weight,  50);
+    T_ASSERT_EQ_U(g_pd_boot_group_a[19].weight, 1000);
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Group B: 20 slots, weight = (i+1)*1000/22 (truncated), mode = 0.
+ * Since weight != 1000 (max is 909), state is 1. */
+int test_pd_boot_group_b_weight_ramp_div_22(void)
+{
+    pd_boot_init_slots(NULL);
+
+    /* Hand-computed reference: floor(1000*(i+1)/22) for i=0..19. */
+    static const uint16_t expected[20] = {
+        45,  90, 136, 181, 227, 272, 318, 363, 409, 454,
+       500, 545, 590, 636, 681, 727, 772, 818, 863, 909,
+    };
+    for (int i = 0; i < PD_BOOT_GROUP_B_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_b[i];
+        T_ASSERT_EQ_U(s->weight, expected[i]);
+        T_ASSERT_EQ_U(s->mode,   0);
+        T_ASSERT_EQ_U(s->state,  1);
+    }
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Group C: 5 grey-ramp slots.  Per-channel R=G=B=c where
+ * c = 0x44c + (800*i)/5 = 1100, 1260, 1420, 1580, 1740.  Slot weight
+ * stays 1000 and mode stays 0 → state == 0 (identity branch). */
+int test_pd_boot_group_c_grey_ramp(void)
+{
+    pd_boot_init_slots(NULL);
+
+    static const uint16_t expected_c[5] = { 1100, 1260, 1420, 1580, 1740 };
+    for (int i = 0; i < PD_BOOT_GROUP_C_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_c[i];
+        T_ASSERT_EQ_U(s->r.weight, expected_c[i]);
+        T_ASSERT_EQ_U(s->g.weight, expected_c[i]);
+        T_ASSERT_EQ_U(s->b.weight, expected_c[i]);
+        T_ASSERT_EQ_U(s->weight, 1000);
+        T_ASSERT_EQ_U(s->mode,   0);
+        T_ASSERT_EQ_U(s->state,  0);    /* identity */
+    }
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Group D: 4 slots filled by the 4 special-colour writes.  Targets and
+ * commit_flag pattern verified from radare2 disasm at
+ *   D[0] ← (600, 600, 600), commit_flag = 0  (state = 0 identity)
+ *   D[1] ← (1000, 600, 600), commit_flag = 0  (state = 0 identity)
+ *   D[2] ← (900, 920, 930),  commit_flag = 1  (state = 2 forced)
+ *   D[3] ← (1000, 1800, 2000), commit_flag = 1  (state = 2 forced) */
+int test_pd_boot_group_d_special_colours(void)
+{
+    pd_boot_init_slots(NULL);
+
+    T_ASSERT_EQ_U(g_pd_boot_group_d[0].r.weight, 600);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[0].g.weight, 600);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[0].b.weight, 600);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[0].commit_flag, 0);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[0].state, 0);
+
+    T_ASSERT_EQ_U(g_pd_boot_group_d[1].r.weight, 1000);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[1].g.weight, 600);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[1].b.weight, 600);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[1].commit_flag, 0);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[1].state, 0);
+
+    T_ASSERT_EQ_U(g_pd_boot_group_d[2].r.weight, 900);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[2].g.weight, 920);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[2].b.weight, 930);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[2].commit_flag, 1);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[2].state, 2);
+
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].r.weight, 1000);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].g.weight, 1800);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].b.weight, 2000);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].commit_flag, 1);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].state, 2);
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Group E: same shape as group A but mode = 2 (the "subtract-blend"
+ * group). */
+int test_pd_boot_group_e_weight_ramp_and_mode(void)
+{
+    pd_boot_init_slots(NULL);
+
+    for (int i = 0; i < PD_BOOT_GROUP_E_COUNT; i++) {
+        PdBlend *s = &g_pd_boot_group_e[i];
+        T_ASSERT_EQ_U(s->weight, (uint16_t)((i + 1) * 50));
+        T_ASSERT_EQ_U(s->mode,   2);
+        T_ASSERT_EQ_U(s->state,  1);
+    }
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Every committed slot must have all three channel masks populated from
+ * the surface format passed to pd_boot_init_slots.  With fmt = NULL, the
+ * RGB565 defaults (0xF800 / 0x07E0 / 0x001F) propagate through every
+ * slot's R/G/B mask field. */
+int test_pd_boot_all_slots_committed_against_fmt(void)
+{
+    pd_boot_init_slots(NULL);
+
+#define CHECK(arr, n) \
+    for (int i = 0; i < (n); i++) {                                   \
+        T_ASSERT_EQ_U((arr)[i].r.mask, 0xF800);                       \
+        T_ASSERT_EQ_U((arr)[i].g.mask, 0x07E0);                       \
+        T_ASSERT_EQ_U((arr)[i].b.mask, 0x001F);                       \
+        T_ASSERT_EQ_I((arr)[i].r.shift, 11);                          \
+        T_ASSERT_EQ_I((arr)[i].g.shift, 6);                           \
+        T_ASSERT_EQ_I((arr)[i].b.shift, 0);                           \
+    }
+    CHECK(g_pd_boot_group_a, PD_BOOT_GROUP_A_COUNT);
+    CHECK(g_pd_boot_group_b, PD_BOOT_GROUP_B_COUNT);
+    CHECK(g_pd_boot_group_c, PD_BOOT_GROUP_C_COUNT);
+    CHECK(g_pd_boot_group_d, PD_BOOT_GROUP_D_COUNT);
+    CHECK(g_pd_boot_group_e, PD_BOOT_GROUP_E_COUNT);
+#undef CHECK
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Custom surface format (RGB555 R, custom G, custom B) propagates to
+ * every committed slot's channel masks.  Catches the "fmt was silently
+ * dropped" regression. */
+int test_pd_boot_custom_fmt_propagates(void)
+{
+    PdFormat fmt = { .r_mask = 0x7C00, .g_mask = 0x03E0, .b_mask = 0x001F };
+    pd_boot_init_slots(&fmt);
+
+    /* Spot-check one slot per group. */
+    T_ASSERT_EQ_U(g_pd_boot_group_a[0].r.mask,  0x7C00);
+    T_ASSERT_EQ_U(g_pd_boot_group_b[7].g.mask,  0x03E0);
+    T_ASSERT_EQ_U(g_pd_boot_group_c[2].b.mask,  0x001F);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].r.mask,  0x7C00);
+    T_ASSERT_EQ_U(g_pd_boot_group_e[19].b.mask, 0x001F);
+
+    /* And the shift derived from the custom mask: RGB555 R MSB at bit
+     * 14 → shift 10 (vs 11 for RGB565).  Pinning this catches a
+     * regression where commit forgets to re-encode the shifts. */
+    T_ASSERT_EQ_I(g_pd_boot_group_a[5].r.shift, 10);
+    T_ASSERT_EQ_I(g_pd_boot_group_a[5].g.shift, 5);
+    pd_boot_release_slots();
+    return 0;
+}
+
+/* Re-runnable: calling pd_boot_init_slots twice must leave the slots in
+ * the same state (no leaks from leftover LUTs, no duplicate state, no
+ * count creep).  ASan in the test build catches a use-after-free in
+ * the second commit if pd_blend_commit forgets to re-free old LUTs. */
+int test_pd_boot_init_is_idempotent(void)
+{
+    pd_boot_init_slots(NULL);
+    pd_boot_init_slots(NULL);   /* second run reuses static storage */
+
+    /* Sample one slot from each group to confirm contents survive. */
+    T_ASSERT_EQ_U(g_pd_boot_group_a[10].weight, 550);
+    T_ASSERT_EQ_U(g_pd_boot_group_a[10].mode,   1);
+    T_ASSERT_EQ_U(g_pd_boot_group_b[10].weight, 500);
+    T_ASSERT_EQ_U(g_pd_boot_group_c[2].r.weight, 1420);
+    T_ASSERT_EQ_U(g_pd_boot_group_d[3].r.weight, 1000);
+    T_ASSERT_EQ_U(g_pd_boot_group_e[10].mode,   2);
+    pd_boot_release_slots();
     return 0;
 }
 

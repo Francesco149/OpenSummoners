@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (FUN_0057ca40 FUNCTIONALLY COMPLETE)
+# Session handoff — last updated 2026-05-25 (Pixel-Drawer boot loops PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -13,7 +13,9 @@ ticks under `--turbo --hide-window`.  Phase 1 surface mapping and
 Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  **Four modules ported now:**
 
-- **Pixel-Drawer** — 7 functions, 31 host tests passing.
+- **Pixel-Drawer** — 8 functions including the boot driver (69 fixed
+  slots in 5 groups + 4 special-colour writes — see `winmain-and-
+  bootstrap.md` "Pixel Drawer slot tables"), 39 host tests passing.
 - **Asset-Register** — **31 functions ported including the boot-driver
   wiring**: `ar_boot_register_all` replays FUN_00562ea0:613-624 in
   retail issue order, plus the slot-register subset of FUN_0057ca40
@@ -36,8 +38,8 @@ methodical port-and-test.  **Four modules ported now:**
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
 
-Total host tests across all four modules: **192 pass, 0 fail, 4
-skip** (up from 187; the 4 skips are 32-bit-only layout asserts
+Total host tests across all four modules: **200 pass, 0 fail, 4
+skip** (up from 192; the 4 skips are 32-bit-only layout asserts
 that fire at compile time on the cross build).
 
 **Ghidra C++ recovery infrastructure** — Kaiju extension installed,
@@ -67,8 +69,9 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
-- `(prev)` Asset-Register: port FUN_0057ca40 5th pass — 94 SS_MGR slot-clones
+- (current) Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
+- `5377460` Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
+- `63e14bb` Asset-Register: port FUN_0057ca40 5th pass — 94 SS_MGR slot-clones
 - `ea08d2a` Asset-Register: port FUN_0057ca40 4th pass — 443 info-entry pool writes
 - `76db8f2` RE: recover PTR_DAT_0056bfa4 jumptable (title-menu phase dispatch)
 - `dfdb1cf` RE: FUN_0057ca40 tail memcpy loops are intra-pool info-entry copies
@@ -79,8 +82,6 @@ Most recent commits (newest first):
 - `efa18c5` tooling: automate Parse C Source headlessly in tag-and-export wrapper
 - `8a3629c` WndProc: correct paint_ctx — add +0x16c back_ctx pointer
 - `40dc757` WndProc: model 5 deep-engine struct shapes + tag thiscall deps
-- `edbaf19` Asset-Register: port FUN_0057ca40 slot-register subset (ar_register_group3_sprites)
-- `39d9602` Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
 
 ## Active goal
 
@@ -91,33 +92,38 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-With FUN_0057ca40 functionally complete, the asset-register batch
-side of the engine is now in port-and-test parity with retail.  The
-remaining gap to "title menu renders" is the **drawing path**.
+The asset-register batch side and the pixel-drawer slot bank are now
+both in port-and-test parity with retail.  Remaining gap to "title
+menu renders" is the **drawing path**.
 
 1. **(recommended) DDraw ZDD wrapper** (`FUN_005b7ee0`,
-   `FUN_005b88c0`, et al).  Can't be cleanly unit-tested without a
-   DDraw mock layer; verify via Frida smoke harness end-to-end.
-   Unblocks actual rendering AND lets the WndProc's `wp_paint_check`
-   hook get a real implementation.  Also unblocked by the paint_ctx
-   struct shape — the `+0x2c zdd_device` field connects this
-   directly to FUN_005b9130/_94e0/_9500.
+   `FUN_005b88c0`, et al).  Most functions are tiny (16-73 lines —
+   see `docs/findings/ddraw-init.md`).  Can't be cleanly unit-tested
+   without a DDraw mock layer; verify via Frida smoke harness end-
+   to-end.  Unblocks actual rendering AND lets the WndProc's
+   `wp_paint_check` hook get a real implementation.  Also unblocked
+   by the paint_ctx struct shape — the `+0x2c zdd_device` field
+   connects this directly to FUN_005b9130/_94e0/_9500.  Suggested
+   shape: `zdd.c` (pure logic: DDSURFACEDESC2 builder, color-key
+   sentinel) + `zdd_ddraw.c` (Win32-only DDraw API wrappers).
 
-2. **Wire ar_boot_register_all into the drop-in's WinMain.** —
-   currently every batch is a module in isolation; the function
-   exists but no real drop-in caller invokes it.  Wiring requires the
-   drop-in to own the engine init (currently retail does this).
-   Pre-req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0, FUN_005b9cf0,
-   FUN_005bbb10).  Without those, the call can run with stub pointers
-   but has no observable effect because the drop-in's drawing path is
-   still retail's.
+2. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
+   WinMain.** — currently every batch is a module in isolation; the
+   functions exist but no real drop-in caller invokes them.  Wiring
+   requires the drop-in to own the engine init (currently retail does
+   this).  Pre-req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0,
+   FUN_005b9cf0, FUN_005bbb10).  Without those, the calls can run with
+   stub pointers but have no observable effect because the drop-in's
+   drawing path is still retail's.
 
-3. **`FUN_00586010` palette-draw consumer** — first ported reader
-   of the `ar_info_entry` pool that our 4th-pass + clone passes are
-   populating.  Closes the "no consumer reads info-entry fields yet"
-   open thread; pins per-prefix flag semantics (the 0/1/2/3 dispatch)
-   from the consumer side.  Pre-req: pixel-drawer's blend LUT path
-   already covers most of what FUN_00586010 calls into.
+3. **`FUN_00586010` palette-draw consumer** — first ported reader of
+   the `ar_info_entry` pool.  Big function (1035 lines, 61 unique
+   FUN_ callees) — would be a multi-checkpoint port and most callees
+   are unported.  Closes the "no consumer reads info-entry fields
+   yet" open thread; pins per-prefix flag semantics (the 0/1/2/3
+   dispatch) from the consumer side.  Pre-req work would be cheaper
+   AFTER ZDD wrapper exists (so the surface format reads have a real
+   source).
 
 4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
@@ -129,7 +135,8 @@ remaining gap to "title menu renders" is the **drawing path**.
 src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
-  pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
+  pixel_drawer.c/h          ZDPixelDrawer — 8 functions (7 leaf primitives +
+                            pd_boot_init_slots boot driver for 69+4 slots)
   asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette,
                             BOOT-DRIVER WIRING + group-3 sprites + slot-clone
                             + info-entry clear + info-entry pool + 4th-pass
@@ -148,7 +155,7 @@ tests/
                             filter by name with `F=<substr>`
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
-  test_pixel_drawer.c       31 tests for Pixel-Drawer
+  test_pixel_drawer.c       39 tests for Pixel-Drawer (31 leaf + 8 boot driver)
   test_asset_register.c     111 tests for Asset-Register (incl. 7 group3_sprites +
                             8 group3_info_events + 11 SS_MGR-clone + 5 inline-clone +
                             6 ar_boot_register_all + 5 slot-clone +
@@ -178,11 +185,10 @@ tools/
 - `FUN_005bd040` mode 3 / mode 4 LUT formulas have arithmetic whose
   "floor-correction" terms are zero for valid weight ranges but kept
   literally in the port.  Audit if out-of-range weights ever flow.
-- The Pixel-Drawer slot-table boot loops (5 fixed-size groups, 69
-  total slots at DAT_008a92b8 / _9308 / _9358 / _93bc / _936c) are
-  documented in `winmain-and-bootstrap.md` "Pixel Drawer slot tables"
-  but NOT ported yet.  Port them once asset-register consumers start
-  reading those slots.
+  Note: the boot driver does pass per-channel weights up to 2000 for
+  group-C grey-ramp and special D slots — these reach mode 1/2 LUTs
+  (via the slot-level `mode` field) so the audit case is now closer
+  to "live", but no rendering consumer reads them yet.
 - SS_MGR / W_MGR / GD_MGR boot-pool allocators (DAT_008a8440 / _6ec4
   / _9274) are dependency-of ~30 functions; defer until consumer
   semantics map cleanly.  **FUN_0057ca40's SS_MGR clone + inline
@@ -194,12 +200,16 @@ tools/
   this checkpoint via radare2, 11 entries → 7 distinct phase
   handlers.  See `docs/findings/title-scene.md` "Inner scene-phase
   dispatch" for the resolved table.
-- `ar_boot_register_all` exists but **is not yet called from the
-  drop-in's WinMain** — every batch (and the wiring) is still a
-  module in isolation.  Wiring requires the drop-in to actually own
-  the engine init (currently retail does that), which means porting
-  the ZDD/ZDS/ZDM device init (`FUN_005b7ee0`, `FUN_005b9cf0`,
-  `FUN_005bbb10`) first so we have real device pointers to pass in.
+- `ar_boot_register_all` **and** `pd_boot_init_slots` exist but
+  **neither is called from the drop-in's WinMain** — every batch (and
+  the wiring) is still a module in isolation.  Wiring requires the
+  drop-in to actually own the engine init (currently retail does
+  that), which means porting the ZDD/ZDS/ZDM device init
+  (`FUN_005b7ee0`, `FUN_005b9cf0`, `FUN_005bbb10`) first so we have
+  real device pointers to pass in.  Boot sequence in retail (from
+  `FUN_00562ea0`) is: ZDD/ZDS/ZDM init → `pd_boot_init_slots(zdd)` →
+  `ar_boot_register_all(...)` — i.e. PD slots are populated BEFORE
+  the asset-register sprite-metadata write phase.
 - `g_ar_info_table[909]` — pool modelled in full and the 443 writes
   inside FUN_0057ca40 are PORTED via `ar_apply_group3_info_events`
   (see `docs/findings/0057ca40-rabbit-hole.md` §5 for the FUN_00562ea0

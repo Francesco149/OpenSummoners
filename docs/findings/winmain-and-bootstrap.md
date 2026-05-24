@@ -246,7 +246,7 @@ init):
 | `CooperativeLevel was set`              |                                                        |
 | `FUN_005b8b40(...)` + `FUN_005b9520`    | surface alloc + screen mode set                        |
 | `The screen was set`                    |                                                        |
-| (Pixel-Drawer slot-table allocation; see §"Pixel Drawer slot tables" below) | |
+| (Pixel-Drawer slot-table allocation; see §"Pixel Drawer slot tables" below — PORTED in `pd_boot_init_slots`) | |
 | `Pixel Drawer was set`                  |                                                        |
 | `FUN_00579bd0/00579a00/0057a330/...`    | load asset blobs from `sotesd.dll`/`sotesw.dll` (TBD)  |
 | `The resource was set`                  |                                                        |
@@ -323,9 +323,8 @@ via repeated `FUN_005bd4d0()` factory calls into fixed global arrays:
 | `DAT_008a936c`  | 20    | `(iVar20/20)` ramp from 1000        | `2`                          | sprite-slot group C          |
 
 Total: 69 slots in fixed positions, plus four individual special-case
-slots set via `FUN_005bd3b0(R, G, B)` + `FUN_005bd3d0(ZDD)` at
-specific colours (`600,600,600`; `1000,600,600`; `1000,0x708,2000`;
-`900,0x398,0x3a2` — likely UI text colours or fade-blend targets).
+`FUN_005bd3b0(R, G, B)` + `FUN_005bd3d0(ZDD)` pairs that immediately
+follow the loops.
 
 `FUN_005bd3b0` is the **Pixel Drawer "set colour"** primitive (3
 component args); `FUN_005bd3d0(ZDD)` is the **commit / publish** —
@@ -337,9 +336,24 @@ These slots are what `FUN_0056e190` (and the other 4 asset-register
 calls in the boot driver) then **populate** with sprite metadata (PE
 resource ID, dimensions, colorkey, scale flag) — see `docs/findings/asset-loader.md`.
 
-The sub-group `DAT_008a93bc` (4 slots) is special: no per-loop field
-writes, suggesting these are filled-in later by code we haven't yet
-mapped (probably the post-resource phase or scene-on-demand).
+The 4 sub-group slots at `DAT_008a93bc` ARE filled in the same boot
+phase as the loops: the four special-colour writes immediately after
+the loops target each of them by absolute address.  Ghidra's source
+view collapses the explicit `mov ecx, [addr]` before each thiscall,
+so the target slot of each pair is ambiguous from the decomp alone;
+radare2 disasm at FUN_00562ea0:0x5637f1-0x5638b6 resolves them.  The
+write order (and per-slot `commit_flag`) is:
+
+| order | target slot   | commit_flag | colour (R, G, B)  |
+|-------|---------------|-------------|--------------------|
+| 1     | `DAT_008a93bc` (D[0]) | 0   | (600, 600, 600)    |
+| 2     | `DAT_008a93c0` (D[1]) | 0   | (1000, 600, 600)   |
+| 3     | `DAT_008a93c8` (D[3]) | 1   | (1000, 1800, 2000) |
+| 4     | `DAT_008a93c4` (D[2]) | 1   | (900, 920, 930)    |
+
+The reversed D[3]/D[2] order is a retail quirk with no observable
+effect (the writes are independent).  These slots are ported as part
+of `pd_boot_init_slots` in `src/pixel_drawer.c`.
 
 ## Window sizing — `state->offset_0x04` modes
 

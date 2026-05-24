@@ -6,6 +6,52 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Pixel-Drawer boot-time slot tables PORTED
+
+Picks up an open-thread item from HANDOFF (the 5 fixed-size sprite-slot
+allocator loops inside `FUN_00562ea0` lines 462-576).  All five groups
+(`DAT_008a92b8` ×20, `DAT_008a9308` ×20, `DAT_008a9358` ×5,
+`DAT_008a93bc` ×4, `DAT_008a936c` ×20 — total 69 slots) plus the four
+special-colour writes that populate group D land in
+`src/pixel_drawer.c` as `pd_boot_init_slots(fmt)` + a companion
+`pd_boot_release_slots()` for host-test teardown.  All primitives this
+calls into (`pd_blend_init`, `pd_blend_set_color`, `pd_blend_commit`)
+were already ported in the first Pixel-Drawer pass — the boot driver
+is purely orchestration.
+
+Also corrects a finding doc: `winmain-and-bootstrap.md` claimed the
+group-D 4 slots were "filled in later by code we haven't yet mapped" —
+disassembly of FUN_00562ea0:0x5637f1-0x5638b6 (via radare2) shows the
+4 special-colour writes ARE in the same boot phase, just written
+inline as 4 explicit `mov ecx, [addr]` thiscalls that Ghidra's source
+view collapsed into ambiguous untyped calls.  Targets are
+D[0]/D[1]/D[3]/D[2] (in that order; D[2] and D[3] also get
+commit_flag=1).  Boot driver replays this exact sequence.
+
+Storage choice: static `PdBlend g_pd_boot_group_*[]` arrays rather
+than retail's `PdBlend *DAT_X[]` heap-pointer-arrays.  Retail's slots
+are process-lifetime allocations from `operator_new(0x50)` that are
+never freed — static storage gives the same observable end-state with
+zero malloc and is ASan-quiet under repeated boot.  If a future
+consumer ever needs the pointer-array layout, add a parallel
+`PdBlend *g_pd_boot_*_ptrs[]` view then.
+
+Tests now: **200 pass, 0 fail, 4 skip** (up from 192).  8 new tests:
+per-group weight/mode/state checks (A weight ramp /20 mode 1,
+B weight ramp /22 mode 0, C grey-ramp R=G=B = 1100..1740,
+E weight ramp /20 mode 2), group D 4 special-colour assignments
+including the D[3]→D[2] retail-quirky order, full-coverage check
+that every slot in every group commits its RGB masks from `fmt`,
+custom-format propagation (RGB555 spot-check), and idempotency
+re-run.  The idempotency test caught a real bug — `pd_blend_init`
+zeroes channel.lut without freeing it first, which leaks on re-init
+of a static slot — fixed by having `pd_boot_init_slots` call
+`pd_boot_release_slots` at entry.  This is a host-build concern only
+(retail allocates a fresh slot each boot via operator_new, so the
+issue doesn't manifest in the real engine).
+
+---
+
 ## 2026-05-25 — FUN_0057ca40 6th pass: 9 inline slot-clones PORTED (function functionally complete)
 
 Closes the last deferred subsystem of FUN_0057ca40.  The 9 inline
