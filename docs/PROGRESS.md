@@ -6,6 +6,59 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register module: FUN_00579bd0 family
+
+Second ported module lands.  `FUN_00579bd0` is the first asset-register
+batch call from the boot driver (after Pixel-Drawer set, before "The
+resource was set" log line — see `docs/findings/asset-loader.md`).
+Pulls in 11 functions total: the top-level batch, the 9 supporting
+slot-setter / GDI-primitive helpers it calls, and the delete-array
+thunk underneath everything.
+
+**Module shape (`c4d2da0`)**: two struct types modelling the retail
+in-memory slot layouts.  `ar_gdi_slot` (12 B) holds a fixed-capacity
+HGDIOBJ array — the shape used by DAT_008a9274[idx] entries 1..15
+in the boot batch.  `ar_sprite_slot` (0x44 B) is the sprite-slot
+shape from FUN_0056e190 ("hundreds of similar blocks", per asset-
+loader.md) — two are touched here (DAT_008a76e8 / _76ec for the font
+texture slots).  Layouts asserted with `_Static_assert` blocks live
+on the 32-bit cross build.
+
+**Win32 isolation**: `asset_register.c` is pure logic.  The four GDI
+primitive wrappers (`ar_gdi_create_font/pen/brush`, `ar_gdi_delete`)
+are externs supplied by `asset_register_win32.c` (real build picks
+it up via `src/Makefile` wildcard) or by the test harness (recording
+stubs that log every call into a per-kind table).  Tests then assert
+on call order + arguments without touching real GDI.
+
+**Retail quirks preserved as comments rather than code**: the
+`operator_new(4)` leak in `FUN_00579f40` (omitted, ASan-clean and
+no observable effect); the asymmetry where `set_font` leaves
+`count=0` but `set_pen`/`set_brush`/`set_pen_gradient` bump it;
+the middle-loop bound in `FUN_00582d10` that makes gradient
+capacities 0/1/2 skip the middle entirely.
+
+**Ghidra recovery gap closed via radare2**: the bottom-block calls
+`FUN_0057a030(4,8,0,group)` / a1a0 / a260 had their ECX setup
+dropped from the C decompile.  Disasm at `0x579df8 / 0x579e05 /
+0x579e1a` shows ECX = `[0x8a9298]` / `[0x8a92ac]` / `[0x8a92b0]`,
+which decode to table indices 9, 14, 15.
+
+**Tests**: +24 new (lerp arithmetic incl. descending channels and
+alpha skip, GDI destruct order incl. NULL-hole handling, all 7
+slot setters individually, `ar_register_fonts` end-to-end on sprite
++ GDI slot indices + call-order verification, layout parity).
+Total: 55 pass, 0 fail, 2 skip (skips are the 32-bit-only layout
+asserts; they fire at compile time on the cross build).  32-bit
+cross build verifies layout parity, both `opensummoners.exe` and
+`opensummoners-debug.exe` build clean.
+
+Module is in isolation — not yet wired into the drop-in's boot
+path.  Wiring waits until `FUN_00579a00` / `FUN_0057a330` /
+`FUN_0056e190` land so calling it has a visible effect.
+
+---
+
 ## 2026-05-24 — Test harness scaffold + first ported module (Pixel-Drawer)
 
 Pivoted from "extract assets to spec the format" → "RE the init sequence
