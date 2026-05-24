@@ -264,11 +264,17 @@ _Static_assert(offsetof(zdm, name)    == 0x2c, "zdm name");
  * essentially OWNS the zdm pointer at +0x2884 and the deactivate path
  * just chains through.
  *
- * The 0x2884 offset is unusually large for a one-field struct — the
- * input manager presumably has 0x2884 bytes of unrelated state ahead
- * of the zdm pointer (key-state arrays, button-state buffers, etc.).
- * Nothing else in the WndProc-reachable code reads it, so leave the
- * head as opaque padding.
+ * The 0x2884 offset is unusually large for a one-field struct because
+ * this struct is multi-purpose — see
+ * `docs/findings/0057ca40-rabbit-hole.md` §7.  It's the same singleton
+ * that FUN_004179b0 (the SS_MGR slot-clone) accesses with:
+ *   +0x0aac  sprite-slot pointer table (909 × 4 B; absolute 0x8a760c)
+ *   +0x18e0  info-entry pointer table  (909 × 4 B; absolute 0x8a8440)
+ * Both tables land within our 0x2884 opaque head — the asset-register
+ * module models them as standalone globals (g_ar_sprite_table /
+ * g_ar_info_table) since the host-side accessors don't need the
+ * `this` pointer plumbed through.  Once an SS_MGR-thiscall consumer
+ * gets ported, the model may unify.
  */
 typedef struct input_mgr {
     uint8_t _pad000[0x2884];

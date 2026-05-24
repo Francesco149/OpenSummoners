@@ -230,6 +230,45 @@ probably alignment / a single sentinel slot.
 model in `g_ar_info_entries[909]` + `g_ar_info_table[909]` (added
 this checkpoint) matches retail's shape one-to-one.
 
+### 7. SS_MGR singleton == WndProc `input_mgr` (both at 0x008a6b60)
+
+The two pool tables the allocator (§5) fills are NOT standalone globals
+in retail — they're fields of the same struct that the WndProc port
+already models as `input_mgr` (see `src/wnd_proc.h`).  The FUN_004179b0
+disasm proves this:
+
+```
+0x0058040c   mov  ecx, 0x8a6b60        ; load singleton 'this'
+0x00580411   call fcn.004179b0          ; __thiscall slot-clone
+```
+
+And FUN_004179b0 indexes its tables off ECX as:
+
+```c
+*(int **)(in_ECX + 0x0aac + idx*4)   /* sprite slot ptr table */
+*(int **)(in_ECX + 0x18e0 + idx*4)   /* info-entry ptr table  */
+```
+
+Both offsets land within the input_mgr's 0x2884-byte opaque head:
+
+| this + ofs | absolute     | meaning                                     |
+| ---------- | ------------ | ------------------------------------------- |
+| +0x0aac    | 0x008a760c   | sprite-slot pointer table (909 × 4 B)       |
+| +0x18e0    | 0x008a8440   | info-entry pointer table (909 × 4 B)        |
+| +0x2884    | 0x008a93e4   | zdm pointer (input_mgr::zdm_ptr — modelled) |
+
+So one struct owns the sprite slot pool, the info-entry pool, and the
+zdm pointer.  Naming-wise: "input_mgr" matches the WndProc role,
+"SS_MGR" matches the asset-register role.  We keep both names in the
+codebase since each is used in the relevant context; the underlying
+struct is the same.
+
+Implication for porting FUN_004179b0 et al: any "SS_MGR singleton"
+port needs to plumb the unified pool index (not the main-pool or
+ramp-pool index our standalone globals use).  Pool index i ↔
+ramp_slots[i-1] for i=1..12, ↔ main_slots[i-13] for i=13..908, and
+i=0 is a sentinel slot at 0x008a760c with no observed consumer.
+
 ### 6. Reader/writer consumers — **FUN_00586010, FUN_00587e00**
 
 Two functions outside FUN_0057ca40 touch info-entries by absolute

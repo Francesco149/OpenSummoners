@@ -127,12 +127,14 @@ The WndProc itself reads as a clean class-dispatched function:
      0x8a760c + i*4" — but that needs verification on a handful of
      sites.  No consumer of these writes is ported yet, so the
      deferral is still behaviourally invisible.
-   - **SS_MGR slot-clones** (94 FUN_004179b0 calls) — needs the SS_MGR
-     singleton modelled (DAT_008a8440 is now known to be the start of
-     the info-entry pointer table, NOT a separate singleton; the
-     0xaac/0x18e0 numbers in older HANDOFF entries were wrong — they
-     came from misreading offsets into the boot-driver's stack frame).
-     Likely needs ITS own RE pass before porting.
+   - **SS_MGR slot-clones** (94 FUN_004179b0 calls) — `ecx = 0x8a6b60`
+     each call, which is the SAME singleton our WndProc port models as
+     `input_mgr` (see rabbit-hole §7).  The struct owns the sprite slot
+     table at +0x0aac, info-entry table at +0x18e0, and the zdm pointer
+     at +0x2884.  Porting requires either: (a) plumbing the singleton
+     through SS_MGR thiscalls, or (b) building a unified-pool-index
+     accessor since our standalone `g_ar_sprite_*_table` arrays index
+     differently than retail's flat 909-entry pool.
    - **FUN_00582b80/FUN_00582d00 call-cluster wiring** — both
      primitives are now ported (`ar_sprite_slot_clone` +
      `ar_info_entry_clear`); the 9 clusters in FUN_0057ca40 that
