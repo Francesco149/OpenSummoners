@@ -17,7 +17,10 @@ Phase A capability set (mirrors the agent's init() RPC):
     --silent-audio        WaveOut volume clamp; DSound covered Phase B
     --show-msgbox         disable the agent's MessageBox redirect (debugging)
     --turbo-step-ms N     advance the virtual clock by N ms per main-loop tick
-    --max-frames N        soft cap on tracked frames; the script exits after
+    --max-frames N        soft cap on drained PeekMessage/GetMessage events
+                          (≈ message-pump iterations, not literal rendered
+                          frames — engine drains 1-4 messages per frame); the
+                          script exits when the running count crosses N
     --duration-ms N       hard timeout in wall-clock ms
 
 frida-server setup (Windows side, one-time — same as siblings):
@@ -151,7 +154,7 @@ class CaptureConfig:
     force_windowed:     bool = True
     turbo_step_ms:      int  = 17
 
-    max_frames:        int  = 600
+    max_frames:        int  = 30_000
     duration_ms:       int  = 30_000
 
     remote:            str  = DEFAULT_REMOTE
@@ -221,6 +224,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         "hwnds_owned": 0,
         "hides": 0,
         "msg_ticks": 0,
+        "msg_count": 0,   # running total of drained Peek/GetMessage events
+                          # (the agent's TICK_EVERY-batched count.count field)
         "turbo_ticks": 0,
         "errors": [],
     }
@@ -259,6 +264,13 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary["hides"] += 1
         elif kind == "msg":
             summary["msg_ticks"] += 1
+            # `count` is the agent's running total (g_msg_event_count at
+            # emit time).  Each msg event arrives every TICK_EVERY=250
+            # drained Peek/GetMessage returns, so this gives us the true
+            # message-count up to the last batch boundary.
+            c = payload.get("count")
+            if isinstance(c, int) and c > summary["msg_count"]:
+                summary["msg_count"] = c
         elif kind == "turbo_tick":
             summary["turbo_ticks"] += 1
         elif kind == "dialog_child":
@@ -315,9 +327,10 @@ def run_capture(cfg: CaptureConfig) -> int:
                 print(f"[frida_capture] duration_ms expired "
                       f"({cfg.duration_ms} ms)", file=sys.stderr)
                 break
-            if summary["msg_ticks"] * 250 >= cfg.max_frames:
-                print(f"[frida_capture] reached ~{summary['msg_ticks']*250} "
-                      f"frames (cap {cfg.max_frames})", file=sys.stderr)
+            if summary["msg_count"] >= cfg.max_frames:
+                print(f"[frida_capture] reached {summary['msg_count']} "
+                      f"drained messages (cap {cfg.max_frames})",
+                      file=sys.stderr)
                 break
             time.sleep(0.05)
     finally:
@@ -371,7 +384,9 @@ def main() -> int:
                    help="don't redirect MessageBox calls — for debugging the harness itself")
     p.add_argument("--turbo-step-ms",  type=int, default=17,
                    help="advance virtual clock by N ms per main-loop tick (default 17 ≈ 60 Hz)")
-    p.add_argument("--max-frames",     type=int, default=600)
+    p.add_argument("--max-frames",     type=int, default=30_000,
+                   help="exit after N drained Peek/GetMessage events "
+                        "(default 30000 ≈ ~5 min of typical 60 Hz play)")
     p.add_argument("--duration-ms",    type=int, default=30_000)
     p.add_argument("--remote",         default=DEFAULT_REMOTE)
     p.add_argument("--exe",            default=str(RETAIL_EXE), type=Path)

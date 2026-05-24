@@ -28,7 +28,10 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 DURATION_MS=${OPENSUMMONERS_DURATION_MS:-30000}
-MAX_FRAMES=${OPENSUMMONERS_MAX_FRAMES:-600}
+MAX_FRAMES=${OPENSUMMONERS_MAX_FRAMES:-30000}  # drained Peek/GetMessage events;
+                                               # ≈ msg-pump iterations, not
+                                               # rendered frames.  30k ≈ a few
+                                               # minutes of headless play.
 
 # The on-disk sotes.exe is Steam-DRM'd.  Spawning it outside the Steam
 # process tree trips the DRM check ("Steam Error: Application load error
