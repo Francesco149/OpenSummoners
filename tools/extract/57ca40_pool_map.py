@@ -60,6 +60,9 @@ def main(path):
         (re.compile(r"FUN_00582d00\(\);"), "clear_entry", 0),
         (re.compile(r"\*(DAT_008a8[0-9a-f]+) = \*(DAT_008a8[0-9a-f]+);"), "copy_marker_from", 1),
         (re.compile(r"\*\(undefined4 \*\)\((DAT_008a8[0-9a-f]+) \+ 2\) = \*\(undefined4 \*\)\((DAT_008a8[0-9a-f]+) \+ 2\);"), "copy_flag_from", 1),
+        # 5-dword struct copy: `puVar7 = DAT_X; ... for (iVar5 = 5; ...) *puVar7 = *puVar6;`
+        # We anchor on the puVar7 = DAT line and trust the surrounding loop.
+        (re.compile(r"puVar7 = (DAT_008a8[0-9a-f]+);\n\s*for \(iVar5 = 5"), "struct_copy_dst", 1),
     ]
 
     events = []
@@ -113,7 +116,7 @@ def main(path):
     pool_writes = []
     for c in clusters:
         for line, kind, payload in c["events"]:
-            if kind.startswith("info_") or kind.startswith("copy_"):
+            if kind.startswith("info_") or kind.startswith("copy_") or kind == "struct_copy_dst":
                 if payload is None:
                     continue
                 pool_idx = (payload - INFO_BASE) // 4

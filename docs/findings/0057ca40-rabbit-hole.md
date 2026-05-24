@@ -109,6 +109,8 @@ correction):
   - 4 marker-copy-from-template + 4 flag-copy-from-template (the
     FUN_00582d00 follow-up that populates the cleared entry from
     a template entry)
+  - 5 struct-copy-dst (20-byte info-entry copies from one pool
+    index to another — see §4 tail)
 
 **DONE 2026-05-24:**
 
@@ -204,8 +206,28 @@ pointer.  The template slot ECX is dropped (its fields read; its
 fresh `entries` alloc not re-used by the target — the target
 allocs its own).
 
-The tail of FUN_0057ca40 also has 5×20-byte memcpy loops into a
-`+0xae0`-base region — another parallel table we haven't named.
+The tail of FUN_0057ca40 also has 5×20-byte memcpy loops — but these
+are NOT a different parallel table (an earlier draft of this finding
+mis-attributed them as a `+0xae0`-base table).  They are info-entry
+struct copies INSIDE the same pool: each loop copies 5 dwords (20 B)
+from pool[src_idx] to pool[dst_idx], where dst_idx is the slot
+target of the FUN_00582b80 call immediately preceding the loop.
+The 5 pairs are:
+
+| FUN_00582b80 target  | dst pool idx | src pool idx |
+| -------------------- | ------------ | ------------ |
+| slot[257] (0x8a7a10) | 257 (0x8a8844) | 139 (0x8a866c) |
+| slot[258] (0x8a7a14) | 258 (0x8a8848) | 140 (0x8a8670) |
+| slot[259] (0x8a7a18) | 259 (0x8a884c) | 141 (0x8a8674) |
+| slot[260] (0x8a7a1c) | 260 (0x8a8850) | 143 (0x8a867c) |
+| slot[261] (0x8a7a20) | 261 (0x8a8854) | 145 (0x8a8684) |
+
+The pool[i] = slot[i] model holds here too: each FUN_00582b80
+produces slot[i], and the loop initialises pool[i] by struct-copy
+from a "template" info-entry at a smaller index.  The audit tool
+(`tools/extract/57ca40_pool_map.py`) counts these as `struct_copy_dst`
+events; they bring the total from 434 → 439 pool writes, still 0
+orphans.
 
 ### 5. Pool allocator — **FUN_00562ea0:225-253** (found 2026-05-24)
 

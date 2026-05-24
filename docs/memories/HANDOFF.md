@@ -141,9 +141,12 @@ The WndProc itself reads as a clean class-dispatched function:
      parallel-table-entry copy now have all the storage they need.
      The remaining gap is mapping each cluster's source/target
      pool-index pair.
-   - **FUN_0057ca40 tail 5×20-byte memcpy loops** at `+0xae0`-base —
-     another parallel table we haven't named.  Defer until a consumer
-     surfaces.
+   - **FUN_0057ca40 tail 5×20-byte memcpy loops** — IDENTIFIED
+     this checkpoint as info-entry struct copies inside the same pool
+     (pool[i=257..261] = struct-copy of pool[j∈{139,140,141,143,145}]),
+     each preceded by FUN_00582b80(slot[i]).  No longer an "unknown
+     parallel table" — see rabbit-hole §4 tail.  Port lands together
+     with the info-entry indexing port above.
    See `docs/findings/0057ca40-rabbit-hole.md` for the full breakdown.
 
 4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
