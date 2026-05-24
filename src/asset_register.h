@@ -245,13 +245,14 @@ extern ar_gdi_slot *g_ar_gdi_table[AR_GDI_SLOT_COUNT];   /* table[i] == &slots[i
 /* Sound slots — start at DAT_008a6ec4.  The first 12 entries
  * (DAT_008a6ec4..6ef0) are the "main sounds" populated by FUN_00579a00.
  * FUN_0057b280 (the game-sounds batch, group 3) extends the pool out
- * to index 244 (retail address 0x008a7294), so the contiguous pointer
- * table that retail's locale-loop indexes via `(&DAT_008a6ec4)[i]`
- * stretches well past the original 12 entries.  Round capacity up to
- * 256 — covers FUN_0057b280's max idx 244 with headroom for any later
- * batch that hits the pool. */
+ * to index 244 (retail address 0x008a7294), and its conditional locale
+ * tail (`ar_register_locale_sounds`) reaches as far as idx 464 — the
+ * retail pool capacity, allocated as a 0x1d1-entry pointer table at
+ * `&DAT_008a6ec4` by FUN_00562ea0's SS_MGR_Preparation block.  Round
+ * capacity up to 512 to cover the locale loop's max idx with headroom. */
 #define AR_SOUND_MAIN_COUNT  12
-#define AR_SOUND_SLOT_COUNT 256
+#define AR_SOUND_POOL_COUNT  465   /* retail W_MGR pool allocation (0x1d1) */
+#define AR_SOUND_SLOT_COUNT  512
 extern ar_sound_slot  g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
 extern ar_sound_slot *g_ar_sound_table[AR_SOUND_SLOT_COUNT];
 
@@ -451,13 +452,12 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings);
  *      Observable end state is identical to the inline path; all 174
  *      entries flow through `ar_sound_slot_init` here.
  *
- * Deferred — NOT in this function: the conditional locale-table loop
- * at the end of retail FUN_0057b280 (walks the 0x24-stride table at
- * &DAT_00691018, dispatches into the same pool keyed on locale state
- * at DAT_008a6e68/_6e70/_6e80).  Will need its own port when the
- * locale path lands.  The 4 inline `FUN_00563ef0` calls the caller
- * (FUN_00562ea0:617-620) issues at indices 22..25 with group=2 are
- * exposed separately as `ar_register_aux_sounds`. */
+ * The conditional locale-table loop at the tail of retail FUN_0057b280
+ * is exposed separately as `ar_register_locale_sounds` (walks the
+ * 0x24-stride table at &DAT_00691018 — depends on the locale-state
+ * globals; boot driver must wire them in).  The 4 inline `FUN_00563ef0`
+ * calls the caller (FUN_00562ea0:617-620) issues at indices 22..25 with
+ * group=2 are exposed separately as `ar_register_aux_sounds`. */
 void ar_register_game_sounds(void *zds, uint16_t group, void *settings);
 
 /* 4 inline `FUN_00563ef0` calls at FUN_00562ea0:617-620.
@@ -482,6 +482,69 @@ void ar_register_game_sounds(void *zds, uint16_t group, void *settings);
  * Group is parameterised for symmetry with the other register
  * batches, but retail always passes 2. */
 void ar_register_aux_sounds(void *zds, uint16_t group, void *settings);
+
+/* Locale state — the three globals the FUN_0057b280 locale loop
+ * dereferences (DAT_008a6e68 / _6e70 / _6e80+0x1c8).  Passed in by
+ * the boot driver so this module stays Win32-free and per-locale state
+ * is testable.
+ *
+ *   fallback_settings — the "default-locale" settings record (retail
+ *                       DAT_008a6e68).  Used as the slot's settings
+ *                       pointer for entries with flag == -1, regardless
+ *                       of which path the loop takes.
+ *   current_settings  — the "active-locale" settings record (retail
+ *                       DAT_008a6e70).  NULL means no locale loaded —
+ *                       forces the fallback path for every entry.
+ *                       When the override path runs, this becomes the
+ *                       slot's settings pointer.
+ *   launcher_flag     — `*(int*)(*DAT_008a6e80 + 0x1c8)`, a status flag
+ *                       in the launcher's settings struct.  NON-ZERO
+ *                       suppresses the override path (acts the same as
+ *                       no locale being loaded).  Specific meaning
+ *                       unknown without modelling the launcher struct
+ *                       further. */
+typedef struct ar_locale_state {
+    void *fallback_settings;
+    void *current_settings;
+    int   launcher_flag;
+} ar_locale_state;
+
+/* FUN_0057b280 tail — the conditional locale-table loop.
+ *
+ * Walks the 283-entry rdata table at retail address 0x00691018 and
+ * dispatches into the W_MGR sound pool keyed on locale state.  Each
+ * live entry (primary_id != 0) routes through `ar_sound_slot_init`
+ * with settings + resource_id chosen per:
+ *
+ *   PATH A (fallback) — taken when one of:
+ *       override == 0
+ *       OR locale->current_settings == NULL
+ *       OR locale->launcher_flag != 0
+ *     id        = entry.primary_id
+ *     count     = entry.count_add + 2
+ *     settings  = (entry.flag == -1) ? locale->fallback_settings
+ *                                    : caller's `settings`
+ *
+ *   PATH B (locale override) — taken otherwise (override != 0
+ *     AND current_settings != NULL AND launcher_flag == 0):
+ *       if entry.override == 0x7fff: skip the entry entirely
+ *       else:
+ *         id        = entry.override
+ *         count     = entry.count_add + 2
+ *         settings  = locale->current_settings
+ *
+ *   ar_sound_slot_init(pool[entry.idx], zds, settings, id, count, group)
+ *
+ * 15 entries have `primary_id == 0` — they're skipped in both paths
+ * (probably parked rows that another subsystem reads via the magic
+ * field).  15 entries have `override == 0x7fff`.  29 entries have
+ * `flag == -1`.  Touched indices range 160..464 (267 distinct).
+ *
+ * In the boot driver this is called as the tail of FUN_0057b280 with
+ * the same zds / group / settings as the inline+thiscall halves —
+ * call after `ar_register_game_sounds` to match retail issue order. */
+void ar_register_locale_sounds(void *zds, uint16_t group, void *settings,
+                                const ar_locale_state *locale);
 
 /* ─── top-level driver calls ─────────────────────────────────────── */
 

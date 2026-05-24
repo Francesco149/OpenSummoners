@@ -1500,6 +1500,230 @@ int test_aux_sounds_buffer_pointer_preserved(void)
     return 0;
 }
 
+/* ─── ar_register_locale_sounds (FUN_0057b280 tail) ──────────────── */
+
+int test_locale_sounds_no_locale_uses_fallback_or_settings(void)
+{
+    /* current_settings == NULL forces every entry through PATH A.  For
+     * entries with flag == -1 the slot's settings should be
+     * fallback_settings; for flag == 0 it should be the caller's
+     * settings.  primary_id is used as the resource_id in both cases.
+     * All 268 entries with primary_id != 0 must populate; the 15
+     * primary_id == 0 entries must NOT touch their slots. */
+    ar_state_init();
+    void *zds      = (void *)0x100;
+    void *settings = (void *)0x200;
+    void *fallback = (void *)0x300;
+    ar_locale_state locale = {
+        .fallback_settings = fallback,
+        .current_settings  = NULL,           /* no locale → PATH A */
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds(zds, /*group=*/7, settings, &locale);
+
+    /* flag == 0 entry (idx 245, primary_id 0x53d): caller's settings,
+     * primary_id used. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].resource_id, 0x53du);
+    T_ASSERT_EQ_P(g_ar_sound_slots[245].settings, settings);
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].group, 7u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].count, 2u);   /* count_add 0 + 2 */
+    T_ASSERT_EQ_P(g_ar_sound_slots[245].zds, zds);
+
+    /* flag == -1 entry (idx 260, primary_id 0x3f0): fallback_settings,
+     * primary_id used. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[260].resource_id, 0x3f0u);
+    T_ASSERT_EQ_P(g_ar_sound_slots[260].settings, fallback);
+
+    /* count_add == 2 entry (idx 160, primary_id 0x55e, flag 0): count = 4. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[160].resource_id, 0x55eu);
+    T_ASSERT_EQ_U(g_ar_sound_slots[160].count, 4u);
+    T_ASSERT_EQ_P(g_ar_sound_slots[160].settings, settings);
+
+    /* count_add == 2 with flag == -1 (idx 209, primary_id 0x3ed): count
+     * = 4, settings = fallback. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[209].resource_id, 0x3edu);
+    T_ASSERT_EQ_U(g_ar_sound_slots[209].count, 4u);
+    T_ASSERT_EQ_P(g_ar_sound_slots[209].settings, fallback);
+
+    /* Touched-slot count = 268 (283 entries − 15 with primary_id == 0).
+     * 15 indices appear in multiple entries, so distinct populated
+     * slots are fewer than 268.  Both numbers verified by Python
+     * stats run on the extracted table. */
+    int populated = 0;
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        if (g_ar_sound_slots[i].zds != NULL) populated++;
+    }
+    T_ASSERT_EQ_I(populated, 267);
+    return 0;
+}
+
+int test_locale_sounds_skip_when_primary_id_zero(void)
+{
+    /* 15 entries have primary_id == 0 (e.g. entry with idx 268, the 30th
+     * row; the entry with idx 256, the 47th row).  In PATH A (no
+     * locale active) the loop skips them entirely.  But indices like
+     * 268 also appear with NON-zero primary_id in earlier entries — so
+     * test against a "skip-only" index: idx that NEVER has a non-zero
+     * primary_id row in the entire table.
+     *
+     * Survey of the table shows EVERY primary_id==0 row's index also
+     * appears in some other row with primary_id != 0 (they're
+     * "skip-when-override-active" sentinels for live entries).  In
+     * PATH A those sentinels don't trigger any write either way, so
+     * the live entry's writes are observable.  Verify that for idx 268
+     * the LIVE entry's writes (primary_id 0x543) are what we see. */
+    ar_state_init();
+    ar_locale_state locale = {
+        .fallback_settings = (void *)0x300,
+        .current_settings  = NULL,
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds((void *)0x1, 7, (void *)0x2, &locale);
+
+    /* idx 268's live entry has primary_id 0x543; its sentinel sibling
+     * (primary_id 0x000, override 0x7fff) must not stomp it in PATH A. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[268].resource_id, 0x543u);
+    /* idx 256's live entry has primary_id 0x613; the override-sentinel
+     * sibling sits later in the table but doesn't run in PATH A. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[256].resource_id, 0x613u);
+    return 0;
+}
+
+int test_locale_sounds_launcher_flag_forces_fallback(void)
+{
+    /* launcher_flag != 0 makes the loop take PATH A for every entry,
+     * even when current_settings is present.  Pick an entry with a
+     * non-zero override (idx 245, override 0x08bb): with launcher_flag
+     * suppressed, resource_id should be the primary 0x53d (not the
+     * override). */
+    ar_state_init();
+    ar_locale_state locale = {
+        .fallback_settings = (void *)0x300,
+        .current_settings  = (void *)0x400,
+        .launcher_flag     = 1,              /* suppress override */
+    };
+    ar_register_locale_sounds((void *)0x1, 7, (void *)0x2, &locale);
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].resource_id, 0x53du);
+    T_ASSERT_EQ_P(g_ar_sound_slots[245].settings, (void *)0x2);
+    return 0;
+}
+
+int test_locale_sounds_override_path_uses_current_locale(void)
+{
+    /* current_settings != NULL && launcher_flag == 0 → PATH B for
+     * entries with override != 0 && != 0x7fff.  Each such entry uses
+     * the override as resource_id and current_settings as the settings
+     * pointer. */
+    ar_state_init();
+    void *settings = (void *)0x200;
+    void *fallback = (void *)0x300;
+    void *current  = (void *)0x400;
+    ar_locale_state locale = {
+        .fallback_settings = fallback,
+        .current_settings  = current,
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds((void *)0x1, 7, settings, &locale);
+
+    /* idx 245 (override 0x08bb): res_id == override, settings == current. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].resource_id, 0x08bbu);
+    T_ASSERT_EQ_P(g_ar_sound_slots[245].settings, current);
+    /* idx 311 (override 0x08ff): same. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[311].resource_id, 0x08ffu);
+    T_ASSERT_EQ_P(g_ar_sound_slots[311].settings, current);
+
+    /* Entries with override == 0 always take PATH A even under locale.
+     * idx 160's entry has override == 0 — primary_id 0x55e, flag 0,
+     * count_add 2: should still get the caller's settings + primary id. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[160].resource_id, 0x55eu);
+    T_ASSERT_EQ_P(g_ar_sound_slots[160].settings, settings);
+
+    /* Entries with flag == -1 AND override != 0: PATH B still wins
+     * (override-path doesn't care about flag).  idx 260 (primary 0x3f0,
+     * flag -1, override 0x08b9): should resolve to 0x08b9 + current. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[260].resource_id, 0x08b9u);
+    T_ASSERT_EQ_P(g_ar_sound_slots[260].settings, current);
+    return 0;
+}
+
+int test_locale_sounds_override_7fff_skips_under_locale(void)
+{
+    /* Under PATH B, override == 0x7fff makes the loop skip the entry
+     * (the "skip-when-override-active" sentinel).  These sentinels
+     * appear AFTER a live entry for the same idx, so the live entry's
+     * writes survive — verify the sentinel doesn't stomp them.
+     *
+     * Pick idx 268 (live entry: primary 0x543, override 0x08e1;
+     * sentinel: primary 0x000, override 0x7fff).  Under PATH B the
+     * live entry takes the override (0x08e1) and the sentinel is
+     * skipped — the slot stays at 0x08e1. */
+    ar_state_init();
+    void *current = (void *)0x400;
+    ar_locale_state locale = {
+        .fallback_settings = (void *)0x300,
+        .current_settings  = current,
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds((void *)0x1, 7, (void *)0x2, &locale);
+    T_ASSERT_EQ_U(g_ar_sound_slots[268].resource_id, 0x08e1u);
+    T_ASSERT_EQ_P(g_ar_sound_slots[268].settings, current);
+    return 0;
+}
+
+int test_locale_sounds_coexists_with_game_sounds(void)
+{
+    /* Boot driver runs ar_register_game_sounds first then the locale
+     * tail.  Touched-index ranges: game_sounds 12..244, locale 160..464
+     * — overlap 160..244 (85 slots).  In the overlap, locale_sounds'
+     * writes must win (it runs second in retail issue order).  Outside
+     * the overlap, each batch's writes should be preserved. */
+    ar_state_init();
+    void *zds = (void *)0x1;
+    void *settings = (void *)0x2;
+    void *fallback = (void *)0x300;
+    ar_register_game_sounds(zds, /*group=*/3, settings);
+
+    ar_locale_state locale = {
+        .fallback_settings = fallback,
+        .current_settings  = NULL,
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds(zds, /*group=*/3, settings, &locale);
+
+    /* Outside overlap (game_sounds-only): idx 14 keeps id 0x513. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[14].resource_id, 0x513u);
+    /* Inside overlap: idx 160 was NOT touched by game_sounds (it's a
+     * locale-only index in the 160..244 overlap range); locale's write
+     * survives. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[160].resource_id, 0x55eu);
+    /* idx 209 (game_sounds doesn't write this idx; locale-only):
+     * primary_id 0x3ed, flag -1. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[209].resource_id, 0x3edu);
+    /* Locale-only (above overlap): idx 245 picks up primary 0x53d. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[245].resource_id, 0x53du);
+    return 0;
+}
+
+int test_locale_sounds_buffer_pointer_preserved(void)
+{
+    /* Same invariant as the other sound registers — `buffer` survives
+     * across re-registration. */
+    ar_state_init();
+    g_ar_sound_table[245]->buffer = (void *)0xfa11;
+    g_ar_sound_table[464]->buffer = (void *)0xfa12;
+
+    ar_locale_state locale = {
+        .fallback_settings = NULL,
+        .current_settings  = NULL,
+        .launcher_flag     = 0,
+    };
+    ar_register_locale_sounds(NULL, 0, NULL, &locale);
+
+    T_ASSERT_EQ_P(g_ar_sound_table[245]->buffer, (void *)0xfa11);
+    T_ASSERT_EQ_P(g_ar_sound_table[464]->buffer, (void *)0xfa12);
+    return 0;
+}
+
 /* ─── layout parity (32-bit only) ────────────────────────────────── */
 
 int test_ar_layout_matches_retail(void)

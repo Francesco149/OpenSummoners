@@ -110,6 +110,13 @@ struct test_case {
     X(aux_sounds_writes_four_entries)                          \
     X(aux_sounds_fills_game_sounds_gap)                        \
     X(aux_sounds_buffer_pointer_preserved)                     \
+    X(locale_sounds_no_locale_uses_fallback_or_settings)       \
+    X(locale_sounds_skip_when_primary_id_zero)                 \
+    X(locale_sounds_launcher_flag_forces_fallback)             \
+    X(locale_sounds_override_path_uses_current_locale)         \
+    X(locale_sounds_override_7fff_skips_under_locale)          \
+    X(locale_sounds_coexists_with_game_sounds)                 \
+    X(locale_sounds_buffer_pointer_preserved)                  \
     X(ar_layout_matches_retail)                                \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \
