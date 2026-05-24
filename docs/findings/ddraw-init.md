@@ -102,9 +102,82 @@ int CreateSurfacePair(ZDDObject **out, w, h, pixelFmtFlags, count) { // 0x5b8b40
 }
 ```
 
-`FUN_005b95c0` is where the DDSURFACEDESC2 gets built and
-`IDirectDraw7::CreateSurface` (vtable offset 0x18 = method 6) is
-called.  Decompile that one next when we get to Phase 2's renderer port.
+`FUN_005b95c0` is the per-surface entry point — see below.
+
+## `FUN_005b95c0` — surface alloc orchestrator (110 bytes)
+
+```c
+void CreateSurfaceImpl(w, h, ignored_x_y, x, y, dstW, dstH, bpp, colorkey) { // 0x5b95c0
+    FUN_005b97e0(/*y*/, /*bpp*/);                     // pre-fills DDSD lpSurface ptrs in self
+    if (!FUN_005b8c00(self->[0x2c]/*IDDSurface7**/,
+                      /*w*/, /*h*/, self->[0xcc]/*caps*/, /*bpp*/)) return;
+    FUN_005b98c0(w, h, ignored, x, dstW, dstH);       // stash params on self
+    FUN_005b9830(colorkey);                           // SetColorKey if not 0x1ffffff
+}
+```
+
+`0x1ffffff` is the **"no color key" sentinel** — `FUN_005b9830` interprets
+it as "skip SetColorKey" and stashes a flag, otherwise it calls
+`IDirectDrawSurface7::SetColorKey(DDCKEY_SRCBLT, key)`.  The earlier
+note in `FUN_005b8b40` calling this an "unlimited / best-fit hint" was
+wrong — it's a sentinel.
+
+## `FUN_005b8c00` — the actual `IDirectDraw7::CreateSurface` call (372 bytes)
+
+This is where the DDSURFACEDESC2 is built and `CreateSurface` (vtable
+offset 0x18) actually invoked.  Stack-local DDSURFACEDESC2:
+
+```c
+DDSURFACEDESC2 ddsd = {0};
+ddsd.dwSize   = 0x7C;                               // 124, sizeof(DDSURFACEDESC2)
+ddsd.dwFlags  = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;  // 7
+ddsd.dwHeight = h;
+ddsd.dwWidth  = w;
+ddsd.ddsCaps.dwCaps = caps_in | DDSCAPS_OFFSCREENPLAIN;  // |= 0x40
+if (forceVRAM || self->[0x134]/*videomem_flag*/)
+    ddsd.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY;          // |= 0x800
+
+// If self->[0x164] == 2 (explicit-pixelformat mode):
+if (self->[0x164] == 2) {
+    int bpp = self->[0x168];
+    ddsd.dwFlags |= DDSD_PIXELFORMAT;                    // |= 0x1000
+    ddsd.ddpfPixelFormat.dwSize  = 0x20;                 // 32
+    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB;             // 0x40
+    switch (bpp) {
+      case 8:
+        ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_PALETTEINDEXED8;  // 0x60
+        break;
+      case 16:
+        ddsd.ddpfPixelFormat.dwRGBBitCount = 16;
+        ddsd.ddpfPixelFormat.dwRBitMask    = 0xF800;       // RGB565
+        ddsd.ddpfPixelFormat.dwGBitMask    = 0x07E0;
+        ddsd.ddpfPixelFormat.dwBBitMask    = 0x001F;
+        break;
+      case 24: case 32:
+        ddsd.ddpfPixelFormat.dwRGBBitCount = bpp;
+        ddsd.ddpfPixelFormat.dwRBitMask    = 0xFF0000;     // XRGB8888 / RGB888
+        ddsd.ddpfPixelFormat.dwGBitMask    = 0x00FF00;
+        ddsd.ddpfPixelFormat.dwBBitMask    = 0x0000FF;
+        break;
+    }
+}
+
+hr = ddraw7->lpVtbl->CreateSurface(ddraw7, &ddsd, &lpDDS, NULL);
+
+// If we own a palette (self->[0x12c] != 0), bind it to the new surface.
+if (succeeded && self->[0x12c] != 0) {
+    lpDDS->lpVtbl->SetPalette(lpDDS, self->[0x12c]);    // vtbl[0x7c] = SetPalette (method 31)
+}
+```
+
+Note: `ddpfPixelFormat.dwRGBBitCount` doesn't appear explicitly assigned
+in the 8bpp branch but the field stays zero — DirectDraw treats that as
+"infer from palette size".
+
+> Engine quirk: the 24bpp branch sets the SAME masks as the 32bpp branch
+> (case 0x18 falls through to case 0x20).  Likely harmless because DDraw
+> ignores RGBBitMasks when bit count is 24/32 anyway, but still
+> sloppy.
 
 ## `FUN_005b9520` — Clipper attach
 
@@ -146,19 +219,32 @@ that surface object — `IDirectDrawSurface7::SetClipper` is method 28
 | 21  | 0x54   | SetDisplayMode          |
 | 22  | 0x58   | WaitForVerticalBlank    |
 
-`IDirectDrawSurface7`:
+`IDirectDrawSurface7` (sorted by method index — these are the offsets
+the engine actually dereferences in `FUN_005b8c00`, `FUN_005b9830`,
+`FUN_005b9520`, plus the ones we'll need to hook for frame capture):
 
 | idx | offset | method                  |
 |-----|--------|-------------------------|
 |  2  | 0x08   | Release                 |
 | 11  | 0x2C   | Flip                    |
 | 12  | 0x30   | GetAttachedSurface      |
-| 24  | 0x60   | Lock                    |
-| 25  | 0x64   | ReleaseDC               |
-| 26  | 0x68   | Restore                 |
+| 24  | 0x60   | IsLost                  |
+| 25  | 0x64   | **Lock**                |
+| 26  | 0x68   | ReleaseDC               |
+| 27  | 0x6C   | Restore                 |
 | 28  | 0x70   | **SetClipper**          |
-| 31  | 0x7C   | Unlock                  |
-| 32  | 0x80   | UpdateOverlay           |
+| 29  | 0x74   | **SetColorKey**         |
+| 30  | 0x78   | SetOverlayPosition      |
+| 31  | 0x7C   | **SetPalette**          |
+| 32  | 0x80   | **Unlock**              |
+| 33  | 0x84   | UpdateOverlay           |
+
+> ⚠ An earlier read of this table had `Lock` at offset 0x60 and
+> `Unlock` at 0x7c.  Wrong.  `Lock` is at 0x64 (method 25) and
+> `Unlock` is at 0x80 (method 32); 0x60 is `IsLost`, 0x7c is
+> `SetPalette`.  Confirmed by reading `FUN_005b8c00`'s palette-bind
+> call site (`vtbl[0x7c]` is called with `(surface, palette*)` — only
+> `SetPalette` has that signature).
 
 `IDirectDrawClipper`:
 
@@ -180,6 +266,14 @@ These match what we observed in the disassembly above.
 - `docs/decompiled/by-address/5b89d0.c` — SetCooperativeLevel.
 - `docs/decompiled/by-address/582e90.c` — CreateScreen mode dispatch.
 - `docs/decompiled/by-address/5b8b40.c` — surface allocator wrapper.
+- `docs/decompiled/by-address/5b95c0.c` — surface alloc orchestrator
+  (pre-fill, CreateSurface, stash params, SetColorKey).
+- `docs/decompiled/by-address/5b8c00.c` — DDSURFACEDESC2 builder +
+  `IDirectDraw7::CreateSurface` call + palette bind.
+- `docs/decompiled/by-address/5b97e0.c` — pre-fill DDSD lpSurface ptrs.
+- `docs/decompiled/by-address/5b98c0.c` — stash create params on ZDDObject.
+- `docs/decompiled/by-address/5b9830.c` — `SetColorKey` (0x1ffffff sentinel
+  means "no color key").
 - `docs/decompiled/by-address/5b9520.c` — clipper create + attach.
 - `docs/decompiled/by-address/5b80d0.c` — DDERR_*-to-string log helper.
 

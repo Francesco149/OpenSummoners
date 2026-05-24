@@ -222,7 +222,47 @@ flag, and spun.
 
 ---
 
-## 11. PE has 1768 Ghidra-recovered functions but several "load-bearing" ones are reached only via function pointer
+## 11. `0x01FFFFFF` is the engine's "no color key" sentinel
+
+Throughout the DDraw surface code (`FUN_005b8b40`, `FUN_005b95c0`,
+`FUN_005b9830`) the value `0x01FFFFFF` is passed where you'd expect
+a color key.  It's a sentinel: `FUN_005b9830` checks
+`if (param_1 == 0x01FFFFFF)` and skips the `SetColorKey` call,
+storing a flag in `self->[0xd4]` to mark the surface as "no key
+attached".
+
+An earlier read of this constant treated it as some kind of
+"unlimited / best-fit hint" to DDraw; that was wrong.  It's not
+passed to DDraw at all — it's a marker the engine uses internally.
+
+> 📍 `docs/findings/ddraw-init.md` § "FUN_005b9830".
+
+---
+
+## 12. The engine's 24-bit pixelformat case falls through to 32-bit
+
+In `FUN_005b8c00`'s surface-format switch:
+
+```c
+switch (bpp) {
+  case 8:  ddpf.dwFlags |= DDPF_PALETTEINDEXED8; break;
+  case 16: dwRBitMask = 0xF800; dwGBitMask = 0x07E0; dwBBitMask = 0x001F; break;
+  case 24:                                   // ← falls through
+  case 32: dwRBitMask = 0xFF0000; dwGBitMask = 0xFF00; dwBBitMask = 0xFF; break;
+}
+```
+
+Case 24 and case 32 share the same masks (XRGB8888 layout) even
+though a real 24-bit DDraw surface is packed RGB888 with no padding.
+Probably harmless — DDraw ignores `dwRGBBitMasks` for 24/32-bit
+surfaces in practice — but our port should faithfully reproduce the
+fallthrough to keep the DDSURFACEDESC2 byte-identical for diffing.
+
+> 📍 `docs/findings/ddraw-init.md` § "FUN_005b8c00".
+
+---
+
+## 13. PE has 1768 Ghidra-recovered functions but several "load-bearing" ones are reached only via function pointer
 
 Ghidra's auto-analysis misses functions that are never the target of a
 direct call — common when the engine uses C++-style vtables or stores
