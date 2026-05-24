@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — ar_boot_register_all wired
+
+The 8 ported `ar_register_*` batches are no longer modules in isolation
+— a new `ar_boot_register_all` in `asset_register.c` calls them in
+retail issue order, matching FUN_00562ea0:613-624 byte-for-byte modulo
+the one un-ported batch (FUN_0057ca40, group 3, 24884 B Ghidra-fails).
+This is the "register every asset slot at boot" entry point: pass ZDD,
+ZDS, settings, sotesp_module, and a locale state, and every ramp /
+sprite / sound / GDI slot the title scene depends on lands populated.
+
+API shape `ar_boot_register_all(zdd, zds, settings, sotesp_module,
+locale)` keeps the conceptual settings-vs-sotesp split (in retail both
+are the same DAT_008a6e74 pointer at boot; we accept them separately so
+unit tests can distinguish "this register batch reads settings" from
+"this batch reads sotesp.dll"). `locale == NULL` skips the locale-tail
+batch entirely — useful for testing other batches in isolation; retail
+always passes a valid struct.
+
+The FUN_0057ca40 gap is marked with an inline comment at the exact
+position it'd slot into (between aux_sounds and game_sounds).  No hook
+mechanism — once Ghidra-fail is resolved and the function is ported,
+the call is dropped in.
+
+Tests: +6 new tests in `tests/test_asset_register.c` covering group-tag
+routing, ZDD-vs-ZDS plumbing, the sotesp-module split (idx 0 +
+ramp_slots use sotesp; everything else uses settings), locale state
+plumbing, NULL-locale skip behaviour, and a "did every batch run"
+canary check.  **153 pass, 0 fail, 4 skip** (was 147 / 0 / 4).  The
+palette-install side of palette_ramps is a no-op in these tests
+because the bs_load_pe_resource stub's resource table starts empty
+when asset tests run; the install path is already covered separately
+by test_bitmap_session.c's palette_ramps_* tests.
+
+Cross-build clean.
+
+---
+
 ## 2026-05-24 — ar_register_palette_ramps (FUN_0057a330) ported
 
 Ported the 3919-byte sprite-batch palette function as

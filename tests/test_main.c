@@ -123,6 +123,12 @@ struct test_case {
     X(locale_sounds_override_7fff_skips_under_locale)          \
     X(locale_sounds_coexists_with_game_sounds)                 \
     X(locale_sounds_buffer_pointer_preserved)                  \
+    X(boot_register_all_group_tags_per_batch)                  \
+    X(boot_register_all_zdd_vs_zds_routing)                    \
+    X(boot_register_all_sotesp_module_for_special_slots)       \
+    X(boot_register_all_locale_state_routed)                   \
+    X(boot_register_all_null_locale_skips_tail)                \
+    X(boot_register_all_touches_every_batch_signature_slot)    \
     X(ar_layout_matches_retail)                                \
     X(bs_release_no_free_nulls_pixels)                         \
     X(bs_release_is_idempotent_on_null)                        \

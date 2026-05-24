@@ -14,12 +14,10 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  **Four modules ported now:**
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 23 functions ported.  Pure logic with GDI
-  wrappers split into `asset_register_win32.c` (real build only).
-  Latest: `ar_register_palette_ramps` (FUN_0057a330) — 12 per-sprite
-  palette ramps + 23 trailing sprite registers + 14 portrait blocks
-  with parallel flag-table writes.  Reuses the bitmap_session-backed
-  palette-session pair end-to-end.
+- **Asset-Register** — 24 functions ported, **including the boot-driver
+  wiring**: `ar_boot_register_all` replays FUN_00562ea0:613-624 in retail
+  issue order.  Pure logic with GDI wrappers split into
+  `asset_register_win32.c` (real build only).
 - **Bitmap-Session** — 8 functions (7 thiscalls + 1 free function
   FUN_005b7c10).  Pure PE-resource bitmap decoder, Win32-free body
   with `bs_local_alloc_zeroed` / `bs_local_free` /
@@ -28,7 +26,7 @@ methodical port-and-test.  **Four modules ported now:**
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
 
-Total host tests across all four modules: **147 pass, 0 fail, 4
+Total host tests across all four modules: **153 pass, 0 fail, 4
 skip** (the 4 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -48,7 +46,8 @@ but less so).
 
 Most recent commits (newest first):
 
-- (current) Asset-Register: port FUN_0057a330 (palette-ramp batch)
+- (current) Asset-Register: wire ar_boot_register_all (FUN_00562ea0:613-624)
+- `dcc3d15` Asset-Register: port ar_register_palette_ramps (FUN_0057a330)
 - `4f89867` bitmap_session: port the PE-resource decoder + palette-ramp wiring
 - `8cb9fd8` RE: resolve bitmap_session ECX puzzle + tag the 7 methods
 - `b29ff82` docs: HANDOFF + PROGRESS for palette-trio-leaves checkpoint
@@ -57,7 +56,6 @@ Most recent commits (newest first):
 - `811f56c` docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
 - `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
 - `d4198b0` Asset-Register: port ar_register_aux_sounds (FUN_00562ea0:617-620)
-- `09c2bfd` docs: capture FUN_0057b280 locale-table layout finding
 
 ## Active goal
 
@@ -68,27 +66,31 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-`ar_register_palette_ramps` (FUN_0057a330) is ported.  The major
-remaining boot-driver register calls are FUN_0057ca40 (24884 B
-Ghidra-fails) and the un-ported subsystem ports (DDraw / WndProc
-deep structs).  Two new opportunities surfaced:
+`ar_boot_register_all` is now wired — every ported register batch
+runs in retail issue order with one call.  The asset-register module
+is *content-complete* for the title-scene boot path modulo the
+deferred FUN_0057ca40 (group 3 sprite batch, Ghidra-fails).  Next
+steps narrow to either un-blocking that deferred function OR moving
+to the runtime subsystems the title scene actually exercises.
 
-1. **(recommended) Boot driver wiring (FUN_00562ea0)** — every
-   register batch is now ported in isolation: `ar_register_fonts`,
-   `ar_register_main_sprites`, `ar_register_game_sprites`,
-   `ar_register_sounds`, `ar_register_aux_sounds`,
-   `ar_register_game_sounds`, `ar_register_locale_sounds`,
-   `ar_register_palette_ramps`.  The boot driver itself
-   (FUN_00562ea0) is unported — wiring them together gives us
-   "register every asset slot at boot" as a single port call.  Will
-   also surface the locale-state plumbing (DAT_008a6e68 / _6e70 /
-   _6e80+0x1c8) that's currently passed in as a struct by the test
-   harness.  Port style: read FUN_00562ea0's decomp, identify the
-   order of register calls + the global setup before/around them,
-   wire it as `ar_boot_register_all(zdd, zds, settings, sotesp,
-   locale)` or similar.  Doesn't need the deferred FUN_0057ca40 if
-   we model it as a stub (it's the only ungated function in the
-   sequence).
+1. **(recommended) Crack FUN_0057ca40** (24884 B) — the one un-ported
+   register call in `ar_boot_register_all`.  Ghidra's decompile fails
+   (response buffer exceeded).  Approach options:
+     - **radare2 hand-disasm** of the function in chunks.  Pattern is
+       likely the same FUN_005748c0 + palette-ramp + maybe ar_sound
+       mix as the other group-3 batches.  Use `r2 -c 'pdf @
+       0x0057ca40' | wc -l` to estimate function size, then walk it in
+       0x200-byte chunks via `pD 0x200 @ ...` while cross-referencing
+       string xrefs.
+     - **Chunked Ghidra** — Ghidra's "decompile a region" can work on
+       sub-ranges by setting function boundaries manually.  Slower but
+       gives typed pseudo-C.
+     - **Frida watchpoint** at function entry; log every memory write
+       it issues to the asset-register pool slots.  Gives us the
+       observable end-state without the body decomp — sufficient to
+       reproduce the slot writes table-driven.  This is the most
+       pragmatic approach given the function's size; the body is
+       almost certainly "register N sprites" boilerplate.
 
 2. **WndProc dependency formalization** — model the layouts of the
    5 "deep engine" structs (paint context with +0x164 state and
@@ -107,9 +109,14 @@ deep structs).  Two new opportunities surfaced:
    AND lets the WndProc's `wp_paint_check` hook get a real
    implementation.
 
-4. **`FUN_0057ca40`** (24884 B) — Ghidra decompile FAILS (response
-   buffer exceeded).  Will need radare2 hand-disasm or chunked
-   Ghidra approach.
+4. **Wire ar_boot_register_all into the drop-in's WinMain.** —
+   currently every batch is a module in isolation; the function
+   exists but no real drop-in caller invokes it.  Wiring requires the
+   drop-in to own the engine init (currently retail does this).  Pre-
+   req: ZDD/ZDS/ZDM init (ports of FUN_005b7ee0, FUN_005b9cf0,
+   FUN_005bbb10).  Without those, the call can run with stub pointers
+   but has no observable effect because the drop-in's drawing path is
+   still retail's.
 
 5. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
@@ -122,7 +129,8 @@ src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
-  asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette) — 23 functions
+  asset_register.c/h        Asset-register slots (GDI, sprite, sound, palette,
+                            BOOT-DRIVER WIRING) — 24 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   bitmap_session.c/h        PE-resource bitmap decoder (the ar_palette_session_begin backend) — 8 functions
   bitmap_session_win32.c    LocalAlloc/Free + FindResource/LoadResource/LockResource wrappers
@@ -136,7 +144,7 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     66 tests for Asset-Register
+  test_asset_register.c     72 tests for Asset-Register (incl. 6 ar_boot_register_all)
   test_bitmap_session.c     31 tests for bitmap_session (incl. ar_palette_session_begin + ramps for both main_sprites + FUN_0057a330)
   test_wnd_proc.c           20 tests for WndProc
 
@@ -163,17 +171,12 @@ tools/
 - `PTR_DAT_0056bfa4` jumptable inside the title-menu runner
   (`FUN_0056aea0`) — Ghidra-flagged unrecovered.  Read with
   `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
-- `ar_register_fonts` + `ar_register_sounds` + `ar_register_main_sprites`
-  + `ar_register_game_sprites` + `ar_register_game_sounds` +
-  `ar_register_aux_sounds` + `ar_register_locale_sounds` +
-  `ar_register_palette_ramps` are all ported but **not yet called
-  from the drop-in's boot path** — they're modules in isolation.
-  Wire them in once enough adjacent register batches land that
-  calling them actually has a visible effect (Next-move #1 is the
-  boot-driver wiring port that picks them all up).
-  `ar_register_locale_sounds` ALSO needs the boot driver to populate
-  an `ar_locale_state` from the launcher-settings globals — see
-  next bullet.
+- `ar_boot_register_all` exists but **is not yet called from the
+  drop-in's WinMain** — every batch (and the wiring) is still a
+  module in isolation.  Wiring requires the drop-in to actually own
+  the engine init (currently retail does that), which means porting
+  the ZDD/ZDS/ZDM device init (`FUN_005b7ee0`, `FUN_005b9cf0`,
+  `FUN_005bbb10`) first so we have real device pointers to pass in.
 - `g_ar_sprite_flags[14]` (retail BSS 0x008a8578..0x008a85ac) —
   parallel per-portrait flag table written by
   `ar_register_palette_ramps`'s portrait blocks (values 0 or 3).

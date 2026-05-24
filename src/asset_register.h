@@ -835,6 +835,52 @@ void ar_register_game_sprites(void *zdd, uint16_t group, void *settings);
  * [0x8a92b0] respectively (table indices 9, 14, 15). */
 void ar_register_fonts(void *zdd, uint16_t group, void *settings);
 
+/* FUN_00562ea0:613-624 — boot-driver asset-register wiring.
+ *
+ * Replays the engine's "register every asset slot at boot" sequence in
+ * the same issue order retail uses.  Each ported register batch lands
+ * on the same slot pool, so a single call here populates the full
+ * sprite/sound/GDI state the title scene expects.
+ *
+ * Issue order (from FUN_00562ea0):
+ *
+ *   ar_register_fonts          (zdd, 1, settings)            // FUN_00579bd0
+ *   ar_register_sounds         (zds, 1, settings)            // FUN_00579a00
+ *   ar_register_palette_ramps  (zdd, 2, settings, sotesp)    // FUN_0057a330
+ *   ar_register_aux_sounds     (zds, 2, settings)            // 4× inline FUN_00563ef0
+ *   *** FUN_0057ca40 (group 3) — NOT YET PORTED — skipped ***
+ *   ar_register_game_sounds    (zds, 3, settings)            // FUN_0057b280 head
+ *   ar_register_locale_sounds  (zds, 3, settings, locale)    // FUN_0057b280 tail
+ *   ar_register_main_sprites   (zdd, 4, settings, sotesp)    // FUN_005749b0
+ *   ar_register_game_sprites   (zdd, 5, settings)            // FUN_0056e190
+ *
+ * Retail dispatches every batch with `param_3 = DAT_008a6e74` — the
+ * sotesp.dll HMODULE the launcher loaded.  In retail that one global
+ * doubles as both "settings" and "sotesp_module" because the engine's
+ * launcher-settings record IS the sotesp.dll handle at this point in
+ * boot.  We keep the conceptual split (`settings` vs `sotesp_module`)
+ * so unit tests can distinguish them.  Pass the same pointer for both
+ * to match retail behaviour byte-for-byte; pass distinct pointers to
+ * exercise the split.
+ *
+ * Group tags (1..5) are baked in — they're parameters of each ported
+ * batch but retail always passes the same constants in this sequence.
+ *
+ * `locale` plumbs the three locale-state globals (DAT_008a6e68 / _6e70
+ * / *DAT_008a6e80+0x1c8) into `ar_register_locale_sounds`.  Pass NULL
+ * to skip the locale tail entirely (useful for testing the rest of the
+ * sequence in isolation; retail always passes a valid struct).
+ *
+ * FUN_0057ca40 (24884 B, Ghidra-fails) is the one un-ported batch in
+ * this sequence.  It is the only ungated function in the boot driver
+ * (every other call here is now a module in isolation) — once it
+ * lands, it slots between `ar_register_aux_sounds` and
+ * `ar_register_game_sounds`.  Until then, the sequence is observable
+ * minus whatever group-3 state that function would have stamped. */
+void ar_boot_register_all(void *zdd, void *zds, void *settings,
+                          void *sotesp_module,
+                          const ar_locale_state *locale);
+
 /* ─── GDI primitive wrappers — defined per build target ─────────── */
 
 /* family: see ar_make_font.  italic: 0/1.  face: face name string. */

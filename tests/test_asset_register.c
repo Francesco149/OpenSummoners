@@ -1833,6 +1833,206 @@ int test_locale_sounds_buffer_pointer_preserved(void)
     return 0;
 }
 
+/* ─── ar_boot_register_all (FUN_00562ea0:613-624 wiring) ─────────── */
+
+/* Boot driver replays every ported register batch in retail issue
+ * order.  These tests pin the wiring: group tags, zdd/zds routing,
+ * locale plumbing, and the sotesp_module split.
+ *
+ * The palette-install body inside ar_register_palette_ramps depends on
+ * bs_load_pe_resource returning a valid 8bpp resource.  The recording
+ * stub lives in test_bitmap_session.c and its resource table starts
+ * empty when these tests run (asset tests are registered before
+ * bitmap_session tests in test_main.c).  An empty table makes
+ * ar_palette_session_begin return false, which makes the ramp's
+ * palette-install a no-op — the slot REGISTER side still runs, which
+ * is what these tests assert.  Standalone palette-install behaviour is
+ * already covered by test_bitmap_session's palette_ramps_* tests. */
+
+static void boot_register_all_cleanup(void)
+{
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_ramp_slots[i]);
+    for (int i = 0; i < AR_GDI_SLOT_COUNT; i++)
+        ar_gdi_slot_destroy(g_ar_gdi_table[i]);
+}
+
+int test_boot_register_all_group_tags_per_batch(void)
+{
+    /* Each batch stamps its own group number — 1 fonts/sounds, 2
+     * palette_ramps/aux_sounds, 3 game_sounds/locale_sounds, 4
+     * main_sprites, 5 game_sprites.  Verify by spot-checking one
+     * touched slot per batch. */
+    stub_reset();
+    ar_state_init();
+    void *zdd = (void *)0xd00d, *zds = (void *)0xa11a;
+    void *settings = (void *)0xbeef, *sotesp = (void *)0xfeed;
+    ar_locale_state locale = { NULL, NULL, 0 };
+
+    ar_boot_register_all(zdd, zds, settings, sotesp, &locale);
+
+    /* Group 1 — fonts (gdi_table[1]) + sounds (sound_table[0]). */
+    T_ASSERT_EQ_U(g_ar_gdi_table[1]->group, 1u);
+    T_ASSERT_EQ_U(g_ar_sound_table[0]->group, 1u);
+    /* Group 2 — palette_ramps (ramp_slots[0]) + aux_sounds (sound_table[22]). */
+    T_ASSERT_EQ_U(g_ar_sprite_ramp_slots[0].group, 2u);
+    T_ASSERT_EQ_U(g_ar_sound_table[22]->group, 2u);
+    /* Group 3 — game_sounds (sound_table[14] — first inline entry). */
+    T_ASSERT_EQ_U(g_ar_sound_table[14]->group, 3u);
+    /* Group 4 — main_sprites (sprite_slots[1] — first inline). */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 4u);
+    /* Group 5 — game_sprites (sprite_slots[62] — lowest touched idx
+     * by FUN_0056e190). */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[62].group, 5u);
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
+int test_boot_register_all_zdd_vs_zds_routing(void)
+{
+    /* Sprite batches must receive zdd; sound batches must receive zds.
+     * Verify by sampling one slot per kind. */
+    stub_reset();
+    ar_state_init();
+    void *zdd = (void *)0xd0d0, *zds = (void *)0x5e5e;
+    ar_locale_state locale = { NULL, NULL, 0 };
+    ar_boot_register_all(zdd, zds, (void *)0x1, (void *)0x2, &locale);
+
+    /* Sprite slot (game sprites) → zdd. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[62].zdd, zdd);
+    /* Sprite slot (main sprites idx 1) → zdd. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[1].zdd, zdd);
+    /* Ramp slot → zdd. */
+    T_ASSERT_EQ_P(g_ar_sprite_ramp_slots[0].zdd, zdd);
+    /* Sound slots (main, aux, game, locale-fallback) → zds. */
+    T_ASSERT_EQ_P(g_ar_sound_table[0]->zds,   zds);   /* main sounds */
+    T_ASSERT_EQ_P(g_ar_sound_table[22]->zds,  zds);   /* aux sound idx 22 */
+    T_ASSERT_EQ_P(g_ar_sound_table[14]->zds,  zds);   /* game sound idx 14 */
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
+int test_boot_register_all_sotesp_module_for_special_slots(void)
+{
+    /* main_sprites idx 0 and the 12 palette-ramp slots take
+     * sotesp_module as their settings pointer (not the caller's
+     * `settings`).  Every other slot takes the caller's settings. */
+    stub_reset();
+    ar_state_init();
+    void *settings = (void *)0xaaaa, *sotesp = (void *)0xbbbb;
+    ar_locale_state locale = { NULL, NULL, 0 };
+    ar_boot_register_all((void *)0x1, (void *)0x2, settings, sotesp, &locale);
+
+    /* main_sprites idx 0 — sotesp pointer wins. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[0].settings, sotesp);
+    /* All 12 ramp slots — sotesp pointer (palette-ramp source). */
+    for (int i = 0; i < AR_SPRITE_RAMP_COUNT; i++)
+        T_ASSERT_EQ_P(g_ar_sprite_ramp_slots[i].settings, sotesp);
+    /* main_sprites idx 1 — caller's settings. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[1].settings, settings);
+    /* game_sprites idx 62 — caller's settings. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[62].settings, settings);
+    /* fonts sprite (idx AR_SPR_FONT_TEX_457) — caller's settings. */
+    T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].settings, settings);
+    /* Sound slots — caller's settings. */
+    T_ASSERT_EQ_P(g_ar_sound_table[14]->settings, settings);
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
+int test_boot_register_all_locale_state_routed(void)
+{
+    /* When a valid locale with current_settings != NULL is passed, the
+     * locale_sounds tail should route override-path entries through
+     * current_settings.  Verify on idx 245 (override 0x08bb, primary
+     * 0x53d): under override the resource_id is 0x08bb and the
+     * settings pointer is current_settings. */
+    stub_reset();
+    ar_state_init();
+    void *settings = (void *)0x100;
+    void *current  = (void *)0x200;
+    void *fallback = (void *)0x300;
+    ar_locale_state locale = {
+        .fallback_settings = fallback,
+        .current_settings  = current,
+        .launcher_flag     = 0,
+    };
+    ar_boot_register_all((void *)0x1, (void *)0x2, settings, (void *)0x3, &locale);
+
+    T_ASSERT_EQ_U(g_ar_sound_table[245]->resource_id, 0x08bbu);
+    T_ASSERT_EQ_P(g_ar_sound_table[245]->settings,    current);
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
+int test_boot_register_all_null_locale_skips_tail(void)
+{
+    /* locale == NULL → ar_register_locale_sounds is NOT called.  Slot
+     * indices touched only by the locale tail (e.g. idx 245, the first
+     * locale-only index) must stay zero. */
+    stub_reset();
+    ar_state_init();
+    ar_boot_register_all((void *)0x1, (void *)0x2, (void *)0x3, (void *)0x4,
+                         /*locale=*/NULL);
+
+    /* idx 245 — locale-only.  zds NULL means uninhabited. */
+    T_ASSERT_EQ_P(g_ar_sound_table[245]->zds, NULL);
+    T_ASSERT_EQ_U(g_ar_sound_table[245]->resource_id, 0u);
+    /* But game_sounds (idx 14) still got written. */
+    T_ASSERT_EQ_U(g_ar_sound_table[14]->resource_id, 0x513u);
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
+int test_boot_register_all_touches_every_batch_signature_slot(void)
+{
+    /* One known slot per batch as a "did this batch run?" canary.
+     * Resource IDs match the documented retail values so this also
+     * catches accidental cross-batch reordering. */
+    stub_reset();
+    ar_state_init();
+    ar_locale_state locale = {
+        .fallback_settings = (void *)0x300,
+        .current_settings  = NULL,           /* PATH A for locale tail */
+        .launcher_flag     = 0,
+    };
+    ar_boot_register_all((void *)0xd00d, (void *)0xa11a,
+                         (void *)0xbeef, (void *)0xfeed, &locale);
+
+    /* ar_register_fonts — gdi_table[14] is the pen slot it sets up. */
+    T_ASSERT_EQ_U(g_ar_gdi_table[14]->count,    1u);
+    T_ASSERT_EQ_U(g_ar_gdi_table[14]->capacity, 1u);
+    /* ar_register_fonts — sprite at AR_SPR_FONT_TEX_457. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].resource_id, 0x457u);
+    /* ar_register_sounds — sound_table[0] gets id 0x50f. */
+    T_ASSERT_EQ_U(g_ar_sound_table[0]->resource_id, 0x50fu);
+    /* ar_register_palette_ramps — ramp_slots[0] gets id 0x413. */
+    T_ASSERT_EQ_U(g_ar_sprite_ramp_slots[0].resource_id, 0x413u);
+    /* ar_register_aux_sounds — sound_table[22] gets id 0x4cb. */
+    T_ASSERT_EQ_U(g_ar_sound_table[22]->resource_id, 0x4cbu);
+    /* ar_register_game_sounds — sound_table[14] gets id 0x513. */
+    T_ASSERT_EQ_U(g_ar_sound_table[14]->resource_id, 0x513u);
+    /* ar_register_locale_sounds — sound_table[245] gets primary 0x53d
+     * (PATH A: current_settings NULL). */
+    T_ASSERT_EQ_U(g_ar_sound_table[245]->resource_id, 0x53du);
+    /* ar_register_main_sprites — sprite_slots[1] gets id 0x49f. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].resource_id, 0x49fu);
+    /* ar_register_game_sprites — sprite_slots[62] is FUN_0056e190's
+     * first touched idx; verify it received its entry. */
+    T_ASSERT(g_ar_sprite_slots[62].entries != NULL);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[62].entry_count, 1u);
+
+    boot_register_all_cleanup();
+    return 0;
+}
+
 /* ─── layout parity (32-bit only) ────────────────────────────────── */
 
 int test_ar_layout_matches_retail(void)

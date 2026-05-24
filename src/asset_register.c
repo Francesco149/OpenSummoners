@@ -1742,3 +1742,24 @@ void ar_register_game_sprites(void *zdd, uint16_t group, void *settings)
             e->scale_flag, e->type, group);
     }
 }
+
+/* ─── FUN_00562ea0:613-624 — boot-driver register wiring ─────────── */
+
+void ar_boot_register_all(void *zdd, void *zds, void *settings,
+                          void *sotesp_module,
+                          const ar_locale_state *locale)
+{
+    ar_register_fonts         (zdd, 1, settings);
+    ar_register_sounds        (zds, 1, settings);
+    ar_register_palette_ramps (zdd, 2, settings, sotesp_module);
+    ar_register_aux_sounds    (zds, 2, settings);
+    /* FUN_0057ca40(zdd, 3, settings) — NOT YET PORTED.  Group-3 sprite
+     * batch; Ghidra-fails on the 24884 B body.  Once ported it lands
+     * here, between aux_sounds and game_sounds. */
+    ar_register_game_sounds   (zds, 3, settings);
+    if (locale != NULL) {
+        ar_register_locale_sounds(zds, 3, settings, locale);
+    }
+    ar_register_main_sprites  (zdd, 4, settings, sotesp_module);
+    ar_register_game_sprites  (zdd, 5, settings);
+}
