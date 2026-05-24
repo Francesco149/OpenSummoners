@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — FUN_0057ca40 4th pass: 443 info-entry pool writes PORTED
+
+Mechanical follow-on to the per-call-site indexing confirmation:
+extracted the full info-entry event stream and replayed it as a
+443-row static table walked by `ar_apply_group3_info_events`,
+called from the tail of `ar_register_group3_sprites`.  Every write
+the function performs to the parallel info-entry pool now lands in
+the host model: 138 marker, 194 flag, 98 data-ptr, 5 struct-copy,
+4 marker-copy, 4 flag-copy events spanning pool indices 92..437.
+
+Extractor at `tools/extract/57ca40_info_table.py` mirrors the
+`57ca40_sprite_table.py` model — re-run after re-export to catch
+drift.  It captures 4 short-typed data-ptr writes (lines 2142,
+2147, 2286, 2291) that the `57ca40_pool_map.py` audit's regex
+missed — taking the real total from 439 to 443.  Sanity check
+verifies all dst indices fall in [0, 909); the 5 struct copies'
+sources (pool[139..145]) are not produced inside FUN_0057ca40, but
+they're alloc-zeroed by the pool allocator and read at zero —
+matching retail's allocator-zeroed pool semantics.
+
+DATA_SET payloads (98 events; 25 distinct PE rdata addresses, e.g.
+0x006748d0) are stored as opaque uintptr_t markers.  No consumer
+reads them as bytes yet — the first FUN_00586010-style palette
+draw with flag dispatch will need extracted PE bytes; this port is
+observability-only on the data side.  8 new spot-check tests cover
+the kinds (FLAG_SET, MARKER_SET, DATA_SET, MARKER_COPY, FLAG_COPY,
+STRUCT_COPY) plus the bounded-region invariant (events only touch
+pool[92..437]) plus the wiring through `ar_register_group3_sprites`.
+Tests now: **176 pass, 0 fail, 4 skip** (up from 168).
+
+The remaining FUN_0057ca40 deferred work is now strictly on the
+**sprite-slot side**: 94 SS_MGR clones (FUN_004179b0) plus the 9
+inline-clone clusters (FUN_00582b80 sprite-slot ops).  Info-entry
+side is closed.
+
+---
+
 ## 2026-05-24 — FUN_0057ca40 per-call-site indexing confirmed
 
 Walked all 466 info-entry references inside FUN_0057ca40 and matched

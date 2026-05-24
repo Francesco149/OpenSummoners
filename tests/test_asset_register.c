@@ -2213,6 +2213,138 @@ int test_group3_sprites_no_overlap_with_main_sprite_indices(void)
     return 0;
 }
 
+/* ─── ar_apply_group3_info_events (4th pass of FUN_0057ca40) ────── */
+
+int test_group3_info_events_first_event_flag_set(void)
+{
+    /* L40 in 57ca40.c — first event of the table:
+     * `*(undefined4 *)(DAT_008a85b0 + 4) = 1;` → pool[92].flag = 1. */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_U(g_ar_info_table[92]->flag, 1u);
+    return 0;
+}
+
+int test_group3_info_events_marker_and_flag_pair(void)
+{
+    /* L229-230: `*DAT_008a85c4 = 0; *(undefined4 *)(DAT_008a85c4 + 2) = 1;`
+     * → pool[97].marker = 0, pool[97].flag = 1.  Spot-checks that a
+     * marker-then-flag bundle on the same pool index both land. */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_U(g_ar_info_table[97]->marker, 0u);
+    T_ASSERT_EQ_U(g_ar_info_table[97]->flag,   1u);
+    return 0;
+}
+
+int test_group3_info_events_data_ptr_set(void)
+{
+    /* L2493: `*(undefined **)(DAT_008a88d0 + 8) = &DAT_006748d0;`
+     * → pool[292].data = (const void *)0x006748d0.  Verifies
+     * DATA_SET events lay down the retail PE rdata address
+     * verbatim (observability-only — no consumer reads bytes yet). */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_P(g_ar_info_table[292]->data, (const void *)0x006748d0u);
+    return 0;
+}
+
+int test_group3_info_events_marker_set_with_high_value(void)
+{
+    /* L2491: `*DAT_008a88cc = 0x1c;` → pool[291].marker = 0x1c.
+     * Spot-checks a non-zero marker write (most markers are 0; this
+     * one's part of the marker-bearing SS_MGR-clone cluster region). */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_U(g_ar_info_table[291]->marker, 0x1cu);
+    T_ASSERT_EQ_U(g_ar_info_table[291]->flag,   2u);
+    return 0;
+}
+
+int test_group3_info_events_copy_marker_and_flag_chain(void)
+{
+    /* L2140-2141: pool[384].marker = pool[381].marker;
+     *             pool[384].flag   = pool[381].flag;
+     * The source pool[381] is written at L2003 (`pool[381].flag = 2`)
+     * — and L2003 fires BEFORE L2140 in source order, so the copy
+     * picks up flag=2 (marker stays 0 — never written for pool[381]).
+     * Verifies MARKER_COPY + FLAG_COPY read post-write state. */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_U(g_ar_info_table[381]->marker, 0u);
+    T_ASSERT_EQ_U(g_ar_info_table[381]->flag,   2u);
+    T_ASSERT_EQ_U(g_ar_info_table[384]->marker, g_ar_info_table[381]->marker);
+    T_ASSERT_EQ_U(g_ar_info_table[384]->flag,   g_ar_info_table[381]->flag);
+    /* And the data ptr that follows the copy at L2142: */
+    T_ASSERT_EQ_P(g_ar_info_table[384]->data, (const void *)0x006752f8u);
+    return 0;
+}
+
+int test_group3_info_events_struct_copy_from_zero_init(void)
+{
+    /* L3083: `pool[257] = pool[139]` — but pool[139] is never written
+     * inside FUN_0057ca40 (or any earlier batch).  So the struct copy
+     * lands an all-zero entry into pool[257], matching retail (the
+     * allocator zero-inits all 909 entries at boot, then most stay
+     * untouched).  Rabbit-hole §4 documents the 5-pair pattern. */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    T_ASSERT_EQ_U(g_ar_info_table[139]->marker, 0u);
+    T_ASSERT_EQ_U(g_ar_info_table[139]->flag,   0u);
+    T_ASSERT_EQ_U(g_ar_info_table[257]->marker, 0u);
+    T_ASSERT_EQ_U(g_ar_info_table[257]->flag,   0u);
+    T_ASSERT_EQ_P(g_ar_info_table[257]->data,   NULL);
+    return 0;
+}
+
+int test_group3_info_events_dst_indices_in_92_to_437_range(void)
+{
+    /* Every event in the table targets a pool index in [92, 437]
+     * (the FUN_0057ca40 write region per rabbit-hole §2).  Indices
+     * below 92 are owned by ar_register_palette_ramps; indices above
+     * 437 are untouched at boot.  Sweep the pool and pin the bounds. */
+    ar_state_init();
+    ar_apply_group3_info_events();
+
+    /* pool[0..91] should be all-zero (ramp-flag region is 78..91; the
+     * ramp register batch isn't called here, only the info events). */
+    for (int i = 0; i < 92; i++) {
+        T_ASSERT_EQ_U(g_ar_info_table[i]->marker, 0u);
+        T_ASSERT_EQ_U(g_ar_info_table[i]->flag,   0u);
+        T_ASSERT_EQ_P(g_ar_info_table[i]->data,   NULL);
+    }
+    /* pool[438..908] untouched too. */
+    for (int i = 438; i < AR_INFO_ENTRY_COUNT; i++) {
+        T_ASSERT_EQ_U(g_ar_info_table[i]->marker, 0u);
+        T_ASSERT_EQ_U(g_ar_info_table[i]->flag,   0u);
+        T_ASSERT_EQ_P(g_ar_info_table[i]->data,   NULL);
+    }
+    return 0;
+}
+
+int test_group3_info_events_fires_from_register_group3_sprites(void)
+{
+    /* ar_register_group3_sprites's tail calls ar_apply_group3_info_events
+     * — verify the integration so the boot driver doesn't need a
+     * separate call.  Pick a few independent spot-checks. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    T_ASSERT_EQ_U(g_ar_info_table[92]->flag,   1u);
+    T_ASSERT_EQ_U(g_ar_info_table[291]->marker, 0x1cu);
+    T_ASSERT_EQ_P(g_ar_info_table[384]->data, (const void *)0x006752f8u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
 /* ─── ar_boot_register_all (FUN_00562ea0:613-624 wiring) ─────────── */
 
 /* Boot driver replays every ported register batch in retail issue

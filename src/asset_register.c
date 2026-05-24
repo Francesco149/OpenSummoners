@@ -1806,10 +1806,11 @@ void ar_register_game_sprites(void *zdd, uint16_t group, void *settings)
 /* ─── FUN_0057ca40 — group-3 sprite-register batch (PARTIAL PORT) ──
  *
  * 233 sprite-slot register operations in retail issue order — the
- * cleanly-modelable subset of the 24884-byte function.  See header
- * docstring for what's deferred (parallel-table writes, slot clones,
- * FUN_00582b80 — collectively another ~480 operations that depend on
- * SS_MGR singleton modeling and the parallel-pool struct shape).
+ * cleanly-modelable subset of the 24884-byte function.  Followed
+ * below by the 4th-pass info-entry pool writes (443 events) that
+ * shadow the slot decls.  See header docstring for what's still
+ * deferred (94 SS_MGR clone calls and the 9 inline-clone clusters'
+ * sprite-slot ops; the info-entry writes are now all covered).
  *
  * Source order preserved verbatim so future call-trace audits match
  * retail's pos column; idx column is the sprite pool index */
@@ -2061,6 +2062,515 @@ static const struct ar_group3_entry group3_sprites[] = {
 };
 #define GROUP3_SPRITES_COUNT  233
 
+/* ─── FUN_0057ca40 — info-entry pool writes (4th pass) ────────────
+ *
+ * 443 info-entry events in retail issue order — the
+ * `g_ar_info_table[i]` writes that follow each sprite slot in
+ * FUN_0057ca40.  See `docs/findings/0057ca40-rabbit-hole.md` §2.
+ *
+ * Indexing: pool[i] lives at retail BSS `0x8a8440 + i*4`.
+ *
+ * Source order preserved (MARKER_COPY/FLAG_COPY/STRUCT_COPY events
+ * depend on prior writes — walking in source order keeps the
+ * copies' source pool entries already-written).
+ *
+ * DATA_SET payloads are retail PE rdata addresses (e.g.
+ * 0x006752f8); the port stores them as opaque uintptr_t markers
+ * — no consumer reads them as bytes yet.  When a consumer lands
+ * (FUN_00586010-style palette draw with flag dispatch), these will
+ * need extracted PE bytes; for now they're observability-only. */
+
+enum ar_info_event_kind {
+    AR_INFO_EVT_MARKER_SET = 0,
+    AR_INFO_EVT_FLAG_SET,
+    AR_INFO_EVT_DATA_SET,
+    AR_INFO_EVT_MARKER_COPY,
+    AR_INFO_EVT_FLAG_COPY,
+    AR_INFO_EVT_STRUCT_COPY,
+};
+
+struct ar_info_event {
+    uint8_t   kind;
+    uint16_t  dst_idx;     /* destination pool index */
+    uintptr_t payload;     /* SET: literal value | COPY/STRUCT_COPY: src pool index */
+};
+
+static const struct ar_info_event group3_info_events[] = {
+    /* kind                       dst   payload */
+    { AR_INFO_EVT_FLAG_SET        ,   92,         0x1u },  /* L40 */
+    { AR_INFO_EVT_FLAG_SET        ,   93,         0x1u },  /* L67 */
+    { AR_INFO_EVT_FLAG_SET        ,   98,         0x1u },  /* L94 */
+    { AR_INFO_EVT_FLAG_SET        ,   99,         0x1u },  /* L121 */
+    { AR_INFO_EVT_FLAG_SET        ,   94,         0x1u },  /* L148 */
+    { AR_INFO_EVT_FLAG_SET        ,   95,         0x1u },  /* L175 */
+    { AR_INFO_EVT_FLAG_SET        ,   96,         0x1u },  /* L202 */
+    { AR_INFO_EVT_MARKER_SET      ,   97,         0x0u },  /* L229 */
+    { AR_INFO_EVT_FLAG_SET        ,   97,         0x1u },  /* L230 */
+    { AR_INFO_EVT_FLAG_SET        ,  100,         0x1u },  /* L257 */
+    { AR_INFO_EVT_FLAG_SET        ,  101,         0x1u },  /* L284 */
+    { AR_INFO_EVT_FLAG_SET        ,  102,         0x1u },  /* L311 */
+    { AR_INFO_EVT_FLAG_SET        ,  103,         0x1u },  /* L338 */
+    { AR_INFO_EVT_FLAG_SET        ,  105,         0x1u },  /* L365 */
+    { AR_INFO_EVT_FLAG_SET        ,  104,         0x1u },  /* L392 */
+    { AR_INFO_EVT_FLAG_SET        ,  106,         0x1u },  /* L419 */
+    { AR_INFO_EVT_FLAG_SET        ,  112,         0x1u },  /* L446 */
+    { AR_INFO_EVT_FLAG_SET        ,  113,         0x1u },  /* L473 */
+    { AR_INFO_EVT_FLAG_SET        ,  114,         0x1u },  /* L552 */
+    { AR_INFO_EVT_FLAG_SET        ,  115,         0x1u },  /* L579 */
+    { AR_INFO_EVT_FLAG_SET        ,  116,         0x1u },  /* L606 */
+    { AR_INFO_EVT_FLAG_SET        ,  117,         0x1u },  /* L633 */
+    { AR_INFO_EVT_FLAG_SET        ,  118,         0x1u },  /* L660 */
+    { AR_INFO_EVT_FLAG_SET        ,  119,         0x1u },  /* L687 */
+    { AR_INFO_EVT_FLAG_SET        ,  120,         0x1u },  /* L792 */
+    { AR_INFO_EVT_FLAG_SET        ,  121,         0x1u },  /* L819 */
+    { AR_INFO_EVT_FLAG_SET        ,  122,         0x1u },  /* L846 */
+    { AR_INFO_EVT_FLAG_SET        ,  123,         0x1u },  /* L873 */
+    { AR_INFO_EVT_FLAG_SET        ,  124,         0x1u },  /* L900 */
+    { AR_INFO_EVT_FLAG_SET        ,  125,         0x1u },  /* L927 */
+    { AR_INFO_EVT_FLAG_SET        ,  126,         0x1u },  /* L954 */
+    { AR_INFO_EVT_FLAG_SET        ,  131,         0x1u },  /* L1085 */
+    { AR_INFO_EVT_FLAG_SET        ,  132,         0x1u },  /* L1112 */
+    { AR_INFO_EVT_FLAG_SET        ,  133,         0x1u },  /* L1139 */
+    { AR_INFO_EVT_FLAG_SET        ,  134,         0x1u },  /* L1166 */
+    { AR_INFO_EVT_FLAG_SET        ,  135,         0x1u },  /* L1193 */
+    { AR_INFO_EVT_FLAG_SET        ,  136,         0x1u },  /* L1220 */
+    { AR_INFO_EVT_FLAG_SET        ,  137,         0x1u },  /* L1247 */
+    { AR_INFO_EVT_FLAG_SET        ,  138,         0x1u },  /* L1274 */
+    { AR_INFO_EVT_FLAG_SET        ,  351,         0x1u },  /* L1301 */
+    { AR_INFO_EVT_FLAG_SET        ,  352,         0x1u },  /* L1328 */
+    { AR_INFO_EVT_FLAG_SET        ,  353,         0x1u },  /* L1355 */
+    { AR_INFO_EVT_FLAG_SET        ,  354,         0x1u },  /* L1382 */
+    { AR_INFO_EVT_FLAG_SET        ,  355,         0x1u },  /* L1409 */
+    { AR_INFO_EVT_FLAG_SET        ,  357,         0x1u },  /* L1436 */
+    { AR_INFO_EVT_FLAG_SET        ,  358,         0x1u },  /* L1463 */
+    { AR_INFO_EVT_FLAG_SET        ,  356,         0x1u },  /* L1490 */
+    { AR_INFO_EVT_FLAG_SET        ,  370,         0x1u },  /* L1517 */
+    { AR_INFO_EVT_FLAG_SET        ,  371,         0x1u },  /* L1544 */
+    { AR_INFO_EVT_FLAG_SET        ,  372,         0x1u },  /* L1571 */
+    { AR_INFO_EVT_FLAG_SET        ,  373,         0x1u },  /* L1598 */
+    { AR_INFO_EVT_FLAG_SET        ,  379,         0x2u },  /* L1625 */
+    { AR_INFO_EVT_FLAG_SET        ,  364,         0x2u },  /* L1652 */
+    { AR_INFO_EVT_FLAG_SET        ,  365,         0x2u },  /* L1679 */
+    { AR_INFO_EVT_FLAG_SET        ,  366,         0x2u },  /* L1706 */
+    { AR_INFO_EVT_FLAG_SET        ,  367,         0x2u },  /* L1733 */
+    { AR_INFO_EVT_FLAG_SET        ,  368,         0x2u },  /* L1760 */
+    { AR_INFO_EVT_FLAG_SET        ,  369,         0x2u },  /* L1787 */
+    { AR_INFO_EVT_FLAG_SET        ,  363,         0x2u },  /* L1814 */
+    { AR_INFO_EVT_FLAG_SET        ,  374,         0x1u },  /* L1841 */
+    { AR_INFO_EVT_FLAG_SET        ,  375,         0x1u },  /* L1868 */
+    { AR_INFO_EVT_FLAG_SET        ,  376,         0x1u },  /* L1895 */
+    { AR_INFO_EVT_FLAG_SET        ,  377,         0x1u },  /* L1922 */
+    { AR_INFO_EVT_FLAG_SET        ,  378,         0x1u },  /* L1949 */
+    { AR_INFO_EVT_FLAG_SET        ,  380,         0x2u },  /* L1976 */
+    { AR_INFO_EVT_FLAG_SET        ,  381,         0x2u },  /* L2003 */
+    { AR_INFO_EVT_FLAG_SET        ,  382,         0x2u },  /* L2030 */
+    { AR_INFO_EVT_FLAG_SET        ,  397,         0x1u },  /* L2057 */
+    { AR_INFO_EVT_FLAG_SET        ,  398,         0x1u },  /* L2084 */
+    { AR_INFO_EVT_FLAG_SET        ,  399,         0x1u },  /* L2111 */
+    { AR_INFO_EVT_MARKER_COPY     ,  384,         381u },  /* L2140 */
+    { AR_INFO_EVT_FLAG_COPY       ,  384,         381u },  /* L2141 */
+    { AR_INFO_EVT_DATA_SET        ,  384,  0x006752f8u },  /* L2142 */
+    { AR_INFO_EVT_MARKER_COPY     ,  385,         382u },  /* L2145 */
+    { AR_INFO_EVT_FLAG_COPY       ,  385,         382u },  /* L2146 */
+    { AR_INFO_EVT_DATA_SET        ,  385,  0x006752f8u },  /* L2147 */
+    { AR_INFO_EVT_FLAG_SET        ,  386,         0x2u },  /* L2174 */
+    { AR_INFO_EVT_FLAG_SET        ,  387,         0x2u },  /* L2201 */
+    { AR_INFO_EVT_FLAG_SET        ,  388,         0x2u },  /* L2228 */
+    { AR_INFO_EVT_FLAG_SET        ,  389,         0x2u },  /* L2255 */
+    { AR_INFO_EVT_MARKER_COPY     ,  391,         388u },  /* L2284 */
+    { AR_INFO_EVT_FLAG_COPY       ,  391,         388u },  /* L2285 */
+    { AR_INFO_EVT_DATA_SET        ,  391,  0x00675500u },  /* L2286 */
+    { AR_INFO_EVT_MARKER_COPY     ,  392,         389u },  /* L2289 */
+    { AR_INFO_EVT_FLAG_COPY       ,  392,         389u },  /* L2290 */
+    { AR_INFO_EVT_DATA_SET        ,  392,  0x00675500u },  /* L2291 */
+    { AR_INFO_EVT_FLAG_SET        ,  393,         0x1u },  /* L2318 */
+    { AR_INFO_EVT_FLAG_SET        ,  394,         0x1u },  /* L2345 */
+    { AR_INFO_EVT_FLAG_SET        ,  395,         0x1u },  /* L2372 */
+    { AR_INFO_EVT_FLAG_SET        ,  396,         0x1u },  /* L2399 */
+    { AR_INFO_EVT_FLAG_SET        ,  400,         0x1u },  /* L2426 */
+    { AR_INFO_EVT_FLAG_SET        ,  401,         0x1u },  /* L2453 */
+    { AR_INFO_EVT_FLAG_SET        ,  402,         0x1u },  /* L2480 */
+    { AR_INFO_EVT_FLAG_SET        ,  403,         0x2u },  /* L2482 */
+    { AR_INFO_EVT_FLAG_SET        ,  404,         0x2u },  /* L2484 */
+    { AR_INFO_EVT_FLAG_SET        ,  405,         0x2u },  /* L2486 */
+    { AR_INFO_EVT_FLAG_SET        ,  406,         0x2u },  /* L2488 */
+    { AR_INFO_EVT_FLAG_SET        ,  291,         0x2u },  /* L2490 */
+    { AR_INFO_EVT_MARKER_SET      ,  291,        0x1cu },  /* L2491 */
+    { AR_INFO_EVT_DATA_SET        ,  292,  0x006748d0u },  /* L2493 */
+    { AR_INFO_EVT_DATA_SET        ,  293,  0x00674ad8u },  /* L2495 */
+    { AR_INFO_EVT_FLAG_SET        ,  294,         0x2u },  /* L2497 */
+    { AR_INFO_EVT_MARKER_SET      ,  294,        0x18u },  /* L2498 */
+    { AR_INFO_EVT_DATA_SET        ,  295,  0x00672e68u },  /* L2500 */
+    { AR_INFO_EVT_DATA_SET        ,  296,  0x00673070u },  /* L2502 */
+    { AR_INFO_EVT_FLAG_SET        ,  288,         0x2u },  /* L2504 */
+    { AR_INFO_EVT_MARKER_SET      ,  288,         0x8u },  /* L2505 */
+    { AR_INFO_EVT_DATA_SET        ,  289,  0x00672e68u },  /* L2507 */
+    { AR_INFO_EVT_DATA_SET        ,  290,  0x00673070u },  /* L2509 */
+    { AR_INFO_EVT_FLAG_SET        ,  297,         0x2u },  /* L2511 */
+    { AR_INFO_EVT_MARKER_SET      ,  297,        0x10u },  /* L2512 */
+    { AR_INFO_EVT_DATA_SET        ,  298,  0x006748d0u },  /* L2514 */
+    { AR_INFO_EVT_FLAG_SET        ,  299,         0x2u },  /* L2516 */
+    { AR_INFO_EVT_MARKER_SET      ,  299,        0x28u },  /* L2517 */
+    { AR_INFO_EVT_DATA_SET        ,  300,  0x006740b0u },  /* L2519 */
+    { AR_INFO_EVT_FLAG_SET        ,  301,         0x2u },  /* L2521 */
+    { AR_INFO_EVT_MARKER_SET      ,  301,        0x28u },  /* L2522 */
+    { AR_INFO_EVT_DATA_SET        ,  302,  0x006740b0u },  /* L2524 */
+    { AR_INFO_EVT_FLAG_SET        ,  303,         0x2u },  /* L2526 */
+    { AR_INFO_EVT_MARKER_SET      ,  303,        0x20u },  /* L2527 */
+    { AR_INFO_EVT_FLAG_SET        ,  309,         0x2u },  /* L2529 */
+    { AR_INFO_EVT_MARKER_SET      ,  309,        0x1cu },  /* L2530 */
+    { AR_INFO_EVT_DATA_SET        ,  311,  0x006742b8u },  /* L2532 */
+    { AR_INFO_EVT_DATA_SET        ,  312,  0x006744c0u },  /* L2534 */
+    { AR_INFO_EVT_DATA_SET        ,  313,  0x006746c8u },  /* L2537 */
+    { AR_INFO_EVT_FLAG_SET        ,  318,         0x2u },  /* L2539 */
+    { AR_INFO_EVT_MARKER_SET      ,  318,        0x50u },  /* L2540 */
+    { AR_INFO_EVT_FLAG_SET        ,  304,         0x2u },  /* L2542 */
+    { AR_INFO_EVT_MARKER_SET      ,  304,         0x0u },  /* L2543 */
+    { AR_INFO_EVT_FLAG_SET        ,  305,         0x2u },  /* L2545 */
+    { AR_INFO_EVT_MARKER_SET      ,  305,         0x0u },  /* L2546 */
+    { AR_INFO_EVT_FLAG_SET        ,  306,         0x2u },  /* L2548 */
+    { AR_INFO_EVT_MARKER_SET      ,  306,         0x0u },  /* L2549 */
+    { AR_INFO_EVT_FLAG_SET        ,  307,         0x2u },  /* L2551 */
+    { AR_INFO_EVT_MARKER_SET      ,  307,         0x0u },  /* L2552 */
+    { AR_INFO_EVT_FLAG_SET        ,  308,         0x2u },  /* L2554 */
+    { AR_INFO_EVT_MARKER_SET      ,  308,         0x0u },  /* L2555 */
+    { AR_INFO_EVT_FLAG_SET        ,  321,         0x2u },  /* L2557 */
+    { AR_INFO_EVT_MARKER_SET      ,  321,         0x0u },  /* L2558 */
+    { AR_INFO_EVT_FLAG_SET        ,  319,         0x2u },  /* L2560 */
+    { AR_INFO_EVT_MARKER_SET      ,  319,        0x20u },  /* L2561 */
+    { AR_INFO_EVT_DATA_SET        ,  320,  0x006748d0u },  /* L2563 */
+    { AR_INFO_EVT_FLAG_SET        ,  263,         0x2u },  /* L2565 */
+    { AR_INFO_EVT_MARKER_SET      ,  263,        0x20u },  /* L2566 */
+    { AR_INFO_EVT_FLAG_SET        ,  262,         0x2u },  /* L2568 */
+    { AR_INFO_EVT_MARKER_SET      ,  262,        0x20u },  /* L2569 */
+    { AR_INFO_EVT_FLAG_SET        ,  264,         0x2u },  /* L2571 */
+    { AR_INFO_EVT_MARKER_SET      ,  264,        0x1cu },  /* L2572 */
+    { AR_INFO_EVT_DATA_SET        ,  265,  0x006748d0u },  /* L2574 */
+    { AR_INFO_EVT_FLAG_SET        ,  266,         0x2u },  /* L2576 */
+    { AR_INFO_EVT_MARKER_SET      ,  266,        0x20u },  /* L2577 */
+    { AR_INFO_EVT_DATA_SET        ,  267,  0x006748d0u },  /* L2579 */
+    { AR_INFO_EVT_FLAG_SET        ,  322,         0x2u },  /* L2581 */
+    { AR_INFO_EVT_MARKER_SET      ,  322,        0x24u },  /* L2582 */
+    { AR_INFO_EVT_DATA_SET        ,  323,  0x006748d0u },  /* L2584 */
+    { AR_INFO_EVT_DATA_SET        ,  324,  0x00674ad8u },  /* L2586 */
+    { AR_INFO_EVT_DATA_SET        ,  325,  0x00674ce0u },  /* L2588 */
+    { AR_INFO_EVT_FLAG_SET        ,  316,         0x2u },  /* L2590 */
+    { AR_INFO_EVT_MARKER_SET      ,  316,        0x20u },  /* L2591 */
+    { AR_INFO_EVT_DATA_SET        ,  317,  0x00673278u },  /* L2593 */
+    { AR_INFO_EVT_FLAG_SET        ,  314,         0x2u },  /* L2595 */
+    { AR_INFO_EVT_MARKER_SET      ,  314,        0x28u },  /* L2596 */
+    { AR_INFO_EVT_DATA_SET        ,  315,  0x00673480u },  /* L2598 */
+    { AR_INFO_EVT_FLAG_SET        ,  283,         0x2u },  /* L2600 */
+    { AR_INFO_EVT_MARKER_SET      ,  283,        0x18u },  /* L2601 */
+    { AR_INFO_EVT_DATA_SET        ,  284,  0x00673a98u },  /* L2603 */
+    { AR_INFO_EVT_DATA_SET        ,  285,  0x00673ca0u },  /* L2605 */
+    { AR_INFO_EVT_FLAG_SET        ,  286,         0x2u },  /* L2607 */
+    { AR_INFO_EVT_MARKER_SET      ,  286,        0x18u },  /* L2608 */
+    { AR_INFO_EVT_DATA_SET        ,  287,  0x00673ea8u },  /* L2610 */
+    { AR_INFO_EVT_FLAG_SET        ,  268,         0x2u },  /* L2612 */
+    { AR_INFO_EVT_MARKER_SET      ,  268,        0x18u },  /* L2613 */
+    { AR_INFO_EVT_FLAG_SET        ,  269,         0x2u },  /* L2615 */
+    { AR_INFO_EVT_MARKER_SET      ,  269,         0x8u },  /* L2616 */
+    { AR_INFO_EVT_DATA_SET        ,  270,  0x00672440u },  /* L2618 */
+    { AR_INFO_EVT_DATA_SET        ,  271,  0x00672648u },  /* L2620 */
+    { AR_INFO_EVT_DATA_SET        ,  272,  0x00672648u },  /* L2622 */
+    { AR_INFO_EVT_DATA_SET        ,  273,  0x00672850u },  /* L2624 */
+    { AR_INFO_EVT_DATA_SET        ,  274,  0x00672850u },  /* L2626 */
+    { AR_INFO_EVT_DATA_SET        ,  275,  0x00672a58u },  /* L2628 */
+    { AR_INFO_EVT_DATA_SET        ,  276,  0x00672a58u },  /* L2630 */
+    { AR_INFO_EVT_DATA_SET        ,  277,  0x00672c60u },  /* L2632 */
+    { AR_INFO_EVT_DATA_SET        ,  278,  0x00672c60u },  /* L2634 */
+    { AR_INFO_EVT_MARKER_SET      ,  279,        0x20u },  /* L2636 */
+    { AR_INFO_EVT_DATA_SET        ,  280,  0x00673688u },  /* L2638 */
+    { AR_INFO_EVT_DATA_SET        ,  281,  0x00673890u },  /* L2640 */
+    { AR_INFO_EVT_MARKER_SET      ,  282,         0xcu },  /* L2642 */
+    { AR_INFO_EVT_FLAG_SET        ,  326,         0x2u },  /* L2644 */
+    { AR_INFO_EVT_MARKER_SET      ,  326,        0x10u },  /* L2645 */
+    { AR_INFO_EVT_FLAG_SET        ,  327,         0x2u },  /* L2647 */
+    { AR_INFO_EVT_MARKER_SET      ,  327,         0x4u },  /* L2648 */
+    { AR_INFO_EVT_FLAG_SET        ,  328,         0x2u },  /* L2650 */
+    { AR_INFO_EVT_MARKER_SET      ,  328,         0x4u },  /* L2651 */
+    { AR_INFO_EVT_FLAG_SET        ,  329,         0x2u },  /* L2653 */
+    { AR_INFO_EVT_MARKER_SET      ,  329,         0x4u },  /* L2654 */
+    { AR_INFO_EVT_DATA_SET        ,  330,  0x006748d0u },  /* L2656 */
+    { AR_INFO_EVT_DATA_SET        ,  331,  0x00674ad8u },  /* L2658 */
+    { AR_INFO_EVT_FLAG_SET        ,  332,         0x2u },  /* L2660 */
+    { AR_INFO_EVT_MARKER_SET      ,  332,        0x10u },  /* L2661 */
+    { AR_INFO_EVT_DATA_SET        ,  333,  0x006748d0u },  /* L2663 */
+    { AR_INFO_EVT_FLAG_SET        ,  334,         0x2u },  /* L2665 */
+    { AR_INFO_EVT_MARKER_SET      ,  334,         0x5u },  /* L2666 */
+    { AR_INFO_EVT_DATA_SET        ,  335,  0x006748d0u },  /* L2668 */
+    { AR_INFO_EVT_FLAG_SET        ,  342,         0x2u },  /* L2675 */
+    { AR_INFO_EVT_MARKER_SET      ,  342,         0x0u },  /* L2676 */
+    { AR_INFO_EVT_FLAG_SET        ,  347,         0x2u },  /* L2678 */
+    { AR_INFO_EVT_MARKER_SET      ,  347,         0x0u },  /* L2679 */
+    { AR_INFO_EVT_FLAG_SET        ,  348,         0x2u },  /* L2681 */
+    { AR_INFO_EVT_MARKER_SET      ,  348,         0x0u },  /* L2682 */
+    { AR_INFO_EVT_FLAG_SET        ,  349,         0x2u },  /* L2684 */
+    { AR_INFO_EVT_MARKER_SET      ,  349,         0x0u },  /* L2685 */
+    { AR_INFO_EVT_FLAG_SET        ,  350,         0x2u },  /* L2687 */
+    { AR_INFO_EVT_MARKER_SET      ,  350,         0x0u },  /* L2688 */
+    { AR_INFO_EVT_FLAG_SET        ,  435,         0x2u },  /* L2690 */
+    { AR_INFO_EVT_MARKER_SET      ,  435,         0x0u },  /* L2691 */
+    { AR_INFO_EVT_FLAG_SET        ,  436,         0x2u },  /* L2693 */
+    { AR_INFO_EVT_MARKER_SET      ,  436,         0x0u },  /* L2694 */
+    { AR_INFO_EVT_FLAG_SET        ,  437,         0x2u },  /* L2696 */
+    { AR_INFO_EVT_MARKER_SET      ,  437,         0x0u },  /* L2697 */
+    { AR_INFO_EVT_FLAG_SET        ,  359,         0x2u },  /* L2699 */
+    { AR_INFO_EVT_MARKER_SET      ,  359,         0x0u },  /* L2700 */
+    { AR_INFO_EVT_FLAG_SET        ,  360,         0x2u },  /* L2702 */
+    { AR_INFO_EVT_MARKER_SET      ,  360,         0x0u },  /* L2703 */
+    { AR_INFO_EVT_FLAG_SET        ,  361,         0x2u },  /* L2705 */
+    { AR_INFO_EVT_MARKER_SET      ,  361,         0x0u },  /* L2706 */
+    { AR_INFO_EVT_FLAG_SET        ,  362,         0x2u },  /* L2708 */
+    { AR_INFO_EVT_MARKER_SET      ,  362,         0x0u },  /* L2709 */
+    { AR_INFO_EVT_FLAG_SET        ,  345,         0x2u },  /* L2711 */
+    { AR_INFO_EVT_MARKER_SET      ,  345,         0x0u },  /* L2712 */
+    { AR_INFO_EVT_FLAG_SET        ,  346,         0x2u },  /* L2714 */
+    { AR_INFO_EVT_MARKER_SET      ,  346,         0x0u },  /* L2715 */
+    { AR_INFO_EVT_FLAG_SET        ,  343,         0x2u },  /* L2717 */
+    { AR_INFO_EVT_MARKER_SET      ,  343,         0x0u },  /* L2718 */
+    { AR_INFO_EVT_FLAG_SET        ,  344,         0x2u },  /* L2720 */
+    { AR_INFO_EVT_MARKER_SET      ,  344,         0x0u },  /* L2721 */
+    { AR_INFO_EVT_MARKER_SET      ,  407,         0x1u },  /* L2723 */
+    { AR_INFO_EVT_MARKER_SET      ,  408,         0x8u },  /* L2725 */
+    { AR_INFO_EVT_MARKER_SET      ,  409,         0x0u },  /* L2727 */
+    { AR_INFO_EVT_MARKER_SET      ,  410,        0x18u },  /* L2729 */
+    { AR_INFO_EVT_MARKER_SET      ,  411,        0x28u },  /* L2731 */
+    { AR_INFO_EVT_MARKER_SET      ,  413,         0x0u },  /* L2733 */
+    { AR_INFO_EVT_MARKER_SET      ,  412,         0x0u },  /* L2735 */
+    { AR_INFO_EVT_MARKER_SET      ,  414,         0x0u },  /* L2737 */
+    { AR_INFO_EVT_MARKER_SET      ,  415,         0xcu },  /* L2739 */
+    { AR_INFO_EVT_MARKER_SET      ,  416,         0x0u },  /* L2741 */
+    { AR_INFO_EVT_MARKER_SET      ,  417,         0x0u },  /* L2743 */
+    { AR_INFO_EVT_MARKER_SET      ,  418,         0x0u },  /* L2745 */
+    { AR_INFO_EVT_MARKER_SET      ,  419,         0x0u },  /* L2747 */
+    { AR_INFO_EVT_MARKER_SET      ,  420,         0x0u },  /* L2749 */
+    { AR_INFO_EVT_MARKER_SET      ,  421,         0x0u },  /* L2751 */
+    { AR_INFO_EVT_MARKER_SET      ,  423,         0x0u },  /* L2753 */
+    { AR_INFO_EVT_MARKER_SET      ,  422,         0x0u },  /* L2755 */
+    { AR_INFO_EVT_MARKER_SET      ,  425,         0x0u },  /* L2757 */
+    { AR_INFO_EVT_MARKER_SET      ,  424,         0x0u },  /* L2759 */
+    { AR_INFO_EVT_MARKER_SET      ,  426,         0x0u },  /* L2761 */
+    { AR_INFO_EVT_FLAG_SET        ,  426,         0x1u },  /* L2762 */
+    { AR_INFO_EVT_MARKER_SET      ,  427,         0x0u },  /* L2764 */
+    { AR_INFO_EVT_FLAG_SET        ,  427,         0x2u },  /* L2765 */
+    { AR_INFO_EVT_MARKER_SET      ,  428,         0x0u },  /* L2767 */
+    { AR_INFO_EVT_MARKER_SET      ,  429,         0x0u },  /* L2769 */
+    { AR_INFO_EVT_MARKER_SET      ,  430,         0x0u },  /* L2771 */
+    { AR_INFO_EVT_MARKER_SET      ,  431,         0xcu },  /* L2773 */
+    { AR_INFO_EVT_MARKER_SET      ,  432,         0x0u },  /* L2775 */
+    { AR_INFO_EVT_MARKER_SET      ,  433,         0x1u },  /* L2777 */
+    { AR_INFO_EVT_FLAG_SET        ,  142,         0x2u },  /* L2788 */
+    { AR_INFO_EVT_MARKER_SET      ,  142,        0x10u },  /* L2789 */
+    { AR_INFO_EVT_FLAG_SET        ,  144,         0x2u },  /* L2794 */
+    { AR_INFO_EVT_MARKER_SET      ,  144,        0x10u },  /* L2795 */
+    { AR_INFO_EVT_FLAG_SET        ,  146,         0x2u },  /* L2800 */
+    { AR_INFO_EVT_MARKER_SET      ,  146,        0x10u },  /* L2801 */
+    { AR_INFO_EVT_FLAG_SET        ,  336,         0x2u },  /* L2803 */
+    { AR_INFO_EVT_MARKER_SET      ,  336,        0x20u },  /* L2804 */
+    { AR_INFO_EVT_FLAG_SET        ,  434,         0x2u },  /* L2806 */
+    { AR_INFO_EVT_MARKER_SET      ,  434,         0x0u },  /* L2807 */
+    { AR_INFO_EVT_FLAG_SET        ,  253,         0x2u },  /* L2809 */
+    { AR_INFO_EVT_MARKER_SET      ,  253,         0x1u },  /* L2810 */
+    { AR_INFO_EVT_FLAG_SET        ,  248,         0x2u },  /* L2812 */
+    { AR_INFO_EVT_MARKER_SET      ,  248,         0x4u },  /* L2813 */
+    { AR_INFO_EVT_FLAG_SET        ,  254,         0x2u },  /* L2815 */
+    { AR_INFO_EVT_MARKER_SET      ,  254,         0x8u },  /* L2816 */
+    { AR_INFO_EVT_DATA_SET        ,  255,  0x00674ee8u },  /* L2818 */
+    { AR_INFO_EVT_DATA_SET        ,  256,  0x006750f0u },  /* L2820 */
+    { AR_INFO_EVT_FLAG_SET        ,  147,         0x2u },  /* L2822 */
+    { AR_INFO_EVT_MARKER_SET      ,  147,        0x10u },  /* L2823 */
+    { AR_INFO_EVT_DATA_SET        ,  148,  0x006748d0u },  /* L2825 */
+    { AR_INFO_EVT_FLAG_SET        ,  149,         0x2u },  /* L2827 */
+    { AR_INFO_EVT_MARKER_SET      ,  149,        0x10u },  /* L2828 */
+    { AR_INFO_EVT_DATA_SET        ,  150,  0x006748d0u },  /* L2830 */
+    { AR_INFO_EVT_FLAG_SET        ,  151,         0x2u },  /* L2832 */
+    { AR_INFO_EVT_MARKER_SET      ,  151,        0x10u },  /* L2833 */
+    { AR_INFO_EVT_DATA_SET        ,  152,  0x006748d0u },  /* L2835 */
+    { AR_INFO_EVT_FLAG_SET        ,  153,         0x2u },  /* L2837 */
+    { AR_INFO_EVT_MARKER_SET      ,  153,        0x10u },  /* L2838 */
+    { AR_INFO_EVT_DATA_SET        ,  154,  0x006748d0u },  /* L2840 */
+    { AR_INFO_EVT_DATA_SET        ,  155,  0x00674ad8u },  /* L2842 */
+    { AR_INFO_EVT_FLAG_SET        ,  156,         0x2u },  /* L2844 */
+    { AR_INFO_EVT_MARKER_SET      ,  156,        0x10u },  /* L2845 */
+    { AR_INFO_EVT_DATA_SET        ,  157,  0x006748d0u },  /* L2847 */
+    { AR_INFO_EVT_FLAG_SET        ,  158,         0x2u },  /* L2849 */
+    { AR_INFO_EVT_MARKER_SET      ,  158,        0x10u },  /* L2850 */
+    { AR_INFO_EVT_FLAG_SET        ,  159,         0x2u },  /* L2852 */
+    { AR_INFO_EVT_MARKER_SET      ,  159,        0x10u },  /* L2853 */
+    { AR_INFO_EVT_FLAG_SET        ,  160,         0x2u },  /* L2855 */
+    { AR_INFO_EVT_MARKER_SET      ,  160,        0x10u },  /* L2856 */
+    { AR_INFO_EVT_FLAG_SET        ,  161,         0x2u },  /* L2858 */
+    { AR_INFO_EVT_MARKER_SET      ,  161,        0x10u },  /* L2859 */
+    { AR_INFO_EVT_FLAG_SET        ,  162,         0x2u },  /* L2861 */
+    { AR_INFO_EVT_MARKER_SET      ,  162,        0x10u },  /* L2862 */
+    { AR_INFO_EVT_DATA_SET        ,  163,  0x006748d0u },  /* L2864 */
+    { AR_INFO_EVT_DATA_SET        ,  164,  0x00674ad8u },  /* L2866 */
+    { AR_INFO_EVT_FLAG_SET        ,  165,         0x2u },  /* L2868 */
+    { AR_INFO_EVT_MARKER_SET      ,  165,        0x10u },  /* L2869 */
+    { AR_INFO_EVT_DATA_SET        ,  166,  0x006748d0u },  /* L2871 */
+    { AR_INFO_EVT_DATA_SET        ,  167,  0x00674ad8u },  /* L2873 */
+    { AR_INFO_EVT_DATA_SET        ,  168,  0x00674ce0u },  /* L2875 */
+    { AR_INFO_EVT_FLAG_SET        ,  169,         0x2u },  /* L2877 */
+    { AR_INFO_EVT_MARKER_SET      ,  169,        0x10u },  /* L2878 */
+    { AR_INFO_EVT_DATA_SET        ,  170,  0x006748d0u },  /* L2880 */
+    { AR_INFO_EVT_DATA_SET        ,  171,  0x00674ad8u },  /* L2882 */
+    { AR_INFO_EVT_DATA_SET        ,  172,  0x00674ce0u },  /* L2884 */
+    { AR_INFO_EVT_FLAG_SET        ,  173,         0x2u },  /* L2886 */
+    { AR_INFO_EVT_MARKER_SET      ,  173,        0x10u },  /* L2887 */
+    { AR_INFO_EVT_DATA_SET        ,  174,  0x006748d0u },  /* L2889 */
+    { AR_INFO_EVT_DATA_SET        ,  175,  0x00674ad8u },  /* L2891 */
+    { AR_INFO_EVT_FLAG_SET        ,  182,         0x2u },  /* L2893 */
+    { AR_INFO_EVT_MARKER_SET      ,  182,         0x4u },  /* L2894 */
+    { AR_INFO_EVT_DATA_SET        ,  183,  0x006748d0u },  /* L2896 */
+    { AR_INFO_EVT_FLAG_SET        ,  184,         0x2u },  /* L2898 */
+    { AR_INFO_EVT_MARKER_SET      ,  184,         0x5u },  /* L2899 */
+    { AR_INFO_EVT_DATA_SET        ,  185,  0x006748d0u },  /* L2901 */
+    { AR_INFO_EVT_DATA_SET        ,  186,  0x00674ad8u },  /* L2903 */
+    { AR_INFO_EVT_FLAG_SET        ,  187,         0x2u },  /* L2905 */
+    { AR_INFO_EVT_MARKER_SET      ,  187,         0x5u },  /* L2906 */
+    { AR_INFO_EVT_DATA_SET        ,  188,  0x006748d0u },  /* L2908 */
+    { AR_INFO_EVT_DATA_SET        ,  189,  0x00674ad8u },  /* L2910 */
+    { AR_INFO_EVT_FLAG_SET        ,  190,         0x2u },  /* L2912 */
+    { AR_INFO_EVT_MARKER_SET      ,  190,         0x5u },  /* L2913 */
+    { AR_INFO_EVT_DATA_SET        ,  191,  0x006748d0u },  /* L2915 */
+    { AR_INFO_EVT_DATA_SET        ,  192,  0x00674ad8u },  /* L2917 */
+    { AR_INFO_EVT_FLAG_SET        ,  193,         0x2u },  /* L2919 */
+    { AR_INFO_EVT_MARKER_SET      ,  193,         0x4u },  /* L2920 */
+    { AR_INFO_EVT_DATA_SET        ,  194,  0x006748d0u },  /* L2922 */
+    { AR_INFO_EVT_DATA_SET        ,  195,  0x00674ad8u },  /* L2924 */
+    { AR_INFO_EVT_FLAG_SET        ,  196,         0x2u },  /* L2926 */
+    { AR_INFO_EVT_MARKER_SET      ,  196,         0x4u },  /* L2927 */
+    { AR_INFO_EVT_DATA_SET        ,  197,  0x006748d0u },  /* L2929 */
+    { AR_INFO_EVT_FLAG_SET        ,  198,         0x2u },  /* L2931 */
+    { AR_INFO_EVT_MARKER_SET      ,  198,         0x4u },  /* L2932 */
+    { AR_INFO_EVT_FLAG_SET        ,  199,         0x2u },  /* L2934 */
+    { AR_INFO_EVT_MARKER_SET      ,  199,         0x4u },  /* L2935 */
+    { AR_INFO_EVT_FLAG_SET        ,  201,         0x2u },  /* L2937 */
+    { AR_INFO_EVT_MARKER_SET      ,  201,         0x4u },  /* L2938 */
+    { AR_INFO_EVT_FLAG_SET        ,  202,         0x2u },  /* L2940 */
+    { AR_INFO_EVT_MARKER_SET      ,  202,         0x4u },  /* L2941 */
+    { AR_INFO_EVT_FLAG_SET        ,  203,         0x2u },  /* L2943 */
+    { AR_INFO_EVT_MARKER_SET      ,  203,         0x4u },  /* L2944 */
+    { AR_INFO_EVT_FLAG_SET        ,  176,         0x2u },  /* L2946 */
+    { AR_INFO_EVT_MARKER_SET      ,  176,         0x5u },  /* L2947 */
+    { AR_INFO_EVT_DATA_SET        ,  177,  0x006748d0u },  /* L2949 */
+    { AR_INFO_EVT_DATA_SET        ,  178,  0x00674ad8u },  /* L2951 */
+    { AR_INFO_EVT_FLAG_SET        ,  179,         0x2u },  /* L2953 */
+    { AR_INFO_EVT_MARKER_SET      ,  179,         0x4u },  /* L2954 */
+    { AR_INFO_EVT_FLAG_SET        ,  180,         0x2u },  /* L2956 */
+    { AR_INFO_EVT_MARKER_SET      ,  180,         0x4u },  /* L2957 */
+    { AR_INFO_EVT_FLAG_SET        ,  181,         0x2u },  /* L2959 */
+    { AR_INFO_EVT_MARKER_SET      ,  181,         0x4u },  /* L2960 */
+    { AR_INFO_EVT_FLAG_SET        ,  204,         0x2u },  /* L2962 */
+    { AR_INFO_EVT_MARKER_SET      ,  204,         0x5u },  /* L2963 */
+    { AR_INFO_EVT_DATA_SET        ,  205,  0x006748d0u },  /* L2965 */
+    { AR_INFO_EVT_DATA_SET        ,  206,  0x00674ad8u },  /* L2967 */
+    { AR_INFO_EVT_FLAG_SET        ,  207,         0x2u },  /* L2969 */
+    { AR_INFO_EVT_MARKER_SET      ,  207,         0x4u },  /* L2970 */
+    { AR_INFO_EVT_FLAG_SET        ,  208,         0x2u },  /* L2972 */
+    { AR_INFO_EVT_MARKER_SET      ,  208,         0x4u },  /* L2973 */
+    { AR_INFO_EVT_DATA_SET        ,  209,  0x006748d0u },  /* L2975 */
+    { AR_INFO_EVT_FLAG_SET        ,  210,         0x2u },  /* L2977 */
+    { AR_INFO_EVT_MARKER_SET      ,  210,         0x4u },  /* L2978 */
+    { AR_INFO_EVT_DATA_SET        ,  211,  0x006748d0u },  /* L2980 */
+    { AR_INFO_EVT_FLAG_SET        ,  212,         0x2u },  /* L2982 */
+    { AR_INFO_EVT_MARKER_SET      ,  212,        0x10u },  /* L2983 */
+    { AR_INFO_EVT_DATA_SET        ,  213,  0x006748d0u },  /* L2985 */
+    { AR_INFO_EVT_FLAG_SET        ,  214,         0x2u },  /* L2987 */
+    { AR_INFO_EVT_MARKER_SET      ,  214,        0x10u },  /* L2988 */
+    { AR_INFO_EVT_FLAG_SET        ,  215,         0x2u },  /* L2990 */
+    { AR_INFO_EVT_MARKER_SET      ,  215,        0x10u },  /* L2991 */
+    { AR_INFO_EVT_DATA_SET        ,  216,  0x006748d0u },  /* L2993 */
+    { AR_INFO_EVT_FLAG_SET        ,  217,         0x2u },  /* L2995 */
+    { AR_INFO_EVT_MARKER_SET      ,  217,        0x10u },  /* L2996 */
+    { AR_INFO_EVT_DATA_SET        ,  218,  0x006748d0u },  /* L2998 */
+    { AR_INFO_EVT_FLAG_SET        ,  219,         0x2u },  /* L3000 */
+    { AR_INFO_EVT_MARKER_SET      ,  219,        0x10u },  /* L3001 */
+    { AR_INFO_EVT_FLAG_SET        ,  220,         0x2u },  /* L3003 */
+    { AR_INFO_EVT_MARKER_SET      ,  220,        0x10u },  /* L3004 */
+    { AR_INFO_EVT_FLAG_SET        ,  221,         0x2u },  /* L3006 */
+    { AR_INFO_EVT_MARKER_SET      ,  221,         0x4u },  /* L3007 */
+    { AR_INFO_EVT_DATA_SET        ,  222,  0x006748d0u },  /* L3009 */
+    { AR_INFO_EVT_DATA_SET        ,  223,  0x00674ad8u },  /* L3011 */
+    { AR_INFO_EVT_DATA_SET        ,  224,  0x00674ce0u },  /* L3013 */
+    { AR_INFO_EVT_FLAG_SET        ,  225,         0x2u },  /* L3015 */
+    { AR_INFO_EVT_MARKER_SET      ,  225,         0x4u },  /* L3016 */
+    { AR_INFO_EVT_DATA_SET        ,  226,  0x006748d0u },  /* L3018 */
+    { AR_INFO_EVT_FLAG_SET        ,  227,         0x2u },  /* L3020 */
+    { AR_INFO_EVT_MARKER_SET      ,  227,         0x4u },  /* L3021 */
+    { AR_INFO_EVT_FLAG_SET        ,  228,         0x2u },  /* L3023 */
+    { AR_INFO_EVT_MARKER_SET      ,  228,         0x4u },  /* L3024 */
+    { AR_INFO_EVT_FLAG_SET        ,  229,         0x2u },  /* L3026 */
+    { AR_INFO_EVT_MARKER_SET      ,  229,         0x4u },  /* L3027 */
+    { AR_INFO_EVT_DATA_SET        ,  230,  0x006748d0u },  /* L3029 */
+    { AR_INFO_EVT_DATA_SET        ,  231,  0x00674ad8u },  /* L3031 */
+    { AR_INFO_EVT_FLAG_SET        ,  232,         0x2u },  /* L3033 */
+    { AR_INFO_EVT_MARKER_SET      ,  232,         0x4u },  /* L3034 */
+    { AR_INFO_EVT_DATA_SET        ,  233,  0x006748d0u },  /* L3036 */
+    { AR_INFO_EVT_DATA_SET        ,  234,  0x00674ad8u },  /* L3038 */
+    { AR_INFO_EVT_FLAG_SET        ,  235,         0x2u },  /* L3040 */
+    { AR_INFO_EVT_MARKER_SET      ,  235,         0x4u },  /* L3041 */
+    { AR_INFO_EVT_DATA_SET        ,  236,  0x006748d0u },  /* L3043 */
+    { AR_INFO_EVT_DATA_SET        ,  237,  0x00674ad8u },  /* L3045 */
+    { AR_INFO_EVT_FLAG_SET        ,  238,         0x2u },  /* L3047 */
+    { AR_INFO_EVT_MARKER_SET      ,  238,         0x4u },  /* L3048 */
+    { AR_INFO_EVT_DATA_SET        ,  239,  0x006748d0u },  /* L3050 */
+    { AR_INFO_EVT_FLAG_SET        ,  240,         0x2u },  /* L3052 */
+    { AR_INFO_EVT_MARKER_SET      ,  240,         0x4u },  /* L3053 */
+    { AR_INFO_EVT_DATA_SET        ,  241,  0x006748d0u },  /* L3055 */
+    { AR_INFO_EVT_FLAG_SET        ,  242,         0x2u },  /* L3057 */
+    { AR_INFO_EVT_MARKER_SET      ,  242,         0x4u },  /* L3058 */
+    { AR_INFO_EVT_DATA_SET        ,  243,  0x006748d0u },  /* L3060 */
+    { AR_INFO_EVT_DATA_SET        ,  244,  0x00674ad8u },  /* L3062 */
+    { AR_INFO_EVT_FLAG_SET        ,  245,         0x2u },  /* L3064 */
+    { AR_INFO_EVT_MARKER_SET      ,  245,         0x4u },  /* L3065 */
+    { AR_INFO_EVT_DATA_SET        ,  246,  0x006748d0u },  /* L3067 */
+    { AR_INFO_EVT_DATA_SET        ,  247,  0x00674ad8u },  /* L3069 */
+    { AR_INFO_EVT_FLAG_SET        ,  249,         0x2u },  /* L3071 */
+    { AR_INFO_EVT_MARKER_SET      ,  249,         0x4u },  /* L3072 */
+    { AR_INFO_EVT_DATA_SET        ,  250,  0x006748d0u },  /* L3074 */
+    { AR_INFO_EVT_DATA_SET        ,  251,  0x00674ad8u },  /* L3076 */
+    { AR_INFO_EVT_DATA_SET        ,  252,  0x00674ce0u },  /* L3078 */
+    { AR_INFO_EVT_FLAG_SET        ,  200,         0x2u },  /* L3080 */
+    { AR_INFO_EVT_MARKER_SET      ,  200,         0x4u },  /* L3081 */
+    { AR_INFO_EVT_STRUCT_COPY     ,  257,         139u },  /* L3083 */
+    { AR_INFO_EVT_STRUCT_COPY     ,  258,         140u },  /* L3091 */
+    { AR_INFO_EVT_STRUCT_COPY     ,  259,         141u },  /* L3099 */
+    { AR_INFO_EVT_STRUCT_COPY     ,  260,         143u },  /* L3107 */
+    { AR_INFO_EVT_STRUCT_COPY     ,  261,         145u },  /* L3115 */
+};
+#define GROUP3_INFO_EVENTS_COUNT  443
+
+void ar_apply_group3_info_events(void)
+{
+    for (size_t i = 0; i < GROUP3_INFO_EVENTS_COUNT; i++) {
+        const struct ar_info_event *ev = &group3_info_events[i];
+        ar_info_entry *dst = g_ar_info_table[ev->dst_idx];
+        switch (ev->kind) {
+        case AR_INFO_EVT_MARKER_SET:
+            dst->marker = (uint16_t)ev->payload;
+            break;
+        case AR_INFO_EVT_FLAG_SET:
+            dst->flag = (uint32_t)ev->payload;
+            break;
+        case AR_INFO_EVT_DATA_SET:
+            dst->data = (const void *)ev->payload;
+            break;
+        case AR_INFO_EVT_MARKER_COPY:
+            dst->marker = g_ar_info_table[ev->payload]->marker;
+            break;
+        case AR_INFO_EVT_FLAG_COPY:
+            dst->flag = g_ar_info_table[ev->payload]->flag;
+            break;
+        case AR_INFO_EVT_STRUCT_COPY:
+            *dst = *g_ar_info_table[ev->payload];
+            break;
+        }
+    }
+}
+
 void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
 {
     for (size_t i = 0; i < GROUP3_SPRITES_COUNT; i++) {
@@ -2070,6 +2580,7 @@ void ar_register_group3_sprites(void *zdd, uint16_t group, void *settings)
             e->width, e->height, e->colorkey,
             e->scale_flag, e->type, group);
     }
+    ar_apply_group3_info_events();
 }
 
 /* ─── FUN_00562ea0:613-624 — boot-driver register wiring ─────────── */

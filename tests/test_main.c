@@ -138,6 +138,14 @@ struct test_case {
     X(group3_sprites_spotcheck_max_idx)                        \
     X(group3_sprites_spotcheck_colorkey_entry)                 \
     X(group3_sprites_no_overlap_with_main_sprite_indices)      \
+    X(group3_info_events_first_event_flag_set)                 \
+    X(group3_info_events_marker_and_flag_pair)                 \
+    X(group3_info_events_data_ptr_set)                         \
+    X(group3_info_events_marker_set_with_high_value)           \
+    X(group3_info_events_copy_marker_and_flag_chain)           \
+    X(group3_info_events_struct_copy_from_zero_init)           \
+    X(group3_info_events_dst_indices_in_92_to_437_range)       \
+    X(group3_info_events_fires_from_register_group3_sprites)   \
     X(boot_register_all_group_tags_per_batch)                  \
     X(boot_register_all_zdd_vs_zds_routing)                    \
     X(boot_register_all_sotesp_module_for_special_slots)       \
