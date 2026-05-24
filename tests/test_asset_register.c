@@ -796,12 +796,12 @@ int test_register_sounds_all_ids_and_kinds(void)
      * if they ever shift, audio playback would route to the wrong
      * sotesd.dll resource. */
     struct exp { uint16_t id; uint16_t count; };
-    static const struct exp expected[AR_SOUND_SLOT_COUNT] = {
+    static const struct exp expected[AR_SOUND_MAIN_COUNT] = {
         { 0x50f, 2 }, { 0x50e, 2 }, { 0x508, 2 }, { 0x510, 2 },
         { 0x903, 2 }, { 0x509, 4 }, { 0x506, 4 }, { 0x507, 2 },
         { 0x50c, 4 }, { 0x50d, 4 }, { 0x4d8, 2 }, { 0x4d9, 2 },
     };
-    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+    for (int i = 0; i < AR_SOUND_MAIN_COUNT; i++) {
         const ar_sound_slot *s = g_ar_sound_table[i];
         if (s->resource_id != expected[i].id)
             T_FAIL("sound[%d] id 0x%x, want 0x%x",
@@ -1239,6 +1239,175 @@ int test_game_sprites_coexists_with_main_sprites(void)
     T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0x4u);  /* main slot untouched */
 
     destroy_all_sprite_slots();
+    return 0;
+}
+
+/* ─── ar_register_game_sounds (FUN_0057b280) ─────────────────────── */
+
+int test_game_sounds_total_entry_count(void)
+{
+    /* 122 inline + 52 thiscall = 174 distinct slots in the batch.
+     * Detects drift if a row is accidentally added/removed from
+     * `game_sounds`. */
+    ar_state_init();
+    void *zds = (void *)0x1111;
+    void *settings = (void *)0x2222;
+    ar_register_game_sounds(zds, /*group=*/0x3, settings);
+
+    int populated = 0;
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        /* zds!=NULL is the post-register sentinel — ar_state_init zeros
+         * everything; only ar_sound_slot_init writes zds. */
+        if (g_ar_sound_slots[i].zds != NULL) populated++;
+    }
+    T_ASSERT_EQ_I(populated, 174);
+    return 0;
+}
+
+int test_game_sounds_index_range_and_gaps(void)
+{
+    /* Touched indices span 12..244 with 59 gaps.  Index 11 (last of
+     * ar_register_sounds) and index 245+ (above the batch) must stay
+     * untouched.  Also verify a couple of known gap indices stay zero
+     * — they're slots that retail's locale loop (deferred) fills, not
+     * the inline + thiscall halves. */
+    ar_state_init();
+    ar_register_game_sounds((void *)0x1, /*group=*/0x3, (void *)0x2);
+
+    /* Below the batch — strictly zero. */
+    for (int i = 0; i < 12; i++) {
+        if (g_ar_sound_slots[i].zds != NULL)
+            T_FAIL("slot[%d] touched but should be untouched (below batch)", i);
+    }
+    /* Above the batch — strictly zero. */
+    for (int i = 245; i < AR_SOUND_SLOT_COUNT; i++) {
+        if (g_ar_sound_slots[i].zds != NULL)
+            T_FAIL("slot[%d] touched but should be untouched (above batch)", i);
+    }
+    /* Sample gap indices.  These are slot indices in [12..244] that
+     * the inline + thiscall halves of FUN_0057b280 don't write — they
+     * belong to the deferred locale-loop OR to interleaved per-group
+     * callers (e.g. idx 22..25 filled by the caller at 562ea0:617-620
+     * with group 2, not by this batch). */
+    static const int known_gaps[] = { 22, 23, 24, 25, 156, 160, 209, 210 };
+    for (size_t k = 0; k < sizeof(known_gaps)/sizeof(known_gaps[0]); k++) {
+        int i = known_gaps[k];
+        if (g_ar_sound_slots[i].zds != NULL)
+            T_FAIL("slot[%d] populated but should be a gap (deferred path)", i);
+    }
+    return 0;
+}
+
+int test_game_sounds_field_writes_spot_check(void)
+{
+    /* Spot-check fields against the retail decomp for a representative
+     * mix: first inline entry, first thiscall entry, the rare count=16
+     * and count=1 entries (catch off-by-one truncation if anyone ever
+     * narrowed `count` to u8), and a high-idx tail entry. */
+    ar_state_init();
+    void *zds = (void *)0xa11ce;
+    void *settings = (void *)0xb0b;
+    ar_register_game_sounds(zds, /*group=*/0x3, settings);
+
+    struct exp { int idx; uint16_t id; uint16_t count; };
+    static const struct exp checks[] = {
+        {  14, 0x513,  8 },   /* first inline   — DAT_008a6efc */
+        { 143, 0x4f0,  8 },   /* first thiscall — DAT_008a7100 */
+        { 100, 0x52b, 16 },   /* rare count==16 — DAT_008a7054 */
+        { 230, 0x77e, 16 },   /* the other count==16 */
+        {  93, 0x4e9,  1 },   /* rare count==1  — DAT_008a7038 */
+        {  94, 0x4ea,  1 },   /* the other count==1 */
+        { 244, 0x78a,  4 },   /* highest idx in the batch */
+        {  12, 0x50a,  8 },   /* lowest idx in the batch */
+    };
+    for (size_t i = 0; i < sizeof(checks)/sizeof(checks[0]); i++) {
+        const struct exp *e = &checks[i];
+        const ar_sound_slot *s = &g_ar_sound_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("slot[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        if (s->count != e->count)
+            T_FAIL("slot[%d] count %u, want %u",
+                   e->idx, (unsigned)s->count, (unsigned)e->count);
+        T_ASSERT_EQ_P(s->zds, zds);
+        T_ASSERT_EQ_P(s->settings, settings);
+        T_ASSERT_EQ_U(s->group, 0x3u);
+        T_ASSERT_EQ_U(s->state, 0u);
+        T_ASSERT_EQ_P(s->buffer, NULL);
+    }
+    return 0;
+}
+
+int test_game_sounds_resource_ids_unique(void)
+{
+    /* Sound resource IDs across the batch must all be distinct — the
+     * lazy wave-load path keys on resource_id when fetching from
+     * sotesd.dll, so a dup would silently route the same wave to two
+     * slots.  Also pins that extraction didn't double-count any row. */
+    ar_state_init();
+    ar_register_game_sounds((void *)0x1, 0, (void *)0x2);
+
+    enum { MAX_IDS = 256 };
+    uint16_t ids[MAX_IDS];
+    int n = 0;
+    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+        if (g_ar_sound_slots[i].zds == NULL) continue;
+        if (n >= MAX_IDS) T_FAIL("too many populated slots");
+        ids[n++] = g_ar_sound_slots[i].resource_id;
+    }
+    T_ASSERT_EQ_I(n, 174);
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (ids[i] == ids[j])
+                T_FAIL("duplicate resource id 0x%x at populated indices %d & %d",
+                       (unsigned)ids[i], i, j);
+        }
+    }
+    return 0;
+}
+
+int test_game_sounds_coexists_with_main_sounds(void)
+{
+    /* ar_register_sounds fills idx 0..11.  ar_register_game_sounds
+     * starts at idx 12.  Running both back-to-back should yield the
+     * union — each batch's group tag preserved on its own slots, no
+     * overlap.  Catches AR_SOUND_MAIN_COUNT regressing back to
+     * AR_SOUND_SLOT_COUNT in ar_register_sounds (which would stomp
+     * the entire game-sounds region). */
+    ar_state_init();
+    void *zds = (void *)0xdead;
+    void *settings = (void *)0xbeef;
+    ar_register_sounds(zds, /*group=*/1, settings);
+    ar_register_game_sounds(zds, /*group=*/3, settings);
+
+    /* Main sound slot survives with group 1. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[0].resource_id, 0x50fu);
+    T_ASSERT_EQ_U(g_ar_sound_slots[0].group, 1u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[11].resource_id, 0x4d9u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[11].group, 1u);
+    /* Game sound slot present with group 3. */
+    T_ASSERT_EQ_U(g_ar_sound_slots[12].resource_id, 0x50au);
+    T_ASSERT_EQ_U(g_ar_sound_slots[12].group, 3u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[14].resource_id, 0x513u);
+    T_ASSERT_EQ_U(g_ar_sound_slots[14].group, 3u);
+    return 0;
+}
+
+int test_game_sounds_buffer_pointer_preserved(void)
+{
+    /* Mirror of test_register_sounds_buffer_pointer_preserved for the
+     * game-sounds batch: if the lazy wave-loader already populated
+     * `buffer`, calling ar_register_game_sounds AGAIN must NOT clear
+     * it — `buffer != NULL` is the engine's "already loaded" sentinel
+     * and stomping it would force a re-decode every register pass. */
+    ar_state_init();
+    g_ar_sound_table[100]->buffer = (void *)0xc0ffee;
+    g_ar_sound_table[244]->buffer = (void *)0xfeedface;
+
+    ar_register_game_sounds(NULL, 0, NULL);
+
+    T_ASSERT_EQ_P(g_ar_sound_table[100]->buffer, (void *)0xc0ffee);
+    T_ASSERT_EQ_P(g_ar_sound_table[244]->buffer, (void *)0xfeedface);
     return 0;
 }
 

@@ -242,10 +242,16 @@ extern ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 extern ar_gdi_slot  g_ar_gdi_slots[AR_GDI_SLOT_COUNT];
 extern ar_gdi_slot *g_ar_gdi_table[AR_GDI_SLOT_COUNT];   /* table[i] == &slots[i] post-init */
 
-/* Sound slots — DAT_008a6ec4..6ef0, 12 entries (4-byte stride =
- * 12 pointers in BSS, each pointing at an ar_sound_slot).  The "W_MGR"
- * pool referenced in HANDOFF.  FUN_00579a00 touches all 12. */
-#define AR_SOUND_SLOT_COUNT 12
+/* Sound slots — start at DAT_008a6ec4.  The first 12 entries
+ * (DAT_008a6ec4..6ef0) are the "main sounds" populated by FUN_00579a00.
+ * FUN_0057b280 (the game-sounds batch, group 3) extends the pool out
+ * to index 244 (retail address 0x008a7294), so the contiguous pointer
+ * table that retail's locale-loop indexes via `(&DAT_008a6ec4)[i]`
+ * stretches well past the original 12 entries.  Round capacity up to
+ * 256 — covers FUN_0057b280's max idx 244 with headroom for any later
+ * batch that hits the pool. */
+#define AR_SOUND_MAIN_COUNT  12
+#define AR_SOUND_SLOT_COUNT 256
 extern ar_sound_slot  g_ar_sound_slots[AR_SOUND_SLOT_COUNT];
 extern ar_sound_slot *g_ar_sound_table[AR_SOUND_SLOT_COUNT];
 
@@ -423,6 +429,36 @@ void ar_sound_slot_init(ar_sound_slot *s, void *zds, void *settings,
  * likely the 4-channel sound effects (footsteps?  combat hits?  unknown
  * without deeper RE). */
 void ar_register_sounds(void *zds, uint16_t group, void *settings);
+
+/* FUN_0057b280 — register 174 game-sound slots at boot (group 3).
+ *
+ * Called by the boot driver as `FUN_0057b280(ZDS, 3, settings)` —
+ * right after FUN_0057ca40 (deferred) and before FUN_005749b0
+ * (ar_register_main_sprites).  Populates pool indices 12..244 with
+ * 174 single-slot entries (59 gaps in that range), all with
+ * `ar_sound_slot_init` semantics — same six writes ar_register_sounds
+ * uses.  No lazy wave-load path (every retail dispatch passes
+ * `load_flag = 0`).
+ *
+ * Retail body is structured as:
+ *
+ *   1. 122 inline blocks — open-coded `s->zds = …; s->count = …;
+ *      s->state = 0; s->group = …; s->resource_id = …; s->settings = …`
+ *      sequences (the same six fields, varying issue order).
+ *   2.  52 thiscall calls — `ar_sound_slot::FUN_00563ef0(slot, zds,
+ *      settings, id, count, group, 0)` for indices the compiler
+ *      preferred to route through the helper rather than open-code.
+ *      Observable end state is identical to the inline path; all 174
+ *      entries flow through `ar_sound_slot_init` here.
+ *
+ * Deferred — NOT in this function: the 4 inline `FUN_00563ef0` calls
+ * the caller (FUN_00562ea0:617-620) issues at indices 22..25 with
+ * group=2 (IDs 0x4c8..0x4cb), and the conditional locale-table loop
+ * at the end of retail FUN_0057b280 (walks the 0x24-stride table at
+ * &DAT_00691018, dispatches into the same pool keyed on locale state
+ * at DAT_008a6e68/_6e70/_6e80).  Both will need their own ports when
+ * the locale + per-scene paths land. */
+void ar_register_game_sounds(void *zds, uint16_t group, void *settings);
 
 /* ─── top-level driver calls ─────────────────────────────────────── */
 

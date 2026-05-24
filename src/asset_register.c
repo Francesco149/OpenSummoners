@@ -355,7 +355,7 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings)
 {
     /* Table indexed [0..11]; (resource_id, count/kind).  See header
      * docstring for the full list. */
-    static const struct { uint16_t id; uint16_t count; } entries[AR_SOUND_SLOT_COUNT] = {
+    static const struct { uint16_t id; uint16_t count; } entries[AR_SOUND_MAIN_COUNT] = {
         { 0x50f, 2 },
         { 0x50e, 2 },
         { 0x508, 2 },
@@ -369,9 +369,98 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings)
         { 0x4d8, 2 },
         { 0x4d9, 2 },
     };
-    for (int i = 0; i < AR_SOUND_SLOT_COUNT; i++) {
+    for (int i = 0; i < AR_SOUND_MAIN_COUNT; i++) {
         ar_sound_slot_init(g_ar_sound_table[i], zds, settings,
                            entries[i].id, entries[i].count, group);
+    }
+}
+
+/* ─── FUN_0057b280 — game-sound register batch (group 3) ────────── */
+
+/* One row per retail register call.  Issue order preserved so any
+ * future call-trace test matches without renormalisation — the 122
+ * inline blocks come first in source order, then the 52 thiscall
+ * dispatches.  All 174 entries share `ar_sound_slot_init` semantics
+ * (load_flag=0, buffer untouched).  See header docstring. */
+struct ar_game_sound_entry {
+    uint16_t idx;
+    uint16_t id;
+    uint16_t count;
+};
+
+static const struct ar_game_sound_entry game_sounds[] = {
+    /* idx, id,    count */
+    /* ── 122 inline blocks ── */
+    {  14, 0x513,  8 }, {  15, 0x4c2,  8 }, {  18, 0x4c5,  8 },
+    {  17, 0x4c4,  4 }, {  16, 0x4c1,  8 }, {  19, 0x4c7,  4 },
+    {  20, 0x4c3,  4 }, {  21, 0x4c6,  8 }, {  35, 0x902,  2 },
+    {  36, 0x907,  2 }, {  26, 0x4bf,  8 }, {  27, 0x4c0,  4 },
+    {  28, 0x4ba,  8 }, {  29, 0x66e,  4 }, {  30, 0x6a0,  2 },
+    {  31, 0x783,  2 }, {  32, 0x6b4,  2 }, {  33, 0x770,  2 },
+    {  34, 0x7a6,  2 }, { 127, 0x8c5,  4 }, {  37, 0x4b9,  4 },
+    {  38, 0x4bb,  4 }, {  41, 0x904,  8 }, {  39, 0x4be,  2 },
+    {  40, 0x4bd,  2 }, {  42, 0x66f,  2 }, {  43, 0x670,  2 },
+    {  44, 0x671,  2 }, {  45, 0x672,  2 }, {  46, 0x673,  2 },
+    {  47, 0x674,  2 }, {  48, 0x675,  2 }, {  49, 0x676,  2 },
+    {  50, 0x771,  4 }, {  51, 0x772,  4 }, {  52, 0x773,  4 },
+    {  53, 0x774,  4 }, {  54, 0x677,  2 }, {  55, 0x678,  2 },
+    {  56, 0x67c,  2 }, {  57, 0x67a,  2 }, {  58, 0x67b,  2 },
+    {  59, 0x6cd,  2 }, {  60, 0x6ce,  2 }, {  61, 0x6cf,  2 },
+    {  62, 0x6d0,  2 }, {  63, 0x6d1,  2 }, {  64, 0x79b,  4 },
+    {  65, 0x79c,  4 }, {  66, 0x505,  2 }, {  67, 0x501,  2 },
+    {  68, 0x4ff,  2 }, {  69, 0x500,  2 }, {  70, 0x52f,  2 },
+    {  71, 0x502,  2 }, {  72, 0x4a5,  2 }, {  73, 0x4a3,  2 },
+    {  74, 0x4a4,  2 }, {  75, 0x503,  4 }, {  76, 0x504,  4 },
+    {  77, 0x4cd,  4 }, {  78, 0x4cc,  4 }, {  79, 0x805,  4 },
+    { 131, 0x4a6,  2 }, { 132, 0x4a8,  2 }, { 133, 0x4aa,  2 },
+    { 134, 0x4a7,  4 }, { 135, 0x4a9,  2 }, { 136, 0x8b6,  4 },
+    {  80, 0x4dc,  4 }, {  81, 0x4dd,  4 }, { 110, 0x4bc,  4 },
+    {  82, 0x4de,  4 }, {  83, 0x4df,  4 }, {  87, 0x4eb,  4 },
+    {  84, 0x4e3,  4 }, {  85, 0x4e1,  2 }, {  86, 0x52c,  2 },
+    { 102, 0x4ec,  2 }, { 103, 0x4ed,  4 }, { 104, 0x4ee,  4 },
+    { 105, 0x4e0,  2 }, { 106, 0x4e8,  4 }, { 107, 0x876,  4 },
+    { 108, 0x87d,  4 }, { 109, 0x87e,  4 }, { 111, 0x529,  2 },
+    { 112, 0x52a,  4 }, {  88, 0x79a,  8 }, { 113, 0x7c1,  8 },
+    {  89, 0x4db,  4 }, {  90, 0x4da,  4 }, {  96, 0x4e6,  2 },
+    {  95, 0x4e7,  2 }, { 100, 0x52b, 16 }, { 101, 0x6f1,  8 },
+    {  97, 0x872,  4 }, {  98, 0x873,  4 }, {  99, 0x6f0,  4 },
+    {  91, 0x4e4,  4 }, {  92, 0x4e5,  4 }, {  93, 0x4e9,  1 },
+    {  94, 0x4ea,  1 }, { 115, 0x6f5,  4 }, { 114, 0x6f6,  4 },
+    { 116, 0x7be,  4 }, { 117, 0x4d6,  4 }, { 118, 0x4d7,  4 },
+    { 119, 0x4d0,  8 }, { 120, 0x4d3,  4 }, { 121, 0x7cf,  4 },
+    { 122, 0x4d1,  4 }, { 123, 0x4d2,  4 }, { 124, 0x4d5,  4 },
+    { 125, 0x4ce,  4 }, { 126, 0x4cf,  4 }, { 130, 0x53a,  4 },
+    { 128, 0x4d4,  4 }, { 129, 0x782,  4 }, { 137, 0x4f8,  4 },
+    { 139, 0x4fb,  4 }, { 140, 0x53c,  4 },
+    /* ── 52 thiscall block ── */
+    { 143, 0x4f0,  8 }, { 141, 0x4f1,  4 }, { 145, 0x7c8,  4 },
+    { 146, 0x7c9,  4 }, { 142, 0x4ef,  4 }, { 138, 0x4fa,  4 },
+    { 144, 0x4f9,  4 }, { 147, 0x4f7,  4 }, { 148, 0x71c,  4 },
+    { 149, 0x4fc,  4 }, { 150, 0x4fd,  4 }, { 151, 0x4fe,  4 },
+    { 157, 0x668,  4 }, { 158, 0x796,  4 }, { 159, 0x66a,  4 },
+    { 152, 0x6b0,  4 }, { 153, 0x7cc,  4 }, { 154, 0x7cd,  4 },
+    { 155, 0x7ce,  4 }, { 207, 0x8bf,  4 }, { 208, 0x8c1,  4 },
+    { 216, 0x511,  8 }, { 217, 0x512,  8 }, { 218, 0x52d,  2 },
+    { 219, 0x52e,  2 }, {  12, 0x50a,  8 }, {  13, 0x50b,  2 },
+    { 220, 0x4b0,  8 }, { 221, 0x4b1,  8 }, { 222, 0x6e6,  8 },
+    { 223, 0x6e7,  8 }, { 224, 0x4b2,  2 }, { 225, 0x4b3,  2 },
+    { 226, 0x4b7,  2 }, { 227, 0x4b4,  6 }, { 240, 0x4b8,  2 },
+    { 243, 0x6fb,  4 }, { 229, 0x76e,  2 }, { 228, 0x76f,  4 },
+    { 230, 0x77e, 16 }, { 244, 0x78a,  4 }, { 231, 0x7d1,  4 },
+    { 232, 0x8cc,  2 }, { 233, 0x8cd,  8 }, { 241, 0x4ab,  4 },
+    { 242, 0x4ac,  4 }, { 234, 0x4b5,  4 }, { 235, 0x4b6,  2 },
+    { 236, 0x4ad,  8 }, { 237, 0x4ae,  2 }, { 239, 0x4af,  4 },
+    { 238, 0x7bf,  8 },
+};
+
+#define AR_GAME_SOUND_COUNT (sizeof(game_sounds) / sizeof(game_sounds[0]))
+
+void ar_register_game_sounds(void *zds, uint16_t group, void *settings)
+{
+    for (size_t i = 0; i < AR_GAME_SOUND_COUNT; i++) {
+        const struct ar_game_sound_entry *e = &game_sounds[i];
+        ar_sound_slot_init(g_ar_sound_table[e->idx], zds, settings,
+                           e->id, e->count, group);
     }
 }
 

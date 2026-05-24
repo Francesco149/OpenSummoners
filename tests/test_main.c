@@ -101,6 +101,12 @@ struct test_case {
     X(game_sprites_resource_ids_unique)                        \
     X(game_sprites_untouched_indices_stay_zero)                \
     X(game_sprites_coexists_with_main_sprites)                 \
+    X(game_sounds_total_entry_count)                           \
+    X(game_sounds_index_range_and_gaps)                        \
+    X(game_sounds_field_writes_spot_check)                     \
+    X(game_sounds_resource_ids_unique)                         \
+    X(game_sounds_coexists_with_main_sounds)                   \
+    X(game_sounds_buffer_pointer_preserved)                    \
     X(ar_layout_matches_retail)                                \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \
