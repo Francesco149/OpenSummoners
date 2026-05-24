@@ -95,6 +95,12 @@ struct test_case {
     X(main_sprites_untouched_indices_stay_zero)                \
     X(main_sprites_total_slot_count)                           \
     X(main_sprites_coexists_with_register_fonts)               \
+    X(game_sprites_inline_block_field_map)                     \
+    X(game_sprites_trailing_call_shapes)                       \
+    X(game_sprites_total_slot_count)                           \
+    X(game_sprites_resource_ids_unique)                        \
+    X(game_sprites_untouched_indices_stay_zero)                \
+    X(game_sprites_coexists_with_main_sprites)                 \
     X(ar_layout_matches_retail)                                \
 
 #define X(n) extern int test_##n(void);

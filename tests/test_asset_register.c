@@ -1045,6 +1045,203 @@ int test_main_sprites_coexists_with_register_fonts(void)
     return 0;
 }
 
+/* ─── ar_register_game_sprites (FUN_0056e190) ────────────────────── */
+
+int test_game_sprites_inline_block_field_map(void)
+{
+    /* The 93 inline blocks at idx 425..517 — sequential resource IDs
+     * 0x592..0x5fb.  72 are 0xa0×0xb0; 21 (resource IDs 0x71f..0x733,
+     * idx 467..487) are 0xb0×0x90.  Spot-check a handful at the
+     * boundaries plus inside both shape regions. */
+    ar_state_init();
+    void *zdd = (void *)0x1111;
+    void *settings = (void *)0x2222;
+    ar_register_game_sprites(zdd, /*group=*/0x5, settings);
+
+    struct exp { int idx; uint16_t id; uint32_t w; uint32_t h; };
+    static const struct exp checks[] = {
+        { 425, 0x592, 0xa0, 0xb0 },  /* first inline slot      */
+        { 466, 0x6ec, 0xa0, 0xb0 },  /* last 0xa0×0xb0 before shape shift */
+        { 467, 0x71f, 0xb0, 0x90 },  /* first 0xb0×0x90 — id-shape break */
+        { 487, 0x733, 0xb0, 0x90 },  /* last 0xb0×0x90  */
+        { 488, 0x5e1, 0xa0, 0xb0 },  /* back to 0xa0×0xb0 — id sequence resets */
+        { 517, 0x5fb, 0xa0, 0xb0 },  /* last inline slot       */
+    };
+    for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); i++) {
+        const struct exp *e = &checks[i];
+        const ar_sprite_slot *s = &g_ar_sprite_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("inline[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        if (s->width != e->w || s->height != e->h)
+            T_FAIL("inline[%d] %ux%u, want %ux%u",
+                   e->idx, (unsigned)s->width, (unsigned)s->height,
+                   (unsigned)e->w, (unsigned)e->h);
+        T_ASSERT_EQ_U(s->colorkey, 0xff00ffu);
+        T_ASSERT_EQ_U(s->scale_flag, 1u);
+        T_ASSERT_EQ_U(s->type, 0u);
+        T_ASSERT_EQ_U(s->group, 0x5u);
+        T_ASSERT_EQ_P(s->zdd, zdd);
+        T_ASSERT_EQ_P(s->settings, settings);
+        T_ASSERT_EQ_U(s->entry_count, 1u);
+        T_ASSERT(s->entries != NULL);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_game_sprites_trailing_call_shapes(void)
+{
+    /* The 349 trailing FUN_005748c0 calls use three sprite shapes.
+     * Spot-check one of each shape, plus the very low-index stragglers
+     * at idx 62..64 (the only sub-100 indices touched by this batch). */
+    ar_state_init();
+    ar_register_game_sprites((void *)0x1, /*group=*/0xaa, (void *)0x2);
+
+    struct exp { int idx; uint16_t id; uint32_t w; uint32_t h;
+                 uint32_t scale; uint32_t type; };
+    static const struct exp trailing_checks[] = {
+        /* First trailing call — slot at idx 518 (DAT_008a7e58), id 0x5fc */
+        { 518, 0x5fc, 0xa0, 0xb0, 1, 0 },
+        /* 0xb0×0x90 sample — id 0x7ee at idx 840 (DAT_008a8200) */
+        { 840, 0x7ee, 0xb0, 0x90, 1, 0 },
+        /* 0x80×0x80 icon shape — taken from the tail */
+        { 861, 0x580, 0x80, 0x80, 0, 2 },
+        /* Low-index stragglers — IDs 0x608/0x609/0x60a end up at idx 62/63/64 */
+        { 62,  0x608, 0x80, 0x80, 0, 2 },
+        { 63,  0x609, 0x80, 0x80, 0, 2 },
+        { 64,  0x60a, 0x80, 0x80, 0, 2 },
+    };
+    for (size_t i = 0; i < sizeof(trailing_checks) / sizeof(trailing_checks[0]); i++) {
+        const struct exp *e = &trailing_checks[i];
+        const ar_sprite_slot *s = &g_ar_sprite_slots[e->idx];
+        if (s->resource_id != e->id)
+            T_FAIL("trail[%d] id 0x%x, want 0x%x",
+                   e->idx, (unsigned)s->resource_id, (unsigned)e->id);
+        T_ASSERT_EQ_U(s->width, e->w);
+        T_ASSERT_EQ_U(s->height, e->h);
+        T_ASSERT_EQ_U(s->colorkey, 0xff00ffu);
+        T_ASSERT_EQ_U(s->scale_flag, e->scale);
+        T_ASSERT_EQ_U(s->type, e->type);
+        T_ASSERT_EQ_U(s->group, 0xaau);
+        T_ASSERT_EQ_U(s->entry_count, 1u);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_game_sprites_total_slot_count(void)
+{
+    /* 93 inline + 349 trailing = 442 populated slots.  Detects drift
+     * if a slot is accidentally added/removed from the table. */
+    ar_state_init();
+    ar_register_game_sprites((void *)0x1, 0x1, (void *)0x2);
+
+    int populated = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries != NULL) populated++;
+    }
+    T_ASSERT_EQ_I(populated, 442);
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_game_sprites_resource_ids_unique(void)
+{
+    /* Every resource ID in the batch must be unique — the engine's
+     * per-asset resource-decoder keys off this ID, so duplicates would
+     * silently overwrite each other in sotesp.dll/sotesd.dll lookups.
+     * Also pins that our extraction didn't drop or double-count any
+     * entry. */
+    ar_state_init();
+    ar_register_game_sprites((void *)0x1, 0, (void *)0x2);
+
+    /* Collect every populated slot's id; verify all-pairs distinct. */
+    enum { MAX_IDS = 512 };
+    uint16_t ids[MAX_IDS];
+    int n = 0;
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++) {
+        if (g_ar_sprite_slots[i].entries == NULL) continue;
+        if (n >= MAX_IDS) T_FAIL("too many populated slots");
+        ids[n++] = g_ar_sprite_slots[i].resource_id;
+    }
+    T_ASSERT_EQ_I(n, 442);
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (ids[i] == ids[j])
+                T_FAIL("duplicate resource id 0x%x at populated-slot indices %d & %d",
+                       (unsigned)ids[i], i, j);
+        }
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_game_sprites_untouched_indices_stay_zero(void)
+{
+    /* The batch touches a sparse but bounded set of indices: {62..64,
+     * 425..517, plus 346 trailing-call indices in between & beyond}.
+     * Every index outside that set must remain zero — the highest
+     * touched index is 863, so 864..1023 are an easy zero-check zone. */
+    ar_state_init();
+    ar_register_game_sprites(NULL, 0, NULL);
+
+    for (int i = 864; i < AR_SPRITE_SLOT_COUNT; i++) {
+        const ar_sprite_slot *s = &g_ar_sprite_slots[i];
+        if (s->entries != NULL)
+            T_FAIL("slot[%d] entries populated past expected range", i);
+        T_ASSERT_EQ_U(s->resource_id, 0u);
+        T_ASSERT_EQ_U(s->group, 0u);
+    }
+    /* Also: indices 0..61 are below the batch's lowest touch — should
+     * also stay clean. */
+    for (int i = 0; i < 62; i++) {
+        const ar_sprite_slot *s = &g_ar_sprite_slots[i];
+        if (s->entries != NULL)
+            T_FAIL("slot[%d] entries populated below expected range", i);
+    }
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
+int test_game_sprites_coexists_with_main_sprites(void)
+{
+    /* ar_register_main_sprites touches {0..29, 46, 47, 50, 55} —
+     * disjoint from this batch's lowest touches at 62..64.  Running
+     * both back-to-back should leave the union intact with each
+     * batch's group tag preserved on its own slots. */
+    ar_state_init();
+    void *zdd = (void *)0x100;
+    void *settings = (void *)0x200;
+    ar_register_main_sprites(zdd, /*group=*/0x4, settings, (void *)0x300);
+    ar_register_game_sprites(zdd, /*group=*/0x5, settings);
+
+    /* Main-sprite slot survives. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].resource_id, 0x49fu);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0x4u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[20].group, 0x4u);
+    /* Game-sprite slots present + tagged with group 5. */
+    T_ASSERT_EQ_U(g_ar_sprite_slots[62].resource_id, 0x608u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[62].group, 0x5u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[425].resource_id, 0x592u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[425].group, 0x5u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[863].resource_id, 0x581u);
+
+    /* Re-register game sprites with a different group — ASan would
+     * surface any double-free in the destroy-then-realloc path. */
+    ar_register_game_sprites(zdd, /*group=*/0x7, settings);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[425].group, 0x7u);
+    T_ASSERT_EQ_U(g_ar_sprite_slots[1].group, 0x4u);  /* main slot untouched */
+
+    destroy_all_sprite_slots();
+    return 0;
+}
+
 /* ─── layout parity (32-bit only) ────────────────────────────────── */
 
 int test_ar_layout_matches_retail(void)

@@ -208,20 +208,23 @@ _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset
 
 /* ─── globals — mirror retail BSS slot tables ────────────────────── */
 
-/* Sprite slot pool — models the retail BSS region
- * 0x008a7640..0x008a771c.  Logical index = (retail_addr - 0x008a7640) / 4.
+/* Sprite slot pool — models the retail BSS region starting at
+ * 0x008a7640.  Logical index = (retail_addr - 0x008a7640) / 4.
  * Multiple register batches (FUN_00579bd0, FUN_005749b0, FUN_0057a330,
  * FUN_0056e190, ...) all populate slots in this same pool — keying by
  * index keeps the field-write behaviour observable across batches
  * without modelling each retail BSS sub-range separately.
  *
- * Capacity 64 covers all currently-known register batches with
- * headroom (FUN_0056e190 will need more — bump when that lands).
+ * Capacity 1024 covers FUN_0056e190's hundreds-of-sprites batch
+ * (touches idx 62..863) with headroom for the remaining un-ported
+ * batches (FUN_0057a330, FUN_0057ca40, FUN_0057b280 — likely a few
+ * dozen more slots).  Retail's BSS region is contiguous past 0x8a7640
+ * for at least 0x1000 bytes; bump again if a later batch exceeds 1024.
  *
  * Named index constants for the slots whose semantic role is known
  * are defined below; everything else is referenced by raw index in
  * the batch driver and its tests. */
-#define AR_SPRITE_SLOT_COUNT 64
+#define AR_SPRITE_SLOT_COUNT 1024
 extern ar_sprite_slot  g_ar_sprite_slots[AR_SPRITE_SLOT_COUNT];
 extern ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 
@@ -474,6 +477,46 @@ void ar_register_sounds(void *zds, uint16_t group, void *settings);
  * inline-slot writes and the trailing-call batch. */
 void ar_register_main_sprites(void *zdd, uint16_t group, void *settings,
                               void *sotesp_module);
+
+/* FUN_0056e190 — "hundreds of sprites" register batch.
+ *
+ * Called by the boot driver as `FUN_0056e190(ZDD, 5, settings)` —
+ * immediately after `ar_register_main_sprites` (group 4) and before the
+ * "The resource was set" log line.  Group passed is 5.
+ *
+ * Populates 442 sprite slots in `g_ar_sprite_slots[]` — by far the
+ * biggest sprite batch at boot.  Resource IDs span 0x453..0x908; pool
+ * indices span 62..863.  The retail body is structured as:
+ *
+ *   1. 93 INLINE BLOCKS — slots at indices 425..517 (retail addresses
+ *      0x8a7ce4..0x8a7e54).  Sequential indices, sequential resource
+ *      IDs (0x592..0x5fb).  Each block is the open-coded
+ *      destructor-plus-field-writes that the compiler emits when
+ *      pre-Ghidra-thiscall info was available — same observable end
+ *      state as ar_sprite_slot_register.  72 are 0xa0×0xb0 (scale=1,
+ *      type=0) and 21 (resource IDs 0x71f..0x733) are 0xb0×0x90.
+ *
+ *   2. 349 TRAILING CALLS to FUN_005748c0 — slot pointers come from
+ *      `mov ecx, [DAT_]` thiscall setups that Ghidra dropped from the
+ *      C view.  Pool indices span 62..863 NON-sequentially (the
+ *      compiler/source clearly reordered or grouped by content).  Three
+ *      sprite shapes appear:
+ *        - 0xa0×0xb0 scale=1 type=0  (portrait/character-sized)
+ *        - 0xb0×0x90 scale=1 type=0  (wider UI/character art)
+ *        - 0x80×0x80 scale=0 type=2  (small icon-sized — matches the
+ *                                     UI-icon pattern from
+ *                                     ar_register_main_sprites' tail)
+ *
+ * No palette ramps, no branching, no other helpers — purely 442
+ * single-entry sprite-slot registers.  Implementation is table-driven:
+ * one static const entry per retail register call, iterated through
+ * `ar_sprite_slot_register`.
+ *
+ * Provenance: the trailing slot indices come from radare2 disasm of
+ * FUN_0056e190 (the inline section comes straight from the Ghidra
+ * decomp; the trailing thiscall ECX setups were re-extracted from
+ * raw bytes via `pD 0x672c @ 0x56e190 | awk`). */
+void ar_register_game_sprites(void *zdd, uint16_t group, void *settings);
 
 /* FUN_00579bd0 — boot-driver asset-register batch (fonts).
  *
