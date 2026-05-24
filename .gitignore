@@ -1,0 +1,63 @@
+# ─── Game assets (never committed) ────────────────────────────────────────
+# Symlinks to and copies of the original game, extracted asset bytes, golden
+# screenshots derived from running the original.  None of this is mine to ship.
+vendor/
+docs/decompiled/
+docs/findings/**/golden/
+tests/golden/**/*.png
+tests/golden/**/*.jpg
+tests/golden/**/*.bmp
+tests/golden/**/*.bin
+tests/golden/**/*.wav
+# Scenario goldens — rendered by either opensummoners.exe or the retail exe via
+# Frida, both of which embed Fortune Summoners textures we may not redistribute.
+# scenario.yaml + trace.jsonl ship; golden/ is regenerated locally via
+# `tools/scenario-test.py <name> --bless`.
+tests/scenarios/**/golden/
+tests/scenarios/**/golden-retail/
+
+# ─── Ghidra projects (large, contain analysis state derived from original) ─
+ghidra/projects/
+ghidra/*.rep/
+ghidra/*.gpr
+ghidra/*.lock
+*.gpr.lock
+*.gpr.lock~
+
+# ─── Build outputs ────────────────────────────────────────────────────────
+build/
+result
+result-*
+*.o
+*.d
+*.obj
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.map
+
+# ─── Python caches ────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Cache / runtime ──────────────────────────────────────────────────────
+.cache/
+
+# ─── Test runs (output of tools/smoke-test.py et al) ──────────────────────
+runs/
+
+# ─── Per-user Claude Code permission grants + runtime state ──────────────
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
+# ─── Editor/OS ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
