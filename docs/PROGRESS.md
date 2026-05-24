@@ -6,6 +6,67 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — Asset-Register: FUN_0057b280 tail (ar_register_locale_sounds + ar_register_aux_sounds)
+
+Closed FUN_0057b280's deferred backlog from the previous checkpoint
+— two distinct ports landing in the same session:
+
+**`ar_register_aux_sounds`** — the 4 inline `ar_sound_slot::FUN_00563ef0`
+calls the boot driver (`FUN_00562ea0:617-620`) issues between
+`FUN_0057a330` and `FUN_0057ca40`.  Hardcoded indices 22..25 with
+IDs 0x4cb / 0x4ca / 0x4c8 / 0x4c9 (issue order), count 2 each,
+group 2.  Same `ar_sound_slot_init` semantics as the rest of the
+sound batches (`load_flag = 0`).  Tests: +3.  Commit: `d4198b0`.
+
+**`ar_register_locale_sounds`** — the conditional locale-table loop
+at the tail of retail FUN_0057b280.  Walks the 283-entry rdata
+table at `0x00691018` (terminator = first +0x00 == 0 row) and
+dispatches into the W_MGR sound pool keyed on three launcher-
+settings globals (DAT_008a6e68 / _6e70 / _6e80+0x1c8), now exposed
+as an `ar_locale_state` struct.  Two paths:
+  - **PATH A (fallback)** when override==0 OR no current locale OR
+    launcher flag suppresses it.  Resource id = entry.primary_id;
+    settings = (flag==-1) ? locale.fallback : caller's settings.
+  - **PATH B (locale override)** otherwise.  override == 0x7fff
+    is the skip-when-active sentinel.  Resource id = entry.override;
+    settings = locale.current.
+
+Touched indices span 160..464 (267 distinct) — required bumping
+`AR_SOUND_SLOT_COUNT` 256 → 512 to fit the 465-entry retail W_MGR
+pool (allocated 0x1d1 entries in FUN_00562ea0's SS_MGR_Preparation
+block).  Added `AR_SOUND_POOL_COUNT = 465` as the documented exact
+retail capacity.
+
+Table data extracted via `r2 px @ 0x691018` + a Python parser on
+the resulting hex.  Only the five fields the loop actually reads
+are kept in the static const C array; the magic / sequence /
+metadata fields are summarised in the table-extraction comment.
+
+Field shape observations from the parsed data (vs the previous
+HANDOFF notes that pegged magic as 0xc35a):
+- 23 distinct magic values appear in live entries (0xc35a..0xc35d,
+  0xc4ae, 0xc754, 0xc756, 0xc760, 0xc77f, 0xc789, 0xc792, 0xc79c,
+  0xc80b, 0xc829, 0xc83d, 0xe2a4..0xe2a8, 0x1874e, 0x18755, 0x18759).
+  Magic is NEVER read by the loop — likely a zone/area tag for some
+  other subsystem.
+- field4 (`u32` at +0x04) is a per-locale group selector 1..73 (with
+  gaps), monotonic per magic — looks like a "scene_id" the locale
+  pre-loader can filter on.
+- 15 entries have primary_id == 0 (sentinels skipped by the loop's
+  `if (resource_id != 0)` early-out).  15 have override == 0x7fff.
+  29 have flag == -1.
+- count_add (`i16` at +0x14) is only ever 0 or 2; flag (`i32` at
+  +0x18) is only ever 0 or -1; pad16 / field1e are always 0.
+
+Tests: +7 (no-locale path → primary_id + fallback-or-settings,
+primary_id==0 skip semantics, launcher_flag forces fallback,
+override path under live locale, 0x7fff skip sentinel, coexistence
+with `ar_register_game_sounds` at the 160..244 overlap, lazy-load
+buffer pointer preservation).  **111 pass, 0 fail, 3 skip**.  Win32
+cross build clean.  Commit: `aec8f15`.
+
+---
+
 ## 2026-05-24 — Asset-Register: FUN_0057b280 (ar_register_game_sounds)
 
 The "game sounds" boot-register batch — the sixth call in

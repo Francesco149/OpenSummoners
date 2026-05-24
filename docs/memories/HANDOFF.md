@@ -14,15 +14,19 @@ Phase 2 file-format extraction are complete enough to support
 methodical port-and-test.  Three modules are now ported:
 
 - **Pixel-Drawer** — 7 functions, 31 host tests passing.
-- **Asset-Register** — 17 functions ported.  Pure logic with GDI
+- **Asset-Register** — 19 functions ported.  Pure logic with GDI
   wrappers split into `asset_register_win32.c` (real build only).
-  Latest add is `ar_register_game_sounds` (FUN_0057b280 partial) —
-  174 sound-bank slots (idx 12..244) covering the inline + thiscall
-  halves of the retail batch; the conditional locale-loop tail and
-  the 4 inline calls at the caller `562ea0:617-620` are deferred.
-  Pool capacity bumped from 12 to 256 to fit; `ar_register_sounds`
-  still owns the original 12-entry main batch via the renamed
-  `AR_SOUND_MAIN_COUNT`.
+  Latest adds close out the FUN_0057b280 backlog:
+  - `ar_register_aux_sounds` — the 4 inline `FUN_00563ef0` calls
+    the boot driver issues at `FUN_00562ea0:617-620` (indices
+    22..25, group 2, IDs 0x4cb / 0x4ca / 0x4c8 / 0x4c9).
+  - `ar_register_locale_sounds` — the conditional locale-table
+    loop at the tail of retail FUN_0057b280 (walks the 283-entry
+    rdata table at `0x00691018` keyed on an `ar_locale_state`
+    struct the boot driver will populate from
+    DAT_008a6e68 / _6e70 / _6e80+0x1c8).  Touched indices span
+    160..464; pool capacity bumped 256 → 512 to fit the retail
+    465-slot W_MGR allocation (`AR_SOUND_POOL_COUNT = 465`).
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c` (the pump's spin-loop
@@ -31,7 +35,7 @@ methodical port-and-test.  Three modules are now ported:
   (paint helper, input acquire, ZDM, app pause, post-activate
   scrub) — all are no-op placeholders in `wnd_proc_win32.c`.
 
-Total host tests across all three modules: **101 pass, 0 fail, 3
+Total host tests across all three modules: **111 pass, 0 fail, 3
 skip** (the 3 skips are 32-bit-only layout asserts that fire at
 compile time on the cross build).
 
@@ -44,16 +48,16 @@ wrapper.  The 8 asset-register thiscalls are tagged.  See
 
 Most recent commits (newest first):
 
+- `aec8f15` Asset-Register: port FUN_0057b280 tail (ar_register_locale_sounds)
+- `d4198b0` Asset-Register: port ar_register_aux_sounds (FUN_00562ea0:617-620)
+- (pending) docs: HANDOFF + PROGRESS for FUN_0057b280-tail checkpoint
+- `09c2bfd` docs: capture FUN_0057b280 locale-table layout finding
+- `40aabdf` docs: HANDOFF + PROGRESS for FUN_0057b280 checkpoint
 - `5814772` Asset-Register: port FUN_0057b280 (ar_register_game_sounds)
-- (pending) docs: HANDOFF + PROGRESS for FUN_0057b280 checkpoint
 - `f96f375` WndProc: port FUN_005b12e0 (wp_handle_message)
 - `2a94b02` tools: ghidra-tag-and-export.sh convenience wrapper
 - `b8de62b` tools: TagThiscallFunctions script + bump decomp payload limit
 - `fc71279` docs: C++ class-recovery workflow + Kaiju extension
-- `24fc87f` docs: HANDOFF + PROGRESS for FUN_0056e190 checkpoint
-- `d4fd73a` Asset-Register: port FUN_0056e190 (ar_register_game_sprites)
-- `f42354c` docs: HANDOFF + PROGRESS for FUN_005749b0 checkpoint
-- `e26712c` Asset-Register: port FUN_005749b0 (ar_register_main_sprites)
 
 ## Active goal
 
@@ -64,32 +68,23 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-FUN_0057b280's main body is done; the remaining asset-register
-backlog is heavier (PE-resource decoder or chunked-Ghidra work) and
-the WndProc port still has no live wiring.  Pick by appetite.
+The FUN_0057b280 sound-batch backlog is now fully ported.  Next-
+biggest unblocked items:
 
 1. **(recommended) Palette-session trio** (FUN_004178e0 +
    FUN_00491770 + FUN_005b5d90).  FUN_005b5d90 is a 3-byte COLORREF
    pack — trivial.  FUN_00491770 copies a 1024-byte palette into
    `**this+4`.  FUN_004178e0 is the hard one: opens the sprite's
-   PE-resource handle via FUN_005b7800, checks if 8-bit-indexed via
+   PE-resource handle via FUN_005b7800 (359 B, calls FUN_005b71f0 /
+   FUN_005b7c10 for the actual decode), checks if 8-bit-indexed via
    FUN_005b6f00, conditionally replaces its palette via FUN_005b7b90.
-   Whole PE-resource decoder needed.  Unblocks the deferred palette
-   ramps in FUN_005749b0 AND the entire FUN_0057a330 batch (the
-   second-biggest sprite-register call at boot).
+   Whole PE-resource decoder needed (FUN_005b7800 + FUN_005b71f0 +
+   FUN_005b7c10) — this is the biggest blocker for indexed-sprite
+   work.  Unblocks the deferred palette ramps in FUN_005749b0 AND
+   the entire FUN_0057a330 batch (the second-biggest sprite-
+   register call at boot).
 
-2. **FUN_0057b280 tail bits** — port the deferred halves of the
-   game-sounds path: (a) the 4 inline `FUN_00563ef0` calls at the
-   caller `FUN_00562ea0:617-620` (idx 22..25, group 2, IDs
-   0x4c8..0x4cb), and (b) the conditional locale-table loop at the
-   end of FUN_0057b280 (walks the 0x24-stride rdata table at
-   `&DAT_00691018`, branches on launcher-settings fields at
-   DAT_008a6e68/_6e70/_6e80).  Needs reading the rdata table out of
-   the binary and modelling 3 launcher-settings struct fields the
-   loop dereferences.  Small in code, finishes the asset-register's
-   sound backlog cleanly.
-
-3. **WndProc dependency formalization** — model the layouts of the
+2. **WndProc dependency formalization** — model the layouts of the
    5 "deep engine" structs (paint context with +0x164 state and
    +0x138 blit rect, input device with +0x04 vtable + +0x08
    acquired flag, ZDM with +0x18 device array + +0x1c count, input
@@ -100,21 +95,21 @@ the WndProc port still has no live wiring.  Pick by appetite.
    in the decomp.  Pre-req for actually porting any of those
    subsystems beyond the no-op stubs.
 
-4. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
+3. **DDraw ZDD wrapper** (`FUN_005b7ee0`, `FUN_005b88c0`, et al).
    Can't be cleanly unit-tested without a DDraw mock layer; verify
    via Frida smoke harness end-to-end.  Unblocks actual rendering
    AND lets the WndProc's `wp_paint_check` hook get a real
    implementation.
 
-5. **`FUN_0057a330`** (3919 B) — heavy palette-ramp work per
+4. **`FUN_0057a330`** (3919 B) — heavy palette-ramp work per
    sprite.  Blocked on the palette-session trio (#1).  Big — that's
    a PE-resource decoder for indexed sprites.
 
-6. **`FUN_0057ca40`** (24884 B) — Ghidra decompile FAILS (response
+5. **`FUN_0057ca40`** (24884 B) — Ghidra decompile FAILS (response
    buffer exceeded).  Will need radare2 hand-disasm or chunked
    Ghidra approach.
 
-7. **`FUN_00563ef0` wave-load half** — defer until we have a reason
+6. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
    Big DSound+mmio+resource mock layer for code that is dead at boot.
 
@@ -125,7 +120,7 @@ src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 7 functions, DONE
-  asset_register.c/h        Asset-register slots (GDI, sprite, sound) — 17 functions
+  asset_register.c/h        Asset-register slots (GDI, sprite, sound) — 19 functions
   asset_register_win32.c    GDI primitive wrappers (CreateFontIndirectA etc.)
   wnd_proc.c/h              Main game window WndProc — pure dispatch
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + 5 placeholder hooks
@@ -137,7 +132,7 @@ tests/
   t.h                       T_ASSERT_* macros, 0/1/2 = pass/fail/skip
   test_main.c               X-macro registry; one X(name) per test
   test_pixel_drawer.c       31 tests for Pixel-Drawer
-  test_asset_register.c     50 tests for Asset-Register
+  test_asset_register.c     60 tests for Asset-Register
   test_wnd_proc.c           20 tests for WndProc
 
 tools/
@@ -163,43 +158,22 @@ tools/
   (`FUN_0056aea0`) — Ghidra-flagged unrecovered.  Read with
   `radare2 -c 'pxw 0x60 @ 0x56bfa4'`.
 - `ar_register_fonts` + `ar_register_sounds` + `ar_register_main_sprites`
-  + `ar_register_game_sprites` + `ar_register_game_sounds` are
+  + `ar_register_game_sprites` + `ar_register_game_sounds` +
+  `ar_register_aux_sounds` + `ar_register_locale_sounds` are all
   ported but **not yet called from the drop-in's boot path** —
   they're modules in isolation.  Wire them in once enough adjacent
   register batches land that calling them actually has a visible
-  effect.
-- FUN_0057b280's deferred tail: the 4 inline `FUN_00563ef0` calls
-  at the caller `562ea0:617-620` (group=2, indices 22..25, IDs
-  0x4c8/0x4ca/0x4c9/0x4cb) AND the conditional locale-table loop
-  walking `&DAT_00691018` (0x24 stride, branches on DAT_008a6e68/
-  _6e70/_6e80).  See PROGRESS 2026-05-24 game-sounds entry and
-  "Next move" #2.
-
-  Table layout (entry stride = 0x24 bytes, terminator = u32@+0 == 0):
-    +0x00 (u32): magic — 0xc35a in all observed live entries.  When
-                 zero the loop exits.  Verified at file offset
-                 0x00691018 via `r2 px @ 0x691018`.
-    +0x04 (u32): ? (1, 2, 3 ... in order — likely a locale/language
-                    selector or sequence number)
-    +0x08 (u16): slot index into &DAT_008a6ec4 pool (highest seen so
-                 far is 0xf5 = 245, just over FUN_0057b280's max
-                 244 — pool cap 256 still fits; keep an eye on
-                 anything past 255 once a full extraction lands)
-    +0x0a (u16): resource_id (primary)
-    +0x0c (u32): ? (0xc8 = 200 in first row — looks scalar)
-    +0x10 (u32): ? (zero in first row)
-    +0x14 (i16): count_add  (call passes sVar1 + 2 as `count`)
-    +0x16 (u16): pad? (always 0 in first row)
-    +0x18 (i32): flag — `== -1` skips the override branch and
-                 forces the param_3/DAT_008a6e68 settings path
-    +0x1c (u16): override_id — used iff flag != -1 && override != 0
-                 && DAT_008a6e70 != NULL && *(DAT_008a6e80+0x1c8)==0;
-                 `0x7fff` is the explicit "skip entry" sentinel
-    +0x1e..+0x23: 6 bytes of pad / unknown (mostly zero observed)
-  Launcher-settings deps to model: DAT_008a6e80 is a pointer-to-
-  pointer-to-launcher-settings; the loop reads `*(int*)(*DAT_008a6e80
-  + 0x1c8)`.  DAT_008a6e68 and DAT_008a6e70 are direct settings
-  pointers selected for the "this-locale" vs "fallback" path.
+  effect.  `ar_register_locale_sounds` ALSO needs the boot driver
+  to populate an `ar_locale_state` from the launcher-settings
+  globals — see next bullet.
+- `ar_locale_state` modelling: the locale loop's three globals
+  (DAT_008a6e68, _6e70, *DAT_008a6e80+0x1c8) are passed in as a
+  struct in our port.  The boot driver port will need to read them
+  from the real BSS / launcher-settings record.  DAT_008a6e80 is a
+  pointer-to-pointer-to-launcher-settings; the loop reads
+  `*(int*)(*DAT_008a6e80 + 0x1c8)`.  Field 0x1c8 of the launcher-
+  settings struct is unmodelled — its specific semantics are
+  unknown (likely a "force-default-language" override toggle).
 - The WndProc port is also a module in isolation — `wp_handle_message`
   is not wired into any RegisterClassExA call yet.  Wiring requires
   the drop-in to actually own the main game window registration
@@ -217,7 +191,17 @@ tools/
 - The 5 "deep engine" structs the WndProc port depends on
   (paint context, input device, ZDM, input manager singleton, log
   singleton) are modelled as opaque void* in the port — see
-  "Next move" #3 for the formalization track.
+  "Next move" #2 for the formalization track.
+- Locale-table magic / sequence fields: the +0x00 magic field has
+  23 distinct values (0xc35a..0xc35d, 0xc4ae, 0xc7xx family,
+  0xc8xx family, 0xe2a4..0xe2a8, 0x1874e..0x18759) — the loop only
+  uses it as a non-zero "live" marker, but it's probably a
+  zone/area tag some OTHER subsystem reads.  Field 0x04 is a
+  per-locale group selector 1..73 (with gaps) that's monotonic
+  per magic — looks like a "scene_id" the locale pre-loader may
+  filter on.  Both fields are extracted into the comment above
+  the `locale_sounds[]` array but not retained in our entry
+  struct.  Revisit when porting the scene loader.
 
 ## How to apply
 
