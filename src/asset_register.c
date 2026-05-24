@@ -338,6 +338,57 @@ void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
     s->f_38        = 0;
 }
 
+/* ─── FUN_00582b80 — clone metadata from one sprite slot into another ─ */
+
+void ar_sprite_slot_clone(ar_sprite_slot *dst, const ar_sprite_slot *src)
+{
+    /* Prologue is an inline expansion of ar_sprite_slot_destroy on
+     * dst — same free-aux + walk-entries-and-free + free-array
+     * sequence.  Call the helper for parity with ar_sprite_slot_register. */
+    ar_sprite_slot_destroy(dst);
+
+    /* Field stamps in retail order.  entries is a fresh 1-entry calloc
+     * (operator_new(8) + zero-loop in retail; calloc handles both). */
+    dst->zdd         = src->zdd;
+    dst->entry_count = 1;
+    dst->entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
+    dst->settings    = src->settings;
+    dst->resource_id = src->resource_id;
+    dst->width       = src->width;
+    dst->height      = src->height;
+    dst->colorkey    = src->colorkey;
+    dst->f_08        = 0;
+    dst->f_18        = 0;
+    dst->scale_flag  = src->scale_flag;
+    dst->type        = src->type;
+    dst->group       = src->group;
+    dst->f_38        = 0;
+
+    /* Deep-copy the aux buffer iff src has one.  Stride is 24 B per
+     * entry; src->f_38 is the entry count.  Retail allocates even
+     * when f_38==0 (operator_new(0) result stashed in dst->aux_buf);
+     * our destructor is NULL-safe and the malloc(0) edge is
+     * implementation-defined but innocuous, so we match retail. */
+    if (src->aux_buf != NULL && dst->aux_buf == NULL) {
+        size_t count = src->f_38;
+        dst->aux_buf = malloc(count * 24);
+        if (count != 0) {
+            memcpy(dst->aux_buf, src->aux_buf, count * 24);
+        }
+    }
+}
+
+/* ─── FUN_00582d00 — zero a parallel-info-table entry ────────────── */
+
+void ar_info_entry_clear(ar_info_entry *entry)
+{
+    /* Retail writes: word@+0, dword@+4/+8/+12.  Pad@+2..+3 untouched. */
+    entry->marker = 0;
+    entry->flag   = 0;
+    entry->data   = NULL;
+    entry->f_0c   = 0;
+}
+
 /* ─── FUN_005b5d90 — pack a COLORREF into a PALETTEENTRY ────────── */
 
 void ar_palette_pack_entry(uint8_t *out, uint32_t colorref)

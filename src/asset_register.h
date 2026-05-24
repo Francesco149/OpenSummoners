@@ -207,6 +207,56 @@ _Static_assert(offsetof(ar_sound_slot, settings)    == 0x10, "sound settings off
 _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset");
 #endif
 
+/* ─── ar_info_entry — parallel-info-table entry (16 B) ───────────── */
+
+/* Reverse-engineered from FUN_00582d00 (the 14-byte clear routine)
+ * plus the surrounding copy chain in FUN_0057ca40 (around 0x57fa90).
+ * Each entry is referenced via a 4-byte pointer slot in the table at
+ * retail BSS 0x008a8578..0x008a8b14 — the ~357-entry "g_ar_sprite_flags
+ * extension" called out in `docs/findings/0057ca40-rabbit-hole.md`.
+ *
+ * Disasm sequence at one call site (0x57fa93..0x57facb):
+ *   call FUN_00582b80          ; clone sprite slot (this=src, arg=dst)
+ *   mov  ecx, [0x8a8a40]       ; load entry-ptr from parallel table
+ *   call FUN_00582d00          ; clear *entry  (word@+0, dwords@+4/+8/+12)
+ *   ; then: copy *[0x8a8a34] (template-entry) → *entry at offsets 0 and 4
+ *   ; then: *(entry + 8) = &DAT_006752f8   (const PE rdata pointer)
+ *
+ * Layout:
+ *   +0x00 (u16):  live/active marker — values 1 or 2 in the prefix
+ *                 table breakdown (see 0057ca40-rabbit-hole.md table).
+ *                 Cleared to 0 by ar_info_entry_clear.
+ *   +0x02 (u16):  pad — NEVER touched by either the clear or the
+ *                 template-copy chain.  Untouched in every observed
+ *                 retail write.
+ *   +0x04 (u32):  flag/state — 0/1/2 in observed writes (copied
+ *                 verbatim from the template entry).
+ *   +0x08 (void*):const PE rdata pointer (e.g. &DAT_006752f8,
+ *                 &DAT_006748d0, &DAT_00674ad8 — see 0057ca40
+ *                 rabbit-hole "98 const-data-pointer writes" line).
+ *   +0x0c (u32):  cleared to 0 by the clear; never written elsewhere
+ *                 in the observed cluster.  Semantic role unknown.
+ *
+ * No consumer is ported yet — the struct exists solely so the
+ * FUN_00582d00 port has a typed `this`.  Once the table indexing in
+ * FUN_0057ca40 lands, this will be backed by an extension of the
+ * g_ar_sprite_flags pool (currently a flat 14-entry uint32 array). */
+typedef struct ar_info_entry {
+    uint16_t   marker;     /* +0x00 */
+    uint16_t   _pad02;     /* +0x02 — untouched by the routines we model */
+    uint32_t   flag;       /* +0x04 */
+    const void *data;      /* +0x08 — const PE rdata pointer */
+    uint32_t   f_0c;       /* +0x0c */
+} ar_info_entry;
+
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(sizeof(ar_info_entry)            == 0x10, "ar_info_entry must be 16 bytes");
+_Static_assert(offsetof(ar_info_entry, marker)  == 0x00, "info_entry marker offset");
+_Static_assert(offsetof(ar_info_entry, flag)    == 0x04, "info_entry flag offset");
+_Static_assert(offsetof(ar_info_entry, data)    == 0x08, "info_entry data offset");
+_Static_assert(offsetof(ar_info_entry, f_0c)    == 0x0c, "info_entry f_0c offset");
+#endif
+
 /* ─── globals — mirror retail BSS slot tables ────────────────────── */
 
 /* Sprite slot pool — models the retail BSS region starting at
@@ -351,6 +401,52 @@ void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
                               uint32_t width, uint32_t height,
                               uint32_t colorkey, uint32_t scale_flag,
                               uint32_t type, uint16_t group);
+
+/* FUN_00582b80 — clone metadata from one ar_sprite_slot into another.
+ *
+ * Thiscall on `src` (retail puts the source in ECX); `dst` is the
+ * stack arg.  Like `ar_sprite_slot_register` but pulls every field
+ * from an existing slot rather than taking them as primitives:
+ *
+ *   1. Frees dst's old `aux_buf` and walks dst's old `entries[]`
+ *      freeing each entry's owned `b` pointer, then frees the
+ *      entries array.  Same prologue shape as ar_sprite_slot_destroy.
+ *   2. Allocates a fresh single-entry `entries` array on dst,
+ *      zeroed.  dst->entry_count = 1.
+ *   3. Copies metadata from src to dst: zdd, settings, resource_id,
+ *      width, height, colorkey, scale_flag, type, group.  Clears
+ *      f_08, f_18, f_38 to 0 on dst.
+ *   4. If src->aux_buf is non-NULL, allocates dst->aux_buf =
+ *      malloc(src->f_38 * 24) and memcpy's that many bytes from
+ *      src->aux_buf.  Retail quirk: dst->f_38 is left at 0 (cleared
+ *      in step 3 and never re-stamped) — the count is NOT
+ *      propagated to dst.  We match retail.
+ *
+ * Source's `entries` array is NOT transferred.  src retains its own
+ * pointer; dst gets a brand-new 1-entry alloc.  Callers (FUN_0057ca40)
+ * sometimes follow up by zeroing src->entries/entry_count/f_08/f_0c
+ * via `ar_info_entry_clear`-style ops on the template slot — see
+ * `docs/findings/0057ca40-rabbit-hole.md` "clone-and-detach pair".
+ *
+ * Module-isolation: no real caller is ported yet.  Available for the
+ * FUN_0057ca40 wiring once SS_MGR and the parallel-info-table land. */
+void ar_sprite_slot_clone(ar_sprite_slot *dst, const ar_sprite_slot *src);
+
+/* FUN_00582d00 — zero a parallel-info-table entry.
+ *
+ * Thiscall on `entry` (retail puts the entry pointer in ECX after
+ * loading it from the table at e.g. `[0x8a8a40]`).  Writes:
+ *   word @+0  = 0   (low half of `marker`)
+ *   dword@+4  = 0   (flag)
+ *   dword@+8  = 0   (data)
+ *   dword@+12 = 0   (f_0c)
+ * Leaves the pad bytes at +2..+3 untouched (the retail body writes
+ * `ax` to +0, not `eax`).
+ *
+ * Used in the FUN_0057ca40 cluster immediately after
+ * ar_sprite_slot_clone, before the copy-from-template-entry chain
+ * populates the cleared entry.  Module-isolation: no consumer ported. */
+void ar_info_entry_clear(ar_info_entry *entry);
 
 /* FUN_00562a10 — destroy a GDI slot.
  * DeleteObject's every non-null handle in `array`, frees `array`,

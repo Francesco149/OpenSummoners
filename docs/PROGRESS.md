@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-24 — FUN_00582b80 (slot clone) + FUN_00582d00 (info entry clear)
+
+Ported the next two functions from FUN_0057ca40's deferred subsystem
+list: `ar_sprite_slot_clone` (the `__thiscall` slot metadata clone)
+and `ar_info_entry_clear` (a 14-byte clear of a parallel-info-table
+entry).  Together they form the "clone-and-detach pair" that appears
+9× in FUN_0057ca40 — see `docs/findings/0057ca40-rabbit-hole.md`
+section 4 for the disasm walk and the new struct discovery below.
+
+The big finding is **`ar_info_entry`**, the 16-byte parallel-info-
+table entry shape that HANDOFF previously called out as "each retail
+entry is itself a POINTER to a struct."  Disasm at 0x57fa98 confirms
+FUN_00582d00's `this` is loaded from `[0x008a8a40]` — a pointer in
+the parallel table — and the writes pin the layout: u16 marker @+0,
+pad @+2, u32 flag @+4, const void* data @+8 (later set to PE rdata
+pointers like &DAT_006752f8), u32 f_0c @+12.  Struct + static
+asserts now live in `src/asset_register.h`.
+
+`ar_sprite_slot_clone` reuses `ar_sprite_slot_destroy` for its
+free-old-state prologue, then stamps every metadata field from src
+to dst in retail order, allocates a fresh 1-entry `entries[]`, and
+deep-copies src's `aux_buf` (24-byte stride entries, count from
+src->f_38).  Retail quirk preserved: `dst->f_38` stays at 0 even
+when the aux deep-copy runs — the count isn't propagated; we match.
+
+7 new unit tests (167 pass, 0 fail, 4 skip — up from 160).  Both
+functions tagged in `TagThiscallFunctions.java` (26 tags now);
+parse+tag stage confirmed `ar_info_entry=16` parses cleanly and
+both new functions land in their class namespaces.  Module-isolation
+still holds: no real caller is ported yet — the functions are
+available primitives for the eventual FUN_0057ca40 wiring once
+SS_MGR and the parallel-info-table array land.
+
+---
+
 ## 2026-05-24 — Headless Parse C Source automation
 
 Ported the `ParseCSource.java` script from sibling OpenMare to

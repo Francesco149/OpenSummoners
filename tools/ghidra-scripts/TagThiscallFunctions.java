@@ -18,7 +18,7 @@
 //      that defines a struct named in the TAGS array's `className`
 //      column.  Currently:
 //         src/asset_register.h   → ar_sprite_slot, ar_gdi_slot,
-//                                  ar_sound_slot
+//                                  ar_sound_slot, ar_info_entry
 //         src/bitmap_session.h   → bitmap_session
 //         src/wnd_proc.h         → paint_ctx, input_dev, zdm,
 //                                  input_mgr, log_singleton
@@ -84,6 +84,22 @@ public class TagThiscallFunctions extends GhidraScript {
         { 0x00563ef0L, "ar_sound_slot",
             "undefined4 FUN_00563ef0(void * zds, void * settings, ushort resource_id, " +
             "ushort count, ushort group, int load_flag)" },
+
+        // FUN_00582b80 (sprite slot clone from src to dst):
+        //   ECX = the SOURCE ar_sprite_slot* (template).  The stack arg
+        //   is the destination slot — fields get copied src → dst.  See
+        //   docs/findings/0057ca40-rabbit-hole.md "clone-and-detach pair".
+        { 0x00582b80L, "ar_sprite_slot",
+            "undefined4 FUN_00582b80(ar_sprite_slot * dst)" },
+
+        // FUN_00582d00 (parallel-info-table entry clear):
+        //   ECX = an ar_info_entry* loaded from the table at e.g.
+        //   [0x008a8a40].  Writes 14 bytes (word@+0, dwords@+4/+8/+12);
+        //   the +2..+3 pad stays untouched.  Called right after
+        //   FUN_00582b80 in FUN_0057ca40 to zero the table entry before
+        //   the template-copy chain populates it.
+        { 0x00582d00L, "ar_info_entry",
+            "void FUN_00582d00(void)" },
 
         // Bitmap-session module (PE-resource bitmap decoder; the `this`
         // is the 0x434-byte struct in src/bitmap_session.h).  Pre-port —

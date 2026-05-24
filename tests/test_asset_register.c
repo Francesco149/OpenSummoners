@@ -440,6 +440,217 @@ int test_sprite_register_matches_FUN_005748c0_arg_shape(void)
     return 0;
 }
 
+/* ─── ar_sprite_slot_clone (FUN_00582b80) ────────────────────────── */
+
+int test_sprite_clone_copies_all_metadata(void)
+{
+    /* Build a populated source slot, then clone into a fresh dst.
+     * Verify every metadata field arrives intact. */
+    ar_sprite_slot src = {0};
+    ar_sprite_slot_register(&src,
+        /*zdd=*/(void *)0xaaaa, /*settings=*/(void *)0xbbbb,
+        /*resource_id=*/0x590,
+        /*width=*/0x20, /*height=*/0x20,
+        /*colorkey=*/0x1ffffff,
+        /*scale_flag=*/1,
+        /*type=*/0,
+        /*group=*/3);
+
+    ar_sprite_slot dst = {0};
+    ar_sprite_slot_clone(&dst, &src);
+
+    T_ASSERT_EQ_P(dst.zdd, (void *)0xaaaa);
+    T_ASSERT_EQ_P(dst.settings, (void *)0xbbbb);
+    T_ASSERT_EQ_U(dst.resource_id, 0x590u);
+    T_ASSERT_EQ_U(dst.width, 0x20u);
+    T_ASSERT_EQ_U(dst.height, 0x20u);
+    T_ASSERT_EQ_U(dst.colorkey, 0x1ffffffu);
+    T_ASSERT_EQ_U(dst.scale_flag, 1u);
+    T_ASSERT_EQ_U(dst.type, 0u);
+    T_ASSERT_EQ_U(dst.group, 3u);
+
+    /* Cleared fields. */
+    T_ASSERT_EQ_U(dst.f_08, 0u);
+    T_ASSERT_EQ_U(dst.f_18, 0u);
+    T_ASSERT_EQ_U(dst.f_38, 0u);
+
+    /* dst got a fresh 1-entry entries array — NOT shared with src. */
+    T_ASSERT_EQ_U(dst.entry_count, 1u);
+    T_ASSERT(dst.entries != NULL);
+    T_ASSERT(dst.entries != src.entries);
+    T_ASSERT_EQ_U(dst.entries[0].a, 0u);
+    T_ASSERT_EQ_P(dst.entries[0].b, NULL);
+
+    /* No aux_buf on src → none on dst. */
+    T_ASSERT_EQ_P(dst.aux_buf, NULL);
+
+    /* src is untouched; its entries array still owns the original alloc. */
+    T_ASSERT(src.entries != NULL);
+    T_ASSERT_EQ_U(src.entry_count, 1u);
+
+    ar_sprite_slot_destroy(&src);
+    ar_sprite_slot_destroy(&dst);
+    return 0;
+}
+
+int test_sprite_clone_frees_dst_existing_aux_and_entries(void)
+{
+    /* Re-cloning over a populated dst must free its old aux_buf and
+     * entries (each entry's `b` too) — ASan would catch a leak. */
+    ar_sprite_slot src = {0};
+    ar_sprite_slot_register(&src, (void *)0x1, (void *)0x2,
+                            /*id=*/0x100,
+                            /*w=*/32, /*h=*/32, /*ck=*/0,
+                            /*scale=*/0, /*type=*/0, /*group=*/0);
+
+    ar_sprite_slot dst = {0};
+    dst.aux_buf     = malloc(48);
+    dst.entry_count = 2;
+    dst.entries     = (ar_sprite_entry *)calloc(2, sizeof(ar_sprite_entry));
+    dst.entries[0].b = malloc(16);
+    dst.entries[1].b = malloc(16);
+
+    ar_sprite_slot_clone(&dst, &src);
+
+    /* aux_buf freed; no copy since src has none either. */
+    T_ASSERT_EQ_P(dst.aux_buf, NULL);
+    /* entries array reallocated to size 1. */
+    T_ASSERT_EQ_U(dst.entry_count, 1u);
+    T_ASSERT(dst.entries != NULL);
+
+    ar_sprite_slot_destroy(&src);
+    ar_sprite_slot_destroy(&dst);
+    return 0;
+}
+
+int test_sprite_clone_deep_copies_aux_buf(void)
+{
+    /* Build a source with an aux_buf of N*24 bytes — clone must
+     * allocate a separate buffer on dst and copy the bytes verbatim.
+     * Verify the contents match, then mutate src's buffer and confirm
+     * dst's stays unchanged (proves they are independent allocations). */
+    ar_sprite_slot src = {0};
+    ar_sprite_slot_register(&src, NULL, NULL,
+                            /*id=*/0x100, /*w=*/64, /*h=*/64,
+                            /*ck=*/0, /*scale=*/0, /*type=*/0, /*group=*/0);
+
+    enum { N = 3 };
+    src.aux_buf = malloc(N * 24);
+    /* Populate with a recognizable pattern. */
+    for (size_t i = 0; i < N * 24; i++) {
+        ((uint8_t *)src.aux_buf)[i] = (uint8_t)(0x10 + i);
+    }
+    /* Retail clone reads count from src->f_38 — stamp it so the deep
+     * copy walks the full buffer. */
+    src.f_38 = N;
+
+    ar_sprite_slot dst = {0};
+    ar_sprite_slot_clone(&dst, &src);
+
+    /* dst got its own aux_buf (not the same pointer as src). */
+    T_ASSERT(dst.aux_buf != NULL);
+    T_ASSERT(dst.aux_buf != src.aux_buf);
+    /* Contents match byte-for-byte. */
+    T_ASSERT(memcmp(dst.aux_buf, src.aux_buf, N * 24) == 0);
+
+    /* Retail quirk: dst->f_38 stays 0 even when aux is copied.  The
+     * count is NOT propagated.  This pins that quirk. */
+    T_ASSERT_EQ_U(dst.f_38, 0u);
+
+    /* Mutate src — dst stays unchanged. */
+    ((uint8_t *)src.aux_buf)[5] = 0xee;
+    T_ASSERT_EQ_U(((uint8_t *)dst.aux_buf)[5], 0x15u);
+
+    ar_sprite_slot_destroy(&src);
+    ar_sprite_slot_destroy(&dst);
+    return 0;
+}
+
+int test_sprite_clone_no_aux_when_src_aux_null(void)
+{
+    /* src->aux_buf == NULL → dst->aux_buf must stay NULL (regardless
+     * of src->f_38 value).  Guards against allocating bogus storage. */
+    ar_sprite_slot src = {0};
+    ar_sprite_slot_register(&src, NULL, NULL,
+                            /*id=*/0x42, /*w=*/8, /*h=*/8,
+                            /*ck=*/0, /*scale=*/0, /*type=*/0, /*group=*/0);
+    src.f_38 = 5;  /* should be ignored when aux_buf is NULL */
+
+    ar_sprite_slot dst = {0};
+    ar_sprite_slot_clone(&dst, &src);
+
+    T_ASSERT_EQ_P(dst.aux_buf, NULL);
+
+    ar_sprite_slot_destroy(&src);
+    ar_sprite_slot_destroy(&dst);
+    return 0;
+}
+
+int test_sprite_clone_resets_dst_id_and_group_to_uint16(void)
+{
+    /* Confirm truncation behaviour for the two u16 fields when src
+     * carries the maximum value. */
+    ar_sprite_slot src = {0};
+    ar_sprite_slot_register(&src, NULL, NULL,
+                            /*id=*/0xffff, /*w=*/16, /*h=*/16,
+                            /*ck=*/0, /*scale=*/0, /*type=*/0,
+                            /*group=*/0xffff);
+
+    ar_sprite_slot dst = {0};
+    ar_sprite_slot_clone(&dst, &src);
+
+    T_ASSERT_EQ_U(dst.resource_id, 0xffffu);
+    T_ASSERT_EQ_U(dst.group,       0xffffu);
+
+    ar_sprite_slot_destroy(&src);
+    ar_sprite_slot_destroy(&dst);
+    return 0;
+}
+
+/* ─── ar_info_entry_clear (FUN_00582d00) ─────────────────────────── */
+
+int test_info_entry_clear_zeroes_marker_flag_data_f0c(void)
+{
+    /* All four written fields go to 0/NULL. */
+    ar_info_entry e;
+    e.marker = 0x1234;
+    e.flag   = 0xdeadbeefu;
+    e.data   = (const void *)0xcafebabeu;
+    e.f_0c   = 0x55555555u;
+
+    ar_info_entry_clear(&e);
+
+    T_ASSERT_EQ_U(e.marker, 0u);
+    T_ASSERT_EQ_U(e.flag,   0u);
+    T_ASSERT_EQ_P(e.data,   NULL);
+    T_ASSERT_EQ_U(e.f_0c,   0u);
+    return 0;
+}
+
+int test_info_entry_clear_leaves_pad_untouched(void)
+{
+    /* Retail writes `ax` to +0 (not eax), so the +2..+3 pad bytes
+     * stay at whatever they were.  Pin that — the pad is part of the
+     * 16-byte struct and the rest of FUN_0057ca40's copy chain never
+     * touches it either. */
+    ar_info_entry e;
+    e.marker  = 0xabcd;
+    e._pad02  = 0xface;
+    e.flag    = 1u;
+    e.data    = (const void *)0xfeedfaceu;
+    e.f_0c    = 9u;
+
+    ar_info_entry_clear(&e);
+
+    T_ASSERT_EQ_U(e._pad02, 0xfaceu);
+    /* Sanity: the others did clear. */
+    T_ASSERT_EQ_U(e.marker, 0u);
+    T_ASSERT_EQ_U(e.flag,   0u);
+    T_ASSERT_EQ_P(e.data,   NULL);
+    T_ASSERT_EQ_U(e.f_0c,   0u);
+    return 0;
+}
+
 /* ─── ar_gdi_slot_destroy / reset ────────────────────────────────── */
 
 int test_gdi_destroy_deletes_each_handle(void)

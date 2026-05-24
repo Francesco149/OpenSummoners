@@ -1,6 +1,10 @@
 # FUN_0057ca40 — the group-3 sprite batch is multi-subsystem
 
-**Status:** partial port landed 2026-05-24.  Body NOT fully ported.
+**Status:** partial port landed 2026-05-24, then extended later that day
+with the FUN_00582b80 + FUN_00582d00 thiscalls (see section 4).  Full
+body still NOT ported — the parallel-info-table indexing, SS_MGR
+slot-clones, and FUN_00582b80 + ar_info_entry_clear *call clusters*
+are the three remaining gaps.
 
 ## What HANDOFF said
 
@@ -82,14 +86,60 @@ Modeling needs the SS_MGR struct (which we haven't mapped beyond
 "the singleton at DAT_008a8440 lives in the SS_MGR boot-pool, see
 HANDOFF").
 
-### 4. 9 FUN_00582b80 + 1 FUN_00582d00 — **DEFERRED**
+### 4. 9 FUN_00582b80 + 1 FUN_00582d00 — **PORTED 2026-05-24** (subset)
 
 `FUN_00582b80(target_slot)` is a `__thiscall` on the source slot — it
-copies the source's metadata into `target_slot`.  Slightly different
-shape from FUN_004179b0 (no SS_MGR table indirection).
+clones source metadata into `target_slot` (zdd, width, height,
+colorkey, scale_flag, type, settings, resource_id, group), allocates
+a fresh 1-entry `entries[]` on the target, and deep-copies the
+source's `aux_buf` (24-byte stride entries, count from src->f_38).
+Slightly different shape from FUN_004179b0 (no SS_MGR table
+indirection).
 
-The tail also has 5×20-byte memcpy loops into a `+0xae0`-base region
-— another parallel table we haven't named.
+`FUN_00582d00()` is a `__thiscall` on a NEW struct shape:
+**`ar_info_entry` (16 bytes)** — the parallel-info-table entry the
+HANDOFF previously called out as "each retail entry is itself a
+POINTER to a struct."  Disasm at 0x57fa98..0x57fa9e:
+
+```
+mov  ecx, [0x008a8a40]     ; load entry pointer from parallel table
+call FUN_00582d00          ; zero 14 bytes of *entry
+```
+
+The clear writes `word@+0` then `dword@+4/+8/+12` (note: `ax` not
+`eax` at +0 — the pad bytes at +2..+3 stay untouched).  The follow-up
+chain at 0x57faa3..0x57facb copies a u16 from `[0x008a8a34]+0` and a
+u32 from `[0x008a8a34]+4` into the cleared entry, then writes a
+const PE rdata pointer (e.g. `&DAT_006752f8`) at `entry + 8`.
+
+That pins the **ar_info_entry layout**:
+  - +0x00 (u16): marker — values 1/2 in the prefix-table writes; the
+    `entry->marker` field the prior section's "+4: 1/2 flag" hand-wave
+    was actually +0 (the +4 writes are this field's `flag` neighbour).
+  - +0x02 (u16): pad — never touched.
+  - +0x04 (u32): flag — 0/1/2 in observed copies.
+  - +0x08 (void*): const PE rdata pointer (e.g. &DAT_006752f8,
+    &DAT_006748d0, &DAT_00674ad8).
+  - +0x0c (u32): cleared; semantics unknown.
+
+The struct is now defined in `src/asset_register.h` (search
+`ar_info_entry`); both functions are ported and unit-tested.  The
+ports stand alone — there is no caller of FUN_0057ca40 in the
+drop-in yet, so the new functions sit idle awaiting the SS_MGR +
+parallel-info-table-array landing.  Tag rows added to
+`tools/ghidra-scripts/TagThiscallFunctions.java` (26 tags now).
+
+**Clone-and-detach pair**: at every FUN_00582b80 + FUN_00582d00
+cluster in FUN_0057ca40, the inline-template slot (in ECX before
+the call) gets cloned to the target sprite slot, and then the
+parallel-table entry that "shadows" the target slot gets zeroed and
+re-populated from a template parallel entry plus a const data
+pointer.  The template slot ECX is dropped (its fields read; its
+fresh `entries` alloc not re-used by the target — the target
+allocs its own).
+
+The tail of FUN_0057ca40 also has 5×20-byte memcpy loops into a
+`+0xae0`-base region — another parallel table we haven't named.
 
 ## Why partial-port
 
