@@ -129,67 +129,79 @@ match it against any known sprite-pack format.  Worth checking
 `tools/extract/lizsoft_sprite.py` for the matching unpacker — the
 LizSoft sprite pack format may be exactly this.
 
-## The blocking puzzle: which `this` is FUN_005b7800 called on?
+## The blocking puzzle — RESOLVED 2026-05-24
 
-`FUN_004178e0` (the begin-palette wrapper, 194 B) opens with:
+The bitmap_session is a **stack-local in FUN_004178e0**, not a member
+of the sprite_slot.  Sniffed via radare2 `pdf @ 0x4178e0` — the Ghidra
+C view dropped the load-bearing `mov ecx, [esp+8]` setups (and there's
+no class info on the bitmap-session functions to make the analyzer
+restore them in the decomp).  The function prologue is:
+
+```asm
+sub  esp, 0x438        ; reserve the 0x434-byte bitmap_session + 4 SEH guard
+push esi
+mov  esi, ecx          ; ESI = outer this (sprite_slot *)
+push edi
+lea  ecx, [esp+8]      ; ECX = &bitmap_session (the stack local)
+call FUN_005b6e70      ; bitmap_session::release_no_free
+```
+
+And every subsequent bitmap_session method call repeats the
+`lea ecx, [esp+8]` immediately before its `call`.  The outer slot is
+addressed via ESI (`mov ax, [esi+0x40]` for resource_id, `mov ecx,
+[esi+0x3c]` for HMODULE).
+
+So `FUN_004178e0` is a sprite_slot member function that operates on
+TWO `this`-style pointers: the implicit `this` (sprite slot, ESI-saved)
+and an emphemeral bitmap_session built on the stack.
+
+Other corrections vs the earlier draft of this section:
+
+- The resource-type string at `DAT_00854c98` is **"DATA"**, not "BMP"
+  (verified via `r2 -q -c 'ps @ 0x854c98'`).  The retail engine uses a
+  custom PE resource type called "DATA" for indexed bitmaps; standard
+  `RT_BITMAP` (== 2 cast to LPCSTR) is not in play here.
+- `[+0x3c]` of the outer this is used as the `HMODULE` arg to
+  `FindResourceA` — for the idx-0 palette-ramp callsite that's the
+  sotesp.dll module handle the boot driver stashes into the slot's
+  `settings` field (see `ar_register_main_sprites` comment in
+  asset_register.h).  For other slots, settings is the launcher
+  settings record, which would NOT be a valid HMODULE — so this
+  function is specific to the sotesp-loaded slot.
+
+The bitmap_session lifecycle inside `FUN_004178e0`:
 
 ```c
-FUN_005b6e70();   // bitmap-session release-but-don't-free
-iVar1 = FUN_005b7800(this->[+0x3c],            // HMODULE
-                     this->[+0x40],            // u16 resource id
-                     "BMP",                    // resource type
-                     1);                       // compressed path
-if (iVar1 != 0) {
-    if (FUN_005b6f00() == 8) FUN_005b7b90(param_1);  // RGBA->BGRA swap
-    FUN_005b6e90();                            // release pixel buf
+bool ar_palette_session_begin(ar_sprite_slot *slot, uint8_t out_palette[1024]) {
+    bitmap_session session;
+    bs_release_no_free(&session);          // FUN_005b6e70 — zero pixels ptr
+    bool ok = bs_decode_resource(&session,
+                                 slot->settings,    // HMODULE
+                                 slot->resource_id, // resource id (u16)
+                                 "DATA", 1);        // FUN_005b7800
+    bool emit_palette = false;
+    if (ok) {
+        emit_palette = (bs_get_bit_count(&session) == 8); // FUN_005b6f00
+        if (emit_palette) bs_emit_palette_bgra(&session, out_palette); // FUN_005b7b90
+        bs_release(&session);              // FUN_005b6e90 — LocalFree pixels
+    }
+    bs_release(&session);                  // SEH-style idempotent cleanup
+                                           // (thunk_FUN_005b6e90)
+    return emit_palette;
 }
 ```
 
-The offsets `+0x3c` and `+0x40` MATCH `ar_sprite_slot.settings` and
-`ar_sprite_slot.resource_id` — the slot's first
-`ar_sprite_slot_register` call already populates them.  So
-`FUN_004178e0`'s `this` is plausibly an `ar_sprite_slot`.
+Return value: the disasm has `mov eax, edi` at the end with `edi`
+seeded as `1` only inside the `bit_count == 8` branch (otherwise it
+stays 0 from the `xor edi, edi` at function entry).  So
+`FUN_004178e0` returns `true` IFF the decoded bitmap was 8bpp AND the
+palette emit happened.  (The early `if (iVar1 == 0)` path returns 0.)
 
-But `FUN_005b7800`'s `this` needs the bitmap-session layout — pixel
-buffer at +0x00, palette at +0x34 (1024 bytes).  On an `ar_sprite_slot`:
-
-- `+0x00` is `entries` (the pointer to ar_sprite_entry[] — a heap
-  pointer, owned).  Overwriting it with the LocalAlloc'd pixel buffer
-  would corrupt the slot.
-- `+0x34` is `aux_buf` (one void pointer, NOT 1024 bytes of palette).
-  Overwriting +0x34..+0x434 would walk past the end of the sprite slot
-  (sized 0x44) into adjacent BSS.
-
-Either:
-
-1. **FUN_005b7800 runs on a different ECX than FUN_004178e0.**  In
-   x86 __thiscall ECX is callee-clobberable.  The Ghidra decomp's
-   `in_ECX` is a heuristic — it represents "whatever was in ECX at
-   function entry", and downstream calls may have set ECX explicitly
-   to some other object before invoking `FUN_005b7800`.
-   If true, the actual ECX is probably a bitmap-session struct that
-   lives elsewhere — maybe as a static, maybe pointed to by some
-   other field of the sprite slot (e.g. an unmodelled field past
-   +0x44, or a global accessed via `[g_decoder_session]`).
-
-2. **The sprite slot is bigger than 0x44 and overlays a
-   bitmap-session region.**  Our 0x44 size is determined by the
-   register-time write set; the actual class allocation in retail
-   could be wider.  In that case `entries` (+0x00) is actually a
-   union with the pixel buffer pointer, `aux_buf` (+0x34) is actually
-   the palette start, etc.  This would mean both ports we've already
-   landed (`ar_sprite_slot_destroy` freeing entries, etc.) are
-   misinterpreting the field — possible but would force a rework.
-
-Resolving this requires reading the ECX setup in `FUN_004178e0`'s
-disassembly directly — the Ghidra C view drops the `mov ecx, …`
-instructions for __thiscall callsites the analyzer didn't tag.  See
-the WndProc dependency formalization track (HANDOFF "Next move" #2):
-the right move is to model the bitmap_session struct in a header,
-add it to `TagThiscallFunctions.java`'s TAGS array, and re-export the
-decomp via `./tools/ghidra-tag-and-export.sh`.  After that the
-typed `this->field` reads will reveal which class FUN_005b7800
-actually operates on.
+The two `bs_release` calls at the end mirror MSVC's try/finally
+codegen: the `bit_count == 8` branch did the LocalFree, but the SEH
+unwind handler does it again as a safety net — `bs_release` is
+idempotent on a NULL pixel pointer (FUN_005b6e90 / thunk_FUN_005b6e80
+both null-check).
 
 ## Win32 stub plan (for when the decoder gets ported)
 

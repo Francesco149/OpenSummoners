@@ -13,12 +13,18 @@
 // (the .py twin of this script fails with "Python is not available" in
 // headless mode; the GUI's Jython runtime is separate).
 //
-// PREREQUISITES (one-time per project):
-//   1. Parse C Source on src/asset_register.h (GUI: File -> Parse C
-//      Source) so that `ar_sprite_slot`, `ar_gdi_slot`, and
-//      `ar_sound_slot` exist in the Data Type Manager.  Without these
-//      structs, the auto-this on the class namespace falls back to
-//      `void *` and the decompile improvement is much smaller.
+// PREREQUISITES (one-time-per-new-struct):
+//   1. Parse C Source (GUI: File -> Parse C Source) on EVERY header
+//      that defines a struct named in the TAGS array's `className`
+//      column.  Currently:
+//         src/asset_register.h   → ar_sprite_slot, ar_gdi_slot,
+//                                  ar_sound_slot
+//         src/bitmap_session.h   → bitmap_session
+//      Without a matching struct in the Data Type Manager, the
+//      auto-this on the class namespace falls back to `void *` and
+//      the decompile improvement is much smaller (the tags still
+//      apply the calling convention and namespace, but ECX is typed
+//      `void *this` instead of `<struct_name> *this`).
 //
 //   2. No other instance holds the project's write lock.
 //
@@ -76,6 +82,35 @@ public class TagThiscallFunctions extends GhidraScript {
         { 0x00563ef0L, "ar_sound_slot",
             "undefined4 FUN_00563ef0(void * zds, void * settings, ushort resource_id, " +
             "ushort count, ushort group, int load_flag)" },
+
+        // Bitmap-session module (PE-resource bitmap decoder; the `this`
+        // is the 0x434-byte struct in src/bitmap_session.h).  Pre-port —
+        // only tagged so the typed decomp can resolve the ECX puzzle in
+        // FUN_004178e0 (see docs/findings/palette-session.md "The
+        // blocking puzzle" section).
+        { 0x005b71f0L, "bitmap_session",
+            "undefined4 FUN_005b71f0(int width, int height, ushort bit_count)" },
+        { 0x005b6e70L, "bitmap_session",
+            "void FUN_005b6e70(void)" },
+        { 0x005b6e90L, "bitmap_session",
+            "void FUN_005b6e90(void)" },
+        { 0x005b6f00L, "bitmap_session",
+            "ushort FUN_005b6f00(void)" },
+        { 0x005b6f10L, "bitmap_session",
+            "void FUN_005b6f10(ushort bit_count)" },
+        { 0x005b7800L, "bitmap_session",
+            "undefined4 FUN_005b7800(void * hModule, uint resource_id, " +
+            "void * resource_type, int compressed_flag)" },
+        { 0x005b7b90L, "bitmap_session",
+            "void FUN_005b7b90(void * dest_palette)" },
+        // NB: FUN_005b7c10 was listed alongside the bitmap-session
+        // helpers in HANDOFF (palette-session next-move), but its
+        // decomp shows no in_ECX reads — the destination it writes to
+        // (param_1 = caller's stack-local BITMAPINFO) is passed
+        // explicitly.  It is a regular __cdecl helper, NOT a
+        // __thiscall member function.  Do not tag it as bitmap_session;
+        // its job is to populate a transient BITMAPINFO before the
+        // caller hands it off to FUN_005b71f0.
     };
 
     @Override
