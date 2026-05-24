@@ -262,7 +262,35 @@ fallthrough to keep the DDSURFACEDESC2 byte-identical for diffing.
 
 ---
 
-## 13. PE has 1768 Ghidra-recovered functions but several "load-bearing" ones are reached only via function pointer
+## 13. `sotesd.dll` carries a 60-byte hand-rolled signature check
+
+The first thing `FUN_005a4770` does after `LoadLibraryA("sotesd.dll")`
+is verify that resource ID `0x7DE` (2014) contains a recognizable
+60-byte ASCII signature.  Each byte in `sotesd.dll`'s resource (at
+offsets 60..119) is treated as an index into `A..Z` by adding `0x41`,
+producing a 60-character string compared against the engine's
+hardcoded constant:
+
+```
+JFDGGIUABCVJIEKAUYLPOFDEQBVGSKOLJSCKPIFAXMHGYELSDOBFRKVGBAKB
+```
+
+If the comparison fails the engine logs `"Necessary resource (B) is
+not found."` and `ExitProcess(0)`.  Looks like a manual integrity
+seal — the author typed a random key once, baked it into both the
+engine and the data DLL, and shipped them together.
+
+Implication for the drop-in port: we must either reproduce the
+identical check (and refuse to run if the user's sotesd.dll has been
+tampered with) or just no-op it.  No-op is the cleaner choice — the
+check serves no purpose in a behavior-fidelity port that links
+against the user's own legit sotesd.dll.
+
+> 📍 `docs/findings/asset-loader.md` § "sotesd.dll signature check".
+
+---
+
+## 14. PE has 1768 Ghidra-recovered functions but several "load-bearing" ones are reached only via function pointer
 
 Ghidra's auto-analysis misses functions that are never the target of a
 direct call — common when the engine uses C++-style vtables or stores
