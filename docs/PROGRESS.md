@@ -6,6 +6,65 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — `zdd_create_screen` PORTED (FUN_005b8480, 1088B, full 5-mode dispatch)
+
+The big inner CreateScreen body lands.  Single-checkpoint port over
+the leaves that came in this session: release_children prologue
+(already had it), primary-surface DDSD builder + CreateSurface (new
+Win32 leg), 8bpp palette setup (just ported), back-buffer attach
+(just ported), and the existing orchestrator + clipper attach.
+
+Per-mode wiring (mirrors retail exactly):
+- **mode 0 (Full)**: CreateSurface primary (flippable, optional
+  VRAM) → alloc primary_obj → attach_backbuffer with the videomem
+  flag → clipper attach.
+- **mode 1 (Safe)**: CreateSurface primary (non-flippable, no
+  backbuffer count) → alloc primary_obj → create_surface_pair with
+  videomem flag → clipper attach.
+- **mode 2 (Windowed)**: SKIP primary CreateSurface (release any
+  prior com_a) → alloc primary_obj → create_surface_pair with
+  videomem flag → clipper attach.  Same code path as Safe minus
+  the primary alloc.
+- **mode 3 (DB)**: CreateSurface primary (flippable, no-VRAM-fold
+  at the primary layer; videomem honoured at orchestrator) → alloc
+  primary_obj → alloc back_obj_a + attach_backbuffer to it (forced
+  no-VRAM) → create_surface_pair on primary_obj with videomem flag
+  → clipper attach.
+- **mode 4 (Zoom)**: like DB but adds a third ZDDObject — back_obj_a
+  attaches the display-sized back-buffer (rect[0/1]), back_obj_b
+  gets a source-sized orchestrator-created surface (rect[5/6]),
+  primary_obj gets a source-sized orchestrator-created surface.
+  Both orchestrator calls force VRAM (hardcoded p5=1).
+
+Failure cleanup mirrors retail's "release just the latest failure"
+pattern — prior ZDDObject slots leak on per-mode failure since
+the caller (FUN_00582e90) exits the process via FUN_005bf5db(0)
+shortly after.
+
+**New struct fields**: `zdd_t` now has explicit `screen_pos_x` /
+`screen_pos_y` (zeroed slots at +0x138/+0x13c — likely a paired
+origin set elsewhere in the windowed-mode path), `screen_width` /
+`screen_height` (+0x140/+0x144), and `screen_rect[7]` (+0x148..
++0x163).  `pixel_format_mode` doc updated to clarify the dual
+role: it's the launcher's mode_arg (0..4), and FUN_005b8c00's
+"== 2" check (Windowed) doubles as "needs explicit DDPIXELFORMAT".
+
+**TODO**: 16bpp pixel-format binding via `FUN_005b8a20` is a one-
+line TODO inside the post-success hook.  The boot path is bpp 16
+so this gap may matter for visible output.  ECX identity ambiguous
+(pixel-format descriptor object, not the calling ZDDObject) —
+needs Frida verification at the first live call.
+
+Tests now: **286 pass, 0 fail, 6 skip** (up from 272; 14 new — 5
+primary-DDSD builder branch tests, 9 create_screen mode + edge
+tests).  Cross-build with mingw clean (the 32-bit cross compile
+exercises the new `_Static_assert` offsets for the 6 new fields).
+
+Next: port `FUN_00582e90` (the outer dispatcher) — straight
+transcription over `zdd_create_screen` now that the body is in.
+
+---
+
 ## 2026-05-25 — back-buffer attach + 8bpp palette setup PORTED (closes 2 FUN_005b8480 leaves)
 
 Two more leaves of `FUN_005b8480` (the big mode-aware surface-init)

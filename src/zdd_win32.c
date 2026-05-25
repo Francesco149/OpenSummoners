@@ -131,6 +131,34 @@ int zdd_create_surface(zdd *self, void **out_surface,
     return 0;
 }
 
+/* FUN_005b8480 (Win32 leg, primary CreateSurface) — build a DDSURFACEDESC2
+ * for the primary surface from `desc` (dwFlags + ddsCaps.dwCaps +
+ * dwBackBufferCount), invoke IDirectDraw7::CreateSurface vtable[6] /
+ * byte 0x18, and stash the result in self->com_a.  The per-mode shape
+ * is decided by zdd_build_primary_surface_desc (pure logic in zdd.c)
+ * — this leg just translates the build struct to a real DDSURFACEDESC2
+ * and makes the call. */
+int zdd_create_primary_surface(zdd *self,
+                               const zdd_primary_desc_build *desc)
+{
+    DDSURFACEDESC2 ddsd;
+    memset(&ddsd, 0, sizeof(ddsd));
+    ddsd.dwSize             = sizeof(ddsd);       /* 0x7c */
+    ddsd.dwFlags            = desc->dwFlags;
+    ddsd.ddsCaps.dwCaps     = desc->dwCaps;
+    ddsd.dwBackBufferCount  = desc->dwBackBufferCount;
+
+    IDirectDraw7 *dd = (IDirectDraw7 *)self->ddraw7;
+    LPDIRECTDRAWSURFACE7 surf = NULL;
+    HRESULT hr = dd->lpVtbl->CreateSurface(dd, &ddsd, &surf, NULL);
+    if (FAILED(hr)) {
+        zdd_log_dderr(self, "DirectDraw", "CreateSurface", (int32_t)hr);
+        return 0;
+    }
+    self->com_a = surf;
+    return 1;
+}
+
 /* FUN_005b8e00 (Win32 leg, palette half) — sample the desktop's
  * current system palette via GetSystemPaletteEntries and wrap it as
  * an IDirectDrawPalette with DDPCAPS_8BIT.  Stashes the new palette

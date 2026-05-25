@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (back-buffer attach + 8bpp palette PORTED)
+# Session handoff — last updated 2026-05-25 (FUN_005b8480 CreateScreen body PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -24,7 +24,7 @@ methodical port-and-test.  **Five modules ported now:**
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
-- **ZDD wrapper** — **24 functions** covering:
+- **ZDD wrapper** — **26 functions** covering:
     - ZDD class lifecycle: ctor / dtor / child-release loop /
       cursor-restore / cursor-hide / DDERR log builder /
       DirectDrawCreateEx / SetCooperativeLevel / SetDisplayMode /
@@ -44,24 +44,47 @@ methodical port-and-test.  **Five modules ported now:**
     - Public factory `zdd_object_new` (operator_new + ctor +
       orchestrator + cleanup-on-failure)
     - Clipper attach `zdd_object_attach_clipper`
-    - **NEW: back-buffer attach** `zdd_object_attach_backbuffer`
-      (FUN_005b9740, 153B): prefill_desc(0,0) + GetAttachedSurface
-      vtable[12] with DDSCAPS_BACKBUFFER (|VIDEOMEMORY if force_vm)
-      + stamp_metrics(w,h,0,0,w,h) + set_color_key(sentinel).
-      Stashes the attached surface in ZDDObject's com_primary slot.
+    - back-buffer attach `zdd_object_attach_backbuffer` (FUN_005b9740,
+      153B): prefill_desc(0,0) + GetAttachedSurface vtable[12] +
+      stamp_metrics + set_color_key(sentinel)
+    - **NEW: full CreateScreen body** `zdd_create_screen`
+      (FUN_005b8480, 1088B): release_children → stamp 7 params on
+      ZDD (+0x134/+0x138/+0x13c/+0x140/+0x144/+0x148-+0x163/+0x164/
+      +0x168) → primary-surface CreateSurface (skipped in Windowed)
+      → 8bpp palette (if bpp==8) → per-mode dispatch over 1/2/3
+      ZDDObject slots → clipper attach on primary_obj.  Per-mode:
+      mode 0 attach_backbuffer; mode 1/2 create_surface_pair;
+      mode 3 alloc+attach back_obj_a + primary_obj orchestrator;
+      mode 4 alloc+attach back_obj_a (rect dims) + alloc+orchestrate
+      back_obj_b (src dims) + primary_obj orchestrator.
+    - **NEW: primary-surface DDSD builder** `zdd_build_primary_surface_desc`
+      — pure-logic per-mode dwFlags/dwCaps/dwBackBufferCount picker.
+    - **NEW: leaf helper** `zdd_object_alloc_and_ctor` — calloc + ctor.
+    - **NEW: Win32 primitive** `zdd_create_primary_surface` —
+      DDSURFACEDESC2 + vtable[6] CreateSurface stashing into com_a.
 
   Pure logic in `src/zdd.c`.  Win32 primitives in `src/zdd_win32.c`.
 
-Total host tests across all modules: **272 pass, 0 fail, 6 skip**
-(up from 265; 7 new — 3 attach_backbuffer, 4 setup_8bit_palette).
+Total host tests across all modules: **286 pass, 0 fail, 6 skip**
+(up from 272; 14 new — 5 primary_desc builder, 9 create_screen).
 Cross-build with mingw clean.
 
-**Open RE thread closed this checkpoint**: ZDD `com_a` (+0x128) is
-the primary display IDirectDrawSurface7 — FUN_005b8e00's SetPalette
-target.  FUN_005b8480 mode 0/3/4 allocates it directly via
-`ddraw7->CreateSurface(..., &this->com_a, NULL)`.  Was previously
-unpinned ("likely IDirectDrawPalette + IDirectDrawClipper or
-similar" — neither, it's the primary surface).
+**Open RE thread closed this checkpoint**: ZDD struct fields +0x138
+through +0x163 are now named (`screen_pos_x` / `screen_pos_y` /
+`screen_width` / `screen_height` / `screen_rect[7]`) — previously
+all opaque pad.  `_Static_assert` block extended to cover the new
+field offsets.  Also: `pixel_format_mode` field docs updated to
+clarify the dual semantics — it's the launcher's mode arg (0..4),
+and FUN_005b8c00's "== 2" check (Windowed) just happens to also
+mean "needs explicit DDPIXELFORMAT".
+
+**Remaining gap**: 16bpp pixel-format binding via `FUN_005b8a20`
+(181B) is a TODO inside `zdd_create_screen`'s post-success path.
+The 16bpp boot path (mode 0, bpp 16) returns success without the
+binding — visible output may need this once the harness runs live.
+ECX identity is ambiguous (open RE thread; the function reads byte-
+shift tables off ECX that look like a "pixel format descriptor"
+object, not the calling ZDDObject).
 
 **Ghidra C++ recovery infrastructure** — unchanged.  Kaiju +
 `tools/ghidra-scripts/TagThiscallFunctions.java` + headless
@@ -69,7 +92,8 @@ similar" — neither, it's the primary surface).
 
 Most recent commits (newest first):
 
-- (current) ZDD: port FUN_005b9740 back-buffer attach + FUN_005b8e00 8bpp palette
+- (current) ZDD: port FUN_005b8480 CreateScreen body (5-mode dispatch)
+- `d415dd5` ZDD: port FUN_005b9740 back-buffer attach + FUN_005b8e00 8bpp palette
 - `8a9d536` ZDD: port 4 CreateScreen leaf helpers + map mode dispatch
 - `7f5a001` ZDD: port FUN_005b9520 clipper attach (create + clear + attach)
 - `6024a36` ZDD: port FUN_005b8b40 CreateSurfacePair factory + orchestrator returns int
@@ -89,35 +113,30 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-With both of FUN_005b8480's surface-helpers ported (`_9740` back-
-buffer attach + `_8e00` 8bpp palette), only one dependency remains:
-`FUN_005b8a20` (16bpp pixel-format binding, 181B) — and its ECX
-identity is ambiguous (open RE thread; not the calling ZDDObject).
-We can port FUN_005b8480 NOW and leave the 16bpp branch as a
-TODO/stub, since the boot path is mode 0 with bpp=16 calling it.
+With `zdd_create_screen` (FUN_005b8480) ported, the outer dispatcher
+`FUN_00582e90` becomes doable in one shot — its body is mostly
+inlined strcpy/strcat fail-message construction, and the only
+post-step it owns is the launcher-settings-record read for mode_arg
++ zoom dims plus a SetCooperativeLevel ping.
 
-1. **(recommended) `FUN_005b8480` — internal mode-aware surface-init**
-   (1088 bytes).  Stamps params on the ZDD struct (+0x134/+0x140/
-   +0x144/+0x164/+0x168 + 7-int rect at +0x148..+0x164).  Calls
-   `FUN_005b8040` (our release-children prologue) first, then
-   conditionally builds a backbuffer-flavoured DDSURFACEDESC2 and
-   calls IDirectDraw7::CreateSurface to stamp ZDD's `com_a`
-   (primary display surface) — only when param_4 != 2 (skip in
-   Windowed mode).  Dispatches by mode_arg (0/3/4 use back-buffer
-   GetAttachedSurface, mode 4 also a CreateSurface variant) to
-   allocate 1/2/3 ZDDObjects on the ZDD's three slots (+0x16c
-   primary, +0x18 back_obj_a, +0x1c back_obj_b) via our already-
-   ported helpers (`zdd_object_ctor` + `zdd_object_attach_backbuffer`
-   + `zdd_object_create_surface_pair`).  On success: calls our
-   `zdd_object_attach_clipper` and a 16bpp-only `FUN_005b8a20`
-   (TODO — pixel-format binding, ECX identity unclear).  Calls
-   `zdd_setup_8bit_palette` when bpp==8.  Single-checkpoint port
-   now that all leaves except _8a20 are in place.
+1. **(recommended) `FUN_00582e90` — outer CreateScreen dispatcher**
+   (3560 bytes).  Drives `zdd_create_screen` per-mode with the
+   correct args derived from the launcher settings record (in_ECX),
+   handles the SetDisplayMode/zdd_hide_cursor/busy_wait_ms preamble
+   for the fullscreen modes (0/1/3/4), computes the zoom centre-rect
+   for mode 4, and on failure flushes a per-mode fixed-string into
+   the DAT_008a9534 log buffer + ExitProcess.  Already mapped in
+   ddraw-init.md "FUN_00582e90 — mode-dispatch CreateScreen" — port
+   should be a straight transcription.
 
-2. **`FUN_00582e90` — outer CreateScreen dispatcher** (3560 bytes).
-   Doable in one shot once FUN_005b8480 is in.  Most of the bulk is
-   inlined strcpy/strcat error-message construction we can
-   collapse to a single helper.
+2. **`FUN_005b8a20` — 16bpp pixel-format binding** (181 bytes).  The
+   one remaining un-ported call inside `zdd_create_screen`.  ECX
+   identity is ambiguous — the function reads byte-shift tables off
+   ECX that look like a "pixel format descriptor" object, NOT the
+   calling ZDDObject.  Investigation: r2 disasm + Frida hook to log
+   the ECX value at the first live call.  Once identity is pinned,
+   the port is ~30 lines (channel-mask normalisation + log2 + shift
+   computation, all pure logic).
 
 3. **`FUN_00586010` palette-draw consumer** — first ported reader of
    the `ar_info_entry` pool.  Big function (1035 lines, 61 unique
@@ -146,14 +165,17 @@ src/
                             + DDSD builder + surface-alloc stampers
                             (prefill / metrics / set_color_key) +
                             orchestrator (create_surface_pair) +
-                            factory (zdd_object_new) + clipper attach
-                            (zdd_object_attach_clipper) +
-                            back-buffer attach (zdd_object_attach_backbuffer)
-                            + 8bpp palette (zdd_setup_8bit_palette)
-                            + hide_cursor.  20 pure-logic leaf funcs.
+                            factory (zdd_object_new) + clipper attach +
+                            back-buffer attach + 8bpp palette setup
+                            + primary-surface DDSD builder
+                            + zdd_create_screen (full 5-mode dispatch)
+                            + zdd_object_alloc_and_ctor leaf helper.
+                            23 pure-logic functions.
   zdd_win32.c               DirectDrawCreateEx/SetCooperativeLevel +
                             SetDisplayMode + GetDisplayMode +
-                            CreateSurface/SetPalette + SetColorKey +
+                            CreateSurface (per-ZDDObject) +
+                            CreateSurface (primary, per-mode caps) +
+                            SetPalette + SetColorKey +
                             CreateClipper/SetClipList/SetClipper +
                             GetAttachedSurface +
                             CreatePalette (from system) +
@@ -170,13 +192,15 @@ tests/
   test_asset_register.c     111 tests for Asset-Register
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
-  test_zdd.c                74 tests for ZDD + ZDDObject lifecycle +
+  test_zdd.c                88 tests for ZDD + ZDDObject lifecycle +
                             DDSURFACEDESC2 builder + surface-alloc
                             stampers + orchestrator + factory +
                             clipper attach + hide_cursor +
                             SetDisplayMode + GetDisplayMode +
                             busy_wait_ms + back-buffer attach +
-                            8bpp palette setup (2 32-bit-only skips)
+                            8bpp palette setup + primary DDSD builder
+                            + create_screen full-mode dispatch (2
+                            32-bit-only layout skips)
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -197,21 +221,18 @@ tools/
 
 ## Open RE threads (not picked up yet)
 
-- **FUN_005b8480** (1088 bytes) — the recommended next-port.  Mode-
-  aware internal surface-init.  Reads/writes a wide swath of the ZDD
-  struct (params: +0x134/+0x140/+0x144/+0x164/+0x168, rect-blob:
-  +0x148..+0x164, ZDDObject slots: +0x16c/+0x18/+0x1c).  All leaf
-  dependencies now ported except `FUN_005b8a20` (16bpp pixel-format
-  binding, 181B — ECX identity ambiguous, possibly a global pixel-
-  format descriptor not the ZDDObject).  Plan: port the body with
-  the 16bpp path stubbed/TODO.  Builds a backbuffer-flavoured
-  DDSURFACEDESC2 with dwCaps=0x218 / 0x21 / 0xa18 depending on mode +
-  videomem_flag (the primary surface goes directly on the ZDD's
-  `com_a` slot).
+- **FUN_005b8a20** (181 bytes) — 16bpp pixel-format binding.  The
+  one un-ported call inside `zdd_create_screen`.  ECX identity
+  ambiguous — likely a global pixel-format descriptor, not the
+  calling ZDDObject (see open thread below).  TODO comment lives at
+  zdd.c's `zdd_create_screen` post-success hook.
 - **FUN_00582e90** (3560 bytes) — outer CreateScreen dispatcher.
   All 5 mode branches mapped in ddraw-init.md.  Body is mostly
   inlined strcpy/strcat error logging (the actual logic per branch
-  is ≤ 10 lines).  Port after FUN_005b8480.
+  is ≤ 10 lines).  Now that `zdd_create_screen` is ported, this
+  becomes a straight transcription (the per-mode preamble:
+  SetDisplayMode/hide_cursor/busy_wait + zoom centre-rect math +
+  zdd_create_screen call + error-string flush).
 - ZDDObject's +0xac field (`com_back`) is dual-role: holds either a
   back-buffer IDirectDrawSurface7 (per the dtor's release order
   comment) OR an IDirectDrawClipper (per FUN_005b9520's stash).  Both

@@ -34,6 +34,16 @@ enum {
 
     Z_DDPF_RGB              = 0x0040,
     Z_DDPF_PALETTEINDEXED8  = 0x0020,
+
+    /* FUN_005b8480 primary-surface caps + flags. */
+    Z_DDSD_BACKBUFFERCOUNT  = 0x0020,
+    Z_DDSCAPS_COMPLEX       = 0x0008,
+    Z_DDSCAPS_FLIP          = 0x0010,
+    Z_DDSCAPS_PRIMARYSURFACE = 0x0200,
+
+    /* Sentinel "no color key" value, recognised by FUN_005b9830
+     * (zdd_object_set_color_key). */
+    Z_COLOR_KEY_NONE        = 0x01ffffff,
 };
 
 void zdd_build_surface_desc(const zdd *self, zdd_surface_desc_build *out,
@@ -237,6 +247,198 @@ int zdd_object_create_surface_pair(zdd_object *self,
      * implicit return.  This is the SetColorKey success bit (1 for
      * sentinel branch or successful vtable call, 0 for vtable failure). */
     return zdd_object_set_color_key(self, p4);
+}
+
+void zdd_build_primary_surface_desc(int mode_arg, int videomem_flag,
+                                    zdd_primary_desc_build *out)
+{
+    /* Modes 0/3/4 share the flippable-primary shape — Full additionally
+     * folds videomem_flag into the caps. */
+    if (mode_arg == 0 || (mode_arg >= 3 && mode_arg <= 4)) {
+        uint32_t caps = (uint32_t)Z_DDSCAPS_PRIMARYSURFACE
+                      | (uint32_t)Z_DDSCAPS_FLIP
+                      | (uint32_t)Z_DDSCAPS_COMPLEX;        /* 0x218 */
+        if (mode_arg == 0 && videomem_flag != 0) {
+            caps |= (uint32_t)Z_DDSCAPS_VIDEOMEMORY;        /* 0xa18 */
+        }
+        out->dwFlags           = (uint32_t)Z_DDSD_CAPS
+                               | (uint32_t)Z_DDSD_BACKBUFFERCOUNT; /* 0x21 */
+        out->dwCaps            = caps;
+        out->dwBackBufferCount = 1;
+        return;
+    }
+
+    /* Mode 1 (Safe) — non-flippable primary. */
+    out->dwFlags           = (uint32_t)Z_DDSD_CAPS;                 /* 0x01 */
+    out->dwCaps            = (uint32_t)Z_DDSCAPS_PRIMARYSURFACE;    /* 0x200 */
+    out->dwBackBufferCount = 0;
+    /* Mode 2 (Windowed) is caller-side — zdd_create_screen never calls
+     * this builder for mode 2.  We deliberately don't add a guard
+     * (out-of-contract input shouldn't happen). */
+}
+
+zdd_object *zdd_object_alloc_and_ctor(zdd *parent)
+{
+    zdd_object *o = (zdd_object *)calloc(1, sizeof(zdd_object));
+    if (o == NULL) return NULL;
+    zdd_object_ctor(o, parent);
+    return o;
+}
+
+int zdd_create_screen(zdd *self,
+                      uint32_t width, uint32_t height,
+                      uint32_t bpp, int mode_arg, int videomem_flag,
+                      const int32_t *opt_rect7)
+{
+    /* Step 1: tear down any prior screen state (3 ZDDObject slots +
+     * com_a primary surface + com_b palette). */
+    zdd_release_children(self);
+
+    /* Step 2: stamp parameters on the ZDD.  Retail issue order is
+     * preserved exactly (videomem_flag first, then height, then
+     * mode_arg, then the zero pair, then width — Ghidra's mov stream
+     * is intercalated for instruction-level scheduling but the
+     * post-state is what matters). */
+    self->videomem_flag     = videomem_flag;
+    self->screen_height     = (int32_t)height;
+    self->pixel_format_mode = mode_arg;
+    self->screen_pos_x      = 0;
+    self->screen_pos_y      = 0;
+    self->screen_width      = (int32_t)width;
+
+    /* Step 3: copy or zero the 7-int rect blob. */
+    if (opt_rect7 != NULL) {
+        memcpy(self->screen_rect, opt_rect7, sizeof(self->screen_rect));
+    } else {
+        memset(self->screen_rect, 0, sizeof(self->screen_rect));
+    }
+
+    /* Step 4: primary surface alloc — gated on mode_arg.  Windowed
+     * mode (mode 2) skips CreateSurface entirely and just releases
+     * any prior primary; all other modes build a per-mode DDSD and
+     * call IDirectDraw7::CreateSurface. */
+    if (mode_arg == 2) {
+        zdd_com_release(&self->com_a);
+    } else {
+        zdd_primary_desc_build desc;
+        zdd_build_primary_surface_desc(mode_arg, videomem_flag, &desc);
+        if (!zdd_create_primary_surface(self, &desc)) {
+            return 0;
+        }
+    }
+
+    /* Step 5: stamp bpp and (conditionally) create the 8bpp palette. */
+    self->pixel_format_bpp = (int32_t)bpp;
+    if (bpp == 8) {
+        zdd_setup_8bit_palette(self);
+    }
+
+    /* Step 6: allocate the primary ZDDObject. */
+    self->primary_obj = zdd_object_alloc_and_ctor(self);
+    if (self->primary_obj == NULL) {
+        return 0;
+    }
+
+    /* Step 7: per-mode ZDDObject wiring.  `success` carries whether
+     * the last orchestrator call returned 1; on 0 we fall through to
+     * the cleanup path for the most-recently-allocated ZDDObject
+     * slot. */
+    int success = 0;
+    int cleanup_slot = 0;  /* 0=primary_obj, 1=back_obj_a, 2=back_obj_b */
+
+    if (mode_arg == 0) {
+        /* Full — back-buffer attach to primary_obj. */
+        success = zdd_object_attach_backbuffer(self->primary_obj,
+                                               self->com_a,
+                                               width, height,
+                                               videomem_flag);
+        cleanup_slot = 0;
+    } else if (mode_arg == 3) {
+        /* DB Mode — alloc back_obj_a + back-buffer attach to it, then
+         * orchestrator-create primary_obj. */
+        self->back_obj_a = zdd_object_alloc_and_ctor(self);
+        if (self->back_obj_a == NULL) {
+            cleanup_slot = 0;  /* only primary_obj is live */
+        } else if (!zdd_object_attach_backbuffer(self->back_obj_a,
+                                                 self->com_a,
+                                                 width, height, 0)) {
+            cleanup_slot = 1;  /* back_obj_a alloc/attach failed */
+        } else {
+            success = zdd_object_create_surface_pair(
+                self->primary_obj,
+                (int32_t)width, (int32_t)height, 0,
+                Z_COLOR_KEY_NONE, videomem_flag, 0, 0,
+                width, height);
+            cleanup_slot = 0;  /* primary_obj orchestrator failed */
+        }
+    } else if (mode_arg == 4) {
+        /* Zoom — alloc back_obj_a + back-buffer attach (rect[0/1] =
+         * display size), alloc back_obj_b + orchestrator-create
+         * (rect[5/6] = source size), then orchestrator-create
+         * primary_obj.  Both create_surface_pair calls force VRAM. */
+        self->back_obj_a = zdd_object_alloc_and_ctor(self);
+        if (self->back_obj_a == NULL) {
+            cleanup_slot = 0;
+        } else if (!zdd_object_attach_backbuffer(self->back_obj_a,
+                                                 self->com_a,
+                                                 (uint32_t)self->screen_rect[0],
+                                                 (uint32_t)self->screen_rect[1],
+                                                 0)) {
+            cleanup_slot = 1;
+        } else {
+            self->back_obj_b = zdd_object_alloc_and_ctor(self);
+            if (self->back_obj_b == NULL) {
+                cleanup_slot = 2;
+            } else if (!zdd_object_create_surface_pair(
+                           self->back_obj_b,
+                           self->screen_rect[5], self->screen_rect[6], 0,
+                           Z_COLOR_KEY_NONE, 1, 0, 0,
+                           (uint32_t)self->screen_rect[5],
+                           (uint32_t)self->screen_rect[6])) {
+                cleanup_slot = 2;
+            } else {
+                success = zdd_object_create_surface_pair(
+                    self->primary_obj,
+                    (int32_t)width, (int32_t)height, 0,
+                    Z_COLOR_KEY_NONE, 1, 0, 0,
+                    width, height);
+                cleanup_slot = 0;
+            }
+        }
+    } else {
+        /* Mode 1 (Safe) or Mode 2 (Windowed) — orchestrator-create
+         * primary_obj.  Both pass videomem_flag through as force_vm. */
+        success = zdd_object_create_surface_pair(
+            self->primary_obj,
+            (int32_t)width, (int32_t)height, 0,
+            Z_COLOR_KEY_NONE, videomem_flag, 0, 0,
+            width, height);
+        cleanup_slot = 0;
+    }
+
+    if (success) {
+        /* Bind a clipper to the primary ZDDObject's surface.  Then in
+         * 16bpp, retail also calls FUN_005b8a20 (pixel-format channel
+         * binding) — currently UNPORTED because the ECX identity is
+         * ambiguous (see HANDOFF "FUN_005b8b00 16bpp converter" open
+         * thread; FUN_005b8a20 is part of the same family).  The
+         * boot-path bpp is 16 so this is a live TODO for visible
+         * output; the rest of the screen-init plumbing is correct. */
+        zdd_object_attach_clipper(self->primary_obj);
+        /* if (bpp == 16) zdd_object_bind_pixel_format(...); TODO */
+        return 1;
+    }
+
+    /* Failure cleanup — release only the slot that just failed.  This
+     * mirrors retail exactly: prior slots leak, but the engine's
+     * caller (FUN_00582e90) exits the process via FUN_005bf5db(0)
+     * after we return 0, so the leak is moot. */
+    switch (cleanup_slot) {
+        case 0: zdd_obj_destroy(&self->primary_obj); break;
+        case 1: zdd_obj_destroy(&self->back_obj_a);  break;
+        case 2: zdd_obj_destroy(&self->back_obj_b);  break;
+    }
+    return 0;
 }
 
 int zdd_setup_8bit_palette(zdd *self)

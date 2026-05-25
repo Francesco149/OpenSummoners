@@ -96,6 +96,15 @@ static int      g_dd_getmode_calls     = 0;
 static int      g_busy_wait_calls      = 0;
 static uint32_t g_busy_wait_last_ms    = 0;
 
+/* zdd_create_primary_surface stub state. */
+static int      g_dd_create_primary_result = 1;
+static int32_t  g_dd_create_primary_hr     = 0;
+static int      g_dd_create_primary_calls  = 0;
+static void    *g_dd_create_primary_handle = NULL;
+static uint32_t g_dd_create_primary_last_flags = 0;
+static uint32_t g_dd_create_primary_last_caps  = 0;
+static uint32_t g_dd_create_primary_last_count = 0;
+
 /* zdd_create_system_palette / zdd_surface_set_palette stub state. */
 static int      g_dd_create_pal_result   = 1;
 static int32_t  g_dd_create_pal_hr       = 0;
@@ -170,6 +179,13 @@ static void reset_stubs(void)
     g_dd_attached_handle   = (void *)(uintptr_t)0xbbbbbbbb;
     g_dd_attached_last_primary = NULL;
     g_dd_attached_last_caps    = 0;
+    g_dd_create_primary_result = 1;
+    g_dd_create_primary_hr     = 0;
+    g_dd_create_primary_calls  = 0;
+    g_dd_create_primary_handle = (void *)(uintptr_t)0xa1a1a1a1;
+    g_dd_create_primary_last_flags = 0;
+    g_dd_create_primary_last_caps  = 0;
+    g_dd_create_primary_last_count = 0;
     g_dd_create_pal_result = 1;
     g_dd_create_pal_hr     = 0;
     g_dd_create_pal_calls  = 0;
@@ -321,6 +337,22 @@ void zdd_busy_wait_ms(uint32_t ms)
 {
     g_busy_wait_calls++;
     g_busy_wait_last_ms = ms;
+}
+
+int zdd_create_primary_surface(zdd *self,
+                               const zdd_primary_desc_build *desc)
+{
+    g_dd_create_primary_calls++;
+    g_dd_create_primary_last_flags = desc->dwFlags;
+    g_dd_create_primary_last_caps  = desc->dwCaps;
+    g_dd_create_primary_last_count = desc->dwBackBufferCount;
+    if (!g_dd_create_primary_result) {
+        zdd_log_dderr(self, "DirectDraw", "CreateSurface",
+                      g_dd_create_primary_hr);
+        return 0;
+    }
+    self->com_a = g_dd_create_primary_handle;
+    return 1;
 }
 
 int zdd_create_system_palette(zdd *self)
@@ -1675,6 +1707,313 @@ int test_zdd_object_attach_backbuffer_force_videomem_sets_caps(void)
     T_ASSERT_EQ_I(rc, 1);
     /* DDSCAPS_BACKBUFFER (4) | DDSCAPS_VIDEOMEMORY (0x800) = 0x804. */
     T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x804u);
+    return 0;
+}
+
+/* ─── primary-surface descriptor builder (FUN_005b8480 lines 56-86) */
+
+int test_zdd_primary_desc_mode_full_no_vram(void)
+{
+    zdd_primary_desc_build d;
+    zdd_build_primary_surface_desc(0, 0, &d);
+    /* dwFlags = DDSD_CAPS|DDSD_BACKBUFFERCOUNT = 0x21 */
+    T_ASSERT_EQ_U(d.dwFlags, 0x21u);
+    /* dwCaps = PRIMARYSURFACE|FLIP|COMPLEX = 0x218 */
+    T_ASSERT_EQ_U(d.dwCaps, 0x218u);
+    T_ASSERT_EQ_U(d.dwBackBufferCount, 1u);
+    return 0;
+}
+
+int test_zdd_primary_desc_mode_full_with_vram(void)
+{
+    zdd_primary_desc_build d;
+    zdd_build_primary_surface_desc(0, 1, &d);
+    /* +DDSCAPS_VIDEOMEMORY (0x800) → 0xa18 */
+    T_ASSERT_EQ_U(d.dwCaps, 0xa18u);
+    T_ASSERT_EQ_U(d.dwBackBufferCount, 1u);
+    return 0;
+}
+
+int test_zdd_primary_desc_mode_safe(void)
+{
+    zdd_primary_desc_build d;
+    zdd_build_primary_surface_desc(1, 1, &d);
+    /* dwFlags = DDSD_CAPS alone (no backbuffer flag) */
+    T_ASSERT_EQ_U(d.dwFlags, 0x01u);
+    /* dwCaps = PRIMARYSURFACE alone */
+    T_ASSERT_EQ_U(d.dwCaps, 0x200u);
+    T_ASSERT_EQ_U(d.dwBackBufferCount, 0u);
+    return 0;
+}
+
+int test_zdd_primary_desc_mode_db_ignores_vram(void)
+{
+    /* Modes 3/4 don't fold videomem_flag into the primary caps —
+     * videomem is honoured at the per-ZDDObject orchestrator layer
+     * in those modes. */
+    zdd_primary_desc_build d;
+    zdd_build_primary_surface_desc(3, 1, &d);
+    T_ASSERT_EQ_U(d.dwFlags, 0x21u);
+    T_ASSERT_EQ_U(d.dwCaps, 0x218u);   /* no |VIDEOMEMORY */
+    T_ASSERT_EQ_U(d.dwBackBufferCount, 1u);
+    return 0;
+}
+
+int test_zdd_primary_desc_mode_zoom(void)
+{
+    zdd_primary_desc_build d;
+    zdd_build_primary_surface_desc(4, 0, &d);
+    T_ASSERT_EQ_U(d.dwFlags, 0x21u);
+    T_ASSERT_EQ_U(d.dwCaps, 0x218u);
+    T_ASSERT_EQ_U(d.dwBackBufferCount, 1u);
+    return 0;
+}
+
+/* ─── create_screen (FUN_005b8480) ───────────────────────────────── */
+
+int test_zdd_create_screen_mode_full_happy_path(void)
+{
+    /* Boot path: 640×480, 16bpp, mode 0, no force-VRAM. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* Params stamped on the ZDD. */
+    T_ASSERT_EQ_I(s.videomem_flag, 0);
+    T_ASSERT_EQ_I(s.screen_width,  640);
+    T_ASSERT_EQ_I(s.screen_height, 480);
+    T_ASSERT_EQ_I(s.pixel_format_mode, 0);
+    T_ASSERT_EQ_I(s.pixel_format_bpp,  16);
+    T_ASSERT_EQ_I(s.screen_pos_x, 0);
+    T_ASSERT_EQ_I(s.screen_pos_y, 0);
+    /* rect_blob zeroed (no opt_rect7 passed). */
+    for (int i = 0; i < 7; i++) T_ASSERT_EQ_I(s.screen_rect[i], 0);
+
+    /* Primary surface CreateSurface happened with the Full-no-VRAM shape. */
+    T_ASSERT_EQ_I(g_dd_create_primary_calls, 1);
+    T_ASSERT_EQ_U(g_dd_create_primary_last_flags, 0x21u);
+    T_ASSERT_EQ_U(g_dd_create_primary_last_caps,  0x218u);
+    T_ASSERT_EQ_U(g_dd_create_primary_last_count, 1u);
+    T_ASSERT_EQ_P(s.com_a, (void *)(uintptr_t)0xa1a1a1a1);
+
+    /* 8bpp palette NOT created (bpp != 8). */
+    T_ASSERT_EQ_I(g_dd_create_pal_calls, 0);
+
+    /* primary_obj allocated, back_obj_a/b stayed NULL. */
+    T_ASSERT(s.primary_obj != NULL);
+    T_ASSERT_EQ_P(s.back_obj_a, NULL);
+    T_ASSERT_EQ_P(s.back_obj_b, NULL);
+
+    /* Mode 0 → attach_backbuffer was called on primary_obj.  The
+     * stub's GetAttachedSurface published 0xbbbbbbbb into com_primary. */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 1);
+    T_ASSERT_EQ_P(g_dd_attached_last_primary, s.com_a);
+    /* mode 0 with videomem_flag=0 → caps = DDSCAPS_BACKBUFFER alone */
+    T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x004u);
+    T_ASSERT_EQ_P(s.primary_obj->com_primary, (void *)(uintptr_t)0xbbbbbbbb);
+
+    /* Clipper attached to primary_obj. */
+    T_ASSERT_EQ_I(g_dd_create_clipper_calls, 1);
+    T_ASSERT_EQ_I(g_dd_setclipper_calls,     1);
+    /* primary_obj.com_primary is what got the clipper bound. */
+    T_ASSERT_EQ_P(g_dd_setclipper_last_surf, s.primary_obj->com_primary);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_mode_full_with_videomem(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 0, 1, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* Full mode + videomem_flag=1 → primary caps include VRAM. */
+    T_ASSERT_EQ_U(g_dd_create_primary_last_caps, 0xa18u);
+    /* And the back-buffer attach inherits force_videomem too. */
+    T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x804u);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_mode_safe(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 1, 1, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* Safe mode → non-flippable primary. */
+    T_ASSERT_EQ_U(g_dd_create_primary_last_flags, 0x01u);
+    T_ASSERT_EQ_U(g_dd_create_primary_last_caps,  0x200u);
+    T_ASSERT_EQ_U(g_dd_create_primary_last_count, 0u);
+
+    /* Safe mode → orchestrator-create (no back-buffer attach). */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 0);
+    /* create_surface_pair ran on primary_obj — fake CreateSurface
+     * stamped its handle into primary_obj->com_primary. */
+    T_ASSERT_EQ_P(s.primary_obj->com_primary, (void *)(uintptr_t)0x99887766);
+    /* Clipper still attached. */
+    T_ASSERT_EQ_I(g_dd_setclipper_calls, 1);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_mode_windowed_skips_primary_create(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* Pre-stage a com_a as if from a prior session — verify it's
+     * released. */
+    s.com_a = (void *)(uintptr_t)0xfeedface;
+    g_live_coms = 1;
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 2, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* CreateSurface for the primary was NOT called. */
+    T_ASSERT_EQ_I(g_dd_create_primary_calls, 0);
+    /* The prior com_a was released (the slot is now NULL).  The
+     * g_live_coms counter is polluted by the post-init clipper bump,
+     * so we just verify the slot was cleared. */
+    T_ASSERT_EQ_P(s.com_a, NULL);
+    /* Windowed mode → orchestrator-create on primary_obj (no back-buffer attach). */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 0);
+    T_ASSERT(s.primary_obj != NULL);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_mode_db(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 3, 1, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* DB Mode → primary caps = 0x218 (no VRAM fold even though
+     * videomem_flag=1; modes 3/4 ignore videomem at the primary). */
+    T_ASSERT_EQ_U(g_dd_create_primary_last_caps, 0x218u);
+
+    /* Both primary_obj AND back_obj_a allocated. */
+    T_ASSERT(s.primary_obj != NULL);
+    T_ASSERT(s.back_obj_a != NULL);
+    T_ASSERT_EQ_P(s.back_obj_b, NULL);
+
+    /* Back-buffer attach ran on back_obj_a (caps = DDSCAPS_BACKBUFFER
+     * with NO videomem — mode 3 hardcodes force_vm=0 for the attach). */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 1);
+    T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x004u);
+    T_ASSERT_EQ_P(s.back_obj_a->com_primary, (void *)(uintptr_t)0xbbbbbbbb);
+
+    /* create_surface_pair ran for primary_obj.  Clipper attached to
+     * primary_obj. */
+    T_ASSERT_EQ_P(s.primary_obj->com_primary, (void *)(uintptr_t)0x99887766);
+    T_ASSERT_EQ_I(g_dd_setclipper_calls, 1);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_mode_zoom(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    /* Mode 4 rect layout: {display_w, display_h, 2, centre_x, centre_y,
+     * src_w, src_h}.  Test with 1024×768 display, 640×480 source
+     * centred at (192, 144). */
+    int32_t rect[7] = { 1024, 768, 2, 192, 144, 640, 480 };
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 4, 1, rect);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* rect blob stamped. */
+    T_ASSERT_EQ_I(s.screen_rect[0], 1024);
+    T_ASSERT_EQ_I(s.screen_rect[1], 768);
+    T_ASSERT_EQ_I(s.screen_rect[5], 640);
+    T_ASSERT_EQ_I(s.screen_rect[6], 480);
+
+    /* All three ZDDObject slots populated. */
+    T_ASSERT(s.primary_obj != NULL);
+    T_ASSERT(s.back_obj_a != NULL);
+    T_ASSERT(s.back_obj_b != NULL);
+
+    /* Back-buffer attach ran with display dimensions (rect[0/1]). */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 1);
+    T_ASSERT_EQ_P(s.back_obj_a->com_primary, (void *)(uintptr_t)0xbbbbbbbb);
+
+    /* Clipper attached to primary_obj. */
+    T_ASSERT_EQ_I(g_dd_setclipper_calls, 1);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_8bpp_creates_palette(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 8, 1, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* 8bpp branch creates the system palette and binds it to com_a. */
+    T_ASSERT_EQ_I(g_dd_create_pal_calls, 1);
+    T_ASSERT_EQ_P(s.com_b, (void *)(uintptr_t)0xba1ba1ba);
+    /* SetPalette ran on com_a with the new palette. */
+    T_ASSERT_EQ_I(g_dd_setpal_calls, 1);
+    T_ASSERT_EQ_P(g_dd_setpal_last_surf, s.com_a);
+    T_ASSERT_EQ_P(g_dd_setpal_last_pal,  s.com_b);
+    zdd_release_children(&s);
+    return 0;
+}
+
+int test_zdd_create_screen_primary_create_failure(void)
+{
+    reset_stubs();
+    g_dd_create_primary_result = 0;
+    g_dd_create_primary_hr     = (int32_t)0x88760086;
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 0);
+    /* Failure path: params still stamped, but no ZDDObject allocated,
+     * no palette, no back-buffer attach. */
+    T_ASSERT_EQ_I(s.screen_width, 640);
+    T_ASSERT_EQ_P(s.primary_obj, NULL);
+    T_ASSERT_EQ_I(g_dd_create_pal_calls, 0);
+    T_ASSERT_EQ_I(g_dd_attached_calls, 0);
+    /* DDERR logged. */
+    T_ASSERT(strstr(g_log_capture, "CreateSurface") != NULL);
+    return 0;
+}
+
+int test_zdd_create_screen_releases_prior_state(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* Pre-stage all 5 prior slots — verify zdd_release_children
+     * runs first. */
+    zdd_object primary_prior; zdd_object_ctor(&primary_prior, &s);
+    s.primary_obj = (zdd_object *)0x1;  /* dangling — release path skips */
+    /* Use the test-controlled zdd_obj_destroy path: live counter. */
+    s.primary_obj = NULL;  /* skip the dangling pointer; just test releases */
+    s.com_a = (void *)(uintptr_t)0x55aa55aa;
+    s.com_b = (void *)(uintptr_t)0xbeefbeef;
+    g_live_coms = 2;
+
+    int rc = zdd_create_screen(&s, 640, 480, 16, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* The 2 prior COM handles got released; the post-init com_a
+     * (fresh CreateSurface result) is a single new COM.
+     * (g_live_coms transitions: 2 -> 0 -> ... no instrumentation in
+     * zdd_create_primary_surface stub, so we just verify com_a is
+     * the new handle.) */
+    T_ASSERT_EQ_P(s.com_a, (void *)(uintptr_t)0xa1a1a1a1);
+    /* The prior com_b was released and never re-stashed (mode 0
+     * doesn't allocate a palette). */
+    T_ASSERT_EQ_P(s.com_b, NULL);
+    (void)primary_prior;
+    zdd_release_children(&s);
     return 0;
 }
 

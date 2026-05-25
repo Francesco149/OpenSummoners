@@ -128,16 +128,49 @@ struct zdd {
      * (FUN_00582e90) lands. */
     int32_t       videomem_flag;             /* +0x134 */
 
-    /* +0x138..+0x163: unobserved by ZDD-class methods we've decomp'd
-     * so far.  Pad. */
-    uint8_t       _pad138[0x164 - 0x138];
+    /* +0x138, +0x13c: zeroed by FUN_005b8480's prologue (the
+     * screen-init driver) on every call.  No ported code reads or
+     * writes either field outside that zero-stamp; likely a paired
+     * (x, y) origin that the windowed-mode path sets elsewhere when
+     * positioning the screen inside the desktop.  Names are descriptive
+     * placeholders — revise once a consumer pins the role. */
+    int32_t       screen_pos_x;              /* +0x138 */
+    int32_t       screen_pos_y;              /* +0x13c */
 
-    /* +0x164, +0x168: pixel-format hints used by FUN_005b8c00 when
-     * building a DDSURFACEDESC2.  Mode 2 means "explicit pixel format";
-     * bpp is then 8/16/24/32.  See docs/findings/ddraw-init.md
-     * "FUN_005b8c00" section.  Not written by anything we've ported
-     * yet — declared here only to keep struct size correct. */
-    int32_t       pixel_format_mode;         /* +0x164 */
+    /* +0x140, +0x144: width / height of the requested screen.  Stamped
+     * by FUN_005b8480 from the launcher's chosen resolution (in retail,
+     * always 640×480).  Read by no other ported path yet — the
+     * orchestrator slots that consume w/h pass them directly as
+     * function args. */
+    int32_t       screen_width;              /* +0x140 */
+    int32_t       screen_height;             /* +0x144 */
+
+    /* +0x148..+0x163: 7-int rect blob (28 bytes).  Stamped by
+     * FUN_005b8480 — either copied from caller's param_6 (mode 4 Zoom
+     * passes a real 7-int layout: {display_w, display_h, 2, centre_x,
+     * centre_y, src_w, src_h}) or zeroed (modes 0/1/2/3 pass NULL).
+     * Indices 0/1 are read by FUN_005b8480's mode 4 branch as the
+     * back-buffer dimensions; indices 5/6 as the orchestrator's
+     * back_obj_b dimensions. */
+    int32_t       screen_rect[7];            /* +0x148..+0x163 */
+
+    /* +0x164: surface-init mode arg (the value the launcher's radio
+     * picked).  Stamped by FUN_005b8480 from param_4.  Five-state
+     * enum: 0=Full / 1=Safe / 2=Windowed / 3=DB Mode / 4=Zoom Mode.
+     *
+     * Historical alias `pixel_format_mode` — FUN_005b8c00's
+     * DDSURFACEDESC2 builder branches on `field == 2`, which doubles as
+     * "Windowed launcher mode" AND "DDSD needs an explicit
+     * DDPIXELFORMAT block" (only Windowed mode must match the desktop's
+     * pixel format explicitly).  Field name preserves the read-site
+     * semantics; the write-site (mode_arg) semantics are the primary
+     * meaning. */
+    int32_t       pixel_format_mode;         /* +0x164 — aka mode_arg */
+
+    /* +0x168: pixel-format bpp hint.  Stamped by FUN_005b8480 from
+     * param_3 (8/16/24/32).  Read by FUN_005b8c00's DDSD builder when
+     * pixel_format_mode == 2 (Windowed) — branches on bpp to fill the
+     * DDPIXELFORMAT masks. */
     int32_t       pixel_format_bpp;          /* +0x168 */
 
     /* +0x16c: the primary ZDDObject (the screen).  Released first in
@@ -300,6 +333,11 @@ _Static_assert(offsetof(zdd, com_a)                 == 0x128, "zdd com_a offset"
 _Static_assert(offsetof(zdd, com_b)                 == 0x12c, "zdd com_b offset");
 _Static_assert(offsetof(zdd, cursor_state)          == 0x130, "zdd cursor_state offset");
 _Static_assert(offsetof(zdd, videomem_flag)         == 0x134, "zdd videomem_flag offset");
+_Static_assert(offsetof(zdd, screen_pos_x)          == 0x138, "zdd screen_pos_x offset");
+_Static_assert(offsetof(zdd, screen_pos_y)          == 0x13c, "zdd screen_pos_y offset");
+_Static_assert(offsetof(zdd, screen_width)          == 0x140, "zdd screen_width offset");
+_Static_assert(offsetof(zdd, screen_height)         == 0x144, "zdd screen_height offset");
+_Static_assert(offsetof(zdd, screen_rect)           == 0x148, "zdd screen_rect offset");
 _Static_assert(offsetof(zdd, pixel_format_mode)     == 0x164, "zdd pixel_format_mode offset");
 _Static_assert(offsetof(zdd, pixel_format_bpp)      == 0x168, "zdd pixel_format_bpp offset");
 _Static_assert(offsetof(zdd, primary_obj)           == 0x16c, "zdd primary_obj offset");
@@ -531,6 +569,103 @@ int  zdd_object_create_surface_pair(zdd_object *self,
 int  zdd_object_new(zdd *parent, zdd_object **out,
                     uint32_t width, uint32_t height,
                     int32_t colorkey, int32_t count);
+
+/* ─── primary surface descriptor + create ────────────────────────── */
+
+/* Sub-set of DDSURFACEDESC2 the primary-surface CreateSurface call
+ * fills.  Only three fields vary by mode_arg/videomem_flag — the
+ * builder below returns these three; the Win32 leg stamps them into
+ * a zeroed DDSURFACEDESC2 with dwSize = 0x7c and feeds it to
+ * IDirectDraw7::CreateSurface. */
+typedef struct zdd_primary_desc_build {
+    /* DDSD dwFlags — 0x21 (DDSD_CAPS | DDSD_BACKBUFFERCOUNT) for the
+     * flippable modes (Full / DB / Zoom), 0x01 (DDSD_CAPS) for Safe. */
+    uint32_t dwFlags;
+    /* ddsCaps.dwCaps — combination of DDSCAPS_PRIMARYSURFACE (0x200) +
+     * DDSCAPS_FLIP (0x10) + DDSCAPS_COMPLEX (0x8) for flippable modes
+     * (= 0x218), plus DDSCAPS_VIDEOMEMORY (0x800) when mode 0 is paired
+     * with videomem_flag (= 0xa18).  Safe mode is DDSCAPS_PRIMARYSURFACE
+     * alone (0x200).  Modes 3/4 use 0x218 unconditionally — videomem
+     * is honoured at the per-ZDDObject orchestrator layer in those
+     * modes, not the primary. */
+    uint32_t dwCaps;
+    /* dwBackBufferCount — 1 for flippable modes (Full/DB/Zoom), 0 for
+     * Safe (the dwFlags omits DDSD_BACKBUFFERCOUNT in that branch but
+     * we stash 0 for cleanliness). */
+    uint32_t dwBackBufferCount;
+} zdd_primary_desc_build;
+
+/* FUN_005b8480 lines 56-86 — pure-logic descriptor build for the
+ * primary surface, factored out of the Win32 leg so the per-mode
+ * switch is testable on host without ddraw.h.  Branches:
+ *   mode_arg == 0 (Full):   {0x21, videomem_flag ? 0xa18 : 0x218, 1}
+ *   mode_arg == 1 (Safe):   {0x01, 0x200, 0}
+ *   mode_arg == 2 (Wind):   undefined — caller must skip CreateSurface
+ *   mode_arg == 3 (DB):     {0x21, 0x218, 1}
+ *   mode_arg == 4 (Zoom):   {0x21, 0x218, 1}
+ *
+ * Mode 2 is handled by the caller (zdd_create_screen) which releases
+ * any existing self->com_a and never calls into this builder. */
+void zdd_build_primary_surface_desc(int mode_arg, int videomem_flag,
+                                    zdd_primary_desc_build *out);
+
+/* FUN_005b8480 — internal mode-aware surface-init.  Pure-logic
+ * orchestration that runs the full screen-init sequence for the
+ * requested mode:
+ *
+ *   1. zdd_release_children(self)                       [release prior]
+ *   2. stamp params on the ZDD: videomem_flag, screen_pos_x/y=0,
+ *      width, height, mode_arg, rect_blob (from opt_rect7 or zeros)
+ *   3. mode_arg == 2 (Windowed):
+ *        zdd_com_release(&self->com_a)
+ *      else:
+ *        zdd_build_primary_surface_desc(...) + zdd_create_primary_surface()
+ *        → on failure: DDERR logged, return 0
+ *   4. stamp pixel_format_bpp = bpp; if (bpp == 8) zdd_setup_8bit_palette()
+ *   5. allocate primary_obj (operator_new + ctor)
+ *   6. per-mode wiring:
+ *        mode 0 (Full):       attach_backbuffer(primary_obj, com_a, w, h, videomem_flag)
+ *        mode 1/2 (Safe/Wind): create_surface_pair(primary_obj, w, h, 0,
+ *                              sentinel, videomem_flag, 0, 0, w, h)
+ *        mode 3 (DB):         alloc back_obj_a + attach_backbuffer to it,
+ *                              then create_surface_pair(primary_obj, ...)
+ *        mode 4 (Zoom):       alloc back_obj_a + attach_backbuffer (rect[0],
+ *                              rect[1], 0), alloc back_obj_b + create_surface_pair
+ *                              (rect[5], rect[6], ..., force_vm=1), then
+ *                              create_surface_pair(primary_obj, ..., force_vm=1)
+ *   7. on success: zdd_object_attach_clipper(primary_obj); if (bpp == 16)
+ *      TODO 16bpp pixel-format bind (FUN_005b8a20 unported, ECX identity
+ *      ambiguous — flagged in HANDOFF open RE threads).  Return 1.
+ *   8. on per-mode failure: release the slot whose orchestrator failed
+ *      (matches retail's "release just the latest failure" cleanup
+ *      pattern — prior slots leak; the caller exits the process
+ *      shortly after this returns 0).
+ *
+ * Args:
+ *   width / height     param_1 / param_2 — requested screen size
+ *   bpp                param_3 — 8/16/24/32 (stamped on ZDD)
+ *   mode_arg           param_4 — 0..4 (Full/Safe/Windowed/DB/Zoom)
+ *   videomem_flag      param_5 — forces VRAM placement (mode 0 only
+ *                                 folds into primary; other modes
+ *                                 pass through to the orchestrator)
+ *   opt_rect7          param_6 — pointer to 7 int32_t rect entries
+ *                                 (mode 4 Zoom only); NULL zeroes the
+ *                                 ZDD's rect blob
+ *
+ * Returns 1 on success, 0 on any failure (DDERR logged via self if
+ * the failure was a Win32 call). */
+int  zdd_create_screen(zdd *self,
+                       uint32_t width, uint32_t height,
+                       uint32_t bpp, int mode_arg, int videomem_flag,
+                       const int32_t *opt_rect7);
+
+/* Allocate (calloc) + in-place ctor a fresh ZDDObject bound to
+ * `parent`.  Returns NULL on OOM.  Defensive null-on-OOM matches
+ * `zdd_object_new`'s style (retail's operator_new returns NULL on
+ * OOM and the subsequent `if (pvVar2 != NULL)` skips the ctor; the
+ * caller is then liable for crashing on the next deref — we return
+ * NULL all the way out instead). */
+zdd_object *zdd_object_alloc_and_ctor(zdd *parent);
 
 /* FUN_005b8e00 — 8bpp palette setup.  Pure-logic orchestration:
  *   1. zdd_create_system_palette(self)   — sample the desktop's
@@ -786,6 +921,15 @@ int  zdd_set_coop_level(zdd *self, void *hwnd, int fullscreen);
  * NULL surface returns 0 without logging.  Host build: returns
  * g_dd_setcolorkey_result + records the call. */
 int  zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner);
+
+/* Real build: build a primary-flavoured DDSURFACEDESC2 from `desc`
+ * (dwSize=0x7c + dwFlags + ddsCaps.dwCaps + dwBackBufferCount), call
+ * IDirectDraw7::CreateSurface vtable[6] / byte 0x18, stash the result
+ * in self->com_a.  Logs DDERR via self on failure; returns 0.  Host
+ * build: returns g_dd_create_primary_result + stashes the pre-staged
+ * handle. */
+int  zdd_create_primary_surface(zdd *self,
+                                const zdd_primary_desc_build *desc);
 
 /* Real build: GetSystemPaletteEntries(NULL, 0, 256, &entries[256]) +
  * IDirectDraw7::CreatePalette via vtable[5] (byte 0x14) with

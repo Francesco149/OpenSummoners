@@ -303,6 +303,20 @@ struct test_case {
     X(zdd_setup_8bit_palette_no_primary_skips_set)             \
     X(zdd_setup_8bit_palette_createpalette_failure)            \
     X(zdd_setup_8bit_palette_setpalette_failure)               \
+    X(zdd_primary_desc_mode_full_no_vram)                      \
+    X(zdd_primary_desc_mode_full_with_vram)                    \
+    X(zdd_primary_desc_mode_safe)                              \
+    X(zdd_primary_desc_mode_db_ignores_vram)                   \
+    X(zdd_primary_desc_mode_zoom)                              \
+    X(zdd_create_screen_mode_full_happy_path)                  \
+    X(zdd_create_screen_mode_full_with_videomem)               \
+    X(zdd_create_screen_mode_safe)                             \
+    X(zdd_create_screen_mode_windowed_skips_primary_create)    \
+    X(zdd_create_screen_mode_db)                               \
+    X(zdd_create_screen_mode_zoom)                             \
+    X(zdd_create_screen_8bpp_creates_palette)                  \
+    X(zdd_create_screen_primary_create_failure)                \
+    X(zdd_create_screen_releases_prior_state)                  \
 
 #define X(n) extern int test_##n(void);
 TESTS
