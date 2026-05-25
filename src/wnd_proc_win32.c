@@ -87,7 +87,7 @@ void wp_zdm_set_active(int active)
     (void)active;
 }
 
-void wp_post_activate(wp_app_ctx *ctx)
+void wp_post_activate(app_ctx *ctx)
 {
     /* Placeholder for FUN_005b14c0 — sprite-cache / W_MGR / GD_MGR
      * scrub after re-activation.  No-op until the pool managers are

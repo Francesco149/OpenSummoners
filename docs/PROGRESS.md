@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Main pump / frame waiter port (FUN_005b1030)
+
+Ported the 156-byte message-pump / frame-waiter
+(`FUN_005b1030` → `app_pump_frame`) as a new `app_pump` module.  The
+function is the inner gate the scene runner calls twice per loop
+iteration; with this in place, porting the title-menu scene runner
+no longer has a "missing prerequisite" gap.
+
+Field-named the `app_ctx` struct (was `wp_app_ctx`, opaque pad after
+`+0x08`).  The pump touches three previously-unnamed slots:
+- `+0x0c limiter_enable` — master frame-limiter on/off.
+- `+0x10 last_tick_ms` — `GetTickCount` sample from the previous
+  pump exit.
+- `+0x1c pump_throttle` — set by the limiter when re-arming, cleared
+  by `WM_TIMER` (0x113) — the periodic tick paces the pump.  This is
+  the same slot the WndProc already named `timer`; renamed to make
+  the limiter coupling explicit.
+
+The throttle re-arm condition pinned to UNSIGNED `prev - now < 5`
+(disasm at 0x5b10b3 uses `jae`).  Equivalent to "GetTickCount hasn't
+ticked since the previous sample" — a sub-tick spin guard that holds
+the throttle until `WM_TIMER` clears it.  16 host tests cover the
+limiter boundaries (==4 sets / ==5 skips), first-frame path, master-
+disable, WM_QUIT short-circuit, drain-then-exit, and NULL ctx defense.
+
+Refactoring done as part of the port: `wp_app_ctx` → `app_ctx`,
+`g_wp_app_ctx` → `g_app_ctx`, `g_wp_active_flag` → `g_app_active_flag`.
+The struct moved from `wnd_proc.h` to a new `src/app_pump.h` since
+the pump is now the canonical owner; WndProc just `#include`s it.
+`wp_state_init` no longer touches the shared globals — tests call
+`app_pump_state_init` alongside.
+
+Tests: 372 → 387 pass (+15 net; -1 layout test moved from wp_ to
+app_).  Live boot still zero DDERR through 10 frames mode-2.
+
+The pump is NOT yet wired into `main.c`'s per-frame loop — the
+drop-in keeps its own minimal `main_loop_body` until the scene
+runner ports and calls `app_pump_frame` retail-style.
+
+---
+
 ## 2026-05-25 — Surface-paint leaves chip session (14 ports)
 
 Marathon chip session.  Four checkpoints landed all the remaining

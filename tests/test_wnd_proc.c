@@ -64,6 +64,7 @@ static void hk_reset(void)
     g_log_count = 0;
     g_paint_check_return = 0;
     wp_state_init();
+    app_pump_state_init();  /* g_app_ctx / g_app_active_flag — pump-owned */
 }
 
 static hook_event *hk_push(hook_kind k)
@@ -118,7 +119,7 @@ void wp_zdm_set_active(int active)
     e->arg_u32_a = (uint32_t)active;
 }
 
-void wp_post_activate(wp_app_ctx *ctx)
+void wp_post_activate(app_ctx *ctx)
 {
     hook_event *e = hk_push(HK_POST_ACTIVATE);
     e->arg_uptr_a = (uintptr_t)ctx;
@@ -169,7 +170,7 @@ int test_wp_harmless_messages_consumed(void)
         T_ASSERT_EQ_I(rc, 0);
     }
     T_ASSERT_EQ_I(g_log_count, 0);
-    T_ASSERT_EQ_U(g_wp_active_flag, 0u);
+    T_ASSERT_EQ_U(g_app_active_flag, 0u);
     return 0;
 }
 
@@ -219,8 +220,8 @@ int test_wp_paint_no_ctx_falls_through(void)
 int test_wp_paint_ctx_but_no_paint_this_falls_through(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
-    g_wp_app_ctx = &ctx;
+    app_ctx ctx = {0};
+    g_app_ctx = &ctx;
     g_wp_paint_check_this = NULL;
 
     wp_handle_message((wp_hwnd)0x10, WP_WM_PAINT, 0, 0);
@@ -236,8 +237,8 @@ int test_wp_paint_ctx_but_no_paint_this_falls_through(void)
 int test_wp_paint_helper_returns_zero_falls_through(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
-    g_wp_app_ctx = &ctx;
+    app_ctx ctx = {0};
+    g_app_ctx = &ctx;
     g_wp_paint_check_this = (void *)0xaabbccdd;
     g_wp_paint_hwnd = (wp_hwnd)0x55;
     g_paint_check_return = 0;
@@ -255,8 +256,8 @@ int test_wp_paint_helper_returns_zero_falls_through(void)
 int test_wp_paint_consumed_no_defwindowproc(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
-    g_wp_app_ctx = &ctx;
+    app_ctx ctx = {0};
+    g_app_ctx = &ctx;
     g_wp_paint_check_this = (void *)0xdeadbeef;
     g_wp_paint_hwnd = (wp_hwnd)0x77;
     g_paint_check_return = 1;
@@ -269,19 +270,19 @@ int test_wp_paint_consumed_no_defwindowproc(void)
     return 0;
 }
 
-/* WM_ACTIVATEAPP unconditionally mirrors wParam into g_wp_active_flag,
+/* WM_ACTIVATEAPP unconditionally mirrors wParam into g_app_active_flag,
  * even when no app context is set.  This is the load-bearing assertion
- * — the engine's pump only watches g_wp_active_flag, so a missing
+ * — the engine's pump only watches g_app_active_flag, so a missing
  * ctx must NOT swallow the flag write. */
 int test_wp_activateapp_writes_flag_without_ctx(void)
 {
     hk_reset();
-    g_wp_app_ctx = NULL;
+    g_app_ctx = NULL;
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
-    T_ASSERT_EQ_U(g_wp_active_flag, 1u);
+    T_ASSERT_EQ_U(g_app_active_flag, 1u);
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)0, 0);
-    T_ASSERT_EQ_U(g_wp_active_flag, 0u);
+    T_ASSERT_EQ_U(g_app_active_flag, 0u);
 
     /* No hooks fired — ctx missing → activation body is skipped. */
     T_ASSERT_EQ_I(g_log_count, 0);
@@ -294,16 +295,16 @@ int test_wp_activateapp_writes_flag_without_ctx(void)
 int test_wp_activateapp_loaded_zero_skips_body(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 0;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
-    T_ASSERT_EQ_U(g_wp_active_flag, 1u);
+    T_ASSERT_EQ_U(g_app_active_flag, 1u);
     T_ASSERT_EQ_I(g_log_count, 0);
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)0, 0);
-    T_ASSERT_EQ_U(g_wp_active_flag, 0u);
+    T_ASSERT_EQ_U(g_app_active_flag, 0u);
     T_ASSERT_EQ_I(g_log_count, 0);
     return 0;
 }
@@ -312,13 +313,13 @@ int test_wp_activateapp_loaded_zero_skips_body(void)
 int test_wp_activateapp_deactivate_calls_pause(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)0, 0);
 
-    T_ASSERT_EQ_U(g_wp_active_flag, 0u);
+    T_ASSERT_EQ_U(g_app_active_flag, 0u);
     T_ASSERT_EQ_I(hk_count(HK_APP_PAUSE), 1);
     T_ASSERT_EQ_I(hk_count(HK_INPUT_ACQUIRE), 0);
     T_ASSERT_EQ_I(hk_count(HK_LOG_CP), 0);
@@ -332,14 +333,14 @@ int test_wp_activateapp_deactivate_calls_pause(void)
 int test_wp_activateapp_activate_minimal_emits_cp3_and_post(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     /* No input devices, no ZDM. */
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
 
-    T_ASSERT_EQ_U(g_wp_active_flag, 1u);
+    T_ASSERT_EQ_U(g_app_active_flag, 1u);
     T_ASSERT_EQ_I(hk_count(HK_INPUT_ACQUIRE), 0);
     T_ASSERT_EQ_I(hk_count(HK_ZDM_SET_ACTIVE), 0);
 
@@ -365,9 +366,9 @@ int test_wp_activateapp_activate_minimal_emits_cp3_and_post(void)
 int test_wp_activateapp_full_chain_call_order(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_input_dev_extra = (void *)0xe0;
     g_wp_input_devs[0]   = (void *)0xe1;
     g_wp_input_devs[1]   = (void *)0xe2;
@@ -411,9 +412,9 @@ int test_wp_activateapp_full_chain_call_order(void)
 int test_wp_activateapp_quiet_suppresses_logs_only(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_input_dev_extra = (void *)0xe0;
     g_wp_input_devs[0]   = (void *)0xe1;
     g_wp_log_quiet       = 1;
@@ -432,9 +433,9 @@ int test_wp_activateapp_quiet_suppresses_logs_only(void)
 int test_wp_activateapp_extra_null_sparse_loop(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_input_dev_extra = NULL;
     g_wp_input_devs[0]   = NULL;
     g_wp_input_devs[1]   = (void *)0xe9;
@@ -470,10 +471,10 @@ int test_wp_activateapp_device_chain_sets_zdm_active(void)
      * load the inner pointer. */
     int *sub = inner;
 
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
     ctx.f00    = &sub;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_zdm     = (void *)0xed;
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
@@ -492,10 +493,10 @@ int test_wp_activateapp_device_chain_partial_zdm_inactive(void)
     /* inner[6] left at 0 — chain visible but flag bit is off. */
     int *sub = inner;
 
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
     ctx.f00    = &sub;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_zdm     = (void *)0xed;
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
@@ -511,9 +512,9 @@ int test_wp_activateapp_device_chain_partial_zdm_inactive(void)
 int test_wp_activateapp_null_zdm_skips_zdm_call(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
+    app_ctx ctx = {0};
     ctx.loaded = 1;
-    g_wp_app_ctx = &ctx;
+    g_app_ctx = &ctx;
     g_wp_zdm     = NULL;
 
     wp_handle_message((wp_hwnd)0, WP_WM_ACTIVATEAPP, (wp_wparam)1, 0);
@@ -523,19 +524,21 @@ int test_wp_activateapp_null_zdm_skips_zdm_call(void)
     return 0;
 }
 
-/* WM_TIMER with ctx clears ctx->timer to 0.  Verifies the offset
- * matches retail (ctx[0x1c] / wp_app_ctx::timer). */
-int test_wp_timer_clears_ctx_timer_field(void)
+/* WM_TIMER with ctx clears ctx->pump_throttle to 0.  Verifies the
+ * offset matches retail (ctx[0x1c] / app_ctx::pump_throttle) — this
+ * is the periodic "tick" that lets the pump's outer wait loop break
+ * out and produce the next frame. */
+int test_wp_timer_clears_pump_throttle(void)
 {
     hk_reset();
-    wp_app_ctx ctx = {0};
-    ctx.timer = 0xdeadbeefu;
-    g_wp_app_ctx = &ctx;
+    app_ctx ctx = {0};
+    ctx.pump_throttle = 0xdeadbeefu;
+    g_app_ctx = &ctx;
 
     wp_lresult rc = wp_handle_message((wp_hwnd)0, WP_WM_TIMER, 0, 0);
 
     T_ASSERT_EQ_I(rc, 0);
-    T_ASSERT_EQ_U(ctx.timer, 0u);
+    T_ASSERT_EQ_U(ctx.pump_throttle, 0u);
     /* No hooks fired — WM_TIMER is consumed in-line. */
     T_ASSERT_EQ_I(g_log_count, 0);
     return 0;
@@ -545,7 +548,7 @@ int test_wp_timer_clears_ctx_timer_field(void)
 int test_wp_timer_no_ctx_consumed(void)
 {
     hk_reset();
-    g_wp_app_ctx = NULL;
+    g_app_ctx = NULL;
 
     wp_lresult rc = wp_handle_message((wp_hwnd)0, WP_WM_TIMER, 0, 0);
 
@@ -554,14 +557,12 @@ int test_wp_timer_no_ctx_consumed(void)
     return 0;
 }
 
-/* wp_state_init zeros every module global.  Sanity check on the
- * reset path tests rely on. */
+/* wp_state_init zeros every WndProc-owned module global.  Pump-
+ * owned slots (g_app_ctx / g_app_active_flag) are covered by the
+ * companion pump-state-init test. */
 int test_wp_state_init_clears_all_globals(void)
 {
-    /* Pre-poison every global. */
-    wp_app_ctx ctx = {0};
-    g_wp_app_ctx          = &ctx;
-    g_wp_active_flag      = 1;
+    /* Pre-poison every wnd-proc-owned global. */
     g_wp_paint_check_this = (void *)0xabc;
     g_wp_input_dev_extra  = (void *)0xdef;
     g_wp_input_devs[0]    = (void *)0x111;
@@ -572,8 +573,6 @@ int test_wp_state_init_clears_all_globals(void)
 
     wp_state_init();
 
-    T_ASSERT_EQ_P(g_wp_app_ctx, NULL);
-    T_ASSERT_EQ_U(g_wp_active_flag, 0u);
     T_ASSERT_EQ_P(g_wp_paint_check_this, NULL);
     T_ASSERT_EQ_P(g_wp_input_dev_extra, NULL);
     T_ASSERT_EQ_P(g_wp_input_devs[0], NULL);
@@ -582,21 +581,4 @@ int test_wp_state_init_clears_all_globals(void)
     T_ASSERT_EQ_U(g_wp_paint_hwnd, 0u);
     T_ASSERT_EQ_U(g_wp_log_quiet, 0u);
     return 0;
-}
-
-/* wp_app_ctx layout: pin offsets that must match retail BSS
- * (loaded @ +8, timer @ +0x1c).  Only meaningful on a 32-bit build
- * where sizeof(void *) == 4; on 64-bit the offsets shift and the
- * test is a no-op skip. */
-int test_wp_app_ctx_layout_matches_retail(void)
-{
-#if UINTPTR_MAX == 0xFFFFFFFFu
-    T_ASSERT_EQ_U(sizeof(wp_app_ctx), 0x20u);
-    T_ASSERT_EQ_U(offsetof(wp_app_ctx, f00),    0x00u);
-    T_ASSERT_EQ_U(offsetof(wp_app_ctx, loaded), 0x08u);
-    T_ASSERT_EQ_U(offsetof(wp_app_ctx, timer),  0x1cu);
-    return 0;
-#else
-    T_SKIP("32-bit-only layout assertions");
-#endif
 }

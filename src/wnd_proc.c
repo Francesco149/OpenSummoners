@@ -14,8 +14,8 @@
 
 /* ─── module globals — BSS-zero initial state ────────────────────── */
 
-wp_app_ctx *g_wp_app_ctx;
-uint32_t    g_wp_active_flag;
+/* g_app_ctx and g_app_active_flag are owned by the pump module
+ * (defined in src/app_pump.c) — both subsystems read/write them. */
 paint_ctx  *g_wp_paint_check_this;
 input_dev  *g_wp_input_dev_extra;
 input_dev  *g_wp_input_devs[2];
@@ -25,8 +25,9 @@ uint32_t    g_wp_log_quiet;
 
 void wp_state_init(void)
 {
-    g_wp_app_ctx          = NULL;
-    g_wp_active_flag      = 0;
+    /* Resets the WndProc-private globals only.  The pump owns
+     * g_app_ctx / g_app_active_flag — tests should call
+     * app_pump_state_init() alongside this one. */
     g_wp_paint_check_this = NULL;
     g_wp_input_dev_extra  = NULL;
     g_wp_input_devs[0]    = NULL;
@@ -41,7 +42,7 @@ void wp_state_init(void)
 /* Reads `*(*ctx->f00 + 0x18)` with each link guarded for non-NULL.
  * Mirrors disasm at 0x005b13b5..0x005b13c8 byte-for-byte.  Returns
  * 1 iff every link is non-zero, 0 otherwise. */
-static int activation_device_init_flag(const wp_app_ctx *ctx)
+static int activation_device_init_flag(const app_ctx *ctx)
 {
     if (ctx->f00 == NULL) return 0;
     int *p = *(int **)ctx->f00;
@@ -55,7 +56,7 @@ static int activation_device_init_flag(const wp_app_ctx *ctx)
  * triple-short-circuit at disasm 0x005b1305..0x005b132c. */
 static int paint_consumed(void)
 {
-    if (g_wp_app_ctx == NULL) return 0;
+    if (g_app_ctx == NULL) return 0;
     if (g_wp_paint_check_this == NULL) return 0;
     return wp_paint_check(g_wp_paint_hwnd) != 0;
 }
@@ -64,7 +65,7 @@ static int paint_consumed(void)
  * context or no loaded scene; otherwise pause the input subsystem. */
 static void on_deactivate(void)
 {
-    wp_app_ctx *ctx = g_wp_app_ctx;
+    app_ctx *ctx = g_app_ctx;
     if (ctx == NULL) return;
     if (ctx->loaded == 0) return;
     wp_app_pause();
@@ -82,7 +83,7 @@ static void on_deactivate(void)
  * before they'll resume frame production. */
 static void on_activate(void)
 {
-    wp_app_ctx *ctx = g_wp_app_ctx;
+    app_ctx *ctx = g_app_ctx;
     if (ctx == NULL) return;
     if (ctx->loaded == 0) return;
 
@@ -132,7 +133,7 @@ wp_lresult wp_handle_message(wp_hwnd hwnd, uint32_t msg,
         return wp_def_window_proc(hwnd, msg, wparam, lparam);
 
     case WP_WM_ACTIVATEAPP:
-        g_wp_active_flag = (uint32_t)wparam;
+        g_app_active_flag = (uint32_t)wparam;
         if (wparam == 0) {
             on_deactivate();
         } else {
@@ -144,8 +145,13 @@ wp_lresult wp_handle_message(wp_hwnd hwnd, uint32_t msg,
         return 0;
 
     case WP_WM_TIMER:
-        if (g_wp_app_ctx != NULL) {
-            g_wp_app_ctx->timer = 0;
+        /* Releases the pump's outer-wait gate.  See app_pump.h —
+         * `pump_throttle` is set to 1 by the limiter at the end of
+         * each frame; the periodic WM_TIMER tick clears it so the
+         * pump's next iteration can fall through and let the caller
+         * produce a frame. */
+        if (g_app_ctx != NULL) {
+            g_app_ctx->pump_throttle = 0;
         }
         return 0;
 

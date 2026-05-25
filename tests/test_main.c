@@ -225,10 +225,25 @@ struct test_case {
     X(wp_activateapp_device_chain_sets_zdm_active)             \
     X(wp_activateapp_device_chain_partial_zdm_inactive)        \
     X(wp_activateapp_null_zdm_skips_zdm_call)                  \
-    X(wp_timer_clears_ctx_timer_field)                         \
+    X(wp_timer_clears_pump_throttle)                           \
     X(wp_timer_no_ctx_consumed)                                \
     X(wp_state_init_clears_all_globals)                        \
-    X(wp_app_ctx_layout_matches_retail)                        \
+    X(app_ctx_layout_matches_retail)                           \
+    X(app_pump_state_init_clears_globals)                      \
+    X(app_pump_exits_when_active_and_throttle_clear)           \
+    X(app_pump_waits_until_active)                             \
+    X(app_pump_waits_until_throttle_clears)                    \
+    X(app_pump_wm_quit_calls_exit_no_dispatch)                 \
+    X(app_pump_drains_queue_then_exits)                        \
+    X(app_pump_wm_quit_stops_drain_immediately)                \
+    X(app_pump_limiter_first_frame_sets_throttle)              \
+    X(app_pump_limiter_holds_throttle_when_clock_static)       \
+    X(app_pump_limiter_skips_throttle_when_clock_advanced)     \
+    X(app_pump_limiter_boundary_prev_minus_now_equals_5)       \
+    X(app_pump_limiter_boundary_prev_minus_now_equals_4)       \
+    X(app_pump_limiter_disabled_no_tick_reads)                 \
+    X(app_pump_null_ctx_does_not_crash)                        \
+    X(app_pump_drain_then_limiter_first_frame)                 \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

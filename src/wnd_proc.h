@@ -35,6 +35,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app_pump.h"  /* app_ctx / g_app_ctx / g_app_active_flag */
+
 /* Pointer-sized integers — same width as Win32 HWND/WPARAM/LPARAM/
  * LRESULT on the 32-bit drop-in target.  Tests on 64-bit Linux use
  * uintptr_t which is wider; we never round-trip these through
@@ -56,48 +58,11 @@ typedef intptr_t  wp_lresult;
 #define WP_WM_KEYDOWN      0x0100u
 #define WP_WM_TIMER        0x0113u
 
-/* ─── wp_app_ctx — the "app context" struct ─────────────────────── */
-
-/* Mirrors the layout the WndProc reads via DAT_008a9b64 (the engine's
- * top-level app context pointer).  Only the fields FUN_005b12e0 reads
- * are named; the rest are pad to preserve offsets.
- *
- * The "device init chain" is the disasm at 0x5b13b5..0x5b13c8:
- *
- *   mov eax, [ebx]        ; eax = ctx->f00
- *   test eax,eax / jz...
- *   mov eax, [eax]        ; eax = *ctx->f00 (first dword of the
- *                         ;       sub-object)
- *   test eax,eax / jz...
- *   mov ecx, [eax + 0x18] ; ecx = *(*ctx->f00 + 0x18)
- *
- * All three links must be non-NULL/non-zero for the "device init"
- * flag to read true.  When it does, the WndProc passes 1 (active) to
- * the ZDM multiplexer; when it doesn't, the ZDM is activated with 0
- * (effectively a no-op pre-init).  Modelled as `void *f00` so a test
- * can wire up the chain explicitly with two stub pointers. */
-typedef struct wp_app_ctx {
-    /* +0x00: head of the device-init pointer chain. */
-    void    *f00;
-    /* +0x04: not read by the WndProc — pad. */
-    uint32_t _pad04;
-    /* +0x08: "scene loaded" flag.  WM_ACTIVATEAPP is a no-op when 0
-     * — both the activation and deactivation halves bail early.
-     * Matches retail `DAT_008a9b64[2]`. */
-    uint32_t loaded;
-    /* +0x0c..+0x18: not read by the WndProc — pad. */
-    uint32_t _pad0c, _pad10, _pad14, _pad18;
-    /* +0x1c: WM_TIMER clears this to 0.  Matches retail
-     * `DAT_008a9b64[7]`.  Semantic role is unknown — likely a
-     * "tick request" the engine reads elsewhere. */
-    uint32_t timer;
-} wp_app_ctx;
-
-#if UINTPTR_MAX == 0xFFFFFFFFu
-_Static_assert(sizeof(wp_app_ctx) == 0x20, "wp_app_ctx 32 bytes on 32-bit");
-_Static_assert(offsetof(wp_app_ctx, loaded) == 0x08, "loaded offset");
-_Static_assert(offsetof(wp_app_ctx, timer)  == 0x1c, "timer offset");
-#endif
+/* `app_ctx`, `g_app_ctx`, and `g_app_active_flag` are owned by the
+ * pump module and exposed via "app_pump.h" above.  Both the WndProc
+ * and the pump are first-class consumers, so the struct itself lives
+ * in the more "central" pump header.  See app_pump.h for the
+ * documented field map (+0x00..+0x1c) and the per-field rationale. */
 
 /* ─── deep-engine struct shapes ──────────────────────────────────────
  *
@@ -311,17 +276,6 @@ _Static_assert(offsetof(log_singleton, path) == 0x404, "log_singleton path");
 
 /* ─── module globals — mirror retail BSS slots ───────────────────── */
 
-/* DAT_008a9b64 — app context pointer.  NULL pre-init; the engine
- * stamps it once the app singleton is constructed. */
-extern wp_app_ctx *g_wp_app_ctx;
-
-/* DAT_008a952c — "WM_ACTIVATEAPP wParam mirror".  Engine's pump
- * (FUN_005b1030) breaks out of its outer spin loop only when this
- * is non-zero.  The WndProc writes wParam straight in on every
- * WM_ACTIVATEAPP delivery — even when ctx is NULL or scene isn't
- * loaded (those just suppress the rest of the activation work). */
-extern uint32_t g_wp_active_flag;
-
 /* DAT_008a93cc — paint-check thiscall context.  Only inspected for
  * non-NULL by the WndProc itself; the actual paint helper uses it
  * as ECX and uses g_wp_paint_hwnd as the BeginPaint/EndPaint target. */
@@ -374,15 +328,15 @@ void wp_state_init(void);
  *     Consumed (return 0).  No side effects.
  *
  *   WM_PAINT (0x0f)
- *     Consumed iff all three of (g_wp_app_ctx, g_wp_paint_check_this,
+ *     Consumed iff all three of (g_app_ctx, g_wp_paint_check_this,
  *     wp_paint_check(g_wp_paint_hwnd)) are non-NULL/non-zero.
  *     Otherwise falls through to wp_def_window_proc.
  *
  *   WM_ACTIVATEAPP (0x1c)
- *     g_wp_active_flag = wParam  (unconditional, even when ctx==NULL).
+ *     g_app_active_flag = wParam  (unconditional, even when ctx==NULL).
  *
- *     If g_wp_app_ctx == NULL: stop (return 0).
- *     If ctx->loaded == 0:    stop (return 0).
+ *     If g_app_ctx == NULL: stop (return 0).
+ *     If ctx->loaded == 0:  stop (return 0).
  *
  *     wParam == 0 (deactivate):
  *       wp_app_pause()
@@ -406,7 +360,9 @@ void wp_state_init(void);
  *       wp_post_activate(ctx)
  *
  *   WM_TIMER (0x113)
- *     If g_wp_app_ctx != NULL: ctx->timer = 0.  Consumed.
+ *     If g_app_ctx != NULL: ctx->pump_throttle = 0.  Consumed —
+ *     this is the periodic "tick" that lets the pump's outer wait
+ *     loop break out and run the next frame.
  *
  *   All other messages
  *     wp_def_window_proc — DefWindowProcA in the real build.
@@ -424,9 +380,9 @@ void wp_state_init(void);
  *     devices ⇒ init_flag=0 ⇒ ZDM gets a (somewhat odd) "deactivate"
  *     call.  Post-init ⇒ init_flag=1 ⇒ ZDM activates.
  *
- *   - WM_ACTIVATEAPP writes g_wp_active_flag BEFORE the ctx checks,
+ *   - WM_ACTIVATEAPP writes g_app_active_flag BEFORE the ctx checks,
  *     which is why the engine's pump can break out even when no
- *     scene is loaded yet (it only watches g_wp_active_flag).
+ *     scene is loaded yet (it only watches g_app_active_flag).
  */
 wp_lresult wp_handle_message(wp_hwnd hwnd, uint32_t msg,
                               wp_wparam wparam, wp_lparam lparam);
@@ -471,7 +427,7 @@ void wp_zdm_set_active(int active);
  * table, scrubbing scratch state so the engine resumes from a
  * known-clean frame.  We model it as one opaque hook because porting
  * the body brings in three pool subsystems we haven't touched yet. */
-void wp_post_activate(wp_app_ctx *ctx);
+void wp_post_activate(app_ctx *ctx);
 
 /* FUN_00408b90(tag, 0, &DAT_008a9b6c) thiscall on the log singleton
  * at &DAT_008a6620.  Emits an "ActivateInputDevice CPx" trace.  The
