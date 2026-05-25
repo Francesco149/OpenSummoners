@@ -131,6 +131,78 @@ int zdd_create_surface(zdd *self, void **out_surface,
     return 0;
 }
 
+/* FUN_005b8e00 (Win32 leg, palette half) — sample the desktop's
+ * current system palette via GetSystemPaletteEntries and wrap it as
+ * an IDirectDrawPalette with DDPCAPS_8BIT.  Stashes the new palette
+ * into self->com_b.
+ *
+ * Retail passes NULL as the HDC (matches the GDI contract: NULL means
+ * the *system* palette regardless of any DC).  Argument shape exactly
+ * matches retail's `GetSystemPaletteEntries(NULL, 0, 0x100, &local_400)`. */
+int zdd_create_system_palette(zdd *self)
+{
+    PALETTEENTRY entries[256];
+    GetSystemPaletteEntries(NULL, 0, 256, entries);
+
+    IDirectDraw7 *dd = (IDirectDraw7 *)self->ddraw7;
+    LPDIRECTDRAWPALETTE pal = NULL;
+    HRESULT hr = dd->lpVtbl->CreatePalette(dd, DDPCAPS_8BIT, entries,
+                                           &pal, NULL);
+    if (FAILED(hr)) {
+        zdd_log_dderr(self, "DirectDraw", "CreatePalette", (int32_t)hr);
+        return 0;
+    }
+    self->com_b = pal;
+    return 1;
+}
+
+/* FUN_005b8e00 (Win32 leg, bind half) — IDirectDrawSurface7::SetPalette
+ * via vtable[31] / byte 0x7c.  log_owner is the parent ZDD whose
+ * log_buf the DDERR builder scribbles to (the surface itself has no
+ * log buffer of its own). */
+int zdd_surface_set_palette(void *surface, void *palette, zdd *log_owner)
+{
+    if (surface == NULL || palette == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    LPDIRECTDRAWPALETTE  pal  = (LPDIRECTDRAWPALETTE)palette;
+    HRESULT hr = surf->lpVtbl->SetPalette(surf, pal);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface",
+                          "SetPalette", (int32_t)hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* FUN_005b9740 (Win32 leg) — IDirectDrawSurface7::GetAttachedSurface
+ * via vtable[12] / byte offset 0x30.  Builds a DDSCAPS2 with caps[0]
+ * = `caps_in` and zero-padded caps[1..3] (retail's
+ * `local_10..local_4` zero block).  Caller chooses the caps mask
+ * (DDSCAPS_BACKBUFFER alone, or |DDSCAPS_VIDEOMEMORY when forcing
+ * vram). */
+int zdd_get_attached_surface(void *primary, uint32_t caps_in,
+                             void **out, zdd *log_owner)
+{
+    if (primary == NULL || out == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)primary;
+    DDSCAPS2 caps;
+    memset(&caps, 0, sizeof(caps));
+    caps.dwCaps = (DWORD)caps_in;
+    LPDIRECTDRAWSURFACE7 attached = NULL;
+    HRESULT hr = surf->lpVtbl->GetAttachedSurface(surf, &caps, &attached);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface",
+                          "GetAttachedSurface", (int32_t)hr);
+        }
+        return 0;
+    }
+    *out = attached;
+    return 1;
+}
+
 /* IDirectDraw7::CreateClipper via vtable[4] (byte 0x10).  Stores the
  * new IDirectDrawClipper into *out_clipper.  Defensive NULL-on-failure
  * (retail leaves the slot undefined when CreateClipper fails). */

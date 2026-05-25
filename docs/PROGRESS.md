@@ -6,6 +6,53 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — back-buffer attach + 8bpp palette setup PORTED (closes 2 FUN_005b8480 leaves)
+
+Two more leaves of `FUN_005b8480` (the big mode-aware surface-init)
+land before tackling its body.
+
+**`zdd_object_attach_backbuffer`** (FUN_005b9740, 153 bytes) — the
+back-buffer fetch helper used by `FUN_005b8480` mode 0 (Full),
+mode 3 (DB Mode), and the first leg of mode 4 (Zoom).  Pure-logic
+orchestration over a new Win32 primitive `zdd_get_attached_surface`
+that wraps `IDirectDrawSurface7::GetAttachedSurface` (vtable[12] /
+byte 0x30).  The Ghidra decomp was misleading — Ghidra lost track
+of the stack frame and emitted bogus `unaff_retaddr` params for the
+trailing `stamp_metrics` call.  Disassembly via r2 confirmed the
+real signature: `(self, primary_surface, width, height,
+force_videomem)`.  Sequence: prefill_desc(0,0) → build DDSCAPS2 with
+caps[0] = DDSCAPS_BACKBUFFER (4) or |DDSCAPS_VIDEOMEMORY (0x804) →
+GetAttachedSurface into `self->com_primary` → stamp_metrics(w, h,
+0, 0, w, h) → set_color_key(0x1ffffff sentinel).
+
+**`zdd_setup_8bit_palette`** (FUN_005b8e00, 157 bytes) — 8bpp palette
+allocator called by `FUN_005b8480` when bpp == 8.  Pure-logic
+orchestration over two new Win32 primitives: `zdd_create_system_palette`
+(GetSystemPaletteEntries + IDirectDraw7::CreatePalette vtable[5] /
+byte 0x14 with DDPCAPS_8BIT, stash in `self->com_b`), and
+`zdd_surface_set_palette` (IDirectDrawSurface7::SetPalette vtable[31]
+/ byte 0x7c).  The orchestrator null-checks `self->com_a` before
+SetPalette — matches retail exactly.
+
+**Open RE thread closed**: `self->com_a` (ZDD +0x128) is the primary
+display IDirectDrawSurface7.  Was previously listed as "Roles
+unknown — likely IDirectDrawPalette + IDirectDrawClipper or similar"
+in `zdd.h`.  FUN_005b8e00 calls SetPalette on it, and FUN_005b8480
+mode 0/3/4 allocates it via `ddraw7->CreateSurface(..., &this+0x128,
+NULL)`.  `com_a` doc comment updated to reflect the pinned role.
+
+Tests now: **272 pass, 0 fail, 6 skip** (up from 265/6; 7 new — 3
+attach_backbuffer, 4 setup_8bit_palette).  Cross-build clean.
+
+Next: port `FUN_005b8480` itself.  All leaf deps are now in place
+except `FUN_005b8a20` (16bpp pixel-format binding, ECX identity
+ambiguous — likely a global pixel-format descriptor, not the
+calling ZDDObject).  The body can land with the 16bpp branch
+stubbed/TODO since the boot path (mode 0, bpp 16) is the
+hot one and depends on that final stub being roughed in.
+
+---
+
 ## 2026-05-25 — CreateScreen mode dispatch MAPPED + 4 leaf helpers PORTED
 
 Setup checkpoint before tackling the big mode-aware surface-alloc

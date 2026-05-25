@@ -239,6 +239,55 @@ int zdd_object_create_surface_pair(zdd_object *self,
     return zdd_object_set_color_key(self, p4);
 }
 
+int zdd_setup_8bit_palette(zdd *self)
+{
+    if (!zdd_create_system_palette(self)) {
+        return 0;
+    }
+    /* Retail explicitly null-checks self->com_a before binding —
+     * mirror it.  The primary surface may legitimately be absent
+     * during teardown / re-init paths. */
+    if (self->com_a != NULL) {
+        if (!zdd_surface_set_palette(self->com_a, self->com_b, self)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int zdd_object_attach_backbuffer(zdd_object *self,
+                                 void *primary_surface,
+                                 uint32_t width, uint32_t height,
+                                 int force_videomem)
+{
+    /* prefill_desc(0, 0) — back-buffer attachments don't go through
+     * CreateSurface, so caps_in / force_videomem_in stay zero on this
+     * ZDDObject.  The DDSD zero + self-pointer stamp still runs (for
+     * downstream Lock() consumers that read +0x00..+0x08). */
+    zdd_object_prefill_desc(self, 0, 0);
+
+    /* DDSCAPS2.dwCaps: DDSCAPS_BACKBUFFER (4), OR'd with
+     * DDSCAPS_VIDEOMEMORY (0x800) when caller forces vram. */
+    uint32_t caps = force_videomem ? 0x804u : 0x004u;
+
+    if (!zdd_get_attached_surface(primary_surface, caps,
+                                  &self->com_primary, self->parent)) {
+        return 0;
+    }
+
+    /* Retail stamps the same params twice (p1=p5=width, p2=p6=height)
+     * — see FUN_005b98c0's slot-to-param mapping in zdd.h. */
+    zdd_object_stamp_metrics(self,
+                             (int32_t)width, (int32_t)height,
+                             0, 0,
+                             (int32_t)width, (int32_t)height);
+
+    /* Sentinel color-key — back-buffer surfaces don't get one.  The
+     * sentinel branch always returns 1, but we still propagate the
+     * return value to mirror retail's EAX-carry-through. */
+    return zdd_object_set_color_key(self, 0x1ffffff);
+}
+
 void zdd_object_attach_clipper(zdd_object *self)
 {
     /* Release any existing com_back COM binding — works whether it

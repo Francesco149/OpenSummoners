@@ -98,11 +98,18 @@ struct zdd {
      * zdd_dtor.  Set by zdd_directdraw_create_ex. */
     void         *ddraw7;                    /* +0x124 */
 
-    /* +0x128, +0x12c: two more COM interface pointers released via the
-     * IUnknown::Release path (vtable+8).  Roles unknown — likely
-     * IDirectDrawPalette + IDirectDrawClipper or similar, set by
-     * later-bound calls.  Released in FUN_005b8040's 4th and 5th
-     * slots. */
+    /* +0x128: primary display IDirectDrawSurface7.  Allocated by
+     * FUN_005b8480 mode 0/3/4 via `ddraw7->CreateSurface(..., &com_a,
+     * NULL)` — note the surface goes directly on the ZDD wrapper,
+     * NOT on a ZDDObject child.  Read by `zdd_setup_8bit_palette`
+     * as the target of SetPalette.  Released via IUnknown::Release
+     * (vtable+8) in FUN_005b8040's 4th slot.
+     *
+     * +0x12c: IDirectDrawPalette (8bpp branch only).  Allocated by
+     * `zdd_setup_8bit_palette` via `ddraw7->CreatePalette(...,
+     * &com_b, NULL)`.  Read by `zdd_create_surface` as the palette
+     * to bind to each new ZDDObject surface (vtable[31] SetPalette).
+     * Released via IUnknown::Release in FUN_005b8040's 5th slot. */
     void         *com_a;                     /* +0x128 */
     void         *com_b;                     /* +0x12c */
 
@@ -525,6 +532,66 @@ int  zdd_object_new(zdd *parent, zdd_object **out,
                     uint32_t width, uint32_t height,
                     int32_t colorkey, int32_t count);
 
+/* FUN_005b8e00 — 8bpp palette setup.  Pure-logic orchestration:
+ *   1. zdd_create_system_palette(self)   — sample the desktop's
+ *                                          current 256-entry palette
+ *                                          via GetSystemPaletteEntries
+ *                                          and wrap it as a
+ *                                          DDPCAPS_8BIT IDirectDrawPalette
+ *                                          stashed in self->com_b.
+ *      On failure: DDERR logged via self, return 0.
+ *   2. if (self->com_a != NULL):
+ *        zdd_surface_set_palette(com_a, com_b, self)
+ *      Retail's null-check is `if (com_a != 0) SetPalette(...)` — the
+ *      primary may legitimately be NULL during ctor-only test paths,
+ *      so we mirror it.  On SetPalette failure: DDERR logged + return 0.
+ *   3. Return 1.
+ *
+ * Called by FUN_005b8480 when the requested bpp is 8.  The palette
+ * gets bound to the primary display surface that FUN_005b8480's mode
+ * 0/3/4 branches just allocated via `ddraw7->CreateSurface(..., &com_a,
+ * NULL)`, so com_a is non-NULL by the time this runs in the boot
+ * sequence.  Caller (FUN_005b8480) ignores the return value — palette
+ * setup is best-effort.
+ *
+ * Pins the role of self->com_a as the ZDD's primary display surface
+ * (IDirectDrawSurface7), a previously-open RE thread. */
+int  zdd_setup_8bit_palette(zdd *self);
+
+/* FUN_005b9740 — back-buffer attach via GetAttachedSurface.  Pure-logic
+ * orchestration that fetches the IDirectDrawSurface7 the engine
+ * Flip()s alongside the primary, stashes it in self->com_primary, and
+ * stamps the per-attachment metrics + a sentinel (no-color-key) state.
+ * Used by FUN_005b8480 mode 0 (Full), mode 3 (DB Mode), and the first
+ * leg of mode 4 (Zoom) — each mode allocates a fresh ZDDObject and
+ * binds it to a back-buffer that was implicitly created when the
+ * primary was made with a non-zero backBufferCount.
+ *
+ * Sequence (matches retail byte order):
+ *   1. zdd_object_prefill_desc(self, 0, 0)    [caps_in=0, force_vm_in=0
+ *                                              — back-buffers don't go
+ *                                              through CreateSurface]
+ *   2. Build DDSCAPS2 with dwCaps =
+ *        DDSCAPS_BACKBUFFER (4)  OR
+ *        DDSCAPS_BACKBUFFER | DDSCAPS_VIDEOMEMORY (0x804) when
+ *        force_videomem != 0
+ *   3. zdd_get_attached_surface(primary, caps, &self->com_primary,
+ *                               self->parent)
+ *      → on failure: DDERR logged + return 0
+ *   4. zdd_object_stamp_metrics(self, width, height, 0, 0, width, height)
+ *   5. return zdd_object_set_color_key(self, 0x1ffffff)  [sentinel; always 1]
+ *
+ * Note: this writes the back-buffer surface into the +0x2c slot
+ * (com_primary, the same slot CreateSurface uses for surface objects).
+ * The naming "com_primary" reflects the slot role on ZDDObjects that
+ * own a CreateSurface result; for ZDDObjects holding a back-buffer
+ * attachment, it's the attached surface itself.  Both implement
+ * IUnknown so the dtor's release path doesn't care. */
+int  zdd_object_attach_backbuffer(zdd_object *self,
+                                  void *primary_surface,
+                                  uint32_t width, uint32_t height,
+                                  int force_videomem);
+
 /* FUN_005b9520 — create + attach an IDirectDrawClipper to this
  * ZDDObject's primary surface.  Pure-logic orchestration over the
  * Win32 primitives below.  Retail sequence (matches byte order):
@@ -719,6 +786,32 @@ int  zdd_set_coop_level(zdd *self, void *hwnd, int fullscreen);
  * NULL surface returns 0 without logging.  Host build: returns
  * g_dd_setcolorkey_result + records the call. */
 int  zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner);
+
+/* Real build: GetSystemPaletteEntries(NULL, 0, 256, &entries[256]) +
+ * IDirectDraw7::CreatePalette via vtable[5] (byte 0x14) with
+ * DDPCAPS_8BIT (4).  Stashes the new IDirectDrawPalette into
+ * self->com_b.  On failure: zdd_log_dderr("DirectDraw",
+ * "CreatePalette", hr); returns 0.  Host build: returns
+ * g_dd_create_palette_result + stashes the pre-staged handle. */
+int  zdd_create_system_palette(zdd *self);
+
+/* Real build: IDirectDrawSurface7::SetPalette via vtable[31] (byte
+ * 0x7c).  NULL surface or NULL palette returns 0 silently.  On
+ * vtable failure: zdd_log_dderr("DirectDrawSurface", "SetPalette",
+ * hr) via log_owner; returns 0.  Host build: records the call. */
+int  zdd_surface_set_palette(void *surface, void *palette,
+                             zdd *log_owner);
+
+/* Real build: IDirectDrawSurface7::GetAttachedSurface via vtable[12]
+ * (byte 0x30).  Builds a DDSCAPS2 with caps[0] = `caps_in` (the engine
+ * only ever sets the first dword — back-buffer flag + optional
+ * videomem) and zero-padded caps[1..3].  On success, *out holds the
+ * fetched IDirectDrawSurface7 and 1 is returned.  On failure: logs
+ * DDERR via `log_owner` and returns 0.  NULL primary or NULL out
+ * returns 0 silently.  Host build: returns g_dd_attached_result + the
+ * pre-staged handle. */
+int  zdd_get_attached_surface(void *primary, uint32_t caps_in,
+                              void **out, zdd *log_owner);
 
 /* Real build: IDirectDraw7::CreateClipper via vtable[4] (byte 0x10).
  * Args (parent->ddraw7, 0 dwFlags, &out, NULL pUnkOuter).  On

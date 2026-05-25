@@ -296,6 +296,13 @@ struct test_case {
     X(zdd_get_display_mode_tolerates_null_out_ptrs)            \
     X(zdd_get_display_mode_failure_leaves_outs_untouched)      \
     X(zdd_busy_wait_ms_records_arg)                            \
+    X(zdd_object_attach_backbuffer_happy_path)                 \
+    X(zdd_object_attach_backbuffer_force_videomem_sets_caps)   \
+    X(zdd_object_attach_backbuffer_failure_returns_zero)       \
+    X(zdd_setup_8bit_palette_happy_path)                       \
+    X(zdd_setup_8bit_palette_no_primary_skips_set)             \
+    X(zdd_setup_8bit_palette_createpalette_failure)            \
+    X(zdd_setup_8bit_palette_setpalette_failure)               \
 
 #define X(n) extern int test_##n(void);
 TESTS

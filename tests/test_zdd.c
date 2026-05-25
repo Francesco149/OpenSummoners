@@ -96,6 +96,27 @@ static int      g_dd_getmode_calls     = 0;
 static int      g_busy_wait_calls      = 0;
 static uint32_t g_busy_wait_last_ms    = 0;
 
+/* zdd_create_system_palette / zdd_surface_set_palette stub state. */
+static int      g_dd_create_pal_result   = 1;
+static int32_t  g_dd_create_pal_hr       = 0;
+static int      g_dd_create_pal_calls    = 0;
+static void    *g_dd_create_pal_handle   = NULL;
+static int      g_dd_setpal_result       = 1;
+static int32_t  g_dd_setpal_hr           = 0;
+static int      g_dd_setpal_calls        = 0;
+static void    *g_dd_setpal_last_surf    = NULL;
+static void    *g_dd_setpal_last_pal     = NULL;
+
+/* zdd_get_attached_surface stub state — succeeds by default and
+ * publishes a fake attached-surface handle.  Tests can flip
+ * g_dd_attached_result to 0 to exercise the DDERR path. */
+static int      g_dd_attached_result   = 1;
+static int32_t  g_dd_attached_hr       = 0;
+static int      g_dd_attached_calls    = 0;
+static void    *g_dd_attached_handle   = NULL;
+static void    *g_dd_attached_last_primary = NULL;
+static uint32_t g_dd_attached_last_caps    = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -143,6 +164,21 @@ static void reset_stubs(void)
     g_dd_getmode_calls     = 0;
     g_busy_wait_calls      = 0;
     g_busy_wait_last_ms    = 0;
+    g_dd_attached_result   = 1;
+    g_dd_attached_hr       = 0;
+    g_dd_attached_calls    = 0;
+    g_dd_attached_handle   = (void *)(uintptr_t)0xbbbbbbbb;
+    g_dd_attached_last_primary = NULL;
+    g_dd_attached_last_caps    = 0;
+    g_dd_create_pal_result = 1;
+    g_dd_create_pal_hr     = 0;
+    g_dd_create_pal_calls  = 0;
+    g_dd_create_pal_handle = (void *)(uintptr_t)0xba1ba1ba;
+    g_dd_setpal_result     = 1;
+    g_dd_setpal_hr         = 0;
+    g_dd_setpal_calls      = 0;
+    g_dd_setpal_last_surf  = NULL;
+    g_dd_setpal_last_pal   = NULL;
 }
 
 void zdd_show_cursor(int show)
@@ -285,6 +321,51 @@ void zdd_busy_wait_ms(uint32_t ms)
 {
     g_busy_wait_calls++;
     g_busy_wait_last_ms = ms;
+}
+
+int zdd_create_system_palette(zdd *self)
+{
+    g_dd_create_pal_calls++;
+    if (!g_dd_create_pal_result) {
+        zdd_log_dderr(self, "DirectDraw", "CreatePalette",
+                      g_dd_create_pal_hr);
+        return 0;
+    }
+    self->com_b = g_dd_create_pal_handle;
+    return 1;
+}
+
+int zdd_surface_set_palette(void *surface, void *palette, zdd *log_owner)
+{
+    if (surface == NULL || palette == NULL) return 0;
+    g_dd_setpal_calls++;
+    g_dd_setpal_last_surf = surface;
+    g_dd_setpal_last_pal  = palette;
+    if (!g_dd_setpal_result) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "SetPalette",
+                          g_dd_setpal_hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+int zdd_get_attached_surface(void *primary, uint32_t caps_in,
+                             void **out, zdd *log_owner)
+{
+    g_dd_attached_calls++;
+    g_dd_attached_last_primary = primary;
+    g_dd_attached_last_caps    = caps_in;
+    if (!g_dd_attached_result) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface",
+                          "GetAttachedSurface", g_dd_attached_hr);
+        }
+        return 0;
+    }
+    if (out != NULL) *out = g_dd_attached_handle;
+    return 1;
 }
 
 /* ─── ctor / struct layout ───────────────────────────────────────── */
@@ -1530,5 +1611,171 @@ int test_zdd_busy_wait_ms_records_arg(void)
     zdd_busy_wait_ms(50);
     T_ASSERT_EQ_I(g_busy_wait_calls, 2);
     T_ASSERT_EQ_U(g_busy_wait_last_ms, 50u);
+    return 0;
+}
+
+/* ─── attach_backbuffer (FUN_005b9740) ───────────────────────────── */
+
+int test_zdd_object_attach_backbuffer_happy_path(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    void *primary = (void *)(uintptr_t)0x5117ace;
+
+    int rc = zdd_object_attach_backbuffer(&o, primary, 640, 480, 0);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* prefill_desc(0, 0) ran — caps_in / force_videomem_in both zero
+     * on the ZDDObject (back-buffer attachments don't go through
+     * CreateSurface). */
+    T_ASSERT_EQ_I(o.caps_in,           0);
+    T_ASSERT_EQ_I(o.force_videomem_in, 0);
+    /* DDSD self-pointers stamped (prefill_desc side effect). */
+    T_ASSERT_EQ_P(o.ddsd_lpSurface_ref, &o.embedded_ddsd[0x24]);
+
+    /* GetAttachedSurface called once with DDSCAPS_BACKBUFFER and the
+     * primary we passed. */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 1);
+    T_ASSERT_EQ_P(g_dd_attached_last_primary, primary);
+    T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x004u);
+
+    /* Attached surface stashed in com_primary. */
+    T_ASSERT_EQ_P(o.com_primary, (void *)(uintptr_t)0xbbbbbbbb);
+
+    /* metrics stamped with (w, h, 0, 0, w, h) — see FUN_005b98c0's
+     * unusual slot-to-param mapping in zdd.h. */
+    T_ASSERT_EQ_I(o.metric_0c, 0);     /* p3 = 0 */
+    T_ASSERT_EQ_I(o.metric_10, 0);     /* p4 = 0 */
+    T_ASSERT_EQ_I(o.metric_14, 640);   /* p5 = width */
+    T_ASSERT_EQ_I(o.metric_18, 480);   /* p6 = height */
+    T_ASSERT_EQ_I(o.metric_1c, 640);   /* p1 = width */
+    T_ASSERT_EQ_I(o.metric_20, 480);   /* p2 = height */
+    T_ASSERT_EQ_I(o.metric_b0, 0);
+    T_ASSERT_EQ_I(o.metric_b4, 0);
+    T_ASSERT_EQ_I(o.metric_b8, 640);   /* p5 mirror */
+    T_ASSERT_EQ_I(o.metric_bc, 480);   /* p6 mirror */
+
+    /* Sentinel color-key — no SetColorKey vtable call; state_flag = 0. */
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+    T_ASSERT_EQ_I((int)o.colorkey_in,  0x1ffffff);
+    T_ASSERT_EQ_I((int)o.colorkey_out, 0x1ffffff);
+    T_ASSERT_EQ_U(o.state_flag, 0u);
+    return 0;
+}
+
+int test_zdd_object_attach_backbuffer_force_videomem_sets_caps(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    int rc = zdd_object_attach_backbuffer(&o, (void *)(uintptr_t)0x123,
+                                          800, 600, 1);
+    T_ASSERT_EQ_I(rc, 1);
+    /* DDSCAPS_BACKBUFFER (4) | DDSCAPS_VIDEOMEMORY (0x800) = 0x804. */
+    T_ASSERT_EQ_U(g_dd_attached_last_caps, 0x804u);
+    return 0;
+}
+
+/* ─── 8bpp palette setup (FUN_005b8e00) ──────────────────────────── */
+
+int test_zdd_setup_8bit_palette_happy_path(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* Pre-stage a primary surface on com_a (FUN_005b8480 mode 0
+     * branch puts the CreateSurface result here). */
+    s.com_a = (void *)(uintptr_t)0xb16d15a;
+
+    int rc = zdd_setup_8bit_palette(&s);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* CreatePalette ran once; com_b now holds the new palette. */
+    T_ASSERT_EQ_I(g_dd_create_pal_calls, 1);
+    T_ASSERT_EQ_P(s.com_b, (void *)(uintptr_t)0xba1ba1ba);
+
+    /* SetPalette ran once on the primary with the new palette. */
+    T_ASSERT_EQ_I(g_dd_setpal_calls, 1);
+    T_ASSERT_EQ_P(g_dd_setpal_last_surf, s.com_a);
+    T_ASSERT_EQ_P(g_dd_setpal_last_pal,  s.com_b);
+    return 0;
+}
+
+int test_zdd_setup_8bit_palette_no_primary_skips_set(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* com_a stays NULL — retail null-checks before SetPalette. */
+
+    int rc = zdd_setup_8bit_palette(&s);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_create_pal_calls, 1);
+    T_ASSERT_EQ_P(s.com_b, (void *)(uintptr_t)0xba1ba1ba);
+    /* SetPalette skipped — primary not yet allocated. */
+    T_ASSERT_EQ_I(g_dd_setpal_calls, 0);
+    return 0;
+}
+
+int test_zdd_setup_8bit_palette_createpalette_failure(void)
+{
+    reset_stubs();
+    g_dd_create_pal_result = 0;
+    g_dd_create_pal_hr     = (int32_t)0x88760005;
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xb16d15a;
+
+    int rc = zdd_setup_8bit_palette(&s);
+    T_ASSERT_EQ_I(rc, 0);
+    /* Failure path: SetPalette never called, com_b stays NULL. */
+    T_ASSERT_EQ_I(g_dd_setpal_calls, 0);
+    T_ASSERT_EQ_P(s.com_b, NULL);
+    /* DDERR logged through zdd_log_dderr. */
+    T_ASSERT(strstr(g_log_capture, "CreatePalette") != NULL);
+    return 0;
+}
+
+int test_zdd_setup_8bit_palette_setpalette_failure(void)
+{
+    reset_stubs();
+    g_dd_setpal_result = 0;
+    g_dd_setpal_hr     = (int32_t)0x88760086;
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xb16d15a;
+
+    int rc = zdd_setup_8bit_palette(&s);
+    T_ASSERT_EQ_I(rc, 0);
+    /* Palette WAS created — only the bind failed. */
+    T_ASSERT_EQ_P(s.com_b, (void *)(uintptr_t)0xba1ba1ba);
+    T_ASSERT_EQ_I(g_dd_setpal_calls, 1);
+    T_ASSERT(strstr(g_log_capture, "SetPalette") != NULL);
+    return 0;
+}
+
+int test_zdd_object_attach_backbuffer_failure_returns_zero(void)
+{
+    reset_stubs();
+    g_dd_attached_result = 0;
+    g_dd_attached_hr     = (int32_t)0x88760086;  /* arbitrary DDERR */
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    int rc = zdd_object_attach_backbuffer(&o, (void *)(uintptr_t)0x9,
+                                          640, 480, 0);
+    T_ASSERT_EQ_I(rc, 0);
+
+    /* prefill_desc still ran (zero-init of DDSD) — verify by checking
+     * the self-pointer stamp. */
+    T_ASSERT_EQ_P(o.ddsd_lpSurface_ref, &o.embedded_ddsd[0x24]);
+
+    /* GetAttachedSurface logged via the parent ZDD's log_buf. */
+    T_ASSERT_EQ_I(g_dd_attached_calls, 1);
+    T_ASSERT(g_log_call_count >= 1);
+    T_ASSERT(strstr(g_log_capture, "GetAttachedSurface") != NULL);
+
+    /* No metrics stamp, no color-key call on failure path. */
+    T_ASSERT_EQ_I(o.metric_14, 0);
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+    T_ASSERT_EQ_P(o.com_primary, NULL);
     return 0;
 }
