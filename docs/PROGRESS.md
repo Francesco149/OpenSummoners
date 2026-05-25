@@ -6,6 +6,53 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Surface-paint leaves chip session (14 ports)
+
+Marathon chip session.  Four checkpoints landed all the remaining
+"small leaf" ZDD ports the title-menu scene runner needs.  +43 tests
+(329 → 372), every commit cross-builds with mingw clean, live boot
+still zero DDERR.
+
+**Commit 55708b3** — Surface Lock/Unlock + clear + color descriptor +
+keyed blit:
+- `zdd_object_lock` (FUN_005b9490, vtable[25]).
+- `zdd_object_unlock` (FUN_005b94d0, vtable[32]).
+- `zdd_object_clear` (FUN_005b9410) — Lock + zero-fill + Unlock.
+  Uses a new `zdd_object_get_locked_info` Win32 primitive to bridge
+  the 4-byte-vs-8-byte pointer mismatch between retail and host.
+- `zdd_object_blt_keyed` (FUN_005b9b70) — variant of `blt_onto` with
+  positioned dest origin + DDBLT_KEYSRC.
+- `zdd_bind_pixel_format` (FUN_005b8a20) — GetSurfaceDesc + mask
+  extract.  New `zdd_color_descriptor` struct (22 bytes, replaces the
+  unobserved `_pad000[0x18]` at zdd+0x00).
+- `zdd_color_convert` (FUN_005b8b00) — RGB888 → surface-native pack.
+- GetSurfaceDesc / Lock / Unlock Win32 primitives.
+
+**Commit ed82ce6** — Mode-4 upscaler + create-screen wiring:
+- `zdd_object_upscale_16bpp` (FUN_005b8ea0, 285B) — 2x software
+  scaler.  Faithful to retail's hardcoded outer-stride caveat.
+- Wired upscaler into `zdd_present` mode 4 (Zoom).
+- Wired `zdd_bind_pixel_format` into `zdd_create_screen`'s 16bpp
+  branch.
+
+**Commit 4d6c590** — Wire color_convert into 16bpp set_color_key.
+The TODO in `zdd_object_set_color_key`'s 16bpp branch is now an
+actual `zdd_color_convert` call — magenta 0x00FF00FF correctly packs
+into RGB565 0xF81F.
+
+**Commit 4db9980** — Lost-surface recovery (FUN_005b91d0/_9240/_9ab0/
+_9ac0).  Four functions: `zdd_object_is_lost`, `_restore_surface`,
+`zdd_check_any_surface_lost`, `zdd_restore_all_surfaces`.  Backed by
+two new Win32 primitives (IsLost vtable[24] / Restore vtable[27]).
+Needed by the post-activate hook (FUN_005b14c0, unported) and any
+later code that handles DDERR_SURFACELOST.
+
+All ZDD leaves the title-menu scene runner needs (`FUN_0056aea0`)
+are now ported.  Next checkpoint should start porting the runner
+itself.
+
+---
+
 ## 2026-05-25 — WM_PAINT handler ported + wired
 
 Ported `FUN_005b9130` — the 151-byte WM_PAINT consumption handler — as
