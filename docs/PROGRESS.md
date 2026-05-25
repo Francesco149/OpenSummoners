@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — DDSURFACEDESC2 builder + CreateSurface PORTED (FUN_005b8c00)
+
+Lands the meatiest "actually create a DDraw surface" function — 372
+bytes of DDSURFACEDESC2 construction + vtable-call into
+`IDirectDraw7::CreateSurface`.  Split clean: pure-logic descriptor
+build (`zdd_build_surface_desc`) in zdd.c, Win32-side surface call
+(`zdd_create_surface`) in zdd_win32.c.
+
+Pure-logic dispatch verified by 10 tests covering each pixel-format
+branch:
+
+  - dwCaps = (caps_base | OFFSCREENPLAIN), |= VIDEOMEMORY when
+    force_videomem OR self->videomem_flag
+  - pixel_format_mode != 2 → short-circuits (no DDPF), even if a bpp
+    is set
+  - pixel_format_mode == 2 → DDPF block with:
+      bpp 8:  PALETTEINDEXED8, bitcount=0, masks=0
+      bpp 16: RGB, bitcount=16, RGB565 masks
+      bpp 24/32: RGB, bitcount=N, masks = 0xFF0000/00FF00/0000FF
+        (retail's switch literally falls 24 → 32 — the "engine quirk"
+         from docs/findings/ddraw-init.md is preserved literally)
+      other bpp: defensive — leaves bitcount and masks at 0
+
+The Win32 wrapper additionally binds a palette (vtable[31] SetPalette)
+when self->com_b is non-NULL — confirming the open-RE thread guess
+that com_b is likely the IDirectDrawPalette (zdd-init.md hypothesis).
+Failure path: zdd_log_dderr("DirectDraw", "CreateSurface", hr) + return 0.
+
+Adds ZDD field `videomem_flag` at +0x134 (formerly pad).  Read by the
+descriptor builder, not yet written — the higher-level mode-dispatch
+FUN_00582e90 is what stamps it during fullscreen-mode init.
+
+Tests now: **234 pass, 0 fail, 6 skip** (up from 224/6; 10 new
+pure-logic descriptor tests).
+
+---
+
 ## 2026-05-25 — ZDDObject ctor + dtor + pixel-buf release PORTED
 
 Three more leaf ports landing on top of the ZDD wrapper checkpoint

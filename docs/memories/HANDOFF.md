@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (ZDDObject lifecycle PORTED)
+# Session handoff — last updated 2026-05-25 (DDSURFACEDESC2 builder PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -37,21 +37,28 @@ methodical port-and-test.  **Five modules ported now:**
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
-- **ZDD wrapper** — **11 functions** covering the DirectDraw 7
-  wrapper class lifecycle + the ZDDObject leaf lifecycle:
+- **ZDD wrapper** — **12 functions** covering the DirectDraw 7
+  wrapper class lifecycle + ZDDObject leaf lifecycle + the
+  DDSURFACEDESC2 builder + CreateSurface call:
     - ZDD class: ctor / dtor / child-release loop / cursor-restore /
       DDERR log builder / DirectDrawCreateEx / SetCooperativeLevel /
       top-level create driver
     - ZDDObject leaf: ctor / dtor / pixel-buf release
-  Pure logic (ctor + dtor decision tree + DDERR-to-string + log
-  builder + ZDDObject lifecycle + zdd_obj_destroy walk-then-free)
-  in `src/zdd.c`; Win32 primitives (DDraw, COM Release, ShowCursor,
-  OutputDebugStringA, LocalFree) in `src/zdd_win32.c`.  Surface
-  alloc / CreateSurface / clipper attach are NOT in this slice —
-  see ddraw-init.md for the rest of the call graph.
+    - Surface alloc: `zdd_build_surface_desc` (pure DDSURFACEDESC2
+      builder) + `zdd_create_surface` (Win32 CreateSurface +
+      SetPalette wrapper) — ports FUN_005b8c00
+  Pure logic in `src/zdd.c` (ctor + dtor decision tree + DDERR-to-
+  string + log builder + ZDDObject lifecycle + zdd_obj_destroy walk-
+  then-free + descriptor build with 8/16/24/32 bpp pixel-format
+  dispatch).  Win32 primitives (DDraw CreateSurface/SetPalette/
+  Coop/CreateEx, COM Release, ShowCursor, OutputDebugStringA,
+  LocalFree) in `src/zdd_win32.c`.  Surface-alloc orchestrator
+  (FUN_005b95c0) and state-stampers (97e0/98c0) NOT in this slice;
+  SetColorKey (FUN_005b9830) deferred pending FUN_005b8b00 ECX
+  clarification.
 
-Total host tests across all five modules: **224 pass, 0 fail, 6
-skip** (up from 217; 7 new tests + 1 32-bit-only layout skip).
+Total host tests across all five modules: **234 pass, 0 fail, 6
+skip** (up from 224; 10 new pure-logic descriptor tests).
 
 **Ghidra C++ recovery infrastructure** — Kaiju extension installed,
 `tools/ghidra-scripts/TagThiscallFunctions.java` applies class-
@@ -80,7 +87,8 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) ZDD: port ZDDObject ctor + dtor + LocalFree pixel-buf helper
+- (current) ZDD: port FUN_005b8c00 DDSURFACEDESC2 builder + CreateSurface
+- `19e4e6c` ZDD: port ZDDObject ctor + dtor + LocalFree pixel-buf helper
 - `ce6b87e` ZDD: port ctor/dtor + DDERR log helper + DirectDraw init wrappers
 - `90de1ba` Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
 - `5377460` Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
@@ -108,25 +116,28 @@ ZDD wrapper's first slice (8 functions) is in port-and-test parity.
 The remaining gap to "title menu renders" is still the **drawing
 path**, but with a clear next layer above ZDD.
 
-1. **(recommended) Surface-alloc orchestrator + state-stampers** —
-   `FUN_005b95c0` (110 bytes, pure orchestration over four leaves) +
+1. **(recommended) Surface-alloc state-stampers + orchestrator** —
    the two small state-stampers `FUN_005b97e0` (DDSD pre-fill +
    self-pointers, 66 bytes) + `FUN_005b98c0` (window-fit metric
-   stash, 73 bytes).  Optionally `FUN_005b9830` (SetColorKey with
-   the 0x1ffffff "no color key" sentinel, 138 bytes) — DEFER because
-   it pulls in FUN_005b8b00 which reads bytes off a non-obvious ECX
-   that needs disasm-level clarification.  These three together
-   unblock FUN_005b8b40 (CreateSurfacePair) once FUN_005b8c00
-   lands.  Pre-req for nothing else right now.
+   stash, 73 bytes), then `FUN_005b95c0` (110 bytes — pure
+   orchestration over 97e0/_8c00/_98c0/_9830).  We now have
+   `zdd_create_surface` so 95c0's middle leg is callable.  The
+   only remaining gap is `FUN_005b9830` (SetColorKey + 0x1ffffff
+   sentinel) — port with a 9830 stub that always succeeds (skips
+   colorkey bind) and TODO the bpp-conversion call inside it
+   until FUN_005b8b00's ECX is clarified.
 
-2. **`FUN_005b8c00` — DDSURFACEDESC2 builder + CreateSurface**
-   (372 bytes).  The actual `IDirectDraw7::CreateSurface` call site.
-   Pure builder + one vtable call; the DDSURFACEDESC2 construction
-   logic is fully documented in docs/findings/ddraw-init.md section
-   "FUN_005b8c00" — including the 8/16/24/32 bpp pixel-format
-   branches and the palette-bind tail.  This is the meatier "actually
-   create a DDraw surface" port; pairs naturally with #1 to complete
-   the surface-alloc layer.
+2. **`FUN_005b8b40` — CreateSurfacePair** (per ddraw-init.md).
+   The next layer up — wraps `operator_new` of a ZDDObject + ctor +
+   CreateSurface.  Small (likely <100 bytes from the docs).  Pre-req:
+   the surface-alloc state-stampers from #1 to round out ZDDObject's
+   create-time field stamps.
+
+3. **`FUN_005b9520` — Clipper attach** (per ddraw-init.md, 87 bytes).
+   Independent of the surface-alloc tree — just creates an
+   IDirectDrawClipper, calls SetHWnd, then attaches to a surface.
+   Bonus the next time a ZDDObject port lands, since the clipper
+   ends up bound to com_primary.
 
 3. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
    WinMain.** — currently every batch is a module in isolation; the
@@ -186,8 +197,9 @@ tests/
                             2 info-entry-clear + 1 info-entry-pool)
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
-  test_zdd.c                26 tests for ZDD + ZDDObject lifecycle
-                            (2 32-bit-only layout skips)
+  test_zdd.c                36 tests for ZDD + ZDDObject lifecycle +
+                            DDSURFACEDESC2 builder (2 32-bit-only
+                            layout skips)
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -220,15 +232,18 @@ tools/
   disasm-level confirmation (Ghidra's `in_ECX` annotation is just
   "whatever's in ECX at function entry"; the compiler may have set
   ECX explicitly before the call).  Blocking FUN_005b9830 port.
-- ZDD's two opaque COM handles (+0x128 `com_a`, +0x12c `com_b`) have
-  unpinned semantic roles.  Likely IDirectDrawPalette and
-  IDirectDrawClipper given the surrounding code (`FUN_005b9520`
-  attaches a clipper to a surface), confirm when their setters land.
+- ZDD's two opaque COM handles (+0x128 `com_a`, +0x12c `com_b`)
+  partially resolved: `com_b` is now READ by `zdd_create_surface` as
+  a palette and bound via vtable[31] (SetPalette), so it's almost
+  certainly `IDirectDrawPalette*`.  `com_a` still unpinned — likely
+  `IDirectDrawClipper*` given `FUN_005b9520` attaches a clipper to a
+  surface; confirm when its setter lands.
 - ZDD's pixel-format hint fields (`pixel_format_mode` at +0x164,
-  `pixel_format_bpp` at +0x168) are read by FUN_005b8c00 when building
-  DDSURFACEDESC2 in `mode == 2` paths but are not written by any
-  ported function yet — modelled as fields for size correctness, no
-  consumer in port land.
+  `pixel_format_bpp` at +0x168) are now READ by zdd_build_surface_desc
+  but still WRITTEN by no ported path.  The higher-level mode-dispatch
+  FUN_00582e90 is what stamps them during fullscreen-mode init.
+- ZDD's `videomem_flag` at +0x134 — same status: read by the builder,
+  not yet written by any port.
 - `FUN_005bd040` mode 3 / mode 4 LUT formulas have arithmetic whose
   "floor-correction" terms are zero for valid weight ranges but kept
   literally in the port.  Audit if out-of-range weights ever flow.
