@@ -21,16 +21,27 @@
 
 #include <windows.h>
 #include <ddraw.h>
+#include <stdio.h>
 
 void zdd_show_cursor(int show)
 {
     ShowCursor(show ? TRUE : FALSE);
 }
 
+/* Dual-sink: OutputDebugStringA (so a real DbgView session still sees
+ * everything) AND stderr (so the harness picks it up without a DbgView
+ * attach).  The retail engine routes every DDERR through this primitive,
+ * so this is the only way to see DDraw failure detail under the headless
+ * launcher.  Cost is one extra fprintf per log call — negligible. */
 void zdd_output_debug_string(const char *s)
 {
     if (s == NULL) return;
     OutputDebugStringA(s);
+    /* Engine often passes messages without a trailing newline; add one
+     * so harness output is line-oriented.  Strings that already end in
+     * '\n' just get a blank line — acceptable for diagnostic plumbing. */
+    fprintf(stderr, "[ddraw-log] %s\n", s);
+    fflush(stderr);
 }
 
 /* Standard IUnknown::Release call: vtable index 2 = byte offset 0x08
@@ -246,18 +257,36 @@ void zdd_create_clipper(zdd *parent, void **out_clipper)
     *out_clipper = clipper;
 }
 
-/* IDirectDrawClipper::SetClipList via vtable[7] (byte 0x1c).  Mirrors
- * retail's literal call (clipper, &stack_NULL, 0) — see ddraw-init.md
- * "FUN_005b9520" open thread for the semantics ambiguity. */
-void zdd_clipper_set_clip_list_null(void *clipper)
+/* IDirectDrawClipper::SetClipList via vtable[7] (byte 0x1c — verified
+ * by r2 disasm at 0x5b95a7).  Builds a one-rect RGNDATA bounding the
+ * full surface and hands it to SetClipList.  See zdd.h docstring for
+ * the open-issue history. */
+void zdd_clipper_set_clip_list_rect(void *clipper,
+                                    uint32_t width, uint32_t height)
 {
     if (clipper == NULL) return;
     LPDIRECTDRAWCLIPPER cl = (LPDIRECTDRAWCLIPPER)clipper;
-    /* Allocate a stack slot containing NULL, then pass its address —
-     * matches retail's `piStack_40 = NULL; clipper->SetClipList(
-     * &piStack_40, 0)`.  DDraw will read this as an empty RGNDATA. */
-    LPRGNDATA stack_null = NULL;
-    cl->lpVtbl->SetClipList(cl, (LPRGNDATA)&stack_null, 0);
+
+    /* RGNDATAHEADER (32B) + a single 16B RECT.  Layout matches the
+     * stack-local retail builds at FUN_005b9520:0x5b9555..0x5b9579. */
+    struct {
+        RGNDATAHEADER hdr;
+        RECT          rect;
+    } rgn;
+    rgn.hdr.dwSize     = sizeof(RGNDATAHEADER);   /* 0x20 */
+    rgn.hdr.iType      = RDH_RECTANGLES;          /* 1 */
+    rgn.hdr.nCount     = 1;
+    rgn.hdr.nRgnSize   = sizeof(RECT);            /* 0x10 */
+    rgn.hdr.rcBound.left   = 0;
+    rgn.hdr.rcBound.top    = 0;
+    rgn.hdr.rcBound.right  = (LONG)width;
+    rgn.hdr.rcBound.bottom = (LONG)height;
+    rgn.rect.left   = 0;
+    rgn.rect.top    = 0;
+    rgn.rect.right  = (LONG)width;
+    rgn.rect.bottom = (LONG)height;
+
+    cl->lpVtbl->SetClipList(cl, (LPRGNDATA)&rgn, 0);
 }
 
 /* IDirectDrawSurface7::SetClipper via vtable[28] (byte 0x70). */
@@ -361,6 +390,57 @@ int zdd_get_display_mode(zdd *self, uint32_t *out_width,
     if (out_height != NULL) *out_height = ddsd.dwHeight;
     if (out_pitch  != NULL) *out_pitch  = (uint32_t)ddsd.lPitch;
     return 1;
+}
+
+/* IDirectDrawSurface7::Blt with DDBLT_COLORFILL + DDBLT_WAIT.  Passes
+ * NULL for lpDestRect (fill entire surface) and NULL for lpDDSrcSurface
+ * (no source for color fill).  lpDDBltFx carries fill_value in
+ * dwFillColor.  See ddraw-init.md vtable cheat-sheet: Blt is method
+ * index 5, byte offset 0x14 — but the macro is the standard COM call. */
+int zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
+                               zdd *log_owner)
+{
+    if (surface == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    DDBLTFX fx;
+    memset(&fx, 0, sizeof(fx));
+    fx.dwSize      = sizeof(fx);
+    fx.dwFillColor = (DWORD)fill_value;
+    HRESULT hr = surf->lpVtbl->Blt(surf, NULL, NULL, NULL,
+                                   DDBLT_COLORFILL | DDBLT_WAIT, &fx);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "Blt(COLORFILL)",
+                          (int32_t)hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Verified by
+ * r2 disasm of FUN_005b94e0 at 0x5b94e0: `call dword [ecx + 0x44]`. */
+int zdd_surface_get_dc(void *surface, void **out_hdc)
+{
+    if (surface == NULL || out_hdc == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    HDC hdc = NULL;
+    HRESULT hr = surf->lpVtbl->GetDC(surf, &hdc);
+    if (FAILED(hr)) {
+        *out_hdc = NULL;
+        return 0;
+    }
+    *out_hdc = (void *)hdc;
+    return 1;
+}
+
+/* IDirectDrawSurface7::ReleaseDC via vtable[26] (byte 0x68).  Verified
+ * by r2 disasm of FUN_005b9500: `call dword [eax + 0x68]`. */
+void zdd_surface_release_dc(void *surface, void *hdc)
+{
+    if (surface == NULL || hdc == NULL) return;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    surf->lpVtbl->ReleaseDC(surf, (HDC)hdc);
 }
 
 /* FUN_005b5ac0 — busy-wait spin via GetTickCount.  Polls until the

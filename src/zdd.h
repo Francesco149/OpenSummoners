@@ -254,7 +254,11 @@ struct zdd_object {
 
     /* +0xb0..+0xbf: secondary metric region stamped by FUN_005b98c0
      * (post-DDSD).  +0xb0/+0xb4 always zero, +0xb8/+0xbc carry the
-     * same param_5/param_6 the +0x14/+0x18 slot pair holds. */
+     * same param_5/param_6 the +0x14/+0x18 slot pair holds.  When
+     * called from FUN_005b95c0 (the surface-alloc orchestrator), 98c0
+     * param_5/_6 are the surface width/height — so metric_b8 = width
+     * and metric_bc = height in the boot path.  Read by
+     * FUN_005b9520's clipper-attach as the RGNDATA RECT bound. */
     int32_t   metric_b0;                     /* +0xb0 */
     int32_t   metric_b4;                     /* +0xb4 */
     int32_t   metric_b8;                     /* +0xb8 */
@@ -514,7 +518,7 @@ int  zdd_object_set_color_key(zdd_object *self, int32_t key);
  *   if (!zdd_create_surface(self->parent, &self->com_primary,
  *                           width, height,
  *                           self->caps_in, p5)) return 0
- *   zdd_object_stamp_metrics(self, p1, p2, p3, p4, p5, p6)
+ *   zdd_object_stamp_metrics(self, p1, p2, p6, p7, width, height)
  *   return zdd_object_set_color_key(self, p4)
  *
  * Return value matches retail's implicit EAX-carry-through:
@@ -526,16 +530,27 @@ int  zdd_object_set_color_key(zdd_object *self, int32_t key);
  * leaves the last callee's return in EAX — the FUN_005b8b40 caller
  * reads it as int.
  *
- * Args follow retail's 9-param shape (p7 is captured but unused — retail
- * builds it but never reads it; we accept it for ABI symmetry):
- *   p1, p2 = window rect TL coords (probably; stamped at +0x1c/+0x20)
- *   p3     = caps_in (also stamped at +0x0c)
+ * Args follow retail's 9-param shape.  The unusual bit is that
+ * stamp_metrics gets (p1, p2, p6, p7, width, height) — p3/p4/p5 are
+ * consumed by earlier calls and don't reach the metric slots.
+ * Disassembly evidence: r2 at 0x5b95ff–0x5b9617 — push order eax=p7,
+ * ecx=p6, edx=p2, eax=p1 with already-loaded ebx=p8/width and
+ * edi=p9/height.
+ *
+ *   p1, p2 = surface origin coords (stamped at +0x1c/+0x20)
+ *   p3     = caps_in (stamped on the ZDDObject at +0xcc by prefill,
+ *            re-read into CreateSurface's `caps_base`)
  *   p4     = colorkey (handed to SetColorKey; 0x1ffffff = "none")
- *   p5     = force_videomem hint (also "back-buffer count" per
- *            FUN_005b8b40's caller — see ddraw-init.md)
- *   p6     = unknown (stamped at +0x18/+0xbc)
- *   p7     = unused
- *   width, height = surface dimensions */
+ *   p5     = force_videomem hint / back-buffer count per
+ *            FUN_005b8b40's caller (see ddraw-init.md).  Consumed by
+ *            prefill (+0xd0 force_videomem_in) and CreateSurface's
+ *            `force_videomem`; does NOT reach the metric slots.
+ *   p6     = secondary origin / pair-coord (stamped at +0x0c metric_0c).
+ *   p7     = secondary flag (stamped at +0x10 metric_10).
+ *   width, height = surface dimensions; ALSO stamped at +0xb8/+0xbc
+ *            (metric_b8/bc) and +0x14/+0x18 (metric_14/18) — the
+ *            clipper attach (FUN_005b9520) later reads these as the
+ *            RGNDATA RECT bound. */
 int  zdd_object_create_surface_pair(zdd_object *self,
                                     int32_t p1, int32_t p2, int32_t p3,
                                     int32_t p4, int32_t p5, int32_t p6,
@@ -965,13 +980,20 @@ int  zdd_get_attached_surface(void *primary, uint32_t caps_in,
 void zdd_create_clipper(zdd *parent, void **out_clipper);
 
 /* Real build: IDirectDrawClipper::SetClipList via vtable[7] (byte
- * 0x1c).  Mirrors the literal retail call (clipper, &stack_NULL, 0)
- * — passes the address of a stack-local NULL pointer as the
- * LPRGNDATA, which DDraw treats as an invalid clip-list pointer.
- * ddraw-init.md flags this as ambiguous (could be SetHWnd at
- * vtable[8] depending on the actual asm).  Host build: records the
- * call. */
-void zdd_clipper_set_clip_list_null(void *clipper);
+ * 0x1c — verified by r2 disasm at 0x5b95a7).  Builds a stack-local
+ * RGNDATA = {RGNDATAHEADER{dwSize=0x20, iType=RDH_RECTANGLES,
+ * nCount=1, nRgnSize=0x10, rcBound={0,0,w,h}}, RECT{0,0,w,h}} and
+ * passes its address to SetClipList — matches retail's layout in
+ * FUN_005b9520 exactly.
+ *
+ * The earlier port used a NULL stack-local pointer here; under
+ * DDSCL_NORMAL the clipper then has no cliplist and every subsequent
+ * Blt fails with DDERR_NOCLIPLIST (0x887600CD).  Surfaced by the
+ * drop-in's mode-2 smoke-present; fixed here.
+ *
+ * Host build: records the call shape (w, h) so tests can assert. */
+void zdd_clipper_set_clip_list_rect(void *clipper,
+                                    uint32_t width, uint32_t height);
 
 /* Real build: IDirectDrawSurface7::SetClipper via vtable[28] (byte
  * 0x70).  Attaches `clipper` to `surface`.  NULL on either side is
@@ -1017,5 +1039,35 @@ int  zdd_get_display_mode(zdd *self, uint32_t *out_width,
  * + records the ms argument so tests can assert the value without
  * actually sleeping. */
 void zdd_busy_wait_ms(uint32_t ms);
+
+/* ─── smoke-present primitives (real-build only) ─────────────────────
+ *
+ * The next three primitives back the windowed "BltColorFill +
+ * GetDC/BitBlt/ReleaseDC" smoke-present path the drop-in runs each
+ * frame in mode 2 (see main.c's present_smoke_frame).  They have no
+ * pure-logic body to test and no host stub — the host test build
+ * doesn't link zdd_win32.c and none of the ported modules reference
+ * these symbols, so unresolved-extern only bites if a test ever calls
+ * them.  Once the engine's real present chain (paint_ctx wrappers +
+ * FUN_005b8fc0) is ported, the smoke-present helper can be removed
+ * and these primitives folded into the paint_ctx port. */
+
+/* IDirectDrawSurface7::Blt with DDBLT_COLORFILL + DDBLT_WAIT.  Fills
+ * the entire surface (NULL lpDestRect) with `fill_value` interpreted
+ * in the surface's pixel format (e.g. 0xF800 = red for RGB565).  Logs
+ * DDERR via `log_owner` on failure; returns 1 on success, 0 on
+ * failure.  NULL `surface` returns 0 silently. */
+int  zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
+                                zdd *log_owner);
+
+/* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Stashes the
+ * surface's GDI device-context into *out_hdc on success.  NULL surface
+ * or NULL out returns 0 silently.  Mirror of paint_ctx::FUN_005b94e0. */
+int  zdd_surface_get_dc(void *surface, void **out_hdc);
+
+/* IDirectDrawSurface7::ReleaseDC via vtable[26] (byte 0x68).  Pair
+ * with zdd_surface_get_dc.  NULL surface or NULL hdc is a no-op.
+ * Mirror of paint_ctx::FUN_005b9500. */
+void zdd_surface_release_dc(void *surface, void *hdc);
 
 #endif /* OPENSUMMONERS_ZDD_H */

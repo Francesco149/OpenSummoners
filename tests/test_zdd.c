@@ -71,6 +71,8 @@ static void    *g_dd_create_clipper_handle  = NULL;  /* stub returns this */
 static int      g_dd_setcliplist_calls      = 0;
 static int      g_dd_setcliplist_seq        = 0;
 static void    *g_dd_setcliplist_last       = NULL;
+static uint32_t g_dd_setcliplist_last_w     = 0;
+static uint32_t g_dd_setcliplist_last_h     = 0;
 static int      g_dd_setclipper_calls       = 0;
 static int      g_dd_setclipper_seq         = 0;
 static void    *g_dd_setclipper_last_surf   = NULL;
@@ -155,6 +157,8 @@ static void reset_stubs(void)
     g_dd_setcliplist_calls      = 0;
     g_dd_setcliplist_seq        = 0;
     g_dd_setcliplist_last       = NULL;
+    g_dd_setcliplist_last_w     = 0;
+    g_dd_setcliplist_last_h     = 0;
     g_dd_setclipper_calls       = 0;
     g_dd_setclipper_seq         = 0;
     g_dd_setclipper_last_surf   = NULL;
@@ -292,11 +296,14 @@ void zdd_create_clipper(zdd *parent, void **out_clipper)
     if (g_dd_create_clipper_handle != NULL) g_live_coms++;
 }
 
-void zdd_clipper_set_clip_list_null(void *clipper)
+void zdd_clipper_set_clip_list_rect(void *clipper,
+                                    uint32_t width, uint32_t height)
 {
     g_dd_setcliplist_calls++;
-    g_dd_setcliplist_seq  = ++g_dd_clipper_seq;
-    g_dd_setcliplist_last = clipper;
+    g_dd_setcliplist_seq    = ++g_dd_clipper_seq;
+    g_dd_setcliplist_last   = clipper;
+    g_dd_setcliplist_last_w = width;
+    g_dd_setcliplist_last_h = height;
 }
 
 void zdd_surface_set_clipper(void *surface, void *clipper)
@@ -1200,11 +1207,18 @@ int test_zdd_object_create_surface_pair_happy_path(void)
     /* CreateSurface ran (stub stamped com_primary). */
     T_ASSERT_EQ_P(o.com_primary, (void *)(uintptr_t)0x99887766);
 
-    /* metric stamps from 98c0 — spot-check a couple. */
+    /* metric stamps from 98c0.  Retail calls 98c0 with
+     * (p1, p2, p6, p7, width, height) — NOT (p1..p6).  So
+     * metric_10 = p7 (not p4) and metric_14 = width (not p5).
+     * See zdd.h orchestrator docstring for the disasm citation. */
     T_ASSERT_EQ_I(o.metric_1c, 640);  /* p1 */
     T_ASSERT_EQ_I(o.metric_20, 480);  /* p2 */
-    T_ASSERT_EQ_I(o.metric_10, 0x1ffffff);  /* p4 */
-    T_ASSERT_EQ_I(o.metric_14, 1);    /* p5 */
+    T_ASSERT_EQ_I(o.metric_10, 0);    /* p7 */
+    T_ASSERT_EQ_I(o.metric_14, 640);  /* width */
+    T_ASSERT_EQ_I(o.metric_18, 480);  /* height */
+    T_ASSERT_EQ_I(o.metric_b8, 640);  /* width mirror */
+    T_ASSERT_EQ_I(o.metric_bc, 480);  /* height mirror */
+    T_ASSERT_EQ_I(o.metric_0c, 0);    /* p6 */
 
     /* Colorkey sentinel path — no SetColorKey vtable call. */
     T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
@@ -1384,6 +1398,11 @@ int test_zdd_object_attach_clipper_call_order(void)
     parent.ddraw7 = (void *)(uintptr_t)0xdd7;
     zdd_object o; zdd_object_ctor(&o, &parent);
     o.com_primary = (void *)(uintptr_t)0x5117ace;
+    /* Retail's clipper attach reads metric_b8 / metric_bc as the
+     * RGNDATA RECT bound (full surface).  These are stamped by the
+     * orchestrator from width/height — see orchestrator docstring. */
+    o.metric_b8 = 640;
+    o.metric_bc = 480;
 
     zdd_object_attach_clipper(&o);
 
@@ -1393,9 +1412,12 @@ int test_zdd_object_attach_clipper_call_order(void)
     /* com_back now holds the stub's fake clipper handle. */
     T_ASSERT_EQ_P(o.com_back, (void *)(uintptr_t)0xc11ccccc);
 
-    /* Then SetClipList(NULL) on the new clipper. */
+    /* Then SetClipList on the new clipper, with a single-rect RGNDATA
+     * sized to the surface. */
     T_ASSERT_EQ_I(g_dd_setcliplist_calls, 1);
     T_ASSERT_EQ_P(g_dd_setcliplist_last, (void *)(uintptr_t)0xc11ccccc);
+    T_ASSERT_EQ_U(g_dd_setcliplist_last_w, 640u);
+    T_ASSERT_EQ_U(g_dd_setcliplist_last_h, 480u);
 
     /* Then SetClipper on the primary surface. */
     T_ASSERT_EQ_I(g_dd_setclipper_calls, 1);

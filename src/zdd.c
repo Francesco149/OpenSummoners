@@ -229,8 +229,6 @@ int zdd_object_create_surface_pair(zdd_object *self,
                                    int32_t p7,
                                    uint32_t width, uint32_t height)
 {
-    (void)p7;  /* retail param_7 is dead — captured for ABI symmetry */
-
     zdd_object_prefill_desc(self, p3, p5);
 
     /* Pass `self->caps_in` (just stamped to p3 by prefill) — matches
@@ -242,7 +240,17 @@ int zdd_object_create_surface_pair(zdd_object *self,
         return 0;
     }
 
-    zdd_object_stamp_metrics(self, p1, p2, p3, p4, p5, p6);
+    /* Retail's FUN_005b95c0 calls FUN_005b98c0 with (p1, p2, p6, p7, p8,
+     * p9) — i.e., p3/p4/p5 are NOT stamp_metrics inputs.  p8/p9 are
+     * `width`/`height` (the surface dimensions, re-passed positionally
+     * by retail).  Confirmed by r2 disasm at 0x5b95ff–0x5b9617: stack
+     * pushes are eax=p7, ecx=p6, edx=p2, eax=p1 plus already-loaded
+     * ebx=p8/width and edi=p9/height.  Earlier port mistakenly passed
+     * (p1..p6) which left metric_b8/bc holding the count-flag instead
+     * of the surface dimensions — broke the clipper RGNDATA build that
+     * reads metric_b8/bc as a RECT bound (DDERR_NOCLIPLIST at runtime). */
+    zdd_object_stamp_metrics(self, p1, p2, p6, p7,
+                             (int32_t)width, (int32_t)height);
     /* Return the EAX-carry-through value from the last call — retail's
      * implicit return.  This is the SetColorKey success bit (1 for
      * sentinel branch or successful vtable call, 0 for vtable failure). */
@@ -506,9 +514,16 @@ void zdd_object_attach_clipper(zdd_object *self)
      * if the create failed.  Our port guards with NULL-checks (more
      * defensive than retail; the observable difference is the absence
      * of a crash on a broken DDraw, not a behavioural divergence on
-     * the happy path). */
+     * the happy path).
+     *
+     * The clip-list bounding rect is (0, 0, metric_b8, metric_bc) —
+     * the surface width/height stamped by stamp_metrics (see
+     * orchestrator docstring in zdd.h).  Retail reads those exact two
+     * slots at FUN_005b9520:0x5b9531/0x5b953b. */
     if (self->com_back != NULL) {
-        zdd_clipper_set_clip_list_null(self->com_back);
+        zdd_clipper_set_clip_list_rect(self->com_back,
+                                       (uint32_t)self->metric_b8,
+                                       (uint32_t)self->metric_bc);
     }
 
     if (self->com_primary != NULL && self->com_back != NULL) {
