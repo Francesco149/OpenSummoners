@@ -370,6 +370,18 @@ struct test_case {
     X(zdd_object_upscale_16bpp_zero_scale_noop)                \
     X(zdd_object_upscale_16bpp_dest_lock_fail_skips_src)       \
     X(zdd_object_upscale_16bpp_both_locks_then_both_unlocks)   \
+    X(zdd_object_is_lost_null_self_returns_zero)               \
+    X(zdd_object_is_lost_null_com_primary_returns_zero)        \
+    X(zdd_object_is_lost_ddok_returns_zero)                    \
+    X(zdd_object_is_lost_surfacelost_returns_one)              \
+    X(zdd_object_is_lost_other_hr_returns_zero)                \
+    X(zdd_object_restore_surface_null_self_noop)               \
+    X(zdd_object_restore_surface_forwards)                     \
+    X(zdd_check_any_surface_lost_all_clean_returns_zero)       \
+    X(zdd_check_any_surface_lost_com_a_lost_returns_one_early) \
+    X(zdd_check_any_surface_lost_back_obj_b_lost)              \
+    X(zdd_restore_all_surfaces_hits_every_slot)                \
+    X(zdd_restore_all_surfaces_skips_nulls)                    \
     X(cs_compute_zoom_rect_clean_centre)                       \
     X(cs_compute_zoom_rect_exact_match)                        \
     X(cs_compute_zoom_rect_zoom_larger_than_display)           \

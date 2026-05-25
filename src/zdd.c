@@ -871,8 +871,8 @@ int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
  * self->pixel_format_mode and dispatches to the per-mode present path.
  * Returns void; per-step failures are silently dropped (Win32 leg logs
  * DDERR via OutputDebugStringA → stderr).  See zdd.h docstring for the
- * mode table and the unported FUN_005b8ea0 (mode 4 software scaler)
- * TODO. */
+ * mode table; mode 4 (Zoom) calls zdd_object_upscale_16bpp before the
+ * composite. */
 void zdd_present(zdd *self)
 {
     if (self == NULL) return;
@@ -1250,6 +1250,54 @@ void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
      * dest.  Mirror. */
     zdd_object_unlock(src);
     zdd_object_unlock(dest);
+}
+
+/* ─── lost-surface recovery (FUN_005b9ac0/_9ab0/_91d0/_9240) ─────── */
+
+/* DDERR_SURFACELOST literal — retail's `cmp eax, 0x887601c2` at
+ * 0x5b9ac8 and 0x5b91e3.  We use the same hex value rather than
+ * pulling <ddraw.h> in for it. */
+#define ZDD_DDERR_SURFACELOST  ((int32_t)0x887601c2)
+
+int zdd_object_is_lost(zdd_object *self)
+{
+    if (self == NULL || self->com_primary == NULL) return 0;
+    int32_t hr = zdd_surface_is_lost(self->com_primary);
+    return hr == ZDD_DDERR_SURFACELOST;
+}
+
+void zdd_object_restore_surface(zdd_object *self)
+{
+    if (self == NULL || self->com_primary == NULL) return;
+    zdd_surface_restore(self->com_primary);
+}
+
+int zdd_check_any_surface_lost(zdd *self)
+{
+    if (self == NULL) return 0;
+
+    /* com_a is a raw IDirectDrawSurface7 (the display primary or
+     * back-buffer chain head), not wrapped in a ZDDObject — check it
+     * directly.  Retail returns immediately on the first lost
+     * surface; non-lost (DD_OK or anything else) falls through to the
+     * next slot. */
+    if (self->com_a != NULL) {
+        int32_t hr = zdd_surface_is_lost(self->com_a);
+        if (hr == ZDD_DDERR_SURFACELOST) return 1;
+    }
+    if (zdd_object_is_lost(self->primary_obj)) return 1;
+    if (zdd_object_is_lost(self->back_obj_a)) return 1;
+    if (zdd_object_is_lost(self->back_obj_b)) return 1;
+    return 0;
+}
+
+void zdd_restore_all_surfaces(zdd *self)
+{
+    if (self == NULL) return;
+    if (self->com_a != NULL) zdd_surface_restore(self->com_a);
+    zdd_object_restore_surface(self->primary_obj);
+    zdd_object_restore_surface(self->back_obj_a);
+    zdd_object_restore_surface(self->back_obj_b);
 }
 
 /* ─── color-keyed blit (FUN_005b9b70) ──────────────────────────────── */

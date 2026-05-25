@@ -691,8 +691,9 @@ void zdd_build_primary_surface_desc(int mode_arg, int videomem_flag,
  *                              (rect[5], rect[6], ..., force_vm=1), then
  *                              create_surface_pair(primary_obj, ..., force_vm=1)
  *   7. on success: zdd_object_attach_clipper(primary_obj); if (bpp == 16)
- *      TODO 16bpp pixel-format bind (FUN_005b8a20 unported, ECX identity
- *      ambiguous — flagged in HANDOFF open RE threads).  Return 1.
+ *      zdd_bind_pixel_format(self, primary_obj->com_primary) stamps the
+ *      color descriptor for later set_color_key 16bpp conversion.
+ *      Return 1.
  *   8. on per-mode failure: release the slot whose orchestrator failed
  *      (matches retail's "release just the latest failure" cleanup
  *      pattern — prior slots leak; the caller exits the process
@@ -954,8 +955,9 @@ int  zdd_directdraw_create_ex(zdd *self);
  *
  * Host build: returns 1 + stashes a fake surface pointer when a
  * test-controlled g_create_surface_result is non-zero, else logs
- * via the DDERR path and returns 0.  Used by FUN_005b95c0 (unported)
- * and by tests of the descriptor-build dispatch. */
+ * via the DDERR path and returns 0.  Used by
+ * zdd_object_create_surface_pair (the port of FUN_005b95c0) and by
+ * tests of the descriptor-build dispatch. */
 int  zdd_create_surface(zdd *self, void **out_surface,
                         uint32_t width, uint32_t height,
                         uint32_t caps_base, int force_videomem);
@@ -1292,6 +1294,34 @@ int  zdd_bind_pixel_format(zdd *self, void *surface);
 void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
                               int32_t scale_factor);
 
+/* FUN_005b9ac0 — "is self->com_primary in the DDERR_SURFACELOST state?"
+ * Calls IsLost via vtable[24] and returns 1 iff the HRESULT is
+ * exactly DDERR_SURFACELOST (0x887601c2); any other return (DD_OK,
+ * DDERR_WRONGMODE, etc.) yields 0.
+ *
+ * NULL self or NULL com_primary returns 0 (defensive — retail would
+ * crash on the vtable deref).  Used by zdd_check_any_surface_lost. */
+int  zdd_object_is_lost(zdd_object *self);
+
+/* FUN_005b9ab0 — call Restore (vtable[27]) on self->com_primary.
+ * No retval — retail discards.  Defensive NULL guards on both self
+ * and com_primary. */
+void zdd_object_restore_surface(zdd_object *self);
+
+/* FUN_005b91d0 — "is ANY owned surface in the lost state?"  Checks
+ * each of the four owned surfaces in order: com_a (direct surface),
+ * then primary_obj / back_obj_a / back_obj_b via their com_primary
+ * fields.  Returns 1 as soon as any one is lost; 0 only if all four
+ * report "not lost" (or are NULL).  Used by the post-activate hook
+ * to detect "context loss happened while we were inactive". */
+int  zdd_check_any_surface_lost(zdd *self);
+
+/* FUN_005b9240 — Restore every owned surface (com_a + the three
+ * ZDDObjects' com_primary).  Each Restore call is unconditional on a
+ * non-NULL surface, regardless of whether it was actually lost
+ * (matches retail's blanket-restore on context-regain). */
+void zdd_restore_all_surfaces(zdd *self);
+
 /* FUN_005b8fc0 — 5-mode per-frame present dispatcher.  Switches on
  * self->pixel_format_mode (the launcher mode 0..4) and dispatches to
  * one of:
@@ -1381,6 +1411,20 @@ int  zdd_surface_blt(void *dest, const int32_t *dest_rect,
  * 0 silently. */
 int  zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
                          int width, int height);
+
+/* IDirectDrawSurface7::IsLost via vtable[24] (byte 0x60 — verified
+ * by r2 disasm of FUN_005b9ac0: `call dword [eax + 0x60]`).  Returns
+ * the raw HRESULT — caller checks for DDERR_SURFACELOST (0x887601c2)
+ * to detect a lost surface.  NULL surface returns 0 (DD_OK
+ * equivalent — "not lost"). */
+int32_t zdd_surface_is_lost(void *surface);
+
+/* IDirectDrawSurface7::Restore via vtable[27] (byte 0x6c — verified
+ * by r2 disasm of FUN_005b9ab0: `call dword [eax + 0x6c]`).  Reissues
+ * a CreateSurface-equivalent on a previously-lost surface.  Return
+ * value ignored by retail callers; we drop too.  NULL surface is a
+ * silent no-op. */
+void zdd_surface_restore(void *surface);
 
 /* IDirectDrawSurface7::GetSurfaceDesc via vtable[22] (byte 0x58 —
  * verified by r2 disasm of FUN_005b8a20: `call dword [eax + 0x58]`).

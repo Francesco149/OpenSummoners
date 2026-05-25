@@ -628,6 +628,26 @@ void zdd_surface_unlock(void *surface)
     surf->lpVtbl->Unlock(surf, NULL);
 }
 
+/* IDirectDrawSurface7::IsLost via vtable[24] (byte 0x60).  Returns
+ * the raw HRESULT; the pure-logic caller compares against
+ * DDERR_SURFACELOST. */
+int32_t zdd_surface_is_lost(void *surface)
+{
+    if (surface == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    HRESULT hr = surf->lpVtbl->IsLost(surf);
+    return (int32_t)hr;
+}
+
+/* IDirectDrawSurface7::Restore via vtable[27] (byte 0x6c).  Return
+ * value dropped — retail discards. */
+void zdd_surface_restore(void *surface)
+{
+    if (surface == NULL) return;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    surf->lpVtbl->Restore(surf);
+}
+
 /* Read post-Lock DDSD slots out of the zdd_object's embedded DDSD.
  * On the real (32-bit Win32) build the DDSD layout matches retail
  * exactly — lpSurface is at +0x54 (embedded_ddsd[0x24]), lPitch at

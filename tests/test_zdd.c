@@ -226,6 +226,29 @@ static uint32_t g_dd_getdesc_fill_r_mask = 0xF800;
 static uint32_t g_dd_getdesc_fill_g_mask = 0x07E0;
 static uint32_t g_dd_getdesc_fill_b_mask = 0x001F;
 
+/* IsLost / Restore primitive stubs (back FUN_005b9ac0 / _9ab0 / _91d0
+ * / _9240 host tests).  IsLost returns whatever HRESULT g_dd_islost_hr
+ * is programmed to (default 0 = DD_OK = "not lost"); set to
+ * 0x887601c2 to simulate a lost surface.  Restore is recorded only. */
+static int      g_dd_islost_calls    = 0;
+static int32_t  g_dd_islost_hr       = 0;
+static void    *g_dd_islost_last_surf = NULL;
+/* Per-surface programmability: tests can register up to 4 distinct
+ * surfaces and assign each one a different HRESULT.  Stub looks up
+ * the surface pointer in the table; falls back to g_dd_islost_hr if
+ * unmatched. */
+#define ISLOST_TABLE_MAX 4
+static struct { void *surface; int32_t hr; } g_dd_islost_table[ISLOST_TABLE_MAX];
+static int      g_dd_islost_table_n  = 0;
+
+static int      g_dd_restore_calls   = 0;
+static void    *g_dd_restore_last_surf = NULL;
+/* Track every surface that was Restored, in order, so tests can
+ * assert the dispatcher hit all four slots. */
+#define RESTORE_TRACE_MAX 8
+static void    *g_dd_restore_trace[RESTORE_TRACE_MAX];
+static int      g_dd_restore_trace_n = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -367,6 +390,15 @@ static void reset_stubs(void)
     g_dd_getdesc_fill_r_mask = 0xF800;
     g_dd_getdesc_fill_g_mask = 0x07E0;
     g_dd_getdesc_fill_b_mask = 0x001F;
+    g_dd_islost_calls       = 0;
+    g_dd_islost_hr          = 0;
+    g_dd_islost_last_surf   = NULL;
+    g_dd_islost_table_n     = 0;
+    memset(g_dd_islost_table, 0, sizeof(g_dd_islost_table));
+    g_dd_restore_calls      = 0;
+    g_dd_restore_last_surf  = NULL;
+    g_dd_restore_trace_n    = 0;
+    memset(g_dd_restore_trace, 0, sizeof(g_dd_restore_trace));
 }
 
 void zdd_show_cursor(int show)
@@ -717,6 +749,28 @@ int zdd_surface_get_desc(void *surface, void *ddsd)
     *(uint32_t *)(d + 0x5c) = g_dd_getdesc_fill_g_mask;
     *(uint32_t *)(d + 0x60) = g_dd_getdesc_fill_b_mask;
     return 1;
+}
+
+int32_t zdd_surface_is_lost(void *surface)
+{
+    g_dd_islost_calls++;
+    g_dd_islost_last_surf = surface;
+    if (surface == NULL) return 0;
+    for (int i = 0; i < g_dd_islost_table_n; i++) {
+        if (g_dd_islost_table[i].surface == surface) {
+            return g_dd_islost_table[i].hr;
+        }
+    }
+    return g_dd_islost_hr;
+}
+
+void zdd_surface_restore(void *surface)
+{
+    g_dd_restore_calls++;
+    g_dd_restore_last_surf = surface;
+    if (surface != NULL && g_dd_restore_trace_n < RESTORE_TRACE_MAX) {
+        g_dd_restore_trace[g_dd_restore_trace_n++] = surface;
+    }
 }
 
 /* Host stub for the post-Lock DDSD extractor.  Returns whatever the
@@ -3495,3 +3549,179 @@ int test_zdd_object_blt_keyed_offsets_dest_by_metric_0c_10(void)
     T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xaaa1);
     return 0;
 }
+
+/* ─── lost-surface recovery (FUN_005b9ac0/_9ab0/_91d0/_9240) ─────── */
+
+int test_zdd_object_is_lost_null_self_returns_zero(void)
+{
+    reset_stubs();
+    T_ASSERT_EQ_I(zdd_object_is_lost(NULL), 0);
+    T_ASSERT_EQ_I(g_dd_islost_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_is_lost_null_com_primary_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object o; memset(&o, 0, sizeof(o));
+    T_ASSERT_EQ_I(zdd_object_is_lost(&o), 0);
+    T_ASSERT_EQ_I(g_dd_islost_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_is_lost_ddok_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object o; memset(&o, 0, sizeof(o));
+    o.com_primary = (void *)(uintptr_t)0xface;
+    g_dd_islost_hr = 0;  /* DD_OK */
+    T_ASSERT_EQ_I(zdd_object_is_lost(&o), 0);
+    T_ASSERT_EQ_I(g_dd_islost_calls, 1);
+    return 0;
+}
+
+int test_zdd_object_is_lost_surfacelost_returns_one(void)
+{
+    reset_stubs();
+    zdd_object o; memset(&o, 0, sizeof(o));
+    o.com_primary = (void *)(uintptr_t)0xface;
+    g_dd_islost_hr = (int32_t)0x887601c2;  /* DDERR_SURFACELOST */
+    T_ASSERT_EQ_I(zdd_object_is_lost(&o), 1);
+    T_ASSERT_EQ_P(g_dd_islost_last_surf, (void *)(uintptr_t)0xface);
+    return 0;
+}
+
+int test_zdd_object_is_lost_other_hr_returns_zero(void)
+{
+    /* Any HRESULT other than DDERR_SURFACELOST → "not lost". */
+    reset_stubs();
+    zdd_object o; memset(&o, 0, sizeof(o));
+    o.com_primary = (void *)(uintptr_t)0xface;
+    g_dd_islost_hr = (int32_t)0x88760480;  /* DDERR_NOTLOST coincidentally */
+    T_ASSERT_EQ_I(zdd_object_is_lost(&o), 0);
+    return 0;
+}
+
+int test_zdd_object_restore_surface_null_self_noop(void)
+{
+    reset_stubs();
+    zdd_object_restore_surface(NULL);
+    T_ASSERT_EQ_I(g_dd_restore_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_restore_surface_forwards(void)
+{
+    reset_stubs();
+    zdd_object o; memset(&o, 0, sizeof(o));
+    o.com_primary = (void *)(uintptr_t)0xface;
+    zdd_object_restore_surface(&o);
+    T_ASSERT_EQ_I(g_dd_restore_calls, 1);
+    T_ASSERT_EQ_P(g_dd_restore_last_surf, (void *)(uintptr_t)0xface);
+    return 0;
+}
+
+int test_zdd_check_any_surface_lost_all_clean_returns_zero(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xa1;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xb1;
+    s.primary_obj = &po;
+    /* All return DD_OK. */
+    T_ASSERT_EQ_I(zdd_check_any_surface_lost(&s), 0);
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_check_any_surface_lost_com_a_lost_returns_one_early(void)
+{
+    /* com_a is checked first; if lost, the function returns 1 without
+     * touching the ZDDObjects. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xa1;
+    g_dd_islost_table[0].surface = (void *)(uintptr_t)0xa1;
+    g_dd_islost_table[0].hr      = (int32_t)0x887601c2;
+    g_dd_islost_table_n = 1;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xb1;
+    s.primary_obj = &po;
+
+    T_ASSERT_EQ_I(zdd_check_any_surface_lost(&s), 1);
+    /* Only the com_a IsLost call should have fired. */
+    T_ASSERT_EQ_I(g_dd_islost_calls, 1);
+    T_ASSERT_EQ_P(g_dd_islost_last_surf, (void *)(uintptr_t)0xa1);
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_check_any_surface_lost_back_obj_b_lost(void)
+{
+    /* back_obj_b is the 4th-checked slot — verify the dispatcher
+     * descends through all earlier slots before flagging it. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xa1;
+    zdd_object po, ba, bb;
+    zdd_object_ctor(&po, &s); po.com_primary = (void *)(uintptr_t)0xb1;
+    zdd_object_ctor(&ba, &s); ba.com_primary = (void *)(uintptr_t)0xb2;
+    zdd_object_ctor(&bb, &s); bb.com_primary = (void *)(uintptr_t)0xb3;
+    s.primary_obj = &po;
+    s.back_obj_a  = &ba;
+    s.back_obj_b  = &bb;
+    g_dd_islost_table[0].surface = (void *)(uintptr_t)0xb3;
+    g_dd_islost_table[0].hr      = (int32_t)0x887601c2;
+    g_dd_islost_table_n = 1;
+
+    T_ASSERT_EQ_I(zdd_check_any_surface_lost(&s), 1);
+    /* All four IsLost calls fired in order. */
+    T_ASSERT_EQ_I(g_dd_islost_calls, 4);
+    s.primary_obj = NULL;
+    s.back_obj_a  = NULL;
+    s.back_obj_b  = NULL;
+    return 0;
+}
+
+int test_zdd_restore_all_surfaces_hits_every_slot(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.com_a = (void *)(uintptr_t)0xa1;
+    zdd_object po, ba, bb;
+    zdd_object_ctor(&po, &s); po.com_primary = (void *)(uintptr_t)0xb1;
+    zdd_object_ctor(&ba, &s); ba.com_primary = (void *)(uintptr_t)0xb2;
+    zdd_object_ctor(&bb, &s); bb.com_primary = (void *)(uintptr_t)0xb3;
+    s.primary_obj = &po;
+    s.back_obj_a  = &ba;
+    s.back_obj_b  = &bb;
+
+    zdd_restore_all_surfaces(&s);
+
+    /* 4 Restore calls in order: com_a, primary_obj, back_obj_a,
+     * back_obj_b. */
+    T_ASSERT_EQ_I(g_dd_restore_calls, 4);
+    T_ASSERT_EQ_I(g_dd_restore_trace_n, 4);
+    T_ASSERT_EQ_P(g_dd_restore_trace[0], (void *)(uintptr_t)0xa1);
+    T_ASSERT_EQ_P(g_dd_restore_trace[1], (void *)(uintptr_t)0xb1);
+    T_ASSERT_EQ_P(g_dd_restore_trace[2], (void *)(uintptr_t)0xb2);
+    T_ASSERT_EQ_P(g_dd_restore_trace[3], (void *)(uintptr_t)0xb3);
+    s.primary_obj = NULL;
+    s.back_obj_a  = NULL;
+    s.back_obj_b  = NULL;
+    return 0;
+}
+
+int test_zdd_restore_all_surfaces_skips_nulls(void)
+{
+    /* All NULL surfaces → no Restore calls. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.com_a = NULL;
+    /* primary_obj/back_obj_a/back_obj_b all NULL by default. */
+    zdd_restore_all_surfaces(&s);
+    T_ASSERT_EQ_I(g_dd_restore_calls, 0);
+    return 0;
+}
+
