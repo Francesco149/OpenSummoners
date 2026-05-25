@@ -425,15 +425,16 @@ int zdd_create_screen(zdd *self,
     }
 
     if (success) {
-        /* Bind a clipper to the primary ZDDObject's surface.  Then in
-         * 16bpp, retail also calls FUN_005b8a20 (pixel-format channel
-         * binding) — currently UNPORTED because the ECX identity is
-         * ambiguous (see HANDOFF "FUN_005b8b00 16bpp converter" open
-         * thread; FUN_005b8a20 is part of the same family).  The
-         * boot-path bpp is 16 so this is a live TODO for visible
-         * output; the rest of the screen-init plumbing is correct. */
+        /* Bind a clipper to the primary ZDDObject's surface, then in
+         * 16bpp also bind the pixel-format descriptor (FUN_005b8a20)
+         * so subsequent color-key set / convert calls can pack RGB888
+         * input into the surface's native layout.  The 8/24/32bpp
+         * paths skip the descriptor bind; FUN_005b8c00's DDPF builder
+         * already pinned those channels at create time. */
         zdd_object_attach_clipper(self->primary_obj);
-        /* if (bpp == 16) zdd_object_bind_pixel_format(...); TODO */
+        if (self->pixel_format_bpp == 16 && self->primary_obj != NULL) {
+            zdd_bind_pixel_format(self, self->primary_obj->com_primary);
+        }
         return 1;
     }
 
@@ -935,18 +936,16 @@ void zdd_present(zdd *self)
         return;
 
     case 4:
-        /* Zoom — software-scale primary_obj into back_obj_b (UNPORTED
-         * leaf FUN_005b8ea0), then blit back_obj_b onto back_obj_a at
-         * centre (screen_rect[3], screen_rect[4]), then Flip(com_a,
-         * back_obj_a->com_primary).  Until the scaler lands, back_obj_b
-         * stays whatever its last frame was (blank-after-boot), so the
-         * Flip will show a frozen / blank centre tile.  Mode 4 is not
-         * the live boot mode; this is a TODO that bites only on a
-         * Zoom-mode launcher selection. */
+        /* Zoom — software-upscale primary_obj into back_obj_b (scale
+         * factor in screen_rect[2]; retail uses 2 for 320→640), then
+         * blit back_obj_b onto back_obj_a at centre (screen_rect[3],
+         * screen_rect[4]), then Flip(com_a, back_obj_a->com_primary).
+         * Needs primary_obj for the upscale source and the two back
+         * objects for the post-scale composite. */
         if (self->com_a == NULL || self->back_obj_a == NULL ||
-            self->back_obj_b == NULL) return;
-        /* TODO: FUN_005b8ea0 software upscaler — see HANDOFF open
-         * RE thread. */
+            self->back_obj_b == NULL || self->primary_obj == NULL) return;
+        zdd_object_upscale_16bpp(self->back_obj_b, self->primary_obj,
+                                 self->screen_rect[2]);
         zdd_object_blt_onto(self->back_obj_b, self->back_obj_a,
                             self->screen_rect[3], self->screen_rect[4]);
         zdd_surface_flip(self->com_a, self->back_obj_a->com_primary,
@@ -1155,6 +1154,101 @@ uint32_t zdd_color_convert(zdd *self, uint32_t input_rgb)
                      << (self->color_desc.shift_left[2] & 0x1fu);
 
     return r_out | g_out | b_out;
+}
+
+/* ─── 16bpp software upscaler (FUN_005b8ea0, mode 4) ───────────────── */
+
+/* FUN_005b8ea0 — direct port of retail's 285-byte 2x upscaler.  See
+ * zdd.h docstring for the scale-factor-hardcoded-to-2 caveat.  Both
+ * surfaces are 16bpp; pixel access is via uint16_t pointers cast from
+ * the post-Lock lpSurface slots.
+ *
+ * Retail's per-line stride math:
+ *   - pitch_dest_words = dest_pitch / 2
+ *   - dest_lines_per_outer = 2 (hardcoded — should be scale_factor but
+ *     isn't)
+ *   - src_lines_per_outer = 1
+ * Inner-loop x replication runs `scale_factor` times per source pixel;
+ * outer y replication runs `scale_factor` times per source row, but
+ * the next-outer dest jump is fixed at `2 * pitch_dest_words`.
+ *
+ * Loop counters clamp to src_obj->metric_1c (a saved bound, likely
+ * the source width in 16bpp words) and dest_height / scale_factor. */
+void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
+                              int32_t scale_factor)
+{
+    if (dest == NULL || src == NULL || scale_factor <= 0) return;
+
+    /* src_bound = src->metric_1c — the saved "valid source words per
+     * line" upper bound.  Set by FUN_005b98c0 during surface alloc. */
+    int32_t src_bound = src->metric_1c;
+
+    /* Retail locks dest first, then src.  Both must succeed; if either
+     * fails the function exits silently without unlocking. */
+    if (!zdd_object_lock(dest)) return;
+    if (!zdd_object_lock(src)) {
+        zdd_object_unlock(dest);
+        return;
+    }
+
+    void   *dest_buf = NULL, *src_buf = NULL;
+    int32_t dest_pitch = 0, dest_height = 0;
+    int32_t src_pitch  = 0;
+    zdd_object_get_locked_info(dest, &dest_buf, &dest_pitch, &dest_height);
+    zdd_object_get_locked_info(src,  &src_buf,  &src_pitch,  NULL);
+
+    if (dest_buf != NULL && src_buf != NULL) {
+        /* All arithmetic mirrors retail's integer divisions, including
+         * sign behaviour.  signed int casts are intentional — retail
+         * uses idiv (signed) for both `pitch / 2` and `height /
+         * scale`. */
+        int32_t pitch_dest_words = dest_pitch / 2;
+        int32_t pitch_src_words  = src_pitch  / 2;
+
+        /* Clamp horizontal counter to min(src_bound, pitch_dest_words/
+         * scale).  Retail's `if (a/b <= c) c = a/b` reduces to
+         * `c = min(c, a/b)`. */
+        int32_t x_count = src_bound;
+        int32_t per_scale = pitch_dest_words / scale_factor;
+        if (per_scale <= x_count) x_count = per_scale;
+
+        /* Vertical outer count = dest_height / scale_factor with retail's
+         * weird overflow guard `if (h < h/scale) c = h` (always false
+         * for sane h and scale >= 1; mirrored for fidelity). */
+        int32_t y_outer = dest_height / scale_factor;
+        if (dest_height < dest_height / scale_factor) y_outer = dest_height;
+
+        uint16_t *dest_p = (uint16_t *)dest_buf;
+        uint16_t *src_p  = (uint16_t *)src_buf;
+
+        for (int32_t y = 0; y < y_outer; y++) {
+            /* Vertical replication: stamp scale_factor rows from the
+             * same source row. */
+            uint16_t *dest_row = dest_p;
+            for (int32_t v = 0; v < scale_factor; v++) {
+                uint16_t *d = dest_row;
+                uint16_t *s = src_p;
+                /* Horizontal x_count source words, each replicated
+                 * scale_factor times. */
+                for (int32_t x = 0; x < x_count; x++) {
+                    uint16_t pix = *s++;
+                    for (int32_t h = 0; h < scale_factor; h++) {
+                        *d++ = pix;
+                    }
+                }
+                dest_row += pitch_dest_words;
+            }
+            /* Outer dest advance: retail hardcodes 2 * pitch.
+             * Caveat documented in header. */
+            dest_p += pitch_dest_words * 2;
+            src_p  += pitch_src_words;
+        }
+    }
+
+    /* Retail unlocks in reverse-lock order (LIFO): src first, then
+     * dest.  Mirror. */
+    zdd_object_unlock(src);
+    zdd_object_unlock(dest);
 }
 
 /* ─── color-keyed blit (FUN_005b9b70) ──────────────────────────────── */

@@ -1269,6 +1269,29 @@ uint32_t zdd_color_convert(zdd *self, uint32_t input_rgb);
  * struct. */
 int  zdd_bind_pixel_format(zdd *self, void *surface);
 
+/* FUN_005b8ea0 — 16bpp software upscaler (mode 4 Zoom only).  Locks
+ * both surfaces, copies src into dest with N×N pixel replication, then
+ * unlocks both.  Mode 4 in retail always uses scale_factor=2 (320×240
+ * → 640×480 zoom).  Operates on 16bpp pixels (one word per pixel).
+ *
+ * Args mirror retail: (dest_obj, src_obj, scale_factor).  Both surfaces
+ * must be 16bpp.  No-op if either Lock fails.  Returns void; retail
+ * callers don't read a return.
+ *
+ * Implementation note: the outer vertical step in retail is hardcoded
+ * to advance the dest pointer by `2 * pitch_words` regardless of
+ * scale_factor — meaning the function is effectively pinned to a 2x
+ * scale.  Calling with scale_factor != 2 will produce overlapping or
+ * gapped lines depending on whether it's < 2 or > 2.  We mirror the
+ * retail literal exactly; the documented contract is "scale=2 only".
+ *
+ * Used by FUN_005b8fc0 mode 4 (Zoom).  Currently mode 4 in the
+ * dispatcher skips this stage (leaving back_obj_b unchanged from
+ * boot), so wiring this in will require a follow-up checkpoint to
+ * re-test mode 4. */
+void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
+                              int32_t scale_factor);
+
 /* FUN_005b8fc0 — 5-mode per-frame present dispatcher.  Switches on
  * self->pixel_format_mode (the launcher mode 0..4) and dispatches to
  * one of:

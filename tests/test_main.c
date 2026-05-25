@@ -363,6 +363,11 @@ struct test_case {
     X(zdd_object_blt_keyed_null_com_primary_degenerate_success)\
     X(zdd_object_blt_keyed_null_dest_returns_zero)             \
     X(zdd_object_blt_keyed_offsets_dest_by_metric_0c_10)       \
+    X(zdd_object_upscale_16bpp_null_dest_noop)                 \
+    X(zdd_object_upscale_16bpp_null_src_noop)                  \
+    X(zdd_object_upscale_16bpp_zero_scale_noop)                \
+    X(zdd_object_upscale_16bpp_dest_lock_fail_skips_src)       \
+    X(zdd_object_upscale_16bpp_both_locks_then_both_unlocks)   \
     X(cs_compute_zoom_rect_clean_centre)                       \
     X(cs_compute_zoom_rect_exact_match)                        \
     X(cs_compute_zoom_rect_zoom_larger_than_display)           \

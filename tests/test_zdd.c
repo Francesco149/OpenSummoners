@@ -2802,15 +2802,19 @@ int test_zdd_present_mode_3_db_blt_then_flip(void)
 
 int test_zdd_present_mode_4_zoom_blt_then_flip(void)
 {
-    /* Scaler (FUN_005b8ea0) is unported — we should NOT see any extra
-     * Blt for the upscale stage.  The dispatcher just does the
-     * blit_onto + Flip stages. */
+    /* Mode 4 now runs three stages: upscale (primary_obj → back_obj_b),
+     * blit_onto (back_obj_b → back_obj_a centred), Flip (com_a). */
     reset_stubs();
     zdd s; zdd_ctor(&s);
     s.pixel_format_mode = 4;
     s.com_a = (void *)(uintptr_t)0xaaa1;
+    s.screen_rect[2] = 2;     /* scale factor */
     s.screen_rect[3] = 320;   /* centre_x */
     s.screen_rect[4] = 240;   /* centre_y */
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    po.metric_1c   = 0;   /* x_count clamps to 0 — copy loop skipped */
+    s.primary_obj = &po;
     zdd_object ba; zdd_object_ctor(&ba, &s);
     ba.com_primary = (void *)(uintptr_t)0xccc1;
     s.back_obj_a = &ba;
@@ -2821,7 +2825,10 @@ int test_zdd_present_mode_4_zoom_blt_then_flip(void)
 
     zdd_present(&s);
 
-    /* blit_onto(back_obj_b, back_obj_a, 320, 240) → one Blt. */
+    /* Upscale stage: 2 Locks + 2 Unlocks. */
+    T_ASSERT_EQ_I(g_dd_lock_calls,   2);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 2);
+    /* Composite stage: blit_onto(back_obj_b, back_obj_a, 320, 240). */
     T_ASSERT_EQ_I(g_dd_blt_calls, 1);
     T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xccc1);
     T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xddd1);
@@ -2833,6 +2840,7 @@ int test_zdd_present_mode_4_zoom_blt_then_flip(void)
     T_ASSERT_EQ_I(g_dd_flip_calls, 1);
     T_ASSERT_EQ_P(g_dd_flip_last_target, (void *)(uintptr_t)0xccc1);
 
+    s.primary_obj = NULL;
     s.back_obj_a = NULL;
     s.back_obj_b = NULL;
     return 0;
@@ -3321,6 +3329,88 @@ int test_zdd_object_blt_keyed_null_dest_returns_zero(void)
     int rc = zdd_object_blt_keyed(&src, NULL, 0, 0);
     T_ASSERT_EQ_I(rc, 0);
     T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+/* ─── zdd_object_upscale_16bpp (FUN_005b8ea0, mode-4 upscaler) ─────── */
+
+int test_zdd_object_upscale_16bpp_null_dest_noop(void)
+{
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    zdd_object_upscale_16bpp(NULL, &src, 2);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   0);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_upscale_16bpp_null_src_noop(void)
+{
+    reset_stubs();
+    zdd_object dst; memset(&dst, 0, sizeof(dst));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    zdd_object_upscale_16bpp(&dst, NULL, 2);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   0);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_upscale_16bpp_zero_scale_noop(void)
+{
+    reset_stubs();
+    zdd_object dst, src;
+    memset(&dst, 0, sizeof(dst));
+    memset(&src, 0, sizeof(src));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    zdd_object_upscale_16bpp(&dst, &src, 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   0);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_upscale_16bpp_dest_lock_fail_skips_src(void)
+{
+    /* If dest lock fails, src shouldn't be locked either. */
+    reset_stubs();
+    g_dd_lock_result = 0;
+    zdd_object dst, src;
+    memset(&dst, 0, sizeof(dst));
+    memset(&src, 0, sizeof(src));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    zdd_object_upscale_16bpp(&dst, &src, 2);
+    /* Lock called once (dest), no src lock, no unlocks. */
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_upscale_16bpp_both_locks_then_both_unlocks(void)
+{
+    /* Verify the retail-faithful order: lock dest, lock src, copy,
+     * unlock src, unlock dest.  Uses metric_1c = 0 so the inner copy
+     * loop runs zero iterations (no buffer access), keeping the test
+     * stub's single-buffer model safe. */
+    reset_stubs();
+    /* Surface buffer used by the (skipped) copy loop.  Width-bound 0
+     * means we don't actually read/write through this pointer. */
+    g_dd_lock_fill_surface = NULL;
+    g_dd_lock_fill_pitch   = 64;
+    g_dd_lock_fill_height  = 4;
+
+    zdd_object dst, src;
+    memset(&dst, 0, sizeof(dst));
+    memset(&src, 0, sizeof(src));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    src.metric_1c   = 0;  /* x_count clamps to 0, copy skipped */
+
+    zdd_object_upscale_16bpp(&dst, &src, 2);
+
+    T_ASSERT_EQ_I(g_dd_lock_calls,   2);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 2);
     return 0;
 }
 
