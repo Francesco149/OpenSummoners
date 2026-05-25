@@ -317,6 +317,27 @@ struct test_case {
     X(zdd_create_screen_8bpp_creates_palette)                  \
     X(zdd_create_screen_primary_create_failure)                \
     X(zdd_create_screen_releases_prior_state)                  \
+    X(cs_compute_zoom_rect_clean_centre)                       \
+    X(cs_compute_zoom_rect_exact_match)                        \
+    X(cs_compute_zoom_rect_zoom_larger_than_display)           \
+    X(cs_compute_zoom_rect_odd_difference_floors)              \
+    X(cs_log_append_failure_empty_buffer_overwrites)           \
+    X(cs_log_append_failure_appends_with_newline)              \
+    X(cs_log_append_failure_null_msg_safe)                     \
+    X(cs_dispatch_releases_prior_primary_pair)                 \
+    X(cs_dispatch_mode0_full_args_and_pair_alloc)              \
+    X(cs_dispatch_mode1_safe_args_and_no_pair)                 \
+    X(cs_dispatch_mode2_windowed_args_and_no_preamble)         \
+    X(cs_dispatch_mode3_db_args)                               \
+    X(cs_dispatch_mode4_zoom_with_override)                    \
+    X(cs_dispatch_mode4_zoom_without_override_uses_getdisplaymode) \
+    X(cs_dispatch_mode0_createscreen_fail_routes_to_full_string) \
+    X(cs_dispatch_mode1_createscreen_fail_routes_to_safe_string) \
+    X(cs_dispatch_mode2_createscreen_fail_routes_to_wind_string) \
+    X(cs_dispatch_mode3_createscreen_fail_uses_db_lasterror_variant) \
+    X(cs_dispatch_mode4_zoom_too_small_aborts)                 \
+    X(cs_dispatch_mode4_zoom_exact_match_proceeds)             \
+    X(cs_dispatch_default_mode_is_noop)                        \
 
 #define X(n) extern int test_##n(void);
 TESTS

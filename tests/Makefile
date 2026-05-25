@@ -24,9 +24,10 @@ LDFLAGS := $(SAN)
 
 SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/bitmap_session.c ../src/wnd_proc.c \
-                ../src/zdd.c
+                ../src/zdd.c ../src/cs_dispatch.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
-                test_bitmap_session.c test_wnd_proc.c test_zdd.c
+                test_bitmap_session.c test_wnd_proc.c test_zdd.c \
+                test_cs_dispatch.c
 
 OUT := build/run_tests
 

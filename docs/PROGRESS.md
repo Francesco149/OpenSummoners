@@ -6,6 +6,77 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — `cs_dispatch_create_screen` PORTED (FUN_00582e90, 3560B outer mode dispatcher)
+
+The outer mode-dispatch driver around `zdd_create_screen` lands.
+3560 bytes of retail mostly-inlined strcpy/strcat collapse to a
+single ~350-line port + a tiny Win32 leg + a setjmp-aware host
+harness.  Reaches CreateScreen end-to-end from the launcher mode
+arg.
+
+New files:
+- `src/cs_dispatch.h` — public driver + module globals
+  (`cs_primary_pair`, zoom overrides, log buf, engine-name header).
+  Test-only function-pointer hooks for `zdd_create_screen` and
+  `zdd_object_new` so the host harness can verify per-mode dispatch
+  without configuring the full ZDD surface-create stub chain.
+- `src/cs_dispatch.c` — pure-logic dispatch.  Per-mode handlers
+  (cs_mode_full / _safe / _windowed / _db / _zoom), error-log
+  builder (`cs_log_append_failure` — the inlined strcat dance
+  collapsed to one bounded helper), and a `cs_compute_zoom_rect`
+  helper for mode 4's centre-rect math.
+- `src/cs_dispatch_win32.c` — Win32 primitives
+  (`cs_log_get_last_error`, `cs_fatal_log`,
+  `cs_fatal_log_with_lasterror`, `cs_exit`) backing the dispatcher
+  for the real build via `GetLastError` + `FormatMessageA` +
+  `OutputDebugStringA` + `ExitProcess`.
+
+Per-mode behaviour (matches retail):
+- **mode 0 (Full)**: SetDisplayMode(640,480,16,0) → hide_cursor →
+  busy_wait(2000) → zdd_create_screen(...mode=0, vmem=0) →
+  zdd_object_new(&cs_primary_pair, 640, 480, 0x1ffffff, 1).
+- **mode 1 (Safe)**: same fullscreen preamble; create_screen with
+  mode=1, vmem=1; NO primary-pair alloc.
+- **mode 2 (Windowed)**: NO preamble; create_screen with mode=2,
+  vmem=1.  Only branch that doesn't touch the display mode.
+- **mode 3 (DB)**: fullscreen preamble; create_screen with mode=3,
+  vmem=1.  CreateScreen failure uses the FUN_00426110 "with
+  lasterror" variant instead of the standard log builder.
+- **mode 4 (Zoom)**: resolve desktop dims via
+  `cs_zoom_override_*` or `zdd_get_display_mode`; bounds-check
+  against launcher zoom target; SetDisplayMode + preamble; compute
+  centre-rect blob; create_screen with mode=4, vmem=1, rect.
+  Trailing `zdd_hide_cursor` on success (matches retail's literal
+  end-of-mode-4 call; idempotent).
+
+Error strings re-verified against `vendor/unpacked/sotes.unpacked.exe`
+via `r2 ps @ 0x8a28e8/0x8a28bc/...` at port time.  The "\n" between
+log entries (DAT_00854570) is confirmed: it's literally one byte
+"\n", not " -- " or " — " as the variable name suggested.
+
+Tests now: **307 pass, 0 fail, 6 skip** (up from 286; 21 new — 4
+zoom-rect math, 3 log-builder, 1 prior-pair release, 5 happy-path
+per-mode dispatch, 5 fail-path per-mode dispatch, 1 default-mode
+no-op, 2 mode-4 GetDisplayMode/exact-match edges).  Cross-build
+with mingw clean.
+
+Open RE thread closed: `DAT_008a6ec0` (the primary-pair ZDDObject*)
+is now named `cs_primary_pair` and owned by the cs_dispatch module.
+`DAT_008a9534`/_9530 (the 0x638-byte rolling error log + dirty
+flag) likewise.  `DAT_008a6eac`/_eb0 (zoom-mode display override
+globals) modelled as `cs_zoom_override_width`/`_height`.
+
+Remaining gap: `FUN_005b8a20` (16bpp pixel-format binding inside
+`zdd_create_screen`'s post-success hook) is the one un-ported call
+on the boot path.  ECX identity ambiguous (open RE thread); the
+boot path may need this once the harness runs live.
+
+Next: wire `cs_dispatch_create_screen` into the drop-in's WinMain
+(currently retail still owns engine init) — the natural next
+visible-output checkpoint.
+
+---
+
 ## 2026-05-25 — `zdd_create_screen` PORTED (FUN_005b8480, 1088B, full 5-mode dispatch)
 
 The big inner CreateScreen body lands.  Single-checkpoint port over
