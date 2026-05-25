@@ -782,3 +782,180 @@ void zdd_destroy(zdd *self)
     zdd_dtor(self);
     free(self);
 }
+
+/* ─── present dispatcher (pure-logic body) ──────────────────────────── */
+
+/* FUN_005b94e0 — guard on com_primary, forward to GetDC primitive,
+ * return 1 unconditionally on the non-degenerate branch.  See zdd.h
+ * docstring for the contract subtlety: retail's `mov eax, 1` after the
+ * GetDC call discards the underlying HRESULT — if GetDC failed,
+ * *out_hdc gets stamped NULL by the primitive and 1 is still returned,
+ * leaving the caller's BitBlt to silently no-op.  Faithful mirror. */
+int zdd_object_get_dc(zdd_object *self, void **out_hdc)
+{
+    if (self == NULL || self->com_primary == NULL) {
+        return 0;
+    }
+    zdd_surface_get_dc(self->com_primary, out_hdc);
+    return 1;
+}
+
+/* FUN_005b9500 — bare forward; retail has no NULL guard on
+ * com_primary.  The underlying Win32 primitive does guard
+ * defensively (NULL surface → no-op), so a NULL com_primary here is
+ * silently dropped at the next layer instead of crashing.  The
+ * observable difference vs retail is "no crash"; both leave the HDC
+ * unreleased, but the caller has presumably given up on the frame
+ * already by this point. */
+void zdd_object_release_dc(zdd_object *self, void *hdc)
+{
+    if (self == NULL) return;
+    zdd_surface_release_dc(self->com_primary, hdc);
+}
+
+/* FUN_005b9a40 — generic "blit self onto dest at (x, y)".  Note the
+ * role inversion: `self` is the SOURCE (this is what +0x2c is read
+ * from, then handed to Blt as src_surface).  `dest` is the receiver
+ * of the Blt call (whose com_primary's vtable[5] is invoked).
+ *
+ * The "early return 1 when self->com_primary is NULL" branch is
+ * retail's literal behaviour at 0x5b9a4a — a degenerate no-op reading
+ * as success.  The non-degenerate path returns whatever the Blt HRESULT
+ * was (S_OK == 0 on success, any other on error). */
+int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
+                        int32_t dest_x, int32_t dest_y)
+{
+    if (self == NULL || self->com_primary == NULL) {
+        return 1;  /* degenerate-success — retail's literal */
+    }
+    if (dest == NULL || dest->com_primary == NULL) {
+        /* Defensive — retail would crash on the next vtable deref.
+         * We treat as a non-event and return 0 (Blt-equivalent
+         * "couldn't reach the dest").  Distinct from the degenerate-
+         * success branch above on purpose; we don't want to silently
+         * report success when the caller's setup is broken. */
+        return 0;
+    }
+
+    int32_t w = self->metric_b8;
+    int32_t h = self->metric_bc;
+
+    int32_t dest_rect[4] = {
+        dest_x,          /* left   */
+        dest_y,          /* top    */
+        dest_x + w,      /* right  */
+        dest_y + h,      /* bottom */
+    };
+
+    /* src_rect comes from self->metric_b0..bc — retail builds it from
+     * an `add ecx, 0xb0` then passes &metric_b0 directly as src_rect.
+     * The metric_b0/b4 slots are always 0 (zeroed by stamp_metrics);
+     * metric_b8/bc carry width/height.  Equivalent to {0, 0, w, h}. */
+    int32_t src_rect[4] = {
+        self->metric_b0, /* always 0  → left   */
+        self->metric_b4, /* always 0  → top    */
+        self->metric_b8, /* width     → right  */
+        self->metric_bc, /* height    → bottom */
+    };
+
+    uint32_t flags = (uint32_t)self->state_flag | 0x1000000u;  /* DDBLT_WAIT */
+
+    return zdd_surface_blt(dest->com_primary, dest_rect,
+                           self->com_primary, src_rect,
+                           flags, self->parent);
+}
+
+/* FUN_005b8fc0 — 5-mode present dispatcher.  Switches on
+ * self->pixel_format_mode and dispatches to the per-mode present path.
+ * Returns void; per-step failures are silently dropped (Win32 leg logs
+ * DDERR via OutputDebugStringA → stderr).  See zdd.h docstring for the
+ * mode table and the unported FUN_005b8ea0 (mode 4 software scaler)
+ * TODO. */
+void zdd_present(zdd *self)
+{
+    if (self == NULL) return;
+
+    switch (self->pixel_format_mode) {
+    case 0:
+        /* Full — Flip on the primary display surface, swapping in the
+         * primary_obj's attached back-buffer surface. */
+        if (self->com_a == NULL || self->primary_obj == NULL) return;
+        zdd_surface_flip(self->com_a, self->primary_obj->com_primary,
+                         1u /* DDFLIP_WAIT */, self);
+        return;
+
+    case 1:
+        /* Safe — Blt primary_obj's offscreen surface onto the display
+         * primary at the RECT formed by {screen_pos_x, screen_pos_y,
+         * screen_width, screen_height}.  In Safe mode pos is always 0,
+         * so the RECT resolves to {0, 0, w, h} = full surface. */
+        if (self->com_a == NULL || self->primary_obj == NULL) return;
+        {
+            const int32_t *rect = &self->screen_pos_x;
+            zdd_surface_blt(self->com_a, rect,
+                            self->primary_obj->com_primary, rect,
+                            0x1000000u /* DDBLT_WAIT */, self);
+        }
+        return;
+
+    case 2:
+        /* Windowed — paint_ctx-GetDC into the surface, BitBlt to the
+         * desktop at the window's screen position, paint_ctx-ReleaseDC.
+         * Retail uses GetDC(NULL) (desktop) at offset (screen_pos_x,
+         * screen_pos_y).  The drop-in's WinMain must populate those
+         * positions on init + WM_MOVE so the composite lands in the
+         * window's client area (see main.c's sync_window_position). */
+        if (self->primary_obj == NULL) return;
+        {
+            void *src_hdc = NULL;
+            zdd_object_get_dc(self->primary_obj, &src_hdc);
+            zdd_desktop_present(src_hdc,
+                                self->screen_pos_x, self->screen_pos_y,
+                                self->screen_width, self->screen_height);
+            zdd_object_release_dc(self->primary_obj, src_hdc);
+        }
+        return;
+
+    case 3:
+        /* DB — Blt primary_obj→back_obj_a (rect from screen_pos), then
+         * Flip(com_a, back_obj_a->com_primary).  Both surfaces are
+         * non-NULL by construction (zdd_create_screen builds both for
+         * mode 3).  In retail this case falls through to the common
+         * Flip tail at 0x5b903d; we inline it for clarity. */
+        if (self->com_a == NULL || self->primary_obj == NULL ||
+            self->back_obj_a == NULL) return;
+        {
+            const int32_t *rect = &self->screen_pos_x;
+            zdd_surface_blt(self->back_obj_a->com_primary, rect,
+                            self->primary_obj->com_primary, rect,
+                            0x1000000u, self);
+            zdd_surface_flip(self->com_a, self->back_obj_a->com_primary,
+                             1u, self);
+        }
+        return;
+
+    case 4:
+        /* Zoom — software-scale primary_obj into back_obj_b (UNPORTED
+         * leaf FUN_005b8ea0), then blit back_obj_b onto back_obj_a at
+         * centre (screen_rect[3], screen_rect[4]), then Flip(com_a,
+         * back_obj_a->com_primary).  Until the scaler lands, back_obj_b
+         * stays whatever its last frame was (blank-after-boot), so the
+         * Flip will show a frozen / blank centre tile.  Mode 4 is not
+         * the live boot mode; this is a TODO that bites only on a
+         * Zoom-mode launcher selection. */
+        if (self->com_a == NULL || self->back_obj_a == NULL ||
+            self->back_obj_b == NULL) return;
+        /* TODO: FUN_005b8ea0 software upscaler — see HANDOFF open
+         * RE thread. */
+        zdd_object_blt_onto(self->back_obj_b, self->back_obj_a,
+                            self->screen_rect[3], self->screen_rect[4]);
+        zdd_surface_flip(self->com_a, self->back_obj_a->com_primary,
+                         1u, self);
+        return;
+
+    default:
+        /* Mode > 4: retail's `ja default` does nothing.  Defensive
+         * branch — caller's launcher dialog clamps to [0,4]. */
+        return;
+    }
+}

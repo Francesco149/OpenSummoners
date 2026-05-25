@@ -128,6 +128,44 @@ static void    *g_dd_attached_handle   = NULL;
 static void    *g_dd_attached_last_primary = NULL;
 static uint32_t g_dd_attached_last_caps    = 0;
 
+/* Present-dispatcher primitive stubs (back FUN_005b8fc0 / _94e0 /
+ * _9500 / _9a40 host tests).  Each records call shape so the
+ * dispatcher tests can assert which leg fired. */
+static int      g_dd_getdc_calls       = 0;
+static int      g_dd_getdc_result      = 1;
+static void    *g_dd_getdc_last_surf   = NULL;
+static void    *g_dd_getdc_handle      = NULL;  /* what *out_hdc receives */
+
+static int      g_dd_releasedc_calls   = 0;
+static void    *g_dd_releasedc_last_surf = NULL;
+static void    *g_dd_releasedc_last_hdc  = NULL;
+
+static int      g_dd_flip_calls        = 0;
+static int      g_dd_flip_result       = 1;
+static int32_t  g_dd_flip_hr           = 0;
+static void    *g_dd_flip_last_surf    = NULL;
+static void    *g_dd_flip_last_target  = NULL;
+static uint32_t g_dd_flip_last_flags   = 0;
+
+static int      g_dd_blt_calls         = 0;
+static int      g_dd_blt_result        = 1;
+static int32_t  g_dd_blt_hr            = 0;
+static void    *g_dd_blt_last_dest     = NULL;
+static void    *g_dd_blt_last_src      = NULL;
+static int32_t  g_dd_blt_last_dest_rect[4];
+static int32_t  g_dd_blt_last_src_rect[4];
+static int      g_dd_blt_last_has_dest_rect = 0;
+static int      g_dd_blt_last_has_src_rect  = 0;
+static uint32_t g_dd_blt_last_flags    = 0;
+
+static int      g_dd_desktop_calls     = 0;
+static int      g_dd_desktop_result    = 1;
+static void    *g_dd_desktop_last_src  = NULL;
+static int      g_dd_desktop_last_x    = 0;
+static int      g_dd_desktop_last_y    = 0;
+static int      g_dd_desktop_last_w    = 0;
+static int      g_dd_desktop_last_h    = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -199,6 +237,36 @@ static void reset_stubs(void)
     g_dd_setpal_calls      = 0;
     g_dd_setpal_last_surf  = NULL;
     g_dd_setpal_last_pal   = NULL;
+    g_dd_getdc_calls       = 0;
+    g_dd_getdc_result      = 1;
+    g_dd_getdc_last_surf   = NULL;
+    g_dd_getdc_handle      = (void *)(uintptr_t)0xdcdcdcdc;
+    g_dd_releasedc_calls   = 0;
+    g_dd_releasedc_last_surf = NULL;
+    g_dd_releasedc_last_hdc  = NULL;
+    g_dd_flip_calls        = 0;
+    g_dd_flip_result       = 1;
+    g_dd_flip_hr           = 0;
+    g_dd_flip_last_surf    = NULL;
+    g_dd_flip_last_target  = NULL;
+    g_dd_flip_last_flags   = 0;
+    g_dd_blt_calls         = 0;
+    g_dd_blt_result        = 1;
+    g_dd_blt_hr            = 0;
+    g_dd_blt_last_dest     = NULL;
+    g_dd_blt_last_src      = NULL;
+    g_dd_blt_last_has_dest_rect = 0;
+    g_dd_blt_last_has_src_rect  = 0;
+    g_dd_blt_last_flags    = 0;
+    memset(g_dd_blt_last_dest_rect, 0, sizeof(g_dd_blt_last_dest_rect));
+    memset(g_dd_blt_last_src_rect,  0, sizeof(g_dd_blt_last_src_rect));
+    g_dd_desktop_calls     = 0;
+    g_dd_desktop_result    = 1;
+    g_dd_desktop_last_src  = NULL;
+    g_dd_desktop_last_x    = 0;
+    g_dd_desktop_last_y    = 0;
+    g_dd_desktop_last_w    = 0;
+    g_dd_desktop_last_h    = 0;
 }
 
 void zdd_show_cursor(int show)
@@ -404,6 +472,96 @@ int zdd_get_attached_surface(void *primary, uint32_t caps_in,
         return 0;
     }
     if (out != NULL) *out = g_dd_attached_handle;
+    return 1;
+}
+
+/* ─── present-dispatcher primitive stubs ─────────────────────────── */
+
+int zdd_surface_get_dc(void *surface, void **out_hdc)
+{
+    g_dd_getdc_calls++;
+    g_dd_getdc_last_surf = surface;
+    if (surface == NULL || out_hdc == NULL) {
+        if (out_hdc != NULL) *out_hdc = NULL;
+        return 0;
+    }
+    if (!g_dd_getdc_result) {
+        *out_hdc = NULL;
+        return 0;
+    }
+    *out_hdc = g_dd_getdc_handle;
+    return 1;
+}
+
+void zdd_surface_release_dc(void *surface, void *hdc)
+{
+    g_dd_releasedc_calls++;
+    g_dd_releasedc_last_surf = surface;
+    g_dd_releasedc_last_hdc  = hdc;
+}
+
+int zdd_surface_flip(void *surface, void *target, uint32_t flags,
+                     zdd *log_owner)
+{
+    g_dd_flip_calls++;
+    g_dd_flip_last_surf   = surface;
+    g_dd_flip_last_target = target;
+    g_dd_flip_last_flags  = flags;
+    if (surface == NULL) return 0;
+    if (!g_dd_flip_result) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "Flip",
+                          g_dd_flip_hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+int zdd_surface_blt(void *dest, const int32_t *dest_rect,
+                    void *src,  const int32_t *src_rect,
+                    uint32_t flags, zdd *log_owner)
+{
+    g_dd_blt_calls++;
+    g_dd_blt_last_dest  = dest;
+    g_dd_blt_last_src   = src;
+    g_dd_blt_last_flags = flags;
+    g_dd_blt_last_has_dest_rect = (dest_rect != NULL);
+    g_dd_blt_last_has_src_rect  = (src_rect  != NULL);
+    if (dest_rect != NULL) memcpy(g_dd_blt_last_dest_rect, dest_rect,
+                                  sizeof(g_dd_blt_last_dest_rect));
+    if (src_rect  != NULL) memcpy(g_dd_blt_last_src_rect,  src_rect,
+                                  sizeof(g_dd_blt_last_src_rect));
+    if (dest == NULL) return 0;
+    if (!g_dd_blt_result) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "Blt",
+                          g_dd_blt_hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
+                        int width, int height)
+{
+    g_dd_desktop_calls++;
+    g_dd_desktop_last_src = src_hdc;
+    g_dd_desktop_last_x   = dest_x;
+    g_dd_desktop_last_y   = dest_y;
+    g_dd_desktop_last_w   = width;
+    g_dd_desktop_last_h   = height;
+    if (src_hdc == NULL) return 0;
+    return g_dd_desktop_result;
+}
+
+int zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
+                               zdd *log_owner)
+{
+    /* Not used by any pure-logic consumer; keep a thin stub so any
+     * future test that does reference it doesn't pull in a link error. */
+    (void)surface; (void)fill_value; (void)log_owner;
     return 1;
 }
 
@@ -2138,5 +2296,365 @@ int test_zdd_object_attach_backbuffer_failure_returns_zero(void)
     T_ASSERT_EQ_I(o.metric_14, 0);
     T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
     T_ASSERT_EQ_P(o.com_primary, NULL);
+    return 0;
+}
+
+/* ─── present dispatcher: FUN_005b94e0 / _9500 / _8fc0 / _9a40 ───── */
+
+int test_zdd_object_get_dc_null_self_returns_zero(void)
+{
+    reset_stubs();
+    void *hdc = (void *)(uintptr_t)0xdead;
+    int rc = zdd_object_get_dc(NULL, &hdc);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_get_dc_null_com_primary_returns_zero(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    /* com_primary stays NULL from ctor */
+    void *hdc = (void *)(uintptr_t)0xdead;
+    int rc = zdd_object_get_dc(&o, &hdc);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 0);
+    /* Retail does NOT overwrite *out_hdc on the early-return — verify. */
+    T_ASSERT_EQ_P(hdc, (void *)(uintptr_t)0xdead);
+    return 0;
+}
+
+int test_zdd_object_get_dc_forwards_and_returns_one(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+    void *hdc = NULL;
+    int rc = zdd_object_get_dc(&o, &hdc);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 1);
+    T_ASSERT_EQ_P(g_dd_getdc_last_surf, (void *)(uintptr_t)0xface);
+    T_ASSERT_EQ_P(hdc, g_dd_getdc_handle);
+    return 0;
+}
+
+int test_zdd_object_get_dc_returns_one_even_when_primitive_fails(void)
+{
+    /* Retail's `mov eax, 1` after the call discards the COM HRESULT.
+     * On primitive failure, *out_hdc is NULL but rc is still 1. */
+    reset_stubs();
+    g_dd_getdc_result = 0;
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+    void *hdc = (void *)(uintptr_t)0x42;
+    int rc = zdd_object_get_dc(&o, &hdc);
+    T_ASSERT_EQ_I(rc, 1);                    /* faithful-mirror quirk */
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 1);
+    T_ASSERT_EQ_P(hdc, NULL);                /* primitive zeroed it */
+    return 0;
+}
+
+int test_zdd_object_release_dc_forwards(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+    void *hdc = (void *)(uintptr_t)0xdc12;
+    zdd_object_release_dc(&o, hdc);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls, 1);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_surf, (void *)(uintptr_t)0xface);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_hdc,  (void *)(uintptr_t)0xdc12);
+    return 0;
+}
+
+int test_zdd_object_release_dc_null_self_noop(void)
+{
+    reset_stubs();
+    zdd_object_release_dc(NULL, (void *)(uintptr_t)0x1);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_onto_null_self_degenerate_success(void)
+{
+    /* Retail's literal: NULL self->com_primary → return 1 without
+     * touching anything else. */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object src; zdd_object_ctor(&src, &parent);
+    /* src.com_primary stays NULL */
+    zdd_object dst; zdd_object_ctor(&dst, &parent);
+    dst.com_primary = (void *)(uintptr_t)0xddd;
+
+    int rc = zdd_object_blt_onto(&src, &dst, 10, 20);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_onto_null_dest_returns_zero(void)
+{
+    /* Defensive non-retail-faithful branch (retail crashes) — we
+     * prefer 0 over a NULL-deref. */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object src; zdd_object_ctor(&src, &parent);
+    src.com_primary = (void *)(uintptr_t)0x111;
+
+    int rc = zdd_object_blt_onto(&src, NULL, 0, 0);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_onto_builds_rects_and_forwards(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object src; zdd_object_ctor(&src, &parent);
+    src.com_primary = (void *)(uintptr_t)0x111;
+    src.metric_b0 = 0; src.metric_b4 = 0;
+    src.metric_b8 = 640; src.metric_bc = 480;
+    src.state_flag = 0x8000;   /* observable distinguisher for flags */
+
+    zdd_object dst; zdd_object_ctor(&dst, &parent);
+    dst.com_primary = (void *)(uintptr_t)0x222;
+
+    int rc = zdd_object_blt_onto(&src, &dst, 50, 60);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    /* Dest is the receiving surface (dst->com_primary). */
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0x222);
+    /* Src is the SOURCE surface (src->com_primary). */
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0x111);
+    /* dest_rect = (dx, dy, dx+w, dy+h). */
+    T_ASSERT(g_dd_blt_last_has_dest_rect);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 50);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 60);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 50 + 640);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 60 + 480);
+    /* src_rect = (0, 0, w, h) from self->metric_b0..bc. */
+    T_ASSERT(g_dd_blt_last_has_src_rect);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[1], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 640);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 480);
+    /* flags = state_flag | DDBLT_WAIT (0x1000000) */
+    T_ASSERT_EQ_U(g_dd_blt_last_flags, 0x8000u | 0x1000000u);
+    return 0;
+}
+
+int test_zdd_present_null_self_noop(void)
+{
+    reset_stubs();
+    zdd_present(NULL);
+    T_ASSERT_EQ_I(g_dd_flip_calls, 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls,  0);
+    T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
+    return 0;
+}
+
+int test_zdd_present_mode_0_full_flips_com_a(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 0;
+    s.com_a = (void *)(uintptr_t)0xaaa1;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    zdd_present(&s);
+
+    T_ASSERT_EQ_I(g_dd_flip_calls, 1);
+    T_ASSERT_EQ_P(g_dd_flip_last_surf,   (void *)(uintptr_t)0xaaa1);
+    T_ASSERT_EQ_P(g_dd_flip_last_target, (void *)(uintptr_t)0xbbb1);
+    T_ASSERT_EQ_U(g_dd_flip_last_flags,  1u);   /* DDFLIP_WAIT */
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
+
+    /* Drop the borrowed primary_obj ref so the dtor doesn't try to
+     * free a stack ZDDObject. */
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_present_mode_0_skips_when_com_a_null(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 0;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+    /* s.com_a stays NULL */
+
+    zdd_present(&s);
+
+    T_ASSERT_EQ_I(g_dd_flip_calls, 0);
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_present_mode_1_safe_blts_full_rect(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 1;
+    s.com_a = (void *)(uintptr_t)0xaaa1;
+    s.screen_pos_x = 0;  s.screen_pos_y = 0;
+    s.screen_width = 640; s.screen_height = 480;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    zdd_present(&s);
+
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xaaa1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xbbb1);
+    T_ASSERT(g_dd_blt_last_has_dest_rect);
+    T_ASSERT(g_dd_blt_last_has_src_rect);
+    /* Both rects share &self->screen_pos_x. */
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 640);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 480);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0],  0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3],  480);
+    T_ASSERT_EQ_U(g_dd_blt_last_flags, 0x1000000u);  /* DDBLT_WAIT */
+    T_ASSERT_EQ_I(g_dd_flip_calls, 0);
+
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_present_mode_2_windowed_get_blit_release(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.screen_pos_x = 100; s.screen_pos_y = 200;
+    s.screen_width = 640; s.screen_height = 480;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    zdd_present(&s);
+
+    /* get_dc fired on primary_obj's com_primary. */
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 1);
+    T_ASSERT_EQ_P(g_dd_getdc_last_surf, (void *)(uintptr_t)0xbbb1);
+    /* desktop_present got the HDC + screen position + size. */
+    T_ASSERT_EQ_I(g_dd_desktop_calls, 1);
+    T_ASSERT_EQ_P(g_dd_desktop_last_src, g_dd_getdc_handle);
+    T_ASSERT_EQ_I(g_dd_desktop_last_x, 100);
+    T_ASSERT_EQ_I(g_dd_desktop_last_y, 200);
+    T_ASSERT_EQ_I(g_dd_desktop_last_w, 640);
+    T_ASSERT_EQ_I(g_dd_desktop_last_h, 480);
+    /* release_dc fired with the matching surf + hdc. */
+    T_ASSERT_EQ_I(g_dd_releasedc_calls, 1);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_surf, (void *)(uintptr_t)0xbbb1);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_hdc,  g_dd_getdc_handle);
+    /* No Blt/Flip in the windowed path. */
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    T_ASSERT_EQ_I(g_dd_flip_calls, 0);
+
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_present_mode_3_db_blt_then_flip(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 3;
+    s.com_a = (void *)(uintptr_t)0xaaa1;
+    s.screen_pos_x = 0; s.screen_pos_y = 0;
+    s.screen_width = 640; s.screen_height = 480;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+    zdd_object ba; zdd_object_ctor(&ba, &s);
+    ba.com_primary = (void *)(uintptr_t)0xccc1;
+    s.back_obj_a = &ba;
+
+    zdd_present(&s);
+
+    /* Blt: back_obj_a's com_primary <- primary_obj's com_primary. */
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xccc1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xbbb1);
+    T_ASSERT_EQ_U(g_dd_blt_last_flags, 0x1000000u);
+    /* Flip(com_a, back_obj_a->com_primary). */
+    T_ASSERT_EQ_I(g_dd_flip_calls, 1);
+    T_ASSERT_EQ_P(g_dd_flip_last_surf,   (void *)(uintptr_t)0xaaa1);
+    T_ASSERT_EQ_P(g_dd_flip_last_target, (void *)(uintptr_t)0xccc1);
+
+    s.primary_obj = NULL;
+    s.back_obj_a  = NULL;
+    return 0;
+}
+
+int test_zdd_present_mode_4_zoom_blt_then_flip(void)
+{
+    /* Scaler (FUN_005b8ea0) is unported — we should NOT see any extra
+     * Blt for the upscale stage.  The dispatcher just does the
+     * blit_onto + Flip stages. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 4;
+    s.com_a = (void *)(uintptr_t)0xaaa1;
+    s.screen_rect[3] = 320;   /* centre_x */
+    s.screen_rect[4] = 240;   /* centre_y */
+    zdd_object ba; zdd_object_ctor(&ba, &s);
+    ba.com_primary = (void *)(uintptr_t)0xccc1;
+    s.back_obj_a = &ba;
+    zdd_object bb; zdd_object_ctor(&bb, &s);
+    bb.com_primary = (void *)(uintptr_t)0xddd1;
+    bb.metric_b8 = 1280; bb.metric_bc = 960;
+    s.back_obj_b = &bb;
+
+    zdd_present(&s);
+
+    /* blit_onto(back_obj_b, back_obj_a, 320, 240) → one Blt. */
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xccc1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 320);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 240);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 320 + 1280);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 240 + 960);
+    /* Flip(com_a, back_obj_a->com_primary). */
+    T_ASSERT_EQ_I(g_dd_flip_calls, 1);
+    T_ASSERT_EQ_P(g_dd_flip_last_target, (void *)(uintptr_t)0xccc1);
+
+    s.back_obj_a = NULL;
+    s.back_obj_b = NULL;
+    return 0;
+}
+
+int test_zdd_present_default_mode_is_noop(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 7;   /* out of range */
+    s.com_a = (void *)(uintptr_t)0xaaa1;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    zdd_present(&s);
+
+    T_ASSERT_EQ_I(g_dd_flip_calls, 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls,  0);
+    T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
+
+    s.primary_obj = NULL;
     return 0;
 }

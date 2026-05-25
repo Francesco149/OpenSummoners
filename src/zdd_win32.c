@@ -454,3 +454,87 @@ void zdd_busy_wait_ms(uint32_t ms)
         /* spin */
     }
 }
+
+/* IDirectDrawSurface7::Flip via vtable[11] (byte 0x2c).  Verified by
+ * r2 disasm of FUN_005b8fc0 at 0x5b904f / 0x5b906d.  Retail passes
+ * `target` = the attached back-buffer surface in every callsite and
+ * `flags` = 1 (DDFLIP_WAIT). */
+int zdd_surface_flip(void *surface, void *target, uint32_t flags,
+                     zdd *log_owner)
+{
+    if (surface == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    LPDIRECTDRAWSURFACE7 tgt  = (LPDIRECTDRAWSURFACE7)target;
+    HRESULT hr = surf->lpVtbl->Flip(surf, tgt, (DWORD)flags);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "Flip",
+                          (int32_t)hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* IDirectDrawSurface7::Blt via vtable[5] (byte 0x14).  Verified by r2
+ * disasm at 0x5b903a / 0x5b9098 / 0x5b9aa5.  The 4-int RECT shape is
+ * portable across host + Win32 because Windows RECT is also 4 LONGs in
+ * the same {left, top, right, bottom} order. */
+int zdd_surface_blt(void *dest, const int32_t *dest_rect,
+                    void *src,  const int32_t *src_rect,
+                    uint32_t flags, zdd *log_owner)
+{
+    if (dest == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 dst_surf = (LPDIRECTDRAWSURFACE7)dest;
+    LPDIRECTDRAWSURFACE7 src_surf = (LPDIRECTDRAWSURFACE7)src;
+    /* RECT is identical to 4×int32 in {left,top,right,bottom}; cast
+     * through a local copy to dodge any const/alignment warts. */
+    RECT dr, sr;
+    LPRECT pdr = NULL, psr = NULL;
+    if (dest_rect != NULL) {
+        dr.left   = (LONG)dest_rect[0];
+        dr.top    = (LONG)dest_rect[1];
+        dr.right  = (LONG)dest_rect[2];
+        dr.bottom = (LONG)dest_rect[3];
+        pdr = &dr;
+    }
+    if (src_rect != NULL) {
+        sr.left   = (LONG)src_rect[0];
+        sr.top    = (LONG)src_rect[1];
+        sr.right  = (LONG)src_rect[2];
+        sr.bottom = (LONG)src_rect[3];
+        psr = &sr;
+    }
+    HRESULT hr = dst_surf->lpVtbl->Blt(dst_surf, pdr, src_surf, psr,
+                                       (DWORD)flags, NULL);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface", "Blt",
+                          (int32_t)hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* Desktop-DC composite: GetDC(NULL) + BitBlt + ReleaseDC(NULL, hdc).
+ * Mirrors FUN_005b8fc0 case 2 lines 0x5b90b2..0x5b90f2.  Retail uses
+ * `hWnd = NULL` for GetDC (set at the top of FUN_005b8fc0:0x5b8fc5)
+ * to get the desktop DC — the surface gets composited into the
+ * desktop at (dest_x, dest_y) regardless of which window owns the
+ * area.  Caller (main.c) must keep dest_x/dest_y aligned with the
+ * window's client-area screen position for the composite to land
+ * inside the window. */
+int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
+                        int width, int height)
+{
+    if (src_hdc == NULL) return 0;
+    HDC desktop = GetDC(NULL);
+    if (desktop == NULL) return 0;
+    /* SRCCOPY = 0x00CC0020 — matches retail's literal push at
+     * 0x5b90c7. */
+    BitBlt(desktop, dest_x, dest_y, width, height,
+           (HDC)src_hdc, 0, 0, SRCCOPY);
+    ReleaseDC(NULL, desktop);
+    return 1;
+}

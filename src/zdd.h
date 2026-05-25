@@ -1040,34 +1040,180 @@ int  zdd_get_display_mode(zdd *self, uint32_t *out_width,
  * actually sleeping. */
 void zdd_busy_wait_ms(uint32_t ms);
 
-/* ─── smoke-present primitives (real-build only) ─────────────────────
+/* ─── present-dispatcher trio: FUN_005b94e0 / _9500 / _8fc0 ──────────
  *
- * The next three primitives back the windowed "BltColorFill +
- * GetDC/BitBlt/ReleaseDC" smoke-present path the drop-in runs each
- * frame in mode 2 (see main.c's present_smoke_frame).  They have no
- * pure-logic body to test and no host stub — the host test build
- * doesn't link zdd_win32.c and none of the ported modules reference
- * these symbols, so unresolved-extern only bites if a test ever calls
- * them.  Once the engine's real present chain (paint_ctx wrappers +
- * FUN_005b8fc0) is ported, the smoke-present helper can be removed
- * and these primitives folded into the paint_ctx port. */
+ * The "push the offscreen surface to the display" path the engine fires
+ * each frame.  Ghidra labels FUN_005b94e0 / _9500 as `paint_ctx::`
+ * methods, but the ECX in every live callsite is a `zdd_object*`
+ * (specifically `zdd.primary_obj` — see WM_PAINT handler FUN_005b9130
+ * and FUN_005b8fc0 case 2), NOT a separate "paint_ctx" class.  We name
+ * accordingly.  The wnd_proc.h "paint_ctx" struct is a misnomer for ZDD
+ * itself (same +0x16c primary_obj / +0x138..+0x144 / +0x164 offsets);
+ * its `+0x2c zdd_device` docstring is incorrect.
+ */
 
-/* IDirectDrawSurface7::Blt with DDBLT_COLORFILL + DDBLT_WAIT.  Fills
- * the entire surface (NULL lpDestRect) with `fill_value` interpreted
- * in the surface's pixel format (e.g. 0xF800 = red for RGB565).  Logs
- * DDERR via `log_owner` on failure; returns 1 on success, 0 on
- * failure.  NULL `surface` returns 0 silently. */
-int  zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
-                                zdd *log_owner);
+/* FUN_005b94e0 — IDirectDrawSurface7::GetDC wrapper.  Reads
+ * self->com_primary (+0x2c, verified by r2 disasm at 0x5b94e0) and
+ * forwards to the COM call via vtable[17] (byte 0x44).
+ *
+ *   if (!self->com_primary) return 0;       // *out_hdc NOT written
+ *   self->com_primary->GetDC(out_hdc);      // COM-side fills *out_hdc
+ *   return 1;                                // retail's `mov eax, 1`
+ *
+ * Retail forces eax=1 regardless of the underlying COM HRESULT (the
+ * literal `mov eax, 1; ret 4` at 0x5b94f5 — we mirror).  If GetDC
+ * itself failed, *out_hdc ends up NULL and 1 is still returned; the
+ * caller's BitBlt would then no-op rather than error here.  Bizarre
+ * contract but faithful to retail. */
+int  zdd_object_get_dc(zdd_object *self, void **out_hdc);
 
-/* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Stashes the
- * surface's GDI device-context into *out_hdc on success.  NULL surface
- * or NULL out returns 0 silently.  Mirror of paint_ctx::FUN_005b94e0. */
+/* FUN_005b9500 — IDirectDrawSurface7::ReleaseDC wrapper.  Forwards to
+ * vtable[26] (byte 0x68).  No NULL guard in retail (the contract is
+ * "only call after a successful zdd_object_get_dc"); the underlying
+ * Win32 primitive guards defensively.  Modelled as `void` — retail's
+ * eax carries whatever ReleaseDC returned, but no caller reads it. */
+void zdd_object_release_dc(zdd_object *self, void *hdc);
+
+/* FUN_005b9a40 — generic "blit `self` onto `dest` at (dest_x, dest_y)".
+ * Used by FUN_005b8fc0 mode 4 (Zoom) to composite the zoom intermediate
+ * (back_obj_b) onto the back-buffer (back_obj_a) at a centred offset.
+ * Also called from many gameplay sites (over a dozen XREFs).
+ *
+ *   if (!self->com_primary) return 1;          // degenerate-success
+ *   dest_rect = {dest_x, dest_y,
+ *                dest_x + self->metric_b8, dest_y + self->metric_bc}
+ *   src_rect  = self->metric_b0..bc, interpreted as a 4-int RECT
+ *               = {0, 0, self->metric_b8, self->metric_bc}
+ *               (NOT src's metrics — retail uses *self's* metric_b0..bc
+ *               which always hold {0, 0, w, h} for self's own surface)
+ *   flags     = self->state_flag | DDBLT_WAIT
+ *   return dest->com_primary->Blt(&dest_rect, self->com_primary,
+ *                                 &src_rect, flags, NULL)
+ *
+ * Note the role inversion: `self` is the SOURCE surface; the COM call's
+ * receiver is `dest->com_primary` (since Blt is called ON the dest).
+ * The arg ordering — `(this=src, dest_obj, dest_x, dest_y)` — is how
+ * retail names them, NOT `(this=dest, src_obj, dest_x, dest_y)`.
+ *
+ * Sanity-check via r2 at 0x5b9a8d (`add ecx, 0xb0`) + the call shape:
+ * the +0xb0 source-rect block is on `self`, not on `dest`.  The "early
+ * return 1 when self->com_primary is NULL" branch is retail's literal
+ * behaviour (a degenerate no-op reading as success — quirky but
+ * faithful).  Returns whatever the underlying Blt HRESULT was on the
+ * non-degenerate path. */
+int  zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
+                         int32_t dest_x, int32_t dest_y);
+
+/* FUN_005b8fc0 — 5-mode per-frame present dispatcher.  Switches on
+ * self->pixel_format_mode (the launcher mode 0..4) and dispatches to
+ * one of:
+ *
+ *   mode 0 (Full):     com_a->Flip(primary_obj->com_primary, DDFLIP_WAIT)
+ *   mode 1 (Safe):     com_a->Blt(&self->screen_pos_x_as_RECT,
+ *                                 primary_obj->com_primary,
+ *                                 &self->screen_pos_x_as_RECT,
+ *                                 DDBLT_WAIT, NULL)
+ *   mode 2 (Windowed): zdd_object_get_dc(primary_obj, &src_hdc) +
+ *                      zdd_desktop_present(src_hdc, screen_pos_x,
+ *                                          screen_pos_y, screen_width,
+ *                                          screen_height) +
+ *                      zdd_object_release_dc(primary_obj, src_hdc)
+ *   mode 3 (DB):       back_obj_a->com_primary->Blt(rect,
+ *                          primary_obj->com_primary, rect,
+ *                          DDBLT_WAIT, NULL)
+ *                      THEN com_a->Flip(back_obj_a->com_primary,
+ *                                       DDFLIP_WAIT)
+ *   mode 4 (Zoom):     FUN_005b8ea0(self, back_obj_b, primary_obj,
+ *                                   screen_rect[2])    // SW scaler
+ *                      zdd_object_blt_onto(back_obj_b, back_obj_a,
+ *                                          screen_rect[3], screen_rect[4])
+ *                      THEN com_a->Flip(back_obj_a->com_primary,
+ *                                       DDFLIP_WAIT)
+ *
+ * The mode 3 / mode 4 common tail at retail 0x5b903d is the Flip on
+ * `back_obj_a->com_primary`.  Modes 0 / 1 / 2 return directly without
+ * the common tail.  Default branch (mode > 4) is a no-op.
+ *
+ * The RECT used by modes 1 & 3 is read as `&self->screen_pos_x` (4
+ * contiguous int32s = {screen_pos_x, screen_pos_y, screen_width,
+ * screen_height}, interpreted by DDraw as {left, top, right, bottom}).
+ * In fullscreen modes screen_pos_x/y are 0, so this resolves to
+ * {0, 0, w, h} — the full surface.  Windowed mode wouldn't fit this
+ * RECT convention, but mode 2 doesn't use this builder.
+ *
+ * NOTE: the software scaler `FUN_005b8ea0` (mode 4 leaf, 285 bytes of
+ * 16bpp software upscale + Lock/Unlock via FUN_005b9490/_94d0) is NOT
+ * YET PORTED.  Mode 4 in this port skips the scaler and proceeds
+ * straight to the blit_onto + Flip — visible artefact when mode 4 runs
+ * live (back_obj_b's contents stay frozen from boot, so back_obj_a
+ * receives a blank stamp).  Mode 4 isn't the live boot mode (mode 2 is);
+ * this surfaces only when the launcher selects Zoom.
+ *
+ * Returns void; retail callers don't read a return value.  Per-step
+ * failures from Win32 primitives are silently dropped here (the Win32
+ * leg logs DDERR via OutputDebugStringA, which our wrapper dual-sinks
+ * to stderr — see zdd_win32.c). */
+void zdd_present(zdd *self);
+
+/* ─── present-dispatcher Win32 primitives ────────────────────────────
+ *
+ * The pure-logic dispatcher above forwards to these.  Each has a host
+ * stub in tests/test_zdd.c so dispatcher tests can assert which leg
+ * fired with which args. */
+
+/* IDirectDrawSurface7::Flip via vtable[11] (byte 0x2c — verified by r2
+ * disasm at 0x5b904f / 0x5b906d).  `target` may be NULL (lets DDraw
+ * pick the next back buffer in a back-buffer chain); in retail it's
+ * always the attached child surface's COM pointer.  `flags` is
+ * DDFLIP_WAIT (1) in every retail callsite.  Returns 1 on success, 0
+ * on failure with DDERR logged via `log_owner`.  NULL surface returns
+ * 0 silently. */
+int  zdd_surface_flip(void *surface, void *target, uint32_t flags,
+                      zdd *log_owner);
+
+/* IDirectDrawSurface7::Blt via vtable[5] (byte 0x14 — verified by r2
+ * at 0x5b903a / 0x5b9098 / 0x5b9aa5).  `dest_rect` and `src_rect` are
+ * 4-int RECT pointers (left, top, right, bottom); either may be NULL
+ * (full surface).  `flags` typically carries DDBLT_WAIT (0x1000000)
+ * plus the source surface's state_flag for blits via FUN_005b9a40;
+ * we don't add anything implicitly.  `ddbltfx` is currently NULL in
+ * every consumer (the DDBLT_COLORFILL path uses a separate primitive
+ * — see zdd_surface_blt_color_fill below).  Returns 1 on success, 0
+ * on failure with DDERR logged via `log_owner`.  NULL dest returns
+ * 0 silently. */
+int  zdd_surface_blt(void *dest, const int32_t *dest_rect,
+                     void *src,  const int32_t *src_rect,
+                     uint32_t flags, zdd *log_owner);
+
+/* Desktop-DC composite: GetDC(NULL) + BitBlt(dest_hdc, ...) + ReleaseDC.
+ * Used by FUN_005b8fc0 case 2 to push the windowed-mode offscreen
+ * surface to the desktop at the window's screen position.  src_hdc is
+ * the HDC returned by zdd_object_get_dc (the surface's GDI DC).
+ * Returns 1 on success, 0 if GetDC(NULL) failed.  NULL src_hdc returns
+ * 0 silently. */
+int  zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
+                         int width, int height);
+
+/* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Underlying
+ * primitive that zdd_object_get_dc forwards to after dereferencing
+ * self->com_primary.  Tests use this directly for raw-COM scenarios;
+ * the pure-logic dispatcher uses zdd_object_get_dc. */
 int  zdd_surface_get_dc(void *surface, void **out_hdc);
 
 /* IDirectDrawSurface7::ReleaseDC via vtable[26] (byte 0x68).  Pair
- * with zdd_surface_get_dc.  NULL surface or NULL hdc is a no-op.
- * Mirror of paint_ctx::FUN_005b9500. */
+ * with zdd_surface_get_dc; underlying primitive that
+ * zdd_object_release_dc forwards to.  NULL surface or NULL hdc is a
+ * no-op. */
 void zdd_surface_release_dc(void *surface, void *hdc);
+
+/* IDirectDrawSurface7::Blt with DDBLT_COLORFILL + DDBLT_WAIT.  Fills
+ * the entire surface (NULL lpDestRect) with `fill_value`.  Retained as
+ * a separate primitive — the dispatcher's mode 0/1/3 Blt paths use a
+ * source surface (not a colorfill), and DDraw's Blt API forces COLORFILL
+ * to use lpDDBltFx instead of lpDDSrcSurface.  Kept available for
+ * future debugging / smoke paths even though zdd_present no longer
+ * calls it. */
+int  zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
+                                zdd *log_owner);
 
 #endif /* OPENSUMMONERS_ZDD_H */

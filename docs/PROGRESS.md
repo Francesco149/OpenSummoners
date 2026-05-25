@@ -6,6 +6,74 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Present dispatcher ported, smoke loop replaced
+
+Ported `FUN_005b8fc0` — the 5-mode per-frame present dispatcher — and
+its three leaves (`FUN_005b94e0` GetDC, `FUN_005b9500` ReleaseDC,
+`FUN_005b9a40` blit_onto) as the new `zdd_present` /
+`zdd_object_get_dc` / `zdd_object_release_dc` / `zdd_object_blt_onto`
+functions in `src/zdd.c`.  Added three new Win32 primitives
+(`zdd_surface_flip`, `zdd_surface_blt`, `zdd_desktop_present`) in
+`zdd_win32.c`.  The drop-in's hand-rolled smoke-present loop
+(`present_smoke_frame` in main.c) is removed; main.c now calls
+`zdd_present(g_zdd)` directly each frame.
+
+Two non-trivial discoveries fell out:
+
+1. **`paint_ctx::FUN_005b94e0` / `_9500` are misnamed by Ghidra** — the
+   ECX in every live callsite is a `zdd_object*` (specifically
+   `zdd.primary_obj`), not a separate "paint_ctx" class.  Verified by
+   r2 disasm at `0x5b9158` (`mov ecx, [esi + 0x16c]` in the WM_PAINT
+   handler `FUN_005b9130`) and `0x5b90a1` (case 2 of `FUN_005b8fc0`).
+   The `paint_ctx` typedef in `src/wnd_proc.h` is a misnomer for `zdd`
+   itself — same `+0x16c primary_obj` / `+0x138..+0x144` rect /
+   `+0x164 pixel_format_mode` offsets; its `+0x2c zdd_device`
+   docstring is incorrect (that offset falls inside `zdd.log_buf` and
+   isn't read by anything in the WM_PAINT path).
+
+2. **`FUN_005b9a40` arg order**: `(this=src, dest_obj, dest_x, dest_y)`.
+   The `this` parameter is the SOURCE surface; the receiver of the
+   Blt vtable call is `dest_obj->com_primary`.  Confirmed by tracing
+   case 4's push order at `0x5b900b..0x5b9010` against the function
+   body's slot usage at `0x5b9a93` (the COM-dereferenced arg slot is
+   the middle stack arg, not the first).  Also discovered: r2 names
+   stack args by physical-offset (`arg_1ch` ≠ "first C arg") rather
+   than by C-arg-index — caused a brief detour.
+
+Mode 2's desktop-DC technique was also a discovery: case 2 uses
+`GetDC(NULL)` (the *desktop* DC, set explicitly at function start via
+`mov dword [hWnd], 0`) and `BitBlt` at `(screen_pos_x, screen_pos_y)`,
+NOT `GetDC(hWnd)`.  This means `screen_pos_x/y` must be the window's
+CLIENT-area top-left in *screen* coordinates for the BitBlt to land
+inside the window.  Drop-in now keeps these in sync via a new
+`sync_window_position()` helper, called once after `init_ddraw` (with
+`ClientToScreen(g_hwnd, &pt)`) and again on every `WM_MOVE`.  Retail
+must do this from somewhere we haven't traced — `FUN_005b9130` or a
+WM_MOVE handler in the WndProc subsystem; deferred for now.
+
+Mode 4 (Zoom) is partially ported: the dispatcher correctly fans
+into `zdd_object_blt_onto` + Flip, but the upstream software
+upscaler `FUN_005b8ea0` (285-byte 16bpp pixel-copy via Lock/Unlock)
+is NOT ported.  Mode 4 in this port skips the upscale stage —
+`back_obj_b` stays blank, so the Flip presents `back_obj_a`'s last
+contents.  Mode 4 isn't the live boot mode; this only bites on a
+Zoom-launcher selection.
+
+`--no-smoke-present` flag renamed to `--no-present`.  Smoke-failure
+counters / log lines in main.c removed (we're done with the
+hand-rolled diagnostic; the dispatcher's own DDERR logging via
+`zdd_log_dderr` → `OutputDebugStringA` → stderr is the new
+diagnostic surface).
+
+17 new host tests added (105 total in test_zdd.c): 4 for
+`zdd_object_get_dc`, 2 for `zdd_object_release_dc`, 3 for
+`zdd_object_blt_onto`, 8 for `zdd_present`'s mode dispatch.  324 host
+tests pass / 0 fail / 6 skip (was 307/0/6).  Cross-build with mingw
+clean; `tools/run-opensummoners.sh --frames 10 --hide-window` boots
+through the dispatcher with zero DDERR.
+
+---
+
 ## 2026-05-25 — Mode-2 smoke-present + two RE bug fixes it surfaced
 
 Drop-in `main.c` now runs a per-frame smoke-present in launcher mode 2

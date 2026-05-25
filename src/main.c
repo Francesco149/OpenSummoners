@@ -22,6 +22,9 @@
  *   - --hide-window: skip ShowWindow for harness runs.
  *   - --frames N: voluntary exit after N main-loop iterations so stderr
  *     flushes cleanly for the smoke-test pipeline.
+ *   - --skip-ddraw: skip DDraw init entirely (window-only boot).
+ *   - --no-present: skip the per-frame zdd_present dispatch
+ *     (DDraw init still runs).
  *
  * Build: `make -C src` from inside `nix develop`.
  */
@@ -74,16 +77,12 @@ static int       g_show_msgbox;
 static int       g_allow_multi;
 static int       g_skip_cd;
 static int       g_skip_ddraw;
-static int       g_no_smoke_present;
+static int       g_no_present;
 static unsigned  g_max_frames;
 static int       g_launcher_mode = DEFAULT_LAUNCHER_MODE;
 static int       g_shutdown;
 static HANDLE    g_singleton_mutex;
 static zdd      *g_zdd;
-static int       g_smoke_present_failures;
-static int       g_smoke_fail_blt;
-static int       g_smoke_fail_getdc;
-static int       g_smoke_fail_winhdc;
 
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
@@ -101,7 +100,7 @@ static void frame_limiter(void);
 static void log_line(const char *fmt, ...);
 static int  init_ddraw(void);
 static void shutdown_ddraw(void);
-static void present_smoke_frame(void);
+static void sync_window_position(void);
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -168,6 +167,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         return 1;
     }
 
+    /* Stamp the ZDD's screen_pos_x/y from the window's actual client-
+     * area top-left in screen coords.  Mode 2 (Windowed) present needs
+     * this to BitBlt into the right desktop location — retail keeps it
+     * in sync from somewhere we haven't traced yet (likely WM_MOVE
+     * inside FUN_005b9130 or a sibling).  Updated again on WM_MOVE
+     * below; this initial sample covers the window's spawn position. */
+    sync_window_position();
+
     g_base_time_ms = timeGetTime();
 
     /* g_max_frames == 0 → run until WM_QUIT or external close.  Non-zero
@@ -179,12 +186,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     log_line("OpenSummoners exiting after %u frames (%u ms wall)",
              g_frame_counter, g_total_ms);
-    if (g_smoke_present_failures != 0 || g_smoke_fail_winhdc != 0) {
-        log_line("smoke-present: %d frame(s) failed "
-                 "(blt=%d getdc=%d winhdc=%d) — DDERR via OutputDebugStringA",
-                 g_smoke_present_failures, g_smoke_fail_blt,
-                 g_smoke_fail_getdc, g_smoke_fail_winhdc);
-    }
 
     shutdown_ddraw();
     timeEndPeriod(1);
@@ -319,8 +320,28 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         g_shutdown = 1;
         PostQuitMessage(0);
         return 0;
+    case WM_MOVE:
+        /* Keep ZDD screen_pos_x/y in sync with the window's client
+         * top-left so mode-2 present's desktop BitBlt lands inside
+         * the window. */
+        sync_window_position();
+        return 0;
     }
     return DefWindowProcA(hwnd, msg, wp, lp);
+}
+
+/* Sample the window's client-area top-left in screen coordinates and
+ * stamp it on g_zdd.  Called once after init_ddraw and on every
+ * WM_MOVE thereafter.  No-op when DDraw is disabled or the window
+ * isn't created yet. */
+static void sync_window_position(void)
+{
+    if (g_zdd == NULL || g_hwnd == NULL) return;
+    POINT pt = {0, 0};
+    if (ClientToScreen(g_hwnd, &pt)) {
+        g_zdd->screen_pos_x = (int32_t)pt.x;
+        g_zdd->screen_pos_y = (int32_t)pt.y;
+    }
 }
 
 static void main_loop_body(void)
@@ -335,68 +356,18 @@ static void main_loop_body(void)
         DispatchMessageA(&msg);
     }
 
-    /* Smoke-present: BltColorFill the offscreen surface and BitBlt it
-     * to the window each frame.  Mirrors the windowed branch of retail's
-     * FUN_005b8fc0 (paint_ctx::GetDC → BitBlt → paint_ctx::ReleaseDC).
-     * Disabled with --no-smoke-present or --skip-ddraw.  Until the real
-     * scene runner (FUN_0056aea0) is ported this is the only thing
-     * driving the surface chain, so a successful run is the milestone
-     * that confirms ddraw init produced a usable surface. */
-    if (!g_skip_ddraw && !g_no_smoke_present && g_zdd != NULL) {
-        present_smoke_frame();
+    /* Per-frame present — FUN_005b8fc0's 5-mode dispatcher.  Until the
+     * real scene runner (FUN_0056aea0) lands and produces real content,
+     * the offscreen surface is whatever DDraw initialised it to (usually
+     * zero / undefined), so the windowed BitBlt produces a black or
+     * uninitialised rectangle in the window.  That's the expected
+     * behaviour pre-renderer; success is "zero DDERR per frame". */
+    if (!g_skip_ddraw && !g_no_present && g_zdd != NULL) {
+        zdd_present(g_zdd);
     }
 
     frame_limiter();
     g_frame_counter++;
-}
-
-/* One smoke-present frame for mode 2 (Windowed).  Other modes need
- * their own present paths (mode 0 = Flip on com_a, mode 1/3 = Blt
- * com_a, mode 4 = the two-stage zoom blit) — not wired here.  We
- * silently skip the fill+blit for non-windowed modes so the harness
- * still exercises the boot path without firing a per-frame error.
- *
- * Each step is fail-soft: any DDERR is logged via the ZDD's existing
- * DDERR builder and we record a counter for the shutdown log, but the
- * loop keeps running.  This is debugging plumbing — we want to *see*
- * how the surface chain behaves, not abort on the first hiccup. */
-static void present_smoke_frame(void)
-{
-    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
-    if (g_launcher_mode != 2) return;
-
-    void *surf = g_zdd->primary_obj->com_primary;
-    if (surf == NULL) return;
-
-    /* 0xF800 = RGB565 red.  The offscreen surface for mode 2 is created
-     * with the explicit RGB565 pixel-format block (see ddraw-init.md
-     * FUN_005b8c00 16bpp branch), so this fill value lands as pure red. */
-    if (!zdd_surface_blt_color_fill(surf, 0xF800, g_zdd)) {
-        g_smoke_present_failures++;
-        g_smoke_fail_blt++;
-        return;
-    }
-
-    void *surf_hdc = NULL;
-    if (!zdd_surface_get_dc(surf, &surf_hdc)) {
-        g_smoke_present_failures++;
-        g_smoke_fail_getdc++;
-        return;
-    }
-
-    HDC win_hdc = GetDC(g_hwnd);
-    if (win_hdc == NULL) {
-        g_smoke_fail_winhdc++;
-    } else {
-        /* DEFAULT_WIDTH/HEIGHT matches the requested surface size —
-         * the surface is 640x480 (see cs_dispatch.c mode 2 body that
-         * passes 0x280, 0x1e0 into zdd_create_screen). */
-        BitBlt(win_hdc, 0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT,
-               (HDC)surf_hdc, 0, 0, SRCCOPY);
-        ReleaseDC(g_hwnd, win_hdc);
-    }
-
-    zdd_surface_release_dc(surf, surf_hdc);
 }
 
 /* 16 ms wall-time gate (placeholder until we resolve the engine's actual
@@ -431,7 +402,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;
         else if (!strcmp(tok, "--skip-ddraw"))   g_skip_ddraw = 1;
-        else if (!strcmp(tok, "--no-smoke-present")) g_no_smoke_present = 1;
+        else if (!strcmp(tok, "--no-present"))   g_no_present = 1;
         else if (!strcmp(tok, "--frames")) {
             tok = strtok(NULL, " \t");
             if (tok) g_max_frames = (unsigned)strtoul(tok, NULL, 10);

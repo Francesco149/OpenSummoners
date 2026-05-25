@@ -317,6 +317,23 @@ struct test_case {
     X(zdd_create_screen_8bpp_creates_palette)                  \
     X(zdd_create_screen_primary_create_failure)                \
     X(zdd_create_screen_releases_prior_state)                  \
+    X(zdd_object_get_dc_null_self_returns_zero)                \
+    X(zdd_object_get_dc_null_com_primary_returns_zero)         \
+    X(zdd_object_get_dc_forwards_and_returns_one)              \
+    X(zdd_object_get_dc_returns_one_even_when_primitive_fails) \
+    X(zdd_object_release_dc_forwards)                          \
+    X(zdd_object_release_dc_null_self_noop)                    \
+    X(zdd_object_blt_onto_null_self_degenerate_success)        \
+    X(zdd_object_blt_onto_null_dest_returns_zero)              \
+    X(zdd_object_blt_onto_builds_rects_and_forwards)           \
+    X(zdd_present_null_self_noop)                              \
+    X(zdd_present_mode_0_full_flips_com_a)                     \
+    X(zdd_present_mode_0_skips_when_com_a_null)                \
+    X(zdd_present_mode_1_safe_blts_full_rect)                  \
+    X(zdd_present_mode_2_windowed_get_blit_release)            \
+    X(zdd_present_mode_3_db_blt_then_flip)                     \
+    X(zdd_present_mode_4_zoom_blt_then_flip)                   \
+    X(zdd_present_default_mode_is_noop)                        \
     X(cs_compute_zoom_rect_clean_centre)                       \
     X(cs_compute_zoom_rect_exact_match)                        \
     X(cs_compute_zoom_rect_zoom_larger_than_display)           \
