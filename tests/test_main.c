@@ -265,6 +265,18 @@ struct test_case {
     X(zdd_build_desc_pixelformat_mode_2_32bpp)                 \
     X(zdd_build_desc_pixelformat_mode_2_unknown_bpp)           \
     X(zdd_build_desc_mode_other_no_pixelformat_even_with_bpp)  \
+    X(zdd_object_prefill_stamps_caps_and_force_vm)             \
+    X(zdd_object_prefill_stamps_self_pointers)                 \
+    X(zdd_object_prefill_zeros_ddsd_and_stamps_dwsize)         \
+    X(zdd_object_stamp_metrics_writes_all_slots)               \
+    X(zdd_object_stamp_metrics_does_not_touch_other_fields)    \
+    X(zdd_object_set_color_key_sentinel_short_circuits)        \
+    X(zdd_object_set_color_key_non_sentinel_calls_vtable)      \
+    X(zdd_object_set_color_key_failure_logs_and_returns_zero)  \
+    X(zdd_object_create_surface_pair_happy_path)               \
+    X(zdd_object_create_surface_pair_create_surface_fails)     \
+    X(zdd_object_create_surface_pair_passes_caps_from_field)   \
+    X(zdd_object_create_surface_pair_with_real_colorkey)       \
 
 #define X(n) extern int test_##n(void);
 TESTS

@@ -128,6 +128,116 @@ void zdd_object_dtor(zdd_object *self)
     }
 }
 
+/* ─── ZDDObject surface-alloc stampers + orchestrator ────────────── */
+
+/* The colorkey-sentinel "no key requested" value passed to
+ * zdd_object_set_color_key by callers that don't want a transparent
+ * color.  Defined here (rather than in the header) because it's only
+ * read inside this TU's set_color_key body — no consumer needs the
+ * literal anywhere else.  See docs/findings/ddraw-init.md §
+ * "FUN_005b95c0" for the original boot call site (FUN_005b8b40 passes
+ * pixelFmtFlags = 0x1ffffff for the primary surface). */
+#define Z_COLORKEY_SENTINEL  0x1ffffff
+
+void zdd_object_prefill_desc(zdd_object *self,
+                             int32_t caps_in, int32_t force_videomem_in)
+{
+    self->caps_in            = caps_in;
+    self->force_videomem_in  = force_videomem_in;
+
+    memset(self->embedded_ddsd, 0, sizeof(self->embedded_ddsd));
+
+    /* Self-pointers into the embedded DDSD.  In retail, written
+     * literally as `*in_ECX = in_ECX + 0x15` etc. — i.e., dword indices
+     * 0x15/0x10/0x0e from the start of the object, which are byte
+     * offsets +0x54/+0x40/+0x38 — the DDSD lpSurface (DDSD offset 0x24),
+     * DDSD lPitch (offset 0x10), and DDSD dwHeight (offset 0x08)
+     * sub-fields respectively (DDSD itself starts at object offset
+     * +0x30). */
+    self->ddsd_lpSurface_ref = &self->embedded_ddsd[0x24];
+    self->ddsd_pitch_ref     = &self->embedded_ddsd[0x10];
+    self->ddsd_height_ref    = &self->embedded_ddsd[0x08];
+
+    /* DDSD dwSize stamp (the first dword of the embedded DDSD). */
+    *(uint32_t *)&self->embedded_ddsd[0x00] = 0x7c;
+}
+
+void zdd_object_stamp_metrics(zdd_object *self,
+                              int32_t p1, int32_t p2, int32_t p3,
+                              int32_t p4, int32_t p5, int32_t p6)
+{
+    /* Issue order matches FUN_005b98c0 byte-for-byte: post-DDSD zero
+     * pair first, then the interleaved metric+param writes. */
+    self->metric_b0 = 0;
+    self->metric_b4 = 0;
+    self->metric_0c = p3;
+    self->metric_b8 = p5;
+    self->metric_bc = p6;
+    self->metric_14 = p5;
+    self->metric_18 = p6;
+    self->metric_10 = p4;
+    self->metric_1c = p1;
+    self->metric_20 = p2;
+}
+
+int zdd_object_set_color_key(zdd_object *self, int32_t key)
+{
+    self->colorkey_in = key;
+
+    if (key == Z_COLORKEY_SENTINEL) {
+        /* "No color key requested" — stamp the sentinel through and
+         * clear state_flag.  No vtable call. */
+        self->colorkey_out = Z_COLORKEY_SENTINEL;
+        self->state_flag   = 0;
+        return 1;
+    }
+
+    self->state_flag = 0x8000;
+
+    /* 16bpp branch: retail runs the key through FUN_005b8b00 (a pixel-
+     * format channel-shifter that picks 16bpp masks off some descriptor
+     * pointer in ECX).  The conversion is currently NOT ported — the
+     * descriptor object's identity is still unresolved (see
+     * docs/findings/ddraw-init.md open thread "FUN_005b8b00").  For boot
+     * the orchestrator's caller (FUN_005b8b40 -> FUN_005b95c0) passes
+     * the sentinel, so the sentinel branch above wins and this branch
+     * never executes at boot.  Once a real consumer needs it, port
+     * FUN_005b8b00 and replace the raw key here with its converted
+     * value. */
+    if (self->parent != NULL && self->parent->pixel_format_bpp == 16) {
+        /* key = zdd_pixel_format_convert_16bpp(self->parent, key); */
+        /* TODO: pending FUN_005b8b00. */
+    }
+    self->colorkey_out = key;
+
+    return zdd_surface_set_color_key(self->com_primary, key, self->parent);
+}
+
+void zdd_object_create_surface_pair(zdd_object *self,
+                                    int32_t p1, int32_t p2, int32_t p3,
+                                    int32_t p4, int32_t p5, int32_t p6,
+                                    int32_t p7,
+                                    uint32_t width, uint32_t height)
+{
+    (void)p7;  /* retail param_7 is dead — captured for ABI symmetry */
+
+    zdd_object_prefill_desc(self, p3, p5);
+
+    /* Pass `self->caps_in` (just stamped to p3 by prefill) — matches
+     * retail's `*(undefined4 *)(in_ECX + 0xcc)` re-read.  The dword
+     * roundtrip is deliberate in the original; we preserve it. */
+    if (!zdd_create_surface(self->parent, &self->com_primary,
+                            width, height,
+                            (uint32_t)self->caps_in, (int)p5)) {
+        return;
+    }
+
+    zdd_object_stamp_metrics(self, p1, p2, p3, p4, p5, p6);
+    /* Return value intentionally dropped — retail's orchestrator does
+     * not check FUN_005b9830's result. */
+    (void)zdd_object_set_color_key(self, p4);
+}
+
 /* zdd_obj_destroy — full ZDDObject teardown + heap free.  Replaces
  * the placeholder that used to just free() the allocation. */
 void zdd_obj_destroy(zdd_object **obj_pp)

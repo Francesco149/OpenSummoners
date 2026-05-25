@@ -131,6 +131,35 @@ int zdd_create_surface(zdd *self, void **out_surface,
     return 0;
 }
 
+/* FUN_005b9830 (Win32 leg) — IDirectDrawSurface7::SetColorKey via
+ * vtable[29] (byte offset 0x74) with DDCKEY_SRCBLT (8) flag.  Builds
+ * a DDCOLORKEY with both .dwColorSpaceLowValue and
+ * .dwColorSpaceHighValue set to `key` — retail's `local_8 = key;
+ * local_4 = key` setup.  NULL `surface` returns 0 silently — the
+ * orchestrator's path can't actually call this with NULL (we only get
+ * here after CreateSurface succeeded), but defensive.
+ *
+ * `log_owner` is the parent ZDD whose `log_buf` zdd_log_dderr scribbles
+ * the DDERR message into.  We need a ZDD to log; the ZDDObject doesn't
+ * have its own. */
+int zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner)
+{
+    if (surface == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    DDCOLORKEY ck;
+    ck.dwColorSpaceLowValue  = (DWORD)key;
+    ck.dwColorSpaceHighValue = (DWORD)key;
+    HRESULT hr = surf->lpVtbl->SetColorKey(surf, DDCKEY_SRCBLT, &ck);
+    if (FAILED(hr)) {
+        if (log_owner != NULL) {
+            zdd_log_dderr(log_owner, "DirectDrawSurface",
+                          "SetColorKey", (int32_t)hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
 /* FUN_005b89d0 — IDirectDraw7::SetCooperativeLevel.  Flags:
  *   fullscreen == 0  →  DDSCL_NORMAL (0x08)
  *   fullscreen != 0  →  DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN |

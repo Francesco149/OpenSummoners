@@ -53,6 +53,13 @@ static int      g_dd_createsurf_result = 1;
 static int32_t  g_dd_createsurf_hr     = 0;
 static void    *g_dd_createsurf_handle = NULL;
 
+/* zdd_surface_set_color_key stub state — call recorder. */
+static int      g_dd_setkey_result   = 1;
+static int32_t  g_dd_setkey_hr       = 0;
+static int      g_dd_setkey_calls    = 0;
+static void    *g_dd_setkey_last_surf = NULL;
+static int32_t  g_dd_setkey_last_key  = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -69,6 +76,11 @@ static void reset_stubs(void)
     g_dd_createsurf_result = 1;
     g_dd_createsurf_hr     = 0;
     g_dd_createsurf_handle = (void *)(uintptr_t)0x99887766;
+    g_dd_setkey_result     = 1;
+    g_dd_setkey_hr         = 0;
+    g_dd_setkey_calls      = 0;
+    g_dd_setkey_last_surf  = NULL;
+    g_dd_setkey_last_key   = 0;
 }
 
 void zdd_show_cursor(int show)
@@ -141,6 +153,19 @@ int zdd_create_surface(zdd *self, void **out_surface,
     }
     zdd_log_dderr(self, "DirectDraw", "CreateSurface",
                   g_dd_createsurf_hr);
+    return 0;
+}
+
+int zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner)
+{
+    g_dd_setkey_calls++;
+    g_dd_setkey_last_surf = surface;
+    g_dd_setkey_last_key  = key;
+    if (g_dd_setkey_result) return 1;
+    if (log_owner != NULL) {
+        zdd_log_dderr(log_owner, "DirectDrawSurface", "SetColorKey",
+                      g_dd_setkey_hr);
+    }
     return 0;
 }
 
@@ -753,5 +778,272 @@ int test_zdd_create_failure_path_tears_down(void)
      * the still-populated buffer (1 more log).  So 2 total. */
     T_ASSERT_EQ_I(g_log_call_count, 2);
     T_ASSERT(strstr(g_log_capture, "DDERR_NODIRECTDRAWHW") != NULL);
+    return 0;
+}
+
+/* ─── ZDDObject surface-alloc stampers ───────────────────────────── */
+
+int test_zdd_object_prefill_stamps_caps_and_force_vm(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    zdd_object_prefill_desc(&o, /*caps_in*/ 0x123, /*force_vm*/ 0x77);
+    T_ASSERT_EQ_I(o.caps_in,           0x123);
+    T_ASSERT_EQ_I(o.force_videomem_in, 0x77);
+    return 0;
+}
+
+int test_zdd_object_prefill_stamps_self_pointers(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    zdd_object_prefill_desc(&o, 0, 0);
+    /* Three self-pointers should point at well-known sub-fields inside
+     * the embedded DDSD region (offset 0x30 from the start of o). */
+    T_ASSERT_EQ_P(o.ddsd_lpSurface_ref, &o.embedded_ddsd[0x24]);
+    T_ASSERT_EQ_P(o.ddsd_pitch_ref,     &o.embedded_ddsd[0x10]);
+    T_ASSERT_EQ_P(o.ddsd_height_ref,    &o.embedded_ddsd[0x08]);
+    return 0;
+}
+
+int test_zdd_object_prefill_zeros_ddsd_and_stamps_dwsize(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    /* Garbage the DDSD region first to verify the prefill zeros it. */
+    memset(o.embedded_ddsd, 0xa5, sizeof(o.embedded_ddsd));
+    zdd_object_prefill_desc(&o, 0, 0);
+
+    /* DDSD dwSize stamped 0x7c at the very start. */
+    T_ASSERT_EQ_U(*(uint32_t *)&o.embedded_ddsd[0x00], 0x7cu);
+    /* Every other byte in the DDSD region must be 0. */
+    for (size_t i = 4; i < sizeof(o.embedded_ddsd); i++) {
+        T_ASSERT_EQ_I((int)o.embedded_ddsd[i], 0);
+    }
+    return 0;
+}
+
+int test_zdd_object_stamp_metrics_writes_all_slots(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    /* Pre-poison the slots so a missed write would be visible. */
+    o.metric_0c = o.metric_10 = o.metric_14 = -1;
+    o.metric_18 = o.metric_1c = o.metric_20 = -1;
+    o.metric_b0 = o.metric_b4 = o.metric_b8 = o.metric_bc = -1;
+
+    zdd_object_stamp_metrics(&o,
+        /*p1*/ 100, /*p2*/ 200, /*p3*/ 300,
+        /*p4*/ 400, /*p5*/ 500, /*p6*/ 600);
+
+    /* 98c0's literal write pattern. */
+    T_ASSERT_EQ_I(o.metric_b0, 0);
+    T_ASSERT_EQ_I(o.metric_b4, 0);
+    T_ASSERT_EQ_I(o.metric_0c, 300);  /* p3 */
+    T_ASSERT_EQ_I(o.metric_b8, 500);  /* p5 */
+    T_ASSERT_EQ_I(o.metric_bc, 600);  /* p6 */
+    T_ASSERT_EQ_I(o.metric_14, 500);  /* p5 */
+    T_ASSERT_EQ_I(o.metric_18, 600);  /* p6 */
+    T_ASSERT_EQ_I(o.metric_10, 400);  /* p4 */
+    T_ASSERT_EQ_I(o.metric_1c, 100);  /* p1 */
+    T_ASSERT_EQ_I(o.metric_20, 200);  /* p2 */
+    return 0;
+}
+
+int test_zdd_object_stamp_metrics_does_not_touch_other_fields(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    /* Seed parent + neighbor fields and verify they survive. */
+    o.com_primary    = (void *)(uintptr_t)0xabc;
+    o.com_back       = (void *)(uintptr_t)0xdef;
+    o.pixel_buf      = (void *)(uintptr_t)0x123;
+    o.pixel_buf_flag = 7;
+    o.caps_in        = 0x999;
+    o.state_flag     = 0x5555;
+
+    zdd_object_stamp_metrics(&o, 1, 2, 3, 4, 5, 6);
+
+    T_ASSERT_EQ_P(o.com_primary,    (void *)(uintptr_t)0xabc);
+    T_ASSERT_EQ_P(o.com_back,       (void *)(uintptr_t)0xdef);
+    T_ASSERT_EQ_P(o.pixel_buf,      (void *)(uintptr_t)0x123);
+    T_ASSERT_EQ_U(o.pixel_buf_flag, 7u);
+    T_ASSERT_EQ_I(o.caps_in,        0x999);
+    T_ASSERT_EQ_U(o.state_flag,     0x5555u);
+    return 0;
+}
+
+/* ─── ZDDObject SetColorKey ──────────────────────────────────────── */
+
+int test_zdd_object_set_color_key_sentinel_short_circuits(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+
+    /* Pre-poison state_flag to verify the sentinel branch clears it. */
+    o.state_flag   = 0xdeadbeef;
+    o.colorkey_in  = 0;
+    o.colorkey_out = 0;
+
+    int rc = zdd_object_set_color_key(&o, 0x1ffffff);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(o.colorkey_in,  0x1ffffff);
+    T_ASSERT_EQ_I(o.colorkey_out, 0x1ffffff);
+    T_ASSERT_EQ_U(o.state_flag,   0u);
+    /* Sentinel path must NOT issue a SetColorKey call. */
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_set_color_key_non_sentinel_calls_vtable(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+
+    int rc = zdd_object_set_color_key(&o, 0xff00ff);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(o.colorkey_in,  0xff00ff);
+    T_ASSERT_EQ_I(o.colorkey_out, 0xff00ff);
+    T_ASSERT_EQ_U(o.state_flag,   0x8000u);
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 1);
+    T_ASSERT_EQ_P(g_dd_setkey_last_surf, (void *)(uintptr_t)0xface);
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0xff00ff);
+    return 0;
+}
+
+int test_zdd_object_set_color_key_failure_logs_and_returns_zero(void)
+{
+    reset_stubs();
+    g_dd_setkey_result = 0;
+    g_dd_setkey_hr     = (int32_t)0x88760482;  /* INVALIDOBJECT */
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0x1;
+
+    int rc = zdd_object_set_color_key(&o, 0x123);
+    T_ASSERT_EQ_I(rc, 0);
+    /* state_flag was still stamped to 0x8000 before the call (and
+     * retail leaves it that way on failure too). */
+    T_ASSERT_EQ_U(o.state_flag, 0x8000u);
+    T_ASSERT(strstr(g_log_capture, "DDERR_INVALIDOBJECT") != NULL);
+    T_ASSERT(strstr(g_log_capture, "SetColorKey")         != NULL);
+    return 0;
+}
+
+/* ─── orchestrator (FUN_005b95c0) ────────────────────────────────── */
+
+int test_zdd_object_create_surface_pair_happy_path(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    /* Match the retail boot call shape (FUN_005b8b40 → 95c0):
+     *   p1=640, p2=480, p3=0,
+     *   p4=0x1ffffff (colorkey sentinel),
+     *   p5=1 (count/force-vm), p6=0, p7=0,
+     *   width=640, height=480. */
+    zdd_object_create_surface_pair(&o,
+        /*p1*/ 640, /*p2*/ 480, /*p3*/ 0,
+        /*p4*/ 0x1ffffff, /*p5*/ 1, /*p6*/ 0, /*p7*/ 0,
+        /*w*/  640, /*h*/  480);
+
+    /* prefill stamps. */
+    T_ASSERT_EQ_I(o.caps_in,           0);
+    T_ASSERT_EQ_I(o.force_videomem_in, 1);
+    T_ASSERT_EQ_U(*(uint32_t *)&o.embedded_ddsd[0], 0x7cu);
+
+    /* CreateSurface ran (stub stamped com_primary). */
+    T_ASSERT_EQ_P(o.com_primary, (void *)(uintptr_t)0x99887766);
+
+    /* metric stamps from 98c0 — spot-check a couple. */
+    T_ASSERT_EQ_I(o.metric_1c, 640);  /* p1 */
+    T_ASSERT_EQ_I(o.metric_20, 480);  /* p2 */
+    T_ASSERT_EQ_I(o.metric_10, 0x1ffffff);  /* p4 */
+    T_ASSERT_EQ_I(o.metric_14, 1);    /* p5 */
+
+    /* Colorkey sentinel path — no SetColorKey vtable call. */
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+    T_ASSERT_EQ_U(o.state_flag, 0u);
+    T_ASSERT_EQ_I(o.colorkey_in,  0x1ffffff);
+    T_ASSERT_EQ_I(o.colorkey_out, 0x1ffffff);
+    return 0;
+}
+
+int test_zdd_object_create_surface_pair_create_surface_fails(void)
+{
+    reset_stubs();
+    g_dd_createsurf_result = 0;
+    g_dd_createsurf_hr     = (int32_t)0x88760464;  /* INVALIDCAPS */
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    zdd_object_create_surface_pair(&o,
+        0, 0, /*caps*/ 0x42, /*colorkey*/ 0x77, /*p5*/ 0, 0, 0,
+        320, 200);
+
+    /* CreateSurface failed → orchestrator bailed before stamping
+     * metrics and before calling SetColorKey. */
+    T_ASSERT_EQ_P(o.com_primary, NULL);
+    T_ASSERT_EQ_I(o.metric_1c,   0);  /* never stamped */
+    T_ASSERT_EQ_I(o.metric_10,   0);  /* never stamped */
+    T_ASSERT_EQ_I(o.colorkey_in, 0);  /* SetColorKey never ran */
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+
+    /* But prefill DID run — caps_in / force_videomem_in / DDSD stamps. */
+    T_ASSERT_EQ_I(o.caps_in,           0x42);
+    T_ASSERT_EQ_I(o.force_videomem_in, 0);
+    T_ASSERT(strstr(g_log_capture, "DDERR_INVALIDCAPS") != NULL);
+    T_ASSERT(strstr(g_log_capture, "CreateSurface")    != NULL);
+    return 0;
+}
+
+int test_zdd_object_create_surface_pair_passes_caps_from_field(void)
+{
+    /* Retail re-reads caps from self->caps_in (just stamped by
+     * prefill) before passing it to CreateSurface.  This test makes
+     * the roundtrip observable: poke caps_in BEFORE the orchestrator
+     * runs — prefill will overwrite it with p3, then CreateSurface
+     * reads back p3 (not the poked value). */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.caps_in = 0xdeadbeef;  /* pre-poison */
+
+    zdd_object_create_surface_pair(&o, 0, 0, /*p3*/ 0x55, 0x1ffffff,
+                                   0, 0, 0, 100, 100);
+    /* caps_in ended up as p3, not the poisoned value. */
+    T_ASSERT_EQ_I(o.caps_in, 0x55);
+    return 0;
+}
+
+int test_zdd_object_create_surface_pair_with_real_colorkey(void)
+{
+    /* Non-sentinel colorkey → SetColorKey vtable call fires after
+     * the metric stamps. */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    zdd_object_create_surface_pair(&o, 10, 20, 0, /*p4*/ 0xabcdef,
+                                   0, 0, 0, 64, 64);
+
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 1);
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0xabcdef);
+    T_ASSERT_EQ_U(o.state_flag, 0x8000u);
+    T_ASSERT_EQ_I(o.colorkey_out, 0xabcdef);
     return 0;
 }
