@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — CreateSurfacePair factory PORTED (FUN_005b8b40)
+
+Wraps the surface-alloc stack up to the public engine entry point.
+`zdd_object_new` (FUN_005b8b40, 184 bytes) does the canonical "allocate
++ ctor + orchestrator + cleanup-on-failure" sequence:
+
+```c
+zdd_object *zdo = calloc(1, sizeof(zdd_object));
+if (!zdo) return 0;
+zdd_object_ctor(zdo, parent);
+if (!zdd_object_create_surface_pair(zdo, w, h, 0, colorkey,
+                                    count, 0, 0, w, h)) {
+    zdd_object_dtor(zdo); free(zdo); return 0;
+}
+*out = zdo; return 1;
+```
+
+Mirrors retail's `operator_new(0xd8) → FUN_005b9350 → FUN_005b95c0 →
+on-fail FUN_005b9390 + FUN_005bef0e` byte-for-byte.  We swap operator_new
+for calloc (deterministic zero-init; the subsequent ctor stamps every
+observable field so the observable behaviour is identical) and the
+heap-free primitive for free.
+
+Side change: `zdd_object_create_surface_pair` (the orchestrator) gains
+an int return type.  Retail's Ghidra decomp shows it as void but the
+assembly leaves the last callee's EAX value as the implicit return;
+FUN_005b8b40 reads that as int to decide cleanup.  The mapping:
+0 means "CreateSurface failed OR (SetColorKey failed AND key was
+non-sentinel)"; 1 means "everything OK or the sentinel path
+short-circuited SetColorKey".  All 4 existing orchestrator tests still
+pass since none of them was checking the return value.
+
+Tests now: **252 pass, 0 fail, 6 skip** (up from 246/6; 6 new — 3 for
+the orchestrator's new return-int behaviour across sentinel-success,
+create-fail, and setkey-fail branches; 3 for the factory: happy path,
+create-fail teardown, setkey-fail teardown).
+
+---
+
 ## 2026-05-25 — Surface-alloc stampers + orchestrator PORTED (4 functions)
 
 Closes out the ZDDObject surface-alloc sub-tree at the leaf level.
