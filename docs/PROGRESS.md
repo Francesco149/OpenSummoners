@@ -6,6 +6,52 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Mode-2 smoke-present + two RE bug fixes it surfaced
+
+Drop-in `main.c` now runs a per-frame smoke-present in launcher mode 2
+(Windowed): `BltColorFill(0xF800)` on the offscreen primary, then
+`GetDC` → `BitBlt` → `ReleaseDC` onto the window HDC.  Mirrors the
+windowed branch of retail's `FUN_005b8fc0` (the engine's "Title Menu -
+Flipping" path) but without porting `paint_ctx` yet.  Counts per-step
+failures; the harness sees zero DDERR across all frames.  Gated behind
+`--no-smoke-present` so the flag can be flipped off when the real
+title-scene runner lands.
+
+The first run of the smoke loop failed every frame with DDERR_NOCLIPLIST
+(0x887600CD) — which surfaced two real RE bugs in the prior port:
+
+1. **`zdd_object_create_surface_pair` was passing the wrong args to
+   `zdd_object_stamp_metrics`.**  Retail's `FUN_005b95c0` calls
+   `FUN_005b98c0` with `(p1, p2, p6, p7, p8/width, p9/height)` — NOT
+   `(p1..p6)`.  Confirmed by r2 disasm at `0x5b95ff–0x5b9617` (push
+   order on the stack before the call).  The wrong mapping left
+   `metric_b8`/`metric_bc` holding the count flag (`1, 0`) instead of
+   the surface dimensions (`640, 480`).
+
+2. **`zdd_object_attach_clipper` passed a NULL pointer where retail
+   builds a real `RGNDATA` on the stack.**  `FUN_005b9520` builds
+   `{RGNDATAHEADER, RECT}` bounding the full surface from
+   `self->metric_b8/metric_bc` and hands the struct address to
+   `IDirectDrawClipper::SetClipList` (vtable[7] / byte 0x1c —
+   confirmed by r2 at `0x5b95a7`, resolving the prior open
+   ambiguity).  Renamed the Win32 primitive
+   `zdd_clipper_set_clip_list_null` → `_rect` and threaded the
+   dimensions from the now-correct metric slots.  Under
+   `DDSCL_NORMAL`, an empty cliplist makes every subsequent `Blt` fail
+   `NOCLIPLIST`; the fix unblocks all windowed-mode drawing.
+
+DDERR debugging was also helped by dual-sinking
+`zdd_output_debug_string` to stderr in `zdd_win32.c` (in addition to
+`OutputDebugStringA`).  Without DbgView attached the engine's DDERR
+builder output is invisible — the dup makes the harness output
+line-oriented and self-contained.
+
+307 host tests pass / 0 fail; mingw cross-build clean; `tools/
+run-opensummoners.sh --frames 5` boots and runs the smoke loop with
+zero DDraw errors.  See commit `5d82301`.
+
+---
+
 ## 2026-05-25 — DDraw init WIRED into drop-in `WinMain` (mode-2 Windowed)
 
 The boot-time graphics init chain is now end-to-end inside the drop-in.
