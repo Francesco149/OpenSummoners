@@ -255,6 +255,16 @@ struct test_case {
     X(zdd_object_dtor_clean_object_noop)                       \
     X(zdd_obj_destroy_walks_dtor_and_frees)                    \
     X(zdd_obj_destroy_idempotent_on_null)                      \
+    X(zdd_build_desc_minimal_no_pixelformat)                   \
+    X(zdd_build_desc_caps_base_preserved)                      \
+    X(zdd_build_desc_force_videomem_adds_caps)                 \
+    X(zdd_build_desc_self_videomem_flag_adds_caps)             \
+    X(zdd_build_desc_pixelformat_mode_2_8bpp)                  \
+    X(zdd_build_desc_pixelformat_mode_2_16bpp_rgb565)          \
+    X(zdd_build_desc_pixelformat_mode_2_24bpp)                 \
+    X(zdd_build_desc_pixelformat_mode_2_32bpp)                 \
+    X(zdd_build_desc_pixelformat_mode_2_unknown_bpp)           \
+    X(zdd_build_desc_mode_other_no_pixelformat_even_with_bpp)  \
 
 #define X(n) extern int test_##n(void);
 TESTS

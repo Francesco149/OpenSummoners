@@ -71,6 +71,66 @@ int zdd_directdraw_create_ex(zdd *self)
     return 1;
 }
 
+/* FUN_005b8c00 — full surface create.  Calls into the pure-logic
+ * descriptor builder, translates to a real DDSURFACEDESC2, invokes
+ * IDirectDraw7::CreateSurface, optionally binds the palette stashed
+ * in self->com_b, and logs DDERR on failure.
+ *
+ * Method-index notes:
+ *   IDirectDraw7::CreateSurface     vtable index  6 / byte offset 0x18
+ *   IDirectDrawSurface7::SetPalette vtable index 31 / byte offset 0x7c
+ * See docs/findings/ddraw-init.md "Vtable cheat-sheet for the harness". */
+int zdd_create_surface(zdd *self, void **out_surface,
+                       uint32_t width, uint32_t height,
+                       uint32_t caps_base, int force_videomem)
+{
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(self, &b, width, height, caps_base,
+                           force_videomem);
+
+    /* Build the real DDSURFACEDESC2.  Zero-init then overlay from the
+     * pure-logic descriptor. */
+    DDSURFACEDESC2 ddsd;
+    memset(&ddsd, 0, sizeof(ddsd));
+    ddsd.dwSize           = sizeof(ddsd);     /* 0x7c — matches Z_DDSD */
+    ddsd.dwFlags          = b.dwFlags;
+    ddsd.dwHeight         = b.dwHeight;
+    ddsd.dwWidth          = b.dwWidth;
+    ddsd.ddsCaps.dwCaps   = b.dwCaps;
+    if (b.has_pixel_format) {
+        ddsd.ddpfPixelFormat.dwSize        = b.ddpf_dwSize;
+        ddsd.ddpfPixelFormat.dwFlags       = b.ddpf_dwFlags;
+        ddsd.ddpfPixelFormat.dwRGBBitCount = b.ddpf_dwRGBBitCount;
+        ddsd.ddpfPixelFormat.dwRBitMask    = b.ddpf_dwRBitMask;
+        ddsd.ddpfPixelFormat.dwGBitMask    = b.ddpf_dwGBitMask;
+        ddsd.ddpfPixelFormat.dwBBitMask    = b.ddpf_dwBBitMask;
+    }
+
+    IDirectDraw7 *dd = (IDirectDraw7 *)self->ddraw7;
+    LPDIRECTDRAWSURFACE7 surf = NULL;
+    HRESULT hr = dd->lpVtbl->CreateSurface(dd, &ddsd, &surf, NULL);
+
+    /* Retail's success path: if self has a palette stashed (com_b),
+     * bind it to the new surface BEFORE returning success.  If
+     * CreateSurface failed, fall through to the DDERR log path. */
+    if (self->com_b != NULL) {
+        if (hr == 0) {
+            IDirectDrawPalette *pal = (IDirectDrawPalette *)self->com_b;
+            surf->lpVtbl->SetPalette(surf, pal);
+            *out_surface = surf;
+            return 1;
+        }
+        /* Failure path falls through. */
+    } else if (hr == 0) {
+        *out_surface = surf;
+        return 1;
+    }
+
+    /* CreateSurface failed — log + return 0. */
+    zdd_log_dderr(self, "DirectDraw", "CreateSurface", (int32_t)hr);
+    return 0;
+}
+
 /* FUN_005b89d0 — IDirectDraw7::SetCooperativeLevel.  Flags:
  *   fullscreen == 0  →  DDSCL_NORMAL (0x08)
  *   fullscreen != 0  →  DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN |

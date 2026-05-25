@@ -48,6 +48,11 @@ static int32_t  g_dd_create_hr     = 0;
 static int      g_dd_setcoop_result = 1;
 static int32_t  g_dd_setcoop_hr     = 0;
 
+/* zdd_create_surface stub state. */
+static int      g_dd_createsurf_result = 1;
+static int32_t  g_dd_createsurf_hr     = 0;
+static void    *g_dd_createsurf_handle = NULL;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -61,6 +66,9 @@ static void reset_stubs(void)
     g_dd_create_hr     = 0;
     g_dd_setcoop_result = 1;
     g_dd_setcoop_hr    = 0;
+    g_dd_createsurf_result = 1;
+    g_dd_createsurf_hr     = 0;
+    g_dd_createsurf_handle = (void *)(uintptr_t)0x99887766;
 }
 
 void zdd_show_cursor(int show)
@@ -112,6 +120,27 @@ int zdd_set_coop_level(zdd *self, void *hwnd, int fullscreen)
     if (g_dd_setcoop_result) return 1;
     zdd_log_dderr(self, "DirectDraw", "SetCooperativeLevel",
                   g_dd_setcoop_hr);
+    return 0;
+}
+
+int zdd_create_surface(zdd *self, void **out_surface,
+                       uint32_t width, uint32_t height,
+                       uint32_t caps_base, int force_videomem)
+{
+    /* Host stub: still exercise the descriptor builder so we know
+     * it runs end-to-end at the test level, then succeed/fail per
+     * g_dd_createsurf_result. */
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(self, &b, width, height, caps_base,
+                           force_videomem);
+    (void)b;
+
+    if (g_dd_createsurf_result) {
+        if (out_surface) *out_surface = g_dd_createsurf_handle;
+        return 1;
+    }
+    zdd_log_dderr(self, "DirectDraw", "CreateSurface",
+                  g_dd_createsurf_hr);
     return 0;
 }
 
@@ -408,6 +437,179 @@ int test_zdd_create_success_path(void)
 
     zdd_destroy(p);
     T_ASSERT_EQ_I(g_live_coms, 0);      /* freed on destroy */
+    return 0;
+}
+
+/* ─── DDSURFACEDESC2 builder ─────────────────────────────────────── */
+
+/* Bit constants — mirrored from src/zdd.c's local enum so test
+ * expectations are self-documenting.  Keep in sync.  */
+#define Z_DDSD_CAPS              0x0001u
+#define Z_DDSD_HEIGHT            0x0002u
+#define Z_DDSD_WIDTH             0x0004u
+#define Z_DDSD_PIXELFORMAT       0x1000u
+#define Z_DDSCAPS_OFFSCREENPLAIN 0x0040u
+#define Z_DDSCAPS_VIDEOMEMORY    0x0800u
+#define Z_DDPF_RGB               0x0040u
+#define Z_DDPF_PALETTEINDEXED8   0x0020u
+
+int test_zdd_build_desc_minimal_no_pixelformat(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* Default: pixel_format_mode != 2 means "no explicit format".
+     * Caps = caps_base | OFFSCREENPLAIN. */
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 640, 480, /*caps_base*/ 0,
+                           /*force_videomem*/ 0);
+
+    T_ASSERT_EQ_U(b.dwFlags, Z_DDSD_CAPS | Z_DDSD_HEIGHT | Z_DDSD_WIDTH);
+    T_ASSERT_EQ_U(b.dwWidth, 640);
+    T_ASSERT_EQ_U(b.dwHeight, 480);
+    T_ASSERT_EQ_U(b.dwCaps, Z_DDSCAPS_OFFSCREENPLAIN);
+    T_ASSERT_EQ_I(b.has_pixel_format, 0);
+    /* DDPF fields all zero. */
+    T_ASSERT_EQ_U(b.ddpf_dwSize,        0);
+    T_ASSERT_EQ_U(b.ddpf_dwFlags,       0);
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 0);
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask,    0);
+    T_ASSERT_EQ_U(b.ddpf_dwGBitMask,    0);
+    T_ASSERT_EQ_U(b.ddpf_dwBBitMask,    0);
+    return 0;
+}
+
+int test_zdd_build_desc_caps_base_preserved(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    /* caps_base bits should be preserved + OFFSCREENPLAIN OR'd in. */
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 320, 200, /*caps_base*/ 0x200,
+                           /*force_videomem*/ 0);
+    T_ASSERT_EQ_U(b.dwCaps, 0x200u | Z_DDSCAPS_OFFSCREENPLAIN);
+    return 0;
+}
+
+int test_zdd_build_desc_force_videomem_adds_caps(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 100, 100, 0, /*force_videomem*/ 1);
+    T_ASSERT_EQ_U(b.dwCaps,
+                  Z_DDSCAPS_OFFSCREENPLAIN | Z_DDSCAPS_VIDEOMEMORY);
+    return 0;
+}
+
+int test_zdd_build_desc_self_videomem_flag_adds_caps(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.videomem_flag = 1;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 100, 100, 0, /*force_videomem*/ 0);
+    T_ASSERT_EQ_U(b.dwCaps,
+                  Z_DDSCAPS_OFFSCREENPLAIN | Z_DDSCAPS_VIDEOMEMORY);
+    return 0;
+}
+
+int test_zdd_build_desc_pixelformat_mode_2_8bpp(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.pixel_format_bpp  = 8;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 640, 480, 0, 0);
+
+    T_ASSERT(b.dwFlags & Z_DDSD_PIXELFORMAT);
+    T_ASSERT_EQ_I(b.has_pixel_format, 1);
+    T_ASSERT_EQ_U(b.ddpf_dwSize,  0x20);
+    /* 8bpp: PALETTEINDEXED8 added on top of RGB. */
+    T_ASSERT_EQ_U(b.ddpf_dwFlags, Z_DDPF_RGB | Z_DDPF_PALETTEINDEXED8);
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 0);
+    /* Masks remain 0 in 8bpp branch. */
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask, 0);
+    return 0;
+}
+
+int test_zdd_build_desc_pixelformat_mode_2_16bpp_rgb565(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.pixel_format_bpp  = 16;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 640, 480, 0, 0);
+
+    T_ASSERT_EQ_I(b.has_pixel_format, 1);
+    T_ASSERT_EQ_U(b.ddpf_dwFlags, Z_DDPF_RGB);
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 16);
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask, 0xF800u);
+    T_ASSERT_EQ_U(b.ddpf_dwGBitMask, 0x07E0u);
+    T_ASSERT_EQ_U(b.ddpf_dwBBitMask, 0x001Fu);
+    return 0;
+}
+
+int test_zdd_build_desc_pixelformat_mode_2_24bpp(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.pixel_format_bpp  = 24;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 640, 480, 0, 0);
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 24);
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask, 0xFF0000u);
+    T_ASSERT_EQ_U(b.ddpf_dwGBitMask, 0x00FF00u);
+    T_ASSERT_EQ_U(b.ddpf_dwBBitMask, 0x0000FFu);
+    return 0;
+}
+
+int test_zdd_build_desc_pixelformat_mode_2_32bpp(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.pixel_format_bpp  = 32;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 1024, 768, 0, 0);
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 32);
+    /* Same masks as 24bpp — retail's fall-through quirk. */
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask, 0xFF0000u);
+    T_ASSERT_EQ_U(b.ddpf_dwGBitMask, 0x00FF00u);
+    T_ASSERT_EQ_U(b.ddpf_dwBBitMask, 0x0000FFu);
+    return 0;
+}
+
+int test_zdd_build_desc_pixelformat_mode_2_unknown_bpp(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.pixel_format_bpp  = 12;          /* not in retail's switch */
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 100, 100, 0, 0);
+    T_ASSERT_EQ_I(b.has_pixel_format, 1);
+    T_ASSERT_EQ_U(b.ddpf_dwFlags, Z_DDPF_RGB);
+    /* Unknown bpp: masks and bitcount stay 0. */
+    T_ASSERT_EQ_U(b.ddpf_dwRGBBitCount, 0);
+    T_ASSERT_EQ_U(b.ddpf_dwRBitMask,    0);
+    return 0;
+}
+
+int test_zdd_build_desc_mode_other_no_pixelformat_even_with_bpp(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 1;           /* not 2 */
+    s.pixel_format_bpp  = 16;
+    zdd_surface_desc_build b;
+    zdd_build_surface_desc(&s, &b, 640, 480, 0, 0);
+    /* pixel_format_mode != 2 short-circuits regardless of bpp. */
+    T_ASSERT_EQ_I(b.has_pixel_format, 0);
+    T_ASSERT((b.dwFlags & Z_DDSD_PIXELFORMAT) == 0);
+    T_ASSERT_EQ_U(b.ddpf_dwSize, 0);
     return 0;
 }
 

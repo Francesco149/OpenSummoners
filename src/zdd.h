@@ -102,9 +102,17 @@ struct zdd {
      * gameplay, and the dtor restores it. */
     int32_t       cursor_state;              /* +0x130 */
 
-    /* +0x134..+0x163: unobserved by ZDD-class methods we've decomp'd
+    /* +0x134: "force video memory" flag.  FUN_005b8c00 OR's
+     * DDSCAPS_VIDEOMEMORY (0x800) into ddsCaps.dwCaps when this is
+     * non-zero OR when its caller-supplied param_5 (force_videomem)
+     * is non-zero.  Not written by anything we've ported yet — read
+     * but unwritten until the higher-level mode-dispatch
+     * (FUN_00582e90) lands. */
+    int32_t       videomem_flag;             /* +0x134 */
+
+    /* +0x138..+0x163: unobserved by ZDD-class methods we've decomp'd
      * so far.  Pad. */
-    uint8_t       _pad134[0x164 - 0x134];
+    uint8_t       _pad138[0x164 - 0x138];
 
     /* +0x164, +0x168: pixel-format hints used by FUN_005b8c00 when
      * building a DDSURFACEDESC2.  Mode 2 means "explicit pixel format";
@@ -198,10 +206,87 @@ _Static_assert(offsetof(zdd, ddraw7)                == 0x124, "zdd ddraw7 offset
 _Static_assert(offsetof(zdd, com_a)                 == 0x128, "zdd com_a offset");
 _Static_assert(offsetof(zdd, com_b)                 == 0x12c, "zdd com_b offset");
 _Static_assert(offsetof(zdd, cursor_state)          == 0x130, "zdd cursor_state offset");
+_Static_assert(offsetof(zdd, videomem_flag)         == 0x134, "zdd videomem_flag offset");
 _Static_assert(offsetof(zdd, pixel_format_mode)     == 0x164, "zdd pixel_format_mode offset");
 _Static_assert(offsetof(zdd, pixel_format_bpp)      == 0x168, "zdd pixel_format_bpp offset");
 _Static_assert(offsetof(zdd, primary_obj)           == 0x16c, "zdd primary_obj offset");
 #endif
+
+/* ─── DDSURFACEDESC2 builder ─────────────────────────────────────── */
+
+/* Subset of DDSURFACEDESC2 that the engine actually fills.  Modelled
+ * as a plain C struct so the descriptor build is testable on host
+ * without dragging in <ddraw.h>.  Win32 wrappers translate to the
+ * real DDSURFACEDESC2 + DDPIXELFORMAT shapes.
+ *
+ * Field meanings + bit constants pinned by docs/findings/ddraw-init.md
+ * "FUN_005b8c00" section.  We use plain numbers in the struct (the
+ * macro names like DDSD_CAPS / DDSCAPS_OFFSCREENPLAIN are Win32-side
+ * only). */
+typedef struct zdd_surface_desc_build {
+    /* dwFlags bitmask passed to CreateSurface.  Always carries
+     * 0x07 = DDSD_CAPS|DDSD_HEIGHT|DDSD_WIDTH; additionally 0x1000 =
+     * DDSD_PIXELFORMAT when has_pixel_format != 0. */
+    uint32_t dwFlags;
+    uint32_t dwHeight;
+    uint32_t dwWidth;
+
+    /* ddsCaps.dwCaps — caller's caps OR'd with 0x40 = DDSCAPS_OFFSCREENPLAIN
+     * and (conditionally) 0x800 = DDSCAPS_VIDEOMEMORY. */
+    uint32_t dwCaps;
+
+    /* When non-zero, the pixel-format block below is populated and
+     * dwFlags carries DDSD_PIXELFORMAT.  When zero, the pixel-format
+     * fields are all 0 (DDraw will pick a format that matches the
+     * current display mode). */
+    int      has_pixel_format;
+
+    /* ddpf_*: DDPIXELFORMAT subset (only fields the engine sets).
+     * dwSize is always 0x20 when has_pixel_format != 0.
+     * dwFlags is 0x40 = DDPF_RGB (or 0x60 = DDPF_RGB|DDPF_PALETTEINDEXED8
+     * for the 8bpp branch).
+     * dwRGBBitCount, dwRBitMask, dwGBitMask, dwBBitMask are 0 for the
+     * 8bpp branch (DDraw infers from palette size) and populated for
+     * 16/24/32. */
+    uint32_t ddpf_dwSize;
+    uint32_t ddpf_dwFlags;
+    uint32_t ddpf_dwRGBBitCount;
+    uint32_t ddpf_dwRBitMask;
+    uint32_t ddpf_dwGBitMask;
+    uint32_t ddpf_dwBBitMask;
+} zdd_surface_desc_build;
+
+/* FUN_005b8c00 lines 1-50 — the pure-logic descriptor build.  Reads
+ * self->videomem_flag / pixel_format_mode / pixel_format_bpp and
+ * folds caller params (caps_base, force_videomem, width, height) into
+ * a zdd_surface_desc_build.
+ *
+ * Algorithm:
+ *   out->dwFlags = 0x07
+ *   out->dwHeight = height; out->dwWidth = width
+ *   out->dwCaps = caps_base | 0x40
+ *   if (force_videomem || self->videomem_flag) out->dwCaps |= 0x800
+ *
+ *   if (self->pixel_format_mode != 2):
+ *     out->has_pixel_format = 0; ddpf_* = 0
+ *   else:
+ *     out->dwFlags |= 0x1000
+ *     out->has_pixel_format = 1
+ *     out->ddpf_dwSize  = 0x20
+ *     out->ddpf_dwFlags = 0x40  (overridden to 0x60 in 8bpp branch)
+ *     switch (self->pixel_format_bpp):
+ *       case 8:  ddpf_dwFlags = 0x60
+ *       case 16: dwRGBBitCount=16, masks = 0xF800/0x07E0/0x001F (RGB565)
+ *       case 24: dwRGBBitCount=24, masks = 0xFF0000/0xFF00/0xFF
+ *       case 32: dwRGBBitCount=32, masks = 0xFF0000/0xFF00/0xFF
+ *       default: leave ddpf_dwRGBBitCount = 0, masks = 0
+ *   Note: 24-bpp falls through to 32-bpp's mask values (retail's
+ *   switch literally lists `case 0x18: case 0x20:` together).  See
+ *   docs/findings/ddraw-init.md "Engine quirk".
+ */
+void zdd_build_surface_desc(const zdd *self, zdd_surface_desc_build *out,
+                            uint32_t width, uint32_t height,
+                            uint32_t caps_base, int force_videomem);
 
 /* ─── ZDDObject lifecycle (pure logic) ───────────────────────────── */
 
@@ -358,6 +443,23 @@ void zdd_object_local_free(void *local_alloc);
  *
  * Mirrors FUN_005b88c0. */
 int  zdd_directdraw_create_ex(zdd *self);
+
+/* FUN_005b8c00 — full surface-create driver.  Real build:
+ *   1. zdd_build_surface_desc(...) into a stack descriptor
+ *   2. translate descriptor to a real DDSURFACEDESC2
+ *   3. IDirectDraw7::CreateSurface (vtable[6] / byte offset 0x18)
+ *   4. on success AND self->com_b (palette) != NULL:
+ *        IDirectDrawSurface7::SetPalette (vtable[31] / byte offset 0x7c)
+ *   5. on failure: zdd_log_dderr("DirectDraw", "CreateSurface", hr); return 0
+ *   6. on success: return 1
+ *
+ * Host build: returns 1 + stashes a fake surface pointer when a
+ * test-controlled g_create_surface_result is non-zero, else logs
+ * via the DDERR path and returns 0.  Used by FUN_005b95c0 (unported)
+ * and by tests of the descriptor-build dispatch. */
+int  zdd_create_surface(zdd *self, void **out_surface,
+                        uint32_t width, uint32_t height,
+                        uint32_t caps_base, int force_videomem);
 
 /* Real build: vtable[20](ddraw7, hwnd, flags) where flags is
  * DDSCL_NORMAL (8) when fullscreen == 0, or

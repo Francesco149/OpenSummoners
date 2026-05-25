@@ -19,6 +19,81 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ─── DDSURFACEDESC2 builder ─────────────────────────────────────── */
+
+/* Pixel-format constants — names mirrored to Win32 DDraw macros.
+ * Defined locally so this TU compiles host-side without <ddraw.h>. */
+enum {
+    Z_DDSD_CAPS         = 0x0001,
+    Z_DDSD_HEIGHT       = 0x0002,
+    Z_DDSD_WIDTH        = 0x0004,
+    Z_DDSD_PIXELFORMAT  = 0x1000,
+
+    Z_DDSCAPS_OFFSCREENPLAIN = 0x0040,
+    Z_DDSCAPS_VIDEOMEMORY    = 0x0800,
+
+    Z_DDPF_RGB              = 0x0040,
+    Z_DDPF_PALETTEINDEXED8  = 0x0020,
+};
+
+void zdd_build_surface_desc(const zdd *self, zdd_surface_desc_build *out,
+                            uint32_t width, uint32_t height,
+                            uint32_t caps_base, int force_videomem)
+{
+    /* The retail body zeros a 124-byte stack DDSURFACEDESC2 then
+     * stamps fields in issue order.  We pre-zero the build struct
+     * for the same shape, then overlay. */
+    memset(out, 0, sizeof(*out));
+
+    out->dwFlags  = Z_DDSD_CAPS | Z_DDSD_HEIGHT | Z_DDSD_WIDTH;
+    out->dwHeight = height;
+    out->dwWidth  = width;
+    out->dwCaps   = caps_base | Z_DDSCAPS_OFFSCREENPLAIN;
+
+    if (force_videomem != 0 || self->videomem_flag != 0) {
+        out->dwCaps |= Z_DDSCAPS_VIDEOMEMORY;
+    }
+
+    if (self->pixel_format_mode != 2) {
+        return;
+    }
+
+    /* Explicit-pixel-format branch. */
+    out->dwFlags         |= Z_DDSD_PIXELFORMAT;
+    out->has_pixel_format = 1;
+    out->ddpf_dwSize      = 0x20;
+    out->ddpf_dwFlags     = Z_DDPF_RGB;
+
+    switch (self->pixel_format_bpp) {
+    case 8:
+        /* 8bpp: PALETTEINDEXED8.  RGBBitCount stays 0 (DDraw infers
+         * from palette size).  Masks stay 0. */
+        out->ddpf_dwFlags = Z_DDPF_RGB | Z_DDPF_PALETTEINDEXED8;
+        break;
+    case 16:
+        out->ddpf_dwRGBBitCount = 16;
+        out->ddpf_dwRBitMask    = 0xF800u;  /* RGB565 */
+        out->ddpf_dwGBitMask    = 0x07E0u;
+        out->ddpf_dwBBitMask    = 0x001Fu;
+        break;
+    case 24:
+    case 32:
+        /* Retail's switch literally lists case 0x18 + case 0x20
+         * together — fall-through.  See docs/findings/ddraw-init.md
+         * "Engine quirk" note (DDraw ignores the masks at 24/32 bpp
+         * but the engine sets them anyway). */
+        out->ddpf_dwRGBBitCount = (uint32_t)self->pixel_format_bpp;
+        out->ddpf_dwRBitMask    = 0xFF0000u;
+        out->ddpf_dwGBitMask    = 0x00FF00u;
+        out->ddpf_dwBBitMask    = 0x0000FFu;
+        break;
+    default:
+        /* Any other bpp: leaves dwRGBBitCount = 0 and masks = 0.
+         * This case isn't reached at boot but is defensive. */
+        break;
+    }
+}
+
 /* ─── ZDDObject lifecycle ────────────────────────────────────────── */
 
 void zdd_object_ctor(zdd_object *self, zdd *parent)
