@@ -170,6 +170,11 @@ static int build_cmdline(int argc, char **argv, int start,
 
 int main(int argc, char **argv)
 {
+    /* UTF-8 codepage for em-dashes / other non-ASCII in our own log
+     * lines; without this the console renders them as CP437 mojibake
+     * (e.g. "ΓÇö" for "—"). */
+    SetConsoleOutputCP(CP_UTF8);
+
     DWORD timeout_ms = INFINITE;
     DWORD grace_ms   = 2000;
     int   watch_stdin = 1;

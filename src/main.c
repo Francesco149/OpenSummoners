@@ -108,6 +108,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     (void)hPrev; (void)nCmdShow;
     g_hInstance = hInst;
 
+    /* Our stderr lines use UTF-8 ("—" em-dashes etc.).  Without this
+     * the console-subsystem build renders them as CP437 mojibake
+     * (e.g. "ΓÇö" for "—").  No-op for the GUI-subsystem build when
+     * no console is attached. */
+    SetConsoleOutputCP(CP_UTF8);
+
     parse_cmdline(lpCmdLine);
 
     /* Install MessageBox→stderr hook as early as possible.  Any modal
