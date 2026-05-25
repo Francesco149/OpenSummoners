@@ -19,6 +19,50 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ─── ZDDObject lifecycle ────────────────────────────────────────── */
+
+void zdd_object_ctor(zdd_object *self, zdd *parent)
+{
+    /* Retail's FUN_005b9350 only writes the 6 lifecycle-relevant
+     * fields + bumps parent->open_objects.  Pre-zero the whole struct
+     * so the unmodelled regions (embedded DDSD, window-fit metrics)
+     * start at a deterministic 0 instead of operator_new garbage. */
+    memset(self, 0, sizeof(*self));
+    self->parent = parent;
+    parent->open_objects++;
+}
+
+void zdd_object_release_pixel_buf(zdd_object *self)
+{
+    if (self->pixel_buf != NULL) {
+        zdd_object_local_free(self->pixel_buf);
+        self->pixel_buf      = NULL;
+        self->pixel_buf_flag = 0;
+    }
+}
+
+void zdd_object_dtor(zdd_object *self)
+{
+    /* Retail issue order: pixel buffer first, then com_back (+0xac),
+     * then com_primary (+0x2c), then parent counter decrement. */
+    zdd_object_release_pixel_buf(self);
+    zdd_com_release(&self->com_back);
+    zdd_com_release(&self->com_primary);
+    if (self->parent != NULL) {
+        self->parent->open_objects--;
+    }
+}
+
+/* zdd_obj_destroy — full ZDDObject teardown + heap free.  Replaces
+ * the placeholder that used to just free() the allocation. */
+void zdd_obj_destroy(zdd_object **obj_pp)
+{
+    if (obj_pp == NULL || *obj_pp == NULL) return;
+    zdd_object_dtor(*obj_pp);
+    free(*obj_pp);
+    *obj_pp = NULL;
+}
+
 /* ─── ctor ───────────────────────────────────────────────────────── */
 
 /* FUN_005b7f80 — in-place ctor.  Zero-fills the whole struct first

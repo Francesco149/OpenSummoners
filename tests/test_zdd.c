@@ -1,6 +1,5 @@
 /*
- * tests/test_zdd.c — host tests for src/zdd.c (ZDD ctor/dtor + DDERR
- * log path + the high-level create driver).
+ * tests/test_zdd.c — host tests for src/zdd.c.
  *
  * Provides the six Win32 primitives the port needs, all
  * test-controllable:
@@ -8,13 +7,17 @@
  *   zdd_show_cursor          → records last show-value
  *   zdd_output_debug_string  → appends to a capture buffer
  *   zdd_com_release          → decrements g_live_coms + zeros *pp
- *   zdd_obj_destroy          → decrements g_live_objs + zeros *pp
+ *   zdd_object_local_free    → decrements g_live_pixel_bufs (NULL is
+ *                              a no-op, matches Win32 LocalFree)
  *   zdd_directdraw_create_ex → returns g_dd_create_result; on success
  *                              stamps self->ddraw7 = g_dd_fake_iface
  *   zdd_set_coop_level       → returns g_dd_setcoop_result; on
  *                              failure calls zdd_log_dderr
  *
- * Each test resets these via reset_stubs() before running.
+ * Note: zdd_obj_destroy is now pure logic in zdd.c (FUN_005b9390 +
+ * heap free) — we don't stub it; tests use it directly.
+ *
+ * Each test resets the stub state via reset_stubs() before running.
  */
 #include "../src/zdd.h"
 #include "t.h"
@@ -32,7 +35,7 @@ static char g_log_capture[4096];
 static int  g_log_call_count   = 0;
 
 static int  g_live_coms        = 0;
-static int  g_live_objs        = 0;
+static int  g_live_pixel_bufs  = 0;
 
 /* When zdd_directdraw_create_ex is called, return this value.  If
  * non-zero, set self->ddraw7 = g_dd_fake_iface beforehand.  If zero,
@@ -52,7 +55,7 @@ static void reset_stubs(void)
     g_log_capture[0]   = '\0';
     g_log_call_count   = 0;
     g_live_coms        = 0;
-    g_live_objs        = 0;
+    g_live_pixel_bufs  = 0;
     g_dd_create_result = 1;
     g_dd_fake_iface    = (void *)(uintptr_t)0x12345678;
     g_dd_create_hr     = 0;
@@ -86,11 +89,10 @@ void zdd_com_release(void **iunknown_pp)
     *iunknown_pp = NULL;
 }
 
-void zdd_obj_destroy(zdd_object **obj_pp)
+void zdd_object_local_free(void *p)
 {
-    if (obj_pp == NULL || *obj_pp == NULL) return;
-    g_live_objs--;
-    *obj_pp = NULL;
+    if (p == NULL) return;
+    g_live_pixel_bufs--;
 }
 
 int zdd_directdraw_create_ex(zdd *self)
@@ -267,22 +269,36 @@ int test_zdd_restore_cursor_shows_when_hidden(void)
 
 /* ─── release children ───────────────────────────────────────────── */
 
+/* Helper: allocate a heap ZDDObject + run zdd_object_ctor (which
+ * bumps parent->open_objects).  Returns a malloc'd pointer that the
+ * caller hands off to zdd_obj_destroy. */
+static zdd_object *make_child(zdd *parent)
+{
+    zdd_object *o = (zdd_object *)calloc(1, sizeof(zdd_object));
+    zdd_object_ctor(o, parent);
+    return o;
+}
+
 int test_zdd_release_children_in_order_and_zeros_fields(void)
 {
     reset_stubs();
     zdd s; zdd_ctor(&s);
-    /* Wire up 5 live "children" via opaque pointers.  The stubs
-     * decrement g_live_coms / g_live_objs and zero each field. */
-    s.primary_obj = (zdd_object *)(uintptr_t)0x1111; g_live_objs++;
-    s.back_obj_a  = (zdd_object *)(uintptr_t)0x2222; g_live_objs++;
-    s.back_obj_b  = (zdd_object *)(uintptr_t)0x3333; g_live_objs++;
-    s.com_a       = (void *)(uintptr_t)0x4444;       g_live_coms++;
-    s.com_b       = (void *)(uintptr_t)0x5555;       g_live_coms++;
+    /* Wire up 3 live ZDDObject children (ctor bumps open_objects) +
+     * 2 opaque COM children (just counter bumps).  zdd_release_children
+     * → zdd_obj_destroy for the ZDDObjects (which runs dtor + free) and
+     * zdd_com_release for the bare COM ptrs. */
+    s.primary_obj = make_child(&s);
+    s.back_obj_a  = make_child(&s);
+    s.back_obj_b  = make_child(&s);
+    s.com_a       = (void *)(uintptr_t)0x4444; g_live_coms++;
+    s.com_b       = (void *)(uintptr_t)0x5555; g_live_coms++;
+
+    T_ASSERT_EQ_I(s.open_objects, 3);
 
     zdd_release_children(&s);
 
-    T_ASSERT_EQ_I(g_live_objs, 0);
     T_ASSERT_EQ_I(g_live_coms, 0);
+    T_ASSERT_EQ_I(s.open_objects, 0); /* each dtor decremented it */
     T_ASSERT_EQ_P(s.primary_obj, NULL);
     T_ASSERT_EQ_P(s.back_obj_a,  NULL);
     T_ASSERT_EQ_P(s.back_obj_b,  NULL);
@@ -297,8 +313,8 @@ int test_zdd_release_children_skips_nulls(void)
     zdd s; zdd_ctor(&s);
     /* All NULL — release should be a complete no-op. */
     zdd_release_children(&s);
-    T_ASSERT_EQ_I(g_live_objs, 0);
     T_ASSERT_EQ_I(g_live_coms, 0);
+    T_ASSERT_EQ_I(s.open_objects, 0);
     return 0;
 }
 
@@ -308,13 +324,18 @@ int test_zdd_dtor_releases_everything_and_flushes_log(void)
 {
     reset_stubs();
     zdd s; zdd_ctor(&s);
-    /* Live ddraw7, two COM kids, one ZDDObject, hidden cursor, an
-     * "open objects" count, AND a pre-populated log buffer. */
+    /* Live ddraw7, two COM kids, one ZDDObject, hidden cursor, AND
+     * a pre-populated log buffer.  open_objects is bumped by the
+     * ZDDObject ctor inside make_child — we deliberately leave it
+     * NONZERO so the dtor's "Warning,exists ZDD objects" path fires:
+     * the child gets dropped FIRST (decrementing it to 0), but the
+     * dtor's check on open_objects runs AFTER the release-children
+     * pass, so we add an extra +2 to keep the warning live. */
     s.ddraw7 = (void *)(uintptr_t)0xaaaaaaaa; g_live_coms++;
     s.com_a  = (void *)(uintptr_t)0xbbbbbbbb; g_live_coms++;
-    s.primary_obj = (zdd_object *)(uintptr_t)0xcccc; g_live_objs++;
+    s.primary_obj = make_child(&s);       /* open_objects: 0→1 */
+    s.open_objects += 2;                  /* leak two unaccounted */
     s.cursor_state = 0;
-    s.open_objects = 3;
     strcpy(s.log_buf, "stale error message\n");
 
     zdd_dtor(&s);
@@ -325,8 +346,11 @@ int test_zdd_dtor_releases_everything_and_flushes_log(void)
 
     /* All COM + heap children dropped. */
     T_ASSERT_EQ_I(g_live_coms, 0);
-    T_ASSERT_EQ_I(g_live_objs, 0);
     T_ASSERT_EQ_P(s.ddraw7, NULL);
+    T_ASSERT_EQ_P(s.primary_obj, NULL);
+    /* open_objects: ctor bumped to 1, +2 manual = 3.  After
+     * release-children's dtor decrement, 2 unaccounted leaks remain. */
+    T_ASSERT_EQ_I(s.open_objects, 2);
 
     /* Two OutputDebugStringA calls — one "Warning,exists ZDD
      * objects." then one for the stale log buffer. */
@@ -384,6 +408,131 @@ int test_zdd_create_success_path(void)
 
     zdd_destroy(p);
     T_ASSERT_EQ_I(g_live_coms, 0);      /* freed on destroy */
+    return 0;
+}
+
+/* ─── ZDDObject lifecycle ────────────────────────────────────────── */
+
+int test_zdd_object_layout_matches_retail_offsets(void)
+{
+#if UINTPTR_MAX != 0xFFFFFFFFu
+    T_SKIP("offset layout asserts are 32-bit-only");
+#else
+    zdd_object o;
+    T_ASSERT_EQ_U(sizeof(o), 0xd8u);
+    return 0;
+#endif
+}
+
+int test_zdd_object_ctor_sets_parent_and_bumps_open_objects(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+
+    zdd_object o;
+    memset(&o, 0xa5, sizeof(o));    /* garbage to verify zero-init */
+    zdd_object_ctor(&o, &parent);
+
+    T_ASSERT_EQ_P(o.parent, &parent);
+    T_ASSERT_EQ_I(parent.open_objects, 1);
+    T_ASSERT_EQ_P(o.com_primary, NULL);
+    T_ASSERT_EQ_P(o.com_back,    NULL);
+    T_ASSERT_EQ_P(o.pixel_buf,   NULL);
+    T_ASSERT_EQ_I(o.pixel_buf_flag, 0);
+    T_ASSERT_EQ_I(o.state_flag,     0);
+    return 0;
+}
+
+int test_zdd_object_release_pixel_buf_frees_and_clears(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+
+    /* Pretend the surface-alloc path stamped a pixel buffer + flag. */
+    o.pixel_buf      = (void *)(uintptr_t)0xdeadbeef;
+    o.pixel_buf_flag = 1;
+    g_live_pixel_bufs = 1;
+
+    zdd_object_release_pixel_buf(&o);
+
+    T_ASSERT_EQ_I(g_live_pixel_bufs, 0);
+    T_ASSERT_EQ_P(o.pixel_buf, NULL);
+    T_ASSERT_EQ_I(o.pixel_buf_flag, 0);
+    return 0;
+}
+
+int test_zdd_object_release_pixel_buf_noop_when_null(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    zdd_object_release_pixel_buf(&o);          /* no buffer attached */
+    T_ASSERT_EQ_I(g_live_pixel_bufs, 0);
+    return 0;
+}
+
+int test_zdd_object_dtor_releases_in_retail_order(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    T_ASSERT_EQ_I(parent.open_objects, 1);
+
+    /* Wire up live: pixel buffer + two COM children. */
+    o.pixel_buf  = (void *)(uintptr_t)0xfeed;
+    o.pixel_buf_flag = 1;  g_live_pixel_bufs = 1;
+    o.com_primary = (void *)(uintptr_t)0xaaaa; g_live_coms++;
+    o.com_back    = (void *)(uintptr_t)0xbbbb; g_live_coms++;
+
+    zdd_object_dtor(&o);
+
+    T_ASSERT_EQ_I(g_live_pixel_bufs, 0);
+    T_ASSERT_EQ_I(g_live_coms,       0);
+    T_ASSERT_EQ_P(o.com_primary, NULL);
+    T_ASSERT_EQ_P(o.com_back,    NULL);
+    T_ASSERT_EQ_P(o.pixel_buf,   NULL);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    return 0;
+}
+
+int test_zdd_object_dtor_clean_object_noop(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    T_ASSERT_EQ_I(parent.open_objects, 1);
+
+    /* All fields zeroed by ctor — dtor should be a no-op except for
+     * decrementing parent->open_objects. */
+    zdd_object_dtor(&o);
+    T_ASSERT_EQ_I(g_live_pixel_bufs, 0);
+    T_ASSERT_EQ_I(g_live_coms,       0);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    return 0;
+}
+
+int test_zdd_obj_destroy_walks_dtor_and_frees(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object *o = make_child(&parent);
+    o->com_primary = (void *)(uintptr_t)0x1111; g_live_coms++;
+
+    zdd_obj_destroy(&o);
+    T_ASSERT_EQ_P(o, NULL);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    T_ASSERT_EQ_I(g_live_coms, 0);
+    return 0;
+}
+
+int test_zdd_obj_destroy_idempotent_on_null(void)
+{
+    reset_stubs();
+    zdd_object *o = NULL;
+    zdd_obj_destroy(&o);
+    T_ASSERT_EQ_P(o, NULL);
     return 0;
 }
 

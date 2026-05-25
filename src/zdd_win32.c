@@ -9,14 +9,13 @@
  *   zdd_show_cursor             ShowCursor(BOOL)
  *   zdd_output_debug_string     OutputDebugStringA
  *   zdd_com_release             (*IUnknown)->Release via vtable[2]
- *   zdd_obj_destroy             free() — placeholder until ZDDObject
- *                                 cleanup (FUN_005b9390) is ported
+ *   zdd_object_local_free       LocalFree(HLOCAL)
  *   zdd_directdraw_create_ex    DirectDrawCreateEx + DDERR log
  *   zdd_set_coop_level          IDirectDraw7::SetCooperativeLevel
  *
- * The ZDDObject release path in retail (FUN_005b9390 + FUN_005bef0e)
- * walks an unported cleanup chain — for now we just heap-free the
- * child pointer.  Wire to the full cleanup chain when ZDDObject lands.
+ * Note: zdd_obj_destroy itself is pure logic (FUN_005b9390 cleanup +
+ * heap free) and lives in zdd.c — it only needs zdd_object_local_free
+ * + zdd_com_release primitives from this file.
  */
 #include "zdd.h"
 
@@ -45,14 +44,12 @@ void zdd_com_release(void **iunknown_pp)
     *iunknown_pp = NULL;
 }
 
-/* Placeholder ZDDObject destroyer — see header comment above.  Once
- * FUN_005b9390 (the per-ZDDObject cleanup chain) is ported, dispatch
- * through it before the heap free. */
-void zdd_obj_destroy(zdd_object **obj_pp)
+/* FUN_005b93e0's LocalFree primitive — wraps the Win32 call.  NULL
+ * is a no-op (matches Win32 LocalFree's contract). */
+void zdd_object_local_free(void *local_alloc)
 {
-    if (obj_pp == NULL || *obj_pp == NULL) return;
-    free(*obj_pp);
-    *obj_pp = NULL;
+    if (local_alloc == NULL) return;
+    LocalFree((HLOCAL)local_alloc);
 }
 
 /* FUN_005b88c0 — DirectDrawCreateEx with the engine's exact args.

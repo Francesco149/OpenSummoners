@@ -247,6 +247,14 @@ struct test_case {
     X(zdd_dtor_flushes_log_buffer_if_nonempty)                 \
     X(zdd_create_success_path)                                 \
     X(zdd_create_failure_path_tears_down)                      \
+    X(zdd_object_layout_matches_retail_offsets)                \
+    X(zdd_object_ctor_sets_parent_and_bumps_open_objects)      \
+    X(zdd_object_release_pixel_buf_frees_and_clears)           \
+    X(zdd_object_release_pixel_buf_noop_when_null)             \
+    X(zdd_object_dtor_releases_in_retail_order)                \
+    X(zdd_object_dtor_clean_object_noop)                       \
+    X(zdd_obj_destroy_walks_dtor_and_frees)                    \
+    X(zdd_obj_destroy_idempotent_on_null)                      \
 
 #define X(n) extern int test_##n(void);
 TESTS

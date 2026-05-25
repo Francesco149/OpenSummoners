@@ -39,16 +39,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Opaque ZDDObject — owned by the ZDD as primary + 2 back-buffer
- * children.  Real shape lives behind FUN_005b9350 (ZDDObject::ctor,
- * 0xd8-byte struct per docs/findings/ddraw-init.md FUN_005b8b40), which
- * isn't ported yet.  Treated as an opaque heap allocation here. */
+/* Forward declarations so the struct definitions below can refer to
+ * each other.  The full ZDDObject shape sits further down — only the
+ * fields the leaf lifecycle (FUN_005b9350 / _9390 / _93e0) touches
+ * are pinned; everything else is opaque pad to preserve the 0xd8
+ * size literal-stamped in operator_new arguments. */
+typedef struct zdd        zdd;
 typedef struct zdd_object zdd_object;
 
 /* Field layout inferred from FUN_005b7f80 (ctor writes), FUN_005b7fe0
  * (dtor reads), and FUN_005b8040 (5-slot release loop).  Size 0x170 is
  * the literal `operator_new(0x170)` argument in FUN_005b7ee0. */
-typedef struct zdd {
+struct zdd {
     /* +0x00..+0x17: not observed in any decompiled ZDD-class method.
      * Likely the C++ vtable pointer (+0x00) plus unidentified fields
      * — kept as opaque pad so total size matches retail. */
@@ -116,9 +118,77 @@ typedef struct zdd {
      * FUN_005b8040's 5-slot loop.  Set by the mode-dispatch
      * CreateScreen path (FUN_00582e90 → FUN_005b8b40). */
     zdd_object   *primary_obj;               /* +0x16c */
-} zdd;
+};
+
+/* Field layout inferred from FUN_005b9350 (ctor writes 6 fields +
+ * parent->open_objects bump), FUN_005b9390 (dtor releases 2 COM
+ * children + decrements parent->open_objects), and FUN_005b93e0
+ * (pixel-buffer release: LocalFree + clear two fields).  Size 0xd8 is
+ * inferred from the operator_new arg in FUN_005b8b40's invocation
+ * (per docs/findings/ddraw-init.md).
+ *
+ * Only the fields the lifecycle leaf touches are named.  +0x00..+0x2b
+ * + +0x30..+0xab carry an embedded scratch DDSURFACEDESC2 + three
+ * self-pointers written by FUN_005b97e0 — not modelled here because
+ * no ported function reads them yet.  When the surface-alloc
+ * orchestrator (FUN_005b95c0) lands those fields gain names. */
+struct zdd_object {
+    /* +0x00..+0x2b: scratch DDSURFACEDESC2 self-pointers (+0x00..+0x08)
+     * plus the 9 dwords FUN_005b98c0 stamps with window-fit metrics.
+     * Opaque until the surface-alloc orchestrator is ported. */
+    uint8_t   _pad000[0x02c];
+
+    /* +0x2c: primary IDirectDrawSurface7 (or similar IUnknown).
+     * Owned — released via vtable[2] in zdd_object_dtor. */
+    void     *com_primary;                   /* +0x2c */
+
+    /* +0x30..+0xab: embedded scratch DDSURFACEDESC2 (124 bytes,
+     * dwSize stamped 0x7c by FUN_005b97e0).  Unmodelled. */
+    uint8_t   _pad030[0xac - 0x030];
+
+    /* +0xac: secondary IDirectDrawSurface7 (the attached back-buffer
+     * the engine fetches via GetAttachedSurface).  Owned — released
+     * via vtable[2] in zdd_object_dtor BEFORE com_primary. */
+    void     *com_back;                      /* +0xac */
+
+    /* +0xb0..+0xbf: window-fit metrics stamped by FUN_005b98c0 — not
+     * read by the lifecycle pair. */
+    uint8_t   _pad0b0[0xc0 - 0xb0];
+
+    /* +0xc0: back-pointer to the owning ZDD.  Set by ctor; dtor
+     * uses it to decrement parent->open_objects.  Borrowed (no
+     * release responsibility). */
+    zdd      *parent;                        /* +0xc0 */
+
+    /* +0xc4: HLOCAL pixel buffer (LocalAlloc-managed).  Freed by
+     * FUN_005b93e0 via LocalFree on dtor.  NULL when no system-memory
+     * surface is attached — set elsewhere by the (unported) surface-
+     * alloc path. */
+    void     *pixel_buf;                     /* +0xc4 */
+
+    /* +0xc8: flag cleared together with pixel_buf on LocalFree.
+     * Semantic role uncertain — likely "pixel_buf is system-memory
+     * owned" so a future re-alloc knows to release the prior one. */
+    uint32_t  pixel_buf_flag;                /* +0xc8 */
+
+    /* +0xcc..+0xd3: dimensions (+0xcc = w, +0xd0 = h) stamped by
+     * FUN_005b97e0.  Not read by the lifecycle pair. */
+    uint8_t   _pad0cc[0xd4 - 0xcc];
+
+    /* +0xd4: state flag.  Ctor clears to 0; FUN_005b9830 sets to
+     * 0x8000 when a non-sentinel color key is bound.  No
+     * lifecycle-pair consumer; pad until colorkey path lands. */
+    uint32_t  state_flag;                    /* +0xd4 */
+};
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(sizeof(zdd_object)                   == 0x0d8, "zdd_object must be 0xd8 bytes");
+_Static_assert(offsetof(zdd_object, com_primary)    == 0x02c, "zdd_object com_primary offset");
+_Static_assert(offsetof(zdd_object, com_back)       == 0x0ac, "zdd_object com_back offset");
+_Static_assert(offsetof(zdd_object, parent)         == 0x0c0, "zdd_object parent offset");
+_Static_assert(offsetof(zdd_object, pixel_buf)      == 0x0c4, "zdd_object pixel_buf offset");
+_Static_assert(offsetof(zdd_object, pixel_buf_flag) == 0x0c8, "zdd_object pixel_buf_flag offset");
+_Static_assert(offsetof(zdd_object, state_flag)     == 0x0d4, "zdd_object state_flag offset");
 _Static_assert(sizeof(zdd)                          == 0x170, "zdd must be 0x170 bytes");
 _Static_assert(offsetof(zdd, back_obj_a)            == 0x018, "zdd back_obj_a offset");
 _Static_assert(offsetof(zdd, back_obj_b)            == 0x01c, "zdd back_obj_b offset");
@@ -133,7 +203,38 @@ _Static_assert(offsetof(zdd, pixel_format_bpp)      == 0x168, "zdd pixel_format_
 _Static_assert(offsetof(zdd, primary_obj)           == 0x16c, "zdd primary_obj offset");
 #endif
 
-/* ─── pure logic ─────────────────────────────────────────────────── */
+/* ─── ZDDObject lifecycle (pure logic) ───────────────────────────── */
+
+/* FUN_005b9350 — in-place ctor.  Stamps the back-pointer to the
+ * owning ZDD, clears the lifecycle-pair fields (com_primary, com_back,
+ * pixel_buf, pixel_buf_flag, state_flag), and bumps
+ * parent->open_objects.  Other fields (the embedded DDSD + window-fit
+ * metrics) are NOT cleared by this ctor — the surface-alloc path
+ * (FUN_005b97e0/_98c0) writes them later.  Our port pre-zeros the
+ * whole struct via memset for determinism; the observable behaviour
+ * is identical from the lifecycle-pair's perspective. */
+void zdd_object_ctor(zdd_object *self, zdd *parent);
+
+/* FUN_005b93e0 — release the pixel buffer (LocalAlloc-managed).  If
+ * pixel_buf != NULL: LocalFree it, NULL it, clear pixel_buf_flag.
+ * Idempotent on NULL.  Wraps the LocalFree call via the
+ * zdd_object_local_free primitive so host tests can intercept. */
+void zdd_object_release_pixel_buf(zdd_object *self);
+
+/* FUN_005b9390 — dtor.  Sequence (matches retail):
+ *   1. zdd_object_release_pixel_buf(self)
+ *   2. if (com_back)    Release(com_back);    com_back    = NULL;
+ *   3. if (com_primary) Release(com_primary); com_primary = NULL;
+ *   4. parent->open_objects--
+ *
+ * Note the release order: com_back BEFORE com_primary — retail's
+ * FUN_005b9390 reads +0xac first then +0x2c.  Likely because com_back
+ * is the IDirectDrawSurface7 the engine GetAttachedSurface'd off the
+ * primary; releasing the attached child first keeps the COM refcount
+ * graph clean. */
+void zdd_object_dtor(zdd_object *self);
+
+/* ─── ZDD pure logic ─────────────────────────────────────────────── */
 
 /* FUN_005b7f80 — in-place ctor.  Issue order (matches retail exactly):
  *   cursor_state   = 1
@@ -240,13 +341,15 @@ void zdd_output_debug_string(const char *s);
  * counter + zeros *p.  Idempotent on (*p == NULL). */
 void zdd_com_release(void **iunknown_pp);
 
-/* Real build: full ZDDObject teardown (FUN_005b9390 cleanup chain +
- * FUN_005bef0e heap free).  Host build: decrements a counter + zeros
- * *p.  Idempotent on (*p == NULL).
- *
- * Stub-grade in the real build until FUN_005b9390 is ported — for now
- * it just heap-frees, matching the surface API the dtor needs. */
+/* Real + host build: full ZDDObject teardown — runs zdd_object_dtor
+ * (the FUN_005b9390 cleanup chain) then heap-free's the allocation.
+ * Idempotent on (*p == NULL).  Zeros *p so callers can safely chain
+ * the same field through another path. */
 void zdd_obj_destroy(zdd_object **obj_pp);
+
+/* Real build: LocalFree(HLOCAL).  Host build: tracks the call for
+ * leak assertions.  NULL is a no-op. */
+void zdd_object_local_free(void *local_alloc);
 
 /* Real build: DirectDrawCreateEx(NULL, &self->ddraw7, &IID_IDirectDraw7,
  * NULL).  On failure, calls zdd_log_dderr(self, "", "DirectDrawCreate",
