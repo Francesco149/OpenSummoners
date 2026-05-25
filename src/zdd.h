@@ -1216,4 +1216,74 @@ void zdd_surface_release_dc(void *surface, void *hdc);
 int  zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
                                 zdd *log_owner);
 
+/* USER32 BeginPaint wrapper.  Returns the HDC for painting the window
+ * and stashes OS-internal paint state in *out_cookie (heap-allocated
+ * PAINTSTRUCT in the real build; opaque sentinel in the host stub).
+ * The cookie's lifetime spans the begin/end pair — caller MUST pass it
+ * unchanged to zdd_window_paint_end on the same hwnd, otherwise the
+ * window's update region will not be marked validated and Windows will
+ * redeliver WM_PAINT forever.  NULL hwnd returns NULL and writes NULL
+ * to *out_cookie.  Retail's FUN_005b9130 doesn't NULL-check the return;
+ * we pass it through to the BitBlt and EndPaint primitives, both of
+ * which guard defensively. */
+void *zdd_window_paint_begin(void *hwnd, void **out_cookie);
+
+/* USER32 EndPaint wrapper.  Pairs with zdd_window_paint_begin: tells
+ * the OS the WM_PAINT is consumed (validates the dirty region) and
+ * frees the cookie.  NULL hwnd or NULL cookie is silently dropped. */
+void zdd_window_paint_end(void *hwnd, void *cookie);
+
+/* GDI BitBlt with SRCCOPY raster op (0xCC0020 — matches the literal
+ * push at FUN_005b9130:0x5b9173 and FUN_005b8fc0:0x5b90c7).  Both HDCs
+ * are caller-supplied; this primitive does NOT acquire either — unlike
+ * zdd_desktop_present which wraps GetDC(NULL) internally.  Used by
+ * FUN_005b9130's WM_PAINT path where the dest HDC comes from BeginPaint
+ * and the src HDC comes from the DDraw surface via zdd_object_get_dc.
+ * NULL dest or NULL src is a silent no-op. */
+void zdd_window_blit_copy(void *dest_hdc, int dest_x, int dest_y,
+                          int width, int height, void *src_hdc);
+
+/* FUN_005b9130 — WM_PAINT handler for the windowed-mode game surface
+ * (151 bytes in retail).  Called by the engine's WndProc dispatch
+ * (wp_handle_message via the wp_paint_check hook) when Windows
+ * delivers WM_PAINT to the game window after another app uncovers it
+ * or the OS otherwise invalidates the client area.
+ *
+ * Sequence (matches retail FUN_005b9130 step-for-step):
+ *
+ *   if (self->pixel_format_mode != 2) return 0      // only mode-2 consumes
+ *   dest_hdc = zdd_window_paint_begin(hwnd, &cookie)
+ *   zdd_object_get_dc(self->primary_obj, &src_hdc)
+ *   zdd_window_blit_copy(dest_hdc, screen_pos_x, screen_pos_y,
+ *                        screen_width, screen_height, src_hdc)
+ *   zdd_object_release_dc(self->primary_obj, src_hdc)
+ *   zdd_window_paint_end(hwnd, cookie)
+ *   return 1
+ *
+ * Returns 1 iff the WM_PAINT was consumed — the caller's WndProc must
+ * then return 0 to the OS (we own the dirty region's validation via
+ * EndPaint).  Returns 0 in three cases: NULL self, mode != 2, or NULL
+ * primary_obj — caller must then fall back to DefWindowProcA so
+ * Windows validates the update region itself.  Retail's only
+ * early-out is the `mode != 2` check; the NULL-self / NULL-primary_obj
+ * guards are defensive (retail would crash on the vtable deref inside
+ * FUN_005b94e0).
+ *
+ * QUIRK (retail-faithful): the BitBlt uses screen_pos_x/y/width/height
+ * (the same +0x138..+0x144 fields the per-frame present at FUN_005b8fc0
+ * case 2 uses) as the destination coordinates inside a window-DC
+ * returned by BeginPaint.  In our drop-in, screen_pos_x/y hold the
+ * window's client top-left in SCREEN coordinates (kept in sync via
+ * main.c's sync_window_position).  But BeginPaint returns an HDC whose
+ * origin is (0,0) in CLIENT coordinates — so for a window not at
+ * desktop (0,0), the WM_PAINT BitBlt lands at offset (screen_x,
+ * screen_y) WITHIN the client area, i.e. outside the visible region.
+ * Retail does this too; we mirror.  In practice the per-frame
+ * zdd_present at FUN_005b8fc0 fires every frame and re-paints the
+ * window correctly via GetDC(NULL) at the same coords on the desktop
+ * DC, so this helper's misaligned BitBlt is overwritten before any
+ * frame fully composites.  Treating it as a retail quirk worth
+ * flagging but not "fixing" — that's a renderer-side decision. */
+int zdd_window_paint(zdd *self, void *hwnd);
+
 #endif /* OPENSUMMONERS_ZDD_H */

@@ -6,6 +6,61 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — WM_PAINT handler ported + wired
+
+Ported `FUN_005b9130` — the 151-byte WM_PAINT consumption handler — as
+the new `zdd_window_paint(zdd *self, void *hwnd)` in `src/zdd.c`.
+Sequence is retail-faithful: `if (mode != 2) return 0;
+BeginPaint(hwnd) → zdd_object_get_dc(primary_obj) → BitBlt(window_hdc,
+screen_pos_x, screen_pos_y, screen_width, screen_height, src_hdc, 0,
+0, SRCCOPY) → zdd_object_release_dc(primary_obj) → EndPaint`.  Returns
+1 iff consumed (caller's WndProc must then return 0 to the OS, since
+we own the dirty region's validation via EndPaint).
+
+Three new Win32 primitives in `zdd_win32.c`: `zdd_window_paint_begin`
+(BeginPaint with a heap-allocated PAINTSTRUCT so its lifetime spans
+the separate begin/end calls — the pure-logic body can't hold a
+stack-frame PAINTSTRUCT the way retail does), `zdd_window_paint_end`
+(EndPaint + free the cookie), and `zdd_window_blit_copy` (GDI BitBlt
+with SRCCOPY on caller-supplied HDCs).  The blit primitive is distinct
+from `zdd_desktop_present` — the latter wraps `GetDC(NULL)` +
+`ReleaseDC(NULL)` internally, while this one trusts the caller to
+hand it both HDCs.
+
+Wired into `main.c`'s minimal `wndproc` via a new WM_PAINT case that
+calls `zdd_window_paint(g_zdd, hwnd)`; if it returns 1 the message is
+consumed, otherwise the case falls through to `DefWindowProcA` which
+validates the update region itself.  Wired directly here (not via the
+ported `wp_handle_message`) because the WndProc module is still in
+isolation — `wnd_proc_win32.c`'s `wp_paint_check` remains a no-op
+stub pending the input-subsystem ports needed to wire `wp_handle_message`
+into main.
+
+A retail-faithful quirk fell out of porting: the BitBlt uses
+`screen_pos_x/y` (the same +0x138/+0x13c fields the per-frame present
+dispatcher reads) as destination coordinates, but BeginPaint returns
+an HDC whose origin is at the window's CLIENT-area top-left in CLIENT
+coordinates.  For a window at e.g. screen (200, 300), the WM_PAINT
+BitBlt destination becomes (200, 300) within the client area — off-
+screen.  Retail does this too.  In practice the per-frame
+`zdd_present` mode 2 fires every frame and re-paints via `GetDC(NULL)`
+at the correct screen coords, so this misalignment is overwritten
+before any frame fully composites.  See `zdd.h` `zdd_window_paint`
+docstring for the full reasoning.
+
+5 new host tests added (110 total in test_zdd.c): NULL-self guard,
+non-mode-2 short-circuit (no primitives fire), NULL-primary_obj
+defensive guard, mode-2 full sequence (verifies the exact retail
+ordering — begin(seq=1) → get_dc(2) → blit(3) → release_dc(4) →
+end(5) — plus HDC/cookie threading and coord passing), and a "doesn't
+touch present-dispatcher primitives" anti-regression.  329 host tests
+pass / 0 fail / 6 skip (was 324/0/6).  Cross-build with mingw clean;
+`tools/run-opensummoners.sh --frames 10 --hide-window` still boots
+through zero DDERR (hidden window doesn't see WM_PAINT damage; the
+visible-window case will exercise the new handler on uncover).
+
+---
+
 ## 2026-05-25 — Present dispatcher ported, smoke loop replaced
 
 Ported `FUN_005b8fc0` — the 5-mode per-frame present dispatcher — and

@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (present dispatcher ported + smoke loop removed)
+# Session handoff — last updated 2026-05-25 (WM_PAINT handler ported + wired)
 
 **This is the first thing to read at the start of every session.**
 
@@ -9,11 +9,12 @@ to pick up *right now*".
 ## Where we are
 
 The drop-in now runs the **real per-frame present dispatcher**
-(`FUN_005b8fc0` → `zdd_present`) every frame.  The hand-rolled
-"smoke-present" loop (BltColorFill + GetDC + BitBlt(window)) is gone,
-replaced by an exact port of retail's 5-mode dispatcher.  Mode 2
-(Windowed) is the live boot mode; the harness sees zero DDERR per
-frame across 10-frame runs.
+(`FUN_005b8fc0` → `zdd_present`) every frame, AND the **real WM_PAINT
+handler** (`FUN_005b9130` → `zdd_window_paint`) on demand whenever the
+OS invalidates the client area.  The hand-rolled "smoke-present" loop
+(BltColorFill + GetDC + BitBlt(window)) is gone, replaced by an exact
+port of retail's 5-mode dispatcher.  Mode 2 (Windowed) is the live
+boot mode; the harness sees zero DDERR per frame across 10-frame runs.
 
 The trio that landed this checkpoint:
 
@@ -56,6 +57,11 @@ The trio that landed this checkpoint:
   tracks the window's actual screen position.
 - `--no-smoke-present` flag renamed `--no-present`.
 - Smoke-failure counters / log lines removed.
+- `WM_PAINT` case added to the minimal `wndproc`: calls
+  `zdd_window_paint(g_zdd, hwnd)`; if it returns 1 (consumed) the
+  message is eaten, otherwise it falls through to `DefWindowProcA`.
+  Wired here directly (not via `wp_handle_message`) because the
+  ported WndProc module is still in isolation.
 
 **Naming-discovery clarification**: Ghidra labels FUN_005b94e0 /
 _9500 as `paint_ctx::` methods, but the ECX in every live callsite is
@@ -72,17 +78,19 @@ Seven modules ported + wired:
 - **Asset-Register** — 31 functions, 111 host tests.
 - **Bitmap-Session** — 8 functions, 31 host tests.
 - **WndProc** — `FUN_005b12e0`, 20 host tests.
-- **ZDD wrapper** — 30 functions covering ctor/dtor + DDERR log +
+- **ZDD wrapper** — 31 functions covering ctor/dtor + DDERR log +
   DirectDrawCreateEx + SetCooperativeLevel + SetDisplayMode +
   GetDisplayMode + busy_wait + clipper attach + back-buffer attach +
   8bpp palette setup + primary-surface DDSD builder + `zdd_create_screen`
-  (5-mode dispatch) + smoke-present primitives + **`zdd_object_get_dc`
+  (5-mode dispatch) + smoke-present primitives + `zdd_object_get_dc`
   / `zdd_object_release_dc` / `zdd_object_blt_onto` / `zdd_present`
-  (5-mode present dispatcher)**.  105 host tests.
+  (5-mode present dispatcher) + **`zdd_window_paint` (FUN_005b9130
+  WM_PAINT handler) + Win32 primitives `zdd_window_paint_begin` /
+  `zdd_window_paint_end` / `zdd_window_blit_copy`**.  110 host tests.
 - **cs_dispatch** — `cs_dispatch_create_screen`, 21 host tests.
 
-Total host tests: **324 pass, 0 fail, 6 skip** (was 307; +17 for the
-present-dispatcher trio).  Cross-build with mingw clean.
+Total host tests: **329 pass, 0 fail, 6 skip** (was 324; +5 for the
+WM_PAINT handler).  Cross-build with mingw clean.
 
 **Live-boot output under harness** (`tools/run-opensummoners.sh
 --frames 10 --hide-window`):
@@ -121,8 +129,9 @@ CLI knobs available on the drop-in:
 
 Most recent commits (newest first):
 
-- (uncommitted) ZDD: port present-dispatcher trio (94e0/9500/8fc0
-  + 9a40) + remove smoke-present loop
+- (uncommitted) ZDD: port FUN_005b9130 WM_PAINT handler
+  (zdd_window_paint) + 3 Win32 primitives + wire into main wndproc
+- `26d2f8a` ZDD: port FUN_005b8fc0 5-mode present dispatcher + trio leaves
 - `ca1a94e` main + launcher: SetConsoleOutputCP(CP_UTF8)
 - `202bd3f` docs: update HANDOFF + PROGRESS for smoke-present + RE fixes
 - `5d82301` ZDD: smoke-present mode 2 (Blt+GetDC+BitBlt) + 2 RE bug fixes
@@ -146,25 +155,16 @@ title-menu scene runner (`FUN_0056aea0`).
    draws *anything* to `com_primary`, mode 2's `zdd_present` will
    composite it into the window — that's the first visible frame.
 
-2. **Port `FUN_005b9130` (the WM_PAINT handler).**  Trivial port now
-   that the trio is in place: it's `BeginPaint + zdd_object_get_dc +
-   BitBlt(window_hdc, blit_x/y/w/h, src_hdc, 0, 0, SRCCOPY) +
-   zdd_object_release_dc + EndPaint`.  Different from the per-frame
-   present (uses BeginPaint instead of GetDC(NULL) — so it pulls into
-   the *window's* DC, not the desktop's).  Needed for windowed-mode
-   refresh when the OS sends WM_PAINT after another app uncovers our
-   window.  Wired through wnd_proc's existing `wp_paint_check` hook.
-
-3. **Port `FUN_005b8ea0`** (16bpp software upscaler, mode 4 only).
+2. **Port `FUN_005b8ea0`** (16bpp software upscaler, mode 4 only).
    Defer until mode 4 is exercised; mode 2 is the live boot mode.
 
-4. **Port `FUN_005b8a20`** (16bpp pixel-format binding).  ECX
+3. **Port `FUN_005b8a20`** (16bpp pixel-format binding).  ECX
    identity still ambiguous — investigate via r2 disasm + a Frida hook
    that logs ECX at first live call.  Smoke-present and the new
    dispatcher both work without it; defer until colour-channel
    artefacts appear in real content.
 
-5. **`FUN_005a4770` launcher-settings parser** (45 KB).  Replaces the
+4. **`FUN_005a4770` launcher-settings parser** (45 KB).  Replaces the
    `--launcher-mode=N` CLI flag with a real `user/config.dat` read.
    Lower priority than getting pixels.
 
@@ -173,9 +173,10 @@ title-menu scene runner (`FUN_0056aea0`).
 ```
 src/
   main.c                    WinMain shim + DDraw init + per-frame
-                            zdd_present.  sync_window_position() keeps
-                            screen_pos_x/y in sync (init + WM_MOVE).
-                            CLI: --launcher-mode/--skip-ddraw/--no-present.
+                            zdd_present + WM_PAINT-driven zdd_window_paint.
+                            sync_window_position() keeps screen_pos_x/y
+                            in sync (init + WM_MOVE).  CLI: --launcher-mode
+                            / --skip-ddraw / --no-present.
   dev_hooks.c/h             MessageBox redirect prologue patch
   pixel_drawer.c/h          ZDPixelDrawer — 8 functions
   asset_register.c/h        Asset-register slots — 31 functions
@@ -186,15 +187,18 @@ src/
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + placeholders
   zdd.c/h                   ZDD wrapper — full ddraw init chain + 5-mode
                             CreateScreen + clipper attach with RGNDATA +
-                            **5-mode present dispatcher (zdd_present)
-                            + paint_ctx GetDC/ReleaseDC + blt_onto +
+                            5-mode present dispatcher (zdd_present) +
+                            paint_ctx GetDC/ReleaseDC + blt_onto +
                             zdd_surface_flip / _blt / desktop_present
-                            primitives**.
+                            primitives + **WM_PAINT handler
+                            (zdd_window_paint) + BeginPaint/EndPaint/
+                            BitBlt primitives**.
   zdd_win32.c               DirectDraw7 + IDirectDrawSurface7 +
                             IDirectDrawClipper + IDirectDrawPalette
                             primitive wrappers.  Dual-sinks
-                            OutputDebugStringA to stderr.  New:
-                            Flip + Blt + desktop-BitBlt primitives.
+                            OutputDebugStringA to stderr.  Includes:
+                            Flip + Blt + desktop-BitBlt + **window-paint
+                            begin/end + caller-supplied-HDC BitBlt**.
   cs_dispatch.c/h           Outer CreateScreen mode dispatcher
                             (FUN_00582e90) + per-mode handlers.
   cs_dispatch_win32.c       Win32 primitives — error log fetch,
@@ -203,7 +207,7 @@ src/
 
 tests/
   Makefile                  host gcc + ASan/UBSan
-  test_*.c                  324 tests across 6 modules
+  test_*.c                  329 tests across 6 modules
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -227,9 +231,6 @@ tools/
   bytes, calls Lock (FUN_005b9490) and Unlock (FUN_005b94d0) on both
   surfaces and copies pixels with integer division.  Mode-4-specific;
   dispatcher skips the upscale and proceeds to blit_onto + Flip.
-- **`FUN_005b9130`** (WM_PAINT handler) — trivial 3-line port now that
-  the present trio is in place.  Wired into wnd_proc via
-  `wp_paint_check` hook.  Needed for window-refresh on uncovering.
 - **Launcher settings record parse** — `FUN_005a4770` (45 KB).
 - ZDDObject's +0xac field (`com_back`) is dual-role: holds either a
   back-buffer `IDirectDrawSurface7` OR an `IDirectDrawClipper`.
@@ -252,26 +253,35 @@ tools/
 
 ## Resolved this checkpoint
 
-- **`paint_ctx::FUN_005b94e0` / `_9500` ECX identity confirmed**: the
-  ECX is `zdd_object*` (specifically `zdd.primary_obj`), not a
-  separate "paint_ctx" class.  Verified by r2 disasm of WM_PAINT
-  handler `FUN_005b9130` at 0x5b9158 (`mov ecx, [esi + 0x16c]; call
-  FUN_005b94e0`) and FUN_005b8fc0 case 2 at 0x5b90a1.  The
-  `paint_ctx` typedef in wnd_proc.h is a misnomer for `zdd` itself.
-- **`FUN_005b9a40` arg order**: `(this=src, dest_obj, dest_x, dest_y)`
-  — confirmed by tracing case 4's push order against the function body's
-  use of arg slots (the COM-dereferenced arg slot at r2's `arg_1ch` is
-  the middle stack arg, not the first).  r2 names stack args by physical
-  offset, NOT by C-arg-index.
-- **Mode 2 desktop-DC technique**: case 2 uses `GetDC(NULL)` (desktop)
-  + `BitBlt` at `(screen_pos_x, screen_pos_y)`, NOT `GetDC(hWnd)`.
-  Means screen_pos_x/y must be the window's CLIENT-area top-left in
-  screen coordinates.  Drop-in now keeps these in sync via
-  `sync_window_position()` (init + WM_MOVE).
-- **`zdd_surface_flip` vtable byte 0x2c** = method index 11 = Flip.
-- **`zdd_surface_blt` vtable byte 0x14** = method index 5 = Blt.
-- **`zdd_surface_get_dc` byte 0x44** = method index 17 = GetDC.
-- **`zdd_surface_release_dc` byte 0x68** = method index 26 = ReleaseDC.
+- **`FUN_005b9130` WM_PAINT handler ported** as `zdd_window_paint`.
+  Sequence faithful to retail: `BeginPaint(hwnd) → zdd_object_get_dc
+  (primary_obj) → BitBlt(window_hdc, screen_pos_x/y/w/h, src_hdc) →
+  zdd_object_release_dc → EndPaint`.  Three new Win32 primitives:
+  `zdd_window_paint_begin` (BeginPaint + heap-alloc PAINTSTRUCT for
+  cross-call lifetime), `zdd_window_paint_end` (EndPaint + free), and
+  `zdd_window_blit_copy` (BitBlt with caller-supplied HDCs, distinct
+  from `zdd_desktop_present` which wraps `GetDC(NULL)` internally).
+  Wired into main.c's minimal `wndproc` WM_PAINT case (not via
+  `wp_handle_message` since the WndProc module is still in isolation).
+- **Retail-faithful quirk noted**: WM_PAINT BitBlts into a CLIENT-
+  coordinate HDC (from BeginPaint) but uses `screen_pos_x/y` (SCREEN
+  coordinates).  For windows not at desktop (0,0), the BitBlt lands
+  outside the visible region.  Per-frame `zdd_present` mode 2 covers
+  the same damage on the next tick via GetDC(NULL) at the right
+  coords, so the misalignment is overwritten before any frame
+  fully composites.  See `zdd.h` `zdd_window_paint` doc for the full
+  reasoning.
+
+(Prior checkpoint discoveries that informed this one, retained:)
+- `paint_ctx::FUN_005b94e0` / `_9500` ECX is `zdd.primary_obj`, not a
+  separate class — same applies inside FUN_005b9130 at 0x5b9158.
+- `FUN_005b9a40` arg order: `(this=src, dest_obj, dest_x, dest_y)`.
+- Mode 2 desktop-DC: `GetDC(NULL)` (hWnd local stamped to 0 at
+  prologue), `BitBlt` at `(screen_pos_x, screen_pos_y)`.
+- `zdd_surface_flip` vtable byte 0x2c = method 11 = Flip.
+- `zdd_surface_blt` byte 0x14 = method 5 = Blt.
+- `zdd_surface_get_dc` byte 0x44 = method 17 = GetDC.
+- `zdd_surface_release_dc` byte 0x68 = method 26 = ReleaseDC.
 
 ## How to apply
 

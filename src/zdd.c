@@ -959,3 +959,60 @@ void zdd_present(zdd *self)
         return;
     }
 }
+
+/* FUN_005b9130 — WM_PAINT handler (151 bytes).  See zdd.h for the
+ * per-step contract and the retail-faithful "screen-coords into a
+ * client-relative HDC" quirk note.  Sequence at a glance:
+ *
+ *   if (mode != 2) return 0
+ *   dest_hdc = BeginPaint(hwnd)
+ *   zdd_object_get_dc(primary_obj, &src_hdc)
+ *   BitBlt(dest_hdc, screen_pos_x, screen_pos_y,
+ *          screen_width, screen_height, src_hdc, 0, 0, SRCCOPY)
+ *   zdd_object_release_dc(primary_obj, src_hdc)
+ *   EndPaint(hwnd)
+ *   return 1
+ *
+ * Retail order — BeginPaint BEFORE GetDC, EndPaint AFTER ReleaseDC —
+ * is preserved because the call site shape is what's load-bearing for
+ * the wnd_proc port's expectations.  We split the OS-side into begin /
+ * blit / end primitives (rather than collapsing into one) so the host
+ * tests can assert the exact ordering vs the COM-side GetDC/ReleaseDC
+ * pair. */
+int zdd_window_paint(zdd *self, void *hwnd)
+{
+    if (self == NULL) return 0;
+
+    /* Retail short-circuits on `cmp [esi+0x164], 2; jne early_return_0`
+     * at 0x5b9136.  Modes 0/1/3/4 fall through here so the WndProc can
+     * forward the message to DefWindowProcA (which Windows-validates
+     * the dirty region with no painting). */
+    if (self->pixel_format_mode != 2) return 0;
+
+    /* Defensive: retail crashes on a NULL primary_obj's vtable deref
+     * inside FUN_005b94e0 (no guard).  We bail cleanly — a NULL
+     * primary_obj means CreateScreen never finished, in which case
+     * there's nothing to paint anyway. */
+    if (self->primary_obj == NULL) return 0;
+
+    void *paint_cookie = NULL;
+    void *dest_hdc = zdd_window_paint_begin(hwnd, &paint_cookie);
+
+    void *src_hdc = NULL;
+    zdd_object_get_dc(self->primary_obj, &src_hdc);
+
+    /* BitBlt destination = (screen_pos_x, screen_pos_y, w, h) in the
+     * window-DC's client-coordinate space.  See header comment for the
+     * "this is misaligned at non-(0,0) windows" quirk.  We mirror
+     * retail's literal field reads from +0x138/+0x13c/+0x140/+0x144. */
+    zdd_window_blit_copy(dest_hdc,
+                         self->screen_pos_x, self->screen_pos_y,
+                         self->screen_width, self->screen_height,
+                         src_hdc);
+
+    zdd_object_release_dc(self->primary_obj, src_hdc);
+
+    zdd_window_paint_end(hwnd, paint_cookie);
+
+    return 1;
+}

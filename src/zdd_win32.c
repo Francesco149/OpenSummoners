@@ -22,6 +22,7 @@
 #include <windows.h>
 #include <ddraw.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void zdd_show_cursor(int show)
 {
@@ -537,4 +538,53 @@ int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
            (HDC)src_hdc, 0, 0, SRCCOPY);
     ReleaseDC(NULL, desktop);
     return 1;
+}
+
+/* BeginPaint wrapper.  Retail's FUN_005b9130 holds a PAINTSTRUCT on its
+ * own stack frame across the begin/blit/end window; we split the begin
+ * and end into separate primitives so the pure-logic body can be
+ * Win32-free.  PAINTSTRUCT lives on the heap for the duration of the
+ * paint session so its address is stable across the two calls.  The
+ * cookie returned via *out_cookie is opaque to the caller (it's a
+ * malloc'd PAINTSTRUCT*).  The caller MUST hand it back to
+ * zdd_window_paint_end on the matching hwnd, otherwise the cookie
+ * leaks and the window's update region stays dirty. */
+void *zdd_window_paint_begin(void *hwnd, void **out_cookie)
+{
+    if (out_cookie != NULL) *out_cookie = NULL;
+    if (hwnd == NULL) return NULL;
+    PAINTSTRUCT *ps = (PAINTSTRUCT *)malloc(sizeof(PAINTSTRUCT));
+    if (ps == NULL) return NULL;
+    HDC hdc = BeginPaint((HWND)hwnd, ps);
+    if (out_cookie != NULL) *out_cookie = ps;
+    /* Retail does NOT NULL-check BeginPaint's return (0x5b914b → ebx
+     * straight into BitBlt at 0x5b918d); mirror by handing back
+     * whatever — NULL or otherwise — to the caller.  Downstream
+     * primitives guard defensively. */
+    return (void *)hdc;
+}
+
+/* EndPaint wrapper.  Frees the cookie allocated by
+ * zdd_window_paint_begin and validates the window's update region.
+ * NULL hwnd or NULL cookie is a no-op (the heap is left alone, and the
+ * window stays dirty — the caller's contract violation is its own to
+ * resolve). */
+void zdd_window_paint_end(void *hwnd, void *cookie)
+{
+    if (hwnd == NULL || cookie == NULL) return;
+    PAINTSTRUCT *ps = (PAINTSTRUCT *)cookie;
+    EndPaint((HWND)hwnd, ps);
+    free(ps);
+}
+
+/* GDI BitBlt with SRCCOPY.  No HDC acquisition — both HDCs are
+ * caller-supplied.  Mirrors the BitBlt at FUN_005b9130:0x5b918e with
+ * the same literal rop (0xCC0020 = SRCCOPY).  NULL guards on both HDCs
+ * to avoid GDI's silent failure mode (returns FALSE, no diagnostic). */
+void zdd_window_blit_copy(void *dest_hdc, int dest_x, int dest_y,
+                          int width, int height, void *src_hdc)
+{
+    if (dest_hdc == NULL || src_hdc == NULL) return;
+    BitBlt((HDC)dest_hdc, dest_x, dest_y, width, height,
+           (HDC)src_hdc, 0, 0, SRCCOPY);
 }

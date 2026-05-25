@@ -326,6 +326,19 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
          * the window. */
         sync_window_position();
         return 0;
+    case WM_PAINT:
+        /* Port of retail's WM_PAINT consumption via FUN_005b9130
+         * (zdd_window_paint).  Only consumes in mode 2 (Windowed) —
+         * other modes (and unfinished DDraw init) fall through to
+         * DefWindowProcA, which validates the dirty region itself.
+         * Wired here directly (not via wp_handle_message) because the
+         * drop-in uses its own minimal wndproc — the ported WndProc
+         * module is still in isolation pending input-subsystem ports. */
+        if (!g_skip_ddraw && g_zdd != NULL &&
+            zdd_window_paint(g_zdd, hwnd)) {
+            return 0;
+        }
+        break;
     }
     return DefWindowProcA(hwnd, msg, wp, lp);
 }

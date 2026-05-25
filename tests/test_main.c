@@ -334,6 +334,11 @@ struct test_case {
     X(zdd_present_mode_3_db_blt_then_flip)                     \
     X(zdd_present_mode_4_zoom_blt_then_flip)                   \
     X(zdd_present_default_mode_is_noop)                        \
+    X(zdd_window_paint_null_self_returns_zero)                 \
+    X(zdd_window_paint_non_mode2_returns_zero_no_calls)        \
+    X(zdd_window_paint_null_primary_obj_returns_zero)          \
+    X(zdd_window_paint_mode2_full_sequence)                    \
+    X(zdd_window_paint_does_not_touch_present_primitives)      \
     X(cs_compute_zoom_rect_clean_centre)                       \
     X(cs_compute_zoom_rect_exact_match)                        \
     X(cs_compute_zoom_rect_zoom_larger_than_display)           \

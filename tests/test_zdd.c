@@ -166,6 +166,36 @@ static int      g_dd_desktop_last_y    = 0;
 static int      g_dd_desktop_last_w    = 0;
 static int      g_dd_desktop_last_h    = 0;
 
+/* WM_PAINT-handler primitive stubs (back FUN_005b9130 host tests).
+ * Each records call shape so the dispatcher tests can assert the
+ * begin → get_dc → blit → release_dc → end ordering exactly.  The
+ * begin/end pair plumbs a sentinel cookie through; tests verify it
+ * round-trips unchanged. */
+static int      g_dd_wpaint_begin_calls    = 0;
+static void    *g_dd_wpaint_begin_last_hwnd = NULL;
+static void    *g_dd_wpaint_begin_hdc       = NULL;  /* what begin returns */
+static void    *g_dd_wpaint_begin_cookie    = NULL;  /* what *out_cookie gets */
+static int      g_dd_wpaint_end_calls       = 0;
+static void    *g_dd_wpaint_end_last_hwnd   = NULL;
+static void    *g_dd_wpaint_end_last_cookie = NULL;
+static int      g_dd_wblit_calls            = 0;
+static void    *g_dd_wblit_last_dest_hdc    = NULL;
+static void    *g_dd_wblit_last_src_hdc     = NULL;
+static int      g_dd_wblit_last_x           = 0;
+static int      g_dd_wblit_last_y           = 0;
+static int      g_dd_wblit_last_w           = 0;
+static int      g_dd_wblit_last_h           = 0;
+/* Sequence counter shared across the WM_PAINT primitives so tests can
+ * assert the OS / COM interleave exactly: begin(1), get_dc(2), blit(3),
+ * release_dc(4), end(5).  Reused with the getdc/releasedc stubs by
+ * bumping them in those stubs too — see seq_* writes in reset_stubs. */
+static int      g_dd_paint_seq             = 0;
+static int      g_dd_wpaint_begin_seq      = 0;
+static int      g_dd_getdc_seq             = 0;
+static int      g_dd_wblit_seq             = 0;
+static int      g_dd_releasedc_seq         = 0;
+static int      g_dd_wpaint_end_seq        = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -267,6 +297,26 @@ static void reset_stubs(void)
     g_dd_desktop_last_y    = 0;
     g_dd_desktop_last_w    = 0;
     g_dd_desktop_last_h    = 0;
+    g_dd_wpaint_begin_calls    = 0;
+    g_dd_wpaint_begin_last_hwnd = NULL;
+    g_dd_wpaint_begin_hdc       = (void *)(uintptr_t)0xb1b1b1b1;
+    g_dd_wpaint_begin_cookie    = (void *)(uintptr_t)0xc00c1eee;
+    g_dd_wpaint_end_calls       = 0;
+    g_dd_wpaint_end_last_hwnd   = NULL;
+    g_dd_wpaint_end_last_cookie = NULL;
+    g_dd_wblit_calls            = 0;
+    g_dd_wblit_last_dest_hdc    = NULL;
+    g_dd_wblit_last_src_hdc     = NULL;
+    g_dd_wblit_last_x           = 0;
+    g_dd_wblit_last_y           = 0;
+    g_dd_wblit_last_w           = 0;
+    g_dd_wblit_last_h           = 0;
+    g_dd_paint_seq              = 0;
+    g_dd_wpaint_begin_seq       = 0;
+    g_dd_getdc_seq              = 0;
+    g_dd_wblit_seq              = 0;
+    g_dd_releasedc_seq          = 0;
+    g_dd_wpaint_end_seq         = 0;
 }
 
 void zdd_show_cursor(int show)
@@ -480,6 +530,7 @@ int zdd_get_attached_surface(void *primary, uint32_t caps_in,
 int zdd_surface_get_dc(void *surface, void **out_hdc)
 {
     g_dd_getdc_calls++;
+    g_dd_getdc_seq = ++g_dd_paint_seq;
     g_dd_getdc_last_surf = surface;
     if (surface == NULL || out_hdc == NULL) {
         if (out_hdc != NULL) *out_hdc = NULL;
@@ -496,6 +547,7 @@ int zdd_surface_get_dc(void *surface, void **out_hdc)
 void zdd_surface_release_dc(void *surface, void *hdc)
 {
     g_dd_releasedc_calls++;
+    g_dd_releasedc_seq = ++g_dd_paint_seq;
     g_dd_releasedc_last_surf = surface;
     g_dd_releasedc_last_hdc  = hdc;
 }
@@ -563,6 +615,36 @@ int zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
      * future test that does reference it doesn't pull in a link error. */
     (void)surface; (void)fill_value; (void)log_owner;
     return 1;
+}
+
+void *zdd_window_paint_begin(void *hwnd, void **out_cookie)
+{
+    g_dd_wpaint_begin_calls++;
+    g_dd_wpaint_begin_seq = ++g_dd_paint_seq;
+    g_dd_wpaint_begin_last_hwnd = hwnd;
+    if (out_cookie != NULL) *out_cookie = g_dd_wpaint_begin_cookie;
+    return g_dd_wpaint_begin_hdc;
+}
+
+void zdd_window_paint_end(void *hwnd, void *cookie)
+{
+    g_dd_wpaint_end_calls++;
+    g_dd_wpaint_end_seq = ++g_dd_paint_seq;
+    g_dd_wpaint_end_last_hwnd   = hwnd;
+    g_dd_wpaint_end_last_cookie = cookie;
+}
+
+void zdd_window_blit_copy(void *dest_hdc, int dest_x, int dest_y,
+                          int width, int height, void *src_hdc)
+{
+    g_dd_wblit_calls++;
+    g_dd_wblit_seq = ++g_dd_paint_seq;
+    g_dd_wblit_last_dest_hdc = dest_hdc;
+    g_dd_wblit_last_src_hdc  = src_hdc;
+    g_dd_wblit_last_x = dest_x;
+    g_dd_wblit_last_y = dest_y;
+    g_dd_wblit_last_w = width;
+    g_dd_wblit_last_h = height;
 }
 
 /* ─── ctor / struct layout ───────────────────────────────────────── */
@@ -2653,6 +2735,145 @@ int test_zdd_present_default_mode_is_noop(void)
 
     T_ASSERT_EQ_I(g_dd_flip_calls, 0);
     T_ASSERT_EQ_I(g_dd_blt_calls,  0);
+    T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
+
+    s.primary_obj = NULL;
+    return 0;
+}
+
+/* ─── zdd_window_paint (FUN_005b9130 WM_PAINT handler) ─────────────── */
+
+int test_zdd_window_paint_null_self_returns_zero(void)
+{
+    reset_stubs();
+    int rc = zdd_window_paint(NULL, (void *)(uintptr_t)0xfeedface);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_wpaint_begin_calls, 0);
+    T_ASSERT_EQ_I(g_dd_wpaint_end_calls,   0);
+    T_ASSERT_EQ_I(g_dd_wblit_calls,        0);
+    T_ASSERT_EQ_I(g_dd_getdc_calls,        0);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls,    0);
+    return 0;
+}
+
+int test_zdd_window_paint_non_mode2_returns_zero_no_calls(void)
+{
+    /* Modes 0/1/3/4 must short-circuit at the `cmp [esi+0x164], 2` check
+     * (retail 0x5b9136) — no BeginPaint, no GetDC, nothing. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    int modes[] = {0, 1, 3, 4};
+    for (size_t i = 0; i < sizeof(modes)/sizeof(modes[0]); i++) {
+        s.pixel_format_mode = modes[i];
+        int rc = zdd_window_paint(&s, (void *)(uintptr_t)0xfeedface);
+        T_ASSERT_EQ_I(rc, 0);
+    }
+    T_ASSERT_EQ_I(g_dd_wpaint_begin_calls, 0);
+    T_ASSERT_EQ_I(g_dd_wpaint_end_calls,   0);
+    T_ASSERT_EQ_I(g_dd_wblit_calls,        0);
+    T_ASSERT_EQ_I(g_dd_getdc_calls,        0);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls,    0);
+
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_window_paint_null_primary_obj_returns_zero(void)
+{
+    /* Defensive guard not present in retail (retail would crash on the
+     * vtable deref inside FUN_005b94e0).  Drop-in bails cleanly without
+     * even calling BeginPaint — no point in opening a paint session we
+     * can't fulfil. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.primary_obj = NULL;
+    int rc = zdd_window_paint(&s, (void *)(uintptr_t)0xfeedface);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_wpaint_begin_calls, 0);
+    return 0;
+}
+
+int test_zdd_window_paint_mode2_full_sequence(void)
+{
+    /* Happy path: mode 2 with a real primary_obj fires all five
+     * primitives in retail order (begin → get_dc → blit → release_dc
+     * → end), threads the begin's HDC into the blit's dest, threads
+     * the begin's cookie into the end, and threads the get_dc's HDC
+     * into the blit's src.  Returns 1 (consumed). */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.screen_pos_x = 100; s.screen_pos_y = 200;
+    s.screen_width = 640; s.screen_height = 480;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    void *fake_hwnd = (void *)(uintptr_t)0xfeedface;
+    int rc = zdd_window_paint(&s, fake_hwnd);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* Each primitive fired exactly once. */
+    T_ASSERT_EQ_I(g_dd_wpaint_begin_calls, 1);
+    T_ASSERT_EQ_I(g_dd_getdc_calls,        1);
+    T_ASSERT_EQ_I(g_dd_wblit_calls,        1);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls,    1);
+    T_ASSERT_EQ_I(g_dd_wpaint_end_calls,   1);
+
+    /* Retail call order: begin(1) get_dc(2) blit(3) release_dc(4) end(5). */
+    T_ASSERT_EQ_I(g_dd_wpaint_begin_seq, 1);
+    T_ASSERT_EQ_I(g_dd_getdc_seq,        2);
+    T_ASSERT_EQ_I(g_dd_wblit_seq,        3);
+    T_ASSERT_EQ_I(g_dd_releasedc_seq,    4);
+    T_ASSERT_EQ_I(g_dd_wpaint_end_seq,   5);
+
+    /* Begin/End got the hwnd; End got the same cookie Begin produced. */
+    T_ASSERT_EQ_P(g_dd_wpaint_begin_last_hwnd, fake_hwnd);
+    T_ASSERT_EQ_P(g_dd_wpaint_end_last_hwnd,   fake_hwnd);
+    T_ASSERT_EQ_P(g_dd_wpaint_end_last_cookie, g_dd_wpaint_begin_cookie);
+
+    /* GetDC was called on primary_obj's com_primary (per FUN_005b9158:
+     * `mov ecx, [esi + 0x16c]; call FUN_005b94e0`). */
+    T_ASSERT_EQ_P(g_dd_getdc_last_surf,     (void *)(uintptr_t)0xbbb1);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_surf, (void *)(uintptr_t)0xbbb1);
+    T_ASSERT_EQ_P(g_dd_releasedc_last_hdc,  g_dd_getdc_handle);
+
+    /* BitBlt: dest_hdc = begin's return, src_hdc = get_dc's out.
+     * Coords/dimensions = screen_pos_x/y/width/height. */
+    T_ASSERT_EQ_P(g_dd_wblit_last_dest_hdc, g_dd_wpaint_begin_hdc);
+    T_ASSERT_EQ_P(g_dd_wblit_last_src_hdc,  g_dd_getdc_handle);
+    T_ASSERT_EQ_I(g_dd_wblit_last_x, 100);
+    T_ASSERT_EQ_I(g_dd_wblit_last_y, 200);
+    T_ASSERT_EQ_I(g_dd_wblit_last_w, 640);
+    T_ASSERT_EQ_I(g_dd_wblit_last_h, 480);
+
+    s.primary_obj = NULL;
+    return 0;
+}
+
+int test_zdd_window_paint_does_not_touch_present_primitives(void)
+{
+    /* The WM_PAINT path uses Begin/End/BitBlt and Get/ReleaseDC ONLY.
+     * It must NOT fire the per-frame present's primitives (Flip,
+     * surface Blt, desktop_present). */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.pixel_format_mode = 2;
+    s.screen_pos_x = 0; s.screen_pos_y = 0;
+    s.screen_width = 640; s.screen_height = 480;
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xbbb1;
+    s.primary_obj = &po;
+
+    zdd_window_paint(&s, (void *)(uintptr_t)0xfeedface);
+
+    T_ASSERT_EQ_I(g_dd_flip_calls,    0);
+    T_ASSERT_EQ_I(g_dd_blt_calls,     0);
     T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
 
     s.primary_obj = NULL;
