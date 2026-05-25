@@ -219,3 +219,58 @@ int zdd_set_coop_level(zdd *self, void *hwnd, int fullscreen)
     }
     return 1;
 }
+
+/* FUN_005b8900 — IDirectDraw7::SetDisplayMode via vtable[21] / byte
+ * offset 0x54.  Retail passes the 5-arg form: (w, h, bpp, refresh, 0).
+ * The trailing 0 is dwFlags (DDSDM_*), always zero. */
+int zdd_set_display_mode(zdd *self, uint32_t width, uint32_t height,
+                         uint32_t bpp, uint32_t refresh_hz)
+{
+    IDirectDraw7 *dd = (IDirectDraw7 *)self->ddraw7;
+    HRESULT hr = dd->lpVtbl->SetDisplayMode(dd, width, height, bpp,
+                                            refresh_hz, 0);
+    if (FAILED(hr)) {
+        zdd_log_dderr(self, "DirectDraw", "SetDisplayMode",
+                      (int32_t)hr);
+        return 0;
+    }
+    return 1;
+}
+
+/* FUN_005b8950 — IDirectDraw7::GetDisplayMode via vtable[12] / byte
+ * offset 0x30.  Builds a stack DDSURFACEDESC2 with the exact dwFlags
+ * pattern retail uses (0x41006 = HEIGHT|WIDTH|PITCH|PIXELFORMAT) and
+ * a pre-stamped ddpf header (dwSize=0x20, DDPF_RGB).  No DDERR log on
+ * failure — retail's caller chooses the log message based on which of
+ * SetDisplayMode / GetDisplayMode failed. */
+int zdd_get_display_mode(zdd *self, uint32_t *out_width,
+                         uint32_t *out_height, uint32_t *out_pitch)
+{
+    DDSURFACEDESC2 ddsd;
+    memset(&ddsd, 0, sizeof(ddsd));
+    ddsd.dwSize  = sizeof(ddsd);    /* 0x7c */
+    ddsd.dwFlags = DDSD_HEIGHT | DDSD_WIDTH | DDSD_PITCH | DDSD_PIXELFORMAT;
+    ddsd.ddpfPixelFormat.dwSize  = sizeof(ddsd.ddpfPixelFormat);  /* 0x20 */
+    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB;
+
+    IDirectDraw7 *dd = (IDirectDraw7 *)self->ddraw7;
+    HRESULT hr = dd->lpVtbl->GetDisplayMode(dd, &ddsd);
+    if (FAILED(hr)) return 0;
+
+    if (out_width  != NULL) *out_width  = ddsd.dwWidth;
+    if (out_height != NULL) *out_height = ddsd.dwHeight;
+    if (out_pitch  != NULL) *out_pitch  = (uint32_t)ddsd.lPitch;
+    return 1;
+}
+
+/* FUN_005b5ac0 — busy-wait spin via GetTickCount.  Polls until the
+ * elapsed unsigned-wraparound difference reaches `ms`.  Matches
+ * retail's `do { tick = GetTickCount(); } while (tick - start < ms)`
+ * shape exactly (unsigned wrap handles 49-day rollover). */
+void zdd_busy_wait_ms(uint32_t ms)
+{
+    DWORD start = GetTickCount();
+    while ((DWORD)(GetTickCount() - start) < (DWORD)ms) {
+        /* spin */
+    }
+}

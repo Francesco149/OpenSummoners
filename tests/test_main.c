@@ -287,6 +287,15 @@ struct test_case {
     X(zdd_object_attach_clipper_releases_existing_com_back)    \
     X(zdd_object_attach_clipper_create_fail_skips_followups)   \
     X(zdd_object_attach_clipper_no_primary_skips_setclipper)   \
+    X(zdd_hide_cursor_hides_when_shown)                        \
+    X(zdd_hide_cursor_noop_when_already_hidden)                \
+    X(zdd_hide_then_restore_round_trip)                        \
+    X(zdd_set_display_mode_passes_args_and_returns_one)        \
+    X(zdd_set_display_mode_failure_logs_dderr)                 \
+    X(zdd_get_display_mode_fills_all_out_ptrs)                 \
+    X(zdd_get_display_mode_tolerates_null_out_ptrs)            \
+    X(zdd_get_display_mode_failure_leaves_outs_untouched)      \
+    X(zdd_busy_wait_ms_records_arg)                            \
 
 #define X(n) extern int test_##n(void);
 TESTS

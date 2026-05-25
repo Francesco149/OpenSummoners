@@ -451,6 +451,18 @@ void zdd_restore_cursor_on_release(zdd *self)
     }
 }
 
+void zdd_hide_cursor(zdd *self)
+{
+    /* Retail gates on `cursor_state != 0` (currently shown).  Symmetric
+     * inverse of zdd_restore_cursor_on_release.  Once we drop to
+     * "hidden" the field stays 0 until that helper restores it on
+     * release — so back-to-back hide calls are no-ops. */
+    if (self->cursor_state != 0) {
+        zdd_show_cursor(0);
+        self->cursor_state = 0;
+    }
+}
+
 void zdd_release_children(zdd *self)
 {
     /* Retail issue order — primary first, two back-buffer children

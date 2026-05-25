@@ -76,6 +76,26 @@ static int      g_dd_setclipper_seq         = 0;
 static void    *g_dd_setclipper_last_surf   = NULL;
 static void    *g_dd_setclipper_last_clip   = NULL;
 
+/* zdd_set_display_mode stub state — recorder + result. */
+static int      g_dd_setmode_result    = 1;
+static int32_t  g_dd_setmode_hr        = 0;
+static int      g_dd_setmode_calls     = 0;
+static uint32_t g_dd_setmode_last_w    = 0;
+static uint32_t g_dd_setmode_last_h    = 0;
+static uint32_t g_dd_setmode_last_bpp  = 0;
+static uint32_t g_dd_setmode_last_refresh = 0;
+
+/* zdd_get_display_mode stub state — returns these dimensions. */
+static int      g_dd_getmode_result    = 1;
+static uint32_t g_dd_getmode_width     = 1024;
+static uint32_t g_dd_getmode_height    = 768;
+static uint32_t g_dd_getmode_pitch     = 4096;
+static int      g_dd_getmode_calls     = 0;
+
+/* zdd_busy_wait_ms stub state — recorder; never actually sleeps. */
+static int      g_busy_wait_calls      = 0;
+static uint32_t g_busy_wait_last_ms    = 0;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -109,6 +129,20 @@ static void reset_stubs(void)
     g_dd_setclipper_seq         = 0;
     g_dd_setclipper_last_surf   = NULL;
     g_dd_setclipper_last_clip   = NULL;
+    g_dd_setmode_result    = 1;
+    g_dd_setmode_hr        = 0;
+    g_dd_setmode_calls     = 0;
+    g_dd_setmode_last_w    = 0;
+    g_dd_setmode_last_h    = 0;
+    g_dd_setmode_last_bpp  = 0;
+    g_dd_setmode_last_refresh = 0;
+    g_dd_getmode_result    = 1;
+    g_dd_getmode_width     = 1024;
+    g_dd_getmode_height    = 768;
+    g_dd_getmode_pitch     = 4096;
+    g_dd_getmode_calls     = 0;
+    g_busy_wait_calls      = 0;
+    g_busy_wait_last_ms    = 0;
 }
 
 void zdd_show_cursor(int show)
@@ -219,6 +253,38 @@ void zdd_surface_set_clipper(void *surface, void *clipper)
     g_dd_setclipper_seq       = ++g_dd_clipper_seq;
     g_dd_setclipper_last_surf = surface;
     g_dd_setclipper_last_clip = clipper;
+}
+
+int zdd_set_display_mode(zdd *self, uint32_t width, uint32_t height,
+                         uint32_t bpp, uint32_t refresh_hz)
+{
+    g_dd_setmode_calls++;
+    g_dd_setmode_last_w       = width;
+    g_dd_setmode_last_h       = height;
+    g_dd_setmode_last_bpp     = bpp;
+    g_dd_setmode_last_refresh = refresh_hz;
+    if (g_dd_setmode_result) return 1;
+    zdd_log_dderr(self, "DirectDraw", "SetDisplayMode",
+                  g_dd_setmode_hr);
+    return 0;
+}
+
+int zdd_get_display_mode(zdd *self, uint32_t *out_width,
+                         uint32_t *out_height, uint32_t *out_pitch)
+{
+    (void)self;
+    g_dd_getmode_calls++;
+    if (!g_dd_getmode_result) return 0;
+    if (out_width  != NULL) *out_width  = g_dd_getmode_width;
+    if (out_height != NULL) *out_height = g_dd_getmode_height;
+    if (out_pitch  != NULL) *out_pitch  = g_dd_getmode_pitch;
+    return 1;
+}
+
+void zdd_busy_wait_ms(uint32_t ms)
+{
+    g_busy_wait_calls++;
+    g_busy_wait_last_ms = ms;
 }
 
 /* ─── ctor / struct layout ───────────────────────────────────────── */
@@ -1318,5 +1384,151 @@ int test_zdd_object_new_setkey_failure_cleans_up(void)
      * CreateSurface stub but the host stub doesn't track refcounts
      * for fake surfaces, so we can only assert "dtor reached without
      * crashing" via open_objects == 0. */
+    return 0;
+}
+
+/* ─── hide cursor (FUN_005b8dd0) ─────────────────────────────────── */
+
+int test_zdd_hide_cursor_hides_when_shown(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);  /* cursor_state = 1 (shown) */
+    zdd_hide_cursor(&s);
+    T_ASSERT_EQ_I(g_cursor_calls, 1);
+    T_ASSERT_EQ_I(g_cursor_last_show, 0);  /* ShowCursor(FALSE) */
+    T_ASSERT_EQ_I(s.cursor_state, 0);
+    return 0;
+}
+
+int test_zdd_hide_cursor_noop_when_already_hidden(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    s.cursor_state = 0;        /* already hidden */
+    zdd_hide_cursor(&s);
+    T_ASSERT_EQ_I(g_cursor_calls, 0);
+    T_ASSERT_EQ_I(s.cursor_state, 0);
+    return 0;
+}
+
+int test_zdd_hide_then_restore_round_trip(void)
+{
+    /* Verify the two cursor helpers compose correctly — FUN_00582e90
+     * hides, then later FUN_005b7fe0 (dtor) restores. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_hide_cursor(&s);
+    T_ASSERT_EQ_I(s.cursor_state, 0);
+    zdd_restore_cursor_on_release(&s);
+    T_ASSERT_EQ_I(s.cursor_state, 1);
+    /* Two cursor calls total — one hide, one show. */
+    T_ASSERT_EQ_I(g_cursor_calls, 2);
+    T_ASSERT_EQ_I(g_cursor_last_show, 1);  /* last call was show(TRUE) */
+    return 0;
+}
+
+/* ─── SetDisplayMode (FUN_005b8900) ──────────────────────────────── */
+
+int test_zdd_set_display_mode_passes_args_and_returns_one(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    int rc = zdd_set_display_mode(&s, 640, 480, 16, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_setmode_calls, 1);
+    T_ASSERT_EQ_U(g_dd_setmode_last_w, 640u);
+    T_ASSERT_EQ_U(g_dd_setmode_last_h, 480u);
+    T_ASSERT_EQ_U(g_dd_setmode_last_bpp, 16u);
+    T_ASSERT_EQ_U(g_dd_setmode_last_refresh, 0u);
+    return 0;
+}
+
+int test_zdd_set_display_mode_failure_logs_dderr(void)
+{
+    reset_stubs();
+    g_dd_setmode_result = 0;
+    g_dd_setmode_hr     = (int32_t)0x8876024e;  /* UNSUPPORTEDMODE */
+    zdd s; zdd_ctor(&s);
+
+    int rc = zdd_set_display_mode(&s, 9999, 9999, 99, 0);
+    T_ASSERT_EQ_I(rc, 0);
+    /* DDERR-decorated log present in log_buf (the host stub calls
+     * zdd_log_dderr which scribbles into log_buf). */
+    T_ASSERT(strstr(s.log_buf, "SetDisplayMode") != NULL);
+    T_ASSERT(strstr(s.log_buf, "DDERR_UNSUPPORTEDMODE") != NULL);
+    return 0;
+}
+
+/* ─── GetDisplayMode (FUN_005b8950) ──────────────────────────────── */
+
+int test_zdd_get_display_mode_fills_all_out_ptrs(void)
+{
+    reset_stubs();
+    g_dd_getmode_width  = 1920;
+    g_dd_getmode_height = 1080;
+    g_dd_getmode_pitch  = 7680;
+    zdd s; zdd_ctor(&s);
+
+    uint32_t w = 0, h = 0, p = 0;
+    int rc = zdd_get_display_mode(&s, &w, &h, &p);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_getmode_calls, 1);
+    T_ASSERT_EQ_U(w, 1920u);
+    T_ASSERT_EQ_U(h, 1080u);
+    T_ASSERT_EQ_U(p, 7680u);
+    return 0;
+}
+
+int test_zdd_get_display_mode_tolerates_null_out_ptrs(void)
+{
+    /* FUN_00582e90 mode 4 calls FUN_005b8950(&w, &h, NULL) — pitch
+     * is dropped on the floor.  The wrapper must accept any NULL
+     * slot without dereffing. */
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+
+    uint32_t w = 0, h = 0;
+    int rc = zdd_get_display_mode(&s, &w, &h, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_U(w, 1024u);  /* defaults from reset_stubs */
+    T_ASSERT_EQ_U(h, 768u);
+
+    /* All-NULL — silently succeeds. */
+    rc = zdd_get_display_mode(&s, NULL, NULL, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    return 0;
+}
+
+int test_zdd_get_display_mode_failure_leaves_outs_untouched(void)
+{
+    reset_stubs();
+    g_dd_getmode_result = 0;
+    zdd s; zdd_ctor(&s);
+
+    uint32_t w = 0xdeadbeef, h = 0xcafef00d, p = 0xfeedface;
+    int rc = zdd_get_display_mode(&s, &w, &h, &p);
+    T_ASSERT_EQ_I(rc, 0);
+    /* Out-args must NOT be overwritten on failure — retail's caller
+     * relies on this when falling through to the override path. */
+    T_ASSERT_EQ_U(w, 0xdeadbeefu);
+    T_ASSERT_EQ_U(h, 0xcafef00du);
+    T_ASSERT_EQ_U(p, 0xfeedfaceu);
+    return 0;
+}
+
+/* ─── busy-wait (FUN_005b5ac0) ───────────────────────────────────── */
+
+int test_zdd_busy_wait_ms_records_arg(void)
+{
+    reset_stubs();
+    /* The host stub never actually sleeps — just records the argument
+     * so callers (FUN_00582e90 always pauses 2000 ms) are testable. */
+    zdd_busy_wait_ms(2000);
+    T_ASSERT_EQ_I(g_busy_wait_calls, 1);
+    T_ASSERT_EQ_U(g_busy_wait_last_ms, 2000u);
+
+    zdd_busy_wait_ms(50);
+    T_ASSERT_EQ_I(g_busy_wait_calls, 2);
+    T_ASSERT_EQ_U(g_busy_wait_last_ms, 50u);
     return 0;
 }

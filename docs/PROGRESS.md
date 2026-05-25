@@ -6,6 +6,68 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — CreateScreen mode dispatch MAPPED + 4 leaf helpers PORTED
+
+Setup checkpoint before tackling the big mode-aware surface-alloc
+inside `FUN_00582e90`.  Two things landed:
+
+**Documentation pass** — `docs/findings/ddraw-init.md` "FUN_00582e90
+mode-dispatch CreateScreen" section now has the full 5-mode table
+filled in (Full / Safe / Windowed / DB Mode / Zoom), the prologue
+(release prior DAT_008a6ec0 ZDDObject), the centre-rect math used by
+mode 4, and the 7 fixed error-string mappings (which retail's
+`s_It_failed_in_CreateScreen___*` strings get logged per branch).
+Mode 0 is the boot path (640×480, 16bpp) and the only branch that
+calls our already-ported `zdd_object_new` factory.  Modes 1–4 each
+dispatch through the still-unported `FUN_005b8480` (1088 bytes —
+big internal-mode-aware surface-init that owns the three ZDD
+slots at +0x16c/+0x18/+0x1c).
+
+**Four leaf helpers PORTED** — the simple bits that FUN_00582e90's
+prologue + each per-mode branch touch (none of which actually do
+surface allocation; that's `FUN_005b8480`'s job in the next
+checkpoint):
+
+  1. `zdd_hide_cursor` (FUN_005b8dd0, 33 bytes) — inverse of the
+     existing `zdd_restore_cursor_on_release`.  Gates on
+     `cursor_state == 1` (currently shown) and calls
+     `zdd_show_cursor(0)`.  Idempotent on already-hidden.
+
+  2. `zdd_set_display_mode` (FUN_005b8900, 74 bytes) —
+     IDirectDraw7::SetDisplayMode wrapper.  Vtable index 21 / byte
+     offset 0x54.  Args: (w, h, bpp, refresh, 0=dwFlags).  Logs
+     "DirectDraw.SetDisplayMode" DDERR on failure.
+
+  3. `zdd_get_display_mode` (FUN_005b8950, 126 bytes) —
+     IDirectDraw7::GetDisplayMode wrapper.  Vtable index 12 / byte
+     offset 0x30.  Builds a stack DDSURFACEDESC2 with dwFlags=0x41006
+     (HEIGHT|WIDTH|PITCH|PIXELFORMAT) + a pre-stamped ddpf
+     (dwSize=0x20, DDPF_RGB).  Returns (w, h, pitch) via out-pointers
+     — any of which may be NULL (mode 4 passes pitch as NULL).  No
+     DDERR log; retail's caller picks the message itself.
+
+  4. `zdd_busy_wait_ms` (FUN_005b5ac0, 39 bytes) — GetTickCount
+     busy-spin.  All fullscreen branches pause 2000 ms between
+     SetDisplayMode and surface-create — looks like a "let the mode
+     transition settle" workaround.  Host stub instantly returns +
+     records the argument so tests don't actually sleep.
+
+**Open RE thread closed**: `FUN_005b9390` is exactly our existing
+`zdd_object_dtor` — same body, byte-for-byte.  The pair
+`FUN_005b9390 + FUN_005bef0e` in FUN_00582e90's prologue is exactly
+`zdd_obj_destroy(&DAT_008a6ec0)`.  No new helper needed for that
+slot.
+
+Tests now: **265 pass, 0 fail, 6 skip** (up from 256/6; 9 new — 3
+for hide-cursor, 2 for SetDisplayMode, 3 for GetDisplayMode, 1 for
+busy-wait).  Cross-build with mingw still clean.
+
+Next: port `FUN_005b8480` itself — the 1088-byte internal mode-
+aware surface-init that all 5 branches funnel through.  Once that's
+in, FUN_00582e90 becomes a thin dispatcher we can port in one shot.
+
+---
+
 ## 2026-05-25 — Clipper attach PORTED (FUN_005b9520)
 
 Closes out the ZDDObject's COM-attach lifecycle.  `zdd_object_attach_clipper`

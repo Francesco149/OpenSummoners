@@ -65,27 +65,64 @@ index 20 = `IDirectDraw7::SetCooperativeLevel`.
 
 ## `FUN_00582e90` — mode-dispatch CreateScreen (3560 bytes)
 
-Switch on `state->offset_0x04` (the frame style we mapped in
-`winmain-and-bootstrap.md` §"Window sizing"):
+**Prologue (runs unconditionally before the switch):**
+```c
+if (DAT_008a6ec0 != 0) {                       // prior boot-time ZDDObject
+    FUN_005b9390(DAT_008a6ec0);                // release com_back + com_primary + decrement parent ref
+    FUN_005bef0e(DAT_008a6ec0);                // operator_delete on the ZDDObject
+    DAT_008a6ec0 = 0;
+}
+```
 
-| mode | path                                                             |
-|------|------------------------------------------------------------------|
-| 0    | `FUN_005b8900(640, 480, 16, 0)` ; `FUN_005b8dd0` ; `FUN_005b5ac0(2000)` ; `FUN_005b8480(640, 480, 16, 0,0,0)` ; `FUN_005b8b40(..., 640, 480, 0x1ffffff, 1)` |
-| 1    | (TBD — windowed variant)                                          |
-| 2    | (TBD — overlapped variant)                                        |
-| 3    | (TBD)                                                              |
-| 4    | (TBD — Zoom variant)                                               |
+Then switch on `*(int*)(this + 0x04)` (the frame style we mapped in
+`winmain-and-bootstrap.md` §"Window sizing").  `this` (in_ECX) is the
+launcher-settings record at `DAT_008a93e4` — its +0x04 holds the radio
+selection from the launcher dialog.  Two more state fields are read by
+mode 4: `+0x14` (zoom target width) and `+0x18` (zoom target height).
 
-The `0x1ffffff` constant in `FUN_005b8b40` is unusual — likely an
-"unlimited" / "best-fit" hint to whatever surface descriptor field it
-maps to.  When we re-impl, log the actual DDSURFACEDESC2 that the
-engine builds at runtime (Frida hook on `CreateSurface`) and treat
-0x1ffffff as a per-field flag.  Defer to the Phase-A harness drop.
+| mode | name           | call sequence                                                                                                                                       |
+|------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0    | "Full"         | `FUN_005b8900(640,480,16,0)` → `FUN_005b8dd0` → `FUN_005b5ac0(2000)` → `FUN_005b8480(640,480,16, 0, 0, NULL)` → `FUN_005b8b40(&DAT_008a6ec0,640,480,0x1ffffff,1)` |
+| 1    | "Safe"         | `FUN_005b8900(640,480,16,0)` → `FUN_005b8dd0` → `FUN_005b5ac0(2000)` → `FUN_005b8480(640,480,16, 0, 1, NULL)`                                        |
+| 2    | "Windowed"     | `FUN_005b8480(640,480,16, 2, 1, NULL)`                                                                                                              |
+| 3    | "DB Mode"      | `FUN_005b8900(640,480,16,0)` → `FUN_005b8dd0` → `FUN_005b5ac0(2000)` → `FUN_005b8480(640,480,16, 3, 1, NULL)`                                        |
+| 4    | "Zoom Mode"    | get-display-mode (or override from `DAT_008a6eac`/`DAT_008a6eb0`) → validate `>= state[0x14]/0x18` → `FUN_005b8900(W,H,16,0)` → `FUN_005b8dd0` → `FUN_005b5ac0(2000)` → centre-rect math → `FUN_005b8480(640,480,16, 4, 1, &local_21c)` → `FUN_005b8dd0` |
 
-On failure each branch logs `"It failed in CreateScreen ___ Full..."`
-(string at `0x008a28e8`) and recovers by trying a different mode.  The
-recovery chain is messy — chase later, when we have a Frida hook to
-log which paths the retail engine actually takes per launcher option.
+Notes on each mode:
+- **Mode 0** is the only branch that calls `FUN_005b8b40` (CreateSurfacePair)
+  *after* `FUN_005b8480` — the comment in `ddraw-init.md` originally treated
+  this as the only branch.  In reality the `FUN_005b8480` mode-arg differs:
+  0 means primary-only, 1=safe variant, 2=windowed, 3=DB, 4=zoom.
+- **Mode 2 (Windowed)** is the only branch that skips `SetDisplayMode`
+  entirely — it stays in the desktop's current mode and just builds a
+  windowed surface.  Per `FUN_005b8480` body: when its mode arg == 2,
+  the primary-surface alloc is skipped and only the GDI back-buffer is
+  built.
+- **Mode 3 (DB Mode)** uses `FUN_00426110` instead of `FUN_00406440` for
+  its error log — likely a "fatal w/ launcher restore" path.
+- **Mode 4 (Zoom Mode)** computes a 7-int "rect" blob laid out as:
+  `{display_w, display_h, 2, centre_x, centre_y, src_w, src_h}` where
+  `centre_x = max(0, (display_w - state[0x14]) / 2)` etc.  This blob
+  becomes `FUN_005b8480`'s 6th arg — copied into `this+0x148..+0x164`.
+
+On failure each branch builds a global error-string into `DAT_008a9534`
+(a 0x638-byte rolling log buffer gated by `DAT_008a9530`), calls
+`FUN_00406440(fail_msg, DAT_008a9b6c /* engine-name header */)`, and
+exits via `FUN_005bf5db(0)`.  The two pre-mortem fixed strings:
+
+| string                                                  | meaning                          |
+|---------------------------------------------------------|----------------------------------|
+| `s_It_failed_in_CreateScreen___Full` @ 0x8a28e8         | mode 0 primary-create failed     |
+| `s_It_failed_in_CreateScreen___Safe` @ 0x8a28bc         | mode 1 safe-create failed        |
+| `s_It_failed_in_CreateScreen___Wind` @ 0x8a2918         | mode 2 windowed-create failed    |
+| `s_It_failed_in_CreateScreen___DB_M` @ 0x8a29c8         | mode 3 / mode 4 DB-create failed |
+| `s_It_failed_in_the_display_mode_se` @ 0x8a29f0         | `FUN_005b8900` (SetDisplayMode) failed |
+| `s_It_failed_in_the_display_mode_ac` @ 0x8a2a18         | `FUN_005b8950` (GetDisplayMode) failed |
+| `s_Zoom_Mode_is_only_playable_in_re` @ 0x8a2944         | zoom rect < required size      |
+
+The `0x1ffffff` constant in `FUN_005b8b40` is the **"no color key"
+sentinel** (`FUN_005b9830` interprets it as "skip SetColorKey").  See
+`FUN_005b95c0` notes below.
 
 ## `FUN_005b8b40` — primary + back-buffer alloc
 

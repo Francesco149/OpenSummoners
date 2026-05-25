@@ -571,6 +571,19 @@ void zdd_ctor(zdd *self);
  * and stamps cursor_state back to 1. */
 void zdd_restore_cursor_on_release(zdd *self);
 
+/* FUN_005b8dd0 — hide the cursor exactly once during a fullscreen
+ * mode transition.  Inverse of zdd_restore_cursor_on_release.  Gate
+ * on cursor_state == 1 (currently shown): calls zdd_show_cursor(0)
+ * and stamps cursor_state back to 0.  Idempotent — does nothing when
+ * the cursor was already hidden (cursor_state == 0).  Called by
+ * FUN_00582e90 between SetDisplayMode and SetCooperativeLevel in the
+ * fullscreen branches (modes 0/1/3/4).
+ *
+ * Note: retail reads the gate as `*(int*)(self + 0x130) != 0` and the
+ * body sets it back to 0 — i.e., the field is "is the cursor currently
+ * shown?", so 1→0 on hide and 0→1 on restore.  Mirrors that exactly. */
+void zdd_hide_cursor(zdd *self);
+
 /* FUN_005b8040 — drop the 5 child COM/heap objects.  Issue order
  * matches retail:
  *   1. primary_obj  (zdd_obj_destroy)
@@ -727,5 +740,45 @@ void zdd_clipper_set_clip_list_null(void *clipper);
  * 0x70).  Attaches `clipper` to `surface`.  NULL on either side is
  * a no-op.  Host build: records the call. */
 void zdd_surface_set_clipper(void *surface, void *clipper);
+
+/* FUN_005b8900 — IDirectDraw7::SetDisplayMode via vtable[21] (byte
+ * 0x54).  Switches into the requested mode (width, height, bpp,
+ * refresh_hz).  Retail's call passes (w, h, bpp, refresh, 0) — the
+ * trailing 0 is the dwFlags arg (DDSDM_STANDARDVGAMODE etc., always
+ * zero in this engine).  Returns 1 on success, 0 on failure (and
+ * logs via zdd_log_dderr through `self` as "DirectDraw.SetDisplayMode").
+ * Host build: returns g_dd_setmode_result + records the last call. */
+int  zdd_set_display_mode(zdd *self, uint32_t width, uint32_t height,
+                          uint32_t bpp, uint32_t refresh_hz);
+
+/* FUN_005b8950 — IDirectDraw7::GetDisplayMode via vtable[12] (byte
+ * 0x30).  Builds a stack DDSURFACEDESC2 with dwSize=0x7c and
+ * dwFlags=0x41006 (DDSD_HEIGHT|DDSD_WIDTH|DDSD_PITCH|DDSD_PIXELFORMAT)
+ * plus a pre-stamped ddpf header (dwSize=0x20, dwFlags=DDPF_RGB),
+ * then asks DDraw to fill the result.  Out-pointer behaviour matches
+ * retail's: when each pointer is non-NULL, its slot is written:
+ *   out_width  ← ddsd.dwWidth
+ *   out_height ← ddsd.dwHeight
+ *   out_pitch  ← ddsd.lPitch (DDSD offset 0x10)
+ * Returns 1 on success, 0 on failure (silent — no DDERR log; retail's
+ * caller logs separately via the "It_failed_in_the_display_mode_ac"
+ * fixed-string path).
+ *
+ * FUN_00582e90's mode 4 (Zoom) calls this with (&w, &h, NULL) to ask
+ * for the desktop's current dimensions when the user hasn't pinned an
+ * override via DAT_008a6eac/eb0. */
+int  zdd_get_display_mode(zdd *self, uint32_t *out_width,
+                          uint32_t *out_height, uint32_t *out_pitch);
+
+/* FUN_005b5ac0 — busy-wait spin via GetTickCount.  Polls GetTickCount
+ * in a tight loop until elapsed >= ms.  Used by FUN_00582e90 between
+ * SetDisplayMode and the surface-create call (mode 0/1/3/4 all pause
+ * 2000 ms here) — looks like a "wait for the mode transition to
+ * settle" workaround for early-2010s GPU drivers.
+ *
+ * Real build: actual GetTickCount spin.  Host build: instantly returns
+ * + records the ms argument so tests can assert the value without
+ * actually sleeping. */
+void zdd_busy_wait_ms(uint32_t ms);
 
 #endif /* OPENSUMMONERS_ZDD_H */

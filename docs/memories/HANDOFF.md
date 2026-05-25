@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (clipper attach PORTED)
+# Session handoff — last updated 2026-05-25 (CreateScreen mode-dispatch MAPPED + 4 helpers PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -24,68 +24,52 @@ methodical port-and-test.  **Five modules ported now:**
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
-- **ZDD wrapper** — **18 functions** covering the full DirectDraw 7
-  wrapper class lifecycle + ZDDObject leaf lifecycle + the DDSD
-  builder + the full surface-alloc stack from leaf-stamper up to
-  factory:
-    - ZDD class: ctor / dtor / child-release loop / cursor-restore /
-      DDERR log builder / DirectDrawCreateEx / SetCooperativeLevel /
-      top-level create driver
-    - ZDDObject leaf: ctor / dtor / pixel-buf release
+- **ZDD wrapper** — **22 functions** covering:
+    - ZDD class lifecycle: ctor / dtor / child-release loop /
+      cursor-restore / DDERR log builder / DirectDrawCreateEx /
+      SetCooperativeLevel / top-level create driver
+    - ZDDObject leaf lifecycle: ctor / dtor / pixel-buf release
     - Surface alloc primitives: `zdd_build_surface_desc` (pure
       DDSURFACEDESC2 builder) + `zdd_create_surface` (Win32
-      CreateSurface + SetPalette wrapper) — ports FUN_005b8c00
-    - Surface-alloc stampers: `zdd_object_prefill_desc` (FUN_005b97e0,
-      66 bytes), `zdd_object_stamp_metrics` (FUN_005b98c0, 73 bytes),
-      `zdd_object_set_color_key` (FUN_005b9830, 138 bytes — sentinel
-      0x1ffffff branch vs SetColorKey vtable call), and the
-      orchestrator `zdd_object_create_surface_pair` (FUN_005b95c0,
-      110 bytes) over those three.
-    - Public factory `zdd_object_new` (FUN_005b8b40, 184 bytes) —
-      operator_new + ctor + orchestrator + cleanup-on-failure.
-      Orchestrator returns int (was void) to surface the
-      EAX-carry-through value the factory checks.
-    - **NEW this checkpoint**: clipper attach `zdd_object_attach_clipper`
-      (FUN_005b9520, 157 bytes per .text) — release any prior
-      com_back, create IDirectDrawClipper via ddraw7 vtable[4], call
-      vtable[7] (SetClipList with a pointer-to-stack-NULL — semantics
-      ambiguous, see open thread), then attach to com_primary via
-      vtable[28] (SetClipper).  Note: com_back gets RE-PURPOSED as the
-      clipper slot for the same +0xac field that holds back-buffer
-      surfaces on other ZDDObjects — both implement IUnknown so the
-      dtor release path works for either role.  Three new Win32
-      primitives in zdd_win32.c (zdd_create_clipper /
-      zdd_clipper_set_clip_list_null / zdd_surface_set_clipper) make
-      the pure-logic orchestration testable on host with sequence-id
-      stubs.
+      CreateSurface + SetPalette wrapper)
+    - Surface-alloc stampers: prefill_desc / stamp_metrics /
+      set_color_key + orchestrator (create_surface_pair)
+    - Public factory `zdd_object_new` (operator_new + ctor +
+      orchestrator + cleanup-on-failure)
+    - Clipper attach `zdd_object_attach_clipper`
+    - **NEW this checkpoint**: 4 leaf helpers for CreateScreen —
+      `zdd_hide_cursor` (FUN_005b8dd0, 33B), `zdd_set_display_mode`
+      (FUN_005b8900, 74B), `zdd_get_display_mode` (FUN_005b8950,
+      126B), `zdd_busy_wait_ms` (FUN_005b5ac0, 39B).
 
-  Pure logic in `src/zdd.c` (ctor + dtor decision tree + DDERR-to-
-  string + log builder + ZDDObject lifecycle + descriptor build +
-  stampers + orchestrator + factory).  Win32 primitives (DDraw
-  CreateSurface/SetPalette/SetColorKey/Coop/CreateEx, COM Release,
-  ShowCursor, OutputDebugStringA, LocalFree) in `src/zdd_win32.c`.
+  Pure logic in `src/zdd.c`.  Win32 primitives in `src/zdd_win32.c`.
 
-Total host tests across all five modules: **256 pass, 0 fail, 6
-skip** (up from 252; 4 new for the clipper-attach call sequence:
-happy-path order verification, pre-existing-com_back release,
-CreateClipper-fail defensive skip, and missing-com_primary defensive
-skip).
+Total host tests across all modules: **265 pass, 0 fail, 6 skip**
+(up from 256; 9 new — 3 hide_cursor, 2 SetDisplayMode, 3
+GetDisplayMode, 1 busy_wait).  Cross-build with mingw clean.
 
-**Open RE thread closed this checkpoint**: the ZDDObject struct now
-has names for 21 of its fields (up from 8 last checkpoint) —
-specifically the three self-pointers at +0x00/+0x04/+0x08, the six
-metric slots at +0x0c..+0x20, the two colorkey slots at +0x24/+0x28,
-the four secondary metrics at +0xb0..+0xbc, and the two cached
-create-time args at +0xcc/+0xd0.  Only `embedded_ddsd` (the 124-byte
-scratch DDSURFACEDESC2 at +0x30..+0xab) remains opaque.
+**Documentation landed this checkpoint**: `docs/findings/ddraw-init.md`
+section "FUN_00582e90 — mode-dispatch CreateScreen" now has the full
+5-mode table (Full / Safe / Windowed / DB Mode / Zoom), the prologue
+(release prior DAT_008a6ec0 ZDDObject), the centre-rect math for
+mode 4, and 7 fixed error-string mappings.  Mode 0 (640×480, 16bpp)
+is the boot path and the only branch that calls our already-ported
+`zdd_object_new`.  Modes 1–4 all dispatch through `FUN_005b8480`
+(1088 bytes — still unported, the next big piece).
 
-**Ghidra C++ recovery infrastructure** — unchanged from last
-checkpoint.  Kaiju + `tools/ghidra-scripts/TagThiscallFunctions.java`
-+ headless `tools/ghidra-tag-and-export.sh`.  26 functions tagged.
+**Open RE thread closed this checkpoint**: `FUN_005b9390` is exactly
+our existing `zdd_object_dtor` (same body byte-for-byte).  The pair
+`FUN_005b9390 + FUN_005bef0e` in FUN_00582e90's prologue is the same
+as `zdd_obj_destroy(&DAT_008a6ec0)`.
+
+**Ghidra C++ recovery infrastructure** — unchanged.  Kaiju +
+`tools/ghidra-scripts/TagThiscallFunctions.java` + headless
+`tools/ghidra-tag-and-export.sh`.  26 functions tagged.
 
 Most recent commits (newest first):
 
-- (current) ZDD: port FUN_005b9520 clipper attach
+- (current) ZDD: port 4 CreateScreen leaf helpers + map mode dispatch
+- `7f5a001` ZDD: port FUN_005b9520 clipper attach (create + clear + attach)
 - `6024a36` ZDD: port FUN_005b8b40 CreateSurfacePair factory + orchestrator returns int
 - `1348360` ZDD: port FUN_005b95c0 + 97e0 + 98c0 + 9830 surface-alloc stampers + orchestrator
 - `d87b7ea` ZDD: port FUN_005b8c00 DDSURFACEDESC2 builder + CreateSurface
@@ -93,10 +77,6 @@ Most recent commits (newest first):
 - `ce6b87e` ZDD: port ctor/dtor + DDERR log helper + DirectDraw init wrappers
 - `90de1ba` Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
 - `5377460` Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
-- `63e14bb` Asset-Register: port FUN_0057ca40 5th pass — 94 SS_MGR slot-clones
-- `ea08d2a` Asset-Register: port FUN_0057ca40 4th pass — 443 info-entry pool writes
-- `76db8f2` RE: recover PTR_DAT_0056bfa4 jumptable (title-menu phase dispatch)
-- `dfdb1cf` RE: FUN_0057ca40 tail memcpy loops are intra-pool info-entry copies
 
 ## Active goal
 
@@ -107,33 +87,34 @@ ported function gets unit tests in `tests/test_*.c`.  The sibling
 
 ## Next move (pick one — recommendation first)
 
-With the clipper attach landed, the entire "ZDD device + ZDDObject
-surface + clipper" lifecycle is now port-and-test ready.  The next
-natural piece is mode-dispatch CreateScreen — the actual top-level
-driver that builds the title-menu's screen.
+With the 5-mode table mapped and 4 leaf helpers in place, the next
+strategic piece is the big inner surface-init that all 5 modes
+funnel through.
 
-1. **(recommended) `FUN_00582e90` — mode-dispatch CreateScreen** (3560 bytes).
-   The next big consumer of zdd_object_new.  Per ddraw-init.md, it
-   switches on state->offset_0x04 (the launcher frame style) and
-   dispatches to mode 0..4 each of which builds a different surface
-   layout.  Multi-checkpoint; would benefit from a structured walk
-   to map out the 5 mode branches before porting.  Mode 0 (640×480,
-   16bpp) is the boot path used by the title menu.
+1. **(recommended) `FUN_005b8480` — internal mode-aware surface-init**
+   (1088 bytes).  The single load-bearing function FUN_00582e90's
+   per-mode branches all call.  Stamps params on the ZDD struct
+   (+0x134/+0x140/+0x144/+0x164/+0x168 + a 7-int rect at +0x148..),
+   conditionally creates a primary surface via IDirectDraw7::CreateSurface
+   with a backbuffer-flavoured DDSURFACEDESC2, dispatches by mode
+   to create 1/2/3 ZDDObjects on the ZDD's three slots (+0x16c
+   primary, +0x18 back_obj_a, +0x1c back_obj_b), calls
+   `FUN_005b9740` (still unported — the "back-buffer-fetch via
+   GetAttachedSurface" helper) for mode 0/3 and the first leg of
+   mode 4, plus `FUN_005b95c0` (our orchestrator) for the rest.
+   On success: calls `FUN_005b9520` (our clipper attach!) and a
+   16bpp-only `FUN_005b8a20` (pixel-format binding, unported).
+   Multi-checkpoint port — start by mapping the mode tree.
 
-2. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
-   WinMain.** — currently every batch is a module in isolation; the
-   functions exist but no real drop-in caller invokes them.  Wiring
-   requires the drop-in to own the engine init (currently retail does
-   this).  Pre-req: complete enough ZDD/ZDS/ZDM init.  Without those,
-   the calls can run with stub pointers but have no observable effect
-   because the drop-in's drawing path is still retail's.
+2. **`FUN_00582e90` — outer CreateScreen dispatcher** (3560 bytes).
+   Doable in one shot once FUN_005b8480 is in.  Most of the bulk is
+   inlined strcpy/strcat error-message construction we can
+   collapse to a single helper.
 
 3. **`FUN_00586010` palette-draw consumer** — first ported reader of
    the `ar_info_entry` pool.  Big function (1035 lines, 61 unique
    FUN_ callees) — would be a multi-checkpoint port and most callees
-   are unported.  Closes the "no consumer reads info-entry fields
-   yet" open thread; pins per-prefix flag semantics (the 0/1/2/3
-   dispatch) from the consumer side.
+   are unported.  Defers the "consumer pins flag semantics" thread.
 
 4. **`FUN_00563ef0` wave-load half** — defer until we have a reason
    to load sound bytes (i.e. once title scene starts playing audio).
@@ -145,8 +126,7 @@ driver that builds the title-menu's screen.
 src/
   main.c                    WinMain shim, single-instance, --hide-window/--frames
   dev_hooks.c/h             MessageBox redirect prologue patch
-  pixel_drawer.c/h          ZDPixelDrawer — 8 functions (7 leaf primitives +
-                            pd_boot_init_slots boot driver for 69+4 slots)
+  pixel_drawer.c/h          ZDPixelDrawer — 8 functions
   asset_register.c/h        Asset-register slots — 31 functions
   asset_register_win32.c    GDI primitive wrappers
   bitmap_session.c/h        PE-resource bitmap decoder — 8 functions
@@ -159,13 +139,15 @@ src/
                             (prefill / metrics / set_color_key) +
                             orchestrator (create_surface_pair) +
                             factory (zdd_object_new) + clipper attach
-                            (zdd_object_attach_clipper).  17 pure-
-                            logic leaf functions.
+                            (zdd_object_attach_clipper) +
+                            hide_cursor (zdd_hide_cursor).
+                            18 pure-logic leaf functions.
   zdd_win32.c               DirectDrawCreateEx/SetCooperativeLevel +
+                            SetDisplayMode + GetDisplayMode +
                             CreateSurface/SetPalette + SetColorKey +
                             CreateClipper/SetClipList/SetClipper +
                             ShowCursor/OutputDebugStringA/IUnknown::Release
-                            + LocalFree
+                            + LocalFree + busy_wait_ms (GetTickCount spin).
   Makefile                  single-TU mingw cross-build (-lddraw -ldxguid)
 
 tests/
@@ -177,10 +159,12 @@ tests/
   test_asset_register.c     111 tests for Asset-Register
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
-  test_zdd.c                58 tests for ZDD + ZDDObject lifecycle +
+  test_zdd.c                67 tests for ZDD + ZDDObject lifecycle +
                             DDSURFACEDESC2 builder + surface-alloc
                             stampers + orchestrator + factory +
-                            clipper attach (2 32-bit-only layout skips)
+                            clipper attach + hide_cursor +
+                            SetDisplayMode + GetDisplayMode +
+                            busy_wait_ms (2 32-bit-only layout skips)
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -201,6 +185,20 @@ tools/
 
 ## Open RE threads (not picked up yet)
 
+- **FUN_005b8480** (1088 bytes) — the recommended next-port.  Mode-
+  aware internal surface-init.  Reads/writes a wide swath of the ZDD
+  struct (params: +0x134/+0x140/+0x144/+0x164/+0x168, rect-blob:
+  +0x148..+0x164, ZDDObject slots: +0x16c/+0x18/+0x1c).  Calls
+  `FUN_005b9740` (unported — back-buffer GetAttachedSurface helper)
+  and our `FUN_005b95c0` (orchestrator).  Builds a backbuffer-flavoured
+  DDSURFACEDESC2 with dwCaps=0x218 / 0x21 / 0xa18 depending on mode +
+  videomem_flag.  Calls `FUN_005b8e00` (unported) for 8bpp.  On
+  success: `FUN_005b9520` (our clipper attach) + 16bpp-only
+  `FUN_005b8a20` (unported — pixel-format binding).
+- **FUN_00582e90** (3560 bytes) — outer CreateScreen dispatcher.
+  All 5 mode branches mapped in ddraw-init.md.  Body is mostly
+  inlined strcpy/strcat error logging (the actual logic per branch
+  is ≤ 10 lines).  Port after FUN_005b8480.
 - ZDDObject's +0xac field (`com_back`) is dual-role: holds either a
   back-buffer IDirectDrawSurface7 (per the dtor's release order
   comment) OR an IDirectDrawClipper (per FUN_005b9520's stash).  Both
@@ -229,43 +227,30 @@ tools/
 - `FUN_005b8b00` (16bpp color-channel shift converter) reads byte
   shift tables off ECX — looks like it expects a "pixel format
   descriptor" object as `this`, NOT the calling ZDDObject.  Needs
-  disasm-level confirmation (Ghidra's `in_ECX` annotation is just
-  "whatever's in ECX at function entry"; the compiler may have set
-  ECX explicitly before the call).  **Now reachable** as a TODO
+  disasm-level confirmation.  **Now reachable** as a TODO
   inside `zdd_object_set_color_key` — the 16bpp branch is currently
-  a no-op (passes raw key through); wire FUN_005b8b00's converted
-  output once the descriptor's identity is pinned.  Note: at boot
-  the orchestrator hits the sentinel path so this branch is dead
-  code right now.
+  a no-op; wire FUN_005b8b00's converted output once the
+  descriptor's identity is pinned.
 - ZDD's two opaque COM handles (+0x128 `com_a`, +0x12c `com_b`)
   partially resolved: `com_b` is now READ by `zdd_create_surface` as
-  a palette and bound via vtable[31] (SetPalette), so it's almost
-  certainly `IDirectDrawPalette*`.  `com_a` still unpinned.  Note:
-  the clipper attach FUN_005b9520 stores the clipper on the
-  ZDDObject's +0xac (com_back), NOT on the parent ZDD's com_a — so
-  com_a's role is something else entirely.
+  a palette and bound via vtable[31] (SetPalette).  `com_a` still
+  unpinned.  The clipper attach FUN_005b9520 stores the clipper on
+  the ZDDObject's +0xac, NOT the parent ZDD's com_a.
 - ZDD's pixel-format hint fields (`pixel_format_mode` at +0x164,
   `pixel_format_bpp` at +0x168) are now READ by zdd_build_surface_desc
-  AND zdd_object_set_color_key (the 16bpp branch checks pixel_format_bpp)
-  but still WRITTEN by no ported path.  The higher-level mode-dispatch
-  FUN_00582e90 is what stamps them during fullscreen-mode init.
+  AND zdd_object_set_color_key but still WRITTEN by no ported path.
+  `FUN_005b8480` (the next port) is what stamps them.
 - ZDD's `videomem_flag` at +0x134 — same status: read by the builder,
-  not yet written by any port.
+  not yet written by any port.  Also stamped by `FUN_005b8480`.
 - `FUN_005bd040` mode 3 / mode 4 LUT formulas have arithmetic whose
   "floor-correction" terms are zero for valid weight ranges but kept
   literally in the port.  Audit if out-of-range weights ever flow.
-  Note: the boot driver does pass per-channel weights up to 2000 for
-  group-C grey-ramp and special D slots — these reach mode 1/2 LUTs
-  (via the slot-level `mode` field) so the audit case is now closer
-  to "live", but no rendering consumer reads them yet.
 - SS_MGR / W_MGR / GD_MGR boot-pool allocators (DAT_008a8440 / _6ec4
   / _9274) are dependency-of ~30 functions; defer until consumer
-  semantics map cleanly.  FUN_0057ca40's SS_MGR clone + inline
-  clone subsystems are ported without modeling the singleton itself.
+  semantics map cleanly.
 - `PTR_DAT_0056bfa4` jumptable inside the title-menu runner — read
   via radare2, 11 entries → 7 distinct phase handlers.  See
-  `docs/findings/title-scene.md` "Inner scene-phase dispatch" for
-  the resolved table.
+  `docs/findings/title-scene.md` "Inner scene-phase dispatch".
 - `ar_boot_register_all` **and** `pd_boot_init_slots` exist but
   **neither is called from the drop-in's WinMain** — every batch
   is still a module in isolation.  Wiring requires the drop-in to
