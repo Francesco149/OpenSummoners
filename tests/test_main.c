@@ -283,6 +283,10 @@ struct test_case {
     X(zdd_object_new_happy_path)                               \
     X(zdd_object_new_create_failure_cleans_up)                 \
     X(zdd_object_new_setkey_failure_cleans_up)                 \
+    X(zdd_object_attach_clipper_call_order)                    \
+    X(zdd_object_attach_clipper_releases_existing_com_back)    \
+    X(zdd_object_attach_clipper_create_fail_skips_followups)   \
+    X(zdd_object_attach_clipper_no_primary_skips_setclipper)   \
 
 #define X(n) extern int test_##n(void);
 TESTS

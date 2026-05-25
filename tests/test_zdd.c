@@ -60,6 +60,22 @@ static int      g_dd_setkey_calls    = 0;
 static void    *g_dd_setkey_last_surf = NULL;
 static int32_t  g_dd_setkey_last_key  = 0;
 
+/* zdd_create_clipper / SetClipList-null / SetClipper stub state.
+ * Sequence-id incremented on every call (any of the three) so tests
+ * can assert call order. */
+static int      g_dd_clipper_seq            = 0;
+static int      g_dd_create_clipper_calls   = 0;
+static int      g_dd_create_clipper_seq     = 0;
+static zdd     *g_dd_create_clipper_parent  = NULL;
+static void    *g_dd_create_clipper_handle  = NULL;  /* stub returns this */
+static int      g_dd_setcliplist_calls      = 0;
+static int      g_dd_setcliplist_seq        = 0;
+static void    *g_dd_setcliplist_last       = NULL;
+static int      g_dd_setclipper_calls       = 0;
+static int      g_dd_setclipper_seq         = 0;
+static void    *g_dd_setclipper_last_surf   = NULL;
+static void    *g_dd_setclipper_last_clip   = NULL;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -81,6 +97,18 @@ static void reset_stubs(void)
     g_dd_setkey_calls      = 0;
     g_dd_setkey_last_surf  = NULL;
     g_dd_setkey_last_key   = 0;
+    g_dd_clipper_seq            = 0;
+    g_dd_create_clipper_calls   = 0;
+    g_dd_create_clipper_seq     = 0;
+    g_dd_create_clipper_parent  = NULL;
+    g_dd_create_clipper_handle  = (void *)(uintptr_t)0xc11ccccc;
+    g_dd_setcliplist_calls      = 0;
+    g_dd_setcliplist_seq        = 0;
+    g_dd_setcliplist_last       = NULL;
+    g_dd_setclipper_calls       = 0;
+    g_dd_setclipper_seq         = 0;
+    g_dd_setclipper_last_surf   = NULL;
+    g_dd_setclipper_last_clip   = NULL;
 }
 
 void zdd_show_cursor(int show)
@@ -167,6 +195,30 @@ int zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner)
                       g_dd_setkey_hr);
     }
     return 0;
+}
+
+void zdd_create_clipper(zdd *parent, void **out_clipper)
+{
+    g_dd_create_clipper_calls++;
+    g_dd_create_clipper_seq    = ++g_dd_clipper_seq;
+    g_dd_create_clipper_parent = parent;
+    if (out_clipper) *out_clipper = g_dd_create_clipper_handle;
+    if (g_dd_create_clipper_handle != NULL) g_live_coms++;
+}
+
+void zdd_clipper_set_clip_list_null(void *clipper)
+{
+    g_dd_setcliplist_calls++;
+    g_dd_setcliplist_seq  = ++g_dd_clipper_seq;
+    g_dd_setcliplist_last = clipper;
+}
+
+void zdd_surface_set_clipper(void *surface, void *clipper)
+{
+    g_dd_setclipper_calls++;
+    g_dd_setclipper_seq       = ++g_dd_clipper_seq;
+    g_dd_setclipper_last_surf = surface;
+    g_dd_setclipper_last_clip = clipper;
 }
 
 /* ─── ctor / struct layout ───────────────────────────────────────── */
@@ -1141,6 +1193,103 @@ int test_zdd_object_new_create_failure_cleans_up(void)
     T_ASSERT_EQ_I(parent.open_objects, 0);
     /* DDERR logged. */
     T_ASSERT(strstr(g_log_capture, "DDERR_INVALIDCAPS") != NULL);
+    return 0;
+}
+
+/* ─── zdd_object_attach_clipper (FUN_005b9520) ───────────────────── */
+
+int test_zdd_object_attach_clipper_call_order(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    parent.ddraw7 = (void *)(uintptr_t)0xdd7;
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0x5117ace;
+
+    zdd_object_attach_clipper(&o);
+
+    /* CreateClipper ran first (no prior com_back to release). */
+    T_ASSERT_EQ_I(g_dd_create_clipper_calls, 1);
+    T_ASSERT_EQ_P(g_dd_create_clipper_parent, &parent);
+    /* com_back now holds the stub's fake clipper handle. */
+    T_ASSERT_EQ_P(o.com_back, (void *)(uintptr_t)0xc11ccccc);
+
+    /* Then SetClipList(NULL) on the new clipper. */
+    T_ASSERT_EQ_I(g_dd_setcliplist_calls, 1);
+    T_ASSERT_EQ_P(g_dd_setcliplist_last, (void *)(uintptr_t)0xc11ccccc);
+
+    /* Then SetClipper on the primary surface. */
+    T_ASSERT_EQ_I(g_dd_setclipper_calls, 1);
+    T_ASSERT_EQ_P(g_dd_setclipper_last_surf, (void *)(uintptr_t)0x5117ace);
+    T_ASSERT_EQ_P(g_dd_setclipper_last_clip, (void *)(uintptr_t)0xc11ccccc);
+
+    /* Sequence: create, then list, then attach. */
+    T_ASSERT(g_dd_create_clipper_seq < g_dd_setcliplist_seq);
+    T_ASSERT(g_dd_setcliplist_seq    < g_dd_setclipper_seq);
+    return 0;
+}
+
+int test_zdd_object_attach_clipper_releases_existing_com_back(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    parent.ddraw7 = (void *)(uintptr_t)0xdd7;
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0x5117ace;
+    /* Pre-existing com_back (could be a leftover back-buffer or prior
+     * clipper).  Bump live-COM counter so we can verify the release. */
+    o.com_back = (void *)(uintptr_t)0xfeed;
+    g_live_coms = 1;
+
+    zdd_object_attach_clipper(&o);
+
+    /* zdd_com_release ran on the old com_back (counter went 1 -> 0)
+     * BEFORE CreateClipper stamped the new handle (which bumped it
+     * back to 1). */
+    T_ASSERT_EQ_I(g_live_coms, 1);
+    T_ASSERT_EQ_P(o.com_back, (void *)(uintptr_t)0xc11ccccc);
+    T_ASSERT_EQ_I(g_dd_create_clipper_calls, 1);
+    return 0;
+}
+
+int test_zdd_object_attach_clipper_create_fail_skips_followups(void)
+{
+    reset_stubs();
+    g_dd_create_clipper_handle = NULL;  /* simulate CreateClipper fail */
+    zdd parent; zdd_ctor(&parent);
+    parent.ddraw7 = (void *)(uintptr_t)0xdd7;
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0x5117ace;
+
+    zdd_object_attach_clipper(&o);
+
+    /* CreateClipper ran but returned NULL.  Our defensive null-checks
+     * skip both follow-up calls.  This is more defensive than retail
+     * (which would deref a null vtable and crash) — see the port
+     * comment in zdd.c. */
+    T_ASSERT_EQ_I(g_dd_create_clipper_calls, 1);
+    T_ASSERT_EQ_P(o.com_back, NULL);
+    T_ASSERT_EQ_I(g_dd_setcliplist_calls, 0);
+    T_ASSERT_EQ_I(g_dd_setclipper_calls,  0);
+    return 0;
+}
+
+int test_zdd_object_attach_clipper_no_primary_skips_setclipper(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    parent.ddraw7 = (void *)(uintptr_t)0xdd7;
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    /* com_primary stays NULL — bizarre but possible if attach_clipper
+     * runs out of expected order. */
+
+    zdd_object_attach_clipper(&o);
+
+    /* Clipper still created + clip-list cleared, but the SetClipper
+     * attach is skipped. */
+    T_ASSERT_EQ_I(g_dd_create_clipper_calls, 1);
+    T_ASSERT_EQ_I(g_dd_setcliplist_calls,    1);
+    T_ASSERT_EQ_I(g_dd_setclipper_calls,     0);
     return 0;
 }
 

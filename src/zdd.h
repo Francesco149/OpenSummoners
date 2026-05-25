@@ -525,6 +525,27 @@ int  zdd_object_new(zdd *parent, zdd_object **out,
                     uint32_t width, uint32_t height,
                     int32_t colorkey, int32_t count);
 
+/* FUN_005b9520 — create + attach an IDirectDrawClipper to this
+ * ZDDObject's primary surface.  Pure-logic orchestration over the
+ * Win32 primitives below.  Retail sequence (matches byte order):
+ *   1. Release any existing com_back via vtable[2] (Release).  Even
+ *      though com_back is named for "back-buffer surface", this
+ *      function re-purposes the same +0xac slot for the IDirectDrawClipper
+ *      — both implement IUnknown so Release works for either role.
+ *   2. self->parent->ddraw7->CreateClipper(0, &com_back, NULL)  [vtable[4]]
+ *   3. com_back->SetClipList(&NULL_ptr, 0)                       [vtable[7]]
+ *      — retail passes the address of a stack-local NULL pointer,
+ *        which DDraw reads as an empty/invalid RGNDATA pointer.
+ *        ddraw-init.md flags this offset as ambiguous (could be
+ *        SetHWnd at vtable[8] depending on the actual asm — needs
+ *        Frida verification).  We mirror the literal vtable+0x1c
+ *        recovery; semantic role pending Frida-trace confirmation.
+ *   4. com_primary->SetClipper(com_back)                          [vtable[28]]
+ *
+ * No return value (retail is void).  All COM failures are silently
+ * dropped at this layer. */
+void zdd_object_attach_clipper(zdd_object *self);
+
 /* ─── ZDD pure logic ─────────────────────────────────────────────── */
 
 /* FUN_005b7f80 — in-place ctor.  Issue order (matches retail exactly):
@@ -685,5 +706,26 @@ int  zdd_set_coop_level(zdd *self, void *hwnd, int fullscreen);
  * NULL surface returns 0 without logging.  Host build: returns
  * g_dd_setcolorkey_result + records the call. */
 int  zdd_surface_set_color_key(void *surface, int32_t key, zdd *log_owner);
+
+/* Real build: IDirectDraw7::CreateClipper via vtable[4] (byte 0x10).
+ * Args (parent->ddraw7, 0 dwFlags, &out, NULL pUnkOuter).  On
+ * success, *out holds the new IDirectDrawClipper*.  On failure, *out
+ * is set to NULL (defensive; retail leaves it undefined and trusts
+ * the call).  Host build: returns the fake clipper from a global. */
+void zdd_create_clipper(zdd *parent, void **out_clipper);
+
+/* Real build: IDirectDrawClipper::SetClipList via vtable[7] (byte
+ * 0x1c).  Mirrors the literal retail call (clipper, &stack_NULL, 0)
+ * — passes the address of a stack-local NULL pointer as the
+ * LPRGNDATA, which DDraw treats as an invalid clip-list pointer.
+ * ddraw-init.md flags this as ambiguous (could be SetHWnd at
+ * vtable[8] depending on the actual asm).  Host build: records the
+ * call. */
+void zdd_clipper_set_clip_list_null(void *clipper);
+
+/* Real build: IDirectDrawSurface7::SetClipper via vtable[28] (byte
+ * 0x70).  Attaches `clipper` to `surface`.  NULL on either side is
+ * a no-op.  Host build: records the call. */
+void zdd_surface_set_clipper(void *surface, void *clipper);
 
 #endif /* OPENSUMMONERS_ZDD_H */

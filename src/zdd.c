@@ -239,6 +239,32 @@ int zdd_object_create_surface_pair(zdd_object *self,
     return zdd_object_set_color_key(self, p4);
 }
 
+void zdd_object_attach_clipper(zdd_object *self)
+{
+    /* Release any existing com_back COM binding — works whether it
+     * was a back-buffer surface or a previously-attached clipper, both
+     * implement IUnknown. */
+    zdd_com_release(&self->com_back);
+
+    /* Create the new clipper.  The Win32 leg stamps com_back directly
+     * (matches retail's CreateClipper(0, &this->com_back, NULL) which
+     * stores into the +0xac slot). */
+    zdd_create_clipper(self->parent, &self->com_back);
+
+    /* Retail unconditionally calls vtable[7] after CreateClipper even
+     * if the create failed.  Our port guards with NULL-checks (more
+     * defensive than retail; the observable difference is the absence
+     * of a crash on a broken DDraw, not a behavioural divergence on
+     * the happy path). */
+    if (self->com_back != NULL) {
+        zdd_clipper_set_clip_list_null(self->com_back);
+    }
+
+    if (self->com_primary != NULL && self->com_back != NULL) {
+        zdd_surface_set_clipper(self->com_primary, self->com_back);
+    }
+}
+
 int zdd_object_new(zdd *parent, zdd_object **out,
                    uint32_t width, uint32_t height,
                    int32_t colorkey, int32_t count)

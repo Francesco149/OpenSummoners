@@ -131,6 +131,44 @@ int zdd_create_surface(zdd *self, void **out_surface,
     return 0;
 }
 
+/* IDirectDraw7::CreateClipper via vtable[4] (byte 0x10).  Stores the
+ * new IDirectDrawClipper into *out_clipper.  Defensive NULL-on-failure
+ * (retail leaves the slot undefined when CreateClipper fails). */
+void zdd_create_clipper(zdd *parent, void **out_clipper)
+{
+    if (out_clipper == NULL) return;
+    *out_clipper = NULL;
+    if (parent == NULL || parent->ddraw7 == NULL) return;
+    IDirectDraw7 *dd = (IDirectDraw7 *)parent->ddraw7;
+    LPDIRECTDRAWCLIPPER clipper = NULL;
+    HRESULT hr = dd->lpVtbl->CreateClipper(dd, 0, &clipper, NULL);
+    if (FAILED(hr)) return;
+    *out_clipper = clipper;
+}
+
+/* IDirectDrawClipper::SetClipList via vtable[7] (byte 0x1c).  Mirrors
+ * retail's literal call (clipper, &stack_NULL, 0) — see ddraw-init.md
+ * "FUN_005b9520" open thread for the semantics ambiguity. */
+void zdd_clipper_set_clip_list_null(void *clipper)
+{
+    if (clipper == NULL) return;
+    LPDIRECTDRAWCLIPPER cl = (LPDIRECTDRAWCLIPPER)clipper;
+    /* Allocate a stack slot containing NULL, then pass its address —
+     * matches retail's `piStack_40 = NULL; clipper->SetClipList(
+     * &piStack_40, 0)`.  DDraw will read this as an empty RGNDATA. */
+    LPRGNDATA stack_null = NULL;
+    cl->lpVtbl->SetClipList(cl, (LPRGNDATA)&stack_null, 0);
+}
+
+/* IDirectDrawSurface7::SetClipper via vtable[28] (byte 0x70). */
+void zdd_surface_set_clipper(void *surface, void *clipper)
+{
+    if (surface == NULL || clipper == NULL) return;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    LPDIRECTDRAWCLIPPER  cl   = (LPDIRECTDRAWCLIPPER)clipper;
+    surf->lpVtbl->SetClipper(surf, cl);
+}
+
 /* FUN_005b9830 (Win32 leg) — IDirectDrawSurface7::SetColorKey via
  * vtable[29] (byte offset 0x74) with DDCKEY_SRCBLT (8) flag.  Builds
  * a DDCOLORKEY with both .dwColorSpaceLowValue and
