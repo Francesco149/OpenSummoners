@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Clipper attach PORTED (FUN_005b9520)
+
+Closes out the ZDDObject's COM-attach lifecycle.  `zdd_object_attach_clipper`
+(FUN_005b9520, 157 bytes per .text) does the canonical "release prior,
+create new, configure, attach" dance:
+
+  1. zdd_com_release(&self->com_back)
+  2. self->parent->ddraw7->CreateClipper(0, &self->com_back, NULL)   vtable[4]
+  3. self->com_back->SetClipList(&stack_NULL, 0)                     vtable[7]
+  4. self->com_primary->SetClipper(self->com_back)                   vtable[28]
+
+Pure-logic orchestration in zdd.c over three new Win32 primitives
+(zdd_create_clipper, zdd_clipper_set_clip_list_null,
+zdd_surface_set_clipper).  Splitting the primitives makes the
+sequence verifiable on host: 4 new tests assert call order
+(create -> list -> attach), pre-existing-com_back release, and the
+defensive null-skip on CreateClipper failure + missing primary.
+
+Two structural notes captured as open RE threads:
+- The +0xac field on ZDDObject is dual-role: back-buffer
+  IDirectDrawSurface7 for normal surface objects, IDirectDrawClipper
+  for clipper-only objects.  Both implement IUnknown so the dtor's
+  release path doesn't care, but the field name "com_back" is now
+  misleading.
+- The vtable[7] (SetClipList) call passes a stack-local NULL pointer
+  as the LPRGNDATA, which is invalid input.  ddraw-init.md flagged
+  this offset as potentially-mis-decompiled (could be SetHWnd at
+  vtable[8]).  Our port mirrors the literal vtable+0x1c recovery;
+  Frida verification recommended.
+
+Tests now: **256 pass, 0 fail, 6 skip** (up from 252/6; 4 new host
+tests for the clipper-attach call sequence).
+
+---
+
 ## 2026-05-25 — CreateSurfacePair factory PORTED (FUN_005b8b40)
 
 Wraps the surface-alloc stack up to the public engine entry point.
