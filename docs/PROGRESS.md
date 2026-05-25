@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — ZDDObject ctor + dtor + pixel-buf release PORTED
+
+Three more leaf ports landing on top of the ZDD wrapper checkpoint
+that closes the "ZDDObject cleanup chain" open thread:
+
+  - FUN_005b9350  `zdd_object_ctor`              50 bytes
+  - FUN_005b9390  `zdd_object_dtor`              75 bytes
+  - FUN_005b93e0  `zdd_object_release_pixel_buf` 42 bytes
+
+ZDDObject struct shape pinned at 0xd8 bytes with the 6 lifecycle-
+pair fields named (`com_primary` at +0x2c, `com_back` at +0xac,
+`parent` at +0xc0, `pixel_buf` at +0xc4, `pixel_buf_flag` at +0xc8,
+`state_flag` at +0xd4).  The embedded DDSURFACEDESC2 + window-fit
+metrics regions (`_pad030[0xac-0x30]` and `_pad0b0[0xc0-0xb0]` +
+`_pad0cc[0xd4-0xcc]`) stay as opaque pad until the surface-alloc
+helpers (FUN_005b97e0 / _98c0) get ported alongside FUN_005b95c0.
+
+The previously-placeholder `zdd_obj_destroy` in zdd_win32.c gets
+replaced — it's now pure logic in zdd.c that walks
+`zdd_object_dtor` then heap-frees the allocation.  Only the
+`zdd_object_local_free` primitive remains on the Win32 side (wraps
+LocalFree).
+
+Release order in `zdd_object_dtor` matches retail's
+FUN_005b9390 byte-for-byte: pixel buf first, then com_back (+0xac),
+then com_primary (+0x2c), then parent->open_objects decrement.  The
+"com_back BEFORE com_primary" order is the load-bearing detail — it
+keeps the COM refcount graph clean when com_back is an
+IDirectDrawSurface7 fetched via GetAttachedSurface off com_primary
+(open thread per docs/findings/ddraw-init.md
+"FUN_005b9520 — Clipper attach" notes).
+
+7 new host tests; the two pre-existing release-children + dtor tests
+were updated to use real malloc'd ZDDObjects instead of synthetic
+pointers (zdd_obj_destroy now dereferences).
+
+Tests now: **224 pass, 0 fail, 6 skip** (up from 217/5; 7 new
+including a 32-bit-only zdd_object layout skip).
+
+---
+
 ## 2026-05-25 — ZDD wrapper first slice PORTED (8 functions)
 
 First slice of the DirectDraw 7 wrapper class HANDOFF flagged as the

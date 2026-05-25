@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-25 (ZDD wrapper first slice PORTED)
+# Session handoff — last updated 2026-05-25 (ZDDObject lifecycle PORTED)
 
 **This is the first thing to read at the start of every session.**
 
@@ -37,19 +37,21 @@ methodical port-and-test.  **Five modules ported now:**
 - **WndProc** — `FUN_005b12e0` (the engine's main game window
   message handler).  9-message dispatch including the load-bearing
   WM_ACTIVATEAPP that owns `DAT_008a952c`.
-- **ZDD wrapper** — **8 functions** covering the DirectDraw 7
-  wrapper class lifecycle: ctor / dtor / child-release loop /
-  cursor-restore / DDERR log builder / DirectDrawCreateEx /
-  SetCooperativeLevel / top-level create driver.  Pure logic
-  (ctor + dtor decision tree + DDERR-to-string + log builder) in
-  `src/zdd.c`; Win32 primitives (DDraw, COM Release, ShowCursor,
-  OutputDebugStringA) in `src/zdd_win32.c`.  Surface alloc /
-  CreateSurface / clipper attach are NOT in this slice — see
-  ddraw-init.md for the rest of the call graph.
+- **ZDD wrapper** — **11 functions** covering the DirectDraw 7
+  wrapper class lifecycle + the ZDDObject leaf lifecycle:
+    - ZDD class: ctor / dtor / child-release loop / cursor-restore /
+      DDERR log builder / DirectDrawCreateEx / SetCooperativeLevel /
+      top-level create driver
+    - ZDDObject leaf: ctor / dtor / pixel-buf release
+  Pure logic (ctor + dtor decision tree + DDERR-to-string + log
+  builder + ZDDObject lifecycle + zdd_obj_destroy walk-then-free)
+  in `src/zdd.c`; Win32 primitives (DDraw, COM Release, ShowCursor,
+  OutputDebugStringA, LocalFree) in `src/zdd_win32.c`.  Surface
+  alloc / CreateSurface / clipper attach are NOT in this slice —
+  see ddraw-init.md for the rest of the call graph.
 
-Total host tests across all five modules: **217 pass, 0 fail, 5
-skip** (up from 200; the 5 skips are 32-bit-only layout asserts
-that fire at compile time on the cross build).
+Total host tests across all five modules: **224 pass, 0 fail, 6
+skip** (up from 217; 7 new tests + 1 32-bit-only layout skip).
 
 **Ghidra C++ recovery infrastructure** — Kaiju extension installed,
 `tools/ghidra-scripts/TagThiscallFunctions.java` applies class-
@@ -78,7 +80,8 @@ Source step.
 
 Most recent commits (newest first):
 
-- (current) ZDD: port ctor/dtor + DDERR log helper + DirectDraw init wrappers
+- (current) ZDD: port ZDDObject ctor + dtor + LocalFree pixel-buf helper
+- `ce6b87e` ZDD: port ctor/dtor + DDERR log helper + DirectDraw init wrappers
 - `90de1ba` Pixel-Drawer: port boot-time slot tables (5 groups + 4 special)
 - `5377460` Asset-Register: port FUN_0057ca40 6th pass — 9 inline slot-clones
 - `63e14bb` Asset-Register: port FUN_0057ca40 5th pass — 94 SS_MGR slot-clones
@@ -105,24 +108,25 @@ ZDD wrapper's first slice (8 functions) is in port-and-test parity.
 The remaining gap to "title menu renders" is still the **drawing
 path**, but with a clear next layer above ZDD.
 
-1. **(recommended) ZDDObject ctor + cleanup chain** —
-   `FUN_005b9350` (ZDDObject::ctor, 0xd8-byte struct) +
-   `FUN_005b9390` (per-object cleanup chain) + the small
-   FUN_005b97e0 / FUN_005b9830 / FUN_005b98c0 helpers around it.
-   Replaces the placeholder `zdd_obj_destroy` in zdd_win32.c with
-   a real cleanup walk.  Small, naturally extends the ZDD checkpoint,
-   and is a prereq for FUN_005b8b40 (CreateSurfacePair) and
-   FUN_005b95c0 (the per-surface alloc orchestrator).
+1. **(recommended) Surface-alloc orchestrator + state-stampers** —
+   `FUN_005b95c0` (110 bytes, pure orchestration over four leaves) +
+   the two small state-stampers `FUN_005b97e0` (DDSD pre-fill +
+   self-pointers, 66 bytes) + `FUN_005b98c0` (window-fit metric
+   stash, 73 bytes).  Optionally `FUN_005b9830` (SetColorKey with
+   the 0x1ffffff "no color key" sentinel, 138 bytes) — DEFER because
+   it pulls in FUN_005b8b00 which reads bytes off a non-obvious ECX
+   that needs disasm-level clarification.  These three together
+   unblock FUN_005b8b40 (CreateSurfacePair) once FUN_005b8c00
+   lands.  Pre-req for nothing else right now.
 
-2. **Surface alloc orchestrator** — `FUN_005b95c0` (110 bytes,
-   pure orchestration over FUN_005b97e0 + FUN_005b8c00 +
-   FUN_005b98c0 + FUN_005b9830) + `FUN_005b8c00` (372 bytes,
-   the DDSURFACEDESC2 builder + actual CreateSurface call).  This
-   is the meatier "actually create a DDraw surface" path.  Best
-   tackled AFTER #1 lands because the orchestrator calls into
-   ZDDObject's state-setter helpers.  Carries the 0x1ffffff
-   "no color key" sentinel logic which is interesting pure-logic
-   to test.
+2. **`FUN_005b8c00` — DDSURFACEDESC2 builder + CreateSurface**
+   (372 bytes).  The actual `IDirectDraw7::CreateSurface` call site.
+   Pure builder + one vtable call; the DDSURFACEDESC2 construction
+   logic is fully documented in docs/findings/ddraw-init.md section
+   "FUN_005b8c00" — including the 8/16/24/32 bpp pixel-format
+   branches and the palette-bind tail.  This is the meatier "actually
+   create a DDraw surface" port; pairs naturally with #1 to complete
+   the surface-alloc layer.
 
 3. **Wire ar_boot_register_all + pd_boot_init_slots into the drop-in's
    WinMain.** — currently every batch is a module in isolation; the
@@ -163,9 +167,11 @@ src/
   wnd_proc.c/h              Main game window WndProc — pure dispatch
   wnd_proc_win32.c          DefWindowProcA + ExitProcess + 5 placeholder hooks
   zdd.c/h                   ZDD wrapper — ctor/dtor + DDERR log + create
-                            driver (pure logic for the 8 leaf functions)
+                            driver + ZDDObject ctor/dtor/pixel-buf-release
+                            (11 leaf functions, pure logic)
   zdd_win32.c               DirectDrawCreateEx/SetCooperativeLevel +
                             ShowCursor/OutputDebugStringA/IUnknown::Release
+                            + LocalFree
   Makefile                  single-TU mingw cross-build (-lddraw -ldxguid)
 
 tests/
@@ -180,7 +186,8 @@ tests/
                             2 info-entry-clear + 1 info-entry-pool)
   test_bitmap_session.c     31 tests for bitmap_session
   test_wnd_proc.c           20 tests for WndProc
-  test_zdd.c                18 tests for ZDD (1 32-bit-only skip)
+  test_zdd.c                26 tests for ZDD + ZDDObject lifecycle
+                            (2 32-bit-only layout skips)
 
 tools/
   frida_capture.py          headless retail harness driver
@@ -201,10 +208,18 @@ tools/
 
 ## Open RE threads (not picked up yet)
 
-- ZDDObject (`FUN_005b9350` ctor + `FUN_005b9390` cleanup chain) is
-  unported; `zdd_obj_destroy` in `src/zdd_win32.c` is a placeholder
-  that just heap-frees.  The full cleanup walk lands next when
-  ZDDObject is ported.
+- ZDDObject's 3 self-pointers (+0x00, +0x04, +0x08) + embedded
+  DDSURFACEDESC2 (+0x30..+0xab) + window-fit metric region
+  (+0xb0..+0xbf) + dimensions (+0xcc..+0xd3) are MODELLED AS PAD —
+  the surface-alloc state-stampers FUN_005b97e0 + _98c0 that write
+  these fields are unported.  Pin field names once the orchestrator
+  port lands.
+- FUN_005b8b00 (16bpp color-channel shift converter) reads byte
+  shift tables off ECX — looks like it expects a "pixel format
+  descriptor" object as `this`, NOT the calling ZDDObject.  Needs
+  disasm-level confirmation (Ghidra's `in_ECX` annotation is just
+  "whatever's in ECX at function entry"; the compiler may have set
+  ECX explicitly before the call).  Blocking FUN_005b9830 port.
 - ZDD's two opaque COM handles (+0x128 `com_a`, +0x12c `com_b`) have
   unpinned semantic roles.  Likely IDirectDrawPalette and
   IDirectDrawClipper given the surrounding code (`FUN_005b9520`
