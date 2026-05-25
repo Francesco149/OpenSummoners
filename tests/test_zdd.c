@@ -196,6 +196,36 @@ static int      g_dd_wblit_seq             = 0;
 static int      g_dd_releasedc_seq         = 0;
 static int      g_dd_wpaint_end_seq        = 0;
 
+/* Lock / Unlock / GetSurfaceDesc primitive stubs (back FUN_005b9490 /
+ * _94d0 / _8a20 / _9410 host tests).  Lock can be programmed to
+ * populate the caller's DDSD with canned R/G/B masks (used by
+ * bind_pixel_format tests) and lpSurface/pitch/height (used by
+ * zdd_object_clear tests). */
+static int      g_dd_lock_calls       = 0;
+static int      g_dd_lock_result      = 1;
+static int32_t  g_dd_lock_hr          = 0;
+static void    *g_dd_lock_last_surf   = NULL;
+static void    *g_dd_lock_last_ddsd   = NULL;
+static uint32_t g_dd_lock_last_flags  = 0;
+/* Populated into the DDSD after Lock returns success: */
+static void    *g_dd_lock_fill_surface = NULL;
+static int32_t  g_dd_lock_fill_pitch   = 0;
+static int32_t  g_dd_lock_fill_height  = 0;
+
+static int      g_dd_unlock_calls     = 0;
+static void    *g_dd_unlock_last_surf = NULL;
+/* Shared seq counter so clear() tests can verify lock/unlock ordering. */
+static int      g_dd_clear_seq        = 0;
+static int      g_dd_lock_seq         = 0;
+static int      g_dd_unlock_seq       = 0;
+
+static int      g_dd_getdesc_calls    = 0;
+static int      g_dd_getdesc_result   = 1;
+static void    *g_dd_getdesc_last_surf = NULL;
+static uint32_t g_dd_getdesc_fill_r_mask = 0xF800;
+static uint32_t g_dd_getdesc_fill_g_mask = 0x07E0;
+static uint32_t g_dd_getdesc_fill_b_mask = 0x001F;
+
 static void reset_stubs(void)
 {
     g_cursor_last_show = -999;
@@ -317,6 +347,26 @@ static void reset_stubs(void)
     g_dd_wblit_seq              = 0;
     g_dd_releasedc_seq          = 0;
     g_dd_wpaint_end_seq         = 0;
+    g_dd_lock_calls         = 0;
+    g_dd_lock_result        = 1;
+    g_dd_lock_hr            = 0;
+    g_dd_lock_last_surf     = NULL;
+    g_dd_lock_last_ddsd     = NULL;
+    g_dd_lock_last_flags    = 0;
+    g_dd_lock_fill_surface  = NULL;
+    g_dd_lock_fill_pitch    = 0;
+    g_dd_lock_fill_height   = 0;
+    g_dd_unlock_calls       = 0;
+    g_dd_unlock_last_surf   = NULL;
+    g_dd_clear_seq          = 0;
+    g_dd_lock_seq           = 0;
+    g_dd_unlock_seq         = 0;
+    g_dd_getdesc_calls      = 0;
+    g_dd_getdesc_result     = 1;
+    g_dd_getdesc_last_surf  = NULL;
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
 }
 
 void zdd_show_cursor(int show)
@@ -614,6 +664,73 @@ int zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
     /* Not used by any pure-logic consumer; keep a thin stub so any
      * future test that does reference it doesn't pull in a link error. */
     (void)surface; (void)fill_value; (void)log_owner;
+    return 1;
+}
+
+/* Surface-Lock stub.  Populates the caller's DDSD with canned
+ * lpSurface / pitch / height (so zdd_object_clear tests can verify
+ * the right pointer + size were used). */
+int zdd_surface_lock(void *surface, void *ddsd, uint32_t flags,
+                     int32_t *out_hr)
+{
+    g_dd_lock_calls++;
+    g_dd_lock_seq = ++g_dd_clear_seq;
+    g_dd_lock_last_surf  = surface;
+    g_dd_lock_last_ddsd  = ddsd;
+    g_dd_lock_last_flags = flags;
+    if (surface == NULL) {
+        if (out_hr != NULL) *out_hr = 0;
+        return 0;
+    }
+    if (!g_dd_lock_result) {
+        if (out_hr != NULL) *out_hr = g_dd_lock_hr;
+        return 0;
+    }
+    /* Note: on the real (Win32) build, Lock populates the DDSD with
+     * lpSurface / lPitch / dwHeight at offsets 0x24 / 0x10 / 0x08.
+     * The host stub skips that population because the 4-byte DDSD
+     * slot can't hold an 8-byte host pointer; consumers read via
+     * zdd_object_get_locked_info which we publish from the
+     * g_dd_lock_fill_* values directly. */
+    if (out_hr != NULL) *out_hr = 0;
+    return 1;
+}
+
+void zdd_surface_unlock(void *surface)
+{
+    g_dd_unlock_calls++;
+    g_dd_unlock_seq = ++g_dd_clear_seq;
+    g_dd_unlock_last_surf = surface;
+}
+
+int zdd_surface_get_desc(void *surface, void *ddsd)
+{
+    g_dd_getdesc_calls++;
+    g_dd_getdesc_last_surf = surface;
+    if (surface == NULL || ddsd == NULL) return 0;
+    if (!g_dd_getdesc_result) return 0;
+    /* Populate the embedded DDPIXELFORMAT R/G/B masks at offsets
+     * 0x58 / 0x5c / 0x60.  Mirrors the real GetSurfaceDesc populating
+     * the same fields from the surface's pixel format. */
+    uint8_t *d = (uint8_t *)ddsd;
+    *(uint32_t *)(d + 0x58) = g_dd_getdesc_fill_r_mask;
+    *(uint32_t *)(d + 0x5c) = g_dd_getdesc_fill_g_mask;
+    *(uint32_t *)(d + 0x60) = g_dd_getdesc_fill_b_mask;
+    return 1;
+}
+
+/* Host stub for the post-Lock DDSD extractor.  Returns whatever the
+ * test set g_dd_lock_fill_* to — the Lock stub records it but doesn't
+ * populate the embedded DDSD (pointer-size mismatch makes that
+ * impractical on host).  Tests that exercise zdd_object_clear set the
+ * fill values directly. */
+int zdd_object_get_locked_info(zdd_object *self, void **out_buf,
+                               int32_t *out_pitch, int32_t *out_height)
+{
+    if (self == NULL) return 0;
+    if (out_buf != NULL)    *out_buf    = g_dd_lock_fill_surface;
+    if (out_pitch != NULL)  *out_pitch  = g_dd_lock_fill_pitch;
+    if (out_height != NULL) *out_height = g_dd_lock_fill_height;
     return 1;
 }
 
@@ -2877,5 +2994,368 @@ int test_zdd_window_paint_does_not_touch_present_primitives(void)
     T_ASSERT_EQ_I(g_dd_desktop_calls, 0);
 
     s.primary_obj = NULL;
+    return 0;
+}
+
+/* ─── zdd_object_lock / _unlock / _clear (FUN_005b9490 / _94d0 / _9410) ── */
+
+int test_zdd_object_lock_null_self_returns_zero(void)
+{
+    reset_stubs();
+    T_ASSERT_EQ_I(zdd_object_lock(NULL), 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_lock_null_com_primary_returns_zero(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = NULL;
+    T_ASSERT_EQ_I(zdd_object_lock(&po), 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_lock_success_forwards_and_returns_one(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    int rc = zdd_object_lock(&po);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 1);
+    T_ASSERT_EQ_P(g_dd_lock_last_surf, (void *)(uintptr_t)0xabcd);
+    T_ASSERT_EQ_P(g_dd_lock_last_ddsd, (void *)&po.embedded_ddsd[0]);
+    T_ASSERT_EQ_I((int)g_dd_lock_last_flags, 1);  /* DDLOCK_WAIT */
+    /* No DDERR log on success. */
+    T_ASSERT_EQ_I(g_log_call_count, 0);
+    return 0;
+}
+
+int test_zdd_object_lock_failure_logs_and_returns_zero(void)
+{
+    reset_stubs();
+    g_dd_lock_result = 0;
+    g_dd_lock_hr     = (int32_t)0x88760000;  /* DDERR_GENERIC-ish */
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    int rc = zdd_object_lock(&po);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 1);
+    /* DDERR routed through log */
+    T_ASSERT(g_log_call_count > 0);
+    T_ASSERT(strstr(g_log_capture, "DirectDrawSurface") != NULL);
+    return 0;
+}
+
+int test_zdd_object_unlock_null_self_noop(void)
+{
+    reset_stubs();
+    zdd_object_unlock(NULL);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_unlock_forwards_to_primitive(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xdead;
+    zdd_object_unlock(&po);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    T_ASSERT_EQ_P(g_dd_unlock_last_surf, (void *)(uintptr_t)0xdead);
+    return 0;
+}
+
+int test_zdd_object_clear_null_self_noop(void)
+{
+    reset_stubs();
+    zdd_object_clear(NULL);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 0);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_clear_lock_failure_skips_fill_and_unlock(void)
+{
+    reset_stubs();
+    g_dd_lock_result = 0;
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    zdd_object_clear(&po);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);  /* skipped */
+    return 0;
+}
+
+int test_zdd_object_clear_zero_fills_and_unlocks(void)
+{
+    reset_stubs();
+    /* Set up a fake surface buffer that Lock will publish into the
+     * DDSD.  Clear should zero it, then Unlock. */
+    uint8_t buf[32 * 4];
+    memset(buf, 0xAA, sizeof(buf));
+    g_dd_lock_fill_surface = buf;
+    g_dd_lock_fill_pitch   = 32;
+    g_dd_lock_fill_height  = 4;
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    zdd_object_clear(&po);
+
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    /* Lock before Unlock. */
+    T_ASSERT(g_dd_lock_seq < g_dd_unlock_seq);
+    /* Buffer fully zeroed. */
+    for (size_t i = 0; i < sizeof(buf); i++) {
+        T_ASSERT_EQ_I(buf[i], 0);
+    }
+    return 0;
+}
+
+int test_zdd_object_clear_zero_size_safe(void)
+{
+    /* Lock succeeds but pitch * height = 0 — clear should skip the
+     * memset (no surf needed) and still unlock. */
+    reset_stubs();
+    g_dd_lock_fill_surface = NULL;
+    g_dd_lock_fill_pitch   = 0;
+    g_dd_lock_fill_height  = 0;
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    zdd_object_clear(&po);
+
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    return 0;
+}
+
+/* ─── zdd_bind_pixel_format + zdd_color_convert (FUN_005b8a20 / _8b00) ── */
+
+int test_zdd_bind_pixel_format_null_self_returns_zero(void)
+{
+    reset_stubs();
+    int rc = zdd_bind_pixel_format(NULL, (void *)(uintptr_t)0x1234);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_getdesc_calls, 0);
+    return 0;
+}
+
+int test_zdd_bind_pixel_format_null_surface_returns_zero(void)
+{
+    reset_stubs();
+    zdd s; zdd_ctor(&s);
+    int rc = zdd_bind_pixel_format(&s, NULL);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_getdesc_calls, 0);
+    return 0;
+}
+
+int test_zdd_bind_pixel_format_getdesc_failure_returns_zero(void)
+{
+    reset_stubs();
+    g_dd_getdesc_result = 0;
+    zdd s; zdd_ctor(&s);
+    int rc = zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    T_ASSERT_EQ_I(rc, 0);
+    /* color_desc must remain untouched. */
+    T_ASSERT_EQ_I(s.color_desc.shift_left[0], 0);
+    T_ASSERT_EQ_I(s.color_desc.mask_raw[0], 0u);
+    return 0;
+}
+
+int test_zdd_bind_pixel_format_rgb565_stamps_descriptor(void)
+{
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    int rc = zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_getdesc_calls, 1);
+    T_ASSERT_EQ_P(g_dd_getdesc_last_surf, (void *)(uintptr_t)0xabcd);
+    /* R: mask=0xF800, tz=11, shifted=0x1F, mask_lo=0x1F, shift_right=3 */
+    T_ASSERT_EQ_I(s.color_desc.shift_left[0],  11);
+    T_ASSERT_EQ_I((int)s.color_desc.mask_raw[0], 0xF800);
+    T_ASSERT_EQ_I(s.color_desc.mask_lo[0],     0x1F);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[0], 3);
+    /* G: mask=0x07E0, tz=5, shifted=0x3F, mask_lo=0x3F, shift_right=2 */
+    T_ASSERT_EQ_I(s.color_desc.shift_left[1],  5);
+    T_ASSERT_EQ_I((int)s.color_desc.mask_raw[1], 0x07E0);
+    T_ASSERT_EQ_I(s.color_desc.mask_lo[1],     0x3F);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[1], 2);
+    /* B: mask=0x001F, tz=0, shifted=0x1F, mask_lo=0x1F, shift_right=3 */
+    T_ASSERT_EQ_I(s.color_desc.shift_left[2],  0);
+    T_ASSERT_EQ_I((int)s.color_desc.mask_raw[2], 0x001F);
+    T_ASSERT_EQ_I(s.color_desc.mask_lo[2],     0x1F);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[2], 3);
+    return 0;
+}
+
+int test_zdd_bind_pixel_format_rgb555_stamps_descriptor(void)
+{
+    /* RGB555: R=0x7C00, G=0x03E0, B=0x001F — all three channels 5 bits */
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0x7C00;
+    g_dd_getdesc_fill_g_mask = 0x03E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    int rc = zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(s.color_desc.shift_left[0],  10);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[0], 3);
+    T_ASSERT_EQ_I(s.color_desc.mask_lo[0],     0x1F);
+    T_ASSERT_EQ_I(s.color_desc.shift_left[1],  5);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[1], 3);
+    T_ASSERT_EQ_I(s.color_desc.mask_lo[1],     0x1F);
+    T_ASSERT_EQ_I(s.color_desc.shift_left[2],  0);
+    T_ASSERT_EQ_I(s.color_desc.shift_right[2], 3);
+    return 0;
+}
+
+int test_zdd_color_convert_null_self_returns_zero(void)
+{
+    reset_stubs();
+    uint32_t out = zdd_color_convert(NULL, 0x00ABCDEF);
+    T_ASSERT_EQ_I((int)out, 0);
+    return 0;
+}
+
+int test_zdd_color_convert_rgb565_white(void)
+{
+    /* Bind to RGB565 then convert pure white (0xFFFFFF) → 0xFFFF. */
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    T_ASSERT_EQ_I(zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd), 1);
+    uint32_t out = zdd_color_convert(&s, 0x00FFFFFF);
+    T_ASSERT_EQ_I((int)out, 0xFFFF);
+    return 0;
+}
+
+int test_zdd_color_convert_rgb565_pure_red(void)
+{
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    uint32_t out = zdd_color_convert(&s, 0x00FF0000);
+    T_ASSERT_EQ_I((int)out, 0xF800);  /* top 5 bits in R slot */
+    return 0;
+}
+
+int test_zdd_color_convert_rgb565_pure_blue(void)
+{
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    uint32_t out = zdd_color_convert(&s, 0x000000FF);
+    T_ASSERT_EQ_I((int)out, 0x001F);
+    return 0;
+}
+
+int test_zdd_color_convert_rgb565_mid_gray(void)
+{
+    /* 0x808080 → R=0x80 >> 3 = 0x10, G=0x80 >> 2 = 0x20, B=0x80 >> 3 = 0x10
+     * Packed: (0x10 << 11) | (0x20 << 5) | (0x10 << 0)
+     *       = 0x8000 | 0x0400 | 0x0010 = 0x8410 */
+    reset_stubs();
+    g_dd_getdesc_fill_r_mask = 0xF800;
+    g_dd_getdesc_fill_g_mask = 0x07E0;
+    g_dd_getdesc_fill_b_mask = 0x001F;
+    zdd s; zdd_ctor(&s);
+    zdd_bind_pixel_format(&s, (void *)(uintptr_t)0xabcd);
+    uint32_t out = zdd_color_convert(&s, 0x00808080);
+    T_ASSERT_EQ_I((int)out, 0x8410);
+    return 0;
+}
+
+/* ─── zdd_object_blt_keyed (FUN_005b9b70) ──────────────────────────── */
+
+int test_zdd_object_blt_keyed_null_self_degenerate_success(void)
+{
+    reset_stubs();
+    int rc = zdd_object_blt_keyed(NULL, NULL, 0, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_keyed_null_com_primary_degenerate_success(void)
+{
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = NULL;
+    int rc = zdd_object_blt_keyed(&src, NULL, 0, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_keyed_null_dest_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = (void *)(uintptr_t)0xa;
+    int rc = zdd_object_blt_keyed(&src, NULL, 0, 0);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_keyed_offsets_dest_by_metric_0c_10(void)
+{
+    /* dest_rect = (metric_0c + x, metric_10 + y, +metric_b8, +metric_bc).
+     * src_rect  = (metric_b0, metric_b4, metric_b8, metric_bc).
+     * flags     = state_flag | 0x1000000. */
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    src.metric_0c   = 30;
+    src.metric_10   = 40;
+    src.metric_b0   = 0;
+    src.metric_b4   = 0;
+    src.metric_b8   = 100;
+    src.metric_bc   = 50;
+    src.state_flag  = 0x8000;
+    zdd_object dst; memset(&dst, 0, sizeof(dst));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    int rc = zdd_object_blt_keyed(&src, &dst, 5, 7);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    /* dest = (30+5, 40+7, 100+35, 50+47) = (35, 47, 135, 97) */
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 35);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 47);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 135);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 97);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[1], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 100);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 50);
+    T_ASSERT_EQ_I((int)g_dd_blt_last_flags, (int)(0x8000 | 0x1000000));
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xaaa1);
     return 0;
 }

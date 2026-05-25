@@ -588,3 +588,63 @@ void zdd_window_blit_copy(void *dest_hdc, int dest_x, int dest_y,
     BitBlt((HDC)dest_hdc, dest_x, dest_y, width, height,
            (HDC)src_hdc, 0, 0, SRCCOPY);
 }
+
+/* IDirectDrawSurface7::GetSurfaceDesc via vtable[22] (byte 0x58).
+ * Verified by r2 disasm of FUN_005b8a20: `call dword [eax + 0x58]`.
+ * Caller pre-stamps dwSize + dwFlags on the descriptor. */
+int zdd_surface_get_desc(void *surface, void *ddsd)
+{
+    if (surface == NULL || ddsd == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    HRESULT hr = surf->lpVtbl->GetSurfaceDesc(surf,
+                                              (LPDDSURFACEDESC2)ddsd);
+    return FAILED(hr) ? 0 : 1;
+}
+
+/* IDirectDrawSurface7::Lock via vtable[25] (byte 0x64).  Verified by
+ * r2 disasm of FUN_005b9490: `call dword [eax + 0x64]`.  Args mirror
+ * retail's literal push order: lpDestRect=NULL, lpDDSurfaceDesc=ddsd,
+ * dwFlags=flags, hEvent=NULL.  out_hr receives the raw HRESULT so the
+ * pure-logic caller can route it through zdd_log_dderr. */
+int zdd_surface_lock(void *surface, void *ddsd, uint32_t flags,
+                     int32_t *out_hr)
+{
+    if (surface == NULL) return 0;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    HRESULT hr = surf->lpVtbl->Lock(surf, NULL, (LPDDSURFACEDESC2)ddsd,
+                                    (DWORD)flags, NULL);
+    if (out_hr != NULL) *out_hr = (int32_t)hr;
+    return FAILED(hr) ? 0 : 1;
+}
+
+/* IDirectDrawSurface7::Unlock via vtable[32] (byte 0x80).  Verified
+ * by r2 disasm of FUN_005b94d0: `call dword [eax + 0x80]`.  Retail
+ * always passes lpRect=NULL ("release entire surface").  Return value
+ * dropped — retail's caller doesn't read it. */
+void zdd_surface_unlock(void *surface)
+{
+    if (surface == NULL) return;
+    LPDIRECTDRAWSURFACE7 surf = (LPDIRECTDRAWSURFACE7)surface;
+    surf->lpVtbl->Unlock(surf, NULL);
+}
+
+/* Read post-Lock DDSD slots out of the zdd_object's embedded DDSD.
+ * On the real (32-bit Win32) build the DDSD layout matches retail
+ * exactly — lpSurface is at +0x54 (embedded_ddsd[0x24]), lPitch at
+ * +0x40, dwHeight at +0x38.  Direct reads via the documented offsets.
+ * Returns 1 if `self` is non-NULL; out pointers may be NULL. */
+int zdd_object_get_locked_info(zdd_object *self, void **out_buf,
+                               int32_t *out_pitch, int32_t *out_height)
+{
+    if (self == NULL) return 0;
+    if (out_buf != NULL) {
+        *out_buf = *(void **)&self->embedded_ddsd[0x24];
+    }
+    if (out_pitch != NULL) {
+        *out_pitch = *(int32_t *)&self->embedded_ddsd[0x10];
+    }
+    if (out_height != NULL) {
+        *out_height = *(int32_t *)&self->embedded_ddsd[0x08];
+    }
+    return 1;
+}

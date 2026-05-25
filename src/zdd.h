@@ -58,14 +58,50 @@
 typedef struct zdd        zdd;
 typedef struct zdd_object zdd_object;
 
+/* 22-byte pixel-format color descriptor occupying the first slot of the
+ * ZDD struct (+0x00..+0x15).  Stamped by zdd_bind_pixel_format
+ * (FUN_005b8a20) when the surface is 16bpp; consumed by zdd_color_convert
+ * (FUN_005b8b00) to map RGB888 source values to the surface's native
+ * pixel format.  Layout pinned from FUN_005b8a20 byte stores + reads in
+ * FUN_005b8b00:
+ *
+ *   shift_left[3]  (+0x00..+0x02) — left-shift to place each channel
+ *                                   into the output word.  For RGB565:
+ *                                   R=11, G=5, B=0.
+ *   mask_raw[3]    (+0x04..+0x0f) — raw R/G/B bitmasks from the
+ *                                   surface's DDPIXELFORMAT (e.g.
+ *                                   0xF800/0x07E0/0x001F for RGB565).
+ *   shift_right[3] (+0x10..+0x12) — right-shift applied to a source
+ *                                   8bpp channel before placement.  3
+ *                                   if the channel ends up 5-bit
+ *                                   (saturating to 0x1F after the
+ *                                   trailing-zero strip), else 2 (the
+ *                                   6-bit green case).
+ *   mask_lo[3]     (+0x13..+0x15) — low byte of the post-shift mask
+ *                                   (significance count).
+ *
+ * The two trailing bytes (+0x16..+0x17) are unobserved by any ported
+ * code — kept as opaque pad so back_obj_a still lands at +0x18. */
+typedef struct zdd_color_descriptor {
+    uint8_t   shift_left[3];                 /* +0x00..+0x02 */
+    uint8_t   _pad03;                        /* +0x03 — never read */
+    uint32_t  mask_raw[3];                   /* +0x04..+0x0f */
+    uint8_t   shift_right[3];                /* +0x10..+0x12 */
+    uint8_t   mask_lo[3];                    /* +0x13..+0x15 */
+    uint8_t   _pad16[2];                     /* +0x16..+0x17 — alignment */
+} zdd_color_descriptor;
+
 /* Field layout inferred from FUN_005b7f80 (ctor writes), FUN_005b7fe0
  * (dtor reads), and FUN_005b8040 (5-slot release loop).  Size 0x170 is
  * the literal `operator_new(0x170)` argument in FUN_005b7ee0. */
 struct zdd {
-    /* +0x00..+0x17: not observed in any decompiled ZDD-class method.
-     * Likely the C++ vtable pointer (+0x00) plus unidentified fields
-     * — kept as opaque pad so total size matches retail. */
-    uint8_t       _pad000[0x18];
+    /* +0x00..+0x17: pixel-format color descriptor (see typedef above).
+     * Stamped by zdd_bind_pixel_format (FUN_005b8a20) on 16bpp boots.
+     * Untouched on 8/24/32bpp paths — descriptor bytes stay zero.  Uses
+     * 22 logical bytes (+0x00..+0x15); the +0x16/+0x17 alignment tail
+     * absorbs the original retail "+0x00..+0x17 unobserved pad" — no
+     * known consumer touches them. */
+    zdd_color_descriptor color_desc;        /* +0x00..+0x17 */
 
     /* +0x18: child ZDDObject pointer.  Released in FUN_005b8040's
      * second slot (FUN_005b9390 cleanup + FUN_005bef0e heap free).
@@ -328,6 +364,12 @@ _Static_assert(offsetof(zdd_object, caps_in)            == 0x0cc, "zdd_object ca
 _Static_assert(offsetof(zdd_object, force_videomem_in)  == 0x0d0, "zdd_object force_videomem_in offset");
 _Static_assert(offsetof(zdd_object, state_flag)         == 0x0d4, "zdd_object state_flag offset");
 _Static_assert(sizeof(zdd)                          == 0x170, "zdd must be 0x170 bytes");
+_Static_assert(offsetof(zdd, color_desc)            == 0x000, "zdd color_desc offset");
+_Static_assert(offsetof(zdd_color_descriptor, shift_left)  == 0x000, "color_desc shift_left offset");
+_Static_assert(offsetof(zdd_color_descriptor, mask_raw)    == 0x004, "color_desc mask_raw offset");
+_Static_assert(offsetof(zdd_color_descriptor, shift_right) == 0x010, "color_desc shift_right offset");
+_Static_assert(offsetof(zdd_color_descriptor, mask_lo)     == 0x013, "color_desc mask_lo offset");
+_Static_assert(sizeof(zdd_color_descriptor)         == 0x018, "color_desc must be 24 bytes (22 used + 2 align)");
 _Static_assert(offsetof(zdd, back_obj_a)            == 0x018, "zdd back_obj_a offset");
 _Static_assert(offsetof(zdd, back_obj_b)            == 0x01c, "zdd back_obj_b offset");
 _Static_assert(offsetof(zdd, log_buf)               == 0x020, "zdd log_buf offset");
@@ -1104,6 +1146,129 @@ void zdd_object_release_dc(zdd_object *self, void *hdc);
 int  zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
                          int32_t dest_x, int32_t dest_y);
 
+/* FUN_005b9b70 — variant of zdd_object_blt_onto with a non-zero
+ * source-rect origin and an extra DDBLT_KEYSRC bit OR'd into the flags.
+ * Called from the title-menu scene runner (FUN_0056aea0) when
+ * 2 <= local_64 < 4 (studio-logo phases) to draw the logo bitmap onto
+ * the primary surface with its color-keyed transparency honored.
+ *
+ *   if (!self->com_primary) return 1;          // degenerate-success
+ *   dest_left   = self->metric_0c + dest_x
+ *   dest_top    = self->metric_10 + dest_y
+ *   dest_right  = self->metric_b8 + dest_left
+ *   dest_bottom = self->metric_bc + dest_top
+ *   src_rect    = self->metric_b0..bc = {0, 0, w, h}
+ *   flags       = self->state_flag | DDBLT_KEYSRC (0x1000000)
+ *   return dest->com_primary->Blt(&dest_rect, self->com_primary,
+ *                                 &src_rect, flags, NULL)
+ *
+ * Key differences vs zdd_object_blt_onto:
+ *  - dest origin shifted by self->metric_0c / metric_10 (per-object
+ *    placement offset from FUN_005b98c0's metric stash)
+ *  - flags carry DDBLT_KEYSRC instead of DDBLT_WAIT, meaning the source
+ *    surface's color-key gets honored as transparency.  (Retail's
+ *    state_flag carries DDBLT_KEYSRC alone — 0x8000 set by
+ *    zdd_object_set_color_key when a non-sentinel key is bound — and
+ *    this function OR's it again; effectively the same bit twice, but
+ *    we mirror the literal.)
+ *
+ * Returns the underlying Blt HRESULT (0 success / non-zero error) on
+ * the non-degenerate path, 1 on the degenerate self->com_primary==NULL
+ * path. */
+int  zdd_object_blt_keyed(zdd_object *self, zdd_object *dest,
+                          int32_t dest_x, int32_t dest_y);
+
+/* FUN_005b9490 — IDirectDrawSurface7::Lock wrapper.  Reads
+ * self->com_primary (+0x2c), calls Lock with the surface's embedded
+ * DDSURFACEDESC2 scratch (self->embedded_ddsd at +0x30) as the
+ * lpDDSurfaceDesc out-param, dwFlags=1 (DDLOCK_WAIT), hEvent=NULL.
+ *
+ *   if (!self->com_primary) return 0;
+ *   hr = self->com_primary->Lock(NULL, &self->embedded_ddsd, 1, NULL);
+ *   if (hr != S_OK) {
+ *       zdd_log_dderr(parent, "DirectDrawSurface", "", hr);
+ *       return 0;
+ *   }
+ *   return 1;
+ *
+ * Retail's `s_DirectDrawSurface_008a4b54` and `DAT_008a4b84` (the empty
+ * BSS string) are the log prefixes — same shape as every other DDERR
+ * log site.  After a successful Lock, the embedded DDSD's lpSurface /
+ * lPitch / dwHeight slots are populated; the three self-pointer fields
+ * (ddsd_lpSurface_ref / pitch_ref / height_ref at +0x00..+0x08) point
+ * into those slots — so callers read lpSurface as
+ * `*(void**)self->ddsd_lpSurface_ref`, pitch as
+ * `*(int*)self->ddsd_pitch_ref`, height as
+ * `*(int*)self->ddsd_height_ref`.  Returns 1 on success, 0 on Lock
+ * failure OR NULL com_primary. */
+int  zdd_object_lock(zdd_object *self);
+
+/* FUN_005b94d0 — IDirectDrawSurface7::Unlock wrapper.  Forwards to
+ * vtable[32] with lpRect=NULL.  No NULL guard in retail (contract:
+ * "only call after a successful zdd_object_lock"); the underlying
+ * Win32 primitive guards defensively.  Modelled as void — retail's
+ * return value is dropped. */
+void zdd_object_unlock(zdd_object *self);
+
+/* FUN_005b9410 — "clear the entire surface to zero".  Locks the
+ * surface, computes pixel byte count from the post-Lock DDSD
+ * (`pitch * height` from the +0x40 / +0x38 reads on the zdd_object,
+ * which alias embedded_ddsd[0x10] = lPitch and embedded_ddsd[0x08] =
+ * dwHeight), zero-fills the surface buffer (DWORD chunks then byte
+ * remainder), unlocks.  No-op if Lock fails (retail: just skip the
+ * fill + Unlock entirely).
+ *
+ * Called by the title-menu scene runner (FUN_0056aea0) at the start of
+ * local_64 == 0 (studio-logo phase 0) — a blank frame before the
+ * studio logo fades in.  Acts on the back-buffer surface (back_obj_a)
+ * in retail. */
+void zdd_object_clear(zdd_object *self);
+
+/* FUN_005b8b00 — 16bpp color-channel converter.  Takes an RGB888-style
+ * input value (typically a colorkey passed by retail's higher layers
+ * as a literal `0x00RRGGBB`) and packs it into the surface's native
+ * pixel layout using the descriptor at self->color_desc:
+ *
+ *   r_byte = (input >> 16) & 0xff
+ *   g_byte = (input >>  8) & 0xff
+ *   b_byte = (input >>  0) & 0xff
+ *   r_out  = (r_byte >> color_desc.shift_right[0]) << color_desc.shift_left[0]
+ *   g_out  = (g_byte >> color_desc.shift_right[1]) << color_desc.shift_left[1]
+ *   b_out  = (b_byte >> color_desc.shift_right[2]) << color_desc.shift_left[2]
+ *   return r_out | g_out | b_out
+ *
+ * For an RGB565 surface (R=0xF800 / G=0x07E0 / B=0x001F), this maps
+ * (R, G, B) 8-bit channels to a 16-bit packed value with the top
+ * 5/6/5 bits placed.  Retail's "& 0x1f" on shift counts is a no-op for
+ * the values the descriptor builder writes (always 0..7) but we
+ * mirror it (a defensive no-op against undefined shifts).
+ *
+ * Called by zdd_object_set_color_key's 16bpp branch (FUN_005b9830) and
+ * by some scene-runner sites that pack ad-hoc colors. */
+uint32_t zdd_color_convert(zdd *self, uint32_t input_rgb);
+
+/* FUN_005b8a20 — pixel-format binding.  Calls GetSurfaceDesc on the
+ * supplied surface, reads the embedded DDPIXELFORMAT's R/G/B bitmasks,
+ * and stamps self->color_desc with the precomputed shifts that
+ * zdd_color_convert needs.  Per channel:
+ *
+ *   shift_left[ch]  = count of trailing zeros in mask_raw[ch]
+ *                     (where the channel sits in the output word)
+ *   mask_lo[ch]     = (mask_raw[ch] >> shift_left[ch]) & 0xff
+ *                     (significance bits after stripping placement)
+ *   shift_right[ch] = 3 if mask_lo == 0x1f, else 2
+ *                     (input >> shift to get top 5 or 6 bits)
+ *
+ * Called from zdd_create_screen's post-success path when
+ * pixel_format_bpp == 16 (the only bpp that needs format-aware color
+ * conversion).  Returns 1 on success, 0 if GetSurfaceDesc failed.
+ *
+ * NULL surface returns 0.  Side effect: descriptor bytes are stamped
+ * IN PLACE — does not clear non-touched bytes (caller must zero-init
+ * if state matters), but the ctor already zero-fills the whole zdd
+ * struct. */
+int  zdd_bind_pixel_format(zdd *self, void *surface);
+
 /* FUN_005b8fc0 — 5-mode per-frame present dispatcher.  Switches on
  * self->pixel_format_mode (the launcher mode 0..4) and dispatches to
  * one of:
@@ -1193,6 +1358,54 @@ int  zdd_surface_blt(void *dest, const int32_t *dest_rect,
  * 0 silently. */
 int  zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
                          int width, int height);
+
+/* IDirectDrawSurface7::GetSurfaceDesc via vtable[22] (byte 0x58 —
+ * verified by r2 disasm of FUN_005b8a20: `call dword [eax + 0x58]`).
+ * Caller stamps `ddsd[0] = dwSize = 0x7c` and `ddsd[4] = dwFlags =
+ * 0x1000 (DDSD_PIXELFORMAT)` before the call.  On success, the entire
+ * 124-byte DDSURFACEDESC2 is filled; bind_pixel_format only reads the
+ * embedded DDPIXELFORMAT R/G/B masks at offsets 0x58..0x60 inside the
+ * descriptor.  Returns 0 if the call returned non-S_OK; returns 1
+ * otherwise.  No DDERR log — retail's FUN_005b8a20 silently drops the
+ * failure (returns 0 to its caller, which has no observable consumer
+ * in the boot path).  NULL surface or NULL ddsd returns 0. */
+int  zdd_surface_get_desc(void *surface, void *ddsd);
+
+/* IDirectDrawSurface7::Lock via vtable[25] (byte 0x64 — verified by r2
+ * disasm of FUN_005b9490: `call dword [eax + 0x64]`).  Args mirror
+ * retail exactly: (this, lpDestRect=NULL, lpDDSurfaceDesc, dwFlags=1
+ * (DDLOCK_WAIT), hEvent=NULL).  The DDSURFACEDESC2 pointed to by
+ * `ddsd` MUST have its dwSize stamped before the call — retail leaves
+ * this to the caller (FUN_005b9490 hands the surface's embedded
+ * scratch DDSD, pre-stamped 0x7c by FUN_005b97e0).  Returns 0 if the
+ * underlying Lock returned non-S_OK (DDERR_SURFACELOST etc.); returns
+ * the HRESULT in *out_hr so callers can log it via zdd_log_dderr.
+ * Returns 1 on success.  NULL surface returns 0 with *out_hr untouched. */
+int  zdd_surface_lock(void *surface, void *ddsd, uint32_t flags,
+                      int32_t *out_hr);
+
+/* IDirectDrawSurface7::Unlock via vtable[32] (byte 0x80 — verified by
+ * r2 disasm of FUN_005b94d0: `call dword [eax + 0x80]`).  Args
+ * (this, lpRect=NULL) — retail's FUN_005b94d0 ALWAYS passes NULL for
+ * lpRect, meaning "release the entire surface lock".  Return value is
+ * ignored by retail.  NULL surface is a silent no-op. */
+void zdd_surface_unlock(void *surface);
+
+/* Extract post-Lock DDSD slots (lpSurface, lPitch, dwHeight) from a
+ * zdd_object's embedded scratch DDSD.  Retail reads these directly via
+ * `*(void**)(this+0x54)` / `*(int*)(this+0x40)` / `*(int*)(this+0x38)`
+ * — the DDSD offsets 0x24/0x10/0x08 added to the embedded_ddsd's
+ * +0x30 base.  This primitive exists for host portability: in the
+ * Win32 build it just reads those offsets directly (pointer is 4
+ * bytes, same as retail).  In the host build a test stub publishes
+ * canned values so the layout mismatch (8-byte pointers, struct sized
+ * to fit them) doesn't bleed into the pure-logic test path.
+ *
+ * Out pointers may be NULL (skip that slot's write).  Returns 1 if
+ * extraction succeeded, 0 if `self` is NULL.  Does NOT itself call
+ * Lock — caller must have already called zdd_object_lock. */
+int  zdd_object_get_locked_info(zdd_object *self, void **out_buf,
+                                int32_t *out_pitch, int32_t *out_height);
 
 /* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Underlying
  * primitive that zdd_object_get_dc forwards to after dereferencing

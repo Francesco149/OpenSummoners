@@ -1016,3 +1016,186 @@ int zdd_window_paint(zdd *self, void *hwnd)
 
     return 1;
 }
+
+/* ─── surface Lock/Unlock + clear (FUN_005b9490 / _94d0 / _9410) ────── */
+
+/* FUN_005b9490 — Lock self->com_primary into self's embedded DDSD.
+ * Returns 1 on success, 0 if com_primary is NULL or Lock failed.
+ * On failure the DDERR is logged via the underlying primitive (which
+ * receives self->parent for the log site). */
+int zdd_object_lock(zdd_object *self)
+{
+    if (self == NULL || self->com_primary == NULL) return 0;
+
+    /* The DDSD passed to Lock is the embedded scratch DDSURFACEDESC2
+     * starting at self->embedded_ddsd[0] (which is at object offset
+     * +0x30 — confirmed by retail's `lea eax, [ecx+0x30]` literal at
+     * 0x5b9498).  Retail does NOT re-stamp dwSize here: FUN_005b97e0
+     * already wrote 0x7c into embedded_ddsd[0] at ctor time, and Lock
+     * preserves it across the call.  We mirror — no re-stamp. */
+    int32_t hr = 0;
+    int ok = zdd_surface_lock(self->com_primary, self->embedded_ddsd,
+                              1u /* DDLOCK_WAIT */, &hr);
+    if (!ok) {
+        /* Retail logs "DirectDrawSurface" + "" (empty) + hr.  The
+         * empty second prefix is from DAT_008a4b84 (empty BSS string)
+         * — same shape as every other DDERR site in the engine. */
+        if (self->parent != NULL) {
+            zdd_log_dderr(self->parent, "DirectDrawSurface", "", hr);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* FUN_005b94d0 — bare Unlock forward.  Retail has no NULL guard on
+ * com_primary; we add one because the underlying primitive's NULL
+ * guard would otherwise silently no-op (same observable behaviour but
+ * the early-return saves the indirect-call setup). */
+void zdd_object_unlock(zdd_object *self)
+{
+    if (self == NULL) return;
+    zdd_surface_unlock(self->com_primary);
+}
+
+/* FUN_005b9410 — Lock + zero-fill + Unlock.  Fills `pitch * height`
+ * bytes starting at the Lock-populated lpSurface.  No-op if Lock
+ * fails.  Retail reads pitch/height/lpSurface from the zdd_object's
+ * embedded DDSD at +0x40 / +0x38 / +0x54 (DDSD offsets 0x10/0x08/0x24
+ * past the +0x30 embedded_ddsd base).  Our port routes the read
+ * through zdd_object_get_locked_info to keep the pointer-size
+ * mismatch (8-byte host pointer vs 4-byte retail DDSD slot) out of
+ * the pure-logic path. */
+void zdd_object_clear(zdd_object *self)
+{
+    if (self == NULL) return;
+    if (!zdd_object_lock(self)) return;
+
+    void *surf = NULL;
+    int32_t pitch = 0, height = 0;
+    zdd_object_get_locked_info(self, &surf, &pitch, &height);
+
+    uint32_t total = (uint32_t)pitch * (uint32_t)height;
+
+    if (surf != NULL && total > 0) {
+        /* Retail does the DWORD loop + byte-remainder loop in
+         * inline asm.  memset is observably identical and lets the
+         * compiler vectorise. */
+        memset(surf, 0, total);
+    }
+
+    zdd_object_unlock(self);
+}
+
+/* ─── color descriptor binding + conversion (FUN_005b8a20 / _8b00) ─── */
+
+/* FUN_005b8a20 — GetSurfaceDesc + extract RGB masks + compute shifts.
+ * Stamps self->color_desc with the precomputed shift table needed by
+ * zdd_color_convert. */
+int zdd_bind_pixel_format(zdd *self, void *surface)
+{
+    if (self == NULL || surface == NULL) return 0;
+
+    /* DDSURFACEDESC2 is 0x7c bytes; we only need the R/G/B masks at
+     * offsets 0x58 / 0x5c / 0x60 (inside the embedded DDPIXELFORMAT
+     * at +0x48).  Stack-allocate the whole thing to match retail's
+     * call shape exactly. */
+    uint8_t ddsd[0x7c];
+    memset(ddsd, 0, sizeof(ddsd));
+    *(uint32_t *)&ddsd[0x00] = 0x7c;     /* dwSize */
+    *(uint32_t *)&ddsd[0x04] = 0x1000;   /* dwFlags = DDSD_PIXELFORMAT */
+
+    if (!zdd_surface_get_desc(surface, ddsd)) return 0;
+
+    /* Read raw R/G/B masks from the embedded DDPIXELFORMAT.  The
+     * extracted shifts per channel:
+     *   - count trailing zeros in mask (placement shift_left)
+     *   - shifted mask low byte (significance)
+     *   - 3 if significance saturates to 0x1f (5-bit channel), else 2 */
+    const uint32_t mask_off[3] = {0x58, 0x5c, 0x60};
+    for (int ch = 0; ch < 3; ch++) {
+        uint32_t raw = *(uint32_t *)&ddsd[mask_off[ch]];
+        self->color_desc.mask_raw[ch] = raw;
+
+        uint8_t tz = 0;
+        uint32_t shifted = raw;
+        if (shifted != 0) {
+            while ((shifted & 1u) == 0) {
+                tz++;
+                shifted >>= 1;
+            }
+        }
+        self->color_desc.mask_lo[ch]     = (uint8_t)shifted;
+        self->color_desc.shift_left[ch]  = tz;
+        self->color_desc.shift_right[ch] =
+            (uint8_t)((shifted == 0x1fu ? 1u : 0u) + 2u);
+    }
+    return 1;
+}
+
+/* FUN_005b8b00 — pack RGB888 input into surface-native pixel using
+ * the precomputed descriptor. */
+uint32_t zdd_color_convert(zdd *self, uint32_t input_rgb)
+{
+    if (self == NULL) return 0;
+
+    /* Retail's `& 0x1f` on each shift count is a defensive no-op
+     * against undefined-behaviour shifts >= 32.  The values written
+     * by zdd_bind_pixel_format are always 0..11 (for RGB565), so the
+     * mask is observable-equivalent to no mask.  Mirror anyway. */
+    uint32_t r_byte = (input_rgb >> 16) & 0xffu;
+    uint32_t g_byte = (input_rgb >>  8) & 0xffu;
+    uint32_t b_byte = (input_rgb >>  0) & 0xffu;
+
+    uint32_t r_out = (r_byte >> (self->color_desc.shift_right[0] & 0x1fu))
+                     << (self->color_desc.shift_left[0] & 0x1fu);
+    uint32_t g_out = (g_byte >> (self->color_desc.shift_right[1] & 0x1fu))
+                     << (self->color_desc.shift_left[1] & 0x1fu);
+    uint32_t b_out = (b_byte >> (self->color_desc.shift_right[2] & 0x1fu))
+                     << (self->color_desc.shift_left[2] & 0x1fu);
+
+    return r_out | g_out | b_out;
+}
+
+/* ─── color-keyed blit (FUN_005b9b70) ──────────────────────────────── */
+
+/* FUN_005b9b70 — variant of blt_onto with positioned dest + KEYSRC. */
+int zdd_object_blt_keyed(zdd_object *self, zdd_object *dest,
+                         int32_t dest_x, int32_t dest_y)
+{
+    if (self == NULL || self->com_primary == NULL) {
+        return 1;  /* degenerate-success — retail's literal */
+    }
+    if (dest == NULL || dest->com_primary == NULL) {
+        /* Defensive — same shape as zdd_object_blt_onto's NULL-dest
+         * guard.  Retail crashes on the next vtable deref. */
+        return 0;
+    }
+
+    int32_t left   = self->metric_0c + dest_x;
+    int32_t top    = self->metric_10 + dest_y;
+    int32_t right  = self->metric_b8 + left;
+    int32_t bottom = self->metric_bc + top;
+
+    int32_t dest_rect[4] = {left, top, right, bottom};
+
+    /* src_rect from self->metric_b0..bc — always {0, 0, w, h}. */
+    int32_t src_rect[4] = {
+        self->metric_b0,
+        self->metric_b4,
+        self->metric_b8,
+        self->metric_bc,
+    };
+
+    /* Retail OR's 0x1000000 (DDBLT_KEYSRC, but also alias for
+     * DDBLT_WAIT in some headers — the value matches both literally
+     * because they're separate bits in the same DDBLT_ enum but the
+     * bit's actual semantics here is "Blt wait/src-key").  Mirror the
+     * raw literal — disambiguating the meaning is a renderer-side
+     * concern. */
+    uint32_t flags = (uint32_t)self->state_flag | 0x1000000u;
+
+    return zdd_surface_blt(dest->com_primary, dest_rect,
+                           self->com_primary, src_rect,
+                           flags, self->parent);
+}

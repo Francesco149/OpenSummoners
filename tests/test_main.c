@@ -339,6 +339,30 @@ struct test_case {
     X(zdd_window_paint_null_primary_obj_returns_zero)          \
     X(zdd_window_paint_mode2_full_sequence)                    \
     X(zdd_window_paint_does_not_touch_present_primitives)      \
+    X(zdd_object_lock_null_self_returns_zero)                  \
+    X(zdd_object_lock_null_com_primary_returns_zero)           \
+    X(zdd_object_lock_success_forwards_and_returns_one)        \
+    X(zdd_object_lock_failure_logs_and_returns_zero)           \
+    X(zdd_object_unlock_null_self_noop)                        \
+    X(zdd_object_unlock_forwards_to_primitive)                 \
+    X(zdd_object_clear_null_self_noop)                         \
+    X(zdd_object_clear_lock_failure_skips_fill_and_unlock)     \
+    X(zdd_object_clear_zero_fills_and_unlocks)                 \
+    X(zdd_object_clear_zero_size_safe)                         \
+    X(zdd_bind_pixel_format_null_self_returns_zero)            \
+    X(zdd_bind_pixel_format_null_surface_returns_zero)         \
+    X(zdd_bind_pixel_format_getdesc_failure_returns_zero)      \
+    X(zdd_bind_pixel_format_rgb565_stamps_descriptor)          \
+    X(zdd_bind_pixel_format_rgb555_stamps_descriptor)          \
+    X(zdd_color_convert_null_self_returns_zero)                \
+    X(zdd_color_convert_rgb565_white)                          \
+    X(zdd_color_convert_rgb565_pure_red)                       \
+    X(zdd_color_convert_rgb565_pure_blue)                      \
+    X(zdd_color_convert_rgb565_mid_gray)                       \
+    X(zdd_object_blt_keyed_null_self_degenerate_success)       \
+    X(zdd_object_blt_keyed_null_com_primary_degenerate_success)\
+    X(zdd_object_blt_keyed_null_dest_returns_zero)             \
+    X(zdd_object_blt_keyed_offsets_dest_by_metric_0c_10)       \
     X(cs_compute_zoom_rect_clean_centre)                       \
     X(cs_compute_zoom_rect_exact_match)                        \
     X(cs_compute_zoom_rect_zoom_larger_than_display)           \
