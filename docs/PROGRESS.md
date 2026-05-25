@@ -6,6 +6,50 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — Surface-alloc stampers + orchestrator PORTED (4 functions)
+
+Closes out the ZDDObject surface-alloc sub-tree at the leaf level.
+Four new functions land in the same `zdd.{c,h}` family:
+
+  - FUN_005b97e0  `zdd_object_prefill_desc`              66 bytes
+  - FUN_005b98c0  `zdd_object_stamp_metrics`             73 bytes
+  - FUN_005b9830  `zdd_object_set_color_key`            138 bytes
+  - FUN_005b95c0  `zdd_object_create_surface_pair`      110 bytes
+
+Pure logic + tests on the host; the Win32 leg adds
+`zdd_surface_set_color_key` (IDirectDrawSurface7::SetColorKey via
+vtable[29] with DDCKEY_SRCBLT) to `zdd_win32.c`.
+
+The 0x1ffffff colorkey sentinel was confirmed to be load-bearing:
+the orchestrator's boot call site passes it (per FUN_005b8b40 →
+0x5b95c0), so the SetColorKey vtable call is skipped entirely for
+the primary surface alloc and `state_flag` stays 0.  Non-sentinel
+keys stamp state_flag = 0x8000 and call through to the vtable.  The
+16bpp branch inside FUN_005b9830 is a TODO — it expects to call
+FUN_005b8b00 (a channel-shift converter that takes a pixel-format
+descriptor in ECX, identity unresolved), but that branch is dead at
+boot because the sentinel wins.  Once the descriptor's owner is
+pinned, wire FUN_005b8b00's converted output in place of the raw key.
+
+ZDDObject's struct now names 21 fields (up from 8): the three
+self-pointers at +0x00..+0x08 (each points at a specific sub-field of
+the embedded DDSURFACEDESC2 — lpSurface @ DDSD+0x24, lPitch @
+DDSD+0x10, dwHeight @ DDSD+0x08), the six metric slots at +0x0c..
++0x20, the colorkey pair at +0x24/+0x28, the four secondary metrics
+at +0xb0..+0xbc, and the two cached create-time args (caps_in,
+force_videomem_in) at +0xcc/+0xd0.  Only `embedded_ddsd` (the
+124-byte scratch DDSURFACEDESC2 at +0x30..+0xab) remains opaque
+`uint8_t[]`.  Field-naming reflects byte offsets, not semantics — the
+metric clusters likely hold src/dst rect TL/BR pairs based on the
+orchestrator's argument shape, but no consumer reads them yet.
+
+Tests now: **246 pass, 0 fail, 6 skip** (up from 234/6; 12 new
+host tests across prefill / metrics / set_color_key / orchestrator
+plus a "passes caps from field" test that verifies the deliberate
+prefill→roundtrip→CreateSurface read-from-field path retail uses).
+
+---
+
 ## 2026-05-25 — DDSURFACEDESC2 builder + CreateSurface PORTED (FUN_005b8c00)
 
 Lands the meatiest "actually create a DDraw surface" function — 372
