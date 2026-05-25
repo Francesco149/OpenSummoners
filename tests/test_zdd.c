@@ -1519,6 +1519,52 @@ int test_zdd_object_set_color_key_non_sentinel_calls_vtable(void)
     return 0;
 }
 
+int test_zdd_object_set_color_key_16bpp_converts_through_descriptor(void)
+{
+    /* Parent's pixel_format_bpp = 16 plus a stamped RGB565 descriptor
+     * → set_color_key should convert the input via zdd_color_convert
+     * before stamping colorkey_out and calling SetColorKey. */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    parent.pixel_format_bpp = 16;
+    /* Stamp an RGB565 descriptor directly (skip the surface bind). */
+    parent.color_desc.shift_left[0]  = 11;
+    parent.color_desc.shift_left[1]  = 5;
+    parent.color_desc.shift_left[2]  = 0;
+    parent.color_desc.shift_right[0] = 3;
+    parent.color_desc.shift_right[1] = 2;
+    parent.color_desc.shift_right[2] = 3;
+
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+
+    /* Magenta input 0x00FF00FF → R=0xFF, G=0x00, B=0xFF → packed
+     * RGB565 = (0x1F << 11) | (0 << 5) | (0x1F << 0) = 0xF81F. */
+    int rc = zdd_object_set_color_key(&o, 0x00FF00FF);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(o.colorkey_in,  0x00FF00FF);
+    T_ASSERT_EQ_I(o.colorkey_out, 0xF81F);
+    T_ASSERT_EQ_I(g_dd_setkey_calls,   1);
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0xF81F);
+    return 0;
+}
+
+int test_zdd_object_set_color_key_8bpp_skips_conversion(void)
+{
+    /* Parent bpp != 16 → key passes through untouched. */
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    parent.pixel_format_bpp = 8;
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    o.com_primary = (void *)(uintptr_t)0xface;
+
+    int rc = zdd_object_set_color_key(&o, 0x42);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(o.colorkey_out, 0x42);  /* unchanged */
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0x42);
+    return 0;
+}
+
 int test_zdd_object_set_color_key_failure_logs_and_returns_zero(void)
 {
     reset_stubs();

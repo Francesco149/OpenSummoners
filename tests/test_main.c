@@ -272,6 +272,8 @@ struct test_case {
     X(zdd_object_stamp_metrics_does_not_touch_other_fields)    \
     X(zdd_object_set_color_key_sentinel_short_circuits)        \
     X(zdd_object_set_color_key_non_sentinel_calls_vtable)      \
+    X(zdd_object_set_color_key_16bpp_converts_through_descriptor)\
+    X(zdd_object_set_color_key_8bpp_skips_conversion)          \
     X(zdd_object_set_color_key_failure_logs_and_returns_zero)  \
     X(zdd_object_create_surface_pair_happy_path)               \
     X(zdd_object_create_surface_pair_create_surface_fails)     \

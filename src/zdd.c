@@ -205,18 +205,19 @@ int zdd_object_set_color_key(zdd_object *self, int32_t key)
     self->state_flag = 0x8000;
 
     /* 16bpp branch: retail runs the key through FUN_005b8b00 (a pixel-
-     * format channel-shifter that picks 16bpp masks off some descriptor
-     * pointer in ECX).  The conversion is currently NOT ported — the
-     * descriptor object's identity is still unresolved (see
-     * docs/findings/ddraw-init.md open thread "FUN_005b8b00").  For boot
-     * the orchestrator's caller (FUN_005b8b40 -> FUN_005b95c0) passes
-     * the sentinel, so the sentinel branch above wins and this branch
-     * never executes at boot.  Once a real consumer needs it, port
-     * FUN_005b8b00 and replace the raw key here with its converted
-     * value. */
+     * format channel-shifter that packs the RGB888 input into the
+     * surface's native pixel layout using the descriptor at the start
+     * of the parent ZDD struct).  The descriptor must have been
+     * stamped first by zdd_bind_pixel_format (post-CreateScreen, in
+     * the 16bpp branch of zdd_create_screen) — which it is on the
+     * live 16bpp boot path.
+     *
+     * For boot the orchestrator passes the sentinel so this branch
+     * never fires; for real scene content this is the path that maps
+     * "transparent magenta" 0x00FF00FF into the surface's 16bpp
+     * encoding before binding via SetColorKey. */
     if (self->parent != NULL && self->parent->pixel_format_bpp == 16) {
-        /* key = zdd_pixel_format_convert_16bpp(self->parent, key); */
-        /* TODO: pending FUN_005b8b00. */
+        key = (int32_t)zdd_color_convert(self->parent, (uint32_t)key);
     }
     self->colorkey_out = key;
 
