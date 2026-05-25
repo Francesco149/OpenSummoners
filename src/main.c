@@ -35,6 +35,8 @@
 #include <stdint.h>
 
 #include "dev_hooks.h"
+#include "zdd.h"
+#include "cs_dispatch.h"
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -53,15 +55,30 @@
 
 #define SINGLETON_MUTEX_NAME  "OpenSummoners-SingleInstance"
 
+/* Default launcher mode = 2 (Windowed).  Retail picks this from the
+ * launcher dialog's radio (stored in user/config.dat at +0x04).  Until
+ * we port FUN_005a4770 (the 45 KB config.dat parser) the drop-in
+ * hardcodes Windowed — the lowest-risk first wiring pass, doesn't
+ * require display-mode changes that may fail under WSL/RDP/headless.
+ * Override per-run via --launcher-mode=N (0=Full / 1=Safe / 2=Wind /
+ * 3=DB / 4=Zoom).  Zoom-target defaults mirror retail's
+ * `*(int*)(in_ECX + 0x14/0x18)` = 1280×960. */
+#define DEFAULT_LAUNCHER_MODE   2
+#define DEFAULT_ZOOM_TARGET_W   1280
+#define DEFAULT_ZOOM_TARGET_H   960
+
 static HINSTANCE g_hInstance;
 static HWND      g_hwnd;
 static int       g_hide_window;
 static int       g_show_msgbox;
 static int       g_allow_multi;
 static int       g_skip_cd;
+static int       g_skip_ddraw;
 static unsigned  g_max_frames;
+static int       g_launcher_mode = DEFAULT_LAUNCHER_MODE;
 static int       g_shutdown;
 static HANDLE    g_singleton_mutex;
+static zdd      *g_zdd;
 
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
@@ -77,6 +94,8 @@ static void release_singleton(void);
 static void main_loop_body(void);
 static void frame_limiter(void);
 static void log_line(const char *fmt, ...);
+static int  init_ddraw(void);
+static void shutdown_ddraw(void);
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -125,6 +144,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         UpdateWindow(g_hwnd);
     }
 
+    /* DDraw init — mirrors retail FUN_00562ea0's bootstrap order:
+     *   1. FUN_005b7ee0  → zdd_create            (DirectDrawCreateEx)
+     *   2. FUN_005b89d0  → zdd_set_coop_level    (SetCooperativeLevel)
+     *   3. FUN_00582e90  → cs_dispatch_create_screen (per-mode CreateScreen)
+     * Fullscreen flag for SetCooperativeLevel is (launcher_mode != 2)
+     * — only Windowed runs DDSCL_NORMAL.  cs_dispatch_create_screen
+     * returns void; on failure it ExitProcess(0)'s via cs_exit. */
+    if (!g_skip_ddraw && !init_ddraw()) {
+        timeEndPeriod(1);
+        return 1;
+    }
+
     g_base_time_ms = timeGetTime();
 
     /* g_max_frames == 0 → run until WM_QUIT or external close.  Non-zero
@@ -137,10 +168,51 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     log_line("OpenSummoners exiting after %u frames (%u ms wall)",
              g_frame_counter, g_total_ms);
 
+    shutdown_ddraw();
     timeEndPeriod(1);
     dev_hooks_uninstall_messagebox();
     release_singleton();
     return 0;
+}
+
+/* Build the ZDD + drive the per-mode CreateScreen dispatcher.  Logs
+ * the chosen mode + the result of each step.  Returns 1 on success.
+ *
+ * On cs_dispatch_create_screen failure, the real Win32 cs_exit is
+ * ExitProcess(0) — control never returns from that call.  We log
+ * "dispatch returned" after it as a marker for the success path. */
+static int init_ddraw(void)
+{
+    log_line("init_ddraw: launcher_mode=%d (0=Full 1=Safe 2=Wind 3=DB 4=Zoom)",
+             g_launcher_mode);
+
+    if (!zdd_create(&g_zdd)) {
+        log_line("init_ddraw: zdd_create (DirectDrawCreateEx) failed");
+        return 0;
+    }
+
+    int fullscreen = (g_launcher_mode != 2);
+    if (!zdd_set_coop_level(g_zdd, g_hwnd, fullscreen)) {
+        log_line("init_ddraw: SetCooperativeLevel(fullscreen=%d) failed",
+                 fullscreen);
+        zdd_destroy(g_zdd);
+        g_zdd = NULL;
+        return 0;
+    }
+    log_line("init_ddraw: SetCooperativeLevel ok (fullscreen=%d)", fullscreen);
+
+    cs_dispatch_create_screen(g_zdd, g_launcher_mode,
+                              DEFAULT_ZOOM_TARGET_W, DEFAULT_ZOOM_TARGET_H);
+    log_line("init_ddraw: CreateScreen dispatch returned (success path)");
+    return 1;
+}
+
+static void shutdown_ddraw(void)
+{
+    if (g_zdd != NULL) {
+        zdd_destroy(g_zdd);
+        g_zdd = NULL;
+    }
 }
 
 /* Anchor CWD + DLL search dir to the game directory.  Reads
@@ -284,12 +356,20 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--show-msgbox"))  g_show_msgbox = 1;
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;
+        else if (!strcmp(tok, "--skip-ddraw"))   g_skip_ddraw = 1;
         else if (!strcmp(tok, "--frames")) {
             tok = strtok(NULL, " \t");
             if (tok) g_max_frames = (unsigned)strtoul(tok, NULL, 10);
         }
         else if (!strncmp(tok, "--frames=", 9)) {
             g_max_frames = (unsigned)strtoul(tok + 9, NULL, 10);
+        }
+        else if (!strcmp(tok, "--launcher-mode")) {
+            tok = strtok(NULL, " \t");
+            if (tok) g_launcher_mode = (int)strtol(tok, NULL, 10);
+        }
+        else if (!strncmp(tok, "--launcher-mode=", 16)) {
+            g_launcher_mode = (int)strtol(tok + 16, NULL, 10);
         }
         tok = strtok(NULL, " \t");
     }

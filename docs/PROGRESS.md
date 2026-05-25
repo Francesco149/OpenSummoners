@@ -6,6 +6,53 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-25 — DDraw init WIRED into drop-in `WinMain` (mode-2 Windowed)
+
+The boot-time graphics init chain is now end-to-end inside the drop-in.
+`src/main.c` now calls (after window creation):
+
+1. `zdd_create(&g_zdd)`           — DirectDrawCreateEx (FUN_005b7ee0)
+2. `zdd_set_coop_level(g_zdd, hwnd, fullscreen)` — SetCooperativeLevel
+   (FUN_005b89d0).  `fullscreen = (launcher_mode != 2)` — only Windowed
+   runs DDSCL_NORMAL; the other modes use DDSCL_EXCLUSIVE|FULLSCREEN|
+   ALLOWREBOOT.
+3. `cs_dispatch_create_screen(g_zdd, launcher_mode, 1280, 960)`
+   — the FUN_00582e90 driver that fans into per-mode CreateScreen.
+   Zoom-target args (1280×960) mirror retail's `*(int*)(in_ECX +
+   0x14/0x18)`.
+
+Cleanup at process exit calls `zdd_destroy(g_zdd)`.  Until the
+launcher settings record parser (FUN_005a4770, 45 KB) is ported,
+the launcher mode is hardcoded to **2 (Windowed)** — overridable
+per-run via `--launcher-mode=N`.  `--skip-ddraw` keeps the prior
+"window-only" boot path for harness comparison.
+
+Live boot via `tools/run-opensummoners.sh` runs clean to the success
+path:
+
+```
+[opensummoners] init_ddraw: launcher_mode=2 (0=Full 1=Safe 2=Wind 3=DB 4=Zoom)
+[opensummoners] init_ddraw: SetCooperativeLevel ok (fullscreen=0)
+[opensummoners] init_ddraw: CreateScreen dispatch returned (success path)
+[opensummoners] OpenSummoners exiting after 120 frames (1920 ms wall)
+[launcher] child exited (rc=0)
+```
+
+No surface drawing yet — the title menu / scene loop (FUN_0056aea0)
+is still unported, so 120 frames of empty main-loop run through with
+no visible output.  This is the surface-creation plumbing, not a
+renderer.
+
+Tests unchanged at 307/0/6 (no port changes; just wiring).  Cross-build
+clean.
+
+Next: port the title-menu scene runner OR a "draw something to the
+primary surface" smoke (BltColorFill on com_a) so we can confirm the
+surface is actually writable in flight.  The 16bpp pixel-format
+binding (FUN_005b8a20) gap may surface here.
+
+---
+
 ## 2026-05-25 — `cs_dispatch_create_screen` PORTED (FUN_00582e90, 3560B outer mode dispatcher)
 
 The outer mode-dispatch driver around `zdd_create_screen` lands.
