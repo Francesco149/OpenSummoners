@@ -468,9 +468,18 @@ int  zdd_object_set_color_key(zdd_object *self, int32_t key);
  *   zdd_object_prefill_desc(self, p3, p5)
  *   if (!zdd_create_surface(self->parent, &self->com_primary,
  *                           width, height,
- *                           self->caps_in, p5)) return
+ *                           self->caps_in, p5)) return 0
  *   zdd_object_stamp_metrics(self, p1, p2, p3, p4, p5, p6)
- *   zdd_object_set_color_key(self, p4)
+ *   return zdd_object_set_color_key(self, p4)
+ *
+ * Return value matches retail's implicit EAX-carry-through:
+ *   0  →  CreateSurface failed (or SetColorKey failed on the real-key
+ *         branch).  Caller (FUN_005b8b40) tears down the ZDDObject.
+ *   1  →  CreateSurface succeeded AND (SetColorKey succeeded OR was
+ *         skipped via the 0x1ffffff sentinel).
+ * Retail's Ghidra decomp shows the function as `void` but the assembly
+ * leaves the last callee's return in EAX — the FUN_005b8b40 caller
+ * reads it as int.
  *
  * Args follow retail's 9-param shape (p7 is captured but unused — retail
  * builds it but never reads it; we accept it for ABI symmetry):
@@ -482,11 +491,39 @@ int  zdd_object_set_color_key(zdd_object *self, int32_t key);
  *   p6     = unknown (stamped at +0x18/+0xbc)
  *   p7     = unused
  *   width, height = surface dimensions */
-void zdd_object_create_surface_pair(zdd_object *self,
+int  zdd_object_create_surface_pair(zdd_object *self,
                                     int32_t p1, int32_t p2, int32_t p3,
                                     int32_t p4, int32_t p5, int32_t p6,
                                     int32_t p7,
                                     uint32_t width, uint32_t height);
+
+/* FUN_005b8b40 — operator_new(0xd8) + ZDDObject ctor + surface-alloc
+ * orchestrator + cleanup-on-failure.  The public factory the engine
+ * uses to ask "give me a new ZDDObject bound to a fresh surface".
+ *
+ *   zdo = calloc(1, sizeof(zdd_object));
+ *   if (!zdo) return 0;
+ *   zdd_object_ctor(zdo, parent);
+ *   if (!zdd_object_create_surface_pair(zdo, w, h, 0, colorkey,
+ *                                       count, 0, 0, w, h)) {
+ *       zdd_object_dtor(zdo); free(zdo); return 0;
+ *   }
+ *   *out = zdo; return 1;
+ *
+ * Note: retail uses `operator_new(0xd8)` (uninitialized) — our port
+ * uses calloc for deterministic zero-init.  The subsequent ctor
+ * stamps every observable field, so the observable behaviour is
+ * identical.
+ *
+ * Cleanup-on-failure: retail calls FUN_005b9390 (the bare dtor) +
+ * FUN_005bef0e (the heap-free primitive).  Our port mirrors with
+ * zdd_object_dtor + free.  Note that this is NOT zdd_obj_destroy —
+ * the latter is the parent-driven cleanup primitive that takes a
+ * **pp; here we own the local variable, so we use dtor + free
+ * directly. */
+int  zdd_object_new(zdd *parent, zdd_object **out,
+                    uint32_t width, uint32_t height,
+                    int32_t colorkey, int32_t count);
 
 /* ─── ZDD pure logic ─────────────────────────────────────────────── */
 

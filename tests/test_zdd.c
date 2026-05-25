@@ -1047,3 +1047,127 @@ int test_zdd_object_create_surface_pair_with_real_colorkey(void)
     T_ASSERT_EQ_I(o.colorkey_out, 0xabcdef);
     return 0;
 }
+
+int test_zdd_object_create_surface_pair_returns_1_on_sentinel_success(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    int rc = zdd_object_create_surface_pair(&o, 0, 0, 0, 0x1ffffff,
+                                            1, 0, 0, 100, 100);
+    T_ASSERT_EQ_I(rc, 1);
+    return 0;
+}
+
+int test_zdd_object_create_surface_pair_returns_0_on_create_fail(void)
+{
+    reset_stubs();
+    g_dd_createsurf_result = 0;
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    int rc = zdd_object_create_surface_pair(&o, 0, 0, 0, 0x1ffffff,
+                                            1, 0, 0, 100, 100);
+    T_ASSERT_EQ_I(rc, 0);
+    return 0;
+}
+
+int test_zdd_object_create_surface_pair_returns_0_on_setkey_fail(void)
+{
+    /* CreateSurface succeeded, SetColorKey failed → orchestrator
+     * returns 0.  Retail's implicit EAX-carry-through behaviour.
+     * The wrapper FUN_005b8b40 uses this to decide cleanup. */
+    reset_stubs();
+    g_dd_setkey_result = 0;
+    g_dd_setkey_hr     = (int32_t)0x88760482;
+    zdd parent; zdd_ctor(&parent);
+    zdd_object o; zdd_object_ctor(&o, &parent);
+    int rc = zdd_object_create_surface_pair(&o, 0, 0, 0, /*real key*/ 0x42,
+                                            0, 0, 0, 100, 100);
+    T_ASSERT_EQ_I(rc, 0);
+    /* But CreateSurface DID succeed — surface stamped on the object. */
+    T_ASSERT_EQ_P(o.com_primary, (void *)(uintptr_t)0x99887766);
+    return 0;
+}
+
+/* ─── zdd_object_new (FUN_005b8b40) ──────────────────────────────── */
+
+int test_zdd_object_new_happy_path(void)
+{
+    reset_stubs();
+    zdd parent; zdd_ctor(&parent);
+
+    zdd_object *o = NULL;
+    int rc = zdd_object_new(&parent, &o,
+                            /*w*/ 640, /*h*/ 480,
+                            /*colorkey*/ 0x1ffffff,
+                            /*count*/ 1);
+
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT(o != NULL);
+    /* ctor ran: parent linked, open_objects bumped. */
+    T_ASSERT_EQ_P(o->parent, &parent);
+    T_ASSERT_EQ_I(parent.open_objects, 1);
+    /* Orchestrator ran: caps_in/force_videomem_in stamped, com_primary
+     * populated by the CreateSurface stub. */
+    T_ASSERT_EQ_I(o->caps_in,           0);
+    T_ASSERT_EQ_I(o->force_videomem_in, 1);
+    T_ASSERT_EQ_P(o->com_primary, (void *)(uintptr_t)0x99887766);
+
+    /* Tear down via the parent-driven path to verify zdd_object_dtor
+     * runs cleanly on a fully-populated object. */
+    zdd_obj_destroy(&o);
+    T_ASSERT_EQ_P(o, NULL);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    return 0;
+}
+
+int test_zdd_object_new_create_failure_cleans_up(void)
+{
+    reset_stubs();
+    g_dd_createsurf_result = 0;
+    g_dd_createsurf_hr     = (int32_t)0x88760464;  /* INVALIDCAPS */
+    zdd parent; zdd_ctor(&parent);
+
+    zdd_object *o = (zdd_object *)(uintptr_t)0xdead;   /* pre-poison */
+    int rc = zdd_object_new(&parent, &o, 320, 200, 0x1ffffff, 1);
+
+    T_ASSERT_EQ_I(rc, 0);
+    /* On failure, *out is NOT written (retail leaves caller's slot
+     * untouched).  Our poison value survives. */
+    T_ASSERT_EQ_P(o, (zdd_object *)(uintptr_t)0xdead);
+    /* And the ZDDObject we allocated got dtor'd + freed — parent's
+     * open_objects counter is back to 0 (ctor bumped to 1, dtor
+     * decremented to 0). */
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    /* DDERR logged. */
+    T_ASSERT(strstr(g_log_capture, "DDERR_INVALIDCAPS") != NULL);
+    return 0;
+}
+
+int test_zdd_object_new_setkey_failure_cleans_up(void)
+{
+    /* CreateSurface succeeded but SetColorKey failed → orchestrator
+     * returns 0 → wrapper tears down even though the surface DID
+     * get allocated.  This matches retail's "all or nothing" stance:
+     * if any leg of the pair-init fails, the whole ZDDObject is
+     * discarded. */
+    reset_stubs();
+    g_dd_setkey_result = 0;
+    g_dd_setkey_hr     = (int32_t)0x88760482;
+    zdd parent; zdd_ctor(&parent);
+
+    zdd_object *o = NULL;
+    int rc = zdd_object_new(&parent, &o, 64, 64,
+                            /*real colorkey*/ 0xabc, 1);
+
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT(o == NULL);
+    T_ASSERT_EQ_I(parent.open_objects, 0);
+    /* zdd_object_dtor ran its release-children pass — both com_back
+     * and com_primary went through zdd_com_release.  com_back was
+     * never set so that's a no-op; com_primary was stamped by the
+     * CreateSurface stub but the host stub doesn't track refcounts
+     * for fake surfaces, so we can only assert "dtor reached without
+     * crashing" via open_objects == 0. */
+    return 0;
+}

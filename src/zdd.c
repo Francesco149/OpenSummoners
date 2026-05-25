@@ -213,11 +213,11 @@ int zdd_object_set_color_key(zdd_object *self, int32_t key)
     return zdd_surface_set_color_key(self->com_primary, key, self->parent);
 }
 
-void zdd_object_create_surface_pair(zdd_object *self,
-                                    int32_t p1, int32_t p2, int32_t p3,
-                                    int32_t p4, int32_t p5, int32_t p6,
-                                    int32_t p7,
-                                    uint32_t width, uint32_t height)
+int zdd_object_create_surface_pair(zdd_object *self,
+                                   int32_t p1, int32_t p2, int32_t p3,
+                                   int32_t p4, int32_t p5, int32_t p6,
+                                   int32_t p7,
+                                   uint32_t width, uint32_t height)
 {
     (void)p7;  /* retail param_7 is dead — captured for ABI symmetry */
 
@@ -229,13 +229,47 @@ void zdd_object_create_surface_pair(zdd_object *self,
     if (!zdd_create_surface(self->parent, &self->com_primary,
                             width, height,
                             (uint32_t)self->caps_in, (int)p5)) {
-        return;
+        return 0;
     }
 
     zdd_object_stamp_metrics(self, p1, p2, p3, p4, p5, p6);
-    /* Return value intentionally dropped — retail's orchestrator does
-     * not check FUN_005b9830's result. */
-    (void)zdd_object_set_color_key(self, p4);
+    /* Return the EAX-carry-through value from the last call — retail's
+     * implicit return.  This is the SetColorKey success bit (1 for
+     * sentinel branch or successful vtable call, 0 for vtable failure). */
+    return zdd_object_set_color_key(self, p4);
+}
+
+int zdd_object_new(zdd *parent, zdd_object **out,
+                   uint32_t width, uint32_t height,
+                   int32_t colorkey, int32_t count)
+{
+    /* Retail uses operator_new(0xd8) (uninitialized); calloc here is
+     * deterministic and the subsequent ctor stamps every observable
+     * field, so the difference is invisible. */
+    zdd_object *zdo = (zdd_object *)calloc(1, sizeof(zdd_object));
+    if (zdo == NULL) {
+        return 0;
+    }
+
+    zdd_object_ctor(zdo, parent);
+
+    /* FUN_005b8b40 call shape (per docs/findings/ddraw-init.md §
+     * "FUN_005b8b40"):  FUN_005b95c0(w, h, 0, colorkey, count, 0, 0, w, h).
+     * The p3 = 0 / p6 = 0 / p7 = 0 slots are caller-fixed at this
+     * layer; higher-level dispatch (FUN_00582e90) may provide non-zero
+     * values when calling the orchestrator directly for other surface
+     * shapes. */
+    if (!zdd_object_create_surface_pair(zdo,
+            /*p1*/ (int32_t)width, /*p2*/ (int32_t)height, /*p3*/ 0,
+            /*p4*/ colorkey, /*p5*/ count, /*p6*/ 0, /*p7*/ 0,
+            width, height)) {
+        zdd_object_dtor(zdo);
+        free(zdo);
+        return 0;
+    }
+
+    *out = zdo;
+    return 1;
 }
 
 /* zdd_obj_destroy — full ZDDObject teardown + heap free.  Replaces

@@ -277,6 +277,12 @@ struct test_case {
     X(zdd_object_create_surface_pair_create_surface_fails)     \
     X(zdd_object_create_surface_pair_passes_caps_from_field)   \
     X(zdd_object_create_surface_pair_with_real_colorkey)       \
+    X(zdd_object_create_surface_pair_returns_1_on_sentinel_success) \
+    X(zdd_object_create_surface_pair_returns_0_on_create_fail) \
+    X(zdd_object_create_surface_pair_returns_0_on_setkey_fail) \
+    X(zdd_object_new_happy_path)                               \
+    X(zdd_object_new_create_failure_cleans_up)                 \
+    X(zdd_object_new_setkey_failure_cleans_up)                 \
 
 #define X(n) extern int test_##n(void);
 TESTS
