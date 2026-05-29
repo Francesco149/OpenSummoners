@@ -10,6 +10,7 @@
 #include "t.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Wire a controller to a header and set the three fields scroll-into-view
@@ -525,5 +526,172 @@ int test_latch_mode2_sub1_blocked_once_dismissed(void)
     cl.pos = 2; c.action = 8;              /* already dismissed → gate fails */
     T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 0);
     T_ASSERT_EQ_I(cl.pos, 2);              /* untouched */
+    return 0;
+}
+
+/* ─── FUN_0040f5c0 menu_ctrl_build / FUN_0040e0c0 menu_ctrl_clear ─────
+ *
+ * These allocate heap geometry; every test clears the controller before
+ * returning so LeakSanitizer (on at process exit) verifies the teardown
+ * frees exactly what the constructor allocated. */
+
+/* The title menu's own parameters: 6 rows, 1 cell/entry, stride 6, linear. */
+int test_build_header_fields(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 6, 1, 6, 0);
+    T_ASSERT(c.list != NULL);
+    T_ASSERT_EQ_I(c.list->type, 0);
+    T_ASSERT_EQ_I(c.list->alloc_a, 6);
+    T_ASSERT_EQ_I(c.list->alloc_b, 1);
+    T_ASSERT_EQ_I(c.list->stride, 6);
+    T_ASSERT_EQ_I(c.list->count, 0);
+    T_ASSERT_EQ_I(c.list->cursor, 0);
+    T_ASSERT_EQ_I(c.list->sel2, 0);
+    T_ASSERT_EQ_U(c.list->repeat_a, 0);
+    T_ASSERT_EQ_U(c.list->repeat_b, 0);
+    /* controller scalars seeded by the ctor */
+    T_ASSERT_EQ_I(c.mode, 1);
+    T_ASSERT_EQ_I(c.field_c, 0);
+    T_ASSERT_EQ_I(c.field_10, 0);
+    T_ASSERT_EQ_I(c.field_20, 0);
+    T_ASSERT_EQ_I(c.field_84, 0);
+    T_ASSERT_EQ_I(c.field_140, 0);
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Non-zero params land in the right scalar / header slots. */
+int test_build_params_carried(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0x11, 0x22, 4, 2, 3, 2);
+    T_ASSERT_EQ_I(c.field_c, 0x11);
+    T_ASSERT_EQ_I(c.field_10, 0x22);
+    T_ASSERT_EQ_I(c.list->alloc_a, 4);
+    T_ASSERT_EQ_I(c.list->alloc_b, 2);
+    T_ASSERT_EQ_I(c.list->stride, 3);
+    T_ASSERT_EQ_I(c.list->type, 2);
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Both arrays and every per-row cell array are allocated and zeroed. */
+int test_build_allocates_zeroed_grid(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 3, 2, 3, 0);
+    T_ASSERT(c.rows != NULL);
+    T_ASSERT(c.entries != NULL);
+    for (int r = 0; r < 3; r++) {
+        T_ASSERT_EQ_I(c.rows[r].field0, 0);
+        T_ASSERT_EQ_I(c.rows[r].action, 0);
+        T_ASSERT(c.rows[r].cells != NULL);
+        for (int k = 0; k < 2; k++) {
+            T_ASSERT_EQ_P(c.rows[r].cells[k].obj0, NULL);
+            T_ASSERT_EQ_P(c.rows[r].cells[k].obj54, NULL);
+            T_ASSERT_EQ_P(c.rows[r].cells[k].obj20, NULL);
+            T_ASSERT_EQ_I(c.rows[r].cells[k].field_c, 0);
+        }
+    }
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Per-column entries get pos = index*0x20 and extent = 0x20; rest zeroed. */
+int test_build_entries_stamped(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 2, 3, 2, 0);
+    for (int e = 0; e < 3; e++) {
+        T_ASSERT_EQ_I(c.entries[e].pos, e * 0x20);
+        T_ASSERT_EQ_I(c.entries[e].extent, 0x20);
+        T_ASSERT_EQ_I(c.entries[e].field4, 0);
+        T_ASSERT_EQ_I(c.entries[e].field_c, 0);
+        T_ASSERT_EQ_I(c.entries[e].field_20, 0);
+    }
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Clear on a fresh (all-zero) controller is a no-op (every guard fails). */
+int test_clear_fresh_is_noop(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_clear(&c);
+    T_ASSERT_EQ_P(c.list, NULL);
+    T_ASSERT_EQ_P(c.rows, NULL);
+    T_ASSERT_EQ_P(c.entries, NULL);
+    T_ASSERT_EQ_P(c.list2, NULL);
+    return 0;
+}
+
+/* Rebuilding recycles the slot: the ctor clears the prior geometry (ASan
+ * would flag a leak / double-free) and the new dims take effect. */
+int test_build_rebuild_recycles(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 6, 1, 6, 0);
+    c.list->count = 4;                     /* simulate a populated list */
+    menu_ctrl_build(&c, 0, 0, 4, 2, 4, 2); /* rebuild with new dims */
+    T_ASSERT_EQ_I(c.list->alloc_a, 4);
+    T_ASSERT_EQ_I(c.list->alloc_b, 2);
+    T_ASSERT_EQ_I(c.list->type, 2);
+    T_ASSERT_EQ_I(c.list->count, 0);       /* fresh header, count reset */
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Clear frees each cell's three lazily-built sub-objects.  obj0 points at
+ * a block whose first word is itself an owned pointer (the 0x411f40 grid
+ * object); clear frees *obj0 then obj0.  ASan verifies no leak/no UAF. */
+int test_clear_frees_cell_subobjects(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 1, 1, 1, 0);
+    menu_cell *cell = &c.rows[0].cells[0];
+    cell->obj0 = malloc(sizeof(void *));
+    *(void **)cell->obj0 = malloc(8);      /* the owned inner pointer */
+    cell->obj54 = malloc(0x54);
+    cell->obj20 = malloc(0x20);
+    menu_ctrl_clear(&c);                    /* must free all four blocks */
+    return 0;
+}
+
+/* Clear also frees the +0x164 owned buffer and NULLs it. */
+int test_clear_frees_field164(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    c.field_164 = malloc(0x10);
+    menu_ctrl_clear(&c);
+    T_ASSERT_EQ_P(c.field_164, NULL);
+    return 0;
+}
+
+/* Clear tears down the whole confirm-list source graph: list2 → src →
+ * {owned0, owned8, caprec → owned0}, then src, then list2 (NULLed). */
+int test_clear_frees_confirm_graph(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    confirm_list   *cl  = (confirm_list   *)calloc(1, sizeof *cl);
+    confirm_src    *src = (confirm_src    *)calloc(1, sizeof *src);
+    confirm_caprec *rec = (confirm_caprec *)calloc(1, sizeof *rec);
+    rec->owned0 = malloc(8);
+    src->owned0 = malloc(8);
+    src->owned8 = malloc(8);
+    src->caprec = rec;
+    cl->src = src;
+    c.list2 = cl;
+    menu_ctrl_clear(&c);
+    T_ASSERT_EQ_P(c.list2, NULL);
     return 0;
 }

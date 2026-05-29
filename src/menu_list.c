@@ -21,6 +21,8 @@
  */
 #include "menu_list.h"
 
+#include <stdlib.h>
+
 /* floor(cursor/stride)*stride via the engine's exact step-search loop. */
 static int32_t page_top(const menu_list_hdr *hdr)
 {
@@ -327,4 +329,147 @@ int32_t menu_list_latch(menu_ctrl *c, uint32_t dir, uint32_t now)
     }
 
     return 0;
+}
+
+/*
+ * FUN_0040e0c0 (555 bytes) — tear down the controller's geometry.
+ *
+ * Frees, in retail order, the confirm-list source graph (list2 → src →
+ * its owned sub-buffers + caprec), the confirm-list object itself, the
+ * owned buffer at +0x164, the per-column metadata array (entries), then
+ * every row's cells (each cell owning three lazily-built sub-objects) and
+ * the row array, and finally the list header.  Each step is guarded on
+ * non-NULL, so it no-ops on a fresh controller; the row/cell loop bounds
+ * read alloc_a/alloc_b from the *still-live* header, so the header is
+ * freed last.  The retail engine frees through operator delete[]
+ * (FUN_005bef0e); free() is the host equivalent.
+ *
+ * NB the cells[k].obj0 path frees `*obj0` then `obj0` — obj0 points at an
+ * object whose first word is itself an owned pointer (built by 0x411f40).
+ */
+void menu_ctrl_clear(menu_ctrl *c)
+{
+    /* list2 (+0x170) — the confirm/message source graph. */
+    if (c->list2 != NULL && c->list2->src != NULL) {
+        confirm_src *src = c->list2->src;          /* piVar1 = **(ecx+0x170) */
+        if (src->caprec != NULL) {                 /* piVar1[3] */
+            free(src->caprec->owned0);             /* free(*puVar2) — no null check in retail */
+            free(src->caprec);                     /* free(puVar2) */
+            src->caprec = NULL;
+        }
+        if (src->owned0 != NULL) { free(src->owned0); src->owned0 = NULL; }  /* piVar1[0] */
+        if (src->owned8 != NULL) { free(src->owned8); src->owned8 = NULL; }  /* piVar1[2] */
+        free(src);                                 /* free(piVar1) */
+        c->list2->src = NULL;                      /* *(ecx+0x170)[0] = 0 */
+    }
+    if (c->list2 != NULL) { free(c->list2); c->list2 = NULL; }
+
+    /* +0x164 — a single owned buffer. */
+    if (c->field_164 != NULL) { free(c->field_164); c->field_164 = NULL; }
+
+    /* entries (+0x178) — the per-column metadata array. */
+    if (c->entries != NULL) { free(c->entries); c->entries = NULL; }
+
+    /* rows (+0x17c) — each row's cells (+ sub-objects), then the array. */
+    if (c->rows != NULL) {
+        menu_list_hdr *hdr = c->list;              /* iVar6 = *(ecx+0x174) */
+        if (hdr->alloc_a > 0) {
+            for (int32_t r = 0; r < hdr->alloc_a; r++) {
+                menu_cell *cells = c->rows[r].cells;
+                if (cells != NULL && hdr->alloc_b > 0) {
+                    for (int32_t k = 0; k < hdr->alloc_b; k++) {
+                        menu_cell *cell = &cells[k];
+                        if (cell->obj0 != NULL) {
+                            free(*(void **)cell->obj0);  /* *obj0 is owned */
+                            free(cell->obj0);
+                            cell->obj0 = NULL;
+                        }
+                        if (cell->obj54 != NULL) { free(cell->obj54); cell->obj54 = NULL; }
+                        if (cell->obj20 != NULL) { free(cell->obj20); cell->obj20 = NULL; }
+                    }
+                }
+                if (c->rows[r].cells != NULL) {
+                    free(c->rows[r].cells);
+                    c->rows[r].cells = NULL;
+                }
+            }
+        }
+        free(c->rows);
+        c->rows = NULL;
+    }
+
+    /* list header (+0x174) — freed last (its dims sized the loops above). */
+    if (c->list != NULL) { free(c->list); c->list = NULL; }
+}
+
+/*
+ * FUN_0040f5c0 (563 bytes) — build the controller's list header + grid.
+ *
+ * Clears any stale state (it is called on a freshly pool-acquired slot
+ * whose pointers may be garbage from a prior occupant), seeds the
+ * controller scalars, allocates the 0x24-byte list header, the row array
+ * (alloc_a × menu_row) with a per-row cell array (alloc_b × menu_cell),
+ * and the per-column metadata array (alloc_b × menu_entry).
+ *
+ * Param map (the title menu passes 0,0,6,1,6,0):
+ *   f_c     → +0x0c        alloc_a → hdr.alloc_a (sizes the row array)
+ *   f_10    → +0x10        alloc_b → hdr.alloc_b (sizes cells & entries)
+ *   stride  → hdr.stride   type    → hdr.type
+ *
+ * operator_new → calloc here (see header for the zero-init divergence).
+ */
+void menu_ctrl_build(menu_ctrl *c, int32_t f_c, int32_t f_10,
+                     int32_t alloc_a, int32_t alloc_b,
+                     int32_t stride, int32_t type)
+{
+    menu_ctrl_clear(c);                            /* FUN_0040e0c0 */
+
+    c->field_c   = f_c;                            /* +0x0c = param_1 */
+    c->field_10  = f_10;                           /* +0x10 = param_2 */
+    c->mode      = 1;                              /* +0x08 = 1 */
+    c->field_20  = 0;                              /* +0x20 */
+    c->field_84  = 0;                              /* +0x84 */
+    c->field_140 = 0;                              /* +0x140 */
+
+    menu_list_hdr *hdr = (menu_list_hdr *)calloc(1, sizeof *hdr); /* operator_new(0x24) */
+    c->list      = hdr;
+    hdr->sel2    = 0;                              /* +0x18 */
+    hdr->cursor  = 0;                              /* +0x14 */
+    hdr->alloc_a = alloc_a;                        /* +0x04 = param_3 */
+    hdr->alloc_b = alloc_b;                        /* +0x08 = param_4 */
+    hdr->stride  = stride;                         /* +0x0c = param_5 */
+    hdr->type    = type;                           /* +0x00 = param_6 */
+    hdr->repeat_a = 0;                             /* +0x1c */
+    hdr->repeat_b = 0;                             /* +0x20 */
+    hdr->count   = 0;                              /* +0x10 */
+
+    c->rows    = (menu_row *)calloc((size_t)(alloc_a > 0 ? alloc_a : 0),
+                                    sizeof(menu_row));   /* operator_new(alloc_a << 4) */
+    c->entries = (menu_entry *)calloc((size_t)(alloc_b > 0 ? alloc_b : 0),
+                                      sizeof(menu_entry)); /* operator_new(alloc_b * 0x24) */
+
+    for (int32_t r = 0; r < alloc_a; r++) {
+        c->rows[r].field0 = 0;                     /* row[0] */
+        c->rows[r].action = 0;                     /* row[4] */
+        c->rows[r].cells = (menu_cell *)calloc((size_t)(alloc_b > 0 ? alloc_b : 0),
+                                               sizeof(menu_cell)); /* alloc_b * 0x18 */
+        for (int32_t k = 0; k < alloc_b; k++) {
+            c->rows[r].cells[k].obj0    = NULL;    /* cell[0] */
+            c->rows[r].cells[k].obj54   = NULL;    /* cell[4] */
+            c->rows[r].cells[k].obj20   = NULL;    /* cell[8] */
+            c->rows[r].cells[k].field_c = 0;       /* cell[0xc] */
+        }
+    }
+
+    for (int32_t e = 0; e < alloc_b; e++) {
+        c->entries[e].pos      = e << 5;           /* entry[0] = index*0x20 */
+        c->entries[e].field4   = 0;                /* entry[4] */
+        c->entries[e].extent   = 0x20;             /* entry[8] */
+        c->entries[e].field_c  = 0;                /* entry[0xc] */
+        c->entries[e].field_10 = 0;                /* entry[0x10] */
+        c->entries[e].field_14 = 0;                /* entry[0x14] */
+        c->entries[e].field_18 = 0;                /* entry[0x18] */
+        c->entries[e].field_1c = 0;                /* entry[0x1c] */
+        c->entries[e].field_20 = 0;                /* entry[0x20] */
+    }
 }

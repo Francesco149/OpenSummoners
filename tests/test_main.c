@@ -336,6 +336,15 @@ struct test_case {
     X(latch_mode2_sub1_reveals_all)                            \
     X(latch_mode2_sub1_dismisses_at_cap)                       \
     X(latch_mode2_sub1_blocked_once_dismissed)                 \
+    X(build_header_fields)                                     \
+    X(build_params_carried)                                    \
+    X(build_allocates_zeroed_grid)                             \
+    X(build_entries_stamped)                                   \
+    X(clear_fresh_is_noop)                                     \
+    X(build_rebuild_recycles)                                  \
+    X(clear_frees_cell_subobjects)                             \
+    X(clear_frees_field164)                                    \
+    X(clear_frees_confirm_graph)                               \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

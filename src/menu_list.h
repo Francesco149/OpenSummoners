@@ -87,12 +87,15 @@ typedef struct menu_input_sub {
  * chain: src (+0x00) → src[+0x0c] → that[+0x08] is the u16 total length.
  */
 typedef struct confirm_caprec {
-    uint8_t  _pad00[0x08];   /* +0x00..+0x07 */
+    void    *owned0;         /* +0x00 — owned sub-buffer; freed by menu_ctrl_clear */
+    uint8_t  _pad04[0x04];   /* +0x04..+0x07 */
     uint16_t cap;            /* +0x08 — total length / max position (u16) */
 } confirm_caprec;
 
 typedef struct confirm_src {
-    uint8_t  _pad00[0x0c];   /* +0x00..+0x0b */
+    void          *owned0;   /* +0x00 — owned sub-buffer; freed by menu_ctrl_clear */
+    uint8_t        _pad04[0x04];/* +0x04..+0x07 */
+    void          *owned8;   /* +0x08 — owned sub-buffer; freed by menu_ctrl_clear */
     confirm_caprec *caprec;  /* +0x0c — record carrying the length cap */
 } confirm_src;
 
@@ -107,27 +110,96 @@ typedef struct confirm_list {
     int32_t      flag18;     /* +0x18 — submode-0 "pending ack" flag       */
 } confirm_list;
 
-/* ─── the menu controller (the `this`/ECX of all three functions) ────
+/* ─── the controller's parallel geometry arrays ──────────────────────
  *
- * Only the handful of fields the ported functions touch are modelled; the
- * rest is opaque padding so the retail offsets line up on the 32-bit build.
+ * The constructor (FUN_0040f5c0) lays out the controller's selectable grid
+ * as two heap arrays sized off the list header's two dimensions:
  *
- *   sub     +0x00 — input "ready" gate sub-object (latch only).
- *   mode    +0x08 — latch dispatch mode: 1 = cursor-nav list (calls nav),
- *                   2 = paged confirm list (handled inline by the latch).
- *   action  +0x1c — last resolved action code, latched here by nav/latch.
- *   list2   +0x170 — the type-2 confirm list's state object (latch only).
- *   list    +0x174 — pointer to the menu_list_hdr above.
+ *   rows    (controller + 0x17c) — `alloc_a` (hdr+0x04) entries × 0x10 B.
+ *           One per menu line.  Each owns its own cell array.
+ *   entries (controller + 0x178) — `alloc_b` (hdr+0x08) entries × 0x24 B.
+ *           Per-column metadata (initial scroll position / extent).
+ *
+ * and, hanging off each row, a cell array of `alloc_b` × 0x18 B.
+ */
+
+/* A grid cell (row->cells[k], 0x18 B).  The three pointer slots are built
+ * lazily by FUN_00411f40 (the grid-cell finalizer, not yet ported) and
+ * torn down by menu_ctrl_clear; the constructor only NULLs them. */
+typedef struct menu_cell {
+    void   *obj0;       /* +0x00 — lazily-built primary object; *its* [0] is
+                         *         itself an owned ptr (clear frees both)     */
+    void   *obj54;      /* +0x04 — lazily operator_new(0x54) sub-object       */
+    void   *obj20;      /* +0x08 — lazily operator_new(0x20) sub-object       */
+    int32_t field_c;    /* +0x0c — zeroed by ctor                            */
+    uint8_t _pad10[0x08];/* +0x10..+0x17 — ctor leaves untouched (stride 0x18)*/
+} menu_cell;
+
+/* A menu row (controller->rows[r], 0x10 B).  The spawn block populates
+ * field0/action/flag8 when appending a row; the ctor only zeroes field0
+ * and action (it leaves flag8 indeterminate) and hangs the cell array. */
+typedef struct menu_row {
+    int32_t    field0;  /* +0x00 — zeroed by ctor; spawn writes 0 (a select key)*/
+    int32_t    action;  /* +0x04 — zeroed by ctor; spawn writes the action id */
+    int32_t    flag8;   /* +0x08 — NOT written by ctor; spawn writes 1        */
+    menu_cell *cells;   /* +0x0c — operator_new(alloc_b * 0x18): the cells    */
+} menu_row;
+
+/* Per-column metadata (controller->entries[e], 0x24 B).  The ctor stamps
+ * the initial scroll position (index*0x20) and extent (0x20) and zeroes
+ * the rest. */
+typedef struct menu_entry {
+    int32_t pos;        /* +0x00 — index << 5 (index * 0x20): initial offset */
+    int32_t field4;     /* +0x04 — 0 */
+    int32_t extent;     /* +0x08 — 0x20 */
+    int32_t field_c;    /* +0x0c — 0 */
+    int32_t field_10;   /* +0x10 — 0 */
+    int32_t field_14;   /* +0x14 — 0 */
+    int32_t field_18;   /* +0x18 — 0 */
+    int32_t field_1c;   /* +0x1c — 0 */
+    int32_t field_20;   /* +0x20 — 0 */
+} menu_entry;           /* 0x24 B */
+
+/* ─── the menu controller (the `this`/ECX of all functions) ──────────
+ *
+ * Only the fields the ported functions touch are modelled; the rest is
+ * opaque padding so the retail offsets line up on the 32-bit build.
+ *
+ *   sub       +0x00 — input "ready" gate sub-object (latch only).
+ *   mode      +0x08 — latch dispatch mode (ctor sets 1): 1 = cursor-nav
+ *                     list (calls nav), 2 = paged confirm list (latch).
+ *   field_c   +0x0c — ctor param_1 (0 for the title menu).
+ *   field_10  +0x10 — ctor param_2 (0 for the title menu).
+ *   action    +0x1c — last resolved action code, latched by nav/latch.
+ *   field_20  +0x20 — ctor zeroes.
+ *   field_84  +0x84 — ctor zeroes.
+ *   field_140 +0x140 — ctor zeroes.
+ *   field_164 +0x164 — an owned ptr (built elsewhere; clear frees it).
+ *   list2     +0x170 — the type-2 confirm list's state object (latch only).
+ *   list      +0x174 — pointer to the menu_list_hdr above.
+ *   entries   +0x178 — the per-column metadata array (ctor allocates).
+ *   rows      +0x17c — the menu-row array (ctor allocates).
  */
 typedef struct menu_ctrl {
-    menu_input_sub *sub;         /* +0x00 */
-    uint8_t         _pad04[0x04];/* +0x04..+0x07 */
-    int32_t         mode;        /* +0x08 */
-    uint8_t         _pad0c[0x10];/* +0x0c..+0x1b */
-    int32_t         action;      /* +0x1c */
-    uint8_t         _pad20[0x150];/* +0x20..+0x16f */
-    confirm_list   *list2;       /* +0x170 */
-    menu_list_hdr  *list;        /* +0x174 */
+    menu_input_sub *sub;          /* +0x00 */
+    uint8_t         _pad04[0x04]; /* +0x04..+0x07 */
+    int32_t         mode;         /* +0x08 */
+    int32_t         field_c;      /* +0x0c */
+    int32_t         field_10;     /* +0x10 */
+    uint8_t         _pad14[0x08]; /* +0x14..+0x1b */
+    int32_t         action;       /* +0x1c */
+    int32_t         field_20;     /* +0x20 */
+    uint8_t         _pad24[0x60]; /* +0x24..+0x83 */
+    int32_t         field_84;     /* +0x84 */
+    uint8_t         _pad88[0xb8]; /* +0x88..+0x13f */
+    int32_t         field_140;    /* +0x140 */
+    uint8_t         _pad144[0x20];/* +0x144..+0x163 */
+    void           *field_164;    /* +0x164 */
+    uint8_t         _pad168[0x08];/* +0x168..+0x16f */
+    confirm_list   *list2;        /* +0x170 */
+    menu_list_hdr  *list;         /* +0x174 */
+    menu_entry     *entries;      /* +0x178 */
+    menu_row       *rows;         /* +0x17c */
 } menu_ctrl;
 
 /* ─── FUN_004192b0 — scroll the cursor's page into view ──────────────
@@ -174,6 +246,43 @@ int32_t menu_list_nav(menu_ctrl *c, uint32_t dir, uint32_t now);
  * `now` is only consulted on the mode-1 path (passed through to nav). */
 int32_t menu_list_latch(menu_ctrl *c, uint32_t dir, uint32_t now);
 
+/* ─── FUN_0040e0c0 — tear down the controller's geometry ─────────────
+ *
+ * Free everything the constructor (and the spawn block) hung off the
+ * controller and NULL the slots, leaving it safe to rebuild:
+ *   - the confirm list (list2, +0x170) and its source graph;
+ *   - the owned buffer at +0x164;
+ *   - the per-column metadata array (entries, +0x178);
+ *   - every row's cell array (and each cell's three lazily-built
+ *     sub-objects), then the row array itself (rows, +0x17c) — its bounds
+ *     come from the still-live header's alloc_a/alloc_b;
+ *   - the list header (list, +0x174), freed last.
+ * Every step is guarded on non-NULL, so it is a no-op on a fresh (all-zero)
+ * controller — which is exactly how the constructor uses it (it clears any
+ * stale state from a recycled pool slot before rebuilding). */
+void menu_ctrl_clear(menu_ctrl *c);
+
+/* ─── FUN_0040f5c0 — build the controller's list header + geometry ───
+ *
+ * Clear any prior state (menu_ctrl_clear), then allocate and initialise:
+ *   - the list header (0x24 B): type/alloc_a/alloc_b/stride from the
+ *     params; count/cursor/sel2/repeat_a/repeat_b zeroed;
+ *   - the row array (alloc_a × menu_row) and, per row, a cell array
+ *     (alloc_b × menu_cell), all zeroed;
+ *   - the per-column metadata array (alloc_b × menu_entry): each stamped
+ *     with pos = index*0x20 and extent = 0x20.
+ * Also seeds controller scalars: mode=1, field_c/field_10 from params,
+ * field_20/field_84/field_140 = 0.  Faithful to 0x40f5c0.
+ *
+ * Divergence: retail's operator_new returns uninitialised memory, so a few
+ * ctor-unwritten fields (row.flag8, the 8 trailing bytes of each cell) are
+ * indeterminate there; this port uses calloc, so they read as zero — which
+ * matches every observed first use (the spawn block always writes flag8
+ * before reading it). */
+void menu_ctrl_build(menu_ctrl *c, int32_t f_c, int32_t f_10,
+                     int32_t alloc_a, int32_t alloc_b,
+                     int32_t stride, int32_t type);
+
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(menu_list_hdr, type)     == 0x00, "hdr.type");
 _Static_assert(offsetof(menu_list_hdr, stride)   == 0x0c, "hdr.stride");
@@ -183,14 +292,33 @@ _Static_assert(offsetof(menu_list_hdr, sel2)     == 0x18, "hdr.sel2");
 _Static_assert(offsetof(menu_list_hdr, repeat_a) == 0x1c, "hdr.repeat_a");
 _Static_assert(offsetof(menu_list_hdr, repeat_b) == 0x20, "hdr.repeat_b");
 _Static_assert(sizeof(menu_list_hdr)             == 0x24, "hdr size (operator_new(0x24) in ctor 0x40f5c0)");
-_Static_assert(offsetof(menu_ctrl, sub)    == 0x00,  "ctrl.sub");
-_Static_assert(offsetof(menu_ctrl, mode)   == 0x08,  "ctrl.mode");
-_Static_assert(offsetof(menu_ctrl, action) == 0x1c,  "ctrl.action");
-_Static_assert(offsetof(menu_ctrl, list2)  == 0x170, "ctrl.list2");
-_Static_assert(offsetof(menu_ctrl, list)   == 0x174, "ctrl.list");
+_Static_assert(offsetof(menu_ctrl, sub)       == 0x00,  "ctrl.sub");
+_Static_assert(offsetof(menu_ctrl, mode)      == 0x08,  "ctrl.mode");
+_Static_assert(offsetof(menu_ctrl, field_c)   == 0x0c,  "ctrl.field_c");
+_Static_assert(offsetof(menu_ctrl, field_10)  == 0x10,  "ctrl.field_10");
+_Static_assert(offsetof(menu_ctrl, action)    == 0x1c,  "ctrl.action");
+_Static_assert(offsetof(menu_ctrl, field_20)  == 0x20,  "ctrl.field_20");
+_Static_assert(offsetof(menu_ctrl, field_84)  == 0x84,  "ctrl.field_84");
+_Static_assert(offsetof(menu_ctrl, field_140) == 0x140, "ctrl.field_140");
+_Static_assert(offsetof(menu_ctrl, field_164) == 0x164, "ctrl.field_164");
+_Static_assert(offsetof(menu_ctrl, list2)     == 0x170, "ctrl.list2");
+_Static_assert(offsetof(menu_ctrl, list)      == 0x174, "ctrl.list");
+_Static_assert(offsetof(menu_ctrl, entries)   == 0x178, "ctrl.entries");
+_Static_assert(offsetof(menu_ctrl, rows)      == 0x17c, "ctrl.rows");
+_Static_assert(sizeof(menu_cell)           == 0x18, "menu_cell size");
+_Static_assert(offsetof(menu_cell, obj54)  == 0x04, "cell.obj54");
+_Static_assert(offsetof(menu_cell, obj20)  == 0x08, "cell.obj20");
+_Static_assert(sizeof(menu_row)            == 0x10, "menu_row size");
+_Static_assert(offsetof(menu_row, action)  == 0x04, "row.action");
+_Static_assert(offsetof(menu_row, flag8)   == 0x08, "row.flag8");
+_Static_assert(offsetof(menu_row, cells)   == 0x0c, "row.cells");
+_Static_assert(sizeof(menu_entry)          == 0x24, "menu_entry size");
+_Static_assert(offsetof(menu_entry, extent)== 0x08, "entry.extent");
+_Static_assert(offsetof(menu_entry, field_20) == 0x20, "entry.field_20");
 _Static_assert(offsetof(menu_input_sub, enabled) == 0x04, "sub.enabled");
 _Static_assert(offsetof(menu_input_sub, ready)   == 0x54, "sub.ready");
 _Static_assert(offsetof(confirm_caprec, cap)     == 0x08, "caprec.cap");
+_Static_assert(offsetof(confirm_src, owned8)     == 0x08, "src.owned8");
 _Static_assert(offsetof(confirm_src, caprec)     == 0x0c, "src.caprec");
 _Static_assert(offsetof(confirm_list, src)     == 0x00, "cl.src");
 _Static_assert(offsetof(confirm_list, pos)     == 0x04, "cl.pos");
