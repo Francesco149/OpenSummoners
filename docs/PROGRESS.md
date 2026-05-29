@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Structural-parity harness (offline foundation)
+
+Detour from milestone 0 to build the call-graph-diff + mem-watch machinery
+that `../openrecet` credits for fast rendering-path convergence, adapted to
+SoTE's DirectDraw stack. Design: `docs/plans/parity-harness.md`; how-to:
+`docs/parity-harness.md`. Built the pieces that need no live retail (the
+"offline foundation"); the live retail-under-Frida runs are the next-session
+human-verification gate.
+
+Landed **[offline, all tested]**: `src/call_trace.{c,h}` — the port-side
+`CALL_TRACE_ENTER(0xVA)` probe (one null-check when off), wired into
+`main.c` (`--call-trace <path>` + `--call-trace-frames`, begin/end frame
+brackets, boot-frame-0 bracket) and probed into `zdd_create`/`zdd_present`/
+`zdd_window_paint`/`cs_dispatch_create_screen`; 5 new host tests (**423
+pass / 0 fail / 6 skip** of 429, both exes clean). `tools/call_trace_diff.py`
+— per-frame overlap / retail-only (= port gap) / port-only (= divergence)
+diff with `--align-on-first 0xVA` load-skew anchoring; 9 pytest cases.
+`tools/gen_engine_vas.py` — `functions.csv` → 1743-VA candidate hook list.
+`tools/mem_watch.py` ranking (offline `--analyze-only` verified: a faulting
+insn maps to its owning function + port status via the ledger).
+
+Code-complete, **live verification deferred**: `opensummoners-agent.js`
+call-trace + mem-watch modes, anchored on a hook of the DDraw Flip
+(`FUN_005b8fc0`) for the per-frame boundary — the DirectDraw analog of
+openrecet's D3D-Present anchor (frame axis matches the port's per-`zdd_present`
+`g_frame_counter`). `frida_capture.py` driver fields + CLI. `mem_watch.py`
+capture + `bisect_call_trace_vas.py` (boots retail via `run-retail.sh`,
+bisects out Frida-unsafe VAs → `engine_vas_frida_safe.json`; its
+`--boot-threshold` needs calibration on the first live boot). First real use
+will target the `+0x108` input-ring writer — resolving a standing HANDOFF
+black box. Ledger headline unchanged (112/1490); the probes sit in
+already-ported files.
+
+---
+
 ## 2026-05-29 — Title scene runner, checkpoint 2: frame-pacing FSM
 
 Second code chip of milestone 0.  Ported the `local_28` frame-pacing sub-state

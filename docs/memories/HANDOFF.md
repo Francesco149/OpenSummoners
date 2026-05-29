@@ -56,6 +56,16 @@ past one slice → renders every frame with the phase FSM frozen.
 python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py
 ```
 
+**Structural-parity harness (NEW — offline foundation landed 2026-05-29):**
+call-graph diff + mem-watch, mirroring `../openrecet`. How-to:
+`docs/parity-harness.md`; design: `docs/plans/parity-harness.md`. Offline
+pieces done + tested (`src/call_trace.{c,h}` probe, `tools/call_trace_diff.py`,
+`tools/gen_engine_vas.py`, `tools/mem_watch.py` ranking). The agent
+(`opensummoners-agent.js`) + `frida_capture.py` call-trace/mem-watch modes +
+`tools/bisect_call_trace_vas.py` are code-complete but **need a live
+retail-under-Frida run to verify** (the human-verification gate; first move
+= run `bisect_call_trace_vas.py`, calibrating its `--boot-threshold`).
+
 NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
 port signal. Reference *unported* callees by bare VA (`0x412c10`), not
@@ -112,7 +122,8 @@ menu) and the **render** half (jump-table draw + Flip).
   update + render halves remain (next move above).
 - **Input** `FUN_0043c110`/`_43ce50` + DInput `FUN_005ba120` — milestone 1.
   Black box: who calls `GetDeviceState` (vtable `[0x24]`) to fill the
-  `+0x108` ring buffer — Frida-hook to find it.
+  `+0x108` ring buffer. **Now have the tool to find it:** point
+  `tools/mem_watch.py --region <+0x108 addr>:64:input_ring` at it (live gate).
 - **Audio ZDM** `FUN_005bab10`/`_5bc150` — milestone 3 (WMF/COM, hard).
 - **Launcher `config.dat`** `FUN_005a4770` (46 KB) — milestone 4.
 - **Hash-id asset directory** `FUN_00556eb0` — recover the ID→name table
