@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Menu grid-cell finalizer + dead-alloc quirk, ckpt 6
+
+Ported the menu spawn block's **grid-cell finalizer** into `menu_list` as
+`menu_row_finalize` (`FUN_00411f40`, 444 B).  `__thiscall(ctrl, row)`: it
+walks the row's cell array (bounded by `hdr->alloc_b`) and, per cell,
+refreshes whichever lazily-built sub-objects are present — `obj0` (re-lays
+its glyph text via `0x40fa00`), `obj54` and `obj20` (re-zeroes their
+modelled fields when `row < hdr->count`; `obj20` also recomputes
+`+0x1c = max(+0x14, min(+0x18, 0))`).
+
+**The headline finding (new quirk #36):** the decompile reads as a classic
+lazy get-or-create, but disassembling `0x411f40` shows the per-sub-object
+`if (ptr == 0) operator_new(...)` sits **inside** an outer `ptr != 0`
+guard reading the same slot with no intervening write (verified at
+`0x411fbf` / `0x412046`).  So the allocation is **statically dead** — the
+finalizer never allocates, it only re-zeroes sub-objects built elsewhere.
+The earlier `findings/menu-list.md` note that it "lazily operator_new's"
+the sub-objects was **wrong** and is corrected.  On the fresh title menu
+every cell pointer is NULL, so the whole function is a no-op there.
+
+`0x40fa00` (the cell's 800-B SJIS/colour-escape/font-metric text-layout
+builder) is its own subsystem and stays unported; the finalizer's call to
+it routes through an observable hook (`menu_cell_layout_hook`) so the
+dispatch is testable without pulling in the text layer.  Its string arg
+`&DAT_008a9b6c` is the god object's engine-name buffer (god+0x1c).
+
+Modelled `menu_cell_obj54` (0x54 B) / `menu_cell_obj20` (0x20 B) with
+guarded `_Static_assert`s; both cross-builds clean.  **6 new host tests**
+(fresh no-op, obj54 re-zero, obj20 re-zero+clamp, row-outruns-count guard,
+obj0 layout-hook dispatch, all-cells iteration; ASan/LSan clean); **499
+pass / 0 fail / 6 skip (of 505)**.  Ledger **121/1490 touched (7.4%), 118
+tested** — unchanged, because `0x411f40` had been provisionally counted via
+a ckpt-5 header comment using the `FUN_` token; this port legitimises it.
+What remains of the update half: the menu-item builder `0x40f3e0` + the
+spawn-block assembly.  See `findings/menu-list.md`, commit `1ba5827`.
+
+---
+
 ## 2026-05-29 — Menu-controller geometry ctor+dtor, ckpt 5
 
 Ported the menu-spawn block's **allocate/free pair** into `menu_list` as
