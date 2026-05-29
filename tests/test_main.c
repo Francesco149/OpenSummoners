@@ -325,6 +325,17 @@ struct test_case {
     X(nav_repeat_a_reset)                                      \
     X(nav_repeat_b_arms_and_fires_as_prev)                     \
     X(nav_repeat_b_reset)                                      \
+    X(latch_gate_blocks_when_not_ready)                        \
+    X(latch_gate_blocks_when_disabled)                         \
+    X(latch_mode1_forwards_to_nav)                             \
+    X(latch_unknown_mode_is_noop)                              \
+    X(latch_mode2_sub0_ack_clears_flag18)                      \
+    X(latch_mode2_sub0_content_latches_eight)                  \
+    X(latch_mode2_sub0_no_flags_returns_zero)                  \
+    X(latch_mode2_sub0_out_of_range_returns_zero)              \
+    X(latch_mode2_sub1_reveals_all)                            \
+    X(latch_mode2_sub1_dismisses_at_cap)                       \
+    X(latch_mode2_sub1_blocked_once_dismissed)                 \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

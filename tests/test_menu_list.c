@@ -371,3 +371,159 @@ int test_nav_repeat_b_reset(void)
     T_ASSERT_EQ_U(h.repeat_b, 0);
     return 0;
 }
+
+/* ─── FUN_0043ce50 menu_list_latch ──────────────────────────────────── */
+
+/* ── the input "ready" gate ── */
+
+int test_latch_gate_blocks_when_not_ready(void)
+{
+    menu_ctrl c; menu_list_hdr h; menu_input_sub sub;
+    mkn(&c, &h, 0, 5, 10, 2, 0);
+    memset(&sub, 0, sizeof sub);
+    sub.enabled = 1; sub.ready = 999;     /* not 1000 */
+    c.sub = &sub; c.mode = 1;
+    T_ASSERT_EQ_I(menu_list_latch(&c, 1, 0), 0);
+    T_ASSERT_EQ_I(h.cursor, 2);           /* nav never ran */
+    return 0;
+}
+
+int test_latch_gate_blocks_when_disabled(void)
+{
+    menu_ctrl c; menu_list_hdr h; menu_input_sub sub;
+    mkn(&c, &h, 0, 5, 10, 2, 0);
+    memset(&sub, 0, sizeof sub);
+    sub.enabled = 0; sub.ready = 1000;
+    c.sub = &sub; c.mode = 1;
+    T_ASSERT_EQ_I(menu_list_latch(&c, 1, 0), 0);
+    T_ASSERT_EQ_I(h.cursor, 2);
+    return 0;
+}
+
+/* ── mode 1: forward to the cursor-nav engine ── */
+
+int test_latch_mode1_forwards_to_nav(void)
+{
+    menu_ctrl c; menu_list_hdr h; menu_input_sub sub;
+    mkn(&c, &h, 0, 5, 10, 2, 0);
+    memset(&sub, 0, sizeof sub);
+    sub.enabled = 1; sub.ready = 1000;
+    c.sub = &sub; c.mode = 1;
+    /* dir 1 = next → cursor 2→3, nav returns 1 */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 1, 0), 1);
+    T_ASSERT_EQ_I(h.cursor, 3);
+    return 0;
+}
+
+int test_latch_unknown_mode_is_noop(void)
+{
+    menu_ctrl c; menu_list_hdr h; menu_input_sub sub;
+    mkn(&c, &h, 0, 5, 10, 2, 0);
+    memset(&sub, 0, sizeof sub);
+    sub.enabled = 1; sub.ready = 1000;
+    c.sub = &sub; c.mode = 3;             /* neither 1 nor 2 */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 1, 0), 0);
+    T_ASSERT_EQ_I(h.cursor, 2);
+    return 0;
+}
+
+/* ── mode 2, submode 0: flag-driven confirm ── */
+
+static void mk_confirm(menu_ctrl *c, menu_input_sub *sub, confirm_list *cl,
+                       int32_t submode)
+{
+    memset(c, 0, sizeof *c);
+    memset(sub, 0, sizeof *sub);
+    memset(cl, 0, sizeof *cl);
+    sub->enabled = 1; sub->ready = 1000;
+    c->sub = sub; c->mode = 2; c->list2 = cl;
+    cl->submode = submode;
+}
+
+int test_latch_mode2_sub0_ack_clears_flag18(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    mk_confirm(&c, &sub, &cl, 0);
+    cl.flag18 = 1; cl.flag14 = 1;
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 6);
+    T_ASSERT_EQ_I(cl.flag18, 0);          /* cleared */
+    T_ASSERT_EQ_I(c.action, 0);           /* flag18 path doesn't latch action */
+    return 0;
+}
+
+int test_latch_mode2_sub0_content_latches_eight(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    mk_confirm(&c, &sub, &cl, 0);
+    cl.flag18 = 0; cl.flag14 = 1;
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 8);
+    T_ASSERT_EQ_I(c.action, 8);
+    return 0;
+}
+
+int test_latch_mode2_sub0_no_flags_returns_zero(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    mk_confirm(&c, &sub, &cl, 0);
+    cl.flag18 = 0; cl.flag14 = 0;
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 0);
+    return 0;
+}
+
+int test_latch_mode2_sub0_out_of_range_returns_zero(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    mk_confirm(&c, &sub, &cl, 0);
+    cl.flag18 = 1;                        /* would fire if in range */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 7, 0), 0);   /* dir < 8 */
+    T_ASSERT_EQ_I(cl.flag18, 1);          /* untouched */
+    return 0;
+}
+
+/* ── mode 2, submode 1: reveal-then-dismiss scrolling message ── */
+
+static void wire_cap(confirm_list *cl, confirm_src *src, confirm_caprec *rec,
+                     uint16_t cap)
+{
+    rec->cap = cap;
+    src->caprec = rec;
+    cl->src = src;
+}
+
+int test_latch_mode2_sub1_reveals_all(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    confirm_src src; confirm_caprec rec;
+    mk_confirm(&c, &sub, &cl, 1);
+    wire_cap(&cl, &src, &rec, 5);
+    cl.pos = 2;                            /* cap(5) > pos(2) → reveal-all */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 6);
+    T_ASSERT_EQ_I(cl.pos, 5);              /* fast-forwarded to cap */
+    T_ASSERT_EQ_I(c.action, 6);
+    return 0;
+}
+
+int test_latch_mode2_sub1_dismisses_at_cap(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    confirm_src src; confirm_caprec rec;
+    mk_confirm(&c, &sub, &cl, 1);
+    wire_cap(&cl, &src, &rec, 5);
+    cl.pos = 5;                            /* cap(5) <= pos(5) → dismiss */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 8);
+    T_ASSERT_EQ_I(c.action, 8);
+    T_ASSERT_EQ_I(cl.pos, 5);              /* unchanged */
+    return 0;
+}
+
+int test_latch_mode2_sub1_blocked_once_dismissed(void)
+{
+    menu_ctrl c; menu_input_sub sub; confirm_list cl;
+    confirm_src src; confirm_caprec rec;
+    mk_confirm(&c, &sub, &cl, 1);
+    wire_cap(&cl, &src, &rec, 5);
+    cl.pos = 2; c.action = 8;              /* already dismissed → gate fails */
+    T_ASSERT_EQ_I(menu_list_latch(&c, 9, 0), 0);
+    T_ASSERT_EQ_I(cl.pos, 2);              /* untouched */
+    return 0;
+}

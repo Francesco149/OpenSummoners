@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **110**
-- of those, zero-dependency **leaves: 49** (recommended order below)
+- frontier functions: **109**
+- of those, zero-dependency **leaves: 48** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -98,12 +98,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x426f70 | 37 | 1 | 0 | ✓ |
 
-### battle scenario init + turn engine + input poll + save mgr (5)
+### battle scenario init + turn engine + input poll + save mgr (4)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x43c9b0 | 130 | 1 | 0 | ✓ |
-| 0x43ce50 | 220 | 1 | 0 | ✓ |
 | 0x43e140 | 266 | 1 | 4 |  |
 | 0x43e3a0 | 516 | 1 | 1 |  |
 | 0x43c2e0 | 795 | 1 | 1 |  |

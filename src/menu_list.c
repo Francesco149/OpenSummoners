@@ -261,3 +261,70 @@ int32_t menu_list_nav(menu_ctrl *c, uint32_t dir, uint32_t now)
     }
     return local_c;
 }
+
+/*
+ * FUN_0043ce50 (220 bytes) — the input-action latch.  Gates the menu's
+ * input handling on the sub-object being ready, then dispatches on the
+ * controller mode.  `dir` is the menu action enum; `now` is only used on
+ * the mode-1 path (forwarded to the nav engine's GetTickCount slot).
+ *
+ *     sub = this->[0];                              ; [ecx]
+ *     if (sub->[0x54] != 1000 || sub->[0x04] == 0) return 0;
+ *     if (this->[0x08] == 1) return FUN_0043ca40(dir);     ; mode 1 → nav
+ *     if (this->[0x08] == 2) { ...confirm list... }        ; mode 2
+ *     return 0;
+ *
+ * Mode 2 (confirm/message list cl = this->[0x170]):
+ *   submode 0 (cl->[0x0c]==0), dir in [8,10]:
+ *       cl->[0x18] != 0  → cl->[0x18]=0;            return 6
+ *       cl->[0x14] != 0  → this->[0x1c]=8;          return 8
+ *       else                                          return 0
+ *   submode 1 (cl->[0x0c]==1), dir in [8,10], this->[0x1c] != 8:
+ *       cap = (cl->[0]->[0x0c])->[0x08] (u16);  pos = cl->[0x04] (u16)
+ *       cap <= pos → this->[0x1c]=8;             return 8   (dismiss)
+ *       else  cl->[0x04]=cap; this->[0x1c]=6;    return 6   (reveal-all)
+ *
+ * (The retail null-check on cl is dead — cl->submode is dereferenced
+ * before it, so cl is assumed non-null here, matching the live path.)
+ */
+int32_t menu_list_latch(menu_ctrl *c, uint32_t dir, uint32_t now)
+{
+    menu_input_sub *sub = c->sub;                  /* esi = [ecx] */
+    if (sub->ready != 1000 || sub->enabled == 0) {
+        return 0;
+    }
+
+    if (c->mode == 1) {
+        return menu_list_nav(c, dir, now);         /* call 0x43ca40 */
+    }
+
+    if (c->mode == 2) {
+        confirm_list *cl = c->list2;               /* [ecx + 0x170] */
+        if (cl->submode == 0) {
+            if (dir > 7 && dir < 11) {             /* param in [8,10] */
+                if (cl->flag18 != 0) {
+                    cl->flag18 = 0;
+                    return 6;
+                }
+                if (cl->flag14 != 0) {
+                    c->action = 8;
+                    return 8;
+                }
+            }
+            return 0;
+        }
+        if (cl->submode == 1 && dir > 7 && dir < 11 && c->action != 8) {
+            uint16_t cap = cl->src->caprec->cap;
+            if (cap <= cl->pos) {                  /* nothing left → dismiss */
+                c->action = 8;
+                return 8;
+            }
+            cl->pos = cap;                         /* fast-forward to the end */
+            c->action = 6;
+            return 6;
+        }
+        return 0;
+    }
+
+    return 0;
+}
