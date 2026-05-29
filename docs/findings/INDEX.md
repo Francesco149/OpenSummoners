@@ -38,6 +38,10 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
 - **[title-scene.md](title-scene.md)** — the title-menu scene runner
   FUN_0056aea0 (3441 B): phase breakdown, the PTR_DAT_0056bfa4 jumptable,
   the helpers it needs. **This is the active forward-path target.**
+- **[menu-list.md](menu-list.md)** — the menu-list controller: scroll-into-
+  view (FUN_004192b0), the cursor-nav engine (FUN_0043ca40, jump table
+  recovered) and the input-action latch (FUN_0043ce50). Completes the
+  poll → latch → nav input chain. **Ported, checkpoint 4.**
 
 ## Method / cross-cutting
 

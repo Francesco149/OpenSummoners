@@ -591,3 +591,67 @@ untouched `_hi6` and pinned by a test.
 
 > 📍 `FUN_00412c10` @ `0x412c10` (46 B); ported as `obj_pool_acquire` in
 > `src/obj_container.c` (checkpoint 3).
+
+## 32. The cursor-nav engine packs four list behaviours behind one jump table whose fields change meaning per type
+
+`FUN_0043ca40` dispatches the menu direction code through an indirect jump
+table at `0x43ce1c` that **Ghidra refuses to recover** (it has duplicate
+targets — five of the eleven entries point at the same "return 0" stub).
+`radare2 -c 'pxw 44 @ 0x43ce1c'` reads it cleanly: dir 0..10 →
+`{cb0b, cbd2, cc7c, cce2, cdfe×5, cae9, cafa}`, i.e. 7 distinct handlers
+(prev / next / page-up / page-down / no-op / cancel / confirm).
+
+The genuinely confusing part is that the list-header fields **mean
+different things depending on `hdr->type`** (`+0x00`):
+
+- **type 0 (linear wrap):** `+0x18` (`sel2`) is a *wrap floor* — prev from
+  the page top jumps to `sel2 + stride − 1`, next from the bottom wraps
+  back to `sel2`.
+- **type 2 (grid):** `+0x18` is the *visible page-top*, recomputed in the
+  shared tail as `floor(cursor/stride)*stride`; prev/next stay inside the
+  current row and only page-up/down cross rows.
+- **type 3 (trailing page):** `+0x18` *trails* the cursor — the tail forces
+  `sel2 = cursor − stride + 1` whenever the cursor passes the old window
+  bottom, so the selection sits at the bottom of the viewport as you
+  descend.
+
+So the same four dwords (`stride/count/cursor/sel2`) drive three quite
+different scroll models. Ported branch-for-branch as `menu_list_nav`.
+
+> 📍 `FUN_0043ca40` @ `0x43ca40` (970 B); ported in `src/menu_list.c`
+> (checkpoint 4b).  See `findings/menu-list.md`.
+
+## 33. Menu auto-repeat is a two-rate timer stored in the list header, in the GetTickCount domain
+
+The nav engine's "axis held" codes (dir 4/6) don't move the cursor on every
+call.  The first call **arms** a deadline `header[+0x1c or +0x20] =
+GetTickCount() + 300`; subsequent calls do nothing until `now` reaches the
+deadline, at which point the engine **re-fires** as the equivalent press
+(dir 4→1 "next", dir 6→0 "prev") and **re-arms at +100** — so the repeat
+rate steps from a 300 ms initial delay to a 100 ms steady cadence, the
+classic key-repeat feel.  Releasing the axis (dir 5/7) zeroes the deadline.
+Two independent deadlines (`+0x1c`, `+0x20`) let the two axes repeat
+independently.  All comparisons are unsigned `GetTickCount` deltas, so the
+49.7-day rollover is a non-issue (cf. quirks #29, #30).
+
+> 📍 `FUN_0043ca40` @ `0x43ca40`; the timer arms live at handler entry
+> (dir 4/6 cases).  In the port `GetTickCount()` is injected as `now`.
+
+## 34. The menu input latch is gated on a "1000 == fully faded in" sub-object, and confirm boxes need two presses
+
+`FUN_0043ce50` (the action latch) refuses to act unless its input
+sub-object reports `sub[+0x54] == 1000` **and** `sub[+0x04] != 0`.  The
+magic `1000` is the same `0..1000` ramp the title fades run on (title-scene
+phases) — input is dead until the transition-in animation has fully
+completed, which is why button mashing during a menu fade does nothing.
+
+When the controller is in mode 2 (a confirm / scrolling-message box rather
+than a cursor list), the latch implements the familiar **two-press**
+behaviour directly: the first confirm/cancel **reveals all** remaining text
+(fast-forwards `pos` to the cap reached via the `src → [+0xc] → [+8]` u16
+chain, returns 6), and only the *second* press — once `pos >= cap` —
+**dismisses** it (latches `action = 8`, returns 8).  A latched `action == 8`
+blocks further input until reset, so a held button can't skip past the box.
+
+> 📍 `FUN_0043ce50` @ `0x43ce50` (220 B); ported as `menu_list_latch` in
+> `src/menu_list.c` (checkpoint 4c).  See `findings/menu-list.md`.

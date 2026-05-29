@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Menu input→action chain, ckpt 4 (scroll + nav + latch)
+
+Ported the entire **menu input → action chain** the title menu's update
+half depends on, into a new **`src/menu_list.{c,h}`** (three logical
+commits 4a/4b/4c, port-and-test):
+
+- **4a `menu_list_scroll_into_view`** (`FUN_004192b0`, 52 B) — recompute
+  the page-top `sel2 = floor(cursor/stride)*stride`, return 1 if it moved.
+  Factored the step-search into `page_top()` (the nav engine reuses it).
+- **4b `menu_list_nav`** (`FUN_0043ca40`, 970 B) — the cursor-navigation
+  engine. Its inner jump table at `0x43ce1c` was **Ghidra-unrecovered**
+  (duplicate targets); recovered with `radare2 -c 'pxw 44 @ 0x43ce1c'` —
+  dir 0..10 → 7 handlers (prev/next/page-up/page-down/no-op/cancel/
+  confirm). Ported branch-for-branch including the three list-type scroll
+  models (0 linear-wrap / 2 grid / 3 trailing-page, whose shared fields
+  change meaning per type) and the two-rate auto-repeat (300 ms initial →
+  100 ms steady). The internal `GetTickCount` is injected as `now`.
+- **4c `menu_list_latch`** (`FUN_0043ce50`, 220 B) — the input gate:
+  refuses unless `sub->ready==1000 && sub->enabled!=0`, then dispatches
+  mode 1 → nav, mode 2 → confirm/message box (two-press reveal-then-
+  dismiss). Modelled the `sub` ready-gate and the `confirm_list`
+  `src→caprec→cap` u16 chain.
+
+Together with the ckpt-3 poll this closes `input_poll_consume →
+menu_list_latch → menu_list_nav`. Verified the common tail + cancel/
+confirm + latch offsets against the r2 disasm at `0x43ccf7` / `0x43cae9`
+/ `0x43ce50`. **43 new host tests** (6 scroll + 26 nav + 11 latch), all
+hand-derived; **484 pass / 0 fail / 6 skip**. Both cross-builds clean.
+New quirks **#32** (jump table + per-type field reuse), **#33** (two-rate
+auto-repeat), **#34** (1000-ready gate + two-press confirm). Ledger
+**118/1490 touched (7.2%)**. See `findings/menu-list.md`.
+
+Next: the menu-spawn block (port leaves `0x40f3e0`/`0x411f40`/`0x40f5c0`,
+then assemble the 5-row populate) to finish the update half, then the
+render half (`0x56bb04`). The input-ring **producer** (DInput
+`GetDeviceState`) is now the only black box left in the input subsystem.
+
+---
+
 ## 2026-05-29 — Title-menu update-half leaves (ckpt 3): input poll + container primitives
 
 Knocked out the pure, zero-dependency leaves the title-menu update half

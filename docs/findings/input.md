@@ -68,11 +68,12 @@ the action latch `FUN_0043ce50`:
 - **Producer.** Who calls `IDirectInputDevice7::GetDeviceState` (vtable
   `[0x24]`) and writes the `+0x108` ring?  Point
   `mem_watch.py --region <+0x108 addr>:64:input_ring` at a live retail run
-  to catch the writer (the milestone-1 human-verification gate).
-- **Action latch `FUN_0043ce50` (220 B)** and the **cursor-nav engine it
-  calls, `FUN_0043ca40` (970 B)** — object-model-coupled and partly
-  unrecovered (Ghidra mis-rendered `FUN_0043ca40`'s jump table).  Deferred;
-  these turn a raw button hit into a menu action / cursor move.
+  to catch the writer (the milestone-1 human-verification gate).  This is
+  now the *only* remaining black box in the input chain.
+- ~~**Action latch `FUN_0043ce50`** and the **cursor-nav engine
+  `FUN_0043ca40`**~~ — **DONE** (checkpoint 4).  The jump table Ghidra
+  mis-rendered was recovered via radare2; both ported to `src/menu_list.c`.
+  The poll → latch → nav chain is complete.  See `findings/menu-list.md`.
 - **Lazy joystick attach** — DInput pads are enumerated on first menu
   *confirm* (`FUN_005ba120`), not at boot.  A headless run that never
   reaches "press start" never calls it; that's expected, not a bug.
