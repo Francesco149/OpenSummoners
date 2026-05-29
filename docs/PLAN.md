@@ -218,6 +218,16 @@ carve-outs are pure mechanical batch tasks with no judgment surface.
 Anything that involves reading Ghidra output, deciding what to port next,
 or chasing a bug stays inline.
 
+**Carve-out — wide read-only audits.**  When the surface is genuinely wide
+(map the whole binary into subsystems, scout many forward-path clusters at
+once), a `Workflow` of **read-only `Explore` agents** is allowed: each agent
+only reads a band of `docs/decompiled/` and returns a structured map, so no
+agent makes a port decision.  `tools/workflows/subsystem-survey.js` is the
+canonical one; it seeds `docs/ROADMAP.md` + the subsystem map + quirks.  The
+output is decompile-grade (byte-verify before porting).  The porting itself
+(read → write C → test) stays inline.  Mirrors the OpenMare
+`openmare-subsystem-survey` precedent.
+
 ## 8. Sibling projects
 
 | repo                       | game / engine                    | role                                    |

@@ -310,3 +310,183 @@ the function-pointer write site, not by Ghidra's call graph.
 
 > 📍 Pattern documented under `docs/AGENT-WORKFLOW.md` (Reading the
 > decompiled output) — radare2 is the second-line tool.
+
+---
+
+> **Entries #15 onward were harvested by the `opensummoners-subsystem-survey`
+> workflow (2026-05-29; 16 band-mappers + 6 forward-path scouts).** They are
+> *decompile-grade* — strong leads, byte-verify offsets before a port leans on
+> them. The survey reported 136 quirks total; these are the load-bearing /
+> charming subset. The full set + the subsystem map is archived at
+> `docs/audit/subsystem-survey-2026-05-29.json` (mine it instead of re-running).
+
+## 15. `DAT_008a9b50` is the whole engine's god-object singleton
+
+Almost every gameplay subsystem reaches state through one global pointer,
+`DAT_008a9b50` (appears 32+ times across the `0x4a****`–`0x5b****` survey
+alone).  It is effectively a single large C++ class instance holding *all*
+the pools and sub-managers at fixed offsets:
+
+- `+0x1038` → scene-state struct (`[0]`=map/area id, `[1]`=screen/mode id
+  like `0xd2`/`0xf0`/`0x136`/`0x300`, `[4]`=event-specific context).
+- `+0x1160` → 32-slot on-screen entity registry.
+- `+0x2780` → difficulty mode; `+0x2784` game-mode; `+0x2798` boss-AI state.
+- `+0x27a0` → global frame/spawn counter (see #18).
+- `+0x2790` → NPC list.
+
+This is a load-bearing architectural choice: the port must preserve a single
+shared instance (or thread-wrap it) — scene handlers are *not* passed their
+state via ctor, they read the singleton.
+
+> 📍 survey band `0x4a0000-0x4d0000` + `0x5a0000-0x5bdab0`.
+
+## 16. The universal frame pump and the `return 6` quit convention
+
+Every scene handler — title, dialogue, dungeon, battle — is written as a
+single big function that, hundreds of times, sets some state then calls a
+frame-pump (`FUN_00439680` for gameplay scenes; `FUN_005b1030`
+/`app_pump_frame` for the title path) and checks the return: **`6` means
+"user cancelled / quit"** and unwinds the entire scene immediately.  There is
+no exception machinery and no explicit dtor calls — cancellation is just this
+magic return code propagated up by hand, and cleanup is assumed automatic.
+
+Port-critical: the pump *must* yield to the Win32 message loop and poll input
+each call.  A blocking reimplementation will hang the whole game, because the
+scene functions never return to an outer loop on their own.
+
+> 📍 survey band `0x4a0000-0x4d0000`, `0x4d0000-0x540000`.
+
+## 17. Asset / entity directory is keyed by opaque 32-bit hash IDs — and we know some names
+
+Characters, items, and NPCs are resolved through `FUN_00556eb0(<hash>)`, a
+string-id → resource-pointer resolver.  The hashes are baked 32-bit constants
+with no enum in the binary.  The survey recovered a few mappings worth their
+weight in gold for future RE:
+
+- `0x5f5e165` → main PC **Arche**
+- `0x5f5e166` → companion **Sana**
+- `0x5f5e168` → dummy/placeholder party slot sentinel (party-validity check
+  compares `char+0x9f0` against this to skip empty slots)
+- `0x35a4e902` → teacher **Sophia**
+
+Scene/mode IDs are a *separate* family of sparse magic constants
+(`0x11300`, `0x1124c`, `0x186a1`–`0x186b0` magic-move classes, `0x186ca`+
+scene ids) that appear only as switch cases.  Recovering the full ID→name
+tables (from the data section or by Frida-tracing the resolver) is a standing
+task; record every mapping you confirm here.
+
+> 📍 survey bands `0x4a0000-0x4d0000`, `0x4d0000-0x540000`, `0x540000-0x560000`.
+
+## 18. Global frame/spawn counter resets at `0xffffff`, not a power-of-two wrap
+
+The counter at `DAT_008a9b50+0x27a0` increments per entity state-change /
+spawn and, instead of a cheap power-of-two mask, *resets to 0 when it reaches
+`0xffffff`* (16,777,215).  Most engines wrap with `& (N-1)`; this deliberate
+decimal-ish ceiling smells like avoidance of an arithmetic edge case in the
+sprite-scheduling math.  Preserve it — code downstream compares against it.
+
+> 📍 survey bands `0x450000-0x470000`, `0x540000-0x560000`.
+
+## 19. The "object perpetuity state area has been fully used" crash log
+
+When the object-spawn pool (`base+0x1804`, capacity `base+0x7804`) hits
+`0x800` entries, the allocator doesn't realloc — it `GetLastError()`s,
+`FormatMessageA`s, and `OutputDebugString`s the literal string *"The object
+perpetuity state area has been fully used"* into `DAT_008a9534` right before
+falling over.  A hard 2048-entry ceiling that was clearly runtime-tuned, with
+charmingly bureaucratic telemetry on the way down.
+
+> 📍 `FUN_004a63d0:35`, `FUN_004b3b20:61`.
+
+## 20. The "scene function" is a degenerate coroutine: `in_ECX[5]` is the resume counter
+
+Every large scene/dialogue function uses object field `in_ECX[5]` (i.e.
+`+0x14`) as a plain phase counter: `0`=init, `1`=loop, `2`=outro, etc.  On
+first entry it initialises; on every later frame it re-enters and an `if`
+ladder jumps to the matching phase.  No actual continuation/stack state is
+saved — it's a hand-rolled coroutine where the only persisted thing is *which
+branch to run next*.  This makes the functions enormous, re-entrant per
+frame, and extremely fragile to edit (insert a phase and every later index
+shifts).
+
+> 📍 survey bands `0x4a0000-0x4d0000`, `0x4d0000-0x540000`.
+
+## 21. Character/sprite struct stride is `0x294` (660 B), entities `0x300`
+
+Sprite/character arrays are indexed `base + idx*0x294` everywhere in the
+render path, with hot offsets `+0x04` x, `+0x08` y, `+0x40` w, `+0x44` h,
+`+0x48` sprite-state enum, `+0x5c` duration, `+0x66` frame-count, `+0x2c`
+rotation-mode (0–3).  Gameplay *entities* are a different pool at `0x300`-byte
+stride, and actor state at `0x140`.  These strides are load-bearing: a single
+misread offset (Ghidra sometimes shows `0x290`/`0x298`) silently corrupts the
+whole renderer.  Byte-verify before porting any sprite code.
+
+> 📍 survey bands `0x480000-0x490000`, `0x490000-0x4a0000`, `0x420000-0x430400`.
+
+## 22. RNG is the classic MS-rand LCG, seeded once globally
+
+`FUN_005bf505` is `DAT_008a4f94 = DAT_008a4f94*0x343fd + 0x269ec3; return
+(seed>>0x10)&0x7fff` — the textbook Microsoft `rand()` LCG.  It is used
+*pervasively*: sprite-effect timing, ability cooldowns, damage variance,
+difficulty scaling, even per-animation frame jitter (it's called multiple
+times per render in some animators, not seeded per frame).  Faithful play
+requires reproducing the **seed initialisation order**, since the whole game's
+randomness is one shared stream.  (One survey agent guessed "Mersenne
+Twister" elsewhere — the constants prove it's the simple LCG; trust the
+constants.)
+
+> 📍 `FUN_005bf505` (band `0x5a0000-0x5bdab0`).
+
+## 23. Input auto-repeat is hand-rolled: 300 ms first delay, then 100 ms
+
+`FUN_0043ca40` implements key/pad repeat entirely in C with no DirectInput
+repeat setting: first press freezes for `GetTickCount()+300`, then switches to
+a 100 ms repeat window.  Slow first repeat, fast thereafter — the classic
+arcade/console menu feel, deliberately reproduced.  Input events live in a
+consume-on-read ring buffer at `+0x108` (3-dword slots `[button_id, timestamp,
+state]`, backward linear search, head index at `+0x0c`); a poll that matches
+`state==1` clears the slot.
+
+> 📍 `FUN_0043ca40`, `FUN_0043c110`, `FUN_0043ce50` (band `0x430000`).
+
+## 24. Gamepads are lazily attached on the first menu *confirm*, never at boot
+
+DInput joysticks are not enumerated during init.  `FUN_005ba120` (acquire up
+to 2 pads into `DAT_008a93dc[0..1]`) is called only when the title menu sees
+action `==3` (confirm) for the first time.  A headless/turbo smoke run that
+exits before "press start" therefore never attaches a pad — and that's
+correct behaviour, not a bug.  Keyboard works throughout; only pad acquisition
+is deferred.
+
+> 📍 `FUN_0056aea0:528-542`, `FUN_005ba120`.
+
+## 25. BGM is played by writing the WMA to a temp file and RenderFile-ing it
+
+Music (WMA resources in `sotesw.dll`) is *not* streamed from memory.
+`FUN_005bc150` extracts the resource bytes to a `GetTempFileNameA` path, then
+`FUN_005bab10` builds a DirectShow/WMF graph via `CoCreateInstance`
+(`IGraphBuilder`, IIDs in `DAT_00850f08/28/58`) and `RenderFile`s the temp
+file; the temp file is deleted after.  Most engines use an in-memory IStream;
+this one round-trips through disk for every track.  SFX, by contrast, go
+through DirectSound (ZDS) with a **50-voice** polyphony ceiling (`0x32`).
+
+> 📍 `FUN_005bc150`, `FUN_005bab10`, `FUN_005bbeb0` (band `0x5a0000-0x5bdab0`).
+
+## 26. "Disable Sound" gates the music manager (ZDM) only, not DirectSound (ZDS)
+
+The launcher "Disable Sound" checkbox sets `settings[0x21c]=1`, which skips
+**ZDM** (music) init but leaves **ZDS** (DirectSound primary buffer + SFX)
+fully initialised.  Practical upshot for the harness: you can exercise the SFX
+path with music disabled, isolating audio bring-up.
+
+> 📍 `FUN_005ba6e0` boot driver; cross-ref `findings/audio-init.md`.
+
+## 27. Title menu item order is hardcoded `0x1a, 0x1c, 0x1e, 0x1d, 8`
+
+The five title entries (New Game / Load / Options / ? / Exit) are populated in
+that fixed action-id sequence, and the loop matches each against
+`DAT_008a6e80+0xa60` — a **save-game validity flag** — to pick the initial
+highlighted slot (so "Continue" only auto-selects when a save exists).  Reorder
+or omit a slot and menu init breaks.
+
+> 📍 `FUN_0056aea0:401-464`.

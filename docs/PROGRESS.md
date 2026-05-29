@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Project-wide audit + workflow tooling (no code port)
+
+Brought OpenSummoners up to the sibling-project (OpenMare / OpenLords2)
+workflow standard and mapped the entire binary so future sessions don't
+re-analyze the same code.  No engine functions ported this checkpoint —
+this is infrastructure + intelligence.
+
+**Derived progress tooling** (adapted from OpenMare):
+`tools/gen_port_ledger.py` + `tools/gen_frontier.py`.  Engine-proper
+boundary pinned to `0x5bdab0` (last engine fn `FUN_005bd680` before the
+MSVC CRT tail — import thunks, `operator_new`, `_malloc`, the `entry`
+startup, etc.).  Generates `STATUS.md`, `port-ledger.{md,json}`,
+`port-frontier.md` from `FUN_<va>` provenance comments in `src/` +
+`functions.csv` — idempotent, `--check`-able for a pre-commit hook.
+Baseline: **112/1490 engine-proper touched (6.8%), 9.5% of code bytes**,
+109 host-tested, 52 portable-today frontier leaves.
+
+**Subsystem-survey workflow** (`tools/workflows/subsystem-survey.js`):
+22 read-only `Explore` agents (16 mapping address bands + 6 scouting the
+forward path), ~1.9 M tokens.  Output seeded `docs/ROADMAP.md` (11-milestone
+order + full subsystem map of every band + 5 port-readiness cards) and
+surfaced **136 quirks** — the load-bearing/charming subset went into
+`findings/engine-quirks.md` #15–#27 (god-object `DAT_008a9b50`, the
+universal frame-pump `return 6` quit convention, the hash-id asset
+directory *with recovered character names* — Arche/Sana/Sophia, the LCG
+RNG, struct strides 0x294/0x300, WMA-temp-file BGM, lazy gamepad attach,
+the "object perpetuity state area" overflow log).  Raw structured result
+archived at `docs/audit/subsystem-survey-2026-05-29.json` (mine it; don't
+re-run).  This is the sanctioned read-only-Explore carve-out to the
+no-subagents rule — recorded in PLAN.md §7 + AGENT-WORKFLOW.md.
+
+**Docs reorg:** new `STATUS.md`, `ROADMAP.md`, `port-ledger.{md,json}`,
+`port-frontier.md`, `findings/INDEX.md`.  Updated `AGENT-WORKFLOW.md`
+(session-lifecycle checklist; co-author trailer → Opus 4.8), `PLAN.md` §7,
+`memories/HANDOFF.md`.  The forward target is unchanged: ROADMAP milestone
+0, the title scene runner `FUN_0056aea0`.
+
+---
+
 ## 2026-05-25 — Main pump / frame waiter port (FUN_005b1030)
 
 Ported the 156-byte message-pump / frame-waiter

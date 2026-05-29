@@ -1,0 +1,3157 @@
+{
+ "maps": [
+  {
+   "band": "0x401000-0x410000",
+   "one_liner": "Early-stage initialization, UI text rendering, sprite animation, and scene logic dispatch \u2014 mostly class ctors/dtors and the main game loop.",
+   "subsystems": [
+    {
+     "name": "Game Loop/Scene Logic Dispatch",
+     "representative_vas": [
+      {
+       "va": "0x40c380",
+       "role": "Main game loop state machine; switches on scene ID and routes interaction (5077 bytes)"
+      },
+      {
+       "va": "0x40afe0",
+       "role": "Scene action handler with damage, treasure, animation triggering (1640 bytes)"
+      },
+      {
+       "va": "0x40be30",
+       "role": "Multi-NPC interaction dispatcher, state syncing (1032 bytes)"
+      }
+     ],
+     "notes": "Heavy use of in_ECX (this) pointer and DAT_008a9b50 global state manager. Scene switch at offset +0x1d4 selects behavior (0x11300, 0x1124c, 0x11332 etc are internal scene IDs). All return error codes (6 = exit). Vtable method calls dominate (FUN_00557370 damage, FUN_0055cfc0 effects, FUN_00556380 status). Port difficulty: HIGH \u2014 many cross-subsystem dependencies, serialized game state."
+    },
+    {
+     "name": "Sprite Animation State Machine",
+     "representative_vas": [
+      {
+       "va": "0x401e60",
+       "role": "Set character sprite state + animation param (232 bytes)"
+      },
+      {
+       "va": "0x401f50",
+       "role": "Reset character sprite to idle/standing state (222 bytes)"
+      },
+      {
+       "va": "0x402330",
+       "role": "Compose sprite with dialog/cutscene frame parameters (431 bytes)"
+      }
+     ],
+     "notes": "Manages 32x sprite slots (0x14 bytes each) at offsets +0x2fc, +0x304, +0x308. Sprite render state at +0x15b64 (1=talk,2=damage,3=stand), +0x15b70 (x-offset), +0x15b74 (y-offset). Particle effect fields at +0x15b8c, +0x15b90. Port difficulty: MEDIUM \u2014 straightforward state mutation, but requires correct sprite object model."
+    },
+    {
+     "name": "UI Text Rendering / Font System",
+     "representative_vas": [
+      {
+       "va": "0x004034f0",
+       "role": "Gigantic font/encoding lookup, glyph width calc, multi-byte support (7330 bytes)"
+      },
+      {
+       "va": "0x4031c0",
+       "role": "Text string encoder, character width accumulation (815 bytes)"
+      },
+      {
+       "va": "0x4051d0",
+       "role": "Message/item description formatter with sprintf-like behavior (3244 bytes)"
+      }
+     ],
+     "notes": "Global font tables at DAT_005cd978 (+0xa4 per glyph, null-terminated). String arrays with 0x24-byte slots. Heavy use of character encoding (bytes <0x80 are ASCII, >=0x80 are two-byte). Port difficulty: HIGH \u2014 requires full font metric recovery and multi-byte character set handling."
+    },
+    {
+     "name": "Object Pool & Initialization",
+     "representative_vas": [
+      {
+       "va": "0x4017d0",
+       "role": "__thiscall ctor; allocates and zero-initializes all game object pools (1175 bytes)"
+      },
+      {
+       "va": "0x401c70",
+       "role": "Single-object initializer, zeroes particle/effect fields (54 bytes)"
+      }
+     ],
+     "notes": "0x4017d0 is THE main ctor: allocates 64x 600-byte sprites, 32x 0x15bb0-byte map objects, 128x 0x2fc entities, 1024x 0x284 items, 96x 0x20c particles, 128x 0x1f8 projectiles. Also allocates large buffers: 0x2cb044 (particle pool), 0xa52c, 0xb2c (scratch), plus 5x 0xc-byte string buffers at [0x9e2..0x9e6]. Uses global DAT_008a9b50 singleton. Port difficulty: CRITICAL \u2014 defines memory layout of entire object system."
+    },
+    {
+     "name": "Helper: Sprite Depth Sort & Position",
+     "representative_vas": [
+      {
+       "va": "0x401d80",
+       "role": "Calculate z-order (depth) between two character sprites by y-pos (100 bytes)"
+      },
+      {
+       "va": "0x4022a0",
+       "role": "Fetch current active sprite count (47 bytes)"
+      }
+     ],
+     "notes": "Simple Z-order calc at sprite.y + sprite.height/2. Used for render ordering. Port difficulty: LOW \u2014 standalone utility."
+    },
+    {
+     "name": "UI/Dialog Composition",
+     "representative_vas": [
+      {
+       "va": "0x402330",
+       "role": "Sprite + dialog params dispatcher (431 bytes)"
+      },
+      {
+       "va": "0x4020a0",
+       "role": "Screen fade/transition effect (503 bytes)"
+      }
+     ],
+     "notes": "Routes sprite + dialog box composition via global state at DAT_008a9b50 + 0x2790 (NPC list). Port difficulty: MEDIUM \u2014 mostly dispatch logic."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Object Pool Layout Hardcoded in Ctor",
+     "va": "0x4017d0",
+     "desc": "Single 1175-byte ctor allocates and initializes the entire game object system via nested loops over fixed counts (64, 32, 128, 1024, 96, 128). Sprite offsets, entity sizes, and item counts are burn-in constants; changing pool sizes requires recompiling the ctor. DAT_008a9b50 is the master singleton holding all pointers."
+    },
+    {
+     "title": "Sprite State Encoding Collision",
+     "va": "0x401e60, 0x401f50",
+     "desc": "Sprite state (talk=1, damage=2, stand=3) is stored separately from animation frame (at +0x15b70/74/7c/80/84/88). State is checked before running animation logic, but there's no multi-frame animation \u2014 only slot-based lookup. Quirky design makes frame reuse difficult."
+    },
+    {
+     "title": "Game Logic Dispatch via Scene ID Hash",
+     "va": "0x40c380",
+     "desc": "Main loop switches on *(int*)(in_ECX + 0x1d4), which holds scene IDs like 0x11300, 0x1124c, 0x11256, 0x1126b, 0x114a4 \u2014 these are not sequential or named in-code, only switch cases. Reverse-eng must use brute-force hash lookup or trace all callers."
+    },
+    {
+     "title": "Font Glyph Table Global at DAT_005cd978",
+     "va": "0x004034f0",
+     "desc": "Each glyph entry is 0xa4 bytes (164 decimal), null-term separated. The entire font table is a single hardcoded global; no dynamic font loading. Font metrics (width, height, baseline) are burned into the table structure, making custom fonts or scaling impossible without full table rebuild."
+    },
+    {
+     "title": "Recursive Sprite Iteration with 0x20 Slot Hardcoding",
+     "va": "0x401e60, 0x402330",
+     "desc": "Sprites are stored in slots 0..0x1f (32 total), with linear search on every interaction. No hash table or sparse representation; this is O(32) per sprite lookup. Port must preserve this limit or rewrite slot management."
+    }
+   ]
+  },
+  {
+   "band": "0x410000-0x420000",
+   "one_liner": "Menu/UI controller, dialog boxes, inventory management, and sprite rendering functions for the game interface.",
+   "subsystems": [
+    {
+     "name": "Menu/Dialog Controller",
+     "representative_vas": [
+      {
+       "va": "0x412c10",
+       "role": "Menu stack push/frame allocation"
+      },
+      {
+       "va": "0x412df0",
+       "role": "Character stats display formatter"
+      },
+      {
+       "va": "0x413b70",
+       "role": "Dialog box creation and item list display"
+      },
+      {
+       "va": "0x414490",
+       "role": "Item storage/item selection manager"
+      }
+     ],
+     "notes": "Menu system uses frame stack at in_ECX+0x4e/0x4c, references vtable at in_ECX+0x48. Heavy use of DAT_008a9b6c (UI string buffer), DAT_00854990 (strings), DAT_008a9534. Frames manage item visibility via flags (byte at offset 0x201a), and maintain list selection via offset +0x174. Port requires mapping string indices and UI constant offsets."
+    },
+    {
+     "name": "Character State Initialization",
+     "representative_vas": [
+      {
+       "va": "0x41f200",
+       "role": "Character creation/stats setup (27KB monster)"
+      },
+      {
+       "va": "0x41d780",
+       "role": "Character stat progression and ability updates"
+      },
+      {
+       "va": "0x41a890",
+       "role": "Save/load file path construction"
+      }
+     ],
+     "notes": "FUN_0041f200 is a large initialization function using in_ECX as character object pointer, with heavy use of array-indexed offsets (0x5xxx, 0x6xxx ranges) for stat slots. Tracks character level, ability flags, item arrays. References ability data at DAT_006b6ea8 (stride 0xd, entries 0x34 bytes). Port difficulty: HIGH \u2014 depends on exact struct layout and magic offset constants."
+    },
+    {
+     "name": "Sprite/Asset Rendering Preparation",
+     "representative_vas": [
+      {
+       "va": "0x417c40",
+       "role": "Sprite palette/effect color adjustment per battle difficulty"
+      },
+      {
+       "va": "0x4178e0",
+       "role": "Sprite slot initialization (thiscall, 194 bytes)"
+      },
+      {
+       "va": "0x4169e0",
+       "role": "Menu grid/icon list rendering prep (2529 bytes)"
+      }
+     ],
+     "notes": "FUN_00417c40 reads effect flags from in_ECX+0x289c (difficulty mode), applies color filters (opacity %, hue shifts). Uses local 1024-byte buffers for sprite palette tables. FUN_004178e0 is a thiscall on ar_sprite_slot struct. References offset +0x18e0 (sprite descriptor array), +0xaac (slot pointer array). Port: medium \u2014 struct offsets critical, no vtables visible, mostly procedural image manipulation."
+    },
+    {
+     "name": "Shop/NPC Dialog Logic",
+     "representative_vas": [
+      {
+       "va": "0x41c390",
+       "role": "Healer/Inn visitor interaction handler (1919 bytes)"
+      },
+      {
+       "va": "0x411940",
+       "role": "Menu window/list box rendering (770 bytes)"
+      },
+      {
+       "va": "0x41c150",
+       "role": "General NPC dialog framework"
+      }
+     ],
+     "notes": "FUN_0041c390 demonstrates dialog state machine: branches on param_3 (1=Healer, 2+=Inn), allocates strings locally (512-byte buffers), calls FUN_0055f190 for input, switches on response codes (0xb, 0xc, 0xd). Uses in_ECX+0x4064 for location ID (checks value 10 for special currency handling). Port: medium \u2014 needs string table mapping, input event codes."
+    },
+    {
+     "name": "Item Grid/List Management",
+     "representative_vas": [
+      {
+       "va": "0x413130",
+       "role": "Item deposit dialog (920 bytes)"
+      },
+      {
+       "va": "0x411f40",
+       "role": "Item entry UI initialization in list grid"
+      },
+      {
+       "va": "0x410610",
+       "role": "Item list text population from template strings (3103 bytes)"
+      }
+     ],
+     "notes": "Item lists use 0x10-byte entries in pool at in_ECX+0x17c; grid has capacity at +0x174+0x4. FUN_00410610 copies string templates (DAT_00854994, DAT_00854990, DAT_00854988) at 100-byte strides. Uses in_ECX+0x16c as grid cursor, +0x168 as capacity marker. References character data at in_ECX+0xbbc for equipped item IDs."
+    },
+    {
+     "name": "Save File Management",
+     "representative_vas": [
+      {
+       "va": "0x41a890",
+       "role": "Save/load filename construction with type dispatch (3030 bytes)"
+      },
+      {
+       "va": "0x41a7f0",
+       "role": "Save timestamp/metadata handler"
+      }
+     ],
+     "notes": "FUN_0041a890 switches on param_1 (save slot IDs 1, 0x271a, 0x2724, 0x272e, 0x2725) to construct paths like 'savedata_02d.bak/dat/sdt'. Uses large local buffers (512-byte strings) for path construction. References GetSystemTime. Port: low \u2014 mostly string/path manipulation, no complex state."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Magic offset array stride in character data",
+     "va": "0x41f200 lines 56-68",
+     "desc": "Character ability lookup uses stride 0xd (13 bytes) with secondary table at 0x34-byte intervals: (&DAT_006b6ea8)[(uVar13 & 0xffff) * 0xd] versus &UNK_006b6eac + (uVar13 & 0xffff) * 0x34. This suggests two interleaved data tables (one for IDs, one for properties) \u2014 not uncommon in engines but requires careful struct recovery."
+    },
+    {
+     "title": "Hardcoded character stat slot widths (0x5xxx range)",
+     "va": "0x41f200 lines 79-227",
+     "desc": "Function zeros 118 consecutive int32 fields starting in_ECX+0x5634, then initializes ability/item arrays at specific 4-byte strides. The sheer number of magic offsets (0x56d8, 0x5643, 0x5683, etc.) suggests a monolithic character struct at ~24KB. Each offset likely maps to a gameplay stat (HP, MP, skills, inventory, party data)."
+    },
+    {
+     "title": "String copy using length-prefix loop unroll",
+     "va": "0x410610 lines 30-51, 0x413b70 lines 116-137",
+     "desc": "Strings are copied via a loop that counts down a negated byte-length, then unrolls as 4-byte then 1-byte copies. This is a compact memcpy pattern but adds instruction noise \u2014 likely MSVC CRT memcpy inlining. Every string copy uses this pattern; recognizing it aids port."
+    },
+    {
+     "title": "Difficulty-dependent stat formula branches",
+     "va": "0x41f200 lines 240-284",
+     "desc": "Character initialization checks a global switch at DAT_008a9b50+0x2780 (difficulty mode: 10, 0x14, 0x28, 0x32) and applies different stat formulas for damage scaling. No obfuscation, but the +0x2780 offset into a global struct requires careful reverse-engineering to locate the difficulty field."
+    },
+    {
+     "title": "Unsigned-masked array indexing throughout",
+     "va": "0x412c10, 0x4169e0, 0x41d780 multiple",
+     "desc": "All array accesses use (index & 0xffff) even though loops clearly fit in 16 bits. This is a decompiler artifact (masking to match the original ushort type) but indicates the binary extensively uses uint16 for counters \u2014 important for cycle-accurate port."
+    },
+    {
+     "title": "Thiscall member functions embedded in large structs",
+     "va": "0x4178e0, 0x417b50 both marked __thiscall",
+     "desc": "FUN_004178e0 and FUN_004178b0 are both __thiscall methods on ar_sprite_slot (struct with vtable at +0x48 implied). These are method calls, not global functions, but live in a flat namespace. Port needs to reconstruct class methods from scattered entry points."
+    }
+   ]
+  },
+  {
+   "band": "0x420000-0x430400",
+   "one_liner": "Scene/level initialization and entity spawning code; large data-driven setup functions writing context object fields with palette/graphics/actor data.",
+   "subsystems": [
+    {
+     "name": "Scene Initialization",
+     "representative_vas": [
+      {
+       "va": "0x430400",
+       "role": "Boss/final area scene init; palette setup, camera defaults, entity pool init"
+      },
+      {
+       "va": "0x429060",
+       "role": "Generic dungeon/area scene init; entity list and renderer setup"
+      },
+      {
+       "va": "0x42eb20",
+       "role": "Big switch dispatcher for entity/ability spawning by ID (0x4e86-0x4ea8 range)"
+      },
+      {
+       "va": "0x42a9a0",
+       "role": "Alternative area scene init variant"
+      },
+      {
+       "va": "0x42da50",
+       "role": "Event/narrative scene init with specific entity setup"
+      },
+      {
+       "va": "0x42e290",
+       "role": "Scene init with conditional palette branches (0xc747/0xc745/0x1875a checks)"
+      }
+     ],
+     "notes": "Class/vtable: None visible (pure procedural); Key globals: DAT_008a9b6c (scene name string), DAT_006826c0+ (entity definition table, stride 0xc0), DAT_0062a400/DAT_0062a598 (shared sprite/palette bases). Key offsets: in_ECX+0x15914/0x15918/0x1591c (palette pointers), in_ECX+0xc754 (entity count, ushort), in_ECX+0xca28 (actor array base, stride 0x140). Port difficulty: Medium - struct initialization is straightforward but requires mapping 50+ offset constants; entity spawning has complex conditionals."
+    },
+    {
+     "name": "NPC/Character Setup",
+     "representative_vas": [
+      {
+       "va": "0x426620",
+       "role": "Sprite frame & anchor initialization; sets position/dimensions/rendering mode"
+      },
+      {
+       "va": "0x426fd0",
+       "role": "NPC template lookup and name string copy from global table"
+      },
+      {
+       "va": "0x427670",
+       "role": "Battle difficulty mode switcher with RNG-based parameter randomization"
+      }
+     ],
+     "notes": "Class/vtable: None; Uses procedural setup. Key globals: DAT_008a9b6c (NPC data base), DAT_00682660 (difficulty tables, stride 6). Key offsets: in_ECX+0x48/0x4a (frame index), in_ECX+0x50 (asset pointer), in_ECX+0xc834/0xc838 (battle position), in_ECX+0xc874 (difficulty param). Quirk: Uses FUN_005bf505 (RNG) per difficulty, manual memcpy for name strings. Port difficulty: Low-medium."
+    },
+    {
+     "name": "Entity/Actor Definition Lookup",
+     "representative_vas": [
+      {
+       "va": "0x4282f0",
+       "role": "Look up enemy/actor definition by ID; returns pointer to 0xc0-stride record"
+      },
+      {
+       "va": "0x427fb0",
+       "role": "Alternative entity lookup; loads parameters from global tables (DAT_006826c0 array)"
+      },
+      {
+       "va": "0x429d00",
+       "role": "Tiny (68-byte) inline entity ID lookup helper"
+      }
+     ],
+     "notes": "Class/vtable: None; Pure lookups into global arrays. Key globals: DAT_006826c0 (entity ID array, stride 0xc0 per entry, contains nested 0x180-stride sub-arrays for parameters). Lookups iterate until ID 0. Port difficulty: Low - just array walking."
+    },
+    {
+     "name": "Entity Pool & Context Management",
+     "representative_vas": [
+      {
+       "va": "0x426db0",
+       "role": "Set per-scene parameters (72-byte inline setter used by all scene inits)"
+      },
+      {
+       "va": "0x428c00",
+       "role": "Large (1115 bytes) context builder for complex scene type"
+      },
+      {
+       "va": "0x42c510",
+       "role": "Scene context init variant (1119 bytes)"
+      }
+     ],
+     "notes": "Class/vtable: None; Global context is single in_ECX object. Key offsets: in_ECX+0xc754 (entity count, incremented per spawn), in_ECX+[0..0x14]*0x14+0x48 (per-entity name override), in_ECX+0xca28+index*0x140 (actor array). Entity stride is 0x300 bytes. Port difficulty: Low - straightforward offset-based parameter setting."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Hand-Rolled strlen + Aligned memcpy for Scene Names",
+     "va": "0x429060, 0x430400, 0x42a9a0 (repeated pattern)",
+     "desc": "All major scene inits manually copy scene name string from DAT_008a9b6c to entity records at offsets +0x758 and +0x7a8 using a loop that counts down from 0xffffffff until null, then copies 4 bytes at a time. This is inefficient but ensures 4-byte alignment."
+    },
+    {
+     "title": "Entity Record Stride is 0x300 Bytes",
+     "va": "0x42eb20, 0x4282f0, throughout",
+     "desc": "Entities indexed as `uVar2 * 0x300 + in_ECX` suggest fixed 0x300-byte records. Actor state is stored at different stride (0x140) in separate 0xca28 array, suggesting entities and actors are separate pools."
+    },
+    {
+     "title": "Magic Sentinel 0xf00000 for Uninitialized State",
+     "va": "0x430400:183, 0x429060:133, 0x42a9a0:123",
+     "desc": "Entity init routines set offset +0x814 = 0xf00000; used as marker for 'default/uninitialized'. Conditionals later check (value == 0xf00000) and optionally override."
+    },
+    {
+     "title": "Negative Fixed-Point Coordinates in Camera Setup",
+     "va": "0x429060:50-51, 0x430400:43-44, 0x42a9a0:28-29",
+     "desc": "Camera/world bounds initialized with values like 0xfffffce0 (=-544), 0xfffff9c0 (=-1600), 0xffff63c0 (=-32320 in 0x42da50). These are signed negative offsets in two's complement, likely camera viewport bounds or world origin offsets."
+    },
+    {
+     "title": "Global Palette Pointer Tables per Scene",
+     "va": "0x430400:31-33, 0x429060:36-38, throughout",
+     "desc": "Each scene init writes different DAT_* palette pointers to in_ECX+0x15914/0x15918/0x1591c. These are scene-specific tilemap/palette data. The same offset is reused but filled with different global addresses."
+    },
+    {
+     "title": "RNG-Based Difficulty Parameter Scaling",
+     "va": "0x427670:34-79",
+     "desc": "Difficulty mode 2+ branches call FUN_005bf505 (likely Mersenne Twister) in a loop, multiplying random output by constants (0x32, 100) and adding base offsets (0x3b6, 0x28a, etc.) to scale challenge values. No difficulty mode 1+ without RNG."
+    }
+   ]
+  },
+  {
+   "band": "0x430000-0x440000",
+   "one_liner": "Frame logic, battle initialization, game state management, and menu/input handling clustered around large scenario setup and turn execution functions.",
+   "subsystems": [
+    {
+     "name": "Battle Scenario Initializer",
+     "representative_vas": [
+      {
+       "va": "0x431e30",
+       "role": "Main scenario init dispatcher (25293B) \u2014 routes 0x111d4-0x111e8 mode IDs to party/map/difficulty setup"
+      },
+      {
+       "va": "0x431930",
+       "role": "Subscenario helper (599B) \u2014 sets up character/NPC spawn tables"
+      },
+      {
+       "va": "0x431ba0",
+       "role": "Map dimension configurator (266B) \u2014 establishes play area boundaries"
+      }
+     ],
+     "notes": "Heavy use of indexed field initialization via in_ECX pointer (this-call). Stages 0x294-byte party slots with 8 character capacity (stride 0x11 = count field). Map limits at offsets 0x6c-0x7f, difficulty tables at 0xb8-0xba (DAT_00693808). Port hazard: raw offset writes demand byte-level verification."
+    },
+    {
+     "name": "Battle Turn Engine",
+     "representative_vas": [
+      {
+       "va": "0x439690",
+       "role": "Turn state machine (8866B) \u2014 processes character animation frames, status effect ticks, damage/heal resolution"
+      },
+      {
+       "va": "0x43e5b0",
+       "role": "Damage/action resolver (2120B) \u2014 evaluates skill hit, calculates HP/MP deltas, manages revive states"
+      },
+      {
+       "va": "0x43c1b0",
+       "role": "Character action queue (302B) \u2014 queues next battle action from input"
+      },
+      {
+       "va": "0x441ae0",
+       "role": "Pathfinding validator (via call sites) \u2014 checks walkability on 3-tier difficulty grids"
+      }
+     ],
+     "notes": "Uses switch-driven state machine: states 0-5+ correspond to combat phases. Timer management at offsets +0x1c/+0x20 (GetTickCount-based 100-300ms debounce). Grid collision indexed by (uVar6 & 0xffff) into tilemap at 0x2c1030. Offset 0x5653 stores difficulty (1=easy, 3=hard). Load-bearing: modulo arithmetic on slot count (offset 0x3) may have off-by-ones; needs verification."
+    },
+    {
+     "name": "Battle Grid & Collision",
+     "representative_vas": [
+      {
+       "va": "0x43f880",
+       "role": "Collision/grid setup (5491B) \u2014 validates spawn tiles, pathfinding on 0x80-stride grid"
+      },
+      {
+       "va": "0x43ee30",
+       "role": "Tile query helper (228B) \u2014 evaluates walkability at grid coordinates"
+      },
+      {
+       "va": "0x43ef20",
+       "role": "Pathfind wrapper (1091B) \u2014 breadth-first on obstacle grid"
+      }
+     ],
+     "notes": "Grid stride 0x80 per row. Offsets +0x4/+0xc/+0x8 = x/y/width. Map storage at DAT_008a9b50+0x1048 (indirect through globals). Port signal: collision checks compare against 1 (walkable); off-by-one risk in boundary clamping."
+    },
+    {
+     "name": "Game State & Mode Init",
+     "representative_vas": [
+      {
+       "va": "0x430400",
+       "role": "Global game state setup (5039B) \u2014 initializes sound levels, display modes, resolution tables, VRAM hints"
+      },
+      {
+       "va": "0x438a60",
+       "role": "Save slot init (2639B) \u2014 allocates 32KB buffers per save, writes party snapshot"
+      }
+     ],
+     "notes": "Uses param_1 (quest ID via in_ECX+0x1d4) to switch display mode (offsets 0x15a10-0x15a28, 0xc848=VRAM budget). Hardcoded resolution pairs: 800x500, 1280x960, 1920x1440 (although 1920x1440 hidden in UI per quirk \u00a75). Sound thresholds at 0x159a0-0x159b0 (8000 Hz base, 48 kHz max). Save buffers allocated via operator_new(0x24 * 9 dwords)."
+    },
+    {
+     "name": "Menu/Input System",
+     "representative_vas": [
+      {
+       "va": "0x43c110",
+       "role": "Input event poll (84B) \u2014 dequeues timed-out input events with 100ms window"
+      },
+      {
+       "va": "0x43ca40",
+       "role": "Menu navigation handler (970B) \u2014 debounced up/down/left/right with wrapped loops"
+      },
+      {
+       "va": "0x43c2e0",
+       "role": "Option selection (795B) \u2014 highlights and commits menu choices"
+      }
+     ],
+     "notes": "Input queue at in_ECX+0x108 (ring buffer, 64 entry slots). Timer fields at +0x1c/+0x20 use GetTickCount()+100/300ms waits. Menu state at in_ECX+0x1c (return 3/4 = highlight state). Wrapped navigation divides max by grid width (offset +0x3) and uses modulo for cycling. Quirk: 100ms debounce in case 4/6 gates repeat-fire."
+    },
+    {
+     "name": "Character/Skill UI",
+     "representative_vas": [
+      {
+       "va": "0x43d830",
+       "role": "Skill display init (1254B) \u2014 allocates skill list buffers, tracks element affinity (Fire/Water/Earth/Wind)"
+      },
+      {
+       "va": "0x43d1d0",
+       "role": "Skill animation setup (366B) \u2014 positions skill sprite groups on battle grid"
+      },
+      {
+       "va": "0x43d4b0",
+       "role": "Status effect icon renderer (144B) \u2014 draws poison/sleep/blind overlays"
+      }
+     ],
+     "notes": "Skill elements stored as 0-3 enum (offset +0x7). Calls FUN_0040f3e0 to allocate glyph buffers (0x168 size per skill, stride 0x28). Uses DAT_008a7708 as sprite atlas base. Party slot structure (0x294 bytes) embeds skill list pointer at +0x3a. Port difficulty: element string hardcoding in switch at line 146-160 (Water/Earth strings at 0x8552fc / 0x8552f4)."
+    },
+    {
+     "name": "Save Game Manager",
+     "representative_vas": [
+      {
+       "va": "0x438a60",
+       "role": "Save slot initialization (2639B)"
+      },
+      {
+       "va": "0x43c610",
+       "role": "Save data serializer (52B) \u2014 writes party checkpoint"
+      }
+     ],
+     "notes": "Save buffer allocated with operator_new(0x24), initialized to zeros. Writes character name, level, HP, MP snapshots. Uses param_6 to select which save slot (0-7). No checksum visible in this band; deferred to 0x005a**** range. Offset +0x290 = slot completion marker."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Off-by-one in menu loop bound checking",
+     "va": "0x43ca40 line 85-97",
+     "desc": "Menu navigation wraps using (count / cols) and (count % cols), but comparison is (index < count-1) at line 116. If grid_height==1 and index==0, wrapping down enters modulo-0 trap. Careful byte-verification needed before port."
+    },
+    {
+     "title": "100ms debounce timer resets to 300ms on first press",
+     "va": "0x43ca40 case 4/6",
+     "desc": "GetTickCount() + 300 on first trigger, then +100 on repeat. Not a bug, but non-obvious UX: slow first repeat, then fast auto-repeat. Mimics early arcade game feel."
+    },
+    {
+     "title": "Tilemap collision lookup uses (x&0xffff) as array index",
+     "va": "0x43f880 line 103",
+     "desc": "Clamping via (((int)uVar5 < 0) - 1 & uVar5) is technically sign-extend clamp, not wraparound. Safe in 32-bit, but unusual; suggests original code was ported from assembly or macro-heavy C++."
+    },
+    {
+     "title": "Scenario type IDs are sparse (0x111d4-0x111e8 range)",
+     "va": "0x431e30 line 153-499",
+     "desc": "Only 5 case IDs used out of possible 20. Large gaps in enum suggest abandoned branches or cut content. Matches typical game-dev lifecycle."
+    },
+    {
+     "title": "Save slot init uses operator_new(0x24) for 9 dwords but zero-fills with stride mismatches",
+     "va": "0x431e30 line 69-78",
+     "desc": "Allocates 36 bytes, clears 9*4-byte runs with mixed pointer/undefined4 writes. Loop at line 71 increments puVar5 by 1 (undefined4*), clearing 36 bytes exactly, but the stride confusion (mixed types) is a sign of sloppy refactoring."
+    }
+   ]
+  },
+  {
+   "band": "0x440000-0x450000",
+   "one_liner": "Entity/sprite state machines with animation, collision, dialog, and action dispatch for game characters and NPCs.",
+   "subsystems": [
+    {
+     "name": "Entity frame / state machine core",
+     "representative_vas": [
+      {
+       "va": "0x442a70",
+       "role": "Main entity per-frame update dispatcher - massive state switch on action code (0xc35a-0x1875d), manages animation timing, position, collisions, voice/dialog"
+      },
+      {
+       "va": "0x4412d0",
+       "role": "Entity allocation and spatial placement - alloc 0xa500 entity arena (0x40 slots at stride 0x294), run collision checks, initialize collider mesh"
+      },
+      {
+       "va": "0x441270",
+       "role": "Entity dtor - cleanup allocation of sub-collider heap pointers (array at +0x290)"
+      }
+     ],
+     "notes": "Entities are pooled in a parent object at offset 0x40, each occupies 0x294 bytes. sub-colliders live at +0x290 (0x40 pointers to 0x50-byte objects). Entity has packed animation state: +0x48=animation ID, +0x58=animation phase, +0x5c=frame counter, +0x38=character type/class. Uses global DAT_008a9b50 for instance list and DAT_008a6e80 for engine state. This-call methods."
+    },
+    {
+     "name": "Entity input validation and targeting",
+     "representative_vas": [
+      {
+       "va": "0x440e40",
+       "role": "Predicate: can entity take action on target? checks if target slot active, alive, type-compatible (player/NPC mode), same team"
+      },
+      {
+       "va": "0x441700",
+       "role": "Spatial collision detection - iterate all sub-colliders, test AABB against query box, support rotated sprite collision (player item array at +0x290)"
+      },
+      {
+       "va": "0x4416c0",
+       "role": "Small checker - likely predicate for action viability (52 bytes)"
+      }
+     ],
+     "notes": "Entity targeting lives in a global instance table (DAT_008a9b50+0x2788) with 0x11-encoded max entities. Collision mesh stored per entity, iterated for hit detection. Offsets suggest entity payload begins around +0x2c, sprite data around +0x40."
+    },
+    {
+     "name": "Animation and sprite rendering",
+     "representative_vas": [
+      {
+       "va": "0x447900",
+       "role": "Sprite rendering helper - compute draw position from animation frame + entity pose, call FUN_005b15e0 (rendering layer), handle shadows/secondary pass"
+      },
+      {
+       "va": "0x447f30",
+       "role": "Sprite frame/pose lookup (692 B) - likely sprite atlas accessor"
+      },
+      {
+       "va": "0x445f70",
+       "role": "Animation phase update (91 B) - small increment/reset for anim counter"
+      },
+      {
+       "va": "0x445ce0",
+       "role": "Scene-wide animation sync? (67 B)"
+      }
+     ],
+     "notes": "Defers to external FUN_005b15e0 for actual rasterization. Sprite metadata in +0x2e0, +0x2e4, +0x2f4 offsets suggest frames, variant ID, extra param. Animation stored as packed array at +0x2c4 (cost?), +0x2c8 (offset?). Pose stored around +0xb0-0xb4."
+    },
+    {
+     "name": "Character action handlers",
+     "representative_vas": [
+      {
+       "va": "0x448dc0",
+       "role": "Boss enemy action engine (2221 B) - handles case=5/6/7 (special monster attacks), manages cooldown, sound effects (FUN_00407ba0), pose transitions"
+      },
+      {
+       "va": "0x449810",
+       "role": "NPC/minion action handler (2221 B) - large state machine, likely handles shop/dialog/follower behaviors"
+      },
+      {
+       "va": "0x44e8d0",
+       "role": "Treasure/chest/object interaction (3428 B) - case=3/5 (treasure), manages opening anim, particle effects, UI dialog trigger"
+      },
+      {
+       "va": "0x44a200",
+       "role": "Enemy group action (1338 B) - orchestrate multi-enemy behavior chains"
+      }
+     ],
+     "notes": "Each handler is a large switch on entity.action_code (stored at +0x48). Action codes are 16-bit: 0xc35a-0x18752 observed. Return value indicates completion (0=done, nonzero=busy). Uses local state at +0x54, +0x58 to manage multi-frame sequences. Calls FUN_005bf505 for time queries."
+    },
+    {
+     "name": "Dialog and voice trigger",
+     "representative_vas": [
+      {
+       "va": "0x445fd0",
+       "role": "Dialog line queue/playback (1015 B) - dispatch voice/sprite portrait, check player ready, return when speech done"
+      },
+      {
+       "va": "0x446900",
+       "role": "Character dialog state handler (3869 B) - large dialog FSM with case=0x59/0x5a, manages portrait anim, waits for animation sync"
+      },
+      {
+       "va": "0x447ed0",
+       "role": "Dialog trigger wrapper (89 B) - queue dialog for entity"
+      }
+     ],
+     "notes": "Dialog references global table at in_ECX+0x15b54 (size at +0x15b5c). Dialog data at stride 0x510 per line. Uses DAT_0062e3c0, DAT_0062e558 for portrait/UI. Dialog FSM uses +0x58 for phase counter (0-5), +0x74 for sync flag."
+    },
+    {
+     "name": "Damage, status effects, and item use",
+     "representative_vas": [
+      {
+       "va": "0x44a740",
+       "role": "Character skill/ability dispatch (2552 B) - case=0x39/0x3a/0x3b/0x3c, execute damage calc, call FUN_00461240 (damage apply), trigger hit anim"
+      },
+      {
+       "va": "0x44b160",
+       "role": "Status effect applier (2523 B) - poison/burn/freeze, manage duration at +0x5c, visual indicators"
+      },
+      {
+       "va": "0x44bc10",
+       "role": "Healing/buff handler (819 B) - apply recovery, trigger heal particle"
+      },
+      {
+       "va": "0x44bf60",
+       "role": "Item consumption (751 B) - consume inventory item, apply effect"
+      }
+     ],
+     "notes": "Damage values pulled from skill table and scaled by character stats. FUN_00461240 is the damage applier. Status effect duration stored at +0x5c. Effects reference global data: DAT_00651018, DAT_00651668, DAT_00651cb8, DAT_00652308 (skill/effect metadata)."
+    },
+    {
+     "name": "Pathfinding and movement",
+     "representative_vas": [
+      {
+       "va": "0x4481f0",
+       "role": "Movement speed calculator (424 B) - map character stat to pixel/frame velocity, account for terrain modifiers"
+      },
+      {
+       "va": "0x4483c0",
+       "role": "Path segment interpolation (227 B) - lerp between waypoints"
+      },
+      {
+       "va": "0x445db0",
+       "role": "Pathfind initialization (150 B) - query map, seed path search"
+      }
+     ],
+     "notes": "Movement state stored at +0x28 (position), +0x2c (direction/variant), +0x1c (speed). Uses FUN_005bf505 for frame delta time. Terrain/collision referenced from in_ECX+0x750 (scene manager)."
+    },
+    {
+     "name": "Special scripted actions",
+     "representative_vas": [
+      {
+       "va": "0x44d2e0",
+       "role": "Cutscene/boss event orchestrator (1528 B) - boss-specific anim sequences, multi-phase logic for major encounters"
+      },
+      {
+       "va": "0x44d8f0",
+       "role": "Environmental hazard/trap trigger (2164 B) - spike, lava, ice effects"
+      },
+      {
+       "va": "0x44e1c0",
+       "role": "Party event/formation handler (1117 B) - manage player party idle poses, formation changes"
+      },
+      {
+       "va": "0x44ce20",
+       "role": "Summon/spell effect dispatcher (505 B)"
+      }
+     ],
+     "notes": "Heavily parameterized on action_code. Some actions require async particle/audio, queued through in_ECX+0xc7f4 (effect queue). Camera control via in_ECX+0x750. Uses spine-like bone data at +0x2e0."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Entity arena pool with inline sub-object allocation",
+     "va": "0x4412d0",
+     "desc": "Entities live in a pre-allocated arena at in_ECX[0x40] (0xa500 bytes = space for ~0x40 entities at 0x294 stride). For each entity, allocation calls operator_new(0x50) 0x40 times for a collider sub-mesh (stored via ptrs at entity+0x290). This is a hand-rolled pool; no virtual dtor calls during entity kill (see 0x441270 which manually cleans up)."
+    },
+    {
+     "title": "Action code as 16-bit enum multiplexing",
+     "va": "0x442a70",
+     "desc": "Entity action dispatch is a gigantic switch (lines 191-597) on in_ECX[0x75] (action code). Codes in range 0xc35a-0x1875d (up to ~6,000 different actions). Many handlers are separate FUN_ entries that take entity as param_1. Suggests this is a data-driven action interpreter; the code in 0x442a70 is the dispatcher, individual handlers are micro-VMs for each action type."
+    },
+    {
+     "title": "Animation frame timing via global lookup table",
+     "va": "0x442a70 (line 197)",
+     "desc": "Animation frame delay indexed from DAT_008a9358: `iVar8 = (&DAT_008a9358)[-((int)(iVar8 + (iVar8 >> 0x1f & 3U)) >> 2)]`. The negative subscript + shift pattern suggests a packed lookup or variable-width encoding, likely holding frame duration for each sprite sheet."
+    },
+    {
+     "title": "Multi-frame action sequence with phase FSM",
+     "va": "0x446900, 0x448dc0",
+     "desc": "Actions split into phases (0-5) stored at +0x58. Example: cast spell (case 0x59) has phases: init anim -> wait for sync -> cast -> wait for hit -> cleanup. Frame counter at +0x5c increments within each phase. Some actions parameterized by +0x54 (subphase), +0x5a (limit counter). This is a coroutine-like pattern."
+    },
+    {
+     "title": "Collision mesh iterated per frame",
+     "va": "0x441700",
+     "desc": "Every collision query loops through all sub-colliders at entity+0x290 (array of 0x40 pointers to 0x50-byte boxes). Each sub-collider stores 4 ints (AABB bounds). No spatial partitioning; O(n^2) for n entities with ~0x40 colliders each. Functional for 1-4 players + ~10 enemies."
+    },
+    {
+     "title": "Positional state split between entity and external pose object",
+     "va": "0x447900, 0x44a740",
+     "desc": "Entity stores action-relative offset at +0x28 (+0x2c for direction variant). Absolute position comes from param_8 (a sprite/drawable object passed in). Sprite object has position at +0x10, size at +0xc. This suggests entities are logic nodes, not rendering nodes; position decoupled from animation frame. Allows skeleton/bone animation to be computed elsewhere."
+    },
+    {
+     "title": "Action result codes (0=done, 1=busy) not boolean, used for chaining",
+     "va": "0x442a70 (line 549, 562)",
+     "desc": "Many action handlers return int, used in if (iVar5 == 0) branches. Return 1 forces FUN_00467bb0 (likely action complete callback). This allows one-shot vs looping actions in the dispatcher."
+    },
+    {
+     "title": "Dialog tied to time via FUN_005bf505 millis query",
+     "va": "0x446900",
+     "desc": "Dialog waits for character animation to finish (check +0x74), then checks in_ECX+0x15b54 (dialog line table). Uses time queries to timeout if anim hangs. No pre-baked dialog timing; tied to actual frame count / engine clock."
+    },
+    {
+     "title": "Velocity/speed scaling via skill metadata arrays",
+     "va": "0x4481f0",
+     "desc": "Movement speed not hard-coded; pulled from skill/item table (param_8+0x2c4, stride varies). Then `(stat * param_9) / 1000` scales by effect multiplier. This allows enemy AI to vary speed, support items to grant speed buff."
+    }
+   ]
+  },
+  {
+   "band": "0x450000-0x470000",
+   "one_liner": "Dialog/sprite animation state machines and game-entity rendering dispatch; the main render-per-frame bottleneck where sprite batches and visual effects are choreographed.",
+   "subsystems": [
+    {
+     "name": "Dialog / sprite animation state machine",
+     "representative_vas": [
+      {
+       "va": "0x461790",
+       "role": "Largest (19.4 KB): master dialog runner; orchestrates dialog sprite state transitions (0x2775/0x2778/0x277d IDs), animation frame advancement via FUN_00426f20 and FUN_004072c0, and calls FUN_00467500 to update animation pointers."
+      },
+      {
+       "va": "0x45a300",
+       "role": "14 KB: entity action dispatcher; switch on entity type ID (0x2782/0x2783 common), calls FUN_0045db20 to advance animations, manages state counters in param_1+0x5c."
+      },
+      {
+       "va": "0x45e830",
+       "role": "9.4 KB: dialogue sprite frame sequencer; handles sprite ID references at DAT_00636260/DAT_0063a008, increments animation state at param_1+0x5c, returns sprite pointers."
+      },
+      {
+       "va": "0x46e510",
+       "role": "10.7 KB: render-frame dialog orchestrator; reads dialog state at (in_ECX + 0x40), reinitializes animation frames, delegates to system-time dependent frame calculation."
+      },
+      {
+       "va": "0x467500",
+       "role": "Animation state reset helper (185 B): atomically swaps sprite pointers at param_1+0x4c/0x50, increments frame counter DAT_008a9b50+0x27a0, guards state transitions."
+      }
+     ],
+     "notes": "Core class operates on param_1 (entity struct) with fixed offsets: 0x48=current_sprite_id, 0x56=animation_progress%, 0x58=frame_state, 0x5c=frame_timer, 0x6c=sprite_ptr, 0x74=animation_done_flag. Heavy use of jump-table dispatches on sprite IDs (0x2775, 0x2778, 0x277d, etc.). Global frame counter at DAT_008a9b50+0x27a0 wraps at 0xffffff. Thiscall convention confirmed by (in_ECX + offset) patterns. Port difficulty: MEDIUM (vtable recovery needed for 0x4072c0/0x426f20 sprite loaders)."
+    },
+    {
+     "name": "Game entity render dispatch",
+     "representative_vas": [
+      {
+       "va": "0x4539b0",
+       "role": "8.7 KB: entity action ID dispatcher (case 0x2/0x12/etc); calls FUN_0044a160 for setup, drives monster/NPC state machines."
+      },
+      {
+       "va": "0x450810",
+       "role": "1.5 KB: in-game event runner; dispatches on sprite ID 0x21/0x22/0x23, calls FUN_00461240 to manage animation sequence."
+      },
+      {
+       "va": "0x455d80",
+       "role": "3.2 KB: interactive sprite controller; dispatches on entity.type (0x13), calls FUN_00466930 to load sprite frames, calls FUN_00447900 to render."
+      }
+     ],
+     "notes": "Entities share param_1 struct format with dialog system (offsets 0x38/0x48/0x58/0x5c/0x6c reused). Heavy cross-calls to FUN_00407b80, FUN_00407ba0, FUN_005bf505 (timer reads). In-game entity list accessed via (in_ECX + 0x15xxx) offsets. Thiscall vtables inferred from in_ECX refs. Port difficulty: MEDIUM (entity list enumeration, sprite ID\u2192address mapping)."
+    },
+    {
+     "name": "Sprite frame sequencing & animation",
+     "representative_vas": [
+      {
+       "va": "0x467bb0",
+       "role": "3.4 KB: sprite frame collision checker; reads sprite layout at (in_ECX + 0x15950/0x15954), applies distance/orientation logic, manages sprite.0x20/0x24/0x28."
+      },
+      {
+       "va": "0x466930",
+       "role": "1.3 KB: sprite visual state updater; case on param_1+0x38 (entity type), reads global sprite tables (in_ECX + 0x159d4/0x159dc/0x159e0/0x159e4/0x159e8), updates entity.0x6c."
+      },
+      {
+       "va": "0x468b10",
+       "role": "7.2 KB: sprite boundary culling for rendering batch; checks sprite bounds at (in_ECX + 0x3d0) against camera viewport, gates frame draw."
+      }
+     ],
+     "notes": "Shared offset access: entity.0x38=type, 0x28=Y_position, 0x20/0x24=X_position; sprite layout accessed via (in_ECX + 0x159xx) table array. Globals DAT_008a6e80 (main sprite context), in_ECX+0x750 (camera/scene ptr). Port difficulty: MEDIUM-HIGH (sprite table management, bounds arithmetic)."
+    },
+    {
+     "name": "Render-time dialogue sequence management",
+     "representative_vas": [
+      {
+       "va": "0x457ff0",
+       "role": "4.7 KB: dialogue event sequencer; case on sprite ID 0x62/0x63/0x99, reads event state from (in_ECX + 0x15ad0/0x15ad4/0x15b54), manages DAT_0062c8a8 sprite pointers."
+      },
+      {
+       "va": "0x461240",
+       "role": "434 B: sprite animation slide/scroll controller; manages 4-stage animation (0x58 state machine), loads sprite from param_3+0x194/0x328/0x4bc offsets, calls FUN_0054db10 to apply movement."
+      },
+      {
+       "va": "0x450e00",
+       "role": "237 B: audio/wave reserve handler; indexes wave bank at (in_ECX + 0x1b0) + 0x14 + param_1 * 0x24."
+      }
+     ],
+     "notes": "Dialogue sprite pointers live at param_3 (typically a sprite-metadata struct). State tracking at entity+0x58/0x5c. Movement deltas apply to entity+0x78. Global event state in in_ECX+0x15ad0 range (16 dwords). Port difficulty: HIGH (sprite metadata struct offsets, event ID\u2192action mapping)."
+    },
+    {
+     "name": "Sprite batch render accumulation",
+     "representative_vas": [
+      {
+       "va": "0x46a880",
+       "role": "8.9 KB: sound/audio frame accumulator; reads audio state from (in_ECX + 0x590), pushes 0x200/0xd0/0xcb frame events onto a 0x40-entry ringbuffer at (in_ECX + 0x108)."
+      },
+      {
+       "va": "0x447900",
+       "role": "772 B: sprite render call builder; computes sprite scale/offset via FUN_004481f0/FUN_00426e00, delegates to FUN_005b15e0 for final batch push (handles 3x camera-wrap cases)."
+      }
+     ],
+     "notes": "Sprite ringbuffer at (in_ECX + 0x108), 0x40 entries, each 4 bytes. Frame accumulation checks camera bounds, applies scrolling offsets via (in_ECX + 0xc7e4/0xc7f4/0xc7f8). Port difficulty: HIGH (ringbuffer management, FUN_005b15e0 batch API is outside this range)."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Frame counter wraps at 0xffffff, not power-of-2",
+     "va": "0x467500 line 22-27",
+     "desc": "Global frame counter at DAT_008a9b50+0x27a0 increments per entity state change but resets to 0 (not wraps) when reaching 0xffffff. This is unusual \u2014 most engines use power-of-2 wraps. Suggests deliberate avoidance of arithmetic edge cases, or a quirk of the original sprite-scheduling logic."
+    },
+    {
+     "title": "Sprite ID dispatch uses exact values (0x2775, 0x2778, 0x277d), not ID ranges",
+     "va": "0x461790 lines 68-135",
+     "desc": "Dialog animation state machine switches on exact sprite IDs (0x2775, 0x2778, 0x277d) and resets all 10 state fields identically on each branch. No fallthrough; suggests hand-coded sprite ID table, not data-driven. Each ID gets its own reset block (40 bytes) \u2014 inefficient but explicit."
+    },
+    {
+     "title": "Animation progress tracked as percentage (0-0xd2) not frame count",
+     "va": "0x461790 line 56, 0x467500 line 13",
+     "desc": "Entity+0x56 holds animation_progress as 0-210 (0xd2), not tick count. Line 13 of 0x467500 gates state transition on this percentage: `*(ushort *)(param_1 + 0x56) / 100 <= param_3 / 100`. This is a normalized-time check, suggests original engine used continuous time values normalized to 0-210, unusual for a discrete sprite sequencer."
+    },
+    {
+     "title": "Global sprite table at in_ECX+0x15d{c,d,d4,d8,e0,e4,e8} for entity types 1-4",
+     "va": "0x466930 lines 29-78",
+     "desc": "Entity type (0x38) determines which global sprite table to use: type=1 -> in_ECX+0x15980/0x15994, type=2 -> in_ECX+0x159dc/0x159e0/0x159e4, type=3 -> in_ECX+0x159d4. Tables are contiguous but the offset pattern is irregular (0x159d4, 0x159d8, 0x159dc, 0x159e0, 0x159e4, 0x159e8). Suggests a hand-rolled entity-type-dispatch, not a vtable."
+    },
+    {
+     "title": "Sprite pointer reset bundles 10 fields at once (0x48, 0x54, 0x56, 0x58, 0x5a, 0x5c, 0x78, 0x4c, 0x50, +0x64)",
+     "va": "0x461790 lines 92-101",
+     "desc": "When transitioning dialog sprites, the code resets 10 fields in lockstep: state IDs, timers, pointers, and flags. This is a symptom of a monolithic entity struct that conflates animation state, sprite pointers, and rendering flags \u2014 suggests the port will need a similar struct layout."
+    },
+    {
+     "title": "Movement deltas encoded as negative when entity.0x2c == 3 (direction flag)",
+     "va": "0x461240 lines 43-45, 66-68",
+     "desc": "Sprite movement at param_1+0x78 is negated if entity+0x2c == 3 (likely a direction/facing flag). This is a common trick to avoid duplicating animation sequences for left/right sprites, but it's embedded in the rendering code rather than the animation loader \u2014 suggests the original engine had limited resource-deduplication."
+    },
+    {
+     "title": "Ringbuffer for sprite events at in_ECX+0x108, 0x40 entries, manual head rotation",
+     "va": "0x46a880 lines 45-72",
+     "desc": "Sprite rendering events are queued into a ringbuffer with no index tracking \u2014 each push copies all prior entries up by one slot (lines 47-50, 68-72). This is O(n^2) in the batch size (max 64 entries). Suggests original engine didn't have a proper ringbuffer implementation."
+    }
+   ]
+  },
+  {
+   "band": "0x470000-0x480000",
+   "one_liner": "Battle/combat state machine, NPC AI, UI text/dialog rendering, and sprite effect coordination.",
+   "subsystems": [
+    {
+     "name": "Battle State Machine / Combat Orchestration",
+     "representative_vas": [
+      {
+       "va": "0x4710c0",
+       "role": "20KB master battle phase controller; dispatches on combat state (0x186a1-0x186a9 magic IDs); calls into all other subsystems per phase"
+      },
+      {
+       "va": "0x477650",
+       "role": "1294B battle update loop; state machine that sequences NPC turn order, calculates damage, triggers SFX"
+      },
+      {
+       "va": "0x478ba0",
+       "role": "3514B combat turn finalizer; resolves attack validity, applies buffs/debuffs, plays character reaction animations"
+      }
+     ],
+     "notes": "Class-like structure in_ECX holds vtable at +0x75 (magic ID dispatch table at PTR_DAT_0056bfa4 pattern). Key globals: in_ECX+0x2c (turn counter), in_ECX+0x83 (active character object), in_ECX+0x8a/0x8b (hit count limits). Enum-heavy: 0x186a1-0x186a9 are magic move class IDs; *(short*)(param_2 + 0x58) tracks internal phase. No clear dtor; aggressive GetTickCount() time-gating (200ms, 500ms thresholds common)."
+    },
+    {
+     "name": "NPC AI / Attack Selection Logic",
+     "representative_vas": [
+      {
+       "va": "0x47b990",
+       "role": "7461B monster/NPC decision tree; evaluates arena position (0x2c=left/right), distance-weighted attack selection, teammate proximity influence"
+      },
+      {
+       "va": "0x47ae00",
+       "role": "2364B move viability checker; validates attack context (case 0x9-0x12), calculates expected damage spread, applies post-hit bonus scaling"
+      },
+      {
+       "va": "0x47e330",
+       "role": "1120B ally distance calculator; sweeps 32 character slots (DAT_008a9b50 + 0x1160), ranks by proximity for spell targeting"
+      }
+     ],
+     "notes": "Character state at param_1 + 0x1dc (type enum), param_2 + 0x28 (HP), param_2 + 0x2c (facing dir 1=left,3=right). Pathfinding: FUN_0047dbb0 called for arc queries (0x640=fixed arc width). Complex interaction: in_ECX + 0xc854/0xc858 = shield/barrier objects; *(int*)(in_ECX + 0x1596c) = arena half-width. Cost/benefit analysis cached in local arrays (local_b4[] = sprite indices, local_80[] = action queue). Port difficulty: MEDIUM (requires understanding struct layout of character objects)."
+    },
+    {
+     "name": "Sprite/Particle Rendering & Effects",
+     "representative_vas": [
+      {
+       "va": "0x476ef0",
+       "role": "369B sprite render call wrapper; multiplexes to FUN_005b15e0 with offset/palette params; handles effect lifecycle (increments in_ECX + 0x22c counter)"
+      },
+      {
+       "va": "0x476ba0",
+       "role": "198B rotation-to-delta converter; takes angle at param_1 + 0x34, applies sin/cos, writes X/Y deltas for smooth 360-deg movement"
+      },
+      {
+       "va": "0x477310",
+       "role": "589B positioned sprite spawner; places sprite at offsets relative to character center, applies param-based SFX timing"
+      },
+      {
+       "va": "0x476550",
+       "role": "326B atan2 + quadrant resolver; computes angle between two points, used for particle spray direction"
+      }
+     ],
+     "notes": "Rendering pipeline: FUN_00476ef0 \u2192 FUN_005b15e0 (external, likely in GFX subsystem). Sprite heap at in_ECX + 0x1b0 (max slots *(ushort*)(in_ECX + 0x1b4)). Floating-point trig heavy (_DAT_008a9a38 = pi/1000 constant). Palette ramps in DAT_008a6ec4[]. Hard constraint: in_ECX + 0x228 = sprite-play-until counter; if hit, calls FUN_00556180(0) to commit render. Port difficulty: HIGH (depends on external sprite blitter, needs precise parameter mapping)."
+    },
+    {
+     "name": "Audio/Wave Coordination",
+     "representative_vas": [
+      {
+       "va": "0x476880",
+       "role": "509B wave slot allocator; reserves audio channel from pool at in_ECX + 0x1b0, calls FUN_0040bb90 to queue sample, updates SFX playback counter"
+      },
+      {
+       "va": "0x4710c0",
+       "role": "Calls FUN_005bb870/FUN_005bb8c0 extensively to sync audio with animation frames (wave-to-sprite binding)"
+      }
+     ],
+     "notes": "Wave pool: 32-slot table at DAT_008a9b50 + 0x1160 (4-byte entries, character ptrs). Reservation check: *(ushort*)(in_ECX + 0x1b4) must not overflow. SFX bytes at offset +0x20 into pool entry. Globals: DAT_008a6e80 (likely audio device handle), in_ECX + 0x6c/0x6d (wave reservation flags). Port difficulty: MEDIUM (defer to existing audio subsystem; mapping is mostly parameter routing)."
+    },
+    {
+     "name": "UI Text/Dialog Rendering",
+     "representative_vas": [
+      {
+       "va": "0x477f10",
+       "role": "727B dialog box renderer; writes animation state to param_1 + 0x58 (0\u21921\u2192final), updates position in_ECX + 0x22c"
+      },
+      {
+       "va": "0x476c70",
+       "role": "144B text color palette writer; applies ramp based on in_ECX color index"
+      },
+      {
+       "va": "0x476d30",
+       "role": "230B popup damage/heal number animator; fades and scrolls numeric text"
+      }
+     ],
+     "notes": "Dialog lifetime: param_1 + 0x28 (age in ms, 0-40000), incremented by 2000/frame. Position: param_1 + 4/8 (X/Y). Palette ID at in_ECX + 0x3d/0x3e. Text anchor: *(short*)(param_2 + 0x48) flags mirroring. Port difficulty: MEDIUM (mostly coordinate transforms; text rendering likely deferred to GFX system)."
+    },
+    {
+     "name": "Update Tick Dispatcher",
+     "representative_vas": [
+      {
+       "va": "0x478ba0",
+       "role": "Polls all effect/animation counters (in_ECX + 0x14200-range), decrements lifetimes, prunes expired objects"
+      },
+      {
+       "va": "0x47b990",
+       "role": "Aggregate of character state machine; ticks HP regeneration, buffs, status effects"
+      }
+     ],
+     "notes": "Frame boundary: GetTickCount() at entry, compared against per-object last-update time stamps. Decrement patterns: *(short*)(in_ECX + 0x14804) -= 1, *(short*)(in_ECX + 0x14248) -= 1 (per-character cooldowns). Early-exit chains common (if X return;). Port difficulty: LOW (mostly housekeeping)."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Off-by-one in NPC attack cost lookup",
+     "va": "0x47b990 line 154-157",
+     "desc": "Comparison `((*(int*)(param_2 + 0x28) <= *(int*)(in_ECX + 0x1596c)) - 1 & 0xc80) + 0xc80` uses decrement-and-mask to clamp; this is a sign-extension trick to convert bool to 0/-1, then add offset. Works but fragile if const 0xc80 changes (arena width)."
+    },
+    {
+     "title": "Wrapped modulo in turn counter update",
+     "va": "0x478ba0 line 790",
+     "desc": "In state 3, `(iVar4 + 1) % 0x28` computes next valid attacker; hardcoded 40 (0x28) implies max 40 characters per scene. Off-by-one risk if iVar4 == 39."
+    },
+    {
+     "title": "Implicit magic ID enum (0x186a1-0x186a9)",
+     "va": "0x4710c0 line 163",
+     "desc": "Switch on in_ECX[0x75] dispatches magic move class 0x186a1 (fireball) through 0x186a9 (special?). No extern enum definition in decompile; likely hand-coded magic table in retail. Port must preserve these IDs."
+    },
+    {
+     "title": "Sprite lifecycle via counter, not lifetime field",
+     "va": "0x476ef0 line 25-30",
+     "desc": "Sprite rendering driven by in_ECX + 0x22c counter; when >= in_ECX + 0x228 limit, sprite is freed. No per-sprite TTL; instead, all sprites tied to single global counter. Means sprites must be queued in order or they'll be culled early."
+    },
+    {
+     "title": "Angle wrapping via atan2 + quadrant case",
+     "va": "0x476550 line 11-50",
+     "desc": "Hand-rolled atan2 with 4-quadrant correction; adds/subtracts _DAT_008a6b28/0x808... global constants (likely pi/pi/2 in rad*1000). Risk: floating-point precision drift if constants are approximations."
+    },
+    {
+     "title": "Circular position update with brute-force sin/cos per frame",
+     "va": "0x476ba0 line 24-36",
+     "desc": "Every frame: sin(angle)*const, cos(angle)*const, then __ftol to convert. No pre-computed table; floating-point overhead per sprite. Potential perf bottleneck for many simultaneous effects."
+    },
+    {
+     "title": "GetTickCount() time-gating thresholds magic numbers",
+     "va": "0x478ba0 lines 171-231",
+     "desc": "Comparison `uVar7 < DVar5 - iVar6` with hardcoded 10ms, 50ms, 200ms thresholds scattered throughout. No abstraction; will break if frame-rate changes. Port must parameterize these or risk off-by-one frame timing bugs."
+    },
+    {
+     "title": "Uninitialized conditional branches in dialog state machine",
+     "va": "0x477f10 line 33",
+     "desc": "Goto LAB_004780d7 from multiple branches without init of local_4; if path taken, local_4 may be garbage. Compiler likely eliminated dead code; should be safe but fragile."
+    }
+   ]
+  },
+  {
+   "band": "0x480000-0x490000",
+   "one_liner": "Animation/sprite rendering, collision detection, and UI layer (text, line drawing) implementation with character state and effect management.",
+   "subsystems": [
+    {
+     "name": "Character Animation & Sprite Rendering",
+     "representative_vas": [
+      {
+       "va": "0x4895c0",
+       "role": "Main character animation sequencer - 8605 bytes, large switch on animation types (0x56b4), computes sprite position/bounds with in_ECX offset chaining"
+      },
+      {
+       "va": "0x487dc0",
+       "role": "Secondary animation handler - 5082 bytes, handles effect/status animation with state transitions, character flip logic (facing direction)"
+      },
+      {
+       "va": "0x485fc0",
+       "role": "Combat/ability animation - 4593 bytes, manages animated effect overlays and timing"
+      },
+      {
+       "va": "0x48ef40",
+       "role": "Visual effect arc/circle rendering - 4389 bytes, draws animated arcs using GDI Arc() API with scaling and rotation"
+      }
+     ],
+     "notes": "Sprite struct offset 0x294 per sprite index; animation state at in_ECX[0x56b4], 0x56ad, 0x56ba, 0x56af, 0x56b0. Uses frame timing with FUN_005bf505() for pseudo-random jitter. Global sprite data at in_ECX[0x10] with vtable-like access (in_ECX[0x10] + frame_idx * 0x294). Large local arrays (512 bytes) suggest decompressed/transformed frame buffers. Port difficulty: MEDIUM - struct offsets load-bearing but obtainable from vtable recovery."
+    },
+    {
+     "name": "Collision Detection & Hit Testing",
+     "representative_vas": [
+      {
+       "va": "0x480260",
+       "role": "AABB hit detection - 577 bytes, tests point-in-rectangle with offset arrays (stride 0x294), handles collision groups"
+      },
+      {
+       "va": "0x480580",
+       "role": "Damage/knockback calculation - 1430 bytes, computes velocity magnitude & direction from attacker stats (in_ECX[0x750] + offsets 0xd8, 0xe0, 0xe4 = damage tiers)"
+      },
+      {
+       "va": "0x480b30",
+       "role": "Attack animation validator - 1932 bytes, checks if attack frame is valid for hit confirmation, uses FUN_0047fd40 for frame lookup"
+      }
+     ],
+     "notes": "Collision groups stored at DAT_008a760c with vtable indirection. Damage calculation: stats at in_ECX[0x750] + {0x60,0x80,0xa0} for three damage types, scaled by ability multiplier (param_4). Hit frame detection uses parameter frame index vs. animation state. Port difficulty: MEDIUM - needs character vtable + stat block mapping."
+    },
+    {
+     "name": "UI Text & Glyph Rendering",
+     "representative_vas": [
+      {
+       "va": "0x48e200",
+       "role": "Glyph blit to HDC - 1221 bytes, renders individual glyphs from glyph table, color lookup from palette (in_ECX[0x174] = glyph vtable)"
+      },
+      {
+       "va": "0x490160",
+       "role": "Line/path drawing - 641 bytes, draws polylines with angle calculation using atan2 and sin/cos, uses POINT array input"
+      },
+      {
+       "va": "0x48b850",
+       "role": "Text layout helper - 131 bytes, splits text into 40-char lines, marks spaces with 0xff"
+      },
+      {
+       "va": "0x48da70",
+       "role": "Dialog text rendering - 1672 bytes, iterates glyph table, handles text color + palette mode swapping"
+      }
+     ],
+     "notes": "Glyph table: in_ECX[0x174] is parent struct, in_ECX[0x178] = array of glyph coords/advance, in_ECX[0x17c] = glyph frames. Line drawing uses angle as index into sin/cos tables (0x168 entries). Text color at in_ECX[0x1ac]. Port difficulty: MEDIUM - Win32 HDC coupling, but glyph pipeline is clean."
+    },
+    {
+     "name": "Entity State & Movement Physics",
+     "representative_vas": [
+      {
+       "va": "0x481ac0",
+       "role": "Character state machine - 1874 bytes, updates position/velocity, handles status effects (paralysis, stun), uses in_ECX[0x14818] for character vtable"
+      },
+      {
+       "va": "0x482ac0",
+       "role": "Screen boundary clamping - 844 bytes, keeps entity on-screen, uses in_ECX[0xc880] for screen state"
+      },
+      {
+       "va": "0x483040",
+       "role": "Terrain/obstacle collision - 668 bytes, checks collision with tilemap (0xc80 = tile size), uses piVar6[0x2949] and [0x294a] as tile coords"
+      },
+      {
+       "va": "0x481310",
+       "role": "Character animation event trigger - 1144 bytes, checks if character can perform action based on current animation frame, loops through frame array at in_ECX[0xca28]"
+      }
+     ],
+     "notes": "Character vtable at in_ECX (this-call style). Position at in_ECX[0x750] (main stats block, stride 0x14 for multiple axes). Status effect counters at in_ECX[0x14802], [0x1428a-c], [0x14828]. Tilemap cells 0xc80x0xc80 pixels. Port difficulty: MEDIUM-HIGH - in_ECX chain complex, requires full class layout."
+    },
+    {
+     "name": "Sound Effect & Audio Trigger",
+     "representative_vas": [
+      {
+       "va": "0x489280",
+       "role": "SFX playback - 818 bytes, looks up sound ID in DAT_008a6ec4 (sound table), calculates stereo pan from character position, calls into audio library"
+      },
+      {
+       "va": "0x4878b0",
+       "role": "Particle/effect queue - 1289 bytes, manages queued particle effects, uses DAT_008a704c as effect pool"
+      }
+     ],
+     "notes": "Sound table DAT_008a6ec4 indexed by sound_id & 0xffff; each entry is 8-byte slot with flags at +0, +4. Pan calculation: distance-based attenuation with thresholds 8000, 16000 at line 69-71 of 489280.c. Effect queue is ring buffer with head at local_28c & 0xffff. Port difficulty: HIGH - audio library call boundary unclear, likely proprietary ZDI wrapper."
+    },
+    {
+     "name": "Combat Effect & Ability Animation",
+     "representative_vas": [
+      {
+       "va": "0x48c150",
+       "role": "Ability effect initializer - 1374 bytes, spawns particle/visual effects for spells, clears screen buffer (0x1400 int32s = 5.5 KB), calls FUN_00490cd0 and FUN_00491ae0 for specific ability types"
+      },
+      {
+       "va": "0x4834f0",
+       "role": "Attack collision checker - 1062 bytes, determines which enemies are hit by attack, uses bounding box overlap"
+      },
+      {
+       "va": "0x488cb0",
+       "role": "Enemy knockback applicator - ~1000 bytes, applies impulse to enemy character after hit (not read but referenced heavily)"
+      }
+     ],
+     "notes": "Effect buffer at DAT_008a9b50[0x1048] + 0x190030 (cleared at initialization). Ability database at DAT_008a9b50 with vtable lookups. Port difficulty: HIGH - ability parameter encoding unclear, effect system is data-driven."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Sprite struct stride is 0x294 (660 bytes), not power-of-2",
+     "va": "0x4895c0, 0x481790 (throughout)",
+     "desc": "Multiple functions index arrays with stride 0x294 per sprite: in_ECX[0x10] + frame_idx * 0x294. This suggests the original class uses a dense packing layout rather than standard alignment. At 2KB per character (3x660 offsets) this is likely multiple characters sharing a contiguous buffer. Decompiler bug risk: offset calculation could be misread as 0x290 or 0x298."
+    },
+    {
+     "title": "Tile collision uses 0xc80 (3200 decimal) as tile size constant",
+     "va": "0x483040 (line 49, 55, 56-57)",
+     "desc": "Terrain grid is indexed by dividing coordinates by 0xc80. This is 3200 pixels per tile, which is enormous for a 2D action RPG. Likely a legacy debug setting or the value is misread by decompiler. 0xc00 (3072) or 0x100 (256) would be more sensible. Verify in binary."
+    },
+    {
+     "title": "Animation type switch has 18 cases (0-0x11) with complex fallthrough",
+     "va": "0x4895c0 (line 89-168)",
+     "desc": "Switch(in_ECX[0x56b4]) handles attack/ability animations, but cases 0x11 and 2 share logic (fallthrough). This is either intentional combo logic or evidence of sloppy refactoring. Case 0x11 sets local_4b8 = 0x4, then falls to case 2 which overwrites with local_4a0[1] = 0x75. Suggests two different animations can trigger the same sprite."
+    },
+    {
+     "title": "Pseudo-random frame jitter via FUN_005bf505() called per-animation",
+     "va": "0x4895c0 (line 93, 98, etc.)",
+     "desc": "Instead of seeding once per frame, animation sequencer calls FUN_005bf505() multiple times per render (once per case branch in the switch). This creates non-deterministic animation timing that varies by frame budget. Not necessarily a bug but unusual for frame-locked games; suggests either frame-skipping tolerance or animation preview code."
+    },
+    {
+     "title": "Stereo pan calculation uses hardcoded distance thresholds without normalization",
+     "va": "0x489280 (line 68-76)",
+     "desc": "Sound pan calculation uses fixed thresholds: if distance < 8000, full pan left; if distance > 16000, full pan right; else interpolate. No distance-to-db conversion, just raw distance. This means pan changes discontinuously if camera moves (distance thresholds are in world units, not screen units). Likely intended for 2D topdown game where camera is always centered on player."
+    },
+    {
+     "title": "Text layout function uses strlen in a loop for line-breaking",
+     "va": "0x48b850 (line 15-32)",
+     "desc": "For each line, FUN_0048b850 recalculates string length with manual strlen instead of caching. Called per-line, so O(n^2) on text length. Minor inefficiency but suggests code written for short dialogs or copied from simpler version."
+    }
+   ]
+  },
+  {
+   "band": "0x490000-0x4a0000",
+   "one_liner": "UI render dispatch and sprite/animation batching: tile/sprite rendering, character combat animations, shop/battle UI dialogs.",
+   "subsystems": [
+    {
+     "name": "Tile & sprite rendering (map/scene)",
+     "representative_vas": [
+      {
+       "va": "0x490f30",
+       "role": "FUN_00490f30 - Main tile/sprite grid renderer (2002B); iterates map bounds, applies palette corrections, blits sprites to DDraw surfaces; core call site for sprite_slot.entries"
+      },
+      {
+       "va": "0x491820",
+       "role": "Text/font renderer for UI labels (696B); measures/renders glyph sequences with width/height calculation"
+      },
+      {
+       "va": "0x492670",
+       "role": "Sprite queue pusher (118B); enqueues rendered sprite to frame buffer, 0x3c stride"
+      },
+      {
+       "va": "0x4925e0",
+       "role": "Animation frame fetch (129B); looks up sprite animation keyframe dimensions from offset 0x34 (stride 0x18)"
+      },
+      {
+       "va": "0x4926f0",
+       "role": "Tile collision setter (206B); marks collision map bits (0x190030 + in_ECX base, strides 0x80 x 0xa0) for sprite spatial queries"
+      }
+     ],
+     "notes": "Manages ar_sprite_slot objects (globally indexed, entries->a/b/c fields for bitmap/palette/refcount). Tile map encoded with grid stride 0xc80 (game units to pixel), collision bits packed in 32-bit rows. Port difficulty: moderate - requires exact struct offsets for sprite_slot and tile collision memory layout; palette application loops are unrolled switches (DAT_008a93fc color modes 0-5: neutral/sepia/red/blue/etc)."
+    },
+    {
+     "name": "Character spell/effect rendering (battle animations)",
+     "representative_vas": [
+      {
+       "va": "0x493ba0",
+       "role": "Spell cast visual renderer (3014B); character stat lookup (0x10+idx*0x294), spell particle emission (FUN_0044d160 projectile fetch), UI text push (FUN_00492670)"
+      },
+      {
+       "va": "0x491ae0",
+       "role": "Character animation sequence player (2599B); scene entity anim controller w/ rotation (0xf0 rate), frame advance, damage number spawning"
+      },
+      {
+       "va": "0x492c40",
+       "role": "Animation key frame batch renderer (740B); loops animation frames by sprite ID + timing, calls FUN_004925e0 for dims + FUN_00492670 to emit"
+      },
+      {
+       "va": "0x492a90",
+       "role": "Vertical terrain/wall sprite handler (429B); renders tall sprites (0x1900 stride) with vertical collision bits"
+      },
+      {
+       "va": "0x492f30",
+       "role": "Character state sprite lookup (139B)"
+      }
+     ],
+     "notes": "Character objects stored at [in_ECX+0x10 + idx*0x294]; animation ID field 0x48 (sprite index), 0x5c (duration), 0x66 (frame count). Heavy reuse of FUN_00417c40 (sprite keyframe lookup by animation+frame), FUN_00492670 (queue push). Multiple off-by-one patterns in frame iteration (0x48 state machine enum matches hardcoded spell ID table). Port difficulty: high - requires accurate character struct layout at stride 0x294; sprite lookup tables (0x760c globals) must be initialized."
+    },
+    {
+     "name": "UI rendering (menus, dialogs, HUD)",
+     "representative_vas": [
+      {
+       "va": "0x494e60",
+       "role": "Battle status UI renderer (3904B); damage numbers, item displays, character portraits; calls FUN_00498680/FUN_00498820 (stat text), FUN_0043e250 (text blit)"
+      },
+      {
+       "va": "0x4949f7c0",
+       "role": "Shop/dialogue menu handler (5270B); item purchase/NPC talk state machine (0x1d8 cost calcs, 0x27c/0x280 inventory ptrs); emits shop window sprite frames"
+      },
+      {
+       "va": "0x494a60",
+       "role": "Dialogue/choice menu renderer (918B); text layout with wrapping"
+      },
+      {
+       "va": "0x495fe0",
+       "role": "HUD element blit (394B)"
+      },
+      {
+       "va": "0x498680",
+       "role": "Number-to-string for damage/stats (82B)"
+      }
+     ],
+     "notes": "Game state 0x1d8 (cost), 0x27c/0x280 (inventory), 0x34 (text table). Menu navigation via keyboard input polling (FUN_00412db0 - input state 0..7). HUD driven by scene enum (0x1d4 scene ID). Port difficulty: high - scene state machines are dense switches with many branches per ID; string formatting hardcoded (s__s____d_008554e8 format string); requires complete game mode enum mapping."
+    },
+    {
+     "name": "Animation key/sprite table lookups",
+     "representative_vas": [
+      {
+       "va": "0x4917b0",
+       "role": "Sprite frame lookup (106B); reads animation ID + frame from table, returns sprite vtable ptr"
+      },
+      {
+       "va": "0x417c40",
+       "role": "Referenced frequently; appears to be global sprite key table accessor"
+      },
+      {
+       "va": "0x4923eb",
+       "role": "Animation table construction"
+      }
+     ],
+     "notes": "Sprite tables indexed by enum (0..0x1ff approx). Animation frames are small structs (0x3c bytes each in queue buffers, 0x18-byte stride in animation def table at offset 0x34). Table base often fetched from in_ECX+0x34. Port difficulty: moderate - mostly leaf accessors, but require asset table initialization."
+    },
+    {
+     "name": "Graphics mode/palette management",
+     "representative_vas": [
+      {
+       "va": "0x490090",
+       "role": "Palette setup helper (59B)"
+      },
+      {
+       "va": "0x4904f0",
+       "role": "GDI polyline draw for debug/editor (641B); Bresenham rotation to angle"
+      },
+      {
+       "va": "0x4918970",
+       "role": "Palette blend/ramp (348B)"
+      }
+     ],
+     "notes": "Global DAT_008a93fc holds color mode (0-5 enum: normal/sepia/red/blue/etc). Palette tables DAT_008a92b8/DAT_008a9304 (brightness ramps indexed by scene ID). Port difficulty: low - mostly utility functions; depends on correct color-mode enum values."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Sprite queue stride is 0x3c, collision map strides are (0x80, 0xa0)",
+     "va": "0x492670, 0x4926f0, 0x490f30",
+     "desc": "Sprite enqueue writes to a circular buffer at [ptr + count*0x3c]; count field at +0/+2 (ushort). Collision grid marks at offset 0x190030+in_ECX with coordinate packing: Y-major 0xa0-byte rows, X-major 0x80-byte inner stride. Mismatch would break spatial queries."
+    },
+    {
+     "title": "Animation frame ID lookup always precedes sprite enqueue",
+     "va": "0x493ba0, 0x491ae0, 0x492c40",
+     "desc": "Pattern: FUN_00417c40(anim_id, frame_num) \u2192 sprite_ptr, then immediately FUN_00492670(queue, sprite_ptr, x, y, ...). No alternate path for invalid sprite ID; missing table entries will cause null-ptr dereferences in downstream blit."
+    },
+    {
+     "title": "Character entity stride is 0x294 (660 bytes); hard-coded offset constants",
+     "va": "0x493ba0, 0x491ae0",
+     "desc": "Every character access does [base + idx*0x294]; offsets 0x04 (x), 0x08 (y), 0x40 (width), 0x44 (height), 0x48 (sprite state enum), 0x5c (duration), 0x66 (frame count), 0x2c (rotation mode 0-3). Single misaligned offset breaks entire character renderer."
+    },
+    {
+     "title": "Color mode DAT_008a93fc = 0-5 enum drives palette application in 0x490f30 loop",
+     "va": "0x490f30",
+     "desc": "Switch on DAT_008a93fc (mode 0-5) calls FUN_004182d0(dst_pal, src_pal, R, G, B, 0) with fixed RGB triplets per mode. Mode 3 and 4 share branches; mode 5 sets all channels to 0x55. Mismatch in enum values will corrupt rendered colors."
+    },
+    {
+     "title": "Tile map collision is indexed by divide-by-0x20 (quant), strides use multiply-by-0x80/0xa0",
+     "va": "0x4926f0, 0x490f30",
+     "desc": "Collision check: iX = (param_3 + sign-extend-and-shift) >> 5; iY = (param_4 + sign-extend-and-shift) >> 5; bounds check [0..2c1030) x [0..2c1034); bit addr = iY*0x80 + iX*0xa0 + 0x190030 + in_ECX. Arithmetic errors (sign extension, stride order) will index wrong cells."
+    },
+    {
+     "title": "ar_sprite_slot::FUN_00491770 assumes exactly 256-dword palette (0x400 bytes)",
+     "va": "0x491770",
+     "desc": "Loops iVar2=0x100 times, copying 4-byte chunks. Palette allocation is unconditional in entries->b. No bounds check; palette overrun will corrupt heap."
+    },
+    {
+     "title": "Shop menu state is encoded in dense switch on scene ID (0xc867ee6, 0xc867ee7, etc.)",
+     "va": "0x49f7c0",
+     "desc": "Each shop/NPC has a unique 32-bit ID; missing ID in switch falls through to default, skipping item dialog entirely. Port must have scene ID enum table matching retail behavior."
+    }
+   ]
+  },
+  {
+   "band": "0x4a0000-0x4d0000",
+   "one_liner": "Game scene event dispatcher and party state machine: 77 functions orchestrating narrative branching, battle setup, character inventory, and turn-based combat.",
+   "subsystems": [
+    {
+     "name": "Scene event dispatch (narrative scripting VM)",
+     "representative_vas": [
+      {
+       "va": "0x4b4d40",
+       "role": "Scene state 0x300 handler (28 KB, largest in band)"
+      },
+      {
+       "va": "0x4c6b40",
+       "role": "Scene state 0xf0 handler with battle loop (21.5 KB)"
+      },
+      {
+       "va": "0x4a0c90",
+       "role": "Scene state 0xd2 handler (20.7 KB)"
+      },
+      {
+       "va": "0x4afdb0",
+       "role": "Scene state 0x10e handler (15.5 KB)"
+      },
+      {
+       "va": "0x4cd6d0",
+       "role": "Scene state 0xe6/0x382de handler (14.9 KB)"
+      }
+     ],
+     "notes": "Vtable dispatch likely at DAT_008a9b50 + 0x1038; each function is a __thiscall handler that checks (scene_state[1] << 16 | scene_state[0]). Functions read from *(in_ECX + 0x14) for sub-state (0=init, 2=play, 3=event), branch on *(in_ECX + 4) + 0x1d8 (entity/object ID hash from FUN_00556eb0). Heavy use of FUN_00439680() as frame-blocker (returns 6 to exit). Calls back to FUN_00402f20, FUN_00402060, FUN_00402d40, FUN_00406210 for camera/cinematic setup. Pattern: setup locals, loop, dispatch on object ID, call narrative/animation helpers, pump frame, return. **Port difficulty: HIGH** \u2014 requires full decompile of dialogue/animation helper subsystem."
+    },
+    {
+     "name": "Party/character state and inventory",
+     "representative_vas": [
+      {
+       "va": "0x4cc250",
+       "role": "Party member selection and swap (536 B) \u2014 iterate 8 slots, test status"
+      },
+      {
+       "va": "0x4cc820",
+       "role": "Spawn/init party member in world (508 B)"
+      },
+      {
+       "va": "0x4cca70",
+       "role": "Party sprite/animation selector by map state (453 B)"
+      },
+      {
+       "va": "0x4cc470",
+       "role": "Party member state reset (304 B) \u2014 30+ offset writes"
+      }
+     ],
+     "notes": "Operates on in_ECX + 0x4030 (party array, 8 slots). 0x4cc250 does round-robin iteration (uVar5 < 8 check). Offset 0x9f0 is entity ID, 0x9c4 is type (1=hero, 2=npc), 0x27c is entity-class ID (0x5f5e168 reserved). FUN_004cc470 zeroes 20+ uint16/uint32 state fields starting at +0x14xxx offsets (skill cooldowns, buffs, debuffs). FUN_004cc820 allocates in round-robin and calls FUN_00426fd0, FUN_004c6160 for animation setup. Accesses global DAT_006c0cd0 (enemy database, stride 0xb8, field +0xae = ID, +0xaf = active). **Port difficulty: MEDIUM** \u2014 struct offsets well-defined but party system depends on battle physics."
+    },
+    {
+     "name": "Battle orchestration and UI",
+     "representative_vas": [
+      {
+       "va": "0x4c2dc0",
+       "role": "Inn/shop handler (4.3 KB) \u2014 calls FUN_0041c390 (menu UI)"
+      },
+      {
+       "va": "0x4c45a0",
+       "role": "Puzzle/lock handler with numeric input (3.4 KB)"
+      },
+      {
+       "va": "0x4c29c0",
+       "role": "Battle prep scene (1020 B)"
+      }
+     ],
+     "notes": "FUN_0041c390 is a UI menu dispatcher (takes strings for purchase/save/sell). FUN_004c45a0 runs a loop calling FUN_0041a2a0 for player input, FUN_005bf3ee for string formatting, stores result in local_13c. Checks *(in_ECX + 0x15f) for input state flags, uses FUN_00439680 as frame pump. Pattern mirrors scene dispatch: acquire lock, pump frame, check exit code (6=skip, 0xe=user input). **Port difficulty: MEDIUM-HIGH** \u2014 UI depends on dialog string table and input handling; puzzle logic straightforward."
+    },
+    {
+     "name": "Scene state transition / sub-dispatch",
+     "representative_vas": [
+      {
+       "va": "0x4bbef0",
+       "role": "Scene state 0x136 (5004 B)"
+      },
+      {
+       "va": "0x4ccc90",
+       "role": "Nighttime camp scene state 0xeb/0x39670 (2.6 KB)"
+      },
+      {
+       "va": "0x4c1c20",
+       "role": "Scene state 0x400 (1.7 KB)"
+      }
+     ],
+     "notes": "Smaller state handlers that dispatch on object ID (FUN_00556eb0 hash to *(in_ECX + 4) + 0x1d8). FUN_004ccc90 enters at in_ECX[5]==0, reads *(in_ECX + 4) for object ID, calls FUN_004467d0 for anim update. Common pattern: query state at **state**[5] (phase counter), check completion with FUN_00439680, advance to next phase via in_ECX[8] = 6. **Port difficulty: MEDIUM** \u2014 mostly orchestration, depends on helper VMs for anim/dialog."
+    },
+    {
+     "name": "Resource/object query helpers (sparse, merged with dispatchers)",
+     "representative_vas": [
+      {
+       "va": "0x4a5fa0",
+       "role": "Fountain event (1057 B) \u2014 iterates *(in_ECX + 8) + 0x40ac for objects"
+      },
+      {
+       "va": "0x4a63d0",
+       "role": "Object spawn allocator (706 B) \u2014 finds empty slot in 0x7804-sized array at +0x1804"
+      },
+      {
+       "va": "0x4a66a0",
+       "role": "Door/permission scene (1244 B)"
+      }
+     ],
+     "notes": "FUN_004a5fa0 loops *(in_ECX + 8) + 0x4030 (party array), accesses +0x9f0 (entity ID), +0x9c4 (type), +0xa64/+0xa6c (accumulated stats). FUN_004a63d0 allocates in *(in_ECX) + 0x1804 array, size *(in_ECX) + 0x7804, caps at 0x800. Calls GetLastError, FormatMessageA if full (crash on overflow). **Port difficulty: LOW-MEDIUM** \u2014 array management standard, quota 0x800 is likely a quirk (see engine-quirks.md for capacity crash handler)."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Object perpetuity state overflow at 0x800 crashes with debug log",
+     "va": "0x4a63d0, 0x4b3b20",
+     "desc": "When the object spawn pool (*(in_ECX) + 0x1804, capacity *(in_ECX) + 0x7804) reaches 0x800 entries, the allocator calls GetLastError, formats the message with FormatMessageA, and logs it to OutputDebugString before crash. DAT_008a9534 is used as error buffer. String literal: 'The object perpetuity state area has been fully used'. This is a hard limit, not a realloc \u2014 suggests pooling was runtime tuned. Seen in FUN_004a63d0 (line 35) and FUN_004b3b20 (line 61)."
+    },
+    {
+     "title": "DAT_008a9b50 vtable/manager singleton with 0x1038 scene state",
+     "va": "0x4a0000-0x4d0000 (all)",
+     "desc": "Every scene handler in this band reads *(DAT_008a9b50 + 0x1038) expecting a pointer to scene state. Scene state[0] is usually a two-byte map/area ID; state[1] is a screen/mode ID (0xd2, 0xf0, 0x136, 0x300, etc.). The second dereference reads state[4] for event-specific context (e.g. player type, sub-mode). This is a hard-coded global singleton manager, not passed via ctor. Pattern: *(int *)(*(int *)(DAT_008a9b50 + 0x1038) + 4) checks screen type. **Load-bearing architectural choice**: port must preserve this singleton pattern or thread-wrap it."
+    },
+    {
+     "title": "FUN_00439680 is the universal frame pump and exit blocker",
+     "va": "0x4a0000-0x4d0000 (all uses)",
+     "desc": "Every scene handler loops: set state, call FUN_00439680, check return for 6 (user requested skip/quit). Return 6 unwinds the entire scene. This is likely a frame-sync call that polls input, runs rendering, and returns 6 on ESC/quit. Called hundreds of times per scene handler. **Port critical path**: FUN_00439680 must yield to event loop and check Windows message pump; blocking port will hang."
+    },
+    {
+     "title": "FUN_00556eb0 is string ID \u2192 resource pointer hash resolver",
+     "va": "0x4a0000-0x4d0000 (all uses)",
+     "desc": "Patterns like `FUN_00556eb0(0x5f5e165)` appear everywhere. These are hardcoded hashes (CRC32-like, 32-bit). Same hash ID repeats across multiple handlers, suggesting global asset/entity directory. Example: 0x5f5e165, 0x5f5e166, 0x5f5e167, 0x5f5e168 are distinct hero/NPC references used in multiple maps. Port must pre-compute or cache these hashes."
+    },
+    {
+     "title": "Sub-state machine via in_ECX[5] phase counter",
+     "va": "0x4ccc90 (0x4ccc90+26), 0x4cd6d0 (0x4cd6d0+32)",
+     "desc": "Large handlers read in_ECX[5] (offset +0x14 from ECX) to track phase (0=init, 1=loop, 2=outro). Loop body branches on phase, advances with in_ECX[5]++. FUN_004ccc90 uses in_ECX[5]==0 guard at entry. FUN_004cd6d0 switches on *in_ECX[5]. This is re-entrant per frame: state persists in object, not on stack."
+    },
+    {
+     "title": "Party/character array is 8-slot fixed (0x4030, stride 1 int*)",
+     "va": "0x4cc250 (line 27), 0x4cc820 (line 23)",
+     "desc": "All party iteration assumes ushort uVar5 < 8 hardcoded limit. Accessed as *(in_ECX + 0x4030 + (uVar5 + uVar4 & 0x80000007) * 4). The mask 0x80000007 is a quirk\u2014on x86 with sign extension, it wraps modulo 8 even if uVar5 overflows. Party size is runtime-fixed at 8, not variable."
+    }
+   ]
+  },
+  {
+   "band": "0x4d0000-0x540000",
+   "one_liner": "Narrative scripting engine for game scenes \u2014 dialogue/cutscene sequencing and character state orchestration, predominantly event-driven FSM callbacks.",
+   "subsystems": [
+    {
+     "name": "Scene/event script system (narrative FSM)",
+     "representative_vas": [
+      {
+       "va": "0x4d13a0",
+       "role": "prologue/tutorial classroom scene setup and dialogue branching"
+      },
+      {
+       "va": "0x4d7d80",
+       "role": "adventurer's guild quest/world initialization event chain"
+      },
+      {
+       "va": "0x4dc510",
+       "role": "home first-floor dungeon exploration tutorial and mechanic discovery"
+      },
+      {
+       "va": "0x4e23d0",
+       "role": "gateball sports minigame tournament bracket state machine"
+      },
+      {
+       "va": "0x4e6a60",
+       "role": "dungeon encounter and combat progression event handler"
+      },
+      {
+       "va": "0x507e70",
+       "role": "late-game romantic/story divergence branching (Arche + Stella)"
+      }
+     ],
+     "notes": "Each large function (8-20KB) is a coroutine-style scene entry point keyed off DAT_008a9b50+0x1038 (event type/ID pair). Functions check state via in_ECX[5] (scene phase counter), load assets via FUN_00556eb0 (pointer registry), sequence dialogue via FUN_0049d6e0, and poll FUN_00439680 (scene wait/pump) to suspend. Uses call/jump table at 0x5f5e165+ for character/NPC instances (signed asset refs like 0x5f5e165, 0x5f5e166). Nested switch blocks on quest/flag IDs (0x334be, 0x334c8, 0x334dc, 0x334dd, 0x334e6, 0x30db3, 0x30db8, 0x30dc2, 0x30dcc, 0x30dd6, 0x30de0) branch dialogue/sequence trees. Per-function lifecycle: init (phase=0) \u2192 scene pump loop \u2192 transition/cleanup \u2192 return 0 (next scene) or return 6 (abort)."
+    },
+    {
+     "name": "Character state & party inventory management",
+     "representative_vas": [
+      {
+       "va": "0x4ee490",
+       "role": "summon party member into battle, search free slot in DAT_008a9b50+0x1160 (party array)"
+      },
+      {
+       "va": "0x4e6030",
+       "role": "set character status flags (offset +0x9c4=1 active/2 idle, +0x9f4=parameter)"
+      },
+      {
+       "va": "0x4e6070",
+       "role": "flush character status transitions and trigger state callbacks (loop over in_ECX+0x4030 party slots)"
+      }
+     ],
+     "notes": "Party is 8-slot array at in_ECX+0x4030 (each slot \u2192 int* to character object). Each character has: offset 0x9c4 (state: 1=active, 2=idle), 0x9c8 (inventory count), 0x9cc (inventory array), 0x9f0 (character ID tag), 0x9f4 (param). Inventory scanning loop at in_ECX+0x2014 (stride 0x10, max 0x20 items). DAT_008a9b50+0x1160 is 32-slot monster/character pool (round-robin iterator at in_ECX+0xcc). Mid-range difficulty \u2014 opaque struct layout, relies on byte-verified offsets."
+    },
+    {
+     "name": "Dungeon/encounter driver (battle scene setup)",
+     "representative_vas": [
+      {
+       "va": "0x5034b0",
+       "role": "dungeon floor layout/monster spawn choreography and intro dialogue"
+      },
+      {
+       "va": "0x507e70",
+       "role": "boss battle special-case routing and elemental stone loot logic"
+      }
+     ],
+     "notes": "Interleaves FUN_0041f0e0 (asset load) and FUN_004cbf80 (character preset assignment) to configure NPC/enemy instances before FUN_00439680 pump. Checks DAT_008a9b50+0x1038[0/1] for dungeon type ID (e.g. 0x382fc, 0x334c8). Uses magical item hashes (0x35a4e90x constants) as asset/elemental stone registry keys. Difficulty: high \u2014 requires cross-reference with battle/physics engine for damage formulas and turn sequencing."
+    },
+    {
+     "name": "Quest/item state persistence",
+     "representative_vas": [
+      {
+       "va": "0x4e6070",
+       "role": "item status update trigger on character active\u2192idle transition"
+      }
+     ],
+     "notes": "Item slots are at in_ECX+0x2014, 0x20 max. Each item has ID at +0x0, state at +0x4. FUN_005b4a10 is called on item use. No dedicated inventory struct \u2014 items are packed as 16-byte records in character object. Medium difficulty \u2014 inventory model is functional but tightly coupled."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Dialogue state via in_ECX[5] phase counter",
+     "va": "0x4d13a0 line 24",
+     "desc": "Every large scene function uses in_ECX[5] as a 0-indexed resumption point counter within that scene. On first entry (phase=0), initialize; on subsequent entries, continue from where pump returned. This is a degenerate coroutine pattern \u2014 no actual continuation state is saved, just a counter that controls which if() branch to enter next. Very fragile to edit."
+    },
+    {
+     "title": "Asset registry via magic hash keys (0x35a4e90x, 0x5f5e1xx)",
+     "va": "0x4d13a0 line 34-87",
+     "desc": "Character instances, items, and NPCs are looked up via hardcoded hex tokens (0x35a4e902 = Sophia teacher, 0x5f5e165 = main PC Arche, 0x5f5e166 = companion Sana). These are presumably hash-based lookups into a global asset table, but the hash function is opaque. Porting requires maintaining this registry."
+    },
+    {
+     "title": "Synchronous scene pump with early-return for abort (return 6)",
+     "va": "0x4d13a0 lines 109-295 (repeating pattern)",
+     "desc": "Every FUN_00439680() call is checked for return value 6, which signals 'user cancelled / quit'. If detected, entire scene function returns 6 immediately. This is a simple but inelegant way to propagate cancellation \u2014 no exception mechanism, no cleanup. Implies all resources are auto-cleaned (no explicit dtor calls visible)."
+    },
+    {
+     "title": "Character ID tagging via offset +0x27c (not 0x9f0)",
+     "va": "0x4ee490 line 27 vs 0x4e6030 line 10",
+     "desc": "Two different offsets used for character ID: 0x4ee490 uses +0x27c, 0x4e6030 uses +0x9f0. Both observed in same band. Suggests either: (a) multiple character object types with different layouts, or (b) decompiler confusion. High risk for porting."
+    },
+    {
+     "title": "Quest branch via global state flag DAT_008a9b50+0x1038",
+     "va": "0x4d13a0 lines 26-30",
+     "desc": "Event script routing is controlled entirely by checking a single global pair (DAT_008a9b50+0x1038)[0] and [1]. This is a 2-word opaque FSM state. No scene-specific save logic visible \u2014 all persistence must live in DAT_008a9b50 memory region, implying a monolithic global game state object."
+    }
+   ]
+  },
+  {
+   "band": "0x540000-0x560000",
+   "one_liner": "Gameplay core: scene dispatcher, character rendering, collision/physics, enemy spawning, and cutscene orchestration.",
+   "subsystems": [
+    {
+     "name": "Cutscene/Scene Dispatcher",
+     "representative_vas": [
+      {
+       "va": "0x546670",
+       "role": "Primary game scene driver (22KB) with 100+ scene IDs dispatching cutscene sequences"
+      },
+      {
+       "va": "0x557550",
+       "role": "Secondary scene handler (21KB) with animation/dialogue/effect orchestration"
+      },
+      {
+       "va": "0x5402e0",
+       "role": "Small scene entry point (76B) validating scene context before dispatch"
+      }
+     ],
+     "notes": "Both dispatchers are monolithic switch-statement on scene IDs (0x186ca-0x186d9, 0x186a1-0x186b0 range). Heavy nesting with game state checks. Likely loads and drives all cutscenes, NPC interactions, and story progression. Hardcoded scene sequences suggest story data is embedded or asset-driven. Class pattern: uses in_ECX offset access (0x10, 0x8a, 0x97, etc.) indicating thiscall instance methods. No separate AST\u2014just imperative sequences."
+    },
+    {
+     "name": "Sprite/Character Rendering",
+     "representative_vas": [
+      {
+       "va": "0x54f980",
+       "role": "Main sprite copy/animate (11.6KB) handling frame buffers and animation cycles"
+      },
+      {
+       "va": "0x54be50",
+       "role": "Small sprite wrapper (60B) redirecting to graphics backend"
+      }
+     ],
+     "notes": "0x54f980 performs large monolithic sprite buffer copies (0x284-0x288 byte offsets) with field-by-field struct updates. Handles animation frame state, z-order, rotation. Accesses frame data at +0x40, +0x44 offsets via this-call. Likely C++ class method. Call site references: FUN_00445d30 (graphics update), FUN_00442460 (frame selection)."
+    },
+    {
+     "name": "Tile/Map Collision System",
+     "representative_vas": [
+      {
+       "va": "0x54c640",
+       "role": "Main collision processor (812B) checking walkability and obstacles"
+      },
+      {
+       "va": "0x54cca0",
+       "role": "Large collision calc (792B) with coordinate transforms and tile validation"
+      },
+      {
+       "va": "0x54ded0",
+       "role": "Collision data unpacking (1555B) with modular arithmetic on tile coords"
+      },
+      {
+       "va": "0x54e5c0",
+       "role": "Line-of-sight or path trace (945B) iterating through tile boundaries"
+      },
+      {
+       "va": "0x54c9d0",
+       "role": "Tile mark function (214B) setting collision bits in grid"
+      }
+     ],
+     "notes": "Grid-based collision: map stored as 2D array of 0xc80 (3200 decimal) tile units. Accessed via offset formula (row * 0x80 + col) * 0x10. Accessed at in_ECX + 0x14003c. Stride 0x10 suggests 16-byte tile struct (flags, properties, etc.). Heavy use of division/modulo by 0xc80 for grid math. No floating-point collision\u2014pure tile snapping."
+    },
+    {
+     "name": "Camera/View Management",
+     "representative_vas": [
+      {
+       "va": "0x552c70",
+       "role": "Camera scroll/follow (748B) with inertial movement toward target"
+      },
+      {
+       "va": "0x555790",
+       "role": "View boundary constraint (1082B) clamping camera to map limits"
+      },
+      {
+       "va": "0x557060",
+       "role": "Camera interpolation (778B) smoothing movement with easing"
+      },
+      {
+       "va": "0x556990",
+       "role": "Screen shake/effect (1076B) applying offset to view"
+      }
+     ],
+     "notes": "Camera stored at in_ECX + 700 (offset for view struct). Uses incremental movement with 200-unit acceleration/deceleration. Separates X and Y. Map bounds stored at in_ECX + 0x2c1030/0x34 (width/height in tiles). All math integer-based, no rotation."
+    },
+    {
+     "name": "Enemy/Actor Spawning",
+     "representative_vas": [
+      {
+       "va": "0x553520",
+       "role": "Enemy wave spawner (2458B) with encounter tables and randomization"
+      },
+      {
+       "va": "0x554570",
+       "role": "Actor placement (1724B) positioning entities relative to tile grid"
+      },
+      {
+       "va": "0x556eb0",
+       "role": "Actor lookup by ID (62B) querying global actor list"
+      }
+     ],
+     "notes": "Actors stored in array at DAT_008a9b50 + 0x2790/0x27a0 with count at +0x2788. Actor struct has field at +0x1d8 for actor ID. Spawning uses random rolls on encounter table (ref: FUN_005bf505). Places actors into array, increments counter modulo 0xffffff. Calls FUN_00557370 to instantiate actor objects. Grid placement via tile divisions."
+    },
+    {
+     "name": "Battle Animation System",
+     "representative_vas": [
+      {
+       "va": "0x55d140",
+       "role": "Monster/battle animator (8KB) dispatching 50+ animation types (0x186a1-0x186b0)"
+      },
+      {
+       "va": "0x554c40",
+       "role": "Large animation helper (2187B) with timing and effect chains"
+      },
+      {
+       "va": "0x55f190",
+       "role": "Enemy hit/damage anim (936B) triggering knockback and state changes"
+      }
+     ],
+     "notes": "Monolithic switch on animation type. Each case sets fields: in_ECX[0x8a] (animation index), in_ECX[0x7f] (duration frames?), in_ECX[0x3d/0x3e] (color/effect params). Calls FUN_00426620 for sprite setup, FUN_00426d70 for sound. No separate animation state machine\u2014all in-function."
+    },
+    {
+     "name": "Game State & UI",
+     "representative_vas": [
+      {
+       "va": "0x55fdb0",
+       "role": "Level-up notification display (461B) formatting player text and updating UI"
+      },
+      {
+       "va": "0x55ff80",
+       "role": "Game loop step/update (1449B) calling subsystem ticks"
+      },
+      {
+       "va": "0x55cbc0",
+       "role": "State transition handler (394B)"
+      }
+     ],
+     "notes": "Global UI text buffer at local_200 [512]. Calls FUN_005bf3ee for string formatting with player name. Updates UI via FUN_0040b710 (graphics submit). Game state accessed at in_ECX + 0x9f4 (active flag). UI display list at DAT_008a9b50 + 0x1024 with 8-slot circular buffer."
+    },
+    {
+     "name": "Utility/Math",
+     "representative_vas": [
+      {
+       "va": "0x55cdb0",
+       "role": "2D rotation calc (145B) using sin/cos with angle in millidegrees"
+      },
+      {
+       "va": "0x556eb0",
+       "role": "Actor list search (62B) linear scan by actor ID"
+      },
+      {
+       "va": "0x5534d0",
+       "role": "State validation (76B) checking combat readiness"
+      }
+     ],
+     "notes": "Rotation uses _DAT_008a9a38 constant (likely 2*pi/1000 or similar degree-to-radian scale). Math is pure integer fixed-point, no SIMD. No separate math library\u2014inlined throughout."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Hardcoded Scene IDs in Switch Constants",
+     "va": "0x546670, 0x557550",
+     "desc": "Scene selection uses enum-like constants (0x186ca, 0x186cb, ..., 0x186d9, 0x186a1-0x186b0) that appear only in these dispatchers. No global symbol or resource table found. These IDs likely come from asset files or are baked into scripting bytecode\u2014rebuilding the port will require discovering the ID-to-name mapping or rewriting sequencing."
+    },
+    {
+     "title": "Monolithic Scene Functions as State Machines",
+     "va": "0x546670, 0x557550",
+     "desc": "Each scene is a single function call with 7-8 levels of nested if-else and switch on global state. No separate FSM; logic is imperative and linear. This makes porting a story scene expensive\u2014must extract the intent and rebuild with higher-level scene scripting."
+    },
+    {
+     "title": "Tile Grid Stride = 0xc80 (3200 decimal) with Offset Formula (row*0x80+col)*0x10",
+     "va": "0x54c640, 0x54cca0, 0x54c9d0",
+     "desc": "Collision grid is indexed via complex stride: (row*128 + col)*16. This is unusual\u2014suggests either a custom memory layout or packing (16 bytes per tile struct). Likely encodes tile flags, height, water, etc. Reversing the stride is load-bearing for porting collision."
+    },
+    {
+     "title": "Circular Actor List with Counter Modulo 0xffffff",
+     "va": "0x553520, 0x55fdb0, 0x55d140",
+     "desc": "Actor spawn counter at DAT_008a9b50 + 0x27a0 wraps at 0xffffff, not at array size. This allows unlimited spawns across frame but wastes memory if old actors aren't cleaned. Likely a performance trade-off (avoid expensive deletion, just overwrite on wrap)."
+    },
+    {
+     "title": "No Audio/Input in This Band\u2014All Deferred to Called Functions",
+     "va": "0x546670, 0x557550, 0x55d140",
+     "desc": "Game logic dispatches audio play (FUN_004024e0, FUN_00426d70) but does not inline DSound calls. Audio is purely callback-driven. Same for input\u2014no keyboard/gamepad reads visible; logic uses pre-set button flags set elsewhere."
+    },
+    {
+     "title": "Fixed-Point Color Params in Animation (in_ECX[0x3d/0x3e])",
+     "va": "0x55d140, 0x554c40",
+     "desc": "Animation type switch cases set in_ECX[0x3d] and [0x3e] to values like DAT_008a92b8, DAT_008a9308, etc. These are global color/effect constants. Animations reference them by pointer, not by value\u2014suggests a palette or effect shader table. Port must recover the palette format."
+    }
+   ]
+  },
+  {
+   "band": "0x560000-0x570000",
+   "one_liner": "Title scene runner, game options/menus, sprite/wave loaders, and core input/display initialization dominate this band.",
+   "subsystems": [
+    {
+     "name": "Title Scene Runner & Game Loop",
+     "representative_vas": [
+      {
+       "va": "0x56aea0",
+       "role": "Main title-scene state machine: fade in, wait for input, handle menu selection (difficulty picker, new game, continue)"
+      },
+      {
+       "va": "0x56cd20",
+       "role": "Gameplay scene/map runner: handles player input, enemy spawns, magic-circle rendering, wave progression"
+      }
+     ],
+     "notes": "State-machine pattern with tight frame-sync loop (GetTickCount). Stages: fade-in\u2192wait-input\u2192selected\u2192game-start. Uses globals DAT_008a93cc (ZDD display core), DAT_008a93e4 (asset loader), DAT_008a6e80 (device/config ptr). No obvious vtable; this-calls are rare. Port difficulty: HIGH\u2014state machine requires faithful millisecond timing and heavy coupling to graphics/input subsystems."
+    },
+    {
+     "name": "Settings & Options Menus",
+     "representative_vas": [
+      {
+       "va": "0x564780",
+       "role": "Top-level options dispatcher by param: screen/sound/game settings (0x1f-0x28), difficulty picker, vs-mode setup"
+      },
+      {
+       "va": "0x569220",
+       "role": "Input-device key-binding UI: renders gamepad/keyboard key config menu, handles conflict detection"
+      }
+     ],
+     "notes": "Heavy string-copy boilerplate. Uses FUN_0040f1c0 (dialog ctor), FUN_004124d0 (choice-list ctor). DAT_008a6e80 is config singleton (offsets +0x24=screen mode, +0x40=gfx quality, +0x21c=audio device, +0xa5e=input dev count). Enum param_1 in 0x564780 indexes major menu screens. Port difficulty: MEDIUM\u2014menu logic is linear; main challenge is string resource (1024+ char temp buffers), not algorithm."
+    },
+    {
+     "name": "Sprite & Wave Asset Loaders",
+     "representative_vas": [
+      {
+       "va": "0x56e190",
+       "role": "Title-scene sprite-slot initializer: pre-allocates 23 ar_sprite_slot instances for character/effect assets (resource IDs 0x592-0x5df)"
+      },
+      {
+       "va": "0x562ea0",
+       "role": "Primary engine initialization: sets up ZDD (display), ZDS (sound), ZDM (music), ZDI (sprite), loads palette, creates sprite instances with timing"
+      }
+     ],
+     "notes": "0x56e190 is purely setup boilerplate\u2014initializes DAT_008a7ce4 et al. (sprite slot pointers). 0x562ea0 is massive (4062 bytes) init sequence: validates area info (<0x400 regions OK), pre-allocates ~900 sprite-slot+wave structures (loop at +0x226), loads 5 palette-palettes at offsets into DAT_008a9410, performs 20 sprite instances (DAT_008a92b8-DAT_008a936c) with timed fade in. Uses log_singleton (DAT_008a6620). Port difficulty: MEDIUM\u2014mostly allocation. Critical: DAT_008a6e80 must be initialized before 0x562ea0 (config ptr, used for screen-res fallback logic)."
+    },
+    {
+     "name": "Input Device Initialization & Configuration",
+     "representative_vas": [
+      {
+       "va": "0x56bfd0",
+       "role": "Input device state init: zero out 11 button-state dwords and 64 input-slot pointers (via in_ECX ptr)"
+      },
+      {
+       "va": "0x568de0",
+       "role": "Options main menu: builds option-list UI for Game/Graphics/Sound/Keyboard/Gamepad setup with conditional enable/disable logic"
+      }
+     ],
+     "notes": "0x56bfd0 is a 30-byte thiscall initializer (likely input_device ctor stub). 0x568de0 uses FUN_0040f1c0 (dialog), FUN_004134f0 (choice list), and FUN_0040f800 (label builder). Checks DAT_008a93dc/DAT_008a93d8 (gamepad device ptrs) to enable/disable Gamepad/Analog menus. Port difficulty: LOW\u2014just null-init; challenge is mapping to modern input APIs."
+    },
+    {
+     "name": "Configuration & Settings Storage",
+     "representative_vas": [
+      {
+       "va": "0x566a80",
+       "role": "Config-to-string lookup: maps (subsystem_id, value_id) pairs to localized string pointers (difficulty names, button names, etc.)"
+      },
+      {
+       "va": "0x565d10",
+       "role": "Option value picker loop: manages state for selecting difficulty, screen resolution, sound volume with cursor/confirm/cancel input"
+      }
+     ],
+     "notes": "0x566a80 is a massive switch (case 3\u21925, case 4\u219215, case 0x2d\u21920x48, etc.) using string-table ptrs (DAT_00854d00, etc.) and format strings (s_Button_N, s_Difficulty_M). 0x565d10 loops until user selects/cancels, calls FUN_0055f550 (frame-sync), renders via FUN_0048c820. DAT_008a6e80 holds config state (referenced as *DAT_008a6e80 + offset for device-specific fields). Port difficulty: MEDIUM\u2014complex enum mapping; requires full string table and rendering hooks."
+    },
+    {
+     "name": "Menu & Dialogue UI Rendering",
+     "representative_vas": [
+      {
+       "va": "0x564690",
+       "role": "Small helper: unclear (47 bytes, likely render/cleanup stub)"
+      },
+      {
+       "va": "0x565810",
+       "role": "Small helper: unclear (45 bytes, likely input handling or state check)"
+      }
+     ],
+     "notes": "These are tiny; actual UI logic lives in FUN_0040f1c0, FUN_0040fa00 (label set), FUN_00412160 (option add). Rendering is delegated to FUN_005b9410 (likely frame begin), FUN_0048c820 (render to display), FUN_005b8fc0 (flip buffer). The FUN_0055f550 (frame-sync) wrapper is called in tight loops. Port difficulty: HIGH\u2014depends on graphics subsystem port."
+    },
+    {
+     "name": "Game Difficulty & Mode Selectors",
+     "representative_vas": [
+      {
+       "va": "0x567ba0",
+       "role": "Multi-setting picker: displays list of game settings by ID (difficulty, auto-guard, gfx quality, etc.), builds option menu dynamically"
+      },
+      {
+       "va": "0x568320",
+       "role": "Unknown large function (964 bytes, likely mode or difficulty sub-screen)"
+      }
+     ],
+     "notes": "0x567ba0 uses FUN_00566570 (option name getter), FUN_00412160 (add-to-menu), FUN_00411940 (list ctor). Uses FUN_005657f0 to reset config values on 'default' button. Uses DAT_008a6e80 for all config-field queries. Port difficulty: MEDIUM\u2014config struct is central; offset mapping is load-bearing."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Massive string-buffer allocation in every menu function",
+     "va": "0x564780, 0x569220, 0x566a80",
+     "desc": "Nearly every options/menu function allocates a 512-byte local_200[] buffer and calls string memcpy loops manually instead of strcpy (using pointer arithmetic + count). This is the decompiler's artifact of hand-unrolled MSVC string ops, but it's load-bearing: the actual buffer size is tight\u2014no guard against overflow. A port must either use safe wrappers or copy the exact allocation strategy."
+    },
+    {
+     "title": "Implicit state-machine label jumps in title-scene loop",
+     "va": "0x56aea0",
+     "desc": "LAB_0056bb55 at line 141 is an indirect-jump dispatcher via computed address (&PTR_DAT_0056bfa4)[local_64]. This implements a state-machine using a function-pointer table. The comment 'WARNING: Could not recover jumptable at 0x0056bb55. Too many branches' suggests Ghidra gave up recovering it. The actual vtable is at DAT_0056bfa4 with 12+ entries (local_64 ranges 0-10). A C port must recover this table by hand or risk silent jumps to wrong handlers."
+    },
+    {
+     "title": "Tight millisecond timing in title-scene loop with manual state transitions",
+     "va": "0x56aea0",
+     "desc": "The title-scene loop calls GetTickCount() every frame, compares to manual fade timers (local_20, local_2c, local_34, local_68), and adjusts fade-out/fade-in (local_30, local_58) in 0x14/0x20-unit steps. The transition logic checks (local_30 < 0x10) and (local_68 < 0x32) to advance states. This is fragile: if frame timing shifts, the fade sequences will desync visually. A port cannot replace these with semantic 'fade for N milliseconds' without re-tuning all hardcoded transition counters."
+    },
+    {
+     "title": "Indirect offset computation for sprite/input slot access",
+     "va": "0x562ea0, 0x56aea0",
+     "desc": "Both functions use patterns like *(int *)(iVar7 + 0x108) to access sprite slots in a dynamically allocated array via the object pointer (in_ECX[1]). The offsets (0xc, 0x10c, 0x110, 0x114, 0x118) are hardcoded field positions within a sprite-manager or input-device class. These offsets are NOT validated and must match the exact C++ layout (padding, vtable, member order). A port that reshuffles struct members will crash silently."
+    },
+    {
+     "title": "Enum-driven config subsystem IDs with magic numbers",
+     "va": "0x566a80",
+     "desc": "Configuration subsystems are identified by 16-bit param_1 values: 3=Difficulty, 4=AutoGuard, 5=Gfx, 6=DisplayFPS, 0x2e=Gamepad Sens, 0x2f=Analog Sens, 0x30-0x48=Keyboard Keys. The enum is not defined in the decompile output; these IDs are scattered across calls to FUN_00566a80 and FUN_00412160 throughout the menu code. A port must cross-reference with data sections to recover the full enum."
+    },
+    {
+     "title": "Per-frame implicit global mutation in game-loop via pointer indirection",
+     "va": "0x56cd20",
+     "desc": "This function reads/writes game state via *DAT_008a6e80 (config ptr) and DAT_008a93cc (ZDD ptr) without explicit synchronization. If multiple threads or re-entrant calls occur, the state machine will corrupt. The original was single-threaded; a port must either preserve single-threaded guarantee or add locks around these globals."
+    },
+    {
+     "title": "Palette generation with floating-point cosine tables at init",
+     "va": "0x562ea0 lines 602-617",
+     "desc": "The function calls fcos() to generate 256 cosine samples, scales them, and writes to DAT_008a9410. This is done once at init to pre-compute fade/rotate math. The loop does double-precision FP arithmetic (float10) and truncates via __ftol(). A port must replicate this exactly or use precomputed tables; floating-point precision differences will cause visible palette jitter."
+    }
+   ]
+  },
+  {
+   "band": "0x570000-0x590000",
+   "one_liner": "2D sprite/animation and tileset rendering system clustered around master sprite init (57ca40), scene refresh (587e00), tile rendering (586010), and animation pumps (58f360).",
+   "subsystems": [
+    {
+     "name": "Sprite animation & batch management",
+     "representative_vas": [
+      {
+       "va": "0x57ca40",
+       "role": "Master sprite group 3 slot register (24884B, 233 slots + 94 clones + info-pool init)"
+      },
+      {
+       "va": "0x5749b0",
+       "role": "Sprite group 0 register (2342B, tileset sprites)"
+      },
+      {
+       "va": "0x57b280",
+       "role": "SFX slot registration (6073B, 44 sound resource slots)"
+      },
+      {
+       "va": "0x586010",
+       "role": "Tile layer draw + area init (6133B, palette rendering, 8x tile grid setup)"
+      }
+     ],
+     "notes": "ar_sprite_slot class; cluster of 909-entry pool allocators at 0x8a760c (slots) + 0x8a8440 (info-entries). Per 0057ca40-rabbit-hole.md: pool[i] = slot[i] one-to-one shadow. Quirk: Ghidra byte-typed vs short-typed DAT rendering affects offset interpretation (byte offset always meaningful, not source-level offset). Key globals: DAT_008a760c (sprite slot table), DAT_008a8440 (info-entry pool), DAT_008a6b60 (SS_MGR / input_mgr singleton)."
+    },
+    {
+     "name": "Scene/map initialization & refresh",
+     "representative_vas": [
+      {
+       "va": "0x587e00",
+       "role": "Scene refresh (18055B, multi-sprite data-ptr swap, palette codec setup)"
+      },
+      {
+       "va": "0x5752e0",
+       "role": "Audio/music subsystem init (17310B, sotesw.dll load, temp WMA transcode)"
+      },
+      {
+       "va": "0x58d460",
+       "role": "Tile animation state machine (3341B, frame advance + palette effects)"
+      }
+     ],
+     "notes": "FUN_00587e00 iterates info-entry ranges and swaps in new PE rdata const pointers for data field (+8 offset). FUN_0058d460 manages tile animation frame counters. Key global: DAT_008a9b50 (paint/scene context ~10KB). Port difficulty: scene-refresh consumer functions (FUN_00587e00, FUN_0058d460) are unported; info-entry pool is partially modelled but data-ptr semantics deferred until ported."
+    },
+    {
+     "name": "Rendering pump & animation tick",
+     "representative_vas": [
+      {
+       "va": "0x58f360",
+       "role": "Main animation frame pump (3030B, ~40 FPS tick, input dispatch, tile/sprite tick)"
+      },
+      {
+       "va": "0x58e780",
+       "role": "Sprite animation state machine (1823B, frame advance + palette effect code dispatch)"
+      },
+      {
+       "va": "0x58f0b0",
+       "role": "Sprite collision check (658B, 8-cell grid lookup for active sprite)"
+      }
+     ],
+     "notes": "58f360 is the top-level frame loop: GetTickCount() state machine (local_5c: 0=init, 1=tick, 2=sleep), tile grid tick (FUN_0048c150), input handling (FUN_0043c110), character update (FUN_00468a20). 58e780 tracks animation state (DAT_008a9400, DAT_008a9404) and triggers flag-conditional code paths. Quirk: heavy use of GetTickCount() delta-time (no frame-lock, self-paced). Port difficulty: medium (top-level tick structure is clear but animation state machine has cryptic multi-state handoff)."
+    },
+    {
+     "name": "GDI text & overlay",
+     "representative_vas": [
+      {
+       "va": "0x57a030",
+       "role": "GDI slot font init (340B, LOGFONTA + CreateFontIndirectA)"
+      },
+      {
+       "va": "0x57a1a0",
+       "role": "GDI slot helper (189B)"
+      },
+      {
+       "va": "0x57a260",
+       "role": "GDI slot cleanup (195B)"
+      }
+     ],
+     "notes": "ar_gdi_slot class; capacity 1..N font objects per slot. LOGFONTA construction with family dispatch (0=Courier, 3=Times, 4=Arial, + italic variants). Port difficulty: low (standard Win32 GDI, no engine-specific quirks)."
+    },
+    {
+     "name": "Sound system (SFX & ambient)",
+     "representative_vas": [
+      {
+       "va": "0x57b280",
+       "role": "SFX slot batch (6073B, 44 sound resource IDs in DAT_008a6eXX globals)"
+      },
+      {
+       "va": "0x579a00",
+       "role": "Ambient sound slot batch (451B, 13 sound resources)"
+      },
+      {
+       "va": "0x579bd0",
+       "role": "Sound slot helper (741B)"
+      },
+      {
+       "va": "0x58cb30",
+       "role": "Sound volume/play control (1065B)"
+      }
+     ],
+     "notes": "ar_sound_slot class; each function is a batch register of constant resource IDs + group/settings params. Slots live in BSS at 0x8a6efc..0x8a70c0 (40+ per function). Port difficulty: low (straightforward table-driven init, no state machine)."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Ghidra typing ambiguity in info-entry pool writes",
+     "va": "0x57ca40:various",
+     "desc": "DAT_008aXXXX variables typed inconsistently (byte* vs short*) by Ghidra. Source-level offsets like +2, +4, +8 do NOT match byte offsets when DAT is short-typed. Retail always uses +4 (flag field), +8 (data ptr), never +2. Byte offsets are invariant; source offsets are rendering artifacts."
+    },
+    {
+     "title": "GetTickCount()-based frame pump with soft cap",
+     "va": "0x58f360",
+     "desc": "No frame lock; tick runs whenever GetTickCount() delta exceeds threshold (0x3e9 ms = ~1000/1024 Hz). Tight loop with FPS counter (local_44) but no vsync. Drift accumulates over long sessions (no correction loop)."
+    },
+    {
+     "title": "Animation state machine with cryptic multi-state handoff",
+     "va": "0x58e780",
+     "desc": "DAT_008a9400 (frame counter) and DAT_008a9404 (saved state) drive state changes. Three magic thresholds (0x28, 0x31, 0x32) with 300-second debounce (DAT_008a9408). Semantics unclear without animation asset table context."
+    },
+    {
+     "title": "Pool index aliasing: sprite slot pool == info-entry pool base address",
+     "va": "0x57ca40, 0x586010",
+     "desc": "Both pools (0x8a760c for slots, 0x8a8440 for info-entries) are fields of input_mgr at +0x0aac (slots) and +0x18e0 (info). 909-entry unified allocation. off-by-one risk: pool[0] at 0x8a760c is a sentinel; real use starts at pool[1]."
+    },
+    {
+     "title": "Stack-based dangling pointer checks",
+     "va": "0x58e780:52-88",
+     "desc": "Code compares local stack addresses (e.g., &stack0x00000000, &stack0xfffffffc) in control flow. Decompiler artifact or deliberate UB? Likely codegen result of complex control flow; semantically these comparisons always evaluate same (dangling reference)."
+    }
+   ]
+  },
+  {
+   "band": "0x590000-0x5a0000",
+   "one_liner": "Game scene/battle engine core: inventory/item management, party status menus, effect system with sparse sprite rendering and audio cue coordination",
+   "subsystems": [
+    {
+     "name": "Inventory & Item System",
+     "representative_vas": [
+      {
+       "va": "0x593f60",
+       "role": "item list menu (dual-branch: regular vs special items)"
+      },
+      {
+       "va": "0x5943e0",
+       "role": "item action handler (equip/remove/discard UI dispatch)"
+      },
+      {
+       "va": "0x594a20",
+       "role": "character-specific action menu builder"
+      },
+      {
+       "va": "0x595350",
+       "role": "confirmatory action dialog (equip/discard display)"
+      }
+     ],
+     "notes": "Structured as call chain from a central menu router (FUN_00591120). Methods access party data via `in_ECX + 0x4000/0x4010` offsets (inventory slots: 256-item array at 0x201c base). Item struct: offset 0xab=rarity(500 threshold), 0x1e=equippability, 0x16=curse status. Implements cond logic (cursed/rare items trigger confirmation loops). Dialog creation via FUN_00411940/FUN_0040f1c0; calls string builders FUN_005bf3ee for formatted prompts. Hard-coded constant 0x5f5e168 filters out dummy/invisible party members."
+    },
+    {
+     "name": "Audio Cue System",
+     "representative_vas": [
+      {
+       "va": "0x590230",
+       "role": "reserve wave manager (processes audio queue)"
+      },
+      {
+       "va": "0x590480",
+       "role": "audio idle/wait check with frequency limiter"
+      },
+      {
+       "va": "0x590660",
+       "role": "audio track selector (8-slot search, param validation)"
+      },
+      {
+       "va": "0x5908a0",
+       "role": "audio frequency throttle (countdown + capacity check)"
+      }
+     ],
+     "notes": "Manages reserve audio buffer: offset 0x1b0 (buffer list ptr), 0x1b4 (count, 16-bit). Per-cue struct stride 0x24 bytes (offsets: +0x18=enabled, +0x1c=vol_adj). Implements capacity-aware allocation with modulo wrap at offset 0x1024 (8 slots: (idx+1)%8). Audio driver thresholds: 300ms min playback time (offset 0xa64*1000 / offsets 0xaac+0xa94+0xa68). Calls FUN_005bb8xx (audio-low) for setup/teardown. References DAT_008a6ed8 (queue head/tail tracker)."
+    },
+    {
+     "name": "Party Status/Menu System",
+     "representative_vas": [
+      {
+       "va": "0x591120",
+       "role": "title scene main menu loop (case dispatcher for 7 subscenes)"
+      },
+      {
+       "va": "0x592850",
+       "role": "battle setup frame init (sprite coordinate setup, palette init, large local buffer 1536 bytes)"
+      },
+      {
+       "va": "0x596b50",
+       "role": "ability/skill menu"
+      },
+      {
+       "va": "0x596d60",
+       "role": "system options menu (quick heal, money display, give up)"
+      },
+      {
+       "va": "0x598d00",
+       "role": "party command menu (formation, follow mode, magic usage)"
+      }
+     ],
+     "notes": "Rooted in scene dispatch pattern. Uses FUN_004124d0 (window frame factory) to build bordered menu boxes; FUN_00412c40 attaches labels. Offsets in party ecx: 0x3 = party member ptrs array, 0x4010/0x4030 = 256-item inventory heads. Character flags at offset 0x5c = 'alive' status. Status menu calls FUN_0055f190 for input polling; returns codes 0xb(cancel), 0xc(confirm), 0xd(retype), 0xe-0x13(action buttons). Menu internals use FUN_0040f800/FUN_0040fa00 for option labels. Theme strings from globals (e.g. DAT_008a2ebc = 'Messages', DAT_008a2eb4 = 'System')."
+    },
+    {
+     "name": "Sprite Rendering (Scene Frame Buffer)",
+     "representative_vas": [
+      {
+       "va": "0x5a00c0",
+       "role": "primary render dispatch (13690B, complex compositing)"
+      },
+      {
+       "va": "0x5a4770",
+       "role": "scene render pump (45963B, massive loop integrator)"
+      },
+      {
+       "va": "0x59f2c0",
+       "role": "sprite buffer allocation & setup (3522B, 8-sprite pool init)"
+      }
+     ],
+     "notes": "Scene render-to-backbuffer: allocates 0x4120B sprite work structs (offset +0x4030 = 8 sprite ptrs). FUN_005a4770 is the mega-loop: polls input, ticks scene state, swaps buffers. Uses FUN_005a00c0 as frame compositor. Sprite stride 0xeec bytes (detected from FUN_0059f2c0 allocation loop). Memory layout includes 8x8 sprite grid cache (0x430 shorts per slot), 0x1800B sprite metadata arena, 0x2400B secondary buffer pool. Calls FUN_005a3de0 (cleanup), FUN_005a3e20 (sprite tick), FUN_005a3ff0 (render). Palette session attached at ecx[3]; backbuffer handle via DAT_008a6e80+0x254. No detected pixel-direct manipulation in this band (handled 0x5b range)."
+    },
+    {
+     "name": "Scene Transition & Load",
+     "representative_vas": [
+      {
+       "va": "0x59ec30",
+       "role": "area/scene loader (new game / continue handoff)"
+      },
+      {
+       "va": "0x59e230",
+       "role": "intro cinematic scene pump (924B state machine)"
+      },
+      {
+       "va": "0x59e5d0",
+       "role": "scene segment controller (1033B orchestrator)"
+      },
+      {
+       "va": "0x59e9e0",
+       "role": "scene cleanup/unload (577B teardown)"
+      }
+     ],
+     "notes": "FUN_0059ec30 allocates per-scene context (0x18 bytes: [0]=resource ptr, [1..3]=asset ids, [4..5]=aux state). Calls FUN_0059f2c0 to allocate 0x4120B scene struct; parameter 2 is scene/area id (0x3f2=1010 for continue point). Unpacks asset ptrs from result and validates non-null before FUN_005a4320/FUN_005a4440 (unload routines). Intro scene FUN_0059e230 builds 3-stage sequence array on stack (local_124, local_98); nested cinematic loop. Uses FUN_005bef0e to free resources. DAT_008a9b50 is global scene state singleton; offset 0x1024 is slot index (modulo 8)."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "Modulo-based Audio Slot Wrapping",
+     "va": "0x590480 / 0x590660",
+     "desc": "Audio queue uses a hand-rolled modulo-wrap at `(idx + 1) & 0x80000007` with a sign-extension cleanup `((uVar4 - 1 | 0xfffffff8) + 1)` to handle wrapping within 8 slots. This is a non-obvious micro-optimization that could silently fail if the slot size assumption changes."
+    },
+    {
+     "title": "Hard-coded Dummy Member Filter",
+     "va": "0x590660 / 0x594a20",
+     "desc": "Party member validity check compares `offset+0x9f0` against constant `0x5f5e168` to skip dummy/placeholder party slots. This magic number is unexplained and will break if party struct definition changes."
+    },
+    {
+     "title": "Nested String-copying in Menu Builders",
+     "va": "0x593f60 / 0x598d00",
+     "desc": "String length loops repeatedly re-scan full strings backward from terminator instead of using `strlen()` \u2014 multiple functions contain identical `while (*pcVar != '\\0') ... ~uVar8` patterns, suggesting copy-paste code or macro expansion from a compiler."
+    },
+    {
+     "title": "Conditional Palette Mode Override",
+     "va": "0x592850 / 0x5a00c0",
+     "desc": "Sprite color mode set based on check `*(int *)(*DAT_008a6e80 + 0x254)` \u2014 if true, forces palette indices 0x14/0x18 to 0xff (opaque white). Palette session is managed externally, creating a subtle dependency on initialization order."
+    },
+    {
+     "title": "Audio Frequency Limiter with Off-by-One Risk",
+     "va": "0x5908a0",
+     "desc": "Countdown at `ecx+0x4074` decrements by 1 per tick, floors at 0. Rate limiting uses hard-coded 0x10 (16 ticks, ~256ms at 60Hz assumed). Checking `0 < *(int *)(ecx + 0x40e4)` with manual decrement then AND-mask `(0 - 1)` suggests a zero-guard that could fail if timing assumptions drift."
+    },
+    {
+     "title": "Scene Context Pointer Array Management",
+     "va": "0x59ec30",
+     "desc": "Scene loader allocates 0x18B context struct, stores resource ptrs at indices [1..5] and validates [0], then unconditionally calls FUN_005bef0e on success. Use-after-free risk if FUN_005bef0e is called twice, or if resource cleanup order is incorrect."
+    },
+    {
+     "title": "Item Rarity Threshold at 500",
+     "va": "0x5943e0",
+     "desc": "Rare items (offset 0xab < 500) trigger extended confirmation dialog. Threshold is hard-coded; no in-game parameter lookup. Quest items with identical rarity value may behave differently if additional flags exist."
+    }
+   ]
+  },
+  {
+   "band": "0x5a0000-0x5bdab0",
+   "one_liner": "Game state mechanics (abilities, attributes, character management) + launcher config parsing + ZDD renderer + bitmap session + utility string/memory infrastructure dominate this band.",
+   "subsystems": [
+    {
+     "name": "Launcher Configuration Parser",
+     "representative_vas": [
+      {
+       "va": "0x5a4770",
+       "role": "gigantic config.dat XOR-deobfuscation + multi-DLL (sotesd/w/p) signature validator and asset registry. Failed decompile (timeout) at 45963B."
+      },
+      {
+       "va": "0x5a00c0",
+       "role": "13690B initialization pump for launcher settings, registry/file I/O, DirectDraw mode enumeration"
+      },
+      {
+       "va": "0x5a3670",
+       "role": "cleanup/dtor for launcher state resources (PTR_DAT_008a9b50 main engine struct cleanup)"
+      },
+      {
+       "va": "0x5a3870",
+       "role": "event logging subsystem for debug trace (writes to in-ECX[0x1800..] event ring buffer)"
+      }
+     ],
+     "notes": "Cluster around DAT_008a9b50 (main engine global). FUN_005a4770 is the launch entrypoint\u2014parses sotesd.dll signature, enumerates resolutions, populates PTR_DAT_008a9b50+0x1160 (32x32-slot entity registry). in_ECX offsets: +0x170, +0x164, +0x178, +0x17c = asset/config memory pools. Port difficulty: VERY HIGH (45963B timeout, multi-DLL PE resource extraction, XOR cipher with hardcoded key)."
+    },
+    {
+     "name": "Character Ability / Effect System (Items/Spells)",
+     "representative_vas": [
+      {
+       "va": "0x5b28a0",
+       "role": "3020B main ability/spell effect applier\u2014switches on 9=heal, 10=buff-attr, 0xb=itemuse, 0xc=special, 0x12=mana-drain, 0x13=stat-buff. Calls FUN_005b54d0 (HP calc), FUN_005b5580 (MP calc), FUN_005bf3ee (status-text format)."
+      },
+      {
+       "va": "0x5b1f10",
+       "role": "2345B switch on item type (1/3=heal, 10=stray-status, 0xb=equip, 0xc=stray-status, 0xd/0xf/0x10=spell, 0x12/0x13=stat-buff) + inner delegate FUN_005b28a0"
+      },
+      {
+       "va": "0x5b3b00",
+       "role": "1002B switch-dispatcher on effect type (1=heal, 2=status-load, 3=attrib-adj, 5=special-sprite-spawn) plus entity collision/dialog pop-up logic"
+      },
+      {
+       "va": "0x5b3f00",
+       "role": "545B difficulty calc for enemy HP scaling (buffs, consecutive hits -> higher HP floor)"
+      },
+      {
+       "va": "0x5b54d0",
+       "role": "166B HP damage/recovery clamping (checks in_ECX[0x750]+0x54 max-HP, bounds checks)"
+      },
+      {
+       "va": "0x5b5580",
+       "role": "121B MP cost deduction (mirrors HP logic on in_ECX[0x750]+0x60)"
+      },
+      {
+       "va": "0x5b1aa0",
+       "role": "405B entity spatial collision (NPC/door bounds check vs player pos, alignment with in_ECX[0x1dc] faction logic)"
+      }
+     ],
+     "notes": "Vtable: Heavy use of in_ECX (this-call) as character object pointer. Key globals: DAT_008a9b50 (entity registry), DAT_008a9b64 (dialogue state), offsets tracked: in_ECX+0x750 (stats struct), in_ECX+0xc794 (??). String refs: '%s %s recovered %d HP', '%s strength returns', etc. Port difficulty: MODERATE-HIGH (ability enum switch cases have recursive calls, string formatters, complex stat calcs with fixed-point 0xf bit-shifts for time scaling)."
+    },
+    {
+     "name": "Sprite/Particle Entity Registration & Lifecycle",
+     "representative_vas": [
+      {
+       "va": "0x5b15e0",
+       "role": "1124B __thiscall sprite-registration: params include animation type (7 cases), facing (0-2), spawn pos, duration. Writes to iVar16[0x15ab8..0x15ae8] (sprite animation state struct). Calls FUN_005b1c50 entity-collision, FUN_005b5600 dtor-link."
+      },
+      {
+       "va": "0x5b1c50",
+       "role": "699B entity picker: scans PTR_DAT_008a9b50+0x1160 (32-slot entity table) for alignment + faction + collision match, returns closest by Manhattan dist"
+      },
+      {
+       "va": "0x5b34d0",
+       "role": "277B sprite text-animation sequencer: converts string to per-char animation frames (0x200 offset into sprite, 0x250 = char count). Calls FUN_00557370 (sprite sprite-factory)."
+      }
+     ],
+     "notes": "Sits atop FUN_00557370 (outside this range) sprite factory. Offsets tracked: iVar16[0x15ab8] = animation type, iVar16[0x158d0..0x158d4] = skill-match table. DAT_008a9b50 acts as entity-pool manager. Port difficulty: MODERATE (struct offsets load-bearing, thiscall conventions, animation state machine state-packed in offset arithmetic)."
+    },
+    {
+     "name": "Bitmap/Palette Session & Pixel Format Conversion",
+     "representative_vas": [
+      {
+       "va": "0x5b7310",
+       "role": "469B bitmap format converter: 8-bit indexed -> 16-bit or 24-bit -> 16-bit. Handles palette lookup (in_ECX->palette at offset), biBitCount=8/0x18 dispatch, calls FUN_005b6ee0 (width), FUN_005b6ef0 (height), FUN_005b6f10 (vtable setter)."
+      },
+      {
+       "va": "0x5b6f10",
+       "role": "26B __thiscall bitmap_session setter for biBitCount (offsets 0x10 in object)"
+      },
+      {
+       "va": "0x5b6e90",
+       "role": "24B __thiscall bitmap_session ctor stub"
+      },
+      {
+       "va": "0x5b7800",
+       "role": "359B __thiscall bitmap palette-swap (in_ECX + 0x40 = palette ptr, iterates, rewrites pixel buffer in-place)"
+      },
+      {
+       "va": "0x5b7c10",
+       "role": "186B bitmap copy/transfer (memcpy-style with LocalAlloc staging)"
+      }
+     ],
+     "notes": "Bitmap_session class: in_ECX is this pointer; offsets: +0x40=palette, +pixels=(void*) allocated buffer, +biBitCount (at [0x10] from header), +0x1f4=height, +0x1f0=width (approx). Key globals: none (methods all this-call). Port difficulty: LOW (mostly memory ops + format dispatch, well-structured class)."
+    },
+    {
+     "name": "ZDD Renderer (DirectDraw Wrapper) + App Pump Integration",
+     "representative_vas": [
+      {
+       "va": "0x5b8480",
+       "role": "1088B ZDD render-surface present + timing gating (calls FUN_005bf505 for RNG-seeded timer, compares frame delta vs 0xc80=3200 ticks=1000ms)"
+      },
+      {
+       "va": "0x5b80d0",
+       "role": "826B ZDD state init\u2014DirectDraw 7 CreateSurface, SetClipperHWnd, palette attach (DAT_008a6e80 = *g_ddraw7, DAT_008a6e78/74/70 = surface/clipper ptrs)"
+      },
+      {
+       "va": "0x5b8c00",
+       "role": "372B ZDD surface-lock sequencer (get/unlock/restore cycle)"
+      },
+      {
+       "va": "0x5b8e00",
+       "role": "157B ZDD clipper rect-update from game viewport"
+      },
+      {
+       "va": "0x5b7ee0",
+       "role": "153B ZDD present (flip/blit surface)"
+      },
+      {
+       "va": "0x5b7f80",
+       "role": "94B ZDD lost-surface recovery (Restore call)"
+      }
+     ],
+     "notes": "Globals: DAT_008a6e80 = *IDirectDraw7, DAT_008a6e78/6e74/6e70 = surface/clipper/palette ptrs, DAT_008a6e6c/6e68 = rect structs. Calling FUN_005bf505 (RNG-based timer) at 0x5b8480. Quirk: \"The 24-bit pixelformat case falls through to 32-bit\" (engine-quirks.md #12). Port difficulty: MODERATE (DirectDraw 7 API binding, HRESULT checking, surface state machine)."
+    },
+    {
+     "name": "String Formatting, Memory Management, RNG",
+     "representative_vas": [
+      {
+       "va": "0x5bf3ee",
+       "role": "82B sprintf wrapper: calls FUN_005c1d41 (outside range, vsnprintf impl). Buffer size 0x7fffffff hardcoded."
+      },
+      {
+       "va": "0x5bf505",
+       "role": "30B LCG RNG (DAT_008a4f94 *= 0x343fd; += 0x269ec3; >> 0x10 & 0x7fff)"
+      },
+      {
+       "va": "0x5bef0e",
+       "role": "11B heap-free wrapper (thunk to FUN_005c123f, outside range)"
+      },
+      {
+       "va": "0x5bf4e8",
+       "role": "241B file I/O (GetFileVersionInfoA, queries PE version resource)"
+      },
+      {
+       "va": "0x5b5af0",
+       "role": "595B PE version resource parser (GetModuleFileNameA -> GetFileVersionInfoA -> VerQueryValueA calls to extract Description/Version/Company/LegalCopyright)"
+      }
+     ],
+     "notes": "These functions bridge to CRT (0x5c*). FUN_005bf505 is stateful (DAT_008a4f94 global). Port difficulty: LOW-MODERATE (well-behaved wrappers, standard library use)."
+    },
+    {
+     "name": "Version & Launcher Dialog Support",
+     "representative_vas": [
+      {
+       "va": "0x5aff00",
+       "role": "26B cleanup: if (*in_ECX != 0) FUN_005bef0e(*in_ECX); *in_ECX = 0"
+      },
+      {
+       "va": "0x5b0450",
+       "role": "1075B version info file read + string manipulation (GetFileVersionInfoSizeA, copies description/file-ver/company into param_1+0x80..0xd0). Error handling branches via string concatenation."
+      },
+      {
+       "va": "0x5aff20",
+       "role": "186B launcher-mode-config apply (reads param_1, writes to in_ECX struct at various offsets)"
+      }
+     ],
+     "notes": "Loose cluster supporting FUN_005a4770 launcher config. Port difficulty: LOW."
+    }
+   ],
+   "quirks": [
+    {
+     "title": "FUN_005a4770 remains undecompiled due to massive size (45963B timeout)",
+     "va": "0x5a4770",
+     "desc": "This is the true launcher entry\u2014XOR-deobfuscation of config.dat, multi-DLL asset signature verification, resolution enumeration. Port must tackle this via binary analysis or symbol recovery. Already flagged in launcher-dialog.md."
+    },
+    {
+     "title": "RNG is a simple LCG seeded by global DAT_008a4f94",
+     "va": "0x5bf505",
+     "desc": "FUN_005bf505() does *0x343fd + 0x269ec3 on DAT_008a4f94. Used pervasively for sprite effect timing, ability cooldown timing, damage variance. Port must preserve seed initialization order."
+    },
+    {
+     "title": "Ability/spell system is hard-dispatch on effect enum (9/10/11/12/13/18/19 cases)",
+     "va": "0x5b28a0",
+     "desc": "Each case calls into a sub-system (damage calc, MP drain, item apply, status apply). Cases 9/10 appear most common (heal/buff). No polymorphism\u2014straight switch-case tower."
+    },
+    {
+     "title": "Entity collision uses modulo-masked iteration (uVar7 & 0x80000007 with sign-correction)",
+     "va": "0x5b1c50",
+     "desc": "Iterates through DAT_008a9b50+0x1160 (32-entity table) with modulo 0x20 mask. Suggests max 32 simultaneous entities in scope (likely on-screen)."
+    },
+    {
+     "title": "Sprite animation stores per-char offsets in a compact 0x200-byte region (chars encoded as offset indices, not strings)",
+     "va": "0x5b34d0",
+     "desc": "Converts ASCII char - 0x21 -> 2-byte offset. Space=0xff sentinel. Max 40 chars per sprite (0x200 / 4 = 80 offsets, half used). Load-bearing struct offset assumption."
+    },
+    {
+     "title": "DAT_008a9b50 is the central engine-state global (appears 32+ times in range)",
+     "va": "0x5a00c0",
+     "desc": "Contains: +0x1160 = 32-slot entity registry; +0x1024..0x1044 = sub-arrays for character UI; +0x2784 = game-mode struct; +0x2798 = boss-ai state. Vtable-like indexing pattern. May be single global class instance."
+    },
+    {
+     "title": "Fixed-point math used for scaling timing (>> 0xf, *= 1000, /= 1000)",
+     "va": "0x5b1f10",
+     "desc": "Time delta scaled as (iVar5 * local_264 + (iVar5 * local_264 >> 0x1f & 0x7fffU)) >> 0xf. Off-by-one risk in rounding. Common in ability cooldown calc."
+    },
+    {
+     "title": "Bitmap conversion dispatch on biBitCount (8 vs 0x18 vs fallthrough to 0x20)",
+     "va": "0x5b7310",
+     "desc": "Engine-quirks.md #12: '24-bit pixelformat case falls through to 32-bit'. FUN_005b7310 dispatches on in_ECX->biBitCount; 0x18 case has no break, falls to default (0x20 handling). Load-bearing quirk."
+    },
+    {
+     "title": "Event flag ring buffer at in_ECX[0x1800] with max 0x200 entries",
+     "va": "0x5a3870",
+     "desc": "Debug trace buffer: (in_ECX + uVar2 * 0xc) = {event_id, param1, param2}. Wraps at 0x200. Only populated if +0x1800 != 0. Diagnostic-only."
+    },
+    {
+     "title": "Config.dat is XOR-obfuscated with per-byte key derived from plaintext header (engine-quirks.md #8)",
+     "va": "0x5a4770",
+     "desc": "Launcher-dialog.md mentions config.dat parse is FUN_005a4770. Asset-loader.md #13 notes sotesd.dll carries 60-byte signature check. Both require reversing encryption key."
+    }
+   ]
+  }
+ ],
+ "scouts": [
+  {
+   "cluster": "Title Scene Runner (FUN_0056aea0)",
+   "entry_va": "0x0056aea0",
+   "summary": "The 3441-byte title-menu scene runner orchestrates the intro animation (studio/title fade-ins, press-button prompt) and hands off to the top-level menu (New Game/Continue/Options/Exit). It drives 7-phase state machine with frame-budget sync, maintains menu-controller and input state, and returns state codes to the outer dispatcher. This is the first visible user-facing frame and unblocks image-on-screen validation.",
+   "functions": [
+    {
+     "va": "0x0056aea0",
+     "size_hint": "3441 bytes",
+     "role": "Main outer loop driver \u2014 phase progression, state-var management (fade ramps, tick counters), frame-limiter integration, input polling, menu dispatch"
+    },
+    {
+     "va": "0x0056c070",
+     "size_hint": "265 bytes",
+     "role": "Sparkle particle spawner \u2014 called during phase 7 to generate title-screen twinkle effects while fade continues"
+    },
+    {
+     "va": "0x0056c180",
+     "size_hint": "297 bytes",
+     "role": "Frame-end flip bridge \u2014 renders sparkles and calls surface Flip; hotpath for committed title menu frames"
+    },
+    {
+     "va": "0x0056c930",
+     "size_hint": "607 bytes",
+     "role": "Sprite animator \u2014 updates sprite positions/rotation/fade for intro logos and menu items based on state flags"
+    },
+    {
+     "va": "0x0056c2b0",
+     "size_hint": "373 bytes",
+     "role": "Scene teardown \u2014 cleanup on exit (unload surfaces, waves, GDI slots, release menu-controller)"
+    },
+    {
+     "va": "0x00412c10",
+     "size_hint": "46 bytes",
+     "role": "Menu-controller allocator \u2014 lazy-init; returns handle to menu UI state for input routing"
+    },
+    {
+     "va": "0x0043c110",
+     "size_hint": "84 bytes",
+     "role": "Input button poll \u2014 checks if a button was pressed within time window (100ms debounce)"
+    },
+    {
+     "va": "0x0043ce50",
+     "size_hint": "220 bytes",
+     "role": "Input action latch \u2014 converts button press to menu action enum (navigate/confirm/cancel)"
+    },
+    {
+     "va": "0x0043e140",
+     "size_hint": "266 bytes",
+     "role": "Ambient audio pump \u2014 drives background music fade/volume transitions during scenes"
+    },
+    {
+     "va": "0x00566250",
+     "size_hint": "169 bytes",
+     "role": "Input device tick \u2014 syncs joystick timestamps and polls state before menu polling"
+    },
+    {
+     "va": "0x0041bbe0",
+     "size_hint": "312 bytes",
+     "role": "Scene reset/cleanup (sprite array + menu state wipe) \u2014 called on intro skip or before menu handoff"
+    },
+    {
+     "va": "0x0056bfd0",
+     "size_hint": "88 bytes",
+     "role": "Menu-controller state initializer \u2014 zeros flags and UI slot pointers"
+    },
+    {
+     "va": "0x005b9410",
+     "size_hint": "49 bytes",
+     "role": "Graphics mode reset (ZDD state setup) \u2014 ported; prerequisite for FUN_0056c180"
+    },
+    {
+     "va": "0x005b9b70",
+     "size_hint": "122 bytes",
+     "role": "Surface touch (DDraw Restore if needed) \u2014 ported; called before fade drawing on phase transitions"
+    },
+    {
+     "va": "0x005b8fc0",
+     "size_hint": "335 bytes",
+     "role": "Surface Flip call \u2014 ported; final frame commit via IDirectDrawSurface7::Flip"
+    },
+    {
+     "va": "0x005ba290",
+     "size_hint": "30 bytes",
+     "role": "Input device init hook \u2014 ported; called when menu confirm attaches joystick pads"
+    }
+   ],
+   "unported_deps": [
+    "0x0041bbe0",
+    "0x0043c110",
+    "0x0043ce50",
+    "0x0043e140",
+    "0x00412c10",
+    "0x0040a5d0",
+    "0x0040fe00",
+    "0x0041390",
+    "0x0041bb80",
+    "0x0041f3e0",
+    "0x00414080",
+    "0x00411f40",
+    "0x0056bfd0",
+    "0x0056c070",
+    "0x0056c180",
+    "0x0056c2b0",
+    "0x0056c930",
+    "0x0056cb90",
+    "0x005bd550",
+    "0x005ba120",
+    "0x00566250",
+    "0x005bbc60",
+    "0x005bbc90",
+    "0x005bbcd0",
+    "0x005bbc20",
+    "0x005bcb80"
+   ],
+   "difficulty": "hard",
+   "blocks": "First visible frame (title splash and menu appear on screen); unblocks DDraw + scene-dispatcher validation; paves way for gameplay scene runners",
+   "quirks": [
+    {
+     "title": "Frame-limiter integration via local_28 sub-state machine",
+     "va": "0x0056aea0:102-136",
+     "desc": "Nested 3-state pump (0=init, 1=ready, 2=waiting) that calls FUN_005b1030 and tracks tick budget in milliseconds. The outer loop must not skip pump calls; frame-budget underrun causes intro animation to stall."
+    },
+    {
+     "title": "Joystick lazy-init only on menu confirm",
+     "va": "0x0056aea0:528-542",
+     "desc": "DInput pads are NOT enumerated at boot. Engine calls FUN_005ba120 only on action iVar14==3 (confirm key). A headless run that never reaches 'press start' will never attach input devices \u2014 this is intentional, not a bug."
+    },
+    {
+     "title": "Fade-ramp multiplier arithmetic",
+     "va": "0x0056aea0:236-349",
+     "desc": "Each phase uses unsigned 32-bit fade (uVar15, range 0..1000) incremented per frame. Clamp before/after each phase's arithmetic to prevent overflow. Phase 5+6 use conditionals to cap increments (lines 305-309, 322-326)."
+    },
+    {
+     "title": "Phase handler dispatch is NOT a switch \u2014 it's an indirect jump table",
+     "va": "0x0056aea0:143",
+     "desc": "Call via PTR_DAT_0056bfa4[local_64]() is a function-pointer array, not a fallthrough switch. Ghidra could not recover the table; radare2 recovers 7 distinct handler VAs covering 11 phase indices (0-10). Inlining handlers is possible but requires strict phase bounds checking."
+    },
+    {
+     "title": "Input button debounce window is 100ms",
+     "va": "0x0056aea0:166,469-505",
+     "desc": "FUN_0043c110 rejects button presses if timestamp (param_1) is not within 100ms of latched press time. Calling site (GetTickCount) must be accurate; synchronization with input-device tick (FUN_00566250) is implicit, not enforced."
+    },
+    {
+     "title": "Menu slots populated in fixed order: 0x1a, 0x1c, 0x1e, 0x1d, 8",
+     "va": "0x0056aea0:401-450",
+     "desc": "The 5 menu items (New Game, Load, Options, ?, Exit) are hardcoded in sequence. The loop at line 451-464 matches slot action_id against DAT_008a6e80+0xa60 to set the 'selected' index. Offset 0xa60 is a save-game validity flag \u2014 changing order or omitting a slot breaks menu init."
+    }
+   ]
+  },
+  {
+   "cluster": "menu_controller",
+   "entry_va": "0x412c10",
+   "summary": "The menu-controller cluster manages all interactive list/menu UI across the engine: inventory dialogs, item selection, party status screens, and shop interfaces. The allocator FUN_00412c10 dispenses pre-pooled menu items; a companion container allocator FUN_004134f0 builds the list viewport and geometry. Input wiring via FUN_00412d30 and rendering callbacks (FUN_0040fa00, FUN_0040f5c0) compose the interactive loop, ultimately feeding action codes to scene drivers.",
+   "functions": [
+    {
+     "va": "0x412c10",
+     "size_hint": "46 B",
+     "role": "Menu-item allocator from pool \u2014 returns pointer, sets up back-reference and index"
+    },
+    {
+     "va": "0x4134f0",
+     "size_hint": "613 B",
+     "role": "Large menu-container allocator; sets up config structure, item array, render buffers"
+    },
+    {
+     "va": "0x412c40",
+     "size_hint": "227 B",
+     "role": "Add single item to menu; colors, rendering setup, callback wiring"
+    },
+    {
+     "va": "0x412d30",
+     "size_hint": "117 B",
+     "role": "Input-key mapping initializer; sets code 0-0xb for button/keyboard layout"
+    },
+    {
+     "va": "0x412db0",
+     "size_hint": "57 B",
+     "role": "Item state validator; checks party/character type flags at offset +0x9c4"
+    },
+    {
+     "va": "0x4124d0",
+     "size_hint": "146 B",
+     "role": "Container (window) creation; manages current-selection index, last-item flag"
+    },
+    {
+     "va": "0x4103d0",
+     "size_hint": "389 B",
+     "role": "Container geometry setup; wires viewport position/size into rendering parameters"
+    },
+    {
+     "va": "0x412df0",
+     "size_hint": "821 B",
+     "role": "NPC/shop item list population; walks 8-entry character array, filters visible items"
+    },
+    {
+     "va": "0x413810",
+     "size_hint": "444 B",
+     "role": "Equipment/stats copy-down; replicas item data into display structure for rendering"
+    },
+    {
+     "va": "0x413b70",
+     "size_hint": "854 B",
+     "role": "Modal dialog builder; allocates container + menu, wires input loop via FUN_0055f190"
+    },
+    {
+     "va": "0x413130",
+     "size_hint": "920 B",
+     "role": "Deposit-item scene (full gameplay function); uses menu controller for inventory selection"
+    },
+    {
+     "va": "0x414cb0",
+     "size_hint": "906 B",
+     "role": "Withdraw-item scene (full gameplay function); counterpart to deposit, retrieves from storage"
+    },
+    {
+     "va": "0x414490",
+     "size_hint": "1955 B",
+     "role": "Item filtering & population logic; applies availability rules, renders per-selected slot"
+    },
+    {
+     "va": "0x4140c0",
+     "size_hint": "836 B",
+     "role": "Modal choice dialog; input loop + text layout, returns selected index to caller"
+    }
+   ],
+   "unported_deps": [
+    "0x40f5c0",
+    "0x40fa00",
+    "0x40fdb0",
+    "0x40f800",
+    "0x40e360",
+    "0x40fdb0",
+    "0x40e0c0",
+    "0x40f1c0",
+    "0x40f3e0",
+    "0x40df40",
+    "0x40dee0",
+    "0x40e2f0",
+    "0x40f040",
+    "0x40fe00",
+    "0x40fd20",
+    "0x40dbc0",
+    "0x40dee0",
+    "0x40f040",
+    "0x40e5e0",
+    "0x4031c0",
+    "0x40e0c0",
+    "0x410610",
+    "0x410560",
+    "0x40fdb0",
+    "0x411f40",
+    "0x412800",
+    "0x413ed0",
+    "0x413a00",
+    "0x413b20",
+    "0x414080",
+    "0x4140c0",
+    "0x414410",
+    "0x414c40",
+    "0x4129a0",
+    "0x411ec0",
+    "0x411390",
+    "0x411530",
+    "0x411560",
+    "0x412570",
+    "0x4123a0",
+    "0x4129b0",
+    "0x415420",
+    "0x415460",
+    "0x4192f0",
+    "0x439680",
+    "0x407880",
+    "0x407900",
+    "0x0055f190"
+   ],
+   "difficulty": "moderate",
+   "blocks": "Inventory management, item selection dialogs, party status displays, shop/NPC interfaces \u2014 unlocks full game-facing menu functionality needed for playable scenes (title, inventory management, equipment swapping).",
+   "quirks": [
+    {
+     "title": "Pool-based allocation, not heap",
+     "va": "0x412c10",
+     "desc": "Menu items are allocated from a pre-sized object pool (ECX+0x48 array, max ECX+0x4c), not malloc. Pool must be pre-initialized by parent; porting requires understanding parent object lifetime and pool sizing constraints."
+    },
+    {
+     "title": "Double-pointer config structure",
+     "va": "0x4134f0",
+     "desc": "Config, items, and render buffers stored as pointers at fixed offsets [0x5d], [0x5e], [0x5f] in the menu object, but config itself is heap-allocated; accessing config[...] requires deref of the pointer first, not direct array indexing."
+    },
+    {
+     "title": "Index-before-increment anomaly",
+     "va": "0x4124d0",
+     "desc": "Container increments selection index at offset+6 AFTER storing it, but the menu item captures the OLD index. Edge case: first item gets index 0, last gets (count-1), but reads can be off-by-one if not careful about when increment happens."
+    },
+    {
+     "title": "Unsigned ushort masking",
+     "va": "0x414490",
+     "desc": "Multiple places truncate with `(index & 0xffff)` to convert back to ushort, implying loop-counter overflow risks or sign-extension bugs in original code. Port must preserve exact bit-width semantics."
+    },
+    {
+     "title": "RGB color encoding without alpha",
+     "va": "0x412c40",
+     "desc": "Colors hardcoded as 0xffffff (white), 0x455f7b (orange). No alpha channel or transparency bits visible; rendering backend likely does modulation or multiply-blend, not per-pixel alpha."
+    }
+   ]
+  },
+  {
+   "cluster": "input-system",
+   "entry_va": "0x43c110",
+   "summary": "Input polling and action latching for keyboard and gamepad. Core polling function scans a time-stamped circular event buffer; action latch detects UI input (confirm/cancel/nav) and translates to gamepad-independent action codes. Requires DInput device state buffer initialization (GetDeviceState vtable offset 0x24) and the per-device wrapper from DInput init (FUN_005ba120/FUN_005ba290).",
+   "functions": [
+    {
+     "va": "0x43c110",
+     "size_hint": "84",
+     "role": "Button event poll\u2014scans time-stamped circular buffer (offset +0x108, 64-entry ring) for pressed buttons matching a given ID and timestamp window (100ms tolerance). Returns 1 if found, clears the entry. Thiscall on input-controller this-object."
+    },
+    {
+     "va": "0x43ce50",
+     "size_hint": "220",
+     "role": "Input action latch\u2014translates raw button states into gameplay actions (0-10: up/down/left/right/confirm/cancel/diagnostic). Checks DInput pad state (offset +0x5c points to gamepad/device state struct) and returns a resolved action code. Thiscall."
+    },
+    {
+     "va": "0x43ca40",
+     "size_hint": "970",
+     "role": "Menu navigation state machine\u2014driven by action codes from FUN_0043ce50. Handles phase-based button repeat (100ms initial delay, then 300-100ms hold repeats) for menu cursor movement. Returns state changes (1=confirm, 2=confirm-with-refresh, etc). Thiscall on menu-controller context."
+    },
+    {
+     "va": "0x5ba120",
+     "size_hint": "154",
+     "role": "DInput gamepad lazy-attach\u2014called on first menu-confirm to enumerate up-to-2 joystick devices. Allocates per-device wrapper struct, stores in slots &DAT_008a93dc[0..1]. Returns non-zero on success. See audio-init.md for wrapper layout; depends on FUN_005ba070/FUN_005ba540 (enumeration helpers)."
+    },
+    {
+     "va": "0x5ba290",
+     "size_hint": "30",
+     "role": "IDirectInputDevice::Acquire wrapper\u2014__thiscall on input_dev struct. Calls device vtable[0x1c] to acquire exclusive foreground binding. Sets acquired=1 flag (+0x08) on success. Already ported in wnd_proc_win32.c (wp_input_acquire placeholder)."
+    }
+   ],
+   "unported_deps": [
+    "0x43c650 (gamepad axis query for UI\u2014returns axis state enum; called by FUN_0043bca0)",
+    "0x43c920 (menu action latch for gamepad variant\u2014alternate input source handling)",
+    "0x5ba070 (DInput device enumeration helper)",
+    "0x5ba540 (DInput device state polling\u2014reads keyboard+gamepad and populates ring buffer at +0x108)",
+    "GetDeviceState vtable plumbing\u2014the DInput keyboard device's vtable[0x24] (method 9) must be called somewhere to fill the keyboard state array; not yet located in decompile",
+    "Input buffer initialization\u2014which VA fills the +0x108 ring buffer? Must be called in the frame pump after DInput acquire"
+   ],
+   "difficulty": "moderate",
+   "blocks": "Any interactive screen (title menu, save/load, options, gameplay). Title-scene.md notes that phase 8 (menu UI) calls FUN_0043c110 + FUN_0043ce50 each frame to handle user input; without this, the engine advances through the intro but never responds to button presses.",
+   "quirks": [
+    {
+     "title": "Ring buffer state machine",
+     "va": "0x43c110",
+     "desc": "The circular buffer at +0x108 uses a backwards linear search (63 down to 0) coupled with a head-index at +0x0c. Each slot is a 3-dword [button_id, timestamp, state]. When FUN_0043c110 finds a match with state==1, it clears state to 0 AND writes 0 to that offset in a separate array at +0x0c+idx*4. This is a consume-on-read pattern\u2014each poll consumes the event once."
+    },
+    {
+     "title": "Menu action latching",
+     "va": "0x43ce50",
+     "desc": "Thiscall reads offset +0x5c (gamepad state pointer) to check if param_1 action codes match current device state. Gamepad branch (param_1[2]==2) interprets device fields [3/5/6 = button flags, 1 = button count]. Returns 6 or 8 based on field +[6] decrement\u2014countdown to auto-repeat. Keyboard branch (param_1[2]==1) delegates to FUN_0043ca40."
+    },
+    {
+     "title": "Lazy gamepad enumeration",
+     "va": "0x5ba120",
+     "desc": "Not called at boot; only when menu-confirm (action==3) is first triggered. Allocates & acquires up to 2 DInput joystick devices. Stores in DAT_008a93dc[0] and [1]. If this is never called (e.g., headless turbo smoke test that exits before pressing start), gamepad input simply stays unavailable\u2014no crash, correct per title-scene.md note."
+    },
+    {
+     "title": "DInput polling black box",
+     "va": "unknown",
+     "desc": "The decompile does not show FUN_005ba540 or the VA that calls IDirectInputDevice::GetDeviceState (vtable[0x24]). The ring buffer at +0x108 is written by SOMETHING, but Ghidra's decomp cuts off or the call is wrapped in a macro. Frida hook on GetDeviceState will reveal the caller. This is load-bearing for input to work at all."
+    },
+    {
+     "title": "Button repeat / debounce via timestamps",
+     "va": "0x43ca40",
+     "desc": "Manages hold-repeat by checking timestamp delta from param_2 (current time). First press sets a 300ms freeze (+0x1c = time + 300), then on next call if time > frozen timestamp, switches to 100ms repeat window. This is ALL in C\u2014no DirectInput repeat settings are used. Manual timer-based debounce."
+    }
+   ]
+  },
+  {
+   "cluster": "wave-load and sprite/sound pool",
+   "entry_va": "0x563ef0",
+   "summary": "The wave-load cluster (FUN_00563ef0 plus its direct dependencies FUN_005bb250/FUN_005bb2f0) implements lazy sound-bank loading into DirectSound buffer pools. The first half (sound-slot field init) is ported as ar_sound_slot_init; the second half (wave decode + buffer fill) remains unported and requires DirectSound vtable method dispatch across 3-4 complex initialization steps. Together they feed the sprite and sound slot pools (DAT_008a760c and DAT_008a92b4) that track in-memory sprite/asset metadata. The format is uncompressed palette+pixel or wave data read from PE resources via chunked-memory abstraction (FUN_005b6340/FUN_005b68f0 handle streaming).",
+   "functions": [
+    {
+     "va": "0x563ef0",
+     "size_hint": "445",
+     "role": "ar_sound_slot_init + lazy wave-load dispatcher. First 110 bytes: field init (ported). Second 335 bytes: wave decode + DirectSound buffer creation (unported)."
+    },
+    {
+     "va": "0x579a00",
+     "size_hint": "451",
+     "role": "sound boot register batch \u2014 initializes 12 core UI/menu sound slots via ar_sound_slot_init. Ported."
+    },
+    {
+     "va": "0x57b280",
+     "size_hint": "6073",
+     "role": "game-sound register batch (group 3) \u2014 initializes 174 gameplay sound slots via ar_sound_slot_init. Ported."
+    },
+    {
+     "va": "0x5748c0",
+     "size_hint": "237",
+     "role": "Per-sprite-slot register \u2014 stamps resource_id/width/height/colorkey and allocates 1-entry ar_sprite_entry array. Core pool feeder. Ported."
+    },
+    {
+     "va": "0x56e190",
+     "size_hint": "26411",
+     "role": "Hundreds-sprite batch register \u2014 260+ inlined ar_sprite_slot_register calls populating sprite IDs 62..863. Ported."
+    },
+    {
+     "va": "0x562ea0",
+     "size_hint": "4062",
+     "role": "Boot driver \u2014 initializes all asset pools + calls sprite/sound batches. Ported."
+    },
+    {
+     "va": "0x5b62a0",
+     "size_hint": "unknown",
+     "role": "Low-level PE resource read (FindResourceA/LoadResourceA/LockResourceA). Called by wave-load path."
+    },
+    {
+     "va": "0x5b6340",
+     "size_hint": "unknown",
+     "role": "Polymorphic asset reader (kind 1=PE res, 2=chunked stream, 3=file). Feeds sprite decode + wave load."
+    },
+    {
+     "va": "0x5b68f0",
+     "size_hint": "unknown",
+     "role": "Chunked-memory-stream decoder (not a decompressor; abstracts the 676996-byte chunk-stride used by sotesd.dll multi-part resources)."
+    }
+   ],
+   "unported_deps": [
+    "0x5bb250 (150 B) \u2014 wave decode stage 1: allocate DirectSound descriptor buffer + call FUN_005bb3d0 dispatcher",
+    "0x5bb2f0 (140 B) \u2014 wave decode stage 2: copy init-state buffer to next slot + call FUN_005bb5c0 (DuplicateSoundBuffer)",
+    "0x5bb3d0 (494 B) \u2014 DirectSound CreateSoundBuffer vtable wrapper; complex multi-DWORD state machine.",
+    "0x5bb380 (24 B) \u2014 simple DirectSound object init helper",
+    "0x5bb5c0 (67 B) \u2014 DirectSound DuplicateSoundBuffer vtable wrapper",
+    "0x5bb610 (unknown) \u2014 called by FUN_005bb3d0; presumed PE-resource reader setup",
+    "0x5bb740 (unknown) \u2014 called by FUN_005bb3d0; presumed chunked-stream reader setup",
+    "0x5b62a0 (unknown) \u2014 FindResource/LoadResource/LockResource wrapper",
+    "0x5b6340 (unknown) \u2014 polymorphic asset reader (PE resource / chunked stream / file)",
+    "0x5b68f0 (unknown) \u2014 chunked-memory abstraction reader"
+   ],
+   "difficulty": "hard",
+   "blocks": "Title-menu rendering (once scene runner FUN_0056aea0 is ported, it calls ar_sound_slot_init for lazy boot-bank loads during scene transitions; the second half is needed for actual sound-board playback in-game).",
+   "quirks": [
+    {
+     "title": "Uncompressed asset storage",
+     "va": "asset-loader finding \u00a7 Data shape",
+     "desc": "All assets in sotesd/sotesw/sotesp.dll are stored raw (uncompressed), just chunked at 676996-byte PE-resource boundaries. Extraction is straight byte-dump; no decompression step needed."
+    },
+    {
+     "title": "DLL signature checks",
+     "va": "asset-loader finding \u00a7 Signature quirks",
+     "desc": "All three DLLs (sotesd.dll, sotesw.dll, sotesp.dll) carry integrity checks: 60-byte / 8-byte / 8-byte strings encoded as (byte + 0x41). Engine verifies at boot (0x5af6ac, 0x575350 areas). Drop-in can skip or no-op these checks."
+    },
+    {
+     "title": "Chunked logical-blob (sotesd 1000\u20131004)",
+     "va": "asset-loader finding \u00a7 sotesd layout",
+     "desc": "Five PE resources (1000\u20131004) totalling ~2.2 MB are a single logical asset chunked at 676996-byte boundaries. FUN_005b67c0 transparently spans them via indexing into a chunk-pointer array. Extraction tools must join them back together."
+    },
+    {
+     "title": "Wave-load buffer allocation is lazy",
+     "va": "FUN_00563ef0 line 23\u201349",
+     "desc": "Sound slots are initialized at boot with buffer=NULL (FUN_005bb250 not called). The wave bytes are only loaded on-demand when the sound is first played (TBD where this happens in gameplay loop)."
+    },
+    {
+     "title": "DirectSound error path branches",
+     "va": "FUN_00563ef0 line 34\u201364",
+     "desc": "If wave decode fails (FUN_005bb250 returns 0), the engine logs the failure, calls FUN_005bf4e8 to get a file handle for writing, then uses FUN_005bf496 to stamp a timestamped 'Failed_Wave_Load_*' message. This is error-recovery telemetry, not core audio."
+    }
+   ]
+  },
+  {
+   "cluster": "Launcher Settings Parser (config.dat)",
+   "entry_va": "0x5a4770",
+   "summary": "FUN_005a4770 is the 46 KB catch-all init subsystem that orchestrates launcher dialog presentation, user settings persistence (config.dat), window class registration, and main window creation. It reads XOR-obfuscated (key 0x88) config.dat from disk, registers 101 schema fields into a 2828-byte in-memory settings struct, populates the launcher dialog from saved state, and persists the user's choices back to config.dat upon exit. The cluster includes path builders (FUN_005b0ce0/5b0c60), the launcher dialog dispatch (FUN_005b0d70), and config loader helpers. Porting requires implementing the file I/O, XOR deobfuscation, schema field unpacking, and round-trip persistence.",
+   "functions": [
+    {
+     "va": "0x5a4770",
+     "size_hint": "46 KB (45963 bytes)",
+     "role": "Main init orchestrator \u2014 parses cmdline, loads config.dat, runs launcher dialog, registers window class, creates main window. Too large for Ghidra decompile; requires radare2 disassembly slicing."
+    },
+    {
+     "va": "0x5afb00",
+     "size_hint": "129 bytes",
+     "role": "Schema array allocator \u2014 allocates 101*0x1c = 2828 bytes for per-field records; stores name + metadata."
+    },
+    {
+     "va": "0x5afb90",
+     "size_hint": "96 bytes",
+     "role": "Per-field schema register \u2014 writes field ID, default values, and dynamic allocation hints into schema array at index (field_id & 0xffff)."
+    },
+    {
+     "va": "0x5afc90",
+     "size_hint": "623 bytes",
+     "role": "Config.dat value unpacker \u2014 iterates field-value pairs from decoded plaintext, locates matching schema entry, unpacks and stores values into in-memory struct."
+    },
+    {
+     "va": "0x5affe0",
+     "size_hint": "409 bytes",
+     "role": "Directory enumerator \u2014 reads a game-data subdirectory as key=value text pairs, used for config enumeration or asset listing."
+    },
+    {
+     "va": "0x5aff20",
+     "size_hint": "186 bytes",
+     "role": "Key lookup in schema table \u2014 binary search or sequential match for field name in 0x128-byte record array."
+    },
+    {
+     "va": "0x5b0ce0",
+     "size_hint": "131 bytes",
+     "role": "Path builder (settings) \u2014 concatenates game-dir + 'user' + 'config.dat' or similar config-related paths."
+    },
+    {
+     "va": "0x5b0c60",
+     "size_hint": "128 bytes",
+     "role": "Path builder (general) \u2014 generic path concatenation for subdirs."
+    },
+    {
+     "va": "0x5b0d70",
+     "size_hint": "82 bytes",
+     "role": "Launcher dialog wrapper \u2014 calls DialogBoxParamA(hInst, 0x2711, NULL, dlgproc=0x4013c0, 0); returns launcher dialog result."
+    },
+    {
+     "va": "0x5b0dd0",
+     "size_hint": "267 bytes",
+     "role": "Window title builder \u2014 assembles 'Fortune Summoners Ver1.2 - Product Ver.' from resource strings."
+    },
+    {
+     "va": "0x5b0ee0",
+     "size_hint": "331 bytes",
+     "role": "Main window creator \u2014 calls CreateWindowExA(0, CLASS_LIZSOFT_SOTES, \u2026, WS_POPUP, 0,0,100,100, \u2026)."
+    }
+   ],
+   "unported_deps": [
+    "0x4013c0 (DLGPROC @ address, not function pointer; Ghidra missed it \u2014 radare2 disassembly only)",
+    "0x5b61b0 (initialization subroutine, called by config loader on first run)",
+    "0x5b6200, 0x5b6340 (config.dat file I/O \u2014 likely CreateFileA/ReadFile/XOR decoding)",
+    "0x5b6580 (per-run state struct allocator)",
+    "0x5b65b0, 0x5b6db0, 0x5b6bc0 (resource/DDraw pre-init \u2014 outside scope of config parser)",
+    "Direct file I/O (no FUN_ wrapper found; likely wrapped inside 0x5b62xx slice)"
+   ],
+   "difficulty": "hard",
+   "blocks": "--launcher-mode=N CLI flag, which currently stubs to hardcoded Windowed (mode 2). Full port enables reading the 4 launcher radio settings + all 101 keybinding/volume/difficulty/event fields from user/config.dat, persisting user choices, and wiring the dialog's state-machine scrape back to in-memory settings struct. Unblocks genuine multi-run settings persistence and deferred platform/difficulty selection (required for full Phase-2 playability).",
+   "quirks": [
+    {
+     "title": "Radio enums use 3/4/5, not 0/1/2",
+     "va": "0x4013c0 (DLGPROC), 0x5a4770",
+     "desc": "Launcher dialogs for screen mode, VRAM, quality, and sound all use enum values 3 / 4 / 5 instead of 0 / 1 / 2. This offset appears both in the on-disk config.dat layout and the in-memory globals (DAT_008a9b48/4a/4c/4e). The same +3 offset must be faithfully preserved during round-trip load/save, else the dialog will fail to populate or persist."
+    },
+    {
+     "title": "config.dat is XOR-obfuscated with key 0x88",
+     "va": "0x5afc90 (unpacker), 0x5b62xx (file I/O, not yet located)",
+     "desc": "The 840-byte file has a plaintext 16-byte header [hdr_size=16][version=0x2711][data_size=820][checksum] followed by 820 bytes of XOR-obfuscated body. The XOR key is the single byte 0x88. Deobfuscation is `b_plaintext = b_encrypted ^ 0x88`. The body is denser than the in-memory representation \u2014 unpacker must expand (u32, u32) pairs into the 0x1c-byte per-field schema records."
+    },
+    {
+     "title": "Schema registration happens at boot via 101 calls to FUN_005afb90",
+     "va": "0x5afb00, 0x5afb90",
+     "desc": "On startup, FUN_005a4770 calls FUN_005afb00 to allocate a 2828-byte array, then calls FUN_005afb90 repeatedly (once per field) to register field ID, name, type hints, and default values. The in-memory layout is then used by the unpacker (FUN_005afc90) to deserialize the on-disk format. Reverse-engineering the exact sequence of FUN_005afb90 calls (field IDs, names, types) will require radare2 disassembly of FUN_005a4770 or Frida hook on the register path."
+    },
+    {
+     "title": "Zoom 1920x1440 radio is hidden at WM_INITDIALOG",
+     "va": "0x4013c0 (WM_INITDIALOG, line 'ShowWindow(\u2026, 0x272A, SW_HIDE)')",
+     "desc": "Control ID 0x272A (10026) exists in the dialog resource but is unconditionally hidden at WM_INITDIALOG with no path to re-enable it. The radio scrape path doesn't even check it. Zoom mode effectively supports only 1280x960 despite resource suggesting 1920x1440 option. Likely abandoned on 2012-era hardware or unfinished; port should omit the 1920x1440 branch."
+    },
+    {
+     "title": "First dword in plaintext (0xBC D9 34 B5) is unexplained",
+     "va": "0x5afc90 (config.dat unpacker)",
+     "desc": "The plaintext body begins with a 4-byte word that doesn't fit the (u32, u32) pair schema. Observed value 0xB534D9BC appears to be a hash, per-file salt, or checksum \u2014 its role is TBD. Must be preserved during round-trip load/save to avoid file corruption."
+    }
+   ]
+  },
+  {
+   "cluster": "audio-bring-up",
+   "entry_va": "0x5baed0",
+   "summary": "Audio subsystem bring-up: DirectSound wrapper (ZDS) initialization for sound effects, and music manager (ZDM) setup for WMA BGM playback through Windows Media Foundation graph builder. The title BGM represents the smallest measurable audio milestone \u2014 just loading and playing one WMA track from a resource DLL through DirectShow/WMF without user input. Depends on asset loading and DirectSound initialization (already ported parts of boot sequence), but the playback graph construction (FUN_005bab10) and WMA-to-graph binding (FUN_005bc150) are new unported territories.",
+   "functions": [
+    {
+     "va": "0x5baed0",
+     "size_hint": "193 B",
+     "role": "ZDS (DirectSound wrapper) alloc + primary buffer creation; called from boot driver"
+    },
+    {
+     "va": "0x5bbb10",
+     "size_hint": "56 B",
+     "role": "ZDM (music manager) ctor; zeroes fields and copies engine name"
+    },
+    {
+     "va": "0x5bbeb0",
+     "size_hint": "527 B",
+     "role": "ZDM voice-slot allocator; allocates 50\u00d7576 B voice pool + 8-channel metadata"
+    },
+    {
+     "va": "0x5bcb80",
+     "size_hint": "611 B",
+     "role": "Music track playback trigger; title BGM entry point \u2014 allocates voice slot, loads WMA via FUN_005bc150, feeds to graph"
+    },
+    {
+     "va": "0x5bc150",
+     "size_hint": "1639 B",
+     "role": "WMA resource extractor; pulls sotesw.dll resource ID to temp file, error reporting"
+    },
+    {
+     "va": "0x5ba9a0",
+     "size_hint": "177 B",
+     "role": "Graph descriptor init; allocates WMF graph struct (0x338 B) and sets up playback metadata"
+    },
+    {
+     "va": "0x5bab10",
+     "size_hint": "515 B",
+     "role": "WMF graph builder creation; CoCreateInstance + RenderFile for WMA, error strings (E_OUTOFMEMORY, VFW_E_*), ReleaseAndLog chain"
+    },
+    {
+     "va": "0x5bcdf0",
+     "size_hint": "66 B",
+     "role": "Voice slot playback accessor; routes to graph builder (FUN_005bab10) or fallback (FUN_005baec0)"
+    },
+    {
+     "va": "0x5bc7c0",
+     "size_hint": "880 B",
+     "role": "AddMusicTrack setup; binds track metadata (volume, fade, loop) to voice slot"
+    },
+    {
+     "va": "0x5bbc20",
+     "size_hint": "57 B",
+     "role": "Query: voice slots populated (is music playing)"
+    },
+    {
+     "va": "0x5bbc60",
+     "size_hint": "45 B",
+     "role": "Query: track exists at voice index"
+    },
+    {
+     "va": "0x5bbc90",
+     "size_hint": "55 B",
+     "role": "Query: track is loaded and state==2 (playable)"
+    },
+    {
+     "va": "0x5bbcd0",
+     "size_hint": "72 B",
+     "role": "Volume setter; iterates voice slots, calls FUN_005bbdb0 to set fade/volume"
+    },
+    {
+     "va": "0x5bb250",
+     "size_hint": "150 B",
+     "role": "SFX buffer allocator; calls FUN_005bb3d0 for per-effect wave buffer creation"
+    },
+    {
+     "va": "0x5bb3d0",
+     "size_hint": "494 B",
+     "role": "Wave buffer descriptor creation; parse RIFF header, CreateSoundBuffer for DSound secondary buffer"
+    },
+    {
+     "va": "0x563ef0",
+     "size_hint": "445 B",
+     "role": "Sound bank register; maps resource ID to SFX slot, lazy-loads wave buffers on demand"
+    }
+   ],
+   "unported_deps": [
+    "0x5bbb50 (ZDM update/pump loop)",
+    "0x5bc0c0 (graph player state machine)",
+    "0x5bbdb0 (volume/pan setter on voice)",
+    "0x5bad80 (WMF COM release chain)",
+    "0x5bbceb0 (fade envelope manager)",
+    "0x5bb180 (DSound primary buffer setup, ported via FUN_00562ea0 boot)",
+    "0x5bafe0 (ZDS dtor/cleanup)",
+    "0x5ba070-0x5ba540 (WMF graph builder initialization detail)",
+    "0x579740 (asset loader resource-lookup wrapper)",
+    "0x5b62a0 (PE resource lock chain)"
+   ],
+   "difficulty": "hard",
+   "blocks": "Title scene BGM playback (first audio milestone). Unblocks: in-game music transitions, SFX mixing, audio pausing on window deactivate, volume slider in options menu.",
+   "quirks": [
+    {
+     "title": "WMA \u2192 temporary file pipeline",
+     "va": "0x5bc150",
+     "desc": "Music tracks (sotesw.dll WMA resources) are NOT played directly from resource memory. Instead, FUN_005bc150 extracts resource bytes to a GetTempFileA path, then FUN_005bab10 calls WMF RenderFile on the temp file. Temp file is deleted after playback. This is a quirk: most games stream from memory or use an in-memory IStream wrapper; here the engine writes to disk even for a single track playback."
+    },
+    {
+     "title": "DirectShow/WMF hidden behind CoCreateInstance",
+     "va": "0x5bab10",
+     "desc": "The audio graph is built via COM (CoCreateInstance with IID_IGraphBuilder + RenderFile), not the raw DirectShow C API. This means the entire graph-builder initialization is encapsulated in undocumented IIDs (DAT_00850f58, DAT_00850f08, DAT_00850f28). GUIDs must be recovered from the data section to port this correctly."
+    },
+    {
+     "title": "50-voice polyphony ceiling",
+     "va": "0x5bbeb0",
+     "desc": "ZDM allocates exactly 50 voice slots (param_1 = 0x32 hardcoded in audio-init.md line 49), each 576 bytes (0x240), plus per-voice metadata. This is generous for 2008 indie 2D, suggesting the engine tracks music + multiple SFX + ambience layers simultaneously."
+    },
+    {
+     "title": "Settings gate: 'Disable Sound' \u2192 skip ZDM only, not ZDS",
+     "va": "0x5ba6e0 (boot driver)",
+     "desc": "When launcher checkbox 'Disable Sound' is set, in-memory settings[0x21c] is 1, which gates ZDM init but NOT ZDS (DirectSound). So primary buffer + SFX still initialize; only music is disabled. This means harness can test SFX without music by toggling the checkbox."
+    },
+    {
+     "title": "No streaming or looping detection in decompile yet",
+     "va": "0x5bcb80",
+     "desc": "The FUN_005bcb80 \u2192 FUN_005bab10 chain calls RenderFile once and does not appear to handle loop-count or fade-out (FUN_005bbdb0 is called from FUN_005bbcd0 in title scene, suggesting volume/fade are external to the graph). Exact loop behaviour and crossfade timing TBD once FUN_005bbb50 (graph pump) is reverse-engineered."
+    }
+   ]
+  }
+ ]
+}

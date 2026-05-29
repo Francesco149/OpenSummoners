@@ -3,6 +3,30 @@
 How Claude (the model running this RE project) should structure its work.
 Read at the start of every new session.
 
+## Session lifecycle (do this every session)
+
+**At the start:**
+
+1. Read `docs/memories/HANDOFF.md` — "where to pick up *right now*".
+2. Glance at `docs/STATUS.md` for the headline coverage % and current front.
+3. Skim this file's TL;DR.
+4. `docs/port-frontier.md` answers "what's the next mechanical chip";
+   `docs/ROADMAP.md` answers "what's the next *semantic* milestone".
+
+**At the end of a meaningful checkpoint:**
+
+1. Commit in a logical unit (co-author trailer, no `git add -A`).
+2. **Regenerate the derived progress artifacts** if you ported anything:
+   `python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py`
+   (this refreshes `STATUS.md`, `port-ledger.{md,json}`, `port-frontier.md`).
+   The signal is the `FUN_<va>` provenance comment in your src — keep it.
+3. **Append any engine quirk you found** to `findings/engine-quirks.md`
+   (see "Note engine quirks" below) — even a one-paragraph hunch.
+4. Rewrite `docs/memories/HANDOFF.md` for the next session.
+5. **Suggest a `/clear` point** if the milestone is a clean unit and the
+   next is fresh scope (see "Suggest `/clear`" below). The durable memory
+   is the docs, not the context; large Ghidra reads bloat the window.
+
 ## TL;DR
 
 - **Stay autonomous.**  The user expects to be a periodic
@@ -13,6 +37,15 @@ Read at the start of every new session.
   batch tasks with no judgment surface (rename N symbols, regenerate a
   table).  RE work involves complex code analysis and the moment a task
   "seems" mechanical it usually turns into a rabbit hole.
+  - **Carve-out — wide read-only audits.**  When the *surface is wide*
+    (mapping the whole binary into subsystems, scouting many forward-path
+    clusters at once) a `Workflow` of **read-only `Explore` agents** is
+    sanctioned, because no agent is making a port decision — each just
+    reads a band of `docs/decompiled/by-address/` and reports a structured
+    map.  `tools/workflows/subsystem-survey.js` is the canonical one;
+    its output seeds `ROADMAP.md` + the `engine-quirks.md` log.  Findings
+    are *decompile-grade*: byte-verify offsets before a port leans on them.
+    The actual porting (read Ghidra → write C → test) still stays inline.
 - **Everything runs inside `nix develop`.**  `python3`, `frida`,
   `ghidra-analyzeHeadless`, `i686-w64-mingw32-gcc` are all flake-provided;
   outside the dev shell they will not be on PATH.  This is the #1
@@ -77,7 +110,7 @@ Conventions:
   `git config --local user.email` something else.
 - **Every commit Claude makes must include a co-author trailer**:
 
-      Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+      Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
   Use a HEREDOC to pass the message so the trailer lands on its own line.
 - Commit only what was asked.  Never `git add -A` and sweep in stray
