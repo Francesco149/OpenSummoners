@@ -165,6 +165,23 @@ class CaptureConfig:
     server_exe:        Path = DEFAULT_FRIDA_SERVER_EXE
 
     run_dir:           Path | None = None
+    # When True, run_dir is used verbatim (no timestamp subdir).  mem_watch.py
+    # sets this so it can post-process a known directory.
+    exact_run_dir:     bool = False
+
+    # ── structural-parity harness (off unless enabled) ──
+    # call_trace: hook every VA in call_trace_vas onEnter, emit one row per
+    # invocation to <run_dir>/call_trace.jsonl, batched per Flip frame.
+    # call_trace_frames is an optional per-frame whitelist.
+    call_trace:        bool = False
+    call_trace_vas:    list[int] | None = None
+    call_trace_frames: list[int] | None = None
+    # mem_watch: MemoryAccessMonitor over mem_watch_regions (each a
+    # {va,size,label,access} dict), emit trapped accesses to
+    # <run_dir>/mem_watch.jsonl.  Driven by tools/mem_watch.py.
+    mem_watch:         bool = False
+    mem_watch_regions: list[dict] | None = None
+    mem_watch_precise: bool = True
 
 
 def _resolve_run_dir(base: Path | None) -> Path:
@@ -189,10 +206,19 @@ def run_capture(cfg: CaptureConfig) -> int:
         if not ensure_frida_server(cfg.remote, cfg.server_exe):
             return 3
 
-    run_dir = _resolve_run_dir(cfg.run_dir)
+    if cfg.exact_run_dir and cfg.run_dir is not None:
+        run_dir = cfg.run_dir
+        run_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        run_dir = _resolve_run_dir(cfg.run_dir)
+    cfg.run_dir = run_dir   # publish the resolved dir back to the caller
     log_path = run_dir / "agent.log"
     meta_path = run_dir / "run.json"
     log_f = log_path.open("w", encoding="utf-8")
+
+    # Optional per-mode JSONL sinks (one row per event, with `frame`).
+    call_trace_f = (run_dir / "call_trace.jsonl").open("w") if cfg.call_trace else None
+    mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
 
     print(f"[frida_capture] run dir: {run_dir}", file=sys.stderr)
     print(f"[frida_capture] retail:  {cfg.exe}", file=sys.stderr)
@@ -227,6 +253,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "msg_count": 0,   # running total of drained Peek/GetMessage events
                           # (the agent's TICK_EVERY-batched count.count field)
         "turbo_ticks": 0,
+        "call_trace_events": 0,
+        "mem_access_events": 0,
+        "last_frame": -1,
         "errors": [],
     }
 
@@ -285,6 +314,41 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"hwnd={payload.get('hwnd')}", file=sys.stderr)
             summary.setdefault("dialog_actions", 0)
             summary["dialog_actions"] += 1
+        elif kind == "flip_hook_ready":
+            print(f"[frida_capture] flip frame anchor installed "
+                  f"(va=0x{payload.get('va', 0):x})", file=sys.stderr)
+        elif kind == "call_trace_hooked":
+            print(f"[frida_capture] call_trace hooked: ok={payload.get('n_ok')} "
+                  f"fail={payload.get('n_fail')} req={payload.get('n_req')}",
+                  file=sys.stderr)
+        elif kind == "mem_watch_ready":
+            regs = payload.get("regions") or []
+            print(f"[frida_capture] mem_watch armed {len(regs)} region(s) "
+                  f"(precise={payload.get('precise')})", file=sys.stderr)
+        elif kind == "call_trace_batch":
+            frame = int(payload.get("frame", -1))
+            events = payload.get("events") or []
+            if call_trace_f is not None:
+                for ev in events:
+                    row = dict(ev)
+                    row["frame"] = frame
+                    call_trace_f.write(json.dumps(row) + "\n")
+                call_trace_f.flush()
+            summary["call_trace_events"] += len(events)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
+        elif kind == "mem_access_batch":
+            frame = int(payload.get("frame", -1))
+            events = payload.get("events") or []
+            if mem_watch_f is not None:
+                for ev in events:
+                    row = dict(ev)
+                    row["frame"] = frame
+                    mem_watch_f.write(json.dumps(row) + "\n")
+                mem_watch_f.flush()
+            summary["mem_access_events"] += len(events)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "error":
             print(f"[frida_capture] agent error in {payload.get('where')}: "
                   f"{payload.get('msg')}", file=sys.stderr)
@@ -304,6 +368,20 @@ def run_capture(cfg: CaptureConfig) -> int:
         "auto_disable_sound": cfg.auto_disable_sound,
         "force_windowed":     cfg.force_windowed,
         "turbo_step_ms":      cfg.turbo_step_ms,
+        "call_trace":         cfg.call_trace,
+        "call_trace_vas":     [int(v) for v in (cfg.call_trace_vas or [])],
+        "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
+        "mem_watch":          cfg.mem_watch,
+        "mem_watch_precise":  cfg.mem_watch_precise,
+        "mem_watch_regions":  [
+            {
+                "va":     int(r["va"]),
+                "size":   int(r.get("size", 16)),
+                "label":  str(r.get("label", f"0x{int(r['va']):08x}")),
+                "access": "rw" if r.get("access") == "rw" else "w",
+            }
+            for r in (cfg.mem_watch_regions or [])
+        ],
     })
 
     device.resume(pid)
@@ -346,6 +424,10 @@ def run_capture(cfg: CaptureConfig) -> int:
         except Exception:
             pass
         log_f.close()
+        if call_trace_f is not None:
+            call_trace_f.close()
+        if mem_watch_f is not None:
+            mem_watch_f.close()
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -393,7 +475,38 @@ def main() -> int:
     p.add_argument("--cwd",            default=str(ASSET_CWD),  type=Path)
     p.add_argument("--no-auto-server", dest="auto_start_server", action="store_false", default=True)
     p.add_argument("--run-dir",        default=None, type=Path)
+    p.add_argument("--exact-run-dir",  action="store_true",
+                   help="use --run-dir verbatim (no timestamp subdir)")
+    p.add_argument("--call-trace",     action="store_true",
+                   help="hook the engine VA list (tools/frida/data/"
+                        "engine_vas_frida_safe.json, else engine_vas.json) "
+                        "and emit one row per call to <run_dir>/call_trace.jsonl. "
+                        "Pair with --call-trace-frames or output saturates.")
+    p.add_argument("--call-trace-frames", default="",
+                   help="comma-separated Flip-frame whitelist for --call-trace "
+                        "(strongly recommended for non-title scenarios)")
+    p.add_argument("--call-trace-vas-file", default=None, type=Path,
+                   help="override the engine VA list (JSON: bare array or "
+                        "{vas:[...]})")
     args = p.parse_args()
+
+    call_trace_vas = None
+    call_trace_frames = None
+    if args.call_trace:
+        ct_path = args.call_trace_vas_file
+        if ct_path is None:
+            safe = ROOT / "tools" / "frida" / "data" / "engine_vas_frida_safe.json"
+            cand = ROOT / "tools" / "frida" / "data" / "engine_vas.json"
+            ct_path = safe if safe.exists() else cand
+        if not ct_path.exists():
+            p.error(f"--call-trace: VA list not found at {ct_path}; run "
+                    f"tools/gen_engine_vas.py first")
+        raw = json.loads(ct_path.read_text())
+        call_trace_vas = raw["vas"] if isinstance(raw, dict) and "vas" in raw else list(raw)
+        print(f"[frida_capture] call-trace: {len(call_trace_vas)} VAs from "
+              f"{ct_path.name}", file=sys.stderr)
+        if args.call_trace_frames:
+            call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
 
     cfg = CaptureConfig(
         hide_window       = args.hide_window,
@@ -408,6 +521,10 @@ def main() -> int:
         cwd               = args.cwd,
         auto_start_server = args.auto_start_server,
         run_dir           = args.run_dir,
+        exact_run_dir     = args.exact_run_dir,
+        call_trace        = args.call_trace,
+        call_trace_vas    = call_trace_vas,
+        call_trace_frames = call_trace_frames,
     )
     return run_capture(cfg)
 

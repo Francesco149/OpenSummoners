@@ -145,6 +145,51 @@ let   g_main_game_window_seen = false;
 let   g_activateapp_posts = 0;
 const g_seen_hwnd_keys = {};   // dedupe: emit once per (hwnd, title) pair
 
+// ─── structural-parity harness: call-trace + mem-watch ───────────────────
+//
+// Counterpart of the port-side src/call_trace.c emitter.  Together with
+// tools/call_trace_diff.py they let us diff which engine functions retail
+// called per frame vs. which our port reached.
+//
+// Frame anchor = the DirectDraw Flip dispatcher (FUN_005b8fc0).  The
+// engine calls it once per presented frame; we hook its entry, flush the
+// per-frame call-trace / mem-watch batch tagged with the frame that just
+// ended, then bump.  The port bumps g_frame_counter once per zdd_present,
+// so the two frame axes are directly comparable (modulo boot/load skew,
+// which call_trace_diff's --align-on-first absorbs).  This is the
+// DirectDraw analog of openrecet's D3D-Present anchor.
+const FLIP_VA       = 0x5b8fc0;
+let   g_flip_frame  = 0;
+let   g_flip_hooked = false;
+
+// call_trace mode (Interceptor.attach onEnter over a vetted VA list).
+let   g_call_trace_enabled = false;
+let   g_call_trace_frames  = null;   // Set<int> or null (null = every frame)
+let   g_call_trace_vas     = [];     // [int] Ghidra VAs to hook
+let   g_call_trace_hooked  = false;
+let   g_call_trace_buffer  = [];
+let   g_call_trace_n_ok    = 0;
+let   g_call_trace_n_fail  = 0;
+// Per-frame flush keeps steady-state batches small, but the pre-Flip
+// boot window (hundreds of init calls with the full VA set hooked) can
+// dump a huge batch into one send().  Frida's transport tops out around
+// 128MiB per blob; force a flush when the buffer crosses this so each
+// message stays bounded.
+const CALL_TRACE_FLUSH_AT = 20000;
+
+// mem_watch mode (MemoryAccessMonitor over Ghidra-VA regions).
+let   g_mem_watch_enabled  = false;
+let   g_mem_watch_regions  = [];   // [{va,size,label,access}]
+let   g_mem_watch_ranges   = [];   // cached [{base:NativePointer,size}] for re-arm
+let   g_mem_watch_buffer   = [];
+let   g_mem_watch_n        = 0;    // in-region hits recorded this session
+let   g_mem_watch_neighbor = 0;    // page-neighbor traps skipped (precise mode)
+let   g_mem_watch_rearm    = 0;    // re-arm count (budget against the cap)
+let   g_mem_watch_precise  = true;
+const MEM_WATCH_FLUSH_AT   = 256;
+const MEM_WATCH_MAX_HITS   = 4000;
+const MEM_WATCH_REARM_CAP  = 200000;
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -175,6 +220,25 @@ function readWStringOrNull(p) {
     if (p === null || p.isNull()) return '';
     try { return p.readUtf16String(); }
     catch (e) { return '(unreadable W:' + p + ')'; }
+}
+
+// Milliseconds since the agent started (matches openrecet's `ts` field).
+function nowMs() { return Date.now() - g_start_real_ms; }
+
+// Map a live NativePointer into the main module back to a Ghidra VA
+// (module-relative offset + IMAGE_BASE).  Returns a JS number.
+function toGhidraVa(p) {
+    if (g_base === null || p === null || p.isNull()) return 0;
+    try { return p.sub(g_base).add(IMAGE_BASE).toUInt32(); }
+    catch (e) { return 0; }
+}
+
+// Module-relative offset of a return address — matches the port-side
+// emitter's ret_va convention (add IMAGE_BASE for the caller's Ghidra VA).
+function traceRetVa(p) {
+    if (g_base === null || p === null || p.isNull()) return 0;
+    try { return p.sub(g_base).toUInt32(); }
+    catch (e) { return 0; }
 }
 
 // ─── installers ─────────────────────────────────────────────────────────
@@ -896,6 +960,207 @@ function installSilentAudioHooks() {
 
 // ─── module-load wait ──────────────────────────────────────────────────
 
+// ─── frame anchor + call-trace + mem-watch ───────────────────────────────
+
+// Hook the DDraw Flip dispatcher (FUN_005b8fc0) so its entry is the
+// per-frame boundary: flush the batches accumulated during the frame that
+// is ending (tagged with that frame number), THEN bump.  Same
+// flush-before-bump invariant openrecet uses on D3D Present.
+function installFlipFrameHook() {
+    if (g_flip_hooked) return;
+    Interceptor.attach(rva(FLIP_VA), {
+        onEnter: function () {
+            if (g_call_trace_enabled) {
+                try { callTraceFlush(g_flip_frame); }
+                catch (e) { err('flip.callTraceFlush', e.message); }
+            }
+            if (g_mem_watch_enabled) {
+                try { memWatchFlush(g_flip_frame); }
+                catch (e) { err('flip.memWatchFlush', e.message); }
+            }
+            g_flip_frame++;
+        },
+    });
+    g_flip_hooked = true;
+    logmsg('flip frame anchor installed @ FUN_005b8fc0');
+    send({kind: 'flip_hook_ready', va: FLIP_VA});
+}
+
+function callTraceShouldEmit() {
+    if (!g_call_trace_enabled) return false;
+    if (g_call_trace_frames === null) return true;
+    return g_call_trace_frames.has(g_flip_frame);
+}
+
+function callTraceFlush(frameNumber) {
+    if (g_call_trace_buffer.length === 0) return;
+    const events = g_call_trace_buffer;
+    g_call_trace_buffer = [];
+    send({kind:   'call_trace_batch',
+          frame:  frameNumber,
+          count:  events.length,
+          events: events});
+}
+
+function installCallTraceHooks(vasArray) {
+    if (g_call_trace_hooked) return;
+    // Per-iteration let-binding so each closure reports its own VA.
+    for (let i = 0; i < vasArray.length; i++) {
+        const va = vasArray[i] | 0;
+        try {
+            Interceptor.attach(rva(va), {
+                onEnter: function () {
+                    if (!callTraceShouldEmit()) return;
+                    g_call_trace_buffer.push({
+                        va:     va,
+                        ret_va: traceRetVa(this.returnAddress),
+                        ts:     nowMs(),
+                        thr:    this.threadId,
+                    });
+                    if (g_call_trace_buffer.length >= CALL_TRACE_FLUSH_AT) {
+                        callTraceFlush(g_flip_frame);
+                    }
+                },
+            });
+            g_call_trace_n_ok++;
+        } catch (e) {
+            // Frida couldn't trampoline this VA (unsupported prefix, a
+            // prior hook on the same byte, etc.).  Counted so the driver
+            // can spot a degraded run; the bisect tool carves crashers
+            // out of the VA list separately.
+            g_call_trace_n_fail++;
+        }
+    }
+    g_call_trace_hooked = true;
+    logmsg('call_trace: hooked ' + g_call_trace_n_ok + ' VAs (' +
+           g_call_trace_n_fail + ' failed) of ' + vasArray.length);
+    send({kind:   'call_trace_hooked',
+          n_ok:   g_call_trace_n_ok,
+          n_fail: g_call_trace_n_fail,
+          n_req:  vasArray.length});
+}
+
+function memWatchFlush(frameNumber) {
+    if (g_mem_watch_buffer.length === 0) return;
+    const events = g_mem_watch_buffer;
+    g_mem_watch_buffer = [];
+    send({kind:   'mem_access_batch',
+          frame:  frameNumber,
+          count:  events.length,
+          events: events});
+}
+
+// Whether a trapped access landed inside the recorded extent of region
+// `idx` (vs. a page neighbor that merely shares the 4KiB page).
+function memWatchInRegion(idx, addrPtr) {
+    const r = g_mem_watch_regions[idx];
+    if (!r) return false;
+    const base = rva(r.va);
+    return addrPtr.compare(base) >= 0 &&
+           addrPtr.compare(base.add(r.size)) < 0;
+}
+
+// (Re-)arm MemoryAccessMonitor over the cached ranges.  Idempotent —
+// MemoryAccessMonitor.enable() replaces any prior monitor, which is
+// exactly the re-arm we want after a page's one-shot fires.
+function memWatchArm() {
+    MemoryAccessMonitor.enable(g_mem_watch_ranges, {onAccess: memWatchOnAccess});
+}
+
+function memWatchOnAccess(details) {
+    const idx = details.rangeIndex | 0;
+    const region = g_mem_watch_regions[idx] || {};
+    const inRegion = memWatchInRegion(idx, details.address);
+
+    if (g_mem_watch_precise && !inRegion) {
+        // Page neighbor consumed this page's one-shot.  Re-arm and keep
+        // hunting, unless the page is so hot we've burned the budget.
+        g_mem_watch_neighbor++;
+        if (g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
+            g_mem_watch_rearm++;
+            try { memWatchArm(); }
+            catch (e) { err('memWatchArm', e.message); }
+        } else if (g_mem_watch_rearm === MEM_WATCH_REARM_CAP) {
+            g_mem_watch_rearm++;   // log-once sentinel
+            log_rearm_exhausted(region, idx);
+        }
+        return;
+    }
+
+    g_mem_watch_n++;
+    g_mem_watch_buffer.push({
+        op:     details.operation,           // read | write | execute
+        from:   toGhidraVa(details.from),    // faulting insn VA
+        addr:   toGhidraVa(details.address), // accessed data VA
+        region: idx,
+        label:  region.label || '',
+        ts:     nowMs(),
+    });
+    if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) {
+        memWatchFlush(g_flip_frame);
+    }
+    // Keep watching so additional distinct writers of the same field
+    // surface, up to a sane cap.
+    if (g_mem_watch_precise &&
+        g_mem_watch_n < MEM_WATCH_MAX_HITS &&
+        g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
+        g_mem_watch_rearm++;
+        try { memWatchArm(); }
+        catch (e) { err('memWatchArm', e.message); }
+    }
+}
+
+function log_rearm_exhausted(region, idx) {
+    logmsg('mem_watch: re-arm budget (' + MEM_WATCH_REARM_CAP +
+           ') exhausted on a hot page for region "' +
+           (region.label || idx) + '" before any in-region write — ' +
+           'consider a narrower region.');
+}
+
+function installMemoryWatch(regions, precise) {
+    g_mem_watch_regions = (regions || []).map(function (r) {
+        return {
+            va:     r.va | 0,
+            size:   (r.size | 0) || 16,
+            label:  String(r.label || ('0x' + (r.va >>> 0).toString(16))),
+            access: (r.access === 'rw') ? 'rw' : 'w',
+        };
+    });
+    if (g_mem_watch_regions.length === 0) {
+        err('installMemoryWatch', 'no regions given');
+        return false;
+    }
+    g_mem_watch_precise  = (precise !== false);
+    g_mem_watch_n        = 0;
+    g_mem_watch_neighbor = 0;
+    g_mem_watch_rearm    = 0;
+    g_mem_watch_ranges   = g_mem_watch_regions.map(function (r) {
+        return {base: rva(r.va), size: r.size};
+    });
+
+    try {
+        memWatchArm();
+    } catch (e) {
+        err('installMemoryWatch', e.message + ' ' + (e.stack || ''));
+        return false;
+    }
+
+    g_mem_watch_enabled = true;
+    logmsg('mem_watch: armed ' + g_mem_watch_regions.length + ' region(s) [' +
+           (g_mem_watch_precise ? 'precise' : 'raw') + ']: ' +
+           g_mem_watch_regions.map(function (r) {
+               return r.label + '@0x' + (r.va >>> 0).toString(16) +
+                      '+' + r.size + '(' + r.access + ')';
+           }).join(', '));
+    send({kind:    'mem_watch_ready',
+          precise: g_mem_watch_precise,
+          regions: g_mem_watch_regions.map(function (r) {
+              return {va: r.va, size: r.size, label: r.label,
+                      access: r.access};
+          })});
+    return true;
+}
+
 function findOurModule() {
     // Prefer Process.mainModule (Frida 16+) — this is the executable
     // that started the process, regardless of its on-disk filename.
@@ -950,6 +1215,16 @@ rpc.exports = {
         if (typeof opts.auto_disable_sound === 'boolean') g_auto_disable_sound = opts.auto_disable_sound;
         if (typeof opts.force_windowed     === 'boolean') g_force_windowed     = opts.force_windowed;
 
+        // Structural-parity harness modes (off unless explicitly enabled).
+        if (opts.call_trace) {
+            g_call_trace_enabled = true;
+            g_call_trace_vas = Array.isArray(opts.call_trace_vas)
+                ? opts.call_trace_vas.slice() : [];
+            g_call_trace_frames =
+                (Array.isArray(opts.call_trace_frames) && opts.call_trace_frames.length)
+                    ? new Set(opts.call_trace_frames) : null;
+        }
+
         withModule(function (mod) {
             g_base = mod.base;
             send({
@@ -967,6 +1242,20 @@ rpc.exports = {
             try { installSilentAudioHooks(); } catch (e) { err('install_audio', '' + e); }
             try { installDialogBypass(); } catch (e) { err('install_dlg_bypass', '' + e); }
             try { installPeriodicWindowScan(); } catch (e) { err('install_window_scan', '' + e); }
+
+            // Structural-parity harness: frame anchor + call-trace + mem-watch.
+            if (g_call_trace_enabled || opts.mem_watch) {
+                try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
+            }
+            if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
+                try { installCallTraceHooks(g_call_trace_vas); }
+                catch (e) { err('install_call_trace', '' + e); }
+            }
+            if (opts.mem_watch) {
+                try { installMemoryWatch(opts.mem_watch_regions,
+                                         opts.mem_watch_precise !== false); }
+                catch (e) { err('install_mem_watch', '' + e); }
+            }
 
             // Force the Interceptor to commit every attach/replace we
             // queued.  Without this, attaches done while the process is
