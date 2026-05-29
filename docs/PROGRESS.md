@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Title-menu update-half leaves (ckpt 3): input poll + container primitives
+
+Knocked out the pure, zero-dependency leaves the title-menu update half
+(`FUN_0056aea0` default branch) depends on, per the HANDOFF "next move" —
+port-and-test rhythm to shrink the surface before assembling the menu.
+
+**Input ring poll `FUN_0043c110`** → new `src/input.{c,h}`,
+`input_poll_consume` (opens milestone 1).  The read side of the input
+manager's 64-entry event ring at `+0x108`: scan newest-first, match
+`id + flag==1 + age<=100 ms` (unsigned, rollover-safe), and on a hit zero
+the record id (consume-on-read).  10 host tests; see `findings/input.md`
+and engine-quirks #30.  This is the consumer end of the ring `mem_watch.py`
+is meant to find live (producer still black-box).
+
+**Container leaves `FUN_00412c10` + `FUN_00414080`** → new
+`src/obj_container.{c,h}`.  `obj_pool_acquire` (check out the next free
+slot from a fixed-capacity pool, stamp owner/index/+8, NULL when full —
+note the index is a 16-bit store into a dword, quirk #31) and
+`sel_list_mark_last` (single-selection: mark the last list entry, clear the
+rest).  Both ~10× across the engine; in the menu-spawn block they run back
+to back (append → mark-last → acquire controller).  8 host tests; the
+`sel_list` `+4`/`+6` layout is cross-validated by the title-scene caller.
+
+Deferred (still object-model-coupled / unported deps): the action latch
+`FUN_0043ce50` + the 970 B cursor-nav engine `FUN_0043ca40` (jump table
+unrecovered), and the menu-spawn assembly itself (needs `0x40f3e0`/
+`0x40f5c0`/`0x411f40`/`0x4192b0`).  The sound-effect player at `0x411390`
+is audio-subsystem-coupled (milestone 3), not the "action switch" the old
+HANDOFF guessed.
+
+Two commits.  **441 host tests pass / 0 fail / 6 skip** (of 447), both
+cross-build exes clean.  Ledger **113→115 touched (7.0%), 110→112 tested**.
+
 ## 2026-05-29 — Structural-parity harness (offline foundation)
 
 Detour from milestone 0 to build the call-graph-diff + mem-watch machinery

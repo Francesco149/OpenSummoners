@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-29 (title scene runner ckpt 2)
+# Session handoff — last updated 2026-05-29 (update-half leaves, ckpt 3)
 
 **This is the first thing to read at the start of every session.**
 
@@ -11,44 +11,44 @@ to pick up *right now*".
 Mid-way through **milestone 0 (title screen renders)** — the
 multi-checkpoint port of `FUN_0056aea0` (3441 B title scene runner).
 
-**Checkpoint 2 just landed** (this session): the `local_28`
-**frame-pacing FSM** + the `FUN_005b1030` pump call sites — ported as
-`title_pace_*` in `src/title_scene.{c,h}` (`title_pace_step`). A pure
-fixed-16 ms-timestep accumulator: each iteration runs the *update* half
-(input + the ckpt-1 phase FSM, burning the budget in 16 ms slices) or
-the *render* half (draw + Flip), refilling the budget from the real
-`GetTickCount` delta (clamped 100 ms) and pumping on the way into
-update. `now` is passed in; pump-request + update/render decision are
-reported via `title_pace_step_out` (Win32-free, no link deps).
-**418 host tests pass, 0 fail, 6 skip (of 424); both cross-build exes
-clean.** Decoded byte-for-byte from r2 `0x56b002..0x56b0c8`.
+**Checkpoint 3 just landed** (this session): the pure, zero-dependency
+**leaves the title-menu update half depends on**, ported port-and-test
+style to shrink the surface before assembling the menu:
 
-**Resolved the ckpt-1 open thread:** the `E` counter at `[esp+0x5c]`
-(r2 showed it; Ghidra dropped it) is a **dead** consecutive-sub-second-
-frame tally — full-function disasm scan finds it written-only/never-read,
-Ghidra dead-store-eliminated it, and its window anchor `D = local_20` is
-read only to gate that dead update. The *entire* `S==1` post-arm is
-observably inert → omitted, behaviourally exact. Only the `S==2` arm
-(`A = now`) is load-bearing. (See PROGRESS 2026-05-29, quirk #29, and
-the per-line provenance in `title_scene.c`.) The pacer also explains the
-`--turbo` "splash doesn't animate": frozen clock → budget never refills
-past one slice → renders every frame with the phase FSM frozen.
+- **`src/input.{c,h}` — `input_poll_consume`** (port of `FUN_0043c110`,
+  84 B). The read side of the input-manager's 64-entry event ring at
+  `+0x108`: scan newest-first, match `id + flag==1 + age≤100 ms`
+  (unsigned → rollover-safe), and on a hit **zero the record id**
+  (consume-on-read). Opens milestone 1. See `findings/input.md`.
+- **`src/obj_container.{c,h}`** — two generic container leaves used ~10×
+  each: **`obj_pool_acquire`** (`FUN_00412c10`, pool checkout: stamp
+  owner/index/+8, NULL when full; index is a 16-bit store into a dword)
+  and **`sel_list_mark_last`** (`FUN_00414080`, single-selection: mark
+  the last list entry, clear the rest). In the menu-spawn block they run
+  back to back (append → mark-last → acquire controller).
+
+**441 host tests pass, 0 fail, 6 skip (of 447); both cross-build exes
+clean.** New quirks #30 (consume-on-read 100 ms input window) and #31
+(16-bit index store). Ledger **115/1490 touched (7.0%), 112 tested**.
+
+**Correction to the old HANDOFF's guess:** `0x411390` is NOT the menu
+"action switch" — it's a **sound-effect/wave player** (calls
+`FUN_005bb250`/`_5bb2f0`, "Failed Wave Load"), audio-subsystem coupled
+(milestone 3). The action latch is `FUN_0043ce50`.
 
 **Orientation docs (read for the bigger picture):**
 
-- `docs/STATUS.md` — coverage headline (DERIVED). **112/1490 touched
-  (6.8%), 9.5% of bytes**, 109 host-tested. (Both ckpts left the number
-  flat — `FUN_0056aea0` was already "touched"; progress = new refs.)
-- `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness
-  cards. Milestone 0 card describes the whole `FUN_0056aea0`.
-- `docs/findings/title-scene.md` — the function's full anatomy. Now
-  carries the decoded **"Frame-pacing sub-state machine"** section (ckpt 2)
-  alongside the phase FSM, jump table, menu + input dispatch, joystick
-  lazy-attach.
-- `docs/port-frontier.md` — DERIVED "what to port next": 52 portable leaves.
+- `docs/STATUS.md` — coverage headline (DERIVED). **115/1490 touched
+  (7.0%), 9.5% of bytes**, 112 host-tested.
+- `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness.
+- `docs/findings/title-scene.md` — the function's full anatomy (phase FSM,
+  pacing FSM, jump table, menu + input dispatch, joystick lazy-attach).
+- `docs/findings/input.md` — **NEW**: the input ring layout, the poll, the
+  menu button-id table, and what's still black-box (the producer).
+- `docs/port-frontier.md` — DERIVED "what to port next": ~49 portable leaves.
 - `docs/audit/subsystem-survey-2026-05-29.json` — raw 22-agent survey.
   **Mine this instead of re-running.**
-- `findings/engine-quirks.md` #15–#29.
+- `findings/engine-quirks.md` #15–#31.
 
 **Tooling (run after every port that lands):**
 
@@ -56,84 +56,88 @@ past one slice → renders every frame with the phase FSM frozen.
 python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py
 ```
 
-**Structural-parity harness (NEW — offline foundation landed 2026-05-29):**
+**Structural-parity harness (offline foundation landed 2026-05-29):**
 call-graph diff + mem-watch, mirroring `../openrecet`. How-to:
 `docs/parity-harness.md`; design: `docs/plans/parity-harness.md`. Offline
-pieces done + tested (`src/call_trace.{c,h}` probe, `tools/call_trace_diff.py`,
-`tools/gen_engine_vas.py`, `tools/mem_watch.py` ranking). The agent
-(`opensummoners-agent.js`) + `frida_capture.py` call-trace/mem-watch modes +
-`tools/bisect_call_trace_vas.py` are code-complete but **need a live
-retail-under-Frida run to verify** (the human-verification gate; first move
-= run `bisect_call_trace_vas.py`, calibrating its `--boot-threshold`).
+pieces done + tested. The agent (`opensummoners-agent.js`) +
+`frida_capture.py` call-trace/mem-watch modes + `tools/bisect_call_trace_vas.py`
+are code-complete but **need a live retail-under-Frida run to verify**
+(a human-verification gate; first move there = run `bisect_call_trace_vas.py`,
+calibrating its `--boot-threshold`). The `mem_watch.py --region <+0x108
+addr>:64:input_ring` run is now well-motivated — it catches the input-ring
+*producer* (the GetDeviceState writer) that `input_poll_consume` reads from.
 
 NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
 port signal. Reference *unported* callees by bare VA (`0x412c10`), not
 `FUN_00412c10`, or you'll inflate the headline.
 
-## Module inventory (8 modules)
+## Module inventory (10 modules)
 
-Pixel-Drawer (8 fns), Asset-Register (31), Bitmap-Session (8), WndProc
-(`FUN_005b12e0`), ZDD wrapper (40+), cs_dispatch, app_pump
-(`FUN_005b1030`), **title_scene (`FUN_0056aea0` partial — fade FSM +
-pacing FSM)**. Live boot zero DDERR through 10 frames in mode 2. The
-drop-in still uses its own minimal `main_loop_body`; `app_pump_frame`
-and the two title FSMs are ported but **not yet wired** into a real
-scene loop in main.c.
+Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper,
+cs_dispatch, app_pump (`FUN_005b1030`), **title_scene (`FUN_0056aea0`
+partial — fade FSM + pacing FSM)**, **input (`FUN_0043c110`)**,
+**obj_container (`FUN_00412c10` + `FUN_00414080`)**. Live boot zero
+DDERR through 10 frames in mode 2. The drop-in still uses its own minimal
+`main_loop_body`; the ported title FSMs + the new leaves are **not yet
+wired** into a real scene loop in main.c.
 
 ## Active goal
 
 **Finish `FUN_0056aea0` so the title screen draws a frame** (milestone 0).
-Both pure FSMs (fade + pacing) are now done. The remaining work is the
-two loop halves the pacer dispatches to: the **update** half (input +
-menu) and the **render** half (jump-table draw + Flip).
+Both pure FSMs (fade + pacing) done; the update half's pure leaves (input
+poll + container ops) done. Remaining: assemble the menu update half, and
+the render half (the path that actually draws + Flips).
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Knock out the update-half frontier leaves, then
-   checkpoint 3 (menu + input).** The default-branch update half (phases
-   8/9, asm `0x56b0ce..0x56bf2e`) needs: the menu-controller object
-   (`0x412c10` alloc — a **zero-dep leaf, 46 B, ready today**), the input
-   poll/latch (`0x43c110` — **leaf, 84 B, ready**; then `0x43ce50`,
-   220 B, 1 dep), the slot-populate loop (action IDs `0x1a,0x1c,0x1e,
-   0x1d,8` into `local_60->[0x174]/[0x17c]`), and the action switch
-   (`0x411390`, 413 B). `0x414080` (63 B) is also a ready leaf. Port the
-   leaves first (port-and-test rhythm shrinks the surface), then assemble
-   ckpt 3. Models the consume-on-read ring buffer at `in_ECX[1]+0x108`
-   and the `param_1` skip-intro early-out (`local_64 < 8`).
+1. **(recommended) Model the menu-list-controller object and port its
+   pure leaf, then the cursor-nav engine.** The list header lives at
+   `menu_ctrl + 0x174` with fields `+0xc`=page stride, `+0x10`=count,
+   `+0x14`=cursor, `+0x18`=scroll-top, `+0x1c/+0x20`=key-repeat timers.
+   Start with the clean 52 B leaf **`FUN_004192b0`** (scroll-into-view:
+   recompute `+0x18` = `floor(cursor/stride)*stride`, return 1 if it
+   moved) → new `src/menu_list.{c,h}`. Then tackle the cursor-nav engine
+   **`FUN_0043ca40`** (970 B — but its jump table is Ghidra-unrecovered;
+   recover it in r2 first, like the title jump table) and the latch
+   **`FUN_0043ce50`** (220 B, calls `_43ca40`) on top. That completes the
+   input→action chain the menu needs.
 
-2. **Checkpoint 4: the render half (`0x56bb04`) — the path that actually
-   draws.** The `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries,
-   7 handlers `0x56bb5c..0x56be85`, already recovered in title-scene.md)
-   → per-phase draw bridges → frame-end `FUN_0056c180(...->[0x16c])` +
-   "Title Menu - Flipping" log + `FUN_005b8fc0(hWnd)` (the DDraw Flip).
-   This is the literal "title menu drew a frame" path but is heavily
-   DDraw/object-model-coupled (`DAT_008a93cc`/`DAT_008a93ec`, ZDDObject
-   vtable `[0x16c]`), so it's harder to unit-test purely than option 1.
+2. **Assemble the menu-spawn block** (`0x56aea0` default branch lines
+   385–465): needs the still-unported helpers `0x40f3e0` (434 B, list
+   append), `0x40f5c0` (563 B), `0x411f40` (slot finalize), plus the now-
+   ported `obj_pool_acquire`/`sel_list_mark_last`/`FUN_004192b0`. Models
+   the 5-slot menu populate (action IDs 0x1a,0x1c,0x1e,0x1d,8 into
+   `local_60->[0x174]/[0x17c]`) and the `param_1` skip-intro early-out.
 
-3. **Wire the scene loop into `main.c`** — once update+render exist,
-   replace the minimal `main_loop_body` with `title_pace_step` driving
-   `app_pump_frame` + `title_fade_step` + the two halves. Defer until
-   there's a real consumer (cosmetic until then).
+3. **Checkpoint 4: the render half (`0x56bb04`)** — the path that draws.
+   `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries, 7 handlers)
+   → per-phase draw bridges → `FUN_0056c180(...->[0x16c])` + "Title Menu -
+   Flipping" log + `FUN_005b8fc0(hWnd)` (the DDraw Flip). Heavily
+   DDraw/object-model-coupled, so harder to unit-test than 1/2.
+
+4. **Live harness gate** — run `bisect_call_trace_vas.py` /
+   `mem_watch.py --region <+0x108>:64:input_ring` under Frida to verify
+   the call-trace + mem-watch machinery and catch the input-ring producer.
+   This is the human-in-the-loop step (needs the game + Frida host).
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
-- **`FUN_0056aea0`** title scene runner — milestone 0. Pure FSMs done;
-  update + render halves remain (next move above).
-- **Input** `FUN_0043c110`/`_43ce50` + DInput `FUN_005ba120` — milestone 1.
-  Black box: who calls `GetDeviceState` (vtable `[0x24]`) to fill the
-  `+0x108` ring buffer. **Now have the tool to find it:** point
-  `tools/mem_watch.py --region <+0x108 addr>:64:input_ring` at it (live gate).
-- **Audio ZDM** `FUN_005bab10`/`_5bc150` — milestone 3 (WMF/COM, hard).
+- **`FUN_0056aea0`** title scene runner — milestone 0. Pure FSMs + update-
+  half leaves done; menu assembly + render half remain (next move above).
+- **Input** `FUN_0043c110` poll **DONE**. Remaining: the action latch
+  `FUN_0043ce50` + cursor-nav `FUN_0043ca40`, and the **producer** that
+  fills the `+0x108` ring (DInput `GetDeviceState`, vtable `[0x24]`) —
+  black box; `mem_watch.py` is the tool to find it. See `findings/input.md`.
+- **Audio ZDM** `FUN_005bab10`/`_5bc150` + the SFX player `FUN_00411390` —
+  milestone 3 (WMF/COM, hard).
 - **Launcher `config.dat`** `FUN_005a4770` (46 KB) — milestone 4.
 - **Hash-id asset directory** `FUN_00556eb0` — recover the ID→name table
   (have Arche `0x5f5e165`, Sana `0x5f5e166`, Sophia `0x35a4e902` so far).
 - God-object `DAT_008a9b50` layout (engine-quirks #15) — model as we go.
 - `FUN_00563ef0` wave-load second half — milestone 5 support.
 - Frida turbo: add `GetTickCount` + `WaitMessage` hooks to the agent
-  (the engine uses `GetTickCount` exclusively; `timeGetTime` hook is a
-  no-op here — see PROGRESS). Quirk #29 explains *why* turbo currently
-  freezes the splash.
+  (quirk #29 explains why turbo currently freezes the splash).
 
 ## How to apply
 
@@ -143,10 +147,12 @@ When the user says "continue RE work" (or similar):
 2. Pick the recommended next move (or whichever the user redirects to).
 3. Work port-and-test style: small unit → tests → commit. Each ported
    function gets a `FUN_XXXXXX` provenance comment (the ledger keys on it)
-   and a test spot-checking behaviour vs hand-computed expectations.
+   and a test spot-checking behaviour vs hand-computed expectations. Pin
+   retail struct offsets via `_Static_assert` guarded by
+   `#if UINTPTR_MAX == 0xFFFFFFFFu` (host pointers are 8 B).
 4. **Append any engine quirk** you find to `findings/engine-quirks.md`.
 5. **Regenerate the derived artifacts** (`gen_port_ledger.py` +
    `gen_frontier.py`) when a port lands.
 6. Update THIS file at each meaningful checkpoint; append to PROGRESS.md.
-7. **Suggest a `/clear`** at the natural stop point (see AGENT-WORKFLOW
-   "Session lifecycle") — the docs are the durable memory, not context.
+7. **Suggest a `/clear`** at the natural stop point — the docs are the
+   durable memory, not context.

@@ -545,3 +545,49 @@ locals — behaviourally exact — keeping only the load-bearing `sub==2` arm
 > 📍 `FUN_0056aea0` pacing FSM @ `0x56b002..0x56b0c8` (r2, raw stack offsets);
 > ported as `title_pace_*` in `src/title_scene.c` (checkpoint 2).  See
 > `findings/title-scene.md` "Frame-pacing sub-state machine".
+
+## 30. Input is polled as a consume-on-read 100 ms recency window
+
+The engine doesn't read a debounced key state — it scans a **64-entry ring
+of timestamped event records** (`FUN_0043c110`, the manager's `+0x108`
+ring) and asks "is there a *pressed* record for button N whose timestamp is
+within 100 ms of `now`?".  Three quirks fall out of the 84-byte routine:
+
+- **Consume-on-read.** A hit doesn't just return 1 — it **zeroes the matched
+  record's id** (`record[0] = 0`).  So a single physical press is "used up"
+  by the first poller that matches it; a second poll for the same button in
+  the same frame misses.  This is how the menu code can poll several buttons
+  in sequence without one press registering twice.
+
+- **100 ms staleness gate, unsigned.** The age test is
+  `(uint32_t)(now - record.ts) <= 100`.  Because it's unsigned, a record
+  whose timestamp is *ahead* of `now` (a `GetTickCount` rollover, or a stale
+  slot left over from 49.7 days ago) underflows to a huge delta and is
+  rejected — the rollover is handled for free, exactly like the frame
+  pacer's anchors (quirk #29).
+
+- **Newest-slot-wins scan.** The scan starts at the **top** slot (index 63,
+  address `+0x108`) and walks **down**, so when two slots hold a matching
+  event the higher-indexed one is consumed first.  The ring is evidently
+  filled such that the newest event sits at the highest index.
+
+The *producer* — whatever fills the ring from `IDirectInputDevice7::
+GetDeviceState` — is still a black box (milestone 1); this is only the read
+side.  `mem_watch.py --region <+0x108 addr>:64:input_ring` is the tool meant
+to catch the writer live.
+
+> 📍 `FUN_0043c110` @ `0x43c110` (84 B); ported as `input_poll_consume` in
+> `src/input.c` (checkpoint 3).  See `findings/input.md`.
+
+## 31. Pool-acquire writes the slot index as a 16-bit store into a 32-bit field
+
+`FUN_00412c10` (object-pool checkout) stamps a freshly-handed-out slot with
+its index via `*(uint16_t *)(slot + 4) = count` — a **16-bit** write into
+what is otherwise treated as a dword field, leaving the slot's `+6` half
+untouched.  Easy to miss in a port (a naive `slot->index = count` as a
+32-bit store would also clobber `+6`); the high half evidently carries
+something the pool doesn't reset on reuse.  Modelled as an explicit
+untouched `_hi6` and pinned by a test.
+
+> 📍 `FUN_00412c10` @ `0x412c10` (46 B); ported as `obj_pool_acquire` in
+> `src/obj_container.c` (checkpoint 3).
