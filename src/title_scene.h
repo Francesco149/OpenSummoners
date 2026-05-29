@@ -54,6 +54,9 @@
 
 #include <stdint.h>
 
+#include "menu_list.h"      /* menu_ctrl / menu_node — the spawned controller */
+#include "obj_container.h"  /* sel_list — the owning menu-tree entry list     */
+
 /* ─── intro-phase / menu-fade state (the `local_64` machine) ─────────
  *
  * Mirrors four of FUN_0056aea0's stack locals.  All four hold small
@@ -216,5 +219,52 @@ void title_pace_state_init(title_pace_state *s);
  * request and the update/render decision for this frame.  Pure: touches
  * only *s and *out.  Faithful to 0x56b002..0x56b0c8. */
 void title_pace_step(title_pace_state *s, uint32_t now, title_pace_step_out *out);
+
+/* ─── the top-level menu spawn block (the `local_64`==8/9 default arm) ──
+ *
+ * The first time the title scene reaches the menu phase (local_60 == 0) it
+ * builds the top-level menu in one shot.  Ported from the spawn block at
+ * 0x56b5cd..0x56b807 — the last piece of FUN_0056aea0's *update* half.
+ *
+ * The block reveals how the menu objects nest.  The scene's `this` carries
+ * an owning *sel_list* (FUN_0056aea0's `*in_ECX`) whose entries are 0x1b0
+ * menu-tree nodes.  Spawning the menu:
+ *
+ *   1. configures the owner's next free entry as this menu's tree node,
+ *      giving it a single child (menu_node_build, 0x40f3e0), bumps the
+ *      owner count, and marks the new entry active (sel_list_mark_last);
+ *   2. acquires the controller — which is that node's lone *child*: the
+ *      node's child array (node+0x48/+0x4c/+0x4e) doubles as an obj_pool,
+ *      and obj_pool_acquire (0x412c10, ECX = the node) hands out
+ *      children[0].  menu_ctrl_build (0x40f5c0) then lays a 6×1 stride-6
+ *      linear-wrap grid on its embedded controller;
+ *   3. appends the five fixed rows — action ids 0x1a, 0x1c, 0x1e, 0x1d, 8
+ *      (each writes field0=0 / action=id / flag8=1, bumps the header count,
+ *      and finalizes the row, a no-op on the fresh NULL-pointer cells);
+ *   4. seeks the cursor to the row whose field0==0 and action matches the
+ *      saved selection key (retail `*(*DAT_008a6e80 + 0xa60)`, the god
+ *      object's last-picked menu code — injected here as select_key) and
+ *      pages it into view (menu_list_scroll_into_view).
+ *
+ * Both the controller (local_60) and the configured node (local_54) are
+ * returned in *out for the caller to drive on later frames and tear down.
+ *
+ * Precondition (as in retail, which has no guards on either): the owner has
+ * a free entry slot whose pointer is an allocated 0x1b0 node, and the node
+ * yields its child (always true right after menu_node_build with one
+ * child) — otherwise the retail code dereferences NULL exactly as a faithful
+ * port would.  The title flow guarantees both. */
+typedef struct title_menu {
+    menu_node *node;   /* local_54 — the owner sel_list entry configured here */
+    menu_ctrl *ctrl;   /* local_60 — the child controller built on it          */
+} title_menu;
+
+void title_menu_spawn(sel_list *owner, int32_t select_key, title_menu *out);
+
+/* The phase-10 menu teardown (0x56ba2e): drop the controller/node handles
+ * and clear the node's +0x50 "active" flag.  Frees nothing — the controller
+ * is a pool slot and the node tree is owned by the sel_list, both released
+ * elsewhere.  No-op when no menu is live (ctrl == NULL). */
+void title_menu_teardown(title_menu *m);
 
 #endif /* OPENSUMMONERS_TITLE_SCENE_H */

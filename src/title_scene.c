@@ -278,3 +278,110 @@ void title_pace_step(title_pace_state *s, uint32_t now, title_pace_step_out *out
      * sub==2 falls through to the update half (0x56b0ce). */
     out->action = (s->sub == 1) ? TITLE_PACE_RENDER : TITLE_PACE_UPDATE;
 }
+
+/* ─── (C) the top-level menu spawn block ─────────────────────────────
+ *
+ * Port of FUN_0056aea0's default-arm spawn block (disasm 0x56b5cd..0x56b807;
+ * see title_scene.h for the framing and the object-nesting it reveals).
+ * Composes the already-ported menu primitives — menu_node_build,
+ * sel_list_mark_last, obj_pool_acquire, menu_ctrl_build, menu_row_finalize,
+ * menu_list_scroll_into_view — into the one-shot menu construction.
+ */
+
+/* The title top-level menu's five rows, appended in this order.  Each id is
+ * the outer scene-driver state code that entry resolves to (title-scene.md
+ * "Input dispatch"): 0x1a, 0x1c, 0x1e (options), 0x1d, 8 (exit). */
+static const int32_t TITLE_MENU_ACTIONS[5] = { 0x1a, 0x1c, 0x1e, 0x1d, 8 };
+
+void title_menu_spawn(sel_list *owner, int32_t select_key, title_menu *out)
+{
+    /* (1) Configure the owner's next free entry as this menu's tree node,
+     *     give it one child, bump the count, mark it active, and stash it
+     *     (retail local_54).  When the owner is full the node stays NULL —
+     *     the degenerate path retail leaves to crash; the title flow never
+     *     hits it. */
+    menu_node *node = NULL;
+    uint16_t count = owner->count;                  /* word [owner+6] */
+    if (count < owner->capacity) {                  /* word [owner+4] */
+        node = (menu_node *)owner->entries[count];  /* this = entries[count] */
+        menu_node_build(node, owner, 0, 0, 100, 100, 1, NULL);  /* 0x40f3e0 */
+        owner->count = (uint16_t)(owner->count + 1);            /* inc [owner+6] */
+        sel_list_mark_last(owner);                              /* 0x414080 */
+        node = (menu_node *)owner->entries[count];  /* re-read (count unchanged) */
+    }
+    out->node = node;
+
+    /* (2) Acquire the controller — node->children[0].  Retail does this by
+     *     reinterpreting the node as an obj_pool and calling obj_pool_acquire
+     *     (0x412c10, ECX = node): the node's child array / capacity /
+     *     count at +0x48 / +0x4c / +0x4e alias obj_pool.slots / capacity /
+     *     count *exactly on the 32-bit target*.  Those two structs' paddings
+     *     diverge on the 64-bit host (pointer fields widen to 8 B), so the
+     *     reinterpret cast cannot find the pool header; we instead apply
+     *     obj_pool_acquire's semantics to the node's own fields — byte-for-
+     *     byte identical to the retail cast on 32-bit.  The stamp's owner
+     *     write (slot+0) is the load-bearing one: it wires the controller's
+     *     input-ready gate (menu_ctrl.sub, also at +0) to the node, whose
+     *     +0x54 ramp later gates menu input through menu_list_latch; the
+     *     index/+8 stamps land in fields menu_ctrl_build immediately rewrites.
+     *     Then lay a 6×1 stride-6 linear-wrap grid on the controller. */
+    menu_ctrl *ctrl = NULL;
+    if (node != NULL && node->field_4e < node->child_count) {  /* count < capacity */
+        pool_slot *slot = (pool_slot *)node->children[node->field_4e];  /* slots[count] */
+        slot->owner    = node;                      /* slot+0 = pool (the node) */
+        slot->index    = node->field_4e;            /* slot+4 (u16)             */
+        slot->field8   = 0;                         /* slot+8                   */
+        node->field_4e = (uint16_t)(node->field_4e + 1);  /* count++            */
+        ctrl = (menu_ctrl *)slot;
+    }
+    out->ctrl = ctrl;
+    if (ctrl != NULL) {
+        menu_ctrl_build(ctrl, 0, 0, 6, 1, 6, 0);    /* 0x40f5c0 */
+    }
+
+    /* (3) Append the five fixed rows.  Each: guard count < alloc_a, write
+     *     field0=0 / action=id / flag8=1, bump the header count, then
+     *     finalize (a no-op on these fresh NULL-pointer cells). */
+    for (int a = 0; a < 5; a++) {
+        menu_list_hdr *hdr = ctrl->list;            /* [ctrl+0x174] */
+        int32_t i = hdr->count;                     /* [hdr+0x10]   */
+        if (i < hdr->alloc_a) {                     /* [hdr+0x04]   */
+            hdr->count = i + 1;
+            ctrl->rows[i].field0 = 0;               /* rows[i]+0 */
+            ctrl->rows[i].action = TITLE_MENU_ACTIONS[a];  /* rows[i]+4 */
+            ctrl->rows[i].flag8  = 1;               /* rows[i]+8 */
+            menu_row_finalize(ctrl, i);             /* 0x411f40 */
+        }
+    }
+
+    /* (4) Seek the cursor to the first row with field0==0 whose action
+     *     matches the saved selection key, then page it into view.  The
+     *     index counter advances full-width and is masked to 16 bits both
+     *     as the row index and when stored to cursor (harmless < 0x10000). */
+    int32_t n = ctrl->list->count;                  /* [hdr+0x10] */
+    int32_t idx = 0;
+    if (n > 0) {
+        uint32_t k = 0;
+        do {
+            menu_row *row = &ctrl->rows[k];         /* rows + k*0x10 */
+            if (row->field0 == 0 && row->action == select_key) {
+                ctrl->list->cursor = (int32_t)((uint32_t)idx & 0xffff);  /* [hdr+0x14] */
+                menu_list_scroll_into_view(ctrl);   /* 0x4192b0 */
+                break;
+            }
+            idx++;
+            k = (uint32_t)idx & 0xffff;
+        } while ((int32_t)k < n);
+    }
+}
+
+void title_menu_teardown(title_menu *m)
+{
+    if (m->ctrl != NULL) {                          /* if (local_60 != 0) */
+        if (m->node != NULL) {
+            m->node->field_50 = 0;                  /* *(local_54 + 0x50) = 0 */
+        }
+        m->ctrl = NULL;                             /* local_60 = 0 */
+        m->node = NULL;                             /* local_54 = 0 */
+    }
+}

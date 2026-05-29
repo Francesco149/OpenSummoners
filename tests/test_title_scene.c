@@ -11,6 +11,8 @@
 #include "t.h"
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* Run one frame; return the action and stash the effects in *fx. */
 static title_fade_action step(title_fade_state *s, title_fade_step_out *fx)
@@ -582,5 +584,153 @@ int test_title_pace_clock_jump_reenters_update(void)
     T_ASSERT_EQ_I(s.sub, 2);
     T_ASSERT_EQ_U(s.budget, 51);
     T_ASSERT_EQ_U(s.tick_anchor, 1050);
+    return 0;
+}
+
+/* ─── the top-level menu spawn block (title_menu_spawn) ────────────────
+ *
+ * These exercise the composed spawn against host memory: an owning
+ * sel_list whose first entry is an allocated 0x1b0 node, plus an injected
+ * selection key.  After the spawn the controller is node->children[0] with
+ * a five-row grid; teardown drops the handles and clears node+0x50.
+ */
+
+/* Build a minimal owner sel_list: an entries array of `cap` pointers with
+ * entry 0 an allocated (zeroed) node, count 0.  Caller frees via free_owner. */
+static void mk_owner(sel_list *o, int cap)
+{
+    memset(o, 0, sizeof *o);
+    o->entries  = (sel_entry **)calloc((size_t)cap, sizeof(sel_entry *));
+    o->entries[0] = (sel_entry *)calloc(1, sizeof(menu_node));
+    o->capacity = (uint16_t)cap;
+    o->count    = 0;
+}
+
+/* Tear down everything the spawn allocated (controller geometry, the child
+ * node + child array) and the owner scaffolding, leaving LSan clean. */
+static void free_spawn(sel_list *o, title_menu *tm)
+{
+    if (tm->ctrl != NULL) {
+        menu_ctrl_clear(tm->ctrl);          /* list / rows(+cells) / entries */
+    }
+    if (tm->node != NULL) {
+        free(tm->node->children[0]);        /* the controller buffer */
+        free(tm->node->children);           /* the child-pointer array */
+    }
+    free(o->entries[0]);                    /* the node (entries[0]) */
+    free(o->entries);
+}
+
+/* Happy path: one node configured + marked, controller built with the five
+ * fixed rows, cursor seeked to the row matching the selection key. */
+int test_title_menu_spawn_builds_five_rows(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    title_menu tm;
+
+    title_menu_spawn(&o, 0x1e, &tm);        /* select key = options (row 2) */
+
+    /* (1) owner entry configured + active. */
+    T_ASSERT_EQ_U(o.count, 1);
+    menu_node *node = (menu_node *)o.entries[0];
+    T_ASSERT_EQ_P(tm.node, node);
+    T_ASSERT_EQ_P(node->owner, &o);
+    T_ASSERT_EQ_I(node->field4, 1);
+    T_ASSERT_EQ_I(node->field_50, 1);
+    /* sel_list_mark_last marks the entry through the sel_entry view (+0x08);
+     * on the 32-bit target that byte is also menu_node.selected, but on the
+     * 64-bit host the two structs' paddings diverge, so check the entry as
+     * the sel_list machinery actually wrote it. */
+    T_ASSERT_EQ_I(((sel_entry *)o.entries[0])->selected, 1);
+    T_ASSERT_EQ_U(node->child_count, 1);
+
+    /* (2) controller is the lone child, with a 6×1 stride-6 grid. */
+    T_ASSERT(tm.ctrl != NULL);
+    T_ASSERT_EQ_P(tm.ctrl, node->children[0]);
+    T_ASSERT_EQ_I(tm.ctrl->list->alloc_a, 6);
+    T_ASSERT_EQ_I(tm.ctrl->list->stride, 6);
+    T_ASSERT_EQ_I(tm.ctrl->list->type, 0);
+
+    /* (3) the five rows in append order. */
+    T_ASSERT_EQ_I(tm.ctrl->list->count, 5);
+    T_ASSERT_EQ_I(tm.ctrl->rows[0].action, 0x1a);
+    T_ASSERT_EQ_I(tm.ctrl->rows[1].action, 0x1c);
+    T_ASSERT_EQ_I(tm.ctrl->rows[2].action, 0x1e);
+    T_ASSERT_EQ_I(tm.ctrl->rows[3].action, 0x1d);
+    T_ASSERT_EQ_I(tm.ctrl->rows[4].action, 8);
+    for (int i = 0; i < 5; i++) {
+        T_ASSERT_EQ_I(tm.ctrl->rows[i].field0, 0);
+        T_ASSERT_EQ_I(tm.ctrl->rows[i].flag8, 1);
+    }
+
+    /* (4) cursor seeked to the 0x1e row (index 2); page-top unmoved (0). */
+    T_ASSERT_EQ_I(tm.ctrl->list->cursor, 2);
+    T_ASSERT_EQ_I(tm.ctrl->list->sel2, 0);
+
+    free_spawn(&o, &tm);
+    return 0;
+}
+
+/* The cursor seek lands on the matching row whichever it is (action 8 is
+ * the last, index 4). */
+int test_title_menu_spawn_cursor_seeks_match(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    title_menu tm;
+
+    title_menu_spawn(&o, 8, &tm);           /* exit row, index 4 */
+    T_ASSERT_EQ_I(tm.ctrl->list->cursor, 4);
+
+    free_spawn(&o, &tm);
+    return 0;
+}
+
+/* No row matches the key → the cursor stays at its built default (0) and
+ * scroll-into-view is never reached. */
+int test_title_menu_spawn_no_match_keeps_cursor_zero(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    title_menu tm;
+
+    title_menu_spawn(&o, 0x7f, &tm);        /* matches no action id */
+    T_ASSERT_EQ_I(tm.ctrl->list->cursor, 0);
+
+    free_spawn(&o, &tm);
+    return 0;
+}
+
+/* Teardown clears the node's +0x50 active flag and drops both handles;
+ * it frees nothing (the controller + node tree are owned elsewhere). */
+int test_title_menu_teardown_clears_active_flag(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    title_menu tm;
+    title_menu_spawn(&o, 0x1a, &tm);
+
+    menu_node *node = tm.node;
+    menu_ctrl *ctrl = tm.ctrl;              /* keep for cleanup */
+    T_ASSERT_EQ_I(node->field_50, 1);
+
+    title_menu_teardown(&tm);
+    T_ASSERT_EQ_I(node->field_50, 0);
+    T_ASSERT_EQ_P(tm.ctrl, NULL);
+    T_ASSERT_EQ_P(tm.node, NULL);
+
+    /* teardown freed nothing — the geometry is still live and reachable. */
+    menu_ctrl_clear(ctrl);
+    free(node->children[0]);
+    free(node->children);
+    free(o.entries[0]);
+    free(o.entries);
+    return 0;
+}
+
+/* Teardown on a never-spawned menu (ctrl NULL) is a no-op. */
+int test_title_menu_teardown_noop_when_unset(void)
+{
+    title_menu tm = { NULL, NULL };
+    title_menu_teardown(&tm);               /* must not crash / deref node */
+    T_ASSERT_EQ_P(tm.ctrl, NULL);
+    T_ASSERT_EQ_P(tm.node, NULL);
     return 0;
 }

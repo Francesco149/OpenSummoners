@@ -275,6 +275,11 @@ struct test_case {
     X(title_pace_render_boundary_budget_exactly_16)            \
     X(title_pace_frozen_clock_walk)                            \
     X(title_pace_clock_jump_reenters_update)                   \
+    X(title_menu_spawn_builds_five_rows)                       \
+    X(title_menu_spawn_cursor_seeks_match)                     \
+    X(title_menu_spawn_no_match_keeps_cursor_zero)             \
+    X(title_menu_teardown_clears_active_flag)                  \
+    X(title_menu_teardown_noop_when_unset)                     \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \
     X(input_poll_wrong_id_misses)                              \
