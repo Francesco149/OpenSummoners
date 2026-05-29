@@ -141,6 +141,13 @@ Plain return values:
 
 ## Input dispatch (default branch / post-intro menu)
 
+> **Ported (checkpoint 8):** step 1 below — the one-shot menu spawn — is
+> now `title_menu_spawn` / `title_menu_teardown` in `src/title_scene.c`.
+> It revealed that `local_60` is the menu *node*'s lone child, acquired by
+> reinterpreting the node as an `obj_pool`; see `findings/menu-list.md`
+> "The spawn block" and **engine-quirks #38**.  Steps 2–3 (the per-frame
+> input poll/latch and the action switch) remain part of the update half.
+
 Once we're in the default branch (after phase 7 hands off), each frame:
 
 1. Spawn the menu-controller (`local_60 = FUN_00412c10()`) on first

@@ -6,6 +6,46 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Title-menu spawn block assembled, ckpt 8
+
+Assembled the `0x56aea0` default-branch **spawn block** (`0x56b5cd..0x56b807`)
+into `src/title_scene.c` as **`title_menu_spawn`** (+ `title_menu_teardown`
+for the phase-10 path) — the last piece of the title scene's *update* half.
+No new function is ported here (it composes already-ported leaves), so the
+ledger is unchanged; the value is the assembly + the structural finding.  The
+block: configure the owner `sel_list`'s next entry as the menu tree node with
+one child (`menu_node_build`), bump + `sel_list_mark_last`, acquire that lone
+child as the controller, `menu_ctrl_build` a 6×1 stride-6 grid, append the
+five fixed rows `0x1a,0x1c,0x1e,0x1d,8` (each `menu_row_finalize`d — a no-op
+on fresh NULL cells), then seek the cursor to the row matching the saved
+selection key and `menu_list_scroll_into_view`.
+
+**Headline finding (new quirk #38):** the 0x1b0 menu node wears **four**
+overlaid identities — container header, embedded `menu_ctrl`, `sel_entry`,
+*and* `obj_pool`.  The controller (`local_60`) is the node's lone **child**,
+handed out by reinterpreting the node as a pool: retail does
+`obj_pool_acquire(node)` (ECX = node), confirmed in the disasm
+(`0x56b623 call 0x412c10` with the node still in ECX from
+`[owner->entries + count*4]`).  The acquire stamps the child's `+0x00` —
+which is the controller's `menu_ctrl.sub` — with the node pointer, **wiring
+the controller's input-ready gate to the node** (the latch reads `node+0x54`
+ready / `node+0x04` enabled).  The node's child-array/count/capacity at
+`+0x48`/`+0x4e`/`+0x4c` alias `obj_pool`, and `node+0x08` aliases
+`sel_entry.selected` — but **only on the 32-bit target**; the node's 8-byte
+`owner` pointer shifts those fields on the 64-bit host.  So the port applies
+`obj_pool_acquire`'s semantics to the node's own `menu_node` fields (identical
+to the cast on win32) and the test checks selection via the `sel_entry` view.
+
+5 new host tests (full five-row build, cursor-seek-to-match, no-match keeps
+cursor 0, teardown clears the node's `+0x50` flag, teardown-noop-when-unset;
+ASan/LSan clean).  **509 pass / 0 fail / 6 skip (of 515)**; both 32-bit
+cross-builds clean (all `menu_node`/`sel_list`/`pool_slot` offset asserts
+hold).  Ledger **122/1490 touched (7.5%), 119 tested** (unchanged — assembly,
+not a new port).  See `findings/title-scene.md`, `findings/menu-list.md`
+"The spawn block", and quirk #38.
+
+---
+
 ## 2026-05-29 — Menu-node builder + the menu-tree structure, ckpt 7
 
 Ported `FUN_0040f3e0` (434 B) into `menu_list` as **`menu_node_build`** — the

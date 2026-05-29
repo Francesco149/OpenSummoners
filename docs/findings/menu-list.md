@@ -217,18 +217,25 @@ layout-exact on the 32-bit target, and the 64-bit host only ever clears
 zeroed children (an all-NULL no-op), matching the title flow which never
 rebuilds a populated node.
 
+## The spawn block — `title_menu_spawn` (checkpoint 8)
+
+The `0x56aea0` default-branch spawn block (`0x56b5cd..0x56b807`) — the last
+piece of the title scene's *update* half — is now ported in
+`src/title_scene.c` as `title_menu_spawn` (+ `title_menu_teardown` for the
+phase-10 path).  It composes the menu primitives above into the one-shot
+top-level-menu construction; see `findings/title-scene.md` and **quirk #38**
+(the node's four overlaid identities and the 32-bit-only `obj_pool`/`sel_entry`
+aliases).  In short: configure the owner `sel_list`'s next entry as the menu's
+tree node with one child (`menu_node_build`), bump + mark it
+(`sel_list_mark_last`), acquire that lone child as the controller (retail:
+`obj_pool_acquire(node)` — the node *is* the pool), build its 6×1 stride-6
+grid (`menu_ctrl_build`), append the five fixed rows `0x1a,0x1c,0x1e,0x1d,8`
+(each `field0=0`/`action=id`/`flag8=1`, bump count, `menu_row_finalize` — a
+no-op on the fresh NULL cells), then seek the cursor to the row matching the
+saved selection key and `menu_list_scroll_into_view`.
+
 ## Still unported (next)
 
-- **The spawn block's populate half** (`0x56aea0` default branch, after
-  `menu_ctrl_build`): append 5 rows with action IDs `0x1a,0x1c,0x1e,0x1d,8`
-  (each writes `row.field0=0`, `row.action=id`, `row.flag8=1`, bumps
-  `hdr.count`, then calls `menu_row_finalize`), then seek the row whose
-  `field0==0` matches a god-object key, set the cursor, and
-  `menu_list_scroll_into_view`.  The appends are cheap inline stores; the
-  finalizer is a no-op on these fresh (NULL-pointer) cells.  The node builder
-  (`menu_node_build`) + the container leaves (`obj_pool_acquire`,
-  `sel_list_mark_last`) it depends on are all ported now — only these inline
-  stores remain to finish the update half.
 - **`0x40fa00`** (800 B) — the cell text-layout / glyph builder (SJIS parse,
   `#`-colour escapes, font-metric table; calls `0x40fd20`/`0x4051d0`/
   `0x4034f0`).  Its own text subsystem; `menu_row_finalize` calls it via a

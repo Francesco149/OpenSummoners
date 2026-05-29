@@ -764,3 +764,56 @@ params `(owner, f_c, f_10, f_14, f_18, n_children:u16, config)`.
 > 📍 `FUN_0040f3e0` @ `0x40f3e0` (434 B); ported as `menu_node_build` in
 > `src/menu_list.c` (checkpoint 7).  Always confirm a `__thiscall`'s ECX in
 > the disasm before trusting the decompile's argument list.
+
+## 38. The menu node has *four* overlaid identities — and the obj_pool / sel_entry aliases coincide only on the 32-bit target
+
+Assembling the title-menu spawn block (`0x56b5cd..0x56b807`, ported as
+`title_menu_spawn`) shows the 0x1b0 menu node from quirk #37 wears **four**
+hats on one buffer, each a different engine primitive reinterpreting the same
+address:
+
+| view | fields used | who uses it |
+|------|-------------|-------------|
+| **container header** | owner `+0x00`, child array `+0x48`, child count `+0x4c` | `menu_node_build` (`0x40f3e0`) |
+| **embedded `menu_ctrl`** | `+0x00..+0x17c` + display config `+0x180..+0x1ac` | `menu_ctrl_build` / nav / latch |
+| **`sel_entry`** | selected flag `+0x08` | `sel_list_mark_last` (`0x414080`) |
+| **`obj_pool`** | slots `+0x48`, capacity `+0x4c`, count `+0x4e` | `obj_pool_acquire` (`0x412c10`) |
+
+The spawn is one elegant chain exploiting this: `menu_node_build` gives the
+node **one child** and sets its child array (`+0x48`/`+0x4c`/`+0x4e`); then
+`obj_pool_acquire(node)` — *the same node, reinterpreted as a pool* — hands
+out `children[0]` as the menu controller and stamps that child's `+0x00` with
+the node pointer.  Since `+0x00` is the controller's `menu_ctrl.sub`, this
+**wires the controller's input-ready gate to the node**: `menu_list_latch`
+later reads `sub->ready` (`node+0x54`) and `sub->enabled` (`node+0x04`),
+gating menu input on the node's own `+0x54` ramp (the same 0..1000 transition
+the fades use — quirk #34).  The controller built on `children[0]` thus draws
+its "am I accepting input yet?" state straight from its parent node.
+
+**Porting trap (32- vs 64-bit).** These overlays are byte-exact *only on the
+32-bit target*.  Two of them depend on field offsets that the 0x1b0 node and
+the small primitive structs share only when pointers are 4 bytes:
+
+- `obj_pool` puts slots/capacity/count at `+0x48`/`+0x4c`/`+0x4e`; the node's
+  `children`/`child_count`/`field_4e` line up there on win32 but **not** on
+  the 64-bit host (the node's leading `void *owner` and the pool's `0x48`-byte
+  opaque head widen differently), so a `(obj_pool *)node` reinterpret reads the
+  pool header at the wrong offsets and `obj_pool_acquire` returns NULL.
+- likewise `sel_entry.selected` at `+0x08` is `menu_node.selected` at `+0x08`
+  on win32, but the node's 8-byte `owner` pushes its modelled `selected` field
+  to `+0x0c` on the host — so `sel_list_mark_last` (writing the `sel_entry`
+  view at `+0x08`) and a read through `menu_node.selected` disagree on the host.
+
+The drop-in is win32, so the retail reinterpret-casts are correct there.  The
+host **port** can't use them: `title_menu_spawn` therefore applies
+`obj_pool_acquire`'s semantics to the node's own `menu_node` fields (identical
+to the cast on win32), and the test checks the selection flag through the
+`sel_entry` view that `sel_list_mark_last` actually writes.  This is the same
+"layout-exact only on the 32-bit target" discipline as the per-child
+`menu_ctrl_clear` cast in `menu_node_build` (quirk #37).
+
+> 📍 spawn block of `FUN_0056aea0` @ `0x56b5cd`; ported as `title_menu_spawn`
+> / `title_menu_teardown` in `src/title_scene.c` (checkpoint 8).  When a
+> retail function reinterpret-casts one object as another primitive, the cast
+> is only portable to the host if both structs are pointer-free up to the
+> aliased fields — otherwise replicate the semantics on the real struct.

@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-29 (menu-node builder, ckpt 7)
+# Session handoff — last updated 2026-05-29 (title-menu spawn block, ckpt 8)
 
 **This is the first thing to read at the start of every session.**
 
@@ -11,44 +11,44 @@ to pick up *right now*".
 Mid-way through **milestone 0 (title screen renders)** — the
 multi-checkpoint port of `FUN_0056aea0` (3441 B title scene runner).
 
-**Checkpoint 7 just landed** (this session): the **menu-node builder**
-`FUN_0040f3e0` (434 B), ported into `src/menu_list.{c,h}` as
-**`menu_node_build`**. It (re)configures one 0x1b0 menu node and
-(re)builds its child-node array (freeing stale children via
-`menu_ctrl_clear` first). This was the last sub-function the title-menu
-spawn block needed.
+**Checkpoint 8 just landed** (this session): the **title-menu spawn block**
+(`0x56aea0` default branch, `0x56b5cd..0x56b807`), assembled into
+`src/title_scene.{c,h}` as **`title_menu_spawn`** (+ `title_menu_teardown`
+for the phase-10 path). It composes already-ported leaves — no new function
+is ported, so the ledger is unchanged; the value is the assembly + the
+structural finding. The block: configure the owner `sel_list`'s next entry
+as the menu's tree node with one child (`menu_node_build`), bump +
+`sel_list_mark_last`, acquire that lone child as the controller,
+`menu_ctrl_build` its 6×1 stride-6 grid, append the five fixed rows
+`0x1a,0x1c,0x1e,0x1d,8` (each `menu_row_finalize`d — a no-op on fresh NULL
+cells), then seek the cursor to the row matching the saved selection key and
+`menu_list_scroll_into_view`. Returns `{node, ctrl}` (retail `local_54` /
+`local_60`) for the per-frame dispatch to drive.
 
-**Headline finding — new quirk #37 (a Ghidra trap):** the engine's menus
-are a **tree of uniform 0x1b0-byte nodes**, and Ghidra mis-typed this
-builder's `__thiscall`. The decompiled call
-`FUN_0040f3e0(piVar11,0,0,100,100,1,0)` reads as "operates on the
-page-container `piVar11`" — but disassembly proves otherwise:
+**Headline finding — new quirk #38:** the 0x1b0 menu node wears **four**
+overlaid identities — container header, embedded `menu_ctrl`, `sel_entry`,
+*and* `obj_pool`. The controller (`local_60`) is the node's lone **child**,
+handed out by reinterpreting the node as a pool: retail does
+`obj_pool_acquire(node)` (ECX = node, confirmed at `0x56b623 call 0x412c10`
+with the node still in ECX). The acquire stamps the child's `+0x00` — the
+controller's `menu_ctrl.sub` — with the node pointer, **wiring the
+controller's input-ready gate to the node** (the latch reads `node+0x54`
+ready / `node+0x04` enabled). Caveat that bit the port: the node's
+child-array/count/capacity (`+0x48`/`+0x4e`/`+0x4c`) alias `obj_pool`, and
+`node+0x08` aliases `sel_entry.selected` — but **only on the 32-bit target**
+(the node's 8-byte `owner` shifts those fields on the 64-bit host). So the
+port applies `obj_pool_acquire`'s semantics to the node's own `menu_node`
+fields (identical on win32), and the test checks selection through the
+`sel_entry` view. **Lesson:** a retail reinterpret-cast between two
+primitives ports to the host only if both structs are pointer-free up to the
+aliased fields — else replicate the semantics on the real struct.
 
-- prologue `0x40f3ec  mov ebx, ecx` → the function works on ECX;
-- call site `0x56b606  mov ecx, [edi+ecx]` (= `owner->entries[count]`) →
-  ECX `this` is the **node**, while `0x56b609 push esi` makes `piVar11`
-  (the owning `sel_list`) just `param_1`.
-
-So the earlier "page-container, likely obj_container territory" prediction
-in HANDOFF/`findings/menu-list.md` was **off by one** and is corrected.
-**Lesson:** always confirm a `__thiscall`'s ECX in the disasm (r2 `pdf`)
-before trusting the decompile's arg list — same discipline that caught the
-ckpt-6 dead-alloc.
-
-Each node overlays two views on one buffer: a **container header**
-(`+0x00..+0x84`; child-ptr array `+0x48`, u16 count `+0x4c`) and an
-**embedded `menu_ctrl`** at `+0x00` (so `+0x164..+0x17c` are
-`field_164/list2/list/entries/rows`) plus `0x30 B` of **display config**
-at `+0x180..+0x1ac` (colours + label VAs). That dual identity is why the
-builder frees a stale child with `menu_ctrl_clear`. Modelled `menu_node`
-(0x1b0) in `menu_list.h`.
-
-**504 host tests pass, 0 fail, 6 skip (of 510)** — 5 new (title call,
-config-blob copy, per-child display config, rebuild-frees-old-children
-under LSan, zero-children; ASan/LSan clean). Both cross-builds clean (new
-32-bit offset asserts + a `sizeof(menu_node) >= sizeof(menu_ctrl)`
-cast-safety assert all hold). Ledger **122/1490 touched (7.5%), 119
-tested**.
+**509 host tests pass, 0 fail, 6 skip (of 515)** — 5 new (five-row build,
+cursor-seek-to-match, no-match keeps cursor 0, teardown clears the node's
+`+0x50`, teardown-noop-when-unset; ASan/LSan clean). Both 32-bit cross-builds
+clean (`menu_node`/`sel_list`/`pool_slot` offset asserts hold). Ledger
+**122/1490 touched (7.5%), 119 tested** (unchanged — assembly, not a new
+port).
 
 **Orientation docs (read for the bigger picture):**
 
@@ -95,41 +95,44 @@ cs_dispatch, app_pump, title_scene (`FUN_0056aea0` partial — fade FSM +
 pacing FSM), input (`FUN_0043c110`), obj_container (`FUN_00412c10` +
 `FUN_00414080`), **menu_list (`FUN_004192b0` + `FUN_0043ca40` +
 `FUN_0043ce50` + `FUN_0040f5c0` + `FUN_0040e0c0` + `FUN_00411f40` +
-`FUN_0040f3e0`)**. Live boot zero DDERR through 10 frames in mode 2. The
-drop-in still uses its own minimal `main_loop_body`; the ported title FSMs
-+ the menu chain are **not yet wired** into a real scene loop in main.c.
+`FUN_0040f3e0`)** + the title-menu **spawn block** (`title_menu_spawn` /
+`title_menu_teardown` in `title_scene.c`). Live boot zero DDERR through 10
+frames in mode 2. The drop-in still uses its own minimal `main_loop_body`;
+the ported title FSMs + the menu chain are **not yet wired** into a real
+scene loop in main.c.
 
 ## Active goal
 
 **Finish `FUN_0056aea0` so the title screen draws a frame** (milestone 0).
 Done: both pure FSMs (fade + pacing), the update half's input poll, the
-container leaves, the whole menu input→action chain, the controller
-geometry alloc/free, the grid-cell finalizer, and now the menu-node
-builder. Remaining for the update half: **just the spawn-block assembly**
-(cheap inline row appends). Then the **render half** (draws + Flips).
+container leaves, the whole menu input→action chain (poll/latch/nav as
+units), the controller geometry alloc/free, the grid-cell finalizer, the
+menu-node builder, and now **the one-shot menu spawn block**. Remaining for
+the update half: the **per-frame menu input dispatch** (poll→latch→action
+switch→joystick attach, `0x56b8xx..0x56ba0e`) — its leaves
+`input_poll_consume`/`menu_list_latch` are ported but it also calls the
+**unported** SFX `FUN_00411390` and joystick `FUN_005ba120/_290`, so it needs
+hooks. Then the **render half** (draws + Flips).
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Assemble the spawn block** (`0x56aea0` default branch,
-   lines ~385–465) — now that every sub-function it calls is ported. The
-   sequence (disasm `0x56b5cd..0x56b6xx`):
-   - `piVar11 = owner sel_list = *in_ECX`; if `count(+6) < cap(+4)`:
-     `menu_node_build(owner->entries[count], owner, 0,0,100,100,1,NULL)`,
-     bump `owner->count(+6)`, `sel_list_mark_last(owner)`, stash the active
-     node ptr;
-   - `local_60 = obj_pool_acquire()`; if non-NULL
-     `menu_ctrl_build(local_60, 0,0,6,1,6,0)`;
-   - 5 inline row appends (each: guard `hdr.count < hdr.alloc_a`, write
-     `row.field0=0`, `row.action = 0x1a/0x1c/0x1e/0x1d/8`, `row.flag8=1`,
-     bump `hdr.count`, then `menu_row_finalize(local_60, idx)` — a no-op on
-     the fresh NULL cells);
-   - cursor-seek: walk the rows, find the one whose `field0==0` matches the
-     god-object key `*(*DAT_008a6e80 + 0xa60)`, set `hdr.cursor`, call
-     `menu_list_scroll_into_view`.
-   This is mostly inline stores on already-modelled structs — should be a
-   clean, well-tested checkpoint that **finishes the update half**. Decide
-   where it lives (a `title_scene` helper that drives the menu_list +
-   obj_container + sel_list objects, since it's `0x56aea0`'s own code).
+1. **(recommended) Assemble the per-frame menu input dispatch** (`0x56aea0`
+   default branch after the spawn, decompile lines ~467–573;
+   `title-scene.md` "Input dispatch" steps 2–3). Each menu frame:
+   - poll the four nav buttons via `input_poll_consume` (down `2`→latch 2,
+     right `4`→3, up `1`→0, left `3`→1), with the axis-held synthesis
+     (`4|5`/`6|7` from the `ctrl[1]+0x114/+0x118` flags), back `0x24`→9, and
+     the early `0x22`→return state 6;
+   - `switch(action)`: 1/2 → SFX `FUN_00411390(9,…)`; 3 confirm → if the
+     selected row's action is `0x1d` push `(6,…)` else `(5,…)`, and run the
+     **joystick lazy-attach** (`FUN_005ba120`/`_290` over `&DAT_008a93dc`);
+     4 cancel → `(7,…)`; then on confirm latch `local_48 = selected action`,
+     `local_64 = 10`.
+   `FUN_00411390` (SFX) and `FUN_005ba120/_290` (DInput pad attach) are
+   **unported** — route them through observable hooks (the
+   `menu_cell_layout_hook` pattern in `menu_list.c`) so this assembles +
+   tests now without pulling in audio/DInput. Drives the `title_menu`
+   {node,ctrl} that `title_menu_spawn` returns. **Finishes the update half.**
 
 2. **Checkpoint: the render half (`0x56bb04`)** — the path that draws.
    `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries, 7 handlers,
@@ -147,8 +150,8 @@ builder. Remaining for the update half: **just the spawn-block assembly**
 
 - **`FUN_0056aea0`** title scene runner — milestone 0. Pure FSMs + the full
   update-half input chain + controller geometry + grid-cell finalizer +
-  menu-node builder done; only the spawn-block assembly (inline appends) +
-  the render half remain.
+  menu-node builder + the one-shot menu spawn block done; the **per-frame
+  menu input dispatch** (needs SFX/joystick hooks) + the render half remain.
 - **`0x40fa00`** the cell text-layout / glyph builder (800 B; SJIS parse,
   `#`-colour escapes, font-metric table; calls `0x40fd20`/`0x4051d0`/
   `0x4034f0`) — its own text subsystem; `menu_row_finalize` calls it via a
