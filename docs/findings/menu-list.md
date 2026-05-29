@@ -178,11 +178,25 @@ VA, not `FUN_`).
   `field0==0` matches a god-object key, set the cursor, and
   `menu_list_scroll_into_view`.  The appends are cheap inline stores; the
   finalizer is a no-op on these fresh (NULL-pointer) cells.
-- **`0x40f3e0`** (434 B) — the menu-item builder: copies a 9-dword config
-  blob, frees old items (via `0x40e0c0` + free), allocs N×`0x1b0`-byte items
-  with ~20 magic fields (colors `0xf08080`, `&DAT_00677b98`).  Needs the
-  `0x1b0` item struct modelled.  (Called on the *page-container* object, not
-  the menu controller.)
+- **`0x40f3e0`** (434 B) — the menu-item builder.  Called on the
+  *page-container* object (`*in_ECX` in `0x56aea0`, the god-object's list —
+  **not** the menu controller; likely `obj_container` territory).  Copies a
+  9-dword config blob into `+0x5c..+0x7c` (or zeros `+0x5c` when the blob ptr
+  is NULL), seeds scalars (`+0=param1`, `+4=1`, `+8=0`, `+0xc/0x10/0x14/0x18
+  =params`, `+0x80=0`, `+0x1c=1`, `+0x50=1`), frees the old item array
+  (`+0x48`, count u16 at `+0x4c`) — **calling `menu_ctrl_clear` on each item**
+  then `operator delete` — then allocs a fresh `+0x4c`-sized pointer array and
+  N × `0x1b0`-byte items.
+  **Verified structural finding (disasm 0x40f45b: `mov ecx,edi; call
+  0x40e0c0`):** each `0x1b0` item **embeds a full `menu_ctrl` (0x180 B)**
+  (its zeroed `+0x164/+0x170/+0x174/+0x178/+0x17c` are exactly
+  field_164/list2/list/entries/rows) **followed by 0x30 B of display config**:
+  `+0x180=0x3e537d`, `+0x184=0xa8b9cc`, `+0x188=&DAT_00677b98`,
+  `+0x18c=+0x190=0xf08080`, `+0x194=+0x198=&DAT_008090a9`, `+0x19c=0x3e537d`,
+  `+0x1a0=0xa8b9cc`, `+0x1a4=+0x1a8=0`, `+0x1ac=0x1c` (and `+0x14=+0x18=0`
+  inside the embedded ctrl).  The `0x3e537d`/`0xa8b9cc`/`0xf08080` triples
+  read as ARGB-ish text/shadow colours.  Needs the page-container struct +
+  the `0x1b0` item (menu_ctrl + config) modelled before porting.
 - **`0x40fa00`** (800 B) — the cell text-layout / glyph builder (SJIS parse,
   `#`-colour escapes, font-metric table; calls `0x40fd20`/`0x4051d0`/
   `0x4034f0`).  Its own text subsystem; `menu_row_finalize` calls it via a

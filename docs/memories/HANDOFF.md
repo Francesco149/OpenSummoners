@@ -100,11 +100,17 @@ assembly**. Then the **render half** (the path that draws + Flips).
 1. **(recommended) Port the menu-item builder `0x40f3e0` (434 B), then
    assemble the spawn block.** This is the last sub-function the spawn
    block needs. NB it operates on the **page-container** object (`*in_ECX`
-   in `0x56aea0`, the god-object's list), **not** the menu controller:
-   copies a 9-dword config blob into `[0x17..0x1f]`, frees old items (via
-   `0x40e0c0` + free), then allocs N×`0x1b0`-byte items with ~20 magic
-   fields (colors `0xf08080`, ptrs `&DAT_00677b98`/`&DAT_008090a9`). Needs
-   the `0x1b0` item struct modelled. Then **assemble the spawn block**
+   in `0x56aea0`, the god-object's list), **not** the menu controller — so
+   it likely belongs in `obj_container`, not `menu_list`; decide placement
+   first. It copies a 9-dword config blob into `+0x5c..+0x7c`, seeds scalars,
+   frees the old item array (`+0x48`, count u16 `+0x4c`), then allocs N ×
+   `0x1b0`-byte items. **Already verified (disasm 0x40f45b):** each `0x1b0`
+   item **embeds a full `menu_ctrl` (0x180 B)** — the free loop calls
+   `menu_ctrl_clear` on each item — **followed by 0x30 B of display config**
+   (colours `0x3e537d`/`0xa8b9cc`/`0xf08080`, label ptrs `&DAT_00677b98`/
+   `&DAT_008090a9`, `+0x1ac=0x1c`). See `findings/menu-list.md` "Still
+   unported" for the full field map. Needs the page-container struct + the
+   `0x1b0` item modelled before porting. Then **assemble the spawn block**
    (`0x56aea0` default branch, lines ~385–465): the `param_1` skip-intro
    early-out, the page-container populate (`0x40f3e0` + `FUN_00414080`),
    `obj_pool_acquire` → `menu_ctrl_build(0,0,6,1,6,0)`, the 5 inline row
