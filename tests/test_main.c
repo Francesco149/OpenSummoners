@@ -351,6 +351,11 @@ struct test_case {
     X(finalize_skips_when_row_outruns_count)                   \
     X(finalize_invokes_layout_hook_for_obj0)                   \
     X(finalize_iterates_all_cells)                             \
+    X(node_build_title_call)                                   \
+    X(node_build_copies_config_blob)                           \
+    X(node_build_child_display_config)                         \
+    X(node_build_rebuild_frees_old_children)                   \
+    X(node_build_zero_children)                                \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

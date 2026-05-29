@@ -350,6 +350,95 @@ extern const void         *menu_cell_layout_text;
  * 0x411f40. */
 void menu_row_finalize(menu_ctrl *c, int32_t row);
 
+/* ─── a menu tree node / page (the 0x1b0 object built by FUN_0040f3e0) ─
+ *
+ * The engine's menu is a *tree* of uniform 0x1b0-byte nodes.  Each node is
+ * dual-purpose, overlaying two views on one buffer:
+ *
+ *   - a **container header** (+0x00..+0x84): an owner back-pointer, a few
+ *     config scalars, and — at +0x48/+0x4c — a heap array of child-node
+ *     pointers and its count.  This is the view FUN_0040f3e0 manipulates.
+ *   - an **embedded menu_ctrl** at +0x00 (so node+0x164..+0x17c are exactly
+ *     menu_ctrl.field_164/list2/list/entries/rows), followed by 0x30 B of
+ *     **display config** (+0x180..+0x1ac): text/shadow colours and label
+ *     string pointers.  This is the view the nav/build code uses, and the
+ *     reason a child can be torn down with menu_ctrl_clear.
+ *
+ * So a node is simultaneously a tree container and a selectable controller,
+ * one layout reused at every level.  The owning list (FUN_0040f3e0's
+ * param_1) is a sel_list (obj_container.h) whose entries are these nodes —
+ * node+0x08 is the sel_entry "selected" flag, set by sel_list_mark_last.
+ *
+ * Ghidra mis-typed FUN_0040f3e0's __thiscall (it rendered the `this` node as
+ * a plain first arg and dropped the ECX node), so the earlier "operates on a
+ * page-container" reading was off by one: the disasm at 0x40f3ec
+ * (`mov ebx,ecx`) and the call site 0x56b606 (`mov ecx,[edi+ecx]` =
+ * owner->entries[count]) confirm `this` is the node and param_1 is the owner.
+ * See engine-quirks #37.  Only the fields the builder touches are modelled. */
+typedef struct menu_node {
+    void    *owner;          /* +0x00 — back-ptr to the owning sel_list (param_1) */
+    int32_t  field4;         /* +0x04 — builder sets 1                            */
+    int32_t  selected;       /* +0x08 — sel_entry flag; builder zeroes, then
+                              *         sel_list_mark_last sets the active node   */
+    int32_t  field_c;        /* +0x0c — param_2                                   */
+    int32_t  field_10;       /* +0x10 — param_3                                   */
+    int32_t  field_14;       /* +0x14 — param_4 (each child re-zeroes this)       */
+    int32_t  field_18;       /* +0x18 — param_5 (each child re-zeroes this)       */
+    int32_t  field_1c;       /* +0x1c — builder sets 1 (overlays menu_ctrl.action)*/
+    uint8_t  _pad20[0x28];   /* +0x20..+0x47 — opaque                             */
+    void   **children;       /* +0x48 — heap array of child-node pointers         */
+    uint16_t child_count;    /* +0x4c — number of children (u16)                  */
+    uint16_t field_4e;       /* +0x4e — builder zeroes (u16)                      */
+    int32_t  field_50;       /* +0x50 — builder sets 1                            */
+    int32_t  field_54;       /* +0x54 — builder zeroes                            */
+    int32_t  field_58;       /* +0x58 — builder zeroes                            */
+    int32_t  config[9];      /* +0x5c..+0x7f — 9-dword config blob (param_7); when
+                              *         param_7 is NULL only config[0] is zeroed  */
+    int32_t  field_80;       /* +0x80 — builder zeroes                            */
+    uint8_t  _pad84[0xe0];   /* +0x84..+0x163 — opaque (embedded menu_ctrl body)  */
+    void    *ctrl_field_164; /* +0x164 — menu_ctrl.field_164 (child zeroes)       */
+    uint8_t  _pad168[0x08];  /* +0x168..+0x16f                                    */
+    void    *ctrl_list2;     /* +0x170 — menu_ctrl.list2  (child zeroes)          */
+    void    *ctrl_list;      /* +0x174 — menu_ctrl.list   (child zeroes)          */
+    void    *ctrl_entries;   /* +0x178 — menu_ctrl.entries(child zeroes)          */
+    void    *ctrl_rows;      /* +0x17c — menu_ctrl.rows   (child zeroes)          */
+    uint32_t color0;         /* +0x180 — 0x3e537d (text colour)                   */
+    uint32_t color1;         /* +0x184 — 0xa8b9cc                                 */
+    uint32_t label0;         /* +0x188 — &DAT_00677b98 (retail VA)                */
+    uint32_t color2;         /* +0x18c — 0xf08080                                 */
+    uint32_t color3;         /* +0x190 — 0xf08080                                 */
+    uint32_t label1;         /* +0x194 — &DAT_008090a9 (retail VA, empty string)  */
+    uint32_t label2;         /* +0x198 — &DAT_008090a9 (retail VA)                */
+    uint32_t color4;         /* +0x19c — 0x3e537d                                 */
+    uint32_t color5;         /* +0x1a0 — 0xa8b9cc                                 */
+    uint32_t field_1a4;      /* +0x1a4 — 0                                        */
+    uint32_t field_1a8;      /* +0x1a8 — 0                                        */
+    uint32_t field_1ac;      /* +0x1ac — 0x1c                                     */
+} menu_node;                 /* 0x1b0 B */
+
+/* ─── FUN_0040f3e0 — (re)build a menu node and its child array ────────
+ *
+ * Configure node `n` (an entry of `owner`'s sel_list) from its params,
+ * release any previous child array — clearing each child's embedded
+ * controller with menu_ctrl_clear first — then allocate `n_children` fresh
+ * child nodes, each with its embedded menu_ctrl zeroed and its display
+ * config (colours + label pointers) seeded.  `config` (param_7) is a
+ * 9-dword blob copied into +0x5c..+0x7f, or NULL to just zero config[0].
+ *
+ * The title menu calls this as menu_node_build(node, owner, 0,0,100,100,1,
+ * NULL): a single child, default config.  Faithful to 0x40f3e0.
+ *
+ * Divergences (both following menu_ctrl_build's convention): operator_new →
+ * calloc, so each child's container-header bytes (uninitialised in retail)
+ * read as zero here; and the per-child menu_ctrl_clear is layout-exact only
+ * on the 32-bit target — the 64-bit host exercises it solely on freshly
+ * zeroed children (an all-NULL no-op), matching the title flow, which never
+ * rebuilds a populated node. */
+void menu_node_build(menu_node *n, void *owner,
+                     int32_t f_c, int32_t f_10,
+                     int32_t f_14, int32_t f_18,
+                     uint16_t n_children, const int32_t *config);
+
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(menu_list_hdr, type)     == 0x00, "hdr.type");
 _Static_assert(offsetof(menu_list_hdr, stride)   == 0x0c, "hdr.stride");
@@ -404,6 +493,24 @@ _Static_assert(offsetof(confirm_list, pos)     == 0x04, "cl.pos");
 _Static_assert(offsetof(confirm_list, submode) == 0x0c, "cl.submode");
 _Static_assert(offsetof(confirm_list, flag14)  == 0x14, "cl.flag14");
 _Static_assert(offsetof(confirm_list, flag18)  == 0x18, "cl.flag18");
+_Static_assert(sizeof(menu_node)                 == 0x1b0, "menu_node size");
+_Static_assert(offsetof(menu_node, selected)     == 0x08,  "node.selected");
+_Static_assert(offsetof(menu_node, field_1c)     == 0x1c,  "node.field_1c");
+_Static_assert(offsetof(menu_node, children)     == 0x48,  "node.children");
+_Static_assert(offsetof(menu_node, child_count)  == 0x4c,  "node.child_count");
+_Static_assert(offsetof(menu_node, config)       == 0x5c,  "node.config");
+_Static_assert(offsetof(menu_node, field_80)     == 0x80,  "node.field_80");
+_Static_assert(offsetof(menu_node, ctrl_field_164) == 0x164, "node.ctrl_field_164");
+_Static_assert(offsetof(menu_node, ctrl_list2)   == 0x170, "node.ctrl_list2");
+_Static_assert(offsetof(menu_node, ctrl_rows)    == 0x17c, "node.ctrl_rows");
+_Static_assert(offsetof(menu_node, color0)       == 0x180, "node.color0");
+_Static_assert(offsetof(menu_node, label0)       == 0x188, "node.label0");
+_Static_assert(offsetof(menu_node, field_1ac)    == 0x1ac, "node.field_1ac");
 #endif
+
+/* The per-child menu_ctrl_clear casts menu_node* → menu_ctrl*; guarantee the
+ * read stays in-bounds of the node allocation on every build (32- and 64-bit). */
+_Static_assert(sizeof(menu_node) >= sizeof(menu_ctrl),
+               "menu_node must cover menu_ctrl for the child-clear cast");
 
 #endif /* OPENSUMMONERS_MENU_LIST_H */

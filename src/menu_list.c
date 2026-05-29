@@ -569,3 +569,123 @@ void menu_row_finalize(menu_ctrl *c, int32_t row)
         i = counter & 0xffff;
     } while ((int32_t)i < hdr->alloc_b);
 }
+
+/*
+ * FUN_0040f3e0 (434 bytes) — (re)build a menu tree node and its children.
+ *
+ * __thiscall: this = the 0x1b0 menu node being configured (an entry of the
+ * owner's sel_list); the seven stack params are (owner, f_c, f_10, f_14,
+ * f_18, n_children:u16, config).  Ghidra rendered the call as
+ * FUN_0040f3e0(owner,0,0,100,100,1,0) having dropped the ECX `this`, which is
+ * why it read as "operates on owner"; the disasm (0x40f3ec `mov ebx,ecx`;
+ * call site 0x56b606 `mov ecx,[owner->entries + count*4]`) shows `this` is the
+ * node and `owner` is param_1.  See menu_list.h / engine-quirks #37.
+ *
+ *     this->[0]    = owner;   this->[1] = 1;   this->[2] = 0;
+ *     this->[3]    = f_c;     this->[4] = f_10;
+ *     this->[5]    = f_14;    this->[6] = f_18;   this->[0x20] = 0;
+ *     if (config) memcpy(this+0x5c, config, 9*4); else this->[0x17] = 0;
+ *     // free old children (each via menu_ctrl_clear, then operator delete)
+ *     for (i = 0; i < this->[0x4c]:u16; i++) { c = this->children[i];
+ *         if (c) { c->clear(); delete c; this->children[i] = 0; } }
+ *     delete this->children;
+ *     this->[0x4c]:u16 = n_children;
+ *     this->children   = operator_new(n_children * 4);
+ *     for (i = 0; i < n_children; i++) {
+ *         c = operator_new(0x1b0);              // a fresh child node
+ *         if (c) { c->{164,170,174,178,17c} = 0; <display config>;
+ *                  c->[0x14] = c->[0x18] = 0; c->[0x1ac] = 0x1c; }
+ *         this->children[i] = c; }
+ *     this->[0x4e]:u16 = 0; this->[0x54] = this->[0x58] = 0;
+ *     this->[0x1c] = 1; this->[0x50] = 1;
+ *
+ * operator_new → calloc (zero-init divergence, as in menu_ctrl_build); the
+ * old-children free path is layout-exact only on the 32-bit target (see the
+ * header for why the host only ever clears zeroed children).
+ */
+
+/* Display config every child node is stamped with.  The 0x3e537d / 0xa8b9cc /
+ * 0xf08080 triples read as packed text/shadow colours; the two label slots
+ * carry the retail VAs of .rodata strings (a control-coded default label at
+ * 0x677b98 and the empty string at 0x8090a9), kept verbatim since the host has
+ * no image to resolve them against. */
+#define MENU_NODE_COLOR_A   0x3e537du
+#define MENU_NODE_COLOR_B   0xa8b9ccu
+#define MENU_NODE_COLOR_C   0xf08080u
+#define MENU_NODE_LABEL0_VA 0x00677b98u   /* &DAT_00677b98 */
+#define MENU_NODE_LABEL1_VA 0x008090a9u   /* &DAT_008090a9 */
+
+void menu_node_build(menu_node *n, void *owner,
+                     int32_t f_c, int32_t f_10,
+                     int32_t f_14, int32_t f_18,
+                     uint16_t n_children, const int32_t *config)
+{
+    /* config blob → +0x5c..+0x7f, or zero just config[0] when absent. */
+    if (config == NULL) {
+        n->config[0] = 0;                          /* this->[0x17] = 0 */
+    } else {
+        for (int i = 0; i < 9; i++) {              /* rep movsd, 9 dwords */
+            n->config[i] = config[i];
+        }
+    }
+
+    /* container-header scalars. */
+    n->owner    = owner;                           /* +0x00 = param_1 */
+    n->field_c  = f_c;                             /* +0x0c = param_2 */
+    n->field_14 = f_14;                            /* +0x14 = param_4 */
+    n->field4   = 1;                               /* +0x04 = 1 */
+    n->selected = 0;                               /* +0x08 = 0 */
+    n->field_80 = 0;                               /* +0x80 = 0 */
+    n->field_10 = f_10;                            /* +0x10 = param_3 */
+    n->field_18 = f_18;                            /* +0x18 = param_5 */
+
+    /* release the previous child array (clear each child's controller). */
+    if (n->children != NULL) {
+        for (uint32_t i = 0; i < n->child_count; i++) {
+            void *child = n->children[i];
+            if (child != NULL) {
+                menu_ctrl_clear((menu_ctrl *)child);   /* FUN_0040e0c0 */
+                free(child);                           /* operator delete */
+                n->children[i] = NULL;
+            }
+        }
+        free(n->children);
+        n->children = NULL;
+    }
+
+    /* allocate the fresh child-pointer array + N child nodes. */
+    n->child_count = n_children;                   /* +0x4c = param_6 */
+    n->children = (void **)calloc((size_t)n_children, sizeof(void *)); /* op new(n*4) */
+    for (uint32_t i = 0; i < n_children; i++) {
+        menu_node *c = (menu_node *)calloc(1, sizeof(menu_node));      /* op new(0x1b0) */
+        if (c != NULL) {
+            c->ctrl_list2     = NULL;              /* +0x170 */
+            c->ctrl_field_164 = NULL;              /* +0x164 */
+            c->ctrl_list      = NULL;              /* +0x174 */
+            c->ctrl_entries   = NULL;              /* +0x178 */
+            c->ctrl_rows      = NULL;              /* +0x17c */
+            c->color0 = MENU_NODE_COLOR_A;         /* +0x180 */
+            c->label0 = MENU_NODE_LABEL0_VA;       /* +0x188 */
+            c->color1 = MENU_NODE_COLOR_B;         /* +0x184 */
+            c->color2 = MENU_NODE_COLOR_C;         /* +0x18c */
+            c->color3 = MENU_NODE_COLOR_C;         /* +0x190 */
+            c->label1 = MENU_NODE_LABEL1_VA;       /* +0x194 */
+            c->label2 = MENU_NODE_LABEL1_VA;       /* +0x198 */
+            c->color4 = MENU_NODE_COLOR_A;         /* +0x19c */
+            c->color5 = MENU_NODE_COLOR_B;         /* +0x1a0 */
+            c->field_1a4 = 0;                      /* +0x1a4 */
+            c->field_1a8 = 0;                      /* +0x1a8 */
+            c->field_14  = 0;                      /* +0x14 */
+            c->field_18  = 0;                      /* +0x18 */
+            c->field_1ac = 0x1c;                   /* +0x1ac */
+        }
+        n->children[i] = c;
+    }
+
+    /* trailing scalars on the node itself. */
+    n->field_4e = 0;                               /* +0x4e = 0 */
+    n->field_54 = 0;                               /* +0x54 = 0 */
+    n->field_58 = 0;                               /* +0x58 = 0 */
+    n->field_1c = 1;                               /* +0x1c = 1 */
+    n->field_50 = 1;                               /* +0x50 = 1 */
+}

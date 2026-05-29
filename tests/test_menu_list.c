@@ -848,3 +848,133 @@ int test_finalize_iterates_all_cells(void)
     menu_ctrl_clear(&c);
     return 0;
 }
+
+/* ─── FUN_0040f3e0 menu_node_build ──────────────────────────────────── */
+
+/* The title-menu call (node, owner, 0,0,100,100,1,NULL): the node's
+ * container-header scalars are stamped, config[0] zeroed (no blob), and one
+ * child node is allocated. */
+int test_node_build_title_call(void)
+{
+    menu_node n;
+    memset(&n, 0, sizeof n);
+    int owner_marker = 0;
+    menu_node_build(&n, &owner_marker, 0, 0, 100, 100, 1, NULL);
+
+    T_ASSERT_EQ_P(n.owner, &owner_marker);
+    T_ASSERT_EQ_I(n.field4, 1);
+    T_ASSERT_EQ_I(n.selected, 0);
+    T_ASSERT_EQ_I(n.field_c, 0);
+    T_ASSERT_EQ_I(n.field_10, 0);
+    T_ASSERT_EQ_I(n.field_14, 100);
+    T_ASSERT_EQ_I(n.field_18, 100);
+    T_ASSERT_EQ_I(n.field_1c, 1);
+    T_ASSERT_EQ_I(n.field_50, 1);
+    T_ASSERT_EQ_U(n.field_4e, 0);
+    T_ASSERT_EQ_I(n.field_54, 0);
+    T_ASSERT_EQ_I(n.field_58, 0);
+    T_ASSERT_EQ_I(n.field_80, 0);
+    T_ASSERT_EQ_I(n.config[0], 0);
+    T_ASSERT_EQ_U(n.child_count, 1);
+    T_ASSERT(n.children != NULL);
+    T_ASSERT(n.children[0] != NULL);
+
+    free(n.children[0]);
+    free(n.children);
+    return 0;
+}
+
+/* A non-NULL config copies all 9 dwords into +0x5c..+0x7f. */
+int test_node_build_copies_config_blob(void)
+{
+    menu_node n;
+    memset(&n, 0, sizeof n);
+    const int32_t blob[9] = { 10, 20, 30, 40, 50, 60, 70, 80, 90 };
+    menu_node_build(&n, NULL, 7, 8, 9, 11, 0, blob);
+
+    for (int i = 0; i < 9; i++) {
+        T_ASSERT_EQ_I(n.config[i], blob[i]);
+    }
+    T_ASSERT_EQ_I(n.field_c, 7);
+    T_ASSERT_EQ_I(n.field_10, 8);
+    T_ASSERT_EQ_I(n.field_14, 9);
+    T_ASSERT_EQ_I(n.field_18, 11);
+    T_ASSERT_EQ_U(n.child_count, 0);
+    free(n.children);
+    return 0;
+}
+
+/* Each freshly allocated child gets its embedded controller zeroed and its
+ * display config (colours + label VAs) seeded; field_14/field_18 zeroed and
+ * field_1ac = 0x1c. */
+int test_node_build_child_display_config(void)
+{
+    menu_node n;
+    memset(&n, 0, sizeof n);
+    menu_node_build(&n, NULL, 0, 0, 100, 100, 2, NULL);
+
+    T_ASSERT_EQ_U(n.child_count, 2);
+    for (uint32_t i = 0; i < 2; i++) {
+        menu_node *c = (menu_node *)n.children[i];
+        T_ASSERT(c != NULL);
+        T_ASSERT_EQ_P(c->ctrl_field_164, NULL);
+        T_ASSERT_EQ_P(c->ctrl_list2, NULL);
+        T_ASSERT_EQ_P(c->ctrl_list, NULL);
+        T_ASSERT_EQ_P(c->ctrl_entries, NULL);
+        T_ASSERT_EQ_P(c->ctrl_rows, NULL);
+        T_ASSERT_EQ_U(c->color0, 0x3e537du);
+        T_ASSERT_EQ_U(c->color1, 0xa8b9ccu);
+        T_ASSERT_EQ_U(c->label0, 0x00677b98u);
+        T_ASSERT_EQ_U(c->color2, 0xf08080u);
+        T_ASSERT_EQ_U(c->color3, 0xf08080u);
+        T_ASSERT_EQ_U(c->label1, 0x008090a9u);
+        T_ASSERT_EQ_U(c->label2, 0x008090a9u);
+        T_ASSERT_EQ_U(c->color4, 0x3e537du);
+        T_ASSERT_EQ_U(c->color5, 0xa8b9ccu);
+        T_ASSERT_EQ_I(c->field_14, 0);
+        T_ASSERT_EQ_I(c->field_18, 0);
+        T_ASSERT_EQ_U(c->field_1ac, 0x1cu);
+        free(c);
+    }
+    free(n.children);
+    return 0;
+}
+
+/* A rebuild frees the previous child array (and each child via
+ * menu_ctrl_clear) before allocating the new one — verified leak-free under
+ * LSan with zeroed children (the clear is a no-op on those).  The new array
+ * pointer differs from the old and the count is updated. */
+int test_node_build_rebuild_frees_old_children(void)
+{
+    menu_node n;
+    memset(&n, 0, sizeof n);
+
+    /* Seed a prior child array of 3 zeroed nodes (as if a previous build). */
+    void **old = (void **)calloc(3, sizeof(void *));
+    for (int i = 0; i < 3; i++) old[i] = calloc(1, sizeof(menu_node));
+    n.children    = old;
+    n.child_count = 3;
+
+    menu_node_build(&n, NULL, 0, 0, 100, 100, 1, NULL);  /* rebuild → 1 child */
+
+    T_ASSERT_EQ_U(n.child_count, 1);
+    T_ASSERT(n.children != NULL);
+    T_ASSERT(n.children != old);          /* old array was freed + replaced */
+    T_ASSERT(n.children[0] != NULL);
+
+    free(n.children[0]);
+    free(n.children);
+    return 0;
+}
+
+/* n_children == 0 still allocates a (zero-length) array pointer and leaves
+ * no children; the title path never hits this but the builder must not crash. */
+int test_node_build_zero_children(void)
+{
+    menu_node n;
+    memset(&n, 0, sizeof n);
+    menu_node_build(&n, NULL, 0, 0, 0, 0, 0, NULL);
+    T_ASSERT_EQ_U(n.child_count, 0);
+    free(n.children);
+    return 0;
+}
