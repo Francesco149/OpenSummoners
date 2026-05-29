@@ -10183,6 +10183,7 @@
    "src": [
     "src/app_pump.c",
     "src/app_pump.h",
+    "src/title_scene.c",
     "src/title_scene.h",
     "src/wnd_proc.h"
    ]

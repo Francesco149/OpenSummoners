@@ -512,3 +512,36 @@ sparkles fade out *before* the ramp tops out.
 
 > 📍 `FUN_0056aea0` `switch(local_64)` @ `0x56b153..0x56b5c1`; ported as the pure
 > FSM in `src/title_scene.c` (checkpoint 1).  See `findings/title-scene.md`.
+
+## 29. The frame pacer is a fixed-16 ms-timestep accumulator with a dead vestigial FPS counter
+
+The outer loop of every scene runner (mapped here in `FUN_0056aea0`) is paced by
+a 3-state machine (`local_28` = 0/1/2) that is the textbook
+**accumulate-then-render fixed-timestep loop**, not a simple sleep-to-vsync.
+`sub==2` (update) burns the accumulated wall-clock budget (`local_30`, ms) in
+**16 ms slices** — one slice per iteration — running the input + phase FSM each
+time; when the budget is down to its last slice it flips to `sub==1` (render),
+which draws+flips, then **refills** the budget from the real elapsed
+`GetTickCount` delta (clamped to **100 ms** so a hitch can't stack an unbounded
+catch-up burst) and pumps the OS queue (`FUN_005b1030`) on the way back to
+update.  The pump is called only on the `sub==0`/`sub==1` (render→update)
+transitions, never on a pure update slice.  Consequence: on a machine fast
+enough that `GetTickCount` doesn't advance between iterations (turbo / very fast
+host), the budget never refills past one slice, so after the first update the
+loop **renders every frame** with the phase FSM frozen — exactly the "splash
+doesn't animate under `--turbo`" symptom noted earlier.
+
+Hidden inside the pacer's post-transition block is a **dead** counter: on every
+`sub==1` frame the engine increments `[esp+0x5c]` while <1000 ms have elapsed
+since a 1-second-window anchor `local_20` (and resets both otherwise) — a
+consecutive-sub-second-frame tally, i.e. an FPS / uptime counter.  A
+full-function disassembly scan finds `[esp+0x5c]` **written only, never read**;
+Ghidra dead-store-eliminates it; and `local_20`'s sole read merely gates that
+dead update, so the *entire* `sub==1` post-arm is observably inert (it changes
+no sub-transition, pump call, or render/update decision).  The port drops both
+locals — behaviourally exact — keeping only the load-bearing `sub==2` arm
+(`local_2c = now`, the anchor the budget-exhaust test measures against).
+
+> 📍 `FUN_0056aea0` pacing FSM @ `0x56b002..0x56b0c8` (r2, raw stack offsets);
+> ported as `title_pace_*` in `src/title_scene.c` (checkpoint 2).  See
+> `findings/title-scene.md` "Frame-pacing sub-state machine".

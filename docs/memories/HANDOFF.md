@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-29 (title scene runner ckpt 1)
+# Session handoff — last updated 2026-05-29 (title scene runner ckpt 2)
 
 **This is the first thing to read at the start of every session.**
 
@@ -11,31 +11,44 @@ to pick up *right now*".
 Mid-way through **milestone 0 (title screen renders)** — the
 multi-checkpoint port of `FUN_0056aea0` (3441 B title scene runner).
 
-**Checkpoint 1 just landed** (this session): the pure intro-phase /
-menu-fade state machine — the `switch(local_64)` core — is ported as
-`src/title_scene.{c,h}` + `tests/test_title_scene.c` (19 tests). It's a
-side-effect-free `title_fade_step()` that advances (phase, fade, tick,
-menu_fade) one frame and reports BGM-cue / sparkle-spawn requests via a
-`title_fade_step_out` descriptor (no link deps on unported helpers).
-**406 host tests pass, 0 fail, 6 skip; cross-build clean.** See
-PROGRESS.md 2026-05-29, quirk #28, and the per-case provenance in
-`title_scene.c` (verified against radare2 disasm `0x56b153..0x56b5c1`).
+**Checkpoint 2 just landed** (this session): the `local_28`
+**frame-pacing FSM** + the `FUN_005b1030` pump call sites — ported as
+`title_pace_*` in `src/title_scene.{c,h}` (`title_pace_step`). A pure
+fixed-16 ms-timestep accumulator: each iteration runs the *update* half
+(input + the ckpt-1 phase FSM, burning the budget in 16 ms slices) or
+the *render* half (draw + Flip), refilling the budget from the real
+`GetTickCount` delta (clamped 100 ms) and pumping on the way into
+update. `now` is passed in; pump-request + update/render decision are
+reported via `title_pace_step_out` (Win32-free, no link deps).
+**418 host tests pass, 0 fail, 6 skip (of 424); both cross-build exes
+clean.** Decoded byte-for-byte from r2 `0x56b002..0x56b0c8`.
+
+**Resolved the ckpt-1 open thread:** the `E` counter at `[esp+0x5c]`
+(r2 showed it; Ghidra dropped it) is a **dead** consecutive-sub-second-
+frame tally — full-function disasm scan finds it written-only/never-read,
+Ghidra dead-store-eliminated it, and its window anchor `D = local_20` is
+read only to gate that dead update. The *entire* `S==1` post-arm is
+observably inert → omitted, behaviourally exact. Only the `S==2` arm
+(`A = now`) is load-bearing. (See PROGRESS 2026-05-29, quirk #29, and
+the per-line provenance in `title_scene.c`.) The pacer also explains the
+`--turbo` "splash doesn't animate": frozen clock → budget never refills
+past one slice → renders every frame with the phase FSM frozen.
 
 **Orientation docs (read for the bigger picture):**
 
 - `docs/STATUS.md` — coverage headline (DERIVED). **112/1490 touched
-  (6.8%), 9.5% of bytes**, 109 host-tested. (Binary ledger: the title
-  runner was already "touched", so checkpoint 1 didn't move the number —
-  progress shows only as new provenance refs.)
+  (6.8%), 9.5% of bytes**, 109 host-tested. (Both ckpts left the number
+  flat — `FUN_0056aea0` was already "touched"; progress = new refs.)
 - `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness
   cards. Milestone 0 card describes the whole `FUN_0056aea0`.
-- `docs/findings/title-scene.md` — the function's full anatomy: the two
-  interleaved FSMs, the recovered `PTR_DAT_0056bfa4` jump table, the menu
-  + input dispatch, the joystick lazy-attach.
+- `docs/findings/title-scene.md` — the function's full anatomy. Now
+  carries the decoded **"Frame-pacing sub-state machine"** section (ckpt 2)
+  alongside the phase FSM, jump table, menu + input dispatch, joystick
+  lazy-attach.
 - `docs/port-frontier.md` — DERIVED "what to port next": 52 portable leaves.
 - `docs/audit/subsystem-survey-2026-05-29.json` — raw 22-agent survey.
   **Mine this instead of re-running.**
-- `findings/engine-quirks.md` #15–#28.
+- `findings/engine-quirks.md` #15–#29.
 
 **Tooling (run after every port that lands):**
 
@@ -46,64 +59,57 @@ python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py
 NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
 port signal. Reference *unported* callees by bare VA (`0x412c10`), not
-`FUN_00412c10`, or you'll inflate the headline (learned this checkpoint).
+`FUN_00412c10`, or you'll inflate the headline.
 
-## Module inventory (8 modules now)
+## Module inventory (8 modules)
 
 Pixel-Drawer (8 fns), Asset-Register (31), Bitmap-Session (8), WndProc
 (`FUN_005b12e0`), ZDD wrapper (40+), cs_dispatch, app_pump
-(`FUN_005b1030`), **title_scene (`FUN_0056aea0` partial — fade FSM only)**.
-Live boot zero DDERR through 10 frames in mode 2. The drop-in still uses
-its own minimal `main_loop_body`; `app_pump_frame` ported but not yet
-wired into main.c's per-frame loop.
+(`FUN_005b1030`), **title_scene (`FUN_0056aea0` partial — fade FSM +
+pacing FSM)**. Live boot zero DDERR through 10 frames in mode 2. The
+drop-in still uses its own minimal `main_loop_body`; `app_pump_frame`
+and the two title FSMs are ported but **not yet wired** into a real
+scene loop in main.c.
 
 ## Active goal
 
 **Finish `FUN_0056aea0` so the title screen draws a frame** (milestone 0).
-Checkpoint 1 (fade FSM) is done. The remaining checkpoints wire the rest
-of the function around it.
+Both pure FSMs (fade + pacing) are now done. The remaining work is the
+two loop halves the pacer dispatches to: the **update** half (input +
+menu) and the **render** half (jump-table draw + Flip).
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Checkpoint 2: the `local_28` frame-pacing FSM + the
-   outer loop skeleton.** Port the pump-coupled pacing sub-state machine
-   (asm `0x56b002..0x56b0c8`, decoded with raw stack offsets via
-   `e asm.sub.var=false`) that calls `app_pump_frame` (`FUN_005b1030`,
-   ported) and decides each iteration whether to run the *update* half
-   (`S==2` → falls through to the input + `switch(local_64)` phase FSM,
-   already ported) or the *render* half (`S==1` → jumps to `0x56bb04`,
-   the jump-table draw + flip). Build it as a pure `title_pace_step` with
-   the GetTickCount value passed in (app_pump-style). **Decoded state
-   machine** (S = sub-state at `[esp+0x50]`; now = GetTickCount; B =
-   budget `[esp+0x48]`; A `[esp+0x4c]`; C `[esp+0x44]`; D `[esp+0x58]`;
-   E `[esp+0x5c]`):
-     - `S==0`: C=now; pump(); S=2.
-     - `S==1`: B=min((B−C)+now,100); C=now; pump(); if B>16 → S=2 (else stays 1).
-     - `S==2`: if (now−A)>B → {B=0; S=1}; else {B−=16; if B≤16 → S=1}.
-     - post: if S==2 → A=now; if S==1 → if (now−D)≤1000 → E++ else {E=0; D=now}.
-     - dispatch: S==1 → render(`0x56bb04`); S==2 → update (fall through).
-   ⚠️ **Divergence resolved:** Ghidra (lines 129–136) dropped the E
-   counter (`[esp+0x5c]` inc/reset) entirely — **r2 is authoritative**.
-   Still TODO for ckpt 2: confirm whether E is ever *read* (dead vs live)
-   — couldn't pin it this session because esp shifts under arg pushes.
-   If dead, omit with a note; if live, model it.
+1. **(recommended) Knock out the update-half frontier leaves, then
+   checkpoint 3 (menu + input).** The default-branch update half (phases
+   8/9, asm `0x56b0ce..0x56bf2e`) needs: the menu-controller object
+   (`0x412c10` alloc — a **zero-dep leaf, 46 B, ready today**), the input
+   poll/latch (`0x43c110` — **leaf, 84 B, ready**; then `0x43ce50`,
+   220 B, 1 dep), the slot-populate loop (action IDs `0x1a,0x1c,0x1e,
+   0x1d,8` into `local_60->[0x174]/[0x17c]`), and the action switch
+   (`0x411390`, 413 B). `0x414080` (63 B) is also a ready leaf. Port the
+   leaves first (port-and-test rhythm shrinks the surface), then assemble
+   ckpt 3. Models the consume-on-read ring buffer at `in_ECX[1]+0x108`
+   and the `param_1` skip-intro early-out (`local_64 < 8`).
 
-2. **Checkpoint 3: the menu + input default branch (phases 8/9).** Needs
-   the menu-controller object model (`0x412c10` alloc, the `+0x174`/`+0x17c`
-   slot arrays) + input poll/latch (`0x43c110`/`0x43ce50`) + action switch
-   (`0x411390`). Several are frontier leaves — port them first to shrink
-   the surface. Models the consume-on-read ring buffer at `in_ECX[1]+0x108`.
+2. **Checkpoint 4: the render half (`0x56bb04`) — the path that actually
+   draws.** The `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries,
+   7 handlers `0x56bb5c..0x56be85`, already recovered in title-scene.md)
+   → per-phase draw bridges → frame-end `FUN_0056c180(...->[0x16c])` +
+   "Title Menu - Flipping" log + `FUN_005b8fc0(hWnd)` (the DDraw Flip).
+   This is the literal "title menu drew a frame" path but is heavily
+   DDraw/object-model-coupled (`DAT_008a93cc`/`DAT_008a93ec`, ZDDObject
+   vtable `[0x16c]`), so it's harder to unit-test purely than option 1.
 
-3. **Knock out frontier leaves** (`docs/port-frontier.md`) — the title
-   runner's own callees (`0x412c10`, `0x43c110`, `0x414080`, `0x411f40`)
-   are zero-dep leaves; porting them first feeds checkpoint 3.
+3. **Wire the scene loop into `main.c`** — once update+render exist,
+   replace the minimal `main_loop_body` with `title_pace_step` driving
+   `app_pump_frame` + `title_fade_step` + the two halves. Defer until
+   there's a real consumer (cosmetic until then).
 
-4. **Wire `app_pump_frame` into `main.c`** — small cosmetic chip; defer
-   until the scene runner gives it a real consumer.
+## Open RE threads (see ROADMAP subsystem map for the rest)
 
-## Open RE threads (now mapped — see ROADMAP subsystem map for the rest)
-
-- **`FUN_0056aea0`** title scene runner — milestone 0, card in ROADMAP.
+- **`FUN_0056aea0`** title scene runner — milestone 0. Pure FSMs done;
+  update + render halves remain (next move above).
 - **Input** `FUN_0043c110`/`_43ce50` + DInput `FUN_005ba120` — milestone 1.
   Black box: who calls `GetDeviceState` (vtable `[0x24]`) to fill the
   `+0x108` ring buffer — Frida-hook to find it.
@@ -113,6 +119,10 @@ of the function around it.
   (have Arche `0x5f5e165`, Sana `0x5f5e166`, Sophia `0x35a4e902` so far).
 - God-object `DAT_008a9b50` layout (engine-quirks #15) — model as we go.
 - `FUN_00563ef0` wave-load second half — milestone 5 support.
+- Frida turbo: add `GetTickCount` + `WaitMessage` hooks to the agent
+  (the engine uses `GetTickCount` exclusively; `timeGetTime` hook is a
+  no-op here — see PROGRESS). Quirk #29 explains *why* turbo currently
+  freezes the splash.
 
 ## How to apply
 

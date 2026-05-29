@@ -12,8 +12,8 @@
  * state machines:
  *
  *   (A) a frame-pacing sub-state machine (`local_28`) coupled to the
- *       pump FUN_005b1030 — drives ~60 Hz cadence.  [NOT in this file
- *       yet — checkpoint 2.]
+ *       pump FUN_005b1030 — drives ~60 Hz cadence.  **This file now
+ *       ports (A) too (checkpoint 2): see the title_pace_* API below.**
  *
  *   (B) an intro-phase / menu-fade state machine (`local_64`) — the
  *       fade ramps and hold timers that advance studio-logo → title-logo
@@ -39,7 +39,6 @@
  *
  * Deferred to later checkpoints (documented here so the seams are
  * visible):
- *   - the local_28 frame-pacing FSM + the FUN_005b1030 pump call sites;
  *   - the phase 8/9 menu-controller spawn (0x412c10) + the
  *     populate-5-slots loop + the input poll/latch (0x43c110 /
  *     0x43ce50) + the action switch (0x411390);
@@ -138,5 +137,84 @@ void title_fade_state_init(title_fade_state *s);
  * upstream (anything ≥ 11 never reaches the switch in retail).
  */
 title_fade_action title_fade_step(title_fade_state *s, title_fade_step_out *fx);
+
+/* ─── (A) frame-pacing sub-state machine (the `local_28` machine) ─────
+ *
+ * The outer `do { … } while(1)` of FUN_0056aea0 is paced by a tiny
+ * three-state machine (`local_28`, values 0/1/2) coupled to the message
+ * pump FUN_005b1030 (ported as app_pump_frame).  It is a fixed-16 ms-
+ * timestep accumulator: each loop iteration it either runs the *update*
+ * half (input + the local_64 phase FSM — TITLE_PACE_UPDATE) or the
+ * *render* half (jump-table draw + Flip — TITLE_PACE_RENDER), pumping
+ * the OS queue at each transition into the update state.  It burns the
+ * accumulated wall-clock budget in 16 ms slices on update frames, then
+ * renders once the budget is spent and refills it on render frames from
+ * the real elapsed time (capped at 100 ms so a stall can't stack up an
+ * unbounded catch-up burst).
+ *
+ * Decoded byte-for-byte from the radare2 disasm at 0x56b002..0x56b0c8
+ * (raw stack offsets, `e asm.sub.var=false`).  State (the trailing
+ * comment is the retail local + its raw esp displacement at the loop
+ * top, where esp is stable):
+ *
+ *   sub            the 0/1/2 sub-state itself        local_28  [esp+0x50]
+ *   budget         frame-time budget in ms (init 17) local_30  [esp+0x48]
+ *   tick_anchor    GetTickCount at the last pump (C) local_34  [esp+0x44]
+ *   render_anchor  GetTickCount at last update (A)   local_2c  [esp+0x4c]
+ *
+ * ⚠ Two retail locals are deliberately OMITTED as vestigial — the whole
+ *   `sub==1` arm of the post-transition block (asm 0x56b09d..0x56b0ba)
+ *   is observably dead:
+ *     - E `[esp+0x5c]`: a per-frame counter the block increments while
+ *       <1000 ms have elapsed since D and resets otherwise — i.e. a
+ *       consecutive-sub-second-frame tally (an FPS / uptime counter).
+ *       A full-function disassembly scan finds it WRITTEN ONLY, never
+ *       read; Ghidra's decompiler dead-store-eliminated it entirely.
+ *     - D = `local_20` `[esp+0x58]`: the 1-second-window anchor E is
+ *       measured against.  Ghidra keeps D, but its *only* read (the
+ *       `1000 < now - D` test) gates a branch whose sole effect is
+ *       updating D itself and E — both dead — so the entire block
+ *       produces no change to any live state (sub-transitions, pump
+ *       calls, or the render/update dispatch).
+ *   Dropping them is behaviourally exact; see title_scene.c.  The
+ *   `sub==2` arm of that post-block (A = now) IS load-bearing and is
+ *   kept (the next update frame measures now − A against the budget).
+ */
+
+/* sub-state values — mirror local_28 exactly (0 = first frame, 1 =
+ * render-ready, 2 = updating). */
+enum { TITLE_PACE_SUB_INIT = 0, TITLE_PACE_SUB_RENDER = 1, TITLE_PACE_SUB_UPDATE = 2 };
+
+typedef struct title_pace_state {
+    int32_t  sub;            /* local_28 */
+    uint32_t budget;         /* local_30 — ms; compared unsigned in retail */
+    uint32_t tick_anchor;    /* local_34 (C) — GetTickCount at last pump  */
+    uint32_t render_anchor;  /* local_2c (A) — GetTickCount at last update */
+} title_pace_state;
+
+/* What the enclosing loop must do this frame once pacing has resolved. */
+typedef enum title_pace_action {
+    TITLE_PACE_UPDATE = 0,   /* sub==2 → run input + the local_64 phase FSM */
+    TITLE_PACE_RENDER = 1,   /* sub==1 → run the jump-table draw + Flip     */
+} title_pace_action;
+
+/* Per-step output: whether to pump and what half to run. */
+typedef struct title_pace_step_out {
+    int               pump;   /* 1 ⇒ caller must call app_pump_frame() this step */
+    title_pace_action action; /* TITLE_PACE_UPDATE or TITLE_PACE_RENDER          */
+} title_pace_step_out;
+
+/* Entry state of the pacing machine: sub=0, budget=0x11, anchors=0.
+ * (Retail also seeds the dead window anchor D from GetTickCount at
+ * 0x56affc; irrelevant here since D is dropped.) */
+void title_pace_state_init(title_pace_state *s);
+
+/* Advance the pacing machine one loop iteration.
+ *
+ * `now` is this iteration's GetTickCount sample (the engine reads it
+ * once at the top of the loop, 0x56b002).  Fills *out with the pump
+ * request and the update/render decision for this frame.  Pure: touches
+ * only *s and *out.  Faithful to 0x56b002..0x56b0c8. */
+void title_pace_step(title_pace_state *s, uint32_t now, title_pace_step_out *out);
 
 #endif /* OPENSUMMONERS_TITLE_SCENE_H */

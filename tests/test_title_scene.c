@@ -368,3 +368,219 @@ int test_title_full_intro_walk_to_menu(void)
     T_ASSERT_EQ_I(total + 1, 529);
     return 0;
 }
+
+/* ═══ (A) frame-pacing sub-state machine ══════════════════════════════
+ *
+ * All expectations hand-computed from the disasm at 0x56b002..0x56b0c8.
+ * `now` is the GetTickCount value the enclosing loop would pass each
+ * iteration.
+ */
+
+static title_pace_action pace(title_pace_state *s, uint32_t now,
+                              title_pace_step_out *out)
+{
+    title_pace_step(s, now, out);
+    return out->action;
+}
+
+/* ─── init ───────────────────────────────────────────────────────── */
+
+int test_title_pace_init(void)
+{
+    title_pace_state s = { 7, 7, 7, 7 };
+    title_pace_state_init(&s);
+    T_ASSERT_EQ_I(s.sub, 0);
+    T_ASSERT_EQ_U(s.budget, 0x11);     /* local_30 = 0x11 (17 ms) */
+    T_ASSERT_EQ_U(s.tick_anchor, 0);
+    T_ASSERT_EQ_U(s.render_anchor, 0);
+    return 0;
+}
+
+/* ─── sub==0: first frame pumps and enters update ────────────────── */
+
+int test_title_pace_first_frame_pumps_then_updates(void)
+{
+    title_pace_state s; title_pace_state_init(&s);
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 5000, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_I(out.pump, 1);                 /* FUN_005b1030 on first frame */
+    T_ASSERT_EQ_I(s.sub, 2);                    /* S: 0 → 2 */
+    T_ASSERT_EQ_U(s.tick_anchor, 5000);         /* C = now */
+    T_ASSERT_EQ_U(s.render_anchor, 5000);       /* A = now (post sub==2) */
+    T_ASSERT_EQ_U(s.budget, 0x11);              /* budget untouched on sub==0 */
+    return 0;
+}
+
+/* ─── sub==2: burn a 16 ms slice, then render ────────────────────── */
+
+int test_title_pace_update_burns_slice_then_renders(void)
+{
+    /* now == render_anchor → 0 ms elapsed, not > budget; burn one slice.
+     * 17 - 16 = 1 ≤ 16 → leave update (S=1) → render this frame. */
+    title_pace_state s = { .sub = 2, .budget = 0x11,
+                           .tick_anchor = 900, .render_anchor = 1000 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1000, &out), TITLE_PACE_RENDER);
+    T_ASSERT_EQ_I(out.pump, 0);                 /* sub==2 path never pumps */
+    T_ASSERT_EQ_I(s.sub, 1);
+    T_ASSERT_EQ_U(s.budget, 1);                 /* 17 - 16 */
+    T_ASSERT_EQ_U(s.render_anchor, 1000);       /* unchanged (post arm is sub==2 only) */
+    return 0;
+}
+
+int test_title_pace_update_stays_updating_when_budget_high(void)
+{
+    /* budget 50: 0 ms elapsed ≤ 50 → burn slice → 34 > 16 → stay updating.
+     * The sub==2 post-arm re-anchors render_anchor = now. */
+    title_pace_state s = { .sub = 2, .budget = 50,
+                           .tick_anchor = 0, .render_anchor = 1000 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1000, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_I(out.pump, 0);
+    T_ASSERT_EQ_I(s.sub, 2);
+    T_ASSERT_EQ_U(s.budget, 34);                /* 50 - 16 */
+    T_ASSERT_EQ_U(s.render_anchor, 1000);       /* A = now */
+    return 0;
+}
+
+int test_title_pace_update_realtime_outran_budget_renders(void)
+{
+    /* 20 ms elapsed > budget 17 → zero the budget and render immediately. */
+    title_pace_state s = { .sub = 2, .budget = 0x11,
+                           .tick_anchor = 0, .render_anchor = 1000 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1020, &out), TITLE_PACE_RENDER);
+    T_ASSERT_EQ_I(s.sub, 1);
+    T_ASSERT_EQ_U(s.budget, 0);
+    return 0;
+}
+
+int test_title_pace_update_boundary_elapsed_equals_budget(void)
+{
+    /* elapsed == budget (17): the compare is `budget < elapsed` (jbe at
+     * 0x56b02d takes the else), so equality burns a slice rather than
+     * zeroing.  17 - 16 = 1 ≤ 16 → render. */
+    title_pace_state s = { .sub = 2, .budget = 0x11,
+                           .tick_anchor = 0, .render_anchor = 1000 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1017, &out), TITLE_PACE_RENDER);
+    T_ASSERT_EQ_U(s.budget, 1);                 /* burned a slice, not zeroed */
+    T_ASSERT_EQ_I(s.sub, 1);
+    return 0;
+}
+
+/* ─── sub==1: refill the budget, pump, maybe re-enter update ─────── */
+
+int test_title_pace_render_refills_and_enters_update(void)
+{
+    /* 30 ms elapsed since last pump: budget 10 + 30 = 40 > 16 → update. */
+    title_pace_state s = { .sub = 1, .budget = 10,
+                           .tick_anchor = 1000, .render_anchor = 0 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1030, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_I(out.pump, 1);                 /* FUN_005b1030 on render/refill */
+    T_ASSERT_EQ_I(s.sub, 2);
+    T_ASSERT_EQ_U(s.budget, 40);                /* 10 + (1030 - 1000) */
+    T_ASSERT_EQ_U(s.tick_anchor, 1030);         /* C = now */
+    T_ASSERT_EQ_U(s.render_anchor, 1030);       /* A = now (post sub==2) */
+    return 0;
+}
+
+int test_title_pace_render_stays_render_when_budget_small(void)
+{
+    /* 5 ms elapsed: budget 2 + 5 = 7 ≤ 16 → stay render. */
+    title_pace_state s = { .sub = 1, .budget = 2,
+                           .tick_anchor = 1000, .render_anchor = 555 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1005, &out), TITLE_PACE_RENDER);
+    T_ASSERT_EQ_I(out.pump, 1);
+    T_ASSERT_EQ_I(s.sub, 1);
+    T_ASSERT_EQ_U(s.budget, 7);
+    T_ASSERT_EQ_U(s.tick_anchor, 1005);
+    T_ASSERT_EQ_U(s.render_anchor, 555);        /* unchanged: post arm is sub==2 only */
+    return 0;
+}
+
+int test_title_pace_render_clamps_budget_to_100(void)
+{
+    /* 200 ms elapsed: 50 + 200 = 250 → clamp to 100 (then 100 > 16 → update). */
+    title_pace_state s = { .sub = 1, .budget = 50,
+                           .tick_anchor = 1000, .render_anchor = 0 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1200, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_U(s.budget, 100);               /* clamped, not 250 */
+    T_ASSERT_EQ_I(s.sub, 2);
+    return 0;
+}
+
+int test_title_pace_render_boundary_budget_exactly_16(void)
+{
+    /* budget refills to exactly 16: `16 < budget` is false → stay render. */
+    title_pace_state s = { .sub = 1, .budget = 6,
+                           .tick_anchor = 1000, .render_anchor = 0 };
+    title_pace_step_out out;
+
+    T_ASSERT_EQ_I(pace(&s, 1010, &out), TITLE_PACE_RENDER);  /* 6 + 10 = 16 */
+    T_ASSERT_EQ_U(s.budget, 16);
+    T_ASSERT_EQ_I(s.sub, 1);
+    return 0;
+}
+
+/* ─── integrative walk: a frozen clock (turbo) renders every frame ─── */
+
+int test_title_pace_frozen_clock_walk(void)
+{
+    /* With no wall-clock time passing, after the initial pump+update the
+     * budget never refills, so the machine renders every frame.  This is
+     * the documented turbo/very-fast-machine behaviour. */
+    title_pace_state s; title_pace_state_init(&s);
+    title_pace_step_out out;
+    const uint32_t T = 1000;
+
+    /* frame 1: sub 0 → update, pump. */
+    T_ASSERT_EQ_I(pace(&s, T, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_I(out.pump, 1);
+
+    /* frame 2: sub 2, 0 ms elapsed → burn 17→1, render, no pump. */
+    T_ASSERT_EQ_I(pace(&s, T, &out), TITLE_PACE_RENDER);
+    T_ASSERT_EQ_I(out.pump, 0);
+    T_ASSERT_EQ_U(s.budget, 1);
+
+    /* frames 3..12: sub 1, budget refills by 0 ms → 1 ≤ 16 → render+pump
+     * forever, budget pinned at 1. */
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(pace(&s, T, &out), TITLE_PACE_RENDER);
+        T_ASSERT_EQ_I(out.pump, 1);
+        T_ASSERT_EQ_I(s.sub, 1);
+        T_ASSERT_EQ_U(s.budget, 1);
+    }
+    return 0;
+}
+
+int test_title_pace_clock_jump_reenters_update(void)
+{
+    /* Sit in the render steady-state (frozen clock), then jump the clock
+     * forward: the refill exceeds one slice and the machine re-enters the
+     * update state, proving the render→update path off a real time delta. */
+    title_pace_state s; title_pace_state_init(&s);
+    title_pace_step_out out;
+
+    pace(&s, 1000, &out);                  /* sub 0 → 2 (update) */
+    pace(&s, 1000, &out);                  /* sub 2 → 1 (render) */
+    T_ASSERT_EQ_I(s.sub, 1);
+
+    /* clock jumps 50 ms: budget 1 + 50 = 51 > 16 → back to update. */
+    T_ASSERT_EQ_I(pace(&s, 1050, &out), TITLE_PACE_UPDATE);
+    T_ASSERT_EQ_I(s.sub, 2);
+    T_ASSERT_EQ_U(s.budget, 51);
+    T_ASSERT_EQ_U(s.tick_anchor, 1050);
+    return 0;
+}

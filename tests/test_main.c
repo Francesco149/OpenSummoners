@@ -263,6 +263,18 @@ struct test_case {
     X(title_phase10_fades_out_then_exits)                      \
     X(title_phase10_exit_when_already_zero)                    \
     X(title_full_intro_walk_to_menu)                           \
+    X(title_pace_init)                                         \
+    X(title_pace_first_frame_pumps_then_updates)               \
+    X(title_pace_update_burns_slice_then_renders)              \
+    X(title_pace_update_stays_updating_when_budget_high)       \
+    X(title_pace_update_realtime_outran_budget_renders)        \
+    X(title_pace_update_boundary_elapsed_equals_budget)        \
+    X(title_pace_render_refills_and_enters_update)             \
+    X(title_pace_render_stays_render_when_budget_small)        \
+    X(title_pace_render_clamps_budget_to_100)                  \
+    X(title_pace_render_boundary_budget_exactly_16)            \
+    X(title_pace_frozen_clock_walk)                            \
+    X(title_pace_clock_jump_reenters_update)                   \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

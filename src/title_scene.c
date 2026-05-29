@@ -207,3 +207,74 @@ title_fade_action title_fade_step(title_fade_state *s, title_fade_step_out *fx)
         return TITLE_FADE_MENU;
     }
 }
+
+/* ─── (A) frame-pacing sub-state machine ─────────────────────────────
+ *
+ * Port of the `local_28` machine + the pump call sites at the top of
+ * FUN_0056aea0's outer loop (radare2 disasm 0x56b002..0x56b0c8, raw
+ * stack offsets).  See the title_pace_* block in title_scene.h for the
+ * state map, the fixed-timestep-accumulator overview, and the rationale
+ * for omitting the dead window/FPS-counter locals (D = local_20 and E
+ * = [esp+0x5c]).
+ *
+ * All budget/anchor arithmetic is unsigned to match the engine's
+ * `jbe`/`ja` comparisons (0x56b02d, 0x56b048, 0x56b05d, 0x56b076);
+ * GetTickCount wraps mod 2^32 and the `(now - anchor)` deltas are
+ * computed in that same modular arithmetic, so a 49.7-day rollover is
+ * handled identically to retail.
+ */
+
+void title_pace_state_init(title_pace_state *s)
+{
+    s->sub           = 0;       /* local_28 = 0      (0x56afe0) */
+    s->budget        = 0x11;    /* local_30 = 0x11   (0x56afd4) */
+    s->tick_anchor   = 0;       /* local_34 = 0      (0x56afd0) */
+    s->render_anchor = 0;       /* local_2c = 0      (0x56afdc) */
+}
+
+void title_pace_step(title_pace_state *s, uint32_t now, title_pace_step_out *out)
+{
+    out->pump = 0;
+
+    if (s->sub == 0) {
+        /* 0x56b07d — first frame: anchor the pump clock, pump once, and
+         * drop straight into the update state. */
+        s->tick_anchor = now;                       /* C = now            */
+        out->pump      = 1;                          /* FUN_005b1030 @0x56b081 */
+        s->sub         = 2;                          /* S = 2  @0x56b086   */
+    } else if (s->sub == 1) {
+        /* 0x56b051 — refill: add the wall-clock elapsed since the last
+         * pump to the budget, clamp to 100 ms, re-anchor, pump, and
+         * switch to updating once more than one 16 ms slice is banked. */
+        uint32_t b = (s->budget - s->tick_anchor) + now;  /* B += now - C  */
+        if (b > 100) b = 100;                             /* min(.,100) @0x56b05d */
+        s->tick_anchor = now;                             /* C = now       */
+        s->budget      = b;
+        out->pump      = 1;                                /* FUN_005b1030 @0x56b071 */
+        if (b > 0x10) s->sub = 2;                          /* B>16 → S=2 @0x56b076 */
+    } else if (s->sub == 2) {
+        /* 0x56b01f — spend the budget in 16 ms slices.  If real time has
+         * already outrun the budget, drop straight to render; otherwise
+         * burn one slice and render once down to the final slice. */
+        if ((now - s->render_anchor) > s->budget) {        /* @0x56b02d (jbe) */
+            s->budget = 0;
+            s->sub    = 1;
+        } else {
+            s->budget -= 0x10;                             /* B -= 16        */
+            if (s->budget <= 0x10) s->sub = 1;             /* B<=16 → S=1 @0x56b048 (ja) */
+        }
+    }
+
+    /* Post-transition fix-up (0x56b08f..0x56b0be).  The retail `sub==1`
+     * arm here only maintains the dead 1-second-window frame counter
+     * (D / E) — omitted, see title_scene.h.  The `sub==2` arm re-anchors
+     * the update clock, which is load-bearing: the next update frame
+     * measures (now - render_anchor) against the budget at 0x56b02d. */
+    if (s->sub == 2) {
+        s->render_anchor = now;                            /* A = now @0x56b097 */
+    }
+
+    /* Dispatch (0x56b0be): sub==1 jumps to the render half (0x56bb04),
+     * sub==2 falls through to the update half (0x56b0ce). */
+    out->action = (s->sub == 1) ? TITLE_PACE_RENDER : TITLE_PACE_UPDATE;
+}

@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Title scene runner, checkpoint 2: frame-pacing FSM
+
+Second code chip of milestone 0.  Ported the `local_28` frame-pacing sub-state
+machine + the `FUN_005b1030` pump call sites at the top of `FUN_0056aea0`'s outer
+loop, as `title_pace_*` in `src/title_scene.{c,h}` (`title_pace_step`).  It's a
+pure fixed-16 ms-timestep accumulator: each iteration it runs the *update* half
+(input + the ckpt-1 `local_64` phase FSM) burning the wall-clock budget in 16 ms
+slices, or the *render* half (jump-table draw + Flip), refilling the budget from
+the real `GetTickCount` delta (clamped 100 ms) and pumping on the way into update.
+`now` is passed in (app_pump style); the pump request and update/render decision
+are reported via `title_pace_step_out`, so the unit stays Win32-free and
+link-dependency-free.  12 new host tests, all green (**418 pass / 0 fail / 6
+skip** of 424; both cross-build exes clean).
+
+Decoded byte-for-byte from r2 disasm `0x56b002..0x56b0c8` (raw stack offsets).
+**Resolved the open ckpt-1 thread:** the `E` counter at `[esp+0x5c]` (which r2
+showed but Ghidra dropped) is a **dead** consecutive-sub-second-frame tally — a
+full-function disassembly scan finds it written-only/never-read, and Ghidra
+dead-store-eliminated it.  Its window anchor `D = local_20` is read only to gate
+that dead update, so the *entire* `S==1` post-arm is observably inert and is
+omitted — behaviourally exact.  Only the `S==2` arm (`A = now`) is load-bearing.
+The pacer also explains the `--turbo` "splash doesn't animate" symptom: with a
+frozen clock the budget never refills past one slice, so after the first update
+the loop renders every frame with the phase FSM frozen.  See
+`findings/title-scene.md` "Frame-pacing sub-state machine" and engine-quirk #29.
+Ledger headline unchanged (112/1490) — `FUN_0056aea0` was already "touched";
+progress shows as new provenance refs.
+
+---
+
 ## 2026-05-29 — Title scene runner, checkpoint 1: intro-phase/menu-fade FSM
 
 First code chip of milestone 0 (title screen renders).  Ported the pure

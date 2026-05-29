@@ -19,7 +19,7 @@ state variables:
 
 | local var      | meaning                                                   |
 |----------------|-----------------------------------------------------------|
-| `local_28`     | pump / vsync sub-state (0 = init, 1 = ready, 2 = waiting) |
+| `local_28`     | pump / pacing sub-state (0 = first frame, 1 = render-ready, 2 = updating) — see "Frame-pacing sub-state machine" below |
 | `local_64`     | **scene phase** (the inner switch dispatch — 0..7, 10, …) |
 | `local_68`     | per-phase tick counter (frame count within the phase)     |
 | `local_30`     | tick-budget remaining for the current frame (ms)          |
@@ -32,6 +32,57 @@ The pump call `FUN_005b1030()` (the documented frame limiter — see
 103 and 113, once per loop iteration depending on the sub-state.
 The `0x10` (16 ms) and `0x11` (17 ms) constants on `local_30` are the
 ~60 Hz frame budget.
+
+## Frame-pacing sub-state machine (`local_28`)
+
+Decoded byte-for-byte from the r2 disasm at `0x56b002..0x56b0c8`
+(`e asm.sub.var=false`).  This is a **fixed-16 ms-timestep accumulator**:
+it runs the *update* half (input + the `local_64` phase FSM) as many
+16 ms slices as the banked wall-clock budget allows, then runs the
+*render* half (jump-table draw + Flip) once and refills the budget.
+
+State (raw esp displacement at the loop top, where esp is stable):
+
+| var | retail local / slot | meaning |
+|-----|---------------------|---------|
+| `S` | `local_28` `[esp+0x50]` | sub-state: 0 = first frame, 1 = render-ready, 2 = updating |
+| `B` | `local_30` `[esp+0x48]` | frame budget in ms (init `0x11` = 17) |
+| `C` | `local_34` `[esp+0x44]` | `GetTickCount` at the last pump |
+| `A` | `local_2c` `[esp+0x4c]` | `GetTickCount` at the last update entry |
+| `now` | `ebp` | `GetTickCount` sampled once per iteration (`0x56b002`) |
+
+Per-iteration logic (`now` = this frame's `GetTickCount`):
+
+```
+S==0:  C = now;  pump();  S = 2.                          (0x56b07d)
+S==1:  B = min((B - C) + now, 100);  C = now;  pump();
+       if (B > 16) S = 2.            (else stay render)   (0x56b051)
+S==2:  if ((now - A) > B)  { B = 0;  S = 1; }
+       else { B -= 16;  if (B <= 16) S = 1; }             (0x56b01f)
+post:  if (S == 2)  A = now;         (S==1 arm is dead — see below) (0x56b08f)
+disp:  S==1 → render (jump 0x56bb04);  S==2 → update (fall to 0x56b0ce). (0x56b0be)
+```
+
+All compares are **unsigned** (`jbe`/`ja`), and the `(now - anchor)`
+deltas are modular `uint32`, so the 49.7-day `GetTickCount` rollover is
+handled the same as retail.  The pump fires only on the `S==0` and
+`S==1` paths (entering update), never on a pure update slice.
+
+**Dead locals (omitted from the port).**  The `S==1` arm of the
+post-block (`0x56b09d..0x56b0ba`) maintains a 1-second-window frame
+counter `E = [esp+0x5c]` (incremented while `now − D ≤ 1000`, reset with
+its window anchor `D = local_20 [esp+0x58]` otherwise) — an FPS / uptime
+tally.  A full-function disassembly scan finds `E` **written only, never
+read**; Ghidra dead-store-eliminates `E`; and `D`'s only read just gates
+that dead update.  So the whole `S==1` post-arm is observably inert and
+is dropped — behaviourally exact.  Only the `S==2` arm (`A = now`) is
+load-bearing (the next update slice tests `now − A` against `B`).
+**Turbo consequence:** with a frozen clock the budget never refills past
+one slice, so after the first update the loop renders every frame with
+the phase FSM frozen — the documented `--turbo` "splash doesn't animate".
+
+Ported as the pure `title_pace_step` in `src/title_scene.c`
+(checkpoint 2); see also `findings/engine-quirks.md` #29.
 
 ## Inner scene-phase dispatch (`local_64`)
 

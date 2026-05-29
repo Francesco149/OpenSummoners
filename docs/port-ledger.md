@@ -57,7 +57,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x587e00 | FUN_00587e00 | 18055 | asset_register.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5a4770 | FUN_005a4770 | 45963 | app_pump.h, main.c |
-| 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.h (+1) |
+| 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
 | 0x5b12e0 | FUN_005b12e0 | 441 | wnd_proc.c, wnd_proc.h |
 | 0x5b14c0 | FUN_005b14c0 | 287 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5b5ac0 | FUN_005b5ac0 | 39 | zdd.h, zdd_win32.c |
