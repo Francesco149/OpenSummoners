@@ -721,3 +721,46 @@ inline row appends of the spawn block).
 
 > 📍 `FUN_00411f40` @ `0x411f40` (444 B); ported as `menu_row_finalize` in
 > `src/menu_list.c` (checkpoint 6).  See `findings/menu-list.md`.
+
+## 37. The menu is a tree of uniform 0x1b0 nodes — each node *is* a menu_ctrl plus display config, and Ghidra mis-typed the node builder's `this`
+
+`FUN_0040f3e0` (the menu-item / page builder, ported as `menu_node_build`)
+reveals that the engine's menus are a **tree of uniform 0x1b0-byte nodes**.
+A single node layout is reused at every level and overlays *two views* on the
+same buffer:
+
+- a **container header** (`+0x00..+0x84`): an owner back-pointer (`+0x00`),
+  scalars, and at `+0x48`/`+0x4c` a heap array of child-node pointers and its
+  u16 count;
+- an **embedded `menu_ctrl`** at `+0x00` (so `+0x164..+0x17c` are exactly
+  `menu_ctrl.field_164/list2/list/entries/rows`), followed by `0x30 B` of
+  **display config** at `+0x180..+0x1ac` (text/shadow colours `0x3e537d` /
+  `0xa8b9cc` / `0xf08080` and two label-string VAs `&DAT_00677b98` /
+  `&DAT_008090a9`).
+
+So one object is simultaneously a tree container *and* a selectable
+controller — which is why the builder frees a stale child with
+`menu_ctrl_clear` (`0x40e0c0`) before `operator delete`.  The owning list
+(`param_1`) is a `sel_list` (the `obj_container.h` single-select list) whose
+entries are these nodes; `node+0x08` is the `sel_entry` "selected" flag that
+`sel_list_mark_last` (`0x414080`) toggles right after the build.
+
+**Ghidra trap.** Ghidra mis-typed `FUN_0040f3e0`'s `__thiscall`: it rendered
+the ECX `this` as the call's *first stack arg* and dropped the real `this`.
+The decompiled call `FUN_0040f3e0(piVar11,0,0,100,100,1,0)` therefore reads as
+"operates on `piVar11`", which led the earlier `findings/menu-list.md` /
+HANDOFF notes to call it a "page-container" function.  The disassembly
+corrects this:
+
+- prologue `0x40f3ec  mov ebx, ecx` — the function works on ECX;
+- call site `0x56b606  mov ecx, [edi + ecx]` (= `owner->entries[count]`, with
+  `edi = count*4`) sets ECX to a **node**, while `0x56b609  push esi` makes
+  `owner` (= `piVar11`) the first *stack* param.
+
+So `this` is the node being configured and `piVar11` is its owner — off by
+one from the decompile.  `ret 0x1c` (7 dwords) confirms the seven stack
+params `(owner, f_c, f_10, f_14, f_18, n_children:u16, config)`.
+
+> 📍 `FUN_0040f3e0` @ `0x40f3e0` (434 B); ported as `menu_node_build` in
+> `src/menu_list.c` (checkpoint 7).  Always confirm a `__thiscall`'s ECX in
+> the disasm before trusting the decompile's argument list.

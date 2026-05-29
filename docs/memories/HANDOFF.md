@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-29 (grid-cell finalizer, ckpt 6)
+# Session handoff — last updated 2026-05-29 (menu-node builder, ckpt 7)
 
 **This is the first thing to read at the start of every session.**
 
@@ -11,56 +11,70 @@ to pick up *right now*".
 Mid-way through **milestone 0 (title screen renders)** — the
 multi-checkpoint port of `FUN_0056aea0` (3441 B title scene runner).
 
-**Checkpoint 6 just landed** (this session): the menu spawn block's
-**grid-cell finalizer**, ported into `src/menu_list.{c,h}` as
-**`menu_row_finalize`** (`FUN_00411f40`, 444 B). `__thiscall(ctrl, row)`:
-walks the row's cell array (bounded by `hdr->alloc_b`) and, per cell,
-refreshes whichever sub-objects are present:
+**Checkpoint 7 just landed** (this session): the **menu-node builder**
+`FUN_0040f3e0` (434 B), ported into `src/menu_list.{c,h}` as
+**`menu_node_build`**. It (re)configures one 0x1b0 menu node and
+(re)builds its child-node array (freeing stale children via
+`menu_ctrl_clear` first). This was the last sub-function the title-menu
+spawn block needed.
 
-- **`obj0`** → re-lays-out its glyph text via `0x40fa00` (the 800-B
-  SJIS/colour-escape/font-metric text builder — its **own subsystem, not
-  yet ported**; the call routes through an observable hook
-  `menu_cell_layout_hook` so the dispatch is testable without it).
-- **`obj54`** / **`obj20`** (when `row < hdr->count`) → re-zero their
-  modelled fields; `obj20` also recomputes `+0x1c = max(+0x14,
-  min(+0x18, 0))`.
+**Headline finding — new quirk #37 (a Ghidra trap):** the engine's menus
+are a **tree of uniform 0x1b0-byte nodes**, and Ghidra mis-typed this
+builder's `__thiscall`. The decompiled call
+`FUN_0040f3e0(piVar11,0,0,100,100,1,0)` reads as "operates on the
+page-container `piVar11`" — but disassembly proves otherwise:
 
-**Key correction — new quirk #36:** the decompile reads as a lazy
-get-or-create, but the per-sub-object `if (ptr==0) operator_new(...)`
-sits under an outer `ptr!=0` guard and is **statically unreachable**
-(verified in the disasm at `0x411fbf` / `0x412046`). So the finalizer
-**never allocates** — it only re-zeroes sub-objects built elsewhere. The
-earlier `findings/menu-list.md` claim that it "lazily operator_new's" the
-sub-objects was **wrong** and is now corrected. On the fresh title menu
-all cell pointers are NULL → the whole function is a no-op there.
+- prologue `0x40f3ec  mov ebx, ecx` → the function works on ECX;
+- call site `0x56b606  mov ecx, [edi+ecx]` (= `owner->entries[count]`) →
+  ECX `this` is the **node**, while `0x56b609 push esi` makes `piVar11`
+  (the owning `sel_list`) just `param_1`.
 
-Modelled `menu_cell_obj54` (0x54 B) / `menu_cell_obj20` (0x20 B) in
-`menu_list.h`. **499 host tests pass, 0 fail, 6 skip (of 505)** — 6 new
-(fresh no-op, obj54 re-zero, obj20 re-zero+clamp, row-outruns-count guard,
-obj0 layout-hook dispatch, all-cells iteration; ASan/LSan clean). Both
-cross-build exes clean (32-bit `_Static_assert`s on the two new structs
-hold). Ledger **121/1490 touched (7.4%), 118 tested** — unchanged, because
-`0x411f40` had been provisionally counted via a ckpt-5 header comment using
-the `FUN_` token; this port makes that count legitimate.
+So the earlier "page-container, likely obj_container territory" prediction
+in HANDOFF/`findings/menu-list.md` was **off by one** and is corrected.
+**Lesson:** always confirm a `__thiscall`'s ECX in the disasm (r2 `pdf`)
+before trusting the decompile's arg list — same discipline that caught the
+ckpt-6 dead-alloc.
+
+Each node overlays two views on one buffer: a **container header**
+(`+0x00..+0x84`; child-ptr array `+0x48`, u16 count `+0x4c`) and an
+**embedded `menu_ctrl`** at `+0x00` (so `+0x164..+0x17c` are
+`field_164/list2/list/entries/rows`) plus `0x30 B` of **display config**
+at `+0x180..+0x1ac` (colours + label VAs). That dual identity is why the
+builder frees a stale child with `menu_ctrl_clear`. Modelled `menu_node`
+(0x1b0) in `menu_list.h`.
+
+**504 host tests pass, 0 fail, 6 skip (of 510)** — 5 new (title call,
+config-blob copy, per-child display config, rebuild-frees-old-children
+under LSan, zero-children; ASan/LSan clean). Both cross-builds clean (new
+32-bit offset asserts + a `sizeof(menu_node) >= sizeof(menu_ctrl)`
+cast-safety assert all hold). Ledger **122/1490 touched (7.5%), 119
+tested**.
 
 **Orientation docs (read for the bigger picture):**
 
-- `docs/STATUS.md` — coverage headline (DERIVED). 121/1490 touched, 9.7%
-  of bytes, 118 host-tested.
+- `docs/STATUS.md` — coverage headline (DERIVED). 122/1490 touched, 9.7%
+  of bytes, 119 host-tested.
 - `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness.
 - `docs/findings/title-scene.md` — the title runner's full anatomy.
 - `docs/findings/menu-list.md` — the menu controller: scroll/nav/latch,
-  geometry ctor/dtor, **NEW** the grid-cell finalizer, and what remains.
+  geometry ctor/dtor, the grid-cell finalizer, **NEW** the menu-node
+  builder + the menu-tree structure, and what remains.
 - `docs/findings/input.md` — the input ring + poll; only the ring
   *producer* remains black-box.
 - `docs/port-frontier.md` — DERIVED "what to port next".
-- `findings/engine-quirks.md` #15–**#36**.
+- `findings/engine-quirks.md` #15–**#37**.
 
 **Tooling (run after every port that lands):**
 
 ```
 python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py
 ```
+
+**Static disasm:** the canonical unpacked image for r2 is
+`vendor/unpacked/sotes.unpacked.exe` (the `vendor/original/sotes.exe`
+symlink target is the **packed** Steam build — its `.text` is encrypted, so
+r2 reads garbage there). Recipe:
+`nix develop --command bash -c "r2 -q -e scr.color=0 -c 'af @ <va>; pdf @ <va>' vendor/unpacked/sotes.unpacked.exe"`.
 
 **Structural-parity harness (offline foundation landed 2026-05-29):**
 call-graph diff + mem-watch, mirroring `../openrecet`. How-to:
@@ -72,8 +86,7 @@ live retail-under-Frida run to verify** (human-verification gate).
 NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
 port signal. Reference *unported* callees by bare VA (`0x40fa00`,
-`0x40f3e0`), not `FUN_...`, or you'll inflate the headline. (This bit us
-on `0x411f40` at ckpt 5 — now moot since it's ported.)
+`0x40f3e0`), not `FUN_...`, or you'll inflate the headline.
 
 ## Module inventory (11 modules)
 
@@ -81,43 +94,42 @@ Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper,
 cs_dispatch, app_pump, title_scene (`FUN_0056aea0` partial — fade FSM +
 pacing FSM), input (`FUN_0043c110`), obj_container (`FUN_00412c10` +
 `FUN_00414080`), **menu_list (`FUN_004192b0` + `FUN_0043ca40` +
-`FUN_0043ce50` + `FUN_0040f5c0` + `FUN_0040e0c0` + `FUN_00411f40`)**.
-Live boot zero DDERR through 10 frames in mode 2. The drop-in still uses
-its own minimal `main_loop_body`; the ported title FSMs + the menu chain
-are **not yet wired** into a real scene loop in main.c.
+`FUN_0043ce50` + `FUN_0040f5c0` + `FUN_0040e0c0` + `FUN_00411f40` +
+`FUN_0040f3e0`)**. Live boot zero DDERR through 10 frames in mode 2. The
+drop-in still uses its own minimal `main_loop_body`; the ported title FSMs
++ the menu chain are **not yet wired** into a real scene loop in main.c.
 
 ## Active goal
 
 **Finish `FUN_0056aea0` so the title screen draws a frame** (milestone 0).
 Done: both pure FSMs (fade + pacing), the update half's input poll, the
 container leaves, the whole menu input→action chain, the controller
-geometry alloc/free, and now the grid-cell finalizer. Remaining for the
-update half: **the menu-item builder (`0x40f3e0`) + the spawn-block
-assembly**. Then the **render half** (the path that draws + Flips).
+geometry alloc/free, the grid-cell finalizer, and now the menu-node
+builder. Remaining for the update half: **just the spawn-block assembly**
+(cheap inline row appends). Then the **render half** (draws + Flips).
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Port the menu-item builder `0x40f3e0` (434 B), then
-   assemble the spawn block.** This is the last sub-function the spawn
-   block needs. NB it operates on the **page-container** object (`*in_ECX`
-   in `0x56aea0`, the god-object's list), **not** the menu controller — so
-   it likely belongs in `obj_container`, not `menu_list`; decide placement
-   first. It copies a 9-dword config blob into `+0x5c..+0x7c`, seeds scalars,
-   frees the old item array (`+0x48`, count u16 `+0x4c`), then allocs N ×
-   `0x1b0`-byte items. **Already verified (disasm 0x40f45b):** each `0x1b0`
-   item **embeds a full `menu_ctrl` (0x180 B)** — the free loop calls
-   `menu_ctrl_clear` on each item — **followed by 0x30 B of display config**
-   (colours `0x3e537d`/`0xa8b9cc`/`0xf08080`, label ptrs `&DAT_00677b98`/
-   `&DAT_008090a9`, `+0x1ac=0x1c`). See `findings/menu-list.md` "Still
-   unported" for the full field map. Needs the page-container struct + the
-   `0x1b0` item modelled before porting. Then **assemble the spawn block**
-   (`0x56aea0` default branch, lines ~385–465): the `param_1` skip-intro
-   early-out, the page-container populate (`0x40f3e0` + `FUN_00414080`),
-   `obj_pool_acquire` → `menu_ctrl_build(0,0,6,1,6,0)`, the 5 inline row
-   appends (`field0=0`, `action=0x1a/0x1c/0x1e/0x1d/8`, `flag8=1`, bump
-   `count`, then `menu_row_finalize` — a no-op on the fresh NULL cells),
-   then the cursor-seek + `menu_list_scroll_into_view`. Finishes the
-   update half.
+1. **(recommended) Assemble the spawn block** (`0x56aea0` default branch,
+   lines ~385–465) — now that every sub-function it calls is ported. The
+   sequence (disasm `0x56b5cd..0x56b6xx`):
+   - `piVar11 = owner sel_list = *in_ECX`; if `count(+6) < cap(+4)`:
+     `menu_node_build(owner->entries[count], owner, 0,0,100,100,1,NULL)`,
+     bump `owner->count(+6)`, `sel_list_mark_last(owner)`, stash the active
+     node ptr;
+   - `local_60 = obj_pool_acquire()`; if non-NULL
+     `menu_ctrl_build(local_60, 0,0,6,1,6,0)`;
+   - 5 inline row appends (each: guard `hdr.count < hdr.alloc_a`, write
+     `row.field0=0`, `row.action = 0x1a/0x1c/0x1e/0x1d/8`, `row.flag8=1`,
+     bump `hdr.count`, then `menu_row_finalize(local_60, idx)` — a no-op on
+     the fresh NULL cells);
+   - cursor-seek: walk the rows, find the one whose `field0==0` matches the
+     god-object key `*(*DAT_008a6e80 + 0xa60)`, set `hdr.cursor`, call
+     `menu_list_scroll_into_view`.
+   This is mostly inline stores on already-modelled structs — should be a
+   clean, well-tested checkpoint that **finishes the update half**. Decide
+   where it lives (a `title_scene` helper that drives the menu_list +
+   obj_container + sel_list objects, since it's `0x56aea0`'s own code).
 
 2. **Checkpoint: the render half (`0x56bb04`)** — the path that draws.
    `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries, 7 handlers,
@@ -134,14 +146,14 @@ assembly**. Then the **render half** (the path that draws + Flips).
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
 - **`FUN_0056aea0`** title scene runner — milestone 0. Pure FSMs + the full
-  update-half input chain + the controller geometry + the grid-cell
-  finalizer done; the menu-item builder (`0x40f3e0`) + spawn-block assembly
-  + render half remain.
+  update-half input chain + controller geometry + grid-cell finalizer +
+  menu-node builder done; only the spawn-block assembly (inline appends) +
+  the render half remain.
 - **`0x40fa00`** the cell text-layout / glyph builder (800 B; SJIS parse,
   `#`-colour escapes, font-metric table; calls `0x40fd20`/`0x4051d0`/
   `0x4034f0`) — its own text subsystem; `menu_row_finalize` calls it via a
-  hook until it lands. Only fires for cells with a built `obj0` (not the
-  fresh title menu).
+  hook until it lands. Also feeds the menu-node display config (label VAs
+  `&DAT_00677b98`/`&DAT_008090a9`).
 - **Input** poll + latch + nav **DONE**. Remaining: the **producer** that
   fills the `+0x108` ring (DInput `GetDeviceState`) — black box;
   `mem_watch.py` is the tool. See `findings/input.md` / `menu-list.md`.
@@ -164,9 +176,10 @@ When the user says "continue RE work" (or similar):
    and a test spot-checking behaviour vs hand-computed expectations. Pin
    retail struct offsets via `_Static_assert` guarded by
    `#if UINTPTR_MAX == 0xFFFFFFFFu`. For a Ghidra-unrecovered jump table,
-   recover it in r2 first (`pxw <n> @ <table-va>`), like ckpt 4b. When a
-   decompiled branch looks contradictory, **disassemble it** (r2 `pdf`) to
-   resolve — that's how ckpt 6 caught the dead-alloc quirk #36.
+   recover it in r2 first (`pxw <n> @ <table-va>`). When a decompiled branch
+   or a `__thiscall` arg list looks contradictory, **disassemble it** (r2
+   `pdf`) to resolve — that's how ckpt 6 caught the dead-alloc and ckpt 7
+   caught the mis-typed `this`.
 4. **Append any engine quirk** you find to `findings/engine-quirks.md`.
 5. **Regenerate the derived artifacts** (`gen_port_ledger.py` +
    `gen_frontier.py`) when a port lands.

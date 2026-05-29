@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Menu-node builder + the menu-tree structure, ckpt 7
+
+Ported `FUN_0040f3e0` (434 B) into `menu_list` as **`menu_node_build`** — the
+0x1b0 menu-item / page builder.  It (re)configures one menu node from its
+params and (re)builds the node's child-node array, freeing any stale children
+via `menu_ctrl_clear` first.  This is the last sub-function the title-menu
+spawn block needed; only the cheap inline row appends remain to finish the
+update half.
+
+**Headline finding (new quirk #37):** the engine's menus are a **tree of
+uniform 0x1b0-byte nodes**, and Ghidra mis-typed this builder's `__thiscall`.
+The decompiled call `FUN_0040f3e0(piVar11,0,0,100,100,1,0)` reads as "operates
+on `piVar11`", but the disasm (`0x40f3ec mov ebx,ecx`; call site `0x56b606
+mov ecx,[owner->entries + count*4]`) shows the ECX `this` is the **node** being
+configured and `piVar11` is `param_1` (the owning `sel_list`) — Ghidra dropped
+the ECX node and rendered it as the first arg.  So the earlier "page-container"
+reading in `findings/menu-list.md` / HANDOFF was off by one, now corrected.
+
+Each node overlays two views on one buffer: a **container header**
+(`+0x00..+0x84`, child-pointer array at `+0x48`, u16 count at `+0x4c`) and an
+**embedded `menu_ctrl`** at `+0x00` (so `+0x164..+0x17c` are
+`field_164/list2/list/entries/rows`) followed by `0x30 B` of **display config**
+at `+0x180..+0x1ac` (text/shadow colours `0x3e537d`/`0xa8b9cc`/`0xf08080` +
+label VAs `&DAT_00677b98`/`&DAT_008090a9`).  That dual identity is why the
+builder tears a stale child down with `menu_ctrl_clear`.  Modelled `menu_node`
+(0x1b0) in `menu_list.h`, pinned by guarded 32-bit `_Static_assert`s.
+
+5 new host tests (title call, config-blob copy, per-child display config,
+rebuild-frees-old-children under LSan, zero-children).  **504 pass / 0 fail /
+6 skip (of 510)**; both cross-builds clean (the new 0x1b0/offset asserts and
+the `sizeof(menu_node) >= sizeof(menu_ctrl)` cast-safety assert all hold).
+Ledger **122/1490 touched (7.5%), 119 tested**.  See commit `a78073a`,
+`findings/menu-list.md`, and quirk #37.
+
+---
+
 ## 2026-05-29 — Menu grid-cell finalizer + dead-alloc quirk, ckpt 6
 
 Ported the menu spawn block's **grid-cell finalizer** into `menu_list` as
