@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Title scene runner, checkpoint 1: intro-phase/menu-fade FSM
+
+First code chip of milestone 0 (title screen renders).  Ported the pure
+arithmetic core of `FUN_0056aea0` (the 3441-byte title scene runner): the
+`switch(local_64)` intro-phase / menu-fade state machine, as
+`src/title_scene.{c,h}` (`title_fade_step`).  19 host tests, all green
+(406 pass / 0 fail / 6 skip total; cross-build clean).
+
+Verified the control flow against raw radare2 disasm before porting — the
+`PTR_DAT_0056bfa4` 11-entry phase jump table (`0x56bb5c..0x56be85`, 7 distinct
+handlers) and the `switch` table at `0x56bf68` both match `findings/title-scene.md`,
+and every fade constant/threshold in cases 0..10 was confirmed against
+`0x56b153..0x56b5c1`.  The FSM is kept **side-effect-free**: the two outward
+signals (the studio→title BGM "SetNextSegment" cue, and the phase-7 sparkle
+spawn at intensity `(fade*0xe0)/900+0xc0`) are reported through a per-frame
+`title_fade_step_out` descriptor instead of calling the still-unported engine
+helpers — so `title_scene.c` has zero link dependencies and drops straight into
+both the host suite and the mingw `.exe`.  New quirk **#28** (single reused
+0..1000 fade ramp across 8 phases + the menu "breathing" oscillator).
+
+**Deferred to later checkpoints** (seams documented in `title_scene.h`): the
+`local_28` frame-pacing FSM + `FUN_005b1030` pump call sites; the phase-8/9
+menu-controller spawn (`0x412c10`) + 5-slot populate + input poll/latch
+(`0x43c110`/`0x43ce50`) + action switch (`0x411390`); the render-half jump-table
+draw handlers + frame-end flip (`0x56c180` + `FUN_005b8fc0`); the `param_1`
+skip-intro + ring-buffer "press to skip splash" early-out; joystick lazy-attach
+(`0x5ba120`); the `local_50` watchdog.  Ledger headline unchanged (112 touched —
+`FUN_0056aea0` was already counted; the ledger is binary, so partial progress
+isn't reflected in the count, only in the new provenance refs).
+
 ## 2026-05-29 — Project-wide audit + workflow tooling (no code port)
 
 Brought OpenSummoners up to the sibling-project (OpenMare / OpenLords2)

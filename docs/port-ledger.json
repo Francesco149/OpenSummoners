@@ -8121,7 +8121,8 @@
     "src/asset_register.h",
     "src/main.c",
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/title_scene.h"
    ]
   },
   {
@@ -8399,6 +8400,8 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/title_scene.c",
+    "src/title_scene.h",
     "src/zdd.h"
    ]
   },
@@ -10180,6 +10183,7 @@
    "src": [
     "src/app_pump.c",
     "src/app_pump.h",
+    "src/title_scene.h",
     "src/wnd_proc.h"
    ]
   },
@@ -11169,6 +11173,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/title_scene.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

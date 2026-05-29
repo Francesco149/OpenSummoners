@@ -33,9 +33,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x562210 | FUN_00562210 | 688 | app_pump.h |
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+2) |
+| 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+3) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | main.c, zdd.h |
+| 0x56aea0 | FUN_0056aea0 | 3441 | main.c, title_scene.c, title_scene.h (+1) |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |
@@ -57,7 +57,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x587e00 | FUN_00587e00 | 18055 | asset_register.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5a4770 | FUN_005a4770 | 45963 | app_pump.h, main.c |
-| 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, wnd_proc.h |
+| 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.h (+1) |
 | 0x5b12e0 | FUN_005b12e0 | 441 | wnd_proc.c, wnd_proc.h |
 | 0x5b14c0 | FUN_005b14c0 | 287 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5b5ac0 | FUN_005b5ac0 | 39 | zdd.h, zdd_win32.c |
@@ -90,7 +90,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
 | 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | main.c, zdd.c, zdd.h (+1) |
+| 0x5b8fc0 | FUN_005b8fc0 | 335 | main.c, title_scene.h, zdd.c (+2) |
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |

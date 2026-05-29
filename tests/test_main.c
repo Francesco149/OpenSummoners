@@ -244,6 +244,25 @@ struct test_case {
     X(app_pump_limiter_disabled_no_tick_reads)                 \
     X(app_pump_null_ctx_does_not_crash)                        \
     X(app_pump_drain_then_limiter_first_frame)                 \
+    X(title_fade_init_zeroes)                                  \
+    X(title_phase0_ramps_by_20_to_1000)                        \
+    X(title_phase0_clamps_at_1000)                             \
+    X(title_phase1_holds_50_then_advances)                     \
+    X(title_phase2_fades_out_and_fires_segment_once)           \
+    X(title_phase2_fade_out_saturates_at_zero)                 \
+    X(title_phase3_ramps_by_10_to_1000)                        \
+    X(title_phase4_holds_20_then_resets_fade)                  \
+    X(title_phase5_fade_caps_then_tick_bound_advance)          \
+    X(title_phase6_holds_120_then_phase7)                      \
+    X(title_phase7_spawns_sparkles_below_850)                  \
+    X(title_phase7_holds_90_then_menu)                         \
+    X(title_phase7_fade_clamps_at_1000)                        \
+    X(title_phase8_returns_menu_and_ramps_fade_first)          \
+    X(title_phase9_fades_menu_down_then_back_to_8)             \
+    X(title_phase9_menu_fade_saturates_at_zero)                \
+    X(title_phase10_fades_out_then_exits)                      \
+    X(title_phase10_exit_when_already_zero)                    \
+    X(title_full_intro_walk_to_menu)                           \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

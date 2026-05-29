@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-05-29 (audit + workflow tooling)
+# Session handoff — last updated 2026-05-29 (title scene runner ckpt 1)
 
 **This is the first thing to read at the start of every session.**
 
@@ -8,80 +8,87 @@ to pick up *right now*".
 
 ## Where we are
 
-This checkpoint was a **project-wide audit + tooling setup**, not a code
-port. We brought OpenSummoners up to the sibling-project (OpenMare /
-OpenLords2) workflow standard and mapped the whole binary so future
-sessions never re-analyze the same code.
+Mid-way through **milestone 0 (title screen renders)** — the
+multi-checkpoint port of `FUN_0056aea0` (3441 B title scene runner).
 
-**New this checkpoint — read these for orientation:**
+**Checkpoint 1 just landed** (this session): the pure intro-phase /
+menu-fade state machine — the `switch(local_64)` core — is ported as
+`src/title_scene.{c,h}` + `tests/test_title_scene.c` (19 tests). It's a
+side-effect-free `title_fade_step()` that advances (phase, fade, tick,
+menu_fade) one frame and reports BGM-cue / sparkle-spawn requests via a
+`title_fade_step_out` descriptor (no link deps on unported helpers).
+**406 host tests pass, 0 fail, 6 skip; cross-build clean.** See
+PROGRESS.md 2026-05-29, quirk #28, and the per-case provenance in
+`title_scene.c` (verified against radare2 disasm `0x56b153..0x56b5c1`).
 
-- `docs/STATUS.md` — 60-second coverage headline (DERIVED).
-  Currently **112/1490 engine-proper functions touched (6.8%), 9.5% of
-  code bytes**, 109 host-tested.
-- `docs/ROADMAP.md` — the semantic layer: **11-milestone order** (title →
-  menu → audio → new game → movement → dialogue → battle → save →
-  tutorial dungeon), a full **subsystem map** of every address band, and
-  **port-readiness cards** for the next 5 forward-path clusters.
-- `docs/port-frontier.md` — DERIVED "what to port next": 114 frontier
-  functions, **52 zero-dependency leaves portable today**.
-- `docs/port-ledger.{md,json}` — DERIVED per-function port status.
-- `docs/findings/INDEX.md` — map of the 10 subsystem RE writeups.
-- `docs/audit/subsystem-survey-2026-05-29.json` — the raw structured
-  result of the 22-agent survey (16 band-maps + 6 scout cards + 136
-  quirks). **Mine this instead of re-running the survey.**
-- `findings/engine-quirks.md` #15–#27 — the load-bearing/charming quirks
-  the survey surfaced (god-object singleton, frame-pump `return 6` quit
-  convention, hash-id asset directory *with recovered character names*,
-  struct strides, the LCG RNG, WMA-temp-file BGM, …).
+**Orientation docs (read for the bigger picture):**
 
-**New tooling (run after every port that lands):**
+- `docs/STATUS.md` — coverage headline (DERIVED). **112/1490 touched
+  (6.8%), 9.5% of bytes**, 109 host-tested. (Binary ledger: the title
+  runner was already "touched", so checkpoint 1 didn't move the number —
+  progress shows only as new provenance refs.)
+- `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness
+  cards. Milestone 0 card describes the whole `FUN_0056aea0`.
+- `docs/findings/title-scene.md` — the function's full anatomy: the two
+  interleaved FSMs, the recovered `PTR_DAT_0056bfa4` jump table, the menu
+  + input dispatch, the joystick lazy-attach.
+- `docs/port-frontier.md` — DERIVED "what to port next": 52 portable leaves.
+- `docs/audit/subsystem-survey-2026-05-29.json` — raw 22-agent survey.
+  **Mine this instead of re-running.**
+- `findings/engine-quirks.md` #15–#28.
+
+**Tooling (run after every port that lands):**
 
 ```
 python3 tools/gen_port_ledger.py && python3 tools/gen_frontier.py
 ```
 
-Regenerates STATUS / ledger / frontier from `src/` `FUN_<va>` provenance
-comments + `functions.csv`. `--check` on the ledger gen exits 3 if stale
-(pre-commit-ready). The survey workflow is `tools/workflows/subsystem-survey.js`.
+NB: only put a `FUN_<va>` token in `src/` for a function you have
+actually ported — the ledger generator treats any `FUN_<va>` in src as a
+port signal. Reference *unported* callees by bare VA (`0x412c10`), not
+`FUN_00412c10`, or you'll inflate the headline (learned this checkpoint).
 
-## State before the audit (unchanged — still current code state)
+## Module inventory (8 modules now)
 
-Seven modules ported + wired (387 host tests pass, 0 fail, 6 skip;
-cross-build clean with mingw). Live boot zero DDERR through 10 frames in
-mode 2. The drop-in still uses its own minimal `main_loop_body`;
-`app_pump_frame` is ported but not yet wired into main.c's per-frame loop.
-
-- **Pixel-Drawer** (8 fns, 39 tests), **Asset-Register** (31, 111),
-  **Bitmap-Session** (8, 31), **WndProc** (`FUN_005b12e0`, 19),
-  **ZDD wrapper** (40+, 153), **cs_dispatch** (21), **app_pump**
-  (`FUN_005b1030`, 16).
-
-See `docs/STATUS.md` "Current front" and the file layout in PROGRESS.md
-2026-05-25 for the full module breakdown.
+Pixel-Drawer (8 fns), Asset-Register (31), Bitmap-Session (8), WndProc
+(`FUN_005b12e0`), ZDD wrapper (40+), cs_dispatch, app_pump
+(`FUN_005b1030`), **title_scene (`FUN_0056aea0` partial — fade FSM only)**.
+Live boot zero DDERR through 10 frames in mode 2. The drop-in still uses
+its own minimal `main_loop_body`; `app_pump_frame` ported but not yet
+wired into main.c's per-frame loop.
 
 ## Active goal
 
-**Get the title menu rendering** (ROADMAP milestone 0). All prerequisite
-"small leaves" are ported. The remaining work is the scene runner itself,
-`FUN_0056aea0` (3441 B) — a multi-checkpoint port.
+**Finish `FUN_0056aea0` so the title screen draws a frame** (milestone 0).
+Checkpoint 1 (fade FSM) is done. The remaining checkpoints wire the rest
+of the function around it.
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Begin the title-menu scene runner port
-   (`FUN_0056aea0`).** Read the fresh card in `ROADMAP.md` (milestone 0)
-   and `findings/title-scene.md`. Start with the outer skeleton +
-   state-vars (`local_28`, `local_64`, `local_68`, `local_30`) and the
-   pump-callsite plumbing. The `PTR_DAT_0056bfa4` jump table needs
-   radare2 to recover (Ghidra gave up) — 7 handlers over 11 phase
-   indices. Stub unported helpers as TODO panics so the structure lands
-   first. Multi-checkpoint by design.
+1. **(recommended) Checkpoint 2: the `local_28` frame-pacing FSM + the
+   outer loop skeleton.** Port the pump-coupled pacing sub-state machine
+   (Ghidra `FUN_0056aea0` lines 98–161; asm `0x56b002..0x56b0c8`) that
+   calls `app_pump_frame` (`FUN_005b1030`, already ported) and decides,
+   each iteration, whether to run the *update* half (drives `title_fade_step`)
+   or the *render* half. ⚠️ **Resolve first:** r2 and Ghidra disagree on
+   the 1-second watchdog re-anchor block at `0x56b09d..0x56b0ba` (r2 shows
+   an `inc/reset` on a slot Ghidra omits). Decode that block from raw
+   bytes before porting — it's the one piece of the pacing FSM I did not
+   trust enough to port in ckpt 1. Build it as another pure step
+   (`title_pace_step`) with the GetTickCount value passed in, like
+   app_pump's hooks.
 
-2. **Knock out frontier leaves** (`docs/port-frontier.md`) — 52 portable
-   today, several are the title runner's own callees (`0x412c10` menu
-   alloc, `0x43c110` input poll, `0x414080`, `0x411f40`). Porting these
-   first shrinks the runner's stub surface.
+2. **Checkpoint 3: the menu + input default branch (phases 8/9).** Needs
+   the menu-controller object model (`0x412c10` alloc, the `+0x174`/`+0x17c`
+   slot arrays) + input poll/latch (`0x43c110`/`0x43ce50`) + action switch
+   (`0x411390`). Several are frontier leaves — port them first to shrink
+   the surface. Models the consume-on-read ring buffer at `in_ECX[1]+0x108`.
 
-3. **Wire `app_pump_frame` into `main.c`** — small cosmetic chip; defer
+3. **Knock out frontier leaves** (`docs/port-frontier.md`) — the title
+   runner's own callees (`0x412c10`, `0x43c110`, `0x414080`, `0x411f40`)
+   are zero-dep leaves; porting them first feeds checkpoint 3.
+
+4. **Wire `app_pump_frame` into `main.c`** — small cosmetic chip; defer
    until the scene runner gives it a real consumer.
 
 ## Open RE threads (now mapped — see ROADMAP subsystem map for the rest)

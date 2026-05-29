@@ -490,3 +490,25 @@ highlighted slot (so "Continue" only auto-selects when a save exists).  Reorder
 or omit a slot and menu init breaks.
 
 > 📍 `FUN_0056aea0:401-464`.
+
+## 28. The title intro is one reused 0..1000 fade ramp across 8 phases, then a "breathing" menu oscillator
+
+The whole studio-logo → title-logo → "press button" → sparkle intro is driven by
+a **single** fade accumulator (`uVar15`, range 0..1000) that is reset and
+re-purposed at each phase boundary, with a *different per-phase increment*
+(`+20`, `+10`, `+100`, `+10`, `+20`) and *two distinct saturation idioms*: the
+fade-*in* phases clamp with a plain `if (v > 1000) v = 1000` after the add, while
+the fade-*out* phases (2 and 10) and the menu cross-fade use a branchless
+`max(v - d, 0)` (`setl bl; dec ebx; and ebx, eax`).  Phase advance is gated
+sometimes by the fade reaching its rail and sometimes by a *separate* hold-timer
+(`local_68`) — e.g. phase 5 saturates the fade in 10 frames but holds for 40.
+
+Once the menu is up (phases 8/9) the same `uVar15` first ramps to 1000, then a
+*second* ramp `local_58` oscillates **up to 1000 (phase 8) then back down to 0
+(phase 9), forever** — this is the menu highlight's pulsing "breathing" glow, a
+two-state loop with no exit except a menu action.  The phase-7 sparkle intensity
+is `(fade * 0xe0) / 900 + 0xc0` and is only spawned while `fade < 850`, so the
+sparkles fade out *before* the ramp tops out.
+
+> 📍 `FUN_0056aea0` `switch(local_64)` @ `0x56b153..0x56b5c1`; ported as the pure
+> FSM in `src/title_scene.c` (checkpoint 1).  See `findings/title-scene.md`.
