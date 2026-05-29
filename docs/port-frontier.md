@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **111**
-- of those, zero-dependency **leaves: 49** (recommended order below)
+- frontier functions: **110**
+- of those, zero-dependency **leaves: 48** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -31,7 +31,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4022a0 | 47 | 1 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x58c8d0 | 51 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x58d020 | 51 | 1 | master sprite-group register + audio/music init + anim pump |
-| 0x4192b0 | 52 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5bbc90 | 55 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbb10 | 56 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x412db0 | 57 | 1 | menu/dialog controller + char init + shop/NPC + save path |
@@ -54,6 +53,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4118b0 | 134 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x47b7c0 | 163 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x58ca80 | 167 | 1 | master sprite-group register + audio/music init + anim pump |
+| 0x5878a0 | 207 | 1 | master sprite-group register + audio/music init + anim pump |
 
 ## Full frontier by address band
 
@@ -71,14 +71,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4017d0 | 1175 | 1 | 1 |  |
 | 0x40c380 | 5077 | 1 | 100 |  |
 
-### menu/dialog controller + char init + shop/NPC + save path (17)
+### menu/dialog controller + char init + shop/NPC + save path (16)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41bbe0 | 312 | 2 | 1 |  |
 | 0x4184a0 | 1035 | 2 | 2 |  |
 | 0x418470 | 40 | 1 | 1 |  |
-| 0x4192b0 | 52 | 1 | 0 | ✓ |
 | 0x412db0 | 57 | 1 | 0 | ✓ |
 | 0x41bb80 | 95 | 1 | 0 | ✓ |
 | 0x417870 | 106 | 1 | 0 | ✓ |

@@ -293,6 +293,12 @@ struct test_case {
     X(sel_mark_last_single_entry)                              \
     X(sel_mark_last_empty_is_noop)                             \
     X(sel_mark_last_reselects_new_tail)                        \
+    X(menu_scroll_recomputes_page_top)                         \
+    X(menu_scroll_noop_when_in_view)                           \
+    X(menu_scroll_moves_back_up)                               \
+    X(menu_scroll_stride_one_tracks_cursor)                    \
+    X(menu_scroll_boundary_cursor)                             \
+    X(menu_scroll_cursor_zero)                                 \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \
