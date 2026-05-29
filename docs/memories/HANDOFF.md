@@ -93,17 +93,33 @@ container leaves, and now the whole menu input→action chain. Remaining:
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Port the menu-spawn-block leaves, then assemble it.**
+1. **(recommended) Port the menu-spawn-block constructors, then assemble.**
    The `0x56aea0` default branch (lines ~385–465) builds the controller on
    first entry and populates 5 menu rows with action IDs `0x1a,0x1c,0x1e,
-   0x1d,8` into `local_60->[0x174]/[0x17c]`. It needs three still-unported
-   helpers — port-and-test each as its own unit first:
-   - **`0x40f3e0`** (434 B, list append) → likely `src/obj_container.c`.
-   - **`0x411f40`** (slot finalize).
-   - **`0x40f5c0`** (563 B).
-   Then assemble the spawn block on top of those + the now-ported
-   `obj_pool_acquire` / `sel_list_mark_last` / `menu_list_*`. Models the
-   `param_1` skip-intro early-out too. This finishes the update half.
+   0x1d,8` into `local_60->[0x174]/[0x17c]`. **Scoping correction (learned
+   this session — the old handoff mislabeled these as cheap "leaves"):**
+   the three helpers are **heap-allocating object-model constructors**, not
+   pure leaves, and each pulls in `operator_new` + 1–3 callees. They need
+   the controller object layout modelled first (a meaty struct-recovery
+   job — give it its own checkpoint):
+   - **`0x40f5c0`** (563 B) — **the menu-list-header constructor.** Does
+     `operator_new(0x24)` → `ctrl+0x174` and fills it; this is what builds
+     the `menu_list_hdr` already modelled in `menu_list.h`. *It confirmed
+     the header is exactly 0x24 bytes and revealed `+0x04`/`+0x08`
+     (`alloc_a`/`alloc_b`, now named).* Also allocs the row array at
+     `+0x17c` (`alloc_a`×0x10) and the array at `+0x178` (`alloc_b`×0x24).
+     **Start here** — it grounds the controller layout for the other two.
+   - **`0x40f3e0`** (434 B) — list *re*-init: copies a 9-dword config blob
+     into `ctrl[0x17..0x1f]`, frees the old element array (`FUN_0040e0c0` +
+     `FUN_005bef0e`=free), then allocs N×`0x1b0`-byte menu-item objects
+     with ~20 magic-constant fields each (colors `0xf08080`, ptrs to
+     `DAT_00677b98`/`DAT_008090a9`). Needs the 0x1b0 item struct modelled.
+   - **`0x411f40`** (444 B) — grid-cell finalizer: walks the 2-D cell grid
+     (`ctrl+0x17c` rows ×0x10, cells ×0x18), lazily `operator_new`s 0x54-
+     and 0x20-byte sub-objects per cell. Calls `FUN_0040fa00`.
+   Then assemble the spawn block on top of those + the ckpt-4
+   `menu_list_*` and ckpt-3 `obj_pool_acquire`/`sel_list_mark_last`. Models
+   the `param_1` skip-intro early-out too. Finishes the update half.
 
 2. **Checkpoint: the render half (`0x56bb04`)** — the path that draws.
    `PTR_DAT_0056bfa4[local_64]` jump-table call (11 entries, 7 handlers,

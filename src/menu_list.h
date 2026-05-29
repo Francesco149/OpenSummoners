@@ -51,13 +51,19 @@
  */
 typedef struct menu_list_hdr {
     int32_t  type;        /* +0x00 — list orientation (0 linear / 2 grid / 3) */
-    uint8_t  _pad04[0x08];/* +0x04..+0x0b — opaque                            */
+    int32_t  alloc_a;     /* +0x04 — ctor dim A: sizes the controller's +0x17c
+                           *         row array (×0x10); not read by the ports  */
+    int32_t  alloc_b;     /* +0x08 — ctor dim B: sizes the +0x178 array (×0x24)
+                           *         and bounds 411f40's cell loop; ports skip  */
     int32_t  stride;      /* +0x0c — page / row stride (entries per page-row) */
     int32_t  count;       /* +0x10 — total entry count                        */
     int32_t  cursor;      /* +0x14 — current selection index                  */
     int32_t  sel2;        /* +0x18 — page-top / secondary cursor (type-dep.)  */
     uint32_t repeat_a;    /* +0x1c — key-repeat deadline, GetTickCount domain  */
     uint32_t repeat_b;    /* +0x20 — key-repeat deadline (second axis)         */
+    /* Exactly 0x24 bytes — confirmed by the ctor's operator_new(0x24) in
+     * 0x40f5c0, which fills type/alloc_a/alloc_b/stride from its params
+     * and zeros count/cursor/sel2/repeat_a/repeat_b. */
 } menu_list_hdr;
 
 /* ─── the input "ready" gate sub-object (controller + 0x00 → here) ───
@@ -176,6 +182,7 @@ _Static_assert(offsetof(menu_list_hdr, cursor)   == 0x14, "hdr.cursor");
 _Static_assert(offsetof(menu_list_hdr, sel2)     == 0x18, "hdr.sel2");
 _Static_assert(offsetof(menu_list_hdr, repeat_a) == 0x1c, "hdr.repeat_a");
 _Static_assert(offsetof(menu_list_hdr, repeat_b) == 0x20, "hdr.repeat_b");
+_Static_assert(sizeof(menu_list_hdr)             == 0x24, "hdr size (operator_new(0x24) in ctor 0x40f5c0)");
 _Static_assert(offsetof(menu_ctrl, sub)    == 0x00,  "ctrl.sub");
 _Static_assert(offsetof(menu_ctrl, mode)   == 0x08,  "ctrl.mode");
 _Static_assert(offsetof(menu_ctrl, action) == 0x1c,  "ctrl.action");
