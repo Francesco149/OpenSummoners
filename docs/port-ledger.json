@@ -1007,6 +1007,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/menu_list.c",
     "src/menu_list.h"
    ]
   },

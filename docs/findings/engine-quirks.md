@@ -687,3 +687,37 @@ Two layout subtleties the alloc/free pair pins down:
 > 📍 `FUN_0040f5c0` @ `0x40f5c0` (563 B) / `FUN_0040e0c0` @ `0x40e0c0`
 > (555 B); ported as `menu_ctrl_build` / `menu_ctrl_clear` in
 > `src/menu_list.c` (checkpoint 5).  See `findings/menu-list.md`.
+
+## 36. The grid-cell finalizer's lazy allocation is dead code — it only ever re-zeroes
+
+`FUN_00411f40` walks a menu row's cell array and, per cell, "refreshes" up
+to three sub-objects (`obj0` text/glyph, the `0x54` object, the `0x20`
+object).  For the `0x54` and `0x20` objects the decompile reads as a classic
+lazy get-or-create:
+
+```c
+if (cell.obj54 != 0 && i < alloc_b && row < count) {       // outer guard
+    if (cell.obj54 == 0) cell.obj54 = operator_new(0x54);  // ← never taken
+    /* zero a handful of fields */
+}
+```
+
+The inner `== 0` allocation sits **inside** the outer `!= 0` guard and reads
+the *same* slot with no write in between — verified against the disasm
+(`0x411fbf` for the `0x54` object, `0x412046` for the `0x20`).  So the
+`operator_new` branches are statically unreachable: the function never
+allocates, it only re-zeroes sub-objects that some *other* path already
+built (and, for the `0x20` object, recomputes `+0x1c = max(+0x14,
+min(+0x18, 0))` — which, reading the zeros it just wrote, settles at 0).
+
+Consequence for the port: `menu_row_finalize` omits the dead alloc (matching
+how the dead null-check on `cl` was handled in `menu_list_latch`).  And the
+earlier note in `findings/menu-list.md` that this function "lazily
+`operator_new`s" the sub-objects was **wrong** — corrected there.  On the
+fresh title menu every cell pointer is NULL, so the whole finalizer is a
+no-op; the sub-objects are populated only when real menu items with
+text/icons are configured (a still-unmapped path, distinct from the cheap
+inline row appends of the spawn block).
+
+> 📍 `FUN_00411f40` @ `0x411f40` (444 B); ported as `menu_row_finalize` in
+> `src/menu_list.c` (checkpoint 6).  See `findings/menu-list.md`.

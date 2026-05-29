@@ -345,6 +345,12 @@ struct test_case {
     X(clear_frees_cell_subobjects)                             \
     X(clear_frees_field164)                                    \
     X(clear_frees_confirm_graph)                               \
+    X(finalize_fresh_is_noop)                                  \
+    X(finalize_zeroes_obj54)                                   \
+    X(finalize_zeroes_and_clamps_obj20)                        \
+    X(finalize_skips_when_row_outruns_count)                   \
+    X(finalize_invokes_layout_hook_for_obj0)                   \
+    X(finalize_iterates_all_cells)                             \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

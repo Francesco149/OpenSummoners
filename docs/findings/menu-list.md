@@ -4,9 +4,10 @@
 > of the engine's selection UIs).  Three functions ported in checkpoint 4
 > (`src/menu_list.{c,h}`: scroll / nav / latch); the controller's **geometry
 > allocate/free pair** (`menu_ctrl_build` / `menu_ctrl_clear`) landed in
-> checkpoint 5.  What remains of the spawn block is the per-row *populate*
-> (cheap inline appends in `0x56aea0`) plus the two lazy cell finalizers
-> (`0x40f3e0` menu-item builder, `0x411f40` grid-cell finalizer).
+> checkpoint 5; the **grid-cell finalizer** (`menu_row_finalize`,
+> `0x411f40`) landed in checkpoint 6.  What remains of the spawn block is the
+> per-row *populate* (cheap inline appends in `0x56aea0`) plus the menu-item
+> builder (`0x40f3e0`).
 
 ## The objects
 
@@ -128,36 +129,70 @@ cell, one column entry, linear-wrap.
 
 The dtor frees in retail order: confirm graph (`list2 → src → {owned0,
 owned8, caprec→owned0}`), the `+0x164` buffer, `entries`, then each row's
-cells (and each cell's three lazily-built sub-objects — `obj0` whose `*obj0`
-is itself owned, plus the `0x54`/`0x20` objects built by `0x411f40`), the row
-array, and the header **last** (its `alloc_a`/`alloc_b` size the free loops).
+cells (and each cell's three sub-objects — `obj0` whose `*obj0` is itself
+owned, plus the `0x54`/`0x20` objects), the row array, and the header
+**last** (its `alloc_a`/`alloc_b` size the free loops).
 
 `menu_cell`'s three pointer slots and the row append are populated later (by
-the spawn block + the still-unported finalizers below); the ctor only NULLs
+the spawn block + a still-unmapped item-config path); the ctor only NULLs
 them.
+
+## The grid-cell finalizer — `menu_row_finalize` (`FUN_00411f40`, 444 B)
+
+`__thiscall(ctrl, row)`.  Walks the row's cell array (bound by the header's
+`alloc_b`, the per-row cell count) and, for each cell, refreshes whichever of
+its three sub-objects are already present:
+
+- **`obj0`** (`+0x00`) present → re-lay-out its glyph text via `0x40fa00`,
+  passing `&DAT_008a9b6c` (the god object's engine-name buffer, god+0x1c;
+  see `audio-init.md`).  `0x40fa00` is an 800-B SJIS/colour-escape/font-
+  metric text builder — its **own subsystem, not yet ported**; the port
+  routes this call through an observable hook (`menu_cell_layout_hook`,
+  NULL by default) so the dispatch is testable without pulling in the text
+  layer.  The fresh title menu never has a built `obj0`, so this never fires.
+- **`obj54`** (`+0x04`) present *and* `row < hdr->count` → re-zero its
+  modelled fields (`+0, +4, +0x46, +0x48, +0x4a, +0x4c, +0x50`).
+- **`obj20`** (`+0x08`) present *and* `row < hdr->count` → re-zero `+0..+0x18`
+  then recompute `+0x1c = max(+0x14, min(+0x18, 0))` (reads the just-written
+  zeros, so it settles at 0 here).
+
+**Key correction (quirk #36):** despite the decompile reading as a *lazy
+get-or-create*, the finalizer does **not** allocate — the inner
+`if (ptr == 0) operator_new(...)` sits under an outer `ptr != 0` guard and is
+statically unreachable (same slot, no intervening write; verified at
+`0x411fbf` / `0x412046`).  It only re-zeroes sub-objects built elsewhere.  An
+earlier draft of this file claimed it "lazily operator_new's" them — that was
+wrong.  On the fresh title menu all cell pointers are NULL, so the whole
+function is a no-op there.
+
+Modelled `menu_cell_obj54` (0x54 B) / `menu_cell_obj20` (0x20 B) in
+`menu_list.h`; the unported text builder is `0x40fa00` (referenced by bare
+VA, not `FUN_`).
 
 ## Still unported (next)
 
 - **The spawn block's populate half** (`0x56aea0` default branch, after
   `menu_ctrl_build`): append 5 rows with action IDs `0x1a,0x1c,0x1e,0x1d,8`
   (each writes `row.field0=0`, `row.action=id`, `row.flag8=1`, bumps
-  `hdr.count`, then calls `0x411f40`), then seek the row whose `field0==0`
-  matches a god-object key, set the cursor, and `menu_list_scroll_into_view`.
-  The appends are cheap inline stores; the work is in the two finalizers.
+  `hdr.count`, then calls `menu_row_finalize`), then seek the row whose
+  `field0==0` matches a god-object key, set the cursor, and
+  `menu_list_scroll_into_view`.  The appends are cheap inline stores; the
+  finalizer is a no-op on these fresh (NULL-pointer) cells.
 - **`0x40f3e0`** (434 B) — the menu-item builder: copies a 9-dword config
   blob, frees old items (via `0x40e0c0` + free), allocs N×`0x1b0`-byte items
   with ~20 magic fields (colors `0xf08080`, `&DAT_00677b98`).  Needs the
   `0x1b0` item struct modelled.  (Called on the *page-container* object, not
   the menu controller.)
-- **`0x411f40`** (444 B) — the grid-cell finalizer: per cell, lazily
-  `operator_new`s the `0x54` (`cell.obj54`) and `0x20` (`cell.obj20`)
-  sub-objects and calls `0x40fa00`.  Needs those two sub-object structs.
+- **`0x40fa00`** (800 B) — the cell text-layout / glyph builder (SJIS parse,
+  `#`-colour escapes, font-metric table; calls `0x40fd20`/`0x4051d0`/
+  `0x4034f0`).  Its own text subsystem; `menu_row_finalize` calls it via a
+  hook until it lands.
 - **The input-ring producer** (DInput `GetDeviceState`) — black box,
   milestone-1 mem-watch gate.
 
 ## Files referenced
 
 - `docs/decompiled/by-address/4192b0.c`, `43ca40.c`, `43ce50.c`, `40f5c0.c`,
-  `40e0c0.c` (and `40f3e0.c`, `411f40.c` for the unported finalizers).
+  `40e0c0.c`, `411f40.c` (and `40f3e0.c`, `40fa00.c` for what remains).
 - `src/menu_list.{c,h}`, `tests/test_menu_list.c`.
 - jump table at `0x43ce1c`; recovered via radare2.

@@ -473,3 +473,99 @@ void menu_ctrl_build(menu_ctrl *c, int32_t f_c, int32_t f_10,
         c->entries[e].field_20 = 0;                /* entry[0x20] */
     }
 }
+
+/* The unported cell text-layout builder (0x40fa00).  See header. */
+menu_cell_layout_fn menu_cell_layout_hook = NULL;
+const void         *menu_cell_layout_text = NULL;   /* models &DAT_008a9b6c */
+
+/*
+ * FUN_00411f40 (444 bytes) — refresh a row's cell sub-objects.
+ *
+ * __thiscall: this = controller, param_1 = row index.  Walks the row's cell
+ * array (bound by the header's alloc_b, the per-row cell count) and, for each
+ * cell, refreshes whichever of its three lazily-built sub-objects are present:
+ *
+ *     hdr = this->[0x174];
+ *     for (i = 0; i < hdr->alloc_b; i++) {
+ *         cell = this->rows[row].cells[i];
+ *         if (cell.obj0)  0x40fa00(row, i, &DAT_008a9b6c);  // re-layout text
+ *         if (cell.obj54 && i < alloc_b && row < count) { ...zero fields... }
+ *         if (cell.obj20 && i < alloc_b && row < count) {
+ *             ...zero fields...
+ *             obj20->[0x1c] = max(obj20->[0x14], min(obj20->[0x18], 0));
+ *         }
+ *     }
+ *
+ * Dead allocation (quirk #36): retail re-checks `cell.objNN == 0` *inside*
+ * each `cell.objNN != 0` block and, if so, operator_new's the sub-object.
+ * That inner check is unreachable (same slot, no intervening write — verified
+ * against the disasm at 0x411fbf / 0x412046), so this function never
+ * allocates; it only re-zeroes already-built sub-objects.  The omitted dead
+ * branch mirrors the dead null-check noted in menu_list_latch.
+ *
+ * The obj20 clamp reads the zeros just written, so field1c resolves to 0
+ * here; the arithmetic is ported faithfully (the engine recomputes the field
+ * from real values elsewhere).  The `i < alloc_b` re-checks are likewise
+ * redundant with the loop bound but kept as written; `row < count` is the
+ * meaningful guard (skip when the row index outruns the entry array).
+ *
+ * The loop counter advances full-width then masks to 16 bits for the cell
+ * index (local_8 / uVar8 in the decompile) — harmless below 0x10000 cells.
+ */
+void menu_row_finalize(menu_ctrl *c, int32_t row)
+{
+    menu_list_hdr *hdr = c->list;                  /* iVar = *(this+0x174) */
+    uint32_t counter = 0;                           /* local_8 — full width */
+    uint32_t i;                                     /* uVar8 — cell index   */
+
+    if (hdr->alloc_b <= 0) {                         /* cmp [hdr+8],0; jle ret */
+        return;
+    }
+
+    i = 0;
+    do {
+        menu_cell *cell = &c->rows[row].cells[i];   /* rows[row].cells + i*0x18 */
+
+        /* obj0 present → re-lay-out its glyph text (0x40fa00, unported). */
+        if (cell->obj0 != NULL) {
+            if (menu_cell_layout_hook != NULL) {
+                menu_cell_layout_hook(c, row, (int32_t)i, menu_cell_layout_text);
+            }
+        }
+
+        /* obj54 present and row in range → re-zero its modelled fields. */
+        if (cell->obj54 != NULL &&
+            (int32_t)i < hdr->alloc_b && row < hdr->count) {
+            menu_cell_obj54 *o = (menu_cell_obj54 *)cell->obj54;
+            o->field0  = 0;
+            o->field4  = 0;
+            o->field46 = 0;
+            o->field48 = 0;
+            o->field4c = 0;
+            o->field4a = 0;
+            o->field50 = 0;
+        }
+
+        /* obj20 present and row in range → re-zero, then recompute the clamp. */
+        if (cell->obj20 != NULL &&
+            (int32_t)i < hdr->alloc_b && row < hdr->count) {
+            menu_cell_obj20 *o = (menu_cell_obj20 *)cell->obj20;
+            o->field4  = 0;
+            o->field8  = 0;
+            o->field0  = 0;
+            o->field_c = 0;
+            o->field10 = 0;
+            o->field14 = 0;
+            o->field18 = 0;
+            if ((int32_t)i < hdr->alloc_b && row < hdr->count) {
+                int32_t hi      = o->field18;             /* obj20[0x18] */
+                int32_t lo      = o->field14;             /* obj20[0x14] */
+                int32_t clamped = (hi < 0) ? hi : 0;      /* min(field18, 0) */
+                o->field1c = (lo > clamped) ? lo : clamped;
+            }
+        }
+
+        counter++;
+        i = counter & 0xffff;
+    } while ((int32_t)i < hdr->alloc_b);
+}

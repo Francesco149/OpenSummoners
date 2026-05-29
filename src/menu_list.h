@@ -124,16 +124,47 @@ typedef struct confirm_list {
  */
 
 /* A grid cell (row->cells[k], 0x18 B).  The three pointer slots are built
- * lazily by FUN_00411f40 (the grid-cell finalizer, not yet ported) and
- * torn down by menu_ctrl_clear; the constructor only NULLs them. */
+ * elsewhere (the spawn block / menu-item builder) and torn down by
+ * menu_ctrl_clear; the constructor only NULLs them.  FUN_00411f40 (the
+ * grid-cell finalizer, menu_row_finalize below) *refreshes* them — it
+ * re-zeroes the sub-objects' fields, but does NOT allocate them (its
+ * retail alloc branches are dead code — quirk #36). */
 typedef struct menu_cell {
-    void   *obj0;       /* +0x00 — lazily-built primary object; *its* [0] is
+    void   *obj0;       /* +0x00 — primary text/glyph object; *its* [0] is
                          *         itself an owned ptr (clear frees both)     */
-    void   *obj54;      /* +0x04 — lazily operator_new(0x54) sub-object       */
-    void   *obj20;      /* +0x08 — lazily operator_new(0x20) sub-object       */
+    void   *obj54;      /* +0x04 — 0x54-byte sub-object (finalizer re-zeroes) */
+    void   *obj20;      /* +0x08 — 0x20-byte sub-object (finalizer re-zeroes) */
     int32_t field_c;    /* +0x0c — zeroed by ctor                            */
     uint8_t _pad10[0x08];/* +0x10..+0x17 — ctor leaves untouched (stride 0x18)*/
 } menu_cell;
+
+/* cell.obj54 (0x54 B).  Only the fields the finalizer (FUN_00411f40)
+ * re-zeroes are modelled; the rest is opaque.  Allocated elsewhere. */
+typedef struct menu_cell_obj54 {
+    int32_t  field0;       /* +0x00 */
+    uint16_t field4;       /* +0x04 */
+    uint8_t  _pad06[0x40]; /* +0x06..+0x45 */
+    uint16_t field46;      /* +0x46 */
+    uint16_t field48;      /* +0x48 */
+    uint16_t field4a;      /* +0x4a */
+    uint16_t field4c;      /* +0x4c */
+    uint8_t  _pad4e[0x02]; /* +0x4e..+0x4f */
+    int32_t  field50;      /* +0x50 */
+} menu_cell_obj54;         /* 0x54 B */
+
+/* cell.obj20 (0x20 B).  The finalizer zeroes the first seven fields and then
+ * recomputes field1c as a clamp of two of them. */
+typedef struct menu_cell_obj20 {
+    int32_t  field0;       /* +0x00 */
+    int32_t  field4;       /* +0x04 */
+    uint16_t field8;       /* +0x08 (word store) */
+    uint8_t  _pad0a[0x02]; /* +0x0a..+0x0b */
+    int32_t  field_c;      /* +0x0c */
+    int32_t  field10;      /* +0x10 */
+    int32_t  field14;      /* +0x14 — clamp lower bound */
+    int32_t  field18;      /* +0x18 — clamp source       */
+    int32_t  field1c;      /* +0x1c — = max(field14, min(field18, 0)) */
+} menu_cell_obj20;         /* 0x20 B */
 
 /* A menu row (controller->rows[r], 0x10 B).  The spawn block populates
  * field0/action/flag8 when appending a row; the ctor only zeroes field0
@@ -283,6 +314,42 @@ void menu_ctrl_build(menu_ctrl *c, int32_t f_c, int32_t f_10,
                      int32_t alloc_a, int32_t alloc_b,
                      int32_t stride, int32_t type);
 
+/* ─── the unported cell text-layout builder (0x40fa00) ───────────
+ *
+ * 0x40fa00 (800 B) is the cell's glyph/text-layout builder: it parses a
+ * (Shift-JIS) string into the cell's obj0 glyph table, handling '#' colour
+ * escapes and a font-metrics table.  It is its own subsystem and NOT yet
+ * ported.  menu_row_finalize invokes it once per cell whose obj0 is already
+ * built, passing &DAT_008a9b6c — the god object's engine-name buffer
+ * (god+0x1c; see findings/audio-init.md).  The fresh title menu never has a
+ * built obj0, so this never fires there.
+ *
+ * Until 0x40fa00 lands, the call site routes through this hook so the
+ * dispatch stays observable/testable.  Both default to a no-op source: the
+ * hook is NULL (call skipped) and the text pointer is NULL (stands in for
+ * the unmodelled &DAT_008a9b6c). */
+typedef void (*menu_cell_layout_fn)(menu_ctrl *c, int32_t row, int32_t cell,
+                                    const void *text_src);
+extern menu_cell_layout_fn menu_cell_layout_hook;
+extern const void         *menu_cell_layout_text;
+
+/* ─── FUN_00411f40 — refresh a row's cell sub-objects ────────────────
+ *
+ * For each cell of row `row` (up to the header's alloc_b), refresh its
+ * lazily-built sub-objects in place:
+ *   - obj0 present  → re-lay-out its glyph text (0x40fa00, via the hook);
+ *   - obj54 present → re-zero its modelled fields;
+ *   - obj20 present → re-zero its fields and recompute
+ *                     field1c = max(field14, min(field18, 0)).
+ * The obj54/obj20 work is additionally gated on `row < header->count`.
+ *
+ * Despite the decompile, this does NOT allocate: its per-sub-object
+ * `if (ptr == 0) operator_new(...)` branches sit under an outer `ptr != 0`
+ * guard, so they are unreachable (quirk #36).  On the fresh title menu every
+ * cell pointer is NULL, so the whole function is a no-op there.  Faithful to
+ * 0x411f40. */
+void menu_row_finalize(menu_ctrl *c, int32_t row);
+
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(menu_list_hdr, type)     == 0x00, "hdr.type");
 _Static_assert(offsetof(menu_list_hdr, stride)   == 0x0c, "hdr.stride");
@@ -308,6 +375,18 @@ _Static_assert(offsetof(menu_ctrl, rows)      == 0x17c, "ctrl.rows");
 _Static_assert(sizeof(menu_cell)           == 0x18, "menu_cell size");
 _Static_assert(offsetof(menu_cell, obj54)  == 0x04, "cell.obj54");
 _Static_assert(offsetof(menu_cell, obj20)  == 0x08, "cell.obj20");
+_Static_assert(sizeof(menu_cell_obj54)        == 0x54, "obj54 size");
+_Static_assert(offsetof(menu_cell_obj54, field4)  == 0x04, "obj54.field4");
+_Static_assert(offsetof(menu_cell_obj54, field46) == 0x46, "obj54.field46");
+_Static_assert(offsetof(menu_cell_obj54, field48) == 0x48, "obj54.field48");
+_Static_assert(offsetof(menu_cell_obj54, field4a) == 0x4a, "obj54.field4a");
+_Static_assert(offsetof(menu_cell_obj54, field4c) == 0x4c, "obj54.field4c");
+_Static_assert(offsetof(menu_cell_obj54, field50) == 0x50, "obj54.field50");
+_Static_assert(sizeof(menu_cell_obj20)        == 0x20, "obj20 size");
+_Static_assert(offsetof(menu_cell_obj20, field8)  == 0x08, "obj20.field8");
+_Static_assert(offsetof(menu_cell_obj20, field14) == 0x14, "obj20.field14");
+_Static_assert(offsetof(menu_cell_obj20, field18) == 0x18, "obj20.field18");
+_Static_assert(offsetof(menu_cell_obj20, field1c) == 0x1c, "obj20.field1c");
 _Static_assert(sizeof(menu_row)            == 0x10, "menu_row size");
 _Static_assert(offsetof(menu_row, action)  == 0x04, "row.action");
 _Static_assert(offsetof(menu_row, flag8)   == 0x08, "row.flag8");

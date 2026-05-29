@@ -695,3 +695,156 @@ int test_clear_frees_confirm_graph(void)
     T_ASSERT_EQ_P(c.list2, NULL);
     return 0;
 }
+
+/* ─── FUN_00411f40 menu_row_finalize ────────────────────────────────── */
+
+/* Spy capturing the cell text-layout hook (stands in for FUN_0040fa00). */
+static int      g_layout_calls;
+static int32_t  g_layout_row, g_layout_cell;
+static const void *g_layout_text;
+static void layout_spy(menu_ctrl *c, int32_t row, int32_t cell,
+                       const void *text_src)
+{
+    (void)c;
+    g_layout_calls++;
+    g_layout_row  = row;
+    g_layout_cell = cell;
+    g_layout_text = text_src;
+}
+static void reset_layout_spy(void)
+{
+    g_layout_calls = 0; g_layout_row = -1; g_layout_cell = -1;
+    g_layout_text = NULL;
+    menu_cell_layout_hook = NULL;
+    menu_cell_layout_text = NULL;
+}
+
+/* A freshly built controller has every cell pointer NULL, so finalize does
+ * nothing and never reaches the layout hook. */
+int test_finalize_fresh_is_noop(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 6, 1, 6, 0);
+    c.list->count = 6;
+    reset_layout_spy();
+    menu_cell_layout_hook = layout_spy;
+    menu_row_finalize(&c, 0);
+    T_ASSERT_EQ_I(g_layout_calls, 0);
+    reset_layout_spy();
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* obj54 present and row < count → its modelled fields are re-zeroed. */
+int test_finalize_zeroes_obj54(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 2, 1, 2, 0);
+    c.list->count = 2;
+    menu_cell_obj54 *o = (menu_cell_obj54 *)calloc(1, sizeof *o);
+    o->field0 = 1; o->field4 = 2; o->field46 = 3; o->field48 = 4;
+    o->field4a = 5; o->field4c = 6; o->field50 = 7;
+    c.rows[0].cells[0].obj54 = o;
+    menu_row_finalize(&c, 0);
+    T_ASSERT_EQ_I(o->field0, 0);
+    T_ASSERT_EQ_I(o->field4, 0);
+    T_ASSERT_EQ_I(o->field46, 0);
+    T_ASSERT_EQ_I(o->field48, 0);
+    T_ASSERT_EQ_I(o->field4a, 0);
+    T_ASSERT_EQ_I(o->field4c, 0);
+    T_ASSERT_EQ_I(o->field50, 0);
+    menu_ctrl_clear(&c);                    /* frees o via the cell */
+    return 0;
+}
+
+/* obj20 present and row < count → fields re-zeroed and the clamp recomputed
+ * (it reads the just-written zeros, so field1c settles at 0). */
+int test_finalize_zeroes_and_clamps_obj20(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 2, 1, 2, 0);
+    c.list->count = 2;
+    menu_cell_obj20 *o = (menu_cell_obj20 *)calloc(1, sizeof *o);
+    o->field0 = 9; o->field4 = 9; o->field8 = 9; o->field_c = 9;
+    o->field10 = 9; o->field14 = 9; o->field18 = -5; o->field1c = 9;
+    c.rows[0].cells[0].obj20 = o;
+    menu_row_finalize(&c, 0);
+    T_ASSERT_EQ_I(o->field0, 0);
+    T_ASSERT_EQ_I(o->field4, 0);
+    T_ASSERT_EQ_I(o->field8, 0);
+    T_ASSERT_EQ_I(o->field_c, 0);
+    T_ASSERT_EQ_I(o->field10, 0);
+    T_ASSERT_EQ_I(o->field14, 0);
+    T_ASSERT_EQ_I(o->field18, 0);
+    T_ASSERT_EQ_I(o->field1c, 0);           /* max(0, min(0,0)) */
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* The obj54/obj20 refresh is gated on row < header->count: a row index that
+ * outruns the entry array leaves the sub-objects untouched. */
+int test_finalize_skips_when_row_outruns_count(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 4, 1, 4, 0);
+    c.list->count = 1;                      /* only row 0 is "in range" */
+    menu_cell_obj54 *o54 = (menu_cell_obj54 *)calloc(1, sizeof *o54);
+    menu_cell_obj20 *o20 = (menu_cell_obj20 *)calloc(1, sizeof *o20);
+    o54->field0 = 0x1234;
+    o20->field0 = 0x5678;
+    c.rows[2].cells[0].obj54 = o54;         /* row 2 >= count 1 */
+    c.rows[2].cells[0].obj20 = o20;
+    menu_row_finalize(&c, 2);
+    T_ASSERT_EQ_I(o54->field0, 0x1234);     /* untouched */
+    T_ASSERT_EQ_I(o20->field0, 0x5678);     /* untouched */
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* A cell with a built obj0 routes through the layout hook, forwarding the
+ * row index, cell index, and text source (the modelled &DAT_008a9b6c). */
+int test_finalize_invokes_layout_hook_for_obj0(void)
+{
+    static const char fake_text[] = "engine-name";
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 3, 1, 3, 0);
+    c.list->count = 3;
+    void *obj0 = calloc(1, sizeof(void *)); /* *obj0 owned inner ptr (NULL ok) */
+    c.rows[1].cells[0].obj0 = obj0;
+    reset_layout_spy();
+    menu_cell_layout_hook = layout_spy;
+    menu_cell_layout_text = fake_text;
+    menu_row_finalize(&c, 1);
+    T_ASSERT_EQ_I(g_layout_calls, 1);
+    T_ASSERT_EQ_I(g_layout_row, 1);
+    T_ASSERT_EQ_I(g_layout_cell, 0);
+    T_ASSERT_EQ_P(g_layout_text, fake_text);
+    reset_layout_spy();
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* The loop spans the row's whole cell array (alloc_b cells): every present
+ * sub-object across the cells gets refreshed. */
+int test_finalize_iterates_all_cells(void)
+{
+    menu_ctrl c;
+    memset(&c, 0, sizeof c);
+    menu_ctrl_build(&c, 0, 0, 1, 3, 1, 0);  /* 1 row, 3 cells per row */
+    c.list->count = 1;
+    menu_cell_obj54 *a = (menu_cell_obj54 *)calloc(1, sizeof *a);
+    menu_cell_obj54 *b = (menu_cell_obj54 *)calloc(1, sizeof *b);
+    a->field0 = 11; b->field0 = 22;
+    c.rows[0].cells[0].obj54 = a;
+    c.rows[0].cells[2].obj54 = b;           /* last cell of the row */
+    menu_row_finalize(&c, 0);
+    T_ASSERT_EQ_I(a->field0, 0);
+    T_ASSERT_EQ_I(b->field0, 0);
+    menu_ctrl_clear(&c);
+    return 0;
+}

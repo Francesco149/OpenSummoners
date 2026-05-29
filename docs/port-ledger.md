@@ -27,7 +27,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x408b90 | FUN_00408b90 | 419 | wnd_proc.h |
 | 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
 | 0x40f5c0 | FUN_0040f5c0 | 563 | menu_list.c, menu_list.h |
-| 0x411f40 | FUN_00411f40 | 444 | menu_list.h |
+| 0x411f40 | FUN_00411f40 | 444 | menu_list.c, menu_list.h |
 | 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
 | 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
