@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-05-29 — Menu-controller geometry ctor+dtor, ckpt 5
+
+Ported the menu-spawn block's **allocate/free pair** into `menu_list` as
+`menu_ctrl_build` (`FUN_0040f5c0`, 563 B) and `menu_ctrl_clear`
+(`FUN_0040e0c0`, 555 B) — one commit, since build calls clear (slots are
+recycled from an object pool, not zeroed; the ctor tears down stale state
+first — new quirk **#35**).
+
+`menu_ctrl_build` allocates the `0x24` list header plus the controller's
+**two parallel geometry arrays**: the row array (`alloc_a` × `menu_row`
+0x10, at `+0x17c`) with a per-row cell array (`alloc_b` × `menu_cell`
+0x18), and the per-column metadata array (`alloc_b` × `menu_entry` 0x24,
+at `+0x178`) stamped `pos=index*0x20` / `extent=0x20`.  `menu_ctrl_clear`
+frees it all in retail order (confirm graph → `+0x164` → entries → each
+row's cells + their three lazy sub-objects → row array → header **last**,
+since its dims size the free loops).
+
+Modelled the controller's extended layout (`menu_row`/`menu_cell`/
+`menu_entry` + the ctor-touched scalars `field_c/_10/_20/_84/_140/_164`)
+and extended `confirm_src`/`confirm_caprec` with the owned-pointer slots
+the teardown frees.  Every new offset pinned by guarded `_Static_assert`;
+both cross-builds clean.  `operator_new → calloc` (zero-init divergence
+documented: retail leaves `row.flag8` + each cell's trailing 8 bytes
+indeterminate; the spawn block always writes `flag8` before reading).
+
+**9 new host tests** (build header/params/grid/entries, fresh-clear no-op,
+recycle-rebuild, and the confirm-graph + cell-subobject + `+0x164`
+teardowns — ASan/LSan verify no leak/double-free/UAF); **493 pass / 0 fail
+/ 6 skip (of 499)**.  Ledger **121/1490 touched (7.4%), 118 tested**.  The
+menu controller's geometry is now grounded; what remains of the spawn
+block is the cheap inline row-populate and the two lazy cell finalizers
+(`0x40f3e0`, `0x411f40`).  See `findings/menu-list.md`, commit `a380457`.
+
 ## 2026-05-29 — Menu input→action chain, ckpt 4 (scroll + nav + latch)
 
 Ported the entire **menu input → action chain** the title menu's update

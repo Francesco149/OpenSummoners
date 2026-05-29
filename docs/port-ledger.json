@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 115,
+  "tested": 118,
   "ported": 3,
-  "unported": 1640,
+  "unported": 1637,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 118,
-  "pct_touched": 7.2,
-  "pct_tested": 7.2,
-  "engine_proper_touched": 108,
+  "touched": 121,
+  "pct_touched": 7.4,
+  "pct_tested": 7.4,
+  "engine_proper_touched": 111,
   "bytes_total": 1694868,
-  "bytes_touched": 162411,
-  "pct_bytes_touched": 9.6
+  "bytes_touched": 163973,
+  "pct_bytes_touched": 9.7
  },
  "orphan_refs": [],
  "functions": [
@@ -759,8 +759,11 @@
    "name": "FUN_0040e0c0",
    "size": 555,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/menu_list.c",
+    "src/menu_list.h"
+   ]
   },
   {
    "va": "0x40e2f0",
@@ -823,8 +826,11 @@
    "name": "FUN_0040f5c0",
    "size": 563,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/menu_list.c",
+    "src/menu_list.h"
+   ]
   },
   {
    "va": "0x40f800",
@@ -999,8 +1005,10 @@
    "name": "FUN_00411f40",
    "size": 444,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/menu_list.h"
+   ]
   },
   {
    "va": "0x412100",
@@ -12406,6 +12414,7 @@
     "src/asset_register.c",
     "src/asset_register.h",
     "src/cs_dispatch.c",
+    "src/menu_list.c",
     "src/pixel_drawer.c",
     "src/zdd.h"
    ]

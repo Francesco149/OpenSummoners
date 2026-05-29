@@ -655,3 +655,35 @@ blocks further input until reset, so a held button can't skip past the box.
 
 > 📍 `FUN_0043ce50` @ `0x43ce50` (220 B); ported as `menu_list_latch` in
 > `src/menu_list.c` (checkpoint 4c).  See `findings/menu-list.md`.
+
+## 35. The menu-controller constructor calls its own destructor first — slots are recycled, not freshly zeroed
+
+`FUN_0040f5c0` (the menu-controller geometry constructor) opens by calling
+`FUN_0040e0c0` — its **matching destructor** — *before* writing anything.
+This is not redundant: the controller is checked out of a fixed-capacity
+object pool (`FUN_00412c10`, quirk #31), which stamps only the slot's
+owner/index/`+8` and leaves the rest holding **whatever the previous
+occupant left there**.  So the ctor cannot assume zeroed memory; it runs
+the full teardown to free any stale header / row-array / cell sub-objects /
+confirm graph from the prior life of that slot, *then* rebuilds.  On a
+genuinely first-use slot every pointer happens to be NULL and the teardown
+no-ops — but the engine never relies on that.  A re-entry to the title
+scene's spawn block therefore silently recycles the same controller in
+place.
+
+Two layout subtleties the alloc/free pair pins down:
+
+- The controller carries **two parallel arrays** sized off *different*
+  header dimensions.  The **row** array (`+0x17c`, one `0x10`-byte slot per
+  menu line) is sized by `alloc_a` (hdr `+0x04`); the **per-column entry**
+  array (`+0x178`, `0x24` bytes each) *and* every row's **cell** array
+  (`0x18` bytes each) are both sized by `alloc_b` (hdr `+0x08`).  For the
+  title menu that's `alloc_a=6, alloc_b=1` → up to 6 rows × 1 cell, with a
+  single column-metadata entry.  Each entry is stamped `pos = index*0x20`,
+  `extent = 0x20` (a vertical layout stride).
+- The destructor frees the header **last**, because its row/cell free loops
+  read their bounds (`alloc_a`/`alloc_b`) out of the still-live header.
+
+> 📍 `FUN_0040f5c0` @ `0x40f5c0` (563 B) / `FUN_0040e0c0` @ `0x40e0c0`
+> (555 B); ported as `menu_ctrl_build` / `menu_ctrl_clear` in
+> `src/menu_list.c` (checkpoint 5).  See `findings/menu-list.md`.

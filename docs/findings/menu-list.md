@@ -2,8 +2,11 @@
 
 > Milestone 0/1.  The object that drives the title top-level menu (and most
 > of the engine's selection UIs).  Three functions ported in checkpoint 4
-> (`src/menu_list.{c,h}`); the menu *spawn* block that allocates and
-> populates the controller is still unported (next move).
+> (`src/menu_list.{c,h}`: scroll / nav / latch); the controller's **geometry
+> allocate/free pair** (`menu_ctrl_build` / `menu_ctrl_clear`) landed in
+> checkpoint 5.  What remains of the spawn block is the per-row *populate*
+> (cheap inline appends in `0x56aea0`) plus the two lazy cell finalizers
+> (`0x40f3e0` menu-item builder, `0x411f40` grid-cell finalizer).
 
 ## The objects
 
@@ -105,17 +108,56 @@ The title scene maps button ids → latch `dir` (input.md "Button ids"):
 down 0x02→2, right 0x04→3, up 0x01→0, left 0x03→1, back 0x24→9, with the
 axis-held synthesis feeding 4/5/6/7.
 
+## The controller geometry — `menu_ctrl_build` / `menu_ctrl_clear`
+
+`FUN_0040f5c0` (563 B) builds the controller's selectable grid; `FUN_0040e0c0`
+(555 B) tears it down.  The ctor opens by calling the dtor (slots are
+recycled, not zeroed — quirk #35), then allocates the `0x24` list header and
+**two parallel arrays** plus a per-row cell array:
+
+| ctrl off | array      | element            | count   | per-element init                          |
+|----------|------------|--------------------|---------|-------------------------------------------|
+| `+0x17c` | **rows**   | `menu_row` (0x10)  | `alloc_a` (hdr+4) | `field0=0`, `action=0`, `cells=`↓ (flag8 left indeterminate) |
+| (per row)| **cells**  | `menu_cell` (0x18) | `alloc_b` (hdr+8) | three ptr slots NULL, `field_c=0`         |
+| `+0x178` | **entries**| `menu_entry` (0x24)| `alloc_b` (hdr+8) | `pos=index*0x20`, `extent=0x20`, rest 0   |
+
+Note `alloc_b` sizes **both** the per-column entry array and every row's cell
+array, while `alloc_a` sizes only the row array.  The title menu passes
+`(f_c=0, f_10=0, alloc_a=6, alloc_b=1, stride=6, type=0)` — up to 6 rows × 1
+cell, one column entry, linear-wrap.
+
+The dtor frees in retail order: confirm graph (`list2 → src → {owned0,
+owned8, caprec→owned0}`), the `+0x164` buffer, `entries`, then each row's
+cells (and each cell's three lazily-built sub-objects — `obj0` whose `*obj0`
+is itself owned, plus the `0x54`/`0x20` objects built by `0x411f40`), the row
+array, and the header **last** (its `alloc_a`/`alloc_b` size the free loops).
+
+`menu_cell`'s three pointer slots and the row append are populated later (by
+the spawn block + the still-unported finalizers below); the ctor only NULLs
+them.
+
 ## Still unported (next)
 
-- **The menu spawn block** (`0x56aea0` default branch): allocate the
-  controller (`obj_pool_acquire`), populate 5 menu rows with action IDs
-  `0x1a,0x1c,0x1e,0x1d,8`, and `sel_list_mark_last`.  Needs `0x40f3e0`
-  (list append), `0x40f5c0`, `0x411f40` (slot finalize).
+- **The spawn block's populate half** (`0x56aea0` default branch, after
+  `menu_ctrl_build`): append 5 rows with action IDs `0x1a,0x1c,0x1e,0x1d,8`
+  (each writes `row.field0=0`, `row.action=id`, `row.flag8=1`, bumps
+  `hdr.count`, then calls `0x411f40`), then seek the row whose `field0==0`
+  matches a god-object key, set the cursor, and `menu_list_scroll_into_view`.
+  The appends are cheap inline stores; the work is in the two finalizers.
+- **`0x40f3e0`** (434 B) — the menu-item builder: copies a 9-dword config
+  blob, frees old items (via `0x40e0c0` + free), allocs N×`0x1b0`-byte items
+  with ~20 magic fields (colors `0xf08080`, `&DAT_00677b98`).  Needs the
+  `0x1b0` item struct modelled.  (Called on the *page-container* object, not
+  the menu controller.)
+- **`0x411f40`** (444 B) — the grid-cell finalizer: per cell, lazily
+  `operator_new`s the `0x54` (`cell.obj54`) and `0x20` (`cell.obj20`)
+  sub-objects and calls `0x40fa00`.  Needs those two sub-object structs.
 - **The input-ring producer** (DInput `GetDeviceState`) — black box,
   milestone-1 mem-watch gate.
 
 ## Files referenced
 
-- `docs/decompiled/by-address/4192b0.c`, `43ca40.c`, `43ce50.c`.
+- `docs/decompiled/by-address/4192b0.c`, `43ca40.c`, `43ce50.c`, `40f5c0.c`,
+  `40e0c0.c` (and `40f3e0.c`, `411f40.c` for the unported finalizers).
 - `src/menu_list.{c,h}`, `tests/test_menu_list.c`.
 - jump table at `0x43ce1c`; recovered via radare2.

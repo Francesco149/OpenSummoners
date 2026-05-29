@@ -14,17 +14,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **118** (7.2% of engine-proper) — tested 115, ported 3
-- code bytes touched: **9.6%** (162,411 / 1,694,868 B of engine-proper)
-- unported: **1640**
+- touched: **121** (7.4% of engine-proper) — tested 118, ported 3
+- code bytes touched: **9.7%** (163,973 / 1,694,868 B of engine-proper)
+- unported: **1637**
 - orphan refs in src/ not in this table: 0
 
-## tested (115) — ported + host unit suite
+## tested (118) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x406440 | FUN_00406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | FUN_00408b90 | 419 | wnd_proc.h |
+| 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
+| 0x40f5c0 | FUN_0040f5c0 | 563 | menu_list.c, menu_list.h |
+| 0x411f40 | FUN_00411f40 | 444 | menu_list.h |
 | 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
 | 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
@@ -131,7 +134,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+2) |
+| 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+3) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
 | 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
 | 0x5bf5fd | FUN_005bf5fd | 153 | wnd_proc.h |
