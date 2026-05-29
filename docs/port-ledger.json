@@ -11173,6 +11173,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/call_trace.h",
     "src/main.c",
     "src/title_scene.h",
     "src/zdd.c",

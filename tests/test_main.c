@@ -449,6 +449,11 @@ struct test_case {
     X(cs_dispatch_mode4_zoom_too_small_aborts)                 \
     X(cs_dispatch_mode4_zoom_exact_match_proceeds)             \
     X(cs_dispatch_default_mode_is_noop)                        \
+    X(call_trace_emits_row_for_enabled_frame)                  \
+    X(call_trace_frame_whitelist_gates)                        \
+    X(call_trace_stub_marker)                                  \
+    X(call_trace_disabled_when_no_path)                        \
+    X(call_trace_multiple_rows_one_frame)                      \
 
 #define X(n) extern int test_##n(void);
 TESTS

@@ -40,6 +40,7 @@
 #include "dev_hooks.h"
 #include "zdd.h"
 #include "cs_dispatch.h"
+#include "call_trace.h"
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -88,6 +89,16 @@ static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
 static uint32_t  g_total_ms;
 
+/* --call-trace <path> [--call-trace-frames i,j,k] — port-side counterpart
+ * of the Frida agent's call_trace emitter (see src/call_trace.h).  The
+ * path is copied into a static buffer because parse_cmdline's token
+ * pointers alias a stack buffer. */
+#define CALL_TRACE_FRAMES_CAP 256
+static char      g_call_trace_path_buf[1024];
+static const char *g_call_trace_path;
+static unsigned  g_call_trace_frames[CALL_TRACE_FRAMES_CAP];
+static size_t    g_n_call_trace_frames;
+
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
 static int  create_main_window(void);
@@ -114,6 +125,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     SetConsoleOutputCP(CP_UTF8);
 
     parse_cmdline(lpCmdLine);
+
+    /* Open the port-side call trace (no-op unless --call-trace given).
+     * Done before any traced function (boot DDraw path) can run. */
+    call_trace_init_from_cli(g_call_trace_path,
+                             g_call_trace_frames, g_n_call_trace_frames);
 
     /* Install MessageBox→stderr hook as early as possible.  Any modal
      * popup between here and uninstall (in shutdown) gets redirected
@@ -162,7 +178,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * Fullscreen flag for SetCooperativeLevel is (launcher_mode != 2)
      * — only Windowed runs DDSCL_NORMAL.  cs_dispatch_create_screen
      * returns void; on failure it ExitProcess(0)'s via cs_exit. */
+    /* Bracket the one-shot boot path as call-trace frame 0 so the DDraw
+     * bootstrap (zdd_create / SetCooperativeLevel / CreateScreen
+     * dispatch) shows up in the diff against retail's frame-0 boot
+     * calls.  The per-frame loop below re-opens its own frames. */
+    call_trace_begin_frame(0);
     if (!g_skip_ddraw && !init_ddraw()) {
+        call_trace_end_frame();
         timeEndPeriod(1);
         return 1;
     }
@@ -174,6 +196,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * inside FUN_005b9130 or a sibling).  Updated again on WM_MOVE
      * below; this initial sample covers the window's spawn position. */
     sync_window_position();
+    call_trace_end_frame();   /* close boot frame 0 */
 
     g_base_time_ms = timeGetTime();
 
@@ -188,6 +211,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              g_frame_counter, g_total_ms);
 
     shutdown_ddraw();
+    call_trace_shutdown();
     timeEndPeriod(1);
     dev_hooks_uninstall_messagebox();
     release_singleton();
@@ -359,6 +383,11 @@ static void sync_window_position(void)
 
 static void main_loop_body(void)
 {
+    /* Open this call-trace frame before any traced work.  Frame axis =
+     * present count (g_frame_counter), matching the agent's Flip-anchored
+     * counter on the retail side. */
+    call_trace_begin_frame(g_frame_counter);
+
     MSG msg;
     while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
         if (msg.message == WM_QUIT) {
@@ -380,6 +409,7 @@ static void main_loop_body(void)
     }
 
     frame_limiter();
+    call_trace_end_frame();
     g_frame_counter++;
 }
 
@@ -429,6 +459,40 @@ static void parse_cmdline(LPSTR lpCmdLine)
         }
         else if (!strncmp(tok, "--launcher-mode=", 16)) {
             g_launcher_mode = (int)strtol(tok + 16, NULL, 10);
+        }
+        else if (!strcmp(tok, "--call-trace")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_call_trace_path_buf, tok,
+                        sizeof(g_call_trace_path_buf) - 1);
+                g_call_trace_path = g_call_trace_path_buf;
+            }
+        }
+        else if (!strncmp(tok, "--call-trace=", 13)) {
+            strncpy(g_call_trace_path_buf, tok + 13,
+                    sizeof(g_call_trace_path_buf) - 1);
+            g_call_trace_path = g_call_trace_path_buf;
+        }
+        else if (!strcmp(tok, "--call-trace-frames") ||
+                 !strncmp(tok, "--call-trace-frames=", 20)) {
+            /* Comma-separated frame whitelist, e.g. 1,2,3.  Either
+             * `--call-trace-frames 1,2,3` (next token) or the `=` form.
+             * Parsed with strtoul's endptr rather than a nested strtok,
+             * which would clobber the outer tokenizer's saved state. */
+            const char *list = NULL;
+            if (!strncmp(tok, "--call-trace-frames=", 20)) {
+                list = tok + 20;
+            } else {
+                list = strtok(NULL, " \t");
+            }
+            while (list && *list && g_n_call_trace_frames < CALL_TRACE_FRAMES_CAP) {
+                char *end = NULL;
+                unsigned v = (unsigned)strtoul(list, &end, 10);
+                if (end == list) break;          /* no digits — give up */
+                g_call_trace_frames[g_n_call_trace_frames++] = v;
+                list = end;
+                while (*list == ',' || *list == ' ') list++;
+            }
         }
         tok = strtok(NULL, " \t");
     }

@@ -14,6 +14,7 @@
  * Code " are retail's, not typos.
  */
 #include "zdd.h"
+#include "call_trace.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -764,6 +765,7 @@ void zdd_dtor(zdd *self)
 
 int zdd_create(zdd **out)
 {
+    CALL_TRACE_ENTER(0x5b7ee0);
     zdd *p = (zdd *)calloc(1, sizeof(zdd));
     if (p == NULL) {
         return 0;
@@ -875,6 +877,7 @@ int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
  * composite. */
 void zdd_present(zdd *self)
 {
+    CALL_TRACE_ENTER(0x5b8fc0);
     if (self == NULL) return;
 
     switch (self->pixel_format_mode) {
@@ -981,6 +984,7 @@ void zdd_present(zdd *self)
  * pair. */
 int zdd_window_paint(zdd *self, void *hwnd)
 {
+    CALL_TRACE_ENTER(0x5b9130);
     if (self == NULL) return 0;
 
     /* Retail short-circuits on `cmp [esi+0x164], 2; jne early_return_0`

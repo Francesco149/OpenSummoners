@@ -90,7 +90,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
 | 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | main.c, title_scene.h, zdd.c (+2) |
+| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, title_scene.h (+3) |
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |

@@ -12,6 +12,7 @@
  * at host-test time.
  */
 #include "cs_dispatch.h"
+#include "call_trace.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -347,6 +348,7 @@ static void cs_mode_zoom(zdd *self, int32_t zoom_target_w, int32_t zoom_target_h
 void cs_dispatch_create_screen(zdd *self, int launcher_mode,
                                int32_t zoom_target_w, int32_t zoom_target_h)
 {
+    CALL_TRACE_ENTER(0x582e90);
     cs_release_prior_primary_pair();
 
     switch (launcher_mode) {
