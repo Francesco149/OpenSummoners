@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 109,
+  "tested": 110,
   "ported": 3,
-  "unported": 1646,
+  "unported": 1645,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 112,
-  "pct_touched": 6.8,
-  "pct_tested": 6.8,
-  "engine_proper_touched": 102,
+  "touched": 113,
+  "pct_touched": 6.9,
+  "pct_tested": 6.9,
+  "engine_proper_touched": 103,
   "bytes_total": 1694868,
-  "bytes_touched": 160976,
+  "bytes_touched": 161060,
   "pct_bytes_touched": 9.5
  },
  "orphan_refs": [],
@@ -2807,8 +2807,11 @@
    "name": "FUN_0043c110",
    "size": 84,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/input.c",
+    "src/input.h"
+   ]
   },
   {
    "va": "0x43c170",

@@ -275,6 +275,16 @@ struct test_case {
     X(title_pace_render_boundary_budget_exactly_16)            \
     X(title_pace_frozen_clock_walk)                            \
     X(title_pace_clock_jump_reenters_update)                   \
+    X(input_mgr_ring_offsets)                                  \
+    X(input_poll_hit_consumes)                                 \
+    X(input_poll_wrong_id_misses)                              \
+    X(input_poll_flag_must_be_one)                             \
+    X(input_poll_age_boundary)                                 \
+    X(input_poll_future_ts_rejected)                           \
+    X(input_poll_rollover_within_window)                       \
+    X(input_poll_highest_index_wins)                           \
+    X(input_poll_endpoints_in_range)                           \
+    X(input_poll_empty_ring_misses)                            \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

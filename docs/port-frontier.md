@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **114**
-- of those, zero-dependency **leaves: 52** (recommended order below)
+- frontier functions: **113**
+- of those, zero-dependency **leaves: 51** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -43,7 +43,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x587db0 | 76 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x564110 | 80 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x58cf60 | 83 | 1 | master sprite-group register + audio/music init + anim pump |
-| 0x43c110 | 84 | 1 | battle scenario init + turn engine + input poll + save mgr |
 | 0x54c970 | 84 | 1 | cutscene dispatcher + sprite copy + tilemap collision + camera |
 | 0x4022d0 | 88 | 1 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x56bfd0 | 88 | 1 | title + gameplay scene runners + engine init + options + input init |
@@ -54,6 +53,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x411560 | 117 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x417bc0 | 123 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x43c9b0 | 130 | 1 | battle scenario init + turn engine + input poll + save mgr |
+| 0x4118b0 | 134 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 
 ## Full frontier by address band
 
@@ -101,11 +101,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x426f70 | 37 | 1 | 0 | ✓ |
 
-### battle scenario init + turn engine + input poll + save mgr (6)
+### battle scenario init + turn engine + input poll + save mgr (5)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x43c110 | 84 | 1 | 0 | ✓ |
 | 0x43c9b0 | 130 | 1 | 0 | ✓ |
 | 0x43ce50 | 220 | 1 | 1 |  |
 | 0x43e140 | 266 | 1 | 4 |  |
@@ -162,7 +161,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x568de0 | 998 | 1 | 19 |  |
 | 0x56a670 | 1011 | 1 | 22 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |
-| 0x56cd20 | 2275 | 1 | 17 |  |
+| 0x56cd20 | 2275 | 1 | 16 |  |
 
 ### master sprite-group register + audio/music init + anim pump (28)
 
@@ -193,7 +192,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583fe0 | 979 | 1 | 19 |  |
 | 0x58cb30 | 1065 | 1 | 0 | ✓ |
 | 0x58e780 | 1823 | 1 | 7 |  |
-| 0x58f360 | 3030 | 1 | 46 |  |
+| 0x58f360 | 3030 | 1 | 45 |  |
 | 0x58d460 | 3341 | 1 | 5 |  |
 | 0x5752e0 | 17310 | 1 | 9 |  |
 
