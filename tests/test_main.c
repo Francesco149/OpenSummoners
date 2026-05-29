@@ -299,6 +299,32 @@ struct test_case {
     X(menu_scroll_stride_one_tracks_cursor)                    \
     X(menu_scroll_boundary_cursor)                             \
     X(menu_scroll_cursor_zero)                                 \
+    X(nav_t0_prev_decrements)                                  \
+    X(nav_t0_prev_wraps_to_page_bottom)                        \
+    X(nav_t0_prev_wrap_clamps_to_count)                        \
+    X(nav_t0_next_increments)                                  \
+    X(nav_t0_next_wraps_to_page_top)                           \
+    X(nav_t2_next_within_row)                                  \
+    X(nav_t2_next_wraps_in_row)                                \
+    X(nav_t2_prev_within_row)                                  \
+    X(nav_t2_prev_wraps_to_row_end)                            \
+    X(nav_t2_page_down_scrolls)                                \
+    X(nav_t2_page_up_scrolls)                                  \
+    X(nav_t2_page_up_underflow_clamps)                         \
+    X(nav_t3_next_drags_page)                                  \
+    X(nav_t3_next_no_scroll)                                   \
+    X(nav_t3_next_wraps_to_zero)                               \
+    X(nav_t3_prev_wraps_to_tail)                               \
+    X(nav_cancel_latches_three)                                \
+    X(nav_confirm_latches_four)                                \
+    X(nav_dir8_is_noop)                                        \
+    X(nav_out_of_range_is_noop)                                \
+    X(nav_count_below_two_no_move)                             \
+    X(nav_repeat_a_arms_then_idles)                            \
+    X(nav_repeat_a_fires_as_next)                              \
+    X(nav_repeat_a_reset)                                      \
+    X(nav_repeat_b_arms_and_fires_as_prev)                     \
+    X(nav_repeat_b_reset)                                      \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

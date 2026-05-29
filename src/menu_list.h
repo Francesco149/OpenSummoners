@@ -10,11 +10,14 @@
  *   FUN_004192b0  menu_list_scroll_into_view  — recompute the page-top so
  *                                               the cursor is on-screen;
  *                                               return 1 if it moved.
+ *   FUN_0043ca40  menu_list_nav               — the 970-byte cursor-nav
+ *                                               engine: turn a direction /
+ *                                               auto-repeat code into a
+ *                                               cursor move, page scroll,
+ *                                               or cancel/confirm latch.
  *
- * Two larger pieces of the same controller are mapped but NOT yet ported
- * (referenced by bare VA so the port ledger doesn't count them early):
- *   0x43ca40  the 970-byte cursor-nav engine — turn a direction / key-
- *             repeat code into a cursor move, page scroll, or cancel latch.
+ * One more piece of the same controller is mapped but NOT yet ported
+ * (referenced by bare VA so the port ledger doesn't count it early):
  *   0x43ce50  the action latch that gates the nav engine and resolves the
  *             type-2 confirm list.
  *
@@ -92,6 +95,21 @@ typedef struct menu_ctrl {
  * Precondition (as in retail, which has no guard): stride > 0 and
  * cursor >= 0, else the page-top search loop does not terminate. */
 int menu_list_scroll_into_view(menu_ctrl *c);
+
+/* ─── FUN_0043ca40 — the cursor-navigation engine ────────────────────
+ *
+ * Apply menu action `dir` to the controller's list and return a result
+ * code: 0 (no change), 1 (cursor moved within the page), 2 (page
+ * scrolled), 3 (cancel latched), 4 (confirm latched).
+ *
+ * `dir` enum: 0 prev, 1 next, 2 page-up, 3 page-down, 4/6 axis-held
+ * auto-repeat (positive/negative), 5/7 axis-released, 9 cancel, 10
+ * confirm; 8 and >10 are no-ops.  The auto-repeat cases (4/6) consult
+ * per-axis deadlines stored in the header (repeat_a/repeat_b); `now` is
+ * the GetTickCount() value the retail engine samples internally, injected
+ * so the port is testable without a real clock.  See menu_list.c for the
+ * recovered jump table and the per-type cursor arithmetic. */
+int32_t menu_list_nav(menu_ctrl *c, uint32_t dir, uint32_t now);
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(menu_list_hdr, type)     == 0x00, "hdr.type");
