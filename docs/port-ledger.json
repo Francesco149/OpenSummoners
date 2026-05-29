@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 110,
+  "tested": 112,
   "ported": 3,
-  "unported": 1645,
+  "unported": 1643,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 113,
-  "pct_touched": 6.9,
-  "pct_tested": 6.9,
-  "engine_proper_touched": 103,
+  "touched": 115,
+  "pct_touched": 7.0,
+  "pct_tested": 7.0,
+  "engine_proper_touched": 105,
   "bytes_total": 1694868,
-  "bytes_touched": 161060,
+  "bytes_touched": 161169,
   "pct_bytes_touched": 9.5
  },
  "orphan_refs": [],
@@ -1087,8 +1087,11 @@
    "name": "FUN_00412c10",
    "size": 46,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/obj_container.c",
+    "src/obj_container.h"
+   ]
   },
   {
    "va": "0x412c40",
@@ -1199,8 +1202,11 @@
    "name": "FUN_00414080",
    "size": 63,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/obj_container.c",
+    "src/obj_container.h"
+   ]
   },
   {
    "va": "0x4140c0",
@@ -8403,6 +8409,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/obj_container.h",
     "src/title_scene.c",
     "src/title_scene.h",
     "src/zdd.h"

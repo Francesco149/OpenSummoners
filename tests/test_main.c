@@ -285,6 +285,14 @@ struct test_case {
     X(input_poll_highest_index_wins)                           \
     X(input_poll_endpoints_in_range)                           \
     X(input_poll_empty_ring_misses)                            \
+    X(pool_acquire_stamps_and_bumps)                           \
+    X(pool_acquire_index_is_16bit_write)                       \
+    X(pool_acquire_exhausts_returns_null)                      \
+    X(pool_acquire_zero_capacity_is_null)                      \
+    X(sel_mark_last_selects_only_last)                         \
+    X(sel_mark_last_single_entry)                              \
+    X(sel_mark_last_empty_is_noop)                             \
+    X(sel_mark_last_reselects_new_tail)                        \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

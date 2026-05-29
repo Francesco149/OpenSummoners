@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **113**
-- of those, zero-dependency **leaves: 51** (recommended order below)
+- frontier functions: **111**
+- of those, zero-dependency **leaves: 49** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -28,7 +28,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x491740 | 38 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x58d060 | 45 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x5bbc60 | 45 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x412c10 | 46 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x4022a0 | 47 | 1 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x58c8d0 | 51 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x58d020 | 51 | 1 | master sprite-group register + audio/music init + anim pump |
@@ -37,7 +36,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bbb10 | 56 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x412db0 | 57 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5bbc20 | 57 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x414080 | 63 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x58cfe0 | 63 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x587ce0 | 71 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x587db0 | 76 | 1 | master sprite-group register + audio/music init + anim pump |
@@ -54,6 +52,8 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x417bc0 | 123 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x43c9b0 | 130 | 1 | battle scenario init + turn engine + input poll + save mgr |
 | 0x4118b0 | 134 | 1 | menu/dialog controller + char init + shop/NPC + save path |
+| 0x47b7c0 | 163 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
+| 0x58ca80 | 167 | 1 | master sprite-group register + audio/music init + anim pump |
 
 ## Full frontier by address band
 
@@ -71,17 +71,15 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4017d0 | 1175 | 1 | 1 |  |
 | 0x40c380 | 5077 | 1 | 100 |  |
 
-### menu/dialog controller + char init + shop/NPC + save path (19)
+### menu/dialog controller + char init + shop/NPC + save path (17)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41bbe0 | 312 | 2 | 1 |  |
 | 0x4184a0 | 1035 | 2 | 2 |  |
 | 0x418470 | 40 | 1 | 1 |  |
-| 0x412c10 | 46 | 1 | 0 | ✓ |
 | 0x4192b0 | 52 | 1 | 0 | ✓ |
 | 0x412db0 | 57 | 1 | 0 | ✓ |
-| 0x414080 | 63 | 1 | 0 | ✓ |
 | 0x41bb80 | 95 | 1 | 0 | ✓ |
 | 0x417870 | 106 | 1 | 0 | ✓ |
 | 0x411560 | 117 | 1 | 0 | ✓ |
@@ -157,7 +155,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56dc20 | 344 | 1 | 1 |  |
 | 0x56c2b0 | 373 | 1 | 4 |  |
 | 0x564160 | 376 | 1 | 17 |  |
-| 0x56c930 | 607 | 1 | 5 |  |
+| 0x56c930 | 607 | 1 | 4 |  |
 | 0x568de0 | 998 | 1 | 19 |  |
 | 0x56a670 | 1011 | 1 | 22 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |

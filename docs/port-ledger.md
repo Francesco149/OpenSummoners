@@ -14,17 +14,19 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **113** (6.9% of engine-proper) — tested 110, ported 3
-- code bytes touched: **9.5%** (161,060 / 1,694,868 B of engine-proper)
-- unported: **1645**
+- touched: **115** (7.0% of engine-proper) — tested 112, ported 3
+- code bytes touched: **9.5%** (161,169 / 1,694,868 B of engine-proper)
+- unported: **1643**
 - orphan refs in src/ not in this table: 0
 
-## tested (110) — ported + host unit suite
+## tested (112) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x406440 | FUN_00406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | FUN_00408b90 | 419 | wnd_proc.h |
+| 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
+| 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
@@ -36,7 +38,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+3) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | main.c, title_scene.c, title_scene.h (+1) |
+| 0x56aea0 | FUN_0056aea0 | 3441 | main.c, obj_container.h, title_scene.c (+2) |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |
