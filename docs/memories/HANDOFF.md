@@ -67,16 +67,26 @@ of the function around it.
 
 1. **(recommended) Checkpoint 2: the `local_28` frame-pacing FSM + the
    outer loop skeleton.** Port the pump-coupled pacing sub-state machine
-   (Ghidra `FUN_0056aea0` lines 98–161; asm `0x56b002..0x56b0c8`) that
-   calls `app_pump_frame` (`FUN_005b1030`, already ported) and decides,
-   each iteration, whether to run the *update* half (drives `title_fade_step`)
-   or the *render* half. ⚠️ **Resolve first:** r2 and Ghidra disagree on
-   the 1-second watchdog re-anchor block at `0x56b09d..0x56b0ba` (r2 shows
-   an `inc/reset` on a slot Ghidra omits). Decode that block from raw
-   bytes before porting — it's the one piece of the pacing FSM I did not
-   trust enough to port in ckpt 1. Build it as another pure step
-   (`title_pace_step`) with the GetTickCount value passed in, like
-   app_pump's hooks.
+   (asm `0x56b002..0x56b0c8`, decoded with raw stack offsets via
+   `e asm.sub.var=false`) that calls `app_pump_frame` (`FUN_005b1030`,
+   ported) and decides each iteration whether to run the *update* half
+   (`S==2` → falls through to the input + `switch(local_64)` phase FSM,
+   already ported) or the *render* half (`S==1` → jumps to `0x56bb04`,
+   the jump-table draw + flip). Build it as a pure `title_pace_step` with
+   the GetTickCount value passed in (app_pump-style). **Decoded state
+   machine** (S = sub-state at `[esp+0x50]`; now = GetTickCount; B =
+   budget `[esp+0x48]`; A `[esp+0x4c]`; C `[esp+0x44]`; D `[esp+0x58]`;
+   E `[esp+0x5c]`):
+     - `S==0`: C=now; pump(); S=2.
+     - `S==1`: B=min((B−C)+now,100); C=now; pump(); if B>16 → S=2 (else stays 1).
+     - `S==2`: if (now−A)>B → {B=0; S=1}; else {B−=16; if B≤16 → S=1}.
+     - post: if S==2 → A=now; if S==1 → if (now−D)≤1000 → E++ else {E=0; D=now}.
+     - dispatch: S==1 → render(`0x56bb04`); S==2 → update (fall through).
+   ⚠️ **Divergence resolved:** Ghidra (lines 129–136) dropped the E
+   counter (`[esp+0x5c]` inc/reset) entirely — **r2 is authoritative**.
+   Still TODO for ckpt 2: confirm whether E is ever *read* (dead vs live)
+   — couldn't pin it this session because esp shifts under arg pushes.
+   If dead, omit with a note; if live, model it.
 
 2. **Checkpoint 3: the menu + input default branch (phases 8/9).** Needs
    the menu-controller object model (`0x412c10` alloc, the `+0x174`/`+0x17c`
