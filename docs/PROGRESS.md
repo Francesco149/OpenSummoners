@@ -40,6 +40,33 @@ early-out is a slice of the already-counted `FUN_0056aea0`; its new input helper
 reference the slice by bare VA.  See `findings/input.md` (wider manager model),
 `findings/title-scene.md` (skip-splash now ported).
 
+## 2026-06-02 — Parity harness live-verified against retail under Frida, ckpt 12
+
+Ran the structural-parity call-trace harness against **live retail under
+Frida** for the first time (Frida is always up + UAC auto-approved on this
+host, so the "human-verification gate" is really self-serviceable — noted in
+memory).  Result: it **works end-to-end**.  A `--no-turbo` capture with the
+*full* 1743-VA candidate set hooked at once booted retail to its title window
+and emitted **1.8M call-trace events over 1914 Flip frames with zero
+crashes** — so `tools/bisect_call_trace_vas.py` proved **unnecessary** for
+this boot path; `engine_vas_frida_safe.json` was written directly from the
+full set.
+
+Two hard live findings.  (1) **Everything live must be `--no-turbo`:** turbo
+freezes the splash before the engine reaches its message pump (quirk #29) —
+a turbo boot reports `msg_count=0` / no Flips, so the bisect's turbo default
+made every subset read as a crash (the calibration trap the file header
+warned about).  No-turbo boots cleanly (`msg_count` ~750-1000, 1914 frames).
+Fixed the bisect to default `--no-turbo`.  (2) Mining the trace for the title
+render path **confirms the ported control flow and the next port target
+against live retail**: `0x56c180` compose / `0x5b8fc0` Flip / `0x5b1030` pump
+fire once per frame; `0x56c930` post-update fires ≈ half as often (validating
+the pacing-FSM update/render split); and the **software alpha blitter
+`0x5bd680` (+ orchestrator `0x5bd550`) is the hot per-frame draw primitive
+(4279 calls)** — the recommended next render-bridge chip.  The call_trace
+*diff* is now blocked only on the port side (main.c must drive
+`title_scene_step`).  Details + the per-frame table in `docs/parity-harness.md`.
+
 ## 2026-06-02 — Title scene runner wired into one orchestrated loop, ckpt 11
 
 Composed the ckpt 1–10 units (the pacing FSM, the fade FSM, the menu spawn,

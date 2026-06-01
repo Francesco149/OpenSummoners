@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (skip-splash ported; update half complete, ckpt 12)
+# Session handoff — last updated 2026-06-02 (skip-splash ported + parity harness live-verified, ckpt 12)
 
 **This is the first thing to read at the start of every session.**
 
@@ -89,12 +89,25 @@ r2 reads garbage there). Recipe:
 `nix develop --command bash -c "r2 -q -e scr.color=0 -c 'af @ <va>; pdf @ <va>' vendor/unpacked/sotes.unpacked.exe"`.
 For a jump table: `pxw <n> @ <table-va>`.
 
-**Structural-parity harness (offline foundation landed 2026-05-29):**
-call-graph diff + mem-watch, mirroring `../openrecet`. How-to:
-`docs/parity-harness.md`; design: `docs/plans/parity-harness.md`. Offline
-pieces done + tested. The agent + `frida_capture.py` call-trace/mem-watch
-modes + `tools/bisect_call_trace_vas.py` are code-complete but **need a
-live retail-under-Frida run to verify** (human-verification gate).
+**Structural-parity harness — LIVE-VERIFIED 2026-06-02 (ckpt 12).** How-to:
+`docs/parity-harness.md`; design: `docs/plans/parity-harness.md`. The
+call-trace machinery now **works end-to-end against live retail**: a no-turbo
+capture with the *full* 1743-VA candidate set hooked booted retail to its
+title and emitted **1.8M events over 1914 Flip frames, zero crashes** — so
+**the bisect step is unnecessary** (`engine_vas_frida_safe.json` written
+directly = the full set). Frida is **always up + UAC auto-approved** on this
+host → the harness is **self-serviceable, not a human gate**
+([[reference_frida]]). Two hard live findings: (a) **everything live must be
+`--no-turbo`** — turbo freezes the splash before the pump (quirk #29:
+msg_count/Flips = 0); no-turbo renders normally. (b) The retail capture
+already **confirmed the next render-bridge target**: `0x5bd680` (software
+alpha blitter) + `0x5bd550` are the hot per-frame draw primitive (4279
+calls), and the per-frame counts validate the ported pacing split
+(`0x56c930` post-update ≈ half of `0x56c180` compose / `0x5b8fc0` Flip). The
+**call_trace_diff is still blocked** only on the *port* side: `main.c` must
+drive `title_scene_step` before `opensummoners.exe --call-trace` produces a
+comparable trace (Next move #2). `mem_watch.py` (input-ring producer) is the
+remaining live probe not yet exercised.
 
 NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
@@ -158,11 +171,15 @@ the drop-in against the real engine.
    visible. This is the step from "tested unit" to "the title scene runs in
    the real window".
 
-3. **Live harness gate** — run `bisect_call_trace_vas.py` /
-   `mem_watch.py --region <+0x108>:64:input_ring` under Frida to verify the
-   call-trace + mem-watch machinery and catch the input-ring producer (the
-   DInput `GetDeviceState` writer, vtable `[0x24]`), which also fills the
-   `+0x114/+0x118` axis-held flags. Human-in-the-loop.
+3. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
+   exercised. `mem_watch.py --region <+0x108 addr>:64:input_ring` (no-turbo!)
+   to catch the DInput `GetDeviceState` writer (vtable `[0x24]`) that fills the
+   ring + the `axis_held` arrays (quirk #41) — the last input black box. Needs
+   the runtime address of the input-manager object first (resolve via a hook on
+   a known consumer like `0x43c110`). Self-serviceable now ([[reference_frida]]).
+   (The call-trace half of the harness is already live-verified — see the
+   parity-harness paragraph above; its diff is blocked on Next move #2, not on
+   a live run.)
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 

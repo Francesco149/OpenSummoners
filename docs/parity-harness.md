@@ -22,26 +22,37 @@ Frame axis: both sides count **Flips**. The agent bumps on each
 
 ## First-run order (the live gate)
 
-These need retail under Frida on the Windows host (UAC prompt for
-frida-server; the game runs). Run inside `nix develop`.
+These need retail under Frida on the Windows host. **Live-verified working
+2026-06-02** — Frida is always up and UAC is auto-approved on this host, so
+these are self-serviceable (no human gate). Run inside `nix develop`.
+
+> ⚠ **Everything live MUST be `--no-turbo`.** Turbo freezes the splash before
+> the engine reaches its message pump (engine-quirks #29): the window appears
+> but `msg_count`/Flips stay 0. No-turbo boots cleanly to the title and renders
+> (a 16 s no-turbo capture saw **1914 Flip frames**); turbo saw **0**.
 
 ```sh
 # 1. (offline) candidate VA list
 python3 tools/gen_engine_vas.py
 
-# 2. (live) vet the Frida-safe subset — ~20-40 min, writes
-#    tools/frida/data/engine_vas_frida_safe.json.
-#    ⚠ --boot-threshold + timing constants need calibration on this first run
-#    (see the file header): confirm a known-good boot's msg_count first.
-python3 tools/bisect_call_trace_vas.py
+# 2. (live, usually SKIP) vet the Frida-safe subset.  Already done: the full
+#    1743-VA candidate set was verified Frida-safe by the direct capture in
+#    step 3 (no crash, 1.8M events), so engine_vas_frida_safe.json is the full
+#    set.  Only re-run if a new candidate set adds a crashing VA.
+python3 tools/bisect_call_trace_vas.py    # now defaults to --no-turbo
 
 # 3. (live) capture retail's per-frame call trace for the title scene
-python3 tools/frida_capture.py --call-trace \
+python3 tools/frida_capture.py --no-turbo --call-trace \
+    --call-trace-vas-file tools/frida/data/engine_vas_frida_safe.json \
     --run-dir runs/calltrace-title --exact-run-dir \
-    --duration-ms 12000 --max-frames 4000
-#    → runs/calltrace-title/call_trace.jsonl
+    --duration-ms 16000
+#    → runs/calltrace-title/call_trace.jsonl  (≈135 MB for ~1900 frames;
+#      add --call-trace-frames <f1,f2,...> to whitelist specific Flip frames
+#      and keep it small.  runs/ is gitignored.)
 
-# 4. (offline) capture the port's trace for the same scene
+# 4. (offline) capture the port's trace for the same scene — BLOCKED until
+#    main.c drives title_scene_step (the drop-in's minimal main_loop_body
+#    doesn't run the real scene yet).  See HANDOFF "Next move".
 make -C src
 ./build/opensummoners.exe --frames 600 --call-trace /tmp/port_calltrace.jsonl
 
@@ -53,6 +64,29 @@ python3 tools/call_trace_diff.py \
 ```
 
 The **retail-only** list in step 5 is the prioritized port queue.
+
+### What the first live retail capture already showed (2026-06-02)
+
+Mining `runs/calltrace-title` (no-turbo, 1914 frames) for the title render
+path — the per-frame call counts confirm the ported control flow and the
+next port target against live retail:
+
+| VA | role | calls | frames | note |
+|----|------|------:|--------|------|
+| `0x56aea0` | title scene | 1 | 0 | one entry; the do/while loops inside ✓ |
+| `0x5b1030` | pump | 1915 | all | once/frame ✓ |
+| `0x56c180` | frame compose | 1915 | all | once/frame ✓ |
+| `0x5b8fc0` | Flip | 1914 | all | once/frame ✓ |
+| `0x56c930` | post-update | 984 | all | ≈ half (UPDATE frames only) — validates the pacing-FSM split ✓ |
+| `0x5bd550`→`0x5bd680` | blit orch → **software alpha blitter** | 4279 each | all | the hot per-frame draw primitive — **confirms the right next render-bridge target** |
+| `0x5b9b70` | color-key blit (ported) | 1937 | 87+ | post-logo ✓ |
+| `0x494e10` | logo blit | 359 | 0–471 | intro only ✓ |
+| `0x5b9410` | surface reset (ported) | 90 | 0–89 | early phases ✓ |
+| `0x418470` | asset get | 2800 | 515+ | menu phase ✓ |
+
+(The title sprite *wrappers* `0x56c4e0`/`56c610`/`56c470`/`56c580` show 0 — they
+were tiny-stub-filtered from the candidate set, not absent; the blitter they
+funnel into is what's captured.)
 
 ## mem_watch (find a region's writer)
 

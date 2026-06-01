@@ -25,10 +25,19 @@ run.json.  Boot success = the engine pumped at least --boot-threshold
 messages (it got past CRT init + the launcher into its message loop); a
 crash-on-boot dies before pumping.
 
-⚠ The boot-success signal (msg_count threshold) and timing constants need
-calibration on the first live run — retail-under-Frida is the human
-verification gate for this tool.  Defaults are conservative starting
-points, not validated numbers.
+⚠ LIVE-CALIBRATED 2026-06-02 — and the result is that this whole tool is
+likely **unnecessary**: a direct no-turbo call-trace capture hooked the
+*entire* candidate set (1743 VAs) at once and booted retail cleanly,
+emitting 1.8M events over 1914 frames with zero crashes
+(runs/calltrace-title).  So `engine_vas_frida_safe.json` was written
+directly from the full set, no bisection needed.  Re-run this only if a
+future candidate set introduces a crashing VA.
+
+⚠ The boot-success signal MUST be measured **--no-turbo**: turbo freezes
+the splash before the engine reaches its message pump (engine-quirks #29),
+so a turbo boot reports msg_count=0 and every subset reads as a crash.
+Calibrated baselines (no-turbo): a good boot pumps ~750-1000 messages in
+14-16 s; a real crash gives ~0.  BOOT_THRESHOLD=30 cleanly separates them.
 
 Usage (inside `nix develop`):
     python3 tools/bisect_call_trace_vas.py
@@ -53,7 +62,7 @@ OUT_PATH      = REPO / "tools" / "frida" / "data" / "engine_vas_frida_safe.json"
 RUN_BASE      = Path("/tmp/opensummoners-bisect")
 PROGRESS_PATH = RUN_BASE / "progress.json"
 
-DURATION_MS     = 12000   # turbo boot-to-title budget (calibrate live)
+DURATION_MS     = 14000   # no-turbo boot-to-pump budget (live-calibrated 2026-06-02)
 SUBPROC_TIMEOUT = 60
 MAX_FRAMES      = 3
 BOOT_THRESHOLD  = 30      # min drained messages = "reached the pump"
@@ -96,6 +105,7 @@ def test_subset(vas: list[int], boot_threshold: int) -> tuple[bool, str]:
 
     cmd = [
         "bash", str(RUN_RETAIL),
+        "--no-turbo",   # turbo freezes the splash → msg_count=0 (quirk #29)
         "--exact-run-dir", "--run-dir", str(run_dir / "run"),
         "--call-trace",
         "--call-trace-vas-file", str(vas_file),
