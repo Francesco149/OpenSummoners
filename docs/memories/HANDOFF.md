@@ -167,11 +167,26 @@ still stubs (no pixels yet).
 
 ## Active goal
 
-**`FUN_0056aea0` is fully ported, composed into one runner, AND its update
-half is complete (skip-splash landed ckpt 12).** The remaining milestone-0
-work is making it *do real work*: implement the draw bridges behind the
-render sink so a title frame actually composites, and drive the runner from
-the drop-in against the real engine.
+**Direction set by the user at ckpt 13: make the PORT render the scenes the
+new-game trace already covers — title menu + new-game menus + the prologue
+(stone/narration) — to 1:1-match retail, using the harness-captured goldens
+as the pixel target. Do NOT extend the trace toward in-game yet; "once we
+have prologue and main menu rendering we extend the trace."**
+
+So the work is the milestone-0 render port (move #1) + driving the runner
+(move #2), now with concrete golden frames to diff against (the harness is the
+yardstick). `FUN_0056aea0` is fully ported/composed/update-complete; what's
+missing is real pixels: the draw bridges behind the render sink, and driving
+the runner from the drop-in.
+
+**Render-port task list (TaskCreate'd ckpt 13):** (7) port the software alpha
+blitter `0x5bd680` — recommended first chip, pure logic, host-testable;
+scaffolding already exists (Lock/Unlock `zdd.c:1024`, `color_desc` mask/shift
+`FUN_005b8a20`). (8) blit orchestrator `0x5bd550` + sprite wrappers
+(`0x56c470/4e0/580/610`) → implement `title_render_sink`. (9) drive
+`title_scene_step` from `main.c`. (10) port-side frame capture + a
+`push_comparison.py` (port|retail amplified diff to llm-feed) to close the
+pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`.
 
 ## Next move (pick one — recommendation first)
 
