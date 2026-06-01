@@ -45,3 +45,42 @@ int input_poll_consume(input_mgr *m, uint32_t now, int32_t button_id)
     }
     return 0;
 }
+
+/* Skip-splash scan (0x56b119..0x56b144): same newest-first walk as the poll,
+ * but matching ANY pressed id (record.id != 0) rather than a specific one, and
+ * read-only.  See input.h. */
+int input_any_fresh_press(const input_mgr *m, uint32_t now)
+{
+    for (int i = INPUT_RING_LEN - 1; i >= 0; i--) {
+        const input_event *rec = m->ring[i];           /* eax = *edx           */
+
+        if (rec->id != 0                               /* cmp [eax],0; je next */
+            && rec->flag == 1                          /* cmp [eax+8],1; jne   */
+            && (uint32_t)(now - rec->ts) <= 100) {     /* age <= 100 ms (jbe)  */
+            return 1;                                  /* match → 0x56b182     */
+        }
+    }
+    return 0;                                          /* ring exhausted, miss */
+}
+
+/* Skip-splash field flush (0x56b25e..0x56b29a).  See input.h. */
+void input_mgr_reset(input_mgr *m)
+{
+    m->field_16c = 0;                                  /* mov word [ecx+0x16c] */
+
+    /* 11 iterations, arrays A (+0x114) and B (+0x140) cleared in parallel
+     * (`mov [eax+0x2c],ebx; mov [eax],ebx; add eax,4`). */
+    for (int i = 0; i < 11; i++) {
+        m->axis_held[i]   = 0;
+        m->axis_held_b[i] = 0;
+    }
+
+    /* 64 iterations: zero each ring slot's id (`mov esi,[eax]; mov [esi],ebx`),
+     * dropping every accumulated event.  Subsumes the matched-slot zero the
+     * scan path did at 0x56b18f. */
+    for (int i = 0; i < INPUT_RING_LEN; i++)
+        m->ring[i]->id = 0;
+
+    m->field_10c = 0;                                  /* mov [ecx+0x10c],ebx */
+    m->field_110 = 0;                                  /* mov [ecx+0x110],ebx */
+}

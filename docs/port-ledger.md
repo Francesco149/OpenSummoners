@@ -45,7 +45,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+3) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | main.c, obj_container.h, title_scene.c (+2) |
+| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, obj_container.h (+3) |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |

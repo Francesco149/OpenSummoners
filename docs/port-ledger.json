@@ -8429,6 +8429,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/input.h",
     "src/main.c",
     "src/obj_container.h",
     "src/title_scene.c",

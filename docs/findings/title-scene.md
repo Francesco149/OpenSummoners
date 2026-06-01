@@ -210,10 +210,16 @@ Plain return values:
 > - **The menu spawns and runs its first input poll on the same frame**, with
 >   the input gate (`local_60->sub->[+0x54]` ramp) still closed — so the first
 >   menu frame cannot latch a selection.
-> - **Deferred:** the skip-splash early-out (`0x56b0e8..0x56b150`) is *not* in
->   the runner yet — it walks the input ring directly and fires a second
->   SetNextSegment cue; a separable intro-convenience for its own checkpoint.
->   Without it the intro always plays in full (`param_1 == 0`).
+> - **Skip-splash (ported, checkpoint 12):** the early-out (`0x56b0e8..0x56b150`)
+>   now sits in `title_scene_step` just after the `0x22` abort poll.  It scans the
+>   input ring for any fresh press (`input_any_fresh_press`) and on a hit zeros the
+>   fade, fires the BGM `SetNextSegment` cue (when still before phase 3), flushes the
+>   ring + axis state (`input_mgr_reset`), and forces phase 8.  The gate honours the
+>   scene's `skip_intro` (`param_1`): with it clear a press is ignored at phase 0 (so
+>   a first boot plays the studio fade in full), but phases 1..7 always skip on a
+>   press.  The one piece left out is retail's scene-local sparkle-counter reset
+>   (`var_3eh_2`), which belongs to the still-deferred sparkle-trail subsystem.  See
+>   engine-quirks #41 for the input-mgr two-array shape this revealed.
 
 Once we're in the default branch (after phase 7 hands off), each frame:
 

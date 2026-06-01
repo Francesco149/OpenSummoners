@@ -44,8 +44,6 @@
  *     0x43ce50) + the action switch (0x411390);
  *   - the render half (jump-table draw handlers) + the frame-end flip
  *     (0x56c180 + FUN_005b8fc0);
- *   - the `param_1` skip-intro path and the consume-on-read ring-buffer
- *     "press a button to skip the splash" early-out (local_64 < 8);
  *   - the joystick lazy-attach block (0x5ba120) on first confirm;
  *   - the local_50 watchdog (forces phase 10 after 0x1194 frames).
  */
@@ -281,8 +279,8 @@ void title_menu_teardown(title_menu *m);
  *        button 1  → latch dir 0   button 3  → latch dir 1
  *        button 0x24 → latch dir 9
  *      with two axis-held syntheses interleaved (only when nothing has
- *      latched yet): after buttons 2/4/1, latch dir 6 (mgr->axis_held_v set)
- *      or 7 (clear); after button 3, latch dir 4 (mgr->axis_held_h set) or 5
+ *      latched yet): after buttons 2/4/1, latch dir 6 (mgr->axis_held[0] set)
+ *      or 7 (clear); after button 3, latch dir 4 (mgr->axis_held[1] set) or 5
  *      (clear).  The latch's return code (`esi` / retail iVar14) is the
  *      resolved menu action.
  *
@@ -369,7 +367,7 @@ typedef struct title_menu_input_out {
 /* Run one frame of the spawned title menu's input handling.
  *
  *   mgr             the scene's input manager (retail in_ECX[1]) — polled, and
- *                   its axis_held_v/h flags consulted for the synth events.
+ *                   its axis_held[0]/[1] flags consulted for the synth events.
  *   ctrl            the spawned menu controller (title_menu.ctrl / local_60).
  *   now             this frame's GetTickCount sample (retail DVar8), passed to
  *                   the poll + latch for the consume window / key-repeat clocks.
@@ -538,13 +536,16 @@ void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
  * Faithful divergences (documented so the seams stay visible):
  *
  *   - The **skip-splash early-out** (0x56b0e8..0x56b150 — "press any button
- *     during the intro to jump straight to the menu") is NOT ported here.
- *     It walks the input-manager ring directly (newest-first, looking for any
- *     fresh press) and, on a hit, fires a second BGM SetNextSegment cue and
- *     resets a swathe of input-manager fields before forcing phase 8.  It is
- *     a separable intro-convenience that reads input-mgr internals the poll
- *     port doesn't model yet; deferred to its own checkpoint.  Without it the
- *     intro always plays in full (param_1==0, the headless default).
+ *     during the intro to jump straight to the menu") is now ported (it sits
+ *     just after the 0x22 abort poll).  It walks the input-manager ring
+ *     (input_any_fresh_press, newest-first) and, on a hit, zeros the fade,
+ *     fires the BGM SetNextSegment cue when still before phase 3, flushes the
+ *     ring + axis state (input_mgr_reset), and forces phase 8.  The gate
+ *     honours `skip_intro` (param_1): with it clear (the headless default) a
+ *     press is ignored at phase 0, so a param_1==0 boot still plays the intro
+ *     from the start, but a press during phases 1..7 skips the rest.  The one
+ *     piece left out is retail's scene-local sparkle-counter reset (var_3eh_2),
+ *     which belongs to the deferred sparkle-trail subsystem, not the runner.
  *   - The menu-spawn precondition (a free, allocated owner entry) is the same
  *     as retail's (which has no guard).  Where retail would dereference a NULL
  *     controller after a failed spawn, this guards `ctrl != NULL` before the
@@ -589,6 +590,8 @@ typedef struct title_scene {
     const uint32_t  *ramp;            /* 0x8a9308 alpha ramp (NULL ⇒ all-zero)        */
     int              quiet;           /* DAT_008a6b54 — log-suppress flag             */
     const title_menu_savedata_list *savedata;  /* commit-path notify table, or NULL  */
+    int              skip_intro;      /* param_1 — nonzero ⇒ a press skips the intro  */
+                                      /*           even from phase 0 (0x56b10f gate)  */
 } title_scene;
 
 /* What one iteration of the runner resolved to. */
@@ -603,7 +606,7 @@ typedef enum title_scene_status {
  * engine-object allocations and the init-time engine calls are the caller's). */
 void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
                       int32_t select_key, const uint32_t *ramp, int quiet,
-                      const title_menu_savedata_list *savedata);
+                      const title_menu_savedata_list *savedata, int skip_intro);
 
 /* Run one iteration of the outer loop.  `now` is this iteration's GetTickCount
  * sample (the engine reads it once at 0x56b002); `hooks` routes the unported

@@ -428,12 +428,12 @@ void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
     if (input_poll_consume(mgr, now, 4))    esi = menu_list_latch(ctrl, 3, now);
     if (input_poll_consume(mgr, now, 1))    esi = menu_list_latch(ctrl, 0, now);
     if (esi == 0) {                                  /* 0x56b871 */
-        uint32_t dir = (mgr->axis_held_v != 0) ? 6 : 7;
+        uint32_t dir = (mgr->axis_held[0] != 0) ? 6 : 7;   /* +0x114 vertical */
         esi = menu_list_latch(ctrl, dir, now);
     }
     if (input_poll_consume(mgr, now, 3))    esi = menu_list_latch(ctrl, 1, now);
     if (esi == 0) {                                  /* 0x56b8ab */
-        uint32_t dir = (mgr->axis_held_h != 0) ? 4 : 5;
+        uint32_t dir = (mgr->axis_held[1] != 0) ? 4 : 5;   /* +0x118 horizontal */
         esi = menu_list_latch(ctrl, dir, now);
     }
     if (input_poll_consume(mgr, now, 0x24)) esi = menu_list_latch(ctrl, 9, now);
@@ -651,7 +651,7 @@ void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
 
 void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
                       int32_t select_key, const uint32_t *ramp, int quiet,
-                      const title_menu_savedata_list *savedata)
+                      const title_menu_savedata_list *savedata, int skip_intro)
 {
     title_pace_state_init(&ts->pace);   /* sub=0, budget=0x11, anchors=0 (0x56afd0) */
     title_fade_state_init(&ts->fade);   /* phase/fade/tick/menu_fade = 0 (0x56aec4) */
@@ -667,6 +667,7 @@ void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
     ts->ramp       = ramp;
     ts->quiet      = quiet;
     ts->savedata   = savedata;
+    ts->skip_intro = skip_intro;       /* param_1 */
 }
 
 title_scene_status title_scene_step(title_scene *ts, uint32_t now,
@@ -696,7 +697,30 @@ title_scene_status title_scene_step(title_scene *ts, uint32_t now,
         return TITLE_SCENE_DONE;                            /* → LAB_0056bf2e */
     }
 
-    /* [skip-splash early-out 0x56b0e8..0x56b150 deferred — see title_scene.h] */
+    /* Skip-splash early-out (0x56b0e8..0x56b150): during the intro, a fresh
+     * button press jumps straight to the menu.  Gate (0x56b107..0x56b117):
+     * phase < 8, and either phase >= 1 or skip_intro (param_1) is set — so at
+     * phase 0 the headless default (skip_intro == 0) never skips, but phases
+     * 1..7 always honour a press. */
+    if (ts->fade.phase < 8 && (ts->fade.phase != 0 || ts->skip_intro)) {
+        if (input_any_fresh_press(ts->input, now)) {     /* 0x56b119..0x56b144 */
+            ts->fade.fade = 0;                           /* uVar15 = 0 (0x56b18a) */
+
+            /* phase < 3 (0x56b18c): the studio→title BGM hand-off hasn't fired
+             * yet, so cue it now — the same SetNextSegment dance title_fade_step
+             * runs at the 2→3 transition (0x56b197..0x56b259), condensed here to
+             * the one hook. */
+            if (ts->fade.phase < 3 && hooks != NULL && hooks->set_next_segment != NULL)
+                hooks->set_next_segment();
+
+            input_mgr_reset(ts->input);                  /* 0x56b25e..0x56b29a */
+            ts->fade.phase = 8;                          /* local_64 = 8 (0x56b2a0) */
+            /* Retail also zeros a scene-local sparkle counter here (var_3eh_2,
+             * 0x56b2a8) — that belongs to the still-deferred sparkle-trail
+             * subsystem (spawned/advanced outside this runner via the
+             * spawn_sparkle hook), so there is nothing to reset in our state. */
+        }
+    }
 
     /* The phase switch (0x56b153).  phase > 10 skips it entirely (LAB_0056b14a
      * `if (10 < local_64) goto LAB_0056ba69`). */

@@ -947,7 +947,7 @@ int test_menu_input_idle_frame_no_effects(void)
 {
     menu_ctrl c; menu_input_sub sub; input_mgr m;
     ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
-    /* axis_held_v / axis_held_h left 0 → synth dirs 7 then 5, both no-ops */
+    /* axis_held[0] / axis_held[1] left 0 → synth dirs 7 then 5, both no-ops */
 
     title_menu_input_out out;
     title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
@@ -966,7 +966,7 @@ int test_menu_input_axis_held_synthesises_move(void)
 {
     menu_ctrl c; menu_input_sub sub; input_mgr m;
     ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
-    m.axis_held_v        = 1;                /* vertical axis held */
+    m.axis_held[0]       = 1;                /* vertical axis held */
     c.list->repeat_b     = 1;                /* deadline already set... */
     c.list->cursor       = 2;
     /* now=1000 >= repeat_b(1) → dir 6 fires as 'prev' (returns 1) */
@@ -1359,7 +1359,7 @@ int test_title_scene_init_zeroes_and_binds(void)
     title_scene ts;
     memset(&ts, 0xAA, sizeof ts);
 
-    title_scene_init(&ts, &o, &m, 0x1e, ramp, 1, &sd);
+    title_scene_init(&ts, &o, &m, 0x1e, ramp, 1, &sd, 0);
 
     T_ASSERT_EQ_I(ts.pace.sub, 0);
     T_ASSERT_EQ_U(ts.pace.budget, 0x11);
@@ -1376,6 +1376,7 @@ int test_title_scene_init_zeroes_and_binds(void)
     T_ASSERT_EQ_P(ts.ramp, ramp);
     T_ASSERT_EQ_I(ts.quiet, 1);
     T_ASSERT_EQ_P(ts.savedata, &sd);
+    T_ASSERT_EQ_I(ts.skip_intro, 0);
     return 0;
 }
 
@@ -1384,7 +1385,7 @@ int test_title_scene_render_iteration_presents(void)
 {
     input_mgr m; ti_mk_input(&m);
     title_scene ts;
-    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL);
+    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL, 0);
     ts.fade.phase = 5;                  /* press-button handler */
     ts.fade.fade  = 400;
     /* a pace state that resolves to RENDER with no pump: sub==2, 0 ms elapsed,
@@ -1423,7 +1424,7 @@ int test_title_scene_abort_poll_returns_6(void)
     input_mgr m; ti_mk_input(&m);
     ti_press(&m, 30, 0x22, TS_NOW);     /* fresh abort press */
     title_scene ts;
-    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL);
+    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL, 0);
 
     ts_reset_hooks(); title_render_sink_hook = NULL;
     /* first frame: pacer sub==0 → pump + enter update. */
@@ -1438,13 +1439,124 @@ int test_title_scene_abort_poll_returns_6(void)
     return 0;
 }
 
+/* ── skip-splash: a press during the intro jumps straight to the menu ──
+ * At phase 5 a fresh press triggers the early-out: fade reset to 0 (then the
+ * phase-8 menu arm ramps it back to 0x14, proving the reset), phase forced to
+ * 8, the menu spawns, the ring is flushed, and no BGM cue fires (phase >= 3). */
+int test_title_scene_skip_splash_jumps_to_menu(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    input_mgr m; ti_mk_input(&m);
+    ti_press(&m, 20, 5, TS_NOW);        /* a non-abort, non-nav fresh press */
+    title_scene ts;
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL, 0);
+    ts.fade.phase = 5;
+    ts.fade.fade  = 400;
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+    ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(ts.fade.phase, 8);        /* skipped to the menu */
+    T_ASSERT_EQ_I(ts.fade.fade, 0x14);      /* 0 (skip reset) + 0x14 (phase-8 arm) */
+    T_ASSERT(ts.menu.ctrl != NULL);         /* menu spawned this frame */
+    T_ASSERT_EQ_I(ts_seg_n, 0);             /* phase 5 >= 3 → no BGM cue */
+    T_ASSERT_EQ_I(ti_ring[20].id, 0);       /* ring flushed by the skip */
+
+    free_spawn(&o, &ts.menu);
+    return 0;
+}
+
+/* ── skip-splash before phase 3 also fires the BGM SetNextSegment cue ── */
+int test_title_scene_skip_splash_fires_bgm_cue(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    input_mgr m; ti_mk_input(&m);
+    ti_press(&m, 0, 7, TS_NOW);
+    title_scene ts;
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL, 0);
+    ts.fade.phase = 2;                  /* < 3 → cue fires on skip */
+    ts.fade.fade  = 500;
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+    ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(ts.fade.phase, 8);
+    T_ASSERT_EQ_I(ts_seg_n, 1);             /* exactly the skip's cue */
+    T_ASSERT(ts.menu.ctrl != NULL);
+
+    free_spawn(&o, &ts.menu);
+    return 0;
+}
+
+/* ── the phase-0 gate: skip_intro (param_1) decides whether a press counts ──
+ * At phase 0 the early-out is gated off unless skip_intro is set, so the
+ * headless default (skip_intro == 0) ignores a press and plays the intro;
+ * with skip_intro == 1 the same press skips straight to the menu. */
+int test_title_scene_skip_splash_phase0_gate(void)
+{
+    /* skip_intro == 0: press ignored, intro continues (phase stays 0). */
+    {
+        input_mgr m; ti_mk_input(&m);
+        ti_press(&m, 12, 5, TS_NOW);
+        title_scene ts;
+        title_scene_init(&ts, NULL, &m, 0, NULL, 1, NULL, 0);
+        ts.fade.phase = 0; ts.fade.fade = 0;
+
+        ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+        ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+        T_ASSERT_EQ_I(ts.fade.phase, 0);     /* no skip */
+        T_ASSERT_EQ_I(ts.fade.fade, 0x14);   /* case-0 fade-in ran normally */
+        T_ASSERT_EQ_I(ti_ring[12].id, 5);    /* press left intact (not flushed) */
+        T_ASSERT_EQ_I(ts_seg_n, 0);
+    }
+    /* skip_intro == 1: same press at phase 0 now skips. */
+    {
+        sel_list o; mk_owner(&o, 4);
+        input_mgr m; ti_mk_input(&m);
+        ti_press(&m, 12, 5, TS_NOW);
+        title_scene ts;
+        title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL, 1 /*skip_intro*/);
+        ts.fade.phase = 0; ts.fade.fade = 0;
+
+        ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+        ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+        T_ASSERT_EQ_I(ts.fade.phase, 8);     /* skipped */
+        T_ASSERT_EQ_I(ts_seg_n, 1);          /* phase 0 < 3 → cue fired */
+        T_ASSERT_EQ_I(ti_ring[12].id, 0);    /* flushed */
+        T_ASSERT(ts.menu.ctrl != NULL);
+
+        free_spawn(&o, &ts.menu);
+    }
+    return 0;
+}
+
+/* ── no fresh press → the early-out is a no-op, the intro plays on ── */
+int test_title_scene_skip_splash_noop_without_press(void)
+{
+    input_mgr m; ti_mk_input(&m);       /* empty ring */
+    title_scene ts;
+    title_scene_init(&ts, NULL, &m, 0, NULL, 1, NULL, 0);
+    ts.fade.phase = 5;
+    ts.fade.fade  = 400;
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+    ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(ts.fade.phase, 5);        /* intro continues at phase 5 */
+    T_ASSERT_EQ_I(ts.fade.fade, 500);       /* case-5 fade-in: 400 + 100 */
+    T_ASSERT_EQ_I(ts_seg_n, 0);
+    return 0;
+}
+
 /* ── the full intro walk: phase 0 → spawned menu, via the orchestrator ── */
 int test_title_scene_intro_walks_to_menu(void)
 {
     sel_list o; mk_owner(&o, 4);
     input_mgr m; ti_mk_input(&m);
     title_scene ts;
-    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1 /*quiet*/, NULL);
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1 /*quiet*/, NULL, 0);
 
     ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
 
@@ -1476,7 +1588,7 @@ int test_title_scene_watchdog_forces_exit(void)
     sel_list o; mk_owner(&o, 4);
     input_mgr m; ti_mk_input(&m);
     title_scene ts;
-    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL);
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL, 0);
 
     ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
 
@@ -1518,7 +1630,7 @@ int test_title_scene_menu_commit_exits_with_action(void)
     sel_list o; mk_owner(&o, 4);
     input_mgr m; ti_mk_input(&m);
     title_scene ts;
-    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL);
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL, 0);
 
     ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
 
@@ -1577,7 +1689,7 @@ int test_title_scene_null_hooks_safe(void)
 {
     input_mgr m; ti_mk_input(&m);
     title_scene ts;
-    title_scene_init(&ts, NULL, &m, 0, NULL, 1, NULL);
+    title_scene_init(&ts, NULL, &m, 0, NULL, 1, NULL, 0);
     title_render_sink_hook = NULL;
 
     /* A handful of real iterations (mixed update/render off the live pacer)

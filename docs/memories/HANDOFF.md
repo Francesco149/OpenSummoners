@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (title scene runner wired, ckpt 11)
+# Session handoff — last updated 2026-06-02 (skip-splash ported; update half complete, ckpt 12)
 
 **This is the first thing to read at the start of every session.**
 
@@ -8,49 +8,59 @@ to pick up *right now*".
 
 ## Where we are
 
-**Milestone 0 (title screen renders) — `FUN_0056aea0` is now a single
-running unit.** Across ckpts 1–10 the function was ported as a pile of
-tested pieces (fade FSM, pacing FSM, menu spawn, per-frame input dispatch,
-render step, teardown). **Checkpoint 11 (this session) wired them together**
-into the orchestrator that *is* the outer `do { … } while(1)` body
-(`0x56b002..0x56ba75`): **`title_scene_step` / `title_scene_init`** in
-`src/title_scene.c`.
+**Milestone 0 (title screen renders) — `FUN_0056aea0` is one running unit
+and its update half is now complete.** Ckpts 1–10 ported the pieces (fade
+FSM, pacing FSM, menu spawn, per-frame input dispatch, render step,
+teardown); ckpt 11 wired them into the orchestrator that *is* the outer
+`do { … } while(1)` body (`0x56b002..0x56ba75`): **`title_scene_step` /
+`title_scene_init`** in `src/title_scene.c`. **Checkpoint 12 (this session)
+ported the last deferred slice of the update half — the skip-splash
+early-out.**
 
 One call = one loop iteration: `title_pace_step` (pump fires through a hook)
 → on a `TITLE_PACE_RENDER` iteration `title_render_step` draws+presents and
 loops; on a `TITLE_PACE_UPDATE` iteration the update half (pre-update side
-effects → the `0x22` abort poll → `title_fade_step`, with `title_menu_spawn`
-on first menu entry + `title_menu_input_step`, and `title_menu_teardown`
-before the phase-10 fade-out → the per-frame tail). Every still-unported
-per-frame engine call (`0x5b1030` pump, `0x43e140`/`0x40fe00`/`0x566250`
-pre, `0x56c930` post, `0x43c2e0` per-entry, BGM SetNextSegment, `0x56c070`
-sparkle) routes through a nullable **`title_scene_hooks`** struct; menu-input
-side effects keep using the `title_menu_*_hook` globals; render bridges keep
-using `title_render_sink_hook`. So the whole milestone-0 control flow is now
-one composable, testable unit — **no engine subsystem pulled in.**
+effects → the `0x22` abort poll → **the skip-splash early-out** →
+`title_fade_step`, with `title_menu_spawn` on first menu entry +
+`title_menu_input_step`, and `title_menu_teardown` before the phase-10
+fade-out → the per-frame tail). Every still-unported per-frame engine call
+(`0x5b1030` pump, `0x43e140`/`0x40fe00`/`0x566250` pre, `0x56c930` post,
+`0x43c2e0` per-entry, BGM SetNextSegment, `0x56c070` sparkle) routes through
+a nullable **`title_scene_hooks`** struct; menu-input side effects keep using
+the `title_menu_*_hook` globals; render bridges keep using
+`title_render_sink_hook`. So the whole milestone-0 control flow is one
+composable, testable unit — **no engine subsystem pulled in.**
 
-**Anatomy nailed down while wiring:** the scene returns *only* out of the
-update half (the `0x22` abort poll → result 6, or the phase-10 fade-out
-completing → result = committed action / 0 on watchdog); the **render half
-never returns, it loops** (reinforcing ckpt-10's "jump-table-as-call was a
-Ghidra artifact"). The idle watchdog (`local_50`) increments on *every*
-update frame in *all* phases, so the ~75 s timeout counts the intro too. The
-menu spawns *and* runs its first input poll on the same frame (gate still
-closed → first menu frame can't latch).
+**Skip-splash early-out (ckpt 12, `0x56b0e8..0x56b150`):** a fresh button
+press during the intro jumps straight to the menu. In `title_scene_step`
+just after the `0x22` abort poll: `input_any_fresh_press` scans the ring; on
+a hit it zeros the fade, fires the BGM `SetNextSegment` cue (when still
+before phase 3, reusing the `set_next_segment` hook), flushes the ring + axis
+state (`input_mgr_reset`), and forces phase 8. Gated on the scene's new
+`skip_intro` field (`param_1`): clear ⇒ a press is ignored at phase 0 (first
+boot plays the studio fade in full); set ⇒ it skips from phase 0 too; phases
+1..7 always skip on a press. The flush mapped the input-mgr past the ring:
+the two axis-held flags (`+0x114`/`+0x118`) are `axis_held[0]/[1]` of an
+**11-dword array A**, with a parallel **array B at `+0x140`** + `+0x10c`/
+`+0x110`/`+0x16c` scalars — all modeled in `input_mgr` (offsets pinned by
+`_Static_assert`). New finding → **engine-quirks #41**. Left out: retail's
+scene-local sparkle-counter reset (`var_3eh_2`) — part of the deferred
+sparkle-trail subsystem, not the runner.
 
-**Deferred (documented seam):** the **skip-splash early-out**
-(`0x56b0e8..0x56b150`, "press any button during the intro → jump to menu")
-is *not* in the runner — it walks the input-mgr ring directly and fires a
-second SetNextSegment cue; a separable intro-convenience for its own
-checkpoint. Without it the intro always plays in full (`param_1 == 0`).
+**Anatomy (from ckpt 11):** the scene returns *only* out of the update half
+(the `0x22` abort poll → result 6, or the phase-10 fade-out completing →
+result = committed action / 0 on watchdog); the **render half never returns,
+it loops**. The idle watchdog (`local_50`) increments on *every* update frame
+in *all* phases. The menu spawns *and* runs its first input poll on the same
+frame (gate still closed → first menu frame can't latch).
 
-**534 host tests pass, 0 fail, 6 skip (of 540)** — 7 new (runner init/bind;
-a render iteration presents without touching the update half; the abort poll
-returns 6; the full intro walk to the spawned menu; the watchdog forcing the
-fade-out exit; the full intro→menu→commit→exit "money path" returning action
-0x1a; NULL-hooks safety; ASan/UBSan clean). Both 32-bit cross-builds clean.
-Ledger **122/1490 touched (7.5%), 119 tested** (unchanged — an extension of
-the already-counted `FUN_0056aea0`; unported callees referenced by bare VA).
+**542 host tests pass, 0 fail, 6 skip (of 548)** — 8 new this ckpt (input
+`any_fresh_press` match/empty/flag+age, `input_mgr_reset` flush; skip-splash
+jump-to-menu with fade reset + ring flush, BGM-cue gating, the phase-0
+`skip_intro` gate both ways, the no-press no-op). Both 32-bit cross-builds
+clean. Ledger **122/1490 touched (7.5%), 119 tested** (unchanged — the
+early-out is a slice of the already-counted `FUN_0056aea0`; its new input
+helpers reference the slice by bare VA).
 
 **Orientation docs (read for the bigger picture):**
 
@@ -110,22 +120,34 @@ still stubs (no pixels yet).
 
 ## Active goal
 
-**`FUN_0056aea0` is fully ported AND composed into one runner.** The
-remaining milestone-0 work is making it *do real work*: implement the draw
-bridges behind the render sink so a title frame actually composites, and
-drive the runner from the drop-in against the real engine (audio/DInput/
-god-object/DDraw hooks).
+**`FUN_0056aea0` is fully ported, composed into one runner, AND its update
+half is complete (skip-splash landed ckpt 12).** The remaining milestone-0
+work is making it *do real work*: implement the draw bridges behind the
+render sink so a title frame actually composites, and drive the runner from
+the drop-in against the real engine.
 
 ## Next move (pick one — recommendation first)
 
 1. **(recommended) Port a draw bridge so the render sink does real work.**
-   Best first targets: `0x56c180` (frame compose) + `0x5b8fc0` (the DDraw
-   Flip, `IDirectDrawSurface7::Flip`, vtable 0x2C — see `ddraw-init.md`)
-   give a real "frame committed" event; `0x418470` (asset get) + one sprite
-   draw (`0x56c610`/`0x56c4e0`) give a real composited sprite. Each is its
-   own RE sub-task against the asset/DDraw model. A `title_render_sink`
-   implementation that turns `title_draw_cmd`s into these calls is the bridge
-   between the (tested) draw stream and actual pixels.
+   **Scouted ckpt 12** — the render bridges split into "already ported in
+   `zdd.c`" and "the sprite/asset blit subsystem":
+   - **Already ported:** `0x5b9410` (surface reset = `zdd_object_clear`),
+     `0x5b9b70` (color-keyed blit = `zdd_object_blt_keyed`), `0x5b8fc0`
+     (Flip = `zdd_present`). So `TITLE_DRAW_SURFACE_RESET/CLEAR/FLIP` and the
+     "plain sprite" wrapper `0x56c610` (a thin forward to `0x5b9b70`) can be
+     wired *today* with no new RE.
+   - **Still unported (the rabbit hole):** the four title sprite-draw wrappers
+     `0x56c470` (cursor), `0x56c4e0` (leveled), `0x56c580` (sparkle), and the
+     leveled/sparkle path bottom out in **`0x5bd550`** (302 B blit orchestrator)
+     → **`0x5bd680`** (1072 B *software alpha blitter*, pure pixel math, very
+     host-testable with synthetic Lock'd buffers) + `0x5b9ae0` (140 B) +
+     `0x5b9bf0` (256 B). Plus `0x56c180` (animated sprite-group compositor,
+     reads the `DAT_008a760c` sprite pool + `0x4184a0` asset load) and
+     `0x418470` (asset get) and `0x494e10` (logo). This is a **multi-checkpoint
+     subsystem**; `0x5bd680` is the heart and the cleanest first chip (pure
+     RGB565/8bpp blend + colorkey, no DDraw calls of its own — Lock/Unlock are
+     its caller's job, already ported). Land it, then `0x5bd550`, then the
+     wrappers + a `title_render_sink`.
 
 2. **Drive the runner from `main.c`.** Replace the drop-in's minimal
    `main_loop_body` with a `title_scene_run` that allocates the scene object
@@ -136,12 +158,7 @@ god-object/DDraw hooks).
    visible. This is the step from "tested unit" to "the title scene runs in
    the real window".
 
-3. **Port the skip-splash early-out** (`0x56b0e8..0x56b150`) to complete the
-   update half: the input-ring scan + the second SetNextSegment cue + the
-   input-mgr field resets, folded into `title_scene_step` before the phase
-   switch. Reads input-mgr internals the poll port doesn't model yet.
-
-4. **Live harness gate** — run `bisect_call_trace_vas.py` /
+3. **Live harness gate** — run `bisect_call_trace_vas.py` /
    `mem_watch.py --region <+0x108>:64:input_ring` under Frida to verify the
    call-trace + mem-watch machinery and catch the input-ring producer (the
    DInput `GetDeviceState` writer, vtable `[0x24]`), which also fills the
@@ -149,14 +166,18 @@ god-object/DDraw hooks).
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
-- **`FUN_0056aea0`** title scene runner — **fully ported + wired as one
-  unit.** Remaining: implement the draw bridges behind the render sink, drive
-  it from `main.c`, and fold in the skip-splash early-out.
+- **`FUN_0056aea0`** title scene runner — **fully ported + wired + update
+  half complete.** Remaining: implement the draw bridges behind the render
+  sink, and drive it from `main.c`.
 - **Render-half draw bridges** (stubbed behind `title_render_sink_hook`):
-  `0x494e10` (logo alpha blit), `0x418470` (asset get), `0x56c610` (plain
-  sprite), `0x56c4e0` (leveled sprite), `0x56c580` (sparkle), `0x56c470`
-  (cursor highlight), `0x56c180` (compose), `0x5b8fc0` (Flip), `0x5b9410`
-  (surface reset), `0x5b9b70` (surface clear). All DDraw/asset/object-model.
+  `0x5b9410` (surface reset), `0x5b9b70` (color-key blit/clear), `0x5b8fc0`
+  (Flip) are **already ported in `zdd.c`** (wire-up only); `0x56c610` (plain
+  sprite) is a thin forward to `0x5b9b70`. The rest are the sprite/asset blit
+  subsystem (multi-checkpoint): `0x56c4e0` (leveled), `0x56c580` (sparkle),
+  `0x56c470` (cursor) → `0x5bd550` → **`0x5bd680`** (1072 B software alpha
+  blitter) + `0x5b9ae0` + `0x5b9bf0`; `0x56c180` (sprite-group compose, reads
+  `DAT_008a760c` pool); `0x418470` (asset get); `0x494e10` (logo). See ckpt-12
+  scouting in "Next move" #1.
 - **Outer-loop side effects** (stubbed behind `title_scene_hooks`):
   `0x5b1030` (pump), `0x43e140`/`0x40fe00`/`0x566250` (pre-update),
   `0x56c930` (post-update), `0x43c2e0` (per-owner-entry). Port when their
@@ -168,9 +189,12 @@ god-object/DDraw hooks).
   `0x41bb80`** + **watchdog `0x40a5d0`** — the four `title_menu_input_step`
   side effects; port when their subsystems come up (audio = milestone 3;
   DInput pad attach; god-object dispatch).
-- **Input** poll + latch + nav **DONE**. Remaining: the **producer** that
-  fills the `+0x108` ring (DInput `GetDeviceState`) and `+0x114/+0x118`
-  axis-held flags — black box; `mem_watch.py` is the tool.
+- **Input** poll + latch + nav + skip-splash scan/flush **DONE**. The
+  input-mgr model now covers the ring + the two 11-dword arrays at `+0x114`
+  (axis_held, [0]=V [1]=H) / `+0x140` + `+0x10c`/`+0x110`/`+0x16c` (quirk #41).
+  Remaining: the **producer** that fills the ring (DInput `GetDeviceState`,
+  vtable `[0x24]`) and the axis-held flags — black box; `mem_watch.py` is the
+  tool. Array B (`+0x140`) semantics also still unknown.
 - **Audio ZDM** `FUN_005bab10`/`_5bc150` + SFX player `FUN_00411390` —
   milestone 3 (WMF/COM, hard).
 - **Launcher `config.dat`** `FUN_005a4770` (46 KB) — milestone 4.

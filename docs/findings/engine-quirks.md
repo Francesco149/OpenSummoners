@@ -913,3 +913,36 @@ render half always presents exactly one frame regardless of which handler ran.
 > exactly on the excluded index and silently returns 0.  And a data table
 > that reads all-zero statically is a signal it is populated at run time —
 > model it as an input, not a constant.
+
+## 41. The input manager's "axis-held" flags are slots [0] and [1] of an 11-dword array, with a parallel array beside it
+
+The title-menu input dispatch reads two "axis held?" flags at input-mgr
+`+0x114` (vertical) and `+0x118` (horizontal) to synthesise auto-repeat / release
+nav events (quirk #33 / `title_menu_input_step`).  They looked like two
+standalone fields — but the **skip-splash field flush** (`0x56b25e..0x56b29a`,
+the "press a button to skip the intro" early-out) reveals their real shape: it
+zeroes `+0x114..+0x140` and `+0x140..+0x16c` as **two parallel 11-dword arrays**
+(`mov [eax+0x2c],ebx; mov [eax],ebx; add eax,4` ×11), plus the `+0x16c` half-word
+and the `+0x10c`/`+0x110` dwords.  So `+0x114` is `array_A[0]`, `+0x118` is
+`array_A[1]` — the vertical/horizontal flags are just the first two of eleven
+per-direction(?) entries, and a second array B sits at `+0x140`.  B's semantics
+aren't recovered yet (the flush zeroes it alongside A); the title path only ever
+reads A[0]/A[1].
+
+The flush also walks the 64-entry ring-pointer table at `+0xc..+0x108` and zeros
+each slot's *id* dword (`*ring[i] = 0`) — a wholesale consume of every pending
+event — then forces the scene to the menu phase.  This subsumes the redundant
+single-slot zero the scan path did on the matched slot at `0x56b18f`.
+
+The skip-splash gate (`0x56b107..0x56b117`) is itself a quirk: it is active for
+phases 1..7 always, but at phase 0 only when the scene's `param_1` ("start at
+menu / skip intro", set on re-entry from a submenu) is non-zero — so a *first*
+boot (`param_1 == 0`) cannot skip the very first frame of the studio fade, only
+phases 1+.  Below phase 3 the skip also fires the same BGM `SetNextSegment` cue
+the phase-2→3 transition would have (so skipping early still advances the music).
+
+> 📍 `input_mgr` + `input_any_fresh_press` / `input_mgr_reset` in
+> `src/input.{h,c}`; skip-splash wiring in `title_scene_step`
+> (checkpoint 12).  When two adjacent scalar fields turn out to be cleared
+> by a counted loop, they're probably `array[0]`/`array[1]` — let the *reset*
+> code, not the *read* code, tell you a struct's true array shape.

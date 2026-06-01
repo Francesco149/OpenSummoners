@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Skip-splash early-out ported; update half complete, ckpt 12
+
+Ported `FUN_0056aea0`'s **skip-splash early-out** (`0x56b0e8..0x56b150`, "press
+a button during the intro to jump straight to the menu") — the last
+documented-deferred slice of the title scene's update half.  It now sits in
+`title_scene_step` right after the `0x22` abort poll: scan the input ring for any
+fresh press (`input_any_fresh_press`); on a hit, zero the fade, fire the BGM
+`SetNextSegment` cue when still before phase 3, flush the ring + axis state
+(`input_mgr_reset`), and force phase 8.  The gate honours the scene's new
+`skip_intro` field (`param_1`): clear → a press is ignored at phase 0 (a first
+boot plays the studio fade in full), set → it skips from phase 0 too; phases 1..7
+always skip on a press.  No engine subsystem pulled in — the BGM cue reuses the
+existing `set_next_segment` hook.
+
+The flush block (`0x56b25e..0x56b29a`) mapped the input manager past the ring:
+the two "axis-held" flags at `+0x114`/`+0x118` the title menu reads are actually
+`array_A[0]`/`array_A[1]` of an **11-dword array**, with a parallel array B at
+`+0x140`, plus `+0x10c`/`+0x110`/`+0x16c` scalars — all cleared by the skip.
+`input_mgr` was extended to model them (offsets pinned by `_Static_assert` on the
+32-bit build) and the two `axis_held_v/h` reads became `axis_held[0]/[1]`.  New
+finding → **engine-quirks #41** (let the *reset* code, not the read code, reveal a
+struct's true array shape).  The one piece left out is retail's scene-local
+sparkle-counter reset (`var_3eh_2`), which belongs to the still-deferred
+sparkle-trail subsystem (spawned/advanced outside the runner via a hook).
+
+**542 host tests pass, 0 fail, 6 skip (of 548)** — 8 new (the two input
+primitives: any-fresh-press match/empty/flag+age, reset flushes all fields; and
+the skip-splash path: jump-to-menu with fade reset + ring flush, the BGM cue
+gating, the phase-0 `skip_intro` gate both ways, and the no-press no-op).  Both
+32-bit cross-builds clean.  Ledger **122/1490 touched (7.5%)** unchanged — the
+early-out is a slice of the already-counted `FUN_0056aea0`; its new input helpers
+reference the slice by bare VA.  See `findings/input.md` (wider manager model),
+`findings/title-scene.md` (skip-splash now ported).
+
 ## 2026-06-02 — Title scene runner wired into one orchestrated loop, ckpt 11
 
 Composed the ckpt 1–10 units (the pacing FSM, the fade FSM, the menu spawn,

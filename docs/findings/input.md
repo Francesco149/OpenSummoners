@@ -48,6 +48,33 @@ Three load-bearing behaviours — all covered by quirk #30:
 Ported pure in `src/input.{c,h}` (zero engine callees); 10 host tests.
 Retail offsets pinned via `_Static_assert` on the 32-bit build.
 
+## The wider manager fields + the skip-splash flush (`FUN_0056aea0`)
+
+The poll only reads the ring, but the title scene's **skip-splash early-out**
+(`0x56b0e8..0x56b150`, "press a button to skip the intro") touches more of the
+manager — and its field-clear block (`0x56b25e..0x56b29a`) maps the layout past
+the ring:
+
+| manager off    | shape           | meaning / use                                    |
+|----------------|-----------------|--------------------------------------------------|
+| `+0x10c`       | dword           | flushed by skip-splash (semantics tbd)           |
+| `+0x110`       | dword           | flushed by skip-splash (semantics tbd)           |
+| `+0x114`       | dword `array_A[11]` | A[0] = vertical axis-held, A[1] = horizontal; rest tbd |
+| `+0x140`       | dword `array_B[11]` | parallel to A; semantics tbd (flushed together)  |
+| `+0x16c`       | half-word       | flushed by skip-splash (semantics tbd)           |
+
+So the two "axis-held" flags the title menu reads at `+0x114` / `+0x118` are just
+`array_A[0]` / `array_A[1]` — see **engine-quirks #41**.  The flush also zeroes
+every ring slot's id (a wholesale event-consume) before forcing phase 8.
+
+Two primitives port the skip-splash's input side (`src/input.c`):
+
+- **`input_any_fresh_press(m, now)`** — the scan (`0x56b119..0x56b144`): same
+  newest-first walk as the poll, but matching *any* pressed id (`rec.id != 0`),
+  read-only.  "Did the player press anything?"
+- **`input_mgr_reset(m)`** — the flush (`0x56b25e..0x56b29a`): zero every ring
+  slot id, both 11-dword arrays, and the `+0x10c`/`+0x110`/`+0x16c` fields.
+
 ## Button ids the title menu polls
 
 From the `FUN_0056aea0` default branch (see `findings/title-scene.md`
@@ -61,7 +88,7 @@ the action latch `FUN_0043ce50`:
 | `0x01` | up                                   | 0         |
 | `0x03` | left                                 | 1         |
 | `0x24` | back / cancel                        | 9         |
-| (none) | axis-held synthesis via `+0x114/+0x118` flags | 4/5/6/7 |
+| (none) | axis-held synthesis via `array_A[0]/[1]` (`+0x114/+0x118`) | 4/5/6/7 |
 
 ## Open (still black box)
 

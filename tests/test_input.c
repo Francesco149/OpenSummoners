@@ -186,3 +186,83 @@ int test_input_poll_empty_ring_misses(void)
     T_ASSERT_EQ_I(empty.id, 0);
     return 0;
 }
+
+/* ─── any-fresh-press: matches any non-zero id, does not consume ──────
+ * The skip-splash scan answers "did the player press anything?".  Any id
+ * (here 99, never a real button poll id) qualifies if pressed + fresh, and
+ * the record is left intact (the caller flushes the whole ring instead). */
+int test_input_any_fresh_press_matches_any_id(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event e = { .id = 99, .ts = 1000, .flag = 1 };
+    m.ring[40] = &e;
+
+    T_ASSERT_EQ_I(input_any_fresh_press(&m, 1000), 1);
+    T_ASSERT_EQ_I(e.id, 99);          /* NOT consumed */
+    return 0;
+}
+
+/* empty ring (every slot id 0) → no press. */
+int test_input_any_fresh_press_empty_misses(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    T_ASSERT_EQ_I(input_any_fresh_press(&m, 1000), 0);
+    return 0;
+}
+
+/* flag must be 1 and the press must be fresh (<= 100 ms), same gates as the
+ * poll; a released (flag 0) or stale (101 ms) record does not count. */
+int test_input_any_fresh_press_flag_and_age(void)
+{
+    input_mgr m; input_event empty;
+
+    mgr_init(&m, &empty);
+    input_event released = { .id = 5, .ts = 1000, .flag = 0 };
+    m.ring[7] = &released;
+    T_ASSERT_EQ_I(input_any_fresh_press(&m, 1000), 0);
+
+    mgr_init(&m, &empty);
+    input_event stale = { .id = 5, .ts = 899, .flag = 1 };  /* 101 ms old */
+    m.ring[7] = &stale;
+    T_ASSERT_EQ_I(input_any_fresh_press(&m, 1000), 0);
+
+    mgr_init(&m, &empty);
+    input_event ripe = { .id = 5, .ts = 900, .flag = 1 };   /* exactly 100 ms */
+    m.ring[7] = &ripe;
+    T_ASSERT_EQ_I(input_any_fresh_press(&m, 1000), 1);
+    return 0;
+}
+
+/* ─── input_mgr_reset: flushes ring ids, both axis arrays, +0x10c/110/16c ─ */
+int test_input_mgr_reset_flushes(void)
+{
+    input_mgr m;
+    input_event recs[INPUT_RING_LEN];
+    memset(&m, 0, sizeof m);
+    for (int i = 0; i < INPUT_RING_LEN; i++) {
+        recs[i].id = 1000 + i;      /* every slot holds a (nonzero) pressed id */
+        recs[i].ts = 50;
+        recs[i].flag = 1;
+        m.ring[i] = &recs[i];
+    }
+    for (int i = 0; i < 11; i++) { m.axis_held[i] = i + 1; m.axis_held_b[i] = i + 100; }
+    m.field_10c = 0x1111;
+    m.field_110 = 0x2222;
+    m.field_16c = 0x3333;
+
+    input_mgr_reset(&m);
+
+    for (int i = 0; i < INPUT_RING_LEN; i++)
+        T_ASSERT_EQ_I(recs[i].id, 0);          /* every slot id cleared */
+    for (int i = 0; i < 11; i++) {
+        T_ASSERT_EQ_I(m.axis_held[i], 0);      /* array A cleared */
+        T_ASSERT_EQ_I(m.axis_held_b[i], 0);    /* array B cleared */
+    }
+    T_ASSERT_EQ_I(m.field_10c, 0);
+    T_ASSERT_EQ_I(m.field_110, 0);
+    T_ASSERT_EQ_U(m.field_16c, 0);
+    /* ts / flag of the records are left alone — only the id is the "consume". */
+    T_ASSERT_EQ_U(recs[0].ts, 50);
+    T_ASSERT_EQ_I(recs[0].flag, 1);
+    return 0;
+}

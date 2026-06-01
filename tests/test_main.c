@@ -301,6 +301,10 @@ struct test_case {
     X(title_scene_init_zeroes_and_binds)                       \
     X(title_scene_render_iteration_presents)                   \
     X(title_scene_abort_poll_returns_6)                        \
+    X(title_scene_skip_splash_jumps_to_menu)                   \
+    X(title_scene_skip_splash_fires_bgm_cue)                   \
+    X(title_scene_skip_splash_phase0_gate)                     \
+    X(title_scene_skip_splash_noop_without_press)              \
     X(title_scene_intro_walks_to_menu)                         \
     X(title_scene_watchdog_forces_exit)                        \
     X(title_scene_menu_commit_exits_with_action)               \
@@ -315,6 +319,10 @@ struct test_case {
     X(input_poll_highest_index_wins)                           \
     X(input_poll_endpoints_in_range)                           \
     X(input_poll_empty_ring_misses)                            \
+    X(input_any_fresh_press_matches_any_id)                    \
+    X(input_any_fresh_press_empty_misses)                      \
+    X(input_any_fresh_press_flag_and_age)                      \
+    X(input_mgr_reset_flushes)                                 \
     X(pool_acquire_stamps_and_bumps)                           \
     X(pool_acquire_index_is_16bit_write)                       \
     X(pool_acquire_exhausts_returns_null)                      \
