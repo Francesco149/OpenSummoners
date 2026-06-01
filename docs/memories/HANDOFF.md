@@ -1,10 +1,44 @@
-# Session handoff — last updated 2026-06-02 (skip-splash ported + parity harness live-verified, ckpt 12)
+# Session handoff — last updated 2026-06-02 (TAS harness: retail capture + input injection live, ckpt 13)
 
 **This is the first thing to read at the start of every session.**
 
 Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
+
+## ⭐ NEW (ckpt 13): TAS framework — retail ground-truth capture is live
+
+Mirrors openrecet's TAS harness. **Two new self-serviceable Frida
+capabilities, both validated live**, give us deterministic retail ground
+truth (the port can't render yet, so retail is where ground truth lives):
+
+1. **Frame capture** — `tools/run-retail.sh --no-turbo --capture-frames
+   "60,200,…"` dumps `runs/<dir>/frames/frame_NNNNN.png` (640×480 lossless).
+   Walks `*(0x8a93cc)->[0x16c](paint_ctx)->[0x2c]` to the DDraw surface,
+   GetDC+BitBlt→24bpp DIB→PNG, at the Flip hook.
+2. **Input injection** — `--input-trace <file.jsonl>` replays a sparse
+   `{frame, ids}` trace into the engine's input ring (hidden window ⇒ DInput
+   is silent ⇒ ring is ours). Hooks the poll consumer `0x43c110` per scene.
+
+**Validated:** a scripted trace clicks the whole **NEW GAME** path — title
+`Start` → difficulty config menu → DOWN×2 → `Start Game` → confirm → Elemental
+Stone intro → prologue narration — fully deterministic, captured frame-for-
+frame. See `docs/findings/new-game-flow.md`, `docs/plans/tas-framework.md`.
+
+**Button ids (engine-quirks #42/#43 — input.md was wrong):** up = id 1,
+**down = id 3**, confirm = id 0x24 (ids 2/4 are page up/down = no-ops in
+single-column menus). Each scene has its **own** input-manager — inject into
+the current poll's `ecx`, never a cached one.
+
+> ⚠ **Always launch retail via `tools/run-retail.sh`, never `frida_capture.py`
+> directly** — the default `vendor/original/sotes.exe` is the Steam-DRM-packed
+> image (spawning it stalls + leaves an orphan game window). `run-retail.sh`
+> drops the unpacked exe next to the DLLs and kills the child on exit.
+
+**Remaining harness gaps:** the prologue→first-playable-map (a timed cutscene;
+best from a **recorded human trace** distilled to sparse, or RE the prologue
+sequencer); port-side `input_trace.{c,h}` + port frame capture (both blocked
+on milestone-0 rendering).
 
 ## Where we are
 
@@ -140,6 +174,19 @@ render sink so a title frame actually composites, and drive the runner from
 the drop-in against the real engine.
 
 ## Next move (pick one — recommendation first)
+
+> Context (ckpt 13): the TAS harness now gives us **retail golden frames** for
+> any scripted scene. The natural arc toward "pixel parity on new game" is:
+> port the render bridges (move 1) → drive the runner from `main.c` (move 2) →
+> capture **port** frames the same way → diff vs the retail goldens captured by
+> the harness. Move 1 is still the critical path; the harness is the yardstick.
+>
+> Two harness-side follow-ups (either self-serviceable or a quick human ask):
+> - **Prologue → first-playable-map ground truth** needs a recorded human
+>   trace (advance/skip the opening cutscene) distilled to a sparse
+>   `{frame,ids}` trace — ask the user to record, or RE the prologue sequencer.
+> - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
+>   now but latent until `main.c` drives the scene + rendering lands.
 
 1. **(recommended) Port a draw bridge so the render sink does real work.**
    **Scouted ckpt 12** — the render bridges split into "already ported in

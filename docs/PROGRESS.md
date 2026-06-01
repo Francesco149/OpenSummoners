@@ -2719,3 +2719,57 @@ session pulled in a lot of context that the next milestone won't
 need.
 
 ---
+
+## Checkpoint 13 — TAS framework: retail capture + deterministic input injection
+
+Mirrored openrecet's TAS harness for OpenSummoners. Two new self-serviceable
+Frida capabilities, both **validated live against retail**, plus the scenario
+layout and the recovered new-game scene flow.
+
+**Frame capture** (`tools/run-retail.sh --no-turbo --capture-frames "…"`):
+at the Flip hook, walk the engine god object to the DDraw render-target
+surface (`*(0x8a93cc)->[0x16c] paint_ctx ->[0x2c]`), GetDC + BitBlt into a
+24bpp top-down DIB (GDI does the RGB565→BGR convert), read the bits, send to
+the driver which writes lossless PNG (`runs/<dir>/frames/frame_NNNNN.png`).
+Surface chain + vtable indices pinned by r2 disasm of the GetDC wrapper
+`FUN_005b94e0` (`mov eax,[ecx+0x2c]; call [[eax]+0x44]`). First validation:
+8 frames of the title boot (studio splash → logo → full menu), 640×480, colors
+correct.
+
+**Input injection** (`--input-trace <file.jsonl>`): a hidden window makes
+DInput silent, so the engine's 64-slot event ring is ours to fill. Hook the
+poll consumer `FUN_0043c110` (ecx = current scene's input mgr); per Flip frame,
+write synthetic records `{id, ts, flag=1}` into the newest ring slots for the
+ids a sparse `{frame, ids}` trace schedules. Validated: a single trace clicks
+the entire **NEW GAME** path — title `Start` → difficulty config menu →
+DOWN×2 → `Start Game` → confirm → Elemental Stone intro → prologue narration —
+fully deterministic, captured frame-for-frame and confirmed visually.
+
+Three findings landed (engine-quirks **#42/#43**; `input.md` corrected):
+  - title nav button ids ≠ their latch-dir names: **up = id 1, down = id 3,
+    confirm = id 0x24**; ids 2/4 are page up/down (no-ops in single-column
+    menus). Diagnosed by hooking `menu_list_latch` (`0x43ce50`) live and
+    seeing `ready=1000` yet no cursor move on id 2.
+  - the injected record's `ts` must be the engine's **per-frame cached `now`**
+    (the poll's first arg), not a fresh `GetTickCount()` — else `(now-ts)`
+    underflows the 100 ms recency window and the press is silently dropped.
+  - each scene has its **own input-manager instance**; inject into the current
+    poll's `ecx`, never a cached one (the difficulty menu uses a different mgr
+    than the title, and polls a different id set `0x22,1,3,0x24,0x27`).
+
+New: `docs/plans/tas-framework.md`, `docs/findings/new-game-flow.md`,
+`tests/scenarios/{title-idle,new-game-through}/` (openrecet layout).
+Visuals pushed to llm-feed (title boot montage; new-game click-through montage).
+
+> ⚠ Always launch retail via `tools/run-retail.sh` (unpacked exe), never
+> `frida_capture.py` directly (the default `vendor/original/sotes.exe` is the
+> Steam-DRM-packed image → stalls + orphan window).
+
+Gaps for next time: prologue→first-playable-map needs a recorded human trace
+(distil to sparse) or RE of the prologue sequencer; port-side
+`input_trace.{c,h}` + port frame capture are latent (blocked on milestone-0
+rendering). The harness is now the **yardstick** for the render-bridge port
+(HANDOFF Next move #1): once the port renders, capture port frames the same way
+and diff vs these retail goldens.
+
+---
