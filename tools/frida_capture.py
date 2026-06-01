@@ -39,6 +39,7 @@ import json
 import os
 import signal
 import socket
+import struct
 import subprocess
 import sys
 import threading
@@ -140,6 +141,40 @@ def ensure_frida_server(remote: str, exe_wsl_path: Path,
     return False
 
 
+def write_png_from_dib24(path: Path, w: int, h: int, stride: int,
+                         pixels: bytes) -> None:
+    """Write a lossless PNG from a GDI 24bpp top-down DIB's raw bits.
+
+    The agent's CreateDIBSection produces 24bpp **BGR** rows, DWORD-aligned
+    (`stride` = (w*3+3)&~3), top-down.  We strip the row padding, swap
+    BGR→RGB, and emit a standard 8-bit RGB PNG (filter type 0 per row).
+    Pure stdlib (zlib) — no Pillow dependency, and lossless so it's a
+    drop-in for the old BMPs at a fraction of the size.
+    """
+    import zlib
+
+    raw = bytearray()
+    for y in range(h):
+        row = pixels[y * stride : y * stride + w * 3]
+        # BGR → RGB in place (memoryview slice assignment is fast enough
+        # for 640x480; swap the two outer channels of each triple).
+        rgb = bytearray(row)
+        rgb[0::3], rgb[2::3] = row[2::3], row[0::3]
+        raw.append(0)            # filter type 0 (None) for this scanline
+        raw.extend(rgb)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return (struct.pack(">I", len(data)) + tag + data +
+                struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)  # 8-bit, color type 2 (RGB)
+    png = (b"\x89PNG\r\n\x1a\n" +
+           chunk(b"IHDR", ihdr) +
+           chunk(b"IDAT", zlib.compress(bytes(raw), 9)) +
+           chunk(b"IEND", b""))
+    path.write_bytes(png)
+
+
 # ─── capture session ──────────────────────────────────────────────────────
 
 
@@ -183,6 +218,14 @@ class CaptureConfig:
     mem_watch_regions: list[dict] | None = None
     mem_watch_precise: bool = True
 
+    # ── frame capture (DDraw surface → 24bpp BMP) ──
+    # When capture is on, the agent GetDC/BitBlt's the surface at each
+    # whitelisted Flip frame and sends the bits; we write frame_NNNNN.bmp
+    # under <run_dir>/frames/.  capture_frames=None ⇒ every Flip frame
+    # (use a whitelist — capturing all ~1900 is slow + huge).
+    capture:           bool = False
+    capture_frames:    list[int] | None = None
+
 
 def _resolve_run_dir(base: Path | None) -> Path:
     if base is None:
@@ -219,6 +262,9 @@ def run_capture(cfg: CaptureConfig) -> int:
     # Optional per-mode JSONL sinks (one row per event, with `frame`).
     call_trace_f = (run_dir / "call_trace.jsonl").open("w") if cfg.call_trace else None
     mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
+    frames_dir   = (run_dir / "frames") if cfg.capture else None
+    if frames_dir is not None:
+        frames_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[frida_capture] run dir: {run_dir}", file=sys.stderr)
     print(f"[frida_capture] retail:  {cfg.exe}", file=sys.stderr)
@@ -255,6 +301,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "turbo_ticks": 0,
         "call_trace_events": 0,
         "mem_access_events": 0,
+        "frames_captured": 0,
         "last_frame": -1,
         "errors": [],
     }
@@ -314,6 +361,24 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"hwnd={payload.get('hwnd')}", file=sys.stderr)
             summary.setdefault("dialog_actions", 0)
             summary["dialog_actions"] += 1
+        elif kind == "frame":
+            frame = int(payload.get("frame", -1))
+            w = int(payload.get("w", 0))
+            h = int(payload.get("h", 0))
+            stride = int(payload.get("stride", w * 3))
+            if frames_dir is None or data is None or w == 0 or h == 0:
+                log_f.write(f"[frame] frame={frame} BAD/ignored payload "
+                            f"w={w} h={h} have_data={data is not None}\n")
+            else:
+                png_path = frames_dir / f"frame_{frame:05d}.png"
+                write_png_from_dib24(png_path, w, h, stride, data)
+                summary["frames_captured"] += 1
+                back = payload.get("from_back")
+                print(f"[frida_capture] frame {frame} captured "
+                      f"{w}x{h} ({'back' if back else 'primary'}) → {png_path.name}",
+                      file=sys.stderr)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "flip_hook_ready":
             print(f"[frida_capture] flip frame anchor installed "
                   f"(va=0x{payload.get('va', 0):x})", file=sys.stderr)
@@ -371,6 +436,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         "call_trace":         cfg.call_trace,
         "call_trace_vas":     [int(v) for v in (cfg.call_trace_vas or [])],
         "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
+        "capture_frames_enabled": cfg.capture,
+        "capture_frames":     [int(f) for f in (cfg.capture_frames or [])],
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_regions":  [
@@ -488,6 +555,11 @@ def main() -> int:
     p.add_argument("--call-trace-vas-file", default=None, type=Path,
                    help="override the engine VA list (JSON: bare array or "
                         "{vas:[...]})")
+    p.add_argument("--capture-frames", default=None,
+                   help="capture DDraw frames to <run_dir>/frames/frame_NNNNN.bmp. "
+                        "Comma-separated Flip-frame whitelist (e.g. '0,60,120'); "
+                        "pass 'all' to capture every frame (slow + huge — avoid). "
+                        "Implies --no-turbo behaviour is recommended (quirk #29).")
     args = p.parse_args()
 
     call_trace_vas = None
@@ -508,6 +580,15 @@ def main() -> int:
         if args.call_trace_frames:
             call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
 
+    capture = False
+    capture_frames: list[int] | None = None
+    if args.capture_frames is not None:
+        capture = True
+        s = args.capture_frames.strip().lower()
+        if s and s != "all":
+            capture_frames = [int(x) for x in args.capture_frames.split(",") if x.strip()]
+        # 'all' or empty → capture_frames stays None (every Flip frame)
+
     cfg = CaptureConfig(
         hide_window       = args.hide_window,
         turbo             = args.turbo,
@@ -525,6 +606,8 @@ def main() -> int:
         call_trace        = args.call_trace,
         call_trace_vas    = call_trace_vas,
         call_trace_frames = call_trace_frames,
+        capture           = capture,
+        capture_frames    = capture_frames,
     )
     return run_capture(cfg)
 

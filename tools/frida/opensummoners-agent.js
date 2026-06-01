@@ -190,6 +190,53 @@ const MEM_WATCH_FLUSH_AT   = 256;
 const MEM_WATCH_MAX_HITS   = 4000;
 const MEM_WATCH_REARM_CAP  = 200000;
 
+// ─── frame capture (DDraw surface → 24bpp BMP) ───────────────────────────
+//
+// The DirectDraw analog of openrecet's D3D back-buffer readback.  On a
+// whitelisted Flip frame we GetDC the surface, BitBlt it into a 24bpp
+// top-down DIB (GDI does the RGB565→BGR conversion for free), read the
+// bits, and send() them to the driver, which writes frame_NNNNN.bmp.
+//
+// Runs INLINE on the engine thread (Interceptor onEnter), so there is no
+// cross-thread DDraw hazard — the surface isn't locked by anyone else at
+// that instant.
+//
+// Surface source (pinned by r2 disasm of the render path + GetDC wrapper
+// FUN_005b94e0):
+//   obj      = *(0x8a93cc)              ; screen object  (mov ecx,[0x8a93cc])
+//   paintCtx = *(obj + 0x16c)           ; engine paint_ctx wrapper
+//   surface  = *(paintCtx + 0x2c)       ; the real IDirectDrawSurface7
+//                                         (FUN_005b94e0: mov eax,[ecx+0x2c];
+//                                          call [[eax]+0x44] = GetDC)
+// This is the render-target surface the engine GetDC's, draws into, then
+// Flips — so reading it at Flip onEnter yields the freshly-drawn frame
+// (no back-buffer hop needed).
+const GOD_SCREEN_VA       = 0x8a93cc;   // DAT_008a93cc → screen object
+const SCREEN_PAINTCTX_OFF = 0x16c;      // screen->[0x16c] = paint_ctx wrapper
+const PAINTCTX_SURFACE_OFF = 0x2c;      // paint_ctx->[0x2c] = LPDIRECTDRAWSURFACE7
+
+// IDirectDrawSurface7 vtable indices (verified: Flip=11 ⇒ byte 0x2c, see
+// zdd_surface_flip).  Standard DX7 surface vtable order.
+const V_SURF_FLIP            = 11;
+const V_SURF_GETATTACHED     = 12;
+const V_SURF_GETDC           = 17;
+const V_SURF_GETSURFACEDESC  = 22;
+const V_SURF_RELEASEDC       = 26;
+
+const DDSCAPS_BACKBUFFER  = 0x00000004;
+const DDSD2_SIZE          = 124;        // sizeof(DDSURFACEDESC2)
+const DDSD2_DWHEIGHT_OFF  = 8;
+const DDSD2_DWWIDTH_OFF   = 12;
+const SRCCOPY             = 0x00CC0020;
+const DIB_RGB_COLORS      = 0;
+
+let g_capture_enabled = false;
+let g_capture_frames  = null;   // Set<int> or null (capture every Flip frame)
+let g_capture_n       = 0;
+let g_capture_diag_done = false;   // one-shot surface-acquisition diagnostic
+let g_gdi_ready       = false;
+let g_gdi = {};                 // resolved GDI/user32 NativeFunctions
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -962,6 +1009,173 @@ function installSilentAudioHooks() {
 
 // ─── frame anchor + call-trace + mem-watch ───────────────────────────────
 
+// Resolve the GDI + user32 entry points used by the BitBlt capture path.
+// Lazy: only the capture path needs them, and gdi32/user32 are always
+// loaded by the time the engine reaches a Flip.
+function ensureGdiFns() {
+    if (g_gdi_ready) return true;
+    const gdi  = Process.findModuleByName('gdi32.dll');
+    if (!gdi) { err('ensureGdiFns', 'gdi32.dll not loaded'); return false; }
+    const E = function (mod, name, ret, args) {
+        const p = mod.findExportByName(name);
+        if (!p) throw new Error('missing export ' + name);
+        return new NativeFunction(p, ret, args, 'stdcall');
+    };
+    try {
+        g_gdi.CreateCompatibleDC = E(gdi, 'CreateCompatibleDC', 'pointer', ['pointer']);
+        g_gdi.CreateDIBSection   = E(gdi, 'CreateDIBSection',   'pointer',
+            ['pointer', 'pointer', 'uint32', 'pointer', 'pointer', 'uint32']);
+        g_gdi.SelectObject       = E(gdi, 'SelectObject',       'pointer', ['pointer', 'pointer']);
+        g_gdi.BitBlt             = E(gdi, 'BitBlt',             'int',
+            ['pointer', 'int', 'int', 'int', 'int', 'pointer', 'int', 'int', 'uint32']);
+        g_gdi.DeleteObject       = E(gdi, 'DeleteObject',       'int', ['pointer']);
+        g_gdi.DeleteDC           = E(gdi, 'DeleteDC',           'int', ['pointer']);
+    } catch (e) { err('ensureGdiFns', '' + e); return false; }
+    g_gdi_ready = true;
+    return true;
+}
+
+// vtable[idx] of a COM object pointer.
+function vtSlot(obj, idx) {
+    return obj.readPointer().add(idx * Process.pointerSize).readPointer();
+}
+
+// The render-target IDirectDrawSurface7 from the engine god object, or NULL.
+function getPrimarySurface() {
+    try {
+        const obj = rva(GOD_SCREEN_VA).readPointer();
+        if (obj.isNull()) return NULL;
+        const paintCtx = obj.add(SCREEN_PAINTCTX_OFF).readPointer();
+        if (paintCtx.isNull()) return NULL;
+        return paintCtx.add(PAINTCTX_SURFACE_OFF).readPointer();
+    } catch (e) { return NULL; }
+}
+
+// (w, h) of a surface via GetSurfaceDesc, or null.
+function getSurfaceDims(surf) {
+    try {
+        const d = Memory.alloc(DDSD2_SIZE);
+        d.writeU32(DDSD2_SIZE);   // dwSize — required or DDERR_INVALIDPARAMS
+        const getDesc = new NativeFunction(
+            vtSlot(surf, V_SURF_GETSURFACEDESC), 'uint32',
+            ['pointer', 'pointer'], 'stdcall');
+        const hr = getDesc(surf, d);
+        if (hr !== 0) return null;
+        return { w: d.add(DDSD2_DWWIDTH_OFF).readU32(),
+                 h: d.add(DDSD2_DWHEIGHT_OFF).readU32() };
+    } catch (e) { return null; }
+}
+
+// GetDC → BitBlt into a 24bpp top-down DIB → send the bits.  Whole thing
+// runs on the engine thread at Flip onEnter.
+// One-shot dump of the surface-acquisition chain so we can pin the right
+// pointers + vtable indices from a single live run.
+function captureDiag() {
+    if (g_capture_diag_done) return;
+    g_capture_diag_done = true;
+    try {
+        const obj = rva(GOD_SCREEN_VA).readPointer();
+        let line = 'diag: *(0x8a93cc)=' + obj;
+        if (!obj.isNull()) {
+            const surf = obj.add(SCREEN_PRIMARY_OFF).readPointer();
+            line += ' primary=*(obj+0x16c)=' + surf;
+            if (!surf.isNull()) {
+                const vt = surf.readPointer();
+                line += ' vtbl=' + vt;
+                // GetSurfaceDesc on primary
+                try {
+                    const d = Memory.alloc(DDSD2_SIZE); d.writeU32(DDSD2_SIZE);
+                    const gd = new NativeFunction(vtSlot(surf, V_SURF_GETSURFACEDESC),
+                        'uint32', ['pointer', 'pointer'], 'stdcall');
+                    const hr = gd(surf, d);
+                    line += ' GetDesc[22]hr=0x' + (hr >>> 0).toString(16) +
+                            ' w=' + d.add(DDSD2_DWWIDTH_OFF).readU32() +
+                            ' h=' + d.add(DDSD2_DWHEIGHT_OFF).readU32();
+                } catch (e) { line += ' GetDesc[22]EXC=' + e; }
+                // GetAttachedSurface (backbuffer)
+                try {
+                    const caps = Memory.alloc(16); caps.writeU32(DDSCAPS_BACKBUFFER);
+                    const pp = Memory.alloc(4); pp.writePointer(NULL);
+                    const ga = new NativeFunction(vtSlot(surf, V_SURF_GETATTACHED),
+                        'uint32', ['pointer', 'pointer', 'pointer'], 'stdcall');
+                    const hr = ga(surf, caps, pp);
+                    line += ' GetAttached[12]hr=0x' + (hr >>> 0).toString(16) +
+                            ' bb=' + pp.readPointer();
+                } catch (e) { line += ' GetAttached[12]EXC=' + e; }
+            }
+        }
+        logmsg(line);
+    } catch (e) { err('captureDiag', '' + e); }
+}
+
+function captureFrame(frameNumber) {
+    if (!ensureGdiFns()) return;
+    const surf = getPrimarySurface();
+    if (surf.isNull()) { err('captureFrame', 'no render surface yet'); return; }
+    const fromBack = false;
+
+    const dims = getSurfaceDims(surf);
+    if (!dims || dims.w === 0 || dims.h === 0) {
+        if (!g_capture_diag_done) captureDiag();
+        err('captureFrame', 'bad surface dims @frame ' + frameNumber);
+        return;
+    }
+    const w = dims.w, h = dims.h;
+
+    // GetDC on the DDraw surface.
+    const phdc = Memory.alloc(Process.pointerSize); phdc.writePointer(NULL);
+    const getDC = new NativeFunction(vtSlot(surf, V_SURF_GETDC), 'uint32',
+        ['pointer', 'pointer'], 'stdcall');
+    let hr = getDC(surf, phdc);
+    if (hr !== 0) { err('captureFrame/GetDC', 'hr=0x' + (hr >>> 0).toString(16)); return; }
+    const srcDC = phdc.readPointer();
+
+    let memDC = NULL, hbmp = NULL, oldObj = NULL;
+    try {
+        memDC = g_gdi.CreateCompatibleDC(srcDC);
+        if (memDC.isNull()) { err('captureFrame', 'CreateCompatibleDC failed'); return; }
+
+        // BITMAPINFOHEADER: 24bpp, negative height = top-down, BI_RGB.
+        const bmi = Memory.alloc(40);
+        bmi.writeU32(40);                       // biSize
+        bmi.add(4).writeS32(w);                 // biWidth
+        bmi.add(8).writeS32(-h);                // biHeight (top-down)
+        bmi.add(12).writeU16(1);                // biPlanes
+        bmi.add(14).writeU16(24);               // biBitCount
+        bmi.add(16).writeU32(0);                // biCompression = BI_RGB
+        const ppBits = Memory.alloc(Process.pointerSize); ppBits.writePointer(NULL);
+        hbmp = g_gdi.CreateDIBSection(memDC, bmi, DIB_RGB_COLORS, ppBits, NULL, 0);
+        if (hbmp.isNull()) { err('captureFrame', 'CreateDIBSection failed'); return; }
+        oldObj = g_gdi.SelectObject(memDC, hbmp);
+
+        if (g_gdi.BitBlt(memDC, 0, 0, w, h, srcDC, 0, 0, SRCCOPY) === 0) {
+            err('captureFrame', 'BitBlt failed @frame ' + frameNumber);
+            return;
+        }
+
+        const bits   = ppBits.readPointer();
+        const stride  = (w * 3 + 3) & ~3;       // DIB rows are DWORD-aligned
+        const total   = stride * h;
+        const ab      = bits.readByteArray(total);
+        send({ kind: 'frame', frame: frameNumber, w: w, h: h,
+               stride: stride, bpp: 24, from_back: fromBack }, ab);
+        g_capture_n++;
+    } finally {
+        if (!oldObj.isNull()) g_gdi.SelectObject(memDC, oldObj);
+        if (!hbmp.isNull())   g_gdi.DeleteObject(hbmp);
+        if (!memDC.isNull())  g_gdi.DeleteDC(memDC);
+        const releaseDC = new NativeFunction(vtSlot(surf, V_SURF_RELEASEDC), 'uint32',
+            ['pointer', 'pointer'], 'stdcall');
+        try { releaseDC(surf, srcDC); } catch (e) { /* surface may be transient */ }
+    }
+}
+
+function captureShouldEmit() {
+    if (!g_capture_enabled) return false;
+    if (g_capture_frames === null) return true;
+    return g_capture_frames.has(g_flip_frame);
+}
+
 // Hook the DDraw Flip dispatcher (FUN_005b8fc0) so its entry is the
 // per-frame boundary: flush the batches accumulated during the frame that
 // is ending (tagged with that frame number), THEN bump.  Same
@@ -977,6 +1191,10 @@ function installFlipFrameHook() {
             if (g_mem_watch_enabled) {
                 try { memWatchFlush(g_flip_frame); }
                 catch (e) { err('flip.memWatchFlush', e.message); }
+            }
+            if (captureShouldEmit()) {
+                try { captureFrame(g_flip_frame); }
+                catch (e) { err('flip.captureFrame', e.message); }
             }
             g_flip_frame++;
         },
@@ -1224,6 +1442,12 @@ rpc.exports = {
                 (Array.isArray(opts.call_trace_frames) && opts.call_trace_frames.length)
                     ? new Set(opts.call_trace_frames) : null;
         }
+        if (opts.capture_frames_enabled) {
+            g_capture_enabled = true;
+            g_capture_frames =
+                (Array.isArray(opts.capture_frames) && opts.capture_frames.length)
+                    ? new Set(opts.capture_frames) : null;
+        }
 
         withModule(function (mod) {
             g_base = mod.base;
@@ -1243,8 +1467,9 @@ rpc.exports = {
             try { installDialogBypass(); } catch (e) { err('install_dlg_bypass', '' + e); }
             try { installPeriodicWindowScan(); } catch (e) { err('install_window_scan', '' + e); }
 
-            // Structural-parity harness: frame anchor + call-trace + mem-watch.
-            if (g_call_trace_enabled || opts.mem_watch) {
+            // Structural-parity harness: frame anchor + call-trace + mem-watch
+            // + frame capture all hang off the Flip hook.
+            if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
