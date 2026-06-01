@@ -175,6 +175,27 @@ def write_png_from_dib24(path: Path, w: int, h: int, stride: int,
     path.write_bytes(png)
 
 
+def parse_input_trace(path: Path) -> list[dict]:
+    """Parse a JSONL input trace: one {"frame": N, "ids": [..]} per line.
+
+    Tolerates blank lines and `# ...` comments.  `ids` entries may be decimal
+    or `0x`-hex (as JSON numbers or strings).  Returns a list sorted by frame.
+    """
+    out: list[dict] = []
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        obj = json.loads(s)
+        frame = int(obj["frame"])
+        ids = []
+        for v in (obj.get("ids") or []):
+            ids.append(int(v, 0) if isinstance(v, str) else int(v))
+        out.append({"frame": frame, "ids": ids})
+    out.sort(key=lambda e: e["frame"])
+    return out
+
+
 # ─── capture session ──────────────────────────────────────────────────────
 
 
@@ -225,6 +246,13 @@ class CaptureConfig:
     # (use a whitelist — capturing all ~1900 is slow + huge).
     capture:           bool = False
     capture_frames:    list[int] | None = None
+
+    # ── deterministic input injection ──
+    # input_trace: list of {"frame": int, "ids": [int,...]} — each entry
+    # injects those button ids as fresh presses at the first poll at-or-after
+    # that Flip frame.  Replayed into retail's input ring by the agent.
+    input_trace:       list[dict] | None = None
+    inject_debug:      bool = False
 
 
 def _resolve_run_dir(base: Path | None) -> Path:
@@ -379,6 +407,26 @@ def run_capture(cfg: CaptureConfig) -> int:
                       file=sys.stderr)
             if frame > summary["last_frame"]:
                 summary["last_frame"] = frame
+        elif kind == "poll_dbg":
+            print(f"[poll_dbg] flip={payload.get('frame')} "
+                  f"btn=0x{int(payload.get('btn',0))&0xffffffff:x} "
+                  f"now={payload.get('now')} slot63_id={payload.get('slot63_id')}",
+                  file=sys.stderr)
+        elif kind == "latch_dbg":
+            print(f"[latch_dbg] flip={payload.get('frame')} "
+                  f"dir={payload.get('dir')} ready={payload.get('ready')} "
+                  f"enabled={payload.get('enabled')}", file=sys.stderr)
+        elif kind == "input_mgr_resolved":
+            print(f"[frida_capture] input-manager resolved: "
+                  f"{payload.get('mgr')}", file=sys.stderr)
+        elif kind == "inject":
+            ids = payload.get("ids") or []
+            ids_s = ",".join(f"0x{i:x}" for i in ids)
+            print(f"[frida_capture] inject @flip={payload.get('frame')} "
+                  f"(trace_frame={payload.get('trace_frame')}) ids=[{ids_s}]",
+                  file=sys.stderr)
+            summary.setdefault("injects", 0)
+            summary["injects"] += 1
         elif kind == "flip_hook_ready":
             print(f"[frida_capture] flip frame anchor installed "
                   f"(va=0x{payload.get('va', 0):x})", file=sys.stderr)
@@ -438,6 +486,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
         "capture_frames_enabled": cfg.capture,
         "capture_frames":     [int(f) for f in (cfg.capture_frames or [])],
+        "input_inject_enabled": bool(cfg.input_trace),
+        "input_trace":        cfg.input_trace or [],
+        "inject_debug":       cfg.inject_debug,
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_regions":  [
@@ -556,10 +607,16 @@ def main() -> int:
                    help="override the engine VA list (JSON: bare array or "
                         "{vas:[...]})")
     p.add_argument("--capture-frames", default=None,
-                   help="capture DDraw frames to <run_dir>/frames/frame_NNNNN.bmp. "
+                   help="capture DDraw frames to <run_dir>/frames/frame_NNNNN.png. "
                         "Comma-separated Flip-frame whitelist (e.g. '0,60,120'); "
                         "pass 'all' to capture every frame (slow + huge — avoid). "
                         "Implies --no-turbo behaviour is recommended (quirk #29).")
+    p.add_argument("--input-trace", default=None, type=Path,
+                   help="JSONL input trace ({\"frame\":N,\"ids\":[..]}) to inject "
+                        "into retail's input ring (deterministic replay).")
+    p.add_argument("--inject-debug", action="store_true",
+                   help="log poll/latch internals in a small window around the "
+                        "first scripted press (diagnostics).")
     args = p.parse_args()
 
     call_trace_vas = None
@@ -579,6 +636,14 @@ def main() -> int:
               f"{ct_path.name}", file=sys.stderr)
         if args.call_trace_frames:
             call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
+
+    input_trace = None
+    if args.input_trace is not None:
+        if not args.input_trace.exists():
+            p.error(f"--input-trace: file not found: {args.input_trace}")
+        input_trace = parse_input_trace(args.input_trace)
+        print(f"[frida_capture] input-trace: {len(input_trace)} entries from "
+              f"{args.input_trace.name}", file=sys.stderr)
 
     capture = False
     capture_frames: list[int] | None = None
@@ -608,6 +673,8 @@ def main() -> int:
         call_trace_frames = call_trace_frames,
         capture           = capture,
         capture_frames    = capture_frames,
+        input_trace       = input_trace,
+        inject_debug      = args.inject_debug,
     )
     return run_capture(cfg)
 

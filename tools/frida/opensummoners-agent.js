@@ -234,6 +234,44 @@ let g_capture_enabled = false;
 let g_capture_frames  = null;   // Set<int> or null (capture every Flip frame)
 let g_capture_n       = 0;
 let g_capture_diag_done = false;   // one-shot surface-acquisition diagnostic
+
+// ─── deterministic input injection ───────────────────────────────────────
+//
+// On a hidden, unfocused window DInput produces no events, so the engine's
+// input ring is ours to fill.  We resolve the input-manager by hooking the
+// poll consumer FUN_0043c110 (ecx = this = manager), then inject synthetic
+// event records into its ring so a scripted trace replays as real presses.
+//
+// Ring layout (docs/findings/input.md): 64 dword slots at mgr+0x0c..mgr+0x108,
+// each a pointer to a 3-dword record {id@0, ts@4, flag@8}.  The poll scans
+// newest-first (slot 63 → 0), matches id within a 100 ms GetTickCount window,
+// and consumes on read (zeroes rec.id).  Newest event = highest slot index.
+//
+// Trace schema (one JSON object per line): {"frame": N, "ids": [2, 36]}.
+// Each line injects those button ids as one fresh press apiece at the first
+// poll at-or-after Flip frame N.  Discrete-event model (not a held mask):
+// menu nav wants single presses.  Button ids: 1 up, 2 down, 3 left, 4 right,
+// 0x24 select/commit, 0x22 abort.
+const INPUT_POLL_VA       = 0x43c110;   // FUN_0043c110 input_poll_consume
+const RING_BASE_OFF       = 0x0c;       // mgr+0x0c = ring slot 0
+const RING_SLOTS          = 64;
+const REC_ID_OFF          = 0x00;
+const REC_TS_OFF          = 0x04;
+const REC_FLAG_OFF        = 0x08;
+const REC_SIZE            = 0x0c;
+const INJECT_POOL_N       = 32;         // reusable record structs
+
+let g_inject_enabled  = false;
+let g_inject_trace    = [];     // [{frame, ids:[...]}] sorted by frame
+let g_inject_i        = 0;      // cursor into g_inject_trace
+let g_input_mgr       = null;   // resolved at first poll
+let g_inject_pool     = null;   // Memory.alloc(INJECT_POOL_N * REC_SIZE)
+let g_inject_pool_i   = 0;      // round-robin record allocator
+let g_inject_hooked   = false;
+let g_inject_n        = 0;      // records injected this session
+let g_GetTickCount    = null;
+let g_poll_dbg_lo     = 0;      // focused poll-debug frame window [lo,hi]
+let g_poll_dbg_hi     = 0;
 let g_gdi_ready       = false;
 let g_gdi = {};                 // resolved GDI/user32 NativeFunctions
 
@@ -1176,6 +1214,119 @@ function captureShouldEmit() {
     return g_capture_frames.has(g_flip_frame);
 }
 
+// ─── input injection ─────────────────────────────────────────────────────
+
+function ensureTickFn() {
+    if (g_GetTickCount) return true;
+    const k = Process.findModuleByName('kernel32.dll');
+    if (!k) return false;
+    const p = k.findExportByName('GetTickCount');
+    if (!p) return false;
+    g_GetTickCount = new NativeFunction(p, 'uint32', [], 'stdcall');
+    return true;
+}
+
+// Write one fresh press record for `id` into the newest free ring slot
+// (top-down), so the engine's newest-first poll picks it up.  `ts` MUST be
+// the engine's own per-frame `now` (the poll's first arg) — the poll tests
+// (uint32_t)(now - rec.ts) <= 100, and the engine caches GetTickCount once
+// per frame, so stamping with a *later* GetTickCount() underflows the window
+// and the press is silently dropped.
+function injectPress(id, slotIdx, ts) {
+    const rec = g_inject_pool.add((g_inject_pool_i % INJECT_POOL_N) * REC_SIZE);
+    g_inject_pool_i++;
+    rec.add(REC_ID_OFF).writeU32(id >>> 0);
+    rec.add(REC_TS_OFF).writeU32(ts >>> 0);
+    rec.add(REC_FLAG_OFF).writeU32(1);
+    const slotAddr = g_input_mgr.add(RING_BASE_OFF + slotIdx * 4);
+    slotAddr.writePointer(rec);
+}
+
+// Inject every trace entry whose frame is at-or-before the current Flip
+// frame, one record per id.  Fires each entry exactly once.  `engineNow`
+// is the poll's cached tick (used verbatim as the record timestamp).
+function injectDueEntries(engineNow) {
+    if (!g_inject_enabled || g_input_mgr === null) return;
+    while (g_inject_i < g_inject_trace.length &&
+           g_flip_frame >= g_inject_trace[g_inject_i].frame) {
+        const e = g_inject_trace[g_inject_i];
+        const ids = e.ids || [];
+        for (let j = 0; j < ids.length; j++) {
+            // Fill the top slots (63, 62, …) so each is "newest".
+            injectPress(ids[j], RING_SLOTS - 1 - j, engineNow);
+            g_inject_n++;
+        }
+        send({ kind: 'inject', frame: g_flip_frame, trace_frame: e.frame,
+               ids: ids, now: engineNow });
+        g_inject_i++;
+    }
+}
+
+function installInputInjection() {
+    if (g_inject_hooked) return;
+    g_inject_pool = Memory.alloc(INJECT_POOL_N * REC_SIZE);
+    // Focused poll/latch debug window around the first scripted press —
+    // only when explicitly requested (g_poll_dbg_hi already set by init).
+    Interceptor.attach(rva(INPUT_POLL_VA), {
+        onEnter: function (args) {
+            // ecx = this = the *current scene's* input-manager (thiscall).
+            // Track it every poll — a sub-scene (e.g. the new-game difficulty
+            // menu) uses a DIFFERENT manager instance, so a once-cached mgr
+            // would inject into the wrong ring (record never consumed).
+            const mgr = this.context.ecx;
+            if (g_input_mgr === null || !g_input_mgr.equals(mgr)) {
+                g_input_mgr = mgr;
+                send({ kind: 'input_mgr_resolved', mgr: mgr.toString() });
+            }
+            // __thiscall(now, button_id): stack = [retaddr][now][button_id].
+            // Read the engine's cached per-frame tick for the record ts.
+            let engineNow = 0, btnId = -1;
+            try { engineNow = this.context.esp.add(4).readU32(); } catch (e) {}
+            try { btnId = this.context.esp.add(8).readU32(); } catch (e) {}
+            if (engineNow === 0) engineNow = ensureTickFn() ? g_GetTickCount() : 0;
+            // Focused debug window around the scripted press.
+            if (g_poll_dbg_hi > 0 && g_flip_frame >= g_poll_dbg_lo &&
+                g_flip_frame <= g_poll_dbg_hi) {
+                let s63 = 0;
+                try {
+                    const p = g_input_mgr.add(RING_BASE_OFF + 63 * 4).readPointer();
+                    if (!p.isNull()) s63 = p.add(REC_ID_OFF).readU32();
+                } catch (e) {}
+                send({ kind: 'poll_dbg', frame: g_flip_frame, btn: btnId,
+                       now: engineNow, slot63_id: s63 });
+            }
+            try { injectDueEntries(engineNow); }
+            catch (e) { err('injectDueEntries', e.message); }
+        },
+    });
+    // Debug: watch the menu latch gate (FUN_0043ce50, __thiscall(dir, now);
+    // ecx = menu_ctrl).  menu_ctrl+0 = sub; sub+0x04 = enabled; sub+0x54 =
+    // ready (must == 1000 to latch).  Logs in the same focused window.
+    try {
+        Interceptor.attach(rva(0x43ce50), {
+            onEnter: function () {
+                if (g_poll_dbg_hi <= 0 || g_flip_frame < g_poll_dbg_lo ||
+                    g_flip_frame > g_poll_dbg_hi) return;
+                let dir = -1, ready = -1, enabled = -1;
+                try { dir = this.context.esp.add(4).readU32(); } catch (e) {}
+                try {
+                    const sub = this.context.ecx.readPointer();
+                    if (!sub.isNull()) {
+                        enabled = sub.add(0x04).readU32();
+                        ready   = sub.add(0x54).readS32();
+                    }
+                } catch (e) {}
+                send({ kind: 'latch_dbg', frame: g_flip_frame, dir: dir,
+                       ready: ready, enabled: enabled });
+            },
+        });
+    } catch (e) { err('latch_dbg_hook', '' + e); }
+
+    g_inject_hooked = true;
+    logmsg('input injection hooked @ FUN_0043c110 (' +
+           g_inject_trace.length + ' trace entries)');
+}
+
 // Hook the DDraw Flip dispatcher (FUN_005b8fc0) so its entry is the
 // per-frame boundary: flush the batches accumulated during the frame that
 // is ending (tagged with that frame number), THEN bump.  Same
@@ -1448,6 +1599,19 @@ rpc.exports = {
                 (Array.isArray(opts.capture_frames) && opts.capture_frames.length)
                     ? new Set(opts.capture_frames) : null;
         }
+        if (opts.input_inject_enabled && Array.isArray(opts.input_trace)) {
+            g_inject_enabled = true;
+            g_inject_trace = opts.input_trace
+                .map(function (e) { return { frame: e.frame | 0, ids: e.ids || [] }; })
+                .sort(function (a, b) { return a.frame - b.frame; });
+            // Opt-in poll/latch debug window around the LAST scripted press
+            // (so probes of a deep sub-menu are covered, not just the first).
+            if (opts.inject_debug && g_inject_trace.length > 0) {
+                const last = g_inject_trace[g_inject_trace.length - 1].frame;
+                g_poll_dbg_lo = last - 1;
+                g_poll_dbg_hi = last + 3;
+            }
+        }
 
         withModule(function (mod) {
             g_base = mod.base;
@@ -1468,9 +1632,14 @@ rpc.exports = {
             try { installPeriodicWindowScan(); } catch (e) { err('install_window_scan', '' + e); }
 
             // Structural-parity harness: frame anchor + call-trace + mem-watch
-            // + frame capture all hang off the Flip hook.
-            if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled) {
+            // + frame capture + input injection all key off the Flip frame.
+            if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
+                g_inject_enabled) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
+            }
+            if (g_inject_enabled) {
+                try { installInputInjection(); }
+                catch (e) { err('install_inject', '' + e); }
             }
             if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
                 try { installCallTraceHooks(g_call_trace_vas); }

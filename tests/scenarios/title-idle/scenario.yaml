@@ -1,0 +1,6 @@
+# Boot → title menu, no input. Ground-truth retail title render.
+description: title boot to interactive menu (no input)
+max_frames: 2000
+capture_frames: [60, 200, 400, 700, 1000, 1300, 1600, 1900]
+# Flip-frame axis (DDraw Flip = FUN_005b8fc0). Retail only for now (port
+# can't render yet). --no-turbo mandatory (engine-quirks #29).

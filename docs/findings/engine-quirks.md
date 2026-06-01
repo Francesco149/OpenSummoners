@@ -946,3 +946,55 @@ the phase-2→3 transition would have (so skipping early still advances the musi
 > (checkpoint 12).  When two adjacent scalar fields turn out to be cleared
 > by a counted loop, they're probably `array[0]`/`array[1]` — let the *reset*
 > code, not the *read* code, tell you a struct's true array shape.
+
+## 42. The title-menu nav button ids don't mean what their latch-dir names say — id 3 (not id 2) moves the cursor *down*
+
+Confirmed **live** by injecting single ring events into retail and watching the
+cursor (the TAS harness, checkpoint 13).  `title_menu_input_step` polls five
+button ids and feeds each through `menu_list_latch(dir)` → `menu_list_nav(dir)`.
+The nav engine's dir dispatch is: **0 = prev (cursor up), 1 = next (cursor
+down), 2 = page-up, 3 = page-down**, 9 = cancel/commit, 10 = confirm.  The
+title's id→latch-dir wiring is:
+
+| ring id | latch dir | nav effect | so the button is… |
+|---------|-----------|-----------|-------------------|
+| `1`     | 0         | prev      | **UP**            |
+| `3`     | 1         | next      | **DOWN**          |
+| `2`     | 2         | page-up   | (no-op: single column, `stride ≥ count`) |
+| `4`     | 3         | page-down | (no-op: single column) |
+| `0x24`  | 9         | commit (returns 3 → enabled-confirm in the title flow, see #39) | **CONFIRM** |
+| `0x22`  | —         | abort poll → scene state 6 | **QUIT/ABORT** |
+
+So the actionable truth for scripting input: **up = id 1, down = id 3,
+confirm = id 0x24.**  ids 2 and 4 are page nav and do nothing in the 5-item
+single-column title menu (the page handlers early-out unless `stride < count`).
+This corrects the provisional `docs/findings/input.md` labels (which read
+`0x02 = down`, `0x03 = left` off the latch-dir numbers — but id 2 is page-up
+and id 3 is the real down).  Pressing id 2 ("down" per the old label) latches
+dir 2 (page-up) and visibly does nothing; the regression was diagnosed by
+hooking `menu_list_latch` (`0x43ce50`) live and seeing `ready=1000 enabled=1`
+yet no cursor move.
+
+> 📍 The injected ring record is the abstract action id the poll compares
+> against (`rec.id == button_id`), so injection sidesteps the DInput key→id
+> map entirely — the table above is what to put in a trace, regardless of
+> which physical key produces each id at runtime.
+
+## 43. Each scene has its *own* input-manager instance — a once-cached `this` injects into the wrong ring
+
+The poll consumer `FUN_0043c110` is `__thiscall`, so `ecx = this` is the input
+manager.  Discovered live (checkpoint 13): the title scene and the new-game
+**difficulty config menu** are different scenes with **different manager
+instances** — caching `this` from the title's first poll and injecting there
+makes the difficulty menu's presses vanish (the record sits unconsumed in the
+title manager's ring while the sub-scene polls its own, empty ring).  The fix
+is to inject into the *current* poll's `ecx` every time, not a cached pointer.
+
+The two menus also poll **different id sets**: the title polls
+`0x22, 2, 4, 1, 3, 0x24`; the difficulty menu polls `0x22, 1, 3, 0x24, 0x27`
+(no page ids; adds `0x27`, presumably the left/right value-change for the
+"Game Difficulty" row).  Down is `id 3` in both.
+
+> 📍 TAS injection in `tools/frida/opensummoners-agent.js`
+> (`installInputInjection`); when replaying input across a scene transition,
+> resolve the manager per-poll, never once.

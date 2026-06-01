@@ -1,0 +1,8 @@
+# Deterministic click-through: title Start → difficulty menu → Start Game
+# → new-game intro (Elemental Stone) → prologue narration.
+# Verified live (checkpoint 13). Frame numbers are Flip frames; timing is
+# gated by the per-menu fade-in ramp (menu_input_sub.ready==1000), so the
+# trace uses generous margins. --no-turbo mandatory.
+description: title NEW GAME → Start Game → opening cutscene
+max_frames: 8500
+capture_frames: [1900, 2850, 2980, 3120, 3300, 4000, 5000, 6500, 8000]

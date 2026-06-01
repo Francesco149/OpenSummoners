@@ -106,8 +106,17 @@ zoom ≥4× for pixel-level diffs.
 
 ## Status
 
-- [ ] retail frame→BMP capture in agent + driver
-- [ ] retail input injection in agent + driver
-- [ ] scenario layout + title-idle + new-game-through traces
-- [ ] port-side input_trace.{c,h} (latent)
+- [x] retail frame→PNG capture in agent + driver (`--capture-frames`) — validated
+- [x] retail input injection in agent + driver (`--input-trace`) — validated:
+      deterministic NEW GAME click-through (title → difficulty menu → Start
+      Game → opening cutscene) reproduces frame-for-frame
+- [x] scenario layout + `title-idle` + `new-game-through` traces
+- [ ] **prologue → first playable map** — the opening cutscene (stone +
+      narration) is a timed/advance cutscene; capture from a recorded human
+      trace (distil to sparse) or RE the prologue sequencer
+      (`docs/findings/new-game-flow.md`)
+- [ ] port-side input_trace.{c,h} (latent — buildable/testable now)
 - [ ] port-side render + frame capture (blocked on milestone-0 rendering)
+
+See `docs/findings/new-game-flow.md` for the recovered scene sequence and the
+per-menu button-id maps (engine-quirks #42/#43).

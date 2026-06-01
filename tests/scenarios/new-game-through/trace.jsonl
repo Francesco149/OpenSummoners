@@ -1,0 +1,6 @@
+# Button ids (engine-quirks #42/#43): id 3 = DOWN, id 0x24 (36) = CONFIRM.
+# Cursor starts on "Start" (row 0). Sub-menus use a separate input mgr.
+{"frame": 2050, "ids": [36]}
+{"frame": 2900, "ids": [3]}
+{"frame": 3050, "ids": [3]}
+{"frame": 3250, "ids": [36]}

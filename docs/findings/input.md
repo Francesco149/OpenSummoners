@@ -79,16 +79,29 @@ Two primitives port the skip-splash's input side (`src/input.c`):
 
 From the `FUN_0056aea0` default branch (see `findings/title-scene.md`
 "Input dispatch"), each menu frame polls these ids and feeds the hits into
-the action latch `FUN_0043ce50`:
+the action latch `FUN_0043ce50` → nav engine `FUN_0043ca40`.
 
-| id     | meaning                              | latch arg |
-|--------|--------------------------------------|-----------|
-| `0x02` | down                                 | 2         |
-| `0x04` | right                                | 3         |
-| `0x01` | up                                   | 0         |
-| `0x03` | left                                 | 1         |
-| `0x24` | back / cancel                        | 9         |
-| (none) | axis-held synthesis via `array_A[0]/[1]` (`+0x114/+0x118`) | 4/5/6/7 |
+> ⚠ **The latch-dir name ≠ the cursor effect** (engine-quirks #42, confirmed
+> live by ring injection).  The nav engine dispatches dir **0 = up, 1 = down,
+> 2 = page-up, 3 = page-down**.  So the *cursor* effect of each polled id is:
+
+| id     | latch dir | **cursor effect**             | for scripting |
+|--------|-----------|-------------------------------|---------------|
+| `0x01` | 0         | **up** (prev)                 | UP            |
+| `0x03` | 1         | **down** (next)               | **DOWN**      |
+| `0x02` | 2         | page-up (no-op, single column)| —             |
+| `0x04` | 3         | page-down (no-op)             | —             |
+| `0x24` | 9         | commit → title-confirm (#39)  | **CONFIRM**   |
+| `0x22` | —         | abort poll → scene state 6    | QUIT          |
+| (none) | 4/5/6/7   | axis-held synth via `array_A[0]/[1]` (`+0x114/+0x118`) | (held repeat) |
+
+**To script the title menu: up = id 1, down = id 3, confirm = id 0x24.**
+(The old labels here read "0x02 = down / 0x03 = left" straight off the latch
+dir numbers; id 2 is actually page-up and id 3 is the real down.)
+
+The new-game **difficulty config** sub-menu is a *separate scene with its own
+input-manager instance* (engine-quirks #43) and polls a different id set —
+`0x22, 1, 3, 0x24, 0x27` (down is still id 3; 0x27 is the value left/right).
 
 ## Open (still black box)
 
