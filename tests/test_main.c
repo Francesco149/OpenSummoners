@@ -280,6 +280,15 @@ struct test_case {
     X(title_menu_spawn_no_match_keeps_cursor_zero)             \
     X(title_menu_teardown_clears_active_flag)                  \
     X(title_menu_teardown_noop_when_unset)                     \
+    X(menu_input_nav_plays_move_sfx)                           \
+    X(menu_input_page_button_is_noop)                          \
+    X(menu_input_commit_enabled_row)                           \
+    X(menu_input_commit_disabled_row)                          \
+    X(menu_input_commit_savedata_match)                        \
+    X(menu_input_commit_savedata_skipped_for_0x1d)             \
+    X(menu_input_idle_frame_no_effects)                        \
+    X(menu_input_axis_held_synthesises_move)                   \
+    X(menu_input_watchdog_forces_phase10)                      \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \
     X(input_poll_wrong_id_misses)                              \

@@ -71,7 +71,19 @@ typedef struct input_event {
 typedef struct input_mgr {
     uint8_t      _head[0x0c];                 /* 0x00..0x0b — opaque    */
     input_event *ring[INPUT_RING_LEN];        /* 0x0c..0x108 — 64 ptrs  */
+    uint8_t      _pad10c[0x08];               /* 0x10c..0x113 — opaque  */
+    int32_t      axis_held_v;                 /* 0x114 — vertical axis-held flag   */
+    int32_t      axis_held_h;                 /* 0x118 — horizontal axis-held flag */
 } input_mgr;
+
+/* The two axis-held flags above are read by the title-menu input dispatch
+ * (0x56aea0 default branch, `[in_ECX[1]+0x114]` / `+0x118`) to synthesise an
+ * auto-repeat / release event when no discrete nav button was pressed this
+ * frame: axis_held_v gates the 6 (held) / 7 (released) menu action, and
+ * axis_held_h gates the 4 (held) / 5 (released) one.  They live past the ring
+ * in the same input-manager object the poll runs on (see title_scene.h's
+ * title_menu_input_step).  Only the poll's ring fields are touched by
+ * FUN_0043c110; these two are written by the still-black-box producer. */
 
 /* Pin the retail offsets on the real 32-bit build (where pointers are
  * 4 bytes); the 64-bit host build skips these, exactly as zdd.h does —
@@ -81,6 +93,8 @@ typedef struct input_mgr {
 #include <stddef.h>
 _Static_assert(offsetof(input_mgr, ring)                   == 0x0c,  "input ring base offset");
 _Static_assert(offsetof(input_mgr, ring[INPUT_RING_LEN-1]) == 0x108, "input ring top offset");
+_Static_assert(offsetof(input_mgr, axis_held_v)            == 0x114, "input axis-held V offset");
+_Static_assert(offsetof(input_mgr, axis_held_h)            == 0x118, "input axis-held H offset");
 _Static_assert(sizeof(input_event)                         == 0x0c,  "input_event is 3 dwords");
 #endif
 

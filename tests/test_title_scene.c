@@ -734,3 +734,275 @@ int test_title_menu_teardown_noop_when_unset(void)
     T_ASSERT_EQ_P(tm.node, NULL);
     return 0;
 }
+
+/* ─── (D) the per-frame menu input dispatch (title_menu_input_step) ────
+ *
+ * Build a standalone menu controller the way the spawn block does
+ * (menu_ctrl_build 6×1 stride-6 type-0, then append rows), wire its input
+ * "ready" gate open, and exercise the poll → latch → action switch path
+ * against a fully-populated input ring.  Spies capture the hooked side
+ * effects (SFX / joystick / save-data notify / watchdog).
+ */
+
+/* Spy state for the four hooks. */
+static int32_t ti_sfx[16];
+static int     ti_sfx_n;
+static int     ti_joy_n;
+static void   *ti_save_arg;
+static int     ti_save_n;
+static int     ti_wd_n;
+
+static void ti_spy_sfx(int32_t id)  { if (ti_sfx_n < 16) ti_sfx[ti_sfx_n++] = id; }
+static void ti_spy_joy(void)        { ti_joy_n++; }
+static void ti_spy_save(void *a)    { ti_save_arg = a; ti_save_n++; }
+static void ti_spy_wd(void)         { ti_wd_n++; }
+
+static void ti_install_spies(void)
+{
+    ti_sfx_n = 0; ti_joy_n = 0; ti_save_arg = NULL; ti_save_n = 0; ti_wd_n = 0;
+    title_menu_sfx_hook      = ti_spy_sfx;
+    title_menu_joystick_hook = ti_spy_joy;
+    title_menu_savedata_hook = ti_spy_save;
+    title_menu_watchdog_hook  = ti_spy_wd;
+}
+
+/* A controller + its input gate + the five title rows. */
+static const int32_t TI_ACTIONS[5] = { 0x1a, 0x1c, 0x1e, 0x1d, 8 };
+static void ti_mk_menu(menu_ctrl *c, menu_input_sub *sub)
+{
+    memset(sub, 0, sizeof *sub);
+    sub->enabled = 1;
+    sub->ready   = 1000;                     /* latch gate open */
+    menu_ctrl_build(c, 0, 0, 6, 1, 6, 0);    /* alloc_a=6, stride=6, type=0, mode=1 */
+    c->sub = sub;
+    for (int a = 0; a < 5; a++) {            /* append the five fixed rows */
+        menu_list_hdr *hdr = c->list;
+        int32_t i = hdr->count;
+        hdr->count = i + 1;
+        c->rows[i].field0 = 0;
+        c->rows[i].action = TI_ACTIONS[a];
+        c->rows[i].flag8  = 1;
+    }
+}
+
+/* A 64-slot input ring with every slot pointing at a real (idle) record. */
+static input_event ti_ring[64];
+static void ti_mk_input(input_mgr *m)
+{
+    memset(m, 0, sizeof *m);
+    memset(ti_ring, 0, sizeof ti_ring);
+    for (int i = 0; i < 64; i++) m->ring[i] = &ti_ring[i];
+}
+static void ti_press(input_mgr *m, int slot, int32_t id, uint32_t ts)
+{
+    m->ring[slot]->id = id; m->ring[slot]->flag = 1; m->ring[slot]->ts = ts;
+}
+
+/* Up (button 1 → latch dir 0 = prev) navigates and plays the move SFX (9);
+ * no commit, no phase-10 request. */
+int test_menu_input_nav_plays_move_sfx(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    ti_press(&m, 10, 1, 1000);               /* button 1 (up), within window */
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 1);            /* nav "moved" */
+    T_ASSERT_EQ_I(out.enter_phase10, 0);
+    T_ASSERT_EQ_I(out.set_result, 0);
+    T_ASSERT_EQ_I(c.list->cursor, 4);        /* prev from 0 wraps to count-1 */
+    T_ASSERT_EQ_I(ti_sfx_n, 1);
+    T_ASSERT_EQ_I(ti_sfx[0], 9);
+    T_ASSERT_EQ_I(ti_joy_n, 0);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* A page button on the single-page (stride 6 ≥ 5) menu latches dir 2 but nav
+ * returns 0 — an idle frame: no SFX, no transition. */
+int test_menu_input_page_button_is_noop(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    ti_press(&m, 5, 2, 1000);                /* button 2 (down) → latch dir 2 = page-up */
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 0);
+    T_ASSERT_EQ_I(out.enter_phase10, 0);
+    T_ASSERT_EQ_I(c.list->cursor, 0);        /* unchanged */
+    T_ASSERT_EQ_I(ti_sfx_n, 0);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Commit (button 0x24 → latch dir 9 → nav returns 3) on an enabled row:
+ * confirm SFX (5), joystick attach fires once, phase-10 requested, result is
+ * the selected row's action id. */
+int test_menu_input_commit_enabled_row(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    c.list->cursor = 0;                      /* row 0 → action 0x1a */
+    ti_press(&m, 20, 0x24, 1000);
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 3);
+    T_ASSERT_EQ_I(out.enter_phase10, 1);
+    T_ASSERT_EQ_I(out.set_result, 1);
+    T_ASSERT_EQ_I(out.result_code, 0x1a);
+    T_ASSERT_EQ_I(ti_sfx_n, 1);
+    T_ASSERT_EQ_I(ti_sfx[0], 5);             /* confirm */
+    T_ASSERT_EQ_I(ti_joy_n, 1);              /* attach fired */
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Commit on a *disabled* row (flag8 == 0): denied SFX (6), and nothing else —
+ * no joystick, no phase-10, no result latch. */
+int test_menu_input_commit_disabled_row(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    c.list->cursor   = 2;                    /* row 2 → action 0x1e */
+    c.rows[2].flag8  = 0;                    /* disable it */
+    ti_press(&m, 20, 0x24, 1000);
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 3);
+    T_ASSERT_EQ_I(out.enter_phase10, 0);
+    T_ASSERT_EQ_I(out.set_result, 0);
+    T_ASSERT_EQ_I(ti_sfx_n, 1);
+    T_ASSERT_EQ_I(ti_sfx[0], 6);             /* denied */
+    T_ASSERT_EQ_I(ti_joy_n, 0);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Commit on a non-0x1d row whose action matches a save-data table entry:
+ * the matched record's arg is handed to the notify hook. */
+int test_menu_input_commit_savedata_match(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    c.list->cursor = 1;                      /* row 1 → action 0x1c */
+    ti_press(&m, 20, 0x24, 1000);
+
+    int marker = 0;
+    title_menu_savedata_entry ents[3] = {
+        { NULL,    0x1a },
+        { &marker, 0x1c },                   /* matches the selected action */
+        { NULL,    8    },
+    };
+    title_menu_savedata_list sd = { ents, 3 };
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, &sd, &out);
+
+    T_ASSERT_EQ_I(out.result_code, 0x1c);
+    T_ASSERT_EQ_I(ti_save_n, 1);
+    T_ASSERT_EQ_P(ti_save_arg, &marker);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* The save-data lookup is skipped entirely when the selected action is 0x1d. */
+int test_menu_input_commit_savedata_skipped_for_0x1d(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    c.list->cursor = 3;                      /* row 3 → action 0x1d */
+    ti_press(&m, 20, 0x24, 1000);
+
+    int marker = 0;
+    title_menu_savedata_entry ents[1] = { { &marker, 0x1d } };  /* would match if scanned */
+    title_menu_savedata_list sd = { ents, 1 };
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, &sd, &out);
+
+    T_ASSERT_EQ_I(out.result_code, 0x1d);
+    T_ASSERT_EQ_I(out.enter_phase10, 1);
+    T_ASSERT_EQ_I(ti_save_n, 0);             /* never scanned */
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* No buttons + no axis held: the 7/5 release syntheses both return 0 — a
+ * pure idle frame, no SFX and no transition. */
+int test_menu_input_idle_frame_no_effects(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    /* axis_held_v / axis_held_h left 0 → synth dirs 7 then 5, both no-ops */
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 0);
+    T_ASSERT_EQ_I(out.enter_phase10, 0);
+    T_ASSERT_EQ_I(ti_sfx_n, 0);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* Axis-held vertical with a ripe auto-repeat deadline synthesises a nav move
+ * (latch dir 6 → fires as prev) and plays the move SFX. */
+int test_menu_input_axis_held_synthesises_move(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+    m.axis_held_v        = 1;                /* vertical axis held */
+    c.list->repeat_b     = 1;                /* deadline already set... */
+    c.list->cursor       = 2;
+    /* now=1000 >= repeat_b(1) → dir 6 fires as 'prev' (returns 1) */
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0, NULL, &out);
+
+    T_ASSERT_EQ_I(out.action, 1);            /* nav moved */
+    T_ASSERT_EQ_I(c.list->cursor, 1);        /* prev from 2 */
+    T_ASSERT_EQ_I(ti_sfx_n, 1);
+    T_ASSERT_EQ_I(ti_sfx[0], 9);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}
+
+/* The idle watchdog forces phase 10 (and fires its hook) once the frame
+ * counter reaches 0x1194, with no input at all. */
+int test_menu_input_watchdog_forces_phase10(void)
+{
+    menu_ctrl c; menu_input_sub sub; input_mgr m;
+    ti_mk_menu(&c, &sub); ti_mk_input(&m); ti_install_spies();
+
+    title_menu_input_out out;
+    title_menu_input_step(&m, &c, 1000, 0x1194, NULL, &out);
+
+    T_ASSERT_EQ_I(out.enter_phase10, 1);
+    T_ASSERT_EQ_I(out.set_result, 0);        /* watchdog doesn't latch a result */
+    T_ASSERT_EQ_I(ti_wd_n, 1);
+
+    /* one below the threshold → no trigger */
+    ti_install_spies();
+    title_menu_input_step(&m, &c, 1000, 0x1193, NULL, &out);
+    T_ASSERT_EQ_I(out.enter_phase10, 0);
+    T_ASSERT_EQ_I(ti_wd_n, 0);
+
+    menu_ctrl_clear(&c);
+    return 0;
+}

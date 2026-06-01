@@ -385,3 +385,116 @@ void title_menu_teardown(title_menu *m)
         m->node = NULL;                             /* local_54 = 0 */
     }
 }
+
+/* ─── (D) the per-frame menu input dispatch ──────────────────────────
+ *
+ * Port of FUN_0056aea0's default-arm per-frame menu update (disasm
+ * 0x56b807..0x56ba39; see title_scene.h for the framing and the
+ * action↔button mapping caveat).  Composes the ported poll/latch leaves
+ * (input_poll_consume, menu_list_latch) into the nav resolution, then the
+ * action switch + commit + idle watchdog, routing the unported side effects
+ * through hooks.
+ */
+
+title_menu_sfx_fn      title_menu_sfx_hook      = NULL;
+title_menu_joystick_fn title_menu_joystick_hook = NULL;
+title_menu_savedata_fn title_menu_savedata_hook = NULL;
+title_menu_watchdog_fn title_menu_watchdog_hook = NULL;
+
+/* The menu's idle-watchdog threshold (retail `0x1193 < local_50`, i.e.
+ * local_50 >= 0x1194).  ~75 s at 60 Hz. */
+#define TITLE_MENU_WATCHDOG_FRAMES 0x1194
+
+static void title_menu_sfx(int32_t id)
+{
+    if (title_menu_sfx_hook != NULL) title_menu_sfx_hook(id);  /* 0x411390(id,0,0) */
+}
+
+void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
+                           int32_t watchdog_frames,
+                           const title_menu_savedata_list *savedata,
+                           title_menu_input_out *out)
+{
+    out->action        = 0;
+    out->enter_phase10 = 0;
+    out->set_result    = 0;
+    out->result_code   = 0;
+
+    /* (1) Poll the five buttons + the two axis-held syntheses, in retail
+     *     order; each hit overwrites `esi` with the latch result, so the
+     *     last latch that fires wins (0x56b80f..0x56b8e3). */
+    int32_t esi = 0;
+    if (input_poll_consume(mgr, now, 2))    esi = menu_list_latch(ctrl, 2, now);
+    if (input_poll_consume(mgr, now, 4))    esi = menu_list_latch(ctrl, 3, now);
+    if (input_poll_consume(mgr, now, 1))    esi = menu_list_latch(ctrl, 0, now);
+    if (esi == 0) {                                  /* 0x56b871 */
+        uint32_t dir = (mgr->axis_held_v != 0) ? 6 : 7;
+        esi = menu_list_latch(ctrl, dir, now);
+    }
+    if (input_poll_consume(mgr, now, 3))    esi = menu_list_latch(ctrl, 1, now);
+    if (esi == 0) {                                  /* 0x56b8ab */
+        uint32_t dir = (mgr->axis_held_h != 0) ? 4 : 5;
+        esi = menu_list_latch(ctrl, dir, now);
+    }
+    if (input_poll_consume(mgr, now, 0x24)) esi = menu_list_latch(ctrl, 9, now);
+    out->action = esi;
+
+    /* (2) Action switch (0x56b8ed).  `commit` records whether we reached the
+     *     enabled-confirm path that 0x56b93f gates on (esi == 3 with the
+     *     selected row enabled); a disabled row plays the denied SFX and
+     *     skips straight to the watchdog. */
+    int commit = 0;
+    switch (esi) {
+    case 1:                                          /* cursor moved */
+    case 2:                                          /* page scrolled */
+        title_menu_sfx(9);
+        break;
+    case 3: {                                        /* commit (from latch dir 9) */
+        menu_row *sel = &ctrl->rows[ctrl->list->cursor];   /* rows[cursor] */
+        if (sel->flag8 != 0) {                       /* row enabled → confirm */
+            title_menu_sfx(5);
+            commit = 1;
+        } else {                                     /* row disabled → denied */
+            title_menu_sfx(6);
+        }
+        break;
+    }
+    case 4:                                          /* cancel SFX (unreachable in title) */
+        title_menu_sfx(7);
+        break;
+    default:                                         /* 0 / nav no-op / mode-2 codes */
+        break;
+    }
+
+    /* (3) Commit path (0x56b93f, esi == 3 and the row was enabled). */
+    if (commit) {
+        /* Joystick lazy-attach (0x56b948..0x56b97c). */
+        if (title_menu_joystick_hook != NULL) title_menu_joystick_hook();
+
+        /* Save-data notify (0x56b97e..0x56b9e1): unless the selected action is
+         * 0x1d, scan the god object's menu-action table for a key match and
+         * notify the matched record.  base==0 / count==0 → skip. */
+        int32_t act = ctrl->rows[ctrl->list->cursor].action;   /* rows[cursor].action */
+        if (act != 0x1d && savedata != NULL && savedata->entries != NULL) {
+            for (uint16_t i = 0; i < savedata->count; i++) {
+                if (savedata->entries[i].key == act) {
+                    if (title_menu_savedata_hook != NULL)
+                        title_menu_savedata_hook(savedata->entries[i].arg);  /* 0x41bb80(0x5e,arg) */
+                    break;
+                }
+            }
+        }
+
+        /* Commit the transition (0x56b9e3): phase 10, fade 1000, return the
+         * selected row's action id (re-read, as retail does). */
+        out->enter_phase10 = 1;
+        out->set_result    = 1;
+        out->result_code   = ctrl->rows[ctrl->list->cursor].action;
+    }
+
+    /* (4) Idle watchdog (LAB_0056ba0e): always checked, even with no input. */
+    if (watchdog_frames >= TITLE_MENU_WATCHDOG_FRAMES) {
+        if (title_menu_watchdog_hook != NULL) title_menu_watchdog_hook();  /* 0x40a5d0(0,0,0,0,1) */
+        out->enter_phase10 = 1;
+    }
+}

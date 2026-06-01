@@ -56,6 +56,7 @@
 
 #include "menu_list.h"      /* menu_ctrl / menu_node — the spawned controller */
 #include "obj_container.h"  /* sel_list — the owning menu-tree entry list     */
+#include "input.h"          /* input_mgr — the per-frame menu input poll      */
 
 /* ─── intro-phase / menu-fade state (the `local_64` machine) ─────────
  *
@@ -266,5 +267,123 @@ void title_menu_spawn(sel_list *owner, int32_t select_key, title_menu *out);
  * is a pool slot and the node tree is owned by the sel_list, both released
  * elsewhere.  No-op when no menu is live (ctrl == NULL). */
 void title_menu_teardown(title_menu *m);
+
+/* ─── the per-frame menu input dispatch (default arm, after the spawn) ──
+ *
+ * Ported from FUN_0056aea0's per-frame menu update at 0x56b807..0x56ba39 —
+ * the last piece of the title scene's *update* half.  Each menu frame, once
+ * the menu has been spawned, this:
+ *
+ *   1. polls the five menu buttons through the (already-ported) ring poll
+ *      input_poll_consume and feeds each hit into the (already-ported) action
+ *      latch menu_list_latch, in retail order:
+ *        button 2  → latch dir 2   button 4  → latch dir 3
+ *        button 1  → latch dir 0   button 3  → latch dir 1
+ *        button 0x24 → latch dir 9
+ *      with two axis-held syntheses interleaved (only when nothing has
+ *      latched yet): after buttons 2/4/1, latch dir 6 (mgr->axis_held_v set)
+ *      or 7 (clear); after button 3, latch dir 4 (mgr->axis_held_h set) or 5
+ *      (clear).  The latch's return code (`esi` / retail iVar14) is the
+ *      resolved menu action.
+ *
+ *   2. dispatches on that action code:
+ *        1, 2  → a "move" SFX (id 9);
+ *        3     → the *commit*: if the selected row is enabled (row.flag8 != 0)
+ *                play the confirm SFX (id 5) and proceed; if disabled, play the
+ *                denied SFX (id 6) and do nothing else this frame;
+ *        4     → a "cancel" SFX (id 7)  [unreachable in the title flow — it
+ *                arises from latch dir 10, which the title never sends];
+ *        else  → nothing.
+ *
+ *      NB the action↔meaning mapping is the latch/nav return code, NOT the
+ *      button: nav returns 3 for *cancel* (its dir 9) — so the title menu's
+ *      "commit" is physically button 0x24.  (The earlier findings note that
+ *      called 0x24 "back/cancel" was reading the dir, not the outcome.)
+ *
+ *   3. on a successful commit (action 3, enabled row): runs the joystick
+ *      lazy-attach (the &DAT_008a93dc DInput block), then — when the selected
+ *      row's action id is not 0x1d — walks the god object's menu-action table
+ *      for an entry whose key matches that action id and notifies it
+ *      (0x41bb80(0x5e, entry.arg)); finally latches the result code (the
+ *      selected action id) and requests the phase-10 fade-out.
+ *
+ *   4. unconditionally runs the idle watchdog: if the menu has been up for
+ *      >= 0x1194 frames it fires 0x40a5d0(0,0,0,0,1) and forces phase 10.
+ *
+ * The three still-unported side effects — SFX (0x411390), the joystick
+ * attach (0x5ba120/0x5ba290), and the save-data notify (0x41bb80) — plus
+ * the watchdog (0x40a5d0) are routed through the observable hooks below
+ * (the menu_cell_layout_hook pattern), each a no-op by default, so this
+ * assembles and tests now without pulling in audio / DInput / the god object.
+ * The save-data *lookup* itself is ported faithfully against a caller-supplied
+ * model of the god object's table slice.
+ *
+ * NOT included here (a separate point in the update half, before the phase
+ * switch): the early `0x22`→return-state-6 abort poll at 0x56b14d.  The
+ * enclosing scene loop will do that as a plain
+ * `if (input_poll_consume(mgr, now, 0x22)) return 6;` before this step. */
+
+/* SFX trigger — retail 0x411390(sfx_id, 0, 0) on the global audio object
+ * DAT_008a6b60.  Ids used here: 9 (move), 5 (confirm), 6 (denied), 7 (cancel). */
+typedef void (*title_menu_sfx_fn)(int32_t sfx_id);
+extern title_menu_sfx_fn title_menu_sfx_hook;
+
+/* Joystick lazy-attach — retail's &DAT_008a93dc 2-slot DInput attach loop
+ * (0x5ba120 / input_dev 0x5ba290).  Fired once per commit. */
+typedef void (*title_menu_joystick_fn)(void);
+extern title_menu_joystick_fn title_menu_joystick_hook;
+
+/* Save-data notify — retail 0x41bb80(0x5e, entry.arg) for the matched
+ * menu-action table entry.  `arg` is that entry's +0x00 payload pointer. */
+typedef void (*title_menu_savedata_fn)(void *arg);
+extern title_menu_savedata_fn title_menu_savedata_hook;
+
+/* Idle watchdog action — retail 0x40a5d0(0,0,0,0,1), fired when the menu
+ * times out (>= 0x1194 frames). */
+typedef void (*title_menu_watchdog_fn)(void);
+extern title_menu_watchdog_fn title_menu_watchdog_hook;
+
+/* One entry of the god object's menu-action table (retail: 8-byte records at
+ * `*DAT_008a6e80`->[0xa48]+0x10, count at +0x16).  The commit path searches it
+ * for `key == selected action id` and notifies the matched `arg`. */
+typedef struct title_menu_savedata_entry {
+    void    *arg;   /* +0x00 — payload passed to the notify hook */
+    int32_t  key;   /* +0x04 — compared against the selected row's action id */
+} title_menu_savedata_entry;   /* 8 B */
+
+/* The table slice the commit path walks.  Pass entries=NULL (or count=0) to
+ * model retail's "no table / empty" guard (base or count zero → skip). */
+typedef struct title_menu_savedata_list {
+    title_menu_savedata_entry *entries;
+    uint16_t                   count;
+} title_menu_savedata_list;
+
+/* What the enclosing loop must do after one menu-input frame. */
+typedef struct title_menu_input_out {
+    int32_t action;        /* the latch result code (0 none, 1/2 nav, 3 commit, 4 cancel) */
+    int     enter_phase10; /* 1 → caller sets phase=10, fade=1000 (commit or watchdog)    */
+    int     set_result;    /* 1 → caller latches result_code into the scene return (local_48) */
+    int32_t result_code;   /* the committed row's action id; valid only when set_result    */
+} title_menu_input_out;
+
+/* Run one frame of the spawned title menu's input handling.
+ *
+ *   mgr             the scene's input manager (retail in_ECX[1]) — polled, and
+ *                   its axis_held_v/h flags consulted for the synth events.
+ *   ctrl            the spawned menu controller (title_menu.ctrl / local_60).
+ *   now             this frame's GetTickCount sample (retail DVar8), passed to
+ *                   the poll + latch for the consume window / key-repeat clocks.
+ *   watchdog_frames the menu's idle-frame counter (retail local_50).
+ *   savedata        the god object's menu-action table slice, or NULL to skip
+ *                   the post-commit notify lookup.
+ *   out             filled with the resulting state-transition request.
+ *
+ * Faithful to 0x56b807..0x56ba39.  Side effects (SFX / joystick / notify /
+ * watchdog) go through the hooks above.  Touches the controller's list state
+ * (via the latch) and the matched record only through the notify hook. */
+void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
+                           int32_t watchdog_frames,
+                           const title_menu_savedata_list *savedata,
+                           title_menu_input_out *out);
 
 #endif /* OPENSUMMONERS_TITLE_SCENE_H */
