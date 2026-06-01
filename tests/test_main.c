@@ -298,6 +298,13 @@ struct test_case {
     X(title_render_fadeout)                                    \
     X(title_render_flip_log_once)                              \
     X(title_render_no_sink_is_safe)                            \
+    X(title_scene_init_zeroes_and_binds)                       \
+    X(title_scene_render_iteration_presents)                   \
+    X(title_scene_abort_poll_returns_6)                        \
+    X(title_scene_intro_walks_to_menu)                         \
+    X(title_scene_watchdog_forces_exit)                        \
+    X(title_scene_menu_commit_exits_with_action)               \
+    X(title_scene_null_hooks_safe)                             \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \
     X(input_poll_wrong_id_misses)                              \

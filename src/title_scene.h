@@ -505,4 +505,114 @@ int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp);
 void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
                        const uint32_t *ramp, int quiet, int *already_flipped);
 
+/* ─── the scene runner (the outer do/while of FUN_0056aea0) ───────────
+ *
+ * The capstone that composes the ported units into the one running title
+ * scene.  Ported from FUN_0056aea0's outer `do { … } while(1)` body — one
+ * call to title_scene_step is one iteration of that loop:
+ *
+ *   1. sample GetTickCount once (the caller passes it as `now`, 0x56b002);
+ *   2. title_pace_step decides pump + update/render for this iteration,
+ *      and the pump (0x5b1030) fires through a hook when requested;
+ *   3. on a TITLE_PACE_RENDER iteration → title_render_step draws the
+ *      current phase's frame and presents it (the whole render half);
+ *   4. on a TITLE_PACE_UPDATE iteration → the update half:
+ *        - the pre-update side effects (0x43e140 + 0x40fe00 + 0x566250(0));
+ *        - the 0x22 abort poll (0x56b14d): a hit returns scene result 6;
+ *        - the phase switch = title_fade_step (its set_next_segment /
+ *          spawn_sparkle effects routed through hooks); on a TITLE_FADE_MENU
+ *          frame, title_menu_spawn on first entry then title_menu_input_step
+ *          (whose SFX/joystick/notify/watchdog go through the existing
+ *          title_menu_*_hook globals); on a phase-10 frame, title_menu_teardown
+ *          precedes the fade-out, and TITLE_FADE_EXIT returns the latched result;
+ *        - the per-frame tail (LAB_0056ba69): the idle-watchdog counter
+ *          increment, the post-update side effect (0x56c930), and the
+ *          per-owner-entry update (0x43c2e0, once per owner->count).
+ *
+ * The scene returns (TITLE_SCENE_DONE) only out of the update half — via the
+ * abort poll (result 6) or the phase-10 fade-out completing (result = the
+ * committed menu action, or 0 on a watchdog timeout).  The render half never
+ * returns; it loops.  (Ghidra rendered the 0x56bb55 jump table as a `call`
+ * with a `return`, hiding this — see title-scene.md / engine-quirks #40.)
+ *
+ * Faithful divergences (documented so the seams stay visible):
+ *
+ *   - The **skip-splash early-out** (0x56b0e8..0x56b150 — "press any button
+ *     during the intro to jump straight to the menu") is NOT ported here.
+ *     It walks the input-manager ring directly (newest-first, looking for any
+ *     fresh press) and, on a hit, fires a second BGM SetNextSegment cue and
+ *     resets a swathe of input-manager fields before forcing phase 8.  It is
+ *     a separable intro-convenience that reads input-mgr internals the poll
+ *     port doesn't model yet; deferred to its own checkpoint.  Without it the
+ *     intro always plays in full (param_1==0, the headless default).
+ *   - The menu-spawn precondition (a free, allocated owner entry) is the same
+ *     as retail's (which has no guard).  Where retail would dereference a NULL
+ *     controller after a failed spawn, this guards `ctrl != NULL` before the
+ *     input step — a no-op divergence on the guaranteed-valid title flow, but
+ *     it keeps a degenerate headless owner from crashing the runner.
+ *   - Scene entry/exit engine plumbing (the operator_new allocations, the
+ *     0x40a5d0 watchdog reset, 0x56bfd0/0x562a70/0x40fe00 init, and the
+ *     0x5aff00/0x56c2b0 exit cleanup) is the caller's job — the runner owns
+ *     only the per-frame loop body.  title_scene_init just zeroes the FSM
+ *     state and binds the environment.
+ */
+
+/* The still-unported per-frame engine calls in the outer loop, routed through
+ * one struct so the runner composes the ported units without pulling in the
+ * unported subsystems.  Every field is nullable (NULL ⇒ that call is a no-op);
+ * a NULL `hooks` argument makes all of them no-ops. */
+typedef struct title_scene_hooks {
+    void (*pump)(void);                       /* 0x5b1030 — message-pump frame   */
+    void (*pre_update)(void);                 /* 0x43e140 + 0x40fe00 + 0x566250(0)*/
+    void (*post_update)(void);                /* 0x56c930                         */
+    void (*update_entry)(int32_t idx);        /* 0x43c2e0, once per owner entry   */
+    void (*set_next_segment)(void);           /* BGM cue (title_fade_step fx)     */
+    void (*spawn_sparkle)(int32_t intensity); /* 0x56c070 (title_fade_step fx)    */
+} title_scene_hooks;
+
+/* The full per-frame state of a running title scene — the FSM units plus the
+ * scene-level locals (watchdog counter local_50, return code local_48, the
+ * first-flip latch bVar3) and the bound environment (owner sel_list *in_ECX,
+ * input manager in_ECX[1], the saved menu selection key, the alpha ramp, the
+ * log-quiet flag, the save-data table slice). */
+typedef struct title_scene {
+    title_pace_state pace;
+    title_fade_state fade;
+    title_menu       menu;            /* node + ctrl (spawned on first menu frame) */
+    int32_t          watchdog;        /* local_50 — idle-frame counter (caps 0x1194)*/
+    int32_t          result;          /* local_48 — the scene's return code         */
+    int              already_flipped; /* bVar3 — first-flip "Flipping" log latch     */
+
+    sel_list        *owner;           /* *in_ECX — owning menu-tree entry list       */
+    input_mgr       *input;           /* in_ECX[1] — per-frame input poll            */
+    int32_t          select_key;      /* *(*DAT_008a6e80+0xa60) — saved menu pick     */
+    const uint32_t  *ramp;            /* 0x8a9308 alpha ramp (NULL ⇒ all-zero)        */
+    int              quiet;           /* DAT_008a6b54 — log-suppress flag             */
+    const title_menu_savedata_list *savedata;  /* commit-path notify table, or NULL  */
+} title_scene;
+
+/* What one iteration of the runner resolved to. */
+typedef enum title_scene_status {
+    TITLE_SCENE_RUNNING = 0,   /* keep iterating */
+    TITLE_SCENE_DONE    = 1,   /* scene finished — read ts->result for the code */
+} title_scene_status;
+
+/* Initialise a fresh title scene: zero the pacing/fade/menu state, the
+ * watchdog, the result, and the flip latch, then bind the environment.  Mirrors
+ * the entry zeroing at 0x56aec4..0x56aef1 / 0x56affc (the FSM locals only — the
+ * engine-object allocations and the init-time engine calls are the caller's). */
+void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
+                      int32_t select_key, const uint32_t *ramp, int quiet,
+                      const title_menu_savedata_list *savedata);
+
+/* Run one iteration of the outer loop.  `now` is this iteration's GetTickCount
+ * sample (the engine reads it once at 0x56b002); `hooks` routes the unported
+ * per-frame engine calls (NULL ⇒ all no-op).  Returns TITLE_SCENE_RUNNING to
+ * keep going, or TITLE_SCENE_DONE when the scene has finished (ts->result holds
+ * the menu-action / abort code the outer driver dispatches on).  Faithful to
+ * the outer `do { … } while(1)` of FUN_0056aea0 (see the header note above for
+ * the deferred skip-splash early-out). */
+title_scene_status title_scene_step(title_scene *ts, uint32_t now,
+                                    const title_scene_hooks *hooks);
+
 #endif /* OPENSUMMONERS_TITLE_SCENE_H */

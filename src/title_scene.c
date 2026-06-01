@@ -638,3 +638,115 @@ void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
     title_emit(TITLE_DRAW_FLIP, 0, 0, 0, 0, 0);            /* 0x5b8fc0(hWnd)  */
     *already_flipped = 1;                                  /* 0x56bf12 bVar3=1 */
 }
+
+/* ─── (F) the scene runner ────────────────────────────────────────────
+ *
+ * Port of FUN_0056aea0's outer `do { … } while(1)` body (disasm
+ * 0x56b002..0x56ba75; see title_scene.h for the framing + the deferred
+ * skip-splash seam).  One call = one loop iteration: pace → (render half) |
+ * (update half).  Composes the ported units; every still-unported per-frame
+ * engine call goes through the title_scene_hooks struct (the menu-input side
+ * effects keep using the existing title_menu_*_hook globals).
+ */
+
+void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
+                      int32_t select_key, const uint32_t *ramp, int quiet,
+                      const title_menu_savedata_list *savedata)
+{
+    title_pace_state_init(&ts->pace);   /* sub=0, budget=0x11, anchors=0 (0x56afd0) */
+    title_fade_state_init(&ts->fade);   /* phase/fade/tick/menu_fade = 0 (0x56aec4) */
+    ts->menu.node       = NULL;         /* local_54 = 0 */
+    ts->menu.ctrl       = NULL;         /* local_60 = 0 */
+    ts->watchdog        = 0;            /* local_50 = 0 */
+    ts->result          = 0;           /* local_48 = 0 */
+    ts->already_flipped = 0;           /* bVar3 = false */
+
+    ts->owner      = owner;
+    ts->input      = input;
+    ts->select_key = select_key;
+    ts->ramp       = ramp;
+    ts->quiet      = quiet;
+    ts->savedata   = savedata;
+}
+
+title_scene_status title_scene_step(title_scene *ts, uint32_t now,
+                                    const title_scene_hooks *hooks)
+{
+    /* (1) Pacing (0x56b002): decide pump + update/render for this iteration. */
+    title_pace_step_out pout;
+    title_pace_step(&ts->pace, now, &pout);
+    if (pout.pump && hooks != NULL && hooks->pump != NULL)
+        hooks->pump();                                      /* 0x5b1030 */
+
+    /* (2) Render half (sub==1, 0x56bb04): draw + present, then loop.  Never
+     *     exits — the only returns are in the update half below. */
+    if (pout.action == TITLE_PACE_RENDER) {
+        title_render_step(ts->fade.phase, ts->fade.fade, ts->menu.ctrl,
+                          ts->ramp, ts->quiet, &ts->already_flipped);
+        return TITLE_SCENE_RUNNING;
+    }
+
+    /* (3) Update half (sub==2, 0x56b0ce). */
+    if (hooks != NULL && hooks->pre_update != NULL)
+        hooks->pre_update();                                /* 0x43e140/0x40fe00/0x566250 */
+
+    /* Abort poll (0x56b14d): a fresh 0x22 press returns scene state 6. */
+    if (input_poll_consume(ts->input, now, 0x22)) {
+        ts->result = 6;                                     /* local_48 = 6 */
+        return TITLE_SCENE_DONE;                            /* → LAB_0056bf2e */
+    }
+
+    /* [skip-splash early-out 0x56b0e8..0x56b150 deferred — see title_scene.h] */
+
+    /* The phase switch (0x56b153).  phase > 10 skips it entirely (LAB_0056b14a
+     * `if (10 < local_64) goto LAB_0056ba69`). */
+    if (ts->fade.phase <= 10) {
+        /* case 10 (0x56ba2e) drops the menu *before* the fade-out; idempotent,
+         * so safe to call each phase-10 frame. */
+        if (ts->fade.phase == 10)
+            title_menu_teardown(&ts->menu);
+
+        title_fade_step_out fx;
+        title_fade_action act = title_fade_step(&ts->fade, &fx);
+
+        if (fx.set_next_segment && hooks != NULL && hooks->set_next_segment != NULL)
+            hooks->set_next_segment();                      /* BGM SetNextSegment cue */
+        if (fx.spawn_sparkle && hooks != NULL && hooks->spawn_sparkle != NULL)
+            hooks->spawn_sparkle(fx.sparkle_intensity);     /* 0x56c070 */
+
+        if (act == TITLE_FADE_EXIT)
+            return TITLE_SCENE_DONE;                         /* phase-10 fade done → ts->result */
+
+        if (act == TITLE_FADE_MENU) {
+            /* default arm (phases 8/9): spawn on first entry (local_60 == 0),
+             * then run the per-frame menu input dispatch in the same frame. */
+            if (ts->menu.ctrl == NULL)
+                title_menu_spawn(ts->owner, ts->select_key, &ts->menu);
+            if (ts->menu.ctrl != NULL) {                     /* see header: NULL guard */
+                title_menu_input_out mout;
+                title_menu_input_step(ts->input, ts->menu.ctrl, now,
+                                      ts->watchdog, ts->savedata, &mout);
+                if (mout.set_result)
+                    ts->result = mout.result_code;           /* local_48 = row action */
+                if (mout.enter_phase10) {                    /* commit or watchdog */
+                    ts->fade.phase = 10;
+                    ts->fade.fade  = 1000;
+                }
+            }
+        }
+    }
+
+    /* (4) Per-frame tail (LAB_0056ba69), common to every non-exiting update
+     *     frame regardless of phase: bump the idle watchdog (capped at 0x1194),
+     *     run the post-update side effect, then update each owner entry. */
+    if (ts->watchdog < TITLE_MENU_WATCHDOG_FRAMES)
+        ts->watchdog++;                                     /* 0x56ba69 */
+    if (hooks != NULL && hooks->post_update != NULL)
+        hooks->post_update();                               /* 0x56c930 */
+    if (ts->owner != NULL && hooks != NULL && hooks->update_entry != NULL) {
+        uint16_t cnt = ts->owner->count;                    /* *(short*)(*in_ECX+6) */
+        for (uint16_t i = 0; i < cnt; i++)
+            hooks->update_entry((int32_t)i);                /* 0x43c2e0 per entry */
+    }
+    return TITLE_SCENE_RUNNING;
+}

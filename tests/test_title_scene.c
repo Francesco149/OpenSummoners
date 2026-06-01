@@ -1308,3 +1308,281 @@ int test_title_render_no_sink_is_safe(void)
     T_ASSERT_EQ_I(flipped, 1);
     return 0;
 }
+
+/* ─── (F) the scene runner (title_scene_step / title_scene_init) ────────
+ *
+ * These drive the composed outer loop.  The pacer has its own tests above;
+ * to exercise the *update-half orchestration* deterministically (one
+ * title_fade_step per frame) the walks force a guaranteed-UPDATE pace state
+ * before each step via ts_update().  The render path and the abort/commit
+ * exits are tested through the real title_scene_step.
+ */
+
+/* Scene-hook spies (the outer-loop unported calls). */
+static int ts_pump_n, ts_pre_n, ts_post_n, ts_seg_n, ts_spark_n, ts_entry_n;
+static int ts_last_intensity;
+static void ts_h_pump(void)            { ts_pump_n++; }
+static void ts_h_pre(void)             { ts_pre_n++; }
+static void ts_h_post(void)            { ts_post_n++; }
+static void ts_h_seg(void)             { ts_seg_n++; }
+static void ts_h_spark(int32_t inten)  { ts_spark_n++; ts_last_intensity = inten; }
+static void ts_h_entry(int32_t idx)    { (void)idx; ts_entry_n++; }
+static const title_scene_hooks TS_HOOKS = {
+    ts_h_pump, ts_h_pre, ts_h_post, ts_h_entry, ts_h_seg, ts_h_spark,
+};
+static void ts_reset_hooks(void)
+{
+    ts_pump_n = ts_pre_n = ts_post_n = ts_seg_n = ts_spark_n = ts_entry_n = 0;
+    ts_last_intensity = 0;
+}
+
+/* Force the pacer into a guaranteed-UPDATE iteration (sub==2, zero elapsed,
+ * fat budget) so exactly one title_fade_step runs.  Isolates the update-half
+ * orchestration from the separately-tested pacer. */
+static title_scene_status ts_update(title_scene *ts, uint32_t now,
+                                    const title_scene_hooks *h)
+{
+    ts->pace.sub           = TITLE_PACE_SUB_UPDATE;
+    ts->pace.budget        = 0x40;
+    ts->pace.tick_anchor   = 0;
+    ts->pace.render_anchor = now;
+    return title_scene_step(ts, now, h);
+}
+
+#define TS_NOW 5000u
+
+/* ── init ── */
+int test_title_scene_init_zeroes_and_binds(void)
+{
+    sel_list o; input_mgr m; uint32_t ramp[20] = {0};
+    title_menu_savedata_list sd = { NULL, 0 };
+    title_scene ts;
+    memset(&ts, 0xAA, sizeof ts);
+
+    title_scene_init(&ts, &o, &m, 0x1e, ramp, 1, &sd);
+
+    T_ASSERT_EQ_I(ts.pace.sub, 0);
+    T_ASSERT_EQ_U(ts.pace.budget, 0x11);
+    T_ASSERT_EQ_I(ts.fade.phase, 0);
+    T_ASSERT_EQ_I(ts.fade.fade, 0);
+    T_ASSERT_EQ_P(ts.menu.node, NULL);
+    T_ASSERT_EQ_P(ts.menu.ctrl, NULL);
+    T_ASSERT_EQ_I(ts.watchdog, 0);
+    T_ASSERT_EQ_I(ts.result, 0);
+    T_ASSERT_EQ_I(ts.already_flipped, 0);
+    T_ASSERT_EQ_P(ts.owner, &o);
+    T_ASSERT_EQ_P(ts.input, &m);
+    T_ASSERT_EQ_I(ts.select_key, 0x1e);
+    T_ASSERT_EQ_P(ts.ramp, ramp);
+    T_ASSERT_EQ_I(ts.quiet, 1);
+    T_ASSERT_EQ_P(ts.savedata, &sd);
+    return 0;
+}
+
+/* ── a render iteration draws + presents and does NOT touch the update half ── */
+int test_title_scene_render_iteration_presents(void)
+{
+    input_mgr m; ti_mk_input(&m);
+    title_scene ts;
+    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL);
+    ts.fade.phase = 5;                  /* press-button handler */
+    ts.fade.fade  = 400;
+    /* a pace state that resolves to RENDER with no pump: sub==2, 0 ms elapsed,
+     * budget 17 → burn one slice → 1 ≤ 16 → sub=1 (render). */
+    ts.pace = (title_pace_state){ .sub = 2, .budget = 0x11,
+                                  .tick_anchor = 900, .render_anchor = 1000 };
+
+    ts_reset_hooks(); tr_install();
+    title_scene_status st = title_scene_step(&ts, 1000, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(st, TITLE_SCENE_RUNNING);
+    /* the render half emitted a frame (ending FRAME_END … FLIP). */
+    T_ASSERT(tr_find(TITLE_DRAW_FRAME_END, 0) >= 0);
+    T_ASSERT(tr_find(TITLE_DRAW_FLIP, 0) >= 0);
+    T_ASSERT_EQ_I(ts.already_flipped, 1);
+    /* phase-5 draws: plain asset 2 then leveled asset 3 @ fade 400. */
+    {
+        int s = tr_find(TITLE_DRAW_SPRITE, 0);
+        int l = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
+        T_ASSERT(s >= 0 && l > s);
+        T_ASSERT_EQ_I(tr_cmds[s].asset, 2);
+        T_ASSERT_EQ_I(tr_cmds[l].level, 400);
+    }
+    /* the update half never ran: FSM unchanged, no pre/post, no pump. */
+    T_ASSERT_EQ_I(ts.fade.phase, 5);
+    T_ASSERT_EQ_I(ts.fade.fade, 400);
+    T_ASSERT_EQ_I(ts_pre_n, 0);
+    T_ASSERT_EQ_I(ts_post_n, 0);
+    T_ASSERT_EQ_I(ts_pump_n, 0);
+    return 0;
+}
+
+/* ── the 0x22 abort poll returns scene state 6 out of the update half ── */
+int test_title_scene_abort_poll_returns_6(void)
+{
+    input_mgr m; ti_mk_input(&m);
+    ti_press(&m, 30, 0x22, TS_NOW);     /* fresh abort press */
+    title_scene ts;
+    title_scene_init(&ts, NULL, &m, 0, NULL, 0, NULL);
+
+    ts_reset_hooks(); title_render_sink_hook = NULL;
+    /* first frame: pacer sub==0 → pump + enter update. */
+    title_scene_status st = title_scene_step(&ts, TS_NOW, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(st, TITLE_SCENE_DONE);
+    T_ASSERT_EQ_I(ts.result, 6);
+    T_ASSERT_EQ_I(ts_pump_n, 1);        /* sub==0 pumps */
+    T_ASSERT_EQ_I(ts_pre_n, 1);         /* pre-update ran before the poll */
+    T_ASSERT_EQ_I(ts_post_n, 0);        /* abort short-circuits the frame tail */
+    T_ASSERT_EQ_I(ts_entry_n, 0);
+    return 0;
+}
+
+/* ── the full intro walk: phase 0 → spawned menu, via the orchestrator ── */
+int test_title_scene_intro_walks_to_menu(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    input_mgr m; ti_mk_input(&m);
+    title_scene ts;
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1 /*quiet*/, NULL);
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+
+    int i = 0;
+    while (ts.menu.ctrl == NULL && i < 4000) {
+        ts_update(&ts, TS_NOW, &TS_HOOKS);
+        i++;
+    }
+
+    /* The first MENU frame is step 529 (one title_fade_step per update frame;
+     * the pure-FSM walk pins that count), and it is where the menu spawns. */
+    T_ASSERT_EQ_I(i, 529);
+    T_ASSERT_EQ_I(ts.fade.phase, 8);
+    T_ASSERT(ts.menu.ctrl != NULL);
+    T_ASSERT_EQ_I(ts_seg_n, 1);         /* exactly one BGM cue (phase 2→3) */
+    T_ASSERT_EQ_I(ts_spark_n, 42);      /* phase-7 sparkles below fade 850 */
+    T_ASSERT_EQ_I(ts_pump_n, 0);        /* forced-update path never pumps */
+    T_ASSERT_EQ_I(ts_pre_n, 529);       /* pre-update once per update frame */
+    T_ASSERT_EQ_I(ts_post_n, 529);      /* no frame exited */
+    T_ASSERT_EQ_I(ts_entry_n, 1);       /* only the menu frame has a live entry */
+
+    free_spawn(&o, &ts.menu);
+    return 0;
+}
+
+/* ── the idle watchdog forces phase 10 → fade-out → DONE (result 0) ── */
+int test_title_scene_watchdog_forces_exit(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    input_mgr m; ti_mk_input(&m);
+    title_scene ts;
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL);
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+
+    int i = 0;
+    while (ts.menu.ctrl == NULL && i < 4000) { ts_update(&ts, TS_NOW, &TS_HOOKS); i++; }
+    T_ASSERT(ts.menu.ctrl != NULL);
+    menu_node *node = ts.menu.node;     /* capture for cleanup (teardown nulls them) */
+    menu_ctrl *ctrl = ts.menu.ctrl;
+
+    /* Trip the watchdog: the next menu frame sees the counter at threshold and
+     * forces phase 10 without latching a result. */
+    ts.watchdog = 0x1194;   /* TITLE_MENU_WATCHDOG_FRAMES — the idle threshold */
+    ts_update(&ts, TS_NOW, &TS_HOOKS);
+    T_ASSERT_EQ_I(ts.fade.phase, 10);
+    T_ASSERT_EQ_I(ts.fade.fade, 1000);
+
+    /* Drive the fade-out to completion. */
+    title_scene_status st = TITLE_SCENE_RUNNING;
+    int guard = 0;
+    while (st == TITLE_SCENE_RUNNING && guard < 200) {
+        st = ts_update(&ts, TS_NOW, &TS_HOOKS);
+        guard++;
+    }
+    T_ASSERT_EQ_I(st, TITLE_SCENE_DONE);
+    T_ASSERT_EQ_I(ts.result, 0);        /* watchdog timeout latches no action */
+    T_ASSERT_EQ_P(ts.menu.ctrl, NULL);  /* torn down on the first phase-10 frame */
+
+    menu_ctrl_clear(ctrl);
+    free(node->children[0]);
+    free(node->children);
+    free(o.entries[0]);
+    free(o.entries);
+    return 0;
+}
+
+/* ── the money path: intro → menu → commit → fade-out → DONE(action) ── */
+int test_title_scene_menu_commit_exits_with_action(void)
+{
+    sel_list o; mk_owner(&o, 4);
+    input_mgr m; ti_mk_input(&m);
+    title_scene ts;
+    title_scene_init(&ts, &o, &m, 0x1a, NULL, 1, NULL);
+
+    ts_reset_hooks(); ti_install_spies(); title_render_sink_hook = NULL;
+
+    int i = 0;
+    while (ts.menu.ctrl == NULL && i < 4000) { ts_update(&ts, TS_NOW, &TS_HOOKS); i++; }
+    T_ASSERT(ts.menu.ctrl != NULL);
+    menu_node *node = ts.menu.node;
+    menu_ctrl *ctrl = ts.menu.ctrl;
+
+    /* Open the controller's input gate.  Retail aliases the gate onto the node
+     * (ctrl->sub == the node, enabled at +0x04 / ready ramp at +0x54) — but
+     * that byte overlay only lands cleanly on the 32-bit target; on the 64-bit
+     * host the node's widened pointers diverge from menu_input_sub's offsets,
+     * so (as the other menu-input tests do) we point ctrl->sub at a real
+     * gate struct instead.  Then aim the cursor at row 0 (action 0x1a). */
+    static menu_input_sub gate;
+    memset(&gate, 0, sizeof gate);
+    gate.enabled = 1;
+    gate.ready   = 1000;
+    ts.menu.ctrl->sub = &gate;
+    ts.menu.ctrl->list->cursor = 0;
+
+    /* Press commit (button 0x24 → latch dir 9 → nav returns 3) and run one
+     * menu update frame. */
+    ti_install_spies();
+    ti_press(&m, 25, 0x24, TS_NOW);
+    ts_update(&ts, TS_NOW, &TS_HOOKS);
+
+    T_ASSERT_EQ_I(ts.fade.phase, 10);       /* commit requested the fade-out */
+    T_ASSERT_EQ_I(ts.fade.fade, 1000);
+    T_ASSERT_EQ_I(ts.result, 0x1a);         /* the selected row's action id */
+    T_ASSERT_EQ_I(ti_sfx_n, 1);
+    T_ASSERT_EQ_I(ti_sfx[0], 5);            /* confirm SFX */
+    T_ASSERT_EQ_I(ti_joy_n, 1);             /* joystick lazy-attach fired once */
+
+    /* Fade out to the scene return; the committed action survives. */
+    title_scene_status st = TITLE_SCENE_RUNNING;
+    int guard = 0;
+    while (st == TITLE_SCENE_RUNNING && guard < 200) {
+        st = ts_update(&ts, TS_NOW, &TS_HOOKS);
+        guard++;
+    }
+    T_ASSERT_EQ_I(st, TITLE_SCENE_DONE);
+    T_ASSERT_EQ_I(ts.result, 0x1a);
+
+    menu_ctrl_clear(ctrl);
+    free(node->children[0]);
+    free(node->children);
+    free(o.entries[0]);
+    free(o.entries);
+    return 0;
+}
+
+/* ── a NULL hooks argument is safe (all outer-loop calls become no-ops) ── */
+int test_title_scene_null_hooks_safe(void)
+{
+    input_mgr m; ti_mk_input(&m);
+    title_scene ts;
+    title_scene_init(&ts, NULL, &m, 0, NULL, 1, NULL);
+    title_render_sink_hook = NULL;
+
+    /* A handful of real iterations (mixed update/render off the live pacer)
+     * with hooks == NULL must not crash. */
+    for (int k = 0; k < 8; k++)
+        title_scene_step(&ts, TS_NOW + (uint32_t)k * 16u, NULL);
+    return 0;
+}
