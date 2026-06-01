@@ -185,6 +185,36 @@ Plain return values:
 > `0x41bb80`, watchdog `0x40a5d0`) route through no-op hooks.  Remaining for
 > the whole scene: only the **render half** (jump-table draws + Flip).
 
+> **Ported (checkpoint 11):** the **outer `do { … } while(1)` itself** — the
+> orchestration that ties every unit together — is now `title_scene_step` /
+> `title_scene_init` in `src/title_scene.c` (`0x56b002..0x56ba75`).  One call =
+> one loop iteration: `title_pace_step` (pump via hook) → on a render iteration
+> `title_render_step`; on an update iteration the pre-update side effects, the
+> `0x22` abort poll, the phase switch (`title_fade_step` + `title_menu_spawn`
+> on first menu entry + `title_menu_input_step` + `title_menu_teardown` before
+> the phase-10 fade-out), then the per-frame tail (watchdog increment +
+> post-update + per-owner-entry update).  Unported per-frame engine calls
+> (`0x5b1030`/`0x43e140`/`0x40fe00`/`0x566250`/`0x56c930`/`0x43c2e0` + the BGM
+> cue + `0x56c070`) route through a nullable `title_scene_hooks` struct.
+>
+> Control-flow facts the wiring nailed down:
+>
+> - **The scene returns only out of the update half** — via the `0x22` abort
+>   poll (result `6`) or the phase-10 fade-out completing (result = the
+>   committed action `local_48`, or `0` on a watchdog timeout).  The render
+>   half *never returns*; it `goto`s back to the loop top (the
+>   `LAB_0056bb55`-as-`call` rendering was a Ghidra artifact — see #40).
+> - **The idle watchdog (`local_50`) increments on every update frame, in
+>   every phase** (`LAB_0056ba69` is common to all switch arms), so the
+>   `0x1194`-frame (~75 s) timeout counts the intro too, not just menu-idle.
+> - **The menu spawns and runs its first input poll on the same frame**, with
+>   the input gate (`local_60->sub->[+0x54]` ramp) still closed — so the first
+>   menu frame cannot latch a selection.
+> - **Deferred:** the skip-splash early-out (`0x56b0e8..0x56b150`) is *not* in
+>   the runner yet — it walks the input ring directly and fires a second
+>   SetNextSegment cue; a separable intro-convenience for its own checkpoint.
+>   Without it the intro always plays in full (`param_1 == 0`).
+
 Once we're in the default branch (after phase 7 hands off), each frame:
 
 1. Spawn the menu-controller (`local_60 = FUN_00412c10()`) on first

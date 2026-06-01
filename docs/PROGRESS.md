@@ -6,6 +6,63 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Title scene runner wired into one orchestrated loop, ckpt 11
+
+Composed the ckpt 1–10 units (the pacing FSM, the fade FSM, the menu spawn,
+the per-frame input dispatch, the render step, the teardown) into the one
+running title-scene runner — `title_scene_step` / `title_scene_init` in
+`src/title_scene.c`, ported from `FUN_0056aea0`'s outer `do { … } while(1)`
+body (`0x56b002..0x56ba75`).  One call = one loop iteration: sample
+GetTickCount → `title_pace_step` (pump fires through a hook when requested) →
+on a `TITLE_PACE_RENDER` iteration `title_render_step` draws+presents and
+loops; on a `TITLE_PACE_UPDATE` iteration the update half runs (pre-update
+side effects → the `0x22` abort poll → the phase switch = `title_fade_step`,
+with `title_menu_spawn` on first menu entry + `title_menu_input_step`, and
+`title_menu_teardown` before the phase-10 fade-out → the per-frame tail:
+watchdog increment, post-update, per-owner-entry update).
+
+This is the piece "between a pile of units and a running title scene": the
+whole milestone-0 control flow now exists as one composable, testable unit.
+Every still-unported per-frame engine call (`0x5b1030` pump, `0x43e140` +
+`0x40fe00` + `0x566250` pre-update, `0x56c930` post-update, `0x43c2e0`
+per-entry, the BGM SetNextSegment cue, `0x56c070` sparkle spawn) is routed
+through a nullable `title_scene_hooks` struct; the menu-input side effects
+keep using the existing `title_menu_*_hook` globals; the render bridges keep
+using `title_render_sink_hook`.  So the runner assembles and tests now without
+pulling in audio / DInput / DDraw / the god object.
+
+**Anatomy confirmed while wiring** (folded into `findings/title-scene.md`):
+the scene returns *only* out of the update half — the `0x22` abort poll
+(result 6) or the phase-10 fade-out completing (result = the committed menu
+action, or 0 on a watchdog timeout); the render half never returns, it loops
+(reinforcing the ckpt-10 finding that Ghidra's "jump table as call+return"
+was an artifact).  The idle watchdog (`local_50`) increments on *every* update
+frame across *all* phases — so the ~75 s timeout counts the intro, not just
+menu-idle time.  The menu both spawns *and* runs its first input poll on the
+same frame, with the input gate still closed (so the first menu frame can't
+latch).
+
+**Deferred (documented seam):** the **skip-splash early-out**
+(`0x56b0e8..0x56b150`, "press any button during the intro to jump to the
+menu") is not ported here — it walks the input-mgr ring directly and fires a
+second SetNextSegment cue; it's a separable intro-convenience reading
+input-mgr internals the poll port doesn't model yet.  Without it the intro
+always plays in full (the headless `param_1==0` default).
+
+**534 host tests pass, 0 fail, 6 skip (of 540)** — 7 new (runner init/bind,
+a render iteration presents without touching the update half, the abort poll
+returns 6, the full intro walk to the spawned menu, the watchdog forcing the
+fade-out exit, the full intro→menu→commit→exit "money path" returning the
+selected action 0x1a, and NULL-hooks safety; ASan/UBSan clean).  Both 32-bit
+cross-builds clean.  Ledger **122/1490 touched (7.5%), 119 tested**
+(unchanged — an extension of the already-counted `FUN_0056aea0`; unported
+callees referenced by bare VA).  The commit-path test had to point the
+controller's gate (`ctrl->sub`) at a real `menu_input_sub` rather than the
+node it aliases on 32-bit — the same host/target struct-padding divergence
+quirk #38 documents.
+
+---
+
 ## 2026-06-01 — Title scene render half ported, ckpt 10
 
 Ported `FUN_0056aea0`'s **render branch** (`0x56bb04..0x56bf1a`) into

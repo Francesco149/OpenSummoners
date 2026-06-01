@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-01 (title-scene render half, ckpt 10)
+# Session handoff — last updated 2026-06-02 (title scene runner wired, ckpt 11)
 
 **This is the first thing to read at the start of every session.**
 
@@ -8,45 +8,49 @@ to pick up *right now*".
 
 ## Where we are
 
-**Milestone 0 (title screen renders) — the whole `FUN_0056aea0` control
-flow is now ported.** The 3441 B title scene runner has had its fade FSM,
-pacing FSM, update half (input poll + menu chain + spawn + per-frame input
-dispatch), **and now its render half** all ported across ckpts 1–10.
+**Milestone 0 (title screen renders) — `FUN_0056aea0` is now a single
+running unit.** Across ckpts 1–10 the function was ported as a pile of
+tested pieces (fade FSM, pacing FSM, menu spawn, per-frame input dispatch,
+render step, teardown). **Checkpoint 11 (this session) wired them together**
+into the orchestrator that *is* the outer `do { … } while(1)` body
+(`0x56b002..0x56ba75`): **`title_scene_step` / `title_scene_init`** in
+`src/title_scene.c`.
 
-**Checkpoint 10 just landed** (this session): the **render half**
-(`0x56bb04..0x56bf1a`, the pacer's `sub==1` arm) → `src/title_scene.c` as
-**`title_render_step`**, plus the fade→alpha helper `0x448c80` as the pure
-**`title_fade_ramp`**. The render step draws one frame for the current phase:
-prologue gating (phase 0 → surface reset `0x5b9410`; phases 2–3 → clear
-`0x5b9b70`; phase > 10 → skip) → the **recovered 11-entry jump table** at
-`0x56bfa4` (`jmp [phase*4+...]`) to 7 inline handlers → the shared frame-end
-at `0x56bec4` (compose `0x56c180` → "Title Menu - Flipping" log → Flip
-`0x5b8fc0`).
+One call = one loop iteration: `title_pace_step` (pump fires through a hook)
+→ on a `TITLE_PACE_RENDER` iteration `title_render_step` draws+presents and
+loops; on a `TITLE_PACE_UPDATE` iteration the update half (pre-update side
+effects → the `0x22` abort poll → `title_fade_step`, with `title_menu_spawn`
+on first menu entry + `title_menu_input_step`, and `title_menu_teardown`
+before the phase-10 fade-out → the per-frame tail). Every still-unported
+per-frame engine call (`0x5b1030` pump, `0x43e140`/`0x40fe00`/`0x566250`
+pre, `0x56c930` post, `0x43c2e0` per-entry, BGM SetNextSegment, `0x56c070`
+sparkle) routes through a nullable **`title_scene_hooks`** struct; menu-input
+side effects keep using the `title_menu_*_hook` globals; render bridges keep
+using `title_render_sink_hook`. So the whole milestone-0 control flow is now
+one composable, testable unit — **no engine subsystem pulled in.**
 
-It's heavily DDraw/asset/object-model-coupled — every leaf the handlers call
-is unported. Rather than a hook per bridge, they're reported as an **ordered
-stream of tagged `title_draw_cmd`s through a single `title_render_sink_hook`**
-(no-op by default). The render half's purpose *is* that ordered draw stream,
-so the sink is its testable core (dispatch, per-handler sequence, ramp alpha,
-sparkle-trail geometry, cursor placement — all asserted without any black-box
-draw subsystem).
+**Anatomy nailed down while wiring:** the scene returns *only* out of the
+update half (the `0x22` abort poll → result 6, or the phase-10 fade-out
+completing → result = committed action / 0 on watchdog); the **render half
+never returns, it loops** (reinforcing ckpt-10's "jump-table-as-call was a
+Ghidra artifact"). The idle watchdog (`local_50`) increments on *every*
+update frame in *all* phases, so the ~75 s timeout counts the intro too. The
+menu spawns *and* runs its first input poll on the same frame (gate still
+closed → first menu frame can't latch).
 
-**Headline finding — new quirk #40:** `0x448c80`'s ramp returns **0 at both
-ends** — `fade == 1000` lands on the excluded `idx == 20` (`>= 0x14` cap),
-returning 0 not the top entry, so a saturated hold composites via a different
-path than the ramp; and its 20-dword table at `0x8a9308` is **all-zero
-statically** (DDraw fills it at run time), so a headless port correctly sees
-alpha 0 everywhere (modelled as a NULL/empty `ramp` input). Also: the two
-intro logos are **container fields at +4/+8**, not `0x418470` assets; and
-Ghidra's "call+return" rendering of the `0x56bb55` jump table hid that the 7
-handlers are inline labels all converging on the one frame-end.
+**Deferred (documented seam):** the **skip-splash early-out**
+(`0x56b0e8..0x56b150`, "press any button during the intro → jump to menu")
+is *not* in the runner — it walks the input-mgr ring directly and fires a
+second SetNextSegment cue; a separable intro-convenience for its own
+checkpoint. Without it the intro always plays in full (`param_1 == 0`).
 
-**527 host tests pass, 0 fail, 6 skip (of 533)** — 9 new (ramp index/clamp,
-prologue gating, logo clear-vs-blit, press-button asset pairs, sparkle trail,
-menu bg+cursor, fade-out, flip-log-once, no-sink safety; ASan/UBSan clean).
-Both 32-bit cross-builds clean. Ledger **122/1490 touched (7.5%), 119 tested**
-(unchanged — an extension of the already-counted `FUN_0056aea0`; unported
-callees referenced by bare VA).
+**534 host tests pass, 0 fail, 6 skip (of 540)** — 7 new (runner init/bind;
+a render iteration presents without touching the update half; the abort poll
+returns 6; the full intro walk to the spawned menu; the watchdog forcing the
+fade-out exit; the full intro→menu→commit→exit "money path" returning action
+0x1a; NULL-hooks safety; ASan/UBSan clean). Both 32-bit cross-builds clean.
+Ledger **122/1490 touched (7.5%), 119 tested** (unchanged — an extension of
+the already-counted `FUN_0056aea0`; unported callees referenced by bare VA).
 
 **Orientation docs (read for the bigger picture):**
 
@@ -54,13 +58,13 @@ callees referenced by bare VA).
   of bytes, 119 host-tested.
 - `docs/ROADMAP.md` — 11-milestone order + subsystem map + port-readiness.
 - `docs/findings/title-scene.md` — the title runner's full anatomy; the
-  dispatch-table section now has the ckpt-10 per-handler draw table.
+  input-dispatch section now has the ckpt-11 orchestrator notes.
 - `docs/findings/menu-list.md` — the menu controller: scroll/nav/latch,
   geometry ctor/dtor, the grid-cell finalizer, the menu-node builder + tree.
 - `docs/findings/input.md` — the input ring + poll; only the ring
   *producer* remains black-box (it also fills `+0x114/+0x118`).
 - `docs/port-frontier.md` — DERIVED "what to port next".
-- `findings/engine-quirks.md` #15–**#40**.
+- `findings/engine-quirks.md` #15–#40.
 
 **Tooling (run after every port that lands):**
 
@@ -86,54 +90,58 @@ NB: only put a `FUN_<va>` token in `src/` for a function you have
 actually ported — the ledger generator treats any `FUN_<va>` in src as a
 port signal. Reference *unported* callees by bare VA (`0x494e10`,
 `0x56c610`), not `FUN_...`, or you'll inflate the headline. **Always regen
-the ledger and check the count after a port** (ckpt 9 bit us: four unported
-callees written as `FUN_` bumped 122→126 until corrected).
+the ledger and check the count after a port** (ckpt 11 bit us again: a
+single `FUN_0056bfd0` in a header comment bumped 122→123 until corrected to
+the bare VA).
 
 ## Module inventory (11 modules)
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper,
-cs_dispatch, app_pump, title_scene (`FUN_0056aea0` — fade FSM + pacing FSM +
-the **whole update half** + the **whole render half** (`title_render_step` /
-`title_fade_ramp`)), input (`FUN_0043c110`), obj_container (`FUN_00412c10` +
-`FUN_00414080`), menu_list (`FUN_004192b0` + `FUN_0043ca40` + `FUN_0043ce50`
-+ `FUN_0040f5c0` + `FUN_0040e0c0` + `FUN_00411f40` + `FUN_0040f3e0`) + the
-title-menu **spawn block** + **input dispatch** in `title_scene.c`. Live boot
-zero DDERR through 10 frames in mode 2. The ported title FSMs + menu chain +
-render step are **not yet wired** into a real scene loop in main.c (the
-drop-in still uses its own minimal `main_loop_body`).
+cs_dispatch, app_pump, title_scene (`FUN_0056aea0` — **fully ported and
+wired**: fade FSM + pacing FSM + update half + render half + the
+**`title_scene_step` orchestrator** = the whole outer loop), input
+(`FUN_0043c110`), obj_container (`FUN_00412c10` + `FUN_00414080`), menu_list
+(`FUN_004192b0` + `FUN_0043ca40` + `FUN_0043ce50` + `FUN_0040f5c0` +
+`FUN_0040e0c0` + `FUN_00411f40` + `FUN_0040f3e0`). Live boot zero DDERR
+through 10 frames in mode 2. **The runner is a tested unit but is NOT yet
+driven by `main.c`** — the drop-in still uses its own minimal
+`main_loop_body`, and the render bridges behind `title_render_sink_hook` are
+still stubs (no pixels yet).
 
 ## Active goal
 
-**`FUN_0056aea0` is fully ported as a pile of tested units** (fade FSM,
-pacing FSM, spawn, input dispatch, render step). The remaining milestone-0
-work is **wiring those units into one running title-scene runner** and
-installing the hooks against the real engine so the scene becomes observable
-live (and eventually draws).
+**`FUN_0056aea0` is fully ported AND composed into one runner.** The
+remaining milestone-0 work is making it *do real work*: implement the draw
+bridges behind the render sink so a title frame actually composites, and
+drive the runner from the drop-in against the real engine (audio/DInput/
+god-object/DDraw hooks).
 
 ## Next move (pick one — recommendation first)
 
-1. **(recommended) Wire the units into a real scene loop** (`main.c` /
-   a new `title_scene_run`). Compose, per the outer `do/while` of
-   `FUN_0056aea0`: `title_pace_step` → on a `TITLE_PACE_UPDATE` frame run
-   the `0x22`→return-6 abort poll then `title_fade_step` (and, in the menu
-   phase, `title_menu_spawn` on first entry + `title_menu_input_step`) → on a
-   `TITLE_PACE_RENDER` frame run `title_render_step`. Install the hooks
-   (SFX/joystick/notify/watchdog from ckpt 9 + the new `title_render_sink_hook`)
-   against the real audio/DInput/god-object/DDraw, and drive it from the
-   drop-in. The render sink is where the still-unported draw bridges
-   (`0x494e10`, `0x418470`, `0x56c610/_4e0/_580/_470`, `0x56c180`,
-   `0x5b8fc0`) actually get implemented — start by deciding which to port
-   vs. stub for a first "title frame composited" milestone. **This is the
-   thing between a pile of units and a running title scene.**
+1. **(recommended) Port a draw bridge so the render sink does real work.**
+   Best first targets: `0x56c180` (frame compose) + `0x5b8fc0` (the DDraw
+   Flip, `IDirectDrawSurface7::Flip`, vtable 0x2C — see `ddraw-init.md`)
+   give a real "frame committed" event; `0x418470` (asset get) + one sprite
+   draw (`0x56c610`/`0x56c4e0`) give a real composited sprite. Each is its
+   own RE sub-task against the asset/DDraw model. A `title_render_sink`
+   implementation that turns `title_draw_cmd`s into these calls is the bridge
+   between the (tested) draw stream and actual pixels.
 
-2. **Port a draw bridge** to make the render sink do real work. Best
-   first targets: `0x56c180` (frame compose) + `0x5b8fc0` (the DDraw Flip,
-   `IDirectDrawSurface7::Flip`, vtable 0x2C — see `ddraw-init.md`) give a
-   real "frame committed" event; `0x418470` (asset get) + one of the sprite
-   draws (`0x56c610`/`0x56c4e0`) give a real composited sprite. Each is its
-   own RE sub-task against the asset/DDraw model.
+2. **Drive the runner from `main.c`.** Replace the drop-in's minimal
+   `main_loop_body` with a `title_scene_run` that allocates the scene object
+   (owner sel_list + input mgr), calls `title_scene_init`, then loops
+   `title_scene_step(now=GetTickCount(), &hooks)` until `TITLE_SCENE_DONE`,
+   with the hooks wired to the real pump / pre/post / per-entry calls and a
+   real `title_render_sink`. Needs at least the Flip bridge (move 1) to be
+   visible. This is the step from "tested unit" to "the title scene runs in
+   the real window".
 
-3. **Live harness gate** — run `bisect_call_trace_vas.py` /
+3. **Port the skip-splash early-out** (`0x56b0e8..0x56b150`) to complete the
+   update half: the input-ring scan + the second SetNextSegment cue + the
+   input-mgr field resets, folded into `title_scene_step` before the phase
+   switch. Reads input-mgr internals the poll port doesn't model yet.
+
+4. **Live harness gate** — run `bisect_call_trace_vas.py` /
    `mem_watch.py --region <+0x108>:64:input_ring` under Frida to verify the
    call-trace + mem-watch machinery and catch the input-ring producer (the
    DInput `GetDeviceState` writer, vtable `[0x24]`), which also fills the
@@ -141,21 +149,25 @@ live (and eventually draws).
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
-- **`FUN_0056aea0`** title scene runner — **fully ported as units.**
-  Remaining: wire into a real runner + implement the draw bridges behind
-  the render sink.
-- **Render-half draw bridges** (now stubbed behind `title_render_sink_hook`):
+- **`FUN_0056aea0`** title scene runner — **fully ported + wired as one
+  unit.** Remaining: implement the draw bridges behind the render sink, drive
+  it from `main.c`, and fold in the skip-splash early-out.
+- **Render-half draw bridges** (stubbed behind `title_render_sink_hook`):
   `0x494e10` (logo alpha blit), `0x418470` (asset get), `0x56c610` (plain
   sprite), `0x56c4e0` (leveled sprite), `0x56c580` (sparkle), `0x56c470`
   (cursor highlight), `0x56c180` (compose), `0x5b8fc0` (Flip), `0x5b9410`
   (surface reset), `0x5b9b70` (surface clear). All DDraw/asset/object-model.
+- **Outer-loop side effects** (stubbed behind `title_scene_hooks`):
+  `0x5b1030` (pump), `0x43e140`/`0x40fe00`/`0x566250` (pre-update),
+  `0x56c930` (post-update), `0x43c2e0` (per-owner-entry). Port when their
+  subsystems come up.
 - **`0x40fa00`** the cell text-layout / glyph builder (800 B; SJIS parse,
   `#`-colour escapes, font-metric table) — its own text subsystem;
   `menu_row_finalize` calls it via a hook until it lands.
 - **SFX `0x411390`** + **joystick `0x5ba120/_290`** + **save-data notify
-  `0x41bb80`** + **watchdog `0x40a5d0`** — the four update-half side effects
-  `title_menu_input_step` stubs through hooks; port when their subsystems
-  come up (audio = milestone 3; DInput pad attach; god-object dispatch).
+  `0x41bb80`** + **watchdog `0x40a5d0`** — the four `title_menu_input_step`
+  side effects; port when their subsystems come up (audio = milestone 3;
+  DInput pad attach; god-object dispatch).
 - **Input** poll + latch + nav **DONE**. Remaining: the **producer** that
   fills the `+0x108` ring (DInput `GetDeviceState`) and `+0x114/+0x118`
   axis-held flags — black box; `mem_watch.py` is the tool.
@@ -182,9 +194,7 @@ When the user says "continue RE work" (or similar):
    `#if UINTPTR_MAX == 0xFFFFFFFFu`. For a Ghidra-unrecovered jump table,
    recover it in r2 first (`pxw <n> @ <table-va>`). When a decompiled branch
    or a `__thiscall` arg list looks contradictory, **disassemble it** (r2
-   `pdf`) to resolve — that's how ckpt 6 caught the dead-alloc, ckpt 7 the
-   mis-typed `this`, ckpt 9 the commit/latch inversion, and ckpt 10 the
-   jump-table-is-really-a-jmp + the ramp-saturation-to-zero (quirk #40).
+   `pdf`) to resolve.
 4. **Append any engine quirk** you find to `findings/engine-quirks.md`.
 5. **Regenerate the derived artifacts** (`gen_port_ledger.py` +
    `gen_frontier.py`) when a port lands — and **check the headline count
