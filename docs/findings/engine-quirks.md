@@ -859,3 +859,57 @@ Two more easy-to-miss details in the same block:
 > callee *returns*, not by the input that produced them — the engine's
 > cancel-returns-3 / confirm-returns-4 convention inverts the intuitive
 > button→meaning reading here.
+
+## 40. The render half's fade→alpha ramp is a runtime-filled 20-entry table that returns 0 at *both* ends — and full saturation maps to 0, not the top entry
+
+`FUN_0056aea0`'s render branch (`0x56bb04..0x56bf1a`, ported as
+`title_render_step`) blends every fading sprite through `0x448c80`
+(`title_fade_ramp`), called everywhere as `0x448c80(fade, 1000)`:
+
+```
+idx = (fade * 20) / 1000          ; = fade / 50, signed truncating
+if (idx < 0 || idx >= 20) return 0
+return ramp[idx]                  ; ramp = the 20-dword table at 0x8a9308
+```
+
+Three things bite:
+
+- **Full fade returns 0.** `fade == 1000` gives `idx == 20`, which trips the
+  `>= 0x14` cap and returns **0**, not `ramp[19]`.  So a *fully* saturated fade
+  blends at alpha 0, the same as `fade == 0`.  The ramp only produces a
+  non-zero blend in the open interval — `fade` in `[50, 999]` (`idx` 1..19).
+  The intro phases exploit this: they ramp `fade` to 1000 then *hold* it there,
+  and the logo handlers (`0x56bb5c`/`0x56bbd4`) read the ramp result to choose
+  between an alpha blit (`0x494e10`, ramp ≠ 0) and a plain surface clear
+  (`0x5b9b70`, ramp == 0) — i.e. at the saturated hold the logo is composited
+  by a *different* path than during the ramp.
+
+- **The table is empty in the static image.** `0x8a9308` (20 dwords) reads
+  **all zero** in `sotes.unpacked.exe`; DDraw/asset init fills it at run time.
+  A faithful host port that has no live palette therefore sees every ramp
+  lookup return 0 → the logo handlers always take the clear branch and sparkles
+  draw at alpha 0.  That is the correct *pre-init* behaviour, not a bug;
+  `title_fade_ramp` takes the table as a parameter (NULL ⇒ all-zero) so a test
+  can supply a populated ramp to exercise the blit path.
+
+- **The two intro logos are not `0x418470` assets.** Press-button / sparkle /
+  menu sprites are fetched by id through `0x418470(id)` (asset ids 2..6), but
+  the studio and title logos are read as **fields at +4 and +8** of the asset
+  container object (`*(*(*0x8a7658))`), distinguishing them only by that
+  offset.  The port records the logo draw with `asset = 4` (studio) or `8`
+  (title) to keep the two handlers' single shared blit (`0x494e10` at
+  `0x56bc37`) distinguishable.
+
+Also worth flagging structurally: Ghidra rendered the jump-table dispatch at
+`0x56bb55` (`jmp [phase*4 + 0x56bfa4]`) as a **call that returns**, making the
+seven per-phase handlers look like separate functions.  They are inline labels
+*inside* `FUN_0056aea0`; every one `jmp`s to the shared frame-end at `0x56bec4`
+(compose `0x56c180` → "Title Menu - Flipping" log → Flip `0x5b8fc0`), so the
+render half always presents exactly one frame regardless of which handler ran.
+
+> 📍 `title_render_step` / `title_fade_ramp` in `src/title_scene.c`
+> (checkpoint 10).  When a small "scale" helper indexes a table with a
+> hard `>= N` cap, check the endpoint: here the natural "max input" lands
+> exactly on the excluded index and silently returns 0.  And a data table
+> that reads all-zero statically is a signal it is populated at run time —
+> model it as an input, not a constant.

@@ -6,6 +6,53 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-01 — Title scene render half ported, ckpt 10
+
+Ported `FUN_0056aea0`'s **render branch** (`0x56bb04..0x56bf1a`) into
+`src/title_scene.c` as **`title_render_step`** — the path the frame pacer
+dispatches to on a `sub==1` (`TITLE_PACE_RENDER`) frame.  This is the last
+piece of the title scene: with the update half done at ckpt 9, the runner's
+whole control flow (fade FSM + pacing FSM + update + render) is now ported.
+The fade→alpha helper `0x448c80` is ported alongside as the pure
+`title_fade_ramp`.
+
+The render half draws one frame for the current phase: a prologue (phase 0 →
+surface reset `0x5b9410`; phases 2–3 → surface clear `0x5b9b70`; phase > 10 →
+skip to frame-end), then the **recovered 11-entry jump table** at `0x56bfa4`
+dispatching `jmp [phase*4+...]` to one of 7 inline handlers (studio/title-logo
+alpha blits, the two "press button" sprite pairs, the sparkle trail, the menu
+bg+sprite+cursor, the menu fade-out), then the universal frame-end at
+`0x56bec4`: compose `0x56c180` → "Title Menu - Flipping" log (once, unless the
+`DAT_008a6b54` quiet flag) → Flip `0x5b8fc0` — the documented "title menu drew
+a frame" event.
+
+It is heavily DDraw/asset/object-model-coupled — every leaf the handlers call
+(`0x494e10`, `0x418470`, `0x56c610/_4e0/_580/_470`, `0x56c180`, `0x5b8fc0`, …)
+is unported.  Per the handoff's guidance, rather than a hook per bridge, they
+are reported as an ordered stream of tagged `title_draw_cmd`s through a single
+`title_render_sink_hook` (no-op by default) — the render half's *purpose* is
+exactly that ordered draw stream, so the sink is its testable core: the
+dispatch decision, per-handler draw sequence, fade→alpha ramp, sparkle-trail
+geometry, and selected-row cursor placement are all asserted in it without
+pulling in any black-box draw subsystem.
+
+**Findings — new quirk #40:** `0x448c80`'s ramp returns **0 at both ends** —
+`fade == 1000` lands on the excluded `idx == 20` (`>= 0x14` cap) and returns 0,
+*not* the top entry, so a saturated hold composites by a different path than
+the ramp; and its 20-dword table at `0x8a9308` reads **all-zero statically**
+(DDraw fills it at run time), so a headless port correctly sees alpha 0
+everywhere (modelled as a NULL/empty `ramp` input).  Also: the two intro logos
+are **container fields at +4/+8**, not `0x418470` assets; and Ghidra's
+"call+return" rendering of the `0x56bb55` jump table hid that the 7 handlers
+are inline labels all converging on the one frame-end.
+
+This is an extension of the already-counted `FUN_0056aea0`, with all unported
+callees referenced by bare VA, so the ledger is **unchanged: 122/1490 touched
+(7.5%), 119 tested**.  **9 host tests** (fade-ramp index/clamp, prologue gating,
+logo clear-vs-blit, press-button asset pairs, sparkle trail count/geometry,
+menu bg+cursor, fade-out, flip-log-once, no-sink safety); **527 pass / 0 fail /
+6 skip (of 533)**, ASan/UBSan clean.  Both 32-bit cross-builds clean.
+
 ## 2026-06-01 — Title-menu per-frame input dispatch assembled, ckpt 9
 
 Assembled the `0x56aea0` default-branch **per-frame menu input dispatch**

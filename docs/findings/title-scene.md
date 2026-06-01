@@ -121,10 +121,36 @@ handler addresses:
 | 10       | `0x0056be85` | end-of-flow gate (post-menu)                       |
 
 Note that the call site is `(*(code *)(&PTR_DAT_0056bfa4)[local_64])();`
-— it's a **call** through the table (function-pointer dispatch, not a
-fallthrough switch).  Each handler is a small bridge routine that runs
-the phase-specific drawing then returns.  Phase counts in the table
-(11) match the `local_64 < 0xb` bounds check at line 152.
+— Ghidra rendered the indirect `jmp` as a **call** through the table, but
+the raw disasm shows it is a `jmp dword [edi*4 + 0x56bfa4]` (`0x56bb55`):
+the seven "handlers" are inline labels *inside* `FUN_0056aea0`, not
+separate functions, and every one `jmp`s to the shared frame-end at
+`0x56bec4`.  Phase counts in the table (11) match the `local_64 < 0xb`
+bounds check at line 152.
+
+> **Ported (checkpoint 10):** the whole render branch
+> (`0x56bb04..0x56bf1a`) is now `title_render_step` in `src/title_scene.c`,
+> **completing the title scene's render half** (the update half finished at
+> ckpt 9).  The prologue gating (phase 0 reset / phases 2–3 clear / phase
+> > 10 skip), the jump-table dispatch to the 7 inline handlers, and the
+> universal frame-end (`0x56c180` → "Flipping" log → Flip `0x5b8fc0`) are
+> ported faithfully; the ~10 unported DDraw/asset/object-model bridges are
+> reported as an ordered stream of tagged `title_draw_cmd`s through a single
+> sink hook (the testable core).  The fade→alpha helper `0x448c80` is ported
+> as the pure `title_fade_ramp`.  New findings → **engine-quirks #40** (the
+> ramp returns 0 at full saturation + its table is runtime-filled; the two
+> intro logos are container fields, not `0x418470` assets).  The per-handler
+> draws, by phase:
+>
+> | phase | handler  | draws (in order)                                            |
+> |-------|----------|-------------------------------------------------------------|
+> | 0,1,2 | 0x56bb5c | studio logo (field +4): clear if ramp 0, else alpha blit    |
+> | 3,4   | 0x56bbd4 | title logo (field +8): clear if ramp 0, else alpha blit     |
+> | 5     | 0x56bc4d | sprite(asset 2) + leveled sprite(asset 3, fade)             |
+> | 6     | 0x56bca2 | sprite(asset 3) + leveled sprite(asset 4, fade)             |
+> | 7     | 0x56bcf7 | sprite(asset 4) + sparkle trail (asset 5): x 192..<416 +4,  level 7·fade −100/step, draw while level>0 |
+> | 8,9   | 0x56bdb9 | bg sprite(asset 5, only fade<1000) + leveled menu(asset 6, fade) + cursor row(asset=cursor, y=16+cursor·32) when fade==1000 |
+> | 10    | 0x56be85 | surface reset + leveled menu(asset 6, fade)                 |
 
 Plain return values:
 
