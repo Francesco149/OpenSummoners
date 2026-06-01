@@ -498,3 +498,143 @@ void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
         out->enter_phase10 = 1;
     }
 }
+
+/* ─── (E) the render half ────────────────────────────────────────────
+ *
+ * Port of FUN_0056aea0's render branch (disasm 0x56bb04..0x56bf1a; see
+ * title_scene.h for the framing, the recovered jump table, and the
+ * draw-sink rationale).  Drives the prologue gating + the 11-entry
+ * jump-table dispatch + the shared frame-end, emitting each unported
+ * draw bridge as a tagged command through title_render_sink_hook.
+ */
+
+title_render_sink_fn title_render_sink_hook = NULL;
+
+static void title_emit(title_draw_op op, int32_t asset, int32_t level,
+                       int32_t alpha, int32_t x, int32_t y)
+{
+    if (title_render_sink_hook != NULL) {
+        title_draw_cmd cmd = { op, asset, level, alpha, x, y };
+        title_render_sink_hook(&cmd);
+    }
+}
+
+/* 0x448c80: idx = (value*20)/divisor; ramp[idx] for 0<=idx<20, else 0. */
+int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp)
+{
+    int32_t idx;
+    if (divisor <= 0) return 0;                 /* 0x448c86 (jle)            */
+    idx = (value * 20) / divisor;               /* (value*5)<<2 / divisor    */
+    if (idx < 0 || idx >= 0x14) return 0;       /* 0x448c97 / 0x448c9c (>=20)*/
+    return ramp != NULL ? (int32_t)ramp[idx] : 0;  /* [idx*4 + 0x8a9308]      */
+}
+
+/* The two logo handlers (0x56bb5c studio / 0x56bbd4 title) — identical but
+ * for the sprite field offset (+4 vs +8).  fade<=0 draws nothing; otherwise
+ * the ramp picks alpha: 0 → a surface clear (logo not yet visible), nonzero
+ * → the alpha logo blit. */
+static void title_render_logo(int32_t fade, const uint32_t *ramp, int32_t sprite_off)
+{
+    int32_t alpha;
+    if (fade <= 0) return;                       /* 0x56bb86 / 0x56bbff (jle) */
+    alpha = title_fade_ramp(fade, 1000, ramp);   /* 0x448c80(fade,1000)       */
+    if (alpha == 0)
+        title_emit(TITLE_DRAW_SURFACE_CLEAR, 0, 0, 0, 0, 0);   /* 0x5b9b70    */
+    else
+        title_emit(TITLE_DRAW_LOGO, sprite_off, 0, alpha, 0, 0);  /* 0x494e10 */
+}
+
+/* The two "press button" handlers (0x56bc4d phase 5 / 0x56bca2 phase 6):
+ * a plain sprite then a fade-levelled sprite, over consecutive asset ids. */
+static void title_render_pressbtn(int32_t fade, int32_t asset_a, int32_t asset_b)
+{
+    title_emit(TITLE_DRAW_SPRITE,       asset_a, 0,    0, 0, 0);   /* 0x56c610 */
+    title_emit(TITLE_DRAW_SPRITE_LEVEL, asset_b, fade, 0, 0, 0);   /* 0x56c4e0 */
+}
+
+/* The sparkle flourish (0x56bcf7, phase 7): a plain sprite (asset 4) then a
+ * trailing row of asset-5 sparkles.  The trail starts at level 7*fade and x
+ * 192, stepping x by 4 (cap 416) and level down by 100 each sparkle; a
+ * sparkle is drawn only while level>0, at alpha = ramp(min(level,1000)). */
+static void title_render_sparkle(int32_t fade, const uint32_t *ramp)
+{
+    int32_t level, x;
+    title_emit(TITLE_DRAW_SPRITE, 4, 0, 0, 0, 0);    /* 0x56c610(asset 4)     */
+    level = (fade * 7000) / 1000;                    /* 0x56bd2e..0x56bd59    */
+    for (x = 0xc0; x < 0x1a0; x += 4) {              /* 192 .. <416, step 4   */
+        if (level > 0) {                             /* 0x56bd5b (jle skip)   */
+            int32_t v     = level < 1000 ? level : 1000;       /* min(.,1000) */
+            int32_t alpha = title_fade_ramp(v, 1000, ramp);    /* 0x448c80    */
+            title_emit(TITLE_DRAW_SPARKLE, 5, 0, alpha, x, 0); /* 0x56c580    */
+        }
+        level -= 0x64;                               /* 0x56bda9 (sub 100)    */
+    }
+}
+
+/* The menu handler (0x56bdb9, phases 8/9): an optional background sprite
+ * (asset 5, only while fading in), the fade-levelled menu sprite (asset 6),
+ * and — once fully faded in and a controller exists — the selected row's
+ * cursor highlight at y = 16 + cursor*32. */
+static void title_render_menu(int32_t fade, menu_ctrl *ctrl)
+{
+    int32_t cursor, i, y;
+    if (fade < 1000)                                  /* 0x56bdb9 (jge skips) */
+        title_emit(TITLE_DRAW_SPRITE, 5, 0, 0, 0, 0); /* 0x56c610(asset 5) bg */
+    title_emit(TITLE_DRAW_SPRITE_LEVEL, 6, fade, 0, 0, 0);  /* 0x56c4e0(asset 6) */
+
+    if (ctrl == NULL) return;                         /* 0x56be20 (je)        */
+    if (fade != 1000) return;                         /* 0x56be28 (jne)       */
+
+    cursor = ctrl->list->cursor;                      /* word [list+0x14]     */
+    for (i = 0, y = 0x10; i < 5; i++, y += 0x20) {    /* 0x56be3b loop, 5 rows */
+        if (i == cursor)                              /* draw only the cursor row */
+            title_emit(TITLE_DRAW_MENU_CURSOR, i, 0x4b0, 0, 0, y);  /* 0x56c470 */
+    }
+}
+
+/* The menu fade-out (0x56be85, phase 10): a surface reset then the
+ * fade-levelled menu sprite (asset 6). */
+static void title_render_fadeout(int32_t fade)
+{
+    title_emit(TITLE_DRAW_SURFACE_RESET, 0, 0, 0, 0, 0);    /* 0x5b9410       */
+    title_emit(TITLE_DRAW_SPRITE_LEVEL, 6, fade, 0, 0, 0);  /* 0x56c4e0(asset 6) */
+}
+
+void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
+                       const uint32_t *ramp, int quiet, int *already_flipped)
+{
+    /* (1) Prologue (0x56bb04).  Phase 0 resets the surface; phases 2..3
+     *     clear it; both fall through to the dispatch.  (Phase 0's reset is
+     *     at 0x56bbbb, reached by the `je` at the top; the 2..3 clear is the
+     *     `1 < phase < 4` block at 0x56bb10.) */
+    if (phase == 0)
+        title_emit(TITLE_DRAW_SURFACE_RESET, 0, 0, 0, 0, 0);   /* 0x5b9410    */
+    else if (phase >= 2 && phase <= 3)
+        title_emit(TITLE_DRAW_SURFACE_CLEAR, 0, 0, 0, 0, 0);   /* 0x5b9b70    */
+
+    /* (2) Dispatch (0x56bb4c bounds `cmp phase,0xa; ja` → skip; else the
+     *     0x56bb55 jump table).  Phase > 10 draws nothing and falls to the
+     *     frame-end. */
+    if (phase <= 10) {
+        switch (phase) {
+        case 0: case 1: case 2:
+            title_render_logo(fade, ramp, 4);     break;   /* 0x56bb5c studio */
+        case 3: case 4:
+            title_render_logo(fade, ramp, 8);     break;   /* 0x56bbd4 title  */
+        case 5:  title_render_pressbtn(fade, 2, 3); break; /* 0x56bc4d        */
+        case 6:  title_render_pressbtn(fade, 3, 4); break; /* 0x56bca2        */
+        case 7:  title_render_sparkle(fade, ramp);  break; /* 0x56bcf7        */
+        case 8: case 9:
+            title_render_menu(fade, ctrl);        break;   /* 0x56bdb9        */
+        case 10: title_render_fadeout(fade);      break;   /* 0x56be85        */
+        default: break;                                    /* unreachable     */
+        }
+    }
+
+    /* (3) Frame-end (0x56bec4): compose, log "Flipping" once, present. */
+    title_emit(TITLE_DRAW_FRAME_END, 0, 0, 0, 0, 0);       /* 0x56c180        */
+    if (!*already_flipped && !quiet)                       /* 0x56beda/0x56bee9 */
+        title_emit(TITLE_DRAW_LOG_FLIPPING, 0, 0, 0, 0, 0);
+    title_emit(TITLE_DRAW_FLIP, 0, 0, 0, 0, 0);            /* 0x5b8fc0(hWnd)  */
+    *already_flipped = 1;                                  /* 0x56bf12 bVar3=1 */
+}

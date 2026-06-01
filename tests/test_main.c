@@ -289,6 +289,15 @@ struct test_case {
     X(menu_input_idle_frame_no_effects)                        \
     X(menu_input_axis_held_synthesises_move)                   \
     X(menu_input_watchdog_forces_phase10)                      \
+    X(title_fade_ramp_index_and_clamp)                         \
+    X(title_render_prologue_reset_clear_skip)                  \
+    X(title_render_logo_clear_vs_blit)                         \
+    X(title_render_pressbtn_asset_pairs)                       \
+    X(title_render_sparkle_trail)                              \
+    X(title_render_menu_bg_and_cursor)                         \
+    X(title_render_fadeout)                                    \
+    X(title_render_flip_log_once)                              \
+    X(title_render_no_sink_is_safe)                            \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \
     X(input_poll_wrong_id_misses)                              \

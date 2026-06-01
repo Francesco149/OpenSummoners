@@ -1006,3 +1006,305 @@ int test_menu_input_watchdog_forces_phase10(void)
     menu_ctrl_clear(&c);
     return 0;
 }
+
+/* ─── (E) the render half (title_render_step / title_fade_ramp) ────────
+ *
+ * A recording sink captures the ordered draw-command stream each render
+ * frame emits; tests assert the op sequence + computed args (asset ids,
+ * fade levels, ramp alphas, sparkle-trail x's, cursor y) against the
+ * disassembly at 0x56bb04..0x56bf1a.
+ */
+
+static title_draw_cmd tr_cmds[128];
+static int            tr_n;
+static void tr_sink(const title_draw_cmd *c)
+{
+    if (tr_n < 128) tr_cmds[tr_n++] = *c;
+}
+static void tr_install(void) { tr_n = 0; title_render_sink_hook = tr_sink; }
+
+/* Find the first command of a given op (>= start); -1 if none. */
+static int tr_find(title_draw_op op, int start)
+{
+    for (int i = start; i < tr_n; i++) if (tr_cmds[i].op == op) return i;
+    return -1;
+}
+
+/* ── title_fade_ramp (0x448c80) ── */
+int test_title_fade_ramp_index_and_clamp(void)
+{
+    static const uint32_t ramp[20] = {
+        0, 11, 22, 33, 44, 55, 66, 77, 88, 99,
+        100, 111, 122, 133, 144, 155, 166, 177, 188, 199,
+    };
+    /* idx = (value*20)/divisor */
+    T_ASSERT_EQ_I(title_fade_ramp(0,   1000, ramp), 0);    /* idx 0  */
+    T_ASSERT_EQ_I(title_fade_ramp(50,  1000, ramp), 11);   /* idx 1  */
+    T_ASSERT_EQ_I(title_fade_ramp(500, 1000, ramp), 100);  /* idx 10 */
+    T_ASSERT_EQ_I(title_fade_ramp(950, 1000, ramp), 199);  /* idx 19 */
+    /* value==divisor → idx 20 → the >=0x14 cap returns 0 (not ramp[19]) */
+    T_ASSERT_EQ_I(title_fade_ramp(1000, 1000, ramp), 0);
+    /* negative idx and divisor<=0 guards */
+    T_ASSERT_EQ_I(title_fade_ramp(-50, 1000, ramp), 0);
+    T_ASSERT_EQ_I(title_fade_ramp(500, 0,    ramp), 0);
+    T_ASSERT_EQ_I(title_fade_ramp(500, -1,   ramp), 0);
+    /* NULL ramp → always 0 even with a valid index */
+    T_ASSERT_EQ_I(title_fade_ramp(500, 1000, NULL), 0);
+    return 0;
+}
+
+/* ── prologue gating ── */
+int test_title_render_prologue_reset_clear_skip(void)
+{
+    int flipped;
+
+    /* phase 0 → SURFACE_RESET leads the frame. */
+    flipped = 0; tr_install();
+    title_render_step(0, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_RESET);
+
+    /* phase 2 → SURFACE_CLEAR leads the frame. */
+    flipped = 0; tr_install();
+    title_render_step(2, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
+
+    /* phase 3 → SURFACE_CLEAR too (1 < phase < 4). */
+    flipped = 0; tr_install();
+    title_render_step(3, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
+
+    /* phase 1 → no prologue op (first cmd is the frame-end, fade 0 draws
+     * no logo). */
+    flipped = 0; tr_install();
+    title_render_step(1, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_FRAME_END);
+
+    /* phase > 10 → no handler, no prologue: just frame-end + flip. */
+    flipped = 0; tr_install();
+    title_render_step(11, 500, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_n, 3);                       /* FRAME_END, LOG, FLIP */
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_FRAME_END);
+    T_ASSERT_EQ_I(tr_cmds[2].op, TITLE_DRAW_FLIP);
+    return 0;
+}
+
+/* ── logo handlers (phases 0..4) ── */
+int test_title_render_logo_clear_vs_blit(void)
+{
+    int flipped;
+
+    /* phase 0, fade>0, NULL ramp → alpha 0 → SURFACE_CLEAR (after the reset). */
+    flipped = 0; tr_install();
+    title_render_step(0, 500, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_RESET);
+    T_ASSERT_EQ_I(tr_cmds[1].op, TITLE_DRAW_SURFACE_CLEAR);
+
+    /* phase 1, fade<=0 → the logo handler draws nothing at all. */
+    flipped = 0; tr_install();
+    title_render_step(1, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_LOGO, 0), -1);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_SURFACE_CLEAR, 0), -1);
+
+    /* with a ramp giving nonzero alpha → LOGO blit; studio logo (phase 1)
+     * uses sprite field 4, title logo (phase 3) uses field 8. */
+    static const uint32_t ramp[20] = {
+        7,7,7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,7,7,
+    };
+    flipped = 0; tr_install();
+    title_render_step(1, 500, NULL, ramp, 0, &flipped);  /* idx 10 → 7 */
+    {
+        int i = tr_find(TITLE_DRAW_LOGO, 0);
+        T_ASSERT(i >= 0);
+        T_ASSERT_EQ_I(tr_cmds[i].asset, 4);              /* studio field +4 */
+        T_ASSERT_EQ_I(tr_cmds[i].alpha, 7);
+    }
+    flipped = 0; tr_install();
+    title_render_step(3, 500, NULL, ramp, 0, &flipped);
+    {
+        int i = tr_find(TITLE_DRAW_LOGO, 0);
+        T_ASSERT(i >= 0);
+        T_ASSERT_EQ_I(tr_cmds[i].asset, 8);              /* title field +8 */
+    }
+    return 0;
+}
+
+/* ── press-button handlers (phases 5, 6) ── */
+int test_title_render_pressbtn_asset_pairs(void)
+{
+    int flipped;
+
+    flipped = 0; tr_install();
+    title_render_step(5, 400, NULL, NULL, 0, &flipped);
+    {
+        int s = tr_find(TITLE_DRAW_SPRITE, 0);
+        int l = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
+        T_ASSERT(s >= 0 && l > s);
+        T_ASSERT_EQ_I(tr_cmds[s].asset, 2);              /* plain asset 2 */
+        T_ASSERT_EQ_I(tr_cmds[l].asset, 3);              /* leveled asset 3 */
+        T_ASSERT_EQ_I(tr_cmds[l].level, 400);            /* fade as the level */
+    }
+
+    flipped = 0; tr_install();
+    title_render_step(6, 250, NULL, NULL, 0, &flipped);
+    {
+        int s = tr_find(TITLE_DRAW_SPRITE, 0);
+        int l = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
+        T_ASSERT_EQ_I(tr_cmds[s].asset, 3);
+        T_ASSERT_EQ_I(tr_cmds[l].asset, 4);
+        T_ASSERT_EQ_I(tr_cmds[l].level, 250);
+    }
+    return 0;
+}
+
+/* ── sparkle trail (phase 7) ── */
+int test_title_render_sparkle_trail(void)
+{
+    int flipped;
+
+    /* fade 1000 → level 7000: the trail fills the whole x range (192..412
+     * step 4 = 56 sparkles), preceded by the plain asset-4 sprite. */
+    flipped = 0; tr_install();
+    title_render_step(7, 1000, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SPRITE);
+    T_ASSERT_EQ_I(tr_cmds[0].asset, 4);
+    {
+        int n = 0, first = -1, last = -1;
+        for (int i = 0; i < tr_n; i++)
+            if (tr_cmds[i].op == TITLE_DRAW_SPARKLE) {
+                if (first < 0) first = i;
+                last = i; n++;
+            }
+        T_ASSERT_EQ_I(n, 56);                            /* (416-192)/4 */
+        T_ASSERT_EQ_I(tr_cmds[first].x, 0xc0);           /* 192 */
+        T_ASSERT_EQ_I(tr_cmds[last].x, 0xc0 + 55 * 4);   /* 412 */
+        T_ASSERT_EQ_I(tr_cmds[first].asset, 5);
+    }
+
+    /* fade 100 → level 700: only 7 sparkles drawn (level 700,600,…,100 > 0;
+     * the 8th iteration's level is 0). */
+    flipped = 0; tr_install();
+    title_render_step(7, 100, NULL, NULL, 0, &flipped);
+    {
+        int n = 0;
+        for (int i = 0; i < tr_n; i++)
+            if (tr_cmds[i].op == TITLE_DRAW_SPARKLE) n++;
+        T_ASSERT_EQ_I(n, 7);
+    }
+
+    /* fade 0 → level 0: no sparkles, just the plain sprite + frame tail. */
+    flipped = 0; tr_install();
+    title_render_step(7, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_SPARKLE, 0), -1);
+    return 0;
+}
+
+/* ── menu handler (phases 8/9) ── */
+int test_title_render_menu_bg_and_cursor(void)
+{
+    int flipped;
+    menu_ctrl c; menu_list_hdr hdr;
+    memset(&c, 0, sizeof c); memset(&hdr, 0, sizeof hdr);
+    c.list = &hdr;
+
+    /* fade < 1000 → background sprite (asset 5) + leveled menu sprite
+     * (asset 6); fade != 1000 → no cursor even with a controller. */
+    hdr.cursor = 2;
+    flipped = 0; tr_install();
+    title_render_step(8, 600, &c, NULL, 0, &flipped);
+    {
+        int bg = tr_find(TITLE_DRAW_SPRITE, 0);
+        int sp = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
+        T_ASSERT(bg >= 0 && sp > bg);
+        T_ASSERT_EQ_I(tr_cmds[bg].asset, 5);
+        T_ASSERT_EQ_I(tr_cmds[sp].asset, 6);
+        T_ASSERT_EQ_I(tr_cmds[sp].level, 600);
+        T_ASSERT_EQ_I(tr_find(TITLE_DRAW_MENU_CURSOR, 0), -1);
+    }
+
+    /* fade == 1000 → no background sprite; the cursor row is drawn at
+     * y = 16 + cursor*32, asset = cursor index, level 0x4b0. */
+    flipped = 0; tr_install();
+    title_render_step(9, 1000, &c, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_SPRITE, 0), -1);    /* fade>=1000: no bg */
+    {
+        int cu = tr_find(TITLE_DRAW_MENU_CURSOR, 0);
+        T_ASSERT(cu >= 0);
+        T_ASSERT_EQ_I(tr_cmds[cu].asset, 2);             /* cursor row index */
+        T_ASSERT_EQ_I(tr_cmds[cu].y, 0x10 + 2 * 0x20);   /* 16 + 64 = 80 */
+        T_ASSERT_EQ_I(tr_cmds[cu].level, 0x4b0);
+    }
+
+    /* exactly one cursor command (only the selected row). */
+    {
+        int n = 0;
+        for (int i = 0; i < tr_n; i++)
+            if (tr_cmds[i].op == TITLE_DRAW_MENU_CURSOR) n++;
+        T_ASSERT_EQ_I(n, 1);
+    }
+
+    /* NULL controller at fade 1000 → menu sprite but no cursor. */
+    flipped = 0; tr_install();
+    title_render_step(8, 1000, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_MENU_CURSOR, 0), -1);
+    T_ASSERT(tr_find(TITLE_DRAW_SPRITE_LEVEL, 0) >= 0);
+    return 0;
+}
+
+/* ── menu fade-out (phase 10) ── */
+int test_title_render_fadeout(void)
+{
+    int flipped = 0; tr_install();
+    title_render_step(10, 700, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_RESET);
+    {
+        int l = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
+        T_ASSERT(l >= 0);
+        T_ASSERT_EQ_I(tr_cmds[l].asset, 6);
+        T_ASSERT_EQ_I(tr_cmds[l].level, 700);
+    }
+    return 0;
+}
+
+/* ── frame-end: the "Flipping" log fires once, and never when muted ── */
+int test_title_render_flip_log_once(void)
+{
+    int flipped = 0;
+
+    /* first flip, unmuted → LOG emitted between FRAME_END and FLIP, and the
+     * latch is set. */
+    tr_install();
+    title_render_step(11, 0, NULL, NULL, 0, &flipped);
+    {
+        int fe = tr_find(TITLE_DRAW_FRAME_END, 0);
+        int lg = tr_find(TITLE_DRAW_LOG_FLIPPING, 0);
+        int fl = tr_find(TITLE_DRAW_FLIP, 0);
+        T_ASSERT(fe >= 0 && lg == fe + 1 && fl == lg + 1);  /* END, LOG, FLIP */
+        T_ASSERT_EQ_I(fl, tr_n - 1);                        /* FLIP is last   */
+    }
+    T_ASSERT_EQ_I(flipped, 1);
+
+    /* second flip → already flipped → no log. */
+    tr_install();
+    title_render_step(11, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_LOG_FLIPPING, 0), -1);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_FRAME_END);
+    T_ASSERT_EQ_I(tr_cmds[1].op, TITLE_DRAW_FLIP);
+
+    /* quiet flag suppresses the log even on a fresh latch. */
+    flipped = 0; tr_install();
+    title_render_step(11, 0, NULL, NULL, 1, &flipped);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_LOG_FLIPPING, 0), -1);
+    T_ASSERT_EQ_I(flipped, 1);
+    return 0;
+}
+
+/* ── default sink: with no hook installed nothing crashes, the latch is
+ *    still advanced. ── */
+int test_title_render_no_sink_is_safe(void)
+{
+    int flipped = 0;
+    title_render_sink_hook = NULL;
+    title_render_step(7, 1000, NULL, NULL, 0, &flipped);  /* heaviest handler */
+    T_ASSERT_EQ_I(flipped, 1);
+    return 0;
+}

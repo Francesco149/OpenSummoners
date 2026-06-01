@@ -386,4 +386,123 @@ void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
                            const title_menu_savedata_list *savedata,
                            title_menu_input_out *out);
 
+/* ─── the render half (the pacer's `sub==1` arm) ─────────────────────
+ *
+ * Ported from FUN_0056aea0's render branch at 0x56bb04..0x56bf1a — the
+ * path the frame pacer dispatches to on a TITLE_PACE_RENDER frame, and
+ * the last piece of the title scene.  It draws one frame for the current
+ * scene phase and presents it.
+ *
+ * Control flow (recovered from the raw disasm — Ghidra mis-rendered the
+ * jump-table jmp at 0x56bb55 as a call+return; in reality every per-phase
+ * handler `jmp`s to the shared frame-end at 0x56bec4):
+ *
+ *   1. prologue (0x56bb04): phase 0 → a surface reset (0x5b9410); phases
+ *      2..3 → a surface clear (0x5b9b70); phase > 10 → skip straight to
+ *      the frame-end (nothing to draw);
+ *   2. dispatch (0x56bb55): `jmp [phase*4 + 0x56bfa4]`, the 11-entry table
+ *      recovered with radare2 → 7 inline handlers:
+ *        phase 0,1,2 → studio-logo handler   (0x56bb5c, sprite field +4)
+ *        phase 3,4   → title-logo handler    (0x56bbd4, sprite field +8)
+ *        phase 5     → "press button" fade-in (0x56bc4d, assets 2,3)
+ *        phase 6     → "press button" hold    (0x56bca2, assets 3,4)
+ *        phase 7     → sparkle flourish       (0x56bcf7, asset 4 + trail of 5s)
+ *        phase 8,9   → top-level menu         (0x56bdb9, assets 5,6 + cursor)
+ *        phase 10    → menu fade-out          (0x56be85, reset + asset 6)
+ *   3. frame-end (0x56bec4): compose (0x56c180), log "Title Menu -
+ *      Flipping" once (gated on the already-flipped flag and the quiet
+ *      flag DAT_008a6b54), then Flip (0x5b8fc0) — the documented "title
+ *      menu drew a frame" event.
+ *
+ * Every leaf the handlers call is an unported DDraw / asset-model /
+ * object-model bridge (0x5b9410, 0x5b9b70, 0x494e10, 0x418470, 0x56c610,
+ * 0x56c4e0, 0x56c580, 0x56c470, 0x56c180, 0x5b8fc0).  Rather than a
+ * function pointer per bridge, they are reported as an ordered stream of
+ * tagged draw commands through the single sink hook below (no-op by
+ * default).  The render half's *purpose* is exactly that ordered draw
+ * stream, so the sink is its testable core: the dispatch decision, the
+ * per-handler draw sequence, the fade→alpha ramp, the sparkle-trail
+ * geometry, and the selected-row cursor placement are all observable in
+ * it without pulling in any of the still-black-box draw subsystems. */
+
+/* The kind of draw bridge a command stands for (the retail call it maps
+ * to is in the trailing comment). */
+typedef enum title_draw_op {
+    TITLE_DRAW_SURFACE_RESET = 1, /* 0x5b9410(surface)                          */
+    TITLE_DRAW_SURFACE_CLEAR,     /* 0x5b9b70(surface,0,0)                      */
+    TITLE_DRAW_LOGO,              /* 0x494e10 — studio/title logo alpha blit    */
+    TITLE_DRAW_SPRITE,           /* 0x56c610(obj,surface,asset,0,0) — plain    */
+    TITLE_DRAW_SPRITE_LEVEL,     /* 0x56c4e0(obj,surface,asset,level,1000,0,0) */
+    TITLE_DRAW_SPARKLE,          /* 0x56c580 — one sparkle of the phase-7 trail */
+    TITLE_DRAW_MENU_CURSOR,      /* 0x56c470 — the selected row's highlight     */
+    TITLE_DRAW_FRAME_END,        /* 0x56c180(surface) — compose the frame       */
+    TITLE_DRAW_LOG_FLIPPING,     /* the "Title Menu - Flipping" log marker       */
+    TITLE_DRAW_FLIP,             /* 0x5b8fc0(hWnd) — present (the DDraw Flip)    */
+} title_draw_op;
+
+/* One draw command.  Only the fields meaningful for `op` are set; the
+ * rest are 0.
+ *
+ *   asset  TITLE_DRAW_LOGO        → the logo sprite field offset (4 studio,
+ *                                   8 title) distinguishing the two logos;
+ *          TITLE_DRAW_SPRITE[_LEVEL]/SPARKLE → the 0x418470 asset id;
+ *          TITLE_DRAW_MENU_CURSOR → the selected row index (the cursor).
+ *   level  TITLE_DRAW_SPRITE_LEVEL → the raw fade level passed (0x56c4e0's
+ *                                    4th arg, divisor 1000 is its 5th);
+ *          TITLE_DRAW_MENU_CURSOR  → the constant 0x4b0 (1200).
+ *   alpha  TITLE_DRAW_LOGO / SPARKLE → the ramp-resolved blend value
+ *                                      (title_fade_ramp); 0 ⇒ the clear path.
+ *   x      TITLE_DRAW_SPARKLE      → the sparkle's x (192,196,…<416).
+ *   y      TITLE_DRAW_MENU_CURSOR  → the row's y (16 + cursor*32).            */
+typedef struct title_draw_cmd {
+    title_draw_op op;
+    int32_t       asset;
+    int32_t       level;
+    int32_t       alpha;
+    int32_t       x;
+    int32_t       y;
+} title_draw_cmd;
+
+/* The draw sink — receives every command in retail draw order.  NULL by
+ * default (all bridges become no-ops, exactly as a headless run that owns
+ * no surfaces behaves). */
+typedef void (*title_render_sink_fn)(const title_draw_cmd *cmd);
+extern title_render_sink_fn title_render_sink_hook;
+
+/* Port of 0x448c80, the fade→alpha ramp the render half blends with.
+ *
+ *   idx = (value * 20) / divisor       (signed truncating division)
+ *   return  (0 <= idx < 20) ? ramp[idx] : 0
+ *
+ * `ramp` is the engine's 20-dword palette/blend table at 0x8a9308 — which
+ * the *static* image leaves all-zero (DDraw/asset init fills it at run
+ * time).  Pass NULL (or the all-zero static table) to model an unfilled
+ * ramp: every lookup yields 0, so the logo handlers take their surface-
+ * clear branch and sparkles draw at alpha 0 — the faithful pre-init
+ * behaviour.  Note divisor<=0 returns 0 (retail's `jle` guard at
+ * 0x448c86) and idx==20 (value==divisor) also returns 0 (the `>= 0x14`
+ * cap), so a fully-saturated fade ramps to 0, not the top entry. */
+int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp);
+
+/* Run one render frame for the current scene phase.
+ *
+ *   phase           the scene phase (local_64 / title_fade_state.phase).
+ *   fade            the main fade ramp (uVar15 / title_fade_state.fade).
+ *   ctrl            the spawned menu controller (for the phase 8/9 cursor
+ *                   highlight); NULL ⇒ skip the cursor (retail's
+ *                   `[esp+0x18]` null check at 0x56be20).
+ *   ramp            the 0x8a9308 alpha table (see title_fade_ramp); NULL ⇒
+ *                   all-zero.
+ *   quiet           the DAT_008a6b54 log-suppress flag (nonzero ⇒ no log).
+ *   already_flipped in/out: the bVar3 "have we flipped before" latch — the
+ *                   "Flipping" log fires only on the first flip while
+ *                   `quiet` is clear.  Set to 1 on return.
+ *
+ * Emits the frame's draw commands through title_render_sink_hook in exact
+ * retail order, ending with TITLE_DRAW_FRAME_END, the optional
+ * TITLE_DRAW_LOG_FLIPPING, then TITLE_DRAW_FLIP.  Faithful to
+ * 0x56bb04..0x56bf1a. */
+void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
+                       const uint32_t *ramp, int quiet, int *already_flipped);
+
 #endif /* OPENSUMMONERS_TITLE_SCENE_H */
