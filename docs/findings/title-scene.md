@@ -145,8 +145,19 @@ Plain return values:
 > now `title_menu_spawn` / `title_menu_teardown` in `src/title_scene.c`.
 > It revealed that `local_60` is the menu *node*'s lone child, acquired by
 > reinterpreting the node as an `obj_pool`; see `findings/menu-list.md`
-> "The spawn block" and **engine-quirks #38**.  Steps 2–3 (the per-frame
-> input poll/latch and the action switch) remain part of the update half.
+> "The spawn block" and **engine-quirks #38**.
+>
+> **Ported (checkpoint 9):** steps 2–3 below — the per-frame poll/latch +
+> the action switch (`0x56b807..0x56ba39`) — are now `title_menu_input_step`
+> in `src/title_scene.c`, **completing the update half**.  Resolved against
+> the raw disasm (the decompile hid the `__thiscall` ECXs): the poll/latch
+> ECXs are `in_ECX[1]` (input mgr) / `local_60` (controller); the switch keys
+> on the *latch return code*, so the physical commit button is `0x24`
+> (latch dir 9 → nav returns 3), `case 3` gates on the selected row's
+> `flag8`, and `case 4` is dead — see **engine-quirks #39**.  The four
+> unported side effects (SFX `0x411390`, joystick `0x5ba120/_290`, notify
+> `0x41bb80`, watchdog `0x40a5d0`) route through no-op hooks.  Remaining for
+> the whole scene: only the **render half** (jump-table draws + Flip).
 
 Once we're in the default branch (after phase 7 hands off), each frame:
 
@@ -177,10 +188,18 @@ Once we're in the default branch (after phase 7 hands off), each frame:
    `FUN_0043ce50(N)` is the **input-action latch** — N is the menu
    action enum.
 
-3. Final `switch(iVar14)` (iVar14 = the resolved action):
-   - 1, 2 → `FUN_00411390(9, …)` (commit)
-   - 3 → check selected slot's action_id; if 0x1d → push `FUN_00411390(6, …)`; else `FUN_00411390(5, …)` (confirm)
-   - 4 → `FUN_00411390(7, …)` (cancel)
+3. Final `switch(iVar14)` (iVar14 = the resolved **latch return code**, not
+   the button — see engine-quirks #39; the corrected reading was confirmed
+   when porting `title_menu_input_step`):
+   - 1, 2 → `FUN_00411390(9, …)` (move SFX)
+   - 3 (commit; arises from `0x24` → latch dir 9 → nav returns 3) → check the
+     *selected row*'s `flag8` (enabled), at `rows[cursor]+8`: if enabled push
+     `FUN_00411390(5, …)` (confirm) and proceed; if disabled push
+     `FUN_00411390(6, …)` (denied) and skip to the watchdog
+   - 4 → `FUN_00411390(7, …)` (cancel SFX) — **dead in the title flow** (needs
+     latch dir 10, never sent)
+   - The `act != 0x1d` test is a *separate*, later guard on the **save-data
+     notify** lookup (not the enable check above)
    - On `iVar14 == 3` (confirm), additionally runs the **joystick
      lazy-init block**: walks the 2-slot `&DAT_008a93dc` array,
      for each empty slot calls `FUN_005ba120(&slot, hWnd, idx)` →

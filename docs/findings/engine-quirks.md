@@ -817,3 +817,45 @@ to the cast on win32), and the test checks the selection flag through the
 > retail function reinterpret-casts one object as another primitive, the cast
 > is only portable to the host if both structs are pointer-free up to the
 > aliased fields — otherwise replicate the semantics on the real struct.
+
+## 39. The title menu's "confirm" is the *cancel* latch code — action means the nav return value, not the button
+
+The title menu's per-frame input dispatch (`FUN_0056aea0` default branch,
+`0x56b807..0x56ba39`, ported as `title_menu_input_step`) polls five buttons,
+feeds each into the action latch `menu_list_latch(ctrl, dir, now)`, and then
+`switch`es on the latch's **return code** (`esi` / retail `iVar14`).  It is
+easy to misread the switch as keying on the button — it does not, and the two
+do not line up:
+
+| button | latch `dir` | nav meaning | nav **returns** | switch case → effect |
+|--------|-------------|-------------|-----------------|----------------------|
+| 1 (up)     | 0 | prev      | 1 (moved)  | 1 → move SFX 9 |
+| 3 (left)   | 1 | next      | 1 (moved)  | 1 → move SFX 9 |
+| 2 (down)   | 2 | page-up   | 0/2        | 2 → move SFX 9 (or 0 → nothing) |
+| 4 (right)  | 3 | page-down | 0/2        | 2 → move SFX 9 (or 0 → nothing) |
+| **0x24**   | **9** | **cancel** | **3**   | **3 → commit** (joystick + leave menu) |
+
+So the physical **commit/start button is `0x24`**, and it reaches the
+"commit" arm *because the cancel handler returns 3*.  An earlier findings note
+called `0x24` "back/cancel" — that was reading the `dir` passed in, not the
+outcome.  Conversely the switch's `case 4` (which plays a distinct "cancel"
+SFX 7) is **dead in the title flow**: the only latch dir that returns 4 is
+`dir 10` (confirm), which the title dispatch never sends.
+
+Two more easy-to-miss details in the same block:
+
+- `case 3` then gates on the **selected row**'s `flag8` (enabled), at
+  `rows[cursor]+8` — *not* on the action id.  A disabled row plays a "denied"
+  SFX (6) and changes nothing; an enabled row plays "confirm" (5) and commits.
+  (A summary that said "if action == 0x1d push SFX 6" was conflating this
+  enable-check with the later `act != 0x1d` save-data guard.)
+- on the single-page title menu (`stride 6 ≥ count 5`) the page-up/down dirs
+  (`2`/`3`) are **no-ops** — nav's page handlers require `stride < count` — so
+  "down"/"right" do nothing; only "up"/"left" (prev/next) actually move the
+  cursor, wrapping through the five rows.
+
+> 📍 `title_menu_input_step` in `src/title_scene.c` (checkpoint 9).  When a
+> port `switch`es on a callee's return value, label the cases by what the
+> callee *returns*, not by the input that produced them — the engine's
+> cancel-returns-3 / confirm-returns-4 convention inverts the intuitive
+> button→meaning reading here.

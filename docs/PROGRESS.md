@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-01 — Title-menu per-frame input dispatch assembled, ckpt 9
+
+Assembled the `0x56aea0` default-branch **per-frame menu input dispatch**
+(`0x56b807..0x56ba39`) into `src/title_scene.c` as **`title_menu_input_step`**
+— the last piece of the title scene's *update* half (commit `f8f76bc`).  Like
+ckpt 8 this is an *assembly* of already-ported leaves (`input_poll_consume`,
+`menu_list_latch`), so the ledger is unchanged (**122/1490 touched, 119
+tested**); the value is the wiring + the disasm-resolved findings.
+
+The step polls the five menu buttons + two interleaved axis-held syntheses,
+feeds each into the latch, then runs the action switch (move / confirm /
+denied / cancel SFX), the enabled-row commit (joystick lazy-attach → save-data
+table walk + notify → phase-10 + result latch), and the idle watchdog.  The
+four unported side effects — SFX `0x411390`, joystick `0x5ba120/_290`, notify
+`0x41bb80`, watchdog `0x40a5d0` — route through no-op-by-default hooks (the
+`menu_cell_layout_hook` pattern).  The save-data lookup itself is ported
+faithfully against a caller-supplied model of the god object's table slice.
+The `+0x114/+0x118` axis-held flags were added to `input_mgr` (with 32-bit
+offset asserts) — they live in the input manager past the poll ring.
+
+**Findings (the decompile hid both, so resolved against the raw r2 disasm) —
+new quirk #39:** the action `switch` keys on the *latch return code*, not the
+button, and the engine's cancel-returns-3 / confirm-returns-4 convention
+inverts the intuitive reading: the physical **commit button is `0x24`**
+(latch dir 9 → nav returns 3 → `case 3`), `case 3` gates on the selected
+*row*'s `flag8` (enabled) — **not** on `action == 0x1d` as an earlier summary
+claimed (that's a separate, later save-data guard) — and `case 4` (cancel
+SFX 7) is **dead** in the title flow (needs latch dir 10, never sent).  Also:
+the page dirs (`2`/`3`) are no-ops on the single-page menu (`stride 6 ≥ count
+5`), so only up/left navigate.  Corrected the stale "back/cancel" / "0x1d →
+SFX 6" notes in `title-scene.md`.
+
+**9 host tests** (nav SFX, page-button no-op, commit enabled/disabled,
+save-data match + 0x1d skip, idle frame, axis-held synth, watchdog idle
+threshold); **518 pass / 0 fail / 6 skip (of 524)**, ASan/UBSan clean.  Both
+32-bit cross-builds clean.  Remaining for the whole title scene: only the
+**render half** (`0x56bb04`, jump-table draws + Flip) — the milestone-0 update
+half is now complete.
+
 ## 2026-05-29 — Title-menu spawn block assembled, ckpt 8
 
 Assembled the `0x56aea0` default-branch **spawn block** (`0x56b5cd..0x56b807`)
