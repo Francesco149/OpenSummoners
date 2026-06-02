@@ -1,18 +1,24 @@
-# Session handoff — last updated 2026-06-02 (title renders + cursor wired, ckpt 27)
+# Session handoff — last updated 2026-06-02 (title menu BIT-EXACT, ckpt 28)
 
-> **ckpt 27 — menu cursor wired (commit `40741a4`).** Built the alpha-ramp blend
-> descriptors (`init_alpha_ramps` → `pd_boot_init_slots(NULL)` = RGB565, exposed
-> as the `ramp_a/ramp_b` pointer tables into the sink) and wired the
-> `TITLE_DRAW_MENU_CURSOR` sink arm (resolve CURSOR bank pool 20 + draw via
-> `title_draw_menu_cursor`). The "▶ Start" selection cursor now renders. Menu
-> diff vs retail golden dropped **2964 px → 955 px (1.0% → 0.31%)** — **NOT yet
-> 1:1**: a 955px edge residual on the cursor remains OPEN (parity-ledger R1).
-> Two hypotheses to investigate (bit-exact is the bar — no hand-waving): (1) the
-> cursor highlight **pulses** (animated `level_num` = retail's path-dependent
-> `[esp+0x20]`), so port Flip 200 vs retail Flip 1900 are at different pulse
-> phases — really an intro-pacing/phase-alignment problem; (2) our idx-19
-> full-add over-brightens the cursor. 648 host tests pass (+1). **The alpha ramps
-> are now live**, so SPARKLE/LOGO are unblocked too.
+> **ckpt 28 — R1 CLOSED: title menu is bit-exact (`differ_px==0`), cursor pulse
+> RE'd.** The 955px cursor residual was the **cursor pulse**. Retail animates
+> the cursor `level_num` (`FUN_0056c470` arg3 = `[esp+0x20]`) as a triangle wave
+> — it's `local_58` in `FUN_0056aea0`, driven by the phase FSM (phase 8:
+> `+50`/update to 1000; phase 9: `-50`/update to 0; `56aea0.c`:366-384). With
+> the fixed `level_div=0x4b0` (1200), `idx=(local_58*20)/1200` peaks at **16**
+> (NOT 19) and breathes to 0 (invisible). The port had pinned the cursor to a
+> static idx-19 full-add → uniformly over-bright. The port *already* computed
+> the value as `title_fade_state.menu_fade`; ckpt 28 threads it into the cursor
+> draw. **Method (RE, not eyeballing — per user):** `frida_capture.py
+> --cursor-probe` (new) hooks `0x56c470` and logged the 0→1000→0 step-50
+> triangle; read `FUN_0056aea0`'s FSM to find `local_58`; wired it; validated
+> `differ_px==0` by matching port frames (now log `menu_fade`) to retail goldens
+> captured WITH `--cursor-probe` (known `local_58`) at equal pulse phase: port
+> Flip 209 (mf=750) vs retail 1300 (l58=750) → 0px; port 203 (450) vs 1420/1460.
+> **User-confirmed fully 1:1 bit-identical.** Commits `<this ckpt>` (tools +
+> render fix). 648 host tests pass. Also fixed the Frida harness default exe
+> (was spawning the packed DRM exe → 0 frames; now the co-located unpacked PE —
+> engine-quirks #53). Ledger unchanged 138/1490 (wiring, no new FUN).
 >
 > ─────────────────────────────────────────────────────────────────────────────
 >
@@ -45,7 +51,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 27): title renders; one open residual + gaps remain (NOT yet bit-exact)
+## ⭐ Current state (ckpt 28): title menu is BIT-EXACT; intro pacing + LOGO/SPARKLE remain
 
 The whole chain runs live, every frame, producing correct pixels:
 
@@ -60,70 +66,67 @@ title_scene_step → title_sink → resolve_frame(bank 19/20)
         → title_draw_sprite → keyed blit onto primary → present → VISIBLE
 ```
 
-**Verified pixel-perfect** against retail goldens for the title art + menu
-layout. The three remaining divergences are the **next layer** (NOT rendering
-bugs — the pipeline is correct):
+**Verified BIT-EXACT** (`differ_px==0`, parity-ledger #1) against retail goldens
+for the title art + menu layout + the selected-row cursor brightness (the cursor
+pulse was R1, closed ckpt 28). The two remaining divergences are the **next
+layer** (NOT rendering bugs — the pipeline is correct):
 
-1. **Intro pacing** — the port reaches the menu by Flip frame ~200; retail is
-   still on the Lizsoft studio splash there (retail ~1900 to menu). The port
+1. **Intro pacing (R3)** — the port reaches the menu by Flip ~200; retail is
+   still on the Lizsoft studio splash there (retail ~1300+ to menu). The port
    **rushes/skips the intro fade**: the pace pump `0x5b1030` (and the pre/post
    side-effect hooks) are still stubbed in `title_scene_hooks`, so phases tick
-   per-frame instead of being time-gated. To 1:1-match retail's timeline these
-   must apply the real per-phase delays/frame-counters.
-2. **Menu cursor highlight absent** — retail highlights the selected row
-   ("Start"); the port doesn't. That's the **CURSOR bank (pool 20) / the
-   `MENU_CURSOR` sink arm**, still a deferred no-op. (The bank IS registered and
-   resolvable now — just not drawn.) Wire the `MENU_CURSOR` arm in `title_sink`.
-3. **Lizsoft studio splash not drawn** — the `LOGO` sink arm (alpha-ramp draw)
-   is a deferred no-op, so the studio fade renders nothing. Wire `LOGO` (+
-   `SPARKLE`) — needs the runtime alpha ramps `0x8a92b8`/`0x8a9308` populated.
+   per-frame instead of being time-gated. To 1:1-match retail's timeline
+   frame-for-frame these must apply the real per-phase delays/frame-counters.
+   (NB the *cursor pulse* now matches at equal phase regardless; this is about
+   the port Flip index == retail Flip index.)
+2. **`LOGO` / `SPARKLE` arms not drawn** — the Lizsoft studio splash (`LOGO`)
+   and the menu sparkle (`SPARKLE`) sink arms are still deferred no-ops. The
+   alpha ramps `0x8a92b8`/`0x8a9308` are now live (ckpt 27), so both are
+   wirable; each carries a blend-descriptor pointer per command. Wire like
+   `MENU_CURSOR` was: resolve the bank frame + draw via the ramp.
 
 ## Next move (pick one — recommendation first)
 
-> Context: rendering is DONE and pixel-verified. The active goal (user, ckpt 13)
-> is **1:1 parity with retail** for title + new-game + prologue. So the work is
-> now closing the three fidelity gaps above, in fidelity-impact order.
+> Context: rendering is bit-exact for the static menu. The active goal (user,
+> ckpt 13) is **1:1 parity with retail** for title + new-game + prologue.
 
-1. **(recommended) Wire the deferred sink arms — `MENU_CURSOR` then `LOGO`/
-   `SPARKLE`.** `MENU_CURSOR` is the cheapest visible win and the bank is
-   already live: in `title_sink.c` the `MENU_CURSOR` arm should resolve
-   `AR_SPR_TITLE_CURSOR` (pool 20) at the selected row index and blit the
-   highlight. Then `LOGO`/`SPARKLE` (alpha-ramp draws) — these need the runtime
-   ramps `0x8a92b8`/`0x8a9308` (pixel_drawer `g_pd_boot_group_a/_b`) populated;
-   check whether `ar_register_*` or a boot step fills them, else model them.
-   See `title_sink.h` for the arm contracts. **Verify each with
-   `--capture-frames` against the goldens** (self-serviceable, BMP→PNG→read).
-2. **Intro pacing fidelity** — make the port's phase timeline match retail so a
-   given Flip frame shows the same content as the golden at that frame. Port the
-   pace pump `0x5b1030` + the pre/post side-effect hooks (`0x43e140`/`0x40fe00`/
-   `0x566250` pre, `0x56c930` post) currently stubbed in `title_scene_hooks`,
-   OR find the frame-counter/timer that gates each fade phase. This is what
-   makes frame-for-frame golden diffing meaningful (right now port Flip N ≠
-   retail Flip N until both settle on the menu).
+1. **(recommended) Intro pacing fidelity (R3)** — make the port's phase timeline
+   match retail so a given Flip frame shows the same content as the golden at
+   that index (right now port Flip N ≠ retail Flip N — only the *content*
+   matches at equal phase). Port the pace pump `0x5b1030` + the pre/post
+   side-effect hooks (`0x43e140`/`0x40fe00`/`0x566250` pre, `0x56c930` post)
+   stubbed in `title_scene_hooks`, OR find the frame-counter/timer that gates
+   each fade phase. This is what makes end-to-end frame-for-frame golden diffing
+   meaningful and is the gate the user set for the rest. The `--cursor-probe`
+   pattern generalises: add similar arg-logging hooks to measure the per-phase
+   timers on retail.
+2. **Wire `LOGO` + `SPARKLE`** — the remaining title-screen fidelity; the alpha
+   ramps are live. Verify with `--capture-frames` against the goldens
+   (self-serviceable, BMP→PNG→read; match pulse/fade phase like R1).
 3. **Live-validate `--input-trace`** (ckpt 24, still unverified) + drive the
    menu nav so the CURSOR highlight moves — pairs naturally with #1. Does an
    injected DOWN actually move the selection on the port? Frida self-serviceable,
    no-turbo. Then extend toward the new-game menus (the user gates trace
    extension on "once we have prologue and main menu rendering").
 
-## Tooling added this ckpt
+## Tooling added this ckpt (28)
 
-- **Port frame capture** (`src/main.c`): `--capture-frames "60,200,…"
-  [--capture-dir <path>]` → `<dir>/port_frame_NNNNN.bmp` of the composed primary
-  (default dir "." = the game dir after `init_game_dir`, i.e. a Windows path
-  readable from WSL at `/mnt/c/.../Fortune Summoners/`). Convert + inspect:
-  `PIL.Image.open(bmp).save(png)` in `nix develop`, then read the PNG.
-- **`SINK_RESOLVE_DEBUG`** compile flag (`title_sink.c`): logs the first
-  resolve per (bank, hit/miss) — proves the decode chain ran. Build the debug
-  exe with `CFLAGS="… -DSINK_RESOLVE_DEBUG"`.
-- Goldens to diff against: `runs/title-idle/frames/frame_*.png` (retail,
-  Flip-indexed). Port menu == retail `frame_01900.png`.
-- **`tools/push_comparison.py --port P.png --retail R.png`** — pushes a
-  port|retail amplified-diff `comparison` to the llm-feed (use this, not a
-  montage, when comparing vs retail so the visual diff is inspectable).
-- **`docs/parity-ledger.md`** — the list of frames CONFIRMED pixel-1:1 vs
-  retail (regression guard). Title menu (idle) is entry #1: identical except
-  the selection cursor/sparkle. Re-diff + update it after render-path changes.
+- **`frida_capture.py --cursor-probe`** — hooks retail `FUN_0056c470` (menu
+  cursor draw), logs per-Flip `level_num`/`level_div` → `<run>/cursor_level.jsonl`
+  + a distinct-value summary. The pattern (read 8 stack slots, find the known
+  `0x4b0` div to anchor the arg layout, tag by `g_flip_frame`) **generalises to
+  any FUN_ whose args you want to measure live** — copy `installCursorProbe` in
+  the agent + the message handler in `frida_capture.py`. Use `--no-turbo`.
+- **Port capture now logs pulse state** (`src/main.c`): each `--capture-frames`
+  line prints `phase=… fade=… menu_fade=…` so a port frame can be matched to a
+  retail golden at the same cursor-pulse phase (capture goldens WITH
+  `--cursor-probe` to know their `local_58`, then diff at equal value → 0 px).
+- **Harness default exe fixed** — `frida_capture.py` now spawns
+  `vendor/original/sotes.unpacked.exe` (the unpacked PE co-located in the game
+  dir), NOT the packed `sotes.exe` (which stalls at 0 frames). engine-quirks #53.
+- (still here) `--capture-frames`, `SINK_RESOLVE_DEBUG`, `push_comparison.py`.
+- **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
+  menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
 ## Module inventory (13 modules) — render pipeline COMPLETE
 
@@ -161,16 +164,16 @@ new-game menus + prologue (stone/narration) — to 1:1-match retail, using the
 harness goldens as the pixel target. Do NOT extend the trace toward in-game yet;
 "once we have prologue and main menu rendering we extend the trace."**
 
-Title menu renders with a 955px OPEN residual on the cursor (parity-ledger R1 —
-NOT yet bit-exact; bit-exact is the bar). After closing it (phase-alignment /
-exact cursor blend): drive the new-game menus (the `--input-trace` path) and
-confirm they render, then the prologue.
+Title menu is now **bit-exact** (parity-ledger #1, R1 closed ckpt 28 — the
+cursor pulse). Remaining for full title parity: intro pacing (R3, frame-for-
+frame index alignment) + the `LOGO`/`SPARKLE` arms. Then drive the new-game
+menus (the `--input-trace` path) and confirm they render, then the prologue.
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
-- **Deferred sink arms** `LOGO`/`SPARKLE`/`MENU_CURSOR` (`title_sink.c`) — the
-  remaining title-screen fidelity. CURSOR bank (pool 20) is registered + live;
-  LOGO/SPARKLE need the runtime alpha ramps `0x8a92b8`/`0x8a9308` populated.
+- **Deferred sink arms** `LOGO`/`SPARKLE` (`title_sink.c`) — the remaining
+  title-screen fidelity. `MENU_CURSOR` is now wired + bit-exact (ckpt 28). The
+  alpha ramps `0x8a92b8`/`0x8a9308` are live, so LOGO/SPARKLE are wirable now.
 - **Outer-loop side-effect hooks** (stubbed in `title_scene_hooks`): `0x5b1030`
   (pace pump — the intro-pacing key), `0x43e140`/`0x40fe00`/`0x566250` (pre),
   `0x56c930` (post), `0x43c2e0` (per-entry). Porting the pump is what fixes

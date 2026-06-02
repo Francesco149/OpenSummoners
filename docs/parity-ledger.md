@@ -33,37 +33,35 @@ after changes that touch the relevant render path.
 
 | # | scene / frame | port cap | retail golden | verified |
 |---|---------------|----------|---------------|----------|
-| _(none yet)_ | — | — | — | — |
+| 1 | Title menu (idle, settled) — phase-matched | port Flip 209 `menu_fade=750` | `cursor-match/frame_01300` `local_58=750` | 2026-06-02 ckpt 28 — `differ_px=0` |
+| 1b| Title menu (idle, settled) — phase-matched | port Flip 203 `menu_fade=450` | `cursor-match/frame_01420` & `_01460` `local_58=450` | 2026-06-02 ckpt 28 — `differ_px=0` |
+
+> **R1 CLOSED (ckpt 28).** The residual was the **cursor pulse**. Retail
+> animates the cursor `level_num` (`[esp+0x20]`) as a triangle wave — `local_58`
+> in `FUN_0056aea0`, driven by phases 8↔9: phase 8 ramps `+50/update` to 1000,
+> phase 9 ramps `-50/update` to 0 (`docs/decompiled/by-address/56aea0.c`
+> :366-384). `level_div` is the constant `0x4b0` (1200), so `idx=(local_58*20)
+> /1200` peaks at **16** (NOT 19) and breathes to 0 (invisible). The port had
+> wired the cursor to a static idx-19 full-add, so it was uniformly **over-
+> bright** (every differing pixel had port>retail). Method that nailed it (NOT
+> eyeballing — RE'd the code + measured retail):
+> 1. `frida_capture.py --cursor-probe` hooks `FUN_0056c470`, logs per-frame
+>    `level_num`/`level_div` → showed the 0→1000→0 step-50 triangle + the call
+>    site `0x56be79`.
+> 2. Read `FUN_0056aea0`'s phase FSM → `local_58` is the source; the port
+>    already computed it as `title_fade_state.menu_fade` but never passed it.
+> 3. Wired `menu_fade`→cursor `level_num` (`title_render_menu`/`title_sink`),
+>    captured port frames (which log `menu_fade`), matched to retail goldens
+>    captured WITH `--cursor-probe` (so each golden's `local_58` is known), and
+>    diffed at equal pulse phase → `differ_px=0`.
+>
+> The port Flip index ≠ retail Flip index (the port still rushes the intro —
+> that is R3 below, the *separate* pacing problem). But at equal pulse phase the
+> frames are pixel-identical, which proves the render path is 100% correct.
 
 ## Open residuals — under investigation (NOT yet 1:1)
 
-### R1 — Title menu (idle, settled): 955/307200 px (0.31%), mean|abs|/ch 0.047
-
-Port Flip 200 vs retail `title-idle` golden Flip 1900. The whole frame
-(character art, background, logo, all menu text, the body of the selection
-cursor) matches; the residual is **edge/anti-alias pixels on the selection
-cursor (▶) + the "Start" highlight**. This is NOT closed. Two hypotheses
-(per user, ckpt 27) — investigate both:
-
-1. **Phase / timing skew.** The cursor highlight likely **pulses** (its alpha is
-   animated via the fade ramp; retail's cursor `level_num` = `[esp+0x20]` is a
-   *per-frame, path-dependent* value, not a constant — that's why it couldn't be
-   pinned statically). The port rushes the intro (no pacing fidelity yet), so
-   port Flip 200 and retail Flip 1900 are almost certainly at **different points
-   of the cursor pulse** → different cursor brightness → edge diff. **Test:**
-   diff several port menu frames against several retail menu goldens (1300/1600/
-   1900); if the residual *varies* with the pairing, it's phase (and the real
-   fix is intro-pacing parity, R3 below, so the pulse phases align). If the
-   residual is *constant* across pairings, phase is not the cause.
-2. **Cursor blend over-brightens.** We drive the cursor `level_num` to idx 19
-   (full, mode-1 add-blend). If retail's actual per-frame level is lower, our
-   add brightens the cursor edges too much. **Test:** Frida-hook `0x56c470` on
-   retail, log arg3 (`level_num`) + arg4 (`level_div`) at the menu; or sweep idx
-   16..19 in the port and pick the one that minimises the diff. NB this overlaps
-   with (1): if the level is animated, the "right" value is phase-dependent.
-
-Method to capture the port frame: `--capture-frames` (Flip-indexed). The diff
-math: `tools/push_comparison.py` / `pixel_diff.amplified_diff`.
+_(R1 moved to Confirmed bit-exact above.)_
 
 ## Other rendered-but-not-1:1 gaps (arms not yet wired)
 

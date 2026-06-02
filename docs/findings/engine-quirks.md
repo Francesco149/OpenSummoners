@@ -1226,3 +1226,50 @@ Practical consequence for the drop-in: registering the title banks is just
 > 📍 `init_sprite_banks` in `src/main.c`; `ar_register_main_sprites` in
 > `src/asset_register.c`; verified against `vendor/unpacked/sotes.unpacked.exe`
 > @ 0x5af5fc and the sotesd/sotesp `.rsrc` directories.
+
+## 52. The menu cursor *breathes* — its `level_num` is a phase-8↔9 triangle, peaking at idx 16 (not 19)
+
+The title menu's selection cursor (`FUN_0056c470` @ call site 0x56be74) is
+drawn every menu frame with `level_div = 0x4b0` (1200, a constant) but
+`level_num = [esp+0x20]` — which is **`local_58` in `FUN_0056aea0`, an animated
+triangle wave**, not a constant.  The phase FSM oscillates it
+(`56aea0.c`:366-384): phase **8** does `local_58 += 0x32` (50) each *update*
+step until it saturates at 1000, then flips to phase **9**, which does
+`local_58 -= 0x32` (clamped ≥0) until it hits 0, then flips back to 8.  So the
+cursor brightness ramps `0→1000→0` in steps of 50, one step per update step
+(it appears ~2× per value in a Flip-indexed trace because of the pacing FSM's
+update/draw split — see the `0x56c930` half-rate).
+
+Because `idx = (local_58 * 20) / 1200`, the cursor's blend index sweeps **0..16,
+peaking at 16** — it never reaches 19, and at `local_58 ≤ 0` the draw
+early-returns (the cursor is invisible at the bottom of each breath).  Driving
+it to a static idx-19 full-add (the pre-ckpt-28 port) made the cursor uniformly
+**over-bright** vs retail at every phase — the parity-ledger R1 residual.
+
+Measured live: `tools/frida_capture.py --cursor-probe` hooks `FUN_0056c470` and
+logs the per-Flip `level_num`/`level_div`; the 0→1000→0 step-50 sequence is in
+`runs/cursor-probe/cursor_level.jsonl`.  The port already computed the value as
+`title_fade_state.menu_fade`; ckpt 28 just threads it into the cursor draw
+(`cmd->level = level_num`, `cmd->alpha = level_div`).  At equal `menu_fade` /
+`local_58` the port menu is **bit-exact** vs retail (parity-ledger #1).
+
+> 📍 `title_render_menu` / `title_render_step` in `src/title_scene.c`;
+> `TITLE_DRAW_MENU_CURSOR` arm in `src/title_sink.c`; probe in
+> `tools/frida/opensummoners-agent.js` (`installCursorProbe`).
+
+## 53. Frida harness must spawn the *unpacked, co-located* exe — packed `sotes.exe` stalls (0 frames)
+
+`vendor/original` is a symlink to the game dir, so `vendor/original/sotes.exe`
+is the **packed Steam-DRM** exe — spawning it under Frida stalls in the launcher
+(message pump never ticks, `last_frame=-1`, 0 Flips).  The DRM-free PE is the
+Steamless output `vendor/unpacked/sotes.unpacked.exe`.  But the engine resolves
+its asset paths (`config.dat`, `sotesd.dll`, …) relative to its **own module
+directory** (`GetModuleFileName`), *not* the cwd — so the unpacked exe must sit
+*inside* the game dir next to those files, or it pops "The file is not found.
+…sotesd.dll" and stalls.  Fix: `setup.sh`/the harness copy the unpacked exe to
+`vendor/original/sotes.unpacked.exe` (= game dir) and spawn that; that is now
+`frida_capture.py`'s default `RETAIL_EXE`.
+
+> 📍 `tools/frida_capture.py` `RETAIL_EXE`/`ASSET_CWD`; the working golden run
+> `runs/calltrace-title/run.json` used `sotes-unpacked-880680.exe` in the game
+> dir — same principle.

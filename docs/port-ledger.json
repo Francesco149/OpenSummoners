@@ -8454,6 +8454,7 @@
     "src/title_drive.h",
     "src/title_scene.c",
     "src/title_scene.h",
+    "src/title_sink.c",
     "src/title_sink.h",
     "src/zdd.h"
    ]

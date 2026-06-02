@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 28) — R1 CLOSED: title menu bit-exact, cursor pulse RE'd
+
+The title menu now matches retail **`differ_px == 0`** (parity-ledger #1) —
+including the selected-row cursor brightness, the last residual (R1, was 955 px).
+User-confirmed fully 1:1 bit-identical.
+
+Root cause (RE'd, not eyeballed — per user direction): the cursor's
+`level_num` (`FUN_0056c470`'s 3rd arg = `[esp+0x20]`) is **not a constant** —
+retail animates it as a triangle wave.  It is `local_58` in `FUN_0056aea0`,
+driven by the phase FSM (`56aea0.c`:366-384): phase 8 ramps `+50`/update to
+1000, phase 9 ramps `-50`/update to 0, oscillating.  With the fixed
+`level_div = 0x4b0` (1200), `idx = (local_58*20)/1200` sweeps **0..16** (peak
+16, NOT 19) and the cursor is invisible at the bottom of each breath.  The port
+had wired the cursor to a static idx-19 full-add → uniformly over-bright (every
+differing pixel was port>retail).  The port *already* computed the value as
+`title_fade_state.menu_fade`; it just never passed it to the draw.
+
+Fix: thread `menu_fade` → cursor `level_num` (`title_render_menu` /
+`title_render_step` / the `TITLE_DRAW_MENU_CURSOR` sink arm: `cmd->level` =
+level_num, `cmd->alpha` = level_div = 0x4b0).  Validated by capturing port
+frames (which now log `phase`/`fade`/`menu_fade`) and matching them to retail
+goldens captured *with* the new `--cursor-probe` (so each golden's `local_58`
+is known), then diffing at equal pulse phase: port Flip 209 (`menu_fade=750`)
+vs retail Flip 1300 (`local_58=750`) → 0 px; port 203 (450) vs goldens
+1420/1460 (450) → 0 px.  See engine-quirks #52.
+
+Tooling: `frida_capture.py --cursor-probe` (hooks `FUN_0056c470`, logs per-Flip
+`level_num`/`level_div` → `cursor_level.jsonl`).  Also **fixed the harness's
+default exe** (engine-quirks #53): it spawned the *packed* `sotes.exe`
+(0 frames — DRM stall); now spawns the Steamless-unpacked PE co-located in the
+game dir (`setup.sh` copies it there; the engine resolves assets by module dir,
+not cwd).  648 host tests pass (0 fail, 6 skip); ledger unchanged 138/1490
+(wiring, no new FUN).  The port Flip index still ≠ retail's (intro-pacing R3
+remains) — but at equal pulse phase the frames are pixel-identical.
+
 ## 2026-06-02 (ckpt 24) — port-side input replay (`--input-trace`)
 
 Ported `input_trace.{c,h}` (commit `50b348d`) — the port-side counterpart of
