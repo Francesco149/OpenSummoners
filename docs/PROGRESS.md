@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 23) — 8d's opaque-trim scanner ported; the whole 8d call graph decoded
+
+Ported `bs_trim_opaque_rect` (`FUN_005b6f80`, commit `2372a3f`) — the
+trim-metadata builder the per-cell sprite-surface builder (8d, `0x5b9630`) runs
+to size each cell: it scans a W×H window of the decoded bottom-up DIB for the
+tight bounding box of opaque (non-colour-key) pixels and reports `found_opaque`
+/ `found_key` (the builder skips a fully-transparent cell → a metrics-only
+ZDDObject, and drops the colour key on a fully-opaque cell → the `0x1ffffff`
+sentinel). The leaf helpers `0x5b6f00` (depth) / `0x5b6ec0` (bottom-row) are
+one-liners, inlined.
+
+**RE landed a real asymmetry → engine-quirk #48:** the 24bpp scan gates its
+y-bounds on the *global* `x_left < W` (so `y_bottom` runs to `H-1` once any
+opaque pixel exists anywhere), while the 8bpp scan uses a *per-row* opaque flag
+(tight `y_bottom`). The headline test pair trims the same opaque shape at 24bpp
+(`y_bottom`=7) vs 8bpp (`y_bottom`=4); +6 host tests (629 total, 623 pass / 0
+fail / 6 skip). Ledger 131/1490 (8.1%), 128 tested (+1).
+
+**Also decoded (no port — for the live session):** the rest of 8d's call graph
+(`0x5b9280` build = new+ctor+`0x5b9630`+dtor; `0x5b9630` orchestrator =
+trim-gate → `create_surface_pair` → `0x5b9910`; `0x5b9910` = Lock(`0x5b9490`) +
+clip + zero + per-format copy via the `0x5b7310/_74f0/_7270` + `0x5b7bd0`
+converters), with arg mappings, in `docs/findings/sprite-pipeline.md`. The
+pure-logic 8d pieces are now all ported; what remains is DDraw-bound +
+interdependent (Lock, pixel copy, format converters) — best ported + verified
+together in the live session, where a registered bank + the real display depth
+let the produced pixels be diffed against the harness goldens. So next session's
+8d work is *wire + verify*, not RE-from-scratch.
+
 ## 2026-06-02 (ckpt 22) — the title scene is driven from `main.c`: the loop runs live
 
 Wired the milestone-0 capstone: the ported title runner (`FUN_0056aea0` =

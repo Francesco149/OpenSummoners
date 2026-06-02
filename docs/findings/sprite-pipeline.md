@@ -211,22 +211,74 @@ magenta unless the `0x1ffffff` sentinel — engine-quirks **#47**.
 **Still behind hooks (the DDraw leaf layer):** the per-cell surface builder
 `0x5b9280` (`ar_frame_build_hook` — turns one cell + the sheet pixels into a
 real keyed `zdd_object*`), the surface release `FUN_005b9390`
-(`ar_frame_free_hook`), the optional trim-metadata builder `0x5b6f80`, the
+(`ar_frame_free_hook` = the already-ported `zdd_object_dtor`), the trim-metadata
+builder `0x5b6f80` (**ported ckpt 23** = `bs_trim_opaque_rect`), the
 god-object display-depth format switch (`[zdd+0x168]` →
 `0x5b7310/_74f0/_7270`), and the 8bpp indexed-palette apply `0x5b7bd0`.
 Headless (no build hook) sizes + zero-fills the frames array but leaves the
-surfaces NULL — exactly the frame getter's "still undecoded" path.  These need
-the DDraw god object live and are the next chip.
+surfaces NULL — exactly the frame getter's "still undecoded" path.
+
+### 8d call graph (decoded ckpt 23 — r2, ready to wire in the live session)
+
+```
+0x5b9280  ar_frame_build  (this=parent ZDD; 9 stack args; ret 0x28)
+  ├─ operator_new(0xd8) + zdd_object_ctor(obj, parent)   [both ported]
+  ├─ FUN_005b9630(obj, args…)                            [orchestrator, below]
+  └─ on fail: zdd_object_dtor(obj) + free(obj); else *out = obj, ret 1
+        — structurally identical to the ported zdd_object_new, but the
+          orchestrator is 0x5b9630 (not 0x5b95c0).
+
+0x5b9630  (this=new ZDDObject; ret 0x28)  the per-cell surface orchestrator
+  args (C order): (p_1ch, p_24h, p_28h, p_2ch, colorkey_34h, p_38h,
+                   p_3ch=trim-count, trim_30h=ptr to bs_trim_rect)
+  ├─ if (trim_30h && p_3ch >= 1):                         [trim present]
+  │     load trim[0x14]→A, trim[0x10]→B
+  │     if (p_3ch >= 2): width  = max(0, trim[4]-trim[0]+1)   // x_right-x_left+1
+  │                      height = max(0, trim[0xc]-trim[8]+1) // y_bottom-y_top+1
+  │                      src_x  = trim[0] (x_left), src_y = trim[8] (y_top)
+  │     if (A==0): colorkey = 0x1ffffff   (fully-opaque → no key; cf. found_key)
+  │     if (B==0): goto metrics_only      (fully-transparent → no surface)
+  ├─ zdd_object_create_surface_pair(self, p1=p_1ch, p2=p_24h, p3=0,
+  │       p4=colorkey, p5=p_38h, p6=src_x, p7=src_y, w=width, h=height)  [ported]
+  │     on 0 → ret 0 (build failed)
+  ├─ FUN_005b9910(self, srcbitmap=var_1ch, 0, 0, width, height,
+  │       src_x+var_20h, src_y+var_24h)   [the pixel writer, below] on 0 → ret 0
+  └─ ret 1
+  metrics_only: zdd_object_prefill_desc(self,0,0); zdd_object_stamp_metrics(
+        self, p_28h, p_2ch, 0,0,0,0); ret 1   [both ported]
+
+0x5b9910  (this=dest ZDDObject; 7 args)  copy the cell pixels into the surface
+  ├─ reads src bitmap: 0x5b6ec0 bottom-row, 0x5b6f00 depth/8=bytes, 0x5b6ef0 stride
+  ├─ FUN_005b9490(dest)  — Lock the dest surface (DDraw) → dest->[0]/[4]/[8]
+  ├─ clamp the copy rect to the locked extent
+  ├─ rep stosd/stosb — zero-fill the dest surface
+  └─ row-copy loop (the per-format pixel write; the 0x5b7310/_74f0/_7270 switch
+        on [zdd+0x168] display depth selects the converter, each LocalAlloc'ing
+        a scratch line buffer + 0x5b7bd0 applying the 8bpp palette)
+  ⇒ DDraw-bound (needs a live locked surface) — the live-session chip.
+```
+
+So of 8d, the **pure-logic pieces are now ported** (`bs_trim_opaque_rect`,
+`zdd_object_create_surface_pair`, `_ctor`/`_dtor`/`_prefill_desc`/
+`_stamp_metrics`, `zdd_object_new`'s shape).  What remains is **DDraw-bound and
+interdependent**: `0x5b9490` (Lock), `0x5b9910` (clip+zero+copy), and the
+`0x5b7310/_74f0/_7270` + `0x5b7bd0` format converters — best ported + verified
+together in the live session, where a registered bank + the real display depth
+let the produced pixels be diffed against the harness goldens.
 
 ## What's left (next chips, in dependency order)
 
 1. ~~compositor / wrappers / blt layer~~ **DONE ckpt 17–19.**
 2. ~~sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`~~ **DONE
    ckpt 20** (`ar_sprite_decode` / `ar_sprite_slice` / `ar_sheet_decode_pixels`).
-3. **The per-cell DDraw surface builder `0x5b9280`** (+ `0x5b6f80` trim
-   metadata, `0x5b7310/_74f0/_7270` format setup, `0x5b9390` release) — wire
-   `ar_frame_build_hook`/`ar_frame_free_hook` to real keyed surfaces.  Needs
-   the DDraw god object; live-verified.
+3. **The per-cell DDraw surface builder `0x5b9280`** — call graph decoded
+   above (ckpt 23).  `0x5b6f80` trim metadata = **DONE ckpt 23**
+   (`bs_trim_opaque_rect`); `0x5b9390` release = the ported `zdd_object_dtor`;
+   `0x5b95c0` create_surface_pair = ported.  **Remaining (the live-session
+   chip):** the orchestrator `0x5b9630`, the pixel writer `0x5b9910`
+   (+ `0x5b9490` Lock), and the `0x5b7310/_74f0/_7270` + `0x5b7bd0` format
+   converters — wire `ar_frame_build_hook`/`ar_frame_free_hook` to real keyed
+   surfaces.  Needs the DDraw god object; live-verified against goldens.
 4. **The render sink + drive from main.c** — wire `title_render_sink_hook`
    over the compositor/wrappers + the now-real frame surfaces, drive
    `title_scene_step`, capture port frames, diff vs the harness goldens.

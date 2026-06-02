@@ -1,10 +1,26 @@
-# Session handoff — last updated 2026-06-02 (title scene driven from main.c, ckpt 22)
+# Session handoff — last updated 2026-06-02 (title drive + 8d trim scanner, ckpt 22–23)
 
 **This is the first thing to read at the start of every session.**
 
 Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
+
+## ⭐ NEW (ckpt 23): 8d's trim scanner is ported + the whole 8d call graph is decoded
+
+`bs_trim_opaque_rect` (`FUN_005b6f80`, in `bitmap_session.{c,h}`) — the
+opaque-bounding-box scanner 8d runs per sprite cell — is **ported + host-tested
+(6 tests)**, with a real asymmetry captured as **engine-quirk #48** (24bpp
+`y_bottom` is loose → `H-1`; 8bpp is tight). The **rest of 8d's call graph is
+now fully decoded** (r2) and written up in `docs/findings/sprite-pipeline.md`
+("8d call graph"): `0x5b9280` = new+ctor+`0x5b9630`+dtor (= `zdd_object_new`'s
+shape); `0x5b9630` = trim-gate → `create_surface_pair` (ported) → `0x5b9910`;
+`0x5b9910` = Lock(`0x5b9490`)+clip+zero+copy via the `0x5b7310/_74f0/_7270` +
+`0x5b7bd0` format converters. **The pure-logic 8d pieces are now all ported;
+what remains is DDraw-bound + interdependent** (Lock, pixel copy, format
+converters) — the **live-session chip**, where a registered bank + real display
+depth let the pixels be diffed against goldens. **629 host tests (623 pass,
+0 fail, 6 skip; +6)**; ledger **131/1490 (8.1%), 128 tested (+1)**.
 
 ## ⭐ NEW (ckpt 22): the title scene is driven from `main.c` — the loop runs live (un-verified)
 
@@ -299,18 +315,20 @@ the runner from the drop-in.
 > host-portable *now* (pure logic over surface descriptors) with live
 > verification deferred, so it's the best autonomous chip if staying headless.
 
-1. **(recommended) Port 8d — the per-cell DDraw surface builder `0x5b9280`**
-   (`ar_frame_build_hook`; + `0x5b9390` release behind `ar_frame_free_hook`).
-   This is the **genuine pixel source** — the last unported render-side leaf,
-   and what turns the drive's blank window into real sprites. Decoded in
-   `docs/findings/sprite-pipeline.md`. Pulls in `0x5b6f80` (trim metadata), the
-   format switch `0x5b7310/_74f0/_7270` (gated on `[zdd+0x168]` display depth),
-   and the 8bpp palette `0x5b7bd0`. **Port the pure logic + host-test now**
-   (synthesise the descriptors in C, as the other zdd-object tests do); the
-   genuine live-verify (needs the DDraw god object) is deferred to next session
-   alongside the drive's live boot. Once 8d + a registered bank are live, the
-   deferred sink arms (LOGO/SPARKLE/MENU_CURSOR) get their real implementations
-   + the port-side frame capture (10) closes the pixel-parity loop.
+1. **(recommended, live-session) Finish 8d — the per-cell DDraw surface
+   builder `0x5b9280`** (`ar_frame_build_hook`; release `0x5b9390` =
+   `zdd_object_dtor`). This is the **genuine pixel source** — what turns the
+   drive's blank window into real sprites. **The pure-logic pieces are already
+   ported**: `bs_trim_opaque_rect` (0x5b6f80, ckpt 23), `create_surface_pair`,
+   ctor/dtor/prefill/stamp. **The full call graph is decoded** in
+   `docs/findings/sprite-pipeline.md` ("8d call graph") with arg mappings — so
+   this is now *wire + verify*, not RE. **Remaining (DDraw-bound, do live):**
+   the orchestrator `0x5b9630` (trim-gate → create_surface_pair → pixel writer),
+   the pixel writer `0x5b9910` + Lock `0x5b9490`, and the format converters
+   `0x5b7310/_74f0/_7270` + 8bpp palette `0x5b7bd0`. Best ported + verified
+   together with a registered bank live (the produced pixels diff against the
+   harness goldens). Then the deferred sink arms (LOGO/SPARKLE/MENU_CURSOR) get
+   their real impls + the port-side frame capture (10) closes the parity loop.
 
 2. **Live-verify the ckpt-22 drive** (Frida self-serviceable, [[reference_frida]],
    no-turbo). Run `tools/run-retail.sh`? No — run the **port**:
