@@ -11320,6 +11320,7 @@
     "src/asset_register.c",
     "src/asset_register.h",
     "src/cs_dispatch.c",
+    "src/main.c",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

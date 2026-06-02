@@ -593,16 +593,32 @@ extern ar_frame_build_fn ar_frame_build_hook;
 typedef void (*ar_frame_free_fn)(void *surface);
 extern ar_frame_free_fn ar_frame_free_hook;
 
+/* Per-sheet display-depth format conversion (the slicer's 0x4189f2..0x418b45
+ * switch on [slot->zdd + 0x168]).  Converts the decoded sheet in place to the
+ * god-object's display depth before per-cell surfaces are built, so the
+ * builder's raw pixel copy is format-correct.  Routed through a hook so
+ * asset_register stays ZDD-free; the adapter (main.c) reads g_zdd's depth +
+ * color descriptor and calls the matching bs_convert_* function.  NULL hook ⇒
+ * headless: no conversion (paired with a NULL build hook, frames stay NULL). */
+typedef void (*ar_sheet_format_fn)(ar_sprite_slot *slot,
+                                   struct bitmap_session *sheet,
+                                   uint32_t colorkey);
+extern ar_sheet_format_fn ar_sheet_format_hook;
+
 /* Slice a decoded sheet into `entries[entry_idx].frames` (FUN_004188b0).
  *   cell_w/cell_h == 0 default to the whole sheet (one frame).
  *   cols = sheet_w / cell_w, rows = sheet_h / cell_h, count = cols*rows.
  * Returns 0 (and leaves frames untouched) when count == 0; otherwise sets
- * slot->f_38 = count, allocates the count-entry frames array, and fills it
- * left-to-right, top-to-bottom via ar_frame_build_hook.  Returns 1 iff every
- * cell produced a surface (0 if any build returned NULL — that slot stays
- * NULL but the array is still installed, matching retail's local_c). */
+ * slot->f_38 = count, allocates the count-entry frames array, builds a
+ * per-cell opaque-trim array (slot->aux_buf, iff slot->type > 0 + a colorkey
+ * is in use + no array yet), runs ar_sheet_format_hook to convert the sheet
+ * to display depth, then fills the frames left-to-right, top-to-bottom via
+ * ar_frame_build_hook (passing each cell's trim rect as aux_entry).  Returns
+ * 1 iff every cell produced a surface (0 if any build returned NULL — that
+ * slot stays NULL but the array is still installed, matching retail's
+ * local_c).  `sheet` is mutated in place by the format conversion. */
 int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
-                    const struct bitmap_session *sheet,
+                    struct bitmap_session *sheet,
                     int cell_w, int cell_h, uint32_t colorkey);
 
 /* The decoder body (FUN_004184a0), entry index 0 (retail's only caller,

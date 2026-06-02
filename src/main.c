@@ -52,6 +52,7 @@
 #include "title_drive.h"
 #include "input_trace.h"
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
+#include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -325,21 +326,93 @@ static void drive_log_flip(void *user)
     log_line("Title Menu - Flipping");
 }
 
+/* ─── 8d hook adapters (asset_register → ZDD) ────────────────────────
+ *
+ * These bridge the decoupled asset_register slicer to the live ZDD: the
+ * per-cell surface builder, the per-sheet format conversion, and the
+ * per-frame surface release.  Kept in main.c (not asset_register) so the
+ * decoder TU stays ZDD-free. */
+
+/* ar_frame_build_hook (0x5b9280) — build one cell's keyed DDraw surface. */
+static void *title_frame_build(ar_sprite_slot *slot,
+                               const struct bitmap_session *sheet,
+                               int src_x, int src_y, int cell_w, int cell_h,
+                               uint32_t colorkey, void *aux_entry)
+{
+    zdd *parent = (slot != NULL && slot->zdd != NULL) ? (zdd *)slot->zdd
+                                                      : g_zdd;
+    if (parent == NULL) return NULL;
+    zdd_object *out = NULL;
+    int ok = zdd_object_new_cell(parent, &out, sheet,
+                                 src_x, src_y, cell_w, cell_h,
+                                 (int32_t)colorkey,
+                                 (int)slot->scale_flag,   /* videomem / create p5 */
+                                 (int)slot->type,         /* trim_count */
+                                 (const struct bs_trim_rect *)aux_entry);
+    return ok ? (void *)out : NULL;
+}
+
+/* ar_frame_free_hook (FUN_005b9390 + delete) — release one built surface. */
+static void title_frame_free(void *surface)
+{
+    zdd_object *o = (zdd_object *)surface;
+    zdd_obj_destroy(&o);
+}
+
+/* ar_sheet_format_hook (slicer 0x4189f2 switch) — convert a decoded sheet
+ * to the god-object's display depth before cells are built.  Windowed mode
+ * runs at 16bpp, so a 24bpp title sheet is packed to RGB565 via the
+ * descriptor zdd_bind_pixel_format stamped on the 16bpp boot. */
+static void title_sheet_format(ar_sprite_slot *slot,
+                               struct bitmap_session *sheet, uint32_t colorkey)
+{
+    zdd *z = (slot != NULL && slot->zdd != NULL) ? (zdd *)slot->zdd : g_zdd;
+    if (z == NULL || sheet == NULL) return;
+
+    int depth = z->pixel_format_bpp;                 /* [zdd+0x168] */
+    int src   = (int)bs_get_bit_count(sheet);
+    uint32_t key_color = (colorkey == 0x1ffffffu) ? 0u : 0xff00ffu;
+
+    switch (depth) {
+    case 8:
+        break;                                       /* 8bpp display: no convert */
+    case 16:
+        if (src == 8 || src == 24)
+            bs_convert_to_16bpp(sheet, (const uint8_t *)&z->color_desc,
+                                colorkey, key_color);
+        break;
+    case 24:
+        if (src == 8)
+            bs_convert_8bpp_to_24bpp(sheet, colorkey, key_color);
+        break;
+    case 32:
+        if (src == 8)
+            bs_convert_8bpp_to_24bpp(sheet, colorkey, key_color);
+        else if (src != 24)
+            break;
+        bs_convert_24bpp_to_32bpp(sheet);
+        break;
+    default:
+        break;
+    }
+}
+
 /* Build the title-scene drive against the live ZDD.  Binds the render sink to
  * g_zdd->primary_obj (so the cmd stream drives real blits) and installs
- * ar_sprite_decode_hook so the title banks self-decode once registered.  The
- * per-cell surface builder (8d, ar_frame_build_hook) is intentionally left
- * NULL: until it lands, every sprite resolves to NULL and the scene renders a
- * cleared + flipped window with no sprites (HANDOFF "move B") — proving the
- * loop live.  The alpha ramps (0x8a92b8/0x8a9308) and the compositor display
+ * ar_sprite_decode_hook so the title banks self-decode once registered, plus
+ * the 8d hooks (build / format / free) so the decoded banks become real keyed
+ * surfaces.  The alpha ramps (0x8a92b8/0x8a9308) and the compositor display
  * group are unfilled/unmodeled at a cold boot, so they pass through as NULL
  * (plain blits / no compose — faithful).  skip_intro stays 0 so a first boot
  * plays the studio fade from the start, exactly like retail's cold launch. */
 static void init_title_drive(void)
 {
-    /* Self-decode the sprite banks on first frame access (still NULL surfaces
-     * until 8d, but installs the chain so a later 8d wire-up needs no change). */
+    /* Self-decode the sprite banks on first frame access, and build real
+     * per-cell surfaces (8d) once a bank is decoded. */
     ar_sprite_decode_hook = ar_sprite_decode;
+    ar_frame_build_hook   = title_frame_build;
+    ar_frame_free_hook    = title_frame_free;
+    ar_sheet_format_hook  = title_sheet_format;
 
     title_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);
@@ -357,8 +430,9 @@ static void init_title_drive(void)
         return;
     }
     g_drive_active = 1;
-    log_line("init_title_drive: title scene driven (primary=%p, sprites blank "
-             "until 8d surface builder lands)", (void *)g_zdd->primary_obj);
+    log_line("init_title_drive: title scene driven (primary=%p, 8d surface "
+             "builder wired: depth=%d bpp)", (void *)g_zdd->primary_obj,
+             g_zdd->pixel_format_bpp);
 
     /* Load the optional input-replay trace now that the drive (and its input
      * ring) exists.  Injection happens per-frame in main_loop_body. */

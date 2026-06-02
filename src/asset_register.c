@@ -435,6 +435,7 @@ void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id)
 
 ar_frame_build_fn ar_frame_build_hook = NULL;   /* 0x5b9280 (DDraw) */
 ar_frame_free_fn  ar_frame_free_hook  = NULL;   /* FUN_005b9390+delete  */
+ar_sheet_format_fn ar_sheet_format_hook = NULL; /* 0x4189f2 switch (DDraw) */
 
 /* Magenta transparent key, as the low 24 bits of a little-endian DIB
  * pixel: byte0=B=0xff, byte1=G=0x00, byte2=R=0xff. */
@@ -507,10 +508,10 @@ static void ar_sprite_frames_free(ar_sprite_slot *slot, uint16_t entry_idx)
 }
 
 int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
-                    const struct bitmap_session *sheet,
+                    struct bitmap_session *sheet,
                     int cell_w, int cell_h, uint32_t colorkey)
 {
-    const bitmap_session *s = (const bitmap_session *)sheet;
+    bitmap_session *s = (bitmap_session *)sheet;
 
     /* cell_w/h == 0 ⇒ default to the whole sheet (0x5ba390/_6ee0). */
     if (cell_w == 0) cell_w = (int)s->biWidth;
@@ -533,6 +534,41 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
         frames[i] = NULL;
     }
 
+    /* Trim-scan (0x418949..0x4189d5): build a per-cell opaque bounding-box
+     * array into slot->aux_buf (in_ECX[0xd]) iff none exists yet, the slot
+     * carries a positive type (in_ECX[0xc]), and a colour-key is in use.
+     * The scanner reads the sheet at its ORIGINAL (pre-conversion) depth.
+     * Retail passes (cell_w, cell_h) as bs_trim's (height, width) args —
+     * mirrored literally. */
+    bs_trim_rect *trims;
+    if (slot->aux_buf == NULL && slot->type > 0 &&
+        colorkey != AR_COLORKEY_NONE) {
+        trims = (bs_trim_rect *)malloc((size_t)count * sizeof(bs_trim_rect));
+        slot->aux_buf = trims;
+        int idx = 0;
+        int base_y = 0;
+        for (int r = 0; r < rows; r++) {
+            int base_x = 0;
+            for (int c = 0; c < cols; c++, idx++) {
+                bs_trim_opaque_rect(s, colorkey, base_x, base_y,
+                                    /*height*/ cell_w, /*width*/ cell_h,
+                                    &trims[idx]);
+                base_x += cell_w;
+            }
+            base_y += cell_h;
+        }
+    } else {
+        /* A pre-existing array (prior decode) is reused; else NULL. */
+        trims = (bs_trim_rect *)slot->aux_buf;
+    }
+
+    /* Format switch (0x4189f2..0x418b45): convert the whole sheet to the
+     * god-object's display depth before building cells.  Through a hook so
+     * this TU stays ZDD-free; NULL ⇒ headless (no conversion). */
+    if (ar_sheet_format_hook != NULL) {
+        ar_sheet_format_hook(slot, s, colorkey);
+    }
+
     /* The builder's colour-key: the 0x1ffffff sentinel passes through
      * unchanged; everything else is normalised to the magenta key (the
      * non-sentinel arms set param_5 = 0xff00ff after the format switch). */
@@ -544,9 +580,10 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++, i++) {
             void *surf = NULL;
+            void *trim = (trims != NULL) ? (void *)&trims[i] : NULL;
             if (ar_frame_build_hook != NULL) {
                 surf = ar_frame_build_hook(slot, sheet, c * cell_w, r * cell_h,
-                                           cell_w, cell_h, key, /*aux*/NULL);
+                                           cell_w, cell_h, key, trim);
             }
             if (surf == NULL) {
                 ok = 0;                      /* local_c = 0; slot stays NULL */
