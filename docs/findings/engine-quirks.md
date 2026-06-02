@@ -1124,3 +1124,34 @@ So a sprite bank's stored colour-key only ever selects *whether* keying is on
 `0xff00ff` (the same key the decoder's brightness pass skips, quirk #46).
 
 > 📍 `ar_sprite_slice` in `src/asset_register.c`.
+
+## 48. The per-cell trim scanner bounds the bottom edge differently for 8bpp vs 24bpp
+
+`FUN_005b6f80` (`bs_trim_opaque_rect`) scans a sprite cell for the tight
+bounding box of opaque (non-colour-key) pixels.  It has two depth-specific scan
+loops, and they are **not symmetric** in how they decide which rows extend the
+box's bottom edge:
+
+- **24bpp** gates its per-row right-edge scan *and* its `y_top`/`y_bottom`
+  update on the **global** `x_left < W` test (`cmp var_14h, edi; jge`).  `x_left`
+  is a running minimum that, once any row has lowered it below `W`, **stays**
+  below `W` for the rest of the scan.  So every row processed *after* the first
+  opaque row — including fully-transparent ones — passes the gate and extends
+  `y_bottom`.  Net effect: 24bpp `y_bottom` is always `H-1` whenever the cell
+  has any opaque pixel at all (the top edge `y_top` is still tight — it's a
+  `min`, set on the first qualifying row).
+- **8bpp** uses a **per-row** opaque flag (`ebx`, `xor`'d to 0 at the top of
+  each row, set to 1 only when that row has an opaque pixel) as the gate.  So
+  its `y_bottom` is the last row that *actually* contains an opaque pixel —
+  tight.
+
+`x_left`/`x_right`/`y_top` are tight in both paths; only the bottom edge
+differs.  The downstream surface builder (`0x5b9630`) derives the cell surface
+height from `y_bottom - y_top + 1`, so a 24bpp cell's surface spans down to the
+cell's physical bottom regardless of where its art ends, while an 8bpp cell's is
+cropped to its art.  Whether this is deliberate (8bpp art is index-packed and
+trimming saves more) or an oversight, the port reproduces it byte-for-byte.
+
+> 📍 `bs_trim_opaque_rect` in `src/bitmap_session.c`; host-tested by the
+> `trim_24bpp_loose_ybottom_quirk` vs `trim_8bpp_tight_ybottom` pair (same
+> opaque shape, `y_bottom` = 7 vs 4).

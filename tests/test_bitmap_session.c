@@ -973,6 +973,168 @@ int test_palette_ramps_coexist_with_main_pool_unwritten(void)
     return 0;
 }
 
+/* ─── bs_trim_opaque_rect (FUN_005b6f80) ──────────────────────────────
+ *
+ * The opaque-bounding-box scanner.  Fixtures build a bottom-up DIB the same
+ * way retail stores one (scanline r at offset (H-1-r)*stride), place opaque
+ * pixels at known logical (x, y), then trim the whole sheet and assert the
+ * box + flags.  The 8bpp vs 24bpp y_bottom asymmetry (quirk #48) is the
+ * headline case. */
+
+static uint8_t g_trim_buf[64 * 64 * 3];
+
+/* Set logical pixel (x,y) of an HxW bottom-up sheet.  24bpp packs (B,G,R);
+ * 8bpp packs the single index byte (val low byte). */
+static void trim_set24(int sheet_h, int stride, int x, int y, uint32_t bgr)
+{
+    uint8_t *p = g_trim_buf + (size_t)(sheet_h - 1 - y) * stride + (size_t)x * 3;
+    p[0] = (uint8_t)bgr; p[1] = (uint8_t)(bgr >> 8); p[2] = (uint8_t)(bgr >> 16);
+}
+static void trim_set8(int sheet_h, int stride, int x, int y, uint8_t idx)
+{
+    g_trim_buf[(size_t)(sheet_h - 1 - y) * stride + (size_t)x] = idx;
+}
+
+#define KEY24 0xff00ffu   /* magenta B=ff G=00 R=ff */
+
+/* 24bpp: x/x_right/y_top are tight; y_bottom runs to H-1 once any opaque
+ * pixel exists anywhere (quirk #48 — the global x_left<W gate). */
+int test_trim_24bpp_loose_ybottom_quirk(void)
+{
+    int W = 8, H = 8, stride = W * 3;
+    memset(g_trim_buf, 0, sizeof g_trim_buf);
+    for (int y = 0; y < H; y++)            /* fill key */
+        for (int x = 0; x < W; x++) trim_set24(H, stride, x, y, KEY24);
+    trim_set24(H, stride, 2, 3, 0x010203); /* opaque at (2,3) */
+    trim_set24(H, stride, 5, 4, 0x040506); /* opaque at (5,4) */
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)H; s.biBitCount = 24;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, KEY24, 0, 0, H, W, &t);
+    T_ASSERT_EQ_I(t.x_left, 2);
+    T_ASSERT_EQ_I(t.x_right, 5);
+    T_ASSERT_EQ_I(t.y_top, 3);
+    T_ASSERT_EQ_I(t.y_bottom, 7);          /* loose — H-1, not 4 */
+    T_ASSERT_EQ_I(t.found_opaque, 1);
+    T_ASSERT_EQ_I(t.found_key, 1);
+    return 0;
+}
+
+/* 8bpp: same shape, but the per-row gate makes y_bottom the last genuinely
+ * opaque row (4) — directly contrasting the 24bpp result above. */
+int test_trim_8bpp_tight_ybottom(void)
+{
+    int W = 8, H = 8, stride = W;
+    memset(g_trim_buf, 0, sizeof g_trim_buf);   /* index 0 = key */
+    trim_set8(H, stride, 2, 3, 0x11);
+    trim_set8(H, stride, 5, 4, 0x22);
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)H; s.biBitCount = 8;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, 0, 0, 0, H, W, &t);
+    T_ASSERT_EQ_I(t.x_left, 2);
+    T_ASSERT_EQ_I(t.x_right, 5);
+    T_ASSERT_EQ_I(t.y_top, 3);
+    T_ASSERT_EQ_I(t.y_bottom, 4);          /* tight — last opaque row */
+    T_ASSERT_EQ_I(t.found_opaque, 1);
+    T_ASSERT_EQ_I(t.found_key, 1);
+    return 0;
+}
+
+/* A fully-transparent cell: no opaque pixel → box stays inverted, found_opaque
+ * clear (the surface builder turns this into a metrics-only, no-surface cell). */
+int test_trim_all_key_no_opaque(void)
+{
+    int W = 4, H = 4, stride = W;
+    memset(g_trim_buf, 0, sizeof g_trim_buf);   /* all index 0 = key */
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)H; s.biBitCount = 8;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, 0, 0, 0, H, W, &t);
+    T_ASSERT_EQ_I(t.found_opaque, 0);
+    T_ASSERT_EQ_I(t.found_key, 1);
+    T_ASSERT_EQ_I(t.x_left, W);             /* init values, untightened */
+    T_ASSERT_EQ_I(t.x_right, 0);
+    T_ASSERT_EQ_I(t.y_top, H);
+    T_ASSERT_EQ_I(t.y_bottom, 0);
+    return 0;
+}
+
+/* A fully-opaque cell: no key pixel → found_key clear (the surface builder
+ * takes the 0x1ffffff no-colour-key sentinel). */
+int test_trim_all_opaque_no_key(void)
+{
+    int W = 4, H = 4, stride = W;
+    memset(g_trim_buf, 0, sizeof g_trim_buf);
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) trim_set8(H, stride, x, y, 0x33);
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)H; s.biBitCount = 8;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, 0 /*key idx*/, 0, 0, H, W, &t);
+    T_ASSERT_EQ_I(t.found_key, 0);
+    T_ASSERT_EQ_I(t.found_opaque, 1);
+    T_ASSERT_EQ_I(t.x_left, 0);
+    T_ASSERT_EQ_I(t.x_right, W - 1);
+    T_ASSERT_EQ_I(t.y_top, 0);
+    T_ASSERT_EQ_I(t.y_bottom, H - 1);
+    return 0;
+}
+
+/* An unsupported depth can't be classified → the box is the whole cell and
+ * both flags are set (pixels are never read). */
+int test_trim_other_depth_full_rect(void)
+{
+    bitmap_session s = {0};
+    s.pixels = NULL;                        /* must not be dereferenced */
+    s.stride = 0; s.biHeight = 0; s.biBitCount = 16;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, KEY24, 0, 0, 6, 10, &t);
+    T_ASSERT_EQ_I(t.x_left, 0);
+    T_ASSERT_EQ_I(t.x_right, 9);            /* W-1 */
+    T_ASSERT_EQ_I(t.y_top, 0);
+    T_ASSERT_EQ_I(t.y_bottom, 5);           /* H-1 */
+    T_ASSERT_EQ_I(t.found_opaque, 1);
+    T_ASSERT_EQ_I(t.found_key, 1);
+    return 0;
+}
+
+/* A sub-window (non-zero base_x/base_y) into a larger sheet resolves the box
+ * in cell-local coordinates. */
+int test_trim_subwindow_8bpp(void)
+{
+    int SW = 16, SH = 16, stride = SW;
+    memset(g_trim_buf, 0, sizeof g_trim_buf);
+    /* opaque at sheet (10, 9) and (12, 11); window base (8,8), 6x6 cell. */
+    trim_set8(SH, stride, 10, 9, 0x44);
+    trim_set8(SH, stride, 12, 11, 0x55);
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)SH; s.biBitCount = 8;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, 0, 8, 8, 6, 6, &t);
+    T_ASSERT_EQ_I(t.x_left, 2);             /* 10 - 8 */
+    T_ASSERT_EQ_I(t.x_right, 4);            /* 12 - 8 */
+    T_ASSERT_EQ_I(t.y_top, 1);             /* 9 - 8  */
+    T_ASSERT_EQ_I(t.y_bottom, 3);          /* 11 - 8 */
+    return 0;
+}
+
 /* ─── layout ─────────────────────────────────────────────────────── */
 
 int test_bitmap_session_layout_matches_retail(void)

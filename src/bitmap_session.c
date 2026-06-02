@@ -24,6 +24,7 @@
  */
 #include "bitmap_session.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -238,4 +239,110 @@ int bs_decode_resource(bitmap_session *s, void *hModule, uint16_t resource_id,
      * codegen. */
     memcpy(s->pixels, pixel_src, (size_t)s->biHeight * s->stride);
     return 1;
+}
+
+/* ─── per-cell opaque-bounding-box scan (FUN_005b6f80) ─────────────── */
+
+/* The decoded sheet is a bottom-up DIB, so scanline `r` (top = 0) lives at
+ * pixels + (biHeight-1-r)*stride.  Retail computes a "bottom row" base
+ * (the one-line helper 0x5b6ec0 = pixels + (biHeight-1)*stride, inlined here)
+ * and indexes each cell row as
+ * `bottom + base_x*bpp - (base_y+row)*stride`; we mirror that arithmetic
+ * exactly so the address of every probed pixel matches retail's. */
+void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
+                         int32_t base_x, int32_t base_y,
+                         int32_t height, int32_t width, bs_trim_rect *out)
+{
+    /* init (0x5b6f8f..0x5b6fa7): the box starts inverted so the min/max
+     * folds below tighten it; both flags clear. */
+    out->x_left      = width;
+    out->x_right     = 0;
+    out->y_top       = height;
+    out->y_bottom    = 0;
+    out->found_opaque = 0;
+    out->found_key    = 0;
+
+    uint16_t depth = s->biBitCount;                 /* FUN_005b6f00 */
+
+    if (depth != 8 && depth != 24) {
+        /* other depth (0x5b6fbe): can't classify pixels → the whole cell is
+         * the box and both flags are set. */
+        out->x_left      = 0;
+        out->x_right     = width - 1;
+        out->y_top       = 0;
+        out->y_bottom    = height - 1;
+        out->found_opaque = 1;
+        out->found_key    = 1;
+        return;
+    }
+
+    const uint8_t *pixels = (const uint8_t *)s->pixels;
+    ptrdiff_t      stride = (ptrdiff_t)(int32_t)s->stride;
+    const uint8_t *bottom = pixels + (ptrdiff_t)(int32_t)(s->biHeight - 1) * stride;
+
+    if (depth == 24) {
+        /* 0x5b6fe2: 3 bytes/px (B,G,R); key split into its three channels. */
+        uint8_t kB = (uint8_t)key;
+        uint8_t kG = (uint8_t)(key >> 8);
+        uint8_t kR = (uint8_t)(key >> 16);
+
+        for (int32_t row = 0; row < height; row++) {          /* ebx, 0..H */
+            const uint8_t *p = bottom + (ptrdiff_t)base_x * 3
+                                      - (ptrdiff_t)(base_y + row) * stride;
+            for (int32_t x = 0; x < width; x++) {             /* ecx, 0..W */
+                if (p[2] == kR && p[1] == kG && p[0] == kB) {
+                    out->found_key = 1;                       /* 0x5b7047 */
+                } else {
+                    if (out->x_left > x) out->x_left = x;      /* min, 0x5b7051 */
+                    out->found_opaque = 1;                     /* 0x5b705b */
+                }
+                p += 3;
+            }
+            /* Gate (0x5b706b): the *global* x_left < W — quirk #48.  Once any
+             * earlier row has opaque, this stays true, so trailing transparent
+             * rows still extend y_bottom (and run a no-op right-scan). */
+            if (out->x_left < width) {
+                /* right-edge scan (0x5b7071): walk left from the last column
+                 * over key pixels; the first opaque column is x_right. */
+                const uint8_t *q = bottom + (ptrdiff_t)(base_x + width - 1) * 3
+                                          - (ptrdiff_t)(base_y + row) * stride;
+                int32_t x = width - 1;
+                while (x >= 0 && q[2] == kR && q[1] == kG && q[0] == kB) {
+                    q -= 3; x--;
+                }
+                if (x >= 0 && out->x_right < x) out->x_right = x;   /* max */
+                if (out->y_top    > row) out->y_top    = row;       /* min */
+                if (out->y_bottom < row) out->y_bottom = row;       /* max */
+            }
+        }
+        return;
+    }
+
+    /* depth == 8 (0x5b70e4): 1 byte/px palette index, compared against the
+     * key's low byte.  The opaque gate is *per-row* (ebx, reset each row) —
+     * unlike the 24bpp path — so y_bottom is the last genuinely-opaque row. */
+    uint8_t k = (uint8_t)key;
+    for (int32_t row = 0; row < height; row++) {
+        int row_opaque = 0;                                   /* ebx */
+        const uint8_t *p = bottom + (ptrdiff_t)base_x
+                                  - (ptrdiff_t)(base_y + row) * stride;
+        for (int32_t x = 0; x < width; x++) {
+            if (p[x] == k) {
+                out->found_key = 1;                           /* 0x5b713c */
+            } else {
+                if (out->x_left > x) out->x_left = x;          /* min, 0x5b7127 */
+                row_opaque = 1;                                /* ebx = 1 */
+                out->found_opaque = 1;
+            }
+        }
+        if (row_opaque) {                                     /* test ebx, 0x5b7149 */
+            const uint8_t *r = bottom + (ptrdiff_t)base_x
+                                      - (ptrdiff_t)(base_y + row) * stride;
+            int32_t x = width - 1;
+            while (x >= 0 && r[x] == k) { x--; }
+            if (x >= 0 && out->x_right < x) out->x_right = x;  /* max */
+            if (out->y_top    > row) out->y_top    = row;
+            if (out->y_bottom < row) out->y_bottom = row;
+        }
+    }
 }

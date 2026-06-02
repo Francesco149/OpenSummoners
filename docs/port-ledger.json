@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 127,
+  "tested": 128,
   "ported": 3,
-  "unported": 1628,
+  "unported": 1627,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 130,
+  "touched": 131,
   "pct_touched": 8.1,
   "pct_tested": 8.1,
-  "engine_proper_touched": 120,
+  "engine_proper_touched": 121,
   "bytes_total": 1694868,
-  "bytes_touched": 168440,
-  "pct_bytes_touched": 9.9
+  "bytes_touched": 169063,
+  "pct_bytes_touched": 10.0
  },
  "orphan_refs": [
   "0x56c470",
@@ -10881,6 +10881,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/bitmap_session.c",
     "src/bitmap_session.h"
    ]
   },
@@ -10907,8 +10908,11 @@
    "name": "FUN_005b6f80",
    "size": 623,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/bitmap_session.c",
+    "src/bitmap_session.h"
+   ]
   },
   {
    "va": "0x5b71f0",

@@ -268,4 +268,54 @@ _Static_assert(offsetof(bs_bitmap_info, palette)    == 0x28, "bs_bitmap_info pal
 int bs_parse_compressed_header(bs_bitmap_info *out, const void *resource_data,
                                uint32_t *out_pixel_offset);
 
+/* ─── per-cell opaque-bounding-box scan (FUN_005b6f80) ────────────────
+ *
+ * The trim-metadata builder the per-cell surface builder (8d, 0x5b9630)
+ * runs before allocating a sprite cell's surface: it scans a W×H window of
+ * the decoded sheet, starting at (base_x, base_y), for the tight bounding
+ * box of *opaque* (non-colour-key) pixels, and reports whether the cell
+ * holds any opaque and/or any key (transparent) pixels.  The surface
+ * builder uses the box to size the cell surface, the `found_opaque` flag to
+ * skip a fully-transparent cell (a metrics-only ZDDObject, no surface), and
+ * the `found_key` flag to decide whether a colour key is needed at all (a
+ * fully-opaque cell takes the 0x1ffffff "no key" sentinel).
+ *
+ * The sheet is a bottom-up DIB: pixel (x, y) lives at
+ * `pixels + (biHeight-1-y)*stride + x*bytes_per_pixel`.  Depth is read from
+ * `biBitCount` (FUN_005b6f00):
+ *   - 24bpp: each pixel is B,G,R bytes; key compared against
+ *     (key&0xff, (key>>8)&0xff, (key>>16)&0xff).
+ *   - 8bpp:  each pixel is a 1-byte palette index; key compared against
+ *     (uint8_t)key.
+ *   - any other depth: the scan is skipped and the box is the full cell
+ *     (x:[0,W-1], y:[0,H-1], both flags set) — retail can't classify it.
+ *
+ * ⚠ Engine quirk #48 — the 8bpp and 24bpp paths are NOT symmetric in how
+ * they bound the bottom edge.  The 24bpp path gates its right-edge scan +
+ * y-bounds update on the *global* `x_left < W` (once any opaque pixel has
+ * been seen in any earlier row), so every subsequent row — including
+ * fully-transparent ones — extends `y_bottom`; the practical effect is that
+ * 24bpp `y_bottom` runs to `H-1` whenever the cell has any opaque pixel at
+ * all.  The 8bpp path uses a *per-row* opaque flag, so its `y_bottom` is the
+ * last row that actually contains an opaque pixel (tight).  Both paths keep
+ * `x_left`/`x_right`/`y_top` tight.  This port reproduces the asymmetry
+ * byte-for-byte; see docs/findings/engine-quirks.md #48. */
+typedef struct bs_trim_rect {
+    int32_t x_left;       /* +0x00 — min opaque column (init W)            */
+    int32_t x_right;      /* +0x04 — max opaque column (init 0)            */
+    int32_t y_top;        /* +0x08 — min opaque row (init H)               */
+    int32_t y_bottom;     /* +0x0c — max opaque row (init 0); see quirk #48 */
+    int32_t found_opaque; /* +0x10 — 1 iff any non-key pixel seen          */
+    int32_t found_key;    /* +0x14 — 1 iff any key (transparent) pixel seen */
+} bs_trim_rect;
+
+/* Scan the W×H window at (base_x, base_y) of `s` for the opaque bounding box.
+ * `key` is the colour key (24-bit BGR for 24bpp, low byte = index for 8bpp).
+ * Arg order mirrors retail (key, base_x, base_y, height, width, out).  When
+ * height <= 0 (24bpp) or the scan finds nothing, the box keeps its init
+ * values (x_left=W, x_right=0, y_top=H, y_bottom=0) and the flags stay 0. */
+void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
+                         int32_t base_x, int32_t base_y,
+                         int32_t height, int32_t width, bs_trim_rect *out);
+
 #endif /* OPENSUMMONERS_BITMAP_SESSION_H */

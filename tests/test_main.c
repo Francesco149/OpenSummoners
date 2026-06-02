@@ -223,6 +223,12 @@ struct test_case {
     X(palette_ramps_portrait_flags_written_per_register)       \
     X(palette_ramps_portrait_slot_field_writes)                \
     X(palette_ramps_coexist_with_main_pool_unwritten)          \
+    X(trim_24bpp_loose_ybottom_quirk)                          \
+    X(trim_8bpp_tight_ybottom)                                 \
+    X(trim_all_key_no_opaque)                                  \
+    X(trim_all_opaque_no_key)                                  \
+    X(trim_other_depth_full_rect)                              \
+    X(trim_subwindow_8bpp)                                     \
     X(bitmap_session_layout_matches_retail)                    \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \

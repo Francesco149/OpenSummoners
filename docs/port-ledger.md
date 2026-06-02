@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **130** (8.1% of engine-proper) — tested 127, ported 3
-- code bytes touched: **9.9%** (168,440 / 1,694,868 B of engine-proper)
-- unported: **1628**
+- touched: **131** (8.1% of engine-proper) — tested 128, ported 3
+- code bytes touched: **10.0%** (169,063 / 1,694,868 B of engine-proper)
+- unported: **1627**
 - orphan refs in src/ not in this table: 4
 
-## tested (127) — ported + host unit suite
+## tested (128) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -79,8 +79,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5f50 | FUN_005b5f50 | 71 | asset_register.c, asset_register.h |
 | 0x5b6e70 | FUN_005b6e70 | 9 | bitmap_session.h |
 | 0x5b6e90 | FUN_005b6e90 | 24 | bitmap_session.h |
-| 0x5b6f00 | FUN_005b6f00 | 7 | bitmap_session.h |
+| 0x5b6f00 | FUN_005b6f00 | 7 | bitmap_session.c, bitmap_session.h |
 | 0x5b6f10 | FUN_005b6f10 | 26 | bitmap_session.h |
+| 0x5b6f80 | FUN_005b6f80 | 623 | bitmap_session.c, bitmap_session.h |
 | 0x5b71f0 | FUN_005b71f0 | 117 | bitmap_session.c, bitmap_session.h, bitmap_session_win32.c |
 | 0x5b7800 | FUN_005b7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h |
 | 0x5b7b90 | FUN_005b7b90 | 53 | bitmap_session.h |
