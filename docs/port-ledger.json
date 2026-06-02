@@ -8168,6 +8168,8 @@
     "src/main.c",
     "src/pixel_drawer.c",
     "src/pixel_drawer.h",
+    "src/title_drive.c",
+    "src/title_drive.h",
     "src/title_scene.h"
    ]
   },
@@ -8448,6 +8450,8 @@
     "src/input.h",
     "src/main.c",
     "src/obj_container.h",
+    "src/title_drive.c",
+    "src/title_drive.h",
     "src/title_scene.c",
     "src/title_scene.h",
     "src/title_sink.h",
@@ -11228,6 +11232,7 @@
    "src": [
     "src/call_trace.h",
     "src/main.c",
+    "src/title_drive.h",
     "src/title_scene.h",
     "src/title_sink.h",
     "src/zdd.c",

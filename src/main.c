@@ -25,6 +25,10 @@
  *   - --skip-ddraw: skip DDraw init entirely (window-only boot).
  *   - --no-present: skip the per-frame zdd_present dispatch
  *     (DDraw init still runs).
+ *   - --no-title-scene: skip the title-scene drive (FUN_0056aea0 caller)
+ *     and run the legacy minimal present loop instead — a known-good
+ *     black/uninitialised window, useful for isolating DDraw-init issues
+ *     from the scene runner.
  *
  * Build: `make -C src` from inside `nix develop`.
  */
@@ -41,6 +45,8 @@
 #include "zdd.h"
 #include "cs_dispatch.h"
 #include "call_trace.h"
+#include "title_drive.h"
+#include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -79,11 +85,19 @@ static int       g_allow_multi;
 static int       g_skip_cd;
 static int       g_skip_ddraw;
 static int       g_no_present;
+static int       g_no_title_scene;
 static unsigned  g_max_frames;
 static int       g_launcher_mode = DEFAULT_LAUNCHER_MODE;
 static int       g_shutdown;
 static HANDLE    g_singleton_mutex;
 static zdd      *g_zdd;
+
+/* The title-scene drive (the caller side of FUN_0056aea0).  Active once
+ * init_title_drive succeeds; one main_loop_body iteration runs one
+ * title_scene_step against it.  --no-title-scene falls back to the legacy
+ * minimal present loop (a black/uninitialised window, zero DDERR/frame). */
+static title_drive g_drive;
+static int         g_drive_active;
 
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
@@ -112,6 +126,9 @@ static void log_line(const char *fmt, ...);
 static int  init_ddraw(void);
 static void shutdown_ddraw(void);
 static void sync_window_position(void);
+static void init_title_drive(void);
+static void drive_present(void *user);
+static void drive_log_flip(void *user);
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -196,6 +213,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * inside FUN_005b9130 or a sibling).  Updated again on WM_MOVE
      * below; this initial sample covers the window's spawn position. */
     sync_window_position();
+
+    /* Stand up the title-scene drive (the caller side of FUN_0056aea0): bind
+     * the render sink to the live primary surface, install the sprite-bank
+     * self-decode hook, and allocate the scene object graph.  After this the
+     * per-frame loop runs the title scene; --no-title-scene or a failed/absent
+     * DDraw boot falls back to the legacy minimal present loop. */
+    if (!g_no_title_scene && !g_skip_ddraw && g_zdd != NULL)
+        init_title_drive();
+
     call_trace_end_frame();   /* close boot frame 0 */
 
     g_base_time_ms = timeGetTime();
@@ -210,6 +236,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     log_line("OpenSummoners exiting after %u frames (%u ms wall)",
              g_frame_counter, g_total_ms);
 
+    if (g_drive_active) {
+        title_drive_shutdown(&g_drive);
+        g_drive_active = 0;
+    }
     shutdown_ddraw();
     call_trace_shutdown();
     timeEndPeriod(1);
@@ -256,6 +286,58 @@ static void shutdown_ddraw(void)
         zdd_destroy(g_zdd);
         g_zdd = NULL;
     }
+}
+
+/* TITLE_DRAW_FLIP → present the frame (retail FUN_005b8fc0).  --no-present
+ * suppresses it (DDraw init still ran, the surface just isn't blitted). */
+static void drive_present(void *user)
+{
+    (void)user;
+    if (!g_no_present && g_zdd != NULL)
+        zdd_present(g_zdd);
+}
+
+/* TITLE_DRAW_LOG_FLIPPING → the engine's "Title Menu - Flipping" marker. */
+static void drive_log_flip(void *user)
+{
+    (void)user;
+    log_line("Title Menu - Flipping");
+}
+
+/* Build the title-scene drive against the live ZDD.  Binds the render sink to
+ * g_zdd->primary_obj (so the cmd stream drives real blits) and installs
+ * ar_sprite_decode_hook so the title banks self-decode once registered.  The
+ * per-cell surface builder (8d, ar_frame_build_hook) is intentionally left
+ * NULL: until it lands, every sprite resolves to NULL and the scene renders a
+ * cleared + flipped window with no sprites (HANDOFF "move B") — proving the
+ * loop live.  The alpha ramps (0x8a92b8/0x8a9308) and the compositor display
+ * group are unfilled/unmodeled at a cold boot, so they pass through as NULL
+ * (plain blits / no compose — faithful).  skip_intro stays 0 so a first boot
+ * plays the studio fade from the start, exactly like retail's cold launch. */
+static void init_title_drive(void)
+{
+    /* Self-decode the sprite banks on first frame access (still NULL surfaces
+     * until 8d, but installs the chain so a later 8d wire-up needs no change). */
+    ar_sprite_decode_hook = ar_sprite_decode;
+
+    title_drive_cfg cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.primary    = g_zdd->primary_obj;
+    cfg.present    = drive_present;
+    cfg.log_flip   = drive_log_flip;
+    cfg.user       = NULL;
+    cfg.select_key = 0;        /* no saved menu pick at a cold boot */
+    cfg.quiet      = 0;
+    cfg.skip_intro = 0;
+
+    if (!title_drive_init(&g_drive, &cfg)) {
+        log_line("init_title_drive: title_drive_init failed — "
+                 "falling back to legacy present loop");
+        return;
+    }
+    g_drive_active = 1;
+    log_line("init_title_drive: title scene driven (primary=%p, sprites blank "
+             "until 8d surface builder lands)", (void *)g_zdd->primary_obj);
 }
 
 /* Anchor CWD + DLL search dir to the game directory.  Reads
@@ -398,13 +480,23 @@ static void main_loop_body(void)
         DispatchMessageA(&msg);
     }
 
-    /* Per-frame present — FUN_005b8fc0's 5-mode dispatcher.  Until the
-     * real scene runner (FUN_0056aea0) lands and produces real content,
-     * the offscreen surface is whatever DDraw initialised it to (usually
-     * zero / undefined), so the windowed BitBlt produces a black or
-     * uninitialised rectangle in the window.  That's the expected
-     * behaviour pre-renderer; success is "zero DDERR per frame". */
-    if (!g_skip_ddraw && !g_no_present && g_zdd != NULL) {
+    if (g_drive_active) {
+        /* Drive one iteration of the title scene (one body of FUN_0056aea0's
+         * outer do/while).  The scene's pacer decides update vs render; a
+         * render iteration presents through the sink's TITLE_DRAW_FLIP →
+         * drive_present.  On scene completion, log the menu-action result and
+         * stop — the outer driver's action dispatch (FUN_00562ea0) lands when
+         * the next scenes are ported. */
+        title_scene_status st = title_drive_step(&g_drive, GetTickCount());
+        if (st == TITLE_SCENE_DONE) {
+            log_line("title scene returned result=%ld", (long)g_drive.result);
+            g_shutdown = 1;
+        }
+    } else if (!g_skip_ddraw && !g_no_present && g_zdd != NULL) {
+        /* Legacy minimal present (--no-title-scene / failed drive init).  The
+         * offscreen surface is whatever DDraw initialised it to, so the
+         * windowed BitBlt produces a black/uninitialised rectangle; success is
+         * "zero DDERR per frame". */
         zdd_present(g_zdd);
     }
 
@@ -446,6 +538,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;
         else if (!strcmp(tok, "--skip-ddraw"))   g_skip_ddraw = 1;
         else if (!strcmp(tok, "--no-present"))   g_no_present = 1;
+        else if (!strcmp(tok, "--no-title-scene")) g_no_title_scene = 1;
         else if (!strcmp(tok, "--frames")) {
             tok = strtok(NULL, " \t");
             if (tok) g_max_frames = (unsigned)strtoul(tok, NULL, 10);
