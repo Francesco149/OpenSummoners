@@ -610,6 +610,14 @@ struct test_case {
     X(title_render_level_div_nonpos_idx_zero)                  \
     X(title_render_cursor_alpha_and_clamps)                    \
     X(title_render_cursor_guards)                              \
+    X(zdd_object_blt_clipped_null_src_degenerate_success)      \
+    X(zdd_object_blt_clipped_no_clip_forwards_rects)           \
+    X(zdd_object_blt_clipped_left_top_clip)                    \
+    X(zdd_object_blt_clipped_clamps_to_extent)                 \
+    X(zdd_object_blt_clipped_collapsed_returns_zero)           \
+    X(zdd_object_blt_clipped_null_dest_on_live_path_returns_zero) \
+    X(title_render_sparkle_alpha_path)                         \
+    X(title_render_sparkle_clipped_path)                       \
 
 #define X(n) extern int test_##n(void);
 TESTS

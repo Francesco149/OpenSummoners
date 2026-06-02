@@ -166,8 +166,14 @@ fade ramp:
   full opaque); else alpha via `0x5bd550` with that descriptor.
 - **0x56c470** (`TITLE_DRAW_MENU_CURSOR`): ramp `0x8a92b8[idx]`, always alpha
   via `0x5bd550`.
-- **0x56c580** (`TITLE_DRAW_SPARKLE`): the `arg` gate at +0x24 picks between
-  `0x5b9bf0` (a blt_keyed sibling, 256 B, not yet ported) and `0x5bd550`.
+- **0x56c580** (`TITLE_DRAW_SPARKLE`, PORTED ckpt 19 → `title_draw_sparkle`):
+  gated directly on a caller-supplied descriptor (not a ramp lookup).
+  desc != NULL → `0x5bd550` alpha with an **explicit src sub-rect**
+  (src_x/src_y + w/h, unlike the other wrappers' 0,0 / metric_14·18);
+  desc == NULL → `zdd_object_blt_clipped` (`0x5b9bf0`), a color-keyed Blt
+  that clips the src rect against the sprite's metric_0c/_10 origin +
+  metric_14/_18 extent.  The alpha path metric-offsets the dest; the
+  clipped path passes the raw dest (clip applied inside).
 
 These are the remaining `TITLE_DRAW_*` arms of the render sink. They want a
 small render-bridge module that can include both `asset_register.h`
@@ -175,12 +181,12 @@ small render-bridge module that can include both `asset_register.h`
 
 ## What's left (next chips, in dependency order)
 
-1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17** + ~~**the wrappers
-   `0x56c610/_4e0/_470`**~~ **DONE ckpt 18** (`title_compositor_draw` +
-   `title_draw_sprite`/`_level`/`_menu_cursor` in `src/title_render.{c,h}`).
-   Still in this module: the **sparkle wrapper `0x56c580`**, blocked on the
-   unported keyed-blit sibling **`0x5b9bf0`** (256 B) — port that in zdd.c
-   first, then the sparkle forwards like the others.
+1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17**; ~~**the wrappers
+   `0x56c610/_4e0/_470`**~~ **DONE ckpt 18**; ~~**`0x5b9bf0` + the sparkle
+   wrapper `0x56c580`**~~ **DONE ckpt 19** (`zdd_object_blt_clipped` in zdd.c
+   + `title_draw_sparkle` in title_render.c).  **The whole compositor +
+   wrapper layer is now ported** — every `TITLE_DRAW_*` arm has a bridge.
+   What remains for pixels is the decoder (below) + the sink/drive.
 2. **The sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`** — the
    `ar_sprite_decode_hook` target. Reads the "DATA" PE resource (via the
    resource-stream readers `0x5b7800` + the trivial field getters

@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Clipped Blt `FUN_005b9bf0` + sparkle wrapper: the whole title compositor/wrapper layer is ported, ckpt 19
+
+Ported the last two render-bridge chips, completing every `TITLE_DRAW_*` arm:
+
+- **`FUN_005b9bf0` → `zdd_object_blt_clipped`** (zdd.c) — the third blt
+  sibling: a color-keyed Blt whose source rect is clipped against the src
+  object's placement metrics (metric_0c/_10 origin, metric_14/_18 extent)
+  with an explicit source sub-origin, the dest rect shifting to compensate
+  for any left/top clip.  Pinned from the Ghidra decomp at
+  `docs/decompiled/by-address/5b9bf0.c` (the hand stack-trace was ambiguous;
+  the decomp made the clip algebra unambiguous).  Reuses the existing
+  `zdd_surface_blt` primitive.  Returns 1 (no surface) / 0 (collapsed
+  region) / HRESULT like its siblings.
+
+- **`FUN_0056c580` → `title_draw_sparkle`** (title_render.c) — the sparkle/
+  trail wrapper, gated directly on a caller-supplied descriptor (not a ramp
+  lookup): desc != NULL → `zdd_blit_orchestrate` alpha with an **explicit
+  source sub-rect** (the only wrapper that doesn't use src 0,0 + the
+  sprite's full metric_14/_18); desc == NULL → `zdd_object_blt_clipped`.
+  The alpha path metric-offsets the dest origin; the clipped path passes the
+  raw origin (the clip applies the metric internally) — a retail asymmetry
+  preserved literally.
+
+**8 new host tests** (6 blt_clipped: null-src, no-clip rect forward,
+left/top clip, extent clamp, collapsed→0, null-dest defensive; 2 sparkle:
+alpha vs clipped path selection + arg mapping).  **587 host tests pass, 0
+fail, 6 skip.**  Both 32-bit cross-builds clean.  Ledger **128/1490 touched
+(7.9%), 125 tested** (+1 = blt_clipped; the four 0x56cxxx wrappers are
+sub-helper labels — real ports not in functions.csv, so the headline holds).
+
+The compositor + all four wrappers + the three blt primitives behind them
+are now ported.  Next render chip = the sprite-sheet **decoder `0x4184a0` +
+slicer `0x4188b0`** (the genuine pixel source; needs the sheet binary format
+pinned), then the **sink + drive from `main.c`**.  See
+`docs/findings/sprite-pipeline.md`.
+
+---
+
 ## 2026-06-02 — Compositor `FUN_0056c180` ported into a new render-bridge module, ckpt 17
 
 Ported the per-frame sprite-display-list **compositor `FUN_0056c180`** as

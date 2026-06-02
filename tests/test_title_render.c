@@ -500,3 +500,83 @@ int test_title_render_cursor_guards(void)
     T_ASSERT_EQ_I(g_keyed_n, 0);
     return 0;
 }
+
+/* ─── sparkle wrapper (0x56c580) ─────────────────────────────────────── */
+
+static struct {
+    zdd_object *src, *dest;
+    int32_t dx, dy, w, h, sx, sy;
+} g_clip[8];
+static int g_clip_n;
+
+static int clip_cap(zdd_object *src, zdd_object *dest,
+                    int32_t dx, int32_t dy, int32_t w, int32_t h,
+                    int32_t sx, int32_t sy)
+{
+    if (g_clip_n < 8) {
+        g_clip[g_clip_n].src = src;  g_clip[g_clip_n].dest = dest;
+        g_clip[g_clip_n].dx = dx;    g_clip[g_clip_n].dy = dy;
+        g_clip[g_clip_n].w = w;      g_clip[g_clip_n].h = h;
+        g_clip[g_clip_n].sx = sx;    g_clip[g_clip_n].sy = sy;
+    }
+    g_clip_n++;
+    return 1;
+}
+
+int test_title_render_sparkle_alpha_path(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(100, 200, 999, 999, 0x77);   /* metric_14/18 ignored here */
+    memset(&dest, 0, sizeof dest);
+
+    zdd_blend_desc desc; memset(&desc, 0, sizeof desc);
+
+    g_cap_n = 0; g_clip_n = 0;
+    title_compositor_blit_hook = cap_hook;
+    title_clipped_blit_hook = clip_cap;
+    /* desc non-NULL → alpha; explicit src rect (src_x=3, src_y=4, w=20, h=10) */
+    title_draw_sparkle(&dest, &sprite, 5, 6, 20, 10, 3, 4, &desc);
+    title_compositor_blit_hook = NULL;
+    title_clipped_blit_hook = NULL;
+
+    T_ASSERT_EQ_I(g_cap_n, 1);
+    T_ASSERT_EQ_I(g_clip_n, 0);
+    T_ASSERT_EQ_P(g_cap[0].desc, &desc);
+    T_ASSERT_EQ_P(g_cap[0].dest, &dest);
+    T_ASSERT_EQ_P(g_cap[0].src, &sprite);
+    T_ASSERT_EQ_I(g_cap[0].dx, 105);            /* metric_0c 100 + 5 */
+    T_ASSERT_EQ_I(g_cap[0].dy, 206);            /* metric_10 200 + 6 */
+    T_ASSERT_EQ_I(g_cap[0].w, 20);
+    T_ASSERT_EQ_I(g_cap[0].h, 10);
+    T_ASSERT_EQ_I(g_cap[0].sx, 3);              /* explicit src origin (not 0) */
+    T_ASSERT_EQ_I(g_cap[0].sy, 4);
+    T_ASSERT_EQ_I(g_cap[0].ck, 0x77);
+    return 0;
+}
+
+int test_title_render_sparkle_clipped_path(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(100, 200, 64, 48, 0x77);
+    memset(&dest, 0, sizeof dest);
+
+    g_cap_n = 0; g_clip_n = 0;
+    title_compositor_blit_hook = cap_hook;
+    title_clipped_blit_hook = clip_cap;
+    /* desc NULL → clipped path; raw dest origin (NO metric offset). */
+    title_draw_sparkle(&dest, &sprite, 5, 6, 20, 10, 3, 4, NULL);
+    title_compositor_blit_hook = NULL;
+    title_clipped_blit_hook = NULL;
+
+    T_ASSERT_EQ_I(g_clip_n, 1);
+    T_ASSERT_EQ_I(g_cap_n, 0);
+    T_ASSERT_EQ_P(g_clip[0].src, &sprite);
+    T_ASSERT_EQ_P(g_clip[0].dest, &dest);
+    T_ASSERT_EQ_I(g_clip[0].dx, 5);             /* raw, no metric offset */
+    T_ASSERT_EQ_I(g_clip[0].dy, 6);
+    T_ASSERT_EQ_I(g_clip[0].w, 20);
+    T_ASSERT_EQ_I(g_clip[0].h, 10);
+    T_ASSERT_EQ_I(g_clip[0].sx, 3);
+    T_ASSERT_EQ_I(g_clip[0].sy, 4);
+    return 0;
+}

@@ -207,4 +207,36 @@ void title_draw_menu_cursor(zdd_object *dest, zdd_object *sprite,
                             int32_t x, int32_t y,
                             const zdd_blend_desc *const *ramp_a);
 
+/* Optional clipped-blit hook (mirrors title_keyed_blit_hook).  NULL ⇒ the
+ * sparkle wrapper's non-alpha path calls zdd_object_blt_clipped directly. */
+typedef int (*title_clipped_fn)(zdd_object *src, zdd_object *dest,
+                                int32_t dst_x, int32_t dst_y,
+                                int32_t width, int32_t height,
+                                int32_t src_x, int32_t src_y);
+extern title_clipped_fn title_clipped_blit_hook;
+
+/* FUN_0056c580 — sparkle / trail sprite (TITLE_DRAW_SPARKLE).  Unlike the
+ * other wrappers it carries an explicit source sub-rect (src_x/src_y +
+ * width/height) and is gated directly on a caller-supplied blend
+ * descriptor `desc`:
+ *   if (desc != NULL)   // alpha trail
+ *     zdd_blit_orchestrate(desc, dest, sprite,
+ *                          sprite->metric_0c + dst_x, sprite->metric_10 + dst_y,
+ *                          width, height, src_x, src_y,
+ *                          sprite->colorkey_out, NULL);
+ *   else                // opaque clipped copy
+ *     zdd_object_blt_clipped(sprite, dest, dst_x, dst_y,
+ *                            width, height, src_x, src_y);
+ * Note the asymmetry mirrors retail: the alpha path adds the sprite's
+ * placement metric to the dest origin and passes the explicit src rect,
+ * while the clipped path passes the raw dest origin (zdd_object_blt_clipped
+ * applies the metric as its clip origin instead).  `dest` is the primary
+ * surface (retail re-derives it from 0x8a93cc->[0x16c] on the clipped
+ * path; same surface as the alpha path's a1). */
+void title_draw_sparkle(zdd_object *dest, zdd_object *sprite,
+                        int32_t dst_x, int32_t dst_y,
+                        int32_t width, int32_t height,
+                        int32_t src_x, int32_t src_y,
+                        const zdd_blend_desc *desc);
+
 #endif /* OPENSUMMONERS_TITLE_RENDER_H */

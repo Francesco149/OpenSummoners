@@ -1517,6 +1517,87 @@ int zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
                            flags, NULL /* no DDERR log — bare vtable call */);
 }
 
+/* ─── clipped color-keyed Blt (FUN_005b9bf0) ────────────────────────── */
+
+/* FUN_005b9bf0 — a third blt sibling: color-keyed like zdd_object_blt_keyed
+ * but the source rect is CLIPPED against the src object's placement metrics
+ * (metric_0c/_10 = the source-region origin, metric_14/_18 = its extent),
+ * and the caller supplies an explicit source sub-origin (src_x/src_y).
+ * `src` is the __thiscall `this`; `dest` (param_1) receives the Blt.
+ *
+ * Clipping (per axis, X shown; Y identical with _10/_18):
+ *   if (src_x < metric_0c):            // requested src starts left of region
+ *     width += (src_x - metric_0c);    // shrink (deficit is negative)
+ *     dst_x += (metric_0c - src_x);    // shift dest right by the deficit
+ *     sx = 0;                          // clamp source-left to region origin
+ *   else:
+ *     sx = src_x - metric_0c;          // offset into the region
+ *   avail = metric_14 - sx;            // remaining source width
+ *   if (avail < width) width = avail;  // clamp to source extent
+ *
+ *   dest_rect = {dst_x, dst_y, dst_x+width, dst_y+height}
+ *   src_rect  = {sx, sy, sx+width, sy+height}
+ *   flags     = src->state_flag | DDBLT_KEYSRC-carry (0x1000000)
+ *
+ * Returns 1 (degenerate-success) when src has no surface (retail's literal
+ * at 0x5b9c03); 0 when the clipped width/height collapses to <= 0 (retail's
+ * `if (0<w && 0<h)` else 0); otherwise the Blt HRESULT.  dest is only
+ * dereferenced on the live-blit path — we add a defensive 0 there (retail
+ * would crash), matching zdd_object_blt_rects. */
+int zdd_object_blt_clipped(zdd_object *src, zdd_object *dest,
+                           int32_t dst_x, int32_t dst_y,
+                           int32_t width, int32_t height,
+                           int32_t src_x, int32_t src_y)
+{
+    if (src == NULL || src->com_primary == NULL) {
+        return 1;  /* degenerate-success — retail's literal at 0x5b9c03 */
+    }
+
+    int32_t clip_l = src->metric_0c;
+    int32_t sx;
+    if (src_x < clip_l) {
+        width += (src_x - clip_l);
+        dst_x += (clip_l - src_x);
+        sx = 0;
+    } else {
+        sx = src_x - clip_l;
+    }
+    int32_t avail_w = src->metric_14 - sx;
+    if (avail_w < width) {
+        width = avail_w;
+    }
+
+    int32_t clip_t = src->metric_10;
+    int32_t sy;
+    if (src_y < clip_t) {
+        height += (src_y - clip_t);
+        dst_y  += (clip_t - src_y);
+        sy = 0;
+    } else {
+        sy = src_y - clip_t;
+    }
+    int32_t avail_h = src->metric_18 - sy;
+    if (avail_h < height) {
+        height = avail_h;
+    }
+
+    if (width <= 0 || height <= 0) {
+        return 0;
+    }
+    if (dest == NULL || dest->com_primary == NULL) {
+        return 0;  /* defensive — retail derefs param_1+0x2c here */
+    }
+
+    int32_t dest_rect[4] = {dst_x, dst_y, dst_x + width, dst_y + height};
+    int32_t src_rect[4]  = {sx, sy, sx + width, sy + height};
+
+    uint32_t flags = (uint32_t)src->state_flag | 0x1000000u;
+
+    return zdd_surface_blt(dest->com_primary, dest_rect,
+                           src->com_primary, src_rect,
+                           flags, NULL /* bare vtable call, no DDERR log */);
+}
+
 /* ─── blit orchestrator (FUN_005bd550) ─────────────────────────────── */
 
 void zdd_blit_orchestrate(const zdd_blend_desc *desc, zdd_object *dest,

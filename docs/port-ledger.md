@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **127** (7.9% of engine-proper) — tested 124, ported 3
-- code bytes touched: **9.8%** (166,258 / 1,694,868 B of engine-proper)
-- unported: **1631**
-- orphan refs in src/ not in this table: 3
+- touched: **128** (7.9% of engine-proper) — tested 125, ported 3
+- code bytes touched: **9.8%** (166,514 / 1,694,868 B of engine-proper)
+- unported: **1630**
+- orphan refs in src/ not in this table: 4
 
-## tested (124) — ported + host unit suite
+## tested (125) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -125,6 +125,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |
 | 0x5b9b70 | FUN_005b9b70 | 122 | zdd.c, zdd.h |
+| 0x5b9bf0 | FUN_005b9bf0 | 256 | zdd.c, zdd.h |
 | 0x5ba290 | FUN_005ba290 | 30 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5bad20 | FUN_005bad20 | 26 | wnd_proc.h |
 | 0x5bad40 | FUN_005bad40 | 26 | wnd_proc.h |
@@ -156,9 +157,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bf440 | FUN_005bf440 | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | FUN_005bf496 | 50 | cs_dispatch_win32.c |
 
-## orphan refs (3) — FUN_ in src/ not in function table
+## orphan refs (4) — FUN_ in src/ not in function table
 
 Sub-helper labels (Ghidra splits a few functions) or typos. Listed so they read as known, not as silent drift.
 
-`0x56c470 0x56c4e0 0x56c610`
+`0x56c470 0x56c4e0 0x56c580 0x56c610`
 

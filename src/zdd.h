@@ -1401,6 +1401,19 @@ int  zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
                           int32_t src_x, int32_t src_y,
                           int32_t src_w, int32_t src_h);
 
+/* FUN_005b9bf0 — clipped color-keyed Blt.  Like zdd_object_blt_keyed but
+ * the source rect is clipped against `src`'s placement metrics
+ * (metric_0c/_10 origin, metric_14/_18 extent) using an explicit source
+ * sub-origin (src_x/src_y); the destination rect shifts to compensate for
+ * any left/top clip.  `src` is the __thiscall `this`; `dest` receives the
+ * Blt.  Returns 1 when src has no surface, 0 when the clipped region
+ * collapses, else the Blt HRESULT.  The sparkle wrapper 0x56c580 uses this
+ * on its non-alpha path.  Full clip algorithm in zdd.c. */
+int  zdd_object_blt_clipped(zdd_object *src, zdd_object *dest,
+                            int32_t dst_x, int32_t dst_y,
+                            int32_t width, int32_t height,
+                            int32_t src_x, int32_t src_y);
+
 /* FUN_005bd550 — the blit orchestrator that every title-screen sprite
  * draw funnels through (the per-frame compositor 0x56c180 and the
  * sprite wrappers 0x56c470/_4e0/_580 all call it).  __thiscall on a

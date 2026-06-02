@@ -4021,6 +4021,124 @@ int test_zdd_object_blt_rects_builds_both_rects_and_forwards(void)
     return 0;
 }
 
+/* ─── clipped color-keyed Blt (FUN_005b9bf0 / zdd_object_blt_clipped) ── */
+
+static zdd_object clip_src(void)
+{
+    zdd_object s; memset(&s, 0, sizeof s);
+    s.com_primary = (void *)(uintptr_t)0xaaa1;
+    s.metric_0c = 10; s.metric_10 = 20;     /* region origin */
+    s.metric_14 = 200; s.metric_18 = 100;   /* region extent */
+    s.state_flag = 0x8000;
+    return s;
+}
+
+int test_zdd_object_blt_clipped_null_src_degenerate_success(void)
+{
+    reset_stubs();
+    T_ASSERT_EQ_I(zdd_object_blt_clipped(NULL, NULL, 0,0,1,1,0,0), 1);
+    zdd_object src; memset(&src, 0, sizeof src);  /* com_primary NULL */
+    zdd_object dst; memset(&dst, 0, sizeof dst);
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    T_ASSERT_EQ_I(zdd_object_blt_clipped(&src, &dst, 0,0,1,1,0,0), 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_clipped_no_clip_forwards_rects(void)
+{
+    reset_stubs();
+    zdd_object src = clip_src();
+    zdd_object dst; memset(&dst, 0, sizeof dst);
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    /* src_x 30 >= 10 → sx=20; src_y 50 >= 20 → sy=30; no shrink. */
+    int rc = zdd_object_blt_clipped(&src, &dst, 5, 6, 50, 40, 30, 50);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    /* dest = {5, 6, 55, 46} */
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 5);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 6);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 55);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 46);
+    /* src = {20, 30, 70, 70} */
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0], 20);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[1], 30);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 70);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 70);
+    T_ASSERT_EQ_I((int)g_dd_blt_last_flags, (int)(0x8000 | 0x1000000));
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xaaa1);
+    return 0;
+}
+
+int test_zdd_object_blt_clipped_left_top_clip(void)
+{
+    reset_stubs();
+    zdd_object src = clip_src();
+    zdd_object dst; memset(&dst, 0, sizeof dst);
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    /* src_x 4 < 10 → width += (4-10) = -6 → 44; dst_x += (10-4)=+6 → 11; sx=0.
+     * src_y 5 < 20 → height += (5-20) = -15 → 25; dst_y += 15 → 21; sy=0. */
+    int rc = zdd_object_blt_clipped(&src, &dst, 5, 6, 50, 40, 4, 5);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    /* dest = {11, 21, 11+44, 21+25} = {11, 21, 55, 46} */
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 11);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 21);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 55);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 46);
+    /* src = {0, 0, 44, 25} */
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[1], 0);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 44);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 25);
+    return 0;
+}
+
+int test_zdd_object_blt_clipped_clamps_to_extent(void)
+{
+    reset_stubs();
+    zdd_object src = clip_src();
+    src.metric_14 = 30;                       /* narrow source */
+    zdd_object dst; memset(&dst, 0, sizeof dst);
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    /* sx = 30-10 = 20; avail_w = 30-20 = 10 < width 50 → width clamps to 10. */
+    int rc = zdd_object_blt_clipped(&src, &dst, 0, 0, 50, 40, 30, 50);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 10);   /* dst_x 0 + width 10 */
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 30);    /* sx 20 + width 10 */
+    return 0;
+}
+
+int test_zdd_object_blt_clipped_collapsed_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object src = clip_src();
+    zdd_object dst; memset(&dst, 0, sizeof dst);
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    /* src_x 4 < 10 → width += (4-10) = 3-6 = -3 → collapse → return 0. */
+    int rc = zdd_object_blt_clipped(&src, &dst, 0, 0, 3, 40, 4, 50);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_clipped_null_dest_on_live_path_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object src = clip_src();
+    /* valid clipped region but dest has no surface → defensive 0, no Blt. */
+    T_ASSERT_EQ_I(zdd_object_blt_clipped(&src, NULL, 0,0,50,40,30,50), 0);
+    zdd_object dst; memset(&dst, 0, sizeof dst);   /* com_primary NULL */
+    T_ASSERT_EQ_I(zdd_object_blt_clipped(&src, &dst, 0,0,50,40,30,50), 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
 /* ─── blit orchestrator (FUN_005bd550 / zdd_blit_orchestrate) ───────── */
 
 int test_zdd_blit_orchestrate_simple_locks_dest_blits_unlocks(void)

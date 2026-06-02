@@ -201,3 +201,37 @@ void title_draw_menu_cursor(zdd_object *dest, zdd_object *sprite,
     const zdd_blend_desc *desc = (ramp_a != NULL) ? ramp_a[idx] : NULL;
     alpha_blit(desc, dest, sprite, x, y);
 }
+
+/* FUN_0056c580 — sparkle / trail sprite (explicit src rect, desc-gated). */
+title_clipped_fn title_clipped_blit_hook = NULL;
+
+void title_draw_sparkle(zdd_object *dest, zdd_object *sprite,
+                        int32_t dst_x, int32_t dst_y,
+                        int32_t width, int32_t height,
+                        int32_t src_x, int32_t src_y,
+                        const zdd_blend_desc *desc)
+{
+    if (desc != NULL) {
+        /* alpha trail: metric-offset dest, explicit src sub-rect. */
+        int32_t out_x = sprite->metric_0c + dst_x;
+        int32_t out_y = sprite->metric_10 + dst_y;
+        if (title_compositor_blit_hook != NULL) {
+            title_compositor_blit_hook(desc, dest, sprite, out_x, out_y,
+                                       width, height, src_x, src_y,
+                                       sprite->colorkey_out, NULL);
+        } else {
+            zdd_blit_orchestrate(desc, dest, sprite, out_x, out_y,
+                                 width, height, src_x, src_y,
+                                 sprite->colorkey_out, NULL);
+        }
+    } else {
+        /* opaque clipped copy: raw dest origin (clip applied inside). */
+        if (title_clipped_blit_hook != NULL) {
+            title_clipped_blit_hook(sprite, dest, dst_x, dst_y,
+                                    width, height, src_x, src_y);
+        } else {
+            zdd_object_blt_clipped(sprite, dest, dst_x, dst_y,
+                                   width, height, src_x, src_y);
+        }
+    }
+}
