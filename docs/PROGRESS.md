@@ -3186,3 +3186,49 @@ arms are still deferred no-ops and the cold-boot intro must reach the menu phase
 Ledger **138/1490 (8.6%), 135 tested (+7)**.
 
 ---
+
+## ckpt 26 (2026-06-02) — THE TITLE SCREEN RENDERS (bank registration + frame capture)
+
+**The payoff checkpoint.** Registering the title sprite banks at boot lit up the
+whole ported render pipeline. The drop-in now decodes the real Fortune Summoners
+title art from sotesd.dll and blits it to screen.
+
+**The fix** (`src/main.c`, commit `e00718b`): `init_sprite_banks()` —
+`LoadLibraryA("sotesd.dll")` + `ar_state_init()` +
+`ar_register_main_sprites(g_zdd, /*group=*/4, hSotesd, hSotesd)`, called between
+`init_ddraw` and `init_title_drive`. `FreeLibrary` on shutdown. The pool slots
+19/20 the sink reads (`AR_SPR_TITLE_MAIN`/`_CURSOR` → `g_ar_sprite_slots[6]`/`[7]`
+= ids 0x91b/0x91c) are exactly the ones `ar_register_main_sprites` populates, so
+the getter stops short-circuiting to NULL and the decode→slice→8d→blit chain runs.
+
+**RE findings that unblocked it (engine-quirks #51):**
+- `bs_decode_resource`/FUN_005b7800 takes the HMODULE **directly** — no `+0x3c`
+  record indirection. `settings` is literally an HMODULE.
+- That HMODULE is **sotesd.dll** = `DAT_008a6e74` (stored @ 0x5af5fc right after
+  its `LoadLibraryA`). The asset-loader doc mapped the three DLL handles to the
+  wrong DAT_ slots (said sotesp.dll) — corrected.
+- Every title resource (logo 0x49f, bg banks 0x91b/0x91c, slot-0 palette seed
+  0x90b) lives in sotesd.dll's `DATA` type; none in sotesp.dll. Slot 0's
+  `sotesp_module` arg is the SAME sotesd handle (misnamed param).
+
+**Verified 1:1 against retail goldens** via new port-side frame capture
+(`--capture-frames "60,200,…"` → `port_frame_NNNNN.bmp` of the composed primary;
+BMP→PNG→read-image). Port frame 60 = full title art + "FORTUNE SUMMONERS" logo;
+port frame 200 = the title menu (Start/Continue/Bonus Menu/Options/Exit +
+"Secret of the Elemental Stone" + copyright), **pixel-identical to retail
+`runs/title-idle/frame_01900.png`**. Frame capture committed `dd4ef08` (roadmap
+task #10 core).
+
+**Three remaining fidelity gaps (NEXT layer, not rendering bugs):**
+1. Intro pacing — port reaches the menu by Flip ~200; retail still on the
+   Lizsoft splash there (~1900 to menu). The pace pump `0x5b1030` is a stubbed
+   hook, so phases aren't time-gated. Port it to match retail's timeline.
+2. Menu cursor highlight absent — the CURSOR bank (pool 20) is registered + live
+   but the `MENU_CURSOR` sink arm is a deferred no-op. Wire it.
+3. Lizsoft studio splash not drawn — `LOGO`/`SPARKLE` arms deferred (need the
+   runtime alpha ramps `0x8a92b8`/`0x8a9308` populated).
+
+**647 host tests (0 fail, 6 skip).** Ledger **138/1490 (8.6%)** unchanged —
+wiring, not a new function port. Added `SINK_RESOLVE_DEBUG` compile-gated probe.
+
+---
