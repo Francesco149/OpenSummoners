@@ -298,6 +298,23 @@ let   g_fade_probe        = false;
 let   g_fade_probe_hooked = false;
 let   g_fade_last_flip    = -1;
 
+// ─── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──────────────────────
+// Retail seeds srand(time()) at boot (FUN_00562210 @0x56227a), so the engine
+// LCG (FUN_005bf505, seed DAT_008a4f94) — and every random effect through it,
+// the phase-7 sparkle spawn FUN_0056c070 first among them — is wall-clock
+// dependent and not reproducible.  To diff the port's twinkles bit-for-bit we
+// pin the seed: write a fixed value into DAT_008a4f94 immediately before the
+// FIRST 0x56c070 spawn, so retail enters phase-7 spawning from the same LCG
+// state the port boots with (the port makes no rand() calls before then).
+// One-shot — re-pinning per spawn would make every particle identical.  Any
+// divergence that survives this pin is an unaccounted rand() consumer firing
+// between spawns on one side: a real ordering bug to chase, not RNG noise.
+const SPAWN_VA            = 0x56c070;   // FUN_0056c070 (sparkle spawn)
+const SEED_VA             = 0x8a4f94;   // DAT_008a4f94 (LCG seed word)
+let   g_seed_pin          = false;
+let   g_seed_value        = 0x4f5347;   // OSS_RNG_DEFAULT_SEED (matches port)
+let   g_seed_pinned       = false;      // one-shot latch
+
 // ─── intro-pace probe (parity residual R3) ──────────────────────────────
 // Timestamps Flips so the flip-RATE can be measured: it discriminates
 // "retail rushes vs port" between two hypotheses for the flip-index gap —
@@ -1525,6 +1542,25 @@ function installFadeProbe() {
     logmsg('fade probe installed @ FUN_00448c80');
 }
 
+function installSeedPin() {
+    Interceptor.attach(rva(SPAWN_VA), {
+        onEnter: function (args) {
+            if (g_seed_pinned) return;       // one-shot: first spawn only
+            g_seed_pinned = true;
+            const seedAddr = rva(SEED_VA);
+            let before = 0;
+            try { before = seedAddr.readU32(); } catch (e) {}
+            try { seedAddr.writeU32(g_seed_value >>> 0); } catch (e) {
+                err('seed_pin_write', '' + e);
+            }
+            send({kind: 'seed_pinned', frame: g_flip_frame,
+                  before: before >>> 0, value: g_seed_value >>> 0});
+        },
+    });
+    logmsg('seed pin installed @ FUN_0056c070 (DAT_008a4f94 <- 0x' +
+           (g_seed_value >>> 0).toString(16) + ')');
+}
+
 function memWatchFlush(frameNumber) {
     if (g_mem_watch_buffer.length === 0) return;
     const events = g_mem_watch_buffer;
@@ -1695,6 +1731,8 @@ rpc.exports = {
         g_cursor_probe         = !!opts.cursor_probe;
         g_fade_probe           = !!opts.fade_probe;
         g_pace_probe           = !!opts.pace_probe;
+        g_seed_pin             = !!opts.seed_pin;
+        if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
             g_pace_every = opts.pace_every | 0;
         if (typeof opts.turbo_step_ms === 'number') g_turbo_step_ms = opts.turbo_step_ms;
@@ -1765,6 +1803,10 @@ rpc.exports = {
             if (g_fade_probe) {
                 try { installFadeProbe(); }
                 catch (e) { err('install_fade_probe', '' + e); }
+            }
+            if (g_seed_pin) {
+                try { installSeedPin(); }
+                catch (e) { err('install_seed_pin', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }

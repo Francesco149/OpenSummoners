@@ -281,6 +281,13 @@ class CaptureConfig:
     pace_probe:        bool = False
     pace_every:        int  = 30
 
+    # ── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──
+    # Write a fixed seed into DAT_008a4f94 just before the first FUN_0056c070
+    # sparkle spawn, so retail's twinkle stream matches the port's pinned-seed
+    # build bit-for-bit.  On by default (user directive: pin both sides).
+    seed_pin:          bool = True
+    seed_value:        int  = 0x4f5347   # OSS_RNG_DEFAULT_SEED
+
 
 def _resolve_run_dir(base: Path | None) -> Path:
     if base is None:
@@ -507,6 +514,16 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"div={payload.get('div')} "
                   f"ecx=0x{int(payload.get('ecx',0)):08x} "
                   f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+        elif kind == "seed_pinned":
+            print(f"[frida_capture] RNG seed pinned @ frame "
+                  f"{payload.get('frame')} (first FUN_0056c070): "
+                  f"DAT_008a4f94 0x{int(payload.get('before',0)):08x} -> "
+                  f"0x{int(payload.get('value',0)):08x}", file=sys.stderr)
+            summary["seed_pinned"] = {
+                "frame": payload.get("frame"),
+                "before": payload.get("before"),
+                "value": payload.get("value"),
+            }
         elif kind == "fade_level":
             frame = int(payload.get("frame", -1))
             if fade_f is not None:
@@ -567,6 +584,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         "fade_probe":         cfg.fade_probe,
         "pace_probe":         cfg.pace_probe,
         "pace_every":         cfg.pace_every,
+        "seed_pin":           cfg.seed_pin,
+        "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_regions":  [
@@ -719,6 +738,16 @@ def main() -> int:
                         "R3). Use --no-turbo. Implies a flip-frame anchor.")
     p.add_argument("--pace-every", type=int, default=30,
                    help="emit one pace sample per N flips (default 30).")
+    p.add_argument("--seed-pin",    dest="seed_pin", action="store_true",  default=True,
+                   help="pin DAT_008a4f94 to --seed-value before the first "
+                        "FUN_0056c070 spawn so retail's phase-7 sparkles match "
+                        "the port's pinned-seed build (default ON).")
+    p.add_argument("--no-seed-pin", dest="seed_pin", action="store_false",
+                   help="leave retail's RNG seeded by srand(time()) (random "
+                        "sparkles — disables phase-7 twinkle parity).")
+    p.add_argument("--seed-value", type=lambda s: int(s, 0), default=0x4f5347,
+                   help="the fixed seed both sides use (default 0x4f5347 = "
+                        "OSS_RNG_DEFAULT_SEED; must match the port's seed).")
     args = p.parse_args()
 
     call_trace_vas = None
@@ -780,6 +809,8 @@ def main() -> int:
         cursor_probe      = args.cursor_probe,
         fade_probe        = args.fade_probe,
         pace_probe        = args.pace_probe,
+        seed_pin          = args.seed_pin,
+        seed_value        = args.seed_value,
         pace_every        = args.pace_every,
     )
     return run_capture(cfg)
