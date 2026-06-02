@@ -583,6 +583,7 @@ typedef struct title_scene_hooks {
     void (*update_entry)(int32_t idx);        /* 0x43c2e0, once per owner entry   */
     void (*set_next_segment)(void);           /* BGM cue (title_fade_step fx)     */
     void (*spawn_sparkle)(int32_t intensity); /* 0x56c070 (title_fade_step fx)    */
+    void (*update_particles)(void);           /* 0x56ba69 per-frame rise/age/cull */
 } title_scene_hooks;
 
 /* The full per-frame state of a running title scene — the FSM units plus the

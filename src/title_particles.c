@@ -52,8 +52,9 @@ void title_particle_spawn_raw(title_particle_pool *pool,
     e->bank_id     = p1;                     /* +0x10 */
     e->alpha_level = p4;                     /* +0x18 */
 
-    /* +0x08 spare: [0,200) — written by retail, never read by the draw. */
-    e->_pad08 = (uint32_t)lcg_scale((int32_t)rng_rand(), 200);
+    /* +0x08 vel: initial upward velocity [0,200) centi-px/tick (the update
+     * subtracts it from y_num each tick and grows it by 2 — accelerating up). */
+    e->vel = lcg_scale((int32_t)rng_rand(), 200);
 
     /* +0x0e anim_div: [0,p10) jitter biased by p9; +0x0c anim_num copies it
      * (so the draw's (anim_num*frame_count)/anim_div clamps to frame 0). */
@@ -61,6 +62,33 @@ void title_particle_spawn_raw(title_particle_pool *pool,
                                         (int32_t)(p10 & 0xffffu)) + p9);
     e->anim_div = (uint16_t)phase;
     e->anim_num = e->anim_div;
+}
+
+void title_particle_pool_update(title_particle_pool *pool)
+{
+    /* FUN_0056aea0 @ 0x56ba69 — the per-frame particle update (runs every
+     * update tick, unconditionally).  Iterates the live particles back-to-front
+     * so the swap-remove cull (FUN_0056c030 @ 0x56baae) is index-safe: a culled
+     * slot is overwritten by the current last entry, which this pass has
+     * already updated.  Count is read once; the loop index is independent of
+     * it (matching retail's `edi = count-1` latched before the loop). */
+    int n = (int)pool->group.count;
+    for (int i = n - 1; i >= 0; i--) {
+        title_sprite_entry *e = &pool->group.entries[i];
+
+        e->y_num -= e->vel;            /* rise (y decreases)         [0x56ba8e] */
+        e->vel   += 2;                 /* accelerate upward          [0x56ba90] */
+
+        if (e->anim_num != 0) {
+            e->anim_num--;             /* age — draw frame 0→7       [0x56baa2] */
+        } else {
+            /* lifetime expired → cull (FUN_0056c030): count--, copy the last
+             * live entry into this slot. */
+            uint16_t last = (uint16_t)(pool->group.count - 1);
+            pool->group.count = last;
+            pool->group.entries[i] = pool->group.entries[last];
+        }
+    }
 }
 
 void title_particle_spawn_title(title_particle_pool *pool, int32_t intensity)

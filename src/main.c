@@ -144,10 +144,18 @@ static void drive_spawn_sparkle(int32_t intensity)
     title_particle_spawn_title(&g_particles, intensity);
 }
 
-/* Borrowed by the drive each frame (must outlive it).  Only spawn_sparkle is
- * wired; the other outer-loop side effects stay deferred (see HANDOFF). */
+/* Per-frame particle update (0x56ba69) — rise/age/cull every update tick. */
+static void drive_update_particles(void)
+{
+    title_particle_pool_update(&g_particles);
+}
+
+/* Borrowed by the drive each frame (must outlive it).  spawn_sparkle +
+ * update_particles drive the phase-7 twinkles; the other outer-loop side
+ * effects stay deferred (see HANDOFF). */
 static const title_scene_hooks g_title_hooks = {
-    .spawn_sparkle = drive_spawn_sparkle,
+    .spawn_sparkle    = drive_spawn_sparkle,
+    .update_particles = drive_update_particles,
 };
 
 /* --input-trace <file.jsonl> — port-side deterministic input replay (the

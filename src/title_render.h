@@ -33,14 +33,16 @@
  *
  * The compositor walks an array of these (the scene's sprite group).
  * Positions are stored in centi-pixels (the compositor divides by 100).
- * Offsets pinned at 0x56c19b..0x56c28d.  +0x08 and +0x16 are never read
- * by the compositor — kept as pad to preserve the 0x1c record stride. */
+ * Offsets pinned at 0x56c19b..0x56c28d.  The compositor (draw) never reads
+ * +0x08 or +0x16; the phase-7 particle UPDATE (0x56ba69, see title_particles.c)
+ * reads/writes +0x08 as the upward velocity and counts +0x0c down as the
+ * lifetime — so for sparkle particles these are live fields, not pad. */
 typedef struct title_sprite_entry {
     int32_t   x_num;        /* +0x00 dst-left numerator  (÷100 + sprite metric_0c) */
     int32_t   y_num;        /* +0x04 dst-top  numerator  (÷100 + sprite metric_10) */
-    uint32_t  _pad08;       /* +0x08 unread by the compositor                       */
-    uint16_t  anim_num;     /* +0x0c animation progress numerator                   */
-    uint16_t  anim_div;     /* +0x0e animation progress divisor                     */
+    int32_t   vel;          /* +0x08 particle upward velocity (centi-px/tick, +=2)  */
+    uint16_t  anim_num;     /* +0x0c anim/lifetime counter (counts down to cull)    */
+    uint16_t  anim_div;     /* +0x0e animation progress divisor (initial lifetime)  */
     uint16_t  bank_id;      /* +0x10 index into the asset pool (ar_pool_get_slot)   */
     uint16_t  frame_base;   /* +0x12 first frame of the animation                   */
     uint16_t  frame_count;  /* +0x14 number of frames in the animation              */

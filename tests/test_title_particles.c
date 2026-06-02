@@ -86,7 +86,7 @@ int test_particle_spawn_title_fields_and_order(void)
      * + 0x14, copied into anim_num. */
     T_ASSERT_EQ_I(e->x_num, (ref_scale((int32_t)rr[0], 0x10) + intensity) * 100);
     T_ASSERT_EQ_I(e->y_num, (ref_scale((int32_t)rr[1], 0x18) + 0x1a0) * 100);
-    T_ASSERT_EQ_U(e->_pad08, (uint32_t)ref_scale((int32_t)rr[2], 200));
+    T_ASSERT_EQ_I(e->vel, ref_scale((int32_t)rr[2], 200));
 
     uint16_t phase = (uint16_t)(ref_scale((int32_t)rr[3], 0x14) + 0x14);
     T_ASSERT_EQ_U(e->anim_div, phase);
@@ -137,6 +137,74 @@ int test_particle_spawn_caps_at_capacity(void)
     title_particle_spawn_title(&pool, 0xc0);   /* full → no-op */
     T_ASSERT_EQ_U(rng_peek_state(), after_full);
     T_ASSERT_EQ_U(pool.group.count, TITLE_PARTICLE_CAP);
+    return 0;
+}
+
+int test_particle_update_rises_and_accelerates(void)
+{
+    /* A particle with a known vel rises by vel each tick, vel grows by 2,
+     * and anim_num counts down. */
+    title_particle_pool pool;
+    title_particle_pool_init(&pool);
+    rng_srand(0x1111);
+    title_particle_spawn_title(&pool, 0xc0);
+    title_sprite_entry *e = &pool.store[0];
+
+    int32_t y0 = e->y_num, v0 = e->vel;
+    uint16_t a0 = e->anim_num;
+    T_ASSERT(a0 != 0);                       /* lifetime in [20,39]            */
+
+    title_particle_pool_update(&pool);
+    T_ASSERT_EQ_I(e->y_num, y0 - v0);        /* rose by the old velocity       */
+    T_ASSERT_EQ_I(e->vel, v0 + 2);           /* velocity accelerated upward    */
+    T_ASSERT_EQ_U(e->anim_num, a0 - 1);      /* aged one tick                  */
+    T_ASSERT_EQ_U(pool.group.count, 1);      /* still alive                    */
+    return 0;
+}
+
+int test_particle_update_culls_at_lifetime_end(void)
+{
+    /* Drive a single particle to anim_num==0; the next update culls it. */
+    title_particle_pool pool;
+    title_particle_pool_init(&pool);
+    rng_srand(0x2222);
+    title_particle_spawn_title(&pool, 0xc0);
+    uint16_t life = pool.store[0].anim_num;
+
+    /* anim_num decrements once per update; after `life` updates it is 0, and
+     * the (life+1)-th update culls (count 1 → 0). */
+    for (uint16_t i = 0; i < life; i++) {
+        title_particle_pool_update(&pool);
+        T_ASSERT_EQ_U(pool.group.count, 1);
+    }
+    T_ASSERT_EQ_U(pool.store[0].anim_num, 0);
+    title_particle_pool_update(&pool);       /* anim_num==0 → cull             */
+    T_ASSERT_EQ_U(pool.group.count, 0);
+    return 0;
+}
+
+int test_particle_update_cull_swaps_last_into_slot(void)
+{
+    /* Cull is a swap-remove: when a middle particle dies, the last live one
+     * takes its slot and count drops by one (FUN_0056c030). */
+    title_particle_pool pool;
+    title_particle_pool_init(&pool);
+    /* Three particles; force distinct lifetimes by hand so #0 dies first. */
+    rng_srand(0x3333);
+    title_particle_spawn_title(&pool, 0xc0);
+    title_particle_spawn_title(&pool, 0xc0);
+    title_particle_spawn_title(&pool, 0xc0);
+    pool.store[0].anim_num = 0;               /* #0 will cull next update      */
+    pool.store[1].anim_num = 5;
+    pool.store[2].anim_num = 7;
+    int32_t y2 = pool.store[2].y_num;         /* the last entry's payload      */
+
+    title_particle_pool_update(&pool);
+    /* Back-to-front: #2 (a=7→6), #1 (a=5→4), #0 (a=0 → cull: entries[0]=last). */
+    T_ASSERT_EQ_U(pool.group.count, 2);
+    /* slot 0 now holds the former last entry (#2, already updated: rose). */
+    T_ASSERT_EQ_I(pool.store[0].y_num, y2 - (pool.store[0].vel - 2));
+    T_ASSERT_EQ_U(pool.store[0].anim_num, 6);
     return 0;
 }
 

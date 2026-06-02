@@ -334,6 +334,9 @@ struct test_case {
     X(particle_spawn_appends_sequentially)                     \
     X(particle_spawn_caps_at_capacity)                         \
     X(particle_spawn_x_sweeps_with_intensity)                  \
+    X(particle_update_rises_and_accelerates)                   \
+    X(particle_update_culls_at_lifetime_end)                   \
+    X(particle_update_cull_swaps_last_into_slot)               \
     X(title_scene_init_zeroes_and_binds)                       \
     X(title_scene_render_iteration_presents)                   \
     X(title_scene_abort_poll_returns_6)                        \

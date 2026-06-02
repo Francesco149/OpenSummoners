@@ -762,6 +762,14 @@ title_scene_status title_scene_step(title_scene *ts, uint32_t now,
         if (fx.spawn_sparkle && hooks != NULL && hooks->spawn_sparkle != NULL)
             hooks->spawn_sparkle(fx.sparkle_intensity);     /* 0x56c070 */
 
+        /* Per-frame sparkle-particle update (0x56ba69): rise/age/cull every
+         * update tick, after the (possible) spawn — matching retail's order
+         * (spawn in case 7 @0x56b51b, then the update loop @0x56ba69).  Runs
+         * unconditionally so particles spawned late in phase 7 keep evaporating
+         * through the phase-8/9 menu until culled. */
+        if (hooks != NULL && hooks->update_particles != NULL)
+            hooks->update_particles();                      /* 0x56ba69 */
+
         if (act == TITLE_FADE_EXIT)
             return TITLE_SCENE_DONE;                         /* phase-10 fade done → ts->result */
 

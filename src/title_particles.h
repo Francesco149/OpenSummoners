@@ -72,6 +72,16 @@ void title_particle_spawn_raw(title_particle_pool *pool,
                               int32_t p4, int32_t p5, int32_t p6,
                               int32_t p7, int32_t p8, int16_t p9, uint32_t p10);
 
+/* The per-frame particle update (FUN_0056aea0 @ 0x56ba69 + cull 0x56c030),
+ * run once per scene update tick.  Each live particle:
+ *   y_num -= vel ; vel += 2          // rises, accelerating upward
+ *   anim_num != 0 ? anim_num--       // ages (the draw frame animates 0→7)
+ *                 : cull (swap-remove, count--)
+ * Iterates back-to-front so the swap-remove is index-safe.  No-op on an empty
+ * pool.  This is what makes the twinkles "evaporate upwards" rather than pile
+ * up frozen at the spawn row. */
+void title_particle_pool_update(title_particle_pool *pool);
+
 /* The phase-7 title call: bakes FUN_0056c070's call-site constants
  * (0x56bcf7) and takes only the per-frame sparkle intensity (the spawn's
  * 5th arg, (uVar15*0xe0)/900 + 0xc0, surfaced by title_fade_step as
