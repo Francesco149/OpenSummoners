@@ -1,5 +1,36 @@
-# Session handoff — last updated 2026-06-02 (title menu BIT-EXACT, ckpt 28)
+# Session handoff — last updated 2026-06-02 (R3 intro-pacing RESOLVED, ckpt 29)
 
+> **ckpt 29 — R3 (intro pacing) diagnosed + fixed; hidden-window flicker fixed.**
+> The "port rushes the intro" framing was **wrong**. Measured both sides with
+> the real clock (new `frida_capture.py --pace-probe` + a `pace:` phase log in
+> `src/main.c`): **wall-clock to the menu already matched retail (~9.2 s)**.
+> The gap was render-rate: retail renders ~127 flips/s, duplicating each scene
+> state ~2.2× (cursor probe: each `menu_fade` value spans ~2 flips); the port's
+> fixed-timestep accumulator (`title_pace_step`) was driven **one pace-step per
+> 16 ms-throttled main-loop iteration**, so `now` advanced per *update*, the
+> budget refill ran away to ~6 updates/render, and the port **DROPPED ~5/6 of
+> the intro's fade frames** (rendered 90 of ~528 update ticks; choppy).
+> **Fix (`src/main.c` `main_loop_body`):** spin pace-steps (updates ~free) until
+> one *present*, then `frame_limiter` gates the presented-frame rate — like
+> retail's tight outer loop. Now 1 update/render: phase curve = canonical
+> 51/102/153/254/275/316/437/**528**, every fade value rendered, wall-clock
+> unchanged. R1 re-verified post-fix at `menu_fade=750` → **differ_px=0**.
+> Flip-index-exact match to a golden = the capture rig's refresh (~127 Hz),
+> **not portably reproducible**; the distinct-content sequence is, and now
+> matches. Quirk **#54**; parity-ledger R3 resolved.
+>
+> Also fixed a **hidden-window screen flicker** the user reported: the port's
+> mode-2 present BitBlts the *desktop* (`GetDC(NULL)`) every frame regardless of
+> window visibility — now skipped under `--hide-window` (captures read
+> `primary_obj` first, so lossless). Live diag showed **retail paints its
+> *window* (`GetDC(hwnd)`), not the desktop → retail doesn't flicker; only the
+> port did.** Quirk **#55**; likely port mismodel (desktop vs window present
+> target) → follow-up task to confirm via disasm + correct `zdd_present` case 2.
+> Commits `f886d10` (pace) + `5ba8f37` (flicker). 648 host tests pass; ledger
+> 138/1490 unchanged (driving fixes + instrumentation, no new FUN).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 28 — R1 CLOSED: title menu is bit-exact (`differ_px==0`), cursor pulse
 > RE'd.** The 955px cursor residual was the **cursor pulse**. Retail animates
 > the cursor `level_num` (`FUN_0056c470` arg3 = `[esp+0x20]`) as a triangle wave
@@ -51,7 +82,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 28): title menu is BIT-EXACT; intro pacing + LOGO/SPARKLE remain
+## ⭐ Current state (ckpt 29): title menu BIT-EXACT + intro PACING correct; LOGO/SPARKLE remain
 
 The whole chain runs live, every frame, producing correct pixels:
 
@@ -67,49 +98,79 @@ title_scene_step → title_sink → resolve_frame(bank 19/20)
 ```
 
 **Verified BIT-EXACT** (`differ_px==0`, parity-ledger #1) against retail goldens
-for the title art + menu layout + the selected-row cursor brightness (the cursor
-pulse was R1, closed ckpt 28). The two remaining divergences are the **next
-layer** (NOT rendering bugs — the pipeline is correct):
+for the title art + menu layout + the selected-row cursor brightness (R1, closed
+ckpt 28). **Intro pacing (R3) is now correct** (ckpt 29): the port renders every
+fade tick at ~60 Hz, wall-clock to the menu matches retail (~9.2 s). The one
+remaining divergence is the **next layer** (NOT a rendering bug — the pipeline is
+correct):
 
-1. **Intro pacing (R3)** — the port reaches the menu by Flip ~200; retail is
-   still on the Lizsoft studio splash there (retail ~1300+ to menu). The port
-   **rushes/skips the intro fade**: the pace pump `0x5b1030` (and the pre/post
-   side-effect hooks) are still stubbed in `title_scene_hooks`, so phases tick
-   per-frame instead of being time-gated. To 1:1-match retail's timeline
-   frame-for-frame these must apply the real per-phase delays/frame-counters.
-   (NB the *cursor pulse* now matches at equal phase regardless; this is about
-   the port Flip index == retail Flip index.)
-2. **`LOGO` / `SPARKLE` arms not drawn** — the Lizsoft studio splash (`LOGO`)
-   and the menu sparkle (`SPARKLE`) sink arms are still deferred no-ops. The
-   alpha ramps `0x8a92b8`/`0x8a9308` are now live (ckpt 27), so both are
-   wirable; each carries a blend-descriptor pointer per command. Wire like
-   `MENU_CURSOR` was: resolve the bank frame + draw via the ramp.
+1. **`LOGO` / `SPARKLE` arms not drawn** — the Lizsoft studio splash (`LOGO`)
+   and the menu sparkle (`SPARKLE`) sink arms are still deferred no-ops, so the
+   intro phases 0–7 still render little (only the menu, phases 8/9, renders
+   fully). The alpha ramps `0x8a92b8`/`0x8a9308` are live (ckpt 27). **Caveat
+   (verify before assuming "wire like MENU_CURSOR"):** engine-quirks #40 says the
+   two intro logos are **container fields +4/+8 of `*(*(*0x8a7658))`, NOT pool
+   assets** — the shared alpha blit is `0x494e10` (at `0x56bc37`). SPARKLE is
+   asset 5 from the MAIN bank (resolvable like the others) but the current
+   `TITLE_DRAW_SPARKLE` cmd doesn't carry the src-rect/blend-descriptor the
+   wrapper `title_draw_sparkle` (0x56c580) needs — the cmd encoding needs work.
+
+## R3 is resolved — what "pacing" did and didn't mean (read before re-opening)
+
+The port's *wall-clock* pacing already matched retail; the Flip-INDEX gap is a
+render-rate artifact (retail ~127 flips/s duplicating each state ~2.2×; the port
+now renders each state once at ~60 Hz). **Flip-index-exact** match to a specific
+golden = the capture rig's refresh and is **not portably reproducible** — do not
+chase it. The achievable, meaningful target is the *distinct-content sequence*,
+which now matches (every fade value rendered, no drops). The pace pump `0x5b1030`
+and the pre/post side-effect hooks stay stubbed **on purpose** — they are NOT the
+pacing key (that was the driving cadence, fixed in `main_loop_body`); they matter
+only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: rendering is bit-exact for the static menu. The active goal (user,
-> ckpt 13) is **1:1 parity with retail** for title + new-game + prologue.
+> Context: rendering is bit-exact for the menu; intro pacing is correct. The
+> active goal (user, ckpt 13) is **1:1 parity with retail** for title +
+> new-game + prologue.
 
-1. **(recommended) Intro pacing fidelity (R3)** — make the port's phase timeline
-   match retail so a given Flip frame shows the same content as the golden at
-   that index (right now port Flip N ≠ retail Flip N — only the *content*
-   matches at equal phase). Port the pace pump `0x5b1030` + the pre/post
-   side-effect hooks (`0x43e140`/`0x40fe00`/`0x566250` pre, `0x56c930` post)
-   stubbed in `title_scene_hooks`, OR find the frame-counter/timer that gates
-   each fade phase. This is what makes end-to-end frame-for-frame golden diffing
-   meaningful and is the gate the user set for the rest. The `--cursor-probe`
-   pattern generalises: add similar arg-logging hooks to measure the per-phase
-   timers on retail.
-2. **Wire `LOGO` + `SPARKLE`** — the remaining title-screen fidelity; the alpha
-   ramps are live. Verify with `--capture-frames` against the goldens
-   (self-serviceable, BMP→PNG→read; match pulse/fade phase like R1).
+1. **(recommended) Wire `LOGO` + `SPARKLE`** — the remaining title-screen
+   content fidelity (intro phases 0–7). The alpha ramps are live. Start by
+   reading the retail disasm of the logo handlers (`0x56bb5c`/`0x56bbd4`, shared
+   blit `0x494e10` @ `0x56bc37`) and the sparkle handler (`0x56bcf7` →
+   `0x56c580`) to pin what surface each blits (logos = container +4/+8 per
+   quirk #40 — find what populates those fields in the port) and rework the
+   `TITLE_DRAW_LOGO`/`TITLE_DRAW_SPARKLE` cmd encodings to carry what the
+   wrappers need. Verify with `--capture-frames` vs goldens at matched
+   phase/fade (the R1 method; now that pacing renders every tick, intro frames
+   are dense and easy to phase-match).
+2. **Confirm/correct the mode-2 present target** (follow-up task, engine-quirks
+   #55) — retail paints its *window* (`GetDC(hwnd)`); the port paints the
+   *desktop* (`GetDC(NULL)`). Likely a port mismodel; disasm `FUN_005b8fc0`'s
+   mode-2 path (~`0x5b8fc5`) and, if confirmed, present into the window DC. Then
+   the `--hide-window` present-skip becomes belt-and-braces, and the port is
+   faithful even when shown.
 3. **Live-validate `--input-trace`** (ckpt 24, still unverified) + drive the
-   menu nav so the CURSOR highlight moves — pairs naturally with #1. Does an
-   injected DOWN actually move the selection on the port? Frida self-serviceable,
-   no-turbo. Then extend toward the new-game menus (the user gates trace
-   extension on "once we have prologue and main menu rendering").
+   menu nav so the CURSOR highlight moves. Does an injected DOWN actually move
+   the selection? Frida self-serviceable, no-turbo. Then extend toward the
+   new-game menus (user gates trace extension on "once we have prologue and main
+   menu rendering").
 
-## Tooling added this ckpt (28)
+## Tooling added this ckpt (29)
+
+- **`frida_capture.py --pace-probe`** (+ `--pace-every N`) — timestamps Flips →
+  `<run>/pace.jsonl` + a live `flips/s` print, and stamps the cursor-onset
+  event with wall-clock ms. This is how R3 was measured (retail: ~127 flips/s,
+  menu onset Flip 1172 @ 9.23 s). Use `--no-turbo`.
+- **Port `pace:` phase log** (`src/main.c`) — logs each phase transition with
+  Flip count + wall-clock (`pace: phase A -> B @ flip=N t=Mms`). The port-side
+  counterpart of `--pace-probe`; how the port's wall-clock-to-menu was checked.
+- **`/tmp/pace_sim.py`** (not committed) — a Python replica of `title_pace_step`
+  + `title_fade_step` used to validate the driving fix offline (ratio 1.00, 0
+  missed fade values) before touching C. Re-create from quirk #54 if needed.
+- **`--hide-window` now skips the desktop present** (`drive_present`) — kills
+  the screen flicker (quirk #55); captures unaffected (read `primary_obj` first).
+
+## Tooling from ckpt 28
 
 - **`frida_capture.py --cursor-probe`** — hooks retail `FUN_0056c470` (menu
   cursor draw), logs per-Flip `level_num`/`level_div` → `<run>/cursor_level.jsonl`
@@ -175,9 +236,10 @@ menus (the `--input-trace` path) and confirm they render, then the prologue.
   title-screen fidelity. `MENU_CURSOR` is now wired + bit-exact (ckpt 28). The
   alpha ramps `0x8a92b8`/`0x8a9308` are live, so LOGO/SPARKLE are wirable now.
 - **Outer-loop side-effect hooks** (stubbed in `title_scene_hooks`): `0x5b1030`
-  (pace pump — the intro-pacing key), `0x43e140`/`0x40fe00`/`0x566250` (pre),
-  `0x56c930` (post), `0x43c2e0` (per-entry). Porting the pump is what fixes
-  intro-pacing fidelity (Next move #2).
+  (message pump), `0x43e140`/`0x40fe00`/`0x566250` (pre), `0x56c930` (post),
+  `0x43c2e0` (per-entry). **NB these are NOT the intro-pacing key** (that was the
+  driving cadence, fixed in `main_loop_body` ckpt 29 — see quirk #54). They
+  matter for the BGM cue / per-entry updates; port when those subsystems land.
 - **Other register batches** not yet called at boot: `ar_register_fonts`,
   `ar_register_palette_ramps` (FUN_0057a330), the big `FUN_0056e190` (442
   sprites), sounds. The title path doesn't need them, but the new-game/prologue
