@@ -62,10 +62,18 @@ clicks + early-boot SFX.
 
 ## Load sequence (from `FUN_005a4770`)
 
+> ⚠ **CORRECTION (ckpt 26, verified in r2):** the handle-store mapping below was
+> backwards.  The disassembly shows `LoadLibraryA("sotesd.dll")` is the one
+> stored at **`DAT_008a6e74`** (`mov [0x8a6e74], esi` @ **0x5af5fc**, right after
+> its `LoadLibraryA` at 0x5af5ca).  `DAT_008a6e74` is the handle the boot driver
+> passes to **every** sprite/font/sound registrar as the `settings` arg — and
+> every title sprite resource (logo 0x49f, bg 0x91b/0x91c, slot-0 palette seed
+> 0x90b) lives in **sotesd.dll**, not sotesp.dll.  See engine-quirks #51.
+
 ```
-LoadLibraryA("sotesp.dll")  → hMod stored at DAT_008a6e74    ; near 0x5af7f2
+LoadLibraryA("sotesd.dll")  → hMod stored at DAT_008a6e74    ; mov @ 0x5af5fc  (the `settings` handle)
 LoadLibraryA("sotesw.dll")  → hMod stored at DAT_008a6e78    ; near 0x575350
-LoadLibraryA("sotesd.dll")  → hMod stored somewhere similar  ; near 0x5af5cf
+LoadLibraryA("sotesp.dll")  → hMod stored at DAT_008a6e7c(?) ; near 0x5af7f2
 
 For sotesd.dll only — 60-byte signature check.  See "Quirk" below.
 

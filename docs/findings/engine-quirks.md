@@ -1197,3 +1197,32 @@ the port mirrors the literal argument order.
 
 > 📍 `ar_sprite_slice` trim loop in `src/asset_register.c` (passes `cell_w` as
 > `bs_trim_opaque_rect`'s `height`, `cell_h` as its `width`).
+
+## 51. `settings` is a bare HMODULE (sotesd.dll), not a record — and it's `DAT_008a6e74`, not sotesp
+
+The asset registrars (`ar_register_main_sprites`/`_fonts`/`_sounds` =
+FUN_005749b0 etc.) take a `settings` argument that ends up in
+`slot->settings` (+0x3c) and is handed **directly** to the PE-resource
+decoder `bs_decode_resource` (FUN_005b7800) as its `hModule` param —
+`FindResourceA(hModule, …)`.  There is **no `+0x3c` record indirection**: the
+"settings record" framing in earlier notes was wrong.  `settings` is literally
+an `HMODULE`.
+
+And that HMODULE is **sotesd.dll**: the boot driver FUN_00562ea0 passes
+`DAT_008a6e74` to every registrar (0x562ea0:620-631), and `DAT_008a6e74` is
+assigned the result of `LoadLibraryA("sotesd.dll")` at **0x5af5fc** — *not*
+sotesp.dll.  (`docs/findings/asset-loader.md` had the three DLL handles mapped
+to the wrong DAT_ slots; corrected there.)  Confirmed by resource enumeration:
+all title sprite IDs (0x49f logo, 0x91b/0x91c title bg banks, the slot-0
+palette seed 0x90b) exist in sotesd.dll's `DATA` type and nowhere in
+sotesp.dll (which holds only `WAVE` SFX + its 12-byte signature blob 0x407).
+
+Practical consequence for the drop-in: registering the title banks is just
+`ar_register_main_sprites(zdd, /*group=*/4, hSotesd, hSotesd)` after
+`LoadLibraryA("sotesd.dll")` — the `sotesp_module` parameter (slot 0) takes the
+*same* sotesd handle (retail's FUN_005748c0 for idx 0 also passes
+`DAT_008a6e74`); the parameter name is a historical misnomer.
+
+> 📍 `init_sprite_banks` in `src/main.c`; `ar_register_main_sprites` in
+> `src/asset_register.c`; verified against `vendor/unpacked/sotes.unpacked.exe`
+> @ 0x5af5fc and the sotesd/sotesp `.rsrc` directories.

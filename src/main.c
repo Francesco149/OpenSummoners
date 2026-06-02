@@ -138,6 +138,17 @@ static const char *g_call_trace_path;
 static unsigned  g_call_trace_frames[CALL_TRACE_FRAMES_CAP];
 static size_t    g_n_call_trace_frames;
 
+/* --capture-frames "60,200,…" [--capture-dir <path>] — port-side frame
+ * capture (the counterpart of the Frida harness's --capture-frames).  At
+ * each requested Flip (present) frame, GetDC the composed primary surface,
+ * BitBlt it into a 24bpp DIB, and write <dir>/port_frame_NNNNN.bmp.  Lets us
+ * diff the port's actual pixels against the retail goldens in runs/. */
+#define CAPTURE_FRAMES_CAP 64
+static unsigned  g_capture_frames[CAPTURE_FRAMES_CAP];
+static size_t    g_n_capture_frames;
+static char      g_capture_dir_buf[1024] = ".";
+static const char *g_capture_dir = g_capture_dir_buf;
+
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
 static int  create_main_window(void);
@@ -153,6 +164,8 @@ static void shutdown_ddraw(void);
 static void sync_window_position(void);
 static void init_title_drive(void);
 static void init_sprite_banks(void);
+static void maybe_capture_frame(unsigned flip_frame);
+static int  capture_primary_to_bmp(const char *path);
 static void drive_present(void *user);
 static void drive_log_flip(void *user);
 
@@ -337,6 +350,9 @@ static void drive_present(void *user)
     /* The Flip count is the input-trace's frame axis (matching the harness's
      * Flip-anchored injection), so bump it on every present. */
     g_present_frame++;
+    /* Capture BEFORE the flip: the fully-composed frame is on primary_obj's
+     * surface here, exactly as the sink drew it this iteration. */
+    maybe_capture_frame(g_present_frame);
     if (!g_no_present && g_zdd != NULL)
         zdd_present(g_zdd);
 }
@@ -454,6 +470,78 @@ static void init_sprite_banks(void)
 
     log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
              "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c)", (void *)g_sotesd);
+}
+
+/* Grab the composed primary surface into a 24bpp DIB and write it as a BMP.
+ * Returns 1 on success.  Uses the already-ported zdd_object GetDC/ReleaseDC
+ * primitives (DirectDrawSurface7::GetDC) + a plain GDI BitBlt into a bottom-up
+ * DIB section — whose memory layout is exactly BMP pixel order, so the bits
+ * write straight out after the two headers. */
+static int capture_primary_to_bmp(const char *path)
+{
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return 0;
+
+    const int W = DEFAULT_WIDTH, H = DEFAULT_HEIGHT;
+    void *src_hdc = NULL;
+    if (!zdd_object_get_dc(g_zdd->primary_obj, &src_hdc) || src_hdc == NULL)
+        return 0;
+
+    HDC mem = CreateCompatibleDC((HDC)src_hdc);
+    if (mem == NULL) { zdd_object_release_dc(g_zdd->primary_obj, src_hdc); return 0; }
+
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof bi);
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = W;
+    bi.bmiHeader.biHeight      = H;          /* +H = bottom-up = BMP order */
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 24;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    void *bits = NULL;
+    HBITMAP dib = CreateDIBSection((HDC)src_hdc, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    int ok = 0;
+    if (dib != NULL && bits != NULL) {
+        HGDIOBJ old = SelectObject(mem, dib);
+        if (BitBlt(mem, 0, 0, W, H, (HDC)src_hdc, 0, 0, SRCCOPY)) {
+            const uint32_t row    = (uint32_t)((W * 3 + 3) & ~3);
+            const uint32_t pixsz  = row * (uint32_t)H;
+            BITMAPFILEHEADER fh;
+            memset(&fh, 0, sizeof fh);
+            fh.bfType    = 0x4D42;            /* 'BM' */
+            fh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+            fh.bfSize    = fh.bfOffBits + pixsz;
+
+            FILE *f = fopen(path, "wb");
+            if (f != NULL) {
+                fwrite(&fh, sizeof fh, 1, f);
+                fwrite(&bi.bmiHeader, sizeof(BITMAPINFOHEADER), 1, f);
+                fwrite(bits, 1, pixsz, f);
+                fclose(f);
+                ok = 1;
+            }
+        }
+        SelectObject(mem, old);
+    }
+    if (dib != NULL) DeleteObject(dib);
+    DeleteDC(mem);
+    zdd_object_release_dc(g_zdd->primary_obj, src_hdc);
+    return ok;
+}
+
+/* If flip_frame is in the --capture-frames whitelist, dump it. */
+static void maybe_capture_frame(unsigned flip_frame)
+{
+    for (size_t i = 0; i < g_n_capture_frames; i++) {
+        if (g_capture_frames[i] != flip_frame) continue;
+        char path[1200];
+        snprintf(path, sizeof path, "%s/port_frame_%05u.bmp",
+                 g_capture_dir, flip_frame);
+        int ok = capture_primary_to_bmp(path);
+        log_line("capture: frame %u -> %s (%s)", flip_frame, path,
+                 ok ? "ok" : "FAILED");
+        return;
+    }
 }
 
 /* Build the title-scene drive against the live ZDD.  Binds the render sink to
@@ -772,6 +860,31 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 list = end;
                 while (*list == ',' || *list == ' ') list++;
             }
+        }
+        else if (!strcmp(tok, "--capture-frames") ||
+                 !strncmp(tok, "--capture-frames=", 17)) {
+            const char *list = NULL;
+            if (!strncmp(tok, "--capture-frames=", 17)) list = tok + 17;
+            else                                       list = strtok(NULL, " \t");
+            while (list && *list && g_n_capture_frames < CAPTURE_FRAMES_CAP) {
+                char *end = NULL;
+                unsigned v = (unsigned)strtoul(list, &end, 10);
+                if (end == list) break;
+                g_capture_frames[g_n_capture_frames++] = v;
+                list = end;
+                while (*list == ',' || *list == ' ') list++;
+            }
+        }
+        else if (!strcmp(tok, "--capture-dir")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_capture_dir_buf, tok, sizeof(g_capture_dir_buf) - 1);
+                g_capture_dir_buf[sizeof(g_capture_dir_buf) - 1] = '\0';
+            }
+        }
+        else if (!strncmp(tok, "--capture-dir=", 14)) {
+            strncpy(g_capture_dir_buf, tok + 14, sizeof(g_capture_dir_buf) - 1);
+            g_capture_dir_buf[sizeof(g_capture_dir_buf) - 1] = '\0';
         }
         tok = strtok(NULL, " \t");
     }
