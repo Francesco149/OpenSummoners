@@ -100,6 +100,12 @@ bugs — the pipeline is correct):
   exe with `CFLAGS="… -DSINK_RESOLVE_DEBUG"`.
 - Goldens to diff against: `runs/title-idle/frames/frame_*.png` (retail,
   Flip-indexed). Port menu == retail `frame_01900.png`.
+- **`tools/push_comparison.py --port P.png --retail R.png`** — pushes a
+  port|retail amplified-diff `comparison` to the llm-feed (use this, not a
+  montage, when comparing vs retail so the visual diff is inspectable).
+- **`docs/parity-ledger.md`** — the list of frames CONFIRMED pixel-1:1 vs
+  retail (regression guard). Title menu (idle) is entry #1: identical except
+  the selection cursor/sparkle. Re-diff + update it after render-path changes.
 
 ## Module inventory (13 modules) — render pipeline COMPLETE
 
