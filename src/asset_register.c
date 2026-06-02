@@ -324,7 +324,7 @@ void ar_sprite_slot_register(ar_sprite_slot *s, void *zdd, void *settings,
     ar_sprite_slot_destroy(s);
 
     /* Retail: operator_new(8); entry_count = 1.  Then a zero-loop runs
-     * for entry_count iterations writing 0 to entries[i].a and
+     * for entry_count iterations writing 0 to entries[i].frames and
      * entries[i].b.  calloc(1, 8) handles both at once. */
     s->zdd         = zdd;
     s->entry_count = 1;
@@ -405,6 +405,30 @@ ar_sprite_slot *ar_pool_get_slot(uint16_t pool_idx)
     if (pool_idx <  AR_SPRITE_RAMP_COUNT + 1)
         return &g_ar_sprite_ramp_slots[pool_idx - 1];
     return &g_ar_sprite_slots[pool_idx - (AR_SPRITE_RAMP_COUNT + 1)];
+}
+
+/* ─── FUN_00418470 — sprite-bank frame getter ────────────────────────
+ *
+ * Lazy-decode the bank's sheet on first use, then index its frame-surface
+ * array.  See the header for the two-level indirection; offsets pinned at
+ * 0x418470..0x418495. */
+ar_sprite_decode_fn ar_sprite_decode_hook = NULL;
+
+void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id)
+{
+    if (slot == NULL || slot->entries == NULL) {
+        return NULL;                       /* defensive — retail derefs */
+    }
+    if (slot->entries[0].frames == NULL) { /* *(*bank) == 0 → needs decode */
+        if (ar_sprite_decode_hook != NULL) {
+            ar_sprite_decode_hook(slot);   /* 0x4184a0 (decoder; unported) */
+        }
+        if (slot->entries[0].frames == NULL) {
+            return NULL;                   /* headless: still undecoded   */
+        }
+    }
+    void **frames = (void **)slot->entries[0].frames;
+    return frames[frame_id];               /* arr[id & 0xffff] */
 }
 
 /* ─── FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices ──── */

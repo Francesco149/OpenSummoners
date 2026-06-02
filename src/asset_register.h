@@ -91,8 +91,17 @@ _Static_assert(offsetof(ar_gdi_slot, group)    == 8,  "ar_gdi_slot group offset"
  * register-time write only zeros both halves — entries are populated
  * later, presumably on first sprite draw. */
 typedef struct ar_sprite_entry {
-    uint32_t a;   /* +0x00 */
-    void    *b;   /* +0x04 — owned pointer; ar_sprite_slot_destroy frees */
+    /* +0x00: the frame-surface array — a pointer to an array of per-frame
+     * zdd_object* surfaces, populated lazily by the sprite-sheet decoder
+     * (0x4184a0) and read by the frame getter (FUN_00418470) as
+     * `entries[0].frames[frame_id]`.  NULL ⇒ the bank's sheet is not yet
+     * decoded (the getter's "needs load" flag).  Never freed by the slot
+     * destructor — the surfaces are owned by the ZDD wrapper.  (Was the
+     * opaque `uint32_t a`; widened to a real pointer so the getter is
+     * host-testable — on the 32-bit build it is still 4 bytes, preserving
+     * the 8-byte record size.) */
+    void    *frames;   /* +0x00 */
+    void    *b;        /* +0x04 — owned aux buffer; ar_sprite_slot_destroy frees */
 } ar_sprite_entry;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
@@ -487,6 +496,30 @@ void ar_info_entry_clear(ar_info_entry *entry);
  * ported function indexes the unified pool (e.g. FUN_004179b0); the
  * standalone batches keep using their own range-specific arrays. */
 ar_sprite_slot *ar_pool_get_slot(uint16_t pool_idx);
+
+/* ─── sprite-bank frame getter (FUN_00418470) ────────────────────────
+ *
+ * Resolves frame `frame_id` of a sprite bank (`ar_sprite_slot`) to its
+ * surface, lazy-decoding the bank's sheet on first use.  Retail's
+ * two-level indirection: bank+0 is the `entries` array; entries[0].frames
+ * is the per-frame surface array.  A NULL frames pointer means "sheet not
+ * yet decoded" — retail then calls the decoder 0x4184a0 unconditionally
+ * and dereferences the result.
+ *
+ *   if (slot->entries[0].frames == NULL) ar_sprite_decode_hook(slot);
+ *   return ((void**)slot->entries[0].frames)[frame_id & 0xffff];
+ *
+ * The decoder (0x4184a0 — PE-resource read + 24bpp decode + per-channel
+ * brightness LUT + surface slice via 0x4188b0) is a separate, larger
+ * chip; it is routed through the nullable hook below so the getter ports
+ * and tests now.  Returns the surface as a void* (a zdd_object* the render
+ * side casts).  Returns NULL when the bank is still unloaded after the
+ * (possibly absent) hook — headless safety; retail would dereference NULL.
+ * Pinned from the disasm at 0x418470. */
+typedef void (*ar_sprite_decode_fn)(ar_sprite_slot *slot);
+extern ar_sprite_decode_fn ar_sprite_decode_hook;
+
+void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id);
 
 /* FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices.
  *

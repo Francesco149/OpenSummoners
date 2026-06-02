@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Sprite frame getter `FUN_00418470` ported; the render sink's asset/sprite pipeline mapped, ckpt 16
+
+Scouted move #1 ("build the render sink + drive the runner") and found it is
+**gated on an unported asset/sprite subsystem** — every sprite draw resolves a
+*frame surface* out of the asset pool `DAT_008a760c[bank_id]`, lazily decoded
+from a sprite sheet.  Fully decoded the chain and wrote
+**`docs/findings/sprite-pipeline.md`**: pool → `ar_sprite_slot` (the "bank") →
+`bank->entries[0].frames[frame]` → `zdd_object*` surface → `zdd_blit_orchestrate`;
+the compositor `0x56c180` walks the scene's display list and blits each entry;
+the wrappers `0x56c610/_4e0/_470/_580` each resolve one sprite the same way.
+
+**Reuse find:** the "bank" is the **already-pinned `ar_sprite_slot`** (0x44 B)
+indexed by the existing `ar_pool_get_slot` — caught myself starting a duplicate
+`zdd_sprite_bank` model and reverted to build on `asset_register`.
+
+**Ported:** the frame getter **`FUN_00418470` → `ar_sprite_slot_frame`** in
+`asset_register.c` — the two-level `slot->entries[0].frames[id]` lookup with
+lazy decode routed through the nullable `ar_sprite_decode_hook` (the decoder
+`0x4184a0` is a later chip).  Widened `ar_sprite_entry.a` (opaque `uint32_t`) →
+**`void *frames`** to pin its role + make the getter host-testable (still 4 B
+on the 32-bit build, so the 8-byte record holds).
+
+**562 host tests pass, 0 fail, 6 skip** (4 new: null slot/entries, loaded-index
+without hook, lazy-decode-fires-once, headless-no-hook).  Both 32-bit
+cross-builds clean.  Ledger **126/1490 touched (+1), 123 tested (+1)**.  Next:
+the compositor `0x56c180` (decoded, wants a new render-bridge module), then the
+sheet decoder `0x4184a0`, then the sink + drive from `main.c`.
+
+---
+
 ## 2026-06-02 — Blit orchestrator `FUN_005bd550` + `FUN_005b9ae0` ported; complex path proven dead, ckpt 15
 
 Ported the **blit orchestrator `0x5bd550`** (`zdd_blit_orchestrate`) and its

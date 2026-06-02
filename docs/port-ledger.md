@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **125** (7.7% of engine-proper) — tested 122, ported 3
-- code bytes touched: **9.8%** (165,921 / 1,694,868 B of engine-proper)
-- unported: **1633**
+- touched: **126** (7.8% of engine-proper) — tested 123, ported 3
+- code bytes touched: **9.8%** (165,961 / 1,694,868 B of engine-proper)
+- unported: **1632**
 - orphan refs in src/ not in this table: 0
 
-## tested (122) — ported + host unit suite
+## tested (123) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -34,6 +34,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
+| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h |

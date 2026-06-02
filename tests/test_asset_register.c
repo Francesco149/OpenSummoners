@@ -363,7 +363,7 @@ int test_sprite_register_writes_all_named_fields(void)
     /* entries: a 1-entry calloc'd array. */
     T_ASSERT_EQ_U(s.entry_count, 1u);
     T_ASSERT(s.entries != NULL);
-    T_ASSERT_EQ_U(s.entries[0].a, 0u);
+    T_ASSERT_EQ_P(s.entries[0].frames, NULL);
     T_ASSERT_EQ_P(s.entries[0].b, NULL);
 
     ar_sprite_slot_destroy(&s);
@@ -478,7 +478,7 @@ int test_sprite_clone_copies_all_metadata(void)
     T_ASSERT_EQ_U(dst.entry_count, 1u);
     T_ASSERT(dst.entries != NULL);
     T_ASSERT(dst.entries != src.entries);
-    T_ASSERT_EQ_U(dst.entries[0].a, 0u);
+    T_ASSERT_EQ_P(dst.entries[0].frames, NULL);
     T_ASSERT_EQ_P(dst.entries[0].b, NULL);
 
     /* No aux_buf on src → none on dst. */
@@ -986,7 +986,7 @@ int test_register_fonts_sprite_slots(void)
     T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].group, 0xabcdu);
     T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entry_count, 1u);
     T_ASSERT(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries != NULL);
-    T_ASSERT_EQ_U(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries[0].a, 0u);
+    T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries[0].frames, NULL);
     T_ASSERT_EQ_P(g_ar_sprite_slots[AR_SPR_FONT_TEX_457].entries[0].b, NULL);
 
     /* sprite[1]: id 0x455, 32×48, scale=1. */
@@ -2960,5 +2960,88 @@ int test_ar_layout_matches_retail(void)
     T_ASSERT(sizeof(ar_sprite_slot) == 0x44);
     T_ASSERT(sizeof(ar_sprite_entry) == 8);
     T_ASSERT(sizeof(ar_sound_slot) == 0x18);
+    return 0;
+}
+
+/* ─── sprite-bank frame getter (FUN_00418470) ────────────────────── */
+
+/* Decode-hook stub: records how many times it fired and which slot, and
+ * publishes a caller-set frame array into entries[0].frames. */
+static int    g_decode_calls;
+static ar_sprite_slot *g_decode_last_slot;
+static void  *g_decode_frames;          /* what the hook installs */
+
+static void decode_hook_stub(ar_sprite_slot *slot)
+{
+    g_decode_calls++;
+    g_decode_last_slot = slot;
+    if (slot != NULL && slot->entries != NULL) {
+        slot->entries[0].frames = g_decode_frames;
+    }
+}
+
+static void frame_test_reset(void)
+{
+    g_decode_calls = 0;
+    g_decode_last_slot = NULL;
+    g_decode_frames = NULL;
+    ar_sprite_decode_hook = NULL;
+}
+
+int test_ar_sprite_frame_null_slot_and_entries_return_null(void)
+{
+    frame_test_reset();
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(NULL, 0), NULL);
+
+    ar_sprite_slot s;
+    memset(&s, 0, sizeof s);              /* entries == NULL */
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 0), NULL);
+    return 0;
+}
+
+int test_ar_sprite_frame_loaded_indexes_without_hook(void)
+{
+    frame_test_reset();
+    /* A pre-decoded bank: entries[0].frames points at a surface array. */
+    void *surf[4] = { (void *)0xA0, (void *)0xA1, (void *)0xA2, (void *)0xA3 };
+    ar_sprite_entry ent = { .frames = surf, .b = NULL };
+    ar_sprite_slot s; memset(&s, 0, sizeof s);
+    s.entries = &ent;
+    ar_sprite_decode_hook = decode_hook_stub;   /* present, but must NOT fire */
+
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 0), (void *)0xA0);
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 2), (void *)0xA2);
+    T_ASSERT_EQ_I(g_decode_calls, 0);           /* already loaded ⇒ no decode */
+    return 0;
+}
+
+int test_ar_sprite_frame_lazy_decode_fires_once_then_indexes(void)
+{
+    frame_test_reset();
+    void *surf[3] = { (void *)0xB0, (void *)0xB1, (void *)0xB2 };
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };   /* undecoded */
+    ar_sprite_slot s; memset(&s, 0, sizeof s);
+    s.entries = &ent;
+    g_decode_frames = surf;
+    ar_sprite_decode_hook = decode_hook_stub;
+
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 1), (void *)0xB1);
+    T_ASSERT_EQ_I(g_decode_calls, 1);
+    T_ASSERT_EQ_P(g_decode_last_slot, &s);
+
+    /* Second lookup: frames now populated, hook must not fire again. */
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 2), (void *)0xB2);
+    T_ASSERT_EQ_I(g_decode_calls, 1);
+    return 0;
+}
+
+int test_ar_sprite_frame_unloaded_no_hook_returns_null(void)
+{
+    frame_test_reset();
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot s; memset(&s, 0, sizeof s);
+    s.entries = &ent;
+    /* No hook (headless): retail would decode + deref; we return NULL. */
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 0), NULL);
     return 0;
 }

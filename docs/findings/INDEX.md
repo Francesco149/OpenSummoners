@@ -29,6 +29,11 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
 - **[asset-loader.md](asset-loader.md)** — how the engine pulls asset bytes
   from `sotesd.dll` / `sotesw.dll` / `sotesp.dll` + PE resources. The big
   data archives.
+- **[sprite-pipeline.md](sprite-pipeline.md)** — asset pool `DAT_008a760c` →
+  sprite bank (`ar_sprite_slot`) → frame getter (FUN_00418470, ported) →
+  compositor (FUN_0056c180, decoded) → `zdd_blit_orchestrate`. The chain
+  behind the render sink's sprite draws. The sprite-sheet decoder
+  (FUN_004184a0) is the next chip.
 - **[0057ca40-rabbit-hole.md](0057ca40-rabbit-hole.md)** — FUN_0057ca40, the
   group-3 sprite batch that turned out to span multiple subsystems. A
   cautionary tale + partial port.

@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 122,
+  "tested": 123,
   "ported": 3,
-  "unported": 1633,
+  "unported": 1632,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 125,
-  "pct_touched": 7.7,
-  "pct_tested": 7.7,
-  "engine_proper_touched": 115,
+  "touched": 126,
+  "pct_touched": 7.8,
+  "pct_tested": 7.8,
+  "engine_proper_touched": 116,
   "bytes_total": 1694868,
-  "bytes_touched": 165921,
+  "bytes_touched": 165961,
   "pct_bytes_touched": 9.8
  },
  "orphan_refs": [],
@@ -1501,8 +1501,11 @@
    "name": "FUN_00418470",
    "size": 40,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/asset_register.c",
+    "src/asset_register.h"
+   ]
   },
   {
    "va": "0x4184a0",

@@ -177,6 +177,10 @@ struct test_case {
     X(boot_register_all_null_locale_skips_tail)                \
     X(boot_register_all_touches_every_batch_signature_slot)    \
     X(ar_layout_matches_retail)                                \
+    X(ar_sprite_frame_null_slot_and_entries_return_null)       \
+    X(ar_sprite_frame_loaded_indexes_without_hook)             \
+    X(ar_sprite_frame_lazy_decode_fires_once_then_indexes)     \
+    X(ar_sprite_frame_unloaded_no_hook_returns_null)           \
     X(bs_release_no_free_nulls_pixels)                         \
     X(bs_release_is_idempotent_on_null)                        \
     X(bs_release_frees_pixels)                                 \
