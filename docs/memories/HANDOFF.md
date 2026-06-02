@@ -1,5 +1,38 @@
-# Session handoff — last updated 2026-06-02 (post-title dispatch backbone, ckpt 33)
+# Session handoff — last updated 2026-06-02 (glyph layout builder ported, ckpt 34)
 
+> **ckpt 34 — TEXT/GLYPH PIPELINE, PART 1: the glyph layout builder is ported +
+> host-tested.** Started the next big rock — the dynamic-text system that gates
+> the new-game config menu + options + prologue narration. Surveyed the whole
+> subsystem (**`docs/findings/text-glyph-pipeline.md`**) and landed two
+> load-bearing findings (**quirk #61**): (a) text is rendered through **Win32
+> GDI** — `ar_register_fonts` (already ported) builds 8 real `HFONT`s and the
+> renderer **`0x48e200`** `TextOutA`s each glyph, so the drop-in renders text by
+> calling **real GDI**, no rasteriser to port; (b) the builder (`0x40fa00`),
+> row-append (`0x40f800`), and renderer (`0x48e200`) all operate on the **SAME
+> `menu_ctrl`/`menu_node`** object already in `menu_list.h` (descriptor +0x174,
+> `entries` +0x178, `rows` +0x17c, colour config +0x180) — the text system is
+> not a new container, just a builder + a GDI draw hung off the menu object.
+>
+> Ported the **build half** into new **`src/glyph_text.{c,h}`**:
+> `glyph_token_search` (`0x40fd20`, the SJIS-aware substring search the escape
+> pass uses) + `glyph_cell_layout` (`0x40fa00`, string → `cell.obj0` glyph
+> records). The raw split pass (one 2-byte record per SJIS lead, one 1-byte per
+> ASCII byte) is faithful; the `#`-colour/control-code **escape pass**
+> (`0x4034f0`/`0x4051d0` over the `0x5cd978` table) is routed through a nullable
+> **`glyph_escape_expand_hook`** (NULL default = no-op, faithful for escape-free
+> ASCII/SJIS = every English menu label). Corrected the **swapped Ghidra param
+> names** (`0x40fa00`'s param_1/param_2 are ROW/COL, recovered from the caller
+> `0x40f800`). 12 new host tests (**680 pass / 0 fail / 6 skip**). Ledger
+> **147/1490 (9.0%)** (+2 tested: `0x40fd20`, `0x40fa00`).
+>
+> **Next move: the GDI renderer `0x48e200`** (+ `0x48e860`/`0x48e6d0`) with a
+> real HDC + a registered `HFONT` → render a known string offscreen and
+> `differ_px`-diff vs retail (the "render a string, diff" gate). THEN the
+> row-append `0x40f800` + the new-game config scene (`0x564780` case 0x24). See
+> **Next move** below.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 33 — POST-TITLE DISPATCH BACKBONE: the title menu is re-enterable;
 > Exit exits.** Until now the port hard-shut-down on *any* `TITLE_SCENE_DONE`,
 > so committing a menu row just quit. Ported the result→action mapping of
@@ -265,19 +298,29 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 > prologue. The dispatch backbone is in (`app_flow_dispatch`); the `NEW_GAME`
 > arm is a stub. What gates rendering it is the **glyph/text pipeline**.
 
-1. **(recommended) Port the glyph/text pipeline + font registration — the
-   shared gate for every menu AND the prologue narration.** The new-game config
-   menu (`FUN_00564780` **case 0x24**: builds "Game Difficulty / Auto-guard /
-   Start Game" via `FUN_00411940` owner + `FUN_00412160` entries +
-   `FUN_00566570` value-row text, then a shared run loop) cannot render text
-   until **`0x40fa00`** (the 800 B cell glyph/text-layout builder: SJIS,
-   `#`-colour escapes; `menu_list.c` already routes its call site through a hook
-   awaiting this) + **`0x40f800`** land. It also needs banks registered at boot
-   the way `init_sprite_banks` does it: `ar_register_fonts`,
+1. **(recommended) Port the GDI text renderer `0x48e200` — the visual half of
+   the glyph pipeline — and diff a known string vs retail.** The build half is
+   done (ckpt 34: `glyph_cell_layout`/`glyph_token_search` in
+   `src/glyph_text.{c,h}`). `0x48e200(mode, surf, hdc, x, y, hfont_main,
+   hfont_shadow, blit)` walks the menu object's rows×cols and, in GDI mode,
+   `SelectObject`s the font + `TextOutA`s each `glyph_record.ch` (7 px/char,
+   2-pass drop shadow; helpers `0x48e860`/`0x48e6d0`). It needs a **real HDC**
+   (the back-buffer DC) + a registered `HFONT`, so it lands with a Win32 adapter
+   (like `title_sink`) — its row/col walk + colour selection are host-testable
+   with a `TextOutA` recording stub. **Verify before wiring any scene:** build a
+   `glyph_buf` from a known string, render it into an offscreen DIB-section DC,
+   and `differ_px`-diff the glyph region vs retail (font-probe Frida hook on
+   `0x48e200`, or just the config menu once it builds). Font banks at boot the
+   way `init_sprite_banks` does it: `ar_register_fonts` (PORTED — wire the call),
    `ar_register_palette_ramps` (`0x57a330`), the big `FUN_0056e190` (442
-   sprites), sounds — all take the sotesd HMODULE. **Verify glyph output against
-   retail before wiring any scene** (render a known string, diff). This is a
-   meaty standalone unit; do it first, THEN the config-scene controller.
+   sprites), sounds — all take the sotesd HMODULE.
+
+   Then the **row-append `0x40f800`** (appends a grid row, allocates each cell's
+   0x54/0x20 secondary widgets, re-lays-out existing columns) — belongs with the
+   new-game menu builders. The escape expander (`0x4034f0` 7 KB switch +
+   `0x4051d0` 3 KB glyph-string copy, over the `0x5cd978` table) is a separate
+   chip behind `glyph_escape_expand_hook` — port when an escape-bearing string
+   actually needs it; English menu labels don't.
 2. **Then: the new-game config scene runner.** Once text renders, port
    `FUN_00564780` case 0x24 + the shared run loop as a new scene/drive (mirror
    `title_drive`), and route the `app_flow` `NEW_GAME` arm to it instead of the
@@ -370,7 +413,7 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (16 modules) — render pipeline COMPLETE
+## Module inventory (17 modules) — render pipeline COMPLETE; text builder STARTED
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
@@ -379,7 +422,10 @@ wrappers), **title_sink** (cmd→ZDD bridge, banks 19/20), **title_drive** (call
 side of the runner), **rng** (the MSVC LCG `FUN_005bf505`/`_5bf4fb`, ckpt 31),
 **title_particles** (phase-7 sparkle pool: spawn `0x56c070` + update `0x56ba69` +
 cull `0x56c030`, ckpt 31), **app_flow** (post-title dispatch = `FUN_00562ea0`
-tail switch, ckpt 33). **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
+tail switch, ckpt 33), **glyph_text** (the cell-grid text/glyph layout builder:
+`glyph_cell_layout`/`glyph_token_search` = `0x40fa00`/`0x40fd20`, ckpt 34 —
+build half; GDI renderer `0x48e200` + escape expander still unported).
+**8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +
 `init_sprite_banks` wired; on a menu commit it `app_flow_dispatch`es the result

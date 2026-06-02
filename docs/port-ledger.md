@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **145** (8.9% of engine-proper) — tested 139, ported 6
-- code bytes touched: **10.2%** (172,105 / 1,694,868 B of engine-proper)
-- unported: **1613**
+- touched: **147** (9.0% of engine-proper) — tested 141, ported 6
+- code bytes touched: **10.2%** (173,048 / 1,694,868 B of engine-proper)
+- unported: **1611**
 - orphan refs in src/ not in this table: 4
 
-## tested (139) — ported + host unit suite
+## tested (141) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -28,6 +28,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
 | 0x40f3e0 | FUN_0040f3e0 | 434 | menu_list.c, menu_list.h |
 | 0x40f5c0 | FUN_0040f5c0 | 563 | menu_list.c, menu_list.h |
+| 0x40fa00 | FUN_0040fa00 | 800 | glyph_text.c, glyph_text.h |
+| 0x40fd20 | FUN_0040fd20 | 143 | glyph_text.c, glyph_text.h |
 | 0x411f40 | FUN_00411f40 | 444 | menu_list.c, menu_list.h |
 | 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
 | 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |

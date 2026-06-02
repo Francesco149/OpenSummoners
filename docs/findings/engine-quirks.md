@@ -1531,3 +1531,35 @@ the replay.  This is correct retail behaviour, not a port regression.
 > 📍 `FUN_0056aea0` @ `0x56aea0`; the skip gate at 56aea0.c:177/:182.  Ported:
 > `title_scene.c` (`skip_intro`), `src/app_flow.c` + `reenter_title`
 > (`src/main.c`).  See quirk #54 (intro pacing) and `findings/new-game-flow.md`.
+
+## 61. Dynamic menu text is GDI `TextOutA`, not a sprite font — and the glyph layout builder's first two Ghidra params are swapped
+
+Two findings from porting the text/glyph layout builder (`FUN_0040fa00`):
+
+**(a) Text is rendered through Win32 GDI.**  `ar_register_fonts`
+(`FUN_00579bd0`) builds 8 real `HFONT`s (`CreateFontIndirectA`); the renderer
+`FUN_0048e200` `SelectObject`s one into the back-buffer HDC and `TextOutA`s
+each glyph (monospace 7 px/char advance, with a 2-pass drop shadow).  So the
+drop-in renders dynamic menu/narration text by calling **real GDI** — no
+glyph rasteriser needs porting.  (The title top-level menu does NOT use this:
+its labels are baked into the menu-bg sprite.  Dynamic text — new-game config,
+options, prologue narration — is what needs the pipeline.)  The builder
+(`0x40fa00`/`0x40f800`) and renderer (`0x48e200`) all operate on the SAME
+`menu_ctrl`/`menu_node` object already modelled in `menu_list.h` (descriptor
+`+0x174`, per-column `entries` `+0x178`, `rows` `+0x17c`, colour config
+`+0x180`), so the text system is not a new container — just a builder + a GDI
+draw hung off the existing menu object.
+
+**(b) `FUN_0040fa00`'s param_1/param_2 are ROW/COL, not the COL/ROW Ghidra
+shows.**  The decompile reads `FUN_0040fa00(uint col, int row, char *str)`,
+but the caller `FUN_0040f800:31` passes `(new_row, col_iterator, &text)` and
+the body indexes `rows[param_1].cells[param_2]` (param_1 strides by `0x10` =
+`menu_row`, param_2 by `0x18` = `menu_cell`).  So **param_1 = row, param_2 =
+col**.  The bounds check `param_2 < hdr[+8]` is therefore `col < column-count
+(alloc_b)` and `param_1 < hdr[+0x10]` is `row < row-count (count)` — which only
+makes sense with the corrected naming.  The port (`glyph_cell_layout`) uses
+`(row, col)` directly.
+
+> 📍 `FUN_0040fa00` @ `0x40fa00`, `FUN_0040fd20` @ `0x40fd20` (ported,
+> `src/glyph_text.{c,h}`, ckpt 34); renderer `0x48e200`, font reg
+> `FUN_00579bd0` (`asset_register.c`).  See `findings/text-glyph-pipeline.md`.

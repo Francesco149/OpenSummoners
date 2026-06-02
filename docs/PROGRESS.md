@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 34) — text/glyph pipeline, part 1: the glyph layout builder is ported + host-tested
+
+Started the **glyph/text pipeline** — the shared gate for every dynamic-text
+menu (new-game config, options, save/load) and the prologue narration (the
+title top-level menu's labels are baked into a sprite; dynamic text is what
+needs this). Surveyed the whole subsystem and wrote
+`docs/findings/text-glyph-pipeline.md`.
+
+**Two load-bearing findings (quirk #61):** (a) the engine renders dynamic text
+through **Win32 GDI** — `ar_register_fonts` (already ported) builds 8 real
+`HFONT`s and the renderer `FUN_0048e200` `TextOutA`s each glyph, so the drop-in
+renders text by calling real GDI (no rasteriser to port); and (b) the layout
+builder, row-append, and renderer all operate on the **same `menu_ctrl`/
+`menu_node`** object already modelled in `menu_list.h` (descriptor `+0x174`,
+`entries` `+0x178`, `rows` `+0x17c`, colour config `+0x180`) — the text system
+is not a new container, just a builder + a GDI draw hung off the menu object.
+
+Ported the **build half** into the new `src/glyph_text.{c,h}`:
+`glyph_token_search` (`FUN_0040fd20`, the SJIS-aware substring search the escape
+pass uses) and `glyph_cell_layout` (`FUN_0040fa00`, string → `cell.obj0` glyph
+records). The raw split pass — one 2-byte record per SJIS lead, one 1-byte
+record per ASCII byte — is faithful; the `#`-colour/control-code escape pass
+(`0x4034f0`/`0x4051d0` over the `0x5cd978` table) is routed through a nullable
+hook (NULL default = no-op, faithful for the escape-free ASCII/SJIS that covers
+every English menu label). Corrected the **swapped Ghidra param names**
+(`FUN_0040fa00`'s `param_1`/`param_2` are ROW/COL, recovered from the caller
+`0x40f800`). 12 new host tests (680 pass / 0 fail / 6 skip). Ledger
+**147/1490 (9.0%)** (+2 tested: `0x40fd20`, `0x40fa00`).
+
+**Next:** the GDI renderer `FUN_0048e200` (+ `0x48e860`/`0x48e6d0`) with a real
+HDC + registered font → render a known string offscreen and `differ_px`-diff vs
+retail, then the row-append `0x40f800` + the new-game config scene
+(`0x564780` case 0x24).
+
+---
+
 ## 2026-06-02 (ckpt 33) — post-title dispatch backbone: the title menu is re-enterable, Exit exits
 
 Until now the port treated **any** title-scene completion as a hard shutdown

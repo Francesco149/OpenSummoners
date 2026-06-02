@@ -699,6 +699,18 @@ struct test_case {
     X(input_trace_replay_catches_up)                           \
     X(input_trace_replay_guards)                               \
     X(app_flow_dispatch_codes)                                 \
+    X(glyph_token_search_found)                                \
+    X(glyph_token_search_absent)                               \
+    X(glyph_token_search_empty_needle)                         \
+    X(glyph_token_search_start_offset)                         \
+    X(glyph_token_search_skips_sjis_trail)                     \
+    X(glyph_layout_ascii)                                      \
+    X(glyph_layout_sjis)                                       \
+    X(glyph_layout_lazy_alloc_then_reuse)                      \
+    X(glyph_layout_empty_string)                               \
+    X(glyph_layout_overlong_drops_text)                        \
+    X(glyph_layout_bounds_noop)                                \
+    X(glyph_layout_escape_hook_fires)                          \
 
 #define X(n) extern int test_##n(void);
 TESTS

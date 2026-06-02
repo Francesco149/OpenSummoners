@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **108**
-- of those, zero-dependency **leaves: 54** (recommended order below)
+- frontier functions: **109**
+- of those, zero-dependency **leaves: 56** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -57,7 +57,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 
 ## Full frontier by address band
 
-### object-pool ctor + game-loop FSM + font/glyph + msg fmt (8)
+### object-pool ctor + game-loop FSM + font/glyph + msg fmt (9)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -66,9 +66,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4022d0 | 88 | 1 | 0 | ✓ |
 | 0x40fe00 | 596 | 1 | 5 |  |
 | 0x40b8f0 | 626 | 1 | 3 |  |
-| 0x40fa00 | 800 | 1 | 3 |  |
 | 0x4017d0 | 1175 | 1 | 1 |  |
+| 0x4051d0 | 3244 | 1 | 0 | ✓ |
 | 0x40c380 | 5077 | 1 | 100 |  |
+| 0x4034f0 | 7330 | 1 | 0 | ✓ |
 
 ### menu/dialog controller + char init + shop/NPC + save path (13)
 
@@ -152,7 +153,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56cc10 | 267 | 1 | 0 | ✓ |
 | 0x56dc20 | 344 | 1 | 1 |  |
 | 0x564160 | 376 | 1 | 16 |  |
-| 0x568de0 | 998 | 1 | 19 |  |
+| 0x568de0 | 998 | 1 | 18 |  |
 | 0x56a670 | 1011 | 1 | 22 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |
 | 0x56cd20 | 2275 | 1 | 14 |  |
@@ -183,7 +184,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x587970 | 866 | 1 | 4 |  |
 | 0x58e330 | 873 | 1 | 0 | ✓ |
-| 0x583fe0 | 979 | 1 | 19 |  |
+| 0x583fe0 | 979 | 1 | 18 |  |
 | 0x58cb30 | 1065 | 1 | 0 | ✓ |
 | 0x58e780 | 1823 | 1 | 7 |  |
 | 0x58f360 | 3030 | 1 | 45 |  |

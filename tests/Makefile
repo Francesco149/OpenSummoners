@@ -31,14 +31,14 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/title_render.c ../src/title_sink.c \
                 ../src/title_drive.c ../src/input_trace.c \
                 ../src/rng.c ../src/title_particles.c \
-                ../src/app_flow.c
+                ../src/app_flow.c ../src/glyph_text.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
                 test_call_trace.c test_input.c test_obj_container.c \
                 test_menu_list.c test_title_render.c test_title_sink.c \
                 test_title_drive.c test_input_trace.c test_title_particles.c \
-                test_app_flow.c
+                test_app_flow.c test_glyph_text.c
 
 OUT := build/run_tests
 

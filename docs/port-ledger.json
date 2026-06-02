@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 139,
+  "tested": 141,
   "ported": 6,
-  "unported": 1613,
+  "unported": 1611,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 145,
-  "pct_touched": 8.9,
-  "pct_tested": 8.9,
-  "engine_proper_touched": 132,
+  "touched": 147,
+  "pct_touched": 9.0,
+  "pct_tested": 9.0,
+  "engine_proper_touched": 134,
   "bytes_total": 1694868,
-  "bytes_touched": 172105,
+  "bytes_touched": 173048,
   "pct_bytes_touched": 10.2
  },
  "orphan_refs": [
@@ -853,16 +853,22 @@
    "name": "FUN_0040fa00",
    "size": 800,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_text.c",
+    "src/glyph_text.h"
+   ]
   },
   {
    "va": "0x40fd20",
    "name": "FUN_0040fd20",
    "size": 143,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_text.c",
+    "src/glyph_text.h"
+   ]
   },
   {
    "va": "0x40fdb0",
