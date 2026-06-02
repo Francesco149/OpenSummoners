@@ -1,4 +1,14 @@
-# Session handoff — last updated 2026-06-02 (title drive + 8d trim scanner, ckpt 22–23)
+# Session handoff — last updated 2026-06-02 (title drive + 8d trim scanner + input replay, ckpt 22–24)
+
+> **ckpt 24:** port-side **`input_trace.{c,h}`** is done — parses the harness's
+> `{"frame":N,"ids":[..]}` JSONL and replays it into the drive's input ring as
+> fresh presses (keyed on the present/Flip count), wired behind `main.c`'s
+> **`--input-trace <file>`**. 7 host tests; 636 total (630 pass, 0 fail, 6 skip);
+> ledger unchanged (port-side tooling, no retail FUN). **Wants live validation**
+> (does an injected press actually skip the splash / nav the menu) next session.
+> This is the port-side half of the new-game-trace replay → port-frame capture →
+> golden-diff pipeline; the capture+diff half (10) is still gated on 8d pixels.
+
 
 **This is the first thing to read at the start of every session.**
 
@@ -111,8 +121,8 @@ the current poll's `ecx`, never a cached one.
 
 **Remaining harness gaps:** the prologue→first-playable-map (a timed cutscene;
 best from a **recorded human trace** distilled to sparse, or RE the prologue
-sequencer); port-side `input_trace.{c,h}` + port frame capture (both blocked
-on milestone-0 rendering).
+sequencer); ~~port-side `input_trace.{c,h}`~~ **DONE ckpt 24** (`--input-trace`);
+port frame capture (still blocked on milestone-0 rendering / 8d pixels).
 
 ## Where we are
 
@@ -303,8 +313,10 @@ the runner from the drop-in.
 > - **Prologue → first-playable-map ground truth** needs a recorded human
 >   trace (advance/skip the opening cutscene) distilled to a sparse
 >   `{frame,ids}` trace — ask the user to record, or RE the prologue sequencer.
-> - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
->   now but latent until `main.c` drives the scene + rendering lands.
+> - ~~**Port-side `input_trace.{c,h}`**~~ **DONE ckpt 24** (`--input-trace`,
+>   replays into the drive's ring keyed on the Flip count). Live-validate the
+>   injection drives the scene next session; the port-frame-capture + diff half
+>   is still gated on 8d pixels.
 
 > Context (ckpt 22): the **drive is wired** (`title_drive.{c,h}` + `main.c`).
 > The title scene is now the drop-in's per-frame loop, sink bound to the live

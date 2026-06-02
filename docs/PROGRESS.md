@@ -6,6 +6,28 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 24) — port-side input replay (`--input-trace`)
+
+Ported `input_trace.{c,h}` (commit `50b348d`) — the port-side counterpart of
+the Frida harness's deterministic input injection. It parses the *same* sparse
+`{"frame":N,"ids":[..]}` JSONL the harness writes (`tools/frida_capture.py`) and
+replays it into the title-scene drive's input ring as fresh presses
+(`{id, flag=1, ts=now}`, round-robin slots), keyed on the present/Flip count.
+So a scripted scene walk (e.g. the new-game path in
+`docs/findings/new-game-flow.md`) can drive the *port* deterministically — the
+port-side half of the replay → port-frame-capture → golden-diff pipeline.
+
+`main.c` gains `--input-trace <file>`: loads the trace once the drive stands up
+and injects due entries each iteration before the scene polls; `g_present_frame`
+(bumped in `drive_present`) is the Flip-anchored frame axis. No-op without the
+title-scene drive. Pure C, host-tested (7 tests, 636 total: 630 pass / 0 fail /
+6 skip): parse basic / tolerant (comments, blanks, key-order, missing ids) /
+out-of-order / malformed; replay injects-once-at-frame / catch-up / NULL+empty
+guards. Both cross-builds clean; ledger unchanged at 131/1490 (port-side
+tooling, no retail FUN). Live validation (does an injected press actually skip
+the splash / nav the menu) is deferred to next session; the port-frame-capture
++ diff half is still gated on 8d pixels.
+
 ## 2026-06-02 (ckpt 23) — 8d's opaque-trim scanner ported; the whole 8d call graph decoded
 
 Ported `bs_trim_opaque_rect` (`FUN_005b6f80`, commit `2372a3f`) — the
