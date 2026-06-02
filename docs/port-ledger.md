@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **155** (9.5% of engine-proper) — tested 149, ported 6
-- code bytes touched: **10.8%** (182,968 / 1,694,868 B of engine-proper)
-- unported: **1603**
+- touched: **157** (9.7% of engine-proper) — tested 151, ported 6
+- code bytes touched: **10.9%** (185,301 / 1,694,868 B of engine-proper)
+- unported: **1601**
 - orphan refs in src/ not in this table: 4
 
-## tested (149) — ported + host unit suite
+## tested (151) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -42,6 +42,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x43bca0 | FUN_0043bca0 | 1105 | newgame_drive.c, newgame_drive.h |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h |
 | 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
@@ -54,7 +55,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+7) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x564780 | FUN_00564780 | 4067 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
+| 0x564780 | FUN_00564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+3) |
+| 0x565d10 | FUN_00565d10 | 1228 | main.c, newgame_drive.c, newgame_drive.h |
 | 0x566570 | FUN_00566570 | 485 | newgame_menu.c, newgame_menu.h |
 | 0x566850 | FUN_00566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
 | 0x566a80 | FUN_00566a80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_scene.c |
@@ -123,7 +125,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
 | 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, title_drive.h (+5) |
+| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, newgame_drive.h (+6) |
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |

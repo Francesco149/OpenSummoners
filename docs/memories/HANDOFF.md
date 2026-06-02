@@ -1,5 +1,39 @@
-# Session handoff — last updated 2026-06-02 (new-game config run-loop MODEL ported; `0x27` input semantics RE-corrected, ckpt 38)
+# Session handoff — last updated 2026-06-03 (the new-game config scene RUNS LIVE: visible + interactive, ckpt 39)
 
+> **ckpt 39 — THE NEW-GAME CONFIG SCENE RUNS LIVE (visible + interactive).**
+> Wired the new-game config scene as a runnable **drive** — the last piece after
+> the builder (ckpt 37), renderer (bit-exact, ckpt 36), and run-loop model
+> (ckpt 38).  New **`src/newgame_drive.{c,h}`** is the Win32-free caller (the
+> `FUN_00565d10` / case-0x24 frame-pump side), factored like `title_drive` vs
+> `title_scene`: owns the scene + input manager, ramps the input gate
+> **+50/frame to 1000** (the title's `menu_owner_transition_step` mode-1 ramp),
+> polls the buttons and collapses them via `menu_list_latch` into the pump result
+> the scene dispatches on, then renders + presents through cfg callbacks.  The
+> input pump realises `0x565d10`'s scan + `0x43bca0`'s id→latch map (quirk #65):
+> 1=up/3=down/2,4=page→MOVE(`0xd`); `0x24`=confirm→latch(9)→3→CONFIRM(`0xc`);
+> `0x27`=back→latch(10)→4→BACK(`0xb`).  `main.c`: `app_flow`'s NEW_GAME arm now
+> routes to **`enter_newgame`** (was the re-enter-title stub); `newgame_render`
+> GDI-renders the menu grid onto the primary (`glyph_grid_render` base (32,32),
+> **Courier New 7×18 = font slot 5**); a `g_newgame_active` branch runs one
+> `newgame_drive_step` per frame.  **Verified LIVE**: confirm Start @flip 620 →
+> `result=26` → enter_newgame → the menu renders "Game Difficulty 1:Easy /
+> Auto-guard On / Start Game" (row 0 focused); DOWN moves focus 0→1 (pixel-
+> sampled colours bit-exact, periwinkle `0xf08080` + tan `0xa8b9cc` shadow);
+> `0x27` backs out → title replays.  Quirk **#66**.  7 new host tests
+> (**705 pass / 0 fail / 6 skip**).  Ledger **157/1490 (+2: `0x565d10`,
+> `0x43bca0`, both partial)**.
+>
+> **NEXT: the deferred chrome + the Start→game path** (Next move #1).  The scene
+> is live but bare: no **box widget tree** (`0x411940`→`0x40f3e0` bordered box +
+> gold corners; plain black fill now), no **tooltip text node** (y=416/444,
+> word-wrapped — `newgame_scene_tooltip` computes the text, render needs the
+> box/word-wrap builder), no **option picker submenu** (`0x567ba0`; a kind-0
+> confirm yields NEWGAME_OPEN_PICKER, surfaced but inert).  START is a stub
+> (re-displays title); the real path is the **Elemental-Stone intro**
+> (`0x564160`→`0x5642e0`/`0x56cd20`→`0x59ec30`).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 38 — THE NEW-GAME CONFIG RUN-LOOP MODEL IS PORTED (the Win32-free
 > heart of `FUN_00564780` case 0x24); the `0x27` input semantics are
 > RE-corrected.** Ported the run-loop heart of the new-game config scene into
@@ -359,19 +393,28 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 38): title is a complete bit-exact loop; the text pipeline is closed END-TO-END + the new-game config scene now has builder + renderer + run-loop MODEL ported; next rock is the Win32 DRIVE that makes it visible/interactive
+## ⭐ Current state (ckpt 39): the title is a complete bit-exact loop; the new-game config scene now RUNS LIVE — visible + interactive (drive ported + wired); next rock is its deferred chrome (box widget + tooltip + picker) and the Start→game path
 
-The **text/glyph pipeline** — the shared gate for the new-game/options menus +
-prologue narration — is now **closed end-to-end**: the build half
-(`glyph_text.c`, ckpt 34), the GDI render half (`glyph_render.c`, ckpt 35,
-verified bit-exact vs retail's live `TextOutA` ckpt 36), and now the **new-game
-menu BUILDER** (`newgame_menu.c`, ckpt 37) that constructs the cells.  The port
-**builds AND renders** the new-game config menu bit-identically to retail: all
-129 menu-region glyph draws match the golden draw-for-draw
-(`tests/test_newgame_menu.c`).  The geometry is fully reconciled (col0 x=72,
-col1 x=232, pitch 28).  What's left for the menu is not pixels — it's the live
-**scene/drive** (run loop + input + value toggles + tooltip + box widgets).
-See **Next move #1**.
+The **new-game config scene** is now a **live, interactive scene**, not just a
+bit-exact still: the title's Start commit (`app_flow` NEW_GAME) routes to
+`enter_newgame` (`main.c`), the menu grid renders onto the primary surface each
+frame (`newgame_render` → `glyph_grid_render` at base (32,32), Courier New 7×18 =
+**font slot 5**), nav moves the cursor, and `0x27` backs out to the title.  The
+drive is **`src/newgame_drive.{c,h}`** (the Win32-free caller, ckpt 39, quirk
+#66), composing the already-ported builder (`newgame_menu.c`, ckpt 37),
+renderer (`glyph_render.c`, bit-exact ckpt 36), run-loop model
+(`newgame_scene.c`, ckpt 38), nav engine (`menu_list.c`), and input poll
+(`input.c`).  The text pipeline (`glyph_text.c`/`glyph_render.c`, ckpt 34/35) is
+closed end-to-end; the menu's 129 glyph draws are bit-exact vs the golden
+(`tests/test_newgame_menu.c`), and the live render confirms it (pixel-sampled
+colours match).
+
+What's left for the scene is **chrome + transitions**, not pixels: the box
+widget tree (`0x411940`→`0x40f3e0`, plain black fill now), the tooltip text node
+(y=416/444, word-wrapped — text computed by `newgame_scene_tooltip`, render
+deferred), the option picker submenu (`0x567ba0` — a kind-0 confirm yields
+NEWGAME_OPEN_PICKER, surfaced but inert), and the Start→game path (the
+Elemental-Stone intro `0x564160`→`0x5642e0`→`0x59ec30`).  See **Next move #1**.
 
 The title is feature-complete as a *loop*: intro bit-exact, menu interactive
 (ckpt 32), and now the menu-commit return code is **dispatched** like retail's
@@ -431,36 +474,41 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the title is a complete loop now — intro bit-exact, menu interactive,
-> commits dispatched + re-enterable (ckpt 33). The active goal (user, ckpt 13)
-> is **1:1 parity with retail** for title + new-game + prologue. The front is
-> the **new-game config submenu** (confirm "Start" → it should render) →
-> prologue. The dispatch backbone is in (`app_flow_dispatch`); the `NEW_GAME`
-> arm is a stub. What gates rendering it is the **glyph/text pipeline**.
+> Context: the new-game config scene now RUNS LIVE (ckpt 39) — visible +
+> interactive, entered from the title's Start commit, nav + back working.  The
+> menu TEXT is proven **bit-exact** (control diff with the box cream bg: rows 1/2
+> → 0 px; row 0's only residual is the focus-arrow sprite, see quirk #66).  The
+> active goal (user, ckpt 13) is **1:1 parity** for title + new-game + prologue.
+> What's left for the scene is the deferred CHROME + the Start→game transition.
 
-1. **(recommended) Wire the new-game config scene as a runnable DRIVE.** The
-   grid BUILDER (ckpt 37, quirk #64), the renderer (bit-exact, ckpt 36), and now
-   the **run-loop MODEL** (`src/newgame_scene.{c,h}`, ckpt 38, quirk #65) are all
-   done — `newgame_scene_dispatch`/`_tooltip`/`_set_option` are the Win32-free
-   heart of `FUN_00564780` case 0x24.  What's missing is the **Win32 drive**
-   (mirror `title_drive`): build a `newgame_drive` that
-   (a) renders each frame — box widget bg + `glyph_grid_render(node)` + the
-   tooltip node — onto `g_zdd->primary_obj` and presents (or, if cheaper, port
-   the generic compositor `0x48c820` the real pump uses; the bespoke render is
-   the title-proven path);
-   (b) ramps the input gate `newgame_scene.sub.ready` 0→1000 (~20 frames, like
-   the title's `menu_owner_transition_step`);
-   (c) feeds input → `menu_list_latch` (nav, already ported) + maps confirm/back
-   to `newgame_scene_dispatch`;
-   (d) routes `app_flow`'s `NEW_GAME` arm to it instead of `reenter_title`.
-   Deferred sub-rocks (bare-VA, document as seams): the **box widget tree**
-   (`0x411940` → `0x40f3e0` box + tooltip box `0x4124d0`/`0x40dee0`/`0x410610`);
-   the **option picker submenu** (`0x567ba0` default arm — a nested grid + its
-   own pump loop, what a kind-0 confirm opens); the **Elemental-Stone intro**
-   (`0x564160` → `0x5642e0`/`0x56cd20` timed cutscene → `0x59ec30` game proper).
-   Reference trace: `tests/scenarios/new-game-through/trace-retimed.jsonl` (Start
-   at flip ~400).  Input ids per quirk #65: **`0x24` confirm, `0x27` back**,
-   1=up, 3=down (the `0x27`-as-value-toggle in old docs was WRONG).
+1. **(recommended) Render the new-game scene's deferred CHROME.** The drive +
+   menu grid are live (ckpt 39, quirk #66); the text is bit-exact.  The only
+   things that make the live scene *look* different from the golden are un-drawn
+   chrome — port them next, in roughly this order (cheapest visual win first):
+   (a) the **box widget panel** — the bordered **cream (RGB 239,227,214)** box
+   with gold corner art, drawn behind the text (`0x411940` → `0x40f3e0`; the
+   tooltip box is `0x4124d0`/`0x40dee0`/`0x410610`).  With the cream bg in place
+   the menu text already diffs to ZERO (quirk #66), so this is the big payoff.
+   NB it is a bordered SUB-RECT over the prior scene, not a full-screen wash.
+   (b) the **focus-arrow sprite** beside the selected row (the row-0 residual at
+   x60–64: dark-gold 107,93,49 + tan 206,186,173).
+   (c) the **tooltip text node** (the second GDI-text node at y=416/444,
+   word-wrapped).  `newgame_scene_tooltip` already computes the text; rendering
+   needs the box + a word-wrap split into rows (the renderer draws per-row, the
+   wrap happens at build time).
+   Then the transitions:
+   (d) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
+   its own pump loop).  A kind-0 confirm already yields `NEWGAME_OPEN_PICKER`
+   (surfaced + counted by the drive); port the submenu, and on its commit call
+   `newgame_scene_set_option` to re-lay the value cell.
+   (e) the **Start→game path**: the Elemental-Stone intro (`0x564160` →
+   `0x5642e0`/`0x56cd20` timed cutscene → `0x59ec30` game proper).  START is a
+   stub today (re-displays title).
+   How to drive there: `--input-trace` with confirm (id 36 = `0x24`) at **flip
+   ~620** (the port's live title menu; the gate opens ~flip 547, see ckpt 32 —
+   flip 400 is too early), then nav (1=up, 3=down) + back (id 39 = `0x27`).
+   Capture with `--capture-frames` (frames after ~660 are the newgame scene,
+   logged `phase=-1`).
 2. ~~The new-game config menu BUILDER.~~ **DONE (ckpt 37, quirk #64).**
    `src/newgame_menu.{c,h}` builds the case-0x24 grid (`FUN_00564780` case 0x24 +
    `FUN_00411940` setup); host-tested to emit retail's `TextOutA` stream

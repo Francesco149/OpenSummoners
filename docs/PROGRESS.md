@@ -3655,3 +3655,48 @@ verification + tooling). Ledger **150/1490** unchanged. User-confirmed the retai
 golden capture looks good.
 
 ---
+
+## ckpt 39 (2026-06-03) — THE NEW-GAME CONFIG SCENE RUNS LIVE: visible + interactive (drive ported + wired)
+
+Wired the new-game config scene as a runnable **drive** — the last missing piece
+after the builder (ckpt 37), renderer (bit-exact, ckpt 36), and run-loop model
+(ckpt 38).  New **`src/newgame_drive.{c,h}`** is the Win32-free caller (the
+`FUN_00565d10` / case-0x24 frame pump side), mirroring `title_drive` vs
+`title_scene`: it owns the scene + an input manager, ramps the input-ready gate
+**+50/frame to 1000** (the title's `menu_owner_transition_step` mode-1 ramp,
+quirk #34/#59), polls the buttons each frame and collapses them via
+`menu_list_latch` into the pump result the scene dispatches on, then renders +
+presents through cfg callbacks.
+
+**Input pump = `0x565d10`'s scan + `0x43bca0`'s id→latch map (quirk #65),
+realised:** 1=up/3=down/2,4=page → MOVE (`0xd`); `0x24`=confirm → latch(9) → 3 →
+CONFIRM (`0xc`); `0x27`=back → latch(10) → 4 → BACK (`0xb`).  Terminal outcomes
+START/BACK latch; OPEN_PICKER (kind-0 confirm) is surfaced + counted (the picker
+submenu `0x567ba0` is deferred).  7 new host tests.
+
+**`main.c` wiring:** `app_flow`'s NEW_GAME arm now routes to `enter_newgame`
+(was the re-enter-title stub).  `newgame_render` does the per-frame GDI render of
+the menu grid onto the primary surface (`glyph_grid_render` at base (32,32),
+**Courier New 7×18 = font slot 5** — the LOGFONTA the golden's TextOutA stream
+selects, not the title's slot 2).  A `g_newgame_active` branch in
+`main_loop_body` runs one `newgame_drive_step` per presented frame.  BACK
+(`0x27`, result 0xb) → re-display title; START → stub (stone intro + game proper
+unported) → re-display title.
+
+**Verified LIVE** (`--input-trace`, `--capture-frames`): confirm Start on the
+title @flip 620 → `result=26` → NEW_GAME → `enter_newgame`; the menu renders
+"Game Difficulty 1:Easy / Auto-guard On / Start Game" with row 0 focused; DOWN
+moves the focus 0→1 (pixel-sampled: focused text `0xf08080` periwinkle + tan
+`0xa8b9cc` shadow — bit-exact colours per ckpt 37, NO R/B swap); `0x27` backs
+out → title replays from phase 0.  Port-vs-retail comparison pushed to llm-feed
+(the only diffs are the deferred box chrome + tooltip).  Quirk **#66**.
+
+**Deferred seams** (documented): the box widget chrome (`0x411940`→`0x40f3e0`,
+plain black fill for now), the tooltip text node (y=416/444, word-wrapped — text
+computed, render needs the box/wrap builder), the option picker submenu
+(`0x567ba0`), and the Elemental-Stone intro (`0x564160`→`0x5642e0`→`0x59ec30`).
+
+705 host tests pass (0 fail, 6 skip).  Ledger **157/1490 (9.7%) (+2: `0x565d10`,
+`0x43bca0` — both partial, the pump's scan + id→latch arms)**.
+
+---

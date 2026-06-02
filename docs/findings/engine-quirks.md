@@ -1767,3 +1767,72 @@ the case-0x24 run-loop body + tooltip switch + value-refill into
 `newgame_scene.c`.  Still bare-VA (unported): `0x565d10`, `0x43bca0`,
 `0x567ba0`, `0x568b40`, `0x564160`, the box widgets `0x411940`.  698 host tests
 (+4); ledger 155/1490 (+1: `0x566850`).
+
+## 66. The new-game config scene runs LIVE: the drive realises the `0x565d10`/`0x43bca0` input contract + reuses the title's gate-ramp; the config menu's font is slot 5 (Courier New 7×18)
+
+Wired the new-game config scene as a runnable **drive** (`src/newgame_drive.{c,h}`
++ `main.c`), the caller side of `FUN_00565d10` / case-0x24 — mirroring
+`title_drive` vs `title_scene`.  The scene is now **visible + interactive**:
+the title's Start commit (`app_flow` NEW_GAME, result `0x1a`/26) routes to
+`enter_newgame`, the menu grid renders live, nav moves the cursor, and `0x27`
+backs out to the title.
+
+**The input pump = `0x565d10`'s per-frame button scan + `0x43bca0`'s id→latch
+map (quirk #65), realised.**  `newgame_drive_step` polls `input_poll_consume`
+for buttons 1/3/2/4/`0x24`/`0x27`, feeds each through `menu_list_latch`
+(0x24→dir 9, 0x27→dir 10), and collapses the latch result to the pump code the
+scene dispatches on: latch 1/2 → `0xd` MOVE, latch 3 → `0xc` CONFIRM, latch 4 →
+`0xb` BACK.  Verified live (`--input-trace`): confirm Start @flip 620 →
+`result=26` → `enter_newgame`; DOWN moves the focus row 0→1; `0x27` → "backed
+out (result 0xb)" → title replays from phase 0.
+
+**The input gate reuses the title's ramp.**  `menu_list_latch` refuses to act
+until `sub.ready == 1000` (quirk #34); the drive ramps `scene.sub.ready`
+**+50/frame** to 1000 — exactly `menu_owner_transition_step`'s mode-1 arm
+(quirk #59) — so the config menu becomes navigable ~20 frames after it appears,
+just like the title menu.  (Pressed too early — before the ramp completes — the
+confirm is swallowed; this is why the first live attempt at flip 400 did nothing
+and flip 620 committed.)
+
+**The config menu's GDI font is slot 5, not the title menu's slot 2.**
+`ar_register_fonts` builds 8 HFONTs; the captured golden's `TextOutA` stream
+selects LOGFONTA `{face "Courier New", h 18, w 7}` = the `{7,0x12,family 2}`
+entry = **slot 5** (the title menu uses slot 2 = `{7,0x10,family 0}`).
+`newgame_render` passes slot 5 with fallbacks.
+
+**Colour byte order sanity (no bug):** the focused-row text COLORREF `0xf08080`
+is `0x00BBGGRR` = RGB(0x80,0x80,0xf0) = **periwinkle blue**, NOT coral; the warm
+look of a focused row is the `0xa8b9cc` tan **shadow** (RGB(0xcc,0xb9,0xa8))
+around the thin blue glyphs.  Pixel-sampling the live frame confirmed both
+channels match the bit-exact stream (ckpt 37) — there is no R/B swap in the
+capture (the title goldens already proved that path).
+
+**Pixel diff vs the golden — the text is bit-exact; the residual is all chrome.**
+Filling the port's background with the box's cream (RGB 239,227,214) to isolate
+the text from the deferred chrome (a control experiment), then diffing the menu
+region vs `retail-newgame-config-menu.png`: **rows 1 and 2 diff to ZERO** (0
+pixels with any channel Δ>16; only RGB565 rounding remains).  **Row 0's only
+residual is 29 pixels at x=60–64** — *left* of the text (text starts at x=72) —
+where retail draws the **focus-arrow sprite** beside the selected row (dark-gold
+107,93,49 + tan 206,186,173).  So the glyphs/positions/colours are bit-exact
+(as ckpt 37's stream proved); the live scene only *looks* different because of
+two un-drawn chrome elements: the cream box panel (its absence changes the AA
+blend — black-bg text reads brighter/sharper) and the focus arrow.  Both belong
+to the box-widget seam below.  (Do NOT "fix" this by filling the screen cream —
+the panel is a bordered sub-rect over the prior scene, not a full-screen wash.)
+
+**Deferred seams (documented, not drawn/run yet):**
+- the **box widget chrome** (`0x411940` → `0x40f3e0` bordered cream box with the
+  gold corner art + the focus-arrow sprite beside the selected row) —
+  `newgame_render` fills plain black for now;
+- the **tooltip text node** (the second GDI-text node at y=416/444, word-wrapped)
+  — `newgame_scene_tooltip` computes the text, but rendering needs the box/word-
+  wrap builder;
+- the **option picker submenu** (`0x567ba0`) — a kind-0 confirm yields
+  `NEWGAME_OPEN_PICKER`, surfaced + counted but not opened (value stays put);
+- **Start Game** → the **Elemental-Stone intro** (`0x564160`→`0x5642e0`→
+  `0x59ec30`) is unported, so START is a stub that re-displays the title;
+- axis-held auto-repeat (the title's dirs 4/5/6/7) — discrete presses only.
+
+7 new host tests (705 pass / 0 fail / 6 skip); ledger **157/1490 (+2:
+`0x565d10`, `0x43bca0` — both partial, the pump's scan + id→latch arms)**.
