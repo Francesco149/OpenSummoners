@@ -53,6 +53,7 @@
 #include "input_trace.h"
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 #include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
+#include "pixel_drawer.h"     /* pd_boot_init_slots — the alpha-ramp descriptors */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -107,6 +108,19 @@ static zdd      *g_zdd;
  * free it at shutdown.  NB despite the `sotesp_module` parameter name on the
  * registrar, retail sources slot 0 (id 0x90b) from this same handle. */
 static HMODULE   g_sotesd;
+
+/* Alpha-ramp pointer tables — retail's DAT_008a92b8 (ramp_a) / DAT_008a9308
+ * (ramp_b) are 20-entry tables of pointers to blend descriptors.  The
+ * descriptors themselves are built by pd_boot_init_slots into the static
+ * g_pd_boot_group_a/_b arrays; these tables expose them as the
+ * `const zdd_blend_desc *const *` the render wrappers index (PdBlend aliases
+ * the retail blend-descriptor layout that zdd_alpha_blit reads — mode/state at
+ * +0, the three channels at +0x04/0x18/0x2c).  Filled once by
+ * init_alpha_ramps(); they back the menu cursor, the sprite-level fades, and
+ * (once their arms are wired) the logo/sparkle alpha draws. */
+static const zdd_blend_desc *g_ramp_a[PD_BOOT_GROUP_A_COUNT];
+static const zdd_blend_desc *g_ramp_b[PD_BOOT_GROUP_B_COUNT];
+static int       g_ramps_built;
 
 /* The title-scene drive (the caller side of FUN_0056aea0).  Active once
  * init_title_drive succeeds; one main_loop_body iteration runs one
@@ -164,6 +178,7 @@ static void shutdown_ddraw(void);
 static void sync_window_position(void);
 static void init_title_drive(void);
 static void init_sprite_banks(void);
+static void init_alpha_ramps(void);
 static void maybe_capture_frame(unsigned flip_frame);
 static int  capture_primary_to_bmp(const char *path);
 static void drive_present(void *user);
@@ -472,6 +487,24 @@ static void init_sprite_banks(void)
              "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c)", (void *)g_sotesd);
 }
 
+/* Build the alpha-ramp blend descriptors and expose them as the ramp_a/ramp_b
+ * pointer tables the render wrappers consume.  pd_boot_init_slots(NULL) builds
+ * the descriptors for RGB565 (the NULL-format default = the 16bpp windowed
+ * display), matching retail's per-group ramps (group A: weight/20 mode 1 =
+ * ramp_a; group B: weight/22 mode 0 = ramp_b).  Idempotent. */
+static void init_alpha_ramps(void)
+{
+    if (g_ramps_built) return;
+    pd_boot_init_slots(NULL);             /* NULL fmt ⇒ RGB565 descriptors */
+    for (int i = 0; i < PD_BOOT_GROUP_A_COUNT; i++)
+        g_ramp_a[i] = (const zdd_blend_desc *)&g_pd_boot_group_a[i];
+    for (int i = 0; i < PD_BOOT_GROUP_B_COUNT; i++)
+        g_ramp_b[i] = (const zdd_blend_desc *)&g_pd_boot_group_b[i];
+    g_ramps_built = 1;
+    log_line("init_alpha_ramps: built ramp_a/ramp_b (20+20 RGB565 blend "
+             "descriptors) — menu cursor + sprite-level fades now alpha-blend");
+}
+
 /* Grab the composed primary surface into a 24bpp DIB and write it as a BMP.
  * Returns 1 on success.  Uses the already-ported zdd_object GetDC/ReleaseDC
  * primitives (DirectDrawSurface7::GetDC) + a plain GDI BitBlt into a bottom-up
@@ -561,6 +594,10 @@ static void init_title_drive(void)
     ar_frame_free_hook    = title_frame_free;
     ar_sheet_format_hook  = title_sheet_format;
 
+    /* Build the alpha-ramp descriptors so the cursor / sprite-level fades have
+     * real blend tables (without them the cursor's alpha draw no-ops). */
+    init_alpha_ramps();
+
     title_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);
     cfg.primary    = g_zdd->primary_obj;
@@ -570,6 +607,8 @@ static void init_title_drive(void)
     cfg.select_key = 0;        /* no saved menu pick at a cold boot */
     cfg.quiet      = 0;
     cfg.skip_intro = 0;
+    cfg.ramp_a     = g_ramp_a; /* 0x8a92b8 — menu cursor + compositor */
+    cfg.ramp_b     = g_ramp_b; /* 0x8a9308 — sprite-level fades + logo */
 
     if (!title_drive_init(&g_drive, &cfg)) {
         log_line("init_title_drive: title_drive_init failed — "

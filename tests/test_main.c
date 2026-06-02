@@ -349,6 +349,7 @@ struct test_case {
     X(sink_frame_end_composes_group)                           \
     X(sink_flip_and_log_callbacks)                             \
     X(sink_deferred_draws_route_to_callbacks)                  \
+    X(sink_menu_cursor_draws_via_ramp)                         \
     X(sink_deferred_null_callbacks_safe)                       \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \

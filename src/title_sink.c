@@ -128,7 +128,18 @@ void title_render_sink(const title_draw_cmd *cmd)
             g_ctx.draw_sparkle(cmd, g_ctx.user);
         break;
     case TITLE_DRAW_MENU_CURSOR:
-        if (g_ctx.draw_cursor != NULL)
+        /* 0x56c470 — the selected row's highlight cursor, alpha-blended via
+         * ramp_a.  Source = the CURSOR bank (pool 20) frame at the row index
+         * (cmd->asset == the cursor row); placed at (cmd->x, cmd->y).  Retail
+         * passes level_num=[esp+0x20], level_div=0x4b0 (=cmd->level); the
+         * numerator wasn't captured into the command, so we drive it to full
+         * (idx 19) — pending an exact [esp+0x20] measurement (see HANDOFF).
+         * With ramp_a NULL (no descriptors) this no-ops, as before. */
+        frame = resolve_frame(AR_SPR_TITLE_CURSOR, cmd->asset);
+        if (frame != NULL)
+            title_draw_menu_cursor(primary, frame, cmd->level, cmd->level,
+                                   cmd->x, cmd->y, g_ctx.ramp_a);
+        else if (g_ctx.draw_cursor != NULL)
             g_ctx.draw_cursor(cmd, g_ctx.user);
         break;
 
