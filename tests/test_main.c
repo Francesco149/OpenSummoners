@@ -654,6 +654,13 @@ struct test_case {
     X(title_drive_step_abort_returns_done)                     \
     X(title_drive_menu_spawn_then_shutdown_clean)              \
     X(title_drive_shutdown_no_spawn_and_uninit)                \
+    X(input_trace_parse_basic)                                 \
+    X(input_trace_parse_tolerant)                              \
+    X(input_trace_parse_out_of_order_fails)                    \
+    X(input_trace_parse_malformed_fails)                       \
+    X(input_trace_replay_injects_at_frame)                     \
+    X(input_trace_replay_catches_up)                           \
+    X(input_trace_replay_guards)                               \
 
 #define X(n) extern int test_##n(void);
 TESTS

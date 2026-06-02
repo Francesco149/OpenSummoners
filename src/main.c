@@ -29,6 +29,10 @@
  *     and run the legacy minimal present loop instead — a known-good
  *     black/uninitialised window, useful for isolating DDraw-init issues
  *     from the scene runner.
+ *   - --input-trace <file.jsonl>: replay a sparse {frame,ids} input trace
+ *     (the harness format, tools/frida_capture.py) into the drive's input
+ *     ring, keyed on the present/Flip count — drives the title scene
+ *     deterministically (skip-splash / menu nav).  No-op without the drive.
  *
  * Build: `make -C src` from inside `nix develop`.
  */
@@ -46,6 +50,7 @@
 #include "cs_dispatch.h"
 #include "call_trace.h"
 #include "title_drive.h"
+#include "input_trace.h"
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
@@ -98,6 +103,15 @@ static zdd      *g_zdd;
  * minimal present loop (a black/uninitialised window, zero DDERR/frame). */
 static title_drive g_drive;
 static int         g_drive_active;
+
+/* --input-trace <file.jsonl> — port-side deterministic input replay (the
+ * harness's {frame,ids} format).  Injected into the drive's input ring keyed
+ * on the present (Flip) count g_present_frame, which drive_present bumps. */
+static char              g_input_trace_path_buf[1024];
+static const char       *g_input_trace_path;
+static struct input_trace g_input_trace;
+static int               g_input_trace_active;
+static uint32_t          g_present_frame;
 
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
@@ -240,6 +254,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         title_drive_shutdown(&g_drive);
         g_drive_active = 0;
     }
+    if (g_input_trace_active) {
+        input_trace_free(&g_input_trace);
+        g_input_trace_active = 0;
+    }
     shutdown_ddraw();
     call_trace_shutdown();
     timeEndPeriod(1);
@@ -293,6 +311,9 @@ static void shutdown_ddraw(void)
 static void drive_present(void *user)
 {
     (void)user;
+    /* The Flip count is the input-trace's frame axis (matching the harness's
+     * Flip-anchored injection), so bump it on every present. */
+    g_present_frame++;
     if (!g_no_present && g_zdd != NULL)
         zdd_present(g_zdd);
 }
@@ -338,6 +359,20 @@ static void init_title_drive(void)
     g_drive_active = 1;
     log_line("init_title_drive: title scene driven (primary=%p, sprites blank "
              "until 8d surface builder lands)", (void *)g_zdd->primary_obj);
+
+    /* Load the optional input-replay trace now that the drive (and its input
+     * ring) exists.  Injection happens per-frame in main_loop_body. */
+    if (g_input_trace_path != NULL) {
+        if (input_trace_load(g_input_trace_path, &g_input_trace)) {
+            g_input_trace_active = 1;
+            log_line("init_title_drive: input trace loaded (%zu entries) from %s",
+                     g_input_trace.count, g_input_trace_path);
+        } else {
+            input_trace_free(&g_input_trace);
+            log_line("init_title_drive: failed to load input trace %s",
+                     g_input_trace_path);
+        }
+    }
 }
 
 /* Anchor CWD + DLL search dir to the game directory.  Reads
@@ -481,13 +516,18 @@ static void main_loop_body(void)
     }
 
     if (g_drive_active) {
+        uint32_t now = GetTickCount();
+        /* Inject any due replay events into the drive's input ring before the
+         * scene polls it this iteration (keyed on the present/Flip count). */
+        if (g_input_trace_active)
+            input_trace_replay(&g_input_trace, g_present_frame, &g_drive.input, now);
         /* Drive one iteration of the title scene (one body of FUN_0056aea0's
          * outer do/while).  The scene's pacer decides update vs render; a
          * render iteration presents through the sink's TITLE_DRAW_FLIP →
          * drive_present.  On scene completion, log the menu-action result and
          * stop — the outer driver's action dispatch (FUN_00562ea0) lands when
          * the next scenes are ported. */
-        title_scene_status st = title_drive_step(&g_drive, GetTickCount());
+        title_scene_status st = title_drive_step(&g_drive, now);
         if (st == TITLE_SCENE_DONE) {
             log_line("title scene returned result=%ld", (long)g_drive.result);
             g_shutdown = 1;
@@ -539,6 +579,19 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--skip-ddraw"))   g_skip_ddraw = 1;
         else if (!strcmp(tok, "--no-present"))   g_no_present = 1;
         else if (!strcmp(tok, "--no-title-scene")) g_no_title_scene = 1;
+        else if (!strcmp(tok, "--input-trace")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_input_trace_path_buf, tok,
+                        sizeof(g_input_trace_path_buf) - 1);
+                g_input_trace_path = g_input_trace_path_buf;
+            }
+        }
+        else if (!strncmp(tok, "--input-trace=", 14)) {
+            strncpy(g_input_trace_path_buf, tok + 14,
+                    sizeof(g_input_trace_path_buf) - 1);
+            g_input_trace_path = g_input_trace_path_buf;
+        }
         else if (!strcmp(tok, "--frames")) {
             tok = strtok(NULL, " \t");
             if (tok) g_max_frames = (unsigned)strtoul(tok, NULL, 10);
