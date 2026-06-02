@@ -715,6 +715,16 @@ int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
     return g_dd_desktop_result;
 }
 
+/* Host stub for the window-DC present (real impl in zdd_win32.c).  Host tests
+ * never bind a present hwnd (zdd_set_present_hwnd), so zdd_present's mode-2
+ * path stays on the desktop branch above; this exists only to satisfy the
+ * link. */
+int zdd_window_present(void *src_hdc, void *hwnd, int width, int height)
+{
+    (void)src_hdc; (void)hwnd; (void)width; (void)height;
+    return 1;
+}
+
 int zdd_dc_blit(void *dest_hdc, int dest_x, int dest_y,
                 int width, int height,
                 void *src_hdc, int src_x, int src_y, uint32_t rop)

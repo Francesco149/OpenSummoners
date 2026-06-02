@@ -1630,6 +1630,16 @@ int  zdd_surface_blt(void *dest, const int32_t *dest_rect,
 int  zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
                          int width, int height);
 
+/* Window-DC present — retail's true mode-2 path: GetDC(hwnd) + BitBlt the
+ * surface into the window client at (0,0) + ReleaseDC(hwnd).  Preferred over
+ * zdd_desktop_present for a visible window (no DWM-vs-desktop-blit flicker;
+ * quirk #55).  Returns 1 on success. */
+int  zdd_window_present(void *src_hdc, void *hwnd, int width, int height);
+
+/* Bind the HWND the windowed (mode-2) present BitBlts into.  Unset (NULL) ⇒
+ * zdd_present falls back to the desktop-DC blit (headless/host). */
+void zdd_set_present_hwnd(void *hwnd);
+
 /* Generic GDI BitBlt between two surface HDCs (SRCCOPY etc.).  Used by
  * the dead complex path of zdd_blit_orchestrate (FUN_005bd550) to copy
  * the dest region into a scratch surface before the software blend.

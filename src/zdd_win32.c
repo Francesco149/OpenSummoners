@@ -519,13 +519,14 @@ int zdd_surface_blt(void *dest, const int32_t *dest_rect,
 }
 
 /* Desktop-DC composite: GetDC(NULL) + BitBlt + ReleaseDC(NULL, hdc).
- * Mirrors FUN_005b8fc0 case 2 lines 0x5b90b2..0x5b90f2.  Retail uses
- * `hWnd = NULL` for GetDC (set at the top of FUN_005b8fc0:0x5b8fc5)
- * to get the desktop DC — the surface gets composited into the
- * desktop at (dest_x, dest_y) regardless of which window owns the
- * area.  Caller (main.c) must keep dest_x/dest_y aligned with the
- * window's client-area screen position for the composite to land
- * inside the window. */
+ *
+ * NB this is a FALLBACK, NOT retail's path (corrected ckpt 31).  The earlier
+ * "retail uses hWnd=NULL @0x5b8fc5" reading was wrong: 0x5b8fc5 zeroes the
+ * surface-GetDC out-slot ([esp+8]=0), not the GetDC arg.  Retail's actual
+ * mode-2 GetDC (0x5b90b7) pushes `ebx` = the window handle — it paints its
+ * WINDOW (see zdd_window_present + quirk #55).  This desktop blit is kept only
+ * for headless/host paths (no hwnd bound); a visible window must use the
+ * window-DC path or DWM fights the desktop blit → focus flicker. */
 int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
                         int width, int height)
 {
@@ -537,6 +538,21 @@ int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
     BitBlt(desktop, dest_x, dest_y, width, height,
            (HDC)src_hdc, 0, 0, SRCCOPY);
     ReleaseDC(NULL, desktop);
+    return 1;
+}
+
+/* Window-DC present — retail's true mode-2 path (FUN_005b8fc0 @0x5b90b7):
+ * GetDC(hwnd) → BitBlt the composed primary into the window client at (0,0) →
+ * ReleaseDC(hwnd, dc).  Painting the window (not the desktop) lets DWM
+ * composite it, so a visible/focused window doesn't flicker (quirk #55).
+ * dest (0,0) = client top-left (retail's dest fields are 0 in windowed mode). */
+int zdd_window_present(void *src_hdc, void *hwnd, int width, int height)
+{
+    if (src_hdc == NULL || hwnd == NULL) return 0;
+    HDC dest = GetDC((HWND)hwnd);
+    if (dest == NULL) return 0;
+    BitBlt(dest, 0, 0, width, height, (HDC)src_hdc, 0, 0, SRCCOPY);
+    ReleaseDC((HWND)hwnd, dest);
     return 1;
 }
 

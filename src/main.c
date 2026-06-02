@@ -297,6 +297,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * below; this initial sample covers the window's spawn position. */
     sync_window_position();
 
+    /* Bind the present target to our window so the mode-2 present BitBlts into
+     * the *window* DC (retail's GetDC(hwnd) path, quirk #55) instead of the
+     * desktop — a visible/focused window then composites through DWM without
+     * flicker.  Harmless under --hide-window (drive_present skips the present
+     * there anyway). */
+    if (g_zdd != NULL)
+        zdd_set_present_hwnd(g_hwnd);
+
     /* Register the title sprite banks from sotesd.dll BEFORE the drive starts,
      * so the render sink's bank getter (ar_pool_get_slot 19/20) resolves to
      * populated slots instead of short-circuiting to NULL.  Without this the
@@ -756,7 +764,11 @@ static int register_window_class(void)
     wc.lpfnWndProc   = wndproc;
     wc.hInstance     = g_hInstance;
     wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    /* No erase brush: the per-frame present fully repaints the client, so a
+     * background erase on activate/uncover would only flash a solid colour
+     * under the next blit → flicker.  Render windows (incl. retail) leave this
+     * NULL and suppress WM_ERASEBKGND (see wndproc).  Quirk #55. */
+    wc.hbrBackground = NULL;
     wc.lpszClassName = OPENSUMMONERS_CLASS;
     return RegisterClassA(&wc) != 0;
 }
@@ -805,6 +817,11 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
         }
         break;
+    case WM_ERASEBKGND:
+        /* Suppress the background erase: the present repaints the whole
+         * client every frame, so erasing first only flashes under the blit
+         * (the focus/activate flicker).  Return non-zero = "erased". */
+        return 1;
     }
     return DefWindowProcA(hwnd, msg, wp, lp);
 }

@@ -876,6 +876,19 @@ int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
  * DDERR via OutputDebugStringA → stderr).  See zdd.h docstring for the
  * mode table; mode 4 (Zoom) calls zdd_object_upscale_16bpp before the
  * composite. */
+/* The HWND the windowed (mode-2) present BitBlts into.  Retail's FUN_005b8fc0
+ * case 2 does GetDC(hwnd)/BitBlt/ReleaseDC(hwnd) — it paints its *window*, NOT
+ * the desktop (confirmed by disasm at 0x5b90b7/_b7/_f2: GetDC(ebx=hwnd), quirk
+ * #55).  main.c sets this after the window + DDraw are up.  When unset (NULL —
+ * host tests, headless capture) the present falls back to the desktop-DC path,
+ * which is harmless there since captures read primary_obj directly. */
+static void *g_present_hwnd;
+
+void zdd_set_present_hwnd(void *hwnd)
+{
+    g_present_hwnd = hwnd;
+}
+
 void zdd_present(zdd *self)
 {
     CALL_TRACE_ENTER(0x5b8fc0);
@@ -915,9 +928,19 @@ void zdd_present(zdd *self)
         {
             void *src_hdc = NULL;
             zdd_object_get_dc(self->primary_obj, &src_hdc);
-            zdd_desktop_present(src_hdc,
-                                self->screen_pos_x, self->screen_pos_y,
-                                self->screen_width, self->screen_height);
+            if (g_present_hwnd != NULL) {
+                /* Faithful path: BitBlt into the *window* client DC, like
+                 * retail (GetDC(hwnd) @0x5b90b7).  Lands in the window's own
+                 * pixels — DWM-composited, no desktop bleed / focus flicker
+                 * (quirk #55). dest origin (0,0) = client top-left. */
+                zdd_window_present(src_hdc, g_present_hwnd,
+                                   self->screen_width, self->screen_height);
+            } else {
+                /* Fallback (headless / host tests): the old desktop blit. */
+                zdd_desktop_present(src_hdc,
+                                    self->screen_pos_x, self->screen_pos_y,
+                                    self->screen_width, self->screen_height);
+            }
             zdd_object_release_dc(self->primary_obj, src_hdc);
         }
         return;
