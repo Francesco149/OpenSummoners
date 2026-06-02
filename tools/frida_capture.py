@@ -281,6 +281,19 @@ class CaptureConfig:
     pace_probe:        bool = False
     pace_every:        int  = 30
 
+    # ── GDI text probe (text-renderer parity, ckpt 36 part 2) ──
+    # Hook gdi32!TextOutA/ExtTextOutA and record each glyph draw's
+    # (x, y, bytes, text colour, bk mode) + the selected font's LOGFONTA.
+    # This is the retail ground truth for the dynamic-text GDI path (which
+    # ar_register_fonts HFONT a menu picks, the colours, the per-byte
+    # advance).  Writes <run_dir>/textout.jsonl (deduped distinct draws).
+    # Drive retail to a GDI-text scene (the new-game menu) with --input-trace.
+    # textout_lo/hi restrict recording to a flip window so the intro/attract
+    # debug text (which live-updates and would flood the channel) is skipped.
+    textout_probe:     bool = False
+    textout_lo:        int  = 0
+    textout_hi:        int  = 0
+
     # ── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──
     # Write a fixed seed into DAT_008a4f94 just before the first FUN_0056c070
     # sparkle spawn, so retail's twinkle stream matches the port's pinned-seed
@@ -327,7 +340,9 @@ def run_capture(cfg: CaptureConfig) -> int:
     cursor_f     = (run_dir / "cursor_level.jsonl").open("w") if cfg.cursor_probe else None
     fade_f       = (run_dir / "fade_level.jsonl").open("w") if cfg.fade_probe else None
     pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
+    textout_f    = (run_dir / "textout.jsonl").open("w") if cfg.textout_probe else None
     cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
+    textout_fonts: dict[str, int] = {}  # font fingerprint -> distinct-draw count
     frames_dir   = (run_dir / "frames") if cfg.capture else None
     if frames_dir is not None:
         frames_dir.mkdir(parents=True, exist_ok=True)
@@ -547,6 +562,25 @@ def run_capture(cfg: CaptureConfig) -> int:
             rate = (frame / (ms / 1000.0)) if ms > 0 else 0.0
             print(f"[frida_capture] pace: flip {frame} @ {ms}ms "
                   f"({rate:.1f} flips/s avg)", file=sys.stderr)
+        elif kind == "textout":
+            frame = int(payload.get("frame", -1))
+            font  = payload.get("font") or {}
+            fp = (f"{font.get('h')}x{font.get('w')} {font.get('face')!r}"
+                  f" it={font.get('italic')}" if font else "?")
+            textout_fonts[fp] = textout_fonts.get(fp, 0) + 1
+            color = payload.get("color")
+            color_s = f"0x{color:06x}" if isinstance(color, int) else str(color)
+            if textout_f is not None:
+                textout_f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                textout_f.flush()
+            summary.setdefault("textout_draws", 0)
+            summary["textout_draws"] += 1
+            print(f"[frida_capture] textout @flip={frame} "
+                  f"({payload.get('x')},{payload.get('y')}) "
+                  f"{payload.get('text')!r} color={color_s} "
+                  f"bk={payload.get('bkmode')} font=[{fp}]", file=sys.stderr)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "cursor_level":
             frame = int(payload.get("frame", -1))
             num   = payload.get("num")
@@ -589,6 +623,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "fade_probe":         cfg.fade_probe,
         "pace_probe":         cfg.pace_probe,
         "pace_every":         cfg.pace_every,
+        "textout_probe":      cfg.textout_probe,
+        "textout_lo":         int(cfg.textout_lo),
+        "textout_hi":         int(cfg.textout_hi),
         "seed_pin":           cfg.seed_pin,
         "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
@@ -658,6 +695,17 @@ def run_capture(cfg: CaptureConfig) -> int:
                       file=sys.stderr)
         if pace_f is not None:
             pace_f.close()
+        if textout_f is not None:
+            textout_f.close()
+            if textout_fonts:
+                dist = ", ".join(f"[{fp}]×{c}" for fp, c in
+                                 sorted(textout_fonts.items(),
+                                        key=lambda kv: -kv[1]))
+                print(f"[frida_capture] textout distinct draws by font: {dist}",
+                      file=sys.stderr)
+            else:
+                print("[frida_capture] textout: NO TextOutA/ExtTextOutA calls "
+                      "seen (scene never rendered GDI text?)", file=sys.stderr)
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -753,7 +801,26 @@ def main() -> int:
     p.add_argument("--seed-value", type=lambda s: int(s, 0), default=0x4f5347,
                    help="the fixed seed both sides use (default 0x4f5347 = "
                         "OSS_RNG_DEFAULT_SEED; must match the port's seed).")
+    p.add_argument("--textout-probe", action="store_true",
+                   help="hook gdi32!TextOutA/ExtTextOutA and log retail's glyph "
+                        "draws (x/y/bytes/colour/bkmode + selected LOGFONTA) to "
+                        "textout.jsonl — the GDI-text ground truth.  Pair with "
+                        "--input-trace to drive retail to the new-game menu.")
+    p.add_argument("--textout-frames", default=None,
+                   help="restrict --textout-probe to a flip window 'LO,HI' so "
+                        "the intro/attract debug text is skipped (e.g. "
+                        "'2000,4000' for the new-game menu).")
     args = p.parse_args()
+
+    textout_lo, textout_hi = 0, 0
+    if args.textout_frames:
+        parts = [int(x) for x in args.textout_frames.split(",") if x.strip()]
+        if len(parts) == 2:
+            textout_lo, textout_hi = parts
+        elif len(parts) == 1:
+            textout_lo = parts[0]
+        else:
+            p.error("--textout-frames expects 'LO,HI' (or a single 'LO')")
 
     call_trace_vas = None
     call_trace_frames = None
@@ -817,6 +884,9 @@ def main() -> int:
         seed_pin          = args.seed_pin,
         seed_value        = args.seed_value,
         pace_every        = args.pace_every,
+        textout_probe     = args.textout_probe,
+        textout_lo        = textout_lo,
+        textout_hi        = textout_hi,
     )
     return run_capture(cfg)
 

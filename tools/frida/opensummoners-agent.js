@@ -330,6 +330,29 @@ let   g_pace_probe        = false;
 let   g_pace_every        = 30;
 let   g_pace_t0           = 0;     // Date.now() at the first flip
 
+// ─── GDI text probe (text-renderer parity, ckpt 36 part 2) ───────────────
+// Hook gdi32!TextOutA / ExtTextOutA — the per-glyph primitive the dynamic-
+// text renderer (glyph_row_draw, 0x48e860) emits, one call per glyph.  For
+// each draw we record (x, y, the c glyph bytes, text colour, bk mode) plus
+// the LOGFONTA of the font currently selected into the DC (GetCurrentObject
+// OBJ_FONT + GetObjectA).  This is the retail GROUND TRUTH for the GDI text
+// path: which of the 8 ar_register_fonts HFONTs a menu selects, the text/
+// shadow colours, and — from the x advance between consecutive glyphs — the
+// real per-byte advance the port hard-codes as 7 (14 per SJIS pair).  Dedup
+// by (x|y|bytes|colour|bkmode|font) so a menu redrawn every frame yields its
+// distinct glyph-draw set once, not thousands of identical dupes.
+const OBJ_FONT            = 6;
+let   g_textout_probe     = false;
+let   g_textout_hooked    = false;
+let   g_textout_lo        = 0;     // flip-window [lo,hi]: record only within it
+let   g_textout_hi        = 0x7fffffff;  // (avoids flooding on intro/debug text)
+let   g_textout_seen      = {};    // dedup key -> first flip frame seen
+let   g_textout_n         = 0;     // distinct draws emitted
+let   g_textout_calls     = 0;     // total TextOut* calls observed
+const TEXTOUT_CAP         = 4000;  // distinct-draw emit cap (safety valve)
+let   g_textout_q         = {};    // resolved GDI query NativeFunctions
+let   g_textout_lfbuf     = null;  // Memory.alloc LOGFONTA scratch (60 bytes)
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -1542,6 +1565,114 @@ function installFadeProbe() {
     logmsg('fade probe installed @ FUN_00448c80');
 }
 
+// Resolve the gdi32 query functions the text probe uses to read DC state
+// (text colour, bk mode) and the selected font's LOGFONTA.  Allocates the
+// 60-byte LOGFONTA scratch once.  Returns false if gdi32 is unavailable.
+function ensureTextOutQueryFns() {
+    if (g_textout_q.ready) return true;
+    const gdi = Process.findModuleByName('gdi32.dll');
+    if (!gdi) { err('textout_probe', 'gdi32.dll not loaded'); return false; }
+    const E = function (name, ret, args) {
+        const pp = gdi.findExportByName(name);
+        if (!pp) throw new Error('missing export ' + name);
+        return new NativeFunction(pp, ret, args, 'stdcall');
+    };
+    try {
+        g_textout_q.GetTextColor     = E('GetTextColor',     'uint32',  ['pointer']);
+        g_textout_q.GetBkMode        = E('GetBkMode',        'int',     ['pointer']);
+        g_textout_q.GetCurrentObject = E('GetCurrentObject', 'pointer', ['pointer', 'uint32']);
+        g_textout_q.GetObjectA       = E('GetObjectA',       'int',     ['pointer', 'int', 'pointer']);
+    } catch (e) { err('textout_probe', '' + e); return false; }
+    g_textout_lfbuf = Memory.alloc(64);
+    g_textout_q.ready = true;
+    return true;
+}
+
+// Read the LOGFONTA of the font currently selected into `hdc`, or null.
+function readSelectedFont(hdc) {
+    try {
+        const hf = g_textout_q.GetCurrentObject(hdc, OBJ_FONT);
+        if (hf.isNull()) return null;
+        const n = g_textout_q.GetObjectA(hf, 60, g_textout_lfbuf);
+        if (n < 28) return null;
+        const b = g_textout_lfbuf;
+        return {
+            h:       b.readS32(),
+            w:       b.add(4).readS32(),
+            weight:  b.add(16).readS32(),
+            italic:  b.add(20).readU8(),
+            charset: b.add(23).readU8(),
+            face:    b.add(28).readCString(),
+        };
+    } catch (e) { return null; }
+}
+
+// Shared body for the TextOutA / ExtTextOutA hooks.  `strPtr` is the glyph
+// string (NOT NUL-terminated) and `c` its length in bytes.
+function textOutOnEnter(hdc, x, y, strPtr, c) {
+    // Cheap gates FIRST — before any GDI queries — so the intro/attract debug
+    // text outside the target window adds ~zero overhead (it otherwise floods
+    // the channel and slows the process below the menu).
+    if (g_flip_frame < g_textout_lo || g_flip_frame > g_textout_hi) return;
+    if (g_textout_n >= TEXTOUT_CAP) return;
+    g_textout_calls++;
+    const bytes = [];
+    let text = '';
+    try {
+        const n = (c > 0 && c < 64) ? c : 0;
+        if (n > 0) {
+            const u8 = new Uint8Array(strPtr.readByteArray(n));
+            for (let i = 0; i < n; i++) {
+                bytes.push(u8[i]);
+                text += (u8[i] >= 0x20 && u8[i] < 0x7f)
+                    ? String.fromCharCode(u8[i]) : '.';
+            }
+        }
+    } catch (e) {}
+    let color = null, bkmode = null;
+    try { color  = g_textout_q.GetTextColor(hdc) >>> 0; } catch (e) {}
+    try { bkmode = g_textout_q.GetBkMode(hdc); } catch (e) {}
+    const font = readSelectedFont(hdc);
+    const fkey = font ? (font.h + 'x' + font.w + '/' + font.face + '/' + font.italic) : '?';
+    const key = x + '|' + y + '|' + bytes.join(',') + '|' + color + '|' + bkmode + '|' + fkey;
+    if (g_textout_seen[key] !== undefined) return;   // dedup the per-frame redraw
+    g_textout_seen[key] = g_flip_frame;
+    g_textout_n++;
+    send({kind: 'textout', frame: g_flip_frame, x: x, y: y, c: c,
+          bytes: bytes, text: text, color: color, bkmode: bkmode, font: font});
+}
+
+function installTextOutProbe() {
+    if (g_textout_hooked) return;
+    if (!ensureTextOutQueryFns()) return;
+    const gdi = Process.findModuleByName('gdi32.dll');
+    const to = gdi.findExportByName('TextOutA');
+    if (to) {
+        // BOOL TextOutA(HDC hdc, int x, int y, LPCSTR str, int c)
+        Interceptor.attach(to, {
+            onEnter: function (args) {
+                textOutOnEnter(args[0], args[1].toInt32(), args[2].toInt32(),
+                               args[3], args[4].toInt32());
+            },
+        });
+        logmsg('textout probe installed @ gdi32!TextOutA');
+    } else {
+        err('textout_probe', 'TextOutA export not found');
+    }
+    // BOOL ExtTextOutA(HDC, int x, int y, UINT opt, RECT*, LPCSTR str, UINT c, INT* dx)
+    const eto = gdi.findExportByName('ExtTextOutA');
+    if (eto) {
+        Interceptor.attach(eto, {
+            onEnter: function (args) {
+                textOutOnEnter(args[0], args[1].toInt32(), args[2].toInt32(),
+                               args[5], args[6].toInt32());
+            },
+        });
+        logmsg('textout probe installed @ gdi32!ExtTextOutA');
+    }
+    g_textout_hooked = true;
+}
+
 // Hook the first phase-7 sparkle spawn (FUN_0056c070).  It is the TAS anchor
 // for "subtitle animation start" (tick 0 of the particle system) — emitted
 // always so any capture/trace can align to it — and, when seed-pinning is on,
@@ -1742,6 +1873,10 @@ rpc.exports = {
         g_cursor_probe         = !!opts.cursor_probe;
         g_fade_probe           = !!opts.fade_probe;
         g_pace_probe           = !!opts.pace_probe;
+        g_textout_probe        = !!opts.textout_probe;
+        if (typeof opts.textout_lo === 'number') g_textout_lo = opts.textout_lo | 0;
+        if (typeof opts.textout_hi === 'number' && opts.textout_hi > 0)
+            g_textout_hi = opts.textout_hi | 0;
         g_seed_pin             = !!opts.seed_pin;
         if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
@@ -1804,7 +1939,8 @@ rpc.exports = {
             // Structural-parity harness: frame anchor + call-trace + mem-watch
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
-                g_inject_enabled || g_cursor_probe || g_fade_probe || g_pace_probe) {
+                g_inject_enabled || g_cursor_probe || g_fade_probe ||
+                g_pace_probe || g_textout_probe) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
@@ -1814,6 +1950,10 @@ rpc.exports = {
             if (g_fade_probe) {
                 try { installFadeProbe(); }
                 catch (e) { err('install_fade_probe', '' + e); }
+            }
+            if (g_textout_probe) {
+                try { installTextOutProbe(); }
+                catch (e) { err('install_textout_probe', '' + e); }
             }
             // Sparkle anchor (subtitle-anim-start TAS marker + optional seed
             // pin) — install whenever we have a flip-frame counter to stamp it,

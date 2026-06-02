@@ -1606,3 +1606,57 @@ what the renderer sees on-target.
 > `FUN_0048e6d0` (`glyph_ruby_draw`) — ported `src/glyph_render.{c,h}` +
 > `glyph_render_win32.c` (ckpt 35).  Caller `FUN_0048c820`.  See
 > `findings/text-glyph-pipeline.md`.
+
+## 63. The GDI text renderer is verified bit-exact against retail's LIVE TextOutA stream — every parameter matches; and retail has a debug HUD overlay using a *different* (3×3-outline) text routine
+
+Closed the ckpt-35 "render a string, diff" gate by hooking **`gdi32!TextOutA`**
+in retail (`frida_capture.py --textout-probe`) and capturing the **real
+per-glyph draw stream** of the **new-game config menu** — the first scene that
+exercises the GDI text path (`glyph_grid_render` `0x48e200`).  Drove retail
+there by pressing **Start (id 0x24) at flip ~400** (the title menu is
+interactive ~flip 200–700, then auto-enters a gameplay **demo** by ~flip 900,
+so the old `new-game-through` trace's flip-2050 press landed in the demo — see
+`trace-retimed.jsonl`).
+
+Retail's menu renders **"Game Difficulty  1:Easy" / "Auto-guard  On" /
+"Start Game"** + a help box, and every parameter the port's renderer uses
+matches retail's measured output **bit-for-bit**:
+
+| parameter            | retail (measured)                      | port |
+|----------------------|----------------------------------------|------|
+| font                 | Courier New **7×18** (slot 3)          | ✓ `ar_register_fonts` font[3] = `ar_make_font(7,0x12,0)` |
+| bk mode              | **TRANSPARENT** (1)                     | ✓ `SetBkMode(TRANSPARENT)` |
+| per-glyph advance    | **7 px** (label glyphs at Δx=7)         | ✓ 7 px/byte |
+| draw primitive       | one **`TextOutA`** per glyph            | ✓ `glyph_row_draw` |
+| drop shadow          | 2 copies **(x+1,y)** and **(x,y+1)**    | ✓ quirk #62(b) |
+| shadow colour        | **0xa8b9cc**                            | ✓ `node+0x184` |
+| normal text colour   | **0x3e537d**                            | ✓ `node+0x180` |
+| focused text colour  | **0xf08080**                            | ✓ `node+0x18c` |
+| row pitch            | 28 px (y = 56/84/112)                   | — (builder geometry) |
+| cell origin x        | 72                                      | — (builder geometry) |
+
+Because GDI rasterization is deterministic given an identical `HFONT`
+(`CreateFontIndirectA(LOGFONTA)` is byte-identical both sides via `ar_make_font`)
++ identical (x, y, colour, bk mode, glyph bytes), this is a **bit-exact**
+result for the glyph pixels — the renderer port is correct.  The remaining
+end-to-end *stream* diff (port emits the same `TextOutA` calls) waits on the
+**new-game menu BUILDER** port, which supplies the cells/geometry the renderer
+walks (row pitch 28, origin x=72, the value-column offsets, the focused row).
+
+**Bonus discovery — a debug HUD overlay.**  During the title's attract **demo**
+the engine paints a GDI **debug HUD** (a column of stat numbers + `"Bonus Mode"`
++ `"The Game Play by Computer operator only."` + `"- Please Hit Any Key -"`) in
+fonts **6×14 / 7×16 / 7×18 Courier New**.  Its text routine is **NOT**
+`glyph_grid_render`: it draws each string as a **full 3×3 outline** — 9 shadow
+copies (all 8 neighbours + centre) in `0x202020`, then the centre once in
+`0xffffff` (or `0x808080`) — i.e. an *embossed/outlined* helper, distinct from
+the menu renderer's 2-copy drop shadow.  Not parity-relevant to the title/menu
+port (the port doesn't render the demo HUD), but a useful specimen of a second
+GDI-text path if the demo mode is ever ported.
+
+> 📍 Tool: `frida_capture.py --textout-probe [--textout-frames LO,HI]` →
+> `<run>/textout.jsonl` (deduped distinct glyph draws: x/y/bytes/colour/bkmode +
+> selected `LOGFONTA`).  Ground-truth capture:
+> `runs/textout-start/.../frames/frame_00450.png` (the retail config menu).
+> Caveat: under the hidden-window turbo harness retail runs ~15 flips/s (vs
+> ~127 native), so the menu is at flip ~400–1500, not the trace's old 2000+.

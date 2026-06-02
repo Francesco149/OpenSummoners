@@ -3566,3 +3566,33 @@ ckpt: `feat: port phase-7 sparkle-particle spawn + LCG` → `wire` → `harness 
 pin` → `fix: per-frame update` → `harness TAS anchor`.
 
 ---
+
+## ckpt 36 (2026-06-02) — TEXT RENDERER VERIFIED BIT-EXACT vs retail's live TextOutA stream
+
+Closed the ckpt-35 "render a string, diff" gate. **Part 1** (committed earlier):
+wired `ar_register_fonts` at boot (builds the 8 HFONTs) + a `--render-glyph-test`
+offscreen-DIB path on the port side. **Part 2** (this checkpoint): verified from
+the retail side. New **`frida_capture.py --textout-probe`** hooks
+`gdi32!TextOutA`/`ExtTextOutA` and records every glyph draw (x/y/bytes/text-colour/
+bk-mode + the selected `LOGFONTA`); drove retail to the **new-game config menu**
+(`trace-retimed.jsonl`, Start at flip ~400 — the title auto-demos by ~flip 900, so
+the old flip-2050 press missed) and compared its real output to the port renderer.
+
+**Every parameter matches bit-for-bit:** font Courier New **7×18** (port slot 3),
+bk mode **TRANSPARENT**, **7 px/glyph** advance, **per-glyph `TextOutA`**, the
+**2-copy shadow** `(x+1,y)/(x,y+1)`, colours normal **0x3e537d** / shadow
+**0xa8b9cc** / focused **0xf08080**. GDI rasterizes deterministically from an
+identical HFONT + identical draw args → the glyph pixels are bit-identical; the
+renderer port is correct. The end-to-end stream/pixel diff now only awaits the
+new-game menu **builder** (it supplies the cells the renderer walks). Quirk **#63**.
+
+Also found: under the hidden-window turbo harness retail runs **~15 flips/s**
+(vs ~127 native) and the title auto-enters a gameplay **demo** that paints a GDI
+**debug HUD** via a *different* text routine (a full **3×3 outline**, not the
+menu's 2-copy shadow) — documented, not parity-relevant. Goldens saved:
+`tests/scenarios/new-game-through/goldens/{retail-newgame-config-menu.png,
+retail-newgame-config-textout.jsonl}`. 691 host tests pass (no `src/` change —
+verification + tooling). Ledger **150/1490** unchanged. User-confirmed the retail
+golden capture looks good.
+
+---

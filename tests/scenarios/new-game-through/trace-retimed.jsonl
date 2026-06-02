@@ -1,0 +1,4 @@
+# Re-timed for the Frida harness flip axis (title menu interactive ~flip 200-700,
+# auto-demo by ~flip 900).  The original trace (Start @2050) lands in the demo.
+# Press Start early to enter the new-game config menu, then capture its GDI text.
+{"frame": 400, "ids": [36]}

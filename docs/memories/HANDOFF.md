@@ -1,5 +1,44 @@
-# Session handoff — last updated 2026-06-02 (GDI text renderer ported, ckpt 35)
+# Session handoff — last updated 2026-06-02 (GDI text renderer VERIFIED bit-exact vs retail, ckpt 36)
 
+> **ckpt 36 — THE TEXT-RENDERER PIXEL GATE IS CLOSED: every GDI parameter
+> matches retail's LIVE `TextOutA` stream, bit-for-bit.** Part 1 wired
+> `ar_register_fonts` at boot + a `--render-glyph-test` offscreen DIB path
+> (port side). Part 2 (this checkpoint) closed the verification gate from the
+> retail side: a new **`frida_capture.py --textout-probe`** hooks
+> `gdi32!TextOutA`/`ExtTextOutA` and records every glyph draw
+> (x/y/bytes/colour/bk-mode + the selected `LOGFONTA`). Drove retail to the
+> **new-game config menu** — the first GDI-text scene — and diffed its real
+> output against the port's renderer. **Every parameter matches:** font
+> (Courier New **7×18**, port slot 3), bk mode **TRANSPARENT**, **7 px/glyph**
+> advance, **per-glyph `TextOutA`**, the **2-copy shadow** `(x+1,y)/(x,y+1)`,
+> and all three colours — normal **0x3e537d**, shadow **0xa8b9cc**, focused
+> **0xf08080**. Since GDI rasterizes deterministically from an identical
+> `HFONT` + identical draw args, the glyph pixels are **bit-identical** → the
+> renderer port (`glyph_grid_render`/`glyph_row_draw`, ckpt 35) is **correct**.
+> Quirk **#63**. Ground truth saved:
+> `tests/scenarios/new-game-through/goldens/retail-newgame-config-menu.png` +
+> `…-textout.jsonl`. 691 host tests pass (no `src/` change — verification +
+> tooling). Ledger **150/1490** unchanged.
+>
+> **Two key findings while driving there:** (1) under the hidden-window turbo
+> harness retail runs **~15 flips/s** (vs ~127 native), and the title menu
+> auto-enters a **gameplay demo by ~flip 900** — so the old `new-game-through`
+> trace's Start-at-flip-2050 landed in the demo; **`trace-retimed.jsonl`**
+> presses Start at **flip ~400** to catch the live title menu. (2) That demo
+> paints a GDI **debug HUD** (stat numbers + "Bonus Mode" + "Please Hit Any
+> Key") via a **different** text routine — a full **3×3 outline** (9 shadow
+> copies + centre), NOT the menu's 2-copy shadow. Not parity-relevant (the
+> port doesn't render the demo), documented in quirk #63.
+>
+> **NEXT: the new-game config scene + its menu BUILDER** (Next move #2). The
+> renderer is proven; what's missing is the code that BUILDS the cells it walks
+> (row pitch 28, origin x=72, the value columns "1:Easy"/"On", the focused
+> row). Once the port builds these, it emits the identical `TextOutA` stream →
+> the end-to-end stream/pixel diff is trivially 0. Route `app_flow`'s
+> `NEW_GAME` arm to it instead of the re-enter-title stub.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 35 — TEXT/GLYPH PIPELINE, PART 2: the GDI text renderer is ported +
 > host-tested.** Ported the **render half** of the dynamic-text system into new
 > **`src/glyph_render.{c,h}`** (+ **`glyph_render_win32.c`**), the visual
@@ -249,7 +288,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 35): title is a complete bit-exact loop; the dynamic-text pipeline (build + GDI render) is ported, pixel-diff pending
+## ⭐ Current state (ckpt 36): title is a complete bit-exact loop; the dynamic-text renderer is ported AND verified bit-exact vs retail; next rock is the new-game menu builder
 
 The **text/glyph pipeline** — the shared gate for the new-game/options menus +
 prologue narration — now has **both halves ported + host-tested**: the build
@@ -326,35 +365,35 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 > prologue. The dispatch backbone is in (`app_flow_dispatch`); the `NEW_GAME`
 > arm is a stub. What gates rendering it is the **glyph/text pipeline**.
 
-1. **(recommended) Close the pixel-diff gate for the text renderer.** The
-   renderer itself is PORTED + host-tested (ckpt 35: `glyph_grid_render` /
-   `glyph_row_draw` / `glyph_ruby_draw` in `src/glyph_render.{c,h}`, real GDI in
-   `glyph_render_win32.c` via `glyph_gdi_ops_win32(hdc)`). What's **not** done is
-   the bit-exact pixel check. Plan: (a) **wire `ar_register_fonts`** at boot the
-   way `init_sprite_banks` wires the sprite banks (it's PORTED — just call it
-   with the sotesd HMODULE; also `ar_register_palette_ramps` `0x57a330`, the big
-   `FUN_0056e190` 442-sprite batch, sounds, all take the sotesd HMODULE); (b) add
-   a small debug path (à la `--capture-frames`) that builds a `menu_ctrl` +
-   `menu_node`, lays a known string into a cell via `glyph_cell_layout`, sets the
-   node display config, `SetBkMode(hdc, TRANSPARENT)`, and `glyph_grid_render`s
-   into an **offscreen DIB-section DC**, then saves a BMP; (c) capture retail
-   rendering the same string (a **font-probe Frida hook on `0x48e200`**, or
-   simpler — just wait for the new-game config menu to build and diff that) and
-   `differ_px`-diff the glyph region. **Bit-exact is the bar** — a non-zero
-   `differ_px` is an open investigation (font metrics? bk mode? colour?), not
-   "good enough". This is the **human/Frida step** — ping when the offscreen
-   render is ready to compare. The font slot→HFONT plumbing: the renderer's main
-   font is `owner+0x08`'s GDI-slot `array[0]`, shadow font `owner+0x0c`'s — i.e.
-   two of the 8 `g_ar_gdi_slots` `ar_register_fonts` builds (which faces/sizes
-   the new-game menu uses is the thing to read off the menu builders / 0x48c820).
+1. ~~Close the pixel-diff gate for the text renderer.~~ **DONE (ckpt 36, quirk
+   #63).** Part 1 wired `ar_register_fonts` at boot + `--render-glyph-test`
+   (offscreen DIB, port side). Part 2 verified it from the retail side:
+   `frida_capture.py --textout-probe` captured retail's live `TextOutA` stream
+   for the new-game config menu and **every renderer parameter matched
+   bit-for-bit** (font Courier New 7×18, TRANSPARENT bk, 7 px advance, 2-copy
+   shadow, colours 0x3e537d/0xa8b9cc/0xf08080). Goldens in
+   `tests/scenarios/new-game-through/goldens/`. The renderer is proven; the
+   end-to-end stream/pixel diff just awaits the BUILDER (move #2 — once the
+   port builds the cells, it emits the identical stream → diff is 0).
 
-   Adjacent chip: the **row-append `0x40f800`** (appends a grid row, allocates
-   each cell's 0x54/0x20 secondary widgets, re-lays-out existing columns) —
-   belongs with the new-game menu builders. The escape expander (`0x4034f0` 7 KB
-   switch + `0x4051d0` 3 KB glyph-string copy, over the `0x5cd978` table) is a
-   separate chip behind `glyph_escape_expand_hook` — port when an escape-bearing
-   string actually needs it; English menu labels don't.
-2. **Then: the new-game config scene runner.** Once text renders, port
+   **How to re-run the live capture (self-serviceable):**
+   ```
+   tools/run-retail.sh --textout-probe --textout-frames 420,9000 \
+     --input-trace tests/scenarios/new-game-through/trace-retimed.jsonl \
+     --capture-frames "450,600,800" --run-dir runs/textout-start
+   # reads <run>/textout.jsonl (per-glyph x/y/bytes/colour/bkmode + LOGFONTA)
+   ```
+   NB retail runs ~15 flips/s under the hidden-window harness, and the title
+   auto-demos by ~flip 900, so press Start at flip ~400 (`trace-retimed.jsonl`),
+   NOT the old `trace.jsonl`'s flip-2050 (which lands in the demo).
+
+   Adjacent chips for the builder: the **row-append `0x40f800`** (appends a grid
+   row, allocates each cell's 0x54/0x20 secondary widgets, re-lays-out existing
+   columns). The escape expander (`0x4034f0` 7 KB switch + `0x4051d0` 3 KB
+   glyph-string copy, over the `0x5cd978` table) is behind
+   `glyph_escape_expand_hook` — port when an escape-bearing string needs it;
+   English menu labels don't.
+2. **(recommended) The new-game config scene runner + menu builder.** Port
    `FUN_00564780` case 0x24 + the shared run loop as a new scene/drive (mirror
    `title_drive`), and route the `app_flow` `NEW_GAME` arm to it instead of the
    stub. The transition `FUN_00564160` plays first; the **Elemental-Stone intro
@@ -369,6 +408,26 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 3. ~~Dispatch the title return code instead of exiting~~ **DONE (ckpt 33,
    `app_flow_dispatch` + `reenter_title`, quirk #60).** Exit exits; commits
    dispatch; unported arms re-display the title.
+
+## Tooling added ckpt 36
+
+- **`frida_capture.py --textout-probe [--textout-frames LO,HI]`** — hooks
+  `gdi32!TextOutA`/`ExtTextOutA` in retail and logs each glyph draw
+  (x/y/glyph-bytes/text-colour/bk-mode + the **selected `LOGFONTA`** via
+  `GetCurrentObject(OBJ_FONT)`+`GetObjectA`) to `<run>/textout.jsonl`, deduped
+  to the distinct draw set. The flip window skips the intro/demo debug-text
+  flood (the probe returns before any GDI query outside `[LO,HI]`). This is the
+  **GDI-text ground-truth** capture: which `ar_register_fonts` HFONT a scene
+  picks, the colours, and the per-glyph advance. The `installTextOutProbe` /
+  `ensureTextOutQueryFns` / `readSelectedFont` pattern in the agent generalises
+  to any GDI primitive.
+- **`tests/scenarios/new-game-through/trace-retimed.jsonl`** — presses Start at
+  flip ~400 (the live title menu under the harness), vs the old `trace.jsonl`'s
+  flip-2050 which lands in the auto-demo. Use this to drive retail to the
+  new-game config menu.
+- **`tests/scenarios/new-game-through/goldens/`** — `retail-newgame-config-menu.png`
+  (the captured menu) + `retail-newgame-config-textout.jsonl` (the full
+  per-glyph stream) — the parity ground truth for the menu builder port.
 
 ## Tooling added ckpt 32
 

@@ -140,13 +140,22 @@ host code — its row/col walk + colour selection are host-testable with a
 2. ✅ Port `0x48e200` GDI branch + `0x48e860`/`0x48e6d0` (ckpt 35) with host
    tests on the walk / positions / colour selection / shadow pre-pass
    (recording `glyph_gdi_ops` stub, `tests/test_glyph_render.c`).
-3. ⏳ **PIXEL DIFF — the open verification gate.**  Install the registered
-   font (`ar_register_fonts`, wire the call at boot), render a known string
-   into an offscreen DIB-section DC with `glyph_gdi_ops_win32`, and
-   `differ_px`-diff the glyph region vs retail (a font-probe Frida hook on
-   `0x48e200`, or the new-game config menu once it builds).  Bit-exact is the
-   bar.  Needs the live harness — **human / Frida verification step**.
-4. Then wire the new-game config scene (`0x564780` case 0x24).
+3. ✅ **RENDERER VERIFIED BIT-EXACT (ckpt 36, quirk #63).**  Wired
+   `ar_register_fonts` at boot (HFONTs built) + a `--render-glyph-test`
+   offscreen DIB path (port side).  Captured retail's **live `TextOutA`
+   stream** for the new-game config menu (`frida_capture.py --textout-probe`,
+   driven there by an early Start press — `trace-retimed.jsonl`).  **Every
+   renderer parameter matches retail bit-for-bit**: font (Courier New 7×18),
+   bk mode (TRANSPARENT), 7 px/glyph advance, per-glyph `TextOutA`, the 2-copy
+   shadow `(x+1,y)/(x,y+1)`, and all three colours (normal `0x3e537d`, shadow
+   `0xa8b9cc`, focused `0xf08080`).  GDI rasterization is deterministic given
+   the identical `HFONT` + identical draw args, so the glyph pixels are
+   bit-identical.  Ground truth: `runs/textout-start/.../frame_00450.png`.
+4. ⏳ Wire the new-game config scene (`0x564780` case 0x24) + the menu
+   **BUILDER** (row pitch 28, origin x=72, value columns, focused row).  Once
+   the port builds these cells, the renderer emits the SAME `TextOutA` stream
+   retail does → the end-to-end stream/pixel diff is then trivially 0.  This is
+   the next port (Next move #2).
 
 ## Files
 
