@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`: the genuine pixel source is ported, ckpt 20
+
+Ported the sprite-sheet decoder chip — the `ar_sprite_decode_hook` target that
+turns a bank's PE "DATA" resource into the per-frame surface array the frame
+getter returns.  The chip shrank dramatically once we found the whole
+resource-load + DIB/decompress layer was **already ported** as `bitmap_session`
+(`bs_decode_resource` etc.), so this checkpoint is the remaining decode logic:
+
+- **`FUN_004184a0` → `ar_sprite_decode`** (asset_register.c) — entry-0 decoder:
+  re-decode cleanup (release old frames + free the array) → `bs_decode_resource`
+  (compressed) → gated 24bpp brightness pass → `ar_sprite_slice` → `bs_release`.
+  On resource failure the drop-in leaves the bank unloaded (frames NULL, the
+  getter's "still undecoded" path) instead of retail's process-exit.
+- **`ar_sheet_decode_pixels`** — the pure 24bpp colour transform (the genuine
+  new pixel logic, fully host-tested): per-channel `ch * scale / 1000` with an
+  optional gamma LUT (`slot->f_18`), magenta `0xff00ff` left untouched, and the
+  **reversed** byte→field mapping (byte0·f_14, byte1·f_10, byte2·f_0c) —
+  engine-quirks **#46**.  Reads 3 bytes/pixel (not retail's dword) so the last
+  pixel never reads past the buffer under ASan.
+- **`FUN_004188b0` → `ar_sprite_slice`** — frame-grid geometry
+  (`cols=sheet_w/cell_w`, `rows=sheet_h/cell_h`), `slot->f_38=count`, allocate +
+  fill `entries[0].frames` via the per-cell surface-builder hook.  The
+  builder's colour-key is hardwired to magenta unless the `0x1ffffff`
+  sentinel — engine-quirks **#47**.
+
+The DDraw leaf layer stays behind nullable hooks (`ar_frame_build_hook` =
+`0x5b9280`, `ar_frame_free_hook` = `FUN_005b9390`; the trim-metadata `0x5b6f80`,
+format switch `0x5b7310/_74f0/_7270`, and 8bpp palette `0x5b7bd0` are deferred).
+Headless sizes + zero-fills the frames array but leaves surfaces NULL.
+
+**605 host tests (599 pass, 0 fail, 6 skip; +12 this ckpt)**; both 32-bit
+cross-builds clean.  Ledger **130/1490 touched (8.1%), 127 tested** (+2:
+`FUN_004184a0` + `FUN_004188b0`, both inventoried).  Added a shared
+`tests/bs_fixture.h` so the end-to-end decode test can register a synthetic
+compressed 24bpp "DATA" resource without duplicating the builder.  Full decode
+in `docs/findings/sprite-pipeline.md`.
+
 ## 2026-06-02 — Clipped Blt `FUN_005b9bf0` + sparkle wrapper: the whole title compositor/wrapper layer is ported, ckpt 19
 
 Ported the last two render-bridge chips, completing every `TITLE_DRAW_*` arm:

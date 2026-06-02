@@ -431,6 +431,172 @@ void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id)
     return frames[frame_id];               /* arr[id & 0xffff] */
 }
 
+/* ─── sprite-sheet decoder (FUN_004184a0) + slicer (FUN_004188b0) ──── */
+
+ar_frame_build_fn ar_frame_build_hook = NULL;   /* 0x5b9280 (DDraw) */
+ar_frame_free_fn  ar_frame_free_hook  = NULL;   /* FUN_005b9390+delete  */
+
+/* Magenta transparent key, as the low 24 bits of a little-endian DIB
+ * pixel: byte0=B=0xff, byte1=G=0x00, byte2=R=0xff. */
+#define AR_SHEET_COLORKEY 0xff00ffu
+
+/* Sentinel "no colour-key" slot->colorkey value (FUN_004188b0: the
+ * 0x1ffffff arms keep the builder key at 0x1ffffff; every other value is
+ * normalised to the magenta key). */
+#define AR_COLORKEY_NONE  0x1ffffffu
+
+void ar_sheet_decode_pixels(struct bitmap_session *sheet,
+                            uint32_t m_b, uint32_t m_g, uint32_t m_r,
+                            const uint8_t *lut)
+{
+    bitmap_session *s = (bitmap_session *)sheet;
+    if (s == NULL || s->pixels == NULL || s->biBitCount != 0x18) {
+        return;                              /* 24bpp-only (in_ECX[2] gate) */
+    }
+
+    uint8_t *base = (uint8_t *)s->pixels;
+    /* Retail walks rows via the getters: height = biHeight, width =
+     * biWidth, row stride = stride (0x5b6ee0/_ba390/_6ef0). */
+    for (uint32_t y = 0; y < s->biHeight; y++) {
+        uint8_t *row = base + (size_t)s->stride * y;
+        for (uint32_t x = 0; x < s->biWidth; x++) {
+            uint8_t *p = row + (size_t)x * 3;
+            /* Colour-key test on the low 24 bits (retail reads a dword &
+             * 0xffffff; we read 3 bytes so the final pixel never reads
+             * past the buffer).  Magenta ⇒ skip (transparent). */
+            if (p[0] == 0xff && p[1] == 0x00 && p[2] == 0xff) {
+                continue;
+            }
+            if (lut != NULL) {               /* in_ECX[6] (f_18) gamma LUT */
+                p[0] = lut[p[0]];
+                p[1] = lut[p[1]];
+                p[2] = lut[p[2]];
+            }
+            /* byte * scale / 1000, truncating toward zero (signed idiv).
+             * The product fits in int (byte 0..255 × scale); cast through
+             * int so the C division matches the retail signed division. */
+            p[0] = (uint8_t)((int)((int)p[0] * (int)m_b) / 1000);
+            p[1] = (uint8_t)((int)((int)p[1] * (int)m_g) / 1000);
+            p[2] = (uint8_t)((int)((int)p[2] * (int)m_r) / 1000);
+        }
+    }
+}
+
+/* Free a previously-decoded frames array of one entry (the re-decode
+ * cleanup at 0x4184ce..0x418533).  Releases each surface via the hook,
+ * then frees the array; leaves entries[entry_idx].frames == NULL. */
+static void ar_sprite_frames_free(ar_sprite_slot *slot, uint16_t entry_idx)
+{
+    if (slot->entries == NULL) {
+        return;
+    }
+    void **frames = (void **)slot->entries[entry_idx].frames;
+    if (frames == NULL) {
+        return;
+    }
+    for (uint32_t i = 0; i < slot->f_38; i++) {
+        if (frames[i] != NULL) {
+            if (ar_frame_free_hook != NULL) {
+                ar_frame_free_hook(frames[i]);   /* FUN_005b9390 + delete */
+            }
+            frames[i] = NULL;
+        }
+    }
+    ar_xfree(frames);                            /* FUN_005bef0e on the array */
+    slot->entries[entry_idx].frames = NULL;
+}
+
+int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
+                    const struct bitmap_session *sheet,
+                    int cell_w, int cell_h, uint32_t colorkey)
+{
+    const bitmap_session *s = (const bitmap_session *)sheet;
+
+    /* cell_w/h == 0 ⇒ default to the whole sheet (0x5ba390/_6ee0). */
+    if (cell_w == 0) cell_w = (int)s->biWidth;
+    if (cell_h == 0) cell_h = (int)s->biHeight;
+    if (cell_w == 0 || cell_h == 0) {
+        return 0;                            /* avoid div-by-zero */
+    }
+
+    int cols  = (int)s->biWidth  / cell_w;
+    int rows  = (int)s->biHeight / cell_h;
+    int count = cols * rows;
+    if (count == 0) {
+        return 0;                            /* 0x418926 early-out */
+    }
+
+    slot->f_38 = (uint32_t)count;            /* in_ECX[0xe] = frame count */
+    void **frames = (void **)malloc((size_t)count * sizeof(void *));
+    slot->entries[entry_idx].frames = frames;
+    for (int i = 0; i < count; i++) {
+        frames[i] = NULL;
+    }
+
+    /* The builder's colour-key: the 0x1ffffff sentinel passes through
+     * unchanged; everything else is normalised to the magenta key (the
+     * non-sentinel arms set param_5 = 0xff00ff after the format switch). */
+    uint32_t key = (colorkey == AR_COLORKEY_NONE) ? AR_COLORKEY_NONE
+                                                  : AR_SHEET_COLORKEY;
+
+    int ok = 1;
+    int i = 0;
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++, i++) {
+            void *surf = NULL;
+            if (ar_frame_build_hook != NULL) {
+                surf = ar_frame_build_hook(slot, sheet, c * cell_w, r * cell_h,
+                                           cell_w, cell_h, key, /*aux*/NULL);
+            }
+            if (surf == NULL) {
+                ok = 0;                      /* local_c = 0; slot stays NULL */
+            }
+            frames[i] = surf;
+        }
+    }
+    return ok;
+}
+
+void ar_sprite_decode(ar_sprite_slot *slot)
+{
+    /* Entry index 0 — the frame getter (FUN_00418470) is the only caller
+     * and always passes 0. */
+    const uint16_t entry_idx = 0;
+
+    /* Re-decode cleanup: drop any frames from a prior decode. */
+    ar_sprite_frames_free(slot, entry_idx);
+
+    /* Stack-local session — mirror ar_palette_session_begin: defensive
+     * release so bs_decode_resource's entry bs_release sees pixels==NULL. */
+    bitmap_session session;
+    bs_release_no_free(&session);
+
+    int ok = bs_decode_resource(&session, slot->settings, slot->resource_id,
+                                "DATA", 1 /*compressed*/);
+    if (!ok) {
+        /* Retail logs "Failed Surface Load" then exits the process; the
+         * drop-in leaves the bank unloaded (frames NULL — the getter's
+         * "still undecoded" path) rather than killing the host. */
+        bs_release(&session);                /* idempotent on NULL */
+        slot->f_38 = 0;                      /* in_ECX[0xe] = 0 (error tail) */
+        return;
+    }
+
+    /* 24bpp brightness/colour-key pass — gated on the decode flag (f_08)
+     * AND a 24bpp sheet (in_ECX[2] != 0 && bpp == 0x18).  Byte→field
+     * mapping per the decoder: byte0·f_14, byte1·f_10, byte2·f_0c. */
+    if (slot->f_08 != 0 && bs_get_bit_count(&session) == 0x18) {
+        ar_sheet_decode_pixels(&session, slot->f_14, slot->f_10, slot->f_0c,
+                               (const uint8_t *)(uintptr_t)slot->f_18);
+    }
+
+    /* Cut the sheet into per-frame surfaces. */
+    ar_sprite_slice(slot, entry_idx, &session,
+                    (int)slot->width, (int)slot->height, slot->colorkey);
+
+    bs_release(&session);                    /* free the decoded pixels */
+}
+
 /* ─── FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices ──── */
 
 void ar_ss_mgr_clone_slot(uint16_t dst_pool_idx, uint16_t src_pool_idx)

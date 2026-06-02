@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (whole compositor/wrapper/blt layer ported, ckpt 19)
+# Session handoff — last updated 2026-06-02 (sprite-sheet decoder + slicer ported, ckpt 20)
 
 **This is the first thing to read at the start of every session.**
 
@@ -6,50 +6,57 @@ Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
 
-## ⭐ NEW (ckpt 17–19): the entire title compositor + sprite-wrapper + blt layer is ported
+## ⭐ NEW (ckpt 20): the sprite-sheet decoder + slicer are ported — the genuine pixel source
 
-Three checkpoints this session finished render task **(8b)** — every
-`TITLE_DRAW_*` arm now has a real bridge in the NEW module
-**`src/title_render.{c,h}`** (the first to include both `asset_register.h`
-and `zdd.h`). Full decode: **`docs/findings/sprite-pipeline.md`**.
+Render task **(8c)** is done. **`FUN_004184a0` → `ar_sprite_decode`** (the
+`ar_sprite_decode_hook` target) + **`FUN_004188b0` → `ar_sprite_slice`** + the
+pure transform **`ar_sheet_decode_pixels`**, all in `src/asset_register.c`.
+Full decode: **`docs/findings/sprite-pipeline.md`**.
 
-- **ckpt 17** — compositor **`FUN_0056c180` → `title_compositor_draw`** (+ the
-  pure per-entry helper `title_compositor_resolve`). Walks the scene's
-  sprite-group display list; frame-index animation math + centi-pixel geometry
-  + `0x8a92b8` ramp clamp + pool/frame lookup (`ar_pool_get_slot` →
-  `ar_sprite_slot_frame`) → `zdd_blit_orchestrate` per entry. Display-list
-  entry (0x1c) + group header modeled with pinned offsets.
-- **ckpt 18** — the three simple wrappers **`title_draw_sprite`** (0x56c610),
-  **`title_draw_sprite_level`** (0x56c4e0, 0x8a9308 ramp), **`title_draw_menu_cursor`**
-  (0x56c470, 0x8a92b8 ramp).
-- **ckpt 19** — **`FUN_005b9bf0` → `zdd_object_blt_clipped`** (zdd.c, the third
-  blt sibling: color-keyed Blt with src-rect clipping against the sprite's
-  metrics) + **`FUN_0056c580` → `title_draw_sparkle`** (the desc-gated sparkle
-  wrapper, explicit src sub-rect).
+The chip shrank hugely on discovering the resource-load + DIB/decompress layer
+was **already ported** as `bitmap_session` (`bs_decode_resource` =
+`FUN_005b7800`, `bs_parse_compressed_header` = `FUN_005b7c10`, …). So
+`ar_sprite_decode` is just: re-decode cleanup → `bs_decode_resource(…, "DATA",
+compressed=1)` → gated 24bpp brightness pass → `ar_sprite_slice` →
+`bs_release`. Entry index is always 0 (the frame getter `FUN_00418470` is the
+only caller and passes 0).
 
-**Design pattern (consistent across the module):** the dest (primary surface)
-and the blend ramps (`0x8a92b8`/`0x8a9308`) are **parameters**, not globals —
-mirroring the existing `title_fade_ramp` decoupling and keeping the module
-god-object-free until the sink lands. In retail the ramps ARE pixel_drawer's
-`g_pd_boot_group_a/_b` viewed as pointer tables, and the primary is
-`0x8a93cc->[0x16c]`. Real blit forwards go through nullable test hooks
-(`title_compositor_blit_hook` / `title_keyed_blit_hook` / `title_clipped_blit_hook`,
-NULL ⇒ the real zdd function) so path-selection + arg-mapping are host-testable
-without locked surfaces.
+- **`ar_sheet_decode_pixels`** — the genuine new pixel logic, **fully
+  host-tested**: per-channel `ch = ch * scale / 1000` (signed ÷1000) with an
+  optional gamma LUT (`slot->f_18`), magenta `0xff00ff` left untouched. Two
+  surprises → engine-quirks **#46**: the gate is per-slot (`slot->f_08`, not a
+  global) AND 24bpp-only, and the byte→field mapping is **reversed**
+  (byte0·`f_14`, byte1·`f_10`, byte2·`f_0c` — so read f_0c/f_10/f_14 as
+  R/G/B-scale). Reads 3 bytes/pixel, not retail's dword, so the last pixel
+  never reads OOB under ASan.
+- **`ar_sprite_slice`** — frame-grid geometry (`cols=sheet_w/cell_w`,
+  `rows=sheet_h/cell_h`, `count=cols*rows`), `slot->f_38=count`, allocate +
+  fill `entries[0].frames`. The builder's colour-key is hardwired to magenta
+  unless the `0x1ffffff` "no-key" sentinel → engine-quirks **#47**.
 
-**587 host tests pass, 0 fail, 6 skip** (25 new across the 3 ckpts). Both
-32-bit cross-builds clean. Ledger **128/1490 touched (7.9%), 125 tested**.
-NB: the four `0x56cxxx` wrappers aren't in `functions.csv`, so the ledger
-lists them as **sub-helper labels** — real, tested ports that don't move the
-headline (only `0x56c180` + `0x5b9bf0` are inventoried functions).
+**Design pattern (same as the blit layer):** the DDraw leaf is behind nullable
+hooks. **`ar_frame_build_hook`** (= `0x5b9280`, turns one cell + the sheet
+pixels into a real keyed `zdd_object*`) and **`ar_frame_free_hook`** (=
+`FUN_005b9390` release). NULL hook ⇒ the frames array is sized + zero-filled
+but surfaces stay NULL (exactly the frame getter's "still undecoded" path).
+Deferred with them: the trim-metadata builder `0x5b6f80`, the god-object
+display-depth format switch (`[zdd+0x168]` → `0x5b7310/_74f0/_7270`), and the
+8bpp indexed-palette apply `0x5b7bd0`.
 
-**Next render chip = the sprite-sheet decoder `0x4184a0` + slicer `0x4188b0`**
-(the `ar_sprite_decode_hook` target — the genuine pixel source: 24bpp decode +
-per-channel brightness LUT + `0xff00ff` key + frame slice; needs the sheet
-binary format pinned first). THEN the render sink + drive from `main.c`. The
-blit layer underneath is now complete, so once the decoder lands a real frame
-surface, the wrappers/compositor will produce actual pixels. See "Render-port
-task list" below.
+**605 host tests (599 pass, 0 fail, 6 skip; +12 this ckpt)**; both 32-bit
+cross-builds clean. Ledger **130/1490 touched (8.1%), 127 tested** (+2:
+`FUN_004184a0` + `FUN_004188b0`, both inventoried). New shared
+`tests/bs_fixture.h` exposes the compressed-resource builder so the e2e decode
+test can register a synthetic 24bpp "DATA" resource cross-TU.
+
+**Next chip = the per-cell DDraw surface builder `0x5b9280`** (wire
+`ar_frame_build_hook`/`ar_frame_free_hook` to real keyed surfaces; pulls in
+`0x5b6f80` metadata, `0x5b7310/_74f0/_7270` format setup, `0x5b9390` release)
+**THEN the render sink + drive from `main.c`.** Once the builder produces real
+frame surfaces, the whole chain (decoder → slicer → compositor/wrappers →
+blits) renders actual pixels. The builder needs the DDraw god object live, so
+it's the first chip that wants **live verification** ([[reference_frida]])
+rather than only host tests. See "Render-port task list" below.
 
 ## (ckpt 13): TAS framework — retail ground-truth capture is live
 
@@ -235,14 +242,19 @@ the runner from the drop-in.
 ~~(8a) sprite frame getter `0x418470`~~ **DONE ckpt 16** (`ar_sprite_slot_frame`).
 ~~(8b) the compositor `0x56c180` + the wrappers `0x56c470`/`_4e0`/`_580`/`_610`
 (+ `0x5b9bf0`)~~ **DONE ckpt 17–19** — the whole `title_render` module +
-`zdd_object_blt_clipped`. **The remaining render-side chips, in dependency
-order (decoded in `docs/findings/sprite-pipeline.md`):**
-- **(8c) the sprite-sheet decoder `0x4184a0` + slicer `0x4188b0`** — the
-  `ar_sprite_decode_hook` target; the genuine pixel source (24bpp decode +
-  per-channel brightness LUT + `0xff00ff` key + frame slice). Pin the
-  sheet binary format first.
+`zdd_object_blt_clipped`. ~~(8c) the sprite-sheet decoder `0x4184a0` + slicer
+`0x4188b0`~~ **DONE ckpt 20** (`ar_sprite_decode` / `ar_sprite_slice` /
+`ar_sheet_decode_pixels`; the resource/DIB layer was already `bitmap_session`).
+**The remaining render-side chips, in dependency order (decoded in
+`docs/findings/sprite-pipeline.md`):**
+- **(8d) the per-cell DDraw surface builder `0x5b9280`** — wire
+  `ar_frame_build_hook` (+ `ar_frame_free_hook` = `0x5b9390`) to a real keyed
+  `zdd_object*` per cell. Pulls in `0x5b6f80` (trim metadata), the format
+  switch `0x5b7310/_74f0/_7270` (gated on `[zdd+0x168]` display depth), and
+  the 8bpp palette `0x5b7bd0`. Needs the DDraw god object live ⇒ first chip
+  that wants **live verification**, not only host tests.
 - **(9) drive `title_scene_step` from `main.c`** + implement `title_render_sink`
-  over (8b)+(8c). **(10)** port-side frame capture + a `push_comparison.py`
+  over (8b)+(8c)+(8d). **(10)** port-side frame capture + a `push_comparison.py`
   (port|retail amplified diff to llm-feed) to close the pixel-parity loop
   against the goldens in `runs/title-idle` & `runs/newgame-full`.
 
@@ -261,23 +273,35 @@ order (decoded in `docs/findings/sprite-pipeline.md`):**
 > - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
 >   now but latent until `main.c` drives the scene + rendering lands.
 
-1. **(recommended) Build `title_render_sink` + drive the runner from `main.c`
-   (the old move #2).** The blit-primitive layer is complete (ckpt 15), so
-   there is **no more pure logic to port first** — the path to milestone-0
-   pixels is now wiring. Two intertwined pieces, do them together:
+> Context (ckpt 20): the decoder/slicer (8c) is now ported, so the lazy-load
+> `0x4184a0`/`0x418470` chain is real — `ar_sprite_slot_frame` will self-decode
+> as soon as `ar_sprite_decode_hook = ar_sprite_decode` and
+> `ar_frame_build_hook` (= `0x5b9280`, the DDraw surface builder, **8d**) are
+> wired. So the two viable next moves are **(A)** the surface builder 8d (the
+> last pure-ish chip before pixels, but needs the live DDraw god object) or
+> **(B)** the sink+drive below (can run *now* with the build hook NULL = a
+> cleared/black title screen, proving the loop in the real window, then 8d
+> fills the sprites). Either is defensible; (B) reaches "runs in the window"
+> sooner and gives 8d a frame-diff harness.
+
+1. **(recommended) Build `title_render_sink` + drive the runner from `main.c`.**
+   The blit-primitive + decode layers are complete, so the path to milestone-0
+   pixels is now wiring (+ the 8d surface builder for non-blank sprites). Two
+   intertwined pieces, do them together:
    - **The sink:** implement `title_render_sink` (behind `title_render_sink_hook`)
      to turn each `title_draw_cmd` into real zdd calls:
      `TITLE_DRAW_SURFACE_RESET`→`zdd_object_clear` (`0x5b9410`),
      `..._CLEAR`/`..._SPRITE`→`zdd_object_blt_keyed` (`0x5b9b70`),
      `..._SPRITE_LEVEL`→ either `0x5b9b70` (ramp 0) or `zdd_blit_orchestrate`
      (`0x5bd550`), `..._MENU_CURSOR`→`zdd_blit_orchestrate`,
-     `..._FRAME_END`→ the compositor loop (`0x56c180`: walk the sprite-group
-     display list, `zdd_blit_orchestrate` per entry), `..._FLIP`→`zdd_present`
-     (`0x5b8fc0`). The new RE this needs is the **engine state the draws read**:
-     the asset/sprite pool `DAT_008a760c` (+ lazy load `0x4184a0`/`0x418470`),
-     the frame-lookup math in `0x56c180`, the god object `0x8a93cc->[0x16c]`
-     (primary surface), the two alpha ramps `0x8a9308`/`0x8a92b8` (quirk #40/#45),
-     and the logo path `0x494e10`. Model these as they're touched.
+     `..._FRAME_END`→ the compositor (`title_compositor_draw`, ported), 
+     `..._FLIP`→`zdd_present` (`0x5b8fc0`). The new RE this needs is the
+     **engine state the draws read**: the asset/sprite pool `DAT_008a760c`
+     (the lazy-load `0x4184a0`/`0x418470` chain is **now ported** — install
+     `ar_sprite_decode_hook = ar_sprite_decode` + the 8d build hook), the god
+     object `0x8a93cc->[0x16c]` (primary surface), the two alpha ramps
+     `0x8a9308`/`0x8a92b8` (quirk #40/#45), and the logo path `0x494e10`.
+     Model these as they're touched.
    - **The drive:** replace the drop-in's minimal `main_loop_body` with a
      `title_scene_run` that allocates the scene object (owner sel_list + input
      mgr), calls `title_scene_init`, then loops `title_scene_step(now=
@@ -313,11 +337,15 @@ order (decoded in `docs/findings/sprite-pipeline.md`):**
   `0x5b9bf0` (`zdd_object_blt_clipped`, ckpt 19). The sprite frame getter
   `0x418470` (`ar_sprite_slot_frame`, ckpt 16) + **the whole compositor +
   wrapper layer (ckpt 17–19) are ported** in `title_render` (`0x56c180`/
-  `0x56c610`/`_4e0`/`_470`/`_580`). **Still unported (the genuine pixel
-  source) = the sheet decoder `0x4184a0`/`0x4188b0`** (the
-  `ar_sprite_decode_hook` target: 24bpp decode + brightness LUT + `0xff00ff`
-  key + frame slice) and the logo `0x494e10`. The asset pool `DAT_008a760c`
-  is the already-modeled `ar_sprite_slot` pool (`ar_pool_get_slot`). The
+  `0x56c610`/`_4e0`/`_470`/`_580`) + **the sheet decoder `0x4184a0` + slicer
+  `0x4188b0` (ckpt 20)** in `asset_register.c` (`ar_sprite_decode` /
+  `ar_sprite_slice` / `ar_sheet_decode_pixels`). **Still unported (the
+  genuine pixel source) = the per-cell DDraw surface builder `0x5b9280`**
+  (behind `ar_frame_build_hook`; + `0x5b9390` release behind
+  `ar_frame_free_hook`, `0x5b6f80` metadata, `0x5b7310/_74f0/_7270` format
+  setup, `0x5b7bd0` 8bpp palette) and the logo `0x494e10`. The asset pool
+  `DAT_008a760c` is the already-modeled `ar_sprite_slot` pool
+  (`ar_pool_get_slot`). The
   ramps `0x8a92b8`/`0x8a9308` are pixel_drawer's `g_pd_boot_group_a/_b` as
   pointer tables; the wrappers/compositor take them (+ the primary surface)
   as params today — the sink will supply the real globals.

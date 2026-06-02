@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **128** (7.9% of engine-proper) — tested 125, ported 3
-- code bytes touched: **9.8%** (166,514 / 1,694,868 B of engine-proper)
-- unported: **1630**
+- touched: **130** (8.1% of engine-proper) — tested 127, ported 3
+- code bytes touched: **9.9%** (168,440 / 1,694,868 B of engine-proper)
+- unported: **1628**
 - orphan refs in src/ not in this table: 4
 
-## tested (125) — ported + host unit suite
+## tested (127) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -35,6 +35,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
 | 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, title_render.c |
+| 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h |
+| 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h |
@@ -107,7 +109,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |
 | 0x5b9350 | FUN_005b9350 | 50 | zdd.c, zdd.h |
-| 0x5b9390 | FUN_005b9390 | 75 | cs_dispatch.c, zdd.h, zdd_win32.c |
+| 0x5b9390 | FUN_005b9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+2) |
 | 0x5b93e0 | FUN_005b93e0 | 42 | zdd.h, zdd_win32.c |
 | 0x5b9410 | FUN_005b9410 | 49 | zdd.c, zdd.h |
 | 0x5b9490 | FUN_005b9490 | 63 | zdd.c, zdd.h, zdd_win32.c |

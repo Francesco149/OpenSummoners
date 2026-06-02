@@ -181,6 +181,18 @@ struct test_case {
     X(ar_sprite_frame_loaded_indexes_without_hook)             \
     X(ar_sprite_frame_lazy_decode_fires_once_then_indexes)     \
     X(ar_sprite_frame_unloaded_no_hook_returns_null)           \
+    X(sheet_decode_pixels_brightness_and_key)                  \
+    X(sheet_decode_pixels_truncates_toward_zero)               \
+    X(sheet_decode_pixels_lut_then_scale)                      \
+    X(sheet_decode_pixels_non24_is_noop)                       \
+    X(sheet_decode_pixels_null_pixels_is_noop)                 \
+    X(sprite_slice_geometry_and_order)                         \
+    X(sprite_slice_default_cell_is_whole_sheet)                \
+    X(sprite_slice_count_zero_when_cell_exceeds_sheet)         \
+    X(sprite_slice_colorkey_sentinel_passthrough)              \
+    X(sprite_slice_null_surface_marks_failure)                 \
+    X(sprite_decode_cleanup_then_bs_failure)                   \
+    X(sprite_decode_end_to_end_24bpp)                          \
     X(bs_release_no_free_nulls_pixels)                         \
     X(bs_release_is_idempotent_on_null)                        \
     X(bs_release_frees_pixels)                                 \

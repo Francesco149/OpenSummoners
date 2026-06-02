@@ -179,23 +179,54 @@ These are the remaining `TITLE_DRAW_*` arms of the render sink. They want a
 small render-bridge module that can include both `asset_register.h`
 (the slot/getter) and `zdd.h` (the blit + the primary surface).
 
+## The sprite-sheet decoder — `FUN_004184a0` + slicer `FUN_004188b0` (PORTED, ckpt 20)
+
+Ported as **`ar_sprite_decode`** (the `ar_sprite_decode_hook` target) +
+**`ar_sprite_slice`** + the pure transform **`ar_sheet_decode_pixels`** in
+`src/asset_register.c`.  The big realisation that shrank this chip: the whole
+**resource-load + DIB/decompress layer is already ported** as
+`bitmap_session` (`bs_decode_resource` = `FUN_005b7800`,
+`bs_parse_compressed_header` = `FUN_005b7c10`, etc.).  So the decoder is just:
+
+```
+ar_sprite_decode(slot):                       # entry 0 (getter's only caller)
+  free any previously-decoded frames          # re-decode cleanup 0x4184ce
+  bs_decode_resource(settings, resource_id, "DATA", compressed=1)   # ported
+  if (slot->f_08 && bpp == 24):
+      ar_sheet_decode_pixels(...)             # the 24bpp brightness/key pass
+  ar_sprite_slice(slot, 0, sheet, slot->width, slot->height, slot->colorkey)
+  bs_release(sheet)
+```
+
+**The brightness pass** (`ar_sheet_decode_pixels`) is the genuine new pixel
+logic and is fully host-tested: per-channel `ch = ch * scale / 1000` with an
+optional gamma LUT (`slot->f_18`), magenta `0xff00ff` left untouched, and the
+**reversed byte→field mapping** (byte0·f_14, byte1·f_10, byte2·f_0c) — see
+engine-quirks **#46**.  **The slicer** (`ar_sprite_slice`) computes the frame
+grid (`cols = sheet_w/cell_w`, `rows = sheet_h/cell_h`, `count = cols*rows`),
+stamps `slot->f_38 = count`, allocates `entries[0].frames`, and fills it via
+the per-cell surface-builder hook.  The colour-key it hands the builder is
+magenta unless the `0x1ffffff` sentinel — engine-quirks **#47**.
+
+**Still behind hooks (the DDraw leaf layer):** the per-cell surface builder
+`0x5b9280` (`ar_frame_build_hook` — turns one cell + the sheet pixels into a
+real keyed `zdd_object*`), the surface release `FUN_005b9390`
+(`ar_frame_free_hook`), the optional trim-metadata builder `0x5b6f80`, the
+god-object display-depth format switch (`[zdd+0x168]` →
+`0x5b7310/_74f0/_7270`), and the 8bpp indexed-palette apply `0x5b7bd0`.
+Headless (no build hook) sizes + zero-fills the frames array but leaves the
+surfaces NULL — exactly the frame getter's "still undecoded" path.  These need
+the DDraw god object live and are the next chip.
+
 ## What's left (next chips, in dependency order)
 
-1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17**; ~~**the wrappers
-   `0x56c610/_4e0/_470`**~~ **DONE ckpt 18**; ~~**`0x5b9bf0` + the sparkle
-   wrapper `0x56c580`**~~ **DONE ckpt 19** (`zdd_object_blt_clipped` in zdd.c
-   + `title_draw_sparkle` in title_render.c).  **The whole compositor +
-   wrapper layer is now ported** — every `TITLE_DRAW_*` arm has a bridge.
-   What remains for pixels is the decoder (below) + the sink/drive.
-2. **The sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`** — the
-   `ar_sprite_decode_hook` target. Reads the "DATA" PE resource (via the
-   resource-stream readers `0x5b7800` + the trivial field getters
-   `0x5b6eb0/_ee0/_ef0/_f00`, `0x5ba390`), decodes 24bpp pixels, applies the
-   per-channel brightness LUT (`slot+0x10/0x14/0x18` × pixel ÷100), honours
-   the `0xff00ff` magenta color-key, and slices the sheet into
-   `frame_count` per-frame surfaces (`FUN_004188b0` divides the sheet dims by
-   the frame grid). This is the genuine pixel source — nothing renders
-   without it. It needs the sprite-sheet binary format pinned first.
-3. **The render sink + drive from main.c** — wire `title_render_sink_hook`
-   over (1)+(2)+the wrappers, drive `title_scene_step`, capture port frames,
-   diff vs the harness goldens.
+1. ~~compositor / wrappers / blt layer~~ **DONE ckpt 17–19.**
+2. ~~sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`~~ **DONE
+   ckpt 20** (`ar_sprite_decode` / `ar_sprite_slice` / `ar_sheet_decode_pixels`).
+3. **The per-cell DDraw surface builder `0x5b9280`** (+ `0x5b6f80` trim
+   metadata, `0x5b7310/_74f0/_7270` format setup, `0x5b9390` release) — wire
+   `ar_frame_build_hook`/`ar_frame_free_hook` to real keyed surfaces.  Needs
+   the DDraw god object; live-verified.
+4. **The render sink + drive from main.c** — wire `title_render_sink_hook`
+   over the compositor/wrappers + the now-real frame surfaces, drive
+   `title_scene_step`, capture port frames, diff vs the harness goldens.

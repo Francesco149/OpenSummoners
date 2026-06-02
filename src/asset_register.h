@@ -116,15 +116,25 @@ typedef struct ar_sprite_slot {
     uint16_t  entry_count;
     /* +0x06 (2B): pad — never touched at register time. */
     uint16_t  _pad06;
-    /* +0x08 (4B): cleared to 0 by the register. */
+    /* +0x08 (4B): decode-transform gate.  Cleared to 0 by the register;
+     * set non-zero by the per-sprite registrars that want a brightness
+     * pass.  The decoder (FUN_004184a0) only runs the 24bpp
+     * colorkey/brightness transform when this is non-zero. */
     uint32_t  f_08;
-    /* +0x0c (4B): not touched by the registers we model. */
+    /* +0x0c (4B): brightness scale for pixel byte 2 (R in the BGR DIB),
+     * applied as `byte = byte * f_0c / 1000` by the decoder
+     * (FUN_004184a0, 0x418690).  Cleared to 0 by the register. */
     uint32_t  f_0c;
-    /* +0x10 (4B): not touched. */
+    /* +0x10 (4B): brightness scale for pixel byte 1 (G), `byte * f_10 /
+     * 1000` (FUN_004184a0, 0x418674). */
     uint32_t  f_10;
-    /* +0x14 (4B): not touched. */
+    /* +0x14 (4B): brightness scale for pixel byte 0 (B), `byte * f_14 /
+     * 1000` (FUN_004184a0, 0x418659). */
     uint32_t  f_14;
-    /* +0x18 (4B): cleared to 0. */
+    /* +0x18 (4B): optional gamma/remap LUT base.  When non-zero the
+     * decoder maps each channel through `byte = ((uint8_t*)f_18)[byte]`
+     * before the brightness scale (FUN_004184a0, 0x418633).  Stored as a
+     * raw 32-bit pointer in retail; cleared to 0 by the register. */
     uint32_t  f_18;
     /* +0x1c (4B): "ZDD" pointer (the DDraw wrapper instance).  The
      * boot driver passes this in as `param_1`. */
@@ -520,6 +530,86 @@ typedef void (*ar_sprite_decode_fn)(ar_sprite_slot *slot);
 extern ar_sprite_decode_fn ar_sprite_decode_hook;
 
 void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id);
+
+/* ─── sprite-sheet decoder + slicer (FUN_004184a0 / FUN_004188b0) ─────
+ *
+ * The genuine pixel source: turn a sprite bank's PE "DATA" resource into
+ * the per-frame surface array `entries[0].frames` that ar_sprite_slot_frame
+ * returns.  This is the `ar_sprite_decode_hook` target — install
+ * `ar_sprite_decode` into the hook to make the frame getter self-load.
+ *
+ * The chain (faithful to retail):
+ *   ar_sprite_decode (0x4184a0)
+ *     ├─ free any previously-decoded frames (re-decode path)
+ *     ├─ bs_decode_resource(settings, resource_id, "DATA", compressed=1)
+ *     │     [already ported in bitmap_session.c]
+ *     ├─ if (f_08 && bpp==24) ar_sheet_decode_pixels(...)   ← brightness pass
+ *     └─ ar_sprite_slice(...)                                ← cut into frames
+ *
+ * The leaf that turns one cell into a real DDraw surface (0x5b9280) and
+ * the optional per-cell trim-metadata builder (0x5b6f80) are the
+ * DDraw layer — routed through the nullable hooks below so the decode +
+ * slice logic ports and host-tests now (headless: frames array is sized
+ * and zero-filled, but the surfaces stay NULL, exactly as the frame
+ * getter's "still unloaded" path already tolerates).  The format-setup
+ * switch on the god-object display depth ([zdd+0x168] →
+ * 0x5b7310/_74f0/_7270) and the 8bpp indexed-palette apply
+ * (0x5b7bd0) are likewise deferred — see docs/findings/sprite-pipeline.md. */
+
+/* Forward decl so this Win32-free header needn't pull in bitmap_session.h;
+ * the full definition lives there and is included by asset_register.c. */
+struct bitmap_session;
+
+/* The 24bpp colorkey/brightness transform (FUN_004184a0 inner loop,
+ * 0x4185b1..0x4186be), applied in place to a freshly-decoded sheet.
+ *
+ * For each pixel whose low 24 bits are NOT the magenta key 0xff00ff
+ * (B=0xff, G=0x00, R=0xff):
+ *   if (lut) ch = lut[ch]        for each of the 3 bytes   (optional gamma)
+ *   byte0 (B) = (uint8_t)((int)byte0 * m_b / 1000)         (slot->f_14)
+ *   byte1 (G) = (uint8_t)((int)byte1 * m_g / 1000)         (slot->f_10)
+ *   byte2 (R) = (uint8_t)((int)byte2 * m_r / 1000)         (slot->f_0c)
+ * Division truncates toward zero (retail signed idiv).  Magenta pixels are
+ * left untouched (they are the transparent key).  No-op if the sheet is
+ * not 24bpp.  `lut` may be NULL.  Reads 3 bytes per pixel (not a dword) so
+ * the last pixel never reads past the buffer. */
+void ar_sheet_decode_pixels(struct bitmap_session *sheet,
+                            uint32_t m_b, uint32_t m_g, uint32_t m_r,
+                            const uint8_t *lut);
+
+/* Per-cell surface builder (0x5b9280) — the DDraw leaf.  Returns the
+ * created frame surface (a zdd_object* the render side casts) or NULL.
+ * NULL hook ⇒ headless: ar_sprite_slice leaves that frame NULL. */
+typedef void *(*ar_frame_build_fn)(ar_sprite_slot *slot,
+                                   const struct bitmap_session *sheet,
+                                   int src_x, int src_y, int cell_w, int cell_h,
+                                   uint32_t colorkey, void *aux_entry);
+extern ar_frame_build_fn ar_frame_build_hook;
+
+/* Per-frame surface release (FUN_005b9390 + the FUN_005bef0e delete that
+ * follows it) — frees one surface created by ar_frame_build_hook.  Used by
+ * the re-decode cleanup.  NULL hook ⇒ the surface pointer is dropped
+ * without a free (headless: the build hook returned a non-owned token). */
+typedef void (*ar_frame_free_fn)(void *surface);
+extern ar_frame_free_fn ar_frame_free_hook;
+
+/* Slice a decoded sheet into `entries[entry_idx].frames` (FUN_004188b0).
+ *   cell_w/cell_h == 0 default to the whole sheet (one frame).
+ *   cols = sheet_w / cell_w, rows = sheet_h / cell_h, count = cols*rows.
+ * Returns 0 (and leaves frames untouched) when count == 0; otherwise sets
+ * slot->f_38 = count, allocates the count-entry frames array, and fills it
+ * left-to-right, top-to-bottom via ar_frame_build_hook.  Returns 1 iff every
+ * cell produced a surface (0 if any build returned NULL — that slot stays
+ * NULL but the array is still installed, matching retail's local_c). */
+int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
+                    const struct bitmap_session *sheet,
+                    int cell_w, int cell_h, uint32_t colorkey);
+
+/* The decoder body (FUN_004184a0), entry index 0 (retail's only caller,
+ * the frame getter, always passes 0).  Signature matches
+ * ar_sprite_decode_fn so it can be installed directly:
+ *   ar_sprite_decode_hook = ar_sprite_decode; */
+void ar_sprite_decode(ar_sprite_slot *slot);
 
 /* FUN_004179b0 — SS_MGR thiscall slot-clone via pool indices.
  *

@@ -3045,3 +3045,350 @@ int test_ar_sprite_frame_unloaded_no_hook_returns_null(void)
     T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 0), NULL);
     return 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * sprite-sheet decoder (FUN_004184a0) + slicer (FUN_004188b0)
+ * ════════════════════════════════════════════════════════════════════ */
+
+#include "../src/bitmap_session.h"
+#include "bs_fixture.h"
+
+/* ─── ar_sheet_decode_pixels (the 24bpp brightness/key transform) ───── */
+
+/* Hand-built 24bpp session over a malloc'd pixel buffer. */
+static void decode_make_session(bitmap_session *s, uint32_t w, uint32_t h,
+                                uint16_t bpp)
+{
+    memset(s, 0, sizeof *s);
+    s->biWidth    = w;
+    s->biHeight   = h;
+    s->biBitCount = bpp;
+    s->stride     = (bpp / 8) * w;
+    s->pixels     = calloc(1, (size_t)s->stride * h);
+}
+
+int test_sheet_decode_pixels_brightness_and_key(void)
+{
+    bitmap_session s;
+    decode_make_session(&s, 2, 1, 24);          /* two pixels, one row */
+    uint8_t *px = (uint8_t *)s.pixels;
+    /* pixel 0 = magenta key (must survive untouched). */
+    px[0] = 0xff; px[1] = 0x00; px[2] = 0xff;
+    /* pixel 1 = (B=200, G=100, R=50). */
+    px[3] = 200; px[4] = 100; px[5] = 50;
+
+    /* m_b=500 (×0.5), m_g=1000 (×1.0), m_r=2000 (×2.0). */
+    ar_sheet_decode_pixels(&s, 500, 1000, 2000, NULL);
+
+    T_ASSERT_EQ_U(px[0], 0xff);                 /* key untouched */
+    T_ASSERT_EQ_U(px[1], 0x00);
+    T_ASSERT_EQ_U(px[2], 0xff);
+    T_ASSERT_EQ_U(px[3], 100);                  /* 200*500/1000 */
+    T_ASSERT_EQ_U(px[4], 100);                  /* 100*1000/1000 */
+    T_ASSERT_EQ_U(px[5], 100);                  /* 50*2000/1000 */
+    free(s.pixels);
+    return 0;
+}
+
+int test_sheet_decode_pixels_truncates_toward_zero(void)
+{
+    bitmap_session s;
+    decode_make_session(&s, 1, 1, 24);
+    uint8_t *px = (uint8_t *)s.pixels;
+    px[0] = 255; px[1] = 1; px[2] = 200;
+    ar_sheet_decode_pixels(&s, 999, 1, 700, NULL);
+    T_ASSERT_EQ_U(px[0], 254);                  /* 255*999/1000 = 254.74 → 254 */
+    T_ASSERT_EQ_U(px[1], 0);                    /* 1*1/1000 = 0.001 → 0 */
+    T_ASSERT_EQ_U(px[2], 140);                  /* 200*700/1000 = 140 */
+    free(s.pixels);
+    return 0;
+}
+
+int test_sheet_decode_pixels_lut_then_scale(void)
+{
+    bitmap_session s;
+    decode_make_session(&s, 1, 1, 24);
+    uint8_t *px = (uint8_t *)s.pixels;
+    px[0] = 10; px[1] = 20; px[2] = 30;
+    uint8_t lut[256];
+    for (int i = 0; i < 256; i++) lut[i] = (uint8_t)(255 - i);  /* invert */
+    /* Identity scale (×1.0) so we isolate the LUT pass. */
+    ar_sheet_decode_pixels(&s, 1000, 1000, 1000, lut);
+    T_ASSERT_EQ_U(px[0], 245);                  /* 255-10 */
+    T_ASSERT_EQ_U(px[1], 235);                  /* 255-20 */
+    T_ASSERT_EQ_U(px[2], 225);                  /* 255-30 */
+    free(s.pixels);
+    return 0;
+}
+
+int test_sheet_decode_pixels_non24_is_noop(void)
+{
+    bitmap_session s;
+    decode_make_session(&s, 4, 1, 8);           /* 8bpp ⇒ skip */
+    uint8_t *px = (uint8_t *)s.pixels;
+    px[0] = 200; px[1] = 200; px[2] = 200; px[3] = 200;
+    ar_sheet_decode_pixels(&s, 500, 500, 500, NULL);
+    T_ASSERT_EQ_U(px[0], 200);                  /* untouched */
+    T_ASSERT_EQ_U(px[3], 200);
+    free(s.pixels);
+    return 0;
+}
+
+int test_sheet_decode_pixels_null_pixels_is_noop(void)
+{
+    bitmap_session s;
+    memset(&s, 0, sizeof s);
+    s.biWidth = 4; s.biHeight = 4; s.biBitCount = 24; s.stride = 12;
+    s.pixels = NULL;
+    ar_sheet_decode_pixels(&s, 500, 500, 500, NULL);  /* must not crash */
+    return 0;
+}
+
+/* ─── ar_sprite_slice (geometry + frame-array fill via hooks) ───────── */
+
+#define SLICE_LOG_MAX 64
+static struct slice_call {
+    ar_sprite_slot *slot;
+    int sx, sy, cw, ch;
+    uint32_t key;
+    void *aux;
+} g_slice_log[SLICE_LOG_MAX];
+static int  g_slice_n;
+static int  g_slice_fail_at;     /* call index to return NULL for; -1 = none */
+static int  g_frame_free_n;
+
+static void *slice_build_hook(ar_sprite_slot *slot, const bitmap_session *sheet,
+                              int sx, int sy, int cw, int ch,
+                              uint32_t key, void *aux)
+{
+    (void)sheet;
+    int i = g_slice_n++;
+    if (i < SLICE_LOG_MAX) {
+        g_slice_log[i] = (struct slice_call){ slot, sx, sy, cw, ch, key, aux };
+    }
+    if (i == g_slice_fail_at) return NULL;
+    return malloc(1);            /* owned surface token */
+}
+
+static void slice_free_hook(void *surf)
+{
+    g_frame_free_n++;
+    free(surf);
+}
+
+static void slice_reset(void)
+{
+    g_slice_n = 0;
+    g_slice_fail_at = -1;
+    g_frame_free_n = 0;
+    ar_frame_build_hook = slice_build_hook;
+    ar_frame_free_hook  = slice_free_hook;
+}
+
+/* Free a frames array + its surfaces the way the re-decode cleanup would,
+ * so the ASan test build stays leak-clean after a standalone slice. */
+static void slice_free_frames(ar_sprite_slot *slot)
+{
+    void **frames = (void **)slot->entries[0].frames;
+    if (frames == NULL) return;
+    for (uint32_t i = 0; i < slot->f_38; i++) free(frames[i]);
+    free(frames);
+    slot->entries[0].frames = NULL;
+}
+
+int test_sprite_slice_geometry_and_order(void)
+{
+    slice_reset();
+    bitmap_session s;
+    decode_make_session(&s, 6, 4, 24);
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries = &ent;
+
+    int ok = ar_sprite_slice(&slot, 0, &s, /*cell*/3, 2, /*colorkey*/0);
+    T_ASSERT_EQ_I(ok, 1);                       /* all cells built */
+    T_ASSERT_EQ_U(slot.f_38, 4);               /* cols 2 × rows 2 */
+    T_ASSERT_EQ_I(g_slice_n, 4);
+    void **frames = (void **)ent.frames;
+    T_ASSERT(frames != NULL);
+    for (int i = 0; i < 4; i++) T_ASSERT(frames[i] != NULL);
+
+    /* left-to-right, top-to-bottom: (0,0)(3,0)(0,2)(3,2). */
+    T_ASSERT_EQ_I(g_slice_log[0].sx, 0); T_ASSERT_EQ_I(g_slice_log[0].sy, 0);
+    T_ASSERT_EQ_I(g_slice_log[1].sx, 3); T_ASSERT_EQ_I(g_slice_log[1].sy, 0);
+    T_ASSERT_EQ_I(g_slice_log[2].sx, 0); T_ASSERT_EQ_I(g_slice_log[2].sy, 2);
+    T_ASSERT_EQ_I(g_slice_log[3].sx, 3); T_ASSERT_EQ_I(g_slice_log[3].sy, 2);
+    /* cell dims forwarded; colorkey normalised to magenta. */
+    T_ASSERT_EQ_I(g_slice_log[0].cw, 3);
+    T_ASSERT_EQ_I(g_slice_log[0].ch, 2);
+    T_ASSERT_EQ_U(g_slice_log[0].key, 0xff00ffu);
+
+    slice_free_frames(&slot);
+    free(s.pixels);
+    return 0;
+}
+
+int test_sprite_slice_default_cell_is_whole_sheet(void)
+{
+    slice_reset();
+    bitmap_session s;
+    decode_make_session(&s, 5, 3, 24);
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries = &ent;
+
+    int ok = ar_sprite_slice(&slot, 0, &s, /*cell*/0, 0, 0);
+    T_ASSERT_EQ_I(ok, 1);
+    T_ASSERT_EQ_U(slot.f_38, 1);               /* one frame = whole sheet */
+    T_ASSERT_EQ_I(g_slice_log[0].cw, 5);
+    T_ASSERT_EQ_I(g_slice_log[0].ch, 3);
+
+    slice_free_frames(&slot);
+    free(s.pixels);
+    return 0;
+}
+
+int test_sprite_slice_count_zero_when_cell_exceeds_sheet(void)
+{
+    slice_reset();
+    bitmap_session s;
+    decode_make_session(&s, 4, 4, 24);
+    ar_sprite_entry ent = { .frames = (void *)0xBADF00D, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries = &ent;
+
+    int ok = ar_sprite_slice(&slot, 0, &s, /*cell*/8, 8, 0);  /* cols=0 */
+    T_ASSERT_EQ_I(ok, 0);
+    T_ASSERT_EQ_I(g_slice_n, 0);               /* no builds */
+    T_ASSERT_EQ_P(ent.frames, (void *)0xBADF00D); /* untouched on early-out */
+    free(s.pixels);
+    return 0;
+}
+
+int test_sprite_slice_colorkey_sentinel_passthrough(void)
+{
+    slice_reset();
+    bitmap_session s;
+    decode_make_session(&s, 2, 2, 24);
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries = &ent;
+
+    ar_sprite_slice(&slot, 0, &s, 0, 0, /*sentinel*/0x1ffffff);
+    T_ASSERT_EQ_U(g_slice_log[0].key, 0x1ffffffu);  /* not normalised */
+
+    slice_free_frames(&slot);
+    free(s.pixels);
+    return 0;
+}
+
+int test_sprite_slice_null_surface_marks_failure(void)
+{
+    slice_reset();
+    g_slice_fail_at = 1;                        /* 2nd cell fails */
+    bitmap_session s;
+    decode_make_session(&s, 4, 2, 24);
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries = &ent;
+
+    int ok = ar_sprite_slice(&slot, 0, &s, /*cell*/2, 2, 0);  /* 2 frames */
+    T_ASSERT_EQ_I(ok, 0);                       /* a build returned NULL */
+    void **frames = (void **)ent.frames;
+    T_ASSERT(frames[0] != NULL);
+    T_ASSERT_EQ_P(frames[1], NULL);            /* the failed cell stays NULL */
+
+    slice_free_frames(&slot);
+    free(s.pixels);
+    return 0;
+}
+
+/* ─── ar_sprite_decode (orchestration: cleanup + decode + transform) ── */
+
+int test_sprite_decode_cleanup_then_bs_failure(void)
+{
+    bs_fixture_reset();                         /* empty resource directory */
+    slice_reset();                             /* installs the free hook */
+
+    /* Pre-existing frames from a prior decode. */
+    void **old = (void **)malloc(3 * sizeof(void *));
+    for (int i = 0; i < 3; i++) old[i] = malloc(1);
+    ar_sprite_entry ent = { .frames = old, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries  = &ent;
+    slot.f_38     = 3;
+    slot.settings = (void *)0xDEAD;            /* unregistered ⇒ bs fails */
+    slot.resource_id = 0xFFFE;
+
+    ar_sprite_decode(&slot);
+
+    T_ASSERT_EQ_I(g_frame_free_n, 3);          /* old surfaces released */
+    T_ASSERT_EQ_P(ent.frames, NULL);           /* array freed + cleared */
+    T_ASSERT_EQ_U(slot.f_38, 0);               /* error-tail in_ECX[0xe]=0 */
+    return 0;
+}
+
+/* End-to-end: a real compressed 24bpp resource → decode → transform →
+ * slice into per-frame surfaces, with the build hook reading back the
+ * transformed sheet to prove the brightness pass ran on the live buffer. */
+static uint8_t g_e2e_px00[3];
+static uint8_t g_e2e_px11[3];
+
+static void *e2e_build_hook(ar_sprite_slot *slot, const bitmap_session *sheet,
+                            int sx, int sy, int cw, int ch,
+                            uint32_t key, void *aux)
+{
+    (void)slot; (void)cw; (void)ch; (void)key; (void)aux;
+    const uint8_t *px = (const uint8_t *)sheet->pixels;
+    if (sx == 0 && sy == 0) memcpy(g_e2e_px00, px + 0, 3);
+    if (sx == 1 && sy == 1) memcpy(g_e2e_px11, px + sheet->stride + 3, 3);
+    return malloc(1);
+}
+
+int test_sprite_decode_end_to_end_24bpp(void)
+{
+    bs_fixture_reset();
+    g_frame_free_n = 0;
+    ar_frame_build_hook = e2e_build_hook;
+    ar_frame_free_hook  = slice_free_hook;
+
+    /* 2×2 24bpp compressed resource; pixels at base + 0 + 0x458. */
+    uint8_t *buf = bs_fixture_build_compressed(2, 2, 24, /*pixel_off=*/0);
+    uint8_t *px = buf + 0x458;                  /* stride = 6 */
+    px[0] = 200; px[1] = 100; px[2] = 50;      /* (0,0): scaled below */
+    px[6 + 3] = 0xff; px[6 + 4] = 0x00; px[6 + 5] = 0xff;  /* (1,1): magenta */
+    bs_fixture_register((void *)0x7777, 0x123, "DATA", buf);
+
+    ar_sprite_entry ent = { .frames = NULL, .b = NULL };
+    ar_sprite_slot slot; memset(&slot, 0, sizeof slot);
+    slot.entries     = &ent;
+    slot.settings    = (void *)0x7777;
+    slot.resource_id = 0x123;
+    slot.width = 1; slot.height = 1;            /* 1×1 cells ⇒ 4 frames */
+    slot.colorkey = 0;
+    slot.f_08 = 1;                              /* enable transform */
+    slot.f_14 = 500; slot.f_10 = 1000; slot.f_0c = 2000;  /* ×0.5/×1/×2 */
+
+    ar_sprite_decode(&slot);
+
+    T_ASSERT_EQ_U(slot.f_38, 4);               /* 2×2 frames sliced */
+    void **frames = (void **)ent.frames;
+    T_ASSERT(frames != NULL);
+    for (int i = 0; i < 4; i++) T_ASSERT(frames[i] != NULL);
+    /* (0,0) transformed: (200*0.5, 100*1, 50*2) = (100,100,100). */
+    T_ASSERT_EQ_U(g_e2e_px00[0], 100);
+    T_ASSERT_EQ_U(g_e2e_px00[1], 100);
+    T_ASSERT_EQ_U(g_e2e_px00[2], 100);
+    /* (1,1) magenta key survived the transform untouched. */
+    T_ASSERT_EQ_U(g_e2e_px11[0], 0xff);
+    T_ASSERT_EQ_U(g_e2e_px11[1], 0x00);
+    T_ASSERT_EQ_U(g_e2e_px11[2], 0xff);
+
+    /* leak-clean: drop the surfaces + array via a re-decode whose
+     * resource is gone (cleanup runs first, bs then fails). */
+    bs_fixture_reset();
+    ar_sprite_decode(&slot);
+    T_ASSERT_EQ_I(g_frame_free_n, 4);
+    T_ASSERT_EQ_P(ent.frames, NULL);
+    return 0;
+}

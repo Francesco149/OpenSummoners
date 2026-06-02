@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 125,
+  "tested": 127,
   "ported": 3,
-  "unported": 1630,
+  "unported": 1628,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 128,
-  "pct_touched": 7.9,
-  "pct_tested": 7.9,
-  "engine_proper_touched": 118,
+  "touched": 130,
+  "pct_touched": 8.1,
+  "pct_tested": 8.1,
+  "engine_proper_touched": 120,
   "bytes_total": 1694868,
-  "bytes_touched": 166514,
-  "pct_bytes_touched": 9.8
+  "bytes_touched": 168440,
+  "pct_bytes_touched": 9.9
  },
  "orphan_refs": [
   "0x56c470",
@@ -1518,16 +1518,22 @@
    "name": "FUN_004184a0",
    "size": 1035,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/asset_register.c",
+    "src/asset_register.h"
+   ]
   },
   {
    "va": "0x4188b0",
    "name": "FUN_004188b0",
    "size": 891,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/asset_register.c",
+    "src/asset_register.h"
+   ]
   },
   {
    "va": "0x418c90",
@@ -11286,6 +11292,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_register.c",
+    "src/asset_register.h",
     "src/cs_dispatch.c",
     "src/zdd.h",
     "src/zdd_win32.c"

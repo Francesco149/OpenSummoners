@@ -992,3 +992,25 @@ int test_bitmap_session_layout_matches_retail(void)
     T_ASSERT_EQ_U(offsetof(bs_bitmap_info, palette), 0x28);
     return 0;
 }
+
+/* ─── shared fixtures for cross-module tests (see bs_fixture.h) ─────── */
+
+#include "bs_fixture.h"
+
+void bs_fixture_reset(void)
+{
+    stub_reset();
+}
+
+void bs_fixture_register(void *hModule, uint16_t id, const char *type,
+                         const void *data)
+{
+    stub_register(hModule, id, type, data);
+}
+
+uint8_t *bs_fixture_build_compressed(uint32_t width, uint32_t height,
+                                     uint16_t bit_count, uint32_t pixel_off)
+{
+    return (uint8_t *)build_compressed_resource(width, height, bit_count,
+                                                pixel_off);
+}

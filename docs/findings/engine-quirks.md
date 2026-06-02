@@ -1065,3 +1065,62 @@ still ported for fidelity (`zdd_object_blt_rects` = `FUN_005b9ae0`, plus the
 
 > 📍 `zdd_blit_orchestrate` / `zdd_object_blt_rects` in `src/zdd.c`;
 > `zdd_dc_blit` in `src/zdd_win32.c`.
+
+## 46. The sprite-sheet decoder's brightness pass is per-channel ×scale÷1000 with a *reversed* byte→field mapping, gated on a slot flag
+
+`FUN_004184a0` (the sprite-sheet decoder, ported as `ar_sprite_decode`) runs an
+in-place colour transform over the freshly-decoded 24bpp sheet **before**
+slicing it into frames — but only when **two** conditions hold:
+
+1. `slot->f_08` (`in_ECX[2]`, byte +0x08) is non-zero — a per-slot "apply
+   brightness" gate stamped by the registrar, **not** a global.
+2. the sheet is genuinely 24bpp (`bs_get_bit_count == 0x18`).
+
+For every pixel whose low 24 bits ≠ the magenta key `0xff00ff` (which is left
+untouched — it's the transparent colour), each channel is, in order:
+
+```
+if (slot->f_18) ch = ((uint8_t*)slot->f_18)[ch];   // optional gamma/remap LUT
+ch = (uint8_t)( (int)ch * scale / 1000 );           // signed idiv, trunc → 0
+```
+
+The surprise is the **byte→field mapping is reversed** relative to the field
+order:
+
+| DIB byte | channel | scale field |
+|----------|---------|-------------|
+| `p[0]`   | B       | `slot->f_14` (+0x14) |
+| `p[1]`   | G       | `slot->f_10` (+0x10) |
+| `p[2]`   | R       | `slot->f_0c` (+0x0c) |
+
+i.e. byte 0 uses the *highest* of the three field offsets, byte 2 the lowest.
+So `f_0c/f_10/f_14` are **not** a naïve "channel0/1/2" triple — read them as
+(R-scale, G-scale, B-scale).  Scales are out of 1000 (1000 = ×1.0); the divide
+is the same `0x10624dd3 / sar 6` signed-÷1000 magic the compositor uses for
+its alpha math.
+
+Retail reads each pixel as `*(uint*)p & 0xffffff` for the key test, which reads
+one byte past the buffer on the final pixel (the LocalAlloc'd `biSizeImage`
+buffer has heap slack so retail tolerates it).  The port reads the three bytes
+individually instead — identical result, no out-of-bounds read under ASan.
+
+> 📍 `ar_sheet_decode_pixels` in `src/asset_register.c`; the field roles are
+> pinned in `ar_sprite_slot` (`asset_register.h`).
+
+## 47. The slicer normalises every colour-key to magenta unless it's the `0x1ffffff` "no-key" sentinel
+
+`FUN_004188b0` (`ar_sprite_slice`) takes the bank's colour-key (`slot->colorkey`,
+`in_ECX[10]`) but **does not pass it through verbatim** to the per-frame surface
+builder.  There are two arms of the format-setup switch:
+
+- `colorkey == 0x1ffffff` — the "no colour-key" sentinel.  The builder is
+  handed `0x1ffffff` unchanged and the format-setup calls use key `0`.
+- any other value — after the format-setup switch the code does
+  `param_5 = 0xff00ff`, so the builder **always** receives the magenta key
+  regardless of what `slot->colorkey` actually held.
+
+So a sprite bank's stored colour-key only ever selects *whether* keying is on
+(`!= 0x1ffffff`), not *which* colour — the keyed colour is hardwired to magenta
+`0xff00ff` (the same key the decoder's brightness pass skips, quirk #46).
+
+> 📍 `ar_sprite_slice` in `src/asset_register.c`.
