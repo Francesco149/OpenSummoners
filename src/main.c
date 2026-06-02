@@ -54,6 +54,8 @@
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 #include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
 #include "pixel_drawer.h"     /* pd_boot_init_slots — the alpha-ramp descriptors */
+#include "rng.h"              /* engine LCG — pinned seed for determinism */
+#include "title_particles.h"  /* phase-7 sparkle-particle pool + spawn */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -128,6 +130,25 @@ static int       g_ramps_built;
  * minimal present loop (a black/uninitialised window, zero DDERR/frame). */
 static title_drive g_drive;
 static int         g_drive_active;
+
+/* The phase-7 sparkle-particle pool (FUN_0056c070 spawns into it; the sink's
+ * FRAME_END composes it via title_compositor_draw == FUN_0056c180).  Owned
+ * here so the spawn hook (which carries no context arg) can reach it, and so
+ * its storage outlives the drive.  Reset at each drive init. */
+static title_particle_pool g_particles;
+
+/* The spawn_sparkle hook (title_scene_hooks): phase-7's per-tick
+ * FUN_0056c070 call with the title constants baked in. */
+static void drive_spawn_sparkle(int32_t intensity)
+{
+    title_particle_spawn_title(&g_particles, intensity);
+}
+
+/* Borrowed by the drive each frame (must outlive it).  Only spawn_sparkle is
+ * wired; the other outer-loop side effects stay deferred (see HANDOFF). */
+static const title_scene_hooks g_title_hooks = {
+    .spawn_sparkle = drive_spawn_sparkle,
+};
 
 /* --input-trace <file.jsonl> — port-side deterministic input replay (the
  * harness's {frame,ids} format).  Injected into the drive's input ring keyed
@@ -614,17 +635,37 @@ static void init_title_drive(void)
      * real blend tables (without them the cursor's alpha draw no-ops). */
     init_alpha_ramps();
 
+    /* Pin the engine RNG so the phase-7 sparkle spawn is reproducible (retail
+     * srand(time()) is wall-clock dependent; the parity harness pins retail's
+     * DAT_008a4f94 to the same value).  OPENSUMMONERS_RNG_SEED overrides the
+     * default for experiments. */
+    {
+        char sbuf[32];
+        uint32_t seed = OSS_RNG_DEFAULT_SEED;
+        DWORD n = GetEnvironmentVariableA("OPENSUMMONERS_RNG_SEED", sbuf, sizeof sbuf);
+        if (n > 0 && n < sizeof sbuf)
+            seed = (uint32_t)strtoul(sbuf, NULL, 0);
+        rng_srand(seed);
+        log_line("init_title_drive: RNG seed pinned to 0x%08lx", (unsigned long)seed);
+    }
+
+    /* Reset the sparkle-particle pool (retail allocates it count=0 at scene
+     * setup; FUN_0056c2b0 clears it on exit). */
+    title_particle_pool_init(&g_particles);
+
     title_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);
-    cfg.primary    = g_zdd->primary_obj;
-    cfg.present    = drive_present;
-    cfg.log_flip   = drive_log_flip;
-    cfg.user       = NULL;
-    cfg.select_key = 0;        /* no saved menu pick at a cold boot */
-    cfg.quiet      = 0;
-    cfg.skip_intro = 0;
-    cfg.ramp_a     = g_ramp_a; /* 0x8a92b8 — menu cursor + compositor */
-    cfg.ramp_b     = g_ramp_b; /* 0x8a9308 — sprite-level fades + logo */
+    cfg.primary       = g_zdd->primary_obj;
+    cfg.present       = drive_present;
+    cfg.log_flip      = drive_log_flip;
+    cfg.user          = NULL;
+    cfg.select_key    = 0;        /* no saved menu pick at a cold boot */
+    cfg.quiet         = 0;
+    cfg.skip_intro    = 0;
+    cfg.ramp_a        = g_ramp_a; /* 0x8a92b8 — menu cursor + compositor */
+    cfg.ramp_b        = g_ramp_b; /* 0x8a9308 — sprite-level fades + logo */
+    cfg.compose_group = &g_particles.group; /* phase-7 sparkle twinkles      */
+    cfg.hooks         = &g_title_hooks;     /* spawn_sparkle (FUN_0056c070)   */
 
     if (!title_drive_init(&g_drive, &cfg)) {
         log_line("init_title_drive: title_drive_init failed — "
