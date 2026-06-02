@@ -25,27 +25,54 @@ after changes that touch the relevant render path.
   see HANDOFF "intro pacing"), so a port Flip N is compared against the retail
   Flip that shows the *same scene state*, not the same index. Record both.
 
-## Confirmed entries
+> **The bar is `differ_px == 0`.** A frame is only "confirmed 1:1" when the
+> amplified diff is empty. Any residual — however small — is an OPEN item below
+> with concrete hypotheses, never hand-waved as "close enough" ([[feedback_bit_exact]]).
 
-| # | scene / frame | port cap | retail golden | diff | residual delta (understood) | verified |
-|---|---------------|----------|---------------|------|------------------------------|----------|
-| 1 | **Title menu — idle, settled** (logo + character art + "Secret of the Elemental Stone" + Start/Continue/Bonus Menu/Options/Exit + copyright) | Flip 200 | `title-idle` Flip 1900 | **955/307200 px (0.31%)**, mean\|abs\|/ch 0.047 | After wiring the cursor (ckpt 27): residual is **only faint edge/anti-alias pixels** on the selection cursor (▶) + the "Start" highlight — the cursor alpha is driven to idx 19 (full) empirically; retail's exact `level_num` (`[esp+0x20]`, not yet measured) likely lands a slightly different blend at the edges. Whole-frame interiors (art, logo, all menu text, background, cursor body) **match**. | ckpt 26→27 (2026-06-02) |
+## Confirmed bit-exact (differ_px == 0)
 
-## Pending (rendered but not yet 1:1 — the known gaps)
+| # | scene / frame | port cap | retail golden | verified |
+|---|---------------|----------|---------------|----------|
+| _(none yet)_ | — | — | — | — |
 
-These are the deltas that, once fixed, should move entry #1 (and future entries)
-to fully bit-identical:
+## Open residuals — under investigation (NOT yet 1:1)
 
-- ~~**Menu selection cursor** (triangular ▶ + row highlight) — `MENU_CURSOR`
-  sink arm, CURSOR bank (pool 20).~~ **WIRED ckpt 27** (alpha ramps built +
-  arm wired). Residual: the exact cursor blend level (`level_num` = retail's
-  `[esp+0x20]`, currently driven to idx 19) — measure via Frida on 0x56c470 to
-  close the last ~955 edge px.
-- **Selection sparkle** (the arcs beside the cursor) — `SPARKLE` sink arm; the
-  ramps are now populated, so this is wirable next (carries an explicit blend
-  descriptor pointer per command — see `title_sink.h`).
+### R1 — Title menu (idle, settled): 955/307200 px (0.31%), mean|abs|/ch 0.047
+
+Port Flip 200 vs retail `title-idle` golden Flip 1900. The whole frame
+(character art, background, logo, all menu text, the body of the selection
+cursor) matches; the residual is **edge/anti-alias pixels on the selection
+cursor (▶) + the "Start" highlight**. This is NOT closed. Two hypotheses
+(per user, ckpt 27) — investigate both:
+
+1. **Phase / timing skew.** The cursor highlight likely **pulses** (its alpha is
+   animated via the fade ramp; retail's cursor `level_num` = `[esp+0x20]` is a
+   *per-frame, path-dependent* value, not a constant — that's why it couldn't be
+   pinned statically). The port rushes the intro (no pacing fidelity yet), so
+   port Flip 200 and retail Flip 1900 are almost certainly at **different points
+   of the cursor pulse** → different cursor brightness → edge diff. **Test:**
+   diff several port menu frames against several retail menu goldens (1300/1600/
+   1900); if the residual *varies* with the pairing, it's phase (and the real
+   fix is intro-pacing parity, R3 below, so the pulse phases align). If the
+   residual is *constant* across pairings, phase is not the cause.
+2. **Cursor blend over-brightens.** We drive the cursor `level_num` to idx 19
+   (full, mode-1 add-blend). If retail's actual per-frame level is lower, our
+   add brightens the cursor edges too much. **Test:** Frida-hook `0x56c470` on
+   retail, log arg3 (`level_num`) + arg4 (`level_div`) at the menu; or sweep idx
+   16..19 in the port and pick the one that minimises the diff. NB this overlaps
+   with (1): if the level is animated, the "right" value is phase-dependent.
+
+Method to capture the port frame: `--capture-frames` (Flip-indexed). The diff
+math: `tools/push_comparison.py` / `pixel_diff.amplified_diff`.
+
+## Other rendered-but-not-1:1 gaps (arms not yet wired)
+
+- **Selection sparkle** (arcs beside the cursor) — `SPARKLE` sink arm. The alpha
+  ramps are now populated (ckpt 27), so this is wirable; it carries an explicit
+  blend-descriptor pointer per command (see `title_sink.h`).
 - **Lizsoft studio splash** + **intro fade pacing** — `LOGO` arm + the stubbed
-  pace pump `0x5b1030` (the port doesn't render the studio splash and rushes the
-  intro). Frame-for-frame intro parity needs these.
+  pace pump `0x5b1030`. The port doesn't render the studio splash and rushes the
+  intro; frame-for-frame intro parity (and likely R1's phase alignment) needs
+  the pacing ported.
 
-When a gap closes, re-diff the affected frames and update the table.
+When a residual reaches `differ_px == 0`, move it to "Confirmed bit-exact".

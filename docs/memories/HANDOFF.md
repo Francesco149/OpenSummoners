@@ -1,13 +1,31 @@
-# Session handoff — last updated 2026-06-02 (the title screen RENDERS, ckpt 26)
+# Session handoff — last updated 2026-06-02 (title renders + cursor wired, ckpt 27)
 
+> **ckpt 27 — menu cursor wired (commit `40741a4`).** Built the alpha-ramp blend
+> descriptors (`init_alpha_ramps` → `pd_boot_init_slots(NULL)` = RGB565, exposed
+> as the `ramp_a/ramp_b` pointer tables into the sink) and wired the
+> `TITLE_DRAW_MENU_CURSOR` sink arm (resolve CURSOR bank pool 20 + draw via
+> `title_draw_menu_cursor`). The "▶ Start" selection cursor now renders. Menu
+> diff vs retail golden dropped **2964 px → 955 px (1.0% → 0.31%)** — **NOT yet
+> 1:1**: a 955px edge residual on the cursor remains OPEN (parity-ledger R1).
+> Two hypotheses to investigate (bit-exact is the bar — no hand-waving): (1) the
+> cursor highlight **pulses** (animated `level_num` = retail's path-dependent
+> `[esp+0x20]`), so port Flip 200 vs retail Flip 1900 are at different pulse
+> phases — really an intro-pacing/phase-alignment problem; (2) our idx-19
+> full-add over-brightens the cursor. 648 host tests pass (+1). **The alpha ramps
+> are now live**, so SPARKLE/LOGO are unblocked too.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 26 — THE PAYOFF: the port renders the real title screen.** Registering
 > the title sprite banks at boot lit up the entire ported pipeline. The drop-in
 > now decodes the actual Fortune Summoners title art from sotesd.dll and blits
 > it: **full character art + background + "FORTUNE SUMMONERS" logo, then the
 > title menu** (Start / Continue / Bonus Menu / Options / Exit + "Secret of the
-> Elemental Stone" + copyright). **Pixel-identical to the retail golden**
-> (port frame 200 == `runs/title-idle/frame_01900.png`). Self-verified via the
-> new **port-side frame capture** (`--capture-frames`, BMP→PNG→read-image).
+> Elemental Stone" + copyright). The art/logo/menu-text region matched the
+> retail golden (port frame 200 vs `runs/title-idle/frame_01900.png`) with the
+> only diff being the (then-unwired) selection cursor — NOT a full bit-exact
+> match (see ckpt 27 + parity-ledger R1). Self-verified via the new **port-side
+> frame capture** (`--capture-frames`, BMP→PNG→read-image).
 >
 > The fix (commit `e00718b`): `init_sprite_banks()` in `main.c` —
 > `LoadLibraryA("sotesd.dll")` + `ar_state_init()` +
@@ -27,7 +45,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 26): title renders 1:1; three fidelity gaps remain
+## ⭐ Current state (ckpt 27): title renders; one open residual + gaps remain (NOT yet bit-exact)
 
 The whole chain runs live, every frame, producing correct pixels:
 
@@ -143,9 +161,10 @@ new-game menus + prologue (stone/narration) — to 1:1-match retail, using the
 harness goldens as the pixel target. Do NOT extend the trace toward in-game yet;
 "once we have prologue and main menu rendering we extend the trace."**
 
-Title menu now renders 1:1 (modulo the cursor highlight + intro pacing, Next
-move #1/#2). After those: drive the new-game menus (the `--input-trace` path)
-and confirm they render, then the prologue.
+Title menu renders with a 955px OPEN residual on the cursor (parity-ledger R1 —
+NOT yet bit-exact; bit-exact is the bar). After closing it (phase-alignment /
+exact cursor blend): drive the new-game menus (the `--input-trace` path) and
+confirm they render, then the prologue.
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
