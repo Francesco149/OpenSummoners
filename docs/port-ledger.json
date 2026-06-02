@@ -8164,6 +8164,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/app_flow.c",
+    "src/app_flow.h",
     "src/asset_register.c",
     "src/asset_register.h",
     "src/main.c",
@@ -8448,6 +8450,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/app_flow.h",
     "src/input.h",
     "src/main.c",
     "src/menu_list.h",

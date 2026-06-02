@@ -6,6 +6,33 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 33) — post-title dispatch backbone: the title menu is re-enterable, Exit exits
+
+Until now the port treated **any** title-scene completion as a hard shutdown
+(`main_loop_body`), so committing a menu row just exited. Retail doesn't:
+`FUN_00562ea0`'s outer `do { } while(true)` loop (562ea0.c:684-734) switches on
+the title runner's return code and either leaves the loop (Exit) or re-runs the
+title to re-display the menu.
+
+Ported the **result→action mapping** of that switch as a pure, Win32-free unit
+`app_flow_dispatch` (`src/app_flow.{c,h}`): `6/8 → EXIT`, `9 → EXIT_9`,
+`0x1a → NEW_GAME`, `0x1b → DEMO_START`, `0x1c → CONTINUE`, `0x1d → OPTIONS`,
+`0x1e → BONUS`, `0`/default → `REENTER_TITLE`. Wired it into `main.c`: Exit sets
+`g_shutdown`; every sub-scene arm (all UNPORTED — gated on the glyph/text
+pipeline) logs + calls the new `reenter_title()`, which tears down the finished
+drive and rebuilds it (skip_intro=1), so the menu loops the way retail's does.
+
+**Verified live** (`--input-trace` + `--menu-trace`): a trace that walks DOWN×4
+to **Exit** + confirm → `result=8` → clean `OpenSummoners exiting` (no re-enter);
+a trace that confirms on **Start** → `result=26` → `dispatch: … not yet ported
+(stub) — re-displaying title` → the drive rebuilds and the menu reappears. The
+re-entered title **replays the intro from phase 0** — confirmed by a capture
+showing the title art fading back in (quirk **#60**: the `local_164`/`param_1`
+re-display arg does NOT skip the intro; it only enables a phase-0 skip-press).
+668 host tests pass (+1 `app_flow_dispatch_codes`, 0 fail, 6 skip). Ledger
+**145/1490 (8.9%)** unchanged — `0x562ea0` was already referenced/counted across
+ported files; this is a partial port of its tail (status now `tested`).
+
 ## 2026-06-02 (ckpt 32) — the title menu is INTERACTIVE: injected nav moves the cursor + commits (milestone 1)
 
 Live-validated the `--input-trace` path (the long-deferred ckpt-24 item) and

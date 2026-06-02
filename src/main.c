@@ -57,6 +57,7 @@
 #include "pixel_drawer.h"     /* pd_boot_init_slots — the alpha-ramp descriptors */
 #include "rng.h"              /* engine LCG — pinned seed for determinism */
 #include "title_particles.h"  /* phase-7 sparkle-particle pool + spawn */
+#include "app_flow.h"         /* post-title dispatch (FUN_00562ea0 tail switch) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -216,7 +217,9 @@ static void log_line(const char *fmt, ...);
 static int  init_ddraw(void);
 static void shutdown_ddraw(void);
 static void sync_window_position(void);
+static int  build_title_drive(int skip_intro);
 static void init_title_drive(void);
+static void reenter_title(void);
 static void init_sprite_banks(void);
 static void init_alpha_ramps(void);
 static void maybe_capture_frame(unsigned flip_frame);
@@ -649,7 +652,17 @@ static void maybe_capture_frame(unsigned flip_frame)
  * group are unfilled/unmodeled at a cold boot, so they pass through as NULL
  * (plain blits / no compose — faithful).  skip_intro stays 0 so a first boot
  * plays the studio fade from the start, exactly like retail's cold launch. */
-static void init_title_drive(void)
+/* Build (or rebuild) the title-scene drive against the live ZDD.  Shared by
+ * the cold-boot init_title_drive and the post-dispatch reenter_title; the only
+ * difference is `skip_intro` — retail's FUN_00562ea0 passes the title runner a
+ * non-zero arg (`local_164=1`) on every re-display.  That does NOT skip the
+ * intro (the runner restarts at phase 0 and replays the logos/sparkles, just
+ * like retail); it only enables a phase-0 button-press to jump to the menu
+ * (otherwise only phases 1+ honour a skip-press — see 56aea0.c:177/:182).
+ * Returns 1 on success, 0 if title_drive_init failed.  Does NOT touch the
+ * input trace (loaded once by init_title_drive); the bank registration + decode
+ * hooks installed here are global and idempotent across rebuilds. */
+static int build_title_drive(int skip_intro)
 {
     /* Self-decode the sprite banks on first frame access, and build real
      * per-cell surfaces (8d) once a bank is decoded. */
@@ -673,7 +686,7 @@ static void init_title_drive(void)
         if (n > 0 && n < sizeof sbuf)
             seed = (uint32_t)strtoul(sbuf, NULL, 0);
         rng_srand(seed);
-        log_line("init_title_drive: RNG seed pinned to 0x%08lx", (unsigned long)seed);
+        log_line("build_title_drive: RNG seed pinned to 0x%08lx", (unsigned long)seed);
     }
 
     /* Reset the sparkle-particle pool (retail allocates it count=0 at scene
@@ -688,24 +701,34 @@ static void init_title_drive(void)
     cfg.user          = NULL;
     cfg.select_key    = 0;        /* no saved menu pick at a cold boot */
     cfg.quiet         = 0;
-    cfg.skip_intro    = 0;
+    cfg.skip_intro    = skip_intro;
     cfg.ramp_a        = g_ramp_a; /* 0x8a92b8 — menu cursor + compositor */
     cfg.ramp_b        = g_ramp_b; /* 0x8a9308 — sprite-level fades + logo */
     cfg.compose_group = &g_particles.group; /* phase-7 sparkle twinkles      */
     cfg.hooks         = &g_title_hooks;     /* spawn_sparkle (FUN_0056c070)   */
 
-    if (!title_drive_init(&g_drive, &cfg)) {
+    if (!title_drive_init(&g_drive, &cfg))
+        return 0;
+
+    g_drive_active = 1;
+    log_line("build_title_drive: title scene driven (primary=%p, 8d surface "
+             "builder wired: depth=%d bpp, skip_intro=%d)",
+             (void *)g_zdd->primary_obj, g_zdd->pixel_format_bpp, skip_intro);
+    return 1;
+}
+
+static void init_title_drive(void)
+{
+    if (!build_title_drive(/*skip_intro=*/0)) {
         log_line("init_title_drive: title_drive_init failed — "
                  "falling back to legacy present loop");
         return;
     }
-    g_drive_active = 1;
-    log_line("init_title_drive: title scene driven (primary=%p, 8d surface "
-             "builder wired: depth=%d bpp)", (void *)g_zdd->primary_obj,
-             g_zdd->pixel_format_bpp);
 
     /* Load the optional input-replay trace now that the drive (and its input
-     * ring) exists.  Injection happens per-frame in main_loop_body. */
+     * ring) exists.  Injection happens per-frame in main_loop_body.  Loaded
+     * once at cold boot; reenter_title keeps this same trace (its cursor has
+     * already advanced, so no further events re-inject). */
     if (g_input_trace_path != NULL) {
         if (input_trace_load(g_input_trace_path, &g_input_trace)) {
             g_input_trace_active = 1;
@@ -716,6 +739,24 @@ static void init_title_drive(void)
             log_line("init_title_drive: failed to load input trace %s",
                      g_input_trace_path);
         }
+    }
+}
+
+/* Re-display the title menu after a sub-scene dispatch (retail's FUN_00562ea0
+ * loop re-running FUN_0056aea0).  Tears down the finished drive and rebuilds it
+ * with skip_intro=1 — faithful to retail's `local_164=1` re-display arg.  The
+ * intro replays from phase 0 (retail does too); skip_intro only lets a phase-0
+ * press jump to the menu.  On a rebuild failure the port shuts down rather than
+ * spin on a dead drive. */
+static void reenter_title(void)
+{
+    if (g_drive_active) {
+        title_drive_shutdown(&g_drive);
+        g_drive_active = 0;
+    }
+    if (!build_title_drive(/*skip_intro=*/1)) {
+        log_line("reenter_title: drive rebuild failed — shutting down");
+        g_shutdown = 1;
     }
 }
 
@@ -908,8 +949,37 @@ static void main_loop_body(void)
                 }
             }
             if (st == TITLE_SCENE_DONE) {
-                log_line("title scene returned result=%ld", (long)g_drive.result);
-                g_shutdown = 1;
+                int32_t result = g_drive.result;
+                log_line("title scene returned result=%ld", (long)result);
+                /* Dispatch the committed menu-action code like retail's
+                 * FUN_00562ea0 outer loop (562ea0.c:684-734): Exit leaves the
+                 * loop; every other case eventually re-runs the title.  The
+                 * sub-scene runners (new-game / continue / options / bonus)
+                 * are not ported yet (gated on the glyph/text pipeline + font
+                 * registration), so their arms log + re-display the title — so
+                 * the menu loops the way retail's does instead of exiting. */
+                switch (app_flow_dispatch(result)) {
+                case APP_FLOW_EXIT:
+                case APP_FLOW_EXIT_9:
+                    g_shutdown = 1;
+                    break;
+                case APP_FLOW_NEW_GAME:   /* 0x564160+0x56cd20+0x59ec30 — UNPORTED */
+                case APP_FLOW_CONTINUE:   /* 0x56a670                   — UNPORTED */
+                case APP_FLOW_OPTIONS:    /* 0x40a5d0+0x568de0          — UNPORTED */
+                case APP_FLOW_BONUS:      /* 0x583fe0                   — UNPORTED */
+                case APP_FLOW_DEMO_START: /* 0x59ec30(0x2724,0,0)       — UNPORTED */
+                    log_line("dispatch: scene for result=%ld not yet ported "
+                             "(stub) — re-displaying title", (long)result);
+                    reenter_title();
+                    break;
+                case APP_FLOW_REENTER_TITLE:
+                default:
+                    reenter_title();
+                    break;
+                }
+                /* Leave the present-spin; the outer WinMain loop resumes the
+                 * (possibly rebuilt) drive on the next main_loop_body, or ends
+                 * if g_shutdown was set. */
                 break;
             }
             /* drive_present bumps g_present_frame on a render step (the sink's

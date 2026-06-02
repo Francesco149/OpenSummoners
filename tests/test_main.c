@@ -698,6 +698,7 @@ struct test_case {
     X(input_trace_replay_injects_at_frame)                     \
     X(input_trace_replay_catches_up)                           \
     X(input_trace_replay_guards)                               \
+    X(app_flow_dispatch_codes)                                 \
 
 #define X(n) extern int test_##n(void);
 TESTS

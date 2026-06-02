@@ -1503,3 +1503,31 @@ the cursor becomes visible (the main `fade==1000` draw gate, +20/frame, ~flip
 > `post_update` (`src/main.c` `drive_post_update`).  Diagnostic:
 > `--menu-trace` logs cursor-row changes (`src/title_sink.c`).  See quirk #34
 > (the latch gate) and `findings/new-game-flow.md` (the reference trace).
+
+## 60. The title runner's re-display arg (`local_164`/`param_1`) does NOT skip the intro — the studio/title intro REPLAYS on every return to the title
+
+The boot driver `FUN_00562ea0`'s outer `do { } while(true)` loop (562ea0.c:658-735)
+calls the title runner `FUN_0056aea0(local_164)` each iteration, where `local_164`
+is non-zero (set to 1) on every iteration after the first.  It is tempting to
+read this re-display arg as "skip the intro, jump to the menu" — **it is not.**
+
+`FUN_0056aea0` re-enters with its phase FSM local `local_64 = 0` every call, so
+it **restarts at phase 0 and replays the full studio→title intro** (logos +
+subtitle sweep + sparkles) each time you return from a sub-scene.  `param_1`'s
+*only* effect is at the skip-to-menu block (56aea0.c:177): the gate is
+`local_64 < 8 && (local_64 != 0 || param_1 != 0)`, and the jump itself is still
+**conditioned on a fresh recent button press** (56aea0.c:182: bails unless the
+input record is a press `[2]==1` newer than 100 ms).  So `param_1 != 0` merely
+lets a press *during phase 0* skip the replay; with `param_1 == 0` only phases
+1..7 honour a skip-press.  No press ⇒ the intro plays in full either way.
+
+The port models this faithfully: `title_scene` `skip_intro` IS `param_1`
+(`title_scene.c:729` gates the same skip-on-`input_any_fresh_press`).  The
+post-title dispatch (`src/app_flow.c`, ckpt 33) rebuilds the title drive with
+`skip_intro=1` on every re-entry (matching `local_164=1`); a captured re-entered
+frame shows the title art **fading in again from black** (phase 0→8), confirming
+the replay.  This is correct retail behaviour, not a port regression.
+
+> 📍 `FUN_0056aea0` @ `0x56aea0`; the skip gate at 56aea0.c:177/:182.  Ported:
+> `title_scene.c` (`skip_intro`), `src/app_flow.c` + `reenter_title`
+> (`src/main.c`).  See quirk #54 (intro pacing) and `findings/new-game-flow.md`.

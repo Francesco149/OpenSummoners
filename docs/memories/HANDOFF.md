@@ -1,5 +1,33 @@
-# Session handoff — last updated 2026-06-02 (title menu INTERACTIVE, ckpt 32)
+# Session handoff — last updated 2026-06-02 (post-title dispatch backbone, ckpt 33)
 
+> **ckpt 33 — POST-TITLE DISPATCH BACKBONE: the title menu is re-enterable;
+> Exit exits.** Until now the port hard-shut-down on *any* `TITLE_SCENE_DONE`,
+> so committing a menu row just quit. Ported the result→action mapping of
+> retail's boot-driver outer loop `FUN_00562ea0` (562ea0.c:684-734) as the pure,
+> Win32-free `app_flow_dispatch` (**`src/app_flow.{c,h}`**): `6/8→EXIT`,
+> `9→EXIT_9`, `0x1a→NEW_GAME`, `0x1b→DEMO_START`, `0x1c→CONTINUE`,
+> `0x1d→OPTIONS`, `0x1e→BONUS`, `0`/default→`REENTER_TITLE`. Wired into
+> `main.c`: Exit sets `g_shutdown`; every (still-UNPORTED) sub-scene arm logs +
+> calls the new **`reenter_title()`** which tears down the finished drive and
+> rebuilds it (`build_title_drive(skip_intro=1)`), so the menu loops like
+> retail's. **Verified live**: a trace to **Exit** → `result=8` → clean exit (no
+> re-enter line); a trace confirming **Start** → `result=26` → stub log →
+> drive rebuilds → menu reappears. Captures confirm the re-entered title
+> **replays the intro from phase 0** (quirk **#60**: the `local_164`/`param_1`
+> re-display arg does NOT skip the intro — it only enables a phase-0 skip-press;
+> 56aea0.c:177/:182). 668 host tests pass (+1 `app_flow_dispatch_codes`).
+> Ledger **145/1490 (8.9%)** unchanged (`0x562ea0` was already counted; this is
+> a partial port of its tail → status `tested`).
+>
+> **The new-game/continue/options/bonus sub-scenes are stubs (re-enter title).**
+> They are gated on the next big rock: the **glyph/text pipeline** (`0x40fa00`
+> SJIS + `#`-colour escapes, `0x40f800`) + **font/sprite-batch registration**
+> (`ar_register_fonts`, `0x57a330` palette ramps, `0x56e190` 442-sprite batch).
+> That pipeline is the shared prerequisite for every menu AND the prologue
+> narration — see **Next move**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 32 — THE TITLE MENU IS INTERACTIVE (milestone 1): injected nav moves
 > the cursor + commits.** Live-validated the `--input-trace` path and found the
 > menu was **dead to input** despite rendering bit-exact: `menu_list_latch`
@@ -170,14 +198,22 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 32): the title intro is bit-exact AND the title menu is INTERACTIVE (milestone 1)
+## ⭐ Current state (ckpt 33): intro bit-exact, menu INTERACTIVE, and the title is now RE-ENTERABLE (Exit exits, commits dispatch)
 
-The whole intro chain is bit-exact (below), AND the menu now responds to input:
-injected `--input-trace` nav moves the cursor (both directions) and confirm
-returns the selected row's action code. The unblocker (ckpt 32) was porting the
-menu-input gate's driver — `FUN_0056c930`'s mode-1 `+0x54` ramp,
-`menu_owner_transition_step`, wired as the drive's `post_update` (quirk #59).
-Use `--menu-trace` to log cursor-row changes. **The intro render chain:**
+The title is feature-complete as a *loop*: intro bit-exact, menu interactive
+(ckpt 32), and now the menu-commit return code is **dispatched** like retail's
+boot driver instead of force-quitting (ckpt 33, `src/app_flow.c` +
+`reenter_title`/`build_title_drive` in `main.c`). **Exit (8) → clean shutdown;
+every other commit → the sub-scene (all UNPORTED stubs for now) → re-display the
+title** (which replays the intro from phase 0, faithful — quirk #60). The
+sub-scenes themselves do not render yet; that's the next rock (glyph/text
+pipeline — see Next move).
+
+The whole intro chain is bit-exact, AND the menu responds to input: injected
+`--input-trace` nav moves the cursor (both directions) and confirm returns the
+selected row's action code (ckpt 32: `FUN_0056c930`'s mode-1 `+0x54` ramp,
+`menu_owner_transition_step`, wired as `post_update`, quirk #59). Use
+`--menu-trace` to log cursor-row changes. **The intro render chain:**
 
 ```
 title_scene_step → title_sink → resolve_frame(bank 19/20)
@@ -222,36 +258,41 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the title intro is bit-exact AND the title menu is now **interactive**
-> (ckpt 32 — injected nav moves the cursor, confirm returns the action code).
-> The active goal (user, ckpt 13) is **1:1 parity with retail** for title +
-> new-game + prologue. With the title menu navigable, the front moves to the
-> **new-game config submenu** (confirm "Start" → it should appear) → prologue.
+> Context: the title is a complete loop now — intro bit-exact, menu interactive,
+> commits dispatched + re-enterable (ckpt 33). The active goal (user, ckpt 13)
+> is **1:1 parity with retail** for title + new-game + prologue. The front is
+> the **new-game config submenu** (confirm "Start" → it should render) →
+> prologue. The dispatch backbone is in (`app_flow_dispatch`); the `NEW_GAME`
+> arm is a stub. What gates rendering it is the **glyph/text pipeline**.
 
-1. **(recommended) Drive into the new-game config submenu + make it render.**
-   Confirming "Start" (row 0, action `0x1a`) now returns `result=26` and the
-   port **shuts down** (`main.c` sets `g_shutdown` on scene DONE) — there is no
-   new-game scene wired yet. The retail flow (see `findings/new-game-flow.md`):
-   confirm Start → a **separate scene** (separate input-manager instance, quirk
-   #43) renders the **Game Difficulty / Auto-guard / Start Game** boxed menu.
-   So the next move is to dispatch the title scene's return code instead of
-   exiting — port the post-title driver arm of `FUN_00562ea0` (it calls the
-   title runner when `DAT_008a6e6c==0` and switches on the menu-action code
-   6/8/0x1a/0x1c..0x1e) → the new-game config scene runner. Register the sprite
-   banks it needs (`ar_register_fonts`, `ar_register_palette_ramps` 0x57a330,
-   the big `FUN_0056e190` 442-sprite batch, sounds — all take the sotesd
-   HMODULE, wire like `init_sprite_banks`). The committed reference trace
-   `tests/scenarios/new-game-through/trace.jsonl` drives retail through this; the
-   port can replay the same `--input-trace` once the scene renders. Difficulty
-   menu polls `0x22,1,3,0x24,0x27` (id 0x27 = value left/right).
-2. **The menu input gate is now open but the latch's other arms are untested
-   live** — the difficulty menu is a **mode-2** controller (paged confirm list,
-   `menu_list_latch` mode 2), and the `id 0x27` value toggle is unverified
-   directionally (new-game-flow.md "Open"). Validate these as that scene lands.
-3. ~~Live-validate `--input-trace` + move the cursor~~ **DONE (ckpt 32, quirk
-   #59).** Injected DOWN/UP move the cursor (`--menu-trace` confirms
-   `0→1→2→3→4`); confirm commits the right action code. The blocker was the
-   unported `FUN_0056c930` `+0x54` ramp (the menu-input gate driver).
+1. **(recommended) Port the glyph/text pipeline + font registration — the
+   shared gate for every menu AND the prologue narration.** The new-game config
+   menu (`FUN_00564780` **case 0x24**: builds "Game Difficulty / Auto-guard /
+   Start Game" via `FUN_00411940` owner + `FUN_00412160` entries +
+   `FUN_00566570` value-row text, then a shared run loop) cannot render text
+   until **`0x40fa00`** (the 800 B cell glyph/text-layout builder: SJIS,
+   `#`-colour escapes; `menu_list.c` already routes its call site through a hook
+   awaiting this) + **`0x40f800`** land. It also needs banks registered at boot
+   the way `init_sprite_banks` does it: `ar_register_fonts`,
+   `ar_register_palette_ramps` (`0x57a330`), the big `FUN_0056e190` (442
+   sprites), sounds — all take the sotesd HMODULE. **Verify glyph output against
+   retail before wiring any scene** (render a known string, diff). This is a
+   meaty standalone unit; do it first, THEN the config-scene controller.
+2. **Then: the new-game config scene runner.** Once text renders, port
+   `FUN_00564780` case 0x24 + the shared run loop as a new scene/drive (mirror
+   `title_drive`), and route the `app_flow` `NEW_GAME` arm to it instead of the
+   stub. The transition `FUN_00564160` plays first; the **Elemental-Stone intro
+   anim** is `FUN_0056cd20` (a timed particle/gem cutscene, NOT a menu). Then
+   `FUN_0059ec30` starts the game proper. Reference trace:
+   `tests/scenarios/new-game-through/trace.jsonl` (retail Flip axis — re-time for
+   the port). Difficulty menu = a **mode-2** controller polling `0x22,1,3,0x24,
+   0x27`; `id 0x27` = value left/right, **unverified directionally**
+   (new-game-flow.md "Open"). The dispatch already keeps the same `--input-trace`
+   across re-entry, so when NEW_GAME stops re-entering the title and runs the
+   scene, the trace's post-Start events feed it.
+3. ~~Dispatch the title return code instead of exiting~~ **DONE (ckpt 33,
+   `app_flow_dispatch` + `reenter_title`, quirk #60).** Exit exits; commits
+   dispatch; unported arms re-display the title.
 
 ## Tooling added ckpt 32
 
@@ -329,7 +370,7 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (15 modules) — render pipeline COMPLETE
+## Module inventory (16 modules) — render pipeline COMPLETE
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
@@ -337,10 +378,13 @@ app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
 wrappers), **title_sink** (cmd→ZDD bridge, banks 19/20), **title_drive** (caller
 side of the runner), **rng** (the MSVC LCG `FUN_005bf505`/`_5bf4fb`, ckpt 31),
 **title_particles** (phase-7 sparkle pool: spawn `0x56c070` + update `0x56ba69` +
-cull `0x56c030`, ckpt 31). **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
+cull `0x56c030`, ckpt 31), **app_flow** (post-title dispatch = `FUN_00562ea0`
+tail switch, ckpt 33). **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +
-`init_sprite_banks` wired. `--no-title-scene` restores the legacy present loop.
+`init_sprite_banks` wired; on a menu commit it `app_flow_dispatch`es the result
+(Exit→shutdown, else→`reenter_title`). `--no-title-scene` restores the legacy
+present loop.
 
 ## How to run / verify live (self-serviceable — [[reference_frida]])
 

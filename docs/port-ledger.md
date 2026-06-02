@@ -46,9 +46,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x562210 | FUN_00562210 | 688 | app_pump.h, rng.h |
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+5) |
+| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+7) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, menu_list.h (+10) |
+| 0x56aea0 | FUN_0056aea0 | 3441 | app_flow.h, input.h, main.c (+11) |
 | 0x56c030 | FUN_0056c030 | 62 | title_particles.c |
 | 0x56c070 | FUN_0056c070 | 265 | main.c, rng.h, title_particles.c (+1) |
 | 0x56c180 | FUN_0056c180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
