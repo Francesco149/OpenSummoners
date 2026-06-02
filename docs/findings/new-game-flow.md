@@ -33,6 +33,18 @@ sensitive to the menu fade-in gates (`menu_input_sub.ready` must reach 1000 —
 the "+0x54 ramp"); the committed trace uses generous margins. Re-time if the
 boot path length changes.
 
+## Builder ported (ckpt 37)
+
+The **config-menu grid builder** for the difficulty scene (`FUN_00564780`
+case 0x24) is ported in `src/newgame_menu.{c,h}` and verified to emit retail's
+exact `TextOutA` stream (quirk #64): a 3×2 linear grid (Game Difficulty /
+Auto-guard / Start Game) at box base (32,32), col origins x=72/232, row pitch
+28.  Still a **stub in `app_flow`** — the NEW_GAME arm re-enters the title; the
+scene is not yet wired as a runnable drive.  Remaining for the live scene: the
+run loop (`0x565810`/`0x565d10`), the value toggle (id 0x27, directionally
+unverified), the tooltip text node (`0x566850`), the box widget tree
+(`0x411940`), and the Start→game transition (`0x564160`→`0x59ec30`).
+
 ## Open
 
 - **Prologue → first playable map.** The opening cutscene (stone + narration)

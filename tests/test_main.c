@@ -722,6 +722,9 @@ struct test_case {
     X(grid_render_ruby_gate_noop_for_raw_text)                 \
     X(grid_render_empty_cell_skipped)                          \
     X(grid_render_null_list_noop)                              \
+    X(newgame_config_matches_retail_stream)                    \
+    X(newgame_config_focus_colours)                            \
+    X(newgame_config_column_geometry)                          \
 
 #define X(n) extern int test_##n(void);
 TESTS

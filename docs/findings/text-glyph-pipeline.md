@@ -151,11 +151,19 @@ host code — its row/col walk + colour selection are host-testable with a
    `0xa8b9cc`, focused `0xf08080`).  GDI rasterization is deterministic given
    the identical `HFONT` + identical draw args, so the glyph pixels are
    bit-identical.  Ground truth: `runs/textout-start/.../frame_00450.png`.
-4. ⏳ Wire the new-game config scene (`0x564780` case 0x24) + the menu
-   **BUILDER** (row pitch 28, origin x=72, value columns, focused row).  Once
-   the port builds these cells, the renderer emits the SAME `TextOutA` stream
-   retail does → the end-to-end stream/pixel diff is then trivially 0.  This is
-   the next port (Next move #2).
+4. ✅ **BUILDER PORTED + END-TO-END BIT-EXACT (ckpt 37, quirk #64).**  Ported
+   `FUN_00564780` case 0x24 + the grid setup `FUN_00411940` performs into
+   `src/newgame_menu.{c,h}` (with `menu_grid_append` = `FUN_00412160` and the
+   option label/value providers `FUN_00566570`/`FUN_00566a80` arms 3/4).  The
+   built grid, run through `glyph_grid_render` at the box base (x=32, y=32),
+   emits retail's captured `TextOutA` stream **draw-for-draw** — all 129
+   menu-region glyph draws match `goldens/retail-newgame-config-textout.jsonl`
+   exactly (`tests/test_newgame_menu.c`).  Geometry fully reconciled: col 0
+   origin x=72 (entry[0].pos 0 + base 32 + field_c 40), col 1 x=232
+   (entry[1].pos 0xa0 override), row pitch 28 (node+0x1ac), rows y=56/84/112.
+   The text pipeline is now closed: build AND render are bit-identical to
+   retail.  Remaining: wire the scene as a *drive* (run loop / nav / value
+   toggles / tooltip node) — see new-game-flow.md.
 
 ## Files
 

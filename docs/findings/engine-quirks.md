@@ -1660,3 +1660,59 @@ GDI-text path if the demo mode is ever ported.
 > `runs/textout-start/.../frames/frame_00450.png` (the retail config menu).
 > Caveat: under the hidden-window turbo harness retail runs ~15 flips/s (vs
 > ~127 native), so the menu is at flip ~400–1500, not the trace's old 2000+.
+
+## 64. The new-game config menu BUILDER reproduces retail's TextOutA stream — the whole text pipeline is now closed end-to-end (build → render → bit-exact stream)
+
+Ported the construction half of the new-game ("Start") config scene
+(`FUN_00564780` **case 0x24** + the grid setup `FUN_00411940` performs) into
+`src/newgame_menu.{c,h}`, supplying the cells/geometry the (already bit-exact,
+quirk #63) GDI renderer walks.  Run through `glyph_grid_render` at the box
+base **(x=32, y=32)**, the built grid emits the captured retail `TextOutA`
+stream **draw-for-draw** — all **129** menu-region glyph draws (3 rows ×
+{col0 label, col1 value} × {shadow-down, shadow-right, main}, Start-Game's
+empty value column skipped) match
+`goldens/retail-newgame-config-textout.jsonl` exactly.  This closes the
+"render a string, diff" gate **end-to-end**: the text pipeline now builds AND
+renders the new-game menu bit-identically to retail.
+
+**The geometry, fully reconciled** (the ckpt-36 "builder geometry" TODO):
+
+```
+cx = entry[col].pos + x + node->field_c        cy = entry[col].field4 + node->field_10 + 28*disp + y
+```
+
+| source                      | value | feeds                                  |
+|-----------------------------|-------|----------------------------------------|
+| box node position (param_4/5 of `0x48e200`) | x=32, y=32 | render base |
+| `menu_ctrl_build(grid,0x28,0x18,…)` | field_c=**40**, field_10=**24** | text inset |
+| ctor `entry[0].pos`         | 0     | col 0 origin → **x=72** |
+| case-0x24 `*(entries+0x24)=0xa0` | entry[1].pos=**160** | col 1 origin → **x=232** |
+| `menu_node_build` child `+0x1ac` | 0x1c=**28** | row pitch → y=56/84/112 |
+
+So the menu builder is **not** a new container — it is `menu_ctrl_build`
+(3×2 linear grid, type 0, stride 3) + a one-field entry override
+(`entry[1].pos = 0xa0`) + three `menu_grid_append`s + a value-fill loop, over
+the same `menu_ctrl`/`menu_node` model the renderer already reads.
+
+**`menu_grid_append` (`FUN_00412160`) is a thin append:** count++, stamp the
+row's kind/action/`flag8=1`, then its per-column refresh loop is *byte-for-byte*
+`FUN_00411f40`'s body (re-layout obj0 / re-zero obj54 / re-zero+clamp obj20),
+so it delegates to the ported `menu_row_finalize` — and on a **fresh** append
+every cell sub-object is NULL, making that refresh a **no-op** (the guarded
+bodies + their dead `operator_new` are all skipped, quirk #36 again).  The only
+real work is the final `0x40fa00` laying the label into column 0; the value
+column is filled afterwards by the run loop's first block (kind-0 rows only).
+
+**Row kinds:** `field0` 0 = an *option* row (label col 0 + a value the build
+fills into col 1, e.g. Difficulty/Auto-guard); `field0` 3 = an *action button*
+(col 0 label only, no value — "Start Game").  The value strings come from
+`FUN_00566a80(id, setting)` keyed on the **current setting** retail reads from
+the settings record `*DAT_008a6e80 + 0xc + id*0x1c`; the golden was captured at
+the defaults difficulty **10**→"1:Easy", auto-guard **1**→"On".
+
+Scope: this is the **builder + grid** only.  The interactive run loop
+(`FUN_00565810`/`0x565d10` nav, value toggles via id 0x27, the tooltip text
+node `0x566850`, the box widget tree `0x411940` builds, and the Start→game
+transition `0x564160`/`0x59ec30`) is **not** ported — the next rock once the
+scene is wired as a drive.  Partial ports: `FUN_00564780` (case 0x24 only),
+`FUN_00566570`/`FUN_00566a80` (the id 3/4 arms).

@@ -1,5 +1,36 @@
-# Session handoff — last updated 2026-06-02 (GDI text renderer VERIFIED bit-exact vs retail, ckpt 36)
+# Session handoff — last updated 2026-06-02 (new-game config menu BUILDER ported; text pipeline closed end-to-end, ckpt 37)
 
+> **ckpt 37 — THE NEW-GAME CONFIG MENU BUILDER IS PORTED; the text pipeline is
+> now closed END-TO-END (build → render → bit-exact `TextOutA` stream).**
+> Ported the construction half of the new-game ("Start") config scene —
+> `FUN_00564780` **case 0x24** + the grid setup `FUN_00411940` performs — into
+> new **`src/newgame_menu.{c,h}`**.  Run through the (already bit-exact, quirk
+> #63) renderer `glyph_grid_render` at the box base **(x=32, y=32)**, the built
+> grid emits retail's captured `TextOutA` stream **draw-for-draw**: all **129**
+> menu-region glyph draws match
+> `goldens/retail-newgame-config-textout.jsonl` exactly
+> (`tests/test_newgame_menu.c`).  **Geometry fully reconciled** (the ckpt-36
+> open TODO): col 0 origin **x=72** (entry[0].pos 0 + base 32 + `field_c` 40),
+> col 1 **x=232** (case-0x24's `entry[1].pos=0xa0` override), row pitch **28**
+> (`node+0x1ac`), rows y=56/84/112; focus row 0 in 0xf08080, others 0x3e537d,
+> shadow 0xa8b9cc.  Ported functions: `menu_grid_append` (`FUN_00412160`, a thin
+> append whose per-column refresh == `FUN_00411f40` → delegated to
+> `menu_row_finalize`, no-op on fresh rows, quirk #36); the option string
+> providers `newgame_option_label`/`newgame_option_value` (`FUN_00566570`/
+> `FUN_00566a80` arms id 3/4); `newgame_config_build` (the case-0x24 sequence).
+> Quirk **#64**.  3 new host tests (**694 pass / 0 fail / 6 skip**).  Ledger
+> **154/1490 touched (9.5%, 148 tested)** (+4: `0x412160`, `0x564780`,
+> `0x566570`, `0x566a80` — last three partial).
+>
+> **NEXT: wire the new-game config scene as a runnable DRIVE** (Next move #1).
+> The grid renders bit-exact; what's missing is the live scene — the run loop
+> (`0x565810`/`0x565d10` nav), the value toggle (id 0x27), the tooltip text node
+> (`0x566850`), the box widget tree (`0x411940` geometry/title sub-nodes), and
+> the Start→game transition (`0x564160`→`0x59ec30`).  Route `app_flow`'s
+> `NEW_GAME` arm to it instead of the re-enter-title stub.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 36 — THE TEXT-RENDERER PIXEL GATE IS CLOSED: every GDI parameter
 > matches retail's LIVE `TextOutA` stream, bit-for-bit.** Part 1 wired
 > `ar_register_fonts` at boot + a `--render-glyph-test` offscreen DIB path
@@ -288,17 +319,19 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 36): title is a complete bit-exact loop; the dynamic-text renderer is ported AND verified bit-exact vs retail; next rock is the new-game menu builder
+## ⭐ Current state (ckpt 37): title is a complete bit-exact loop; the text pipeline is closed END-TO-END (build → render → bit-exact stream); next rock is wiring the new-game scene as a drive
 
 The **text/glyph pipeline** — the shared gate for the new-game/options menus +
-prologue narration — now has **both halves ported + host-tested**: the build
-half (`glyph_text.c`, ckpt 34: string → cell glyph records) and the **GDI render
-half** (`glyph_render.c` + `glyph_render_win32.c`, ckpt 35: walk the menu grid +
-`TextOutA` each glyph with drop shadow). The renderer's walk/positions/colours
-are host-tested against a recording stub; the **one thing not yet done is the
-pixel diff vs retail** (the "render a string, diff" bit-exact gate) — that needs
-the live harness (font registered at boot + an offscreen DIB render +
-`differ_px`). See **Next move #1**.
+prologue narration — is now **closed end-to-end**: the build half
+(`glyph_text.c`, ckpt 34), the GDI render half (`glyph_render.c`, ckpt 35,
+verified bit-exact vs retail's live `TextOutA` ckpt 36), and now the **new-game
+menu BUILDER** (`newgame_menu.c`, ckpt 37) that constructs the cells.  The port
+**builds AND renders** the new-game config menu bit-identically to retail: all
+129 menu-region glyph draws match the golden draw-for-draw
+(`tests/test_newgame_menu.c`).  The geometry is fully reconciled (col0 x=72,
+col1 x=232, pitch 28).  What's left for the menu is not pixels — it's the live
+**scene/drive** (run loop + input + value toggles + tooltip + box widgets).
+See **Next move #1**.
 
 The title is feature-complete as a *loop*: intro bit-exact, menu interactive
 (ckpt 32), and now the menu-commit return code is **dispatched** like retail's
@@ -365,46 +398,30 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 > prologue. The dispatch backbone is in (`app_flow_dispatch`); the `NEW_GAME`
 > arm is a stub. What gates rendering it is the **glyph/text pipeline**.
 
-1. ~~Close the pixel-diff gate for the text renderer.~~ **DONE (ckpt 36, quirk
-   #63).** Part 1 wired `ar_register_fonts` at boot + `--render-glyph-test`
-   (offscreen DIB, port side). Part 2 verified it from the retail side:
-   `frida_capture.py --textout-probe` captured retail's live `TextOutA` stream
-   for the new-game config menu and **every renderer parameter matched
-   bit-for-bit** (font Courier New 7×18, TRANSPARENT bk, 7 px advance, 2-copy
-   shadow, colours 0x3e537d/0xa8b9cc/0xf08080). Goldens in
-   `tests/scenarios/new-game-through/goldens/`. The renderer is proven; the
-   end-to-end stream/pixel diff just awaits the BUILDER (move #2 — once the
-   port builds the cells, it emits the identical stream → diff is 0).
-
-   **How to re-run the live capture (self-serviceable):**
-   ```
-   tools/run-retail.sh --textout-probe --textout-frames 420,9000 \
-     --input-trace tests/scenarios/new-game-through/trace-retimed.jsonl \
-     --capture-frames "450,600,800" --run-dir runs/textout-start
-   # reads <run>/textout.jsonl (per-glyph x/y/bytes/colour/bkmode + LOGFONTA)
-   ```
-   NB retail runs ~15 flips/s under the hidden-window harness, and the title
-   auto-demos by ~flip 900, so press Start at flip ~400 (`trace-retimed.jsonl`),
-   NOT the old `trace.jsonl`'s flip-2050 (which lands in the demo).
-
-   Adjacent chips for the builder: the **row-append `0x40f800`** (appends a grid
-   row, allocates each cell's 0x54/0x20 secondary widgets, re-lays-out existing
-   columns). The escape expander (`0x4034f0` 7 KB switch + `0x4051d0` 3 KB
-   glyph-string copy, over the `0x5cd978` table) is behind
-   `glyph_escape_expand_hook` — port when an escape-bearing string needs it;
-   English menu labels don't.
-2. **(recommended) The new-game config scene runner + menu builder.** Port
-   `FUN_00564780` case 0x24 + the shared run loop as a new scene/drive (mirror
-   `title_drive`), and route the `app_flow` `NEW_GAME` arm to it instead of the
-   stub. The transition `FUN_00564160` plays first; the **Elemental-Stone intro
-   anim** is `FUN_0056cd20` (a timed particle/gem cutscene, NOT a menu). Then
-   `FUN_0059ec30` starts the game proper. Reference trace:
-   `tests/scenarios/new-game-through/trace.jsonl` (retail Flip axis — re-time for
-   the port). Difficulty menu = a **mode-2** controller polling `0x22,1,3,0x24,
-   0x27`; `id 0x27` = value left/right, **unverified directionally**
-   (new-game-flow.md "Open"). The dispatch already keeps the same `--input-trace`
-   across re-entry, so when NEW_GAME stops re-entering the title and runs the
-   scene, the trace's post-Start events feed it.
+1. **(recommended) Wire the new-game config scene as a runnable DRIVE.** The
+   grid BUILDER + renderer are done and bit-exact (ckpt 37, quirk #64) — what's
+   missing is the live scene.  Port `FUN_00564780`'s **run loop** (`0x565810`
+   spawn-in, `0x565d10` per-frame input/update, returns 0xb/0xc/0xd) as a new
+   scene/drive mirroring `title_drive`, wire the menu controller's `menu_list_*`
+   nav (already ported), the **value toggle** (id 0x27, **directionally
+   unverified** — new-game-flow.md "Open"), the **tooltip text node**
+   (`0x566850`, a second GDI-text node at y=416/444 — same renderer, separate
+   node), and the box widget tree (`0x411940`: `0x40f3e0` box node + `0x40f5a0`
+   child spawn + `0x411ec0`/`0x411c50`).  Route `app_flow`'s `NEW_GAME` arm to it
+   instead of the re-enter-title stub.  Then the transition `0x564160` plays
+   first; the **Elemental-Stone intro anim** is `0x56cd20` (a timed particle/gem
+   cutscene, NOT a menu); `0x59ec30` starts the game proper.  Reference trace:
+   `tests/scenarios/new-game-through/trace-retimed.jsonl` (Start at flip ~400).
+   The dispatch already keeps the same `--input-trace` across re-entry, so the
+   trace's post-Start events feed the scene once NEW_GAME stops re-entering.
+2. ~~The new-game config menu BUILDER.~~ **DONE (ckpt 37, quirk #64).**
+   `src/newgame_menu.{c,h}` builds the case-0x24 grid (`FUN_00564780` case 0x24 +
+   `FUN_00411940` setup); host-tested to emit retail's `TextOutA` stream
+   draw-for-draw (`tests/test_newgame_menu.c`).  Geometry: col0 x=72, col1 x=232,
+   pitch 28.  Remaining chips for the broader text system: the escape expander
+   (`0x4034f0`/`0x4051d0`, hooked NULL — English labels don't need it), the
+   sprite-cell render mode (`0x48e200` `param_1==0`), and the screen-settings
+   row-append twin `0x40f800` (used by case 0x20, not case 0x24).
 3. ~~Dispatch the title return code instead of exiting~~ **DONE (ckpt 33,
    `app_flow_dispatch` + `reenter_title`, quirk #60).** Exit exits; commits
    dispatch; unported arms re-display the title.
@@ -505,7 +522,7 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (18 modules) — render pipeline COMPLETE; text build+render PORTED (pixel-diff pending)
+## Module inventory (19 modules) — render pipeline COMPLETE; text pipeline CLOSED end-to-end (build + render + new-game menu builder, bit-exact)
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
@@ -519,7 +536,11 @@ tail switch, ckpt 33), **glyph_text** (the cell-grid text/glyph layout builder:
 build half; escape expander still hooked-NULL), **glyph_render** (the GDI text
 renderer: `glyph_grid_render`/`glyph_row_draw`/`glyph_ruby_draw` =
 `0x48e200`/`0x48e860`/`0x48e6d0`, ckpt 35 — pure walk over a `glyph_gdi_ops`
-vtable + real GDI in `glyph_render_win32.c`; sprite-cell mode deferred).
+vtable + real GDI in `glyph_render_win32.c`; sprite-cell mode deferred),
+**newgame_menu** (the new-game config menu builder: `menu_grid_append` =
+`0x412160`, `newgame_option_label`/`_value` = `0x566570`/`0x566a80` arms,
+`newgame_config_build` = `0x564780` case 0x24, ckpt 37 — emits retail's
+`TextOutA` stream draw-for-draw; run loop/nav/toggle/tooltip NOT ported).
 **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +

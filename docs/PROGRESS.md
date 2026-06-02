@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 37) — new-game config menu BUILDER ported: the text pipeline is closed end-to-end (build → render → bit-exact `TextOutA` stream)
+
+Ported the construction half of the new-game ("Start") config scene —
+`FUN_00564780` **case 0x24** + the grid setup `FUN_00411940` performs — into the
+new `src/newgame_menu.{c,h}`.  This supplies the cells/geometry the (already
+bit-exact, quirk #63) GDI renderer walks, so the port now **builds AND renders**
+the new-game menu bit-identically to retail.
+
+Run through `glyph_grid_render` at the box base **(x=32, y=32)**, the built grid
+emits retail's captured `TextOutA` stream **draw-for-draw**: all **129**
+menu-region glyph draws (3 rows × {col0 label, col1 value} × {shadow-down,
+shadow-right, main}, the Start-Game row's empty value column skipped) match
+`goldens/retail-newgame-config-textout.jsonl` exactly
+(`tests/test_newgame_menu.c`).  **Geometry fully reconciled** (the ckpt-36
+"builder geometry" TODO): col 0 origin **x=72** (entry[0].pos 0 + base 32 +
+`field_c` 40), col 1 **x=232** (case-0x24's `entry[1].pos = 0xa0` override), row
+pitch **28** (`node+0x1ac`), rows y=56/84/112; focus row 0 in 0xf08080, others
+in 0x3e537d, shadow 0xa8b9cc.
+
+Ported functions: `menu_grid_append` (`FUN_00412160` — a thin row append whose
+per-column refresh loop is byte-for-byte `FUN_00411f40`, delegated to
+`menu_row_finalize` and a no-op on fresh rows, quirk #36); the option string
+providers `newgame_option_label`/`newgame_option_value` (`FUN_00566570`/
+`FUN_00566a80` arms id 3/4); and `newgame_config_build` (the case-0x24 sequence).
+Unported callees referenced by bare VA (`0x411940`/`0x40f800`/`0x412330`).  The
+interactive run loop / nav / value toggle / tooltip node / box widget tree are
+**not** ported — the scene is still an `app_flow` stub (re-enters the title);
+wiring it as a drive is the next rock (quirk #64, new-game-flow.md).
+
+3 new host tests (691→**694 pass / 0 fail / 6 skip**).  Ledger **154/1490 touched
+(9.5%, 148 tested)** (+4: `0x412160`, `0x564780`, `0x566570`, `0x566a80` — the
+last three partial).
+
+---
+
 ## 2026-06-02 (ckpt 35) — text/glyph pipeline, part 2: the GDI text renderer is ported + host-tested
 
 Ported the **render half** of the cell-grid dynamic-text system into the new

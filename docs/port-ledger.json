@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 144,
+  "tested": 148,
   "ported": 6,
-  "unported": 1608,
+  "unported": 1604,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 150,
-  "pct_touched": 9.2,
-  "pct_tested": 9.2,
-  "engine_proper_touched": 137,
+  "touched": 154,
+  "pct_touched": 9.5,
+  "pct_tested": 9.5,
+  "engine_proper_touched": 141,
   "bytes_total": 1694868,
-  "bytes_touched": 174839,
-  "pct_bytes_touched": 10.3
+  "bytes_touched": 182631,
+  "pct_bytes_touched": 10.8
  },
  "orphan_refs": [
   "0x56c470",
@@ -818,7 +818,8 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/newgame_menu.c"
    ]
   },
   {
@@ -856,7 +857,9 @@
    "status": "tested",
    "src": [
     "src/glyph_text.c",
-    "src/glyph_text.h"
+    "src/glyph_text.h",
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
    ]
   },
   {
@@ -1022,7 +1025,9 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
    ]
   },
   {
@@ -1038,8 +1043,11 @@
    "name": "FUN_00412160",
    "size": 459,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
+   ]
   },
   {
    "va": "0x412330",
@@ -5446,7 +5454,8 @@
    "status": "tested",
    "src": [
     "src/glyph_render.c",
-    "src/glyph_render.h"
+    "src/glyph_render.h",
+    "src/main.c"
    ]
   },
   {
@@ -8263,8 +8272,11 @@
    "name": "FUN_00564780",
    "size": 4067,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
+   ]
   },
   {
    "va": "0x5657f0",
@@ -8343,8 +8355,11 @@
    "name": "FUN_00566570",
    "size": 485,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
+   ]
   },
   {
    "va": "0x566850",
@@ -8359,8 +8374,11 @@
    "name": "FUN_00566a80",
    "size": 2781,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_menu.c",
+    "src/newgame_menu.h"
+   ]
   },
   {
    "va": "0x567ba0",
