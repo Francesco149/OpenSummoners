@@ -603,6 +603,13 @@ struct test_case {
     X(title_render_resolve_null_ramp_yields_null_desc)         \
     X(title_render_draw_iterates_and_skips_invalid)            \
     X(title_render_draw_null_and_empty_group_noop)             \
+    X(title_render_draw_sprite_plain_keyed)                    \
+    X(title_render_level_zero_level_no_draw)                   \
+    X(title_render_level_alpha_path)                           \
+    X(title_render_level_plain_when_ramp_null_or_past_end)     \
+    X(title_render_level_div_nonpos_idx_zero)                  \
+    X(title_render_cursor_alpha_and_clamps)                    \
+    X(title_render_cursor_guards)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

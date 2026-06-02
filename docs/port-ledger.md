@@ -17,7 +17,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - touched: **127** (7.9% of engine-proper) — tested 124, ported 3
 - code bytes touched: **9.8%** (166,258 / 1,694,868 B of engine-proper)
 - unported: **1631**
-- orphan refs in src/ not in this table: 0
+- orphan refs in src/ not in this table: 3
 
 ## tested (124) — ported + host unit suite
 
@@ -155,4 +155,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bf3ee | FUN_005bf3ee | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | FUN_005bf440 | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | FUN_005bf496 | 50 | cs_dispatch_win32.c |
+
+## orphan refs (3) — FUN_ in src/ not in function table
+
+Sub-helper labels (Ghidra splits a few functions) or typos. Listed so they read as known, not as silent drift.
+
+`0x56c470 0x56c4e0 0x56c610`
 

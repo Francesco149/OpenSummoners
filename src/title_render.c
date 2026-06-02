@@ -8,6 +8,17 @@
 
 #include "asset_register.h"
 
+/* Clamp a blend-ramp index to [0, 19] — retail's "<0 → table[0]; >=20 →
+ * [0x8a9304] (== &table[19])" pattern, shared by the compositor and the
+ * cursor wrapper.  (The level wrapper does NOT use this: its >=20 case
+ * diverts to the plain keyed path instead of clamping.) */
+static int32_t ramp_clamp(int32_t idx)
+{
+    if (idx < 0)                       return 0;
+    if (idx >= TITLE_FADE_RAMP_LEN)    return TITLE_FADE_RAMP_LEN - 1;
+    return idx;
+}
+
 /* ─── FUN_0056c180 (per-entry body) — title_compositor_resolve ────────
  *
  * Mirrors the retail per-iteration body at 0x56c19b..0x56c28d.  All of
@@ -59,12 +70,7 @@ title_blit_params title_compositor_resolve(const title_sprite_entry *entry,
 
     /* Blend-descriptor ramp index: (alpha_level * 20) / 1000, clamped to
      * [0, 19].  Retail's <0 → table[0]; >=20 → [0x8a9304] (== &table[19]). */
-    int32_t idx = (entry->alpha_level * 20) / 1000;
-    if (idx < 0) {
-        idx = 0;
-    } else if (idx >= TITLE_FADE_RAMP_LEN) {
-        idx = TITLE_FADE_RAMP_LEN - 1;
-    }
+    int32_t idx = ramp_clamp((entry->alpha_level * 20) / 1000);
     out.desc = (ramp != NULL) ? ramp[idx] : NULL;
 
     /* Centi-pixel geometry: the sprite's placement metric + numerator/100. */
@@ -104,4 +110,94 @@ void title_compositor_draw(const title_sprite_group *group, zdd_object *dest,
                                  0, 0, p.colorkey, NULL);
         }
     }
+}
+
+/* ─── the per-sprite wrappers (0x56c610 / _4e0 / _470) ────────────────── */
+
+title_keyed_fn title_keyed_blit_hook = NULL;
+
+/* Internal: the keyed-blit + alpha-blit forwards behind their test hooks. */
+static int keyed_blit(zdd_object *sprite, zdd_object *dest,
+                      int32_t x, int32_t y)
+{
+    if (title_keyed_blit_hook != NULL) {
+        return title_keyed_blit_hook(sprite, dest, x, y);
+    }
+    return zdd_object_blt_keyed(sprite, dest, x, y);
+}
+
+static void alpha_blit(const zdd_blend_desc *desc, zdd_object *dest,
+                       zdd_object *sprite, int32_t x, int32_t y)
+{
+    int32_t dst_x = sprite->metric_0c + x;
+    int32_t dst_y = sprite->metric_10 + y;
+    if (title_compositor_blit_hook != NULL) {
+        title_compositor_blit_hook(desc, dest, sprite, dst_x, dst_y,
+                                   sprite->metric_14, sprite->metric_18,
+                                   0, 0, sprite->colorkey_out, NULL);
+    } else {
+        zdd_blit_orchestrate(desc, dest, sprite, dst_x, dst_y,
+                             sprite->metric_14, sprite->metric_18,
+                             0, 0, sprite->colorkey_out, NULL);
+    }
+}
+
+/* FUN_0056c610 — plain sprite. */
+void title_draw_sprite(zdd_object *dest, zdd_object *sprite,
+                       int32_t x, int32_t y)
+{
+    keyed_blit(sprite, dest, x, y);
+}
+
+/* FUN_0056c4e0 — leveled sprite (0x8a9308 ramp). */
+void title_draw_sprite_level(zdd_object *dest, zdd_object *sprite,
+                             int32_t level_num, int32_t level_div,
+                             int32_t x, int32_t y,
+                             const zdd_blend_desc *const *ramp_b)
+{
+    if (level_num <= 0) {
+        return;                            /* test eax; jle ret              */
+    }
+
+    int32_t idx;
+    if (level_div <= 0) {
+        idx = 0;                           /* test ecx; jg .. else xor eax   */
+    } else {
+        idx = (level_num * 20) / level_div;
+        if (idx < 0) {
+            idx = 0;                       /* test eax; jge .. else xor eax  */
+        }
+    }
+
+    /* idx >= 20 diverts straight to the plain path (retail never loads the
+     * ramp there); otherwise a NULL ramp entry (ramp 0) also falls to plain. */
+    const zdd_blend_desc *desc = NULL;
+    if (idx < TITLE_FADE_RAMP_LEN) {
+        desc = (ramp_b != NULL) ? ramp_b[idx] : NULL;
+    }
+
+    if (desc == NULL) {
+        keyed_blit(sprite, dest, x, y);    /* plain opaque copy              */
+    } else {
+        alpha_blit(desc, dest, sprite, x, y);
+    }
+}
+
+/* FUN_0056c470 — menu cursor (0x8a92b8 ramp; always alpha). */
+void title_draw_menu_cursor(zdd_object *dest, zdd_object *sprite,
+                            int32_t level_num, int32_t level_div,
+                            int32_t x, int32_t y,
+                            const zdd_blend_desc *const *ramp_a)
+{
+    if (level_num <= 0) {
+        return;                            /* test eax; jle ret              */
+    }
+    if (level_div == 0) {
+        return;                            /* retail idivs unguarded (faults);
+                                            * skip for headless safety        */
+    }
+
+    int32_t idx = ramp_clamp((level_num * 20) / level_div);
+    const zdd_blend_desc *desc = (ramp_a != NULL) ? ramp_a[idx] : NULL;
+    alpha_blit(desc, dest, sprite, x, y);
 }

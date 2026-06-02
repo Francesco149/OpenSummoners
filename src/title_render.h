@@ -146,4 +146,65 @@ extern title_blit_fn title_compositor_blit_hook;
 void title_compositor_draw(const title_sprite_group *group, zdd_object *dest,
                            const zdd_blend_desc *const *ramp);
 
+/* ─── the per-sprite wrappers (0x56c610 / _4e0 / _470) ────────────────
+ *
+ * Thin per-sprite forwards the title render half calls per phase.  In
+ * retail each re-derives the dest (the primary surface) from
+ * `DAT_008a93cc->[0x16c]` (the global ZDD's primary_obj); we take it as
+ * the `dest` parameter (the same surface the caller passes as the keyed
+ * paths' `a1`), keeping this module free of a god-object global until the
+ * sink lands.  `sprite` is the already-resolved frame surface
+ * (ar_sprite_slot_frame).  `x`/`y` are plain dst offsets (NOT centi-pixel
+ * — unlike the compositor); placement adds the sprite's metric_0c/_10
+ * (inside zdd_object_blt_keyed on the keyed path, explicitly on the alpha
+ * path — same result).
+ *
+ * The deferred sparkle wrapper 0x56c580 is NOT here yet — it forwards to
+ * the unported 0x5b9bf0 (a 256 B blt_keyed sibling) on one path. */
+
+/* Optional keyed-blit hook (porting affordance for host tests, mirrors
+ * title_compositor_blit_hook).  NULL ⇒ the wrappers call
+ * zdd_object_blt_keyed directly.  Signature matches it exactly. */
+typedef int (*title_keyed_fn)(zdd_object *self, zdd_object *dest,
+                              int32_t dest_x, int32_t dest_y);
+extern title_keyed_fn title_keyed_blit_hook;
+
+/* FUN_0056c610 — plain sprite (TITLE_DRAW_SPRITE).  Straight color-keyed
+ * Blt, no alpha: zdd_object_blt_keyed(sprite, dest, x, y).  (Retail's
+ * unused first stack arg is dropped here.) */
+void title_draw_sprite(zdd_object *dest, zdd_object *sprite,
+                       int32_t x, int32_t y);
+
+/* FUN_0056c4e0 — leveled sprite (TITLE_DRAW_SPRITE_LEVEL).  Fades via the
+ * 0x8a9308 ramp (`ramp_b`):
+ *   if (level_num <= 0) return;                       // nothing drawn
+ *   idx = (level_div <= 0) ? 0 : (level_num*20)/level_div, clamped ≥0
+ *   if (idx >= 20 || ramp_b[idx] == NULL)             // ramp 0 / past end
+ *       zdd_object_blt_keyed(sprite, dest, x, y);     // plain opaque
+ *   else
+ *       zdd_blit_orchestrate(ramp_b[idx], dest, sprite,
+ *                            sprite->metric_0c + x, sprite->metric_10 + y,
+ *                            sprite->metric_14, sprite->metric_18,
+ *                            0, 0, sprite->colorkey_out, NULL);
+ * `ramp_b` NULL ⇒ every level resolves to the plain path. */
+void title_draw_sprite_level(zdd_object *dest, zdd_object *sprite,
+                             int32_t level_num, int32_t level_div,
+                             int32_t x, int32_t y,
+                             const zdd_blend_desc *const *ramp_b);
+
+/* FUN_0056c470 — menu cursor (TITLE_DRAW_MENU_CURSOR).  Always alpha via
+ * the 0x8a92b8 ramp (`ramp_a`, same table as the compositor):
+ *   if (level_num <= 0) return;
+ *   idx = clamp((level_num*20)/level_div, 0, 19)      // [0x8a9304] == &ramp_a[19]
+ *   zdd_blit_orchestrate(ramp_a[idx], dest, sprite,
+ *                        sprite->metric_0c + x, sprite->metric_10 + y,
+ *                        sprite->metric_14, sprite->metric_18,
+ *                        0, 0, sprite->colorkey_out, NULL);
+ * Retail idivs by level_div with no guard (faults on 0); we skip the draw
+ * for headless safety (same class as the compositor's div-0 skip). */
+void title_draw_menu_cursor(zdd_object *dest, zdd_object *sprite,
+                            int32_t level_num, int32_t level_div,
+                            int32_t x, int32_t y,
+                            const zdd_blend_desc *const *ramp_a);
+
 #endif /* OPENSUMMONERS_TITLE_RENDER_H */

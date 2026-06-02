@@ -314,3 +314,189 @@ int test_title_render_draw_null_and_empty_group_noop(void)
     T_ASSERT_EQ_I(g_cap_n, 0);
     return 0;
 }
+
+/* ─── per-sprite wrappers (0x56c610 / _4e0 / _470) ───────────────────── */
+
+static struct { zdd_object *self, *dest; int32_t x, y; } g_keyed[8];
+static int g_keyed_n;
+
+static int keyed_cap(zdd_object *self, zdd_object *dest, int32_t x, int32_t y)
+{
+    if (g_keyed_n < 8) {
+        g_keyed[g_keyed_n].self = self; g_keyed[g_keyed_n].dest = dest;
+        g_keyed[g_keyed_n].x = x;        g_keyed[g_keyed_n].y = y;
+    }
+    g_keyed_n++;
+    return 1;
+}
+
+static void wrappers_hook_install(void)
+{
+    g_cap_n = 0; g_keyed_n = 0;
+    title_compositor_blit_hook = cap_hook;
+    title_keyed_blit_hook = keyed_cap;
+}
+static void wrappers_hook_clear(void)
+{
+    title_compositor_blit_hook = NULL;
+    title_keyed_blit_hook = NULL;
+}
+
+int test_title_render_draw_sprite_plain_keyed(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(7, 8, 9, 10, 0x55);
+    memset(&dest, 0, sizeof dest);
+
+    wrappers_hook_install();
+    title_draw_sprite(&dest, &sprite, 33, 44);
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_keyed_n, 1);
+    T_ASSERT_EQ_I(g_cap_n, 0);
+    T_ASSERT_EQ_P(g_keyed[0].self, &sprite);
+    T_ASSERT_EQ_P(g_keyed[0].dest, &dest);
+    T_ASSERT_EQ_I(g_keyed[0].x, 33);
+    T_ASSERT_EQ_I(g_keyed[0].y, 44);
+    return 0;
+}
+
+int test_title_render_level_zero_level_no_draw(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(0, 0, 1, 1, 0);
+    memset(&dest, 0, sizeof dest);
+
+    wrappers_hook_install();
+    title_draw_sprite_level(&dest, &sprite, 0, 100, 1, 1, NULL);   /* level_num 0 */
+    title_draw_sprite_level(&dest, &sprite, -5, 100, 1, 1, NULL);  /* level_num <0 */
+    wrappers_hook_clear();
+    T_ASSERT_EQ_I(g_keyed_n, 0);
+    T_ASSERT_EQ_I(g_cap_n, 0);
+    return 0;
+}
+
+int test_title_render_level_alpha_path(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(100, 200, 64, 48, 0xAB);
+    memset(&dest, 0, sizeof dest);
+
+    static zdd_blend_desc descs[TITLE_FADE_RAMP_LEN];
+    const zdd_blend_desc *ramp[TITLE_FADE_RAMP_LEN];
+    for (int i = 0; i < TITLE_FADE_RAMP_LEN; i++) ramp[i] = &descs[i];
+
+    wrappers_hook_install();
+    /* idx = (350*20)/1000 = 7 → ramp[7] non-NULL → alpha */
+    title_draw_sprite_level(&dest, &sprite, 350, 1000, 5, 6, ramp);
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_cap_n, 1);
+    T_ASSERT_EQ_I(g_keyed_n, 0);
+    T_ASSERT_EQ_P(g_cap[0].desc, &descs[7]);
+    T_ASSERT_EQ_P(g_cap[0].dest, &dest);
+    T_ASSERT_EQ_P(g_cap[0].src, &sprite);
+    T_ASSERT_EQ_I(g_cap[0].dx, 105);            /* metric_0c 100 + 5 */
+    T_ASSERT_EQ_I(g_cap[0].dy, 206);            /* metric_10 200 + 6 */
+    T_ASSERT_EQ_I(g_cap[0].w, 64);
+    T_ASSERT_EQ_I(g_cap[0].h, 48);
+    T_ASSERT_EQ_I(g_cap[0].ck, 0xAB);
+    return 0;
+}
+
+int test_title_render_level_plain_when_ramp_null_or_past_end(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(1, 2, 3, 4, 0);
+    memset(&dest, 0, sizeof dest);
+
+    static zdd_blend_desc descs[TITLE_FADE_RAMP_LEN];
+    const zdd_blend_desc *ramp[TITLE_FADE_RAMP_LEN];
+    for (int i = 0; i < TITLE_FADE_RAMP_LEN; i++) ramp[i] = &descs[i];
+    ramp[7] = NULL;                              /* ramp 0 at idx 7 */
+
+    wrappers_hook_install();
+    /* idx 7 but ramp[7] NULL → plain */
+    title_draw_sprite_level(&dest, &sprite, 350, 1000, 9, 9, ramp);
+    /* idx = (1000*20)/1000 = 20 → past end → plain (ramp never indexed) */
+    title_draw_sprite_level(&dest, &sprite, 1000, 1000, 9, 9, ramp);
+    /* NULL ramp table → plain */
+    title_draw_sprite_level(&dest, &sprite, 350, 1000, 9, 9, NULL);
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_keyed_n, 3);
+    T_ASSERT_EQ_I(g_cap_n, 0);
+    T_ASSERT_EQ_P(g_keyed[0].self, &sprite);
+    T_ASSERT_EQ_I(g_keyed[0].x, 9);
+    return 0;
+}
+
+int test_title_render_level_div_nonpos_idx_zero(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(0, 0, 1, 1, 0);
+    memset(&dest, 0, sizeof dest);
+
+    static zdd_blend_desc descs[TITLE_FADE_RAMP_LEN];
+    const zdd_blend_desc *ramp[TITLE_FADE_RAMP_LEN];
+    for (int i = 0; i < TITLE_FADE_RAMP_LEN; i++) ramp[i] = &descs[i];
+
+    wrappers_hook_install();
+    /* level_div <= 0 → idx forced to 0 → ramp[0] alpha (no div-by-zero) */
+    title_draw_sprite_level(&dest, &sprite, 500, 0, 0, 0, ramp);
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_cap_n, 1);
+    T_ASSERT_EQ_P(g_cap[0].desc, &descs[0]);
+    return 0;
+}
+
+int test_title_render_cursor_alpha_and_clamps(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(10, 20, 30, 40, 0x99);
+    memset(&dest, 0, sizeof dest);
+
+    static zdd_blend_desc descs[TITLE_FADE_RAMP_LEN];
+    const zdd_blend_desc *ramp[TITLE_FADE_RAMP_LEN];
+    for (int i = 0; i < TITLE_FADE_RAMP_LEN; i++) ramp[i] = &descs[i];
+
+    wrappers_hook_install();
+    /* idx = (350*20)/1000 = 7 → ramp_a[7], always alpha */
+    title_draw_menu_cursor(&dest, &sprite, 350, 1000, 3, 4, ramp);
+    /* idx = (1000*20)/1000 = 20 → clamp to ramp_a[19] */
+    title_draw_menu_cursor(&dest, &sprite, 1000, 1000, 0, 0, ramp);
+    /* level_div < 0 → (pos*20)/neg negative → clamp to ramp_a[0] */
+    title_draw_menu_cursor(&dest, &sprite, 100, -1, 0, 0, ramp);
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_cap_n, 3);
+    T_ASSERT_EQ_I(g_keyed_n, 0);
+    T_ASSERT_EQ_P(g_cap[0].desc, &descs[7]);
+    T_ASSERT_EQ_I(g_cap[0].dx, 13);             /* metric_0c 10 + 3 */
+    T_ASSERT_EQ_I(g_cap[0].dy, 24);             /* metric_10 20 + 4 */
+    T_ASSERT_EQ_I(g_cap[0].ck, 0x99);
+    T_ASSERT_EQ_P(g_cap[1].desc, &descs[19]);
+    T_ASSERT_EQ_P(g_cap[2].desc, &descs[0]);
+    return 0;
+}
+
+int test_title_render_cursor_guards(void)
+{
+    static zdd_object sprite, dest;
+    sprite = mk_surf(0, 0, 1, 1, 0);
+    memset(&dest, 0, sizeof dest);
+
+    static zdd_blend_desc descs[TITLE_FADE_RAMP_LEN];
+    const zdd_blend_desc *ramp[TITLE_FADE_RAMP_LEN];
+    for (int i = 0; i < TITLE_FADE_RAMP_LEN; i++) ramp[i] = &descs[i];
+
+    wrappers_hook_install();
+    title_draw_menu_cursor(&dest, &sprite, 0, 1000, 0, 0, ramp);    /* level_num 0 */
+    title_draw_menu_cursor(&dest, &sprite, 500, 0, 0, 0, ramp);     /* div 0 → skip */
+    wrappers_hook_clear();
+
+    T_ASSERT_EQ_I(g_cap_n, 0);
+    T_ASSERT_EQ_I(g_keyed_n, 0);
+    return 0;
+}

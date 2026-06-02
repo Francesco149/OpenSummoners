@@ -142,6 +142,19 @@ Notes:
 
 ## The sprite wrappers — `0x56c610 / _4e0 / _470 / _580`
 
+**Ported ckpt 18 (except the sparkle 0x56c580):** `title_draw_sprite` /
+`title_draw_sprite_level` / `title_draw_menu_cursor` in `src/title_render.c`.
+They take `dest` (the primary surface) as a parameter instead of re-deriving
+it from `DAT_008a93cc->[0x16c]` in retail (same surface — the caller already
+passes it as the keyed paths' `a1`), and the ramp as a `const zdd_blend_desc
+*const *` (NULL ⇒ keyed/plain).  `x`/`y` are plain offsets (no ÷100); the
+keyed path lets `zdd_object_blt_keyed` add metric_0c/_10, the alpha path adds
+them explicitly.  Provenance + arg shapes (`ret 0x10/0x18`, the dead first
+arg of the plain wrapper, the level wrapper's idx>=20 → plain divert vs the
+cursor's [0,19] clamp, the cursor's unguarded idiv) are in title_render.h.
+NB these three VAs are NOT in `functions.csv`, so the ledger lists them as
+sub-helper labels — real ports, but the headline count doesn't move.
+
 Thin per-sprite forwards (the title render half's per-phase draws). All read
 the primary surface from `DAT_008a93cc->[0x16c]` and resolve `desc` from a
 fade ramp:
@@ -162,9 +175,12 @@ small render-bridge module that can include both `asset_register.h`
 
 ## What's left (next chips, in dependency order)
 
-1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17** (`title_compositor_draw`
-   in `src/title_render.{c,h}`).  The render-bridge module now exists — the
-   wrappers `0x56c610/_4e0/_470/_580` are its next residents.
+1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17** + ~~**the wrappers
+   `0x56c610/_4e0/_470`**~~ **DONE ckpt 18** (`title_compositor_draw` +
+   `title_draw_sprite`/`_level`/`_menu_cursor` in `src/title_render.{c,h}`).
+   Still in this module: the **sparkle wrapper `0x56c580`**, blocked on the
+   unported keyed-blit sibling **`0x5b9bf0`** (256 B) — port that in zdd.c
+   first, then the sparkle forwards like the others.
 2. **The sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`** — the
    `ar_sprite_decode_hook` target. Reads the "DATA" PE resource (via the
    resource-stream readers `0x5b7800` + the trivial field getters

@@ -9,7 +9,7 @@
   "tested": 124,
   "ported": 3,
   "unported": 1631,
-  "orphan_refs_not_in_function_table": 0,
+  "orphan_refs_not_in_function_table": 3,
   "touched": 127,
   "pct_touched": 7.9,
   "pct_tested": 7.9,
@@ -18,7 +18,11 @@
   "bytes_touched": 166258,
   "pct_bytes_touched": 9.8
  },
- "orphan_refs": [],
+ "orphan_refs": [
+  "0x56c470",
+  "0x56c4e0",
+  "0x56c610"
+ ],
  "functions": [
   {
    "va": "0x401100",
