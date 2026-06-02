@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **144** (8.8% of engine-proper) — tested 138, ported 6
-- code bytes touched: **10.1%** (171,498 / 1,694,868 B of engine-proper)
-- unported: **1614**
+- touched: **145** (8.9% of engine-proper) — tested 139, ported 6
+- code bytes touched: **10.2%** (172,105 / 1,694,868 B of engine-proper)
+- unported: **1613**
 - orphan refs in src/ not in this table: 4
 
-## tested (138) — ported + host unit suite
+## tested (139) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -48,11 +48,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+5) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, obj_container.h (+9) |
+| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, menu_list.h (+10) |
 | 0x56c030 | FUN_0056c030 | 62 | title_particles.c |
 | 0x56c070 | FUN_0056c070 | 265 | main.c, rng.h, title_particles.c (+1) |
 | 0x56c180 | FUN_0056c180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
 | 0x56c2b0 | FUN_0056c2b0 | 373 | main.c, title_particles.c, title_particles.h |
+| 0x56c930 | FUN_0056c930 | 607 | menu_list.c, menu_list.h |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h, main.c |

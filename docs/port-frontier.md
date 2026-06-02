@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **105**
-- of those, zero-dependency **leaves: 51** (recommended order below)
+- frontier functions: **108**
+- of those, zero-dependency **leaves: 54** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -42,6 +42,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x58cfe0 | 63 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x56c430 | 64 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x587ce0 | 71 | 1 | master sprite-group register + audio/music init + anim pump |
+| 0x49a2f0 | 76 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x587db0 | 76 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x564110 | 80 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x58cf60 | 83 | 1 | master sprite-group register + audio/music init + anim pump |
@@ -53,7 +54,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56cb90 | 113 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x411560 | 117 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x417bc0 | 123 | 1 | menu/dialog controller + char init + shop/NPC + save path |
-| 0x43c9b0 | 130 | 1 | battle scenario init + turn engine + input poll + save mgr |
 
 ## Full frontier by address band
 
@@ -115,12 +115,15 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x47b7c0 | 163 | 1 | 0 | ✓ |
 
-### tile/sprite grid render + spell fx + battle UI + palette (2)
+### tile/sprite grid render + spell fx + battle UI + palette (5)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x49a050 | 13 | 1 | 0 | ✓ |
 | 0x491740 | 38 | 1 | 0 | ✓ |
+| 0x49a2f0 | 76 | 1 | 0 | ✓ |
+| 0x49a340 | 291 | 1 | 0 | ✓ |
+| 0x49a470 | 622 | 1 | 1 |  |
 
 ### cutscene dispatcher + sprite copy + tilemap collision + camera (3)
 
@@ -146,9 +149,9 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56bfd0 | 88 | 1 | 0 | ✓ |
 | 0x56cb90 | 113 | 1 | 0 | ✓ |
 | 0x566250 | 169 | 1 | 2 |  |
+| 0x56cc10 | 267 | 1 | 0 | ✓ |
 | 0x56dc20 | 344 | 1 | 1 |  |
-| 0x564160 | 376 | 1 | 17 |  |
-| 0x56c930 | 607 | 1 | 4 |  |
+| 0x564160 | 376 | 1 | 16 |  |
 | 0x568de0 | 998 | 1 | 19 |  |
 | 0x56a670 | 1011 | 1 | 22 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |

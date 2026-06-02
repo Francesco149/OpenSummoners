@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 138,
+  "tested": 139,
   "ported": 6,
-  "unported": 1614,
+  "unported": 1613,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 144,
-  "pct_touched": 8.8,
-  "pct_tested": 8.8,
-  "engine_proper_touched": 131,
+  "touched": 145,
+  "pct_touched": 8.9,
+  "pct_tested": 8.9,
+  "engine_proper_touched": 132,
   "bytes_total": 1694868,
-  "bytes_touched": 171498,
-  "pct_bytes_touched": 10.1
+  "bytes_touched": 172105,
+  "pct_bytes_touched": 10.2
  },
  "orphan_refs": [
   "0x56c470",
@@ -8450,6 +8450,7 @@
    "src": [
     "src/input.h",
     "src/main.c",
+    "src/menu_list.h",
     "src/obj_container.h",
     "src/title_drive.c",
     "src/title_drive.h",
@@ -8549,8 +8550,11 @@
    "name": "FUN_0056c930",
    "size": 607,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/menu_list.c",
+    "src/menu_list.h"
+   ]
   },
   {
    "va": "0x56cb90",

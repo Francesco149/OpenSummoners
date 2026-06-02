@@ -1,5 +1,31 @@
-# Session handoff — last updated 2026-06-02 (phase-7 particle twinkles BIT-EXACT, ckpt 31)
+# Session handoff — last updated 2026-06-02 (title menu INTERACTIVE, ckpt 32)
 
+> **ckpt 32 — THE TITLE MENU IS INTERACTIVE (milestone 1): injected nav moves
+> the cursor + commits.** Live-validated the `--input-trace` path and found the
+> menu was **dead to input** despite rendering bit-exact: `menu_list_latch`
+> gates all nav on `sub->ready==1000` (quirk #34), where `sub->ready` is the
+> spawned node's `+0x54` ramp — `menu_node_build` zeroes it, so the gate starts
+> **closed**. The driver that opens it is the title scene's **post-update**
+> side effect **`FUN_0056c930`** (was stubbed NULL), **NOT** the per-entry
+> update `0x43c2e0` (which only *reads* `+0x54`). `0x56c930`'s **mode-1** arm
+> ramps the active node's `+0x54` **+50/frame to 1000** (node built mode 1,
+> `+0x50`=1) → menu navigable **~20 update frames after spawn**. Ported the
+> mode-1 arm as **`menu_owner_transition_step`** (`src/menu_list.c`; modes 0/2
+> are submenu-slide paths the title never uses — deferred + documented), wired
+> as the drive's `post_update` (`src/main.c` `drive_post_update`). Quirk **#59**.
+>
+> **Verified live** (new `--menu-trace` cursor-row diagnostic in
+> `src/title_sink.c`): DOWN×4 walks the cursor `0→1→2→3→4`, UP walks back, and
+> confirm (`0x24`) on row N returns that row's action id — `result=26` (`0x1a`
+> Start) on row 0, `result=8` (Exit) on row 4. The ► arrow + row-highlight
+> visibly track the selection (port `Start`-vs-`Options` capture pushed to
+> llm-feed). 667 host tests pass (+7 ramp tests); ledger **145/1490 (8.9%)**
+> (+1: `0x56c930`). NB the input gate (`+0x54`, +50/frame, open ~flip 547) opens
+> *before* the cursor becomes visible (`fade==1000`, +20/frame, ~flip 577), so a
+> press lands before the highlight appears — time demos after ~flip 577.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 31 — THE TITLE INTRO IS FULLY BIT-EXACT: phase-7 sparkle particles
 > ported + `differ_px=0` (user-confirmed 1:1 incl. particles).** Closed
 > parity-ledger R4, the last intro-content gap. The `FUN_0056c070` particle
@@ -144,9 +170,14 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 31): the ENTIRE title intro is bit-exact — menu, cursor, both logos, sparkle sweep, AND the phase-7 particle twinkles
+## ⭐ Current state (ckpt 32): the title intro is bit-exact AND the title menu is INTERACTIVE (milestone 1)
 
-The whole chain runs live, every frame, producing correct pixels:
+The whole intro chain is bit-exact (below), AND the menu now responds to input:
+injected `--input-trace` nav moves the cursor (both directions) and confirm
+returns the selected row's action code. The unblocker (ckpt 32) was porting the
+menu-input gate's driver — `FUN_0056c930`'s mode-1 `+0x54` ramp,
+`menu_owner_transition_step`, wired as the drive's `post_update` (quirk #59).
+Use `--menu-trace` to log cursor-row changes. **The intro render chain:**
 
 ```
 title_scene_step → title_sink → resolve_frame(bank 19/20)
@@ -191,30 +222,53 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the **entire title intro is now bit-exact** (menu, cursor, logos,
-> sweep, particle twinkles — R1/R3/R4 all closed). The active goal (user, ckpt
-> 13) is **1:1 parity with retail** for title + new-game + prologue. With title
-> done, the front moves to the new-game menus → prologue.
+> Context: the title intro is bit-exact AND the title menu is now **interactive**
+> (ckpt 32 — injected nav moves the cursor, confirm returns the action code).
+> The active goal (user, ckpt 13) is **1:1 parity with retail** for title +
+> new-game + prologue. With the title menu navigable, the front moves to the
+> **new-game config submenu** (confirm "Start" → it should appear) → prologue.
 
-1. **(recommended) Drive the new-game menus + live-validate `--input-trace`**
-   (ckpt 24, still unverified). The title menu renders bit-exact; now make an
-   injected DOWN/SELECT actually move the cursor + commit, and confirm the
-   new-game submenus render. Frida self-serviceable, no-turbo. The user gates
-   trace extension on "once we have prologue and main menu rendering" — title
-   menu is there, so this is the path to the prologue. Register the remaining
-   sprite banks the new-game/prologue scenes need (`ar_register_fonts`,
-   `ar_register_palette_ramps` 0x57a330, the big `FUN_0056e190` 442-sprite batch,
-   sounds — all take the sotesd HMODULE, wire like `init_sprite_banks`).
-2. ~~Confirm/correct the mode-2 present target~~ **DONE (ckpt 31, engine-quirks
-   #55).** Disasm-confirmed retail paints its window (`GetDC(hwnd)` @0x5b90b7),
-   not the desktop; fixed via `zdd_window_present` + `zdd_set_present_hwnd` +
-   NULL window brush + `WM_ERASEBKGND`. **User-confirmed the focus flicker is
-   gone.**
-3. **Live-validate `--input-trace`** (ckpt 24, still unverified) + drive the
-   menu nav so the CURSOR highlight moves. Does an injected DOWN actually move
-   the selection? Frida self-serviceable, no-turbo. Then extend toward the
-   new-game menus (user gates trace extension on "once we have prologue and main
-   menu rendering").
+1. **(recommended) Drive into the new-game config submenu + make it render.**
+   Confirming "Start" (row 0, action `0x1a`) now returns `result=26` and the
+   port **shuts down** (`main.c` sets `g_shutdown` on scene DONE) — there is no
+   new-game scene wired yet. The retail flow (see `findings/new-game-flow.md`):
+   confirm Start → a **separate scene** (separate input-manager instance, quirk
+   #43) renders the **Game Difficulty / Auto-guard / Start Game** boxed menu.
+   So the next move is to dispatch the title scene's return code instead of
+   exiting — port the post-title driver arm of `FUN_00562ea0` (it calls the
+   title runner when `DAT_008a6e6c==0` and switches on the menu-action code
+   6/8/0x1a/0x1c..0x1e) → the new-game config scene runner. Register the sprite
+   banks it needs (`ar_register_fonts`, `ar_register_palette_ramps` 0x57a330,
+   the big `FUN_0056e190` 442-sprite batch, sounds — all take the sotesd
+   HMODULE, wire like `init_sprite_banks`). The committed reference trace
+   `tests/scenarios/new-game-through/trace.jsonl` drives retail through this; the
+   port can replay the same `--input-trace` once the scene renders. Difficulty
+   menu polls `0x22,1,3,0x24,0x27` (id 0x27 = value left/right).
+2. **The menu input gate is now open but the latch's other arms are untested
+   live** — the difficulty menu is a **mode-2** controller (paged confirm list,
+   `menu_list_latch` mode 2), and the `id 0x27` value toggle is unverified
+   directionally (new-game-flow.md "Open"). Validate these as that scene lands.
+3. ~~Live-validate `--input-trace` + move the cursor~~ **DONE (ckpt 32, quirk
+   #59).** Injected DOWN/UP move the cursor (`--menu-trace` confirms
+   `0→1→2→3→4`); confirm commits the right action code. The blocker was the
+   unported `FUN_0056c930` `+0x54` ramp (the menu-input gate driver).
+
+## Tooling added ckpt 32
+
+- **`--menu-trace`** (`src/title_sink.c`, `title_sink_menu_trace`) — logs a
+  stderr line whenever the highlighted menu row changes
+  (`[sink] menu cursor row 1 -> 2 (y=80)`), so injected nav is verified at the
+  cursor-state level, not by eyeballing pixels. A CLI flag, **not** an env var:
+  WSLInterop does not forward arbitrary Linux env vars to the Windows child
+  (only nix-shell-exported ones like `OPENSUMMONERS_GAME_DIR` reach `getenv`).
+- **Menu-nav trace recipe** (self-serviceable, no Frida): write a
+  `{"frame":N,"ids":[..]}` JSONL into the **game dir** (the child's CWD; a
+  Windows exe can't read `/tmp`), then
+  `OSS=/tmp/oss.exe; $OSS --hide-window --menu-trace --frames 720 --input-trace trace.jsonl`.
+  Button ids: **1=up, 3=down**, 2/4=page, **0x24(=36)=confirm**, 0x22=abort.
+  Time presses **after ~flip 577** (cursor visible); the input gate opens
+  earlier (~flip 547). Confirm on row N → scene returns that row's action id
+  (Start `0x1a`=26, Continue `0x1c`, Bonus `0x1e`, Options `0x1d`, Exit `8`).
 
 ## Tooling added this ckpt (31)
 
@@ -328,10 +382,14 @@ known intro-content residual remains.** Next: drive the new-game menus (the
   (`TITLE_DRAW_LOGO` sink case + the `draw_logo`/`draw_sparkle`/`draw_cursor` ctx
   callbacks are now vestigial fallbacks; nothing emits LOGO.)
 - **Outer-loop side-effect hooks** (stubbed in `title_scene_hooks`): `0x5b1030`
-  (message pump), `0x43e140`/`0x40fe00`/`0x566250` (pre), `0x56c930` (post),
-  `0x43c2e0` (per-entry). **NB these are NOT the intro-pacing key** (that was the
-  driving cadence, fixed in `main_loop_body` ckpt 29 — see quirk #54). They
-  matter for the BGM cue / per-entry updates; port when those subsystems land.
+  (message pump), `0x43e140`/`0x40fe00`/`0x566250` (pre), `0x43c2e0` (per-entry).
+  **`0x56c930` (post) is now WIRED** (ckpt 32) — its mode-1 `+0x54` ramp opens
+  the menu-input gate (`drive_post_update` → `menu_owner_transition_step`); modes
+  0/2 (submenu slide) are still deferred inside that port. **NB the rest are NOT
+  the intro-pacing key** (that was the driving cadence, fixed in `main_loop_body`
+  ckpt 29 — see quirk #54); `0x43e140`/`0x40fe00` are audio/joystick updates,
+  port when those land. `0x43c2e0` animates a node's *child* widgets (gated on
+  `+0x54>=1000`) — needed for in-row sub-widget animation, not basic nav.
 - **Other register batches** not yet called at boot: `ar_register_fonts`,
   `ar_register_palette_ramps` (FUN_0057a330), the big `FUN_0056e190` (442
   sprites), sounds. The title path doesn't need them, but the new-game/prologue

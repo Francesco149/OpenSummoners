@@ -1461,3 +1461,45 @@ align captures by the `subtitle_anim_start` TAS anchor (first spawn) + tick.
 > (the LCG), `src/title_scene.c` (`update_particles` hook), `src/main.c`
 > (`g_particles` + seed pin), `tools/frida/opensummoners-agent.js`
 > (`installSparkleAnchor`).
+
+## 59. The menu-input gate is opened by the post-update side effect `FUN_0056c930` (the node `+0x54` ramp), NOT the per-entry update `0x43c2e0`
+
+The title menu renders bit-exact but is **dead to input** until one specific
+side effect runs.  `menu_list_latch` (`FUN_0043ce50`, quirk #34) refuses every
+nav action while `sub->ready != 1000`, where `sub` is the controller's `+0x00`
+back-pointer to its **parent node** (quirk #34's spawn-overlay) and `ready` is
+that node's `+0x54` ramp.  `menu_node_build` zeroes `+0x54`, so the gate starts
+**closed** — the menu cannot latch a selection on the frame it spawns.
+
+What ramps `+0x54` to 1000 is the title scene's **post-update** side effect
+`FUN_0056c930` (the `local_64`==8/9 tail's `0x56c930` call), NOT the per-owner-
+entry update `0x43c2e0` that runs right after it.  `0x43c2e0` only *reads*
+`+0x54` (it animates the active node's *child* widgets, gated on `+0x54>=1000`
+or `+0x58!=0`); it never writes it.  `0x56c930` is the menu-node **transition**
+updater: a `for i in [0, owner->count)` loop over `owner->entries[i]` that, for
+each active node (`+0x04 != 0`), dispatches on the node's transition mode
+(`+0x1c`):
+
+- **mode 1** (`+0x1c==1`, what `menu_node_build` sets) — the steady input-gate
+  fade: `+0x54 += 50`/frame toward 1000 while `+0x50` is set ("in"), or
+  `-= 40`/frame toward 0 while clear ("out", tearing the node down at <=0 via
+  `0x56cc10`).  So a freshly-spawned menu becomes navigable **~20 update frames
+  after it appears** (0 → 1000 at +50/frame).
+- **mode 0 / mode 2** — submenu *dismiss* / *slide-to-target* animations (snap
+  or lerp + `0x49a340`/`0x49a2f0`/`0x49a470`); the title's single node never
+  uses them.
+
+This is why an injected `--input-trace` DOWN/confirm did nothing in the port
+until `0x56c930` was wired: the latch gate was permanently closed.  Porting the
+mode-1 ramp (and routing it as the drive's `post_update`) made the title menu
+**interactive** — injected nav moves the cursor (`0->1->2->3...`, both
+directions) and confirm on row N returns that row's action id (Start `0x1a`,
+… Exit `8`).  Note the gate (`+0x54`, +50/frame, open ~flip 547) opens *before*
+the cursor becomes visible (the main `fade==1000` draw gate, +20/frame, ~flip
+577), so presses land before the highlight appears — align demos accordingly.
+
+> 📍 `FUN_0056c930` @ `0x56c930` (607 B); ported (mode-1 arm) as
+> `menu_owner_transition_step` in `src/menu_list.c`.  Wired as the drive's
+> `post_update` (`src/main.c` `drive_post_update`).  Diagnostic:
+> `--menu-trace` logs cursor-row changes (`src/title_sink.c`).  See quirk #34
+> (the latch gate) and `findings/new-game-flow.md` (the reference trace).

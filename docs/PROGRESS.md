@@ -6,6 +6,34 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 32) — the title menu is INTERACTIVE: injected nav moves the cursor + commits (milestone 1)
+
+Live-validated the `--input-trace` path (the long-deferred ckpt-24 item) and
+found the title menu was **dead to input** despite rendering bit-exact: an
+injected DOWN never moved the cursor. RE traced it to the **menu-input gate**
+(quirk #34): `menu_list_latch` refuses every nav action until `sub->ready`
+(== the spawned node's `+0x54` ramp) reaches 1000, and `menu_node_build` zeroes
+it — so the gate starts **closed**.
+
+What opens it is the title scene's **post-update** side effect `FUN_0056c930`
+(stubbed NULL in the port), NOT the per-entry update `0x43c2e0` (which only
+*reads* `+0x54`). `0x56c930` is the menu-node transition updater; its **mode-1**
+arm ramps the active node's `+0x54` by **+50/frame to 1000** (the node is built
+mode 1, `+0x50`=1). Ported the mode-1 ramp as `menu_owner_transition_step`
+(`src/menu_list.c`) — modes 0/2 are submenu-slide paths the title never uses,
+documented + deferred — and wired it as the drive's `post_update`
+(`src/main.c` `drive_post_update`). Quirk **#59**.
+
+**Verified live** (`--menu-trace`, a new cursor-row-change diagnostic in
+`src/title_sink.c`): injected DOWN×4 walks the cursor `0→1→2→3→4`, UP walks it
+back, and confirm (`0x24`) on row N returns that row's action id — `result=26`
+(`0x1a` Start) on row 0, `result=8` (Exit) on row 4. The cursor's ► arrow +
+row-highlight visibly track the selection (pushed a port `Start`-vs-`Options`
+capture to llm-feed). 667 host tests pass (+7 ramp tests); ledger **145/1490
+(8.9%)** (+1: `0x56c930`). Note the gate (`+0x54`, +50/frame, open ~flip 547)
+opens *before* the cursor draws (`fade==1000`, +20/frame, ~flip 577). This is
+**milestone 1** (interactive title menu); next is the new-game config submenu.
+
 ## 2026-06-02 (ckpt 30) — LOGO + SPARKLE wired; both intro logos BIT-EXACT, subtitle-reveal sweep bit-exact
 
 Wired the last two deferred title render-half arms (intro phases 0–7), the
