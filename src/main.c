@@ -58,6 +58,9 @@
 #include "rng.h"              /* engine LCG — pinned seed for determinism */
 #include "title_particles.h"  /* phase-7 sparkle-particle pool + spawn */
 #include "app_flow.h"         /* post-title dispatch (FUN_00562ea0 tail switch) */
+#include "menu_list.h"        /* menu_ctrl / menu_node — glyph render test */
+#include "glyph_text.h"       /* glyph_cell_layout — glyph render test */
+#include "glyph_render.h"     /* glyph_grid_render + glyph_gdi_ops_win32 */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -204,6 +207,18 @@ static size_t    g_n_capture_frames;
 static char      g_capture_dir_buf[1024] = ".";
 static const char *g_capture_dir = g_capture_dir_buf;
 
+/* --render-glyph-test [--glyph-test-font N] — the pixel-diff gate for the GDI
+ * text renderer (glyph_render.c).  When set, after the fonts are registered we
+ * build a standalone menu_ctrl/menu_node, lay the title-menu labels into its
+ * cells via glyph_cell_layout, render the grid into an offscreen DIB-section
+ * DC with glyph_gdi_ops_win32 (TRANSPARENT bk), and save it as a BMP — then
+ * exit without entering the title scene.  The retail side renders the same
+ * labels with the same font (CreateFontIndirectA → identical LOGFONTA, so the
+ * GDI rasterization is bit-identical) for a differ_px diff.  Default font slot
+ * 2 (ar_register_fonts: w=7,h=0x10); override with --glyph-test-font. */
+static int       g_render_glyph_test;
+static int       g_glyph_test_font = 2;
+
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
 static int  create_main_window(void);
@@ -221,6 +236,7 @@ static int  build_title_drive(int skip_intro);
 static void init_title_drive(void);
 static void reenter_title(void);
 static void init_sprite_banks(void);
+static void render_glyph_test(void);
 static void init_alpha_ramps(void);
 static void maybe_capture_frame(unsigned flip_frame);
 static int  capture_primary_to_bmp(const char *path);
@@ -323,15 +339,24 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * so the render sink's bank getter (ar_pool_get_slot 19/20) resolves to
      * populated slots instead of short-circuiting to NULL.  Without this the
      * whole decode→slice→8d chain never runs and the window stays blank. */
-    if (!g_no_title_scene && !g_skip_ddraw && g_zdd != NULL)
+    if ((!g_no_title_scene || g_render_glyph_test) && !g_skip_ddraw && g_zdd != NULL)
         init_sprite_banks();
+
+    /* --render-glyph-test: render the glyph grid into an offscreen DIB, dump a
+     * BMP, then shut down before the title scene starts (the pixel-diff gate
+     * for the GDI text renderer).  Runs after init_sprite_banks so the HFONTs
+     * are registered. */
+    if (g_render_glyph_test && !g_skip_ddraw && g_zdd != NULL) {
+        render_glyph_test();
+        g_shutdown = 1;
+    }
 
     /* Stand up the title-scene drive (the caller side of FUN_0056aea0): bind
      * the render sink to the live primary surface, install the sprite-bank
      * self-decode hook, and allocate the scene object graph.  After this the
      * per-frame loop runs the title scene; --no-title-scene or a failed/absent
      * DDraw boot falls back to the legacy minimal present loop. */
-    if (!g_no_title_scene && !g_skip_ddraw && g_zdd != NULL)
+    if (!g_no_title_scene && !g_render_glyph_test && !g_skip_ddraw && g_zdd != NULL)
         init_title_drive();
 
     call_trace_end_frame();   /* close boot frame 0 */
@@ -543,8 +568,141 @@ static void init_sprite_banks(void)
     ar_register_main_sprites(g_zdd, /*group=*/4, /*settings=*/g_sotesd,
                              /*sotesp_module=*/g_sotesd);
 
+    /* The 8 GDI HFONTs (+ font-texture sprites 0x457/0x455) the dynamic-text
+     * renderer (0x48e200) selects into the DC.  Canonical boot passes group 1
+     * (FUN_00562ea0:613, ar_boot_register_all); the HFONTs are built by
+     * CreateFontIndirectA and need no module resources, so settings is only
+     * consumed by the two font-texture sprite slots. */
+    ar_register_fonts(g_zdd, /*group=*/1, /*settings=*/g_sotesd);
+
     log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
-             "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c)", (void *)g_sotesd);
+             "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c) + 8 GDI fonts "
+             "(slot1 hfont=%p)", (void *)g_sotesd,
+             (void *)(g_ar_gdi_table[1] ? g_ar_gdi_table[1]->array[0] : NULL));
+}
+
+/* Build a standalone menu node, lay the title-menu labels into its cells, and
+ * render the grid into an offscreen 24bpp DIB with the registered HFONTs, then
+ * dump it as a BMP.  This is the PORT side of the GDI text renderer's
+ * pixel-diff gate (glyph_render.c / FUN_0048e200): the retail side renders the
+ * same labels with the same font — and because both build the HFONT through
+ * the same CreateFontIndirectA(LOGFONTA) path (ar_make_font), the GDI glyph
+ * rasterization is bit-identical — for a differ_px comparison.
+ *
+ * menu_node embeds a menu_ctrl at +0x00 (list/entries/rows coincide at
+ * +0x174/178/17c), so we build through the menu_ctrl cast then render through
+ * the node view — exactly the dual-view the engine uses (quirk: the renderer's
+ * `this` is the child node, the parent supplies the x/y base; here one node is
+ * both, with x/y=0 and the base carried in node->field_c/field_10). */
+static void render_glyph_test(void)
+{
+    static const char *const labels[] = {
+        "Start", "Continue", "Bonus Menu", "Options", "Exit",
+    };
+    const int n_rows = (int)(sizeof labels / sizeof labels[0]);
+
+    /* Pull the requested HFONT out of the registered GDI slots (array[0]). */
+    void *hfont = NULL;
+    if (g_glyph_test_font >= 0 && g_glyph_test_font < AR_GDI_SLOT_COUNT &&
+        g_ar_gdi_table[g_glyph_test_font] != NULL &&
+        g_ar_gdi_table[g_glyph_test_font]->array != NULL) {
+        hfont = g_ar_gdi_table[g_glyph_test_font]->array[0];
+    }
+    if (hfont == NULL) {
+        log_line("render_glyph_test: GDI font slot %d has no HFONT "
+                 "(ar_register_fonts not run?) — aborting", g_glyph_test_font);
+        return;
+    }
+
+    menu_node *node = (menu_node *)calloc(1, sizeof *node);
+    if (node == NULL) return;
+    menu_ctrl *ctrl = (menu_ctrl *)node;
+
+    /* n_rows rows × 1 column, type-2 grid, all rows on one page. */
+    menu_ctrl_build(ctrl, /*f_c=*/0, /*f_10=*/0,
+                    /*alloc_a=*/n_rows, /*alloc_b=*/1,
+                    /*stride=*/n_rows, /*type=*/2);
+    menu_list_hdr *hdr = ctrl->list;
+    hdr->count  = n_rows;
+    hdr->cursor = 0;            /* row 0 ("Start") focused */
+    hdr->sel2   = 0;
+
+    /* Lay each label into (row, col 0) and mark the row enabled (flag8=1) so
+     * the renderer takes the live colour paths — a disabled row would draw the
+     * dead label-pointer "colours" (quirk #62c) and skip the drop shadow. */
+    for (int r = 0; r < n_rows; r++) {
+        glyph_cell_layout(ctrl, r, 0, labels[r]);
+        ctrl->rows[r].flag8 = 1;
+    }
+
+    /* Node display config (the +0x180.. block 0x40f3e0 seeds): retail's live
+     * menu colours; the label-pointer fields stay 0 (dead paths). */
+    node->field_c   = 8;        /* x base */
+    node->field_10  = 8;        /* y base */
+    node->field_14  = 0;        /* no ruby pass */
+    node->color0    = 0x3e537d; /* normal text   */
+    node->color1    = 0xa8b9cc; /* drop shadow   */
+    node->color2    = 0xf08080; /* focused text  */
+    node->color3    = 0xf08080;
+    node->field_1ac = 0x1c;     /* row pitch (28 px) */
+
+    /* Offscreen 24bpp bottom-up DIB (= BMP pixel order); black background. */
+    const int W = 256;
+    const int H = node->field_10 + node->field_1ac * n_rows + 8;
+    HDC ref = GetDC(NULL);
+    HDC mem = CreateCompatibleDC(ref);
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof bi);
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = W;
+    bi.bmiHeader.biHeight      = H;
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 24;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void *bits = NULL;
+    HBITMAP dib = CreateDIBSection(ref, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+
+    if (dib != NULL && bits != NULL) {
+        const uint32_t row_b = (uint32_t)((W * 3 + 3) & ~3);
+        const uint32_t pixsz = row_b * (uint32_t)H;
+        memset(bits, 0, pixsz);                 /* black background */
+
+        HGDIOBJ old = SelectObject(mem, dib);
+        SetBkMode(mem, TRANSPARENT);
+
+        glyph_gdi_ops ops = glyph_gdi_ops_win32(mem);
+        glyph_grid_render(node, &ops, 0, 0, hfont, hfont);
+        GdiFlush();                             /* flush before reading bits */
+
+        char path[1200];
+        snprintf(path, sizeof path, "%s/port_glyph_test.bmp", g_capture_dir);
+        BITMAPFILEHEADER fh;
+        memset(&fh, 0, sizeof fh);
+        fh.bfType    = 0x4D42;                  /* 'BM' */
+        fh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+        fh.bfSize    = fh.bfOffBits + pixsz;
+        FILE *f = fopen(path, "wb");
+        if (f != NULL) {
+            fwrite(&fh, sizeof fh, 1, f);
+            fwrite(&bi.bmiHeader, sizeof(BITMAPINFOHEADER), 1, f);
+            fwrite(bits, 1, pixsz, f);
+            fclose(f);
+            log_line("render_glyph_test: wrote %s (%dx%d, font slot %d, "
+                     "%d rows)", path, W, H, g_glyph_test_font, n_rows);
+        } else {
+            log_line("render_glyph_test: fopen(%s) failed", path);
+        }
+        SelectObject(mem, old);
+    } else {
+        log_line("render_glyph_test: CreateDIBSection(%d) failed", W);
+    }
+
+    if (dib != NULL) DeleteObject(dib);
+    DeleteDC(mem);
+    ReleaseDC(NULL, ref);
+
+    menu_ctrl_clear(ctrl);      /* frees list/entries/rows + each cell's obj0 */
+    free(node);
 }
 
 /* Build the alpha-ramp blend descriptors and expose them as the ramp_a/ramp_b
@@ -1122,6 +1280,11 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strncmp(tok, "--capture-dir=", 14)) {
             strncpy(g_capture_dir_buf, tok + 14, sizeof(g_capture_dir_buf) - 1);
             g_capture_dir_buf[sizeof(g_capture_dir_buf) - 1] = '\0';
+        }
+        else if (!strcmp(tok, "--render-glyph-test")) g_render_glyph_test = 1;
+        else if (!strcmp(tok, "--glyph-test-font")) {
+            tok = strtok(NULL, " \t");
+            if (tok) g_glyph_test_font = (int)strtol(tok, NULL, 0);
         }
         tok = strtok(NULL, " \t");
     }
