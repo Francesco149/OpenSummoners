@@ -1022,3 +1022,46 @@ the colorkey arg (`cmp colorkey, src; je`).
 
 > 📍 `zdd_alpha_blit_pixels` in `src/zdd.c`; descriptor layout in
 > `zdd_blend_desc` (`src/zdd.h`).
+
+## 45. The blit orchestrator's GDI/hardware-Blt "complex path" is dead code — `DAT_008a6ec0` is only ever written to zero
+
+`FUN_005bd550` (the blit orchestrator every title-screen sprite draw funnels
+through — the per-frame compositor `FUN_0056c180` plus the sprite wrappers
+`FUN_0056c470/_4e0/_580` all call it) has two paths, branching on its last
+argument (`param_10`):
+
+- **simple** (`param_10 == 0`): lock the dest → software alpha blit
+  (`FUN_005bd680`) → unlock the dest.
+- **complex** (`param_10 != 0`): GetDC both surfaces, GDI-`BitBlt` the dest
+  region into the scratch surface `param_10`, ReleaseDC, alpha-blit the source
+  onto the scratch, then hardware-`Blt` (`FUN_005b9ae0`) the scratch back onto
+  the dest — a read-modify-write so a mode-1 (src×dst) blend sees fresh dest
+  pixels through GDI rather than a DDraw Lock.
+
+**Every** caller passes the global `DAT_008a6ec0` as `param_10`.  An exhaustive
+write-search of the image (`mov [0x8a6ec0], *` across all encodings: `a3`,
+`c705`, `890d/15/1d/35/3d/25/2d`) finds **exactly three writes, all storing
+zero**:
+
+- `0x5623d6` `mov [0x8a6ec0], esi` inside the engine-init zero-block at
+  `0x5623a0` (esi = 0 there; it's the same value stored to a dozen pointer
+  globals including `0x8a93cc`),
+- `0x582eb4` `mov dword [0x8a6ec0], 0` (explicit),
+- (the third hit at `0x5626e3` is a `c705` whose operand also resolves in the
+  same init zeroing region).
+
+There is **no** write that stores a surface/`paint_ctx` pointer.  So
+`DAT_008a6ec0` is always NULL and the complex path **never executes** in this
+binary — `FUN_005b9ae0` (the hardware Blt with explicit rects) is reachable
+*only* from that dead path and is therefore dead too.  `0x8a6ec0` reads as a
+debug/feature toggle ("composite blends through a GDI scratch surface") that
+ships permanently off.
+
+Consequence for the port: `zdd_blit_orchestrate`'s simple path is the only one
+that needs live verification; it reuses entirely-ported primitives
+(`zdd_object_lock`/`zdd_alpha_blit`/`zdd_object_unlock`).  The complex path is
+still ported for fidelity (`zdd_object_blt_rects` = `FUN_005b9ae0`, plus the
+`zdd_dc_blit` GDI seam) but is exercised only by a host test, never at runtime.
+
+> 📍 `zdd_blit_orchestrate` / `zdd_object_blt_rects` in `src/zdd.c`;
+> `zdd_dc_blit` in `src/zdd_win32.c`.

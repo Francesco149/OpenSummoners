@@ -147,7 +147,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x566250 | 169 | 1 | 2 |  |
 | 0x562d50 | 239 | 1 | 0 | ✓ |
 | 0x56c070 | 265 | 1 | 0 | ✓ |
-| 0x56c180 | 297 | 1 | 2 |  |
+| 0x56c180 | 297 | 1 | 1 |  |
 | 0x56dc20 | 344 | 1 | 1 |  |
 | 0x56c2b0 | 373 | 1 | 4 |  |
 | 0x564160 | 376 | 1 | 17 |  |
@@ -155,7 +155,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x568de0 | 998 | 1 | 19 |  |
 | 0x56a670 | 1011 | 1 | 22 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |
-| 0x56cd20 | 2275 | 1 | 16 |  |
+| 0x56cd20 | 2275 | 1 | 15 |  |
 
 ### master sprite-group register + audio/music init + anim pump (28)
 

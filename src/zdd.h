@@ -1382,6 +1382,52 @@ void zdd_alpha_blit(const zdd_blend_desc *desc, zdd_object *dest,
                     int32_t src_x, int32_t src_y,
                     int32_t colorkey);
 
+/* FUN_005b9ae0 — hardware Blt with explicit source + dest rects.  The
+ * sibling of zdd_object_blt_keyed (FUN_005b9b70): same `flags =
+ * src->state_flag | 0x1000000` and the same role inversion (`src` is
+ * the __thiscall `this`, whose com_primary becomes the Blt *source*
+ * surface; `dest` is the first stack arg, whose com_primary's vtable[5]
+ * Blt is invoked).  Unlike blt_keyed, BOTH rects are built from caller-
+ * supplied coordinates rather than the object's metrics:
+ *   dest_rect = {dst_x, dst_y, dst_x+dst_w, dst_y+dst_h}
+ *   src_rect  = {src_x, src_y, src_x+src_w, src_y+src_h}
+ * Returns 1 (degenerate success, retail's literal at 0x5b9ae8) if `src`
+ * has no surface; NULL/empty `dest` returns 0 defensively (retail would
+ * crash on the next vtable deref).  Only consumer is the dead complex
+ * path of zdd_blit_orchestrate — see engine-quirks #45. */
+int  zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
+                          int32_t dst_x, int32_t dst_y,
+                          int32_t dst_w, int32_t dst_h,
+                          int32_t src_x, int32_t src_y,
+                          int32_t src_w, int32_t src_h);
+
+/* FUN_005bd550 — the blit orchestrator that every title-screen sprite
+ * draw funnels through (the per-frame compositor 0x56c180 and the
+ * sprite wrappers 0x56c470/_4e0/_580 all call it).  __thiscall on a
+ * zdd_blend_desc (`desc`); 10 stack args.
+ *
+ * SIMPLE path (gdi_ctx == NULL — the ONLY path taken in this binary):
+ *   lock(dest) → zdd_alpha_blit(desc, dest, src, …) → unlock(dest).
+ * The dest Lock return is ignored (retail doesn't check it); the source
+ * Lock is owned inside zdd_alpha_blit.
+ *
+ * COMPLEX path (gdi_ctx != NULL — UNREACHABLE: gdi_ctx is always
+ * DAT_008a6ec0, which is written only to zero anywhere in the image —
+ * see engine-quirks #45).  Ported for fidelity: GetDC both surfaces,
+ * GDI-BitBlt the dest region into the scratch `gdi_ctx` surface, ReleaseDC,
+ * alpha-blit `src` onto the scratch, then hardware-Blt the scratch back
+ * onto `dest` (a read-modify-write so mode-1 dst-reads see fresh dest
+ * pixels).  cx/cy clamp to a 16px minimum for the BitBlt size.
+ *
+ * NULL `desc`/`dest`/`src` are tolerated by the inner primitives. */
+void zdd_blit_orchestrate(const zdd_blend_desc *desc, zdd_object *dest,
+                          zdd_object *src,
+                          int32_t dst_x, int32_t dst_y,
+                          int32_t width, int32_t height,
+                          int32_t src_x, int32_t src_y,
+                          int32_t colorkey,
+                          zdd_object *gdi_ctx);
+
 /* FUN_005b9ac0 — "is self->com_primary in the DDERR_SURFACELOST state?"
  * Calls IsLost via vtable[24] and returns 1 iff the HRESULT is
  * exactly DDERR_SURFACELOST (0x887601c2); any other return (DD_OK,
@@ -1499,6 +1545,17 @@ int  zdd_surface_blt(void *dest, const int32_t *dest_rect,
  * 0 silently. */
 int  zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
                          int width, int height);
+
+/* Generic GDI BitBlt between two surface HDCs (SRCCOPY etc.).  Used by
+ * the dead complex path of zdd_blit_orchestrate (FUN_005bd550) to copy
+ * the dest region into a scratch surface before the software blend.
+ * Distinct from zdd_desktop_present, which does its own GetDC(NULL) for
+ * the desktop; here both DCs come from zdd_object_get_dc.  `rop` is the
+ * raw GDI ternary raster-op (0x00CC0020 = SRCCOPY).  Returns 1 on
+ * success, 0 if either HDC is NULL.  Host stub records the call. */
+int  zdd_dc_blit(void *dest_hdc, int dest_x, int dest_y,
+                 int width, int height,
+                 void *src_hdc, int src_x, int src_y, uint32_t rop);
 
 /* IDirectDrawSurface7::IsLost via vtable[24] (byte 0x60 — verified
  * by r2 disasm of FUN_005b9ac0: `call dword [eax + 0x60]`).  Returns

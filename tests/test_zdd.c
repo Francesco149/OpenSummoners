@@ -166,6 +166,19 @@ static int      g_dd_desktop_last_y    = 0;
 static int      g_dd_desktop_last_w    = 0;
 static int      g_dd_desktop_last_h    = 0;
 
+/* zdd_dc_blit stub state (backs FUN_005bd550 complex-path host tests). */
+static int      g_dd_dcblit_calls      = 0;
+static int      g_dd_dcblit_result     = 1;
+static void    *g_dd_dcblit_last_dest  = NULL;
+static void    *g_dd_dcblit_last_src   = NULL;
+static int      g_dd_dcblit_last_dx    = 0;
+static int      g_dd_dcblit_last_dy    = 0;
+static int      g_dd_dcblit_last_w     = 0;
+static int      g_dd_dcblit_last_h     = 0;
+static int      g_dd_dcblit_last_sx    = 0;
+static int      g_dd_dcblit_last_sy    = 0;
+static uint32_t g_dd_dcblit_last_rop   = 0;
+
 /* WM_PAINT-handler primitive stubs (back FUN_005b9130 host tests).
  * Each records call shape so the dispatcher tests can assert the
  * begin → get_dc → blit → release_dc → end ordering exactly.  The
@@ -350,6 +363,17 @@ static void reset_stubs(void)
     g_dd_desktop_last_y    = 0;
     g_dd_desktop_last_w    = 0;
     g_dd_desktop_last_h    = 0;
+    g_dd_dcblit_calls      = 0;
+    g_dd_dcblit_result     = 1;
+    g_dd_dcblit_last_dest  = NULL;
+    g_dd_dcblit_last_src   = NULL;
+    g_dd_dcblit_last_dx    = 0;
+    g_dd_dcblit_last_dy    = 0;
+    g_dd_dcblit_last_w     = 0;
+    g_dd_dcblit_last_h     = 0;
+    g_dd_dcblit_last_sx    = 0;
+    g_dd_dcblit_last_sy    = 0;
+    g_dd_dcblit_last_rop   = 0;
     g_dd_wpaint_begin_calls    = 0;
     g_dd_wpaint_begin_last_hwnd = NULL;
     g_dd_wpaint_begin_hdc       = (void *)(uintptr_t)0xb1b1b1b1;
@@ -688,6 +712,24 @@ int zdd_desktop_present(void *src_hdc, int dest_x, int dest_y,
     g_dd_desktop_last_h   = height;
     if (src_hdc == NULL) return 0;
     return g_dd_desktop_result;
+}
+
+int zdd_dc_blit(void *dest_hdc, int dest_x, int dest_y,
+                int width, int height,
+                void *src_hdc, int src_x, int src_y, uint32_t rop)
+{
+    g_dd_dcblit_calls++;
+    g_dd_dcblit_last_dest = dest_hdc;
+    g_dd_dcblit_last_src  = src_hdc;
+    g_dd_dcblit_last_dx   = dest_x;
+    g_dd_dcblit_last_dy   = dest_y;
+    g_dd_dcblit_last_w    = width;
+    g_dd_dcblit_last_h    = height;
+    g_dd_dcblit_last_sx   = src_x;
+    g_dd_dcblit_last_sy   = src_y;
+    g_dd_dcblit_last_rop  = rop;
+    if (dest_hdc == NULL || src_hdc == NULL) return 0;
+    return g_dd_dcblit_result;
 }
 
 int zdd_surface_blt_color_fill(void *surface, uint32_t fill_value,
@@ -3921,5 +3963,149 @@ int test_zdd_alpha_blit_wrapper_drives_core_and_unlocks(void)
     T_ASSERT_EQ_I(g_dd_lock_calls,   1);   /* src only */
     T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
     for (int i = 0; i < 8; i++) T_ASSERT_EQ_U(buf[i], ab_565(0, 10, 5));
+    return 0;
+}
+
+/* ─── hardware Blt with rects (FUN_005b9ae0 / zdd_object_blt_rects) ──── */
+
+int test_zdd_object_blt_rects_null_src_degenerate_success(void)
+{
+    reset_stubs();
+    /* NULL src and src-with-NULL-com_primary both return 1, no Blt. */
+    T_ASSERT_EQ_I(zdd_object_blt_rects(NULL, NULL, 0,0,0,0,0,0,0,0), 1);
+    zdd_object src; memset(&src, 0, sizeof(src));   /* com_primary NULL */
+    zdd_object dst; memset(&dst, 0, sizeof(dst));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+    T_ASSERT_EQ_I(zdd_object_blt_rects(&src, &dst, 0,0,0,0,0,0,0,0), 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_rects_null_dest_returns_zero(void)
+{
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    T_ASSERT_EQ_I(zdd_object_blt_rects(&src, NULL, 0,0,0,0,0,0,0,0), 0);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 0);
+    return 0;
+}
+
+int test_zdd_object_blt_rects_builds_both_rects_and_forwards(void)
+{
+    /* dest_rect = {dx, dy, dx+dw, dy+dh}; src_rect = {sx, sy, sx+sw, sy+sh};
+     * flags = src->state_flag | 0x1000000; src surface = `this`. */
+    reset_stubs();
+    zdd_object src; memset(&src, 0, sizeof(src));
+    src.com_primary = (void *)(uintptr_t)0xaaa1;
+    src.state_flag  = 0x4000;
+    zdd_object dst; memset(&dst, 0, sizeof(dst));
+    dst.com_primary = (void *)(uintptr_t)0xddd1;
+
+    int rc = zdd_object_blt_rects(&src, &dst, 5, 7, 100, 50, 3, 4, 80, 40);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    /* dest = (5, 7, 5+100, 7+50) = (5, 7, 105, 57) */
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 5);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 7);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 105);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 57);
+    /* src = (3, 4, 3+80, 4+40) = (3, 4, 83, 44) */
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[0], 3);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[1], 4);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 83);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 44);
+    T_ASSERT_EQ_I((int)g_dd_blt_last_flags, (int)(0x4000 | 0x1000000));
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xaaa1);
+    return 0;
+}
+
+/* ─── blit orchestrator (FUN_005bd550 / zdd_blit_orchestrate) ───────── */
+
+int test_zdd_blit_orchestrate_simple_locks_dest_blits_unlocks(void)
+{
+    /* gdi_ctx == NULL → simple path: lock(dest), alpha_blit (which locks
+     * src + reads dest geometry), unlock(dest).  Two lock/unlock pairs,
+     * no GDI BitBlt, no hardware Blt.  The pixel core runs in place. */
+    reset_stubs();
+    static uint16_t buf[8];
+    for (int i = 0; i < 8; i++) buf[i] = ab_565(31, 10, 5);
+    g_dd_lock_fill_surface = buf;
+    g_dd_lock_fill_pitch   = 8;   /* stride = 4 words */
+    g_dd_lock_fill_height  = 2;
+
+    static uint8_t id[256], zero[256];
+    for (int i = 0; i < 256; i++) { id[i] = (uint8_t)i; zero[i] = 0; }
+    zdd_blend_desc d = ab_make565(0, zero, id, id);   /* red -> 0 */
+
+    zdd_object dest, src;
+    memset(&dest, 0, sizeof(dest)); memset(&src, 0, sizeof(src));
+    dest.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary  = (void *)(uintptr_t)0xaaa1;
+
+    zdd_blit_orchestrate(&d, &dest, &src, 0, 0, 4, 2, 0, 0, -1, NULL);
+
+    T_ASSERT_EQ_I(g_dd_lock_calls,   2);   /* dest (orchestrate) + src (alpha) */
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 2);
+    /* src is locked last; dest is unlocked last. */
+    T_ASSERT_EQ_P(g_dd_lock_last_surf,   (void *)(uintptr_t)0xaaa1);
+    T_ASSERT_EQ_P(g_dd_unlock_last_surf, (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_I(g_dd_dcblit_calls, 0);   /* no GDI BitBlt */
+    T_ASSERT_EQ_I(g_dd_blt_calls,    0);   /* no hardware Blt */
+    for (int i = 0; i < 8; i++) T_ASSERT_EQ_U(buf[i], ab_565(0, 10, 5));
+    return 0;
+}
+
+int test_zdd_blit_orchestrate_complex_gdi_roundtrip(void)
+{
+    /* gdi_ctx != NULL → complex (dead) path: GetDC both, DC BitBlt the
+     * dest region into the scratch, ReleaseDC both, alpha onto scratch,
+     * hardware Blt scratch back.  cx/cy clamp to a 16px minimum. */
+    reset_stubs();
+    g_dd_getdc_handle = (void *)(uintptr_t)0xC0DC;
+
+    zdd_blend_desc d; memset(&d, 0, sizeof(d));
+    zdd_object dest, src, ctx;
+    memset(&dest, 0, sizeof(dest));
+    memset(&src,  0, sizeof(src));
+    memset(&ctx,  0, sizeof(ctx));
+    dest.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary  = (void *)(uintptr_t)0xaaa1;
+    ctx.com_primary  = (void *)(uintptr_t)0xc001;
+    ctx.state_flag   = 0x2000;
+
+    /* width 40 (>=16, kept), height 2 (clamped to 16), dst (9, 11). */
+    zdd_blit_orchestrate(&d, &dest, &src, 9, 11, 40, 2, 0, 0, -1, &ctx);
+
+    /* GetDC dest then gdi_ctx; ReleaseDC both. */
+    T_ASSERT_EQ_I(g_dd_getdc_calls, 2);
+    T_ASSERT_EQ_P(g_dd_getdc_last_surf, (void *)(uintptr_t)0xc001);
+    T_ASSERT_EQ_I(g_dd_releasedc_calls, 2);
+    /* GDI BitBlt: scratch DC dest, origin (0,0), size (cx=40, cy=16),
+     * source DC at (dst_x, dst_y) = (9, 11), SRCCOPY. */
+    T_ASSERT_EQ_I(g_dd_dcblit_calls, 1);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_dx, 0);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_dy, 0);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_w, 40);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_h, 16);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_sx, 9);
+    T_ASSERT_EQ_I(g_dd_dcblit_last_sy, 11);
+    T_ASSERT_EQ_I((int)g_dd_dcblit_last_rop, (int)0xCC0020);
+    /* lock(gdi_ctx) + src (alpha); unlock both. */
+    T_ASSERT_EQ_I(g_dd_lock_calls,   2);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 2);
+    /* hardware Blt scratch (ctx) → dest: dest_rect {9,11,49,13},
+     * src_rect {0,0,40,2}, flags = ctx.state_flag | 0x1000000. */
+    T_ASSERT_EQ_I(g_dd_blt_calls, 1);
+    T_ASSERT_EQ_P(g_dd_blt_last_dest, (void *)(uintptr_t)0xddd1);
+    T_ASSERT_EQ_P(g_dd_blt_last_src,  (void *)(uintptr_t)0xc001);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[0], 9);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[1], 11);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[2], 49);
+    T_ASSERT_EQ_I(g_dd_blt_last_dest_rect[3], 13);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[2], 40);
+    T_ASSERT_EQ_I(g_dd_blt_last_src_rect[3], 2);
+    T_ASSERT_EQ_I((int)g_dd_blt_last_flags, (int)(0x2000 | 0x1000000));
     return 0;
 }

@@ -589,6 +589,21 @@ void zdd_window_blit_copy(void *dest_hdc, int dest_x, int dest_y,
            (HDC)src_hdc, 0, 0, SRCCOPY);
 }
 
+/* GDI BitBlt with a caller-supplied source offset and raster-op.  Used
+ * by the dead complex path of zdd_blit_orchestrate (FUN_005bd550), which
+ * needs a non-zero source origin (it copies the dest surface region at
+ * (src_x, src_y) into a scratch surface at the origin).  Returns 1 on
+ * success, 0 if either HDC is NULL. */
+int zdd_dc_blit(void *dest_hdc, int dest_x, int dest_y,
+                int width, int height,
+                void *src_hdc, int src_x, int src_y, uint32_t rop)
+{
+    if (dest_hdc == NULL || src_hdc == NULL) return 0;
+    BitBlt((HDC)dest_hdc, dest_x, dest_y, width, height,
+           (HDC)src_hdc, src_x, src_y, (DWORD)rop);
+    return 1;
+}
+
 /* IDirectDrawSurface7::GetSurfaceDesc via vtable[22] (byte 0x58).
  * Verified by r2 disasm of FUN_005b8a20: `call dword [eax + 0x58]`.
  * Caller pre-stamps dwSize + dwFlags on the descriptor. */

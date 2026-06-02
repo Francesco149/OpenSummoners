@@ -546,6 +546,11 @@ struct test_case {
     X(zdd_alpha_blit_pixels_null_guards)                       \
     X(zdd_alpha_blit_wrapper_src_lock_fail_noop)               \
     X(zdd_alpha_blit_wrapper_drives_core_and_unlocks)          \
+    X(zdd_object_blt_rects_null_src_degenerate_success)        \
+    X(zdd_object_blt_rects_null_dest_returns_zero)             \
+    X(zdd_object_blt_rects_builds_both_rects_and_forwards)     \
+    X(zdd_blit_orchestrate_simple_locks_dest_blits_unlocks)    \
+    X(zdd_blit_orchestrate_complex_gdi_roundtrip)              \
     X(zdd_object_is_lost_null_self_returns_zero)               \
     X(zdd_object_is_lost_null_com_primary_returns_zero)        \
     X(zdd_object_is_lost_ddok_returns_zero)                    \

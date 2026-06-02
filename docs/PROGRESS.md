@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Blit orchestrator `FUN_005bd550` + `FUN_005b9ae0` ported; complex path proven dead, ckpt 15
+
+Ported the **blit orchestrator `0x5bd550`** (`zdd_blit_orchestrate`) and its
+sibling **`0x5b9ae0`** (`zdd_object_blt_rects`) — render task #8 from the ckpt-13
+list.  `0x5bd550` is the single chokepoint every title-screen sprite draw funnels
+through: the per-frame compositor `0x56c180` and the sprite wrappers
+`0x56c470/_4e0/_580` all call it.  It is `__thiscall` on a `zdd_blend_desc`, with
+10 stack args (`dest, src, dst_x, dst_y, w, h, src_x, src_y, colorkey, gdi_ctx`).
+
+**Scout result (ckpt-13 move #1, "does the basic title render via the plain
+path?"):** answered by disassembling all four sprite wrappers + the compositor.
+`0x56c610` (plain) and `0x56c4e0` (leveled, at full brightness — ramp entry 0 per
+quirk #40) forward to the already-ported `0x5b9b70` (`zdd_object_blt_keyed`); but
+the **cursor `0x56c470` always** and the **per-frame compositor `0x56c180`
+always** funnel through `0x5bd550`.  So the static logo+menu-text can draw plain,
+but the cursor and the compositor can't — `0x5bd550` was the real next chip, not
+a shortcut to move #2.
+
+**`0x5bd550`'s simple path is the only live one.**  An exhaustive write-search of
+the image (all `mov [0x8a6ec0], *` encodings) shows `DAT_008a6ec0` — the global
+every caller passes as `gdi_ctx` — is **written only to zero**, never to a
+surface.  So the complex path (GDI `BitBlt` into a scratch surface + hardware
+`Blt` back via `0x5b9ae0`) **never executes**, and `0x5b9ae0` is reachable only
+from it → also dead.  New **engine-quirk #45**.  The simple path is just
+`zdd_object_lock(dest)` → `zdd_alpha_blit` → `zdd_object_unlock(dest)`, all
+already-ported primitives; the complex path is still ported faithfully (new
+`zdd_dc_blit` GDI seam in `zdd_win32.c`) but exercised only by a host test.
+
+**558 host tests pass, 0 fail, 6 skip** (5 new: blt_rects null-src/null-dest/
+rect-math, orchestrate simple lock→blit→unlock, orchestrate complex GDI
+round-trip incl. the 16px min clamp).  Both 32-bit cross-builds clean.  Ledger
+**125/1490 touched (+2), 122 tested**.  (Caught the recurring stray-`FUN_`
+inflation again: `FUN_0056c180`/`_0056c470` in a docstring bumped the count until
+rewritten as bare VAs.)
+
 ## 2026-06-02 — Software alpha blitter `FUN_005bd680` ported, ckpt 14
 
 Ported the 1072-byte **software alpha/colorize blitter at `0x5bd680`** — the

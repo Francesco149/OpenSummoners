@@ -1483,3 +1483,86 @@ int zdd_object_blt_keyed(zdd_object *self, zdd_object *dest,
                            self->com_primary, src_rect,
                            flags, self->parent);
 }
+
+/* ─── hardware Blt with explicit rects (FUN_005b9ae0) ───────────────── */
+
+/* FUN_005b9ae0 — like zdd_object_blt_keyed, but both rects come from
+ * caller coordinates instead of `src`'s metrics.  `src` is the
+ * __thiscall `this` (its com_primary is the Blt source); `dest` is the
+ * receiver of the Blt.  Retail issues a bare vtable[5] call returning
+ * the raw HRESULT with no DDERR log — we pass NULL log_owner to
+ * suppress logging and mirror that (the sole caller ignores the
+ * return).  Degenerate-success when `src` has no surface (retail's
+ * `return 1` at 0x5b9ae8). */
+int zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
+                         int32_t dst_x, int32_t dst_y,
+                         int32_t dst_w, int32_t dst_h,
+                         int32_t src_x, int32_t src_y,
+                         int32_t src_w, int32_t src_h)
+{
+    if (src == NULL || src->com_primary == NULL) {
+        return 1;  /* degenerate-success — retail's literal */
+    }
+    if (dest == NULL || dest->com_primary == NULL) {
+        return 0;  /* defensive — retail would crash on the vtable deref */
+    }
+
+    int32_t dest_rect[4] = {dst_x, dst_y, dst_x + dst_w, dst_y + dst_h};
+    int32_t src_rect[4]  = {src_x, src_y, src_x + src_w, src_y + src_h};
+
+    uint32_t flags = (uint32_t)src->state_flag | 0x1000000u;  /* DDBLT_WAIT */
+
+    return zdd_surface_blt(dest->com_primary, dest_rect,
+                           src->com_primary, src_rect,
+                           flags, NULL /* no DDERR log — bare vtable call */);
+}
+
+/* ─── blit orchestrator (FUN_005bd550) ─────────────────────────────── */
+
+void zdd_blit_orchestrate(const zdd_blend_desc *desc, zdd_object *dest,
+                          zdd_object *src,
+                          int32_t dst_x, int32_t dst_y,
+                          int32_t width, int32_t height,
+                          int32_t src_x, int32_t src_y,
+                          int32_t colorkey,
+                          zdd_object *gdi_ctx)
+{
+    if (gdi_ctx == NULL) {
+        /* Simple path — the only one this binary ever takes.  Lock the
+         * dest (retail ignores the return; zdd_alpha_blit reads its
+         * already-locked geometry), run the software blend (which owns
+         * the source Lock), then unlock the dest. */
+        zdd_object_lock(dest);                  /* FUN_005b9490 (dest) */
+        zdd_alpha_blit(desc, dest, src,
+                       dst_x, dst_y, width, height,
+                       src_x, src_y, colorkey); /* FUN_005bd680 */
+        zdd_object_unlock(dest);                /* FUN_005b94d0 (dest) */
+        return;
+    }
+
+    /* Complex path — UNREACHABLE (gdi_ctx is always DAT_008a6ec0, which
+     * is only ever written to zero; see engine-quirks #45).  Ported for
+     * fidelity: copy the dest region into the scratch `gdi_ctx` surface
+     * via GDI, alpha-blend `src` onto it, then Blt the scratch back. */
+    void *dest_dc = NULL, *ctx_dc = NULL;
+    zdd_object_get_dc(dest,    &dest_dc);       /* FUN_005b94e0 (dest)    */
+    zdd_object_get_dc(gdi_ctx, &ctx_dc);        /* FUN_005b94e0 (gdi_ctx) */
+
+    int32_t cy = height < 0x10 ? 0x10 : height;
+    int32_t cx = width  < 0x10 ? 0x10 : width;
+    zdd_dc_blit(ctx_dc, 0, 0, cx, cy,
+                dest_dc, dst_x, dst_y, 0xCC0020u /* SRCCOPY */);
+
+    zdd_object_release_dc(dest,    dest_dc);    /* FUN_005b9500 (dest)    */
+    zdd_object_release_dc(gdi_ctx, ctx_dc);     /* FUN_005b9500 (gdi_ctx) */
+
+    zdd_object_lock(gdi_ctx);                   /* FUN_005b9490 (gdi_ctx) */
+    zdd_alpha_blit(desc, gdi_ctx, src,
+                   0, 0, width, height,
+                   src_x, src_y, colorkey);     /* FUN_005bd680 onto scratch */
+    zdd_object_unlock(gdi_ctx);                 /* FUN_005b94d0 (gdi_ctx) */
+
+    zdd_object_blt_rects(gdi_ctx, dest,
+                         dst_x, dst_y, width, height,
+                         0, 0, width, height);  /* FUN_005b9ae0 scratch→dest */
+}

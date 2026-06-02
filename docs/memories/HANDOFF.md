@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (software alpha blitter ported, ckpt 14)
+# Session handoff — last updated 2026-06-02 (blit orchestrator ported, ckpt 15)
 
 **This is the first thing to read at the start of every session.**
 
@@ -6,31 +6,41 @@ Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
 
-## ⭐ NEW (ckpt 14): the software alpha blitter `FUN_005bd680` is ported
+## ⭐ NEW (ckpt 15): blit orchestrator `0x5bd550` ported; the alpha-blit C layer is COMPLETE
 
-Render task #7 is **done**. `0x5bd680` (1072 B, the heart of the title
-sprite-draw subsystem) is now `zdd_alpha_blit` + the pure host-testable core
-`zdd_alpha_blit_pixels` in `src/zdd.c`, driven by a new `zdd_blend_desc`
-descriptor (`src/zdd.h`). Three colorkey-skipping blend modes:
-**0** = 1-D channel remap (`lut[(src&mask)>>shift]`), **1** = 2-D src×dst blend
-(`lut[(src_lvl<<5)+dst_lvl]`, reads dest), **2** = colorize
-(`lut[(ch0+ch1+ch2)/3]`). Wrapper locks only the **source** (dest pre-locked by
-the caller); retail clipping (right→dst-stride-in-words, bottom→dst-height,
-negative origins shift src) mirrored exactly. New **engine-quirk #44** (mode-1
-`<<5` stride is hardcoded even for 6-bit green). **553 host tests pass, 0 fail,
-6 skip**; both 32-bit cross-builds clean. Ledger **123/1490 touched, 120
-tested**. Commit `cd95935`.
+Render task #8 is **done**. `0x5bd550` (`zdd_blit_orchestrate`) + its sibling
+`0x5b9ae0` (`zdd_object_blt_rects`) are ported in `src/zdd.c`. `0x5bd550` is the
+single chokepoint every title sprite draw funnels through (`0x56c180` compositor
++ the `0x56c470/_4e0/_580` wrappers all call it). **The pure blit-logic layer is
+now fully ported**: `0x5bd680` (alpha core, ckpt 14) + `0x5bd550` (orchestrator)
++ `0x5b9ae0` + the already-done `0x5b9b70`/`0x5b9410`/`0x5b8fc0`. **No more blit
+primitives to extract before the render sink.**
 
-**Next chip (the alpha subsystem continues):** port `0x5b9ae0` (140 B
-Blt-with-explicit-rects, sibling of `zdd_object_blt_keyed`; 9-arg order pinned
-by the `0x5bd550` call site — see PROGRESS ckpt 14), then the orchestrator
-`0x5bd550` (302 B: simple path = lock-dest→`0x5bd680`→unlock; complex path adds
-GDI BitBlt + the `0x5b9ae0` hardware Blt), then the title sprite wrappers
-`0x56c470/4e0/580/610` → implement `title_render_sink`. NB: `0x56c610` (plain
-sprite) is a thin forward to the **already-ported** `0x5b9b70`
-(`zdd_object_blt_keyed`), so the *basic* title (logo + menu, no glow/sparkle)
-may be renderable via the plain-blit path + reset/flip **without** finishing the
-alpha subsystem — worth checking before going deeper (could pull move #2 forward).
+**Two hard findings this ckpt:**
+1. **Scout of the title draw paths (the ckpt-13 move #1 question):** all four
+   sprite wrappers disassembled. `0x56c610` (plain) + `0x56c4e0` (leveled, at
+   full brightness = ramp entry 0, quirk #40) forward to already-ported
+   `0x5b9b70`; but **cursor `0x56c470` always** + **compositor `0x56c180`
+   always** go through `0x5bd550`. So the basic title is NOT all-plain — the
+   orchestrator was the real next chip.
+2. **The complex path of `0x5bd550` is DEAD CODE (engine-quirk #45).** Every
+   caller passes `DAT_008a6ec0` as the `gdi_ctx` arg; an exhaustive write-search
+   shows that global is **only ever written to zero**. So the simple path
+   (`lock(dest)→0x5bd680→unlock(dest)`, all ported) is the **only live path**;
+   the GDI-BitBlt + hardware-Blt complex path (and `0x5b9ae0`) never run. Ported
+   faithfully anyway (new `zdd_dc_blit` GDI seam in `zdd_win32.c`) but only
+   host-tested.
+
+**558 host tests pass, 0 fail, 6 skip** (5 new). Both 32-bit cross-builds clean.
+Ledger **125/1490 touched, 122 tested**. Commit: see git log (ckpt 15).
+
+**Next move is now #2 (drive the runner + build the render sink)** — there is no
+more pure blit-logic to port first. What remains for milestone-0 pixels is
+*wiring*: implement `title_render_sink` over the ported zdd primitives + model
+the engine state the draws read (asset pool `DAT_008a760c`, the sprite-group
+display list `0x56c180` iterates, the god object `0x8a93cc->[0x16c]` primary
+surface, the alpha ramps `0x8a9308`/`0x8a92b8`), and drive `title_scene_step`
+from `main.c`. See "Next move" below.
 
 ## (ckpt 13): TAS framework — retail ground-truth capture is live
 
@@ -207,11 +217,19 @@ the runner from the drop-in.
 
 **Render-port task list (ckpt 13):** ~~(7) port the software alpha blitter
 `0x5bd680`~~ **DONE ckpt 14** (`zdd_alpha_blit`/`_pixels`, commit `cd95935`).
-(8) blit orchestrator `0x5bd550` + sprite wrappers
-(`0x56c470/4e0/580/610`) → implement `title_render_sink`. (9) drive
-`title_scene_step` from `main.c`. (10) port-side frame capture + a
-`push_comparison.py` (port|retail amplified diff to llm-feed) to close the
-pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`.
+~~(8) blit orchestrator `0x5bd550`~~ **DONE ckpt 15** (`zdd_blit_orchestrate` +
+`zdd_object_blt_rects`; complex path proven dead, quirk #45). **(8b, what's
+left of #8) the sprite wrappers + the render sink:** `0x56c610` (plain) and
+`0x56c4e0` (leveled) are thin forwards to already-ported `0x5b9b70` /
+`0x5bd550`; what remains is `0x56c470` (cursor → `0x5bd550`), `0x56c580`
+(sparkle → `0x5b9bf0`/`0x5bd550`), the compositor `0x56c180` (loops a sprite-
+group display list → `0x5bd550` per entry), and the engine state they read
+(asset pool `DAT_008a760c` + `0x4184a0` load, frame lookup, `0x8a93cc->[0x16c]`
+primary). These are *wiring*, best built **as** the render sink (move #2), not
+as standalone host units. (9) drive `title_scene_step` from `main.c`. (10)
+port-side frame capture + a `push_comparison.py` (port|retail amplified diff to
+llm-feed) to close the pixel-parity loop against the goldens in `runs/title-idle`
+& `runs/newgame-full`.
 
 ## Next move (pick one — recommendation first)
 
@@ -228,38 +246,35 @@ pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`
 > - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
 >   now but latent until `main.c` drives the scene + rendering lands.
 
-1. **(recommended) Check whether the BASIC title renders via the
-   already-ported plain-blit path before going deeper into the alpha
-   subsystem.** With `0x5bd680` now ported (ckpt 14), the alpha path is
-   well-started, but the *minimum* to see title pixels may not need the rest of
-   it:
-   - **Already ported & wireable today:** `0x5b9410` (surface reset =
-     `zdd_object_clear`), `0x5b9b70` (color-keyed blit = `zdd_object_blt_keyed`),
-     `0x5b8fc0` (Flip = `zdd_present`), and the **plain-sprite** wrapper
-     `0x56c610` (a thin forward to `0x5b9b70`). So `TITLE_DRAW_SURFACE_
-     RESET/CLEAR/FLIP` + plain sprites can be wired with no new RE — likely
-     enough for the logo + menu text (the alpha blitter is for glow/sparkle).
-     **Scout `0x56c180`/the title's draw list first** to confirm which sprites
-     the basic title uses; if all plain, jump to move #2.
-   - **Alpha subsystem (continue if effects are needed):** ~~`0x5bd680`~~ DONE.
-     Next: `0x5b9ae0` (140 B Blt-with-rects; 9-arg order pinned by the `0x5bd550`
-     call site) → `0x5bd550` (302 B orchestrator: simple path = lock-dest →
-     `zdd_alpha_blit` → unlock; complex path adds GDI BitBlt) → the sprite
-     wrappers `0x56c470` (cursor), `0x56c4e0` (leveled), `0x56c580` (sparkle) →
-     `title_render_sink`. Plus `0x56c180` (sprite-group compositor, reads
-     `DAT_008a760c` pool + `0x4184a0` asset load), `0x418470` (asset get),
-     `0x494e10` (logo), `0x5b9bf0` (256 B).
+1. **(recommended) Build `title_render_sink` + drive the runner from `main.c`
+   (the old move #2).** The blit-primitive layer is complete (ckpt 15), so
+   there is **no more pure logic to port first** — the path to milestone-0
+   pixels is now wiring. Two intertwined pieces, do them together:
+   - **The sink:** implement `title_render_sink` (behind `title_render_sink_hook`)
+     to turn each `title_draw_cmd` into real zdd calls:
+     `TITLE_DRAW_SURFACE_RESET`→`zdd_object_clear` (`0x5b9410`),
+     `..._CLEAR`/`..._SPRITE`→`zdd_object_blt_keyed` (`0x5b9b70`),
+     `..._SPRITE_LEVEL`→ either `0x5b9b70` (ramp 0) or `zdd_blit_orchestrate`
+     (`0x5bd550`), `..._MENU_CURSOR`→`zdd_blit_orchestrate`,
+     `..._FRAME_END`→ the compositor loop (`0x56c180`: walk the sprite-group
+     display list, `zdd_blit_orchestrate` per entry), `..._FLIP`→`zdd_present`
+     (`0x5b8fc0`). The new RE this needs is the **engine state the draws read**:
+     the asset/sprite pool `DAT_008a760c` (+ lazy load `0x4184a0`/`0x418470`),
+     the frame-lookup math in `0x56c180`, the god object `0x8a93cc->[0x16c]`
+     (primary surface), the two alpha ramps `0x8a9308`/`0x8a92b8` (quirk #40/#45),
+     and the logo path `0x494e10`. Model these as they're touched.
+   - **The drive:** replace the drop-in's minimal `main_loop_body` with a
+     `title_scene_run` that allocates the scene object (owner sel_list + input
+     mgr), calls `title_scene_init`, then loops `title_scene_step(now=
+     GetTickCount(), &hooks)` until `TITLE_SCENE_DONE`, hooks wired to the real
+     pump / pre/post / per-entry calls + the real sink above. Then capture
+     **port** frames the same way the harness captures retail, and diff against
+     the goldens in `runs/title-idle` / `runs/newgame-full`. This is the step
+     from "tested unit" to "the title scene runs in the real window".
+   - NB this likely wants **live verification** (Frida self-serviceable,
+     [[reference_frida]]) once pixels appear, not just host tests.
 
-2. **Drive the runner from `main.c`.** Replace the drop-in's minimal
-   `main_loop_body` with a `title_scene_run` that allocates the scene object
-   (owner sel_list + input mgr), calls `title_scene_init`, then loops
-   `title_scene_step(now=GetTickCount(), &hooks)` until `TITLE_SCENE_DONE`,
-   with the hooks wired to the real pump / pre/post / per-entry calls and a
-   real `title_render_sink`. Needs at least the Flip bridge (move 1) to be
-   visible. This is the step from "tested unit" to "the title scene runs in
-   the real window".
-
-3. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
+2. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
    exercised. `mem_watch.py --region <+0x108 addr>:64:input_ring` (no-turbo!)
    to catch the DInput `GetDeviceState` writer (vtable `[0x24]`) that fills the
    ring + the `axis_held` arrays (quirk #41) — the last input black box. Needs
@@ -274,16 +289,19 @@ pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`
 - **`FUN_0056aea0`** title scene runner — **fully ported + wired + update
   half complete.** Remaining: implement the draw bridges behind the render
   sink, and drive it from `main.c`.
-- **Render-half draw bridges** (stubbed behind `title_render_sink_hook`):
-  `0x5b9410` (surface reset), `0x5b9b70` (color-key blit/clear), `0x5b8fc0`
-  (Flip) are **already ported in `zdd.c`** (wire-up only); `0x56c610` (plain
-  sprite) is a thin forward to `0x5b9b70`. **`0x5bd680` (software alpha blitter)
-  is now ported too (ckpt 14 = `zdd_alpha_blit`).** The rest are the sprite/asset
-  blit subsystem (multi-checkpoint): `0x56c4e0` (leveled), `0x56c580` (sparkle),
-  `0x56c470` (cursor) → `0x5bd550` (orchestrator) → ~~`0x5bd680`~~ done
-  + `0x5b9ae0` + `0x5b9bf0`; `0x56c180` (sprite-group compose, reads
-  `DAT_008a760c` pool); `0x418470` (asset get); `0x494e10` (logo). See ckpt-12
-  scouting in "Next move" #1.
+- **Render-half draw bridges** (stubbed behind `title_render_sink_hook`).
+  **The whole blit-primitive layer is now ported** in `zdd.c`: `0x5b9410`
+  (surface reset = `zdd_object_clear`), `0x5b9b70` (color-key blit/clear =
+  `zdd_object_blt_keyed`), `0x5b8fc0` (Flip = `zdd_present`), `0x5bd680`
+  (alpha core, ckpt 14), `0x5bd550` (orchestrator = `zdd_blit_orchestrate`,
+  ckpt 15), `0x5b9ae0` (`zdd_object_blt_rects`, ckpt 15, dead-path only).
+  **Still unported = the WRAPPERS + their engine state** (build these as the
+  render sink, move #2): `0x56c610` (plain) / `0x56c4e0` (leveled) are thin
+  forwards to ported primitives; `0x56c470` (cursor) / `0x56c580` (sparkle,
+  also `0x5b9bf0` 256 B) / the compositor `0x56c180` (walks a sprite-group
+  display list → `zdd_blit_orchestrate` per entry) need the asset/sprite pool
+  `DAT_008a760c` (+ `0x4184a0`/`0x418470` load), the frame-lookup math, and the
+  logo `0x494e10`.
 - **Outer-loop side effects** (stubbed behind `title_scene_hooks`):
   `0x5b1030` (pump), `0x43e140`/`0x40fe00`/`0x566250` (pre-update),
   `0x56c930` (post-update), `0x43c2e0` (per-owner-entry). Port when their
