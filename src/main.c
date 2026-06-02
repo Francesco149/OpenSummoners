@@ -783,21 +783,55 @@ static void main_loop_body(void)
     }
 
     if (g_drive_active) {
-        uint32_t now = GetTickCount();
-        /* Inject any due replay events into the drive's input ring before the
-         * scene polls it this iteration (keyed on the present/Flip count). */
-        if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame, &g_drive.input, now);
-        /* Drive one iteration of the title scene (one body of FUN_0056aea0's
-         * outer do/while).  The scene's pacer decides update vs render; a
-         * render iteration presents through the sink's TITLE_DRAW_FLIP →
-         * drive_present.  On scene completion, log the menu-action result and
-         * stop — the outer driver's action dispatch (FUN_00562ea0) lands when
-         * the next scenes are ported. */
-        title_scene_status st = title_drive_step(&g_drive, now);
-        if (st == TITLE_SCENE_DONE) {
-            log_line("title scene returned result=%ld", (long)g_drive.result);
-            g_shutdown = 1;
+        /* Mirror retail's tight outer loop (FUN_0056aea0's do/while): spin the
+         * pace machine — its update steps are ~free, no per-step sleep — until
+         * it PRESENTS one frame, then fall through to frame_limiter, which
+         * gates the presented-frame rate.  This is the R3 fix: the fixed-
+         * timestep accumulator (title_pace_step) is designed to be called in a
+         * tight loop with only the present blocking on wall-clock.  Driving it
+         * one pace-step per 16 ms-throttled iteration instead made `now` run
+         * away (the budget refill `b += now - anchor` grew unbounded), so the
+         * port did ~6 updates per render and DROPPED ~5/6 of the intro's fade
+         * frames (rendered 90 of ~528 update ticks).  Spinning to one present
+         * per frame_limiter tick restores ~1 update per render, so every fade
+         * value is rendered — matching retail's distinct-content sequence
+         * (retail renders the same values, just ~2× duplicated by its higher
+         * display refresh).  See docs/findings/title-scene.md "Intro pacing". */
+        unsigned guard = 0;
+        for (;;) {
+            uint32_t now = GetTickCount();
+            /* Inject any due replay events into the drive's input ring before
+             * the scene polls it (keyed on the present/Flip count, stable
+             * across the spin; input_trace_replay's cursor never re-injects). */
+            if (g_input_trace_active)
+                input_trace_replay(&g_input_trace, g_present_frame,
+                                   &g_drive.input, now);
+            unsigned pf_before = g_present_frame;
+            title_scene_status st = title_drive_step(&g_drive, now);
+            /* R3 intro-pace instrumentation: log each phase transition with the
+             * Flip count + wall-clock elapsed.  Port-side counterpart of the
+             * Frida --pace-probe (retail: ~9.2 s / ~1172 flips to the menu). */
+            {
+                static int s_last_phase = -1;
+                int ph = (int)g_drive.scene.fade.phase;
+                if (ph != s_last_phase) {
+                    log_line("pace: phase %d -> %d @ flip=%u t=%ums",
+                             s_last_phase, ph, g_present_frame,
+                             (unsigned)(timeGetTime() - g_base_time_ms));
+                    s_last_phase = ph;
+                }
+            }
+            if (st == TITLE_SCENE_DONE) {
+                log_line("title scene returned result=%ld", (long)g_drive.result);
+                g_shutdown = 1;
+                break;
+            }
+            /* drive_present bumps g_present_frame on a render step (the sink's
+             * TITLE_DRAW_FLIP).  A change ⇒ this iteration presented a frame. */
+            if (g_present_frame != pf_before)
+                break;
+            if (++guard > 10000)   /* safety: never spin unbounded on a stall */
+                break;
         }
     } else if (!g_skip_ddraw && !g_no_present && g_zdd != NULL) {
         /* Legacy minimal present (--no-title-scene / failed drive init).  The

@@ -1273,3 +1273,39 @@ directory** (`GetModuleFileName`), *not* the cwd — so the unpacked exe must si
 > 📍 `tools/frida_capture.py` `RETAIL_EXE`/`ASSET_CWD`; the working golden run
 > `runs/calltrace-title/run.json` used `sotes-unpacked-880680.exe` in the game
 > dir — same principle.
+
+## 54. The title pace machine is a fixed-timestep accumulator that must be spun in a tight loop — one render *per present*, not one pace-step per throttled frame
+
+`FUN_0056aea0`'s outer `do/while` (ported as `title_pace_step`) is a classic
+fixed-timestep accumulator: each iteration either does one *update* (advance the
+phase FSM, ~free) or one *render* (present + refill the budget with elapsed
+wall-clock, `b += now − anchor`, clamp 100 ms).  Retail spins this loop **as
+fast as the CPU allows**, blocking only on the present (Flip → display vblank).
+So updates run at the budget-gated ~60 Hz and renders run at the display refresh
+(measured **~127 flips/s**), giving **~2.2 duplicate flips per scene state**
+(`--cursor-probe`: each `menu_fade` value spans ~2 consecutive flips).
+
+The port (`src/main.c`) originally called the pace machine **once per
+`frame_limiter`-throttled (16 ms) main-loop iteration**.  That violates the
+accumulator's contract: it stretches the ~free update spin to 16 ms each, so
+`now` advances 16 ms *per update*, the refill `b += now − anchor` compounds, and
+the loop settles at **~6 updates per render** — the port rendered only **90 of
+the intro's ~528 update ticks** (dropping ~5/6 of the fade frames; choppy).
+Critically this is *not* a wall-clock rush: the port reached the menu at ~9.9 s
+vs retail's ~9.2 s — the divergence was purely in *which* frames got rendered
+(and the Flip index).
+
+**Fix:** drive it like retail — spin `title_drive_step` (no per-step sleep,
+detect a present via `g_present_frame` change) until one frame is presented,
+*then* `frame_limiter` gates the presented-frame rate.  → 1 update per render,
+every scene state rendered, phase curve = canonical 51/102/153/254/275/316/437/
+528, wall-clock unchanged (~9.2 s).  Flip-index-exact parity with a golden is the
+capture rig's refresh (~127 Hz) and is **not portably reproducible**; the
+distinct-content sequence is, and now matches.
+
+> 📍 `main_loop_body` in `src/main.c` (the spin-until-present loop);
+> measurement: `--pace-probe` in `tools/frida/opensummoners-agent.js` +
+> `tools/frida_capture.py`, and the `pace:` phase log in `src/main.c`.
+> General lesson: a fixed-timestep accumulator ported into a *host* loop must
+> keep the engine's call cadence (tight spin, present-gated), not be re-paced by
+> the host's own frame limiter — the two throttles compound.

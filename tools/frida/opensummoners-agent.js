@@ -285,6 +285,21 @@ const CURSOR_DRAW_VA      = 0x56c470;
 let   g_cursor_probe      = false;
 let   g_cursor_probe_hooked = false;
 
+// ─── intro-pace probe (parity residual R3) ──────────────────────────────
+// Timestamps Flips so the flip-RATE can be measured: it discriminates
+// "retail rushes vs port" between two hypotheses for the flip-index gap —
+//   (A) render artifact: retail reaches the menu in ~the same WALL-CLOCK
+//       time as the port (~60 Hz phase updates) but emits many *duplicate*
+//       flips per update (high render throughput), OR
+//   (B) extra per-phase delays: retail genuinely takes ~Nx longer.
+// (A) ⇒ high flips/sec; (B) ⇒ ~60 flips/sec.  We emit a `pace_sample`
+// every g_pace_every flips with the elapsed wall-clock since the first
+// flip; combined with the cursor probe's menu-onset flip this is the whole
+// test.  Use with --no-turbo (real clock).
+let   g_pace_probe        = false;
+let   g_pace_every        = 30;
+let   g_pace_t0           = 0;     // Date.now() at the first flip
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -1357,6 +1372,15 @@ function installFlipFrameHook() {
                 try { captureFrame(g_flip_frame); }
                 catch (e) { err('flip.captureFrame', e.message); }
             }
+            if (g_pace_probe) {
+                if (g_pace_t0 === 0) {
+                    g_pace_t0 = Date.now();
+                    send({kind: 'pace_sample', frame: g_flip_frame, ms: 0});
+                } else if (g_flip_frame % g_pace_every === 0) {
+                    send({kind: 'pace_sample', frame: g_flip_frame,
+                          ms: Date.now() - g_pace_t0});
+                }
+            }
             g_flip_frame++;
         },
     });
@@ -1442,6 +1466,7 @@ function installCursorProbe() {
                 first = false;
                 send({kind: 'cursor_probe_first', frame: g_flip_frame,
                       ecx: ecx, slots: slots,
+                      ms: (g_pace_t0 ? Date.now() - g_pace_t0 : null),
                       ret_va: traceRetVa(this.returnAddress)});
             }
             // Identify level_div by its known constant 0x4b0; level_num is the
@@ -1626,6 +1651,9 @@ rpc.exports = {
         g_turbo_enabled       = !!opts.turbo;
         g_silent_audio_enabled = !!opts.silent_audio;
         g_cursor_probe         = !!opts.cursor_probe;
+        g_pace_probe           = !!opts.pace_probe;
+        if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
+            g_pace_every = opts.pace_every | 0;
         if (typeof opts.turbo_step_ms === 'number') g_turbo_step_ms = opts.turbo_step_ms;
         // msgbox redirect default ON — pass {msgbox_redirect:false} to
         // see real popups (debugging the harness itself).
@@ -1684,7 +1712,7 @@ rpc.exports = {
             // Structural-parity harness: frame anchor + call-trace + mem-watch
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
-                g_inject_enabled || g_cursor_probe) {
+                g_inject_enabled || g_cursor_probe || g_pace_probe) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {

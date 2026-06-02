@@ -267,6 +267,13 @@ class CaptureConfig:
     # cursor with.  Prints distinct values + writes <run_dir>/cursor_level.jsonl.
     cursor_probe:      bool = False
 
+    # ── intro-pace probe (parity residual R3) ──
+    # Timestamp Flips (writes <run_dir>/pace.jsonl) to measure the flip RATE
+    # and the wall-clock to menu onset.  Use with --no-turbo.  pace_every =
+    # emit one sample per N flips.
+    pace_probe:        bool = False
+    pace_every:        int  = 30
+
 
 def _resolve_run_dir(base: Path | None) -> Path:
     if base is None:
@@ -304,6 +311,7 @@ def run_capture(cfg: CaptureConfig) -> int:
     call_trace_f = (run_dir / "call_trace.jsonl").open("w") if cfg.call_trace else None
     mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
     cursor_f     = (run_dir / "cursor_level.jsonl").open("w") if cfg.cursor_probe else None
+    pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
     cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
     frames_dir   = (run_dir / "frames") if cfg.capture else None
     if frames_dir is not None:
@@ -478,10 +486,22 @@ def run_capture(cfg: CaptureConfig) -> int:
             if frame > summary["last_frame"]:
                 summary["last_frame"] = frame
         elif kind == "cursor_probe_first":
+            ms = payload.get("ms")
+            ms_s = f" t={ms}ms" if ms is not None else ""
             print(f"[frida_capture] cursor_probe first hit @ frame "
-                  f"{payload.get('frame')}: ecx=0x{int(payload.get('ecx',0)):08x} "
+                  f"{payload.get('frame')}{ms_s} (= MENU ONSET): "
+                  f"ecx=0x{int(payload.get('ecx',0)):08x} "
                   f"ret_va=0x{int(payload.get('ret_va',0)):06x} "
                   f"slots={payload.get('slots')}", file=sys.stderr)
+        elif kind == "pace_sample":
+            frame = int(payload.get("frame", -1))
+            ms    = int(payload.get("ms", 0))
+            if pace_f is not None:
+                pace_f.write(json.dumps({"frame": frame, "ms": ms}) + "\n")
+                pace_f.flush()
+            rate = (frame / (ms / 1000.0)) if ms > 0 else 0.0
+            print(f"[frida_capture] pace: flip {frame} @ {ms}ms "
+                  f"({rate:.1f} flips/s avg)", file=sys.stderr)
         elif kind == "cursor_level":
             frame = int(payload.get("frame", -1))
             num   = payload.get("num")
@@ -521,6 +541,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         "input_trace":        cfg.input_trace or [],
         "inject_debug":       cfg.inject_debug,
         "cursor_probe":       cfg.cursor_probe,
+        "pace_probe":         cfg.pace_probe,
+        "pace_every":         cfg.pace_every,
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_regions":  [
@@ -586,6 +608,8 @@ def run_capture(cfg: CaptureConfig) -> int:
                                         key=lambda kv: -kv[1]))
                 print(f"[frida_capture] cursor_level distinct: {dist}",
                       file=sys.stderr)
+        if pace_f is not None:
+            pace_f.close()
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -661,6 +685,12 @@ def main() -> int:
                    help="hook FUN_0056c470 and log the per-frame menu-cursor "
                         "level_num to <run_dir>/cursor_level.jsonl "
                         "(parity-ledger R1). Use --no-turbo.")
+    p.add_argument("--pace-probe", action="store_true",
+                   help="timestamp Flips to <run_dir>/pace.jsonl to measure the "
+                        "flip RATE + wall-clock to menu onset (parity residual "
+                        "R3). Use --no-turbo. Implies a flip-frame anchor.")
+    p.add_argument("--pace-every", type=int, default=30,
+                   help="emit one pace sample per N flips (default 30).")
     args = p.parse_args()
 
     call_trace_vas = None
@@ -720,6 +750,8 @@ def main() -> int:
         input_trace       = input_trace,
         inject_debug      = args.inject_debug,
         cursor_probe      = args.cursor_probe,
+        pace_probe        = args.pace_probe,
+        pace_every        = args.pace_every,
     )
     return run_capture(cfg)
 

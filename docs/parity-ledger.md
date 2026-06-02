@@ -21,9 +21,12 @@ after changes that touch the relevant render path.
 - Retail goldens: `runs/title-idle/frames/frame_*.png` etc. (also Flip-indexed,
   captured by the Frida harness — see `docs/parity-harness.md`).
 - Diff + push: `tools/push_comparison.py --port P.png --retail R.png …`.
-- NB the port and retail **phase timelines differ** (the port rushes the intro;
-  see HANDOFF "intro pacing"), so a port Flip N is compared against the retail
-  Flip that shows the *same scene state*, not the same index. Record both.
+- NB the port and retail **Flip indices differ by a constant render-rate
+  factor** (~2.2×), NOT a timeline rush — see R3 below (ckpt 29): the port's
+  *wall-clock* pacing matches retail (~9.2 s to the menu), but retail renders
+  ~127 flips/s (each scene state duplicated ~2.2×) while the port renders one
+  flip per scene state. So compare a port Flip against the retail Flip showing
+  the *same scene state* (phase/fade/menu_fade), not the same index. Record both.
 
 > **The bar is `differ_px == 0`.** A frame is only "confirmed 1:1" when the
 > amplified diff is empty. Any residual — however small — is an OPEN item below
@@ -55,22 +58,55 @@ after changes that touch the relevant render path.
 >    captured WITH `--cursor-probe` (so each golden's `local_58` is known), and
 >    diffed at equal pulse phase → `differ_px=0`.
 >
-> The port Flip index ≠ retail Flip index (the port still rushes the intro —
-> that is R3 below, the *separate* pacing problem). But at equal pulse phase the
-> frames are pixel-identical, which proves the render path is 100% correct.
+> The port Flip index ≠ retail Flip index (a render-rate factor, R3 below — NOT
+> a timeline rush). But at equal pulse phase the frames are pixel-identical,
+> which proves the render path is 100% correct.
 
 ## Open residuals — under investigation (NOT yet 1:1)
 
 _(R1 moved to Confirmed bit-exact above.)_
+
+### R3 — intro pacing: RESOLVED as a render-rate artifact + frame-drop bug (ckpt 29)
+
+The "port rushes the intro" framing was **wrong**. Measured both sides
+(`frida_capture.py --pace-probe`/`--cursor-probe` on retail; `pace:` phase log
+in `src/main.c` on the port, both with the real clock):
+
+| | menu (phase 8) onset | wall-clock to menu | render rate |
+|---|---|---|---|
+| **Retail** | Flip 1172 (first cursor draw, fade saturated) | **9.23 s** | ~127 flips/s |
+| **Port (pre-fix)** | Flip 90 | 9.87 s | ~9 flips/s |
+| **Port (ckpt 29 fix)** | Flip ~528 (phase-8 entry) / ~578 (cursor) | **~9.2 s** | ~60 flips/s |
+
+So the **wall-clock pacing already matched** (~9.2 s both). What differed:
+retail renders at its display refresh (~127 Hz here) and **duplicates each
+scene state ~2.2×** (cursor probe: each `menu_fade` value spans ~2 consecutive
+flips); the port's pace machine (`title_pace_step`) was being driven **one
+pace-step per 16 ms-throttled main-loop iteration**, which made the fixed-
+timestep accumulator's budget refill (`b += now − anchor`) run away to ~6
+updates per render — so the port **DROPPED ~5/6 of the intro's fade frames**
+(rendered 90 of ~528 update ticks) and the fades were choppy.
+
+**Fix (ckpt 29, `src/main.c`):** drive the pace machine like retail's tight
+outer loop — spin pace-steps (updates are ~free) until one *present*, then
+`frame_limiter` gates the presented-frame rate. Result: **1 update per render,
+every fade value rendered** (phase curve now the canonical 51/102/153/254/275/
+316/437/528, MISSED=0 menu_fade values), wall-clock matches retail.
+
+**Flip-index-exact** matching to a specific golden is the capture rig's refresh
+(~127 Hz) and is **not portably reproducible**; the meaningful, achievable
+target is the *distinct-content sequence* (every scene state rendered in order),
+which now matches. R1 re-verified post-fix at `menu_fade=750`: **differ_px=0**.
 
 ## Other rendered-but-not-1:1 gaps (arms not yet wired)
 
 - **Selection sparkle** (arcs beside the cursor) — `SPARKLE` sink arm. The alpha
   ramps are now populated (ckpt 27), so this is wirable; it carries an explicit
   blend-descriptor pointer per command (see `title_sink.h`).
-- **Lizsoft studio splash** + **intro fade pacing** — `LOGO` arm + the stubbed
-  pace pump `0x5b1030`. The port doesn't render the studio splash and rushes the
-  intro; frame-for-frame intro parity (and likely R1's phase alignment) needs
-  the pacing ported.
+- **Lizsoft studio splash** — `LOGO` arm (still a deferred no-op). The two intro
+  logos are container fields (+4/+8 of `*(*(*0x8a7658))`), not pool assets
+  (engine-quirks #40); the shared alpha blit is `0x494e10`. With LOGO+SPARKLE
+  unwired the intro phases 0–7 still render little, so intro *content* parity is
+  gated on wiring them — but the *pacing* (R3) is now correct.
 
 When a residual reaches `differ_px == 0`, move it to "Confirmed bit-exact".

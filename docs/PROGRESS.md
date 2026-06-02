@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 29) — R3 intro pacing: diagnosed + fixed (render-rate artifact, not a rush)
+
+**Reframed and resolved R3.** The "port rushes the intro" hypothesis was wrong.
+Measured both sides with the real clock — new `frida_capture.py --pace-probe`
+(timestamps Flips; generalises `--cursor-probe`) on retail, and a new `pace:`
+phase-transition log in `src/main.c` on the port:
+
+- **Retail:** menu (cursor) onset at Flip **1172 @ 9.23 s**, render rate
+  **~127 flips/s**, each `menu_fade` value spanning ~2 consecutive flips (pure
+  duplicate frames — display refresh > update rate).
+- **Port (pre-fix):** menu at Flip 90 @ 9.87 s, ~9 flips/s. **Same wall-clock,
+  1/13 the flips.**
+
+So the wall-clock pacing already matched (~9.2 s to menu); the gap was that the
+fixed-timestep accumulator (`title_pace_step`) was being driven **one pace-step
+per 16 ms-throttled main-loop iteration**, making `now` advance per *update* and
+the budget refill run away to ~6 updates/render — the port **dropped ~5/6 of the
+intro's fade frames** (rendered 90 of ~528 update ticks; choppy fades).
+
+**Fix (`src/main.c` `main_loop_body`):** drive the pace machine like retail's
+tight outer loop — spin pace-steps (updates ~free, detect a present via
+`g_present_frame`) until one frame is presented, then `frame_limiter` gates the
+presented-frame rate. Validated first in a Python replica of the two FSMs
+(`/tmp/pace_sim.py`): ratio → **1.00**, **MISSED=0** menu_fade values. Live: the
+phase curve is now the canonical 51/102/153/254/275/316/437/**528**, every fade
+value renders, wall-clock unchanged. R1 re-verified post-fix at `menu_fade=750`
+(port Flip 594 vs golden 1300) → **differ_px=0** (rendering path untouched).
+
+Flip-index-exact parity with a golden is the capture rig's refresh (~127 Hz) and
+is **not portably reproducible**; the distinct-content sequence is, and now
+matches. New quirk **#54** (accumulator must keep the engine's call cadence, not
+be re-paced by the host frame limiter). Ledger 138/1490 unchanged (driving fix +
+instrumentation, no new FUN). 648 host tests pass. **Open:** `LOGO`/`SPARKLE`
+arms still unwired, so intro phase 0–7 *content* parity is still gated on those.
+**User-reported (next):** hidden game window flickers/bleeds through screen.
+
 ## 2026-06-02 (ckpt 28) — R1 CLOSED: title menu bit-exact, cursor pulse RE'd
 
 The title menu now matches retail **`differ_px == 0`** (parity-ledger #1) —
