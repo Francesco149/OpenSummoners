@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Compositor `FUN_0056c180` ported into a new render-bridge module, ckpt 17
+
+Ported the per-frame sprite-display-list **compositor `FUN_0056c180`** as
+**`title_compositor_draw`** in a NEW module **`src/title_render.{c,h}`** — the
+first to bridge both `asset_register.h` (the sprite pool + frame getter) and
+`zdd.h` (the blit primitive + surfaces), exactly the home the next render
+chips (the wrappers + the sink) need.
+
+The valuable per-entry logic is factored into a pure helper
+**`title_compositor_resolve`**: the animation frame-index math
+(`p = min((anim_num*frame_count)/anim_div, frame_count-1)`,
+`frame = (uint16_t)(frame_base - p + frame_count - 1)`), the asset-pool +
+frame-surface lookup (`ar_pool_get_slot` → `ar_sprite_slot_frame`), the
+blend-ramp index clamp (`(alpha_level*20)/1000`, clamped to [0,19] — retail's
+`[0x8a9304]` default literally `== &ramp[19]`), and the centi-pixel geometry
+(`metric_0c + x_num/100`).  All of retail's magic-reciprocal divides
+(0x51eb851f → ÷100, 0x10624dd3 → ÷1000, the signed idiv ÷anim_div) are plain
+C int division; disasm-verified at 0x56c19b..0x56c28d.
+
+The display-list entry (0x1c B) + group header are modeled as
+`title_sprite_entry` / `title_sprite_group` with `_Static_assert`-pinned
+offsets.  The 20-entry blend-descriptor ramp `0x8a92b8` is passed in as a
+parameter (NULL ⇒ all blits no-op), mirroring the existing `title_fade_ramp`
+decoupling — in retail it IS pixel_drawer's `g_pd_boot_group_a` viewed as a
+pointer table.  Headless-safety skips: `anim_div == 0` (retail faults) and a
+NULL resolved sprite (retail derefs NULL) both drop the entry.
+
+**10 new host tests** (resolve: basic geometry/frame/ramp, min-clamp, u16
+frame mask, ramp lo/hi/mid clamp, div-0 invalid, NULL sprite/entry, NULL ramp;
+draw: iterate+skip-invalid+arg-forward via a capture hook, NULL/empty group
+no-op).  **572 host tests pass, 0 fail, 6 skip.**  Both 32-bit cross-builds
+clean.  Ledger **127/1490 touched (7.9%), 124 tested** (+1 = the compositor).
+
+Decode + the ckpt-16 getter: `docs/findings/sprite-pipeline.md` (compositor
+section now marked PORTED).
+
+---
+
 ## 2026-06-02 — Sprite frame getter `FUN_00418470` ported; the render sink's asset/sprite pipeline mapped, ckpt 16
 
 Scouted move #1 ("build the render sink + drive the runner") and found it is

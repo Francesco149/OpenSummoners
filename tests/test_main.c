@@ -593,6 +593,16 @@ struct test_case {
     X(call_trace_stub_marker)                                  \
     X(call_trace_disabled_when_no_path)                        \
     X(call_trace_multiple_rows_one_frame)                      \
+    X(title_render_resolve_basic)                              \
+    X(title_render_resolve_frame_index_min_clamp)              \
+    X(title_render_resolve_frame_index_masks_to_u16)           \
+    X(title_render_resolve_ramp_clamp_low_high_mid)            \
+    X(title_render_resolve_div_zero_is_invalid)                \
+    X(title_render_resolve_null_sprite_is_invalid)             \
+    X(title_render_resolve_null_entry_is_invalid)              \
+    X(title_render_resolve_null_ramp_yields_null_desc)         \
+    X(title_render_draw_iterates_and_skips_invalid)            \
+    X(title_render_draw_null_and_empty_group_noop)             \
 
 #define X(n) extern int test_##n(void);
 TESTS

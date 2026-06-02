@@ -90,7 +90,22 @@ header is `{ entries@+0x00; count(u16)@+0x06 }`). Positions are stored in
 | 0x14 | u16  | frame_count | number of frames in the animation            |
 | 0x18 | i32  | alpha_level | 0..1000 fade level → blend-descriptor ramp   |
 
-## The compositor — `FUN_0056c180` (NEXT CHIP, fully decoded here)
+## The compositor — `FUN_0056c180` (PORTED, ckpt 17)
+
+Ported as **`title_compositor_draw`** (+ the pure per-entry helper
+**`title_compositor_resolve`**) in the NEW render-bridge module
+**`src/title_render.{c,h}`** — the first module to include both
+`asset_register.h` (pool/getter) and `zdd.h` (blit + surfaces).  The
+display-list entry (0x1c B) + group header are modeled as
+`title_sprite_entry` / `title_sprite_group` (offsets `_Static_assert`-pinned).
+The ramp `0x8a92b8` is passed in as a 20-entry `const zdd_blend_desc *const *`
+(NULL ⇒ all blits no-op), matching the `title_fade_ramp` decoupling pattern;
+in retail this IS pixel_drawer's `g_pd_boot_group_a` viewed as a pointer
+table.  The per-entry blit forwards to `zdd_blit_orchestrate` directly
+(or `title_compositor_blit_hook` when a test installs one).  Decode below
+is the original recovery.
+
+
 
 Call site (render frame-end 0x56bec4): `ecx = &scene[esp+0x38]` (the scene-
 local sprite group), `edx = DAT_008a93cc->[0x16c]` (the primary surface =
@@ -147,9 +162,9 @@ small render-bridge module that can include both `asset_register.h`
 
 ## What's left (next chips, in dependency order)
 
-1. **The compositor `0x56c180`** — fully decoded above. Needs a home that
-   bridges `ar_sprite_slot` + `zdd_object`/`zdd_blit_orchestrate` (a new
-   render-bridge module; the wrappers live there too).
+1. ~~**The compositor `0x56c180`**~~ **DONE ckpt 17** (`title_compositor_draw`
+   in `src/title_render.{c,h}`).  The render-bridge module now exists — the
+   wrappers `0x56c610/_4e0/_470/_580` are its next residents.
 2. **The sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`** — the
    `ar_sprite_decode_hook` target. Reads the "DATA" PE resource (via the
    resource-stream readers `0x5b7800` + the trivial field getters

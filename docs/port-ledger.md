@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **126** (7.8% of engine-proper) — tested 123, ported 3
-- code bytes touched: **9.8%** (165,961 / 1,694,868 B of engine-proper)
-- unported: **1632**
+- touched: **127** (7.9% of engine-proper) — tested 124, ported 3
+- code bytes touched: **9.8%** (166,258 / 1,694,868 B of engine-proper)
+- unported: **1631**
 - orphan refs in src/ not in this table: 0
 
-## tested (123) — ported + host unit suite
+## tested (124) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -34,7 +34,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h |
+| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, title_render.c |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h |
@@ -47,6 +47,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+3) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
 | 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, obj_container.h (+3) |
+| 0x56c180 | FUN_0056c180 | 297 | title_render.c, title_render.h |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |
