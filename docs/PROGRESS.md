@@ -6,6 +6,51 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 22) — the title scene is driven from `main.c`: the loop runs live
+
+Wired the milestone-0 capstone: the ported title runner (`FUN_0056aea0` =
+`title_scene_step`) is now **driven by the drop-in's `main.c`**, with the render
+sink bound to the live primary surface. The scene that was a tested-in-isolation
+unit is now the drop-in's actual per-frame loop.
+
+**`src/title_drive.{c,h}` (ckpt 22a, commit `c90f834`)** — the *caller* side of
+`FUN_0056aea0`, the plumbing its retail caller `FUN_00562ea0` owns, factored
+Win32-free so it host-tests. `title_drive_init` allocates the scene's object
+graph (a `sel_list` menu-tree owner + its 0x1b0 `menu_node` at `entry[0]` — the
+slot the lazy phase-8 `title_menu_spawn` configures — and the `input_mgr` with a
+**fully-populated idle ring**, since the poll/scan paths deref `ring[i]` with no
+NULL guard), binds the render sink (`title_sink_ctx` → `title_render_sink_hook`),
+and zeroes the FSM via `title_scene_init`. `title_drive_step` runs one
+`title_scene_step` and latches the result on `TITLE_SCENE_DONE` (idempotent
+after). `title_drive_shutdown` unbinds + frees the graph (mirrors the test
+harness's `free_spawn`). **6 host tests, 617 pass / 0 fail / 6 skip** (+6):
+init-allocates-and-binds, FLIP→present on a render frame, NULL-primary headless
+no-op, abort-poll→DONE + idempotency, menu spawn + clean teardown (LSan),
+shutdown safety on never-spawned / uninitialised drives.
+
+**`main.c` wiring (ckpt 22b, commit `d9c75d9`)** — after DDraw init in mode 2,
+`init_title_drive` binds the sink to `g_zdd->primary_obj` with `drive_present`
+(→ `zdd_present`) and `drive_log_flip` thunks, installs `ar_sprite_decode_hook`
+= `ar_sprite_decode` (banks self-decode once registered), and allocates the
+drive. `main_loop_body` runs one `title_scene_step` per iteration; a render
+iteration presents through the sink's `TITLE_DRAW_FLIP`; scene completion logs
+the menu-action result and stops (the outer action dispatch lands when later
+scenes are ported). `--no-title-scene` falls back to the legacy minimal present
+loop. Both 32-bit cross-builds clean.
+
+**The 8d per-cell surface builder (`0x5b9280`, `ar_frame_build_hook`) is still
+NULL**, so every sprite resolves to NULL ⇒ the scene renders a **cleared +
+flipped window with no sprites** — HANDOFF "move B", the prove-the-loop-live
+state. Alpha ramps (`0x8a92b8`/`0x8a9308`) + the compositor display group are
+unfilled/unmodeled at a cold boot, so they pass through as NULL (plain blits /
+no compose — faithful). **Wants live verification next session** (Frida
+self-serviceable): confirm zero DDERR + a flipping window, then wire 8d for real
+sprites. Cadence note: `main.c`'s 16 ms `frame_limiter` throttles one step per
+iteration (so ~1 render per ~2 steps); the scene's pacer adapts. Tune against
+the live window next session if the visible rate is off. Ledger unchanged at
+**130/1490 (8.1%), 127 tested** (the drive composes already-counted functions;
+ref-bumps only).
+
 ## 2026-06-02 — Sprite-sheet decoder `FUN_004184a0` + slicer `FUN_004188b0`: the genuine pixel source is ported, ckpt 20
 
 Ported the sprite-sheet decoder chip — the `ar_sprite_decode_hook` target that

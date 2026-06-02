@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (title render sink ported, ckpt 21)
+# Session handoff — last updated 2026-06-02 (title scene driven from main.c, ckpt 22)
 
 **This is the first thing to read at the start of every session.**
 
@@ -6,58 +6,57 @@ Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
 
-## ⭐ NEW (ckpt 21): the title render sink is ported — the cmd stream now drives real ZDD blits
+## ⭐ NEW (ckpt 22): the title scene is driven from `main.c` — the loop runs live (un-verified)
 
-`src/title_sink.{c,h}` (the `ar_pool`/`zdd` bridge) turns
-`title_render_step`'s abstract `TITLE_DRAW_*` command stream (the render half
-of `FUN_0056aea0`, emitted through `title_render_sink_hook`) into the retail
-render half's actual ZDD calls, against a **bound** primary surface. Install
-with `title_sink_bind(&ctx); title_render_sink_hook = title_render_sink;`.
-This is the **sink** half of Next move #1 — **the drive half (wire it from
-`main.c`) is the next chip, ckpt 22.**
+`src/title_drive.{c,h}` is the **caller side of `FUN_0056aea0`** (the plumbing
+its retail caller `FUN_00562ea0` owns), and `main.c` now uses it as its actual
+per-frame loop. So the milestone-0 runner — a tested-in-isolation unit since
+ckpt 11 — is finally **wired into the drop-in and bound to the live ZDD.**
 
-**RE landed this ckpt** (render half `0x56bb04..0x56bf1a`, r2): every per-phase
-draw resolves its source frame out of ONE of two fixed sprite banks, then blits
-onto `DAT_008a93cc->[0x16c]` (= the ZDD `primary_obj` at +0x16c, i.e.
-`g_zdd->primary_obj`):
-- **MAIN bank** = `0x8a7658` = **pool slot 19** (`ar_pool_get_slot(19)`; main
-  pool base `0x8a7640` + 6·4) → `AR_SPR_TITLE_MAIN`. Logos (frames 1/2),
-  press-button (2/3/4), sparkle (4/5), menu bg/sprite (5/6). The cmd `asset`
-  is the `ar_sprite_slot_frame` frame id.
+- **`title_drive_init`** allocates the scene's object graph (a `sel_list`
+  menu-tree owner + its 0x1b0 `menu_node` at `entry[0]` = the slot the lazy
+  phase-8 `title_menu_spawn` configures; and the `input_mgr` with a
+  **fully-populated idle ring** — the poll/scan paths deref `ring[i]` with no
+  NULL guard, so every slot must point at a real record), binds the render sink
+  (`title_sink_ctx` → `title_render_sink_hook = title_render_sink`), and zeroes
+  the FSM (`title_scene_init`). `title_drive_step` runs one `title_scene_step`
+  and latches the result on `TITLE_SCENE_DONE`. `title_drive_shutdown` unbinds +
+  frees (mirrors the test harness's `free_spawn`).
+- **`main.c`**: after DDraw init in mode 2, `init_title_drive` binds the sink to
+  `g_zdd->primary_obj` with `drive_present` (→ `zdd_present`) + `drive_log_flip`
+  thunks, installs `ar_sprite_decode_hook = ar_sprite_decode`, allocates the
+  drive. `main_loop_body` runs one `title_scene_step` per iteration; a render
+  iteration presents via `TITLE_DRAW_FLIP`; scene completion logs the result +
+  stops. **`--no-title-scene`** falls back to the legacy minimal present loop.
+
+**8d (`0x5b9280`, `ar_frame_build_hook`) is still NULL** ⇒ sprites resolve NULL
+⇒ the scene renders a **cleared + flipped window with no sprites** ("move B",
+the prove-the-loop-live state). Alpha ramps + compositor group pass through NULL
+(faithful cold boot). **This is the next move #1's human/Frida gate: live-verify
+the window comes up + zero DDERR + flips, THEN port 8d for real sprites.**
+
+623 host tests (617 pass, 0 fail, 6 skip; +6 this ckpt). Both 32-bit
+cross-builds clean. Ledger **unchanged at 130/1490 (8.1%), 127 tested** — the
+drive composes already-counted functions (no new `FUN_` port tokens).
+
+**Sink bank resolution (durable, ckpt 21, render half `0x56bb04..0x56bf1a`):**
+every per-phase draw resolves its source frame out of ONE of two fixed sprite
+banks, then blits onto `DAT_008a93cc->[0x16c]` (= `g_zdd->primary_obj`, +0x16c):
+- **MAIN bank** = `0x8a7658` = **pool slot 19** (`ar_pool_get_slot(19)`) →
+  `AR_SPR_TITLE_MAIN`. Logos (frames 1/2), press-button (2/3/4), sparkle (4/5),
+  menu bg/sprite (5/6). The cmd `asset` is the `ar_sprite_slot_frame` frame id.
 - **CURSOR bank** = `0x8a765c` = **pool slot 20** → `AR_SPR_TITLE_CURSOR`. The
   menu-selection highlight; frame id = the selected row index.
 
-Both self-decode via the ported `ar_sprite_slot_frame` chain, but stay NULL
-until the slot is registered (a real "DATA" resource) AND the **8d** surface
-builder (`ar_frame_build_hook`) is wired ⇒ every sprite op no-ops faithfully
-(the "still-undecoded" path). So the drive will show a **cleared + flipped
-window with no sprites yet** (move B) — proving the loop live and giving 8d a
-frame-diff harness.
-
-**Faithful + host-tested arms:** `SURFACE_RESET`→`zdd_object_clear`,
-`SURFACE_CLEAR`/`SPRITE`→keyed blit of `frame(main,asset)`→primary,
-`SPRITE_LEVEL`→`title_draw_sprite_level` (ramp_b plain+alpha both proven),
-`FRAME_END`→`title_compositor_draw` of the bound display-list group,
-`FLIP`→present cb, `LOG_FLIPPING`→log cb — the whole intro + menu-background +
-fade-out path.
-
-**Deferred behind ctx callbacks** (no-op default): `LOGO`, `SPARKLE`,
-`MENU_CURSOR`. These alpha-ramp draws encode a blend-descriptor *pointer* in
-`title_draw_cmd.alpha` (a 32-bit field — can't round-trip on a 64-bit host) or
-drop the level numerator (`[esp+0x20]`) + fixed src geometry. They only fire
-once the run-time ramps (`0x8a92b8`/`0x8a9308`) are populated, never at a cold
-boot — so deferring costs no intro/menu-background fidelity. **Wire + validate
-these against live goldens during the drive checkpoint** (the command stream
-may need enriching for the sparkle src-rect + cursor numerator).
-
-**Fidelity fix:** `TITLE_DRAW_SURFACE_CLEAR` now carries the source frame index
-in `asset` (prologue background = 0; logo alpha-0 path = `frames[1]` studio /
-`frames[2]` title). The alpha-0 logo blit is `frames[1/2]`, not the
-phase-2..3 background `frames[0]` — the op was previously lossy across the two.
-
-**617 host tests (611 pass, 0 fail, 6 skip; +12 this ckpt)**; both 32-bit
-cross-builds clean. Ledger **unchanged at 130/1490 (8.1%), 127 tested** — the
-sink bridges already-counted functions (no new `FUN_` port tokens).
+Sink arms: `SURFACE_RESET`/`SURFACE_CLEAR`/`SPRITE`/`SPRITE_LEVEL`/`FRAME_END`/
+`FLIP`/`LOG_FLIPPING` faithful + host-tested (the whole intro + menu-bg +
+fade-out path). `LOGO`/`SPARKLE`/`MENU_CURSOR` deferred behind ctx callbacks
+(no-op default) — alpha-ramp draws whose blend-descriptor *pointer* can't
+round-trip the 32-bit `alpha` field on a 64-bit host, and which only fire once
+the run-time ramps (`0x8a92b8`/`0x8a9308`) are populated (never at a cold boot,
+so no intro/menu-bg fidelity cost). **Wire + validate these against live goldens
+during the 8d/live-verify chip** (the command stream may need the sparkle
+src-rect + cursor numerator added). Full sink detail: `src/title_sink.h`.
 
 **Note:** the per-cell DDraw surface builder **8d** (`0x5b9280`,
 `ar_frame_build_hook`) is still unported — it's the genuine pixel source. The
@@ -222,13 +221,15 @@ wired**: fade FSM + pacing FSM + update half + render half + the
 render bridge, ckpt 17–19: `title_compositor_draw` `FUN_0056c180` + wrappers
 `title_draw_sprite`/`_level`/`_menu_cursor`/`_sparkle` = `0x56c610`/`_4e0`/
 `_470`/`_580`; pairs with `zdd_object_blt_clipped` `FUN_005b9bf0` in zdd)),
-and **title_sink** (ckpt 21: `title_render_sink` — the cmd-stream→ZDD-blit
-bridge resolving banks 19/20, behind `title_render_sink_hook`).
-Live boot zero DDERR
-through 10 frames in mode 2. **The runner is a tested unit but is NOT yet
-driven by `main.c`** — the drop-in still uses its own minimal
-`main_loop_body`. The render sink is **ported + host-tested** but **not yet
-bound** (no live pixels until the drive wires it + the 8d build hook lands).
+**title_sink** (ckpt 21: `title_render_sink` — the cmd-stream→ZDD-blit bridge
+resolving banks 19/20, behind `title_render_sink_hook`), and **title_drive**
+(ckpt 22: `title_drive_{init,step,shutdown}` — the caller side of
+`FUN_0056aea0`: owns the scene object graph, binds the sink, runs the loop).
+Live boot zero DDERR through 10 frames in mode 2 (legacy loop). **The runner is
+now driven by `main.c`** (ckpt 22) with the sink bound to the live primary —
+but this is **un-live-verified**: it should render a cleared+flipped window with
+no sprites (8d build hook still NULL). `--no-title-scene` restores the legacy
+minimal `main_loop_body`.
 
 ## Active goal
 
@@ -266,12 +267,13 @@ the runner from the drop-in.
   frame surfaces~~ **DONE ckpt 21** (`src/title_sink.{c,h}` — see the top of
   this file). Resolves banks 19/20, faithful for the intro + menu-bg + fade
   path; LOGO/SPARKLE/MENU_CURSOR deferred behind ctx callbacks.
-- **(9b) drive `title_scene_step` from `main.c`** — the next chip (ckpt 22):
-  replace the drop-in's `main_loop_body` with a `title_scene_run`, bind the
-  sink (`title_sink_bind` with `primary = g_zdd->primary_obj`, a present thunk
-  = `zdd_present(g_zdd)`), then live-verify. **(10)** port-side frame capture +
-  a `push_comparison.py` (port|retail amplified diff to llm-feed) to close the
-  pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`.
+- ~~**(9b) drive `title_scene_step` from `main.c`**~~ **DONE ckpt 22**
+  (`src/title_drive.{c,h}` + `main.c` wiring — see the top of this file).
+  Un-live-verified: should render a cleared+flipped window with no sprites.
+- **(10)** port-side frame capture + a `push_comparison.py` (port|retail
+  amplified diff to llm-feed) to close the pixel-parity loop against the goldens
+  in `runs/title-idle` & `runs/newgame-full`. Latent until 8d lands (a blank
+  window diffs trivially against a blank window).
 
 ## Next move (pick one — recommendation first)
 
@@ -288,42 +290,37 @@ the runner from the drop-in.
 > - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
 >   now but latent until `main.c` drives the scene + rendering lands.
 
-> Context (ckpt 21): the **sink is ported** (`title_sink.{c,h}`). What remains
-> for "the title scene runs in the real window" is the **drive** — wiring
-> `title_scene_step` from `main.c` and binding the sink to the live ZDD. This
-> can run *now* with the 8d build hook NULL (= a cleared/flipped window, no
-> sprites) — move B — proving the loop live and giving 8d a frame-diff harness.
-> Then 8d (`0x5b9280`) fills the sprite surfaces.
+> Context (ckpt 22): the **drive is wired** (`title_drive.{c,h}` + `main.c`).
+> The title scene is now the drop-in's per-frame loop, sink bound to the live
+> primary — but **un-live-verified**. With 8d still NULL it should render a
+> cleared+flipped window with no sprites ("move B"). Two natural next chips:
+> **(A) live-verify the drive** (Frida self-serviceable — the immediate human
+> gate), then **(B) port 8d** (`0x5b9280`) to fill the sprite surfaces. 8d is
+> host-portable *now* (pure logic over surface descriptors) with live
+> verification deferred, so it's the best autonomous chip if staying headless.
 
-1. **(recommended) Drive `title_scene_step` from `main.c` + bind the sink.**
-   The sink (ckpt 21) is done and host-tested; this is the step from "tested
-   units" to "the title scene runs in the real window". Concretely:
-   - **Bind the sink:** after `init_ddraw`, build a `title_sink_ctx` with
-     `primary = g_zdd->primary_obj`, `ramp_a`/`ramp_b` = the real `0x8a92b8`/
-     `0x8a9308` tables (or NULL for now — they're unfilled at boot anyway),
-     `present` = a thunk calling `zdd_present(g_zdd)`, `log_flip` = a
-     `log_line("Title Menu - Flipping")`, then `title_sink_bind(&ctx);
-     title_render_sink_hook = title_render_sink;`. Also install
-     `ar_sprite_decode_hook = ar_sprite_decode` so the banks self-decode once
-     registered (still need 8d for real surfaces — NULL build hook = blank
-     sprites, which is fine for this move).
-   - **The drive:** replace the drop-in's minimal `main_loop_body` with a
-     `title_scene_run` that allocates the scene object (owner `sel_list` +
-     `input_mgr`), calls `title_scene_init`, then loops `title_scene_step(now=
-     GetTickCount(), &hooks)` until `TITLE_SCENE_DONE`, with `title_scene_hooks`
-     wired to the real pump / pre/post / per-entry calls (or NULL — they no-op).
-     The scene's sprite-group display list (`&scene[esp+0x38]`, the compositor's
-     `FRAME_END` arg) is unmodeled — leave `compose_group = NULL` until it's
-     traced. Then capture **port** frames the same way the harness captures
-     retail and diff vs the goldens in `runs/title-idle` / `runs/newgame-full`.
-   - **Wants live verification** (Frida self-serviceable, [[reference_frida]])
-     once the window comes up — confirm zero DDERR + a flipping window first,
-     then wire 8d for sprites. NB the deferred sink arms (LOGO/SPARKLE/
-     MENU_CURSOR) get their real implementations here, validated against the
-     live goldens (the command stream may need the sparkle src-rect + cursor
-     level-numerator added — see the sink note above).
+1. **(recommended) Port 8d — the per-cell DDraw surface builder `0x5b9280`**
+   (`ar_frame_build_hook`; + `0x5b9390` release behind `ar_frame_free_hook`).
+   This is the **genuine pixel source** — the last unported render-side leaf,
+   and what turns the drive's blank window into real sprites. Decoded in
+   `docs/findings/sprite-pipeline.md`. Pulls in `0x5b6f80` (trim metadata), the
+   format switch `0x5b7310/_74f0/_7270` (gated on `[zdd+0x168]` display depth),
+   and the 8bpp palette `0x5b7bd0`. **Port the pure logic + host-test now**
+   (synthesise the descriptors in C, as the other zdd-object tests do); the
+   genuine live-verify (needs the DDraw god object) is deferred to next session
+   alongside the drive's live boot. Once 8d + a registered bank are live, the
+   deferred sink arms (LOGO/SPARKLE/MENU_CURSOR) get their real implementations
+   + the port-side frame capture (10) closes the pixel-parity loop.
 
-2. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
+2. **Live-verify the ckpt-22 drive** (Frida self-serviceable, [[reference_frida]],
+   no-turbo). Run `tools/run-retail.sh`? No — run the **port**:
+   `opensummoners-debug.exe` (console build) and confirm: the window comes up,
+   zero DDERR/frame, the "Title Menu - Flipping" log fires, and the scene steps
+   (a cleared+flipped window, no sprites yet). If it busy-spins or the cadence
+   is off, tune `main.c`'s `frame_limiter` vs the scene pacer. This is the gate
+   before trusting 8d's live output. (`--no-title-scene` isolates DDraw issues.)
+
+3. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
    exercised. `mem_watch.py --region <+0x108 addr>:64:input_ring` (no-turbo!)
    to catch the DInput `GetDeviceState` writer (vtable `[0x24]`) that fills the
    ring + the `axis_held` arrays (quirk #41) — the last input black box. Needs
@@ -336,8 +333,8 @@ the runner from the drop-in.
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
 - **`FUN_0056aea0`** title scene runner — **fully ported + wired + update
-  half complete.** Remaining: implement the draw bridges behind the render
-  sink, and drive it from `main.c`.
+  half complete + driven from `main.c` (ckpt 22).** Remaining: the real pixel
+  source behind the sink (8d, `0x5b9280`) + live verification of the drive.
 - **Render-half draw bridges** (will sit behind `title_render_sink_hook`).
   **The whole blit-primitive layer is ported** in `zdd.c`: `0x5b9410`
   (surface reset = `zdd_object_clear`), `0x5b9b70` (color-key blit/clear =
