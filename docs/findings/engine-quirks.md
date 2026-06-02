@@ -1401,3 +1401,48 @@ twinkle is the open `0x56c070` thread.
 > signature in `title_render.c`; the fix was the cmd encoding (carry the raw
 > clamped level + column, let the sink index `ramp_b`) — the old encoding tried
 > to round-trip a 64-bit blend-descriptor pointer through a 32-bit field.
+
+## 58. The phase-7 particle twinkles "evaporate upwards" — spawn, draw, and a per-frame rise/age/cull are three separate sites; the seed is `srand(time())`
+
+The `FUN_0056c070` particle subsystem (quirk #57's update half) is **four** call
+sites inside `FUN_0056aea0`, over one cap-500 pool (`DAT_008a92b4`, allocated
+`operator_new(8)` header + `operator_new(14000)` = 500×`0x1c` array):
+
+- **spawn** `0x56c070` (called `0x56b51b`, phase-7 case while `uVar15 < 0x352`):
+  append one particle at the reveal edge — `x = (rand·0x10/32768 + (uVar15·0xe0/900
+  + 0xc0))·100`, `y = (rand·0x18/32768 + 0x1a0)·100`, **`+0x08 = rand·200/32768`
+  = upward velocity**, `+0x0c = +0x0e = rand·0x14/32768 + 0x14` (∈[20,39]) =
+  lifetime/anim. Four `rand()` draws, in order x/y/vel/anim.
+- **update** `0x56ba69` (runs **every** update tick — both watchdog branches at
+  `0x56ba0e` fall into it): for each live particle, back-to-front:
+  `y_num -= vel; vel += 2` (rises, accelerating up → "evaporate upwards"),
+  then `anim_num != 0 ? anim_num-- : cull`.
+- **cull** `0x56c030` (called `0x56baae`): swap-remove — `count--; entries[i] =
+  entries[count]`. Index-safe because the update iterates back-to-front with the
+  count latched once (`edi = count-1`).
+- **draw** `0x56c180` (called `0x56bed5`): blits each particle at frame
+  `frame_base − clamp((anim_num·frame_count)/anim_div, fc−1) + fc − 1`. Since
+  `anim_num` starts `== anim_div` (frame 0) and counts down to 0, the frame walks
+  **0→7** over the lifetime — the sparkle's fade/shrink animation. Bank `0x15`
+  (=pool 21 = `g_ar_sprite_slots[8]` = resource `0x91d`), blend `ramp_a[16]`
+  (`alpha_level 800`).
+
+So a twinkle: bursts at the sweep edge, rises (accelerating) while animating
+frames 0→7, and is culled at lifetime end — it does **not** accumulate. The
+first cut omitted the update entirely → frozen, piled-up, over-bright (8277 px
+diff); porting the update closed it to `differ_px=0` (parity-ledger #4).
+
+**Determinism:** the engine RNG seed `DAT_008a4f94` is `srand(time(NULL))` at
+boot (`FUN_00562210` `0x56227a`; `FUN_005bf6df` is `time()`), so retail's twinkle
+stream is **wall-clock-random and not reproducible run-to-run**. The port pins a
+fixed seed by default (`OSS_RNG_DEFAULT_SEED 0x4f5347`, `OPENSUMMONERS_RNG_SEED`
+overrides) and the harness pins retail's seed to match at the first spawn
+(`--seed-pin`, default on). With both pinned, the twinkles are bit-exact at a
+matching update-tick. NB the *flip* at which a given tick renders is **not**
+reproducible (intro pacing jitters run-to-run + the R3 ~2.2× render-rate), so
+align captures by the `subtitle_anim_start` TAS anchor (first spawn) + tick.
+
+> 📍 `src/title_particles.{c,h}` (pool + spawn + update + cull), `src/rng.{c,h}`
+> (the LCG), `src/title_scene.c` (`update_particles` hook), `src/main.c`
+> (`g_particles` + seed pin), `tools/frida/opensummoners-agent.js`
+> (`installSparkleAnchor`).

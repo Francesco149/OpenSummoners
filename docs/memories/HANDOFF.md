@@ -1,5 +1,36 @@
-# Session handoff — last updated 2026-06-02 (LOGO + SPARKLE wired, ckpt 30)
+# Session handoff — last updated 2026-06-02 (phase-7 particle twinkles BIT-EXACT, ckpt 31)
 
+> **ckpt 31 — THE TITLE INTRO IS FULLY BIT-EXACT: phase-7 sparkle particles
+> ported + `differ_px=0` (user-confirmed 1:1 incl. particles).** Closed
+> parity-ledger R4, the last intro-content gap. The `FUN_0056c070` particle
+> twinkles are **four sites over one cap-500 pool** (quirk #58): spawn
+> `0x56c070`, **per-frame update `0x56ba69`** (rise/age), cull `0x56c030`,
+> draw `0x56c180`. The twinkles **spawn at the reveal edge, rise upward
+> (accelerating via the `+0x08` velocity field), animate frames 0→7 as they
+> age, then cull at lifetime end — they "evaporate upwards", they do NOT
+> accumulate.**
+>
+> The first cut spawned+drew but **froze** them (omitted the update) → an
+> over-bright piled-up smear (8277 px diff). Finding + porting the update
+> (`y_num -= vel; vel += 2; anim_num-- else cull`, inline at `0x56ba69` +
+> swap-remove `0x56c030`) fixed it. **Determinism:** the engine LCG seed
+> `DAT_008a4f94` is `srand(time())` (`0x56227a`), so retail's twinkles are
+> wall-clock-random; the port pins a fixed seed (`OSS_RNG_DEFAULT_SEED
+> 0x4f5347`) and the harness `--seed-pin` (default ON) writes the same value
+> into retail at the first spawn. **Verified `differ_px=0`** at a matching
+> update-tick: port Flip 465 vs `sparkle-align/frame_00939` (parity-ledger #4,
+> user-confirmed). Off-tick frames differ only by the R3 render-rate sub-tick
+> jitter (retail renders each update-state ~2.2×) + run-to-run intro-pacing
+> jitter (first spawn flip 886/895/896) — align by the new `subtitle_anim_start`
+> TAS anchor + tick, never a fixed flip. 660 host tests pass (+10); ledger
+> 144/1490 (8.8%, +6 real ports: LCG/srand + spawn/update/cull).
+>
+> New port modules: `src/rng.{c,h}` (the MSVC LCG), `src/title_particles.{c,h}`
+> (pool + spawn + update + cull). New harness: `--seed-pin`/`--seed-value` +
+> the `subtitle_anim_start` anchor (`installSparkleAnchor`).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 30 — title intro CONTENT parity: both logos BIT-EXACT, sparkle sweep
 > bit-exact.** Wired the last two deferred render-half arms (the ckpt-29
 > recommended move). RE collapsed both into already-validated paths:
@@ -113,7 +144,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 30): title intro CONTENT bit-exact (logos + sparkle sweep); only the 0x56c070 particle twinkles remain
+## ⭐ Current state (ckpt 31): the ENTIRE title intro is bit-exact — menu, cursor, both logos, sparkle sweep, AND the phase-7 particle twinkles
 
 The whole chain runs live, every frame, producing correct pixels:
 
@@ -131,21 +162,20 @@ title_scene_step → title_sink → resolve_frame(bank 19/20)
 **Verified BIT-EXACT** (`differ_px==0`) against retail goldens for: the title
 menu + selected-row cursor (R1, parity-ledger #1, ckpt 28); the **studio logo**
 (phase 0, fade 640, #2) and **title-art logo** (phase 3, fade 820, #3) — both
-ckpt 30, **user-confirmed 1:1**; and the **phase-7 subtitle-reveal sweep** at
-full reveal. **Intro pacing (R3) is correct** (ckpt 29): every fade tick renders
-at ~60 Hz, wall-clock to menu matches retail (~9.2 s).
+ckpt 30, **user-confirmed 1:1**; the **phase-7 subtitle-reveal sweep** at full
+reveal; and (ckpt 31) the **phase-7 particle twinkles** (#4, port Flip 465 vs
+`sparkle-align/frame_00939`, seed-pinned `0x4f5347`, **user-confirmed 1:1 incl.
+particles**). **Intro pacing (R3) is correct** (ckpt 29): every fade tick
+renders at ~60 Hz, wall-clock to menu matches retail (~9.2 s).
 
-The **only remaining intro divergence** (parity-ledger R4 — a noted, user-
-acknowledged gap, NOT a render-half bug):
-
-1. **`FUN_0056c070` particle twinkles not drawn** — phase 7 has TWO sparkle
-   systems (quirk #57): the *render-half subtitle-reveal sweep* (`TITLE_DRAW_
-   SPARKLE`, now wired + bit-exact) AND an *update-half particle spawn*
-   (`FUN_0056c070`, called from `title_scene_hooks`, still stubbed) that scatters
-   additive white sparkle dots over the lower art. At fade 1000 the only port↔
-   retail residual is those dots (1208 px, 96.6 % retail-brighter). Closing it
-   needs the `0x56c070` particle subsystem ported (it spawns into a particle pool
-   updated/drawn each frame — a self-contained chunk; see the open thread below).
+**parity-ledger R4 is CLOSED (ckpt 31).** The intro has **no known content
+divergence left**. The only non-bit-exact thing about the intro is the
+**flip-INDEX** at which a given state renders (R3 render-rate ~2.2× + run-to-run
+intro-pacing jitter) — which is **not portably reproducible by design** and not
+chased; the distinct-content sequence + every random-particle frame match at
+tick alignment. Seed pinning (`OSS_RNG_DEFAULT_SEED 0x4f5347` port-side,
+`--seed-pin` harness-side, default ON) is what makes the RNG-driven twinkles
+comparable; align frames by the `subtitle_anim_start` anchor + update-tick.
 
 ## R3 is resolved — what "pacing" did and didn't mean (read before re-opening)
 
@@ -161,21 +191,20 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: rendering is bit-exact for the menu; intro pacing is correct. The
-> active goal (user, ckpt 13) is **1:1 parity with retail** for title +
-> new-game + prologue.
+> Context: the **entire title intro is now bit-exact** (menu, cursor, logos,
+> sweep, particle twinkles — R1/R3/R4 all closed). The active goal (user, ckpt
+> 13) is **1:1 parity with retail** for title + new-game + prologue. With title
+> done, the front moves to the new-game menus → prologue.
 
-1. **(recommended) Port the `FUN_0056c070` phase-7 particle spawn** — the last
-   intro-content gap (parity-ledger R4, the only residual on the bit-exact title
-   screen). It scatters the additive white sparkle twinkles over the lower art
-   during phase 7 (separate from the now-wired subtitle-reveal sweep, quirk #57).
-   It's currently a stubbed `title_scene_hooks` call (`0x56c070`, args
-   `(0x15,0,8,800,…,0x10,0x18,0x14,0x14)`, fired while the phase-7 counter
-   `uVar15 < 0x352`). Disasm `0x56c070` to find the particle pool it spawns into
-   and the per-frame update/draw that renders them; wire it like the other render
-   arms. Verify with `--fade-probe` (note the phase-7 caveat: it logs the sparkle
-   level, not the raw fade — match by reveal extent) + a particle-region diff →
-   target `differ_px=0`.
+1. **(recommended) Drive the new-game menus + live-validate `--input-trace`**
+   (ckpt 24, still unverified). The title menu renders bit-exact; now make an
+   injected DOWN/SELECT actually move the cursor + commit, and confirm the
+   new-game submenus render. Frida self-serviceable, no-turbo. The user gates
+   trace extension on "once we have prologue and main menu rendering" — title
+   menu is there, so this is the path to the prologue. Register the remaining
+   sprite banks the new-game/prologue scenes need (`ar_register_fonts`,
+   `ar_register_palette_ramps` 0x57a330, the big `FUN_0056e190` 442-sprite batch,
+   sounds — all take the sotesd HMODULE, wire like `init_sprite_banks`).
 2. **Confirm/correct the mode-2 present target** (follow-up task, engine-quirks
    #55) — retail paints its *window* (`GetDC(hwnd)`); the port paints the
    *desktop* (`GetDC(NULL)`). Likely a port mismodel; disasm `FUN_005b8fc0`'s
@@ -188,7 +217,21 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    new-game menus (user gates trace extension on "once we have prologue and main
    menu rendering").
 
-## Tooling added this ckpt (30)
+## Tooling added this ckpt (31)
+
+- **`frida_capture.py --seed-pin` / `--seed-value`** (default ON, `0x4f5347`) —
+  the agent hooks `FUN_0056c070` and writes `DAT_008a4f94` to the fixed seed at
+  the first spawn, so retail's phase-7 twinkles match the port's pinned-seed
+  build. One-shot.
+- **`subtitle_anim_start` TAS anchor** — the same first-spawn hook always emits
+  `{kind:'anchor', name:'subtitle_anim_start', frame}` (recorded in the run
+  summary's `anchors`), independent of seed-pin. Use it as tick 0 to align
+  captures, since retail's intro pacing jitters the flip index run-to-run.
+- **`/tmp` diff scripts** (not committed): per-tick `differ_px` sweep of port
+  frames vs a dense retail flip window — how `differ_px=0` was found at
+  port-465/retail-939. Re-derive with PIL `ImageChops`/numpy if needed.
+
+## Tooling added ckpt 30
 
 - **`frida_capture.py --fade-probe`** — hooks `FUN_00448c80` (the fade→alpha
   ramp), logs the first `(value,div)` per Flip → `<run>/fade_level.jsonl`. In
@@ -233,13 +276,15 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (13 modules) — render pipeline COMPLETE
+## Module inventory (15 modules) — render pipeline COMPLETE
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
 (`FUN_0043c110`), obj_container, menu_list, **title_render** (compositor +
 wrappers), **title_sink** (cmd→ZDD bridge, banks 19/20), **title_drive** (caller
-side of the runner). **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
+side of the runner), **rng** (the MSVC LCG `FUN_005bf505`/`_5bf4fb`, ckpt 31),
+**title_particles** (phase-7 sparkle pool: spawn `0x56c070` + update `0x56ba69` +
+cull `0x56c030`, ckpt 31). **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +
 `init_sprite_banks` wired. `--no-title-scene` restores the legacy present loop.
@@ -270,19 +315,19 @@ harness goldens as the pixel target. Do NOT extend the trace toward in-game yet;
 "once we have prologue and main menu rendering we extend the trace."**
 
 The title screen is now **bit-exact** end-to-end: menu + cursor (R1, ckpt 28),
-both intro logos + the sparkle subtitle-reveal sweep (ckpt 30), and pacing (R3,
-ckpt 29). The **only** residual is the `FUN_0056c070` particle twinkles
-(parity-ledger R4). After that: drive the new-game menus (the `--input-trace`
-path) and confirm they render, then the prologue.
+both intro logos + the sparkle subtitle-reveal sweep (ckpt 30), pacing (R3,
+ckpt 29), and the phase-7 particle twinkles (R4, ckpt 31, seed-pinned). **No
+known intro-content residual remains.** Next: drive the new-game menus (the
+`--input-trace` path) and confirm they render, then the prologue.
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
 - **Title render-half arms — ALL WIRED + bit-exact** (`title_sink.c`):
   `MENU_CURSOR` (ckpt 28), `LOGO` (folded into `SPRITE_LEVEL`, ckpt 30),
-  `SPARKLE` subtitle-reveal sweep (ckpt 30). The lone remaining intro-content gap
-  is the **`FUN_0056c070` particle twinkles** (update half, quirk #57) — see Next
-  move #1. (`TITLE_DRAW_LOGO` sink case + the `draw_logo`/`draw_sparkle`/
-  `draw_cursor` ctx callbacks are now vestigial fallbacks; nothing emits LOGO.)
+  `SPARKLE` subtitle-reveal sweep (ckpt 30), and the **`FUN_0056c070` particle
+  twinkles** (spawn/update/cull/draw, ckpt 31, quirks #57/#58 — DONE, bit-exact).
+  (`TITLE_DRAW_LOGO` sink case + the `draw_logo`/`draw_sparkle`/`draw_cursor` ctx
+  callbacks are now vestigial fallbacks; nothing emits LOGO.)
 - **Outer-loop side-effect hooks** (stubbed in `title_scene_hooks`): `0x5b1030`
   (message pump), `0x43e140`/`0x40fe00`/`0x566250` (pre), `0x56c930` (post),
   `0x43c2e0` (per-entry). **NB these are NOT the intro-pacing key** (that was the

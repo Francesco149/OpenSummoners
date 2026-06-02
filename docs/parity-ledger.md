@@ -40,6 +40,7 @@ after changes that touch the relevant render path.
 | 1b| Title menu (idle, settled) — phase-matched | port Flip 203 `menu_fade=450` | `cursor-match/frame_01420` & `_01460` `local_58=450` | 2026-06-02 ckpt 28 — `differ_px=0` |
 | 2 | Studio logo (phase 0, fade-in) — fade-matched | port Flip 30 `phase=0 fade=640` | `fade-match/…/frame_00065` (fade-probe: fade=640) | 2026-06-02 ckpt 30 — `differ_px=0` |
 | 3 | Title-art logo (phase 3, fade-in) — fade-matched | port Flip 235 `phase=3 fade=820` | `fade-match/…/frame_00480` (fade-probe: fade=820) | 2026-06-02 ckpt 30 — `differ_px=0` |
+| 4 | Phase-7 sparkle twinkles (particle system) — tick-matched, seed-pinned | port Flip 465 `phase=7 fade=540` | `sparkle-align/frame_00939` (seed 0x4f5347) | 2026-06-02 ckpt 31 — `differ_px=0`, **user-confirmed 1:1 incl. particles** |
 
 > **R1 CLOSED (ckpt 28).** The residual was the **cursor pulse**. Retail
 > animates the cursor `level_num` (`[esp+0x20]`) as a triangle wave — `local_58`
@@ -100,24 +101,37 @@ every fade value rendered** (phase curve now the canonical 51/102/153/254/275/
 target is the *distinct-content sequence* (every scene state rendered in order),
 which now matches. R1 re-verified post-fix at `menu_fade=750`: **differ_px=0**.
 
-### R4 — phase-7 subtitle sparkle: reveal sweep BIT-EXACT; only the deferred particle overlay remains (ckpt 30)
+### R4 — phase-7 subtitle sparkle: RESOLVED (ckpt 31) — both parts now bit-exact
 
-The phase-7 flourish has **two independent parts**:
-1. **Render-half subtitle-reveal sweep** (`TITLE_DRAW_SPARKLE`, wired ckpt 30):
-   `FUN_0056bcf7` copies 4×48 vertical slivers of the menu-bg sprite (MAIN
-   frame 5) at src (x,416)→dst (x,416), x stepping 192..<416 by 4, alpha from
-   `ramp_b` (opaque once `min(7·fade−100·i,1000)` saturates). This reveals the
-   "Secret of the Elemental Stone" subtitle column-by-column. **Verified
-   bit-exact**: at fade 1000 (full reveal) the SUMMONERS logo + subtitle banner
-   + art match the retail golden exactly outside the particle region.
-2. **Update-half particle spawn** (`FUN_0056c070`, STILL DEFERRED) — additive
-   white sparkle twinkles scattered over the lower art. This is a separate
-   subsystem the port stubs (see HANDOFF "Open RE threads" / `title_scene_hooks`).
+The phase-7 flourish has **two independent parts**, both now `differ_px=0`:
+1. **Render-half subtitle-reveal sweep** (`TITLE_DRAW_SPARKLE`, ckpt 30):
+   `FUN_0056bcf7` copies 4×48 slivers of the menu-bg sprite (MAIN frame 5)
+   revealing the "Secret of the Elemental Stone" subtitle column-by-column.
+   Bit-exact since ckpt 30.
+2. **Particle twinkle system** (`FUN_0056c070` spawn + the `0x56ba69` per-frame
+   update + cull `0x56c030` + draw `0x56c180`, ported ckpt 31): white sparkles
+   spawn at the reveal's leading edge, **rise upward (accelerating) and fade out
+   over a 20–39-tick lifetime, then cull** — they do NOT accumulate. The seed
+   word `DAT_008a4f94` (engine LCG `FUN_005bf505`) is `srand(time())`-seeded
+   (`0x56227a`), so retail's stream is wall-clock-random; pinning it on both
+   sides (port boots a fixed seed; harness `--seed-pin` writes the same value at
+   the first spawn) makes the twinkles reproducible. **Confirmed bit-exact** (now
+   row 4 above): port Flip 465 vs `sparkle-align/frame_00939`, seed `0x4f5347`,
+   **`differ_px=0`** at matching update-tick.
 
-The residual at fade 1000 (port Flip 500 vs `sparkle-match/…/frame_01000`):
-**1208 px, 96.6% retail-brighter** (white dots) — i.e. *entirely* retail's
-missing particle twinkles, not a reveal-sweep error. Closing R4 fully needs the
-`0x56c070` particle system ported.
+> **What the journey taught (ckpt 31):** the first cut spawned + drew the
+> particles but left them **frozen** at the spawn row → an over-bright smear
+> (8277 px diff). The bug was the **missing per-frame update** (`0x56ba69`):
+> `y_num -= vel; vel += 2` (rise, accelerating up), `anim_num--` (ages → the
+> draw's `(anim_num*frame_count)/anim_div` walks the sprite frame 0→7 = fade),
+> and cull at `anim_num==0`. The `+0x08` field (then mislabelled `_pad08`) is
+> the upward velocity. With the update ported, the diff fell to a clean diagonal
+> min and hits 0 at tick alignment. **Off-tick frames still differ** purely by
+> the **R3 render-rate sub-tick jitter** (retail renders each update-state
+> ~2.2×; the captured retail flip rarely lands on the exact port tick), and
+> retail's intro pacing jitters run-to-run (first spawn at flip 886/895/896
+> across runs) — so align by the `subtitle_anim_start` TAS anchor + tick, not by
+> a fixed flip index.
 
 > **Fade-probe caveat (ckpt 30):** `frida_capture.py --fade-probe` (hooks
 > `FUN_00448c80`, logs the first `(value,div)` per Flip) reads the intro fade

@@ -15,8 +15,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | VA | size | ported callers | band |
 |----|-----:|---------------:|------|
 | 0x5b6ec0 | 21 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x417870 | 106 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x562a70 | 127 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x56df10 | 203 | 2 | title + gameplay scene runners + engine init + options + input init |
+| 0x562d50 | 239 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x41bbe0 | 312 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x49a050 | 13 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x5a4760 | 16 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -38,6 +40,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x412db0 | 57 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5bbc20 | 57 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x58cfe0 | 63 | 1 | master sprite-group register + audio/music init + anim pump |
+| 0x56c430 | 64 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x587ce0 | 71 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x587db0 | 76 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x564110 | 80 | 1 | title + gameplay scene runners + engine init + options + input init |
@@ -47,13 +50,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56bfd0 | 88 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x41bb80 | 95 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x587d50 | 96 | 1 | master sprite-group register + audio/music init + anim pump |
-| 0x417870 | 106 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x56cb90 | 113 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x411560 | 117 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x417bc0 | 123 | 1 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x43c9b0 | 130 | 1 | battle scenario init + turn engine + input poll + save mgr |
-| 0x4118b0 | 134 | 1 | menu/dialog controller + char init + shop/NPC + save path |
-| 0x47b7c0 | 163 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
 
 ## Full frontier by address band
 
@@ -74,10 +74,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
+| 0x417870 | 106 | 2 | 0 | ✓ |
 | 0x41bbe0 | 312 | 2 | 0 | ✓ |
 | 0x412db0 | 57 | 1 | 0 | ✓ |
 | 0x41bb80 | 95 | 1 | 0 | ✓ |
-| 0x417870 | 106 | 1 | 0 | ✓ |
 | 0x411560 | 117 | 1 | 0 | ✓ |
 | 0x417bc0 | 123 | 1 | 0 | ✓ |
 | 0x4118b0 | 134 | 1 | 0 | ✓ |
@@ -136,17 +136,17 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x562a70 | 127 | 2 | 0 | ✓ |
 | 0x56df10 | 203 | 2 | 0 | ✓ |
+| 0x562d50 | 239 | 2 | 0 | ✓ |
 | 0x561280 | 37 | 1 | 0 | ✓ |
+| 0x56c430 | 64 | 1 | 0 | ✓ |
 | 0x56de80 | 67 | 1 | 1 |  |
 | 0x564110 | 80 | 1 | 0 | ✓ |
 | 0x5640b0 | 81 | 1 | 1 |  |
+| 0x562af0 | 82 | 1 | 1 |  |
 | 0x56bfd0 | 88 | 1 | 0 | ✓ |
 | 0x56cb90 | 113 | 1 | 0 | ✓ |
 | 0x566250 | 169 | 1 | 2 |  |
-| 0x562d50 | 239 | 1 | 0 | ✓ |
-| 0x56c070 | 265 | 1 | 0 | ✓ |
 | 0x56dc20 | 344 | 1 | 1 |  |
-| 0x56c2b0 | 373 | 1 | 4 |  |
 | 0x564160 | 376 | 1 | 17 |  |
 | 0x56c930 | 607 | 1 | 4 |  |
 | 0x568de0 | 998 | 1 | 19 |  |
@@ -193,7 +193,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x59db70 | 227 | 1 | 0 | ✓ |
 | 0x59ec30 | 531 | 1 | 6 |  |
-| 0x59e230 | 924 | 1 | 21 |  |
+| 0x59e230 | 924 | 1 | 20 |  |
 | 0x59e5d0 | 1033 | 1 | 15 |  |
 
 ### launcher config parse + spell fx + bitmap/ZDD render + RNG (21)

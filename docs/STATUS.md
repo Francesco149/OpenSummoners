@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-██░░░░░░░░░░░░░░░░░░  8.6% touched   (8.6% host-tested, 10.1% of code bytes)
+██░░░░░░░░░░░░░░░░░░  8.8% touched   (8.8% host-tested, 10.1% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   135 | ported + module covered by the host unit suite       |
-| ported      |     3 | reimplemented in src/, no host test for that module  |
-| **touched** | **138** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1620 | exists in engine, never referenced from src/         |
+| tested      |   138 | ported + module covered by the host unit suite       |
+| ported      |     6 | reimplemented in src/, no host test for that module  |
+| **touched** | **144** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1614 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below

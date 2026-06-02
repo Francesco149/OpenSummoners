@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 135,
-  "ported": 3,
-  "unported": 1620,
+  "tested": 138,
+  "ported": 6,
+  "unported": 1614,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 138,
-  "pct_touched": 8.6,
-  "pct_tested": 8.6,
-  "engine_proper_touched": 128,
+  "touched": 144,
+  "pct_touched": 8.8,
+  "pct_tested": 8.8,
+  "engine_proper_touched": 131,
   "bytes_total": 1694868,
-  "bytes_touched": 170798,
+  "bytes_touched": 171498,
   "pct_bytes_touched": 10.1
  },
  "orphan_refs": [
@@ -8070,7 +8070,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/app_pump.h"
+    "src/app_pump.h",
+    "src/rng.h"
    ]
   },
   {
@@ -8452,6 +8453,8 @@
     "src/obj_container.h",
     "src/title_drive.c",
     "src/title_drive.h",
+    "src/title_particles.c",
+    "src/title_particles.h",
     "src/title_scene.c",
     "src/title_scene.h",
     "src/title_sink.c",
@@ -8472,16 +8475,23 @@
    "name": "FUN_0056c030",
    "size": 62,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/title_particles.c"
+   ]
   },
   {
    "va": "0x56c070",
    "name": "FUN_0056c070",
    "size": 265,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/rng.h",
+    "src/title_particles.c",
+    "src/title_particles.h"
+   ]
   },
   {
    "va": "0x56c180",
@@ -8490,6 +8500,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
+    "src/title_particles.c",
+    "src/title_particles.h",
     "src/title_render.c",
     "src/title_render.h",
     "src/title_sink.h"
@@ -8500,8 +8513,12 @@
    "name": "FUN_0056c2b0",
    "size": 373,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/title_particles.c",
+    "src/title_particles.h"
+   ]
   },
   {
    "va": "0x56c430",
@@ -12699,16 +12716,22 @@
    "name": "FUN_005bf4fb",
    "size": 10,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/rng.c",
+    "src/rng.h"
+   ]
   },
   {
    "va": "0x5bf505",
    "name": "FUN_005bf505",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/rng.c",
+    "src/rng.h"
+   ]
   },
   {
    "va": "0x5bf523",
@@ -12782,8 +12805,10 @@
    "name": "FUN_005bf6df",
    "size": 220,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/rng.h"
+   ]
   },
   {
    "va": "0x5bf7bc",

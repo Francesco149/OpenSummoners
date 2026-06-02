@@ -3377,3 +3377,53 @@ Policy recorded: **bit-exact (0 differ_px) is the bar; no diff is hand-waved.**
 Ledger 138/1490 unchanged (wiring).
 
 ---
+
+## ckpt 31 (2026-06-02) — phase-7 sparkle particle twinkles: BIT-EXACT (R4 closed, user-confirmed 1:1)
+
+Closed the last title-intro content gap (parity-ledger R4). The `FUN_0056c070`
+particle twinkles are now ported end-to-end and verified `differ_px=0` against
+retail with the RNG seed pinned on both sides — **user-confirmed 1:1 including
+particles**.
+
+**The subsystem (quirk #58)** — four sites in `FUN_0056aea0` over one cap-500
+pool (`DAT_008a92b4`):
+- **spawn** `0x56c070` (phase 7, while `uVar15 < 0x352`): append a particle at
+  the reveal edge with 4 `rand()` draws (x, y, **velocity `+0x08`**, lifetime
+  `+0x0c==+0x0e`).
+- **update** `0x56ba69` (every update tick): `y_num -= vel; vel += 2` (rise,
+  accelerating up), `anim_num != 0 ? anim_num-- : cull` — particles **evaporate
+  upwards** and fade (the draw's frame walks 0→7 as `anim_num` counts down).
+- **cull** `0x56c030`: swap-remove (`count--; entries[i]=entries[count]`).
+- **draw** `0x56c180` (== `title_compositor_draw`, already present): bank `0x15`
+  = pool 21 = resource `0x91d`, blend `ramp_a[16]`.
+
+**The bug + fix:** the first cut spawned + drew but **omitted the per-frame
+update**, so particles froze at the spawn row and piled up → an over-bright
+smear (8277 px diff). The user spotted it ("they stay frozen… in retail they
+evaporate upwards"). RE found the inline update at `0x56ba69` (both watchdog
+branches reach it → runs every tick) + the cull caller `0x56baae`. The `+0x08`
+field — previously dismissed as `_pad08`/"spare" — is the upward velocity.
+Porting the update dropped the diff to a clean diagonal and to **`differ_px=0`
+at tick alignment** (port Flip 465 vs `sparkle-align/frame_00939`).
+
+**Determinism (user directive: pin the seed both sides).** The engine LCG seed
+`DAT_008a4f94` is `srand(time())` (`0x56227a`), so retail's twinkles are
+wall-clock-random. Ported the LCG (`src/rng.{c,h}`, `FUN_005bf505`/`_5bf4fb`),
+pinned a fixed seed in the port by default (`OSS_RNG_DEFAULT_SEED 0x4f5347`,
+`OPENSUMMONERS_RNG_SEED` overrides), and added harness `--seed-pin` (default ON)
+that writes the same value into retail at the first spawn. Off-tick frames still
+differ purely by the R3 render-rate sub-tick jitter (retail renders each update
+~2.2×) + run-to-run intro-pacing jitter (first spawn at flip 886/895/896) — so
+align by the new `subtitle_anim_start` TAS anchor + update-tick, never a fixed
+flip index.
+
+**New artifacts:** `src/rng.{c,h}`, `src/title_particles.{c,h}` (pool + spawn +
+update + cull); `title_sprite_entry._pad08` → `vel`; `update_particles` hook;
+`frida_capture.py --seed-pin`/`--seed-value` + the `subtitle_anim_start` anchor
+(`installSparkleAnchor`). 660 host tests pass (+10: LCG stream anchored to the
+real MSVC sequence, spawn field/order/cap, update rise/age/cull). Ledger
+**144/1490 (8.8%)** (+6 real ports: LCG/srand + spawn/update/cull). Commits this
+ckpt: `feat: port phase-7 sparkle-particle spawn + LCG` → `wire` → `harness seed
+pin` → `fix: per-frame update` → `harness TAS anchor`.
+
+---
