@@ -205,12 +205,11 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    sprite banks the new-game/prologue scenes need (`ar_register_fonts`,
    `ar_register_palette_ramps` 0x57a330, the big `FUN_0056e190` 442-sprite batch,
    sounds — all take the sotesd HMODULE, wire like `init_sprite_banks`).
-2. **Confirm/correct the mode-2 present target** (follow-up task, engine-quirks
-   #55) — retail paints its *window* (`GetDC(hwnd)`); the port paints the
-   *desktop* (`GetDC(NULL)`). Likely a port mismodel; disasm `FUN_005b8fc0`'s
-   mode-2 path (~`0x5b8fc5`) and, if confirmed, present into the window DC. Then
-   the `--hide-window` present-skip becomes belt-and-braces, and the port is
-   faithful even when shown.
+2. ~~Confirm/correct the mode-2 present target~~ **DONE (ckpt 31, engine-quirks
+   #55).** Disasm-confirmed retail paints its window (`GetDC(hwnd)` @0x5b90b7),
+   not the desktop; fixed via `zdd_window_present` + `zdd_set_present_hwnd` +
+   NULL window brush + `WM_ERASEBKGND`. **User-confirmed the focus flicker is
+   gone.**
 3. **Live-validate `--input-trace`** (ckpt 24, still unverified) + drive the
    menu nav so the CURSOR highlight moves. Does an injected DOWN actually move
    the selection? Frida self-serviceable, no-turbo. Then extend toward the

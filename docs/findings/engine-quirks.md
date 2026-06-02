@@ -1326,20 +1326,35 @@ during the Flip dispatcher `FUN_005b8fc0` under `--hide-window`) showed
 its *own window* DC — hidden ⇒ nothing on the visible desktop ⇒ **retail does
 not flicker**; only the port did.
 
-Two consequences:
-- **Immediate fix (ckpt 29):** under `--hide-window` the port skips the present
-  entirely (`drive_present` in `src/main.c`) — there's nothing to present into,
-  and captures read `primary_obj` *before* the present, so it's lossless.
-- **Open lead:** the port's `GetDC(NULL)` desktop blit looks like a *mismodel*
-  of retail's `GetDC(hwnd)` window blit — wrong target even when shown (paints
-  the desktop, not the window). Confirm by disassembling `FUN_005b8fc0`'s mode-2
-  path (~`0x5b8fc5`) and, if so, present into the window DC like retail. Tracked
-  as a follow-up; `zdd_desktop_present` is a pinned port, so verify before edit.
+**RESOLVED (ckpt 31) — disasm-confirmed + fixed.** `FUN_005b8fc0`'s mode-2 path
+decoded:
+```
+0x5b90ad  call 0x5b94e0           ; surface GetDC → src HDC
+0x5b90b7  push ebx ; call [0x5cc1c4]   ; GetDC(ebx) — ebx from [esp+0x14] = the
+                                       ;   window handle, NOT push 0 (desktop)
+0x5b90ea  call [0x5cc034]         ; BitBlt(GetDC(hwnd), [esi+0x138],[esi+0x13c],
+                                  ;   w,h, srcHDC, 0,0, SRCCOPY)
+0x5b90f2  push edi;push ebx;call [0x5cc1c0]  ; ReleaseDC(hwnd, dc)
+```
+So retail BitBlts into the **window DC** at `screen_pos_x/y` (= `[esi+0x138/13c]`,
+0 in windowed mode → client origin). The port's `GetDC(NULL)` desktop blit was a
+mismodel (the old "`hWnd=NULL` @0x5b8fc5" reading was wrong — `0x5b8fc5` zeroes
+the surface-GetDC *out-slot* `[esp+8]`, not the GetDC arg). A `GetDC(NULL)`
+desktop blit on a **visible/focused** window fights DWM's compositor (and the
+`COLOR_WINDOW` erase brush flashed on activate) → a periodic flicker the user
+hit after clicking to focus.
 
-> 📍 `drive_present` in `src/main.c` (the `--hide-window` present skip);
-> `zdd_present` case 2 / `zdd_desktop_present` in `src/zdd.c`. The retail present
-> target was observed live, not yet pinned in the static disasm — treat the
-> "mismodel" as a strong lead, not settled, until `FUN_005b8fc0` is decoded.
+**Fix (ckpt 31, user-confirmed flicker gone):** `zdd_window_present`
+(`zdd_win32.c`) = `GetDC(hwnd)`+`BitBlt(0,0,w,h)`+`ReleaseDC(hwnd)`;
+`zdd_present` case 2 uses it when a present hwnd is bound
+(`zdd_set_present_hwnd`, set in `main.c` after window+DDraw init) and falls back
+to the desktop blit when unbound (headless/host). Window class `hbrBackground =
+NULL` + `WM_ERASEBKGND` returns 1 (the present repaints the whole client each
+frame). The ckpt-29 `--hide-window` present-skip stays as belt-and-braces.
+
+> 📍 `zdd_window_present`/`zdd_desktop_present` (`src/zdd_win32.c`),
+> `zdd_present` case 2 + `zdd_set_present_hwnd` (`src/zdd.c`), `drive_present` +
+> window class + `WM_ERASEBKGND` (`src/main.c`).
 
 ## 56. The two intro logos are NOT mystery container fields — they're MAIN frames[1]/[2], and the logo handler IS the sprite-level wrapper
 
