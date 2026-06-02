@@ -514,6 +514,11 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"div={payload.get('div')} "
                   f"ecx=0x{int(payload.get('ecx',0)):08x} "
                   f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+        elif kind == "anchor":
+            name = payload.get("name", "anchor")
+            print(f"[frida_capture] TAS anchor '{name}' @ flip "
+                  f"{payload.get('frame')}", file=sys.stderr)
+            summary.setdefault("anchors", {})[name] = payload.get("frame")
         elif kind == "seed_pinned":
             print(f"[frida_capture] RNG seed pinned @ frame "
                   f"{payload.get('frame')} (first FUN_0056c070): "

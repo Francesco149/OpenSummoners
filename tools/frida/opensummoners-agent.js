@@ -1542,23 +1542,34 @@ function installFadeProbe() {
     logmsg('fade probe installed @ FUN_00448c80');
 }
 
-function installSeedPin() {
+// Hook the first phase-7 sparkle spawn (FUN_0056c070).  It is the TAS anchor
+// for "subtitle animation start" (tick 0 of the particle system) — emitted
+// always so any capture/trace can align to it — and, when seed-pinning is on,
+// the point at which we overwrite DAT_008a4f94 so the twinkle stream is
+// reproducible.  One-shot: only the first spawn of the run.
+function installSparkleAnchor() {
     Interceptor.attach(rva(SPAWN_VA), {
         onEnter: function (args) {
             if (g_seed_pinned) return;       // one-shot: first spawn only
             g_seed_pinned = true;
-            const seedAddr = rva(SEED_VA);
-            let before = 0;
-            try { before = seedAddr.readU32(); } catch (e) {}
-            try { seedAddr.writeU32(g_seed_value >>> 0); } catch (e) {
-                err('seed_pin_write', '' + e);
+            // Anchor: subtitle/sparkle animation starts here (tick 0).
+            send({kind: 'anchor', name: 'subtitle_anim_start',
+                  frame: g_flip_frame});
+            if (g_seed_pin) {
+                const seedAddr = rva(SEED_VA);
+                let before = 0;
+                try { before = seedAddr.readU32(); } catch (e) {}
+                try { seedAddr.writeU32(g_seed_value >>> 0); } catch (e) {
+                    err('seed_pin_write', '' + e);
+                }
+                send({kind: 'seed_pinned', frame: g_flip_frame,
+                      before: before >>> 0, value: g_seed_value >>> 0});
             }
-            send({kind: 'seed_pinned', frame: g_flip_frame,
-                  before: before >>> 0, value: g_seed_value >>> 0});
         },
     });
-    logmsg('seed pin installed @ FUN_0056c070 (DAT_008a4f94 <- 0x' +
-           (g_seed_value >>> 0).toString(16) + ')');
+    logmsg('sparkle anchor installed @ FUN_0056c070' +
+           (g_seed_pin ? ' (+ seed pin DAT_008a4f94 <- 0x' +
+            (g_seed_value >>> 0).toString(16) + ')' : ''));
 }
 
 function memWatchFlush(frameNumber) {
@@ -1804,9 +1815,13 @@ rpc.exports = {
                 try { installFadeProbe(); }
                 catch (e) { err('install_fade_probe', '' + e); }
             }
-            if (g_seed_pin) {
-                try { installSeedPin(); }
-                catch (e) { err('install_seed_pin', '' + e); }
+            // Sparkle anchor (subtitle-anim-start TAS marker + optional seed
+            // pin) — install whenever we have a flip-frame counter to stamp it,
+            // or when seed-pinning is requested.
+            if (g_seed_pin || g_capture_enabled || g_pace_probe ||
+                g_fade_probe || g_cursor_probe || g_inject_enabled) {
+                try { installSparkleAnchor(); }
+                catch (e) { err('install_sparkle_anchor', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }
