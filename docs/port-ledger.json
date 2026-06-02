@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 151,
+  "tested": 155,
   "ported": 6,
-  "unported": 1601,
+  "unported": 1597,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 157,
-  "pct_touched": 9.7,
-  "pct_tested": 9.7,
-  "engine_proper_touched": 144,
+  "touched": 161,
+  "pct_touched": 9.9,
+  "pct_tested": 9.9,
+  "engine_proper_touched": 148,
   "bytes_total": 1694868,
-  "bytes_touched": 185301,
-  "pct_bytes_touched": 10.9
+  "bytes_touched": 187514,
+  "pct_bytes_touched": 11.1
  },
  "orphan_refs": [
   "0x56c470",
@@ -5400,24 +5400,32 @@
    "name": "FUN_0048cf80",
    "size": 1095,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/newgame_box.c",
+    "src/newgame_box.h"
+   ]
   },
   {
    "va": "0x48d3d0",
    "name": "FUN_0048d3d0",
    "size": 664,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_box.c"
+   ]
   },
   {
    "va": "0x48d670",
    "name": "FUN_0048d670",
    "size": 154,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_box.c"
+   ]
   },
   {
    "va": "0x48d710",
@@ -5432,8 +5440,10 @@
    "name": "FUN_0048d940",
    "size": 300,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x48da70",
@@ -11636,6 +11646,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
+    "src/newgame_box.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -12458,6 +12470,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/newgame_box.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

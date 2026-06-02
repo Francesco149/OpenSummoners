@@ -6,6 +6,48 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 40) — the new-game config BOX PANEL renders (9-slice chrome); menu box bit-exact bar the deferred sparkle corner
+
+Drew the bordered cream panel behind the new-game menu + tooltip.  **Part 1**:
+a new live **`frida_capture.py --box-probe`** (hooks the sprite-cell render
+`0x48d940` + the 9-slice renderers `0x48cb90`/`0x48cf80`, gated to the menu flip
+window, deduped by node) captured the exact box composition (golden
+`goldens/retail-newgame-box-cells.jsonl`, quirk **#67**): the panel is a 9-slice
+SPRITE box (`0x48cf80`), bank **PE resource 0x457** (already registered by
+`ar_register_fonts` as `AR_SPR_FONT_TEX_457`, 32×32 cells), frames
+tl0/top1/tr2/l3/c4/r5/bl6/b7/br8 (center 4 = cream RGB(239,227,214)); two
+instances — menu box (32,32)400×124 + tooltip box (32,392)576×80.  A separate
+animated sparkle corner (`0x48d940`, bank **0x3e8**, frames 16–19) sits at the
+top-left.  Neither bank field (`*(this+0xb88)`/`+0xb8c`) is a literal offset in
+the corpus — they're set by an embedded sub-object ctor — so the resource ids
+are only knowable live (read off `slot+0x40`).  Harness note: entering the scene
+the Flip counter freezes (modal pump `0x565d10`), so flip-gated probes see only
+the title→menu transition (flips ~410–422) — which is when the box first renders.
+
+**Part 2**: ported `0x48cf80`'s opaque arm as the pure, host-tested
+`src/newgame_box.{c,h}` (the 9-slice tiling walk over a `newgame_box_ops` vtable:
+corner→tiled edge→remainder→corner per row; top/full-middle/partial-middle/bottom
+rows).  The real blit (`ar_sprite_slot_frame` + `zdd_object_blt_clipped` =
+`FUN_005b9bf0`, the keyed clipped blit) is wired in `main.c`; `newgame_render`
+now clears the primary → draws both box panels via DDraw → GetDC +
+`glyph_grid_render` the menu text on top (replacing the placeholder
+`PatBlt(BLACKNESS)`).  **Verified live** (port frame 760): menu box
+**differ_px=307/50800 (0.6%)** vs the golden — and all 307 residual pixels are in
+the top-left corner (x44–65,y29–69), exactly the deferred sparkle overlay; the
+9-slice panel + menu text are bit-exact everywhere else (interior cream
+RGB(239,227,214) matches exactly).  Comparison pushed to llm-feed.  4 new host
+tests (coverage-grid: slices tile each box exactly once, no gap/overlap/OOB) →
+709 pass / 0 fail / 6 skip.  Ledger **161/1490 (9.9%)** (+4: `0x48cf80`,
+`0x48d670`, `0x48d3d0` ported; the keyed blit was already in zdd.c).  Commits
+`b68c7e2` (probe + ground truth) + `98d78f4` (box render).
+
+Deferred: the sparkle corner (`0x3e8` — bank not yet registered, the 307px
+residual), the tooltip TEXT node (y=416/444 word-wrapped — box drawn, text
+computed, needs the word-wrap split), the option picker (`0x567ba0`), the box
+fade-in (`0x48cf80`'s alpha arm), and the Start→game path.
+
+---
+
 ## 2026-06-02 (ckpt 38) — new-game config run-loop MODEL ported (the Win32-free heart of `FUN_00564780` case 0x24); the `0x27` input semantics RE-corrected
 
 Ported the run-loop heart of the new-game config scene into new

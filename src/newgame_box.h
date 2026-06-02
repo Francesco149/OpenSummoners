@@ -3,7 +3,7 @@
  * (the chrome behind the menu + tooltip text).
  *
  * Port of FUN_0048cf80 (the tiled 9-slice box renderer; its fade-scaled twin
- * is FUN_0048cb90).  Retail composes the bordered cream panel from a 32×32-cell
+ * is the UNPORTED 0x48cb90).  Retail composes the bordered cream panel from a 32×32-cell
  * sprite bank (PE resource 0x457 = AR_SPR_FONT_TEX_457, already registered by
  * ar_register_fonts) as nine slices — corners, edges, and a tiled center fill:
  *

@@ -132,7 +132,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x48c820 | 873 | 1 | 6 |  |
+| 0x48c820 | 873 | 1 | 4 |  |
 
 ### tile/sprite grid render + spell fx + battle UI + palette (5)
 

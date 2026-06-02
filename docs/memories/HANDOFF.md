@@ -1,5 +1,44 @@
-# Session handoff — last updated 2026-06-03 (the new-game config scene RUNS LIVE: visible + interactive, ckpt 39)
+# Session handoff — last updated 2026-06-03 (the new-game config BOX PANEL renders — 9-slice chrome, ckpt 40)
 
+> **ckpt 40 — THE NEW-GAME CONFIG BOX PANEL RENDERS (9-slice chrome; menu box
+> bit-exact except the deferred sparkle corner).**  The bordered cream panel
+> behind the menu + tooltip is now drawn.  First a new live **`frida_capture.py
+> --box-probe`** (hooks the sprite-cell render `0x48d940` + the 9-slice renderers
+> `0x48cb90`/`0x48cf80`, gated to the menu flip window) captured the exact box
+> composition (golden `goldens/retail-newgame-box-cells.jsonl`, **quirk #67**):
+> the panel is a **9-slice sprite box** (`0x48cf80`), bank **PE resource 0x457**
+> (already registered by `ar_register_fonts` as `AR_SPR_FONT_TEX_457`, 32×32),
+> frames **tl0/top1/tr2/l3/c4/r5/bl6/b7/br8** (center 4 = cream RGB(239,227,214));
+> two instances — **menu box (32,32)400×124** + **tooltip box (32,392)576×80** —
+> matching the golden's measured bounds.  A **separate** animated sparkle corner
+> (`0x48d940`, bank **0x3e8**, frames 16–19) sits at the top-left.
+>
+> Ported `0x48cf80`'s opaque arm as the pure, host-tested **`src/newgame_box.{c,h}`**
+> (the 9-slice tiling walk over a `newgame_box_ops` vtable: corner→tiled edge→
+> remainder→corner per row, top/full-middle/partial-middle/bottom rows); the real
+> blit (`ar_sprite_slot_frame` + `zdd_object_blt_clipped` = the keyed clipped blit
+> `FUN_005b9bf0`) is wired in **`main.c`**.  `newgame_render` now: clear primary →
+> draw both boxes via DDraw → GetDC + `glyph_grid_render` the menu text on top
+> (replacing the placeholder `PatBlt(BLACKNESS)`).  **Verified LIVE** (port frame
+> 760): menu box **differ_px=307/50800 (0.6%)** vs the golden — and **all 307 are
+> in the top-left corner (x44–65,y29–69)**, exactly the deferred sparkle overlay;
+> the 9-slice panel + menu text are **bit-exact everywhere else** (interior cream
+> RGB(239,227,214) matches exactly).  Comparison pushed to llm-feed.  4 new host
+> tests (coverage-grid: slices tile each box exactly once, no gap/overlap/OOB) →
+> **709 pass / 0 fail / 6 skip**.  Ledger **161/1490 (+4: `0x48cf80`, `0x48d670`,
+> `0x48d3d0` ported; the keyed blit was already in zdd.c)**.
+>
+> **NEXT: the remaining chrome + the Start→game path.**  (a) the **animated
+> sparkle corner** (`0x48d940`, bank 0x3e8 — needs that bank registered + the
+> single-cell animated render; the 307px residual); (b) the **tooltip TEXT node**
+> (y=416/444, word-wrapped — `newgame_scene_tooltip` computes the text, the box is
+> already drawn, need the word-wrap split into rows); (c) the **option picker
+> submenu** (`0x567ba0`); (d) the **Start→game path** (Elemental-Stone intro
+> `0x564160`→`0x5642e0`/`0x56cd20`→`0x59ec30`).  Also deferrable polish: the box
+> **fade-in** (`0x48cf80`'s alpha arm via `0x5bd550`).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 39 — THE NEW-GAME CONFIG SCENE RUNS LIVE (visible + interactive).**
 > Wired the new-game config scene as a runnable **drive** — the last piece after
 > the builder (ckpt 37), renderer (bit-exact, ckpt 36), and run-loop model
@@ -393,27 +432,35 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 39): the title is a complete bit-exact loop; the new-game config scene now RUNS LIVE — visible + interactive (drive ported + wired); next rock is its deferred chrome (box widget + tooltip + picker) and the Start→game path
+## ⭐ Current state (ckpt 40): the title is a complete bit-exact loop; the new-game config scene runs live AND now renders its BOX PANEL (9-slice chrome, menu box bit-exact bar the deferred sparkle corner); next is the remaining chrome (sparkle corner + tooltip text + picker) and the Start→game path
 
-The **new-game config scene** is now a **live, interactive scene**, not just a
-bit-exact still: the title's Start commit (`app_flow` NEW_GAME) routes to
-`enter_newgame` (`main.c`), the menu grid renders onto the primary surface each
-frame (`newgame_render` → `glyph_grid_render` at base (32,32), Courier New 7×18 =
-**font slot 5**), nav moves the cursor, and `0x27` backs out to the title.  The
-drive is **`src/newgame_drive.{c,h}`** (the Win32-free caller, ckpt 39, quirk
-#66), composing the already-ported builder (`newgame_menu.c`, ckpt 37),
-renderer (`glyph_render.c`, bit-exact ckpt 36), run-loop model
-(`newgame_scene.c`, ckpt 38), nav engine (`menu_list.c`), and input poll
-(`input.c`).  The text pipeline (`glyph_text.c`/`glyph_render.c`, ckpt 34/35) is
-closed end-to-end; the menu's 129 glyph draws are bit-exact vs the golden
-(`tests/test_newgame_menu.c`), and the live render confirms it (pixel-sampled
-colours match).
+The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
+**bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
+(`main.c`) composes the frame retail-style: clear primary → draw the two 9-slice
+box panels via DDraw (**menu box (32,32)400×124** + **tooltip box (32,392)576×80**)
+→ GetDC + `glyph_grid_render` the menu text on top (base (32,32), Courier New
+7×18 = font slot 5).  The 9-slice render is the pure, host-tested
+**`src/newgame_box.{c,h}`** (port of `0x48cf80`'s opaque arm, quirk #67): a tiling
+walk over a `newgame_box_ops` vtable, bank **PE resource 0x457** (=
+`AR_SPR_FONT_TEX_457`, already registered by `ar_register_fonts`, 32×32 cells,
+frames tl0/top1/tr2/l3/c4/r5/bl6/b7/br8, center = cream RGB(239,227,214)); the
+real blit (`ar_sprite_slot_frame` + `zdd_object_blt_clipped` = `FUN_005b9bf0`) is
+the main.c adapter.
 
-What's left for the scene is **chrome + transitions**, not pixels: the box
-widget tree (`0x411940`→`0x40f3e0`, plain black fill now), the tooltip text node
-(y=416/444, word-wrapped — text computed by `newgame_scene_tooltip`, render
-deferred), the option picker submenu (`0x567ba0` — a kind-0 confirm yields
-NEWGAME_OPEN_PICKER, surfaced but inert), and the Start→game path (the
+The scene composes from the already-ported builder (`newgame_menu.c`, ckpt 37),
+text renderer (`glyph_render.c`, bit-exact ckpt 36), run-loop model
+(`newgame_scene.c`, ckpt 38), drive (`newgame_drive.c`, ckpt 39, quirk #66), and
+now the box (`newgame_box.c`, ckpt 40).  **Verified LIVE** (port frame 760): menu
+box **differ_px 307/50800 (0.6%)** vs the golden, with **all 307 residual pixels
+in the top-left corner** = the **deferred animated sparkle overlay** (`0x48d940`,
+bank **0x3e8**, frames 16–19, at (44,29)); the 9-slice panel + menu text are
+**bit-exact everywhere else**.
+
+What's left for the scene is the **remaining chrome + transitions**: the sparkle
+corner (`0x3e8`), the tooltip TEXT node (y=416/444, word-wrapped — box drawn, text
+computed by `newgame_scene_tooltip`, needs the word-wrap split), the option
+picker submenu (`0x567ba0` — a kind-0 confirm yields NEWGAME_OPEN_PICKER, surfaced
+but inert), the box fade-in (`0x48cf80`'s alpha arm), and the Start→game path (the
 Elemental-Stone intro `0x564160`→`0x5642e0`→`0x59ec30`).  See **Next move #1**.
 
 The title is feature-complete as a *loop*: intro bit-exact, menu interactive
@@ -474,43 +521,44 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the new-game config scene now RUNS LIVE (ckpt 39) — visible +
-> interactive, entered from the title's Start commit, nav + back working.  The
-> menu TEXT is proven **bit-exact** (control diff with the box cream bg: rows 1/2
-> → 0 px; row 0's only residual is the focus-arrow sprite, see quirk #66).  The
-> active goal (user, ckpt 13) is **1:1 parity** for title + new-game + prologue.
-> What's left for the scene is the deferred CHROME + the Start→game transition.
+> Context: the new-game config scene RUNS LIVE (ckpt 39) AND now renders its
+> 9-slice BOX PANEL (ckpt 40) — the menu box is bit-exact bar the deferred
+> top-left sparkle corner (307px, the only menu-box residual).  The active goal
+> (user, ckpt 13) is **1:1 parity** for title + new-game + prologue.  What's left
+> is the remaining chrome + the Start→game transition.
 
-1. **(recommended) Render the new-game scene's deferred CHROME.** The drive +
-   menu grid are live (ckpt 39, quirk #66); the text is bit-exact.  The only
-   things that make the live scene *look* different from the golden are un-drawn
-   chrome — port them next, in roughly this order (cheapest visual win first):
-   (a) the **box widget panel** — the bordered **cream (RGB 239,227,214)** box
-   with gold corner art, drawn behind the text (`0x411940` → `0x40f3e0`; the
-   tooltip box is `0x4124d0`/`0x40dee0`/`0x410610`).  With the cream bg in place
-   the menu text already diffs to ZERO (quirk #66), so this is the big payoff.
-   NB it is a bordered SUB-RECT over the prior scene, not a full-screen wash.
-   **When this lands, REMOVE `newgame_render`'s placeholder `PatBlt(... BLACKNESS)`
-   black fill** (it has a `TODO(box-widget)` marker) — the panel render replaces it.
-   (b) the **focus-arrow sprite** beside the selected row (the row-0 residual at
-   x60–64: dark-gold 107,93,49 + tan 206,186,173).
-   (c) the **tooltip text node** (the second GDI-text node at y=416/444,
-   word-wrapped).  `newgame_scene_tooltip` already computes the text; rendering
-   needs the box + a word-wrap split into rows (the renderer draws per-row, the
-   wrap happens at build time).
+1. **(recommended) Finish the new-game scene's remaining CHROME + transitions.**
+   The box panel + menu text render bit-exact (ckpt 40); port the rest in roughly
+   this order (cheapest visual win first):
+   ~~(a) the box widget panel~~ **DONE (ckpt 40, quirk #67, `src/newgame_box.c`).**
+   (a') the **animated sparkle corner** — the 307px menu-box residual at the
+   top-left (x44–65,y29–69).  Renderer `0x48d940` (single-cell, the `--box-probe`
+   `box_cell` capture), bank **0x3e8** (NOT yet registered — register it like
+   0x457), **base frame 16** cycling its frame-list [0,1,2,3] → sprite frames
+   **16–19** (idx in node+0x72, advances each frame).  A small animated overlay
+   blitted after the box; needs the 0x3e8 bank + the animation tick.
+   (b) the **tooltip TEXT node** (the second GDI-text node at y=416/444,
+   word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
+   computes the text; rendering needs a word-wrap split into rows (the renderer
+   draws per-row, the wrap happens at build time).  This closes the 11% tooltip-box
+   residual.
    Then the transitions:
-   (d) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
+   (c) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
    its own pump loop).  A kind-0 confirm already yields `NEWGAME_OPEN_PICKER`
    (surfaced + counted by the drive); port the submenu, and on its commit call
    `newgame_scene_set_option` to re-lay the value cell.
-   (e) the **Start→game path**: the Elemental-Stone intro (`0x564160` →
+   (d) the **Start→game path**: the Elemental-Stone intro (`0x564160` →
    `0x5642e0`/`0x56cd20` timed cutscene → `0x59ec30` game proper).  START is a
    stub today (re-displays title).
-   How to drive there: `--input-trace` with confirm (id 36 = `0x24`) at **flip
-   ~620** (the port's live title menu; the gate opens ~flip 547, see ckpt 32 —
-   flip 400 is too early), then nav (1=up, 3=down) + back (id 39 = `0x27`).
-   Capture with `--capture-frames` (frames after ~660 are the newgame scene,
-   logged `phase=-1`).
+   Deferrable polish: the box **fade-in** (`0x48cf80`'s alpha arm via `0x5bd550`).
+   How to drive there (PORT side, self-serviceable): trace `{"frame":620,"ids":[36]}`
+   into the **game dir**, then `./build/opensummoners-launcher.exe --timeout-ms 45000
+   -- /tmp/oss.exe --hide-window --frames 1100 --input-trace ng_trace.jsonl
+   --capture-frames "700,760,840" --capture-dir=C:\osscap` (use a **no-space**
+   capture dir — the launcher splits the game-dir path on its space).  Frames
+   after ~660 are the newgame scene (`phase=-1`).  RETAIL side: `--box-probe`
+   (Flip freezes at 422 in the modal pump — flip-gated probes see only the
+   title→menu transition, which is when the box first renders).
 2. ~~The new-game config menu BUILDER.~~ **DONE (ckpt 37, quirk #64).**
    `src/newgame_menu.{c,h}` builds the case-0x24 grid (`FUN_00564780` case 0x24 +
    `FUN_00411940` setup); host-tested to emit retail's `TextOutA` stream
