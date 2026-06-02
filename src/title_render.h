@@ -70,12 +70,13 @@ _Static_assert(offsetof(title_sprite_entry, alpha_level)  == 0x18, "entry alpha_
  * asserted. */
 typedef struct title_sprite_group {
     title_sprite_entry *entries;   /* +0x00 */
-    uint16_t            _pad04;    /* +0x04 — between entries and count    */
+    uint16_t            cap;       /* +0x04 capacity (retail: 500 @0x56b6xx)*/
     uint16_t            count;     /* +0x06 entry count                    */
 } title_sprite_group;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(title_sprite_group, entries) == 0x00, "group entries offset");
+_Static_assert(offsetof(title_sprite_group, cap)     == 0x04, "group cap offset");
 _Static_assert(offsetof(title_sprite_group, count)   == 0x06, "group count offset");
 #endif
 

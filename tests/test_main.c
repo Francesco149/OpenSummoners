@@ -327,6 +327,13 @@ struct test_case {
     X(title_render_fadeout)                                    \
     X(title_render_flip_log_once)                              \
     X(title_render_no_sink_is_safe)                            \
+    X(rng_matches_msvc_stream)                                 \
+    X(rng_srand_is_reproducible)                               \
+    X(particle_pool_init)                                      \
+    X(particle_spawn_title_fields_and_order)                   \
+    X(particle_spawn_appends_sequentially)                     \
+    X(particle_spawn_caps_at_capacity)                         \
+    X(particle_spawn_x_sweeps_with_intensity)                  \
     X(title_scene_init_zeroes_and_binds)                       \
     X(title_scene_render_iteration_presents)                   \
     X(title_scene_abort_poll_returns_6)                        \
