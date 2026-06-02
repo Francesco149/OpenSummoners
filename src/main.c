@@ -61,6 +61,7 @@
 #include "menu_list.h"        /* menu_ctrl / menu_node — glyph render test */
 #include "glyph_text.h"       /* glyph_cell_layout — glyph render test */
 #include "glyph_render.h"     /* glyph_grid_render + glyph_gdi_ops_win32 */
+#include "newgame_drive.h"    /* the new-game config scene drive (FUN_00565d10) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -135,6 +136,20 @@ static int       g_ramps_built;
  * minimal present loop (a black/uninitialised window, zero DDERR/frame). */
 static title_drive g_drive;
 static int         g_drive_active;
+
+/* The new-game config scene drive (the caller side of FUN_00565d10 / 0x564780
+ * case 0x24).  Entered when the title menu commits Start (app_flow NEW_GAME);
+ * one main_loop_body iteration runs one newgame_drive_step.  On BACK it tears
+ * down + re-displays the title; START is a stub (the stone intro + game proper
+ * are unported) that also re-displays the title for now. */
+static newgame_drive g_newgame_drive;
+static int           g_newgame_active;
+
+/* The GDI HFONT slot the new-game config menu renders with: Courier New 7×18 =
+ * ar_register_fonts slot 5 ({w=7,h=0x12,family=2}); the captured golden's
+ * TextOutA stream selects exactly that LOGFONTA (face "Courier New", h 18,
+ * w 7).  Fallbacks cover a partial font registration. */
+#define NEWGAME_FONT_SLOT 5
 
 /* The phase-7 sparkle-particle pool (FUN_0056c070 spawns into it; the sink's
  * FRAME_END composes it via title_compositor_draw == FUN_0056c180).  Owned
@@ -235,6 +250,9 @@ static void sync_window_position(void);
 static int  build_title_drive(int skip_intro);
 static void init_title_drive(void);
 static void reenter_title(void);
+static void enter_newgame(void);
+static void leave_newgame_to_title(const char *why);
+static void newgame_render(void *user);
 static void init_sprite_banks(void);
 static void render_glyph_test(void);
 static void init_alpha_ramps(void);
@@ -373,6 +391,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     log_line("OpenSummoners exiting after %u frames (%u ms wall)",
              g_frame_counter, g_total_ms);
 
+    if (g_newgame_active) {
+        newgame_drive_shutdown(&g_newgame_drive);
+        g_newgame_active = 0;
+    }
     if (g_drive_active) {
         title_drive_shutdown(&g_drive);
         g_drive_active = 0;
@@ -918,6 +940,95 @@ static void reenter_title(void)
     }
 }
 
+/* The new-game config scene's per-frame render (the drive's `render` callback).
+ * Draws the menu grid onto the primary surface with the registered GDI fonts:
+ * clear the box background, then glyph_grid_render the menu node at base (32,32)
+ * — the bit-exact builder (newgame_menu) + renderer (glyph_render) emit retail's
+ * TextOutA stream draw-for-draw.  drive_present then BitBlts the composed
+ * primary to the window.
+ *
+ * DEFERRED seams (documented, not drawn yet): the box widget chrome (0x40f3e0's
+ * bordered box) — modelled here as a plain black fill; and the tooltip text node
+ * (the second GDI-text node at y=416/444, word-wrapped) — the scene already
+ * computes its text via newgame_scene_tooltip, but rendering it needs the
+ * box/word-wrap builder (a follow-up unit).  This first cut makes the menu
+ * VISIBLE + interactive; the chrome/tooltip land next. */
+static void newgame_render(void *user)
+{
+    newgame_drive *d = (newgame_drive *)user;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+
+    /* The HFONT the menu draws with (Courier New 7×18 = slot 5), with fallbacks
+     * if the font registration was partial. */
+    void *hfont = NULL;
+    static const int font_slots[] = { NEWGAME_FONT_SLOT, 3, 2, 1 };
+    for (size_t i = 0; i < sizeof font_slots / sizeof font_slots[0]; i++) {
+        int s = font_slots[i];
+        if (s >= 0 && s < AR_GDI_SLOT_COUNT && g_ar_gdi_table[s] != NULL &&
+            g_ar_gdi_table[s]->array != NULL && g_ar_gdi_table[s]->array[0] != NULL) {
+            hfont = g_ar_gdi_table[s]->array[0];
+            break;
+        }
+    }
+    if (hfont == NULL)
+        return;                       /* no registered font → nothing to draw */
+
+    void *hdc = NULL;
+    if (!zdd_object_get_dc(g_zdd->primary_obj, &hdc) || hdc == NULL)
+        return;
+
+    /* Box background (chrome deferred — plain black fill for now). */
+    PatBlt((HDC)hdc, 0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT, BLACKNESS);
+
+    SetBkMode((HDC)hdc, TRANSPARENT);
+    glyph_gdi_ops ops = glyph_gdi_ops_win32(hdc);
+    glyph_grid_render(&d->scene.node, &ops, /*x=*/32, /*y=*/32, hfont, hfont);
+    GdiFlush();
+
+    zdd_object_release_dc(g_zdd->primary_obj, hdc);
+}
+
+/* Enter the new-game config scene from a title-menu Start commit (app_flow
+ * NEW_GAME).  Tears down the finished title drive and stands up the newgame
+ * drive bound to the live primary surface (render = newgame_render, present =
+ * drive_present so the Flip counter + capture path keep working).  The input
+ * trace (if any) keeps its cursor; events still injecting at the current Flip
+ * reach the newgame drive's ring via main_loop_body. */
+static void enter_newgame(void)
+{
+    if (g_drive_active) {
+        title_drive_shutdown(&g_drive);
+        g_drive_active = 0;
+    }
+
+    newgame_drive_cfg cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.settings  = NULL;             /* defaults: difficulty Easy, auto-guard On */
+    cfg.render    = newgame_render;
+    cfg.present   = drive_present;     /* reuse the title present thunk (Flip++)  */
+    cfg.user      = &g_newgame_drive;
+    cfg.gate_step = 0;                 /* → NEWGAME_DRIVE_GATE_STEP (50/frame)    */
+
+    newgame_drive_init(&g_newgame_drive, &cfg);
+    g_newgame_active = 1;
+    log_line("enter_newgame: new-game config scene driven (primary=%p) — "
+             "nav gate ramping open, 0x24=confirm 0x27=back",
+             (void *)g_zdd->primary_obj);
+}
+
+/* Leave the new-game scene back to the title menu (BACK, or the START stub).
+ * Tears down the newgame drive and re-displays the title (reenter_title). */
+static void leave_newgame_to_title(const char *why)
+{
+    if (g_newgame_active) {
+        newgame_drive_shutdown(&g_newgame_drive);
+        g_newgame_active = 0;
+    }
+    log_line("leave_newgame: %s — re-displaying title", why);
+    reenter_title();
+}
+
 /* Anchor CWD + DLL search dir to the game directory.  Reads
  * OPENSUMMONERS_GAME_DIR from the environment — nix develop's shellHook
  * exports it with WSLENV's /p flag so the .exe gets a Windows-form path
@@ -1067,7 +1178,22 @@ static void main_loop_body(void)
         DispatchMessageA(&msg);
     }
 
-    if (g_drive_active) {
+    if (g_newgame_active) {
+        /* The new-game config scene: one newgame_drive_step per presented frame
+         * (no pace machine — frame_limiter gates the rate).  Inject any due
+         * replay events into the drive's ring before it polls (keyed on the
+         * Flip count drive_present bumps), then act on the outcome. */
+        uint32_t now = GetTickCount();
+        if (g_input_trace_active)
+            input_trace_replay(&g_input_trace, g_present_frame,
+                               &g_newgame_drive.input, now);
+        newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
+        if (st == NEWGAME_START)
+            leave_newgame_to_title("Start committed (stone intro + game "
+                                   "proper unported)");
+        else if (st == NEWGAME_BACK)
+            leave_newgame_to_title("backed out (result 0xb)");
+    } else if (g_drive_active) {
         /* Mirror retail's tight outer loop (FUN_0056aea0's do/while): spin the
          * pace machine — its update steps are ~free, no per-step sleep — until
          * it PRESENTS one frame, then fall through to frame_limiter, which
@@ -1121,7 +1247,11 @@ static void main_loop_body(void)
                 case APP_FLOW_EXIT_9:
                     g_shutdown = 1;
                     break;
-                case APP_FLOW_NEW_GAME:   /* 0x564160+0x56cd20+0x59ec30 — UNPORTED */
+                case APP_FLOW_NEW_GAME:   /* 0x564160 case 0x24 — config scene now driven */
+                    log_line("dispatch: NEW_GAME (result=%ld) → new-game "
+                             "config scene", (long)result);
+                    enter_newgame();
+                    break;
                 case APP_FLOW_CONTINUE:   /* 0x56a670                   — UNPORTED */
                 case APP_FLOW_OPTIONS:    /* 0x40a5d0+0x568de0          — UNPORTED */
                 case APP_FLOW_BONUS:      /* 0x583fe0                   — UNPORTED */
