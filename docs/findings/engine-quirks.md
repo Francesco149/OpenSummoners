@@ -1309,3 +1309,34 @@ distinct-content sequence is, and now matches.
 > General lesson: a fixed-timestep accumulator ported into a *host* loop must
 > keep the engine's call cadence (tight spin, present-gated), not be re-paced by
 > the host's own frame limiter — the two throttles compound.
+
+## 55. Windowed (mode 2) present — the port BitBlts the DESKTOP (`GetDC(NULL)`); retail BitBlts its WINDOW (`GetDC(hwnd)`)
+
+`--hide-window` strips `WS_VISIBLE` so the game window never shows, yet a
+640×480 rectangle still flickered on the real desktop every frame.  Cause: the
+port's `zdd_present` mode 2 (`src/zdd.c` case 2 → `zdd_desktop_present`) does
+`BitBlt(GetDC(NULL) /* desktop */, screen_pos_x, screen_pos_y, w, h, surfaceDC,
+…)` — it paints straight onto the desktop at the window's logical position,
+independent of window visibility.  So a hidden window doesn't stop the paint.
+
+A live diagnostic (Frida: hook `GetDC`/`GetDCEx`/`GetWindowDC`/`BeginPaint`
+during the Flip dispatcher `FUN_005b8fc0` under `--hide-window`) showed
+**retail's mode-2 present calls `GetDC(hwnd=<real window>)`, never `GetDC(NULL)`**
+(the desktop-DC redirect never fired across 1500 flips).  So retail paints into
+its *own window* DC — hidden ⇒ nothing on the visible desktop ⇒ **retail does
+not flicker**; only the port did.
+
+Two consequences:
+- **Immediate fix (ckpt 29):** under `--hide-window` the port skips the present
+  entirely (`drive_present` in `src/main.c`) — there's nothing to present into,
+  and captures read `primary_obj` *before* the present, so it's lossless.
+- **Open lead:** the port's `GetDC(NULL)` desktop blit looks like a *mismodel*
+  of retail's `GetDC(hwnd)` window blit — wrong target even when shown (paints
+  the desktop, not the window). Confirm by disassembling `FUN_005b8fc0`'s mode-2
+  path (~`0x5b8fc5`) and, if so, present into the window DC like retail. Tracked
+  as a follow-up; `zdd_desktop_present` is a pinned port, so verify before edit.
+
+> 📍 `drive_present` in `src/main.c` (the `--hide-window` present skip);
+> `zdd_present` case 2 / `zdd_desktop_present` in `src/zdd.c`. The retail present
+> target was observed live, not yet pinned in the static disasm — treat the
+> "mismodel" as a strong lead, not settled, until `FUN_005b8fc0` is decoded.

@@ -368,7 +368,16 @@ static void drive_present(void *user)
     /* Capture BEFORE the flip: the fully-composed frame is on primary_obj's
      * surface here, exactly as the sink drew it this iteration. */
     maybe_capture_frame(g_present_frame);
-    if (!g_no_present && g_zdd != NULL)
+    /* In Windowed mode (the drop-in default, launcher_mode 2) zdd_present
+     * BitBlts the composed primary onto the *desktop* at the window's screen
+     * position (zdd_desktop_present → GetDC(NULL)) — faithful to retail, which
+     * paints into its window's client area.  But under --hide-window the window
+     * is SW_HIDE'd while that desktop blit still paints a 640×480 rectangle on
+     * the real screen every frame: the "hidden window flickers over my screen"
+     * bleed-through.  Hidden ⇒ nothing to present into, so skip the blit; the
+     * frame is already fully composed on primary_obj (captures read it above,
+     * before this), so suppressing the present is lossless for headless runs. */
+    if (!g_no_present && !g_hide_window && g_zdd != NULL)
         zdd_present(g_zdd);
 }
 
