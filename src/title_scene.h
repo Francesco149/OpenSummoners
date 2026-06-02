@@ -451,9 +451,13 @@ typedef enum title_draw_op {
  *          TITLE_DRAW_MENU_CURSOR → the selected row index (the cursor).
  *   level  TITLE_DRAW_SPRITE_LEVEL → the raw fade level passed (0x56c4e0's
  *                                    4th arg, divisor 1000 is its 5th);
- *          TITLE_DRAW_MENU_CURSOR  → the constant 0x4b0 (1200).
+ *          TITLE_DRAW_MENU_CURSOR  → the cursor's level_num (0x56c470's
+ *                                    3rd arg = [esp+0x20] = the pulsing
+ *                                    menu_fade / local_58; 0 ⇒ invisible).
  *   alpha  TITLE_DRAW_LOGO / SPARKLE → the ramp-resolved blend value
  *                                      (title_fade_ramp); 0 ⇒ the clear path.
+ *          TITLE_DRAW_MENU_CURSOR  → the level_div (0x56c470's 4th arg, the
+ *                                    constant 0x4b0 = 1200).
  *   x      TITLE_DRAW_SPARKLE      → the sparkle's x (192,196,…<416).
  *   y      TITLE_DRAW_MENU_CURSOR  → the row's y (16 + cursor*32).            */
 typedef struct title_draw_cmd {
@@ -489,7 +493,12 @@ int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp);
 /* Run one render frame for the current scene phase.
  *
  *   phase           the scene phase (local_64 / title_fade_state.phase).
- *   fade            the main fade ramp (uVar15 / title_fade_state.fade).
+ *   fade            the main fade ramp (uVar15 / title_fade_state.fade) —
+ *                   the menu sprite's level + the fade==1000 cursor gate (ebx).
+ *   menu_fade       the cursor pulse (local_58 / title_fade_state.menu_fade) —
+ *                   0x56c470's level_num ([esp+0x20]).  Triangle 0↔1000 step
+ *                   50, oscillated by phases 8↔9; idx=(menu_fade*20)/1200, so
+ *                   it peaks at idx 16 (NOT 19) and breathes to 0 (invisible).
  *   ctrl            the spawned menu controller (for the phase 8/9 cursor
  *                   highlight); NULL ⇒ skip the cursor (retail's
  *                   `[esp+0x18]` null check at 0x56be20).
@@ -504,8 +513,9 @@ int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp);
  * retail order, ending with TITLE_DRAW_FRAME_END, the optional
  * TITLE_DRAW_LOG_FLIPPING, then TITLE_DRAW_FLIP.  Faithful to
  * 0x56bb04..0x56bf1a. */
-void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
-                       const uint32_t *ramp, int quiet, int *already_flipped);
+void title_render_step(int32_t phase, int32_t fade, int32_t menu_fade,
+                       menu_ctrl *ctrl, const uint32_t *ramp, int quiet,
+                       int *already_flipped);
 
 /* ─── the scene runner (the outer do/while of FUN_0056aea0) ───────────
  *

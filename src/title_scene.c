@@ -580,8 +580,10 @@ static void title_render_sparkle(int32_t fade, const uint32_t *ramp)
 /* The menu handler (0x56bdb9, phases 8/9): an optional background sprite
  * (asset 5, only while fading in), the fade-levelled menu sprite (asset 6),
  * and — once fully faded in and a controller exists — the selected row's
- * cursor highlight at y = 16 + cursor*32. */
-static void title_render_menu(int32_t fade, menu_ctrl *ctrl)
+ * cursor highlight at y = 16 + cursor*32.  The cursor's brightness is the
+ * pulsing `menu_fade` (local_58 / [esp+0x20]) passed as level_num, with the
+ * constant 0x4b0 (1200) divisor — NOT a constant: it breathes 0↔1000. */
+static void title_render_menu(int32_t fade, int32_t menu_fade, menu_ctrl *ctrl)
 {
     int32_t cursor, i, y;
     if (fade < 1000)                                  /* 0x56bdb9 (jge skips) */
@@ -594,7 +596,8 @@ static void title_render_menu(int32_t fade, menu_ctrl *ctrl)
     cursor = ctrl->list->cursor;                      /* word [list+0x14]     */
     for (i = 0, y = 0x10; i < 5; i++, y += 0x20) {    /* 0x56be3b loop, 5 rows */
         if (i == cursor)                              /* draw only the cursor row */
-            title_emit(TITLE_DRAW_MENU_CURSOR, i, 0x4b0, 0, 0, y);  /* 0x56c470 */
+            /* 0x56c470(.., level_num=[esp+0x20]=menu_fade, level_div=0x4b0). */
+            title_emit(TITLE_DRAW_MENU_CURSOR, i, menu_fade, 0x4b0, 0, y);
     }
 }
 
@@ -606,8 +609,9 @@ static void title_render_fadeout(int32_t fade)
     title_emit(TITLE_DRAW_SPRITE_LEVEL, 6, fade, 0, 0, 0);  /* 0x56c4e0(asset 6) */
 }
 
-void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
-                       const uint32_t *ramp, int quiet, int *already_flipped)
+void title_render_step(int32_t phase, int32_t fade, int32_t menu_fade,
+                       menu_ctrl *ctrl, const uint32_t *ramp, int quiet,
+                       int *already_flipped)
 {
     /* (1) Prologue (0x56bb04).  Phase 0 resets the surface; phases 2..3
      *     clear it; both fall through to the dispatch.  (Phase 0's reset is
@@ -631,7 +635,7 @@ void title_render_step(int32_t phase, int32_t fade, menu_ctrl *ctrl,
         case 6:  title_render_pressbtn(fade, 3, 4); break; /* 0x56bca2        */
         case 7:  title_render_sparkle(fade, ramp);  break; /* 0x56bcf7        */
         case 8: case 9:
-            title_render_menu(fade, ctrl);        break;   /* 0x56bdb9        */
+            title_render_menu(fade, menu_fade, ctrl); break; /* 0x56bdb9      */
         case 10: title_render_fadeout(fade);      break;   /* 0x56be85        */
         default: break;                                    /* unreachable     */
         }
@@ -688,8 +692,9 @@ title_scene_status title_scene_step(title_scene *ts, uint32_t now,
     /* (2) Render half (sub==1, 0x56bb04): draw + present, then loop.  Never
      *     exits — the only returns are in the update half below. */
     if (pout.action == TITLE_PACE_RENDER) {
-        title_render_step(ts->fade.phase, ts->fade.fade, ts->menu.ctrl,
-                          ts->ramp, ts->quiet, &ts->already_flipped);
+        title_render_step(ts->fade.phase, ts->fade.fade, ts->fade.menu_fade,
+                          ts->menu.ctrl, ts->ramp, ts->quiet,
+                          &ts->already_flipped);
         return TITLE_SCENE_RUNNING;
     }
 

@@ -571,8 +571,15 @@ static void maybe_capture_frame(unsigned flip_frame)
         snprintf(path, sizeof path, "%s/port_frame_%05u.bmp",
                  g_capture_dir, flip_frame);
         int ok = capture_primary_to_bmp(path);
-        log_line("capture: frame %u -> %s (%s)", flip_frame, path,
-                 ok ? "ok" : "FAILED");
+        /* Log the scene's pulse state too — phase (local_64), fade (uVar15)
+         * and menu_fade (local_58 / the cursor level_num).  This lets the
+         * parity harness match a port capture to the retail golden at the
+         * same cursor-pulse phase (parity-ledger R1). */
+        log_line("capture: frame %u -> %s (%s) phase=%d fade=%d menu_fade=%d",
+                 flip_frame, path, ok ? "ok" : "FAILED",
+                 g_drive_active ? (int)g_drive.scene.fade.phase   : -1,
+                 g_drive_active ? (int)g_drive.scene.fade.fade     : -1,
+                 g_drive_active ? (int)g_drive.scene.fade.menu_fade : -1);
         return;
     }
 }

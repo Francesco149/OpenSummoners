@@ -43,11 +43,13 @@
  * intro path, the menu background + menu sprite, and the fade-out.
  *
  * Deferred to the drive checkpoint (routed through optional ctx callbacks,
- * no-op by default): TITLE_DRAW_LOGO, TITLE_DRAW_SPARKLE, and
- * TITLE_DRAW_MENU_CURSOR.  The first two encode a blend-descriptor POINTER
- * in the 32-bit `alpha` field (retail 0x448c80's ramp result), which cannot
- * round-trip on a 64-bit host; the cursor drops its level numerator
- * ([esp+0x20]) and fixed src geometry.  These three are alpha-ramp draws
+ * no-op by default): TITLE_DRAW_LOGO, TITLE_DRAW_SPARKLE.  The two encode a
+ * blend-descriptor POINTER in the 32-bit `alpha` field (retail 0x448c80's
+ * ramp result), which cannot round-trip on a 64-bit host.  TITLE_DRAW_MENU_
+ * CURSOR is now wired directly (cmd->level = level_num = the pulsing
+ * menu_fade, cmd->alpha = level_div = 0x4b0); the draw_cursor callback
+ * remains a fallback for when the CURSOR bank is unresolved.  These are
+ * alpha-ramp draws
  * that only fire once the ramp tables are populated at run time (never at a
  * cold headless boot), so deferring them costs no intro/menu-background
  * fidelity — they get wired + validated against live goldens in the drive

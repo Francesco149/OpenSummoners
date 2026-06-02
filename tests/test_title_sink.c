@@ -361,14 +361,16 @@ int test_sink_menu_cursor_draws_via_ramp(void)
     ctx.ramp_a = g_fake_ramp;
     title_sink_bind(&ctx);
 
-    /* row 3 cursor at y=80; level=0x4b0 ⇒ idx clamps to 19 (full). */
-    emit(TITLE_DRAW_MENU_CURSOR, 3, 0x4b0, 0, 0, 80);
+    /* row 3 cursor at y=80; level_num = the pulse peak 1000, level_div =
+     * 0x4b0 (in the alpha field) ⇒ idx = (1000*20)/1200 = 16 (the real peak,
+     * NOT a clamped 19). */
+    emit(TITLE_DRAW_MENU_CURSOR, 3, 1000, 0x4b0, 0, 80);
 
     T_ASSERT_EQ_I(cap.cursor_n, 0);                  /* not the deferred path  */
     T_ASSERT_EQ_I(cap.comp_n, 1);                    /* alpha blend happened   */
     T_ASSERT_EQ_P(cap.comp_src,  &g_surf_cur[3]);    /* CURSOR bank, frame 3   */
     T_ASSERT_EQ_P(cap.comp_dest, &g_primary);
-    T_ASSERT_EQ_P((void *)cap.comp_desc, (void *)g_fake_ramp[19]);  /* idx 19 */
+    T_ASSERT_EQ_P((void *)cap.comp_desc, (void *)g_fake_ramp[16]);  /* idx 16 */
     T_ASSERT_EQ_I(cap.comp_dx, 1000 + 3 + 0);        /* metric_0c + x          */
     T_ASSERT_EQ_I(cap.comp_dy, 2000 + 3 + 80);       /* metric_10 + y          */
     sink_teardown();
@@ -384,7 +386,7 @@ int test_sink_deferred_null_callbacks_safe(void)
     title_sink_bind(&ctx);
     emit(TITLE_DRAW_LOGO, 8, 0, 77, 0, 0);
     emit(TITLE_DRAW_SPARKLE, 5, 0, 99, 196, 0);
-    emit(TITLE_DRAW_MENU_CURSOR, 3, 0x4b0, 0, 0, 80);
+    emit(TITLE_DRAW_MENU_CURSOR, 3, 0, 0x4b0, 0, 80);   /* num 0 ⇒ no draw */
     T_ASSERT_EQ_I(cap.logo_n, 0);
     sink_teardown();
     return 0;

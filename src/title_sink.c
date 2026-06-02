@@ -131,13 +131,16 @@ void title_render_sink(const title_draw_cmd *cmd)
         /* 0x56c470 — the selected row's highlight cursor, alpha-blended via
          * ramp_a.  Source = the CURSOR bank (pool 20) frame at the row index
          * (cmd->asset == the cursor row); placed at (cmd->x, cmd->y).  Retail
-         * passes level_num=[esp+0x20], level_div=0x4b0 (=cmd->level); the
-         * numerator wasn't captured into the command, so we drive it to full
-         * (idx 19) — pending an exact [esp+0x20] measurement (see HANDOFF).
+         * passes level_num=[esp+0x20] (the pulsing local_58 = menu_fade, in
+         * cmd->level) and level_div=0x4b0 (1200, in cmd->alpha).  The cursor
+         * thus breathes: idx=(menu_fade*20)/1200 ⇒ peak idx 16 at menu_fade
+         * 1000, invisible at 0 (level_num<=0 ⇒ no draw).  Measured live on
+         * retail (FUN_0056c470 probe, frida_capture --cursor-probe) and traced
+         * to FUN_0056aea0's phase-8/9 triangle (parity-ledger R1).
          * With ramp_a NULL (no descriptors) this no-ops, as before. */
         frame = resolve_frame(AR_SPR_TITLE_CURSOR, cmd->asset);
         if (frame != NULL)
-            title_draw_menu_cursor(primary, frame, cmd->level, cmd->level,
+            title_draw_menu_cursor(primary, frame, cmd->level, cmd->alpha,
                                    cmd->x, cmd->y, g_ctx.ramp_a);
         else if (g_ctx.draw_cursor != NULL)
             g_ctx.draw_cursor(cmd, g_ctx.user);
