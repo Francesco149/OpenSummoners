@@ -294,6 +294,16 @@ class CaptureConfig:
     textout_lo:        int  = 0
     textout_hi:        int  = 0
 
+    # ── box-widget render probe (new-game config chrome, ckpt 40) ──
+    # Hook FUN_0048d940 (sprite-cell render) and dump the box panel's 9-slice
+    # composition (bank PE resource id + frame ids + on-screen dst rects) to
+    # box_cells.jsonl.  Drive retail to the new-game menu with --input-trace;
+    # box_lo/hi restrict recording to that flip window (the bank renders many
+    # other UI sprites otherwise).
+    box_probe:         bool = False
+    box_lo:            int  = 0
+    box_hi:            int  = 0
+
     # ── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──
     # Write a fixed seed into DAT_008a4f94 just before the first FUN_0056c070
     # sparkle spawn, so retail's twinkle stream matches the port's pinned-seed
@@ -341,6 +351,8 @@ def run_capture(cfg: CaptureConfig) -> int:
     fade_f       = (run_dir / "fade_level.jsonl").open("w") if cfg.fade_probe else None
     pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
     textout_f    = (run_dir / "textout.jsonl").open("w") if cfg.textout_probe else None
+    box_f        = (run_dir / "box_cells.jsonl").open("w") if cfg.box_probe else None
+    box_res: dict[int, int] = {}        # box-art resource id -> distinct-cell count
     cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
     textout_fonts: dict[str, int] = {}  # font fingerprint -> distinct-draw count
     frames_dir   = (run_dir / "frames") if cfg.capture else None
@@ -581,6 +593,42 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"bk={payload.get('bkmode')} font=[{fp}]", file=sys.stderr)
             if frame > summary["last_frame"]:
                 summary["last_frame"] = frame
+        elif kind == "box_cell":
+            frame = int(payload.get("frame", -1))
+            rid   = payload.get("res_id")
+            if isinstance(rid, int):
+                box_res[rid] = box_res.get(rid, 0) + 1
+            rid_s = f"0x{rid:04x}" if isinstance(rid, int) else str(rid)
+            if box_f is not None:
+                box_f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                box_f.flush()
+            summary.setdefault("box_cells", 0)
+            summary["box_cells"] += 1
+            print(f"[frida_capture] box_cell @flip={frame} res={rid_s} "
+                  f"type={payload.get('type')} frame={payload.get('frameSel')} "
+                  f"dst=({payload.get('scrx')},{payload.get('scry')}) "
+                  f"{payload.get('w')}x{payload.get('h')} "
+                  f"base={payload.get('base')} cnt={payload.get('count')} "
+                  f"idx={payload.get('idx')} frames={payload.get('frames')}",
+                  file=sys.stderr)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
+        elif kind == "box_frame":
+            frame = int(payload.get("frame", -1))
+            rid   = payload.get("res_id")
+            rid_s = f"0x{rid:04x}" if isinstance(rid, int) else str(rid)
+            if box_f is not None:
+                box_f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                box_f.flush()
+            summary.setdefault("box_frames", 0)
+            summary["box_frames"] += 1
+            print(f"[frida_capture] box_frame[{payload.get('tag')}] @flip={frame} "
+                  f"res={rid_s} spec={payload.get('spec')} "
+                  f"node={payload.get('nodeW')}x{payload.get('nodeH')} "
+                  f"fade={payload.get('fade')} off=({payload.get('ox')},"
+                  f"{payload.get('oy')})", file=sys.stderr)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "cursor_level":
             frame = int(payload.get("frame", -1))
             num   = payload.get("num")
@@ -626,6 +674,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "textout_probe":      cfg.textout_probe,
         "textout_lo":         int(cfg.textout_lo),
         "textout_hi":         int(cfg.textout_hi),
+        "box_probe":          cfg.box_probe,
+        "box_lo":             int(cfg.box_lo),
+        "box_hi":             int(cfg.box_hi),
         "seed_pin":           cfg.seed_pin,
         "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
@@ -706,6 +757,17 @@ def run_capture(cfg: CaptureConfig) -> int:
             else:
                 print("[frida_capture] textout: NO TextOutA/ExtTextOutA calls "
                       "seen (scene never rendered GDI text?)", file=sys.stderr)
+        if box_f is not None:
+            box_f.close()
+            if box_res:
+                dist = ", ".join(f"0x{rid:04x}×{c}" for rid, c in
+                                 sorted(box_res.items(), key=lambda kv: -kv[1]))
+                print(f"[frida_capture] box_cells distinct cells by resource id: "
+                      f"{dist}", file=sys.stderr)
+            else:
+                print("[frida_capture] box_cells: NO FUN_0048d940 sprite-cell "
+                      "renders seen in the flip window (box never drawn?)",
+                      file=sys.stderr)
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -810,6 +872,16 @@ def main() -> int:
                    help="restrict --textout-probe to a flip window 'LO,HI' so "
                         "the intro/attract debug text is skipped (e.g. "
                         "'2000,4000' for the new-game menu).")
+    p.add_argument("--box-probe", action="store_true",
+                   help="hook FUN_0048d940 (sprite-cell render) and log the "
+                        "box-widget 9-slice composition (bank PE resource id + "
+                        "frame ids + on-screen dst rects) to box_cells.jsonl — "
+                        "the box-art ground truth.  Pair with --input-trace + "
+                        "--box-frames to drive retail to the new-game menu.")
+    p.add_argument("--box-frames", default=None,
+                   help="restrict --box-probe to a flip window 'LO,HI' (the "
+                        "box-art bank renders many UI sprites; gate it to the "
+                        "new-game menu, e.g. '410,470').")
     args = p.parse_args()
 
     textout_lo, textout_hi = 0, 0
@@ -821,6 +893,16 @@ def main() -> int:
             textout_lo = parts[0]
         else:
             p.error("--textout-frames expects 'LO,HI' (or a single 'LO')")
+
+    box_lo, box_hi = 0, 0
+    if args.box_frames:
+        parts = [int(x) for x in args.box_frames.split(",") if x.strip()]
+        if len(parts) == 2:
+            box_lo, box_hi = parts
+        elif len(parts) == 1:
+            box_lo = parts[0]
+        else:
+            p.error("--box-frames expects 'LO,HI' (or a single 'LO')")
 
     call_trace_vas = None
     call_trace_frames = None
@@ -887,6 +969,9 @@ def main() -> int:
         textout_probe     = args.textout_probe,
         textout_lo        = textout_lo,
         textout_hi        = textout_hi,
+        box_probe         = args.box_probe,
+        box_lo            = box_lo,
+        box_hi            = box_hi,
     )
     return run_capture(cfg)
 

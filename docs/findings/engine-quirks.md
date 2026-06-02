@@ -1793,3 +1793,30 @@ dark bg).
 **x≈60–64**, retail paints a small arrow sprite in **dark-gold RGB(107,93,49)**
 + **tan RGB(206,186,173)** marking the current selection — a separate sprite
 from the text, moving with the cursor.
+
+## 67. The new-game config box is a 9-slice sprite panel (bank res 0x457, 32×32 cells, frames tl0/top1/tr2/l3/c4/r5/bl6/b7/br8) plus a separate animated sparkle corner (bank res 0x3e8, frames 16–19)
+
+The bordered cream panel behind the config menu (and the tooltip) is **not** a
+procedural fill — it is a **9-slice sprite box** rendered by `FUN_0048cf80` (the
+tiled variant; `FUN_0048cb90` is the fade-scaled twin).  Read live off the
+actively-rendering bank (`--box-probe`), the panel's bank is **PE resource
+`0x457`** (sotesd.dll) and its nine slice frames sit at box-node `+0x60..+0x72`
+in order **tl=0, top=1, tr=2, lmid=3, center=4, rmid=5, bl=6, bottom=7, br=8**,
+each a **32×32** cell.  Frame 4 (center) is the **cream RGB(239,227,214)** fill,
+1/3/5/7 the bevel edges, 0/2/6/8 the ornate gold corners.  Edges + center are
+**tiled** (repeat at 32px), not stretched; the panel fades in through the node
+`+0x54` ramp fed as the blit alpha.  `FUN_00411940` builds two such boxes for
+case-0x24: the **menu** box at (32,32) size **400×124** and the **tooltip** box
+at (32,392) size **576×80**.
+
+On top of the static panel sits a **separate, animated** decoration: a single
+type-1 cell node rendered by `FUN_0048d940` from bank **PE resource `0x3e8`**,
+**base frame 16** cycling its frame-list `[0,1,2,3]` → sprite frames **16–19**,
+positioned at the box's **top-left** corner (≈dst (44,29), ~22×41) — a twinkle
+overlay, not part of the 9-slice.
+
+Both bank fields are scene-object members (`*(this+0xb88)` = the 9-slice bank,
+`*(this+0xb8c)` = the sparkle bank); neither is written as a literal offset
+anywhere in the decompiled corpus (an embedded sub-object ctor sets them), so the
+resource ids are only knowable live — read from `slot+0x40` on the rendering
+bank.

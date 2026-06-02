@@ -68,6 +68,54 @@ split: the focused-row **tooltip resolution** (`newgame_option_tooltip` =
 commit effect).  Host-tested (4 tests).  The pump itself (`0x565d10`), the
 picker submenu, and the box widgets are the drive's job — the next unit.
 
+## Box chrome — retail ground truth (ckpt 40, live `--box-probe`)
+
+The bordered cream panels behind the menu + tooltip are a **9-slice sprite box**,
+captured live by hooking the render path (new `frida_capture.py --box-probe`,
+gated to the menu flip window).  Two distinct systems compose the chrome:
+
+**1. The 9-slice panel** — renderer **`FUN_0048cf80`** (the tiled 9-slice; sibling
+`0x48cb90` is the fade-scaled variant), bank **PE resource `0x457`** (= 1111,
+sotesd.dll; scene field `*(this+0xb88)`, embedded at box-node `+0x5c`).  The 9
+slice frame ids live at node `+0x60..+0x72` and are, in order, **tl=0, top=1,
+tr=2, lmid=3, center=4, rmid=5, bl=6, bottom=7, br=8** — each a **32×32** cell
+(`+0x74`/`+0x78` = corner cell w/h).  The center (frame 4) is the **cream
+RGB(239,227,214)** fill, the edges (1/3/5/7) the bevel, the corners (0/2/6/8) the
+ornate gold filigree.  Edges + center are **tiled** (repeat 32px), not stretched.
+The panel fades in via the node `+0x54` ramp passed as the blit alpha (captured
+at `fade=50`).  Two instances, both bank `0x457`, both built by `FUN_00411940`
+(case-0x24 calls it twice):
+  - **menu box**:    rect **(32,32)** size **400×124**
+  - **tooltip box**: rect **(32,392)** size **576×80**
+These match the golden's measured bounds (top box x32–431/y29–155; bottom box
+x32–607/y392–471).
+
+**2. The animated sparkle corner** — renderer **`FUN_0048d940`** (single-sprite
+cell), bank **PE resource `0x3e8`** (= 1000; scene field `*(this+0xb8c)`, box-node
+`+0x28`).  A type-1 node at the box's **top-left** corner (≈dst (44,29), ~22×41),
+**base frame 16** cycling frame-list **[0,1,2,3] → sprite frames 16–19** (the
+twinkle animation, idx in `+0x72`).  A decorative overlay on top of the static
+corner — secondary to the panel.
+
+Ground truth saved: `goldens/retail-newgame-box-cells.jsonl` (the `box_frame` +
+`box_cell` capture).  Neither bank field (`+0xb88`/`+0xb8c`) is written as a
+literal offset anywhere in the 1768-fn corpus — they're set by an embedded
+sub-object ctor — so the **live probe is the only way** to learn the resource
+ids; the slot's `resource_id` (`slot+0x40`) was read straight off the actively-
+rendering bank.
+
+**Harness caveat:** entering the new-game scene, the **Flip counter freezes**
+(the modal pump `0x565d10` doesn't advance the hooked Present), so flip-gated
+probes only see the **title→menu transition** (flips ~410–422) — which is exactly
+when the box first renders, so it was captured.  Steady-state re-renders are
+invisible to a flip-gated probe here.
+
+**Port plan (next):** register banks `0x457` + `0x3e8` at boot (the
+`ar_register_main_sprites` pattern, sotesd HMODULE), port the `0x48cf80` tiled
+9-slice render, build the two boxes, draw them behind the menu/tooltip text
+(replacing `newgame_render`'s placeholder `PatBlt(BLACKNESS)`), then `differ_px`
+the text region → 0.
+
 ## Open
 
 - **Prologue → first playable map.** The opening cutscene (stone + narration)

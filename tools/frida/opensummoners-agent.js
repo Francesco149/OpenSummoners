@@ -353,6 +353,28 @@ const TEXTOUT_CAP         = 4000;  // distinct-draw emit cap (safety valve)
 let   g_textout_q         = {};    // resolved GDI query NativeFunctions
 let   g_textout_lfbuf     = null;  // Memory.alloc LOGFONTA scratch (60 bytes)
 
+// ─── box-widget render probe (new-game config chrome, ckpt 40) ───────────
+// Hook FUN_0048d940 (the sprite-cell node render) — the path the box widget's
+// bordered-panel slices blit through (cream fill + bevel edges + ornate gold
+// corners, all sprite frames from the box-art bank at scene+0xb8c).  For each
+// call, gated to a flip window + deduped by node|frame, we reconstruct exactly
+// as 0x48d940 does: the box-art bank's PE resource id (node+0x28 -> slot,
+// slot+0x40), the selected sprite frame (base node+0x2c + frame-list
+// node+0x2e[node+0x72]), the resolved frame record's dst offset (+0xc/+0x10) +
+// size (+0x14/+0x18), and the on-screen dst rect (the type-1/2 position math).
+// This is the GROUND TRUTH for the box composition the static build (0x411940
+// + 40f3e0/411ec0) lays out: which resource, which frame ids, where each slice
+// lands — the one thing not statically greppable (the bank field is set by an
+// embedded-subobject ctor, never written as a literal offset in the corpus).
+const BOX_RENDER_VA       = 0x48d940;
+let   g_box_probe         = false;
+let   g_box_hooked        = false;
+let   g_box_lo            = 0;     // flip-window [lo,hi]: record only within it
+let   g_box_hi            = 0x7fffffff;
+let   g_box_seen          = {};    // dedup key (node|frameSel) -> first flip
+let   g_box_n             = 0;     // distinct cells emitted
+const BOX_CAP             = 4000;  // safety valve
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -1673,6 +1695,148 @@ function installTextOutProbe() {
     g_textout_hooked = true;
 }
 
+// Hook FUN_0048d940 (sprite-cell render) and dump the box-widget 9-slice
+// composition.  __thiscall: ecx = the cell node; stack args = (surface, baseX,
+// baseY, p4).  We replicate the function's own resolve+position math so the
+// emitted (res_id, frameSel, scrx, scry, w, h) is exactly what blits.  Gated to
+// [g_box_lo,g_box_hi] (the box-art bank renders many UI sprites, so a window
+// keeps it to the new-game menu) and deduped by node|frameSel (the panel
+// redraws the same slice nodes every frame).
+function installBoxProbe() {
+    if (g_box_hooked) return;
+    Interceptor.attach(rva(BOX_RENDER_VA), {
+        onEnter: function (args) {
+            if (g_flip_frame < g_box_lo || g_flip_frame > g_box_hi) return;
+            if (g_box_n >= BOX_CAP) return;
+            let node;
+            try { node = this.context.ecx; } catch (e) { return; }
+            if (node === undefined || node === null || node.isNull()) return;
+            try {
+                // Render guard (matches 0x48d940's entry test) — recorded, not
+                // enforced, so we see every slice node (incl. static ones).
+                const enable = node.add(0x20).readU32();
+                const skip   = node.add(0x24).readU32();
+                const type  = node.add(8).readU32();
+                const bank  = node.add(0x28).readPointer();      // puVar2
+                if (bank.isNull()) return;
+                const slot  = bank.readPointer();                 // *puVar2
+                if (slot.isNull()) return;
+                const entries = slot.readPointer();               // slot->entries
+                let res_id = null;
+                try { res_id = slot.add(0x40).readU16(); } catch (e) {}
+
+                const base  = node.add(0x2c).readU16();
+                const count = node.add(0x6e).readU16();
+                const idx   = node.add(0x72).readU16();
+                const frames = [];
+                for (let i = 0; i < count && i < 16; i++)
+                    frames.push(node.add(0x2e + i * 2).readU16());
+                let frameSel = base;
+                if (count !== 0 && frames.length > 0)
+                    frameSel = (base + frames[idx % frames.length]) & 0xffff;
+
+                let frec = null, fdx = null, fdy = null, fw = null, fh = null;
+                if (!entries.isNull()) {
+                    frec = entries.add((frameSel & 0xffff) * 4).readPointer();
+                    if (!frec.isNull()) {
+                        fdx = frec.add(0xc).readS32();
+                        fdy = frec.add(0x10).readS32();
+                        fw  = frec.add(0x14).readS32();
+                        fh  = frec.add(0x18).readS32();
+                    }
+                }
+
+                const p2 = args[1].toInt32();   // baseX
+                const p3 = args[2].toInt32();    // baseY
+                let X, Y;
+                if (type === 1) {
+                    const sub = node.add(0x174).readPointer();
+                    const a5  = sub.add(0x14).readS32();
+                    const a6  = sub.add(0x18).readS32();
+                    const pitch = node.add(0x1ac).readS32();
+                    X = node.add(0x7c).readS32() + node.add(0xc).readS32() + p2;
+                    Y = (a5 - a6) * pitch + node.add(0x80).readS32() +
+                        node.add(0x10).readS32() + p3;
+                } else if (type === 2) {
+                    X = node.add(0x7c).readS32() + node.add(0xc).readS32() + p2;
+                    Y = node.add(0x80).readS32() + node.add(0x10).readS32() + p3;
+                } else { X = p2; Y = p3; }
+                const scrx = (fdx !== null ? fdx : 0) + X;
+                const scry = (fdy !== null ? fdy : 0) + Y;
+
+                const key = node.toUInt32() + '|' + frameSel;
+                if (g_box_seen[key] !== undefined) return;
+                g_box_seen[key] = g_flip_frame;
+                g_box_n++;
+                send({kind: 'box_cell', frame: g_flip_frame,
+                      node: node.toUInt32(), type: type, res_id: res_id,
+                      enable: enable, skip: skip,
+                      base: base, count: count, idx: idx, frames: frames,
+                      frameSel: frameSel, scrx: scrx, scry: scry,
+                      w: fw, h: fh, fdx: fdx, fdy: fdy,
+                      bank: bank.toUInt32(), slot: slot.toUInt32()});
+            } catch (e) { err('box_probe', '' + e); }
+        },
+    });
+    // The 9-slice box-frame renderers: FUN_0048cb90 (fade-scaled, __thiscall
+    // ecx=box node, args=surface,p4) and FUN_0048cf80 (explicit w/h).  These
+    // draw the bordered panel — TL/T/TR/L/C/R/BL/B/BR slices from the 9 frame
+    // ids at node+0x60..0x72 over the bank node+0x5c.  Dump that whole spec so
+    // the static box composition is ground-truthed (bank res id + 9 frames +
+    // corner cell w/h + node w/h + fade).
+    const dumpBoxFrame = function (tag, node, surf) {
+        try {
+            if (node === undefined || node === null || node.isNull()) return;
+            // The 9-slice bank is the object embedded AT node+0x5c (FUN_0048cf80
+            // passes &node[0x5c] as ECX to FUN_00418470, whose *ECX is the slot
+            // ptr).  So the slot ptr is the dword at node+0x5c (one deref) — NOT
+            // two.  res_id = slot+0x40.
+            const slot = node.add(0x5c).readPointer();
+            let res_id = null;
+            if (!slot.isNull()) {
+                try { res_id = slot.add(0x40).readU16(); } catch (e) {}
+            }
+            const sh = [];                       // the 11 shorts 0x60..0x74
+            for (let off = 0x60; off <= 0x74; off += 2)
+                sh.push(node.add(off).readU16());
+            const spec = {
+                tl: node.add(0x60).readU16() + node.add(0x62).readU16(),
+                top: node.add(0x64).readU16(), tr: node.add(0x66).readU16(),
+                lmid: node.add(0x68).readU16(), center: node.add(0x6a).readU16(),
+                rmid: node.add(0x6c).readU16(), bl: node.add(0x6e).readU16(),
+                bottom: node.add(0x70).readU16(), br: node.add(0x72).readU16(),
+                cornerw: node.add(0x74).readS32(), cornerh: node.add(0x78).readS32(),
+            };
+            const nodeW = node.add(0x14).readS32();
+            const nodeH = node.add(0x18).readS32();
+            const fade  = node.add(0x54).readS32();
+            const ox = node.add(0xc).readS32(), oy = node.add(0x10).readS32();
+            const key = tag + '|' + node.toUInt32();
+            if (g_box_seen[key] !== undefined) return;
+            g_box_seen[key] = g_flip_frame;
+            send({kind: 'box_frame', tag: tag, frame: g_flip_frame,
+                  node: node.toUInt32(), res_id: res_id, spec: spec,
+                  shorts: sh, nodeW: nodeW, nodeH: nodeH, fade: fade,
+                  ox: ox, oy: oy});
+        } catch (e) { err('box_frame', '' + e); }
+    };
+    Interceptor.attach(rva(0x48cb90), {
+        onEnter: function (args) {
+            if (g_flip_frame < g_box_lo || g_flip_frame > g_box_hi) return;
+            dumpBoxFrame('48cb90', this.context.ecx, args[0]);
+        },
+    });
+    Interceptor.attach(rva(0x48cf80), {
+        onEnter: function (args) {
+            if (g_flip_frame < g_box_lo || g_flip_frame > g_box_hi) return;
+            dumpBoxFrame('48cf80', this.context.ecx, args[0]);
+        },
+    });
+
+    g_box_hooked = true;
+    logmsg('box probe installed @ FUN_0048d940 + FUN_0048cb90 + FUN_0048cf80');
+}
+
 // Hook the first phase-7 sparkle spawn (FUN_0056c070).  It is the TAS anchor
 // for "subtitle animation start" (tick 0 of the particle system) — emitted
 // always so any capture/trace can align to it — and, when seed-pinning is on,
@@ -1877,6 +2041,10 @@ rpc.exports = {
         if (typeof opts.textout_lo === 'number') g_textout_lo = opts.textout_lo | 0;
         if (typeof opts.textout_hi === 'number' && opts.textout_hi > 0)
             g_textout_hi = opts.textout_hi | 0;
+        g_box_probe            = !!opts.box_probe;
+        if (typeof opts.box_lo === 'number') g_box_lo = opts.box_lo | 0;
+        if (typeof opts.box_hi === 'number' && opts.box_hi > 0)
+            g_box_hi = opts.box_hi | 0;
         g_seed_pin             = !!opts.seed_pin;
         if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
@@ -1940,7 +2108,7 @@ rpc.exports = {
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
                 g_inject_enabled || g_cursor_probe || g_fade_probe ||
-                g_pace_probe || g_textout_probe) {
+                g_pace_probe || g_textout_probe || g_box_probe) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
@@ -1954,6 +2122,10 @@ rpc.exports = {
             if (g_textout_probe) {
                 try { installTextOutProbe(); }
                 catch (e) { err('install_textout_probe', '' + e); }
+            }
+            if (g_box_probe) {
+                try { installBoxProbe(); }
+                catch (e) { err('install_box_probe', '' + e); }
             }
             // Sparkle anchor (subtitle-anim-start TAS marker + optional seed
             // pin) — install whenever we have a flip-frame counter to stamp it,
