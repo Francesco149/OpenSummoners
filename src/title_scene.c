@@ -530,24 +530,30 @@ int32_t title_fade_ramp(int32_t value, int32_t divisor, const uint32_t *ramp)
 }
 
 /* The two logo handlers (0x56bb5c studio / 0x56bbd4 title) — identical but
- * for the sprite field offset (+4 vs +8).  fade<=0 draws nothing; otherwise
- * the ramp picks alpha: 0 → a surface clear (logo not yet visible), nonzero
- * → the alpha logo blit. */
-static void title_render_logo(int32_t fade, const uint32_t *ramp, int32_t sprite_off)
+ * for the sprite frame: studio = MAIN-bank frames[1], title = frames[2].
+ *
+ * RE (ckpt 30, r2): the "+4/+8 container fields" of engine-quirks #40 are
+ * just the manual *(*slot) frames-array walk — the handler open-codes
+ * `frames = *(*0x8a7658); logo = frames[sprite_off/4]` (+4 ⇒ frames[1],
+ * +8 ⇒ frames[2]), the same array 0x418470(id) indexes by id.  And the
+ * whole handler is bit-identical to the sprite-level wrapper (0x56c4e0,
+ * TITLE_DRAW_SPRITE_LEVEL): fade<=0 → skip; else ramp(fade,1000) over the
+ * SAME table (0x8a9308 = ramp_b); ramp result 0 (idx<0 / idx>=20 / empty
+ * slot) → plain keyed blit (0x5b9b70), nonzero → alpha blit at dst
+ * (metric_0c, metric_10), src (0,0), full w/h.  The lone retail difference
+ * is the 0x5bd550 a10 global ([0x8a6b60+0x360] for the logo's 0x494e10 vs
+ * [0x8a6ec0] for 0x56c4e0), which is unmodeled and pixel-irrelevant in the
+ * port's blit (validated bit-exact on the cursor/level paths).
+ *
+ * So emit a single sprite-level op and let the sink resolve the fade through
+ * the populated ramp_b — this fixes the prior always-opaque logo (the
+ * scene-side `ramp`/fade_ramp param was never populated, so the old code
+ * always took the alpha-0 clear branch and the logos popped in at full
+ * brightness with no fade). */
+static void title_render_logo(int32_t fade, int32_t frame_idx)
 {
-    int32_t alpha;
     if (fade <= 0) return;                       /* 0x56bb86 / 0x56bbff (jle) */
-    alpha = title_fade_ramp(fade, 1000, ramp);   /* 0x448c80(fade,1000)       */
-    if (alpha == 0)
-        /* The alpha-0 path is a plain blt_keyed of the logo frame itself
-         * (frames[1] studio / frames[2] title), NOT the phase-2..3
-         * background frame[0] — so carry the frame index (sprite_off/4 =
-         * 1 or 2) in `asset` so the sink resolves the right sprite.
-         * Disasm 0x56bba0 (studio) / 0x56bc19 (title): the je/jne-0 branch
-         * blits `esi = entries[0].frames[sprite_off/4]`. */
-        title_emit(TITLE_DRAW_SURFACE_CLEAR, sprite_off / 4, 0, 0, 0, 0); /* 0x5b9b70 */
-    else
-        title_emit(TITLE_DRAW_LOGO, sprite_off, 0, alpha, 0, 0);  /* 0x494e10 */
+    title_emit(TITLE_DRAW_SPRITE_LEVEL, frame_idx, fade, 0, 0, 0); /* 0x494e10 */
 }
 
 /* The two "press button" handlers (0x56bc4d phase 5 / 0x56bca2 phase 6):
@@ -561,17 +567,24 @@ static void title_render_pressbtn(int32_t fade, int32_t asset_a, int32_t asset_b
 /* The sparkle flourish (0x56bcf7, phase 7): a plain sprite (asset 4) then a
  * trailing row of asset-5 sparkles.  The trail starts at level 7*fade and x
  * 192, stepping x by 4 (cap 416) and level down by 100 each sparkle; a
- * sparkle is drawn only while level>0, at alpha = ramp(min(level,1000)). */
-static void title_render_sparkle(int32_t fade, const uint32_t *ramp)
+ * sparkle is drawn only while level>0.
+ *
+ * RE (ckpt 30): each sparkle is FUN_0056c580(primary, frames[5], dst_x=x,
+ * dst_y=416, w=4, h=48, src_x=x, src_y=416, desc=ramp(min(level,1000),1000)).
+ * Carry the raw clamped level (a small int — round-trips, unlike the old
+ * pre-baked blend POINTER which couldn't) + the column x; the sink does
+ * 0x448c80's ramp_b lookup and the 4×48-sliver blit.  dst/src y are the
+ * constant 416 (0x1a0), carried in cmd->y; w=4/h=48 are constants the sink
+ * hardcodes. */
+static void title_render_sparkle(int32_t fade)
 {
     int32_t level, x;
     title_emit(TITLE_DRAW_SPRITE, 4, 0, 0, 0, 0);    /* 0x56c610(asset 4)     */
     level = (fade * 7000) / 1000;                    /* 0x56bd2e..0x56bd59    */
     for (x = 0xc0; x < 0x1a0; x += 4) {              /* 192 .. <416, step 4   */
         if (level > 0) {                             /* 0x56bd5b (jle skip)   */
-            int32_t v     = level < 1000 ? level : 1000;       /* min(.,1000) */
-            int32_t alpha = title_fade_ramp(v, 1000, ramp);    /* 0x448c80    */
-            title_emit(TITLE_DRAW_SPARKLE, 5, 0, alpha, x, 0); /* 0x56c580    */
+            int32_t v = level < 1000 ? level : 1000;       /* min(.,1000)     */
+            title_emit(TITLE_DRAW_SPARKLE, 5, v, 0, x, 0x1a0); /* 0x56c580    */
         }
         level -= 0x64;                               /* 0x56bda9 (sub 100)    */
     }
@@ -628,12 +641,12 @@ void title_render_step(int32_t phase, int32_t fade, int32_t menu_fade,
     if (phase <= 10) {
         switch (phase) {
         case 0: case 1: case 2:
-            title_render_logo(fade, ramp, 4);     break;   /* 0x56bb5c studio */
+            title_render_logo(fade, 1);           break;   /* 0x56bb5c studio = frames[1] */
         case 3: case 4:
-            title_render_logo(fade, ramp, 8);     break;   /* 0x56bbd4 title  */
+            title_render_logo(fade, 2);           break;   /* 0x56bbd4 title  = frames[2] */
         case 5:  title_render_pressbtn(fade, 2, 3); break; /* 0x56bc4d        */
         case 6:  title_render_pressbtn(fade, 3, 4); break; /* 0x56bca2        */
-        case 7:  title_render_sparkle(fade, ramp);  break; /* 0x56bcf7        */
+        case 7:  title_render_sparkle(fade);        break; /* 0x56bcf7        */
         case 8: case 9:
             title_render_menu(fade, menu_fade, ctrl); break; /* 0x56bdb9      */
         case 10: title_render_fadeout(fade);      break;   /* 0x56be85        */

@@ -42,18 +42,23 @@
  * SPRITE / SPRITE_LEVEL / FRAME_END / FLIP / LOG_FLIPPING — the whole
  * intro path, the menu background + menu sprite, and the fade-out.
  *
- * Deferred to the drive checkpoint (routed through optional ctx callbacks,
- * no-op by default): TITLE_DRAW_LOGO, TITLE_DRAW_SPARKLE.  The two encode a
- * blend-descriptor POINTER in the 32-bit `alpha` field (retail 0x448c80's
- * ramp result), which cannot round-trip on a 64-bit host.  TITLE_DRAW_MENU_
- * CURSOR is now wired directly (cmd->level = level_num = the pulsing
- * menu_fade, cmd->alpha = level_div = 0x4b0); the draw_cursor callback
- * remains a fallback for when the CURSOR bank is unresolved.  These are
- * alpha-ramp draws
- * that only fire once the ramp tables are populated at run time (never at a
- * cold headless boot), so deferring them costs no intro/menu-background
- * fidelity — they get wired + validated against live goldens in the drive
- * checkpoint, where the command stream can be enriched if needed.
+ * Wired directly (ckpt 30+): TITLE_DRAW_SPRITE_LEVEL also serves the two
+ * intro logos (studio = MAIN frames[1], title = frames[2]) — the logo
+ * handler (0x494e10) is bit-identical to the sprite-level wrapper (0x56c4e0),
+ * so title_render_logo now emits SPRITE_LEVEL and the fade resolves through
+ * ramp_b like every other levelled draw.  TITLE_DRAW_SPARKLE is wired too:
+ * cmd->level carries the raw clamped per-sparkle level (a small int that
+ * round-trips, unlike the old pre-baked blend POINTER) and the sink does
+ * 0x448c80's ramp_b lookup, then the 4×48-sliver 0x56c580 blit.  TITLE_DRAW_
+ * MENU_CURSOR is likewise wired directly (cmd->level = level_num = the
+ * pulsing menu_fade, cmd->alpha = level_div = 0x4b0).
+ *
+ * Vestigial: TITLE_DRAW_LOGO is no longer emitted (folded into SPRITE_LEVEL
+ * above); its sink case + the draw_logo / draw_sparkle / draw_cursor ctx
+ * callbacks remain as optional extension points / fallbacks for when a bank
+ * is unresolved.  Until the ramp tables are populated at run time these
+ * levelled draws fall to their plain/opaque path — the faithful pre-init
+ * behaviour.
  */
 #ifndef OPENSUMMONERS_TITLE_SINK_H
 #define OPENSUMMONERS_TITLE_SINK_H

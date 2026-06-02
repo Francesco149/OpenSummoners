@@ -267,6 +267,13 @@ class CaptureConfig:
     # cursor with.  Prints distinct values + writes <run_dir>/cursor_level.jsonl.
     cursor_probe:      bool = False
 
+    # ── intro-fade probe (LOGO/SPARKLE wiring verification, ckpt 30) ──
+    # Hook FUN_00448c80 (the fade→alpha ramp) and log the first (value,div) per
+    # Flip — in phases 0..4 that is the studio/title logo fade.  Writes
+    # <run_dir>/fade_level.jsonl so a port frame can be matched to a retail
+    # golden at an equal fade and diffed (the R1 method, for the logos).
+    fade_probe:        bool = False
+
     # ── intro-pace probe (parity residual R3) ──
     # Timestamp Flips (writes <run_dir>/pace.jsonl) to measure the flip RATE
     # and the wall-clock to menu onset.  Use with --no-turbo.  pace_every =
@@ -311,6 +318,7 @@ def run_capture(cfg: CaptureConfig) -> int:
     call_trace_f = (run_dir / "call_trace.jsonl").open("w") if cfg.call_trace else None
     mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
     cursor_f     = (run_dir / "cursor_level.jsonl").open("w") if cfg.cursor_probe else None
+    fade_f       = (run_dir / "fade_level.jsonl").open("w") if cfg.fade_probe else None
     pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
     cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
     frames_dir   = (run_dir / "frames") if cfg.capture else None
@@ -493,6 +501,21 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"ecx=0x{int(payload.get('ecx',0)):08x} "
                   f"ret_va=0x{int(payload.get('ret_va',0)):06x} "
                   f"slots={payload.get('slots')}", file=sys.stderr)
+        elif kind == "fade_probe_first":
+            print(f"[frida_capture] fade_probe first hit @ frame "
+                  f"{payload.get('frame')}: value={payload.get('value')} "
+                  f"div={payload.get('div')} "
+                  f"ecx=0x{int(payload.get('ecx',0)):08x} "
+                  f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+        elif kind == "fade_level":
+            frame = int(payload.get("frame", -1))
+            if fade_f is not None:
+                fade_f.write(json.dumps({
+                    "frame": frame, "value": payload.get("value"),
+                    "div": payload.get("div")}) + "\n")
+                fade_f.flush()
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "pace_sample":
             frame = int(payload.get("frame", -1))
             ms    = int(payload.get("ms", 0))
@@ -541,6 +564,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "input_trace":        cfg.input_trace or [],
         "inject_debug":       cfg.inject_debug,
         "cursor_probe":       cfg.cursor_probe,
+        "fade_probe":         cfg.fade_probe,
         "pace_probe":         cfg.pace_probe,
         "pace_every":         cfg.pace_every,
         "mem_watch":          cfg.mem_watch,
@@ -681,6 +705,10 @@ def main() -> int:
     p.add_argument("--inject-debug", action="store_true",
                    help="log poll/latch internals in a small window around the "
                         "first scripted press (diagnostics).")
+    p.add_argument("--fade-probe", action="store_true",
+                   help="hook FUN_00448c80 and log the first fade value per "
+                        "Flip (the studio/title logo fade in phases 0..4) to "
+                        "<run>/fade_level.jsonl — for matched-fade logo diffs")
     p.add_argument("--cursor-probe", action="store_true",
                    help="hook FUN_0056c470 and log the per-frame menu-cursor "
                         "level_num to <run_dir>/cursor_level.jsonl "
@@ -750,6 +778,7 @@ def main() -> int:
         input_trace       = input_trace,
         inject_debug      = args.inject_debug,
         cursor_probe      = args.cursor_probe,
+        fade_probe        = args.fade_probe,
         pace_probe        = args.pace_probe,
         pace_every        = args.pace_every,
     )

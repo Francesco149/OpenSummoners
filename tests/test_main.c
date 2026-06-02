@@ -320,7 +320,7 @@ struct test_case {
     X(menu_input_watchdog_forces_phase10)                      \
     X(title_fade_ramp_index_and_clamp)                         \
     X(title_render_prologue_reset_clear_skip)                  \
-    X(title_render_logo_clear_vs_blit)                         \
+    X(title_render_logo_as_sprite_level)                       \
     X(title_render_pressbtn_asset_pairs)                       \
     X(title_render_sparkle_trail)                              \
     X(title_render_menu_bg_and_cursor)                         \
@@ -348,7 +348,9 @@ struct test_case {
     X(sink_sprite_level_alpha_path)                            \
     X(sink_frame_end_composes_group)                           \
     X(sink_flip_and_log_callbacks)                             \
-    X(sink_deferred_draws_route_to_callbacks)                  \
+    X(sink_logo_op_routes_to_callback)                         \
+    X(sink_sparkle_opaque_clipped_when_no_ramp)                \
+    X(sink_sparkle_alpha_via_ramp)                             \
     X(sink_menu_cursor_draws_via_ramp)                         \
     X(sink_deferred_null_callbacks_safe)                       \
     X(input_mgr_ring_offsets)                                  \

@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 30) — LOGO + SPARKLE wired; both intro logos BIT-EXACT, subtitle-reveal sweep bit-exact
+
+Wired the last two deferred title render-half arms (intro phases 0–7), the
+recommended ckpt-29 next move. The RE collapsed two "hard" problems into reuse
+of already-validated paths:
+
+- **LOGO (studio + title).** r2 of `0x56bb5c`/`0x56bbd4` showed the "+4/+8
+  container fields" of quirk #40 are just the MAIN-bank `frames[1]`/`frames[2]`
+  walk (`*(*slot)` is the frames array `0x418470` indexes), and the handler is
+  **bit-identical to the sprite-level wrapper** `0x56c4e0` (same ramp_b, same
+  fade<=0/idx>=20/empty→plain-keyed rules; the lone `0x5bd550` a10-global
+  difference is pixel-irrelevant). So `title_render_logo` now emits one
+  `TITLE_DRAW_SPRITE_LEVEL` (frame 1/2, raw fade). This **fixed a real bug**: the
+  old branch keyed on the scene `ramp` param (`fade_ramp`), never populated by
+  `main.c`, so logos rendered **opaque, unfaded**. Now they fade through the
+  sink's populated `ramp_b`. Quirk **#56**.
+- **SPARKLE (phase-7 subtitle reveal).** `0x56bcf7` copies 4×48 slivers of the
+  menu-bg sprite (MAIN frame 5) src `(x,416)`→dst `(x,416)`, x 192..<416 step 4,
+  alpha from `ramp_b` of `min(7·fade−100·i,1000)` — revealing "Secret of the
+  Elemental Stone" column-by-column. The cmd now carries the raw clamped level +
+  column (round-trips, unlike the old 64-bit blend-pointer-in-32-bit-field) and
+  the sink does the ramp lookup + the `title_draw_sparkle` blit. Quirk **#57**.
+
+**Verified (the R1 fade-matched method).** New `frida_capture.py --fade-probe`
+(hooks `0x448c80`, logs the first fade per Flip = the logo fade in phases 0–4).
+Matched-fade diffs: **studio logo phase 0 fade 640 → `differ_px=0`; title-art
+logo phase 3 fade 820 → `differ_px=0`** (parity-ledger #2/#3, user-confirmed 1:1
+on the pushed comparisons). Sparkle at full reveal (fade 1000): the SUMMONERS
+logo + subtitle banner match exactly; the only residual (1208 px, 96.6 %
+retail-brighter) is retail's **additive sparkle particles** from the separate,
+still-deferred `FUN_0056c070` particle spawn (parity-ledger R4 — a noted gap, not
+a sweep error). Fade-probe caveat: in phase 7 it logs the first *sparkle* level,
+not the raw fade — match by reveal extent there.
+
+650 host tests pass (0 fail, 6 skip; +2 sink sparkle tests, logo scene test
+reworked). Ledger 138/1490 unchanged (wiring, no new FUN).
+
+---
+
 ## 2026-06-02 (ckpt 29) — R3 intro pacing: diagnosed + fixed (render-rate artifact, not a rush)
 
 **Reframed and resolved R3.** The "port rushes the intro" hypothesis was wrong.

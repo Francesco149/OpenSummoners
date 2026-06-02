@@ -1088,31 +1088,39 @@ int test_title_render_prologue_reset_clear_skip(void)
     return 0;
 }
 
-/* ── logo handlers (phases 0..4) ── */
-int test_title_render_logo_clear_vs_blit(void)
+/* ── logo handlers (phases 0..4) ──
+ *
+ * RE ckpt 30: the logo handler is bit-identical to the sprite-level wrapper
+ * (0x494e10 ≡ 0x56c4e0).  title_render_logo now emits ONE
+ * TITLE_DRAW_SPRITE_LEVEL carrying the logo frame index (studio = MAIN
+ * frames[1], title = frames[2]) and the raw fade; the sink resolves the fade
+ * through ramp_b — fixing the prior always-opaque logo.  No scene-side ramp,
+ * no TITLE_DRAW_LOGO emit. */
+int test_title_render_logo_as_sprite_level(void)
 {
     int flipped;
 
-    /* phase 0, fade>0, NULL ramp → alpha 0 → SURFACE_CLEAR (after the reset).
-     * The studio-logo alpha-0 path blits frames[1], so the CLEAR carries
-     * frame index 1 (sprite_off 4 / 4), not the phase-2..3 background 0. */
+    /* phase 0, fade>0 → prologue SURFACE_RESET then the studio logo as a
+     * SPRITE_LEVEL of frames[1] carrying the raw fade. */
     flipped = 0; tr_install();
     title_render_step(0, 500, 0, NULL, NULL, 0, &flipped);
     T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_RESET);
-    T_ASSERT_EQ_I(tr_cmds[1].op, TITLE_DRAW_SURFACE_CLEAR);
+    T_ASSERT_EQ_I(tr_cmds[1].op, TITLE_DRAW_SPRITE_LEVEL);
     T_ASSERT_EQ_I(tr_cmds[1].asset, 1);                  /* frames[1] = studio logo */
+    T_ASSERT_EQ_I(tr_cmds[1].level, 500);                /* raw fade as the level   */
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_LOGO, 0), -1);      /* LOGO no longer emitted  */
 
-    /* phase 3 (title logo) alpha-0 CLEAR → frames[2].  Phase 3 is in the
-     * prologue range too, so the prologue background CLEAR (asset 0) leads
-     * and the logo's alpha-0 CLEAR (asset 2) follows. */
+    /* phase 3 (title logo): the prologue background CLEAR (asset 0) leads,
+     * then the title logo as SPRITE_LEVEL of frames[2]. */
     flipped = 0; tr_install();
     title_render_step(3, 500, 0, NULL, NULL, 0, &flipped);
     T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
     T_ASSERT_EQ_I(tr_cmds[0].asset, 0);                  /* prologue background */
     {
-        int i = tr_find(TITLE_DRAW_SURFACE_CLEAR, 1);
+        int i = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
         T_ASSERT(i >= 0);
         T_ASSERT_EQ_I(tr_cmds[i].asset, 2);              /* frames[2] = title logo */
+        T_ASSERT_EQ_I(tr_cmds[i].level, 500);
     }
 
     /* phase 2 prologue CLEAR → the background frames[0] (asset 0). */
@@ -1121,31 +1129,29 @@ int test_title_render_logo_clear_vs_blit(void)
     T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
     T_ASSERT_EQ_I(tr_cmds[0].asset, 0);                  /* background frame[0] */
 
-    /* phase 1, fade<=0 → the logo handler draws nothing at all. */
+    /* phase 1, fade<=0 → the logo handler draws nothing at all (jle skip). */
     flipped = 0; tr_install();
     title_render_step(1, 0, 0, NULL, NULL, 0, &flipped);
-    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_LOGO, 0), -1);
+    T_ASSERT_EQ_I(tr_find(TITLE_DRAW_SPRITE_LEVEL, 0), -1);
     T_ASSERT_EQ_I(tr_find(TITLE_DRAW_SURFACE_CLEAR, 0), -1);
 
-    /* with a ramp giving nonzero alpha → LOGO blit; studio logo (phase 1)
-     * uses sprite field 4, title logo (phase 3) uses field 8. */
-    static const uint32_t ramp[20] = {
-        7,7,7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,7,7,
-    };
+    /* phase 1, fade>0 → studio logo frames[1]; phase 4 → title logo frames[2]
+     * (neither is in the prologue clear range). */
     flipped = 0; tr_install();
-    title_render_step(1, 500, 0, NULL, ramp, 0, &flipped);  /* idx 10 → 7 */
+    title_render_step(1, 500, 0, NULL, NULL, 0, &flipped);
     {
-        int i = tr_find(TITLE_DRAW_LOGO, 0);
+        int i = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
         T_ASSERT(i >= 0);
-        T_ASSERT_EQ_I(tr_cmds[i].asset, 4);              /* studio field +4 */
-        T_ASSERT_EQ_I(tr_cmds[i].alpha, 7);
+        T_ASSERT_EQ_I(tr_cmds[i].asset, 1);              /* studio = frames[1] */
+        T_ASSERT_EQ_I(tr_cmds[i].level, 500);
     }
     flipped = 0; tr_install();
-    title_render_step(3, 500, 0, NULL, ramp, 0, &flipped);
+    title_render_step(4, 300, 0, NULL, NULL, 0, &flipped);
     {
-        int i = tr_find(TITLE_DRAW_LOGO, 0);
+        int i = tr_find(TITLE_DRAW_SPRITE_LEVEL, 0);
         T_ASSERT(i >= 0);
-        T_ASSERT_EQ_I(tr_cmds[i].asset, 8);              /* title field +8 */
+        T_ASSERT_EQ_I(tr_cmds[i].asset, 2);              /* title = frames[2] */
+        T_ASSERT_EQ_I(tr_cmds[i].level, 300);
     }
     return 0;
 }

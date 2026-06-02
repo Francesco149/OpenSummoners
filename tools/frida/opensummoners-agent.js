@@ -285,6 +285,19 @@ const CURSOR_DRAW_VA      = 0x56c470;
 let   g_cursor_probe      = false;
 let   g_cursor_probe_hooked = false;
 
+// ── intro-fade probe (LOGO/SPARKLE wiring verification, ckpt 30) ──────────
+// Hook the fade→alpha ramp helper FUN_00448c80 (__thiscall ecx=0x8a6b60),
+// called everywhere as 0x448c80(value, divisor).  In phases 0..4 it is
+// invoked once per flip with (intro_fade, 1000) — the studio/title logo fade
+// — so the FIRST call per flip gives retail's logo fade at that flip.  We log
+// {frame,value,div} for that first call so a port frame can be matched to a
+// retail golden at an equal fade and diffed (the R1 method, now for the
+// logos).  Cheap: skipped after the first call of each flip.
+const FADE_RAMP_VA        = 0x448c80;
+let   g_fade_probe        = false;
+let   g_fade_probe_hooked = false;
+let   g_fade_last_flip    = -1;
+
 // ─── intro-pace probe (parity residual R3) ──────────────────────────────
 // Timestamps Flips so the flip-RATE can be measured: it discriminates
 // "retail rushes vs port" between two hypotheses for the flip-index gap —
@@ -1483,6 +1496,35 @@ function installCursorProbe() {
     logmsg('cursor probe installed @ FUN_0056c470');
 }
 
+// Hook FUN_00448c80 (the fade→alpha ramp) and report the first (value, div)
+// it is called with each Flip frame.  __thiscall ecx=0x8a6b60; stack args
+// args[0]=value (= the intro fade in phases 0..4), args[1]=divisor (1000).
+function installFadeProbe() {
+    if (g_fade_probe_hooked) return;
+    let first = true;
+    Interceptor.attach(rva(FADE_RAMP_VA), {
+        onEnter: function (args) {
+            if (g_flip_frame === g_fade_last_flip) return;   // first call/flip only
+            g_fade_last_flip = g_flip_frame;
+            let value = null, div = null;
+            try { value = args[0].toInt32(); } catch (e) {}
+            try { div   = args[1].toInt32(); } catch (e) {}
+            if (first) {
+                first = false;
+                let ecx = 0;
+                try { ecx = this.context.ecx.toUInt32(); } catch (e) {}
+                send({kind: 'fade_probe_first', frame: g_flip_frame,
+                      ecx: ecx, value: value, div: div,
+                      ret_va: traceRetVa(this.returnAddress)});
+            }
+            send({kind: 'fade_level', frame: g_flip_frame,
+                  value: value, div: div});
+        },
+    });
+    g_fade_probe_hooked = true;
+    logmsg('fade probe installed @ FUN_00448c80');
+}
+
 function memWatchFlush(frameNumber) {
     if (g_mem_watch_buffer.length === 0) return;
     const events = g_mem_watch_buffer;
@@ -1651,6 +1693,7 @@ rpc.exports = {
         g_turbo_enabled       = !!opts.turbo;
         g_silent_audio_enabled = !!opts.silent_audio;
         g_cursor_probe         = !!opts.cursor_probe;
+        g_fade_probe           = !!opts.fade_probe;
         g_pace_probe           = !!opts.pace_probe;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
             g_pace_every = opts.pace_every | 0;
@@ -1712,12 +1755,16 @@ rpc.exports = {
             // Structural-parity harness: frame anchor + call-trace + mem-watch
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
-                g_inject_enabled || g_cursor_probe || g_pace_probe) {
+                g_inject_enabled || g_cursor_probe || g_fade_probe || g_pace_probe) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
                 try { installCursorProbe(); }
                 catch (e) { err('install_cursor_probe', '' + e); }
+            }
+            if (g_fade_probe) {
+                try { installFadeProbe(); }
+                catch (e) { err('install_fade_probe', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }

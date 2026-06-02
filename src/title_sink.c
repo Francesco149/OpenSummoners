@@ -123,10 +123,34 @@ void title_render_sink(const title_draw_cmd *cmd)
         if (g_ctx.draw_logo != NULL)
             g_ctx.draw_logo(cmd, g_ctx.user);
         break;
-    case TITLE_DRAW_SPARKLE:
-        if (g_ctx.draw_sparkle != NULL)
+    case TITLE_DRAW_SPARKLE: {
+        /* 0x56c580 — one sparkle of the phase-7 trail.  Each is a 4×48
+         * vertical sliver of the sparkle sprite (MAIN bank frame 5, cmd->
+         * asset), copied column-for-column from src (x, 416) to dst
+         * (metric_0c + x, metric_10 + 416): cmd->x is the column (both dst
+         * and src x), cmd->y == 416 (both dst and src y), w=4/h=48 constant.
+         * cmd->level is the per-sparkle clamped level (min(7·fade − 100·i,
+         * 1000)); the sink does 0x448c80's ramp_b lookup
+         * (idx = level·20/1000; [0,19] → ramp_b[idx], else NULL).  desc !=
+         * NULL → alpha blit; desc == NULL (idx>=20 at v==1000, or an empty
+         * ramp slot) → opaque clipped copy (0x5b9bf0).  Matches the per-
+         * sparkle 0x56c580 call in the phase-7 handler 0x56bcf7 (ckpt 30).
+         * With ramp_b NULL
+         * every sparkle falls to the opaque path — faithful pre-ramp-init. */
+        int32_t idx;
+        const zdd_blend_desc *desc;
+        frame = resolve_frame(AR_SPR_TITLE_MAIN, cmd->asset);
+        if (frame != NULL) {
+            idx  = (cmd->level * 20) / 1000;
+            desc = (cmd->level > 0 && idx >= 0 && idx < TITLE_FADE_RAMP_LEN
+                    && g_ctx.ramp_b != NULL) ? g_ctx.ramp_b[idx] : NULL;
+            title_draw_sparkle(primary, frame, cmd->x, cmd->y, 4, 48,
+                               cmd->x, cmd->y, desc);
+        } else if (g_ctx.draw_sparkle != NULL) {
             g_ctx.draw_sparkle(cmd, g_ctx.user);
+        }
         break;
+    }
     case TITLE_DRAW_MENU_CURSOR:
         /* 0x56c470 — the selected row's highlight cursor, alpha-blended via
          * ramp_a.  Source = the CURSOR bank (pool 20) frame at the row index

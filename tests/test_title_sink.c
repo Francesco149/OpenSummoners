@@ -66,7 +66,11 @@ static struct {
     int          comp_n;
     const zdd_blend_desc *comp_desc;
     zdd_object  *comp_dest, *comp_src;
-    int32_t      comp_dx, comp_dy, comp_ck;
+    int32_t      comp_dx, comp_dy, comp_ck, comp_w, comp_h, comp_sx, comp_sy;
+
+    int          clip_n;
+    zdd_object  *clip_src, *clip_dest;
+    int32_t      clip_dx, clip_dy, clip_w, clip_h, clip_sx, clip_sy;
 
     int          present_n, logflip_n;
     int          logo_n, sparkle_n, cursor_n;
@@ -86,6 +90,15 @@ static void comp_cap(const zdd_blend_desc *desc, zdd_object *dest, zdd_object *s
 {
     cap.comp_n++; cap.comp_desc = desc; cap.comp_dest = dest; cap.comp_src = src;
     cap.comp_dx = dx; cap.comp_dy = dy; cap.comp_ck = ck;
+    cap.comp_w = w; cap.comp_h = h; cap.comp_sx = sx; cap.comp_sy = sy;
+}
+static int clip_cap(zdd_object *src, zdd_object *dest, int32_t dx, int32_t dy,
+                    int32_t w, int32_t h, int32_t sx, int32_t sy)
+{
+    cap.clip_n++; cap.clip_src = src; cap.clip_dest = dest;
+    cap.clip_dx = dx; cap.clip_dy = dy; cap.clip_w = w; cap.clip_h = h;
+    cap.clip_sx = sx; cap.clip_sy = sy;
+    return 0;
 }
 static void present_cb(void *u) { cap.present_n++; cap.user_seen = u; }
 static void logflip_cb(void *u) { cap.logflip_n++; }
@@ -95,6 +108,10 @@ static void cursor_cb(const title_draw_cmd *c, void *u) { cap.cursor_n++;  cap.l
 
 static int g_user_tag = 0x1234;
 
+/* A fake 20-entry blend ramp for the alpha-path tests (sparkle / cursor). */
+static zdd_blend_desc g_fake_descs[20];
+static const zdd_blend_desc *g_fake_ramp[20];
+
 /* Install both banks, a primary, all hooks/callbacks, and bind the sink. */
 static void sink_setup(title_sink_ctx *ctx)
 {
@@ -103,8 +120,9 @@ static void sink_setup(title_sink_ctx *ctx)
     bank_fill(AR_SPR_TITLE_MAIN,   g_entries_main, g_frames_main, g_surf_main);
     bank_fill(AR_SPR_TITLE_CURSOR, g_entries_cur,  g_frames_cur,  g_surf_cur);
 
-    title_keyed_blit_hook     = keyed_cap;
+    title_keyed_blit_hook      = keyed_cap;
     title_compositor_blit_hook = comp_cap;
+    title_clipped_blit_hook    = clip_cap;
 
     memset(ctx, 0, sizeof *ctx);
     ctx->primary      = &g_primary;
@@ -122,6 +140,7 @@ static void sink_teardown(void)
     title_sink_bind(NULL);
     title_keyed_blit_hook = NULL;
     title_compositor_blit_hook = NULL;
+    title_clipped_blit_hook = NULL;
     bank_clear(AR_SPR_TITLE_MAIN);
     bank_clear(AR_SPR_TITLE_CURSOR);
 }
@@ -326,22 +345,71 @@ int test_sink_flip_and_log_callbacks(void)
     return 0;
 }
 
-int test_sink_deferred_draws_route_to_callbacks(void)
+int test_sink_logo_op_routes_to_callback(void)
 {
-    /* LOGO + SPARKLE are still deferred to ctx callbacks; MENU_CURSOR is now
-     * wired (see test_sink_menu_cursor_draws_via_ramp). */
+    /* TITLE_DRAW_LOGO is no longer emitted by the scene (the logos fold into
+     * TITLE_DRAW_SPRITE_LEVEL, ckpt 30) but its sink case + draw_logo
+     * callback remain as an extension point — exercise it. */
     title_sink_ctx ctx;
     sink_setup(&ctx);
     emit(TITLE_DRAW_LOGO, 8, 0, 77, 0, 0);
-    emit(TITLE_DRAW_SPARKLE, 5, 0, 99, 196, 0);
     T_ASSERT_EQ_I(cap.logo_n, 1);
     T_ASSERT_EQ_I(cap.last_logo.asset, 8);
     T_ASSERT_EQ_I(cap.last_logo.alpha, 77);
-    T_ASSERT_EQ_I(cap.sparkle_n, 1);
-    T_ASSERT_EQ_I(cap.last_sparkle.x, 196);
-    /* keyed/compositor hooks untouched by these deferred ops */
     T_ASSERT_EQ_I(cap.keyed_n, 0);
     T_ASSERT_EQ_I(cap.comp_n, 0);
+    sink_teardown();
+    return 0;
+}
+
+/* SPARKLE is wired: with ramp_b NULL the per-sparkle level resolves to no
+ * descriptor → the opaque clipped path (0x5b9bf0).  Frame 5 of the MAIN bank;
+ * dst raw x/y (NOT metric-offset on the clipped path), 4×48 sliver, src
+ * sub-rect (x, 416). */
+int test_sink_sparkle_opaque_clipped_when_no_ramp(void)
+{
+    title_sink_ctx ctx;
+    sink_setup(&ctx);                         /* ramp_b stays NULL */
+    emit(TITLE_DRAW_SPARKLE, 5, 700, 0, 196, 0x1a0);  /* level 700, x=196 */
+    T_ASSERT_EQ_I(cap.sparkle_n, 0);          /* not the deferred callback path */
+    T_ASSERT_EQ_I(cap.clip_n, 1);             /* opaque clipped copy            */
+    T_ASSERT_EQ_P(cap.clip_src,  &g_surf_main[5]);
+    T_ASSERT_EQ_P(cap.clip_dest, &g_primary);
+    T_ASSERT_EQ_I(cap.clip_dx, 196);          /* raw dst x (no metric offset)   */
+    T_ASSERT_EQ_I(cap.clip_dy, 0x1a0);        /* raw dst y = 416                */
+    T_ASSERT_EQ_I(cap.clip_w, 4);
+    T_ASSERT_EQ_I(cap.clip_h, 48);
+    T_ASSERT_EQ_I(cap.clip_sx, 196);          /* src x = column                 */
+    T_ASSERT_EQ_I(cap.clip_sy, 0x1a0);        /* src y = 416                    */
+    T_ASSERT_EQ_I(cap.comp_n, 0);
+    sink_teardown();
+    return 0;
+}
+
+/* SPARKLE alpha path: with a populated ramp_b a mid-range level resolves to
+ * ramp_b[idx] (idx = level·20/1000) → the compositor alpha blit, dest origin
+ * offset by the sprite metric (metric_0c + x, metric_10 + 416). */
+int test_sink_sparkle_alpha_via_ramp(void)
+{
+    title_sink_ctx ctx;
+    sink_setup(&ctx);
+    for (int i = 0; i < 20; i++) g_fake_ramp[i] = &g_fake_descs[i];
+    ctx.ramp_b = g_fake_ramp;
+    title_sink_bind(&ctx);
+
+    /* level 500 → idx = (500*20)/1000 = 10 → ramp_b[10]. */
+    emit(TITLE_DRAW_SPARKLE, 5, 500, 0, 200, 0x1a0);
+    T_ASSERT_EQ_I(cap.clip_n, 0);                       /* not the opaque path */
+    T_ASSERT_EQ_I(cap.comp_n, 1);
+    T_ASSERT_EQ_P(cap.comp_src,  &g_surf_main[5]);
+    T_ASSERT_EQ_P(cap.comp_dest, &g_primary);
+    T_ASSERT_EQ_P((void *)cap.comp_desc, (void *)g_fake_ramp[10]);
+    T_ASSERT_EQ_I(cap.comp_dx, (1000 + 5) + 200);       /* metric_0c + x       */
+    T_ASSERT_EQ_I(cap.comp_dy, (2000 + 5) + 0x1a0);     /* metric_10 + 416     */
+    T_ASSERT_EQ_I(cap.comp_w, 4);
+    T_ASSERT_EQ_I(cap.comp_h, 48);
+    T_ASSERT_EQ_I(cap.comp_sx, 200);                    /* src x = column      */
+    T_ASSERT_EQ_I(cap.comp_sy, 0x1a0);                  /* src y = 416         */
     sink_teardown();
     return 0;
 }
@@ -350,9 +418,6 @@ int test_sink_deferred_draws_route_to_callbacks(void)
  * row index and alpha-blends it via ramp_a (the cursor's draw wrapper
  * 0x56c470).  With a non-NULL ramp the blend routes through the compositor
  * blit hook; the sprite metric offsets the dest origin. */
-static zdd_blend_desc g_fake_descs[20];
-static const zdd_blend_desc *g_fake_ramp[20];
-
 int test_sink_menu_cursor_draws_via_ramp(void)
 {
     title_sink_ctx ctx;

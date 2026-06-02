@@ -1340,3 +1340,64 @@ Two consequences:
 > `zdd_present` case 2 / `zdd_desktop_present` in `src/zdd.c`. The retail present
 > target was observed live, not yet pinned in the static disasm — treat the
 > "mismodel" as a strong lead, not settled, until `FUN_005b8fc0` is decoded.
+
+## 56. The two intro logos are NOT mystery container fields — they're MAIN frames[1]/[2], and the logo handler IS the sprite-level wrapper
+
+Quirk #40 read the studio/title logos as "fields at +4/+8 of `*(*(*0x8a7658))`,
+not pool assets". The r2 disasm of the logo handlers (`0x56bb5c` studio /
+`0x56bbd4` title) shows what that walk actually is. With `S = [0x8a7658]` the
+MAIN sprite slot (pool 19): the handler does `D = *S; F = *D; logo = *(F + 4)`
+(studio) or `*(F + 8)` (title). But `F = *(*S)` is exactly the slot's **frames
+array base** that `FUN_00418470(id)` indexes (`eax=[*S]; eax[id*4]`), so `+4`
+== `frames[1]` and `+8` == `frames[2]`. **The logos are just MAIN-bank
+frames 1 and 2** — the same bank/decode path as the press-button (2..4) and
+menu (5/6) sprites, reached by an open-coded `frames[]` index instead of the
+`0x418470` call (with the same lazy `FUN_004184a0(0)` decode guard).
+
+And the whole handler is **bit-identical to the sprite-level wrapper**
+(`0x56c4e0`, `TITLE_DRAW_SPRITE_LEVEL`): `fade<=0` → skip; else
+`0x448c80(fade,1000)` over the **same** ramp table (`0x8a9308` = ramp_b);
+ramp 0 (idx<0 / idx>=20 / empty slot) → plain keyed blit (`0x5b9b70`), nonzero
+→ alpha blit at dst `(metric_0c, metric_10)`, src `(0,0)`, full w/h. The only
+difference is the `0x5bd550` 10th arg — the logo's alpha leaf (`0x494e10`)
+passes `[0x8a6b60+0x360]` where `0x56c4e0` passes `[0x8a6ec0]` — and that arg is
+**pixel-irrelevant**: a fade-matched diff of the studio logo (phase 0, fade 640)
+and the title logo (phase 3, fade 820) against retail goldens is **`differ_px=0`**
+(parity-ledger #2/#3, ckpt 30).
+
+So `title_render_logo` now emits one `TITLE_DRAW_SPRITE_LEVEL` (frame 1 or 2,
+raw fade) instead of a bespoke `TITLE_DRAW_LOGO`. This **fixed a real bug**: the
+old code branched on the scene-side `ramp` param (`fade_ramp`), which `main.c`
+never populated (always NULL), so it always took the alpha-0 clear branch and
+the logos popped in fully **opaque with no fade**. Routing through the sink's
+populated `ramp_b` restores the fade.
+
+> 📍 `title_render_logo` in `src/title_scene.c`; the `TITLE_DRAW_SPRITE_LEVEL`
+> case in `src/title_sink.c`. Lesson: when a decompile shows a struct walk like
+> `*(*(*g) + k)`, check whether `*(*g)` is an array you already index elsewhere
+> — the "field" may just be `array[k/4]`. And a "special" handler that turns out
+> to share a generic wrapper's exact control flow should be folded onto it, not
+> reimplemented (reuses the bit-exact-validated path).
+
+## 57. The phase-7 "sparkle" is two systems: a subtitle-reveal sweep (render half) + an additive particle spawn (update half)
+
+`FUN_0056bcf7` (phase 7) is usually called "the sparkle", but it is **only the
+render-half subtitle reveal**: it copies 4×48 vertical slivers of the menu-bg
+sprite (MAIN frame 5) at src `(x,416)`→dst `(x,416)` via `0x56c580`, `x` stepping
+192..<416 by 4, alpha = `ramp_b[idx]` of `min(7·fade − 100·i, 1000)` (opaque
+once that saturates). This wipes the "Secret of the Elemental Stone" subtitle in
+column-by-column. Wired ckpt 30 as `TITLE_DRAW_SPARKLE`; **verified bit-exact**
+at full reveal (the subtitle banner matches the golden exactly).
+
+The *twinkling* white sparkle dots scattered over the lower art are a
+**separate** subsystem — the update-half `FUN_0056c070` particle spawn (phase
+7's `title_scene_hooks` call, still stubbed). At fade 1000 the only port↔retail
+residual is those particles (1208 px, 96.6 % retail-brighter — additive dots the
+port lacks). Don't conflate the two: the reveal sweep is done; the particle
+twinkle is the open `0x56c070` thread.
+
+> 📍 `title_render_sparkle` / `TITLE_DRAW_SPARKLE` (`src/title_scene.c`,
+> `src/title_sink.c`). The sparkle wrapper `0x56c580` already had the right
+> signature in `title_render.c`; the fix was the cmd encoding (carry the raw
+> clamped level + column, let the sink index `ramp_b`) — the old encoding tried
+> to round-trip a 64-bit blend-descriptor pointer through a 32-bit field.

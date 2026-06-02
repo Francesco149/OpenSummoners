@@ -38,6 +38,8 @@ after changes that touch the relevant render path.
 |---|---------------|----------|---------------|----------|
 | 1 | Title menu (idle, settled) — phase-matched | port Flip 209 `menu_fade=750` | `cursor-match/frame_01300` `local_58=750` | 2026-06-02 ckpt 28 — `differ_px=0` |
 | 1b| Title menu (idle, settled) — phase-matched | port Flip 203 `menu_fade=450` | `cursor-match/frame_01420` & `_01460` `local_58=450` | 2026-06-02 ckpt 28 — `differ_px=0` |
+| 2 | Studio logo (phase 0, fade-in) — fade-matched | port Flip 30 `phase=0 fade=640` | `fade-match/…/frame_00065` (fade-probe: fade=640) | 2026-06-02 ckpt 30 — `differ_px=0` |
+| 3 | Title-art logo (phase 3, fade-in) — fade-matched | port Flip 235 `phase=3 fade=820` | `fade-match/…/frame_00480` (fade-probe: fade=820) | 2026-06-02 ckpt 30 — `differ_px=0` |
 
 > **R1 CLOSED (ckpt 28).** The residual was the **cursor pulse**. Retail
 > animates the cursor `level_num` (`[esp+0x20]`) as a triangle wave — `local_58`
@@ -98,15 +100,31 @@ every fade value rendered** (phase curve now the canonical 51/102/153/254/275/
 target is the *distinct-content sequence* (every scene state rendered in order),
 which now matches. R1 re-verified post-fix at `menu_fade=750`: **differ_px=0**.
 
-## Other rendered-but-not-1:1 gaps (arms not yet wired)
+### R4 — phase-7 subtitle sparkle: reveal sweep BIT-EXACT; only the deferred particle overlay remains (ckpt 30)
 
-- **Selection sparkle** (arcs beside the cursor) — `SPARKLE` sink arm. The alpha
-  ramps are now populated (ckpt 27), so this is wirable; it carries an explicit
-  blend-descriptor pointer per command (see `title_sink.h`).
-- **Lizsoft studio splash** — `LOGO` arm (still a deferred no-op). The two intro
-  logos are container fields (+4/+8 of `*(*(*0x8a7658))`), not pool assets
-  (engine-quirks #40); the shared alpha blit is `0x494e10`. With LOGO+SPARKLE
-  unwired the intro phases 0–7 still render little, so intro *content* parity is
-  gated on wiring them — but the *pacing* (R3) is now correct.
+The phase-7 flourish has **two independent parts**:
+1. **Render-half subtitle-reveal sweep** (`TITLE_DRAW_SPARKLE`, wired ckpt 30):
+   `FUN_0056bcf7` copies 4×48 vertical slivers of the menu-bg sprite (MAIN
+   frame 5) at src (x,416)→dst (x,416), x stepping 192..<416 by 4, alpha from
+   `ramp_b` (opaque once `min(7·fade−100·i,1000)` saturates). This reveals the
+   "Secret of the Elemental Stone" subtitle column-by-column. **Verified
+   bit-exact**: at fade 1000 (full reveal) the SUMMONERS logo + subtitle banner
+   + art match the retail golden exactly outside the particle region.
+2. **Update-half particle spawn** (`FUN_0056c070`, STILL DEFERRED) — additive
+   white sparkle twinkles scattered over the lower art. This is a separate
+   subsystem the port stubs (see HANDOFF "Open RE threads" / `title_scene_hooks`).
+
+The residual at fade 1000 (port Flip 500 vs `sparkle-match/…/frame_01000`):
+**1208 px, 96.6% retail-brighter** (white dots) — i.e. *entirely* retail's
+missing particle twinkles, not a reveal-sweep error. Closing R4 fully needs the
+`0x56c070` particle system ported.
+
+> **Fade-probe caveat (ckpt 30):** `frida_capture.py --fade-probe` (hooks
+> `FUN_00448c80`, logs the first `(value,div)` per Flip) reads the intro fade
+> directly in **phases 0..4** (logo), but in **phase 7** the first call is the
+> first *sparkle*, so it logs `min(7·fade,1000)` — NOT the raw fade. Match
+> phase-7 frames by reveal extent / the saturated full-reveal state, not the
+> probe value. (Phases 5–6 don't call `0x448c80` at all — the gap in
+> `fade_level.jsonl` pinpoints them.)
 
 When a residual reaches `differ_px == 0`, move it to "Confirmed bit-exact".
