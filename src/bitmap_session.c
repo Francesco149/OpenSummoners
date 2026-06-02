@@ -346,3 +346,152 @@ void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
         }
     }
 }
+
+/* ─── display-depth format converters (8d format switch) ─────────────
+ *
+ * Each converts s->pixels in place to a new depth: alloc a fresh buffer,
+ * walk the source, LocalFree the old buffer, install the new one, and
+ * re-stamp biBitCount.  All faithful to retail's pixel-walk shapes
+ * (FUN_005b7310/_74f0/_7270/_7bd0); the alloc/free use the same
+ * LMEM_ZEROINIT-equivalent bs_local_alloc_zeroed / bs_local_free. */
+
+int bs_convert_to_16bpp(bitmap_session *s, const uint8_t *desc,
+                        uint32_t colorkey, uint32_t key_color)
+{
+    /* Shift table (the ZDD pixel-format descriptor):
+     *   sl[ch] = desc[0..2]      left-shift to place channel ch (R,G,B)
+     *   sr[ch] = desc[0x10..12]  right-shift the 8bpp channel first */
+    const uint8_t sl_r = desc[0],    sl_g = desc[1],    sl_b = desc[2];
+    const uint8_t sr_r = desc[0x10], sr_g = desc[0x11], sr_b = desc[0x12];
+
+    uint32_t total = s->stride * s->biHeight;   /* total source bytes */
+
+    if (s->biBitCount == 8) {
+        uint8_t *out = (uint8_t *)bs_local_alloc_zeroed(
+                           s->biHeight * s->biWidth * 2);
+        if (out == NULL) return 0;
+        const uint8_t *idxp = (const uint8_t *)s->pixels;
+        uint8_t *o = out;
+        for (uint32_t i = 0; i < total; i++) {
+            uint32_t r8, g8, b8;
+            uint32_t idx = idxp[i];
+            if (idx == colorkey) {
+                b8 = (key_color & 0xff);
+                g8 = (key_color >> 8) & 0xff;
+                r8 = (key_color >> 16) & 0xff;
+            } else {
+                b8 = s->palette[idx * 4 + 0];
+                g8 = s->palette[idx * 4 + 1];
+                r8 = s->palette[idx * 4 + 2];
+            }
+            uint32_t v = ((g8 >> sr_g) << sl_g)
+                       | ((b8 >> sr_b) << sl_b)
+                       | ((r8 >> sr_r) << sl_r);
+            o[0] = (uint8_t)v;
+            o[1] = (uint8_t)(v >> 8);
+            o += 2;
+        }
+        bs_local_free(s->pixels);
+        s->pixels = out;
+        bs_set_bit_count(s, 0x10);
+        return 1;
+    }
+
+    if (s->biBitCount == 0x18) {
+        uint8_t *out = (uint8_t *)bs_local_alloc_zeroed(
+                           s->biHeight * s->biWidth * 2);
+        if (out == NULL) return 0;
+        const uint8_t *p = (const uint8_t *)s->pixels;   /* B,G,R triplets */
+        uint8_t *o = out;
+        uint32_t npix = total / 3;
+        for (uint32_t i = 0; i < npix; i++) {
+            uint32_t b8 = p[0], g8 = p[1], r8 = p[2];
+            uint32_t v = ((r8 >> sr_r) << sl_r)
+                       | ((g8 >> sr_g) << sl_g)
+                       | ((b8 >> sr_b) << sl_b);
+            o[0] = (uint8_t)v;
+            o[1] = (uint8_t)(v >> 8);
+            o += 2;
+            p += 3;
+        }
+        bs_local_free(s->pixels);
+        s->pixels = out;
+        bs_set_bit_count(s, 0x10);
+        return 1;
+    }
+
+    (void)key_color;
+    return 0;   /* neither 8 nor 24bpp */
+}
+
+int bs_convert_8bpp_to_24bpp(bitmap_session *s, uint32_t colorkey,
+                             uint32_t key_color)
+{
+    if (s->biBitCount != 8) return 0;
+
+    uint8_t *out = (uint8_t *)bs_local_alloc_zeroed(
+                       s->biWidth * s->biHeight * 3);
+    if (out == NULL) return 0;
+
+    const uint8_t *idxp = (const uint8_t *)s->pixels;
+    /* Dest index uses stride*row + col (matches retail) — for an 8bpp
+     * sheet stride == biWidth, so the packed width*height*3 buffer is
+     * addressed contiguously. */
+    for (int32_t row = 0; row < (int32_t)s->biHeight; row++) {
+        for (int32_t col = 0; col < (int32_t)s->biWidth; col++) {
+            int32_t off = (int32_t)s->stride * row + col;
+            uint32_t idx = idxp[off];
+            uint8_t *d = out + (size_t)off * 3;
+            if (idx == colorkey) {
+                d[0] = (uint8_t)(key_color);
+                d[1] = (uint8_t)(key_color >> 8);
+                d[2] = (uint8_t)(key_color >> 16);
+            } else {
+                d[0] = s->palette[idx * 4 + 0];
+                d[1] = s->palette[idx * 4 + 1];
+                d[2] = s->palette[idx * 4 + 2];
+            }
+        }
+    }
+    bs_local_free(s->pixels);
+    s->pixels = out;
+    bs_set_bit_count(s, 0x18);
+    return 1;
+}
+
+int bs_convert_24bpp_to_32bpp(bitmap_session *s)
+{
+    if (s->biBitCount != 0x18) return 0;
+
+    uint8_t *out = (uint8_t *)bs_local_alloc_zeroed(
+                       s->biHeight * s->biWidth * 4);
+    if (out == NULL) return 0;
+
+    const uint8_t *p = (const uint8_t *)s->pixels;
+    uint8_t *o = out;
+    uint32_t npix = (s->stride * s->biHeight) / 3;
+    for (uint32_t i = 0; i < npix; i++) {
+        o[0] = p[0];        /* B */
+        o[1] = p[1];        /* G */
+        o[2] = p[2];        /* R */
+        o[3] = 0;           /* X */
+        o += 4;
+        p += 3;
+    }
+    bs_local_free(s->pixels);
+    s->pixels = out;
+    bs_set_bit_count(s, 0x20);
+    return 1;
+}
+
+void bs_load_palette_from(bitmap_session *s, const uint8_t *src)
+{
+    /* Session entry {byte0,byte1,byte2,byte3} = {src[2],src[1],src[0],0}
+     * — channel-reversed RGBQUAD with the reserved byte zeroed. */
+    for (int i = 0; i < 256; i++) {
+        s->palette[i * 4 + 0] = src[i * 4 + 2];
+        s->palette[i * 4 + 1] = src[i * 4 + 1];
+        s->palette[i * 4 + 2] = src[i * 4 + 0];
+        s->palette[i * 4 + 3] = 0;
+    }
+}

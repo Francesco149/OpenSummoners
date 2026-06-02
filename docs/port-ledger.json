@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 131,
+  "tested": 135,
   "ported": 3,
-  "unported": 1624,
+  "unported": 1620,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 134,
-  "pct_touched": 8.3,
-  "pct_tested": 8.3,
-  "engine_proper_touched": 124,
+  "touched": 138,
+  "pct_touched": 8.6,
+  "pct_tested": 8.6,
+  "engine_proper_touched": 128,
   "bytes_total": 1694868,
-  "bytes_touched": 169825,
-  "pct_bytes_touched": 10.0
+  "bytes_touched": 170798,
+  "pct_bytes_touched": 10.1
  },
  "orphan_refs": [
   "0x56c470",
@@ -10931,24 +10931,31 @@
    "name": "FUN_005b7270",
    "size": 158,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/bitmap_session.h"
+   ]
   },
   {
    "va": "0x5b7310",
    "name": "FUN_005b7310",
    "size": 469,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/bitmap_session.c",
+    "src/bitmap_session.h"
+   ]
   },
   {
    "va": "0x5b74f0",
    "name": "FUN_005b74f0",
    "size": 293,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/bitmap_session.h"
+   ]
   },
   {
    "va": "0x5b7620",
@@ -10993,8 +11000,10 @@
    "name": "FUN_005b7bd0",
    "size": 53,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/bitmap_session.h"
+   ]
   },
   {
    "va": "0x5b7c10",

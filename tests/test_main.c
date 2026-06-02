@@ -229,6 +229,13 @@ struct test_case {
     X(trim_all_opaque_no_key)                                  \
     X(trim_other_depth_full_rect)                              \
     X(trim_subwindow_8bpp)                                     \
+    X(convert_24bpp_to_16bpp_rgb565)                           \
+    X(convert_8bpp_to_16bpp_palette_and_key)                   \
+    X(convert_to_16bpp_wrong_depth_noop)                       \
+    X(convert_8bpp_to_24bpp_expands)                           \
+    X(convert_24bpp_to_32bpp_widens)                           \
+    X(convert_24bpp_to_32bpp_wrong_depth_noop)                 \
+    X(load_palette_from_reverses_channels)                     \
     X(bitmap_session_layout_matches_retail)                    \
     X(wp_harmless_messages_consumed)                           \
     X(wp_close_calls_exit_zero)                                \

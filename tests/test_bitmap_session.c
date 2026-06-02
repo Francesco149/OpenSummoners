@@ -1176,3 +1176,140 @@ uint8_t *bs_fixture_build_compressed(uint32_t width, uint32_t height,
     return (uint8_t *)build_compressed_resource(width, height, bit_count,
                                                 pixel_off);
 }
+
+/* ─── display-depth format converters (8d format switch) ─────────────
+ *
+ * RGB565 descriptor: shift_left {R=11,G=5,B=0} at desc[0..2],
+ * shift_right {R=3,G=2,B=3} at desc[0x10..0x12]. */
+static void make_rgb565_desc(uint8_t desc[0x16])
+{
+    memset(desc, 0, 0x16);
+    desc[0] = 11; desc[1] = 5; desc[2] = 0;        /* shift_left  R,G,B */
+    desc[0x10] = 3; desc[0x11] = 2; desc[0x12] = 3; /* shift_right R,G,B */
+}
+
+int test_convert_24bpp_to_16bpp_rgb565(void)
+{
+    uint8_t desc[0x16]; make_rgb565_desc(desc);
+
+    /* 2x1 sheet, 24bpp B,G,R: pixel0 white, pixel1 pure red. */
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 2; s.biHeight = 1; s.biBitCount = 24; s.stride = 6;
+    uint8_t *px = bs_local_alloc_zeroed(6);
+    uint8_t src[6] = {0xff,0xff,0xff,  0x00,0x00,0xff};
+    memcpy(px, src, 6); s.pixels = px;
+
+    int rc = bs_convert_to_16bpp(&s, desc, 0, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(s.biBitCount, 16);
+    T_ASSERT_EQ_I(s.stride, 4);   /* set_bit_count: 2 bytes * width 2 */
+    uint8_t *o = (uint8_t *)s.pixels;
+    /* white → 0xFFFF; red(R=ff) → (0x1f<<11)=0xF800. little-endian. */
+    T_ASSERT_EQ_I(o[0], 0xff); T_ASSERT_EQ_I(o[1], 0xff);
+    T_ASSERT_EQ_I(o[2], 0x00); T_ASSERT_EQ_I(o[3], 0xf8);
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_convert_8bpp_to_16bpp_palette_and_key(void)
+{
+    uint8_t desc[0x16]; make_rgb565_desc(desc);
+
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 2; s.biHeight = 1; s.biBitCount = 8; s.stride = 2;
+    uint8_t *px = bs_local_alloc_zeroed(2);
+    px[0] = 5; px[1] = 7; s.pixels = px;     /* idx 5, then key idx 7 */
+    /* palette stored {B,G,R,_}: entry 5 = pure blue. */
+    s.palette[5*4 + 0] = 0xff;  /* B */
+    /* key_color 0x00FF0000 = pure red substituted for the keyed index. */
+
+    int rc = bs_convert_to_16bpp(&s, desc, /*colorkey*/7, /*key_color*/0xFF0000);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(s.biBitCount, 16);
+    uint8_t *o = (uint8_t *)s.pixels;
+    /* idx5 blue(B=ff) → (0x1f<<0)=0x001F; key → red → 0xF800. */
+    T_ASSERT_EQ_I(o[0], 0x1f); T_ASSERT_EQ_I(o[1], 0x00);
+    T_ASSERT_EQ_I(o[2], 0x00); T_ASSERT_EQ_I(o[3], 0xf8);
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_convert_to_16bpp_wrong_depth_noop(void)
+{
+    uint8_t desc[0x16]; make_rgb565_desc(desc);
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 2; s.biHeight = 1; s.biBitCount = 32; s.stride = 8;
+    uint8_t *px = bs_local_alloc_zeroed(8); s.pixels = px;
+
+    int rc = bs_convert_to_16bpp(&s, desc, 0, 0);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(s.biBitCount, 32);   /* untouched */
+    T_ASSERT(s.pixels == px);          /* buffer not replaced */
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_convert_8bpp_to_24bpp_expands(void)
+{
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 2; s.biHeight = 1; s.biBitCount = 8; s.stride = 2;
+    uint8_t *px = bs_local_alloc_zeroed(2);
+    px[0] = 5; px[1] = 7; s.pixels = px;
+    s.palette[5*4 + 0] = 1; s.palette[5*4 + 1] = 2; s.palette[5*4 + 2] = 3;
+
+    int rc = bs_convert_8bpp_to_24bpp(&s, /*colorkey*/7, /*key_color*/0xAABBCC);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(s.biBitCount, 24);
+    uint8_t *o = (uint8_t *)s.pixels;
+    /* idx5 → {1,2,3}; key idx7 → {CC,BB,AA} (low→high byte of key_color). */
+    T_ASSERT_EQ_I(o[0], 1);    T_ASSERT_EQ_I(o[1], 2);    T_ASSERT_EQ_I(o[2], 3);
+    T_ASSERT_EQ_I(o[3], 0xCC); T_ASSERT_EQ_I(o[4], 0xBB); T_ASSERT_EQ_I(o[5], 0xAA);
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_convert_24bpp_to_32bpp_widens(void)
+{
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 2; s.biHeight = 1; s.biBitCount = 24; s.stride = 6;
+    uint8_t *px = bs_local_alloc_zeroed(6);
+    uint8_t src[6] = {1,2,3, 4,5,6}; memcpy(px, src, 6); s.pixels = px;
+
+    int rc = bs_convert_24bpp_to_32bpp(&s);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(s.biBitCount, 32);
+    uint8_t *o = (uint8_t *)s.pixels;
+    uint8_t exp[8] = {1,2,3,0, 4,5,6,0};
+    for (int i = 0; i < 8; i++) T_ASSERT_EQ_I(o[i], exp[i]);
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_convert_24bpp_to_32bpp_wrong_depth_noop(void)
+{
+    bitmap_session s; memset(&s, 0, sizeof s);
+    s.biWidth = 1; s.biHeight = 1; s.biBitCount = 8; s.stride = 1;
+    uint8_t *px = bs_local_alloc_zeroed(1); s.pixels = px;
+    int rc = bs_convert_24bpp_to_32bpp(&s);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT(s.pixels == px);
+    bs_local_free(s.pixels);
+    return 0;
+}
+
+int test_load_palette_from_reverses_channels(void)
+{
+    bitmap_session s; memset(&s, 0, sizeof s);
+    uint8_t src[256 * 4];
+    for (int i = 0; i < 256 * 4; i++) src[i] = 0;
+    src[0] = 10; src[1] = 20; src[2] = 30; src[3] = 40;  /* entry 0 */
+    src[4] = 1;  src[5] = 2;  src[6] = 3;  src[7] = 4;    /* entry 1 */
+
+    bs_load_palette_from(&s, src);
+    /* {src[2],src[1],src[0],0}. */
+    T_ASSERT_EQ_I(s.palette[0], 30); T_ASSERT_EQ_I(s.palette[1], 20);
+    T_ASSERT_EQ_I(s.palette[2], 10); T_ASSERT_EQ_I(s.palette[3], 0);
+    T_ASSERT_EQ_I(s.palette[4], 3);  T_ASSERT_EQ_I(s.palette[5], 2);
+    T_ASSERT_EQ_I(s.palette[6], 1);  T_ASSERT_EQ_I(s.palette[7], 0);
+    return 0;
+}

@@ -318,4 +318,43 @@ void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
                          int32_t base_x, int32_t base_y,
                          int32_t height, int32_t width, bs_trim_rect *out);
 
+/* ─── display-depth format converters (8d format switch) ─────────────
+ *
+ * The slicer (0x4188b0) runs ONE of these over the whole decoded sheet
+ * before building per-cell surfaces, selected by the god-object display
+ * depth ([zdd+0x168]).  Each rewrites s->pixels in place to the target
+ * depth (re-allocating the pixel buffer) and re-stamps biBitCount via
+ * bs_set_bit_count.  Source depth must match (8 or 24bpp per converter);
+ * a mismatch is a no-op returning 0.  See docs/findings/sprite-pipeline.md
+ * "8d call graph". */
+
+/* FUN_005b7310 — convert an 8bpp or 24bpp sheet to 16bpp using the ZDD
+ * pixel-format shift descriptor.  `desc` points at the 22-byte
+ * zdd_color_descriptor (the ZDD struct's first field): desc[0..2] =
+ * shift_left[R,G,B], desc[0x10..0x12] = shift_right[R,G,B].  `colorkey`
+ * is the transparent value (8bpp: palette index; 24bpp: unused — every
+ * pixel is converted) and `key_color` the RGB substituted for a keyed
+ * 8bpp pixel.  Returns 1 on success, 0 if the sheet is neither 8 nor
+ * 24bpp.  This is the converter that fires on the windowed-16bpp title
+ * path. */
+int bs_convert_to_16bpp(bitmap_session *s, const uint8_t *desc,
+                        uint32_t colorkey, uint32_t key_color);
+
+/* FUN_005b74f0 — expand an 8bpp sheet to 24bpp (palette lookup → BGR
+ * bytes, keyed indices substituted with `key_color`).  Walks row/column
+ * via stride (so any row padding is honoured) and writes a tightly
+ * packed width*height*3 buffer.  No-op (returns 0) unless 8bpp. */
+int bs_convert_8bpp_to_24bpp(bitmap_session *s, uint32_t colorkey,
+                             uint32_t key_color);
+
+/* FUN_005b7270 — widen a 24bpp sheet to 32bpp (BGR → BGRX, X=0).
+ * No-op (returns 0) unless 24bpp. */
+int bs_convert_24bpp_to_32bpp(bitmap_session *s);
+
+/* FUN_005b7bd0 — load the session's 256-entry palette from a source
+ * RGBQUAD table.  Each source entry src[0..3] is stored into the session
+ * palette as {src[2], src[1], src[0], 0} (channel-reversed, reserved
+ * zeroed).  `src` must point at 256*4 bytes. */
+void bs_load_palette_from(bitmap_session *s, const uint8_t *src);
+
 #endif /* OPENSUMMONERS_BITMAP_SESSION_H */
