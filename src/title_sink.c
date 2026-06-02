@@ -9,6 +9,9 @@
  */
 
 #include <stddef.h>
+#ifdef SINK_RESOLVE_DEBUG
+#include <stdio.h>
+#endif
 
 #include "title_sink.h"
 #include "asset_register.h"  /* ar_pool_get_slot / ar_sprite_slot_frame */
@@ -36,7 +39,21 @@ static zdd_object *resolve_frame(uint16_t bank_idx, int32_t frame_id)
 {
     ar_sprite_slot *slot = ar_pool_get_slot(bank_idx);
     if (slot == NULL) return NULL;
-    return (zdd_object *)ar_sprite_slot_frame(slot, (uint16_t)frame_id);
+    zdd_object *r = (zdd_object *)ar_sprite_slot_frame(slot, (uint16_t)frame_id);
+#ifdef SINK_RESOLVE_DEBUG
+    {
+        static int seen[64];
+        int key = (bank_idx & 31) | ((r != NULL) << 5);
+        if (key < 64 && !seen[key]) {
+            seen[key] = 1;
+            fprintf(stderr, "[sink] resolve_frame bank=%u id=%d -> %p "
+                    "(slot.resid=0x%x frames=%p)\n", bank_idx, frame_id,
+                    (void *)r, slot->resource_id,
+                    (void *)(slot->entries ? slot->entries[0].frames : NULL));
+        }
+    }
+#endif
+    return r;
 }
 
 void title_render_sink(const title_draw_cmd *cmd)

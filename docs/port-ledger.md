@@ -52,7 +52,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x56c180 | FUN_0056c180 | 297 | title_render.c, title_render.h, title_sink.h |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
-| 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |
+| 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h, main.c |
 | 0x579a00 | FUN_00579a00 | 451 | asset_register.c, asset_register.h |
 | 0x579bd0 | FUN_00579bd0 | 741 | asset_register.c, asset_register.h |
 | 0x579ec0 | FUN_00579ec0 | 126 | asset_register.c, asset_register.h |

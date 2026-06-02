@@ -98,6 +98,16 @@ static int       g_shutdown;
 static HANDLE    g_singleton_mutex;
 static zdd      *g_zdd;
 
+/* sotesd.dll — the bulk-data resource DLL that holds every title sprite
+ * (logo 0x49f, backgrounds 0x91b/0x91c, menu cursor, …).  Retail's launcher
+ * (FUN_005a4770 @ 0x5af5fc) LoadLibraryA's it and stashes the HMODULE in
+ * DAT_008a6e74, which the boot driver then passes to every sprite/font/sound
+ * registrar as the `settings` (PE-resource source) argument.  We mirror that:
+ * load it once after the game-dir is anchored, register the title banks, and
+ * free it at shutdown.  NB despite the `sotesp_module` parameter name on the
+ * registrar, retail sources slot 0 (id 0x90b) from this same handle. */
+static HMODULE   g_sotesd;
+
 /* The title-scene drive (the caller side of FUN_0056aea0).  Active once
  * init_title_drive succeeds; one main_loop_body iteration runs one
  * title_scene_step against it.  --no-title-scene falls back to the legacy
@@ -142,6 +152,7 @@ static int  init_ddraw(void);
 static void shutdown_ddraw(void);
 static void sync_window_position(void);
 static void init_title_drive(void);
+static void init_sprite_banks(void);
 static void drive_present(void *user);
 static void drive_log_flip(void *user);
 
@@ -229,6 +240,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * below; this initial sample covers the window's spawn position. */
     sync_window_position();
 
+    /* Register the title sprite banks from sotesd.dll BEFORE the drive starts,
+     * so the render sink's bank getter (ar_pool_get_slot 19/20) resolves to
+     * populated slots instead of short-circuiting to NULL.  Without this the
+     * whole decode→slice→8d chain never runs and the window stays blank. */
+    if (!g_no_title_scene && !g_skip_ddraw && g_zdd != NULL)
+        init_sprite_banks();
+
     /* Stand up the title-scene drive (the caller side of FUN_0056aea0): bind
      * the render sink to the live primary surface, install the sprite-bank
      * self-decode hook, and allocate the scene object graph.  After this the
@@ -260,6 +278,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         g_input_trace_active = 0;
     }
     shutdown_ddraw();
+    if (g_sotesd != NULL) {
+        FreeLibrary(g_sotesd);
+        g_sotesd = NULL;
+    }
     call_trace_shutdown();
     timeEndPeriod(1);
     dev_hooks_uninstall_messagebox();
@@ -395,6 +417,43 @@ static void title_sheet_format(ar_sprite_slot *slot,
     default:
         break;
     }
+}
+
+/* Load sotesd.dll and register the title sprite banks against the live ZDD.
+ *
+ * Mirrors retail's boot driver FUN_00562ea0 @ 0x5749b0 call:
+ *   FUN_005749b0(ZDD=DAT_008a93cc, group=4, settings=DAT_008a6e74[sotesd])
+ * where DAT_008a6e74 is the sotesd.dll HMODULE the launcher loaded.  The
+ * registrar stamps g_ar_sprite_slots[0..29] + stragglers with their resource
+ * IDs (no decode yet — that happens lazily when a bank is first painted).
+ * The two the title sink reads are slot 6 (MAIN, id 0x91b → pool index 19)
+ * and slot 7 (CURSOR, id 0x91c → pool index 20).
+ *
+ * Both the `settings` and `sotesp_module` parameters take the SAME sotesd
+ * handle: retail sources every main-sprite slot (including slot 0's palette
+ * seed, id 0x90b) from DAT_008a6e74.  (Verified: 0x90b lives in sotesd.dll,
+ * not sotesp.dll, despite the historical parameter name.)
+ *
+ * On failure to load sotesd.dll we log and continue: the drive still boots
+ * (cleared+flipped window, no sprites), matching the pre-registration state. */
+static void init_sprite_banks(void)
+{
+    g_sotesd = LoadLibraryA("sotesd.dll");
+    if (g_sotesd == NULL) {
+        log_line("init_sprite_banks: LoadLibraryA(sotesd.dll) failed: %lu — "
+                 "title banks stay unregistered (blank render)", GetLastError());
+        return;
+    }
+
+    /* Set up the sprite/info/gdi/sound pool pointer tables once before any
+     * registrar touches them (idempotent; globals start zeroed). */
+    ar_state_init();
+
+    ar_register_main_sprites(g_zdd, /*group=*/4, /*settings=*/g_sotesd,
+                             /*sotesp_module=*/g_sotesd);
+
+    log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
+             "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c)", (void *)g_sotesd);
 }
 
 /* Build the title-scene drive against the live ZDD.  Binds the render sink to
