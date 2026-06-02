@@ -2986,3 +2986,55 @@ rendering). The harness is now the **yardstick** for the render-bridge port
 and diff vs these retail goldens.
 
 ---
+
+## 2026-06-02 (ckpt 21) — the title render sink: cmd stream → real ZDD blits
+
+`src/title_sink.{c,h}` (+ `tests/test_title_sink.c`, 13 tests): the runtime
+bridge that turns `title_render_step`'s abstract `TITLE_DRAW_*` command stream
+(the render half of `FUN_0056aea0`, behind `title_render_sink_hook`) into the
+retail render half's actual ZDD calls, against a bound primary surface. This
+is the "sink" half of HANDOFF Next move #1 (the drive half is ckpt 22).
+
+**RE landed this ckpt** (render half `0x56bb04..0x56bf1a`, r2): every per-phase
+draw resolves its source frame out of ONE of two fixed sprite banks, then blits
+onto `DAT_008a93cc->[0x16c]` (= the ZDD `primary_obj` at +0x16c):
+- **MAIN bank** = `0x8a7658` = pool slot **19** (`ar_pool_get_slot(19)`; main
+  pool base `0x8a7640` + 6·4). Carries the studio/title logos (frames 1/2),
+  the press-button sprites (2/3/4), the sparkle (4/5), the menu background +
+  menu sprite (5/6). The cmd `asset` is the `ar_sprite_slot_frame` frame id.
+- **CURSOR bank** = `0x8a765c` = pool slot **20**. The menu-selection
+  highlight; frame id = the selected row index.
+
+Both self-decode via the ported `ar_sprite_slot_frame` chain (ckpt 16/20) —
+but stay NULL until the slot is registered with a real "DATA" resource AND the
+8d surface builder (`ar_frame_build_hook`) is wired, so every sprite op no-ops
+faithfully (the "still-undecoded" path). ⇒ the drive will render a cleared +
+flipped window with no sprites yet (move B), giving 8d a frame-diff harness.
+
+**Faithful + host-tested:** `SURFACE_RESET` (→ `zdd_object_clear`),
+`SURFACE_CLEAR`/`SPRITE` (keyed blit of `frame(main,asset)`→primary),
+`SPRITE_LEVEL` (→ `title_draw_sprite_level`, ramp_b plain/alpha both proven),
+`FRAME_END` (→ `title_compositor_draw` of the bound display-list group),
+`FLIP` (present cb), `LOG_FLIPPING` (log cb) — the whole intro + menu-background
++ fade-out path.
+
+**Deferred behind ctx callbacks** (no-op default): `LOGO`, `SPARKLE`,
+`MENU_CURSOR` — the alpha-ramp draws whose blend-descriptor *pointer* rides the
+32-bit `alpha` field of `title_draw_cmd` (can't round-trip on a 64-bit host) or
+whose level numerator (`[esp+0x20]`) + fixed src geometry the command drops.
+They only fire once the run-time ramp tables (`0x8a92b8`/`0x8a9308`) are
+populated, which never happens at a cold headless boot, so deferring costs no
+intro/menu-background fidelity. Wired + validated against live goldens in the
+drive checkpoint.
+
+**Fidelity fix to `title_render_step`:** `TITLE_DRAW_SURFACE_CLEAR` now carries
+the source frame index in `asset` (prologue background = 0; the logo handler's
+alpha-0 path = `frames[1]` studio / `frames[2]` title). The alpha-0 logo blit
+is `frames[1/2]` (`0x56bba0`/`0x56bc19`), NOT the phase-2..3 background
+`frames[0]` — the abstract op was previously lossy across the two.
+
+**617 host tests (611 pass, 0 fail, 6 skip; +12 this ckpt).** Both 32-bit
+cross-builds clean. Ledger unchanged at **130/1490 (8.1%), 127 tested** — the
+sink bridges already-counted functions (no new `FUN_` port tokens).
+
+---
