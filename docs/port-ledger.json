@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 128,
+  "tested": 131,
   "ported": 3,
-  "unported": 1627,
+  "unported": 1624,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 131,
-  "pct_touched": 8.1,
-  "pct_tested": 8.1,
-  "engine_proper_touched": 121,
+  "touched": 134,
+  "pct_touched": 8.3,
+  "pct_tested": 8.3,
+  "engine_proper_touched": 124,
   "bytes_total": 1694868,
-  "bytes_touched": 169063,
+  "bytes_touched": 169825,
   "pct_bytes_touched": 10.0
  },
  "orphan_refs": [
@@ -11284,8 +11284,11 @@
    "name": "FUN_005b9280",
    "size": 203,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/zdd.c",
+    "src/zdd.h"
+   ]
   },
   {
    "va": "0x5b9350",
@@ -11308,6 +11311,7 @@
     "src/asset_register.c",
     "src/asset_register.h",
     "src/cs_dispatch.c",
+    "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
    ]
@@ -11420,8 +11424,11 @@
    "name": "FUN_005b9630",
    "size": 268,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/zdd.c",
+    "src/zdd.h"
+   ]
   },
   {
    "va": "0x5b9740",
@@ -11473,8 +11480,11 @@
    "name": "FUN_005b9910",
    "size": 291,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/zdd.c",
+    "src/zdd.h"
+   ]
   },
   {
    "va": "0x5b9a40",
@@ -12467,6 +12477,7 @@
     "src/cs_dispatch.c",
     "src/menu_list.c",
     "src/pixel_drawer.c",
+    "src/zdd.c",
     "src/zdd.h"
    ]
   },

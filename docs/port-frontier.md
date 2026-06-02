@@ -7,20 +7,20 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **110**
+- frontier functions: **109**
 - of those, zero-dependency **leaves: 55** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
 | VA | size | ported callers | band |
 |----|-----:|---------------:|------|
+| 0x5b6ec0 | 21 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x562a70 | 127 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x56df10 | 203 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x41bbe0 | 312 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x49a050 | 13 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x5a4760 | 16 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x58d090 | 18 | 1 | master sprite-group register + audio/music init + anim pump |
-| 0x5b6ec0 | 21 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5aff00 | 26 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x58cfc0 | 27 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x587d30 | 28 | 1 | master sprite-group register + audio/music init + anim pump |
@@ -196,13 +196,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59e230 | 924 | 1 | 21 |  |
 | 0x59e5d0 | 1033 | 1 | 15 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (26)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (25)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
+| 0x5b6ec0 | 21 | 2 | 0 | ✓ |
 | 0x5ba120 | 154 | 2 | 1 |  |
 | 0x5a4760 | 16 | 1 | 0 | ✓ |
-| 0x5b6ec0 | 21 | 1 | 0 | ✓ |
 | 0x5aff00 | 26 | 1 | 0 | ✓ |
 | 0x5b6580 | 28 | 1 | 0 | ✓ |
 | 0x5bbc60 | 45 | 1 | 0 | ✓ |
@@ -220,7 +220,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5b9cf0 | 159 | 1 | 3 |  |
 | 0x5b9fc0 | 164 | 1 | 3 |  |
 | 0x5baed0 | 193 | 1 | 3 |  |
-| 0x5b9280 | 203 | 1 | 1 |  |
 | 0x5b74f0 | 293 | 1 | 0 | ✓ |
 | 0x5b7310 | 469 | 1 | 0 | ✓ |
 | 0x5b10d0 | 520 | 1 | 3 |  |

@@ -550,6 +550,16 @@ struct test_case {
     X(zdd_object_clear_lock_failure_skips_fill_and_unlock)     \
     X(zdd_object_clear_zero_fills_and_unlocks)                 \
     X(zdd_object_clear_zero_size_safe)                         \
+    X(zdd_copy_cell_pixels_basic_24bpp)                        \
+    X(zdd_copy_cell_pixels_lock_failure_returns_zero)          \
+    X(zdd_copy_cell_pixels_clamps_to_dest_pitch)               \
+    X(zdd_build_cell_no_trim_creates_and_copies)               \
+    X(zdd_build_cell_trim_tightens_box)                        \
+    X(zdd_build_cell_found_key_zero_drops_colorkey)            \
+    X(zdd_build_cell_fully_transparent_is_metrics_only)        \
+    X(zdd_build_cell_create_failure_returns_zero)              \
+    X(zdd_new_cell_success_publishes_object)                   \
+    X(zdd_new_cell_build_failure_frees_and_returns_zero)       \
     X(zdd_bind_pixel_format_null_self_returns_zero)            \
     X(zdd_bind_pixel_format_null_surface_returns_zero)         \
     X(zdd_bind_pixel_format_getdesc_failure_returns_zero)      \

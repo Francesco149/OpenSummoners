@@ -20,6 +20,7 @@
  * Each test resets the stub state via reset_stubs() before running.
  */
 #include "../src/zdd.h"
+#include "../src/bitmap_session.h"   /* per-cell builder source + trim rect */
 #include "t.h"
 
 #include <stdint.h>
@@ -3290,6 +3291,289 @@ int test_zdd_object_clear_zero_size_safe(void)
 
     T_ASSERT_EQ_I(g_dd_lock_calls,   1);
     T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    return 0;
+}
+
+/* ─── per-cell sprite-surface builder (8d: 0x5b9910/_9630/_9280) ─────── */
+
+/* Build a deterministic 24bpp bottom-up source sheet: visual pixel
+ * (x, y) gets all-3-bytes = value(x, y) = 10*y + x + 1 (never 0, so the
+ * zero-fill is distinguishable from copied data).  Memory is bottom-up,
+ * so visual row y lives at offset stride*(H-1-y). */
+#define CELL_SRC_W 4
+#define CELL_SRC_H 3
+static uint8_t g_cell_src_buf[CELL_SRC_W * CELL_SRC_H * 3];
+
+static void cell_src_init(bitmap_session *s)
+{
+    memset(s, 0, sizeof(*s));
+    for (int y = 0; y < CELL_SRC_H; y++) {
+        for (int x = 0; x < CELL_SRC_W; x++) {
+            uint8_t v = (uint8_t)(10 * y + x + 1);
+            uint8_t *p = g_cell_src_buf
+                       + (CELL_SRC_H - 1 - y) * (CELL_SRC_W * 3) + x * 3;
+            p[0] = p[1] = p[2] = v;
+        }
+    }
+    s->pixels     = g_cell_src_buf;
+    s->stride     = CELL_SRC_W * 3;   /* 12 */
+    s->biWidth    = CELL_SRC_W;
+    s->biHeight   = CELL_SRC_H;
+    s->biBitCount = 24;
+}
+
+int test_zdd_copy_cell_pixels_basic_24bpp(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+
+    /* Dest: pitch 8 (2px*3B copied + 2B pad), height 2 → 16 bytes.
+     * Copy a 2x2 cell from visual (1, 0). */
+    uint8_t dest[8 * 2];
+    memset(dest, 0xAA, sizeof(dest));
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 8;
+    g_dd_lock_fill_height  = 2;
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    int rc = zdd_object_copy_cell_pixels(&po, &src, 0, 0, 2, 2, 1, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    T_ASSERT(g_dd_lock_seq < g_dd_unlock_seq);
+
+    /* Row 0 = visual (1,0),(2,0) = values 2, 3; pad 0. */
+    uint8_t exp0[8] = {2,2,2, 3,3,3, 0,0};
+    /* Row 1 = visual (1,1),(2,1) = values 12, 13; pad 0. */
+    uint8_t exp1[8] = {12,12,12, 13,13,13, 0,0};
+    for (int i = 0; i < 8; i++) {
+        T_ASSERT_EQ_I(dest[i],     exp0[i]);
+        T_ASSERT_EQ_I(dest[8 + i], exp1[i]);
+    }
+    return 0;
+}
+
+int test_zdd_copy_cell_pixels_lock_failure_returns_zero(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    g_dd_lock_result = 0;   /* Lock fails */
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    int rc = zdd_object_copy_cell_pixels(&po, &src, 0, 0, 2, 2, 0, 0);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);   /* no unlock without a lock */
+    return 0;
+}
+
+int test_zdd_copy_cell_pixels_clamps_to_dest_pitch(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+
+    /* Dest pitch only 4 bytes (< the 6-byte 2px row) → clamp to 4 =
+     * one full pixel + 1 byte of the next. */
+    uint8_t dest[4 * 1];
+    memset(dest, 0xAA, sizeof(dest));
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 4;
+    g_dd_lock_fill_height  = 1;
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+    po.com_primary = (void *)(uintptr_t)0xabcd;
+
+    int rc = zdd_object_copy_cell_pixels(&po, &src, 0, 0, 2, 1, 0, 0);
+    T_ASSERT_EQ_I(rc, 1);
+    /* Row 0 visual (0,0)=1, then 1 byte of (1,0)=2: {1,1,1, 2}. */
+    uint8_t exp[4] = {1,1,1, 2};
+    for (int i = 0; i < 4; i++) T_ASSERT_EQ_I(dest[i], exp[i]);
+    return 0;
+}
+
+int test_zdd_build_cell_no_trim_creates_and_copies(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    uint8_t dest[8 * 2];
+    memset(dest, 0xAA, sizeof(dest));
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 8;
+    g_dd_lock_fill_height  = 2;
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+
+    /* metric 2x2, no trim → create_surface_pair (sets com_primary) then
+     * copy the full cell at src (1,0). */
+    int rc = zdd_object_build_cell(&po, &src, 1, 0, 2, 2, 0,
+                                   0xff00ff, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    /* create_surface_pair installed the stub surface. */
+    T_ASSERT(po.com_primary == g_dd_createsurf_handle);
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0xff00ff);
+    /* Pixels copied (row 0 = visual (1,0),(2,0) = 2,3). */
+    T_ASSERT_EQ_I(dest[0], 2);
+    T_ASSERT_EQ_I(dest[3], 3);
+    return 0;
+}
+
+int test_zdd_build_cell_trim_tightens_box(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    uint8_t dest[64];
+    memset(dest, 0xAA, sizeof(dest));
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 32;
+    g_dd_lock_fill_height  = 2;
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+
+    /* trim_count>1 → tighten to bbox: x_left=1,x_right=2,y_top=0,
+     * y_bottom=1 → w=2,h=2, src origin (1,0).  found_opaque=1,
+     * found_key=1 (keeps colorkey). */
+    bs_trim_rect trim;
+    memset(&trim, 0, sizeof(trim));
+    trim.x_left = 1; trim.x_right = 2;
+    trim.y_top  = 0; trim.y_bottom = 1;
+    trim.found_opaque = 1; trim.found_key = 1;
+
+    int rc = zdd_object_build_cell(&po, &src, 0, 0, /*metric*/4, 3, 0,
+                                   0xff00ff, 0, /*count*/2, &trim);
+    T_ASSERT_EQ_I(rc, 1);
+    /* Surface dimensions stamped to the tightened box (2x2), not 4x3. */
+    T_ASSERT_EQ_I(po.metric_b8, 2);   /* width  (stamp_metrics p5) */
+    T_ASSERT_EQ_I(po.metric_bc, 2);   /* height (stamp_metrics p6) */
+    /* Colorkey kept (found_key != 0). */
+    T_ASSERT_EQ_I(g_dd_setkey_last_key, 0xff00ff);
+    /* Pixel (0,0) of the box = visual (1,0) = 2. */
+    T_ASSERT_EQ_I(dest[0], 2);
+    return 0;
+}
+
+int test_zdd_build_cell_found_key_zero_drops_colorkey(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    uint8_t dest[64];
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 32;
+    g_dd_lock_fill_height  = 2;
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+
+    bs_trim_rect trim;
+    memset(&trim, 0, sizeof(trim));
+    trim.x_left = 0; trim.x_right = 1;
+    trim.y_top  = 0; trim.y_bottom = 1;
+    trim.found_opaque = 1; trim.found_key = 0;   /* fully opaque */
+
+    int rc = zdd_object_build_cell(&po, &src, 0, 0, 4, 3, 0,
+                                   0xff00ff, 0, 2, &trim);
+    T_ASSERT_EQ_I(rc, 1);
+    /* found_key==0 forces the no-key sentinel.  set_color_key's sentinel
+     * branch stamps colorkey_out and short-circuits WITHOUT a vtable
+     * call, so the surface stub is never invoked. */
+    T_ASSERT_EQ_I(po.colorkey_out, 0x1ffffff);
+    T_ASSERT_EQ_I(g_dd_setkey_calls, 0);
+    return 0;
+}
+
+int test_zdd_build_cell_fully_transparent_is_metrics_only(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+
+    bs_trim_rect trim;
+    memset(&trim, 0, sizeof(trim));
+    trim.found_opaque = 0;   /* nothing opaque → no surface */
+    trim.found_key    = 1;
+
+    int rc = zdd_object_build_cell(&po, &src, 0, 0, 4, 3, 0,
+                                   0xff00ff, 0, 2, &trim);
+    T_ASSERT_EQ_I(rc, 1);
+    /* Metrics-only path: no surface created, no lock/copy. */
+    T_ASSERT(po.com_primary == NULL);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 0);
+    /* stamp_metrics(metric_w, metric_h, 0,0,0,0) → metric_1c/_20 = 4/3. */
+    T_ASSERT_EQ_I(po.metric_1c, 4);
+    T_ASSERT_EQ_I(po.metric_20, 3);
+    return 0;
+}
+
+int test_zdd_build_cell_create_failure_returns_zero(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    g_dd_createsurf_result = 0;   /* CreateSurface fails */
+
+    zdd s; zdd_ctor(&s);
+    zdd_object po; zdd_object_ctor(&po, &s);
+
+    int rc = zdd_object_build_cell(&po, &src, 0, 0, 2, 2, 0,
+                                   0xff00ff, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT_EQ_I(g_dd_lock_calls, 0);   /* never reached the copy */
+    return 0;
+}
+
+int test_zdd_new_cell_success_publishes_object(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    uint8_t dest[8 * 2];
+    g_dd_lock_fill_surface = dest;
+    g_dd_lock_fill_pitch   = 8;
+    g_dd_lock_fill_height  = 2;
+
+    zdd s; zdd_ctor(&s);
+    int open_before = s.open_objects;
+
+    zdd_object *out = NULL;
+    int rc = zdd_object_new_cell(&s, &out, &src, 1, 0, 2, 2,
+                                 0xff00ff, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT(out != NULL);
+    T_ASSERT(out->parent == &s);
+    /* ctor bumped open_objects. */
+    T_ASSERT_EQ_I(s.open_objects, open_before + 1);
+    T_ASSERT(out->com_primary == g_dd_createsurf_handle);
+
+    /* Clean up (dtor + free) the way the caller's free path would. */
+    zdd_obj_destroy(&out);
+    T_ASSERT_EQ_I(s.open_objects, open_before);
+    return 0;
+}
+
+int test_zdd_new_cell_build_failure_frees_and_returns_zero(void)
+{
+    reset_stubs();
+    bitmap_session src; cell_src_init(&src);
+    g_dd_createsurf_result = 0;   /* force orchestrator failure */
+
+    zdd s; zdd_ctor(&s);
+    int open_before = s.open_objects;
+
+    zdd_object *out = (zdd_object *)(uintptr_t)0xdeadbeef;
+    int rc = zdd_object_new_cell(&s, &out, &src, 0, 0, 2, 2,
+                                 0xff00ff, 0, 0, NULL);
+    T_ASSERT_EQ_I(rc, 0);
+    /* *out untouched on failure; object dtor'd → open_objects balanced. */
+    T_ASSERT(out == (zdd_object *)(uintptr_t)0xdeadbeef);
+    T_ASSERT_EQ_I(s.open_objects, open_before);
     return 0;
 }
 

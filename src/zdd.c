@@ -14,6 +14,7 @@
  * Code " are retail's, not typos.
  */
 #include "zdd.h"
+#include "bitmap_session.h"     /* per-cell builder reads the decoded sheet */
 #include "call_trace.h"
 
 #include <stdint.h>
@@ -1089,6 +1090,178 @@ void zdd_object_clear(zdd_object *self)
     }
 
     zdd_object_unlock(self);
+}
+
+/* ─── per-cell sprite-surface builder (8d: FUN_005b9910/_9630/_9280) ── */
+
+/* FUN_005b9910 — copy one decoded-sheet cell into the dest surface.
+ * The source accessors inlined here mirror retail's three one-liners:
+ *   0x5b6ec0  bottom-row base = pixels + stride*(biHeight-1)
+ *   0x5b6f00  bit depth       = biBitCount  (>>3 → bytes/pixel)
+ *   0x5b6ef0  stride          = stride
+ * The dest's locked geometry (buffer / pitch / height) is read via
+ * zdd_object_get_locked_info so the 8-byte-host-pointer vs 4-byte-DDSD
+ * mismatch stays out of the pure-logic path (same idiom as
+ * zdd_object_clear / zdd_alpha_blit). */
+int zdd_object_copy_cell_pixels(zdd_object *self,
+                                const bitmap_session *src,
+                                int dest_x, int dest_y,
+                                int width, int height,
+                                int src_x, int src_y)
+{
+    CALL_TRACE_ENTER(0x5b9910);
+
+    /* Source geometry (retail reads these BEFORE the Lock). */
+    uint8_t *src_bottom = (uint8_t *)src->pixels
+                        + (size_t)src->stride * (src->biHeight - 1);
+    uint32_t bpp_bytes  = (uint32_t)src->biBitCount >> 3;
+    int32_t  src_stride = (int32_t)src->stride;
+
+    if (!zdd_object_lock(self)) {
+        return 0;
+    }
+
+    void   *dest_buf    = NULL;
+    int32_t dest_pitch  = 0;
+    int32_t dest_height = 0;
+    zdd_object_get_locked_info(self, &dest_buf, &dest_pitch, &dest_height);
+
+    /* Byte offsets + per-row copy span (all in bytes). */
+    int32_t x_byteoff_src  = (int32_t)(bpp_bytes * (uint32_t)src_x);
+    int32_t x_byteoff_dest = (int32_t)(bpp_bytes * (uint32_t)dest_x);
+    int32_t row_bytes      = (int32_t)(bpp_bytes * (uint32_t)width);
+
+    /* Clamp the copy span to the dest pitch then the source stride —
+     * retail's two `if (bound < span+off) span = bound-off` guards. */
+    if (dest_pitch < row_bytes + x_byteoff_dest) {
+        row_bytes = dest_pitch - x_byteoff_dest;
+    }
+    if (src_stride < row_bytes + x_byteoff_src) {
+        row_bytes = src_stride - x_byteoff_src;
+    }
+
+    /* Zero-fill the entire dest surface (pitch * height bytes). */
+    if (dest_buf != NULL) {
+        memset(dest_buf, 0, (size_t)dest_pitch * (size_t)dest_height);
+    }
+
+    /* Row copy: the source is a bottom-up DIB, so the source row pointer
+     * starts at (bottom-row + x_byteoff - stride*src_y) and DEcrements by
+     * one stride per output row. */
+    if (height > 0 && dest_buf != NULL) {
+        uint8_t *src_row = src_bottom + x_byteoff_src
+                         - (size_t)src_stride * (size_t)src_y;
+        for (int r = 0; r < height; r++) {
+            uint8_t *dst = (uint8_t *)dest_buf
+                         + (size_t)(dest_y + r) * (size_t)dest_pitch
+                         + x_byteoff_dest;
+            /* row_bytes can only be <= 0 in the degenerate clamp case
+             * (dest/src smaller than the offset); retail's unsigned
+             * rep-movs would over-copy there, but the cell dimensions
+             * are built to fit, so this guard never fires on the real
+             * path and just keeps memcpy well-defined. */
+            if (row_bytes > 0) {
+                memcpy(dst, src_row, (size_t)row_bytes);
+            }
+            src_row -= src_stride;
+        }
+    }
+
+    zdd_object_unlock(self);
+    return 1;
+}
+
+/* FUN_005b9630 — per-cell surface orchestrator.  See the header for the
+ * trim-gate semantics; param6_unused is the vestigial 0 the builder
+ * inserts (create's p3 is a hard-coded 0 in retail). */
+int zdd_object_build_cell(zdd_object *self,
+                          const bitmap_session *src,
+                          int src_x_base, int src_y_base,
+                          int metric_w, int metric_h, int param6_unused,
+                          int32_t colorkey, int videomem,
+                          int trim_count, const bs_trim_rect *trim)
+{
+    CALL_TRACE_ENTER(0x5b9630);
+    (void)param6_unused;   /* create p3 is a literal 0, not this slot */
+
+    int      src_x = 0;
+    int      src_y = 0;
+    uint32_t w     = (uint32_t)metric_w;
+    uint32_t h     = (uint32_t)metric_h;
+
+    if (trim != NULL && trim_count > 0) {
+        if (trim_count > 1) {
+            src_x = trim->x_left;
+            src_y = trim->y_top;
+            /* `((x<0)-1) & x` = (x < 0) ? 0 : x  (clamp negative → 0). */
+            int32_t cw = (trim->x_right - src_x) + 1;
+            w = (cw < 0) ? 0u : (uint32_t)cw;
+            int32_t ch = (trim->y_bottom - src_y) + 1;
+            h = (ch < 0) ? 0u : (uint32_t)ch;
+        }
+        if (trim->found_key == 0) {
+            /* No transparent pixel in the cell → no colorkey. */
+            colorkey = 0x1ffffff;
+        }
+        if (trim->found_opaque == 0) {
+            /* Fully transparent cell → metrics only, no surface. */
+            zdd_object_prefill_desc(self, 0, 0);
+            zdd_object_stamp_metrics(self, metric_w, metric_h, 0, 0, 0, 0);
+            return 1;
+        }
+    }
+
+    if (!zdd_object_create_surface_pair(self,
+            /*p1*/ metric_w, /*p2*/ metric_h, /*p3*/ 0,
+            /*p4*/ colorkey, /*p5*/ videomem,
+            /*p6*/ src_x, /*p7*/ src_y, w, h)) {
+        return 0;
+    }
+
+    if (!zdd_object_copy_cell_pixels(self, src,
+            /*dest_x*/ 0, /*dest_y*/ 0, (int)w, (int)h,
+            /*src_x*/ src_x + src_x_base, /*src_y*/ src_y + src_y_base)) {
+        return 0;
+    }
+    return 1;
+}
+
+/* FUN_005b9280 — allocate + ctor a ZDDObject, orchestrate its cell
+ * surface, publish via *out.  Retail uses operator_new(0xd8); calloc is
+ * deterministic and the ctor stamps every observable field, so the
+ * difference is invisible (same reasoning as zdd_object_new). */
+int zdd_object_new_cell(zdd *parent, zdd_object **out,
+                        const bitmap_session *src,
+                        int src_x_base, int src_y_base,
+                        int metric_w, int metric_h,
+                        int32_t colorkey, int videomem,
+                        int trim_count, const bs_trim_rect *trim)
+{
+    CALL_TRACE_ENTER(0x5b9280);
+
+    zdd_object *obj = (zdd_object *)calloc(1, sizeof(zdd_object));
+    /* Retail tolerates a NULL alloc: it skips the ctor (obj stays 0) and
+     * still calls the orchestrator, which derefs `self` — so a real OOM
+     * would crash there.  We mirror the control flow but the orchestrator
+     * guards nothing, so guard the alloc here instead of faulting. */
+    if (obj != NULL) {
+        zdd_object_ctor(obj, parent);
+    }
+
+    int ok = (obj != NULL) &&
+             zdd_object_build_cell(obj, src, src_x_base, src_y_base,
+                                   metric_w, metric_h, /*unused*/ 0,
+                                   colorkey, videomem, trim_count, trim);
+    if (!ok) {
+        if (obj != NULL) {
+            zdd_object_dtor(obj);   /* FUN_005b9390 */
+            free(obj);              /* FUN_005bef0e */
+        }
+        return 0;
+    }
+
+    *out = obj;
+    return 1;
 }
 
 /* ─── color descriptor binding + conversion (FUN_005b8a20 / _8b00) ─── */

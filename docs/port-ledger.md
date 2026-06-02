@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **131** (8.1% of engine-proper) — tested 128, ported 3
-- code bytes touched: **10.0%** (169,063 / 1,694,868 B of engine-proper)
-- unported: **1627**
+- touched: **134** (8.3% of engine-proper) — tested 131, ported 3
+- code bytes touched: **10.0%** (169,825 / 1,694,868 B of engine-proper)
+- unported: **1624**
 - orphan refs in src/ not in this table: 4
 
-## tested (128) — ported + host unit suite
+## tested (131) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -109,8 +109,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |
+| 0x5b9280 | FUN_005b9280 | 203 | zdd.c, zdd.h |
 | 0x5b9350 | FUN_005b9350 | 50 | zdd.c, zdd.h |
-| 0x5b9390 | FUN_005b9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+2) |
+| 0x5b9390 | FUN_005b9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+3) |
 | 0x5b93e0 | FUN_005b93e0 | 42 | zdd.h, zdd_win32.c |
 | 0x5b9410 | FUN_005b9410 | 49 | zdd.c, zdd.h |
 | 0x5b9490 | FUN_005b9490 | 63 | zdd.c, zdd.h, zdd_win32.c |
@@ -119,10 +120,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9500 | FUN_005b9500 | 17 | wnd_proc.h, zdd.c, zdd.h (+1) |
 | 0x5b9520 | FUN_005b9520 | 157 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b95c0 | FUN_005b95c0 | 110 | zdd.c, zdd.h |
+| 0x5b9630 | FUN_005b9630 | 268 | zdd.c, zdd.h |
 | 0x5b9740 | FUN_005b9740 | 153 | zdd.h, zdd_win32.c |
 | 0x5b97e0 | FUN_005b97e0 | 66 | zdd.c, zdd.h |
 | 0x5b9830 | FUN_005b9830 | 138 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b98c0 | FUN_005b98c0 | 73 | zdd.c, zdd.h |
+| 0x5b9910 | FUN_005b9910 | 291 | zdd.c, zdd.h |
 | 0x5b9a40 | FUN_005b9a40 | 112 | zdd.c, zdd.h |
 | 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
@@ -144,7 +147,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd550 | FUN_005bd550 | 302 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
-| 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+3) |
+| 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
 | 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
 | 0x5bf5fd | FUN_005bf5fd | 153 | wnd_proc.h |

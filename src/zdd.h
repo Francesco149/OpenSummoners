@@ -58,6 +58,14 @@
 typedef struct zdd        zdd;
 typedef struct zdd_object zdd_object;
 
+/* Forward decls for the per-cell sprite-surface builder (8d, 0x5b9280):
+ * the source is a bitmap_session (decoded sheet) and the optional trim
+ * metadata is a bs_trim_rect.  Full definitions live in bitmap_session.h;
+ * zdd.c includes it.  Declared opaque here so this header stays
+ * Win32/asset-free. */
+struct bitmap_session;
+struct bs_trim_rect;
+
 /* 22-byte pixel-format color descriptor occupying the first slot of the
  * ZDD struct (+0x00..+0x15).  Stamped by zdd_bind_pixel_format
  * (FUN_005b8a20) when the surface is 16bpp; consumed by zdd_color_convert
@@ -1269,6 +1277,69 @@ void zdd_object_unlock(zdd_object *self);
  * studio logo fades in.  Acts on the back-buffer surface (back_obj_a)
  * in retail. */
 void zdd_object_clear(zdd_object *self);
+
+/* ─── per-cell sprite-surface builder (8d) ───────────────────────────
+ *
+ * The genuine pixel source: turns one decoded sheet cell into a real
+ * keyed DDraw surface.  Three layers, ported from the retail call graph
+ * (docs/findings/sprite-pipeline.md "8d call graph"):
+ *
+ *   zdd_object_new_cell        (FUN_005b9280) — alloc + ctor + orchestrate
+ *     └─ zdd_object_build_cell (FUN_005b9630) — trim-gate → surface pair
+ *          ├─ zdd_object_create_surface_pair (0x5b95c0, already ported)
+ *          └─ zdd_object_copy_cell_pixels    (FUN_005b9910) — pixel writer
+ *
+ * The format converters (0x5b7310/_74f0/_7270 + 8bpp palette 0x5b7bd0)
+ * are NOT on this path: in retail the slicer (0x4188b0) runs them over
+ * the whole sheet BEFORE building cells, so by the time the pixel writer
+ * runs the sheet is already in display format and the copy is a raw
+ * byte blit.  See engine-quirks for the corrected call-graph note. */
+
+/* FUN_005b9910 — copy one cell's pixels from a decoded sheet into the
+ * dest object's freshly-created (and Lock-able) surface.  The dest
+ * surface is zero-filled first, then the WxH window at (src_x, src_y)
+ * of the bottom-up source DIB is copied row-for-row into the dest at
+ * (dest_x, dest_y).  bytes-per-pixel comes from the SOURCE depth
+ * (s->biBitCount>>3): a raw byte copy that assumes src + dest share a
+ * pixel format (true post format-conversion).  Row byte count is
+ * clamped to both the dest pitch and the source stride.  Returns 1 on
+ * success, 0 if the Lock failed.  (dest_x/dest_y are always 0 from the
+ * orchestrator; kept as params for faithfulness.) */
+int zdd_object_copy_cell_pixels(zdd_object *self,
+                                const struct bitmap_session *src,
+                                int dest_x, int dest_y,
+                                int width, int height,
+                                int src_x, int src_y);
+
+/* FUN_005b9630 — orchestrate one cell's surface.  If trim metadata is
+ * present (trim != NULL && trim_count > 0): trim_count>1 tightens the
+ * surface to the opaque bounding box (origin trim->x_left/y_top, size
+ * x_right-x_left+1 / y_bottom-y_top+1, clamped >= 0); found_key==0 drops
+ * the colorkey (fully opaque); found_opaque==0 takes the metrics-only
+ * path (prefill_desc + stamp_metrics, NO surface) and returns 1.
+ * Otherwise create_surface_pair(metric_w, metric_h, 0, colorkey,
+ * videomem, src_x, src_y, w, h) then copy_cell_pixels.  `param6_unused`
+ * is the vestigial 0 the builder inserts (create p3 is a literal 0).
+ * Returns 1 on success, 0 if create or copy failed. */
+int zdd_object_build_cell(zdd_object *self,
+                          const struct bitmap_session *src,
+                          int src_x_base, int src_y_base,
+                          int metric_w, int metric_h, int param6_unused,
+                          int32_t colorkey, int videomem,
+                          int trim_count, const struct bs_trim_rect *trim);
+
+/* FUN_005b9280 — allocate + ctor a ZDDObject, orchestrate its cell
+ * surface, and publish it through *out.  On orchestrator failure the
+ * object is dtor'd + freed and 0 is returned (*out untouched); on
+ * success *out = the new object and 1 is returned.  `parent` is the
+ * DDraw god-object ZDD (this in retail).  This is the leaf wired behind
+ * asset_register's ar_frame_build_hook. */
+int zdd_object_new_cell(zdd *parent, zdd_object **out,
+                        const struct bitmap_session *src,
+                        int src_x_base, int src_y_base,
+                        int metric_w, int metric_h,
+                        int32_t colorkey, int videomem,
+                        int trim_count, const struct bs_trim_rect *trim);
 
 /* FUN_005b8b00 — 16bpp color-channel converter.  Takes an RGB888-style
  * input value (typically a colorkey passed by retail's higher layers
