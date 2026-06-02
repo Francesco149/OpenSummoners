@@ -642,6 +642,12 @@ struct test_case {
     X(zdd_object_blt_clipped_null_dest_on_live_path_returns_zero) \
     X(title_render_sparkle_alpha_path)                         \
     X(title_render_sparkle_clipped_path)                       \
+    X(title_drive_init_allocates_and_binds)                    \
+    X(title_drive_step_presents_on_render)                     \
+    X(title_drive_step_null_primary_no_present)                \
+    X(title_drive_step_abort_returns_done)                     \
+    X(title_drive_menu_spawn_then_shutdown_clean)              \
+    X(title_drive_shutdown_no_spawn_and_uninit)                \
 
 #define X(n) extern int test_##n(void);
 TESTS
