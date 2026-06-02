@@ -3232,3 +3232,38 @@ task #10 core).
 wiring, not a new function port. Added `SINK_RESOLVE_DEBUG` compile-gated probe.
 
 ---
+
+## ckpt 27 (2026-06-02) — menu cursor wired via the alpha ramps; bit-exact policy
+
+Wired the title menu's selection cursor (the only visible delta left on the
+settled menu).
+
+- **Alpha ramps** (`src/main.c` `init_alpha_ramps`): `pd_boot_init_slots(NULL)`
+  (already-ported; NULL fmt ⇒ RGB565 = the 16bpp display) builds the 20+20 blend
+  descriptors in `g_pd_boot_group_a/_b`; exposed as the `ramp_a`/`ramp_b`
+  pointer tables (`const zdd_blend_desc *` views — `PdBlend` aliases the retail
+  blend-descriptor layout `zdd_alpha_blit` reads). Passed into the sink via
+  `cfg.ramp_a/_b`.
+- **Cursor arm** (`src/title_sink.c`): `TITLE_DRAW_MENU_CURSOR` now resolves the
+  CURSOR bank (pool 20) frame at the row index and draws via
+  `title_draw_menu_cursor` (alpha through `ramp_a`), replacing the deferred
+  no-op callback. Low-risk to the rest of the menu: `compose_group` is NULL
+  (FRAME_END no-ops) and SPRITE_LEVEL takes the plain path at full fade.
+
+**Result:** "▶ Start" renders; menu diff vs retail golden 2964 px → **955 px
+(0.31%)**. **NOT closed** — per the project's bit-exact bar, the 955px cursor-
+edge residual is an OPEN investigation item (parity-ledger R1), with two
+hypotheses: (1) the cursor pulses (animated `level_num` = retail's path-dependent
+`[esp+0x20]`) so port Flip 200 vs retail Flip 1900 are at different pulse phases
+— an intro-pacing/phase problem; (2) our idx-19 full-add over-brightens. Tests
+for each recorded in the ledger.
+
+**New durable artifacts:** `docs/parity-ledger.md` (frames confirmed bit-exact
+vs open residuals — regression guard), `tools/push_comparison.py` (port|retail
+amplified-diff → llm-feed), the `--capture-frames` port frame capture (ckpt 26b).
+Policy recorded: **bit-exact (0 differ_px) is the bar; no diff is hand-waved.**
+
+648 host tests pass (0 fail, 6 skip; +1 `sink_menu_cursor_draws_via_ramp`).
+Ledger 138/1490 unchanged (wiring).
+
+---
