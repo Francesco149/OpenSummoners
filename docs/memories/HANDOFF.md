@@ -1,4 +1,4 @@
-# Session handoff — last updated 2026-06-02 (TAS harness: retail capture + input injection live, ckpt 13)
+# Session handoff — last updated 2026-06-02 (software alpha blitter ported, ckpt 14)
 
 **This is the first thing to read at the start of every session.**
 
@@ -6,7 +6,33 @@ Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
 
-## ⭐ NEW (ckpt 13): TAS framework — retail ground-truth capture is live
+## ⭐ NEW (ckpt 14): the software alpha blitter `FUN_005bd680` is ported
+
+Render task #7 is **done**. `0x5bd680` (1072 B, the heart of the title
+sprite-draw subsystem) is now `zdd_alpha_blit` + the pure host-testable core
+`zdd_alpha_blit_pixels` in `src/zdd.c`, driven by a new `zdd_blend_desc`
+descriptor (`src/zdd.h`). Three colorkey-skipping blend modes:
+**0** = 1-D channel remap (`lut[(src&mask)>>shift]`), **1** = 2-D src×dst blend
+(`lut[(src_lvl<<5)+dst_lvl]`, reads dest), **2** = colorize
+(`lut[(ch0+ch1+ch2)/3]`). Wrapper locks only the **source** (dest pre-locked by
+the caller); retail clipping (right→dst-stride-in-words, bottom→dst-height,
+negative origins shift src) mirrored exactly. New **engine-quirk #44** (mode-1
+`<<5` stride is hardcoded even for 6-bit green). **553 host tests pass, 0 fail,
+6 skip**; both 32-bit cross-builds clean. Ledger **123/1490 touched, 120
+tested**. Commit `cd95935`.
+
+**Next chip (the alpha subsystem continues):** port `0x5b9ae0` (140 B
+Blt-with-explicit-rects, sibling of `zdd_object_blt_keyed`; 9-arg order pinned
+by the `0x5bd550` call site — see PROGRESS ckpt 14), then the orchestrator
+`0x5bd550` (302 B: simple path = lock-dest→`0x5bd680`→unlock; complex path adds
+GDI BitBlt + the `0x5b9ae0` hardware Blt), then the title sprite wrappers
+`0x56c470/4e0/580/610` → implement `title_render_sink`. NB: `0x56c610` (plain
+sprite) is a thin forward to the **already-ported** `0x5b9b70`
+(`zdd_object_blt_keyed`), so the *basic* title (logo + menu, no glow/sparkle)
+may be renderable via the plain-blit path + reset/flip **without** finishing the
+alpha subsystem — worth checking before going deeper (could pull move #2 forward).
+
+## (ckpt 13): TAS framework — retail ground-truth capture is live
 
 Mirrors openrecet's TAS harness. **Two new self-serviceable Frida
 capabilities, both validated live**, give us deterministic retail ground
@@ -179,10 +205,9 @@ yardstick). `FUN_0056aea0` is fully ported/composed/update-complete; what's
 missing is real pixels: the draw bridges behind the render sink, and driving
 the runner from the drop-in.
 
-**Render-port task list (TaskCreate'd ckpt 13):** (7) port the software alpha
-blitter `0x5bd680` — recommended first chip, pure logic, host-testable;
-scaffolding already exists (Lock/Unlock `zdd.c:1024`, `color_desc` mask/shift
-`FUN_005b8a20`). (8) blit orchestrator `0x5bd550` + sprite wrappers
+**Render-port task list (ckpt 13):** ~~(7) port the software alpha blitter
+`0x5bd680`~~ **DONE ckpt 14** (`zdd_alpha_blit`/`_pixels`, commit `cd95935`).
+(8) blit orchestrator `0x5bd550` + sprite wrappers
 (`0x56c470/4e0/580/610`) → implement `title_render_sink`. (9) drive
 `title_scene_step` from `main.c`. (10) port-side frame capture + a
 `push_comparison.py` (port|retail amplified diff to llm-feed) to close the
@@ -203,26 +228,27 @@ pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`
 > - **Port-side `input_trace.{c,h}`** (mirror openrecet) is buildable+testable
 >   now but latent until `main.c` drives the scene + rendering lands.
 
-1. **(recommended) Port a draw bridge so the render sink does real work.**
-   **Scouted ckpt 12** — the render bridges split into "already ported in
-   `zdd.c`" and "the sprite/asset blit subsystem":
-   - **Already ported:** `0x5b9410` (surface reset = `zdd_object_clear`),
-     `0x5b9b70` (color-keyed blit = `zdd_object_blt_keyed`), `0x5b8fc0`
-     (Flip = `zdd_present`). So `TITLE_DRAW_SURFACE_RESET/CLEAR/FLIP` and the
-     "plain sprite" wrapper `0x56c610` (a thin forward to `0x5b9b70`) can be
-     wired *today* with no new RE.
-   - **Still unported (the rabbit hole):** the four title sprite-draw wrappers
-     `0x56c470` (cursor), `0x56c4e0` (leveled), `0x56c580` (sparkle), and the
-     leveled/sparkle path bottom out in **`0x5bd550`** (302 B blit orchestrator)
-     → **`0x5bd680`** (1072 B *software alpha blitter*, pure pixel math, very
-     host-testable with synthetic Lock'd buffers) + `0x5b9ae0` (140 B) +
-     `0x5b9bf0` (256 B). Plus `0x56c180` (animated sprite-group compositor,
-     reads the `DAT_008a760c` sprite pool + `0x4184a0` asset load) and
-     `0x418470` (asset get) and `0x494e10` (logo). This is a **multi-checkpoint
-     subsystem**; `0x5bd680` is the heart and the cleanest first chip (pure
-     RGB565/8bpp blend + colorkey, no DDraw calls of its own — Lock/Unlock are
-     its caller's job, already ported). Land it, then `0x5bd550`, then the
-     wrappers + a `title_render_sink`.
+1. **(recommended) Check whether the BASIC title renders via the
+   already-ported plain-blit path before going deeper into the alpha
+   subsystem.** With `0x5bd680` now ported (ckpt 14), the alpha path is
+   well-started, but the *minimum* to see title pixels may not need the rest of
+   it:
+   - **Already ported & wireable today:** `0x5b9410` (surface reset =
+     `zdd_object_clear`), `0x5b9b70` (color-keyed blit = `zdd_object_blt_keyed`),
+     `0x5b8fc0` (Flip = `zdd_present`), and the **plain-sprite** wrapper
+     `0x56c610` (a thin forward to `0x5b9b70`). So `TITLE_DRAW_SURFACE_
+     RESET/CLEAR/FLIP` + plain sprites can be wired with no new RE — likely
+     enough for the logo + menu text (the alpha blitter is for glow/sparkle).
+     **Scout `0x56c180`/the title's draw list first** to confirm which sprites
+     the basic title uses; if all plain, jump to move #2.
+   - **Alpha subsystem (continue if effects are needed):** ~~`0x5bd680`~~ DONE.
+     Next: `0x5b9ae0` (140 B Blt-with-rects; 9-arg order pinned by the `0x5bd550`
+     call site) → `0x5bd550` (302 B orchestrator: simple path = lock-dest →
+     `zdd_alpha_blit` → unlock; complex path adds GDI BitBlt) → the sprite
+     wrappers `0x56c470` (cursor), `0x56c4e0` (leveled), `0x56c580` (sparkle) →
+     `title_render_sink`. Plus `0x56c180` (sprite-group compositor, reads
+     `DAT_008a760c` pool + `0x4184a0` asset load), `0x418470` (asset get),
+     `0x494e10` (logo), `0x5b9bf0` (256 B).
 
 2. **Drive the runner from `main.c`.** Replace the drop-in's minimal
    `main_loop_body` with a `title_scene_run` that allocates the scene object
@@ -251,10 +277,11 @@ pixel-parity loop against the goldens in `runs/title-idle` & `runs/newgame-full`
 - **Render-half draw bridges** (stubbed behind `title_render_sink_hook`):
   `0x5b9410` (surface reset), `0x5b9b70` (color-key blit/clear), `0x5b8fc0`
   (Flip) are **already ported in `zdd.c`** (wire-up only); `0x56c610` (plain
-  sprite) is a thin forward to `0x5b9b70`. The rest are the sprite/asset blit
-  subsystem (multi-checkpoint): `0x56c4e0` (leveled), `0x56c580` (sparkle),
-  `0x56c470` (cursor) → `0x5bd550` → **`0x5bd680`** (1072 B software alpha
-  blitter) + `0x5b9ae0` + `0x5b9bf0`; `0x56c180` (sprite-group compose, reads
+  sprite) is a thin forward to `0x5b9b70`. **`0x5bd680` (software alpha blitter)
+  is now ported too (ckpt 14 = `zdd_alpha_blit`).** The rest are the sprite/asset
+  blit subsystem (multi-checkpoint): `0x56c4e0` (leveled), `0x56c580` (sparkle),
+  `0x56c470` (cursor) → `0x5bd550` (orchestrator) → ~~`0x5bd680`~~ done
+  + `0x5b9ae0` + `0x5b9bf0`; `0x56c180` (sprite-group compose, reads
   `DAT_008a760c` pool); `0x418470` (asset get); `0x494e10` (logo). See ckpt-12
   scouting in "Next move" #1.
 - **Outer-loop side effects** (stubbed behind `title_scene_hooks`):

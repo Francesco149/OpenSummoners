@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 — Software alpha blitter `FUN_005bd680` ported, ckpt 14
+
+Ported the 1072-byte **software alpha/colorize blitter at `0x5bd680`** — the
+heart of the title sprite-draw subsystem and the cleanest first chip of the
+milestone-0 render bridges (ckpt-13 render task #7).  It is `__thiscall` on a
+small blend descriptor (new `zdd_blend_desc`: `mode` + three `{shift,mask,LUT}`
+channel records at `+0x04`/`+0x18`/`+0x2c`).  Three blend modes, all skipping
+source pixels equal to the colorkey: **0** `out_ch = lut_ch[(src&mask)>>shift]
+<< shift` (1-D remap), **1** `out_ch = lut_ch[(src_lvl<<5)+dst_lvl] << shift`
+(2-D src×dst blend, reads the dest pixel), **2** `g = (ch0+ch1+ch2)/3; out_ch =
+lut_ch[g] << shift` (colorize).  Split into a pure host-testable core
+(`zdd_alpha_blit_pixels`, raw 16bpp buffers) + the retail wrapper
+(`zdd_alpha_blit`) that reads dest geometry directly (caller pre-locks dest),
+locks/unlocks only the **source**, and no-ops on a failed source Lock — all
+mirroring retail (orchestrator `0x5bd550` locks dest first).  Clipping mirrors
+retail exactly: right edge clamps to dst stride-in-words, bottom to dst height,
+negative origins shift the source and pin dest to 0.
+
+New **engine-quirk #44**: mode 1 hardcodes the src-level stride at 32
+(`shl ebp,5`) for every channel, even 6-bit green; literal mirrored, the LUT
+layout + descriptor ctor are a later chip.  11 host tests (3 modes, colorkey
+skip, LUT transform, both clip axes, invalid-mode no-op, null guards, wrapper
+lock/unlock + lock-fail).  **553 pass / 0 fail / 6 skip**; both 32-bit
+cross-builds clean.  Ledger **122→123 touched, 119→120 tested**.  Commit
+`cd95935`.
+
+Scouted the rest of the alpha subsystem for the next checkpoint: orchestrator
+`0x5bd550` (302 B; simple path = lock-dest → `0x5bd680` → unlock-dest, complex
+path adds GDI BitBlt + a hardware Blt) calls `0x5b94e0`/`0x5b9500` (already
+ported = `zdd_object_get_dc`/`_release_dc`) and the **unported** `0x5b9ae0`
+(140 B Blt-with-explicit-rects, sibling of `zdd_object_blt_keyed`; its 9-arg
+order is pinned by the `0x5bd550` call site).
+
+---
+
 ## 2026-06-02 — Skip-splash early-out ported; update half complete, ckpt 12
 
 Ported `FUN_0056aea0`'s **skip-splash early-out** (`0x56b0e8..0x56b150`, "press
