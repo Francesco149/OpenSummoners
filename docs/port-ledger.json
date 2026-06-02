@@ -1510,7 +1510,8 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/title_render.c"
+    "src/title_render.c",
+    "src/title_sink.h"
    ]
   },
   {
@@ -8449,6 +8450,7 @@
     "src/obj_container.h",
     "src/title_scene.c",
     "src/title_scene.h",
+    "src/title_sink.h",
     "src/zdd.h"
    ]
   },
@@ -8484,7 +8486,8 @@
    "status": "tested",
    "src": [
     "src/title_render.c",
-    "src/title_render.h"
+    "src/title_render.h",
+    "src/title_sink.h"
    ]
   },
   {
@@ -11226,6 +11229,7 @@
     "src/call_trace.h",
     "src/main.c",
     "src/title_scene.h",
+    "src/title_sink.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

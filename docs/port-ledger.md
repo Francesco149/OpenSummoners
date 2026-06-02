@@ -34,7 +34,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, title_render.c |
+| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, title_render.c (+1) |
 | 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h |
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
@@ -48,8 +48,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | asset_register.c, asset_register.h, main.c (+3) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, obj_container.h (+3) |
-| 0x56c180 | FUN_0056c180 | 297 | title_render.c, title_render.h |
+| 0x56aea0 | FUN_0056aea0 | 3441 | input.h, main.c, obj_container.h (+4) |
+| 0x56c180 | FUN_0056c180 | 297 | title_render.c, title_render.h, title_sink.h |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h |
@@ -104,7 +104,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
 | 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, title_scene.h (+3) |
+| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, title_scene.h (+4) |
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |

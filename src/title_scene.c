@@ -539,7 +539,13 @@ static void title_render_logo(int32_t fade, const uint32_t *ramp, int32_t sprite
     if (fade <= 0) return;                       /* 0x56bb86 / 0x56bbff (jle) */
     alpha = title_fade_ramp(fade, 1000, ramp);   /* 0x448c80(fade,1000)       */
     if (alpha == 0)
-        title_emit(TITLE_DRAW_SURFACE_CLEAR, 0, 0, 0, 0, 0);   /* 0x5b9b70    */
+        /* The alpha-0 path is a plain blt_keyed of the logo frame itself
+         * (frames[1] studio / frames[2] title), NOT the phase-2..3
+         * background frame[0] — so carry the frame index (sprite_off/4 =
+         * 1 or 2) in `asset` so the sink resolves the right sprite.
+         * Disasm 0x56bba0 (studio) / 0x56bc19 (title): the je/jne-0 branch
+         * blits `esi = entries[0].frames[sprite_off/4]`. */
+        title_emit(TITLE_DRAW_SURFACE_CLEAR, sprite_off / 4, 0, 0, 0, 0); /* 0x5b9b70 */
     else
         title_emit(TITLE_DRAW_LOGO, sprite_off, 0, alpha, 0, 0);  /* 0x494e10 */
 }

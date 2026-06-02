@@ -325,6 +325,18 @@ struct test_case {
     X(title_scene_watchdog_forces_exit)                        \
     X(title_scene_menu_commit_exits_with_action)               \
     X(title_scene_null_hooks_safe)                             \
+    X(sink_unbound_is_noop)                                    \
+    X(sink_null_primary_is_noop)                               \
+    X(sink_surface_reset_no_blit)                              \
+    X(sink_surface_clear_blits_frame)                          \
+    X(sink_sprite_resolves_frame_id)                           \
+    X(sink_sprite_unregistered_bank_noop)                      \
+    X(sink_sprite_level_plain_path)                            \
+    X(sink_sprite_level_alpha_path)                            \
+    X(sink_frame_end_composes_group)                           \
+    X(sink_flip_and_log_callbacks)                             \
+    X(sink_deferred_draws_route_to_callbacks)                  \
+    X(sink_deferred_null_callbacks_safe)                       \
     X(input_mgr_ring_offsets)                                  \
     X(input_poll_hit_consumes)                                 \
     X(input_poll_wrong_id_misses)                              \

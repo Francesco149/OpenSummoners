@@ -443,6 +443,10 @@ typedef enum title_draw_op {
  *
  *   asset  TITLE_DRAW_LOGO        → the logo sprite field offset (4 studio,
  *                                   8 title) distinguishing the two logos;
+ *          TITLE_DRAW_SURFACE_CLEAR → the source frame index blitted onto the
+ *                                   primary: 0 (phase-2..3 background frame[0])
+ *                                   or 1/2 (the logo handler's alpha-0 path,
+ *                                   frames[1] studio / frames[2] title);
  *          TITLE_DRAW_SPRITE[_LEVEL]/SPARKLE → the 0x418470 asset id;
  *          TITLE_DRAW_MENU_CURSOR → the selected row index (the cursor).
  *   level  TITLE_DRAW_SPRITE_LEVEL → the raw fade level passed (0x56c4e0's

@@ -1093,11 +1093,33 @@ int test_title_render_logo_clear_vs_blit(void)
 {
     int flipped;
 
-    /* phase 0, fade>0, NULL ramp → alpha 0 → SURFACE_CLEAR (after the reset). */
+    /* phase 0, fade>0, NULL ramp → alpha 0 → SURFACE_CLEAR (after the reset).
+     * The studio-logo alpha-0 path blits frames[1], so the CLEAR carries
+     * frame index 1 (sprite_off 4 / 4), not the phase-2..3 background 0. */
     flipped = 0; tr_install();
     title_render_step(0, 500, NULL, NULL, 0, &flipped);
     T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_RESET);
     T_ASSERT_EQ_I(tr_cmds[1].op, TITLE_DRAW_SURFACE_CLEAR);
+    T_ASSERT_EQ_I(tr_cmds[1].asset, 1);                  /* frames[1] = studio logo */
+
+    /* phase 3 (title logo) alpha-0 CLEAR → frames[2].  Phase 3 is in the
+     * prologue range too, so the prologue background CLEAR (asset 0) leads
+     * and the logo's alpha-0 CLEAR (asset 2) follows. */
+    flipped = 0; tr_install();
+    title_render_step(3, 500, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
+    T_ASSERT_EQ_I(tr_cmds[0].asset, 0);                  /* prologue background */
+    {
+        int i = tr_find(TITLE_DRAW_SURFACE_CLEAR, 1);
+        T_ASSERT(i >= 0);
+        T_ASSERT_EQ_I(tr_cmds[i].asset, 2);              /* frames[2] = title logo */
+    }
+
+    /* phase 2 prologue CLEAR → the background frames[0] (asset 0). */
+    flipped = 0; tr_install();
+    title_render_step(2, 0, NULL, NULL, 0, &flipped);
+    T_ASSERT_EQ_I(tr_cmds[0].op, TITLE_DRAW_SURFACE_CLEAR);
+    T_ASSERT_EQ_I(tr_cmds[0].asset, 0);                  /* background frame[0] */
 
     /* phase 1, fade<=0 → the logo handler draws nothing at all. */
     flipped = 0; tr_install();
