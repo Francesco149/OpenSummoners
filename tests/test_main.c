@@ -725,6 +725,10 @@ struct test_case {
     X(newgame_config_matches_retail_stream)                    \
     X(newgame_config_focus_colours)                            \
     X(newgame_config_column_geometry)                          \
+    X(newgame_scene_init_focus_and_tooltip)                    \
+    X(newgame_scene_nav_moves_cursor)                          \
+    X(newgame_scene_dispatch_actions)                          \
+    X(newgame_scene_set_option_relays_value)                   \
 
 #define X(n) extern int test_##n(void);
 TESTS

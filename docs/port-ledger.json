@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 148,
+  "tested": 149,
   "ported": 6,
-  "unported": 1604,
+  "unported": 1603,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 154,
+  "touched": 155,
   "pct_touched": 9.5,
   "pct_tested": 9.5,
-  "engine_proper_touched": 141,
+  "engine_proper_touched": 142,
   "bytes_total": 1694868,
-  "bytes_touched": 182631,
+  "bytes_touched": 182968,
   "pct_bytes_touched": 10.8
  },
  "orphan_refs": [
@@ -859,7 +859,8 @@
     "src/glyph_text.c",
     "src/glyph_text.h",
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/newgame_scene.c"
    ]
   },
   {
@@ -2861,7 +2862,8 @@
    "status": "tested",
    "src": [
     "src/input.c",
-    "src/input.h"
+    "src/input.h",
+    "src/newgame_scene.h"
    ]
   },
   {
@@ -8275,7 +8277,9 @@
    "status": "tested",
    "src": [
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/newgame_scene.c",
+    "src/newgame_scene.h"
    ]
   },
   {
@@ -8366,8 +8370,13 @@
    "name": "FUN_00566850",
    "size": 337,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_menu.c",
+    "src/newgame_menu.h",
+    "src/newgame_scene.c",
+    "src/newgame_scene.h"
+   ]
   },
   {
    "va": "0x566a80",
@@ -8377,7 +8386,8 @@
    "status": "tested",
    "src": [
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/newgame_scene.c"
    ]
   },
   {

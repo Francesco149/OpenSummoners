@@ -89,6 +89,20 @@ void newgame_option_label(int32_t id, char *buf);
  * confirms render as "On" (value shown) / "Off" (its toggle counterpart). */
 void newgame_option_value(int32_t id, int32_t setting, char *buf);
 
+/* ─── FUN_00566850 — option id → tooltip (description) string ────────────
+ *
+ * Copies the option's help/tooltip text into `buf` (caller provides >= 256
+ * bytes, as retail's 512-byte stack scratch).  A pure id→string switch run by
+ * the config run loop every frame for the *focused* option row (the second
+ * GDI-text node at y=416/444).  Only the new-game config arms are ported
+ * (id 3 = game-difficulty help, id 4 = auto-guard help); any other id copies
+ * the engine-name buffer stand-in (retail &DAT_008a9b6c) — modelled as the
+ * empty string, matching the renderer's "nothing to draw" outcome.  The
+ * difficulty arm's text embeds no escape; faithful to the id 3 / id 4 arms of
+ * 0x566850.  (The renderer word-wraps the single source string across the
+ * tooltip box; the golden's two TextOutA lines reconstruct to this literal.) */
+void newgame_option_tooltip(int32_t id, char *buf);
+
 /* The option ids the case-0x24 menu rows carry (FUN_00564780 case 0x24). */
 #define NEWGAME_OPT_DIFFICULTY 0x03   /* row 0 — "Game Difficulty" */
 #define NEWGAME_OPT_AUTO_GUARD 0x04   /* row 1 — "Auto-guard"      */

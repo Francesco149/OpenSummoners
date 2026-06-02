@@ -12,10 +12,10 @@
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   148 | ported + module covered by the host unit suite       |
+| tested      |   149 | ported + module covered by the host unit suite       |
 | ported      |     6 | reimplemented in src/, no host test for that module  |
-| **touched** | **154** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1604 | exists in engine, never referenced from src/         |
+| **touched** | **155** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1603 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below

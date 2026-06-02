@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **154** (9.5% of engine-proper) — tested 148, ported 6
-- code bytes touched: **10.8%** (182,631 / 1,694,868 B of engine-proper)
-- unported: **1604**
+- touched: **155** (9.5% of engine-proper) — tested 149, ported 6
+- code bytes touched: **10.8%** (182,968 / 1,694,868 B of engine-proper)
+- unported: **1603**
 - orphan refs in src/ not in this table: 4
 
-## tested (148) — ported + host unit suite
+## tested (149) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -28,7 +28,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
 | 0x40f3e0 | FUN_0040f3e0 | 434 | menu_list.c, menu_list.h, newgame_menu.c |
 | 0x40f5c0 | FUN_0040f5c0 | 563 | menu_list.c, menu_list.h |
-| 0x40fa00 | FUN_0040fa00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+1) |
+| 0x40fa00 | FUN_0040fa00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+2) |
 | 0x40fd20 | FUN_0040fd20 | 143 | glyph_text.c, glyph_text.h |
 | 0x411f40 | FUN_00411f40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
 | 0x412160 | FUN_00412160 | 459 | newgame_menu.c, newgame_menu.h |
@@ -42,7 +42,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x43c110 | FUN_0043c110 | 84 | input.c, input.h |
+| 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h |
 | 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
 | 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
@@ -54,9 +54,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+7) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x564780 | FUN_00564780 | 4067 | newgame_menu.c, newgame_menu.h |
+| 0x564780 | FUN_00564780 | 4067 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
 | 0x566570 | FUN_00566570 | 485 | newgame_menu.c, newgame_menu.h |
-| 0x566a80 | FUN_00566a80 | 2781 | newgame_menu.c, newgame_menu.h |
+| 0x566850 | FUN_00566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
+| 0x566a80 | FUN_00566a80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_scene.c |
 | 0x56aea0 | FUN_0056aea0 | 3441 | app_flow.h, input.h, main.c (+11) |
 | 0x56c030 | FUN_0056c030 | 62 | title_particles.c |
 | 0x56c070 | FUN_0056c070 | 265 | main.c, rng.h, title_particles.c (+1) |

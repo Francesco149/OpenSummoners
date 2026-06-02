@@ -22,8 +22,20 @@ on clicking through new game → first frame in-game".
   down**, id 2 = page-up (no-op), id 4 = page-down (no-op), **id 0x24 =
   confirm**, id 0x22 = abort.
 - **Difficulty config** polls `0x22, 1, 3, 0x24, 0x27`. id 1 = up, **id 3 =
-  down**, **id 0x24 = confirm/Start Game**, id 0x27 = value left/right (changes
-  the Game-Difficulty / Auto-guard option on the focused row).
+  down**, **id 0x24 = confirm/OK**, **id 0x27 = back/cancel** (NOT a value
+  toggle — see the run-loop note below; quirk #65). Pressing confirm (`0x24`)
+  on an option row opens that option's **picker submenu** (`FUN_00567ba0`); on
+  the **Start Game** row it begins the game.
+
+> **Correction (ckpt 38, quirk #65):** the earlier "id 0x27 = value left/right"
+> reading above was a guess and is **wrong**.  Tracing `FUN_00564780`'s run
+> loop: `0x565d10` → `0x43bca0` maps button `0x24` → `menu_list_latch(9)` and
+> `0x27` → `menu_list_latch(10)`, which net out (via the 9/10→3/4→`0xc`/`0xb`
+> mapping) to **`0x24` = confirm (`0xc`)** and **`0x27` = back (`0xb`)**.  There
+> is **no in-place value toggle**; an option's value changes only by confirming
+> into its picker submenu.  Only the *physical-key identity* of `0x24`/`0x27`
+> (what `FUN_0043c110` reads them as) is still worth a live `--input-trace`
+> confirm.
 
 ## The trace
 
@@ -41,9 +53,20 @@ exact `TextOutA` stream (quirk #64): a 3×2 linear grid (Game Difficulty /
 Auto-guard / Start Game) at box base (32,32), col origins x=72/232, row pitch
 28.  Still a **stub in `app_flow`** — the NEW_GAME arm re-enters the title; the
 scene is not yet wired as a runnable drive.  Remaining for the live scene: the
-run loop (`0x565810`/`0x565d10`), the value toggle (id 0x27, directionally
-unverified), the tooltip text node (`0x566850`), the box widget tree
-(`0x411940`), and the Start→game transition (`0x564160`→`0x59ec30`).
+Win32 frame pump (`0x565d10` + the `0x43bca0` input scan), the option picker
+submenu (`0x567ba0` default arm), the box widget tree (`0x411940`), and the
+Start→game transition (`0x564160`→`0x59ec30`).
+
+## Run-loop model ported (ckpt 38)
+
+The **Win32-free heart** of the case-0x24 run loop is ported in
+`src/newgame_scene.{c,h}` (quirk #65), mirroring the `title_scene`/`title_drive`
+split: the focused-row **tooltip resolution** (`newgame_option_tooltip` =
+`FUN_00566850` for option rows + the kind-3 action-tooltip switch), the
+**pump-result → action dispatch** (`0xd`→re-render, `0xc`→confirm-on-row,
+`0xb`→back), and the **value-refill** (`newgame_scene_set_option`, the picker's
+commit effect).  Host-tested (4 tests).  The pump itself (`0x565d10`), the
+picker submenu, and the box widgets are the drive's job — the next unit.
 
 ## Open
 

@@ -106,6 +106,31 @@ void newgame_option_value(int32_t id, int32_t setting, char *buf)
     }
 }
 
+/*
+ * FUN_00566850 (337 B) — option id → tooltip string.  Same shape as
+ * FUN_00566570: a pure id→string switch + an inlined rep-movs copy into the
+ * caller's buffer, here a strcpy.  Only the new-game config arms are ported;
+ * the strings are the full binary literals (the Ghidra symbols truncate).
+ */
+void newgame_option_tooltip(int32_t id, char *buf)
+{
+    switch (id) {
+    case 3:  /* s_Allows_you_to_configure_game_dif_008a1b88 */
+        copy_label(buf,
+            "Allows you to configure game difficulty. On harder difficulties, "
+            "enemies are stronger and experience gain more rapid.");
+        break;
+    case 4:  /* s_Auto_guard_will_automatically_gu_008a1b14 */
+        copy_label(buf,
+            "Auto-guard will automatically guard against incoming attacks if "
+            "your character is not engaging in any other action.");
+        break;
+    default: /* &DAT_008a9b6c — the engine-name buffer (unmodelled → empty) */
+        copy_label(buf, "");
+        break;
+    }
+}
+
 /* The display config FUN_0040f3e0 stamps onto every child node (the values
  * menu_list.c's MENU_NODE_COLOR_* carry); the golden confirms the live menu
  * draws with exactly these — normal text 0x3e537d, drop shadow 0xa8b9cc,

@@ -6,6 +6,30 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 38) — new-game config run-loop MODEL ported (the Win32-free heart of `FUN_00564780` case 0x24); the `0x27` input semantics RE-corrected
+
+Ported the run-loop heart of the new-game config scene into new
+`src/newgame_scene.{c,h}`, mirroring the `title_scene` (pure) vs `title_drive`
+(Win32) split.  The pure state machine — focused-row **tooltip resolution**, the
+**pump-result→action dispatch**, and the **value-refill** — host-tests; the
+real per-frame pump (`0x565d10` + the `0x43bca0` input scan), the option picker
+submenu (`0x567ba0`), and the box widgets stay in the drive (the next unit).
+
+The pump→action contract (564780.c:597-669): `0x565d10` collapses every frame
+into `0xd` (cursor moved → re-render), `0xc` (confirm/OK → act on focused row:
+option → open picker, Start Game → begin), or `0xb` (back → return to title).
+`newgame_scene_dispatch` is exactly this switch; `newgame_scene_tooltip` is the
+per-frame tooltip selection (`newgame_option_tooltip` = `FUN_00566850` for
+option rows + the kind-3 action-tooltip switch); `newgame_scene_set_option` is
+the picker's value-refill (`FUN_00566a80` → `glyph_cell_layout`).
+
+**RE correction (quirk #65):** new-game-flow.md's earlier "id 0x27 = value
+left/right" guess is **wrong**.  The chain `0x565d10`→`0x43bca0`→`menu_list_latch`
+nets out to **`0x24` = confirm (`0xc`)** and **`0x27` = back (`0xb`)** — there is
+**no in-place value toggle**; an option's value changes only by confirming into
+its picker submenu.  Only the physical-key identity of `0x24`/`0x27` is left for
+a live Frida confirm.  698 host tests (+4); ledger **155/1490** (+1: `0x566850`).
+
 ## 2026-06-02 (ckpt 37) — new-game config menu BUILDER ported: the text pipeline is closed end-to-end (build → render → bit-exact `TextOutA` stream)
 
 Ported the construction half of the new-game ("Start") config scene —

@@ -1716,3 +1716,54 @@ node `0x566850`, the box widget tree `0x411940` builds, and the Start→game
 transition `0x564160`/`0x59ec30`) is **not** ported — the next rock once the
 scene is wired as a drive.  Partial ports: `FUN_00564780` (case 0x24 only),
 `FUN_00566570`/`FUN_00566a80` (the id 3/4 arms).
+
+## 65. The new-game config run loop's input contract: button `0x24`→confirm (0xc), `0x27`→BACK (0xb) — there is NO in-place value toggle; option values change only via the picker submenu
+
+Ported the Win32-free heart of the case-0x24 run loop (`FUN_00564780`'s
+post-build loop, 564780.c:597-669) into **`src/newgame_scene.{c,h}`** — the
+focused-row tooltip selection, the pump-result dispatch, and the value-refill —
+mirroring the `title_scene` (pure) vs `title_drive` (Win32) split.  The real
+per-frame pump (`0x565d10`, with its GDI present + the `0x43bca0` input scan)
+stays in the drive (next unit).
+
+**The pump→action contract.**  `0x565d10` collapses every per-frame outcome
+into one of three codes that `FUN_00564780` dispatches on:
+
+| pump code | meaning                  | run-loop action                          |
+|-----------|--------------------------|------------------------------------------|
+| `0xd`     | cursor moved / page      | re-render (re-resolve the tooltip)       |
+| `0xc`     | confirm/OK button        | act on focused row: kind 0 → open picker; kind 3 (`0x1e`) → start the game |
+| `0xb`     | back/cancel button       | `local_434=0xb`, teardown → return 0xb → caller (`0x564160`) sets iVar3=6 → back to title |
+
+**This corrects new-game-flow.md's earlier "id 0x27 = value left/right" guess**
+(which that doc itself flagged as directionally unverified).  Tracing the
+chain: `0x43bca0` polls `FUN_0043c110(t, 0x24)` → `menu_list_latch(9)` and
+`FUN_0043c110(t, 0x27)` → `menu_list_latch(10)`.  The nav engine (quirk in
+`menu_list.c`) names dir 9 "cancel" (returns 3) and dir 10 "confirm"
+(returns 4); `0x43bca0`'s tail + `0x565d10` then map **return 3 → `0xc`**
+(the scene's *confirm*) and **return 4 → `0xb`** (the scene's *back*).  So the
+nav engine's internal 9/10 labels are inverted relative to this scene's meaning,
+but the net is unambiguous: **`0x24` confirms, `0x27` backs out.**  There is
+**no in-place value toggle** — an option's value changes only by confirming
+into its **picker submenu** (`FUN_00567ba0` default arm for id 3/4: a nested
+grid + its own `0x565d10` loop).  `newgame_scene_dispatch` returns
+`NEWGAME_OPEN_PICKER` for a kind-0 confirm; once the (deferred) picker commits,
+`newgame_scene_set_option` re-lays that row's value column (the run loop's
+value-refill block, 564780.c:367-385).
+
+**Start Game (kind 3, `0x1e`):** confirm → `FUN_00568b40(0x1e)` is a **no-op**
+for `0x1e` (its body only handles `0x1c`/`0x1d` Yes/No confirmations), so the
+action switch falls straight to case 0x24's `goto teardown` → `FUN_00564780`
+returns **0** → `0x564160` proceeds to the Elemental-Stone intro
+(`FUN_005642e0`) then `0x59ec30` (game proper).
+
+**Open for live confirm (Frida):** only the *physical-key identity* of ids
+`0x24`/`0x27` (what `FUN_0043c110` maps them to) — the decompile→code-path
+mapping above is solid, but which controller/keyboard input each id reads is
+worth a `--input-trace` sanity check when the drive is wired.
+
+Ported: `FUN_00566850` (option tooltip, id 3/4 arms) into `newgame_menu.c`;
+the case-0x24 run-loop body + tooltip switch + value-refill into
+`newgame_scene.c`.  Still bare-VA (unported): `0x565d10`, `0x43bca0`,
+`0x567ba0`, `0x568b40`, `0x564160`, the box widgets `0x411940`.  698 host tests
+(+4); ledger 155/1490 (+1: `0x566850`).
