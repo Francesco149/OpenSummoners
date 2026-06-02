@@ -490,6 +490,8 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    tooltip box is `0x4124d0`/`0x40dee0`/`0x410610`).  With the cream bg in place
    the menu text already diffs to ZERO (quirk #66), so this is the big payoff.
    NB it is a bordered SUB-RECT over the prior scene, not a full-screen wash.
+   **When this lands, REMOVE `newgame_render`'s placeholder `PatBlt(... BLACKNESS)`
+   black fill** (it has a `TODO(box-widget)` marker) — the panel render replaces it.
    (b) the **focus-arrow sprite** beside the selected row (the row-0 residual at
    x60–64: dark-gold 107,93,49 + tan 206,186,173).
    (c) the **tooltip text node** (the second GDI-text node at y=416/444,

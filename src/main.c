@@ -978,12 +978,14 @@ static void newgame_render(void *user)
     if (!zdd_object_get_dc(g_zdd->primary_obj, &hdc) || hdc == NULL)
         return;
 
-    /* Box background (chrome deferred — plain black fill for now).  NB the box
-     * widget (0x40f3e0) draws a cream (RGB 239,227,214) bordered sub-rect with
-     * gold corners + a focus-arrow sprite beside the selected row; with that
-     * cream bg the menu text diffs to ZERO vs the golden (verified ckpt 39, see
-     * quirk #66), so this black fill is the only reason the live text *looks*
-     * different — the glyphs/positions/colours are bit-exact. */
+    /* TODO(box-widget): REMOVE this placeholder black fill when the box widget
+     * panel lands.  The real chrome (0x411940 → 0x40f3e0) draws a cream
+     * (RGB 239,227,214) bordered SUB-RECT with gold corners + a focus-arrow
+     * sprite beside the selected row — NOT a full-screen wash.  With that cream
+     * bg the menu text diffs to ZERO vs the golden (verified ckpt 39, quirk
+     * #66), so this fill is the ONLY reason the live text *looks* different; the
+     * glyphs/positions/colours are already bit-exact.  Until the panel is
+     * ported, black it is. */
     PatBlt((HDC)hdc, 0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT, BLACKNESS);
 
     SetBkMode((HDC)hdc, TRANSPARENT);
