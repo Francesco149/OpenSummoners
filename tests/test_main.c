@@ -729,6 +729,13 @@ struct test_case {
     X(newgame_scene_nav_moves_cursor)                          \
     X(newgame_scene_dispatch_actions)                          \
     X(newgame_scene_set_option_relays_value)                   \
+    X(newgame_drive_init_builds_and_binds)                     \
+    X(newgame_drive_step_ramps_gate_and_renders)               \
+    X(newgame_drive_nav_gated_then_moves)                      \
+    X(newgame_drive_confirm_start_game)                        \
+    X(newgame_drive_back_returns_to_title)                     \
+    X(newgame_drive_confirm_option_opens_picker)               \
+    X(newgame_drive_shutdown_safe)                             \
 
 #define X(n) extern int test_##n(void);
 TESTS
