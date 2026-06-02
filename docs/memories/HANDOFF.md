@@ -531,12 +531,23 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    The box panel + menu text render bit-exact (ckpt 40); port the rest in roughly
    this order (cheapest visual win first):
    ~~(a) the box widget panel~~ **DONE (ckpt 40, quirk #67, `src/newgame_box.c`).**
-   (a') the **animated sparkle corner** — the 307px menu-box residual at the
-   top-left (x44–65,y29–69).  Renderer `0x48d940` (single-cell, the `--box-probe`
-   `box_cell` capture), bank **0x3e8** (NOT yet registered — register it like
-   0x457), **base frame 16** cycling its frame-list [0,1,2,3] → sprite frames
-   **16–19** (idx in node+0x72, advances each frame).  A small animated overlay
-   blitted after the box; needs the 0x3e8 bank + the animation tick.
+   (a') the **selection cursor** — the 307px menu-box residual at the top-left
+   (x44–65,y29–69).  It is the drooping ornamental **gold vine/tendril** that
+   hangs from the top-left corner toward the focused row (user calls it "the
+   cursor for the selected option"); retail draws it, the port's static 9-slice
+   corner does not (the vine pokes *above* the box top at y29 < box y32, into the
+   black, so port reads black there).  Renderer **`0x48d940`** (single-cell
+   animated, the `--box-probe` `box_cell` capture), bank **0x3e8** = port
+   **`g_ar_sprite_slots` slot 211** (in the `ar_register_game_sprites` /
+   `FUN_0056e190` 442-sprite table, `asset_register.c:1170` `{211,0x3e8,…}`) —
+   that batch is **NOT called at boot yet**, so either call it or register slot
+   211 standalone (like `ar_register_main_sprites` does per-slot).  Then port
+   `0x48d940`: **base frame 16** + frame-list [0,1,2,3] → sprite frames **16–19**
+   (idx in node+0x72, animates each frame), Y from the focused-row index ×
+   pitch (the type-1 `(piVar1[5]-piVar1[6])*node+0x1ac` term).  Verify: row-0
+   position is (44,29) (golden); retail's other-row positions can't be captured
+   under the harness (Flip freezes at 422 in the modal pump → post-entry cursor
+   moves don't inject), so port the row→Y math faithfully and trust it.
    (b) the **tooltip TEXT node** (the second GDI-text node at y=416/444,
    word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
    computes the text; rendering needs a word-wrap split into rows (the renderer
