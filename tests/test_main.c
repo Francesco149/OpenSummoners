@@ -736,6 +736,10 @@ struct test_case {
     X(newgame_drive_back_returns_to_title)                     \
     X(newgame_drive_confirm_option_opens_picker)               \
     X(newgame_drive_shutdown_safe)                             \
+    X(newgame_box_menu_covers_exactly)                         \
+    X(newgame_box_tooltip_covers_exactly)                      \
+    X(newgame_box_center_vs_border)                            \
+    X(newgame_box_tiny_guard)                                  \
 
 #define X(n) extern int test_##n(void);
 TESTS

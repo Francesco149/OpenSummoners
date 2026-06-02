@@ -62,6 +62,7 @@
 #include "glyph_text.h"       /* glyph_cell_layout — glyph render test */
 #include "glyph_render.h"     /* glyph_grid_render + glyph_gdi_ops_win32 */
 #include "newgame_drive.h"    /* the new-game config scene drive (FUN_00565d10) */
+#include "newgame_box.h"      /* the 9-slice box panel render (FUN_0048cf80) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -940,19 +941,46 @@ static void reenter_title(void)
     }
 }
 
-/* The new-game config scene's per-frame render (the drive's `render` callback).
- * Draws the menu grid onto the primary surface with the registered GDI fonts:
- * clear the box background, then glyph_grid_render the menu node at base (32,32)
- * — the bit-exact builder (newgame_menu) + renderer (glyph_render) emit retail's
- * TextOutA stream draw-for-draw.  drive_present then BitBlts the composed
- * primary to the window.
+/* ── newgame_box_ops adapter — the 9-slice panel's blit primitives ──────
  *
- * DEFERRED seams (documented, not drawn yet): the box widget chrome (0x40f3e0's
- * bordered box) — modelled here as a plain black fill; and the tooltip text node
- * (the second GDI-text node at y=416/444, word-wrapped) — the scene already
- * computes its text via newgame_scene_tooltip, but rendering it needs the
- * box/word-wrap builder (a follow-up unit).  This first cut makes the menu
- * VISIBLE + interactive; the chrome/tooltip land next. */
+ * frame(): resolve slice `id` of the box-art bank (PE resource 0x457 =
+ * g_ar_sprite_slots[AR_SPR_FONT_TEX_457], already registered by
+ * ar_register_fonts) to its decoded sprite (lazy-decoded on first access).
+ * blt(): the keyed clipped blit FUN_005b9bf0 = zdd_object_blt_clipped — draw
+ * the frame at dest (x,y) with dest size w×h onto the primary surface. */
+static void *newgame_box_frame_resolve(void *user, int id)
+{
+    (void)user;
+    return ar_sprite_slot_frame(&g_ar_sprite_slots[AR_SPR_FONT_TEX_457],
+                                (uint16_t)id);
+}
+
+static void newgame_box_blt(void *user, void *frame, int x, int y, int w, int h)
+{
+    (void)user;
+    if (frame == NULL || g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+    zdd_object_blt_clipped((zdd_object *)frame, g_zdd->primary_obj,
+                           x, y, w, h, /*src_x=*/0, /*src_y=*/0);
+}
+
+/* The new-game config scene's per-frame render (the drive's `render` callback).
+ *
+ * Composes the frame the way retail does (box chrome behind GDI text): clear
+ * the primary to black, draw the two 9-slice box panels via DDraw, THEN GetDC
+ * and glyph_grid_render the menu text on top.  The DDraw box blits must precede
+ * the GDI DC acquisition (GDI locks the surface).
+ *
+ * The panels are the bit-exact 9-slice port (newgame_box / FUN_0048cf80, quirk
+ * #67) over bank 0x457: the menu box (32,32)400×124 and the tooltip box
+ * (32,392)576×80.  The menu text (newgame_menu builder + glyph_render, bit-exact
+ * vs the retail TextOutA stream) lands over the cream center fill.
+ *
+ * DEFERRED seams (documented, not drawn yet): the tooltip TEXT node (the second
+ * GDI-text node at y=416/444, word-wrapped — newgame_scene_tooltip computes the
+ * text, the word-wrap split is a follow-up); the animated sparkle corner
+ * (FUN_0048d940, bank 0x3e8, frames 16–19) overlaid on the box top-left; and the
+ * box fade-in (FUN_0048cf80's alpha arm) — the steady-state panel is opaque. */
 static void newgame_render(void *user)
 {
     newgame_drive *d = (newgame_drive *)user;
@@ -974,19 +1002,26 @@ static void newgame_render(void *user)
     if (hfont == NULL)
         return;                       /* no registered font → nothing to draw */
 
+    /* (1) Clear the primary to black, then draw the two 9-slice box panels via
+     *     DDraw — BEFORE acquiring the GDI DC (GDI locks the surface).  The
+     *     menu text renders over the menu box's cream center fill. */
+    zdd_object_clear(g_zdd->primary_obj);
+
+    static const int box_frames[9] = {
+        NEWGAME_BOX_TL, NEWGAME_BOX_TOP,    NEWGAME_BOX_TR,
+        NEWGAME_BOX_L,  NEWGAME_BOX_CENTER, NEWGAME_BOX_R,
+        NEWGAME_BOX_BL, NEWGAME_BOX_BOTTOM, NEWGAME_BOX_BR,
+    };
+    newgame_box_ops bops = { newgame_box_frame_resolve, newgame_box_blt, NULL };
+    newgame_box_render(&bops, /*x=*/32, /*y=*/32,  /*w=*/400, /*h=*/124,
+                       box_frames, NEWGAME_BOX_CELL);   /* menu box    */
+    newgame_box_render(&bops, /*x=*/32, /*y=*/392, /*w=*/576, /*h=*/80,
+                       box_frames, NEWGAME_BOX_CELL);   /* tooltip box */
+
+    /* (2) GDI text on top: the menu grid at the box base (32,32). */
     void *hdc = NULL;
     if (!zdd_object_get_dc(g_zdd->primary_obj, &hdc) || hdc == NULL)
         return;
-
-    /* TODO(box-widget): REMOVE this placeholder black fill when the box widget
-     * panel lands.  The real chrome (0x411940 → 0x40f3e0) draws a cream
-     * (RGB 239,227,214) bordered SUB-RECT with gold corners + a focus-arrow
-     * sprite beside the selected row — NOT a full-screen wash.  With that cream
-     * bg the menu text diffs to ZERO vs the golden (verified ckpt 39, quirk
-     * #66), so this fill is the ONLY reason the live text *looks* different; the
-     * glyphs/positions/colours are already bit-exact.  Until the panel is
-     * ported, black it is. */
-    PatBlt((HDC)hdc, 0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT, BLACKNESS);
 
     SetBkMode((HDC)hdc, TRANSPARENT);
     glyph_gdi_ops ops = glyph_gdi_ops_win32(hdc);
