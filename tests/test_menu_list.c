@@ -978,3 +978,129 @@ int test_node_build_zero_children(void)
     free(n.children);
     return 0;
 }
+
+/* ─── FUN_0056c930 menu_owner_transition_step ───────────────────────────
+ *
+ * The per-frame menu-node transition ramp.  Build a sel_list whose entries
+ * point at menu_nodes and check the mode-1 +0x54 ramp (the menu-input gate)
+ * advances exactly as retail does. */
+
+/* Wire `nodes[0..n)` into `owner`'s entry array (cast menu_node* → sel_entry*;
+ * they overlap — node+0 = owner ptr, node+8 = selected flag). */
+static void wire_owner(sel_list *owner, sel_entry **slots,
+                       menu_node *nodes, int n)
+{
+    for (int i = 0; i < n; i++) slots[i] = (sel_entry *)&nodes[i];
+    owner->entries  = slots;
+    owner->capacity = (uint16_t)n;
+    owner->count    = (uint16_t)n;
+}
+
+/* A mode-1, active, "transitioning in" node ramps field_54 by +50/frame and
+ * saturates at 1000 (reached in 20 frames from 0) — the menu-input gate. */
+int test_transition_mode1_ramps_in_to_1000(void)
+{
+    menu_node n;     memset(&n, 0, sizeof n);
+    sel_entry *slots[1];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n.field4 = 1; n.field_1c = 1; n.field_50 = 1; n.field_54 = 0;
+    wire_owner(&owner, slots, &n, 1);
+
+    for (int f = 1; f <= 19; f++) menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 950);          /* 19 * 50 */
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 1000);         /* 20th step clamps to 1000 */
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 1000);         /* stays saturated */
+    return 0;
+}
+
+/* The +50 step clamps (it does not overshoot): from 970 one step lands on
+ * exactly 1000, not 1020. */
+int test_transition_mode1_in_clamps_not_overshoot(void)
+{
+    menu_node n;     memset(&n, 0, sizeof n);
+    sel_entry *slots[1];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n.field4 = 1; n.field_1c = 1; n.field_50 = 1; n.field_54 = 970;
+    wire_owner(&owner, slots, &n, 1);
+
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 1000);
+    return 0;
+}
+
+/* A mode-1, "transitioning out" node (field_50 == 0) ramps field_54 down by
+ * -40/frame and clamps at 0 (does not go negative). */
+int test_transition_mode1_ramps_out_to_zero(void)
+{
+    menu_node n;     memset(&n, 0, sizeof n);
+    sel_entry *slots[1];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n.field4 = 1; n.field_1c = 1; n.field_50 = 0; n.field_54 = 100;
+    wire_owner(&owner, slots, &n, 1);
+
+    menu_owner_transition_step(&owner);  T_ASSERT_EQ_I(n.field_54, 60);
+    menu_owner_transition_step(&owner);  T_ASSERT_EQ_I(n.field_54, 20);
+    menu_owner_transition_step(&owner);  T_ASSERT_EQ_I(n.field_54, 0);  /* 20-40 → max(.,0) */
+    menu_owner_transition_step(&owner);  T_ASSERT_EQ_I(n.field_54, 0);  /* stays at 0 */
+    return 0;
+}
+
+/* An inactive node (field4 == 0) is skipped entirely — its ramp does not run. */
+int test_transition_skips_inactive_node(void)
+{
+    menu_node n;     memset(&n, 0, sizeof n);
+    sel_entry *slots[1];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n.field4 = 0; n.field_1c = 1; n.field_50 = 1; n.field_54 = 0;
+    wire_owner(&owner, slots, &n, 1);
+
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 0);            /* untouched */
+    return 0;
+}
+
+/* Modes other than 1 (the deferred submenu-slide paths 0/2) leave field_54
+ * untouched here — they are not yet ported. */
+int test_transition_skips_other_modes(void)
+{
+    menu_node n;     memset(&n, 0, sizeof n);
+    sel_entry *slots[1];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n.field4 = 1; n.field_1c = 2; n.field_50 = 1; n.field_54 = 0;
+    wire_owner(&owner, slots, &n, 1);
+
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n.field_54, 0);            /* mode 2 deferred → no ramp */
+    return 0;
+}
+
+/* The loop visits every live entry: a mix of active and inactive nodes ramps
+ * exactly the active mode-1 ones. */
+int test_transition_loops_all_entries(void)
+{
+    menu_node n[3];  memset(n, 0, sizeof n);
+    sel_entry *slots[3];
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    n[0].field4 = 1; n[0].field_1c = 1; n[0].field_50 = 1; n[0].field_54 = 0;
+    n[1].field4 = 0; n[1].field_1c = 1; n[1].field_50 = 1; n[1].field_54 = 500; /* inactive */
+    n[2].field4 = 1; n[2].field_1c = 1; n[2].field_50 = 1; n[2].field_54 = 900;
+    wire_owner(&owner, slots, n, 3);
+
+    menu_owner_transition_step(&owner);
+    T_ASSERT_EQ_I(n[0].field_54, 50);        /* active → +50 */
+    T_ASSERT_EQ_I(n[1].field_54, 500);       /* inactive → untouched */
+    T_ASSERT_EQ_I(n[2].field_54, 950);       /* active → +50 */
+    return 0;
+}
+
+/* A NULL owner (and an empty owner) is a no-op, not a crash. */
+int test_transition_null_and_empty_owner_noop(void)
+{
+    menu_owner_transition_step(NULL);        /* must not crash */
+    sel_list owner;  memset(&owner, 0, sizeof owner);
+    owner.count = 0;
+    menu_owner_transition_step(&owner);      /* count 0 → no iterations */
+    return 0;
+}

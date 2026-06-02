@@ -9,9 +9,7 @@
  */
 
 #include <stddef.h>
-#ifdef SINK_RESOLVE_DEBUG
 #include <stdio.h>
-#endif
 
 #include "title_sink.h"
 #include "asset_register.h"  /* ar_pool_get_slot / ar_sprite_slot_frame */
@@ -21,6 +19,9 @@
  * Stored by value so the caller's stack ctx need not outlive the bind. */
 static title_sink_ctx g_ctx;
 static int            g_bound;
+
+/* Menu-nav cursor-row diagnostic (off by default; main.c's --menu-trace). */
+int title_sink_menu_trace;
 
 void title_sink_bind(const title_sink_ctx *ctx)
 {
@@ -162,6 +163,19 @@ void title_render_sink(const title_draw_cmd *cmd)
          * retail (FUN_0056c470 probe, frida_capture --cursor-probe) and traced
          * to FUN_0056aea0's phase-8/9 triangle (parity-ledger R1).
          * With ramp_a NULL (no descriptors) this no-ops, as before. */
+        /* Menu-nav diagnostic: log when the highlighted row changes, so an
+         * injected --input-trace DOWN/UP can be verified at the cursor-state
+         * level (not just by eyeballing pixels).  Opt-in via OSS_MENU_TRACE=1;
+         * cmd->asset is the cursor row, cmd->y its scanline (16 + row*32). */
+        {
+            static int s_last_row = -2;
+            if (title_sink_menu_trace && cmd->asset != s_last_row) {
+                fprintf(stderr, "[sink] menu cursor row %d -> %d (y=%d)\n",
+                        s_last_row, cmd->asset, cmd->y);
+                fflush(stderr);
+                s_last_row = cmd->asset;
+            }
+        }
         frame = resolve_frame(AR_SPR_TITLE_CURSOR, cmd->asset);
         if (frame != NULL)
             title_draw_menu_cursor(primary, frame, cmd->level, cmd->alpha,

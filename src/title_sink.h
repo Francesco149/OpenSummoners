@@ -119,4 +119,11 @@ void title_sink_bind(const title_sink_ctx *ctx);
  * the resolved frame surface is NULL (bank not yet decoded). */
 void title_render_sink(const title_draw_cmd *cmd);
 
+/* Menu-nav diagnostic toggle (off by default).  When non-zero, the sink logs a
+ * line to stderr whenever the highlighted menu row changes, e.g.
+ *   [sink] menu cursor row 1 -> 2 (y=80)
+ * so an injected --input-trace DOWN/UP can be verified at the cursor-state
+ * level rather than by inspecting pixels.  Set from main.c's --menu-trace. */
+extern int title_sink_menu_trace;
+
 #endif /* OPENSUMMONERS_TITLE_SINK_H */

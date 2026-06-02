@@ -689,3 +689,62 @@ void menu_node_build(menu_node *n, void *owner,
     n->field_1c = 1;                               /* +0x1c = 1 */
     n->field_50 = 1;                               /* +0x50 = 1 */
 }
+
+/*
+ * FUN_0056c930 (607 bytes) — per-frame menu-node transition update.
+ *
+ * The title scene's post-update side effect: __thiscall(ECX = owner sel_list),
+ * looping every live entry and advancing each active node's transition by mode
+ * (node->field_1c).  See the header for the full mode map; only mode 1 — the
+ * input-gate fade the title menu uses — is ported (modes 0/2 are submenu slide
+ * animations the title flow never reaches).
+ *
+ * Mode-1 ramp, faithful to 0x56cadf..0x56cb18:
+ *   field_50 != 0 (in):  if field_54 < 1000 → field_54 = min(field_54+50, 1000)
+ *   field_50 == 0 (out): if field_54 <= 0   → teardown (0x56cc10, deferred)
+ *                        else                → field_54 = max(field_54-40, 0)
+ * The +0x54 ramp is what menu_list_latch gates on (sub->ready == 1000), so this
+ * is the function that makes the spawned menu navigable.  Quirk #34 / #59.
+ */
+void menu_owner_transition_step(sel_list *owner)
+{
+    if (owner == NULL) return;
+
+    uint16_t count = owner->count;                 /* word [owner+6] */
+    for (uint16_t i = 0; i < count; i++) {         /* loop 0x56c94f..0x56cb77 */
+        menu_node *node = (menu_node *)owner->entries[i];  /* [owner+0][i] */
+        if (node == NULL || node->field4 == 0)     /* cmp [esi+4],0; je next */
+            continue;
+
+        switch (node->field_1c) {                  /* [esi+0x1c] dispatch */
+        case 1: {                                  /* 0x56cadf — input-gate fade */
+            int32_t v = node->field_54;            /* [esi+0x54] */
+            if (node->field_50 != 0) {             /* in: field_50 set */
+                if (v < 1000) {                    /* 0x56cae9 jge → done */
+                    v += 0x32;                     /* +50 */
+                    if (v > 1000) v = 1000;        /* clamp */
+                    node->field_54 = v;
+                }
+            } else {                               /* out: field_50 clear */
+                if (v <= 0) {
+                    /* 0x56cad3: node teardown (0x56cc10) — deferred; the title
+                     * flow keeps field_50 set, so this never fires here. */
+                } else {
+                    v -= 0x28;                     /* -40 (0xffffffd8) */
+                    if (v < 0) v = 0;              /* 0x56cb0d..13 max(v,0) */
+                    node->field_54 = v;
+                }
+            }
+            break;
+        }
+        case 0:                                    /* 0x56cb1a — dismiss/unlink   */
+        case 2:                                    /* 0x56c97c — slide-to-target  */
+            /* Submenu push/pop slide animations — not exercised by the title
+             * menu (its single node is mode 1).  Deferred: they reference node
+             * geometry fields + unported engine calls.  See header. */
+            break;
+        default:                                   /* field_1c not in {0,1,2}     */
+            break;
+        }
+    }
+}

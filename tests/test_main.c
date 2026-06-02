@@ -448,6 +448,13 @@ struct test_case {
     X(node_build_child_display_config)                         \
     X(node_build_rebuild_frees_old_children)                   \
     X(node_build_zero_children)                                \
+    X(transition_mode1_ramps_in_to_1000)                       \
+    X(transition_mode1_in_clamps_not_overshoot)                \
+    X(transition_mode1_ramps_out_to_zero)                      \
+    X(transition_skips_inactive_node)                          \
+    X(transition_skips_other_modes)                            \
+    X(transition_loops_all_entries)                            \
+    X(transition_null_and_empty_owner_noop)                    \
     X(zdd_layout_matches_retail_offsets)                       \
     X(zdd_ctor_zeros_struct)                                   \
     X(zdd_dderr_name_known_entries)                            \

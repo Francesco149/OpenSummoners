@@ -50,6 +50,7 @@
 #include "cs_dispatch.h"
 #include "call_trace.h"
 #include "title_drive.h"
+#include "title_sink.h"       /* title_sink_menu_trace — --menu-trace toggle */
 #include "input_trace.h"
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 #include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
@@ -150,12 +151,22 @@ static void drive_update_particles(void)
     title_particle_pool_update(&g_particles);
 }
 
+/* The post-update side effect (0x56c930): ramp the spawned menu node's input
+ * gate (node->field_54 → 1000) so the menu becomes navigable a few frames after
+ * it appears.  Without this the latch stays gated closed and injected nav input
+ * (--input-trace) never moves the cursor (quirk #34/#59). */
+static void drive_post_update(void)
+{
+    menu_owner_transition_step(&g_drive.owner);
+}
+
 /* Borrowed by the drive each frame (must outlive it).  spawn_sparkle +
- * update_particles drive the phase-7 twinkles; the other outer-loop side
- * effects stay deferred (see HANDOFF). */
+ * update_particles drive the phase-7 twinkles; post_update opens the menu-input
+ * gate; the remaining outer-loop side effects stay deferred (see HANDOFF). */
 static const title_scene_hooks g_title_hooks = {
     .spawn_sparkle    = drive_spawn_sparkle,
     .update_particles = drive_update_particles,
+    .post_update      = drive_post_update,
 };
 
 /* --input-trace <file.jsonl> — port-side deterministic input replay (the
@@ -955,6 +966,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--skip-ddraw"))   g_skip_ddraw = 1;
         else if (!strcmp(tok, "--no-present"))   g_no_present = 1;
         else if (!strcmp(tok, "--no-title-scene")) g_no_title_scene = 1;
+        else if (!strcmp(tok, "--menu-trace"))   title_sink_menu_trace = 1;
         else if (!strcmp(tok, "--input-trace")) {
             tok = strtok(NULL, " \t");
             if (tok) {

@@ -36,6 +36,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "obj_container.h"   /* sel_list — the menu-node transition owner loop */
+
 /* ─── the list header (controller + 0x174 → here) ────────────────────
  *
  * Describes the selectable grid/list the cursor moves over.  Several
@@ -439,6 +441,39 @@ void menu_node_build(menu_node *n, void *owner,
                      int32_t f_14, int32_t f_18,
                      uint16_t n_children, const int32_t *config);
 
+/* ─── FUN_0056c930 — per-frame menu-node transition update ────────────
+ *
+ * The title scene's "post-update" side effect (called every non-exiting
+ * update frame from FUN_0056aea0's tail).  __thiscall with ECX = the scene's
+ * owning sel_list; it walks every live entry (owner->entries[0..count)) and,
+ * for each *active* node (node->field4 != 0), advances that node's transition
+ * state by its mode (node->field_1c):
+ *
+ *   mode 1 — the steady input-gate fade.  Ramp node->field_54 toward 1000 by
+ *            +50/frame while field_50 is set ("transitioning in"), or toward 0
+ *            by -40/frame while clear ("out"); at <= 0 it tears the node down
+ *            (0x56cc10).  **This is the title menu's mode** (menu_node_build
+ *            sets field_1c=1, field_50=1, field_54=0): the ramp opens the
+ *            menu-input gate, since menu_list_latch refuses to act until
+ *            sub->ready (== this node's field_54) reaches 1000 (quirk #34).
+ *            So the menu becomes navigable ~20 update frames after it spawns.
+ *   mode 0 — node being dismissed (snap field_54 to 1000 if field_50 set, else
+ *            unlink + free it from its parent's child array).
+ *   mode 2 — node sliding to a target position (lerp its geometry, then snap
+ *            field_54 to 1000 once settled).
+ *
+ * Only **mode 1** is ported here: it is the only mode the title flow exercises
+ * (its single node is mode 1, and the ramp-out/teardown never fires because
+ * field_50 stays 1 through the menu's life — the scene tears the menu down via
+ * title_menu_teardown at phase 10, not through this path).  Modes 0 and 2 are
+ * the submenu push/pop slide animations — they touch node geometry fields and
+ * engine calls (0x49a340 / 0x56cc10 / 0x49a2f0 / 0x49a470) not yet modelled,
+ * so they are skipped here with this documented seam; extend when submenus
+ * land.  Faithful to 0x56c930's mode-1 arm + the owner loop / field4 gate.
+ *
+ * Pure: touches only each active mode-1 node's field_54.  NULL owner → no-op. */
+void menu_owner_transition_step(sel_list *owner);
+
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(menu_list_hdr, type)     == 0x00, "hdr.type");
 _Static_assert(offsetof(menu_list_hdr, stride)   == 0x0c, "hdr.stride");
@@ -494,8 +529,11 @@ _Static_assert(offsetof(confirm_list, submode) == 0x0c, "cl.submode");
 _Static_assert(offsetof(confirm_list, flag14)  == 0x14, "cl.flag14");
 _Static_assert(offsetof(confirm_list, flag18)  == 0x18, "cl.flag18");
 _Static_assert(sizeof(menu_node)                 == 0x1b0, "menu_node size");
+_Static_assert(offsetof(menu_node, field4)       == 0x04,  "node.field4");
 _Static_assert(offsetof(menu_node, selected)     == 0x08,  "node.selected");
 _Static_assert(offsetof(menu_node, field_1c)     == 0x1c,  "node.field_1c");
+_Static_assert(offsetof(menu_node, field_50)     == 0x50,  "node.field_50");
+_Static_assert(offsetof(menu_node, field_54)     == 0x54,  "node.field_54");
 _Static_assert(offsetof(menu_node, children)     == 0x48,  "node.children");
 _Static_assert(offsetof(menu_node, child_count)  == 0x4c,  "node.child_count");
 _Static_assert(offsetof(menu_node, config)       == 0x5c,  "node.config");
