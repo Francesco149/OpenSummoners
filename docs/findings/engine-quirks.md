@@ -1563,3 +1563,46 @@ makes sense with the corrected naming.  The port (`glyph_cell_layout`) uses
 > 📍 `FUN_0040fa00` @ `0x40fa00`, `FUN_0040fd20` @ `0x40fd20` (ported,
 > `src/glyph_text.{c,h}`, ckpt 34); renderer `0x48e200`, font reg
 > `FUN_00579bd0` (`asset_register.c`).  See `findings/text-glyph-pipeline.md`.
+
+## 62. The GDI text renderer's `this` is the CHILD node; the parent supplies the x/y base; and three "label" display-config fields are reinterpreted as COLORREFs on dead paths
+
+Three findings from porting the renderer `FUN_0048e200` (`glyph_grid_render`):
+
+**(a) `this` is the child controller node, not the parent.**  The paint walker
+`FUN_0048c820` (the menu render loop) calls `0x48e200` with **ECX = the child
+node** (`iVar1->children[k]`, the node whose `+0x08` mode == 1) and passes
+**param_4/param_5 = the *parent* node's `+0x0c`/`+0x10`** (its on-screen x/y).
+So the renderer reads the *child's* list/rows/entries (`+0x174..+0x17c`) and
+display config (`+0x180..`), but positions everything relative to the *parent's*
+origin.  `menu_node_build` re-zeroes each child's `field_14`/`field_18`
+(`+0x14`/`+0x18`), so the ruby pass (gated on `field_14 != 0`) is OFF for the
+basic menus — the new-game/options menus draw a single GDI text pass + drop
+shadow, no furigana.
+
+**(b) The drop shadow is two offset copies of the glyph row.**  Before the main
+`0x48e860` pass, the renderer inlines that same per-glyph `TextOutA` loop
+**twice** in the shadow colour (`node+0x184`): once at `(x, y+1)` and once at
+`(x+1, y)`.  Net effect: a 1px down-right drop shadow under every selectable /
+focused row.  Disabled rows (`row.flag8 == 0`, type != 1) skip the shadow.
+
+**(c) `node+0x188`/`+0x194`/`+0x198` hold POINTERS but are read as COLORREFs.**
+The builder `FUN_0040f3e0` stores label/string VAs there (`&DAT_00677b98`,
+`&DAT_008090a9`), yet `0x48e200` reads them as `local_38`/`local_34` colours in
+the **disabled-row** branch (`+0x194`/`+0x198`) and as the **ruby secondary**
+colour (`+0x188`).  Both are dead for the current menus (selectable rows have
+`flag8 == 1`; `field_14 == 0` disables the ruby pass), so the pointer-as-colour
+reinterpret never reaches a visible `SetTextColor` — only `+0x180` (normal
+text), `+0x184` (shadow), `+0x18c`/`+0x190` (focused text/secondary) are live.
+The port reads all of them faithfully by offset; the dead ones simply don't draw.
+
+NB for host-testing: on the 32-bit target `menu_node` and its embedded
+`menu_ctrl` alias at `+0x00` (so `+0x174..+0x17c` name both views), but the
+64-bit host layouts diverge (8-byte pointers) — the tests keep a `menu_ctrl`
+(owns the built container + laid-out text) and a `menu_node` (references its
+arrays + carries the display config) as **separate** objects, which is exactly
+what the renderer sees on-target.
+
+> 📍 `FUN_0048e200` (`glyph_grid_render`), `FUN_0048e860` (`glyph_row_draw`),
+> `FUN_0048e6d0` (`glyph_ruby_draw`) — ported `src/glyph_render.{c,h}` +
+> `glyph_render_win32.c` (ckpt 35).  Caller `FUN_0048c820`.  See
+> `findings/text-glyph-pipeline.md`.

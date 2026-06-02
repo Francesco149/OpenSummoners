@@ -6,6 +6,54 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-02 (ckpt 35) — text/glyph pipeline, part 2: the GDI text renderer is ported + host-tested
+
+Ported the **render half** of the cell-grid dynamic-text system into the new
+`src/glyph_render.{c,h}` (+ `glyph_render_win32.c`), the visual counterpart of
+ckpt 34's build half. Three functions:
+
+- `glyph_row_draw` (`FUN_0048e860`) — the per-glyph `TextOutA` loop; advance is
+  **7 px per source byte**, so a 2-byte SJIS record steps 14 px.
+- `glyph_ruby_draw` (`FUN_0048e6d0`) — the furigana pass; gated on
+  `node->field_14` (== 0 for the basic menus) and a no-op on raw text
+  (`flag1c == 0` on every record) — a faithful translation, unexercised for now.
+- `glyph_grid_render` (`FUN_0048e200`, GDI branch) — walk rows
+  `[sel2 .. sel2+stride)` × columns `[0 .. alloc_b)`, position each cell at
+  `(entry.pos + x + node.field_c, entry.field4 + node.field_10 + lineH·dispRow
+  + y)`, pick text/shadow `COLORREF`s by selection state (disabled / focused /
+  normal / per-entry / per-cell override), apply the monospace right-align shift
+  (`max(0, extent − 7·len)`), draw the **2-copy drop shadow** (offsets `(0,+1)`
+  and `(+1,0)`) then the glyphs, and optionally the ruby pass.
+
+GDI is reached through an injected `glyph_gdi_ops` vtable
+(`select_font`/`set_text_color`/`text_out`) so the walk + colour selection are
+**pure and host-testable** with a recording stub; the real back-buffer GDI lands
+in `glyph_render_win32.c` (`glyph_gdi_ops_win32`), following the project's
+`_win32.c` split (host harness never links it). Modelled `menu_cell` `+0x10`/
+`+0x14` as the per-cell colour overrides the renderer reads (were `_pad10`).
+
+**Three findings (quirk #62):** (a) the renderer's `this` is the **child**
+controller node while the **parent** supplies the x/y base (`0x48c820` passes
+`parent->field_c/field_10`); (b) the drop shadow is two offset copies of the
+glyph row in `node+0x184`; (c) `node+0x188`/`+0x194`/`+0x198` hold label
+**pointers** that the renderer reinterprets as `COLORREF`s — but only on dead
+paths (disabled rows / ruby), so only `+0x180`/`+0x184`/`+0x18c`/`+0x190` are
+live colours for the menus. The retail **sprite-cell mode** (`param_1 == 0`, a
+ZDD-blit path) is deferred with a documented seam.
+
+11 new host tests (681→**691 pass / 0 fail / 6 skip**). Ledger **150/1490
+(9.2%)** (+3 tested: `0x48e200`, `0x48e860`, `0x48e6d0`). Commit: `feat: port the
+GDI text renderer … text pipeline part 2 (ckpt 35)`.
+
+**Open verification gate (human / Frida):** the "render a known string, diff vs
+retail" pixel check — install the registered font at boot, render offscreen with
+`glyph_gdi_ops_win32`, `differ_px`-diff the glyph region. The walk is host-tested
+but the pixels are not yet diffed; that needs the live harness. **Next:** wire
+`ar_register_fonts` at boot + the offscreen render path → pixel diff, then the
+new-game config scene (`0x564780` case 0x24) + row-append `0x40f800`.
+
+---
+
 ## 2026-06-02 (ckpt 34) — text/glyph pipeline, part 1: the glyph layout builder is ported + host-tested
 
 Started the **glyph/text pipeline** — the shared gate for every dynamic-text

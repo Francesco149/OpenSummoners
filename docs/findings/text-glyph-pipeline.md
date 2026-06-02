@@ -3,10 +3,13 @@
 > The shared gate for every **dynamic-text** menu (new-game config, options,
 > save/load) AND the prologue narration.  The title top-level menu does NOT
 > use it — its labels are baked into the menu-bg sprite (quirk: see
-> `title-scene.md`).  This doc maps the whole subsystem; the **build** half
+> `title-scene.md`).  This doc maps the whole subsystem.  The **build** half
 > (`0x40fa00` layout + `0x40fd20` token search) is ported in
-> `src/glyph_text.{c,h}` (checkpoint 34).  The **render** half (`0x48e200`)
-> and the **escape-expanders** (`0x4034f0` / `0x4051d0`) are the next chips.
+> `src/glyph_text.{c,h}` (checkpoint 34).  The **render** half (`0x48e200` +
+> the `0x48e860`/`0x48e6d0` glyph/ruby loops) is ported in
+> `src/glyph_render.{c,h}` + `glyph_render_win32.c` (checkpoint 35).  The
+> remaining chips are the **escape-expanders** (`0x4034f0` / `0x4051d0`) and
+> the **row-append** (`0x40f800`).
 
 ## The big realization — it's one object, already half-modelled
 
@@ -100,7 +103,16 @@ widgets: a `0x54` scroll-state object (+4) and a `0x20` anim object (+8,
 with `+0x1c = max(+0x14, min(+0x18,0))`).  Belongs with the menu builders
 (`0x411940` / `0x412160` / `0x566570`) — the next checkpoint.
 
-## Render path — `FUN_0048e200` (1221 B) — NOT yet ported
+## Render path — `FUN_0048e200` (1221 B) — PORTED (ckpt 35)
+
+> Ported as `glyph_grid_render` in `src/glyph_render.{c,h}` over an injected
+> `glyph_gdi_ops` vtable (`select_font`/`set_text_color`/`text_out`) so the
+> walk + colour selection are host-tested; the real GDI is in
+> `glyph_render_win32.c` (`glyph_gdi_ops_win32`).  `0x48e860` →
+> `glyph_row_draw`, `0x48e6d0` → `glyph_ruby_draw`.  Only the **GDI mode**
+> (`param_1 != 0`) is ported; the sprite-cell mode (`param_1 == 0`) is a
+> separate ZDD-blit path, deferred.  See quirk #62 for the
+> `this`=child-node / parent-base / pointer-as-colour findings.
 
 `draw(mode, surf, hdc, x, y, hfont_main, hfont_shadow, blit_param)`.  Walks
 `row = hdr.sel2 .. hdr.count` (clamped by `stride`) × `col = 0 .. alloc_b`:
@@ -124,19 +136,25 @@ host code — its row/col walk + colour selection are host-testable with a
 
 ## Verification plan (per the "render a known string, diff" gate)
 
-1. Land the build half (this checkpoint) with host tests on the glyph records.
-2. Port `0x48e200` GDI branch + `0x48e860`/`0x48e6d0`; install the registered
-   font; render a known string into an offscreen DIB section DC.
-3. Capture retail rendering the same string (a font-probe Frida hook on
-   `0x48e200`, or just the new-game config menu once it builds) and
-   `differ_px`-diff the glyph region — bit-exact is the bar.
-4. Only then wire the new-game config scene (`0x564780` case 0x24).
+1. ✅ Land the build half (ckpt 34) with host tests on the glyph records.
+2. ✅ Port `0x48e200` GDI branch + `0x48e860`/`0x48e6d0` (ckpt 35) with host
+   tests on the walk / positions / colour selection / shadow pre-pass
+   (recording `glyph_gdi_ops` stub, `tests/test_glyph_render.c`).
+3. ⏳ **PIXEL DIFF — the open verification gate.**  Install the registered
+   font (`ar_register_fonts`, wire the call at boot), render a known string
+   into an offscreen DIB-section DC with `glyph_gdi_ops_win32`, and
+   `differ_px`-diff the glyph region vs retail (a font-probe Frida hook on
+   `0x48e200`, or the new-game config menu once it builds).  Bit-exact is the
+   bar.  Needs the live harness — **human / Frida verification step**.
+4. Then wire the new-game config scene (`0x564780` case 0x24).
 
 ## Files
 
 - `docs/decompiled/by-address/40fa00.c` (build), `40fd20.c` (token search),
   `40f800.c` (row append), `48e200.c` / `48e860.c` / `48e6d0.c` (render),
   `4034f0.c` (7 KB escape switch), `4051d0.c` (3 KB glyph-string copy).
-- `src/glyph_text.{c,h}`, `tests/test_glyph_text.c`.
+- `src/glyph_text.{c,h}`, `tests/test_glyph_text.c` (build half).
+- `src/glyph_render.{c,h}`, `src/glyph_render_win32.c`,
+  `tests/test_glyph_render.c` (render half).
 - Container model: `src/menu_list.h` (`menu_ctrl`, `menu_node`, `menu_cell`).
 - Font infra: `src/asset_register.{c,h}` (`ar_register_fonts`, `ar_make_font`).

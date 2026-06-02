@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 141,
+  "tested": 144,
   "ported": 6,
-  "unported": 1611,
+  "unported": 1608,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 147,
-  "pct_touched": 9.0,
-  "pct_tested": 9.0,
-  "engine_proper_touched": 134,
+  "touched": 150,
+  "pct_touched": 9.2,
+  "pct_tested": 9.2,
+  "engine_proper_touched": 137,
   "bytes_total": 1694868,
-  "bytes_touched": 173048,
-  "pct_bytes_touched": 10.2
+  "bytes_touched": 174839,
+  "pct_bytes_touched": 10.3
  },
  "orphan_refs": [
   "0x56c470",
@@ -5443,24 +5443,33 @@
    "name": "FUN_0048e200",
    "size": 1221,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_render.c",
+    "src/glyph_render.h"
+   ]
   },
   {
    "va": "0x48e6d0",
    "name": "FUN_0048e6d0",
    "size": 389,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_render.c",
+    "src/glyph_render.h"
+   ]
   },
   {
    "va": "0x48e860",
    "name": "FUN_0048e860",
    "size": 181,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_render.c",
+    "src/glyph_render.h"
+   ]
   },
   {
    "va": "0x48e920",
