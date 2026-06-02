@@ -137,6 +137,16 @@ if (( NEED_UNPACK )); then
     yellow "    output sha256: $UNPACK_SHA"
 fi
 
+# Co-locate the unpacked exe *inside the game dir* (= vendor/original, the
+# symlink) so the Frida harness can spawn it: the engine resolves config.dat /
+# sotesd.dll relative to its own module directory (GetModuleFileName), not the
+# cwd, so the exe must live next to those assets.  See engine-quirks #53;
+# this path is frida_capture.py's default RETAIL_EXE.
+if ! cmp -s "$UNPACKED/sotes.unpacked.exe" "$ORIGINAL/sotes.unpacked.exe" 2>/dev/null; then
+    cp "$UNPACKED/sotes.unpacked.exe" "$ORIGINAL/sotes.unpacked.exe"
+fi
+green "  ✓ vendor/original/sotes.unpacked.exe (co-located in game dir for Frida)"
+
 # ─── hash key files ────────────────────────────────────────────────────────
 bold "[5/5] Hashing key files"
 

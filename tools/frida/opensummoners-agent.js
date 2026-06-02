@@ -275,6 +275,16 @@ let g_poll_dbg_hi     = 0;
 let g_gdi_ready       = false;
 let g_gdi = {};                 // resolved GDI/user32 NativeFunctions
 
+// ── cursor-level probe (R1 investigation) ────────────────────────────────
+// Hook the menu-cursor draw wrapper FUN_0056c470 (__thiscall) and log the
+// per-frame level_num it is actually called with.  The port drives this to
+// idx 19 (full add); retail's value is the path-dependent [esp+0x20] that
+// couldn't be pinned statically.  parity-ledger R1: the port cursor is
+// uniformly over-bright, so we need retail's real level_num to match it.
+const CURSOR_DRAW_VA      = 0x56c470;
+let   g_cursor_probe      = false;
+let   g_cursor_probe_hooked = false;
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -1409,6 +1419,45 @@ function installCallTraceHooks(vasArray) {
           n_req:  vasArray.length});
 }
 
+// Hook FUN_0056c470 (the menu-cursor draw) and report the level_num it is
+// invoked with, per Flip frame.  __thiscall: `this` in ECX, explicit params
+// on the stack (args[0]=dest, args[1]=sprite, args[2]=level_num,
+// args[3]=level_div=0x4b0, args[4]=x, args[5]=y).  We dump the first 8 stack
+// slots raw on the first hit so the layout can be confirmed against the
+// known constants (level_div==0x4b0, x==0, y==0x10+row*0x20), then emit a
+// compact {frame,num,div,x,y} per call.  Cheap: one call per drawn frame.
+function installCursorProbe() {
+    if (g_cursor_probe_hooked) return;
+    let first = true;
+    Interceptor.attach(rva(CURSOR_DRAW_VA), {
+        onEnter: function (args) {
+            const slots = [];
+            for (let i = 0; i < 8; i++) {
+                try { slots.push(args[i].toInt32()); }
+                catch (e) { slots.push(null); }
+            }
+            let ecx = 0;
+            try { ecx = this.context.ecx.toUInt32(); } catch (e) {}
+            if (first) {
+                first = false;
+                send({kind: 'cursor_probe_first', frame: g_flip_frame,
+                      ecx: ecx, slots: slots,
+                      ret_va: traceRetVa(this.returnAddress)});
+            }
+            // Identify level_div by its known constant 0x4b0; level_num is the
+            // slot immediately before it.  Fall back to the documented layout.
+            let div = slots[3], num = slots[2], x = slots[4], y = slots[5];
+            const k = slots.indexOf(0x4b0);
+            if (k >= 1) { div = slots[k]; num = slots[k - 1];
+                          x = slots[k + 1]; y = slots[k + 2]; }
+            send({kind: 'cursor_level', frame: g_flip_frame,
+                  num: num, div: div, x: x, y: y});
+        },
+    });
+    g_cursor_probe_hooked = true;
+    logmsg('cursor probe installed @ FUN_0056c470');
+}
+
 function memWatchFlush(frameNumber) {
     if (g_mem_watch_buffer.length === 0) return;
     const events = g_mem_watch_buffer;
@@ -1576,6 +1625,7 @@ rpc.exports = {
         g_hide_window         = !!opts.hide_window;
         g_turbo_enabled       = !!opts.turbo;
         g_silent_audio_enabled = !!opts.silent_audio;
+        g_cursor_probe         = !!opts.cursor_probe;
         if (typeof opts.turbo_step_ms === 'number') g_turbo_step_ms = opts.turbo_step_ms;
         // msgbox redirect default ON — pass {msgbox_redirect:false} to
         // see real popups (debugging the harness itself).
@@ -1634,8 +1684,12 @@ rpc.exports = {
             // Structural-parity harness: frame anchor + call-trace + mem-watch
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
-                g_inject_enabled) {
+                g_inject_enabled || g_cursor_probe) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
+            }
+            if (g_cursor_probe) {
+                try { installCursorProbe(); }
+                catch (e) { err('install_cursor_probe', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }

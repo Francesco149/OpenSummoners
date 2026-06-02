@@ -53,7 +53,15 @@ import frida
 
 ROOT       = Path(__file__).resolve().parent.parent
 AGENT_JS   = ROOT / "tools" / "frida" / "opensummoners-agent.js"
-RETAIL_EXE = ROOT / "vendor" / "original" / "sotes.exe"
+# The Steamless-unpacked, DRM-free PE.  vendor/original is a *symlink to the
+# game dir*, so vendor/original/sotes.exe is the PACKED Steam-DRM exe — it
+# stalls in the launcher under Frida (0 frames).  setup.sh produces the clean
+# PE at vendor/unpacked/sotes.unpacked.exe, but the engine resolves its asset
+# paths (config.dat, sotesd.dll, …) relative to its OWN module directory
+# (GetModuleFileName), NOT the cwd — so the unpacked exe must sit *inside* the
+# game dir next to those files.  We spawn the copy co-located there.
+RETAIL_EXE = ROOT / "vendor" / "original" / "sotes.unpacked.exe"
+# cwd = the game dir (vendor/original is the symlink to it).
 ASSET_CWD  = ROOT / "vendor" / "original"
 
 DEFAULT_REMOTE = os.environ.get(
@@ -254,6 +262,11 @@ class CaptureConfig:
     input_trace:       list[dict] | None = None
     inject_debug:      bool = False
 
+    # ── cursor-level probe (parity-ledger R1) ──
+    # Hook FUN_0056c470 and log the per-frame level_num retail draws the menu
+    # cursor with.  Prints distinct values + writes <run_dir>/cursor_level.jsonl.
+    cursor_probe:      bool = False
+
 
 def _resolve_run_dir(base: Path | None) -> Path:
     if base is None:
@@ -290,6 +303,8 @@ def run_capture(cfg: CaptureConfig) -> int:
     # Optional per-mode JSONL sinks (one row per event, with `frame`).
     call_trace_f = (run_dir / "call_trace.jsonl").open("w") if cfg.call_trace else None
     mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
+    cursor_f     = (run_dir / "cursor_level.jsonl").open("w") if cfg.cursor_probe else None
+    cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
     frames_dir   = (run_dir / "frames") if cfg.capture else None
     if frames_dir is not None:
         frames_dir.mkdir(parents=True, exist_ok=True)
@@ -462,6 +477,22 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary["mem_access_events"] += len(events)
             if frame > summary["last_frame"]:
                 summary["last_frame"] = frame
+        elif kind == "cursor_probe_first":
+            print(f"[frida_capture] cursor_probe first hit @ frame "
+                  f"{payload.get('frame')}: ecx=0x{int(payload.get('ecx',0)):08x} "
+                  f"ret_va=0x{int(payload.get('ret_va',0)):06x} "
+                  f"slots={payload.get('slots')}", file=sys.stderr)
+        elif kind == "cursor_level":
+            frame = int(payload.get("frame", -1))
+            num   = payload.get("num")
+            cursor_seen[num] = cursor_seen.get(num, 0) + 1
+            if cursor_f is not None:
+                cursor_f.write(json.dumps({
+                    "frame": frame, "num": num, "div": payload.get("div"),
+                    "x": payload.get("x"), "y": payload.get("y")}) + "\n")
+                cursor_f.flush()
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "error":
             print(f"[frida_capture] agent error in {payload.get('where')}: "
                   f"{payload.get('msg')}", file=sys.stderr)
@@ -489,6 +520,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "input_inject_enabled": bool(cfg.input_trace),
         "input_trace":        cfg.input_trace or [],
         "inject_debug":       cfg.inject_debug,
+        "cursor_probe":       cfg.cursor_probe,
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_regions":  [
@@ -546,6 +578,14 @@ def run_capture(cfg: CaptureConfig) -> int:
             call_trace_f.close()
         if mem_watch_f is not None:
             mem_watch_f.close()
+        if cursor_f is not None:
+            cursor_f.close()
+            if cursor_seen:
+                dist = ", ".join(f"num={n}×{c}" for n, c in
+                                 sorted(cursor_seen.items(),
+                                        key=lambda kv: -kv[1]))
+                print(f"[frida_capture] cursor_level distinct: {dist}",
+                      file=sys.stderr)
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -617,6 +657,10 @@ def main() -> int:
     p.add_argument("--inject-debug", action="store_true",
                    help="log poll/latch internals in a small window around the "
                         "first scripted press (diagnostics).")
+    p.add_argument("--cursor-probe", action="store_true",
+                   help="hook FUN_0056c470 and log the per-frame menu-cursor "
+                        "level_num to <run_dir>/cursor_level.jsonl "
+                        "(parity-ledger R1). Use --no-turbo.")
     args = p.parse_args()
 
     call_trace_vas = None
@@ -675,6 +719,7 @@ def main() -> int:
         capture_frames    = capture_frames,
         input_trace       = input_trace,
         inject_debug      = args.inject_debug,
+        cursor_probe      = args.cursor_probe,
     )
     return run_capture(cfg)
 
