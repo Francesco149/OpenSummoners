@@ -3134,3 +3134,55 @@ cross-builds clean. Ledger unchanged at **130/1490 (8.1%), 127 tested** — the
 sink bridges already-counted functions (no new `FUN_` port tokens).
 
 ---
+
+## ckpt 25 — 8d ported in full (per-cell builder + format converters + slicer) + wired live (2026-06-02)
+
+The genuine sprite pixel source is **ported, host-tested, and wired into the
+live drive** in three commits:
+
+**25  (`d82af11`) — 8d core in `src/zdd.c`:**
+- `zdd_object_new_cell` (FUN_005b9280) — operator_new + ctor + orchestrate + publish.
+- `zdd_object_build_cell` (FUN_005b9630) — trim-gate (count>1 tightens to the
+  opaque bbox; found_key==0 drops the colorkey; found_opaque==0 → metrics-only,
+  no surface) → `create_surface_pair` → pixel writer.
+- `zdd_object_copy_cell_pixels` (FUN_005b9910) — **raw bottom-up byte blit**
+  (NOT a format converter — see below); zero-fills the locked dest then row-copies
+  the WxH window, clamping the per-row span to dest pitch + source stride.
+- Verified against `docs/decompiled/by-address/5b9280.c`, `5b9630.c`, all.c 5b9910.
+- 10 host tests. Ledger 131→134.
+
+**25b (`16e3a18`) — format converters in `src/bitmap_session.c`:**
+- `bs_convert_to_16bpp` (FUN_005b7310), `bs_convert_8bpp_to_24bpp` (_74f0),
+  `bs_convert_24bpp_to_32bpp` (_7270), `bs_load_palette_from` (_7bd0).
+- The slicer picks one by display depth ([zdd+0x168]); windowed = 16bpp, so a
+  24bpp title sheet packs to RGB565 via the ZDD shift descriptor. 7 host tests.
+  Ledger 134→138.
+
+**25c (`03d33c1`) — slicer body + live wiring:**
+- `ar_sprite_slice` expanded to the full FUN_004188b0: trim-scan loop (into
+  `slot->aux_buf`) + format switch (new `ar_sheet_format_hook`) + trim-aware
+  build loop. Verified vs `by-address/4188b0.c`.
+- `main.c` adapters bind the three hooks to the live ZDD: `title_frame_build`
+  → `zdd_object_new_cell`, `title_frame_free` → `zdd_obj_destroy`,
+  `title_sheet_format` → `bs_convert_*` by `g_zdd->pixel_format_bpp`.
+
+**Two corrected findings → engine-quirks #49 (format converters live in the
+SLICER, not the pixel writer — the writer is a raw byte copy) and #50 (the
+slicer passes (cell_w, cell_h) as the trim scanner's (height, width) args).**
+
+**LIVE (self-serviced):** port boots windowed at **depth=16bpp**, drives the
+title scene, flips, **zero DDERR, zero crashes through 900 frames**, clean
+60fps. 8d is crash-clean against real DDraw.
+
+**Gap to *visible* sprites (next session, NOT 8d):** the title banks (pool
+19/20) are never registered at boot, so `ar_sprite_slot_frame` returns NULL
+(entries==NULL) and the decode→slice→8d chain never fires.
+`ar_register_main_sprites` exists but needs the **launcher settings record**
+(the PE resource source) + sotesp module — a separate
+asset-registration/launcher subsystem. Plus the sink's LOGO/SPARKLE/MENU_CURSOR
+arms are still deferred no-ops and the cold-boot intro must reach the menu phase.
+
+**647 host tests (0 fail, 6 skip; +17).** Both 32-bit cross-builds clean.
+Ledger **138/1490 (8.6%), 135 tested (+7)**.
+
+---

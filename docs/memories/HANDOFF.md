@@ -1,13 +1,25 @@
-# Session handoff — last updated 2026-06-02 (title drive + 8d trim scanner + input replay, ckpt 22–24)
+# Session handoff — last updated 2026-06-02 (8d fully ported + wired live, ckpt 25)
 
-> **ckpt 24:** port-side **`input_trace.{c,h}`** is done — parses the harness's
-> `{"frame":N,"ids":[..]}` JSONL and replays it into the drive's input ring as
-> fresh presses (keyed on the present/Flip count), wired behind `main.c`'s
-> **`--input-trace <file>`**. 7 host tests; 636 total (630 pass, 0 fail, 6 skip);
-> ledger unchanged (port-side tooling, no retail FUN). **Wants live validation**
-> (does an injected press actually skip the splash / nav the menu) next session.
-> This is the port-side half of the new-game-trace replay → port-frame capture →
-> golden-diff pipeline; the capture+diff half (10) is still gated on 8d pixels.
+> **ckpt 25:** **8d — the genuine sprite pixel source — is fully ported,
+> host-tested, and wired into the live drive.** Three layers in `zdd.c`
+> (`zdd_object_new_cell`/`_build_cell`/`_copy_cell_pixels` = FUN_005b9280/
+> _9630/_9910), four format converters in `bitmap_session.c`
+> (`bs_convert_to_16bpp`/`_8bpp_to_24bpp`/`_24bpp_to_32bpp` +
+> `bs_load_palette_from` = 0x5b7310/_74f0/_7270/_7bd0), and the full slicer
+> body `ar_sprite_slice` (FUN_004188b0: trim-scan + format switch + build).
+> `main.c` adapters bind `ar_frame_build_hook`/`ar_frame_free_hook`/
+> **new `ar_sheet_format_hook`** to the live ZDD. **LIVE (self-serviced
+> Frida-class): boots windowed at depth=16bpp, drives the title, flips, zero
+> DDERR, zero crashes through 900 frames.** 647 host tests (0 fail, 6 skip;
+> +17); ledger **138/1490 (8.6%), 135 tested**. Corrected findings →
+> engine-quirks **#49** (format converters live in the slicer, not the pixel
+> writer) + **#50** (slicer passes cell_w/cell_h as the trim scanner's
+> height/width).
+>
+> ⚠ **8d fires but produces no *visible* sprites yet — and that's NOT an 8d
+> bug.** The title banks (pool 19/20) are never **registered** at boot, so
+> `ar_sprite_slot_frame` returns NULL (entries==NULL) and the
+> decode→slice→8d chain never runs. See **Next move #1**.
 
 
 **This is the first thing to read at the start of every session.**
@@ -16,23 +28,37 @@ Rolling state — REWRITE on each meaningful checkpoint, don't append.
 `docs/PROGRESS.md` is the append-only changelog; this file is "where
 to pick up *right now*".
 
-## ⭐ NEW (ckpt 23): 8d's trim scanner is ported + the whole 8d call graph is decoded
+## ⭐ Current state (ckpt 25): the whole render pipeline is ported; only bank registration is missing
 
-`bs_trim_opaque_rect` (`FUN_005b6f80`, in `bitmap_session.{c,h}`) — the
-opaque-bounding-box scanner 8d runs per sprite cell — is **ported + host-tested
-(6 tests)**, with a real asymmetry captured as **engine-quirk #48** (24bpp
-`y_bottom` is loose → `H-1`; 8bpp is tight). The **rest of 8d's call graph is
-now fully decoded** (r2) and written up in `docs/findings/sprite-pipeline.md`
-("8d call graph"): `0x5b9280` = new+ctor+`0x5b9630`+dtor (= `zdd_object_new`'s
-shape); `0x5b9630` = trim-gate → `create_surface_pair` (ported) → `0x5b9910`;
-`0x5b9910` = Lock(`0x5b9490`)+clip+zero+copy via the `0x5b7310/_74f0/_7270` +
-`0x5b7bd0` format converters. **The pure-logic 8d pieces are now all ported;
-what remains is DDraw-bound + interdependent** (Lock, pixel copy, format
-converters) — the **live-session chip**, where a registered bank + real display
-depth let the pixels be diffed against goldens. **629 host tests (623 pass,
-0 fail, 6 skip; +6)**; ledger **131/1490 (8.1%), 128 tested (+1)**.
+Everything from the title scene runner down to the per-cell DDraw surface is
+ported, host-tested, and live-crash-clean. The chain that runs every frame:
 
-## ⭐ NEW (ckpt 22): the title scene is driven from `main.c` — the loop runs live (un-verified)
+```
+title_scene_step  → render sink (title_sink) → resolve_frame(bank 19/20)
+   → ar_sprite_slot_frame(slot, id)
+        → [slot unregistered ⇒ entries==NULL ⇒ returns NULL]   ← THE GAP
+        → ar_sprite_decode_hook → ar_sprite_decode (0x4184a0)
+             → bs_decode_resource (needs slot->settings = PE resource source)
+             → ar_sprite_slice (0x4188b0): trim-scan + format switch + build
+                  → ar_sheet_format_hook → bs_convert_to_16bpp (RGB565)
+                  → ar_frame_build_hook → zdd_object_new_cell (8d) → real surface
+```
+
+**8d (the bottom three layers) is DONE.** What's missing is the **top**: the
+title banks at pool indices 19/20 (`AR_SPR_TITLE_MAIN`/`_CURSOR`) are never
+registered, so the getter short-circuits to NULL and nothing downstream runs.
+`ar_register_main_sprites(zdd, group, settings, sotesp_module)`
+(`src/asset_register.c:1295`) is the registrar — it stamps slots 1..9 with
+hard-coded resource IDs (0x49f, 0x448, 0x4a2, …) — **but it needs a valid
+`settings` record (the launcher's PE-resource source object) + the sotesp.dll
+HMODULE**, neither of which the drop-in builds yet. That is the launcher /
+asset-registration subsystem (milestone-4-adjacent), **the real next move**.
+
+Also still deferred (validate once sprites flow): the sink's `LOGO`/`SPARKLE`/
+`MENU_CURSOR` arms are no-op (alpha-ramp draws, ctx callbacks); the cold-boot
+intro must reach phase 8 (menu) for banked sprites to be drawn at all.
+
+## (ckpt 22, still true): the title scene is driven from `main.c` — the loop runs live
 
 `src/title_drive.{c,h}` is the **caller side of `FUN_0056aea0`** (the plumbing
 its retail caller `FUN_00562ea0` owns), and `main.c` now uses it as its actual
@@ -55,15 +81,11 @@ ckpt 11 — is finally **wired into the drop-in and bound to the live ZDD.**
   iteration presents via `TITLE_DRAW_FLIP`; scene completion logs the result +
   stops. **`--no-title-scene`** falls back to the legacy minimal present loop.
 
-**8d (`0x5b9280`, `ar_frame_build_hook`) is still NULL** ⇒ sprites resolve NULL
-⇒ the scene renders a **cleared + flipped window with no sprites** ("move B",
-the prove-the-loop-live state). Alpha ramps + compositor group pass through NULL
-(faithful cold boot). **This is the next move #1's human/Frida gate: live-verify
-the window comes up + zero DDERR + flips, THEN port 8d for real sprites.**
-
-623 host tests (617 pass, 0 fail, 6 skip; +6 this ckpt). Both 32-bit
-cross-builds clean. Ledger **unchanged at 130/1490 (8.1%), 127 tested** — the
-drive composes already-counted functions (no new `FUN_` port tokens).
+**8d (`0x5b9280`, `ar_frame_build_hook`) is now ported + wired (ckpt 25)** but
+sprites still resolve NULL because the banks are unregistered (the getter
+short-circuits before the build hook). So the scene currently still renders a
+**cleared + flipped window with no sprites** — register the banks (Next move #1)
+to light it up. Live: window comes up, zero DDERR, flips at 60fps, no crash.
 
 **Sink bank resolution (durable, ckpt 21, render half `0x56bb04..0x56bf1a`):**
 every per-phase draw resolves its source frame out of ONE of two fixed sprite
@@ -85,10 +107,9 @@ during the 8d/live-verify chip** (the command stream may need the sparkle
 src-rect + cursor numerator added). Full sink detail: `src/title_sink.h`.
 
 **Note:** the per-cell DDraw surface builder **8d** (`0x5b9280`,
-`ar_frame_build_hook`) is still unported — it's the genuine pixel source. The
-sink + drive run *now* with the build hook NULL (blank sprites); 8d fills them
-in. See "Render-port task list" below. 8d needs the DDraw god object live, so
-it wants **live verification** ([[reference_frida]]).
+`ar_frame_build_hook`) is now **ported + wired** (ckpt 25) — the build hook is
+`title_frame_build` → `zdd_object_new_cell`. It is live-crash-clean but does
+not fire yet (banks unregistered; see "Current state" above).
 
 ## (ckpt 13): TAS framework — retail ground-truth capture is live
 
@@ -251,11 +272,13 @@ render bridge, ckpt 17–19: `title_compositor_draw` `FUN_0056c180` + wrappers
 resolving banks 19/20, behind `title_render_sink_hook`), and **title_drive**
 (ckpt 22: `title_drive_{init,step,shutdown}` — the caller side of
 `FUN_0056aea0`: owns the scene object graph, binds the sink, runs the loop).
-Live boot zero DDERR through 10 frames in mode 2 (legacy loop). **The runner is
-now driven by `main.c`** (ckpt 22) with the sink bound to the live primary —
-but this is **un-live-verified**: it should render a cleared+flipped window with
-no sprites (8d build hook still NULL). `--no-title-scene` restores the legacy
-minimal `main_loop_body`.
+**The runner is driven by `main.c`** (ckpt 22) with the sink bound to the live
+primary, and **8d is wired** (ckpt 25: `title_frame_build`/`_free`/
+`title_sheet_format` adapters → `ar_frame_build_hook`/`_free_hook`/
+`ar_sheet_format_hook`). **Live-verified ckpt 25:** windowed 16bpp, 0 DDERR,
+60fps, 0 crashes through 900 frames — renders a cleared+flipped window with no
+sprites still (banks unregistered, Next move #1). `--no-title-scene` restores
+the legacy minimal `main_loop_body`.
 
 ## Active goal
 
@@ -283,72 +306,59 @@ the runner from the drop-in.
 `ar_sheet_decode_pixels`; the resource/DIB layer was already `bitmap_session`).
 **The remaining render-side chips, in dependency order (decoded in
 `docs/findings/sprite-pipeline.md`):**
-- **(8d) the per-cell DDraw surface builder `0x5b9280`** — wire
-  `ar_frame_build_hook` (+ `ar_frame_free_hook` = `0x5b9390`) to a real keyed
-  `zdd_object*` per cell. Pulls in `0x5b6f80` (trim metadata), the format
-  switch `0x5b7310/_74f0/_7270` (gated on `[zdd+0x168]` display depth), and
-  the 8bpp palette `0x5b7bd0`. Needs the DDraw god object live ⇒ first chip
-  that wants **live verification**, not only host tests.
-- ~~**(9a) implement `title_render_sink`** over the compositor/wrappers + the
-  frame surfaces~~ **DONE ckpt 21** (`src/title_sink.{c,h}` — see the top of
-  this file). Resolves banks 19/20, faithful for the intro + menu-bg + fade
-  path; LOGO/SPARKLE/MENU_CURSOR deferred behind ctx callbacks.
+- ~~**(8d) the per-cell DDraw surface builder `0x5b9280`**~~ **DONE ckpt 25**
+  (`zdd_object_new_cell`/`_build_cell`/`_copy_cell_pixels` + the four
+  converters `bs_convert_*` + the full slicer `ar_sprite_slice` + the `main.c`
+  hook adapters). Live-crash-clean at 16bpp; does not fire yet (banks
+  unregistered — see "Current state" + Next move #1).
+- ~~**(9a) implement `title_render_sink`**~~ **DONE ckpt 21** (`src/title_sink.
+  {c,h}`). Resolves banks 19/20, faithful for the intro + menu-bg + fade path;
+  LOGO/SPARKLE/MENU_CURSOR deferred behind ctx callbacks (still to wire).
 - ~~**(9b) drive `title_scene_step` from `main.c`**~~ **DONE ckpt 22**
-  (`src/title_drive.{c,h}` + `main.c` wiring — see the top of this file).
-  Un-live-verified: should render a cleared+flipped window with no sprites.
+  (`src/title_drive.{c,h}` + `main.c`). Live-verified ckpt 25 (60fps, 0 DDERR).
 - **(10)** port-side frame capture + a `push_comparison.py` (port|retail
   amplified diff to llm-feed) to close the pixel-parity loop against the goldens
-  in `runs/title-idle` & `runs/newgame-full`. Latent until 8d lands (a blank
-  window diffs trivially against a blank window).
+  in `runs/title-idle` & `runs/newgame-full`. **Now gated on bank registration**
+  (Next move #1), not on 8d — 8d is done.
 
 ## Next move (pick one — recommendation first)
 
-> Context (ckpt 13): the TAS harness now gives us **retail golden frames** for
-> any scripted scene. The natural arc toward "pixel parity on new game" is:
-> port the render bridges (move 1) → drive the runner from `main.c` (move 2) →
-> capture **port** frames the same way → diff vs the retail goldens captured by
-> the harness. Move 1 is still the critical path; the harness is the yardstick.
->
-> Two harness-side follow-ups (either self-serviceable or a quick human ask):
-> - **Prologue → first-playable-map ground truth** needs a recorded human
->   trace (advance/skip the opening cutscene) distilled to a sparse
->   `{frame,ids}` trace — ask the user to record, or RE the prologue sequencer.
-> - ~~**Port-side `input_trace.{c,h}`**~~ **DONE ckpt 24** (`--input-trace`,
->   replays into the drive's ring keyed on the Flip count). Live-validate the
->   injection drives the scene next session; the port-frame-capture + diff half
->   is still gated on 8d pixels.
+> Context (ckpt 25): the **entire render pipeline is ported** — title runner →
+> sink → compositor → blit primitives → 8d per-cell surface builder → format
+> converters. The drive runs live, windowed at 16bpp, zero DDERR/crashes. The
+> ONE thing standing between "blank window" and "the title screen renders" is
+> **sprite-bank registration**: the getter returns NULL because pool slots
+> 19/20 are never registered. Wire registration → the whole chain lights up and
+> 8d's pixels finally hit the screen. This is the payoff move.
 
-> Context (ckpt 22): the **drive is wired** (`title_drive.{c,h}` + `main.c`).
-> The title scene is now the drop-in's per-frame loop, sink bound to the live
-> primary — but **un-live-verified**. With 8d still NULL it should render a
-> cleared+flipped window with no sprites ("move B"). Two natural next chips:
-> **(A) live-verify the drive** (Frida self-serviceable — the immediate human
-> gate), then **(B) port 8d** (`0x5b9280`) to fill the sprite surfaces. 8d is
-> host-portable *now* (pure logic over surface descriptors) with live
-> verification deferred, so it's the best autonomous chip if staying headless.
+1. **(recommended) Register the title sprite banks so the pipeline lights up.**
+   `ar_register_main_sprites(zdd, group, settings, sotesp_module)`
+   (`asset_register.c:1295`) stamps pool slots 1..9 with the title resource IDs
+   (0x49f logo, 0x448 press-button, 0x4a2, 0x49d/0x913/0x91b backgrounds,
+   0x91c/0x91d, 0x8df). **The hard part is the args:**
+   - `settings` = the launcher's **PE-resource source record** (the object
+     `bs_decode_resource` dereferences as the HMODULE/resource dir). The
+     drop-in doesn't build this yet — it's the launcher/config subsystem
+     (`config.dat`, `FUN_005a4770`, milestone 4). **RE what `settings` must
+     point at** (likely just an HMODULE for `LoadResource`/`FindResource` on
+     the game exe or sotesp.dll) — it may be far simpler than full config
+     parsing. Start by disassembling `bs_load_pe_resource`'s real use of the
+     settings pointer + a retail call to `ar_register_main_sprites`
+     (FUN_005749b0) to see how `settings`/`sotesp_module` are sourced.
+   - Map pool index 19/20 (`AR_SPR_TITLE_MAIN`/`_CURSOR`) vs the registrar's
+     slots 1..9 — confirm which registrar populates the banks the sink reads
+     (`ar_pool_get_slot(19)`); there may be an index-base offset.
+   Then: live-run, confirm `ar_sprite_decode` fires (add a temp log), 8d builds
+   surfaces, and the title logo/menu actually blits. **Frida self-serviceable
+   ([[reference_frida]]); use a recorded log or `--input-trace` to reach the
+   menu phase.** Once pixels flow, validate against the harness goldens
+   (`runs/title-idle`) and wire the deferred sink arms (LOGO/SPARKLE/
+   MENU_CURSOR) + the port-side frame capture (10).
 
-1. **(recommended, live-session) Finish 8d — the per-cell DDraw surface
-   builder `0x5b9280`** (`ar_frame_build_hook`; release `0x5b9390` =
-   `zdd_object_dtor`). This is the **genuine pixel source** — what turns the
-   drive's blank window into real sprites. **The pure-logic pieces are already
-   ported**: `bs_trim_opaque_rect` (0x5b6f80, ckpt 23), `create_surface_pair`,
-   ctor/dtor/prefill/stamp. **The full call graph is decoded** in
-   `docs/findings/sprite-pipeline.md` ("8d call graph") with arg mappings — so
-   this is now *wire + verify*, not RE. **Remaining (DDraw-bound, do live):**
-   the orchestrator `0x5b9630` (trim-gate → create_surface_pair → pixel writer),
-   the pixel writer `0x5b9910` + Lock `0x5b9490`, and the format converters
-   `0x5b7310/_74f0/_7270` + 8bpp palette `0x5b7bd0`. Best ported + verified
-   together with a registered bank live (the produced pixels diff against the
-   harness goldens). Then the deferred sink arms (LOGO/SPARKLE/MENU_CURSOR) get
-   their real impls + the port-side frame capture (10) closes the parity loop.
-
-2. **Live-verify the ckpt-22 drive** (Frida self-serviceable, [[reference_frida]],
-   no-turbo). Run `tools/run-retail.sh`? No — run the **port**:
-   `opensummoners-debug.exe` (console build) and confirm: the window comes up,
-   zero DDERR/frame, the "Title Menu - Flipping" log fires, and the scene steps
-   (a cleared+flipped window, no sprites yet). If it busy-spins or the cadence
-   is off, tune `main.c`'s `frame_limiter` vs the scene pacer. This is the gate
-   before trusting 8d's live output. (`--no-title-scene` isolates DDraw issues.)
+2. **Live-validate the `--input-trace` injection** (ckpt 24, still unverified):
+   does an injected press actually skip the splash / nav the menu on the port?
+   Best done together with #1 (you need the menu phase reached anyway). Frida
+   self-serviceable, no-turbo.
 
 3. **`mem_watch.py` on the input-ring producer** — the one live probe not yet
    exercised. `mem_watch.py --region <+0x108 addr>:64:input_ring` (no-turbo!)
@@ -356,15 +366,13 @@ the runner from the drop-in.
    ring + the `axis_held` arrays (quirk #41) — the last input black box. Needs
    the runtime address of the input-manager object first (resolve via a hook on
    a known consumer like `0x43c110`). Self-serviceable now ([[reference_frida]]).
-   (The call-trace half of the harness is already live-verified — see the
-   parity-harness paragraph above; its diff is blocked on Next move #2, not on
-   a live run.)
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
 - **`FUN_0056aea0`** title scene runner — **fully ported + wired + update
-  half complete + driven from `main.c` (ckpt 22).** Remaining: the real pixel
-  source behind the sink (8d, `0x5b9280`) + live verification of the drive.
+  half complete + driven from `main.c` (ckpt 22), live-verified (ckpt 25).**
+  The whole render pipeline below it is ported too; remaining is upstream bank
+  registration (Next move #1), not the runner or the pixel path.
 - **Render-half draw bridges** (will sit behind `title_render_sink_hook`).
   **The whole blit-primitive layer is ported** in `zdd.c`: `0x5b9410`
   (surface reset = `zdd_object_clear`), `0x5b9b70` (color-key blit/clear =
@@ -376,11 +384,12 @@ the runner from the drop-in.
   wrapper layer (ckpt 17–19) are ported** in `title_render` (`0x56c180`/
   `0x56c610`/`_4e0`/`_470`/`_580`) + **the sheet decoder `0x4184a0` + slicer
   `0x4188b0` (ckpt 20)** in `asset_register.c` (`ar_sprite_decode` /
-  `ar_sprite_slice` / `ar_sheet_decode_pixels`). **Still unported (the
-  genuine pixel source) = the per-cell DDraw surface builder `0x5b9280`**
-  (behind `ar_frame_build_hook`; + `0x5b9390` release behind
-  `ar_frame_free_hook`, `0x5b6f80` metadata, `0x5b7310/_74f0/_7270` format
-  setup, `0x5b7bd0` 8bpp palette) and the logo `0x494e10`. The asset pool
+  `ar_sprite_slice` / `ar_sheet_decode_pixels`). **8d — the per-cell DDraw
+  surface builder `0x5b9280` — is now ported too (ckpt 25)** (`zdd_object_
+  new_cell`/`_build_cell`/`_copy_cell_pixels` + `ar_frame_free_hook`'s
+  `0x5b9390` release + `0x5b6f80` trim metadata + the `0x5b7310/_74f0/_7270`
+  format converters + `0x5b7bd0` palette, all wired). Only the logo `0x494e10`
+  remains on this layer. The asset pool
   `DAT_008a760c` is the already-modeled `ar_sprite_slot` pool
   (`ar_pool_get_slot`). The
   ramps `0x8a92b8`/`0x8a9308` are pixel_drawer's `g_pd_boot_group_a/_b` as

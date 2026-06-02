@@ -218,6 +218,19 @@ god-object display-depth format switch (`[zdd+0x168]` →
 Headless (no build hook) sizes + zero-fills the frames array but leaves the
 surfaces NULL — exactly the frame getter's "still undecoded" path.
 
+> **PORTED ckpt 25.** All of 8d is now ported + host-tested + wired live:
+> `zdd_object_new_cell`/`_build_cell`/`_copy_cell_pixels` (`src/zdd.c`), the
+> four format converters `bs_convert_to_16bpp`/`_8bpp_to_24bpp`/
+> `_24bpp_to_32bpp` + `bs_load_palette_from` (`src/bitmap_session.c`), and the
+> full slicer body `ar_sprite_slice` (`src/asset_register.c`) with the
+> trim-scan loop + format switch.  **Correction to the note below:** the
+> format converters are NOT in the pixel writer `0x5b9910` (a raw byte copy) —
+> they are in the **slicer**, run over the whole sheet before per-cell build.
+> See engine-quirks #49.  The port boots windowed at 16bpp, drives the title,
+> flips, zero DDERR/crashes.  Remaining gap to *visible* sprites (separate
+> subsystem): the title banks are never registered at boot — `ar_register_
+> main_sprites` needs the launcher settings record (PE resource source).
+
 ### 8d call graph (decoded ckpt 23 — r2, ready to wire in the live session)
 
 ```

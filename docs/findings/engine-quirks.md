@@ -1155,3 +1155,45 @@ trimming saves more) or an oversight, the port reproduces it byte-for-byte.
 > 📍 `bs_trim_opaque_rect` in `src/bitmap_session.c`; host-tested by the
 > `trim_24bpp_loose_ybottom_quirk` vs `trim_8bpp_tight_ybottom` pair (same
 > opaque shape, `y_bottom` = 7 vs 4).
+
+## 49. The sprite format conversion lives in the *slicer*, not the pixel writer — the per-cell builder is a raw byte blit
+
+The ckpt-23 sprite-pipeline note placed the display-depth format converters
+(`0x5b7310`/`_74f0`/`_7270` + the 8bpp palette `0x5b7bd0`) inside the per-cell
+pixel writer `0x5b9910`.  Re-reading the Ghidra decompilations (ckpt 25) shows
+that is wrong: **`0x5b9910` is a plain `rep movs` byte copy** with no converter
+dispatch at all.  The format switch is in the **slicer `0x4188b0`**
+(`0x4189f2..0x418b45`): it converts the *whole decoded sheet* in place to the
+god-object display depth (`switch [zdd+0x168]`) **once, before** the per-cell
+build loop runs.  By the time `0x5b9910` copies a cell, source and dest already
+share a pixel format, so the raw copy is correct.
+
+Consequences for the port:
+- The converters are `bitmap_session` methods (`bs_convert_to_16bpp` etc.),
+  ported in `bitmap_session.c` — not `zdd`.
+- `zdd_object_copy_cell_pixels` takes bytes-per-pixel from the **source**
+  depth (`biBitCount>>3`) and clamps the per-row span to both the dest pitch
+  and the source stride.
+- The switch has two arms differing only in the converter's `key_color`
+  argument: `0` when `slot->colorkey == 0x1ffffff` (no key), `0xff00ff`
+  otherwise (and `param_5` is then forced to `0xff00ff` for the build loop —
+  the same normalisation as quirk #47).
+
+> 📍 `bs_convert_*` in `src/bitmap_session.c`; `zdd_object_copy_cell_pixels` in
+> `src/zdd.c`; the switch in `ar_sprite_slice` (`src/asset_register.c`) routed
+> through `ar_sheet_format_hook` (adapter `title_sheet_format` in `main.c`).
+
+## 50. The slicer passes (cell_w, cell_h) as the trim scanner's (height, width) args
+
+In the slicer's trim-scan loop (`0x4189a9`), `FUN_005b6f80` (the opaque-rect
+scanner) is invoked as `(key, base_x, base_y, param_3, param_4, out)` where
+`param_3` is the **cell width** and `param_4` the **cell height** — but the
+scanner's 4th/5th parameters are `height` then `width` (it iterates
+`row < arg4`, `x < arg5`).  So a non-square cell is scanned transposed
+(cell_w rows × cell_h cols).  For the title banks the cells are square or the
+whole sheet, so the transposition is invisible there; whether it is a latent
+retail bug or the two dimensions are simply interchangeable for the bbox math,
+the port mirrors the literal argument order.
+
+> 📍 `ar_sprite_slice` trim loop in `src/asset_register.c` (passes `cell_w` as
+> `bs_trim_opaque_rect`'s `height`, `cell_h` as its `width`).
