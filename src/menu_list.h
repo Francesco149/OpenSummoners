@@ -136,8 +136,11 @@ typedef struct menu_cell {
                          *         itself an owned ptr (clear frees both)     */
     void   *obj54;      /* +0x04 — 0x54-byte sub-object (finalizer re-zeroes) */
     void   *obj20;      /* +0x08 — 0x20-byte sub-object (finalizer re-zeroes) */
-    int32_t field_c;    /* +0x0c — zeroed by ctor                            */
-    uint8_t _pad10[0x08];/* +0x10..+0x17 — ctor leaves untouched (stride 0x18)*/
+    int32_t field_c;    /* +0x0c — zeroed by ctor; non-zero selects the
+                         *         per-cell colour override below (0x48e200)  */
+    int32_t color10;    /* +0x10 — per-cell text COLORREF (used when field_c
+                         *         != 0; ctor leaves untouched, stride 0x18)  */
+    int32_t color14;    /* +0x14 — per-cell shadow/secondary COLORREF         */
 } menu_cell;
 
 /* cell.obj54 (0x54 B).  Only the fields the finalizer (FUN_00411f40)
@@ -497,8 +500,11 @@ _Static_assert(offsetof(menu_ctrl, list)      == 0x174, "ctrl.list");
 _Static_assert(offsetof(menu_ctrl, entries)   == 0x178, "ctrl.entries");
 _Static_assert(offsetof(menu_ctrl, rows)      == 0x17c, "ctrl.rows");
 _Static_assert(sizeof(menu_cell)           == 0x18, "menu_cell size");
-_Static_assert(offsetof(menu_cell, obj54)  == 0x04, "cell.obj54");
-_Static_assert(offsetof(menu_cell, obj20)  == 0x08, "cell.obj20");
+_Static_assert(offsetof(menu_cell, obj54)   == 0x04, "cell.obj54");
+_Static_assert(offsetof(menu_cell, obj20)   == 0x08, "cell.obj20");
+_Static_assert(offsetof(menu_cell, field_c) == 0x0c, "cell.field_c");
+_Static_assert(offsetof(menu_cell, color10) == 0x10, "cell.color10");
+_Static_assert(offsetof(menu_cell, color14) == 0x14, "cell.color14");
 _Static_assert(sizeof(menu_cell_obj54)        == 0x54, "obj54 size");
 _Static_assert(offsetof(menu_cell_obj54, field4)  == 0x04, "obj54.field4");
 _Static_assert(offsetof(menu_cell_obj54, field46) == 0x46, "obj54.field46");

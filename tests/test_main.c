@@ -711,6 +711,17 @@ struct test_case {
     X(glyph_layout_overlong_drops_text)                        \
     X(glyph_layout_bounds_noop)                                \
     X(glyph_layout_escape_hook_fires)                          \
+    X(glyph_row_draw_ascii_advance)                            \
+    X(glyph_row_draw_sjis_double_advance)                      \
+    X(grid_render_normal_row_shadow_and_text)                  \
+    X(grid_render_focused_row_uses_focus_colour)               \
+    X(grid_render_disabled_row_no_shadow)                      \
+    X(grid_render_two_columns_positions)                       \
+    X(grid_render_sel2_and_stride_paging)                      \
+    X(grid_render_monospace_right_align)                       \
+    X(grid_render_ruby_gate_noop_for_raw_text)                 \
+    X(grid_render_empty_cell_skipped)                          \
+    X(grid_render_null_list_noop)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS
