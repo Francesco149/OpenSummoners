@@ -1256,6 +1256,143 @@ void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
     zdd_object_unlock(dest);
 }
 
+/* ─── software alpha/colorize blitter (FUN_005bd680 / _bd550) ──────── */
+
+/* One blended pixel.  `s` is the source word, `d` the (possibly read)
+ * dest word.  Mode 1 is the only mode that reads `d`. */
+static inline uint16_t zdd_blend_pixel(const zdd_blend_desc *desc,
+                                       uint16_t s, uint16_t d)
+{
+    uint32_t out = 0;
+    for (int ch = 0; ch < 3; ch++) {
+        const zdd_blend_channel *c = &desc->ch[ch];
+        uint32_t sh   = (uint32_t)c->shift & 0x1fu;   /* defensive, like
+                                                       * zdd_color_convert */
+        uint32_t s_ch = (s & c->mask) >> sh;
+        uint32_t idx;
+
+        if (desc->mode == 1) {
+            uint32_t d_ch = (d & c->mask) >> sh;
+            /* Retail hardcodes the src-level stride at 32 (`shl ebp,5`)
+             * for every channel, even 6-bit green — see engine-quirks
+             * #44.  Mirror the literal. */
+            idx = (s_ch << 5) + d_ch;
+        } else {
+            idx = s_ch;
+        }
+        out |= (uint32_t)c->lut[idx] << sh;
+    }
+    return (uint16_t)out;
+}
+
+/* Colorize-mode index: (ch0 + ch1 + ch2) / 3 of the source pixel.  The
+ * divide is retail's unsigned reciprocal-multiply (0xaaaaaaab); plain
+ * unsigned /3 is bit-identical for the in-range sums involved. */
+static inline uint32_t zdd_blend_gray_index(const zdd_blend_desc *desc,
+                                            uint16_t s)
+{
+    uint32_t sum = 0;
+    for (int ch = 0; ch < 3; ch++) {
+        const zdd_blend_channel *c = &desc->ch[ch];
+        sum += (s & c->mask) >> ((uint32_t)c->shift & 0x1fu);
+    }
+    return sum / 3u;
+}
+
+void zdd_alpha_blit_pixels(const zdd_blend_desc *desc,
+                           uint16_t *dst_base, int32_t dst_stride,
+                           int32_t dst_height,
+                           const uint16_t *src_base, int32_t src_stride,
+                           int32_t dst_x, int32_t dst_y,
+                           int32_t width, int32_t height,
+                           int32_t src_x, int32_t src_y,
+                           int32_t colorkey)
+{
+    if (desc == NULL || dst_base == NULL || src_base == NULL) return;
+
+    /* Clip exactly as retail (0x5bd6d3..0x5bd739): */
+    /* 1. right edge clamps to the dest stride (pitch in words). */
+    if (dst_x + width > dst_stride) width = dst_stride - dst_x;
+    /* 2. bottom edge clamps to the dest height. */
+    if (dst_y + height > dst_height) height = dst_height - dst_y;
+    /* 3. negative dest x: grow width by it, advance src, pin dest to 0. */
+    if (dst_x < 0) {
+        width += dst_x;
+        src_x -= dst_x;
+        dst_x  = 0;
+    }
+    /* 4. negative dest y: same for the vertical axis. */
+    if (dst_y < 0) {
+        height += dst_y;
+        src_y  -= dst_y;
+        dst_y   = 0;
+    }
+    if (width <= 0 || height <= 0) return;
+
+    /* mode != 0/1/2 → retail's default branch makes no writes. */
+    if (desc->mode < 0 || desc->mode > 2) return;
+
+    for (int32_t row = 0; row < height; row++) {
+        const uint16_t *s = src_base + (int32_t)(src_y + row) * src_stride + src_x;
+        uint16_t       *d = dst_base + (int32_t)(dst_y + row) * dst_stride + dst_x;
+        for (int32_t col = 0; col < width; col++) {
+            uint16_t sp = s[col];
+            /* Colorkey skip: retail compares the full arg word against the
+             * zero-extended 16-bit source pixel. */
+            if (colorkey == (int32_t)(uint32_t)sp) continue;
+
+            uint16_t out;
+            if (desc->mode == 2) {
+                uint32_t g = zdd_blend_gray_index(desc, sp);
+                uint32_t v = 0;
+                for (int ch = 0; ch < 3; ch++) {
+                    const zdd_blend_channel *c = &desc->ch[ch];
+                    v |= (uint32_t)c->lut[g] << ((uint32_t)c->shift & 0x1fu);
+                }
+                out = (uint16_t)v;
+            } else {
+                out = zdd_blend_pixel(desc, sp, d[col]);
+            }
+            d[col] = out;
+        }
+    }
+}
+
+/* FUN_005bd680 — the __thiscall wrapper.  `dest` is already Locked by the
+ * caller (0x5bd550 locks it before the call); this function owns the
+ * source Lock only.  On a failed source Lock retail jumps straight to the
+ * epilogue (no Unlock), so we mirror that. */
+void zdd_alpha_blit(const zdd_blend_desc *desc, zdd_object *dest,
+                    zdd_object *src,
+                    int32_t dst_x, int32_t dst_y,
+                    int32_t width, int32_t height,
+                    int32_t src_x, int32_t src_y,
+                    int32_t colorkey)
+{
+    if (desc == NULL || dest == NULL || src == NULL) return;
+
+    /* Dest geometry is read first, before the source Lock — dest is
+     * already locked by the caller. */
+    void   *dst_buf = NULL;
+    int32_t dst_pitch = 0, dst_height = 0;
+    zdd_object_get_locked_info(dest, &dst_buf, &dst_pitch, &dst_height);
+
+    if (!zdd_object_lock(src)) return;   /* je 0x5bdaa6: no Unlock */
+
+    void   *src_buf = NULL;
+    int32_t src_pitch = 0;
+    zdd_object_get_locked_info(src, &src_buf, &src_pitch, NULL);
+
+    /* Strides are pitch/2 (signed idiv), like every other 16bpp path. */
+    zdd_alpha_blit_pixels(desc,
+                          (uint16_t *)dst_buf, dst_pitch / 2, dst_height,
+                          (const uint16_t *)src_buf, src_pitch / 2,
+                          dst_x, dst_y, width, height,
+                          src_x, src_y, colorkey);
+
+    zdd_object_unlock(src);
+}
+
 /* ─── lost-surface recovery (FUN_005b9ac0/_9ab0/_91d0/_9240) ─────── */
 
 /* DDERR_SURFACELOST literal — retail's `cmp eax, 0x887601c2` at

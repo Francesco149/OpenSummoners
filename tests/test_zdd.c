@@ -3725,3 +3725,201 @@ int test_zdd_restore_all_surfaces_skips_nulls(void)
     return 0;
 }
 
+
+/* ─── zdd_alpha_blit / _pixels (FUN_005bd680 software blitter) ──────── */
+
+/* Build an RGB565 blend descriptor with caller-supplied per-channel byte
+ * LUTs.  Channels: R shift=11 mask=0xF800, G shift=5 mask=0x07E0,
+ * B shift=0 mask=0x001F. */
+static zdd_blend_desc ab_make565(int mode, const uint8_t *l0,
+                                 const uint8_t *l1, const uint8_t *l2)
+{
+    zdd_blend_desc d;
+    memset(&d, 0, sizeof(d));
+    d.mode = mode;
+    d.ch[0].shift = 11; d.ch[0].mask = 0xF800u; d.ch[0].lut = l0;
+    d.ch[1].shift = 5;  d.ch[1].mask = 0x07E0u; d.ch[1].lut = l1;
+    d.ch[2].shift = 0;  d.ch[2].mask = 0x001Fu; d.ch[2].lut = l2;
+    return d;
+}
+
+static uint16_t ab_565(uint32_t r, uint32_t g, uint32_t b)
+{
+    return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
+int test_zdd_alpha_blit_mode0_identity_copies(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(0, id, id, id);
+    uint16_t src[4] = { ab_565(10,20,4), ab_565(31,63,31),
+                        ab_565(0,0,0), ab_565(5,5,5) };
+    uint16_t dst[4] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
+    /* 2x2 region, stride 2, height 2, colorkey -1 never matches a 16bpp
+     * pixel (compared zero-extended). */
+    zdd_alpha_blit_pixels(&d, dst, 2, 2, src, 2, 0, 0, 2, 2, 0, 0, -1);
+    for (int i = 0; i < 4; i++) T_ASSERT_EQ_U(dst[i], src[i]);
+    return 0;
+}
+
+int test_zdd_alpha_blit_colorkey_skips(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(0, id, id, id);
+    uint16_t key = ab_565(0,0,0);   /* 0x0000 */
+    uint16_t src[4] = { ab_565(1,1,1), key, ab_565(2,2,2), key };
+    uint16_t dst[4] = { 0xAAAA, 0xBBBB, 0xCCCC, 0xDDDD };
+    zdd_alpha_blit_pixels(&d, dst, 2, 2, src, 2, 0, 0, 2, 2, 0, 0, (int32_t)key);
+    T_ASSERT_EQ_U(dst[0], src[0]);   /* copied */
+    T_ASSERT_EQ_U(dst[1], 0xBBBB);   /* skipped (== key) */
+    T_ASSERT_EQ_U(dst[2], src[2]);   /* copied */
+    T_ASSERT_EQ_U(dst[3], 0xDDDD);   /* skipped */
+    return 0;
+}
+
+int test_zdd_alpha_blit_mode0_lut_transforms_red(void)
+{
+    uint8_t id[256], zero[256];
+    for (int i = 0; i < 256; i++) { id[i] = (uint8_t)i; zero[i] = 0; }
+    /* red -> 0, green/blue identity */
+    zdd_blend_desc d = ab_make565(0, zero, id, id);
+    uint16_t src[1] = { ab_565(20,40,10) };
+    uint16_t dst[1] = { 0 };
+    zdd_alpha_blit_pixels(&d, dst, 1, 1, src, 1, 0, 0, 1, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], ab_565(0,40,10));
+    return 0;
+}
+
+int test_zdd_alpha_blit_mode2_colorize(void)
+{
+    uint8_t l0[256] = {0}, l1[256] = {0}, l2[256] = {0};
+    /* src r=10,g=20,b=4 -> gray = (10+20+4)/3 = 11 */
+    l0[11] = 1; l1[11] = 2; l2[11] = 3;
+    zdd_blend_desc d = ab_make565(2, l0, l1, l2);
+    uint16_t src[1] = { ab_565(10,20,4) };
+    uint16_t dst[1] = { 0xFFFF };
+    zdd_alpha_blit_pixels(&d, dst, 1, 1, src, 1, 0, 0, 1, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], ab_565(1,2,3));
+    return 0;
+}
+
+int test_zdd_alpha_blit_mode1_blends_with_dest(void)
+{
+    /* blend LUT lut[i] = ((i>>5) + (i&31)) / 2 — averages the src level
+     * (index>>5) with the dst level (index&31).  Keeping dst levels <=31
+     * makes the hardcoded <<5 stride exact (quirk #44), so this also pins
+     * the (src<<5)+dst index formula. */
+    static uint8_t bl[4096];
+    for (int i = 0; i < 4096; i++) bl[i] = (uint8_t)(((i >> 5) + (i & 31)) / 2);
+    zdd_blend_desc d = ab_make565(1, bl, bl, bl);
+    uint16_t src[1] = { ab_565(10, 20, 8) };
+    uint16_t dst[1] = { ab_565(20, 4, 16) };   /* dst levels all <= 31 */
+    zdd_alpha_blit_pixels(&d, dst, 1, 1, src, 1, 0, 0, 1, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], ab_565((10+20)/2, (20+4)/2, (8+16)/2));
+    return 0;
+}
+
+int test_zdd_alpha_blit_clips_width_to_dst_stride(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(0, id, id, id);
+    uint16_t src[4] = { ab_565(1,1,1), ab_565(2,2,2),
+                        ab_565(3,3,3), ab_565(4,4,4) };
+    /* dst stride = 2 words, height 1, but request width 4 -> clamps to 2. */
+    uint16_t dst[4] = { 0, 0, 0x1234, 0x5678 };
+    zdd_alpha_blit_pixels(&d, dst, 2, 1, src, 4, 0, 0, 4, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], src[0]);
+    T_ASSERT_EQ_U(dst[1], src[1]);
+    T_ASSERT_EQ_U(dst[2], 0x1234);   /* beyond clamped width: untouched */
+    T_ASSERT_EQ_U(dst[3], 0x5678);
+    return 0;
+}
+
+int test_zdd_alpha_blit_clips_negative_origin(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(0, id, id, id);
+    /* blit 3x3 at dst (-1,-1) from src origin (0,0).  After clip:
+     * dst (0,0), 2x2, src origin (1,1). */
+    uint16_t src[9];
+    for (int i = 0; i < 9; i++)
+        src[i] = ab_565((uint32_t)(i+1), (uint32_t)(i+1), (uint32_t)(i+1));
+    uint16_t dst[9]; for (int i = 0; i < 9; i++) dst[i] = 0;
+    zdd_alpha_blit_pixels(&d, dst, 3, 3, src, 3, -1, -1, 3, 3, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], src[4]);   /* src (1,1) */
+    T_ASSERT_EQ_U(dst[1], src[5]);   /* src (1,2) */
+    T_ASSERT_EQ_U(dst[2], 0);
+    T_ASSERT_EQ_U(dst[3], src[7]);   /* src (2,1) */
+    T_ASSERT_EQ_U(dst[4], src[8]);   /* src (2,2) */
+    for (int i = 5; i < 9; i++) T_ASSERT_EQ_U(dst[i], 0);
+    return 0;
+}
+
+int test_zdd_alpha_blit_mode_out_of_range_noop(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(3, id, id, id);   /* invalid mode */
+    uint16_t src[1] = { ab_565(1,2,3) };
+    uint16_t dst[1] = { 0x9999 };
+    zdd_alpha_blit_pixels(&d, dst, 1, 1, src, 1, 0, 0, 1, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(dst[0], 0x9999);   /* default branch makes no writes */
+    return 0;
+}
+
+int test_zdd_alpha_blit_pixels_null_guards(void)
+{
+    uint8_t id[256]; for (int i = 0; i < 256; i++) id[i] = (uint8_t)i;
+    zdd_blend_desc d = ab_make565(0, id, id, id);
+    uint16_t buf[1] = { 0x1111 };
+    zdd_alpha_blit_pixels(NULL, buf, 1, 1, buf, 1, 0, 0, 1, 1, 0, 0, -1);
+    zdd_alpha_blit_pixels(&d, NULL, 1, 1, buf, 1, 0, 0, 1, 1, 0, 0, -1);
+    zdd_alpha_blit_pixels(&d, buf, 1, 1, NULL, 1, 0, 0, 1, 1, 0, 0, -1);
+    T_ASSERT_EQ_U(buf[0], 0x1111);
+    return 0;
+}
+
+int test_zdd_alpha_blit_wrapper_src_lock_fail_noop(void)
+{
+    reset_stubs();
+    g_dd_lock_result = 0;   /* source Lock fails */
+    zdd_blend_desc d; memset(&d, 0, sizeof(d));
+    zdd_object dest, src;
+    memset(&dest, 0, sizeof(dest)); memset(&src, 0, sizeof(src));
+    dest.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary  = (void *)(uintptr_t)0xaaa1;
+    zdd_alpha_blit(&d, &dest, &src, 0, 0, 1, 1, 0, 0, -1);
+    /* Only the source Lock is attempted (dest geometry is read, not
+     * locked, here); on failure there is no Unlock. */
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 0);
+    return 0;
+}
+
+int test_zdd_alpha_blit_wrapper_drives_core_and_unlocks(void)
+{
+    reset_stubs();
+    /* get_locked_info returns the same buffer for dest and src in the
+     * host stub; mode 0 with a red-zeroing LUT transforms it in place,
+     * proving the core ran on the locked geometry. */
+    static uint16_t buf[8];
+    for (int i = 0; i < 8; i++) buf[i] = ab_565(31, 10, 5);
+    g_dd_lock_fill_surface = buf;
+    g_dd_lock_fill_pitch   = 8;   /* stride = 4 words */
+    g_dd_lock_fill_height  = 2;
+
+    static uint8_t id[256], zero[256];
+    for (int i = 0; i < 256; i++) { id[i] = (uint8_t)i; zero[i] = 0; }
+    zdd_blend_desc d = ab_make565(0, zero, id, id);   /* red -> 0 */
+
+    zdd_object dest, src;
+    memset(&dest, 0, sizeof(dest)); memset(&src, 0, sizeof(src));
+    dest.com_primary = (void *)(uintptr_t)0xddd1;
+    src.com_primary  = (void *)(uintptr_t)0xaaa1;
+
+    zdd_alpha_blit(&d, &dest, &src, 0, 0, 4, 2, 0, 0, -1);
+
+    T_ASSERT_EQ_I(g_dd_lock_calls,   1);   /* src only */
+    T_ASSERT_EQ_I(g_dd_unlock_calls, 1);
+    for (int i = 0; i < 8; i++) T_ASSERT_EQ_U(buf[i], ab_565(0, 10, 5));
+    return 0;
+}

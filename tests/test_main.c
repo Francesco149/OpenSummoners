@@ -535,6 +535,17 @@ struct test_case {
     X(zdd_object_upscale_16bpp_zero_scale_noop)                \
     X(zdd_object_upscale_16bpp_dest_lock_fail_skips_src)       \
     X(zdd_object_upscale_16bpp_both_locks_then_both_unlocks)   \
+    X(zdd_alpha_blit_mode0_identity_copies)                    \
+    X(zdd_alpha_blit_colorkey_skips)                           \
+    X(zdd_alpha_blit_mode0_lut_transforms_red)                 \
+    X(zdd_alpha_blit_mode2_colorize)                           \
+    X(zdd_alpha_blit_mode1_blends_with_dest)                   \
+    X(zdd_alpha_blit_clips_width_to_dst_stride)                \
+    X(zdd_alpha_blit_clips_negative_origin)                    \
+    X(zdd_alpha_blit_mode_out_of_range_noop)                   \
+    X(zdd_alpha_blit_pixels_null_guards)                       \
+    X(zdd_alpha_blit_wrapper_src_lock_fail_noop)               \
+    X(zdd_alpha_blit_wrapper_drives_core_and_unlocks)          \
     X(zdd_object_is_lost_null_self_returns_zero)               \
     X(zdd_object_is_lost_null_com_primary_returns_zero)        \
     X(zdd_object_is_lost_ddok_returns_zero)                    \

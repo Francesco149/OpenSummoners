@@ -91,6 +91,50 @@ typedef struct zdd_color_descriptor {
     uint8_t   _pad16[2];                     /* +0x16..+0x17 — alignment */
 } zdd_color_descriptor;
 
+/* ─── software blend descriptor (the `this` of FUN_005bd680) ────────── */
+
+/* The blitter at FUN_005bd680 is __thiscall on a small blend-descriptor
+ * object that carries the pixel-format channel layout (mask + shift) and
+ * one byte LUT per channel.  Its fields, pinned from the blitter's reads:
+ *
+ *   +0x00 mode  — 0 = per-channel remap (src only, 1-D LUT)
+ *                 1 = src×dst blend (2-D LUT, stride 32 — see quirk #44)
+ *                 2 = colorize (gray = (ch0+ch1+ch2)/3 → 1-D LUT)
+ *   then three 0x14-byte channel records starting at +0x04:
+ *     +0x00 shift — right-shift to extract the channel AND left-shift to
+ *                   place it back (same value, e.g. R=11/G=5/B=0 for 565)
+ *     +0x04 mask  — channel bitmask (e.g. 0xF800/0x07E0/0x001F)
+ *     +0x08 lut   — byte LUT (mode 0/2: lut[level]; mode 1: lut[src*32+dst])
+ *     +0x0c/+0x10 — two dwords unread by the blitter (opaque pad)
+ *
+ * NB: `lut` is a pointer — on the 32-bit cross-build it is 4 bytes and the
+ * 0x14 record stride holds exactly; on the 64-bit host build the struct is
+ * larger but the layout is irrelevant there (host tests synthesise the
+ * descriptor in C, they never map retail memory).  Offsets are asserted
+ * only under the 32-bit guard, like every other retail-layout struct. */
+typedef struct zdd_blend_channel {
+    int32_t        shift;                    /* +0x00 */
+    uint32_t       mask;                     /* +0x04 */
+    const uint8_t *lut;                      /* +0x08 */
+    int32_t        _reserved0c;              /* +0x0c — unread by blitter */
+    int32_t        _reserved10;              /* +0x10 — unread by blitter */
+} zdd_blend_channel;                         /* 0x14 (32-bit) */
+
+typedef struct zdd_blend_desc {
+    int32_t           mode;                  /* +0x00 */
+    zdd_blend_channel ch[3];                 /* +0x04 / +0x18 / +0x2c */
+} zdd_blend_desc;
+
+#if defined(UINTPTR_MAX) && UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(offsetof(zdd_blend_desc, mode)   == 0x00, "blend mode offset");
+_Static_assert(offsetof(zdd_blend_desc, ch)     == 0x04, "blend ch[0] offset");
+_Static_assert(offsetof(zdd_blend_desc, ch[1])  == 0x18, "blend ch[1] offset");
+_Static_assert(offsetof(zdd_blend_desc, ch[2])  == 0x2c, "blend ch[2] offset");
+_Static_assert(offsetof(zdd_blend_channel, mask) == 0x04, "blend ch mask offset");
+_Static_assert(offsetof(zdd_blend_channel, lut)  == 0x08, "blend ch lut offset");
+_Static_assert(sizeof(zdd_blend_channel)         == 0x14, "blend ch must be 20 bytes");
+#endif
+
 /* Field layout inferred from FUN_005b7f80 (ctor writes), FUN_005b7fe0
  * (dtor reads), and FUN_005b8040 (5-slot release loop).  Size 0x170 is
  * the literal `operator_new(0x170)` argument in FUN_005b7ee0. */
@@ -1293,6 +1337,50 @@ int  zdd_bind_pixel_format(zdd *self, void *surface);
  * re-test mode 4. */
 void zdd_object_upscale_16bpp(zdd_object *dest, zdd_object *src,
                               int32_t scale_factor);
+
+/* Pure-logic core of the software alpha blitter (FUN_005bd680).  Blends a
+ * `width`×`height` region of the 16bpp source at (src_x,src_y) onto the
+ * 16bpp dest at (dst_x,dst_y), per `desc->mode`, skipping any source pixel
+ * equal to `colorkey`.  Strides are in 16-bit words (= lPitch / 2).
+ *
+ * Clipping mirrors retail exactly: the right edge clamps to dst_stride
+ * (NOT a separate dest width — retail uses the pitch-in-words as the
+ * horizontal bound), the bottom clamps to dst_height, and negative
+ * dst_x/dst_y shift the source origin and zero the dest origin.  No source
+ * bound is checked — the caller guarantees the source is large enough.
+ *
+ * The three modes (see zdd_blend_desc):
+ *   0: out_ch = lut_ch[(src & mask_ch) >> shift_ch] << shift_ch
+ *   1: out_ch = lut_ch[(((src&mask)>>shift)<<5) + ((dst&mask)>>shift)]
+ *               << shift_ch                       (reads the dest pixel)
+ *   2: g = Σ((src&mask_ch)>>shift_ch) / 3;  out_ch = lut_ch[g] << shift_ch
+ * mode values other than 0/1/2 leave the dest untouched (retail's default
+ * branch falls through to the unlock with no writes).
+ *
+ * Operates purely on caller-supplied locked buffers — no DDraw calls, no
+ * Lock/Unlock — so it is fully host-testable with synthetic buffers. */
+void zdd_alpha_blit_pixels(const zdd_blend_desc *desc,
+                           uint16_t *dst_base, int32_t dst_stride,
+                           int32_t dst_height,
+                           const uint16_t *src_base, int32_t src_stride,
+                           int32_t dst_x, int32_t dst_y,
+                           int32_t width, int32_t height,
+                           int32_t src_x, int32_t src_y,
+                           int32_t colorkey);
+
+/* FUN_005bd680 — software alpha blitter.  __thiscall on a zdd_blend_desc;
+ * `dest` must already be Locked by the caller (its geometry is read
+ * directly), while `src` is Locked/Unlocked by this function around the
+ * blit (mirroring retail: only the source surface lock is owned here).
+ * If the source Lock fails the call is a no-op (no Unlock — retail jumps
+ * past it).  Geometry/stride come from each zdd_object's post-Lock DDSD
+ * via zdd_object_get_locked_info; the blend math is zdd_alpha_blit_pixels. */
+void zdd_alpha_blit(const zdd_blend_desc *desc, zdd_object *dest,
+                    zdd_object *src,
+                    int32_t dst_x, int32_t dst_y,
+                    int32_t width, int32_t height,
+                    int32_t src_x, int32_t src_y,
+                    int32_t colorkey);
 
 /* FUN_005b9ac0 — "is self->com_primary in the DDERR_SURFACELOST state?"
  * Calls IsLost via vtable[24] and returns 1 iff the HRESULT is

@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **122** (7.5% of engine-proper) — tested 119, ported 3
-- code bytes touched: **9.7%** (164,407 / 1,694,868 B of engine-proper)
-- unported: **1636**
+- touched: **123** (7.6% of engine-proper) — tested 120, ported 3
+- code bytes touched: **9.8%** (165,479 / 1,694,868 B of engine-proper)
+- unported: **1635**
 - orphan refs in src/ not in this table: 0
 
-## tested (119) — ported + host unit suite
+## tested (120) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -135,6 +135,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+3) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
 | 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |

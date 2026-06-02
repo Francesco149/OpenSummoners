@@ -998,3 +998,27 @@ The two menus also poll **different id sets**: the title polls
 > 📍 TAS injection in `tools/frida/opensummoners-agent.js`
 > (`installInputInjection`); when replaying input across a scene transition,
 > resolve the manager per-poll, never once.
+
+## 44. The software blend LUT is indexed with a hardcoded src-level stride of 32 — even for the 6-bit green channel
+
+The software alpha blitter `FUN_005bd680` has three blend modes selected by
+its descriptor's `+0x00` field; mode 1 is a true src×dst blend that indexes a
+per-channel byte LUT by `(src_level << 5) + dst_level` (`shl ebp, 5` at
+0x5bd8f8 / 0x5bd934 / 0x5bd95c).  The `<< 5` (×32) src stride is **hardcoded
+for all three channels**, but in RGB565 the green channel is 6-bit
+(`0x07E0 >> 5` ⇒ levels 0..63).  So for green, `dst_level` (0..63) exceeds the
+32-entry "row" and bleeds into the next src row's region of the table.
+
+Either retail's green blend LUT is laid out to absorb this (rows sized to the
+real dst range, with `src_level*32` only nominal), or the green channel in
+*this* descriptor is actually fed a ≤5-bit mask — TBD when the descriptor's
+constructor is ported.  The literal port mirrors the `<< 5`; the LUT contents
+and the descriptor build are a separate (future) chip.
+
+Modes 0 and 2 are 1-D (`lut[src_level]` and `lut[gray]` respectively, where
+`gray = (ch0+ch1+ch2)/3` via the `0xaaaaaaab` reciprocal-multiply), so the
+stride quirk is mode-1-only.  All three modes skip any source pixel equal to
+the colorkey arg (`cmp colorkey, src; je`).
+
+> 📍 `zdd_alpha_blit_pixels` in `src/zdd.c`; descriptor layout in
+> `zdd_blend_desc` (`src/zdd.h`).
