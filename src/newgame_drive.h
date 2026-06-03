@@ -40,11 +40,16 @@
  * title menu's menu_owner_transition_step mode-1 ramp (quirk #34/#59): the menu
  * becomes navigable ~20 frames after it appears.
  *
+ * The option picker submenu (0x567ba0) is now wired: a CONFIRM on a kind-0 row
+ * yields NEWGAME_OPEN_PICKER, and the drive opens that option's nested value
+ * grid (newgame_picker) as a modal SUBMODE — subsequent frames pump input into
+ * the picker (its own gate ramp) instead of the parent scene.  On the picker's
+ * COMMIT the drive calls newgame_scene_set_option(id, chosen) to re-lay the
+ * value cell; on CANCEL the option is left unchanged.  This is the frame-stepped
+ * equivalent of retail's blocking modal FUN_00567ba0 call (which suspends the
+ * parent's frame loop until it returns 0/0xc).
+ *
  * DEFERRED seams (documented for the next unit, NOT modelled here):
- *   - the option picker submenu (0x567ba0): a CONFIRM on a kind-0 row yields
- *     NEWGAME_OPEN_PICKER; the drive surfaces it (picker_requests++) but does
- *     not yet open a nested grid — the value stays put.  Once ported, the
- *     picker's commit calls newgame_scene_set_option to re-lay the value cell.
  *   - the box widget chrome + the tooltip text node render (the second GDI-text
  *     node at y=416/444): the render callback's job; the scene already computes
  *     the tooltip text (newgame_scene_tooltip) for it.
@@ -57,6 +62,7 @@
 #include <stdint.h>
 
 #include "newgame_scene.h"   /* newgame_scene / newgame_scene_status / dispatch */
+#include "newgame_picker.h"  /* the option picker submenu the drive runs        */
 #include "input.h"           /* input_mgr / input_event / INPUT_RING_LEN        */
 
 /* The input-gate ramp (the +0x54 ready field +N/frame to 1000).  Matches the
@@ -93,6 +99,13 @@ typedef struct newgame_drive_cfg {
  * render callback, which reads scene.node / scene.grid). */
 typedef struct newgame_drive {
     newgame_scene scene;
+
+    /* The option picker submenu, active only while `picker_active` is set.  When
+     * active the per-frame input pump drives `picker.grid` (its own ramping gate)
+     * instead of the parent scene; the render callback overlays it on the menu. */
+    newgame_picker picker;
+    int            picker_active;
+
     input_mgr     input;
 
     /* Backing store for the input manager's 64-slot ring.  As in title_drive:
@@ -112,7 +125,8 @@ typedef struct newgame_drive {
 
     /* Diagnostics (read by the drive's tests + main.c's logging). */
     int32_t  last_pump;                    /* last pump code fed to dispatch     */
-    uint32_t picker_requests;              /* count of OPEN_PICKER outcomes      */
+    uint32_t picker_requests;              /* count of pickers opened            */
+    uint32_t picker_commits;               /* count of picker value commits      */
 } newgame_drive;
 
 /* Build the scene (newgame_scene_init) + bind the input ring, store the cfg

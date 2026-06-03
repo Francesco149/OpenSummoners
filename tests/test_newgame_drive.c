@@ -182,7 +182,7 @@ int test_newgame_drive_back_returns_to_title(void)
     return 0;
 }
 
-/* ── confirm on an option row surfaces OPEN_PICKER + keeps running ── */
+/* ── confirm on an option row opens the picker submenu + keeps running ── */
 int test_newgame_drive_confirm_option_opens_picker(void)
 {
     newgame_drive d;
@@ -198,6 +198,82 @@ int test_newgame_drive_confirm_option_opens_picker(void)
     T_ASSERT_EQ_I(st, NEWGAME_OPEN_PICKER);
     T_ASSERT_EQ_U(d.picker_requests, 1);
     T_ASSERT_EQ_I(d.done, 0);                        /* not terminal — keeps running */
+
+    /* the picker is now the active modal submode, opened on the current value
+     * (difficulty 10 = Easy = row 0 of {10,20,30,40}). */
+    T_ASSERT_EQ_I(d.picker_active, 1);
+    T_ASSERT_EQ_I(d.picker.option_id, NEWGAME_OPT_DIFFICULTY);
+    T_ASSERT_EQ_I(d.picker.count, 4);
+    T_ASSERT_EQ_I(d.picker.grid.list->cursor, 0);
+    T_ASSERT_EQ_I(newgame_picker_focused_value(&d.picker), 10);
+
+    newgame_drive_shutdown(&d);
+    return 0;
+}
+
+/* ── full picker flow: open → nav → commit re-lays the parent value ── */
+int test_newgame_drive_picker_commits_value(void)
+{
+    newgame_drive d;
+    newgame_drive_cfg cfg = ng_basic_cfg();
+    newgame_drive_init(&d, &cfg);
+    d.scene.sub.ready = 1000;
+    T_ASSERT_EQ_I(d.scene.settings.difficulty, 10);   /* default Easy */
+
+    /* confirm on Game Difficulty → opens the picker (on Easy, row 0). */
+    d.scene.grid.list->cursor = 0;
+    ng_press(&d, 3, 0x24, 7000);
+    newgame_drive_step(&d, 7000);
+    T_ASSERT_EQ_I(d.picker_active, 1);
+
+    /* the picker gate ramps just like the menu; open it for the test. */
+    d.picker.sub.ready = 1000;
+
+    /* down → picker cursor 0→1 (Easy→Normal); stays in the submode. */
+    ng_press(&d, 3, 3, 7100);
+    newgame_scene_status st = newgame_drive_step(&d, 7100);
+    T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+    T_ASSERT_EQ_I(d.picker_active, 1);
+    T_ASSERT_EQ_I(newgame_picker_focused_value(&d.picker), 20);
+
+    /* confirm → COMMIT: the option is set to 20 (Normal), the value cell
+     * re-laid, and the picker submode closes. */
+    ng_press(&d, 4, 0x24, 7200);
+    st = newgame_drive_step(&d, 7200);
+    T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+    T_ASSERT_EQ_I(d.picker_active, 0);
+    T_ASSERT_EQ_U(d.picker_commits, 1);
+    T_ASSERT_EQ_I(d.scene.settings.difficulty, 20);   /* committed Normal */
+
+    /* the parent menu is back to row 0 and still navigable. */
+    T_ASSERT_EQ_I(newgame_scene_focused_row(&d.scene), 0);
+
+    newgame_drive_shutdown(&d);
+    return 0;
+}
+
+/* ── picker cancel (0x27) leaves the option unchanged ── */
+int test_newgame_drive_picker_cancel_keeps_value(void)
+{
+    newgame_drive d;
+    newgame_drive_cfg cfg = ng_basic_cfg();
+    newgame_drive_init(&d, &cfg);
+    d.scene.sub.ready = 1000;
+
+    d.scene.grid.list->cursor = 1;                    /* Auto-guard (default On=1) */
+    ng_press(&d, 3, 0x24, 7000);
+    newgame_drive_step(&d, 7000);
+    T_ASSERT_EQ_I(d.picker_active, 1);
+    T_ASSERT_EQ_I(d.picker.option_id, NEWGAME_OPT_AUTO_GUARD);
+    d.picker.sub.ready = 1000;
+
+    /* back/cancel → picker closes, no commit, auto_guard unchanged. */
+    ng_press(&d, 5, 0x27, 7100);
+    newgame_scene_status st = newgame_drive_step(&d, 7100);
+    T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+    T_ASSERT_EQ_I(d.picker_active, 0);
+    T_ASSERT_EQ_U(d.picker_commits, 0);
+    T_ASSERT_EQ_I(d.scene.settings.auto_guard, 1);    /* still On */
 
     newgame_drive_shutdown(&d);
     return 0;
