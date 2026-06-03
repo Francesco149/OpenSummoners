@@ -6,6 +6,49 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 55) — the in-game MAP OBJECT is ported + host-tested (0x59f2c0 fresh-entry arm + 0x4c5350 room-key resolution)
+
+Ported the **runtime map object** the in-game engine builds on a fresh new-game
+entry into new pure, host-tested **`src/game_map.{c,h}`**: the
+`in_stack_0000eb2c == 0` arm of **`FUN_0059f2c0`** (lines 160-218) plus the
+**`FUN_004c5350`** room-key resolution it calls.  It allocates the
+`operator_new(0x4120)` map object (as a zero-initialised `buf[0x4120]`) + the
+**8× `operator_new(0xeec)`** actor sub-objects, runs the 8-actor init loop (slot
+index at `+0xa0c`, **`FUN_00560e60`** field-zero, per-slot active flag
+`map+0x4084+4*i = 1`), writes the header fields (`+0x40a4=1`, `+0x4018=1`,
+**`+0x4054=3`**, the `+0x405c..+0x4064` u16 run, the 3 `{1,0}` tail pairs at
+`+0x4108` that fill the object exactly to `+0x4120`, the `GetTickCount` stamp at
+`+0x4068`), sets `map+0x4104 = 0x3f2`, then `FUN_004c5350`'s `map==0x3f2` arm
+writes the **room-lookup key `map+0x4024 = 0x334be`** (+ spawn params
+`+0x4028=0x65`/`+0x402c=1`).  `game_map_active_room` then resolves that key via
+`game_world_find_room` → **room 210110 "Town of Tonkiness"** (area 0xd2, scene
+1022) — the end-to-end opening-room build, on top of the ckpt-54 table layer.
+
+**Fidelity boundaries (documented in the header).**  The map buffer is
+zero-initialised (retail's `operator_new` is raw + relies on the explicit writes
++ opaque sub-inits `0x5612b0`/`0x5611d0`/`0x4e59a0`); `map+0x4020` (the `+0x4014`
+ramp ceiling) is set by one of those, so the ramp is inert under zero-init and
+does not affect the verified room key.  `FUN_004c5350`'s sprite-registry
+sub-calls (`0x408dc0`/`0x413b20`/…) and its `0x3fc` arm (gated by unported
+save-flag state) are skipped; the `map==1` arm's pure writes are kept.  An
+ordering note is preserved: the `map==0 → 0x3f2` default at `0x59f2c0:378-381`
+runs *after* `FUN_004c5350`, so a `0`-map fresh entry gets no key from the
+resolver — the real path always passes `0x3f2` (`0x59ec30(0,0,0x3f2)`).
+
+6 new host tests (`tests/test_game_map.c`) → **766 pass / 0 fail / 6 skip** (+6).
+Ledger **180/1490** (`0x4c5350`, `0x560e60` now *tested*; `0x59f2c0` was already
+touched via the ckpt-54 `game_world` header).  Both port builds (mingw GUI +
+debug) compile clean — `game_map.c` is pulled into the `src` wildcard but
+**not yet called by `main.c`** (it is the world-runtime foundation the unported
+sim/render units read, same status as `game_world`).  Full writeup:
+`docs/findings/in-game-intro.md` "The MAP OBJECT".
+
+**Next:** a slice of `0x586010` (sim) → `0x5a00c0` (render) that walks this map
+object + room 210110 to draw the static town backdrop, diffed vs
+`runs/tas-ingame-1` anchored on `game_enter`.
+
+---
+
 ## 2026-06-03 (ckpt 54) — the world-table layer is PORTED + host-tested; map 0x3f2 → room 210110 ("Town of Tonkiness") resolved
 
 Ported the data half of the in-game engine's fresh-entry world construction into
