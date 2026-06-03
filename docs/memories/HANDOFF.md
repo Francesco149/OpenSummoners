@@ -49,10 +49,23 @@
 > newgame_enter (`0x404a0a8f`) but differ at prologue_enter (port `0x404a0a8f`
 > vs retail `0x40d00581`): the retail transition consumes `rand()` the port
 > doesn't.  The gem is RNG-independent so unaffected, but it's the canonical
-> "unaccounted rand consumer between two anchors".  **NEXT: port the transition
-> (closes both), or add `--force-rng-at <anchor>=<value>` to resync.**  Full
-> writeup: **`docs/findings/tas-harness.md`**.  No host-test change (tooling +
-> main.c anchor logging); 749 pass.  Ledger unchanged (harness work).
+> "unaccounted rand consumer between two anchors".
+>
+> **GAP #2 NOW CLOSED (user chose "port the transition").**  New **`--rand-probe`**
+> (tally rand() callers between two anchors) pinned it to **exactly 2 rand()
+> calls** (`0x5b6acc`/`0x5b6ae9`) inside **`FUN_005b6990`** — the **initial
+> save-file write** (resource `0x2711`) retail runs on "Start Game", salting its
+> buffer with 2 rand draws.  Save deferred (milestone 4), but its RNG side
+> effect is on the TAS path, so **`newgame_start_save_salt()`** (main.c) consumes
+> the 2 draws on the START→prologue handoff → port prologue_enter rng now
+> **`0x40d00581`**, matching retail.  **GAP #1 (the 20-flip fade-out) STILL OPEN:**
+> retail's `FUN_00564160` post-config loop runs ≤20 frames of the new-game scene
+> **fading to black** (box panels ramp alpha down — `FUN_005642e0` +
+> `FUN_0056c930` modes 0/2 + `FUN_0043c2e0`) before `0x56cd20`; the port enters
+> the cutscene 1 flip after commit, so the cutscene offset drifts during the
+> fade-in.  **NEXT: port that fade-out so the timelines align at a constant
+> offset.**  Full writeup: **`docs/findings/tas-harness.md`**.  749 host tests
+> pass (tooling + main.c).  Ledger unchanged (harness + 1 RNG side-effect line).
 >
 > ─────────────────────────────────────────────────────────────────────────────
 

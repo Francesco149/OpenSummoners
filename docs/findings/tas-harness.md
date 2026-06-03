@@ -136,20 +136,27 @@ Two divergences the anchors surfaced — **open RE threads, not render bugs**:
 
 2. **RNG desync at `prologue_enter`.**  newgame_enter: port & retail both
    `rng=0x404a0a8f` (match).  prologue_enter: port `0x404a0a8f`, retail
-   `0x40d00581` (**differ**).  The retail transition (#1) consumes `rand()`
-   the port does not.  The gem render is RNG-independent so this does not
-   affect the gem frames, but any rand-driven cutscene effect downstream would
-   diverge — this is the canonical "unaccounted rand() consumer between two
-   anchors" the anchor RNG stamp is designed to catch.  Fix options: port the
-   transition faithfully (consume the same rand stream), or force retail's RNG
-   to the port's value at the anchor (a planned `--force-rng-at` knob).
+   `0x40d00581` (differ).  **CLOSED (this ckpt).**  The new `--rand-probe`
+   (tally rand() callers between two anchors) pinned it to **exactly 2 rand()
+   calls** (callers `0x5b6acc`/`0x5b6ae9`) inside **`FUN_005b6990`** — the
+   initial **save-file write** (resource `0x2711`) retail runs on the "Start
+   Game" commit, obfuscating the buffer with a 2-rand salt.  The save itself is
+   deferred (milestone 4), but its RNG side effect is on the TAS critical path,
+   so `newgame_start_save_salt()` (main.c) consumes the two draws on the
+   START→prologue handoff.  Verified: port prologue_enter rng now `0x40d00581`,
+   matching retail (LCG `0x404a0a8f` →×2→ `0x40d00581`).
 
 ## Next
 
-- Port the new-game → prologue transition (`0x564160`/`0x5642e0`) so the port
-  consumes the same rand stream and the cutscene timelines align at a constant
-  offset — closes both open threads.
-- `--force-rng-at <anchor>=<value>` retail knob to resync RNG at a boundary
-  (isolates render parity from transition divergence while #1 is unported).
+- **Port the 20-frame fade-out (open thread #1).**  The remaining half of the
+  faithful transition: retail's `FUN_00564160` post-config loop runs up to 20
+  frames of the new-game scene fading to black (the box panels ramp their alpha
+  down — `FUN_005642e0` + `FUN_0056c930` modes 0/2 + `FUN_0043c2e0`, the
+  deferred slide/fade arms) before `0x56cd20`.  Porting it makes the port also
+  spend ~20 frames there, so the cutscene timelines align at a CONSTANT anchor
+  offset (today the offset drifts during the fade-in because the port enters
+  the cutscene 1 flip after the commit vs retail's ~20).
+- `--force-rng-at <anchor>=<value>` retail knob (still useful as a general TAS
+  safety net to resync RNG at any boundary).
 - Extend anchors + trace past the prologue into the game proper (`0x59ec30`)
   once the user opts to extend the trace in-game.
