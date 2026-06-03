@@ -1,4 +1,48 @@
-# Session handoff — last updated 2026-06-03 (ckpt 45 — the new-game OPTION PICKER submenu is ported + wired + rendered + USER-CONFIRMED (FUN_00567ba0, quirk #71); next is the Start→game path (0x564160→0x59ec30) — the prologue critical path)
+# Session handoff — last updated 2026-06-03 (ckpt 46 — the ELEMENTAL-STONE PROLOGUE CUTSCENE (FUN_0056cd20) is ported + wired into the Start path + RENDERS LIVE (gem + aura + scrolling narration), USER-CONFIRMED visually; next is the bit-exact retail diff, then the game proper 0x59ec30 — in-game, deferred)
+
+> **ckpt 46 — THE ELEMENTAL-STONE PROLOGUE CUTSCENE IS PORTED, WIRED, AND
+> RENDERS LIVE.**  Confirming "Start Game" in the new-game menu now runs the gem
+> cutscene (`FUN_0056cd20`, the prologue critical path): the glowing purple
+> Elemental Stone rises on black with a soft aura, while the **story NARRATION
+> scrolls** ("Elemental Stones: stones imbued with the power of an Elemental
+> Spirit, which grant the wielder of one the ability to control that element via
+> 'magic'.…").  New pure, host-tested **`src/prologue_stone.{c,h}`** (the visual
+> half of `0x56cd20`): the per-tick UPDATE state machine (start delay, watchdog,
+> gem fade-in/hold/fade-out, gem-frame %0x23 + aura toggle cadence, the rise
+> curve, the 6 caption-line state machines, abort/beat input) + the render-
+> descriptor build.  New **`src/prologue_drive.{c,h}`** is the Win32-free caller
+> (steps one tick/frame, renders + presents; no input-gate ramp — the cutscene
+> reads the raw ring).  `main.c`: `prologue_render` clears to black + blits gem
+> (slot[3]/0x4a2 via ramp_b) → aura (slot[1]/0x49f via ramp_a) → 24 caption tiles
+> (slot[2]/0x448 via ramp_b); the new-game START commit now calls `enter_prologue`
+> instead of re-displaying the title; on DONE the game proper is unported (re-
+> display title, logged), on ABORT (0x22) → title.  19 host tests (**749 pass /
+> 0 fail / 6 skip**).  Ledger **174/1490 (+1: `0x56cd20`)**.
+>
+> **KEY LIVE FINDING:** the **prologue NARRATION is part of `0x56cd20`**, NOT the
+> game proper — it is **pre-baked sprite tiles** (bank `0x448` = slot[2], a 24-
+> tile strip = 6 lines × 4 horizontal tiles), the grid the survey first mislabeled
+> "sparkles".  `0x56cd20` uses **no GDI text** at all.  The banks were **already
+> registered at boot** (`ar_register_main_sprites` group 4), and the alpha blit
+> (`zdd_alpha_blit`) + ramps (`g_ramp_a`/`g_ramp_b`) were already ported — so the
+> cutscene needed only the state model + drive + wiring.  The aura's blend ramp
+> (ramp_a, idx `local_bc/30`) was recovered from the **disasm** (`0x56d38d`); the
+> decompiler had dropped `FUN_005bd550`'s `__thiscall` ECX = the ramp entry.
+>
+> **USER-CONFIRMED visually** ("that cutscene looks good… on first inspection it
+> looks right").  Montage pushed to llm-feed (frames 950–3300 of one run).
+>
+> **OPEN gate — NO bit-exact retail diff yet.**  No retail golden of the stone
+> intro has been captured.  NEXT: drive **retail** to the cutscene (the committed
+> trace + Start-Game confirm), capture goldens, and `differ_px`-diff the gem +
+> narration vs the port — the bit-exact bar.  (Caveat to assess: like the picker,
+> `0x56cd20`'s modal loop may freeze the hooked Flip counter — if so, capture
+> needs a non-flip-keyed harness.)  Until then the cutscene is eyeball-verified.
+> See Next move #1.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 45 — the new-game OPTION PICKER submenu is ported + wired + rendered + USER-CONFIRMED (FUN_00567ba0, quirk #71))
 
 > **ckpt 45 — THE NEW-GAME OPTION PICKER SUBMENU IS PORTED, WIRED, RENDERED,
 > AND USER-CONFIRMED.**  Confirming on a kind-0 option row (Game Difficulty /
@@ -702,13 +746,44 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the new-game config scene RUNS LIVE (ckpt 39), renders its 9-slice BOX
-> PANEL (ckpt 40) AND its selection cursor **bit-exact** (ckpt 43 — the trim fix
-> closed the 307px residual; menu-box `differ_px=0`).  The active goal (user,
-> ckpt 13) is **1:1 parity** for title + new-game + prologue.  What's left is the
-> remaining chrome (tooltip text) + the Start→game transition.
+> Context: the title is a bit-exact loop; the new-game config scene renders bit-
+> exact (box + text + cursor + tooltip) with the picker user-confirmed; and now
+> the **prologue gem cutscene renders live + user-confirmed visually** (ckpt 46).
+> The active goal (user, ckpt 13) is **1:1 parity** for title + new-game +
+> prologue.  What's left for the prologue is the **bit-exact retail diff**.
 
-1. **(recommended) Finish the new-game scene's remaining CHROME + transitions.**
+1. **(recommended) Capture a RETAIL golden of the stone intro + `differ_px`-diff
+   it vs the port.**  The cutscene (`FUN_0056cd20`) renders correctly by eyeball
+   (gem + aura + scrolling narration; user-confirmed ckpt 46) but has **no bit-
+   exact verification** yet — no retail golden captured.  Drive **retail** to the
+   cutscene: the committed new-game trace + a Start-Game confirm (down ×2 from
+   row 0, then `0x24`), capture frames during the gem rise, and diff the gem +
+   narration region vs the port at a matched animation tick (the gem fade/rise +
+   the caption `sub`-stagger make the tick alignment derivable, like the intro
+   twinkles).  **Caveat to assess first:** `0x56cd20` is a modal loop like the
+   picker — it may freeze the hooked Flip counter (`0x565d10` quirk #67 class),
+   in which case flip-keyed capture/inject won't reach it and a non-flip-keyed
+   harness (hook `0x56cd20`'s own `FUN_005b8fc0` present) is needed.  Port-side
+   driving recipe (self-serviceable, WORKS): write a trace into the game dir —
+   `{"frame":620,"ids":[36]}` (title Start), `{"frame":720,"ids":[3]}`,
+   `{"frame":745,"ids":[3]}` (down ×2 → Start Game), `{"frame":800,"ids":[36]}`
+   (confirm) — then `./build/opensummoners-launcher.exe --timeout-ms 120000 --
+   /tmp/oss.exe --hide-window --frames 3600 --input-trace prologue_trace.jsonl
+   --capture-frames "950,1550,2300,2800" --capture-dir=C:/osscap` (**forward
+   slashes** in the capture dir — the launcher eats a backslash → `C:osscap`).
+   Frames after ~800 are the cutscene; the narration's 2nd line appears ~flip
+   2300.  Modules: `src/prologue_stone.{c,h}` (pure state+render),
+   `src/prologue_drive.{c,h}` (the caller), `prologue_render` in `main.c` (blits).
+
+2. **Then the game proper (`0x59ec30`, map 0x3f2) — the next big rock, but
+   OUT-OF-SCOPE until the user extends the trace.**  On PROLOGUE_DONE the port
+   re-displays the title (logged seam).  Entering `0x59ec30` is the whole in-game
+   engine (`0x59f2c0` map loop + resource load/unload) — the active goal says "do
+   NOT extend the trace toward in-game yet; once we have prologue and main menu
+   rendering we extend the trace."  We now HAVE prologue + main menu rendering, so
+   this is the moment to ask the user whether to extend the trace toward in-game.
+
+3. **(deferred polish, optional) Finish the new-game scene's remaining CHROME.**
    The box panel + menu text + selection cursor render bit-exact; port the rest in
    roughly this order (cheapest visual win first):
    ~~(a) the box widget panel~~ **DONE (ckpt 40, quirk #67, `src/newgame_box.c`).**

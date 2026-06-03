@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 46) — the ELEMENTAL-STONE PROLOGUE CUTSCENE (`FUN_0056cd20`) is ported, wired into the Start path, and renders live (gem + aura + scrolling narration); user-confirmed visually
+
+Confirming "Start Game" in the new-game menu now runs the gem cutscene — the
+**prologue critical path**.  The boot driver (`FUN_00562ea0` case 0x1a) runs
+three blocking calls: the config menu (`0x564160`, ported as `newgame_*`), the
+**stone intro (`0x56cd20`)**, then the game proper (`0x59ec30`, deferred/in-game).
+Surveyed in **`docs/findings/prologue-stone-intro.md`**.
+
+New pure, host-tested **`src/prologue_stone.{c,h}`** (the visual half of
+`0x56cd20`): the per-tick UPDATE state machine (start delay, watchdog, gem
+fade-in/hold/fade-out, gem-frame `%0x23` + aura toggle every 7 ticks, the rise
+curve `local_a0 += local_88/100` with ease-out past 16000, the 6 caption-line
+state machines, abort/beat input) + the render-descriptor build.  New
+**`src/prologue_drive.{c,h}`** is the Win32-free caller (steps one tick/frame,
+renders + presents; simpler than newgame_drive — no input gate, the cutscene
+reads the raw ring).  `main.c` `prologue_render` clears to black + blits gem
+(slot[3]/0x4a2 via ramp_b) → aura (slot[1]/0x49f via ramp_a) → 24 caption tiles
+(slot[2]/0x448 via ramp_b); the new-game START commit calls `enter_prologue`.
+
+**Key head-start:** the gem/aura/caption banks were **already registered at boot**
+(`ar_register_main_sprites` group 4), and the alpha blit (`zdd_alpha_blit` =
+`0x5bd550`) + ramps (`g_ramp_a`/`g_ramp_b`) were already ported — so the cutscene
+needed only the state model + drive + wiring.  The aura's blend ramp (ramp_a, idx
+`local_bc/30`) was recovered from the **disasm** (`0x56d38d`); the decompiler had
+dropped `FUN_005bd550`'s `__thiscall` ECX = the ramp entry.
+
+**Live finding:** the scrolling **prologue NARRATION is part of `0x56cd20`**, not
+the game proper — it is **pre-baked sprite tiles** (bank `0x448` = slot[2], a
+24-tile strip = 6 lines × 4 horizontal tiles), the grid the survey first
+mislabeled "sparkles" (renamed → `caption` throughout).  `0x56cd20` uses no GDI
+text.  **User-confirmed visually** ("that cutscene looks good… on first
+inspection it looks right"); montage pushed to llm-feed.
+
+19 host tests (**749 pass / 0 fail / 6 skip**).  Ledger **174/1490 (+1:
+`0x56cd20`)**.  Commits `df6fddf` (state model) + `3b20fd6` (drive + wiring) +
+`04bbd29` (caption rename + survey correction).  **OPEN gate:** no bit-exact
+retail diff yet — capturing a retail golden of the stone intro + `differ_px` is
+the next move (mind the possible modal-loop Flip-freeze, picker class).
+
 ## 2026-06-03 (ckpt 44) — new-game TOOLTIP TEXT NODE rendered bit-exact: word-wrap port (`FUN_0040e5e0`), 0 text-colored pixels differ
 
 The bottom-of-screen help line is a **standalone word-wrapping text node**
