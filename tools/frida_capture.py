@@ -224,6 +224,9 @@ class CaptureConfig:
     lockstep:            bool = False
     lockstep_step_ms:    int  = 0x10
     lockstep_epsilon_ms: int  = 1
+    # Tally rand() call sites between newgame_enter and prologue_enter — finds
+    # the transition's unaccounted rand consumer (TAS RNG-desync diagnosis).
+    rand_probe:          bool = False
 
     max_frames:        int  = 30_000
     duration_ms:       int  = 30_000
@@ -557,6 +560,14 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary.setdefault("anchors", {})[name] = payload.get("frame")
             if isinstance(rng, int):
                 summary.setdefault("anchor_rng", {})[name] = rng
+        elif kind == "rand_window":
+            callers = payload.get("callers", {})
+            order = sorted(callers.items(), key=lambda kv: -kv[1])
+            print(f"[frida_capture] rand_window {payload.get('from')}→"
+                  f"{payload.get('to')}: {payload.get('total')} rand() calls, "
+                  f"by caller: {order}", file=sys.stderr)
+            summary["rand_window"] = {"total": payload.get("total"),
+                                      "callers": callers}
         elif kind == "lockstep_armed":
             print(f"[frida_capture] lockstep clock ARMED @ flip "
                   f"{payload.get('frame')} clock={payload.get('clock_ms')}ms "
@@ -683,6 +694,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "lockstep":           cfg.lockstep,
         "lockstep_step_ms":   int(cfg.lockstep_step_ms),
         "lockstep_epsilon_ms": int(cfg.lockstep_epsilon_ms),
+        "rand_probe":         cfg.rand_probe,
         "call_trace":         cfg.call_trace,
         "call_trace_vas":     [int(v) for v in (cfg.call_trace_vas or [])],
         "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
@@ -842,6 +854,9 @@ def main() -> int:
     p.add_argument("--lockstep-epsilon-ms", type=int, default=1,
                    help="per-call clock creep in lockstep mode to defeat busy-wait hangs "
                         "(default 1; set 0 for a pure per-Flip freeze)")
+    p.add_argument("--rand-probe", action="store_true", default=False,
+                   help="tally rand() (0x5bf505) call sites between newgame_enter and "
+                        "prologue_enter — locates the transition's rand consumer by caller VA")
     p.add_argument("--max-frames",     type=int, default=30_000,
                    help="exit after N drained Peek/GetMessage events "
                         "(default 30000 ≈ ~5 min of typical 60 Hz play)")
@@ -984,6 +999,7 @@ def main() -> int:
         lockstep          = args.lockstep,
         lockstep_step_ms  = args.lockstep_step_ms,
         lockstep_epsilon_ms = args.lockstep_epsilon_ms,
+        rand_probe        = args.rand_probe,
         max_frames        = args.max_frames,
         duration_ms       = args.duration_ms,
         remote            = args.remote,

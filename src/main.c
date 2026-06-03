@@ -1353,6 +1353,23 @@ static void leave_prologue_to_title(const char *why)
     reenter_title();
 }
 
+/* Retail's "Start Game" commit, on the way from the new-game config scene to
+ * the prologue cutscene, writes the initial save file — FUN_005b6990 (resource
+ * 0x2711) — and obfuscates the buffer with a salt built from TWO rand() draws
+ * (FUN_005bf505 ×2 @ 0x5b6acc/0x5b6ae9).  The save subsystem itself is deferred
+ * (milestone 4), but those two draws are on the TAS critical path: they advance
+ * the engine LCG between the newgame_enter and prologue_enter anchors, so
+ * without them the port's seed desyncs from retail exactly at the cutscene
+ * (port 0x404a0a8f vs retail 0x40d00581 — pinpointed by --rand-probe: 2 calls,
+ * callers 0x5b6acc/0x5b6ae9).  Consume the two values so the RNG state matches
+ * when the cutscene starts and any rand-driven cutscene effect stays in sync.
+ * (The salt's *value* is irrelevant to parity — only the seed advance is.) */
+static void newgame_start_save_salt(void)
+{
+    (void)rng_rand();   /* FUN_005bf505 @ 0x5b6acc */
+    (void)rng_rand();   /* FUN_005bf505 @ 0x5b6ae9 */
+}
+
 /* Anchor CWD + DLL search dir to the game directory.  Reads
  * OPENSUMMONERS_GAME_DIR from the environment — nix develop's shellHook
  * exports it with WSLENV's /p flag so the .exe gets a Windows-form path
@@ -1525,8 +1542,10 @@ static void main_loop_body(void)
             input_trace_replay(&g_input_trace, g_present_frame,
                                &g_newgame_drive.input, now);
         newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
-        if (st == NEWGAME_START)
+        if (st == NEWGAME_START) {
+            newgame_start_save_salt(); /* match retail's save-write RNG advance */
             enter_prologue();          /* Start Game → the gem cutscene */
+        }
         else if (st == NEWGAME_BACK)
             leave_newgame_to_title("backed out (result 0xb)");
     } else if (g_drive_active) {

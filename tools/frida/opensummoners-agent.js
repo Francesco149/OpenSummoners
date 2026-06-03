@@ -352,6 +352,18 @@ let   g_fade_last_flip    = -1;
 // between spawns on one side: a real ordering bug to chase, not RNG noise.
 const SPAWN_VA            = 0x56c070;   // FUN_0056c070 (sparkle spawn)
 const SEED_VA             = 0x8a4f94;   // DAT_008a4f94 (LCG seed word)
+const RAND_VA             = 0x5bf505;   // FUN_005bf505 (MSVC rand)
+
+// ─── rand() call-site probe (TAS RNG-desync diagnosis) ───────────────────
+// Tally every rand() call between two scene anchors by CALLER return address,
+// so an unaccounted rand consumer (a transition/animation the port skips)
+// can be located by VA.  Armed by the newgame_enter scene anchor, flushed +
+// disarmed at prologue_enter.  Off unless --rand-probe.
+let g_rand_probe        = false;
+let g_rand_window_active = false;
+let g_rand_callers      = {};   // caller-VA (hex) -> count
+let g_rand_total        = 0;
+let g_rand_hooked       = false;
 let   g_seed_pin          = false;
 let   g_seed_value        = 0x4f5347;   // OSS_RNG_DEFAULT_SEED (matches port)
 let   g_seed_pinned       = false;      // one-shot latch
@@ -1936,6 +1948,27 @@ function installSparkleAnchor() {
             (g_seed_value >>> 0).toString(16) + ')' : ''));
 }
 
+// Hook rand() and tally call sites while the window is armed.  Cheap when
+// disarmed (one flag test).  The caller VA = the return address minus the
+// module base, so it maps straight to a Ghidra address.
+function installRandProbe() {
+    if (g_rand_hooked) return;
+    const base = Process.findModuleByName('sotes.unpacked.exe').base;
+    Interceptor.attach(rva(RAND_VA), {
+        onEnter: function () {
+            if (!g_rand_window_active) return;
+            g_rand_total++;
+            let caller = '?';
+            try {
+                caller = '0x' + this.returnAddress.sub(base).toString(16);
+            } catch (e) {}
+            g_rand_callers[caller] = (g_rand_callers[caller] || 0) + 1;
+        },
+    });
+    g_rand_hooked = true;
+    logmsg('rand probe installed @ FUN_005bf505');
+}
+
 // ─── scene-boundary TAS anchors ──────────────────────────────────────────
 // Beyond the intro's subtitle_anim_start, the trace crosses scene boundaries
 // where the flip count diverges from the port (per-scene load cost): the
@@ -1961,6 +1994,18 @@ function installSceneAnchors() {
                 try { seed = seedAddr.readU32() >>> 0; } catch (e) {}
                 send({kind: 'anchor', name: a.name, frame: g_flip_frame,
                       rng: seed});
+                // rand-probe window: arm at newgame_enter, flush at prologue_enter.
+                if (g_rand_probe) {
+                    if (a.name === 'newgame_enter') {
+                        g_rand_window_active = true;
+                        g_rand_callers = {}; g_rand_total = 0;
+                    } else if (a.name === 'prologue_enter') {
+                        g_rand_window_active = false;
+                        send({kind: 'rand_window', from: 'newgame_enter',
+                              to: 'prologue_enter', total: g_rand_total,
+                              callers: g_rand_callers});
+                    }
+                }
             },
         });
     });
@@ -2153,6 +2198,7 @@ rpc.exports = {
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
             g_pace_every = opts.pace_every | 0;
         if (typeof opts.turbo_step_ms === 'number') g_turbo_step_ms = opts.turbo_step_ms;
+        g_rand_probe           = !!opts.rand_probe;
         g_lockstep             = !!opts.lockstep;
         if (typeof opts.lockstep_step_ms === 'number' && opts.lockstep_step_ms > 0)
             g_lockstep_step_ms = opts.lockstep_step_ms | 0;
@@ -2249,6 +2295,10 @@ rpc.exports = {
                 g_call_trace_enabled) {
                 try { installSceneAnchors(); }
                 catch (e) { err('install_scene_anchors', '' + e); }
+            }
+            if (g_rand_probe) {
+                try { installRandProbe(); }
+                catch (e) { err('install_rand_probe', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }
