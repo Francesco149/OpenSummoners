@@ -791,6 +791,12 @@ struct test_case {
     X(game_world_map_3f2_opening_room)                         \
     X(game_world_header_sentinel)                              \
     X(game_world_reciprocal_exits)                             \
+    X(game_map_3f2_room_key)                                   \
+    X(game_map_header_fields)                                  \
+    X(game_map_actor_slots)                                    \
+    X(game_map_tail_pairs)                                     \
+    X(game_map_resolves_opening_room)                          \
+    X(game_map_zero_defaults_to_3f2)                           \
 
 #define X(n) extern int test_##n(void);
 TESTS

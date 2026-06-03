@@ -365,6 +365,61 @@ host-tested, in **`src/game_world.{c,h}`** (ckpt 54) over the generated table
 bytes (`src/world_tables_data.{c,h}`, emitted by
 `game_world_tables.py --emit-c`).
 
+## The MAP OBJECT — `FUN_0059f2c0` fresh-entry arm (ckpt 55)
+
+`src/game_map.{c,h}` ports the **runtime map object** the engine builds on a
+fresh new-game entry — the `in_stack_0000eb2c == 0` arm of `FUN_0059f2c0`
+(lines 160-218) plus the `FUN_004c5350` room-key resolution it calls.  This is
+the object the sim (`0x586010`) and render (`0x5a00c0`) read; it sits on top of
+the `game_world` table layer (ckpt 54).
+
+**What it builds** (verbatim from the decomp):
+- `operator_new(0x4120)` — the map object (modeled as a zero-initialised
+  `buf[0x4120]`), plus **8× `operator_new(0xeec)`** actor sub-objects (kept in
+  `actors[8]`; host pointers don't fit the 4-byte `map+0x4030` slots).
+- the 8-actor loop (`0x59f2c0:162-170`): stamp each slot's index at `slot+0xa0c`,
+  run **`FUN_00560e60`** (zeros `slot` dwords `[0],[1],[2],[0x271],[0x27c..0x27e]`
+  + u16 `[0x272]`), set the per-slot active flag `map+0x4084+4*i = 1`.
+- the header field writes (`0x59f2c0:171-214`): `map+0x40a4=1`, `+0x4018=1`,
+  **`+0x4054=3`**, the `+0x405c..+0x4064` u16 run (last `+0x4064` *dword* write
+  wins → `+0x4064=0`, `+0x4062` stays u16 1), the 3 `{1,0}` dword pairs at
+  `+0x4108` (which fill the object's tail exactly to `+0x4120`), the
+  `GetTickCount` stamp at `+0x4068` (port: a `tick` arg, default 0 for
+  deterministic builds), `+0x406c=0`.
+- `map+0x4104 = map id` (= `0x3f2`), then **`FUN_004c5350`** resolves the room
+  key.  Its `map==0x3f2` arm (`4c5350:72-109`) writes the **room-lookup key
+  `map+0x4024 = 0x334be`** (= room 210110), the entry spawn params
+  `+0x4028=0x65` / `+0x402c=1`, `+0x401c=0`, `+0x40d0=0`, and ramps `+0x4014`
+  toward the ceiling `+0x4020` by +5 (inert under zero-init — see below).
+
+`game_map_active_room(m, w)` = `game_world_find_room(w, map+0x4024)` →
+**room 210110 "Town of Tonkiness"** (area `0xd2`, scene 1022).
+
+**Fidelity boundaries (documented in the header, not hidden):**
+- The map buffer is **zero-initialised**; retail's `operator_new` returns raw
+  memory and relies on the explicit writes + a few opaque sub-inits
+  (`0x5612b0`/`0x5611d0`/`0x4e59a0`) for the rest.  `map+0x4020` (the `+0x4014`
+  ramp ceiling) is set by one of those sub-inits, so under our zero-init the
+  ramp is inert — it does **not** affect the room-key resolution we verify.
+- `FUN_004c5350`'s opaque sprite/anim sub-calls (`0x408dc0`/`0x413b20`/
+  `0x4c5e00`/`0x412db0`/…) manage the sprite registry, not these map fields, and
+  are skipped.  The `map==0x3fc` arm (key `0x30db3`) is gated by unported global
+  save-flag state (`0x4c57f0` lookups) and is not reproduced; the `map==1` arm's
+  pure writes (`+0x401c=1`, `+0x40d0=0`) are.
+- An **ordering note** the port preserves: the `map==0` → `0x3f2` default lives
+  at `LAB_0059fb8a` (`0x59f2c0:378-381`), *after* `FUN_004c5350`.  So a fresh
+  entry with `map id == 0` gets `+0x4104=0x3f2` but **no `+0x4024` key** from the
+  resolver — the real fresh path always passes `0x3f2` explicitly (the caller
+  `0x59ec30(0,0,0x3f2)`).
+
+Host-tested in `tests/test_game_map.c` (6 tests: the 0x3f2 room key, the header
+fields, the actor slots, the tail-pair fill, the end-to-end room-210110
+resolution, the map==0 default).  `game_map` is **not yet wired into `main.c`**
+— like `game_world` it is the world-runtime foundation the unported sim/render
+units read.  **NEXT:** a slice of `0x586010` (sim) → `0x5a00c0` (render) that
+walks this map object + room 210110 to draw the static town backdrop, diffed vs
+`runs/tas-ingame-1` anchored on `game_enter`.
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
