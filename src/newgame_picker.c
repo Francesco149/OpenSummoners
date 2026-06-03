@@ -109,13 +109,31 @@ int newgame_picker_init(newgame_picker *p, int32_t option_id,
     }
 
     /* Bind the input gate (built closed; the drive ramps ready 0→1000, like the
-     * parent scene) and seed the render node from grid's arrays. */
+     * parent scene) and seed the render node from grid's arrays + the same
+     * display config newgame_config_build stamps (so glyph_grid_render draws the
+     * picker rows with the menu's colours: normal 0x3e537d, shadow 0xa8b9cc,
+     * focused 0xf08080).  The node x/y inset + the box position are the OPEN
+     * geometry gate — these match the menu node so the look is consistent. */
     p->sub.enabled = 1;
     p->sub.ready   = 0;
     p->grid.sub    = &p->sub;
     p->node.ctrl_list    = p->grid.list;
     p->node.ctrl_entries = p->grid.entries;
     p->node.ctrl_rows    = p->grid.rows;
+    p->node.field_c   = 0x28;       /* text inset x (= 40)  */
+    p->node.field_10  = 0x18;       /* text inset y (= 24)  */
+    p->node.field_14  = 0;          /* ruby pass off        */
+    p->node.field_18  = 0;
+    p->node.field_1ac = 0x1c;       /* row pitch (28)       */
+    p->node.color0 = 0x3e537du;     /* +0x180 normal text   */
+    p->node.color1 = 0xa8b9ccu;     /* +0x184 drop shadow   */
+    p->node.label0 = 0x00677b98u;   /* +0x188               */
+    p->node.color2 = 0xf08080u;     /* +0x18c focused text  */
+    p->node.color3 = 0xf08080u;     /* +0x190 focused text  */
+    p->node.label1 = 0x008090a9u;   /* +0x194               */
+    p->node.label2 = 0x008090a9u;   /* +0x198               */
+    p->node.color4 = 0x3e537du;     /* +0x19c               */
+    p->node.color5 = 0xa8b9ccu;     /* +0x1a0               */
 
     /* FUN_00419900(0, current_value): open on the current selection. */
     picker_seek_value(p, current_value);

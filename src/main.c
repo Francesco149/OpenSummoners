@@ -1028,6 +1028,18 @@ static int g_newgame_cursor_enable = 1;
 #define NEWGAME_TOOLTIP_PITCH  28
 #define NEWGAME_TOOLTIP_WRAP   68
 
+/* The option picker submenu box (FUN_00567ba0 default arm: FUN_00411940(this,
+ * 0x120,0x80,0x100,…)) — a 1-column value grid at (288,128) width 256.  The
+ * height grows with the value count (the row region at pitch 28 plus the same
+ * vertical margin the 124-tall / 3-row menu box uses: 124 - 3*28 = 40).  The
+ * exact box geometry is an OPEN verification gate (the retail flip counter
+ * freezes in 0x565d10's modal pump, so the open picker can't be captured) —
+ * the decomp gives the position/width; the height + text inset mirror the menu
+ * box so the look is consistent.  See HANDOFF / docs/findings/new-game-flow.md. */
+#define NEWGAME_PICKER_X       288   /* 0x120 */
+#define NEWGAME_PICKER_Y       128   /* 0x80  */
+#define NEWGAME_PICKER_W       256   /* 0x100 */
+
 /* Draw one wrapped tooltip row at (x,y): the menu's 2-copy drop shadow (down 1,
  * right 1) in 0xa8b9cc, then the glyphs in 0x3e537d — the colours + offsets the
  * golden's per-glyph draws use (and glyph_grid_render's normal-row path).  The
@@ -1104,6 +1116,16 @@ static void newgame_render(void *user)
     newgame_box_render(&bops, /*x=*/32, /*y=*/392, /*w=*/576, /*h=*/80,
                        box_frames, NEWGAME_BOX_CELL);   /* tooltip box */
 
+    /* (1c) The option picker submenu box, drawn over the menu when active (a
+     *      modal overlay): a value-list grid at (288,128) width 256, height
+     *      grown to the choice count.  Geometry is an OPEN gate (see the
+     *      NEWGAME_PICKER_* defines). */
+    if (d->picker_active) {
+        int ph = d->picker.count * NEWGAME_TOOLTIP_PITCH + 40;
+        newgame_box_render(&bops, NEWGAME_PICKER_X, NEWGAME_PICKER_Y,
+                           NEWGAME_PICKER_W, ph, box_frames, NEWGAME_BOX_CELL);
+    }
+
     /* (1b) The selection cursor (the drooping gold vine over the menu box's
      *      top-left, toward the focused row) — a keyed sprite blit on the DDraw
      *      side (before the GDI DC lock).  The geometry port (newgame_cursor,
@@ -1140,6 +1162,13 @@ static void newgame_render(void *user)
     SetBkMode((HDC)hdc, TRANSPARENT);
     glyph_gdi_ops ops = glyph_gdi_ops_win32(hdc);
     glyph_grid_render(&d->scene.node, &ops, /*x=*/32, /*y=*/32, hfont, hfont);
+
+    /* (2b) The picker's value rows over its box (when the modal submode is up):
+     *      glyph_grid_render walks d->picker.node at the picker box base. */
+    if (d->picker_active) {
+        glyph_grid_render(&d->picker.node, &ops,
+                          NEWGAME_PICKER_X, NEWGAME_PICKER_Y, hfont, hfont);
+    }
 
     /* (3) The tooltip text node: the focused row's help string, word-wrapped
      *     onto rows over the tooltip box (FUN_0040e360 → FUN_0040e5e0). */
