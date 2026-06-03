@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 167,
+  "tested": 168,
   "ported": 6,
-  "unported": 1585,
+  "unported": 1584,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 173,
-  "pct_touched": 10.7,
-  "pct_tested": 10.7,
-  "engine_proper_touched": 160,
+  "touched": 174,
+  "pct_touched": 10.8,
+  "pct_tested": 10.8,
+  "engine_proper_touched": 161,
   "bytes_total": 1694868,
-  "bytes_touched": 197190,
-  "pct_bytes_touched": 11.6
+  "bytes_touched": 199465,
+  "pct_bytes_touched": 11.8
  },
  "orphan_refs": [
   "0x56c470",
@@ -2890,7 +2890,8 @@
    "src": [
     "src/input.c",
     "src/input.h",
-    "src/newgame_scene.h"
+    "src/newgame_scene.h",
+    "src/prologue_stone.c"
    ]
   },
   {
@@ -8240,6 +8241,7 @@
     "src/main.c",
     "src/pixel_drawer.c",
     "src/pixel_drawer.h",
+    "src/prologue_stone.h",
     "src/title_drive.c",
     "src/title_drive.h",
     "src/title_scene.h"
@@ -8690,8 +8692,11 @@
    "name": "FUN_0056cd20",
    "size": 2275,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/prologue_stone.c",
+    "src/prologue_stone.h"
+   ]
   },
   {
    "va": "0x56d620",

@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **173** (10.7% of engine-proper) — tested 167, ported 6
-- code bytes touched: **11.6%** (197,190 / 1,694,868 B of engine-proper)
-- unported: **1585**
+- touched: **174** (10.8% of engine-proper) — tested 168, ported 6
+- code bytes touched: **11.8%** (199,465 / 1,694,868 B of engine-proper)
+- unported: **1584**
 - orphan refs in src/ not in this table: 4
 
-## tested (167) — ported + host unit suite
+## tested (168) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -50,7 +50,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x43bca0 | FUN_0043bca0 | 1105 | newgame_drive.c, newgame_drive.h |
-| 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h |
+| 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h (+1) |
 | 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
 | 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
@@ -66,7 +66,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x562210 | FUN_00562210 | 688 | app_pump.h, rng.h |
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+7) |
+| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+8) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
 | 0x564780 | FUN_00564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
 | 0x5657f0 | FUN_005657f0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
@@ -82,6 +82,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x56c180 | FUN_0056c180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
 | 0x56c2b0 | FUN_0056c2b0 | 373 | main.c, title_particles.c, title_particles.h |
 | 0x56c930 | FUN_0056c930 | 607 | menu_list.c, menu_list.h |
+| 0x56cd20 | FUN_0056cd20 | 2275 | prologue_stone.c, prologue_stone.h |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h, main.c |
