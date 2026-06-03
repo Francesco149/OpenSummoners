@@ -1860,9 +1860,38 @@ index 253.  At blit time the near-black background is colour-keyed (slot
 `colorkey=0`), the same mechanism the box bank 0x457 uses.
 
 **Port status (NOT a retail quirk — recorded here only to close the trail):**
-the bank/slot/frames in `src/newgame_cursor.c` were correct all along; the render
-stays gated off (`g_newgame_cursor_enable=0` in `main.c`) because enabling it
-exposed a *separate* bug on the `scale_flag=1` videomem cell-build path
-(`zdd_object_build_cell` caps 0x804) — the cursor blits as an opaque-black 16×24
-rect at the wrong x (≈72 vs golden 44), i.e. a wrong trim offset + failed keying.
-That is the next render task; see HANDOFF.
+the bank/slot/frames in `src/newgame_cursor.c` were correct all along.  Enabling
+the render first exposed a *separate* bug — initially mis-diagnosed as a
+"`scale_flag=1` videomem cell-build path" fault, but actually the transposed trim
+scan of **#69**.  With that fixed (ckpt 43) the cursor renders **bit-exact**
+(menu-box `differ_px=0` at the matching animation phase); `g_newgame_cursor_enable`
+is now ON.
+
+## 69. `bs_trim_opaque_rect` (`FUN_005b6f80`) takes (cell_w, cell_h) — its arg4 is the COLUMN/x loop, arg5 the ROW/y loop; a non-square cell scanned with them swapped comes out transposed
+
+The per-cell opaque-bbox scanner `FUN_005b6f80` is called by the slicer
+`FUN_004188b0` as `FUN_005b6f80(key, base_x, base_y, cell_w, cell_h, out)`.
+Inside, **arg4 (`cell_w`) is the inner/column loop bound and the x-axis range**,
+and **arg5 (`cell_h`) is the outer/row loop bound and the y-axis range** (verify:
+`iVar5 = param_4` seeds the inner loop; the outer loop runs `while (counter <
+param_5)`).  So the two trailing args are NOT interchangeable.
+
+This is invisible on a **square** cell (the 32×32 box bank `0x457`, #67) — rows
+and columns iterate the same count — which is why every square-cell sprite
+(title art, box chrome) rendered bit-exact while the bug lay dormant.  It only
+bites a **non-square** cell: the 32×48 cursor bank `0x455` (#68).  Scanned
+transposed (32 rows × 48 cols instead of 48×32), the scan reads past the 32-wide
+cell into the neighbouring column, yields a wrong bbox/offset, and the built cell
+surface is the wrong size at the wrong placement — live, the cursor blitted as an
+opaque-black ~16×24 rect at x≈72 instead of the gold feather at x44.
+
+**The port bug:** `src/bitmap_session.c`'s `bs_trim_opaque_rect` named its two
+size params `(height, width)` (and the body correctly uses `height` for the row
+loop, `width` for the column loop) — but the caller passes `(cell_w, cell_h)`, so
+`height` bound to `cell_w` and the cell was iterated transposed.  Fix: rename the
+params to `(width, height)` to match the caller's order; the body is unchanged.
+Verified offline against the real `0x455` blob via
+`tools/extract/cursor_trim_probe.c` (frame 17 → 22×41 @ (4,3), matching the live
+`--box-probe`) and live (menu-box `differ_px=0`).  Regression test:
+`tests/test_bitmap_session.c::test_trim_8bpp_nonsquare_quirk69` (a deliberately
+non-square 4×8 cell).

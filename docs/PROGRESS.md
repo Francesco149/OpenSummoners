@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 43) — selection-cursor RENDER BUG FIXED: a transposed trim scan, not a videomem path; new-game menu cursor is now bit-exact (`differ_px=0`)
+
+The ckpt-42 "scale_flag=1 videomem cell-build path" diagnosis was **wrong**.  The
+real cause was a **transposed per-cell trim scan** (quirk **#69**):
+`bs_trim_opaque_rect` (`FUN_005b6f80`) named its two size params `(height, width)`,
+but retail's arg4 is `cell_w` (the inner/column loop + x-range) and arg5 is
+`cell_h` (the outer/row loop + y-range); the slicer passes `(cell_w, cell_h)`, so
+a **non-square** cell was scanned transposed.  Invisible on the square 32×32 box
+bank `0x457` (which is why every square-cell sprite rendered bit-exact), it
+scrambled the 32×48 cursor bank `0x455` into a wrong-size, wrong-offset, un-keyed
+cell — the live "opaque-black 16×24 rect at x72" the previous session saw.
+
+Found it the cheap way: a new pure host probe **`tools/extract/cursor_trim_probe.c`**
+feeds the real `0x455` blob through the port's actual `bs_trim_opaque_rect` and
+dumped frame 17 = **44×29** (wrong) → after swapping the param names to
+`(width, height)` (body unchanged) → **22×41 @ (4,3)**, matching the live
+`--box-probe` exactly.  Fix touches `src/bitmap_session.{c,h}` (param rename) +
+`src/asset_register.c` (call-site comment) + the trim tests (square cases
+unchanged; the 6×10 `other_depth` test corrected; new regression
+`test_trim_8bpp_nonsquare_quirk69` with a 4×8 cell).  **714 pass / 0 fail / 6 skip**.
+
+Flipped `g_newgame_cursor_enable` **ON** and verified LIVE: port Flip 761 vs
+`goldens/retail-newgame-config-menu.png` → menu-box **`differ_px=0`** (region
+(32,32)400×124 — panel + text + cursor all bit-exact).  Off-phase frames (760/762
+= cursor anim frames 16/18) differ only by the breathing cursor's animation phase
+(frames 17 and 19 are both 22×41 @ (4,3), the symmetric phase the golden froze) —
+the same animation-phase caveat as the intro twinkles, not a content gap.  Closes
+the ckpt-40 307px menu-box residual.  Parity-ledger **#5**.  Comparison pushed to
+llm-feed.  Ledger 163/1490 (bug-fix, no new FUN).
+
 ## 2026-06-03 (ckpt 41) — selection-cursor GEOMETRY ported + validated; sprite BANK unidentified (render gated off, dig harder next session)
 
 Ported `FUN_0048d940`'s type-1 arm — the new-game menu **selection cursor** (the

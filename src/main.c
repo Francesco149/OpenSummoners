@@ -1005,17 +1005,17 @@ static int g_newgame_cursor_anim;
  * --box-probe EXACTLY (frame 17 = 22×41 @ (4,3), 18 = 22×40 @ (4,4),
  * 19 = 22×41 @ (4,3)).  See tools/extract/cursor_frame_match.py + quirk #68.
  *
- * STILL GATED OFF — a SEPARATE render bug surfaced when enabled (NOT a bank
- * problem): 0x455 is the only registered bank with scale_flag=1 (the box 0x457
- * is 0), so its cell takes the untested videomem cell-build path
- * (zdd_object_build_cell `videomem` arg → caps 0x804).  Live capture (port frame
- * 760): the cursor blits as an OPAQUE-BLACK 16×24 rect at x72–87 (golden feather
- * is at x44–66) — i.e. the slicer computes the WRONG trim offset for this bank
- * (base (40,26)+fdx≈32 → x72, vs the correct fdx=4 → x44) AND the transparent
- * area fails to colour-key.  Both live on the scale_flag=1 path.  NEXT: dump the
- * port's decoded slot-43 frame 17 (trim rect + surface) and compare to the
- * probe's 22×41 @ (4,3); fix the videomem cell trim/keying, then flip this ON. */
-static int g_newgame_cursor_enable;
+ * RENDER BUG FIXED (ckpt 43, quirk #69) — the earlier "scale_flag=1 videomem
+ * path" diagnosis was WRONG.  The real cause was a TRANSPOSED trim scan:
+ * bs_trim_opaque_rect's args were named (height, width) but retail's arg4 is
+ * cell_w (the column/x loop) and arg5 is cell_h (the row/y loop).  ar_sprite_slice
+ * passes (cell_w, cell_h), so a non-square cell was scanned transposed — invisible
+ * on the square 32×32 box bank 0x457, but it scrambled the 32×48 cursor bank 0x455
+ * into a wrong-size, wrong-offset, un-keyed cell (the live "opaque-black 16×24 @
+ * x72").  With the param order corrected, the port's slot-43 frame 17 trim is
+ * 22×41 @ (4,3) — exactly the --box-probe golden (verified offline via
+ * tools/extract/cursor_trim_probe.c).  Gate now ON. */
+static int g_newgame_cursor_enable = 1;
 
 /* The new-game config scene's per-frame render (the drive's `render` callback).
  *

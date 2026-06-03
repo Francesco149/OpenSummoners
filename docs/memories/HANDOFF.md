@@ -1,5 +1,30 @@
-# Session handoff — last updated 2026-06-03 (ckpt 42 — selection-cursor sprite BANK IDENTIFIED + proven (0x455 frames 16-19, bottom-up); a scale_flag=1 render bug remains, render still gated off)
+# Session handoff — last updated 2026-06-03 (ckpt 43 — selection-cursor RENDER is BIT-EXACT; the bug was a transposed trim scan (quirk #69), NOT the scale_flag/videomem path; gate is now ON, menu-box differ_px=0)
 
+> **ckpt 43 — THE NEW-GAME SELECTION CURSOR RENDERS BIT-EXACT (`differ_px=0`).**
+> The ckpt-42 "scale_flag=1 videomem cell-build path" diagnosis was **WRONG**.
+> The real bug: `bs_trim_opaque_rect` (`FUN_005b6f80`) named its two size params
+> `(height, width)`, but retail's arg4 = `cell_w` (the inner/column loop + x-range)
+> and arg5 = `cell_h` (the outer/row loop + y-range); the slicer passes
+> `(cell_w, cell_h)`, so a **non-square** cell was scanned **transposed**.
+> Invisible on the square 32×32 box bank `0x457` (every square sprite stayed
+> bit-exact), it scrambled the 32×48 cursor bank `0x455` into a wrong-size,
+> wrong-offset, un-keyed cell (the "opaque-black 16×24 @ x72" symptom).  Fix: swap
+> the param names to `(width, height)` in `src/bitmap_session.{c,h}` (body
+> unchanged); the port's `0x455` frame-17 trim is now **22×41 @ (4,3)**, matching
+> the live `--box-probe` (proven offline by **`tools/extract/cursor_trim_probe.c`**).
+> Quirk **#69**.  `g_newgame_cursor_enable` flipped **ON**; verified LIVE — port
+> Flip 761 vs `goldens/retail-newgame-config-menu.png` → menu-box **`differ_px=0`**
+> (panel + text + cursor).  Off-phase frames 760/762 differ only by the cursor's
+> animation phase (frames 17≡19 = 22×41@(4,3) is the phase the golden froze; 16/18
+> are the off-phase) — the same caveat as the intro twinkles, not a content gap.
+> Closes the ckpt-40 307px residual.  Parity-ledger **#5**.  **714 pass / 0 fail /
+> 6 skip** (+1 regression: `test_trim_8bpp_nonsquare_quirk69`).  Ledger 163/1490
+> (bug-fix, no new FUN).  **NEXT: the tooltip TEXT node (word-wrap) → the option
+> picker submenu (`0x567ba0`) → the Start→game path (`0x564160`→`0x59ec30`).**
+> See Next move #1b.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 42 — THE SELECTION-CURSOR SPRITE BANK IS SOLVED: it is bank `0x455`
 > (sotesd.dll, slot 43 = `AR_SPR_FONT_TEX_455`), frames 16–19 — the SAME
 > bank/slot/frames the ckpt-41 geometry port already targeted.**  The ckpt-41
@@ -496,13 +521,14 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 42): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40); the selection-cursor sprite BANK is now SOLVED (0x455 slot 43 frames 16-19, bottom-up — ckpt 42), but a scale_flag=1 videomem cell-build bug keeps the render gated OFF; next is fixing that render bug, then tooltip text + picker + Start→game path
+## ⭐ Current state (ckpt 43): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40) AND its selection cursor BIT-EXACT (ckpt 43 — the trim-transpose fix, quirk #69, closed the 307px residual); next is the tooltip TEXT node (word-wrap) → option picker submenu → Start→game path
 
 > **User @ ckpt 41:** "menu render looks good. as for the cursor bank, we just
-> need to dig harder next session." → DONE (ckpt 42): the bank is positively
-> identified as 0x455 (the bank/slot/frames the geometry port already had — the
-> ckpt-41 sweep just decoded top-down instead of bottom-up).  The remaining work
-> is a *separate* render bug on the scale_flag=1 cell path (Next move #1a'').
+> need to dig harder next session." → DONE: ckpt 42 identified the bank (0x455),
+> ckpt 43 fixed the render (a transposed trim scan, quirk #69 — NOT the
+> mis-diagnosed videomem path) → the cursor is **bit-exact** (`differ_px=0`).  The
+> new-game menu box + text + cursor now all match retail.  Next is the remaining
+> chrome (tooltip text) + the Start→game transition — Next move #1b.
 
 The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
 **bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
@@ -591,43 +617,24 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 
 ## Next move (pick one — recommendation first)
 
-> Context: the new-game config scene RUNS LIVE (ckpt 39) AND now renders its
-> 9-slice BOX PANEL (ckpt 40) — the menu box is bit-exact bar the deferred
-> top-left sparkle corner (307px, the only menu-box residual).  The active goal
-> (user, ckpt 13) is **1:1 parity** for title + new-game + prologue.  What's left
-> is the remaining chrome + the Start→game transition.
+> Context: the new-game config scene RUNS LIVE (ckpt 39), renders its 9-slice BOX
+> PANEL (ckpt 40) AND its selection cursor **bit-exact** (ckpt 43 — the trim fix
+> closed the 307px residual; menu-box `differ_px=0`).  The active goal (user,
+> ckpt 13) is **1:1 parity** for title + new-game + prologue.  What's left is the
+> remaining chrome (tooltip text) + the Start→game transition.
 
 1. **(recommended) Finish the new-game scene's remaining CHROME + transitions.**
-   The box panel + menu text render bit-exact (ckpt 40); port the rest in roughly
-   this order (cheapest visual win first):
+   The box panel + menu text + selection cursor render bit-exact; port the rest in
+   roughly this order (cheapest visual win first):
    ~~(a) the box widget panel~~ **DONE (ckpt 40, quirk #67, `src/newgame_box.c`).**
-   (a') the **selection cursor** — the 307px menu-box residual at the top-left.
-   GEOMETRY **DONE + VALIDATED (ckpt 41, `src/newgame_cursor.{c,h}`)**: pure port
-   of `0x48d940` type-1, base 16 + frames{0,1,2,3} → 16-19, base (40,26) for row 0
-   (= box + node+0x7c/-32, +0x80/-30; matches golden + text origins).  Render
-   wired in `main.c` behind `g_newgame_cursor_enable` (**OFF**).
-   **BANK — SOLVED (ckpt 42, quirk #68):** it is bank **`0x455`** (sotesd.dll,
-   slot **43**), frames **16–19** — the SAME bank/slot/frames `newgame_cursor.h`
-   already had.  The ckpt-41 "0x455 matches nothing" was a decode-**ORIENTATION**
-   error: Lizsoft atlases are **bottom-up**; read bottom-up, frames 16–19 are the
-   drooping gold feather/quill + soft white shadow, and their trimmed bboxes match
-   the live probe EXACTLY (17=22×41@(4,3), 18=22×40@(4,4), 19=22×41@(4,3)).  The
-   probe's `res_id=0x3e8` is a reused/garbage marker (PE 0x3e8 = portrait/WMV/
-   absent).  Proof: `tools/extract/cursor_frame_match.py`.
-   **NEXT — #1a'': the scale_flag=1 RENDER BUG (the only thing keeping the gate
-   OFF).**  Enabled live (port frame 760): the cursor blits as an opaque-black
-   16×24 rect at **x72–87** (golden feather x44–66), differ_px 307→493.  `0x455`
-   is the ONLY registered bank with **`scale_flag=1`** (box 0x457 is 0) → its cell
-   takes the untested **videomem cell-build path** (`zdd_object_build_cell`
-   `videomem` arg → caps `0x804`).  Two faults, both on that path: (i) **wrong
-   trim offset** (base (40,26)+fdx≈32 → x72, vs correct fdx=4 → x44), and (ii) the
-   transparent area **fails to colour-key**.  Do: add a debug dump of the port's
-   decoded slot-43 frame-17 (trim rect `bs_trim_rect` + the built cell surface);
-   compare its w/h/offx/offy to the probe's 22×41@(4,3); fix the scale_flag=1
-   trim/keying in `zdd_object_build_cell`/`zdd_object_create_surface_pair`; then
-   flip `g_newgame_cursor_enable` ON and diff vs the golden (should close the 307px
-   residual).  How to drive: see the capture recipe below (works, validated ckpt 42).
-   (b) the **tooltip TEXT node** (the second GDI-text node at y=416/444,
+   ~~(a') the selection cursor~~ **DONE + BIT-EXACT (ckpt 43, quirk #69).**
+   Geometry ported ckpt 41 (`src/newgame_cursor.{c,h}`, `0x48d940` type-1, base 16
+   + frames{0,1,2,3}→16-19, row-0 base (40,26)); bank ID'd ckpt 42 (0x455 slot 43,
+   bottom-up, quirk #68); the render bug fixed ckpt 43 (a transposed trim scan, NOT
+   the mis-diagnosed videomem path — `bs_trim_opaque_rect` arg order, quirk #69).
+   `g_newgame_cursor_enable=1`.  Verified: port Flip 761 vs golden → menu-box
+   `differ_px=0`.  Proof tool for the trim: `tools/extract/cursor_trim_probe.c`.
+   **NEXT — #1b: the tooltip TEXT node** (the second GDI-text node at y=416/444,
    word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
    computes the text; rendering needs a word-wrap split into rows (the renderer
    draws per-row, the wrap happens at build time).  This closes the 11% tooltip-box

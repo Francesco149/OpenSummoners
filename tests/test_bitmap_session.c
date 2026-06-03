@@ -1013,7 +1013,7 @@ int test_trim_24bpp_loose_ybottom_quirk(void)
     s.biHeight = (uint32_t)H; s.biBitCount = 24;
 
     bs_trim_rect t;
-    bs_trim_opaque_rect(&s, KEY24, 0, 0, H, W, &t);
+    bs_trim_opaque_rect(&s, KEY24, 0, 0, W, H, &t);   /* (width, height) */
     T_ASSERT_EQ_I(t.x_left, 2);
     T_ASSERT_EQ_I(t.x_right, 5);
     T_ASSERT_EQ_I(t.y_top, 3);
@@ -1037,7 +1037,7 @@ int test_trim_8bpp_tight_ybottom(void)
     s.biHeight = (uint32_t)H; s.biBitCount = 8;
 
     bs_trim_rect t;
-    bs_trim_opaque_rect(&s, 0, 0, 0, H, W, &t);
+    bs_trim_opaque_rect(&s, 0, 0, 0, W, H, &t);   /* (width, height) */
     T_ASSERT_EQ_I(t.x_left, 2);
     T_ASSERT_EQ_I(t.x_right, 5);
     T_ASSERT_EQ_I(t.y_top, 3);
@@ -1059,7 +1059,7 @@ int test_trim_all_key_no_opaque(void)
     s.biHeight = (uint32_t)H; s.biBitCount = 8;
 
     bs_trim_rect t;
-    bs_trim_opaque_rect(&s, 0, 0, 0, H, W, &t);
+    bs_trim_opaque_rect(&s, 0, 0, 0, W, H, &t);   /* (width, height) */
     T_ASSERT_EQ_I(t.found_opaque, 0);
     T_ASSERT_EQ_I(t.found_key, 1);
     T_ASSERT_EQ_I(t.x_left, W);             /* init values, untightened */
@@ -1083,7 +1083,7 @@ int test_trim_all_opaque_no_key(void)
     s.biHeight = (uint32_t)H; s.biBitCount = 8;
 
     bs_trim_rect t;
-    bs_trim_opaque_rect(&s, 0 /*key idx*/, 0, 0, H, W, &t);
+    bs_trim_opaque_rect(&s, 0 /*key idx*/, 0, 0, W, H, &t);   /* (width, height) */
     T_ASSERT_EQ_I(t.found_key, 0);
     T_ASSERT_EQ_I(t.found_opaque, 1);
     T_ASSERT_EQ_I(t.x_left, 0);
@@ -1102,7 +1102,10 @@ int test_trim_other_depth_full_rect(void)
     s.stride = 0; s.biHeight = 0; s.biBitCount = 16;
 
     bs_trim_rect t;
-    bs_trim_opaque_rect(&s, KEY24, 0, 0, 6, 10, &t);
+    /* Non-square cell (W=10, H=6) — the one trim test that distinguishes the
+     * (width, height) arg order (quirk #69).  Passing (10, 6) means 10 cols ×
+     * 6 rows → x_right=W-1=9, y_bottom=H-1=5. */
+    bs_trim_opaque_rect(&s, KEY24, 0, 0, /*width*/ 10, /*height*/ 6, &t);
     T_ASSERT_EQ_I(t.x_left, 0);
     T_ASSERT_EQ_I(t.x_right, 9);            /* W-1 */
     T_ASSERT_EQ_I(t.y_top, 0);
@@ -1132,6 +1135,35 @@ int test_trim_subwindow_8bpp(void)
     T_ASSERT_EQ_I(t.x_right, 4);            /* 12 - 8 */
     T_ASSERT_EQ_I(t.y_top, 1);             /* 9 - 8  */
     T_ASSERT_EQ_I(t.y_bottom, 3);          /* 11 - 8 */
+    return 0;
+}
+
+/* Quirk #69 regression: a genuinely NON-SQUARE cell (4 cols × 8 rows) on the
+ * real 8bpp pixel-scan path.  The previous (height, width) param order
+ * iterated this transposed (8 rows × 4 cols), which (a) read past the 4-wide
+ * cell into neighbouring columns and (b) on a real atlas yielded a wrong
+ * bbox/offset — the root cause of the new-game cursor's mis-placed, un-keyed
+ * blit.  Here the opaque pixel at logical (3, 6) is INSIDE a 4×8 cell but
+ * OUTSIDE a transposed 8×4 window, so a regression flips y_bottom. */
+int test_trim_8bpp_nonsquare_quirk69(void)
+{
+    int W = 4, H = 8, stride = W;           /* 4 cols × 8 rows */
+    memset(g_trim_buf, 0, sizeof g_trim_buf);   /* index 0 = key */
+    trim_set8(H, stride, 1, 2, 0x11);       /* opaque at (x=1, y=2) */
+    trim_set8(H, stride, 3, 6, 0x22);       /* opaque at (x=3, y=6) */
+
+    bitmap_session s = {0};
+    s.pixels = g_trim_buf; s.stride = (uint32_t)stride;
+    s.biHeight = (uint32_t)H; s.biBitCount = 8;
+
+    bs_trim_rect t;
+    bs_trim_opaque_rect(&s, 0, 0, 0, /*width*/ W, /*height*/ H, &t);
+    T_ASSERT_EQ_I(t.x_left, 1);
+    T_ASSERT_EQ_I(t.x_right, 3);            /* max opaque col — needs 4-wide scan */
+    T_ASSERT_EQ_I(t.y_top, 2);
+    T_ASSERT_EQ_I(t.y_bottom, 6);          /* last opaque row — needs 8-tall scan */
+    T_ASSERT_EQ_I(t.found_opaque, 1);
+    T_ASSERT_EQ_I(t.found_key, 1);
     return 0;
 }
 

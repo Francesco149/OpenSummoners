@@ -309,14 +309,20 @@ typedef struct bs_trim_rect {
     int32_t found_key;    /* +0x14 — 1 iff any key (transparent) pixel seen */
 } bs_trim_rect;
 
-/* Scan the W×H window at (base_x, base_y) of `s` for the opaque bounding box.
- * `key` is the colour key (24-bit BGR for 24bpp, low byte = index for 8bpp).
- * Arg order mirrors retail (key, base_x, base_y, height, width, out).  When
- * height <= 0 (24bpp) or the scan finds nothing, the box keeps its init
- * values (x_left=W, x_right=0, y_top=H, y_bottom=0) and the flags stay 0. */
+/* Scan the width×height window at (base_x, base_y) of `s` for the opaque
+ * bounding box.  `key` is the colour key (24-bit BGR for 24bpp, low byte =
+ * index for 8bpp).  Arg order mirrors retail FUN_005b6f80
+ * (key, base_x, base_y, cell_w, cell_h, out): `width` is the cell's column
+ * span (retail param_4 = cell_w, the inner/x loop) and `height` is its row
+ * span (retail param_5 = cell_h, the outer/y loop).  ⚠ These args are NOT
+ * symmetric — the port previously named them (height, width) and so iterated
+ * a non-square cell TRANSPOSED (invisible on square 32×32 cells like the box
+ * bank 0x457, but it broke the 32×48 cursor bank 0x455; quirk #69).  When the
+ * scan finds nothing the box keeps its init values (x_left=width, x_right=0,
+ * y_top=height, y_bottom=0) and the flags stay 0. */
 void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
                          int32_t base_x, int32_t base_y,
-                         int32_t height, int32_t width, bs_trim_rect *out);
+                         int32_t width, int32_t height, bs_trim_rect *out);
 
 /* ─── display-depth format converters (8d format switch) ─────────────
  *

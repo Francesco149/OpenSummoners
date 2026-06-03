@@ -251,8 +251,13 @@ int bs_decode_resource(bitmap_session *s, void *hModule, uint16_t resource_id,
  * exactly so the address of every probed pixel matches retail's. */
 void bs_trim_opaque_rect(const bitmap_session *s, uint32_t key,
                          int32_t base_x, int32_t base_y,
-                         int32_t height, int32_t width, bs_trim_rect *out)
+                         int32_t width, int32_t height, bs_trim_rect *out)
 {
+    /* `width` = cell column span (retail param_4 = cell_w, inner/x loop);
+     * `height` = cell row span (retail param_5 = cell_h, outer/y loop).  The
+     * body below uses `height` for the row loop and `width` for the column
+     * loop — correct ONLY because the caller passes (cell_w, cell_h) and these
+     * params are named to match (quirk #69; previously transposed). */
     /* init (0x5b6f8f..0x5b6fa7): the box starts inverted so the min/max
      * folds below tighten it; both flags clear. */
     out->x_left      = width;

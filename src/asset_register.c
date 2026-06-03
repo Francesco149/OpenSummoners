@@ -538,8 +538,9 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
      * array into slot->aux_buf (in_ECX[0xd]) iff none exists yet, the slot
      * carries a positive type (in_ECX[0xc]), and a colour-key is in use.
      * The scanner reads the sheet at its ORIGINAL (pre-conversion) depth.
-     * Retail passes (cell_w, cell_h) as bs_trim's (height, width) args —
-     * mirrored literally. */
+     * Retail passes (cell_w, cell_h) as bs_trim's (width, height) args (its
+     * param_4=cell_w is the inner/column loop, param_5=cell_h the outer/row
+     * loop).  These are NOT interchangeable for non-square cells — quirk #69. */
     bs_trim_rect *trims;
     if (slot->aux_buf == NULL && slot->type > 0 &&
         colorkey != AR_COLORKEY_NONE) {
@@ -551,7 +552,7 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
             int base_x = 0;
             for (int c = 0; c < cols; c++, idx++) {
                 bs_trim_opaque_rect(s, colorkey, base_x, base_y,
-                                    /*height*/ cell_w, /*width*/ cell_h,
+                                    /*width*/ cell_w, /*height*/ cell_h,
                                     &trims[idx]);
                 base_x += cell_w;
             }
