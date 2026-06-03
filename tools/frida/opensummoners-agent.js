@@ -72,6 +72,47 @@ let g_virtual_now_ms    = 0;
 let g_clock_virtualised = false;
 let g_main_thread_id    = -1;
 
+// ─── lockstep clock (TAS determinism, deterministic 1 update / present) ───
+// Default turbo advances the virtual GetTickCount by g_turbo_step_ms on
+// EVERY main-thread call.  With several GetTickCount calls per presented
+// frame, the engine's GetTickCount-delta pace machine (FUN_005b1030 +
+// every scene loop's 3-state budget walk) banks several 16 ms update
+// slices per Flip, so retail renders only ~1 of every N update ticks.
+// The port renders EVERY update (fixed-timestep, 1 update / present), so
+// the two frame streams cannot be diffed frame-for-frame: retail's
+// presented frames are a 1/N subsample of the update stream.
+//
+// Lockstep mode makes retail render exactly one update per present, like
+// the port: the virtual clock is FROZEN between Flips and advanced by
+// exactly one update quantum (g_lockstep_step_ms, default 0x10 = 16 ms)
+// in the Flip hook.  So each presented frame banks exactly one 16 ms
+// slice → one update → matching the port's cadence.  Combined with the
+// pinned RNG seed, the two runs then march tick-for-tick and a captured
+// retail flip k aligns to a port flip (after the per-scene anchor offset).
+//
+// Livelock guard: the engine has GetTickCount busy-waits that need the
+// clock to advance to make progress (asset-load settles, the pace
+// machine's non-rendering drain iterations).  Two protections:
+//   (1) lockstep only ARMS at the first Flip — boot + initial asset load
+//       run on the ordinary per-call turbo clock (g_lock_armed latch).
+//   (2) STALL-BREAKER creep: the clock is a pure per-Flip freeze during
+//       normal scene loops (so the budget banks EXACTLY one 16 ms slice
+//       per present → exactly 1 update / present → frame-for-frame match
+//       with the port).  Only after a long flipless burst of GetTickCount
+//       calls — i.e. a genuine busy-wait that is NOT advancing toward a
+//       present (asset-load settle, mode-set spin) — does the clock start
+//       creeping by g_lockstep_epsilon_ms per call to let that wait
+//       finish.  The creep stops as soon as a Flip resets the counter, so
+//       it never pollutes the steady-state update budget.  This keeps the
+//       1:1 cadence exact while still being hang-proof across scene loads.
+let g_lockstep            = false;
+let g_lockstep_step_ms    = 0x10;  // one update quantum banked per Flip
+let g_lockstep_epsilon_ms = 1;     // creep per call ONCE a stall is detected
+let g_lockstep_stall_calls = 2000; // flipless GetTickCount calls → "stalled"
+let g_lock_clock_ms       = 0;     // the frozen virtual clock (lockstep)
+let g_lock_armed          = false; // becomes true at the first Flip
+let g_lock_calls_since_flip = 0;   // reset each Flip; trips the stall-breaker
+
 // Silent audio.  Three layers we know we need:
 //  - DirectSound buffer SetVolume → clamp to -10000 (DSBVOLUME_MIN)
 //  - waveOutSetVolume → clamp to 0
@@ -695,6 +736,18 @@ function installTurboHooks() {
             // per call instead of with real wall-clock.
             if (g_clock_virtualised && tid === g_main_thread_id &&
                 g_pump_entered) {
+                // Lockstep: once armed (first Flip seen) the clock is
+                // frozen between Flips — return g_lock_clock_ms, advanced
+                // only by the Flip hook — plus a tiny per-call creep so
+                // busy-waits cannot hang.  Before arming, fall through to
+                // the ordinary per-call turbo clock (boot/load safe).
+                if (g_lockstep && g_lock_armed) {
+                    // Pure freeze during normal play; creep only once a
+                    // flipless busy-wait has clearly stalled (load settle).
+                    if (++g_lock_calls_since_flip > g_lockstep_stall_calls)
+                        g_lock_clock_ms += g_lockstep_epsilon_ms;
+                    return g_lock_clock_ms;
+                }
                 g_virtual_now_ms += g_turbo_step_ms;
                 if ((g_virtual_now_ms / g_turbo_step_ms) % TICK_EVERY === 0) {
                     send({ kind: 'turbo_tick', virtual_ms: g_virtual_now_ms });
@@ -1435,6 +1488,22 @@ function installFlipFrameHook() {
     if (g_flip_hooked) return;
     Interceptor.attach(rva(FLIP_VA), {
         onEnter: function () {
+            // Lockstep clock: bank exactly one update quantum per present.
+            // Arm on the first Flip so boot/asset-load ran on the per-call
+            // turbo clock; seed continuity from g_virtual_now_ms so the
+            // scene's pace anchors see no discontinuity.
+            if (g_lockstep) {
+                if (!g_lock_armed) {
+                    g_lock_armed   = true;
+                    g_lock_clock_ms = g_virtual_now_ms;
+                    send({kind: 'lockstep_armed', frame: g_flip_frame,
+                          clock_ms: g_lock_clock_ms,
+                          step_ms: g_lockstep_step_ms,
+                          epsilon_ms: g_lockstep_epsilon_ms});
+                }
+                g_lock_clock_ms += g_lockstep_step_ms;
+                g_lock_calls_since_flip = 0;   // reset the stall-breaker
+            }
             if (g_call_trace_enabled) {
                 try { callTraceFlush(g_flip_frame); }
                 catch (e) { err('flip.callTraceFlush', e.message); }
@@ -2050,6 +2119,11 @@ rpc.exports = {
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
             g_pace_every = opts.pace_every | 0;
         if (typeof opts.turbo_step_ms === 'number') g_turbo_step_ms = opts.turbo_step_ms;
+        g_lockstep             = !!opts.lockstep;
+        if (typeof opts.lockstep_step_ms === 'number' && opts.lockstep_step_ms > 0)
+            g_lockstep_step_ms = opts.lockstep_step_ms | 0;
+        if (typeof opts.lockstep_epsilon_ms === 'number' && opts.lockstep_epsilon_ms >= 0)
+            g_lockstep_epsilon_ms = opts.lockstep_epsilon_ms | 0;
         // msgbox redirect default ON — pass {msgbox_redirect:false} to
         // see real popups (debugging the harness itself).
         if (typeof opts.msgbox_redirect === 'boolean') g_msgbox_redirect = opts.msgbox_redirect;
@@ -2108,7 +2182,7 @@ rpc.exports = {
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
                 g_inject_enabled || g_cursor_probe || g_fade_probe ||
-                g_pace_probe || g_textout_probe || g_box_probe) {
+                g_pace_probe || g_textout_probe || g_box_probe || g_lockstep) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
@@ -2131,7 +2205,7 @@ rpc.exports = {
             // pin) — install whenever we have a flip-frame counter to stamp it,
             // or when seed-pinning is requested.
             if (g_seed_pin || g_capture_enabled || g_pace_probe ||
-                g_fade_probe || g_cursor_probe || g_inject_enabled) {
+                g_fade_probe || g_cursor_probe || g_inject_enabled || g_lockstep) {
                 try { installSparkleAnchor(); }
                 catch (e) { err('install_sparkle_anchor', '' + e); }
             }

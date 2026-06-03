@@ -217,6 +217,13 @@ class CaptureConfig:
     auto_disable_sound: bool = True
     force_windowed:     bool = True
     turbo_step_ms:      int  = 17
+    # Lockstep clock (TAS determinism): freeze the virtual GetTickCount
+    # between Flips and bank exactly one update quantum per present, so
+    # retail renders 1 update / present like the port (frame-for-frame
+    # diffable).  See the agent's lockstep block.  Off by default.
+    lockstep:            bool = False
+    lockstep_step_ms:    int  = 0x10
+    lockstep_epsilon_ms: int  = 1
 
     max_frames:        int  = 30_000
     duration_ms:       int  = 30_000
@@ -546,6 +553,16 @@ def run_capture(cfg: CaptureConfig) -> int:
             print(f"[frida_capture] TAS anchor '{name}' @ flip "
                   f"{payload.get('frame')}", file=sys.stderr)
             summary.setdefault("anchors", {})[name] = payload.get("frame")
+        elif kind == "lockstep_armed":
+            print(f"[frida_capture] lockstep clock ARMED @ flip "
+                  f"{payload.get('frame')} clock={payload.get('clock_ms')}ms "
+                  f"step={payload.get('step_ms')}ms "
+                  f"eps={payload.get('epsilon_ms')}ms", file=sys.stderr)
+            summary["lockstep_armed"] = {
+                "frame": payload.get("frame"),
+                "step_ms": payload.get("step_ms"),
+                "epsilon_ms": payload.get("epsilon_ms"),
+            }
         elif kind == "seed_pinned":
             print(f"[frida_capture] RNG seed pinned @ frame "
                   f"{payload.get('frame')} (first FUN_0056c070): "
@@ -659,6 +676,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "auto_disable_sound": cfg.auto_disable_sound,
         "force_windowed":     cfg.force_windowed,
         "turbo_step_ms":      cfg.turbo_step_ms,
+        "lockstep":           cfg.lockstep,
+        "lockstep_step_ms":   int(cfg.lockstep_step_ms),
+        "lockstep_epsilon_ms": int(cfg.lockstep_epsilon_ms),
         "call_trace":         cfg.call_trace,
         "call_trace_vas":     [int(v) for v in (cfg.call_trace_vas or [])],
         "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
@@ -778,6 +798,9 @@ def run_capture(cfg: CaptureConfig) -> int:
                 "silent_audio":    cfg.silent_audio,
                 "msgbox_redirect": cfg.msgbox_redirect,
                 "turbo_step_ms":   cfg.turbo_step_ms,
+                "lockstep":        cfg.lockstep,
+                "lockstep_step_ms": cfg.lockstep_step_ms,
+                "lockstep_epsilon_ms": cfg.lockstep_epsilon_ms,
                 "max_frames":      cfg.max_frames,
                 "duration_ms":     cfg.duration_ms,
             },
@@ -806,6 +829,15 @@ def main() -> int:
                    help="don't redirect MessageBox calls — for debugging the harness itself")
     p.add_argument("--turbo-step-ms",  type=int, default=17,
                    help="advance virtual clock by N ms per main-loop tick (default 17 ≈ 60 Hz)")
+    p.add_argument("--lockstep",       action="store_true", default=False,
+                   help="TAS lockstep clock: freeze GetTickCount between Flips and bank "
+                        "one update quantum per present, so retail renders 1 update/present "
+                        "like the port (frame-for-frame diffable). Implies a flip anchor.")
+    p.add_argument("--lockstep-step-ms", type=int, default=0x10,
+                   help="update quantum banked per Flip in lockstep mode (default 16)")
+    p.add_argument("--lockstep-epsilon-ms", type=int, default=1,
+                   help="per-call clock creep in lockstep mode to defeat busy-wait hangs "
+                        "(default 1; set 0 for a pure per-Flip freeze)")
     p.add_argument("--max-frames",     type=int, default=30_000,
                    help="exit after N drained Peek/GetMessage events "
                         "(default 30000 ≈ ~5 min of typical 60 Hz play)")
@@ -945,6 +977,9 @@ def main() -> int:
         silent_audio      = args.silent_audio,
         msgbox_redirect   = args.msgbox_redirect,
         turbo_step_ms     = args.turbo_step_ms,
+        lockstep          = args.lockstep,
+        lockstep_step_ms  = args.lockstep_step_ms,
+        lockstep_epsilon_ms = args.lockstep_epsilon_ms,
         max_frames        = args.max_frames,
         duration_ms       = args.duration_ms,
         remote            = args.remote,
