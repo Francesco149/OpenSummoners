@@ -797,6 +797,10 @@ struct test_case {
     X(game_map_tail_pairs)                                     \
     X(game_map_resolves_opening_room)                          \
     X(game_map_zero_defaults_to_3f2)                           \
+    X(map_data_header)                                         \
+    X(map_data_cells_copied)                                   \
+    X(map_data_layers)                                         \
+    X(map_data_truncated)                                      \
 
 #define X(n) extern int test_##n(void);
 TESTS
