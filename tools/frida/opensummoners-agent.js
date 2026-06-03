@@ -1982,6 +1982,13 @@ function installRandProbe() {
 const SCENE_ANCHORS = [
     { va: 0x564780, name: 'newgame_enter' },
     { va: 0x56cd20, name: 'prologue_enter' },
+    // The in-game engine entry: FUN_0059f2c0(map,…) is the per-map run loop the
+    // scene wrapper 0x59ec30 calls (once for the first map 0x3f2, again per
+    // map transition).  Anchoring here lets tas_diff align the in-game frames —
+    // the cutscene exit-fade + map load make the commit→first-game-frame flip
+    // offset variable, so a map-loop-entry anchor is required (not a fixed
+    // offset).  The port emits the matching 'game_enter' from enter_game.
+    { va: 0x59f2c0, name: 'game_enter' },
 ];
 let g_scene_anchors_hooked = false;
 function installSceneAnchors() {

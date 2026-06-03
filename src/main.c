@@ -1341,8 +1341,9 @@ static void enter_prologue(void)
              (void *)g_zdd->primary_obj);
 }
 
-/* Leave the cutscene.  On DONE the game proper (0x59ec30, map 0x3f2) is unported
- * → re-display the title (logged as the deferred seam); on ABORT → title. */
+/* Leave the cutscene.  On ABORT (id 0x22) → re-display the title (the faithful
+ * abort path).  The NORMAL exit (3rd beat → PROLOGUE_DONE) goes to enter_game
+ * instead; see below. */
 static void leave_prologue_to_title(const char *why)
 {
     if (g_prologue_active) {
@@ -1350,6 +1351,29 @@ static void leave_prologue_to_title(const char *why)
         g_prologue_active = 0;
     }
     log_line("leave_prologue: %s — re-displaying title", why);
+    reenter_title();
+}
+
+/* The in-game seam.  On the prologue's 3rd beat (PROLOGUE_DONE) retail's boot
+ * driver calls 0x59ec30(0,0,0x3f2) — the scene LOAD/UNLOAD wrapper around the
+ * in-game engine FUN_0059f2c0(map=0x3f2,…), which loads + runs the opening map
+ * (the town of Tilelia → intro story dialogue; retail golden runs/tas-ingame-1,
+ * renders from ~flip 1150).  The engine is unported (milestone 2: 0x59f2c0 is
+ * 3522 B of setup around the per-frame update 0x586010 (6 KB) + render dispatch
+ * 0x5a00c0 (13.7 KB)).  This stub emits the game_enter TAS anchor — matching the
+ * retail-side 0x59f2c0 anchor so tas_diff can align the in-game frames once they
+ * render — logs the seam, then re-displays the title (like the other unported
+ * sub-scene stubs).  When 0x59f2c0 is ported this body becomes a real game_drive
+ * init/step loop.  Full plan: docs/findings/in-game-intro.md. */
+static void enter_game(void)
+{
+    if (g_prologue_active) {
+        prologue_drive_shutdown(&g_prologue_drive);
+        g_prologue_active = 0;
+    }
+    emit_anchor("game_enter");
+    log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map (in-game engine "
+             "0x59f2c0 unported) — re-displaying title");
     reenter_title();
 }
 
@@ -1530,7 +1554,7 @@ static void main_loop_body(void)
                                &g_prologue_drive.input, now);
         prologue_status st = prologue_drive_step(&g_prologue_drive, now);
         if (st == PROLOGUE_DONE)
-            leave_prologue_to_title("cutscene done (game proper 0x59ec30 unported)");
+            enter_game();   /* 3rd beat → 0x59ec30(0,0,0x3f2) in-game seam */
         else if (st == PROLOGUE_ABORT)
             leave_prologue_to_title("aborted (id 0x22)");
     } else if (g_newgame_active) {

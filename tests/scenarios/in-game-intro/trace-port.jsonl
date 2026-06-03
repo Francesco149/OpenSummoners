@@ -1,0 +1,18 @@
+# PORT-timed input trace (g_present_frame axis) — drives the port through
+# title Start -> new-game (down x2 -> confirm Start Game) -> prologue -> 3 Z
+# beats -> the in-game seam.  Verified ckpt 50: newgame_enter@691
+# prologue_enter@826 game_enter@1116 (rng 0x40d00581, matches retail
+# game_enter@1092).  Run with: --input-trace <this> --frames 1400  (place in the
+# game-dir CWD or pass an absolute path — the port cd's into
+# OPENSUMMONERS_GAME_DIR before loading the trace).  trace-retail.jsonl is the
+# RETAIL-flip counterpart (subtitle@432 / newgame@667 / prologue@815 / game@1092).
+{"frame":640,"ids":[36]}
+{"frame":720,"ids":[3]}
+{"frame":745,"ids":[3]}
+{"frame":805,"ids":[36]}
+{"frame":855,"ids":[36]}
+{"frame":885,"ids":[36]}
+{"frame":915,"ids":[36]}
+{"frame":945,"ids":[36]}
+{"frame":975,"ids":[36]}
+{"frame":1005,"ids":[36]}
