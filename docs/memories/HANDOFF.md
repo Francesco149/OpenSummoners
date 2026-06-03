@@ -1,4 +1,62 @@
-# Session handoff — last updated 2026-06-03 (ckpt 46 — the ELEMENTAL-STONE PROLOGUE CUTSCENE (FUN_0056cd20) is ported + wired into the Start path + RENDERS LIVE (gem + aura + scrolling narration), USER-CONFIRMED visually; next is the bit-exact retail diff, then the game proper 0x59ec30 — in-game, deferred)
+# Session handoff — last updated 2026-06-03 (ckpt 47 — the TAS DETERMINISTIC TRACE-DIFF SYSTEM is built + validated: the `--lockstep` retail clock makes retail render 1 update/present like the port, bilateral RNG-stamped ANCHORS align the flip axes, and `tools/tas_diff.py` diffs frame-for-frame; INTRO 28/28 BIT-EXACT and PROLOGUE CUTSCENE CONTENT BIT-EXACT (63/64 dense) through the pipeline; two real port gaps surfaced — see ckpt 47)
+
+> **ckpt 47 — THE TAS SYSTEM WORKS: deterministic port↔retail frame-for-frame
+> diff.**  Built the determinism stack the user asked for.  **KEY RE FINDING:**
+> retail drives its whole update cadence off **`GetTickCount` deltas** (no
+> timeGetTime/QPC) — every scene loop (title, the new-game modal pump `0x565d10`,
+> the prologue cutscene `0x56cd20`) runs the same 3-state pace machine spending a
+> budget in 16 ms update slices.  The old turbo clock bumped the virtual clock
+> per-CALL → several updates banked per Flip → retail rendered only ~1/N of the
+> update stream (subtitle anchor @ flip **73**), un-diffable vs the port's
+> 1-update/present.  New **`--lockstep`** (agent) freezes the virtual clock
+> between Flips and banks exactly **one update quantum per present** (stall-breaker
+> creep defeats load busy-waits without polluting the budget) → retail renders
+> 1 update/present like the port (subtitle anchor @ **432**, two runs
+> byte-identical, all consecutive frames distinct = exactly 1:1).
+>
+> **ALSO PROVEN:** retail is already **fully deterministic run-to-run** under
+> turbo+seed-pin (two runs, different wall-clock seeds, byte-identical frames
+> through the dynamic intro AND the auto-demo).  So lockstep is for *cadence*
+> (every update rendered), not determinism.
+>
+> **ANCHORS (both sides, RNG-stamped):** `subtitle_anim_start` / `newgame_enter`
+> / `prologue_enter` — port logs `anchor: <name> flip=<N> rng=0x<hex>`
+> (`emit_anchor` in main.c), retail sends `{kind:anchor,…,rng}` (agent
+> `installSceneAnchors` hooks `0x564780`/`0x56cd20`; sparkle hook covers the
+> first).  Within a scene both march tick-for-tick; the anchor absorbs the
+> per-binary flip skew, and the RNG stamp flags an unaccounted `rand()` consumer.
+>
+> **`tools/tas_diff.py`** aligns a port capture set to a retail run on an anchor
+> and reports per-tick `differ_px`, best-matching each port frame within ±W (so
+> an occasional **port 0-update duplicate present** that slips the offset by ±1
+> is absorbed without hiding a real divergence).
+>
+> **RESULTS:** INTRO (`subtitle_anim_start`, port@438/retail@432): **28/28
+> phase-7 frames `differ_px=0`** through the harness (one port dup at tick 22 →
+> drift −1).  PROLOGUE cutscene (`prologue_enter`, port@801/retail@815): dense
+> gem-rise cross-align → **63/64 port frames have a `differ_px=0` retail match**
+> (only the scene-entry frame lacks one) → the **gem/aura/narration render is
+> frame-for-frame BIT-EXACT** (ckpt-46 eyeball verification now quantified).
+> Comparison pushed to llm-feed.
+>
+> **TWO REAL PORT GAPS surfaced by the anchors (open RE threads, NOT render
+> bugs):**  (1) **the port SKIPS the new-game→prologue transition** — port:
+> confirm "Start Game" → `prologue_enter` in **1 flip**; retail: **~20 flips**
+> (the `0x564160`/`0x5642e0` fade-out/load before `0x56cd20`).  This shifts
+> retail's cutscene timeline ~14 flips later, so a single constant anchor offset
+> doesn't hold across the fade-in (±1-tick fade-cadence, residuals 246–662 px =
+> one fade step).  (2) **RNG desync at `prologue_enter`** — both sides match at
+> newgame_enter (`0x404a0a8f`) but differ at prologue_enter (port `0x404a0a8f`
+> vs retail `0x40d00581`): the retail transition consumes `rand()` the port
+> doesn't.  The gem is RNG-independent so unaffected, but it's the canonical
+> "unaccounted rand consumer between two anchors".  **NEXT: port the transition
+> (closes both), or add `--force-rng-at <anchor>=<value>` to resync.**  Full
+> writeup: **`docs/findings/tas-harness.md`**.  No host-test change (tooling +
+> main.c anchor logging); 749 pass.  Ledger unchanged (harness work).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 46 — the ELEMENTAL-STONE PROLOGUE CUTSCENE (FUN_0056cd20) is ported + wired into the Start path + RENDERS LIVE (gem + aura + scrolling narration), USER-CONFIRMED visually; next is the bit-exact retail diff, then the game proper 0x59ec30 — in-game, deferred)
 
 > **ckpt 46 — THE ELEMENTAL-STONE PROLOGUE CUTSCENE IS PORTED, WIRED, AND
 > RENDERS LIVE.**  Confirming "Start Game" in the new-game menu now runs the gem

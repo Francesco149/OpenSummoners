@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 47) — the TAS deterministic port↔retail trace-diff system is built and validated; intro 28/28 bit-exact and prologue cutscene content bit-exact through it
+
+Built the determinism stack for frame-for-frame port↔retail diffing.  **Key RE
+finding:** retail drives its entire update cadence off **`GetTickCount` deltas**
+(no `timeGetTime`/QPC) — every scene loop runs the same 3-state pace machine
+spending a time budget in 16 ms update slices.  The old turbo clock advanced the
+virtual clock per-CALL, banking several updates per Flip → retail rendered only
+~1/N of the update stream, un-diffable vs the port's 1-update/present.
+
+New **`--lockstep`** (agent) freezes the virtual `GetTickCount` between Flips and
+banks exactly one update quantum per present (a stall-breaker creep defeats
+asset-load busy-waits without polluting the budget) → retail renders 1
+update/present like the port.  Verified: subtitle anchor moves flip 73→432, two
+runs byte-identical, all consecutive frames distinct (exactly 1:1).  Also proved
+retail is already fully deterministic run-to-run under turbo+seed-pin (byte-
+identical frames through the dynamic intro + auto-demo across runs with different
+wall-clock seeds) — lockstep is for cadence, not determinism.
+
+Bilateral RNG-stamped **anchors** (`subtitle_anim_start`/`newgame_enter`/
+`prologue_enter`) align the per-binary flip skew; **`tools/tas_diff.py`** diffs
+per-tick `differ_px` with a best-match ±W window (absorbs an occasional port
+0-update duplicate present).  **Intro: 28/28 phase-7 frames `differ_px=0`.
+Prologue cutscene: 63/64 dense gem-rise frames have a bit-exact retail match →
+gem/aura/narration render is frame-for-frame bit-exact** (ckpt-46 eyeball verdict
+now quantified).  Two real port gaps surfaced by the anchors (open threads, not
+render bugs): the port skips the new-game→prologue transition (`0x564160`/
+`0x5642e0`, ~20 retail flips) which also consumes `rand()` → RNG desync at
+prologue_enter (port `0x404a0a8f` vs retail `0x40d00581`).  Full writeup:
+**`docs/findings/tas-harness.md`**.  Commits `b21c260` (lockstep), `7fc159c`
+(anchors + tas_diff).  749 host tests pass (tooling + main.c anchor logging).
+
+---
+
 ## 2026-06-03 (ckpt 46) — the ELEMENTAL-STONE PROLOGUE CUTSCENE (`FUN_0056cd20`) is ported, wired into the Start path, and renders live (gem + aura + scrolling narration); user-confirmed visually
 
 Confirming "Start Game" in the new-game menu now runs the gem cutscene — the
