@@ -59,6 +59,15 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   as you find them** (AGENT-WORKFLOW "Note engine quirks"); cite the entry
   number in commits instead of restating the quirk.
 
+## Harness / tooling
+
+- **[tas-harness.md](tas-harness.md)** — the 100%-deterministic port↔retail
+  trace-diff stack: the `--lockstep` retail clock (1 update/present, matching
+  the port), bilateral TAS anchors (subtitle_anim_start / newgame_enter /
+  prologue_enter, RNG-stamped), and `tools/tas_diff.py`. Intro bit-exact
+  (28/28); prologue cutscene content bit-exact (63/64) with two surfaced
+  threads (port skips the new-game→prologue transition; RNG desync there).
+
 ## Derived progress artifacts (not findings, but read alongside)
 
 - `../STATUS.md` — coverage headline.
