@@ -3993,3 +3993,47 @@ gate needs a harness that drives/captures inside the modal pump.
 `0x5657f0` ported; value provider already counted).
 
 ---
+
+## ckpt 48 — TAS: the new-game→prologue fade-out is ported (cutscene-offset gap CLOSED)
+
+Closed open thread #1 from the TAS harness (ckpt 47): the port skipped retail's
+post-config fade-out, so it entered the prologue cutscene 1 flip after the
+"Start Game" commit while retail spends ~20 flips, leaving the cutscene fade-in
+un-alignable at a single anchor offset (residuals 246–662 px = one fade step).
+
+**RE finding (quirk #72):** `FUN_00564160`, on a Start commit, clears the menu
+box node's `+0x50` (564160.c:30) and runs a **≤20-frame fade-out loop**
+(`FUN_005642e0` scene update + `FUN_0056c930` mode-1 CLOSING alpha ramp +
+`FUN_0043c2e0` per-entry) before `0x56cd20` — exactly **20 presented flips**
+under `--lockstep` (confirm@795 → prologue_enter@815).  `FUN_005642e0` early-
+breaks (returns 6) only on an abort event (id 0x22); the Start path runs all 20.
+
+**Port:** a fade-out submode in `newgame_drive` (`NEWGAME_FADEOUT_FRAMES=20`).
+A Start-Game commit no longer returns `NEWGAME_START` immediately — it sets
+`fading`, clears `node.field_50`, seeds `node.field_54` from the open gate, and
+for the next 20 frames ramps `field_54` down by `0x28`/frame (the `0x56c930`
+mode-1 close), re-renders + presents, then returns `NEWGAME_START` so `main.c`
+enters the prologue at retail's offset.
+
+**Verified (tas_diff, `prologue_enter`, port@821 vs retail@815,
+runs/tas-retail-gem, window 2):** prologue_enter moved **801→821** (+20 flips,
+matching retail's 20-flip fade-out); `prologue_enter` rng still **0x40d00581**
+(the fade consumes no `rand()`).  The cutscene **fade-in (ticks 1-28) is now
+entirely `differ_px=0`** at a near-constant drift (−2, ±1 lockstep wobble) — the
+ckpt-47 fade-in residuals are GONE.  **63/64** dense gem-rise frames bit-exact;
+the only non-zero frame is tick 0 (84684 px) = the **pre-existing** entry-frame
+issue (port renders the first gem tick while retail's first present is black —
+documented at ckpt 47, NOT introduced here).  Comparison pushed to llm-feed.
+
+**STILL OPEN — the fade-out frames' RENDER:** the port re-renders the new-game
+menu **opaque** during the 20 fade frames; retail fades the box-panel alpha
+(`0x48cf80`'s alpha arm via `0x5bd550`) + the GDI menu text, so those ~20
+transition frames are not yet bit-exact.  That fade *render* is the deferred
+box-alpha arm (a separate item, needs a retail capture of the fade-out frames to
+model the text fade).  This checkpoint closed the **timing/offset** gap.
+
+751 host tests pass (+1 `newgame_drive_fadeout_then_start`).  Ledger
+**175/1490** (+1: `0x564160` partial — the transition loop tail; de-inflated
+`0x5b6990`/`0x5642e0` to bare VA per the unported-callee convention).
+
+---

@@ -1,4 +1,50 @@
-# Session handoff — last updated 2026-06-03 (ckpt 47 — the TAS DETERMINISTIC TRACE-DIFF SYSTEM is built + validated: the `--lockstep` retail clock makes retail render 1 update/present like the port, bilateral RNG-stamped ANCHORS align the flip axes, and `tools/tas_diff.py` diffs frame-for-frame; INTRO 28/28 BIT-EXACT and PROLOGUE CUTSCENE CONTENT BIT-EXACT (63/64 dense) through the pipeline; two real port gaps surfaced — see ckpt 47)
+# Session handoff — last updated 2026-06-03 (ckpt 48 — the NEW-GAME→PROLOGUE FADE-OUT is ported: the cutscene-offset gap (open thread #1) is CLOSED — the port now spends retail's ~20 fade flips before 0x56cd20, so prologue_enter moved 801→821 (+20) and the cutscene FADE-IN diffs differ_px=0 at a constant offset, 63/64 dense gem frames bit-exact; the fade-out frames' RENDER (box-alpha arm) is the remaining sub-item)
+
+> **ckpt 48 — THE NEW-GAME→PROLOGUE FADE-OUT IS PORTED (cutscene-offset gap
+> CLOSED).**  Closed TAS open thread #1: the port skipped retail's post-config
+> fade-out, entering the gem cutscene **1 flip** after the "Start Game" commit
+> while retail spends **~20 flips**, so the cutscene fade-in couldn't align at a
+> single anchor offset (ckpt-47 residuals 246–662 px = one fade step).
+>
+> **KEY RE FINDING (quirk #72):** `FUN_00564160`, on a Start commit, clears the
+> menu box node's `+0x50` (564160.c:30) and runs a **≤20-frame fade-out loop**
+> (`0x5642e0` scene update + `FUN_0056c930` **mode-1 CLOSING** alpha ramp +
+> `0x43c2e0` per-entry) before `0x56cd20` — **exactly 20 presented flips** under
+> `--lockstep` (confirm@795 → prologue_enter@815).  `0x5642e0` early-breaks
+> (returns 6) only on an abort (id 0x22); the Start path runs all 20.
+>
+> **PORT:** a fade-out submode in `newgame_drive` (`NEWGAME_FADEOUT_FRAMES=20`).
+> A Start-Game commit no longer returns `NEWGAME_START` immediately — it sets
+> `fading`, clears `node.field_50`, seeds `node.field_54` from the open gate,
+> and for 20 frames ramps `field_54` down by `0x28`/frame (the `0x56c930`
+> mode-1 close, already ported as `menu_owner_transition_step`), re-renders +
+> presents, then returns `NEWGAME_START` so `main.c` enters the prologue at
+> retail's offset.
+>
+> **VERIFIED (tas_diff, `prologue_enter`, port@821 vs retail@815,
+> runs/tas-retail-gem, window 2):** prologue_enter moved **801→821** (+20,
+> matching retail); `prologue_enter` rng still **0x40d00581** (the fade consumes
+> no `rand()`).  The cutscene **fade-in (ticks 1-28) is now entirely
+> `differ_px=0`** at a near-constant drift (−2, ±1 lockstep wobble) — the
+> ckpt-47 fade-in residuals are GONE.  **63/64** dense gem-rise frames bit-exact;
+> the only non-zero frame is tick 0 (84684 px) = the **pre-existing** entry-frame
+> issue (port renders the first gem tick while retail's first present is still
+> black — documented ckpt 47, NOT introduced here).  Comparison pushed to
+> llm-feed.
+>
+> **STILL OPEN — the fade-out frames' RENDER (deferred box-alpha arm).**  The
+> port re-renders the new-game menu **opaque** during the 20 fade frames; retail
+> fades the box-panel alpha (`0x48cf80`'s alpha arm via `0x5bd550`) + the GDI
+> menu text, so those ~20 transition frames (port ~801-820 vs retail ~795-814)
+> are NOT yet bit-exact.  That fade *render* is a separate item — needs a retail
+> capture of the fade-out frames to model how the GDI text fades.  This ckpt
+> closed the **timing/offset** gap (the cutscene now diffs at a constant offset).
+> 751 host tests pass (+1).  Ledger **175/1490** (+1: `0x564160` partial).  Full
+> writeup: **`docs/findings/tas-harness.md`** (open thread #1 → CLOSED).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 47 — the TAS DETERMINISTIC TRACE-DIFF SYSTEM is built + validated: the `--lockstep` retail clock makes retail render 1 update/present like the port, bilateral RNG-stamped ANCHORS align the flip axes, and `tools/tas_diff.py` diffs frame-for-frame; INTRO 28/28 BIT-EXACT and PROLOGUE CUTSCENE CONTENT BIT-EXACT (63/64 dense) through the pipeline; two real port gaps surfaced — see ckpt 47)
 
 > **ckpt 47 — THE TAS SYSTEM WORKS: deterministic port↔retail frame-for-frame
 > diff.**  Built the determinism stack the user asked for.  **KEY RE FINDING:**
@@ -714,7 +760,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 45): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40), selection cursor BIT-EXACT (ckpt 43), TOOLTIP TEXT bit-exact (ckpt 44), AND the OPTION PICKER submenu ported + user-confirmed (ckpt 45, quirk #71); next is the Start→game path (0x564160→0x59ec30 — the prologue critical path)
+## ⭐ Current state (ckpt 48): title bit-exact loop; new-game scene bit-exact (box/text/cursor/tooltip + picker); prologue gem cutscene content bit-exact (63/64); and the new-game→prologue FADE-OUT transition timing now ported (cutscene fade-in differ_px=0 at a constant offset). Goal of 1:1 parity for title+new-game+prologue is essentially MET for rendered content. Remaining: the fade-out frames' RENDER (box-alpha arm) + the user-decision to extend the trace in-game (Next move #1).
 
 > **User @ ckpt 44:** "can confirm 1:1 except for sparkle on cursor."  → The
 > whole new-game screen (box + menu text + cursor + tooltip help text) is
@@ -818,41 +864,45 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 ## Next move (pick one — recommendation first)
 
 > Context: the title is a bit-exact loop; the new-game config scene renders bit-
-> exact (box + text + cursor + tooltip) with the picker user-confirmed; and now
-> the **prologue gem cutscene renders live + user-confirmed visually** (ckpt 46).
+> exact (box + text + cursor + tooltip) with the picker user-confirmed; the
+> prologue gem cutscene renders live + is **content bit-exact** (ckpt 47, 63/64
+> dense), AND the new-game→prologue **fade-out transition timing is now ported**
+> (ckpt 48) so the cutscene fade-in diffs `differ_px=0` at a constant offset.
 > The active goal (user, ckpt 13) is **1:1 parity** for title + new-game +
-> prologue.  What's left for the prologue is the **bit-exact retail diff**.
+> prologue — which is now essentially MET for the rendered content.  Two things
+> remain: the fade-out frames' RENDER (a known sub-item) and the user-decision on
+> extending the trace in-game (we now HAVE prologue + main-menu rendering).
 
-1. **(recommended) Capture a RETAIL golden of the stone intro + `differ_px`-diff
-   it vs the port.**  The cutscene (`FUN_0056cd20`) renders correctly by eyeball
-   (gem + aura + scrolling narration; user-confirmed ckpt 46) but has **no bit-
-   exact verification** yet — no retail golden captured.  Drive **retail** to the
-   cutscene: the committed new-game trace + a Start-Game confirm (down ×2 from
-   row 0, then `0x24`), capture frames during the gem rise, and diff the gem +
-   narration region vs the port at a matched animation tick (the gem fade/rise +
-   the caption `sub`-stagger make the tick alignment derivable, like the intro
-   twinkles).  **Caveat to assess first:** `0x56cd20` is a modal loop like the
-   picker — it may freeze the hooked Flip counter (`0x565d10` quirk #67 class),
-   in which case flip-keyed capture/inject won't reach it and a non-flip-keyed
-   harness (hook `0x56cd20`'s own `FUN_005b8fc0` present) is needed.  Port-side
-   driving recipe (self-serviceable, WORKS): write a trace into the game dir —
-   `{"frame":620,"ids":[36]}` (title Start), `{"frame":720,"ids":[3]}`,
-   `{"frame":745,"ids":[3]}` (down ×2 → Start Game), `{"frame":800,"ids":[36]}`
-   (confirm) — then `./build/opensummoners-launcher.exe --timeout-ms 120000 --
-   /tmp/oss.exe --hide-window --frames 3600 --input-trace prologue_trace.jsonl
-   --capture-frames "950,1550,2300,2800" --capture-dir=C:/osscap` (**forward
-   slashes** in the capture dir — the launcher eats a backslash → `C:osscap`).
-   Frames after ~800 are the cutscene; the narration's 2nd line appears ~flip
-   2300.  Modules: `src/prologue_stone.{c,h}` (pure state+render),
-   `src/prologue_drive.{c,h}` (the caller), `prologue_render` in `main.c` (blits).
+1. **★ DECISION POINT — ask the user whether to EXTEND THE TRACE in-game.**  The
+   active goal said "do NOT extend the trace toward in-game yet; once we have
+   prologue and main menu rendering we extend the trace."  We now HAVE both
+   (title bit-exact, new-game bit-exact, prologue content bit-exact + the
+   transition timing aligned).  So this is the moment the goal anticipated: ask
+   the user to confirm extending the trace past `PROLOGUE_DONE` into the game
+   proper (`0x59ec30`, map 0x3f2 — `0x59f2c0` map loop + resource load/unload),
+   the next big rock.  On PROLOGUE_DONE the port currently re-displays the title
+   (a logged seam).  **Needs human input before starting** (scope change).
 
-2. **Then the game proper (`0x59ec30`, map 0x3f2) — the next big rock, but
-   OUT-OF-SCOPE until the user extends the trace.**  On PROLOGUE_DONE the port
-   re-displays the title (logged seam).  Entering `0x59ec30` is the whole in-game
-   engine (`0x59f2c0` map loop + resource load/unload) — the active goal says "do
-   NOT extend the trace toward in-game yet; once we have prologue and main menu
-   rendering we extend the trace."  We now HAVE prologue + main menu rendering, so
-   this is the moment to ask the user whether to extend the trace toward in-game.
+2. **(deferred polish) The fade-out frames' RENDER — the box-alpha arm.**  The
+   transition TIMING is aligned (ckpt 48) but the port re-renders the new-game
+   menu **opaque** during the 20 fade frames, while retail fades the box-panel
+   alpha (`0x48cf80`'s alpha arm via `0x5bd550`) + the GDI menu text.  So those
+   ~20 transition frames (port ~801-820 vs retail ~795-814) are NOT yet bit-
+   exact.  To close: port `0x48cf80`'s alpha arm (the 9-slice box blit blended by
+   `node.field_54`) and capture **retail's fade-out frames** (~795-814 — drive
+   retail to the commit, capture that window) to model how the GDI menu text
+   fades during the transition (likely the scene is composited to an offscreen
+   then alpha-blitted — needs the capture to confirm).  Self-contained; doesn't
+   need new scope.  The fade STATE (`field_54` ramp) is already tracked, so this
+   is purely the render half.
+
+3. **(verification, cheap) Re-capture retail's cutscene under lockstep + re-run
+   `tas_diff` to re-confirm 63/64 after any prologue change.**  The recipe is in
+   `docs/findings/tas-harness.md` (port@821 vs retail@815, runs/tas-retail-gem,
+   window 2).  The pre-existing **tick-0 entry-frame** residual (84684 px — the
+   port renders the first gem tick while retail's first present at prologue_enter
+   is still black) is a small prologue_drive first-present item worth closing too
+   (defer the first prologue render by one tick so tick 0 is black like retail).
 
 3. **(deferred polish, optional) Finish the new-game scene's remaining CHROME.**
    The box panel + menu text + selection cursor render bit-exact; port the rest in
