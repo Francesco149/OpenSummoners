@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 52) — the in-game `game_drive` scaffold is stood up (plan 3b's first step)
+
+`enter_game` no longer re-displays the title — it stands up a **`game_drive`**
+(new `src/game_drive.{c,h}`, the milestone-2 counterpart of `prologue_drive`):
+it owns the in-game input ring, and `main_loop_body` runs one `game_drive_step`
+per presented frame.  The in-game engine (0x59f2c0 world setup + 0x586010 sim +
+0x5a00c0 render dispatch) is unported, so a step renders the faithful **black
+map-load frame** (`game_render` = `zdd_object_clear`) — the state retail shows
+from `game_enter` (flip ~1092) until the town first renders (~flip 1150) while
+the engine loads map 0x3f2 + the entry fade runs (golden: flips 900-1100 black).
+This replaces the prior stub's wrong title re-display.  `game_status::GAME_EXIT`
+is reserved for the engine's scene-transition codes (0x59f2c0 ret 4/5 → 0x59ec30
+map reload); a step stays `GAME_RUNNING` for now.
+
+**Verified live** (`trace-port.jsonl`, `--frames 1300`): `game_enter@1116`
+rng `0x40d00581` (matches retail `game_enter@1092`); the port runs the game_drive
+to frame 1300 without re-displaying the title.  Captures: frame 400 (title,
+phase 6) = 307200 nonblack px (title unaffected); frames 1160/1200 (in-game,
+`phase=-1`) = fully black (extrema 0) → the early in-game frames now match
+retail's black entry window.  3 host tests (`test_game_drive.c`) → 753 pass / 0
+fail / 6 skip.  Ledger 175/1490 unchanged (scaffold/seam, no new FUN; unported
+engine fns kept as bare VAs).  Commit 7c60b25.
+
+Also recorded (`docs/findings/in-game-intro.md`): the EXE-NULL banks
+`0x570-0x572` are confirmed present in `sotes.unpacked.exe`'s `.rsrc`
+(`type=DATA`, 387 DATA ids); the port must load them via
+`LoadLibraryExA("sotes.exe", LOAD_LIBRARY_AS_DATAFILE)` (not `settings=NULL` —
+the port is its own exe), and their registration stays coupled to the
+engine-time pool slot indices (deferred with the 0x5a00c0 port).  **Next:** port
+the world construction (0x59f2c0 fresh-entry arm) + a slice of 0x5a00c0 for the
+static town backdrop, diff vs `runs/tas-ingame-1`.
+
+---
+
 ## 2026-06-03 (ckpt 51) — plan 3a RESOLVED: in-game town banks identified (new --res-probe) + the deferred boot batches g2/g3/g5 wired (title still differ_px=0)
 
 Answered milestone-2 plan 3a ("which banks does map 0x3f2 pull, and from where")

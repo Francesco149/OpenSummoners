@@ -1,4 +1,48 @@
-# Session handoff — last updated 2026-06-03 (ckpt 51 — PLAN 3a RESOLVED: the in-game town's resource banks are identified by a NEW live res-probe (`frida_capture.py --res-probe` → hooks `bs_decode_resource` 0x5b7800, logs every distinct (DLL,id,type) load).  Drove retail prologue→Z-spam→town under lockstep: the opening map (0x3f2) loads NO per-map resource file — it lazily decodes **74 sprite banks** via the normal `ar_sprite_decode` path, **71 from sotesd.dll + 3 EXE-embedded** (hModule=NULL).  Map layout = compiled-in static data, NOT a resource.  Cross-referenced: the banks are exactly the deferred boot batches g2(ramps/portraits)+g3+g5 that `init_sprite_banks` skipped (g4 already wired).  **WIRED g2/g3/g5 at boot** (all settings=g_sotesd); **verified title still differ_px=0** (A/B post-vs-pre, inert as predicted — title uses none of them).  The ONE residual = EXE-NULL banks 0x570-0x572 (settings=NULL, engine-time registration → plan 3b).  750 host tests pass; ledger unchanged (tooling + boot wiring).  NEXT: plan 3b — stand up `game_drive`, register the EXE-NULL banks, port a slice of `0x5a00c0` for the static town backdrop, diff vs runs/tas-ingame-1.  Clean /clear point.)
+# Session handoff — last updated 2026-06-03 (ckpt 52 — GAME_DRIVE SCAFFOLD stood up (plan 3b's first bullet).  `enter_game` no longer re-displays the title — it stands up a new `game_drive` (`src/game_drive.{c,h}`, the milestone-2 counterpart of prologue_drive): owns the in-game input ring, and `main_loop_body` runs one `game_drive_step` per presented frame.  The in-game ENGINE (0x59f2c0 setup + 0x586010 sim + 0x5a00c0 render) is still unported, so a step renders the faithful BLACK map-load frame (`game_render`=zdd_object_clear) — the state retail shows from game_enter (~flip 1092) to the first town frame (~1150) while the engine loads the map + fades (golden flips 900-1100 black).  VERIFIED LIVE (trace-port, --frames 1300): game_enter@1116 rng 0x40d00581 (matches retail @1092); port runs game_drive to 1300 without re-displaying title; captures frame 400 (title phase6)=full content, frames 1160/1200 (in-game phase=-1)=fully black → early in-game frames now match retail's black entry.  3 host tests (test_game_drive.c) → 753 pass.  Ledger 175/1490 unchanged (scaffold/seam, no new FUN).  Also recorded: EXE-NULL banks 0x570-0x572 CONFIRMED present in sotes.unpacked.exe .rsrc (type=DATA); port must load via LoadLibraryExA(sotes.exe,AS_DATAFILE) not settings=NULL; their registration stays coupled to the engine-time slot indices (deferred with 0x5a00c0).  NEXT: port a slice of 0x5a00c0 into game_render for the static town backdrop — needs the world populated by 0x59f2c0 setup + 0x586010 sim first (the 0x4120 map object, 0x5400c/0x7808 buffers, &DAT_006940c8 registry).  Clean /clear point.)
+
+> **ckpt 52 — THE IN-GAME GAME_DRIVE SCAFFOLD IS STOOD UP** (plan 3b's first
+> bullet; the structural seam the render slice drops into).  No engine code
+> ported — this is the drive plumbing, like ckpt 49/50's phase-kickoff units.
+>
+> **PORT:** new **`src/game_drive.{c,h}`** (mirror of `prologue_drive`): owns the
+> in-game `input_mgr` + ring, `game_drive_init/step/shutdown`, a `game_drive_cfg`
+> {render,present,user}.  `enter_game` (`main.c`) now stands it up (render=
+> `game_render`, present=`drive_present`) instead of `reenter_title`;
+> `main_loop_body` gains a `g_game_active` branch that injects trace input + runs
+> one `game_drive_step` per frame.  **`game_render` = `zdd_object_clear` (black)**
+> — the faithful map-load frame (engine unported).  `game_status::GAME_EXIT` is
+> reserved for the engine's scene-transition codes (0x59f2c0 ret 4/5 → 0x59ec30
+> reload); a step stays `GAME_RUNNING` for now.
+>
+> **VERIFIED LIVE** (`tests/scenarios/in-game-intro/trace-port.jsonl`,
+> `--frames 1300`): subtitle@436 / newgame@691 / prologue@826 / **game_enter@1116
+> rng 0x40d00581** (matches retail game_enter@1092).  The port runs the game_drive
+> to frame 1300 with NO title re-display.  Captures (C:\osscap): frame 400 (title,
+> phase 6) = 307200 nonblack px (title unaffected); frames 1160/1200 (in-game,
+> phase=-1) = **extrema 0, nonblack=0** (fully black) → the early in-game frames
+> now match retail's black entry window (golden: flips 900-1100 black).
+>
+> **EXE-NULL banks (recorded, in-game-intro.md "Resource banks"):** `0x570-0x572`
+> CONFIRMED present in `sotes.unpacked.exe`'s `.rsrc` as `type=DATA` (387 DATA
+> ids total; tool `sotes_resources.py`).  The port ships as its own exe, so
+> `FindResourceA(NULL,…)`→`settings=NULL` is WRONG for the port — it must
+> `LoadLibraryExA("sotes.exe", LOAD_LIBRARY_AS_DATAFILE)` and pass that handle as
+> `settings` (same pattern as `g_sotesd`).  Registration needs the pool **slot
+> indices** these banks occupy, set by the engine-time site inside the unported
+> 0x586010/0x5a00c0 → stays bundled with the 0x5a00c0 port.
+>
+> **NEXT (plan 3b body):** port a slice of **`0x5a00c0`** (the 13.7 KB render
+> dispatch) into `game_render` for the static town backdrop — but it reads world
+> state the **0x59f2c0 setup** + **0x586010 sim step** must populate first (the
+> 0x4120 map object, the 0x5400c/0x7808 world buffers, the `&DAT_006940c8`
+> 0x54-stride actor/cell registry).  So the real first unit is the world
+> construction (0x59f2c0 fresh-entry arm, host-tested against the decomp), THEN a
+> minimal render slice.  3 host tests (753 pass).  Ledger 175/1490.  Clean
+> **/clear point**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 51 — PLAN 3a RESOLVED: the in-game town's resource banks are identified by a NEW live res-probe (`frida_capture.py --res-probe` → hooks `bs_decode_resource` 0x5b7800, logs every distinct (DLL,id,type) load).  Drove retail prologue→Z-spam→town under lockstep: the opening map (0x3f2) loads NO per-map resource file — it lazily decodes **74 sprite banks** via the normal `ar_sprite_decode` path, **71 from sotesd.dll + 3 EXE-embedded** (hModule=NULL).  Map layout = compiled-in static data, NOT a resource.  Cross-referenced: the banks are exactly the deferred boot batches g2(ramps/portraits)+g3+g5 that `init_sprite_banks` skipped (g4 already wired).  **WIRED g2/g3/g5 at boot** (all settings=g_sotesd); **verified title still differ_px=0** (A/B post-vs-pre, inert as predicted — title uses none of them).  The ONE residual = EXE-NULL banks 0x570-0x572 (settings=NULL, engine-time registration → plan 3b).  750 host tests pass; ledger unchanged (tooling + boot wiring).  NEXT: plan 3b — stand up `game_drive`, register the EXE-NULL banks, port a slice of `0x5a00c0` for the static town backdrop, diff vs runs/tas-ingame-1.  Clean /clear point.)
 
 > **ckpt 51 — PLAN 3a (in-game resource banks) RESOLVED + the boot batches WIRED.**
 > Built a new ground-truth probe, captured the town's exact bank set, and wired
@@ -891,7 +935,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 51): title bit-exact loop; new-game scene bit-exact (box/text/cursor/tooltip + picker); prologue gem cutscene content bit-exact (63/64) + the fade-out timing ported. Milestone 1 (title+new-game+prologue) is 1:1 for rendered content. **Milestone 2 (the game proper) IN PROGRESS**: the in-game seam is wired + anchored (game_enter, both sides, rng-matched), the engine 0x59f2c0 is surveyed/decomposed, and **plan 3a is RESOLVED** — the town's resource banks are identified (live res-probe) and the deferred boot batches g2/g3/g5 are wired + regression-verified (title differ_px=0). The engine 0x59f2c0 + children remain UNPORTED (plan 3b — the multi-checkpoint body; see Next move #1 / docs/findings/in-game-intro.md). Deferred: the EXE-NULL town banks 0x570-0x572 (engine-time registration, plan 3b); the fade-out frames' RENDER (box-alpha arm, Next move #2).
+## ⭐ Current state (ckpt 52): title bit-exact loop; new-game scene bit-exact (box/text/cursor/tooltip + picker); prologue gem cutscene content bit-exact (63/64) + the fade-out timing ported. Milestone 1 (title+new-game+prologue) is 1:1 for rendered content. **Milestone 2 (the game proper) IN PROGRESS**: the in-game seam is wired + anchored (game_enter, both sides, rng-matched), the engine 0x59f2c0 is surveyed/decomposed, **plan 3a is RESOLVED** (town banks identified + boot batches g2/g3/g5 wired, title differ_px=0), and **the `game_drive` scaffold is stood up** (ckpt 52 — `src/game_drive.{c,h}`, wired into enter_game/main_loop_body, renders the faithful black map-load frame; the early in-game frames now match retail's black entry window). The engine 0x59f2c0 + children (0x586010 sim, 0x5a00c0 render) remain UNPORTED (plan 3b — the multi-checkpoint body; see Next move #1 / docs/findings/in-game-intro.md). Deferred: the EXE-NULL town banks 0x570-0x572 (confirmed in sotes.exe .rsrc; port loads via LoadLibraryExA(sotes.exe,AS_DATAFILE); registration coupled to engine-time slot indices, plan 3b); the fade-out frames' RENDER (box-alpha arm, Next move #2).
 
 > **User @ ckpt 44:** "can confirm 1:1 except for sparkle on cursor."  → The
 > whole new-game screen (box + menu text + cursor + tooltip help text) is
@@ -1020,14 +1064,24 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
      deferred boot batches g2/g3/g5 (title still `differ_px=0`).  Residual: the
      EXE-NULL banks `0x570-0x572` (register with `settings=NULL` in 3b).  Probe:
      `frida_capture.py --res-probe`.  Full map: in-game-intro.md "Resource banks".
-   - (3b) **Stand up a `game_drive`** (mirror `prologue_drive`): hold the map
-     object + scene, step once/frame, register the EXE-NULL banks (`settings=NULL`),
-     render a ported slice of **`0x5a00c0`** (13.7 KB; reuses the already-ported
-     `ar_sprite_decode`/zdd/ramps), present.  Target the **static town
+   - ~~(3b-i) **Stand up a `game_drive`**~~ **DONE (ckpt 52)** —
+     `src/game_drive.{c,h}` mirrors `prologue_drive`; `enter_game` stands it up,
+     `main_loop_body` steps it once/frame; `game_render`=`zdd_object_clear`
+     (black map-load frame).  Verified live (game_enter@1116, in-game frames black,
+     title unaffected).
+   - (3b-ii) **Port the world construction + a render slice.**  `game_render`
+     today clears black; to draw the town it needs the world the engine builds:
+     port the **0x59f2c0 fresh-entry arm** (the 0x4120 map object alloc + field
+     init + the `&DAT_006940c8` registry copy via 0x585000; host-test the field
+     writes against the decomp), then the **0x586010 sim step** (enough to
+     populate what the backdrop reads), then a slice of **`0x5a00c0`** (13.7 KB;
+     reuses ported `ar_sprite_decode`/zdd/ramps).  Target the **static town
      backdrop/tilemap FIRST** (golden flip ~1150), diff vs `runs/tas-ingame-1`
-     anchored on `game_enter`.  Then entities, then the dialogue box (~flip 2200,
-     likely the glyph pipeline again).  Use `--res-probe` on the PORT too to
-     confirm it decodes the same bank set as retail.
+     anchored on `game_enter`.  Register the EXE-NULL banks 0x570-0x572 at the
+     engine-time site once the slot indices surface (settings=a `sotes.exe`
+     datafile handle).  Then entities, then the dialogue box (~flip 2200, likely
+     the glyph pipeline again).  Use `--res-probe` on the PORT too to confirm it
+     decodes the same bank set as retail.
    The two giant children — **`0x586010` (6 KB, sim/draw step)** + **`0x5a00c0`
    (13.7 KB, render dispatch)** — are the real body; `0x59ec30`/`0x59f2c0` are
    the wrapper + world-setup/loop around them.
