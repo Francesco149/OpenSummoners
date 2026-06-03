@@ -1936,6 +1936,40 @@ function installSparkleAnchor() {
             (g_seed_value >>> 0).toString(16) + ')' : ''));
 }
 
+// ─── scene-boundary TAS anchors ──────────────────────────────────────────
+// Beyond the intro's subtitle_anim_start, the trace crosses scene boundaries
+// where the flip count diverges from the port (per-scene load cost): the
+// new-game config scene (FUN_00564780, case 0x24 runner) and the Elemental-
+// Stone prologue cutscene (FUN_0056cd20).  Hook each entry and emit a named
+// anchor stamped with the live flip AND the RNG seed (DAT_008a4f94), so the
+// trace-diff can re-offset retail's flip axis onto the port's at the boundary
+// and flag any RNG desync.  Emitted on EVERY entry (the flip disambiguates
+// re-entries in a title loop); the port emits the matching names from
+// enter_newgame / enter_prologue.
+const SCENE_ANCHORS = [
+    { va: 0x564780, name: 'newgame_enter' },
+    { va: 0x56cd20, name: 'prologue_enter' },
+];
+let g_scene_anchors_hooked = false;
+function installSceneAnchors() {
+    if (g_scene_anchors_hooked) return;
+    const seedAddr = rva(SEED_VA);
+    SCENE_ANCHORS.forEach(function (a) {
+        Interceptor.attach(rva(a.va), {
+            onEnter: function () {
+                let seed = 0;
+                try { seed = seedAddr.readU32() >>> 0; } catch (e) {}
+                send({kind: 'anchor', name: a.name, frame: g_flip_frame,
+                      rng: seed});
+            },
+        });
+    });
+    g_scene_anchors_hooked = true;
+    logmsg('scene anchors installed @ ' +
+           SCENE_ANCHORS.map(function (a) {
+               return a.name + '(0x' + a.va.toString(16) + ')'; }).join(', '));
+}
+
 function memWatchFlush(frameNumber) {
     if (g_mem_watch_buffer.length === 0) return;
     const events = g_mem_watch_buffer;
@@ -2208,6 +2242,13 @@ rpc.exports = {
                 g_fade_probe || g_cursor_probe || g_inject_enabled || g_lockstep) {
                 try { installSparkleAnchor(); }
                 catch (e) { err('install_sparkle_anchor', '' + e); }
+            }
+            // Scene-boundary anchors ride the same flip counter as the sparkle
+            // anchor; install whenever the flip hook is live.
+            if (g_capture_enabled || g_inject_enabled || g_lockstep ||
+                g_call_trace_enabled) {
+                try { installSceneAnchors(); }
+                catch (e) { err('install_scene_anchors', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }

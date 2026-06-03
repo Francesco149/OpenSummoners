@@ -167,10 +167,21 @@ static int            g_prologue_active;
  * its storage outlives the drive.  Reset at each drive init. */
 static title_particle_pool g_particles;
 
+static void emit_anchor(const char *name);   /* TAS alignment seam (see below) */
+
 /* The spawn_sparkle hook (title_scene_hooks): phase-7's per-tick
  * FUN_0056c070 call with the title constants baked in. */
 static void drive_spawn_sparkle(int32_t intensity)
 {
+    /* The first phase-7 spawn is the TAS `subtitle_anim_start` anchor — the
+     * same point the retail agent stamps at its first FUN_0056c070 call.  This
+     * is tick 0 of the sparkle/subtitle animation, the intro's alignment seam.
+     * Emit BEFORE the spawn so the RNG state matches retail's pre-spawn read. */
+    static int spawned_once = 0;
+    if (!spawned_once) {
+        spawned_once = 1;
+        emit_anchor("subtitle_anim_start");
+    }
     title_particle_spawn_title(&g_particles, intensity);
 }
 
@@ -1223,6 +1234,7 @@ static void enter_newgame(void)
 
     newgame_drive_init(&g_newgame_drive, &cfg);
     g_newgame_active = 1;
+    emit_anchor("newgame_enter");
     log_line("enter_newgame: new-game config scene driven (primary=%p) — "
              "nav gate ramping open, 0x24=confirm 0x27=back",
              (void *)g_zdd->primary_obj);
@@ -1323,6 +1335,7 @@ static void enter_prologue(void)
 
     prologue_drive_init(&g_prologue_drive, &cfg);
     g_prologue_active = 1;
+    emit_anchor("prologue_enter");
     log_line("enter_prologue: Elemental-Stone cutscene driven (primary=%p) — "
              "gem/aura/sparkles on black; 0x22=abort, 3 beats begin exit",
              (void *)g_zdd->primary_obj);
@@ -1752,4 +1765,19 @@ static void log_line(const char *fmt, ...)
     fputc('\n', stderr);
     fflush(stderr);
     va_end(ap);
+}
+
+/* TAS anchor — a named alignment point emitted at a scene/phase boundary.
+ * Under the lockstep clock the port and retail run 1 update/present and march
+ * tick-for-tick WITHIN a scene, but the flip count at which a boundary is
+ * reached differs across the two binaries (boot skew, per-scene load cost).
+ * An anchor records (name, flip, RNG state) so the side-by-side trace diff
+ * (tools/tas_diff.py) can offset retail's flip axis onto the port's at each
+ * boundary, and so a mismatched RNG state pinpoints an unaccounted rand()
+ * consumer.  The retail counterpart is the Frida agent's {kind:'anchor'} send.
+ * Format is fixed + grep-friendly: `anchor: <name> flip=<N> rng=0x<hex>`. */
+static void emit_anchor(const char *name)
+{
+    log_line("anchor: %s flip=%u rng=0x%08lx",
+             name, g_present_frame, (unsigned long)rng_peek_state());
 }
