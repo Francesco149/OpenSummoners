@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 155,
+  "tested": 157,
   "ported": 6,
-  "unported": 1597,
+  "unported": 1595,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 161,
-  "pct_touched": 9.9,
-  "pct_tested": 9.9,
-  "engine_proper_touched": 148,
+  "touched": 163,
+  "pct_touched": 10.1,
+  "pct_tested": 10.1,
+  "engine_proper_touched": 150,
   "bytes_total": 1694868,
-  "bytes_touched": 187514,
-  "pct_bytes_touched": 11.1
+  "bytes_touched": 189182,
+  "pct_bytes_touched": 11.2
  },
  "orphan_refs": [
   "0x56c470",
@@ -2890,8 +2890,10 @@
    "name": "FUN_0043c2e0",
    "size": 795,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x43c610",
@@ -5384,8 +5386,10 @@
    "name": "FUN_0048c820",
    "size": 873,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_cursor.h"
+   ]
   },
   {
    "va": "0x48cb90",
@@ -5442,7 +5446,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/newgame_cursor.c",
+    "src/newgame_cursor.h"
    ]
   },
   {
@@ -11635,6 +11641,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
+    "src/newgame_cursor.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -12471,6 +12479,7 @@
    "status": "tested",
    "src": [
     "src/newgame_box.h",
+    "src/newgame_cursor.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

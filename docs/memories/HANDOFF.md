@@ -1,5 +1,36 @@
-# Session handoff — last updated 2026-06-03 (the new-game config BOX PANEL renders — 9-slice chrome, ckpt 40)
+# Session handoff — last updated 2026-06-03 (ckpt 41 — selection-cursor GEOMETRY ported + validated; sprite BANK unidentified, render gated off)
 
+> **ckpt 41 — THE SELECTION-CURSOR (gold vine) GEOMETRY IS PORTED + VALIDATED,
+> but its sprite BANK is unidentified — render is GATED OFF pending a reliable
+> retail probe.**  New pure, host-tested **`src/newgame_cursor.{c,h}`** ports
+> `FUN_0048d940`'s type-1 arm (the menu selection cursor): frame = base(16) +
+> frames{0,1,2,3} → 16-19 (from the RELIABLE `FUN_00411ec0` decomp args, not the
+> probe); blit base x = box_x + (node+0x7c=-32 → +8), y = box_y + (node+0x80=-30
+> → -6) + (cursor-sel2)*pitch(28).  **Position VALIDATED**: row-0 base (40,26)
+> matches the live `--box-probe` golden AND independently derives from the text
+> col0/row0 origins (72-32=40, 56-30=26).  4 new host tests (**713 pass / 0 fail
+> / 6 skip**).  `main.c` has the adapter + render wired behind `g_newgame_cursor_enable`
+> (OFF).
+>
+> **THE BLOCKER (open RE thread): the cursor's sprite BANK is unidentified.**  The
+> `--box-probe` deref chain (`bank=*(node+0x28); slot=*bank`) reads **garbage** at
+> `slot+0x20`(width=a pointer) / `slot+0x38`(f_38=0xf800) for THIS node type, so
+> its **`res_id=0x3e8` and 22×41 frame readouts are NOT trustworthy** (only the
+> POSITION, computed from node fields, is).  Ruled out: port's **0x3e8** (slot 65,
+> sotesd) decodes to a **640×352 background landscape** (8 frames, not a vine);
+> **0x3e8 is absent** in sotesp/sotesw (decode fails); a full **24-frame sweep of
+> the sibling box atlas 0x455** (slot 43, the `+0xb8c`-vs-`+0xb88` guess) at (40,26)
+> **matches nothing** (frames are 44×30 feathers/◄►arrows/caduceus/books, but the
+> golden's element is a thin **22×41 drooping stem+bud+soft-shadow**).  The real
+> bank = `*(god+0xb8c)` — whose WRITE site I could not find in the decomp (only
+> reads).  **NEXT: find the real cursor bank** — either locate the `god+0xb8c`
+> store (the box-widget god-object's sprite-bank init, near the `+0xb88`=0x457
+> box-bank store), or write a Frida probe that dumps the actual blitted frame
+> surface PIXELS from retail's `0x48d940` (the only fully reliable ground truth).
+> The 307px menu-box top-left residual is this still-unported vine.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 40 — THE NEW-GAME CONFIG BOX PANEL RENDERS (9-slice chrome; menu box
 > bit-exact except the deferred sparkle corner).**  The bordered cream panel
 > behind the menu + tooltip is now drawn.  First a new live **`frida_capture.py
@@ -432,7 +463,12 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 40): the title is a complete bit-exact loop; the new-game config scene runs live AND now renders its BOX PANEL (9-slice chrome, menu box bit-exact bar the deferred sparkle corner); next is the remaining chrome (sparkle corner + tooltip text + picker) and the Start→game path
+## ⭐ Current state (ckpt 41): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40); the selection-cursor GEOMETRY is ported + validated (ckpt 41) but its sprite BANK is unidentified so the render is gated OFF (dig harder next session); next is the cursor bank, then tooltip text + picker + Start→game path
+
+> **User @ ckpt 41:** "menu render looks good. as for the cursor bank, we just
+> need to dig harder next session." → the menu box+text are confirmed good; the
+> cursor bank is the explicit first task for the next session (leads in Next
+> move #1a').
 
 The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
 **bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
@@ -531,23 +567,29 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    The box panel + menu text render bit-exact (ckpt 40); port the rest in roughly
    this order (cheapest visual win first):
    ~~(a) the box widget panel~~ **DONE (ckpt 40, quirk #67, `src/newgame_box.c`).**
-   (a') the **selection cursor** — the 307px menu-box residual at the top-left
-   (x44–65,y29–69).  It is the drooping ornamental **gold vine/tendril** that
-   hangs from the top-left corner toward the focused row (user calls it "the
-   cursor for the selected option"); retail draws it, the port's static 9-slice
-   corner does not (the vine pokes *above* the box top at y29 < box y32, into the
-   black, so port reads black there).  Renderer **`0x48d940`** (single-cell
-   animated, the `--box-probe` `box_cell` capture), bank **0x3e8** = port
-   **`g_ar_sprite_slots` slot 211** (in the `ar_register_game_sprites` /
-   `FUN_0056e190` 442-sprite table, `asset_register.c:1170` `{211,0x3e8,…}`) —
-   that batch is **NOT called at boot yet**, so either call it or register slot
-   211 standalone (like `ar_register_main_sprites` does per-slot).  Then port
-   `0x48d940`: **base frame 16** + frame-list [0,1,2,3] → sprite frames **16–19**
-   (idx in node+0x72, animates each frame), Y from the focused-row index ×
-   pitch (the type-1 `(piVar1[5]-piVar1[6])*node+0x1ac` term).  Verify: row-0
-   position is (44,29) (golden); retail's other-row positions can't be captured
-   under the harness (Flip freezes at 422 in the modal pump → post-entry cursor
-   moves don't inject), so port the row→Y math faithfully and trust it.
+   (a') the **selection cursor** — the 307px menu-box residual at the top-left.
+   GEOMETRY **DONE + VALIDATED (ckpt 41, `src/newgame_cursor.{c,h}`)**: pure port
+   of `0x48d940` type-1, base 16 + frames{0,1,2,3} → 16-19, base (40,26) for row 0
+   (= box + node+0x7c/-32, +0x80/-30; matches golden + text origins).  Render
+   wired in `main.c` behind `g_newgame_cursor_enable` (**OFF**).
+   **STILL OPEN — the sprite BANK (dig harder next session, per user):** the
+   `--box-probe`'s `res_id=0x3e8`/`22×41` readouts are **UNRELIABLE** (its
+   `bank=*(node+0x28); slot=*bank` chain reads garbage at slot+0x20/+0x38 for the
+   type-1 cursor node).  Ruled out by experiment: port's **0x3e8** (slot 65,
+   sotesd) = a 640×352 **background** (NOT a vine); 0x3e8 absent in sotesp/sotesw;
+   a 24-frame sweep of **0x455** (slot 43) matches nothing at (40,26) — its frames
+   are 44×30 feathers/arrows/caduceus/books, but the golden element is a thin
+   **22×41 drooping stem+bud+soft-shadow**.  The real bank = `*(god+0xb8c)`.
+   **Two leads for next session:** (1) find the **`god+0xb8c` STORE** in the decomp
+   (the box-widget god-object's sprite-bank init — grep found only reads; the
+   `+0xb88`=0x457 box-bank store is its neighbour, look near the menu/scene ctor
+   `0x410560`/`0x4103d0`/`0x413760`).  (2) Add a **Frida probe that Locks +
+   dumps the actual blitted frame-surface PIXELS** from retail's `0x48d940`
+   (`iVar3` = the frame; +0x14/+0x18 size, +0xc/+0x10 offset) — the only fully
+   reliable ground truth; the harness freezes retail at flip 422 but the box
+   first renders at flips 410-422 (the `--box-probe` window).  Once the bank is
+   known, flip `g_newgame_cursor_enable` on, point `NEWGAME_CURSOR_BANK_SLOT` at
+   it, and diff vs the golden.
    (b) the **tooltip TEXT node** (the second GDI-text node at y=416/444,
    word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
    computes the text; rendering needs a word-wrap split into rows (the renderer
@@ -700,7 +742,10 @@ case 0x24, ckpt 37/38 — emits retail's `TextOutA` stream draw-for-draw),
 **newgame_scene** (the run-loop model = `0x564780` case-0x24 loop body, ckpt 38:
 `newgame_scene_tooltip`/`_dispatch`/`_set_option` — pure state machine; the
 Win32 pump `0x565d10`/`0x43bca0`, picker `0x567ba0`, box widgets `0x411940` NOT
-ported, the drive's job).
+ported, the drive's job),
+**newgame_box** (the 9-slice box panel = `0x48cf80` opaque arm, ckpt 40),
+**newgame_cursor** (the selection-cursor geometry = `0x48d940` type-1, ckpt 41 —
+pure + host-tested; render gated OFF in `main.c` pending sprite-bank ID).
 **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +

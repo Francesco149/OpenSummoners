@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 41) — selection-cursor GEOMETRY ported + validated; sprite BANK unidentified (render gated off, dig harder next session)
+
+Ported `FUN_0048d940`'s type-1 arm — the new-game menu **selection cursor** (the
+drooping gold vine over the box top-left, toward the focused row) — into new pure,
+host-tested **`src/newgame_cursor.{c,h}`**.  Frame = base(16) + frames{0,1,2,3} →
+16-19 (from the reliable `FUN_00411ec0` decomp args).  Blit base x = box_x + 8,
+y = box_y - 6 + (cursor-sel2)*pitch(28), from `0x48d940`'s type-1 formula with
+`node+0x7c=-32`, `node+0x80=-30` (read from `FUN_00411ec0`).  **Position
+VALIDATED**: row-0 base (40,26) matches the live `--box-probe` golden AND
+independently derives from the bit-exact text geometry (col0 x=72-32=40, row0
+y=56-30=26).  4 new host tests (**713 pass / 0 fail / 6 skip**).  Wired the
+adapter + render in `main.c` behind `g_newgame_cursor_enable` (default **OFF**).
+
+**The blocker: the cursor's sprite BANK is unidentified.**  Probing showed the
+`--box-probe`'s deref chain (`bank=*(node+0x28); slot=*bank`) reads **garbage** at
+`slot+0x20`/`+0x38` for this node type — its `res_id=0x3e8`/`22×41` readouts are
+NOT trustworthy (only the position, from node fields, is).  Ruled out by live
+experiment: the port's **0x3e8** (slot 65, sotesd) = a 640×352 **background
+landscape** (8 frames, dumped+viewed); **0x3e8 absent** from sotesp/sotesw; a
+full **24-frame sweep of the sibling box atlas 0x455** (slot 43) at (40,26)
+**matches nothing** (its frames are 44×30 feathers/◄►arrows/caduceus/books — but
+the golden element is a thin **22×41 drooping stem+bud+soft-shadow**).  Real bank
+= `*(god+0xb8c)`, store site not in the decomp grep (only reads).  Per the user
+("dig harder next session"), the render stays gated off; next-session leads:
+(1) find the `god+0xb8c` store (box-widget god-object sprite-bank init, near the
+`+0xb88`=0x457 store; ctors `0x410560`/`0x4103d0`/`0x413760`); (2) a Frida probe
+that Locks+dumps the actual blitted frame-surface PIXELS from retail's `0x48d940`.
+Comparison pushed to llm-feed (user confirmed the menu render looks good).
+
+---
+
 ## 2026-06-03 (ckpt 40) — the new-game config BOX PANEL renders (9-slice chrome); menu box bit-exact bar the deferred sparkle corner
 
 Drew the bordered cream panel behind the new-game menu + tooltip.  **Part 1**:

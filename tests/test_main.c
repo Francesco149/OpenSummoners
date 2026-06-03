@@ -740,6 +740,10 @@ struct test_case {
     X(newgame_box_tooltip_covers_exactly)                      \
     X(newgame_box_center_vs_border)                            \
     X(newgame_box_tiny_guard)                                  \
+    X(newgame_cursor_frame_cycles)                             \
+    X(newgame_cursor_base_row0_golden)                         \
+    X(newgame_cursor_row_pitch)                                \
+    X(newgame_cursor_render_composes)                          \
 
 #define X(n) extern int test_##n(void);
 TESTS

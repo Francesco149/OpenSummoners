@@ -63,6 +63,7 @@
 #include "glyph_render.h"     /* glyph_grid_render + glyph_gdi_ops_win32 */
 #include "newgame_drive.h"    /* the new-game config scene drive (FUN_00565d10) */
 #include "newgame_box.h"      /* the 9-slice box panel render (FUN_0048cf80) */
+#include "newgame_cursor.h"   /* the menu selection cursor / gold vine (FUN_0048d940) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -964,6 +965,39 @@ static void newgame_box_blt(void *user, void *frame, int x, int y, int w, int h)
                            x, y, w, h, /*src_x=*/0, /*src_y=*/0);
 }
 
+/* ── newgame_cursor_ops adapter — the selection-cursor sprite primitives ──
+ *
+ * frame(): resolve frame `id` of the cursor bank (slot NEWGAME_CURSOR_BANK_SLOT)
+ * to its decoded sprite.  blt(): the plain keyed blit FUN_005b9b70 =
+ * zdd_object_blt_keyed — draw the frame at base (x,y); the frame's own
+ * metric_0c/_10 placement offset is added inside the blit (FUN_0048d940's plain
+ * branch). */
+static void *newgame_cursor_frame_resolve(void *user, int id)
+{
+    (void)user;
+    return ar_sprite_slot_frame(&g_ar_sprite_slots[NEWGAME_CURSOR_BANK_SLOT],
+                                (uint16_t)id);
+}
+
+static void newgame_cursor_blt_adapter(void *user, void *frame, int x, int y)
+{
+    (void)user;
+    if (frame == NULL || g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+    zdd_object_blt_keyed((zdd_object *)frame, g_zdd->primary_obj, x, y);
+}
+
+/* The cursor's animation index advances once per rendered new-game frame
+ * (the port has no FUN_0043c2e0 child-widget animator; this stands in for
+ * node+0x72's per-frame step so the gold vine breathes through frames 16–19).
+ * Reset when the scene (re)opens. */
+static int g_newgame_cursor_anim;
+
+/* Gate for the selection-cursor render (see newgame_render (1b)).  OFF until the
+ * cursor's sprite bank is identified — drawing a guessed-wrong frame only adds
+ * residual.  The geometry/position port is validated and ready. */
+static int g_newgame_cursor_enable;
+
 /* The new-game config scene's per-frame render (the drive's `render` callback).
  *
  * Composes the frame the way retail does (box chrome behind GDI text): clear
@@ -1018,6 +1052,35 @@ static void newgame_render(void *user)
     newgame_box_render(&bops, /*x=*/32, /*y=*/392, /*w=*/576, /*h=*/80,
                        box_frames, NEWGAME_BOX_CELL);   /* tooltip box */
 
+    /* (1b) The selection cursor (the drooping gold vine over the menu box's
+     *      top-left, toward the focused row) — a keyed sprite blit on the DDraw
+     *      side (before the GDI DC lock).  The geometry port (newgame_cursor,
+     *      FUN_0048d940 type-1) and the row→base math are validated (base (40,26)
+     *      = box + node fields +0x7c/-32, +0x80/-30, matching the live --box-probe
+     *      and the text col0/row0 origins).  The remaining unknown is the cursor's
+     *      sprite BANK: the --box-probe's deref chain reads garbage at slot+0x20/
+     *      +0x38 for this node type, so its res_id=0x3e8 / 22×41 frame readouts
+     *      are NOT trustworthy; the port's 0x3e8 (slot 65, sotesd) decodes to a
+     *      background, 0x3e8 is absent in sotesp/sotesw, and a full 24-frame sweep
+     *      of the sibling box atlas 0x455 (slot 43) matches nothing at (40,26).
+     *      So the render is gated OFF until the bank is identified (needs a
+     *      reliable retail probe of the cursor node's bank).  The 307px residual
+     *      in the menu-box top-left corner is this still-unported vine.  See
+     *      HANDOFF Next move #1a'. */
+    if (g_newgame_cursor_enable) {
+        const menu_list_hdr *hdr = (const menu_list_hdr *)d->scene.node.ctrl_list;
+        if (hdr != NULL) {
+            newgame_cursor_ops cops = {
+                newgame_cursor_frame_resolve, newgame_cursor_blt_adapter, NULL,
+            };
+            newgame_cursor_render(&cops, /*box_x=*/32, /*box_y=*/32,
+                                  hdr->cursor, hdr->sel2,
+                                  (int)d->scene.node.field_1ac,
+                                  g_newgame_cursor_anim);
+        }
+        g_newgame_cursor_anim++;
+    }
+
     /* (2) GDI text on top: the menu grid at the box base (32,32). */
     void *hdc = NULL;
     if (!zdd_object_get_dc(g_zdd->primary_obj, &hdc) || hdc == NULL)
@@ -1043,6 +1106,7 @@ static void enter_newgame(void)
         title_drive_shutdown(&g_drive);
         g_drive_active = 0;
     }
+    g_newgame_cursor_anim = 0;       /* deterministic cursor anim per scene open */
 
     newgame_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);
