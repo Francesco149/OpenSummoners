@@ -428,6 +428,24 @@ let   g_box_seen          = {};    // dedup key (node|frameSel) -> first flip
 let   g_box_n             = 0;     // distinct cells emitted
 const BOX_CAP             = 4000;  // safety valve
 
+// Resource-load probe: hook the generic PE-resource decoder
+// bs_decode_resource (FUN_005b7800) and report each DISTINCT (module, id,
+// type) load with the flip at which it first fires.  This is the
+// ground-truth for "which DLL banks does a scene pull" — every sprite-bank
+// decode (lazy, via ar_sprite_decode) and every map/world/audio resource
+// read funnels through FindResourceA here.  Deduped by (modBase|id|type) so
+// the channel sees one event per distinct resource.  __thiscall:
+// ecx=bitmap_session*, args[0]=hModule, args[1]=resource_id,
+// args[2]=resource_type(ptr to "DATA"/"MUSICWMA"/…), args[3]=compressed.
+const RES_DECODE_VA       = 0x5b7800;
+let   g_res_probe         = false;
+let   g_res_hooked        = false;
+let   g_res_lo            = 0;     // flip-window [lo,hi]: record only within it
+let   g_res_hi            = 0x7fffffff;
+let   g_res_seen          = {};    // dedup key (modBase|id|type) -> first flip
+let   g_res_n             = 0;     // distinct resources emitted
+const RES_CAP             = 4000;  // safety valve
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) {
@@ -1918,6 +1936,48 @@ function installBoxProbe() {
     logmsg('box probe installed @ FUN_0048d940 + FUN_0048cb90 + FUN_0048cf80');
 }
 
+// Resource-load probe — hook bs_decode_resource (FUN_005b7800) and emit one
+// {kind:'res_load'} per distinct (module, id, type) within [g_res_lo,
+// g_res_hi].  Reports the source DLL (resolved from hModule), the PE resource
+// id (low 16 bits), the resource-type string, and the first flip it loaded.
+// Used to answer "which banks does the in-game town pull, and from which DLL".
+function installResProbe() {
+    if (g_res_hooked) return;
+    Interceptor.attach(rva(RES_DECODE_VA), {
+        onEnter: function (args) {
+            if (g_flip_frame < g_res_lo || g_flip_frame > g_res_hi) return;
+            if (g_res_n >= RES_CAP) return;
+            let hmod = null, id = null, type = null, modName = null;
+            try { hmod = args[0]; } catch (e) {}
+            try { id = args[1].toUInt32() & 0xffff; } catch (e) {}
+            try {
+                // resource_type is either a string pointer or a small integer
+                // (MAKEINTRESOURCE).  Try to read it as a C string; if that
+                // faults it is an integer type id.
+                const tp = args[2];
+                if (tp.compare(ptr(0x10000)) < 0) { type = tp.toUInt32(); }
+                else { type = tp.readCString(); }
+            } catch (e) {}
+            let modBase = 0;
+            try {
+                const m = hmod ? Process.findModuleByAddress(hmod) : null;
+                if (m) { modName = m.name; modBase = m.base.toUInt32(); }
+                else if (hmod) { modBase = hmod.toUInt32(); }
+            } catch (e) {}
+            const key = '' + modBase + '|' + id + '|' + type;
+            if (g_res_seen[key] !== undefined) return;
+            g_res_seen[key] = g_flip_frame;
+            g_res_n++;
+            send({kind: 'res_load', frame: g_flip_frame,
+                  module: modName, id: id, type: type,
+                  hmod: hmod ? hmod.toUInt32() : null,
+                  ret_va: traceRetVa(this.returnAddress)});
+        },
+    });
+    g_res_hooked = true;
+    logmsg('res probe installed @ FUN_005b7800 (bs_decode_resource)');
+}
+
 // Hook the first phase-7 sparkle spawn (FUN_0056c070).  It is the TAS anchor
 // for "subtitle animation start" (tick 0 of the particle system) — emitted
 // always so any capture/trace can align to it — and, when seed-pinning is on,
@@ -2200,6 +2260,10 @@ rpc.exports = {
         if (typeof opts.box_lo === 'number') g_box_lo = opts.box_lo | 0;
         if (typeof opts.box_hi === 'number' && opts.box_hi > 0)
             g_box_hi = opts.box_hi | 0;
+        g_res_probe            = !!opts.res_probe;
+        if (typeof opts.res_lo === 'number') g_res_lo = opts.res_lo | 0;
+        if (typeof opts.res_hi === 'number' && opts.res_hi > 0)
+            g_res_hi = opts.res_hi | 0;
         g_seed_pin             = !!opts.seed_pin;
         if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
@@ -2269,7 +2333,8 @@ rpc.exports = {
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
                 g_inject_enabled || g_cursor_probe || g_fade_probe ||
-                g_pace_probe || g_textout_probe || g_box_probe || g_lockstep) {
+                g_pace_probe || g_textout_probe || g_box_probe || g_res_probe ||
+                g_lockstep) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
@@ -2287,6 +2352,10 @@ rpc.exports = {
             if (g_box_probe) {
                 try { installBoxProbe(); }
                 catch (e) { err('install_box_probe', '' + e); }
+            }
+            if (g_res_probe) {
+                try { installResProbe(); }
+                catch (e) { err('install_res_probe', '' + e); }
             }
             // Sparkle anchor (subtitle-anim-start TAS marker + optional seed
             // pin) — install whenever we have a flip-frame counter to stamp it,

@@ -4,10 +4,14 @@ Milestone 2 (the game proper).  The user opted to **extend the trace in-game**
 (ckpt 48): spam Z after the prologue begins, capture ~1 min of retail frames,
 then port to match.  This doc is the living plan + engine survey.
 
-**Status (ckpt 50):** the foundational plumbing is in place — the **game-entry
-anchor** (both sides) and the **port seam** (`PROLOGUE_DONE → enter_game`).  The
-in-game **engine** (`0x59f2c0` + its two giant children) is surveyed but
-**unported** — that is the multi-checkpoint body of milestone 2.
+**Status (ckpt 51):** the foundational plumbing is in place — the **game-entry
+anchor** (both sides), the **port seam** (`PROLOGUE_DONE → enter_game`), and now
+**plan 3a is RESOLVED**: the town's resource banks are identified (live res-probe)
+and the deferred boot batches (g2/g3/g5) are wired + regression-verified (see
+"Resource banks (plan 3a)" below).  The in-game **engine** (`0x59f2c0` + its two
+giant children) is surveyed but **unported** — that is the body of milestone 2
+(plan 3b: stand up `game_drive`, register the EXE-NULL banks, port a slice of
+`0x5a00c0` for the static town backdrop, diff vs `runs/tas-ingame-1`).
 
 ## How you reach it (the Z-spam exit)
 
@@ -154,12 +158,12 @@ the map, runs the per-room loop.**  Decomposition:
 2. ~~**Wire the port seam**~~ **DONE (ckpt 50)** — `PROLOGUE_DONE → enter_game`.
 3. **Survey + port `0x59f2c0`** in units, port-and-test each vs the golden,
    smallest visible win first:
-   - **(a) The map-0x3f2 resource/bank load.**  OPEN QUESTION: which DLL banks +
-     the load path.  Likely needs the deferred `ar_register_*` batches (the
-     in-game sprite/tile banks) registered at boot — the way the title banks were
-     at ckpt 26 (`init_sprite_banks` → `ar_register_main_sprites`).  Find where
-     `0x586010` / `0x5a3c40` (the 0x910-alloc room record) loads map 0x3f2's
-     tile/sprite resources, and which sotes*.dll holds them.
+   - ~~**(a) The map-0x3f2 resource/bank load.**~~  **RESOLVED (ckpt 51) — see
+     "Resource banks (plan 3a)" below.**  No per-map resource file: the town
+     lazily decodes pre-registered sprite banks via the normal `ar_sprite_decode`
+     path.  Wired the deferred boot batches (`ar_register_palette_ramps` g2 /
+     `ar_register_group3_sprites` g3 / `ar_register_game_sprites` g5) into
+     `init_sprite_banks`; verified the title still renders `differ_px=0`.
    - **(b) The static town backdrop/tilemap render.**  Stand up a `game_drive`
      (mirror `prologue_drive`): hold the map object + scene, step once/frame,
      render via a ported slice of `0x5a00c0`, present.  Target the static
@@ -169,11 +173,57 @@ the map, runs the per-room loop.**  Decomposition:
 4. **Diff** each ported piece vs `runs/tas-ingame-1` at the matching tick
    (anchor on `game_enter`).
 
+## Resource banks (plan 3a) — RESOLVED (ckpt 51)
+
+**Question:** which banks does the opening town (map 0x3f2) pull, and from where?
+
+**Method — live res-probe (ground truth).**  New `frida_capture.py --res-probe`
+hooks the generic PE-resource decoder `bs_decode_resource` (`FUN_005b7800`) and
+logs every distinct `(module, id, type)` load with the flip it first fired (agent
+`installResProbe`, dedup by module|id|type).  Drove retail through the full
+prologue → Z-spam → in-game town under `--lockstep`
+(`tests/scenarios/in-game-intro/trace-retail.jsonl`); analysed the loads with
+`frame >= game_enter@1092`.
+
+**Findings:**
+- **No per-map resource file.**  Across the in-game window the ONLY resource
+  loads are **`type="DATA"` sprite-sheet decodes**, all via the SAME path the
+  title uses: `ar_sprite_decode` (`0x4184a0`, caller RVA 0x18582) + the slot
+  palette-load `ar_sprite_slot::load_palette` (`0x4178e0`, caller RVA 0x1796a).
+  `0x586010`/`0x5a00c0` never `FindResource` a map/tile file — **map layout is
+  compiled-in static data** (the `&DAT_006940c8` 0x54-stride actor/cell registry,
+  the "StartArea" tables), not a loaded resource.  (`sotesw.dll` = 47 WMA music;
+  `sotesp.dll` = 1 DATA — neither holds graphics.  The map id `0x3f2` colliding
+  with a `sotesw` WMA id is a red herring: it's the area's BGM, not tile data.)
+- **74 distinct sprite banks** decode for the town + intro dialogue: **71 from
+  `sotesd.dll`** + **3 EXE-embedded** (`hModule=NULL` → `FindResourceA(NULL,…)`).
+  Cross-referenced against the register tables:
+  | source batch | retail fn | count | examples |
+  |---|---|---|---|
+  | group 2 ramps/portraits | `ar_register_palette_ramps` | a few | 0x3ea/0x43a/0x6ba (dialogue faces) |
+  | group 3 | `ar_register_group3_sprites` | ~38 | 0x3ec,0x481,0x769-76b,0x8b7-8bb |
+  | group 4 main | `ar_register_main_sprites` (already wired) | ~15 | 0x449-451,0x456,0x583,0x6fa,0x775 |
+  | group 5 game | `ar_register_game_sprites` | ~10 | 0x594,0x59e,0x5a3,0x7ef-7f9 |
+  | **EXE-NULL (unregistered)** | — | **3** | **0x570,0x571,0x572** |
+- **Load path = boot registration + lazy decode.**  Retail's
+  `ar_boot_register_all` (`FUN_00562ea0:613`) registers groups 1-5 at boot; the
+  port's `init_sprite_banks` had only done g4 + fonts.  **Wired g2 + g3 + g5
+  (ckpt 51)**, all with `settings=g_sotesd` (every town bank id is a sotesd DATA
+  resource).  Banks decode lazily on first render, so this is inert until a
+  `game_drive` exists — verified the title is still `differ_px=0` (the title uses
+  none of these banks).
+- **The EXE-NULL set (`0x570-0x572`) is the one residual.**  These ids exist
+  ONLY in `sotes.exe`'s own `.rsrc` (absent from sotesd) and load with
+  `hModule=NULL`.  They are in NO ported sprite-register batch (the
+  `locale_sounds[]` rows with the same numeric ids are a different
+  resource-type namespace, not these sprites).  Retail registers them with
+  `settings=NULL`, most likely **at engine time** (the map's local tileset/actor
+  banks) — a `game_drive`/engine registration unit, deferred to plan 3b.  When
+  standing up the render, register these EXE banks with `settings=NULL` (or the
+  process module handle) so `FindResourceA(NULL,…)` hits the EXE.
+
 ## Open questions for the port
 
-- **The map-0x3f2 resource set** (plan 3a): which DLL banks + the load path
-  (`0x586010`/`0x5a3c40`) — almost certainly needs the in-game sprite/tile banks
-  registered at boot, like the title banks (ckpt 26).
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
   (looks once-per-room) yet is called every loop iteration — confirm whether the
   alloc/teardown is guarded (it frees `DAT_008a9b50` at the top if non-NULL,

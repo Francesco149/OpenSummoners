@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 51) — plan 3a RESOLVED: in-game town banks identified (new --res-probe) + the deferred boot batches g2/g3/g5 wired (title still differ_px=0)
+
+Answered milestone-2 plan 3a ("which banks does map 0x3f2 pull, and from where")
+with a new ground-truth probe.  **`frida_capture.py --res-probe`** hooks the
+generic PE-resource decoder `bs_decode_resource` (`FUN_005b7800`) and logs every
+distinct `(module, id, type)` load with its first flip (agent `installResProbe`,
+dedup by module|id|type → `res_loads.jsonl`).  Drove retail prologue → Z-spam →
+in-game town under `--lockstep` (`tests/scenarios/in-game-intro/trace-retail.jsonl`)
+and analysed the loads at `flip >= game_enter@1092`.
+
+**Finding:** the opening town loads **no per-map resource file** — its only loads
+are `type="DATA"` sprite-sheet decodes via the SAME path the title uses
+(`ar_sprite_decode` 0x4184a0 + the slot palette-load 0x4178e0); `0x586010`/
+`0x5a00c0` never `FindResource` a map/tile file.  **Map layout is compiled-in
+static data** (the `&DAT_006940c8` registry, "StartArea" tables).  `sotesw.dll`
+= WMA music, `sotesp.dll` = 1 ramp — neither holds graphics (the map-id 0x3f2 ↔
+sotesw WMA-id collision is a BGM red herring).  The town + intro dialogue decode
+**74 distinct sprite banks**: 71 from `sotesd.dll` + 3 EXE-embedded (hModule=NULL).
+Cross-referenced to the register tables, they are exactly the deferred boot
+batches **g2** (`ar_register_palette_ramps`: ramps + dialogue face portraits) +
+**g3** (`ar_register_group3_sprites`: bulk town) + **g5**
+(`ar_register_game_sprites`: character sprites) that `init_sprite_banks` had
+skipped (g4 was already wired).
+
+**Port change:** `init_sprite_banks` (`src/main.c`) now also registers g2/g3/g5
+(all `settings=g_sotesd`), matching retail's `ar_boot_register_all`.  Banks
+decode lazily → inert until a `game_drive` renders in-game.  **Verified no
+regression:** A/B capture (post-vs-pre binary, port title flips 60/200) →
+**differ_px=0** both frames; port boots clean.  750 host tests pass (main.c not
+host-linked); ledger unchanged (tooling + boot wiring, no new FUN).  **One
+residual → plan 3b:** the EXE-NULL banks `0x570-0x572` (present only in
+sotes.exe's own .rsrc; loaded with `hModule=NULL`) are in no ported batch —
+register them with `settings=NULL` at engine time.  Full writeup:
+`docs/findings/in-game-intro.md` "Resource banks (plan 3a)".
+
+---
+
 ## 2026-06-03 (ckpt 50) — in-game seam wired: game_enter anchor (both sides) + PROLOGUE_DONE→enter_game; the engine 0x59f2c0 surveyed/decomposed
 
 Foundational plumbing for milestone 2 (the game proper).  The prologue's NORMAL

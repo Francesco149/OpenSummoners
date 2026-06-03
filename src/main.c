@@ -622,9 +622,33 @@ static void init_sprite_banks(void)
      * consumed by the two font-texture sprite slots. */
     ar_register_fonts(g_zdd, /*group=*/1, /*settings=*/g_sotesd);
 
+    /* In-game sprite banks (milestone 2).  A live res-probe of retail's
+     * opening-town render (map 0x3f2, game_enter@flip 1092) showed the in-game
+     * engine 0x5a00c0 lazily decodes 74 distinct sprite banks via the SAME
+     * ar_sprite_decode path the title uses — no per-map resource file, all from
+     * sotesd.dll (plus a small EXE-embedded set, see below).  Cross-referenced
+     * against the register tables, those banks are exactly the deferred boot
+     * batches retail's ar_boot_register_all registers but init_sprite_banks
+     * skipped: group 2 (palette ramps + the dialogue face portraits 0x3ea/…),
+     * group 3 (the bulk of the town: 0x423-0x481, 0x769-0x76b, 0x8b7-0x8bb), and
+     * group 5 (character/party sprites 0x592-0x5fb, 0x7ef-0x7f9).  Banks decode
+     * lazily on first use, so registering them now is inert until a game_drive
+     * renders in-game — it just primes the pool the engine port (next) will walk.
+     * See docs/findings/in-game-intro.md "Resource banks (plan 3a)".
+     *
+     * NOT covered here: the EXE-embedded banks 0x570-0x572 (loaded with
+     * hModule=NULL via FindResourceA(NULL,…) — present only in sotes.exe's own
+     * .rsrc, absent from sotesd.dll) appear in no boot batch; retail registers
+     * them with settings=NULL, most likely at engine time.  They are a
+     * milestone-2 (game_drive) registration unit, deferred with the engine. */
+    ar_register_palette_ramps(g_zdd, /*group=*/2, /*settings=*/g_sotesd,
+                              /*sotesp_module=*/g_sotesd);
+    ar_register_group3_sprites(g_zdd, /*group=*/3, /*settings=*/g_sotesd);
+    ar_register_game_sprites  (g_zdd, /*group=*/5, /*settings=*/g_sotesd);
+
     log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
              "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c) + 8 GDI fonts "
-             "(slot1 hfont=%p)", (void *)g_sotesd,
+             "(slot1 hfont=%p) + in-game batches g2/g3/g5", (void *)g_sotesd,
              (void *)(g_ar_gdi_table[1] ? g_ar_gdi_table[1]->array[0] : NULL));
 }
 

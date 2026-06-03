@@ -314,6 +314,15 @@ class CaptureConfig:
     box_lo:            int  = 0
     box_hi:            int  = 0
 
+    # ── resource-load probe (which DLL banks a scene pulls, ckpt 51) ──
+    # Hook bs_decode_resource (FUN_005b7800) and dump each distinct
+    # (module, id, type) PE-resource load to res_loads.jsonl.  Used to answer
+    # "which sprite/world/audio banks does the in-game map 0x3f2 load, and from
+    # which DLL".  res_lo/hi restrict recording to a flip window.
+    res_probe:         bool = False
+    res_lo:            int  = 0
+    res_hi:            int  = 0
+
     # ── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──
     # Write a fixed seed into DAT_008a4f94 just before the first FUN_0056c070
     # sparkle spawn, so retail's twinkle stream matches the port's pinned-seed
@@ -362,6 +371,7 @@ def run_capture(cfg: CaptureConfig) -> int:
     pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
     textout_f    = (run_dir / "textout.jsonl").open("w") if cfg.textout_probe else None
     box_f        = (run_dir / "box_cells.jsonl").open("w") if cfg.box_probe else None
+    res_f        = (run_dir / "res_loads.jsonl").open("w") if cfg.res_probe else None
     box_res: dict[int, int] = {}        # box-art resource id -> distinct-cell count
     cursor_seen: dict[int, int] = {}   # level_num -> count, for the summary
     textout_fonts: dict[str, int] = {}  # font fingerprint -> distinct-draw count
@@ -661,6 +671,21 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"{payload.get('oy')})", file=sys.stderr)
             if frame > summary["last_frame"]:
                 summary["last_frame"] = frame
+        elif kind == "res_load":
+            frame = int(payload.get("frame", -1))
+            rid   = payload.get("id")
+            rid_s = f"0x{rid:04x}" if isinstance(rid, int) else str(rid)
+            if res_f is not None:
+                res_f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                res_f.flush()
+            summary.setdefault("res_loads", 0)
+            summary["res_loads"] += 1
+            print(f"[frida_capture] res_load @flip={frame} "
+                  f"module={payload.get('module')} id={rid_s} "
+                  f"type={payload.get('type')} ret={payload.get('ret_va')}",
+                  file=sys.stderr)
+            if frame > summary["last_frame"]:
+                summary["last_frame"] = frame
         elif kind == "cursor_level":
             frame = int(payload.get("frame", -1))
             num   = payload.get("num")
@@ -713,6 +738,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "box_probe":          cfg.box_probe,
         "box_lo":             int(cfg.box_lo),
         "box_hi":             int(cfg.box_hi),
+        "res_probe":          cfg.res_probe,
+        "res_lo":             int(cfg.res_lo),
+        "res_hi":             int(cfg.res_hi),
         "seed_pin":           cfg.seed_pin,
         "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
@@ -804,6 +832,12 @@ def run_capture(cfg: CaptureConfig) -> int:
                 print("[frida_capture] box_cells: NO FUN_0048d940 sprite-cell "
                       "renders seen in the flip window (box never drawn?)",
                       file=sys.stderr)
+        if res_f is not None:
+            res_f.close()
+            n = summary.get("res_loads", 0)
+            print(f"[frida_capture] res_loads: {n} distinct (module,id,type) "
+                  f"resource loads → {run_dir / 'res_loads.jsonl'}",
+                  file=sys.stderr)
         meta = {
             "exe":        str(cfg.exe),
             "cwd":        str(cfg.cwd),
@@ -933,7 +967,20 @@ def main() -> int:
                    help="restrict --box-probe to a flip window 'LO,HI' (the "
                         "box-art bank renders many UI sprites; gate it to the "
                         "new-game menu, e.g. '410,470').")
+    p.add_argument("--res-probe", action="store_true",
+                   help="hook bs_decode_resource (FUN_005b7800) and log every "
+                        "distinct (module, id, type) PE-resource load to "
+                        "res_loads.jsonl — the 'which DLL banks does a scene "
+                        "pull' ground truth.  Pair with --input-trace + "
+                        "--res-frames to scope it to a scene (e.g. in-game).")
+    p.add_argument("--res-frames", default=None,
+                   help="restrict --res-probe to a flip window 'LO,HI' (e.g. "
+                        "'1100,1800' for the in-game opening town).")
     args = p.parse_args()
+
+    res_lo, res_hi = 0, 0
+    if args.res_frames:
+        res_lo, res_hi = (int(x, 0) for x in args.res_frames.split(","))
 
     textout_lo, textout_hi = 0, 0
     if args.textout_frames:
@@ -1027,6 +1074,9 @@ def main() -> int:
         box_probe         = args.box_probe,
         box_lo            = box_lo,
         box_hi            = box_hi,
+        res_probe         = args.res_probe,
+        res_lo            = res_lo,
+        res_hi            = res_hi,
     )
     return run_capture(cfg)
 
