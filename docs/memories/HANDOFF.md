@@ -558,13 +558,19 @@ append-only changelog; this file is "where to pick up *right now*".
 
 ## ⭐ Current state (ckpt 44): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40), selection cursor BIT-EXACT (ckpt 43), AND its TOOLTIP TEXT bit-exact (ckpt 44 — word-wrap port, quirk #70); next is the option picker submenu (0x567ba0) → Start→game path (0x564160→0x59ec30)
 
-> **User @ ckpt 41:** "menu render looks good. as for the cursor bank, we just
-> need to dig harder next session." → DONE (ckpt 42/43, cursor bit-exact).  The
-> new-game menu box + text + cursor + **tooltip help text** (ckpt 44) now all
-> match retail.  The whole new-game screen is bit-exact except a 9px box-panel
-> RGB565-rounding residual (pre-existing, see ckpt 44 OPEN) and the deferred
-> menu-box sparkle corner.  Next is the option picker submenu + the Start→game
-> transition — Next move #1c/#1d.
+> **User @ ckpt 44:** "can confirm 1:1 except for sparkle on cursor."  → The
+> whole new-game screen (box + menu text + cursor + tooltip help text) is
+> **user-confirmed 1:1**.  The "sparkle on cursor" they see is the **cursor's
+> animated gold feather/glint at a different animation phase** than the single
+> frozen golden frame — the SAME animation-phase sampling caveat as the intro
+> twinkles: at the matching tick (Flip 761, frame 17/19) it is `differ_px=0`
+> (ckpt 43), off-phase frames differ only by the feather's phase (gold pixels
+> shifted, roughly balanced golden-brighter/port-brighter — NOT a missing
+> additive sparkle, NOT a content gap).  **Nothing to fix here.**  (The other
+> tiny residual — 9px box-panel RGB565 1-LSB rounding — is non-text, pre-existing
+> box decode, see ckpt-44 OPEN.)  **The new-game scene RENDER is parity-complete;
+> next is BEHAVIOUR: the option picker submenu + the Start→game transition —
+> Next move #1c/#1d.**
 
 The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
 **bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
