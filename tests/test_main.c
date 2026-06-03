@@ -745,6 +745,12 @@ struct test_case {
     X(newgame_cursor_base_row0_golden)                         \
     X(newgame_cursor_row_pitch)                                \
     X(newgame_cursor_render_composes)                          \
+    X(glyph_wrap_difficulty_splits_65_52)                      \
+    X(glyph_wrap_forced_break_on_percent_n)                    \
+    X(glyph_wrap_short_string_one_row)                         \
+    X(glyph_wrap_empty_is_zero_rows)                           \
+    X(glyph_wrap_bare_percent_n)                               \
+    X(glyph_wrap_boundary_is_exact)                            \
 
 #define X(n) extern int test_##n(void);
 TESTS
