@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 53) — the static world tables are extracted + decoded (plan 3b groundwork)
+
+The in-game engine's map layout is **compiled-in static data** (confirming plan
+3a) — two `.rdata` tables that `0x59f2c0:122-144` copies into the world's
+`scene[4]` object on entry: `scene[4][0] = &DAT_00693848` (the AREA name table)
+and a copy of every `&DAT_006940c8` entry (the ROOM registry) into
+`scene[4][1..]`, cross-referenced by `0x585000`.  Decoded both out of
+`vendor/unpacked/sotes.unpacked.exe` and documented the field meanings.
+
+**New committed tool** `tools/extract/game_world_tables.py` (PE VA→file-offset
+map; full listing; `--raw N` hex-dumps a room).  Findings:
+- **AREA table `&DAT_00693848`** — 0x40-byte stride, zero-terminated, **33
+  entries** = Fortune Summoners' areas (`0x6e` "Town of Tolkien", `0x82` Silver
+  Dungeon, `0xe6` Minasa-Ratis Magic School, … `0x1c2` Labyrith of Night).  Each
+  holds 6 small dwords `0x585000` fans into the room as per-room defaults.
+- **ROOM registry `&DAT_006940c8`** — 0x150-byte (0x54-dword) stride, ends at the
+  first `dword0==0`; entry `[0]` is a header sentinel (`0xf423f`) → **416 real
+  rooms**.  Per-entry fields recovered: `id` (packed, e.g. 110110), `area`→AREA
+  name, `scene` (sequential index 1002/1004/…), `parent` (a room id — the
+  transition graph), `d9` ordinal, and a **Shift-JIS room name @+0x118** (room
+  110110 = "トルーキンの町 １丁目", Town of Tolkien district 1).
+
+**Doc fix:** the opening town is **"Town of Tolkien"** (SJIS トルーキン), not the
+earlier unverified "Tilelia" guess.  **Open thread:** the engine's entry map
+`0x3f2` (=1010) is NOT any room `scene` value (they jump 1009→1012), so `0x3f2`
+is a separate scene-load id the room loop `0x561c90` resolves to room 110110 —
+pinning that mapping is the first room-loop-port task.
+
+Pure groundwork (verifiable data extraction + findings doc, no runtime C ported):
+753 host tests pass unchanged, ledger 175/1490 unchanged.  Full writeup:
+`docs/findings/in-game-intro.md` "The static world tables (plan 3b groundwork,
+ckpt 53)".  **Next:** port the `0x59f2c0` fresh-entry arm (world construction)
+into a `game_world` model reading these tables, then the `0x3f2`→room resolution,
+then a slice of `0x5a00c0` for the static town backdrop.
+
+---
+
 ## 2026-06-03 (ckpt 52) — the in-game `game_drive` scaffold is stood up (plan 3b's first step)
 
 `enter_game` no longer re-displays the title — it stands up a **`game_drive`**

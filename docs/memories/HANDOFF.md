@@ -1,4 +1,51 @@
-# Session handoff — last updated 2026-06-03 (ckpt 52 — GAME_DRIVE SCAFFOLD stood up (plan 3b's first bullet).  `enter_game` no longer re-displays the title — it stands up a new `game_drive` (`src/game_drive.{c,h}`, the milestone-2 counterpart of prologue_drive): owns the in-game input ring, and `main_loop_body` runs one `game_drive_step` per presented frame.  The in-game ENGINE (0x59f2c0 setup + 0x586010 sim + 0x5a00c0 render) is still unported, so a step renders the faithful BLACK map-load frame (`game_render`=zdd_object_clear) — the state retail shows from game_enter (~flip 1092) to the first town frame (~1150) while the engine loads the map + fades (golden flips 900-1100 black).  VERIFIED LIVE (trace-port, --frames 1300): game_enter@1116 rng 0x40d00581 (matches retail @1092); port runs game_drive to 1300 without re-displaying title; captures frame 400 (title phase6)=full content, frames 1160/1200 (in-game phase=-1)=fully black → early in-game frames now match retail's black entry.  3 host tests (test_game_drive.c) → 753 pass.  Ledger 175/1490 unchanged (scaffold/seam, no new FUN).  Also recorded: EXE-NULL banks 0x570-0x572 CONFIRMED present in sotes.unpacked.exe .rsrc (type=DATA); port must load via LoadLibraryExA(sotes.exe,AS_DATAFILE) not settings=NULL; their registration stays coupled to the engine-time slot indices (deferred with 0x5a00c0).  NEXT: port a slice of 0x5a00c0 into game_render for the static town backdrop — needs the world populated by 0x59f2c0 setup + 0x586010 sim first (the 0x4120 map object, 0x5400c/0x7808 buffers, &DAT_006940c8 registry).  Clean /clear point.)
+# Session handoff — last updated 2026-06-03 (ckpt 53 — STATIC WORLD TABLES extracted + decoded.  The in-game engine's map layout is driven by TWO compiled-in `.rdata` databases that `0x59f2c0:122-144` copies into the world's `scene[4]` on entry (confirming plan 3a's "compiled-in, not a resource"): the AREA name table (`&DAT_00693848`, 0x40-stride, 33 areas) + the ROOM registry (`&DAT_006940c8`, 0x150-stride, zero-terminated, **416 rooms** after a header sentinel `0xf423f`).  NEW committed tool `tools/extract/game_world_tables.py` (PE VA→file-offset map; full listing; `--raw N` hex-dumps a room).  FIELD MEANINGS recovered: ROOM = {id (packed, e.g. 110110), area-key→AREA name, scene-index (1002,1004…), parent-link (room-graph), SJIS room-name @+0x118}; AREA = {id, English name, 6 dwords `0x585000` fans into room defaults}.  Opening town = AREA `0x6e` **"Town of Tolkien"** (the handoff's earlier "Tilelia" was a WRONG guess — corrected), first room 110110 = SJIS "トルーキンの町 １丁目".  OPEN THREAD: the engine's entry map `0x3f2`(=1010) is **NOT** any room `scene` value (they jump 1009→1012) → `0x3f2` is a separate scene-load id the room loop `0x561c90` resolves to room 110110; pinning that mapping is the FIRST room-loop-port task.  Pure GROUNDWORK (verifiable data extraction + findings doc, no runtime C ported): 753 host tests pass UNCHANGED, ledger 175/1490 UNCHANGED.  Full writeup: docs/findings/in-game-intro.md "The static world tables".  NEXT: port the world construction (`0x59f2c0` fresh-entry arm) reading these tables into a `game_world` model, then the room loop's `0x3f2`→room resolution, then a slice of `0x5a00c0` for the static town backdrop.  Clean /clear point.)
+
+> **ckpt 53 — THE STATIC WORLD TABLES ARE EXTRACTED + DECODED** (plan 3b
+> groundwork).  Verifiable RE: the complete compiled-in map database the in-game
+> engine reads.  No runtime C ported — this de-risks + grounds the world-
+> construction port that comes next (like the ckpt-49 golden / ckpt-50 survey).
+>
+> **WHAT.**  `0x59f2c0:122-144` builds the world's `scene[4]` object from two
+> `.rdata` tables: `scene[4][0] = &DAT_00693848` (AREA) and a copy of every
+> `&DAT_006940c8` entry (ROOM) into `scene[4][1..]`, cross-referenced by
+> `0x585000`.  Decoded both out of `vendor/unpacked/sotes.unpacked.exe`:
+> - **AREA table `&DAT_00693848`** — 0x40-byte stride, zero-terminated, **33
+>   entries** = Fortune Summoners' areas: `0x6e` "Town of Tolkien", `0x82` Silver
+>   Dungeon, `0xe6` Minasa-Ratis Magic School, … `0x1c2` Labyrith of Night.  Each
+>   carries 6 small dwords `0x585000` fans into the room (per-room defaults).
+> - **ROOM registry `&DAT_006940c8`** — 0x150-byte (0x54-dword) stride, ends at
+>   the first `dword0==0`; entry `[0]` is a header sentinel (`0xf423f`), so
+>   **416 real rooms**.  Sparse (most of each entry set live by the sim); the
+>   populated fields = {`id` packed e.g. 110110, `area`→AREA name, `scene`
+>   sequential index 1002/1004/…, `parent` (a room id — the transition graph),
+>   `d9` ordinal, **SJIS name @+0x118** e.g. room 110110 = "トルーキンの町 １丁目"}.
+>
+> **TOOL (committed):** `tools/extract/game_world_tables.py` — PE VA→offset map,
+> decodes + lists both tables, `--raw N` hex-dumps ROOM entry N.  Re-runnable
+> ground truth.
+>
+> **DOC FIX:** the opening town is **"Town of Tolkien"** (SJIS トルーキン), NOT
+> "Tilelia" — that earlier name was an unverified guess, now corrected from the
+> binary.
+>
+> **OPEN THREAD (the first room-loop-port task):** the engine is entered with map
+> `0x3f2` = 1010, but **no room has `scene` 1010/1011** (the sequence jumps
+> 1009→1012).  So `0x3f2` is a separate scene-load id the room loop `0x561c90`
+> ("fetch the active room/scene record") resolves to the town's first room
+> (110110, `scene` 1002).  Trace `0x561c90` with the world populated to pin how
+> `0x3f2` → `ROOM.id`.
+>
+> **STATE:** pure groundwork — 753 host tests pass UNCHANGED (no `src/` change),
+> ledger **175/1490 UNCHANGED**.  Full writeup: `docs/findings/in-game-intro.md`
+> "The static world tables (plan 3b groundwork, ckpt 53)".  **NEXT:** port the
+> `0x59f2c0` fresh-entry arm (world construction) into a `game_world` model
+> reading these tables + the 8 actor slots; then the `0x3f2`→room resolution;
+> then a slice of `0x5a00c0` for the static town backdrop, diff vs
+> `runs/tas-ingame-1`.  Clean **/clear point**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 52 — GAME_DRIVE SCAFFOLD stood up (plan 3b's first bullet).  `enter_game` no longer re-displays the title — it stands up a new `game_drive` (`src/game_drive.{c,h}`, the milestone-2 counterpart of prologue_drive): owns the in-game input ring, and `main_loop_body` runs one `game_drive_step` per presented frame.  The in-game ENGINE (0x59f2c0 setup + 0x586010 sim + 0x5a00c0 render) is still unported, so a step renders the faithful BLACK map-load frame (`game_render`=zdd_object_clear) — the state retail shows from game_enter (~flip 1092) to the first town frame (~1150) while the engine loads the map + fades (golden flips 900-1100 black).  VERIFIED LIVE (trace-port, --frames 1300): game_enter@1116 rng 0x40d00581 (matches retail @1092); port runs game_drive to 1300 without re-displaying title; captures frame 400 (title phase6)=full content, frames 1160/1200 (in-game phase=-1)=fully black → early in-game frames now match retail's black entry.  3 host tests (test_game_drive.c) → 753 pass.  Ledger 175/1490 unchanged (scaffold/seam, no new FUN).  Also recorded: EXE-NULL banks 0x570-0x572 CONFIRMED present in sotes.unpacked.exe .rsrc (type=DATA); port must load via LoadLibraryExA(sotes.exe,AS_DATAFILE) not settings=NULL; their registration stays coupled to the engine-time slot indices (deferred with 0x5a00c0).  NEXT: port a slice of 0x5a00c0 into game_render for the static town backdrop — needs the world populated by 0x59f2c0 setup + 0x586010 sim first (the 0x4120 map object, 0x5400c/0x7808 buffers, &DAT_006940c8 registry).  Clean /clear point.)
 
 > **ckpt 52 — THE IN-GAME GAME_DRIVE SCAFFOLD IS STOOD UP** (plan 3b's first
 > bullet; the structural seam the render slice drops into).  No engine code

@@ -4,15 +4,18 @@ Milestone 2 (the game proper).  The user opted to **extend the trace in-game**
 (ckpt 48): spam Z after the prologue begins, capture ~1 min of retail frames,
 then port to match.  This doc is the living plan + engine survey.
 
-**Status (ckpt 52):** the foundational plumbing is in place — the **game-entry
+**Status (ckpt 53):** the foundational plumbing is in place — the **game-entry
 anchor** (both sides), the **port seam** (`PROLOGUE_DONE → enter_game`), **plan 3a
 RESOLVED** (the town's resource banks identified + the boot batches g2/g3/g5 wired),
-and now the **`game_drive` scaffold is stood up** (plan 3b's first bullet — see
-"game_drive scaffold (plan 3b)" below).  The in-game **engine** (`0x59f2c0` + its
-two giant children `0x586010`/`0x5a00c0`) is surveyed but **unported** — that is
-the remaining body of milestone 2 (plan 3b: port a slice of `0x5a00c0` for the
-static town backdrop into `game_render`, register the EXE-NULL banks at the
-engine-time site, diff vs `runs/tas-ingame-1`).
+the **`game_drive` scaffold is stood up** (plan 3b's first bullet), and now the
+**static world tables are extracted + decoded** (ckpt 53 — see "The static world
+tables" below): the AREA name table + the 416-room registry the engine copies in,
+with field meanings and the opening-town entry identified.  The in-game **engine**
+(`0x59f2c0` + its two giant children `0x586010`/`0x5a00c0`) is surveyed but
+**unported** — that is the remaining body of milestone 2 (plan 3b: port the world
+construction reading these tables, then a slice of `0x5a00c0` for the static town
+backdrop into `game_render`, register the EXE-NULL banks at the engine-time site,
+diff vs `runs/tas-ingame-1`).
 
 ## How you reach it (the Z-spam exit)
 
@@ -271,6 +274,71 @@ prologue → Z-spam → in-game town under `--lockstep`
     walks them.  So this stays bundled with the `0x5a00c0` port: when that slice
     lands and reveals the slot indices, add a boot/engine registration of
     `0x570-0x572` with `settings=` a `g_sotes_exe` datafile handle.
+
+## The static world tables (plan 3b groundwork, ckpt 53)
+
+The world the engine builds is driven by **two compiled-in tables** in the EXE's
+`.rdata` (read-only static data — confirming plan 3a's "map layout is compiled-in
+static data, not a resource").  `0x59f2c0:122-144` copies them into the world's
+`scene[4]` object on entry: it sets `scene[4][0] = &DAT_00693848` (the AREA
+table) and copies every `&DAT_006940c8` entry (the ROOM registry) into
+`scene[4][1..]`, cross-referencing the two via `FUN_00585000`.
+
+**Extractor (committed):** `tools/extract/game_world_tables.py` decodes both out
+of `vendor/unpacked/sotes.unpacked.exe` (PE VA→file-offset map; `.rdata` at VA
+0x5cc000).  Run it for the full listing; `--raw N` hex-dumps ROOM entry N.
+
+### AREA table — `&DAT_00693848`, 0x40-byte stride, zero-terminated (33 entries)
+Each entry = an English **area name** + a few small fields `FUN_00585000` fans
+out into the room record (it fills `room[0x43/0x44/0x45/0x50/0x51/0x146]` from
+the matching area's dwords `[0xd]/[0xb]/[0xc]/[0xe]/[0xf-lo]/[0xf-hi]` — i.e. the
+area supplies per-room defaults when the room leaves them 0).
+
+| +off | field | role |
+|------|-------|------|
+| 0x00 | dword `id` | area key (matched by `ROOM.area`) |
+| 0x04 | char[] `name` | ASCII English area name |
+| 0x2c | dword `A` | → `room[0x44]` |
+| 0x30 | dword `B` | → `room[0x45]` |
+| 0x34 | dword `C` | → `room[0x43]` |
+| 0x38 | dword `D` | → `room[0x50]` |
+| 0x3c | u16 `E` / u16 `F` | → `room[0x51]` / `room[0x146]` |
+
+The 33 areas ARE Fortune Summoners' world: `0x6e` **"Town of Tolkien"** (the
+opening town — the handoff's earlier "Tilelia" was a wrong guess; the binary
+says Tolkien / SJIS トルーキン), Silver Dungeon, Minasa-Ratis Magic School,
+Mountain Cave, Shrine of the Wind, Barness Village, Chartreux City, … Labyrith
+of Night.  (Several ids have an empty name = an unnamed sub-area.)
+
+### ROOM registry — `&DAT_006940c8`, 0x150-byte (0x54-dword) stride
+Entry `[0]` is a **header sentinel** (dword0 = `0x000f423f` = 1000001, rest 0).
+Real rooms are `[1..N-1]`; the table ends at the first entry with `dword0 == 0`
+(`0x59f2c0:128-130` counts exactly this way).  **N-1 = 416 rooms across the 33
+areas.**  Most of each 0x150-byte entry is zero (sparse — set live by the sim);
+the populated fields:
+
+| dword | field | role |
+|-------|-------|------|
+| 0 | `id` | packed room id, e.g. 110110 (= area 110, room 110) |
+| 1 | `area` | area key → AREA table (verified: 110→"Town of Tolkien") |
+| 3 | `scene` | sequential scene/record index (1002, 1004, 1005, …) |
+| 7 | `d7` | link/flag |
+| 8 | `parent` | a `ROOM.id` (prev/parent room; 999999 = root sentinel) |
+| 9 | `d9` | ordinal within parent |
+| 0x46 (+0x118) | `sjis` | Shift-JIS room name (cp932), e.g. room 110110 = "トルーキンの町 １丁目" (Town of Tolkien, district 1) |
+
+The `parent`/`d9` links form the room-transition graph (the per-area room list).
+Entries 70-75 of some rooms hold packed non-id blobs (e.g. room 1 = the town
+entry has 6 dwords there) — per-room extra data, decode deferred to the sim port.
+
+**OPEN — how `0x3f2` (=1010) selects the first room.**  The engine is entered
+with map `0x3f2` = 1010, stored into map-object `+0x4104`.  But **no room has
+`scene` == 1010 or 1011** (they jump 1009→1012), so `0x3f2` is NOT a `ROOM.scene`
+value — it's a separate scene-load id the room loop (`FUN_00561c90`, "fetch the
+active room/scene record") resolves to the town's first room (110110, `scene`
+1002).  Pinning that resolution (is `0x3f2` an absolute scene-resource id? a
+`scene`+offset? a separate index?) is the **first task of the room-loop port** —
+trace `0x561c90` with the world populated, map 0x3f2 → the selected `ROOM.id`.
 
 ## Open questions for the port
 
