@@ -1,5 +1,40 @@
-# Session handoff — last updated 2026-06-03 (ckpt 43 — selection-cursor RENDER is BIT-EXACT; the bug was a transposed trim scan (quirk #69), NOT the scale_flag/videomem path; gate is now ON, menu-box differ_px=0)
+# Session handoff — last updated 2026-06-03 (ckpt 44 — the new-game TOOLTIP TEXT NODE renders BIT-EXACT (word-wrapped, FUN_0040e5e0, quirk #70); 0 text-colored pixels differ; next is the option picker submenu → Start→game path)
 
+> **ckpt 44 — THE NEW-GAME TOOLTIP TEXT NODE RENDERS BIT-EXACT.**
+> The bottom-of-screen help line is a standalone **word-wrapping text node**
+> (`this+0x170`), NOT the menu grid — one free-form string greedily wrapped into
+> rows.  Ported the layout core **`FUN_0040e5e0`** (justify) + the **`%n`/`%m`/`%w`
+> parse `FUN_0040f040`** as the pure, host-tested **`src/glyph_wrap.{c,h}`**: a
+> word = alpha `[A-Za-z']+` / digit `[0-9.,]+` (+ one absorbed trailing
+> `{space ! , - . ; ?}`) / lone glyph; the row-width accumulator + wrap test
+> mirror retail's `uVar13`/`param_1` (width = the `FUN_0040dee0` ctor arg
+> `0x44` = **68 glyph-columns**); `%n` forces a break.  SJIS kinsoku (`sVar3==3`,
+> the `DAT_008548xx` table) is deferred (English never reaches it).  Quirk **#70**.
+> `newgame_render` (`main.c`) now picks the focused row's help string
+> (`newgame_scene_tooltip`), wraps it, and draws each row at **(72, 416+r·28)**
+> with the menu's 2-copy shadow (`0xa8b9cc`) + text (`0x3e537d`).
+> **Verified LIVE** (port Flip 760 vs `goldens/retail-newgame-config-menu.png`):
+> the difficulty-row tooltip wraps **65 / 52** glyphs across y=416/444 — the break
+> is the width-68 word-wrap (the source string has **no** `%n`), reproduced
+> exactly.  Tooltip region: **0 text-colored pixels differ** (every glyph +
+> shadow matches; proven by a text-presence XOR == 0).  6 new host tests
+> (`tests/test_glyph_wrap.c`, **720 pass / 0 fail / 6 skip**).  Ledger **168/1490
+> (+5: `0x40e5e0`,`0x40f040`,`0x4031c0` touched)**.  Comparison pushed to llm-feed.
+>
+> **OPEN (small, pre-existing, NOT the tooltip text): a 9px box-panel RGB565
+> 1-LSB rounding.**  The only residual in the tooltip region is **9 background
+> (cream/gold) pixels off by exactly 8 in a 5-bit (R or B) channel, green always
+> exact** — i.e. one RGB565 quantization step on the 9-slice box-panel sprite
+> (`newgame_box`, ckpt 40, bank `0x457`), NOT the text.  Same class as the
+> delta-8 px in the menu box (there masked by the deferred top-left sparkle).
+> **Hypothesis:** an 8→5-bit decode rounding (round vs truncate) in the box-frame
+> sprite decode (`bs_convert_to_16bpp`) lands a few edge/gradient pixels on the
+> opposite side of a 5-bit boundary.  A separate sprite-decode investigation —
+> compare the port's decoded `0x457` frame RGB565 vs retail at those px; deferred
+> (the box was user-accepted at ckpt 40).
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 43 — THE NEW-GAME SELECTION CURSOR RENDERS BIT-EXACT (`differ_px=0`).**
 > The ckpt-42 "scale_flag=1 videomem cell-build path" diagnosis was **WRONG**.
 > The real bug: `bs_trim_opaque_rect` (`FUN_005b6f80`) named its two size params
@@ -521,14 +556,15 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 43): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40) AND its selection cursor BIT-EXACT (ckpt 43 — the trim-transpose fix, quirk #69, closed the 307px residual); next is the tooltip TEXT node (word-wrap) → option picker submenu → Start→game path
+## ⭐ Current state (ckpt 44): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40), selection cursor BIT-EXACT (ckpt 43), AND its TOOLTIP TEXT bit-exact (ckpt 44 — word-wrap port, quirk #70); next is the option picker submenu (0x567ba0) → Start→game path (0x564160→0x59ec30)
 
 > **User @ ckpt 41:** "menu render looks good. as for the cursor bank, we just
-> need to dig harder next session." → DONE: ckpt 42 identified the bank (0x455),
-> ckpt 43 fixed the render (a transposed trim scan, quirk #69 — NOT the
-> mis-diagnosed videomem path) → the cursor is **bit-exact** (`differ_px=0`).  The
-> new-game menu box + text + cursor now all match retail.  Next is the remaining
-> chrome (tooltip text) + the Start→game transition — Next move #1b.
+> need to dig harder next session." → DONE (ckpt 42/43, cursor bit-exact).  The
+> new-game menu box + text + cursor + **tooltip help text** (ckpt 44) now all
+> match retail.  The whole new-game screen is bit-exact except a 9px box-panel
+> RGB565-rounding residual (pre-existing, see ckpt 44 OPEN) and the deferred
+> menu-box sparkle corner.  Next is the option picker submenu + the Start→game
+> transition — Next move #1c/#1d.
 
 The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
 **bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
@@ -634,31 +670,20 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    the mis-diagnosed videomem path — `bs_trim_opaque_rect` arg order, quirk #69).
    `g_newgame_cursor_enable=1`.  Verified: port Flip 761 vs golden → menu-box
    `differ_px=0`.  Proof tool for the trim: `tools/extract/cursor_trim_probe.c`.
-   **NEXT — #1b: the tooltip TEXT node** (the second GDI-text node at y=416/444,
-   word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
-   (ported, `newgame_scene.c`) computes the help string (with `%n` line-break
-   escapes).  **RE map (scoped ckpt 43, not yet ported):** retail renders the
-   tooltip via **`FUN_0040e360(text)`** (`564780.c:596`) — it is the tooltip text
-   node's BUILD, not a word-wrapper.  Two phases:
-     (i) **token substitution** — gated on `this+0x164 != 0` (a substitution table,
-         `this+0x16c` = count, 100-byte records: key@+0x0, value@+0x28, or a
-         `"[%d]%s"` `FUN_005bf3ee` format when record+0x50!=0).  It find/replaces
-         each table key in the text with its value (the key-binding/variable
-         expansion).  **For the English new-game tooltip this table is empty → the
-         whole loop is skipped** and `param_1` passes through unchanged.
-     (ii) **commit** — `if (strlen(text) < node[+4] cap) { FUN_0040f040(text);
-         FUN_004031c0(_,0); FUN_0040e5e0(node[2]); }` then clears node `+4/+6` and
-         `this+0x1c`.  `this+0x170` = the tooltip text node.
-   So the port likely needs: `FUN_0040f040` (set node string / parse), `FUN_004031c0`,
-   `FUN_0040e5e0`, AND the **`%n` line-break expansion** — `%n` is an engine escape
-   the text builder (`glyph_cell_layout`'s escape pass, `0x4034f0`/`0x4051d0`,
-   currently hooked NULL) turns into a row break, so the renderer (`glyph_grid_render`)
-   draws it as two rows at y=416/444.  START by reading `0040f040.c` + the escape
-   expander to see where `%n` becomes a row.  Drive/verify with the capture recipe
-   below; golden = the tooltip-box region (32,392)576×80 of
-   `goldens/retail-newgame-config-menu.png` (currently ~11% residual = the missing
-   text).
-   Then the transitions:
+   ~~(b) the tooltip TEXT node~~ **DONE + BIT-EXACT (ckpt 44, quirk #70,
+   `src/glyph_wrap.{c,h}`).**  The help line is a standalone WORD-WRAPPING text
+   node (`this+0x170`), not the menu grid; the break is greedy word-wrap at
+   width 68 (NOT a `%n` — the difficulty source string has none).  Ported the
+   justify `FUN_0040e5e0` (ASCII path) + the `%n`/`%m`/`%w` parse `FUN_0040f040`;
+   `newgame_render` picks `newgame_scene_tooltip`, wraps at 68, draws each row at
+   (72,416+r·28) with the menu's shadow+colours.  Verified: difficulty tooltip
+   wraps 65/52 across y=416/444 → **0 text-colored pixels differ**.  (The build
+   chain `FUN_0040e360`→parse/justify/commit + the substitution table —
+   `this+0x164`, empty for English — is documented in quirk #70; the port fuses
+   parse+justify and renders directly, as main.c already does for the menu grid.)
+   **REMAINING tooltip residual = 9px box-panel RGB565 1-LSB rounding (pre-existing,
+   NOT text)** — see ckpt-44 OPEN above; a separate sprite-decode item.
+   **NEXT — the transitions:**
    (c) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
    its own pump loop).  A kind-0 confirm already yields `NEWGAME_OPEN_PICKER`
    (surfaced + counted by the drive); port the submenu, and on its commit call
@@ -783,7 +808,7 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (20 modules) — render pipeline COMPLETE; text pipeline CLOSED end-to-end; new-game config scene = builder + renderer + run-loop model (drive pending)
+## Module inventory (21 modules) — render pipeline COMPLETE; text pipeline CLOSED end-to-end; new-game config scene = box + menu text + cursor + tooltip text all bit-exact (picker + Start→game pending)
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
@@ -808,7 +833,10 @@ Win32 pump `0x565d10`/`0x43bca0`, picker `0x567ba0`, box widgets `0x411940` NOT
 ported, the drive's job),
 **newgame_box** (the 9-slice box panel = `0x48cf80` opaque arm, ckpt 40),
 **newgame_cursor** (the selection-cursor geometry = `0x48d940` type-1, ckpt 41 —
-pure + host-tested; render gated OFF in `main.c` pending sprite-bank ID).
+bank 0x455 frames 16-19 bottom-up, render bit-exact ckpt 43, quirk #68/#69),
+**glyph_wrap** (the tooltip text-node word-wrap = `0x40e5e0` justify + `0x40f040`
+`%n`/`%m`/`%w` parse, ckpt 44, quirk #70 — pure + host-tested; SJIS kinsoku
+deferred; rendered directly in `newgame_render`).
 **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +

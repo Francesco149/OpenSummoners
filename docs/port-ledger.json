@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 157,
+  "tested": 162,
   "ported": 6,
-  "unported": 1595,
+  "unported": 1590,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 163,
-  "pct_touched": 10.1,
-  "pct_tested": 10.1,
-  "engine_proper_touched": 150,
+  "touched": 168,
+  "pct_touched": 10.4,
+  "pct_tested": 10.4,
+  "engine_proper_touched": 155,
   "bytes_total": 1694868,
-  "bytes_touched": 189182,
-  "pct_bytes_touched": 11.2
+  "bytes_touched": 193650,
+  "pct_bytes_touched": 11.4
  },
  "orphan_refs": [
   "0x56c470",
@@ -254,8 +254,10 @@
    "name": "FUN_004031c0",
    "size": 815,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_wrap.h"
+   ]
   },
   {
    "va": "0x4034f0",
@@ -748,8 +750,10 @@
    "name": "FUN_0040dee0",
    "size": 85,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x40df40",
@@ -783,24 +787,33 @@
    "name": "FUN_0040e360",
    "size": 636,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x40e5e0",
    "name": "FUN_0040e5e0",
    "size": 2553,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_wrap.c",
+    "src/glyph_wrap.h",
+    "src/main.c"
+   ]
   },
   {
    "va": "0x40f040",
    "name": "FUN_0040f040",
    "size": 379,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/glyph_wrap.c",
+    "src/glyph_wrap.h"
+   ]
   },
   {
    "va": "0x40f1c0",

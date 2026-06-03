@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 44) — new-game TOOLTIP TEXT NODE rendered bit-exact: word-wrap port (`FUN_0040e5e0`), 0 text-colored pixels differ
+
+The bottom-of-screen help line is a **standalone word-wrapping text node**
+(`this+0x170`), not the menu grid — one free-form string greedily wrapped into
+rows.  Ported the layout core **`FUN_0040e5e0`** (justify → per-glyph (col,row))
+plus the **`%n`/`%m`/`%w` parse `FUN_0040f040`** as the pure, host-tested
+**`src/glyph_wrap.{c,h}`** (quirk **#70**).  A word = alpha `[A-Za-z']+` / digit
+`[0-9.,]+` (+ one absorbed trailing `{space ! , - . ; ?}`) / a lone glyph; the
+row-width accumulator + wrap test mirror retail's `uVar13`/`param_1` (width = the
+`FUN_0040dee0` ctor arg `0x44` = **68 glyph-columns**); `%n` forces a break.  The
+SJIS kinsoku path (`sVar3==3`, the `DAT_008548xx` table) is deferred — English
+never reaches it.
+
+`newgame_render` (`main.c`) now picks the focused row's help string
+(`newgame_scene_tooltip`), wraps it, and draws each row at **(72, 416+r·28)** with
+the menu's 2-copy drop shadow (`0xa8b9cc`) + text (`0x3e537d`); the monospace 7px
+Courier New means one `TextOutA` per row is pixel-identical to retail's per-glyph
+stream.  **Verified LIVE** (port Flip 760 vs `goldens/retail-newgame-config-menu.png`):
+the difficulty-row tooltip wraps **65 / 52** glyphs across y=416/444 — the break is
+the width-68 word-wrap (the source has no `%n`), reproduced exactly; the tooltip
+region has **0 text-colored pixels differing** (a text-presence XOR over the
+region is 0).  6 new host tests (`tests/test_glyph_wrap.c`, **720 pass / 0 fail /
+6 skip**).  Ledger **168/1490** (+5 touched: `0x40e5e0`,`0x40f040`,`0x4031c0`).
+Comparison pushed to llm-feed.
+
+**Open (pre-existing, not the text):** the only residual in the tooltip region is
+**9 background pixels off by exactly one RGB565 5-bit step** (R or B by 8, green
+exact) — a box-panel sprite-decode rounding (`newgame_box`, bank `0x457`), the same
+class as the menu-box delta-8 px (there masked by the deferred sparkle corner).
+Hypothesis: an 8→5-bit decode round-vs-truncate in `bs_convert_to_16bpp`.  A
+separate sprite-decode investigation; the box was user-accepted at ckpt 40.
+
+---
+
 ## 2026-06-03 (ckpt 43) — selection-cursor RENDER BUG FIXED: a transposed trim scan, not a videomem path; new-game menu cursor is now bit-exact (`differ_px=0`)
 
 The ckpt-42 "scale_flag=1 videomem cell-build path" diagnosis was **wrong**.  The

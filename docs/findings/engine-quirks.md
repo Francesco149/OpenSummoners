@@ -1895,3 +1895,44 @@ Verified offline against the real `0x455` blob via
 `--box-probe`) and live (menu-box `differ_px=0`).  Regression test:
 `tests/test_bitmap_session.c::test_trim_8bpp_nonsquare_quirk69` (a deliberately
 non-square 4×8 cell).
+
+## 70. The tooltip/help text is a standalone WORD-WRAPPING text node (FUN_0040e360 → parse/justify/commit), distinct from the menu grid: one free-form string greedily wrapped into rows at a configured width, with `%n`/`%m`/`%w` escapes
+
+The new-game / options scenes draw their bottom-of-screen help line through a
+**separate text-node widget** (`this+0x170`), NOT the menu grid (`+0x174/+0x178/
++0x17c`).  A menu grid is a fixed rows×cols cell layout (one glyph buffer per
+cell); a text node takes ONE string and word-wraps it.  Each frame
+`FUN_00564780` recomputes the focused row's help string and calls
+**`FUN_0040e360(text)`** on the node, which runs three steps over the node's twin
+record arrays — a `0xc`-byte **position record** `{u16 col@+0, s16 row@+2, u32
+color@+4, u8 linebreak@+8, u8 wraptype@+9}` per glyph, parallel to a `0x24`-byte
+glyph-bytes record:
+
+1. **substitution** (gated on `node+0x164 != 0`, a key→value table; **empty for
+   the English tooltips** → skipped, text passes through);
+2. **`FUN_0040f040` parse** — split the string into glyph records, folding the
+   engine escapes: **`%n`** sets the next glyph's `linebreak` flag (a forced row
+   break), **`%m<digits>%`** sets a per-glyph colour, **`%w`** a wrap hint; an
+   unknown `%X` drops both bytes;
+3. **`FUN_0040e5e0` justify** — greedy word-wrap assigning each glyph a
+   `(col,row)`.  A **word** is classified by its lead byte (`sVar3`): **1** =
+   alpha run `[A-Za-z']+`, **2** = digit run `[0-9.,]+`, **3** = SJIS lead
+   (kinsoku rules over the `DAT_008548xx` 2-byte punctuation table), **0** = a
+   lone other glyph.  An alpha/digit word also absorbs **one** trailing
+   `{space ! , - . ; ?}` / space.  The row width accumulator `uVar13` and the
+   wrap test `(word_w + uVar13) > param_1` break to a new row when the next word
+   would overflow the configured **width = `param_1`** (the `FUN_0040dee0` ctor
+   arg `0x44` = **68 glyph-columns** for these menus); forced `%n` breaks also
+   bump the row;
+4. **`FUN_004031c0` commit** copies the wrapped bytes into the renderer's
+   `0x24`-byte records.
+
+The node's text origin is the box inset: tooltip box `(32,392)` + `FUN_0040dee0`
+insets `(40,24)` → first glyph at **(72,416)**, rows step by the font line height
+**28**, drawn with the SAME monospace Courier-New-7×18 + 2-copy drop shadow +
+colours (text `0x3e537d`, shadow `0xa8b9cc`) as the menu grid.  Verified bit-exact
+against the captured golden: the difficulty-row tooltip wraps **65 / 52** glyphs
+across y=416/444 — the break is the width-68 word-wrap (the source string has no
+`%n`), reproduced exactly by the port (`src/glyph_wrap.c`; `differ_px`: **0
+text-colored pixels** in the tooltip region differ).  The SJIS kinsoku path
+(`sVar3==3`) is deferred in the port — English never reaches it.
