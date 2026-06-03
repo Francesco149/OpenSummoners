@@ -636,9 +636,28 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    `differ_px=0`.  Proof tool for the trim: `tools/extract/cursor_trim_probe.c`.
    **NEXT — #1b: the tooltip TEXT node** (the second GDI-text node at y=416/444,
    word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
-   computes the text; rendering needs a word-wrap split into rows (the renderer
-   draws per-row, the wrap happens at build time).  This closes the 11% tooltip-box
-   residual.
+   (ported, `newgame_scene.c`) computes the help string (with `%n` line-break
+   escapes).  **RE map (scoped ckpt 43, not yet ported):** retail renders the
+   tooltip via **`FUN_0040e360(text)`** (`564780.c:596`) — it is the tooltip text
+   node's BUILD, not a word-wrapper.  Two phases:
+     (i) **token substitution** — gated on `this+0x164 != 0` (a substitution table,
+         `this+0x16c` = count, 100-byte records: key@+0x0, value@+0x28, or a
+         `"[%d]%s"` `FUN_005bf3ee` format when record+0x50!=0).  It find/replaces
+         each table key in the text with its value (the key-binding/variable
+         expansion).  **For the English new-game tooltip this table is empty → the
+         whole loop is skipped** and `param_1` passes through unchanged.
+     (ii) **commit** — `if (strlen(text) < node[+4] cap) { FUN_0040f040(text);
+         FUN_004031c0(_,0); FUN_0040e5e0(node[2]); }` then clears node `+4/+6` and
+         `this+0x1c`.  `this+0x170` = the tooltip text node.
+   So the port likely needs: `FUN_0040f040` (set node string / parse), `FUN_004031c0`,
+   `FUN_0040e5e0`, AND the **`%n` line-break expansion** — `%n` is an engine escape
+   the text builder (`glyph_cell_layout`'s escape pass, `0x4034f0`/`0x4051d0`,
+   currently hooked NULL) turns into a row break, so the renderer (`glyph_grid_render`)
+   draws it as two rows at y=416/444.  START by reading `0040f040.c` + the escape
+   expander to see where `%n` becomes a row.  Drive/verify with the capture recipe
+   below; golden = the tooltip-box region (32,392)576×80 of
+   `goldens/retail-newgame-config-menu.png` (currently ~11% residual = the missing
+   text).
    Then the transitions:
    (c) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
    its own pump loop).  A kind-0 confirm already yields `NEWGAME_OPEN_PICKER`
