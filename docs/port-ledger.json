@@ -8694,6 +8694,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
+    "src/prologue_drive.c",
+    "src/prologue_drive.h",
     "src/prologue_stone.c",
     "src/prologue_stone.h"
    ]
@@ -11387,6 +11390,7 @@
     "src/call_trace.h",
     "src/main.c",
     "src/newgame_drive.h",
+    "src/prologue_drive.h",
     "src/title_drive.h",
     "src/title_scene.h",
     "src/title_sink.h",
@@ -12525,6 +12529,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
     "src/newgame_box.h",
     "src/newgame_cursor.h",
     "src/zdd.c",

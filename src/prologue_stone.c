@@ -148,12 +148,20 @@ prologue_status prologue_stone_update(prologue_stone *ps, input_mgr *in,
 }
 
 /* ─── render (FUN_0056cd20:342-415) ──────────────────────────────────────── */
-
-/* Clamp an alpha-shade ramp index into the allocated 0..0x13 range (retail's
- * `if (idx<0) idx=0; else if (0x14<=idx) <keyed fallback>`).  The fallback path
- * (idx out of range OR ramp[idx]==0) is left to the drive, which holds the ramp;
- * here we just emit the clamped index and let the gem/sparkle draw flags carry. */
-static int clamp_ramp(int idx)
+/*
+ * Ramp-index convention (recovered from the disasm at 0x56d2c0..0x56d4fc):
+ *   - the GEM and SPARKLES blend through ramp_b (DAT_008a9308); their raw index
+ *     is emitted verbatim, and the drive applies retail's rule — idx in [0,19]
+ *     with ramp_b[idx] != 0 → alpha blit ramp_b[idx], otherwise (idx >= 20 or a
+ *     NULL ramp entry) the plain keyed fallback (0x5b9b70).
+ *   - the AURA blends through ramp_a (DAT_008a92b8); its index is pre-clamped to
+ *     [0,19] here (retail's idx>=20 path loads ramp_a[19] at 0x8a9304, idx<0
+ *     loads ramp_a[0]) and the drive always alpha-blits ramp_a[idx] (no keyed
+ *     fallback).
+ * The drive picks the ramp per element (gem/sparkle → ramp_b, aura → ramp_a)
+ * from the struct field, so no per-draw ramp selector is needed.
+ */
+static int clamp_aura(int idx)   /* ramp_a clamp: [0,19], no keyed fallback */
 {
     if (idx < 0) return 0;
     if (idx >= 0x14) return 0x13;
@@ -172,45 +180,46 @@ void prologue_stone_render(const prologue_stone *ps, prologue_render_out *out)
     int rise = ps->rise_pos / 100;   /* the shared rise pixels                  */
 
     /* gem — slot[3] frame gem_frame at (0xf8, rise+0x30); drawn when the fade
-     * index is positive (:348-365). */
+     * index is positive (:348-365 / 0x56d2dd-0x56d388).  ramp_idx is the raw
+     * ramp_b index ((local_bc*800/1000)*0x14/600); peaks at 16. */
     {
         int iv = (ps->gem_fade * 800) / 1000;        /* :350 iVar15            */
         if (iv > 0) {
-            int idx = (iv * 0x14) / 600;             /* :352                   */
             out->gem.draw     = 1;
             out->gem.frame    = ps->gem_frame;
             out->gem.x        = 0xf8;
             out->gem.y        = rise + 0x30;
-            out->gem.ramp_idx = clamp_ramp(idx);
+            out->gem.ramp_idx = (iv * 0x14) / 600;   /* :352, raw (ramp_b)     */
         }
     }
 
     /* aura — slot[1] frame aura_frame at (0xd0, rise); drawn whenever the gem
-     * fade is positive (:368-377).  Retail uses the sprite's own +0x28 shade
-     * (full add), not a ramp index — flag it with ramp_idx = -1. */
+     * fade is positive (0x56d38d-0x56d41f).  Blends through ramp_a at index
+     * (local_bc*0x14)/600 (= local_bc/30), clamped [0,19]. */
     if (ps->gem_fade > 0) {
         out->aura.draw     = 1;
         out->aura.frame    = ps->aura_frame;
         out->aura.x        = 0xd0;
         out->aura.y        = rise;
-        out->aura.ramp_idx = -1;                     /* sprite's own shade     */
+        out->aura.ramp_idx = clamp_aura((ps->gem_fade * 0x14) / 600);
     }
 
-    /* sparkles — slot[2], a 6-entry × 4-column grid (:378-414).  Entry e draws
-     * frames 4e..4e+3 at columns 0..3 (x = 0x10 + col·0x98), all sharing the
-     * entry's y (= y/100) and level (the ramp index).  Drawn while level≠0. */
+    /* sparkles — slot[2], a 6-entry × 4-column grid (:378-414 / 0x56d460-d511).
+     * Entry e draws frames 4e..4e+3 at columns 0..3 (x = 0x10 + col·0x98), all
+     * sharing the entry's y (= y/100) and ramp_b index (= level).  Drawn while
+     * level≠0; the raw index (level, which can reach 0x14) is emitted so the
+     * drive falls to the keyed blit at level==0x14, exactly as retail. */
     for (int e = 0; e < PROLOGUE_SPARKLE_ENTRIES; e++) {
         const prologue_sparkle *s = &ps->sparkle[e];
         int sy = s->y / 100;
         for (int col = 0; col < 4; col++) {
             int k = e * 4 + col;                     /* frame == draw index    */
             if (s->level != 0) {
-                int idx = (s->level * 0x14) / 0x14;  /* :392 (== level)        */
                 out->sparkle[k].draw     = 1;
                 out->sparkle[k].frame    = k;
                 out->sparkle[k].x        = 0x10 + col * 0x98;
                 out->sparkle[k].y        = sy;
-                out->sparkle[k].ramp_idx = clamp_ramp(idx);
+                out->sparkle[k].ramp_idx = (s->level * 0x14) / 0x14;  /* == level */
             }
         }
     }

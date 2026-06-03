@@ -266,7 +266,8 @@ int test_prologue_render_gem_aura(void)
     T_ASSERT_EQ_I(out.aura.draw, 1);
     T_ASSERT_EQ_I(out.aura.x, 0xd0);
     T_ASSERT_EQ_I(out.aura.y, ps.rise_pos / 100);
-    T_ASSERT_EQ_I(out.aura.ramp_idx, -1);   /* aura uses its own shade */
+    /* aura blends through ramp_a at (gem_fade*0x14)/600, clamped [0,19]. */
+    T_ASSERT_EQ_I(out.aura.ramp_idx, (ps.gem_fade * 0x14) / 600);
     return 0;
 }
 

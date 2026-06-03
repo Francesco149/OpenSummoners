@@ -777,6 +777,9 @@ struct test_case {
     X(prologue_render_gem_aura)                                \
     X(prologue_render_gem_alpha_cap)                           \
     X(prologue_render_sparkle_grid)                            \
+    X(prologue_drive_runs_and_renders)                         \
+    X(prologue_drive_abort)                                    \
+    X(prologue_drive_completes)                                \
 
 #define X(n) extern int test_##n(void);
 TESTS

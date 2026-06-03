@@ -147,7 +147,11 @@ Only draws once `sVar4==0` (after the start delay) and `local_bc>0`:
    0..0x14) into the `DAT_008a9308` ramp; ramp==0 → plain keyed fallback at
    (0xf8, y).
 2. **aura** — slot[1] frame `uVar17`(0/1), at **x = aura.f_0c + 0xd0**, **y =
-   aura.f_10 + local_a0/100**; drawn whenever `local_bc>0` (full add, sprite+0x28).
+   aura.f_10 + local_a0/100**; drawn whenever `local_bc>0`.  Blends through
+   **ramp_a** (`DAT_008a92b8`) at index `(local_bc*0x14)/600` (= local_bc/30),
+   clamped [0,19] (the idx≥20 path loads `ramp_a[19]` at `0x8a9304`); always
+   alpha-blit, no keyed fallback.  (Disasm 0x56d38d-0x56d41f; the decompiler
+   dropped the `__thiscall` ECX = the ramp_a entry.)
 3. **sparkles** — slot[2], a **4-column × 6-row grid** (`uVar21` 0..23 = frame): for
    each of the 6 entries (`local_98`), 4 inner columns at **x = 0x10 + col·0x98**
    (16,168,320,472), **y = entry.y / 100**; alpha-shade idx from

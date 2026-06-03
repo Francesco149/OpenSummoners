@@ -111,8 +111,10 @@ typedef struct prologue_draw {
     int frame;      /* sprite frame index                                        */
     int x, y;       /* LOGICAL blit position; the drive adds the decoded sprite's */
                     /* trim offset (+0xc/+0x10) before the real blit             */
-    int ramp_idx;   /* alpha-shade ramp index (clamped 0..0x13); the gem peaks   */
-                    /* at 16 (cf. the title cursor's idx-16 cap)                 */
+    int ramp_idx;   /* alpha-shade ramp index.  gem/sparkle: RAW ramp_b index    */
+                    /* (gem peaks at 16; sparkle == level, can reach 0x14, where  */
+                    /* the drive falls to the keyed blit).  aura: ramp_a index,   */
+                    /* pre-clamped to [0,19] (always alpha-blit, no fallback).    */
 } prologue_draw;
 
 #define PROLOGUE_SPARKLE_DRAWS 24   /* 6 entries × 4 columns                     */

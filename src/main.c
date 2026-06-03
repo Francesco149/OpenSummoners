@@ -65,6 +65,7 @@
 #include "newgame_box.h"      /* the 9-slice box panel render (FUN_0048cf80) */
 #include "newgame_cursor.h"   /* the menu selection cursor / gold vine (FUN_0048d940) */
 #include "glyph_wrap.h"       /* the tooltip text-node word-wrap (FUN_0040e5e0)  */
+#include "prologue_drive.h"   /* the Elemental-Stone intro cutscene (FUN_0056cd20) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -143,10 +144,16 @@ static int         g_drive_active;
 /* The new-game config scene drive (the caller side of FUN_00565d10 / 0x564780
  * case 0x24).  Entered when the title menu commits Start (app_flow NEW_GAME);
  * one main_loop_body iteration runs one newgame_drive_step.  On BACK it tears
- * down + re-displays the title; START is a stub (the stone intro + game proper
- * are unported) that also re-displays the title for now. */
+ * down + re-displays the title; on START it hands off to the prologue cutscene. */
 static newgame_drive g_newgame_drive;
 static int           g_newgame_active;
+
+/* The Elemental-Stone intro cutscene drive (FUN_0056cd20).  Entered when the
+ * new-game scene commits Start Game; one main_loop_body iteration runs one
+ * prologue_drive_step.  On DONE the game proper (0x59ec30) is unported, so it
+ * re-displays the title for now; on ABORT (id 0x22) it re-displays the title. */
+static prologue_drive g_prologue_drive;
+static int            g_prologue_active;
 
 /* The GDI HFONT slot the new-game config menu renders with: Courier New 7×18 =
  * ar_register_fonts slot 5 ({w=7,h=0x12,family=2}); the captured golden's
@@ -394,6 +401,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     log_line("OpenSummoners exiting after %u frames (%u ms wall)",
              g_frame_counter, g_total_ms);
 
+    if (g_prologue_active) {
+        prologue_drive_shutdown(&g_prologue_drive);
+        g_prologue_active = 0;
+    }
     if (g_newgame_active) {
         newgame_drive_shutdown(&g_newgame_drive);
         g_newgame_active = 0;
@@ -1229,6 +1240,103 @@ static void leave_newgame_to_title(const char *why)
     reenter_title();
 }
 
+/* ─── the Elemental-Stone intro cutscene (FUN_0056cd20) ──────────────────────
+ *
+ * Group-4 pool slots ar_register_main_sprites stamped (idx = (BSS-0x8a7640)/4):
+ *   aura    g_ar_sprite_slots[1]  0x49f  224×224  (DAT_008a7644)
+ *   sparkle g_ar_sprite_slots[2]  0x448  152×40   (DAT_008a7648)
+ *   gem     g_ar_sprite_slots[3]  0x4a2  144×108  (DAT_008a764c)
+ */
+#define PROLOGUE_SLOT_AURA    1
+#define PROLOGUE_SLOT_SPARKLE 2
+#define PROLOGUE_SLOT_GEM     3
+
+/* Blit one element of the cutscene's draw list.  gem/sparkle blend through
+ * ramp_b with a keyed fallback (idx>=20 or a NULL ramp entry → plain keyed
+ * blit, retail 0x5b9b70); the aura blends through ramp_a with its index
+ * pre-clamped to [0,19] (no fallback).  The alpha path adds the decoded frame's
+ * trim metric (+0xc/+0x10); the keyed path uses the raw logical (x,y) — exactly
+ * as retail's two FUN_005bd550 / FUN_005b9b70 arms differ. */
+static void prologue_blit(const prologue_draw *pd, int slot,
+                          const zdd_blend_desc *const *ramp,
+                          int allow_keyed_fallback)
+{
+    if (!pd->draw)
+        return;
+    zdd_object *frame =
+        (zdd_object *)ar_sprite_slot_frame(&g_ar_sprite_slots[slot],
+                                           (uint16_t)pd->frame);
+    if (frame == NULL)
+        return;
+
+    const zdd_blend_desc *desc = NULL;
+    if (pd->ramp_idx >= 0 && pd->ramp_idx < 20 && ramp != NULL)
+        desc = ramp[pd->ramp_idx];
+
+    if (desc != NULL) {
+        zdd_blit_orchestrate(desc, g_zdd->primary_obj, frame,
+                             frame->metric_0c + pd->x, frame->metric_10 + pd->y,
+                             frame->metric_14, frame->metric_18,
+                             0, 0, frame->colorkey_out, NULL);
+    } else if (allow_keyed_fallback) {
+        zdd_object_blt_keyed(frame, g_zdd->primary_obj, pd->x, pd->y);
+    }
+}
+
+/* Compose one cutscene frame: clear to black, then gem → aura → sparkles
+ * (retail's iVar9==1 draw order: 0x56d2c0 gem, 0x56d38d aura, 0x56d460 sparkles). */
+static void prologue_render(void *user)
+{
+    prologue_drive *d = (prologue_drive *)user;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+
+    zdd_object_clear(g_zdd->primary_obj);    /* black background */
+
+    prologue_render_out out;
+    prologue_stone_render(&d->scene, &out);
+
+    prologue_blit(&out.gem,  PROLOGUE_SLOT_GEM,  g_ramp_b, /*keyed=*/1);
+    prologue_blit(&out.aura, PROLOGUE_SLOT_AURA, g_ramp_a, /*keyed=*/0);
+    for (int k = 0; k < PROLOGUE_SPARKLE_DRAWS; k++)
+        prologue_blit(&out.sparkle[k], PROLOGUE_SLOT_SPARKLE, g_ramp_b, /*keyed=*/1);
+}
+
+/* Hand off from the new-game Start-Game commit to the gem cutscene.  Tears down
+ * the newgame drive and stands up the prologue drive bound to the live primary
+ * (render = prologue_render, present = drive_present so Flip++ keeps working). */
+static void enter_prologue(void)
+{
+    if (g_newgame_active) {
+        newgame_drive_shutdown(&g_newgame_drive);
+        g_newgame_active = 0;
+    }
+
+    prologue_drive_cfg cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.render  = prologue_render;
+    cfg.present = drive_present;       /* reuse the title present thunk (Flip++) */
+    cfg.user    = &g_prologue_drive;
+
+    prologue_drive_init(&g_prologue_drive, &cfg);
+    g_prologue_active = 1;
+    log_line("enter_prologue: Elemental-Stone cutscene driven (primary=%p) — "
+             "gem/aura/sparkles on black; 0x22=abort, 3 beats begin exit",
+             (void *)g_zdd->primary_obj);
+}
+
+/* Leave the cutscene.  On DONE the game proper (0x59ec30, map 0x3f2) is unported
+ * → re-display the title (logged as the deferred seam); on ABORT → title. */
+static void leave_prologue_to_title(const char *why)
+{
+    if (g_prologue_active) {
+        prologue_drive_shutdown(&g_prologue_drive);
+        g_prologue_active = 0;
+    }
+    log_line("leave_prologue: %s — re-displaying title", why);
+    reenter_title();
+}
+
 /* Anchor CWD + DLL search dir to the game directory.  Reads
  * OPENSUMMONERS_GAME_DIR from the environment — nix develop's shellHook
  * exports it with WSLENV's /p flag so the .exe gets a Windows-form path
@@ -1378,7 +1486,20 @@ static void main_loop_body(void)
         DispatchMessageA(&msg);
     }
 
-    if (g_newgame_active) {
+    if (g_prologue_active) {
+        /* The Elemental-Stone cutscene: one prologue_drive_step per presented
+         * frame (the FUN_0056cd20 update/render tick).  Same replay-inject-then-
+         * step shape as the newgame scene; on DONE the game proper is unported. */
+        uint32_t now = GetTickCount();
+        if (g_input_trace_active)
+            input_trace_replay(&g_input_trace, g_present_frame,
+                               &g_prologue_drive.input, now);
+        prologue_status st = prologue_drive_step(&g_prologue_drive, now);
+        if (st == PROLOGUE_DONE)
+            leave_prologue_to_title("cutscene done (game proper 0x59ec30 unported)");
+        else if (st == PROLOGUE_ABORT)
+            leave_prologue_to_title("aborted (id 0x22)");
+    } else if (g_newgame_active) {
         /* The new-game config scene: one newgame_drive_step per presented frame
          * (no pace machine — frame_limiter gates the rate).  Inject any due
          * replay events into the drive's ring before it polls (keyed on the
@@ -1389,8 +1510,7 @@ static void main_loop_body(void)
                                &g_newgame_drive.input, now);
         newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
         if (st == NEWGAME_START)
-            leave_newgame_to_title("Start committed (stone intro + game "
-                                   "proper unported)");
+            enter_prologue();          /* Start Game → the gem cutscene */
         else if (st == NEWGAME_BACK)
             leave_newgame_to_title("backed out (result 0xb)");
     } else if (g_drive_active) {

@@ -82,7 +82,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x56c180 | FUN_0056c180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
 | 0x56c2b0 | FUN_0056c2b0 | 373 | main.c, title_particles.c, title_particles.h |
 | 0x56c930 | FUN_0056c930 | 607 | menu_list.c, menu_list.h |
-| 0x56cd20 | FUN_0056cd20 | 2275 | prologue_stone.c, prologue_stone.h |
+| 0x56cd20 | FUN_0056cd20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+2) |
 | 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h, main.c |
@@ -142,7 +142,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
 | 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, newgame_drive.h (+6) |
+| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, main.c, newgame_drive.h (+7) |
 | 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
 | 0x5b9240 | FUN_005b9240 | 60 | zdd.h |
@@ -182,7 +182,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd550 | FUN_005bd550 | 302 | newgame_box.h, newgame_cursor.h, zdd.c (+2) |
+| 0x5bd550 | FUN_005bd550 | 302 | main.c, newgame_box.h, newgame_cursor.h (+3) |
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
