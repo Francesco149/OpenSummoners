@@ -1,4 +1,72 @@
-# Session handoff — last updated 2026-06-03 (ckpt 55 — IN-GAME MAP OBJECT PORTED + host-tested.  New pure, host-tested **`src/game_map.{c,h}`** ports the runtime map object the in-game engine builds on a fresh new-game entry: the `in_stack_0000eb2c==0` arm of **`FUN_0059f2c0`** (lines 160-218) + the **`FUN_004c5350`** room-key resolution.  Allocates the `operator_new(0x4120)` map object (zero-init `buf[0x4120]`) + **8× `operator_new(0xeec)`** actor slots, runs the actor init loop (slot index @+0xa0c, **`FUN_00560e60`** field-zero, active flag `map+0x4084+4*i=1`), writes the header fields (`+0x40a4=1`,`+0x4018=1`,**`+0x4054=3`**, the `+0x405c..+0x4064` u16 run, the 3 `{1,0}` tail pairs @+0x4108 that fill the object to +0x4120, the `GetTickCount` stamp @+0x4068), sets `map+0x4104=0x3f2`, then `FUN_004c5350`'s `map==0x3f2` arm writes the **room key `map+0x4024=0x334be`** (+ spawn `+0x4028=0x65`/`+0x402c=1`).  `game_map_active_room` resolves it via `game_world_find_room` → **room 210110 "Town of Tonkiness"** (area 0xd2, scene 1022) — the end-to-end opening-room build over the ckpt-54 table layer.  Fidelity boundaries documented in the header (zero-init baseline; `+0x4020` ramp ceiling set by an opaque sub-init so the `+0x4014` ramp is inert; sprite-registry sub-calls + the `0x3fc` arm skipped; the `map==0→0x3f2` default runs AFTER `FUN_004c5350` so a 0-map gets no key — real path passes 0x3f2).  6 new host tests → **766 pass / 0 fail / 6 skip**.  Ledger **180/1490** (`0x4c5350`,`0x560e60` now tested).  Both port builds compile clean; `game_map.c` is in the src wildcard but NOT yet called by main.c (foundation for the sim/render units).  Full writeup: docs/findings/in-game-intro.md "The MAP OBJECT".  NEXT: a slice of `0x586010` (sim) → `0x5a00c0` (render) that walks this map object + room 210110 to draw the static town backdrop, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
+# Session handoff — last updated 2026-06-04 (ckpt 56 — RUNTIME MAP-DATA LOAD PATH + FORMAT RESOLVED, and `FUN_00587970` PORTED + host-tested.  Surveying the next unit (`0x586010` sim → `0x5a00c0` render) showed both are multi-checkpoint rocks (the full engine sim; a self-contained scripted-scene render loop with its own GetTickCount pace machine + caption/sprite arrays + resource-unload teardown).  The tractable next data-layer unit is the **runtime MAP DATA**: the per-room VISUAL map (tilemap cell grid + 86 object/layer entries — the town backdrop) is **loaded from a PE DATA resource keyed by the room's SCENE index, sourced from the main EXE** (`DAT_008a6e7c` = the EXE module handle, NOT sotesd).  `0x586010:690` calls **`FUN_00587970(EXE, room.scene)`** → **`FUN_005b62a0`** = `FindResourceA(EXE, scene&0xffff, "DATA")` + LoadResource/LockResource → **`FUN_005b6340`** mode-1 sequential copy.  Opening town: room 210110 scene **1022** → **DATA resource 1022 in the EXE** (152,936 B, name **"MSD_SOTES_MAPDATA"**, **dims 88×19×3**, **86 layers**).  This REFINES plan 3a (ckpt 51 was incomplete): the res-probe hooked only the sprite decoder `0x5b7800`, so it never saw this separate FindResource path — "compiled-in" is true only of the ROOM REGISTRY (.rdata graph/names/scene-ids); the per-room visual map IS a loaded EXE resource.  Pairs with the EXE-NULL banks 0x570-0x572: the port loads both from the original `sotes.exe` as a datafile (`g_sotes_exe`).  PORT: new tool **`tools/extract/map_data.py`** (decode any map DATA resource; asserts EXACT consumption) + pure host-tested **`src/map_data.{c,h}`** porting `FUN_00587970`'s parse (caller supplies locked bytes; decodes magic+0x30 header+0x34 maphdr{name,dims,count} + `dim0*dim1*dim2`×0x1c cell array + `count` layer entries each 0x3c header + 4 sized sub-arrays into owned allocations; overrun-guarded).  4 new host tests → **770 pass / 0 fail / 6 skip**.  Ledger **184/1490** (`0x587970` now tested).  `map_data.c` is in the src wildcard, not yet wired into main.c (foundation for the FUN_00587e00 decoder).  Full writeup: docs/findings/in-game-intro.md "The RUNTIME MAP DATA".  NEXT: port **`FUN_00587e00`** (3282 B, the map-data → world decode reading this parsed structure) + the matching `0x5a00c0` render slice, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
+
+> **ckpt 56 — THE RUNTIME MAP-DATA LOAD PATH + FORMAT ARE RESOLVED; the
+> `FUN_00587970` parser is PORTED + host-tested.**  Grounding + a small,
+> verifiable data-layer unit on the way to the town backdrop — after surveying
+> the sim/render and finding both are multi-checkpoint rocks.
+>
+> **THE SURVEY (why this unit, not the whole render).**  `0x586010` (6 KB) is the
+> full engine sim — it allocs the `0x27b8` room-state object `DAT_008a9b50`,
+> creates the party actors, loads the map, runs the event system (`0x40b8f0`) +
+> per-frame step (`0x58f360`).  `0x5a00c0` (13.7 KB) is NOT a simple backdrop
+> blitter: it's a self-contained **blocking scripted-scene player** with its own
+> 3-state GetTickCount pace machine, a sprite-descriptor array, a caption/text
+> line array (0x124 stride, glyph-index strings), and a full resource-unload
+> teardown path.  Both are multi-checkpoint.  The tractable next unit is the
+> **map-data load** the sim performs.
+>
+> **KEY RE FINDING — the town backdrop is a PE DATA resource in the EXE, keyed by
+> scene index.**  `0x586010:675-697`: `local_920 = DAT_008a6e7c` (the **EXE
+> module handle**, one of the boot slots `0x8a6e68..7c`), then
+> `FUN_00587970(local_920, (u16)room[3])` where `room[3] = the SCENE index`.
+> `FUN_00587970` opens via **`FUN_005b62a0`** = `FindResourceA(module,
+> scene&0xffff, "DATA")` + LoadResource + LockResource, and copies it out with
+> **`FUN_005b6340`** mode 1 (memcpy from the locked pointer).  Room 210110's
+> **scene = 1022**, so the opening town map = **`FindResourceA(EXE, 1022,
+> "DATA")` = DATA resource 1022 in the EXE** (152,936 B, name
+> **"MSD_SOTES_MAPDATA"**).
+>
+> **REFINES plan 3a (ckpt 51 incomplete, not wrong).**  The ckpt-51 res-probe
+> hooked only the **sprite** decoder `bs_decode_resource` (`0x5b7800`);
+> `FUN_005b62a0` is a **separate FindResource path** it never observed.  So "map
+> layout is compiled-in static data" holds only for the **ROOM REGISTRY** (the
+> room graph / names / scene indices in `.rdata` — `game_world_tables.py`); the
+> per-room **visual map** (tiles + object layers) **is** a loaded resource,
+> sourced from the **EXE** (a module plan 3a didn't check) and keyed by scene
+> index.  Pairs with the ckpt-51/52 **EXE-NULL banks `0x570-0x572`**: the port
+> must load both the EXE-NULL sprite banks AND the scene-indexed map data from
+> the original `sotes.exe` as a datafile (one `g_sotes_exe` handle).
+>
+> **MAP-DATA FORMAT (decoded + bit-exactly validated).**  Sequential from
+> offset 0: `[0:4]` magic (`0x30`); `[4:0x34]` 0x30-byte header; `[0x34:0x68]`
+> maphdr (`+0x00` char[0x20] name · `+0x20/+0x24/+0x28` dims · `+0x2c` count);
+> `[0x68:..]` cells = `dim0*dim1*dim2` × `0x1c` B; then `count` layer entries,
+> each a `0x3c` header (sub counts `+0x1c`/`+0x20`/`+0x24`/`+0x28`, strides
+> 4/0xc/0x100/8) + those four sub-arrays.  DATA 1022 = dims **88×19×3**, **86**
+> layers; the parse consumes the resource **EXACTLY** (152936, zero remainder) —
+> the trust invariant.
+>
+> **PORT (pure, host-tested):** new **`tools/extract/map_data.py`** (extract +
+> decode any map DATA resource; asserts exact consumption — re-runnable ground
+> truth, the ckpt-53 pattern) + new **`src/map_data.{c,h}`** porting
+> `FUN_00587970`'s parse (caller supplies the locked bytes — FindResource stays
+> Win32 in `main.c`; `map_data_parse` decodes into owned allocations; overrun
+> guard vs `len`, inert on a well-formed map).  The `0x1c`-byte cell record +
+> the layer sub-array element layouts are decoded by the unported
+> **`FUN_00587e00`** (3282 B); this parser preserves their raw bytes.
+>
+> **STATE:** 4 new host tests (`tests/test_map_data.c`, synthetic blobs) →
+> **770 pass / 0 fail / 6 skip** (+4).  Ledger **184/1490** (`0x587970` now
+> *tested*).  `map_data.c` is in the `src` wildcard but **not yet wired into
+> `main.c`** (the foundation the `FUN_00587e00` decoder + render read).  Full
+> writeup: `docs/findings/in-game-intro.md` "The RUNTIME MAP DATA".  **NEXT:**
+> port **`FUN_00587e00`** (the map-data → world decode reading this structure) +
+> the matching slice of `0x5a00c0` to render the town backdrop, diff vs
+> `runs/tas-ingame-1` anchored on `game_enter`.  Clean **/clear point**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 55 — IN-GAME MAP OBJECT PORTED + host-tested.  New pure, host-tested **`src/game_map.{c,h}`** ports the runtime map object the in-game engine builds on a fresh new-game entry: the `in_stack_0000eb2c==0` arm of **`FUN_0059f2c0`** (lines 160-218) + the **`FUN_004c5350`** room-key resolution.  Allocates the `operator_new(0x4120)` map object (zero-init `buf[0x4120]`) + **8× `operator_new(0xeec)`** actor slots, runs the actor init loop (slot index @+0xa0c, **`FUN_00560e60`** field-zero, active flag `map+0x4084+4*i=1`), writes the header fields (`+0x40a4=1`,`+0x4018=1`,**`+0x4054=3`**, the `+0x405c..+0x4064` u16 run, the 3 `{1,0}` tail pairs @+0x4108 that fill the object to +0x4120, the `GetTickCount` stamp @+0x4068), sets `map+0x4104=0x3f2`, then `FUN_004c5350`'s `map==0x3f2` arm writes the **room key `map+0x4024=0x334be`** (+ spawn `+0x4028=0x65`/`+0x402c=1`).  `game_map_active_room` resolves it via `game_world_find_room` → **room 210110 "Town of Tonkiness"** (area 0xd2, scene 1022) — the end-to-end opening-room build over the ckpt-54 table layer.  Fidelity boundaries documented in the header (zero-init baseline; `+0x4020` ramp ceiling set by an opaque sub-init so the `+0x4014` ramp is inert; sprite-registry sub-calls + the `0x3fc` arm skipped; the `map==0→0x3f2` default runs AFTER `FUN_004c5350` so a 0-map gets no key — real path passes 0x3f2).  6 new host tests → **766 pass / 0 fail / 6 skip**.  Ledger **180/1490** (`0x4c5350`,`0x560e60` now tested).  Both port builds compile clean; `game_map.c` is in the src wildcard but NOT yet called by main.c (foundation for the sim/render units).  Full writeup: docs/findings/in-game-intro.md "The MAP OBJECT".  NEXT: a slice of `0x586010` (sim) → `0x5a00c0` (render) that walks this map object + room 210110 to draw the static town backdrop, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
 
 > **ckpt 55 — THE IN-GAME MAP OBJECT IS PORTED + HOST-TESTED.**  The runtime
 > world object the engine builds on a fresh new-game entry, on top of the

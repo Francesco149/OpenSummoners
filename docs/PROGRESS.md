@@ -6,6 +6,57 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-04 (ckpt 56) — the runtime MAP-DATA load path + format are resolved; FUN_00587970 is ported + host-tested
+
+Surveying the next unit (`0x586010` sim → `0x5a00c0` render) confirmed both are
+multi-checkpoint rocks: `0x586010` (6 KB) is the full engine sim (allocs the
+`0x27b8` room-state object `DAT_008a9b50`, creates party actors, loads the map,
+runs the event system `0x40b8f0` + per-frame step `0x58f360`); `0x5a00c0`
+(13.7 KB) is a self-contained **blocking scripted-scene player** with its own
+3-state GetTickCount pace machine, a sprite-descriptor array, a caption/text
+line array (0x124 stride), and a full resource-unload teardown.  The tractable
+next data-layer unit is the **map-data load** the sim performs.
+
+**Key RE finding — the town backdrop is a PE DATA resource in the EXE, keyed by
+scene index.**  `0x586010:675-697` resolves the map via
+`FUN_00587970(DAT_008a6e7c, room.scene)`, where `DAT_008a6e7c` is the **main EXE
+module handle** (a boot handle slot `0x8a6e68..7c`, *not* sotesd) and `room[3]`
+is the **scene index**.  `FUN_00587970` opens with **`FUN_005b62a0`** =
+`FindResourceA(module, scene&0xffff, "DATA")` + LoadResource/LockResource, then
+copies sequentially with **`FUN_005b6340`** mode 1.  Room 210110's scene = 1022,
+so the opening town map = **`FindResourceA(EXE, 1022, "DATA")` = DATA resource
+1022 in the EXE** (152,936 B, name **"MSD_SOTES_MAPDATA"**, dims **88×19×3**, 86
+layers).
+
+**Refines plan 3a (ckpt 51 was incomplete).**  The ckpt-51 res-probe hooked only
+the *sprite* decoder `bs_decode_resource` (`0x5b7800`); `FUN_005b62a0` is a
+separate FindResource path it never saw.  "Map layout is compiled-in" holds only
+for the ROOM REGISTRY (the `.rdata` room graph / names / scene ids); the per-room
+*visual* map (tiles + object layers) **is** a loaded resource, from the EXE,
+keyed by scene index.  Pairs with the EXE-NULL banks `0x570-0x572`: the port
+loads both from the original `sotes.exe` as a datafile (one `g_sotes_exe`).
+
+**Port (pure, host-tested).**  New **`tools/extract/map_data.py`** decodes any
+map DATA resource and asserts it consumes the resource exactly (re-runnable
+ground truth, the ckpt-53 pattern).  New **`src/map_data.{c,h}`** ports
+`FUN_00587970`'s parse: the caller supplies the locked bytes (FindResource stays
+Win32 in `main.c`), and `map_data_parse` decodes magic + 0x30 header + 0x34
+maphdr (name/dims/count) + the `dim0*dim1*dim2`×0x1c cell array + `count` layer
+entries (each a 0x3c header + four sized sub-arrays) into owned allocations, with
+an overrun guard vs `len`.  The `0x1c` cell record + the layer sub-array element
+layouts are decoded by the unported `FUN_00587e00` (3282 B, the next unit); this
+parser preserves their raw bytes.
+
+4 new host tests (`tests/test_map_data.c`, synthetic blobs) → **770 pass / 0 fail
+/ 6 skip** (+4).  Ledger **184/1490** (`0x587970` now *tested*).  Both port
+builds (mingw GUI + debug) compile clean; `map_data.c` is in the `src` wildcard
+but not yet wired into `main.c`.  Full writeup:
+`docs/findings/in-game-intro.md` "The RUNTIME MAP DATA".  **Next:** port
+`FUN_00587e00` (the map-data → world decode reading this structure) + the
+matching `0x5a00c0` render slice, diff vs `runs/tas-ingame-1`.
+
+---
+
 ## 2026-06-03 (ckpt 55) — the in-game MAP OBJECT is ported + host-tested (0x59f2c0 fresh-entry arm + 0x4c5350 room-key resolution)
 
 Ported the **runtime map object** the in-game engine builds on a fresh new-game

@@ -420,6 +420,87 @@ units read.  **NEXT:** a slice of `0x586010` (sim) → `0x5a00c0` (render) that
 walks this map object + room 210110 to draw the static town backdrop, diffed vs
 `runs/tas-ingame-1` anchored on `game_enter`.
 
+## The RUNTIME MAP DATA — `FUN_00587970` + DATA resource 1022 (ckpt 56)
+
+Surveying the next unit (`0x586010` sim → `0x5a00c0` render) revealed that the
+per-room **visual map** (the tilemap cell grid + an object/layer list — the
+actual town backdrop) is **loaded from a PE DATA resource keyed by the room's
+scene index**, and that resource lives in the **main EXE**, not sotesd.dll.
+
+### Load path
+`FUN_00586010` (the sim setup), after building the room-state object
+`DAT_008a9b50`, resolves the map data (`586010:675-697`):
+```
+local_920 = DAT_008a6e7c;                       // the EXE module handle (default)
+if (scene+0x103c has an override handle at +0x54008) local_920 = that;
+iVar9 = FUN_00587970(local_920, (u16)room[3]);  // room[3] = the SCENE index
+if (iVar9 == 0)  -> "The map data is not found. NO %d"  (fatal)
+FUN_00587e00(pvVar3, room[0x44], room[0x35], room[0x43]);   // the decoder
+```
+`FUN_00587970` opens the resource via **`FUN_005b62a0`**, which is plain
+`FindResourceA(module, scene & 0xffff, "DATA")` + `LoadResource` +
+`LockResource`, then copies it out sequentially with **`FUN_005b6340`** (mode 1
+= memcpy from the locked pointer).  For the opening town: room 210110's **scene
+= 1022**, so the map is **`FindResourceA(EXE, 1022, "DATA")`** =
+**DATA resource 1022 in the EXE** (152,936 bytes, name "MSD_SOTES_MAPDATA").
+
+`DAT_008a6e7c` is one of a bank of six boot module-handle slots
+(`0x8a6e68..0x8a6e7c`, zero-inited in `FUN_00562210`); it holds the **EXE's own
+module handle**, distinct from `g_sotesd`.
+
+### This REFINES plan 3a (ckpt 51 was incomplete, not wrong)
+Plan 3a's res-probe hooked only the **sprite** decoder `bs_decode_resource`
+(`0x5b7800`); `FUN_005b62a0` is a **separate FindResource path** the probe never
+observed, so plan 3a's "no per-map resource file, map layout is compiled-in
+static data" is true only of the **ROOM REGISTRY** (the room graph / names /
+scene indices, compiled into `.rdata` — `game_world_tables.py`).  The per-room
+**visual map** (tiles + object layers) **is** a loaded resource, sourced from
+the **EXE** (a module plan 3a didn't check for map data) and keyed by scene
+index.  This pairs with the ckpt-51/52 **EXE-NULL banks `0x570-0x572`**: the
+EXE's `.rsrc` holds engine-time DATA resources, and the port must load them from
+the original `sotes.exe` as a datafile (`LoadLibraryExA(..., AS_DATAFILE)` → a
+`g_sotes_exe` handle) — **the same handle serves both the EXE-NULL sprite banks
+and the scene-indexed map data.**
+
+### Map-data format (decoded + bit-exactly validated)
+`FUN_00587970` reads the resource sequentially from offset 0:
+
+| bytes | field | role |
+|-------|-------|------|
+| `[0x00:0x04]` | magic | dword (observed `0x30`) |
+| `[0x04:0x34]` | header | 0x30-byte opaque block |
+| `[0x34:0x68]` | maphdr | `+0x00` char[0x20] name (space-padded) · `+0x20/+0x24/+0x28` dims · `+0x2c` count |
+| `[0x68:..]` | cells | `dim0*dim1*dim2` cells × `0x1c` bytes |
+| then ×`count` | layers | each: `0x3c`-byte header (sub counts `+0x1c`/`+0x20`/`+0x24`/`+0x28`, strides 4/0xc/0x100/8) followed by those four sub-arrays |
+
+For DATA 1022: magic `0x30`, name **"MSD_SOTES_MAPDATA"**, **dims 88 × 19 × 3**
+(width × height × planes), **count 86** layer entries (all uniform here:
+`+0x1c=12`, `+0x20=3`).  The parse consumes the resource **EXACTLY**
+(`consumed == 152936`, zero remainder) — the invariant that makes the decode
+trustworthy.
+
+### Port (pure, host-tested)
+- **`tools/extract/map_data.py`** — extract + decode a map DATA resource from a
+  PE (default 1022 from the EXE); asserts exact consumption.  Re-runnable ground
+  truth (the ckpt-53 pattern, now for the runtime map resource).
+- **`src/map_data.{c,h}`** — ports `FUN_00587970`'s parse as pure C: the caller
+  supplies the locked resource bytes (FindResource/LockResource stays Win32 in
+  `main.c`), and `map_data_parse` decodes into owned host allocations (magic,
+  header, maphdr, dims, count, the cell array, and the `count` layer entries
+  with their four sub-arrays).  Adds an overrun guard vs `len` (retail trusts
+  the bundled data; inert on a well-formed map).  4 host tests
+  (`tests/test_map_data.c`, synthetic blobs) → **770 pass / 0 fail / 6 skip**.
+- The `0x1c`-byte cell record + the four layer sub-array element layouts are
+  decoded by the (still unported) **`FUN_00587e00`** (3282 B, the next unit);
+  this parser preserves their raw bytes for it.
+
+**NEXT after this:** port `FUN_00587e00` (the map-data → world decode, reading
+this parsed structure) and the matching slice of `0x5a00c0` to render the town
+backdrop, diff vs `runs/tas-ingame-1`.  Note `0x586010`/`0x5a00c0` are each a
+multi-checkpoint rock (the full engine sim + a self-contained scripted-scene
+render loop with its own pace machine); `FUN_00587e00` is the natural next
+data-layer unit on the same pattern as this one.
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`

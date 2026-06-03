@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 175,
+  "tested": 179,
   "ported": 5,
-  "unported": 1578,
+  "unported": 1574,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 180,
-  "pct_touched": 11.2,
-  "pct_tested": 11.2,
-  "engine_proper_touched": 167,
+  "touched": 184,
+  "pct_touched": 11.5,
+  "pct_tested": 11.5,
+  "engine_proper_touched": 171,
   "bytes_total": 1694868,
-  "bytes_touched": 205081,
-  "pct_bytes_touched": 12.1
+  "bytes_touched": 219929,
+  "pct_bytes_touched": 13.0
  },
  "orphan_refs": [
   "0x56c470",
@@ -9197,7 +9197,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/map_data.h"
    ]
   },
   {
@@ -9213,8 +9214,11 @@
    "name": "FUN_00587970",
    "size": 866,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_data.c",
+    "src/map_data.h"
+   ]
   },
   {
    "va": "0x587ce0",
@@ -9255,7 +9259,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/map_data.h"
    ]
   },
   {
@@ -10097,8 +10102,10 @@
    "name": "FUN_005a00c0",
    "size": 13690,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_data.h"
+   ]
   },
   {
    "va": "0x5a3670",
@@ -10793,8 +10800,10 @@
    "name": "FUN_005b62a0",
    "size": 94,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_data.h"
+   ]
   },
   {
    "va": "0x5b6300",
@@ -10809,8 +10818,11 @@
    "name": "FUN_005b6340",
    "size": 198,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_data.c",
+    "src/map_data.h"
+   ]
   },
   {
    "va": "0x5b6410",

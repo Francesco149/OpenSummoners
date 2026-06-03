@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **180** (11.2% of engine-proper) — tested 175, ported 5
-- code bytes touched: **12.1%** (205,081 / 1,694,868 B of engine-proper)
-- unported: **1578**
+- touched: **184** (11.5% of engine-proper) — tested 179, ported 5
+- code bytes touched: **13.0%** (219,929 / 1,694,868 B of engine-proper)
+- unported: **1574**
 - orphan refs in src/ not in this table: 4
 
-## tested (175) — ported + host unit suite
+## tested (179) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -105,10 +105,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582d10 | FUN_00582d10 | 379 | asset_register.c, asset_register.h |
 | 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
-| 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h |
+| 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, map_data.h |
+| 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h |
+| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | FUN_0059f2c0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
+| 0x5a00c0 | FUN_005a00c0 | 13690 | map_data.h |
 | 0x5a4770 | FUN_005a4770 | 45963 | app_pump.h, main.c |
 | 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
 | 0x5b12e0 | FUN_005b12e0 | 441 | wnd_proc.c, wnd_proc.h |
@@ -116,6 +118,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5ac0 | FUN_005b5ac0 | 39 | zdd.h, zdd_win32.c |
 | 0x5b5d90 | FUN_005b5d90 | 33 | asset_register.c, asset_register.h |
 | 0x5b5f50 | FUN_005b5f50 | 71 | asset_register.c, asset_register.h |
+| 0x5b62a0 | FUN_005b62a0 | 94 | map_data.h |
+| 0x5b6340 | FUN_005b6340 | 198 | map_data.c, map_data.h |
 | 0x5b6e70 | FUN_005b6e70 | 9 | bitmap_session.h |
 | 0x5b6e90 | FUN_005b6e90 | 24 | bitmap_session.h |
 | 0x5b6f00 | FUN_005b6f00 | 7 | bitmap_session.c, bitmap_session.h |
