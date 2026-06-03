@@ -132,7 +132,7 @@ int test_newgame_drive_nav_gated_then_moves(void)
     return 0;
 }
 
-/* ── confirm (0x24) on the Start-Game row ends the drive with START ── */
+/* ── confirm (0x24) on the Start-Game row begins the post-config fade-out ── */
 int test_newgame_drive_confirm_start_game(void)
 {
     newgame_drive d;
@@ -147,16 +147,60 @@ int test_newgame_drive_confirm_start_game(void)
     ng_press(&d, 5, 0x24, 5000);                    /* confirm button */
     newgame_scene_status st = newgame_drive_step(&d, 5000);
 
+    /* The confirm frame begins the fade-out: NOT terminal yet (RUNNING), the
+     * fade flag is set, the box node's +0x50 is cleared (mode-1 will close),
+     * and field_54 was seeded from the open gate (the box is fully in). */
     T_ASSERT_EQ_I(d.last_pump, NEWGAME_PUMP_CONFIRM);
+    T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+    T_ASSERT_EQ_I(d.fading, 1);
+    T_ASSERT_EQ_I(d.done, 0);
+    T_ASSERT_EQ_I(d.scene.node.field_50, 0);
+    T_ASSERT_EQ_I(d.scene.node.field_54, 1000);
+
+    newgame_drive_shutdown(&d);
+    return 0;
+}
+
+/* ── the fade-out runs NEWGAME_FADEOUT_FRAMES frames then returns START ── */
+int test_newgame_drive_fadeout_then_start(void)
+{
+    newgame_drive d;
+    newgame_drive_cfg cfg = ng_basic_cfg();
+    newgame_drive_init(&d, &cfg);
+    d.scene.sub.ready = 1000;
+    d.scene.grid.list->cursor = 2;                  /* Start Game */
+
+    ng_press(&d, 5, 0x24, 5000);
+    ng_reset_spies();
+    newgame_scene_status st = newgame_drive_step(&d, 5000);   /* confirm frame */
+    T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+    T_ASSERT_EQ_I(ng_render_n, 1);                  /* confirm frame rendered */
+    T_ASSERT_EQ_I(ng_present_n, 1);
+
+    /* Each fade frame: alpha ramps down by the close step, renders + presents,
+     * stays RUNNING until the final frame, which returns START. */
+    int32_t prev = d.scene.node.field_54;           /* 1000 */
+    for (int i = 1; i < NEWGAME_FADEOUT_FRAMES; i++) {
+        st = newgame_drive_step(&d, 5000 + (uint32_t)i);
+        T_ASSERT_EQ_I(st, NEWGAME_RUNNING);
+        T_ASSERT_EQ_I(d.scene.node.field_54, prev - NEWGAME_FADEOUT_RAMP_STEP);
+        prev = d.scene.node.field_54;
+    }
+    /* The NEWGAME_FADEOUT_FRAMES-th fade step latches START. */
+    st = newgame_drive_step(&d, 9000);
     T_ASSERT_EQ_I(st, NEWGAME_START);
     T_ASSERT_EQ_I(d.done, 1);
     T_ASSERT_EQ_I(d.result, NEWGAME_START);
+    T_ASSERT_EQ_I(d.fade_frames, NEWGAME_FADEOUT_FRAMES);
 
-    /* idempotent after terminal: no re-run, still START. */
-    int32_t row_before = newgame_scene_focused_row(&d.scene);
+    /* confirm frame (1) + NEWGAME_FADEOUT_FRAMES fade frames were presented. */
+    T_ASSERT_EQ_I(ng_present_n, NEWGAME_FADEOUT_FRAMES + 1);
+    T_ASSERT_EQ_I(ng_render_n,  NEWGAME_FADEOUT_FRAMES + 1);
+
+    /* idempotent after terminal: still START, no further presents. */
     st = newgame_drive_step(&d, 9999);
     T_ASSERT_EQ_I(st, NEWGAME_START);
-    T_ASSERT_EQ_I(newgame_scene_focused_row(&d.scene), row_before);
+    T_ASSERT_EQ_I(ng_present_n, NEWGAME_FADEOUT_FRAMES + 1);
 
     newgame_drive_shutdown(&d);
     return 0;

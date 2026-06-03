@@ -1984,3 +1984,42 @@ the drive opens the picker and pumps input into it instead of the parent; on COM
 it calls `newgame_scene_set_option(id, chosen)` (the parent's value-refill).
 Rendered port-side at (288,128) over the menu; **user-confirmed visually correct**
 (open → nav → commit re-lays the parent's value cell, 1:Easy→2:Normal).
+
+## 72. "Start Game" does NOT enter the cutscene on the next flip: FUN_00564160 runs a ≤20-frame fade-out of the new-game scene first (the box node's mode-1 closing alpha ramp)
+
+When the new-game config menu commits **Start Game**, `FUN_00564780(0x24)` returns
+0 and its caller `FUN_00564160` does NOT jump straight to the prologue cutscene
+`0x56cd20`.  It first **clears the menu box node's `+0x50`** (564160.c:30,
+`*(box+0x50)=0`) and runs a **fade-out loop** (564160.c:36-54):
+
+```
+FUN_00564690();                       // init the pace machine (step 0x10 ms)
+while (true) {
+    do { while (FUN_0055f550()==1) present; } while (slice != 2);  // 1 present/slice (lockstep)
+    if (FUN_005642e0()==6 || ++n > 0x13) break;   // ≤ 0x13+1 = 20 iterations
+    FUN_0056c930();                   // mode-1 CLOSING alpha ramp (field_50==0 ⇒ field_54 -= 0x28)
+    for each child: FUN_0043c2e0();   // per-entry animation
+}
+0x56cd20(...);                        // THEN the cutscene
+```
+
+So between the Start commit and `prologue_enter` retail spends **exactly ~20
+presented flips** (measured under `--lockstep`: confirm@795 → prologue_enter@815).
+`FUN_005642e0` returns `6` (early break) only if it finds an **abort event** (id
+`0x22`) within the fade — the Start path never aborts, so the full 20 frames run.
+With `0x56c930`'s mode-1 close stepping `field_54` down by `0x28` (40) per frame,
+20 frames take the box alpha 1000→200 (not to 0); the screen finishes black because
+the cutscene `0x56cd20` opens on a black background, not because the box fully fades.
+
+**TAS consequence (was open thread #1 in tas-harness.md):** a port that enters the
+cutscene 1 flip after the commit reaches `prologue_enter` ~14-20 flips earlier than
+retail, and the cutscene **fade-in** does not align at a single anchor offset
+(residuals 246–662 px = one fade step at ckpt 47).  Porting the loop's TIMING +
+alpha-ramp state (newgame_drive's fade-out submode, NEWGAME_FADEOUT_FRAMES=20)
+makes the port spend the same ~20 flips, and the cutscene fade-in then diffs
+`differ_px=0` at a constant offset (verified: 63/64 dense gem-rise frames bit-exact,
+the only residual being the pre-existing tick-0 entry frame).  The fade-out frames
+themselves are NOT yet bit-exact in the port — the per-frame fade *render* (the box-
+panel alpha blit, `0x48cf80`'s alpha arm via `0x5bd550`, + the GDI menu-text fade)
+is the deferred box-alpha arm; the port re-renders the menu opaque during the fade.
+That render is a separate open item; this quirk closed the TIMING gap.

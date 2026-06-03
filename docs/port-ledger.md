@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **174** (10.8% of engine-proper) — tested 168, ported 6
-- code bytes touched: **11.8%** (199,465 / 1,694,868 B of engine-proper)
-- unported: **1584**
+- touched: **175** (10.9% of engine-proper) — tested 170, ported 5
+- code bytes touched: **11.8%** (199,841 / 1,694,868 B of engine-proper)
+- unported: **1583**
 - orphan refs in src/ not in this table: 4
 
-## tested (168) — ported + host unit suite
+## tested (170) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -68,6 +68,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+8) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
+| 0x564160 | FUN_00564160 | 376 | newgame_drive.c, newgame_drive.h |
 | 0x564780 | FUN_00564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
 | 0x5657f0 | FUN_005657f0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
 | 0x565d10 | FUN_00565d10 | 1228 | main.c, newgame_drive.c, newgame_drive.h |
@@ -186,13 +187,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
+| 0x5bf505 | FUN_005bf505 | 30 | main.c, rng.c, rng.h |
 | 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
 | 0x5bf5fd | FUN_005bf5fd | 153 | wnd_proc.h |
 | 0x5c0907 | FUN_005c0907 | 45 | zdd.c, zdd.h |
 | 0x5c0934 | FUN_005c0934 | 92 | zdd.c |
 | 0x5c123f | FUN_005c123f | 47 | asset_register.c |
 
-## ported (6) — reimplemented, no host test yet
+## ported (5) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -200,7 +202,6 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bf440 | FUN_005bf440 | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | FUN_005bf496 | 50 | cs_dispatch_win32.c |
 | 0x5bf4fb | FUN_005bf4fb | 10 | rng.c, rng.h |
-| 0x5bf505 | FUN_005bf505 | 30 | rng.c, rng.h |
 | 0x5bf6df | FUN_005bf6df | 220 | rng.h |
 
 ## orphan refs (4) — FUN_ in src/ not in function table

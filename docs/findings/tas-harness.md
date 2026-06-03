@@ -146,16 +146,42 @@ Two divergences the anchors surfaced — **open RE threads, not render bugs**:
    START→prologue handoff.  Verified: port prologue_enter rng now `0x40d00581`,
    matching retail (LCG `0x404a0a8f` →×2→ `0x40d00581`).
 
+## Open thread #1 — the 20-frame fade-out — CLOSED (timing), ckpt 48
+
+Retail's `FUN_00564160` post-config loop runs ≤20 frames of the new-game scene
+fading out (the box node's mode-1 closing alpha ramp via `FUN_0056c930`) before
+`0x56cd20` — exactly 20 presented flips (confirm@795 → prologue_enter@815, see
+quirk #72).  The port now ports that loop's **timing + alpha-ramp state** as a
+fade-out submode in `newgame_drive` (`NEWGAME_FADEOUT_FRAMES=20`): a Start-Game
+commit no longer finishes immediately — it runs 20 more frames (ramping
+`node.field_54` down, re-rendering, presenting) before the caller enters the
+cutscene.
+
+**Verified (tas_diff, prologue_enter, port@821 vs retail@815, runs/tas-retail-gem,
+window 2):** `prologue_enter` moved 801→**821** (+20 flips, matching retail's
+20-flip fade-out); RNG still `0x40d00581` (the fade consumes no `rand()`).  The
+cutscene **fade-in (ticks 1-28) is now entirely `differ_px=0`** at a near-constant
+drift (−2, wobbling ±1 from the lockstep cadence) — the ckpt-47 fade-in residuals
+(246–662 px) are gone.  **63/64** dense gem-rise frames bit-exact; the only
+non-zero frame is tick 0 (84684 px), the **pre-existing** entry-frame issue (the
+port renders the first gem tick on its first present while retail's first present
+at `prologue_enter` is still black — documented at ckpt 47, NOT introduced here).
+
+**Still open — the fade-out frames' RENDER (deferred box-alpha arm).**  The port
+re-renders the new-game menu **opaque** during the 20 fade frames; retail fades
+the box-panel alpha (`0x48cf80`'s alpha arm via `0x5bd550`) and the GDI menu text.
+So the ~20 transition frames (port ~801-820 vs retail ~795-814) are NOT yet
+bit-exact — that fade *render* is the deferred box-alpha arm (a separate item).
+This thread closed the **timing/offset** gap (the cutscene now diffs at a constant
+offset); the transition pixels are the remaining sub-task.
+
 ## Next
 
-- **Port the 20-frame fade-out (open thread #1).**  The remaining half of the
-  faithful transition: retail's `FUN_00564160` post-config loop runs up to 20
-  frames of the new-game scene fading to black (the box panels ramp their alpha
-  down — `FUN_005642e0` + `FUN_0056c930` modes 0/2 + `FUN_0043c2e0`, the
-  deferred slide/fade arms) before `0x56cd20`.  Porting it makes the port also
-  spend ~20 frames there, so the cutscene timelines align at a CONSTANT anchor
-  offset (today the offset drifts during the fade-in because the port enters
-  the cutscene 1 flip after the commit vs retail's ~20).
+- **The fade-out frames' render (box-alpha arm).**  Make the 20 transition frames
+  bit-exact: port `0x48cf80`'s alpha arm (the 9-slice box blit blended by
+  `node.field_54` via `0x5bd550`) and resolve how retail fades the GDI menu text
+  during the fade (likely the scene is composited then the whole surface alpha-
+  blitted — needs a retail capture of the fade-out frames to confirm).
 - `--force-rng-at <anchor>=<value>` retail knob (still useful as a general TAS
   safety net to resync RNG at any boundary).
 - Extend anchors + trace past the prologue into the game proper (`0x59ec30`)

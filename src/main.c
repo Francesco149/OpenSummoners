@@ -1354,8 +1354,9 @@ static void leave_prologue_to_title(const char *why)
 }
 
 /* Retail's "Start Game" commit, on the way from the new-game config scene to
- * the prologue cutscene, writes the initial save file — FUN_005b6990 (resource
- * 0x2711) — and obfuscates the buffer with a salt built from TWO rand() draws
+ * the prologue cutscene, writes the initial save file — 0x5b6990 (resource
+ * 0x2711, save subsystem unported) — and obfuscates the buffer with a salt
+ * built from TWO rand() draws
  * (FUN_005bf505 ×2 @ 0x5b6acc/0x5b6ae9).  The save subsystem itself is deferred
  * (milestone 4), but those two draws are on the TAS critical path: they advance
  * the engine LCG between the newgame_enter and prologue_enter anchors, so

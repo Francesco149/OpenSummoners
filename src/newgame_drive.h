@@ -70,6 +70,19 @@
  * after spawn). */
 #define NEWGAME_DRIVE_GATE_STEP 50
 
+/* The post-config fade-out frame count (FUN_00564160's loop cap, `0x13 < uVar2`
+ * ⇒ at most 0x13+1 = 20 iterations).  Once "Start Game" is committed, retail
+ * does NOT enter the gem cutscene on the next flip: FUN_00564160 runs up to 20
+ * more frames of the new-game scene fading out (the box node's mode-1 closing
+ * alpha ramp) before 0x56cd20.  Porting this loop makes the port spend the same
+ * ~20 flips between the commit and the cutscene, so the TAS cutscene anchor
+ * offset is CONSTANT rather than drifting.  See newgame_drive_step. */
+#define NEWGAME_FADEOUT_FRAMES 20
+
+/* The mode-1 closing alpha-ramp step (0x56c930 field_50==0 arm: field_54 -=
+ * 0x28 toward 0, 0x56cb0a).  Distinct from the +0x32 opening step. */
+#define NEWGAME_FADEOUT_RAMP_STEP 0x28
+
 /* What the drive needs to wire the scene to the live engine.  All callbacks
  * are optional (NULL ⇒ that side effect no-ops), so a headless drive degrades
  * to a faithful all-no-op run that still pumps input + dispatches. */
@@ -106,6 +119,14 @@ typedef struct newgame_drive {
     newgame_picker picker;
     int            picker_active;
 
+    /* The post-config fade-out submode (FUN_00564160's loop tail).  Set by a
+     * Start-Game commit instead of finishing immediately: while `fading` the
+     * step ramps the box node's alpha down (NEWGAME_FADEOUT_RAMP_STEP/frame) and
+     * re-renders for NEWGAME_FADEOUT_FRAMES frames, then returns NEWGAME_START so
+     * the caller enters the cutscene at the same flip offset retail does. */
+    int            fading;                 /* fade-out active (post-START)       */
+    int32_t        fade_frames;            /* fade frames elapsed (0..FRAMES)    */
+
     input_mgr     input;
 
     /* Backing store for the input manager's 64-slot ring.  As in title_drive:
@@ -140,7 +161,13 @@ int newgame_drive_init(newgame_drive *d, const newgame_drive_cfg *cfg);
  * Returns the dispatch outcome:
  *   NEWGAME_RUNNING / NEWGAME_OPEN_PICKER → keep looping (OPEN_PICKER is the
  *       deferred picker seam: surfaced + counted, value left unchanged);
- *   NEWGAME_START / NEWGAME_BACK → terminal (d->done set, d->result latched).
+ *   NEWGAME_BACK → terminal (d->done set, d->result latched).
+ *   NEWGAME_START → a Start-Game commit does NOT return START immediately: it
+ *       enters the post-config fade-out (returns NEWGAME_RUNNING for the next
+ *       NEWGAME_FADEOUT_FRAMES frames, ramping the box alpha down + presenting),
+ *       then returns NEWGAME_START on the final fade frame (d->done/result set).
+ *       This mirrors FUN_00564160's loop tail so the caller enters the cutscene
+ *       at retail's flip offset (constant TAS anchor offset).
  * Idempotent after a terminal step (returns d->result without re-running). */
 newgame_scene_status newgame_drive_step(newgame_drive *d, uint32_t now);
 

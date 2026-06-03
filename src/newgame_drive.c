@@ -99,6 +99,41 @@ newgame_scene_status newgame_drive_step(newgame_drive *d, uint32_t now)
     if (!d->started || d->done)
         return d->result;
 
+    /* ── Post-config fade-out submode (the FUN_00564160 loop tail) ──
+     *    Once "Start Game" is committed, retail does NOT jump straight to the
+     *    gem cutscene: FUN_00564160 clears the menu box node's +0x50 and runs
+     *    up to NEWGAME_FADEOUT_FRAMES more frames of the new-game scene, each
+     *    advancing the box node's mode-1 closing alpha ramp (0x56c930:
+     *    field_54 -= 0x28 toward 0, 0x56cb0a) + the per-entry update + a
+     *    present, before entering 0x56cd20.  Porting this loop makes the port
+     *    spend the same ~20 flips retail does between the commit and
+     *    prologue_enter, so the TAS cutscene anchor offset is CONSTANT instead
+     *    of drifting (the port used to enter the cutscene 1 flip after commit).
+     *
+     *    Faithful to the STATE (the alpha ramp); the per-frame fade *render* —
+     *    the box-panel alpha blit (0x48cf80's alpha arm via 0x5bd550) + the
+     *    menu-text fade — is the deferred box-alpha arm, so the scene still
+     *    re-renders at full opacity here and these ~20 transition frames are
+     *    not yet bit-exact (a documented open item).  The deliverable of this
+     *    unit is the constant cutscene offset, not the fade pixels.  An abort
+     *    (id 0x22) mid-fade — 0x5642e0's early `return 6` — is unmodelled
+     *    (the Start path never aborts). ── */
+    if (d->fading) {
+        if (d->scene.node.field_54 > 0) {              /* 0x56c930 mode-1 close */
+            d->scene.node.field_54 -= NEWGAME_FADEOUT_RAMP_STEP;
+            if (d->scene.node.field_54 < 0)
+                d->scene.node.field_54 = 0;
+        }
+        if (d->render  != NULL) d->render(d->user);
+        if (d->present != NULL) d->present(d->user);
+        if (++d->fade_frames >= NEWGAME_FADEOUT_FRAMES) {
+            d->done   = 1;
+            d->result = NEWGAME_START;
+            return NEWGAME_START;
+        }
+        return NEWGAME_RUNNING;
+    }
+
     /* ── Picker submode: pump input into the picker's own grid (its ramping
      *    gate), act on its commit/cancel, and keep the parent scene RUNNING.
      *    This is the frame-stepped form of retail's blocking FUN_00567ba0. ── */
@@ -145,8 +180,21 @@ newgame_scene_status newgame_drive_step(newgame_drive *d, uint32_t now)
     if (d->render != NULL)  d->render(d->user);
     if (d->present != NULL) d->present(d->user);
 
-    /* (6) START / BACK are terminal; RUNNING / OPEN_PICKER keep looping. */
-    if (st == NEWGAME_START || st == NEWGAME_BACK) {
+    /* (6) BACK is terminal; START begins the fade-out (FUN_00564160 loop tail)
+     *     instead of finishing now — the box node's +0x50 is cleared
+     *     (564160.c:30 `*(box+0x50)=0`) so its mode-1 transition ramps the alpha
+     *     DOWN, and field_54 is seeded from the open input gate (the box is
+     *     fully transitioned in when Start is committed — sub.ready==1000).  The
+     *     confirm frame already rendered+presented (step 5), the analogue of
+     *     retail's last config-menu present; the fade branch runs the rest. */
+    if (st == NEWGAME_START) {
+        d->fading              = 1;
+        d->fade_frames         = 0;
+        d->scene.node.field_50 = 0;
+        d->scene.node.field_54 = d->scene.sub.ready;
+        return NEWGAME_RUNNING;
+    }
+    if (st == NEWGAME_BACK) {
         d->done   = 1;
         d->result = st;
     }

@@ -734,6 +734,7 @@ struct test_case {
     X(newgame_drive_step_ramps_gate_and_renders)               \
     X(newgame_drive_nav_gated_then_moves)                      \
     X(newgame_drive_confirm_start_game)                        \
+    X(newgame_drive_fadeout_then_start)                        \
     X(newgame_drive_back_returns_to_title)                     \
     X(newgame_drive_confirm_option_opens_picker)               \
     X(newgame_drive_picker_commits_value)                      \
