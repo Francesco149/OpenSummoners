@@ -762,13 +762,13 @@ struct test_case {
     X(picker_nav_then_commit)                                  \
     X(picker_back_cancels)                                     \
     X(prologue_init_state)                                     \
-    X(prologue_init_sparkle_stagger)                           \
+    X(prologue_init_caption_stagger)                           \
     X(prologue_start_delay)                                    \
     X(prologue_gem_fade_in_to_hold)                            \
     X(prologue_frame_cadence)                                  \
     X(prologue_gem_frame_wraps)                                \
     X(prologue_rise)                                           \
-    X(prologue_sparkle_wait_then_grow)                         \
+    X(prologue_caption_wait_then_grow)                         \
     X(prologue_abort)                                          \
     X(prologue_three_beats_begin_exit)                         \
     X(prologue_exit_completes)                                 \
@@ -776,7 +776,7 @@ struct test_case {
     X(prologue_render_gated_by_delay)                          \
     X(prologue_render_gem_aura)                                \
     X(prologue_render_gem_alpha_cap)                           \
-    X(prologue_render_sparkle_grid)                            \
+    X(prologue_render_caption_grid)                            \
     X(prologue_drive_runs_and_renders)                         \
     X(prologue_drive_abort)                                    \
     X(prologue_drive_completes)                                \

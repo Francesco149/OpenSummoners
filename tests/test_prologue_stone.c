@@ -3,11 +3,11 @@
  * model (src/prologue_stone.c, the visual half of FUN_0056cd20).
  *
  * Three layers:
- *   1. init — the start state + the per-entry sparkle stagger seed.
+ *   1. init — the start state + the per-entry caption stagger seed.
  *   2. update — the per-tick state machine: start delay, watchdog, gem fade
- *      phases, frame cycling, the rise curve, the 6 sparkle SMs, and the
+ *      phases, frame cycling, the rise curve, the 6 caption SMs, and the
  *      abort/beat input paths.
- *   3. render — the draw-list geometry (gem/aura/sparkle positions, gates).
+ *   3. render — the draw-list geometry (gem/aura/caption positions, gates).
  *
  * Expectations are hand-derived from the decompile at 0x56cd20 (cited in
  * prologue_stone.c) and the survey in docs/findings/prologue-stone-intro.md.
@@ -50,16 +50,16 @@ int test_prologue_init_state(void)
     return 0;
 }
 
-int test_prologue_init_sparkle_stagger(void)
+int test_prologue_init_caption_stagger(void)
 {
     prologue_stone ps;
     prologue_stone_init(&ps);
     static const uint16_t seed[6] = {0x2a8,0x3d4,0x62c,0x758,0x884,0xa46};
-    for (int i = 0; i < PROLOGUE_SPARKLE_ENTRIES; i++) {
-        T_ASSERT_EQ_U(ps.sparkle[i].state, 0);
-        T_ASSERT_EQ_U(ps.sparkle[i].level, 0);
-        T_ASSERT_EQ_U(ps.sparkle[i].sub, seed[i]);
-        T_ASSERT_EQ_I(ps.sparkle[i].y, 32000);
+    for (int i = 0; i < PROLOGUE_CAPTION_LINES; i++) {
+        T_ASSERT_EQ_U(ps.caption[i].state, 0);
+        T_ASSERT_EQ_U(ps.caption[i].level, 0);
+        T_ASSERT_EQ_U(ps.caption[i].sub, seed[i]);
+        T_ASSERT_EQ_I(ps.caption[i].y, 32000);
     }
     return 0;
 }
@@ -142,23 +142,23 @@ int test_prologue_rise(void)
     return 0;
 }
 
-/* ─── update: a single sparkle through its life cycle ────────────────── */
+/* ─── update: a single caption through its life cycle ────────────────── */
 
 /* Entry 0 (sub seed 0x2a8) waits 0x2a8 ticks, then grows: sub 0→10 (×level
  * 0→0x14). Verify it leaves the wait state and begins growing. */
-int test_prologue_sparkle_wait_then_grow(void)
+int test_prologue_caption_wait_then_grow(void)
 {
     prologue_stone ps;
     prologue_stone_init(&ps);
     run_ticks(&ps, 10);                     /* clear delay */
     /* during the wait, sub counts down and state stays 0, level 0. */
     run_ticks(&ps, 0x100);
-    T_ASSERT_EQ_U(ps.sparkle[0].state, 0);
-    T_ASSERT_EQ_U(ps.sparkle[0].level, 0);
-    T_ASSERT_EQ_U(ps.sparkle[0].sub, 0x2a8 - 0x100);
+    T_ASSERT_EQ_U(ps.caption[0].state, 0);
+    T_ASSERT_EQ_U(ps.caption[0].level, 0);
+    T_ASSERT_EQ_U(ps.caption[0].sub, 0x2a8 - 0x100);
     /* run past the wait: state advances to grow and level starts climbing. */
     run_ticks(&ps, 0x2a8 - 0x100 + 11);     /* drain wait + one grow sub cycle */
-    T_ASSERT(ps.sparkle[0].state >= 1);
+    T_ASSERT(ps.caption[0].state >= 1);
     return 0;
 }
 
@@ -197,9 +197,9 @@ int test_prologue_three_beats_begin_exit(void)
     T_ASSERT_EQ_I(ps.exiting, 1);
     T_ASSERT_EQ_I(ps.gem_phase, 2);         /* fade-out */
     T_ASSERT(ps.watchdog <= 200);           /* clamped on the 3rd beat */
-    /* the exit forces every sparkle toward shrink/dead (state 3 or 4). */
-    for (int i = 0; i < PROLOGUE_SPARKLE_ENTRIES; i++)
-        T_ASSERT(ps.sparkle[i].state >= 3);
+    /* the exit forces every caption toward shrink/dead (state 3 or 4). */
+    for (int i = 0; i < PROLOGUE_CAPTION_LINES; i++)
+        T_ASSERT(ps.caption[i].state >= 3);
     return 0;
 }
 
@@ -286,27 +286,27 @@ int test_prologue_render_gem_alpha_cap(void)
     return 0;
 }
 
-/* The sparkle grid is entry-major: entry e → frames 4e..4e+3 across 4 columns
- * at x = 0x10 + col·0x98.  Force a live sparkle and check the column layout. */
-int test_prologue_render_sparkle_grid(void)
+/* The caption grid is entry-major: entry e → frames 4e..4e+3 across 4 columns
+ * at x = 0x10 + col·0x98.  Force a live caption and check the column layout. */
+int test_prologue_render_caption_grid(void)
 {
     prologue_stone ps;
     prologue_stone_init(&ps);
     /* hand-set entry 2 to a visible band so its 4 draws fire. */
     ps.start_delay = 0;
-    ps.sparkle[2].level = 10;
-    ps.sparkle[2].y = 15000;                /* y/100 = 150 */
+    ps.caption[2].level = 10;
+    ps.caption[2].y = 15000;                /* y/100 = 150 */
     prologue_render_out out;
     prologue_stone_render(&ps, &out);
     for (int col = 0; col < 4; col++) {
         int k = 2 * 4 + col;
-        T_ASSERT_EQ_I(out.sparkle[k].draw, 1);
-        T_ASSERT_EQ_I(out.sparkle[k].frame, k);
-        T_ASSERT_EQ_I(out.sparkle[k].x, 0x10 + col * 0x98);
-        T_ASSERT_EQ_I(out.sparkle[k].y, 150);
-        T_ASSERT_EQ_I(out.sparkle[k].ramp_idx, 10);
+        T_ASSERT_EQ_I(out.caption[k].draw, 1);
+        T_ASSERT_EQ_I(out.caption[k].frame, k);
+        T_ASSERT_EQ_I(out.caption[k].x, 0x10 + col * 0x98);
+        T_ASSERT_EQ_I(out.caption[k].y, 150);
+        T_ASSERT_EQ_I(out.caption[k].ramp_idx, 10);
     }
     /* a level-0 entry draws nothing. */
-    T_ASSERT_EQ_I(out.sparkle[0].draw, 0);
+    T_ASSERT_EQ_I(out.caption[0].draw, 0);
     return 0;
 }

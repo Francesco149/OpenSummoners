@@ -1244,14 +1244,17 @@ static void leave_newgame_to_title(const char *why)
  *
  * Group-4 pool slots ar_register_main_sprites stamped (idx = (BSS-0x8a7640)/4):
  *   aura    g_ar_sprite_slots[1]  0x49f  224×224  (DAT_008a7644)
- *   sparkle g_ar_sprite_slots[2]  0x448  152×40   (DAT_008a7648)
+ *   caption g_ar_sprite_slots[2]  0x448  152×40   (DAT_008a7648) — narration tiles
  *   gem     g_ar_sprite_slots[3]  0x4a2  144×108  (DAT_008a764c)
- */
+ *
+ * slot[2] (0x448) is the pre-baked prologue NARRATION text strip: 24 frames =
+ * 6 lines × 4 horizontal tiles (152px each ≈ screen width), drawn as the
+ * "caption" grid — confirmed live (the gem rises while the story text scrolls). */
 #define PROLOGUE_SLOT_AURA    1
-#define PROLOGUE_SLOT_SPARKLE 2
+#define PROLOGUE_SLOT_CAPTION 2
 #define PROLOGUE_SLOT_GEM     3
 
-/* Blit one element of the cutscene's draw list.  gem/sparkle blend through
+/* Blit one element of the cutscene's draw list.  gem/caption blend through
  * ramp_b with a keyed fallback (idx>=20 or a NULL ramp entry → plain keyed
  * blit, retail 0x5b9b70); the aura blends through ramp_a with its index
  * pre-clamped to [0,19] (no fallback).  The alpha path adds the decoded frame's
@@ -1283,8 +1286,8 @@ static void prologue_blit(const prologue_draw *pd, int slot,
     }
 }
 
-/* Compose one cutscene frame: clear to black, then gem → aura → sparkles
- * (retail's iVar9==1 draw order: 0x56d2c0 gem, 0x56d38d aura, 0x56d460 sparkles). */
+/* Compose one cutscene frame: clear to black, then gem → aura → caption tiles
+ * (retail's iVar9==1 draw order: 0x56d2c0 gem, 0x56d38d aura, 0x56d460 caption). */
 static void prologue_render(void *user)
 {
     prologue_drive *d = (prologue_drive *)user;
@@ -1298,8 +1301,8 @@ static void prologue_render(void *user)
 
     prologue_blit(&out.gem,  PROLOGUE_SLOT_GEM,  g_ramp_b, /*keyed=*/1);
     prologue_blit(&out.aura, PROLOGUE_SLOT_AURA, g_ramp_a, /*keyed=*/0);
-    for (int k = 0; k < PROLOGUE_SPARKLE_DRAWS; k++)
-        prologue_blit(&out.sparkle[k], PROLOGUE_SLOT_SPARKLE, g_ramp_b, /*keyed=*/1);
+    for (int k = 0; k < PROLOGUE_CAPTION_DRAWS; k++)
+        prologue_blit(&out.caption[k], PROLOGUE_SLOT_CAPTION, g_ramp_b, /*keyed=*/1);
 }
 
 /* Hand off from the new-game Start-Game commit to the gem cutscene.  Tears down

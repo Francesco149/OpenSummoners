@@ -15,8 +15,8 @@
 void prologue_stone_init(prologue_stone *ps)
 {
     /* Per-entry state-0 wait countdown (retail local_46[1]/local_38/.../local_8,
-     * the "sub" field) — staggers when each sparkle column begins growing. */
-    static const uint16_t sub_seed[PROLOGUE_SPARKLE_ENTRIES] = {
+     * the "sub" field) — staggers when each caption column begins growing. */
+    static const uint16_t sub_seed[PROLOGUE_CAPTION_LINES] = {
         0x2a8, 0x3d4, 0x62c, 0x758, 0x884, 0xa46,
     };
 
@@ -37,11 +37,11 @@ void prologue_stone_init(prologue_stone *ps)
     ps->aura_frame  = 0;        /* uVar17   */
     ps->aura_sub    = 0;        /* uVar7    */
 
-    for (int i = 0; i < PROLOGUE_SPARKLE_ENTRIES; i++) {
-        ps->sparkle[i].state = 0;          /* :89-95 puVar14[-1] = 0          */
-        ps->sparkle[i].level = 0;          /* :90    *puVar14 = 0             */
-        ps->sparkle[i].sub   = sub_seed[i];/* :97-102 per-entry stagger       */
-        ps->sparkle[i].y     = 32000;      /* :92    puVar14[3]=32000,[4]=0   */
+    for (int i = 0; i < PROLOGUE_CAPTION_LINES; i++) {
+        ps->caption[i].state = 0;          /* :89-95 puVar14[-1] = 0          */
+        ps->caption[i].level = 0;          /* :90    *puVar14 = 0             */
+        ps->caption[i].sub   = sub_seed[i];/* :97-102 per-entry stagger       */
+        ps->caption[i].y     = 32000;      /* :92    puVar14[3]=32000,[4]=0   */
     }
 }
 
@@ -83,9 +83,9 @@ prologue_status prologue_stone_update(prologue_stone *ps, input_mgr *in,
             ps->exiting   = 1;                       /* bVar5 = true           */
             if (ps->watchdog > 200) ps->watchdog = 200;  /* :228-230           */
             ps->gem_phase = 2;                       /* sVar6 = 2 (fade out)   */
-            for (int i = 0; i < PROLOGUE_SPARKLE_ENTRIES; i++)
-                ps->sparkle[i].state =
-                    (uint16_t)(4 - (ps->sparkle[i].state != 0));  /* :234-238 */
+            for (int i = 0; i < PROLOGUE_CAPTION_LINES; i++)
+                ps->caption[i].state =
+                    (uint16_t)(4 - (ps->caption[i].state != 0));  /* :234-238 */
         }
     }
 
@@ -111,9 +111,9 @@ prologue_status prologue_stone_update(prologue_stone *ps, input_mgr *in,
     if (ps->rise_pos > 16000) ps->rise_vel = max0(ps->rise_vel - 10);
     ps->rise_pos += ps->rise_vel / 100;
 
-    /* (9) the 6 sparkle entries (:282-334). */
-    for (int i = 0; i < PROLOGUE_SPARKLE_ENTRIES; i++) {
-        prologue_sparkle *s = &ps->sparkle[i];
+    /* (9) the 6 caption entries (:282-334). */
+    for (int i = 0; i < PROLOGUE_CAPTION_LINES; i++) {
+        prologue_caption *s = &ps->caption[i];
         switch (s->state) {
         case 0:                                      /* wait                   */
             if (s->sub == 0) s->state = 1;
@@ -150,7 +150,7 @@ prologue_status prologue_stone_update(prologue_stone *ps, input_mgr *in,
 /* ─── render (FUN_0056cd20:342-415) ──────────────────────────────────────── */
 /*
  * Ramp-index convention (recovered from the disasm at 0x56d2c0..0x56d4fc):
- *   - the GEM and SPARKLES blend through ramp_b (DAT_008a9308); their raw index
+ *   - the GEM and CAPTION tiles blend through ramp_b (DAT_008a9308); their raw index
  *     is emitted verbatim, and the drive applies retail's rule — idx in [0,19]
  *     with ramp_b[idx] != 0 → alpha blit ramp_b[idx], otherwise (idx >= 20 or a
  *     NULL ramp entry) the plain keyed fallback (0x5b9b70).
@@ -158,7 +158,7 @@ prologue_status prologue_stone_update(prologue_stone *ps, input_mgr *in,
  *     [0,19] here (retail's idx>=20 path loads ramp_a[19] at 0x8a9304, idx<0
  *     loads ramp_a[0]) and the drive always alpha-blits ramp_a[idx] (no keyed
  *     fallback).
- * The drive picks the ramp per element (gem/sparkle → ramp_b, aura → ramp_a)
+ * The drive picks the ramp per element (gem/caption → ramp_b, aura → ramp_a)
  * from the struct field, so no per-draw ramp selector is needed.
  */
 static int clamp_aura(int idx)   /* ramp_a clamp: [0,19], no keyed fallback */
@@ -172,7 +172,7 @@ void prologue_stone_render(const prologue_stone *ps, prologue_render_out *out)
 {
     /* Default everything idle, then fill. */
     out->gem.draw = out->aura.draw = 0;
-    for (int k = 0; k < PROLOGUE_SPARKLE_DRAWS; k++) out->sparkle[k].draw = 0;
+    for (int k = 0; k < PROLOGUE_CAPTION_DRAWS; k++) out->caption[k].draw = 0;
 
     /* Render gate: nothing until the start delay elapses (:344 if (sVar4==0)). */
     if (ps->start_delay != 0) return;
@@ -204,22 +204,22 @@ void prologue_stone_render(const prologue_stone *ps, prologue_render_out *out)
         out->aura.ramp_idx = clamp_aura((ps->gem_fade * 0x14) / 600);
     }
 
-    /* sparkles — slot[2], a 6-entry × 4-column grid (:378-414 / 0x56d460-d511).
+    /* captions — slot[2], a 6-entry × 4-column grid (:378-414 / 0x56d460-d511).
      * Entry e draws frames 4e..4e+3 at columns 0..3 (x = 0x10 + col·0x98), all
      * sharing the entry's y (= y/100) and ramp_b index (= level).  Drawn while
      * level≠0; the raw index (level, which can reach 0x14) is emitted so the
      * drive falls to the keyed blit at level==0x14, exactly as retail. */
-    for (int e = 0; e < PROLOGUE_SPARKLE_ENTRIES; e++) {
-        const prologue_sparkle *s = &ps->sparkle[e];
+    for (int e = 0; e < PROLOGUE_CAPTION_LINES; e++) {
+        const prologue_caption *s = &ps->caption[e];
         int sy = s->y / 100;
         for (int col = 0; col < 4; col++) {
             int k = e * 4 + col;                     /* frame == draw index    */
             if (s->level != 0) {
-                out->sparkle[k].draw     = 1;
-                out->sparkle[k].frame    = k;
-                out->sparkle[k].x        = 0x10 + col * 0x98;
-                out->sparkle[k].y        = sy;
-                out->sparkle[k].ramp_idx = (s->level * 0x14) / 0x14;  /* == level */
+                out->caption[k].draw     = 1;
+                out->caption[k].frame    = k;
+                out->caption[k].x        = 0x10 + col * 0x98;
+                out->caption[k].y        = sy;
+                out->caption[k].ramp_idx = (s->level * 0x14) / 0x14;  /* == level */
             }
         }
     }

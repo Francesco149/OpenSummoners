@@ -11,8 +11,11 @@
  *     0x59ec30(0,0,0x3f2) → game proper (map 0x3f2)            (deferred: in-game)
  *
  * The cutscene draws ONLY sprites — a glowing Elemental Stone (gem) rising on a
- * black field, a soft aura behind it, and rising sparkle clusters.  No GDI text;
- * the scrolling story narration is part of the game-proper opening map, not here.
+ * black field, a soft aura behind it, and the scrolling story NARRATION.  The
+ * narration is NOT GDI text: it is pre-baked into sprite bank 0x448 as a 24-tile
+ * strip (6 lines × 4 horizontal tiles), animated as the "caption" grid below —
+ * confirmed live (the gem rises while "Elemental Stones: stones imbued with the
+ * power of an Elemental Spirit, which grant…" scrolls up).
  *
  * Factored like title_scene (pure) vs title_drive (Win32): this file ports the
  * per-tick UPDATE state machine and the render-descriptor build — pure integer
@@ -24,7 +27,7 @@
  * pool idx = (retail_BSS_addr − 0x008a7640)/4):
  *   gem      g_ar_sprite_slots[3]  DAT_008a764c  res 0x4a2  144×108  (35-frame loop)
  *   aura     g_ar_sprite_slots[1]  DAT_008a7644  res 0x49f  224×224  (2-frame toggle)
- *   sparkle  g_ar_sprite_slots[2]  DAT_008a7648  res 0x448  152×40   (24-frame strip)
+ *   caption  g_ar_sprite_slots[2]  DAT_008a7648  res 0x448  152×40   (24-frame strip)
  *
  * Audio is entangled but every cue is null-guarded (DAT_008a93e4 ZDM music,
  * DAT_008a7608 SP mgr) → skipped pre-audio (milestone 3); the visuals run
@@ -37,7 +40,7 @@
 
 #include "input.h"   /* input_mgr — the per-tick abort/beat ring poll */
 
-/* ─── the 6 sparkle entries (FUN_0056cd20 local_46[]) ─────────────────────
+/* ─── the 6 caption entries (FUN_0056cd20 local_46[]) ─────────────────────
  *
  * Retail packs 6 entries × 6 ushorts on the stack; the live fields are STATE
  * (offset 0), level (offset 2), sub (offset 4), and a 32-bit y (offset 8).
@@ -49,14 +52,14 @@
  *   4 dead    : (no-op)
  *   states 1..3 also: y -= 0x10
  * On the 3rd beat (exit), each entry is forced toward shrink: state = 4-(state!=0). */
-typedef struct prologue_sparkle {
+typedef struct prologue_caption {
     uint16_t state;   /* +0  animation state 0..4                              */
     uint16_t level;   /* +2  brightness band 0..0x14 (the ramp index)          */
     uint16_t sub;     /* +4  state-0 wait countdown / states-1,3 0..10 counter */
     int32_t  y;       /* +8  fixed-point descent position (−0x10/tick), /100 px */
-} prologue_sparkle;
+} prologue_caption;
 
-#define PROLOGUE_SPARKLE_ENTRIES 6
+#define PROLOGUE_CAPTION_LINES 6
 
 /* ─── the cutscene state (FUN_0056cd20 locals) ───────────────────────────── */
 typedef struct prologue_stone {
@@ -77,7 +80,7 @@ typedef struct prologue_stone {
     uint16_t aura_frame;   /* uVar17  0/1 toggle                                    */
     uint16_t aura_sub;     /* uVar7   0..6 gate; on wrap toggles aura_frame         */
 
-    prologue_sparkle sparkle[PROLOGUE_SPARKLE_ENTRIES];
+    prologue_caption caption[PROLOGUE_CAPTION_LINES];
 } prologue_stone;
 
 /* What one UPDATE tick resolves to. */
@@ -89,7 +92,7 @@ typedef enum prologue_status {
 
 /* ─── FUN_0056cd20:50-102 — init ─────────────────────────────────────────
  *
- * Reset all state to the cutscene's start values and seed the 6 sparkle entries
+ * Reset all state to the cutscene's start values and seed the 6 caption entries
  * (y=32000 default, per-entry `sub` stagger {0x2a8,0x3d4,0x62c,0x758,0x884,0xa46}).
  * Pure; no allocation. */
 void prologue_stone_init(prologue_stone *ps);
@@ -111,26 +114,26 @@ typedef struct prologue_draw {
     int frame;      /* sprite frame index                                        */
     int x, y;       /* LOGICAL blit position; the drive adds the decoded sprite's */
                     /* trim offset (+0xc/+0x10) before the real blit             */
-    int ramp_idx;   /* alpha-shade ramp index.  gem/sparkle: RAW ramp_b index    */
-                    /* (gem peaks at 16; sparkle == level, can reach 0x14, where  */
+    int ramp_idx;   /* alpha-shade ramp index.  gem/caption: RAW ramp_b index    */
+                    /* (gem peaks at 16; caption == level, can reach 0x14, where  */
                     /* the drive falls to the keyed blit).  aura: ramp_a index,   */
                     /* pre-clamped to [0,19] (always alpha-blit, no fallback).    */
 } prologue_draw;
 
-#define PROLOGUE_SPARKLE_DRAWS 24   /* 6 entries × 4 columns                     */
+#define PROLOGUE_CAPTION_DRAWS 24   /* 6 entries × 4 columns                     */
 
 typedef struct prologue_render_out {
     prologue_draw gem;                              /* slot[3], frame gem_frame  */
     prologue_draw aura;                             /* slot[1], frame aura_frame */
-    prologue_draw sparkle[PROLOGUE_SPARKLE_DRAWS];  /* slot[2], frame = draw idx */
+    prologue_draw caption[PROLOGUE_CAPTION_DRAWS];  /* slot[2], frame = draw idx */
 } prologue_render_out;
 
 /* Build this frame's draw list from the cutscene state.
  *
  * Mirrors the iVar9==1 render branch: nothing draws until start_delay==0; the
- * gem draws when gem_fade≥2, the aura when gem_fade≥1, and each sparkle draw
+ * gem draws when gem_fade≥2, the aura when gem_fade≥1, and each caption draw
  * when its entry's level≠0.  Positions are the retail logical bases (gem 0xf8 /
- * aura 0xd0 / sparkle col 0x10+col·0x98) plus the per-element y; the sparkle
+ * aura 0xd0 / caption col 0x10+col·0x98) plus the per-element y; the caption
  * grid is entry-major (entry e → frames 4e..4e+3 across columns 0..3, all at
  * the entry's y/level).  Pure; out is fully written (draw=0 where idle). */
 void prologue_stone_render(const prologue_stone *ps, prologue_render_out *out);

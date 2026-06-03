@@ -34,12 +34,19 @@ So the path is **three sequential blocking calls**:
 
 3. **`FUN_0059ec30`** — the **game proper** outer loop (`FUN_0059f2c0` map engine +
    resource load/unload).  This is *in-game* and explicitly **out of scope** for
-   now ("do NOT extend the trace toward in-game yet").  The scrolling **prologue
-   narration text** (the "country of Scotsholm…" story) is part of this game-proper
-   opening map, NOT of `0x56cd20` — `0x56cd20` draws **only sprites** (gem + aura +
-   sparkles), no GDI text.
+   now ("do NOT extend the trace toward in-game yet").
 
-**In-scope deliverable: port `FUN_0056cd20` (the gem-on-black cutscene).**
+> **LIVE FINDING (ckpt 46, verified):** the scrolling **prologue narration**
+> ("Elemental Stones: stones imbued with the power of an Elemental Spirit, which
+> grant the wielder of one the ability to control that element via 'magic'.…") IS
+> part of `0x56cd20`, NOT the game proper.  `0x56cd20` draws **only sprites** and
+> uses **no GDI text** — the narration is **pre-baked** into sprite bank **0x448**
+> (slot[2]) as a 24-tile strip (**6 lines × 4 horizontal tiles**, 152px each), the
+> grid I first mislabeled "sparkles".  The gem rises while the caption lines fade
+> in, scroll up, and fade out (the per-entry state machine below).  Confirmed in
+> the port's live render (gem + aura + the first two caption lines).
+
+**In-scope deliverable: port `FUN_0056cd20` (the gem + narration cutscene).**
 
 ## Sprite banks — ALREADY REGISTERED at boot
 
@@ -50,7 +57,7 @@ The cutscene draws from sprite-pool slots registered by `ar_register_main_sprite
 | retail global   | port slot              | res id | size (px) | type | role |
 |-----------------|------------------------|--------|-----------|------|------|
 | `DAT_008a7644`  | `g_ar_sprite_slots[1]` | `0x49f`| 224×224   | 2    | **aura** (big soft glow behind the gem; 2 frames toggled) |
-| `DAT_008a7648`  | `g_ar_sprite_slots[2]` | `0x448`| 152×40    | 2    | **sparkles** (24-frame strip; the rising twinkle clusters) |
+| `DAT_008a7648`  | `g_ar_sprite_slots[2]` | `0x448`| 152×40    | 2    | **caption** (24-tile narration strip = 6 lines × 4 tiles) |
 | `DAT_008a764c`  | `g_ar_sprite_slots[3]` | `0x4a2`| 144×108   | 2    | **gem** (the Elemental Stone; 35-frame `%0x23` glow loop) |
 
 All three are `scale_flag=1`, `type=2`, colorkey 0 — same class as the title's
@@ -59,7 +66,7 @@ frame via `ar_sprite_slot_frame(slot, frame)` then blits.
 
 ## Rendering — existing infra suffices
 
-- gem + aura + sparkles are drawn with **`FUN_005bd550`** = `zdd_alpha_blit`
+- gem + aura + caption are drawn with **`FUN_005bd550`** = `zdd_alpha_blit`
   (ported, zdd.c:1797) — the additive/alpha shade blit, last arg an alpha-shade
   object picked from the **`DAT_008a9308` ramp** (20 entries; the title's `ramp_b`).
 - when the chosen ramp entry is 0 the code falls back to **`FUN_005b9b70`** =
@@ -75,7 +82,7 @@ One `do{…}while(true)` with a **fixed-timestep** sub-state machine `iVar9`
 
 - `iVar9==0` → first tick: pump (`FUN_005b1030`), set `iVar9=2`.
 - `iVar9==2` → **UPDATE** branch: advance one animation tick (below), then loop.
-- `iVar9==1` → **RENDER** branch: begin → draw gem/aura/sparkles → present.
+- `iVar9==1` → **RENDER** branch: begin → draw gem/aura/caption → present.
 
 The accumulator drains 16 ms per update; once `<0x11` left it flips to render.
 Mirror with the port's frame_limiter (one update per presented frame), exactly as
@@ -107,13 +114,13 @@ in the port (both null pre-audio).  The visual state, with **init values**:
 first for the **first fresh press of any id** within 100 ms (= `input_*` ring
 semantics, but matching any id, then consume + clear axis arrays + flush ring +
 `uVar8++`).  At `uVar8>2` set `bVar5`, `sVar6=2` (start fade-out), clamp `uVar16`
-to ≤200, and flip the 6 sparkle entries to their shrink state.
+to ≤200, and flip the 6 caption entries to their shrink state.
 
 **Abort input** (checked first, every tick): `FUN_0043c110(now, 0x22)` =
 `input_poll_consume(mgr, now, 0x22)` → if hit, `local_7c=6`, cleanup, **return 6**
 (skip the game, back to title).
 
-### The 6 sparkle entries (`local_46[]`)
+### The 6 caption entries (`local_46[]`)
 
 6 entries × 6 ushorts each.  Clean field model (per entry):
 
@@ -121,11 +128,12 @@ to ≤200, and flip the 6 sparkle entries to their shrink state.
 |---------|----------|------|
 | `state` | 0        | 0=wait, 1=grow, 2=descend, 3=shrink, 4=dead |
 | `level` | 0        | brightness band 0..0x14 (grows in st1, shrinks in st3) |
-| `sub`   | 0        | 0..10 inner sub-counter gating level changes |
-| `y`(int)| **per-entry** | fixed-pt descent position; −0x10/tick in states 1..3 |
+| `sub`   | **per-entry** | state-0 wait countdown (the stagger); reused as the 0..10 counter in states 1/3 |
+| `y`(int)| `32000`  | fixed-pt descent position; −0x10/tick in states 1..3 |
 
-Per-entry **`y` start** (staggered so sparkles appear in sequence), overriding the
-32000 default: `{0x2a8, 0x3d4, 0x62c, 0x758, 0x884, 0xa46}`.
+Per-entry **`sub` (wait) seed** (staggered so the caption lines appear in
+sequence): `{0x2a8, 0x3d4, 0x62c, 0x758, 0x884, 0xa46}` — entry `e` waits that
+many ticks in state 0 before it begins growing.  `y` is the uniform 32000 start.
 
 State machine per tick:
 - **0 (wait):** if `sub==0` → state 1; else `sub--`.  (init sub=0 so they start
@@ -136,7 +144,7 @@ State machine per tick:
 - states 1..3 also do `y -= 0x10` each tick.
 
 On the 3rd beat (`bVar5`): each entry's state is forced toward shrink
-(`state = 4 - (state!=0)`), so live sparkles die out as the gem fades.
+(`state = 4 - (state!=0)`), so live caption lines die out as the gem fades.
 
 ### RENDER tick (the `iVar9==1` body)
 
@@ -152,7 +160,7 @@ Only draws once `sVar4==0` (after the start delay) and `local_bc>0`:
    clamped [0,19] (the idx≥20 path loads `ramp_a[19]` at `0x8a9304`); always
    alpha-blit, no keyed fallback.  (Disasm 0x56d38d-0x56d41f; the decompiler
    dropped the `__thiscall` ECX = the ramp_a entry.)
-3. **sparkles** — slot[2], a **4-column × 6-row grid** (`uVar21` 0..23 = frame): for
+3. **caption** — slot[2], a **4-column × 6-row grid** (`uVar21` 0..23 = frame): for
    each of the 6 entries (`local_98`), 4 inner columns at **x = 0x10 + col·0x98**
    (16,168,320,472), **y = entry.y / 100**; alpha-shade idx from
    `(entry.level*0x14)/0x14` (= `entry.level`) into the same ramp; ramp==0 → keyed
@@ -164,10 +172,10 @@ the decoded cell, same `+0xc/+0x10` the title path uses.)
 ## Port plan (mirrors the title split)
 
 1. **`src/prologue_stone.{c,h}`** (pure) — the state struct + `init` (the inline
-   `0x56cd20:50-102` reset + sparkle `sub` stagger) + `update` (one UPDATE tick,
+   `0x56cd20:50-102` reset + caption `sub` stagger) + `update` (one UPDATE tick,
    returning a status:
    RUNNING / ABORT(6) / DONE(0)) + a render-descriptor builder (gem/aura/24
-   sparkle draws: frame + x/y + ramp idx).  **Host-tested** for state progression
+   caption draws: frame + x/y + ramp idx).  **Host-tested** for state progression
    and render geometry.  ← this checkpoint.
 2. **`src/prologue_drive.{c,h}`** (+ win32) — the timing loop, real `zdd_alpha_blit`/
    keyed-blit draws, `input_poll_consume(0x22)`/`input_any_fresh_press` feed.
@@ -187,4 +195,4 @@ the decoded cell, same `+0xc/+0x10` the title path uses.)
   no-input fallback (4400 ticks).  The new-game-flow doc's "(auto-advances)" was
   the watchdog and/or recorded presses; the port reproduces the logic faithfully
   and the drive feeds input from the trace.
-- **Game proper (`0x59ec30`) + narration** remain out of scope (in-game).
+- **Game proper (`0x59ec30`)** remains out of scope (in-game).  The prologue **narration is DONE** (it lives in 0x56cd20 as the caption tiles, above).
