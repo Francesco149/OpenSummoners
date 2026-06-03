@@ -64,6 +64,7 @@
 #include "newgame_drive.h"    /* the new-game config scene drive (FUN_00565d10) */
 #include "newgame_box.h"      /* the 9-slice box panel render (FUN_0048cf80) */
 #include "newgame_cursor.h"   /* the menu selection cursor / gold vine (FUN_0048d940) */
+#include "glyph_wrap.h"       /* the tooltip text-node word-wrap (FUN_0040e5e0)  */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -1017,6 +1018,35 @@ static int g_newgame_cursor_anim;
  * tools/extract/cursor_trim_probe.c).  Gate now ON. */
 static int g_newgame_cursor_enable = 1;
 
+/* ── tooltip text node geometry (the second GDI-text node) ───────────────────
+ * The tooltip box is (32,392)576×80; the text node insets it by (40,24) — the
+ * FUN_0040dee0 ctor args — so the first row's glyphs land at (72,416), matching
+ * the golden's TextOutA stream.  Rows step by the font line height (28, the menu
+ * node's +0x1ac pitch); the wrap width is the ctor's 0x44 = 68 glyph-columns. */
+#define NEWGAME_TOOLTIP_X      72
+#define NEWGAME_TOOLTIP_Y      416
+#define NEWGAME_TOOLTIP_PITCH  28
+#define NEWGAME_TOOLTIP_WRAP   68
+
+/* Draw one wrapped tooltip row at (x,y): the menu's 2-copy drop shadow (down 1,
+ * right 1) in 0xa8b9cc, then the glyphs in 0x3e537d — the colours + offsets the
+ * golden's per-glyph draws use (and glyph_grid_render's normal-row path).  The
+ * font is monospace 7px (Courier New 7×18), so a single TextOutA of the row is
+ * pixel-identical to retail's per-glyph stream. */
+static void newgame_draw_tooltip_row(const glyph_gdi_ops *ops, void *hfont,
+                                     const char *row, int x, int y)
+{
+    int len = (int)strlen(row);
+    if (len == 0)
+        return;
+    ops->select_font(ops->user, hfont);
+    ops->set_text_color(ops->user, 0xa8b9cc);          /* drop shadow */
+    ops->text_out(ops->user, x,     y + 1, row, len);
+    ops->text_out(ops->user, x + 1, y,     row, len);
+    ops->set_text_color(ops->user, 0x3e537d);          /* normal text */
+    ops->text_out(ops->user, x,     y,     row, len);
+}
+
 /* The new-game config scene's per-frame render (the drive's `render` callback).
  *
  * Composes the frame the way retail does (box chrome behind GDI text): clear
@@ -1029,9 +1059,12 @@ static int g_newgame_cursor_enable = 1;
  * (32,392)576×80.  The menu text (newgame_menu builder + glyph_render, bit-exact
  * vs the retail TextOutA stream) lands over the cream center fill.
  *
- * DEFERRED seams (documented, not drawn yet): the tooltip TEXT node (the second
- * GDI-text node at y=416/444, word-wrapped — newgame_scene_tooltip computes the
- * text, the word-wrap split is a follow-up); the animated sparkle corner
+ * The tooltip TEXT node (the focused row's help string, word-wrapped onto two
+ * rows at y=416/444) is drawn over the tooltip box: newgame_scene_tooltip picks
+ * the string, glyph_wrap_layout (FUN_0040e5e0) wraps it at width 68, and each
+ * row is drawn at (72,416+r·28) with the same shadow+colours as the menu.
+ *
+ * DEFERRED seams (documented, not drawn yet): the animated sparkle corner
  * (FUN_0048d940, bank 0x3e8, frames 16–19) overlaid on the box top-left; and the
  * box fade-in (FUN_0048cf80's alpha arm) — the steady-state panel is opaque. */
 static void newgame_render(void *user)
@@ -1107,6 +1140,20 @@ static void newgame_render(void *user)
     SetBkMode((HDC)hdc, TRANSPARENT);
     glyph_gdi_ops ops = glyph_gdi_ops_win32(hdc);
     glyph_grid_render(&d->scene.node, &ops, /*x=*/32, /*y=*/32, hfont, hfont);
+
+    /* (3) The tooltip text node: the focused row's help string, word-wrapped
+     *     onto rows over the tooltip box (FUN_0040e360 → FUN_0040e5e0). */
+    char tooltip[512];
+    newgame_scene_tooltip(&d->scene, tooltip);
+    if (tooltip[0] != '\0') {
+        glyph_wrap_result wr;
+        glyph_wrap_layout(tooltip, NEWGAME_TOOLTIP_WRAP, &wr);
+        for (int r = 0; r < wr.row_count; r++) {
+            newgame_draw_tooltip_row(&ops, hfont, wr.rows[r],
+                                     NEWGAME_TOOLTIP_X,
+                                     NEWGAME_TOOLTIP_Y + r * NEWGAME_TOOLTIP_PITCH);
+        }
+    }
     GdiFlush();
 
     zdd_object_release_dc(g_zdd->primary_obj, hdc);
