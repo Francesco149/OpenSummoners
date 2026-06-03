@@ -41,7 +41,7 @@ after changes that touch the relevant render path.
 | 2 | Studio logo (phase 0, fade-in) — fade-matched | port Flip 30 `phase=0 fade=640` | `fade-match/…/frame_00065` (fade-probe: fade=640) | 2026-06-02 ckpt 30 — `differ_px=0` |
 | 3 | Title-art logo (phase 3, fade-in) — fade-matched | port Flip 235 `phase=3 fade=820` | `fade-match/…/frame_00480` (fade-probe: fade=820) | 2026-06-02 ckpt 30 — `differ_px=0` |
 | 4 | Phase-7 sparkle twinkles (particle system) — tick-matched, seed-pinned | port Flip 465 `phase=7 fade=540` | `sparkle-align/frame_00939` (seed 0x4f5347) | 2026-06-02 ckpt 31 — `differ_px=0`, **user-confirmed 1:1 incl. particles** |
-| 5 | New-game config menu box + text + selection cursor — anim-phase-matched | port Flip 761 (cursor frame 17/19) | `goldens/retail-newgame-config-menu.png` | 2026-06-03 ckpt 43 — menu-box `differ_px=0` (region (32,32)400×124). Off-phase frames (16/18 @ Flip 760/762) differ only by the cursor's animation phase, same as the intro twinkles — not a content gap. Closes the ckpt-40 307px residual via the quirk-#69 trim-transpose fix |
+| 5 | New-game config menu box + text + selection cursor — anim-phase-matched | port Flip 761 (cursor frame 17/19) | `goldens/retail-newgame-config-menu.png` | 2026-06-03 ckpt 43 — menu-box `differ_px=0` (region (32,32)400×124), **user-confirmed 1:1**. Off-phase frames (16/18 @ Flip 760/762) differ only by the cursor's animation phase, same as the intro twinkles — not a content gap. Closes the ckpt-40 307px residual via the quirk-#69 trim-transpose fix |
 
 > **R1 CLOSED (ckpt 28).** The residual was the **cursor pulse**. Retail
 > animates the cursor `level_num` (`[esp+0x20]`) as a triangle wave — `local_58`
