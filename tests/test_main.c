@@ -751,6 +751,14 @@ struct test_case {
     X(glyph_wrap_empty_is_zero_rows)                           \
     X(glyph_wrap_bare_percent_n)                               \
     X(glyph_wrap_boundary_is_exact)                            \
+    X(picker_values_difficulty_locked)                         \
+    X(picker_values_difficulty_unlocked)                       \
+    X(picker_values_auto_guard)                                \
+    X(picker_values_unported_id_is_empty)                      \
+    X(picker_init_seeks_current_value)                         \
+    X(picker_init_no_choices_returns_zero)                     \
+    X(picker_nav_then_commit)                                  \
+    X(picker_back_cancels)                                     \
 
 #define X(n) extern int test_##n(void);
 TESTS

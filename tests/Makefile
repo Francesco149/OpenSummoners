@@ -35,7 +35,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/glyph_render.c ../src/newgame_menu.c \
                 ../src/newgame_scene.c ../src/newgame_drive.c \
                 ../src/newgame_box.c ../src/newgame_cursor.c \
-                ../src/glyph_wrap.c
+                ../src/glyph_wrap.c ../src/newgame_picker.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
@@ -45,7 +45,8 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_app_flow.c test_glyph_text.c test_glyph_render.c \
                 test_newgame_menu.c test_newgame_scene.c \
                 test_newgame_drive.c test_newgame_box.c \
-                test_newgame_cursor.c test_glyph_wrap.c
+                test_newgame_cursor.c test_glyph_wrap.c \
+                test_newgame_picker.c
 
 OUT := build/run_tests
 
