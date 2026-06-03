@@ -1810,13 +1810,59 @@ case-0x24: the **menu** box at (32,32) size **400×124** and the **tooltip** box
 at (32,392) size **576×80**.
 
 On top of the static panel sits a **separate, animated** decoration: a single
-type-1 cell node rendered by `FUN_0048d940` from bank **PE resource `0x3e8`**,
-**base frame 16** cycling its frame-list `[0,1,2,3]` → sprite frames **16–19**,
-positioned at the box's **top-left** corner (≈dst (44,29), ~22×41) — a twinkle
-overlay, not part of the 9-slice.
+type-1 cell node rendered by `FUN_0048d940`, **base frame 16** cycling its
+frame-list `[0,1,2,3]` → sprite frames **16–19**, positioned at the box's
+**top-left** corner (≈dst (44,29), ~22×41) — the **selection cursor** (a drooping
+gold feather/quill + soft white shadow), not a twinkle.  **NB: the bank is
+`0x455`, NOT `0x3e8`** — the `--box-probe`'s `slot+0x40` read of **`0x3e8`** for
+this node is a reused/garbage marker (see **#68** for the proof + the bottom-up
+decode finding).
 
 Both bank fields are scene-object members (`*(this+0xb88)` = the 9-slice bank,
-`*(this+0xb8c)` = the sparkle bank); neither is written as a literal offset
-anywhere in the decompiled corpus (an embedded sub-object ctor sets them), so the
-resource ids are only knowable live — read from `slot+0x40` on the rendering
-bank.
+`*(this+0xb8c)` = the cursor bank); neither is written as a literal offset
+anywhere in the decompiled corpus (an embedded sub-object ctor sets them via a
+pool/clone path).  `slot+0x40` is the reliable resource id for the **9-slice**
+bank (0x457) but NOT for the cursor bank — for the cursor the reliable signal is
+the per-frame trim size read via `entries[frameSel]→frec+0x14/+0x18` (#68).
+
+## 68. The new-game selection cursor is bank res 0x455 frames 16–19, and Lizsoft sprite atlases are decoded BOTTOM-UP (the `0x3e8` probe readout is a reused marker)
+
+The new-game config menu's **selection cursor** — the drooping gold feather/quill
++ soft white shadow that hangs from the box's top-left corner toward the focused
+row (`FUN_0048d940` type-1 arm, `*(scene+0xb8c)`) — is **PE resource `0x455`**
+(sotesd.dll), the **sibling** of the 9-slice box bank `0x457` (#67), **frames
+16–19** (`base 16` + frame-list `[0,1,2,3]`).  Both `0x455` and `0x457` are
+registered together by `ar_register_fonts` (`FUN_00579bd0`): `0x457` as a 32×32
+type-2 slot, `0x455` as a **32×48 type-2 slot with `scale_flag=1`**.
+
+**Two traps make this hard to see:**
+
+1. **`slot+0x40` lies for this node.**  The `--box-probe` reads the cursor bank's
+   `res_id` (slot+0x40) as **`0x3e8`** — but PE resource `0x3e8` is an 80×352
+   *portrait* in sotesd, a *WMV* in sotesw, and *absent* in sotesp; it is never a
+   22×41 vine.  `slot+0x40` is a reused/garbage marker for this node type.  The
+   **reliable** per-frame signal is the trimmed frame size, read via the
+   `entries[frameSel] → frec+0x14/+0x18` (w/h) + `+0xc/+0x10` (offx/offy) chain —
+   which the probe *also* records, and which reads a clean, stable **22×41**.
+
+2. **The pixel data is BOTTOM-UP.**  The Lizsoft DATA blob carries a BMP-style
+   preamble and its 8bpp pixel area is a **bottom-up** bitmap; the engine's slicer
+   walks cells bottom-up.  The `0x455` atlas is 128×288 = a 4-col × 6-row grid of
+   32×48 cells (24 frames).  Read **top-down**, frames 16–19 land on the row-4 ►
+   chevrons (9×17) — which look nothing like a vine, producing a false "0x455
+   matches nothing".  Read **bottom-up**, frames 16–19 are the feather, and their
+   trimmed bboxes match the live probe **exactly**: frame 17 = 22×41 @ (4,3),
+   18 = 22×40 @ (4,4), 19 = 22×41 @ (4,3).  (Tool:
+   `tools/extract/cursor_frame_match.py`.)
+
+The transparent background is palette **index 0** (RGB ≈ (0,0,3)); magenta is
+index 253.  At blit time the near-black background is colour-keyed (slot
+`colorkey=0`), the same mechanism the box bank 0x457 uses.
+
+**Port status (NOT a retail quirk — recorded here only to close the trail):**
+the bank/slot/frames in `src/newgame_cursor.c` were correct all along; the render
+stays gated off (`g_newgame_cursor_enable=0` in `main.c`) because enabling it
+exposed a *separate* bug on the `scale_flag=1` videomem cell-build path
+(`zdd_object_build_cell` caps 0x804) — the cursor blits as an opaque-black 16×24
+rect at the wrong x (≈72 vs golden 44), i.e. a wrong trim offset + failed keying.
+That is the next render task; see HANDOFF.

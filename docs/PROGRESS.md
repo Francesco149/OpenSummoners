@@ -3773,3 +3773,42 @@ computed, render needs the box/wrap builder), the option picker submenu
 `0x43bca0` — both partial, the pump's scan + id→latch arms)**.
 
 ---
+
+## ckpt 42 — selection-cursor sprite BANK identified + proven (0x455 slot 43 frames 16-19, decoded BOTTOM-UP); a scale_flag=1 render bug remains, gate stays OFF
+
+Resolved the ckpt-41 blocker (the new-game selection cursor's unidentified sprite
+bank).  **The bank is `0x455`** (sotesd.dll, slot 43 = `AR_SPR_FONT_TEX_455`),
+**frames 16–19** — exactly the bank/slot/frames the ckpt-41 geometry port
+(`src/newgame_cursor.{c,h}`) already targeted.
+
+**The ckpt-41 "0x455 sweep matches nothing" was a decode-ORIENTATION error.**
+The Lizsoft DATA blob (`runs/extract/sotesd/type=DATA/1109.bin`) carries a
+BMP-style preamble and its 8bpp pixels are a **bottom-up** bitmap; the engine
+slices cells bottom-up.  The atlas is 128×288 = a 4-col × 6-row grid of 32×48
+cells (24 frames).  Read **top-down**, frames 16–19 land on the row-4 ► chevrons
+(9×17 — not a vine); read **bottom-up**, frames 16–19 are the drooping gold
+feather/quill + soft white shadow.  Their trimmed bounding boxes match the live
+`--box-probe` golden **EXACTLY**: frame 17 = 22×41 @ (4,3), 18 = 22×40 @ (4,4),
+19 = 22×41 @ (4,3).  New proof tool **`tools/extract/cursor_frame_match.py`**.
+
+The probe's `res_id=0x3e8` (slot+0x40) was a **reused/garbage marker** — PE
+resource 0x3e8 is an 80×352 portrait in sotesd, a WMV in sotesw, absent in
+sotesp (verified by extracting all three).  The reliable per-frame signal is the
+trim size read via `entries[frameSel]→frec+0x14/+0x18`, which the probe also
+records.  Quirk **#68**; #67's cursor claim corrected (0x3e8 → 0x455).
+
+**A separate render bug surfaced when I flipped `g_newgame_cursor_enable` ON**
+(NOT a bank problem).  Live capture (port frame 760): the cursor blits as an
+opaque-black 16×24 rect at x72–87 (golden feather x44–66), differ_px 307→493.
+`0x455` is the only registered bank with **`scale_flag=1`** (box 0x457 is 0), so
+its cell takes the untested videomem cell-build path (`zdd_object_build_cell`
+`videomem` arg → caps 0x804): the slicer computes the wrong trim offset
+(base (40,26)+fdx≈32 → x72 vs correct fdx=4 → x44) AND the transparent area fails
+to colour-key.  Gate reverted to **OFF**; the scale_flag=1 trim/keying fix is the
+next render task (HANDOFF Next move #1a'').
+
+No `src/` logic change (decode-orientation + bank-ID finding + the new tool +
+docs).  **713 host tests pass (0 fail, 6 skip)** unchanged.  Ledger unchanged
+(no new FUN ported).
+
+---

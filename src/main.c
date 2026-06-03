@@ -993,9 +993,28 @@ static void newgame_cursor_blt_adapter(void *user, void *frame, int x, int y)
  * Reset when the scene (re)opens. */
 static int g_newgame_cursor_anim;
 
-/* Gate for the selection-cursor render (see newgame_render (1b)).  OFF until the
- * cursor's sprite bank is identified — drawing a guessed-wrong frame only adds
- * residual.  The geometry/position port is validated and ready. */
+/* Gate for the selection-cursor render (see newgame_render (1b)).
+ *
+ * The cursor's sprite BANK is now POSITIVELY IDENTIFIED (ckpt 42): the sibling
+ * box atlas 0x455 (slot 43), frames 16–19 — exactly what the geometry port
+ * already targeted.  The earlier "0x455 sweep matches nothing" was a decode-
+ * ORIENTATION error: the offline sweep read the Lizsoft bitmap TOP-DOWN, landing
+ * frames 16–19 on the row-4 ► chevrons (9×17), when the engine reads it
+ * BOTTOM-UP — bottom-up frames 16–19 are the drooping gold feather/quill over a
+ * soft white shadow.  Confirmed: bottom-up frame metrics match the live
+ * --box-probe EXACTLY (frame 17 = 22×41 @ (4,3), 18 = 22×40 @ (4,4),
+ * 19 = 22×41 @ (4,3)).  See tools/extract/cursor_frame_match.py + quirk #68.
+ *
+ * STILL GATED OFF — a SEPARATE render bug surfaced when enabled (NOT a bank
+ * problem): 0x455 is the only registered bank with scale_flag=1 (the box 0x457
+ * is 0), so its cell takes the untested videomem cell-build path
+ * (zdd_object_build_cell `videomem` arg → caps 0x804).  Live capture (port frame
+ * 760): the cursor blits as an OPAQUE-BLACK 16×24 rect at x72–87 (golden feather
+ * is at x44–66) — i.e. the slicer computes the WRONG trim offset for this bank
+ * (base (40,26)+fdx≈32 → x72, vs the correct fdx=4 → x44) AND the transparent
+ * area fails to colour-key.  Both live on the scale_flag=1 path.  NEXT: dump the
+ * port's decoded slot-43 frame 17 (trim rect + surface) and compare to the
+ * probe's 22×41 @ (4,3); fix the videomem cell trim/keying, then flip this ON. */
 static int g_newgame_cursor_enable;
 
 /* The new-game config scene's per-frame render (the drive's `render` callback).
@@ -1057,16 +1076,15 @@ static void newgame_render(void *user)
      *      side (before the GDI DC lock).  The geometry port (newgame_cursor,
      *      FUN_0048d940 type-1) and the row→base math are validated (base (40,26)
      *      = box + node fields +0x7c/-32, +0x80/-30, matching the live --box-probe
-     *      and the text col0/row0 origins).  The remaining unknown is the cursor's
-     *      sprite BANK: the --box-probe's deref chain reads garbage at slot+0x20/
-     *      +0x38 for this node type, so its res_id=0x3e8 / 22×41 frame readouts
-     *      are NOT trustworthy; the port's 0x3e8 (slot 65, sotesd) decodes to a
-     *      background, 0x3e8 is absent in sotesp/sotesw, and a full 24-frame sweep
-     *      of the sibling box atlas 0x455 (slot 43) matches nothing at (40,26).
-     *      So the render is gated OFF until the bank is identified (needs a
-     *      reliable retail probe of the cursor node's bank).  The 307px residual
-     *      in the menu-box top-left corner is this still-unported vine.  See
-     *      HANDOFF Next move #1a'. */
+     *      and the text col0/row0 origins).  The sprite BANK is now confirmed:
+     *      the sibling box atlas 0x455 (slot 43), frames 16–19, read BOTTOM-UP
+     *      (the drooping gold feather/quill + soft white shadow).  The earlier
+     *      "0x455 matches nothing" was an offline top-down decode error; the
+     *      bottom-up frame metrics match the live --box-probe exactly.  The
+     *      res_id=0x3e8 the probe reads at slot+0x40 is a reused/garbage marker
+     *      (PE resource 0x3e8 is an 80×352 portrait in sotesd, a WMV in sotesw,
+     *      absent in sotesp) — the reliable signal was the per-frame trim size,
+     *      which is read via the entries[frameSel]→frec chain, not slot+0x40. */
     if (g_newgame_cursor_enable) {
         const menu_list_hdr *hdr = (const menu_list_hdr *)d->scene.node.ctrl_list;
         if (hdr != NULL) {

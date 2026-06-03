@@ -1,5 +1,38 @@
-# Session handoff — last updated 2026-06-03 (ckpt 41 — selection-cursor GEOMETRY ported + validated; sprite BANK unidentified, render gated off)
+# Session handoff — last updated 2026-06-03 (ckpt 42 — selection-cursor sprite BANK IDENTIFIED + proven (0x455 frames 16-19, bottom-up); a scale_flag=1 render bug remains, render still gated off)
 
+> **ckpt 42 — THE SELECTION-CURSOR SPRITE BANK IS SOLVED: it is bank `0x455`
+> (sotesd.dll, slot 43 = `AR_SPR_FONT_TEX_455`), frames 16–19 — the SAME
+> bank/slot/frames the ckpt-41 geometry port already targeted.**  The ckpt-41
+> blocker ("0x455 sweep matches nothing") was a decode-**ORIENTATION** error: the
+> Lizsoft DATA blob is a BMP-style **bottom-up** bitmap, and the engine slices
+> cells bottom-up.  Read top-down, frames 16–19 land on the row-4 ► chevrons
+> (9×17 — not a vine); read **bottom-up**, frames 16–19 are the drooping gold
+> **feather/quill + soft white shadow**, and their trimmed bboxes match the live
+> `--box-probe` **EXACTLY** (frame 17 = 22×41 @ (4,3), 18 = 22×40 @ (4,4),
+> 19 = 22×41 @ (4,3)).  Proof tool: **`tools/extract/cursor_frame_match.py`**.
+> The probe's `res_id=0x3e8` (slot+0x40) is a **reused/garbage marker** (PE 0x3e8
+> = an 80×352 portrait in sotesd / a WMV in sotesw / absent in sotesp) — the
+> reliable per-frame signal is the trim size via `entries[frameSel]→frec+0x14/
+> +0x18`.  Quirk **#68**; #67 corrected.  No `src/` logic change (decode-
+> orientation + bank-ID finding), so **713 pass / 0 fail / 6 skip** unchanged;
+> ledger unchanged.
+>
+> **STILL OPEN (the NEXT render task) — a scale_flag=1 cell-build bug, NOT a bank
+> problem.**  I flipped `g_newgame_cursor_enable` ON and captured live (port frame
+> 760): the cursor blits as an **opaque-black 16×24 rect at x72–87** (golden
+> feather is at x44–66) — the gold corner ornament is the box's own 9-slice
+> corner.  `0x455` is the **only** registered bank with **`scale_flag=1`** (box
+> `0x457` is 0), so its cell takes the **untested videomem cell-build path**
+> (`zdd_object_build_cell` `videomem` arg → caps `0x804`).  Symptoms: the slicer
+> computes the **wrong trim offset** (base (40,26)+fdx≈32 → x72 vs correct fdx=4 →
+> x44) AND the transparent area **fails to colour-key**.  differ_px went 307→493
+> (a regression), so the gate is reverted to **OFF**.  **NEXT: dump the port's
+> decoded slot-43 frame-17 trim rect + surface, compare to the probe's 22×41 @
+> (4,3), and fix the scale_flag=1 videomem trim/keying — then flip the gate ON
+> and diff vs the golden.**  See Next move #1a''.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 41 — THE SELECTION-CURSOR (gold vine) GEOMETRY IS PORTED + VALIDATED,
 > but its sprite BANK is unidentified — render is GATED OFF pending a reliable
 > retail probe.**  New pure, host-tested **`src/newgame_cursor.{c,h}`** ports
@@ -463,12 +496,13 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 41): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40); the selection-cursor GEOMETRY is ported + validated (ckpt 41) but its sprite BANK is unidentified so the render is gated OFF (dig harder next session); next is the cursor bank, then tooltip text + picker + Start→game path
+## ⭐ Current state (ckpt 42): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40); the selection-cursor sprite BANK is now SOLVED (0x455 slot 43 frames 16-19, bottom-up — ckpt 42), but a scale_flag=1 videomem cell-build bug keeps the render gated OFF; next is fixing that render bug, then tooltip text + picker + Start→game path
 
 > **User @ ckpt 41:** "menu render looks good. as for the cursor bank, we just
-> need to dig harder next session." → the menu box+text are confirmed good; the
-> cursor bank is the explicit first task for the next session (leads in Next
-> move #1a').
+> need to dig harder next session." → DONE (ckpt 42): the bank is positively
+> identified as 0x455 (the bank/slot/frames the geometry port already had — the
+> ckpt-41 sweep just decoded top-down instead of bottom-up).  The remaining work
+> is a *separate* render bug on the scale_flag=1 cell path (Next move #1a'').
 
 The **new-game config scene** is live + interactive (ckpt 39) AND now renders the
 **bordered cream box panel** behind the menu (ckpt 40).  `newgame_render`
@@ -572,24 +606,27 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    of `0x48d940` type-1, base 16 + frames{0,1,2,3} → 16-19, base (40,26) for row 0
    (= box + node+0x7c/-32, +0x80/-30; matches golden + text origins).  Render
    wired in `main.c` behind `g_newgame_cursor_enable` (**OFF**).
-   **STILL OPEN — the sprite BANK (dig harder next session, per user):** the
-   `--box-probe`'s `res_id=0x3e8`/`22×41` readouts are **UNRELIABLE** (its
-   `bank=*(node+0x28); slot=*bank` chain reads garbage at slot+0x20/+0x38 for the
-   type-1 cursor node).  Ruled out by experiment: port's **0x3e8** (slot 65,
-   sotesd) = a 640×352 **background** (NOT a vine); 0x3e8 absent in sotesp/sotesw;
-   a 24-frame sweep of **0x455** (slot 43) matches nothing at (40,26) — its frames
-   are 44×30 feathers/arrows/caduceus/books, but the golden element is a thin
-   **22×41 drooping stem+bud+soft-shadow**.  The real bank = `*(god+0xb8c)`.
-   **Two leads for next session:** (1) find the **`god+0xb8c` STORE** in the decomp
-   (the box-widget god-object's sprite-bank init — grep found only reads; the
-   `+0xb88`=0x457 box-bank store is its neighbour, look near the menu/scene ctor
-   `0x410560`/`0x4103d0`/`0x413760`).  (2) Add a **Frida probe that Locks +
-   dumps the actual blitted frame-surface PIXELS** from retail's `0x48d940`
-   (`iVar3` = the frame; +0x14/+0x18 size, +0xc/+0x10 offset) — the only fully
-   reliable ground truth; the harness freezes retail at flip 422 but the box
-   first renders at flips 410-422 (the `--box-probe` window).  Once the bank is
-   known, flip `g_newgame_cursor_enable` on, point `NEWGAME_CURSOR_BANK_SLOT` at
-   it, and diff vs the golden.
+   **BANK — SOLVED (ckpt 42, quirk #68):** it is bank **`0x455`** (sotesd.dll,
+   slot **43**), frames **16–19** — the SAME bank/slot/frames `newgame_cursor.h`
+   already had.  The ckpt-41 "0x455 matches nothing" was a decode-**ORIENTATION**
+   error: Lizsoft atlases are **bottom-up**; read bottom-up, frames 16–19 are the
+   drooping gold feather/quill + soft white shadow, and their trimmed bboxes match
+   the live probe EXACTLY (17=22×41@(4,3), 18=22×40@(4,4), 19=22×41@(4,3)).  The
+   probe's `res_id=0x3e8` is a reused/garbage marker (PE 0x3e8 = portrait/WMV/
+   absent).  Proof: `tools/extract/cursor_frame_match.py`.
+   **NEXT — #1a'': the scale_flag=1 RENDER BUG (the only thing keeping the gate
+   OFF).**  Enabled live (port frame 760): the cursor blits as an opaque-black
+   16×24 rect at **x72–87** (golden feather x44–66), differ_px 307→493.  `0x455`
+   is the ONLY registered bank with **`scale_flag=1`** (box 0x457 is 0) → its cell
+   takes the untested **videomem cell-build path** (`zdd_object_build_cell`
+   `videomem` arg → caps `0x804`).  Two faults, both on that path: (i) **wrong
+   trim offset** (base (40,26)+fdx≈32 → x72, vs correct fdx=4 → x44), and (ii) the
+   transparent area **fails to colour-key**.  Do: add a debug dump of the port's
+   decoded slot-43 frame-17 (trim rect `bs_trim_rect` + the built cell surface);
+   compare its w/h/offx/offy to the probe's 22×41@(4,3); fix the scale_flag=1
+   trim/keying in `zdd_object_build_cell`/`zdd_object_create_surface_pair`; then
+   flip `g_newgame_cursor_enable` ON and diff vs the golden (should close the 307px
+   residual).  How to drive: see the capture recipe below (works, validated ckpt 42).
    (b) the **tooltip TEXT node** (the second GDI-text node at y=416/444,
    word-wrapped).  The tooltip BOX is already drawn (ckpt 40); `newgame_scene_tooltip`
    computes the text; rendering needs a word-wrap split into rows (the renderer
