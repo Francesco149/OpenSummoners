@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-03 (ckpt 50) — in-game seam wired: game_enter anchor (both sides) + PROLOGUE_DONE→enter_game; the engine 0x59f2c0 surveyed/decomposed
+
+Foundational plumbing for milestone 2 (the game proper).  The prologue's NORMAL
+exit (3rd beat → `PROLOGUE_DONE`) now routes to a new **`enter_game`** seam in
+`src/main.c` instead of bouncing to the title: it emits the **`game_enter`** TAS
+anchor (`emit_anchor`) + logs the `0x59ec30(0,0,0x3f2)` entry, then (engine
+unported) re-displays the title like the other stubbed sub-scenes.  The
+retail-side `SCENE_ANCHORS` in `tools/frida/opensummoners-agent.js` gains
+`{ va: 0x59f2c0, name: 'game_enter' }` — the per-map run-loop entry the wrapper
+`0x59ec30` calls.
+
+**Verified both sides (live).**  Port: `--input-trace` (new committed
+`tests/scenarios/in-game-intro/trace-port.jsonl`) → `newgame_enter@691` →
+`prologue_enter@826` → **`game_enter@1116` rng=0x40d00581**.  Retail (Frida,
+`--lockstep`, `trace-retail.jsonl`) → **`game_enter@1092` rng=0x40d00581**.  The
+RNG stamp **matches exactly** on both sides at the seam → no RNG desync across
+prologue→in-game; the anchor absorbs the +24-flip offset for `tas_diff`.
+
+**Engine surveyed** (`docs/findings/in-game-intro.md`): `0x59f2c0` (3522 B) =
+world alloc (map object 0x4120 w/ map-id field +0x4104 defaulting to 0x3f2; two
+big world buffers 0x5400c/0x7808; the `&DAT_006940c8` 0x54-stride actor/cell
+registry) + the per-room loop calling the two giant children — **`0x586010`
+(6 KB, the room state-setup + sim/draw step)** and **`0x5a00c0` (13.7 KB, the
+in-game RENDER dispatch)**.  `0x5a00c0` reuses the already-ported sprite
+primitives (`ar_sprite_decode`/zdd blits/ramps), so the smallest visible win (the
+town tilemap) sits on top of existing code — that is the next checkpoint.  No
+`src/` host-tested logic changed (750 pass / 0 fail / 6 skip).  Ledger unchanged
+(seam + anchor + survey; no new FUN ported yet).
+
+---
+
 ## 2026-06-03 (ckpt 47) — the TAS deterministic port↔retail trace-diff system is built and validated; intro 28/28 bit-exact and prologue cutscene content bit-exact through it
 
 Built the determinism stack for frame-for-frame port↔retail diffing.  **Key RE

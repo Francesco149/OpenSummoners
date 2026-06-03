@@ -1,4 +1,51 @@
-# Session handoff — last updated 2026-06-03 (ckpt 49 — IN-GAME PHASE KICKOFF: the user opted to extend the trace in-game. Spamming Z (id 0x24, a prologue "beat") through the cutscene → 0x59ec30(0,0,0x3f2) loads the OPENING TOWN of Tilelia + story dialogue. RETAIL GOLDEN captured (runs/tas-ingame-1, game renders from ~flip 1150); the in-game engine 0x59f2c0 (3522 B map loop) is unported — the next big rock. Plan: docs/findings/in-game-intro.md)
+# Session handoff — last updated 2026-06-03 (ckpt 50 — IN-GAME SEAM WIRED: the prologue's NORMAL exit (3rd beat → PROLOGUE_DONE) now routes to a new enter_game seam that emits the game_enter TAS anchor + logs 0x59ec30(0,0,0x3f2), and the retail agent gains the matching game_enter anchor @0x59f2c0. VERIFIED BOTH SIDES: port game_enter@1116 / retail game_enter@1092, rng 0x40d00581 MATCHES exactly (no RNG desync across prologue→in-game). The engine 0x59f2c0 is surveyed/decomposed (its two giant children 0x586010=6KB sim/draw step + 0x5a00c0=13.7KB render dispatch are the next port). Plan: docs/findings/in-game-intro.md)
+
+> **ckpt 50 — THE IN-GAME SEAM IS WIRED + ANCHORED (both sides), engine
+> decomposed.**  Foundational plumbing for milestone 2 (the game proper); no
+> engine code ported yet (that's the next, multi-checkpoint rock).
+>
+> **PORT SEAM:** `main_loop_body`'s prologue arm now routes `PROLOGUE_DONE` (the
+> 3rd-beat NORMAL exit) to a new **`enter_game()`** (`src/main.c`) instead of
+> `leave_prologue_to_title`.  `enter_game` tears down the prologue drive, emits
+> the **`game_enter`** anchor (`emit_anchor`), logs the `0x59ec30(0,0,0x3f2)`
+> entry, and — engine unported — re-displays the title (like the other stubbed
+> sub-scenes; DEMO_START etc.).  **ABORT (id 0x22) still → `leave_prologue_to_title`.**
+>
+> **RETAIL ANCHOR:** `SCENE_ANCHORS` (`tools/frida/opensummoners-agent.js`) gains
+> `{ va: 0x59f2c0, name: 'game_enter' }` — the per-map run-loop entry `0x59ec30`
+> calls (once for map 0x3f2, again per transition).  Fires on every entry; the
+> flip stamp disambiguates.  A fixed offset off prologue_enter would NOT hold (the
+> cutscene exit-fade + map load make the commit→first-frame offset variable), so a
+> map-loop-entry anchor is required.
+>
+> **VERIFIED BOTH SIDES (live).**  Port (`--input-trace` new committed
+> `tests/scenarios/in-game-intro/trace-port.jsonl`, `--frames 1400`):
+> newgame_enter@691 → prologue_enter@826 → **game_enter@1116 rng=0x40d00581**.
+> Retail (Frida `--lockstep`, `trace-retail.jsonl`): **game_enter@1092
+> rng=0x40d00581**.  **RNG matches exactly** at the seam on both sides → no rand
+> desync across prologue→in-game (the transition consumes nothing the port
+> misses); the anchor absorbs the +24-flip offset for `tas_diff`.
+>
+> **ENGINE SURVEYED (`docs/findings/in-game-intro.md`).**  `0x59f2c0` (3522 B) =
+> world alloc (the **map object `operator_new(0x4120)`**, map-id field **+0x4104**
+> defaulting to **0x3f2**, 8× 0xeec actor sub-objects; two big world buffers
+> 0x5400c/0x7808 on scene[4]/[5]; the **`&DAT_006940c8` 0x54-stride actor/cell
+> registry** copied in via `0x585000`) + a **per-room loop** (`LAB_0059fd85`)
+> calling the two giant children: **`0x586010` (6 KB)** = the room state-setup +
+> sim/draw step (allocs `DAT_008a9b50` 0x27b8, refs `"Start StartArea"`; returns
+> the loop dispatch code 1/2/3/0xa/4/5), and **`0x5a00c0` (13.7 KB)** = the
+> in-game RENDER dispatch (state 3 → present).  **`0x5a00c0` reuses the
+> ALREADY-PORTED sprite primitives** (`ar_sprite_decode 0x4184a0`, zdd blits,
+> ramps `0x5bd550`) → the smallest visible win (the town tilemap at retail flip
+> ~1150) sits on top of existing code.  **NEXT: plan 3a/3b in in-game-intro.md** —
+> find map-0x3f2's resource banks + load path (likely the deferred `ar_register_*`
+> batches at boot, like the title banks ckpt 26), stand up a `game_drive` (mirror
+> `prologue_drive`), and port a slice of `0x5a00c0` to render the static town
+> backdrop, diffing vs `runs/tas-ingame-1`.  750 host tests pass (no src logic
+> change); ledger 175/1490 unchanged (seam+anchor+survey).  Clean **/clear point**
+> before the engine port begins.
+>
+> ─────────────────────────────────────────────────────────────────────────────
 
 > **ckpt 49 — IN-GAME PHASE KICKOFF: retail golden of the opening map captured;
 > the in-game engine (`0x59f2c0`) is the next port.**  Per the ckpt-48 decision,
@@ -796,7 +843,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 48): title bit-exact loop; new-game scene bit-exact (box/text/cursor/tooltip + picker); prologue gem cutscene content bit-exact (63/64); and the new-game→prologue FADE-OUT transition timing now ported (cutscene fade-in differ_px=0 at a constant offset). Goal of 1:1 parity for title+new-game+prologue is essentially MET for rendered content. Remaining: the fade-out frames' RENDER (box-alpha arm) + the user-decision to extend the trace in-game (Next move #1).
+## ⭐ Current state (ckpt 50): title bit-exact loop; new-game scene bit-exact (box/text/cursor/tooltip + picker); prologue gem cutscene content bit-exact (63/64) + the fade-out timing ported. Milestone 1 (title+new-game+prologue) is 1:1 for rendered content. **Milestone 2 (the game proper) STARTED**: the in-game seam is wired + anchored (game_enter, both sides, rng-matched) and the engine 0x59f2c0 is surveyed/decomposed — but UNPORTED (the next, multi-checkpoint rock; see Next move #1 / docs/findings/in-game-intro.md). Deferred: the fade-out frames' RENDER (box-alpha arm, Next move #2).
 
 > **User @ ckpt 44:** "can confirm 1:1 except for sparkle on cursor."  → The
 > whole new-game screen (box + menu text + cursor + tooltip help text) is
@@ -910,23 +957,27 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 > extending the trace in-game (we now HAVE prologue + main-menu rendering).
 
 1. **★ (recommended — the user opted in @ ckpt 48) PORT THE IN-GAME ENGINE
-   `0x59f2c0` to match the golden.**  The trace is extended in-game and the
-   RETAIL golden is captured (`runs/tas-ingame-1`, opening town from ~flip 1150;
-   see `docs/findings/in-game-intro.md`).  Now port the in-game engine in units,
-   smallest visible win first, diffing each vs the golden:
-   - (a) **Add a game-entry ANCHOR** (retail `0x59ec30`/`0x59f2c0` entry + a
-     port-side `enter_game`) so `tas_diff` aligns the in-game frames — the
-     existing anchors stop at prologue_enter, and the cutscene exit-fade+load
-     makes the commit→first-game-frame offset variable, so a map-loop-entry
-     anchor is required.
-   - (b) **Wire the port seam:** route `PROLOGUE_DONE` to an `enter_game` stub
-     (logs `0x59ec30(0,0,0x3f2)`) instead of `leave_prologue_to_title`.
-   - (c) **Survey + port `0x59f2c0`** (3522 B): the map object init + the map
-     0x3f2 resource/bank load (likely needs the deferred `ar_register_*` batches
-     registered at boot, like the title banks at ckpt 26) + the per-frame update
-     + the in-game render dispatch (`0x5a00c0`).  Target the static town tilemap
-     first, then entities, then the dialogue box (portrait + textbox).
-   `0x59ec30` (531 B) is just the load/unload wrapper around `0x59f2c0`.
+   `0x59f2c0` to match the golden.**  The trace is extended in-game, the RETAIL
+   golden is captured (`runs/tas-ingame-1`, opening town from ~flip 1150), and
+   (ckpt 50) the **game-entry anchor + port seam are DONE + verified both sides**
+   (port game_enter@1116 / retail @1092, rng 0x40d00581 matches).  The engine is
+   **surveyed/decomposed** (see `docs/findings/in-game-intro.md` "Entry-function
+   map").  Remaining = **plan 3** in that doc, smallest visible win first:
+   - ~~(a) game-entry anchor~~ **DONE (ckpt 50)** — retail `0x59f2c0` + port
+     `enter_game` emit `game_enter`.
+   - ~~(b) port seam~~ **DONE (ckpt 50)** — `PROLOGUE_DONE → enter_game`.
+   - (3a) **Find map-0x3f2's resource banks + load path** — which sotes*.dll
+     banks + where `0x586010`/`0x5a3c40` load them; likely needs the deferred
+     `ar_register_*` batches registered at boot (like the title banks ckpt 26).
+   - (3b) **Stand up a `game_drive`** (mirror `prologue_drive`): hold the map
+     object + scene, step once/frame, render a ported slice of **`0x5a00c0`**
+     (13.7 KB; reuses the already-ported `ar_sprite_decode`/zdd/ramps), present.
+     Target the **static town backdrop/tilemap FIRST** (golden flip ~1150), diff
+     vs `runs/tas-ingame-1` anchored on `game_enter`.  Then entities, then the
+     dialogue box (~flip 2200, likely the glyph pipeline again).
+   The two giant children — **`0x586010` (6 KB, sim/draw step)** + **`0x5a00c0`
+   (13.7 KB, render dispatch)** — are the real body; `0x59ec30`/`0x59f2c0` are
+   the wrapper + world-setup/loop around them.
 
 2. **(deferred polish) The fade-out frames' RENDER — the box-alpha arm.**  The
    transition TIMING is aligned (ckpt 48) but the port re-renders the new-game
