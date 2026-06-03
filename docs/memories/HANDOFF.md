@@ -1,5 +1,48 @@
-# Session handoff — last updated 2026-06-03 (ckpt 44 — the new-game TOOLTIP TEXT NODE renders BIT-EXACT (word-wrapped, FUN_0040e5e0, quirk #70); 0 text-colored pixels differ; next is the option picker submenu → Start→game path)
+# Session handoff — last updated 2026-06-03 (ckpt 45 — the new-game OPTION PICKER submenu is ported + wired + rendered + USER-CONFIRMED (FUN_00567ba0, quirk #71); next is the Start→game path (0x564160→0x59ec30) — the prologue critical path)
 
+> **ckpt 45 — THE NEW-GAME OPTION PICKER SUBMENU IS PORTED, WIRED, RENDERED,
+> AND USER-CONFIRMED.**  Confirming on a kind-0 option row (Game Difficulty /
+> Auto-guard) now opens that option's **picker submenu** — the nested value-grid
+> `FUN_00567ba0` runs.  New pure, host-tested **`src/newgame_picker.{c,h}`**:
+> `newgame_picker_values` (`FUN_00568320` — id 3 `{10,20,30,40}`/`{..,50}` unlock-
+> gated, id 4 `{0,1}`) + the run-loop model (build the 1-col value grid, **seek
+> the cursor to the current value** via `FUN_00419900`, nav/commit/cancel via the
+> `NEWGAME_PUMP_*` codes → RUNNING/COMMIT(value)/CANCEL).  Wired into
+> **`newgame_drive`** as a frame-stepped modal SUBMODE (the equivalent of retail's
+> blocking `FUN_00567ba0` call): a kind-0 CONFIRM opens the picker and pumps input
+> into `picker.grid` instead of the parent; on COMMIT the drive calls
+> `newgame_scene_set_option(id, chosen)` (the parent value-refill — re-lays the
+> value cell); on CANCEL the option is unchanged.  `main.c` draws the picker box
+> (9-slice, **(288,128) w=256**) + its value rows over the menu when active.
+> **Verified LIVE** (port trace Start→confirm Difficulty→down→confirm): the
+> difficulty picker opens `{1:Easy,2:Normal,3:Hard,4:Expert}` with the current
+> value focused; nav moves the highlight; commit re-lays the parent cell **1:Easy
+> → 2:Normal**.  Montage pushed to llm-feed; **USER-CONFIRMED** ("screenshots look
+> good, those menus render correctly").  Quirk **#71**.  10 new host tests
+> (**736 total: 730 pass / 0 fail / 6 skip**).  Ledger **173/1490 (10.7%)** (+5:
+> `0x568320`,`0x567ba0`,`0x419900`,`0x5657f0`).
+>
+> **OPEN gate (NOT a content bug — a harness limitation): no bit-exact retail
+> diff of the open picker.**  Entering the new-game scene, retail's **Flip counter
+> freezes** (the modal pump `0x565d10` doesn't advance the hooked DDraw Present —
+> quirk #67 caveat), and **both** the harness's frame capture **and** its input
+> injection are flip-keyed.  So the open picker can be neither driven-to nor
+> captured by flip index → its render geometry (288,128/256) and the decompiler-
+> reconstructed args (the `FUN_00412160` row kind, `FUN_00419900`/`FUN_005657f0`
+> arg lists, all documented in `newgame_picker.h`) are **NOT pixel-verified vs
+> retail**.  Closing it needs a harness that hooks `0x565d10`'s own present +
+> feeds its input directly (not flip-keyed) — a tooling task, deferred.  Until
+> then the picker is user-eyeball-verified, which is the verification available.
+>
+> **NEXT: the Start→game path (the prologue critical path).**  The committed
+> reference trace navigates to "Start Game" and confirms — it never opens the
+> picker — so the Start→game transition (`0x564160`→`0x5642e0`/`0x56cd20` timed
+> Elemental-Stone cutscene → `0x59ec30` game proper) is the item actually on the
+> path to "first frame in-game".  START is a stub today (re-displays title).
+> See Next move #1d.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+>
 > **ckpt 44 — THE NEW-GAME TOOLTIP TEXT NODE RENDERS BIT-EXACT.**
 > The bottom-of-screen help line is a standalone **word-wrapping text node**
 > (`this+0x170`), NOT the menu grid — one free-form string greedily wrapped into
@@ -556,7 +599,7 @@
 Rolling state — REWRITE on each meaningful checkpoint. `docs/PROGRESS.md` is the
 append-only changelog; this file is "where to pick up *right now*".
 
-## ⭐ Current state (ckpt 44): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40), selection cursor BIT-EXACT (ckpt 43), AND its TOOLTIP TEXT bit-exact (ckpt 44 — word-wrap port, quirk #70); next is the option picker submenu (0x567ba0) → Start→game path (0x564160→0x59ec30)
+## ⭐ Current state (ckpt 45): title is a bit-exact loop; the new-game config scene runs live + renders its BOX PANEL (ckpt 40), selection cursor BIT-EXACT (ckpt 43), TOOLTIP TEXT bit-exact (ckpt 44), AND the OPTION PICKER submenu ported + user-confirmed (ckpt 45, quirk #71); next is the Start→game path (0x564160→0x59ec30 — the prologue critical path)
 
 > **User @ ckpt 44:** "can confirm 1:1 except for sparkle on cursor."  → The
 > whole new-game screen (box + menu text + cursor + tooltip help text) is
@@ -689,15 +732,20 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
    parse+justify and renders directly, as main.c already does for the menu grid.)
    **REMAINING tooltip residual = 9px box-panel RGB565 1-LSB rounding (pre-existing,
    NOT text)** — see ckpt-44 OPEN above; a separate sprite-decode item.
-   **NEXT — the transitions:**
-   (c) the **option picker submenu** (`0x567ba0` default arm — a nested grid +
-   its own pump loop).  A kind-0 confirm already yields `NEWGAME_OPEN_PICKER`
-   (surfaced + counted by the drive); port the submenu, and on its commit call
-   `newgame_scene_set_option` to re-lay the value cell.
+   ~~(c) the option picker submenu~~ **DONE + USER-CONFIRMED (ckpt 45, quirk #71,
+   `src/newgame_picker.{c,h}`).**  `FUN_00567ba0` ported pure (value list
+   `FUN_00568320` + build + seek `FUN_00419900` + nav/commit/cancel), wired into
+   `newgame_drive` as a modal submode, rendered at (288,128) over the menu; commit
+   calls `newgame_scene_set_option`.  Bit-exact retail diff is an OPEN gate (the
+   flip counter freezes in `0x565d10`'s modal pump — capture/inject are flip-keyed;
+   needs a non-flip-keyed harness).  **NEXT — the transition (recommended below):**
    (d) the **Start→game path**: the Elemental-Stone intro (`0x564160` →
    `0x5642e0`/`0x56cd20` timed cutscene → `0x59ec30` game proper).  START is a
-   stub today (re-displays title).
-   Deferrable polish: the box **fade-in** (`0x48cf80`'s alpha arm via `0x5bd550`).
+   stub today (re-displays title).  **This is the prologue critical path** — the
+   committed trace navigates to "Start Game" + confirms (never opens the picker),
+   so this is the item actually on the path to "first frame in-game".
+   Deferrable polish: the box **fade-in** (`0x48cf80`'s alpha arm via `0x5bd550`);
+   the picker bit-exact gate (a harness that drives/captures inside the modal pump).
    How to drive there (PORT side, self-serviceable): trace `{"frame":620,"ids":[36]}`
    into the **game dir**, then `./build/opensummoners-launcher.exe --timeout-ms 45000
    -- /tmp/oss.exe --hide-window --frames 1100 --input-trace ng_trace.jsonl
@@ -814,7 +862,7 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 - **`docs/parity-ledger.md`** — entry **#1 is now CONFIRMED bit-exact** (title
   menu, phase-matched, `differ_px==0`). Re-diff + update after render changes.
 
-## Module inventory (21 modules) — render pipeline COMPLETE; text pipeline CLOSED end-to-end; new-game config scene = box + menu text + cursor + tooltip text all bit-exact (picker + Start→game pending)
+## Module inventory (22 modules) — render pipeline COMPLETE; text pipeline CLOSED end-to-end; new-game config scene = box + menu text + cursor + tooltip text all bit-exact + the option picker submenu ported/user-confirmed (Start→game pending)
 
 Pixel-Drawer, Asset-Register, Bitmap-Session, WndProc, ZDD wrapper, cs_dispatch,
 app_pump, title_scene (`FUN_0056aea0`, fully ported+wired+driven), input
@@ -842,7 +890,11 @@ ported, the drive's job),
 bank 0x455 frames 16-19 bottom-up, render bit-exact ckpt 43, quirk #68/#69),
 **glyph_wrap** (the tooltip text-node word-wrap = `0x40e5e0` justify + `0x40f040`
 `%n`/`%m`/`%w` parse, ckpt 44, quirk #70 — pure + host-tested; SJIS kinsoku
-deferred; rendered directly in `newgame_render`).
+deferred; rendered directly in `newgame_render`),
+**newgame_picker** (the option picker submenu = `0x567ba0` default arm, ckpt 45,
+quirk #71 — value list `0x568320` + build + cursor-seek `0x419900` + nav/commit;
+wired into `newgame_drive` as a modal submode, rendered at (288,128); bit-exact
+retail diff an OPEN gate — flip-frozen modal pump).
 **8d** (`zdd_object_new_cell/_build_cell/_copy_cell_pixels`
 + `bs_convert_*` + slicer) ported ckpt 25, **now firing live** (banks registered
 ckpt 26). `main.c` drives the scene against the live ZDD with the 8d hooks +

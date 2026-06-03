@@ -116,8 +116,31 @@ invisible to a flip-gated probe here.
 (replacing `newgame_render`'s placeholder `PatBlt(BLACKNESS)`), then `differ_px`
 the text region → 0.
 
+## Option picker submenu ported (ckpt 45, quirk #71)
+
+Confirming on a kind-0 option row (Game Difficulty / Auto-guard) opens that
+option's **picker submenu** — `FUN_00567ba0`, a nested 1-column value-grid with
+its own `0x565d10` nav loop, a **blocking modal call** from the parent's run loop
+(564780.c:612).  Ported pure + host-tested in **`src/newgame_picker.{c,h}`**:
+`newgame_picker_values` (`FUN_00568320` — id 3 `{10,20,30,40}`/`{..,50}` unlock,
+id 4 `{0,1}`), build the value grid, seek the cursor to the current value
+(`FUN_00419900`), nav/commit/cancel.  Wired into `newgame_drive` as a frame-
+stepped modal submode; on COMMIT it calls `newgame_scene_set_option(id, chosen)`
+(the parent's value-refill).  Rendered port-side at (288,128) over the menu;
+**user-confirmed visually correct** (open → nav → commit re-lays 1:Easy→2:Normal).
+
+The picker's `__thiscall` arg lists (the `FUN_00412160` row kind, `FUN_00419900`
+seek, `FUN_005657f0` commit) were decompiler-lost → reconstructed from the
+callees' contracts (see `newgame_picker.h`).  A live **retail** golden is
+**unreachable**: the flip counter freezes in `0x565d10`'s modal pump and both the
+harness's capture + input injection are flip-keyed.  So the box geometry
+(288,128/256) and the args are an OPEN pixel-verification gate.
+
 ## Open
 
+- **Picker bit-exact gate.** The open picker can't be captured/driven in retail
+  (flip-frozen modal pump, quirk #71).  Closing it needs a harness that hooks
+  `0x565d10`'s own present + feeds its input directly (not flip-keyed).
 - **Prologue → first playable map.** The opening cutscene (stone + narration)
   needs either a recorded human trace (advance/skip presses with real timing)
   distilled to a sparse trace, or RE of the prologue sequencer. This is the

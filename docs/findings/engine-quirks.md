@@ -1936,3 +1936,51 @@ across y=416/444 — the break is the width-68 word-wrap (the source string has 
 `%n`), reproduced exactly by the port (`src/glyph_wrap.c`; `differ_px`: **0
 text-colored pixels** in the tooltip region differ).  The SJIS kinsoku path
 (`sVar3==3`) is deferred in the port — English never reaches it.
+
+## 71. The option PICKER submenu (FUN_00567ba0) is a nested modal value-grid; its build args are decompiler-lost and reconstructed, and a live golden is unreachable (the flip counter freezes in 0x565d10's modal pump)
+
+Confirming (`0xc`) on a **kind-0 option row** of the new-game config menu (Game
+Difficulty / Auto-guard) opens that option's **picker submenu** — `FUN_00567ba0`,
+a nested 1-column grid of the option's value choices with its own `0x565d10` nav
+loop.  It is a **blocking modal call** from the parent's run loop (564780.c:612):
+the parent frame loop is suspended until the picker returns `0` (cancel) or `0xc`
+(a value was committed → the parent sets `local_42c=1` → re-lays every option's
+value cell, 564780.c:367-385).
+
+**The picker's grid (567ba0.c:29-45, default arm):**
+- `uVar2 = FUN_00568320(id, vals)` — the value-code list + count.  id 3
+  (difficulty): `{10,20,30,40}` (4) or `{..,50}` (5) gated on the unlock flag
+  `*(*DAT_008a6e80 + 0xaa4)`; id 4 (auto-guard): `{0,1}`.  `uVar2==0` → `return 0`.
+- `FUN_00411940(this, 0x120,0x80,0x100, 0, 2)` — a value grid box at **(288,128)**
+  width **256** (cf. the menu box's `(32,32)` w=400).
+- per value: `FUN_00566a80(id,val)` (the value label) → `FUN_00412160(...)` (append).
+- `FUN_00419900(0, current_value)` — **seek the cursor to the current value's row**
+  (the picker opens on the active selection, not row 0).
+- nav loop: `0xb` → `return 0` (cancel); `0xc` → `FUN_005657f0(...)` (write
+  `settings[id]=selected_value`), `return 0xc`; `0xd` → re-iterate.
+
+**Decompiler-lost args (reconstructed, documented in `src/newgame_picker.h`):**
+Ghidra dropped the register/stack args of the picker's `__thiscall` calls
+(`FUN_00412160` row kind, `FUN_00419900` seek, `FUN_005657f0` commit).  They are
+rebuilt from the callees' own contracts: `FUN_00419900(field0,action)` seeks the
+row whose `(kind,id)` match, so the seek is `(0, current_value)` over kind-0 value
+rows; `FUN_005657f0(id,value)` writes `*(settings + 0xc + id*0x1c) = value`, so the
+commit is `(option_id, selected_value)`.
+
+**Verification limit (an OPEN gate):** entering the new-game scene, retail's Flip
+counter **freezes** (the modal pump `0x565d10` doesn't advance the hooked DDraw
+Present — see quirk #67 box-probe caveat), and BOTH the harness's frame capture
+and its input injection are keyed on the Flip index.  So the open picker is
+**unreachable** by the current harness: it can neither be driven to (inject confirm
+inside the frozen-flip loop) nor captured by flip index.  Therefore the picker's
+**render geometry (288,128 / 256) and the reconstructed args are NOT pixel-verified
+against retail** — closing that gate needs a harness that drives/captures inside
+the modal pump (hook `0x565d10`'s own present + feed its input directly).
+
+The port models the picker as `src/newgame_picker.{c,h}` (pure: value list + build
++ seek + nav/commit/cancel, host-tested) wired into `newgame_drive` as a frame-
+stepped modal SUBMODE (the equivalent of the blocking call): on a kind-0 confirm
+the drive opens the picker and pumps input into it instead of the parent; on COMMIT
+it calls `newgame_scene_set_option(id, chosen)` (the parent's value-refill).
+Rendered port-side at (288,128) over the menu; **user-confirmed visually correct**
+(open → nav → commit re-lays the parent's value cell, 1:Easy→2:Normal).

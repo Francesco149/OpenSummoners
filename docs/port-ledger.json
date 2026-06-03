@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 162,
+  "tested": 167,
   "ported": 6,
-  "unported": 1590,
+  "unported": 1585,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 168,
-  "pct_touched": 10.4,
-  "pct_tested": 10.4,
-  "engine_proper_touched": 155,
+  "touched": 173,
+  "pct_touched": 10.7,
+  "pct_tested": 10.7,
+  "engine_proper_touched": 160,
   "bytes_total": 1694868,
-  "bytes_touched": 193650,
-  "pct_bytes_touched": 11.4
+  "bytes_touched": 197190,
+  "pct_bytes_touched": 11.6
  },
  "orphan_refs": [
   "0x56c470",
@@ -873,6 +873,7 @@
     "src/glyph_text.h",
     "src/newgame_menu.c",
     "src/newgame_menu.h",
+    "src/newgame_picker.c",
     "src/newgame_scene.c"
    ]
   },
@@ -1012,8 +1013,12 @@
    "name": "FUN_00411940",
    "size": 770,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
+   ]
   },
   {
    "va": "0x411c50",
@@ -1060,7 +1065,9 @@
    "status": "tested",
    "src": [
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
    ]
   },
   {
@@ -1596,7 +1603,8 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/newgame_picker.c"
    ]
   },
   {
@@ -1612,8 +1620,11 @@
    "name": "FUN_00419900",
    "size": 128,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
+   ]
   },
   {
    "va": "0x419980",
@@ -8312,6 +8323,7 @@
     "src/newgame_drive.h",
     "src/newgame_menu.c",
     "src/newgame_menu.h",
+    "src/newgame_picker.h",
     "src/newgame_scene.c",
     "src/newgame_scene.h"
    ]
@@ -8321,8 +8333,12 @@
    "name": "FUN_005657f0",
    "size": 31,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_drive.c",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
+   ]
   },
   {
    "va": "0x565810",
@@ -8400,7 +8416,8 @@
    "status": "tested",
    "src": [
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/newgame_picker.h"
    ]
   },
   {
@@ -8425,6 +8442,8 @@
    "src": [
     "src/newgame_menu.c",
     "src/newgame_menu.h",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h",
     "src/newgame_scene.c"
    ]
   },
@@ -8433,16 +8452,26 @@
    "name": "FUN_00567ba0",
    "size": 1647,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/newgame_drive.c",
+    "src/newgame_drive.h",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
+   ]
   },
   {
    "va": "0x568320",
    "name": "FUN_00568320",
    "size": 964,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/newgame_drive.c",
+    "src/newgame_picker.c",
+    "src/newgame_picker.h"
+   ]
   },
   {
    "va": "0x568780",

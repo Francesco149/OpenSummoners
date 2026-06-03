@@ -3876,3 +3876,48 @@ docs).  **713 host tests pass (0 fail, 6 skip)** unchanged.  Ledger unchanged
 (no new FUN ported).
 
 ---
+
+## ckpt 45 — the new-game OPTION PICKER submenu is ported, wired, rendered, and user-confirmed (FUN_00567ba0; quirk #71)
+
+Confirming on a kind-0 option row (Game Difficulty / Auto-guard) of the
+new-game config menu now opens that option's **picker submenu** — the nested
+value-grid `FUN_00567ba0` runs.  Until now `newgame_scene_dispatch` surfaced
+`NEWGAME_OPEN_PICKER` but the drive only counted it (the value stayed put).
+
+New pure, host-tested **`src/newgame_picker.{c,h}`**:
+- **`newgame_picker_values`** (`FUN_00568320`): option id → value-code list.
+  id 3 (difficulty) `{10,20,30,40}` / `{..,50}` unlock-gated; id 4 `{0,1}`.
+- the run-loop model: build the 1-column value grid (labels from
+  `newgame_option_value`), **seek the cursor to the current value**
+  (`FUN_00419900`), and nav/commit/cancel via the `NEWGAME_PUMP_*` codes
+  (567ba0.c:237-251) → RUNNING / COMMIT(value) / CANCEL.
+
+Wired into **`newgame_drive`** as a frame-stepped modal SUBMODE (the equivalent
+of retail's blocking `FUN_00567ba0` call): on a kind-0 CONFIRM the drive opens
+the picker and pumps input into `picker.grid` (its own ramping gate) instead of
+the parent scene; on COMMIT it calls `newgame_scene_set_option(id, chosen)` (the
+parent's value-refill — re-lays the value cell); on CANCEL the option is left
+unchanged.  `main.c`'s `newgame_render` draws the picker box (9-slice, (288,128)
+w=256) + `glyph_grid_render` of its value rows over the menu when active.
+
+**Verified LIVE** (port trace: Start → confirm Game Difficulty → down → confirm):
+the difficulty picker opens showing `{1:Easy,2:Normal,3:Hard,4:Expert}` with the
+current value focused; nav moves the highlight to 2:Normal; commit closes the
+picker and re-lays the parent value cell **1:Easy → 2:Normal**.  4-frame montage
+pushed to llm-feed; **user-confirmed** ("screenshots look good, those menus
+render correctly").
+
+**RECONSTRUCTED + OPEN gate (quirk #71):** the picker's `__thiscall` arg lists
+(the `FUN_00412160` row kind, `FUN_00419900` seek, `FUN_005657f0` commit) were
+dropped by the decompiler and are rebuilt from the callees' contracts.  A live
+**retail** golden of the open picker is **unreachable** — the flip counter
+freezes in `0x565d10`'s modal pump (quirk #67 caveat), and both the harness's
+capture and input injection are flip-keyed.  So the box geometry (288,128/256)
+and the reconstructed args are NOT pixel-verified against retail; closing that
+gate needs a harness that drives/captures inside the modal pump.
+
+10 new host tests (8 picker + 2 drive flow): **736 total, 730 pass / 0 fail /
+6 skip**.  Ledger **173/1490 (10.7%)** (+5: `0x568320`, `0x567ba0`, `0x419900`,
+`0x5657f0` ported; value provider already counted).
+
+---
