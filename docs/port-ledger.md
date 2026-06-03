@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **175** (10.9% of engine-proper) — tested 170, ported 5
-- code bytes touched: **11.8%** (199,841 / 1,694,868 B of engine-proper)
-- unported: **1583**
+- touched: **178** (11.1% of engine-proper) — tested 173, ported 5
+- code bytes touched: **12.0%** (203,870 / 1,694,868 B of engine-proper)
+- unported: **1580**
 - orphan refs in src/ not in this table: 4
 
-## tested (170) — ported + host unit suite
+## tested (173) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -64,6 +64,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x561c90 | FUN_00561c90 | 94 | game_world.h |
 | 0x562210 | FUN_00562210 | 688 | app_pump.h, rng.h |
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+8) |
@@ -101,9 +102,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582d00 | FUN_00582d00 | 15 | asset_register.c, asset_register.h |
 | 0x582d10 | FUN_00582d10 | 379 | asset_register.c, asset_register.h |
 | 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
+| 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h |
 | 0x587e00 | FUN_00587e00 | 18055 | asset_register.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
+| 0x59f2c0 | FUN_0059f2c0 | 3522 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x5a4770 | FUN_005a4770 | 45963 | app_pump.h, main.c |
 | 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
 | 0x5b12e0 | FUN_005b12e0 | 441 | wnd_proc.c, wnd_proc.h |

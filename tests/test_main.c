@@ -784,6 +784,13 @@ struct test_case {
     X(game_drive_init)                                         \
     X(game_drive_runs_and_renders)                             \
     X(game_drive_headless)                                     \
+    X(game_world_build_counts)                                 \
+    X(game_world_first_town_room)                              \
+    X(game_world_area_defaults_filled)                         \
+    X(game_world_find_room_by_id)                              \
+    X(game_world_map_3f2_opening_room)                         \
+    X(game_world_header_sentinel)                              \
+    X(game_world_reciprocal_exits)                             \
 
 #define X(n) extern int test_##n(void);
 TESTS

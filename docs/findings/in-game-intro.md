@@ -4,16 +4,20 @@ Milestone 2 (the game proper).  The user opted to **extend the trace in-game**
 (ckpt 48): spam Z after the prologue begins, capture ~1 min of retail frames,
 then port to match.  This doc is the living plan + engine survey.
 
-**Status (ckpt 53):** the foundational plumbing is in place — the **game-entry
+**Status (ckpt 54):** the foundational plumbing is in place — the **game-entry
 anchor** (both sides), the **port seam** (`PROLOGUE_DONE → enter_game`), **plan 3a
 RESOLVED** (the town's resource banks identified + the boot batches g2/g3/g5 wired),
-the **`game_drive` scaffold is stood up** (plan 3b's first bullet), and now the
-**static world tables are extracted + decoded** (ckpt 53 — see "The static world
-tables" below): the AREA name table + the 416-room registry the engine copies in,
-with field meanings and the opening-town entry identified.  The in-game **engine**
-(`0x59f2c0` + its two giant children `0x586010`/`0x5a00c0`) is surveyed but
-**unported** — that is the remaining body of milestone 2 (plan 3b: port the world
-construction reading these tables, then a slice of `0x5a00c0` for the static town
+the **`game_drive` scaffold is stood up** (plan 3b's first bullet), the **static
+world tables are extracted + decoded** (ckpt 53), and now (ckpt 54) the **world-
+table layer is PORTED + host-tested** (`src/game_world.{c,h}`): the AREA/ROOM
+registry build, the `FUN_00585000` cross-reference (area defaults + reciprocal
+room exits), and the `FUN_00561c90` id lookup, over generated table bytes
+(`src/world_tables_data.{c,h}`).  The **`0x3f2`→opening-room resolution is
+RESOLVED** (map 0x3f2 → key `0x334be` = room **210110 "Town of Tonkiness"**,
+scene 1022 — see the ROOM-lookup section).  The in-game **engine** (`0x59f2c0`'s
+map-object + actor slots + sim `0x586010` + render `0x5a00c0`) is surveyed but
+still **unported** — the remaining body of milestone 2 (plan 3b: build the map
+object reading these tables, then a slice of `0x5a00c0` for the static town
 backdrop into `game_render`, register the EXE-NULL banks at the engine-time site,
 diff vs `runs/tas-ingame-1`).
 
@@ -304,11 +308,12 @@ area supplies per-room defaults when the room leaves them 0).
 | 0x38 | dword `D` | → `room[0x50]` |
 | 0x3c | u16 `E` / u16 `F` | → `room[0x51]` / `room[0x146]` |
 
-The 33 areas ARE Fortune Summoners' world: `0x6e` **"Town of Tolkien"** (the
-opening town — the handoff's earlier "Tilelia" was a wrong guess; the binary
-says Tolkien / SJIS トルーキン), Silver Dungeon, Minasa-Ratis Magic School,
-Mountain Cave, Shrine of the Wind, Barness Village, Chartreux City, … Labyrith
-of Night.  (Several ids have an empty name = an unnamed sub-area.)
+The 33 areas ARE Fortune Summoners' world: `0xd2` **"Town of Tonkiness"** (the
+**opening town** — map 0x3f2 resolves here, see the ROOM-lookup section below;
+NOT `0x6e` "Town of Tolkien", a later town — the earlier "Tilelia"/"Tolkien"
+guesses were both wrong), `0x6e` Town of Tolkien, Silver Dungeon, Minasa-Ratis
+Magic School, Mountain Cave, Shrine of the Wind, Barness Village, Chartreux City,
+… Labyrith of Night.  (Several ids have an empty name = an unnamed sub-area.)
 
 ### ROOM registry — `&DAT_006940c8`, 0x150-byte (0x54-dword) stride
 Entry `[0]` is a **header sentinel** (dword0 = `0x000f423f` = 1000001, rest 0).
@@ -323,22 +328,42 @@ the populated fields:
 | 1 | `area` | area key → AREA table (verified: 110→"Town of Tolkien") |
 | 3 | `scene` | sequential scene/record index (1002, 1004, 1005, …) |
 | 7 | `d7` | link/flag |
-| 8 | `parent` | a `ROOM.id` (prev/parent room; 999999 = root sentinel) |
-| 9 | `d9` | ordinal within parent |
+| 7..0x42 | `exits[0x14]` | 0x14 exit slots, stride 3 dwords: {key (lo16 @dw7+3k), target `ROOM.id` (@dw8+3k), return field (lo16 @dw9+3k), 0 (hi16 @dw9+3k)}.  `FUN_00585000` part 2 fills the *reciprocal* slots from other rooms' exits.  (The earlier "dword8=parent / dword9=d9" labels were exit-slot[0]'s {target,return}.) |
+| 0x43/0x44/0x45/0x50/0x51 | area defaults | filled by `FUN_00585000` part 1 from the room's AREA entry (C/A/B/D, then E=lo16 & F=hi16 of dword 0x51) — only where the room left them 0 |
 | 0x46 (+0x118) | `sjis` | Shift-JIS room name (cp932), e.g. room 110110 = "トルーキンの町 １丁目" (Town of Tolkien, district 1) |
 
-The `parent`/`d9` links form the room-transition graph (the per-area room list).
-Entries 70-75 of some rooms hold packed non-id blobs (e.g. room 1 = the town
-entry has 6 dwords there) — per-room extra data, decode deferred to the sim port.
+### ROOM lookup — `FUN_00561c90` (ckpt 54)
+`FUN_00561c90(scene[4], key)` is a **linear search over the copied room region by
+`ROOM.id` (dword0)**: it walks `scene[4] + 4 + i*0x150` for `i < scene[4]+0x54004`
+(the room count, header sentinel included) and returns the entry whose dword0 ==
+`key`, else NULL.
 
-**OPEN — how `0x3f2` (=1010) selects the first room.**  The engine is entered
-with map `0x3f2` = 1010, stored into map-object `+0x4104`.  But **no room has
-`scene` == 1010 or 1011** (they jump 1009→1012), so `0x3f2` is NOT a `ROOM.scene`
-value — it's a separate scene-load id the room loop (`FUN_00561c90`, "fetch the
-active room/scene record") resolves to the town's first room (110110, `scene`
-1002).  Pinning that resolution (is `0x3f2` an absolute scene-resource id? a
-`scene`+offset? a separate index?) is the **first task of the room-loop port** —
-trace `0x561c90` with the world populated, map 0x3f2 → the selected `ROOM.id`.
+**RESOLVED — how `0x3f2` selects the opening room (ckpt 54).**  The engine is
+entered with map `0x3f2` stored into map-object `+0x4104`.  The room loop
+(`0x59f2c0` `LAB_0059fd85`) calls `FUN_00561c90` with the key in **`+0x4024`**
+(disasm `59fd8b: mov edi,[ebx+0x4024]; push edi`), NOT `+0x4104`.  `+0x4024` is
+set by **`FUN_004c5350`** — a jump-table on `*(map+0x4104)`: `map==1→0x4c5614`,
+**`map==0x3f2→0x4c5516`** (writes `+0x4024 = 0x334be`, `+0x4028 = 0x65`,
+`+0x402c = 1`), `map==0x3fc→0x30db3`.  So the lookup key for map 0x3f2 is
+**`0x334be`**.
+
+`0x334be` decodes as decimal **210110** (`0x3·0x10000 + 0x34be`), which **is** a
+real room: registry entry **[61]**, `id 210110`, area key **`0xd2`**
+(= **"Town of Tonkiness"**), **`scene 1022`**.  So the opening map renders room
+**210110 "Town of Tonkiness"**, NOT room 110110 "Town of Tolkien" — *that earlier
+identification (ckpt 53) was wrong; Tolkien (area 0x6e) is a later, different
+town.*  (`+0x4028 = 0x65` / `+0x402c = 1` are the entry spawn params, not the
+room key.)  Seven other rooms (62,63,66,68,70,77,129) carry exits whose target is
+210110 → it is a town hub.  Host-tested: `tests/test_game_world.c`
+`game_world_map_3f2_opening_room`.  (Caveat: the engine *resolution* to room
+210110 is proven from the binary; that this room is what renders at golden flip
+~1150 — vs an immediate scripted transition — is a render-time fact to re-confirm
+when `0x5a00c0` is ported.)
+
+The `exits`/area-default cross-reference + the lookup are ported, pure +
+host-tested, in **`src/game_world.{c,h}`** (ckpt 54) over the generated table
+bytes (`src/world_tables_data.{c,h}`, emitted by
+`game_world_tables.py --emit-c`).
 
 ## Open questions for the port
 

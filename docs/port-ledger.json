@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 170,
+  "tested": 173,
   "ported": 5,
-  "unported": 1583,
+  "unported": 1580,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 175,
-  "pct_touched": 10.9,
-  "pct_tested": 10.9,
-  "engine_proper_touched": 162,
+  "touched": 178,
+  "pct_touched": 11.1,
+  "pct_tested": 11.1,
+  "engine_proper_touched": 165,
   "bytes_total": 1694868,
-  "bytes_touched": 199841,
-  "pct_bytes_touched": 11.8
+  "bytes_touched": 203870,
+  "pct_bytes_touched": 12.0
  },
  "orphan_refs": [
   "0x56c470",
@@ -8114,8 +8114,10 @@
    "name": "FUN_00561c90",
    "size": 94,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/game_world.h"
+   ]
   },
   {
    "va": "0x561cf0",
@@ -9100,8 +9102,13 @@
    "name": "FUN_00585000",
    "size": 413,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/game_world.c",
+    "src/game_world.h",
+    "src/world_tables_data.c",
+    "src/world_tables_data.h"
+   ]
   },
   {
    "va": "0x5851e0",
@@ -10068,8 +10075,13 @@
    "name": "FUN_0059f2c0",
    "size": 3522,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/game_world.c",
+    "src/game_world.h",
+    "src/world_tables_data.c",
+    "src/world_tables_data.h"
+   ]
   },
   {
    "va": "0x5a00c0",
