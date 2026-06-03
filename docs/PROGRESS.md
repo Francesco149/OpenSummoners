@@ -4037,3 +4037,38 @@ model the text fade).  This checkpoint closed the **timing/offset** gap.
 `0x5b6990`/`0x5642e0` to bare VA per the unported-callee convention).
 
 ---
+
+## ckpt 49 — IN-GAME PHASE KICKOFF: retail golden of the opening map captured
+
+The ckpt-13 milestone (1:1 title + new-game + prologue) is MET, so per the
+ckpt-48 decision the user opted to **extend the trace in-game**: *"yes extend the
+trace.  start by just spamming Z after the prologue begins, give the trace ~1
+min of frames, then continue matching retail."*
+
+**How you reach it:** the prologue cutscene `0x56cd20` exits on the **3rd beat**
+(any fresh press); **Z = confirm id `0x24`** = a beat = the NORMAL exit (`0x22`
+would *abort* to the title).  On `PROLOGUE_DONE` retail calls
+**`0x59ec30(0,0,0x3f2)`** → loads + runs the opening map.
+
+**RETAIL GOLDEN (`runs/tas-ingame-1`, local only — runs/ gitignored):** captured
+under `--lockstep` (anchors subtitle@432 / newgame@667 / prologue@815, as
+always).  Flips **900–1100 are black** (cutscene exit-fade + map load); **the
+game renders from ~flip 1150** = the **opening TOWN of Tilelia** (houses, NPCs,
+a banner), and spamming Z advances into the **story DIALOGUE** (character
+portrait + textbox, ~flip 2200–2500).  6-frame montage pushed to llm-feed.
+
+**THE NEXT ROCK — `0x59f2c0` (3522 B), the map run loop.**  `0x59ec30` (531 B)
+is the scene LOAD/UNLOAD wrapper; `0x59f2c0(map,…)` is the in-game engine (zeroes
+a ~0xeb1c-B stack frame of tile/entity arrays + a 0x4120 map object, loads map
+0x3f2, runs the per-frame update + render dispatch `0x5a00c0`).
+
+**Plan (full writeup: `docs/findings/in-game-intro.md`):** (1) add a game-entry
+ANCHOR so tas_diff aligns the in-game frames; (2) wire the port seam
+(`PROLOGUE_DONE` → `enter_game` stub); (3) port `0x59f2c0` in units vs the golden
+(town tilemap → entities → dialogue box), smallest visible win first.
+
+**No port code this checkpoint** — phase kickoff (golden + plan + reproducible
+trace `tests/scenarios/in-game-intro/`).  751 host tests still pass; ledger
+175/1490 unchanged.
+
+---

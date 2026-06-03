@@ -1,0 +1,23 @@
+# IN-GAME INTRO — the first scene past the prologue (map 0x3f2, the opening
+# town of Tilelia + the story dialogue).  Established ckpt 49 as the RETAIL
+# golden target for porting the in-game engine.
+#
+# Flow: title Start (id 0x24) → new-game down x2 + confirm Start Game → the
+# 20-frame fade-out (ckpt 48) → prologue gem cutscene → SPAM Z (id 0x24): the
+# 3rd "beat" exits the cutscene (0x56cd20 returns) → 0x59ec30(0,0,0x3f2) loads
+# the opening map → 0x59f2c0 runs it.  Continued Z presses advance the intro
+# story dialogue.
+#
+# Button ids: 1=up, 3=down, 0x24(=36)=confirm/Z/beat, 0x22=abort(skip to title).
+# Z (0x24) is the NORMAL prologue exit (a beat); 0x22 would skip to the title.
+#
+# trace-retail.jsonl frame numbers are RETAIL Flip frames under --lockstep
+# (subtitle_anim_start@432, newgame_enter@667, prologue_enter@815).  The PORT
+# runs ~+6 flips later (prologue_enter@821); shift the nav frames +~5 and the
+# beats accordingly, or just keep the Z spam dense (every 20 flips) — the beats
+# only need 3 fresh presses during the cutscene.
+description: prologue → SPAM Z → in-game opening (map 0x3f2, town + dialogue)
+max_frames: 400000
+# game renders from ~flip 1150 (retail); 900-1100 is the cutscene exit-fade + map load (black)
+capture_frames: [900, 1100, 1150, 1200, 1400, 1800, 2200, 2500, 3000]
+golden_run: runs/tas-ingame-1   # local only (runs/ is gitignored — vendor frames)

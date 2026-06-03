@@ -1,4 +1,40 @@
-# Session handoff — last updated 2026-06-03 (ckpt 48 — the NEW-GAME→PROLOGUE FADE-OUT is ported: the cutscene-offset gap (open thread #1) is CLOSED — the port now spends retail's ~20 fade flips before 0x56cd20, so prologue_enter moved 801→821 (+20) and the cutscene FADE-IN diffs differ_px=0 at a constant offset, 63/64 dense gem frames bit-exact; the fade-out frames' RENDER (box-alpha arm) is the remaining sub-item)
+# Session handoff — last updated 2026-06-03 (ckpt 49 — IN-GAME PHASE KICKOFF: the user opted to extend the trace in-game. Spamming Z (id 0x24, a prologue "beat") through the cutscene → 0x59ec30(0,0,0x3f2) loads the OPENING TOWN of Tilelia + story dialogue. RETAIL GOLDEN captured (runs/tas-ingame-1, game renders from ~flip 1150); the in-game engine 0x59f2c0 (3522 B map loop) is unported — the next big rock. Plan: docs/findings/in-game-intro.md)
+
+> **ckpt 49 — IN-GAME PHASE KICKOFF: retail golden of the opening map captured;
+> the in-game engine (`0x59f2c0`) is the next port.**  Per the ckpt-48 decision,
+> the user said: *"yes extend the trace.  start by just spamming Z after the
+> prologue begins, give the trace ~1 min of frames, then continue matching
+> retail."*  Done the FIRST half (establish the target); the in-game ENGINE is
+> unported (the next big rock).
+>
+> **HOW YOU GET IN-GAME:** the prologue cutscene `0x56cd20` exits on the **3rd
+> beat** (any fresh press); **Z = confirm id `0x24`** = a beat = the NORMAL exit
+> (`0x22` would *abort* to title).  On `PROLOGUE_DONE` retail calls
+> **`0x59ec30(0,0,0x3f2)`** → loads + runs the opening map.  Trace saved:
+> `tests/scenarios/in-game-intro/` (retail flips: Start@615 … prologue_enter@815,
+> Z beats @850/870/890, then Z every 20 flips).
+>
+> **RETAIL GOLDEN (runs/tas-ingame-1 — LOCAL ONLY, runs/ gitignored):** captured
+> under `--lockstep`.  Flips **900–1100 are black** (cutscene exit-fade + map
+> load); **the game renders from ~flip 1150** = the **opening TOWN of Tilelia**
+> (houses/NPCs/banner), and spamming Z advances into the **story DIALOGUE**
+> (portrait + textbox, ~flip 2200–2500).  6-frame montage pushed to llm-feed.
+>
+> **THE NEXT ROCK — `0x59f2c0` (3522 B), the map run loop.**  `0x59ec30` (531 B)
+> is just the scene LOAD/UNLOAD wrapper; `0x59f2c0(map,…)` is the in-game engine
+> (zeroes a ~0xeb1c-B stack frame of tile/entity arrays + a 0x4120 map object,
+> loads map 0x3f2, runs the per-frame update + render).  **Plan (full writeup:
+> `docs/findings/in-game-intro.md`):** (1) add a game-entry ANCHOR (retail
+> `0x59ec30`/`0x59f2c0` + port `enter_game`) so tas_diff aligns the in-game
+> frames; (2) wire the port seam (`PROLOGUE_DONE` → `enter_game` stub, instead of
+> re-display title); (3) port `0x59f2c0` in units vs the golden (town tilemap →
+> entities → dialogue box), smallest visible win first.  **No port code this
+> ckpt** — phase kickoff (golden + plan).  751 host tests still pass; ledger
+> 175/1490.  This is a clean **/clear point** before the in-game port begins.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 48 — the NEW-GAME→PROLOGUE FADE-OUT is ported: the cutscene-offset gap (open thread #1) is CLOSED — the port now spends retail's ~20 fade flips before 0x56cd20, so prologue_enter moved 801→821 (+20) and the cutscene FADE-IN diffs differ_px=0 at a constant offset, 63/64 dense gem frames bit-exact; the fade-out frames' RENDER (box-alpha arm) is the remaining sub-item)
 
 > **ckpt 48 — THE NEW-GAME→PROLOGUE FADE-OUT IS PORTED (cutscene-offset gap
 > CLOSED).**  Closed TAS open thread #1: the port skipped retail's post-config
@@ -873,15 +909,24 @@ only for the BGM cue / per-entry updates, port them when those subsystems land.
 > remain: the fade-out frames' RENDER (a known sub-item) and the user-decision on
 > extending the trace in-game (we now HAVE prologue + main-menu rendering).
 
-1. **★ DECISION POINT — ask the user whether to EXTEND THE TRACE in-game.**  The
-   active goal said "do NOT extend the trace toward in-game yet; once we have
-   prologue and main menu rendering we extend the trace."  We now HAVE both
-   (title bit-exact, new-game bit-exact, prologue content bit-exact + the
-   transition timing aligned).  So this is the moment the goal anticipated: ask
-   the user to confirm extending the trace past `PROLOGUE_DONE` into the game
-   proper (`0x59ec30`, map 0x3f2 — `0x59f2c0` map loop + resource load/unload),
-   the next big rock.  On PROLOGUE_DONE the port currently re-displays the title
-   (a logged seam).  **Needs human input before starting** (scope change).
+1. **★ (recommended — the user opted in @ ckpt 48) PORT THE IN-GAME ENGINE
+   `0x59f2c0` to match the golden.**  The trace is extended in-game and the
+   RETAIL golden is captured (`runs/tas-ingame-1`, opening town from ~flip 1150;
+   see `docs/findings/in-game-intro.md`).  Now port the in-game engine in units,
+   smallest visible win first, diffing each vs the golden:
+   - (a) **Add a game-entry ANCHOR** (retail `0x59ec30`/`0x59f2c0` entry + a
+     port-side `enter_game`) so `tas_diff` aligns the in-game frames — the
+     existing anchors stop at prologue_enter, and the cutscene exit-fade+load
+     makes the commit→first-game-frame offset variable, so a map-loop-entry
+     anchor is required.
+   - (b) **Wire the port seam:** route `PROLOGUE_DONE` to an `enter_game` stub
+     (logs `0x59ec30(0,0,0x3f2)`) instead of `leave_prologue_to_title`.
+   - (c) **Survey + port `0x59f2c0`** (3522 B): the map object init + the map
+     0x3f2 resource/bank load (likely needs the deferred `ar_register_*` batches
+     registered at boot, like the title banks at ckpt 26) + the per-frame update
+     + the in-game render dispatch (`0x5a00c0`).  Target the static town tilemap
+     first, then entities, then the dialogue box (portrait + textbox).
+   `0x59ec30` (531 B) is just the load/unload wrapper around `0x59f2c0`.
 
 2. **(deferred polish) The fade-out frames' RENDER — the box-alpha arm.**  The
    transition TIMING is aligned (ckpt 48) but the port re-renders the new-game
@@ -1116,18 +1161,21 @@ Flip 700 needs a generous `--frames`/timeout. `run-opensummoners.sh` rebuilds
 the debug exe with default flags — use the launcher directly if you need a
 `-DSINK_RESOLVE_DEBUG` build to survive.
 
-## Active goal (unchanged, user @ ckpt 13)
+## Active goal (UPDATED, user @ ckpt 48/49 — the trace is now extended in-game)
 
-**Make the PORT render the scenes the new-game trace covers — title menu +
-new-game menus + prologue (stone/narration) — to 1:1-match retail, using the
-harness goldens as the pixel target. Do NOT extend the trace toward in-game yet;
-"once we have prologue and main menu rendering we extend the trace."**
+**The title + new-game + prologue scenes are 1:1 (title bit-exact; new-game box/
+text/cursor/tooltip/picker bit-exact + user-confirmed; prologue content
+bit-exact 63/64 + the new-game→prologue transition timing aligned, ckpt 48).
+The ckpt-13 milestone is MET.**
 
-The title screen is now **bit-exact** end-to-end: menu + cursor (R1, ckpt 28),
-both intro logos + the sparkle subtitle-reveal sweep (ckpt 30), pacing (R3,
-ckpt 29), and the phase-7 particle twinkles (R4, ckpt 31, seed-pinned). **No
-known intro-content residual remains.** Next: drive the new-game menus (the
-`--input-trace` path) and confirm they render, then the prologue.
+**NEW directive (user @ ckpt 48): EXTEND THE TRACE IN-GAME.**  *"yes extend the
+trace.  start by just spamming Z after the prologue begins, give the trace ~1
+min of frames, then continue matching retail."*  Done the first half (ckpt 49):
+the trace spams Z (id 0x24, a prologue beat) → `0x59ec30(0,0,0x3f2)` → the
+opening town of Tilelia + story dialogue; RETAIL golden captured
+(`runs/tas-ingame-1`, game from ~flip 1150).  **Now: port the in-game engine
+`0x59f2c0` to 1:1-match that golden** — same port-and-diff loop, scene by scene.
+See `docs/findings/in-game-intro.md` + Next move #1.
 
 ## Open RE threads (see ROADMAP subsystem map for the rest)
 
