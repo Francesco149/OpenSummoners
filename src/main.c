@@ -66,6 +66,7 @@
 #include "newgame_cursor.h"   /* the menu selection cursor / gold vine (FUN_0048d940) */
 #include "glyph_wrap.h"       /* the tooltip text-node word-wrap (FUN_0040e5e0)  */
 #include "prologue_drive.h"   /* the Elemental-Stone intro cutscene (FUN_0056cd20) */
+#include "game_drive.h"       /* the in-game map run loop (0x59f2c0 seam)     */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -154,6 +155,14 @@ static int           g_newgame_active;
  * re-displays the title for now; on ABORT (id 0x22) it re-displays the title. */
 static prologue_drive g_prologue_drive;
 static int            g_prologue_active;
+
+/* The in-game map drive (0x59f2c0 seam).  Entered when the prologue cutscene
+ * completes (3rd beat → PROLOGUE_DONE → enter_game).  One main_loop_body
+ * iteration runs one game_drive_step.  The in-game engine is unported, so the
+ * drive renders the faithful black map-load frame (the engine + render dispatch
+ * 0x5a00c0 are the next port); see game_drive.h / docs/findings/in-game-intro.md. */
+static game_drive     g_game_drive;
+static int            g_game_active;
 
 /* The GDI HFONT slot the new-game config menu renders with: Courier New 7×18 =
  * ar_register_fonts slot 5 ({w=7,h=0x12,family=2}); the captured golden's
@@ -415,6 +424,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_prologue_active) {
         prologue_drive_shutdown(&g_prologue_drive);
         g_prologue_active = 0;
+    }
+    if (g_game_active) {
+        game_drive_shutdown(&g_game_drive);
+        g_game_active = 0;
     }
     if (g_newgame_active) {
         newgame_drive_shutdown(&g_newgame_drive);
@@ -1378,17 +1391,35 @@ static void leave_prologue_to_title(const char *why)
     reenter_title();
 }
 
+/* The in-game frame render (game_drive cfg.render).  Today: clear the primary to
+ * black — the faithful map-load frame retail shows from game_enter (flip ~1092)
+ * until the town first renders (~flip 1150) while 0x59f2c0 allocates the
+ * world + loads map 0x3f2 and the entry fade runs (golden runs/tas-ingame-1:
+ * flips 900-1100 black).  When the render dispatch 0x5a00c0 is ported this
+ * grows into the town tilemap/entity/UI walk (it reuses the already-ported
+ * ar_sprite_decode/zdd/ramps). */
+static void game_render(void *user)
+{
+    (void)user;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+    zdd_object_clear(g_zdd->primary_obj);    /* black map-load frame */
+}
+
 /* The in-game seam.  On the prologue's 3rd beat (PROLOGUE_DONE) retail's boot
  * driver calls 0x59ec30(0,0,0x3f2) — the scene LOAD/UNLOAD wrapper around the
- * in-game engine FUN_0059f2c0(map=0x3f2,…), which loads + runs the opening map
+ * in-game engine 0x59f2c0(map=0x3f2,…), which loads + runs the opening map
  * (the town of Tilelia → intro story dialogue; retail golden runs/tas-ingame-1,
  * renders from ~flip 1150).  The engine is unported (milestone 2: 0x59f2c0 is
  * 3522 B of setup around the per-frame update 0x586010 (6 KB) + render dispatch
- * 0x5a00c0 (13.7 KB)).  This stub emits the game_enter TAS anchor — matching the
- * retail-side 0x59f2c0 anchor so tas_diff can align the in-game frames once they
- * render — logs the seam, then re-displays the title (like the other unported
- * sub-scene stubs).  When 0x59f2c0 is ported this body becomes a real game_drive
- * init/step loop.  Full plan: docs/findings/in-game-intro.md. */
+ * 0x5a00c0 (13.7 KB)).  enter_game emits the game_enter TAS anchor — matching
+ * the retail-side 0x59f2c0 anchor so tas_diff aligns the in-game frames — and
+ * stands up a game_drive (mirror of prologue_drive): one game_drive_step per
+ * presented frame renders the faithful black map-load frame + presents, so the
+ * early in-game frames now match retail's black entry window (the prior stub
+ * wrongly re-displayed the title).  When 0x5a00c0 is ported, game_render
+ * grows into the town render walk and game_drive_step returns GAME_EXIT on the
+ * engine's scene-transition codes.  Full plan: docs/findings/in-game-intro.md. */
 static void enter_game(void)
 {
     if (g_prologue_active) {
@@ -1396,9 +1427,18 @@ static void enter_game(void)
         g_prologue_active = 0;
     }
     emit_anchor("game_enter");
-    log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map (in-game engine "
-             "0x59f2c0 unported) — re-displaying title");
-    reenter_title();
+
+    game_drive_cfg cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.render  = game_render;
+    cfg.present = drive_present;   /* same present thunk: captures + bumps Flip */
+    cfg.user    = &g_game_drive;
+    game_drive_init(&g_game_drive, &cfg);
+    g_game_active = 1;
+
+    log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 (in-game "
+             "engine 0x59f2c0 unported) — game_drive up, rendering black "
+             "map-load frame (town render 0x5a00c0 is the next port)");
 }
 
 /* Retail's "Start Game" commit, on the way from the new-game config scene to
@@ -1581,6 +1621,17 @@ static void main_loop_body(void)
             enter_game();   /* 3rd beat → 0x59ec30(0,0,0x3f2) in-game seam */
         else if (st == PROLOGUE_ABORT)
             leave_prologue_to_title("aborted (id 0x22)");
+    } else if (g_game_active) {
+        /* The in-game map drive (0x59f2c0 seam): one game_drive_step per
+         * presented frame.  The engine is unported, so this renders the faithful
+         * black map-load frame + presents (matching retail's black entry window).
+         * Inject any due replay input so the trace's in-game Z presses land in
+         * the drive's ring for when the engine (input-driven) is ported. */
+        uint32_t now = GetTickCount();
+        if (g_input_trace_active)
+            input_trace_replay(&g_input_trace, g_present_frame,
+                               &g_game_drive.input, now);
+        (void)game_drive_step(&g_game_drive, now);   /* GAME_RUNNING until ported */
     } else if (g_newgame_active) {
         /* The new-game config scene: one newgame_drive_step per presented frame
          * (no pace machine — frame_limiter gates the rate).  Inject any due

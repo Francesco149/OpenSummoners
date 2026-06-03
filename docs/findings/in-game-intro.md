@@ -4,14 +4,15 @@ Milestone 2 (the game proper).  The user opted to **extend the trace in-game**
 (ckpt 48): spam Z after the prologue begins, capture ~1 min of retail frames,
 then port to match.  This doc is the living plan + engine survey.
 
-**Status (ckpt 51):** the foundational plumbing is in place — the **game-entry
-anchor** (both sides), the **port seam** (`PROLOGUE_DONE → enter_game`), and now
-**plan 3a is RESOLVED**: the town's resource banks are identified (live res-probe)
-and the deferred boot batches (g2/g3/g5) are wired + regression-verified (see
-"Resource banks (plan 3a)" below).  The in-game **engine** (`0x59f2c0` + its two
-giant children) is surveyed but **unported** — that is the body of milestone 2
-(plan 3b: stand up `game_drive`, register the EXE-NULL banks, port a slice of
-`0x5a00c0` for the static town backdrop, diff vs `runs/tas-ingame-1`).
+**Status (ckpt 52):** the foundational plumbing is in place — the **game-entry
+anchor** (both sides), the **port seam** (`PROLOGUE_DONE → enter_game`), **plan 3a
+RESOLVED** (the town's resource banks identified + the boot batches g2/g3/g5 wired),
+and now the **`game_drive` scaffold is stood up** (plan 3b's first bullet — see
+"game_drive scaffold (plan 3b)" below).  The in-game **engine** (`0x59f2c0` + its
+two giant children `0x586010`/`0x5a00c0`) is surveyed but **unported** — that is
+the remaining body of milestone 2 (plan 3b: port a slice of `0x5a00c0` for the
+static town backdrop into `game_render`, register the EXE-NULL banks at the
+engine-time site, diff vs `runs/tas-ingame-1`).
 
 ## How you reach it (the Z-spam exit)
 
@@ -71,6 +72,34 @@ unported)`), and — since the engine is unported — re-displays the title (lik
 the other unported sub-scene stubs: DEMO_START etc.).  **The ABORT path (id
 0x22) still goes to `leave_prologue_to_title`.**  When `0x59f2c0` is ported,
 `enter_game`'s body becomes a real `game_drive` init/step loop.
+
+## game_drive scaffold (plan 3b, DONE ckpt 52)
+
+`enter_game` no longer re-displays the title — it stands up a **`game_drive`**
+(`src/game_drive.{c,h}`), the milestone-2 counterpart of `prologue_drive`: it
+owns the in-game input ring, and `main_loop_body` runs one `game_drive_step` per
+presented frame.  The in-game engine is unported, so a step has **no sim/render
+model behind it yet** — its render callback (`game_render` in `main.c`) clears
+the primary to **black**, the faithful map-load frame retail shows from
+`game_enter` (flip ~1092) until the town first renders (~flip 1150) while
+`0x59f2c0` allocates the world + loads map 0x3f2 and the entry fade runs (golden:
+flips 900-1100 black).  Presenting black here is correct and replaces the prior
+stub's wrong title re-display.
+
+**Verified live** (`trace-port.jsonl`, `--frames 1300`): `game_enter@1116`
+rng `0x40d00581` (matches retail `game_enter@1092`); the port then runs the
+`game_drive` to frame 1300 without re-displaying the title.  Captures: frame 400
+(title, phase 6) = full content (title unaffected); frames 1160/1200 (in-game,
+`phase=-1`) = **fully black** (extrema 0, nonblack=0) → the early in-game frames
+now match retail's black entry window.  3 host tests (`test_game_drive.c`),
+753 pass.
+
+`game_status` reserves **`GAME_EXIT`** for the ported engine's scene-transition
+codes (`0x59f2c0` return 4/5 → `0x59ec30` map reload 0x2724/0x272e); for now a
+step always stays `GAME_RUNNING`.  When `0x5a00c0` is ported, `game_render` grows
+from the clear-to-black into the real town render walk (it reuses the already-
+ported `ar_sprite_decode`/zdd/ramps), and a `game_world`/`game_scene` model joins
+`input` in the drive.
 
 ## Entry-function map (the milestone-2 units)
 
@@ -164,10 +193,14 @@ the map, runs the per-room loop.**  Decomposition:
      path.  Wired the deferred boot batches (`ar_register_palette_ramps` g2 /
      `ar_register_group3_sprites` g3 / `ar_register_game_sprites` g5) into
      `init_sprite_banks`; verified the title still renders `differ_px=0`.
-   - **(b) The static town backdrop/tilemap render.**  Stand up a `game_drive`
-     (mirror `prologue_drive`): hold the map object + scene, step once/frame,
-     render via a ported slice of `0x5a00c0`, present.  Target the static
-     tilemap + backdrop FIRST (flip ~1150 golden), diff vs `runs/tas-ingame-1`.
+   - **(b) The static town backdrop/tilemap render.**  ~~Stand up a `game_drive`
+     (mirror `prologue_drive`)~~ **DONE (ckpt 52)** — `src/game_drive.{c,h}`,
+     wired into `enter_game`/`main_loop_body`, renders the black map-load frame.
+     REMAINING: port a slice of `0x5a00c0` into `game_render` (it needs the world
+     populated by `0x59f2c0` setup + the `0x586010` sim step first — the map
+     object 0x4120, the 0x5400c/0x7808 world buffers, the `&DAT_006940c8`
+     registry).  Target the static tilemap + backdrop FIRST (flip ~1150 golden),
+     diff vs `runs/tas-ingame-1`.
    - **(c) Entities/NPCs**, then **(d) the dialogue box** (portrait + textbox,
      ~flip 2200 — likely the glyph pipeline again).
 4. **Diff** each ported piece vs `runs/tas-ingame-1` at the matching tick
@@ -218,9 +251,26 @@ prologue → Z-spam → in-game town under `--lockstep`
   `locale_sounds[]` rows with the same numeric ids are a different
   resource-type namespace, not these sprites).  Retail registers them with
   `settings=NULL`, most likely **at engine time** (the map's local tileset/actor
-  banks) — a `game_drive`/engine registration unit, deferred to plan 3b.  When
-  standing up the render, register these EXE banks with `settings=NULL` (or the
-  process module handle) so `FindResourceA(NULL,…)` hits the EXE.
+  banks) — a `game_drive`/engine registration unit, deferred to plan 3b.
+  - **Confirmed present (ckpt 52):** `sotes.unpacked.exe`'s `.rsrc` holds
+    `type=DATA` ids `0x56e…0x577` (and 387 DATA entries total), so retail's
+    `FindResourceA(NULL, MAKEINTRESOURCE(0x570), "DATA")` hits the EXE itself.
+    (Tool: `tools/extract/sotes_resources.py vendor/unpacked/sotes.unpacked.exe`.)
+  - **Port resource source (NOT settings=NULL).**  The port ships as its own
+    `opensummoners.exe`, so `FindResourceA(NULL,…)` would search the PORT's
+    `.rsrc` (which lacks these) — `settings=NULL` is wrong for the port.  The
+    port must instead `LoadLibraryExA("sotes.exe", NULL, LOAD_LIBRARY_AS_DATAFILE)`
+    (the original EXE is still in the game-dir CWD; Steamless leaves `.rsrc`
+    readable) and pass THAT handle as `settings` — the same pattern as the
+    `LoadLibraryA("sotesd.dll")` → `g_sotesd` the title banks use.
+  - **Why this can't be wired yet (the coupling).**  Registration needs the
+    **pool slot indices** these banks occupy, and those are set by the
+    engine-time registration site inside the unported `0x586010`/`0x5a00c0` (the
+    res-probe captured the `(module,id,type)` load, not the destination slot).
+    Registering them into guessed slots would be unverifiable until the render
+    walks them.  So this stays bundled with the `0x5a00c0` port: when that slice
+    lands and reveals the slot indices, add a boot/engine registration of
+    `0x570-0x572` with `settings=` a `g_sotes_exe` datafile handle.
 
 ## Open questions for the port
 

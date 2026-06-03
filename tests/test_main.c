@@ -781,6 +781,9 @@ struct test_case {
     X(prologue_drive_runs_and_renders)                         \
     X(prologue_drive_abort)                                    \
     X(prologue_drive_completes)                                \
+    X(game_drive_init)                                         \
+    X(game_drive_runs_and_renders)                             \
+    X(game_drive_headless)                                     \
 
 #define X(n) extern int test_##n(void);
 TESTS
