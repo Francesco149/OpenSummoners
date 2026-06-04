@@ -6,6 +6,57 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-04 (ckpt 59) — FUN_00587e00 per-tile-id placement dispatch ported + host-tested
+
+Ported the **arms** of `FUN_00587e00` — the per-cell recipes that decide which
+`map_grid_*` write-primitive calls to make for each town tile id, on top of the
+ckpt-58 render-grid primitives.  Ground truth first: extended
+`tools/extract/map_data.py --cells` with a `(tile id, shape) → count` cross-tab,
+which proves the opening town (DATA 1022) exercises **exactly 9 tile ids**
+(`0x1b58b`/`8c`/`8d`/`8f`, `0x1b5a0`/`a9`/`aa`/`ab`, `0x29ff4`) across a handful
+of shapes — and that all nine arms are pure compositions of the already-ported
+primitives (none touch an engine global directly).  Every other id in the 18 KB
+dispatch (the `0x1bd82` autotile pre-pass, the HUD/border families, the
+decoration switches) is dead code for this map.
+
+New pure, host-tested **`src/map_decode.{c,h}`**: `map_decode_cell` runs one
+cell's arm (faithful argument-for-argument transcription of the `587e00.c`
+`FUN_0058ca80`/`FUN_0058c910` calls + the shared `LAB_0058c3b9` base tile), and
+`map_decode` is the loop body — dim header + region-C pre-clear + z-major
+dispatch + the per-cell region-E co-id zero (`587e00.c:3175`).  The two
+`0x1b58d` blend pointers (`&DAT_005cc4xx`) are preserved as their retail VAs.
+10 new host tests assert the exact region bytes each arm deposits → **788 pass /
+0 fail / 6 skip**.  Integration smoke test: decoding the real 88×19×3 map (160
+populated cells) hits **0 unhandled ids** and runs ASan-clean.  Both GUI builds
+compile clean (`map_decode.c` in the `src` wildcard, not yet called by `main.c`).
+Ledger holds at **187/1490 touched / 182 tested** (`0x587e00` was already
+name-counted as touched+tested via `map_data.c` since ckpt 56; this is the
+genuine dispatch behind that line).  Deferred: the prologue (front-header flags +
+HUD/border bank selection + `0x1bd82` autotile) and the trailing layer pass
+(`0x58c8c0`/`0x58c8d0`/`0x58cb30`).  Full writeup:
+`docs/findings/in-game-intro.md` "The per-tile-id placement dispatch".  NEXT: a
+slice of `0x5a00c0` to *read* the decoded grid and blit the town backdrop, diff
+vs `runs/tas-ingame-1`.
+
+---
+
+## 2026-06-04 (ckpt 58) — runtime render-grid + its 3 write primitives ported + host-tested
+
+Decoded `FUN_00587e00`'s `in_ECX` as the **runtime render grid** — a ≳2.9 MB
+flat engine buffer (the *placed* form of the map that `0x5a00c0` blits, distinct
+from the parsed `map_data`), addressed with a fixed row pitch `0x80`
+(`idx = p1*0x80 + p2`).  Layout: a front header + four parallel per-cell regions
+(A @0x30 = 4 sub-slots×0x10, B @0x140030, C @0x195030, D @0x2c1040) + a dim
+header @0x2c1030.  Ported the three small pure write helpers the 18 KB dispatch
+calls into `src/map_grid.{c,h}`: `FUN_0054c970`→`map_grid_clear_cell` (region C),
+`FUN_0058ca80`→`map_grid_emit_obj` (regions B+D), `FUN_0058c910`→
+`map_grid_emit_tile` (region A; bank-derived footprint via a `mg_bank_dims_fn`
+callback to stay pure), plus `map_grid_set_dims` for the dim header.  6 host
+tests (exact-byte assertions) → 778 pass.  Ledger 187/1490 touched / 182 tested
+(+3).  Full writeup: `docs/findings/in-game-intro.md` "The runtime render grid".
+
+---
+
 ## 2026-06-04 (ckpt 57) — map cell-record semantics decoded; pure cell accessors ported; FUN_00587e00 surveyed (18 KB rock, not 3 KB)
 
 Opened the next unit, **`FUN_00587e00`** (the map-data → world decoder the handoff

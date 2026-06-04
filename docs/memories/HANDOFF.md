@@ -1,4 +1,56 @@
-# Session handoff — last updated 2026-06-04 (ckpt 58 — RUNTIME RENDER-GRID + its 3 WRITE PRIMITIVES PORTED + host-tested.  Continued into the `FUN_00587e00` rock (the 18 KB map-data→world decoder) following the ckpt-57 discipline: decode the structure it writes + port the small pure units, defer the 18 KB dispatch.  RE: `FUN_00587e00`'s `in_ECX` is the **runtime RENDER grid** — a ≳2.9 MB flat engine buffer (distinct from the parsed `map_data`; it is the *placed* form `0x5a00c0` later blits), addressed with a **fixed row pitch 0x80**: `idx=p1*0x80+p2` (NOT map_data's z-major).  Decoded its layout from the decomp: a front header (`in_ECX[0..0x16]`) + **4 parallel per-cell regions** + a dim header — region A @byte 0x30 (0x40/cell = 4 sub-slots×0x10: +0 u16 bank,+2 u16,+4 u16 flag,+8 i32 dx,+c i32 dy), region B @0x140030 (0x10/cell), region C @0x195030 (0xc/cell), dim header @0x2c1030 (dim0/dim1/dim0·0xc80/dim1·0xc80), region D @0x2c1040 (2/cell).  PORT (pure, host-tested) `src/map_grid.{c,h}`: **`FUN_0054c970`**→`map_grid_clear_cell` (region C, pixel-dim guard), **`FUN_0058ca80`**→`map_grid_emit_obj` (fills a p3×p4 block into B+D), **`FUN_0058c910`**→`map_grid_emit_tile` (places a sprite-bank tile in a region-A sub-slot; footprint = explicit span OR derived from the bank's pixel size pool[bank]+0x20/+0x24 rounded to 32-px tiles, clamped; bank pool `&DAT_008a760c` is an engine global → ported via a `mg_bank_dims_fn` callback to stay pure) + `map_grid_set_dims` (the prologue's 4 dim writes).  6 new host tests assert the exact bytes each primitive deposits → **778 pass / 0 fail / 6 skip**.  Ledger **187/1490 touched / 182 tested** (+3: 54c970/58ca80/58c910).  Both GUI builds clean; `map_grid.c` is in the src wildcard, not yet called by main.c.  Full writeup: `docs/findings/in-game-intro.md` "The runtime render grid + its write primitives".  NEXT: the per-tile-id placement ARMS in `FUN_00587e00` (the recipes that decide WHICH primitive calls to make per town tile id — ~9 ids in the `0x1b58b` family + `0x29ff4`, keyed on the cell shape selector), then the `0x5a00c0` read/blit slice, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
+# Session handoff — last updated 2026-06-04 (ckpt 59 — FUN_00587e00 PER-TILE-ID PLACEMENT DISPATCH PORTED + host-tested.  Ported the *arms* of `FUN_00587e00` (the per-cell recipes choosing which `map_grid_*` write-primitive calls to make per town tile id) on top of the ckpt-58 render-grid primitives.  GROUND TRUTH FIRST: extended `tools/extract/map_data.py --cells` with a `(tile id, shape)→count` cross-tab → the opening town (DATA 1022) exercises **exactly 9 tile ids** — `0x1b58b`/`8c` (obj block + base tile bank 0x62), `0x1b58d` (6-call blend cluster + base 0x63), `0x1b58f`+`0x29ff4` (optional fg tile bank 0x17a, frame=shape, + base 0x176/0x177; slot/flag from z), `0x1b5a0`/`a9`/`aa` (single base tile bank 0x17b/0x172/0x173), `0x1b5ab` (tile 0x174 + 2×9 obj block, NO base) — across shapes {0,2,10,11,12,14,15}.  ALL NINE ARMS are pure compositions of the already-ported primitives (none touch an engine global directly), which is why the town backdrop is tractable ahead of the engine-coupled rest of the 18 KB rock; every OTHER id (the 0x1bd82 autotile pre-pass, the HUD/border families, the 0x1d8ab/0x1ffbc decoration switches) is DEAD CODE for this map.  PORT (pure, host-tested) `src/map_decode.{c,h}`: **`map_decode_cell`** runs one cell's arm (faithful arg-for-arg transcription of the `587e00.c` `FUN_0058ca80`/`FUN_0058c910` calls + the shared `LAB_0058c3b9` base emit_tile; emit_tile drops decomp params 7/8 — see map_grid.c), **`map_decode`** is the loop body (dim header via map_grid_set_dims + region-C pre-clear over dim0×dim1 + z-major per-cell dispatch + the per-cell region-E "co-id" zero @byte 0x1d1030 stride 0x30, 587e00.c:3175).  The two `0x1b58d` blend pointers `&DAT_005cc410`/`&DAT_005cc430` are written verbatim as their retail VAs (`MD_BLEND_*`) into region B +0x8 (render port translates later).  10 new host tests (exact region-byte assertions per arm) → **788 pass / 0 fail / 6 skip**.  INTEGRATION SMOKE: decoding the real 88×19×3 DATA 1022 (160 populated cells) hits **0 unhandled ids** + runs ASan-clean → the 9-id port is complete for the town.  Ledger holds **187/1490 touched / 182 tested** (0x587e00 was already name-counted as touched+tested via map_data.c since ckpt 56; this ckpt is the genuine dispatch behind that line).  Both GUI builds clean; `map_decode.c` in the src wildcard, NOT yet called by main.c.  DEFERRED (engine-coupled body of the rock): the prologue (front-header flags + HUD/border bank selection over DAT_008a76xx + 0x1bd82 autotile) and the trailing layer pass (587e00.c:3185-3204, the 0x58c8c0/0x58c8d0/0x58cb30 helpers over 0x15f9a/0x15f9b entries).  Full writeup: `docs/findings/in-game-intro.md` "The per-tile-id placement dispatch".  NEXT: a slice of `0x5a00c0` to READ the decoded grid and blit the town backdrop, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
+
+> **ckpt 59 — THE `FUN_00587e00` PER-TILE-ID PLACEMENT DISPATCH IS PORTED +
+> HOST-TESTED.**  The *arms* on top of the ckpt-58 render-grid primitives: the
+> per-cell recipes that decide WHAT each town tile id paints into the grid.
+>
+> **GROUND TRUTH FIRST.**  Extended `tools/extract/map_data.py --cells` with a
+> `(tile id, shape) → count` cross-tab.  DATA 1022 (the opening town) exercises
+> **exactly 9 tile ids**, all pure compositions of the ported `map_grid`
+> primitives (none touch an engine global):
+> - `0x1b58b`/`0x1b58c` (shapes 0,2): a shape-sized obj block + base tile (bank
+>   `0x62`, slot 3).
+> - `0x1b58d` (shape 2): a 6-call obj cluster (2 carry the `&DAT_005cc430` blend
+>   ptr in region B +0x8, region D=2) + base tile (bank `0x63`).
+> - `0x1b58f` / `0x29ff4` (shapes 0,10-15): optional fg tile (bank `0x17a`,
+>   frame = shape) + base tile (bank `0x176`/`0x177`); slot/flag from `z`.
+> - `0x1b5a0`/`0x1b5a9`/`0x1b5aa` (shape 0): one base tile (bank
+>   `0x17b`/`0x172`/`0x173`).
+> - `0x1b5ab` (shape 0): a tile (bank `0x174`, flag `0x14`) + a 2×9 obj block, NO
+>   base tile.
+> Every OTHER id (`0x1bd82` autotile pre-pass, HUD/border families, decoration
+> switches) is DEAD CODE for this map.
+>
+> **PORT (pure, host-tested) `src/map_decode.{c,h}`:**
+> - `map_decode_cell(m,grid,x,y,z,dims,ctx)` — reads the cell record + runs its
+>   arm (no-op for empty/unhandled, matching retail's `caseD_271d` fall-through).
+>   Each arm is a faithful arg-for-arg transcription of the `587e00.c`
+>   `FUN_0058ca80`/`FUN_0058c910` calls (`map_grid_emit_obj`/`_emit_tile`; the
+>   shared tail `LAB_0058c3b9` is the base emit_tile).
+> - `map_decode(m,grid,dims,ctx)` — the loop body (`587e00.c:572-3183` minus the
+>   deferred prologue/layer pass): dim header + region-C pre-clear over dim0×dim1
+>   + z-major dispatch + per-cell region-E "co-id" zero (`587e00.c:3175`, a 5th
+>   per-cell region @byte 0x1d1030 stride 0x30).
+> - The `0x1b58d` blend ptrs are preserved as retail VAs (`MD_BLEND_*`).
+>
+> **STATE:** 10 host tests (`tests/test_map_decode.c`, exact region-byte
+> assertions per arm) → **788 pass / 0 fail / 6 skip** (+10).  Integration smoke
+> test: decoding the real 88×19×3 DATA 1022 (160 populated cells) hits **0
+> unhandled ids** + runs ASan-clean.  Ledger holds **187/1490 touched / 182
+> tested** (0x587e00 already name-counted via map_data.c since ckpt 56).  Both GUI
+> builds compile clean; `map_decode.c` in the `src` wildcard, not yet called by
+> `main.c` — it is the decode foundation the `0x5a00c0` read/blit slice drives.
+> **DEFERRED** (engine-coupled body): the prologue (front-header flags +
+> HUD/border bank selection + `0x1bd82` autotile) + the trailing layer pass
+> (`0x58c8c0`/`0x58c8d0`/`0x58cb30`).  Full writeup:
+> `docs/findings/in-game-intro.md` "The per-tile-id placement dispatch".
+> **NEXT:** port a slice of **`0x5a00c0`** to READ the decoded runtime grid and
+> blit the town backdrop, diff vs `runs/tas-ingame-1` anchored on `game_enter`.
+> Clean **/clear point**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 58 — RUNTIME RENDER-GRID + its 3 WRITE PRIMITIVES PORTED + host-tested.  Continued into the `FUN_00587e00` rock (the 18 KB map-data→world decoder) following the ckpt-57 discipline: decode the structure it writes + port the small pure units, defer the 18 KB dispatch.  RE: `FUN_00587e00`'s `in_ECX` is the **runtime RENDER grid** — a ≳2.9 MB flat engine buffer (distinct from the parsed `map_data`; it is the *placed* form `0x5a00c0` later blits), addressed with a **fixed row pitch 0x80**: `idx=p1*0x80+p2` (NOT map_data's z-major).  Decoded its layout from the decomp: a front header (`in_ECX[0..0x16]`) + **4 parallel per-cell regions** + a dim header — region A @byte 0x30 (0x40/cell = 4 sub-slots×0x10: +0 u16 bank,+2 u16,+4 u16 flag,+8 i32 dx,+c i32 dy), region B @0x140030 (0x10/cell), region C @0x195030 (0xc/cell), dim header @0x2c1030 (dim0/dim1/dim0·0xc80/dim1·0xc80), region D @0x2c1040 (2/cell).  PORT (pure, host-tested) `src/map_grid.{c,h}`: **`FUN_0054c970`**→`map_grid_clear_cell` (region C, pixel-dim guard), **`FUN_0058ca80`**→`map_grid_emit_obj` (fills a p3×p4 block into B+D), **`FUN_0058c910`**→`map_grid_emit_tile` (places a sprite-bank tile in a region-A sub-slot; footprint = explicit span OR derived from the bank's pixel size pool[bank]+0x20/+0x24 rounded to 32-px tiles, clamped; bank pool `&DAT_008a760c` is an engine global → ported via a `mg_bank_dims_fn` callback to stay pure) + `map_grid_set_dims` (the prologue's 4 dim writes).  6 new host tests assert the exact bytes each primitive deposits → **778 pass / 0 fail / 6 skip**.  Ledger **187/1490 touched / 182 tested** (+3: 54c970/58ca80/58c910).  Both GUI builds clean; `map_grid.c` is in the src wildcard, not yet called by main.c.  Full writeup: `docs/findings/in-game-intro.md` "The runtime render grid + its write primitives".  NEXT: the per-tile-id placement ARMS in `FUN_00587e00` (the recipes that decide WHICH primitive calls to make per town tile id — ~9 ids in the `0x1b58b` family + `0x29ff4`, keyed on the cell shape selector), then the `0x5a00c0` read/blit slice, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
 
 > **ckpt 58 — THE RUNTIME RENDER GRID + ITS 3 WRITE PRIMITIVES ARE PORTED +
 > HOST-TESTED.**  Another faithful slice of the `0x587e00` rock: decode the

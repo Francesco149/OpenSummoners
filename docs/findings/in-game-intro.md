@@ -629,6 +629,69 @@ primitives are the *write* side; the per-tile-id arms that decide *what* to emit
 for each town tile id, and the `0x5a00c0` *read* side that blits the grid, are
 the remaining units.
 
+### The per-tile-id placement dispatch (ckpt 59)
+
+`FUN_00587e00`'s body (`587e00.c:572-3183`, past the deferred prologue) is one
+big loop over every cell that, keyed on the cell's **tile id (+0x04)** and
+**shape selector (+0x10)**, issues a recipe of `map_grid_*` write-primitive
+calls — the *arms* that decide **what** each cell paints into the runtime grid.
+The dispatch is a hand-written binary search over thousands of tile ids; almost
+all of it is dead code for any one map.
+
+**Ground truth — DATA 1022 exercises exactly 9 tile ids** (`map_data.py --cells`
+now prints the `(id, shape) → count` cross-tab):
+
+| id        | shapes (count)                       | recipe (587e00.c arm)                                   |
+|-----------|--------------------------------------|---------------------------------------------------------|
+| `0x1b58b` | 0 (×45), 2 (×33)                     | shape-sized obj block + base tile (bank `0x62`, slot 3) |
+| `0x1b58c` | 0 (×10), 2 (×9)                      | same arm as `0x1b58b`                                    |
+| `0x1b58d` | 2 (×1)                               | 6-call obj cluster (2 carry the `&DAT_005cc430` blend ptr in region B +0x8, region D = 2) + base tile (bank `0x63`) |
+| `0x1b58f` | 0 (×21),10,11,12,15                  | optional fg tile (bank `0x17a`, frame = shape) + base (bank `0x176`); slot/flag from `z` |
+| `0x29ff4` | 0 (×15), 14 (×6)                     | same as `0x1b58f` but base bank `0x177`                 |
+| `0x1b5a0` | 0 (×4)                               | one base tile (bank `0x17b`, slot 2, flag `0xa`)        |
+| `0x1b5a9` | 0 (×2)                               | one base tile (bank `0x172`, slot 1)                    |
+| `0x1b5aa` | 0 (×1)                               | one base tile (bank `0x173`, `z`-dependent slot/flag)   |
+| `0x1b5ab` | 0 (×1)                               | a tile (bank `0x174`, flag `0x14`) + a 2×9 obj block; **no** base tile |
+
+Every other id (the `0x1bd82` autotile pre-pass, the HUD/border families that
+read the `DAT_008a76xx`/`DAT_008a7bfc` bank pool inline, the `0x1d8ab`/`0x1ffbc`
+decoration switches) is **dead code for the town** and is not ported.  All nine
+town arms are pure compositions of the already-ported `map_grid` primitives —
+*none* of them touch an engine global directly, which is exactly why the town
+backdrop is tractable ahead of the engine-coupled rest of the rock.
+
+**PORT (pure, host-tested): `src/map_decode.{c,h}`.**
+- `map_decode_cell(m, grid, x, y, z, dims, ctx)` — reads the cell record and
+  runs its arm (no-op for an empty/unhandled cell, matching the retail
+  fall-through to `switchD_005887cc_caseD_271d`).
+- `map_decode(m, grid, dims, ctx)` — the loop body: the four dim-header writes
+  (via `map_grid_set_dims`), the region-C pre-clear over `dim0×dim1`
+  (`587e00.c:572-584`), then the z-major per-cell dispatch + the per-cell
+  region-E "co-id" zero (`587e00.c:3175`, a 5th per-cell region @ byte
+  `0x1d1030`, stride `0x30`).
+- The two `0x1b58d` blend pointers (`&DAT_005cc410`/`&DAT_005cc430`, engine
+  .rdata blend descriptors) are written verbatim as their retail VAs
+  (`MD_BLEND_*`) into region B +0x8 — the render port translates them later.
+
+**Faithfulness mapping.**  `FUN_0058ca80`/`FUN_0058c910` calls transcribe
+argument-for-argument to `map_grid_emit_obj`/`map_grid_emit_tile` (emit_tile
+drops the two unused decomp params 7/8 — see `map_grid.c`); the shared tail
+`LAB_0058c3b9` is the final base `emit_tile`, `LAB_0058c3b4` just zeroes the
+span before it.
+
+**STATE.** 10 host tests (`tests/test_map_decode.c`, exact-byte assertions per
+arm) → **788 pass / 0 fail / 6 skip**.  Integration smoke-test: decoding the
+real 88×19×3 DATA 1022 (160 populated cells) hits **0 unhandled ids** and runs
+ASan-clean — the 9-id port is complete for the town.  The auto-ledger holds at
+**187/1490 touched / 182 tested** (0x587e00 was already name-counted as
+touched+tested via `map_data.c`'s references since ckpt 56; this checkpoint is
+the genuine dispatch port behind that line).  Deferred (the engine-coupled body
+of the rock): the prologue's front-header flags + HUD/border bank selection, the
+`0x1bd82` autotile pre-pass, and the trailing layer pass (`587e00.c:3185-3204`,
+the `0x58c8c0`/`0x58c8d0`/`0x58cb30` helpers over `0x15f9a`/`0x15f9b` entries).
+`map_decode.c` is in the `src` wildcard but not yet called by `main.c` — it is
+the decode foundation the `0x5a00c0` read/blit slice will drive.
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
