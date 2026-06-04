@@ -819,6 +819,14 @@ struct test_case {
     X(map_decode_1b5ab)                                        \
     X(map_decode_full_small)                                   \
     X(map_decode_empty_cell_noop)                              \
+    X(map_render_window_basic)                                 \
+    X(map_render_window_clamps_origin)                         \
+    X(map_render_window_no_cap_when_near_edge)                 \
+    X(map_render_window_row_sum_components)                    \
+    X(map_render_grid_index)                                   \
+    X(map_render_tile_basic)                                   \
+    X(map_render_tile_empty_cell)                              \
+    X(map_render_tile_footprint_suboffset)                     \
 
 #define X(n) extern int test_##n(void);
 TESTS
