@@ -491,15 +491,93 @@ trustworthy.
   the bundled data; inert on a well-formed map).  4 host tests
   (`tests/test_map_data.c`, synthetic blobs) → **770 pass / 0 fail / 6 skip**.
 - The `0x1c`-byte cell record + the four layer sub-array element layouts are
-  decoded by the (still unported) **`FUN_00587e00`** (3282 B, the next unit);
-  this parser preserves their raw bytes for it.
+  decoded by the (still unported) **`FUN_00587e00`**; this parser preserves their
+  raw bytes for it.
 
-**NEXT after this:** port `FUN_00587e00` (the map-data → world decode, reading
-this parsed structure) and the matching slice of `0x5a00c0` to render the town
-backdrop, diff vs `runs/tas-ingame-1`.  Note `0x586010`/`0x5a00c0` are each a
-multi-checkpoint rock (the full engine sim + a self-contained scripted-scene
-render loop with its own pace machine); `FUN_00587e00` is the natural next
-data-layer unit on the same pattern as this one.
+### The map-descriptor object (what `FUN_00587970` builds, ckpt 57)
+
+`FUN_00587970`'s `in_ECX` (== `FUN_00587e00`'s `param_1`) is the map descriptor
+the engine re-uses across room loads.  The 0x34-byte maphdr is read *into the
+object's first 0x34 bytes*, so the object layout is:
+
+| off    | field                                                              |
+|--------|--------------------------------------------------------------------|
+| +0x00  | char[0x20] name (== maphdr name)                                   |
+| +0x20  | dim0 (width / cols, 88)                                            |
+| +0x24  | dim1 (height / rows, 19)                                           |
+| +0x28  | dim2 (planes / z, 3)                                               |
+| +0x2c  | layer count (86)                                                   |
+| +0x34  | → cell array (`dim0*dim1*dim2` × 0x1c, `operator_new`)             |
+| +0x38  | → layer-header array (count × 0x3c)                               |
+| +0x3c  | → layer sub-pointer table (count × 0x10 = 4 ptrs {a,b,c,d}/layer)  |
+
+The prologue frees a previously-parsed map (`+0x34/+0x38/+0x3c` and, per layer,
+the four sub-arrays) before re-parsing — the `map_data_free` then `map_data_parse`
+sequence in the port.
+
+### The cell record (0x1c B) — semantics from the `FUN_00587e00` consumer (ckpt 57)
+
+`FUN_00587e00`'s per-cell decode loop (`587e00.c:586-601`) reveals the field
+semantics and the **linearization**:
+
+```
+idx = (dim1*z + y) * dim0 + x          // z-major: plane, then row, then col
+```
+
+| off    | field      | use in FUN_00587e00                                      |
+|--------|------------|---------------------------------------------------------|
+| +0x00  | co-id      | a second id set on exactly the same cells as the tile   |
+| +0x04  | **tile id**| the big nested switch key (`iVar6`)                      |
+| +0x08  | aux        | bank/animation selector                                 |
+| +0x0c  | arg (uVar23)| low u16 forwarded as a sprite index                    |
+| +0x10  | **shape**  | footprint/orientation selector (0..0xc)                 |
+| +0x14  | arg (uVar25)| placement param (0 across DATA 1022)                   |
+| +0x18  | arg (uVar21)| placement param (0 across DATA 1022)                   |
+
+An **empty** cell is all-zero (`tile id == 0`).  Ported as the pure host-tested
+`map_cell` + `map_data_cell(m,x,y,z)` / `map_data_cell_index` accessors in
+`src/map_data.{c,h}` (this is the structure the eventual `FUN_00587e00` port and
+the render walk index into).
+
+### DATA 1022 decoded (ground truth, `--cells`)
+
+`tools/extract/map_data.py … --id 1022 --cells` decodes the opening town:
+**160 of 5016 cells populated**, forming a coherent backdrop — **z=2** is the
+near plane (the long ground/floor strips along the bottom rows), **z=0** the far
+plane (scattered rooftop/building runs), **z=1** a few mid-plane details.  Tile
+ids cluster in the **`0x1b58b` family** (0x1b58b ×78, 0x1b58f ×33, 0x1b58c ×19,
+0x1b58d, 0x1b59f, 0x1b5a0…) plus **`0x29ff4` ×21**; shape selectors used:
+`{0,2,10,11,12,14,15}`; `+0x14`/`+0x18` are always 0 here.
+
+### `FUN_00587e00` is an 18 KB multi-checkpoint rock (NOT 3 KB — ckpt 57 correction)
+
+Earlier handoffs estimated `FUN_00587e00` at "3282 B"; it is in fact **18055 B**
+(`587e00.c`, 3283 decompiled lines).  Its shape:
+- a prologue (`:44-506`) that computes the runtime-grid header from the map dims,
+  normalises `param_3` (10/0x28→1, 0x32→2, 0x3c→4, 0x3d→5) and switches on
+  `param_2`/`param_4` to select HUD/border/frame **sprite-bank ids** (writing the
+  `in_ECX[0..0x16]` header + ~30 `FUN_00417870` bank-refresh blocks over the
+  `DAT_008a76xx..86xx` pool-pointer tables);
+- a grid-clear pass (`:507-584`, `FUN_0054c970` per cell);
+- then the bulk: a **per-tile-id dispatch** (a deep nested switch on cell+0x04)
+  where *each* known tile id has a hand-written placement recipe selected by the
+  cell's shape (`+0x10`), emitting tile placements via **`FUN_0058ca80`** /
+  **`FUN_0058c910`** into the runtime grid `in_ECX`; plus a final layer pass
+  (`:3185-3204`, `FUN_0058c8c0`/`8d0`/`cb30` over the parsed layer entries for
+  ids 0x15f9a/0x15f9b).
+It is deeply coupled to engine globals (`DAT_008a9b50`, the bank-pointer pool)
+and ~8 helpers (`0058ca80`, `0058c910`, `0058c8c0`, `0058c8d0`, `0058cb30`,
+`0054c970`, `0056df10`, `004118b0`).  **Scoping win for the eventual port:** the
+town (DATA 1022) uses only tile ids `< 0x1bd82`, so the giant `0x1bd82` autotile
+block and the `0x1d8ab`/`0x1ffbc…`/decoration switches are *dead code for this
+map* — the town backdrop exercises only the generic per-tile-id arms + a handful
+of shapes.
+
+**NEXT:** the `FUN_00587e00` per-tile-id placement arms + the emit helpers
+(`0058ca80`/`0058c910`) for the ~9 town tile ids, then the matching slice of
+`0x5a00c0` to render the backdrop, diff vs `runs/tas-ingame-1`.  `0x586010`/
+`0x5a00c0` remain multi-checkpoint rocks (the full engine sim + a self-contained
+scripted-scene render loop with its own pace machine).
 
 ## Open questions for the port
 

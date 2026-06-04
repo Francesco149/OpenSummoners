@@ -6,6 +6,49 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-04 (ckpt 57) — map cell-record semantics decoded; pure cell accessors ported; FUN_00587e00 surveyed (18 KB rock, not 3 KB)
+
+Opened the next unit, **`FUN_00587e00`** (the map-data → world decoder the handoff
+named as NEXT), and found the handoff's "3282 B" estimate was wrong: it is
+**18055 B** (`587e00.c`, 3283 decompiled lines) — a multi-checkpoint rock, the
+same surprise the ckpt-56 survey hit with `0x586010`/`0x5a00c0`.  Followed the
+ckpt-53/56 discipline instead: decode the data it consumes as re-runnable ground
+truth + port the small pure unit, defer the rock.
+
+**RE — the map-descriptor object + cell-record semantics.**  Read `FUN_00587970`
+(the object it builds: dims `+0x20/24/28`, count `+0x2c`, cells `+0x34`, layer
+headers `+0x38`, layer sub-pointer table `+0x3c`) and `FUN_00587e00`'s per-cell
+decode loop (`587e00.c:586-601`), which reveals the **0x1c-byte cell record**:
+`+0x04` = tile id (the dispatch key), `+0x10` = footprint/orientation selector
+(0..0xc), `+0x0c`/`+0x14`/`+0x18` = placement params, `+0x00` = a co-id, `+0x08`
+= aux; **empty cell = all-zero**.  Linearization is z-major:
+`idx = (dim1*z + y)*dim0 + x`.
+
+**Ground truth — DATA 1022 decoded.**  Extended `tools/extract/map_data.py` with
+`--cells`: renders the per-z occupancy grid + tile-id/shape/field histograms.
+The opening town = **160 of 5016 cells populated**, a coherent backdrop (z=2 near
+plane = the bottom ground strips, z=0 far plane = rooftop runs, z=1 a few mid
+details); tile ids cluster in the **`0x1b58b` family** + `0x29ff4`; shapes used
+`{0,2,10,11,12,14,15}`.  **All town tile ids are `< 0x1bd82`**, so the giant
+`0x1bd82` autotile block + the `0x1d8ab`/`0x1ffbc…`/decoration switches in
+`FUN_00587e00` are *dead code for this map* — a real scoping win for the eventual
+port (only the generic per-tile-id arms + the emit helpers `0058ca80`/`0058c910`
+matter for the town).
+
+**Port (pure, host-tested).**  Added `map_cell` + `map_data_cell(m,x,y,z)` /
+`map_data_cell_index` to `src/map_data.{c,h}` — the typed accessor the future
+`FUN_00587e00` port + render walk index into.  2 new host tests → **772 pass / 0
+fail / 6 skip**.  Ledger **184/1490 unchanged** (no new FUN ported — `587e00`
+stays unported; this is data decode + accessors on the already-tested
+`0x587970`).  Full writeup: `docs/findings/in-game-intro.md` "The cell record" +
+"DATA 1022 decoded" + "`FUN_00587e00` is an 18 KB multi-checkpoint rock".
+
+**NEXT:** port `FUN_00587e00`'s per-tile-id placement arms for the ~9 town tile
+ids + the emit helpers (`0058ca80`/`0058c910`) writing the runtime grid, then the
+matching slice of `0x5a00c0` to render the backdrop, diff vs `runs/tas-ingame-1`.
+
+---
+
 ## 2026-06-04 (ckpt 56) — the runtime MAP-DATA load path + format are resolved; FUN_00587970 is ported + host-tested
 
 Surveying the next unit (`0x586010` sim → `0x5a00c0` render) confirmed both are
