@@ -93,3 +93,45 @@ int map_render_tile(const uint8_t *grid, int32_t col, int32_t row, int slot,
     out->h = 0x20;   /* node +0x38 */
     return 1;
 }
+
+int map_render_walk(const uint8_t *grid, const mr_camera *cam,
+                    int32_t dim0, int32_t dim1,
+                    draw_pool *pool, mr_sprite_fn resolve, void *ud)
+{
+    mr_window w;
+    map_render_visible_window(cam, dim0, dim1, &w);
+
+    int emitted = 0;
+    /* Outer = rows (490f30 local_814 -> uVar6+counter), inner = cols
+     * (local_830 -> uVar9+counter).  ncols/nrows may be <= 0, in which case
+     * the retail `if (0 < ...)` guards skip the loop entirely. */
+    for (int32_t r = 0; r < w.nrows; r++) {
+        int32_t row = w.row0 + r;
+        for (int32_t c = 0; c < w.ncols; c++) {
+            int32_t col = w.col0 + c;
+            for (int slot = 0; slot < 4; slot++) {
+                mr_tile t;
+                if (!map_render_tile(grid, col, row, slot, &t))
+                    continue;   /* empty sub-slot (bank == 0) */
+
+                /* 490f30.c:213-216 — resolve the cel; emit only if non-NULL. */
+                uint32_t sprite = resolve ? resolve(t.bank, t.frame, ud) : 0;
+                if (sprite == 0)
+                    continue;
+
+                /* 490f30.c:217 — FUN_004917b0(layer, 3, sprite, dst_x, dst_y,
+                 * 0, 0, 0); then the src-rect stamp at :221-224. */
+                draw_node *n = draw_pool_emit(pool, t.layer, 3, sprite,
+                                              t.dst_x, t.dst_y, 0, 0, 0);
+                if (n) {
+                    n->src_x = t.src_x;
+                    n->src_y = t.src_y;
+                    n->w = t.w;
+                    n->h = t.h;
+                    emitted++;
+                }
+            }
+        }
+    }
+    return emitted;
+}

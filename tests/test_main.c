@@ -827,6 +827,16 @@ struct test_case {
     X(map_render_tile_basic)                                   \
     X(map_render_tile_empty_cell)                              \
     X(map_render_tile_footprint_suboffset)                     \
+    X(map_render_walk_basic)                                   \
+    X(map_render_walk_resolver_gate)                           \
+    X(map_render_walk_window_clip)                             \
+    X(draw_pool_node_size)                                     \
+    X(draw_pool_caps_table)                                    \
+    X(draw_pool_emit_fields)                                   \
+    X(draw_pool_emit_layer_mask)                               \
+    X(draw_pool_emit_overflow)                                 \
+    X(draw_pool_layer0_always_full)                            \
+    X(draw_pool_reset)                                         \
 
 #define X(n) extern int test_##n(void);
 TESTS

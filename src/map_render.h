@@ -55,6 +55,8 @@
 
 #include <stdint.h>
 
+#include "draw_pool.h"
+
 /*
  * The VIEW / camera object (FUN_00490f30's param_1; the room-state's
  * `+0x104c`).  Only the fields the visible-window computation reads are
@@ -125,5 +127,36 @@ uint32_t map_render_grid_index(int32_t col, int32_t row);
  */
 int map_render_tile(const uint8_t *grid, int32_t col, int32_t row, int slot,
                     mr_tile *out);
+
+/*
+ * Sprite-resolver callback.  FUN_00490f30 turns a tile's region-A frame id
+ * (`+0x2`) into a cel pointer via 0x418470(frame) and only emits a draw
+ * node when that pointer is non-NULL.  The engine sprite manager
+ * (&DAT_008a760c / 0x418470) is an engine global, so the pure walk takes
+ * it as a callback (the mg_bank_dims_fn pattern).  Return the sprite handle
+ * stored in the draw node's +0x00, or 0 to skip the tile (retail's `iVar4 != 0`
+ * gate).  `bank` (region-A +0x0) is supplied too, since the engine uses it to
+ * pick the atlas/palette slot.
+ */
+typedef uint32_t (*mr_sprite_fn)(uint16_t bank, uint16_t frame, void *ud);
+
+/*
+ * Walk the visible cell window (map_render_visible_window) and emit one draw
+ * node per populated region-A sub-slot into `pool` — the pure backdrop-tile
+ * core of FUN_00490f30's main loop (490f30.c:55-229).  Rows are the outer
+ * axis, columns the inner, matching retail.  For each populated sub-slot:
+ * resolve the sprite (skip when the resolver returns 0), append a node via
+ * draw_pool_emit with layer = the sub-slot's region-A `+0x4`, mode 3, dst =
+ * tile world origin, then stamp the 0x20x0x20 source rect at the sub-tile
+ * offset (map_render_tile).  Returns the number of nodes emitted.
+ *
+ * DEFERRED (the engine-coupled rest of 490f30): the difficulty/time palette
+ * tint (DAT_008a93fc / 0x4182d0) — it recolors the sprite's pixels, not the
+ * geometry; and the per-cell region-C blend/overlay arms (the `0x1b58d` /
+ * `0x1b5ab` objects, 490f30.c:230-282) drawn through 0x417c40 / 0x48c6b0.
+ */
+int map_render_walk(const uint8_t *grid, const mr_camera *cam,
+                    int32_t dim0, int32_t dim1,
+                    draw_pool *pool, mr_sprite_fn resolve, void *ud);
 
 #endif /* OSS_MAP_RENDER_H */

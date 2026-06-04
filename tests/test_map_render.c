@@ -176,3 +176,130 @@ int test_map_render_tile_footprint_suboffset(void)
     map_grid_free(g);
     return 0;
 }
+
+/* ---- walk: visible-window scan -> draw-node list (490f30 main loop) -------- */
+
+/* Stand-in for FUN_00418470: any real tile resolves to a non-zero handle. */
+static uint32_t mr_test_resolve(uint16_t bank, uint16_t frame, void *ud)
+{
+    (void)ud;
+    return ((uint32_t)bank << 16) | frame;
+}
+
+/* A resolver that fails frame 0xff (retail's "cel not loaded -> skip tile"). */
+static uint32_t mr_test_resolve_reject(uint16_t bank, uint16_t frame, void *ud)
+{
+    (void)ud; (void)bank;
+    return frame == 0xff ? 0u : 1u;
+}
+
+static int32_t mr_pool_total(const draw_pool *p)
+{
+    int32_t n = 0;
+    for (unsigned i = 0; i < DRAW_POOL_LAYERS; i++)
+        n += p->layers[i].count;
+    return n;
+}
+
+/* A full-window camera (col0=0,row0=0; counts capped at the grid dims). */
+static mr_camera mr_full_window_cam(int32_t dim0, int32_t dim1)
+{
+    mr_camera cam = { 0 };
+    cam.off64 = dim0 * 3200;   /* cap_c = dim0 + 2 > dim0 -> ncols = dim0 */
+    cam.off68 = dim1 * 3200;   /* cap_r = dim1 + 2 > dim1 -> nrows = dim1 */
+    return cam;
+}
+
+int test_map_render_walk_basic(void)
+{
+    uint8_t *g = map_grid_alloc();
+    if (!g) T_SKIP("grid alloc failed");
+    map_grid_set_dims(g, 88, 19);
+
+    /* Three 1x1 tiles in distinct cells + distinct layers (flags 5/6/7). */
+    map_grid_emit_tile(g, 4,  2, 1, 0x62,  0x07, 5, 1, 1, NULL, NULL);
+    map_grid_emit_tile(g, 10, 5, 0, 0x17b, 0x03, 6, 1, 1, NULL, NULL);
+    map_grid_emit_tile(g, 0,  0, 2, 0x174, 0x00, 7, 1, 1, NULL, NULL);
+
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) { map_grid_free(g); T_SKIP("pool alloc failed"); }
+
+    mr_camera cam = mr_full_window_cam(88, 19);
+    int emitted = map_render_walk(g, &cam, 88, 19, &p, mr_test_resolve, NULL);
+
+    T_ASSERT_EQ_I(emitted, 3);
+    T_ASSERT_EQ_I(mr_pool_total(&p), 3);
+
+    /* Tile A landed in layer 5 with the expected node geometry. */
+    T_ASSERT_EQ_U(p.layers[5].count, 1);
+    draw_node *a = &p.layers[5].nodes[0];
+    T_ASSERT_EQ_U(a->sprite, ((uint32_t)0x62 << 16) | 0x07);
+    T_ASSERT_EQ_I(a->dst_x, 4 * 3200);
+    T_ASSERT_EQ_I(a->dst_y, 2 * 3200);
+    T_ASSERT_EQ_U(a->mode, 3);
+    T_ASSERT_EQ_I(a->src_x, 0);
+    T_ASSERT_EQ_I(a->src_y, 0);
+    T_ASSERT_EQ_I(a->w, 0x20);
+    T_ASSERT_EQ_I(a->h, 0x20);
+
+    T_ASSERT_EQ_U(p.layers[6].count, 1);
+    T_ASSERT_EQ_U(p.layers[7].count, 1);
+
+    draw_pool_free(&p);
+    map_grid_free(g);
+    return 0;
+}
+
+int test_map_render_walk_resolver_gate(void)
+{
+    uint8_t *g = map_grid_alloc();
+    if (!g) T_SKIP("grid alloc failed");
+    map_grid_set_dims(g, 88, 19);
+
+    /* frame 0xff -> the reject resolver returns 0 -> no node (490f30:216). */
+    map_grid_emit_tile(g, 4, 2, 1, 0x62, 0xff, 5, 1, 1, NULL, NULL);
+
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) { map_grid_free(g); T_SKIP("pool alloc failed"); }
+    mr_camera cam = mr_full_window_cam(88, 19);
+
+    T_ASSERT_EQ_I(map_render_walk(g, &cam, 88, 19, &p, mr_test_resolve_reject, NULL), 0);
+    T_ASSERT_EQ_I(mr_pool_total(&p), 0);
+
+    /* The same tile DOES emit once the resolver accepts it. */
+    draw_pool_reset(&p);
+    T_ASSERT_EQ_I(map_render_walk(g, &cam, 88, 19, &p, mr_test_resolve, NULL), 1);
+
+    draw_pool_free(&p);
+    map_grid_free(g);
+    return 0;
+}
+
+int test_map_render_walk_window_clip(void)
+{
+    uint8_t *g = map_grid_alloc();
+    if (!g) T_SKIP("grid alloc failed");
+    map_grid_set_dims(g, 88, 19);
+
+    /* Window = cols [4,15], rows [2,9] (the test_..._window_basic camera). */
+    map_grid_emit_tile(g, 4,  2,  1, 0x62, 0x07, 5, 1, 1, NULL, NULL); /* inside  */
+    map_grid_emit_tile(g, 50, 2,  1, 0x62, 0x07, 6, 1, 1, NULL, NULL); /* col out */
+    map_grid_emit_tile(g, 5,  15, 1, 0x62, 0x07, 7, 1, 1, NULL, NULL); /* row out */
+
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) { map_grid_free(g); T_SKIP("pool alloc failed"); }
+    mr_camera cam = { 0 };
+    cam.off60 = 3200 * 5;
+    cam.off64 = 3200 * 10;
+    cam.off5c = 3200 * 3;
+    cam.off68 = 3200 * 6;
+
+    T_ASSERT_EQ_I(map_render_walk(g, &cam, 88, 19, &p, mr_test_resolve, NULL), 1);
+    T_ASSERT_EQ_U(p.layers[5].count, 1);   /* only the in-window tile */
+    T_ASSERT_EQ_U(p.layers[6].count, 0);
+    T_ASSERT_EQ_U(p.layers[7].count, 0);
+
+    draw_pool_free(&p);
+    map_grid_free(g);
+    return 0;
+}
