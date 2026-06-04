@@ -118,6 +118,28 @@ int map_data_parse(map_data *m, const uint8_t *buf, size_t len)
     return 0;
 }
 
+size_t map_data_cell_index(const map_data *m, uint32_t x, uint32_t y, uint32_t z)
+{
+    /* (dim1*z + y)*dim0 + x — FUN_00587e00:595, z-major (plane, row, col). */
+    return ((size_t)m->dim1 * z + y) * m->dim0 + x;
+}
+
+int map_data_cell(const map_data *m, uint32_t x, uint32_t y, uint32_t z,
+                  map_cell *out)
+{
+    if (!m->cells || x >= m->dim0 || y >= m->dim1 || z >= m->dim2)
+        return -1;
+    const uint8_t *p = m->cells + map_data_cell_index(m, x, y, z) * MD_CELL_SIZE;
+    out->f00     = md_dw(p, 0x00);
+    out->tile_id = md_dw(p, 0x04);
+    out->f08     = md_dw(p, 0x08);
+    out->arg_0c  = md_dw(p, 0x0c);
+    out->shape   = md_dw(p, 0x10);
+    out->arg_14  = md_dw(p, 0x14);
+    out->arg_18  = md_dw(p, 0x18);
+    return 0;
+}
+
 char *map_data_name(const map_data *m, char out[0x21])
 {
     memcpy(out, m->maphdr, 0x20);

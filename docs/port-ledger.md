@@ -107,7 +107,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, map_data.h |
 | 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.h |
+| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.c, map_data.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | FUN_0059f2c0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
 | 0x5a00c0 | FUN_005a00c0 | 13690 | map_data.h |

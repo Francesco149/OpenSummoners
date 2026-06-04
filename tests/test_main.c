@@ -801,6 +801,8 @@ struct test_case {
     X(map_data_cells_copied)                                   \
     X(map_data_layers)                                         \
     X(map_data_truncated)                                      \
+    X(map_data_cell_fields)                                    \
+    X(map_data_cell_bounds)                                    \
 
 #define X(n) extern int test_##n(void);
 TESTS

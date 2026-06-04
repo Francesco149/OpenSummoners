@@ -48,6 +48,13 @@ asserts that, which is what makes the decode trustworthy.
 Usage:
     python3 tools/extract/map_data.py vendor/unpacked/sotes.unpacked.exe
     python3 tools/extract/map_data.py <pe> --id 1022 [--raw] [--out f.bin]
+    python3 tools/extract/map_data.py <pe> --id 1022 --cells   # decode the grid
+
+The 0x1c-byte cell record is consumed by the (still-unported, 18 KB) map->world
+decoder FUN_00587e00; its field semantics + the cell linearization are documented
+at render_cells() below and mirrored (host-tested) by src/map_data.c
+map_data_cell().  `--cells` renders the per-z occupancy grid + tile-id/shape/field
+histograms — re-runnable ground truth for the eventual FUN_00587e00 port.
 """
 
 from __future__ import annotations
@@ -143,7 +150,7 @@ def decode(blob: bytes, verbose: bool = True) -> dict:
     dim0, dim1, dim2 = dw(maphdr, 0x20), dw(maphdr, 0x24), dw(maphdr, 0x28)
     count = dw(maphdr, 0x2C)
     cells_len = dim0 * dim1 * dim2 * 0x1C
-    rd(cells_len)  # the cell array
+    cells_blob = rd(cells_len)  # the cell array
 
     layers = []
     for _i in range(count):
@@ -162,6 +169,7 @@ def decode(blob: bytes, verbose: bool = True) -> dict:
         "consumed": pos,
         "size": n,
         "layers": layers,
+        "cells_blob": cells_blob,
     }
     if verbose:
         print(f"magic      {magic:#x}")
@@ -182,12 +190,83 @@ def decode(blob: bytes, verbose: bool = True) -> dict:
     return res
 
 
+# ---------------------------------------------------------------------------
+# cell-grid interpretation
+#
+# The 0x1c-byte cell record is consumed by the (still-unported, 18 KB)
+# FUN_00587e00 map->world decoder.  Its per-cell loop (587e00.c:586-601) reveals
+# the field semantics + the linearization:
+#
+#     idx = (dim1*z + y) * dim0 + x          # z-major: plane, row, col
+#     cell+0x04  tile id  (the big switch key: 0x1bd82, 0x1d8ab, 0x1ffbc.. etc.)
+#     cell+0x10  footprint/orientation selector (0..0xc)
+#     cell+0x0c  uVar23  (low u16 forwarded as a sprite index)
+#     cell+0x14  uVar25 placement param   } both 0 across DATA 1022
+#     cell+0x18  uVar21 placement param   }
+#     cell+0x00  a co-id set on exactly the same cells as the tile id
+#     cell+0x08  an aux selector
+#
+# An EMPTY cell is all-zero (tile id 0).  This mirror is host-tested in C by
+# src/map_data.c map_data_cell() / tests/test_map_data.c.
+# ---------------------------------------------------------------------------
+def render_cells(blob: bytes, info: dict) -> None:
+    from collections import Counter
+
+    dim0, dim1, dim2 = info["dims"]
+    cells = info["cells_blob"]
+    dw = lambda o: struct.unpack_from("<I", cells, o)[0]
+
+    def cell(x: int, y: int, z: int) -> list[int]:
+        b = ((dim1 * z + y) * dim0 + x) * 0x1C
+        return [dw(b + o) for o in range(0, 0x1C, 4)]
+
+    tile = Counter()
+    shape = Counter()
+    fields = {o: Counter() for o in range(0, 0x1C, 4)}
+    for z in range(dim2):
+        for y in range(dim1):
+            for x in range(dim0):
+                c = cell(x, y, z)
+                for i, o in enumerate(range(0, 0x1C, 4)):
+                    fields[o][c[i]] += 1
+                if c[1]:
+                    tile[c[1]] += 1
+                    shape[c[4]] += 1
+
+    print(f"\n# cell grid  {dim0} x {dim1} x {dim2}  (idx = (dim1*z+y)*dim0+x)")
+    print(f"#   {sum(tile.values())} populated of {dim0*dim1*dim2} cells\n")
+    for z in range(dim2):
+        occ = sum(1 for y in range(dim1) for x in range(dim0) if cell(x, y, z)[1])
+        print(f"  z={z}  occupied={occ}")
+        for y in range(dim1):
+            row = "".join("#" if cell(x, y, z)[1] else "." for x in range(dim0))
+            print(f"    {row}")
+        print()
+
+    print("# tile id (+0x04) histogram (top 20):")
+    for v, k in tile.most_common(20):
+        print(f"    {v:#08x}  ({v:>8})  x{k}")
+    print("\n# shape (+0x10) histogram:")
+    for v, k in sorted(shape.items()):
+        print(f"    {v:>3}  x{k}")
+    print("\n# per-field distinct-value counts (nonzero count):")
+    for o in range(0, 0x1C, 4):
+        c = fields[o]
+        nz = sum(k for v, k in c.items() if v != 0)
+        print(f"    +0x{o:02x}: {len(c):>3} distinct  ({nz} nonzero)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("pe", help="PE file holding the map DATA resource (the EXE)")
     ap.add_argument("--id", type=int, default=1022, help="DATA resource id (default 1022)")
     ap.add_argument("--out", help="write the raw resource bytes to this path")
     ap.add_argument("--raw", action="store_true", help="hexdump the first 0x68 header bytes")
+    ap.add_argument(
+        "--cells",
+        action="store_true",
+        help="decode + render the tilemap cell grid (per-z occupancy + histograms)",
+    )
     args = ap.parse_args()
 
     data = Path(args.pe).read_bytes()
@@ -205,6 +284,8 @@ def main() -> int:
             row = head[o : o + 16]
             print(f"  {o:04x}  " + " ".join(f"{c:02x}" for c in row))
     info = decode(blob)
+    if args.cells:
+        render_cells(blob, info)
     return 0 if info["consumed"] == info["size"] else 3
 
 

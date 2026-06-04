@@ -62,6 +62,24 @@
 #define MD_CELL_SIZE   0x1cu   /* bytes per tilemap cell                       */
 #define MD_LAYER_HDR   0x3cu   /* bytes per layer-entry header                 */
 
+/* One decoded tilemap cell (the 0x1c-byte record).  Field semantics are read
+ * out of the (still-unported, 18 KB) consumer FUN_00587e00's per-cell decode
+ * loop (587e00.c:586-601): it reads cell+0x04 as the tile-id switch key, +0x10
+ * as the footprint/orientation selector, and +0x0c/+0x14/+0x18 as the placement
+ * params it forwards to the (unported) tile-emit helpers 0x58c910 / 0x58ca80. In
+ * the opening town (DATA 1022) +0x14/+0x18 are always 0; +0x00 is a second id
+ * set on exactly the same cells as the tile-id (a co-id).  An EMPTY cell has
+ * tile_id == 0. */
+typedef struct map_cell {
+    uint32_t f00;       /* +0x00  co-id (set together with tile_id)            */
+    uint32_t tile_id;   /* +0x04  FUN_00587e00 switch key (0 == empty cell)    */
+    uint32_t f08;       /* +0x08  aux selector (bank/animation)                */
+    uint32_t arg_0c;    /* +0x0c  uVar23 (low u16 forwarded as a sprite index) */
+    uint32_t shape;     /* +0x10  footprint/orientation selector (0..0xc)      */
+    uint32_t arg_14;    /* +0x14  uVar25 placement param (0 in DATA 1022)      */
+    uint32_t arg_18;    /* +0x18  uVar21 placement param (0 in DATA 1022)      */
+} map_cell;
+
 /* One layer/object entry: the 0x3c header verbatim plus its four sub-arrays,
  * sized by the header dwords at +0x1c/+0x20/+0x24/+0x28 (strides 4/0xc/0x100/8). */
 typedef struct map_layer {
@@ -95,5 +113,18 @@ void map_data_free(map_data *m);
 /* The map name (maphdr +0x00, 0x20 bytes, space/NUL trimmed) copied into `out`
  * (size >= 0x21).  Returns `out`. */
 char *map_data_name(const map_data *m, char out[0x21]);
+
+/* The linear index of cell (x,y,z) in the cell array, using FUN_00587e00's
+ * z-major linearization (587e00.c:595):
+ *     idx = (dim1*z + y) * dim0 + x
+ * where dim0 = width (cols), dim1 = height (rows), dim2 = planes.  No bounds
+ * check (callers guard via the dims). */
+size_t map_data_cell_index(const map_data *m, uint32_t x, uint32_t y, uint32_t z);
+
+/* Decode the cell at (x,y,z) into `out`.  Returns 0 on success, -1 if (x,y,z)
+ * is out of range or the map has no cell array.  An empty cell decodes to all
+ * zero (out->tile_id == 0). */
+int map_data_cell(const map_data *m, uint32_t x, uint32_t y, uint32_t z,
+                  map_cell *out);
 
 #endif /* OSS_MAP_DATA_H */

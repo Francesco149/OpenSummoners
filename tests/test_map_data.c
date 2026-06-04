@@ -157,6 +157,76 @@ int test_map_data_layers(void)
     return 0;
 }
 
+/* Decode a cell's 7 dwords and confirm the (dim1*z+y)*dim0+x linearization.
+ * dims are 2x3x1, so for z=0  idx = y*2 + x  (last cell (1,2,0) -> idx 5). */
+int test_map_data_cell_fields(void)
+{
+    uint8_t b[SYN_LEN];
+    size_t n = build_synthetic(b);
+
+    /* stamp known field dwords into two distinct cells before parsing.
+     * cell (1,2,0) is idx 5; cell (0,1,0) is idx 2. */
+    size_t c5 = 0x68 + 5u * MD_CELL_SIZE;
+    put_u32(b, c5 + 0x00, 0xCAFE);          /* f00     */
+    put_u32(b, c5 + 0x04, 0x1bd82);         /* tile_id */
+    put_u32(b, c5 + 0x08, 0x1370);          /* f08     */
+    put_u32(b, c5 + 0x0c, 29);              /* arg_0c  */
+    put_u32(b, c5 + 0x10, 14);              /* shape   */
+    put_u32(b, c5 + 0x14, 0x55);            /* arg_14  */
+    put_u32(b, c5 + 0x18, 0x66);            /* arg_18  */
+    size_t c2 = 0x68 + 2u * MD_CELL_SIZE;
+    put_u32(b, c2 + 0x04, 0x29ff4);         /* tile_id of a different cell */
+    /* zero cell (0,0,0) (idx 0) so it reads back as an EMPTY cell — the
+     * synthetic otherwise fills every cell with marker bytes. */
+    memset(b + 0x68, 0, MD_CELL_SIZE);
+
+    map_data m;
+    T_ASSERT_EQ_I(map_data_parse(&m, b, n), 0);
+
+    T_ASSERT_EQ_U(map_data_cell_index(&m, 1, 2, 0), 5);
+    T_ASSERT_EQ_U(map_data_cell_index(&m, 0, 1, 0), 2);
+
+    map_cell cell;
+    T_ASSERT_EQ_I(map_data_cell(&m, 1, 2, 0, &cell), 0);
+    T_ASSERT_EQ_U(cell.f00, 0xCAFE);
+    T_ASSERT_EQ_U(cell.tile_id, 0x1bd82);
+    T_ASSERT_EQ_U(cell.f08, 0x1370);
+    T_ASSERT_EQ_U(cell.arg_0c, 29);
+    T_ASSERT_EQ_U(cell.shape, 14);
+    T_ASSERT_EQ_U(cell.arg_14, 0x55);
+    T_ASSERT_EQ_U(cell.arg_18, 0x66);
+
+    /* the other stamped cell is reached by its own (x,y,z) */
+    T_ASSERT_EQ_I(map_data_cell(&m, 0, 1, 0, &cell), 0);
+    T_ASSERT_EQ_U(cell.tile_id, 0x29ff4);
+
+    /* an unstamped cell is fully empty (tile_id == 0) */
+    T_ASSERT_EQ_I(map_data_cell(&m, 0, 0, 0, &cell), 0);
+    T_ASSERT_EQ_U(cell.tile_id, 0);
+
+    map_data_free(&m);
+    return 0;
+}
+
+int test_map_data_cell_bounds(void)
+{
+    uint8_t b[SYN_LEN];
+    size_t n = build_synthetic(b);
+    map_data m;
+    T_ASSERT_EQ_I(map_data_parse(&m, b, n), 0);
+
+    map_cell cell;
+    /* in range */
+    T_ASSERT_EQ_I(map_data_cell(&m, 1, 2, 0, &cell), 0);
+    /* each axis out of range -> -1, no read past the cell array */
+    T_ASSERT_EQ_I(map_data_cell(&m, 2, 0, 0, &cell), -1);   /* x == dim0 */
+    T_ASSERT_EQ_I(map_data_cell(&m, 0, 3, 0, &cell), -1);   /* y == dim1 */
+    T_ASSERT_EQ_I(map_data_cell(&m, 0, 0, 1, &cell), -1);   /* z == dim2 */
+
+    map_data_free(&m);
+    return 0;
+}
+
 int test_map_data_truncated(void)
 {
     uint8_t b[SYN_LEN];
