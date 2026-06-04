@@ -6,6 +6,46 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-04 (ckpt 60) — static tilemap render-walk located + geometry ported; the `0x5a00c0` model corrected
+
+Surveyed `0x5a00c0` for the ckpt-59-named "read the grid + blit the backdrop"
+slice and found the identification was wrong: `0x5a00c0` references **none** of
+the render-grid region offsets — it is the scripted-scene **overlay player** (a
+3-state `GetTickCount` pace machine + a stack sprite draw-list + a `0x124`-stride
+caption-text array drawn through font bank `DAT_008a7640`), i.e. the intro
+banner / dialogue / caption layer, not the tilemap.
+
+The town backdrop tilemap is rendered by **`FUN_00490f30`** (2002 B), found by
+intersecting the ~30 grid-dim (`0x2c1030`) readers with the bank pool
+`DAT_008a760c`.  It is called `FUN_00490f30(view, 1)` with the render grid in
+ECX from the per-frame draw walk (`0x48c150:108` / `0x499100:185`, both passing
+the view object `*(room_state+0x104c)`).  It computes the visible-cell window
+from the view/camera object + grid dims (`490f30.c:40-54`), scans it reading grid
+index `col*0x80+row` (the **read-side** confirmation of ckpt-58's fixed `0x80`
+row pitch) + region A's 4 sub-slots, and emits one draw node per populated
+sub-slot via `0x4917b0` — dest `(col*0xc80, row*0xc80)`, a `0x20×0x20`
+source-rect at `(dx*0xc80/100, dy*0xc80/100)`, layer key = region A `+0x4`.
+
+New pure, host-tested **`src/map_render.{c,h}`** ports the GEOMETRY of the walk
+(decoupled from the engine draw machinery): `map_render_visible_window`,
+`map_render_grid_index` (`col*0x80+row`), and `map_render_tile` (one region-A
+sub-slot → draw-node geometry, or 0 for an empty slot).  The grid it reads is
+exactly what `map_decode` produced, closing the decode→read loop.  8 host tests
+(window cap both branches + negative-origin clamp + the ×100 row term +
+writer↔reader agreement via `map_grid_emit_tile`) → **796 pass / 0 fail / 6
+skip**.  Ledger **188/1490 touched / 183 tested** (+1: `0x490f30`; the deferred
+helpers `0x4917b0`/`0x418470`/`0x417c40`/`0x48c6b0`/`0x4182d0` are referenced by
+bare VA, not `FUN_`, so the derived ledger doesn't over-count).  Both GUI builds
+compile clean (`map_render.c` in the `src` wildcard, not yet called by `main.c`).
+Deferred (the rest of the render rock): the sprite resolve, the palette tint, the
+draw-node pool enqueue + zdd blit/present, the region-C blend arms, and the
+camera/view object construction.  Full writeup:
+`docs/findings/in-game-intro.md` "The static tilemap render walk".  NEXT: the
+draw-node + zdd present pipeline (or the view/camera object construction) to turn
+the ported geometry into actual backdrop pixels, diff vs `runs/tas-ingame-1`.
+
+---
+
 ## 2026-06-04 (ckpt 59) — FUN_00587e00 per-tile-id placement dispatch ported + host-tested
 
 Ported the **arms** of `FUN_00587e00` — the per-cell recipes that decide which

@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **187** (11.7% of engine-proper) — tested 182, ported 5
-- code bytes touched: **13.0%** (220,527 / 1,694,868 B of engine-proper)
-- unported: **1571**
+- touched: **188** (11.7% of engine-proper) — tested 183, ported 5
+- code bytes touched: **13.1%** (222,529 / 1,694,868 B of engine-proper)
+- unported: **1570**
 - orphan refs in src/ not in this table: 4
 
-## tested (182) — ported + host unit suite
+## tested (183) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -62,6 +62,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
 | 0x48e6d0 | FUN_0048e6d0 | 389 | glyph_render.c, glyph_render.h |
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
+| 0x490f30 | FUN_00490f30 | 2002 | map_render.c, map_render.h |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |

@@ -692,6 +692,85 @@ the `0x58c8c0`/`0x58c8d0`/`0x58cb30` helpers over `0x15f9a`/`0x15f9b` entries).
 `map_decode.c` is in the `src` wildcard but not yet called by `main.c` — it is
 the decode foundation the `0x5a00c0` read/blit slice will drive.
 
+### The static tilemap render walk — `FUN_00490f30` (ckpt 60)
+
+**Model correction.**  Ckpts 50-59 called `FUN_005a00c0` "the in-game RENDER
+dispatch" that "reads the decoded grid and blits the town backdrop".  Surveying
+it for the read/blit slice showed it does **not** touch the render grid:
+`0x5a00c0` references **none** of the grid region offsets
+(`0x2c1030`/`0x140030`/`0x195030`/region A).  It is the scripted-scene **overlay
+player** — a 3-state `GetTickCount` pace machine (`5a00c0.c:1646-1690`), a
+sprite draw-list built on its own stack (`stack+0x98`, stride 10 dwords:
+`[3]`=bank-pool index, `[4]`=mode, `[7]`=range gate, `[8]`=alpha numerator), and
+a **0x124-stride caption-text array** (`stack+0x3a4`, glyph-index strings drawn
+through the font bank `DAT_008a7640`).  It blits via the ported primitives
+(`ar_sprite_decode`/`0x4184a0`, zdd `0x5b9b70`, alpha-ramp `0x5bd550`).  That is
+the intro banner / dialogue / caption layer, **not** the tilemap.
+
+**The tilemap is rendered by `FUN_00490f30` (2002 B).**  Found by intersecting
+the ~30 grid-readers (those touching dims `0x2c1030`) with the bank pool
+`DAT_008a760c`: `0x490f30` is the only render-sized one.  It is called
+`FUN_00490f30(view, 1)` with the **render grid in ECX** from the per-frame draw
+walk (`0x48c150:108` and `0x499100:185`, both passing the view object
+`*(room_state + 0x104c)`).  What it does (`490f30.c`):
+
+1. **Visible-cell window** (`490f30.c:40-54`) from the view/camera object +
+   the grid dims.  First visible column `col0 = clampNeg((cam[0x60] +
+   cam[0x34]) / 0xc80 - 1)`; `ncols = min(dim0 - col0, cam[0x64]/0xc80 + 2)`
+   (a 2-cell render margin).  Row axis sums three components, one ×100:
+   `row0 = clampNeg((cam[0x5c] + cam[0x74]*100 + cam[0x4c]) / 0xc80 - 1)`;
+   `nrows = min(dim1 - row0, cam[0x68]/0xc80 + 2)`.  (`clampNeg(v)=max(v,0)`,
+   the `((int)v<0)-1 & v` idiom.)
+2. **Scan the window** (rows outer, cols inner).  Per cell, grid index
+   `idx = col*0x80 + row` (the **read-side** confirmation of ckpt-58's fixed
+   `0x80` row pitch — the inner loop advances the region-A pointer by `0x80`
+   cells per column).  Walk region A's 4 sub-slots (`0x30 + slot*0x10 +
+   idx*0x40`); for each populated one (bank `+0x0` != 0) resolve the sprite
+   (`0x418470` on frame `+0x2`), apply the difficulty/time palette tint
+   (`DAT_008a93fc` → the `0x4182d0` ramp), and enqueue a draw node via
+   `0x4917b0`.  Node geometry: dest = the tile's world origin
+   `(col*0xc80, row*0xc80)`; source-rect = a `0x20×0x20` window at offset
+   `(dx*0xc80/100, dy*0xc80/100)` where `dx,dy` (region A `+0x8/+0xc`) are the
+   sub-tile coordinates within the bank's atlas (so a multi-cell sprite's
+   footprint cells each draw their own 32-px sub-tile).  The **layer key** is
+   region A `+0x4` (the "flag" `map_grid_emit_tile` writes).
+3. **Region-C objects** (`490f30.c:230-282`): the per-cell blend/overlay record
+   (`+0x195038`, what `map_grid_clear_cell` and the `0x1b58d`/`0x1b5ab` arms
+   write) → more nodes via `0x417c40` / `0x48c6b0`.
+
+**The draw node (`0x4917b0`, 106 B)** is a per-LAYER bump allocator: layer table
+at `render_ctx + 0x54` (8 B/layer = u16 count, u16 cap, ptr to a 0x3c-byte node
+array).  It stores node `+0x00` sprite, `+0x04/+0x08` dest x/y, `+0x18` mode,
+`+0x14`/`+0x10`/`+0x0c` aux; `490f30` then fills `+0x2c/+0x30` source offset and
+`+0x34/+0x38` source size.  Nodes are flushed/blitted by the present pass (the
+zdd path) — the consumer side of the pipeline.
+
+**PORT (pure, host-tested): `src/map_render.{c,h}`** — the GEOMETRY of the walk,
+the part that is pure arithmetic over the view object and the grid, decoupled
+from the engine-coupled draw machinery:
+- `map_render_visible_window(cam, dim0, dim1, *out)` — `490f30.c:40-54`.
+- `map_render_grid_index(col, row)` = `col*0x80 + row`.
+- `map_render_tile(grid, col, row, slot, *out)` — reads one region-A sub-slot
+  and returns the draw-node geometry `{bank, frame, layer, dst_x, dst_y, src_x,
+  src_y, w=0x20, h=0x20}`, or 0 for an empty sub-slot.  The grid it reads is
+  exactly what `map_decode` produced — closing the decode→read loop.
+
+**STATE.** 8 host tests (`tests/test_map_render.c`): the window arithmetic
+(incl. both branches of the count cap + the negative-origin clamp + the ×100 row
+component), the index, and the writer↔reader agreement (emit a tile via
+`map_grid_emit_tile`, read it back) → **796 pass / 0 fail / 6 skip**.  Ledger
+**188/1490 touched / 183 tested** (+1: `0x490f30`; the deferred helpers
+`0x4917b0`/`0x418470`/`0x417c40`/`0x48c6b0`/`0x4182d0` are referenced by bare VA,
+not `FUN_`, so the derived ledger doesn't over-count).  Both GUI builds compile
+clean; `map_render.c` is in the `src` wildcard, not yet called by `main.c`.
+
+**DEFERRED (the rest of the render rock):** the sprite resolve
+(`0x418470`/`0x417c40`), the palette tint (`DAT_008a93fc`/`0x4182d0`), the
+draw-node pool enqueue (`0x4917b0`, needs `render_ctx+0x54`) and the zdd
+blit/present, plus the region-C blend/overlay arms.  Those + the camera/view
+object's construction (where `cam[0x34..0x74]` come from) are the next units on
+the path to actual town-backdrop pixels.
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
