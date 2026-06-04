@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **184** (11.5% of engine-proper) — tested 179, ported 5
-- code bytes touched: **13.0%** (219,929 / 1,694,868 B of engine-proper)
-- unported: **1574**
+- touched: **187** (11.7% of engine-proper) — tested 182, ported 5
+- code bytes touched: **13.0%** (220,527 / 1,694,868 B of engine-proper)
+- unported: **1571**
 - orphan refs in src/ not in this table: 4
 
-## tested (179) — ported + host unit suite
+## tested (182) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -64,6 +64,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
+| 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x560e60 | FUN_00560e60 | 42 | game_map.c, game_map.h |
 | 0x561c90 | FUN_00561c90 | 94 | game_map.h, game_world.h |
@@ -106,8 +107,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, map_data.h |
-| 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h |
+| 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h, map_grid.h |
 | 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.c, map_data.h |
+| 0x58c910 | FUN_0058c910 | 347 | map_grid.c, map_grid.h |
+| 0x58ca80 | FUN_0058ca80 | 167 | map_grid.c, map_grid.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | FUN_0059f2c0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
 | 0x5a00c0 | FUN_005a00c0 | 13690 | map_data.h |

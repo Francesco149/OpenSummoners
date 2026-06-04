@@ -579,6 +579,56 @@ of shapes.
 `0x5a00c0` remain multi-checkpoint rocks (the full engine sim + a self-contained
 scripted-scene render loop with its own pace machine).
 
+### The runtime render grid + its write primitives (ckpt 58)
+
+`FUN_00587e00`'s `in_ECX` is the **runtime render grid**: a large flat
+engine-owned buffer (≳2.9 MB) that the in-game render dispatch `0x5a00c0` later
+walks to blit the room.  It is NOT the parsed `map_data` — it is the *decoded,
+placed* form the per-tile-id dispatch writes into.  Cells are addressed with a
+fixed **row pitch of 0x80 (128)** regardless of the map width:
+
+```
+idx = p1 * 0x80 + p2          (p1 along the dim0/0x2c1030 axis, p2 along dim1)
+```
+
+(distinct from `map_data`'s z-major `(dim1*z+y)*dim0+x`).  At fixed byte offsets
+the buffer holds a small front header (`in_ECX[0..0x16]`, prologue flags) plus
+**four parallel per-cell regions** and a **dim header**:
+
+| byte      | region | per-cell | written by   | layout                                   |
+|-----------|--------|----------|--------------|------------------------------------------|
+| 0x000030  | A      | 0x40 (4×0x10) | `0058c910` | per sub-slot s @ 0x30+s·0x10+c·0x40: +0 u16 bank, +2 u16, +4 u16 flag, +8 i32 dx, +c i32 dy |
+| 0x140030  | B      | 0x10     | `0058ca80`   | +0 u16, +4 dword, +8 dword, +c dword     |
+| 0x195030  | C      | 0x0c     | `0054c970`   | +0 dword, +4 dword, +8 u16               |
+| 0x2c1030  | dims   | —        | prologue     | i32 dim0 (cols)                          |
+| 0x2c1034  | dims   | —        | prologue     | i32 dim1 (rows)                          |
+| 0x2c1038  | dims   | —        | prologue     | i32 dim0·0xc80 (pixel extent)            |
+| 0x2c103c  | dims   | —        | prologue     | i32 dim1·0xc80                           |
+| 0x2c1040  | D      | 2        | `0058ca80`   | u16                                      |
+
+(`587e00.c` addresses these via a `ushort*` base, e.g. `in_ECX[0x160818]` ==
+byte 0x2c1030.)  The three **write primitives** — the smallest pure units the
+18 KB dispatch calls — are now ported (pure, host-tested) in `src/map_grid.{c,h}`:
+
+- **`FUN_0054c970`** (84 B) → `map_grid_clear_cell` — writes region C's 0xc-byte
+  entry; bounds-checked against the *pixel* dims (0x2c1038/0x2c103c).
+- **`FUN_0058ca80`** (167 B) → `map_grid_emit_obj` — fills a `p3×p4` (rows×cols)
+  block into region B (the 0x10-byte record) + region D (the 2-byte grid).
+- **`FUN_0058c910`** (347 B) → `map_grid_emit_tile` — places a tile (sprite bank)
+  in sub-slot `slot` of region A, footprint either an explicit span or derived
+  from the bank's pixel size (`pool[bank]+0x20`/`+0x24` rounded up to 32-px
+  tiles, clamped to the grid).  The bank pool (`&DAT_008a760c`) is an engine
+  global; the port takes a `mg_bank_dims_fn` callback to stay pure.
+
+`map_grid_set_dims` ports the prologue's four dim-header writes so the
+primitives can be exercised standalone.  6 host tests assert the exact bytes
+each primitive deposits (`tests/test_map_grid.c`).  Everything else the prologue
+does (the HUD/border sprite-bank selection over the `DAT_008a76xx` pool, the
+front-header flags) stays unported — the engine-coupled body of the rock.  These
+primitives are the *write* side; the per-tile-id arms that decide *what* to emit
+for each town tile id, and the `0x5a00c0` *read* side that blits the grid, are
+the remaining units.
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`

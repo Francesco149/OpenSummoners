@@ -803,6 +803,12 @@ struct test_case {
     X(map_data_truncated)                                      \
     X(map_data_cell_fields)                                    \
     X(map_data_cell_bounds)                                    \
+    X(map_grid_set_dims)                                       \
+    X(map_grid_clear_cell)                                     \
+    X(map_grid_emit_obj_block)                                 \
+    X(map_grid_emit_obj_clamps_dims)                           \
+    X(map_grid_emit_tile_explicit_span)                        \
+    X(map_grid_emit_tile_bank_span)                            \
 
 #define X(n) extern int test_##n(void);
 TESTS

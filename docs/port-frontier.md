@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **208**
-- of those, zero-dependency **leaves: 118** (recommended order below)
+- frontier functions: **205**
+- of those, zero-dependency **leaves: 115** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -191,14 +191,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x52fd80 | 767 | 1 | 0 | ✓ |
 | 0x4e59a0 | 1676 | 1 | 18 |  |
 
-### cutscene dispatcher + sprite copy + tilemap collision + camera (5)
+### cutscene dispatcher + sprite copy + tilemap collision + camera (4)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x54c970 | 84 | 1 | 0 | ✓ |
 | 0x55f550 | 199 | 1 | 0 | ✓ |
 | 0x54bfb0 | 801 | 1 | 3 |  |
-| 0x54c640 | 812 | 1 | 2 |  |
+| 0x54c640 | 812 | 1 | 1 |  |
 | 0x55f790 | 1558 | 1 | 0 | ✓ |
 
 ### title + gameplay scene runners + engine init + options + input init (43)
@@ -249,7 +248,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x561d20 | 1259 | 1 | 12 |  |
 | 0x5624c0 | 1355 | 1 | 12 |  |
 
-### master sprite-group register + audio/music init + anim pump (28)
+### master sprite-group register + audio/music init + anim pump (26)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -265,12 +264,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x58cf60 | 83 | 1 | 0 | ✓ |
 | 0x587d50 | 96 | 1 | 0 | ✓ |
 | 0x5851e0 | 114 | 1 | 0 | ✓ |
-| 0x58ca80 | 167 | 1 | 0 | ✓ |
 | 0x5878a0 | 207 | 1 | 0 | ✓ |
 | 0x58e6a0 | 218 | 1 | 1 |  |
 | 0x583ee0 | 248 | 1 | 0 | ✓ |
 | 0x58d0b0 | 337 | 1 | 4 |  |
-| 0x58c910 | 347 | 1 | 0 | ✓ |
 | 0x58d210 | 403 | 1 | 1 |  |
 | 0x58e170 | 441 | 1 | 2 |  |
 | 0x583c90 | 580 | 1 | 0 | ✓ |
