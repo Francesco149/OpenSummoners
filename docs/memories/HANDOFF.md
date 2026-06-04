@@ -1,4 +1,65 @@
-# Session handoff — last updated 2026-06-04 (ckpt 60 — STATIC TILEMAP RENDER-WALK LOCATED + its pure GEOMETRY ported + host-tested; the `0x5a00c0` model CORRECTED.  Surveyed `0x5a00c0` for the ckpt-59-named "read the grid + blit" slice and found it reads **NONE** of the render-grid regions — it is the scripted-scene OVERLAY player (3-state GetTickCount pace machine + a stack sprite draw-list + a 0x124-stride caption-text array drawn through font bank DAT_008a7640), i.e. the intro banner/dialogue/caption layer, NOT the tilemap.  The town backdrop tilemap is rendered by **`FUN_00490f30`** (2002 B) — found by intersecting the ~30 grid-dim (0x2c1030) readers with the bank pool DAT_008a760c; called `FUN_00490f30(view, 1)` with the render grid in ECX from the per-frame draw walk (`0x48c150:108`/`0x499100:185`, both passing the view object `*(room_state+0x104c)`).  RE: 490f30 (a) computes the visible-cell window from the view/camera object + grid dims (490f30.c:40-54: col0=clampNeg((cam[0x60]+cam[0x34])/0xc80-1), ncols=min(dim0-col0, cam[0x64]/0xc80+2); row axis sums 3 components one ×100), (b) scans it z-flat reading grid index `col*0x80+row` (READ-side confirm of ckpt-58's 0x80 pitch) + region A's 4 sub-slots (0x30+slot*0x10+idx*0x40), emitting one draw node per populated sub-slot via `0x4917b0`: dest=(col*0xc80,row*0xc80), 0x20×0x20 source-rect at (dx*0xc80/100, dy*0xc80/100) [dx,dy=regionA +0x8/+0xc=the atlas sub-tile coords], layer key=regionA +0x4; (c) consults region C (+0x195038) for the 0x1b58d blend/0x1b5ab overlay objects.  The draw node (`0x4917b0`, 106 B) is a per-layer bump allocator (layer table @render_ctx+0x54, 0x3c-B nodes).  PORT (pure, host-tested) `src/map_render.{c,h}`: the GEOMETRY decoupled from the engine draw machinery — `map_render_visible_window` (490f30.c:40-54), `map_render_grid_index` (col*0x80+row), `map_render_tile` (one region-A sub-slot → draw-node geometry {bank,frame,layer,dst_x,dst_y,src_x,src_y,w=h=0x20}, 0 for empty); the grid it reads is exactly what map_decode produced, closing the decode→read loop.  8 host tests (window cap both branches + neg-origin clamp + ×100 row term + writer↔reader agreement via map_grid_emit_tile) → **796 pass / 0 fail / 6 skip**.  Ledger **188/1490 touched / 183 tested** (+1: 0x490f30; deferred helpers 0x4917b0/0x418470/0x417c40/0x48c6b0/0x4182d0 referenced by bare VA not FUN_ so the derived ledger doesn't over-count).  Both GUI builds clean; `map_render.c` in the src wildcard, NOT yet called by main.c.  DEFERRED (rest of the render rock): the sprite resolve (0x418470/0x417c40), palette tint (DAT_008a93fc/0x4182d0), the draw-node pool enqueue (0x4917b0, needs render_ctx+0x54) + zdd blit/present, the region-C blend/overlay arms, AND the camera/view object construction (where cam[0x34..0x74] come from).  Full writeup: `docs/findings/in-game-intro.md` "The static tilemap render walk".  NEXT: the draw-node + zdd present pipeline (0x4917b0 enqueue → blit) OR the view/camera object construction, to turn the ported geometry into actual backdrop pixels, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
+# Session handoff — last updated 2026-06-04 (ckpt 61 — DRAW-NODE LAYER POOL + BACKDROP WALK DRIVER ported + host-tested; the decode→grid→geometry→draw-list chain is now CLOSED.  Took the ckpt-60 NEXT ("draw-node pool enqueue → blit").  RE: `FUN_00490f30`'s `0x4917b0` enqueue + `586010:510-650`'s layer-table init are the same structure — the render context's DRAW-NODE TABLE at `view+0x54` (`view = *(room_state+0x104c)`, the object 490f30 takes as param_1 and 4917b0 reads as in_ECX).  It is `operator_new(0xd8)` = **27 (0x1b) 8-byte layer slots** {u16 count, u16 cap, ptr node[cap]}, each given its own `operator_new(cap*0x3c)` node array; the 27 caps are literal-stamped in the sim (layer1=0x80, layer2/3=0x1b8, layer6=0x400, …).  **Slot 0 gets NO array (cap 0) → emits to layer 0 always fail** (preserved).  A present pass walks the 27 layers in order → layer index = draw-order key.  `0x4917b0` (106 B) = per-layer bump alloc: `node=layer[key&0xffff]; if(cap<=count) return 0;` else stamp 6 caller dwords (+0x00 sprite, +0x04/+0x08 dst, +0x0c/+0x10/+0x14 aux, +0x18 mode), bump count, return for 490f30 to finish (+0x2c/+0x30/+0x34/+0x38 src rect); the CONCAT22 high-word sort key is discarded by the mask.  PORT (pure, host-tested): **`src/draw_pool.{c,h}`** — `draw_pool_init`/`reset`/`free` (the 27-layer table) + `draw_pool_emit` (4917b0 arg-for-arg; node is exactly 0x3c B, asserted); **`map_render_walk`** added to `map_render.{c,h}` — the backdrop-tile core of 490f30's main loop (490f30.c:55-229): compute visible window, scan rows-outer/cols-inner, per populated region-A sub-slot resolve sprite + emit a node (layer=region-A+0x4, mode 3, dst=tile world origin, 0x20×0x20 src rect).  The engine sprite manager (0x418470 / &DAT_008a760c) is an `mr_sprite_fn` CALLBACK (mg_bank_dims_fn pattern) so the walk stays pure; tile skipped when resolver returns 0 (490f30.c:216 emit gate).  DEFERRED: the palette tint (DAT_008a93fc/0x4182d0, recolors pixels not geometry) + the region-C blend/overlay arms (0x1b58d/0x1b5ab, 490f30.c:230-282).  10 host tests (test_draw_pool.c ×7 + test_map_render.c walk ×3) → **806 pass / 0 fail / 6 skip**.  Ledger **189/1490 touched / 184 tested** (+1: 0x4917b0; **0x586010 referenced by BARE VA** since only its layer-table slice is ported — derived ledger doesn't over-count the 18 KB fn).  Both GUI builds clean; draw_pool.c in the src wildcard, NOT yet called by main.c.  Full writeup: `docs/findings/in-game-intro.md` "The draw-node layer pool + the backdrop walk driver".  NEXT: the **present pass** (walk the 27 layers → blit each node's sprite via the zdd path) — the consumer that turns the draw list into pixels — OR finally wire decode+walk+present into main.c's in-game scene to diff vs `runs/tas-ingame-1`.  Camera/view construction stays a rock (cam[0x34..0x74] updated dynamically by gameplay scroll across many fns, no clean pure init) — host tests use synthetic cameras (window math is exact).  Clean /clear point.)
+
+> **ckpt 61 — THE DRAW-NODE LAYER POOL + THE BACKDROP WALK DRIVER ARE PORTED +
+> HOST-TESTED.**  Took the ckpt-60 NEXT (the draw-node enqueue).  This closes
+> the **decode → grid → geometry → draw-list** chain: `map_decode` places tiles
+> in the runtime grid, `map_render_tile` reads the geometry, and now
+> `map_render_walk` + `draw_pool` accumulate the per-frame draw-node list.
+>
+> **RE — the layer table is one structure shared by `0x4917b0` + `0x586010`.**
+> `FUN_00490f30`'s `0x4917b0` enqueue writes into the render context's DRAW-NODE
+> TABLE at **`view + 0x54`** (`view = *(room_state + 0x104c)` — the same object
+> `0x490f30` takes as `param_1`).  `0x586010:510-650` builds it: `operator_new(0xd8)`
+> = **27 (`0x1b`) 8-byte layer slots** `{u16 count, u16 cap, ptr node[cap]}`,
+> each given its own `operator_new(cap*0x3c)` node array.  The 27 caps are
+> literal-stamped (layer1=`0x80`, layer2/3=`0x1b8`, layer6=`0x400`, …).
+> **Slot 0 is never given an array (cap 0) → every emit to layer 0 fails** — a
+> real quirk, preserved.  Present walks the 27 layers in order, so the layer
+> index = the draw-order key.
+>
+> **`0x4917b0` (106 B)** = per-layer bump alloc: `node = layer[key & 0xffff];
+> if (cap <= count) return 0;` else stamp the 6 caller dwords (`+0x00` sprite,
+> `+0x04/+0x08` dst, `+0x0c/+0x10/+0x14` aux, `+0x18` mode), bump `count`, return
+> the node for `490f30` to finish (`+0x2c/+0x30/+0x34/+0x38` src rect).  The
+> `CONCAT22` high-word sort key is discarded by the mask (dead in the allocator).
+>
+> **PORT (pure, host-tested):**
+> - **`src/draw_pool.{c,h}`** — `draw_pool_init`/`_reset`/`_free` (the 27-layer
+>   table; `draw_pool_default_caps[]` verbatim) + `draw_pool_emit` (`0x4917b0`
+>   arg-for-arg, caller-order args).  The node is exactly **0x3c B** (asserted).
+> - **`map_render_walk`** (added to `map_render.{c,h}`) — the backdrop-tile core
+>   of `490f30.c:55-229`: compute the visible window, scan rows-outer/cols-inner,
+>   per populated region-A sub-slot resolve the sprite + `draw_pool_emit` a node
+>   (layer = region-A `+0x4`, mode 3, dst = tile world origin, `0x20×0x20` src
+>   rect).  The sprite manager (`0x418470`/`&DAT_008a760c`) is an `mr_sprite_fn`
+>   **callback** (the `mg_bank_dims_fn` pattern); a tile is skipped when the
+>   resolver returns 0 (`490f30.c:216` emit gate).  **DEFERRED:** the palette
+>   tint (`DAT_008a93fc`/`0x4182d0`) + the region-C blend/overlay arms
+>   (`0x1b58d`/`0x1b5ab`, `490f30.c:230-282`).
+>
+> **STATE:** 10 host tests (`test_draw_pool.c` ×7: node size/offsets, the 27-cap
+> table, emit fields, the `&0xffff` layer mask, fill-to-cap overflow, layer-0/
+> out-of-range fail, reset-keeps-arrays; `test_map_render.c` ×3: walk over a
+> populated grid + full-window camera, the resolver gate, window clipping) →
+> **806 pass / 0 fail / 6 skip** (+10).  Ledger **189/1490 touched / 184 tested**
+> (+1: `0x4917b0`; **`0x586010` referenced by BARE VA** — only its layer-table
+> slice is ported, so the 18 KB function is not over-counted).  Both GUI builds
+> compile clean; `draw_pool.c` is in the `src` wildcard, not yet called by
+> `main.c`.  Full writeup: `docs/findings/in-game-intro.md` "The draw-node layer
+> pool + the backdrop walk driver".
+>
+> **NEXT:** the **present pass** — walk the 27 layers, resolve each node's sprite,
+> zdd-blit it — the consumer that turns the draw list into pixels; OR wire
+> `map_decode` + `map_render_walk` + present into `main.c`'s in-game scene and
+> diff vs `runs/tas-ingame-1` anchored on `game_enter`.  The camera/view object
+> construction stays a rock (`cam[0x34..0x74]` are updated dynamically by the
+> gameplay scroll across many functions — no clean pure init), so the real DATA
+> 1022 draw list awaits it; host tests use synthetic cameras (the window math is
+> exact).  Clean **/clear point**.
+>
+> ─────────────────────────────────────────────────────────────────────────────
+
+# Session handoff — earlier (ckpt 60 — STATIC TILEMAP RENDER-WALK LOCATED + its pure GEOMETRY ported + host-tested; the `0x5a00c0` model CORRECTED.  Surveyed `0x5a00c0` for the ckpt-59-named "read the grid + blit" slice and found it reads **NONE** of the render-grid regions — it is the scripted-scene OVERLAY player (3-state GetTickCount pace machine + a stack sprite draw-list + a 0x124-stride caption-text array drawn through font bank DAT_008a7640), i.e. the intro banner/dialogue/caption layer, NOT the tilemap.  The town backdrop tilemap is rendered by **`FUN_00490f30`** (2002 B) — found by intersecting the ~30 grid-dim (0x2c1030) readers with the bank pool DAT_008a760c; called `FUN_00490f30(view, 1)` with the render grid in ECX from the per-frame draw walk (`0x48c150:108`/`0x499100:185`, both passing the view object `*(room_state+0x104c)`).  RE: 490f30 (a) computes the visible-cell window from the view/camera object + grid dims (490f30.c:40-54: col0=clampNeg((cam[0x60]+cam[0x34])/0xc80-1), ncols=min(dim0-col0, cam[0x64]/0xc80+2); row axis sums 3 components one ×100), (b) scans it z-flat reading grid index `col*0x80+row` (READ-side confirm of ckpt-58's 0x80 pitch) + region A's 4 sub-slots (0x30+slot*0x10+idx*0x40), emitting one draw node per populated sub-slot via `0x4917b0`: dest=(col*0xc80,row*0xc80), 0x20×0x20 source-rect at (dx*0xc80/100, dy*0xc80/100) [dx,dy=regionA +0x8/+0xc=the atlas sub-tile coords], layer key=regionA +0x4; (c) consults region C (+0x195038) for the 0x1b58d blend/0x1b5ab overlay objects.  The draw node (`0x4917b0`, 106 B) is a per-layer bump allocator (layer table @render_ctx+0x54, 0x3c-B nodes).  PORT (pure, host-tested) `src/map_render.{c,h}`: the GEOMETRY decoupled from the engine draw machinery — `map_render_visible_window` (490f30.c:40-54), `map_render_grid_index` (col*0x80+row), `map_render_tile` (one region-A sub-slot → draw-node geometry {bank,frame,layer,dst_x,dst_y,src_x,src_y,w=h=0x20}, 0 for empty); the grid it reads is exactly what map_decode produced, closing the decode→read loop.  8 host tests (window cap both branches + neg-origin clamp + ×100 row term + writer↔reader agreement via map_grid_emit_tile) → **796 pass / 0 fail / 6 skip**.  Ledger **188/1490 touched / 183 tested** (+1: 0x490f30; deferred helpers 0x4917b0/0x418470/0x417c40/0x48c6b0/0x4182d0 referenced by bare VA not FUN_ so the derived ledger doesn't over-count).  Both GUI builds clean; `map_render.c` in the src wildcard, NOT yet called by main.c.  DEFERRED (rest of the render rock): the sprite resolve (0x418470/0x417c40), palette tint (DAT_008a93fc/0x4182d0), the draw-node pool enqueue (0x4917b0, needs render_ctx+0x54) + zdd blit/present, the region-C blend/overlay arms, AND the camera/view object construction (where cam[0x34..0x74] come from).  Full writeup: `docs/findings/in-game-intro.md` "The static tilemap render walk".  NEXT: the draw-node + zdd present pipeline (0x4917b0 enqueue → blit) OR the view/camera object construction, to turn the ported geometry into actual backdrop pixels, diff vs `runs/tas-ingame-1`.  Clean /clear point.)
 
 > **ckpt 60 — THE STATIC TILEMAP RENDER-WALK IS LOCATED + its pure GEOMETRY is
 > PORTED + host-tested; the `0x5a00c0` model is CORRECTED.**

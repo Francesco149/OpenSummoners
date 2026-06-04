@@ -771,6 +771,75 @@ blit/present, plus the region-C blend/overlay arms.  Those + the camera/view
 object's construction (where `cam[0x34..0x74]` come from) are the next units on
 the path to actual town-backdrop pixels.
 
+### The draw-node layer pool + the backdrop walk driver (ckpt 61)
+
+The next slice down the render rock: the **draw-node accumulator** the walk
+emits into, plus the driver that turns `map_render_tile`'s per-cell geometry
+into a populated draw list.
+
+**The layer table (`0x586010:510-650`).**  Right after the sim allocs the
+room-state object it builds the render context's **draw-node table** at
+`view + 0x54` (`view = *(room_state + 0x104c)` — the same object `0x490f30`
+takes as `param_1` and `0x4917b0` reads as `in_ECX`).  It is `operator_new(0xd8)`
+= **27 (`0x1b`) 8-byte layer slots**, each `{u16 count, u16 cap, ptr node[cap]}`,
+and each slot is given its own `operator_new(cap * 0x3c)` node array.  The 27
+caps are literal-stamped in the sim and reproduced verbatim in
+`draw_pool_default_caps[]` (e.g. layer 1 = `0x80`, layer 2/3 = `0x1b8`, layer 6 =
+`0x400`, …).  **Slot 0 is only zero-initialised and never given an array**
+(cap 0), so emits to layer 0 always fail — a real engine quirk preserved by the
+port.  A later present pass walks the 27 layers in order, so the layer index
+doubles as the draw-order key (how the tilemap, sprites and HUD interleave into
+one sorted frame).
+
+**`0x4917b0` (106 B) = the per-layer bump allocator.**  `node = layer[key &
+0xffff]`; `if (cap <= count) return 0;` else stamp the six caller dwords
+(`+0x00` sprite, `+0x04/+0x08` dst, `+0x0c/+0x10/+0x14` aux, `+0x18` mode),
+bump `count`, return the node for the caller (`0x490f30`) to finish with the
+`+0x2c/+0x30/+0x34/+0x38` source rect.  The high word of `param_1` (a `dy`-derived
+sort key `0x490f30` packs via `CONCAT22`) is **discarded** by the mask — dead in
+the allocator.
+
+**PORT (pure, host-tested): `src/draw_pool.{c,h}`** —
+- `draw_pool_init` allocates the 27 node arrays per `draw_pool_default_caps`;
+  `draw_pool_reset` zeroes the counts (the per-frame "begin draw list");
+  `draw_pool_free` releases them.
+- `draw_pool_emit(pool, layer_key, mode, sprite, dst_x, dst_y, p6,p7,p8)` is
+  `0x4917b0` arg-for-arg (caller-order args), returning the node or NULL on a
+  full layer / out-of-range key.  The node is exactly **0x3c bytes** (asserted),
+  matching the `cap*0x3c` array sizing and the `+0x2c..+0x38` src-rect offsets.
+
+**PORT (pure, host-tested): `map_render_walk`** (added to `map_render.{c,h}`) —
+the backdrop-tile core of `0x490f30`'s main loop (`490f30.c:55-229`): compute
+the visible window, scan it (rows outer, cols inner), and for each populated
+region-A sub-slot resolve the sprite and emit a node into the pool with
+`layer = region-A +0x4`, `mode 3`, `dst = tile world origin`, and the
+`0x20×0x20` source rect.  The engine sprite manager (`0x418470` / `&DAT_008a760c`)
+is taken as an `mr_sprite_fn` **callback** (the `mg_bank_dims_fn` pattern) so the
+walk stays pure; a tile is skipped when the resolver returns 0 (retail's
+`iVar4 != 0` emit gate, `490f30.c:216`).  **Deferred** (documented in the code):
+the difficulty/time palette tint (`DAT_008a93fc`/`0x4182d0`, recolors pixels not
+geometry) and the per-cell region-C blend/overlay arms (`0x1b58d`/`0x1b5ab`,
+`490f30.c:230-282`).
+
+**STATE.** 10 new host tests (`tests/test_draw_pool.c` ×7: node size/offsets,
+the 27-cap table + array sizing, emit field layout, the `& 0xffff` layer mask,
+fill-to-cap overflow, layer-0-always-full + out-of-range key, reset-keeps-arrays;
+`tests/test_map_render.c` ×3: the walk over a populated grid + a full-window
+camera asserting node count/layer/geometry, the resolver gate, and window
+clipping) → **806 pass / 0 fail / 6 skip** (+10).  Ledger **189/1490 touched /
+184 tested** (+1: `0x4917b0`; `0x586010` is referenced by **bare VA** since only
+its layer-table slice is ported, so the derived ledger doesn't over-count the
+18 KB function).  Both GUI builds compile clean; `draw_pool.c` is in the `src`
+wildcard, not yet called by `main.c`.
+
+**This closes the decode → grid → geometry → draw-list chain.**  What remains for
+actual pixels: the **camera/view object construction** (`cam[0x34..0x74]` are
+updated dynamically by the gameplay scroll across many functions — a rock, no
+clean pure init) and the **present pass** (walk the 27 layers → resolve each
+node's sprite → zdd blit).  Producing the *real* DATA 1022 draw list needs the
+camera; the host tests use synthetic cameras + grids (the window math is exact,
+so a chosen camera deterministically selects the visible cells).
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
