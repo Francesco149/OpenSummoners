@@ -255,6 +255,27 @@ def render_cells(blob: bytes, info: dict) -> None:
         nz = sum(k for v, k in c.items() if v != 0)
         print(f"    +0x{o:02x}: {len(c):>3} distinct  ({nz} nonzero)")
 
+    # (tile id, shape) cross-tab — exactly which FUN_00587e00 dispatch arms the
+    # map exercises (the set the port must cover).  Also list the distinct +0xc
+    # placement params (uVar23 / emit_tile a2) seen per id.
+    pairs = Counter()
+    a2_by_id: dict[int, set] = {}
+    for z in range(dim2):
+        for y in range(dim1):
+            for x in range(dim0):
+                c = cell(x, y, z)
+                if c[1]:
+                    pairs[(c[1], c[4])] += 1
+                    a2_by_id.setdefault(c[1], set()).add(c[3])  # +0x0c
+    print("\n# (tile id, shape) -> count  [the dispatch arms exercised]:")
+    for (tid, sh), k in sorted(pairs.items()):
+        print(f"    {tid:#08x} shape {sh:>2}  x{k}")
+    print("\n# distinct +0x0c (emit_tile a2) values per tile id:")
+    for tid in sorted(a2_by_id):
+        vals = sorted(a2_by_id[tid])
+        shown = " ".join(f"{v:#x}" for v in vals[:12]) + (" ..." if len(vals) > 12 else "")
+        print(f"    {tid:#08x}:  {shown}")
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)

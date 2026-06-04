@@ -9221,6 +9221,7 @@
    "src": [
     "src/map_data.c",
     "src/map_data.h",
+    "src/map_decode.h",
     "src/map_grid.h"
    ]
   },
@@ -9265,7 +9266,9 @@
    "src": [
     "src/asset_register.h",
     "src/map_data.c",
-    "src/map_data.h"
+    "src/map_data.h",
+    "src/map_decode.c",
+    "src/map_decode.h"
    ]
   },
   {
@@ -9291,6 +9294,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/map_decode.c",
     "src/map_grid.c",
     "src/map_grid.h"
    ]
@@ -9302,6 +9306,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/map_decode.c",
     "src/map_grid.c",
     "src/map_grid.h"
    ]

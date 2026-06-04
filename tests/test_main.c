@@ -809,6 +809,16 @@ struct test_case {
     X(map_grid_emit_obj_clamps_dims)                           \
     X(map_grid_emit_tile_explicit_span)                        \
     X(map_grid_emit_tile_bank_span)                            \
+    X(map_decode_1b58b_shape0)                                 \
+    X(map_decode_1b58b_shape2)                                 \
+    X(map_decode_1b58d_shape2_blend)                           \
+    X(map_decode_1b58f_shape0_base_only)                       \
+    X(map_decode_1b58f_shape12_fg)                             \
+    X(map_decode_29ff4_shape14_z1)                             \
+    X(map_decode_single_tile_arms)                             \
+    X(map_decode_1b5ab)                                        \
+    X(map_decode_full_small)                                   \
+    X(map_decode_empty_cell_noop)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

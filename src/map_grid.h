@@ -76,6 +76,13 @@
 #define MG_DIM1_PX     0x2c103cu   /* i32 dim1 * 0xc80                         */
 #define MG_REGION_D    0x2c1040u   /* 2 B/cell                                 */
 
+/* Region E — a per-cell "co-id" record (0x30 B/cell) the 0x587e00 decode loop
+ * zeroes at the end of each cell pass (587e00.c:3175, `in_ECX[(x*0x80 + 0x9b01
+ * + y) * 0x18] = 0` with in_ECX a ushort*, i.e. byte 0x1d1030 + idx*0x30 +0x0).
+ * The town dispatch arms never write it; map_decode only clears it.  */
+#define MG_REGION_E    0x1d1030u   /* 0x30 B/cell; loop zeroes the +0x0 u16     */
+#define MG_REGION_E_STRIDE 0x30u
+
 #define MG_ROW_PITCH   0x80u       /* cells per row in the runtime grid        */
 #define MG_PX_PER_DIM  0xc80u      /* pixel extent multiplier (587e00.c:53)    */
 
