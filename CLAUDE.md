@@ -65,6 +65,21 @@ changelog. Active multi-session plans: `docs/plans/`.
   side-by-side. The Frida host is always up + **UAC auto-approved**, so the live gates
   (`frida_capture.py`, `bisect_call_trace_vas.py`, `mem_watch.py`) are
   **self-serviceable** — not blocked on the human.
+- **Annotate as you RE — two SEPARATE durable practices; never invent a third.** When you
+  reverse a function/global, record it in BOTH lanes (not an ad-hoc symbol-rename / parallel
+  names DB — that's the outdated trap):
+  (1) **Trace annotation** (execution tracing — *the* meaning of "annotate" here, the
+  openrecet standard): give the VA a **named entry + named fields** in
+  `tools/flow/retail_fields.json` (`name` + `_note` role + the payload it reads:
+  `global`/`arg`/`argderef`/`chain`), mirrored port-side by `CALL_TRACE_BEGIN(va)` +
+  `CALL_TRACE_FIELD` in the matching `src/` module. Then `tools/flow_diff.py` can name the
+  first call whose inputs matched but whose output/field **diverged** — and coverage
+  **compounds**: every annotated function makes the next divergence faster to pinpoint. Do
+  this as a core step of finishing any RE/port, not an afterthought.
+  (2) **thiscall/struct tagging** (static analysis — decompile *readability* only, unrelated
+  to tracing): add `(addr, class, prototype)` rows to
+  `tools/ghidra-scripts/TagThiscallFunctions.java` + struct shapes to `src/*.h`, re-applied
+  by `tools/ghidra-tag-and-export.sh` so `docs/decompiled/*.c` read with typed `this->field`.
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, :8777;
   `curl -s localhost:8777/healthz` → `ok`, start it if down). Push as you go, then keep
   working — fire-and-forget, not a checkpoint:
