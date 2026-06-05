@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **189** (11.8% of engine-proper) — tested 184, ported 5
-- code bytes touched: **13.1%** (222,635 / 1,694,868 B of engine-proper)
-- unported: **1569**
+- touched: **191** (11.9% of engine-proper) — tested 186, ported 5
+- code bytes touched: **13.2%** (224,073 / 1,694,868 B of engine-proper)
+- unported: **1567**
 - orphan refs in src/ not in this table: 4
 
-## tested (184) — ported + host unit suite
+## tested (186) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -62,7 +62,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
 | 0x48e6d0 | FUN_0048e6d0 | 389 | glyph_render.c, glyph_render.h |
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
-| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, map_render.c, map_render.h |
+| 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h |
+| 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h |
+| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, map_present.h, map_render.c (+1) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
@@ -182,8 +184,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |
-| 0x5b9b70 | FUN_005b9b70 | 122 | main.c, newgame_cursor.h, zdd.c (+1) |
-| 0x5b9bf0 | FUN_005b9bf0 | 256 | main.c, newgame_box.h, zdd.c (+1) |
+| 0x5b9b70 | FUN_005b9b70 | 122 | main.c, map_present.h, newgame_cursor.h (+2) |
+| 0x5b9bf0 | FUN_005b9bf0 | 256 | main.c, map_present.c, map_present.h (+3) |
 | 0x5ba290 | FUN_005ba290 | 30 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5bad20 | FUN_005bad20 | 26 | wnd_proc.h |
 | 0x5bad40 | FUN_005bad40 | 26 | wnd_proc.h |
@@ -197,7 +199,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd550 | FUN_005bd550 | 302 | main.c, newgame_box.h, newgame_cursor.h (+3) |
+| 0x5bd550 | FUN_005bd550 | 302 | main.c, map_present.c, map_present.h (+5) |
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |

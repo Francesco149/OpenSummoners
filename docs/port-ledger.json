@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 184,
+  "tested": 186,
   "ported": 5,
-  "unported": 1569,
+  "unported": 1567,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 189,
-  "pct_touched": 11.8,
-  "pct_tested": 11.8,
-  "engine_proper_touched": 176,
+  "touched": 191,
+  "pct_touched": 11.9,
+  "pct_tested": 11.9,
+  "engine_proper_touched": 178,
   "bytes_total": 1694868,
-  "bytes_touched": 222635,
-  "pct_bytes_touched": 13.1
+  "bytes_touched": 224073,
+  "pct_bytes_touched": 13.2
  },
  "orphan_refs": [
   "0x56c470",
@@ -5539,8 +5539,11 @@
    "name": "FUN_0048eac0",
    "size": 1131,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_present.c",
+    "src/map_present.h"
+   ]
   },
   {
    "va": "0x48ef40",
@@ -5595,8 +5598,11 @@
    "name": "FUN_00490b90",
    "size": 307,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/map_present.c",
+    "src/map_present.h"
+   ]
   },
   {
    "va": "0x490cd0",
@@ -5614,6 +5620,7 @@
    "status": "tested",
    "src": [
     "src/draw_pool.h",
+    "src/map_present.h",
     "src/map_render.c",
     "src/map_render.h"
    ]
@@ -11754,6 +11761,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/map_present.h",
     "src/newgame_cursor.h",
     "src/zdd.c",
     "src/zdd.h"
@@ -11767,6 +11775,8 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/map_present.c",
+    "src/map_present.h",
     "src/newgame_box.h",
     "src/zdd.c",
     "src/zdd.h"
@@ -12591,6 +12601,8 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/map_present.c",
+    "src/map_present.h",
     "src/newgame_box.h",
     "src/newgame_cursor.h",
     "src/zdd.c",

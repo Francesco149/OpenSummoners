@@ -841,6 +841,15 @@ struct test_case {
     X(draw_pool_emit_overflow)                                 \
     X(draw_pool_layer0_always_full)                            \
     X(draw_pool_reset)                                         \
+    X(map_present_project_basic)                               \
+    X(map_present_project_camera_and_offset)                   \
+    X(map_present_project_cull_left)                           \
+    X(map_present_project_cull_right_bottom)                   \
+    X(map_present_walk_order_and_geometry)                     \
+    X(map_present_walk_alpha_kind)                             \
+    X(map_present_walk_culls_offscreen)                        \
+    X(map_present_walk_defers_other_modes)                     \
+    X(map_present_walk_dry_count)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

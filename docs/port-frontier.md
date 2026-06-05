@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **206**
-- of those, zero-dependency **leaves: 116** (recommended order below)
+- frontier functions: **208**
+- of those, zero-dependency **leaves: 117** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -147,7 +147,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x47b7c0 | 163 | 1 | 0 | ✓ |
 
-### char anim + hit-test/knockback + GDI glyph + sfx trigger (5)
+### char anim + hit-test/knockback + GDI glyph + sfx trigger (6)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -156,6 +156,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48d710 | 550 | 1 | 0 | ✓ |
 | 0x48cb90 | 1005 | 1 | 0 | ✓ |
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
+| 0x48ef40 | 4389 | 1 | 8 |  |
 
 ### tile/sprite grid render + spell fx + battle UI + palette (7)
 
@@ -291,7 +292,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59e230 | 924 | 1 | 19 |  |
 | 0x59e5d0 | 1033 | 1 | 14 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (47)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (48)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -316,6 +317,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5b64f0 | 38 | 1 | 0 | ✓ |
 | 0x5bb3a0 | 39 | 1 | 0 | ✓ |
 | 0x5a3de0 | 49 | 1 | 0 | ✓ |
+| 0x5b9450 | 52 | 1 | 0 | ✓ |
 | 0x5bbb10 | 56 | 1 | 0 | ✓ |
 | 0x5b6300 | 60 | 1 | 0 | ✓ |
 | 0x5a3bb0 | 62 | 1 | 0 | ✓ |
