@@ -62,6 +62,7 @@ FUNCTIONS_CSV = REPO / "docs" / "decompiled" / "functions.csv"
 LEDGER_JSON = REPO / "docs" / "port-ledger.json"
 LEDGER_MD = REPO / "docs" / "port-ledger.md"
 STATUS_MD = REPO / "docs" / "STATUS.md"
+FRONT_MD = REPO / "docs" / "FRONT.md"
 
 # Functions at/above this VA are the statically-linked MSVC CRT tail.  The
 # decompile of sotes.exe shows the last engine function (FUN_005bd680, 1072 B)
@@ -74,23 +75,29 @@ STATUS_MD = REPO / "docs" / "STATUS.md"
 # documented in STATUS, not ground truth.
 ENGINE_PROPER_HI = 0x5BDAB0
 
-# Kept out of band so STATUS stays a 60-second read.  Edit these two strings
-# when the active front moves; everything else is derived.
-CURRENT_PHASE = (
-    "Phase 1 surface-map complete; Phase 4 in progress on the title path. "
-    "All small leaves the title-menu scene runner needs are ported (pixel "
-    "drawer, asset register, bitmap session, ZDD wrapper, cs_dispatch, "
-    "WndProc, app_pump). Next front: the title-menu scene runner itself "
-    "(FUN_0056aea0, 3441 B) — first visible frame. See ROADMAP.md, HANDOFF.md."
-)
-CURRENT_BLOCKER = (
-    "FUN_0056aea0 is a multi-checkpoint port: outer skeleton + state-vars + "
-    "the PTR_DAT_0056bfa4 7-handler jumptable, plus unported helpers "
-    "(FUN_00412c10 menu-controller alloc, FUN_0043c110/_43ce50 input poll/"
-    "latch, FUN_0056c070/_0056c180 sparkle+flip). See findings/title-scene.md."
+# Fallback "current front" used only if docs/FRONT.md is missing.  Normally the
+# hand-edited docs/FRONT.md block is injected verbatim (load_front), so the front
+# can never drift from a stale Python string.
+FRONT_FALLBACK = (
+    "- **Current front:** `docs/FRONT.md` is missing — create it (the 60-second\n"
+    "  hand-edited current-front block) so STATUS can inject it. See CLAUDE.md."
 )
 
 FUN_RE = re.compile(r"FUN_([0-9a-fA-F]{6,8})")
+
+
+def load_front() -> str:
+    """The hand-edited current-front block from docs/FRONT.md, between the
+    <!-- FRONT:BEGIN --> / <!-- FRONT:END --> markers (whole file if unmarked),
+    injected verbatim into STATUS so the front never drifts.  Falls back to a
+    placeholder if the file is absent."""
+    if not FRONT_MD.exists():
+        return FRONT_FALLBACK
+    text = FRONT_MD.read_text(errors="replace")
+    begin, end = "<!-- FRONT:BEGIN -->", "<!-- FRONT:END -->"
+    if begin in text and end in text:
+        text = text.split(begin, 1)[1].split(end, 1)[0]
+    return text.strip() or FRONT_FALLBACK
 
 
 def load_engine_functions() -> dict[int, dict]:
@@ -208,6 +215,7 @@ def render_json(entries, orphans, counts) -> str:
 
 def render_status(counts) -> str:
     c = counts
+    front = load_front()
     bar_n = round(c["pct_touched"] / 5)  # 20-cell bar
     bar = "█" * bar_n + "░" * (20 - bar_n)
     return f"""# OpenSummoners — status at a glance
@@ -244,13 +252,18 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase:** {CURRENT_PHASE}
-- **Top blocker:** {CURRENT_BLOCKER}
+{front}
+
+> Hand-edited in `docs/FRONT.md`, injected here verbatim so it can't drift.
 
 ## Where to read next
 
 - `STATUS.md` (this file) — 60-second orientation.
-- `HANDOFF.md` — "where to pick up *right now*" (rewritten each checkpoint).
+- `../CLAUDE.md` — the dense auto-loaded entry point (conventions, parity model, paths).
+- `FRONT.md` — the hand-edited current front (source of the block above).
+- `HANDOFF.md` — rolling current-checkpoint detail (module layout + open threads).
+- `parity-model.md` — the multi-pillar model; `parity-ledger.md` — confirmed-1:1 guard.
+- `port-debt.md` — synthetic/MVP shortcuts owed back.
 - `port-ledger.md` / `.json` — per-function port status (derived).
 - `port-frontier.md` — what to port next: unported fns reachable from ported
   code, zero-dep leaves ranked (derived; `tools/gen_frontier.py`).

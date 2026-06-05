@@ -32,20 +32,31 @@ Read at the start of every new session.
 - **Stay autonomous.**  The user expects to be a periodic
   visual-confirmation checkpoint, not a per-step approver.  Make choices
   and report them.
-- **Subagents are forbidden by default** (see `PLAN.md` §7).  Inline
-  work, even if it's long.  The only carve-outs are pure mechanical
-  batch tasks with no judgment surface (rename N symbols, regenerate a
-  table).  RE work involves complex code analysis and the moment a task
-  "seems" mechanical it usually turns into a rabbit hole.
-  - **Carve-out — wide read-only audits.**  When the *surface is wide*
-    (mapping the whole binary into subsystems, scouting many forward-path
-    clusters at once) a `Workflow` of **read-only `Explore` agents** is
-    sanctioned, because no agent is making a port decision — each just
-    reads a band of `docs/decompiled/by-address/` and reports a structured
-    map.  `tools/workflows/subsystem-survey.js` is the canonical one;
-    its output seeds `ROADMAP.md` + the `engine-quirks.md` log.  Findings
-    are *decompile-grade*: byte-verify offsets before a port leans on them.
-    The actual porting (read Ghidra → write C → test) still stays inline.
+- **Subagents are allowed — but used judiciously** (same rules as
+  openrecet, 2026-06-05).  The deciding question is openrecet's: **does
+  this require judgment or just careful execution?**  Judgment → main
+  loop (Opus orchestrator, continuous context).  Wide, independent,
+  read-only execution → a subagent earns its keep.  Two real costs gate
+  every spawn: the **debrief/round-trip cost**, and the fact that a
+  subagent **lacks your full reasoning history** (it pattern-matches
+  shallowly and can miss a quirk).  So **don't be trigger-happy**: when
+  you already hold the thread, do it inline even if it's long.
+  - ✅ **Good fits:** wide read-only audits (map the binary into
+    subsystems, scout many forward-path clusters), scan `all.c` for a
+    pattern, run a smoke run + summarize a diff, pull N facts from a
+    sister project.  `tools/workflows/subsystem-survey.js` is the
+    canonical `Workflow` of read-only `Explore` agents (seeds
+    `ROADMAP.md` + `engine-quirks.md`); its output is *decompile-grade* —
+    byte-verify offsets before a port leans on them.
+  - ❌ **Bad fits (stay in the main loop):** choosing what to port next,
+    deciding real-bug-vs-harness-quirk, cross-subsystem synthesis,
+    unscoped "find anything interesting", anything touching `vendor/` or
+    committing.  The routine chip cadence (read Ghidra → write C → test →
+    commit) runs single-threaded so the orchestrator holds context.
+  - **These rules are LIVING — update them as you go.**  When a subagent
+    pattern works well or burns you, edit this section (and the
+    `feedback_autonomy` memory) so the lesson sticks.  Don't let a
+    good/bad pattern go unrecorded.
 - **Everything runs inside `nix develop`.**  `python3`, `frida`,
   `ghidra-analyzeHeadless`, `i686-w64-mingw32-gcc` are all flake-provided;
   outside the dev shell they will not be on PATH.  This is the #1

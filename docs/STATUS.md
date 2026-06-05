@@ -32,13 +32,42 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase:** Phase 1 surface-map complete; Phase 4 in progress on the title path. All small leaves the title-menu scene runner needs are ported (pixel drawer, asset register, bitmap session, ZDD wrapper, cs_dispatch, WndProc, app_pump). Next front: the title-menu scene runner itself (FUN_0056aea0, 3441 B) — first visible frame. See ROADMAP.md, HANDOFF.md.
-- **Top blocker:** FUN_0056aea0 is a multi-checkpoint port: outer skeleton + state-vars + the PTR_DAT_0056bfa4 7-handler jumptable, plus unported helpers (FUN_00412c10 menu-controller alloc, FUN_0043c110/_43ce50 input poll/latch, FUN_0056c070/_0056c180 sparkle+flip). See findings/title-scene.md.
+- **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path (the first
+  in-game visible frame), building toward a trace that plays 1:1 pixel-perfect frame by
+  frame on both sides. Milestone map: `ROADMAP.md`. Mechanical next chip:
+  `port-frontier.md`.
+- **Where we are (ckpt 61):** the **decode → grid → geometry → draw-list** chain is
+  CLOSED. `map_decode` places tiles in the runtime render grid (`map_grid`),
+  `map_render_tile` reads the geometry, and `map_render_walk` + `draw_pool` (the
+  27-layer draw-node pool, `0x4917b0`/`0x586010`) accumulate the per-frame draw-node
+  list. All pure + host-tested: **806 pass / 0 fail / 6 skip**. Ledger **189/1490
+  touched / 184 tested**. Both GUI builds clean; the new modules are in the `src`
+  wildcard but **not yet called by `main.c`**.
+- **Next move:** the **present pass** — walk the 27 layers, resolve each node's sprite,
+  zdd-blit it (the consumer that turns the draw list into pixels) — OR wire
+  `map_decode` + `map_render_walk` + present into `main.c`'s in-game scene and diff vs
+  `runs/tas-ingame-1` anchored on `game_enter`. The camera/view object construction
+  stays a rock (`cam[0x34..0x74]` are updated dynamically by gameplay scroll across many
+  functions — no clean pure init); host tests use synthetic cameras (window math exact).
+  Full writeup: `findings/in-game-intro.md`.
+- **Tooling front:** rigor scaffolding just landed (this file + `CLAUDE.md` +
+  `parity-model.md` + `port-debt.md` + the ods cross-ref/proof framework). The tracked
+  next tooling phase is the unified `scenario-test.py` + a field-bearing flow trace
+  (`docs/plans/`).
+- **Standing bar:** every divergence is `differ_px == 0` or a named/understood residual
+  (`parity-ledger.md`); attribute to a pillar before suspecting logic
+  (`parity-model.md`); seed-pinned both sides, compared by anchor/tick.
+
+> Hand-edited in `docs/FRONT.md`, injected here verbatim so it can't drift.
 
 ## Where to read next
 
 - `STATUS.md` (this file) — 60-second orientation.
-- `HANDOFF.md` — "where to pick up *right now*" (rewritten each checkpoint).
+- `../CLAUDE.md` — the dense auto-loaded entry point (conventions, parity model, paths).
+- `FRONT.md` — the hand-edited current front (source of the block above).
+- `HANDOFF.md` — rolling current-checkpoint detail (module layout + open threads).
+- `parity-model.md` — the multi-pillar model; `parity-ledger.md` — confirmed-1:1 guard.
+- `port-debt.md` — synthetic/MVP shortcuts owed back.
 - `port-ledger.md` / `.json` — per-function port status (derived).
 - `port-frontier.md` — what to port next: unported fns reachable from ported
   code, zero-dep leaves ranked (derived; `tools/gen_frontier.py`).
