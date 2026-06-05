@@ -35,6 +35,11 @@ town tiles, where it was black before.
   renders with the base palette (time/difficulty tint deferred, PORT-DEBT
   `render-palette-tint`).  Town params (4,1) are hardcoded in `town_render`
   (PORT-DEBT `ingame-nontile-layers`: derive from `game_map`/`game_world`).
+- **LIVE-CONFIRMED bit-exact** (retail `--parallax-probe`, the re-synthesised
+  trace, `game_enter@1433`): the descriptor `raw32` + the per-tile blit stream
+  match the port's `parallax_render` byte-for-byte (incl. layer C y=220 = the
+  clamped vertical parallax) → **data-1:1 at the producer**, `MAP_RENDER_CAM_TOWN_3F2`
+  confirmed.
 - **State (ckpt 66): 836 pass / 0 fail / 6 skip** (+9). Ledger **193/1490 touched /
   188 tested** (+2: `0x490cd0`, `0x499560`). Both GUI builds clean.
 
@@ -174,16 +179,17 @@ The smallest visible wins, in order:
    the difficulty/time ramp; also the parallax `0x417c40` palette path) — recolors
    pixels, not geometry.
 
-**HARNESS BLOCKER (live in-game retail ground truth):** the saved retail input-trace
-no longer navigates under `--seed-pin --lockstep --no-turbo` — retail sits on the
-title (no `newgame_enter`/`prologue_enter`/`game_enter` anchors; injects dispatch at
-the right flips but the title menu doesn't act). The in-game retail drive is broken
-(the title-menu input-injection black box / a stale trace). Until restored, in-game
-verification leans on the **port-side** drive (works: `game_enter@1116`) + the existing
-golden `runs/tas-ingame-1`. A `--parallax-probe` (+ `--parallax-frames`) is wired and
-ready to live-confirm the descriptor once nav is fixed (it fired zero times only
-because nav never reached in-game). Likely fix: re-capture `trace-retail.jsonl`, or RE
-the title input path (DInput `GetDeviceState`, the black box).
+**HARNESS — in-game retail drive RESTORED (ckpt 66).** The old `trace-retail.jsonl`
+had gone stale (retail's title turns interactive ~150 flips later than it used to, so
+the old `Start@615` was eaten and retail sat on the title). Re-synthesised a working
+trace (confirm-spam 600..760 → new-game; down×2+confirm → prologue; Z-beats → in-game):
+VERIFIED `newgame_enter@750 / prologue_enter@945 / game_enter@1433`. The
+`--parallax-probe` then live-confirmed the parallax descriptor + blit stream **bit-exact**
+vs the port (see the parallax section). Caveat: the working trace tolerates a stray
+confirm landing on the difficulty menu (the down×2 recovers); robust across 3 runs.
+NOTE (separate, user-reported): the **PORT** does not take **real keyboard** input when
+run interactively (arrows/Enter do nothing) — only `--input-trace` replay drives it;
+the windowed DInput/`GetDeviceState` path needs fixing (next task).
 
 **Before a flip-anchored full-frame diff** vs `runs/tas-ingame-1`: pin the
 **establishing-shot/zoom** relationship (PORT-DEBT `ingame-establishing-zoom`).

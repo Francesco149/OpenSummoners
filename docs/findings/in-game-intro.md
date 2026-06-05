@@ -1119,21 +1119,27 @@ A`, `room[0x43] = area C` from the AREA table; area `0xd2` = **A=4, C=1**.  So
 
 (Static, two-witness RE; not yet live-probed — see the harness note below.)
 
-**Live-probe attempt (ground-truth, BLOCKED on navigation).**  Added a
-`--parallax-probe` to `frida_capture.py`/the agent (hooks `0x490cd0` + the inner
-`0x417c40`/`0x5b9a40`, dumps the descriptor + per-tile blits; reports whether ECX
-== grid).  It fired **zero** times across the in-game window — and a frame-capture
-diagnostic showed **why**: the saved retail input-trace
-(`tests/scenarios/in-game-intro/trace-retail.jsonl`) **no longer navigates** under
-`--seed-pin --lockstep --no-turbo` — retail **sits on the title menu** (frame 850
-is still the Start/Continue menu; no `newgame_enter`/`prologue_enter`/`game_enter`
-anchors fire, though the injects do dispatch at the right flips).  So the in-game
-retail harness drive is currently broken (the title-menu input-injection black
-box, `HANDOFF` open threads).  The parallax probe is correct + bounded and will
-yield the live descriptor once navigation is restored (or driven manually).  For
-now the port is verified against the **existing golden** `runs/tas-ingame-1` (the
-ckpt-65 asset+scale method) — the two-witness static RE + the area-table
-derivation make the descriptor values high-confidence.
+**Live-probe — LANDED, descriptor + blit stream confirmed bit-exact (ckpt 66).**
+Added a `--parallax-probe` to `frida_capture.py`/the agent (hooks `0x490cd0` + the
+inner `0x417c40`/`0x5b9a40`, dumps the descriptor + per-tile blits; reports whether
+ECX == grid).  The first probe runs fired **zero** times — a frame-capture
+diagnostic showed the saved retail input-trace **no longer navigated** (retail sat
+on the title; the menu became interactive ~150 flips later than the old trace
+assumed, so its `Start@615` was eaten).  **Re-synthesised a working trace** (spam
+confirm across the title-interactive window 600..760 → new-game; down×2 + confirm →
+prologue; Z-beats → in-game): VERIFIED `newgame_enter@750`, `prologue_enter@945`,
+`game_enter@1433` (`tests/scenarios/in-game-intro/trace-retail.jsonl`).  With it the
+probe fires from `game_enter@1433`, and the live descriptor is an **exact match** of
+the static RE: `ecx == grid`, `raw32 = 55 00 · 58 00 f8 00 08 00 · 00 00 fa 00 · 59
+00 e0 00 08 00 · 00 00 00 00` → A=`0x55`, C=`0x58`/baseY`0xf8`/wrap`8`/paraY`0xfa`,
+B=`0x59`/baseY`0xe0`/wrap`8`/paraY`0`.  The live **blit stream also matches the
+port's `parallax_render` byte-for-byte**: layer A frames 0-7 @ x=0..560 y=0; layer
+B col0=4 (frames 4,5,6,7,0,…) y=224; layer C frames 0-7 @ **y=220** (= baseY 248 +
+the clamped −28 vertical-parallax — exactly `test_parallax_render_town_first_frame`).
+So the parallax is **data-1:1 at the producer**, and the first-frame camera
+`MAP_RENDER_CAM_TOWN_3F2` is confirmed (col0=4 for B at factor 0.25 ⇒ scroll-x
+128000).  (The in-game retail harness drive is restored as a side effect — the
+re-synthesised trace is the new `trace-retail.jsonl`.)
 
 **PORT PLAN.**  (1) the prologue's parallax-field writes (the `param_2`/`param_3`
 case → the 9 grid-header fields) — extend `map_decode`/`map_grid` (retire part of

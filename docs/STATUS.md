@@ -56,13 +56,15 @@ understates how much actual instruction volume is ported.
   1150 vista zooms to 1:1 by ~1800; PORT-DEBT `ingame-establishing-zoom`); the per-sprite
   palette tint (`render-palette-tint` — the parallax uses the plain frame getter `0x418470`,
   not the palette-aware `0x417c40`). Backdrop TILE + parallax layers are asset+scale-correct.
-- **Verification note (harness):** the saved retail input-trace **no longer navigates** under
-  `--seed-pin --lockstep --no-turbo` — retail sits on the title (no scene anchors fire). The
-  in-game retail re-drive is currently broken (title-menu input-injection black box); ckpt 66
-  verified the parallax against the **existing golden** `runs/tas-ingame-1` (asset+scale, the
-  ckpt-65 method) + the two-witness static RE. A new `--parallax-probe` is in place to live-
-  confirm the descriptor once nav is restored. **This is the standing blocker for live in-game
-  retail ground truth** (it doesn't block the port).
+- **LIVE-CONFIRMED bit-exact (ckpt 66).** The saved retail input-trace had gone stale (retail
+  sat on the title — the menu turns interactive ~150 flips later than it used to, eating the
+  old `Start@615`). **Re-synthesised a working `trace-retail.jsonl`** (confirm-spam → new-game,
+  down×2+confirm → prologue, Z-beats → in-game): verified `newgame_enter@750 / prologue_enter@945
+  / game_enter@1433` — the in-game retail harness drive is **restored**. The `--parallax-probe`
+  then read the live descriptor = an **exact match** of the static RE (`ecx==grid`, `raw32`
+  A=`0x55` C=`0x58`/`0xf8`/8/`0xfa` B=`0x59`/`0xe0`/8/0), and the live **blit stream matches the
+  port's `parallax_render` byte-for-byte** (layer C y=220 = the clamped vertical parallax). So
+  the parallax is **data-1:1 at the producer**, and `MAP_RENDER_CAM_TOWN_3F2` is confirmed.
 - **Next move:** the **actor renderers** (`0x491ae0` et al. → present modes 0/1/2 — the NPCs:
   Arche + co) then the **dialogue overlay** (`0x5a00c0` glyph pipeline). Also pin the
   **establishing-shot/zoom** relationship (so port + golden share a camera) to unlock a flip-
