@@ -852,6 +852,12 @@ struct test_case {
     X(map_present_walk_culls_offscreen)                        \
     X(map_present_walk_defers_other_modes)                     \
     X(map_present_walk_dry_count)                              \
+    X(town_render_one_tile)                                    \
+    X(town_render_resolver_gate)                               \
+    X(town_render_empty)                                       \
+    X(town_render_dry_step)                                    \
+    X(town_render_unloaded_noop)                               \
+    X(town_render_malformed)                                   \
 
 #define X(n) extern int test_##n(void);
 TESTS

@@ -5542,7 +5542,9 @@
    "status": "tested",
    "src": [
     "src/map_present.c",
-    "src/map_present.h"
+    "src/map_present.h",
+    "src/town_render.c",
+    "src/town_render.h"
    ]
   },
   {
@@ -5601,7 +5603,8 @@
    "status": "tested",
    "src": [
     "src/map_present.c",
-    "src/map_present.h"
+    "src/map_present.h",
+    "src/town_render.h"
    ]
   },
   {
@@ -5622,7 +5625,9 @@
     "src/draw_pool.h",
     "src/map_present.h",
     "src/map_render.c",
-    "src/map_render.h"
+    "src/map_render.h",
+    "src/town_render.c",
+    "src/town_render.h"
    ]
   },
   {
@@ -9237,7 +9242,9 @@
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.h",
-    "src/map_grid.h"
+    "src/map_grid.h",
+    "src/town_render.c",
+    "src/town_render.h"
    ]
   },
   {
@@ -9283,7 +9290,9 @@
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.c",
-    "src/map_decode.h"
+    "src/map_decode.h",
+    "src/town_render.c",
+    "src/town_render.h"
    ]
   },
   {

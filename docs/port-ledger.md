@@ -62,9 +62,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
 | 0x48e6d0 | FUN_0048e6d0 | 389 | glyph_render.c, glyph_render.h |
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
-| 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h |
-| 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h |
-| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, map_present.h, map_render.c (+1) |
+| 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h, town_render.c (+1) |
+| 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h, town_render.h |
+| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, map_present.h, map_render.c (+3) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
@@ -111,8 +111,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, map_data.h |
-| 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h, map_decode.h (+1) |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.c, map_data.h (+2) |
+| 0x587970 | FUN_00587970 | 866 | map_data.c, map_data.h, map_decode.h (+3) |
+| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.c, map_data.h (+4) |
 | 0x58c910 | FUN_0058c910 | 347 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58ca80 | FUN_0058ca80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
