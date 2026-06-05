@@ -67,6 +67,7 @@
 #include "glyph_wrap.h"       /* the tooltip text-node word-wrap (FUN_0040e5e0)  */
 #include "prologue_drive.h"   /* the Elemental-Stone intro cutscene (FUN_0056cd20) */
 #include "game_drive.h"       /* the in-game map run loop (0x59f2c0 seam)     */
+#include "town_render.h"      /* the in-game backdrop scene (decode→walk→present) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -163,6 +164,17 @@ static int            g_prologue_active;
  * 0x5a00c0 are the next port); see game_drive.h / docs/findings/in-game-intro.md. */
 static game_drive     g_game_drive;
 static int            g_game_active;
+
+/* The in-game town BACKDROP scene (the decode → grid → walk → present pipeline,
+ * composed in town_render.{c,h}).  Loaded in enter_game from the map's DATA
+ * resource; game_render walks it each frame through the live-verified first-frame
+ * camera MAP_RENDER_CAM_TOWN_3F2.  The map-data resource (DATA 1022 for the
+ * opening town) lives in the ORIGINAL sotes.exe's .rsrc — distinct from
+ * sotesd.dll (the sprite banks) — so it loads from a separate datafile handle
+ * (g_sotes_exe), the engine-time module DAT_008a6e7c the ckpt-56 finding pinned. */
+static town_render    g_town;
+static int            g_town_loaded;
+static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
 
 /* The GDI HFONT slot the new-game config menu renders with: Courier New 7×18 =
  * ar_register_fonts slot 5 ({w=7,h=0x12,family=2}); the captured golden's
@@ -428,6 +440,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_game_active) {
         game_drive_shutdown(&g_game_drive);
         g_game_active = 0;
+    }
+    if (g_town_loaded) {
+        town_render_free(&g_town);
+        g_town_loaded = 0;
+    }
+    if (g_sotes_exe != NULL) {
+        FreeLibrary(g_sotes_exe);
+        g_sotes_exe = NULL;
     }
     if (g_newgame_active) {
         newgame_drive_shutdown(&g_newgame_drive);
@@ -1402,19 +1422,132 @@ static void leave_prologue_to_title(const char *why)
     reenter_title();
 }
 
-/* The in-game frame render (game_drive cfg.render).  Today: clear the primary to
- * black — the faithful map-load frame retail shows from game_enter (flip ~1092)
- * until the town first renders (~flip 1150) while 0x59f2c0 allocates the
- * world + loads map 0x3f2 and the entry fade runs (golden runs/tas-ingame-1:
- * flips 900-1100 black).  When the render dispatch 0x5a00c0 is ported this
- * grows into the town tilemap/entity/UI walk (it reuses the already-ported
- * ar_sprite_decode/zdd/ramps). */
+/* ── town_render callbacks — the three engine globals the pure pipeline takes
+ *    as seams (the sprite-bank pool, the bank pixel sizes, the zdd blit) ──── */
+
+/* mr_sprite_fn — resolve a backdrop tile's (bank, frame) to a cel handle.
+ * Faithful to FUN_00490f30's resolve: `this = (&DAT_008a760c)[bank]` then
+ * `FUN_00418470(frame)` (lazy-decode + index entries[0].frames[frame]).  The
+ * port models &DAT_008a760c[bank] as ar_pool_get_slot(bank) and FUN_00418470 as
+ * ar_sprite_slot_frame; the cel is a zdd_object* the present blit casts back.
+ * Returns 0 to skip the tile (retail's `iVar4 != 0` emit gate). */
+static uint32_t game_sprite_resolve(uint16_t bank, uint16_t frame, void *ud)
+{
+    (void)ud;
+    ar_sprite_slot *slot = ar_pool_get_slot(bank);
+    if (slot == NULL) return 0;
+    void *cel = ar_sprite_slot_frame(slot, frame);
+    return (uint32_t)(uintptr_t)cel;
+}
+
+/* mg_bank_dims_fn — a sprite bank's pixel size (FUN_0058c910 reads pool[bank]
+ * +0x20 width / +0x24 height for the bank-derived tile footprint).  In the port
+ * those are ar_sprite_slot.width / .height. */
+static void game_bank_dims(void *ctx, uint16_t bank_id, int32_t *w, int32_t *h)
+{
+    (void)ctx;
+    ar_sprite_slot *slot = ar_pool_get_slot(bank_id);
+    if (slot == NULL) { *w = 0; *h = 0; return; }
+    *w = (int32_t)slot->width;
+    *h = (int32_t)slot->height;
+}
+
+/* present_blit_fn — funnel a visible backdrop node into the matching ported zdd
+ * blit.  map_render_walk emits mode 3 with node +0x14 == 0, so every town tile
+ * is PRESENT_CLIPPED → FUN_005b9bf0 = zdd_object_blt_clipped (the cel as the
+ * __thiscall `this`, the primary as dest, the projected screen dst + the node's
+ * 0x20x0x20 source rect).  PRESENT_ALPHA can't fire for the backdrop (it needs a
+ * blend descriptor we don't carry here); it lands with the actor renderers. */
+static void game_present_blit(const present_op *op, void *ud)
+{
+    (void)ud;
+    if (op->sprite == 0 || g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+    zdd_object *src = (zdd_object *)(uintptr_t)op->sprite;
+    if (op->kind == PRESENT_CLIPPED) {
+        zdd_object_blt_clipped(src, g_zdd->primary_obj,
+                               op->dst_x, op->dst_y, op->w, op->h,
+                               op->src_x, op->src_y);
+    }
+    /* PRESENT_ALPHA / KEYED / SCALED: deferred (no backdrop producer emits them;
+     * PORT-DEBT present-actor-modes). */
+}
+
+/* Load the room's map-data DATA resource from the original sotes.exe and build
+ * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
+ * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
+ * (here town_render_load).  The opening town (map 0x3f2 → room 210110) is scene
+ * 1022.  Returns 1 on success.  On any failure the scene stays unloaded and
+ * game_render shows the faithful black map-load frame. */
+static int load_town_scene(uint16_t scene)
+{
+    if (g_sotes_exe == NULL) {
+        /* The original packed sotes.exe is still in the game-dir CWD; Steamless
+         * leaves its .rsrc readable.  AS_DATAFILE maps it for FindResource only
+         * (no DllMain / no code execution). */
+        g_sotes_exe = LoadLibraryExA("sotes.exe", NULL, LOAD_LIBRARY_AS_DATAFILE);
+        if (g_sotes_exe == NULL) {
+            log_line("load_town_scene: LoadLibraryExA(sotes.exe, AS_DATAFILE) "
+                     "failed: %lu — backdrop stays black", GetLastError());
+            return 0;
+        }
+    }
+
+    HRSRC hres = FindResourceA(g_sotes_exe, MAKEINTRESOURCEA(scene), "DATA");
+    if (hres == NULL) {
+        log_line("load_town_scene: FindResourceA(DATA %u) failed: %lu",
+                 scene, GetLastError());
+        return 0;
+    }
+    HGLOBAL hmem = LoadResource(g_sotes_exe, hres);
+    DWORD    len = SizeofResource(g_sotes_exe, hres);
+    const uint8_t *bytes = (hmem != NULL) ? (const uint8_t *)LockResource(hmem) : NULL;
+    if (bytes == NULL || len == 0) {
+        log_line("load_town_scene: Load/LockResource(DATA %u) failed (len=%lu)",
+                 scene, len);
+        return 0;
+    }
+
+    if (town_render_load(&g_town, bytes, (size_t)len, game_bank_dims, NULL) != 0) {
+        log_line("load_town_scene: town_render_load(DATA %u, %lu B) failed "
+                 "(malformed resource?) — backdrop stays black", scene, len);
+        town_render_free(&g_town);
+        return 0;
+    }
+
+    g_town_loaded = 1;
+    char nm[0x21];
+    log_line("load_town_scene: DATA %u loaded (%lu B): \"%s\" %ux%ux%u, %u layers "
+             "— town backdrop scene up", scene, len,
+             map_data_name(&g_town.map, nm),
+             g_town.map.dim0, g_town.map.dim1, g_town.map.dim2, g_town.map.count);
+    return 1;
+}
+
+/* The in-game frame render (game_drive cfg.render).  Clears to black (the
+ * faithful map-load fill) then, once the town scene is loaded (enter_game),
+ * walks the static backdrop through the live-verified first-frame camera
+ * MAP_RENDER_CAM_TOWN_3F2 — map_render_walk emits the visible tiles, map_present
+ * projects + blits them via game_present_blit.  Before the scene loads (or if
+ * the resource is unavailable) this is the black map-load frame retail shows
+ * from game_enter (flip ~1092) until the town first renders (~flip 1150).
+ *
+ * DEFERRED: the entry fade + the black-load window timing (the port draws the
+ * town from game_enter rather than after retail's ~58-flip load/fade — a phase
+ * offset, PORT-DEBT ingame-camera-snap's sibling), and the actor/HUD/dialogue
+ * layers (present modes 0/1/2). */
 static void game_render(void *user)
 {
     (void)user;
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
-    zdd_object_clear(g_zdd->primary_obj);    /* black map-load frame */
+    zdd_object_clear(g_zdd->primary_obj);    /* black map-load fill */
+    if (g_town_loaded) {
+        int deferred = 0;
+        town_render_step(&g_town, &MAP_RENDER_CAM_TOWN_3F2,
+                         game_sprite_resolve, NULL,
+                         game_present_blit, NULL, &deferred);
+    }
 }
 
 /* The in-game seam.  On the prologue's 3rd beat (PROLOGUE_DONE) retail's boot
@@ -1447,9 +1580,18 @@ static void enter_game(void)
     game_drive_init(&g_game_drive, &cfg);
     g_game_active = 1;
 
-    log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 (in-game "
-             "engine 0x59f2c0 unported) — game_drive up, rendering black "
-             "map-load frame (town render 0x5a00c0 is the next port)");
+    /* Build the town backdrop scene from the map's DATA resource.  Map 0x3f2 →
+     * room 210110 "Town of Tonkiness" → scene 1022 (proven in game_world/game_map,
+     * findings/in-game-intro.md).  Retail keys the resource on room[3] = the scene
+     * index (FUN_00586010:690 → FUN_00587970(EXE, scene)); we resolve it the same
+     * way once game_map is wired, but for the opening town it is the constant
+     * 1022.  On failure game_render falls back to the faithful black frame. */
+    g_town_loaded = 0;
+    load_town_scene(/*scene=*/1022);
+
+    log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "
+             "(scene 1022); town backdrop scene %s",
+             g_town_loaded ? "loaded — rendering tiles" : "unavailable — black frame");
 }
 
 /* Retail's "Start Game" commit, on the way from the new-game config scene to
