@@ -1,4 +1,8 @@
-# Phase B — unified harness + divergence tracing (tracked, not yet started)
+# Phase B — unified harness + divergence tracing
+
+> **Status (2026-06-05):** **B2 LANDED + live-verified.** B1 (unified
+> `scenario-test.py`) and B3 (DDraw blit-command trace + `render_diff.py`) remain.
+> See the "Status" note under each deliverable below.
 
 The rigor scaffolding (CLAUDE.md, FRONT.md, parity-model, port-debt, ods cross-ref/proofs)
 landed 2026-06-05. This is the **tooling** half: bring the divergence-chasing loop up to
@@ -29,16 +33,28 @@ frame alignment, and capture — collapsing the scripts + probe flags into one e
 the surviving probe flags into `docs/parity-harness.md`** (the per-ckpt PROGRESS notes get
 consolidated here as they fold into `scenario-test.py`).
 
-### B2. Field-bearing flow trace — the LOGIC drill-in *(built first, per decision)*
+### B2. Field-bearing flow trace — the LOGIC drill-in ✅ DONE (live-verified 2026-06-05)
 openrecet's single most effective tool: names the **first call whose inputs matched but
-whose output/state diverged**. Port it to SotES:
-- Extend `src/call_trace.{c,h}` from `CALL_TRACE_ENTER` to **`CALL_TRACE_BEGIN/FIELD/END`**
-  with a per-frame `seq` — each ported function declares the fields that carry its state.
-- Teach the Frida agent (`tools/frida/opensummoners-agent.js`) to read the **same-named
-  fields** from retail (a field-spec JSON, like openrecet's `retail_fields.json`).
-- Add `tools/flow_diff.py`: align the per-frame call chain by `seq`, classify the first
-  divergence as `[chain]` (call present on one side only) or `[data]` (inputs matched,
-  output diverged). Coverage grows with the sweep.
+whose output/state diverged**. Ported to SotES:
+- ✅ `src/call_trace.{c,h}` extended from `CALL_TRACE_ENTER` to **`CALL_TRACE_BEGIN/FIELD/END`**
+  (+ `_STUB`, + `I32/U32/F32/HEX`) with a per-frame `seq` stamped on every row. 4 host tests.
+- ✅ `tools/frida/opensummoners-agent.js` reads the **same-named fields** from retail per
+  `tools/flow/retail_fields.json` (`src: global | arg | argderef`; `i32|u32|f32|hex`; `retval`
+  is an onLeave TODO), with a per-Flip `seq` mirroring the port. `frida_capture.py` loads the
+  spec, `--field-spec[-only]` auto-hooks its VAs (the bounded mode); the batch writer passes
+  `seq`/`f` through verbatim.
+- ✅ `tools/flow_diff.py`: aligns the per-frame chain by `seq`, classifies the first divergence
+  as `[chain]` / `[data]`; `--field-timeline` is the per-field state localizer. 9 tests.
+- **First probe (seed):** `rng` (the LCG word `DAT_008a4f94`) at the **Flip** (`0x5b8fc0`) —
+  the shared once-per-frame VA on both sides. NB the title runner `FUN_0056aea0` keeps its
+  do/while loop INTERNAL (onEnter fires once at scene entry, not per frame), so it is the
+  WRONG cross-side VA; the Flip is right. Coverage grows from here with the sweep.
+- **First result (the tool working):** the rng field-trace shows the title sparkle's RNG
+  consumption is **data-1:1** — port and retail converge to the identical end state
+  `0x404a0a8f` (same total draws) — with the per-flip divergence attributable to the
+  **title-pace skew (parity-ledger R3, the phase pillar)**, NOT logic. A textbook
+  data-1:1-vs-observed-divergence call. A pace-aware (anchor+rate) alignment, or moving the
+  probe to a pace-invariant point, is the next refinement when this gets chased to differ_px.
 
 ### B3. DDraw blit-command trace — the RENDER-STREAM drill-in *(after B2)*
 SotES renders via a **DirectDraw 7 software blitter** (not D3D8), so the render-stream

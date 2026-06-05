@@ -77,6 +77,27 @@ arm + `0x4c5350` `0x3f2`→room-210110 key), **map_data** (`0x587970` resource p
 draw-node pool `0x4917b0`/`0x586010`). Foundation the sim `0x586010` / render `0x5a00c0`
 will read.
 
+## Tooling — Phase B B2 (field-bearing flow trace) LANDED 2026-06-05
+The LOGIC drill-in is built + **live-verified on retail** (`docs/plans/trace-tooling-phase-b.md`):
+- `src/call_trace.{c,h}`: `seq` (per-frame exec order) + `CALL_TRACE_BEGIN/FIELD/END`
+  (`I32/U32/F32/HEX`, + `_STUB`). `tools/flow/retail_fields.json` is the retail spec; the
+  Frida agent reads `src: global|arg|argderef` (`retval` = onLeave TODO) into `f:{…}` with a
+  per-Flip seq; `frida_capture.py --field-spec[-only]` auto-hooks spec VAs (bounded mode).
+  `tools/flow_diff.py` (+ `test_flow_diff.py`, 9 tests) names the first `[chain]`/`[data]`
+  divergence; `--field-timeline` localizes per-field state drift.
+- **First probe:** `rng` (`DAT_008a4f94`) at the **Flip `0x5b8fc0`** — the shared once-per-
+  frame VA. The title runner `FUN_0056aea0` keeps its loop INTERNAL (onEnter once, not per
+  frame) so it was the wrong join VA; the Flip is right.
+- **NUANCE (next session, don't trip on it):** the port emits `0x5b8fc0` from *two* sites —
+  `src/main.c drive_present` (the rng `BEGIN`, runs every frame) and `src/zdd.c:894`
+  `CALL_TRACE_ENTER` (the real `zdd_present`, the bare call-coverage probe). Under
+  `--hide-window` (always used for parity) `zdd_present` is SKIPPED, so only the rng probe
+  fires → clean 1 row/frame. A *non*-hidden run would show 2 rows/frame at `0x5b8fc0`.
+- **First result:** title-sparkle RNG is **data-1:1** (port & retail both land on
+  `0x404a0a8f`); the per-flip divergence is the R3 title-pace (phase) skew — port anchor
+  `subtitle_anim_start` @flip 437 vs retail @897, sparkle compressed into fewer port flips.
+  Not a logic bug. Anchor+rate (pace-aware) alignment is the refinement when chased to px.
+
 ## How to run / verify live (self-serviceable — Frida host always up, UAC auto-approved)
 ```
 # build (single-TU, full rebuild) + host suite, inside nix develop:
@@ -87,6 +108,20 @@ cp build/opensummoners-debug.exe /tmp/oss.exe
 ./build/opensummoners-launcher.exe --timeout-ms 35000 -- /tmp/oss.exe \
     --hide-window --frames 2200 --capture-frames "60,200,400,700"
 # then BMP->PNG (PIL, in nix develop) from /mnt/c/.../Fortune Summoners/port_frame_*.bmp
+
+# B2 field-bearing flow trace (the LOGIC drill-in) — retail + port, then diff:
+#   retail (bounded: hook ONLY the field-spec VAs, use ABSOLUTE /tmp paths):
+OPENSUMMONERS_DURATION_MS=35000 nix develop --command bash tools/run-retail.sh \
+    --no-turbo --hide-window --seed-pin --call-trace --field-spec-only \
+    --call-trace-frames 900,950,1000,1050 --run-dir /tmp/b2live --exact-run-dir
+#   port (drive_present emits rng at the Flip 0x5b8fc0 every frame under --hide-window):
+./build/opensummoners-launcher.exe --timeout-ms 80000 -- /tmp/oss.exe \
+    --hide-window --frames 1200 --call-trace /tmp/port_ct.jsonl --call-trace-frames 900,950,1000,1050
+#   diff (default = per-frame seq-aligned chain+data walk; --field-timeline = per-field):
+nix develop --command python3 tools/flow_diff.py \
+    --retail /tmp/b2live/call_trace.jsonl --port /tmp/port_ct.jsonl --all
+# NB align on an ANCHOR not the raw flip index (title-pace skew: port anim_start@437 vs
+# retail@897) — the rng field is data-1:1 (both end 0x404a0a8f) under correct alignment.
 ```
 NB Flip frames advance ~1 per 2 main-loop iterations (pace split), so reaching Flip 700
 needs a generous `--frames`/timeout. Retail-side capture + the anchor-aligned pixel diff:

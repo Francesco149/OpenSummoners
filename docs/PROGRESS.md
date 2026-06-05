@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-05 (ckpt 62) — Phase-B B2: the field-bearing flow trace, built + live-verified
+
+Brought the divergence-chasing loop up to openrecet's standard with the **LOGIC
+drill-in** (`docs/plans/trace-tooling-phase-b.md` B2). `src/call_trace.{c,h}`
+gains a per-frame `seq` (execution order) stamped on every row + the
+`CALL_TRACE_BEGIN/FIELD/END` field-bearing event family (`I32/U32/F32/HEX`, plus
+`_STUB`), assembled in a static buffer and fwritten atomically (4 host tests).
+`tools/flow_diff.py` (+ `test_flow_diff.py`, 9 tests) aligns the per-frame call
+chain by `seq` and names the first `[chain]` (call present on one side only) or
+`[data]` (inputs matched, output diverged) divergence; `--field-timeline` is the
+per-field state-drift localizer. `load_names` was fixed to key on our
+`name,entry,…` `functions.csv` column order (openrecet's keyed on the name and
+silently dropped every CSV row).
+
+The Frida agent (`tools/frida/opensummoners-agent.js`) now reads same-named
+retail fields per `tools/flow/retail_fields.json` (`src: global|arg|argderef`;
+`i32|u32|f32|hex`; `retval` is an onLeave TODO) into an `f:{…}` payload with a
+per-Flip `seq` mirroring the port; `frida_capture.py --field-spec[-only]` loads
+the spec and auto-hooks its VAs (the bounded field-trace mode), and the batch
+writer passes `seq`/`f` through verbatim.
+
+**First probe + first result.** Seeded coverage with `rng` (the LCG word
+`DAT_008a4f94`) read at the **Flip `0x5b8fc0`** — live validation exposed that the
+title runner `FUN_0056aea0` keeps its do/while loop INTERNAL (onEnter fires once
+at scene entry, not per frame), so the Flip is the right shared per-frame VA, not
+`0x56aea0` (the port externalized that loop into `title_scene_step`). The trace
+immediately confirmed the title-sparkle RNG consumption is **data-1:1**: port and
+retail both converge to the identical end state `0x404a0a8f` (same total draws),
+with the per-flip divergence attributable to the **R3 title-pace skew** (the phase
+pillar — port anchor `subtitle_anim_start` @flip 437 vs retail @897; the sparkle
+is compressed into fewer port flips), NOT logic. A textbook data-1:1-vs-observed
+call. Commits `587016f`, `1b7c46b`, `b7b2fb2`, `492e445`. 810 pass / 0 fail /
+6 skip; both GUI builds clean.
+
+---
+
 ## 2026-06-04 (ckpt 60) — static tilemap render-walk located + geometry ported; the `0x5a00c0` model corrected
 
 Surveyed `0x5a00c0` for the ckpt-59-named "read the grid + blit the backdrop"

@@ -50,10 +50,15 @@ understates how much actual instruction volume is ported.
   stays a rock (`cam[0x34..0x74]` are updated dynamically by gameplay scroll across many
   functions — no clean pure init); host tests use synthetic cameras (window math exact).
   Full writeup: `findings/in-game-intro.md`.
-- **Tooling front:** rigor scaffolding just landed (this file + `CLAUDE.md` +
-  `parity-model.md` + `port-debt.md` + the ods cross-ref/proof framework). The tracked
-  next tooling phase is the unified `scenario-test.py` + a field-bearing flow trace
-  (`docs/plans/`).
+- **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
+  (`docs/plans/trace-tooling-phase-b.md`): `call_trace` now carries `seq` +
+  `CALL_TRACE_BEGIN/FIELD/END`; the Frida agent reads same-named retail fields per
+  `tools/flow/retail_fields.json`; `tools/flow_diff.py` names the first `[chain]`/`[data]`
+  divergence (+ `--field-timeline`). First probe: `rng` (`DAT_008a4f94`) at the Flip
+  (`0x5b8fc0`, the shared per-frame VA) — it already proved the title-sparkle RNG is
+  **data-1:1** (both sides converge to `0x404a0a8f`), per-flip skew = the R3 title-pace
+  (phase) pillar, not logic. Remaining Phase B: **B1** unified `scenario-test.py`, **B3**
+  DDraw blit-command trace + `render_diff.py`.
 - **Standing bar:** every divergence is `differ_px == 0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic
   (`parity-model.md`); seed-pinned both sides, compared by anchor/tick.
