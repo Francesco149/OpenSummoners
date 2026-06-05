@@ -1270,3 +1270,76 @@ the "Town of Tonkiness" banner (`0x5a00c0`).
 **Harness note:** `tools/flow/retail_fields.json` gained `tint` (`0x8a93fc`),
 `lutgate1/2` (`0x8a9510`/`0x8a9514`), and four LUT samples (`0x8a9410`+) at the
 Flip — the field-spec probes that pinned all of the above.
+
+## The intro PAN — the camera-scroll model (ckpt 69)
+
+**Ground truth (retail, `--seed-pin`, the camera field-spec probe across the
+establishing shot).** Extended `tools/flow/retail_fields.json` with the camera
+**target** + **speed** fields (`cam_x1c`=+0x1c, `cam_x20`=+0x20, `cam_x6c`=+0x6c,
+`cam_x70`=+0x70) and drove retail from `game_enter@1434` through flip 3600
+(`/tmp/campan*`). The establishing shot is a **scripted leftward pan**, NOT a
+leader-follow:
+
+| phase | flips | `+0x60` (cur x) | `+0x6c` (tgt x) | `+0x20` (speed) | `+0x5c`/`+0x70` (y) |
+|-------|-------|-----------------|-----------------|-----------------|---------------------|
+| **HOLD** | 1434–~1617 | 128000 (40 cells) | 128000 | 0 | 12800 / 12800 |
+| **PAN**  | ~1617–~2450 | 128000 → 12800 (eases) | **12800** (4 cells) | **300** | 12800 / 12800 |
+| **SETTLED** | ~2450–3600+ | 12800 | 12800 | 300 | 12800 / 12800 |
+
+Key facts, all from the probe:
+- **The Y camera never moves** — `+0x5c` = `+0x70` = **12800** the whole time
+  (and `+0x34`/`+0x4c`/`+0x74` stay 0). The pan is purely horizontal. So the
+  port and retail already share the **same sky rows** at every flip; only the
+  visible sky *columns* differ during the pan.
+- **The target is a FIXED value (12800), set once** at the hold→pan transition
+  (`+0x6c` flips 128000→12800 between flip 1615 and 1620, simultaneously with
+  `+0x20` 0→300). Because the target is constant (not tracking a moving entity),
+  the pan is **portable without the entity/spawn system** — unlike the actor
+  renderers. 12800 = 4 cells = the left edge of the 88-wide town (the
+  spawn-snap value `MAP_RENDER_CAM_TOWN_3F2` already uses for Y).
+- **The ease is velocity-integrating, accelerate-then-cruise** (NOT a
+  proportional ease — the cruise velocity is constant, it does not decelerate
+  near the target). Per-flip |Δ+0x60| ramps 6→30→60→90→120→144→**147** over
+  ~70 flips (flip 1617→1690), then **cruises at exactly −147/flip**
+  (1700→1800 = −14700 over 100 flips, robust across runs), then **clamps at the
+  target 12800** (no smooth decel — the approach just saturates at `cur==tgt`).
+  Cruise maxvel ≈ speed/2 = 150 (the −147 vs 150 gap is flip↔sim-tick averaging:
+  the camera steps per sim-tick, flips advance ~1 per 2 ticks, so the exact
+  per-tick step must be read off the function, not curve-fit — CLAUDE.md bar).
+
+**The camera object fields (refined from `586010`/`439690`/`58e6a0`).** The view
+= `*(DAT_008a9b50 + 0x104c)` (`operator_new(0x78)`), modelled as `int *`:
+
+| off | idx | role |
+|-----|-----|------|
+| +0x00/+0x04 | [0]/[1] | map pixel extent (dim0·0xc80 / dim1·0xc80) — the ease clamp ceiling |
+| +0x08/+0x0c | [2]/[3] | camera velocity x/y? (zeroed on snap, `439690:619`) — to confirm |
+| +0x10/+0x14 | [4]/[5] | look-at target WORLD pos (set by `58e6a0`/`439690` centering) |
+| +0x18 | [6] | centering mode flag (1=active) |
+| +0x1c | [7] | pan flag (`cam_x1c`; 0 across this pan) |
+| +0x20 | [8] | pan SPEED (`cam_x20`; 300 here, 800 in `58e6a0`) |
+| +0x34/+0x4c/+0x74 | | projector sub-pixel accumulators (0 across this pan) |
+| +0x5c/+0x60 | [0x17]/[0x18] | **current** scroll y/x |
+| +0x64/+0x68 | [0x19]/[0x1a] | viewport extent (64000/48000) |
+| +0x6c/+0x70 | [0x1b]/[0x1c] | **target** scroll x/y (clamped to `[0, ext-vp]`) |
+
+The **target-setters** are RE'd (clamp to `[0, mapext-viewport]`, then set
+`+0x6c/+0x70`/`+0x20` speed/`+0x1c` flag; optionally snap `+0x60=+0x6c`):
+`439690:599-642` (snap cmd `param+0x40` / pan cmd `param+0x4c`), `58e6a0`
+(look-at-actor, speed 800). **The per-frame EASER** (steps `+0x60` toward `+0x6c`
+by the accelerating velocity) is **NOT statically locatable** — no function in
+the by-address corpus writes `+0x60`/`view[0x18]` with a gradual RHS (all writes
+are `=0`, `=+0x6c` snap, or other objects). It is reached via indirect dispatch
+or dropped by Ghidra → the **`mem_watch` use-case**, but the target is a HEAP
+address (`*(0x8a9b50)+0x104c+0x60`), so it needs a chain-resolving watch (a
+small extension to `tools/mem_watch.py`, which today takes only static VAs).
+
+**OPEN (PORT-DEBT `ingame-camera-pan`, supersedes the pan half of
+`ingame-camera-snap`):** locate the easer function (heap mem-watch) → port it
+verbatim for a bit-exact per-tick `+0x60` trajectory; and find the scripted op
+that sets `+0x6c=12800`/`+0x20=300` at hold-end (~183 flips after `game_enter`).
+Until then the port holds at `MAP_RENDER_CAM_TOWN_3F2` (cam x=128000). NB the
+**settled** camera (x=12800, y=12800) is a *static* camera the engine genuinely
+holds from ~flip 2450 — a second static `MAP_RENDER_CAM_TOWN_3F2_SETTLED`
+constant enables a flip-anchored backdrop/sky diff at the settled end **without**
+the easer (both sides share the full camera there).

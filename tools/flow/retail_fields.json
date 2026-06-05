@@ -55,7 +55,15 @@
         {"name": "cam_x68", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 104, "type": "i32", "benign": true,
          "reason": "view+0x68 — viewport height (window nrows, /0xc80); set 48000 (=480*100) at 586010:861."},
         {"name": "cam_x74", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 116, "type": "i32", "benign": true,
-         "reason": "view+0x74 — zoom/vertical-shear term (projector sy: +cam+0x74*100); set 0 at 586010:859, updated from a controller's +0x4c at 499ab0:96."}
+         "reason": "view+0x74 — zoom/vertical-shear term (projector sy: +cam+0x74*100); set 0 at 586010:859, updated from a controller's +0x4c at 499ab0:96."},
+        {"name": "cam_x1c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 28, "type": "i32", "benign": true,
+         "reason": "view+0x1c (view[7]) — camera pan state flag; 439690 zeroes it on a snap/pan command. Probing to model the pan."},
+        {"name": "cam_x20", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 32, "type": "i32", "benign": true,
+         "reason": "view+0x20 (view[8]) — camera pan SPEED/mode; 439690 sets it to param+0x58 on a smooth-pan command (param+0x4c), 0 on an instant snap (param+0x40). Distinguishes scripted-ease vs follow."},
+        {"name": "cam_x6c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 108, "type": "i32", "benign": true,
+         "reason": "view+0x6c (view[0x1b]) — TARGET x scroll origin (clamped to [0, mapw-vpw]); 439690 sets it, the per-frame easer moves +0x60 toward it. If fixed across the pan => scripted; if tracking the leader => follow."},
+        {"name": "cam_x70", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 112, "type": "i32", "benign": true,
+         "reason": "view+0x70 (view[0x1c]) — TARGET y scroll origin (clamped to [0, maph-vph]); pairs with cam_x6c."}
       ]
     }
   }
