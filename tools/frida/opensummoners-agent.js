@@ -236,6 +236,10 @@ let   g_mem_watch_n        = 0;    // in-region hits recorded this session
 let   g_mem_watch_neighbor = 0;    // page-neighbor traps skipped (precise mode)
 let   g_mem_watch_rearm    = 0;    // re-arm count (budget against the cap)
 let   g_mem_watch_precise  = true;
+let   g_mem_watch_pending  = false; // any chain region still unresolved?
+let   g_mem_watch_flip_rearm = false; // re-arm once per Flip, not per-access
+                                      // (avoids hot-page re-arm livelock)
+let   g_mem_watch_armed    = false; // is MemoryAccessMonitor currently enabled?
 const MEM_WATCH_FLUSH_AT   = 256;
 const MEM_WATCH_MAX_HITS   = 4000;
 const MEM_WATCH_REARM_CAP  = 200000;
@@ -1649,6 +1653,16 @@ function installFlipFrameHook() {
                 catch (e) { err('flip.callTraceFlush', e.message); }
             }
             if (g_mem_watch_enabled) {
+                if (g_mem_watch_pending) {
+                    try { memWatchMaybeArm(g_flip_frame); }
+                    catch (e) { err('flip.memWatchMaybeArm', e.message); }
+                } else if (g_mem_watch_flip_rearm && !g_mem_watch_armed &&
+                           g_mem_watch_n < MEM_WATCH_MAX_HITS) {
+                    // flip-rearm: re-protect the page once per Flip (the prior
+                    // Flip's single trap left it open) — one sample per frame.
+                    try { memWatchArm(); }
+                    catch (e) { err('flip.memWatchArm', e.message); }
+                }
                 try { memWatchFlush(g_flip_frame); }
                 catch (e) { err('flip.memWatchFlush', e.message); }
             }
@@ -2315,10 +2329,66 @@ function memWatchFlush(frameNumber) {
 // `idx` (vs. a page neighbor that merely shares the 4KiB page).
 function memWatchInRegion(idx, addrPtr) {
     const r = g_mem_watch_regions[idx];
-    if (!r) return false;
-    const base = rva(r.va);
-    return addrPtr.compare(base) >= 0 &&
-           addrPtr.compare(base.add(r.size)) < 0;
+    if (!r || r.basePtr === null) return false;
+    return addrPtr.compare(r.basePtr) >= 0 &&
+           addrPtr.compare(r.basePtr.add(r.size)) < 0;
+}
+
+// Resolve a region's runtime base address.  Static regions: rva(va).  Chain
+// regions: read the global root pointer at `va`, follow each `hops` byte
+// offset as a pointer hop, then add the final `off` — the heap field reached
+// through a global root (e.g. the camera/view at *(*(0x8a9b50)+0x104c)+0x60).
+// Returns a NativePointer, or null if any link is null/unmapped (e.g. the
+// root global isn't allocated yet, pre-in-game).
+function memWatchResolveBase(r) {
+    if (!r.chain) { try { return rva(r.va); } catch (e) { return null; } }
+    try {
+        let p = rva(r.va).readPointer();
+        if (p.isNull()) return null;
+        const hops = r.hops || [];
+        for (let i = 0; i < hops.length; i++) {
+            p = p.add(hops[i] | 0).readPointer();
+            if (p.isNull()) return null;
+        }
+        return p.add(r.off | 0);
+    } catch (e) { return null; }
+}
+
+// Resolve any still-pending region bases and (re-)arm once every region has a
+// base.  Called from the Flip hook so chain regions latch onto the heap object
+// after it is allocated.  An `arm_at_flip` gate defers resolution until just
+// before the window of interest, conserving the re-arm budget on hot pages.
+function memWatchMaybeArm(flip) {
+    if (!g_mem_watch_pending) return;
+    let resolvedAll = true;
+    let changed = false;
+    for (const r of g_mem_watch_regions) {
+        if (r.basePtr !== null) continue;
+        if (r.arm_at_flip && flip < r.arm_at_flip) { resolvedAll = false; continue; }
+        const b = memWatchResolveBase(r);
+        if (b !== null) { r.basePtr = b; changed = true; }
+        else            { resolvedAll = false; }
+    }
+    if (!changed) return;
+    if (resolvedAll) {
+        // Indices now align region<->range; arm over every resolved base.
+        g_mem_watch_ranges = g_mem_watch_regions.map(function (r) {
+            return {base: r.basePtr, size: r.size};
+        });
+        g_mem_watch_pending = false;
+        try { memWatchArm(); }
+        catch (e) { err('memWatchMaybeArm', e.message); return; }
+        logmsg('mem_watch: chain region(s) resolved @flip ' + flip + ' + armed: ' +
+               g_mem_watch_regions.map(function (r) {
+                   return r.label + '@' + r.basePtr + '+' + r.size;
+               }).join(', '));
+        send({kind:    'mem_watch_ready',
+              precise: g_mem_watch_precise,
+              regions: g_mem_watch_regions.map(function (r) {
+                  return {va: r.va, size: r.size, label: r.label,
+                          access: r.access, base: '' + r.basePtr};
+              })});
+    }
 }
 
 // (Re-)arm MemoryAccessMonitor over the cached ranges.  Idempotent —
@@ -2326,6 +2396,25 @@ function memWatchInRegion(idx, addrPtr) {
 // exactly the re-arm we want after a page's one-shot fires.
 function memWatchArm() {
     MemoryAccessMonitor.enable(g_mem_watch_ranges, {onAccess: memWatchOnAccess});
+    g_mem_watch_armed = true;
+}
+
+// Re-arm after a trap.  Per-access mode re-arms immediately (precise hunting,
+// but LIVELOCKS on a hot page — every access faults).  flip-rearm mode leaves
+// the page open and defers the re-arm to the next Flip: exactly one trap per
+// Flip, no livelock, full-speed execution.  Because the sim step (the easer's
+// WRITE) runs before the render (the camera READ) each tick, the first access
+// after a fresh per-Flip arm is biased toward the write.
+function memWatchRearm() {
+    if (g_mem_watch_flip_rearm) { g_mem_watch_armed = false; return; }
+    if (g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
+        g_mem_watch_rearm++;
+        try { memWatchArm(); }
+        catch (e) { err('memWatchArm', e.message); }
+    } else if (g_mem_watch_rearm === MEM_WATCH_REARM_CAP) {
+        g_mem_watch_rearm++;   // log-once sentinel
+        log_rearm_exhausted(g_mem_watch_regions[0] || {}, 0);
+    }
 }
 
 function memWatchOnAccess(details) {
@@ -2334,17 +2423,17 @@ function memWatchOnAccess(details) {
     const inRegion = memWatchInRegion(idx, details.address);
 
     if (g_mem_watch_precise && !inRegion) {
-        // Page neighbor consumed this page's one-shot.  Re-arm and keep
-        // hunting, unless the page is so hot we've burned the budget.
+        // Page neighbor consumed this page's one-shot.
         g_mem_watch_neighbor++;
-        if (g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
-            g_mem_watch_rearm++;
-            try { memWatchArm(); }
-            catch (e) { err('memWatchArm', e.message); }
-        } else if (g_mem_watch_rearm === MEM_WATCH_REARM_CAP) {
-            g_mem_watch_rearm++;   // log-once sentinel
-            log_rearm_exhausted(region, idx);
-        }
+        memWatchRearm();
+        return;
+    }
+
+    // When a region asks for writes only, an in-region READ still consumed this
+    // page's one-shot — keep hunting, but don't spend a hit slot recording it
+    // (the view page is read every frame; the easer's WRITE is what we want).
+    if (region.access === 'w' && details.operation !== 'write') {
+        memWatchRearm();
         return;
     }
 
@@ -2360,15 +2449,8 @@ function memWatchOnAccess(details) {
     if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) {
         memWatchFlush(g_flip_frame);
     }
-    // Keep watching so additional distinct writers of the same field
-    // surface, up to a sane cap.
-    if (g_mem_watch_precise &&
-        g_mem_watch_n < MEM_WATCH_MAX_HITS &&
-        g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
-        g_mem_watch_rearm++;
-        try { memWatchArm(); }
-        catch (e) { err('memWatchArm', e.message); }
-    }
+    // Keep watching so additional distinct writers of the same field surface.
+    if (g_mem_watch_n < MEM_WATCH_MAX_HITS) memWatchRearm();
 }
 
 function log_rearm_exhausted(region, idx) {
@@ -2378,13 +2460,22 @@ function log_rearm_exhausted(region, idx) {
            'consider a narrower region.');
 }
 
-function installMemoryWatch(regions, precise) {
+function installMemoryWatch(regions, precise, flipRearm) {
+    g_mem_watch_flip_rearm = !!flipRearm;
+    g_mem_watch_armed = false;
     g_mem_watch_regions = (regions || []).map(function (r) {
         return {
             va:     r.va | 0,
             size:   (r.size | 0) || 16,
             label:  String(r.label || ('0x' + (r.va >>> 0).toString(16))),
             access: (r.access === 'rw') ? 'rw' : 'w',
+            // Chain region: resolve a heap field through a global root at
+            // runtime (e.g. the camera/view at *(*(0x8a9b50)+0x104c)+0x60).
+            chain:       !!r.chain,
+            hops:        (r.hops || []).map(function (h) { return h | 0; }),
+            off:         r.off | 0,
+            arm_at_flip: r.arm_at_flip | 0,
+            basePtr:     null,    // resolved lazily; static => set below
         };
     });
     if (g_mem_watch_regions.length === 0) {
@@ -2395,9 +2486,26 @@ function installMemoryWatch(regions, precise) {
     g_mem_watch_n        = 0;
     g_mem_watch_neighbor = 0;
     g_mem_watch_rearm    = 0;
-    g_mem_watch_ranges   = g_mem_watch_regions.map(function (r) {
-        return {base: rva(r.va), size: r.size};
-    });
+
+    // Static regions resolve now; chain regions latch at the Flip hook (after
+    // their global root is allocated, and not before any `arm_at_flip` gate).
+    g_mem_watch_enabled = true;
+    g_mem_watch_pending = false;
+    for (const r of g_mem_watch_regions) {
+        if (!r.chain && !r.arm_at_flip) r.basePtr = memWatchResolveBase(r);
+        if (r.basePtr === null) g_mem_watch_pending = true;
+    }
+    g_mem_watch_ranges = g_mem_watch_regions
+        .filter(function (r) { return r.basePtr !== null; })
+        .map(function (r) { return {base: r.basePtr, size: r.size}; });
+
+    if (g_mem_watch_pending) {
+        logmsg('mem_watch: ' + g_mem_watch_regions.length + ' region(s); ' +
+               'deferring arm until chain root(s) resolve' +
+               (g_mem_watch_regions.some(function (r) { return r.arm_at_flip; })
+                   ? ' / arm_at_flip gate' : '') + '.');
+        return true;   // armed lazily at the Flip hook
+    }
 
     try {
         memWatchArm();
@@ -2406,7 +2514,6 @@ function installMemoryWatch(regions, precise) {
         return false;
     }
 
-    g_mem_watch_enabled = true;
     logmsg('mem_watch: armed ' + g_mem_watch_regions.length + ' region(s) [' +
            (g_mem_watch_precise ? 'precise' : 'raw') + ']: ' +
            g_mem_watch_regions.map(function (r) {
@@ -2616,7 +2723,8 @@ rpc.exports = {
             }
             if (opts.mem_watch) {
                 try { installMemoryWatch(opts.mem_watch_regions,
-                                         opts.mem_watch_precise !== false); }
+                                         opts.mem_watch_precise !== false,
+                                         opts.mem_watch_flip_rearm === true); }
                 catch (e) { err('install_mem_watch', '' + e); }
             }
 

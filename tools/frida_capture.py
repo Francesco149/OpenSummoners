@@ -261,6 +261,10 @@ class CaptureConfig:
     mem_watch:         bool = False
     mem_watch_regions: list[dict] | None = None
     mem_watch_precise: bool = True
+    # Re-arm the page monitor once per Flip instead of per-access — one trap
+    # per frame, no hot-page re-arm livelock.  Required for fields on a page
+    # the engine touches every frame (e.g. the camera/view object).
+    mem_watch_flip_rearm: bool = False
 
     # ── frame capture (DDraw surface → 24bpp BMP) ──
     # When capture is on, the agent GetDC/BitBlt's the surface at each
@@ -786,12 +790,19 @@ def run_capture(cfg: CaptureConfig) -> int:
         "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
+        "mem_watch_flip_rearm": cfg.mem_watch_flip_rearm,
         "mem_watch_regions":  [
             {
                 "va":     int(r["va"]),
                 "size":   int(r.get("size", 16)),
                 "label":  str(r.get("label", f"0x{int(r['va']):08x}")),
                 "access": "rw" if r.get("access") == "rw" else "w",
+                # Chain region: resolve a heap field through a global root at
+                # runtime (e.g. the camera/view *(*(0x8a9b50)+0x104c)+0x60).
+                "chain":       bool(r.get("chain", False)),
+                "hops":        [int(h) for h in r.get("hops", [])],
+                "off":         int(r.get("off", 0)),
+                "arm_at_flip": int(r.get("arm_at_flip", 0)),
             }
             for r in (cfg.mem_watch_regions or [])
         ],

@@ -137,6 +137,31 @@ def _parse_region(spec: str) -> dict:
     return {"va": va, "size": size, "label": label}
 
 
+def _parse_chain(spec: str) -> dict:
+    """`ROOTVA:HOP1,HOP2,...:OFF:SIZE[:LABEL[:ARM_AT_FLIP]]` → a chain region.
+
+    Watches a HEAP field reached through a global root pointer, resolved at
+    runtime by the agent: read `*(ROOTVA)`, follow each comma-separated `HOP`
+    byte offset as a pointer hop, then watch SIZE bytes at the final `OFF`.
+    The camera/view x-scroll, for example:
+        --watch-chain 0x8a9b50:0x104c:0x60:4:cam_x60:1610
+    = *(*(0x8a9b50)+0x104c)+0x60, armed at flip 1610 (just before the pan, to
+    conserve the re-arm budget on the hot view page)."""
+    parts = spec.split(":")
+    if len(parts) < 4:
+        raise argparse.ArgumentTypeError(
+            "--watch-chain expects ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]], "
+            f"got {spec!r}")
+    va   = int(parts[0], 0)
+    hops = [int(h, 0) for h in parts[1].split(",") if h]
+    off  = int(parts[2], 0)
+    size = int(parts[3], 0)
+    label = parts[4] if len(parts) >= 5 and parts[4] else f"chain_0x{va:x}+0x{off:x}"
+    arm  = int(parts[5], 0) if len(parts) >= 6 and parts[5] else 0
+    return {"va": va, "hops": hops, "off": off, "size": size,
+            "label": label, "chain": True, "arm_at_flip": arm}
+
+
 # ─── post-processing: rank trapped accesses by faulting instruction ────────
 
 
@@ -167,8 +192,11 @@ def _rank(run_dir: Path, regions: list[dict]) -> dict:
             g["ops"][ev["op"]] = g["ops"].get(ev["op"], 0) + 1
             ridx = int(ev.get("region", 0))
             g["regions"].add(ridx)
-            base = region_by_idx.get(ridx, {}).get("va")
-            if base is not None:
+            reg = region_by_idx.get(ridx, {})
+            base = reg.get("va")
+            # Chain regions resolve to a heap base unknown python-side; the
+            # accessed addr isn't an offset off the Ghidra VA, so skip it.
+            if base is not None and not reg.get("chain"):
                 g["offsets"].add(int(ev["addr"]) - base)
 
     writers = []
@@ -221,15 +249,27 @@ def _drop_retail_exe() -> tuple[Path, Path]:
 def _capture(args, regions: list[dict]) -> None:
     drop, game_dir = _drop_retail_exe()
     try:
+        input_trace = None
+        if getattr(args, "input_trace", None) is not None:
+            if not args.input_trace.exists():
+                raise SystemExit(f"--input-trace: file not found: {args.input_trace}")
+            input_trace = fc.parse_input_trace(args.input_trace)
+            print(f"[mem_watch] input-trace: {len(input_trace)} entries from "
+                  f"{args.input_trace.name}", file=sys.stderr)
         cfg = fc.CaptureConfig(
             exe=drop, cwd=game_dir,
             run_dir=args.run_dir, exact_run_dir=True,
             max_frames=args.max_frames, duration_ms=args.duration_ms,
             remote=args.remote,
             auto_start_server=not args.no_auto_start,
+            turbo=not args.no_turbo,
+            hide_window=args.hide_window,
+            seed_pin=args.seed_pin,
+            input_trace=input_trace,
             mem_watch=True,
             mem_watch_regions=[{**r, "access": args.access} for r in regions],
             mem_watch_precise=not args.no_precise,
+            mem_watch_flip_rearm=args.rearm_per_flip,
         )
         rc = fc.run_capture(cfg)
         if rc != 0:
@@ -251,8 +291,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-dir", type=Path, required=True,
                     help="where to write mem_watch.jsonl + agent.log")
     ap.add_argument("--region", type=_parse_region, action="append",
-                    required=True, metavar="VA:SIZE[:LABEL]",
-                    help="watched region (Ghidra VA).  Repeatable.")
+                    default=None, metavar="VA:SIZE[:LABEL]",
+                    help="watched STATIC region (Ghidra VA).  Repeatable.")
+    ap.add_argument("--watch-chain", type=_parse_chain, action="append",
+                    default=None, dest="watch_chain",
+                    metavar="ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]]",
+                    help="watched HEAP region reached through a global root "
+                         "pointer, resolved at runtime (e.g. the camera/view "
+                         "field *(*(0x8a9b50)+0x104c)+0x60).  Repeatable.")
     ap.add_argument("--access", choices=("w", "rw"), default="w",
                     help="trap writes only (default) or reads+writes. "
                          "'rw' floods on hot pages — use only when the "
@@ -261,6 +307,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="raw one-shot-per-page mode.  By default the agent "
                          "re-arms on page-neighbor traps and records only "
                          "accesses inside the watched field.")
+    ap.add_argument("--rearm-per-flip", action="store_true",
+                    help="re-arm the page monitor once per Flip instead of "
+                         "per-access — one trap per frame, no hot-page "
+                         "livelock.  REQUIRED for fields on a page the engine "
+                         "touches every frame (e.g. the camera/view object).")
     ap.add_argument("--remote", default=fc.DEFAULT_REMOTE,
                     help="frida-server host:port (default %(default)s)")
     ap.add_argument("--max-frames", type=int, default=4000,
@@ -270,12 +321,24 @@ def main(argv: list[str] | None = None) -> int:
                     help="wall-clock ceiling (default %(default)s)")
     ap.add_argument("--no-auto-start", action="store_true",
                     help="skip auto-launching frida-server.exe")
+    ap.add_argument("--input-trace", type=Path, default=None,
+                    help="drive retail with this input-trace JSONL (needed to "
+                         "reach in-game scenes, e.g. the town pan).")
+    ap.add_argument("--no-turbo", action="store_true",
+                    help="disable turbo (required for live boots that need the "
+                         "message pump — engine-quirk #29).")
+    ap.add_argument("--show-window", dest="hide_window", action="store_false",
+                    default=True, help="show the game window (default hidden).")
+    ap.add_argument("--no-seed-pin", dest="seed_pin", action="store_false",
+                    default=True, help="don't pin the RNG seed (default pinned).")
     ap.add_argument("--analyze-only", action="store_true",
                     help="skip the capture; just re-rank an existing "
                          "<run_dir>/mem_watch.jsonl (offline)")
     args = ap.parse_args(argv)
 
-    regions = list(args.region)
+    regions = list(args.region or []) + list(args.watch_chain or [])
+    if not regions:
+        ap.error("at least one --region or --watch-chain is required")
     args.run_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.analyze_only:
