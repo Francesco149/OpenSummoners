@@ -81,6 +81,21 @@ distilling lessons from the last:
   the closer model for OpenSummoners' shape)
 - **OpenSummoners** *(this repo)* — Fortune Summoners
 
+## Cross-references & credits
+
+OpenSummoners' reverse engineering is cross-checked against independent community
+work — most notably the **Fortune Summoners Fan Discord**
+([invite](https://discord.gg/N68c7pt)) and their *SotES Data Formats & Values*
+spreadsheet, which documents struct layouts, enums, addresses, and data tables for
+`sotes.exe`. Our thanks to that community for their preservation work.
+
+Their spreadsheet is consulted as a **cross-reference / lead**, not as ground truth:
+every fact a port depends on is independently re-verified at the byte level against the
+decompile + a host test before it is relied upon (the same discipline applied to our own
+subsystem survey). Where our function-level RE 100%-proves something the spreadsheet is
+missing or marks uncertain, we publish a **human-verifiable proof** others can reproduce
+— see [`docs/ods-crossref.md`](docs/ods-crossref.md) and [`docs/proofs/`](docs/proofs).
+
 ## License
 
 MIT.  See [`LICENSE`](LICENSE).  The license covers OpenSummoners' own code
