@@ -270,6 +270,7 @@ def _capture(args, regions: list[dict]) -> None:
             mem_watch_regions=[{**r, "access": args.access} for r in regions],
             mem_watch_precise=not args.no_precise,
             mem_watch_flip_rearm=args.rearm_per_flip,
+            mem_watch_hw=args.hw,
         )
         rc = fc.run_capture(cfg)
         if rc != 0:
@@ -312,6 +313,12 @@ def main(argv: list[str] | None = None) -> int:
                          "per-access — one trap per frame, no hot-page "
                          "livelock.  REQUIRED for fields on a page the engine "
                          "touches every frame (e.g. the camera/view object).")
+    ap.add_argument("--hw", action="store_true",
+                    help="use a HARDWARE watchpoint (DR register, write-only on "
+                         "the exact bytes) instead of MemoryAccessMonitor — the "
+                         "fitting tool for a HOT heap field: zero neighbour "
+                         "overhead, hardware auto-rearm, no livelock.  Use with "
+                         "--watch-chain + an arm_at_flip gate.")
     ap.add_argument("--remote", default=fc.DEFAULT_REMOTE,
                     help="frida-server host:port (default %(default)s)")
     ap.add_argument("--max-frames", type=int, default=4000,

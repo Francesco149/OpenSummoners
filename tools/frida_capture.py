@@ -265,6 +265,10 @@ class CaptureConfig:
     # per frame, no hot-page re-arm livelock.  Required for fields on a page
     # the engine touches every frame (e.g. the camera/view object).
     mem_watch_flip_rearm: bool = False
+    # Use a hardware watchpoint (DR register, write-only on the exact bytes)
+    # instead of MemoryAccessMonitor — the fitting tool for a hot heap field
+    # (zero neighbour overhead, hardware auto-rearm, no livelock).  Chain regions.
+    mem_watch_hw: bool = False
 
     # ── frame capture (DDraw surface → 24bpp BMP) ──
     # When capture is on, the agent GetDC/BitBlt's the surface at each
@@ -791,6 +795,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "mem_watch":          cfg.mem_watch,
         "mem_watch_precise":  cfg.mem_watch_precise,
         "mem_watch_flip_rearm": cfg.mem_watch_flip_rearm,
+        "mem_watch_hw":         cfg.mem_watch_hw,
         "mem_watch_regions":  [
             {
                 "va":     int(r["va"]),

@@ -240,6 +240,15 @@ let   g_mem_watch_pending  = false; // any chain region still unresolved?
 let   g_mem_watch_flip_rearm = false; // re-arm once per Flip, not per-access
                                       // (avoids hot-page re-arm livelock)
 let   g_mem_watch_armed    = false; // is MemoryAccessMonitor currently enabled?
+// Hardware-watchpoint mode: a DR-register write watch on the exact bytes — the
+// right tool for a HOT heap field (zero neighbor overhead, hardware auto-rearm,
+// no page protection / livelock).  Used for chain regions when --hw is set.
+let   g_mem_watch_hw       = false;
+let   g_hw_exc_installed   = false;
+let   g_hw_watch_tid       = 0;
+let   g_hw_watch_addr      = null;  // NativePointer of the watched field
+let   g_hw_watch_api       = null;  // {set,unset} resolved per frida runtime
+let   g_hw_watch_undef     = undefined; // hwWatchpointApi() cache
 const MEM_WATCH_FLUSH_AT   = 256;
 const MEM_WATCH_MAX_HITS   = 4000;
 const MEM_WATCH_REARM_CAP  = 200000;
@@ -2371,11 +2380,20 @@ function memWatchMaybeArm(flip) {
     }
     if (!changed) return;
     if (resolvedAll) {
+        g_mem_watch_pending = false;
+        if (g_mem_watch_hw) {
+            // Hardware-watchpoint mode: DR write-watch on the (single) resolved
+            // field — the fitting tool for a hot heap field.
+            const r0 = g_mem_watch_regions[0];
+            try { hwWatchArm(r0.basePtr, r0.size); }
+            catch (e) { err('memWatchMaybeArm.hw',
+                            e.message + ' ' + (e.stack || '')); }
+            return;
+        }
         // Indices now align region<->range; arm over every resolved base.
         g_mem_watch_ranges = g_mem_watch_regions.map(function (r) {
             return {base: r.basePtr, size: r.size};
         });
-        g_mem_watch_pending = false;
         try { memWatchArm(); }
         catch (e) { err('memWatchMaybeArm', e.message); return; }
         logmsg('mem_watch: chain region(s) resolved @flip ' + flip + ' + armed: ' +
@@ -2397,6 +2415,103 @@ function memWatchMaybeArm(flip) {
 function memWatchArm() {
     MemoryAccessMonitor.enable(g_mem_watch_ranges, {onAccess: memWatchOnAccess});
     g_mem_watch_armed = true;
+}
+
+// Hardware-watchpoint arm: a DR-register write watch on the exact field bytes,
+// on the thread that runs the Flip hook (= the sim thread that writes the
+// camera).  Hardware re-triggers automatically (no re-arm), and only the exact
+// address faults (no hot-page neighbour storm) — so the game runs full speed and
+// the writer instruction is reported precisely.
+// frida-17 removed the static Thread.setHardwareWatchpoint; watchpoints are now
+// instance methods on a *live thread object*.  Resolve whichever shape the
+// runtime exposes, once (pattern proven in OpenMare's --minimap-watch).
+function hwWatchpointApi() {
+    if (g_hw_watch_undef !== undefined) return g_hw_watch_undef;
+    // (a) frida <=16: static on Thread
+    if (typeof Thread.setHardwareWatchpoint === 'function') {
+        g_hw_watch_undef = {
+            set:   function (a, s, c) { Thread.setHardwareWatchpoint(0, a, s, c); },
+            unset: function ()        { Thread.unsetHardwareWatchpoint(0); },
+        };
+        return g_hw_watch_undef;
+    }
+    // (b) frida 17: instance method on the current Thread object
+    let cur = null;
+    try { if (typeof Process.getCurrentThread === 'function') cur = Process.getCurrentThread(); }
+    catch (_) {}
+    if (!cur) {
+        const tid = Process.getCurrentThreadId();
+        try { cur = Process.enumerateThreads().find(function (t) { return (t.id | 0) === (tid | 0); }); }
+        catch (_) {}
+    }
+    if (cur && typeof cur.setHardwareWatchpoint === 'function') {
+        g_hw_watch_undef = {
+            set:   function (a, s, c) { cur.setHardwareWatchpoint(0, a, s, c); },
+            unset: function ()        { cur.unsetHardwareWatchpoint(0); },
+        };
+        return g_hw_watch_undef;
+    }
+    logmsg('mem_watch[hw]: no hw-watchpoint API. Thread keys=' +
+           Object.getOwnPropertyNames(Thread).join(',') +
+           ' | Process keys=' + Object.getOwnPropertyNames(Process).join(','));
+    g_hw_watch_undef = null;
+    return g_hw_watch_undef;
+}
+
+function hwWatchArm(addrPtr, size) {
+    if (g_hw_watch_addr !== null) return;   // already armed
+    const api = hwWatchpointApi();
+    if (!api) { err('hwWatchArm', 'no hw-watchpoint API on this frida'); return; }
+    if (!g_hw_exc_installed) {
+        Process.setExceptionHandler(hwWatchOnException);
+        g_hw_exc_installed = true;
+    }
+    // size must be a power-of-two DR length (1/2/4/8); clamp to a dword.
+    let sz = size | 0; if (sz !== 1 && sz !== 2 && sz !== 4 && sz !== 8) sz = 4;
+    api.set(addrPtr, sz, 'w');
+    g_hw_watch_api  = api;
+    g_hw_watch_tid  = Process.getCurrentThreadId();   // Flip = the sim thread
+    g_hw_watch_addr = addrPtr;
+    g_mem_watch_armed = true;
+    logmsg('mem_watch[hw]: DR write-watch set on tid ' + g_hw_watch_tid + ' @ ' +
+           addrPtr + ' +' + sz);
+    send({kind: 'mem_watch_ready', precise: true, hw: true,
+          regions: g_mem_watch_regions.map(function (r) {
+              return {va: r.va, size: r.size, label: r.label, access: 'w',
+                      base: '' + r.basePtr};
+          })});
+}
+
+function hwWatchOnException(details) {
+    // Our watchpoint surfaces as a single-step/breakpoint debug exception.  Pass
+    // anything else through untouched (don't swallow real faults).
+    if (!g_mem_watch_armed) return false;
+    if (details.type !== 'single-step' && details.type !== 'breakpoint') return false;
+    try {
+        const pc = details.context.pc;
+        let val = 0; try { val = g_hw_watch_addr.readU32() >>> 0; } catch (_) {}
+        // The backtrace names the CALLER chain (the easer + its callers) — the
+        // functions to annotate into the flow trace afterward.
+        let bt = [];
+        try {
+            bt = Thread.backtrace(details.context, Backtracer.ACCURATE)
+                       .slice(0, 12).map(toGhidraVa);
+        } catch (_) {}
+        g_mem_watch_n++;
+        g_mem_watch_buffer.push({
+            op:     'write',
+            from:   toGhidraVa(pc),               // the faulting (writer) insn
+            addr:   toGhidraVa(g_hw_watch_addr),  // the watched field
+            value:  val,                          // the value just written
+            bt:     bt,                           // caller chain (Ghidra VAs)
+            region: 0,
+            label:  (g_mem_watch_regions[0] || {}).label || '',
+            frame:  g_flip_frame,
+            ts:     nowMs(),
+        });
+        if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) memWatchFlush(g_flip_frame);
+    } catch (e) { err('hwWatchOnException', e.message); }
+    return true;   // handled — the write already executed; resume
 }
 
 // Re-arm after a trap.  Per-access mode re-arms immediately (precise hunting,
@@ -2460,8 +2575,9 @@ function log_rearm_exhausted(region, idx) {
            'consider a narrower region.');
 }
 
-function installMemoryWatch(regions, precise, flipRearm) {
+function installMemoryWatch(regions, precise, flipRearm, hw) {
     g_mem_watch_flip_rearm = !!flipRearm;
+    g_mem_watch_hw = !!hw;
     g_mem_watch_armed = false;
     g_mem_watch_regions = (regions || []).map(function (r) {
         return {
@@ -2724,7 +2840,8 @@ rpc.exports = {
             if (opts.mem_watch) {
                 try { installMemoryWatch(opts.mem_watch_regions,
                                          opts.mem_watch_precise !== false,
-                                         opts.mem_watch_flip_rearm === true); }
+                                         opts.mem_watch_flip_rearm === true,
+                                         opts.mem_watch_hw === true); }
                 catch (e) { err('install_mem_watch', '' + e); }
             }
 
