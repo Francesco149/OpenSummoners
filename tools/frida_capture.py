@@ -289,6 +289,15 @@ class CaptureConfig:
     # golden at an equal fade and diffed (the R1 method, for the logos).
     fade_probe:        bool = False
 
+    # ── parallax far-plane probe (in-game sky/mountain background) ──
+    # Hook FUN_00490cd0 (the background renderer) + its inner cel-select/blit
+    # and log the descriptor fields (3 layers' banks/baseY/wrap/parallax) +
+    # the per-tile blits to <run_dir>/parallax.jsonl.  Pair with --input-trace
+    # + --parallax-frames to scope it to the in-game town (e.g. '1140,1300').
+    parallax_probe:    bool = False
+    parallax_lo:       int  = 0
+    parallax_hi:       int  = 0
+
     # ── intro-pace probe (parity residual R3) ──
     # Timestamp Flips (writes <run_dir>/pace.jsonl) to measure the flip RATE
     # and the wall-clock to menu onset.  Use with --no-turbo.  pace_every =
@@ -373,6 +382,7 @@ def run_capture(cfg: CaptureConfig) -> int:
     mem_watch_f  = (run_dir / "mem_watch.jsonl").open("w")  if cfg.mem_watch  else None
     cursor_f     = (run_dir / "cursor_level.jsonl").open("w") if cfg.cursor_probe else None
     fade_f       = (run_dir / "fade_level.jsonl").open("w") if cfg.fade_probe else None
+    parallax_f   = (run_dir / "parallax.jsonl").open("w") if cfg.parallax_probe else None
     pace_f       = (run_dir / "pace.jsonl").open("w") if cfg.pace_probe else None
     textout_f    = (run_dir / "textout.jsonl").open("w") if cfg.textout_probe else None
     box_f        = (run_dir / "box_cells.jsonl").open("w") if cfg.box_probe else None
@@ -566,6 +576,28 @@ def run_capture(cfg: CaptureConfig) -> int:
                   f"div={payload.get('div')} "
                   f"ecx=0x{int(payload.get('ecx',0)):08x} "
                   f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+        elif kind == "parallax_first":
+            print(f"[frida_capture] parallax FIRST hit @ flip "
+                  f"{payload.get('frame')} (FUN_00490cd0 first ran) "
+                  f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+        elif kind == "parallax_desc":
+            if parallax_f:
+                parallax_f.write(json.dumps(payload) + "\n"); parallax_f.flush()
+            ecx = int(payload.get("ecx", 0)); grid = int(payload.get("grid", 0))
+            view = int(payload.get("view", 0))
+            where = ("==grid" if ecx == grid and grid else
+                     "==view" if ecx == view and view else "==?")
+            print(f"[frida_capture] parallax_desc @ flip {payload.get('frame')}: "
+                  f"ecx=0x{ecx:08x}{where} "
+                  f"A={payload.get('A')} B={payload.get('B')} C={payload.get('C')} "
+                  f"ret_va=0x{int(payload.get('ret_va',0)):06x}", file=sys.stderr)
+            print(f"[frida_capture]   raw32={payload.get('raw32')}", file=sys.stderr)
+        elif kind == "parallax_blit":
+            if parallax_f:
+                parallax_f.write(json.dumps(payload) + "\n"); parallax_f.flush()
+            print(f"[frida_capture]   parallax_blit bank=0x{int(payload.get('bank',0)):x} "
+                  f"frame={payload.get('frame_idx')} "
+                  f"x={payload.get('x')} y={payload.get('y')}", file=sys.stderr)
         elif kind == "anchor":
             name = payload.get("name", "anchor")
             rng = payload.get("rng")
@@ -747,6 +779,9 @@ def run_capture(cfg: CaptureConfig) -> int:
         "res_probe":          cfg.res_probe,
         "res_lo":             int(cfg.res_lo),
         "res_hi":             int(cfg.res_hi),
+        "parallax_probe":     cfg.parallax_probe,
+        "parallax_lo":        int(cfg.parallax_lo),
+        "parallax_hi":        int(cfg.parallax_hi),
         "seed_pin":           cfg.seed_pin,
         "seed_value":         int(cfg.seed_value),
         "mem_watch":          cfg.mem_watch,
@@ -843,6 +878,10 @@ def run_capture(cfg: CaptureConfig) -> int:
             n = summary.get("res_loads", 0)
             print(f"[frida_capture] res_loads: {n} distinct (module,id,type) "
                   f"resource loads → {run_dir / 'res_loads.jsonl'}",
+                  file=sys.stderr)
+        if parallax_f is not None:
+            parallax_f.close()
+            print(f"[frida_capture] parallax → {run_dir / 'parallax.jsonl'}",
                   file=sys.stderr)
         meta = {
             "exe":        str(cfg.exe),
@@ -991,11 +1030,25 @@ def main() -> int:
     p.add_argument("--res-frames", default=None,
                    help="restrict --res-probe to a flip window 'LO,HI' (e.g. "
                         "'1100,1800' for the in-game opening town).")
+    p.add_argument("--parallax-probe", action="store_true",
+                   help="hook FUN_00490cd0 (the in-game parallax/background "
+                        "renderer) + its inner cel-select/blit and log the "
+                        "descriptor fields (3 layers) + per-tile blits to "
+                        "parallax.jsonl — the sky/mountain far-plane ground "
+                        "truth.  Pair with --input-trace + --parallax-frames "
+                        "to scope it to the in-game town.")
+    p.add_argument("--parallax-frames", default=None,
+                   help="restrict --parallax-probe to a flip window 'LO,HI' "
+                        "(e.g. '1140,1300' for the opening town first frames).")
     args = p.parse_args()
 
     res_lo, res_hi = 0, 0
     if args.res_frames:
         res_lo, res_hi = (int(x, 0) for x in args.res_frames.split(","))
+
+    parallax_lo, parallax_hi = 0, 0
+    if args.parallax_frames:
+        parallax_lo, parallax_hi = (int(x, 0) for x in args.parallax_frames.split(","))
 
     textout_lo, textout_hi = 0, 0
     if args.textout_frames:
@@ -1128,6 +1181,9 @@ def main() -> int:
         res_probe         = args.res_probe,
         res_lo            = res_lo,
         res_hi            = res_hi,
+        parallax_probe    = args.parallax_probe,
+        parallax_lo       = parallax_lo,
+        parallax_hi       = parallax_hi,
     )
     return run_capture(cfg)
 

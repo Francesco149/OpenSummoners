@@ -348,6 +348,34 @@ let   g_fade_probe        = false;
 let   g_fade_probe_hooked = false;
 let   g_fade_last_flip    = -1;
 
+// ── parallax far-plane probe (in-game sky/mountain background) ────────────
+// Hook the background renderer FUN_00490cd0(surface, view) [ecx = descriptor].
+// It draws up to 3 horizontal sprite-strip layers from the descriptor struct
+// in ECX, with camera-derived parallax (layer B at 0.25x, layer C at 0.5x).
+// We dump the descriptor's fields + the surface/view args once per flip (in an
+// optional --parallax-frames window), AND trace the inner cel-select
+// (0x417c40 = bank/frame) + blit (0x5b9a40 = x/y) for the first sampled flip —
+// so we learn the town's exact background banks and where they land on screen.
+// Also reports whether ECX == the runtime grid (*(0x8a9b50)+0x1048) or the
+// view (*(0x8a9b50)+0x104c), pinning where the parallax descriptor lives.
+const PARALLAX_VA         = 0x490cd0;
+const PARALLAX_SEL_VA     = 0x417c40;   // cel select(bank, frame)
+const PARALLAX_BLT_VA     = 0x5b9a40;   // blit(surface, x, y) of selected cel
+const GOD_OBJ_VA          = 0x8a9b50;   // DAT_008a9b50 (room-state root)
+let   g_parallax_probe        = false;
+let   g_parallax_probe_hooked = false;
+let   g_parallax_lo           = 0;
+let   g_parallax_hi           = 0;      // 0 = unbounded
+let   g_parallax_last_flip    = -1;
+let   g_in_parallax           = 0;      // >0 while inside FUN_00490cd0
+let   g_parallax_emit_blits   = false;  // emit inner blits only for one flip
+let   g_parallax_blits_done   = false;  // one-shot: blits captured for first hit
+let   g_parallax_sel_bank     = 0;      // last cel-select bank (for blit pairing)
+let   g_parallax_sel_frame    = 0;      // last cel-select frame
+let   g_parallax_n_desc       = 0;      // desc emissions (capped, descriptor is static)
+let   g_parallax_first_seen   = false;  // one-shot first-ever-hit marker
+const PARALLAX_DESC_CAP       = 10;
+
 // ─── RNG seed pin (phase-7 sparkle parity, ckpt 31) ──────────────────────
 // Retail seeds srand(time()) at boot (FUN_00562210 @0x56227a), so the engine
 // LCG (FUN_005bf505, seed DAT_008a4f94) — and every random effect through it,
@@ -466,6 +494,18 @@ function rva(va) {
 
 function logmsg(msg) {
     send({ kind: 'log', msg: msg });
+}
+
+// Render an ArrayBuffer (from readByteArray) as a lowercase hex string, or
+// null if the read faulted. Used by diagnostic probes to dump a struct head.
+function hexBytes(ab) {
+    if (!ab) return null;
+    const u8 = new Uint8Array(ab);
+    let s = '';
+    for (let i = 0; i < u8.length; i++) {
+        s += (u8[i] < 16 ? '0' : '') + u8[i].toString(16);
+    }
+    return s;
 }
 
 function err(where, msg) {
@@ -1770,6 +1810,101 @@ function installFadeProbe() {
     logmsg('fade probe installed @ FUN_00448c80');
 }
 
+// Hook FUN_00490cd0 (the parallax background renderer) + its inner cel-select
+// /blit. The descriptor is in ECX; its layout (short* base, from the decomp):
+//   +0x00 u16 layerA bank (8-tile top strip, no parallax)
+//   +0x04 u16 layerC bank   +0x06 u16 baseY  +0x08 u16 wrap  +0x0c i32 paraY (0.5x)
+//   +0x10 u16 layerB bank   +0x12 u16 baseY  +0x14 u16 wrap  +0x18 i32 paraY (0.25x)
+function installParallaxProbe() {
+    if (g_parallax_probe_hooked) return;
+
+    const inWindow = function () {
+        if (g_flip_frame < g_parallax_lo) return false;
+        if (g_parallax_hi > 0 && g_flip_frame > g_parallax_hi) return false;
+        return true;
+    };
+
+    Interceptor.attach(rva(PARALLAX_VA), {
+        onEnter: function (args) {
+            g_in_parallax++;
+            if (!g_parallax_first_seen) {       // unconditional first-ever marker
+                g_parallax_first_seen = true;
+                send({kind: 'parallax_first', frame: g_flip_frame,
+                      ret_va: traceRetVa(this.returnAddress)});
+            }
+            if (!inWindow()) return;
+            if (g_flip_frame === g_parallax_last_flip) return;  // first/flip
+            g_parallax_last_flip = g_flip_frame;
+            if (g_parallax_n_desc >= PARALLAX_DESC_CAP) return; // descriptor is static
+            g_parallax_n_desc++;
+
+            let ecx = null;
+            try { ecx = this.context.ecx; } catch (e) {}
+            const u16 = function (off) {
+                try { return ecx.add(off).readU16(); } catch (e) { return null; }
+            };
+            const i32 = function (off) {
+                try { return ecx.add(off).readS32(); } catch (e) { return null; }
+            };
+            let raw = null;
+            try { raw = ecx.readByteArray(0x20); } catch (e) {}
+
+            // Where does the descriptor live? Compare ECX to the grid / view.
+            let grid = 0, view = 0;
+            try {
+                const root = rva(GOD_OBJ_VA).readPointer();
+                grid = root.add(0x1048).readPointer().toUInt32();
+                view = root.add(0x104c).readPointer().toUInt32();
+            } catch (e) {}
+
+            if (!g_parallax_blits_done) g_parallax_emit_blits = true;  // first hit only
+            send({kind: 'parallax_desc', frame: g_flip_frame,
+                  ecx: (ecx ? ecx.toUInt32() : 0),
+                  surface: (function () { try { return args[0].toUInt32(); } catch (e) { return 0; } })(),
+                  view_arg: (function () { try { return args[1].toUInt32(); } catch (e) { return 0; } })(),
+                  grid: grid, view: view,
+                  ret_va: traceRetVa(this.returnAddress),
+                  A: {bank: u16(0x00)},
+                  C: {bank: u16(0x04), baseY: u16(0x06), wrap: u16(0x08), paraY: i32(0x0c)},
+                  B: {bank: u16(0x10), baseY: u16(0x12), wrap: u16(0x14), paraY: i32(0x18)},
+                  raw32: hexBytes(raw)});
+        },
+        onLeave: function () {
+            if (g_in_parallax > 0) g_in_parallax--;
+            if (g_in_parallax === 0 && g_parallax_emit_blits) {
+                g_parallax_emit_blits = false;
+                g_parallax_blits_done = true;   // one-shot, first hit only
+            }
+        },
+    });
+
+    // Inner cel-select: bank in arg0 (low 16), frame in arg1. Only while inside
+    // the parallax call (g_in_parallax) so we don't see every sprite engine-wide.
+    Interceptor.attach(rva(PARALLAX_SEL_VA), {
+        onEnter: function (args) {
+            if (g_in_parallax === 0 || !g_parallax_emit_blits) return;
+            try { g_parallax_sel_bank  = args[0].toUInt32() & 0xffff; } catch (e) {}
+            try { g_parallax_sel_frame = args[1].toInt32(); } catch (e) {}
+        },
+    });
+    // Inner blit: the selected cel drawn at (arg1=x, arg2=y). Pair with the
+    // most recent select to emit {bank, frame, x, y}.
+    Interceptor.attach(rva(PARALLAX_BLT_VA), {
+        onEnter: function (args) {
+            if (g_in_parallax === 0 || !g_parallax_emit_blits) return;
+            let x = null, y = null;
+            try { x = args[1].toInt32(); } catch (e) {}
+            try { y = args[2].toInt32(); } catch (e) {}
+            send({kind: 'parallax_blit', frame: g_flip_frame,
+                  bank: g_parallax_sel_bank, frame_idx: g_parallax_sel_frame,
+                  x: x, y: y});
+        },
+    });
+
+    g_parallax_probe_hooked = true;
+    logmsg('parallax probe installed @ FUN_00490cd0 (+ 0x417c40/0x5b9a40)');
+}
+
 // Resolve the gdi32 query functions the text probe uses to read DC state
 // (text colour, bk mode) and the selected font's LOGFONTA.  Allocates the
 // 60-byte LOGFONTA scratch once.  Returns false if gdi32 is unavailable.
@@ -2348,6 +2483,10 @@ rpc.exports = {
         if (typeof opts.res_lo === 'number') g_res_lo = opts.res_lo | 0;
         if (typeof opts.res_hi === 'number' && opts.res_hi > 0)
             g_res_hi = opts.res_hi | 0;
+        g_parallax_probe       = !!opts.parallax_probe;
+        if (typeof opts.parallax_lo === 'number') g_parallax_lo = opts.parallax_lo | 0;
+        if (typeof opts.parallax_hi === 'number' && opts.parallax_hi > 0)
+            g_parallax_hi = opts.parallax_hi | 0;
         g_seed_pin             = !!opts.seed_pin;
         if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
@@ -2421,7 +2560,7 @@ rpc.exports = {
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
                 g_inject_enabled || g_cursor_probe || g_fade_probe ||
                 g_pace_probe || g_textout_probe || g_box_probe || g_res_probe ||
-                g_lockstep) {
+                g_parallax_probe || g_lockstep) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
             }
             if (g_cursor_probe) {
@@ -2443,6 +2582,10 @@ rpc.exports = {
             if (g_res_probe) {
                 try { installResProbe(); }
                 catch (e) { err('install_res_probe', '' + e); }
+            }
+            if (g_parallax_probe) {
+                try { installParallaxProbe(); }
+                catch (e) { err('install_parallax_probe', '' + e); }
             }
             // Sparkle anchor (subtitle-anim-start TAS marker + optional seed
             // pin) — install whenever we have a flip-frame counter to stamp it,

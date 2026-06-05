@@ -1045,6 +1045,104 @@ glyph pipeline again).  Each is diffable against `runs/tas-ingame-1` once the
 establishing-shot/zoom relationship is pinned (so the port + golden share a
 camera).
 
+### The PARALLAX far-plane — RE'd (producer + descriptor + town values) (ckpt 66)
+
+The sky/mountain full-screen background (the black region above/left of the
+ported tile layer; **golden flip 1800** shows blue sky + a hazy blue mountain
+ridge upper-left).  It is **NOT a backdrop tile** (region A) and **not** a
+`0x5a00c0` slice — it has a **dedicated producer** drawn *before* the tilemap.
+
+**Two producers, identical output.**  The background is drawn by two engine
+functions that read the **same descriptor** (the grid front-header) and emit the
+same 3 horizontal sprite-strip layers via the select+blit pair
+`FUN_00417c40(bank,frame)` (set current cel into ECX) → `FUN_005b9a40(surface,
+x,y)` (blit it):
+- **`FUN_00490cd0` (603 B)** — the **inline** version, called **first** in the
+  per-frame world-render driver `FUN_0048c150` (`:47`, before the actor emitters
+  + the tilemap walk `0x490f30` + the present `0x48eac0`).  This is the
+  **free-roam / normal-gameplay** path (`0x48c150`'s `in_ECX[7]==0` branch).
+- **`FUN_00499100` (1118 B) → `FUN_00499560` (271 B)** — the **helper-based**
+  version, called from `0x48c150`'s **else** branch (`in_ECX[7]!=0`, via
+  `FUN_0048c6b0(0x3eb,…)`) — the **establishing-shot / special-render** path.
+  `0x499100`'s layer-A loop is byte-identical to `0x490cd0`'s; `0x499560(surface,
+  view, desc_ptr, factor)` is `0x490cd0`'s B/C-layer math extracted to a helper
+  (`grid+0x10`@factor `0xfa`, `grid+0x04`@factor `500`).  The two producers are a
+  **mutual cross-check**: they agree on every descriptor offset and the scroll
+  algebra.
+
+**The descriptor = the grid front-header** (`*(DAT_008a9b50+0x1048)`, the runtime
+render grid built by `0x586010`/`0x587e00`).  Layout (ushort base), and how each
+field is consumed:
+
+| byte | field | consumed as |
+|------|-------|-------------|
+| 0x00 u16 | **layer A** bank | 8 tiles, frame 0..7 at x=`i*0x50`, y=0 — no parallax (top strip) |
+| 0x04 u16 | **layer C** bank | 9 tiles; parallax-X **0.5** (`500/1000`) |
+| 0x06 u16 | layer C baseY | tile y = baseY + paraY-offset |
+| 0x08 u16 | layer C wrap | `frame = col % wrap` |
+| 0x0c i32 | layer C paraY | vertical-parallax factor (`*(camY/100)/32 * paraY /1000`, clamp `[-0x1c,0]`) |
+| 0x10 u16 | **layer B** bank | 9 tiles; parallax-X **0.25** (`0xfa/1000`) |
+| 0x12 u16 | layer B baseY | |
+| 0x14 u16 | layer B wrap | |
+| 0x18 i32 | layer B paraY | |
+
+The horizontal scroll per layer: `s = ((cam+0x60 + cam+0x34)/100 * factorX)/1000`;
+`col0 = s/0x50`, `xoff = -(s % 0x50)`; tiles laid left→right at `xoff + i*0x50`,
+`frame = (col0+i) % wrap`.  (Same camera fields as the tilemap projector
+`0x490b90`/`map_render_visible_window`.)
+
+**The descriptor is written by the `0x587e00` PROLOGUE** (`587e00.c:104-196`, the
+currently-deferred front-header block — `port-debt.md` `ingame-nontile-layers`).
+Lines 104-109 zero the parallax fields by default; then a **switch on `param_2`**
+(`= room[0x44]`) with `param_3` (`= room[0x43]`, normalised 10/0x28→1, 0x32→2,
+0x3c→4, 0x3d→5, else→0) selects the per-room banks.  Cases observed:
+- **case 1,5,6,8,10,0xd,0xe,0x12**: A=`0x4e/0x4f/0x50` (by param_3), C bank=`0x57`
+  wrap=8 baseY=`0xa0`; no B layer.
+- **case 4,9**: A=`0x55/0x56`, C=`0x58` wrap=8 baseY=`0xf8` paraY=`0xfa`,
+  B=`0x59` wrap=8 baseY=`0xe0`.
+- **case 0xb,0xc,0xf,0x10**: A=`0x55/0x56`, C=`0x5a` … baseY=`0xc8`, B=`0x5b` …
+  baseY=`0xd0`.
+- **case 0x11**: A=`0x51/0x52` only.  **case 0x13**: A=`0x53`, C=`0x54`.
+  **case 3 / default**: sets `in_ECX[0xe]=1` (→ `0x48c150` sees `in_ECX[7]!=0`,
+  the special branch) + no parallax.
+
+**The TOWN (room 210110, area `0xd2`).**  `FUN_00585000` fills `room[0x44] = area
+A`, `room[0x43] = area C` from the AREA table; area `0xd2` = **A=4, C=1**.  So
+`param_2 = 4` → **case 4**, `param_3 = 1` → normalised **0** → A-variant `0x55`.
+**Town parallax descriptor:**
+
+| layer | bank | baseY | wrap | paraX | paraY |
+|-------|-----:|------:|-----:|------:|------:|
+| A | `0x55` | 0 | (8) | — | — |
+| C | `0x58` | `0xf8` | 8 | 0.5 | `0xfa` (=250) |
+| B | `0x59` | `0xe0` | 8 | 0.25 | 0 |
+
+(Static, two-witness RE; not yet live-probed — see the harness note below.)
+
+**Live-probe attempt (ground-truth, BLOCKED on navigation).**  Added a
+`--parallax-probe` to `frida_capture.py`/the agent (hooks `0x490cd0` + the inner
+`0x417c40`/`0x5b9a40`, dumps the descriptor + per-tile blits; reports whether ECX
+== grid).  It fired **zero** times across the in-game window — and a frame-capture
+diagnostic showed **why**: the saved retail input-trace
+(`tests/scenarios/in-game-intro/trace-retail.jsonl`) **no longer navigates** under
+`--seed-pin --lockstep --no-turbo` — retail **sits on the title menu** (frame 850
+is still the Start/Continue menu; no `newgame_enter`/`prologue_enter`/`game_enter`
+anchors fire, though the injects do dispatch at the right flips).  So the in-game
+retail harness drive is currently broken (the title-menu input-injection black
+box, `HANDOFF` open threads).  The parallax probe is correct + bounded and will
+yield the live descriptor once navigation is restored (or driven manually).  For
+now the port is verified against the **existing golden** `runs/tas-ingame-1` (the
+ckpt-65 asset+scale method) — the two-witness static RE + the area-table
+derivation make the descriptor values high-confidence.
+
+**PORT PLAN.**  (1) the prologue's parallax-field writes (the `param_2`/`param_3`
+case → the 9 grid-header fields) — extend `map_decode`/`map_grid` (retire part of
+PORT-DEBT `ingame-nontile-layers`); (2) the shared renderer (`0x490cd0`/`0x499560`
+math) as a pure unit reading the descriptor + camera, blitting via a callback
+(the `mr_sprite_fn` pattern) — drawn in `game_render` **before** the tilemap walk
+(behind it); (3) host tests; (4) capture + compare the sky/mountain vs golden
+1800.
+
 ## Open questions for the port
 
 - **The establishing-shot zoom** — is the flip-1150 zoomed-out vista a view
