@@ -9,7 +9,23 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **Where we are (ckpt 68): 24bpp parallax LUT grade LANDED — sky colour USER-CONFIRMED.**
+- **Where we are (ckpt 69): the intro-PAN camera EASER located + ported bit-exact.**
+  The establishing shot is a **scripted** leftward pan (NOT leader-follow): target x snaps
+  to a fixed **12800** + speed **300** once at hold-end (~flip 1617), then the per-frame
+  easer **`FUN_0043d1d0`** integrates current x toward it (`vel += 10/frame`, cap = speed
+  300; snap+decelerate at target). Found via a **hardware watchpoint** on the view's heap
+  `+0x60` (it's dispatched through a heap fn-pointer → invisible to static search; new
+  `mem_watch.py --watch-chain … --hw`). Ported pure + host-tested **bit-exact vs the
+  captured trajectory** (`src/camera_follow.{c,h}`, 6 tests; 846 pass/0 fail/6 skip).
+  Annotated into the flow trace (`camera_follow_step` @0x43d1d0 + the view fields incl. the
+  now-known `vel_x/vel_y` integrator). **OPEN (PORT-DEBT `ingame-camera-pan`):** wire the
+  stepped camera into `game_drive` (live) + the scripted op that SETS tgt=12800/speed=300 at
+  hold-end; then a flip-anchored full-frame backdrop/sky diff becomes possible.
+- **Methodology (reinforced ckpt 69):** "annotate" = the **flow-trace field spec**
+  (`retail_fields.json` named functions+fields + port `CALL_TRACE_BEGIN` mirrors) — a CORE
+  step of finishing any RE/port; thiscall/struct tagging is a SEPARATE static-readability
+  lane. Never an ad-hoc symbol-rename. (CLAUDE.md "Annotate as you RE".)
+- **Prior (ckpt 68): 24bpp parallax LUT grade LANDED — sky colour USER-CONFIRMED.**
   Found retail grades the 24bpp sky/mountain banks (`0x55`/`0x58`/`0x59`) at **DECODE**, not via
   the palette path (`0x417c40` early-exits to the plain getter when a bank has no palette): its
   **flag-3 branch** (the 24bpp case) stamps the slot's brightness descriptor (`f_08=1`, scales
@@ -32,16 +48,24 @@
   **foreground tree** + **"Town of Tonkiness" banner** (`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`);
   the intro **pan** itself (`ingame-camera-snap`) — until it lands, port (gameplay cam) and retail
   (establishing-pan cam) sample different sky rows, so a true row-for-row sky diff isn't possible yet.
-- **Next move:** port the **intro PAN** (`ingame-camera-snap` — animate `+0x60`) so port+retail
-  share a camera and a flip-anchored full-frame backdrop diff becomes meaningful; then the
-  **foreground tree/banner** (`0x5a00c0`) and the **actor renderers** (need the entity/spawn system
-  first). Full writeup: `findings/in-game-intro.md` "The in-game COLOR-GRADE LUT".
+- **Next move:** the intro-pan easer is PORTED (ckpt 69); the remaining `ingame-camera-pan`
+  work is (a) **wire** the stepped camera into `main.c game_render`/`game_drive` (replace the
+  static `MAP_RENDER_CAM_TOWN_3F2` with a `camera_view` stepped by `camera_follow_step` each
+  frame) + (b) the **scripted op** that sets tgt=12800/speed=300 at hold-end (~183 flips after
+  `game_enter`). Then a flip-anchored full-frame backdrop/sky diff is meaningful. After that:
+  the **foreground tree/banner** (`0x5a00c0`) and the **actor renderers** (need the entity/spawn
+  system first). Writeups: `findings/in-game-intro.md` "The camera EASER located".
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` carries `seq` + `CALL_TRACE_BEGIN/FIELD/END`;
   the Frida agent reads same-named retail fields per `tools/flow/retail_fields.json` (now incl.
-  the `cam_*` camera chain + the ckpt-67 `tint`/`lutgate1/2`/`lut*` colour-grade probes);
+  the `cam_*` camera chain + the ckpt-67 `tint`/`lutgate1/2`/`lut*` colour-grade probes +
+  the ckpt-69 `camera_follow_step` producer entry);
   `tools/flow_diff.py` names the first `[chain]`/`[data]` divergence. Remaining Phase B: **B1**
   unified `scenario-test.py`, **B3** DDraw blit-command trace + `render_diff.py`.
+  **`mem_watch.py` (ckpt 69):** now resolves **chain heap addresses**
+  (`--watch-chain ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]]`) + a **`--hw` hardware
+  watchpoint** (frida-17 per-thread DR) — the fitting tool for a hot heap field (found the
+  camera easer through its heap fn-pointer dispatch in one run).
 - **Standing bar:** every divergence is `differ_px == 0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic
   (`parity-model.md`); seed-pinned both sides, compared by anchor/tick.

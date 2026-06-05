@@ -6,6 +6,32 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 69) — the intro-PAN camera easer located (HW watchpoint) + ported
+
+The opening-town "establishing shot" is a **scripted** leftward camera pan, not a
+leader-follow: a live camera-field probe (`game_enter@1434`→3600, the extended
+`cam_*` target/speed fields) shows the target x snaps to a FIXED **12800** + speed
+**300** once at hold-end (~flip 1617); Y never moves. The per-frame easer is
+**`FUN_0043d1d0`** (`vel += 10/frame` capped at the speed, `cur ±= vel` toward
+target, snap+decel) — called from `0x439690:1123`.
+
+It was **invisible to static search** (dispatched through a heap function pointer),
+so it was found with a **hardware watchpoint** on the view's heap `+0x60`: new
+`tools/mem_watch.py --watch-chain … --hw` (chain-resolved heap address +
+frida-17 per-thread DR watch; MemoryAccessMonitor livelocks on the hot view page).
+One run pinned the writer insn `0x43d26d` + the exact value trajectory
+127970→12800 (per-tick deltas 30,40,…,300).
+
+Ported pure + host-tested **bit-exact vs the capture**: `src/camera_follow.{c,h}`
+(`camera_follow_step`/`camera_follow_axis` + `camera_shake_apply` `0x43d340`), 6
+tests → **846 pass / 0 fail / 6 skip**, ledger **197/1490 touched / 192 tested**.
+Annotated into the flow trace (`camera_follow_step` @0x43d1d0 + the view fields).
+Commits `d3fdc15` (HW-watch tool), `ea40ee4` (port + annotation). Process note:
+reinforced that "annotate" = the flow-trace field spec (CLAUDE.md "Annotate as you
+RE", commit `90574d3`), a separate lane from thiscall/struct tagging.
+PORT-DEBT `ingame-camera-pan`: wire the stepped camera live + the scripted
+target-set op. Writeup: `findings/in-game-intro.md` "The camera EASER located".
+
 ## 2026-06-05 (ckpt 66) — the in-game PARALLAX far-plane (sky + mountain)
 
 On top of the ckpt-65 wired backdrop, the port now draws the **parallax

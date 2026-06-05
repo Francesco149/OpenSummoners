@@ -6,6 +6,46 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 69
+
+**The intro-PAN camera EASER located + ported bit-exact; a HW-watchpoint tool +
+the annotation methodology reinforced.**
+
+- **The pan is SCRIPTED** (not leader-follow). Live camera-field probe across the
+  establishing shot (`game_enter@1434`→3600): the target x snaps to a FIXED
+  **12800** (4 cells, town's left edge) + speed **300** once at hold-end
+  (~flip 1617, ~183 flips after entry); Y never moves (`+0x5c`=`+0x70`=12800).
+- **The easer = `FUN_0043d1d0`** (called from `0x439690:1123`, before `0x499ab0`
+  shake/HUD). Per axis: `dist=|tgt-cur|`; `if vel<dist: cur ±= vel(+far-boost
+  when flag&&dist>16000); vel=min(vel+10,cap)`; `else cur=tgt (snap);
+  vel=max(vel-10,0)`. cap = `+0x20` (=300). Town pan has flag(`+0x1c`)=0.
+- **Found via a HARDWARE WATCHPOINT** — it's dispatched through a heap function
+  pointer (invisible to static search). New `tools/mem_watch.py --watch-chain
+  ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]] --hw` resolves the view's heap
+  `+0x60` and DR-watches it (frida-17 per-thread API, OpenMare pattern). One run:
+  1189 writes, single writer insn `0x43d26d`, trajectory 127970→12800; the
+  per-tick deltas 30,40,…,300 pin the formula. (MemoryAccessMonitor livelocks on
+  the hot view page — the `--hw` path is the fitting tool.)
+- **PORT (pure, host-tested bit-exact):** `src/camera_follow.{c,h}` —
+  `camera_follow_axis`/`camera_follow_step` (`FUN_0043d1d0`) + `camera_shake_apply`
+  (`FUN_0043d340`). 6 tests validate the captured trajectory, the +10/cap-300
+  ramp, exact landing, the flag-gated far-boost, shake-inactive=0. **846 pass / 0
+  fail / 6 skip.** Ledger **197/1490 touched / 192 tested** (+`0x43d1d0`,`0x43d340`).
+- **ANNOTATED** (the user's directive): a named `camera_follow_step` (0x43d1d0)
+  entry in `retail_fields.json` with the view fields incl. the now-known
+  `vel_x/vel_y` integrator + the formula; the view struct's fields are named at
+  their retail offsets in `camera_follow.h`. Port `CALL_TRACE_BEGIN(0x43d1d0)`
+  mirror pending the live-camera wiring.
+- **METHODOLOGY (reinforced, CLAUDE.md "Annotate as you RE"):** "annotate" = the
+  flow-trace field spec (`retail_fields.json` named functions+fields + port
+  `CALL_TRACE_BEGIN` mirrors) — CORE step of finishing any RE/port; thiscall/struct
+  tagging is a SEPARATE static-readability lane; never an ad-hoc symbol-rename.
+- **NEXT (`ingame-camera-pan`):** wire the stepped `camera_view` into
+  `main.c game_render`/`game_drive` (replace the static `MAP_RENDER_CAM_TOWN_3F2`)
+  + RE the scripted op that sets tgt=12800/speed=300 at hold-end. Then a
+  flip-anchored full-frame backdrop/sky diff is meaningful. Writeup:
+  `findings/in-game-intro.md` "The camera EASER located".
+
 ## Where we are — ckpt 67
 
 **In-game COLOR-GRADE LUT ported → backdrop TILES are `differ_px==0`; the
@@ -274,7 +314,9 @@ word-wrap).
 newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option submenu).
 **In-game (milestone 2 — pure + host-tested; the backdrop chain is now WIRED into
 `main.c` via `town_render`, ckpt 65):**
-game_drive (the in-game run-loop shell), **town_render** (composes the backdrop:
+game_drive (the in-game run-loop shell), **camera_follow** (the per-frame camera
+ease-to-target `0x43d1d0` + shake sub-applier `0x43d340`, ckpt 69 — pure +
+host-tested bit-exact, NOT yet wired into the live camera), **town_render** (composes the backdrop:
 `map_data_parse`+`map_decode` load → `draw_pool_reset`+`map_render_walk`+`map_present`
 step + `town_render_parallax` → `parallax_render` — driven by `main.c game_render`),
 **parallax** (the sky/mountain far-plane `0x490cd0`/`0x499560` + the `0x587e00`-prologue
