@@ -1,0 +1,17 @@
+{
+  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/trace-tooling-phase-b.md, the B2 LOGIC drill-in). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). Consumed by tools/flow_diff.py.",
+  "_schema": {
+    "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
+    "name": "short label for flow_diff output (wins over functions.csv).",
+    "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
+    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | retval (onLeave).",
+    "fields[].va": "for src=global: the DAT_ VA to read.",
+    "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
+    "fields[].off": "for src=argderef: byte offset added before the deref-read.",
+    "fields[].type": "i32 | u32 | f32 | hex.",
+    "fields[].benign": "true => compare for PRESENCE only (memory-layout pointer, phase-origin counter, RNG seed origin); pair with `reason`.",
+    "fields[].reason": "human note surfaced by --field-timeline when a benign field diverges (accepted-with-cause, not silently dropped)."
+  },
+  "_caveat_arg_index": "SotES is MSVC; many engine functions are __thiscall/__fastcall (this/first arg in ECX, not on the stack). For those, Frida's args[0] is the first STACK param, NOT `this` — validate any src=arg/argderef field against a live --textout-probe/mem_watch read before a port depends on it. src=global reads (a DAT_ VA) have no such ambiguity and are the safe default for state-machine stubs; prefer them. Validated convention will be pinned here per-VA as fields land.",
+  "fields": {}
+}
