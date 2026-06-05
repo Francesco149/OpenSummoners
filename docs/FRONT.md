@@ -10,27 +10,30 @@
   in-game visible frame), building toward a trace that plays 1:1 pixel-perfect frame by
   frame on both sides. Milestone map: `ROADMAP.md`. Mechanical next chip:
   `port-frontier.md`.
-- **Where we are (ckpt 64):** the **decode → grid → geometry → draw-list → present**
-  chain is CLOSED, and the **camera/view object is now RE'd + the first-frame value
-  live-probed** (ckpt 64 — the last non-wiring blocker, resolved). `map_decode` places
-  tiles in the runtime render grid (`map_grid`), `map_render_walk` + `draw_pool` (the
-  27-layer pool, `0x4917b0`/`0x586010`) accumulate the draw list, **`map_present`**
-  (`0x48eac0` + projector `0x490b90`) walks the 27 layers → mode-3 backdrop → zdd blits.
-  **Camera:** `view = *(room_state+0x104c)` = `operator_new(0x78)` (the 0x4017d0 ctor);
-  the room-entry init (`586010:854-872` + `587d30`) is portable (`map_render_camera_init`),
-  and the opening town's first frame is the live-verified constant `MAP_RENDER_CAM_TOWN_3F2`
-  (`+0x60=128000`/`+0x5c=12800`, vp 64000×48000; window cols 39-60 / rows 3-18). All pure
-  + host-tested: **821 pass / 0 fail / 6 skip**. Ledger **191/1490 touched / 186 tested**.
-  Both GUI builds clean; the new modules are in the `src` wildcard but **not yet called by
-  `main.c`**.
-- **Next move:** **real town-backdrop pixels — only the wiring remains** (the camera is no
-  longer a blocker). Wire `map_decode` + `map_render_walk` + `map_present(cam=MAP_RENDER_CAM_TOWN_3F2)`
-  into `main.c`'s in-game `game_render`, with a real sprite resolver (`0x418470` /
-  `&DAT_008a760c`), the EXE-NULL banks `0x570-0x572`, and the `0x586010` sim slice that
-  populates the grid + builds the `view+0x54` layer table; then diff vs `runs/tas-ingame-1`
-  anchored on `game_enter` (golden first town frame ~flip 1150). Deferred: present modes
-  0/1/2 (actor draws) + the spawn-snap/intro-pan (PORT-DEBT `ingame-camera-snap`). Full
-  writeup: `findings/in-game-intro.md` "The camera/view object".
+- **Where we are (ckpt 65): REAL IN-GAME PIXELS.** The decode → grid → walk → present
+  pipeline is **composed (`town_render.{c,h}`) + WIRED into `main.c`**, and the port now
+  renders the opening **town of Tonkiness backdrop** — the half-timbered house, the vine
+  trellis, the stone-block walls, ivy + grass — the **same assets at the matching gameplay
+  scale as the retail golden** (cross-checked vs golden flip 1800). Live-verified: the map
+  **DATA 1022** (152936 B "MSD_SOTES_MAPDATA", 88×19×3) loads from the *packed* `sotes.exe`
+  `.rsrc` (`LoadLibraryExA AS_DATAFILE`); `game_render` walks `town_render` through the
+  first-frame camera `MAP_RENDER_CAM_TOWN_3F2`; the three engine globals are real callbacks
+  (sprite resolve `ar_pool_get_slot`+`ar_sprite_slot_frame`, bank dims, blit
+  `zdd_object_blt_clipped`). **827 pass / 0 fail / 6 skip** (+6 town_render). Ledger
+  **191/1490 touched / 186 tested** (pure composition, no new `FUN_`). Both GUI builds clean.
+- **NOT `differ_px==0` yet — named residuals, all deferred layers** (NOT logic bugs): the
+  parallax sky/mountain far-plane + foreground trees + dialogue/caption overlay (`0x5a00c0`,
+  PORT-DEBT `ingame-nontile-layers`); the NPC actors (present modes 0/1/2, PORT-DEBT
+  `present-actor-modes`); and retail's **zoomed-out intro establishing shot** at the hold
+  (flip 1150 is a whole-town vista that zooms to 1:1 by ~1800 — the camera scale field
+  wasn't in the ckpt-64 probe; PORT-DEBT `ingame-establishing-zoom`). The backdrop TILE
+  layer itself is asset+scale-correct.
+- **Next move:** the smallest visible win on the now-proven tile layer — the **parallax
+  far-plane** (sky/mountain full-screen backdrop), then the **actor renderers** (`0x491ae0`
+  et al. → present modes 0/1/2), then the **dialogue overlay** (glyph pipeline). First pin
+  the **establishing-shot/zoom** relationship (so port + golden share a camera) to unlock a
+  flip-anchored full-frame diff vs `runs/tas-ingame-1`. Full writeup:
+  `findings/in-game-intro.md` "The backdrop pipeline WIRED".
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` now carries `seq` +
   `CALL_TRACE_BEGIN/FIELD/END`; the Frida agent reads same-named retail fields per

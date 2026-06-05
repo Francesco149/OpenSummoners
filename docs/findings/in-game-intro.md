@@ -980,8 +980,77 @@ engine across the `0x4710c0`/`0x54f980` camera-follow/copy routines + `0x499ab0`
 which pushes a controller's `+0x4c` into `view+0x74`).  For the static first
 frame these are replaced by the live-verified `MAP_RENDER_CAM_TOWN_3F2` constant.
 
+### The backdrop pipeline WIRED — first real in-game pixels (ckpt 65)
+
+The pure pipeline (decode → grid → walk → present, all host-tested) is now
+**composed + wired into `main.c`** and produces real town pixels.
+
+**The composition (pure, host-tested): `src/town_render.{c,h}`.**  A thin
+per-room SCENE that owns the state the stages share — the parsed `map_data`, the
+runtime render grid (`map_grid_alloc`), the 27-layer `draw_pool` — and runs them
+in the engine's order: `town_render_load` = the once-per-room
+`map_data_parse` (`0x587970`) + `map_decode` (`0x587e00` town arms);
+`town_render_step` = the per-frame backdrop slice of the draw driver `0x48c150`
+(`draw_pool_reset` → `map_render_walk` `0x490f30` → `map_present` `0x48eac0`).
+The three engine globals stay seams (callbacks).  6 host tests
+(`tests/test_town_render.c`) drive a real parse+decode of a minimal in-memory
+resource through to the exact present op.
+
+**The Win32 glue (`main.c`).**
+- `load_town_scene(1022)` (in `enter_game`): `LoadLibraryExA("sotes.exe",
+  AS_DATAFILE)` → the EXE's own `.rsrc` (the engine-time module `DAT_008a6e7c`,
+  distinct from `sotesd.dll`'s sprite banks), then `FindResource`/`Load`/`Lock`
+  of `DATA` scene 1022 + `town_render_load`.  **Live-verified: DATA 1022 loads
+  from the *packed* `sotes.exe`** (Steam-DRM intact `.rsrc` — Steamless not
+  needed at runtime): 152936 B, name "MSD_SOTES_MAPDATA", 88×19×3, 86 layers.
+- `game_sprite_resolve` = `0x490f30`'s resolve: `ar_pool_get_slot(bank)`
+  (`&DAT_008a760c[bank]`) + `ar_sprite_slot_frame` (`0x418470`).  The bank→pool
+  mapping is internally consistent (`&DAT_008a760c[0x62]` == BSS `0x8a7794` ==
+  register table-idx 85 == resource `0x433`); `ar_register_game_sprites` (g5,
+  already booted) populates every town bank (0x62/0x63/0x172-0x177/0x17a/0x17b).
+- `game_bank_dims` = pool[bank] `+0x20/+0x24` (`ar_sprite_slot.width/height`).
+- `game_present_blit` = the mode-3 CLIPPED path → `zdd_object_blt_clipped`
+  (`0x5b9bf0`); `PRESENT_ALPHA` can't fire for the backdrop (node `+0x14`==0).
+- `game_render` clears black then walks the scene through
+  `MAP_RENDER_CAM_TOWN_3F2`.
+
+**Result (live, `--input-trace` in-game-intro, `game_enter@1116`).**  The port
+renders a **coherent town backdrop** — the red-roofed half-timbered house, the
+vine trellis/arch, the stone-block walls, ivy + grass — the **same assets as the
+retail golden**, at the **matching gameplay tile scale** (118k nonblack px, 212
+colors).  Cross-checked vs golden flip **1800** (post-establishing-shot, at
+gameplay 1:1): the house / stone walls / grass / ivy are pixel-scale identical to
+the port → the backdrop tile layer is structurally + asset-correct.
+
+**NOT a `differ_px==0` frame — the named residuals (all deferred layers).**
+- The full-screen **parallax sky/mountain far-plane** + the **foreground trees**
+  + the **dialogue box & caption overlay** (`0x5a00c0`) are not drawn → the
+  upper/right of the port frame is black where they belong.  (PORT-DEBT
+  `ingame-nontile-layers`.)
+- The **NPC actors** (Arche + co — present modes 0/1/2).  (PORT-DEBT
+  `present-actor-modes`.)
+- Retail's flip-1150 hold is a **zoomed-OUT establishing shot** (whole-town vista
+  + banner) that zooms to 1:1 by ~flip 1800; the port renders gameplay 1:1 at the
+  hold's scroll origin.  The camera **scale/zoom field** was not in the ckpt-64
+  probe (scroll `+0x34..+0x74` + viewport only).  So a flip-anchored full-frame
+  diff at the hold is not yet meaningful — the on-screen relationship between
+  `MAP_RENDER_CAM_TOWN_3F2` and the establishing shot is a render-time question
+  for the `0x5a00c0` / pan port.  (PORT-DEBT `ingame-establishing-zoom`.)
+
+**NEXT** (smallest visible win first, on top of the now-proven tile layer): the
+**parallax far-plane** (the sky/mountain full-screen backdrop — likely a
+dedicated bank blit or a `0x5a00c0` slice), then the **actor renderers**
+(`0x491ae0` et al. → present modes 0/1/2), then the **dialogue overlay** (the
+glyph pipeline again).  Each is diffable against `runs/tas-ingame-1` once the
+establishing-shot/zoom relationship is pinned (so the port + golden share a
+camera).
+
 ## Open questions for the port
 
+- **The establishing-shot zoom** — is the flip-1150 zoomed-out vista a view
+  *scale* field (animated during the hold) or a separate `0x5a00c0` overlay
+  projection?  Pin it before a flip-anchored full-frame diff (PORT-DEBT
+  `ingame-establishing-zoom`).
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
   (looks once-per-room) yet is called every loop iteration — confirm whether the
   alloc/teardown is guarded (it frees `DAT_008a9b50` at the top if non-NULL,

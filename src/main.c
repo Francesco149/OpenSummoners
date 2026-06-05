@@ -1533,9 +1533,10 @@ static int load_town_scene(uint16_t scene)
  * from game_enter (flip ~1092) until the town first renders (~flip 1150).
  *
  * DEFERRED: the entry fade + the black-load window timing (the port draws the
- * town from game_enter rather than after retail's ~58-flip load/fade — a phase
- * offset, PORT-DEBT ingame-camera-snap's sibling), and the actor/HUD/dialogue
- * layers (present modes 0/1/2). */
+ * town from game_enter rather than after retail's ~58-flip load/fade), the
+ * parallax sky/tree/dialogue layers (PORT-DEBT ingame-nontile-layers; present
+ * modes 0/1/2 = PORT-DEBT present-actor-modes), and retail's zoomed-out intro
+ * establishing shot at the hold (PORT-DEBT ingame-establishing-zoom). */
 static void game_render(void *user)
 {
     (void)user;

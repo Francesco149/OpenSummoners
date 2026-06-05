@@ -6,6 +6,55 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-05 (ckpt 65) — REAL IN-GAME PIXELS: the town backdrop wired + rendering
+
+The decode → grid → walk → present pipeline (every stage already pure +
+host-tested) is now **composed into one per-room scene and WIRED into `main.c`**,
+and the port renders the opening **town of Tonkiness backdrop** — the
+half-timbered house, the vine trellis, the stone-block walls, ivy + grass —
+**the same assets at the matching gameplay scale as the retail golden**
+(user-confirmed; cross-checked vs golden flip 1800).
+
+**The composition (pure, host-tested): `src/town_render.{c,h}`** — a thin scene
+owning the shared state (parsed `map_data`, the runtime render grid, the 27-layer
+`draw_pool`) run in engine order: `town_render_load` = `map_data_parse`
+(`0x587970`) + `map_decode` (`0x587e00` town arms); `town_render_step` = the
+backdrop slice of the per-frame driver `0x48c150` (`draw_pool_reset` →
+`map_render_walk` `0x490f30` → `map_present` `0x48eac0`). 6 host tests
+(`tests/test_town_render.c`): a real parse+decode of a minimal in-memory resource
+through to the exact present op, plus the resolver-gate / empty / dry / unloaded /
+malformed paths. Commit `552801b`.
+
+**The Win32 glue (`main.c`)** — `load_town_scene(1022)` in `enter_game`:
+`LoadLibraryExA("sotes.exe", AS_DATAFILE)` opens the EXE's own `.rsrc` (the
+engine-time module `DAT_008a6e7c`, distinct from `sotesd.dll`), then
+`FindResource`/`Lock`(DATA 1022) + `town_render_load`. **Live-verified the
+*packed* `sotes.exe` `.rsrc` is readable at runtime** (Steam-DRM intact — no
+Steamless needed): DATA 1022 = 152936 B, "MSD_SOTES_MAPDATA", 88×19×3, 86 layers.
+The three engine globals are real callbacks: `game_sprite_resolve`
+(`ar_pool_get_slot(bank)` = `&DAT_008a760c[bank]` + `ar_sprite_slot_frame` =
+`0x418470`; bank→pool mapping verified — bank `0x62` → register idx 85 → resource
+`0x433`, every town bank in the already-booted g5 batch), `game_bank_dims` (slot
+width/height), `game_present_blit` (mode-3 CLIPPED → `zdd_object_blt_clipped`).
+`game_render` clears black then walks the scene through `MAP_RENDER_CAM_TOWN_3F2`.
+Live: `--input-trace` in-game-intro, `game_enter@1116`, 118k nonblack px / 212
+colors. Commit `ccb6c89`.
+
+**NOT `differ_px==0` — named residuals, ALL deferred layers (not logic bugs):**
+the parallax sky/mountain far-plane + foreground trees + dialogue/caption overlay
+(`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`); the NPC actors (present modes
+0/1/2, PORT-DEBT `present-actor-modes`); retail's zoomed-OUT intro establishing
+shot at the flip-1150 hold that zooms to 1:1 by ~1800 (the camera scale field
+wasn't in the ckpt-64 probe; PORT-DEBT `ingame-establishing-zoom` — so port +
+golden don't share a camera at any single flip yet, the tiles are confirmed by
+asset+scale match vs golden 1800, not a px-exact frame diff); and the per-sprite
+palette tint (`render-palette-tint`, the `DAT_008a93fc`/`0x4182d0` ramp — the "bit
+more color" retail shows). **827 pass / 0 fail / 6 skip.** Ledger holds
+**191/1490 touched / 186 tested** (pure composition, no new `FUN_`). Full writeup:
+`findings/in-game-intro.md` "The backdrop pipeline WIRED". **NEXT:** the parallax
+far-plane → the actor renderers → the dialogue overlay (build out the in-game
+layers on the now-proven tile base).
+
 ## 2026-06-05 (ckpt 64) — the camera/view object RE'd + first-frame value live-probed
 
 The last non-wiring blocker for real town pixels was the **camera/view object**

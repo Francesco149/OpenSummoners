@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 64, 2026-06-05)
+# Session handoff — rolling current state (last updated ckpt 65, 2026-06-05)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,11 +6,46 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 64
+## Where we are — ckpt 65
 
-**The camera/view object is RE'd + its first-frame value live-probed — the last
-non-wiring blocker for real town pixels is resolved.** (ckpt 63: the present pass
-landed, closing the decode → grid → geometry → draw-list → present chain.)
+**REAL IN-GAME PIXELS.** The backdrop pipeline is **composed
+(`town_render.{c,h}`) + WIRED into `main.c`**, and the port renders the opening
+**town of Tonkiness backdrop** — the half-timbered house, the vine trellis, the
+stone-block walls, ivy + grass — the **same assets at the matching gameplay
+scale as the retail golden** (user-confirmed; cross-checked vs golden flip 1800).
+
+- **The composition (pure, host-tested): `src/town_render.{c,h}`.** A thin
+  per-room SCENE owning the shared state (parsed `map_data`, the runtime grid,
+  the 27-layer `draw_pool`) run in engine order: `town_render_load` =
+  `map_data_parse` (`0x587970`) + `map_decode` (`0x587e00` arms);
+  `town_render_step` = the backdrop slice of the per-frame driver `0x48c150`
+  (`draw_pool_reset` → `map_render_walk` `0x490f30` → `map_present` `0x48eac0`).
+  6 host tests (`tests/test_town_render.c`).
+- **The Win32 glue (`main.c`).** `load_town_scene(1022)` in `enter_game`:
+  `LoadLibraryExA("sotes.exe", AS_DATAFILE)` → the EXE `.rsrc` (the engine-time
+  module `DAT_008a6e7c`), `FindResource`/`Lock`(DATA 1022) + `town_render_load`.
+  **Live-verified the packed `sotes.exe` `.rsrc` is readable** (Steam-DRM intact;
+  no runtime Steamless): DATA 1022 = 152936 B "MSD_SOTES_MAPDATA" 88×19×3.
+  The three engine globals are real callbacks: `game_sprite_resolve`
+  (`ar_pool_get_slot(bank)` = `&DAT_008a760c[bank]` + `ar_sprite_slot_frame` =
+  `0x418470`; bank→pool mapping verified: bank `0x62`→idx 85→res `0x433`, all
+  town banks in g5), `game_bank_dims` (slot width/height), `game_present_blit`
+  (mode-3 CLIPPED → `zdd_object_blt_clipped` `0x5b9bf0`). `game_render` clears
+  black then walks `town_render` through `MAP_RENDER_CAM_TOWN_3F2`.
+- **NOT `differ_px==0` yet — named residuals, ALL deferred layers (not logic):**
+  the parallax sky/mountain far-plane + foreground trees + dialogue/caption
+  overlay (`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`); the NPC actors
+  (present modes 0/1/2, PORT-DEBT `present-actor-modes`); retail's zoomed-out
+  intro establishing shot at the hold (PORT-DEBT `ingame-establishing-zoom` — the
+  camera scale field wasn't in the ckpt-64 probe); and the per-sprite palette
+  tint (`render-palette-tint` — the "bit more color" the user noticed, the
+  `DAT_008a93fc`/`0x4182d0` difficulty/time ramp, recolors pixels not geometry).
+- **State (ckpt 65): 827 pass / 0 fail / 6 skip** (+6 town_render). Ledger
+  **191/1490 touched / 186 tested** (pure composition, no new `FUN_`). Both GUI
+  builds clean. The backdrop scene is now **driven by `main.c`** (the first
+  in-game render module that is).
+
+### (prior, ckpt 64) The camera/view object
 
 - **RE — the camera IS the view object** (`view = *(room_state+0x104c)`, one
   `operator_new(0x78)` struct, allocated in the room-state ctor `0x4017d0:187`).
@@ -94,21 +129,35 @@ landed, closing the decode → grid → geometry → draw-list → present chain
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-**Real town-backdrop pixels — only the wiring remains** (the camera blocker is resolved,
-ckpt 64). The pure pipeline is complete end-to-end (decode → grid → geometry → draw-list →
-present) and the first-frame camera is the live-verified constant `MAP_RENDER_CAM_TOWN_3F2`.
-What's left: **wire into `main.c`** — today neither `game_map`/`game_world` nor the map
-render/present modules are called by `main.c`; the in-game `game_render` clears to black.
-The wiring needs the **`0x586010` sim step** ported only as far as it populates what the
-backdrop reads (it allocs `DAT_008a9b50` 0x27b8 + builds the layer table at `view+0x54`,
-inits the camera at `586010:854-872`, resolves the map data) plus a real **sprite resolver**
-(`0x418470` / `&DAT_008a760c`, the `mr_sprite_fn` the walk takes as a callback) and the
-**EXE-NULL banks `0x570-0x572`**. Once those exist, run `map_decode` → `map_render_walk`
-→ `map_present(cam=MAP_RENDER_CAM_TOWN_3F2, sink=zdd)` into `game_render` and diff vs
-`runs/tas-ingame-1` anchored on `game_enter`. Target the static town backdrop FIRST
-(golden flip ~1150, inside the camera's stable hold). (The older "slice of **`0x5a00c0`**"
-framing was corrected at ckpt 60 — `0x5a00c0` is the scripted-scene overlay player, not the
-tilemap; the tilemap is `0x490f30` → present `0x48eac0`, both ported.)
+**The backdrop tile layer is LANDED; build out the remaining in-game layers on top.**
+The smallest visible wins, in order:
+1. **The parallax far-plane** — the full-screen sky/mountain background behind the
+   tiles (the port frame is black where it belongs). Likely a dedicated bank blit
+   or a `0x5a00c0` slice; RE which producer draws it (it is NOT a backdrop tile —
+   `map_render_walk` would have drawn it if it were in region A).
+2. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (PORT-DEBT
+   `present-actor-modes`). This puts the NPCs (Arche + co) into the scene. The
+   `map_present` consumer already VISITS + counts them; it needs the producers.
+3. **The dialogue box + caption overlay** (`0x5a00c0`, the scripted-scene player +
+   the `DAT_008a7640` font bank) — the glyph pipeline again (PORT-DEBT
+   `ingame-nontile-layers`).
+4. **The per-sprite palette tint** (`render-palette-tint` — `DAT_008a93fc`/`0x4182d0`,
+   the difficulty/time ramp) — the "bit more color" retail shows; recolors pixels,
+   not geometry.
+
+**Before a flip-anchored full-frame diff** vs `runs/tas-ingame-1`: pin the
+**establishing-shot/zoom** relationship (PORT-DEBT `ingame-establishing-zoom`).
+Retail's flip-1150 hold is a zoomed-OUT vista that zooms to 1:1 by ~1800; the
+port renders gameplay 1:1 at the hold's scroll origin. So port + golden don't
+share a camera at any single flip yet — the backdrop tiles are confirmed by ASSET
++ SCALE match (vs golden 1800), not by a px-exact frame diff. Find the view scale
+field (or the `0x5a00c0` overlay projection) that drives the establishing shot.
+
+How to drive the port in-game live: `--input-trace
+tests/scenarios/in-game-intro/trace-port.jsonl --frames 1400` (copy the trace into
+the game-dir CWD; `game_enter@1116`), `--capture-frames "1160,1200,1300"` → BMPs
+in the game dir → PNG → feed. The backdrop renders from `game_enter` (the entry
+fade/black-load timing is deferred).
 
 ## Module inventory — render + text pipelines complete; in-game data layer ported (not wired)
 **Title/menu shell (bit-exact):** pixel_drawer, asset_register, bitmap_session, wnd_proc,
@@ -121,8 +170,11 @@ word-wrap).
 **New-game config scene (bit-exact + user-confirmed):** newgame_menu (`0x564780` case
 0x24 builder), newgame_scene (run-loop model), newgame_box (`0x48cf80` 9-slice panel),
 newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option submenu).
-**In-game (milestone 2 — pure + host-tested, NOT yet wired into `main.c`):**
-game_drive (black map-load frame scaffold), game_world (registry + `0x585000` xref +
+**In-game (milestone 2 — pure + host-tested; the backdrop chain is now WIRED into
+`main.c` via `town_render`, ckpt 65):**
+game_drive (the in-game run-loop shell), **town_render** (composes the backdrop:
+`map_data_parse`+`map_decode` load → `draw_pool_reset`+`map_render_walk`+`map_present`
+step — driven by `main.c game_render`), game_world (registry + `0x585000` xref +
 `0x561c90` lookup over generated `world_tables_data`), game_map (`0x59f2c0` fresh-entry
 arm + `0x4c5350` `0x3f2`→room-210110 key), **map_data** (`0x587970` resource parse),
 **map_grid** (runtime render grid + `0x54c970`/`0x58ca80`/`0x58c910` write primitives),
