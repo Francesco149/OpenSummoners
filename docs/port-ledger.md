@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **191** (11.9% of engine-proper) — tested 186, ported 5
-- code bytes touched: **13.2%** (224,073 / 1,694,868 B of engine-proper)
-- unported: **1567**
+- touched: **193** (12.1% of engine-proper) — tested 188, ported 5
+- code bytes touched: **13.3%** (224,947 / 1,694,868 B of engine-proper)
+- unported: **1565**
 - orphan refs in src/ not in this table: 4
 
-## tested (186) — ported + host unit suite
+## tested (188) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -64,9 +64,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
 | 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h, town_render.c (+1) |
 | 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h, town_render.h |
-| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, main.c, map_present.h (+4) |
+| 0x490cd0 | FUN_00490cd0 | 603 | main.c, parallax.c, parallax.h (+2) |
+| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, main.c, map_present.h (+5) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
+| 0x499560 | FUN_00499560 | 271 | parallax.c, parallax.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
@@ -180,7 +182,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9830 | FUN_005b9830 | 138 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b98c0 | FUN_005b98c0 | 73 | zdd.c, zdd.h |
 | 0x5b9910 | FUN_005b9910 | 291 | zdd.c, zdd.h |
-| 0x5b9a40 | FUN_005b9a40 | 112 | zdd.c, zdd.h |
+| 0x5b9a40 | FUN_005b9a40 | 112 | main.c, parallax.h, town_render.h (+2) |
 | 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |

@@ -205,3 +205,44 @@ int test_town_render_malformed(void)
     free(blob);
     return 0;
 }
+
+/* ---- the parallax far-plane is wired at load + drawn before the tiles ---- */
+
+typedef struct { uint16_t bank; int32_t frame, x, y; } pxrec;
+typedef struct { pxrec r[64]; int n; } pxsink;
+static void px_rec(void *ctx, uint16_t bank, int32_t frame, int32_t x, int32_t y)
+{ pxsink *s = (pxsink *)ctx; if (s->n < 64) { s->r[s->n] = (pxrec){bank,frame,x,y}; } s->n++; }
+
+int test_town_render_parallax_wired(void)
+{
+    /* load any valid blob — the town parallax params are scene constants, not
+     * map-data, so the descriptor is the town one regardless of the cells. */
+    size_t len; uint8_t *blob = build_blob(8, 8, 1, &len);
+    town_render tr;
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+
+    /* load selected + stored the town descriptor (case 4) ... */
+    T_ASSERT_EQ_U(tr.parallax.a_bank, 0x55);
+    T_ASSERT_EQ_U(tr.parallax.c.bank, 0x58);
+    T_ASSERT_EQ_U(tr.parallax.b.bank, 0x59);
+    /* ... and wrote it into the grid front-header (the bytes retail reads). */
+    T_ASSERT_EQ_U(tr.grid[PX_A_BANK], 0x55);
+    T_ASSERT_EQ_U(tr.grid[PX_B_BANK], 0x59);
+
+    /* town_render_parallax draws 8 + 9 + 9 = 26 tiles, A first. */
+    pxsink s = { 0 };
+    int n = town_render_parallax(&tr, &CAM0, px_rec, &s);
+    T_ASSERT_EQ_I(n, 26);
+    T_ASSERT_EQ_I(s.n, 26);
+    T_ASSERT_EQ_U(s.r[0].bank, 0x55);   /* layer A first */
+    T_ASSERT_EQ_U(s.r[8].bank, 0x59);   /* then layer B */
+    T_ASSERT_EQ_U(s.r[17].bank, 0x58);  /* then layer C */
+
+    town_render_free(&tr);
+    free(blob);
+
+    /* unloaded scene -> no-op */
+    town_render zero = { 0 };
+    T_ASSERT_EQ_I(town_render_parallax(&zero, &CAM0, px_rec, &s), 0);
+    return 0;
+}

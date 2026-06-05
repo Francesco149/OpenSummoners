@@ -852,12 +852,21 @@ struct test_case {
     X(map_present_walk_culls_offscreen)                        \
     X(map_present_walk_defers_other_modes)                     \
     X(map_present_walk_dry_count)                              \
+    X(parallax_select_town)                                    \
+    X(parallax_select_param3_normalize)                        \
+    X(parallax_select_case1_no_b)                              \
+    X(parallax_select_a_only_and_default)                      \
+    X(parallax_grid_roundtrip)                                 \
+    X(parallax_render_zero_camera)                             \
+    X(parallax_render_town_first_frame)                        \
+    X(parallax_render_dry_and_empty)                           \
     X(town_render_one_tile)                                    \
     X(town_render_resolver_gate)                               \
     X(town_render_empty)                                       \
     X(town_render_dry_step)                                    \
     X(town_render_unloaded_noop)                               \
     X(town_render_malformed)                                   \
+    X(town_render_parallax_wired)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

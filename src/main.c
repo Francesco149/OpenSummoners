@@ -1473,6 +1473,26 @@ static void game_present_blit(const present_op *op, void *ud)
      * PORT-DEBT present-actor-modes). */
 }
 
+/* parallax_blit_fn — draw one parallax far-plane tile (the 0x417c40 select
+ * -> FUN_005b9a40 blit pair the background producers 0x490cd0/0x499560 use).
+ * The cel for (bank, frame) is the bank slot's frame surface (ar_sprite_slot_frame
+ * = 0x418470 — the same resolve the tilemap walk uses), blitted WHOLE at (x,y)
+ * via zdd_object_blt_onto (= FUN_005b9a40, src rect {0,0,w,h}).  Fidelity note:
+ * retail selects the cel via 0x417c40 (palette-aware); the port uses the plain
+ * frame getter, so the far-plane renders with the base palette — the time/
+ * difficulty tint is deferred (PORT-DEBT render-palette-tint, as for the tiles). */
+static void game_parallax_blit(void *ctx, uint16_t bank, int32_t frame,
+                               int32_t x, int32_t y)
+{
+    (void)ctx;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
+    ar_sprite_slot *slot = ar_pool_get_slot(bank);
+    if (slot == NULL) return;
+    void *cel = ar_sprite_slot_frame(slot, (uint16_t)frame);
+    if (cel == NULL) return;
+    zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
+}
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -1534,9 +1554,10 @@ static int load_town_scene(uint16_t scene)
  *
  * DEFERRED: the entry fade + the black-load window timing (the port draws the
  * town from game_enter rather than after retail's ~58-flip load/fade), the
- * parallax sky/tree/dialogue layers (PORT-DEBT ingame-nontile-layers; present
- * modes 0/1/2 = PORT-DEBT present-actor-modes), and retail's zoomed-out intro
- * establishing shot at the hold (PORT-DEBT ingame-establishing-zoom). */
+ * foreground-tree + dialogue/caption layers (PORT-DEBT ingame-nontile-layers;
+ * present modes 0/1/2 = PORT-DEBT present-actor-modes), and retail's zoomed-out
+ * intro establishing shot at the hold (PORT-DEBT ingame-establishing-zoom).
+ * The parallax sky/mountain far-plane IS now drawn (FUN_00490cd0). */
 static void game_render(void *user)
 {
     (void)user;
@@ -1544,6 +1565,10 @@ static void game_render(void *user)
         return;
     zdd_object_clear(g_zdd->primary_obj);    /* black map-load fill */
     if (g_town_loaded) {
+        /* 0x48c150 order: the parallax far-plane FIRST (0x490cd0, behind the
+         * tiles), then the tilemap walk + present (0x490f30 / 0x48eac0). */
+        town_render_parallax(&g_town, &MAP_RENDER_CAM_TOWN_3F2,
+                             game_parallax_blit, NULL);
         int deferred = 0;
         town_render_step(&g_town, &MAP_RENDER_CAM_TOWN_3F2,
                          game_sprite_resolve, NULL,

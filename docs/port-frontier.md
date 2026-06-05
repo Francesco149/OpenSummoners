@@ -85,6 +85,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41bbe0 | 312 | 4 | 0 | ✓ |
+| 0x417c40 | 1625 | 4 | 1 |  |
 | 0x412d30 | 117 | 3 | 0 | ✓ |
 | 0x4124d0 | 146 | 3 | 0 | ✓ |
 | 0x411390 | 413 | 3 | 5 |  |
@@ -94,7 +95,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x417bc0 | 123 | 2 | 0 | ✓ |
 | 0x412c40 | 227 | 2 | 0 | ✓ |
 | 0x4182d0 | 408 | 2 | 0 | ✓ |
-| 0x417c40 | 1625 | 2 | 1 |  |
 | 0x41a890 | 3030 | 2 | 6 |  |
 | 0x413b20 | 68 | 1 | 0 | ✓ |
 | 0x41bb80 | 95 | 1 | 0 | ✓ |

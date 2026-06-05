@@ -47,12 +47,21 @@
 #include "map_render.h"
 #include "map_present.h"
 #include "draw_pool.h"
+#include "parallax.h"
+
+/* The town's 0x587e00-prologue parallax-selection params (room 210110, area
+ * 0xd2): param_2 = room[0x44] = area-A = 4, param_3 = room[0x43] = area-C = 1.
+ * Hardcoded for the only in-game scene today; PORT-DEBT ingame-nontile-layers
+ * tracks deriving them from game_map/game_world. */
+#define TOWN_RENDER_PARALLAX_P2  4
+#define TOWN_RENDER_PARALLAX_P3  1
 
 typedef struct town_render {
-    map_data   map;     /* the parsed DATA resource (owned)                    */
-    uint8_t   *grid;    /* the decoded runtime render grid (map_grid_alloc'd)  */
-    draw_pool  pool;    /* the 27-layer draw-node accumulator                  */
-    int        loaded;  /* town_render_load succeeded                          */
+    map_data      map;       /* the parsed DATA resource (owned)               */
+    uint8_t      *grid;      /* the decoded runtime render grid (map_grid_alloc)*/
+    draw_pool     pool;      /* the 27-layer draw-node accumulator             */
+    parallax_desc parallax;  /* the far-plane descriptor (grid front-header)   */
+    int           loaded;    /* town_render_load succeeded                     */
 } town_render;
 
 /*
@@ -85,6 +94,18 @@ int town_render_step(town_render *tr, const mr_camera *cam,
                      mr_sprite_fn resolve, void *resolve_ctx,
                      present_blit_fn blit, void *blit_ctx,
                      int *out_deferred);
+
+/*
+ * Draw the PARALLAX far-plane (FUN_00490cd0) through `cam` — the sky/mountain
+ * background BEHIND the tilemap.  Call this BEFORE town_render_step each frame
+ * (it draws to the surface first; the tile present then blits over it), matching
+ * 0x48c150's order (parallax at :47, tilemap walk/present at :108-109).  Reads
+ * the descriptor parallax_select wrote into the scene at load.  `blit` selects a
+ * bank/frame cel and blits it at (x,y) (the 0x417c40 -> FUN_005b9a40 pair).
+ * Returns the number of tiles emitted; a no-op (0) on an unloaded scene.
+ */
+int town_render_parallax(const town_render *tr, const mr_camera *cam,
+                         parallax_blit_fn blit, void *ctx);
 
 /* Release the owned map / grid / pool.  Safe on a zeroed or never-loaded tr. */
 void town_render_free(town_render *tr);

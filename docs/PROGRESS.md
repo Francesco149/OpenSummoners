@@ -6,6 +6,46 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-05 (ckpt 66) — the in-game PARALLAX far-plane (sky + mountain)
+
+On top of the ckpt-65 wired backdrop, the port now draws the **parallax
+far-plane** behind the town tiles — the blue sky band + the mountains the port
+previously rendered black.  User-confirmed in-game (port `game_enter@1116`, DATA
+1022 town, frame 1200): sky (layer A bank `0x55`) + mountains (layers C/B banks
+`0x58`/`0x59`) under the rooftops.
+
+**RE (two independent witnesses).**  The background is drawn by `FUN_00490cd0`
+(inline; called FIRST in the per-frame world driver `0x48c150:47`, the free-roam
+path) and its twin `0x499100`→`FUN_00499560` (the establishing-shot/special path
+via `0x48c6b0`) — both read the SAME 3-layer descriptor from the runtime grid's
+front-header (`*(DAT_008a9b50+0x1048)`) via the select+blit pair
+`0x417c40`→`0x5b9a40`, and agree byte-for-byte on its layout.  The descriptor is
+written by the `0x587e00` PROLOGUE's `switch(param_2=room[0x44])` /
+`param_3=room[0x43]`; the town (room 210110, area `0xd2`: A=4, C=1) → case 4 →
+layer A bank `0x55`, C `0x58` baseY `0xf8` wrap 8 paraY `0xfa` (0.5×), B `0x59`
+baseY `0xe0` wrap 8 paraY 0 (0.25×).  Writeup: `findings/in-game-intro.md` "The
+PARALLAX far-plane".
+
+**PORT.**  `src/parallax.{c,h}` (pure, host-tested): `parallax_select` (the
+prologue switch), `parallax_render`/`parallax_strip` (`0x490cd0`/`0x499560`
+arithmetic transcribed verbatim, incl. the signed magic-div vertical term + the
+`[-0x1c,0]` clamp), `parallax_to_grid`/`_from_grid`.  Wired via
+`town_render_parallax` (descriptor selected at load, drawn before the tilemap per
+`0x48c150` order) and `main.c game_render` (`game_parallax_blit` →
+`zdd_object_blt_onto` = `0x5b9a40`).  9 host tests; **836 pass / 0 fail / 6 skip**.
+Ledger **193/188** (+2: `0x490cd0`, `0x499560`).  Not `differ_px==0` (the
+establishing-shot/zoom camera differs — PORT-DEBT `ingame-establishing-zoom`);
+asset+scale verified vs golden 1800 + user.
+
+**Tooling / blocker.**  Added `--parallax-probe` (`frida_capture.py` + agent:
+hook `0x490cd0` + its inner `0x417c40`/`0x5b9a40`, dump the descriptor + blits).
+It revealed the **saved retail input-trace no longer navigates** under
+`--seed-pin --lockstep --no-turbo` — retail sits on the title (no scene anchors;
+injects fire but the title menu doesn't act).  So the in-game retail re-drive is
+currently broken (title-menu input-injection black box / stale trace); ckpt 66
+verified via the port-side drive + the existing golden instead.  The probe is
+ready to live-confirm the descriptor once nav is restored.
+
 ## 2026-06-05 (ckpt 65) — REAL IN-GAME PIXELS: the town backdrop wired + rendering
 
 The decode → grid → walk → present pipeline (every stage already pure +

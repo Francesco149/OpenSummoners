@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 65, 2026-06-05)
+# Session handoff — rolling current state (last updated ckpt 66, 2026-06-05)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,13 +6,44 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 65
+## Where we are — ckpt 66
 
-**REAL IN-GAME PIXELS.** The backdrop pipeline is **composed
-(`town_render.{c,h}`) + WIRED into `main.c`**, and the port renders the opening
-**town of Tonkiness backdrop** — the half-timbered house, the vine trellis, the
-stone-block walls, ivy + grass — the **same assets at the matching gameplay
-scale as the retail golden** (user-confirmed; cross-checked vs golden flip 1800).
+**PARALLAX FAR-PLANE landed (sky + mountain background).** On top of the ckpt-65
+wired backdrop, the port now draws the **parallax far-plane** behind the tiles —
+live-verified in-game (port `game_enter@1116`): frame 1200 shows the blue sky band
+(layer A bank `0x55`) + the mountains (layers C/B banks `0x58`/`0x59`) under the
+town tiles, where it was black before.
+
+- **RE (two-witness, high confidence).** The background producer is `FUN_00490cd0`
+  (inline; called FIRST in the per-frame world driver `0x48c150:47`, the free-roam
+  path) and its twin `0x499100`→`FUN_00499560` (the establishing-shot/special path
+  via `0x48c6b0`).  Both read the SAME 3-layer descriptor from the runtime grid's
+  **front-header** (`*(DAT_008a9b50+0x1048)`) via select+blit `0x417c40`→`0x5b9a40`.
+  The descriptor is written by the `0x587e00` PROLOGUE's `switch(param_2=room[0x44])`
+  / `param_3=room[0x43]`; town (room 210110, area `0xd2`: A=4,C=1) → case 4 → A bank
+  `0x55`; C bank `0x58` baseY `0xf8` wrap 8 paraY `0xfa` (0.5×); B bank `0x59` baseY
+  `0xe0` wrap 8 paraY 0 (0.25×).  Full writeup: `findings/in-game-intro.md` "The
+  PARALLAX far-plane".
+- **PORT (pure, host-tested): `src/parallax.{c,h}`** — `parallax_select` (the
+  prologue switch), `parallax_render`/`parallax_strip` (`0x490cd0`/`0x499560` math),
+  `parallax_to_grid`/`_from_grid` (front-header bytes).  Wired into `town_render`
+  (`town_render_parallax`, descriptor selected at load, drawn before the tilemap)
+  and `main.c game_render` (sink = `game_parallax_blit` → `zdd_object_blt_onto`).
+  9 host tests (8 `test_parallax.c` + 1 `town_render` wiring).
+- **Fidelity boundary:** the port uses the plain frame getter `0x418470` (as the
+  tiles do) where retail selects via the palette-aware `0x417c40` — the far-plane
+  renders with the base palette (time/difficulty tint deferred, PORT-DEBT
+  `render-palette-tint`).  Town params (4,1) are hardcoded in `town_render`
+  (PORT-DEBT `ingame-nontile-layers`: derive from `game_map`/`game_world`).
+- **State (ckpt 66): 836 pass / 0 fail / 6 skip** (+9). Ledger **193/1490 touched /
+  188 tested** (+2: `0x490cd0`, `0x499560`). Both GUI builds clean.
+
+### (prior, ckpt 65) The wired backdrop
+
+The backdrop pipeline is **composed (`town_render.{c,h}`) + WIRED into `main.c`**,
+rendering the opening **town of Tonkiness backdrop** — the half-timbered house, the
+vine trellis, the stone-block walls, ivy + grass — the **same assets at the matching
+gameplay scale as the retail golden** (user-confirmed; cross-checked vs golden flip 1800).
 
 - **The composition (pure, host-tested): `src/town_render.{c,h}`.** A thin
   per-room SCENE owning the shared state (parsed `map_data`, the runtime grid,
@@ -129,21 +160,30 @@ scale as the retail golden** (user-confirmed; cross-checked vs golden flip 1800)
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-**The backdrop tile layer is LANDED; build out the remaining in-game layers on top.**
+**The backdrop tiles + parallax far-plane are LANDED; build out the rest.**
 The smallest visible wins, in order:
-1. **The parallax far-plane** — the full-screen sky/mountain background behind the
-   tiles (the port frame is black where it belongs). Likely a dedicated bank blit
-   or a `0x5a00c0` slice; RE which producer draws it (it is NOT a backdrop tile —
-   `map_render_walk` would have drawn it if it were in region A).
-2. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (PORT-DEBT
+1. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (PORT-DEBT
    `present-actor-modes`). This puts the NPCs (Arche + co) into the scene. The
    `map_present` consumer already VISITS + counts them; it needs the producers.
-3. **The dialogue box + caption overlay** (`0x5a00c0`, the scripted-scene player +
+2. **The dialogue box + caption overlay** (`0x5a00c0`, the scripted-scene player +
    the `DAT_008a7640` font bank) — the glyph pipeline again (PORT-DEBT
-   `ingame-nontile-layers`).
+   `ingame-nontile-layers`, now narrowed to trees + dialogue after the parallax slice).
+3. **The foreground trees** (the leafy canopy the golden shows over the house) —
+   another `0x5a00c0`/grid layer, part of `ingame-nontile-layers`.
 4. **The per-sprite palette tint** (`render-palette-tint` — `DAT_008a93fc`/`0x4182d0`,
-   the difficulty/time ramp) — the "bit more color" retail shows; recolors pixels,
-   not geometry.
+   the difficulty/time ramp; also the parallax `0x417c40` palette path) — recolors
+   pixels, not geometry.
+
+**HARNESS BLOCKER (live in-game retail ground truth):** the saved retail input-trace
+no longer navigates under `--seed-pin --lockstep --no-turbo` — retail sits on the
+title (no `newgame_enter`/`prologue_enter`/`game_enter` anchors; injects dispatch at
+the right flips but the title menu doesn't act). The in-game retail drive is broken
+(the title-menu input-injection black box / a stale trace). Until restored, in-game
+verification leans on the **port-side** drive (works: `game_enter@1116`) + the existing
+golden `runs/tas-ingame-1`. A `--parallax-probe` (+ `--parallax-frames`) is wired and
+ready to live-confirm the descriptor once nav is fixed (it fired zero times only
+because nav never reached in-game). Likely fix: re-capture `trace-retail.jsonl`, or RE
+the title input path (DInput `GetDeviceState`, the black box).
 
 **Before a flip-anchored full-frame diff** vs `runs/tas-ingame-1`: pin the
 **establishing-shot/zoom** relationship (PORT-DEBT `ingame-establishing-zoom`).
@@ -174,7 +214,9 @@ newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option 
 `main.c` via `town_render`, ckpt 65):**
 game_drive (the in-game run-loop shell), **town_render** (composes the backdrop:
 `map_data_parse`+`map_decode` load → `draw_pool_reset`+`map_render_walk`+`map_present`
-step — driven by `main.c game_render`), game_world (registry + `0x585000` xref +
+step + `town_render_parallax` → `parallax_render` — driven by `main.c game_render`),
+**parallax** (the sky/mountain far-plane `0x490cd0`/`0x499560` + the `0x587e00`-prologue
+bank-selection `parallax_select`, ckpt 66), game_world (registry + `0x585000` xref +
 `0x561c90` lookup over generated `world_tables_data`), game_map (`0x59f2c0` fresh-entry
 arm + `0x4c5350` `0x3f2`→room-210110 key), **map_data** (`0x587970` resource parse),
 **map_grid** (runtime render grid + `0x54c970`/`0x58ca80`/`0x58c910` write primitives),

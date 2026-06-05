@@ -42,7 +42,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/map_data.c ../src/map_grid.c \
                 ../src/map_decode.c ../src/map_render.c \
                 ../src/draw_pool.c ../src/map_present.c \
-                ../src/town_render.c
+                ../src/parallax.c ../src/town_render.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
@@ -58,7 +58,7 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_game_world.c test_game_map.c test_map_data.c \
                 test_map_grid.c test_map_decode.c test_map_render.c \
                 test_draw_pool.c test_map_present.c \
-                test_town_render.c
+                test_parallax.c test_town_render.c
 
 OUT := build/run_tests
 

@@ -10,30 +10,38 @@
   in-game visible frame), building toward a trace that plays 1:1 pixel-perfect frame by
   frame on both sides. Milestone map: `ROADMAP.md`. Mechanical next chip:
   `port-frontier.md`.
-- **Where we are (ckpt 65): REAL IN-GAME PIXELS.** The decode → grid → walk → present
-  pipeline is **composed (`town_render.{c,h}`) + WIRED into `main.c`**, and the port now
-  renders the opening **town of Tonkiness backdrop** — the half-timbered house, the vine
-  trellis, the stone-block walls, ivy + grass — the **same assets at the matching gameplay
-  scale as the retail golden** (cross-checked vs golden flip 1800). Live-verified: the map
-  **DATA 1022** (152936 B "MSD_SOTES_MAPDATA", 88×19×3) loads from the *packed* `sotes.exe`
-  `.rsrc` (`LoadLibraryExA AS_DATAFILE`); `game_render` walks `town_render` through the
-  first-frame camera `MAP_RENDER_CAM_TOWN_3F2`; the three engine globals are real callbacks
-  (sprite resolve `ar_pool_get_slot`+`ar_sprite_slot_frame`, bank dims, blit
-  `zdd_object_blt_clipped`). **827 pass / 0 fail / 6 skip** (+6 town_render). Ledger
-  **191/1490 touched / 186 tested** (pure composition, no new `FUN_`). Both GUI builds clean.
-- **NOT `differ_px==0` yet — named residuals, all deferred layers** (NOT logic bugs): the
-  parallax sky/mountain far-plane + foreground trees + dialogue/caption overlay (`0x5a00c0`,
-  PORT-DEBT `ingame-nontile-layers`); the NPC actors (present modes 0/1/2, PORT-DEBT
-  `present-actor-modes`); and retail's **zoomed-out intro establishing shot** at the hold
-  (flip 1150 is a whole-town vista that zooms to 1:1 by ~1800 — the camera scale field
-  wasn't in the ckpt-64 probe; PORT-DEBT `ingame-establishing-zoom`). The backdrop TILE
-  layer itself is asset+scale-correct.
-- **Next move:** the smallest visible win on the now-proven tile layer — the **parallax
-  far-plane** (sky/mountain full-screen backdrop), then the **actor renderers** (`0x491ae0`
-  et al. → present modes 0/1/2), then the **dialogue overlay** (glyph pipeline). First pin
-  the **establishing-shot/zoom** relationship (so port + golden share a camera) to unlock a
-  flip-anchored full-frame diff vs `runs/tas-ingame-1`. Full writeup:
-  `findings/in-game-intro.md` "The backdrop pipeline WIRED".
+- **Where we are (ckpt 66): PARALLAX FAR-PLANE landed.** On top of the ckpt-65 wired
+  backdrop (decode → grid → walk → present, `town_render.{c,h}` driven by `main.c`), the port
+  now also draws the **sky + mountain parallax background** behind the tiles — where it
+  previously rendered black. Live-verified in-game (port `game_enter@1116`, DATA 1022 town):
+  frame 1200 shows the blue sky band (layer A bank `0x55`) + the mountains (layers C/B banks
+  `0x58`/`0x59`) under the rooftops/walls/ivy. RE: producer `FUN_00490cd0` (free-roam, called
+  first in the per-frame driver `0x48c150`) + its twin `0x499100`/`FUN_00499560`
+  (establishing-shot path) read a 3-layer descriptor from the **grid front-header** written by
+  the `0x587e00` prologue's `switch(room[0x44])` — town (area `0xd2`) → case 4. Ported pure +
+  host-tested (`src/parallax.{c,h}`, `parallax_select`+`parallax_render`), wired via
+  `town_render_parallax` (drawn before the tilemap, `0x490cd0` order) with a `zdd_object_blt_onto`
+  (`0x5b9a40`) sink. **836 pass / 0 fail / 6 skip** (+9). Ledger **193/1490 touched / 188 tested**
+  (+2: `0x490cd0`, `0x499560`). Both GUI builds clean.
+- **NOT `differ_px==0` yet — named residuals** (NOT logic bugs): **foreground trees** +
+  **dialogue/caption overlay** (`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`, now narrowed —
+  the parallax slice is retired); the **NPC actors** (present modes 0/1/2, PORT-DEBT
+  `present-actor-modes`); retail's **zoomed-out intro establishing shot** at the hold (flip
+  1150 vista zooms to 1:1 by ~1800; PORT-DEBT `ingame-establishing-zoom`); the per-sprite
+  palette tint (`render-palette-tint` — the parallax uses the plain frame getter `0x418470`,
+  not the palette-aware `0x417c40`). Backdrop TILE + parallax layers are asset+scale-correct.
+- **Verification note (harness):** the saved retail input-trace **no longer navigates** under
+  `--seed-pin --lockstep --no-turbo` — retail sits on the title (no scene anchors fire). The
+  in-game retail re-drive is currently broken (title-menu input-injection black box); ckpt 66
+  verified the parallax against the **existing golden** `runs/tas-ingame-1` (asset+scale, the
+  ckpt-65 method) + the two-witness static RE. A new `--parallax-probe` is in place to live-
+  confirm the descriptor once nav is restored. **This is the standing blocker for live in-game
+  retail ground truth** (it doesn't block the port).
+- **Next move:** the **actor renderers** (`0x491ae0` et al. → present modes 0/1/2 — the NPCs:
+  Arche + co) then the **dialogue overlay** (`0x5a00c0` glyph pipeline). Also pin the
+  **establishing-shot/zoom** relationship (so port + golden share a camera) to unlock a flip-
+  anchored full-frame diff vs `runs/tas-ingame-1`. Full writeup: `findings/in-game-intro.md`
+  "The PARALLAX far-plane".
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` now carries `seq` +
   `CALL_TRACE_BEGIN/FIELD/END`; the Frida agent reads same-named retail fields per

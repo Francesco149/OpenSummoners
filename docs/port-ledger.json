@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 186,
+  "tested": 188,
   "ported": 5,
-  "unported": 1567,
+  "unported": 1565,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 191,
-  "pct_touched": 11.9,
-  "pct_tested": 11.9,
-  "engine_proper_touched": 178,
+  "touched": 193,
+  "pct_touched": 12.1,
+  "pct_tested": 12.1,
+  "engine_proper_touched": 180,
   "bytes_total": 1694868,
-  "bytes_touched": 224073,
-  "pct_bytes_touched": 13.2
+  "bytes_touched": 224947,
+  "pct_bytes_touched": 13.3
  },
  "orphan_refs": [
   "0x56c470",
@@ -5613,8 +5613,14 @@
    "name": "FUN_00490cd0",
    "size": 603,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/parallax.c",
+    "src/parallax.h",
+    "src/town_render.c",
+    "src/town_render.h"
+   ]
   },
   {
    "va": "0x490f30",
@@ -5628,6 +5634,7 @@
     "src/map_present.h",
     "src/map_render.c",
     "src/map_render.h",
+    "src/parallax.h",
     "src/town_render.c",
     "src/town_render.h"
    ]
@@ -6044,8 +6051,11 @@
    "name": "FUN_00499560",
    "size": 271,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/parallax.c",
+    "src/parallax.h"
+   ]
   },
   {
    "va": "0x499670",
@@ -11731,6 +11741,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/main.c",
+    "src/parallax.h",
+    "src/town_render.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
