@@ -22,6 +22,22 @@
         {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex",
          "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."},
 
+        {"name": "tint", "src": "global", "va": "0x8a93fc", "type": "i32", "benign": true,
+         "reason": "DAT_008a93fc — the global palette-tint / time-of-day index FUN_00417c40 switches on (in_ECX+0x289c == &DAT_008a760c-0xaac+0x289c == 0x8a93fc). 0 = case-0 IDENTITY (no recolor); 1 = warm, 2/3 = darken, 4/5 = the FUN_004182d0 complex ramp. The port's tile/parallax resolve uses the plain getter 0x418470 (no tint); whether the in-game town needs the tint hinges on this value (PORT-DEBT render-palette-tint)."},
+
+        {"name": "lutgate1", "src": "global", "va": "0x8a9510", "type": "i32", "benign": true,
+         "reason": "in_ECX+0x29b0 — FUN_00417c40's secondary-LUT gate A. When (0x8a9510 != 0 || 0x8a9514 != 1000) the getter remaps every palette index through the 256-byte LUT at 0x8a9410 before returning the cel (the 'darker/more-saturated' color post the port's 0x418470 skips)."},
+        {"name": "lutgate2", "src": "global", "va": "0x8a9514", "type": "i32", "benign": true,
+         "reason": "in_ECX+0x29b4 — FUN_00417c40's secondary-LUT gate B (the 1000 = identity baseline; != 1000 arms the LUT)."},
+        {"name": "lut000", "src": "global", "va": "0x8a9410", "type": "hex", "benign": true,
+         "reason": "LUT bytes [0..3] (in_ECX+0x28b0). Identity LUT => 0x03020100. A non-identity value confirms an index remap is loaded."},
+        {"name": "lut064", "src": "global", "va": "0x8a9450", "type": "hex", "benign": true,
+         "reason": "LUT bytes [0x40..0x43]; identity => 0x43424140."},
+        {"name": "lut128", "src": "global", "va": "0x8a9490", "type": "hex", "benign": true,
+         "reason": "LUT bytes [0x80..0x83]; identity => 0x83828180."},
+        {"name": "lut192", "src": "global", "va": "0x8a94d0", "type": "hex", "benign": true,
+         "reason": "LUT bytes [0xc0..0xc3]; identity => 0xc3c2c1c0."},
+
         {"name": "cam_mapw", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 0, "type": "i32", "benign": true,
          "reason": "exploratory camera/view probe (in-game-intro.md): view[0x00] = map pixel width = dim0*0xc80, set at 586010:856. No port equivalent yet — retail ground-truth for the camera build."},
         {"name": "cam_maph", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 4, "type": "i32", "benign": true,

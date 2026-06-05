@@ -867,6 +867,10 @@ struct test_case {
     X(town_render_unloaded_noop)                               \
     X(town_render_malformed)                                   \
     X(town_render_parallax_wired)                              \
+    X(color_grade_town_lut_samples)                            \
+    X(color_grade_identity)                                    \
+    X(color_grade_active_gate)                                 \
+    X(color_grade_apply_palette_rgb)                           \
 
 #define X(n) extern int test_##n(void);
 TESTS

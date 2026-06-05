@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 188,
+  "tested": 189,
   "ported": 5,
-  "unported": 1565,
+  "unported": 1564,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 193,
+  "touched": 194,
   "pct_touched": 12.1,
   "pct_tested": 12.1,
-  "engine_proper_touched": 180,
+  "engine_proper_touched": 181,
   "bytes_total": 1694868,
-  "bytes_touched": 224947,
-  "pct_bytes_touched": 13.3
+  "bytes_touched": 226572,
+  "pct_bytes_touched": 13.4
  },
  "orphan_refs": [
   "0x56c470",
@@ -1525,8 +1525,12 @@
    "name": "FUN_00417c40",
    "size": 1625,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/color_grade.c",
+    "src/color_grade.h",
+    "src/main.c"
+   ]
   },
   {
    "va": "0x4182d0",
@@ -1545,6 +1549,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
+    "src/color_grade.h",
     "src/main.c",
     "src/title_render.c",
     "src/title_sink.h"
@@ -5615,6 +5620,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/color_grade.h",
     "src/main.c",
     "src/parallax.c",
     "src/parallax.h",
@@ -5629,6 +5635,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/color_grade.h",
     "src/draw_pool.h",
     "src/main.c",
     "src/map_present.h",
@@ -6053,6 +6060,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/color_grade.h",
     "src/parallax.c",
     "src/parallax.h"
    ]
@@ -8282,6 +8290,8 @@
     "src/app_flow.h",
     "src/asset_register.c",
     "src/asset_register.h",
+    "src/color_grade.c",
+    "src/color_grade.h",
     "src/main.c",
     "src/pixel_drawer.c",
     "src/pixel_drawer.h",

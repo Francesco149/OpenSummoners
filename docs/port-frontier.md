@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **208**
+- frontier functions: **207**
 - of those, zero-dependency **leaves: 117** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -20,6 +20,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bbc20 | 57 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x412d30 | 117 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x4124d0 | 146 | 3 | menu/dialog controller + char init + shop/NPC + save path |
+| 0x4182d0 | 408 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5a4760 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5b6ec0 | 21 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x491740 | 38 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
@@ -32,7 +33,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56df10 | 203 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x412c40 | 227 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x562d50 | 239 | 2 | title + gameplay scene runners + engine init + options + input init |
-| 0x4182d0 | 408 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x40f800 | 511 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4c5830 | 694 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x4c5af0 | 770 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
@@ -80,21 +80,20 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4017d0 | 1175 | 1 | 1 |  |
 | 0x40c380 | 5077 | 1 | 99 |  |
 
-### menu/dialog controller + char init + shop/NPC + save path (27)
+### menu/dialog controller + char init + shop/NPC + save path (26)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41bbe0 | 312 | 4 | 0 | ✓ |
-| 0x417c40 | 1625 | 4 | 1 |  |
 | 0x412d30 | 117 | 3 | 0 | ✓ |
 | 0x4124d0 | 146 | 3 | 0 | ✓ |
+| 0x4182d0 | 408 | 3 | 0 | ✓ |
 | 0x411390 | 413 | 3 | 5 |  |
 | 0x412db0 | 57 | 2 | 0 | ✓ |
 | 0x417870 | 106 | 2 | 0 | ✓ |
 | 0x411ec0 | 118 | 2 | 0 | ✓ |
 | 0x417bc0 | 123 | 2 | 0 | ✓ |
 | 0x412c40 | 227 | 2 | 0 | ✓ |
-| 0x4182d0 | 408 | 2 | 0 | ✓ |
 | 0x41a890 | 3030 | 2 | 6 |  |
 | 0x413b20 | 68 | 1 | 0 | ✓ |
 | 0x41bb80 | 95 | 1 | 0 | ✓ |

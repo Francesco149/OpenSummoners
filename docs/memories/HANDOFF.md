@@ -6,7 +6,50 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 66
+## Where we are — ckpt 67
+
+**In-game COLOR-GRADE LUT ported → backdrop TILES are `differ_px==0`; the
+"establishing shot" proven to be a PAN, not a zoom.**  Drove the menu→in-game
+nav trace, diffed the port's town vs a *fresh new-trace* retail hold golden, and
+chased the first divergence (the principled "stop at the first divergence, port
+the missing thing" loop).
+
+- **Establishing shot = leftward PAN at constant 1:1 scale** (overturns the
+  ckpt-65/66 "zoom" framing).  Live-probed flips 1440–2100: viewport `+0x64/+0x68`
+  and shear `+0x74` constant; only `+0x60` pans (128000 hold → 59450 by 2100).
+  Free-roam render path every frame (`0x490cd0` fires; offscreen/special
+  `0x499100`/`0x48c6b0` never); projector `0x490b90` has no scale term.  Port's
+  static `MAP_RENDER_CAM_TOWN_3F2` aligns with the golden at **dx=0, same ~64px
+  wall pitch**.  PORT-DEBT `ingame-establishing-zoom` **retired**.
+- **The missing colour = an in-game per-channel tone-curve LUT** (`DAT_008a9410`),
+  built by `FUN_00562ea0` (`0x5639fd-0x563a70`, a cosine curve over two config
+  gates) and applied by `0x417c40` (parallax) + `0x490f30` (tiles); the
+  title/menu/prologue use the plain getter `0x418470`, so they stay bit-exact.
+  It is **NOT** the per-sprite tint (`DAT_008a93fc==0`, identity — ruled out
+  live).  Builder **verified bit-exact** vs a live `DAT_008a9410` probe
+  (`LUT[64]=35`/`128=100`/`192=175`); gates live-probed `gate1=700 gate2=850`.
+  **PORT (`src/color_grade.{c,h}`, host-tested):** `color_grade_build_lut`
+  (the formula) + `color_grade_apply_palette` (`0x417c40`'s per-channel RGBQUAD
+  remap) + `color_grade_is_active`.  Wired in `main.c`: `enter_game` arms the
+  grade before the town banks decode; `title_sheet_format` applies it to each
+  **8bpp** sheet's palette *before* the 16bpp pack (retail's order → bit-exact,
+  not LUT-after-565).  Scoped so the title sheets (converted earlier) stay
+  identity.  **Result: the half-timber wall `(173,170,140)` and ivy
+  `(107,105,74)` match retail exactly.**
+- **RESIDUAL (open):** the **24bpp parallax** banks (`0x55`/`0x58`/`0x59`, sky+
+  mountains) have no palette → the 8bpp grade skips them → the sky still renders
+  too bright.  Retail must grade 24bpp by a different path (TBD) AND the port's
+  24bpp→16bpp decode is itself brighter than retail's (port raw sky `132,186,255`
+  vs back-solved retail raw `~103,165,231`).  PORT-DEBT `render-palette-tint`
+  (sharpened: tile half done, 24bpp half + `color-grade-gates` derivation remain).
+  Other residuals: NPC actors (blocked on entity/spawn), tree + "Town of
+  Tonkiness" banner (`0x5a00c0`), the pan itself (`ingame-camera-snap`).
+- **State (ckpt 67): 840 pass / 0 fail / 6 skip** (+4 color_grade).  Ledger
+  **194/1490 touched / 189 tested** (+1: the `0x417c40` LUT slice is now
+  host-tested).  Both GUI builds clean.  Full writeup:
+  `findings/in-game-intro.md` "The in-game COLOR-GRADE LUT".
+
+### (prior, ckpt 66) The PARALLAX far-plane
 
 **PARALLAX FAR-PLANE landed (sky + mountain background).** On top of the ckpt-65
 wired backdrop, the port now draws the **parallax far-plane** behind the tiles —
@@ -165,19 +208,26 @@ gameplay scale as the retail golden** (user-confirmed; cross-checked vs golden f
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-**The backdrop tiles + parallax far-plane are LANDED; build out the rest.**
+**Tiles are bit-exact + colour-graded; finish the colour, then build out content.**
 The smallest visible wins, in order:
-1. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (PORT-DEBT
-   `present-actor-modes`). This puts the NPCs (Arche + co) into the scene. The
-   `map_present` consumer already VISITS + counts them; it needs the producers.
-2. **The dialogue box + caption overlay** (`0x5a00c0`, the scripted-scene player +
-   the `DAT_008a7640` font bank) — the glyph pipeline again (PORT-DEBT
-   `ingame-nontile-layers`, now narrowed to trees + dialogue after the parallax slice).
-3. **The foreground trees** (the leafy canopy the golden shows over the house) —
-   another `0x5a00c0`/grid layer, part of `ingame-nontile-layers`.
-4. **The per-sprite palette tint** (`render-palette-tint` — `DAT_008a93fc`/`0x4182d0`,
-   the difficulty/time ramp; also the parallax `0x417c40` palette path) — recolors
-   pixels, not geometry.
+1. **The 24bpp parallax colour** (`render-palette-tint`, the open half). The sky/
+   mountain banks (`0x55`/`0x58`/`0x59`) are 24bpp → no palette → the 8bpp grade
+   skips them → the sky renders un-graded/too-bright. Two sub-tasks: (a) RE where
+   retail grades 24bpp banks (the `0x417c40` palette loop is 8bpp-only; find the
+   24bpp path / whether `0x490cd0`'s `0x5b9a40` blit applies it), and (b) reconcile
+   the port's 24bpp→16bpp decode being brighter than retail (port raw sky
+   `132,186,255` vs back-solved retail raw `~103,165,231`). Once both land, apply
+   the LUT to 24bpp pixels (preserving the colour-key) and the sky matches.
+2. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (the NPCs).
+   **BLOCKED:** `0x491ae0` reads a fully-populated entity object from the actor
+   pools off `DAT_008a9b50` — the entity/spawn system isn't ported yet (the upstream
+   `0x59f2c0` 8-slot actor init + `FUN_00560e60`). Port that foundation first.
+3. **The "Town of Tonkiness" banner + the foreground tree** (`0x5a00c0`, the
+   scripted-scene overlay player + the `DAT_008a7640` font bank) — PORT-DEBT
+   `ingame-nontile-layers`.
+4. **The intro PAN** (`ingame-camera-snap`) — animate `+0x60` (128000 hold →
+   ~−147/flip from ~flip +167) so port + golden share the camera across the shot,
+   unlocking a flip-anchored full-frame diff (the camera is now proven: pan, dx=0).
 
 **HARNESS — in-game retail drive RESTORED (ckpt 66).** The old `trace-retail.jsonl`
 had gone stale (retail's title turns interactive ~150 flips later than it used to, so

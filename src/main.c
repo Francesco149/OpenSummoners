@@ -68,6 +68,7 @@
 #include "prologue_drive.h"   /* the Elemental-Stone intro cutscene (FUN_0056cd20) */
 #include "game_drive.h"       /* the in-game map run loop (0x59f2c0 seam)     */
 #include "town_render.h"      /* the in-game backdrop scene (decode→walk→present) */
+#include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -175,6 +176,15 @@ static int            g_game_active;
 static town_render    g_town;
 static int            g_town_loaded;
 static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
+
+/* The in-game palette color-grade LUT (src/color_grade.{c,h}).  Retail's in-game
+ * render paths (FUN_00417c40 parallax + FUN_00490f30 tilemap) remap every sprite
+ * palette channel through this tone curve (darker + more saturated); the title /
+ * new-game / prologue paths do not.  g_color_grade_on is armed only when
+ * enter_game runs, AFTER the title sheets are already converted — so those stay
+ * identity (bit-exact) and only the lazily-decoded in-game banks are graded. */
+static uint8_t        g_color_lut[256];
+static int            g_color_grade_on;
 
 /* The GDI HFONT slot the new-game config menu renders with: Courier New 7×18 =
  * ar_register_fonts slot 5 ({w=7,h=0x12,family=2}); the captured golden's
@@ -601,6 +611,15 @@ static void title_sheet_format(ar_sprite_slot *slot,
     int depth = z->pixel_format_bpp;                 /* [zdd+0x168] */
     int src   = (int)bs_get_bit_count(sheet);
     uint32_t key_color = (colorkey == 0x1ffffffu) ? 0u : 0xff00ffu;
+
+    /* In-game palette color-grade (retail FUN_00417c40 / FUN_00490f30): remap
+     * every palette channel through the tone-curve LUT BEFORE the 8bpp sheet is
+     * packed to the display depth — matching retail's order (LUT the palette,
+     * then convert), so the result is bit-exact (not LUT-after-565).  Only 8bpp
+     * sheets carry a palette; only armed once in-game (g_color_grade_on).  8bpp
+     * color-keying is by index, so grading the colors is key-safe. */
+    if (g_color_grade_on && src == 8)
+        color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {
     case 8:
@@ -1605,6 +1624,18 @@ static void enter_game(void)
     cfg.user    = &g_game_drive;
     game_drive_init(&g_game_drive, &cfg);
     g_game_active = 1;
+
+    /* Arm the in-game palette color-grade (FUN_00562ea0's LUT, gates 700/850 —
+     * the town defaults; PORT-DEBT color-grade-gates to read them from config).
+     * Set BEFORE the town banks decode (they decode lazily in game_render), so
+     * title_sheet_format grades them while the already-converted title sheets
+     * stay untouched. */
+    if (!g_color_grade_on) {
+        color_grade_build_lut(g_color_lut,
+                              COLOR_GRADE_TOWN_GATE1, COLOR_GRADE_TOWN_GATE2);
+        g_color_grade_on = color_grade_is_active(COLOR_GRADE_TOWN_GATE1,
+                                                 COLOR_GRADE_TOWN_GATE2);
+    }
 
     /* Build the town backdrop scene from the map's DATA resource.  Map 0x3f2 →
      * room 210110 "Town of Tonkiness" → scene 1022 (proven in game_world/game_map,

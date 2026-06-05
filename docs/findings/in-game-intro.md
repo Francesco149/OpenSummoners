@@ -1151,10 +1151,19 @@ math) as a pure unit reading the descriptor + camera, blitting via a callback
 
 ## Open questions for the port
 
-- **The establishing-shot zoom** — is the flip-1150 zoomed-out vista a view
-  *scale* field (animated during the hold) or a separate `0x5a00c0` overlay
-  projection?  Pin it before a flip-anchored full-frame diff (PORT-DEBT
-  `ingame-establishing-zoom`).
+- ~~**The establishing-shot zoom**~~ **RESOLVED (ckpt 67): there is NO zoom — it
+  is a leftward PAN at constant 1:1 scale.**  Live-probed across the whole shot
+  (flips 1440-2100, new trace): the camera viewport `+0x64`/`+0x68` and the
+  shear `+0x74` are **constant** (`64000`/`48000`/`0`); only `+0x60` (x scroll
+  origin) animates — `128000` hold through ~1600, then panning left ~−147/flip
+  to `59450` by 2100.  The per-frame render path is the **free-roam** one
+  (`0x490cd0` fires every frame; the offscreen/special path `0x499100`/`0x48c6b0`
+  **never** fires), and the projector `0x490b90` has no scale term — so the
+  engine cannot zoom via the gameplay render.  Confirmed at the pixel level: the
+  port's static `MAP_RENDER_CAM_TOWN_3F2` render aligns with the retail hold
+  golden at **dx=0**, same ~64px wall pitch.  PORT-DEBT `ingame-establishing-zoom`
+  is retired (the camera animation is the pan, already tracked by
+  `ingame-camera-snap`).  See "The in-game COLOR-GRADE LUT" below.
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
   (looks once-per-room) yet is called every loop iteration — confirm whether the
   alloc/teardown is guarded (it frees `DAT_008a9b50` at the top if non-NULL,
@@ -1165,3 +1174,73 @@ math) as a pure unit reading the descriptor + camera, blitting via a callback
   — a sub-system of the map loop; the text is likely the glyph pipeline again.
 - **Whether the intro is scripted** (an event track auto-advanced by Z) or free
   movement — the golden shows a banner + dialogue, suggesting a scripted intro.
+
+## The in-game COLOR-GRADE LUT — the "darker + more saturated" post (ckpt 67)
+
+Driving the nav trace and diffing the port's in-game town against a *fresh*
+new-trace retail hold golden (both at the hold camera `+0x60=128000`) revealed
+the dominant residual is **colour**, not geometry: every band differed ~99% at
+the RGB level even where the backdrop tiles aligned at dx=0, with the port
+uniformly **brighter** (content mean 134 vs retail 101).  The user confirmed
+from the feed: retail's sprites are *darker and more saturated* — a LUT/post.
+
+**It is NOT the per-sprite palette tint.**  `FUN_00417c40`'s tint switch keys
+on `DAT_008a93fc` (= `in_ECX+0x289c`, since `in_ECX = &DAT_008a760c-0xaac`);
+live-probed `DAT_008a93fc == 0` across the town intro → case-0 identity, no tint.
+
+**It IS a 256-entry per-channel tone-curve LUT** at `DAT_008a9410`
+(`= in_ECX+0x28b0`), applied to every sprite palette's R/G/B bytes.  Both
+in-game render paths apply it; the title/menu/prologue paths (plain getter
+`0x418470`) do not — which is why those stay bit-exact without it:
+- `FUN_00417c40` (the palette-aware getter, used by the parallax producer
+  `FUN_00490cd0`) — `417c40.c:259-273`.
+- `FUN_00490f30` (the tilemap walk) — applies the same LUT inline,
+  `490f30.c:75-213`.
+Both gate on `DAT_008a9510 != 0 || DAT_008a9514 != 1000`; live-probed
+`DAT_008a9510 = 700`, `DAT_008a9514 = 850` (the in-game defaults) → armed.
+
+**The builder** (`FUN_00562ea0 @ 0x5639fd-0x563a70`, the boot init; the
+decompiled FPU was garbled, so read from the raw asm + `.rdata` doubles).  Two
+config gates drive it: `gate1 = *(*DAT_008a6e80 + 0x130)` (700),
+`gate2 = *(*DAT_008a6e80 + 0x14c)` (850).  For each `i` in 0..255:
+```
+q      = (i * gate2) / 1000;                              // integer divide
+accum  = ( (1000-gate1)*q + (1.0 - cos(q*PI/255))*127.5*gate1 ) * 0.001;
+LUT[i] = (uint8_t) min(255.0, accum);                    // x87 ftol = truncate
+```
+(`.rdata`: PI@0x5cc288, 1/255@0x850dd0, 1.0@0x850dc8, 127.5@0x850dc0,
+0.001@0x850d98, 255.0@0x850db8.)  A concave curve: crushes shadows/mids,
+preserves highlights = darker + higher contrast/saturation.  `gate1=0 &&
+gate2=1000` → identity.  **Verified bit-exact** vs a live probe of
+`DAT_008a9410`: `LUT[64]=35`, `LUT[128]=100`, `LUT[192]=175` (and `LUT[0]=0`,
+`LUT[255]=233`).
+
+**PORT (ckpt 67): `src/color_grade.{c,h}`** — `color_grade_build_lut`
+(the builder, host-tested vs the live samples) + `color_grade_apply_palette`
+(the `0x417c40` per-channel RGBQUAD remap) + `color_grade_is_active` (the gate).
+Wired in `main.c`: `enter_game` arms the grade (LUT built for 700/850) BEFORE
+the town banks decode; the per-sheet conversion hook `title_sheet_format` applies
+it to each **8bpp** sheet's palette before the 16bpp pack — matching retail's
+order (LUT the palette, *then* 565-quantise), so the result is bit-exact, not
+LUT-after-565.  Scoped: the title sheets are converted before `enter_game`, so
+they keep `g_color_grade_on==0` and stay bit-exact; only the lazily-decoded
+in-game banks are graded.  **Result: the backdrop TILES are now `differ_px==0`
+vs retail** (e.g. the half-timber wall `(173,170,140)` and the ivy
+`(107,105,74)` match exactly).
+
+**RESIDUAL — the 24bpp parallax far-plane (open).**  The sky/mountain banks
+(`0x55`/`0x58`/`0x59`) decode as **24bpp** (no palette), so the 8bpp palette
+grade skips them and the sky still renders un-graded (too bright).  Two sub-issues
+beyond the palette grade: (1) retail's 24bpp banks must be graded by a *different*
+path (the 8bpp `0x417c40` palette loop doesn't apply) — TBD where; (2) the port's
+24bpp decode is itself brighter than retail's even before grading (port raw sky
+`(132,186,255)` vs a back-solved retail raw `~(103,165,231)`), i.e. a 24bpp→16bpp
+conversion / colour-key discrepancy.  Tracked as PORT-DEBT `render-palette-tint`
+(now sharpened: the tile half is done; the 24bpp parallax half + the gate
+derivation `color-grade-gates` remain).  The other residuals are the still-missing
+content: the NPC actors, the foreground tree, and the "Town of Tonkiness" banner
+(`0x5a00c0`).
+
+**Harness note:** `tools/flow/retail_fields.json` gained `tint` (`0x8a93fc`),
+`lutgate1/2` (`0x8a9510`/`0x8a9514`), and four LUT samples (`0x8a9410`+) at the
+Flip — the field-spec probes that pinned all of the above.

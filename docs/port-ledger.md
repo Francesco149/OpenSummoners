@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **193** (12.1% of engine-proper) — tested 188, ported 5
-- code bytes touched: **13.3%** (224,947 / 1,694,868 B of engine-proper)
-- unported: **1565**
+- touched: **194** (12.1% of engine-proper) — tested 189, ported 5
+- code bytes touched: **13.4%** (226,572 / 1,694,868 B of engine-proper)
+- unported: **1564**
 - orphan refs in src/ not in this table: 4
 
-## tested (188) — ported + host unit suite
+## tested (189) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -43,7 +43,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, main.c (+2) |
+| 0x417c40 | FUN_00417c40 | 1625 | color_grade.c, color_grade.h, main.c |
+| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+3) |
 | 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h |
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
@@ -64,11 +65,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
 | 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h, town_render.c (+1) |
 | 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h, town_render.h |
-| 0x490cd0 | FUN_00490cd0 | 603 | main.c, parallax.c, parallax.h (+2) |
-| 0x490f30 | FUN_00490f30 | 2002 | draw_pool.h, main.c, map_present.h (+5) |
+| 0x490cd0 | FUN_00490cd0 | 603 | color_grade.h, main.c, parallax.c (+3) |
+| 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
-| 0x499560 | FUN_00499560 | 271 | parallax.c, parallax.h |
+| 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
@@ -76,7 +77,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x561c90 | FUN_00561c90 | 94 | game_map.h, game_world.h |
 | 0x562210 | FUN_00562210 | 688 | app_pump.h, rng.h |
 | 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+8) |
+| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+10) |
 | 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
 | 0x564160 | FUN_00564160 | 376 | newgame_drive.c, newgame_drive.h |
 | 0x564780 | FUN_00564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
