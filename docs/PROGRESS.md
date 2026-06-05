@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-05 (ckpt 63) — the in-game PRESENT PASS ported (FUN_0048eac0 + FUN_00490b90)
+
+Ported the **consumer** side of the in-game draw pipeline — the pass that turns
+the draw list into a blit stream. After the per-frame driver builds the
+27-layer draw-node pool (`draw_pool` / `map_render_walk`, ckpts 58-61),
+**`FUN_0048eac0`** walks the layers in order (layer index = draw-order key),
+projects each node's world position to screen space, culls off-screen nodes, and
+dispatches to one of four zdd blit primitives keyed on the node's mode (`+0x18`).
+
+New module `src/map_present.{c,h}`: `map_present_project` is **`FUN_00490b90`**
+exactly (the screen-space projector + four-corner viewport cull the mode arms
+share); `map_present` is the 27-layer walk + mode dispatch. **Mode 3** — the
+static-backdrop TILE path `map_render_walk` emits — is ported in full: project
+with the node's own w/h as the cull box, then select the blit by node `+0x14` —
+CLIPPED (`FUN_005b9bf0` / `zdd_object_blt_clipped`, the `param8==0` backdrop
+path) or ALPHA (`FUN_005bd550`). Both primitives are already ported in `zdd.c`;
+the engine cel handle in node `+0x00` becomes the blit `this`, handed to a
+`present_blit_fn` sink (the `mr_sprite_fn` pattern) so the walk stays pure.
+
+**This closes the `decode → grid → geometry → draw-list → present` chain** —
+every stage from the map DATA resource to the per-node blit op is now a pure,
+host-tested unit. Modes 0/1/2 (actor/sprite/scaled draws) are VISITED in
+faithful order but deferred (PORT-DEBT `present-actor-modes`; reported via
+`out_deferred`, never silently dropped — no ported producer emits them yet, and
+their geometry reads engine sprite/paint_ctx internals). What remains for real
+town-backdrop pixels: the **camera/view object construction** (`cam[0x34..0x74]`,
+a dynamic-scroll rock) and **wiring into `main.c`**. 9 host tests → **819 pass /
+0 fail / 6 skip**; both GUI builds clean. Ledger **191/1490 touched / 186
+tested** (+2: `0x48eac0`, `0x490b90`). Commit `d6ad4b8`.
+
+---
+
 ## 2026-06-05 (ckpt 62) — Phase-B B2: the field-bearing flow trace, built + live-verified
 
 Brought the divergence-chasing loop up to openrecet's standard with the **LOGIC

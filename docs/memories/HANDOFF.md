@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 61, 2026-06-04)
+# Session handoff — rolling current state (last updated ckpt 63, 2026-06-05)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,10 +6,33 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 61
+## Where we are — ckpt 63
 
-**The draw-node layer pool + the backdrop walk driver are ported + host-tested; the
-decode → grid → geometry → draw-list chain is CLOSED.**
+**The in-game PRESENT PASS is ported + host-tested; the
+decode → grid → geometry → draw-list → present chain is CLOSED.**
+
+- **RE — `FUN_0048eac0` is the present pass; `FUN_00490b90` the shared projector.**
+  The per-frame driver `0x48c150` resets the 27-layer table (`view+0x54` counts, ==
+  `draw_pool_reset`), runs all the per-actor + tilemap emitters (`0x490f30` at :108),
+  then calls **`0x48eac0`** to flush. `0x48eac0` walks the 27 layers in order (count at
+  `view+0x58`); per node it dispatches on **mode (`+0x18`)** into 4 arms, each projecting
+  the node's world pos to screen + culling, then blitting: **mode 0** → `0x5b9b70`,
+  **mode 1** → `0x5bd550` (alpha), **mode 2** → the `DAT_008a9274`-palette scaled path,
+  **mode 3** → `0x5b9bf0` (clipped color-key) when node `+0x14`==0 else `0x5bd550`. The
+  shared projector **`0x490b90`** (used verbatim by modes 1/3, inlined by 0) computes
+  `sx = wx/100 - (cam+0x60 + cam+0x34)/100 + offx`, `sy = wy/100 - (cam+0x5c +
+  cam+0x74*100 + cam+0x4c)/100 + offy` and a four-corner cull vs `cam+0x64/100` /
+  `cam+0x68/100`. `map_render_walk` emits **mode 3, param8=0** → the clipped path.
+- **PORT (pure, host-tested):** `src/map_present.{c,h}` — `map_present_project` (`0x490b90`
+  arg-for-arg) + `map_present` (the 27-layer walk + mode dispatch). **Mode 3 fully**
+  (project w/ node w/h, select CLIPPED/ALPHA by `+0x14`); the cel handle in node `+0x00`
+  → a `present_blit_fn` sink (the Win32 layer maps `PRESENT_CLIPPED`→`zdd_object_blt_clipped`,
+  `PRESENT_ALPHA`→`zdd_blit_orchestrate`, both already in `zdd.c`). **DEFERRED**
+  (PORT-DEBT `present-actor-modes`): modes 0/1/2 — VISITED in faithful order + counted via
+  `out_deferred`, not blitted (no ported producer emits them; geometry reads engine sprite
+  internals). 9 tests (`test_map_present.c`).
+
+### (prior, ckpt 61) The draw-node layer pool + the backdrop walk driver
 
 - **RE — the layer table is one structure shared by `0x4917b0` + `0x586010`.**
   `FUN_00490f30`'s `0x4917b0` enqueue writes into the render context's DRAW-NODE TABLE at
@@ -35,26 +58,31 @@ decode → grid → geometry → draw-list chain is CLOSED.**
   returns 0. **DEFERRED:** palette tint (`DAT_008a93fc`/`0x4182d0`) + the region-C
   blend/overlay arms (`0x1b58d`/`0x1b5ab`, `490f30.c:230-282`) — registered in
   `port-debt.md`.
-- **State:** **806 pass / 0 fail / 6 skip**. Ledger **189/1490 touched / 184 tested**
   (`0x586010` referenced by bare VA — only its layer-table slice is ported, so the 18 KB
-  fn isn't over-counted). Both GUI builds clean; `draw_pool.c` in the `src` wildcard, not
-  yet called by `main.c`. Full writeup: `findings/in-game-intro.md` "The draw-node layer
+  fn isn't over-counted.) Full writeup: `findings/in-game-intro.md` "The draw-node layer
   pool + the backdrop walk driver".
+- **State (ckpt 63):** **819 pass / 0 fail / 6 skip**. Ledger **191/1490 touched / 186
+  tested** (+2 this ckpt: `0x48eac0`, `0x490b90`). Both GUI builds clean; all the
+  in-game render modules are in the `src` wildcard but **not yet called by `main.c`**.
 
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-The **present pass** — walk the 27 layers, resolve each node's sprite, zdd-blit it (the
-consumer that turns the draw list into pixels) — OR wire `map_decode` + `map_render_walk`
-+ present into `main.c`'s in-game `game_drive` (today neither `game_map`/`game_world` nor
-the new map modules are called by `main.c`) and diff vs `runs/tas-ingame-1` anchored on
-`game_enter`. Port the **0x586010 sim step** only as far as needed to populate what the
-backdrop reads (it allocs `DAT_008a9b50` 0x27b8), then a slice of **`0x5a00c0`** (13.7 KB;
-reuses ported `ar_sprite_decode`/zdd/ramps). Target the static town backdrop FIRST
-(golden flip ~1150). The **camera/view object construction stays a rock**
-(`cam[0x34..0x74]` updated dynamically by gameplay scroll across many functions — no
-clean pure init); host tests use synthetic cameras (window math is exact). Also register
-the EXE-NULL banks `0x570-0x572` at the engine-time site once the slot indices surface.
+**Real town-backdrop pixels.** The pure pipeline is complete end-to-end (decode → grid →
+geometry → draw-list → present); two blockers remain before the backdrop renders:
+**(1) the camera/view object** (`cam[0x34..0x74]`) — a dynamic-scroll rock with no clean
+pure init (host tests use synthetic cameras; window + projector math is exact), and
+**(2) wiring into `main.c`** — today neither `game_map`/`game_world` nor the map
+render/present modules are called by `main.c`; the in-game `game_render` clears to black.
+The wiring needs the **`0x586010` sim step** ported only as far as it populates what the
+backdrop reads (it allocs `DAT_008a9b50` 0x27b8 + builds the layer table at `view+0x54`
++ resolves the map data) plus a real **sprite resolver** (`0x418470` / `&DAT_008a760c`,
+the `mr_sprite_fn` the walk takes as a callback) and the **EXE-NULL banks `0x570-0x572`**.
+Once those exist, run `map_decode` → `map_render_walk` → `map_present(sink=zdd)` into
+`game_render` and diff vs `runs/tas-ingame-1` anchored on `game_enter`. Target the static
+town backdrop FIRST (golden flip ~1150). (The older "slice of **`0x5a00c0`**" framing was
+corrected at ckpt 60 — `0x5a00c0` is the scripted-scene overlay player, not the tilemap;
+the tilemap is `0x490f30` → present `0x48eac0`, both now ported.)
 
 ## Module inventory — render + text pipelines complete; in-game data layer ported (not wired)
 **Title/menu shell (bit-exact):** pixel_drawer, asset_register, bitmap_session, wnd_proc,
@@ -74,8 +102,10 @@ arm + `0x4c5350` `0x3f2`→room-210110 key), **map_data** (`0x587970` resource p
 **map_grid** (runtime render grid + `0x54c970`/`0x58ca80`/`0x58c910` write primitives),
 **map_decode** (`0x587e00` per-tile-id placement dispatch — the 9 town tile ids),
 **map_render** (`0x490f30` geometry + `map_render_walk`), **draw_pool** (the 27-layer
-draw-node pool `0x4917b0`/`0x586010`). Foundation the sim `0x586010` / render `0x5a00c0`
-will read.
+draw-node pool `0x4917b0`/`0x586010`), **map_present** (`0x48eac0` 27-layer flush +
+projector `0x490b90`, mode-3 backdrop path → ported zdd blits). The decode → grid →
+geometry → draw-list → present chain is complete; the sim `0x586010` + camera build are
+what remain to drive it with real data.
 
 ## Tooling — Phase B B2 (field-bearing flow trace) LANDED 2026-06-05
 The LOGIC drill-in is built + **live-verified on retail** (`docs/plans/trace-tooling-phase-b.md`):

@@ -840,6 +840,74 @@ node's sprite → zdd blit).  Producing the *real* DATA 1022 draw list needs the
 camera; the host tests use synthetic cameras + grids (the window math is exact,
 so a chosen camera deterministically selects the visible cells).
 
+### The present pass — `FUN_0048eac0` + the projector `FUN_00490b90` (ckpt 63)
+
+The CONSUMER that turns the accumulated draw list into a blit stream — the last
+pure stage of the in-game render pipeline.
+
+**The per-frame driver `FUN_0048c150`** is the frame's render orchestrator: it
+**resets** the 27-layer table (`view+0x54` counts zeroed, `0x48c150:18-26` ==
+`draw_pool_reset`), runs every emitter that *builds* the draw list (the per-actor
+sprite emitters `0x491ae0`/`0x4937c0`/… over the `0x11e0..0x2760` actor slots,
+then the tilemap walk `FUN_00490f30(view,1)` at `:108`), and finally calls
+**`FUN_0048eac0`** at `:109` to **flush** it.
+
+**`FUN_0048eac0` (1131 B) — the present pass.** Walks the 27 layers in order
+(count at `view+0x58`; layer index = draw-order key), and for each node
+dispatches on the node's **mode (`+0x18`)** into four arms, each projecting the
+node's world position to screen space + culling, then blitting via a different
+zdd primitive:
+
+| mode | blit primitive | ported as | who emits it |
+|------|----------------|-----------|--------------|
+| 0 | `FUN_005b9b70` (keyed onto) | `zdd_object_blt_keyed`-onto | actor sprites (deferred) |
+| 1 | `FUN_005bd550` (alpha orchestrate) | `zdd_blit_orchestrate` | paint_ctx sprites (deferred) |
+| 2 | scaled/palette (`DAT_008a9274` + paint_ctx clone) | — | scaled draws (deferred) |
+| 3 | `+0x14`==0 → `FUN_005b9bf0`; else → `FUN_005bd550` | `zdd_object_blt_clipped` / `zdd_blit_orchestrate` | **`map_render_walk` (the backdrop tiles)** |
+
+**The shared projector `FUN_00490b90` (307 B)** is used verbatim by modes 1 and 3
+(inlined by mode 0): from the camera object it computes
+`sx = wx/100 - (cam+0x60 + cam+0x34)/100 + offx`,
+`sy = wy/100 - (cam+0x5c + cam+0x74*100 + cam+0x4c)/100 + offy` (`offx/offy` =
+node `+0x0c/+0x10`), then a four-corner viewport cull: `cw+sx >= 0 && sy+ch >= 0
+&& sx < cam+0x64/100 && sy < cam+0x68/100` (`cw/ch` = the node's `+0x34/+0x38`
+w/h for mode 3, the sprite dims `+0x1c/+0x20` for mode 0/1). This is the **same
+camera transform** as `map_render_visible_window` — the cull box just shifts
+from whole-window to per-node. `map_render_walk` emits **mode 3 with param8=0**,
+so the town backdrop's every tile takes the clipped color-key path
+`FUN_005b9bf0(sprite_this, dest, sx, sy, w, h, src_x, src_y)`.
+
+**PORT (pure, host-tested): `src/map_present.{c,h}`.**
+- `map_present_project` — `FUN_00490b90` arg-for-arg (`param_9==0` arm, the only
+  one the present pass uses); truncating int division matches the MSVC codegen.
+- `map_present` — the 27-layer walk + mode dispatch. **Mode 3 is fully ported:**
+  project with the node's own w/h, then select `PRESENT_CLIPPED` (`+0x14`==0) or
+  `PRESENT_ALPHA` (`+0x14`!=0) and hand a resolved `present_op` (the cel handle
+  from node `+0x00` becomes the blit `this`, plus the projected dst + the
+  `+0x2c/+0x30/+0x34/+0x38` src rect) to a `present_blit_fn` sink. The Win32
+  layer maps the kind → the matching ported zdd blit (`zdd.c`), keeping the walk
+  pure (the `mr_sprite_fn`/`mg_bank_dims_fn` pattern). **DEFERRED** (PORT-DEBT
+  `present-actor-modes`): modes 0/1/2 are VISITED in faithful order and counted
+  via `out_deferred` (never silently dropped) but not blitted — no ported
+  producer emits them yet, and their geometry reads engine sprite/paint_ctx
+  internals. They land with the actor renderers (`0x491ae0` et al.).
+
+**STATE.** 9 host tests (`tests/test_map_present.c`): the projector (placement +
+camera offset + each of the four cull edges, boundary-inclusive), the walk
+(layer-then-node present order + projected geometry, the CLIPPED/ALPHA kind
+selection, the off-screen cull, the mode-0/1/2 defer-and-count, a dry NULL-sink
+count) → **819 pass / 0 fail / 6 skip**. Ledger **191/1490 touched / 186 tested**
+(+2: `0x48eac0`, `0x490b90`; the unported callees `0x48c150`/`0x491ae0` are
+referenced by bare VA so the derived ledger doesn't over-count).
+
+**This closes the `decode → grid → geometry → draw-list → present` chain** —
+every stage from the map DATA resource to the per-node blit op is a pure,
+host-tested unit. What remains for real backdrop pixels: the **camera/view
+object construction** (`cam[0x34..0x74]`, the dynamic-scroll rock) and **wiring
+into `main.c`** (a real sprite resolver `0x418470`/`&DAT_008a760c`, the EXE-NULL
+banks `0x570-0x572`, and the `0x586010` sim slice that populates the grid +
+builds the `view+0x54` layer table).
+
 ## Open questions for the port
 
 - **`0x586010`'s true split** load-vs-draw: it both allocates `DAT_008a9b50`
