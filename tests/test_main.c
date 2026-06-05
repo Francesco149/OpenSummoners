@@ -661,6 +661,10 @@ struct test_case {
     X(call_trace_stub_marker)                                  \
     X(call_trace_disabled_when_no_path)                        \
     X(call_trace_multiple_rows_one_frame)                      \
+    X(call_trace_seq_orders_and_resets)                        \
+    X(call_trace_field_bearing_payload)                        \
+    X(call_trace_field_bearing_stub)                           \
+    X(call_trace_field_bearing_empty_and_gated)                \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \

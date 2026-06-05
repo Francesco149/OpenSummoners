@@ -30,6 +30,12 @@
  *                 two frame axes are directly comparable, modulo the
  *                 boot/load skew that call_trace_diff's --align-on-first
  *                 absorbs.
+ *   • seq       — per-frame execution-order counter, stamped on every
+ *                 emitted row (legacy ENTER + the BEGIN/FIELD/END field-
+ *                 bearing events).  Reset each begin_frame.  Lets
+ *                 tools/flow_diff.py align the call CHAIN in order, not
+ *                 just the set (the data-blind, order-blind view is
+ *                 call_trace_diff.py's Counter).
  *
  * Wiring (in src/main.c, alongside the frame loop):
  *
@@ -94,5 +100,45 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub);
  * distinct from `=` (full parity) and `≠` (count mismatch). */
 #define CALL_TRACE_ENTER_STUB(ghidra_va) \
     call_trace_enter((uint32_t)(ghidra_va), __builtin_return_address(0), 1)
+
+/* ── field-bearing event (BEGIN/FIELD/END) ─────────────────────────────────
+ * Emit a call event carrying a DECLARED PAYLOAD — the salient inputs/state the
+ * function used — so tools/flow_diff.py can match the data moved, not just that
+ * the function ran.  The retail side declares the same-named fields in
+ * tools/flow/retail_fields.json (joined by va + field-name); the Frida agent
+ * reads them off the live process.  See docs/plans/trace-tooling-phase-b.md.
+ *
+ * Usage (at function entry, BEFORE any traced sub-call):
+ *     CALL_TRACE_BEGIN(0x56aea0);
+ *     CALL_TRACE_I32("cursor", cursor);
+ *     CALL_TRACE_F32("phase",  phase);
+ *     CALL_TRACE_END();
+ *
+ * Each field is captured at the call site (exact C values — free + precise).
+ * Like the ENTER probes these compile to a cheap gated no-op when --call-trace
+ * is off.  CALL_TRACE_ENTER(va) remains the no-payload form.  One event is
+ * assembled in a static buffer and fwritten atomically at END so the stream is
+ * never interleaved; emit fields at entry, before any traced sub-call, then
+ * END (the discipline that keeps events non-nested). */
+void call_trace_begin(uint32_t ghidra_va, const void *ret_addr);
+void call_trace_begin_stub(uint32_t ghidra_va, const void *ret_addr);
+void call_trace_field_i32(const char *name, int32_t v);
+void call_trace_field_u32(const char *name, uint32_t v);
+void call_trace_field_f32(const char *name, float v);
+void call_trace_field_hex(const char *name, uint32_t v);
+void call_trace_end(void);
+
+#define CALL_TRACE_BEGIN(ghidra_va) \
+    call_trace_begin((uint32_t)(ghidra_va), __builtin_return_address(0))
+/* Field-bearing BEGIN that also marks the row "stub":true (partially-ported
+ * body; the declared INPUTS are still diffed by flow_diff, the stub mark keeps
+ * call_trace_diff's coverage view honest). Pairs with CALL_TRACE_END(). */
+#define CALL_TRACE_BEGIN_STUB(ghidra_va) \
+    call_trace_begin_stub((uint32_t)(ghidra_va), __builtin_return_address(0))
+#define CALL_TRACE_I32(name, v) call_trace_field_i32((name), (int32_t)(v))
+#define CALL_TRACE_U32(name, v) call_trace_field_u32((name), (uint32_t)(v))
+#define CALL_TRACE_F32(name, v) call_trace_field_f32((name), (float)(v))
+#define CALL_TRACE_HEX(name, v) call_trace_field_hex((name), (uint32_t)(v))
+#define CALL_TRACE_END()        call_trace_end()
 
 #endif /* OPENSUMMONERS_CALL_TRACE_H */
