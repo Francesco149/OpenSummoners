@@ -31,8 +31,6 @@
  * frame in those phases is deferred (see title_scene.h).
  */
 #include "title_scene.h"
-#include "call_trace.h"   /* CALL_TRACE_BEGIN/FIELD/END — the field-bearing flow trace */
-#include "rng.h"          /* rng_peek_state — the frame-entry LCG snapshot (DAT_008a4f94) */
 
 /* Saturating subtract toward zero: max(x - d, 0).
  *
@@ -698,24 +696,6 @@ void title_scene_init(title_scene *ts, sel_list *owner, input_mgr *input,
 title_scene_status title_scene_step(title_scene *ts, uint32_t now,
                                     const title_scene_hooks *hooks)
 {
-    /* Field-bearing flow-trace snapshot (FUN_0056aea0 frame entry).  `rng` is
-     * the live LCG state (port rng global == retail DAT_008a4f94 under the seed
-     * pin) — the once-per-frame determinism anchor; a divergence here the frame
-     * AFTER a mismatched draw localizes a stray RNG consumption (parity pillar
-     * 3).  The phase/fade/pace fields are PORT-OBSERVABLE only — retail keeps
-     * them in FUN_0056aea0 stack locals (no fixed VA), so they carry no retail
-     * spec entry and flow_diff compares only `rng` cross-side; they remain a
-     * cheap port-side state dump for the timeline view.  See
-     * tools/flow/retail_fields.json + docs/plans/trace-tooling-phase-b.md. */
-    CALL_TRACE_BEGIN(0x56aea0);
-    CALL_TRACE_HEX("rng",       rng_peek_state());
-    CALL_TRACE_I32("phase",     ts->fade.phase);
-    CALL_TRACE_I32("fade",      ts->fade.fade);
-    CALL_TRACE_I32("menu_fade", ts->fade.menu_fade);
-    CALL_TRACE_I32("pace_sub",  ts->pace.sub);
-    CALL_TRACE_I32("watchdog",  ts->watchdog);
-    CALL_TRACE_END();
-
     /* (1) Pacing (0x56b002): decide pump + update/render for this iteration. */
     title_pace_step_out pout;
     title_pace_step(&ts->pace, now, &pout);

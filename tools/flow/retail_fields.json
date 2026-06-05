@@ -14,12 +14,12 @@
   },
   "_caveat_arg_index": "SotES is MSVC; many engine functions are __thiscall/__fastcall (this/first arg in ECX, not on the stack). For those, Frida's args[0] is the first STACK param, NOT `this` — validate any src=arg/argderef field against a live --textout-probe/mem_watch read before a port depends on it. src=global reads (a DAT_ VA) have no such ambiguity and are the safe default for state-machine stubs; prefer them. Validated convention will be pinned here per-VA as fields land.",
   "fields": {
-    "0x56aea0": {
-      "name": "title_scene_step",
-      "_note": "FUN_0056aea0 — the title-scene runner, once per frame. Its FSM state (phase/fade/pace, the switch(local_64) locals) lives on the STACK, not in fixed-VA globals, so it is NOT retail-readable here — only the LCG state is. The port emits those FSM fields too (phase/fade/menu_fade/pace_sub/watchdog) as PORT-OBSERVABLE columns for the timeline view; flow_diff compares only the cross-side field below. Port side: src/title_scene.c title_scene_step (CALL_TRACE_BEGIN).",
+    "0x5b8fc0": {
+      "name": "flip",
+      "_note": "FUN_005b8fc0 — the DDraw Flip dispatcher, entered ONCE PER FRAME (it is the agent's flip-frame anchor). The right cross-side per-frame VA: retail's title runner FUN_0056aea0 keeps its do/while loop INTERNAL, so onEnter there fires once at scene entry, not per frame; the port externalized that loop, so the shared per-frame boundary both sides hit is the Flip. Port side: src/main.c drive_present (CALL_TRACE_BEGIN(0x5b8fc0)).",
       "fields": [
         {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex",
-         "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at FUN_0056aea0 onEnter = the frame-entry RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."}
+         "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."}
       ]
     }
   }

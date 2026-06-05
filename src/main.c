@@ -498,6 +498,17 @@ static void shutdown_ddraw(void)
 static void drive_present(void *user)
 {
     (void)user;
+    /* Field-bearing flow-trace probe at the Flip (retail FUN_005b8fc0, hooked
+     * once-per-frame by the agent).  `rng` is the live LCG state (port rng
+     * global == retail DAT_008a4f94 under --seed-pin) read at the frame
+     * boundary — the once-per-frame determinism anchor.  A [data] divergence on
+     * rng the frame AFTER a mismatched draw localizes a stray RNG consumption
+     * (parity pillar 3).  This is the cross-side B2 probe: both sides emit one
+     * rng event per frame at the same engine VA.  tools/flow/retail_fields.json
+     * declares the matching retail read; docs/plans/trace-tooling-phase-b.md. */
+    CALL_TRACE_BEGIN(0x5b8fc0);
+    CALL_TRACE_HEX("rng", rng_peek_state());
+    CALL_TRACE_END();
     /* The Flip count is the input-trace's frame axis (matching the harness's
      * Flip-anchored injection), so bump it on every present. */
     g_present_frame++;

@@ -211,6 +211,15 @@ let   g_call_trace_hooked  = false;
 let   g_call_trace_buffer  = [];
 let   g_call_trace_n_ok    = 0;
 let   g_call_trace_n_fail  = 0;
+// Field-bearing flow trace (B2): va(int)->[{name,src,va,index,off,type}] declared
+// in tools/flow/retail_fields.json. At a spec'd VA's onEnter the reader pulls the
+// declared engine state into an `f:{…}` payload joined to the port's CALL_TRACE_*
+// fields by (va, field-name). Plus a per-Flip seq counter mirroring the port's
+// (src/call_trace.c) so tools/flow_diff.py aligns the call CHAIN, not just the set.
+let   g_field_spec         = {};     // {"<va_dec>": [fieldspec, …]}
+let   g_call_trace_seq     = 0;
+let   g_call_trace_seq_frame = -1;
+let   g_f32_scratch        = null;   // lazily-allocated 4-byte bit-cast scratch
 // Per-frame flush keeps steady-state batches small, but the pre-Flip
 // boot window (hundreds of init calls with the full VA set hooked) can
 // dump a huge batch into one send().  Frida's transport tops out around
@@ -495,6 +504,55 @@ function traceRetVa(p) {
     if (g_base === null || p === null || p.isNull()) return 0;
     try { return p.sub(g_base).toUInt32(); }
     catch (e) { return 0; }
+}
+
+// ─── field-bearing flow trace (B2) ────────────────────────────────────────
+// Reset the per-Flip execution-order seq when the Flip frame advances — the
+// retail mirror of the port's call_trace_begin_frame reset (src/call_trace.c).
+function callTraceSeqMaybeReset() {
+    if (g_call_trace_seq_frame !== g_flip_frame) {
+        g_call_trace_seq_frame = g_flip_frame;
+        g_call_trace_seq = 0;
+    }
+}
+
+// Format a datum per the spec type. `valuePtr` (non-null) points AT the value in
+// memory (src=global/argderef → read it); otherwise `directVal` IS the datum (a
+// NativePointer whose bits are the value, src=arg).
+function ctFormatTyped(type, valuePtr, directVal) {
+    if (valuePtr !== null) {
+        switch (type) {
+            case 'u32': return valuePtr.readU32();
+            case 'f32': return valuePtr.readFloat();
+            case 'hex': return '0x' + (valuePtr.readU32() >>> 0).toString(16);
+            default:    return valuePtr.readS32();          // i32
+        }
+    }
+    switch (type) {
+        case 'u32': return directVal.toUInt32();
+        case 'hex': return '0x' + (directVal.toUInt32() >>> 0).toString(16);
+        case 'f32': {
+            if (g_f32_scratch === null) g_f32_scratch = Memory.alloc(4);
+            g_f32_scratch.writeU32(directVal.toUInt32());
+            return g_f32_scratch.readFloat();
+        }
+        default:    return directVal.toInt32();             // i32
+    }
+}
+
+// Read one declared field at a hooked VA's onEnter. Returns the value, or null
+// on any read fault (a bad pointer must not crash the trace). retval is an
+// onLeave datum — not available here; skipped (no spec uses it yet).
+function ctReadField(fld, args) {
+    const type = fld.type || 'i32';
+    const src  = fld.src  || 'global';
+    try {
+        if (src === 'global')   return ctFormatTyped(type, rva(fld.va), null);
+        if (src === 'arg')      return ctFormatTyped(type, null, args[fld.index | 0]);
+        if (src === 'argderef') return ctFormatTyped(
+            type, args[fld.index | 0].readPointer().add(fld.off | 0), null);
+        return null;            // retval / unknown src
+    } catch (e) { return null; }
 }
 
 // ─── installers ─────────────────────────────────────────────────────────
@@ -1586,14 +1644,28 @@ function installCallTraceHooks(vasArray) {
         const va = vasArray[i] | 0;
         try {
             Interceptor.attach(rva(va), {
-                onEnter: function () {
+                onEnter: function (args) {
                     if (!callTraceShouldEmit()) return;
-                    g_call_trace_buffer.push({
+                    callTraceSeqMaybeReset();
+                    const ev = {
                         va:     va,
                         ret_va: traceRetVa(this.returnAddress),
                         ts:     nowMs(),
                         thr:    this.threadId,
-                    });
+                        seq:    g_call_trace_seq++,
+                    };
+                    // Field-bearing payload for spec'd VAs (B2). Keyed by the
+                    // decimal-string VA, matching the JSON opts the driver sends.
+                    const specs = g_field_spec[va];
+                    if (specs) {
+                        const f = {};
+                        for (let s = 0; s < specs.length; s++) {
+                            const v = ctReadField(specs[s], args);
+                            if (v !== null && v !== undefined) f[specs[s].name] = v;
+                        }
+                        if (Object.keys(f).length) ev.f = f;
+                    }
+                    g_call_trace_buffer.push(ev);
                     if (g_call_trace_buffer.length >= CALL_TRACE_FLUSH_AT) {
                         callTraceFlush(g_flip_frame);
                     }
@@ -2290,6 +2362,9 @@ rpc.exports = {
             g_call_trace_frames =
                 (Array.isArray(opts.call_trace_frames) && opts.call_trace_frames.length)
                     ? new Set(opts.call_trace_frames) : null;
+            // B2 field-bearing spec: {"<va_dec>": [{name,src,va,index,off,type}]}.
+            g_field_spec = (opts.field_spec && typeof opts.field_spec === 'object')
+                ? opts.field_spec : {};
         }
         if (opts.capture_frames_enabled) {
             g_capture_enabled = true;

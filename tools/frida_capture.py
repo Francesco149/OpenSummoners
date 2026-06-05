@@ -250,6 +250,11 @@ class CaptureConfig:
     call_trace:        bool = False
     call_trace_vas:    list[int] | None = None
     call_trace_frames: list[int] | None = None
+    # field_spec (B2): {"<va_dec>": [{name,src,va,index,off,type}]} from
+    # tools/flow/retail_fields.json — the agent reads the declared engine state
+    # at each spec'd VA's onEnter into an `f:{…}` payload (joined to the port's
+    # CALL_TRACE_* fields by va+field-name), consumed by tools/flow_diff.py.
+    field_spec:        dict | None = None
     # mem_watch: MemoryAccessMonitor over mem_watch_regions (each a
     # {va,size,label,access} dict), emit trapped accesses to
     # <run_dir>/mem_watch.jsonl.  Driven by tools/mem_watch.py.
@@ -723,6 +728,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "call_trace":         cfg.call_trace,
         "call_trace_vas":     [int(v) for v in (cfg.call_trace_vas or [])],
         "call_trace_frames":  [int(f) for f in (cfg.call_trace_frames or [])],
+        "field_spec":         cfg.field_spec or {},
         "capture_frames_enabled": cfg.capture,
         "capture_frames":     [int(f) for f in (cfg.capture_frames or [])],
         "input_inject_enabled": bool(cfg.input_trace),
@@ -913,6 +919,15 @@ def main() -> int:
     p.add_argument("--call-trace-vas-file", default=None, type=Path,
                    help="override the engine VA list (JSON: bare array or "
                         "{vas:[...]})")
+    p.add_argument("--field-spec", default=None, type=Path,
+                   help="B2 field-bearing flow trace: read engine state at each "
+                        "spec'd VA's onEnter into an f:{…} payload for "
+                        "tools/flow_diff.py (default tools/flow/retail_fields.json "
+                        "when --call-trace is on). Its VAs are auto-hooked. Use "
+                        "--field-spec-only to hook ONLY them (bounded output).")
+    p.add_argument("--field-spec-only", action="store_true",
+                   help="with --call-trace: hook ONLY the field-spec VAs, not the "
+                        "full engine VA list — the bounded field-trace mode.")
     p.add_argument("--capture-frames", default=None,
                    help="capture DDraw frames to <run_dir>/frames/frame_NNNNN.png. "
                         "Comma-separated Flip-frame whitelist (e.g. '0,60,120'); "
@@ -1004,19 +1019,54 @@ def main() -> int:
 
     call_trace_vas = None
     call_trace_frames = None
+    field_spec = None
     if args.call_trace:
-        ct_path = args.call_trace_vas_file
-        if ct_path is None:
-            safe = ROOT / "tools" / "frida" / "data" / "engine_vas_frida_safe.json"
-            cand = ROOT / "tools" / "frida" / "data" / "engine_vas.json"
-            ct_path = safe if safe.exists() else cand
-        if not ct_path.exists():
-            p.error(f"--call-trace: VA list not found at {ct_path}; run "
-                    f"tools/gen_engine_vas.py first")
-        raw = json.loads(ct_path.read_text())
-        call_trace_vas = raw["vas"] if isinstance(raw, dict) and "vas" in raw else list(raw)
-        print(f"[frida_capture] call-trace: {len(call_trace_vas)} VAs from "
-              f"{ct_path.name}", file=sys.stderr)
+        # B2 field spec (default to the committed retail_fields.json). Keyed for
+        # the agent by the DECIMAL-string VA so JS `g_field_spec[va]` (va an int)
+        # hits. Its VAs are auto-hooked; --field-spec-only hooks ONLY them.
+        fs_path = args.field_spec
+        if fs_path is None:
+            cand = ROOT / "tools" / "flow" / "retail_fields.json"
+            fs_path = cand if cand.exists() else None
+        spec_vas: list[int] = []
+        if fs_path is not None:
+            if not fs_path.exists():
+                p.error(f"--field-spec: file not found: {fs_path}")
+            raw_spec = json.loads(fs_path.read_text()).get("fields", {})
+            field_spec = {}
+            for va_key, entry in raw_spec.items():
+                if not isinstance(entry, dict) or not entry.get("fields"):
+                    continue                       # chain_benign / fieldless entry
+                va_i = int(va_key, 0) if isinstance(va_key, str) else int(va_key)
+                field_spec[str(va_i)] = entry["fields"]
+                spec_vas.append(va_i)
+            if field_spec:
+                print(f"[frida_capture] field-spec: {len(field_spec)} VA(s) from "
+                      f"{fs_path.name}", file=sys.stderr)
+
+        if args.field_spec_only:
+            if not spec_vas:
+                p.error("--field-spec-only: the field spec declares no "
+                        "field-bearing VAs")
+            call_trace_vas = sorted(set(spec_vas))
+            print(f"[frida_capture] call-trace: field-spec-only, "
+                  f"{len(call_trace_vas)} VA(s)", file=sys.stderr)
+        else:
+            ct_path = args.call_trace_vas_file
+            if ct_path is None:
+                safe = ROOT / "tools" / "frida" / "data" / "engine_vas_frida_safe.json"
+                cand = ROOT / "tools" / "frida" / "data" / "engine_vas.json"
+                ct_path = safe if safe.exists() else cand
+            if not ct_path.exists():
+                p.error(f"--call-trace: VA list not found at {ct_path}; run "
+                        f"tools/gen_engine_vas.py first")
+            raw = json.loads(ct_path.read_text())
+            call_trace_vas = raw["vas"] if isinstance(raw, dict) and "vas" in raw else list(raw)
+            # Union the spec VAs so field-bearing functions are always hooked.
+            call_trace_vas = sorted(set(int(v) for v in call_trace_vas) | set(spec_vas))
+            print(f"[frida_capture] call-trace: {len(call_trace_vas)} VAs from "
+                  f"{ct_path.name}" + (f" (+{len(spec_vas)} spec)" if spec_vas else ""),
+                  file=sys.stderr)
         if args.call_trace_frames:
             call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
 
@@ -1058,6 +1108,7 @@ def main() -> int:
         call_trace        = args.call_trace,
         call_trace_vas    = call_trace_vas,
         call_trace_frames = call_trace_frames,
+        field_spec        = field_spec,
         capture           = capture,
         capture_frames    = capture_frames,
         input_trace       = input_trace,
