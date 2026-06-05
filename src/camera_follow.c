@@ -88,3 +88,37 @@ void camera_follow_step(camera_view *v)
     v->accum_x = camera_shake_apply(&v->shake_x, v->cur_x, v->map_w - v->vp_w);
     v->accum_y = camera_shake_apply(&v->shake_y, v->cur_y, v->map_h - v->vp_h);
 }
+
+/* 439690's target clamp: max(tgt, 0) then min(that, map_ext - viewport).
+ * (Decompile: `((int)x<0)-1 & x` = max(x,0); then `if (m <= ext) keep m`.) */
+static int32_t camera_clamp_target(int32_t tgt, int32_t max_scroll)
+{
+    if (tgt < 0) tgt = 0;
+    if (tgt > max_scroll) tgt = max_scroll;
+    return tgt;
+}
+
+/* 0x439690:643-664 — the +0x4c PAN command: set the (clamped) target +
+ * speed/flag, leave cur/vel so FUN_0043d1d0 eases there. */
+void camera_apply_pan(camera_view *v, int32_t tgt_x, int32_t tgt_y,
+                      int32_t speed)
+{
+    v->tgt_x = camera_clamp_target(tgt_x, v->map_w - v->vp_w);  /* [0x1b] */
+    v->tgt_y = camera_clamp_target(tgt_y, v->map_h - v->vp_h);  /* [0x1c] */
+    v->cap   = speed;   /* [8]  = +0x20 velocity cap / pan speed */
+    v->flag  = 0;       /* [7]  = +0x1c far-boost flag           */
+}
+
+/* 0x439690:599-642 — the +0x40 SNAP command: set the (clamped) target,
+ * cap=0/flag=0, then jump cur onto the target and zero the follow velocity. */
+void camera_apply_snap(camera_view *v, int32_t tgt_x, int32_t tgt_y)
+{
+    v->tgt_x = camera_clamp_target(tgt_x, v->map_w - v->vp_w);  /* [0x1b] */
+    v->tgt_y = camera_clamp_target(tgt_y, v->map_h - v->vp_h);  /* [0x1c] */
+    v->cap   = 0;       /* [8] = 0 */
+    v->flag  = 0;       /* [7] = 0 */
+    v->cur_x = v->tgt_x;   /* +0x60 = +0x6c (jump) */
+    v->cur_y = v->tgt_y;   /* +0x5c = +0x70        */
+    v->vel_x = 0;          /* +0x08 = 0            */
+    v->vel_y = 0;          /* +0x0c = 0            */
+}

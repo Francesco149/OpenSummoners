@@ -96,4 +96,25 @@ int32_t camera_shake_apply(cam_shake *s, int32_t cur, int32_t max_scroll);
  */
 void camera_follow_step(camera_view *v);
 
+/*
+ * The scripted camera TARGET-SETTERS (0x439690:599-642 — the in-game
+ * command processor's two camera-command arms).  Both clamp the requested
+ * target to the scrollable range [0, map_w - vp_w] x [0, map_h - vp_h] exactly
+ * as retail, then set the follow flag (0) + speed:
+ *
+ *   camera_apply_pan  (cmd param+0x4c): set tgt + cap=speed, leave cur/vel — the
+ *     easer then EASES cur toward the new target at the new speed (the opening
+ *     town's leftward pan: tgt=12800, speed=300).
+ *   camera_apply_snap (cmd param+0x40): set tgt + cap=0, then JUMP cur onto the
+ *     target and zero the follow velocity (the room-entry spawn positioning).
+ *
+ * WHAT WRITES THE COMMAND (the cutscene script that fires the pan at hold-end)
+ * is the unported scripted-scene player (0x5a00c0); the live wiring stands in
+ * for it with a hold timer (PORT-DEBT ingame-camera-pan).  These appliers are
+ * the bit-exact RE'd half — the command's effect on the view object.
+ */
+void camera_apply_pan(camera_view *v, int32_t tgt_x, int32_t tgt_y,
+                      int32_t speed);
+void camera_apply_snap(camera_view *v, int32_t tgt_x, int32_t tgt_y);
+
 #endif /* OSS_CAMERA_FOLLOW_H */

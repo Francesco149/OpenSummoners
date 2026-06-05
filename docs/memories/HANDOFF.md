@@ -6,6 +6,42 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 70
+
+**The intro-PAN camera is WIRED LIVE — the town backdrop now PANS; the scripted
+target-setters ported.**
+
+- **The easer is driven by a live camera in `main.c`.** A static
+  `camera_view g_game_camera`: `enter_game` sets `map_w/h` (`dim·0xc80`) + the
+  640×480 viewport and `camera_apply_snap(128000, 12800)` (spawn origin =
+  `MAP_RENDER_CAM_TOWN_3F2`). `game_render` calls `game_camera_step` each frame:
+  the `CALL_TRACE_BEGIN(0x43d1d0)` flow-trace mirror (the X-axis easer state per
+  `retail_fields.json`) → `camera_follow_step` → `game_camera_to_mr` projects the
+  view onto the `mr_camera` subset → the backdrop renders through the *current*
+  scroll (replacing the static const). A hold timer fires the scripted pan.
+- **The target-setters ported (`0x439690:599-664`).** `camera_apply_snap`
+  (`+0x40` command: clamp tgt to `[0, map-vp]`, cap=0/flag=0, JUMP cur=tgt, zero
+  vel — spawn positioning) + `camera_apply_pan` (`+0x4c` command: clamp + set tgt
+  / cap=speed / flag=0, leave cur/vel — the easer eases). Host-tested bit-exact (2
+  new tests). Referenced `0x439690` by **bare VA** (only the setter slice of the
+  8866-B fn is ported — no ledger inflation).
+- **Visually confirmed on the feed:** hold (cam x=128000, town right) → mid-pan →
+  settled (cam x=12800, town left edge / half-timber house). Pan completes ~400
+  frames after the hold timer.
+- **Added** `MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800) — the determinate
+  settled camera both sides share for a flip-anchored full-frame diff with NO
+  easer in flight.
+- **State (ckpt 70): 848 pass / 0 fail / 6 skip** (+2). Ledger **197/1490 touched
+  / 192 tested** (unchanged — easer/shake counted ckpt 69; setters are a bare-VA
+  slice of `0x439690`). Both GUI builds clean.
+- **REMAINING (PORT-DEBT `ingame-camera-pan`, synthetic):** (a) the pan TRIGGER
+  timing — `GAME_CAMERA_HOLD_FRAMES=183` stands in for the cutscene-script op
+  (unported `0x5a00c0`) that writes the `+0x4c` command at hold-end; (b) the easer
+  step CADENCE — port steps per rendered frame, retail per sim-tick (flips ~1 per
+  2 ticks → per-flip pan rate differs, not flip-anchored-exact mid-flight); (c)
+  the spawn-snap origin is the live const, not yet derived from the entry params.
+  Writeup: `findings/in-game-intro.md` "The camera is WIRED LIVE".
+
 ## Where we are — ckpt 69
 
 **The intro-PAN camera EASER located + ported bit-exact; a HW-watchpoint tool +
@@ -248,8 +284,13 @@ gameplay scale as the retail golden** (user-confirmed; cross-checked vs golden f
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-**Tiles + the 24bpp sky colour are matched (ckpt 68, user-confirmed); build out content.**
+**Camera is wired + pans (ckpt 70); tiles + 24bpp sky matched (ckpt 68, user-confirmed).**
 The smallest visible wins, in order:
+0. **Flip-anchored full-frame diff at the SETTLED end (ckpt 70 unlock).** Both port
+   + retail hold the determinate `MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800) once the
+   pan completes — NO easer in flight, NO cadence question. Drive both to the settled
+   hold and `tas_diff` the full frame to confirm/close the sky `differ_px` (the row-for-row
+   sky diff the ckpt-68 grade was waiting on). This is now the cheapest concrete parity step.
 1. **The 24bpp parallax colour — DONE (ckpt 68).** Retail grades 24bpp banks at
    **DECODE**, not via the palette: `0x417c40` early-exits to the plain getter for
    a palette-less bank, but its **flag-3 branch** (the 24bpp case) first stamps the
@@ -271,9 +312,13 @@ The smallest visible wins, in order:
 3. **The "Town of Tonkiness" banner + the foreground tree** (`0x5a00c0`, the
    scripted-scene overlay player + the `DAT_008a7640` font bank) — PORT-DEBT
    `ingame-nontile-layers`.
-4. **The intro PAN** (`ingame-camera-snap`) — animate `+0x60` (128000 hold →
-   ~−147/flip from ~flip +167) so port + golden share the camera across the shot,
-   unlocking a flip-anchored full-frame diff (the camera is now proven: pan, dx=0).
+4. **The intro PAN — WIRED LIVE (ckpt 70).** The easer + the `0x439690` target-setters
+   are ported and stepped each frame; the town pans hold→settled (feed-confirmed).
+   REMAINING (PORT-DEBT `ingame-camera-pan`): the pan TRIGGER (the 183-frame hold timer
+   stands in for the `0x5a00c0` cutscene-script op — RE'd together with item 3, the
+   scripted-scene overlay player) + the easer step CADENCE (port per-frame vs retail
+   per-sim-tick; the −147/flip cruise vs cap-300/tick gap → correlate tick↔flip via a
+   live trace before claiming a flip-anchored pan diff mid-flight).
 
 **HARNESS — in-game retail drive RESTORED (ckpt 66).** The old `trace-retail.jsonl`
 had gone stale (retail's title turns interactive ~150 flips later than it used to, so
@@ -315,8 +360,10 @@ newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option 
 **In-game (milestone 2 — pure + host-tested; the backdrop chain is now WIRED into
 `main.c` via `town_render`, ckpt 65):**
 game_drive (the in-game run-loop shell), **camera_follow** (the per-frame camera
-ease-to-target `0x43d1d0` + shake sub-applier `0x43d340`, ckpt 69 — pure +
-host-tested bit-exact, NOT yet wired into the live camera), **town_render** (composes the backdrop:
+ease-to-target `0x43d1d0` + shake sub-applier `0x43d340` + the `0x439690` SNAP/PAN
+target-setters `camera_apply_snap`/`_pan`, ckpt 69-70 — pure + host-tested bit-exact;
+**WIRED LIVE into `main.c game_render` ckpt 70** — `g_game_camera` stepped each frame,
+the town pans hold→settled), **town_render** (composes the backdrop:
 `map_data_parse`+`map_decode` load → `draw_pool_reset`+`map_render_walk`+`map_present`
 step + `town_render_parallax` → `parallax_render` — driven by `main.c game_render`),
 **parallax** (the sky/mountain far-plane `0x490cd0`/`0x499560` + the `0x587e00`-prologue

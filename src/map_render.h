@@ -113,6 +113,17 @@ void map_render_camera_init(mr_camera *cam,
  */
 extern const mr_camera MAP_RENDER_CAM_TOWN_3F2;
 
+/*
+ * The SETTLED opening-town camera (the static hold the engine genuinely holds
+ * from ~flip 2450 onward, after the scripted leftward pan completes): origin
+ * snapped to the town's left/bottom edge (off60 = 12800 = 4 cells, off5c =
+ * 12800 = the maph-vph clamp).  Live-probed end state of the pan (in-game-intro
+ * "The intro PAN is SCRIPTED"); a determinate constant both sides share with NO
+ * easer in flight, so a flip-anchored full-frame backdrop/sky diff is meaningful
+ * at the settled end without the (cadence-PORT-DEBT) pan.  Window: cols 0..21.
+ */
+extern const mr_camera MAP_RENDER_CAM_TOWN_3F2_SETTLED;
+
 /* The visible cell window: cells [col0, col0+ncols) x [row0, row0+nrows). */
 typedef struct mr_window {
     int32_t col0;

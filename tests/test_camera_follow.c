@@ -106,3 +106,56 @@ int test_camera_follow_step_both_axes(void)
     T_ASSERT_EQ_I(v.accum_y, 0);
     return 0;
 }
+
+/* The 439690 +0x40 SNAP command (the room-entry spawn positioning): clamp the
+ * target to [0, map-vp], jump cur onto it, zero velocity + cap. */
+int test_camera_apply_snap_jumps_and_clamps(void)
+{
+    camera_view v = { 0 };
+    v.map_w = 281600; v.map_h = 60800;     /* town 88x19 cells * 0xc80 */
+    v.vp_w  = 64000;  v.vp_h  = 48000;
+    v.vel_x = 99; v.vel_y = 88; v.cap = 7; /* dirty state the snap must clear */
+
+    camera_apply_snap(&v, 128000, 12800);  /* the live-probed hold origin */
+    T_ASSERT_EQ_I(v.tgt_x, 128000);        /* within [0, 217600] */
+    T_ASSERT_EQ_I(v.tgt_y, 12800);         /* == map_h-vp_h (clamp ceiling) */
+    T_ASSERT_EQ_I(v.cur_x, 128000);        /* jumped onto target */
+    T_ASSERT_EQ_I(v.cur_y, 12800);
+    T_ASSERT_EQ_I(v.vel_x, 0);
+    T_ASSERT_EQ_I(v.vel_y, 0);
+    T_ASSERT_EQ_I(v.cap, 0);
+    T_ASSERT_EQ_I(v.flag, 0);
+
+    /* over-range + negative targets clamp to [0, map-vp] */
+    camera_apply_snap(&v, 999999, -5);
+    T_ASSERT_EQ_I(v.tgt_x, 217600);        /* map_w - vp_w */
+    T_ASSERT_EQ_I(v.tgt_y, 0);
+    T_ASSERT_EQ_I(v.cur_x, 217600);
+    T_ASSERT_EQ_I(v.cur_y, 0);
+    return 0;
+}
+
+/* The 439690 +0x4c PAN command (the scripted leftward pan): set the clamped
+ * target + speed/flag, leave cur/vel so the easer eases there. */
+int test_camera_apply_pan_sets_target_keeps_cur(void)
+{
+    camera_view v = { 0 };
+    v.map_w = 281600; v.map_h = 60800;
+    v.vp_w  = 64000;  v.vp_h  = 48000;
+    camera_apply_snap(&v, 128000, 12800);  /* at the hold origin */
+
+    camera_apply_pan(&v, 12800, 12800, 300);
+    T_ASSERT_EQ_I(v.tgt_x, 12800);         /* the town's left edge */
+    T_ASSERT_EQ_I(v.tgt_y, 12800);
+    T_ASSERT_EQ_I(v.cap, 300);             /* pan speed */
+    T_ASSERT_EQ_I(v.flag, 0);
+    T_ASSERT_EQ_I(v.cur_x, 128000);        /* cur NOT jumped — easer will ease */
+    T_ASSERT_EQ_I(v.vel_x, 0);
+
+    /* drive the full pan to completion: cur eases 128000 -> 12800, then rests */
+    for (int i = 0; i < 4000; i++) camera_follow_step(&v);
+    T_ASSERT_EQ_I(v.cur_x, 12800);         /* lands exactly on target */
+    T_ASSERT_EQ_I(v.cur_y, 12800);
+    T_ASSERT_EQ_I(v.vel_x, 0);             /* decelerated to rest */
+    return 0;
+}

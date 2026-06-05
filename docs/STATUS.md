@@ -35,18 +35,22 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **Where we are (ckpt 69): the intro-PAN camera EASER located + ported bit-exact.**
-  The establishing shot is a **scripted** leftward pan (NOT leader-follow): target x snaps
-  to a fixed **12800** + speed **300** once at hold-end (~flip 1617), then the per-frame
-  easer **`FUN_0043d1d0`** integrates current x toward it (`vel += 10/frame`, cap = speed
-  300; snap+decelerate at target). Found via a **hardware watchpoint** on the view's heap
-  `+0x60` (it's dispatched through a heap fn-pointer → invisible to static search; new
-  `mem_watch.py --watch-chain … --hw`). Ported pure + host-tested **bit-exact vs the
-  captured trajectory** (`src/camera_follow.{c,h}`, 6 tests; 846 pass/0 fail/6 skip).
-  Annotated into the flow trace (`camera_follow_step` @0x43d1d0 + the view fields incl. the
-  now-known `vel_x/vel_y` integrator). **OPEN (PORT-DEBT `ingame-camera-pan`):** wire the
-  stepped camera into `game_drive` (live) + the scripted op that SETS tgt=12800/speed=300 at
-  hold-end; then a flip-anchored full-frame backdrop/sky diff becomes possible.
+- **Where we are (ckpt 70): the intro-PAN camera is WIRED LIVE — the town now pans.**
+  `main.c game_render` steps a live `camera_view` each frame (`camera_follow_step` =
+  `FUN_0043d1d0`, with the `CALL_TRACE_BEGIN(0x43d1d0)` flow-trace mirror) and projects the
+  backdrop through its *current* scroll instead of the static const. `enter_game`
+  spawn-snaps it (`camera_apply_snap` → cur=tgt=128000/12800); a hold timer fires the
+  scripted pan (`camera_apply_pan` → tgt=12800/12800, speed 300) at hold-end. The two
+  target-setters are bit-exact ports of `0x439690`'s SNAP/PAN command arms (`:599-664`),
+  host-tested (clamp to `[0, map-vp]`; snap-jumps-cur / pan-keeps-cur). **Visually confirmed
+  on the feed:** hold (cam x=128000) → mid-pan → settled (cam x=12800, town left edge).
+  **848 pass / 0 fail / 6 skip** (+2). Also added `MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800).
+  **OPEN (PORT-DEBT `ingame-camera-pan`, synthetic stand-ins):** the pan TRIGGER timing
+  (`GAME_CAMERA_HOLD_FRAMES=183` stands in for the unported `0x5a00c0` cutscene-script op
+  that writes the command) + the easer step CADENCE (port steps per frame; retail per
+  sim-tick → per-flip rate differs, so the pan isn't flip-anchored-exact mid-flight). The
+  SETTLED end is a determinate camera both sides share → a flip-anchored full-frame diff is
+  meaningful there now.
 - **Methodology (reinforced ckpt 69):** "annotate" = the **flow-trace field spec**
   (`retail_fields.json` named functions+fields + port `CALL_TRACE_BEGIN` mirrors) — a CORE
   step of finishing any RE/port; thiscall/struct tagging is a SEPARATE static-readability
@@ -72,15 +76,17 @@ understates how much actual instruction volume is ported.
 - **NOT a full `differ_px==0` frame yet — named residuals** (NOT logic bugs): the **NPC actors**
   (present modes 0/1/2, blocked on the entity/spawn system — PORT-DEBT `present-actor-modes`); the
   **foreground tree** + **"Town of Tonkiness" banner** (`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`);
-  the intro **pan** itself (`ingame-camera-snap`) — until it lands, port (gameplay cam) and retail
-  (establishing-pan cam) sample different sky rows, so a true row-for-row sky diff isn't possible yet.
-- **Next move:** the intro-pan easer is PORTED (ckpt 69); the remaining `ingame-camera-pan`
-  work is (a) **wire** the stepped camera into `main.c game_render`/`game_drive` (replace the
-  static `MAP_RENDER_CAM_TOWN_3F2` with a `camera_view` stepped by `camera_follow_step` each
-  frame) + (b) the **scripted op** that sets tgt=12800/speed=300 at hold-end (~183 flips after
-  `game_enter`). Then a flip-anchored full-frame backdrop/sky diff is meaningful. After that:
-  the **foreground tree/banner** (`0x5a00c0`) and the **actor renderers** (need the entity/spawn
-  system first). Writeups: `findings/in-game-intro.md` "The camera EASER located".
+  the intro **pan** is now wired but its TRIGGER timing + step CADENCE are synthetic (PORT-DEBT
+  `ingame-camera-pan`), so the pan isn't flip-anchored-exact mid-flight — the **settled end**
+  (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) is where a flip-anchored sky diff is now meaningful.
+- **Next move:** the camera is wired + pans (ckpt 70). The smallest next wins: (a) take a
+  **flip-anchored full-frame backdrop/sky diff at the SETTLED end** (both sides share x=y=12800 —
+  no cadence question) to confirm/close the sky `differ_px`; (b) the **foreground tree/banner**
+  (`0x5a00c0` scripted-scene overlay player — also where the pan's cutscene-script TRIGGER lives,
+  so RE'ing it closes both `ingame-nontile-layers` and the pan-trigger half of `ingame-camera-pan`);
+  (c) the **actor renderers** (present modes 0/1/2, need the entity/spawn system first). The pan
+  **cadence** (tick↔flip correlation) is a separate parity-refinement, validate via a live trace.
+  Writeups: `findings/in-game-intro.md` "The camera is WIRED LIVE".
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` carries `seq` + `CALL_TRACE_BEGIN/FIELD/END`;
   the Frida agent reads same-named retail fields per `tools/flow/retail_fields.json` (now incl.

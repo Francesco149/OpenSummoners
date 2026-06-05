@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 70) — the intro-PAN camera WIRED LIVE; scripted target-setters ported
+
+The ckpt-69 easer is now **driven by a live camera in `main.c`** — the town
+backdrop pans. `enter_game` stands up a static `camera_view g_game_camera`
+(map extent `dim·0xc80`, 640×480 viewport) and spawn-snaps it with
+`camera_apply_snap(128000, 12800)` (the `MAP_RENDER_CAM_TOWN_3F2` origin).
+`game_render` steps it each frame via `game_camera_step`: the
+`CALL_TRACE_BEGIN(0x43d1d0)` flow-trace mirror (the X-axis easer state read at
+onEnter, per `retail_fields.json`) → `camera_follow_step` → `game_camera_to_mr`
+projects the view onto the `mr_camera` subset the backdrop walk/parallax read,
+so the town renders through the *current* scroll instead of the static const.
+
+Ported the two camera-command arms of the in-game command processor
+`FUN_00439690` (referenced by **bare VA** — only the setter slice of the 8866-B
+fn is ported): `camera_apply_snap` (`:599-642`, the `+0x40` SNAP command — clamp
+target to `[0, map−vp]`, cap=0/flag=0, JUMP cur=tgt, zero vel) and
+`camera_apply_pan` (`:643-664`, the `+0x4c` PAN command — clamp + set target /
+cap=speed / flag=0, leave cur/vel so the easer eases). Host-tested bit-exact (2
+new tests). A hold timer (`GAME_CAMERA_HOLD_FRAMES=183`) fires
+`camera_apply_pan(12800, 12800, 300)` at hold-end. **Feed-confirmed:** hold (cam
+x=128000) → mid-pan → settled (cam x=12800, town left edge). Also added
+`MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800) — the determinate settled camera
+both sides share for a flip-anchored full-frame diff with no easer in flight.
+
+State: **848 pass / 0 fail / 6 skip** (+2); ledger **197/1490 touched / 192
+tested** (unchanged — easer/shake counted ckpt 69, the setters are a bare-VA
+slice). Both GUI builds clean. REMAINING (PORT-DEBT `ingame-camera-pan`,
+synthetic stand-ins): the pan TRIGGER timing (the 183-frame timer stands in for
+the unported `0x5a00c0` cutscene-script op that writes the command) + the easer
+step CADENCE (port per-frame vs retail per-sim-tick → per-flip pan rate differs).
+Writeup: `findings/in-game-intro.md` "The camera is WIRED LIVE".
+
 ## 2026-06-06 (ckpt 69) — the intro-PAN camera easer located (HW watchpoint) + ported
 
 The opening-town "establishing shot" is a **scripted** leftward camera pan, not a

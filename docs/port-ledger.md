@@ -55,7 +55,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
 | 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
-| 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h |
+| 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
 | 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |

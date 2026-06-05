@@ -69,6 +69,7 @@
 #include "game_drive.h"       /* the in-game map run loop (0x59f2c0 seam)     */
 #include "town_render.h"      /* the in-game backdrop scene (decode→walk→present) */
 #include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
+#include "camera_follow.h"    /* the in-game camera easer (0x43d1d0) + setters (0x439690) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -176,6 +177,30 @@ static int            g_game_active;
 static town_render    g_town;
 static int            g_town_loaded;
 static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
+
+/* The LIVE in-game camera (the room-state's +0x104c view object).  enter_game
+ * spawn-snaps it to the hold origin (camera_apply_snap → cur=tgt=128000/12800);
+ * game_render steps it each frame with camera_follow_step (FUN_0043d1d0) and
+ * projects the backdrop through its current scroll — replacing the static
+ * MAP_RENDER_CAM_TOWN_3F2.  At hold-end a synthetic timer issues the scripted
+ * leftward pan (camera_apply_pan → tgt=12800/12800, speed 300; the 439690 +0x4c
+ * command the unported cutscene script fires in retail).
+ *
+ * PORT-DEBT(ingame-camera-pan): the pan TRIGGER timing (the hold-frame count)
+ * and the easer step CADENCE (retail steps per sim-tick; flips advance ~1 per 2
+ * ticks, so the per-flip pan rate differs) are synthetic stand-ins for the
+ * cutscene-script engine + the tick↔flip correlation — the easer FORMULA and
+ * the target-setters themselves are bit-exact RE'd. */
+static camera_view    g_game_camera;
+static int            g_game_camera_armed;   /* live camera in use this scene   */
+static uint32_t       g_game_camera_hold;    /* frames since the spawn snap     */
+static mr_camera      g_game_camera_mr;       /* derived per-frame projection cam */
+
+/* Frames the camera holds at the spawn origin before the scripted pan begins.
+ * Retail's cutscene script issues the pan ~183 flips after game_enter (the
+ * live-probed hold→pan transition, flip ~1617; in-game-intro "The intro PAN is
+ * SCRIPTED").  Synthetic — see PORT-DEBT(ingame-camera-pan) above. */
+#define GAME_CAMERA_HOLD_FRAMES 183u
 
 /* The in-game palette color-grade LUT (src/color_grade.{c,h}).  Retail's in-game
  * render paths (FUN_00417c40 parallax + FUN_00490f30 tilemap) remap every sprite
@@ -1601,6 +1626,49 @@ static int load_town_scene(uint16_t scene)
  * present modes 0/1/2 = PORT-DEBT present-actor-modes), and retail's zoomed-out
  * intro establishing shot at the hold (PORT-DEBT ingame-establishing-zoom).
  * The parallax sky/mountain far-plane IS now drawn (FUN_00490cd0). */
+/* Project the live camera_view (FUN_0043d1d0's view object) onto the mr_camera
+ * subset the backdrop walk/parallax read — the same retail view-object at the
+ * offsets each module models (+0x34/+0x4c accumulators, +0x5c/+0x60 scroll,
+ * +0x64/+0x68 viewport; +0x74 vertical shear is 0 across the town pan). */
+static void game_camera_to_mr(const camera_view *v, mr_camera *out)
+{
+    out->off34 = v->accum_x;   /* +0x34 */
+    out->off4c = v->accum_y;   /* +0x4c */
+    out->off5c = v->cur_y;     /* +0x5c */
+    out->off60 = v->cur_x;     /* +0x60 */
+    out->off64 = v->vp_w;      /* +0x64 */
+    out->off68 = v->vp_h;      /* +0x68 */
+    out->off74 = 0;            /* +0x74 — shear, 0 across the pan */
+}
+
+/* Advance the live camera one frame (the retail per-frame easer FUN_0043d1d0,
+ * called from 0x439690:1123).  Issues the scripted leftward pan once the hold
+ * timer elapses.  Mirrors the retail flow-trace entry (CALL_TRACE_BEGIN(0x43d1d0)
+ * + the X-axis easer state read at onEnter, per tools/flow/retail_fields.json). */
+static void game_camera_step(void)
+{
+    /* Scripted pan trigger (synthetic hold timer; PORT-DEBT ingame-camera-pan):
+     * the 439690 +0x4c command the cutscene script fires at hold-end. */
+    if (g_game_camera_hold == GAME_CAMERA_HOLD_FRAMES)
+        camera_apply_pan(&g_game_camera, 12800, 12800, 300);
+    if (g_game_camera_hold <= GAME_CAMERA_HOLD_FRAMES)
+        g_game_camera_hold++;
+
+    /* Fields read at onEnter = the state going INTO the easer (retail reads the
+     * view before the step), so emit before camera_follow_step. */
+    CALL_TRACE_BEGIN(0x43d1d0);
+    CALL_TRACE_I32("cur_x", g_game_camera.cur_x);
+    CALL_TRACE_I32("tgt_x", g_game_camera.tgt_x);
+    CALL_TRACE_I32("vel_x", g_game_camera.vel_x);
+    CALL_TRACE_I32("vel_y", g_game_camera.vel_y);
+    CALL_TRACE_I32("cap",   g_game_camera.cap);
+    CALL_TRACE_I32("flag",  g_game_camera.flag);
+    CALL_TRACE_END();
+
+    camera_follow_step(&g_game_camera);
+    game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
+}
+
 static void game_render(void *user)
 {
     (void)user;
@@ -1608,12 +1676,18 @@ static void game_render(void *user)
         return;
     zdd_object_clear(g_zdd->primary_obj);    /* black map-load fill */
     if (g_town_loaded) {
+        /* The live stepped camera (spawn snap → hold → scripted pan), falling
+         * back to the static first-frame hold if it was never armed. */
+        const mr_camera *cam = &MAP_RENDER_CAM_TOWN_3F2;
+        if (g_game_camera_armed) {
+            game_camera_step();
+            cam = &g_game_camera_mr;
+        }
         /* 0x48c150 order: the parallax far-plane FIRST (0x490cd0, behind the
          * tiles), then the tilemap walk + present (0x490f30 / 0x48eac0). */
-        town_render_parallax(&g_town, &MAP_RENDER_CAM_TOWN_3F2,
-                             game_parallax_blit, NULL);
+        town_render_parallax(&g_town, cam, game_parallax_blit, NULL);
         int deferred = 0;
-        town_render_step(&g_town, &MAP_RENDER_CAM_TOWN_3F2,
+        town_render_step(&g_town, cam,
                          game_sprite_resolve, NULL,
                          game_present_blit, NULL, &deferred);
     }
@@ -1669,6 +1743,25 @@ static void enter_game(void)
      * 1022.  On failure game_render falls back to the faithful black frame. */
     g_town_loaded = 0;
     load_town_scene(/*scene=*/1022);
+
+    /* Arm the live in-game camera once the map dims are known (the easer clamps
+     * the pan target to [0, map_w-vp_w] x [0, map_h-vp_h]).  camera_apply_snap
+     * spawn-snaps cur=tgt to the hold origin (128000/12800 = 40/4 cells, the
+     * live-probed MAP_RENDER_CAM_TOWN_3F2 value); game_render then steps it. */
+    g_game_camera_armed = 0;
+    if (g_town_loaded) {
+        memset(&g_game_camera, 0, sizeof g_game_camera);
+        g_game_camera.map_w = (int32_t)g_town.map.dim0 * 0xc80;
+        g_game_camera.map_h = (int32_t)g_town.map.dim1 * 0xc80;
+        g_game_camera.vp_w  = MAP_RENDER_CAM_TOWN_3F2.off64;   /* 64000 */
+        g_game_camera.vp_h  = MAP_RENDER_CAM_TOWN_3F2.off68;   /* 48000 */
+        camera_apply_snap(&g_game_camera,
+                          MAP_RENDER_CAM_TOWN_3F2.off60,        /* 128000 */
+                          MAP_RENDER_CAM_TOWN_3F2.off5c);       /* 12800  */
+        g_game_camera_hold  = 0;
+        game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
+        g_game_camera_armed = 1;
+    }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "
              "(scene 1022); town backdrop scene %s",

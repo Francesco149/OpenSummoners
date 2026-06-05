@@ -3004,7 +3004,8 @@
    "status": "tested",
    "src": [
     "src/camera_follow.c",
-    "src/camera_follow.h"
+    "src/camera_follow.h",
+    "src/main.c"
    ]
   },
   {

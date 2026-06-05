@@ -877,6 +877,8 @@ struct test_case {
     X(camera_follow_far_boost_only_when_flagged)               \
     X(camera_shake_inactive_is_zero)                           \
     X(camera_follow_step_both_axes)                            \
+    X(camera_apply_snap_jumps_and_clamps)                      \
+    X(camera_apply_pan_sets_target_keeps_cur)                  \
 
 #define X(n) extern int test_##n(void);
 TESTS

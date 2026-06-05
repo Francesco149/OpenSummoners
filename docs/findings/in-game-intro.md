@@ -1392,3 +1392,37 @@ formula itself is now fully known + bit-exact-validatable against the captured t
 (`--watch-chain ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]]`) and supports a **`--hw`
 hardware watchpoint** — the fitting tool for a hot heap field (zero neighbour overhead,
 no MemoryAccessMonitor livelock). The `--hw` backtrace names the caller chain.
+
+### The camera is WIRED LIVE + the scripted target-setters ported (ckpt 70)
+
+The easer (ckpt 69) is now **driven by a live camera in `main.c`**, and the two
+camera-command arms of the in-game command processor `FUN_00439690` are ported:
+
+- **The target-setters (`0x439690:599-664`).** Two command slots on the scene
+  state: the **SNAP** command (`param+0x40`, `:599-642`) clamps the requested
+  target to `[0, map_w−vp_w] × [0, map_h−vp_h]`, sets `cap`(`+0x20`)=0 /
+  `flag`(`+0x1c`)=0, then **jumps** `cur`(`+0x60`/`+0x5c`)=`tgt` and zeroes
+  `vel`(`+0x08`/`+0x0c`) — the room-entry spawn positioning. The **PAN** command
+  (`param+0x4c`, `:643-664`) clamps + sets the target and `cap`=speed/`flag`=0 but
+  **leaves cur/vel**, so the easer eases there. Ported as
+  `camera_apply_snap`/`camera_apply_pan` (`src/camera_follow.c`), host-tested
+  bit-exact (clamp, snap-jumps-cur, pan-keeps-cur, full pan lands on 12800).
+- **The live wiring (`main.c`).** A static `camera_view g_game_camera`:
+  `enter_game` sets `map_w/h` from the loaded map (`dim·0xc80`) + the 640×480
+  viewport, then `camera_apply_snap(128000, 12800)` (the spawn origin =
+  `MAP_RENDER_CAM_TOWN_3F2`). `game_render` calls `game_camera_step` each frame
+  (the `CALL_TRACE_BEGIN(0x43d1d0)` mirror → `camera_follow_step` →
+  `game_camera_to_mr` projects the view onto the `mr_camera` subset the backdrop
+  walk/parallax read) and renders the backdrop through the *current* scroll
+  instead of the static const. A hold timer (`GAME_CAMERA_HOLD_FRAMES=183`) fires
+  `camera_apply_pan(12800, 12800, 300)` at hold-end. **Visually confirmed on the
+  feed:** the town pans left from the hold (cam x=128000) through mid-pan to the
+  settled town-left-edge view (cam x=12800).
+- **Two synthetic stand-ins remain (PORT-DEBT `ingame-camera-pan`):** the pan
+  **trigger** (the 183-frame timer stands in for the cutscene-script op in the
+  unported `0x5a00c0` that writes the `+0x4c` command), and the easer step
+  **cadence** (the port steps per rendered frame; retail steps per sim-tick, so
+  the per-flip pan rate differs — the pan is not flip-anchored-exact mid-flight).
+  The **settled** end is a determinate static camera both sides share
+  (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) → a flip-anchored full-frame
+  backdrop/sky diff is meaningful there without resolving the cadence.

@@ -88,6 +88,17 @@ const mr_camera MAP_RENDER_CAM_TOWN_3F2 = {
     .off74 = 0,
 };
 
+/* Live-probed SETTLED opening-town camera (pan end state; see header). */
+const mr_camera MAP_RENDER_CAM_TOWN_3F2_SETTLED = {
+    .off34 = 0,
+    .off4c = 0,
+    .off5c = 12800,    /* maph-vph clamp (unchanged from the spawn snap)      */
+    .off60 = 12800,    /* 4 cells right — town's left edge (pan target)       */
+    .off64 = 64000,    /* 640*100 viewport                                    */
+    .off68 = 48000,    /* 480*100 viewport                                    */
+    .off74 = 0,
+};
+
 uint32_t map_render_grid_index(int32_t col, int32_t row)
 {
     /* 490f30.c:64 — iVar11 = col*0x80 + row (the inner loop advances the
