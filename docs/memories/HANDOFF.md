@@ -208,16 +208,22 @@ gameplay scale as the retail golden** (user-confirmed; cross-checked vs golden f
 ## Next move
 > The 60-second framing is in `FRONT.md`; this is the detail.
 
-**Tiles are bit-exact + colour-graded; finish the colour, then build out content.**
+**Tiles + the 24bpp sky colour are matched (ckpt 68, user-confirmed); build out content.**
 The smallest visible wins, in order:
-1. **The 24bpp parallax colour** (`render-palette-tint`, the open half). The sky/
-   mountain banks (`0x55`/`0x58`/`0x59`) are 24bpp → no palette → the 8bpp grade
-   skips them → the sky renders un-graded/too-bright. Two sub-tasks: (a) RE where
-   retail grades 24bpp banks (the `0x417c40` palette loop is 8bpp-only; find the
-   24bpp path / whether `0x490cd0`'s `0x5b9a40` blit applies it), and (b) reconcile
-   the port's 24bpp→16bpp decode being brighter than retail (port raw sky
-   `132,186,255` vs back-solved retail raw `~103,165,231`). Once both land, apply
-   the LUT to 24bpp pixels (preserving the colour-key) and the sky matches.
+1. **The 24bpp parallax colour — DONE (ckpt 68).** Retail grades 24bpp banks at
+   **DECODE**, not via the palette: `0x417c40` early-exits to the plain getter for
+   a palette-less bank, but its **flag-3 branch** (the 24bpp case) first stamps the
+   slot's brightness descriptor (`f_08=1`, scales `f_0c/f_10/f_14`=1000 for tint
+   case 0, `f_18`=the LUT base when armed); the lazy `ar_sprite_decode` then runs the
+   already-ported `ar_sheet_decode_pixels` (LUT-then-scale, magenta skipped). The
+   port's parallax sink used the plain getter and never stamped it →
+   `game_arm_parallax_grade()` in `main.c` now replicates the stamp in
+   `game_parallax_blit`. Verified raw sky `(66,150,255)`→LUT→565=`(33,125,239)`,
+   blue `239` == retail main band; **user-confirmed correct on the feed**. The earlier
+   "dark top gradient" was camera/scene-dependent (the unported pan revealing a darker
+   sky-texture band), **not** an overlay. (NB the old `(132,186,255)`/`(103,165,231)`
+   numbers were wrong — actual raw is `(66,150,255)`.) Remaining: a true row-for-row
+   sky `differ_px==0` waits on the intro PAN so the cameras align.
 2. **The actor renderers** (`0x491ae0` et al.) → present **modes 0/1/2** (the NPCs).
    **BLOCKED:** `0x491ae0` reads a fully-populated entity object from the actor
    pools off `DAT_008a9b50` — the entity/spawn system isn't ported yet (the upstream

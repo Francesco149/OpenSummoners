@@ -1228,18 +1228,44 @@ in-game banks are graded.  **Result: the backdrop TILES are now `differ_px==0`
 vs retail** (e.g. the half-timber wall `(173,170,140)` and the ivy
 `(107,105,74)` match exactly).
 
-**RESIDUAL — the 24bpp parallax far-plane (open).**  The sky/mountain banks
+**The 24bpp parallax grade — LANDED (ckpt 68).**  The sky/mountain banks
 (`0x55`/`0x58`/`0x59`) decode as **24bpp** (no palette), so the 8bpp palette
-grade skips them and the sky still renders un-graded (too bright).  Two sub-issues
-beyond the palette grade: (1) retail's 24bpp banks must be graded by a *different*
-path (the 8bpp `0x417c40` palette loop doesn't apply) — TBD where; (2) the port's
-24bpp decode is itself brighter than retail's even before grading (port raw sky
-`(132,186,255)` vs a back-solved retail raw `~(103,165,231)`), i.e. a 24bpp→16bpp
-conversion / colour-key discrepancy.  Tracked as PORT-DEBT `render-palette-tint`
-(now sharpened: the tile half is done; the 24bpp parallax half + the gate
-derivation `color-grade-gates` remain).  The other residuals are the still-missing
-content: the NPC actors, the foreground tree, and the "Town of Tonkiness" banner
-(`0x5a00c0`).
+grade (`title_sheet_format`) can't reach them.  Retail does NOT grade 24bpp via
+the palette path — `0x417c40` early-exits to the plain getter when the bank has
+no palette (`this->entries->a != 0`).  Instead retail grades 24bpp banks **at
+DECODE**: `0x417c40`'s **flag-3 branch** (`*(info+4)==3`, the 24bpp case) stamps
+the slot's brightness descriptor — `f_08=1` (the decode-pass gate), per-channel
+scales `f_0c/f_10/f_14` (tint case 0 → 1000, the town's `DAT_008a93fc==0`
+identity), and `f_18 = in_ECX+0x28b0` (the tone-curve LUT base, set iff the gate
+`0x29b0!=0 || 0x29b4!=1000` is armed) — then calls the getter, whose lazy
+`ar_sprite_decode` runs **`ar_sheet_decode_pixels`** (already ported, engine-quirk
+#46): `p = lut[p]` per non-key channel, then `p = p*scale/1000`.  The port's
+parallax sink used the plain getter, so it never stamped these fields and the sky
+decoded raw.  **Fix:** `game_arm_parallax_grade()` in `main.c` replicates the
+flag-3 stamp before the getter in `game_parallax_blit`.  Verified: the port's raw
+sky `(66,150,255)` → `lut` → 565-pack = **`(33,125,239)`**, and the blue channel
+**`239` matches retail's main sky band exactly**.  (NB the old finding's raw
+`(132,186,255)` / retail `(103,165,231)` numbers were wrong — the actual decoded
+raw is `(66,150,255)`; both halves of the residual collapse to the single missing
+LUT stamp.)
+
+**Grade USER-CONFIRMED correct (ckpt 68).**  Pushed the graded sky to the feed;
+the user confirmed "the grade looks correct".  The 24bpp main-band colour is
+matched (blue `239` == retail) and the per-channel LUT path is the right one.
+
+**OPEN (deferred) — the establishing-scene sky GRADIENT.**  The user spotted a
+"dark gradient at the top" in one retail frame but *not* in another; the working
+hypothesis is that it's a **per-scene CINEMATIC effect tied to the establishing
+shot** (the intro pan/hold), NOT the flat per-channel LUT and NOT a constant
+overlay — it appears in the establishing-pan frame and is absent once gameplay
+settles.  To be confirmed by **probing ground truth** on the establishing cinematic
+(the same RE that lands the intro PAN, `ingame-camera-snap`): hook the sky draw +
+any per-row/per-scene modulation across the pan, vs decoding raw bank `0x55` to
+rule the texture in/out.  Until then the flat LUT grade is the correct base; the
+cinematic gradient is an additive scene effect to layer on later.  A row-for-row
+sky `differ_px==0` also waits on the pan so port + retail share a camera.  The
+other residuals are still-missing content: the NPC actors, the foreground tree, and
+the "Town of Tonkiness" banner (`0x5a00c0`).
 
 **Harness note:** `tools/flow/retail_fields.json` gained `tint` (`0x8a93fc`),
 `lutgate1/2` (`0x8a9510`/`0x8a9514`), and four LUT samples (`0x8a9410`+) at the

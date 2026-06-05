@@ -1492,14 +1492,37 @@ static void game_present_blit(const present_op *op, void *ud)
      * PORT-DEBT present-actor-modes). */
 }
 
+/* Mirror FUN_00417c40's flag-3 / tint-case-0 field stamp (417c40.c:33-60).  The
+ * in-game parallax far-plane banks (0x55/0x58/0x59) are 24bpp — no palette — so
+ * the 8bpp palette grade (title_sheet_format) can't reach them.  Retail instead
+ * grades 24bpp banks at DECODE: 0x417c40 (the palette-aware select the producers
+ * 0x490cd0/0x499560 call per tile) stamps the slot's brightness descriptor right
+ * before the frame getter triggers the lazy decode — f_08 (the 24bpp-pass gate),
+ * the per-channel scales f_0c/f_10/f_14 = 1000 (tint case 0, the town's
+ * DAT_008a93fc==0 identity), and f_18 = the tone-curve LUT base when the grade
+ * is armed (uVar9 = in_ECX+0x28b0 iff gate1!=0 || gate2!=1000).  ar_sprite_decode
+ * then runs ar_sheet_decode_pixels, mapping every non-key channel through the LUT
+ * (scale identity).  The port's parallax sink uses the plain getter (0x418470),
+ * skipping 0x417c40, so we replicate that one stamp here — without it the sky
+ * decodes raw/ungraded (too bright). */
+static void game_arm_parallax_grade(ar_sprite_slot *slot)
+{
+    if (slot == NULL) return;
+    slot->f_08 = 1;       /* decode 24bpp brightness/LUT pass ON */
+    slot->f_0c = 1000;    /* R scale  (tint case 0 → identity)   */
+    slot->f_10 = 1000;    /* G scale                             */
+    slot->f_14 = 1000;    /* B scale                             */
+    slot->f_18 = g_color_grade_on ? (uint32_t)(uintptr_t)g_color_lut : 0u;
+}
+
 /* parallax_blit_fn — draw one parallax far-plane tile (the 0x417c40 select
  * -> FUN_005b9a40 blit pair the background producers 0x490cd0/0x499560 use).
  * The cel for (bank, frame) is the bank slot's frame surface (ar_sprite_slot_frame
  * = 0x418470 — the same resolve the tilemap walk uses), blitted WHOLE at (x,y)
- * via zdd_object_blt_onto (= FUN_005b9a40, src rect {0,0,w,h}).  Fidelity note:
- * retail selects the cel via 0x417c40 (palette-aware); the port uses the plain
- * frame getter, so the far-plane renders with the base palette — the time/
- * difficulty tint is deferred (PORT-DEBT render-palette-tint, as for the tiles). */
+ * via zdd_object_blt_onto (= FUN_005b9a40, src rect {0,0,w,h}).  The slot's grade
+ * descriptor is armed first (game_arm_parallax_grade = 0x417c40's flag-3 stamp),
+ * so the 24bpp far-plane decodes through the in-game tone-curve LUT — matching
+ * retail's darker/more-saturated sky + mountains. */
 static void game_parallax_blit(void *ctx, uint16_t bank, int32_t frame,
                                int32_t x, int32_t y)
 {
@@ -1507,6 +1530,7 @@ static void game_parallax_blit(void *ctx, uint16_t bank, int32_t frame,
     if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
     ar_sprite_slot *slot = ar_pool_get_slot(bank);
     if (slot == NULL) return;
+    game_arm_parallax_grade(slot);   /* 0x417c40's descriptor stamp, pre-decode */
     void *cel = ar_sprite_slot_frame(slot, (uint16_t)frame);
     if (cel == NULL) return;
     zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
