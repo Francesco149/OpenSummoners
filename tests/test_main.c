@@ -871,6 +871,12 @@ struct test_case {
     X(color_grade_identity)                                    \
     X(color_grade_active_gate)                                 \
     X(color_grade_apply_palette_rgb)                           \
+    X(camera_follow_pan_trajectory)                            \
+    X(camera_follow_vel_caps_at_speed)                         \
+    X(camera_follow_lands_exact_no_overshoot)                  \
+    X(camera_follow_far_boost_only_when_flagged)               \
+    X(camera_shake_inactive_is_zero)                           \
+    X(camera_follow_step_both_axes)                            \
 
 #define X(n) extern int test_##n(void);
 TESTS

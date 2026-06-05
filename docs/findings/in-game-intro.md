@@ -1343,3 +1343,52 @@ Until then the port holds at `MAP_RENDER_CAM_TOWN_3F2` (cam x=128000). NB the
 holds from ~flip 2450 — a second static `MAP_RENDER_CAM_TOWN_3F2_SETTLED`
 constant enables a flip-anchored backdrop/sky diff at the settled end **without**
 the easer (both sides share the full camera there).
+
+### The camera EASER located + formula (ckpt 69, HW watchpoint)
+
+The per-frame camera-follow easer is **`FUN_0043d1d0`** (366 B) — found with a
+**hardware watchpoint** on the resolved heap address `*(*(0x8a9b50)+0x104c)+0x60`
+(`tools/mem_watch.py --watch-chain … --hw`; frida-17 per-thread
+`Process.getCurrentThread().setHardwareWatchpoint`). It was invisible to static
+grep because it is dispatched through a **heap function pointer** (the captured
+caller frame is a heap VA, not a code VA). The single writer instruction is
+`0x43d26d`; the captured value trajectory `127970 → 12800` (target) and the
+**per-tick deltas 30,40,50,…,290,300 then capped at 300** pin the formula
+bit-exactly. Called once per frame from `0x439690:1123` (`FUN_0043d1d0()` then
+`FUN_00499ab0()` the shake/HUD).
+
+**`FUN_0043d1d0` (the easer), `in_ECX` = the view object (`int *`):**
+```
+// per axis: X uses [0x1b]=tgt(+0x6c) [0x18]=cur(+0x60) [2]=vel(+0x08)
+//           Y uses [0x1c]=tgt(+0x70) [0x17]=cur(+0x5c) [3]=vel(+0x0c)
+// [7]=flag(+0x1c)  [8]=vel CAP(+0x20, =300 for the town pan)
+dist = |tgt - cur|
+if (vel < dist) {                       // still approaching
+    extra = 0;
+    if (flag != 0 && dist > 16000) extra = (dist - 16000) / 10;  // far-boost
+    cur += (cur < tgt ? +1 : -1) * (vel + extra);
+    vel  = min(vel + 10, cap);          // ACCELERATE (+10/tick, cap +0x20)
+} else {                                // within one step of target
+    cur  = tgt;                         // SNAP onto target
+    vel  = max(vel - 10, 0);            // DECELERATE
+}
+// then FUN_0043d340(view+0x24, cur_x, mapw-vpw) / (view+0x3c, cur_y, maph-vph)
+```
+The town pan has **flag (`+0x1c`) == 0**, so the far-boost arm is NOT taken — it
+is the plain `vel += 10` (cap 300) ramp the capture shows. vel/cur start at 0/spawn;
+when the scripted op sets `tgt=12800`/`cap(+0x20)=300`, the ramp runs to target then
+holds (cur==tgt each frame, vel decays to 0). **`FUN_0043d340`** (299 B) is the
+screen-shake sub-applier (writes the projector accumulator `+0x34`/`+0x4c` from a
+`{active,duration,counter,phase,out,amp}` shake block + a 0..1000 envelope, clamped to
+`[−ext, mapext−vp−cur]`); **inert during the pan** (`*param_1==0` → out=0), which is why
+`cam_x34`/`cam_x4c` probe 0 throughout.
+
+**Still PORT-DEBT `ingame-camera-pan`:** the scripted op that SETS `tgt=12800`/`cap=300`
+at hold-end (~flip 1617, ~183 flips after `game_enter`) — a one-time write, not per-frame
+(target is constant across the pan), so portable as a hold-timer + target set. The easer
+formula itself is now fully known + bit-exact-validatable against the captured trajectory.
+
+**Harness win (reusable):** `mem_watch.py` now resolves **chain heap addresses**
+(`--watch-chain ROOTVA:HOPS:OFF:SIZE[:LABEL[:ARM_AT_FLIP]]`) and supports a **`--hw`
+hardware watchpoint** — the fitting tool for a hot heap field (zero neighbour overhead,
+no MemoryAccessMonitor livelock). The `--hw` backtrace names the caller chain.

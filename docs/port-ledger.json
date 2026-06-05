@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 189,
+  "tested": 192,
   "ported": 5,
-  "unported": 1564,
+  "unported": 1561,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 194,
-  "pct_touched": 12.1,
-  "pct_tested": 12.1,
-  "engine_proper_touched": 181,
+  "touched": 197,
+  "pct_touched": 12.3,
+  "pct_tested": 12.3,
+  "engine_proper_touched": 184,
   "bytes_total": 1694868,
-  "bytes_touched": 226572,
-  "pct_bytes_touched": 13.4
+  "bytes_touched": 228593,
+  "pct_bytes_touched": 13.5
  },
  "orphan_refs": [
   "0x56c470",
@@ -3001,16 +3001,22 @@
    "name": "FUN_0043d1d0",
    "size": 366,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/camera_follow.c",
+    "src/camera_follow.h"
+   ]
   },
   {
    "va": "0x43d340",
    "name": "FUN_0043d340",
    "size": 299,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/camera_follow.c",
+    "src/camera_follow.h"
+   ]
   },
   {
    "va": "0x43d470",
@@ -6094,8 +6100,10 @@
    "name": "FUN_00499ab0",
    "size": 1356,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/camera_follow.h"
+   ]
   },
   {
    "va": "0x49a050",

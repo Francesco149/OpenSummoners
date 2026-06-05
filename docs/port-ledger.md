@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **194** (12.1% of engine-proper) — tested 189, ported 5
-- code bytes touched: **13.4%** (226,572 / 1,694,868 B of engine-proper)
-- unported: **1564**
+- touched: **197** (12.3% of engine-proper) — tested 192, ported 5
+- code bytes touched: **13.5%** (228,593 / 1,694,868 B of engine-proper)
+- unported: **1561**
 - orphan refs in src/ not in this table: 4
 
-## tested (189) — ported + host unit suite
+## tested (192) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -55,6 +55,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
 | 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
+| 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h |
+| 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
 | 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |
 | 0x48d3d0 | FUN_0048d3d0 | 664 | newgame_box.c |
@@ -70,6 +72,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
+| 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |

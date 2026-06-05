@@ -59,11 +59,29 @@
         {"name": "cam_x1c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 28, "type": "i32", "benign": true,
          "reason": "view+0x1c (view[7]) — camera pan state flag; 439690 zeroes it on a snap/pan command. Probing to model the pan."},
         {"name": "cam_x20", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 32, "type": "i32", "benign": true,
-         "reason": "view+0x20 (view[8]) — camera pan SPEED/mode; 439690 sets it to param+0x58 on a smooth-pan command (param+0x4c), 0 on an instant snap (param+0x40). Distinguishes scripted-ease vs follow."},
+         "reason": "view+0x20 (view[8]) — the camera follow VELOCITY CAP (= pan speed); the easer FUN_0043d1d0 ramps vel +10/frame up to this. The town pan = 300 (set once with the target at hold-end). Ported: camera_view.cap."},
         {"name": "cam_x6c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 108, "type": "i32", "benign": true,
-         "reason": "view+0x6c (view[0x1b]) — TARGET x scroll origin (clamped to [0, mapw-vpw]); 439690 sets it, the per-frame easer moves +0x60 toward it. If fixed across the pan => scripted; if tracking the leader => follow."},
+         "reason": "view+0x6c (view[0x1b]) — TARGET x scroll origin (clamped to [0, mapw-vpw]); RESOLVED: a SCRIPTED constant (12800 for the town), set once at hold-end, NOT leader-tracking. The easer FUN_0043d1d0 moves +0x60 toward it. Ported: camera_view.tgt_x."},
         {"name": "cam_x70", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 112, "type": "i32", "benign": true,
-         "reason": "view+0x70 (view[0x1c]) — TARGET y scroll origin (clamped to [0, maph-vph]); pairs with cam_x6c."}
+         "reason": "view+0x70 (view[0x1c]) — TARGET y scroll origin (clamped to [0, maph-vph]); pairs with cam_x6c (12800, static through the town pan). Ported: camera_view.tgt_y."}
+      ]
+    },
+    "0x43d1d0": {
+      "name": "camera_follow_step",
+      "_note": "FUN_0043d1d0 (366 B) — the once-per-frame camera EASE-TO-TARGET, called from 0x439690:1123 (then FUN_00499ab0 shake/HUD). Dispatched through a HEAP function pointer (invisible to static call-graph search); located ckpt 69 with a HW watchpoint on view+0x60 (writer insn 0x43d26d). Per axis: dist=|tgt-cur|; if vel<dist -> cur += sign*(vel + (flag&&dist>16000 ? (dist-16000)/10 : 0)), vel=min(vel+10,cap); else cur=tgt (snap), vel=max(vel-10,0). Then FUN_0043d340 writes the projector accumulators +0x34/+0x4c (shake; inert during the pan). PORT MIRROR: src/camera_follow.c camera_follow_step (host-tested bit-exact vs the captured retail trajectory); add CALL_TRACE_BEGIN(0x43d1d0) when it is wired into the live game_drive camera (PORT-DEBT ingame-camera-pan). Fields read at onEnter (the view = *(*(0x8a9b50)+0x104c)): the X-axis easer state.",
+      "fields": [
+        {"name": "cur_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 96,  "type": "i32", "benign": true,
+         "reason": "view+0x60 — current x scroll (the easer's output; matches cam_x60 at the Flip). camera_view.cur_x."},
+        {"name": "tgt_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 108, "type": "i32", "benign": true,
+         "reason": "view+0x6c — target x scroll. camera_view.tgt_x."},
+        {"name": "vel_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 8,   "type": "i32", "benign": true,
+         "reason": "view+0x08 — the X follow VELOCITY accumulator (+10/frame, cap=+0x20); previously unprobed, now the integrator. camera_view.vel_x."},
+        {"name": "vel_y", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 12,  "type": "i32", "benign": true,
+         "reason": "view+0x0c — the Y follow velocity accumulator. camera_view.vel_y."},
+        {"name": "cap",   "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 32,  "type": "i32", "benign": true,
+         "reason": "view+0x20 — velocity cap / pan speed (300 for the town). camera_view.cap (== cam_x20)."},
+        {"name": "flag",  "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 28,  "type": "i32", "benign": true,
+         "reason": "view+0x1c — far-boost enable (0 for the town pan -> no (dist-16000)/10 term). camera_view.flag (== cam_x1c)."}
       ]
     }
   }
