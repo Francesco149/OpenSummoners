@@ -902,11 +902,83 @@ referenced by bare VA so the derived ledger doesn't over-count).
 
 **This closes the `decode → grid → geometry → draw-list → present` chain** —
 every stage from the map DATA resource to the per-node blit op is a pure,
-host-tested unit. What remains for real backdrop pixels: the **camera/view
-object construction** (`cam[0x34..0x74]`, the dynamic-scroll rock) and **wiring
-into `main.c`** (a real sprite resolver `0x418470`/`&DAT_008a760c`, the EXE-NULL
-banks `0x570-0x572`, and the `0x586010` sim slice that populates the grid +
-builds the `view+0x54` layer table).
+host-tested unit. What remains for real backdrop pixels (ckpt 64 update — the
+**camera is no longer a blocker**, see "The camera/view object" below): **wiring
+into `main.c`** — a real sprite resolver (`0x418470`/`&DAT_008a760c`), the
+EXE-NULL banks `0x570-0x572`, and the `0x586010` sim slice that populates the
+grid + builds the `view+0x54` layer table. The first-frame camera is the
+live-verified constant `MAP_RENDER_CAM_TOWN_3F2`; the spawn-snap + intro pan
+that produce it are deferred (PORT-DEBT `ingame-camera-snap`).
+
+### The camera/view object — located, init RE'd, first-frame value live-probed (ckpt 64)
+
+The last blocker before real backdrop pixels was the **camera/view object**
+(`cam[0x34..0x74]`), described through ckpt 63 as a "dynamic-scroll rock with no
+clean pure init point."  That is now **refuted**: the object has a clean,
+portable room-entry init, and the opening town's *first-frame* camera is a
+determinate constant, live-verified on retail.
+
+**Where the object lives.**  `view = *(room_state + 0x104c)` where `room_state
+= DAT_008a9b50`.  Byte `0x104c` = dword index `0x413`; the room-state ctor
+`FUN_004017d0:187` allocates it as **`operator_new(0x78)` (120 B)** and stores
+it at `in_ECX[0x413]` (zeroing `view+0x54`, the draw-node layer-table count).
+So the **camera *is* the view object** (one 0x78-byte struct), spanning exactly
+`+0x00..+0x74` — the fields `map_render`/`map_present` read.
+
+**The room-entry init (portable).**  `FUN_00586010:854-872`, right after it
+builds the layer table, initialises `view = *(room_state + 0x104c)`:
+```
+view[0]    (+0x00) = grid[0x2c1038] = dim0*0xc80   (map pixel width)
+view[1]    (+0x04) = grid[0x2c103c] = dim1*0xc80   (map pixel height)
+view[0x17] (+0x5c) = 0            view[0x18] (+0x60) = 0     (scroll origin)
+view[0x19] (+0x64) = 64000        view[0x1a] (+0x68) = 48000 (viewport, 640/480 *100)
+view[0x1d] (+0x74) = 0            view[6] (+0x18) = 1
+FUN_00587d30(view+9)   -> zeroes the +0x24 sub-block (incl +0x34)
+FUN_00587d30(view+0xf) -> zeroes the +0x3c sub-block (incl +0x4c)
+```
+`FUN_00587d30` (28 B) just zeroes 5 dwords + 2 u16 of a 0x14-byte sub-struct.
+Net: at room entry the camera is **origin (0,0), viewport 640x480 (*100), all
+scroll components 0** — a pure init.  Ported as `map_render_camera_init`
+(`src/map_render.{c,h}`, the mr_camera 7-field projection), host-tested.
+
+**The first town frame is NOT origin-0 — the engine snaps + pans (live ground
+truth).**  A new field-spec probe (the agent's `src:"chain"` global-deref:
+`*(*(0x8a9b50) + 0x104c) + off`, `tools/flow/retail_fields.json`) read the
+camera at the Flip across the in-game window, twice, under `--seed-pin
+--lockstep` (`/tmp/camprobe`, `/tmp/camprobe2`):
+
+| flip | +0x60 (x) | +0x5c (y) | +0x64 | +0x68 | +0x34/+0x4c/+0x74 | note |
+|------|----------:|----------:|------:|------:|:-----------------:|------|
+| 1050 | (null — room_state not yet built; `game_enter@1092`) | | | | | |
+| 1093 | 128000 | 12800 | 64000 | 48000 | 0 | snapped; viewport == init |
+| 1100..1176 | **128000** | **12800** | 64000 | 48000 | 0 | **stable hold (~83 flips)** |
+| 1180 | 127940 | 12800 | … | … | 0 | pan onset (Δ −60) |
+| 1200 | 125000–126100 | 12800 | … | … | 0 | accelerating (run-to-run ±~4-flip phase jitter) |
+| 1250..1500 | 111650 → 36650 | 12800 | … | … | 0 | leftward cruise ≈ −300/flip |
+
+So between the room build and the first frame the engine **snaps** the origin to
+the entry spawn (`+0x60 = 128000 = 40 cells`, `+0x5c = 12800 = 4 cells`; the
+entry spawn params `+0x4028=0x65`/`+0x402c=1` from `FUN_004c5350`), holds that
+establishing shot ~flip 1093→1176, then runs a **scripted horizontal pan**
+(leftward, easing up to ≈ −300/flip).  The town first renders (~flip 1150)
+firmly inside the stable hold, so the **first town frame camera is the constant
+`{+0x60=128000, +0x5c=12800, +0x64=64000, +0x68=48000, rest 0}`** — ported as
+`MAP_RENDER_CAM_TOWN_3F2`.  Its visible window over the 88×19 grid is **cols
+39..60 (22), rows 3..18 (16)** (the right-middle of the map; the pan then walks
+left).  Viewport `+0x64/+0x68` match the static init exactly, confirming the
+586010 RE.
+
+**Parity note (pillar 2 = phase).**  The pan-onset flip drifts a few flips
+between otherwise-identical seed-pinned/lockstep runs — the same render-pace
+phase skew seen at the title (`parity-ledger.md` R3).  It does not touch the
+first-frame camera (deep in the stable hold) but must be anchored (not compared
+by raw flip index) once the pan is in scope.
+
+**Still unported (PORT-DEBT `ingame-camera-snap`):** the spawn-snap that sets
+the origin from the entry params, and the scripted intro pan (the dynamic-scroll
+engine across the `0x4710c0`/`0x54f980` camera-follow/copy routines + `0x499ab0`
+which pushes a controller's `+0x4c` into `view+0x74`).  For the static first
+frame these are replaced by the live-verified `MAP_RENDER_CAM_TOWN_3F2` constant.
 
 ## Open questions for the port
 

@@ -2023,3 +2023,37 @@ themselves are NOT yet bit-exact in the port — the per-frame fade *render* (th
 panel alpha blit, `0x48cf80`'s alpha arm via `0x5bd550`, + the GDI menu-text fade)
 is the deferred box-alpha arm; the port re-renders the menu opaque during the fade.
 That render is a separate open item; this quirk closed the TIMING gap.
+
+## 73. The in-game camera IS the view object — `*(room_state+0x104c)`, a 0x78-byte struct with a fixed 640×480 viewport (`+0x64=64000`, `+0x68=48000`); the opening-town intro holds an establishing shot ~83 flips, then scripted-pans left
+
+The render camera and the "view object" `FUN_00490f30`/`FUN_0048eac0` project
+through are the **same 0x78-byte struct**: `view = *(room_state + 0x104c)`
+(`room_state = DAT_008a9b50`), allocated as `operator_new(0x78)` by the
+room-state ctor `FUN_004017d0:187` (byte 0x104c = dword index 0x413).  Its
+room-entry init is `FUN_00586010:854-872`:
+
+```
+view[0]/[1] = dim0*0xc80 / dim1*0xc80    (map pixel extent)
+view+0x5c = view+0x60 = view+0x74 = 0    (scroll origin / shear, zeroed)
+view+0x64 = 64000   view+0x68 = 48000    (viewport = 640*100 / 480*100, FIXED)
+FUN_00587d30(view+9) / (view+0xf)        (zero the +0x24 / +0x3c sub-blocks,
+                                          which hold +0x34 / +0x4c)
+```
+
+So the viewport is a hard 640×480 (in the engine's ×100 fixed point) and the
+origin starts at (0,0).  **Live ground truth (`--seed-pin --lockstep`, two runs):**
+on the opening town (map 0x3f2, room 210110) the engine then **snaps** the origin
+to the entry spawn — `view+0x60 = 128000` (40 cells), `view+0x5c = 12800`
+(4 cells) — **by flip 1093, and HOLDS it stable ~83 flips through ~1176** (the
+town first renders ~flip 1150, inside this hold).  After ~1176 it runs a
+**scripted leftward pan** (`view+0x60` decreasing, easing up to ≈ −300/flip),
+while `view+0x5c` (y) stays fixed at 12800 and `+0x34`/`+0x4c`/`+0x74` stay 0.
+
+**TAS/parity consequence:** the opening town's *first* rendered frame uses a
+determinate camera (window cols 39-60 / rows 3-18 of the 88×19 grid), so the
+static backdrop is comparable without porting the dynamic scroll.  The pan-onset
+flip jitters a few flips run-to-run (the R3 render-pace phase pillar) — anchor on
+`game_enter`, do not compare the pan by raw flip index.  (Probe method: the
+field-spec `src:"chain"` global-deref `*(*(0x8a9b50)+0x104c)+off`, the `cam_*`
+fields in `tools/flow/retail_fields.json`; writeup `in-game-intro.md` "The
+camera/view object".)

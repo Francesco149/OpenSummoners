@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-05 (ckpt 64) — the camera/view object RE'd + first-frame value live-probed
+
+The last non-wiring blocker for real town pixels was the **camera/view object**
+(`cam[0x34..0x74]`), framed through ckpt 63 as a "dynamic-scroll rock with no
+clean pure init." That is **refuted**. The camera *is* the view object — one
+`operator_new(0x78)` struct allocated by the room-state ctor `FUN_004017d0:187`
+and stored at `room_state+0x104c` (byte 0x104c = dword index 0x413). Its
+room-entry init is clean: `FUN_00586010:854-872` sets the fixed 640×480 viewport
+(`+0x64=64000`, `+0x68=48000`), zeroes the scroll origin (`+0x5c/+0x60/+0x74`),
+and the two `FUN_00587d30` calls zero the `+0x24`/`+0x3c` sub-blocks (which hold
+`+0x34`/`+0x4c`). Ported as `map_render_camera_init`.
+
+**Live ground truth.** Added a `src:"chain"` field-spec source to the Frida agent
+(a global-root pointer-deref: `*(*(0x8a9b50)+0x104c)+off`) + 9 `cam_*` fields to
+`tools/flow/retail_fields.json`, then probed the in-game camera at the Flip,
+twice, under `--seed-pin --lockstep`. The camera **snaps to `+0x60=128000`
+(40 cells) / `+0x5c=12800` (4 cells) by flip 1093 and holds ~83 flips through
+~1176** — the opening town first renders ~flip 1150, inside this stable hold —
+then runs a **scripted leftward pan** (easing up to ≈ −300/flip). The probed
+viewport matches the static init exactly, confirming the 586010 RE. The pan-onset
+flip drifts a few flips run-to-run (the R3 render-pace phase pillar), but does not
+touch the first-frame camera.
+
+So the opening town's first frame uses a **determinate constant**, ported as
+`MAP_RENDER_CAM_TOWN_3F2` (`src/map_render.{c,h}`; visible window cols 39-60 /
+rows 3-18 over the 88×19 DATA-1022 grid). Real backdrop pixels now need only the
+`main.c` wiring (sprite resolver `0x418470`, EXE-NULL banks `0x570-0x572`, the
+`0x586010` sim slice). **DEFERRED** (PORT-DEBT `ingame-camera-snap`): the
+spawn-snap + the intro pan (the dynamic-scroll engine). 2 new host tests →
+**821 pass / 0 fail / 6 skip**; ledger unchanged at **191/186** (the init is a
+slice of the bare-VA-referenced `586010`). Full writeup:
+`findings/in-game-intro.md` "The camera/view object".
+
+---
+
 ## 2026-06-05 (ckpt 63) — the in-game PRESENT PASS ported (FUN_0048eac0 + FUN_00490b90)
 
 Ported the **consumer** side of the in-game draw pipeline — the pass that turns
