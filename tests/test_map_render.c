@@ -53,6 +53,45 @@ int test_map_render_window_clamps_origin(void)
     return 0;
 }
 
+/* ---- camera init + the live-probed opening-town first-frame camera --------- */
+
+int test_map_render_camera_init(void)
+{
+    /* 586010:854-861 + 587d30: viewport 640x480 (*100), everything else 0. */
+    mr_camera cam;
+    /* prime with junk to prove the init overwrites every field */
+    cam.off34 = cam.off4c = cam.off5c = cam.off60 = cam.off74 = 0x7fffffff;
+    cam.off64 = cam.off68 = -1;
+    map_render_camera_init(&cam, 88 * 0xc80, 19 * 0xc80);
+    T_ASSERT_EQ_I(cam.off34, 0);
+    T_ASSERT_EQ_I(cam.off4c, 0);
+    T_ASSERT_EQ_I(cam.off5c, 0);
+    T_ASSERT_EQ_I(cam.off60, 0);
+    T_ASSERT_EQ_I(cam.off64, 64000);   /* 640 * 100 */
+    T_ASSERT_EQ_I(cam.off68, 48000);   /* 480 * 100 */
+    T_ASSERT_EQ_I(cam.off74, 0);
+    return 0;
+}
+
+int test_map_render_camera_town_first_frame(void)
+{
+    /* The live-probed first-frame camera selects the right cell window over the
+     * 88x19 DATA-1022 grid: cols 39..60 (22), rows 3..18 (16). */
+    const mr_camera *cam = &MAP_RENDER_CAM_TOWN_3F2;
+    T_ASSERT_EQ_I(cam->off60, 128000);   /* 40 * 0xc80 */
+    T_ASSERT_EQ_I(cam->off5c, 12800);    /* 4  * 0xc80 */
+    T_ASSERT_EQ_I(cam->off64, 64000);
+    T_ASSERT_EQ_I(cam->off68, 48000);
+
+    mr_window w;
+    map_render_visible_window(cam, 88, 19, &w);
+    T_ASSERT_EQ_I(w.col0, 39);   /* 128000/3200 - 1 */
+    T_ASSERT_EQ_I(w.ncols, 22);  /* min(88-39, 20+2) */
+    T_ASSERT_EQ_I(w.row0, 3);    /* 12800/3200 - 1 */
+    T_ASSERT_EQ_I(w.nrows, 16);  /* min(19-3, 15+2) = min(16,17) */
+    return 0;
+}
+
 int test_map_render_window_no_cap_when_near_edge(void)
 {
     /* col0 close to dim0 so (dim0 - col0) < cap -> the cap branch is NOT taken

@@ -60,6 +60,34 @@ void map_render_visible_window(const mr_camera *cam,
     out->nrows = nrows;
 }
 
+void map_render_camera_init(mr_camera *cam,
+                            int32_t map_pixel_w, int32_t map_pixel_h)
+{
+    /* 586010:854-861 — the view-object viewport/origin init, mr_camera subset.
+     * view[0]=map_pixel_w (:856) and view[1]=map_pixel_h (:862) are written on
+     * the full 0x78-byte object but are not part of this projection. */
+    (void)map_pixel_w;
+    (void)map_pixel_h;
+    cam->off34 = 0;        /* 587d30 zeroes the +0x24 sub-block (incl +0x34)   */
+    cam->off4c = 0;        /* 587d30 zeroes the +0x3c sub-block (incl +0x4c)   */
+    cam->off5c = 0;        /* 586010:858  puVar17[0x17] = 0                    */
+    cam->off60 = 0;        /* 586010:857  puVar17[0x18] = 0                    */
+    cam->off64 = 64000;    /* 586010:860  puVar17[0x19] = 64000 (640*100)      */
+    cam->off68 = 48000;    /* 586010:861  puVar17[0x1a] = 48000 (480*100)      */
+    cam->off74 = 0;        /* 586010:859  puVar17[0x1d] = 0                    */
+}
+
+/* Live-probed opening-town first-frame camera (see header + in-game-intro.md). */
+const mr_camera MAP_RENDER_CAM_TOWN_3F2 = {
+    .off34 = 0,
+    .off4c = 0,
+    .off5c = 12800,    /* 4 cells down  (4  * 0xc80)  — spawn snap            */
+    .off60 = 128000,   /* 40 cells right (40 * 0xc80) — spawn snap            */
+    .off64 = 64000,    /* 640*100 viewport (== map_render_camera_init)        */
+    .off68 = 48000,    /* 480*100 viewport                                    */
+    .off74 = 0,
+};
+
 uint32_t map_render_grid_index(int32_t col, int32_t row)
 {
     /* 490f30.c:64 — iVar11 = col*0x80 + row (the inner loop advances the

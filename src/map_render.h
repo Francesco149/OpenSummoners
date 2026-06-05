@@ -81,6 +81,38 @@ typedef struct mr_camera {
     int32_t off74;   /* +0x74 */
 } mr_camera;
 
+/*
+ * Build the room-entry VIEW/camera state for the mr_camera projection — the
+ * pure subset of the in-game sim's view-object init (586010:854-861 + the two
+ * 587d30 zeroing calls at :871-872; the full object is operator_new(0x78),
+ * stored at room_state +0x104c by the 0x4017d0 ctor).  Sets the fixed 640x480
+ * viewport (off64 = 64000 = 640*100, off68 = 48000 = 480*100, live-confirmed)
+ * and zeroes the scroll origin/components (off34/off4c/off5c/off60/off74).
+ * `map_pixel_w/h` (= dim0*0xc80 / dim1*0xc80, written to view[0]/[1] at
+ * 586010:856/862) are outside the mr_camera projection and accepted only for
+ * documentation.
+ *
+ * NB this is the camera the instant the room is built; the engine then SNAPS
+ * the origin to the entry spawn before the first frame renders and (for the
+ * scripted intro) PANS it.  The opening town's first rendered frame was
+ * live-probed — see MAP_RENDER_CAM_TOWN_3F2.
+ */
+void map_render_camera_init(mr_camera *cam,
+                            int32_t map_pixel_w, int32_t map_pixel_h);
+
+/*
+ * The live-probed first-frame camera for the opening town (map 0x3f2, room
+ * 210110, DATA 1022): the determinate constant the static town backdrop
+ * projects through (~flip 1150, a stable hold from ~flip 1093 to ~1176 under
+ * --seed-pin --lockstep, before the leftward intro pan).  Origin (off60 =
+ * 128000 = 40 cells, off5c = 12800 = 4 cells) is the spawn-snap value — NOT
+ * produced by map_render_camera_init (the engine spawn-positioning sets it).
+ * Window: cols 39..60 (22), rows 3..18 (16).  See docs/findings/in-game-intro.md
+ * "The camera/view object".  PORT-DEBT(ingame-camera-snap): the spawn snap +
+ * the intro pan are unported (the dynamic-scroll engine).
+ */
+extern const mr_camera MAP_RENDER_CAM_TOWN_3F2;
+
 /* The visible cell window: cells [col0, col0+ncols) x [row0, row0+nrows). */
 typedef struct mr_window {
     int32_t col0;

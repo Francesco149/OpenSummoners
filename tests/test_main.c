@@ -823,6 +823,8 @@ struct test_case {
     X(map_decode_1b5ab)                                        \
     X(map_decode_full_small)                                   \
     X(map_decode_empty_cell_noop)                              \
+    X(map_render_camera_init)                                  \
+    X(map_render_camera_town_first_frame)                      \
     X(map_render_window_basic)                                 \
     X(map_render_window_clamps_origin)                         \
     X(map_render_window_no_cap_when_near_edge)                 \

@@ -551,6 +551,18 @@ function ctReadField(fld, args) {
         if (src === 'arg')      return ctFormatTyped(type, null, args[fld.index | 0]);
         if (src === 'argderef') return ctFormatTyped(
             type, args[fld.index | 0].readPointer().add(fld.off | 0), null);
+        if (src === 'chain') {
+            // Global pointer (rva(va).readPointer()) → follow each `hops` offset
+            // as a pointer hop → read typed at the final `off`. Reads a field of
+            // an object reached through a global root (e.g. the camera/view
+            // object at *(*(DAT_008a9b50) + 0x104c) + off). A null/bad pointer
+            // anywhere in the chain faults and is caught → null (so the field
+            // reads null before the root global is allocated, e.g. pre-in-game).
+            let p = rva(fld.va).readPointer();
+            const hops = fld.hops || [];
+            for (let i = 0; i < hops.length; i++) p = p.add(hops[i] | 0).readPointer();
+            return ctFormatTyped(type, p.add(fld.off | 0), null);
+        }
         return null;            // retval / unknown src
     } catch (e) { return null; }
 }

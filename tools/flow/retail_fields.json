@@ -4,10 +4,11 @@
     "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
     "name": "short label for flow_diff output (wins over functions.csv).",
     "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
-    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | retval (onLeave).",
-    "fields[].va": "for src=global: the DAT_ VA to read.",
+    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | retval (onLeave).",
+    "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
     "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
-    "fields[].off": "for src=argderef: byte offset added before the deref-read.",
+    "fields[].off": "for src=argderef/chain: byte offset added before the final typed read.",
+    "fields[].hops": "for src=chain: list of byte offsets, each a pointer hop after reading the global root pointer at `va`; the final `off` is the value read. chain = read *(va), then for each h: p = *(p + h), then read typed at p + off. Reaches a field behind a global root (e.g. the camera/view at *(*(DAT_008a9b50) + 0x104c) + off).",
     "fields[].type": "i32 | u32 | f32 | hex.",
     "fields[].benign": "true => compare for PRESENCE only (memory-layout pointer, phase-origin counter, RNG seed origin); pair with `reason`.",
     "fields[].reason": "human note surfaced by --field-timeline when a benign field diverges (accepted-with-cause, not silently dropped)."
@@ -19,7 +20,26 @@
       "_note": "FUN_005b8fc0 — the DDraw Flip dispatcher, entered ONCE PER FRAME (it is the agent's flip-frame anchor). The right cross-side per-frame VA: retail's title runner FUN_0056aea0 keeps its do/while loop INTERNAL, so onEnter there fires once at scene entry, not per frame; the port externalized that loop, so the shared per-frame boundary both sides hit is the Flip. Port side: src/main.c drive_present (CALL_TRACE_BEGIN(0x5b8fc0)).",
       "fields": [
         {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex",
-         "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."}
+         "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."},
+
+        {"name": "cam_mapw", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 0, "type": "i32", "benign": true,
+         "reason": "exploratory camera/view probe (in-game-intro.md): view[0x00] = map pixel width = dim0*0xc80, set at 586010:856. No port equivalent yet — retail ground-truth for the camera build."},
+        {"name": "cam_maph", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 4, "type": "i32", "benign": true,
+         "reason": "view[0x04] = map pixel height = dim1*0xc80, 586010:862."},
+        {"name": "cam_x34", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 52, "type": "i32", "benign": true,
+         "reason": "view+0x34 — scroll-x sub-pixel accumulator (projector sx term); zeroed at room init via 587d30, driven by the camera follow. The value at the first town frame tells us if the camera snapped to the spawn."},
+        {"name": "cam_x4c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 76, "type": "i32", "benign": true,
+         "reason": "view+0x4c — scroll-y sub-pixel accumulator (projector sy term); zeroed at room init via 587d30, driven by the follow."},
+        {"name": "cam_x5c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 92, "type": "i32", "benign": true,
+         "reason": "view+0x5c — y scroll origin (projector sy term); set 0 at 586010:858."},
+        {"name": "cam_x60", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 96, "type": "i32", "benign": true,
+         "reason": "view+0x60 — x scroll origin (projector sx + window col0); set 0 at 586010:857."},
+        {"name": "cam_x64", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 100, "type": "i32", "benign": true,
+         "reason": "view+0x64 — viewport width (window ncols, /0xc80); set 64000 (=640*100) at 586010:860."},
+        {"name": "cam_x68", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 104, "type": "i32", "benign": true,
+         "reason": "view+0x68 — viewport height (window nrows, /0xc80); set 48000 (=480*100) at 586010:861."},
+        {"name": "cam_x74", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 116, "type": "i32", "benign": true,
+         "reason": "view+0x74 — zoom/vertical-shear term (projector sy: +cam+0x74*100); set 0 at 586010:859, updated from a controller's +0x4c at 499ab0:96."}
       ]
     }
   }
