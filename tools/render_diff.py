@@ -187,7 +187,8 @@ def diff_frame(rblits: list[dict], pblits: list[dict]) -> list[tuple[str, str]]:
 
 
 def run(retail: Path, port: Path, frames: list[int] | None,
-        first_only: bool, summary: bool) -> int:
+        first_only: bool, summary: bool,
+        pair: tuple[int, int] | None = None) -> int:
     rb = load_blits(retail)
     pb = load_blits(port)
 
@@ -197,17 +198,34 @@ def run(retail: Path, port: Path, frames: list[int] | None,
               "is the field spec hooking the blit VAs?)", file=sys.stderr)
         return 2
 
-    common = sorted(set(rb) & set(pb))
-    if frames is not None:
-        common = [f for f in frames if f in rb and f in pb]
-        for f in frames:
-            if f not in rb or f not in pb:
-                print(f"render_diff: frame {f} missing "
-                      f"(retail={f in rb} port={f in pb})", file=sys.stderr)
-    if not common:
-        print(f"render_diff: no common frames "
-              f"(retail {sorted(rb)[:6]}…, port {sorted(pb)[:6]}…)", file=sys.stderr)
-        return 2
+    # Explicit cross-side frame pairing: retail and port frame numbers differ
+    # (boot timing), so diffing a known retail frame R against a known port frame
+    # P (e.g. both in the camera hold) needs an explicit map. Synthesise a single
+    # shared key so the rest of the loop is unchanged.
+    if pair is not None:
+        rfr, pfr = pair
+        if rfr not in rb or pfr not in pb:
+            print(f"render_diff: pair missing (retail {rfr}={rfr in rb}, "
+                  f"port {pfr}={pfr in pb}); retail has {sorted(rb)[:6]}…, "
+                  f"port has {sorted(pb)[:6]}…", file=sys.stderr)
+            return 2
+        rb = {rfr: rb[rfr]}
+        pb = {rfr: pb[pfr]}      # re-key the port frame onto the retail number
+        common = [rfr]
+    else:
+        common = sorted(set(rb) & set(pb))
+        if frames is not None:
+            common = [f for f in frames if f in rb and f in pb]
+            for f in frames:
+                if f not in rb or f not in pb:
+                    print(f"render_diff: frame {f} missing "
+                          f"(retail={f in rb} port={f in pb})", file=sys.stderr)
+        if not common:
+            print(f"render_diff: no common frames "
+                  f"(retail {sorted(rb)[:6]}…, port {sorted(pb)[:6]}…); pass "
+                  f"--retail-frame R --port-frame P to pair across boot-timing skew",
+                  file=sys.stderr)
+            return 2
 
     total = 0
     classes: dict[str, int] = {}
@@ -248,6 +266,11 @@ def main() -> int:
     ap.add_argument("--frame", type=int, action="append", dest="frames",
                     help="a flip/sim frame both sides captured (repeatable); "
                          "default = all common frames")
+    ap.add_argument("--retail-frame", type=int, default=None,
+                    help="pair a specific retail frame with --port-frame "
+                         "(boot timing differs; e.g. both in the camera hold)")
+    ap.add_argument("--port-frame", type=int, default=None,
+                    help="the port frame to pair with --retail-frame")
     ap.add_argument("--first", action="store_true",
                     help="show only the FIRST divergence per frame (the "
                          "stop-at-first-divergence loop)")
@@ -259,7 +282,14 @@ def main() -> int:
         if not p.exists():
             print(f"render_diff: not found: {p}", file=sys.stderr)
             return 2
-    return run(args.retail, args.port, args.frames, args.first, args.summary)
+    pair = None
+    if (args.retail_frame is None) != (args.port_frame is None):
+        print("render_diff: --retail-frame and --port-frame must be given together",
+              file=sys.stderr)
+        return 2
+    if args.retail_frame is not None:
+        pair = (args.retail_frame, args.port_frame)
+    return run(args.retail, args.port, args.frames, args.first, args.summary, pair)
 
 
 if __name__ == "__main__":

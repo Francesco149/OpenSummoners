@@ -159,12 +159,25 @@ def main() -> int:
     rc, out, _ = run_main(mod, ["--retail", str(rp), "--port", str(pp_bad)])
     chk(rc == 1 and "rect" in out, f"divergent CLI → exit 1 + [rect]: rc={rc} {out!r}")
 
+    # ── 10. cross-boot-timing frame pairing (--retail-frame/--port-frame) ──
+    # Retail blit on frame 1500, port the SAME sprite on frame 1200 (different
+    # boot timing). With no common frame, the pair maps them.
+    rp2 = write_trace([blit(CLIP, 1500, 0, fields(res=0x55, dx=10))])
+    pp2 = write_trace([blit(CLIP, 1200, 0, fields(res=0x55, dx=10))])
+    rc, out, err = run_main(mod, ["--retail", str(rp2), "--port", str(pp2),
+                                  "--retail-frame", "1500", "--port-frame", "1200"])
+    chk(rc == 0 and "MATCH" in out, f"paired match → exit 0: rc={rc} {out!r} {err!r}")
+    # half a pair is an error
+    rc, _, err = run_main(mod, ["--retail", str(rp2), "--port", str(pp2),
+                                "--retail-frame", "1500"])
+    chk(rc == 2 and "together" in err, f"half-pair → exit 2: rc={rc} {err!r}")
+
     if failures:
         print(f"render_diff tests: {len(failures)} FAIL")
         for m in failures:
             print("  ✗", m)
         return 1
-    print("render_diff tests: OK (9 checks)")
+    print("render_diff tests: OK (10 checks)")
     return 0
 
 

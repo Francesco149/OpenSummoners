@@ -114,6 +114,34 @@ This proves the cross-side identity, the registry on both sides, the geometry/
 state reads, and the classifier. dhash is deterministic across frames (the decode
 is stable).
 
+### The TOWN frame — the real target (2026-06-06, the methodical loop)
+
+Drove both sides to the opening town and diffed the camera **hold** (cam snapped
+at 128000, before the pan): port frame 1200 (`game_enter@1116`) paired with retail
+frame 1500 (`game_enter@1433`) via `--retail-frame 1500 --port-frame 1200`.
+
+Result: **606 retail blits / 250 port blits → 356 divergences, ALL `[sprite]`
+(retail-drew-port-didn't), ZERO `[rect]`/`[decode]`/`[state]`, ZERO port-drew-
+extra.** Every one of the port's 250 blits aligned to a retail blit by
+`(res, frame)` AND matched its geometry + DDraw state — i.e. **the backdrop the
+port renders is pixel-faithful to retail; the gaps are purely MISSING layers**,
+not wrong ones. The 356 missing draws:
+
+- **320× bank `0x583`** (`blt_onto`, frame 0, no colorkey) — a **64×4 tile drawn
+  in a full-screen grid** (dx 0–576 = 10 cols, dy 0–476; `dy=416` is the
+  letterbox bottom-bar row). Deterministic → portable. This is the
+  **establishing-shot cinematic overlay** (quirk #74 letterbox + dark gradient),
+  the single biggest missing layer and the next concrete chip.
+- **~36× the actor / overlay banks** (`0x426`/`0x403`/`0x3fa`/`0x481`/`0x47b`/
+  `0x472`/`0x46b`/`0x46a`/`0x462`/`0x459`, `blt_keyed`) — the NPC actors +
+  foreground tree + "Town of Tonkiness" banner (PORT-DEBT `present-actor-modes` /
+  `ingame-nontile-layers`). The actors are RNG-driven; their motion is
+  accepted-divergent until the scene's RNG consumers are RE'd (ckpt-73 decision).
+
+This is the loop working end-to-end on the real target: trace one frame → the diff
+names exactly what's missing/wrong → the backdrop is confirmed correct → the next
+chip (`0x583`) and the deferred set (actors) fall out automatically.
+
 ## Open / next layers
 
 - **Retail dhash** — hook the decoder `FUN_004184a0` and fingerprint the decoded
