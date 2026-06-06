@@ -434,6 +434,23 @@ let g_rand_hooked       = false;
 // field-spec field declaring `src:"rngcalls"` reads it directly (ctReadField),
 // and flow_diff can classify per-anchor RNG consumption without an ad-hoc flag.
 let g_rng_count_total   = 0;
+
+// ─── render-id registry (DDraw blit-trace cross-side identity, Phase-B B3) ──
+// The retail mirror of src/render_id.c: map each decoded cel pointer to its
+// LOAD-STABLE (resource_id, frame) so the blit trace names a blit's SOURCE the
+// same way the port does, regardless of the allocation-dependent pointer.  Both
+// sides register at the ONE universal resolver FUN_00418470 (__thiscall: ECX =
+// the bank's ar_sprite_slot, arg0 = frame, retval = entries[0].frames[frame] =
+// the cel).  resource_id is read off slot+0x40.  A field declaring
+// src:"renderid" looks the blit's source object up here; auto-installs the hook
+// (like rngcalls), no ad-hoc flag.  Long-lived (cels persist across the run) so
+// it accumulates — never reset per capture.
+const RESOLVER_VA       = 0x418470;     // FUN_00418470 ar_sprite_slot_frame
+const AR_SLOT_RES_OFF   = 0x40;         // ar_sprite_slot +0x40 = PE resource id (u16)
+let g_render_id_map     = {};           // "0x<cel>" -> {res, frame}
+let g_render_id_hooked  = false;
+let g_render_id_n       = 0;
+
 let   g_seed_pin          = false;
 let   g_seed_value        = 0x4f5347;   // OSS_RNG_DEFAULT_SEED (matches port)
 let   g_seed_pinned       = false;      // one-shot latch
@@ -616,7 +633,7 @@ function ctFormatTyped(type, valuePtr, directVal) {
 // Read one declared field at a hooked VA's onEnter. Returns the value, or null
 // on any read fault (a bad pointer must not crash the trace). retval is an
 // onLeave datum — not available here; skipped (no spec uses it yet).
-function ctReadField(fld, args) {
+function ctReadField(fld, args, ctx) {
     const type = fld.type || 'i32';
     const src  = fld.src  || 'global';
     try {
@@ -625,6 +642,27 @@ function ctReadField(fld, args) {
         if (src === 'arg')      return ctFormatTyped(type, null, args[fld.index | 0]);
         if (src === 'argderef') return ctFormatTyped(
             type, args[fld.index | 0].readPointer().add(fld.off | 0), null);
+        // renderid — the blit's SOURCE cel identity from g_render_id_map (the
+        // retail render_id registry).  The source object is the __thiscall
+        // `this` (ECX) by default, or args[fld.index] for a cdecl blit; fld.key
+        // selects "res" | "frame".  Null when the cel isn't (yet) registered.
+        if (src === 'renderid') {
+            if (!ctx) return null;
+            const obj = (fld.index === undefined || fld.index === null)
+                        ? ctx.ecx : args[fld.index | 0];
+            if (!obj || obj.isNull()) return null;
+            const rec = g_render_id_map['0x' + obj.toString(16)];
+            if (!rec) return null;
+            const v = rec[fld.key || 'res'];
+            return (v === undefined) ? null : v;
+        }
+        // thisderef — read a field off the __thiscall `this` (ECX) + off.  Used
+        // for the source cel's placement metrics / state read at the blit's
+        // onEnter (the port reads the same fields off the struct).
+        if (src === 'thisderef') {
+            if (!ctx || !ctx.ecx || ctx.ecx.isNull()) return null;
+            return ctFormatTyped(type, ctx.ecx.add(fld.off | 0), null);
+        }
         if (src === 'chain') {
             // Global pointer (rva(va).readPointer()) → follow each `hops` offset
             // as a pointer hop → read typed at the final `off`. Reads a field of
@@ -1773,7 +1811,7 @@ function installCallTraceHooks(vasArray) {
                     if (specs) {
                         const f = {};
                         for (let s = 0; s < specs.length; s++) {
-                            const v = ctReadField(specs[s], args);
+                            const v = ctReadField(specs[s], args, this.context);
                             if (v !== null && v !== undefined) f[specs[s].name] = v;
                         }
                         if (Object.keys(f).length) ev.f = f;
@@ -2314,6 +2352,40 @@ function installRandProbe() {
     });
     g_rand_hooked = true;
     logmsg('rand probe installed @ FUN_005bf505');
+}
+
+// Build the retail render_id registry: hook the universal sprite resolver
+// FUN_00418470 (__thiscall: ECX = ar_sprite_slot, arg0 = frame, retval = the
+// cel) and map each returned cel pointer -> {res, frame}.  resource_id is read
+// off slot+0x40.  Mirrors src/render_id.c's register-at-resolve.  onLeave is
+// required because the cel is the return value (and the lazy decode runs inside
+// the call for an undecoded bank).  Cheap: a dict write per first-resolve.
+function installRenderIdHook() {
+    if (g_render_id_hooked) return;
+    Interceptor.attach(rva(RESOLVER_VA), {
+        onEnter: function (args) {
+            // __thiscall: ECX = slot, first STACK param = frame (& 0xffff).
+            this.rid_res = -1;
+            this.rid_frame = -1;
+            try {
+                const slot = this.context.ecx;
+                if (slot && !slot.isNull()) {
+                    this.rid_res = slot.add(AR_SLOT_RES_OFF).readU16();
+                    this.rid_frame = this.context.esp.add(4).readU32() & 0xffff;
+                }
+            } catch (e) { /* leave -1 */ }
+        },
+        onLeave: function (retval) {
+            if (this.rid_res < 0 || this.rid_frame < 0) return;
+            if (!retval || retval.isNull()) return;
+            const key = '0x' + retval.toString(16);
+            if (!g_render_id_map[key]) g_render_id_n++;
+            g_render_id_map[key] = { res: this.rid_res, frame: this.rid_frame };
+        },
+    });
+    g_render_id_hooked = true;
+    logmsg('render-id registry hooked @ FUN_00418470');
+    send({ kind: 'render_id_hook_ready', va: RESOLVER_VA });
 }
 
 // ─── scene-boundary TAS anchors ──────────────────────────────────────────
@@ -2889,16 +2961,24 @@ rpc.exports = {
             // (the unified RNG-consumption signal — openrecet pattern, no
             // separate flag needed).
             let wantRngcallsField = false;
+            let wantRenderIdField = false;
             for (const va in g_field_spec) {
                 const specs = g_field_spec[va];
-                if (Array.isArray(specs) &&
-                    specs.some(function (f) { return f && f.src === 'rngcalls'; })) {
-                    wantRngcallsField = true; break;
-                }
+                if (!Array.isArray(specs)) continue;
+                if (specs.some(function (f) { return f && f.src === 'rngcalls'; }))
+                    wantRngcallsField = true;
+                if (specs.some(function (f) { return f && f.src === 'renderid'; }))
+                    wantRenderIdField = true;
             }
             if (g_rand_probe || wantRngcallsField) {
                 try { installRandProbe(); }
                 catch (e) { err('install_rand_probe', '' + e); }
+            }
+            // The blit-trace cross-side identity (Phase-B B3): build the retail
+            // render_id registry whenever a field reads it (no ad-hoc flag).
+            if (wantRenderIdField) {
+                try { installRenderIdHook(); }
+                catch (e) { err('install_render_id_hook', '' + e); }
             }
             if (g_inject_enabled) {
                 try { installInputInjection(); }

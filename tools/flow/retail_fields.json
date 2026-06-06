@@ -4,7 +4,8 @@
     "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
     "name": "short label for flow_diff output (wins over functions.csv).",
     "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
-    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | retval (onLeave).",
+    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | renderid (the blit SOURCE cel's cross-side identity from the render_id registry; reads ECX (__thiscall this) or args[index] for a cdecl blit, then `key`:res|frame; auto-installs the FUN_00418470 resolver hook — the DDraw blit-trace identity, Phase-B B3, mirrors src/render_id.c) | thisderef (read a field off ECX + `off`: the source cel's placement metrics / DDraw state at the blit's onEnter) | retval (onLeave).",
+    "fields[].key": "for src=renderid: which identity component to return — res (resource_id) | frame.",
     "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
     "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
     "fields[].off": "for src=argderef/chain: byte offset added before the final typed read.",
@@ -108,6 +109,86 @@
          "reason": "actor[0] render-state +0x70 — frame timer (low u16; sim-ticks in the current frame). anim_state.timer."},
         {"name": "a0_frame", "src": "chain", "va": "0x8a9b50", "hops": [4576, 64], "off": 114, "type": "u32", "benign": true,
          "reason": "actor[0] render-state +0x72 — current frame index (low u16). anim_state.frame; advances once per sim-tick, deterministic under the g_sim_tick anchor."}
+      ]
+    },
+
+    "0x5b9a40": {
+      "name": "blt_onto",
+      "_note": "FUN_005b9a40 — generic Blt self-onto-dest (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). The width/height come from the source's metrics (+0xb8/+0xbc), not args. Port mirror: src/zdd.c zdd_object_blt_onto + zdd_emit_blit(0x5b9a40). DDraw blit trace (Phase-B B3) — diffed by tools/render_diff.py keyed on (res, frame). Used by the parallax far-plane sink (game_parallax_blit).",
+      "fields": [
+        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
+        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
+        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
+        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
+        {"name": "reqw",  "src": "thisderef", "off": 184, "type": "i32", "_note": "+0xb8 metric_b8 = source width (blt_onto reqw == ow)"},
+        {"name": "reqh",  "src": "thisderef", "off": 188, "type": "i32", "_note": "+0xbc metric_bc = source height"},
+        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
+        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
+        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32", "_note": "+0x0c metric_0c placement origin x"},
+        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32", "_note": "+0x10 metric_10 placement origin y"},
+        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex", "_note": "+0xd4 state_flag (0x8000 = KEYSRC armed)"},
+        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex", "_note": "+0x28 colorkey_out (bound DDCOLORKEY)"}
+      ]
+    },
+
+    "0x5b9b70": {
+      "name": "blt_keyed",
+      "_note": "FUN_005b9b70 — positioned color-keyed Blt (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). dst origin = metric_0c/_10 + (x,y); w/h from metric_b8/_bc. Port mirror: zdd_object_blt_keyed + zdd_emit_blit(0x5b9b70). Used by the prologue keyed-fallback path.",
+      "fields": [
+        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
+        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
+        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
+        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
+        {"name": "reqw",  "src": "thisderef", "off": 184, "type": "i32"},
+        {"name": "reqh",  "src": "thisderef", "off": 188, "type": "i32"},
+        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
+        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
+        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
+        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
+        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
+        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
+      ]
+    },
+
+    "0x5b9ae0": {
+      "name": "blt_rects",
+      "_note": "FUN_005b9ae0 — Blt with explicit rects (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, dst_w, dst_h, src_x, src_y). Port mirror: zdd_object_blt_rects + zdd_emit_blit(0x5b9ae0). Used by the alpha orchestrator's scratch->dest leg.",
+      "fields": [
+        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
+        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
+        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
+        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
+        {"name": "reqw",  "src": "arg", "index": 3, "type": "i32"},
+        {"name": "reqh",  "src": "arg", "index": 4, "type": "i32"},
+        {"name": "sx",    "src": "arg", "index": 5, "type": "i32"},
+        {"name": "sy",    "src": "arg", "index": 6, "type": "i32"},
+        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
+        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
+        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
+        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
+        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
+        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
+      ]
+    },
+
+    "0x5b9bf0": {
+      "name": "blt_clipped",
+      "_note": "FUN_005b9bf0 — clipped color-keyed Blt, THE backdrop-tile path (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, width, height, src_x, src_y). The source rect is clipped against the cel's region metrics (+0x0c/+0x10 origin, +0x14/+0x18 extent); we emit the RAW inputs (clip math is a bit-exact port). Port mirror: zdd_object_blt_clipped + zdd_emit_blit(0x5b9bf0). map_present mode-3 -> game_present_blit -> this.",
+      "fields": [
+        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
+        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
+        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
+        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
+        {"name": "reqw",  "src": "arg", "index": 3, "type": "i32"},
+        {"name": "reqh",  "src": "arg", "index": 4, "type": "i32"},
+        {"name": "sx",    "src": "arg", "index": 5, "type": "i32"},
+        {"name": "sy",    "src": "arg", "index": 6, "type": "i32"},
+        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
+        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
+        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
+        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
+        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
+        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
       ]
     }
   }
