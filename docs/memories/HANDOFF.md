@@ -49,12 +49,19 @@ pillar, and the shared LCG stream is non-deterministic run-to-run EVEN UNDER
   the unified consumption signal — committed `4c587c0`).  **Do NOT build the
   actor-RNG anchor now.**  The next chips are **implementing all the VISUAL elements
   of this scene**; RNG-driven behaviour parity comes after the consumer census.
-- **NEXT (visual elements, simplest first):**
-  1. **Cinematic LETTERBOX** (quirk #74) — black bars rows 0-63 + 416-479 during the
-     establishing shot; RNG-free, a big simple slice of the diff.  RE the producer
-     first (a quick grep of `0x5a00c0` for a 640-wide fill came up empty — find what
-     draws the bars: likely a `0x5a00c0` overlay-list entry or a dedicated fill;
-     probe retail live / read the overlay draw-list builder).
+- **NEXT (visual elements, simplest first) — now with the blit trace pinpointing them:**
+  0. **The town-frame blit diff (ckpt 74) confirmed the backdrop is pixel-faithful**
+     (port 250 blits all matched retail on identity+geometry+state; 0 wrong draws).
+     The missing 356 draws ARE the chips below — `render_diff --retail-frame 1500
+     --port-frame 1200` names them.
+  1. **The establishing-shot overlay = bank `0x583`** (the trace's biggest gap: 320
+     blits/frame). Concrete RE coordinates from the trace: a **64×4 cel (frame 0)
+     drawn via `blt_onto` in a full-screen grid** (dx 0–576 ×10 cols, dy 0–476;
+     `dy=416` = the quirk-#74 letterbox bottom-bar row), no colorkey, st=0. RE the
+     producer that emits bank 0x583 as this grid (likely the `0x5a00c0` overlay or a
+     dedicated establishing-shot fill) + how the bank/grid is selected, then port it
+     and re-diff (the 320 `[sprite]` divergences should vanish). Deterministic →
+     fully portable, no RNG.
   2. **"Town of Tonkiness" banner + foreground tree/veg** — the `0x5a00c0`
      scripted-scene overlay player (draw-list `stack+0x98` stride-10; caption array
      `stack+0x3a4` stride 0x124 via font bank `DAT_008a7640`).  Also where the pan

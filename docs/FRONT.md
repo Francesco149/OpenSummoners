@@ -33,6 +33,15 @@
   both sides — the flow trace now carries `rngcalls`, the unified consumption signal,
   openrecet-style; commit `4c587c0`). **Next chips = implement the scene's VISUAL elements**
   (LETTERBOX #74 → `0x5a00c0` banner/tree → NPC render/spawn); RNG behaviour parity comes after.
+- **TOWN FRAME DIFFED via the new blit trace (ckpt 74) — the port's backdrop is PIXEL-FAITHFUL;
+  the gaps are MISSING layers, pinpointed.** render_diff (hold: port 1200 ↔ retail 1500, both
+  cam=128000) → 606 retail / 250 port blits, **356 divergences ALL `[sprite]` (missing), ZERO
+  `[rect]`/`[decode]`/`[state]`, ZERO port-extra** — every port blit matched retail on identity
+  + geometry + state. The missing draws: **320× bank `0x583`** (a 64×4 full-screen grid, frame 0,
+  deterministic, `dy=416` = the letterbox row → the **establishing-shot cinematic overlay**,
+  quirk #74 — THE next concrete chip, with exact RE coordinates now) + ~36 actor/overlay banks
+  (`0x426`/`0x403`/… NPCs + tree + banner — RNG-driven, accepted-divergent until the scene RNG is
+  RE'd). `findings/ddraw-blit-trace.md` "The TOWN frame".
 - **Prior (ckpt 72): the ACTOR ANIMATION cycle RE'd + the frame-stepper ported — rides the
   sim-tick clock, no separate counter.** The per-tick UPDATE pass (`0x439690:1108`→`0x46cd70`
   once/tick→`0x54f980` per actor) runs one byte-identical inline stepper on the render-state
