@@ -2080,3 +2080,37 @@ ported (the backdrop *inside* the window is otherwise pixel-1:1 — verified ckp
 `--capture-frames` under `--no-turbo --seed-pin --lockstep`, scan each row for
 `(0,0,0)` across the width.  Writeup `in-game-intro.md` "The pan CADENCE +
 TRIGGER measured" → the diff verification.
+
+## 75. The in-game frame is a WALL-CLOCK GetTickCount limiter that presents a VARIABLE number of Flips per sim tick — so the Flip index is NON-DETERMINISTIC; the sim-tick index is the only deterministic frame of reference
+
+The in-game scene driver `FUN_00439690` runs ONE logical sim tick per outer
+iteration: it renders + **Flips repeatedly inside a GetTickCount-gated frame
+limiter** (`439690:776-859`, a 3-state machine with a 16 ms quantum
+`local_270=0x10`, re-entered each tick via the `switchD_0043b615_caseD_5`
+label so the state persists), then steps the camera easer `FUN_0043d1d0`
+**exactly once** (`:1123`).  The limiter presents the *same* frame (camera is
+constant within a tick) 1-or-more times until enough wall-clock time has
+accrued, then the sim advances.  So **the present/Flip rate is decoupled from
+the sim rate** (≈2 Flips per sim tick on average, ~31 Hz sim / ~61 Hz present).
+
+**Measured (2026-06-06, `--seed-pin --lockstep --no-turbo`, easer + Flip
+`0x5b8fc0` hooked, contiguous flip whitelist 1600-1720):** two **identical**
+retail runs DIVERGE when indexed by Flip — first cam step at flip 1619 vs 1616;
+plateau (a 4-Flip-long sim-tick) count and location differ (1 plateau at
+1699-1703 in one run vs 4 plateaus at 1616/1674/1675/1702 in the other);
+**57 of 121 common flips disagree** on `cam_x60` (up to 3 px).  `--lockstep
+-epsilon-ms 0` is WORSE (95/111 disagree), so the non-determinism is intrinsic
+to the wall-clock limiter, not just the lockstep epsilon creep.  **Indexed by
+sim tick (the Nth easer `0x43d1d0` call) the two runs are BIT-IDENTICAL** — the
+camera sequence 128000, 127990, 127970, … (vel ramp −10,−20,…,−300) is a pure
+deterministic function of the tick number.
+
+**TAS/parity consequence (the methodology pillar):** never anchor a port↔retail
+(or even retail↔retail) diff on the **Flip index** — it wanders run-to-run by
+several frames / px.  Anchor on the **sim tick** (easer-call index, equivalently
+`cam_x60` during the monotonic pan).  A "few-px offset on the whole foreground
+while the background is Δ0" is the signature of Flip-misalignment, NOT a
+placement bug (the 0.5×/0.25× parallax hides the same camera error that the 1×
+foreground exposes).  When a residual wanders and no anchor fixes it,
+investigate the timestep determinism FIRST.  Writeup `in-game-intro.md`
+"Timestep determinism".

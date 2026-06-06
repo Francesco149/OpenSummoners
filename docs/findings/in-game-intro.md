@@ -1459,3 +1459,56 @@ pan) pinned the two stand-ins to ground truth:
   ends). PORT-DEBT `ingame-camera-pan` narrows to: the wall-clock sim-tick
   accumulator (the engine pace clock, map-object `+0x4068`) + the cutscene-script
   trigger SOURCE — both downstream of the in-game sim/`0x5a00c0` port.
+
+## Timestep determinism — the Flip index is non-deterministic; the SIM TICK is the only valid frame-of-reference (2026-06-06)
+
+**Context.** The user pushed back on the ckpt-70b "backdrop Δ0, residual is just
+missing layers" framing: in the establishing-pan diff the *whole half-timber
+house* (and every rendered foreground tile) shows a ~3 px horizontal **trail**,
+while the sky + mountains are Δ0.  Cross-correlating the montage confirmed it:
+the house aligns at **dx≈+3**, the background at **dx≈0**.  A pure camera-scroll
+error would shift the 0.5×/0.25× parallax mountains by ~1.5/0.75 px — they are
+flat 0 — so the camera value matches and only the 1× foreground is off.  That is
+the signature of **frame-misalignment**, not a placement bug (the foreground
+math `0x490b90`/`0x490f30` is provably identical to retail at equal `cam_x60`).
+
+**Root cause (RE).** The in-game scene driver `FUN_00439690` is **one logical
+sim tick per outer iteration**: it renders + **Flips a VARIABLE number of times**
+inside a GetTickCount-gated frame limiter (`439690:776-859` — a 3-state machine,
+16 ms quantum `local_270=0x10`, re-entered each tick via the
+`switchD_0043b615_caseD_5` label so the budget state persists), then steps the
+camera easer `FUN_0043d1d0` **exactly once** (`:1123`).  So the **present rate is
+decoupled from the sim rate** (~2 Flips per tick avg; the camera is a STEP
+function, flat between ticks) and the per-tick Flip count is set by wall-clock
+time, not a frame counter.
+
+**Measurement (`--seed-pin --lockstep --no-turbo`, easer + Flip `0x5b8fc0`
+hooked, contiguous whitelist).**  Two **identical** retail runs:
+- by **Flip index**: first cam step at flip 1619 vs 1616; plateau (a 4-Flip-long
+  tick) count/location differ (1 vs 4); **57/121 common flips disagree** on
+  `cam_x60` (up to 3 px).  `--lockstep-epsilon-ms 0` is WORSE (95/111) — the
+  non-determinism is intrinsic to the wall-clock limiter, not the epsilon creep.
+- by **sim tick** (Nth easer call): **bit-identical** — `cam_x60` is a pure
+  function of the tick number (128000, 127990, …, −300/tick at cruise).
+
+Visual proof (`tools/sim_tick_diff.py`, retail-vs-retail house crop): FLIP-matched
+→ the 3 px house trail (identical to the port "bug"); SIM-STATE-matched → CLEAN
+(sub-LSB).  Same engine vs itself.
+
+**The frame-of-reference (the methodology fix).** Never anchor a diff (port↔retail
+*or even* retail↔retail) on the Flip index.  Anchor on the **sim tick**:
+- The agent now counts easer calls (`g_sim_tick`, `0x43d1d0`) and tags every
+  captured frame (`frame_<flip>_t<simtick>.png` + `frames_manifest.jsonl`) and
+  call-trace event (`sim_tick` field) with it.
+- The counter is **reset at the `game_enter` scene-load anchor** so it is
+  cross-run comparable despite the wall-clock-paced pre-game scenes (the
+  "synchronize at every non-deterministic load" rule).
+- For the pan specifically, `cam_x60` is bijective with the tick and is the
+  offset-invariant key — `tools/sim_tick_diff.py --key cam` matches port↔retail
+  frames at equal sim state and yields **dx=0** (vs `--key flip` → the 3 px
+  trail).
+
+Consequence for `ingame-camera-pan`: there is **no** way to match retail
+flip-for-flip — it is not self-consistent run-to-run.  The port's clean fixed
+2:1 cadence is fine; diffs just have to be taken at equal sim state.  See
+engine-quirk #75 and [[timestep-determinism-pillar]].

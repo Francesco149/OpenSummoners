@@ -203,6 +203,20 @@ const FLIP_VA       = 0x5b8fc0;
 let   g_flip_frame  = 0;
 let   g_flip_hooked = false;
 
+// ── sim-tick anchor (the DETERMINISTIC frame of reference) ──────────────────
+// The in-game scene driver FUN_00439690 runs the camera easer FUN_0043d1d0
+// EXACTLY ONCE per logical sim tick, but Flips a VARIABLE number of times per
+// tick inside its wall-clock GetTickCount frame-limiter (439690:776-859).  So
+// the Flip index (g_flip_frame) is non-deterministic run-to-run (engine-quirk
+// #75) while the easer-call count IS deterministic — the only reliable index
+// to align port↔retail frames on.  We count easer calls and tag every captured
+// frame + call-trace event with g_sim_tick so the diff matches by sim tick, not
+// Flip.  Default VA is the in-game easer; override via opts.sim_tick_va for
+// other scenes' once-per-logical-frame function.
+let   g_sim_tick_va     = 0x43d1d0;
+let   g_sim_tick        = 0;
+let   g_sim_tick_hooked = false;
+
 // call_trace mode (Interceptor.attach onEnter over a vetted VA list).
 let   g_call_trace_enabled = false;
 let   g_call_trace_frames  = null;   // Set<int> or null (null = every frame)
@@ -1501,7 +1515,8 @@ function captureFrame(frameNumber) {
         const stride  = (w * 3 + 3) & ~3;       // DIB rows are DWORD-aligned
         const total   = stride * h;
         const ab      = bits.readByteArray(total);
-        send({ kind: 'frame', frame: frameNumber, w: w, h: h,
+        send({ kind: 'frame', frame: frameNumber, sim_tick: g_sim_tick,
+               w: w, h: h,
                stride: stride, bpp: 24, from_back: fromBack }, ab);
         g_capture_n++;
     } finally {
@@ -1696,6 +1711,21 @@ function installFlipFrameHook() {
     send({kind: 'flip_hook_ready', va: FLIP_VA});
 }
 
+// Count easer (sim-tick) calls: the deterministic logical-frame index.  A bare
+// onEnter counter — cheap, fires once per sim tick, before the Flip(s) that
+// present that tick.  See engine-quirk #75 / the g_sim_tick_va comment.
+function installSimTickHook() {
+    if (g_sim_tick_hooked) return;
+    try {
+        Interceptor.attach(rva(g_sim_tick_va), {
+            onEnter: function () { g_sim_tick++; },
+        });
+        g_sim_tick_hooked = true;
+        logmsg('sim-tick anchor installed @ 0x' + g_sim_tick_va.toString(16));
+        send({kind: 'sim_tick_hook_ready', va: g_sim_tick_va});
+    } catch (e) { err('installSimTickHook', '' + e); }
+}
+
 function callTraceShouldEmit() {
     if (!g_call_trace_enabled) return false;
     if (g_call_trace_frames === null) return true;
@@ -1723,11 +1753,12 @@ function installCallTraceHooks(vasArray) {
                     if (!callTraceShouldEmit()) return;
                     callTraceSeqMaybeReset();
                     const ev = {
-                        va:     va,
-                        ret_va: traceRetVa(this.returnAddress),
-                        ts:     nowMs(),
-                        thr:    this.threadId,
-                        seq:    g_call_trace_seq++,
+                        va:       va,
+                        ret_va:   traceRetVa(this.returnAddress),
+                        ts:       nowMs(),
+                        thr:      this.threadId,
+                        seq:      g_call_trace_seq++,
+                        sim_tick: g_sim_tick,   // deterministic frame-of-reference index (quirk #75)
                     };
                     // Field-bearing payload for spec'd VAs (B2). Keyed by the
                     // decimal-string VA, matching the JSON opts the driver sends.
@@ -2301,8 +2332,16 @@ function installSceneAnchors() {
             onEnter: function () {
                 let seed = 0;
                 try { seed = seedAddr.readU32() >>> 0; } catch (e) {}
+                // Synchronize the deterministic sim-tick index at the scene-LOAD
+                // boundary: the pre-game scenes are wall-clock paced, so the
+                // absolute easer-call count at game entry varies run-to-run
+                // (engine-quirk #75).  Reset to 0 here so `sim_tick` is
+                // easer-calls-SINCE-game_enter — a load-anchored, cross-run
+                // deterministic frame index.  (User directive 2026-06-06: at a
+                // non-deterministic load, add an anchor to synchronize.)
+                if (a.name === 'game_enter') g_sim_tick = 0;
                 send({kind: 'anchor', name: a.name, frame: g_flip_frame,
-                      rng: seed});
+                      rng: seed, sim_tick: g_sim_tick});
                 // rand-probe window: arm at newgame_enter, flush at prologue_enter.
                 if (g_rand_probe) {
                     if (a.name === 'newgame_enter') {
@@ -2710,6 +2749,8 @@ rpc.exports = {
         if (typeof opts.parallax_lo === 'number') g_parallax_lo = opts.parallax_lo | 0;
         if (typeof opts.parallax_hi === 'number' && opts.parallax_hi > 0)
             g_parallax_hi = opts.parallax_hi | 0;
+        if (typeof opts.sim_tick_va === 'number' && opts.sim_tick_va > 0)
+            g_sim_tick_va = opts.sim_tick_va | 0;
         g_seed_pin             = !!opts.seed_pin;
         if (typeof opts.seed_value === 'number') g_seed_value = opts.seed_value >>> 0;
         if (typeof opts.pace_every === 'number' && opts.pace_every > 0)
@@ -2785,6 +2826,10 @@ rpc.exports = {
                 g_pace_probe || g_textout_probe || g_box_probe || g_res_probe ||
                 g_parallax_probe || g_lockstep) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
+                // The sim-tick anchor (engine-quirk #75): count easer calls so
+                // captures/call-trace can be matched by the deterministic
+                // logical-frame index rather than the wall-clock Flip index.
+                try { installSimTickHook(); } catch (e) { err('install_sim_tick', '' + e); }
             }
             if (g_cursor_probe) {
                 try { installCursorProbe(); }

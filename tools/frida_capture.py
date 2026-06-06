@@ -499,6 +499,7 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary["dialog_actions"] += 1
         elif kind == "frame":
             frame = int(payload.get("frame", -1))
+            sim_tick = int(payload.get("sim_tick", -1))
             w = int(payload.get("w", 0))
             h = int(payload.get("h", 0))
             stride = int(payload.get("stride", w * 3))
@@ -506,8 +507,15 @@ def run_capture(cfg: CaptureConfig) -> int:
                 log_f.write(f"[frame] frame={frame} BAD/ignored payload "
                             f"w={w} h={h} have_data={data is not None}\n")
             else:
-                png_path = frames_dir / f"frame_{frame:05d}.png"
+                # Name carries BOTH the (wall-clock, non-deterministic) Flip
+                # index and the DETERMINISTIC sim-tick — match diffs on the
+                # latter (engine-quirk #75).
+                png_path = frames_dir / f"frame_{frame:05d}_t{sim_tick:06d}.png"
                 write_png_from_dib24(png_path, w, h, stride, data)
+                # Sidecar manifest: flip→sim_tick for the diff tool.
+                with (run_dir / "frames_manifest.jsonl").open("a") as mf:
+                    mf.write(json.dumps({"flip": frame, "sim_tick": sim_tick,
+                                         "file": png_path.name}) + "\n")
                 summary["frames_captured"] += 1
                 back = payload.get("from_back")
                 print(f"[frida_capture] frame {frame} captured "

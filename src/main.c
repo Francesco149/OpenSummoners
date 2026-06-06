@@ -954,11 +954,14 @@ static void maybe_capture_frame(unsigned flip_frame)
          * and menu_fade (local_58 / the cursor level_num).  This lets the
          * parity harness match a port capture to the retail golden at the
          * same cursor-pulse phase (parity-ledger R1). */
-        log_line("capture: frame %u -> %s (%s) phase=%d fade=%d menu_fade=%d",
+        log_line("capture: frame %u -> %s (%s) phase=%d fade=%d menu_fade=%d "
+                 "cam_x60=%ld cam_x5c=%ld",
                  flip_frame, path, ok ? "ok" : "FAILED",
                  g_drive_active ? (int)g_drive.scene.fade.phase   : -1,
                  g_drive_active ? (int)g_drive.scene.fade.fade     : -1,
-                 g_drive_active ? (int)g_drive.scene.fade.menu_fade : -1);
+                 g_drive_active ? (int)g_drive.scene.fade.menu_fade : -1,
+                 g_game_camera_armed ? (long)g_game_camera.cur_x : -1L,
+                 g_game_camera_armed ? (long)g_game_camera.cur_y : -1L);
         return;
     }
 }
