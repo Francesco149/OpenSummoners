@@ -35,9 +35,10 @@ changelog. Active multi-session plans: `docs/plans/`.
   when `differ_px == 0` (or the residual is a *named, understood* delta). Any non-zero
   residual is an OPEN item with concrete hypotheses in `docs/parity-ledger.md`, never
   "close enough". **RE the responsible code + probe retail; don't eyeball or curve-fit a
-  constant** — find the function that produces the value (focused Frida arg-hook, e.g.
-  the `--cursor-probe` pattern), read the algorithm in the decompile, port *that logic*,
-  then validate bit-exact at matching animation phase. Standing accepted residuals:
+  constant** — pinpoint the divergence with the diff lenses (`render_diff` = which draw,
+  `flow_diff` = which logic; add a `retail_fields.json` field, not a bespoke probe flag),
+  read the algorithm in the decompile, port *that logic*, then validate bit-exact at
+  matching animation phase. Standing accepted residuals:
   documented benign deviations + occasional ≤1-LSB texture-sampling noise only.
 - **Attribute every divergence to a PILLAR before suspecting logic.** (1) **logic/data→
   output** (the pure contract we port), (2) **phase** (load-dependent counter/anim origin
@@ -123,15 +124,31 @@ changelog. Active multi-session plans: `docs/plans/`.
   rename, addresses are stable). Index: `docs/decompiled/functions.csv`. Regenerate via
   `tools/ghidra-headless.sh` (re-runs in ~seconds if the project already exists).
   Decompiled C is gitignored (derived from the user's binary).
-- **TAS / parity harness (THE divergence loop):** today's entry points —
-  `tools/frida_capture.py` (drive retail under Frida; `--seed-pin --lockstep` →
-  deterministic frame stream; `--hide-window --turbo --silent-audio` defaults, but live
-  boots that need the message pump MUST be `--no-turbo`, engine-quirk #29),
-  `tools/tas_diff.py` (anchor-aligned port↔retail pixel diff with drift search),
-  `tools/call_trace_diff.py` (which engine fns each side reached). How-to:
-  `docs/parity-harness.md`. **Minimal-surface unification into one
-  `tools/scenario-test.py --target {port|retail|both}` + a field-bearing flow trace is
-  the tracked next tooling phase** (`docs/plans/`).
+- **TAS / parity harness (THE divergence loop):** for every divergence — **pinpoint →
+  attribute to a pillar → fix the logic (RE it, don't curve-fit) → re-verify to
+  `differ_px==0` → log the quirk + ledger row.** Three diff lenses, all over one
+  seed-pinned, anchor-aligned `call_trace.jsonl` per side:
+  - `tools/render_diff.py` — **the RENDER lens: names the wrong/missing BLIT and how**
+    (`[sprite]`/`[decode]`/`[rect]`/`[state]`), keyed on the cross-side
+    `(resource_id, frame)` identity + a decoded-sheet `dhash` (`src/render_id.{c,h}`;
+    port emits at the 5 blit primitives via `zdd_emit_blit`, retail via the resolver
+    `0x418470` registry). `findings/ddraw-blit-trace.md`.
+  - `tools/flow_diff.py` — **the LOGIC lens: names the first call whose inputs matched
+    but whose output/state diverged** (field-bearing `CALL_TRACE_BEGIN/FIELD/END` +
+    `tools/flow/retail_fields.json`). render_diff says which draw is wrong; flow_diff
+    says which logic produced it.
+  - `tools/tas_diff.py` — anchor-aligned pixel diff (drift search); `call_trace_diff.py`
+    — coarse which-fns-each-side-reached.
+  Capture: `tools/frida_capture.py` (retail; `--seed-pin --lockstep` deterministic;
+  `--field-spec[-only]` auto-hooks the spec VAs; `--hide-window --turbo --silent-audio`
+  defaults, but live boots needing the message pump MUST be `--no-turbo`, quirk #29) /
+  `run-retail.sh`. Port: `opensummoners.exe --call-trace <path> --call-trace-frames i,j`
+  **run INSIDE `nix develop`** (else `sotesd.dll` won't load → blank), `--input-trace
+  <repo-relative-path>` (paths are absolutized pre-chdir). **Add a new datum as a
+  `retail_fields.json` field, NOT a bespoke `--foo-probe` flag** (`src:` global/arg/
+  argderef/chain/rngcalls/renderid/thisderef; a new *kind* = one `src:` in the agent's
+  `ctReadField`). How-to: `docs/parity-harness.md`. Remaining tooling: **B1** unified
+  `tools/scenario-test.py` (`docs/plans/trace-tooling-phase-b.md`; B2 flow + B3 blit DONE).
 
 ## The binary & paths
 - **Game install:** `/mnt/c/Program Files (x86)/Steam/steamapps/common/Fortune Summoners/`.
@@ -156,6 +173,8 @@ changelog. Active multi-session plans: `docs/plans/`.
 - **What's confirmed pixel-1:1 (regression guard):** `docs/parity-ledger.md`.
 - **Why a frame differs / how to chase it:** `docs/parity-model.md` (the pillars) +
   `docs/parity-harness.md` (the tools).
+- **Which DRAW / d3d-state is wrong (vs which LOGIC):** `docs/findings/ddraw-blit-trace.md`
+  (`render_diff` = the blit/state lens; `flow_diff` = the logic lens).
 - **Changelog:** `docs/PROGRESS.md`. **RE writeups:** `docs/findings/INDEX.md`.
 - **What to port next:** `docs/port-frontier.md` (mechanical next chip) +
   `docs/ROADMAP.md` (semantic milestone order + subsystem map).
