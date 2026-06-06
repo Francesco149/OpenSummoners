@@ -38,6 +38,23 @@ the cutscene-script trigger source, both downstream of the in-game sim /
 both GUI builds clean. Feed: "camera pan CADENCE matched to retail (ckpt 70b)".
 Writeup: `findings/in-game-intro.md` "The pan CADENCE + TRIGGER measured".
 
+**PAN backdrop diff — verified pixel-1:1.** Captured fresh retail pan frames
+(`--no-turbo --seed-pin --lockstep`, `--capture-frames` + the easer/Flip field
+spec) at Flips 1617/1660/1700/1740/1780 with their `cam_x60`
+(127990/125690/120050/114350/108350), simulated the port camera to find the port
+Flips landing on each (1304/1344/1384/1422/1462), captured those, and diffed each
+camera-matched pair. **The backdrop is Δ0**: a horizontal/vertical shift-search
+peaks sharply at `dx=dy=0` (no offset bug), and the pan-start `x=80` column is
+all `(0,0,0)` difference (every building/wall/grass pixel identical). The
+remaining diff is the **named missing layers only** — the exact signal we wanted.
+NEW retail ground-truth (quirk #74): the establishing shot is **LETTERBOXED** —
+solid-black bars over rows 0-63 (top) + 416-479 (bottom), leaving a 640×352
+cinematic window, stable across the pan; this is the "dark top" the user noticed
+(with a matching bottom bar), scene-scoped (absent in settled play), likely a
+`0x5a00c0` overlay. Parity-ledger entry #7; feed: "PAN DIFF: backdrop is 1:1,
+holes = the unported layers". Next chips: the letterbox (quirk #74), the banner +
+foreground tree (`0x5a00c0`), the NPC actors (entity/spawn system).
+
 ## 2026-06-06 (ckpt 70) — the intro-PAN camera WIRED LIVE; scripted target-setters ported
 
 The ckpt-69 easer is now **driven by a live camera in `main.c`** — the town

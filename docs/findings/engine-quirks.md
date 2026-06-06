@@ -2057,3 +2057,26 @@ flip jitters a few flips run-to-run (the R3 render-pace phase pillar) — anchor
 field-spec `src:"chain"` global-deref `*(*(0x8a9b50)+0x104c)+off`, the `cam_*`
 fields in `tools/flow/retail_fields.json`; writeup `in-game-intro.md` "The
 camera/view object".)
+
+## 74. The opening-town establishing shot is LETTERBOXED — solid-black bars over the top 64 rows (0-63) and bottom 64 rows (416-479), leaving a 640×352 cinematic window
+
+During the intro establishing shot (the scripted leftward pan, map 0x3f2 / room
+210110), retail draws **opaque black bars** across the full width: **rows 0-63
+at the top and rows 416-479 at the bottom** (`(0,0,0)`, full 640px wide,
+verified across pan flips 1617-1780 under `--seed-pin --lockstep`).  The visible
+scene is the central **640×352** band (rows 64-415).  The bars are **stable**
+(same extent every frame) through the pan — a fixed cinematic frame, not an
+animating iris.  This is the "dark top" the user noticed in the establishing
+frame (there is a matching *bottom* bar too); it is **scene-scoped** — absent
+from settled gameplay — so it is a per-scene CINEMATIC overlay tied to the intro
+(very likely emitted by the scripted-scene player `0x5a00c0`, alongside the
+"Town of Tonkiness" banner).
+
+**TAS/parity consequence:** a flip-anchored full-frame diff of the establishing
+shot will show the top/bottom 64px as a solid difference until the letterbox is
+ported (the backdrop *inside* the window is otherwise pixel-1:1 — verified ckpt
+70b by matching `cam_x60` and diffing: the buildings/walls/sky/mountains are
+Δ0 except the banner/NPCs/foreground-tree layers).  Probe: capture retail with
+`--capture-frames` under `--no-turbo --seed-pin --lockstep`, scan each row for
+`(0,0,0)` across the width.  Writeup `in-game-intro.md` "The pan CADENCE +
+TRIGGER measured" → the diff verification.

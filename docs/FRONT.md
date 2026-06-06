@@ -60,15 +60,21 @@
   the intro **pan** is wired + cadence/trigger-matched (ckpt 70b) — it passes through retail's
   exact `cam_x60` sequence; residual is a ~2-3 Flip startup-jitter PHASE (PORT-DEBT
   `ingame-camera-pan`), zero at the hold + settled ends (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800).
-- **Next move:** the camera pans at retail's trajectory (ckpt 70b). To get a PIXEL diff of the
-  panning backdrop: (a) **capture retail frames + per-Flip `cam_x60` together** under matched
-  pacing (`--no-turbo --seed-pin --lockstep`; the existing golden is turbo-paced so its per-Flip
-  camera differs) → match port frames by `cam_x60` and `tas_diff` the backdrop (expect 1:1 where
-  cameras match; NPCs/tree/banner are the named holes — that's the signal). (b) the **foreground
-  tree/banner** (`0x5a00c0` scripted-scene overlay player — also where the pan TRIGGER source lives,
-  closing both `ingame-nontile-layers` and the trigger half of `ingame-camera-pan`); (c) the
-  **actor renderers** (present modes 0/1/2, need the entity/spawn system first).
-  Writeups: `findings/in-game-intro.md` "The pan CADENCE + TRIGGER measured".
+- **PAN BACKDROP DIFF DONE — verified pixel-1:1 (ckpt 70b).** Captured fresh retail pan frames
+  (`--no-turbo --seed-pin --lockstep`) + their `cam_x60`, matched port frames by `cam_x60` (port
+  Flips 1304/1344/1384/1422/1462 ↔ retail 1617/1660/1700/1740/1780, shared cam 127990/125690/
+  120050/114350/108350), and diffed: the **backdrop is Δ0** (shift-search peaks sharply at
+  `dx=dy=0`; pan-start `x=80` column all Δ0). The remaining diff is the **named missing layers
+  ONLY** — exactly the signal we wanted. NEW retail ground-truth (quirk #74): the establishing
+  shot is **LETTERBOXED** (solid-black bars rows 0-63 + 416-479, a 640×352 cinematic window; the
+  "dark top" the user saw, with a matching bottom bar). Parity-ledger entry #7.
+- **Next move (the named layers, simplest first):** (a) the **cinematic LETTERBOX** (quirk #74 —
+  draw black over rows 0-63/416-479 during the establishing shot; a big, simple slice of the diff,
+  likely a `0x5a00c0` overlay); (b) the **"Town of Tonkiness" banner** + **foreground tree/veg**
+  (`0x5a00c0` scripted-scene overlay player — also where the pan TRIGGER source lives, closing
+  `ingame-nontile-layers` + the trigger half of `ingame-camera-pan`); (c) the **actor renderers**
+  (present modes 0/1/2, need the entity/spawn system first). Writeups: `findings/in-game-intro.md`
+  "The pan CADENCE + TRIGGER measured" + the diff verification; quirk #74.
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` carries `seq` + `CALL_TRACE_BEGIN/FIELD/END`;
   the Frida agent reads same-named retail fields per `tools/flow/retail_fields.json` (now incl.

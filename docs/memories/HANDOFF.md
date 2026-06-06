@@ -295,11 +295,19 @@ gameplay scale as the retail golden** (user-confirmed; cross-checked vs golden f
 
 **Camera is wired + pans (ckpt 70); tiles + 24bpp sky matched (ckpt 68, user-confirmed).**
 The smallest visible wins, in order:
-0. **Flip-anchored full-frame diff at the SETTLED end (ckpt 70 unlock).** Both port
-   + retail hold the determinate `MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800) once the
-   pan completes — NO easer in flight, NO cadence question. Drive both to the settled
-   hold and `tas_diff` the full frame to confirm/close the sky `differ_px` (the row-for-row
-   sky diff the ckpt-68 grade was waiting on). This is now the cheapest concrete parity step.
+0. **PAN backdrop diff DONE — verified pixel-1:1 (ckpt 70b).** Captured fresh retail
+   pan frames (`--no-turbo --seed-pin --lockstep`) + their `cam_x60`, matched port
+   frames by `cam_x60` (sim'd the port camera → port Flips 1304/1344/1384/1422/1462 ↔
+   retail 1617/1660/1700/1740/1780, shared cam 127990/125690/120050/114350/108350),
+   diffed: **backdrop Δ0** (shift-search sharp min at dx=dy=0; pan-start x=80 col all
+   Δ0). Residual = named missing layers ONLY. Parity-ledger #7. **NEW (quirk #74):** the
+   establishing shot is **LETTERBOXED** — black bars rows 0-63 + 416-479 (640×352
+   window); the "dark top" the user flagged, plus a matching bottom bar; scene-scoped
+   (absent in settled play), likely a `0x5a00c0` overlay.
+   **Next chips (named layers, simplest first):** the LETTERBOX (quirk #74), then the
+   banner + foreground tree (`0x5a00c0`), then the NPC actors (entity/spawn system).
+   The settled-end diff (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) remains available
+   for a no-cadence-question full-frame check.
 1. **The 24bpp parallax colour — DONE (ckpt 68).** Retail grades 24bpp banks at
    **DECODE**, not via the palette: `0x417c40` early-exits to the plain getter for
    a palette-less bank, but its **flag-3 branch** (the 24bpp case) first stamps the
