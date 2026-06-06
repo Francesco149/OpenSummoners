@@ -2114,3 +2114,36 @@ placement bug (the 0.5×/0.25× parallax hides the same camera error that the 1�
 foreground exposes).  When a residual wanders and no anchor fixes it,
 investigate the timestep determinism FIRST.  Writeup `in-game-intro.md`
 "Timestep determinism".
+
+### #75 addendum — the non-determinism is NOT harness-tunable; per-subsystem anchoring is required (2026-06-06)
+
+Follow-up experiments narrowing the cause:
+- **GetTickCount is the engine's ONLY clock** — no `timeGetTime` /
+  `QueryPerformanceCounter` / `rdtsc` anywhere in the decompile.  So the limiter's
+  variability is not an un-virtualized time source; lockstep's virtual GetTickCount
+  (16 ms/Flip, main-thread) is the clock it reads.
+- **No lockstep setting removes the jitter.**  `--lockstep-epsilon-ms 0` →
+  95/111 flips disagree (worse).  `--lockstep-step-ms 100` → still ~2 flips/tick
+  with a 1..5 jitter and two runs' flips-per-tick distributions differ
+  ({5:1,2:61,3:1,1:1} vs {4:2,1:2,5:1,2:58}).  So flip-level determinism is not
+  reachable by config — the per-tick Flip count is set by the limiter's
+  interaction with the OS message pump (`FUN_005b1030`), not the clock alone.
+- **`--turbo` is unusable in-game:** plain turbo freezes the sim (GetTickCount
+  doesn't advance → the pacer budget never refills, the FSM + pump stall — the
+  classic "splash doesn't animate under turbo", quirk #29).  `--turbo --lockstep`
+  is not faster (turbo_ticks=0) and the (no-turbo-timed) input trace misses, so
+  it never reaches in-game.  Determinism must come from the SIM-TICK anchor, not
+  from a faster clock.
+- **Each sim SUBSYSTEM has its own clock and must be anchored separately.** The
+  camera easer is sim-tick-deterministic (game_enter-anchored).  The **NPC/actor
+  animation is on a DIFFERENT clock** — matched two runs by the deterministic
+  sim-tick (54 ticks, camera Δ0) and the actor band still diffs ~6.7k px.  So the
+  actor anim reads a counter (global frame tick or a spawn-time RNG phase) that is
+  NOT the camera sim-tick and is non-deterministic run-to-run.  Finding + pinning
+  it (à la the RNG seed pin) is the next determinism chip — it lives in the
+  unported actor/entity system (`0x491ae0` reads the frame; the advance is in the
+  per-tick actor update).
+
+Practical rule until then: **diff one frame per sim tick** (dedup the multi-Flip
+presents), match camera/backdrop on the sim tick, and treat the actor layer as a
+separate not-yet-pinned subsystem.
