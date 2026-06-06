@@ -6,6 +6,43 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 72) — the actor ANIMATION cycle RE'd + frame-stepper ported (rides the sim-tick clock)
+
+Took the ckpt-71 directed next ("RE the NPC/actor system + its animation cycle,
+then pin its counter") to completion. Traced the per-tick UPDATE path —
+`FUN_00439690:1108` → `FUN_0046cd70(1)` (once per sim-tick) → `FUN_0054f980` per
+actor — which is distinct from the render/emit pass `FUN_0048c150`. Every
+animating behaviour in `0x54f980` runs the byte-identical inline frame-stepper on
+the render-state anim fields (`+0x6c` clip / `+0x70` timer / `+0x72` frame /
+`+0x74` done): `timer++`; at `>=clip.dur` advance the frame and reset; at
+`>=clip.count` either loop to `clip.loop_to` or, for a one-shot clip, freeze on the
+last frame and raise `done`. The clip `seq` is a fixed **0x154-byte, 32-frame**
+descriptor (count@`+0x42`, dur@`+0x44`, oneshot@`+0x48`, loop_to@`+0x152`, base +
+per-frame sprite-delta + per-frame x/y offset) — confirmed by two witnesses: the
+stepper and the renderer `FUN_00491ae0` case 0x1872d. The clip is (re)set on a
+state change by `FUN_0040afe0`/`FUN_0041e600`, reset-on-change only.
+
+**Ported (pure, host-tested bit-exact): `src/anim_clip.{c,h}`** —
+`anim_clip_advance` (the stepper), `anim_state_set` (the change-gated set),
+`anim_clip_sprite` (base+delta); the `anim_clip` descriptor pins the retail layout
+with `_Static_assert`. 8 host tests cover the loop trajectory, one-shot hold, the
+duration gate, the NULL guard, the change-gated set, and the sprite id. **854 pass
+/ 0 fail / 6 skip** (+6); both GUI builds clean.
+
+**Determinism conclusion (the point of the exercise):** the counter `+0x70/+0x72`
+is a pure function of *(sim-ticks since clip-set)* — it reads no GetTickCount, no
+Flip index, no RNG — so it is already deterministic under the camera's
+`g_sim_tick` anchor (game_enter reset). The actor-anim subsystem needs **no new
+pin**, refining the #75-addendum guess that it "reads a counter NOT the camera sim
+tick". The leftover #75 ~6.7k-px actor-band residual is therefore a different
+pillar — the RNG-driven behaviour (which clip plays / actor position): `0x54f980`'s
+idle/wander cases draw the LCG `FUN_005bf505` for random waits + spawn offsets, and
+clip-SET timing is downstream. Annotated for the live check (`retail_fields.json`
+`0x46cd70`/`0x54f980` → `a0_clip/a0_timer/a0_frame`). Engine-quirk #76;
+`findings/in-game-intro.md` "The actor animation cycle".
+
+---
+
 ## 2026-06-06 (ckpt 70b) — the pan CADENCE + TRIGGER measured; port matches retail's trajectory
 
 Chased the two synthetic stand-ins from ckpt 70 to ground truth. A retail

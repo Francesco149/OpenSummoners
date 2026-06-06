@@ -9,7 +9,29 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **Where we are (ckpt 71): TIMESTEP DETERMINISM established — the SIM-TICK is the only
+- **Where we are (ckpt 72): the ACTOR ANIMATION cycle is RE'd + the frame-stepper ported —
+  it rides the sim-tick clock, NO separate counter to pin.** The ckpt-71 "next" is done.
+  The actor anim advances in the per-tick UPDATE pass (`0x439690:1108`→`FUN_0046cd70`(once
+  per sim-tick)→`FUN_0054f980` per actor), NOT the render/emit pass (`0x48c150`). Every
+  animating behaviour in `0x54f980` runs one byte-identical inline stepper on the
+  render-state anim fields (`+0x6c` clip / `+0x70` timer / `+0x72` frame / `+0x74` done):
+  `timer++`; at `>=clip.dur` → `frame++`,`timer=0`; at `>=clip.count` → loop (`frame=loop_to`)
+  or one-shot hold (`frame=count-1`,`done=1`). The clip is a fixed **0x154-B 32-frame**
+  descriptor (count@`+0x42`/dur@`+0x44`/oneshot@`+0x48`/loop_to@`+0x152`/base+per-frame
+  delta+x/y-offset — two witnesses: the stepper + renderer `0x491ae0` case 0x1872d). Clip is
+  (re)set on STATE CHANGE (`0x40afe0`/`0x41e600`), reset-on-change only. **PORTED (host-tested
+  bit-exact, +6 tests, 854 pass): `src/anim_clip.{c,h}` `anim_clip_advance`/`anim_state_set`.**
+  **DETERMINISM CONCLUSION:** the counter `+0x70/+0x72` is a pure function of *(sim-ticks since
+  clip-set)* — no GetTickCount/Flip/RNG — so it's already deterministic under the camera's
+  `g_sim_tick` anchor (game_enter reset); the actor-anim subsystem needs NO new pin, REFINING
+  the #75-addendum guess that it "reads a counter NOT the camera sim-tick". **OPEN (the real
+  residual):** the #75 ~6.7k-px actor-band diff under sim-tick matching must be a DIFFERENT
+  pillar — the RNG-driven BEHAVIOUR (which clip plays / position): `0x54f980`'s idle/wander
+  cases draw the LCG `0x5bf505` for random waits + spawn offsets, and clip-SET timing is
+  downstream. Annotated for the check (`retail_fields.json` `0x54f980`→`a0_clip/a0_frame`):
+  a live capture across two sim-tick-matched runs should show `a0_frame` matching while
+  `a0_clip`/position drifts. Engine-quirk #76; `in-game-intro.md` "The actor animation cycle".
+- **Prior (ckpt 71): TIMESTEP DETERMINISM established — the SIM-TICK is the only
   valid frame-of-reference; the "house off by 3px" was FLIP-misalignment, not a bug.**
   The in-game sim is a wall-clock GetTickCount frame-limiter (`FUN_00439690:776-859`): one
   logical sim tick per outer iteration (easer `0x43d1d0` once at `:1123`) but a VARIABLE
@@ -25,13 +47,10 @@
   starts at tick 92 both runs). `tools/sim_tick_diff.py` matches two run-dirs by sim_tick/cam
   (dx=0) vs flip (the 3px trail). Engine-quirk #75; `in-game-intro.md` "Timestep determinism".
   **DECISION (user):** anchor each subsystem for determinism rather than a global timestep
-  hack (fallback if it gets unwieldy). The camera is synced (sim-tick); **NEXT = RE the
-  NPC/actor system + its animation cycle, then PIN that counter** at an anchor for determinism.
-  Confirmed pinnable: the actor anim advances **per sim-tick, not per-Flip** (intra-tick actor
-  pixels are identical) so it's a clean per-tick clock, not tangled in the flip jitter. (`0x491ae0`
-  reads the frame; the advance is in the per-tick actor update — needs the entity/spawn system,
-  PORT-DEBT `present-actor-modes`.) Standing rule: never diff on the Flip index — anchor on the
-  sim tick. NB `--turbo` is NOT faster in-game (Frida/LAN overhead dominates, not Sleep) and
+  hack (fallback if it gets unwieldy). The camera is synced (sim-tick); the actor anim cycle is
+  now RE'd + ported (ckpt 72 above — it rides the same sim-tick clock, no new pin needed). The
+  intra-tick-identical observation is now explained: the stepper reads no flip/clock/RNG.
+  Standing rule: never diff on the Flip index — anchor on the sim tick. NB `--turbo` is NOT faster in-game (Frida/LAN overhead dominates, not Sleep) and
   breaks the no-turbo-timed input traces; use `--no-turbo --lockstep` until traces are re-timed.
 - **Prior (ckpt 70): the intro-PAN camera is WIRED LIVE — the town now pans.**
   `main.c game_render` steps a live `camera_view` each frame (`camera_follow_step` =

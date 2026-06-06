@@ -6,6 +6,52 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 72
+
+**The ACTOR ANIMATION cycle is RE'd end-to-end + the frame-stepper ported — and it
+rides the existing sim-tick clock, so there is NO separate counter to pin.**  This
+closes the ckpt-71 directed next ("RE the NPC/actor system + its animation cycle,
+then pin its counter").
+
+- **The UPDATE chain (per sim-tick), distinct from the render/emit pass.**
+  `FUN_00439690:1108` calls `FUN_0046cd70(1)` once per sim-tick (when
+  `*(param+0x1c)==0`).  `0x46cd70` is the actor-UPDATE master (not the render walk
+  `0x48c150`): it walks the pools off `DAT_008a9b50` (active = `actor+0x1d0!=0`) and
+  for the main band (`+0x11e0`, 0x80 slots) calls
+  `FUN_0054f980(actor+0x40, actor+0x40, 0, 0)` for the primary render-state entry +
+  `(entry-0x294, entry, 1, idx)` for each kinematic sub-entry.
+- **`0x54f980` (11597 B) = the per-actor behaviour dispatch on `actor+0x1d4`.** It
+  shadow-copies the render-state (the body-part chain), then every animating case
+  runs the SAME inline frame-stepper on the render-state anim fields (`+0x6c` clip /
+  `+0x70` timer / `+0x72` frame / `+0x74` done): `timer++`; at `>=clip.dur` →
+  `frame++`,`timer=0`; at `>=clip.count` → loop (`frame=loop_to`) or one-shot hold
+  (`frame=count-1`,`done=1`,`timer=1`).
+- **The clip is a fixed 0x154-B 32-frame descriptor** (count@`+0x42`/dur@`+0x44`/
+  oneshot@`+0x48`/loop_to@`+0x152`/base@`+0x00`/per-frame delta@`+0x02`/x@`+0x50`/
+  y@`+0xd0`) — two witnesses: the stepper + the renderer `0x491ae0` case 0x1872d.
+  Clip is (re)set on STATE CHANGE by `0x40afe0`/`0x41e600`, reset-on-change only.
+- **PORTED (pure, host-tested bit-exact): `src/anim_clip.{c,h}`** —
+  `anim_clip_advance` (the stepper) + `anim_state_set` (the change-gated set) +
+  `anim_clip_sprite` (base+delta).  `anim_clip` pins the descriptor layout with
+  `_Static_assert`.  **8 tests; 854 pass / 0 fail / 6 skip** (+6).  Both GUI builds
+  clean (wildcard picks up `anim_clip.c`; unused for now — actors not yet driven).
+- **DETERMINISM CONCLUSION:** `+0x70/+0x72` is a pure function of *(sim-ticks since
+  clip-set)* — no GetTickCount/Flip/RNG — so it is already deterministic under the
+  camera's `g_sim_tick` anchor (game_enter reset).  No new pin.  This REFINES the
+  #75-addendum guess that the anim "reads a counter NOT the camera sim-tick".
+- **OPEN (the real residual):** the #75 ~6.7k-px actor-band diff under sim-tick
+  matching must be a DIFFERENT pillar — the RNG-driven behaviour (which clip plays /
+  position).  `0x54f980`'s idle/wander cases draw the LCG `0x5bf505` for random
+  waits + spawn offsets; clip-SET timing is downstream.  ANNOTATED for the check
+  (`retail_fields.json` `0x46cd70`/`0x54f980` → `a0_clip/a0_timer/a0_frame`): a live
+  capture across two sim-tick-matched runs should show `a0_frame` matching while
+  `a0_clip`/position drifts.  Engine-quirk #76; `findings/in-game-intro.md` "The
+  actor animation cycle".
+- **NEXT:** either (a) live-confirm the above (drive retail twice seed-pinned, read
+  the `a0_*` anim fields per sim-tick, diff) → pins the residual to the RNG pillar;
+  or (b) move to a named visible layer (the cinematic LETTERBOX quirk #74, or the
+  `0x5a00c0` banner/foreground-tree overlay player).
+
 ## Where we are — ckpt 70
 
 **The intro-PAN camera is WIRED LIVE — the town backdrop now PANS; the scripted
@@ -376,7 +422,10 @@ word-wrap).
 newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option submenu).
 **In-game (milestone 2 — pure + host-tested; the backdrop chain is now WIRED into
 `main.c` via `town_render`, ckpt 65):**
-game_drive (the in-game run-loop shell), **camera_follow** (the per-frame camera
+game_drive (the in-game run-loop shell), **anim_clip** (the actor animation cycle:
+the per-sim-tick frame-stepper `0x54f980` + clip-set `0x40afe0`/`0x41e600` + the
+0x154-B 32-frame clip descriptor — ckpt 72, pure + host-tested; not yet driven,
+lands with the actor/entity system), **camera_follow** (the per-frame camera
 ease-to-target `0x43d1d0` + shake sub-applier `0x43d340` + the `0x439690` SNAP/PAN
 target-setters `camera_apply_snap`/`_pan`, ckpt 69-70 — pure + host-tested bit-exact;
 **WIRED LIVE into `main.c game_render` ckpt 70** — `g_game_camera` stepped each frame,

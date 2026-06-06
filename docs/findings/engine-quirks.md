@@ -2151,3 +2151,65 @@ Follow-up experiments narrowing the cause:
 Practical rule until then: **diff one frame per sim tick** (dedup the multi-Flip
 presents), match camera/backdrop on the sim tick, and treat the actor layer as a
 separate not-yet-pinned subsystem.
+
+### #76 — the actor animation frame is a pure per-sim-tick STEPPER (rides the camera clock; no separate counter) (2026-06-06)
+
+RE'ing the actor anim cycle (the #75-addendum "next chip") **refines** that
+addendum's guess.  The animation frame does NOT read "a global frame tick or a
+spawn-time RNG phase that is not the camera sim-tick" — it is advanced by a small
+inline stepper that reads ONLY the clip's own duration/count and the per-actor
+timer.
+
+**The call chain (per SIM-TICK, two-witness from the decompile):**
+- In-game loop `FUN_00439690:1108` calls `FUN_0046cd70(1)` once per tick (when
+  `*(param+0x1c)==0`).  This is the actor-UPDATE master driver — distinct from the
+  render/emit pass `FUN_0048c150`.
+- `0x46cd70` walks the actor pools off `DAT_008a9b50` (active = `actor+0x1d0!=0`);
+  for the main band (`+0x11e0`, 128 slots) it calls `FUN_0054f980(actor+0x40,
+  actor+0x40, 0, 0)` for the primary render-state entry (and `(entry-0x294, entry,
+  1, idx)` for each kinematic sub-entry).
+- `0x54f980` (the per-actor behaviour dispatch on `actor+0x1d4`) runs, in EVERY
+  animating case, the byte-identical inline frame-stepper on the render-state's
+  anim fields:
+
+  ```
+  seq = rstate[+0x6c];                              // current clip ptr
+  if (seq && (++rstate[+0x70] >= seq[+0x44])) {     // timer++ >= duration
+      rstate[+0x72]++;  rstate[+0x70] = 0;          // frame++, reset timer
+      if (rstate[+0x72] >= seq[+0x42]) {            // past the last frame
+          if (seq[+0x48] == 0) rstate[+0x72] = seq[+0x152];        // loop -> loop_to
+          else { rstate[+0x70]=1; rstate[+0x74]=1; rstate[+0x72]=seq[+0x42]-1; } // one-shot hold
+      }
+  }
+  ```
+
+  The clip descriptor (`seq`) is a fixed 0x154-byte 32-frame clip: count@`+0x42`,
+  duration@`+0x44`, one-shot@`+0x48`, loop-to@`+0x152`, base sprite@`+0x00`,
+  per-frame sprite-delta@`+0x02`, per-frame x/y offset@`+0x50`/`+0xd0` (the last
+  three confirmed by the renderer `FUN_00491ae0` case 0x1872d).  The clip is
+  (re)assigned only on a STATE CHANGE (`FUN_0040afe0`/`FUN_0041e600`), which resets
+  timer/frame/done — and only when the clip pointer actually changes, so
+  re-asserting the same state lets the cycle keep running.
+
+**Consequence — the frame counter needs NO separate pin.**  `rstate[+0x70]/[+0x72]`
+is a pure function of *(sim-ticks since the clip was set)* — it reads no
+GetTickCount, no Flip index, no RNG.  So it is already deterministic under the
+**same `g_sim_tick` anchor** the camera uses (game_enter scene-load reset).  This
+is the per-subsystem anchoring the #75 decision called for: the actor-anim
+subsystem anchors on the existing sim-tick clock; there is no new counter to find.
+Ported (host-tested bit-exact): `src/anim_clip.c` `anim_clip_advance` +
+`anim_state_set`.
+
+**So what was the #75 ~6.7k-px actor-band residual?**  Since the frame-stepper is
+sim-tick-deterministic, a divergence between two seed-pinned, sim-tick-matched
+runs cannot be the frame *within* a clip — it must be a DIFFERENT pillar: the
+RNG-driven BEHAVIOUR (which clip is playing / the actor's position).  `0x54f980`'s
+idle/wander cases draw the LCG `FUN_005bf505` for random wait timers and spawn
+offsets (e.g. case 0x11365/0x1872d pick a random `+0x5c` wait before the next
+state), and the clip-SET timing is downstream of those draws.  If the actor RNG
+consumption desyncs run-to-run, the actor STATE (not the intra-clip frame) drifts.
+**To confirm:** live-capture `a0_clip`/`a0_frame` (now annotated in
+`retail_fields.json` for `0x54f980`) across two seed-pinned sim-tick-matched runs —
+expect `a0_frame` to match at equal sim-tick while `a0_clip`/position diverges,
+pinning the residual to the RNG/behaviour pillar (anchored separately, à la the
+RNG seed pin).

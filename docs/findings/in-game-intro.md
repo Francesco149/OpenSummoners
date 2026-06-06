@@ -1512,3 +1512,78 @@ Consequence for `ingame-camera-pan`: there is **no** way to match retail
 flip-for-flip — it is not self-consistent run-to-run.  The port's clean fixed
 2:1 cadence is fine; diffs just have to be taken at equal sim state.  See
 engine-quirk #75 and [[timestep-determinism-pillar]].
+
+## The actor animation cycle — a per-sim-tick stepper (ckpt 72)
+
+Following the ckpt-71 decision (per-subsystem determinism anchoring; **next = RE
+the NPC/actor system + its animation cycle, then pin its counter**), the actor
+animation path is now reverse-engineered end to end.  The result *refines* the
+#75-addendum hypothesis: the animation frame reads neither a global frame-tick
+nor an RNG phase — it is a pure per-sim-tick stepper, so it rides the camera's
+existing `g_sim_tick` clock with **no separate counter to pin**.
+
+### The call chain (UPDATE pass, distinct from the render/emit pass)
+
+| VA | role |
+|----|------|
+| `FUN_00439690:1108` | in-game loop → `FUN_0046cd70(1)` once per **sim tick** (when `*(param+0x1c)==0`) |
+| `FUN_0046cd70` (1031 B) | per-tick actor-UPDATE master; walks the pools off `DAT_008a9b50` (active = `actor+0x1d0!=0`) |
+| `FUN_0054f980` (11597 B) | per-actor behaviour dispatch on `actor+0x1d4`; **runs the inline frame-stepper** |
+| `FUN_0040afe0` / `FUN_0041e600` | state-transition handlers; **set** the clip (`rstate+0x6c`) + reset timer/frame/done on change |
+| `FUN_00491ae0` (2599 B) | the render/emit pass (READS the frame; quirk #76's third witness for the clip layout) |
+
+`0x46cd70` is **not** `FUN_0048c150` — the latter is the render/emit walk (builds
+the draw list, no anim advance).  The animation advances only in the update pass.
+For the main actor band (`+0x11e0`, 0x80 slots) it calls
+`FUN_0054f980(actor+0x40, actor+0x40, 0, 0)` for the primary render-state entry,
+then `FUN_0054f980(entry-0x294, entry, 1, idx)` for each sub-entry (the kinematic
+body-part chain — a sub-entry first inherits its parent's transform via the
+copy at `0x54f980`'s head).
+
+### The stepper + the clip descriptor (ported: `src/anim_clip.{c,h}`)
+
+Every animating case in `0x54f980` runs the byte-identical idiom (see quirk #76
+for the verbatim block): `timer++`; when `timer >= clip.frame_dur`, `frame++` and
+`timer=0`; when `frame >= clip.frame_count`, either loop (`frame = clip.loop_to`)
+or, for a one-shot clip (`clip.oneshot != 0`), freeze on the last frame
+(`frame = count-1`, `done = 1`, `timer = 1`).
+
+The clip `seq` is a fixed **0x154-byte, 32-frame** descriptor — confirmed by two
+witnesses (the stepper's `+0x42`/`+0x44`/`+0x48`/`+0x152` reads and the renderer
+`0x491ae0` case-0x1872d's `base + per-frame delta`, `per-frame x/y offset` reads):
+
+| off | field | who reads it |
+|-----|-------|--------------|
+| +0x00 | `base_sprite` (i16) | renderer (`base + delta[f]`) |
+| +0x02 | `frame_delta[32]` (i16) | renderer (per-frame sprite id) |
+| +0x42 | `frame_count` (u16) | stepper (wrap test) |
+| +0x44 | `frame_dur` (u16) | stepper (tick gate) |
+| +0x48 | `oneshot` (i32) | stepper (0 = loop) |
+| +0x50 | `off_x[32]` (i32) | renderer (per-frame draw x) |
+| +0xd0 | `off_y[32]` (i32) | renderer (per-frame draw y) |
+| +0x150 | `link` (u16) | renderer (next-clip) |
+| +0x152 | `loop_to` (u16) | stepper (loop target) |
+
+The anim STATE lives in the 0x294-byte render-state at `+0x6c` (clip ptr) / `+0x70`
+(timer) / `+0x72` (frame) / `+0x74` (done).  `anim_state_set` mirrors the
+transition handlers: reset only when the clip pointer changes, so re-asserting the
+same state keeps the cycle running.  8 host tests pin the loop trajectory, the
+one-shot hold, the duration gate, the NULL guard, the change-gated set, and the
+`base+delta` sprite id.
+
+### The determinism conclusion + the open residual
+
+The counter `rstate[+0x70]/[+0x72]` is a pure function of *(sim-ticks since
+clip-set)* — no GetTickCount, no Flip index, no RNG.  It is therefore **already
+deterministic under the camera's `g_sim_tick` anchor** (game_enter reset); the
+actor-anim subsystem needs no new pin.  This is the answer to the ckpt-71 task.
+
+That leaves the #75-addendum's ~6.7k-px actor-band residual (two seed-pinned,
+sim-tick-matched runs) attributed to a **different pillar**: the RNG-driven
+behaviour (which clip plays / actor position).  `0x54f980`'s idle/wander cases
+draw the LCG `FUN_005bf505` for random waits + spawn offsets, and the clip-SET
+timing is downstream of those.  Annotated for the verification (`retail_fields.json`
+`0x54f980` → `a0_clip`/`a0_timer`/`a0_frame`): a live capture across two
+sim-tick-matched runs should show `a0_frame` matching while `a0_clip`/position
+drifts — pinning the residual to the RNG/behaviour pillar (anchored separately).
+See engine-quirk #76 and [[timestep-determinism-pillar]].

@@ -879,6 +879,12 @@ struct test_case {
     X(camera_follow_step_both_axes)                            \
     X(camera_apply_snap_jumps_and_clamps)                      \
     X(camera_apply_pan_sets_target_keeps_cur)                  \
+    X(anim_clip_loop_trajectory)                               \
+    X(anim_clip_oneshot_holds_last)                            \
+    X(anim_clip_duration_gate)                                 \
+    X(anim_clip_null_is_noop)                                  \
+    X(anim_clip_set_is_change_gated)                           \
+    X(anim_clip_sprite_id)                                     \
 
 #define X(n) extern int test_##n(void);
 TESTS
