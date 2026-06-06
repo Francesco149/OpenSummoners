@@ -54,7 +54,11 @@ understates how much actual instruction volume is ported.
   band = "data-1:1 given a matched RNG state" (retail-vs-retail isn't observed-1:1 here).
   (The `a0_clip/a0_frame` fields matched 8643/8643 but TRIVIALLY — main-band slot 0 was inert
   the whole run; the `rng` divergence is the real result.) Tool: `tools/rng_tick_diff.py`.
-  Engine-quirk #77; `in-game-intro.md`.
+  Engine-quirk #77; `in-game-intro.md`. **DIRECTION (user): defer ALL RNG-order parity**
+  until every in-scene RNG consumer is RE'd, then match consumption order (rng+`rngcalls`
+  both sides — the flow trace now carries `rngcalls`, the unified consumption signal,
+  openrecet-style; commit `4c587c0`). **Next chips = implement the scene's VISUAL elements**
+  (LETTERBOX #74 → `0x5a00c0` banner/tree → NPC render/spawn); RNG behaviour parity comes after.
 - **Prior (ckpt 72): the ACTOR ANIMATION cycle RE'd + the frame-stepper ported — rides the
   sim-tick clock, no separate counter.** The per-tick UPDATE pass (`0x439690:1108`→`0x46cd70`
   once/tick→`0x54f980` per actor) runs one byte-identical inline stepper on the render-state

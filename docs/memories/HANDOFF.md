@@ -43,11 +43,25 @@ pillar, and the shared LCG stream is non-deterministic run-to-run EVEN UNDER
   bar for the band: **data-1:1 given a matched RNG state** — retail-vs-retail isn't
   observed-1:1 here.  Tooling: `tools/rng_tick_diff.py RUN_A RUN_B`.  Engine-quirk
   #77; `findings/in-game-intro.md`.
-- **NEXT:** either (a) implement the actor-RNG anchor (snapshot `DAT_008a4f94` at
-  the game_enter sim-tick in the harness so a retail↔retail actor-band diff is
-  reproducible — the prerequisite for a port↔retail actor diff later), or (b) move
-  to a named visible layer with NO RNG dependence: the cinematic LETTERBOX (quirk
-  #74) or the `0x5a00c0` banner/foreground-tree overlay player.
+- **DIRECTION (user, ckpt 73):** **defer ALL RNG-order parity** — it reaches 1:1
+  later, once every in-scene RNG consumer is RE'd and we match consumption order
+  (rng+rngcalls per anchor on both sides; the flow trace now carries `rngcalls`,
+  the unified consumption signal — committed `4c587c0`).  **Do NOT build the
+  actor-RNG anchor now.**  The next chips are **implementing all the VISUAL elements
+  of this scene**; RNG-driven behaviour parity comes after the consumer census.
+- **NEXT (visual elements, simplest first):**
+  1. **Cinematic LETTERBOX** (quirk #74) — black bars rows 0-63 + 416-479 during the
+     establishing shot; RNG-free, a big simple slice of the diff.  RE the producer
+     first (a quick grep of `0x5a00c0` for a 640-wide fill came up empty — find what
+     draws the bars: likely a `0x5a00c0` overlay-list entry or a dedicated fill;
+     probe retail live / read the overlay draw-list builder).
+  2. **"Town of Tonkiness" banner + foreground tree/veg** — the `0x5a00c0`
+     scripted-scene overlay player (draw-list `stack+0x98` stride-10; caption array
+     `stack+0x3a4` stride 0x124 via font bank `DAT_008a7640`).  Also where the pan
+     TRIGGER lives (`ingame-camera-pan`).
+  3. **NPC actor RENDER + spawn** (present modes 0/1/2) — the entity/spawn foundation
+     (`0x59f2c0` 8-slot init + `0x560e60`); render the actors even though their
+     RNG-driven motion won't be observed-1:1 yet (deferred above).
 
 ## Where we are — ckpt 72
 
