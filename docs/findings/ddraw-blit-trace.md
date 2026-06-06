@@ -131,7 +131,14 @@ not wrong ones. The 356 missing draws:
   in a full-screen grid** (dx 0–576 = 10 cols, dy 0–476; `dy=416` is the
   letterbox bottom-bar row). Deterministic → portable. This is the
   **establishing-shot cinematic overlay** (quirk #74 letterbox + dark gradient),
-  the single biggest missing layer and the next concrete chip.
+  the single biggest missing layer and the next concrete chip. **→ PORTED (ckpt
+  75): the producer is `0x48c150:124-162`** (two grid-fill loops, not the
+  `0x5a00c0` overlay as hypothesized): the BOTTOM bar (`in_ECX+0x44` height, ret
+  `0x48c48a`, dy 416-476) then the TOP bar (`in_ECX+0x48` height, ret `0x48c4fe`,
+  dy 0-60), each tiling the res-`0x583` cel at 64px column pitch (10 cols) and 4px
+  row pitch, both heights 64. Port: `letterbox.{c,h}` + `main.c game_letterbox_blit`.
+  **Re-diff: the 320 `0x583` divergences VANISHED (356→36); the cel matches retail
+  on identity + geometry + state.**
 - **~36× the actor / overlay banks** (`0x426`/`0x403`/`0x3fa`/`0x481`/`0x47b`/
   `0x472`/`0x46b`/`0x46a`/`0x462`/`0x459`, `blt_keyed`) — the NPC actors +
   foreground tree + "Town of Tonkiness" banner (PORT-DEBT `present-actor-modes` /

@@ -35,6 +35,21 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
+- **LATEST (ckpt 75): the establishing-shot cinematic LETTERBOX is PORTED + blit-trace 1:1.**
+  RE'd the producer from the captured retail blit trace: it's NOT the `0x5a00c0` overlay but
+  **`0x48c150:124-162`** (the per-frame world driver), two grid-fill loops that tile a 64×4
+  opaque cel (res **`0x583`** = main-pool slot 41) across the screen — BOTTOM bar
+  (`in_ECX+0x44` rows, ret `0x48c48a`, dy 416-476) then TOP bar (`in_ECX+0x48` rows, ret
+  `0x48c4fe`, dy 0-60), both 64 → the quirk-#74 black bars (rows 0-63 + 416-479), 640×352
+  cinematic window. **Ported `letterbox.{c,h}`** (the grid-fill, host-tested 4 + bit-exact
+  vs the trace) + `main.c game_letterbox_blit` (resolves slot 41 frame 0, `zdd_object_blt_onto`,
+  drawn after the present). **Re-diff: the town-frame divergences dropped 356→36** — all 320
+  `0x583` blits now match retail on identity+geometry+state; the 36 left are exactly the
+  deferred RNG-driven actor/banner/tree banks. **Port frame pixel-verified** (rows 0-63 +
+  416-479 `(0,0,0)`, row 64 = sky), USER-CONFIRMED on the feed. 865 pass; parity-ledger #8;
+  PORT-DEBT `ingame-letterbox` (the 64/64 heights stand in for the unported `0x5a00c0` op
+  that writes `+0x44`/`+0x48` — the geometry is bit-exact). **Next chip: the "Town of
+  Tonkiness" BANNER + foreground TREE (`0x5a00c0` overlay player).**
 - **Where we are (ckpt 73): the actor-band residual is PINNED to the RNG pillar — and the
   shared LCG stream is NON-DETERMINISTIC run-to-run EVEN UNDER `--seed-pin`.** Ran the ckpt-72
   directed live check: drove retail **twice** (`--seed-pin --lockstep --no-turbo`, same
@@ -65,7 +80,7 @@ understates how much actual instruction volume is ported.
   `[rect]`/`[decode]`/`[state]`, ZERO port-extra** — every port blit matched retail on identity
   + geometry + state. The missing draws: **320× bank `0x583`** (a 64×4 full-screen grid, frame 0,
   deterministic, `dy=416` = the letterbox row → the **establishing-shot cinematic overlay**,
-  quirk #74 — THE next concrete chip, with exact RE coordinates now) + ~36 actor/overlay banks
+  quirk #74 — **PORTED ckpt 75, see LATEST above; the 320 blits now match retail**) + ~36 actor/overlay banks
   (`0x426`/`0x403`/… NPCs + tree + banner — RNG-driven, accepted-divergent until the scene RNG is
   RE'd). `findings/ddraw-blit-trace.md` "The TOWN frame".
 - **Prior (ckpt 72): the ACTOR ANIMATION cycle RE'd + the frame-stepper ported — rides the
@@ -157,9 +172,8 @@ understates how much actual instruction volume is ported.
   ONLY** — exactly the signal we wanted. NEW retail ground-truth (quirk #74): the establishing
   shot is **LETTERBOXED** (solid-black bars rows 0-63 + 416-479, a 640×352 cinematic window; the
   "dark top" the user saw, with a matching bottom bar). Parity-ledger entry #7.
-- **Next move (the named layers, simplest first):** (a) the **cinematic LETTERBOX** (quirk #74 —
-  draw black over rows 0-63/416-479 during the establishing shot; a big, simple slice of the diff,
-  likely a `0x5a00c0` overlay); (b) the **"Town of Tonkiness" banner** + **foreground tree/veg**
+- **Next move (the named layers, simplest first):** (a) the **cinematic LETTERBOX** (quirk #74)
+  — **DONE ckpt 75** (`letterbox.{c,h}`, the `0x48c150:124-162` grid-fill; 356→36 diff); (b) the **"Town of Tonkiness" banner** + **foreground tree/veg**
   (`0x5a00c0` scripted-scene overlay player — also where the pan TRIGGER source lives, closing
   `ingame-nontile-layers` + the trigger half of `ingame-camera-pan`); (c) the **actor renderers**
   (present modes 0/1/2, need the entity/spawn system first). Writeups: `findings/in-game-intro.md`

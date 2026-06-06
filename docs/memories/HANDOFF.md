@@ -6,6 +6,56 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 75
+
+**The establishing-shot cinematic LETTERBOX is RE'd, ported, and blit-trace 1:1.**
+The single biggest missing layer of the town frame (the ckpt-74 diff's 320 `0x583`
+draws) is now drawn.
+
+- **The producer — RE'd from the captured retail blit trace, NOT the `0x5a00c0`
+  overlay as ckpt-74 guessed.**  The 320 res-`0x583` blits' return addresses
+  (`0x8c48a`/`0x8c4fe` + image base 0x400000 = `0x48c48a`/`0x48c4fe`) land inside
+  **`FUN_0048c150`** (the per-frame world driver), lines **124-162** — two
+  grid-fill loops AFTER the backdrop present pass (`0x48eac0`).  Loop 1 (`in_ECX+0x44`
+  = bottom-bar height, ret `0x48c48a`, emitted first) tiles the cel over dy
+  416-476; loop 2 (`in_ECX+0x48` = top-bar height, ret `0x48c4fe`) over dy 0-60.
+  Each bar rounds its height up to a multiple of the 4px cel height and tiles at
+  64px column pitch (10 cols, dx 0-576; inner loop runs while `(dx+0x80)<0x281`).
+  Both heights are **64** for the opening town → the quirk-#74 letterbox.
+- **The cel** = main sprite-pool **slot 41** (PE resource **`0x583`**, 64×4, opaque
+  `ckey=0x1ffffff`), registered by `ar_register_main_sprites` (extras[] idx 41,
+  already run at boot, `main.c:718`).  The engine binds it via `FUN_00418470(0)`
+  (the plain frame getter — NO `0x417c40` grade) before the `FUN_005b9a40`
+  (`blt_onto`) tile blits.
+- **PORTED (pure, host-tested + bit-exact vs the trace): `src/letterbox.{c,h}`** —
+  `letterbox_render(top_h, bottom_h, sink, ctx)` ports the two loops verbatim
+  (4 tests: the 64/64 town grid bit-exact vs the 320-blit trace, zero bars,
+  null sink, the round-up-to-4 arithmetic).  Wired in `main.c`:
+  `game_letterbox_blit` resolves `&g_ar_sprite_slots[41]` frame 0 →
+  `zdd_object_blt_onto`, called in `game_render` AFTER `town_render_step` (on top of
+  the backdrop, matching the engine order).  Heights armed to `LETTERBOX_INTRO_BAR`
+  (64) in `enter_game`.
+- **VERIFIED two ways.**  (1) `render_diff --retail-frame 1500 --port-frame 1200`:
+  the town-frame divergences dropped **356 → 36** — all 320 `0x583` blits now match
+  retail on identity + geometry + DDraw state (0 `[rect]`/`[decode]`/`[state]`, 0
+  port-extra); the 36 left are exactly the deferred RNG-driven actor/banner/tree
+  banks (`present-actor-modes`/`ingame-nontile-layers`).  (2) Port frame 1200
+  pixel check: rows 0-63 + 416-479 are `(0,0,0)`, row 64 is the sky band — the
+  central 640×352 window.  **USER-CONFIRMED on the feed.**
+- **State: 865 pass / 0 fail / 6 skip** (+4).  Ledger **197/192 unchanged**
+  (`letterbox.c` is a bare-VA slice of the unported `0x48c150` — no new `FUN_`
+  token, correct).  parity-ledger #8.  Engine-quirk #74 updated with the proven
+  producer.  PORT-DEBT `ingame-letterbox` (the 64/64 heights stand in for the
+  unported `0x5a00c0` cutscene op writing the scene-object `+0x44`/`+0x48`; the
+  grid-fill geometry is bit-exact).
+- **NEXT chip:** the **"Town of Tonkiness" banner + foreground tree/veg** — the
+  `0x5a00c0` scripted-scene overlay player (draw-list `stack+0x98` stride-10;
+  caption array `stack+0x3a4` stride 0x124 via font bank `DAT_008a7640`).  Also
+  where the pan TRIGGER and the letterbox `+0x44`/`+0x48` writer live — porting it
+  closes `ingame-nontile-layers`, the trigger half of `ingame-camera-pan`, and the
+  source half of `ingame-letterbox`.  Then the NPC actor render/spawn (entity
+  system; RNG-driven motion deferred per ckpt-73).
+
 ## Where we are — ckpt 73
 
 **The #75-addendum / ckpt-72 OPEN is RESOLVED: the actor-band residual is the RNG
@@ -54,14 +104,9 @@ pillar, and the shared LCG stream is non-deterministic run-to-run EVEN UNDER
      (port 250 blits all matched retail on identity+geometry+state; 0 wrong draws).
      The missing 356 draws ARE the chips below — `render_diff --retail-frame 1500
      --port-frame 1200` names them.
-  1. **The establishing-shot overlay = bank `0x583`** (the trace's biggest gap: 320
-     blits/frame). Concrete RE coordinates from the trace: a **64×4 cel (frame 0)
-     drawn via `blt_onto` in a full-screen grid** (dx 0–576 ×10 cols, dy 0–476;
-     `dy=416` = the quirk-#74 letterbox bottom-bar row), no colorkey, st=0. RE the
-     producer that emits bank 0x583 as this grid (likely the `0x5a00c0` overlay or a
-     dedicated establishing-shot fill) + how the bank/grid is selected, then port it
-     and re-diff (the 320 `[sprite]` divergences should vanish). Deterministic →
-     fully portable, no RNG.
+  1. **The establishing-shot overlay = bank `0x583`** — **DONE (ckpt 75, see above):
+     the producer is `0x48c150:124-162`, ported as `letterbox.{c,h}`; the 320 blits
+     now match retail (356→36 diff).**
   2. **"Town of Tonkiness" banner + foreground tree/veg** — the `0x5a00c0`
      scripted-scene overlay player (draw-list `stack+0x98` stride-10; caption array
      `stack+0x3a4` stride 0x124 via font bank `DAT_008a7640`).  Also where the pan

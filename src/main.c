@@ -70,6 +70,7 @@
 #include "town_render.h"      /* the in-game backdrop scene (decode→walk→present) */
 #include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
 #include "camera_follow.h"    /* the in-game camera easer (0x43d1d0) + setters (0x439690) */
+#include "letterbox.h"        /* the establishing-shot cinematic letterbox (0x48c150 slice) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -195,6 +196,16 @@ static camera_view    g_game_camera;
 static int            g_game_camera_armed;   /* live camera in use this scene   */
 static uint32_t       g_game_camera_hold;    /* frames since the spawn snap     */
 static mr_camera      g_game_camera_mr;       /* derived per-frame projection cam */
+
+/* The establishing-shot cinematic letterbox bar heights (0x48c150's
+ * in_ECX+0x44 / +0x48).  Set to LETTERBOX_INTRO_BAR (64) for the opening-town
+ * intro = the quirk-#74 letterbox; 0 = no bars.
+ * PORT-DEBT(ingame-letterbox): retail's heights are written by the unported
+ * 0x5a00c0 cutscene script onto the scene-controller object; the port drives a
+ * constant during the establishing shot (parallel to the camera-pan trigger
+ * stand-in).  The grid-fill geometry itself is bit-exact RE'd (letterbox.c). */
+static int            g_letterbox_top;
+static int            g_letterbox_bottom;
 
 /* Flips the camera holds at the spawn origin before the scripted pan begins.
  * MEASURED from a retail field-spec trace (--seed-pin --lockstep): Flip 1616 is
@@ -1579,6 +1590,24 @@ static void game_parallax_blit(void *ctx, uint16_t bank, int32_t frame,
     zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
 }
 
+/* The letterbox cel is main sprite-pool slot 41 (PE resource 0x583, 64x4,
+ * opaque) — registered by ar_register_main_sprites (extras[] idx 41).  The
+ * engine binds it via FUN_00418470(0) (the plain frame getter, NO 0x417c40
+ * grade) before the FUN_005b9a40 tile blits, so the port resolves the fixed
+ * slot directly (frame 0) and blits it whole — same primitive the parallax
+ * far-plane uses, minus the 24bpp grade stamp. */
+#define LETTERBOX_BANK_SLOT 41
+
+/* letterbox_blit_fn — draw one letterbox cel at screen (x,y) (FUN_005b9a40). */
+static void game_letterbox_blit(void *ctx, int x, int y)
+{
+    (void)ctx;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
+    void *cel = ar_sprite_slot_frame(&g_ar_sprite_slots[LETTERBOX_BANK_SLOT], 0);
+    if (cel == NULL) return;
+    zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
+}
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -1721,6 +1750,10 @@ static void game_render(void *user)
         town_render_step(&g_town, cam,
                          game_sprite_resolve, NULL,
                          game_present_blit, NULL, &deferred);
+        /* 0x48c150:124-162 — the cinematic letterbox tiled ON TOP of the
+         * backdrop (after the present pass), during the establishing shot. */
+        letterbox_render(g_letterbox_top, g_letterbox_bottom,
+                         game_letterbox_blit, NULL);
     }
 }
 
@@ -1792,6 +1825,13 @@ static void enter_game(void)
         g_game_camera_hold  = 0;
         game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
         g_game_camera_armed = 1;
+
+        /* Arm the establishing-shot letterbox (top == bottom == 64 = quirk #74).
+         * PORT-DEBT(ingame-letterbox): a constant stand-in for the 0x5a00c0
+         * cutscene op that writes the scene-controller's +0x44/+0x48 bar
+         * heights; the grid-fill is bit-exact (letterbox.c). */
+        g_letterbox_top    = LETTERBOX_INTRO_BAR;
+        g_letterbox_bottom = LETTERBOX_INTRO_BAR;
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

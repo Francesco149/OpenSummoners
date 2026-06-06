@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 75) — the establishing-shot cinematic LETTERBOX RE'd + ported + blit-trace 1:1
+
+Closed the ckpt-74 next chip — the town frame's single biggest missing layer (the
+320 `0x583` blits/frame).  RE'd the producer straight from the captured retail blit
+trace (`/tmp/blit_town_retail`): the 320 res-`0x583` blits' return addresses
+(`0x8c48a`/`0x8c4fe` + image base = `0x48c48a`/`0x48c4fe`) sit inside
+**`FUN_0048c150`** (the per-frame world driver), lines **124-162** — NOT the
+`0x5a00c0` overlay the ckpt-74 note hypothesized.  Two grid-fill loops run after the
+backdrop present pass: the BOTTOM bar (`in_ECX+0x44` rows, ret `0x48c48a`, dy
+416-476) then the TOP bar (`in_ECX+0x48` rows, ret `0x48c4fe`, dy 0-60), each tiling
+a 64×4 opaque cel (main sprite-pool slot 41 = res `0x583`) at 64px column pitch (10
+cols) and 4px row pitch; both heights 64 → the quirk-#74 letterbox (black rows 0-63
++ 416-479, 640×352 cinematic window).
+
+**Ported** `src/letterbox.{c,h}` (the two loops verbatim; the inner column loop runs
+while `(dx+0x80)<0x281`).  4 host tests, incl. the 64/64 town grid asserted
+bit-exact against the 320-blit retail trace.  Wired in `main.c`:
+`game_letterbox_blit` resolves `&g_ar_sprite_slots[41]` frame 0 →
+`zdd_object_blt_onto`, called in `game_render` after `town_render_step`; heights
+armed to 64 in `enter_game`.
+
+**Verified** two ways: (1) `render_diff --retail-frame 1500 --port-frame 1200`
+dropped the town-frame divergences **356 → 36** — all 320 `0x583` blits now match
+retail on identity + geometry + DDraw state, and the 36 remaining are exactly the
+deferred RNG-driven actor/banner/tree banks (`present-actor-modes` /
+`ingame-nontile-layers`); (2) port frame 1200 pixel check — rows 0-63 + 416-479 are
+`(0,0,0)`, row 64 is the sky band.  **USER-CONFIRMED on the feed.**
+
+865 pass / 0 fail / 6 skip (+4).  Ledger 197/192 unchanged (`letterbox.c` is a
+bare-VA slice of the unported `0x48c150`).  parity-ledger #8; engine-quirk #74
+updated with the proven producer; PORT-DEBT `ingame-letterbox` (the 64/64 heights
+stand in for the unported `0x5a00c0` cutscene op that writes the scene-object
+`+0x44`/`+0x48`; the grid-fill geometry is bit-exact).  Finding:
+`findings/ddraw-blit-trace.md` "The TOWN frame".
+
 ## 2026-06-06 (ckpt 73) — actor-band residual PINNED to the RNG pillar; the shared LCG stream is non-deterministic run-to-run even under `--seed-pin`
 
 Ran the ckpt-72 directed live check (the #76 "To confirm").  Drove retail TWICE

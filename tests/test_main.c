@@ -892,6 +892,10 @@ struct test_case {
     X(anim_clip_null_is_noop)                                  \
     X(anim_clip_set_is_change_gated)                           \
     X(anim_clip_sprite_id)                                     \
+    X(letterbox_town_intro_grid)                               \
+    X(letterbox_zero_bars)                                     \
+    X(letterbox_null_sink)                                     \
+    X(letterbox_round_up)                                      \
 
 #define X(n) extern int test_##n(void);
 TESTS

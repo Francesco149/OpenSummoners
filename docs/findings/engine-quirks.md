@@ -2074,9 +2074,22 @@ scene is the central **640×352** band (rows 64-415).  The bars are **stable**
 (same extent every frame) through the pan — a fixed cinematic frame, not an
 animating iris.  This is the "dark top" the user noticed in the establishing
 frame (there is a matching *bottom* bar too); it is **scene-scoped** — absent
-from settled gameplay — so it is a per-scene CINEMATIC overlay tied to the intro
-(very likely emitted by the scripted-scene player `0x5a00c0`, alongside the
-"Town of Tonkiness" banner).
+from settled gameplay — so it is a per-scene CINEMATIC overlay tied to the intro.
+
+**The producer (proven, ckpt 75 — NOT the `0x5a00c0` overlay as first guessed):**
+the per-frame world driver `FUN_0048c150:124-162`, immediately after the backdrop
+present pass (`0x48eac0`).  Two grid-fill loops tile a single 64×4 opaque cel
+(main sprite-pool slot 41 = PE resource **`0x583`**, registered by
+`ar_register_main_sprites`) across the full screen width — the BOTTOM bar first
+(`in_ECX+0x44` rows, ret `0x48c48a`, dy 416-476) then the TOP bar (`in_ECX+0x48`
+rows, ret `0x48c4fe`, dy 0-60).  Each bar's height is rounded up to a multiple of
+4 (the cel height) and tiled at 64px column pitch (10 columns, dx 0-576); the
+inner column loop runs while `(dx+0x80) < 0x281`.  Both bar-height fields are 64
+for the opening town.  They live on the scene-controller object (`in_ECX`) and are
+written by the (unported) `0x5a00c0` cutscene script — the same source as the
+camera-pan trigger.  Verified bit-exact against the retail blit trace
+(`/tmp/blit_town_retail`, flip 1500: 160 bottom-bar + 160 top-bar `blt_onto`
+calls of res `0x583`).
 
 **TAS/parity consequence:** a flip-anchored full-frame diff of the establishing
 shot will show the top/bottom 64px as a solid difference until the letterbox is
