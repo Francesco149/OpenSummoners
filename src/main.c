@@ -318,6 +318,7 @@ static int  register_window_class(void);
 static int  create_main_window(void);
 static void parse_cmdline(LPSTR);
 static void init_game_dir(void);
+static void resolve_launch_path(char *buf, size_t buflen, const char *what);
 static int  acquire_singleton(void);
 static void release_singleton(void);
 static void main_loop_body(void);
@@ -352,6 +353,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     SetConsoleOutputCP(CP_UTF8);
 
     parse_cmdline(lpCmdLine);
+
+    /* Absolutize file-path CLI args while the CWD is still the LAUNCH dir.
+     * init_game_dir() chdir's to the (Windows) game dir below, but
+     * --input-trace is opened later (init_title_drive) — so a relative or
+     * WSL-form path that resolved fine at launch would miss after the chdir
+     * (the recurring "failed to load input trace" footgun).  --call-trace is
+     * opened just below (pre-chdir) but we resolve+log it too so its output
+     * location is never a mystery. */
+    resolve_launch_path(g_input_trace_path_buf, sizeof g_input_trace_path_buf,
+                        "--input-trace");
+    resolve_launch_path(g_call_trace_path_buf, sizeof g_call_trace_path_buf,
+                        "--call-trace");
 
     /* Open the port-side call trace (no-op unless --call-trace given).
      * Done before any traced function (boot DDraw path) can run. */
@@ -1808,12 +1821,39 @@ static void newgame_start_save_salt(void)
  * OPENSUMMONERS_GAME_DIR from the environment — nix develop's shellHook
  * exports it with WSLENV's /p flag so the .exe gets a Windows-form path
  * even though we cross from WSL into Windows via WSLInterop. */
+/* Resolve a CLI file-path buffer to a fully-qualified absolute path, in place,
+ * while the CWD is still the launch dir.  No-op on an empty buffer (arg not
+ * given) or if GetFullPathNameA fails (left as-is + logged).  See the call site
+ * in WinMain for why this must run before init_game_dir's chdir. */
+static void resolve_launch_path(char *buf, size_t buflen, const char *what)
+{
+    if (buf == NULL || buf[0] == '\0') return;
+    char abs[1024];
+    DWORD n = GetFullPathNameA(buf, (DWORD)sizeof(abs), abs, NULL);
+    if (n == 0 || n >= sizeof(abs)) {
+        log_line("%s: GetFullPathNameA('%s') failed (%lu) — using as-is",
+                 what, buf, GetLastError());
+        return;
+    }
+    strncpy(buf, abs, buflen - 1);
+    buf[buflen - 1] = '\0';
+    log_line("%s resolved to %s", what, buf);
+}
+
 static void init_game_dir(void)
 {
     char dir[MAX_PATH] = {0};
     DWORD n = GetEnvironmentVariableA("OPENSUMMONERS_GAME_DIR", dir, sizeof(dir));
     if (n == 0 || n >= sizeof(dir)) {
-        log_line("OPENSUMMONERS_GAME_DIR unset — staying in CWD");
+        /* Actionable, not just informative: an unset game dir means the
+         * game-dir DLLs (sotesd/sotesp/sotesw) won't be on the search path,
+         * sotesd.dll fails LoadLibrary (err 126), no sprite bank decodes, and
+         * the screen renders BLANK/BLACK.  This is the #1 "why is it black"
+         * footgun — run the launcher INSIDE `nix develop` (its shellHook
+         * exports OPENSUMMONERS_GAME_DIR in Windows form via WSLENV /p). */
+        log_line("OPENSUMMONERS_GAME_DIR unset — staying in CWD; "
+                 "sotesd.dll will likely fail to load → BLANK render. "
+                 "Run inside `nix develop` (it exports OPENSUMMONERS_GAME_DIR).");
         return;
     }
     if (!SetCurrentDirectoryA(dir)) {

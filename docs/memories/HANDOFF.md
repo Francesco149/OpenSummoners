@@ -460,11 +460,14 @@ share a camera at any single flip yet — the backdrop tiles are confirmed by AS
 + SCALE match (vs golden 1800), not by a px-exact frame diff. Find the view scale
 field (or the `0x5a00c0` overlay projection) that drives the establishing shot.
 
-How to drive the port in-game live: `--input-trace
-tests/scenarios/in-game-intro/trace-port.jsonl --frames 1400` (copy the trace into
-the game-dir CWD; `game_enter@1116`), `--capture-frames "1160,1200,1300"` → BMPs
-in the game dir → PNG → feed. The backdrop renders from `game_enter` (the entry
-fade/black-load timing is deferred).
+How to drive the port in-game live (run INSIDE `nix develop` so
+OPENSUMMONERS_GAME_DIR is set — else sotesd.dll fails → BLANK render):
+`--input-trace tests/scenarios/in-game-intro/trace-port.jsonl --frames 1400`
+(`game_enter@1116`), `--capture-frames "1160,1200,1300"` → BMPs in the game dir →
+PNG → feed. CLI file paths (`--input-trace`/`--call-trace`) are now absolutized
+before the game-dir chdir (main.c `resolve_launch_path`), so a repo-relative path
+Just Works — no need to copy the trace into the game dir, and `--call-trace`
+writes to (and logs) the launch CWD. The backdrop renders from `game_enter`.
 
 ## Module inventory — render + text pipelines complete; in-game data layer ported (not wired)
 **Title/menu shell (bit-exact):** pixel_drawer, asset_register, bitmap_session, wnd_proc,
