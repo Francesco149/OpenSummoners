@@ -665,6 +665,13 @@ struct test_case {
     X(call_trace_field_bearing_payload)                        \
     X(call_trace_field_bearing_stub)                           \
     X(call_trace_field_bearing_empty_and_gated)                \
+    X(render_id_register_and_lookup)                           \
+    X(render_id_overwrite)                                     \
+    X(render_id_forget_and_recycle)                            \
+    X(render_id_forget_probes_past_tombstone)                  \
+    X(render_id_sheet_hash_table)                              \
+    X(render_id_fnv1a_known_vector)                            \
+    X(render_id_fnv1a_sensitive_and_seeded)                    \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \
