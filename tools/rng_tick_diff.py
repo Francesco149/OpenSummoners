@@ -12,7 +12,7 @@ per-tick fields — match.
 Input: two run dirs (or two call_trace.jsonl paths) produced by
   tools/run-retail.sh ... --call-trace --field-spec-only
 with the actor-update field spec (tools/flow/retail_fields.json):
-  0x46cd70 (actor_update_all) -> f.rng_state          (LCG @ per-tick boundary)
+  0x46cd70 (actor_update_all) -> f.rng (LCG state) + f.rngcalls (cumulative draws)
   0x54f980 (actor_update)     -> f.a0_clip/a0_frame    (actor slot-0 anim block)
 
 Usage:
@@ -21,7 +21,7 @@ Usage:
 """
 import json, sys, os
 
-VA_UPDATE_ALL = 0x46cd70   # one row per sim tick, carries rng_state
+VA_UPDATE_ALL = 0x46cd70   # one row per sim tick, carries rng
 VA_UPDATE     = 0x54f980   # many rows per tick; take the first (slot-0 anim)
 
 
@@ -30,7 +30,7 @@ def _ct_path(arg):
 
 
 def load(path):
-    """sim_tick -> {rng_state, a0_frame, a0_clip, a0_timer} (first seen per tick)."""
+    """sim_tick -> {rng, rngcalls, a0_frame, a0_clip, a0_timer} (first seen per tick)."""
     per_tick = {}
     with open(path) as fh:
         for line in fh:
@@ -45,8 +45,10 @@ def load(path):
                     continue
                 f = ev.get("f", {})
                 d = per_tick.setdefault(t, {})
-                if va == VA_UPDATE_ALL and "rng_state" in f:
-                    d.setdefault("rng_state", f["rng_state"])
+                if va == VA_UPDATE_ALL:
+                    for k in ("rng", "rngcalls"):
+                        if k in f:
+                            d.setdefault(k, f[k])
                 elif va == VA_UPDATE:
                     for k in ("a0_frame", "a0_clip", "a0_timer"):
                         if k in f:
@@ -65,7 +67,7 @@ def main():
     if not common:
         print("NO COMMON SIM-TICKS — did both captures reach in-game (game_enter)?")
         return
-    fields = ("rng_state", "a0_frame", "a0_clip")
+    fields = ("rng", "rngcalls", "a0_frame", "a0_clip")
     n = {k: 0 for k in fields}
     m = {k: 0 for k in fields}
     shown = 0
@@ -84,9 +86,10 @@ def main():
         # print the first few ticks plus any with a mismatch (capped)
         if (shown < 12 or "N" in marks.values()) and shown < 40:
             shown += 1
-            print(f"  t{t:<5} rng[{da.get('rng_state')!s:>10}|{db.get('rng_state')!s:>10}]{marks['rng_state']}"
-                  f"  frame[{da.get('a0_frame')!s:>4}|{db.get('a0_frame')!s:>4}]{marks['a0_frame']}"
-                  f"  clip[{da.get('a0_clip')!s:>6}|{db.get('a0_clip')!s:>6}]{marks['a0_clip']}")
+            print(f"  t{t:<5} rng[{da.get('rng')!s:>10}|{db.get('rng')!s:>10}]{marks['rng']}"
+                  f"  calls[{da.get('rngcalls')!s:>5}|{db.get('rngcalls')!s:>5}]{marks['rngcalls']}"
+                  f"  frame[{da.get('a0_frame')!s:>3}|{db.get('a0_frame')!s:>3}]{marks['a0_frame']}"
+                  f"  clip[{da.get('a0_clip')!s:>5}|{db.get('a0_clip')!s:>5}]{marks['a0_clip']}")
     print("\nSUMMARY (ticks where both runs carried the field):")
     for k in fields:
         if not n[k]:

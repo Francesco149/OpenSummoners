@@ -428,6 +428,12 @@ let g_rand_window_active = false;
 let g_rand_callers      = {};   // caller-VA (hex) -> count
 let g_rand_total        = 0;
 let g_rand_hooked       = false;
+// Cumulative LCG-draw count since the hook installed — the RNG-CONSUMPTION
+// signal unified into the flow trace (openrecet pattern).  The single RAND_VA
+// hook bumps this UNCONDITIONALLY (not gated on the windowed probe), so any
+// field-spec field declaring `src:"rngcalls"` reads it directly (ctReadField),
+// and flow_diff can classify per-anchor RNG consumption without an ad-hoc flag.
+let g_rng_count_total   = 0;
 let   g_seed_pin          = false;
 let   g_seed_value        = 0x4f5347;   // OSS_RNG_DEFAULT_SEED (matches port)
 let   g_seed_pinned       = false;      // one-shot latch
@@ -614,6 +620,7 @@ function ctReadField(fld, args) {
     const type = fld.type || 'i32';
     const src  = fld.src  || 'global';
     try {
+        if (src === 'rngcalls') return g_rng_count_total;   // cumulative LCG draws (the RNG-consumption signal)
         if (src === 'global')   return ctFormatTyped(type, rva(fld.va), null);
         if (src === 'arg')      return ctFormatTyped(type, null, args[fld.index | 0]);
         if (src === 'argderef') return ctFormatTyped(
@@ -2286,14 +2293,21 @@ function installSparkleAnchor() {
 // module base, so it maps straight to a Ghidra address.
 function installRandProbe() {
     if (g_rand_hooked) return;
-    const base = Process.findModuleByName('sotes.unpacked.exe').base;
     Interceptor.attach(rva(RAND_VA), {
         onEnter: function () {
+            // Cumulative consumption count — always on (the flow-trace
+            // `rngcalls` field reads this).  Cheap: one integer bump.
+            g_rng_count_total++;
+            // Windowed caller histogram — only while the --rand-probe window
+            // is armed (the legacy RNG-desync diagnosis path).
             if (!g_rand_window_active) return;
             g_rand_total++;
             let caller = '?';
+            // Caller Ghidra VA via g_base (the module name is the per-run
+            // drop-in copy sotes-unpacked-<pid>.exe, NOT a fixed name — using
+            // findModuleByName('sotes.unpacked.exe') here returned null.base).
             try {
-                caller = '0x' + this.returnAddress.sub(base).toString(16);
+                caller = '0x' + toGhidraVa(this.returnAddress).toString(16);
             } catch (e) {}
             g_rand_callers[caller] = (g_rand_callers[caller] || 0) + 1;
         },
@@ -2870,7 +2884,19 @@ rpc.exports = {
                 try { installSceneAnchors(); }
                 catch (e) { err('install_scene_anchors', '' + e); }
             }
-            if (g_rand_probe) {
+            // Install the single RAND_VA hook when EITHER the legacy windowed
+            // probe is requested OR any flow-trace field declares src:"rngcalls"
+            // (the unified RNG-consumption signal — openrecet pattern, no
+            // separate flag needed).
+            let wantRngcallsField = false;
+            for (const va in g_field_spec) {
+                const specs = g_field_spec[va];
+                if (Array.isArray(specs) &&
+                    specs.some(function (f) { return f && f.src === 'rngcalls'; })) {
+                    wantRngcallsField = true; break;
+                }
+            }
+            if (g_rand_probe || wantRngcallsField) {
                 try { installRandProbe(); }
                 catch (e) { err('install_rand_probe', '' + e); }
             }

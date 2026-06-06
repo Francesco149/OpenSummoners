@@ -13,7 +13,7 @@
   shared LCG stream is NON-DETERMINISTIC run-to-run EVEN UNDER `--seed-pin`.** Ran the ckpt-72
   directed live check: drove retail **twice** (`--seed-pin --lockstep --no-turbo`, same
   in-game trace), snapshotting the LCG state `DAT_008a4f94` at the per-sim-tick actor-update
-  boundary (`0x46cd70`, new `rng_state` field). **Result: `rng_state` matches 0/8643 in-game
+  boundary (`0x46cd70`, new `rng` field). **Result: `rng` matches 0/8643 in-game
   sim-ticks** — the stream is at a different phase every tick despite the pinned seed and the
   deterministic sim-tick index. **Smoking gun:** at `prologue_enter` BOTH runs are on the
   IDENTICAL flip 946 yet rng differs (`0x84654e6f` vs `0xa79a2d6e`) → at the same flip the
@@ -27,7 +27,7 @@
   insufficient for it (works only because the camera reads no RNG). Parity bar for the actor
   band = "data-1:1 given a matched RNG state" (retail-vs-retail isn't observed-1:1 here).
   (The `a0_clip/a0_frame` fields matched 8643/8643 but TRIVIALLY — main-band slot 0 was inert
-  the whole run; the `rng_state` divergence is the real result.) Tool: `tools/rng_tick_diff.py`.
+  the whole run; the `rng` divergence is the real result.) Tool: `tools/rng_tick_diff.py`.
   Engine-quirk #77; `in-game-intro.md`.
 - **Prior (ckpt 72): the ACTOR ANIMATION cycle RE'd + the frame-stepper ported — rides the
   sim-tick clock, no separate counter.** The per-tick UPDATE pass (`0x439690:1108`→`0x46cd70`

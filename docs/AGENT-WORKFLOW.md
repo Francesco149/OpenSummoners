@@ -228,6 +228,25 @@ Inline one-off Python (PE-string lookups, VA → file-offset conversions,
 fixed-table dumps from the exe) lives at `tools/analyze/`.  Grow it
 instead of pasting throwaway scripts; one-purpose-per-file is fine.
 
+### Before adding a permanent ad-hoc flag, fit it into the existing unified systems
+
+When you reach for a new harness probe, **first ask whether it belongs in a
+system we already have** — the TAS/seed-pin harness, the **flow trace**
+(`retail_fields.json` field spec + the agent's `src:` field sources), the
+call-trace, `mem_watch`, the sim-tick anchor.  A bespoke `--foo-probe` flag is
+debt: it needs its own plumbing (CLI arg → cfg → agent opt → bespoke send/print),
+doesn't compose with `flow_diff`, and rots once the question is answered (the repo
+already carries a graveyard of `--cursor-probe`/`--fade-probe`/`--pace-probe`/…).
+The flow trace is the unifier: a new datum is usually just a `fields[]` entry on
+the right VA with the right `src` (`global`/`arg`/`argderef`/`chain`/`rngcalls`),
+and if a new *kind* of datum is needed, add a `src:` type to the agent's
+`ctReadField` (one place) so EVERY VA can read it and `flow_diff` classifies it for
+free.  Example (ckpt 73→74): RNG-consumption tracking became `src:"rngcalls"` (the
+cumulative LCG-draw count, auto-installing the single `0x5bf505` hook) rather than
+a `--rng-count` flag — modelled on openrecet's identical `rngcalls` source.  Reach
+for a standalone flag only when the thing genuinely can't be expressed as a
+per-VA/per-frame field (e.g. an interactive recorder).
+
 ## Always run inside `nix develop`
 
 If you find yourself typing `python3 …` and getting `command not found`

@@ -11,11 +11,11 @@ specific commits where relevant.
 Ran the ckpt-72 directed live check (the #76 "To confirm").  Drove retail TWICE
 (`--seed-pin --lockstep --no-turbo`, same in-game trace), hooking the per-sim-tick
 actor-update boundary `FUN_0046cd70` and snapshotting the shared LCG state word
-`DAT_008a4f94` there — a new `rng_state` field in `tools/flow/retail_fields.json`,
+`DAT_008a4f94` there — a new `rng` field in `tools/flow/retail_fields.json`,
 tagged with the deterministic `g_sim_tick` (reset at game_enter).  8644 in-game
 sim-ticks common to both runs.
 
-**Result: `rng_state` matches 0/8643 sim-ticks** — the shared stream is at a
+**Result: `rng` matches 0/8643 sim-ticks** — the shared stream is at a
 different phase at *every* in-game tick despite the pinned seed and the
 deterministic sim-tick index.  Smoking gun: at `prologue_enter` BOTH runs are on
 the IDENTICAL flip 946 yet rng differs (`0x84654e6f` vs `0xa79a2d6e`) → at the same
@@ -23,7 +23,7 @@ flip the engine has drawn a *different number* of LCG values.  Mechanism: a
 per-PRESENT consumer × the non-deterministic presents-per-sim-tick count (quirk
 #75) desyncs the stream phase, which never re-converges.  (The `a0_clip`/`a0_frame`
 actor-anim fields matched 8643/8643 but trivially — main-band slot 0 was inert all
-run; `rng_state` is the real signal.)
+run; `rng` is the real signal.)
 
 Since `FUN_0054f980`'s behaviour cases draw this exact LCG `FUN_005bf505` ~40× per
 tick (idle-wait `+0x5c`, the idle→wander branch pick, wander move-offsets →

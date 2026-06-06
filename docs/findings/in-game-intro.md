@@ -1594,10 +1594,10 @@ Ran that verification, and the mechanism is deeper than "the actor RNG desyncs":
 the **shared** LCG stream `DAT_008a4f94` is itself non-deterministic run-to-run.
 Drove retail twice (`--seed-pin --lockstep --no-turbo`, same trace), snapshotting
 `DAT_008a4f94` at the per-sim-tick actor-update boundary `FUN_0046cd70` (new
-`rng_state` field, tagged with `g_sim_tick`).  **`rng_state` matched 0 of 8643
+`rng` field, tagged with `g_sim_tick`).  **`rng` matched 0 of 8643
 in-game sim-ticks.**  The `a0_clip`/`a0_frame` fields matched 8643/8643, but
 trivially — main-band slot 0 was inert (clip=0/frame=0) the whole run, so they were
-not a real test; `rng_state` is the signal.
+not a real test; `rng` is the signal.
 
 Proof the desync is a stream-phase drift, not just different flip counts to the
 anchor: at `prologue_enter` BOTH runs are on the identical flip 946 yet the LCG

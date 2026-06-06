@@ -2221,17 +2221,17 @@ non-deterministic run-to-run despite the seed pin).
 The live experiment the #76 "To confirm" called for.  Drove retail **twice**,
 `--seed-pin --lockstep --no-turbo`, the same in-game input trace, hooked the
 per-sim-tick actor-update boundary `FUN_0046cd70` and snapshotted the LCG state
-word **`DAT_008a4f94`** there (field `rng_state`, tagged with the deterministic
+word **`DAT_008a4f94`** there (field `rng`, tagged with the deterministic
 `g_sim_tick`, reset at `game_enter`).  8644 in-game sim-ticks common to both runs.
 
-**Result: `rng_state` matches on 0 of 8643 sim-ticks** — the shared LCG stream is
+**Result: `rng` matches on 0 of 8643 sim-ticks** — the shared LCG stream is
 at a *different* state at every single in-game tick, even though the seed was
 pinned to the same value at boot and the sim-tick index is the deterministic
 frame-of-reference (quirk #75).  (The actor anim fields `a0_clip`/`a0_frame` did
 match 8643/8643, but **trivially** — actor slot 0 of the main band `+0x11e0` was
 inert the whole run, `clip=0 frame=0`; that only shows an inert actor stays
 identically inert, not that the stepper is deterministic for an animating actor.
-The `rng_state` divergence is the real signal.)
+The `rng` divergence is the real signal.)
 
 **The mechanism — proven at the scene anchors, not just inferred.**  The TAS
 anchors carry the LCG state at entry:
@@ -2270,4 +2270,4 @@ itself is not observed-1:1 in this band.
 Reproduce: `tools/run-retail.sh --no-turbo --hide-window --seed-pin --lockstep
 --input-trace tests/scenarios/in-game-intro/trace-retail.jsonl --call-trace
 --field-spec-only` ×2 into two run dirs, then `tools/rng_tick_diff.py runA runB`
-(the `rng_state` field is on `0x46cd70` in `tools/flow/retail_fields.json`).
+(the `rng` field is on `0x46cd70` in `tools/flow/retail_fields.json`).

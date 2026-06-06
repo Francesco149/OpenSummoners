@@ -15,14 +15,14 @@ pillar, and the shared LCG stream is non-deterministic run-to-run EVEN UNDER
 - **Experiment.**  Drove retail TWICE (`--seed-pin --lockstep --no-turbo`, the same
   in-game trace `tests/scenarios/in-game-intro/trace-retail.jsonl`), hooking the
   per-sim-tick actor-update boundary `FUN_0046cd70` and snapshotting the LCG state
-  word `DAT_008a4f94` there (new `rng_state` field in `retail_fields.json`, tagged
+  word `DAT_008a4f94` there (new `rng` field in `retail_fields.json`, tagged
   with the deterministic `g_sim_tick`, reset at game_enter).  8644 in-game ticks
   common to both runs.
-- **Result: `rng_state` matches 0/8643 sim-ticks.**  The shared stream is at a
+- **Result: `rng` matches 0/8643 sim-ticks.**  The shared stream is at a
   different phase at *every* in-game tick, despite the pinned seed + the
   deterministic sim-tick index.  (`a0_clip`/`a0_frame` matched 8643/8643 but
   TRIVIALLY — main-band slot 0 `+0x11e0` was inert all run, clip=0/frame=0; the
-  `rng_state` divergence is the real signal.  An animating-actor slot was not
+  `rng` divergence is the real signal.  An animating-actor slot was not
   isolated — a follow-up could re-point the chain to a known NPC slot, but the
   shared-stream result already settles the determinism question.)
 - **Mechanism — proven at the anchors, not inferred.**  `prologue_enter`: BOTH runs

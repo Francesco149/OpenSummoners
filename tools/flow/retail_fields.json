@@ -4,7 +4,7 @@
     "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
     "name": "short label for flow_diff output (wins over functions.csv).",
     "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
-    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | retval (onLeave).",
+    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | retval (onLeave).",
     "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
     "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
     "fields[].off": "for src=argderef/chain: byte offset added before the final typed read.",
@@ -21,6 +21,8 @@
       "fields": [
         {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex",
          "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."},
+        {"name": "rngcalls", "src": "rngcalls", "type": "i32", "benign": true,
+         "reason": "cumulative LCG (FUN_005bf505) draw count at the Flip = per-frame RNG-consumption total. Benign for now (RNG order parity is deferred until every in-scene RNG consumer is RE'd, per the ckpt-73 decision); surfaced so flow_diff can localize WHERE consumption diverges once we match it 1:1."},
 
         {"name": "tint", "src": "global", "va": "0x8a93fc", "type": "i32", "benign": true,
          "reason": "DAT_008a93fc — the global palette-tint / time-of-day index FUN_00417c40 switches on (in_ECX+0x289c == &DAT_008a760c-0xaac+0x289c == 0x8a93fc). 0 = case-0 IDENTITY (no recolor); 1 = warm, 2/3 = darken, 4/5 = the FUN_004182d0 complex ramp. The port's tile/parallax resolve uses the plain getter 0x418470 (no tint); whether the in-game town needs the tint hinges on this value (PORT-DEBT render-palette-tint)."},
@@ -90,8 +92,10 @@
       "fields": [
         {"name": "frame_ctr", "src": "global", "va": "0x8a9b50", "type": "hex", "benign": true,
          "reason": "the god-object base pointer; presence-only. The per-tick frame counter +0x276c is bumped here (& 0x7fff) once per tick."},
-        {"name": "rng_state", "src": "global", "va": "0x8a4f94", "type": "hex", "benign": true,
-         "reason": "DAT_008a4f94 — the shared LCG state word, snapshotted at the per-SIM-TICK actor-update boundary (0x46cd70 onEnter). Determinism probe (ckpt 73): under --seed-pin the seed is identical both runs, so if the shared stream is consumed in the same ORDER per sim-tick, rng_state at tick N matches run-to-run. A run-to-run mismatch at the same sim_tick means a non-deterministic-rate consumer (e.g. a per-FLIP draw; the flip rate is non-deterministic, quirk #75) is perturbing the stream phase the per-tick actor draws then see — which would explain the ~6.7k-px actor-band residual (the actor behaviour 0x54f980 draws this LCG for idle waits + wander offsets) even with the seed pinned. parity pillar 3, docs/parity-model.md."}
+        {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex", "benign": true,
+         "reason": "DAT_008a4f94 — the shared LCG state word, snapshotted at the per-SIM-TICK actor-update boundary (0x46cd70 onEnter). Determinism probe (ckpt 73): under --seed-pin the seed is identical both runs, so if the shared stream is consumed in the same ORDER per sim-tick, rng at tick N matches run-to-run. It does NOT (0/8643 ticks, quirk #77): a non-deterministic-rate consumer (a per-PRESENT draw x the non-deterministic presents-per-tick, quirk #75) perturbs the stream phase the per-tick actor draws then see — the ~6.7k-px actor-band residual (0x54f980 draws this LCG for idle waits + wander offsets). parity pillar 3, docs/parity-model.md."},
+        {"name": "rngcalls", "src": "rngcalls", "type": "i32", "benign": true,
+         "reason": "cumulative LCG draw count at the per-sim-tick actor-update boundary — the RNG-consumption signal unified into the flow trace (openrecet rngcalls pattern). Pairs with `rng` (state): once every in-scene RNG consumer is RE'd, matching rng+rngcalls per anchor on both sides is how the actor band reaches 1:1 (deferred per ckpt 73)."}
       ]
     },
     "0x54f980": {
