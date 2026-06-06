@@ -11,6 +11,7 @@
  */
 #include "asset_register.h"
 #include "bitmap_session.h"
+#include "render_id.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -576,6 +577,24 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
     uint32_t key = (colorkey == AR_COLORKEY_NONE) ? AR_COLORKEY_NONE
                                                   : AR_SHEET_COLORKEY;
 
+    /* Cross-side blit-trace identity (render_id.h): fingerprint the decoded +
+     * display-depth-converted sheet ONCE here (the final per-cell source
+     * pixels), keyed by the bank's PE resource id, then tag each built cel with
+     * (resource_id, frame, dhash).  Both sides do this at the same pipeline
+     * stage so render_diff can tell "right sprite, wrong decode" from "wrong
+     * sprite".  Cheap: once per decode, not per draw.  Seeded with the sheet
+     * geometry so a reinterpret at a different size hashes apart. */
+    uint32_t dhash = 0;
+    if (s->pixels != NULL && s->stride != 0 && s->biHeight != 0) {
+        uint32_t seed = render_id_hash_seed(RENDER_ID_FNV1A_SEED,
+                                            &s->biWidth, sizeof s->biWidth);
+        seed = render_id_hash_seed(seed, &s->biHeight, sizeof s->biHeight);
+        seed = render_id_hash_seed(seed, &s->biBitCount, sizeof s->biBitCount);
+        dhash = render_id_hash_seed(seed, s->pixels,
+                                    (size_t)s->stride * s->biHeight);
+        render_id_set_sheet_hash(slot->resource_id, dhash);
+    }
+
     int ok = 1;
     int i = 0;
     for (int r = 0; r < rows; r++) {
@@ -590,6 +609,8 @@ int ar_sprite_slice(ar_sprite_slot *slot, uint16_t entry_idx,
                 ok = 0;                      /* local_c = 0; slot stays NULL */
             }
             frames[i] = surf;
+            /* Tag the cel with its load-stable identity (no-op on NULL). */
+            render_id_register(surf, slot->resource_id, (uint16_t)i, dhash);
         }
     }
     return ok;

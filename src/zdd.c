@@ -16,6 +16,7 @@
 #include "zdd.h"
 #include "bitmap_session.h"     /* per-cell builder reads the decoded sheet */
 #include "call_trace.h"
+#include "render_id.h"          /* cross-side blit identity for the blit trace */
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -818,6 +819,62 @@ void zdd_object_release_dc(zdd_object *self, void *hdc)
     zdd_surface_release_dc(self->com_primary, hdc);
 }
 
+/* ─── DDraw blit-command + state trace (Phase-B B3) ─────────────────────────
+ * Every source-bearing blit emits one field-bearing call_trace event carrying
+ * the cross-side identity of its SOURCE cel (render_id: resource_id/frame/dhash)
+ * plus the geometry and the DDraw "state" (color key + the state flag that
+ * arms DDBLT_KEYSRC, and the software blend mode on the alpha path).  Both
+ * sides read the SAME fields at the blit's onEnter — the port from the struct,
+ * retail from ECX + the stack (tools/flow/retail_fields.json) — so
+ * tools/render_diff.py can name the first divergent blit and classify it
+ * (wrong sprite / wrong decode / wrong rect / wrong blend state).
+ *
+ * Emitted at entry with the RAW inputs (not the post-clip rect): the clip math
+ * is a bit-exact port, deterministic given the inputs + the src metrics (which
+ * are emitted too), and retail's onEnter can read the same raw values without
+ * an onLeave hook.  All calls are cheap no-ops when --call-trace is off or the
+ * frame isn't whitelisted (call_trace gates internally). */
+enum {
+    ZDD_BLIT_ONTO    = 0,   /* FUN_005b9a40 plain Blt (state-flag carry) */
+    ZDD_BLIT_KEYED   = 1,   /* FUN_005b9b70 positioned + KEYSRC          */
+    ZDD_BLIT_RECTS   = 2,   /* FUN_005b9ae0 explicit rects               */
+    ZDD_BLIT_CLIPPED = 3,   /* FUN_005b9bf0 clipped + KEYSRC (tiles)      */
+    ZDD_BLIT_ALPHA   = 4    /* FUN_005bd550 software alpha/colorize       */
+};
+
+static void zdd_emit_blit(uint32_t va, const void *ret, const zdd_object *src,
+                          int32_t dx, int32_t dy, int32_t reqw, int32_t reqh,
+                          int32_t sx, int32_t sy, int32_t mode,
+                          int32_t bmode, uint32_t ckey)
+{
+    call_trace_begin((uint32_t)va, ret);
+    render_id rid;
+    if (src != NULL && render_id_lookup(src, &rid)) {
+        CALL_TRACE_U32("res",   rid.resource_id);
+        CALL_TRACE_U32("frame", rid.frame);
+        CALL_TRACE_HEX("dhash", rid.dhash);
+    }
+    CALL_TRACE_I32("mode", mode);
+    CALL_TRACE_I32("dx",   dx);
+    CALL_TRACE_I32("dy",   dy);
+    CALL_TRACE_I32("reqw", reqw);
+    CALL_TRACE_I32("reqh", reqh);
+    CALL_TRACE_I32("sx",   sx);
+    CALL_TRACE_I32("sy",   sy);
+    if (src != NULL) {
+        /* The source cel's placement metrics that drive keyed/clipped blits,
+         * plus its DDraw color-key state (the "render state"). */
+        CALL_TRACE_I32("ow", src->metric_b8);     /* source width  (+0xb8) */
+        CALL_TRACE_I32("oh", src->metric_bc);     /* source height (+0xbc) */
+        CALL_TRACE_I32("ox", src->metric_0c);     /* placement origin x (+0x0c) */
+        CALL_TRACE_I32("oy", src->metric_10);     /* placement origin y (+0x10) */
+        CALL_TRACE_HEX("st", src->state_flag);    /* +0xd4: 0x8000 = KEYSRC armed */
+    }
+    CALL_TRACE_HEX("ckey",  ckey);                /* bound color key (DDCOLORKEY) */
+    CALL_TRACE_I32("bmode", bmode);               /* alpha blend mode, -1 if N/A */
+    call_trace_end();
+}
+
 /* FUN_005b9a40 — generic "blit self onto dest at (x, y)".  Note the
  * role inversion: `self` is the SOURCE (this is what +0x2c is read
  * from, then handed to Blt as src_surface).  `dest` is the receiver
@@ -830,6 +887,11 @@ void zdd_object_release_dc(zdd_object *self, void *hdc)
 int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
                         int32_t dest_x, int32_t dest_y)
 {
+    zdd_emit_blit(0x5b9a40, __builtin_return_address(0), self,
+                  dest_x, dest_y,
+                  self ? self->metric_b8 : 0, self ? self->metric_bc : 0,
+                  0, 0, ZDD_BLIT_ONTO, -1,
+                  self ? (uint32_t)self->colorkey_out : 0);
     if (self == NULL || self->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
     }
@@ -1643,6 +1705,11 @@ void zdd_restore_all_surfaces(zdd *self)
 int zdd_object_blt_keyed(zdd_object *self, zdd_object *dest,
                          int32_t dest_x, int32_t dest_y)
 {
+    zdd_emit_blit(0x5b9b70, __builtin_return_address(0), self,
+                  dest_x, dest_y,
+                  self ? self->metric_b8 : 0, self ? self->metric_bc : 0,
+                  0, 0, ZDD_BLIT_KEYED, -1,
+                  self ? (uint32_t)self->colorkey_out : 0);
     if (self == NULL || self->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
     }
@@ -1696,6 +1763,10 @@ int zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
                          int32_t src_x, int32_t src_y,
                          int32_t src_w, int32_t src_h)
 {
+    zdd_emit_blit(0x5b9ae0, __builtin_return_address(0), src,
+                  dst_x, dst_y, dst_w, dst_h, src_x, src_y,
+                  ZDD_BLIT_RECTS, -1,
+                  src ? (uint32_t)src->colorkey_out : 0);
     if (src == NULL || src->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
     }
@@ -1745,6 +1816,10 @@ int zdd_object_blt_clipped(zdd_object *src, zdd_object *dest,
                            int32_t width, int32_t height,
                            int32_t src_x, int32_t src_y)
 {
+    zdd_emit_blit(0x5b9bf0, __builtin_return_address(0), src,
+                  dst_x, dst_y, width, height, src_x, src_y,
+                  ZDD_BLIT_CLIPPED, -1,
+                  src ? (uint32_t)src->colorkey_out : 0);
     if (src == NULL || src->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal at 0x5b9c03 */
     }
@@ -1804,6 +1879,9 @@ void zdd_blit_orchestrate(const zdd_blend_desc *desc, zdd_object *dest,
                           int32_t colorkey,
                           zdd_object *gdi_ctx)
 {
+    zdd_emit_blit(0x5bd550, __builtin_return_address(0), src,
+                  dst_x, dst_y, width, height, src_x, src_y,
+                  ZDD_BLIT_ALPHA, desc ? desc->mode : -1, (uint32_t)colorkey);
     if (gdi_ctx == NULL) {
         /* Simple path — the only one this binary ever takes.  Lock the
          * dest (retail ignores the return; zdd_alpha_blit reads its
