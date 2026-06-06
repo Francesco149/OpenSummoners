@@ -4,9 +4,14 @@ A running collection of small things the original Fortune Summoners
 engine does that are weird, charming, or inexplicable.  Each entry is
 short — one paragraph or two, optional code snippet, source pointer.
 
-> See `docs/AGENT-WORKFLOW.md` for the convention.  Add an entry whenever
-> something makes you blink at the decompiler output.  Bias toward
-> recording it before you forget *why* it surprised you.
+> Add an entry whenever something makes you blink at the decompiler output;
+> bias toward recording it before you forget *why* it surprised you.  This is
+> **retail ground-truth behaviour ONLY** (offsets/formats/control-flow/UI facts
+> read off the original) — port state / "deferred"/"stub" notes go in
+> FRONT/HANDOFF/port-debt, per CLAUDE.md "Log engine quirks as you find them".
+> Format: a numbered entry, 1–3 short paragraphs, an optional code snippet, and
+> a `> 📍` pointer to the source (Ghidra address, our port file, or a
+> `findings/*.md` section).  Cite the entry number in commit messages.
 
 ---
 
@@ -308,8 +313,9 @@ Workflow: when grepping Ghidra output for callers of a callback type
 radare2 (`af @ <addr>; pdf`) on the address you find by scanning for
 the function-pointer write site, not by Ghidra's call graph.
 
-> 📍 Pattern documented under `docs/AGENT-WORKFLOW.md` (Reading the
-> decompiled output) — radare2 is the second-line tool.
+> 📍 When Ghidra's call graph shows zero callers for a callback type, fall back
+> to radare2 (`af @ <addr>; pdf`) on the function-pointer write site — the
+> second-line tool. Decompile-reading conventions are in CLAUDE.md "Disassembly".
 
 ---
 

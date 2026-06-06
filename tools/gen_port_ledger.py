@@ -271,7 +271,7 @@ understates how much actual instruction volume is ported.
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
 - `findings/engine-quirks.md` — the running quirk log (cite in commits).
-- `AGENT-WORKFLOW.md` — how to work on this repo (read at session start).
+- `AGENT-WORKFLOW.md` — when to spawn subagents vs stay in the main loop.
 - `PLAN.md` — goal, constraints, phased roadmap.
 """
 

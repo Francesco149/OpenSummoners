@@ -56,8 +56,8 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   reverse-engineering any new class.
 - **[engine-quirks.md](engine-quirks.md)** — the running catalogue of
   charming / load-bearing / inexplicable engine oddities. **Append to this
-  as you find them** (AGENT-WORKFLOW "Note engine quirks"); cite the entry
-  number in commits instead of restating the quirk.
+  as you find them** (the format + retail-only rule are in that file's header,
+  per CLAUDE.md); cite the entry number in commits instead of restating the quirk.
 
 ## Harness / tooling
 
