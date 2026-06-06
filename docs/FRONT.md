@@ -24,9 +24,15 @@
   at every non-deterministic load) → cross-run deterministic (99 ticks, 0 cam-mismatches; pan
   starts at tick 92 both runs). `tools/sim_tick_diff.py` matches two run-dirs by sim_tick/cam
   (dx=0) vs flip (the 3px trail). Engine-quirk #75; `in-game-intro.md` "Timestep determinism".
-  **NEXT:** port-side sim-tick counter + a port↔retail cam-matched house diff (blocked on the
-  stale `trace-port.jsonl` title-nav timing — re-time it). Standing rule: never diff on the
-  Flip index; anchor on the sim tick.
+  **DECISION (user):** anchor each subsystem for determinism rather than a global timestep
+  hack (fallback if it gets unwieldy). The camera is synced (sim-tick); **NEXT = RE the
+  NPC/actor system + its animation cycle, then PIN that counter** at an anchor for determinism.
+  Confirmed pinnable: the actor anim advances **per sim-tick, not per-Flip** (intra-tick actor
+  pixels are identical) so it's a clean per-tick clock, not tangled in the flip jitter. (`0x491ae0`
+  reads the frame; the advance is in the per-tick actor update — needs the entity/spawn system,
+  PORT-DEBT `present-actor-modes`.) Standing rule: never diff on the Flip index — anchor on the
+  sim tick. NB `--turbo` is NOT faster in-game (Frida/LAN overhead dominates, not Sleep) and
+  breaks the no-turbo-timed input traces; use `--no-turbo --lockstep` until traces are re-timed.
 - **Prior (ckpt 70): the intro-PAN camera is WIRED LIVE — the town now pans.**
   `main.c game_render` steps a live `camera_view` each frame (`camera_follow_step` =
   `FUN_0043d1d0`, with the `CALL_TRACE_BEGIN(0x43d1d0)` flow-trace mirror) and projects the

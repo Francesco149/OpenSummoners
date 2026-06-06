@@ -2142,7 +2142,11 @@ Follow-up experiments narrowing the cause:
   NOT the camera sim-tick and is non-deterministic run-to-run.  Finding + pinning
   it (à la the RNG seed pin) is the next determinism chip — it lives in the
   unported actor/entity system (`0x491ae0` reads the frame; the advance is in the
-  per-tick actor update).
+  per-tick actor update).  **CONFIRMED per-tick, not per-Flip:** within any single
+  sim tick (its 2-3 duplicate Flips) the actor-band pixels are IDENTICAL
+  (intra-tick diff 0) — so the actor anim is a per-tick clock and is **pinnable**
+  at an anchor (camera/RNG style), NOT tangled in the non-deterministic flip rate.
+  Plan: RE the actor anim cycle, then pin its counter for determinism.
 
 Practical rule until then: **diff one frame per sim tick** (dedup the multi-Flip
 presents), match camera/backdrop on the sim tick, and treat the actor layer as a
