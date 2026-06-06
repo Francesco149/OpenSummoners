@@ -25,7 +25,8 @@ says *which logic* produced it. Both consume the same `call_trace.jsonl`.
 > **Don't add a bespoke `--foo-probe` flag.** A new datum is almost always a
 > `fields[]` entry on the right VA in `retail_fields.json` with the right `src`
 > (`global`/`arg`/`argderef`/`chain`/`rngcalls`/`renderid`/`thisderef`); a new
-> *kind* of datum is one new `src:` type in the agent's `ctReadField` (one place →
+> *kind* of datum is one new `src:` type in the **Frida agent**'s `ctReadField`
+> (`tools/frida/opensummoners-agent.js`; not a subagent) (one place →
 > every VA can read it, and `flow_diff`/`render_diff` classify it for free). The
 > field spec is the unifier — bespoke flags don't compose with the diffs and rot
 > once answered (the repo carries a graveyard of `--cursor-probe`/`--fade-probe`/…).

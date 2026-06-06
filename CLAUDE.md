@@ -146,8 +146,9 @@ changelog. Active multi-session plans: `docs/plans/`.
   **run INSIDE `nix develop`** (else `sotesd.dll` won't load → blank), `--input-trace
   <repo-relative-path>` (paths are absolutized pre-chdir). **Add a new datum as a
   `retail_fields.json` field, NOT a bespoke `--foo-probe` flag** (`src:` global/arg/
-  argderef/chain/rngcalls/renderid/thisderef; a new *kind* = one `src:` in the agent's
-  `ctReadField`). How-to: `docs/parity-harness.md`. Remaining tooling: **B1** unified
+  argderef/chain/rngcalls/renderid/thisderef; a new *kind* = one `src:` in the **Frida
+  agent**'s `ctReadField`, `tools/frida/opensummoners-agent.js`). How-to:
+  `docs/parity-harness.md`. Remaining tooling: **B1** unified
   `tools/scenario-test.py` (`docs/plans/trace-tooling-phase-b.md`; B2 flow + B3 blit DONE).
 
 ## The binary & paths
