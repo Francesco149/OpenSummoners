@@ -9,7 +9,25 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **Where we are (ckpt 70): the intro-PAN camera is WIRED LIVE — the town now pans.**
+- **Where we are (ckpt 71): TIMESTEP DETERMINISM established — the SIM-TICK is the only
+  valid frame-of-reference; the "house off by 3px" was FLIP-misalignment, not a bug.**
+  The in-game sim is a wall-clock GetTickCount frame-limiter (`FUN_00439690:776-859`): one
+  logical sim tick per outer iteration (easer `0x43d1d0` once at `:1123`) but a VARIABLE
+  number of Flips per tick → **the Flip index is non-deterministic run-to-run** (two identical
+  retail runs disagree on 47-86% of flips by ≤3px; `--lockstep-epsilon-ms 0` is worse, so it's
+  intrinsic, not the epsilon). The **sim-tick index** (easer-call count) is bit-identical.
+  The user's whole-foreground 3px trail (background Δ0) is the signature of flip-misalignment
+  — the 0.5×/0.25× parallax hides the same camera offset the 1× foreground exposes; the tile
+  math is provably identical at equal `cam_x60`. **FIX (committed):** the agent counts easer
+  calls (`g_sim_tick`), tags every captured frame (`frame_<flip>_t<simtick>.png` + manifest)
+  + call-trace event, and RESETS the counter at the `game_enter` scene-load anchor (synchronize
+  at every non-deterministic load) → cross-run deterministic (99 ticks, 0 cam-mismatches; pan
+  starts at tick 92 both runs). `tools/sim_tick_diff.py` matches two run-dirs by sim_tick/cam
+  (dx=0) vs flip (the 3px trail). Engine-quirk #75; `in-game-intro.md` "Timestep determinism".
+  **NEXT:** port-side sim-tick counter + a port↔retail cam-matched house diff (blocked on the
+  stale `trace-port.jsonl` title-nav timing — re-time it). Standing rule: never diff on the
+  Flip index; anchor on the sim tick.
+- **Prior (ckpt 70): the intro-PAN camera is WIRED LIVE — the town now pans.**
   `main.c game_render` steps a live `camera_view` each frame (`camera_follow_step` =
   `FUN_0043d1d0`, with the `CALL_TRACE_BEGIN(0x43d1d0)` flow-trace mirror) and projects the
   backdrop through its *current* scroll instead of the static const. `enter_game`
