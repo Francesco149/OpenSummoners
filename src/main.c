@@ -196,11 +196,13 @@ static int            g_game_camera_armed;   /* live camera in use this scene   
 static uint32_t       g_game_camera_hold;    /* frames since the spawn snap     */
 static mr_camera      g_game_camera_mr;       /* derived per-frame projection cam */
 
-/* Frames the camera holds at the spawn origin before the scripted pan begins.
- * Retail's cutscene script issues the pan ~183 flips after game_enter (the
- * live-probed hold→pan transition, flip ~1617; in-game-intro "The intro PAN is
- * SCRIPTED").  Synthetic — see PORT-DEBT(ingame-camera-pan) above. */
-#define GAME_CAMERA_HOLD_FRAMES 183u
+/* Flips the camera holds at the spawn origin before the scripted pan begins.
+ * MEASURED from a retail field-spec trace (--seed-pin --lockstep): Flip 1616 is
+ * still HOLD (tgt=128000/cap=0), Flip 1617 = PAN (tgt=12800/cap=300), and
+ * game_enter@1433 → 1617-1433 = 184.  Even (so the trigger Flip is also a sim
+ * tick — see game_camera_step).  Synthetic stand-in for the cutscene-script
+ * trigger source; see PORT-DEBT(ingame-camera-pan) above. */
+#define GAME_CAMERA_HOLD_FRAMES 184u
 
 /* The in-game palette color-grade LUT (src/color_grade.{c,h}).  Retail's in-game
  * render paths (FUN_00417c40 parallax + FUN_00490f30 tilemap) remap every sprite
@@ -1641,31 +1643,44 @@ static void game_camera_to_mr(const camera_view *v, mr_camera *out)
     out->off74 = 0;            /* +0x74 — shear, 0 across the pan */
 }
 
-/* Advance the live camera one frame (the retail per-frame easer FUN_0043d1d0,
- * called from 0x439690:1123).  Issues the scripted leftward pan once the hold
- * timer elapses.  Mirrors the retail flow-trace entry (CALL_TRACE_BEGIN(0x43d1d0)
- * + the X-axis easer state read at onEnter, per tools/flow/retail_fields.json). */
+/* Advance the live camera one frame.  The in-game SIM update (retail 0x439690,
+ * which processes the camera commands then calls the easer FUN_0043d1d0 at
+ * :1123) runs at HALF the Flip rate — measured from a retail field-spec trace
+ * across the pan: the easer fires once per 2 Flips and cam +0x60 cruises down
+ * 300 per 2 Flips (cap 300/tick) = 150/flip; cam +0x60 is a STEP function,
+ * flat between sim ticks.  The pan command fires at game_enter + 184 Flips
+ * (Flip 1616 still HOLD tgt=128000/cap=0, Flip 1617 = PAN tgt=12800/cap=300).
+ * The port presents once per frame, so gate the sim to every 2nd frame to match
+ * retail's cadence.  (Sub-tick wall-clock jitter in retail's accumulator — the
+ * 1618-1621 plateau, the 1616 double-tick — is NOT reproduced; the port is a
+ * clean fixed 2:1 step.  PORT-DEBT ingame-camera-pan: the exact phase + the
+ * cutscene-script TRIGGER source, vs this measured stand-in.) */
 static void game_camera_step(void)
 {
-    /* Scripted pan trigger (synthetic hold timer; PORT-DEBT ingame-camera-pan):
-     * the 439690 +0x4c command the cutscene script fires at hold-end. */
+    /* Process the scripted pan command BEFORE the easer (retail order: 439690
+     * sets tgt/cap at :599-664, then the easer eases at :1123).  Synthetic
+     * trigger (PORT-DEBT ingame-camera-pan): the +0x4c command the cutscene
+     * script fires at hold-end. */
     if (g_game_camera_hold == GAME_CAMERA_HOLD_FRAMES)
         camera_apply_pan(&g_game_camera, 12800, 12800, 300);
-    if (g_game_camera_hold <= GAME_CAMERA_HOLD_FRAMES)
-        g_game_camera_hold++;
 
-    /* Fields read at onEnter = the state going INTO the easer (retail reads the
-     * view before the step), so emit before camera_follow_step. */
-    CALL_TRACE_BEGIN(0x43d1d0);
-    CALL_TRACE_I32("cur_x", g_game_camera.cur_x);
-    CALL_TRACE_I32("tgt_x", g_game_camera.tgt_x);
-    CALL_TRACE_I32("vel_x", g_game_camera.vel_x);
-    CALL_TRACE_I32("vel_y", g_game_camera.vel_y);
-    CALL_TRACE_I32("cap",   g_game_camera.cap);
-    CALL_TRACE_I32("flag",  g_game_camera.flag);
-    CALL_TRACE_END();
-
-    camera_follow_step(&g_game_camera);
+    /* The sim ticks every 2nd Flip (phase aligned so the trigger Flip is also a
+     * sim tick — GAME_CAMERA_HOLD_FRAMES is even, matching retail's 1617 = pan
+     * command + first easer tick on the same Flip). */
+    if ((g_game_camera_hold & 1u) == 0u) {
+        /* Fields read at onEnter = the state going INTO the easer (retail reads
+         * the view before the step), so emit before camera_follow_step. */
+        CALL_TRACE_BEGIN(0x43d1d0);
+        CALL_TRACE_I32("cur_x", g_game_camera.cur_x);
+        CALL_TRACE_I32("tgt_x", g_game_camera.tgt_x);
+        CALL_TRACE_I32("vel_x", g_game_camera.vel_x);
+        CALL_TRACE_I32("vel_y", g_game_camera.vel_y);
+        CALL_TRACE_I32("cap",   g_game_camera.cap);
+        CALL_TRACE_I32("flag",  g_game_camera.flag);
+        CALL_TRACE_END();
+        camera_follow_step(&g_game_camera);
+    }
+    g_game_camera_hold++;   /* Flips since the spawn snap (drives trigger + phase) */
     game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
 }
 

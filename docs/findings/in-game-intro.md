@@ -1419,10 +1419,43 @@ camera-command arms of the in-game command processor `FUN_00439690` are ported:
   feed:** the town pans left from the hold (cam x=128000) through mid-pan to the
   settled town-left-edge view (cam x=12800).
 - **Two synthetic stand-ins remain (PORT-DEBT `ingame-camera-pan`):** the pan
-  **trigger** (the 183-frame timer stands in for the cutscene-script op in the
+  **trigger** (the hold timer stands in for the cutscene-script op in the
   unported `0x5a00c0` that writes the `+0x4c` command), and the easer step
-  **cadence** (the port steps per rendered frame; retail steps per sim-tick, so
-  the per-flip pan rate differs — the pan is not flip-anchored-exact mid-flight).
-  The **settled** end is a determinate static camera both sides share
-  (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) → a flip-anchored full-frame
-  backdrop/sky diff is meaningful there without resolving the cadence.
+  **cadence/phase**. Both were then MEASURED from ground truth (next section) and
+  the port adjusted to match. The **settled** end is a determinate static camera
+  both sides share (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) → a flip-anchored
+  full-frame diff is meaningful there regardless.
+
+### The pan CADENCE + TRIGGER measured; the port matches retail's trajectory (ckpt 70b)
+
+A retail field-spec trace (`--seed-pin --lockstep --no-turbo`, the easer
+`0x43d1d0` + the Flip `0x5b8fc0` hooked, a contiguous Flip whitelist across the
+pan) pinned the two stand-ins to ground truth:
+
+- **TRIGGER = `game_enter + 184` Flips.** Flip 1616 is still HOLD
+  (`cam_x6c`=128000, `cam_x20`=0); Flip 1617 = PAN (`cam_x6c`=12800,
+  `cam_x20`=300). `game_enter@1433` → `1617 − 1433 = 184`. The target snaps to a
+  fixed 12800 and the speed to 300 in a single Flip (one-time write, the
+  `0x439690` `+0x4c` command — the unported cutscene script issues it).
+- **CADENCE = the easer fires once per 2 Flips.** The in-game sim update
+  (`0x439690`, which calls the easer at `:1123`) runs at HALF the Flip rate: the
+  `0x43d1d0` events land on every 2nd Flip, and the rendered `cam_x60` is a STEP
+  function — flat between sim ticks (e.g. 127990 held across Flips 1618-1621),
+  dropping 300 per 2 Flips at cruise (= 150/flip avg, matching the −147/flip the
+  ckpt-69 probe saw). The port presents once per frame, so `game_camera_step`
+  now gates the sim to **every 2nd frame** (`hold & 1`), phase-aligned so the
+  trigger Flip is also a sim tick (`GAME_CAMERA_HOLD_FRAMES`=184, even).
+- **RESULT: the port passes through the IDENTICAL `cam_x60` sequence as retail** —
+  128000, 127990, 127970, 127940, 127900, 127850, 127790, 127720, 127640, 127550,
+  127450, 127340, … then cruise −300/2flips (verified by capturing the port's
+  `0x43d1d0` mirror + diffing the distinct-step sequence: identical where both
+  are sampled). So at any Flip where the two share a `cam_x60`, the backdrop is
+  pixel-identical — the pan is now trajectory-1:1, not just rate-correct.
+- **RESIDUAL (irreducible without the sim-clock port):** retail's sim accumulator
+  is wall-clock-paced, so its startup has sub-tick JITTER — a 4-Flip plateau at
+  1618-1621, a double-tick at 1616 — that a clean fixed 2:1 step doesn't
+  reproduce. This leaves a ~2-3 Flip PHASE offset vs retail during the pan (≤1
+  step = 300 units = ~3 px horizontal, transient; zero at the hold + settled
+  ends). PORT-DEBT `ingame-camera-pan` narrows to: the wall-clock sim-tick
+  accumulator (the engine pace clock, map-object `+0x4068`) + the cutscene-script
+  trigger SOURCE — both downstream of the in-game sim/`0x5a00c0` port.

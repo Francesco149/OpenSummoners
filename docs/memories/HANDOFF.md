@@ -34,13 +34,22 @@ target-setters ported.**
 - **State (ckpt 70): 848 pass / 0 fail / 6 skip** (+2). Ledger **197/1490 touched
   / 192 tested** (unchanged — easer/shake counted ckpt 69; setters are a bare-VA
   slice of `0x439690`). Both GUI builds clean.
-- **REMAINING (PORT-DEBT `ingame-camera-pan`, synthetic):** (a) the pan TRIGGER
-  timing — `GAME_CAMERA_HOLD_FRAMES=183` stands in for the cutscene-script op
-  (unported `0x5a00c0`) that writes the `+0x4c` command at hold-end; (b) the easer
-  step CADENCE — port steps per rendered frame, retail per sim-tick (flips ~1 per
-  2 ticks → per-flip pan rate differs, not flip-anchored-exact mid-flight); (c)
-  the spawn-snap origin is the live const, not yet derived from the entry params.
-  Writeup: `findings/in-game-intro.md` "The camera is WIRED LIVE".
+- **CADENCE + TRIGGER MEASURED (ckpt 70b) → the pan is TRAJECTORY-1:1.** A retail
+  field-spec trace (`--seed-pin --lockstep --no-turbo`, easer `0x43d1d0` + Flip
+  hooked, contiguous Flip whitelist) pinned both: the easer fires **once per 2
+  Flips** (the sim runs at half the Flip rate; `cam_x60` is a STEP function,
+  −300/2flips cruise) and the pan command fires at **`game_enter + 184` Flips**
+  (Flip 1616 HOLD, 1617 PAN). `game_camera_step` now gates the sim to every 2nd
+  frame (`hold & 1`); `GAME_CAMERA_HOLD_FRAMES=184` (even, so trigger Flip = sim
+  tick). VERIFIED: the port passes through the **identical `cam_x60` sequence** as
+  retail (128000,127990,127970,…,−300/2flips — diffed the captured `0x43d1d0`
+  mirror). RESIDUAL (PORT-DEBT `ingame-camera-pan`): a ~2-3 Flip startup-jitter
+  PHASE (retail's wall-clock sim accumulator — a 4-Flip plateau at 1618-1621 a
+  clean 2:1 step can't reproduce; ≤1 step ≈ 3px, transient, zero at hold+settled)
+  + the cutscene-script TRIGGER source + the spawn-snap origin derivation — all
+  downstream of the in-game sim / `0x5a00c0` port. Writeups:
+  `findings/in-game-intro.md` "The camera is WIRED LIVE" + "The pan CADENCE +
+  TRIGGER measured".
 
 ## Where we are — ckpt 69
 

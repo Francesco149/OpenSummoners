@@ -45,12 +45,19 @@ understates how much actual instruction volume is ported.
   host-tested (clamp to `[0, map-vp]`; snap-jumps-cur / pan-keeps-cur). **Visually confirmed
   on the feed:** hold (cam x=128000) → mid-pan → settled (cam x=12800, town left edge).
   **848 pass / 0 fail / 6 skip** (+2). Also added `MAP_RENDER_CAM_TOWN_3F2_SETTLED` (x=y=12800).
-  **OPEN (PORT-DEBT `ingame-camera-pan`, synthetic stand-ins):** the pan TRIGGER timing
-  (`GAME_CAMERA_HOLD_FRAMES=183` stands in for the unported `0x5a00c0` cutscene-script op
-  that writes the command) + the easer step CADENCE (port steps per frame; retail per
-  sim-tick → per-flip rate differs, so the pan isn't flip-anchored-exact mid-flight). The
-  SETTLED end is a determinate camera both sides share → a flip-anchored full-frame diff is
-  meaningful there now.
+- **CADENCE + TRIGGER measured → the pan is now TRAJECTORY-1:1 (ckpt 70b).** A retail
+  field-spec trace (`--seed-pin --lockstep --no-turbo`, easer `0x43d1d0` + Flip hooked,
+  contiguous Flip whitelist) pinned both stand-ins to ground truth: the easer fires **once
+  per 2 Flips** (the sim runs at half the Flip rate; `cam_x60` is a STEP function, −300/2flips
+  at cruise) and the pan command fires at **`game_enter + 184` Flips** (Flip 1616 HOLD, 1617
+  PAN). `game_camera_step` now gates the sim to every 2nd frame (`hold & 1`), trigger at
+  `GAME_CAMERA_HOLD_FRAMES=184`. **The port now passes through the IDENTICAL `cam_x60`
+  sequence as retail** (128000,127990,127970,127940,…,cruise −300/2flips — verified by
+  diffing the captured `0x43d1d0` mirror). **RESIDUAL (PORT-DEBT `ingame-camera-pan`):** a
+  ~2-3 Flip startup-jitter PHASE offset (retail's sim accumulator is wall-clock-paced — a
+  4-Flip plateau at 1618-1621 a clean 2:1 step can't reproduce; ≤1 step ≈ 3px, transient,
+  zero at hold+settled) + the cutscene-script TRIGGER source — both downstream of the
+  in-game sim / `0x5a00c0` port.
 - **Methodology (reinforced ckpt 69):** "annotate" = the **flow-trace field spec**
   (`retail_fields.json` named functions+fields + port `CALL_TRACE_BEGIN` mirrors) — a CORE
   step of finishing any RE/port; thiscall/struct tagging is a SEPARATE static-readability
@@ -76,17 +83,18 @@ understates how much actual instruction volume is ported.
 - **NOT a full `differ_px==0` frame yet — named residuals** (NOT logic bugs): the **NPC actors**
   (present modes 0/1/2, blocked on the entity/spawn system — PORT-DEBT `present-actor-modes`); the
   **foreground tree** + **"Town of Tonkiness" banner** (`0x5a00c0`, PORT-DEBT `ingame-nontile-layers`);
-  the intro **pan** is now wired but its TRIGGER timing + step CADENCE are synthetic (PORT-DEBT
-  `ingame-camera-pan`), so the pan isn't flip-anchored-exact mid-flight — the **settled end**
-  (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800) is where a flip-anchored sky diff is now meaningful.
-- **Next move:** the camera is wired + pans (ckpt 70). The smallest next wins: (a) take a
-  **flip-anchored full-frame backdrop/sky diff at the SETTLED end** (both sides share x=y=12800 —
-  no cadence question) to confirm/close the sky `differ_px`; (b) the **foreground tree/banner**
-  (`0x5a00c0` scripted-scene overlay player — also where the pan's cutscene-script TRIGGER lives,
-  so RE'ing it closes both `ingame-nontile-layers` and the pan-trigger half of `ingame-camera-pan`);
-  (c) the **actor renderers** (present modes 0/1/2, need the entity/spawn system first). The pan
-  **cadence** (tick↔flip correlation) is a separate parity-refinement, validate via a live trace.
-  Writeups: `findings/in-game-intro.md` "The camera is WIRED LIVE".
+  the intro **pan** is wired + cadence/trigger-matched (ckpt 70b) — it passes through retail's
+  exact `cam_x60` sequence; residual is a ~2-3 Flip startup-jitter PHASE (PORT-DEBT
+  `ingame-camera-pan`), zero at the hold + settled ends (`MAP_RENDER_CAM_TOWN_3F2_SETTLED`, x=y=12800).
+- **Next move:** the camera pans at retail's trajectory (ckpt 70b). To get a PIXEL diff of the
+  panning backdrop: (a) **capture retail frames + per-Flip `cam_x60` together** under matched
+  pacing (`--no-turbo --seed-pin --lockstep`; the existing golden is turbo-paced so its per-Flip
+  camera differs) → match port frames by `cam_x60` and `tas_diff` the backdrop (expect 1:1 where
+  cameras match; NPCs/tree/banner are the named holes — that's the signal). (b) the **foreground
+  tree/banner** (`0x5a00c0` scripted-scene overlay player — also where the pan TRIGGER source lives,
+  closing both `ingame-nontile-layers` and the trigger half of `ingame-camera-pan`); (c) the
+  **actor renderers** (present modes 0/1/2, need the entity/spawn system first).
+  Writeups: `findings/in-game-intro.md` "The pan CADENCE + TRIGGER measured".
 - **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` carries `seq` + `CALL_TRACE_BEGIN/FIELD/END`;
   the Frida agent reads same-named retail fields per `tools/flow/retail_fields.json` (now incl.

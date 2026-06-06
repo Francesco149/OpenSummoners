@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 70b) — the pan CADENCE + TRIGGER measured; port matches retail's trajectory
+
+Chased the two synthetic stand-ins from ckpt 70 to ground truth. A retail
+field-spec trace (`--seed-pin --lockstep --no-turbo`, the easer `0x43d1d0` + the
+Flip `0x5b8fc0` hooked, a contiguous Flip whitelist across the pan) pinned both:
+the **trigger** is `game_enter + 184` Flips (Flip 1616 still HOLD
+tgt=128000/cap=0, Flip 1617 = PAN tgt=12800/cap=300; game_enter@1433), and the
+**cadence** is the easer firing **once per 2 Flips** — the in-game sim
+(`0x439690`, which calls the easer at `:1123`) runs at half the Flip rate, so
+`cam_x60` is a STEP function (flat between sim ticks, e.g. 127990 held across
+Flips 1618-1621), dropping 300 per 2 Flips at cruise.
+
+The port presented once per frame → stepped the easer 2× too often. `main.c
+game_camera_step` now gates the sim to every 2nd frame (`hold & 1`), and
+`GAME_CAMERA_HOLD_FRAMES` is 184 (even, so the trigger Flip is also a sim tick,
+matching retail's Flip 1617 = pan command + first easer tick). Captured the
+port's `0x43d1d0` mirror and diffed the distinct-step `cur_x` sequence vs retail:
+**identical** — 128000,127990,127970,127940,127900,127850,127790,127720,127640,
+127550,127450,127340,… then cruise −300/2flips. So the port passes through the
+same scroll positions in the same order; the pan is trajectory-1:1, and the
+backdrop is pixel-identical at any Flip where the two share a `cam_x60`.
+
+Residual (PORT-DEBT `ingame-camera-pan`, narrowed): retail's sim accumulator is
+wall-clock-paced, so its startup has sub-tick jitter (a 4-Flip plateau at
+1618-1621, a double-tick at 1616) a clean fixed 2:1 step can't reproduce → a ~2-3
+Flip phase offset mid-pan (≤1 step = 300u ≈ 3px, transient; zero at the hold +
+settled ends). Removing it needs the engine pace clock (map-object `+0x4068`) +
+the cutscene-script trigger source, both downstream of the in-game sim /
+`0x5a00c0` port. No code/test count change (cadence is a `main.c` glue tweak);
+both GUI builds clean. Feed: "camera pan CADENCE matched to retail (ckpt 70b)".
+Writeup: `findings/in-game-intro.md` "The pan CADENCE + TRIGGER measured".
+
 ## 2026-06-06 (ckpt 70) — the intro-PAN camera WIRED LIVE; scripted target-setters ported
 
 The ckpt-69 easer is now **driven by a live camera in `main.c`** — the town
