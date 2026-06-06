@@ -61,6 +61,11 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
 
 ## Harness / tooling
 
+- **[ddraw-blit-trace.md](ddraw-blit-trace.md)** — the DDraw blit-command +
+  state trace (Phase-B B3): the `render_id` cross-side identity
+  (`(resource_id, frame)` + a decoded-sheet `dhash` fingerprint), per-blit
+  emission at the 5 primitives, the retail Frida mirror, and `render_diff.py`
+  (names the wrong DRAW; `flow_diff` names the wrong LOGIC). Live-verified.
 - **[tas-harness.md](tas-harness.md)** — the 100%-deterministic port↔retail
   trace-diff stack: the `--lockstep` retail clock (1 update/present, matching
   the port), bilateral TAS anchors (subtitle_anim_start / newgame_enter /

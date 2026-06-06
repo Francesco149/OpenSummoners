@@ -129,7 +129,22 @@
   `ingame-nontile-layers` + the trigger half of `ingame-camera-pan`); (c) the **actor renderers**
   (present modes 0/1/2, need the entity/spawn system first). Writeups: `findings/in-game-intro.md`
   "The pan CADENCE + TRIGGER measured" + the diff verification; quirk #74.
-- **Tooling front:** **Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
+- **Tooling front (ckpt 74): the DDraw BLIT TRACE landed + cross-side-verified — we now have
+  the two-drill-in coverage the user asked for.** `render_diff` names the wrong DRAW (and how:
+  `[sprite]`/`[decode]`/`[rect]`/`[state]`); `flow_diff` names the wrong LOGIC. B3 (`docs/plans/
+  trace-tooling-phase-b.md`, `findings/ddraw-blit-trace.md`): `src/render_id.{c,h}` is the
+  cross-side identity — a cel→`(resource_id, frame)` registry (openrecet's `tex_name` trick:
+  drop the alloc-dependent pointer, key on the load-stable asset name) **plus `dhash`**, an
+  FNV-1a fingerprint of the DECODED sheet pixels (the improvement over openrecet's name-only
+  scheme — a software blitter has the pixels in CPU mem at decode, so it catches RIGHT sprite /
+  WRONG decode, the palette/24bpp residual class). Port emits at the 5 blit primitives
+  (`zdd_emit_blit`); the Frida agent mirrors it (resolver `0x418470` registry + the new
+  `renderid`/`thisderef` field sources, each auto-installing — no ad-hoc flag). **LIVE-VERIFIED:**
+  retail emits the IDENTICAL `resource_id` (0x91b) as the port for the title background; ECX/arg
+  reads correct; render_diff named all 59 title-phase blits by identity. Next layers: retail-side
+  decode-hash (so `[decode]` fires cross-side), the cdecl `0x5bd550` retail spec, a same-scene
+  aligned in-game diff. AGENT-WORKFLOW.md trimmed to subagent-only (process audit). 813 pass.
+- **Prior tooling: Phase-B B2 (the field-bearing flow trace) LANDED + live-verified**
   (`docs/plans/trace-tooling-phase-b.md`): `call_trace` carries `seq` + `CALL_TRACE_BEGIN/FIELD/END`;
   the Frida agent reads same-named retail fields per `tools/flow/retail_fields.json` (now incl.
   the `cam_*` camera chain + the ckpt-67 `tint`/`lutgate1/2`/`lut*` colour-grade probes +

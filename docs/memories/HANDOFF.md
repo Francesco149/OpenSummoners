@@ -503,6 +503,27 @@ geometry → draw-list → present chain is complete + the camera is RE'd; the `
 slice + `main.c` wiring (sprite resolver, EXE-NULL banks) are what remain to drive it with
 real data.
 
+## Tooling — Phase B B3 (DDraw blit + state trace) LANDED 2026-06-06
+The RENDER drill-in is built + cross-side-verified (`findings/ddraw-blit-trace.md`):
+`render_diff.py` names the wrong DRAW (`[sprite]`/`[decode]`/`[rect]`/`[state]`),
+`flow_diff.py` names the wrong LOGIC — the two-drill-in coverage requested before NPCs.
+- `src/render_id.{c,h}` (host-tested, 7): cel→`(resource_id, frame)` registry (openrecet's
+  `tex_name` trick) + `dhash` FNV-1a fingerprint of the DECODED sheet (the improvement: a
+  software blitter has CPU pixels at decode → catches RIGHT sprite / WRONG decode). Registered
+  at `ar_sprite_slice` (port) / the resolver `0x418470` hook (retail, `installRenderIdHook`).
+- Port emits at the 5 blit primitives via `zdd_emit_blit` (`src/zdd.c`); rides the existing
+  `call_trace` transport. Retail: blit VAs in `retail_fields.json` + two new agent field
+  sources `renderid`/`thisderef` (auto-install, no flag — the `rngcalls` pattern).
+- `tools/render_diff.py` (host-tested, 9): aligns each frame's blits by `(va, res, frame)`,
+  classifies first divergence; intersection-only field compare (port-only fields never
+  false-flag); positional fallback for unnamed cels.
+- VERIFIED live (title): retail `res=0x91b` == port `res=0x91b`; ECX/arg reads correct;
+  render_diff named all 59 title-phase blits. **Footguns hit:** the port loads `--input-trace`
+  BEFORE the game-dir chdir (use an ABSOLUTE path), and `--call-trace` opens its file in the
+  launcher CWD (not the game dir); run the launcher INSIDE `nix develop` or sotesd.dll fails
+  to load (err 126 → blank render). **Next layers:** retail decode-hash (so `[decode]` fires
+  cross-side), the cdecl `0x5bd550` retail spec, a same-scene aligned in-game diff.
+
 ## Tooling — Phase B B2 (field-bearing flow trace) LANDED 2026-06-05
 The LOGIC drill-in is built + **live-verified on retail** (`docs/plans/trace-tooling-phase-b.md`):
 - `src/call_trace.{c,h}`: `seq` (per-frame exec order) + `CALL_TRACE_BEGIN/FIELD/END`

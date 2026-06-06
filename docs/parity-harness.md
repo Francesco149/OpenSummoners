@@ -14,7 +14,24 @@ operational cheat-sheet.
 | `tools/frida_capture.py --call-trace` | Hooks the safe VA list in retail, emits `<run_dir>/call_trace.jsonl` (per-Flip-frame). **[live]** |
 | `src/call_trace.{c,h}` + `opensummoners.exe --call-trace <path>` | Port-side emitter; `CALL_TRACE_ENTER(0xVA)` probes. **[offline]** |
 | `tools/call_trace_diff.py` | Diffs the two `call_trace.jsonl` → overlap / retail-only (= port gap) / port-only (= divergence). **[offline]** |
+| `tools/flow_diff.py` + `tools/flow/retail_fields.json` | The LOGIC drill-in: names the first call whose inputs matched but whose output/state diverged (field-bearing call trace). **[offline]** |
+| `tools/render_diff.py` + `src/render_id.{c,h}` | The RENDER drill-in: names the first divergent BLIT and classifies it (`[sprite]`/`[decode]`/`[rect]`/`[state]`), keyed on the cross-side `(resource_id, frame)` identity + a decoded-sheet `dhash`. See `findings/ddraw-blit-trace.md`. **[offline]** |
 | `tools/mem_watch.py` | Write-protects a region in retail; ranks trapping instructions → owning function via the ledger. **[live capture / offline rank]** |
+
+**The two drill-ins pair up:** `render_diff` says *which draw* is wrong (and how —
+wrong sprite / wrong decoded pixels / wrong rect / wrong DDraw state); `flow_diff`
+says *which logic* produced it. Both consume the same `call_trace.jsonl`.
+
+> **Don't add a bespoke `--foo-probe` flag.** A new datum is almost always a
+> `fields[]` entry on the right VA in `retail_fields.json` with the right `src`
+> (`global`/`arg`/`argderef`/`chain`/`rngcalls`/`renderid`/`thisderef`); a new
+> *kind* of datum is one new `src:` type in the agent's `ctReadField` (one place →
+> every VA can read it, and `flow_diff`/`render_diff` classify it for free). The
+> field spec is the unifier — bespoke flags don't compose with the diffs and rot
+> once answered (the repo carries a graveyard of `--cursor-probe`/`--fade-probe`/…).
+> Reach for a standalone flag only when the thing genuinely can't be a per-VA/
+> per-frame field (e.g. an interactive recorder). `renderid`/`rngcalls` are the
+> model: a new `src:` that auto-installs its own hook, no flag.
 
 Frame axis: both sides count **Flips**. The agent bumps on each
 `FUN_005b8fc0` (DDraw Flip) entry; the port bumps `g_frame_counter` once per

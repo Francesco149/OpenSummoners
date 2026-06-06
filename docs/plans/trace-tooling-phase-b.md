@@ -1,7 +1,9 @@
 # Phase B — unified harness + divergence tracing
 
-> **Status (2026-06-05):** **B2 LANDED + live-verified.** B1 (unified
-> `scenario-test.py`) and B3 (DDraw blit-command trace + `render_diff.py`) remain.
+> **Status (2026-06-06):** **B2 + B3 LANDED + live-verified.** Only B1 (unified
+> `scenario-test.py`) remains. B3 (the DDraw blit-command + state trace,
+> `render_diff.py`, the `render_id` cross-side identity + decode fingerprint) is
+> done and verified cross-side on real captures — see `findings/ddraw-blit-trace.md`.
 > See the "Status" note under each deliverable below.
 
 The rigor scaffolding (CLAUDE.md, FRONT.md, parity-model, port-debt, ods cross-ref/proofs)
@@ -56,14 +58,29 @@ whose output/state diverged**. Ported to SotES:
   data-1:1-vs-observed-divergence call. A pace-aware (anchor+rate) alignment, or moving the
   probe to a pace-invariant point, is the next refinement when this gets chased to differ_px.
 
-### B3. DDraw blit-command trace — the RENDER-STREAM drill-in *(after B2)*
+### B3. DDraw blit-command + state trace — the RENDER-STREAM drill-in ✅ DONE (live-verified 2026-06-06)
 SotES renders via a **DirectDraw 7 software blitter** (not D3D8), so the render-stream
-analog of openrecet's `d3d-trace` is a **blit-command log**: every blit through the hot
-path (`0x5bd550` orchestrator → `0x5bd680` software alpha blitter — the per-frame draw
-primitive confirmed in `parity-harness.md`) with src/dst rect, mode, and surface id, on
-both sides, plus a `tools/render_diff.py` that names the **first divergent blit** (which
-draw is wrong, before chasing why). The draw-node layer pool (`draw_pool`, ckpt 61) is the
-natural emit point on the port side.
+analog of openrecet's `d3d-trace` is a **blit-command log**. Landed — full writeup +
+how-to in **`docs/findings/ddraw-blit-trace.md`**:
+- ✅ `src/render_id.{c,h}` — the cross-side identity backbone: a cel→`(resource_id, frame)`
+  registry (openrecet's `tex_name` trick — drop the allocation-dependent pointer, key on
+  the load-stable asset name) **plus** `dhash`, an FNV-1a fingerprint of the DECODED sheet
+  pixels. The dhash is the improvement over openrecet's name-only scheme — for a software
+  blitter the pixels are CPU-accessible at decode time, so it catches the RIGHT sprite
+  decoding to the WRONG pixels (the palette/24bpp residual class), not just the wrong
+  sprite. Host-tested (7).
+- ✅ Port emits at the 5 blit primitives (`0x5b9a40`/`_9b70`/`_9ae0`/`_9bf0`/`_bd550`) via
+  `zdd_emit_blit` — identity + raw geometry + the DDraw state (colorkey, KEYSRC arm, blend
+  mode). Rides the existing `call_trace` transport (no second emitter).
+- ✅ Retail mirror in the Frida agent: `installRenderIdHook` (the resolver `0x418470`
+  registry) + two new field sources `renderid`/`thisderef` (each auto-installs, no ad-hoc
+  flag); the blit VAs in `tools/flow/retail_fields.json`.
+- ✅ `tools/render_diff.py` aligns each frame's blit sequence by `(va, res, frame)` and
+  classifies the first divergence: `[sprite]`/`[decode]`/`[rect]`/`[state]`. Host-tested (9).
+- **Verified cross-side:** retail emits the IDENTICAL `resource_id` (0x91b) as the port for
+  the title background; the rects/state read correctly off ECX+args; render_diff names every
+  blit by identity. **Next layers:** the retail-side decode-hash (so `[decode]` fires
+  cross-side), the cdecl `0x5bd550` retail spec, and a same-scene aligned in-game diff.
 
 ## The loop each tool enables
 For every divergence: **pinpoint** (flow_diff → the call / render_diff → the blit) →

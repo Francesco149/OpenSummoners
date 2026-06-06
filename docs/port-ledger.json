@@ -1551,6 +1551,7 @@
     "src/asset_register.h",
     "src/color_grade.h",
     "src/main.c",
+    "src/render_id.h",
     "src/title_render.c",
     "src/title_sink.h"
    ]
