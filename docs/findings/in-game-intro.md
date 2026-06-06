@@ -1587,3 +1587,26 @@ timing is downstream of those.  Annotated for the verification (`retail_fields.j
 sim-tick-matched runs should show `a0_frame` matching while `a0_clip`/position
 drifts — pinning the residual to the RNG/behaviour pillar (anchored separately).
 See engine-quirk #76 and [[timestep-determinism-pillar]].
+
+### ckpt 73 — the live check: the shared LCG stream is non-deterministic run-to-run even under `--seed-pin`
+
+Ran that verification, and the mechanism is deeper than "the actor RNG desyncs":
+the **shared** LCG stream `DAT_008a4f94` is itself non-deterministic run-to-run.
+Drove retail twice (`--seed-pin --lockstep --no-turbo`, same trace), snapshotting
+`DAT_008a4f94` at the per-sim-tick actor-update boundary `FUN_0046cd70` (new
+`rng_state` field, tagged with `g_sim_tick`).  **`rng_state` matched 0 of 8643
+in-game sim-ticks.**  The `a0_clip`/`a0_frame` fields matched 8643/8643, but
+trivially — main-band slot 0 was inert (clip=0/frame=0) the whole run, so they were
+not a real test; `rng_state` is the signal.
+
+Proof the desync is a stream-phase drift, not just different flip counts to the
+anchor: at `prologue_enter` BOTH runs are on the identical flip 946 yet the LCG
+state differs (`0x84654e6f` vs `0xa79a2d6e`) — at the same flip the engine drew a
+different *number* of values.  A per-present consumer × the non-deterministic
+presents-per-tick count (quirk #75) shifts the phase; it never re-converges.
+
+Consequence: the ~6.7k-px actor-band residual is the RNG pillar, and it is **not**
+closable by the camera's `g_sim_tick` anchor.  An RNG-reading subsystem needs its
+own RNG anchor — snapshot/restore `DAT_008a4f94` at the game_enter sim-tick on both
+sides (or re-seed the actor RNG per tick).  Port↔retail bar for the band: data-1:1
+given a matched RNG state.  Tool `tools/rng_tick_diff.py`; engine-quirk #77.

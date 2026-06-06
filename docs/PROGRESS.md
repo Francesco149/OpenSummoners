@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-06 (ckpt 73) — actor-band residual PINNED to the RNG pillar; the shared LCG stream is non-deterministic run-to-run even under `--seed-pin`
+
+Ran the ckpt-72 directed live check (the #76 "To confirm").  Drove retail TWICE
+(`--seed-pin --lockstep --no-turbo`, same in-game trace), hooking the per-sim-tick
+actor-update boundary `FUN_0046cd70` and snapshotting the shared LCG state word
+`DAT_008a4f94` there — a new `rng_state` field in `tools/flow/retail_fields.json`,
+tagged with the deterministic `g_sim_tick` (reset at game_enter).  8644 in-game
+sim-ticks common to both runs.
+
+**Result: `rng_state` matches 0/8643 sim-ticks** — the shared stream is at a
+different phase at *every* in-game tick despite the pinned seed and the
+deterministic sim-tick index.  Smoking gun: at `prologue_enter` BOTH runs are on
+the IDENTICAL flip 946 yet rng differs (`0x84654e6f` vs `0xa79a2d6e`) → at the same
+flip the engine has drawn a *different number* of LCG values.  Mechanism: a
+per-PRESENT consumer × the non-deterministic presents-per-sim-tick count (quirk
+#75) desyncs the stream phase, which never re-converges.  (The `a0_clip`/`a0_frame`
+actor-anim fields matched 8643/8643 but trivially — main-band slot 0 was inert all
+run; `rng_state` is the real signal.)
+
+Since `FUN_0054f980`'s behaviour cases draw this exact LCG `FUN_005bf505` ~40× per
+tick (idle-wait `+0x5c`, the idle→wander branch pick, wander move-offsets →
+`FUN_00450ef0` — static two-witness), a divergent stream makes the actors choose
+different waits/dirs/positions run-to-run = the #75-addendum ~6.7k-px actor-band
+residual.  **Conclusion:** the residual is the RNG pillar (parity-model pillar 3),
+and it is NOT closable by the camera's `g_sim_tick` anchor — an RNG-reading
+subsystem needs its own RNG anchor (snapshot/restore `DAT_008a4f94` at the
+game_enter sim-tick, both sides).  This makes the #75 "anchor each subsystem
+separately" decision mandatory for the actor layer; the parity bar for the band is
+"data-1:1 given a matched RNG state" (retail-vs-retail isn't observed-1:1 here).
+New tool `tools/rng_tick_diff.py`.  No code/test change (a pure RE/harness finding;
+854 pass / 0 fail / 6 skip unchanged).  Engine-quirk #77; `findings/in-game-intro.md`.
+
 ## 2026-06-06 (ckpt 72) — the actor ANIMATION cycle RE'd + frame-stepper ported (rides the sim-tick clock)
 
 Took the ckpt-71 directed next ("RE the NPC/actor system + its animation cycle,

@@ -2212,4 +2212,62 @@ consumption desyncs run-to-run, the actor STATE (not the intra-clip frame) drift
 `retail_fields.json` for `0x54f980`) across two seed-pinned sim-tick-matched runs —
 expect `a0_frame` to match at equal sim-tick while `a0_clip`/position diverges,
 pinning the residual to the RNG/behaviour pillar (anchored separately, à la the
-RNG seed pin).
+RNG seed pin).  **CONFIRMED — see #77** (the live experiment; the mechanism turned
+out to be deeper than "actor RNG desyncs": the *shared* LCG stream phase is itself
+non-deterministic run-to-run despite the seed pin).
+
+### #77 — the shared LCG stream PHASE is non-deterministic run-to-run even under `--seed-pin` (a per-flip consumer × the non-deterministic flip rate desyncs `DAT_008a4f94`) → RNG-driven subsystems need a per-subsystem RNG anchor, not just the sim-tick (2026-06-06, ckpt 73)
+
+The live experiment the #76 "To confirm" called for.  Drove retail **twice**,
+`--seed-pin --lockstep --no-turbo`, the same in-game input trace, hooked the
+per-sim-tick actor-update boundary `FUN_0046cd70` and snapshotted the LCG state
+word **`DAT_008a4f94`** there (field `rng_state`, tagged with the deterministic
+`g_sim_tick`, reset at `game_enter`).  8644 in-game sim-ticks common to both runs.
+
+**Result: `rng_state` matches on 0 of 8643 sim-ticks** — the shared LCG stream is
+at a *different* state at every single in-game tick, even though the seed was
+pinned to the same value at boot and the sim-tick index is the deterministic
+frame-of-reference (quirk #75).  (The actor anim fields `a0_clip`/`a0_frame` did
+match 8643/8643, but **trivially** — actor slot 0 of the main band `+0x11e0` was
+inert the whole run, `clip=0 frame=0`; that only shows an inert actor stays
+identically inert, not that the stepper is deterministic for an animating actor.
+The `rng_state` divergence is the real signal.)
+
+**The mechanism — proven at the scene anchors, not just inferred.**  The TAS
+anchors carry the LCG state at entry:
+- `newgame_enter`: run A flip **751** rng `0x6a239b8d` · run B flip **750** rng `0x6a239c54`
+- `prologue_enter`: run A flip **946** rng `0x84654e6f` · run B flip **946** rng `0xa79a2d6e`
+- `game_enter`: run A flip **1432** rng `0x84654e6f` · run B flip **1434** rng `0xa79a2d6e`
+
+The decisive pair is **`prologue_enter`: both runs are on the IDENTICAL flip 946,
+yet the LCG state differs** (`0x84654e6f` vs `0xa79a2d6e`).  So the desync is not
+merely "the two runs reached the anchor at different flip counts" — at the *same*
+flip the engine has drawn a *different number* of RNG values.  Some consumer draws
+the LCG at a rate that is not locked to the flip or the sim-tick (the title/menu
+sparkle and per-frame effects draw per *present*; the present/Flip count per sim
+tick is itself non-deterministic, quirk #75).  Once the stream phase diverges it
+never re-converges, so every downstream RNG-driven subsystem inherits a
+non-deterministic stream.
+
+**Consequence (closes the #75-addendum / #76 OPEN, refines the fix).**  The actor
+BEHAVIOUR dispatch `FUN_0054f980` draws this exact LCG (`FUN_005bf505`) dozens of
+times per tick for idle-wait timers, the idle→wander branch pick, and wander
+move-offsets (static two-witness: ~40 call sites; e.g. behaviour `0x11365` draws a
+`+0x5c` wait `≈ rand·300/0x8000`, a branch selector, then a move offset `≈
+rand·1000/0x8000 − 500` into `FUN_00450ef0`).  Feeding a divergent stream into
+those draws makes the actors choose different waits / directions / positions
+run-to-run → that **is** the #75-addendum ~6.7k-px actor-band residual.  It is the
+RNG pillar (parity-model pillar 3), and crucially it is **NOT closable by the
+camera's `g_sim_tick` anchor** (which works only because the camera reads no RNG).
+A subsystem that reads RNG needs its own **RNG anchor**: snapshot/restore
+`DAT_008a4f94` at the `game_enter` sim-tick (or re-seed the actor RNG per tick) on
+*both* sides so the per-tick actor draws are reproducible — the per-subsystem
+anchoring the #75 decision called for, now shown to be mandatory (not optional) for
+the actor layer.  For port↔retail parity the bar is therefore "data-1:1 given a
+matched RNG state," compared under a pinned actor-RNG anchor — retail-vs-retail
+itself is not observed-1:1 in this band.
+
+Reproduce: `tools/run-retail.sh --no-turbo --hide-window --seed-pin --lockstep
+--input-trace tests/scenarios/in-game-intro/trace-retail.jsonl --call-trace
+--field-spec-only` ×2 into two run dirs, then `tools/rng_tick_diff.py runA runB`
+(the `rng_state` field is on `0x46cd70` in `tools/flow/retail_fields.json`).

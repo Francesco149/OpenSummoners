@@ -6,6 +6,49 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 73
+
+**The #75-addendum / ckpt-72 OPEN is RESOLVED: the actor-band residual is the RNG
+pillar, and the shared LCG stream is non-deterministic run-to-run EVEN UNDER
+`--seed-pin`.**  Ran the ckpt-72 directed live check.
+
+- **Experiment.**  Drove retail TWICE (`--seed-pin --lockstep --no-turbo`, the same
+  in-game trace `tests/scenarios/in-game-intro/trace-retail.jsonl`), hooking the
+  per-sim-tick actor-update boundary `FUN_0046cd70` and snapshotting the LCG state
+  word `DAT_008a4f94` there (new `rng_state` field in `retail_fields.json`, tagged
+  with the deterministic `g_sim_tick`, reset at game_enter).  8644 in-game ticks
+  common to both runs.
+- **Result: `rng_state` matches 0/8643 sim-ticks.**  The shared stream is at a
+  different phase at *every* in-game tick, despite the pinned seed + the
+  deterministic sim-tick index.  (`a0_clip`/`a0_frame` matched 8643/8643 but
+  TRIVIALLY — main-band slot 0 `+0x11e0` was inert all run, clip=0/frame=0; the
+  `rng_state` divergence is the real signal.  An animating-actor slot was not
+  isolated — a follow-up could re-point the chain to a known NPC slot, but the
+  shared-stream result already settles the determinism question.)
+- **Mechanism — proven at the anchors, not inferred.**  `prologue_enter`: BOTH runs
+  on the IDENTICAL flip 946, yet rng differs (`0x84654e6f` vs `0xa79a2d6e`).  At the
+  same flip the engine drew a different *number* of LCG values → a per-PRESENT
+  consumer × the non-deterministic presents-per-tick count (quirk #75) desyncs the
+  stream phase; it never re-converges.  (newgame_enter A@751 rng 0x6a239b8d / B@750
+  rng 0x6a239c54; game_enter A@1432 0x84654e6f / B@1434 0xa79a2d6e.)
+- **Why it's the actor band.**  `FUN_0054f980` draws this exact LCG `FUN_005bf505`
+  ~40× per tick for idle-wait timers (`+0x5c`), the idle→wander branch pick, and
+  wander move-offsets (→ `FUN_00450ef0`) — static two-witness.  A divergent stream →
+  different waits/dirs/positions run-to-run = the #75-addendum ~6.7k-px residual.
+- **CONCLUSION / the fix.**  An RNG-reading subsystem needs its OWN **RNG anchor**
+  (snapshot+restore `DAT_008a4f94` at the game_enter sim-tick, both sides; or re-seed
+  the actor RNG per tick) — the camera's `g_sim_tick` anchor is insufficient (it
+  works only because the camera reads no RNG).  This makes the #75 "anchor each
+  subsystem separately" decision MANDATORY (not optional) for the actor layer.  Port
+  bar for the band: **data-1:1 given a matched RNG state** — retail-vs-retail isn't
+  observed-1:1 here.  Tooling: `tools/rng_tick_diff.py RUN_A RUN_B`.  Engine-quirk
+  #77; `findings/in-game-intro.md`.
+- **NEXT:** either (a) implement the actor-RNG anchor (snapshot `DAT_008a4f94` at
+  the game_enter sim-tick in the harness so a retail↔retail actor-band diff is
+  reproducible — the prerequisite for a port↔retail actor diff later), or (b) move
+  to a named visible layer with NO RNG dependence: the cinematic LETTERBOX (quirk
+  #74) or the `0x5a00c0` banner/foreground-tree overlay player.
+
 ## Where we are — ckpt 72
 
 **The ACTOR ANIMATION cycle is RE'd end-to-end + the frame-stepper ported — and it

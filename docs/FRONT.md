@@ -9,28 +9,35 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **Where we are (ckpt 72): the ACTOR ANIMATION cycle is RE'd + the frame-stepper ported —
-  it rides the sim-tick clock, NO separate counter to pin.** The ckpt-71 "next" is done.
-  The actor anim advances in the per-tick UPDATE pass (`0x439690:1108`→`FUN_0046cd70`(once
-  per sim-tick)→`FUN_0054f980` per actor), NOT the render/emit pass (`0x48c150`). Every
-  animating behaviour in `0x54f980` runs one byte-identical inline stepper on the
-  render-state anim fields (`+0x6c` clip / `+0x70` timer / `+0x72` frame / `+0x74` done):
-  `timer++`; at `>=clip.dur` → `frame++`,`timer=0`; at `>=clip.count` → loop (`frame=loop_to`)
-  or one-shot hold (`frame=count-1`,`done=1`). The clip is a fixed **0x154-B 32-frame**
-  descriptor (count@`+0x42`/dur@`+0x44`/oneshot@`+0x48`/loop_to@`+0x152`/base+per-frame
-  delta+x/y-offset — two witnesses: the stepper + renderer `0x491ae0` case 0x1872d). Clip is
-  (re)set on STATE CHANGE (`0x40afe0`/`0x41e600`), reset-on-change only. **PORTED (host-tested
-  bit-exact, +6 tests, 854 pass): `src/anim_clip.{c,h}` `anim_clip_advance`/`anim_state_set`.**
-  **DETERMINISM CONCLUSION:** the counter `+0x70/+0x72` is a pure function of *(sim-ticks since
-  clip-set)* — no GetTickCount/Flip/RNG — so it's already deterministic under the camera's
-  `g_sim_tick` anchor (game_enter reset); the actor-anim subsystem needs NO new pin, REFINING
-  the #75-addendum guess that it "reads a counter NOT the camera sim-tick". **OPEN (the real
-  residual):** the #75 ~6.7k-px actor-band diff under sim-tick matching must be a DIFFERENT
-  pillar — the RNG-driven BEHAVIOUR (which clip plays / position): `0x54f980`'s idle/wander
-  cases draw the LCG `0x5bf505` for random waits + spawn offsets, and clip-SET timing is
-  downstream. Annotated for the check (`retail_fields.json` `0x54f980`→`a0_clip/a0_frame`):
-  a live capture across two sim-tick-matched runs should show `a0_frame` matching while
-  `a0_clip`/position drifts. Engine-quirk #76; `in-game-intro.md` "The actor animation cycle".
+- **Where we are (ckpt 73): the actor-band residual is PINNED to the RNG pillar — and the
+  shared LCG stream is NON-DETERMINISTIC run-to-run EVEN UNDER `--seed-pin`.** Ran the ckpt-72
+  directed live check: drove retail **twice** (`--seed-pin --lockstep --no-turbo`, same
+  in-game trace), snapshotting the LCG state `DAT_008a4f94` at the per-sim-tick actor-update
+  boundary (`0x46cd70`, new `rng_state` field). **Result: `rng_state` matches 0/8643 in-game
+  sim-ticks** — the stream is at a different phase every tick despite the pinned seed and the
+  deterministic sim-tick index. **Smoking gun:** at `prologue_enter` BOTH runs are on the
+  IDENTICAL flip 946 yet rng differs (`0x84654e6f` vs `0xa79a2d6e`) → at the same flip the
+  engine has drawn a *different number* of LCG values. Mechanism: a consumer draws per-PRESENT
+  and the presents-per-sim-tick count is non-deterministic (quirk #75), so the stream phase
+  desyncs and never re-converges. Since `0x54f980`'s behaviour cases draw this exact LCG
+  (`FUN_005bf505`, ~40 sites: idle waits `+0x5c`, the idle→wander branch pick, move offsets →
+  `0x450ef0`), the actors pick different waits/dirs/positions run-to-run = the #75 ~6.7k-px
+  band. **CONCLUSION:** an RNG-reading subsystem needs its OWN **RNG anchor** (snapshot/restore
+  `DAT_008a4f94` at the game_enter sim-tick, both sides) — the camera's `g_sim_tick` anchor is
+  insufficient for it (works only because the camera reads no RNG). Parity bar for the actor
+  band = "data-1:1 given a matched RNG state" (retail-vs-retail isn't observed-1:1 here).
+  (The `a0_clip/a0_frame` fields matched 8643/8643 but TRIVIALLY — main-band slot 0 was inert
+  the whole run; the `rng_state` divergence is the real result.) Tool: `tools/rng_tick_diff.py`.
+  Engine-quirk #77; `in-game-intro.md`.
+- **Prior (ckpt 72): the ACTOR ANIMATION cycle RE'd + the frame-stepper ported — rides the
+  sim-tick clock, no separate counter.** The per-tick UPDATE pass (`0x439690:1108`→`0x46cd70`
+  once/tick→`0x54f980` per actor) runs one byte-identical inline stepper on the render-state
+  anim fields (`+0x6c` clip/`+0x70` timer/`+0x72` frame/`+0x74` done): `timer++`; at `>=clip.dur`
+  → `frame++`,`timer=0`; at `>=clip.count` → loop or one-shot hold. Clip = a fixed **0x154-B
+  32-frame** descriptor, (re)set on STATE CHANGE (`0x40afe0`/`0x41e600`). **PORTED (host-tested
+  bit-exact, 854 pass): `src/anim_clip.{c,h}`.** The stepper reads no GetTickCount/Flip/RNG → it
+  is deterministic under the camera's `g_sim_tick` anchor; ckpt 73 then proved the leftover band
+  diff is the RNG-driven BEHAVIOUR, not the stepper. Engine-quirk #76.
 - **Prior (ckpt 71): TIMESTEP DETERMINISM established — the SIM-TICK is the only
   valid frame-of-reference; the "house off by 3px" was FLIP-misalignment, not a bug.**
   The in-game sim is a wall-clock GetTickCount frame-limiter (`FUN_00439690:776-859`): one
