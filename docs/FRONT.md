@@ -9,7 +9,25 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 75): the establishing-shot cinematic LETTERBOX is PORTED + blit-trace 1:1.**
+- **LATEST (ckpt 76): the town NPC/actor RENDER PATH is RE'd LIVE + the trace tooling hardened.**
+  User: "implement the NPCs / consult the runtime trace / harden + document the trace tooling."
+  Did the RE + instrumentation half (render-side port follows). **Tooling:** added the reusable
+  **`thischain`** field source (ECX-rooted pointer hops — probes any actor by its live `__thiscall`
+  `this`) + **annotated** `0x491ae0` (actor render entry), `0x560e60`, `0x584710` in
+  `retail_fields.json`. **RE (live, retail town hold flip 1500):** the MAIN actor band is
+  `DAT_008a9b50+0x11e0` (0x80 slots, rendered by `0x491ae0`, updated by `0x54f980`; one of six
+  bands `0x48c150`/`0x46cd70` walk). **33 active actors: 32 STATIC** (clip==0), **1 animated**
+  (`0x1872d`). **32/33 behaviour codes fall through to `0x491ae0`'s DEFAULT arm → `FUN_0044d160`**
+  (the static-actor descriptor) → `0x492670` emit into the draw_pool as **mode 0/1** (= the
+  deferred PORT-DEBT `present-actor-modes`).  The code drives the AI (`0x54f980`), NOT the render —
+  **one function draws the town**.  Render banks res `0x403`/`0x426`/… = the ckpt-75 36-divergence
+  residual.  **Band is a PRE-ALLOCATED 128-slot pool** (`0x586010:487` `FUN_0058cf60(0x40)`×128);
+  the per-room **spawn = ACTIVATE+configure**, running after `0x586010`'s `"Init Objects"` marker —
+  a **data-driven entity-by-id** subsystem (codes never literal; NOT `0x560e60`=8 party / NOT
+  `0x584710`).  **NEXT:** find the `+0x11e0` activator (hook post-"Init Objects"), then port the
+  render side (`FUN_0044d160`+`0x492670`+present 0/1) + wire + pixel-verify vs retail flip 1500.
+  865 pass (no C touched); engine-quirk #78; `findings/in-game-intro.md` "The town ACTORS".
+- **Prior (ckpt 75): the establishing-shot cinematic LETTERBOX is PORTED + blit-trace 1:1.**
   RE'd the producer from the captured retail blit trace: it's NOT the `0x5a00c0` overlay but
   **`0x48c150:124-162`** (the per-frame world driver), two grid-fill loops that tile a 64×4
   opaque cel (res **`0x583`** = main-pool slot 41) across the screen — BOTTOM bar

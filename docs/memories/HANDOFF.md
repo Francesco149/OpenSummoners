@@ -6,6 +6,60 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 76
+
+**The town NPC/actor RENDER PATH is RE'd live, the trace tooling is hardened +
+documented, and the spawn is narrowed to a precise lead.**  (RE + instrumentation
+half of "implement the NPCs"; the render-side port + spawn + wire follow.)
+
+- **Trace tooling (the user's mandate "harden + document the foundation"):**
+  - **`thischain`** field source (`tools/frida/opensummoners-agent.js` `ctReadField`):
+    like `chain` but ROOTED at the `__thiscall` `this` (ECX) + pointer hops + `off` —
+    reads a field BEHIND a this-pointer (an actor's render-state at `*(actor+0x40)+off`).
+    The reusable primitive for probing any entity by its live `this`.
+  - **Annotated** `0x491ae0` (actor render entry — behaviour `+0x1d4`, the `+0x48`
+    sprite table, render-state pos/clip/frame), `0x560e60` (actor reset → spawn caller
+    via `ret_va`), `0x584710` (candidate) in `tools/flow/retail_fields.json`.
+- **The actor walk.**  Six actor bands off `DAT_008a9b50`; the **MAIN band is
+  `+0x11e0` (0x80=128 slots)**, render-emitted by **`FUN_00491ae0`** (from the per-frame
+  driver `0x48c150` free-roam branch) and updated by **`FUN_0054f980`** (from the
+  per-tick `0x46cd70`); live when `actor+0x1d0 != 0`.
+- **Live trace (retail town hold, flip 1500, `--seed-pin --lockstep`): 33 active
+  main-band actors — 32 STATIC** (render-state clip `+0x6c`==0), **1 ANIMATED**
+  (`+0x1d4`=`0x1872d`, the protagonist/key NPC).  **32/33 behaviour codes are NOT
+  explicit `0x491ae0` cases → they hit the DEFAULT arm `caseD_11257` →
+  `FUN_0044d160`** (the static-actor descriptor builder) → the emit tail → **`0x492670`**
+  (the actor analog of `draw_pool_emit`; node mode 0=keyed / 1=alpha).  The behaviour
+  code drives the **AI** (`0x54f980`, RNG motion deferred ckpt-73), NOT the render —
+  **one function (`FUN_0044d160`) renders nearly the whole town.**
+- **`FUN_0044d160`** reads `actor+0xe8` (dir) → the per-direction sprite table at
+  **`actor+0x48` stride 0x14** (bank/frame_base/x_off/y_off) + the render-state
+  (`+0x04/+0x08` world pos, `+0x2c` facing, `+0x6c` clip, `+0x72` frame).  Static actor
+  (clip==0): cel = `(bank, frame_base+facing)` at the render-state world pos.
+- **Render OUTPUT** (the 36 mode-0 keyed `0x5b9b70` blits @1500): res `0x403`/`0x426`
+  (villagers) + `0x459`/`0x462`/`0x46a`/`0x47b`/`0x481`/… — **exactly the ckpt-75
+  render_diff residual's named NPC banks**.  These ARE the 36 leftover divergences.
+- **The band is a PRE-ALLOCATED 128-slot pool** (`0x586010:476-506` calls
+  `FUN_0058cf60(0x40)` 0x80× for the main band; `0x58cf60` zeroes a slot, `+0x1d0=0`).
+  So the per-room **spawn = ACTIVATE + configure** a subset, running **after
+  `0x586010`'s `"Init Objects"` marker** (`:508`).  The behaviour codes are **data-driven**
+  (never literal) → an **entity-by-id** subsystem (ROADMAP `0x420000`); NOT `0x560e60`
+  (= the 8 PARTY actors, `ret_va=0x59f578`) / NOT `0x584710` (never fired).
+- **State: 865 pass / 0 fail / 6 skip** (no C touched).  Engine-quirk #78;
+  PORT-DEBT `present-actor-modes` (render-emit half will land here).
+- **NEXT (the implement arc — best as one fresh-context session, ends in pixel verify):**
+  1. **Find the `+0x11e0` activator** — instrument the code after `0x586010`'s
+     "Init Objects" marker (hook the callee that sets `+0x1d0`/`+0x1d4`/`+0x274`, read
+     `ret_va`; or `mem_watch --hw` a slot's `+0x1d0`); cross-ref the map DATA 1022 layer
+     entries + ROADMAP `0x42eb20`/`0x4282f0`.
+  2. **Port the render side** (pure + host-tested): `FUN_0044d160` (static-prop desc) +
+     `FUN_00492670` (node emit) + the `0x491ae0` default-arm tail; the `0x1872d` animated
+     arm reuses `anim_clip`.
+  3. **Wire** `map_present` modes 0 (keyed `0x5b9b70`) / 1 (alpha `0x5bd550`) — cull dims
+     from the sprite (`0x48eac0` mode-0/1 arms) — and drive the actor walk from `game_render`.
+  4. **Verify** the town NPC blits vs retail flip 1500 (`render_diff` keyed on `(res,frame)`);
+     the ckpt-75 residual should drop from 36.
+
 ## Where we are — ckpt 75
 
 **The establishing-shot cinematic LETTERBOX is RE'd, ported, and blit-trace 1:1.**

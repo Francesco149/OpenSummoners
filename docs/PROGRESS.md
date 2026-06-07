@@ -6,6 +6,51 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 76) — the town NPC/actor RENDER PATH RE'd live + the trace tooling hardened
+
+Next task: **implement the NPCs.**  User direction: *consult the runtime trace to
+track down the code paths*, and *improve the trace tooling — as solid a foundation as
+possible to probe ground truth, pinpoint code paths, and document them for future
+traces*.  Did the RE + instrumentation half (the render-side port + spawn + wire follow).
+
+**Tooling (the durable foundation).**  Added the reusable **`thischain`** field source
+to the Frida agent (`ctReadField`): like `chain` but ROOTED at the `__thiscall` `this`
+(ECX) + pointer hops + `off`, so it reads a field BEHIND a this-pointer (an actor's
+render-state at `*(actor+0x40)+off`) — the primitive for probing any entity by its live
+`this`.  **Annotated** `0x491ae0` (the actor render entry: behaviour `+0x1d4`, the
+`+0x48` per-direction sprite table, render-state pos/clip/frame), `0x560e60` (actor
+reset → spawn caller via the auto `ret_va`), and `0x584710` in
+`tools/flow/retail_fields.json` — documented for every future trace (commit `16894a5`).
+
+**RE (two seed-pinned/lockstep retail captures of the town hold, flip 1434/1500).**
+The MAIN actor band is `DAT_008a9b50+0x11e0` (0x80=128 slots), render-emitted by
+`FUN_00491ae0` (the per-frame driver `0x48c150`'s free-roam branch) and updated by
+`FUN_0054f980` (the per-tick `0x46cd70`) — one of six bands.  **33 active actors at
+flip 1500: 32 STATIC** (render-state clip `+0x6c`==0), **1 ANIMATED** (`+0x1d4`=`0x1872d`,
+the protagonist/key NPC).  Crucially **32/33 behaviour codes are NOT explicit
+`0x491ae0` cases → they fall to the DEFAULT arm `caseD_11257` → `FUN_0044d160`** (the
+static-actor descriptor builder: `actor+0xe8` dir → the `actor+0x48` stride-0x14 sprite
+table → cel `(bank, frame_base+facing)` at the render-state world pos) → the emit tail →
+`FUN_00492670` (the actor analog of `draw_pool_emit`; node mode 0=keyed / 1=alpha).  So
+the behaviour code drives the **AI** (`0x54f980`, RNG motion deferred ckpt-73), NOT the
+render — **one function renders nearly the whole town.**  The 36 mode-0 keyed `0x5b9b70`
+blits at flip 1500 (res `0x403`/`0x426`/`0x459`/…) are **exactly the ckpt-75 render_diff
+residual's named NPC banks**.
+
+**The spawn — narrowed, not yet ported.**  The band is a **pre-allocated 128-slot pool**
+(`0x586010:476-506` calls `FUN_0058cf60(0x40)` 0x80× for the main band; `0x58cf60` zeroes
+a slot, `+0x1d0=0`), so the per-room "spawn" is an **ACTIVATE + configure** running AFTER
+`0x586010`'s `"Init Objects"` marker (`:508`).  The behaviour codes are **data-driven**
+(never literal in the decompile) → an **entity-by-id** subsystem (ROADMAP `0x420000`);
+the trace ruled out `0x560e60` (= the 8 PARTY actors, `ret_va=0x59f578` inside `0x59f2c0`)
+and `0x584710` (never fired).  **NEXT** (one fresh-context arc, ends in pixel verify):
+find the `+0x11e0` activator (hook post-"Init Objects"), port the render side
+(`FUN_0044d160`+`0x492670`+the default arm), wire `map_present` modes 0/1, diff vs retail
+flip 1500.  No C touched (865 pass); engine-quirk #78; `findings/in-game-intro.md`
+"The town ACTORS"; PORT-DEBT `present-actor-modes` (the render-emit half lands there).
+
+---
+
 ## 2026-06-06 (ckpt 75) — the establishing-shot cinematic LETTERBOX RE'd + ported + blit-trace 1:1
 
 Closed the ckpt-74 next chip — the town frame's single biggest missing layer (the

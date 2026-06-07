@@ -1710,12 +1710,24 @@ residual's named NPC banks** → these blits ARE the 36 leftover divergences.
   / read from an entity-definition table**, i.e. the town actors are spawned by a
   **data-driven entity-by-id subsystem** (ROADMAP `0x420000`: `0x42eb20` spawn-by-id,
   `0x4282f0` def-lookup), reading the room's actor list (likely the map DATA 1022 layer
-  entries or the room record), allocating/activating a `+0x11e0` slot, and filling its
-  `+0x48` sprite table + `+0xe8` dir + render-state position + `+0x1d4` code.
-- **NEXT (find the `+0x11e0` populator):** a wider-window `0x560e60`/alloc trace
-  (the room actors may reset at a flip in 1435..1499, not 1434) OR a `mem_watch` on the
-  band region `*(0x8a9b50)+0x11e0` armed right after the god-object alloc
-  (`0x586010` `operator_new(0x27b8)`), backtracing the writer of a slot's `+0x1d0`.
+  entries or the room record), activating a `+0x11e0` slot, and filling its `+0x48`
+  sprite table + `+0xe8` dir + render-state position + `+0x1d4` code.
+- **The band is a PRE-ALLOCATED fixed pool** — `FUN_004022d0` (the find-actor-by-tag
+  accessor: scans for active `+0x1d0` + flag `+0x278` + tag `+0x274==arg`) indexes the
+  128 slot pointers directly, and **`FUN_00586010:476-506` pre-allocates them**:
+  `FUN_0058cf60(0x40)` called **0x80 (128)×** for the main band (`0x58cf60` allocs +
+  zeroes a slot, sets `+0x1d0=0` = inactive), preceded by the other bands
+  (0x40/0x20/0x400/0x60/0x80 — matching the six band sizes).  So the per-room "spawn"
+  is an **ACTIVATE + configure** of a subset, not an alloc.
+- **The activation runs AFTER the `"Init Objects"` debug marker** (`0x586010:508`,
+  `s_Init_Objects_008a2db0`) — that is the boundary between the empty-pool pre-alloc
+  and the room-object population.
+- **NEXT (find the `+0x11e0` activator):** instrument the code right after
+  `0x586010`'s "Init Objects" marker — hook the function(s) it calls that set a slot's
+  `+0x1d0`/`+0x1d4`/`+0x274` (the activation), reading `ret_va`; OR a `mem_watch --hw`
+  on a slot's `+0x1d0` armed at the "Init Objects" flip.  Cross-reference ROADMAP
+  `0x420000` (`0x42eb20` spawn-by-id, `0x4282f0` def-lookup) + the map DATA 1022 layer
+  entries (the likely room actor-placement list).
 
 ### Port plan (render side is ready; spawn is the gating input)
 1. **Render (pure, host-testable now):** `FUN_0044d160` (static-prop desc) +
