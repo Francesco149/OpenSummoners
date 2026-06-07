@@ -2510,3 +2510,43 @@ compare `+0x13e0` particle positions tick-for-tick) before porting — do not gu
 **Clips to decode from the exe** (like the wagon `0x671c48` / idle `0x6290e0`):
 `&DAT_006449c0` (0x18708), `&DAT_00644b58` (0x18704), `&DAT_00644cf0` (0x18707),
 `&DAT_00644e88` (0x18709); + the alpha LUTs `&DAT_008a9308` / `&DAT_008a92e0`.
+
+#### Live ground truth + decoded clips (ckpt 88)
+
+Mined from the ckpt-86 capture `runs/rng-census-repin` (`--seed-pin --lockstep
+--no-turbo`, re-pinned at the spawn), which already hooks `0x493480` (the particle
+renderer, 5924 events) and `0x5bf505` (the LCG, 3630 draws) over the hold.
+
+**Two particle systems render at the hold** (both bank `0x1aa` = res `0x408`):
+- **`0x18708` — the fountain WATER spray** (2668 render calls): frame_base 6, clip
+  `0x6449c0`, **layer 11**, clustered at the fountain (`rs_x` 169661-185544 ≈ ±80px
+  around the prop's 177000; `rs_y` 35659-46103), `rs_frame` cycling 0↔1.  Emitter =
+  the fountain prop **`0x112e5`** (`0x54f980:218`, spawns 1/primary-tick).
+- **`0x18704` — the SKY particles** (3256 render calls): frame_base 8, clip `0x644b58`,
+  **layer 6** (the sky), wider spread.  Emitter = **`0x112e2`** (`0x54f980:150`, spawns
+  every 6th tick; ckpt-78 census had `0x112e2 ×2`).
+- **~58-69 particles alive per frame** at steady state (the ckpt-83 "41" was a single-
+  frame undercount).  Both emitter props are CHARACTER objects already spawned by the
+  port (ckpt 79) — they only lack the per-tick spawn behaviour.
+
+**Decoded clips** (decoder validated against IDLE_CLIP — exact match):
+- `0x6449c0` (0x18708): base 0, **count 2, dur 2, looping**, deltas `{0,1}` → with
+  frame_base 6, sprites 6↔7 every 2 ticks.
+- `0x644b58` (0x18704): base 0, **count 6, dur 20, ONESHOT**, deltas `{0,1,2,3,4,5}` →
+  with frame_base 8, sprites 8→13 over 120 ticks (holds the last).
+
+**The parity bar (corrected — the spray is deterministic in lockstep).**  My first
+analysis wrongly grouped ALL hooked events (incl. the blit primitives `0x5b95c0` etc.)
+and saw "render-pass RNG bursts".  Filtering to `va==0x5bf505` (the actual LCG) shows the
+truth: during the hold the LCG is drawn in a **regular per-sim-tick pattern** — 238 at the
+spawn tick (quirk #86), then a clean **period-6 cycle `[6,14,6,14,14,14]`** — consumed
+ENTIRELY by per-sim-tick updaters `0x54f980`(1585)/`0x47b990`(1199)/`0x453960`(592, the
+particle-velocity scatter, ≈1 spawn/tick).  **The render pass draws NO LCG.**  Because the
+harness captures in `--lockstep` (1 update/present per flip, = the port's cadence), there
+is no per-present variance, so under the re-pin the scene RNG is **deterministic** and the
+spray is **bit-exact portable** — CONTINGENT on the port reproducing the per-tick
+consumption ORDER (the fountain shares the stream with `0x47b990`/the other `0x54f980`
+cases, so frame-exact alignment is entangled with porting those co-resident per-tick
+consumers — the broader Phase-2 work).  This refines quirk #77: its "non-determinism" was
+the pre-re-pin seed drift, not a per-present LCG consumer.  (A second seed-pinned run to
+prove run-to-run determinism is the clean confirmation.)
