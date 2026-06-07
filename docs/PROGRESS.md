@@ -34,12 +34,24 @@ contingent on reproducing the per-tick consumption ORDER (entangled with the co-
 consumers, the broader Phase 2).  Corrects a first mis-read that wrongly attributed
 "render-pass RNG bursts" (those were blit hooks, not the LCG).
 
-Commits: the architecture writeup (`4748468`), the ground truth + clips (`3480b53`).
-`findings/in-game-intro.md` "The FOUNTAIN SPRAY"; engine-quirk #87.  898 pass, ledger
-199/194 unchanged (RE + docs only).  **NEXT:** the `particle.{c,h}` port (pool + alloc +
-config + step), the `0x112e5`/`0x112e2` emitter arms in `game_actor_update`, the
-`0x493480` alpha render in `game_actor_walk`; host-test, then USER visual-verify the
-fountain water (frame-exact RNG = Phase-2 debt).
+Commits: the architecture writeup (`4748468`), the ground truth + clips (`3480b53`),
+the status checkpoint (`473488d`).  `findings/in-game-intro.md` "The FOUNTAIN SPRAY";
+engine-quirk #87.
+
+**Then PORTED (same session, `2cb8647`) + USER-confirmed "the particles blending looks
+correct."**  `src/particle.{c,h}` (NEW): the 1024-slot `+0x13e0` pool (alloc `0x557370`),
+the fountain water `0x18708` (config `0x557550` bank `0x1aa` + clip `0x6449c0`, emitter
+`0x54f980` case `0x112e5`, step `0x46e510` case `0x18708`), wired into `main.c`
+(`game_actor_update`/`game_actor_walk`).  **The ALPHA render was the key fix:** a first
+pass rendered the droplets OPAQUE (keyed); tracing the emit (`0x4917b0`) showed retail
+blits them MODE-1 (alpha) via `&DAT_008a92e0[-sub_phase]` = `g_ramp_a[10 - sub_phase]`
+(`0x8a92e0 = &g_pd_boot_group_a[10]`).  Added the mode-1 alpha present (`map_present`
+case 1 + `game_present_blit` PRESENT_ALPHA → `zdd_blit_orchestrate`), so the droplets are
+translucent like retail — retiring part of PORT-DEBT(present-actor-modes).  906 pass (+8),
+ledger 199/194 unchanged (particle.c = bare-VA slices).  **NEXT (whole-scene 1:1):**
+phase-match the particle RNG (PORT-DEBT(fountain-rng-phase), Phase 2 — needs the
+co-resident per-tick consumers); the dark establishing-shot top gradient (ckpt 66/67);
+the `0x18704` sky-ambient particles.
 
 ## 2026-06-07 (ckpt 85) — townsfolk FACING ported + USER-1:1 (a MAP field, NOT RNG); idle phase + fountain pinned to RNG
 

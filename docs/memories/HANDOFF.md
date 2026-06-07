@@ -8,10 +8,48 @@
 
 ## Where we are — ckpt 88
 
-**The FOUNTAIN SPRAY particle subsystem is RE'd end-to-end, live-ground-truthed, and
-its clips decoded** — Chip 3 of the in-game-intro arc.  RE milestone; no port code yet,
-the port is the next concrete step.  All durable in `findings/in-game-intro.md` "The
-FOUNTAIN SPRAY" + engine-quirk #87.
+**The FOUNTAIN SPRAY is PORTED + USER-confirmed** — Chip 3 of the in-game-intro arc.
+RE'd the whole particle subsystem, ground-truthed it, decoded the clips, then ported
+the fountain water `0x18708` + the ALPHA render path.  **USER-confirmed: "the particles
+blending looks correct."**  All durable in `findings/in-game-intro.md` "The FOUNTAIN
+SPRAY" + engine-quirk #87.
+
+- **PORTED (`src/particle.{c,h}`, NEW; 906 pass +8, ledger 199/194 unchanged).**  The
+  `+0x13e0` band as a 1024-slot `particle_pool` (alloc `0x557370`, round-robin free-slot;
+  evict-oldest deferred PORT-DEBT(particle-evict)).  The fountain water `0x18708`: config
+  `0x557550` (bank `0x1aa` frame 6 + the decoded clip `0x6449c0`), emitter `0x54f980` case
+  `0x112e5` (`particle_fountain_emit`: 1 droplet/primary-tick, UP+OUT 3-way velocity cycle,
+  6 LCG draws), step `0x46e510` case `0x18708` (`particle_pool_step`: gravity +8000/tick,
+  integrate, fade sub_phase 0→8, expire).  Extended `actor_render_state` with vel_y(+0x18)/
+  vel_x(+0x28)/sub_phase(+0x58)/life(+0x5c).
+- **The ALPHA render (the key fix; the d3d trace nailed it).**  The first pass rendered the
+  particles OPAQUE (reused the keyed `actor_render_static`) — the USER saw they lacked
+  retail's transparency.  Tracing the emit (`0x4917b0`, run `runs/fountain-alpha`) showed
+  retail emits the particle MODE-1 (alpha), param8 = a brightness DESCRIPTOR pointer =
+  `&DAT_008a92e0[-sub_phase]`.  Decisive: `0x8a92e0 = &g_pd_boot_group_a[10]` (group_a is
+  20×4 B at `0x8a92b8`), so the fade = **`g_ramp_a[10 - sub_phase]`** — and the port
+  already builds `g_ramp_a`.  `particle_pool_render` now emits mode-1 nodes (param8 = the
+  ramp index), `map_present` case 1 + `game_present_blit` PRESENT_ALPHA orchestrate via
+  `zdd_blit_orchestrate` (mirrors `title_render` alpha_blit) → translucent droplets.
+  Retires part of PORT-DEBT(present-actor-modes).
+- **WIRED (`main.c`):** `g_fountain_pp`; `enter_game` finds the `0x112e5` prop, caches the
+  emit center (prop world pos + `FOUNTAIN_EMIT_X_OFF` 1245 = the ground-truth spray
+  center; PORT-DEBT(fountain-anchor) = the real `0x426620` body half-width);
+  `game_actor_update` emits+steps each sim-tick; `game_actor_walk` renders.
+- **NEXT (toward whole-scene 1:1):**
+  1. **Phase-match the particle RNG** — PORT-DEBT(fountain-rng-phase).  The spray is
+     visually correct but its exact particle positions differ from a given retail capture:
+     the fountain shares the per-tick LCG with the co-resident consumers (`0x47b990`
+     wander + the other `0x54f980` cases), which are NOT yet ported, so the stream phase
+     diverges.  Under `--lockstep` + the ckpt-86 re-pin the scene RNG is deterministic
+     (quirk #87), so porting ALL per-tick consumers in order → bit-exact (Phase 2).  USER:
+     "if the particles can be phase matched, this is likely 1:1."
+  2. **The dark establishing-shot TOP GRADIENT** the USER sees in the retail frame — a
+     per-scene cinematic effect, open since ckpt 66/67 (distinct from the letterbox #74).
+  3. **The `0x18704` sky-ambient particles** (emitter `0x112e2` `0x54f980:150`, frame 8,
+     layer 6, clip `0x644b58` 6-frame oneshot) — the other half of the ~58-69/frame count.
+  - Artifacts: `runs/fountain-alpha/` (the retail PNG + the alpha-trace);
+    `runs/rng-census-repin/` (run A ground truth).
 
 - **The architecture (5 parts, decompile-read).**  The `+0x13e0` DEVICE band is a
   **1024-slot particle pool** (`0x46cd70:103` walks it, calls `0x46e510` per slot):
@@ -52,29 +90,10 @@ FOUNTAIN SPRAY" + engine-quirk #87.
   consumers (`0x47b990` wander + other `0x54f980` cases), i.e. the broader Phase 2.  A
   second seed-pinned run to prove run-to-run determinism is blocked on the title→town
   input automation; settle it directly at verification (render_diff vs retail).
-- **NEXT (Chip 3 — the port).**
-  1. **`src/particle.{c,h}` (pure, host-tested).**  A 1024-slot pool (reuse the
-     `actor`/`actor_render_state` logical structs; extend the render-state with the
-     particle fields `vel_y`+0x18 / `vel_x`+0x28 / `sub_phase`+0x58 / `life`+0x5c —
-     it has NO offset asserts, so add freely).  `particle_alloc` = `0x557370`,
-     `particle_spawn` = `0x557550` cases `0x18708`/`0x18704` (embed the two clips),
-     `particle_step` = `0x46e510` cases `0x18708`/`0x18704`.
-  2. **Emitter arms** — the `0x112e5`/`0x112e2` cases of `0x54f980` (spawn into the
-     particle pool each sim-tick), wired into `main.c game_actor_update` (after the
-     existing g_actors/g_effects clip advance) — they draw RNG via `rng_rand`.
-  3. **Render** — extend `game_actor_walk` to walk the particle pool through the
-     `0x493480` default arm; add the alpha emit/present path (the port has
-     `zdd_alpha_blit` + the `0x8a9308` ramps + `init_alpha_ramps`).  Start with the
-     fountain water `0x18708` (the clear visual target); add `0x18704` after.
-  4. **Verify** — build, push the fountain to the feed, USER visual-verify; render_diff
-     vs a re-pinned retail capture at a matched sim-tick.  Frame-exact RNG = Phase-2 debt
-     (PORT-DEBT; needs the co-resident consumers).
-  - **Open detail to resolve at port time:** `0x18708`'s observed 158px x-span vs the
-    ±4px spawn offset + apparent vel_x=0 in `0x46e510` case `0x18708` — re-check the
-    velocity source (a 2nd emitter, a wider body, or a decompile mis-read).
-- Artifacts: `runs/rng-census-repin/` (run A — the `0x493480`/`0x5bf505` capture mined
-  for the ground truth above); the clip decoder is a one-liner over
-  `vendor/original/sotes.unpacked.exe` at file offset `VA-0x400000`.
+- **RESOLVED the ckpt-88-RE open detail** (`0x18708`'s 158px x-span vs the ±4px spawn
+  jitter): the velocity is set in the `0x54f980:260-283` branch where `param_3` is
+  REASSIGNED to the just-spawned droplet (not a sub-entry) — the up+out launch + gravity
+  makes the parabolic arc, ported faithfully.
 
 ## Where we are — ckpt 87
 
