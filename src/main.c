@@ -1578,27 +1578,38 @@ static void game_cel_dims(uint32_t cel, int32_t *w, int32_t *h, void *ud)
 }
 
 /* town_actor_walk_fn — emit the room's CHARACTER-band actors into the town
- * draw_pool, between the tile walk and the present (0x48c150 order).  Each
- * spawned actor goes through the ckpt-77 default arm (actor_render_static =
+ * draw_pool, between the tile walk and the present (0x48c150 order).  Most
+ * spawned actors go through the ckpt-77 default arm (actor_render_static =
  * FUN_0044d160 + the 0x491ae0 default tail + draw_pool_emit_actor); the 27
- * invisible volumes self-skip (bank 0), the 5 villagers emit mode-0 nodes.  The
- * animated protagonist (0x1872d) is a separate spawn + arm (not in g_actors). */
+ * invisible volumes self-skip (bank 0), the 5 props emit mode-0 nodes.  The
+ * animated protagonist (code 0x1872d) takes the 0x491ae0 case-0x1872d arm
+ * (actor_render_protagonist, the 3-cel composite). */
 static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
 {
     (void)cam; (void)ud;
     if (!g_actors_loaded) return;
     int emitted = 0;
-    for (int i = 0; i < g_actors.count; i++)
-        emitted += actor_render_static(&g_actors.actors[i], &g_actors.states[i],
-                                       /*flip_table=*/NULL, pool,
-                                       game_sprite_resolve, NULL);
+    for (int i = 0; i < g_actors.count; i++) {
+        const actor *a = &g_actors.actors[i];
+        if (a->code == ACTOR_CODE_PROTAGONIST)
+            emitted += actor_render_protagonist(a, &g_actors.states[i],
+                                                /*flip_table=*/NULL, pool,
+                                                game_sprite_resolve, NULL);
+        else
+            emitted += actor_render_static(a, &g_actors.states[i],
+                                           /*flip_table=*/NULL, pool,
+                                           game_sprite_resolve, NULL);
+    }
     static int logged;
     if (!logged) {
         logged = 1;
-        ar_sprite_slot *vb = ar_pool_get_slot(0x16c);   /* villager bank */
-        log_line("game_actor_walk: %d/%d actors emitted a node "
-                 "(villager bank 0x16c %s)", emitted, g_actors.count,
-                 vb ? "registered" : "NOT registered -> villagers invisible");
+        ar_sprite_slot *vb = ar_pool_get_slot(0x16c);                /* prop bank */
+        ar_sprite_slot *pb = ar_pool_get_slot(ACTOR_PROT_SPRITE_BANK);/* 0x175    */
+        log_line("game_actor_walk: %d nodes from %d actors "
+                 "(prop bank 0x16c %s; protagonist bank 0x175 %s)",
+                 emitted, g_actors.count,
+                 vb ? "registered" : "NOT registered",
+                 pb ? "registered" : "NOT registered -> protagonist invisible");
     }
 }
 
@@ -1898,9 +1909,17 @@ static void enter_game(void)
         /* Spawn the room's CHARACTER-band actors from the map (0x58d460 ->
          * 0x431e30 slice).  game_actor_walk then emits them each frame. */
         int n = actor_spawn_from_map(&g_actors, &g_town.map);
-        g_actors_loaded = (n > 0);
+
+        /* Plus the animated protagonist (code 0x1872d) — the town intro
+         * cutscene spawn (FUN_004d7d80 -> 0x431d10 -> 0x431e30 case-0x1872d).
+         * Static stand-in at the census world pos (54400, 32000); it enters the
+         * window only once the camera pans left off the 128000 hold.  See
+         * actor_spawn.h / findings "The protagonist SPAWN". */
+        int ps = actor_spawn_protagonist(&g_actors, 54400, 32000);
+        g_actors_loaded = (n > 0 || ps >= 0);
         log_line("enter_game: actor_spawn_from_map -> %d CHARACTER actors "
-                 "(5 visible villagers + 27 invisible volumes for DATA 1022)", n);
+                 "+ protagonist slot %d (5 visible props + 27 volumes, DATA 1022)",
+                 n, ps);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

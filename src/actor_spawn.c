@@ -96,3 +96,33 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
     }
     return pool->count;
 }
+
+int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t world_y)
+{
+    if (pool == NULL) return -1;
+    if (pool->count >= ACTOR_BAND_SLOTS) return -1;
+
+    int slot = pool->count++;
+    actor              *a  = &pool->actors[slot];
+    actor_render_state *rs = &pool->states[slot];
+
+    /* 0x431e30 case-0x1872d end state (see actor_spawn.h). */
+    a->code  = ACTOR_CODE_PROTAGONIST;   /* +0x1d4 — the 0x491ae0 dispatch key */
+    a->dir   = 0;                        /* +0xe8                              */
+    a->layer = 9;                        /* +0xfc (in_ECX[0x3f] = 9)           */
+
+    /* FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0): sprite-table row 0 only. */
+    a->sprite_table[0].bank       = (uint16_t)ACTOR_PROT_SPRITE_BANK;
+    a->sprite_table[0].frame_base = 0;
+    a->sprite_table[0].x_off      = 0;
+    a->sprite_table[0].y_off      = 0;
+    a->sprite_table[0].mirror_x   = 0;
+
+    rs->active  = 1;                     /* +0x00 */
+    rs->world_x = world_x;               /* +0x04 */
+    rs->world_y = world_y;               /* +0x08 */
+    rs->facing  = ACTOR_PROT_FACING;     /* +0x2c = 99 (not 3 -> not mirrored) */
+    rs->clip    = NULL;                  /* +0x6c — static stand-in (see .h)   */
+    rs->frame   = 0;                     /* +0x72 */
+    return slot;
+}

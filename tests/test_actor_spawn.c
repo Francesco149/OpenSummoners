@@ -158,6 +158,47 @@ int test_actor_spawn_prop_renders(void)
     return 0;
 }
 
+/* ---- the protagonist (the cutscene spawn 0x431e30 case-0x1872d) ----------- */
+
+int test_actor_spawn_protagonist(void)
+{
+    actor_spawn_pool pool;
+    memset(&pool, 0, sizeof pool);
+
+    int slot = actor_spawn_protagonist(&pool, 54400, 32000);
+    T_ASSERT_EQ_I(slot, 0);
+    T_ASSERT_EQ_I(pool.count, 1);
+
+    const actor *a = &pool.actors[0];
+    T_ASSERT_EQ_U(a->code, ACTOR_CODE_PROTAGONIST);
+    T_ASSERT_EQ_U(a->dir, 0u);
+    T_ASSERT_EQ_U(a->layer, 9u);
+    T_ASSERT_EQ_U(a->sprite_table[0].bank, (uint16_t)ACTOR_PROT_SPRITE_BANK);
+    T_ASSERT_EQ_I(a->sprite_table[0].frame_base, 0);
+
+    const actor_render_state *rs = &pool.states[0];
+    T_ASSERT_EQ_U(rs->active, 1u);
+    T_ASSERT_EQ_I(rs->world_x, 54400);
+    T_ASSERT_EQ_I(rs->world_y, 32000);
+    T_ASSERT_EQ_I(rs->facing, ACTOR_PROT_FACING);
+    T_ASSERT(rs->clip == NULL);
+
+    /* It renders through the case-0x1872d arm: 3 cels on layer 9, all bank
+     * 0x175 (frames 0/1 fixed, the static body frame_base 0). */
+    draw_pool dp;
+    T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
+    T_ASSERT_EQ_I(actor_render_protagonist(a, rs, NULL, &dp, resolve_pack, NULL), 3);
+    T_ASSERT_EQ_U(dp.layers[9].count, 3u);
+    T_ASSERT_EQ_U(dp.layers[9].nodes[0].sprite >> 16, ACTOR_PROT_SPRITE_BANK);
+    T_ASSERT_EQ_U(dp.layers[9].nodes[2].sprite, resolve_pack(ACTOR_PROT_SPRITE_BANK, 0u, NULL));
+    T_ASSERT_EQ_I(dp.layers[9].nodes[2].dst_x, 54400);
+    draw_pool_free(&dp);
+
+    /* NULL pool guard. */
+    T_ASSERT_EQ_I(actor_spawn_protagonist(NULL, 0, 0), -1);
+    return 0;
+}
+
 /* ---- guards: NULL args, empty map, band overflow --------------------------- */
 
 int test_actor_spawn_guards(void)

@@ -921,6 +921,7 @@ struct test_case {
     X(actor_spawn_census)                                      \
     X(actor_spawn_sprite_lookup)                               \
     X(actor_spawn_invisible_self_skips)                        \
+    X(actor_spawn_protagonist)                                 \
     X(actor_spawn_prop_renders)                                \
     X(actor_spawn_guards)                                      \
 
