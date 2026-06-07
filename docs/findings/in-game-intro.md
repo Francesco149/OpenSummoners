@@ -2238,3 +2238,56 @@ PORT-DEBT `effect-sprite-table` / `effect-anim-phase` / `effect-wanderers`.  **N
 facing/phase, the `0xe29a` wander, the fountain particles `0x13e0`, the `0x54f980`
 behaviour, …), then match consumption order both sides → the scene goes 1:1 on
 every frame.  This RETIRES the ckpt-73 "defer all RNG" deferral.
+
+### The scene-wide RNG-consumer census (ckpt 84, Phase 2 begins)
+
+USER directive after the townsfolk landed positioned 1:1: "drill into RNG
+consumption next … track down every RNG consumer in the scene," and "integrate the
+RNG tracing into the flow-trace tooling" (not a bespoke probe).  Done — and it
+RETIRES the ckpt-73 defer-all-RNG.
+
+**Integration (the flow-trace-native way).**  Added `0x5bf505` (`FUN_005bf505`, the
+engine LCG = MSVC rand) as a flow-trace entry in `tools/flow/retail_fields.json`
+(field `rng_state` = `DAT_008a4f94` read onEnter; the auto-captured `ret_va` NAMES
+the consumer site).  Capture with `--field-spec --field-spec-only` + a tight
+`--call-trace-frames` whitelist (the LCG is hot — a burst at room-load, then per
+tick); analyse with the new `tools/rng_consumer_census.py` (maps each `ret_va` +
+0x400000 → its function via `functions.csv`, splits at a frame boundary).  Supersedes
+the ad-hoc `--rand-probe` for the in-scene census.
+
+**The capture.**  `frida_capture.py --no-turbo --lockstep --seed-pin --input-trace
+…/trace-retail.jsonl --field-spec retail_fields.json --field-spec-only
+--call-trace-frames <1420-1445,1450-1465,1500,1550,1600>` → **1142 LCG draws** across
+the town-scene window (game_enter@1434).  Split at 1434 (`--split-frame 1434`):
+
+| consumer fn | spawn (≤1434) | hold (>1434) | sites | what |
+|---|---:|---:|---:|---|
+| `FUN_0041f200` | **134** | 0 | 8 | the EFFECT activator — the townsfolk FACING + idle PHASE (8 sites = its 8 static rand calls; the USER's "flipped orientation"). |
+| `FUN_00426ec0` | 38 | 0 | 2 | spawn helper (sprite/anim install via the activator). |
+| `FUN_00427670` | 20 | 0 | 5 | spawn helper. |
+| `FUN_00426fd0` | 19 | 0 | 1 | spawn helper. |
+| `FUN_0054f980` | 5 | **425** | 12 | the per-actor BEHAVIOUR dispatch — idle waits + wander (the `0xe29a` wander; quirk #77). |
+| `FUN_0047b990` | 15 | **320** | 4 | the `+0x1160` EFFECT-band UPDATE fn (actor-walk table) — the per-tick effect/particle/wander RNG (the FOUNTAIN SPRAY lives here / in `0x453960`). |
+| `FUN_00453960` | 2 | **154** | 2 | per-tick consumer (particle step / sub-update). |
+| `FUN_00467380` / `FUN_004099a0` / `FUN_005531b0` / `FUN_00427360` / `FUN_00431cb0` / `FUN_00439690` / `FUN_004c5e00` | — | — | 1-2 | room/camera setup incidentals. |
+
+Cross-checked against the static decompile: `0x41f200` has exactly **8** `FUN_005bf505`
+calls (= the 8 sites), `0x47b990` has 10, `0x453960` has 2, `0x426ec0` has 2 — the
+census matches the code.
+
+**Two clean groups (the USER's two residuals, now pinpointed):**
+- **SPAWN (one-shot, room-load):** `FUN_0041f200` + its 3 helpers (211 draws) set every
+  townsperson's facing + idle phase + (probably) spawn jitter.  Porting these in the
+  right ORDER → the townsfolk face the right way + start at the right idle frame.
+- **HOLD (per-tick):** `FUN_0054f980` / `FUN_0047b990` / `FUN_00453960` (~900 draws) drive
+  the `0xe29a` wander + the fountain particle spray + idle behaviour.
+
+**NEXT (the matching half):** (1) RE `FUN_0041f200`'s 8 rand sites → which sets facing
+(the `+0x2c`==3 mirror) vs idle phase (`+0x72`) vs jitter; port them in order.  (2) An
+**RNG ANCHOR at game_enter** both sides (snapshot/restore `DAT_008a4f94` — the ckpt-73
+fix; the port can't replay the whole boot RNG chain, so re-seed the town scene to a
+known state on both sides), then match consumption order (rng+rngcalls) tick-for-tick.
+(3) Annotate each producer with a `rngcalls` field + a port `CALL_TRACE_BEGIN` mirror so
+`flow_diff` localizes the first divergence.  Then the fountain particles (`0x47b990`/
+`0x453960`) + the `0xe29a` wander land 1:1.  Artifacts (ephemeral): `runs/rng-census/` /
+`/tmp/rng_census/`; `tools/rng_consumer_census.py`.
