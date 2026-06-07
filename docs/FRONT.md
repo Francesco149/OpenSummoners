@@ -9,7 +9,33 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 81): the caravan's HORSES now TROT — the per-tick actor anim is wired +
+- **LATEST (ckpt 83): the establishing-hold CAST is PINNED to FOUR map-object bands — the
+  Phase-1 producer map is complete (no port yet, RE+census milestone).** Resolves ckpt-82's
+  "pin each cast cel to its actor" via a field-spec **band census** (`retail_fields.json`
+  gained the 5 non-main band render entries `0x4937c0`/`0x493480`/`0x492fc0`/`0x493230`/
+  `0x493ba0` + emit prims `0x492670`/`0x4917b0` with `renderid` on the cel). The driver
+  `0x48c150` runs 8 emit passes → one present `0x48eac0`; the cel↔producer tie is at EMIT
+  (the node carries no back-ref). **The 18 visible keyed cels = 4 bands, all DATA-1022 map
+  objects:** **`+0x2560` STRUCTURE (`0x493230`, single-cel)** = the **TREE** (`0xec55` bank
+  `0x15f`→res `0x481`) + bg decorations (`0xec6a`→`0x16c`/`0x403`) + fg hedges (`0xec60`→
+  `0x164`/`0x426`, layer 15); **`+0x1160` EFFECT (`0x493ba0`, multi-part)** = the townsfolk
+  (10 distinct `0xc3xx` + `0xe29a`×4 + `0xe2a5`); **`+0x11e0` CHARACTER (`0x491ae0`)** =
+  collision volumes + props + wagon (**already ported**); **`+0x13e0` (`0x493480`)** = bank
+  `0x1aa`→res `0x408` particles (alpha, not keyed — deferred). **STRUCTURE is fully
+  map-driven:** pos = map (x,y)×100, **frame_base = map variant@+0x18** (verified
+  cel-for-cel). EFFECT townsfolk map 1:1 by code/count + a deterministic spawn offset
+  (≈+3000 x, from `0x41f200`); `0xc35a`/`0xc3dc`/`0xc3f0` are script/party-spawned (not in
+  the map). **Hold = 16 static townsfolk + 39 static structure objects (only the anim frame
+  steps, det. per #76) + 4 wandering `0xe29a` (RNG, Phase 2).** Corrects the docs' "the cast
+  is the +0x11e0 band" model; the tree is STRUCTURE `0xec55`, not a banner/`0x5a00c0`/tile.
+  quirk #84; `findings/in-game-intro.md` "The establishing-hold cast is FOUR map-object
+  bands". **NEXT (Phase 1, simplest-first):** (1) RE the STRUCTURE activator `0x438a60`
+  (layer + code→bank def table), (2) port the STRUCTURE band — spawn the 39 objects from the
+  map + a `0x493230` single-cel render + wire → lands the TREE + hedges + decorations,
+  `render_diff` vs retail hold; (3) then the EFFECT townsfolk (multi-part `0x493ba0` + the
+  `0x41f200` spawn). Also pending: byte-confirm the wagon via `render_diff` keyed `(res
+  0x3ec, frame)`. Artifacts (`/tmp`): `cast_census/`, `tree_emit/`.
+- **Prior (ckpt 81): the caravan's HORSES now TROT — the per-tick actor anim is wired +
   BIT-VERIFIED live.** Read `0x54f980` case-`0x1872d` (`:911-970`): its two halves are
   separable (quirk #82) — **`:911-928` is the frame-stepper, UNCONDITIONAL** (gated only on
   clip `+0x6c`, byte-identical to `anim_clip_advance`, reads no RNG/clock → the horses ALWAYS

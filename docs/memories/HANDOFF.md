@@ -1,10 +1,80 @@
-# Session handoff — rolling current state (last updated ckpt 81, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 83, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 83
+
+**The establishing-hold CAST is PINNED to its producers — Phase 1's complete
+producer map.**  RE + live-census milestone (no port yet); resolves the ckpt-82
+"pin the cast source next" open item and decomposes the scene for porting.
+
+- **Method.**  Field-spec **band census**: added the 5 non-main band render
+  entries (`0x4937c0`/`0x493480`/`0x492fc0`/`0x493230`/`0x493ba0`) + the two emit
+  primitives (`0x492670`/`0x4917b0`, with `renderid` on the emitted cel) to
+  `tools/flow/retail_fields.json`, captured at the hold (flips 1450/1500/1600,
+  `--seed-pin --lockstep --no-turbo`).  The driver `0x48c150` (free-roam branch)
+  runs 8 emit passes over the `DAT_008a9b50` bands → one present `0x48eac0`; the
+  0x3c draw-node carries cel+pos+mode only (no producer back-ref), so the
+  cel↔producer tie is read at EMIT.  The emit-primitive `cel_res` hook is
+  authoritative (it caught a VA-arithmetic footgun — see CAVEAT).
+- **The 18 visible keyed cels = FOUR map-object bands (all DATA-1022):**
+  - **`+0x2560` STRUCTURE → `0x493230`** (single-cel renderer): the **TREE**
+    `0xec55` bank `0x15f`→res `0x481` (×2); **bg decorations** `0xec6a` bank
+    `0x16c`→`0x403` (×29, layer 8); **fg hedges** `0xec60` bank `0x164`→`0x426`
+    (×8; the 5 on-screen are **layer 15** = the bottom row).
+  - **`+0x1160` EFFECT → `0x493ba0`** (multi-part char render, built on the ported
+    `0x44d160`): the **townsfolk** — 10 distinct `0xc3xx` (1 each) + `0xe29a`×4 +
+    `0xe2a5`, banks `0x8b`–`0x146`→res `0x459`/`0x462`/`0x46a`/`0x46b`/`0x472`/
+    `0x47b`/`0x426`/`0x3fa`.  layer 12/13.
+  - **`+0x11e0` CHARACTER → `0x491ae0`**: collision volumes (bank 0) + props
+    (`0x16c`→`0x403`) + the script wagon `0x1872d`.  **Already ported.**
+  - **`+0x13e0` → `0x493480`**: 41 animated bank-`0x1aa`→res `0x408` particles
+    (layer 6 sky + a square cluster) — blit via alpha/clipped, **NOT in the keyed
+    set**; deferred.
+- **Map-driven + deterministic (the key result for porting).**  STRUCTURE
+  render-state = DATA-1022 record EXACTLY: world pos = map `(x,y)`×100,
+  **`frame_base` = map `variant`@+0x18** (verified cel-for-cel: tree {0,1}, hedge
+  {0,1,4,5}, deco {16,18,20,21,24,26,28,32,33,35} identical live-vs-map).  The
+  code→bank map is the activator's per-type def table (lazy `+0x48` fill, #80):
+  `0xec55`→`0x15f`, `0xec60`→`0x164`, `0xec6a`→`0x16c`.  EFFECT townsfolk map 1:1
+  by code/count (`map_data --objects`: 13 EFFECT codes incl. `0xe29a`×4) but carry
+  a deterministic spawn offset (≈+3000 x) from the `0x41f200` activator.  `0xc35a`
+  (×2, also drawn by the party renderer `0x4997b0`), `0xc3dc`, `0xc3f0` are NOT in
+  the map → script/party-spawned (like the wagon).
+- **Hold = mostly STATIC.**  Across flips 1450/1500/1600 (cam 128000, pre-pan) the
+  16 standing townsfolk + 39 structure objects hold a FIXED world pos (only the
+  anim frame steps, deterministic per #76); only `0xe29a`×4 translate (RNG wander,
+  Phase 2).  Refines #82: the +0x1160 EFFECT band updates during the hold.
+- **Corrects the docs' model:** the visible cast is NOT the +0x11e0 band (that's
+  collision volumes + props); it splits across +0x1160 (townsfolk) / +0x2560
+  (tree/scenery) / +0x11e0 (props) / +0x13e0 (particles).  The "foreground tree"
+  is STRUCTURE `0xec55` (res `0x481`) — NOT a banner / `0x5a00c0` overlay / tile
+  (all refuted).
+- **CAVEAT (footgun):** hand-computing the band VAs for the census analysis was
+  wrong (off by 0x200) → bands falsely read "0 active".  Compute VAs in code;
+  trust the emit-`renderid` hook over a band-entry census.  quirk #84.
+- **State: 896 pass unchanged** (no C touched; docs + `retail_fields.json` only).
+  Ledger unchanged.  quirk #84; `findings/in-game-intro.md` "The establishing-hold
+  cast is FOUR map-object bands".
+- **NEXT (Phase 1, simplest-first):**
+  1. **RE the STRUCTURE activator `FUN_00438a60`** (the 60000-range arm) — how it
+     sets the draw LAYER (tree/deco 8 vs fg-hedge 15) + the code→bank def table +
+     `frame_base`=variant from the map record.  (Mirror of `0x431e30` for CHARACTER.)
+  2. **Port the STRUCTURE band:** extend `actor_spawn_from_map` to the 60000 range
+     (pos=map×100, frame_base=variant, code→bank, layer), port `0x493230` as a
+     single-cel render, wire into `game_render` → `render_diff` vs retail hold
+     (the tree + hedges + decorations drop in).  PORT-DEBT `actor-sprite-table`
+     (the code→bank def table) until `0x438a60` is fully RE'd.
+  3. **Then the EFFECT townsfolk:** the multi-part `0x493ba0` render + the
+     `0x41f200` spawn (pos offset).  16 static land at a matched sim-tick; the 4
+     `0xe29a` need Phase 2 (RNG).
+- Artifacts (local `/tmp`, ephemeral): `/tmp/cast_census/`, `/tmp/tree_emit/`;
+  analysis `/tmp/census_fixed.py`, `/tmp/parse_variant.py`.  Regen via the
+  field-spec capture above.
 
 ## Where we are — ckpt 81
 

@@ -1,271 +1,1727 @@
 {
-  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/trace-tooling-phase-b.md, the B2 LOGIC drill-in). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). Consumed by tools/flow_diff.py.",
-  "_schema": {
-    "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
-    "name": "short label for flow_diff output (wins over functions.csv).",
-    "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
-    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | renderid (the blit SOURCE cel's cross-side identity from the render_id registry; reads ECX (__thiscall this) or args[index] for a cdecl blit, then `key`:res|frame; auto-installs the FUN_00418470 resolver hook — the DDraw blit-trace identity, Phase-B B3, mirrors src/render_id.c) | thisderef (read a field off ECX + `off`: the __thiscall `this` object's own field at the call's onEnter) | thischain (like chain but ROOTED at ECX, not a global: start at ECX, follow each `hops` pointer hop, read typed at `off` — reaches a field behind a this-pointer, e.g. an actor's render-state at *(actor+0x40)+off) | retval (onLeave).",
-    "fields[].key": "for src=renderid: which identity component to return — res (resource_id) | frame.",
-    "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
-    "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
-    "fields[].off": "for src=argderef/chain: byte offset added before the final typed read.",
-    "fields[].hops": "for src=chain: list of byte offsets, each a pointer hop after reading the global root pointer at `va`; the final `off` is the value read. chain = read *(va), then for each h: p = *(p + h), then read typed at p + off. Reaches a field behind a global root (e.g. the camera/view at *(*(DAT_008a9b50) + 0x104c) + off).",
-    "fields[].type": "i32 | u32 | f32 | hex.",
-    "fields[].benign": "true => compare for PRESENCE only (memory-layout pointer, phase-origin counter, RNG seed origin); pair with `reason`.",
-    "fields[].reason": "human note surfaced by --field-timeline when a benign field diverges (accepted-with-cause, not silently dropped)."
-  },
-  "_caveat_arg_index": "SotES is MSVC; many engine functions are __thiscall/__fastcall (this/first arg in ECX, not on the stack). For those, Frida's args[0] is the first STACK param, NOT `this` — validate any src=arg/argderef field against a live --textout-probe/mem_watch read before a port depends on it. src=global reads (a DAT_ VA) have no such ambiguity and are the safe default for state-machine stubs; prefer them. Validated convention will be pinned here per-VA as fields land.",
-  "fields": {
-    "0x5b8fc0": {
-      "name": "flip",
-      "_note": "FUN_005b8fc0 — the DDraw Flip dispatcher, entered ONCE PER FRAME (it is the agent's flip-frame anchor). The right cross-side per-frame VA: retail's title runner FUN_0056aea0 keeps its do/while loop INTERNAL, so onEnter there fires once at scene entry, not per frame; the port externalized that loop, so the shared per-frame boundary both sides hit is the Flip. Port side: src/main.c drive_present (CALL_TRACE_BEGIN(0x5b8fc0)).",
-      "fields": [
-        {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex",
-         "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."},
-        {"name": "rngcalls", "src": "rngcalls", "type": "i32", "benign": true,
-         "reason": "cumulative LCG (FUN_005bf505) draw count at the Flip = per-frame RNG-consumption total. Benign for now (RNG order parity is deferred until every in-scene RNG consumer is RE'd, per the ckpt-73 decision); surfaced so flow_diff can localize WHERE consumption diverges once we match it 1:1."},
-
-        {"name": "tint", "src": "global", "va": "0x8a93fc", "type": "i32", "benign": true,
-         "reason": "DAT_008a93fc — the global palette-tint / time-of-day index FUN_00417c40 switches on (in_ECX+0x289c == &DAT_008a760c-0xaac+0x289c == 0x8a93fc). 0 = case-0 IDENTITY (no recolor); 1 = warm, 2/3 = darken, 4/5 = the FUN_004182d0 complex ramp. The port's tile/parallax resolve uses the plain getter 0x418470 (no tint); whether the in-game town needs the tint hinges on this value (PORT-DEBT render-palette-tint)."},
-
-        {"name": "lutgate1", "src": "global", "va": "0x8a9510", "type": "i32", "benign": true,
-         "reason": "in_ECX+0x29b0 — FUN_00417c40's secondary-LUT gate A. When (0x8a9510 != 0 || 0x8a9514 != 1000) the getter remaps every palette index through the 256-byte LUT at 0x8a9410 before returning the cel (the 'darker/more-saturated' color post the port's 0x418470 skips)."},
-        {"name": "lutgate2", "src": "global", "va": "0x8a9514", "type": "i32", "benign": true,
-         "reason": "in_ECX+0x29b4 — FUN_00417c40's secondary-LUT gate B (the 1000 = identity baseline; != 1000 arms the LUT)."},
-        {"name": "lut000", "src": "global", "va": "0x8a9410", "type": "hex", "benign": true,
-         "reason": "LUT bytes [0..3] (in_ECX+0x28b0). Identity LUT => 0x03020100. A non-identity value confirms an index remap is loaded."},
-        {"name": "lut064", "src": "global", "va": "0x8a9450", "type": "hex", "benign": true,
-         "reason": "LUT bytes [0x40..0x43]; identity => 0x43424140."},
-        {"name": "lut128", "src": "global", "va": "0x8a9490", "type": "hex", "benign": true,
-         "reason": "LUT bytes [0x80..0x83]; identity => 0x83828180."},
-        {"name": "lut192", "src": "global", "va": "0x8a94d0", "type": "hex", "benign": true,
-         "reason": "LUT bytes [0xc0..0xc3]; identity => 0xc3c2c1c0."},
-
-        {"name": "cam_mapw", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 0, "type": "i32", "benign": true,
-         "reason": "exploratory camera/view probe (in-game-intro.md): view[0x00] = map pixel width = dim0*0xc80, set at 586010:856. No port equivalent yet — retail ground-truth for the camera build."},
-        {"name": "cam_maph", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 4, "type": "i32", "benign": true,
-         "reason": "view[0x04] = map pixel height = dim1*0xc80, 586010:862."},
-        {"name": "cam_x34", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 52, "type": "i32", "benign": true,
-         "reason": "view+0x34 — scroll-x sub-pixel accumulator (projector sx term); zeroed at room init via 587d30, driven by the camera follow. The value at the first town frame tells us if the camera snapped to the spawn."},
-        {"name": "cam_x4c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 76, "type": "i32", "benign": true,
-         "reason": "view+0x4c — scroll-y sub-pixel accumulator (projector sy term); zeroed at room init via 587d30, driven by the follow."},
-        {"name": "cam_x5c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 92, "type": "i32", "benign": true,
-         "reason": "view+0x5c — y scroll origin (projector sy term); set 0 at 586010:858."},
-        {"name": "cam_x60", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 96, "type": "i32", "benign": true,
-         "reason": "view+0x60 — x scroll origin (projector sx + window col0); set 0 at 586010:857."},
-        {"name": "cam_x64", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 100, "type": "i32", "benign": true,
-         "reason": "view+0x64 — viewport width (window ncols, /0xc80); set 64000 (=640*100) at 586010:860."},
-        {"name": "cam_x68", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 104, "type": "i32", "benign": true,
-         "reason": "view+0x68 — viewport height (window nrows, /0xc80); set 48000 (=480*100) at 586010:861."},
-        {"name": "cam_x74", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 116, "type": "i32", "benign": true,
-         "reason": "view+0x74 — zoom/vertical-shear term (projector sy: +cam+0x74*100); set 0 at 586010:859, updated from a controller's +0x4c at 499ab0:96."},
-        {"name": "cam_x1c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 28, "type": "i32", "benign": true,
-         "reason": "view+0x1c (view[7]) — camera pan state flag; 439690 zeroes it on a snap/pan command. Probing to model the pan."},
-        {"name": "cam_x20", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 32, "type": "i32", "benign": true,
-         "reason": "view+0x20 (view[8]) — the camera follow VELOCITY CAP (= pan speed); the easer FUN_0043d1d0 ramps vel +10/frame up to this. The town pan = 300 (set once with the target at hold-end). Ported: camera_view.cap."},
-        {"name": "cam_x6c", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 108, "type": "i32", "benign": true,
-         "reason": "view+0x6c (view[0x1b]) — TARGET x scroll origin (clamped to [0, mapw-vpw]); RESOLVED: a SCRIPTED constant (12800 for the town), set once at hold-end, NOT leader-tracking. The easer FUN_0043d1d0 moves +0x60 toward it. Ported: camera_view.tgt_x."},
-        {"name": "cam_x70", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 112, "type": "i32", "benign": true,
-         "reason": "view+0x70 (view[0x1c]) — TARGET y scroll origin (clamped to [0, maph-vph]); pairs with cam_x6c (12800, static through the town pan). Ported: camera_view.tgt_y."}
-      ]
+ "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/trace-tooling-phase-b.md, the B2 LOGIC drill-in). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). Consumed by tools/flow_diff.py.",
+ "_schema": {
+  "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
+  "name": "short label for flow_diff output (wins over functions.csv).",
+  "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
+  "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | renderid (the blit SOURCE cel's cross-side identity from the render_id registry; reads ECX (__thiscall this) or args[index] for a cdecl blit, then `key`:res|frame; auto-installs the FUN_00418470 resolver hook — the DDraw blit-trace identity, Phase-B B3, mirrors src/render_id.c) | thisderef (read a field off ECX + `off`: the __thiscall `this` object's own field at the call's onEnter) | thischain (like chain but ROOTED at ECX, not a global: start at ECX, follow each `hops` pointer hop, read typed at `off` — reaches a field behind a this-pointer, e.g. an actor's render-state at *(actor+0x40)+off) | retval (onLeave).",
+  "fields[].key": "for src=renderid: which identity component to return — res (resource_id) | frame.",
+  "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
+  "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
+  "fields[].off": "for src=argderef/chain: byte offset added before the final typed read.",
+  "fields[].hops": "for src=chain: list of byte offsets, each a pointer hop after reading the global root pointer at `va`; the final `off` is the value read. chain = read *(va), then for each h: p = *(p + h), then read typed at p + off. Reaches a field behind a global root (e.g. the camera/view at *(*(DAT_008a9b50) + 0x104c) + off).",
+  "fields[].type": "i32 | u32 | f32 | hex.",
+  "fields[].benign": "true => compare for PRESENCE only (memory-layout pointer, phase-origin counter, RNG seed origin); pair with `reason`.",
+  "fields[].reason": "human note surfaced by --field-timeline when a benign field diverges (accepted-with-cause, not silently dropped)."
+ },
+ "_caveat_arg_index": "SotES is MSVC; many engine functions are __thiscall/__fastcall (this/first arg in ECX, not on the stack). For those, Frida's args[0] is the first STACK param, NOT `this` — validate any src=arg/argderef field against a live --textout-probe/mem_watch read before a port depends on it. src=global reads (a DAT_ VA) have no such ambiguity and are the safe default for state-machine stubs; prefer them. Validated convention will be pinned here per-VA as fields land.",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "flip",
+   "_note": "FUN_005b8fc0 — the DDraw Flip dispatcher, entered ONCE PER FRAME (it is the agent's flip-frame anchor). The right cross-side per-frame VA: retail's title runner FUN_0056aea0 keeps its do/while loop INTERNAL, so onEnter there fires once at scene entry, not per frame; the port externalized that loop, so the shared per-frame boundary both sides hit is the Flip. Port side: src/main.c drive_present (CALL_TRACE_BEGIN(0x5b8fc0)).",
+   "fields": [
+    {
+     "name": "rng",
+     "src": "global",
+     "va": "0x8a4f94",
+     "type": "hex",
+     "_note": "DAT_008a4f94 — the engine LCG state word (srand FUN_005bf4fb seeds it; seeded to OSS_RNG_DEFAULT_SEED on both sides under --seed-pin). Read at the Flip = the frame-boundary RNG snapshot. A [data] divergence here the frame after a mismatched draw localizes a stray RNG consumption (parity pillar 3, docs/parity-model.md)."
     },
-    "0x43d1d0": {
-      "name": "camera_follow_step",
-      "_note": "FUN_0043d1d0 (366 B) — the once-per-frame camera EASE-TO-TARGET, called from 0x439690:1123 (then FUN_00499ab0 shake/HUD). Dispatched through a HEAP function pointer (invisible to static call-graph search); located ckpt 69 with a HW watchpoint on view+0x60 (writer insn 0x43d26d). Per axis: dist=|tgt-cur|; if vel<dist -> cur += sign*(vel + (flag&&dist>16000 ? (dist-16000)/10 : 0)), vel=min(vel+10,cap); else cur=tgt (snap), vel=max(vel-10,0). Then FUN_0043d340 writes the projector accumulators +0x34/+0x4c (shake; inert during the pan). PORT MIRROR: src/camera_follow.c camera_follow_step (host-tested bit-exact vs the captured retail trajectory); add CALL_TRACE_BEGIN(0x43d1d0) when it is wired into the live game_drive camera (PORT-DEBT ingame-camera-pan). Fields read at onEnter (the view = *(*(0x8a9b50)+0x104c)): the X-axis easer state.",
-      "fields": [
-        {"name": "cur_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 96,  "type": "i32", "benign": true,
-         "reason": "view+0x60 — current x scroll (the easer's output; matches cam_x60 at the Flip). camera_view.cur_x."},
-        {"name": "tgt_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 108, "type": "i32", "benign": true,
-         "reason": "view+0x6c — target x scroll. camera_view.tgt_x."},
-        {"name": "vel_x", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 8,   "type": "i32", "benign": true,
-         "reason": "view+0x08 — the X follow VELOCITY accumulator (+10/frame, cap=+0x20); previously unprobed, now the integrator. camera_view.vel_x."},
-        {"name": "vel_y", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 12,  "type": "i32", "benign": true,
-         "reason": "view+0x0c — the Y follow velocity accumulator. camera_view.vel_y."},
-        {"name": "cap",   "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 32,  "type": "i32", "benign": true,
-         "reason": "view+0x20 — velocity cap / pan speed (300 for the town). camera_view.cap (== cam_x20)."},
-        {"name": "flag",  "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 28,  "type": "i32", "benign": true,
-         "reason": "view+0x1c — far-boost enable (0 for the town pan -> no (dist-16000)/10 term). camera_view.flag (== cam_x1c)."}
-      ]
+    {
+     "name": "rngcalls",
+     "src": "rngcalls",
+     "type": "i32",
+     "benign": true,
+     "reason": "cumulative LCG (FUN_005bf505) draw count at the Flip = per-frame RNG-consumption total. Benign for now (RNG order parity is deferred until every in-scene RNG consumer is RE'd, per the ckpt-73 decision); surfaced so flow_diff can localize WHERE consumption diverges once we match it 1:1."
     },
-    "0x46cd70": {
-      "name": "actor_update_all",
-      "_note": "FUN_0046cd70 (1031 B) — the per-SIM-TICK actor-update master driver, called once per tick from the in-game loop 0x439690 as FUN_0046cd70(1) (when *(param+0x1c)==0). Walks every actor-pool band off DAT_008a9b50 (active = actor+0x1d0 != 0): 0x1160 (0x20), 0x1060 (0x40), 0x13e0 (0x400), 0x23e0 (0x60), and the MAIN band 0x11e0 (0x80=128 slots). For each main actor it ticks timers (+0x2c4, +0x2ec), then calls FUN_0054f980(actor+0x40, actor+0x40, 0, 0) for the primary render-state entry and FUN_0054f980(entry-0x294, entry, 1, idx) for each sub-entry (the kinematic body-part chain) — that is where the animation advances. This is the once-per-tick clock the actor anim rides; it is NOT the render/emit pass (FUN_0048c150). Determinism: the anim counter is a pure function of (sim-ticks since clip-set), so it pins on the SAME g_sim_tick anchor as the camera (game_enter scene-load reset) — engine-quirk #76. No port mirror yet (actors unported, PORT-DEBT present-actor-modes).",
-      "fields": [
-        {"name": "frame_ctr", "src": "global", "va": "0x8a9b50", "type": "hex", "benign": true,
-         "reason": "the god-object base pointer; presence-only. The per-tick frame counter +0x276c is bumped here (& 0x7fff) once per tick."},
-        {"name": "rng", "src": "global", "va": "0x8a4f94", "type": "hex", "benign": true,
-         "reason": "DAT_008a4f94 — the shared LCG state word, snapshotted at the per-SIM-TICK actor-update boundary (0x46cd70 onEnter). Determinism probe (ckpt 73): under --seed-pin the seed is identical both runs, so if the shared stream is consumed in the same ORDER per sim-tick, rng at tick N matches run-to-run. It does NOT (0/8643 ticks, quirk #77): a non-deterministic-rate consumer (a per-PRESENT draw x the non-deterministic presents-per-tick, quirk #75) perturbs the stream phase the per-tick actor draws then see — the ~6.7k-px actor-band residual (0x54f980 draws this LCG for idle waits + wander offsets). parity pillar 3, docs/parity-model.md."},
-        {"name": "rngcalls", "src": "rngcalls", "type": "i32", "benign": true,
-         "reason": "cumulative LCG draw count at the per-sim-tick actor-update boundary — the RNG-consumption signal unified into the flow trace (openrecet rngcalls pattern). Pairs with `rng` (state): once every in-scene RNG consumer is RE'd, matching rng+rngcalls per anchor on both sides is how the actor band reaches 1:1 (deferred per ckpt 73)."}
-      ]
+    {
+     "name": "tint",
+     "src": "global",
+     "va": "0x8a93fc",
+     "type": "i32",
+     "benign": true,
+     "reason": "DAT_008a93fc — the global palette-tint / time-of-day index FUN_00417c40 switches on (in_ECX+0x289c == &DAT_008a760c-0xaac+0x289c == 0x8a93fc). 0 = case-0 IDENTITY (no recolor); 1 = warm, 2/3 = darken, 4/5 = the FUN_004182d0 complex ramp. The port's tile/parallax resolve uses the plain getter 0x418470 (no tint); whether the in-game town needs the tint hinges on this value (PORT-DEBT render-palette-tint)."
     },
-    "0x54f980": {
-      "name": "actor_update",
-      "_note": "FUN_0054f980 (11597 B) — the per-actor update / behaviour dispatch, called per render-state entry from FUN_0046cd70 (so once per SIM-TICK). It (1) shadow-copies the render-state param_1->param_2 (the kinematic chain: a sub-entry inherits its parent's transform), then (2) switches on the actor TYPE in_ECX[0x75] (= actor+0x1d4, the 0x1131e.. behaviour id). EVERY animating case runs the SAME inline frame-stepper on the render-state's anim fields (+0x6c clip / +0x70 timer / +0x72 frame / +0x74 done): timer++; if timer>=clip[+0x44](dur){ frame++; timer=0; if frame>=clip[+0x42](count){ clip[+0x48]==0 ? frame=clip[+0x152](loop_to) : (hold last: frame=count-1, done=1, timer=1) } }. The clip (+0x6c) is set on STATE CHANGE by FUN_0040afe0/FUN_0041e600 (reset timer/frame/done, but only when the clip actually changes). PORT MIRROR: src/anim_clip.c anim_clip_advance + anim_state_set (host-tested); the clip descriptor layout (count@0x42, dur@0x44, oneshot@0x48, loop_to@0x152, per-frame sprite delta + x/y offsets) is anim_clip. Fields below read actor SLOT 0's primary render-state anim block (representative). engine-quirk #76; findings/in-game-intro.md 'The actor animation cycle'.",
-      "fields": [
-        {"name": "a0_clip",  "src": "chain", "va": "0x8a9b50", "hops": [4576, 64], "off": 108, "type": "hex", "benign": true,
-         "reason": "actor[0] render-state +0x6c — current animation clip ptr (anim_state.clip). 0 = inert."},
-        {"name": "a0_timer", "src": "chain", "va": "0x8a9b50", "hops": [4576, 64], "off": 112, "type": "u32", "benign": true,
-         "reason": "actor[0] render-state +0x70 — frame timer (low u16; sim-ticks in the current frame). anim_state.timer."},
-        {"name": "a0_frame", "src": "chain", "va": "0x8a9b50", "hops": [4576, 64], "off": 114, "type": "u32", "benign": true,
-         "reason": "actor[0] render-state +0x72 — current frame index (low u16). anim_state.frame; advances once per sim-tick, deterministic under the g_sim_tick anchor."}
-      ]
+    {
+     "name": "lutgate1",
+     "src": "global",
+     "va": "0x8a9510",
+     "type": "i32",
+     "benign": true,
+     "reason": "in_ECX+0x29b0 — FUN_00417c40's secondary-LUT gate A. When (0x8a9510 != 0 || 0x8a9514 != 1000) the getter remaps every palette index through the 256-byte LUT at 0x8a9410 before returning the cel (the 'darker/more-saturated' color post the port's 0x418470 skips)."
     },
-
-    "0x491ae0": {
-      "name": "actor_render_emit",
-      "_note": "FUN_00491ae0 (2599 B) — the per-actor RENDER/EMIT pass for the MAIN actor band (DAT_008a9b50+0x11e0, 0x80 slots = the town NPCs + party), called FUN_00491ae0(sub_idx=0, view) per active slot (actor+0x1d0!=0) from the per-frame render driver FUN_0048c150:52 (the in_ECX[7]==0 free-roam branch). __thiscall: ECX = the ACTOR object; args[0]=sub-entry index (0 for the primary), args[1]=the view (param_2). Body = a switch on the actor TYPE/behaviour code ECX+0x1d4 (uVar11): cases 0x11256/0x11260/0x112ec/0x112f6/0x11314/0x1131e/0x1133c/0x11346/0x11350/0x1872d/0x1872f + default 0x11257. The 0x1872d arm is the ANIMATED-CHARACTER case (reads the render-state clip ptr +0x6c / frame +0x72 — quirk #76's 3rd witness, base+delta sprite from the 0x154-B clip). The common tail LAB_004923eb builds draw nodes from a 10-dword stack descriptor and emits via FUN_00417c40(bank,frame)+FUN_00492670 (the actor analog of map_render_walk's draw_pool_emit). NO PORT MIRROR yet (PORT-DEBT present-actor-modes / present-actor-modes); these fields are RETAIL GROUND TRUTH to pin which arm the town NPCs hit + their render-state, so the port emits present modes 0/1/2. Fields: ECX (actor) own fields via thisderef; the primary render-state (*(ECX+0x40)+0*0x294) via thischain hops=[0x40].",
-      "fields": [
-        {"name": "b1d4", "src": "thisderef", "off": 468, "type": "hex", "benign": true,
-         "reason": "actor+0x1d4 — the behaviour/TYPE code (the 0x491ae0 switch key uVar11; also FUN_0054f980's dispatch key in_ECX[0x75]). THE datum: which render arm + which 0x54f980 behaviour the town NPC runs. 0x1872d = animated character."},
-        {"name": "active1d0", "src": "thisderef", "off": 464, "type": "hex", "benign": true,
-         "reason": "actor+0x1d0 — the active gate (0x48c150/0x46cd70 only walk a slot when this != 0). Confirms the slot is live."},
-        {"name": "count44", "src": "thisderef", "off": 68, "type": "u32", "benign": true,
-         "reason": "actor+0x44 — u16 count of render-state entries (the kinematic body-part chain; 0x46cd70/0x48c150 loop sub-entries 1..count-1 at +0x294 stride)."},
-        {"name": "layer_fc", "src": "thisderef", "off": 252, "type": "u32", "benign": true,
-         "reason": "actor+0xfc — u16 draw-pool LAYER index (the 0x1872f arm emits into *(view+0x54)+layer*8 = draw_pool layer; the actor's draw-order key)."},
-        {"name": "ctx30", "src": "thisderef", "off": 48, "type": "hex", "benign": true,
-         "reason": "actor+0x30 — the paint/palette context ptr passed as the node's aux arg in several arms."},
-        {"name": "rs_first", "src": "thischain", "hops": [64], "off": 0, "type": "hex", "benign": true,
-         "reason": "primary render-state +0x00 — the *pcVar1=='\\0' early-out gate (0x1872d returns if 0). low byte = the entry's enabled flag/first field."},
-        {"name": "rs_x", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "benign": true,
-         "reason": "primary render-state +0x04 — the actor world X (dest base *(pcVar1+4); +0x40 anim-x is added at draw)."},
-        {"name": "rs_y", "src": "thischain", "hops": [64], "off": 8, "type": "i32", "benign": true,
-         "reason": "primary render-state +0x08 — the actor world Y (dest base *(pcVar1+8))."},
-        {"name": "rs_kind2c", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "benign": true,
-         "reason": "primary render-state +0x2c — the orientation/mode field the 0x1872d arm branches on (==3 = the &DAT_008a8440-indexed facing)."},
-        {"name": "rs_clip", "src": "thischain", "hops": [64], "off": 108, "type": "hex", "benign": true,
-         "reason": "primary render-state +0x6c — the animation CLIP ptr (anim_state.clip; non-null = animated, the 0x154-B 32-frame descriptor anim_clip pins). 0 = static."},
-        {"name": "rs_frame", "src": "thischain", "hops": [64], "off": 114, "type": "u32", "benign": true,
-         "reason": "primary render-state +0x72 — current frame index (low u16; the renderer reads base+frame_delta[frame] for the sprite id). anim_state.frame."},
-        {"name": "row0_bf", "src": "thisderef", "off": 72, "type": "hex", "benign": true,
-         "reason": "actor+0x48 — dir-0 sprite row word: low u16 = bank (0=>this dir draws nothing), high s16 = frame_base. FUN_0044d160 reads bank@+0x48, frame_base@+0x4a. THE code->sprite datum (the only spawn input not in map_data)."},
-        {"name": "row0_mx", "src": "thisderef", "off": 80, "type": "i32", "benign": true,
-         "reason": "actor+0x50 — dir-0 row mirror_x reference (used when render-state facing==3)."},
-        {"name": "row0_xoff", "src": "thisderef", "off": 84, "type": "i32", "benign": true,
-         "reason": "actor+0x54 — dir-0 row x placement offset (added to desc off_x when not mirrored/abs)."},
-        {"name": "row0_yoff", "src": "thisderef", "off": 88, "type": "i32", "benign": true,
-         "reason": "actor+0x58 — dir-0 row y placement offset (always added to desc off_y)."},
-        {"name": "dir_e8", "src": "thisderef", "off": 232, "type": "u32", "benign": true,
-         "reason": "actor+0xe8 — facing/dir (low u16; selects the +0x48 row). The spawn sets 0; confirm the static props stay 0 so dir-0 row is the rendered one."},
-        {"name": "d1_bf", "src": "thisderef", "off": 92,  "type": "hex", "benign": true, "reason": "actor+0x5c — dir-1 row bank|frame_base word (table shape)."},
-        {"name": "d2_bf", "src": "thisderef", "off": 112, "type": "hex", "benign": true, "reason": "actor+0x70 — dir-2 row bank|frame_base."},
-        {"name": "d3_bf", "src": "thisderef", "off": 132, "type": "hex", "benign": true, "reason": "actor+0x84 — dir-3 row bank|frame_base."},
-        {"name": "d4_bf", "src": "thisderef", "off": 152, "type": "hex", "benign": true, "reason": "actor+0x98 — dir-4 row bank|frame_base."},
-        {"name": "d5_bf", "src": "thisderef", "off": 172, "type": "hex", "benign": true, "reason": "actor+0xac — dir-5 row bank|frame_base."},
-        {"name": "d6_bf", "src": "thisderef", "off": 192, "type": "hex", "benign": true, "reason": "actor+0xc0 — dir-6 row bank|frame_base."},
-        {"name": "d7_bf", "src": "thisderef", "off": 212, "type": "hex", "benign": true, "reason": "actor+0xd4 — dir-7 row bank|frame_base."},
-        {"name": "alpha_f4", "src": "thisderef", "off": 244, "type": "i32", "benign": true,
-         "reason": "actor+0xf4 — node alpha override (0 => desc alpha 0 => mode-0 keyed). The emit's param8."},
-        {"name": "skip_284", "src": "thisderef", "off": 644, "type": "i32", "benign": true,
-         "reason": "actor+0x284 — non-zero => 0x491ae0 renders nothing (the skip flag)."},
-        {"name": "angle_ec", "src": "thisderef", "off": 236, "type": "i32", "benign": true,
-         "reason": "actor+0xec — non-zero => angle-driven frame select (town props expected 0)."},
-        {"name": "rs_dstx", "src": "thischain", "hops": [64], "off": 64, "type": "i32", "benign": true,
-         "reason": "primary render-state +0x40 — dst base x added to desc off_x at emit."},
-        {"name": "rs_dsty", "src": "thischain", "hops": [64], "off": 68, "type": "i32", "benign": true,
-         "reason": "primary render-state +0x44 — dst base y added to desc off_y at emit."},
-        {"name": "rs_lo284", "src": "thischain", "hops": [64], "off": 644, "type": "hex", "benign": true,
-         "reason": "primary render-state +0x284 — layer override sub-object ptr (non-null => layer = *(it+0x100)); expect 0 for town props."}
-      ]
+    {
+     "name": "lutgate2",
+     "src": "global",
+     "va": "0x8a9514",
+     "type": "i32",
+     "benign": true,
+     "reason": "in_ECX+0x29b4 — FUN_00417c40's secondary-LUT gate B (the 1000 = identity baseline; != 1000 arms the LUT)."
     },
-
-    "0x560e60": {
-      "name": "actor_slot_reset",
-      "_note": "FUN_00560e60 (42 B) — per-actor SLOT RESET (zeros actor dwords [0],[1],[2],[0x271],[0x27c..0x27e] + u16 [0x272]); __thiscall ECX = the actor being (re)spawned. Called at EVERY actor spawn — so its `ret_va` (auto, an RVA; +0x400000 = absolute) names the SPAWN caller. SPAWN-DISCOVERY probe (ckpt 76): drive to game_enter, whitelist flip 1434 (the load runs inside 0x59f2c0 with no Flip yet), read the distinct ret_va to find who populates the room actor band DAT_008a9b50+0x11e0. Distinguishes the 8 party actors (ret_va in 0x59f2c0) from the room/NPC band spawn (ret_va elsewhere).",
-      "fields": [
-        {"name": "who", "src": "thisderef", "off": 0, "type": "hex", "benign": true,
-         "reason": "actor+0x00 — presence/identity of the actor being reset (forces the VA to hook; the real datum is the auto ret_va = the spawn call site)."}
-      ]
+    {
+     "name": "lut000",
+     "src": "global",
+     "va": "0x8a9410",
+     "type": "hex",
+     "benign": true,
+     "reason": "LUT bytes [0..3] (in_ECX+0x28b0). Identity LUT => 0x03020100. A non-identity value confirms an index remap is loaded."
     },
-
-    "0x584710": {
-      "name": "actor_manifest_build",
-      "_note": "FUN_00584710 (2280 B) — a suspected room ACTOR-MANIFEST builder (calls 0x560e60; builds ~12 ~0x50-byte stack descriptors). SPAWN-DISCOVERY probe (ckpt 76): does it fire at game_enter, and what is its ret_va (caller)? Confirms/refutes it as the town-NPC spawner + maps the spawn call chain (god-object DAT_008a9b50+0x11e0 population).",
-      "fields": [
-        {"name": "who", "src": "thisderef", "off": 0, "type": "hex", "benign": true,
-         "reason": "ECX+0x00 — presence (forces the hook; the datum is the auto ret_va)."}
-      ]
+    {
+     "name": "lut064",
+     "src": "global",
+     "va": "0x8a9450",
+     "type": "hex",
+     "benign": true,
+     "reason": "LUT bytes [0x40..0x43]; identity => 0x43424140."
     },
-
-    "0x5b9a40": {
-      "name": "blt_onto",
-      "_note": "FUN_005b9a40 — generic Blt self-onto-dest (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). The width/height come from the source's metrics (+0xb8/+0xbc), not args. Port mirror: src/zdd.c zdd_object_blt_onto + zdd_emit_blit(0x5b9a40). DDraw blit trace (Phase-B B3) — diffed by tools/render_diff.py keyed on (res, frame). Used by the parallax far-plane sink (game_parallax_blit).",
-      "fields": [
-        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
-        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
-        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
-        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
-        {"name": "reqw",  "src": "thisderef", "off": 184, "type": "i32", "_note": "+0xb8 metric_b8 = source width (blt_onto reqw == ow)"},
-        {"name": "reqh",  "src": "thisderef", "off": 188, "type": "i32", "_note": "+0xbc metric_bc = source height"},
-        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
-        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
-        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32", "_note": "+0x0c metric_0c placement origin x"},
-        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32", "_note": "+0x10 metric_10 placement origin y"},
-        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex", "_note": "+0xd4 state_flag (0x8000 = KEYSRC armed)"},
-        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex", "_note": "+0x28 colorkey_out (bound DDCOLORKEY)"}
-      ]
+    {
+     "name": "lut128",
+     "src": "global",
+     "va": "0x8a9490",
+     "type": "hex",
+     "benign": true,
+     "reason": "LUT bytes [0x80..0x83]; identity => 0x83828180."
     },
-
-    "0x5b9b70": {
-      "name": "blt_keyed",
-      "_note": "FUN_005b9b70 — positioned color-keyed Blt (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). dst origin = metric_0c/_10 + (x,y); w/h from metric_b8/_bc. Port mirror: zdd_object_blt_keyed + zdd_emit_blit(0x5b9b70). Used by the prologue keyed-fallback path.",
-      "fields": [
-        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
-        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
-        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
-        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
-        {"name": "reqw",  "src": "thisderef", "off": 184, "type": "i32"},
-        {"name": "reqh",  "src": "thisderef", "off": 188, "type": "i32"},
-        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
-        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
-        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
-        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
-        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
-        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
-      ]
+    {
+     "name": "lut192",
+     "src": "global",
+     "va": "0x8a94d0",
+     "type": "hex",
+     "benign": true,
+     "reason": "LUT bytes [0xc0..0xc3]; identity => 0xc3c2c1c0."
     },
-
-    "0x5b9ae0": {
-      "name": "blt_rects",
-      "_note": "FUN_005b9ae0 — Blt with explicit rects (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, dst_w, dst_h, src_x, src_y). Port mirror: zdd_object_blt_rects + zdd_emit_blit(0x5b9ae0). Used by the alpha orchestrator's scratch->dest leg.",
-      "fields": [
-        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
-        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
-        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
-        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
-        {"name": "reqw",  "src": "arg", "index": 3, "type": "i32"},
-        {"name": "reqh",  "src": "arg", "index": 4, "type": "i32"},
-        {"name": "sx",    "src": "arg", "index": 5, "type": "i32"},
-        {"name": "sy",    "src": "arg", "index": 6, "type": "i32"},
-        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
-        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
-        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
-        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
-        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
-        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
-      ]
+    {
+     "name": "cam_mapw",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 0,
+     "type": "i32",
+     "benign": true,
+     "reason": "exploratory camera/view probe (in-game-intro.md): view[0x00] = map pixel width = dim0*0xc80, set at 586010:856. No port equivalent yet — retail ground-truth for the camera build."
     },
-
-    "0x5b9bf0": {
-      "name": "blt_clipped",
-      "_note": "FUN_005b9bf0 — clipped color-keyed Blt, THE backdrop-tile path (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, width, height, src_x, src_y). The source rect is clipped against the cel's region metrics (+0x0c/+0x10 origin, +0x14/+0x18 extent); we emit the RAW inputs (clip math is a bit-exact port). Port mirror: zdd_object_blt_clipped + zdd_emit_blit(0x5b9bf0). map_present mode-3 -> game_present_blit -> this.",
-      "fields": [
-        {"name": "res",   "src": "renderid", "key": "res",   "type": "i32"},
-        {"name": "frame", "src": "renderid", "key": "frame", "type": "i32"},
-        {"name": "dx",    "src": "arg", "index": 1, "type": "i32"},
-        {"name": "dy",    "src": "arg", "index": 2, "type": "i32"},
-        {"name": "reqw",  "src": "arg", "index": 3, "type": "i32"},
-        {"name": "reqh",  "src": "arg", "index": 4, "type": "i32"},
-        {"name": "sx",    "src": "arg", "index": 5, "type": "i32"},
-        {"name": "sy",    "src": "arg", "index": 6, "type": "i32"},
-        {"name": "ow",    "src": "thisderef", "off": 184, "type": "i32"},
-        {"name": "oh",    "src": "thisderef", "off": 188, "type": "i32"},
-        {"name": "ox",    "src": "thisderef", "off": 12,  "type": "i32"},
-        {"name": "oy",    "src": "thisderef", "off": 16,  "type": "i32"},
-        {"name": "st",    "src": "thisderef", "off": 212, "type": "hex"},
-        {"name": "ckey",  "src": "thisderef", "off": 40,  "type": "hex"}
-      ]
+    {
+     "name": "cam_maph",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "view[0x04] = map pixel height = dim1*0xc80, 586010:862."
+    },
+    {
+     "name": "cam_x34",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 52,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x34 — scroll-x sub-pixel accumulator (projector sx term); zeroed at room init via 587d30, driven by the camera follow. The value at the first town frame tells us if the camera snapped to the spawn."
+    },
+    {
+     "name": "cam_x4c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 76,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x4c — scroll-y sub-pixel accumulator (projector sy term); zeroed at room init via 587d30, driven by the follow."
+    },
+    {
+     "name": "cam_x5c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 92,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x5c — y scroll origin (projector sy term); set 0 at 586010:858."
+    },
+    {
+     "name": "cam_x60",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 96,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x60 — x scroll origin (projector sx + window col0); set 0 at 586010:857."
+    },
+    {
+     "name": "cam_x64",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 100,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x64 — viewport width (window ncols, /0xc80); set 64000 (=640*100) at 586010:860."
+    },
+    {
+     "name": "cam_x68",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 104,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x68 — viewport height (window nrows, /0xc80); set 48000 (=480*100) at 586010:861."
+    },
+    {
+     "name": "cam_x74",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 116,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x74 — zoom/vertical-shear term (projector sy: +cam+0x74*100); set 0 at 586010:859, updated from a controller's +0x4c at 499ab0:96."
+    },
+    {
+     "name": "cam_x1c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 28,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x1c (view[7]) — camera pan state flag; 439690 zeroes it on a snap/pan command. Probing to model the pan."
+    },
+    {
+     "name": "cam_x20",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 32,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x20 (view[8]) — the camera follow VELOCITY CAP (= pan speed); the easer FUN_0043d1d0 ramps vel +10/frame up to this. The town pan = 300 (set once with the target at hold-end). Ported: camera_view.cap."
+    },
+    {
+     "name": "cam_x6c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 108,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x6c (view[0x1b]) — TARGET x scroll origin (clamped to [0, mapw-vpw]); RESOLVED: a SCRIPTED constant (12800 for the town), set once at hold-end, NOT leader-tracking. The easer FUN_0043d1d0 moves +0x60 toward it. Ported: camera_view.tgt_x."
+    },
+    {
+     "name": "cam_x70",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 112,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x70 (view[0x1c]) — TARGET y scroll origin (clamped to [0, maph-vph]); pairs with cam_x6c (12800, static through the town pan). Ported: camera_view.tgt_y."
     }
+   ]
+  },
+  "0x43d1d0": {
+   "name": "camera_follow_step",
+   "_note": "FUN_0043d1d0 (366 B) — the once-per-frame camera EASE-TO-TARGET, called from 0x439690:1123 (then FUN_00499ab0 shake/HUD). Dispatched through a HEAP function pointer (invisible to static call-graph search); located ckpt 69 with a HW watchpoint on view+0x60 (writer insn 0x43d26d). Per axis: dist=|tgt-cur|; if vel<dist -> cur += sign*(vel + (flag&&dist>16000 ? (dist-16000)/10 : 0)), vel=min(vel+10,cap); else cur=tgt (snap), vel=max(vel-10,0). Then FUN_0043d340 writes the projector accumulators +0x34/+0x4c (shake; inert during the pan). PORT MIRROR: src/camera_follow.c camera_follow_step (host-tested bit-exact vs the captured retail trajectory); add CALL_TRACE_BEGIN(0x43d1d0) when it is wired into the live game_drive camera (PORT-DEBT ingame-camera-pan). Fields read at onEnter (the view = *(*(0x8a9b50)+0x104c)): the X-axis easer state.",
+   "fields": [
+    {
+     "name": "cur_x",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 96,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x60 — current x scroll (the easer's output; matches cam_x60 at the Flip). camera_view.cur_x."
+    },
+    {
+     "name": "tgt_x",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 108,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x6c — target x scroll. camera_view.tgt_x."
+    },
+    {
+     "name": "vel_x",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x08 — the X follow VELOCITY accumulator (+10/frame, cap=+0x20); previously unprobed, now the integrator. camera_view.vel_x."
+    },
+    {
+     "name": "vel_y",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 12,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x0c — the Y follow velocity accumulator. camera_view.vel_y."
+    },
+    {
+     "name": "cap",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 32,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x20 — velocity cap / pan speed (300 for the town). camera_view.cap (== cam_x20)."
+    },
+    {
+     "name": "flag",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4172
+     ],
+     "off": 28,
+     "type": "i32",
+     "benign": true,
+     "reason": "view+0x1c — far-boost enable (0 for the town pan -> no (dist-16000)/10 term). camera_view.flag (== cam_x1c)."
+    }
+   ]
+  },
+  "0x46cd70": {
+   "name": "actor_update_all",
+   "_note": "FUN_0046cd70 (1031 B) — the per-SIM-TICK actor-update master driver, called once per tick from the in-game loop 0x439690 as FUN_0046cd70(1) (when *(param+0x1c)==0). Walks every actor-pool band off DAT_008a9b50 (active = actor+0x1d0 != 0): 0x1160 (0x20), 0x1060 (0x40), 0x13e0 (0x400), 0x23e0 (0x60), and the MAIN band 0x11e0 (0x80=128 slots). For each main actor it ticks timers (+0x2c4, +0x2ec), then calls FUN_0054f980(actor+0x40, actor+0x40, 0, 0) for the primary render-state entry and FUN_0054f980(entry-0x294, entry, 1, idx) for each sub-entry (the kinematic body-part chain) — that is where the animation advances. This is the once-per-tick clock the actor anim rides; it is NOT the render/emit pass (FUN_0048c150). Determinism: the anim counter is a pure function of (sim-ticks since clip-set), so it pins on the SAME g_sim_tick anchor as the camera (game_enter scene-load reset) — engine-quirk #76. No port mirror yet (actors unported, PORT-DEBT present-actor-modes).",
+   "fields": [
+    {
+     "name": "frame_ctr",
+     "src": "global",
+     "va": "0x8a9b50",
+     "type": "hex",
+     "benign": true,
+     "reason": "the god-object base pointer; presence-only. The per-tick frame counter +0x276c is bumped here (& 0x7fff) once per tick."
+    },
+    {
+     "name": "rng",
+     "src": "global",
+     "va": "0x8a4f94",
+     "type": "hex",
+     "benign": true,
+     "reason": "DAT_008a4f94 — the shared LCG state word, snapshotted at the per-SIM-TICK actor-update boundary (0x46cd70 onEnter). Determinism probe (ckpt 73): under --seed-pin the seed is identical both runs, so if the shared stream is consumed in the same ORDER per sim-tick, rng at tick N matches run-to-run. It does NOT (0/8643 ticks, quirk #77): a non-deterministic-rate consumer (a per-PRESENT draw x the non-deterministic presents-per-tick, quirk #75) perturbs the stream phase the per-tick actor draws then see — the ~6.7k-px actor-band residual (0x54f980 draws this LCG for idle waits + wander offsets). parity pillar 3, docs/parity-model.md."
+    },
+    {
+     "name": "rngcalls",
+     "src": "rngcalls",
+     "type": "i32",
+     "benign": true,
+     "reason": "cumulative LCG draw count at the per-sim-tick actor-update boundary — the RNG-consumption signal unified into the flow trace (openrecet rngcalls pattern). Pairs with `rng` (state): once every in-scene RNG consumer is RE'd, matching rng+rngcalls per anchor on both sides is how the actor band reaches 1:1 (deferred per ckpt 73)."
+    }
+   ]
+  },
+  "0x54f980": {
+   "name": "actor_update",
+   "_note": "FUN_0054f980 (11597 B) — the per-actor update / behaviour dispatch, called per render-state entry from FUN_0046cd70 (so once per SIM-TICK). It (1) shadow-copies the render-state param_1->param_2 (the kinematic chain: a sub-entry inherits its parent's transform), then (2) switches on the actor TYPE in_ECX[0x75] (= actor+0x1d4, the 0x1131e.. behaviour id). EVERY animating case runs the SAME inline frame-stepper on the render-state's anim fields (+0x6c clip / +0x70 timer / +0x72 frame / +0x74 done): timer++; if timer>=clip[+0x44](dur){ frame++; timer=0; if frame>=clip[+0x42](count){ clip[+0x48]==0 ? frame=clip[+0x152](loop_to) : (hold last: frame=count-1, done=1, timer=1) } }. The clip (+0x6c) is set on STATE CHANGE by FUN_0040afe0/FUN_0041e600 (reset timer/frame/done, but only when the clip actually changes). PORT MIRROR: src/anim_clip.c anim_clip_advance + anim_state_set (host-tested); the clip descriptor layout (count@0x42, dur@0x44, oneshot@0x48, loop_to@0x152, per-frame sprite delta + x/y offsets) is anim_clip. Fields below read actor SLOT 0's primary render-state anim block (representative). engine-quirk #76; findings/in-game-intro.md 'The actor animation cycle'.",
+   "fields": [
+    {
+     "name": "a0_clip",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4576,
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor[0] render-state +0x6c — current animation clip ptr (anim_state.clip). 0 = inert."
+    },
+    {
+     "name": "a0_timer",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4576,
+      64
+     ],
+     "off": 112,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor[0] render-state +0x70 — frame timer (low u16; sim-ticks in the current frame). anim_state.timer."
+    },
+    {
+     "name": "a0_frame",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4576,
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor[0] render-state +0x72 — current frame index (low u16). anim_state.frame; advances once per sim-tick, deterministic under the g_sim_tick anchor."
+    }
+   ]
+  },
+  "0x491ae0": {
+   "name": "actor_render_emit",
+   "_note": "FUN_00491ae0 (2599 B) — the per-actor RENDER/EMIT pass for the MAIN actor band (DAT_008a9b50+0x11e0, 0x80 slots = the town NPCs + party), called FUN_00491ae0(sub_idx=0, view) per active slot (actor+0x1d0!=0) from the per-frame render driver FUN_0048c150:52 (the in_ECX[7]==0 free-roam branch). __thiscall: ECX = the ACTOR object; args[0]=sub-entry index (0 for the primary), args[1]=the view (param_2). Body = a switch on the actor TYPE/behaviour code ECX+0x1d4 (uVar11): cases 0x11256/0x11260/0x112ec/0x112f6/0x11314/0x1131e/0x1133c/0x11346/0x11350/0x1872d/0x1872f + default 0x11257. The 0x1872d arm is the ANIMATED-CHARACTER case (reads the render-state clip ptr +0x6c / frame +0x72 — quirk #76's 3rd witness, base+delta sprite from the 0x154-B clip). The common tail LAB_004923eb builds draw nodes from a 10-dword stack descriptor and emits via FUN_00417c40(bank,frame)+FUN_00492670 (the actor analog of map_render_walk's draw_pool_emit). NO PORT MIRROR yet (PORT-DEBT present-actor-modes / present-actor-modes); these fields are RETAIL GROUND TRUTH to pin which arm the town NPCs hit + their render-state, so the port emits present modes 0/1/2. Fields: ECX (actor) own fields via thisderef; the primary render-state (*(ECX+0x40)+0*0x294) via thischain hops=[0x40].",
+   "fields": [
+    {
+     "name": "b1d4",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — the behaviour/TYPE code (the 0x491ae0 switch key uVar11; also FUN_0054f980's dispatch key in_ECX[0x75]). THE datum: which render arm + which 0x54f980 behaviour the town NPC runs. 0x1872d = animated character."
+    },
+    {
+     "name": "active1d0",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — the active gate (0x48c150/0x46cd70 only walk a slot when this != 0). Confirms the slot is live."
+    },
+    {
+     "name": "count44",
+     "src": "thisderef",
+     "off": 68,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0x44 — u16 count of render-state entries (the kinematic body-part chain; 0x46cd70/0x48c150 loop sub-entries 1..count-1 at +0x294 stride)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — u16 draw-pool LAYER index (the 0x1872f arm emits into *(view+0x54)+layer*8 = draw_pool layer; the actor's draw-order key)."
+    },
+    {
+     "name": "ctx30",
+     "src": "thisderef",
+     "off": 48,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x30 — the paint/palette context ptr passed as the node's aux arg in several arms."
+    },
+    {
+     "name": "rs_first",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 0,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x00 — the *pcVar1=='\\0' early-out gate (0x1872d returns if 0). low byte = the entry's enabled flag/first field."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — the actor world X (dest base *(pcVar1+4); +0x40 anim-x is added at draw)."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — the actor world Y (dest base *(pcVar1+8))."
+    },
+    {
+     "name": "rs_kind2c",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 44,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x2c — the orientation/mode field the 0x1872d arm branches on (==3 = the &DAT_008a8440-indexed facing)."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — the animation CLIP ptr (anim_state.clip; non-null = animated, the 0x154-B 32-frame descriptor anim_clip pins). 0 = static."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index (low u16; the renderer reads base+frame_delta[frame] for the sprite id). anim_state.frame."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row word: low u16 = bank (0=>this dir draws nothing), high s16 = frame_base. FUN_0044d160 reads bank@+0x48, frame_base@+0x4a. THE code->sprite datum (the only spawn input not in map_data)."
+    },
+    {
+     "name": "row0_mx",
+     "src": "thisderef",
+     "off": 80,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0x50 — dir-0 row mirror_x reference (used when render-state facing==3)."
+    },
+    {
+     "name": "row0_xoff",
+     "src": "thisderef",
+     "off": 84,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0x54 — dir-0 row x placement offset (added to desc off_x when not mirrored/abs)."
+    },
+    {
+     "name": "row0_yoff",
+     "src": "thisderef",
+     "off": 88,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0x58 — dir-0 row y placement offset (always added to desc off_y)."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16; selects the +0x48 row). The spawn sets 0; confirm the static props stay 0 so dir-0 row is the rendered one."
+    },
+    {
+     "name": "d1_bf",
+     "src": "thisderef",
+     "off": 92,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x5c — dir-1 row bank|frame_base word (table shape)."
+    },
+    {
+     "name": "d2_bf",
+     "src": "thisderef",
+     "off": 112,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x70 — dir-2 row bank|frame_base."
+    },
+    {
+     "name": "d3_bf",
+     "src": "thisderef",
+     "off": 132,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x84 — dir-3 row bank|frame_base."
+    },
+    {
+     "name": "d4_bf",
+     "src": "thisderef",
+     "off": 152,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x98 — dir-4 row bank|frame_base."
+    },
+    {
+     "name": "d5_bf",
+     "src": "thisderef",
+     "off": 172,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0xac — dir-5 row bank|frame_base."
+    },
+    {
+     "name": "d6_bf",
+     "src": "thisderef",
+     "off": 192,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0xc0 — dir-6 row bank|frame_base."
+    },
+    {
+     "name": "d7_bf",
+     "src": "thisderef",
+     "off": 212,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0xd4 — dir-7 row bank|frame_base."
+    },
+    {
+     "name": "alpha_f4",
+     "src": "thisderef",
+     "off": 244,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0xf4 — node alpha override (0 => desc alpha 0 => mode-0 keyed). The emit's param8."
+    },
+    {
+     "name": "skip_284",
+     "src": "thisderef",
+     "off": 644,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0x284 — non-zero => 0x491ae0 renders nothing (the skip flag)."
+    },
+    {
+     "name": "angle_ec",
+     "src": "thisderef",
+     "off": 236,
+     "type": "i32",
+     "benign": true,
+     "reason": "actor+0xec — non-zero => angle-driven frame select (town props expected 0)."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x at emit."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y at emit."
+    },
+    {
+     "name": "rs_lo284",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 644,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x284 — layer override sub-object ptr (non-null => layer = *(it+0x100)); expect 0 for town props."
+    }
+   ]
+  },
+  "0x560e60": {
+   "name": "actor_slot_reset",
+   "_note": "FUN_00560e60 (42 B) — per-actor SLOT RESET (zeros actor dwords [0],[1],[2],[0x271],[0x27c..0x27e] + u16 [0x272]); __thiscall ECX = the actor being (re)spawned. Called at EVERY actor spawn — so its `ret_va` (auto, an RVA; +0x400000 = absolute) names the SPAWN caller. SPAWN-DISCOVERY probe (ckpt 76): drive to game_enter, whitelist flip 1434 (the load runs inside 0x59f2c0 with no Flip yet), read the distinct ret_va to find who populates the room actor band DAT_008a9b50+0x11e0. Distinguishes the 8 party actors (ret_va in 0x59f2c0) from the room/NPC band spawn (ret_va elsewhere).",
+   "fields": [
+    {
+     "name": "who",
+     "src": "thisderef",
+     "off": 0,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x00 — presence/identity of the actor being reset (forces the VA to hook; the real datum is the auto ret_va = the spawn call site)."
+    }
+   ]
+  },
+  "0x584710": {
+   "name": "actor_manifest_build",
+   "_note": "FUN_00584710 (2280 B) — a suspected room ACTOR-MANIFEST builder (calls 0x560e60; builds ~12 ~0x50-byte stack descriptors). SPAWN-DISCOVERY probe (ckpt 76): does it fire at game_enter, and what is its ret_va (caller)? Confirms/refutes it as the town-NPC spawner + maps the spawn call chain (god-object DAT_008a9b50+0x11e0 population).",
+   "fields": [
+    {
+     "name": "who",
+     "src": "thisderef",
+     "off": 0,
+     "type": "hex",
+     "benign": true,
+     "reason": "ECX+0x00 — presence (forces the hook; the datum is the auto ret_va)."
+    }
+   ]
+  },
+  "0x5b9a40": {
+   "name": "blt_onto",
+   "_note": "FUN_005b9a40 — generic Blt self-onto-dest (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). The width/height come from the source's metrics (+0xb8/+0xbc), not args. Port mirror: src/zdd.c zdd_object_blt_onto + zdd_emit_blit(0x5b9a40). DDraw blit trace (Phase-B B3) — diffed by tools/render_diff.py keyed on (res, frame). Used by the parallax far-plane sink (game_parallax_blit).",
+   "fields": [
+    {
+     "name": "res",
+     "src": "renderid",
+     "key": "res",
+     "type": "i32"
+    },
+    {
+     "name": "frame",
+     "src": "renderid",
+     "key": "frame",
+     "type": "i32"
+    },
+    {
+     "name": "dx",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "dy",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "reqw",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32",
+     "_note": "+0xb8 metric_b8 = source width (blt_onto reqw == ow)"
+    },
+    {
+     "name": "reqh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32",
+     "_note": "+0xbc metric_bc = source height"
+    },
+    {
+     "name": "ow",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32"
+    },
+    {
+     "name": "oh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32"
+    },
+    {
+     "name": "ox",
+     "src": "thisderef",
+     "off": 12,
+     "type": "i32",
+     "_note": "+0x0c metric_0c placement origin x"
+    },
+    {
+     "name": "oy",
+     "src": "thisderef",
+     "off": 16,
+     "type": "i32",
+     "_note": "+0x10 metric_10 placement origin y"
+    },
+    {
+     "name": "st",
+     "src": "thisderef",
+     "off": 212,
+     "type": "hex",
+     "_note": "+0xd4 state_flag (0x8000 = KEYSRC armed)"
+    },
+    {
+     "name": "ckey",
+     "src": "thisderef",
+     "off": 40,
+     "type": "hex",
+     "_note": "+0x28 colorkey_out (bound DDCOLORKEY)"
+    }
+   ]
+  },
+  "0x5b9b70": {
+   "name": "blt_keyed",
+   "_note": "FUN_005b9b70 — positioned color-keyed Blt (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1]/[2] = dest x/y). dst origin = metric_0c/_10 + (x,y); w/h from metric_b8/_bc. Port mirror: zdd_object_blt_keyed + zdd_emit_blit(0x5b9b70). Used by the prologue keyed-fallback path.",
+   "fields": [
+    {
+     "name": "res",
+     "src": "renderid",
+     "key": "res",
+     "type": "i32"
+    },
+    {
+     "name": "frame",
+     "src": "renderid",
+     "key": "frame",
+     "type": "i32"
+    },
+    {
+     "name": "dx",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "dy",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "reqw",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32"
+    },
+    {
+     "name": "reqh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32"
+    },
+    {
+     "name": "ow",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32"
+    },
+    {
+     "name": "oh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32"
+    },
+    {
+     "name": "ox",
+     "src": "thisderef",
+     "off": 12,
+     "type": "i32"
+    },
+    {
+     "name": "oy",
+     "src": "thisderef",
+     "off": 16,
+     "type": "i32"
+    },
+    {
+     "name": "st",
+     "src": "thisderef",
+     "off": 212,
+     "type": "hex"
+    },
+    {
+     "name": "ckey",
+     "src": "thisderef",
+     "off": 40,
+     "type": "hex"
+    }
+   ]
+  },
+  "0x5b9ae0": {
+   "name": "blt_rects",
+   "_note": "FUN_005b9ae0 — Blt with explicit rects (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, dst_w, dst_h, src_x, src_y). Port mirror: zdd_object_blt_rects + zdd_emit_blit(0x5b9ae0). Used by the alpha orchestrator's scratch->dest leg.",
+   "fields": [
+    {
+     "name": "res",
+     "src": "renderid",
+     "key": "res",
+     "type": "i32"
+    },
+    {
+     "name": "frame",
+     "src": "renderid",
+     "key": "frame",
+     "type": "i32"
+    },
+    {
+     "name": "dx",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "dy",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "reqw",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "reqh",
+     "src": "arg",
+     "index": 4,
+     "type": "i32"
+    },
+    {
+     "name": "sx",
+     "src": "arg",
+     "index": 5,
+     "type": "i32"
+    },
+    {
+     "name": "sy",
+     "src": "arg",
+     "index": 6,
+     "type": "i32"
+    },
+    {
+     "name": "ow",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32"
+    },
+    {
+     "name": "oh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32"
+    },
+    {
+     "name": "ox",
+     "src": "thisderef",
+     "off": 12,
+     "type": "i32"
+    },
+    {
+     "name": "oy",
+     "src": "thisderef",
+     "off": 16,
+     "type": "i32"
+    },
+    {
+     "name": "st",
+     "src": "thisderef",
+     "off": 212,
+     "type": "hex"
+    },
+    {
+     "name": "ckey",
+     "src": "thisderef",
+     "off": 40,
+     "type": "hex"
+    }
+   ]
+  },
+  "0x5b9bf0": {
+   "name": "blt_clipped",
+   "_note": "FUN_005b9bf0 — clipped color-keyed Blt, THE backdrop-tile path (__thiscall: ECX = SOURCE cel, args[0] = dest, args[1..6] = dst_x, dst_y, width, height, src_x, src_y). The source rect is clipped against the cel's region metrics (+0x0c/+0x10 origin, +0x14/+0x18 extent); we emit the RAW inputs (clip math is a bit-exact port). Port mirror: zdd_object_blt_clipped + zdd_emit_blit(0x5b9bf0). map_present mode-3 -> game_present_blit -> this.",
+   "fields": [
+    {
+     "name": "res",
+     "src": "renderid",
+     "key": "res",
+     "type": "i32"
+    },
+    {
+     "name": "frame",
+     "src": "renderid",
+     "key": "frame",
+     "type": "i32"
+    },
+    {
+     "name": "dx",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "dy",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "reqw",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "reqh",
+     "src": "arg",
+     "index": 4,
+     "type": "i32"
+    },
+    {
+     "name": "sx",
+     "src": "arg",
+     "index": 5,
+     "type": "i32"
+    },
+    {
+     "name": "sy",
+     "src": "arg",
+     "index": 6,
+     "type": "i32"
+    },
+    {
+     "name": "ow",
+     "src": "thisderef",
+     "off": 184,
+     "type": "i32"
+    },
+    {
+     "name": "oh",
+     "src": "thisderef",
+     "off": 188,
+     "type": "i32"
+    },
+    {
+     "name": "ox",
+     "src": "thisderef",
+     "off": 12,
+     "type": "i32"
+    },
+    {
+     "name": "oy",
+     "src": "thisderef",
+     "off": 16,
+     "type": "i32"
+    },
+    {
+     "name": "st",
+     "src": "thisderef",
+     "off": 212,
+     "type": "hex"
+    },
+    {
+     "name": "ckey",
+     "src": "thisderef",
+     "off": 40,
+     "type": "hex"
+    }
+   ]
+  },
+  "0x4937c0": {
+   "name": "band_1060_render",
+   "_note": "FUN_004937c0 (647 B) — render/emit pass for the actor band DAT_008a9b50+0x1060 (0x40 slots), called per active slot (actor+0x1d0!=0) from the per-frame driver FUN_0048c150:60. __thiscall ECX=the per-slot actor (same layout as the main band: +0x1d4 code, +0x40->render-state). CENSUS hook to find which band emits the establishing-hold cast (banks 0x426/0x459/0x462/0x46a/0x46b/0x472/0x47b chars, 0x481 tree, 0x3fa details) — phase-1 of the in-game-intro 1:1 arc.",
+   "fields": [
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — behaviour/TYPE code (band-census key)."
+    },
+    {
+     "name": "active",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — active gate (caller only walks active slots)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — draw-pool layer index."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row: low u16=bank, high s16=frame_base."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16) selecting the +0x48 row."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — actor world X."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — actor world Y."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — anim clip ptr (0=static)."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    }
+   ]
+  },
+  "0x493480": {
+   "name": "band_13e0_render",
+   "_note": "FUN_00493480 (824 B) — render/emit pass for the actor band DAT_008a9b50+0x13e0 (0x400 slots; ckpt-78 DEVICE 80k range), from FUN_0048c150:68. ECX=per-slot actor. Has a special arm when +0x1d4==0x186ca (digit/number strip via +0x200 array); else FUN_0044d160 descriptor + FUN_004917b0 emit. CENSUS hook (see band_1060_render).",
+   "fields": [
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — behaviour/TYPE code (band-census key)."
+    },
+    {
+     "name": "active",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — active gate (caller only walks active slots)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — draw-pool layer index."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row: low u16=bank, high s16=frame_base."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16) selecting the +0x48 row."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — actor world X."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — actor world Y."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — anim clip ptr (0=static)."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    }
+   ]
+  },
+  "0x492fc0": {
+   "name": "band_23e0_render",
+   "_note": "FUN_00492fc0 (623 B) — render/emit pass for the actor band DAT_008a9b50+0x23e0 (0x80 slots), from FUN_0048c150:76. ECX=per-slot actor. CENSUS hook (see band_1060_render).",
+   "fields": [
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — behaviour/TYPE code (band-census key)."
+    },
+    {
+     "name": "active",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — active gate (caller only walks active slots)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — draw-pool layer index."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row: low u16=bank, high s16=frame_base."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16) selecting the +0x48 row."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — actor world X."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — actor world Y."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — anim clip ptr (0=static)."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    }
+   ]
+  },
+  "0x493230": {
+   "name": "band_2560_render",
+   "_note": "FUN_00493230 (584 B) — render/emit pass for the actor band DAT_008a9b50+0x2560 (0x80 slots; ckpt-78 STRUCTURE 60k range), from FUN_0048c150:84. ECX=per-slot actor. CENSUS hook (see band_1060_render).",
+   "fields": [
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — behaviour/TYPE code (band-census key)."
+    },
+    {
+     "name": "active",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — active gate (caller only walks active slots)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — draw-pool layer index."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row: low u16=bank, high s16=frame_base."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16) selecting the +0x48 row."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — actor world X."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — actor world Y."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — anim clip ptr (0=static)."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    }
+   ]
+  },
+  "0x493ba0": {
+   "name": "band_1160_char_render",
+   "_note": "FUN_00493ba0 (3014 B) — the multi-part CHARACTER renderer: render/emit for the band DAT_008a9b50+0x1160 (0x20 slots; ckpt-78 EFFECT 50k range) from FUN_0048c150:92, AND the per-party-member renderer called from FUN_004997b0 (the 8-slot party loop, FUN_0048c150:101-102). Distinguish the two callers by ret_va. ECX=per-slot character object (+0x1d4 code = in_ECX[0x75], +0x40->render-state = in_ECX[0x10]; param_1=sub-slot, 0 at both call sites). Core render = the already-ported FUN_0044d160 descriptor + FUN_00492670 emit (+ shadow/color-split via FUN_004917b0). CENSUS hook (see band_1060_render).",
+   "fields": [
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d4 — behaviour/TYPE code (band-census key)."
+    },
+    {
+     "name": "active",
+     "src": "thisderef",
+     "off": 464,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x1d0 — active gate (caller only walks active slots)."
+    },
+    {
+     "name": "layer_fc",
+     "src": "thisderef",
+     "off": 252,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xfc — draw-pool layer index."
+    },
+    {
+     "name": "row0_bf",
+     "src": "thisderef",
+     "off": 72,
+     "type": "hex",
+     "benign": true,
+     "reason": "actor+0x48 — dir-0 sprite row: low u16=bank, high s16=frame_base."
+    },
+    {
+     "name": "dir_e8",
+     "src": "thisderef",
+     "off": 232,
+     "type": "u32",
+     "benign": true,
+     "reason": "actor+0xe8 — facing/dir (low u16) selecting the +0x48 row."
+    },
+    {
+     "name": "rs_x",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x04 — actor world X."
+    },
+    {
+     "name": "rs_y",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x08 — actor world Y."
+    },
+    {
+     "name": "rs_clip",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 108,
+     "type": "hex",
+     "benign": true,
+     "reason": "primary render-state +0x6c — anim clip ptr (0=static)."
+    },
+    {
+     "name": "rs_frame",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 114,
+     "type": "u32",
+     "benign": true,
+     "reason": "primary render-state +0x72 — current frame index."
+    },
+    {
+     "name": "rs_dstx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x40 — dst base x added to desc off_x."
+    },
+    {
+     "name": "rs_dsty",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    }
+   ]
+  },
+  "0x492670": {
+   "name": "draw_pool_emit_actor",
+   "_note": "FUN_00492670 (118 B) — the actor draw-pool node emitter (mode bool(param_7!=0)). __thiscall ECX=view; args[0]=layer, args[1]=cel ptr, args[2]=world x, args[3]=world y, args[4]=off x, args[5]=off y, args[6]=alpha. cel_res = the emitted cel's resource_id (renderid index 1). Hooked to pin which band emits each establishing-hold cel (e.g. res 0x481 the tree). Port mirror = draw_pool_emit_actor.",
+   "fields": [
+    {
+     "name": "cel_res",
+     "src": "renderid",
+     "index": 1,
+     "key": "res",
+     "type": "i32",
+     "reason": "emitted cel resource_id",
+     "benign": true
+    },
+    {
+     "name": "cel_fr",
+     "src": "renderid",
+     "index": 1,
+     "key": "frame",
+     "type": "i32",
+     "reason": "emitted cel frame",
+     "benign": true
+    },
+    {
+     "name": "layer",
+     "src": "arg",
+     "index": 0,
+     "type": "i32",
+     "reason": "draw-pool layer (param_1)",
+     "benign": true
+    },
+    {
+     "name": "wx",
+     "src": "arg",
+     "index": 2,
+     "type": "i32",
+     "reason": "world x (param_3)",
+     "benign": true
+    },
+    {
+     "name": "wy",
+     "src": "arg",
+     "index": 3,
+     "type": "i32",
+     "reason": "world y (param_4)",
+     "benign": true
+    },
+    {
+     "name": "offx",
+     "src": "arg",
+     "index": 4,
+     "type": "i32",
+     "reason": "off x (param_5)",
+     "benign": true
+    },
+    {
+     "name": "offy",
+     "src": "arg",
+     "index": 5,
+     "type": "i32",
+     "reason": "off y (param_6)",
+     "benign": true
+    },
+    {
+     "name": "alpha",
+     "src": "arg",
+     "index": 6,
+     "type": "i32",
+     "reason": "alpha (param_7); 0 => mode-0 keyed",
+     "benign": true
+    }
+   ]
+  },
+  "0x4917b0": {
+   "name": "draw_pool_emit_layered",
+   "_note": "FUN_004917b0 (106 B) — the alternate draw-pool node emitter used by the multi-part char renderer (0x493ba0) + the device band (0x493480) for shadow/mirror/color-split layers. __thiscall ECX=view; args[0]=layer, args[1]=mode (node+0x18), args[2]=cel ptr, args[3]=x, args[4]=y, args[5]=off x, args[6]=off y, args[7]=alpha(node+0x14). cel_res = renderid index 2.",
+   "fields": [
+    {
+     "name": "cel_res",
+     "src": "renderid",
+     "index": 2,
+     "key": "res",
+     "type": "i32",
+     "reason": "emitted cel resource_id",
+     "benign": true
+    },
+    {
+     "name": "cel_fr",
+     "src": "renderid",
+     "index": 2,
+     "key": "frame",
+     "type": "i32",
+     "reason": "emitted cel frame",
+     "benign": true
+    },
+    {
+     "name": "layer",
+     "src": "arg",
+     "index": 0,
+     "type": "i32",
+     "reason": "draw-pool layer (param_1)",
+     "benign": true
+    },
+    {
+     "name": "mode",
+     "src": "arg",
+     "index": 1,
+     "type": "i32",
+     "reason": "node mode (param_2 -> node+0x18)",
+     "benign": true
+    },
+    {
+     "name": "wx",
+     "src": "arg",
+     "index": 3,
+     "type": "i32",
+     "reason": "world x (param_4)",
+     "benign": true
+    },
+    {
+     "name": "wy",
+     "src": "arg",
+     "index": 4,
+     "type": "i32",
+     "reason": "world y (param_5)",
+     "benign": true
+    }
+   ]
   }
+ }
 }

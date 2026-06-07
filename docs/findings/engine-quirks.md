@@ -2544,3 +2544,37 @@ find X's `FUN_00431d10(…,X,…)` call site and read the room-id `case` guardin
 do NOT infer scene membership from code adjacency or from `0x431e30` having an arm
 for it (every code in the game has an arm).  `findings/in-game-intro.md` "The
 caravan 'siblings' … are OUT-OF-SCENE".
+
+### #84 — the in-game scene's visible objects are FOUR map-object bands, each with its own per-frame renderer; STRUCTURE scenery is fully map-driven (pos = map×100, frame_base = map variant@+0x18) (2026-06-07, ckpt 83)
+
+The per-frame world driver `FUN_0048c150` (free-roam branch, `in_ECX[7]==0`) walks
+several actor-pool bands off `DAT_008a9b50`, each by a DEDICATED render/emit fn,
+then one present `FUN_0048eac0` flushes the shared 27-layer draw_pool.  For the
+opening town hold (cam 128000) the visible objects partition by the band's
+type-RANGE (the #79 spawn dispatch):
+
+| band | render fn | type range | role at the hold |
+|---|---|---|---|
+| `+0x11e0` | `0x491ae0` | 70000 CHARACTER | collision volumes (bank 0, invisible) + props (`0x16c`) + script wagon |
+| `+0x2560` | `0x493230` | 60000 STRUCTURE | the **TREE** (`0xec55`→bank `0x15f`/res `0x481`), bg decorations (`0xec6a`→`0x16c`), fg hedges (`0xec60`→`0x164`/res `0x426`, layer 15) |
+| `+0x1160` | `0x493ba0` | 50000 EFFECT | the **townsfolk** (multi-part chars; banks `0x8b`–`0x146`) |
+| `+0x13e0` | `0x493480` | (script) | animated bank-`0x1aa` particles (res `0x408`, alpha — not in the keyed set) |
+
+`0x493230` is a SINGLE-cel renderer (reads dir at `+0xe8`, sprite row at
+`+0x48+dir*0x14`, render-state pos `+0x04`/`+0x08`, clip `+0x6c`; emits one cel via
+`0x4917b0`).  `0x493ba0` is the multi-part character renderer (built on the ported
+`0x44d160` descriptor + `0x492670`/`0x4917b0` emits, with shadow/color-split
+layers).
+
+**STRUCTURE is a pure function of DATA-1022:** the live render-state world pos =
+the map record's `(x,y)`@+0x04/+0x08 ×100, and the sprite `frame_base` = the map
+record's **variant @ +0x18** — verified cel-for-cel (tree {0,1}, hedge {0,1,4,5},
+deco {16,18,20,21,24,26,28,32,33,35} all identical live-vs-map).  The code→bank
+map is the activator's per-type def table (the lazy `+0x48` fill, #80):
+`0xec55`→`0x15f`, `0xec60`→`0x164`, `0xec6a`→`0x16c`.  EFFECT townsfolk also map
+1:1 by code/count but carry a deterministic spawn offset (≈+3000 x) from the
+`0x41f200` activator.  Across the pre-pan hold the 16 standing townsfolk + 39
+structure objects are FIXED (only the anim frame steps, #76); only `0xe29a` ×4
+roam (RNG, refines #82 — the EFFECT band updates during the hold).  The "foreground
+tree" is thus a STRUCTURE map-object, not a banner/`0x5a00c0` overlay/tile.
+`findings/in-game-intro.md` "The establishing-hold cast is FOUR map-object bands".

@@ -2090,3 +2090,71 @@ exact producers + a visual:
 - Artifacts (local, `/tmp`, ephemeral): `/tmp/blit_banner_retail/call_trace.jsonl`,
   `/tmp/spawn_disc/` (+ the hold PNG, pushed to the feed).  Regenerate via the
   field-spec capture above.
+
+### The establishing-hold cast is FOUR map-object bands — the producer map (ckpt 83)
+
+Pinned every visible cel of the establishing hold to its producer, closing the
+ckpt-82 "pin the cast source next" open item.  The decisive tool was a
+field-spec **band census** (`retail_fields.json` got the 5 non-main band render
+entries `0x4937c0`/`0x493480`/`0x492fc0`/`0x493230`/`0x493ba0` + the two emit
+primitives `0x492670`/`0x4917b0` with `renderid` on the emitted cel).  The driver
+`FUN_0048c150` (free-roam branch, `in_ECX[7]==0`) runs **8 emit passes** over the
+bands off `DAT_008a9b50`, then one present `0x48eac0` flushes — so the cel↔producer
+tie lives at EMIT, not present (the 0x3c node carries cel+pos+mode only, no
+back-ref).  Hooking the emit primitives with the resolved `cel_res` is authoritative.
+
+**The 18 visible keyed cels @ the hold (cam 128000) decompose into 4 bands, all
+DATA-1022 map objects:**
+
+| band off 8a9b50 | render fn | type range | what (codes → bank → res) |
+|---|---|---|---|
+| `+0x11e0` CHARACTER | `0x491ae0` | 70000–79999 | mostly INVISIBLE collision volumes (bank 0) + 3 props (`0x1129e`/`0x1129f`/`0x112e5` bank `0x16c`→res `0x403`) + the script wagon `0x1872d` (bank `0x175`→`0x3ec`). **Already ported.** |
+| `+0x2560` STRUCTURE | `0x493230` | 60000–69999 | **the TREE** `0xec55` bank `0x15f`→res **`0x481`** (×2); **bg decorations** `0xec6a` bank `0x16c`→`0x403` (×29, layer 8); **fg hedges** `0xec60` bank `0x164`→**`0x426`** (×8; the 5 on-screen are **layer 15** = the bottom row). |
+| `+0x1160` EFFECT | `0x493ba0` | 50000–59999 | the **townsfolk** — 10 distinct standing NPCs `0xc3be`/`0xc3dd`/`0xc3e6`/`0xc3f2`/`0xc404`/`0xc422`/`0xc42c`/`0xc440`/`0xc441`/`0xc468` (1 each, banks `0x8b`–`0xf9`→res `0x459`/`0x462`/`0x46a`/`0x46b`/`0x472`/`0x47b`/…) + `0xe29a` ×4 (bank `0x146`→`0x426`/`0x3fa`) + `0xe2a5`. layer 12/13. |
+| `+0x13e0` | `0x493480` | (script `0x18704`/`0x18708`) | 41 animated bank `0x1aa`→res **`0x408`** at layer 6 (sky) + a layer-11 cluster around the square — **NOT in the keyed set** (blits via alpha/clipped, not `0x5b9b70`); ambient particles/effects, deferred. |
+
+The other bands (`+0x1060`/`+0x23e0`) are empty at the hold.  Backdrop tiles come
+from the tile walk `0x490f30` (via `0x4917b0`, res `0x403`/`0x408`/`0x428`/`0x432`/
+`0x433`/`0x436`/`0x437`/`0x8ba`).
+
+**Map-driven + deterministic (the key portability result).**  For STRUCTURE the
+census render-state matches the map record EXACTLY: **world pos = map (x,y)×100**,
+**`frame_base` = map `variant`@+0x18** (verified cel-for-cel: tree variant {0,1},
+hedge {0,1,4,5}, deco {16,18,20,21,24,26,28,32,33,35} — identical to the live
+`frame_base`).  So the tree + hedges + decorations are a pure function of DATA-1022.
+The EFFECT townsfolk also map 1:1 by code/count (`map_data --objects`: 13 EFFECT
+codes incl. `0xe29a`×4) but their render-state pos carries a deterministic spawn
+offset (≈ +3000 x) over the map pos — the `0x41f200` activator's placement (RE
+next).  A few census actors are NOT in the map (`0xc35a` ×2 — also drawn by the
+party renderer `0x4997b0`/`ret 0x4997f1` = a PARTY member; `0xc3dc`/`0xc3f0`) →
+**script/party-spawned**, like the wagon.
+
+**The hold is mostly STATIC + 4 wanderers.**  Across flips 1450/1500/1600 (all
+cam 128000, pre-pan) the 16 standing townsfolk + all 39 structure objects hold a
+FIXED world pos (only the anim `frame` advances — deterministic per quirk #76);
+only `0xe29a` ×4 translate (RNG wander, Phase 2).  This refines quirk #82: the
+scene-lock stops the +0x11e0 behaviour, but the +0x1160 EFFECT band has its own
+update that lets `0xe29a` roam during the hold.
+
+**Corrects the docs' model:** the visible cast is NOT the +0x11e0 "town actor"
+band (that's collision volumes + props); it is split across +0x1160 (townsfolk),
++0x2560 (tree/scenery), +0x11e0 (props), +0x13e0 (particles).  And the ckpt-82
+"foreground TREE" is the STRUCTURE object `0xec55` (res `0x481`) — NOT a banner,
+NOT the `0x5a00c0` overlay (both already refuted), and NOT a tile.
+
+**CAVEAT (a footgun I hit):** hand-computing the band VAs for the census analysis
+was wrong (off by 0x200) → the bands falsely read "0 active".  The emit-primitive
+hook (`cel_res` via `renderid`) was the cross-check that caught it.  Compute VAs in
+code, and trust the emit hook over a band-entry census.  engine-quirk #84.
+
+**Port plan (Phase 1, simplest-first):**
+1. **STRUCTURE band** (tree + hedges + bg deco) — fully map-driven, single-cel
+   (`0x493230` is a no-loop renderer), static.  Spawn the 39 structure objects
+   (pos=map×100, frame_base=variant, code→bank {`0xec55`:`0x15f`, `0xec60`:`0x164`,
+   `0xec6a`:`0x16c`}, layer per the `0x438a60` activator — RE next), render via a
+   port of `0x493230`, wire into `game_render`.  Lands the prominent TREE first.
+2. **EFFECT band** (townsfolk) — multi-part `0x493ba0` (built on the ported
+   `0x44d160`) + the `0x41f200` spawn (pos offset).  The 16 static land at a matched
+   sim-tick; the 4 `0xe29a` need Phase 2 (RNG).
+Artifacts: `/tmp/cast_census/`, `/tmp/tree_emit/` (ephemeral; regen via the
+field-spec capture at flips 1450/1500/1600).
