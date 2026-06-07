@@ -28,10 +28,17 @@
   flicks; the wagon is PARKED, not moving — "which is how it's supposed to be"; so `WAGON_CLIP`
   is an IDLE loop, not locomotion — quirk #82). **896 pass** (+3); ledger 199/194 unchanged
   (bare-VA slices). quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed to the RNG behaviour
-  + the cutscene roll-in. `findings/in-game-intro.md` "The horses TROT". **NEXT:** the scripted
-  caravan ROLL-IN + anchor-relative spawn (the `0x4d7d80` cutscene); the siblings
-  `0x1872e`/`0x1872f` (likely the characters — `0x539e80`/`0x5034b0`); byte-confirm via
-  `render_diff` keyed on res `0x3ec` vs a panned-camera retail capture.
+  + the cutscene roll-in. `findings/in-game-intro.md` "The horses TROT". **NEXT (corrected
+  ckpt 82):** the code-adjacent "siblings" `0x1872e`/`0x1872f`/`0x18730` are **OUT-OF-SCENE**
+  — `0x1872e`←`0x539e80` room 410240 (area 410), `0x1872f`←`0x5034b0` room 230110 (area 230),
+  `0x18730` = child of non-town char `0x11350`; the town script `0x4d7d80` spawns ONLY the
+  wagon. Code-adjacency ≠ same scene (quirk #83). So the town frame's remaining DETERMINISTIC
+  residual is the **foreground TREE + "Town of Tonkiness" BANNER** (`ingame-nontile-layers`,
+  the non-actor half of the 36-blit residual; the rest is the deferred RNG NPC wander). Next
+  chip = **pin the banner/tree producer empirically** from the blit-trace return addresses
+  (the methodical loop that pinned the letterbox to `0x48c150`; the `0x5a00c0` overlay is only
+  a hypothesis), then port. Also pending: byte-confirm the wagon via `render_diff` keyed on
+  `(res 0x3ec, frame)` vs a panned-camera retail capture.
 - **Prior (ckpt 80): the town intro `0x1872d` is PORTED + SPAWN-RE'd + WIRED + LIVE-VERIFIED —
   and it's the arrival WAGON, not "the protagonist" (corrects #79/#80).** Three parts: (1) **the
   render arm** — `actor_render_protagonist` ports `0x491ae0`'s case-`0x1872d` (a 3-cel composite;

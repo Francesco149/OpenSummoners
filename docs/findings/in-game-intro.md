@@ -2001,3 +2001,44 @@ caravan visibly ROLLS IN earlier in the intro (the cutscene's anchor-relative
 `0x431d10(…, anchor 0x65, x 0x3200, …)` arrival) is a separate `0x4d7d80` question,
 not observed at the settled hold.  Cross-check: `render_diff` vs a panned-camera
 retail capture keyed on `(res 0x3ec, frame)`.
+
+### The caravan "siblings" `0x1872e`/`0x1872f`/`0x18730` are OUT-OF-SCENE (ckpt 82)
+
+The ckpt-80/81 handoff floated the code-adjacent actors `0x1872e`/`0x1872f`/
+`0x18730` as the "same family … likely the CHARACTERS" and the next town chip.
+**Statically refuted — none is spawned in the town intro (area 210 / room
+210110 = `0x334be`).**  Code-adjacency of actor IDs does NOT imply same scene
+(engine-quirk #83):
+
+- **`0x1872e`** is spawned at `FUN_00539e80:2859` —
+  `FUN_00431d10(0x35a4e930,0x1872e,0x66,0xffffb1e0,0,0)` — inside
+  **`case 0x64280` (room 410240, area 410)**.  `0x539e80` is a per-room SCRIPT
+  handler (sibling of the wagon's `0x4d7d80`) dispatched every frame from the
+  story-FSM `FUN_0040c380` (gated on progress flag `0x5f76805 ∈ [1000,0xb55)`);
+  it `switch`es on the live room id `**(DAT_008a9b50+0x1038)` and its cases are
+  ALL area-410 rooms (`0x641fe`/`0x64212`/`0x6423a`/`0x64276`/`0x64280`).  None
+  is the town `0x334be`, so it is inert in the town.
+- **`0x1872f`** is spawned at `FUN_005034b0:964` —
+  `FUN_00431d10(0,0x1872f,2,0xc80,0xffffda80,0)` — inside **`case 0x382de`
+  (room 230110, area 230)**.  `0x5034b0`'s room cases are all area-230
+  (`0x382de`/`0x382ed`/`0x382f2`/`0x38306`).
+- **`0x18730`** is spawned as a CHILD of CHARACTER code **`0x11350`** (via
+  `FUN_00556ef0` from `0x431e30`'s `case 0x11350`, `:2192`).  `0x11350` is NOT
+  one of the town's 32 character map-objects (`map_data DATA-1022 --objects`:
+  `0x112e6`×10, `0x111d6`×7, `0x1129e`×3, `0x112e2`×2, `0x11365`×2, +
+  `0x112e5`/`0x11370`/`0x11366`/`0x11367`/`0x1136f`/`0x111f2`/`0x111d9`/`0x1129f`).
+  So its parent never spawns in the town either.
+
+Two further structural facts confirm it: (1) all four codes (100141-100144) are
+OUTSIDE the 70000-79999 CHARACTER range, so the map-object pass
+`0x58d460`→`actor_spawn_from_map` never makes any of them (same reason the wagon
+`0x1872d` is script-spawned, ckpt 80); (2) the town cutscene script
+`FUN_004d7d80` (cases `0x334be`…`0x33522`, all area 210) issues exactly ONE
+`FUN_00431d10` call — the wagon `0x1872d` in room `0x334be`.  This matches the
+ckpt-79 live census (33 active actors at the town hold = 32 map-objects + the
+wagon; no siblings).  **Conclusion:** the siblings belong to later story beats in
+other areas; they are not part of the town-intro parity arc and were dropped from
+the NEXT list.  The remaining DETERMINISTIC visible residual of the town frame is
+the **foreground tree + "Town of Tonkiness" banner** (`ingame-nontile-layers`,
+the non-actor half of the 36-blit residual — `ddraw-blit-trace.md` "The TOWN
+frame"); the rest of the 36 is the RNG-driven NPC wander (deferred, ckpt 73).

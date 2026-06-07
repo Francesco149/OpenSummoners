@@ -53,12 +53,30 @@ the first thing the per-sim-tick actor UPDATE pass drives in the port.
   already counted).  quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed (the
   trot half is done; the RNG behaviour + the cutscene roll-in remain).  Writeup:
   `findings/in-game-intro.md` "The horses TROT".
-- **NEXT:** (a) the scripted caravan **ROLL-IN** + anchor-relative spawn (the
-  `0x4d7d80` cutscene drives the arrival; `0x431d10(…, anchor 0x65, x 0x3200, …)`);
-  (b) the siblings `0x1872e`/`0x1872f` (likely the CHARACTERS — `0x539e80`/
-  `0x5034b0`); (c) byte-confirm via `render_diff` keyed on `(res 0x3ec, frame)` vs a
-  panned-camera retail capture; (d) the broader RNG-driven actor wander (the
-  scene-wide RNG-consumer census — the standing deferral).
+- **NEXT (corrected ckpt 82 — the "(b) siblings" lead was a DEAD END):** the
+  code-adjacent actors `0x1872e`/`0x1872f`/`0x18730` are **OUT-OF-SCENE** (statically
+  proven): `0x1872e`←`FUN_00539e80` `case 0x64280` = room 410240 (area 410);
+  `0x1872f`←`FUN_005034b0` `case 0x382de` = room 230110 (area 230); `0x18730` = child
+  of non-town CHARACTER `0x11350` (not in DATA-1022's 32 town char codes).  All four
+  codes (100141-100144) are outside the 70000 map-object range, and the town script
+  `FUN_004d7d80` (area-210 rooms `0x334be`…) spawns ONLY the wagon `0x1872d`.  So
+  code-adjacency ≠ same scene (engine-quirk #83); the siblings are later-area beats.
+  `findings/in-game-intro.md` "The caravan 'siblings' … are OUT-OF-SCENE".  The actual
+  remaining chips for the town-intro parity arc:
+  - (a) the town frame's remaining **DETERMINISTIC** visible residual = the
+    **foreground TREE + "Town of Tonkiness" BANNER** (`ingame-nontile-layers`, the
+    non-actor half of the ckpt-74 36-blit residual).  Next: **pin the producer
+    empirically** from a fresh retail blit-trace's per-blit return addresses (the loop
+    that pinned the letterbox to `0x48c150:124-162`) — the `0x5a00c0` GDI overlay
+    player (13.7 KB, called from the map-object arm `0x59f2c0`) is the HYPOTHESIS to
+    confirm/refute, NOT an established fact.  Then RE that slice + port + wire + verify.
+  - (b) byte-confirm the wagon via `render_diff` keyed on `(res 0x3ec, frame)` vs a
+    panned-camera (cam 12800) retail capture, aligned by `cam_x60` (ckpt-70b method).
+  - (c) the scripted caravan ROLL-IN (the `0x4d7d80` anchor-relative `0x431d10(…,
+    anchor 0x65, x 0x3200, …)` arrival) — only visible earlier in the cutscene, not at
+    the settled hold; lower priority (wagon is parked-correct).
+  - (d) the broader RNG-driven actor wander — the scene-wide RNG-consumer census
+    (standing deferral, ckpt 73).
 
 ## Where we are — ckpt 80
 

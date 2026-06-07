@@ -2514,3 +2514,33 @@ cadence); LIVE-VERIFIED on the port blit trace — at the settled camera the wag
 body cel (res `0x3ec`) steps 2→3→4→5→2 every 36 Flips (18 sim-ticks) while the two
 fixed wagon cels stay frames 0/1.  Writeup: `findings/in-game-intro.md` "The horses
 TROT — the per-tick anim wired".
+
+### #83 — actor-CODE adjacency does NOT imply same-scene; the per-room SCRIPT handlers are area-gated on the live room id (2026-06-07, ckpt 82)
+
+The town intro's scripted wagon is code `0x1872d` (100141).  The code-adjacent
+`0x1872e`/`0x1872f`/`0x18730` (100142-100144) look like a "family" and `0x431e30`
+has explicit activator arms for all four — but they are **spawned by DIFFERENT
+scripts in DIFFERENT areas**, never in the town:
+
+- The narrative scene SCRIPTS are a long sequential family
+  (`0x4d7d80`/`0x5034b0`/`0x539e80`/… — dozens), each called every frame from the
+  story-FSM `FUN_0040c380` (gated on the story-progress flag `FUN_0041e2f0(0x5f76805)`
+  in `[1000, 0xb55)`).  A handler is a `switch` on the **live room id**
+  `**(DAT_008a9b50+0x1038)` and does nothing unless the current room matches one of
+  ITS cases — so a handler is inert in every room it doesn't own.
+- The high digits of a room id ARE its area: town = area 210, room `0x334be`
+  (210110).  `FUN_00539e80` owns area-410 rooms (`0x641fe`/…/`0x64280`) and spawns
+  `0x1872e` in `0x64280` (410240); `FUN_005034b0` owns area-230 rooms
+  (`0x382de`/…) and spawns `0x1872f` in `0x382de` (230110); `0x18730` is a child of
+  CHARACTER `0x11350`, which is not one of the town's 32 map-object char codes.
+- Cross-check on the spawn paths: all four codes are OUTSIDE the 70000-79999
+  CHARACTER range, so the map-object layer pass `0x58d460`→`0x431e30` (which only
+  walks 70000-range objects, #79) never makes any of them — they reach `0x431e30`
+  ONLY via a script's `FUN_00431d10(code, …)` call.  The town script `0x4d7d80`
+  (area-210 rooms) issues exactly one such call: the wagon `0x1872d`.
+
+**Lesson for the RE loop:** to decide whether actor code X belongs to scene S,
+find X's `FUN_00431d10(…,X,…)` call site and read the room-id `case` guarding it —
+do NOT infer scene membership from code adjacency or from `0x431e30` having an arm
+for it (every code in the game has an arm).  `findings/in-game-intro.md` "The
+caravan 'siblings' … are OUT-OF-SCENE".
