@@ -138,7 +138,7 @@ int test_map_present_walk_order_and_geometry(void)
 
     rec r = { 0 };
     int deferred = -1;
-    int presented = map_present(&p, &c, rec_blit, &r, &deferred);
+    int presented = map_present(&p, &c, rec_blit, &r, NULL, NULL, &deferred);
 
     T_ASSERT_EQ_I(presented, 3);
     T_ASSERT_EQ_I(deferred, 0);
@@ -178,7 +178,7 @@ int test_map_present_walk_alpha_kind(void)
     emit_tile(&p, 3, 0x2222, 0, 0, 1, 0, 0);        /* param8 = 1 -> ALPHA   */
 
     rec r = { 0 };
-    int presented = map_present(&p, &c, rec_blit, &r, NULL);
+    int presented = map_present(&p, &c, rec_blit, &r, NULL, NULL, NULL);
     T_ASSERT_EQ_I(presented, 2);
     T_ASSERT_EQ_I(r.ops[0].kind, PRESENT_CLIPPED);
     T_ASSERT_EQ_I(r.ops[1].kind, PRESENT_ALPHA);
@@ -200,7 +200,7 @@ int test_map_present_walk_culls_offscreen(void)
     emit_tile(&p, 1, 0xDEAD, 5000 * 100, 100 * 100, 0, 0, 0);  /* x=5000 > 640 */
 
     rec r = { 0 };
-    int presented = map_present(&p, &c, rec_blit, &r, NULL);
+    int presented = map_present(&p, &c, rec_blit, &r, NULL, NULL, NULL);
     /* Only the on-screen node is presented; the culled one calls no sink. */
     T_ASSERT_EQ_I(presented, 1);
     T_ASSERT_EQ_I(r.n, 1);
@@ -224,12 +224,97 @@ int test_map_present_walk_defers_other_modes(void)
 
     rec r = { 0 };
     int deferred = -1;
-    int presented = map_present(&p, &c, rec_blit, &r, &deferred);
+    int presented = map_present(&p, &c, rec_blit, &r, NULL, NULL, &deferred);
     T_ASSERT_EQ_I(presented, 1);     /* only the mode-3 node */
     T_ASSERT_EQ_I(deferred, 3);      /* the three other modes, counted */
     T_ASSERT_EQ_I(r.n, 1);
     T_ASSERT_EQ_U(r.ops[0].sprite, 0x13);
 
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* ---- mode 0 (the opaque ACTOR keyed path, FUN_00492670 emits) ------------ */
+
+/* A cel-dims callback: every cel is 0x20 x 0x18 px (the cull box retail reads
+ * from cel +0x1c/+0x20). */
+static void dims_2018(uint32_t cel, int32_t *w, int32_t *h, void *ud)
+{
+    (void)cel; (void)ud;
+    *w = 0x20;
+    *h = 0x18;
+}
+
+/* A mode-0 actor node projects like a tile but blits KEYED (whole sprite, no
+ * src rect), and its cull box comes from the cel dims callback. */
+int test_map_present_walk_mode0_keyed(void)
+{
+    draw_pool p;
+    T_ASSERT_EQ_I(draw_pool_init(&p), 0);
+    mr_camera c = cam_zero();
+
+    /* world (150,80) px, placement off (+5,+7), opaque (alpha 0 -> mode 0). */
+    draw_node *n = draw_pool_emit_actor(&p, 9, 0xACE, 150 * 100, 80 * 100, 5, 7, 0);
+    T_ASSERT(n != NULL);
+    T_ASSERT_EQ_U(n->mode, 0);
+
+    rec r = { 0 };
+    int deferred = -1;
+    int presented = map_present(&p, &c, rec_blit, &r, dims_2018, NULL, &deferred);
+
+    T_ASSERT_EQ_I(presented, 1);
+    T_ASSERT_EQ_I(deferred, 0);
+    T_ASSERT_EQ_I(r.n, 1);
+    T_ASSERT_EQ_I(r.ops[0].kind, PRESENT_KEYED);
+    T_ASSERT_EQ_U(r.ops[0].layer, 9);
+    T_ASSERT_EQ_U(r.ops[0].sprite, 0xACE);
+    /* sx = 150 - 0 + 5 = 155 ; sy = 80 - 0 + 7 = 87 */
+    T_ASSERT_EQ_I(r.ops[0].dst_x, 155);
+    T_ASSERT_EQ_I(r.ops[0].dst_y, 87);
+    /* keyed blit draws the whole cel: no src rect; w/h carry the cull dims. */
+    T_ASSERT_EQ_I(r.ops[0].src_x, 0);
+    T_ASSERT_EQ_I(r.ops[0].w, 0x20);
+    T_ASSERT_EQ_I(r.ops[0].h, 0x18);
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* Mode 0 culls using the CEL's dims (not the node's): a node whose right edge
+ * is off the left of screen (cel_w + sx < 0) is not presented. */
+int test_map_present_walk_mode0_cull(void)
+{
+    draw_pool p;
+    T_ASSERT_EQ_I(draw_pool_init(&p), 0);
+    mr_camera c = cam_zero();
+
+    /* sx = -40, cel_w 0x20 (32): 32 + -40 = -8 < 0 -> culled. */
+    draw_pool_emit_actor(&p, 9, 0xACE, -40 * 100, 80 * 100, 0, 0, 0);
+    /* sx = -32, cel_w 32: 0 >= 0 -> visible (boundary inclusive). */
+    draw_pool_emit_actor(&p, 9, 0xBEE, -32 * 100, 80 * 100, 0, 0, 0);
+
+    rec r = { 0 };
+    int presented = map_present(&p, &c, rec_blit, &r, dims_2018, NULL, NULL);
+    T_ASSERT_EQ_I(presented, 1);
+    T_ASSERT_EQ_U(r.ops[0].sprite, 0xBEE);
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* With NO dims callback, a mode-0 node is DEFERRED (counted), never presented
+ * — the tile-only caller contract (town_render_step today). */
+int test_map_present_walk_mode0_deferred_without_dims(void)
+{
+    draw_pool p;
+    T_ASSERT_EQ_I(draw_pool_init(&p), 0);
+    mr_camera c = cam_zero();
+    draw_pool_emit_actor(&p, 9, 0xACE, 0, 0, 0, 0, 0);
+
+    rec r = { 0 };
+    int deferred = -1;
+    int presented = map_present(&p, &c, rec_blit, &r, NULL, NULL, &deferred);
+    T_ASSERT_EQ_I(presented, 0);
+    T_ASSERT_EQ_I(deferred, 1);
+    T_ASSERT_EQ_I(r.n, 0);
     draw_pool_free(&p);
     return 0;
 }
@@ -242,7 +327,7 @@ int test_map_present_walk_dry_count(void)
     emit_tile(&p, 6, 0x1, 0, 0, 0, 0, 0);
     emit_tile(&p, 6, 0x2, 0, 0, 0, 0, 0);
     /* NULL sink + NULL out_deferred: a pure count, no crash. */
-    int presented = map_present(&p, &c, NULL, NULL, NULL);
+    int presented = map_present(&p, &c, NULL, NULL, NULL, NULL, NULL);
     T_ASSERT_EQ_I(presented, 2);
     draw_pool_free(&p);
     return 0;

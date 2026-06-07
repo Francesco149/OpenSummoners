@@ -110,4 +110,25 @@ draw_node *draw_pool_emit(draw_pool *p, uint32_t layer_key, uint32_t mode,
                           uint32_t sprite, int32_t dst_x, int32_t dst_y,
                           uint32_t p6, uint32_t p7, uint32_t p8);
 
+/*
+ * Port of FUN_00492670 — the ACTOR analog of draw_pool_emit (FUN_004917b0).
+ * The town's actor renderer (0x491ae0 / FUN_0044d160) emits sprite nodes
+ * through this rather than 0x4917b0.  It writes the SAME 0x3c-byte node, but
+ * with two retail-specific twists pinned from 492670.c:
+ *   - the node MODE is derived: `mode = (alpha != 0)` — so an opaque actor
+ *     (alpha 0) lands as a mode-0 keyed blit and a translucent one as mode-1
+ *     alpha (the present-pass actor modes, map_present.c).
+ *   - `alpha` is stored in the param8 slot (node +0x14); param6/param7 carry
+ *     the per-frame placement offset (off_x/off_y), and dst_x/dst_y carry the
+ *     actor's WORLD position (the projector subtracts the camera at present).
+ *   - a NULL cel (`param_2 == 0`) emits NOTHING (492670.c:12 `if (param_2 != 0)`).
+ *
+ * Argument order mirrors the retail call FUN_00492670(layer, cel, world_x,
+ * world_y, off_x, off_y, alpha).  Returns the node, or NULL on a NULL cel /
+ * full or out-of-range layer (same as draw_pool_emit).
+ */
+draw_node *draw_pool_emit_actor(draw_pool *p, uint32_t layer_key, uint32_t cel,
+                                int32_t world_x, int32_t world_y,
+                                int32_t off_x, int32_t off_y, uint32_t alpha);
+
 #endif /* OSS_DRAW_POOL_H */

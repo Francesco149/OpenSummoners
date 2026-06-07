@@ -35,7 +35,8 @@ int map_present_project(const mr_camera *cam,
 }
 
 int map_present(const draw_pool *pool, const mr_camera *cam,
-                present_blit_fn blit, void *ud, int *out_deferred)
+                present_blit_fn blit, void *ud,
+                present_dims_fn dims, void *dims_ud, int *out_deferred)
 {
     int presented = 0;
     int deferred  = 0;
@@ -52,6 +53,43 @@ int map_present(const draw_pool *pool, const mr_camera *cam,
             const draw_node *n = &layer->nodes[ni];
 
             switch (n->mode) {
+            case 0: {
+                /* The opaque ACTOR/sprite path (FUN_0048eac0 case 0).  Same
+                 * projection as mode 3 but the cull box is the CEL's pixel size
+                 * (retail reads cel +0x1c/+0x20); offx/offy are node
+                 * param6/param7 and the world pos is node dst_x/dst_y.  Without
+                 * a dims callback we can't form the cull box, so defer. */
+                if (!dims) { deferred++; break; }
+
+                int32_t cw = 0, ch = 0;
+                dims(n->sprite, &cw, &ch, dims_ud);
+
+                int32_t dx, dy;
+                if (!map_present_project(cam, n->dst_x, n->dst_y,
+                                         (int32_t)n->param6, (int32_t)n->param7,
+                                         cw, ch, &dx, &dy))
+                    break;   /* culled — retail blits nothing */
+
+                if (blit) {
+                    present_op op;
+                    /* Mode 0 -> FUN_005b9b70 (whole-sprite color-keyed blit at
+                     * the projected pos; the keyed primitive uses the cel's own
+                     * metric_b8/bc, so no src rect is carried). */
+                    op.kind   = PRESENT_KEYED;
+                    op.layer  = li;
+                    op.sprite = n->sprite;
+                    op.dst_x  = dx;
+                    op.dst_y  = dy;
+                    op.src_x  = 0;
+                    op.src_y  = 0;
+                    op.w      = cw;
+                    op.h      = ch;
+                    op.node   = n;
+                    blit(&op, ud);
+                }
+                presented++;
+                break;
+            }
             case 3: {
                 /* The static-backdrop TILE path map_render_walk emits.
                  * Project with the node's placement adjust (+0x0c/+0x10) and
@@ -82,9 +120,10 @@ int map_present(const draw_pool *pool, const mr_camera *cam,
                 break;
             }
             default:
-                /* Modes 0/1/2 — the actor/sprite/scaled draws.  No ported
-                 * producer emits them yet and their geometry reads engine
-                 * sprite internals; visit them (faithful order) but defer.
+                /* Modes 1 (alpha) / 2 (scaled) — the translucent/scaled draws.
+                 * Their geometry reads paint_ctx/palette internals beyond the
+                 * cull (sprite +0xc..+0x28, the DAT_008a9274 table); visit them
+                 * in faithful order but defer.  (Mode 0 is handled above.)
                  * PORT-DEBT(present-actor-modes, docs/port-debt.md). */
                 deferred++;
                 break;

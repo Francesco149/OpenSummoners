@@ -103,3 +103,19 @@ draw_node *draw_pool_emit(draw_pool *p, uint32_t layer_key, uint32_t mode,
     n->mode   = mode;     /* puVar2[6] = param_2 */
     return n;
 }
+
+draw_node *draw_pool_emit_actor(draw_pool *p, uint32_t layer_key, uint32_t cel,
+                                int32_t world_x, int32_t world_y,
+                                int32_t off_x, int32_t off_y, uint32_t alpha)
+{
+    /* FUN_00492670:12 — `if (param_2 != 0)`: a NULL cel emits nothing. */
+    if (cel == 0)
+        return NULL;
+
+    /* The node bytes 492670 stores, expressed through draw_pool_emit:
+     *   node[0]=cel  [1]=world_x  [2]=world_y  [3]=off_x  [4]=off_y
+     *   node[5]=alpha (param8)    node[6]=mode = (alpha != 0). */
+    return draw_pool_emit(p, layer_key, (alpha != 0u) ? 1u : 0u,
+                          cel, world_x, world_y,
+                          (uint32_t)off_x, (uint32_t)off_y, alpha);
+}

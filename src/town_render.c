@@ -74,7 +74,11 @@ int town_render_step(town_render *tr, const mr_camera *cam,
     map_render_walk(tr->grid, cam,
                     (int32_t)tr->map.dim0, (int32_t)tr->map.dim1,
                     &tr->pool, resolve, resolve_ctx);
-    return map_present(&tr->pool, cam, blit, blit_ctx, out_deferred);
+    /* Tile-only here: town_render_step emits no actor nodes (the actor band
+     * walk runs in game_render between this and the present once the spawn
+     * lands), so no cel-dims callback is needed — any mode-0/1/2 node visited
+     * is deferred + counted via out_deferred. */
+    return map_present(&tr->pool, cam, blit, blit_ctx, NULL, NULL, out_deferred);
 }
 
 void town_render_free(town_render *tr)

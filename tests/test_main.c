@@ -850,6 +850,9 @@ struct test_case {
     X(draw_pool_emit_overflow)                                 \
     X(draw_pool_layer0_always_full)                            \
     X(draw_pool_reset)                                         \
+    X(draw_pool_emit_actor_opaque)                             \
+    X(draw_pool_emit_actor_alpha)                              \
+    X(draw_pool_emit_actor_null_cel)                           \
     X(map_present_project_basic)                               \
     X(map_present_project_camera_and_offset)                   \
     X(map_present_project_cull_left)                           \
@@ -858,6 +861,9 @@ struct test_case {
     X(map_present_walk_alpha_kind)                             \
     X(map_present_walk_culls_offscreen)                        \
     X(map_present_walk_defers_other_modes)                     \
+    X(map_present_walk_mode0_keyed)                            \
+    X(map_present_walk_mode0_cull)                             \
+    X(map_present_walk_mode0_deferred_without_dims)            \
     X(map_present_walk_dry_count)                              \
     X(parallax_select_town)                                    \
     X(parallax_select_param3_normalize)                        \
@@ -896,6 +902,18 @@ struct test_case {
     X(letterbox_zero_bars)                                     \
     X(letterbox_null_sink)                                     \
     X(letterbox_round_up)                                      \
+    X(actor_describe_static)                                   \
+    X(actor_describe_skips)                                    \
+    X(actor_describe_mirrored)                                 \
+    X(actor_describe_animated)                                 \
+    X(actor_describe_clip_terminator)                          \
+    X(actor_describe_clip_link_overrides_dir)                  \
+    X(actor_describe_flag_abs)                                 \
+    X(actor_describe_angle)                                    \
+    X(actor_static_emits_node)                                 \
+    X(actor_static_skip_flag)                                  \
+    X(actor_static_layer_override)                             \
+    X(actor_static_describe_fail)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

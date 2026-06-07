@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **197** (12.3% of engine-proper) — tested 192, ported 5
-- code bytes touched: **13.5%** (228,593 / 1,694,868 B of engine-proper)
-- unported: **1561**
+- touched: **199** (12.5% of engine-proper) — tested 194, ported 5
+- code bytes touched: **13.5%** (229,090 / 1,694,868 B of engine-proper)
+- unported: **1559**
 - orphan refs in src/ not in this table: 4
 
-## tested (192) — ported + host unit suite
+## tested (194) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -43,7 +43,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x417c40 | FUN_00417c40 | 1625 | color_grade.c, color_grade.h, main.c |
+| 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, color_grade.c, color_grade.h (+1) |
 | 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
 | 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h |
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
@@ -57,6 +57,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
 | 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
+| 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, draw_pool.h |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
 | 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |
 | 0x48d3d0 | FUN_0048d3d0 | 664 | newgame_box.c |
@@ -71,6 +72,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
+| 0x492670 | FUN_00492670 | 118 | actor_render.h, draw_pool.c, draw_pool.h (+1) |
 | 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
@@ -190,7 +192,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |
-| 0x5b9b70 | FUN_005b9b70 | 122 | main.c, map_present.h, newgame_cursor.h (+2) |
+| 0x5b9b70 | FUN_005b9b70 | 122 | main.c, map_present.c, map_present.h (+3) |
 | 0x5b9bf0 | FUN_005b9bf0 | 256 | main.c, map_present.c, map_present.h (+3) |
 | 0x5ba290 | FUN_005ba290 | 30 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5bad20 | FUN_005bad20 | 26 | wnd_proc.h |

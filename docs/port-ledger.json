@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 192,
+  "tested": 194,
   "ported": 5,
-  "unported": 1561,
+  "unported": 1559,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 197,
-  "pct_touched": 12.3,
-  "pct_tested": 12.3,
-  "engine_proper_touched": 184,
+  "touched": 199,
+  "pct_touched": 12.5,
+  "pct_tested": 12.5,
+  "engine_proper_touched": 186,
   "bytes_total": 1694868,
-  "bytes_touched": 228593,
+  "bytes_touched": 229090,
   "pct_bytes_touched": 13.5
  },
  "orphan_refs": [
@@ -1527,6 +1527,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/actor_render.h",
     "src/color_grade.c",
     "src/color_grade.h",
     "src/main.c"
@@ -3657,8 +3658,12 @@
    "name": "FUN_0044d160",
    "size": 379,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/actor_render.c",
+    "src/actor_render.h",
+    "src/draw_pool.h"
+   ]
   },
   {
    "va": "0x44d2e0",
@@ -5714,8 +5719,13 @@
    "name": "FUN_00492670",
    "size": 118,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/actor_render.h",
+    "src/draw_pool.c",
+    "src/draw_pool.h",
+    "src/map_present.h"
+   ]
   },
   {
    "va": "0x4926f0",
@@ -11808,6 +11818,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/map_present.c",
     "src/map_present.h",
     "src/newgame_cursor.h",
     "src/zdd.c",

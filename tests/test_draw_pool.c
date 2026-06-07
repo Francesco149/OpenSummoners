@@ -135,6 +135,56 @@ int test_draw_pool_layer0_always_full(void)
     return 0;
 }
 
+/* draw_pool_emit_actor (FUN_00492670): the node bytes match the retail stores,
+ * and the MODE is derived as bool(alpha != 0) — opaque actor -> mode 0, alpha
+ * actor -> mode 1.  off_x/off_y land in param6/param7; alpha in param8. */
+int test_draw_pool_emit_actor_opaque(void)
+{
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+
+    /* layer 9, opaque (alpha 0): cel/world/off exactly placed, mode 0. */
+    draw_node *n = draw_pool_emit_actor(&p, 9, 0xCE1, 0x4444, 0x8888,
+                                        -0x10, 0x20, 0);
+    T_ASSERT(n != NULL);
+    T_ASSERT_EQ_U(n->sprite, 0xCE1);     /* node[0] = cel        */
+    T_ASSERT_EQ_I(n->dst_x, 0x4444);     /* node[1] = world_x    */
+    T_ASSERT_EQ_I(n->dst_y, 0x8888);     /* node[2] = world_y    */
+    T_ASSERT_EQ_I((int32_t)n->param6, -0x10);  /* node[3] = off_x */
+    T_ASSERT_EQ_I((int32_t)n->param7, 0x20);   /* node[4] = off_y */
+    T_ASSERT_EQ_U(n->param8, 0);         /* node[5] = alpha      */
+    T_ASSERT_EQ_U(n->mode, 0);           /* node[6] = bool(alpha)=0 -> keyed */
+    T_ASSERT_EQ_U(p.layers[9].count, 1);
+    draw_pool_free(&p);
+    return 0;
+}
+
+int test_draw_pool_emit_actor_alpha(void)
+{
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+
+    /* Non-zero alpha -> mode 1 (the present alpha path), alpha kept in param8. */
+    draw_node *n = draw_pool_emit_actor(&p, 10, 0xBEEF, 1, 2, 3, 4, 0x80);
+    T_ASSERT(n != NULL);
+    T_ASSERT_EQ_U(n->mode, 1);
+    T_ASSERT_EQ_U(n->param8, 0x80);
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* A NULL cel emits nothing (492670.c:12 `if (param_2 != 0)`) — the count stays
+ * put and the call returns NULL. */
+int test_draw_pool_emit_actor_null_cel(void)
+{
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+    T_ASSERT(draw_pool_emit_actor(&p, 9, 0, 1, 2, 3, 4, 0) == NULL);
+    T_ASSERT_EQ_U(p.layers[9].count, 0);
+    draw_pool_free(&p);
+    return 0;
+}
+
 /* draw_pool_reset zeroes counts but keeps the arrays — the per-frame begin. */
 int test_draw_pool_reset(void)
 {

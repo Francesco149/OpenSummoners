@@ -89,6 +89,17 @@ typedef struct present_op {
 typedef void (*present_blit_fn)(const present_op *op, void *ud);
 
 /*
+ * Resolve a cel handle (node +0x00) to its pixel width/height for the MODE-0/1
+ * cull box — retail reads the cel object's +0x1c/+0x20 (FUN_0048eac0 case 0:
+ * `*piVar1 + 0x1c` / `+ 0x20`; case 1 hands them to FUN_00490b90).  Keeping the
+ * cel layout (a zdd_object) behind this callback keeps map_present pure (the
+ * mr_sprite_fn pattern).  May be NULL: then modes 0/1 are DEFERRED (counted in
+ * out_deferred), preserving the tile-only behaviour for callers that emit no
+ * actor nodes.
+ */
+typedef void (*present_dims_fn)(uint32_t cel, int32_t *w, int32_t *h, void *ud);
+
+/*
  * Port of FUN_00490b90 — project a world position to screen space and cull.
  *
  *   *sx = world_x/100 - (cam->off60 + cam->off34)/100 + offx
@@ -110,21 +121,32 @@ int map_present_project(const mr_camera *cam,
 
 /*
  * Port of FUN_0048eac0 — walk the draw pool's 27 layers in order and, for each
- * node, dispatch on its mode.  MODE 3 (the static-backdrop tile path) is fully
- * implemented: project the node (offx/offy = node `+0x0c/+0x10`, cull box =
- * node w/h), and on a visible node call `blit` with kind CLIPPED (node `+0x14`
- * == 0) or ALPHA (`+0x14` != 0).  Returns the number of nodes handed to the
- * sink (visible mode-3 nodes).
+ * node, dispatch on its mode.
  *
- * Modes 0/1/2 are VISITED in order but DEFERRED (no ported producer emits them;
- * their geometry needs engine sprite internals — see the header banner).  If
- * `out_deferred` is non-NULL it receives the count of such nodes skipped, so
- * they are never silently dropped.
+ * MODE 3 (the static-backdrop tile path) — project the node (offx/offy = node
+ * `+0x0c/+0x10`, cull box = node w/h), and on a visible node call `blit` with
+ * kind CLIPPED (node `+0x14` == 0) or ALPHA (`+0x14` != 0).
  *
- * `blit` may be NULL (a dry walk that only counts).  Layers with no node array
- * (cap 0, e.g. layer 0) are skipped naturally (count is always 0).
+ * MODE 0 (the opaque ACTOR/sprite path, FUN_00492670 emits) — project the node
+ * with the same transform (world = node dst_x/dst_y, offx/offy = node
+ * param6/param7) but the cull box comes from the CEL via `dims` (retail reads
+ * cel +0x1c/+0x20).  A visible node is handed to `blit` with kind KEYED
+ * (FUN_005b9b70 = a whole-sprite color-keyed blit at the projected screen pos;
+ * no source rect — the keyed primitive uses the cel's own metric_b8/bc).  If
+ * `dims` is NULL, mode-0 nodes are deferred instead (tile-only callers).
+ *
+ * MODES 1/2 are VISITED but DEFERRED — mode 1 (alpha) and mode 2 (scaled) read
+ * paint_ctx/palette internals beyond the cull (PORT-DEBT present-actor-modes).
+ *
+ * Returns the number of nodes handed to the sink (visible mode-3 + mode-0
+ * nodes).  If `out_deferred` is non-NULL it receives the count of deferred
+ * nodes (modes 1/2, plus mode 0 when `dims` is NULL), so none are silently
+ * dropped.  `blit` may be NULL (a dry walk that only counts); `dims` may be
+ * NULL (no actor culling).  Layers with no node array (cap 0, e.g. layer 0) are
+ * skipped naturally (count is always 0).
  */
 int map_present(const draw_pool *pool, const mr_camera *cam,
-                present_blit_fn blit, void *ud, int *out_deferred);
+                present_blit_fn blit, void *ud,
+                present_dims_fn dims, void *dims_ud, int *out_deferred);
 
 #endif /* OSS_MAP_PRESENT_H */
