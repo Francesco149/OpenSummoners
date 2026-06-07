@@ -1,10 +1,54 @@
-# Session handoff — rolling current state (last updated ckpt 79, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 80, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 80
+
+**The town intro `0x1872d` is PORTED + SPAWN-RE'd + WIRED + USER-CONFIRMED — and
+it's the arrival HORSE-DRAWN CARAVAN, not "the protagonist" (corrects #79/#80).**
+
+- **Render arm (commit `af31c69`):** `actor_render_protagonist` = `0x491ae0`'s
+  case-`0x1872d` (`0x491ae0:112-192`).  KEY: part 2 (the body) is byte-identical
+  to `FUN_0044d160`/`actor_render_describe` (same clip/mirror/angle/link build +
+  all three early-return gates); the arm just wraps it with TWO fixed bank-`0x175`
+  cels (frame 0 @ x-256, frame 1 @ x-128) → a 3-cel composite at a 128-px pitch.
+  Refactored `actor_emit_part`/`actor_emit_layer` out of `actor_render_static`.
+- **Spawn, fully RE'd (commit `08fd0be`):** `0x1872d` is NOT a map object (code
+  outside 70000), so `actor_spawn_from_map` never makes it.  Chain: the town intro
+  cutscene **`FUN_004d7d80`** (`case 0x334be` = room 210110 / area `0xd2`, gated on
+  event flags `0x5f76805`/`0x606aa4f`) → **`FUN_00431d10(0, 0x1872d, anchor=0x65,
+  x=0x3200, 0, 0)`** (the by-code `+0x11e0` spawn helper: free-slot scan +
+  anchor-relative placement) → **`0x431e30` case-`0x1872d`** which sets layer 9,
+  facing `+0x2c`=99, resolves the pos (`0x41ee60`), installs the clip
+  (`+0x6c = &DAT_00671c48`), and installs the sprite via **`FUN_00426db0(0, 0x175,
+  0, 1, 0, 0, 0)`** — the long-missing `+0x48` FILL PRIMITIVE (`426db0(dir, bank,
+  frame_base, b, x_off, mirror_x, y_off)` writes one `actor_sprite_row`; RETIRES
+  the ckpt-79 "lazy fill not RE'd" unknown).  `actor_spawn_protagonist` ports the
+  end state; `main.c game_actor_walk` dispatches code `0x1872d` →
+  `actor_render_protagonist`, else `actor_render_static`.
+- **The HORSES fix.**  First render froze the body on frame_base 0 → its rightmost
+  cel redrew the wagon-left cel ("the right wagon is cut in half" — USER).  The
+  body is the **animated HORSES**.  Decoded the clip `&DAT_00671c48` from the
+  user's `sotes.exe` `.rdata` (file off `0x271c48`): base_sprite 2, 4 frames, dur
+  18, looping, delta {0,1,2,3} → body cels 2..5 = the horses.  Pointed the
+  render-state at a reconstructed `WAGON_CLIP` (the 4 RE'd values) → the body draws
+  sprite 2 = the horses.  **USER-CONFIRMED on the feed: "that definitely matches
+  retail."**
+- **State: 893 pass / 0 fail / 6 skip** (+4).  Ledger **199/194 unchanged** (the
+  arm + spawn are bare-VA slices of `0x491ae0`/`0x431e30`; `426db0` referenced by
+  bare VA).  quirk #81; PORT-DEBT `actor-protagonist-clip` (body frozen on frame 2;
+  the per-tick stepper that trots the horses + the cutscene roll-in are deferred).
+  Writeup: `findings/in-game-intro.md` "The 0x1872d SPAWN + the arrival WAGON".
+- **NEXT:** (a) the per-tick anim (advance `WAGON_CLIP` so the horses trot — needs
+  the `0x46cd70`/`0x54f980` update pass or a minimal sim-tick advance); (b) the
+  scripted caravan roll-in + anchor-relative spawn (the `0x4d7d80` cutscene);
+  (c) the siblings `0x1872e`/`0x1872f` (likely the CHARACTERS — spawned by
+  `0x539e80`/`0x5034b0`); (d) byte-confirm via `render_diff` keyed on res `0x058f`
+  vs a panned-camera retail capture.
 
 ## Where we are — ckpt 79
 

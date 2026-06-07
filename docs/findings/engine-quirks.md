@@ -2405,7 +2405,7 @@ field spec) corrects #78 + #79:
   | `0x1129e` | 3 | `0x16c` | 1  | 9  | prop (a barrel), res `0x403` |
   | `0x1129f` | 1 | `0x16c` | 2  | 9  | prop |
   | `0x112e5` | 1 | `0x16c` | 36 | 10 | prop (the fountain), draw layer 10 not 9 |
-  | `0x1872d` | 1 | `0x175` | 0  | 9  | the **animated protagonist** (the one PERSON; clip `0x671c48`, `+0x2c`=0x63; **outside** the 70000 CHARACTER range — a SEPARATE spawn; needs the `0x491ae0` `0x1872d` multi-part arm) |
+  | `0x1872d` | 1 | `0x175` | 0  | 9  | **the arrival WAGON** (NOT a person — corrected by #81; clip `0x671c48`, `+0x2c`=0x63; **outside** the 70000 CHARACTER range — a SEPARATE cutscene spawn; the `0x491ae0` `0x1872d` multi-part arm) |
 
   So the town's mode-0 keyed-blit residual (#74/#75's 36 blits) is **5 static
   prop blits (bank `0x16c`) + the multi-part protagonist** (bank `0x175` +
@@ -2434,3 +2434,45 @@ Field spec: `tools/flow/retail_fields.json` `0x491ae0` (the `row0_bf`/`d1_bf`..
 `d7_bf`/`dir_e8`/… `thisderef` fields).  Port: `src/actor_spawn.c` (the spawn +
 the visible-code stand-in map).  Writeup: `findings/in-game-intro.md` "The town
 actor RENDER CENSUS".
+
+### #81 — the town intro's `0x1872d` is the arrival WAGON (not "the protagonist"), spawned by the cutscene script `0x4d7d80`; the `+0x48` fill primitive is `0x426db0` (2026-06-07, ckpt 80)
+
+The one drawing actor `0x80`-band code that is NOT a static prop, `0x1872d`, is
+spawned and rendered by a path entirely separate from the map's CHARACTER objects:
+
+- **Spawn = the per-room cutscene script `FUN_004d7d80`.**  It runs only when the
+  area is `0xd2` (210) and `switch`es on the room id (`**(DAT_008a9b50+0x1038)`);
+  **`case 0x334be`** (= 210110, the town) is the intro script.  On its first step
+  (gated on event flags `0x5f76805`/`0x606aa4f`) it calls
+  **`FUN_00431d10(0, 0x1872d, anchor=0x65, x=0x3200, 0, 0)`** — the by-code
+  `+0x11e0`-band spawn helper (free-slot scan; with a non-zero anchor it finds the
+  active slot whose `+0x274` == the anchor and places the new actor RELATIVE to
+  that actor's render-state pos) — and sets the camera hold to 128000
+  (`in_ECX[0x11]=0x1f400`, the value the camera RE measured).  `0x431d10` calls
+  `FUN_00431e30` (the big activator) with the code; its **case-`0x1872d`** arm sets
+  layer 9, runs `FUN_0041ee60` to resolve the world pos, fills `in_ECX[0x11]`
+  render-state sub-entries (`+0x2c`=99), installs the clip
+  (render-state `+0x6c = &DAT_00671c48`), and installs the sprite via:
+- **`FUN_00426db0(dir, bank, frame_base, b, x_off, mirror_x, y_off)`** — the
+  per-direction sprite-row writer (the lazy `+0x48` fill #80 flagged as un-RE'd):
+  writes `row+0x00=bank`, `+0x02=frame_base`, `+0x04=b`, `+0x08=mirror_x`,
+  `+0x0c=x_off`, `+0x10=y_off` at `actor + 0x48 + dir*0x14`.  For `0x1872d` it is
+  `FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0)` → **row 0 only: bank `0x175`, frame_base 0**.
+- **The asset is a covered WAGON, not a person.**  Bank `0x175` (res `0x058f`,
+  64×160) decodes to a wagon/caravan sheet.  Proven port-side by a with-`0x1872d`
+  vs without-`0x1872d` settled-frame diff (cam 12800), which isolates the exact
+  `0x1872d` pixels as a wagon composite — and since bank `0x175` is the user's own
+  decoded asset (identical both sides), this is ground truth.  The `0x491ae0`
+  case-`0x1872d` arm draws it as a **3-cel composite tiled at a 128-px pitch**:
+  **wagon-body-left (frame 0 @ x-256) | wagon-body (frame 1 @ x-128) | the HORSES
+  (the clip-driven body cel @ x+0)**.  The body's clip is `&DAT_00671c48`
+  (decoded: base_sprite 2, frame_count 4, frame_dur 18, looping, frame_delta
+  {0,1,2,3}) so the body cycles sprite frames **2..5** = the horses trotting.  So
+  #80's "the one PERSON / the protagonist" label for `0x1872d` is **corrected: it
+  is the intro arrival CARRIAGE** (USER-confirmed "matches retail").  (Its siblings
+  `0x1872e`/`0x1872f`/`0x18730`, spawned by `0x539e80`/`0x5034b0`/`0x431e30`, are
+  the rest of the arrival set — likely the characters; not yet rendered.)
+
+Port: `src/actor_render.c` (`actor_render_protagonist`), `src/actor_spawn.c`
+(`actor_spawn_protagonist`).  Writeup: `findings/in-game-intro.md` "The 0x1872d
+SPAWN + the arrival WAGON".

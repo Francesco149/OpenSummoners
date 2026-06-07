@@ -94,17 +94,17 @@ int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a
  * map CHARACTER object (its code is outside 70000..79999); it is spawned by the
- * TOWN INTRO CUTSCENE script FUN_004d7d80 (case room-210110 / area 0xd2, gated
+ * TOWN INTRO CUTSCENE script 0x4d7d80 (case room-210110 / area 0xd2, gated
  * on event flags 0x5f76805 / 0x606aa4f) via the by-code main-band spawn helper
- *   FUN_00431d10(0, 0x1872d, anchor=0x65, x=0x3200, 0, 0)
+ *   0x431d10(0, 0x1872d, anchor=0x65, x=0x3200, 0, 0)
  * which lands in 0x431e30's case-0x1872d arm.  That arm installs, on the freshly
  * activated +0x11e0 slot:  sprite-table row 0 = {bank 0x175, frame_base 0} (via
- * FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0)), render-state clip = &DAT_00671c48,
+ * 0x426db0(0, 0x175, 0, 1, 0, 0, 0)), render-state clip = &DAT_00671c48,
  * layer 9 (actor+0xfc), facing (+0x2c) = 99 (param_11), dir 0.  Full writeup:
  * findings/in-game-intro.md "The protagonist SPAWN".
  */
 #define ACTOR_CODE_PROTAGONIST  0x1872du
-#define ACTOR_PROT_SPRITE_BANK  0x175u   /* FUN_00426db0(0, 0x175, 0, ...)    */
+#define ACTOR_PROT_SPRITE_BANK  0x175u   /* 0x426db0(0, 0x175, 0, ...)    */
 #define ACTOR_PROT_FACING       99       /* render-state +0x2c (param_11 = 99) */
 
 /*
@@ -113,12 +113,17 @@ int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
  * end-state above so actor_render_protagonist (the 0x491ae0 case-0x1872d arm)
  * draws the 3-cel composite.
  *
- * PORT-DEBT(actor-protagonist-clip): the render-state clip (&DAT_00671c48, the
- * idle animation) is left NULL — a STATIC stand-in on frame_base 0.  The clip is
- * binary .data (not redistributable; the port must read it from the user's
- * sotes.exe) and advancing it needs the un-ported per-tick actor update
- * (0x46cd70/0x54f980); both are deferred.  The static composite verifies the
- * renderer + spawn placement; the animation is a follow-up.
+ * The render-state clip (&DAT_00671c48) is reconstructed from the RE'd values
+ * (base_sprite 2, 4 frames, looping — the wagon's HORSES, sprite frames 2..5),
+ * so the body cel draws the horses (frame 2), NOT a duplicate wagon half.  The
+ * three composited cels are: wagon-body-left (frame 0) | wagon-body (frame 1) |
+ * the horses (the animated body, sprite 2).
+ *
+ * PORT-DEBT(actor-protagonist-clip): the per-tick stepper (0x46cd70/0x54f980)
+ * that SPINS the wheels / TROTS the horses isn't wired, so the body is frozen on
+ * the clip's first frame (sprite 2) — a complete wagon-and-horses, just not
+ * moving; and the spawn pos is the census const, not the cutscene's
+ * anchor-relative roll-in.  Both are follow-ups.
  */
 int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t world_y);
 

@@ -181,16 +181,21 @@ int test_actor_spawn_protagonist(void)
     T_ASSERT_EQ_I(rs->world_x, 54400);
     T_ASSERT_EQ_I(rs->world_y, 32000);
     T_ASSERT_EQ_I(rs->facing, ACTOR_PROT_FACING);
-    T_ASSERT(rs->clip == NULL);
+    /* the wagon's horses clip (0x671c48: base 2, 4 frames, looping). */
+    T_ASSERT(rs->clip != NULL);
+    T_ASSERT_EQ_I(rs->clip->base_sprite, 2);
+    T_ASSERT_EQ_U(rs->clip->frame_count, 4u);
 
     /* It renders through the case-0x1872d arm: 3 cels on layer 9, all bank
-     * 0x175 (frames 0/1 fixed, the static body frame_base 0). */
+     * 0x175 — the two fixed wagon cels (frames 0/1) + the HORSES body cel
+     * (frame_base 0 + base_sprite 2 + delta[0] 0 = sprite 2). */
     draw_pool dp;
     T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
     T_ASSERT_EQ_I(actor_render_protagonist(a, rs, NULL, &dp, resolve_pack, NULL), 3);
     T_ASSERT_EQ_U(dp.layers[9].count, 3u);
-    T_ASSERT_EQ_U(dp.layers[9].nodes[0].sprite >> 16, ACTOR_PROT_SPRITE_BANK);
-    T_ASSERT_EQ_U(dp.layers[9].nodes[2].sprite, resolve_pack(ACTOR_PROT_SPRITE_BANK, 0u, NULL));
+    T_ASSERT_EQ_U(dp.layers[9].nodes[0].sprite, resolve_pack(ACTOR_PROT_SPRITE_BANK, 0u, NULL));
+    T_ASSERT_EQ_U(dp.layers[9].nodes[1].sprite, resolve_pack(ACTOR_PROT_SPRITE_BANK, 1u, NULL));
+    T_ASSERT_EQ_U(dp.layers[9].nodes[2].sprite, resolve_pack(ACTOR_PROT_SPRITE_BANK, 2u, NULL));
     T_ASSERT_EQ_I(dp.layers[9].nodes[2].dst_x, 54400);
     draw_pool_free(&dp);
 

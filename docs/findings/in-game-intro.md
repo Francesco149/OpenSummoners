@@ -1885,3 +1885,72 @@ bit-exact vs the decompile (18 new tests, `test_actor_render.c` +
 3. **Wire** the actor band walk into `game_render` (between `map_render_walk` and
    `map_present`) + the Win32 mode-0 keyed sink + cel-dims callback; then
    `render_diff` vs retail flip 1500 (the 36-blit residual should drop).
+
+### The 0x1872d SPAWN + the arrival WAGON (ckpt 80) — corrects "the protagonist"
+
+Ported the `0x491ae0` case-`0x1872d` arm (`actor_render_protagonist`, a 3-cel
+composite over the same `FUN_0044d160` body build the default arm uses — part 2
+is byte-identical to `actor_render_describe`, wrapped with two fixed bank-`0x175`
+cels at x-256 / x-128).  Then RE'd how `0x1872d` gets onto the `+0x11e0` band at
+all — it is NOT a map object (its code is outside the 70000 CHARACTER range that
+`0x58d460`/`actor_spawn_from_map` walk), so the census's "spawned with the 32
+characters" framing was incomplete.  The real chain (static, two-witness):
+
+- **`FUN_004d7d80` is the per-room cutscene/event SCRIPT.**  It early-outs unless
+  the area is `0xd2` (210, the town) and then `switch`es on the room id
+  (`**(DAT_008a9b50+0x1038)`).  **`case 0x334be`** (= 210110, the town) is the
+  town intro script; on its first step (gated on event flags `0x5f76805` /
+  `0x606aa4f` being unset) it spawns the scene and sets the camera hold
+  (`in_ECX[0x11]=0x1f400`=128000 — the same hold the camera RE measured).
+- **The spawn call:** `FUN_00431d10(0, 0x1872d, 0x65, 0x3200, 0, 0)`.
+  `FUN_00431d10` is the **by-code main-band spawn helper**: scan
+  `DAT_008a9b50+0x11e0` (0x80 slots) for a free slot (`+0x1d0==0`); if an anchor
+  code is given (`param_3=0x65`), find the active slot whose `+0x274==0x65` and
+  offset the spawn (x,y) by that anchor's render-state position (so `0x1872d` is
+  placed RELATIVE to actor 0x65); then call `FUN_00431e30(x, y, 3, code=0x1872d,
+  …, 99, …)`.
+- **`FUN_00431e30` case-`0x1872d`** (the activator arm) installs, on the slot:
+  layer 9 (`in_ECX[0x3f]`), zeroes the `+0x48` sprite table (8 rows × 0x14), runs
+  `FUN_0041ee60(x,y,…)` to resolve the world position, fills `in_ECX[0x11]`
+  render-state sub-entries (each `+0x2c` = `param_11` = 99), then:
+  - **`FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0)`** — installs sprite-table **row 0**:
+    bank `0x175`, frame_base 0, x_off 0, mirror_x 0, y_off 0.  `FUN_00426db0(dir,
+    bank, frame_base, b, x_off, mirror_x, y_off)` writes one `actor_sprite_row`
+    (byte offsets +0x48/+0x4a/+0x4c/+0x54/+0x50/+0x58 — exactly the
+    `actor_render.h` row layout).  **This RETIRES the ckpt-79 "lazy +0x48 fill not
+    RE'd" unknown** for this actor.
+  - render-state **clip = `&DAT_00671c48`** (resets frame/timer/done) — confirms
+    the ckpt-72 clip pointer.
+- **Siblings:** `0x1872e` (spawned from `FUN_00539e80`), `0x1872f` (from
+  `FUN_005034b0`), `0x18730` (from inside `0x431e30` via `FUN_00556ef0`) are the
+  same family — `0x431e30` has explicit case arms for all four.
+
+**IT IS A HORSE-DRAWN WAGON, not a person (ckpt-80 LIVE, USER-confirmed).**  Wired
+`actor_spawn_protagonist` + the `game_actor_walk` dispatch and drove the port
+through the pan to the settled camera (cam 12800, frame 2200).  A with-`0x1872d`
+vs no-`0x1872d` rebuild diff isolates exactly its pixels (bbox x180-543,
+y195-383) — bank `0x175` (res `0x058f`) is a **covered WAGON / caravan**, NOT a
+character.  So the census/ckpt-79 "the one PERSON / the protagonist" label is
+**corrected — `0x1872d` is the town intro's arrival CARRIAGE** (USER-confirmed on
+the feed: "the left caravan is correct and the position looks correct …
+that looks correct").  The decoded bank `0x175` is the user's own asset (same
+both sides) → ground truth.
+
+**The 3-cel composite = wagon-left | wagon-body | HORSES.**  The first render
+froze the body on frame_base 0, so its rightmost cel redrew the wagon's left cel
+("the right wagon is cut in half" — USER).  The body is actually the **animated
+HORSES** (USER: "the right part … is supposed to be horses").  Decoding the clip
+**`&DAT_00671c48`** from the user's `sotes.exe` `.rdata` (file off `0x271c48`, for
+analysis) gives: **base_sprite 2, frame_count 4, frame_dur 18, LOOPING,
+frame_delta {0,1,2,3}** → the body cel cycles sprite frames **2..5** (the horses
+trotting), zero per-frame offset.  `actor_spawn_protagonist` now points the
+render-state clip at a reconstructed `WAGON_CLIP` (those 4 RE'd values — timing
+metadata, not the asset), so the body draws sprite 2 = the horses.  Re-captured
++ USER-confirmed correct on the feed.
+
+**Still open / PORT-DEBT(actor-protagonist-clip):** the body is FROZEN on the
+clip's first frame (sprite 2) — the un-ported per-tick stepper
+(`0x46cd70`/`0x54f980`) would trot the horses / spin the wheels; and the spawn pos
+is the census const, not the cutscene's anchor-relative roll-in
+(`0x431d10(…, anchor 0x65, x 0x3200, …)`).  Cross-check: `render_diff` vs a
+panned-camera retail capture keyed on `(res 0x058f, frame)`.

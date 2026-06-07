@@ -1911,7 +1911,7 @@ static void enter_game(void)
         int n = actor_spawn_from_map(&g_actors, &g_town.map);
 
         /* Plus the animated protagonist (code 0x1872d) — the town intro
-         * cutscene spawn (FUN_004d7d80 -> 0x431d10 -> 0x431e30 case-0x1872d).
+         * cutscene spawn (0x4d7d80 -> 0x431d10 -> 0x431e30 case-0x1872d).
          * Static stand-in at the census world pos (54400, 32000); it enters the
          * window only once the camera pans left off the 128000 hold.  See
          * actor_spawn.h / findings "The protagonist SPAWN". */

@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 80) — the town intro `0x1872d` is the arrival HORSE-DRAWN CARAVAN: render arm + spawn RE'd + wired + USER-confirmed
+
+Ported the one animated town actor.  Three commits + the horses fix:
+
+- **Render arm** (`af31c69`): `actor_render_protagonist` = `0x491ae0`'s
+  case-`0x1872d` (`0x491ae0:112-192`).  Part 2 (the body) is byte-identical to
+  `FUN_0044d160`/`actor_render_describe`; the arm wraps it with two fixed
+  bank-`0x175` cels (frame 0 @ x-256, frame 1 @ x-128) → a 3-cel composite at a
+  128-px pitch.  Factored `actor_emit_part`/`actor_emit_layer` out of
+  `actor_render_static`.  +3 host tests.
+
+- **Spawn, fully RE'd** (`08fd0be`): `0x1872d` is outside the 70000 CHARACTER
+  range, so it's NOT a map object.  It's spawned by the town intro cutscene script
+  **`FUN_004d7d80`** (`case 0x334be` = room 210110 / area `0xd2`, gated on event
+  flags `0x5f76805`/`0x606aa4f`) → **`FUN_00431d10(0, 0x1872d, anchor=0x65,
+  x=0x3200, 0, 0)`** (the by-code `+0x11e0` spawn helper) → **`0x431e30`
+  case-`0x1872d`** (layer 9, facing 99, clip `&DAT_00671c48`, sprite via
+  **`FUN_00426db0(0, 0x175, 0, …)`** — the `+0x48` FILL PRIMITIVE, retiring the
+  ckpt-79 "lazy fill not RE'd" unknown).  `actor_spawn_protagonist` + the
+  `game_actor_walk` dispatch.  Drove the port through the pan; a with-/without-
+  `0x1872d` rebuild diff at the settled camera isolates exactly its pixels = a
+  covered WAGON, not a person.  +1 host test.
+
+- **The HORSES fix**: the first render froze the body on frame 0 (redrew the
+  wagon-left cel → "cut in half" — USER).  The body is the animated **horses**.
+  Decoded the clip `&DAT_00671c48` from the user's exe `.rdata` (file off
+  `0x271c48`): base_sprite 2, 4 frames, dur 18, looping, delta {0,1,2,3} → body
+  cels 2..5.  Pointed the render-state at a reconstructed `WAGON_CLIP` → the body
+  draws sprite 2 = the horses.  **USER-confirmed on the feed: "that definitely
+  matches retail."**
+
+**893 pass** (+4 net); ledger **199/194 unchanged** (bare-VA slices of
+`0x491ae0`/`0x431e30`; `0x426db0` cited by bare VA).  quirk #81; PORT-DEBT
+`actor-protagonist-clip` (horses frozen on frame 2 — the per-tick stepper +
+cutscene roll-in deferred).  Writeup: `findings/in-game-intro.md` "The 0x1872d
+SPAWN + the arrival WAGON".  (ckpt 78/79 — the spawn byte-proof + the render
+census + the minimal CHARACTER spawn — are recorded in `FRONT.md`/`HANDOFF.md`.)
+
 ## 2026-06-07 (ckpt 77) — the town ACTOR render side PORTED (FUN_0044d160 + 0x491ae0 default arm + present mode 0)
 
 Ported the render half of ckpt-76's "implement the NPCs" arc — pure + host-tested,

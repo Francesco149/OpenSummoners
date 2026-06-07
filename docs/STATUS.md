@@ -35,7 +35,32 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 79): the town CHARACTER band is RE'd, SPAWNED, RENDERED + WIRED — and it's
+- **LATEST (ckpt 80): the town intro `0x1872d` is PORTED + SPAWN-RE'd + WIRED + LIVE-VERIFIED —
+  and it's the arrival WAGON, not "the protagonist" (corrects #79/#80).** Three parts: (1) **the
+  render arm** — `actor_render_protagonist` ports `0x491ae0`'s case-`0x1872d` (a 3-cel composite;
+  part 2 is byte-identical to `FUN_0044d160`/`actor_render_describe`, wrapped with two fixed
+  bank-`0x175` cels @ x-256/x-128). (2) **the SPAWN, fully RE'd:** `0x1872d` is NOT a map object
+  (code outside 70000) — it's spawned by the **town intro cutscene script `FUN_004d7d80`** (`case
+  0x334be`=room 210110 / area `0xd2`, gated on event flags `0x5f76805`/`0x606aa4f`) →
+  **`FUN_00431d10(0,0x1872d,anchor=0x65,x=0x3200,0,0)`** (the by-code `+0x11e0` spawn helper:
+  free-slot scan + anchor-relative placement) → **`0x431e30` case-`0x1872d`** which installs sprite
+  row 0 via **`FUN_00426db0(0,0x175,0,…)`** (the long-missing `+0x48` FILL PRIMITIVE, now RE'd —
+  retires part of `actor-sprite-table`), clip `&DAT_00671c48`, layer 9, facing 99. (3) **WIRED +
+  LIVE-VERIFIED:** `actor_spawn_protagonist` + the `game_actor_walk` dispatch → the port logs
+  `8 nodes from 33 actors (bank 0x175 registered)`; a with-`0x1872d` vs no-`0x1872d` rebuild diff at
+  the settled camera (cam 12800) **isolates exactly its pixels = a horse-drawn CARAVAN** (bbox
+  x180-543), NOT a person → **`0x1872d` is the town intro arrival CARRIAGE** (**USER-CONFIRMED on the
+  feed: "that definitely matches retail"**). The 3-cel composite = wagon-left | wagon-body |
+  **HORSES**: the first render froze the body on frame 0 (redrew the wagon-left cel → "cut in half"),
+  so decoded the clip **`&DAT_00671c48`** from the user's exe (`base_sprite 2, 4 frames, looping,
+  delta {0,1,2,3}` → body cels 2..5 = the horses) and pointed the render-state at a reconstructed
+  `WAGON_CLIP` → the body now draws sprite 2 = the horses. **893 pass** (+4); ledger 199/194 unchanged
+  (bare-VA slices). quirk #81; PORT-DEBT `actor-protagonist-clip` (the horses are FROZEN on frame 2 —
+  the per-tick stepper that trots them + the cutscene roll-in are deferred).
+  `findings/in-game-intro.md` "The 0x1872d SPAWN + the arrival WAGON". **NEXT:** the per-tick anim
+  (trot the horses) + the scripted roll-in; then the caravan's siblings `0x1872e`/`0x1872f` (likely
+  the characters — spawned by `0x539e80`/`0x5034b0`); byte-confirm via `render_diff` (res `0x058f`).
+- **Prior (ckpt 79): the town CHARACTER band is RE'd, SPAWNED, RENDERED + WIRED — and it's
   mostly PROPS, not NPCs (USER-confirmed live).** Per the methodology ("capture each slot's
   `+0x48` live"), extended the `0x491ae0` field spec + captured every active `+0x11e0` actor at the
   town hold (flip 1480/1500/1520, `--seed-pin --lockstep`). **Census (corrects #78/#79):** of 33

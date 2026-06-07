@@ -97,6 +97,24 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
     return pool->count;
 }
 
+/* The caravan's idle clip — reconstructed from &DAT_00671c48 (the clip pointer
+ * the 0x431e30 case-0x1872d arm installs; read from the user's sotes.exe .rdata
+ * for analysis): base_sprite 2, 4 frames, 18 sim-ticks/frame, LOOPING, per-frame
+ * delta {0,1,2,3} so the animated body cel cycles sprite frames 2..5 — the HORSES
+ * (USER-confirmed), zero per-frame offset.  This is RE'd timing/indexing metadata
+ * (4 shorts), not the binary asset — the sprite PIXELS (bank 0x175) load from the
+ * user's file at runtime.  PORT-DEBT(actor-protagonist-clip): the per-tick
+ * stepper (0x46cd70/0x54f980) that would TROT the horses isn't wired, so the
+ * spawn freezes the body on the clip's first frame (sprite 2) — a COMPLETE
+ * horse-drawn caravan (wagon-left | wagon-body | horses), just not moving. */
+static const anim_clip WAGON_CLIP = {
+    .base_sprite = 2,
+    .frame_delta = { 0, 1, 2, 3 },
+    .frame_count = 4,
+    .frame_dur   = 18,
+    .oneshot     = 0,    /* loops */
+};
+
 int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t world_y)
 {
     if (pool == NULL) return -1;
@@ -111,7 +129,7 @@ int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t wor
     a->dir   = 0;                        /* +0xe8                              */
     a->layer = 9;                        /* +0xfc (in_ECX[0x3f] = 9)           */
 
-    /* FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0): sprite-table row 0 only. */
+    /* 0x426db0(0, 0x175, 0, 1, 0, 0, 0): sprite-table row 0 only. */
     a->sprite_table[0].bank       = (uint16_t)ACTOR_PROT_SPRITE_BANK;
     a->sprite_table[0].frame_base = 0;
     a->sprite_table[0].x_off      = 0;
@@ -122,7 +140,7 @@ int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t wor
     rs->world_x = world_x;               /* +0x04 */
     rs->world_y = world_y;               /* +0x08 */
     rs->facing  = ACTOR_PROT_FACING;     /* +0x2c = 99 (not 3 -> not mirrored) */
-    rs->clip    = NULL;                  /* +0x6c — static stand-in (see .h)   */
-    rs->frame   = 0;                     /* +0x72 */
+    rs->clip    = &WAGON_CLIP;           /* +0x6c — the wagon's HORSES animation */
+    rs->frame   = 0;                     /* +0x72 — frozen on frame 0 (sprite 2)  */
     return slot;
 }
