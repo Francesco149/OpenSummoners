@@ -2178,3 +2178,63 @@ and the 4 `0x403` props/deco all matching on identity + frame + dst position (ze
 `[rect]`/`[decode]`/`[state]`); the only residuals are the 8 EFFECT townsfolk cels
 + the 18 off-screen `0x4962a0` invisibles.  **USER-confirmed on the feed: "the
 decorations are there and positioned 1:1."**  parity-ledger #9; 897 pass (+1).
+
+### The EFFECT townsfolk PORTED — positions 1:1, RNG residual identified (ckpt 84)
+
+Landed the EFFECT band (the standing townsfolk in the square) positioned 1:1,
+frozen on the idle clip's frame 0 — the wagon/STRUCTURE precedent (position-first,
+animate next).  Builds directly on the ckpt-83 census.
+
+**The render REDUCES to `actor_render_static`** (like STRUCTURE).  For a plain
+townsperson `FUN_00493ba0`'s static arm (`LAB_004943d7` → `FUN_0044d160` describe
+→ the emit loop) emits exactly ONE mode-0 keyed cel — verified against the hold
+blit trace (`0x5b9b70` carried `res`+`frame`; 18 keyed blits, one per townsperson,
+**no `0x4917b0` shadow/split, no `DAT_008a9358` color-remap fired** — the node
+stayed keyed mode-0, so neither path changed the output).  The spell-text / HP-bar
+/ effect-list arms (`0x493ba0:78-378`) all gate on render-state `+0x66`/view
+`+0x562a` (0 for a townsperson) → skipped.  So the EFFECT band reuses
+`actor_render_static`, exactly as STRUCTURE does.
+
+**The placement is FULLY MAP-DRIVEN** (derived from the census + the map, NOT a
+27 KB switch read): `world = (map (x,y) − dst) × 100`, where `dst` is the per-code
+render anchor (render-state `+0x40/+0x44`).  Proof: the census `rs_x` = `(map_x −
+dstx) × 100` cel-for-cel (e.g. `0xc3e6` map (208,384) dst (−30,−32) → (23800,41600),
+matching the live render-state exactly; the `+30`-px world offset exactly cancels
+the `−30` render dst at the screen, so `screen = map − cam`).  The 11 map townsfolk
+= 10 distinct `0xc3xx` (×1) + `0xe2a5`.
+
+**Ported (898 pass, +1):** `actor_spawn_effect_from_map` + `actor_spawn_effect_def_
+for_code` (`actor_spawn.c`, PORT-DEBT `effect-sprite-table` — the captured `{code →
+bank, dst, layer}` stand-in for `0x41f200`); `main.c` `g_effects` pool spawned in
+`enter_game`, walked by `game_actor_walk` via `actor_render_static` at layer 13 (the
+layer-ordered present slots the townsfolk in front of the bg deco / behind the fg
+hedges).  Live: 11 townsfolk spawn + 11 nodes emit (bank `0xf9` registered).
+
+**VERIFIED + the RNG residual (USER, ckpt 84).**  render_diff (port 1200 ↔ retail
+1500): the on-screen townsfolk match retail on **resource + position** (zero
+`[rect]`/`[state]`).  **USER-confirmed: "the NPCs are rendering at the correct
+positions."**  The residual is now pinned to the **RNG pillar** — three RNG-driven
+elements that make the scene NOT yet 1:1 on every frame, exactly the USER's Phase-2:
+1. **Townsfolk FACING (mirror)** — some townsfolk render flipped (USER: "the
+   orientation of some of them is flipped").  `FUN_0044d160`'s `rs->facing == 3`
+   arm reflects `off_x` + picks the mirror cel (`frame_off = DAT_008a8440[bank]`);
+   the port spawns `facing 0` + passes `flip_table NULL`, so NO townsperson
+   mirrors.  The facing is set per-actor (likely an RNG draw at spawn) → Phase 2.
+2. **Townsfolk idle PHASE** — frozen on frame 0; the idle clip `0x6290e0` (base 0,
+   20 frames, dur 14, looping, delta {0,1,2,1,0,1,2,1,…}) IS decoded + the stepper
+   IS ported, but the per-actor START phase is staggered run-deterministically
+   (`0xc3e6` f0 / `0xc404` f18 / …; NOT a map-record field → likely RNG at spawn).
+3. **The FOUNTAIN PARTICLE SPRAY** — the entire `+0x13e0` band (`0x493480`, res
+   `0x408` bank `0x1aa`, the "layer-11 cluster around the square") is MISSING in the
+   port (USER pointed it out: a purple/blue/white sparkle spray erupting from the
+   fountain + green leafy particles right).  Clearly RNG (particle positions /
+   velocities).  Deferred at ckpt 83 as "ambient particles"; now a named Phase-2
+   consumer.
+
+PORT-DEBT `effect-sprite-table` / `effect-anim-phase` / `effect-wanderers`.  **NEXT
+(USER directive): the scene-wide RNG-CONSUMER CENSUS** — hook the LCG (`FUN_005bf505`
+/ `DAT_008a4f94`) in the retail town scene, log every draw's consumer site (`ret_va`)
++ `rngcalls` + value, enumerate WHO consumes RNG and in what ORDER (the townsfolk
+facing/phase, the `0xe29a` wander, the fountain particles `0x13e0`, the `0x54f980`
+behaviour, …), then match consumption order both sides → the scene goes 1:1 on
+every frame.  This RETIRES the ckpt-73 "defer all RNG" deferral.

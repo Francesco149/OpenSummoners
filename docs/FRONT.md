@@ -9,7 +9,32 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 83): the establishing-hold CAST is PINNED to FOUR map-object bands — the
+- **LATEST (ckpt 84): the EFFECT townsfolk are PORTED — positions USER-confirmed 1:1; the
+  residual is now PINNED to the RNG pillar (Phase 2 begins).** Landed the EFFECT band (the
+  standing villagers in the square) positioned 1:1, frozen on the idle clip's frame 0 (the
+  wagon/STRUCTURE precedent). **The render REUSES `actor_render_static`** — for a plain
+  townsperson `0x493ba0`'s static arm reduces to the ported describe (`0x44d160`) + emit
+  (`0x492670`): exactly ONE mode-0 keyed cel each (verified vs the hold blit trace — no
+  `0x4917b0` shadow, no `0x8a9358` color-remap). **Placement FULLY MAP-DRIVEN:** `world =
+  (map (x,y) − dst) × 100` (the +30 world offset cancels the −30 render dst → screen = map −
+  cam; derived cel-for-cel vs the census `rs_x`). The 11 map townsfolk = 10 `0xc3xx` + `0xe2a5`.
+  PORTED `actor_spawn_effect_from_map` (`g_effects`, walked at layer 13) + the captured def
+  table (PORT-DEBT `effect-sprite-table`). **898 pass** (+1); ledger 199/194 unchanged
+  (bare-VA slices of `0x41f200`/`0x493ba0`). **USER-confirmed: "the NPCs are rendering at the
+  correct positions."** quirk #84; `findings/in-game-intro.md` "The EFFECT townsfolk PORTED".
+  **THE RNG RESIDUAL (USER directive — pivot to Phase 2):** the scene is NOT yet 1:1 every
+  frame because of THREE RNG-driven elements: (1) **townsfolk FACING** — some render flipped
+  (`0x44d160`'s `facing==3` mirror; the port spawns facing 0 + `flip_table NULL` → no mirror;
+  facing is likely an RNG draw at spawn); (2) **townsfolk idle PHASE** — frozen frame 0; the
+  clip `0x6290e0` (20f dur 14) + stepper are ported but the per-actor START phase is staggered
+  (likely RNG); (3) **the FOUNTAIN PARTICLE SPRAY** — the entire `+0x13e0` band (`0x493480`,
+  res `0x408`) is MISSING (USER pointed out the purple/blue spray + leafy particles); RNG
+  positions. PORT-DEBT `effect-anim-phase`/`effect-wanderers`. **NEXT = the scene-wide
+  RNG-CONSUMER CENSUS** — hook the LCG (`0x5bf505`/`DAT_008a4f94`) retail-side, log every
+  draw's `ret_va`+`rngcalls`+value, enumerate every consumer in CONSUMPTION ORDER (facing /
+  phase / `0xe29a` wander / fountain `0x13e0` / `0x54f980`), match both sides. RETIRES the
+  ckpt-73 "defer all RNG" deferral.
+- **Prior (ckpt 83): the establishing-hold CAST is PINNED to FOUR map-object bands — the
   Phase-1 producer map is complete (no port yet, RE+census milestone).** Resolves ckpt-82's
   "pin each cast cel to its actor" via a field-spec **band census** (`retail_fields.json`
   gained the 5 non-main band render entries `0x4937c0`/`0x493480`/`0x492fc0`/`0x493230`/

@@ -1,10 +1,65 @@
-# Session handoff — rolling current state (last updated ckpt 83, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 84, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 84
+
+**The EFFECT townsfolk are PORTED (positions USER-confirmed 1:1) — and the scene's
+residual is now PINNED to the RNG pillar, so Phase 2 (the RNG-consumer census)
+begins.**  Builds on the ckpt-83 census; the wagon/STRUCTURE precedent
+(position-first, animate next).
+
+- **Render REUSES `actor_render_static`.**  For a plain townsperson `FUN_00493ba0`'s
+  static arm (`LAB_004943d7` → `FUN_0044d160` describe → emit loop) emits exactly ONE
+  mode-0 keyed cel — verified vs the hold blit trace (`0x5b9b70` carried `res`+`frame`;
+  18 keyed blits, one per townsperson; **no `0x4917b0` shadow, no `DAT_008a9358`
+  color-remap** — the node stayed keyed mode-0).  The spell-text/HP-bar/effect-list
+  arms gate on render-state `+0x66` / view `+0x562a` (0 here) → skipped.  So the EFFECT
+  band reuses `actor_render_static`, like STRUCTURE.
+- **Placement FULLY MAP-DRIVEN** (census + map, no 27 KB switch read): `world = (map
+  (x,y) − dst) × 100`, `dst` = the per-code render anchor (rs `+0x40/+0x44`).  Verified
+  cel-for-cel: census `rs_x` = `(map_x − dstx) × 100` (e.g. `0xc3e6` (208,384) dst
+  (−30,−32) → (23800,41600)).  The +30 world offset cancels the −30 render dst →
+  `screen = map − cam`.  11 map townsfolk = 10 `0xc3xx` + `0xe2a5`.
+- **Ported (898 pass, +1):** `actor_spawn_effect_from_map` + `actor_spawn_effect_def_
+  for_code` (`actor_spawn.c`; PORT-DEBT `effect-sprite-table` — captured `{code → bank,
+  dst, layer}` stand-in for `0x41f200`); `main.c` `g_effects` spawned in `enter_game`,
+  walked by `game_actor_walk` via `actor_render_static` at layer 13.  Live: 11 spawn +
+  11 emit (bank `0xf9` registered).  Ledger 199/194 unchanged (bare-VA slices).
+- **USER-confirmed: "the NPCs are rendering at the correct positions."**  render_diff
+  (port 1200 ↔ retail 1500): on-screen townsfolk match on res + position (zero
+  `[rect]`/`[state]`).
+- **THE RNG RESIDUAL (USER directive — pivot to Phase 2).**  The scene is NOT yet 1:1
+  every frame because of THREE RNG-driven elements:
+  1. **Townsfolk FACING (mirror)** — some render flipped (USER: "the orientation of
+     some of them is flipped").  `FUN_0044d160`'s `rs->facing == 3` arm reflects `off_x`
+     + picks the mirror cel (`frame_off = DAT_008a8440[bank]`); the port spawns facing 0
+     + passes `flip_table NULL` → NO mirror.  Facing set per-actor (likely RNG at spawn).
+  2. **Townsfolk idle PHASE** — frozen frame 0.  Clip `0x6290e0` (base 0, 20 frames,
+     dur 14, looping, delta {0,1,2,1,0,…}) + the stepper ARE ported; the per-actor START
+     phase is staggered run-deterministically (`0xc3e6` f0 / `0xc404` f18 / …; NOT a
+     map-record field → likely RNG at spawn).
+  3. **The FOUNTAIN PARTICLE SPRAY** — the entire `+0x13e0` band (`0x493480`, res `0x408`
+     bank `0x1aa`) is MISSING (USER crop: a purple/blue/white sparkle spray erupting from
+     the fountain + green leafy particles right).  Clearly RNG (particle pos/vel).
+- **NEXT — the scene-wide RNG-CONSUMER CENSUS (Phase 2):** hook the LCG (`FUN_005bf505`
+  / the seeded `DAT_008a4f94`) in the retail town scene under `--seed-pin --lockstep`,
+  log every draw's consumer site (`ret_va`) + `rngcalls` + value across the establishing
+  scene → enumerate WHO consumes RNG and in what ORDER; attribute each `ret_va` to a
+  producer (facing / idle phase / `0xe29a` wander / fountain `0x13e0` / `0x54f980`
+  behaviour / …); then port + match consumption order both sides (rng + rngcalls per
+  anchor) → the scene goes 1:1 on every frame.  RETIRES the ckpt-73 defer-all-RNG.  Best
+  started fresh — orient: CLAUDE.md → FRONT → here → `findings/in-game-intro.md` "The
+  EFFECT townsfolk PORTED".  Tooling: `tools/rng_tick_diff.py`, the `rng`/`rngcalls`
+  field sources (`retail_fields.json`).
+- Artifacts (local `/tmp`, ephemeral): `/tmp/cast_census/call_trace.jsonl` (retail hold
+  census, the EFFECT field spec), `/tmp/eff_port_trace.jsonl` (port blit trace @1200),
+  `/tmp/decode_clips.py` (clip decoder: wagon control + the 4 townsfolk clips),
+  `/tmp/eff_objs.py` (the world=(map−dst)×100 cross-ref).
 
 ## Where we are — ckpt 83
 

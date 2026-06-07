@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 84) — the EFFECT townsfolk PORTED (positions USER-1:1); the residual pinned to RNG → Phase 2
+
+Landed the EFFECT band (the standing townsfolk in the square) positioned 1:1 vs
+retail, frozen on the idle clip's frame 0 — the wagon/STRUCTURE precedent
+(position-first, animate next).  Built directly on the ckpt-83 census.
+
+The RE was census + map cross-ref (no 27 KB switch read).  The render REDUCES to
+`actor_render_static`: for a plain townsperson `FUN_00493ba0`'s static arm
+(`LAB_004943d7` → `FUN_0044d160` describe → emit loop) emits exactly ONE mode-0
+keyed cel — verified vs the hold blit trace (`0x5b9b70` carried `res`+`frame`; 18
+keyed blits, one per townsperson; no `0x4917b0` shadow, no `DAT_008a9358`
+color-remap fired).  The placement is FULLY MAP-DRIVEN: `world = (map (x,y) − dst)
+× 100` where `dst` is the per-code render anchor (verified cel-for-cel against the
+census `rs_x`; the +30 world offset cancels the −30 render dst → screen = map −
+cam).  The 11 map townsfolk = 10 `0xc3xx` + `0xe2a5`.
+
+Ported (898 pass, +1; commit `aeb7e90`): `actor_spawn_effect_from_map` +
+`actor_spawn_effect_def_for_code` (`actor_spawn.c`, PORT-DEBT `effect-sprite-table`
+— captured `{code → bank, dst, layer}`); `main.c` `g_effects` walked by
+`game_actor_walk` via `actor_render_static` at layer 13.  Ledger 199/194 unchanged.
+
+USER-confirmed: "the NPCs are rendering at the correct positions."  render_diff
+(port 1200 ↔ retail 1500): on-screen townsfolk match on resource + position (zero
+`[rect]`/`[state]`).  The residual is now PINNED to the **RNG pillar** (USER
+directive → Phase 2): (1) townsfolk FACING — some render flipped (`0x44d160`'s
+`facing==3` mirror, unset in the port + `flip_table NULL`; facing likely RNG); (2)
+townsfolk idle PHASE (frozen frame 0; clip `0x6290e0` + stepper ported, per-actor
+start phase staggered/likely RNG); (3) the FOUNTAIN PARTICLE SPRAY — the whole
+`+0x13e0` band (`0x493480`, res `0x408`) is missing (USER crop: a purple/blue
+sparkle spray + leafy particles; RNG positions).  NEXT: the scene-wide
+RNG-consumer census — hook the LCG `FUN_005bf505`/`DAT_008a4f94`, log every draw's
+`ret_va`+`rngcalls`+value, enumerate + match consumption order both sides.  Retires
+the ckpt-73 defer-all-RNG.  `findings/in-game-intro.md` "The EFFECT townsfolk
+PORTED"; quirk #84; PORT-DEBT `effect-sprite-table`/`effect-anim-phase`/`effect-wanderers`.
+
 ## 2026-06-07 (ckpt 81) — the caravan's HORSES TROT: the per-tick actor anim wired + bit-verified
 
 Built the per-sim-tick actor UPDATE pass and drove the ckpt-80 wagon's looping
