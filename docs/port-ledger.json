@@ -3664,7 +3664,8 @@
     "src/actor_render.h",
     "src/actor_spawn.c",
     "src/actor_spawn.h",
-    "src/draw_pool.h"
+    "src/draw_pool.h",
+    "src/main.c"
    ]
   },
   {

@@ -71,6 +71,8 @@
 #include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
 #include "camera_follow.h"    /* the in-game camera easer (0x43d1d0) + setters (0x439690) */
 #include "letterbox.h"        /* the establishing-shot cinematic letterbox (0x48c150 slice) */
+#include "actor_spawn.h"      /* the town CHARACTER-band spawn (0x58d460 -> 0x431e30) */
+#include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -178,6 +180,14 @@ static int            g_game_active;
 static town_render    g_town;
 static int            g_town_loaded;
 static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
+
+/* The room's CHARACTER-band actors (0x58d460 -> 0x431e30 spawn, ported
+ * in actor_spawn.c).  Populated in enter_game from g_town.map; walked each frame
+ * by game_actor_walk (emitting mode-0 keyed nodes into the town draw_pool between
+ * the tile walk and the present).  For DATA 1022: 32 actors, of which 5 draw (the
+ * villagers, bank 0x16c) — the other 27 are invisible volumes (quirk #80). */
+static actor_spawn_pool g_actors;
+static int              g_actors_loaded;
 
 /* The LIVE in-game camera (the room-state's +0x104c view object).  enter_game
  * spawn-snaps it to the hold origin (camera_apply_snap → cur=tgt=128000/12800);
@@ -1541,9 +1551,55 @@ static void game_present_blit(const present_op *op, void *ud)
         zdd_object_blt_clipped(src, g_zdd->primary_obj,
                                op->dst_x, op->dst_y, op->w, op->h,
                                op->src_x, op->src_y);
+    } else if (op->kind == PRESENT_KEYED) {
+        /* Mode 0 — the opaque ACTOR blit (FUN_005b9b70): whole cel at the
+         * projected pos, the source's own color key honored.  The town's static
+         * villagers (bank 0x16c) land here via game_actor_walk. */
+        zdd_object_blt_keyed(src, g_zdd->primary_obj, op->dst_x, op->dst_y);
     }
-    /* PRESENT_ALPHA / KEYED / SCALED: deferred (no backdrop producer emits them;
+    /* PRESENT_ALPHA / SCALED: deferred (no town producer emits them yet;
      * PORT-DEBT present-actor-modes). */
+}
+
+/* present_dims_fn — a cel's pixel size for map_present's mode-0 cull box.  The
+ * cel is a zdd_object (frame); its source w/h are metric_b8/metric_bc (the same
+ * dims zdd_object_blt_keyed uses for the Blt, and the render_id blit trace's
+ * reqw/reqh).  (Retail's 0x48eac0 mode-0 cull reads cel +0x1c/+0x20; for these
+ * frame cels those equal the source dims — using b8/bc keeps the cull box and
+ * the actual blit size in lockstep, so an on-screen actor is never wrongly
+ * culled.) */
+static void game_cel_dims(uint32_t cel, int32_t *w, int32_t *h, void *ud)
+{
+    (void)ud;
+    zdd_object *obj = (zdd_object *)(uintptr_t)cel;
+    if (obj == NULL) { *w = 0; *h = 0; return; }
+    *w = obj->metric_b8;
+    *h = obj->metric_bc;
+}
+
+/* town_actor_walk_fn — emit the room's CHARACTER-band actors into the town
+ * draw_pool, between the tile walk and the present (0x48c150 order).  Each
+ * spawned actor goes through the ckpt-77 default arm (actor_render_static =
+ * FUN_0044d160 + the 0x491ae0 default tail + draw_pool_emit_actor); the 27
+ * invisible volumes self-skip (bank 0), the 5 villagers emit mode-0 nodes.  The
+ * animated protagonist (0x1872d) is a separate spawn + arm (not in g_actors). */
+static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
+{
+    (void)cam; (void)ud;
+    if (!g_actors_loaded) return;
+    int emitted = 0;
+    for (int i = 0; i < g_actors.count; i++)
+        emitted += actor_render_static(&g_actors.actors[i], &g_actors.states[i],
+                                       /*flip_table=*/NULL, pool,
+                                       game_sprite_resolve, NULL);
+    static int logged;
+    if (!logged) {
+        logged = 1;
+        ar_sprite_slot *vb = ar_pool_get_slot(0x16c);   /* villager bank */
+        log_line("game_actor_walk: %d/%d actors emitted a node "
+                 "(villager bank 0x16c %s)", emitted, g_actors.count,
+                 vb ? "registered" : "NOT registered -> villagers invisible");
+    }
 }
 
 /* Mirror FUN_00417c40's flag-3 / tint-case-0 field stamp (417c40.c:33-60).  The
@@ -1747,9 +1803,14 @@ static void game_render(void *user)
          * tiles), then the tilemap walk + present (0x490f30 / 0x48eac0). */
         town_render_parallax(&g_town, cam, game_parallax_blit, NULL);
         int deferred = 0;
-        town_render_step(&g_town, cam,
-                         game_sprite_resolve, NULL,
-                         game_present_blit, NULL, &deferred);
+        /* The tile walk + the CHARACTER-band actor walk (game_actor_walk) +
+         * the present, in one pass — actor mode-0 nodes get their cull box from
+         * game_cel_dims and blit via game_present_blit's PRESENT_KEYED arm. */
+        town_render_step_ex(&g_town, cam,
+                            game_sprite_resolve, NULL,
+                            game_present_blit, NULL,
+                            game_cel_dims, NULL,
+                            game_actor_walk, NULL, &deferred);
         /* 0x48c150:124-162 — the cinematic letterbox tiled ON TOP of the
          * backdrop (after the present pass), during the establishing shot. */
         letterbox_render(g_letterbox_top, g_letterbox_bottom,
@@ -1806,6 +1867,7 @@ static void enter_game(void)
      * way once game_map is wired, but for the opening town it is the constant
      * 1022.  On failure game_render falls back to the faithful black frame. */
     g_town_loaded = 0;
+    g_actors_loaded = 0;
     load_town_scene(/*scene=*/1022);
 
     /* Arm the live in-game camera once the map dims are known (the easer clamps
@@ -1832,6 +1894,13 @@ static void enter_game(void)
          * heights; the grid-fill is bit-exact (letterbox.c). */
         g_letterbox_top    = LETTERBOX_INTRO_BAR;
         g_letterbox_bottom = LETTERBOX_INTRO_BAR;
+
+        /* Spawn the room's CHARACTER-band actors from the map (0x58d460 ->
+         * 0x431e30 slice).  game_actor_walk then emits them each frame. */
+        int n = actor_spawn_from_map(&g_actors, &g_town.map);
+        g_actors_loaded = (n > 0);
+        log_line("enter_game: actor_spawn_from_map -> %d CHARACTER actors "
+                 "(5 visible villagers + 27 invisible volumes for DATA 1022)", n);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

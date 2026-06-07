@@ -9,7 +9,7 @@
  * "The town actor RENDER CENSUS"): CHARACTER codes (70000..79999) activate a
  * slot at (x,y)*100; only 0x1129e/0x1129f/0x112e5 draw (bank 0x16c), every other
  * code is an invisible volume (bank 0).  The render integration test then drives
- * a spawned villager through actor_render_static and asserts the emitted node.
+ * a spawned prop through actor_render_static and asserts the emitted node.
  */
 #include "actor_spawn.h"
 #include "actor_render.h"
@@ -45,14 +45,14 @@ static uint32_t resolve_pack(uint16_t bank, uint16_t frame, void *ud)
 
 int test_actor_spawn_census(void)
 {
-    /* DATA-1022-shaped sample: 3 visible villagers + 1 invisible volume + a
+    /* DATA-1022-shaped sample: 3 visible props + 1 invisible volume + a
      * non-character (STRUCTURE) object that must be skipped. */
     map_layer layers[5];
-    layer_set(&layers[0], 0x1129eu,  864, 448);   /* villager A -> bank 0x16c f1 */
+    layer_set(&layers[0], 0x1129eu,  864, 448);   /* prop A -> bank 0x16c f1 */
     layer_set(&layers[1], 0x00ec55u, 100, 100);   /* 60501 STRUCTURE -> skipped  */
-    layer_set(&layers[2], 0x112e5u, 1760, 416);   /* villager C -> bank 0x16c f36, layer 10 */
+    layer_set(&layers[2], 0x112e5u, 1760, 416);   /* prop C -> bank 0x16c f36, layer 10 */
     layer_set(&layers[3], 0x112e6u,  624, 288);   /* invisible CHARACTER volume  */
-    layer_set(&layers[4], 0x1129fu, 1184, 448);   /* villager B -> bank 0x16c f2 */
+    layer_set(&layers[4], 0x1129fu, 1184, 448);   /* prop B -> bank 0x16c f2 */
 
     map_data md;
     memset(&md, 0, sizeof md);
@@ -62,7 +62,7 @@ int test_actor_spawn_census(void)
     actor_spawn_pool pool;
     T_ASSERT_EQ_I(actor_spawn_from_map(&pool, &md), 4);  /* 4 CHARACTER, 1 skipped */
 
-    /* slot 0 = villager A (0x1129e): bank 0x16c frame 1 layer 9, world *100. */
+    /* slot 0 = prop A (0x1129e): bank 0x16c frame 1 layer 9, world *100. */
     T_ASSERT_EQ_U(pool.actors[0].code, 0x1129eu);
     T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0x16cu);
     T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 1);
@@ -73,7 +73,7 @@ int test_actor_spawn_census(void)
     T_ASSERT_EQ_I(pool.states[0].world_y, 44800);
     T_ASSERT_EQ_P(pool.states[0].clip, NULL);
 
-    /* slot 1 = villager C (0x112e5): bank 0x16c frame 36, DRAW LAYER 10. */
+    /* slot 1 = prop C (0x112e5): bank 0x16c frame 36, DRAW LAYER 10. */
     T_ASSERT_EQ_U(pool.actors[1].code, 0x112e5u);
     T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0x16cu);
     T_ASSERT_EQ_I(pool.actors[1].sprite_table[0].frame_base, 36);
@@ -87,7 +87,7 @@ int test_actor_spawn_census(void)
     T_ASSERT_EQ_I(pool.states[2].active, 1);
     T_ASSERT_EQ_I(pool.states[2].world_x, 62400);
 
-    /* slot 3 = villager B (0x1129f): bank 0x16c frame 2 layer 9. */
+    /* slot 3 = prop B (0x1129f): bank 0x16c frame 2 layer 9. */
     T_ASSERT_EQ_U(pool.actors[3].code, 0x1129fu);
     T_ASSERT_EQ_I(pool.actors[3].sprite_table[0].frame_base, 2);
     T_ASSERT_EQ_U(pool.actors[3].layer, 9u);
@@ -129,12 +129,12 @@ int test_actor_spawn_invisible_self_skips(void)
     return 0;
 }
 
-/* ---- a spawned villager drives the ckpt-77 render path end-to-end ----------- */
+/* ---- a spawned prop drives the ckpt-77 render path end-to-end ----------- */
 
-int test_actor_spawn_villager_renders(void)
+int test_actor_spawn_prop_renders(void)
 {
     map_layer L;
-    layer_set(&L, 0x1129eu, 864, 448);   /* villager A */
+    layer_set(&L, 0x1129eu, 864, 448);   /* prop A */
     map_data md; memset(&md, 0, sizeof md); md.count = 1; md.layers = &L;
 
     actor_spawn_pool pool;
@@ -145,7 +145,7 @@ int test_actor_spawn_villager_renders(void)
     T_ASSERT_EQ_I(actor_render_static(&pool.actors[0], &pool.states[0], NULL,
                                       &dp, resolve_pack, NULL), 1);
 
-    /* The node landed in layer 9 with the villager's cel (bank 0x16c, frame 1)
+    /* The node landed in layer 9 with the prop's cel (bank 0x16c, frame 1)
      * at its WORLD position; placement offset 0 (static row, zero offsets);
      * opaque => mode 0 (the keyed actor blit). */
     T_ASSERT_EQ_U(dp.layers[9].count, 1u);

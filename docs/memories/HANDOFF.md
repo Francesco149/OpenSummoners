@@ -24,52 +24,54 @@ captured as ground truth (the methodology's "capture each slot's `+0x48` live").
     `FUN_0044d160` returns 0 (`bank==0`).  Collision / trigger / spawn volumes
     (`0x111d6`/`0x112e6`/`0x112e2`/`0x11365`/… — the codes whose `0x431e30` arms
     build a physics body, not a sprite).
-  - **Only 6 DRAW** (all dir 0, clip 0 = static, skip 0): `0x1129e`×3 (bank
-    `0x16c` frame 1, layer 9), `0x1129f` (frame 2, layer 9), `0x112e5` (frame 36,
-    **layer 10**) = the villagers (res `0x403`); + **`0x1872d`** the **animated
-    protagonist** (bank `0x175`, clip `0x671c48`, `+0x2c`=0x63) — **OUTSIDE** the
-    70000 CHARACTER range (a SEPARATE spawn) and needs the `0x491ae0` `0x1872d`
-    multi-part animated arm; its body-part banks (`0x426`/`0x459`/…) are **the bulk
-    of the 36-blit residual**.
+  - **Only 6 DRAW** (all dir 0, clip 0 = static, skip 0).  Bank `0x16c` (res
+    `0x403`) is the town-OBJECTS sheet → these are static **PROPS, not people-NPCs**
+    (USER-confirmed against retail: a fountain + a barrel, at the correct spots):
+    `0x1129e`×3 (frame 1, layer 9; a barrel), `0x1129f` (frame 2, layer 9),
+    `0x112e5` (frame 36, **layer 10**; the fountain).  The one PERSON is
+    **`0x1872d`** the **animated protagonist** (bank `0x175`, clip `0x671c48`,
+    `+0x2c`=0x63) — **OUTSIDE** the 70000 CHARACTER range (a SEPARATE spawn), needs
+    the `0x491ae0` `0x1872d` multi-part arm; its body-part banks (`0x426`/`0x459`/…)
+    are **the bulk of the 36-blit residual**.
   - **`0x426620` ZEROES `+0x48`** (the `type*0x80+0x21c04` in it is the
     **cell-indexed collision-grid** lookup #79 misnamed — it writes `+0x288/+0x28c`,
     not a sprite).  The table is filled **LAZILY** by the state-set machinery
     (`0x40afe0`/`0x41e600`) from a type-keyed def table — **not yet RE'd**.
-  - **The villagers WANDERED** by flip 1500 (`rs_x` ≠ `map_x*100` by ≈½ cell,
-    per-actor — the deferred RNG/AI pillar #77).  So the deterministic spawn anchor
-    is `map_x*100` (exact for the un-wandered `0x112e5` + every invisible volume).
+  - **The props sit at a DETERMINISTIC per-code offset from `map_x*100` — NOT RNG**
+    (earlier draft wrongly said "wandered").  All three `0x1129e` share the exact
+    `+1800x/+1600y`; positions identical across flips 1480/1500/1520 (static).  The
+    visible fountain `0x112e5` is `+0/+0` → lands exactly at `map_x*100` and matches
+    retail (USER-confirmed).  Delta source TBD (the `0x426620` alignment arm or the
+    lazy fill); the port spawns at `map_x*100`.
   - Census artifact: `/tmp/actor_census.json` (ephemeral; regenerate via the
     field-spec capture above).  Engine-quirk #80; `findings/in-game-intro.md`
     "The town actor RENDER CENSUS".
-- **Ported: `src/actor_spawn.{c,h}` (pure, host-tested — +5 tests, 888 pass).**
-  `actor_spawn_from_map(pool, map_data)` = the `0x58d460`→`0x431e30` slice: walk
-  the map's object layers, filter to CHARACTER (code 70000..79999), activate a
-  slot per object (world `(x,y)*100`, dir 0, layer 9, static clip NULL), seed the
-  3 visible villager codes' dir-0 sprite rows from the captured stand-in
-  (`actor_spawn_sprite_for_code`, PORT-DEBT `actor-sprite-table`), leave the rest
-  bank 0.  `actor_spawn_pool` = parallel `{actor, render-state}` arrays the render
-  walk drives.  Tests assert the census (4 char of 5 layers, positions ×100, the
-  visible banks/frames/layers, the invisible self-skip) AND drive a spawned
-  villager through the ckpt-77 `actor_render_static` → a mode-0 node at its world
-  pos.  Ledger unchanged 199/194 (the spawn is a bare-VA slice of `0x58d460`/
-  `0x431e30`; only the already-counted `FUN_0044d160` token appears).
-- **NEXT (the wiring arc — ends in a human pixel-verify):**
-  1. **WIRE** the band walk into `game_render`: between `map_render_walk` and
-     `map_present`, walk the spawned `actor_spawn_pool` calling
-     `actor_render_static` (emit into the SAME `town_render` draw_pool), then pass a
-     real `present_dims_fn` + the Win32 KEYED sink (PRESENT_KEYED → a zdd mode-0
-     blit) to `map_present` (today `town_render_step` passes `dims=NULL`).  Needs a
-     small `town_render_step` seam (an after-tile-walk callback) so the actor nodes
-     land in the pool before the single present.  The 5 villager blits then drop
-     from the 36 residual.  (Most villagers sit LEFT of the hold window world-x
-     124800-192000 → only `0x1129e`@126600 + `0x112e5`@176000 are in-window at the
-     hold; drive the port's pan to bring the rest in for a fuller verify.)
-  2. **The `0x1872d` protagonist multi-part arm** (`0x491ae0:112-192`) — its own
-     arc; reuses `anim_clip`; the bulk of the 36.  Spawned by a separate (non-
-     `0x431e30`) path.
-  3. **Verify** `render_diff` vs retail flip 1500 keyed on `(res, frame)` — the
-     signal is the villager-blit IDENTITY appearing (camera hold-vs-pan + the
-     RNG-wander are standing deferrals, not px-1:1 yet).
+- **Ported + WIRED + LIVE-VERIFIED (+6 tests, 889 pass).**
+  - `src/actor_spawn.{c,h}` (pure): `actor_spawn_from_map(pool, map_data)` = the
+    `0x58d460`→`0x431e30` slice — walk the object layers, filter to CHARACTER (code
+    70000..79999), activate a slot per object (world `(x,y)*100`, dir 0, layer 9,
+    static clip NULL), seed the 3 prop codes' dir-0 sprite rows from the captured
+    stand-in (`actor_spawn_sprite_for_code`, PORT-DEBT `actor-sprite-table`), leave
+    the rest bank 0.  `actor_spawn_pool` = parallel `{actor, render-state}` arrays.
+  - `town_render_step_ex` (town_render.c) adds an **actor seam** (a
+    `town_actor_walk_fn` called after the tile walk, before the present, into the
+    SAME pool) + passes `present_dims_fn` through; `town_render_step` is the
+    tile-only wrapper (existing callers unchanged).
+  - `main.c`: `g_actors` populated in `enter_game`; `game_actor_walk` walks it →
+    `actor_render_static`; `game_cel_dims` (cel `metric_b8/bc`) = the mode-0 cull
+    box; `game_present_blit` `PRESENT_KEYED` arm → `zdd_object_blt_keyed` (`0x5b9b70`).
+  - **LIVE-VERIFIED:** port logs `game_actor_walk: 5/32 actors emitted (bank 0x16c
+    registered)`; the props render at the correct spots (USER-confirmed on the feed
+    — fountain right @ screen ~480, barrel left-edge).  Only `0x112e5` (fountain) is
+    fully in-window at the hold (cam 128000); the other props are off-screen-left.
+  - Tests: `test_actor_spawn` (5) + `town_render_actor_seam` (1).  Ledger 199/194
+    (spawn is a bare-VA slice; only the already-counted `FUN_0044d160` appears).
+- **NEXT — the `0x1872d` protagonist multi-part animated arm** (`0x491ae0:112-192`):
+  the actual PERSON + the bulk of the 36 residual.  Reuses `anim_clip`; spawned by a
+  separate (non-`0x431e30`) path (find it — the protagonist isn't in `g_actors`).
+  Then `render_diff` vs retail flip 1500 keyed on `(res, frame)` (camera hold-vs-pan
+  is a standing deferral, so the signal is actor-blit IDENTITY).  A fuller prop
+  verify can drive the port's pan so the off-screen-left props enter the window.
 
 ## Where we are — ckpt 78
 

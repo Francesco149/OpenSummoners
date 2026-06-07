@@ -62,23 +62,37 @@ int town_render_step(town_render *tr, const mr_camera *cam,
                      present_blit_fn blit, void *blit_ctx,
                      int *out_deferred)
 {
+    /* Tile-only: no actor seam, no cel-dims callback (any mode-0/1/2 node
+     * visited is deferred + counted via out_deferred). */
+    return town_render_step_ex(tr, cam, resolve, resolve_ctx, blit, blit_ctx,
+                               NULL, NULL, NULL, NULL, out_deferred);
+}
+
+int town_render_step_ex(town_render *tr, const mr_camera *cam,
+                        mr_sprite_fn resolve, void *resolve_ctx,
+                        present_blit_fn blit, void *blit_ctx,
+                        present_dims_fn dims, void *dims_ctx,
+                        town_actor_walk_fn actors, void *actors_ctx,
+                        int *out_deferred)
+{
     if (out_deferred != NULL) *out_deferred = 0;
     if (tr == NULL || !tr->loaded) return 0;
 
-    /* The backdrop slice of the per-frame draw driver 0x48c150:
-     *   :18  draw_pool_reset       — begin the frame's draw list
-     *   :108 map_render_walk       — FUN_00490f30(view, 1): emit visible tiles
-     *   :109 map_present           — FUN_0048eac0: flush the 27 layers to blits
+    /* The per-frame draw driver 0x48c150:
+     *   :18   draw_pool_reset    — begin the frame's draw list
+     *   :108  map_render_walk    — FUN_00490f30(view, 1): emit visible tiles
+     *   (actor emitters run HERE, between the tile walk and the present, so
+     *    actor + tile nodes interleave by layer in the single present pass)
+     *   :109  map_present        — FUN_0048eac0: flush the 27 layers to blits
      */
     draw_pool_reset(&tr->pool);
     map_render_walk(tr->grid, cam,
                     (int32_t)tr->map.dim0, (int32_t)tr->map.dim1,
                     &tr->pool, resolve, resolve_ctx);
-    /* Tile-only here: town_render_step emits no actor nodes (the actor band
-     * walk runs in game_render between this and the present once the spawn
-     * lands), so no cel-dims callback is needed — any mode-0/1/2 node visited
-     * is deferred + counted via out_deferred. */
-    return map_present(&tr->pool, cam, blit, blit_ctx, NULL, NULL, out_deferred);
+    if (actors != NULL)
+        actors(&tr->pool, cam, actors_ctx);
+    return map_present(&tr->pool, cam, blit, blit_ctx, dims, dims_ctx,
+                       out_deferred);
 }
 
 void town_render_free(town_render *tr)

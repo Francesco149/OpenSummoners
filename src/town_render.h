@@ -79,6 +79,18 @@ int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
                      mg_bank_dims_fn dims, void *dims_ctx);
 
 /*
+ * An actor-emit hook: called once per frame AFTER the tile walk and BEFORE the
+ * present, with the scene's draw_pool + camera, so the caller can emit the room's
+ * actor nodes (actor_render_static -> draw_pool_emit_actor) into the SAME pool
+ * the tiles live in — matching the per-frame driver 0x48c150, where the actor
+ * emitters run between the tilemap walk and the present so actor + tile nodes
+ * interleave by layer in one present pass.  (The actors are owned by the spawn,
+ * not by town_render, so they come in through this seam.)
+ */
+typedef void (*town_actor_walk_fn)(draw_pool *pool, const mr_camera *cam,
+                                   void *ud);
+
+/*
  * Render one frame of the loaded scene through `cam`: reset the draw pool, walk
  * the visible cell window emitting one draw node per populated backdrop sub-slot
  * (`resolve` turns a tile's (bank, frame) into a cel handle; a tile is skipped
@@ -94,6 +106,21 @@ int town_render_step(town_render *tr, const mr_camera *cam,
                      mr_sprite_fn resolve, void *resolve_ctx,
                      present_blit_fn blit, void *blit_ctx,
                      int *out_deferred);
+
+/*
+ * The full per-frame step: like town_render_step, but with the ACTOR seam wired.
+ * After the tile walk it calls `actors(pool, cam, actors_ctx)` (when non-NULL) to
+ * emit the room's actor nodes into the pool, then presents the combined draw list
+ * — passing `dims`/`dims_ctx` through so mode-0 (keyed actor) nodes get their
+ * cull box from the cel and are blitted (rather than deferred).  town_render_step
+ * is exactly this with actors=dims=NULL (tile-only).
+ */
+int town_render_step_ex(town_render *tr, const mr_camera *cam,
+                        mr_sprite_fn resolve, void *resolve_ctx,
+                        present_blit_fn blit, void *blit_ctx,
+                        present_dims_fn dims, void *dims_ctx,
+                        town_actor_walk_fn actors, void *actors_ctx,
+                        int *out_deferred);
 
 /*
  * Draw the PARALLAX far-plane (FUN_00490cd0) through `cam` — the sky/mountain

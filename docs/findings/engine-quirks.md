@@ -2362,16 +2362,20 @@ aborts with a named `"<kind> Object Count Over"` debug string if the band is ful
 | **70000–79999** | **CHARACTER** | **`+0x11e0`** | **`FUN_00431e30`** |
 | 80000–89999 | DEVICE | `+0x13e0` | `FUN_00557550` |
 
-The **CHARACTER** band (`+0x11e0`) is the town-NPC band `FUN_00491ae0` renders
-(#78).  The character activator **`FUN_00431e30`** (`__thiscall`, ECX = the free
-slot) is a per-type `switch` that sets `actor+0x1d0=1` (active),
-**`actor+0x1d4 = type`** (so the placement type code becomes the behaviour code
-verbatim), `actor+0xfc=9` (draw layer), `actor+0xe8=0` (dir), zeroes the `+0x48`
-sprite table, stores the world (x,y), and calls per-type helpers (`FUN_00426620` &
-the `0x4264xx–0x4273xx` cluster) that look up a per-type entity-def table
-(`type*0x80 + 0x21c04`, stride 0xc) to install the sprite/anim/collision — so an
-actor's **appearance is keyed by its type code**, not stored in the map record (the
-layer sub-arrays are ~empty for the town props).  For DATA 1022 the object layers
+The **CHARACTER** band (`+0x11e0`) is the entity band `FUN_00491ae0` renders (#78);
+for the opening town it holds static **props** + invisible volumes + the one
+animated protagonist — NOT townsperson-NPCs (#80).  The character activator
+**`FUN_00431e30`** (`__thiscall`, ECX = the free slot) is a per-type `switch` that
+sets `actor+0x1d0=1` (active), **`actor+0x1d4 = type`** (so the placement type code
+becomes the behaviour code verbatim), `actor+0xfc=9` (draw layer), `actor+0xe8=0`
+(dir), **ZEROES the `+0x48` sprite table**, and stores the world (x,y).  Its
+per-type helper `FUN_00426620` fills the **collision/region** flags (`+0x288/+0x28c`
+via the cell-indexed `*(grid+0x1048)` lookup at `(cell_x*0x80 + 0x21c04 + cell_y)*0xc`
+— this is what the original draft misnamed a "sprite def table").  The **sprite**
+table `+0x48` is filled LAZILY later (`FUN_0040afe0`/`FUN_0041e600`, #80) — so an
+actor's **appearance is still keyed by its type code**, just not here, and not from
+the map record (the layer sub-arrays are ~empty for the town props).  For DATA 1022
+the object layers
 decode to **15 effects + 39 structures + 32 characters + 0 devices = 86**, and the
 32 character codes + multiplicities match the live actor census exactly (proof:
 `docs/proofs/map-object-layer-format.md`; `tools/extract/map_data.py … --objects`).
@@ -2391,15 +2395,20 @@ field spec) corrects #78 + #79:
   whose `FUN_00431e30` arms set up a physics/kinematic body, not a sprite).  Only
   these draw (all `dir==0`, `clip==0` = static, `skip==0`):
 
+  These are static **PROPS, not people-NPCs** — bank `0x16c` (res `0x403`) is the
+  town-OBJECTS sheet (USER-confirmed against retail on the feed: the fountain
+  `0x112e5` + a barrel `0x1129e`; they render at the correct positions).  The only
+  person in the band is the animated protagonist `0x1872d`.
+
   | code | n | bank | frame_base | draw layer | note |
   |------|--:|------|-----------:|-----------:|------|
-  | `0x1129e` | 3 | `0x16c` | 1  | 9  | villager (res `0x403`) |
-  | `0x1129f` | 1 | `0x16c` | 2  | 9  | villager |
-  | `0x112e5` | 1 | `0x16c` | 36 | 10 | villager (layer 10, not 9) |
-  | `0x1872d` | 1 | `0x175` | 0  | 9  | the **animated protagonist** (clip `0x671c48`, `+0x2c`=0x63; **outside** the 70000 CHARACTER range — a SEPARATE spawn; needs the `0x491ae0` `0x1872d` multi-part arm) |
+  | `0x1129e` | 3 | `0x16c` | 1  | 9  | prop (a barrel), res `0x403` |
+  | `0x1129f` | 1 | `0x16c` | 2  | 9  | prop |
+  | `0x112e5` | 1 | `0x16c` | 36 | 10 | prop (the fountain), draw layer 10 not 9 |
+  | `0x1872d` | 1 | `0x175` | 0  | 9  | the **animated protagonist** (the one PERSON; clip `0x671c48`, `+0x2c`=0x63; **outside** the 70000 CHARACTER range — a SEPARATE spawn; needs the `0x491ae0` `0x1872d` multi-part arm) |
 
   So the town's mode-0 keyed-blit residual (#74/#75's 36 blits) is **5 static
-  villager blits (bank `0x16c`) + the multi-part protagonist** (bank `0x175` +
+  prop blits (bank `0x16c`) + the multi-part protagonist** (bank `0x175` +
   its body-part banks `0x426`/`0x459`/… — the bulk), NOT 32 visible scenery actors.
 
 - **The `+0x48` table is filled LAZILY, not by the spawn.**  `FUN_00431e30`
@@ -2410,14 +2419,16 @@ field spec) corrects #78 + #79:
   collision lookup #79 misnamed).  That def table is **not yet RE'd** — captured
   ground truth stands in for it (PORT-DEBT `actor-sprite-table`).
 
-- **The visible villagers have WANDERED by flip 1500.**  Their captured render-state
-  world pos differs from their map-placement coords by ≈half a cell, per-actor and
-  inconsistent (e.g. `0x1129e` +1800x/+1600y, `0x112e5` +0/+0) — the RNG-driven AI
-  motion (`FUN_0054f980` idle→wander), the **deferred RNG pillar** (#77, ckpt 73).
-  So the deterministic anchor for the spawn is the **map-placement coords ×100**
-  (`rs_x = map_x*100` confirmed exactly for the un-wandered `0x112e5` + every
-  invisible volume); the flip-1500 positions are not reproducible without the
-  deferred RNG/AI port.
+- **The props render at a DETERMINISTIC per-code offset from their map coords —
+  NOT RNG.**  (Earlier draft wrongly called this RNG "wander".)  A prop's captured
+  render-state pos differs from `map_x*100` by a fixed per-CODE delta — all three
+  `0x1129e` share the *exact* same `+1800x/+1600y`, and the positions are identical
+  across flips 1480/1500/1520 (static, not moving).  The clearly-visible fountain
+  `0x112e5` has delta `+0/+0`, so it lands *exactly* at `map_x*100` (USER-confirmed
+  it matches retail).  So the delta is a deterministic placement/anchor nuance (the
+  spawn's `0x426620` alignment arm or the lazy fill — TBD), fully reproducible; the
+  port spawns at `map_x*100` today (correct for the fountain; the `+1800/+1600`
+  props are off-screen/edge at the hold, so their small delta is a refinement).
 
 Field spec: `tools/flow/retail_fields.json` `0x491ae0` (the `row0_bf`/`d1_bf`..
 `d7_bf`/`dir_e8`/… `thisderef` fields).  Port: `src/actor_spawn.c` (the spawn +

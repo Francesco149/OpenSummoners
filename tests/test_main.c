@@ -880,6 +880,7 @@ struct test_case {
     X(town_render_unloaded_noop)                               \
     X(town_render_malformed)                                   \
     X(town_render_parallax_wired)                              \
+    X(town_render_actor_seam)                                  \
     X(color_grade_town_lut_samples)                            \
     X(color_grade_identity)                                    \
     X(color_grade_active_gate)                                 \
@@ -917,7 +918,7 @@ struct test_case {
     X(actor_spawn_census)                                      \
     X(actor_spawn_sprite_lookup)                               \
     X(actor_spawn_invisible_self_skips)                        \
-    X(actor_spawn_villager_renders)                            \
+    X(actor_spawn_prop_renders)                                \
     X(actor_spawn_guards)                                      \
 
 #define X(n) extern int test_##n(void);

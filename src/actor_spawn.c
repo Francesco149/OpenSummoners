@@ -31,9 +31,13 @@ static const struct {
     int16_t  frame_base;
     uint32_t layer;
 } TOWN_SPRITE_DEFS[] = {
-    {0x1129eu, 0x16cu,  1u, 9u},   /* villager A (x3 in DATA 1022)   */
-    {0x1129fu, 0x16cu,  2u, 9u},   /* villager B (x1)                */
-    {0x112e5u, 0x16cu, 36u, 10u},  /* villager C (x1, draw layer 10) */
+    /* bank 0x16c (res 0x403) is the town-OBJECTS sheet — these are static PROPS
+     * (e.g. a barrel, a fountain), NOT people-NPCs (USER-confirmed on the feed:
+     * the fountain @0x112e5/176000 + a barrel @0x1129e).  The only person in the
+     * CHARACTER band is the animated protagonist 0x1872d (bank 0x175, separate). */
+    {0x1129eu, 0x16cu,  1u, 9u},   /* prop, frame 1  (x3 in DATA 1022)   */
+    {0x1129fu, 0x16cu,  2u, 9u},   /* prop, frame 2  (x1)                */
+    {0x112e5u, 0x16cu, 36u, 10u},  /* prop (the fountain), frame 36, layer 10 (x1) */
 };
 
 int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,

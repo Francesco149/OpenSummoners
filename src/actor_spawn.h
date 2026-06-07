@@ -19,13 +19,16 @@
  * of DATA 1022's 32 CHARACTER objects, only THREE codes actually draw — the rest
  * are invisible collision / trigger / spawn volumes (all-zero sprite table, the
  * renderer self-skips them via FUN_0044d160's `bank==0 => return 0`).  The three
- * visible codes all use sprite bank 0x16c (the villager sheet, res 0x403):
+ * visible codes all use sprite bank 0x16c (the town-OBJECTS sheet, res 0x403) and
+ * are static PROPS, NOT people-NPCs (USER-confirmed: a fountain + a barrel):
  *     0x1129e -> bank 0x16c frame 1  layer 9    (x3)
  *     0x1129f -> bank 0x16c frame 2  layer 9    (x1)
- *     0x112e5 -> bank 0x16c frame 36 layer 10   (x1)
- * (The town's animated protagonist, code 0x1872d / bank 0x175, is OUTSIDE the
- * 70000 CHARACTER range — a SEPARATE spawn path — and needs the 0x491ae0 0x1872d
- * multi-part animated arm; both are deferred, not produced here.)
+ *     0x112e5 -> bank 0x16c frame 36 layer 10   (x1, the fountain)
+ * (The town's only person, the animated protagonist code 0x1872d / bank 0x175, is
+ * OUTSIDE the 70000 CHARACTER range — a SEPARATE spawn path — and needs the
+ * 0x491ae0 0x1872d multi-part animated arm; both are deferred, not produced here.
+ * A static people-NPC, if a scene had one, would ride this same path with its own
+ * (bank,frame); the module name stays "actor" — the engine's band is CHARACTER.)
  *
  * PORT-DEBT(actor-sprite-table): the code->(bank,frame_base,layer) map below is
  * captured ground truth standing in for the lazy def-table fill.  It is

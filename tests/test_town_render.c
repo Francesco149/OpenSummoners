@@ -246,3 +246,43 @@ int test_town_render_parallax_wired(void)
     T_ASSERT_EQ_I(town_render_parallax(&zero, &CAM0, px_rec, &s), 0);
     return 0;
 }
+
+/* ---- the ACTOR seam: step_ex emits + presents actor nodes (mode-0 keyed) ---- */
+
+/* an actor-walk callback emitting one opaque actor (alpha 0 -> mode 0) at world
+ * (3200,3200) layer 9 -> screen (32,32) under CAM0. */
+static void seam_emit_actor(draw_pool *pool, const mr_camera *cam, void *ud)
+{ (void)cam; (void)ud; draw_pool_emit_actor(pool, 9, STUB_CEL, 3200, 3200, 0, 0, 0); }
+/* a cel-dims callback (16x16 cull box) so the mode-0 node isn't deferred. */
+static void seam_cel_dims(uint32_t cel, int32_t *w, int32_t *h, void *ud)
+{ (void)cel; (void)ud; *w = 16; *h = 16; }
+
+int test_town_render_actor_seam(void)
+{
+    /* empty 2x2 map (no tiles) so the actor node is the only blit. */
+    size_t len; uint8_t *blob = build_blob(2, 2, 1, &len);
+    town_render tr;
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+
+    /* step_ex with the actor seam + dims: the actor is presented as PRESENT_KEYED. */
+    sink s = { 0 };
+    int deferred = -1;
+    int n = town_render_step_ex(&tr, &CAM0, resolve_none, NULL, rec_blit, &s,
+                                seam_cel_dims, NULL, seam_emit_actor, NULL,
+                                &deferred);
+    T_ASSERT_EQ_I(n, 1);                       /* 0 tiles + 1 actor */
+    T_ASSERT_EQ_I(s.n, 1);
+    T_ASSERT_EQ_I(s.ops[0].kind, PRESENT_KEYED);
+    T_ASSERT_EQ_U(s.ops[0].sprite, STUB_CEL);
+    T_ASSERT_EQ_I(deferred, 0);                /* dims provided -> presented, not deferred */
+
+    /* the plain wrapper has no seam -> the actor is never emitted (tiles only). */
+    sink s2 = { 0 };
+    int n2 = town_render_step(&tr, &CAM0, resolve_none, NULL, rec_blit, &s2, NULL);
+    T_ASSERT_EQ_I(n2, 0);
+    T_ASSERT_EQ_I(s2.n, 0);
+
+    town_render_free(&tr);
+    free(blob);
+    return 0;
+}
