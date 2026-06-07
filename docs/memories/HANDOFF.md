@@ -60,21 +60,35 @@ producer map.**  RE + live-census milestone (no port yet); resolves the ckpt-82
 - **State: 896 pass unchanged** (no C touched; docs + `retail_fields.json` only).
   Ledger unchanged.  quirk #84; `findings/in-game-intro.md` "The establishing-hold
   cast is FOUR map-object bands".
-- **NEXT (Phase 1, simplest-first):**
-  1. **RE the STRUCTURE activator `FUN_00438a60`** (the 60000-range arm) — how it
-     sets the draw LAYER (tree/deco 8 vs fg-hedge 15) + the code→bank def table +
-     `frame_base`=variant from the map record.  (Mirror of `0x431e30` for CHARACTER.)
-  2. **Port the STRUCTURE band:** extend `actor_spawn_from_map` to the 60000 range
-     (pos=map×100, frame_base=variant, code→bank, layer), port `0x493230` as a
-     single-cel render, wire into `game_render` → `render_diff` vs retail hold
-     (the tree + hedges + decorations drop in).  PORT-DEBT `actor-sprite-table`
-     (the code→bank def table) until `0x438a60` is fully RE'd.
-  3. **Then the EFFECT townsfolk:** the multi-part `0x493ba0` render + the
-     `0x41f200` spawn (pos offset).  16 static land at a matched sim-tick; the 4
-     `0xe29a` need Phase 2 (RNG).
-- Artifacts (local `/tmp`, ephemeral): `/tmp/cast_census/`, `/tmp/tree_emit/`;
-  analysis `/tmp/census_fixed.py`, `/tmp/parse_variant.py`.  Regen via the
-  field-spec capture above.
+- **STRUCTURE band DONE (ckpt 83b) — PORTED + USER-1:1.**  RE'd `0x438a60`
+  (per-code bank def table: 0xec55→0x15f, 0xec60→0x164, 0xec6a→0x16c, …) + the
+  `0x58d460` dispatch (layer = record +0x30 ? 15 : 8; frame_base = variant +0x18;
+  pos = (x,y)×100 — all verified cel-for-cel vs the census).  PORTED
+  `actor_spawn_struct_from_map` (60000-range, fully map-driven) +
+  `actor_spawn_struct_bank_for_code`; the RENDER reuses `actor_render_static` (the
+  `0x493230` static single-cel blit is bit-identical to the default actor arm).
+  Wired via `game_actor_walk` (walks g_structs at layers 8/15) + spawned in
+  `enter_game`.  **Live: 39 objects spawned + 39 nodes emitted (tree bank 0x15f
+  registered); render_diff/position-verified bit-exact** (tree `(0x481,f0)`@(496,64)
+  320×320, the 5 hedges, the 4 `0x403` props/deco — all identical port↔retail, zero
+  `[rect]`/`[decode]`/`[state]`).  **USER-confirmed on the feed: "the decorations
+  are there and positioned 1:1".**  897 pass (+1 `actor_spawn_struct`); ledger
+  199/194 unchanged (bare-VA slices); parity-ledger #9.
+- **NEXT (Phase 1 cont.) — the EFFECT townsfolk (the people in the square):**
+  1. **The multi-part char renderer `FUN_00493ba0`** — built on the ALREADY-PORTED
+     `0x44d160` (actor_render_describe) + `0x492670` (draw_pool_emit_actor) + the
+     shadow/color-split layers via `0x4917b0`.  Port its core static arm
+     (`LAB_004943d7` → describe → the emit loop); the 16 standing townsfolk are
+     static (clip-animated frame only, deterministic per #76).
+  2. **The EFFECT spawn `FUN_0041f200`** (the 50000-range activator, 0x58d460:151)
+     — map pos + the deterministic ≈+3000 x offset (RE it; the static townsfolk
+     land at a matched sim-tick).  code→bank def table (banks 0x8b–0x146).
+  3. The 4 wandering `0xe29a` need Phase 2 (RNG, deferred).  Then the `0x4962a0`
+     off-screen invisibles + the `0x13e0` bank-0x1aa particles (alpha).
+- Artifacts (local `/tmp`, ephemeral): `/tmp/cast_census/`, `/tmp/tree_emit/`,
+  `/tmp/port_hold_trace.jsonl`, `/tmp/retail_hold_1500.png`; analysis
+  `/tmp/census_fixed.py`, `/tmp/parse_variant.py`.  Regen via the field-spec
+  capture above.
 
 ## Where we are — ckpt 81
 

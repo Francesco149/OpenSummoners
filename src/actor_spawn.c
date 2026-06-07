@@ -17,9 +17,16 @@ static uint32_t hdr_u32(const uint8_t *h, int off)
 }
 static int32_t hdr_i32(const uint8_t *h, int off) { return (int32_t)hdr_u32(h, off); }
 
-#define HDR_OFF_X    0x04   /* i32 tile-px x (spawn -> world x = x*100) */
-#define HDR_OFF_Y    0x08   /* i32 tile-px y (spawn -> world y = y*100) */
-#define HDR_OFF_CODE 0x10   /* u32 type code (= actor+0x1d4 behaviour)  */
+#define HDR_OFF_X       0x04   /* i32 tile-px x (spawn -> world x = x*100)      */
+#define HDR_OFF_Y       0x08   /* i32 tile-px y (spawn -> world y = y*100)      */
+#define HDR_OFF_CODE    0x10   /* u32 type code (= actor+0x1d4 behaviour)       */
+#define HDR_OFF_VARIANT 0x18   /* u16 variant -> STRUCTURE frame_base (0x58d460:269) */
+#define HDR_OFF_FGFLAG  0x30   /* i32 foreground flag -> STRUCTURE layer 15 vs 8     */
+
+static uint16_t hdr_u16(const uint8_t *h, int off)
+{
+    return (uint16_t)((uint16_t)h[off] | ((uint16_t)h[off + 1] << 8));
+}
 
 /* PORT-DEBT(actor-sprite-table): the captured visible-code sprite map (retail
  * town hold, flip 1500 — live +0x48 capture via 0x491ae0).  Stands in for the
@@ -93,6 +100,84 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
             a->sprite_table[0].frame_base = frame_base;
             a->layer                      = layer;
         }
+    }
+    return pool->count;
+}
+
+/* STRUCTURE code -> sprite bank, RE'd from the activator 0x438a60's per-case
+ * switch (each case ends 0x426db0/0x426d70/(via LAB_00439490)
+ * 0x426d70(0, BANK, variant)).  This IS the def table (not a capture), so it
+ * is not PORT-DEBT.  DATA-1022 uses only 0xec55/0xec60/0xec6a; the rest are the
+ * other town-scenery structure codes for any room.  (0xeead's bank is a runtime
+ * value *(0x8a9b50+0x27a4) — omitted; 0xec59..0xec5e have no case.) */
+static const struct { uint32_t code; uint16_t bank; } STRUCT_BANK_DEFS[] = {
+    {0xec55u, 0x15fu},  /* the foreground TREE          (via 0x426db0)        */
+    {0xec56u, 0x160u},  /*                              (via 0x426db0)        */
+    {0xec57u, 0x161u},
+    {0xec58u, 0x162u},
+    {0xec5fu, 0x163u},
+    {0xec60u, 0x164u},  /* the fg hedges / flowerbed (res 0x426)               */
+    {0xec61u, 0x165u},
+    {0xec62u, 0x166u},
+    {0xec69u, 0x16bu},
+    {0xec6au, 0x16cu},  /* the bg decorations (res 0x403, town-objects sheet)  */
+    {0xec6bu, 0x16eu},
+    {0xec6cu, 0x16fu},
+    {0xec6du, 0x16du},
+    {0xec6eu, 0x170u},
+    {0xec6fu, 0x170u},
+    {0xec70u, 0x196u},
+    {0xec7cu, 0x18du},
+};
+
+int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank)
+{
+    for (size_t i = 0; i < sizeof STRUCT_BANK_DEFS / sizeof STRUCT_BANK_DEFS[0]; i++) {
+        if (STRUCT_BANK_DEFS[i].code == code) {
+            if (bank) *bank = STRUCT_BANK_DEFS[i].bank;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md)
+{
+    if (pool == NULL || md == NULL) return -1;
+    memset(pool, 0, sizeof *pool);
+    if (md->layers == NULL) return 0;
+
+    for (uint32_t li = 0; li < md->count; li++) {
+        const uint8_t *h = md->layers[li].hdr;
+        uint32_t code = hdr_u32(h, HDR_OFF_CODE);
+        if (code < ACTOR_CODE_STRUCTURE_LO || code > ACTOR_CODE_STRUCTURE_HI)
+            continue;                          /* not a STRUCTURE object */
+
+        uint16_t bank;
+        if (!actor_spawn_struct_bank_for_code(code, &bank))
+            continue;                          /* 0x438a60 switch default: no sprite */
+
+        if (pool->count >= ACTOR_BAND_SLOTS)   /* "Structure Object Count Over" */
+            return -1;
+
+        int slot = pool->count++;
+        actor              *a  = &pool->actors[slot];
+        actor_render_state *rs = &pool->states[slot];
+
+        /* 0x438a60: behaviour code (+0x1d4), dir 0 (+0xe8), draw layer (+0xfc) =
+         * the foreground flag (record +0x30): 1 => 15 (in front of the cast),
+         * else 8.  Sprite row 0 = {bank from the def table, frame_base = the
+         * record's variant @ +0x18}, x/y offset 0 (the fill primitives pass 0). */
+        a->code  = code;
+        a->dir   = 0;
+        a->layer = (hdr_i32(h, HDR_OFF_FGFLAG) == 1) ? 15u : 8u;
+        a->sprite_table[0].bank       = bank;
+        a->sprite_table[0].frame_base = (int16_t)hdr_u16(h, HDR_OFF_VARIANT);
+
+        rs->active  = 1;                        /* +0x00 (the *param_1!='\0' gate) */
+        rs->world_x = hdr_i32(h, HDR_OFF_X) * 100;   /* +0x04 */
+        rs->world_y = hdr_i32(h, HDR_OFF_Y) * 100;   /* +0x08 */
+        rs->clip    = NULL;                     /* +0x6c — static (39/39, clip 0) */
     }
     return pool->count;
 }

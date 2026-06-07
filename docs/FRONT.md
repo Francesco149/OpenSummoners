@@ -29,12 +29,24 @@
   steps, det. per #76) + 4 wandering `0xe29a` (RNG, Phase 2).** Corrects the docs' "the cast
   is the +0x11e0 band" model; the tree is STRUCTURE `0xec55`, not a banner/`0x5a00c0`/tile.
   quirk #84; `findings/in-game-intro.md` "The establishing-hold cast is FOUR map-object
-  bands". **NEXT (Phase 1, simplest-first):** (1) RE the STRUCTURE activator `0x438a60`
-  (layer + code→bank def table), (2) port the STRUCTURE band — spawn the 39 objects from the
-  map + a `0x493230` single-cel render + wire → lands the TREE + hedges + decorations,
-  `render_diff` vs retail hold; (3) then the EFFECT townsfolk (multi-part `0x493ba0` + the
-  `0x41f200` spawn). Also pending: byte-confirm the wagon via `render_diff` keyed `(res
-  0x3ec, frame)`. Artifacts (`/tmp`): `cast_census/`, `tree_emit/`.
+  bands".
+- **LANDED (ckpt 83b): the STRUCTURE band is PORTED + USER-confirmed 1:1.** RE'd the
+  STRUCTURE activator `0x438a60` (per-code bank def table) + dispatcher `0x58d460`
+  (layer = record +0x30 ? 15 : 8, frame_base = variant +0x18 — all verified vs census).
+  PORTED `actor_spawn_struct_from_map` (60000-range, fully map-driven) + the bank table
+  `actor_spawn_struct_bank_for_code`; the render REUSES `actor_render_static` (the
+  `0x493230` static single-cel blit is bit-identical), wired via `game_actor_walk`
+  (g_structs) at the structure layers 8/15. **Live: 39 objects spawned + emitted; tree bank
+  0x15f registered.** **render_diff/position-verified BIT-EXACT:** tree `(0x481,f0)`@(496,64)
+  320×320, the 5 hedges `(0x426)`, the 4 `0x403` props/deco — all identical port↔retail,
+  zero `[rect]`/`[decode]`/`[state]`. **USER-confirmed on the feed: "the decorations are
+  there and positioned 1:1".** parity-ledger #9; **897 pass** (+1, `actor_spawn_struct`);
+  ledger 199/194 unchanged (bare-VA slices). **NEXT (Phase 1 cont.):** the EFFECT townsfolk
+  — the multi-part char renderer `0x493ba0` (built on the ported `0x44d160`) + the
+  `0x41f200` spawn (map pos + the ≈+3000 x offset); 16 static land at a matched sim-tick,
+  the 4 wandering `0xe29a` need Phase 2 (RNG). Then the `0x4962a0` invisibles + the `0x13e0`
+  particles. Also pending: byte-confirm the wagon via `render_diff` `(res 0x3ec, frame)`.
+  Artifacts (`/tmp`): `cast_census/`, `port_hold_trace.jsonl`, `retail_hold_1500.png`.
 - **Prior (ckpt 81): the caravan's HORSES now TROT — the per-tick actor anim is wired +
   BIT-VERIFIED live.** Read `0x54f980` case-`0x1872d` (`:911-970`): its two halves are
   separable (quirk #82) — **`:911-928` is the frame-stepper, UNCONDITIONAL** (gated only on

@@ -307,3 +307,75 @@ int test_actor_pool_update_trots(void)
     T_ASSERT_EQ_I(actor_pool_update(NULL), 0);
     return 0;
 }
+
+/* ---- the STRUCTURE band: map-driven scenery (tree/hedge/deco), quirk #84 ---- */
+
+/* Fill a STRUCTURE layer header: (code, x, y) + variant@+0x18 + fgflag@+0x30. */
+static void struct_layer_set(map_layer *L, uint32_t code, int32_t x, int32_t y,
+                             uint16_t variant, int32_t fgflag)
+{
+    layer_set(L, code, x, y);
+    L->hdr[0x18] = (uint8_t)(variant & 0xff);
+    L->hdr[0x19] = (uint8_t)((variant >> 8) & 0xff);
+    hdr_set(L->hdr, 0x30, (uint32_t)fgflag);
+}
+
+int test_actor_spawn_struct(void)
+{
+    /* DATA-1022-shaped sample: the tree + a fg hedge + a bg deco, plus a
+     * CHARACTER object (skipped) and an unknown structure code (skipped). */
+    map_layer layers[5];
+    struct_layer_set(&layers[0], 0xec55u, 1776, 192,  0, 0);  /* tree  -> bank 0x15f, fb 0,  layer 8  */
+    struct_layer_set(&layers[1], 0x112e5u, 100, 100,  0, 0);  /* CHARACTER -> skipped               */
+    struct_layer_set(&layers[2], 0xec60u, 1696, 476,  5, 1);  /* hedge -> bank 0x164, fb 5, layer 15 */
+    struct_layer_set(&layers[3], 0xec6au, 1288, 400, 16, 0);  /* deco  -> bank 0x16c, fb 16, layer 8 */
+    struct_layer_set(&layers[4], 0x6f00fu, 50, 50,    0, 0);  /* unknown structure code -> skipped   */
+
+    map_data md;
+    memset(&md, 0, sizeof md);
+    md.count  = 5;
+    md.layers = layers;
+
+    actor_spawn_pool pool;
+    T_ASSERT_EQ_I(actor_spawn_struct_from_map(&pool, &md), 3);  /* 3 structures */
+
+    /* slot 0 = tree (0xec55): bank 0x15f, fb 0, layer 8, world (177600,19200). */
+    T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0x15fu);
+    T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 0);
+    T_ASSERT_EQ_U(pool.actors[0].layer, 8u);
+    T_ASSERT_EQ_I(pool.states[0].world_x, 177600);
+    T_ASSERT_EQ_I(pool.states[0].world_y, 19200);
+    T_ASSERT(pool.states[0].clip == NULL);
+
+    /* slot 1 = hedge (0xec60): bank 0x164, fb = variant 5, layer 15 (fgflag 1). */
+    T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0x164u);
+    T_ASSERT_EQ_I(pool.actors[1].sprite_table[0].frame_base, 5);
+    T_ASSERT_EQ_U(pool.actors[1].layer, 15u);
+
+    /* slot 2 = deco (0xec6a): bank 0x16c, fb = variant 16, layer 8 (fgflag 0). */
+    T_ASSERT_EQ_U(pool.actors[2].sprite_table[0].bank, 0x16cu);
+    T_ASSERT_EQ_I(pool.actors[2].sprite_table[0].frame_base, 16);
+    T_ASSERT_EQ_U(pool.actors[2].layer, 8u);
+
+    /* the bank lookup itself. */
+    uint16_t b = 0;
+    T_ASSERT_EQ_I(actor_spawn_struct_bank_for_code(0xec55u, &b), 1);
+    T_ASSERT_EQ_U(b, 0x15fu);
+    T_ASSERT_EQ_I(actor_spawn_struct_bank_for_code(0x6f00fu, &b), 0);
+
+    /* a structure renders through actor_render_static into its layer (the hedge
+     * at layer 15) — cel = (bank 0x164, frame 5), world from the render-state. */
+    draw_pool dp;
+    T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
+    int e = actor_render_static(&pool.actors[1], &pool.states[1], NULL, &dp,
+                                resolve_pack, NULL);
+    T_ASSERT_EQ_I(e, 1);
+    T_ASSERT_EQ_U(dp.layers[15].count, 1u);
+    T_ASSERT_EQ_U(dp.layers[15].nodes[0].sprite, resolve_pack(0x164u, 5u, NULL));
+    T_ASSERT_EQ_I(dp.layers[15].nodes[0].dst_x, 169600);
+    draw_pool_free(&dp);
+
+    /* NULL guard. */
+    T_ASSERT_EQ_I(actor_spawn_struct_from_map(NULL, &md), -1);
+    return 0;
+}

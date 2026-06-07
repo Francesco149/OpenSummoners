@@ -58,6 +58,14 @@
 #define ACTOR_CODE_CHARACTER_LO 70000u
 #define ACTOR_CODE_CHARACTER_HI 79999u
 
+/* STRUCTURE type-code range (0x58d460's dispatch band; 60000..69999 -> the
+ * +0x2560 pool, activator 0x438a60, rendered by the single-cel 0x493230 —
+ * which produces a BIT-IDENTICAL static blit to actor_render_static, so the
+ * STRUCTURE band reuses that renderer).  The town's scenery: the foreground TREE
+ * (0xec55), bg decorations (0xec6a), fg hedges (0xec60).  engine-quirk #84. */
+#define ACTOR_CODE_STRUCTURE_LO 60000u
+#define ACTOR_CODE_STRUCTURE_HI 69999u
+
 /*
  * A spawned band: parallel {actor, render-state} arrays the render walk drives
  * (actor_render_static(&actors[i], &states[i], ...)).  The two are separate
@@ -90,6 +98,32 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md);
  */
 int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
                                 int16_t *frame_base, uint32_t *layer);
+
+/*
+ * Populate `pool` with the STRUCTURE objects of the parsed map `md`:  for each
+ * object-placement layer whose type code is in 60000..69999, activate one slot.
+ * Unlike CHARACTER, STRUCTURE is FULLY MAP-DRIVEN (engine-quirk #84, RE'd from
+ * the activator 0x438a60 + the dispatcher 0x58d460):
+ *   - world pos    = layer record (x@+0x04, y@+0x08) * 100
+ *   - frame_base   = layer record's VARIANT (u16 @ +0x18) — verified cel-for-cel
+ *                    live-vs-map (tree {0,1}, hedge {0,1,4,5}, deco {16,18,..,35})
+ *   - draw layer   = record's foreground flag (+0x30): 1 => 15 (in front of the
+ *                    cast), else 8 (behind)
+ *   - sprite bank  = a per-code constant in 0x438a60's switch (the def table,
+ *                    actor_spawn_struct_bank_for_code) — NOT captured, RE'd
+ *   - static (clip NULL, dir 0)
+ * Codes whose bank isn't in the def table are skipped (retail's switch `default`
+ * draws nothing).  Zeroes `pool` first.  Returns the count spawned (DATA 1022 ->
+ * 39: 0xec55 x2 + 0xec60 x8 + 0xec6a x29), or -1 on a NULL arg / pool overflow.
+ */
+int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md);
+
+/*
+ * The STRUCTURE code -> sprite bank map (0x438a60's per-case fill: 0xec55->0x15f,
+ * 0xec60->0x164, 0xec6a->0x16c, ...).  Returns 1 + *bank for a known structure
+ * code, else 0.  RE'd from the activator (not a capture), so it is not PORT-DEBT.
+ */
+int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank);
 
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a

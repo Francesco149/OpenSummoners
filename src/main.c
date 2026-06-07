@@ -189,6 +189,15 @@ static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc)
 static actor_spawn_pool g_actors;
 static int              g_actors_loaded;
 
+/* The room's STRUCTURE-band scenery (0x58d460 -> 0x438a60 spawn, ported in
+ * actor_spawn.c).  Fully map-driven (engine-quirk #84): the foreground TREE
+ * (0xec55), bg decorations (0xec6a), fg hedges (0xec60) — 39 static single-cel
+ * objects for DATA 1022.  Rendered by the same actor_render_static (0x493230's
+ * static blit is bit-identical), at the structure layers 8 (behind the cast) /
+ * 15 (in front), which the layer-ordered present interleaves correctly. */
+static actor_spawn_pool g_structs;
+static int              g_structs_loaded;
+
 /* The LIVE in-game camera (the room-state's +0x104c view object).  enter_game
  * spawn-snaps it to the hold origin (camera_apply_snap → cur=tgt=128000/12800);
  * game_render steps it each frame with camera_follow_step (FUN_0043d1d0) and
@@ -1587,29 +1596,44 @@ static void game_cel_dims(uint32_t cel, int32_t *w, int32_t *h, void *ud)
 static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
 {
     (void)cam; (void)ud;
-    if (!g_actors_loaded) return;
-    int emitted = 0;
-    for (int i = 0; i < g_actors.count; i++) {
-        const actor *a = &g_actors.actors[i];
-        if (a->code == ACTOR_CODE_PROTAGONIST)
-            emitted += actor_render_protagonist(a, &g_actors.states[i],
-                                                /*flip_table=*/NULL, pool,
-                                                game_sprite_resolve, NULL);
-        else
-            emitted += actor_render_static(a, &g_actors.states[i],
-                                           /*flip_table=*/NULL, pool,
-                                           game_sprite_resolve, NULL);
-    }
+    int emitted = 0, struct_emitted = 0;
+
+    /* The STRUCTURE band (0x493230) — the tree + hedges + decorations.  Each is
+     * a static single-cel object whose blit is bit-identical to the default
+     * actor arm, so actor_render_static draws it; the actor's +0xfc layer (8 or
+     * 15) routes it before/after the cast in the layer-ordered present. */
+    if (g_structs_loaded)
+        for (int i = 0; i < g_structs.count; i++)
+            struct_emitted += actor_render_static(&g_structs.actors[i],
+                                                  &g_structs.states[i],
+                                                  /*flip_table=*/NULL, pool,
+                                                  game_sprite_resolve, NULL);
+
+    if (g_actors_loaded)
+        for (int i = 0; i < g_actors.count; i++) {
+            const actor *a = &g_actors.actors[i];
+            if (a->code == ACTOR_CODE_PROTAGONIST)
+                emitted += actor_render_protagonist(a, &g_actors.states[i],
+                                                    /*flip_table=*/NULL, pool,
+                                                    game_sprite_resolve, NULL);
+            else
+                emitted += actor_render_static(a, &g_actors.states[i],
+                                               /*flip_table=*/NULL, pool,
+                                               game_sprite_resolve, NULL);
+        }
+
     static int logged;
     if (!logged) {
         logged = 1;
         ar_sprite_slot *vb = ar_pool_get_slot(0x16c);                /* prop bank */
         ar_sprite_slot *pb = ar_pool_get_slot(ACTOR_PROT_SPRITE_BANK);/* 0x175    */
-        log_line("game_actor_walk: %d nodes from %d actors "
-                 "(prop bank 0x16c %s; protagonist bank 0x175 %s)",
-                 emitted, g_actors.count,
+        ar_sprite_slot *tb = ar_pool_get_slot(0x15f);                /* tree bank */
+        log_line("game_actor_walk: %d actor + %d structure nodes "
+                 "(prop bank 0x16c %s; protagonist bank 0x175 %s; tree bank 0x15f %s)",
+                 emitted, struct_emitted,
                  vb ? "registered" : "NOT registered",
-                 pb ? "registered" : "NOT registered -> protagonist invisible");
+                 pb ? "registered" : "NOT registered -> protagonist invisible",
+                 tb ? "registered" : "NOT registered -> tree invisible");
     }
 }
 
@@ -1942,6 +1966,14 @@ static void enter_game(void)
         log_line("enter_game: actor_spawn_from_map -> %d CHARACTER actors "
                  "+ protagonist slot %d (5 visible props + 27 volumes, DATA 1022)",
                  n, ps);
+
+        /* Spawn the room's STRUCTURE-band scenery from the map (0x58d460 ->
+         * 0x438a60 slice) — fully map-driven (the TREE 0xec55, hedges 0xec60,
+         * decorations 0xec6a; quirk #84).  game_actor_walk also walks g_structs. */
+        int sn = actor_spawn_struct_from_map(&g_structs, &g_town.map);
+        g_structs_loaded = (sn > 0);
+        log_line("enter_game: actor_spawn_struct_from_map -> %d STRUCTURE objects "
+                 "(tree + hedges + decorations, DATA 1022)", sn);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

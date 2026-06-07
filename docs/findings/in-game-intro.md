@@ -2158,3 +2158,23 @@ code, and trust the emit hook over a band-entry census.  engine-quirk #84.
    sim-tick; the 4 `0xe29a` need Phase 2 (RNG).
 Artifacts: `/tmp/cast_census/`, `/tmp/tree_emit/` (ephemeral; regen via the
 field-spec capture at flips 1450/1500/1600).
+
+**PORTED (ckpt 83b) — the STRUCTURE band is in + USER-1:1.**  RE'd the activator
+`FUN_00438a60` (60000-range: a per-code switch, each case ends with a fill
+primitive that installs the sprite bank — 0xec55→0x15f, 0xec60→0x164, 0xec6a→0x16c,
+… — the def table) and the dispatcher `FUN_0058d460:233-269` (the layer = the map
+record's foreground flag @+0x30: `==1 ? 15 : 8`; frame_base = variant @+0x18; pos =
+record (x,y)×100 — all verified cel-for-cel against the census).  Ported
+`actor_spawn_struct_from_map` (`src/actor_spawn.c`, fully map-driven — no capture
+stand-in, so not PORT-DEBT) + `actor_spawn_struct_bank_for_code`; the render REUSES
+`actor_render_static` because `0x493230`'s static single-cel blit is bit-identical
+to the `0x491ae0` default arm (same cel `(bank, frame_base)`, same `(world +
+dst_base + row off)`, same mode-0 keyed node).  Wired in `main.c` (`g_structs`
+spawned in `enter_game`; `game_actor_walk` walks it at the structure layers 8/15,
+which the layer-ordered present interleaves with the cast).  **Live-verified:** 39
+objects spawn + emit; the tree bank `0x15f` registers; `render_diff` (port flip 1200
+↔ retail 1500) shows the tree `(0x481,f0)`@(496,64) 320×320, the 5 hedges `(0x426)`,
+and the 4 `0x403` props/deco all matching on identity + frame + dst position (zero
+`[rect]`/`[decode]`/`[state]`); the only residuals are the 8 EFFECT townsfolk cels
++ the 18 off-screen `0x4962a0` invisibles.  **USER-confirmed on the feed: "the
+decorations are there and positioned 1:1."**  parity-ledger #9; 897 pass (+1).

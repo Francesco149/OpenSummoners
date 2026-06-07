@@ -927,6 +927,7 @@ struct test_case {
     X(actor_spawn_prop_renders)                                \
     X(actor_spawn_guards)                                      \
     X(actor_pool_update_trots)                                 \
+    X(actor_spawn_struct)                                      \
 
 #define X(n) extern int test_##n(void);
 TESTS
