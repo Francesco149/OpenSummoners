@@ -2617,3 +2617,66 @@ sequence surfaces: retail's **"Town of Tonkiness" area banner** (appears ~retail
 is MISSING in the port — the long-known `0x5a00c0` scripted-overlay debt
 (PORT-DEBT `ingame-nontile-layers`); it is a TIMED scene element, not present at the hold
 (consistent with ckpt 82's "no banner at the hold").
+
+### The establishing REVEAL is a per-cell FADE-GRID transition — NOT the letterbox bars (ckpt 90)
+
+**The chase.**  The golden-video review (#89) read the opening-town reveal as "a vertical
+fade opening from the middle of the screen outward."  Measured off the dense golden
+(`runs/video60-retail`, strict pure-`(0,0,0)`-row count): from game_enter the black region
+is a clean center-out ramp — top bar `480 → ~240 → 64`, **−8 px / sim-tick**, floor 64,
+settling at sim-tick ~25; bottom symmetric.  The obvious hypothesis was the quirk-#74
+LETTERBOX bars (`0x48c150:124/143`, `in_ECX[0x11]`/`[0x12]` = +0x44/+0x48) ramping from
+full-screen (240, meeting at center) down to 64.
+
+**Both letterbox-bar hypotheses REFUTED by live capture** (the "don't guess, probe" payoff).
+Annotated the candidates in `retail_fields.json` (`thisderef` off ECX) and field-spec-captured
+the reveal window (`runs/letterbox-reveal{,2}`, `--seed-pin --lockstep`, the
+`trace-retail.jsonl` drive):
+- **`0x499ab0`** (the scene-cinematic step, 1×/sim-tick from `0x439690:1124`) — its
+  this+0x44/+0x48 are **constant 64** (mode 1, already at target), scroll +0x4c **constant 0**,
+  the WHOLE reveal.  Its `±2/call toward 64` ramp is real code but the bars are pre-settled.
+- **`0x48c150`** (the grid-fill itself, the *authoritative* visible bar source) — its own
+  this+0x44/+0x48 are **also constant 64** every flip of the reveal.
+So the letterbox is a fixed 64 px the entire establishing shot, and the scroll never moves
+(no vertical pan).  The reveal is a **separate producer over a static scene.**
+
+**The real producer — `FUN_0048e920`, a per-cell fade-grid.**  Traced the black cel (res
+`0x583`) blits via `0x5b9a40` over the reveal (`runs/reveal-blit`): three producers of the
+black tile — `0x48c48a` + `0x48c4fe` (the constant 64 px letterbox bars, 160 tiles each) and
+**`0x48e9c3`**, which emits **~1010 → 0** black tiles across the reveal (both bars ~202 px at
+game_enter, **gone by the settled hold** sim-tick ~33).  `ret_va 0x48e9c3` lands in
+**`FUN_0048e920`** (403 B), the **scene-transition FADE-GRID render** (called from
+`0x48c150:175`, after the letterbox): it walks a grid of 64×4 cells (`this[0]` array, `this[2]`
+count, `this[3]` mode; stride 0xc = state/timer/col/row) and per cell either ALPHA-blits the
+black cel via `0x5bd550` (alpha `0x1f-(timer<<5)/1000`, partial fade), OPAQUE-blits via
+`0x5b9a40` (fully black), or skips (clear).  The center-out iris is the per-cell clear PATTERN.
+The per-cell state/timer **UPDATE is `FUN_0049af40`** (3313 B), called **2×/sim-tick** from the
+cinematic step `0x499ab0:180-183` — that 2× is what turns the code's small per-call step into
+the measured −8 px/sim-tick envelope.
+
+**So the long-open "dark establishing-shot TOP GRADIENT" (ckpt 66/67) is finally explained:**
+it is this fade-grid transition mid-animation (the top cells still opaque before the iris
+opens), NOT a static tint and NOT the letterbox.  Annotated `0x499ab0`/`0x48e920`/`0x49af40`
+in `retail_fields.json`.  **PORT (the REVEAL chip, unported):** the update `0x49af40` (the
+cell pattern) + the render `0x48e920` (alpha/opaque black-cel tiler, on the ported `0x5bd550`
+alpha + `0x5b9a40` opaque primitives) + the trigger that arms the grid at scene entry.  Bigger
+than the bar-ramp first assumed — a self-contained scene-transition subsystem (it will also
+serve every other room-enter fade).
+
+### USER flag (ckpt 90): 4 characters arrive in front of the wagon at the end of the pan
+
+The USER spotted a parity gap: at the settled town (pan end) **4 characters stand in front of
+the wagon + horses** that the port lacks.  Scoped to the town-intro cutscene script
+**`FUN_004d7d80`** (`case 0x334be` = room 210110, the same handler that spawns the wagon
+`0x1872d`, gated on event flags `0x5f76805`/`0x606aa4f`): right after the wagon it spawns the
+arriving party via `FUN_0041f0e0` (a by-code/by-handle spawn helper, distinct from the map
+`0x41f200` and the wagon's `0x431d10`):
+- `FUN_0041f0e0(0, 0xc3f0, 0x65, 0x6400, 0, 3, …)` — character `0xc3f0`, facing 3.
+- `FUN_0041f0e0(0x5f5e1d3, 0, 0x65, 8000, 0, 3, …)` — a HANDLE-spawned actor (code 0, ref `0x5f5e1d3`).
+- `FUN_0041f0e0(0x5f5e1d4, 0, 0x65, -3200, 0, 1, …)` — a HANDLE-spawned actor (ref `0x5f5e1d4`), facing 1.
+These are the story/party characters arriving with the caravan (the ckpt-83 "`0xc3f0`/`0xc35a`/
+`0xc3dc` are script/party-spawned, not in the map" note).  PORT path: the cutscene-spawn helper
+`0x41f0e0` (+ the `0x5f5e1dx` handle resolution) → render via the existing actor machinery
+(`0x493ba0`/`0x44d160`, already ported).  Tracked as a NEXT chip (PORT-DEBT — town-intro
+cutscene cast).  NB the wagon was the FIRST `0x4d7d80` spawn we ported (ckpt 80); the party
+spawns are the rest of the same cutscene.

@@ -1766,6 +1766,80 @@
      "benign": true
     }
    ]
+  },
+  "0x499ab0": {
+   "name": "scene_cinematic_step",
+   "_note": "FUN_00499ab0 (1356 B) — the in-game SCENE CINEMATIC controller step, called once/sim-tick from 0x439690:1124 (right after the camera easer 0x43d1d0:1123) and from the cutscene drivers 0x55f190:136 / 0x58f360:478. Its __thiscall this holds the LETTERBOX bar heights (+0x44/+0x48) + scroll (+0x4c), ramped ±2/call toward targets (mode +0x40: 0 => toward 0; !=0 => +0x44/+0x48 toward 0x40=64, +0x4c toward +0x50). LIVE-MEASURED (ckpt 90): during the opening-town establishing shot these bars are CONSTANT 64 (mode 1, already settled) and scroll is 0 — so the letterbox is fixed 64px (= the constant grid-fill 0x48c48a/0x48c4fe) and 0x499ab0 is NOT the establishing REVEAL. The REVEAL is a SEPARATE per-cell FADE-GRID: 0x499ab0:180-183 calls the grid UPDATE FUN_0049af40 (2x/sim-tick), rendered by FUN_0048e920 (via 0x48c150:175). So this entry's role is the steady letterbox + the fade-grid clock, not the iris itself. Fields read at onEnter off ECX.",
+   "fields": [
+    {
+     "name": "mode",
+     "src": "thisderef",
+     "off": 64,
+     "type": "i32",
+     "benign": true,
+     "reason": "this+0x40 — the ramp MODE: 0 => bars retract toward 0 (no letterbox); !=0 => bars ramp toward 0x40=64 (the cinematic letterbox)."
+    },
+    {
+     "name": "bot_h",
+     "src": "thisderef",
+     "off": 68,
+     "type": "i32",
+     "benign": true,
+     "reason": "this+0x44 — BOTTOM letterbox bar height (read by 0x48c150 as in_ECX[0x11]); bottom bar = rows [480-h..480]. Ramps ±2/call toward 64."
+    },
+    {
+     "name": "top_h",
+     "src": "thisderef",
+     "off": 72,
+     "type": "i32",
+     "benign": true,
+     "reason": "this+0x48 — TOP letterbox bar height (read by 0x48c150 as in_ECX[0x12]); top bar = rows [0..h]. Ramps ±2/call toward 64. The establishing-shot REVEAL = this ramping ~240->64."
+    },
+    {
+     "name": "scroll",
+     "src": "thisderef",
+     "off": 76,
+     "type": "i32",
+     "benign": true,
+     "reason": "this+0x4c — the vertical scroll accumulator written to view+0x74 (used by the tilemap renderer 0x490f30 row origin). Ramps ±2/call toward this+0x50."
+    }
+   ]
+  },
+  "0x48e920": {
+   "name": "scene_fade_grid_render",
+   "_note": "FUN_0048e920 (403 B) — the SCENE-TRANSITION FADE-GRID render (the establishing REVEAL producer, ckpt 90). Walks a grid of per-cell records (this[0] = cell array, this[2] = cell count, this[3] = mode 1/2/3) stride 0xc: cell+0=state(0/1/2), cell+2=fade timer, cell+4=col (<<6 => dest x), cell+8=row (<<2 => dest y, 4px rows). Per cell, by mode+state it either ALPHA-blits the 64x4 black cel (res 0x583) via FUN_005bd550 (alpha = 0x1f-(timer<<5)/1000, the partial-fade case, ret 0x48e9c3-region) or OPAQUE-blits it via FUN_005b9a40 (ret 0x48e9c3, the fully-black case) or skips (clear). Called from the in-game render driver 0x48c150:175 (FUN_0048e920(*(0x8a93cc+0x16c))), AFTER the constant-64 letterbox bars. LIVE (ckpt 90, runs/reveal-blit): at game_enter it emits ~1010 black tiles (both bars ~202px) shrinking to 0 by the settled hold (sim_tick~33) = the center-out vertical iris. NOT the letterbox (0x48c150's bars are constant 64). PORT: unported — the REVEAL chip (with the update 0x49af40 + a trigger). ret_va 0x48e9c3 on FUN_005b9a40 is THE signature of this producer in a 0x5b9a40 blit trace.",
+   "fields": [
+    {
+     "name": "ncells",
+     "src": "thisderef",
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "this[2] — number of grid cells walked (the screen-covering 64x4 tile grid; ~1200 full)."
+    },
+    {
+     "name": "mode",
+     "src": "thisderef",
+     "off": 12,
+     "type": "i32",
+     "benign": true,
+     "reason": "this[3] — fade mode (1/2/3): selects alpha-fade-in vs fade-out vs opaque per-cell branch."
+    }
+   ]
+  },
+  "0x49af40": {
+   "name": "scene_fade_grid_update",
+   "_note": "FUN_0049af40 (3313 B) — the SCENE-TRANSITION FADE-GRID per-cell state/timer UPDATE (drives the establishing REVEAL, ckpt 90). Called 2x/sim-tick from the scene cinematic step 0x499ab0:180-183 (do{}while loop, iVar5=2). Gated on this[2] (cell count, same object as the render 0x48e920); advances each cell's fade state (state 0/1/2) + timer in the center-out reveal pattern, writing the cells the render reads. The exact per-cell pattern logic (which cells clear first => the vertical-iris-from-center shape) lives here (3313 B switch). PORT: unported — the core of the REVEAL chip. Pair with 0x48e920 (render) + the trigger that arms the grid at scene entry.",
+   "fields": [
+    {
+     "name": "ncells",
+     "src": "thisderef",
+     "off": 8,
+     "type": "i32",
+     "benign": true,
+     "reason": "this[2] — cell count (0 => no transition active; the gate at 49af40.c:29)."
+    }
+   ]
   }
  }
 }

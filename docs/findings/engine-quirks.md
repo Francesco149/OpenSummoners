@@ -2753,3 +2753,27 @@ side-by-side review.  Three retail behaviors the port lacks:
 (Separately, the PORT's menu-cursor pulse looked fast in the review — a port-side timing item
 to verify at matched timing, possibly the dev-build's uncapped flip rate or the 2x video
 speed-up; NOT a retail quirk → tracked as a TODO, not here.)
+
+### #90 — the establishing REVEAL is a per-cell FADE-GRID transition (`FUN_0048e920` render / `FUN_0049af40` update), NOT the letterbox bars; the letterbox is a constant 64 px the whole shot (2026-06-08, ckpt 90)
+
+Live-RE'd the #89 reveal.  Pixel-measured envelope (golden `runs/video60-retail`, strict
+pure-black rows): top/bottom black ramps `~240 → 64` at **−8 px/sim-tick**, floor 64, settling
+~sim-tick 25 — a center-out iris over a STATIC scene.
+
+The intuitive cause (the quirk-#74 LETTERBOX bars ramping 240→64) is **refuted by field
+capture** (`runs/letterbox-reveal{,2}`): both the scene-cinematic step `0x499ab0`'s and the
+grid-fill `0x48c150`'s `this+0x44`/`+0x48` (the bar heights) read **constant 64** the entire
+reveal, and the scroll `+0x4c` is **constant 0**.  The letterbox is fixed 64 px; the reveal is
+a separate producer.
+
+A `0x5b9a40` black-cel (res `0x583`) blit trace (`runs/reveal-blit`) finds the producer:
+besides the constant letterbox bars (`ret_va 0x48c48a`/`0x48c4fe`, 160 tiles each), **`ret_va
+0x48e9c3` emits ~1010 → 0 black tiles across the reveal** (gone by the settled hold).  That is
+**`FUN_0048e920`** (403 B), a **scene-transition FADE-GRID**: a grid of 64×4 cells (`this[0]`
+array / `this[2]` count / `this[3]` mode; stride 0xc = state/timer/col/row) each ALPHA-blitted
+(`0x5bd550`, alpha `0x1f-(timer<<5)/1000`), OPAQUE-blitted (`0x5b9a40`), or skipped per cell —
+the center-out clear pattern is the iris.  Rendered from `0x48c150:175` (after the letterbox);
+the per-cell update is **`FUN_0049af40`** (3313 B), run **2×/sim-tick** from `0x499ab0:180-183`
+(the 2× is why the small per-call step reads as −8 px/sim-tick).  This also explains the
+ckpt-66/67 "dark establishing TOP GRADIENT": the fade-grid mid-animation, not a tint.  Full
+writeup: `findings/in-game-intro.md` "The establishing REVEAL is a per-cell FADE-GRID".
