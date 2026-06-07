@@ -75,6 +75,44 @@ int actor_render_describe(const actor *a, const actor_render_state *rs,
     return 1;
 }
 
+/*
+ * One element of the 0x491ae0 emit loop (LAB_004923eb): resolve the cel and lay
+ * down one draw node for a single descriptor part.  World pos comes from the
+ * render-state (+0x04/+0x08); the placement offset adds the render-state's dst
+ * base (+0x40/+0x44); the node alpha is the actor's +0xf4, falling back to the
+ * part's own alpha when 0.  Returns 1 if a node was emitted, 0 if not (NULL cel
+ * or full layer).  The tile-occlusion mark (0x4927c0, layer < 0x13) is deferred
+ * — PORT-DEBT(actor-occlusion); it culls backdrop tiles behind the actor, not
+ * the actor blit.
+ */
+static int actor_emit_part(draw_pool *pool, uint32_t layer,
+                           const actor *a, const actor_render_state *rs,
+                           const actor_desc *part,
+                           mr_sprite_fn resolve, void *resolve_ctx)
+{
+    int32_t node_alpha = a->node_alpha;            /* actor+0xf4 */
+    int32_t off_x = part->off_x + rs->dst_base_x;  /* + render-state +0x40 */
+    int32_t off_y = part->off_y + rs->dst_base_y;  /* + render-state +0x44 */
+    if (node_alpha == 0)
+        node_alpha = part->alpha;
+
+    uint32_t cel = resolve ? resolve(part->bank, (uint16_t)part->frame, resolve_ctx)
+                           : 0u;
+    draw_node *n = draw_pool_emit_actor(pool, layer, cel,
+                                        rs->world_x, rs->world_y,
+                                        off_x, off_y, (uint32_t)node_alpha);
+    return (n != NULL) ? 1 : 0;
+}
+
+/* Layer = actor+0xfc, overridden by the render-state's +0x284 sub-object's
+ * +0x100 field (0x491ae0:62-64).  NULL override => the actor's own layer. */
+static uint32_t actor_emit_layer(const actor *a, const actor_render_state *rs)
+{
+    if (rs->layer_override != NULL)
+        return *(const uint32_t *)(rs->layer_override + 0x100);
+    return a->layer;
+}
+
 int actor_render_static(const actor *a, const actor_render_state *rs,
                         const int16_t *flip_table, draw_pool *pool,
                         mr_sprite_fn resolve, void *resolve_ctx)
@@ -83,31 +121,49 @@ int actor_render_static(const actor *a, const actor_render_state *rs,
     if (a->skip != 0)
         return 0;
 
-    /* Layer = actor+0xfc, overridden by the render-state's +0x284 sub-object's
-     * +0x100 field (0x491ae0:62-64).  NULL override => the actor's own layer. */
-    uint32_t layer = a->layer;
-    if (rs->layer_override != NULL)
-        layer = *(const uint32_t *)(rs->layer_override + 0x100);
+    uint32_t layer = actor_emit_layer(a, rs);
 
+    /* The default-arm emit (LAB_004923eb, one descriptor element). */
     actor_desc desc;
     if (!actor_render_describe(a, rs, flip_table, &desc))
         return 0;
 
-    /* The default-arm emit (LAB_004923eb, one descriptor element): world pos
-     * from the render-state, placement = desc offset + the render-state's dst
-     * base, alpha from the actor (falling back to the descriptor's alpha). */
-    int32_t node_alpha = a->node_alpha;            /* actor+0xf4 */
-    int32_t off_x = desc.off_x + rs->dst_base_x;   /* + render-state +0x40 */
-    int32_t off_y = desc.off_y + rs->dst_base_y;   /* + render-state +0x44 */
-    /* The tile-occlusion mark (0x4927c0) is deferred — PORT-DEBT(actor-
-     * occlusion); it culls backdrop tiles behind the actor, not the actor blit. */
-    if (node_alpha == 0)
-        node_alpha = desc.alpha;
+    return actor_emit_part(pool, layer, a, rs, &desc, resolve, resolve_ctx);
+}
 
-    uint32_t cel = resolve ? resolve(desc.bank, (uint16_t)desc.frame, resolve_ctx)
-                           : 0u;
-    draw_node *n = draw_pool_emit_actor(pool, layer, cel,
-                                        rs->world_x, rs->world_y,
-                                        off_x, off_y, (uint32_t)node_alpha);
-    return (n != NULL) ? 1 : 0;
+int actor_render_protagonist(const actor *a, const actor_render_state *rs,
+                             const int16_t *flip_table, draw_pool *pool,
+                             mr_sprite_fn resolve, void *resolve_ctx)
+{
+    /* 0x491ae0:59 — actor+0x284 set => render nothing. */
+    if (a->skip != 0)
+        return 0;
+
+    uint32_t layer = actor_emit_layer(a, rs);
+
+    /* Part 2 (the animated body) is FUN_0044d160's build exactly — and it also
+     * carries the arm's three early-return gates (zero direction bank, inactive
+     * render-state, clip-terminator frame), so a 0 here skips the whole actor as
+     * retail does (it builds the two fixed parts first but only reaches the emit
+     * loop once those gates pass). */
+    actor_desc body;
+    if (!actor_render_describe(a, rs, flip_table, &body))
+        return 0;
+
+    /* The two fixed left cels (0x491ae0:114-131): bank 0x175, frames 0/1, at
+     * x-256 / x-128, alpha 0.  off_y 0; the dst base is added in actor_emit_part. */
+    actor_desc p0 = { .off_x = ACTOR_PROT_PART0_OFF_X, .off_y = 0,
+                      .bank = ACTOR_PROT_BANK, .frame = ACTOR_PROT_PART0_FRAME,
+                      .alpha = 0 };
+    actor_desc p1 = { .off_x = ACTOR_PROT_PART1_OFF_X, .off_y = 0,
+                      .bank = ACTOR_PROT_BANK, .frame = ACTOR_PROT_PART1_FRAME,
+                      .alpha = 0 };
+
+    /* Emit back-to-front (left cel, middle cel, animated body) — the retail
+     * emit loop walks the descriptor array in this order, all on `layer`. */
+    int emitted = 0;
+    emitted += actor_emit_part(pool, layer, a, rs, &p0,   resolve, resolve_ctx);
+    emitted += actor_emit_part(pool, layer, a, rs, &p1,   resolve, resolve_ctx);
+    emitted += actor_emit_part(pool, layer, a, rs, &body, resolve, resolve_ctx);
+    return emitted;
 }

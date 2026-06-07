@@ -11,8 +11,9 @@
  * town population (engine-quirk #78).  The behaviour code drives the actor's
  * AI/motion in 0x54f980, NOT its appearance — static scenery actors render
  * identically regardless of code.  (The 1 animated actor, code 0x1872d / the
- * key NPC, takes a separate inline arm that reads its clip; deferred — see the
- * NEXT note at the bottom.  RNG-driven motion is deferred per ckpt 73.)
+ * protagonist, takes a separate inline arm that reads its clip — ported here as
+ * actor_render_protagonist, a 3-cel composite over the same describe build.
+ * RNG-driven motion is deferred per ckpt 73.)
  *
  * WHAT THIS MODULE PORTS (pure, host-tested):
  *   - actor_render_describe  = FUN_0044d160 exactly: pick the per-direction
@@ -156,5 +157,36 @@ int actor_render_describe(const actor *a, const actor_render_state *rs,
 int actor_render_static(const actor *a, const actor_render_state *rs,
                         const int16_t *flip_table, draw_pool *pool,
                         mr_sprite_fn resolve, void *resolve_ctx);
+
+/*
+ * The protagonist composite (0x491ae0:114-131) — the animated body (the
+ * actor_render_describe result) plus TWO fixed left cels from bank 0x175.  The
+ * three cels tile at a -128 px pitch (x = -256, -128, 0) into one wide
+ * character sprite.  (Constants read straight off the inline stack stores:
+ * local_138/local_136[9]=bank 0x175, local_136[0]/[10]=frames 0/1,
+ * local_140=0xffffff00=-256, local_136[5..6]=0xffffff80=-128.)
+ */
+#define ACTOR_PROT_BANK        0x175  /* the protagonist sprite bank          */
+#define ACTOR_PROT_PART0_FRAME 0      /* fixed left cel                       */
+#define ACTOR_PROT_PART1_FRAME 1      /* fixed middle cel                     */
+#define ACTOR_PROT_PART0_OFF_X (-256) /* local_140                            */
+#define ACTOR_PROT_PART1_OFF_X (-128) /* local_136[5..6]                      */
+
+/*
+ * Port of 0x491ae0's case-0x1872d arm — render the animated protagonist as a
+ * THREE-cel composite.  Part 2 (the animated body) is built by the same
+ * FUN_0044d160 logic actor_render_describe ports (and carries all three of its
+ * early-return gates: a zero direction bank, an inactive render-state, or a
+ * clip-terminator frame skip the WHOLE actor, exactly as retail does); parts 0
+ * and 1 are the two fixed bank-0x175 cels at x-256 / x-128.  All three emit on
+ * the actor's layer, back-to-front (left cel first, body last).
+ *
+ * Returns the number of draw nodes emitted (0 if the actor was skipped, else up
+ * to 3 — a part still contributes nothing if its cel resolves NULL or its layer
+ * is full, matching the retail per-element emit).
+ */
+int actor_render_protagonist(const actor *a, const actor_render_state *rs,
+                             const int16_t *flip_table, draw_pool *pool,
+                             mr_sprite_fn resolve, void *resolve_ctx);
 
 #endif /* OSS_ACTOR_RENDER_H */

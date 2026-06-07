@@ -361,3 +361,138 @@ int test_actor_static_describe_fail(void)
     draw_pool_free(&p);
     return 0;
 }
+
+/* ---- actor_render_protagonist (the FUN_00491ae0 case-0x1872d arm) --------- */
+
+/* The protagonist emits THREE cels on its layer: two fixed bank-0x175 cels
+ * (frame 0 @ x-256, frame 1 @ x-128) then the animated body, in that order. */
+int test_actor_protagonist_three_cels(void)
+{
+    actor a;
+    memset(&a, 0, sizeof(a));
+    a.dir = 0;
+    a.sprite_table[0].bank       = 0x200;   /* the body's bank (the table row) */
+    a.sprite_table[0].frame_base = 7;
+    a.sprite_table[0].x_off      = 4;
+    a.sprite_table[0].y_off      = 6;
+    a.layer      = 9;
+    a.node_alpha = 0;
+
+    actor_render_state rs;
+    memset(&rs, 0, sizeof(rs));
+    rs.active     = 1;          /* clip NULL => the body is static */
+    rs.world_x    = 544 * 100;
+    rs.world_y    = 320 * 100;
+    rs.dst_base_x = 100;
+    rs.dst_base_y = 200;
+
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+
+    int emitted = actor_render_protagonist(&a, &rs, NULL, &p, resolve_pack, NULL);
+    T_ASSERT_EQ_I(emitted, 3);
+    T_ASSERT_EQ_U(p.layers[9].count, 3);
+
+    /* Part 0: fixed left cel — bank 0x175, frame 0, x = -256 + dst_base. */
+    const draw_node *n0 = &p.layers[9].nodes[0];
+    T_ASSERT_EQ_U(n0->sprite, ((uint32_t)ACTOR_PROT_BANK << 16) | 0);
+    T_ASSERT_EQ_I((int32_t)n0->param6, -256 + 100);
+    T_ASSERT_EQ_I((int32_t)n0->param7, 0 + 200);
+    T_ASSERT_EQ_I(n0->dst_x, 544 * 100);
+    T_ASSERT_EQ_I(n0->dst_y, 320 * 100);
+
+    /* Part 1: fixed middle cel — bank 0x175, frame 1, x = -128 + dst_base. */
+    const draw_node *n1 = &p.layers[9].nodes[1];
+    T_ASSERT_EQ_U(n1->sprite, ((uint32_t)ACTOR_PROT_BANK << 16) | 1);
+    T_ASSERT_EQ_I((int32_t)n1->param6, -128 + 100);
+    T_ASSERT_EQ_I((int32_t)n1->param7, 0 + 200);
+
+    /* Part 2: the animated body — describe result (bank 0x200, frame_base 7,
+     * off = row offset + dst base). */
+    const draw_node *n2 = &p.layers[9].nodes[2];
+    T_ASSERT_EQ_U(n2->sprite, ((uint32_t)0x200 << 16) | 7);
+    T_ASSERT_EQ_I((int32_t)n2->param6, 4 + 100);   /* row.x_off 4 + dst_base 100 */
+    T_ASSERT_EQ_I((int32_t)n2->param7, 6 + 200);   /* row.y_off 6 + dst_base 200 */
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* The body part runs the full describe path — e.g. an animated clip with a
+ * link-overridden direction picks a different bank/frame for cel #2, while the
+ * two fixed cels stay bank 0x175. */
+int test_actor_protagonist_body_is_describe(void)
+{
+    anim_clip clip;
+    memset(&clip, 0, sizeof(clip));
+    clip.base_sprite    = 10;
+    clip.frame_delta[2] = 5;
+    clip.off_x[2]       = 1;
+    clip.off_y[2]       = 2;
+    clip.link           = 4;     /* override dir 0 -> 4 for the body row */
+
+    actor a;
+    memset(&a, 0, sizeof(a));
+    a.dir = 0;
+    a.sprite_table[0].bank       = 0x200;   /* original-dir skip check uses this */
+    a.sprite_table[4].bank       = 0x333;   /* the body row actually rendered */
+    a.sprite_table[4].frame_base = 8;
+    a.sprite_table[4].x_off      = 3;
+    a.sprite_table[4].y_off      = 9;
+    a.layer = 9;
+
+    actor_render_state rs;
+    memset(&rs, 0, sizeof(rs));
+    rs.active = 1;
+    rs.clip   = &clip;
+    rs.frame  = 2;
+
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+    T_ASSERT_EQ_I(actor_render_protagonist(&a, &rs, NULL, &p, resolve_pack, NULL), 3);
+
+    /* Fixed cels keep bank 0x175. */
+    T_ASSERT_EQ_U(p.layers[9].nodes[0].sprite >> 16, ACTOR_PROT_BANK);
+    T_ASSERT_EQ_U(p.layers[9].nodes[1].sprite >> 16, ACTOR_PROT_BANK);
+    /* Body cel: link-overridden row 4 -> bank 0x333, frame = 8 + (10 + 5). */
+    const draw_node *body = &p.layers[9].nodes[2];
+    T_ASSERT_EQ_U(body->sprite, ((uint32_t)0x333 << 16) | (8 + 15));
+    T_ASSERT_EQ_I((int32_t)body->param6, 1 + 3);   /* clip.off_x[2] 1 + row.x_off 3 */
+    T_ASSERT_EQ_I((int32_t)body->param7, 2 + 9);   /* clip.off_y[2] 2 + row.y_off 9 */
+    draw_pool_free(&p);
+    return 0;
+}
+
+/* The +0x284 skip flag and the describe gates (zero dir bank / inactive /
+ * clip terminator) all emit NOTHING — not even the two fixed cels. */
+int test_actor_protagonist_skip_and_gate(void)
+{
+    draw_pool p;
+    if (draw_pool_init(&p) != 0) T_SKIP("pool alloc failed");
+
+    /* skip flag set */
+    actor a;
+    memset(&a, 0, sizeof(a));
+    a.dir = 0;
+    a.sprite_table[0].bank = 0x200;
+    a.layer = 9;
+    a.skip  = 1;
+    actor_render_state rs;
+    memset(&rs, 0, sizeof(rs));
+    rs.active = 1;
+    T_ASSERT_EQ_I(actor_render_protagonist(&a, &rs, NULL, &p, resolve_pack, NULL), 0);
+    T_ASSERT_EQ_U(p.layers[9].count, 0);
+
+    /* describe gate: direction bank 0 -> whole actor (incl. fixed cels) skipped */
+    a.skip = 0;
+    a.sprite_table[0].bank = 0;
+    T_ASSERT_EQ_I(actor_render_protagonist(&a, &rs, NULL, &p, resolve_pack, NULL), 0);
+    T_ASSERT_EQ_U(p.layers[9].count, 0);
+
+    /* describe gate: render-state inactive */
+    a.sprite_table[0].bank = 0x200;
+    rs.active = 0;
+    T_ASSERT_EQ_I(actor_render_protagonist(&a, &rs, NULL, &p, resolve_pack, NULL), 0);
+    T_ASSERT_EQ_U(p.layers[9].count, 0);
+    draw_pool_free(&p);
+    return 0;
+}

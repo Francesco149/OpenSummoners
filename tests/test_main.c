@@ -915,6 +915,9 @@ struct test_case {
     X(actor_static_skip_flag)                                  \
     X(actor_static_layer_override)                             \
     X(actor_static_describe_fail)                              \
+    X(actor_protagonist_three_cels)                            \
+    X(actor_protagonist_body_is_describe)                      \
+    X(actor_protagonist_skip_and_gate)                         \
     X(actor_spawn_census)                                      \
     X(actor_spawn_sprite_lookup)                               \
     X(actor_spawn_invisible_self_skips)                        \
