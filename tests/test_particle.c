@@ -51,6 +51,7 @@ int test_particle_spawn_config(void)
     T_ASSERT_EQ_U(rs->clip->frame_dur, 2u);
     T_ASSERT_EQ_I(rs->vel_x, 0);                 /* the emitter sets velocity   */
     T_ASSERT_EQ_I(rs->vel_y, 0);
+    T_ASSERT_EQ_I(rs->facing, 1);                /* trace-confirmed +0x2c == 1  */
     return 0;
 }
 
@@ -105,13 +106,13 @@ int test_particle_step_gravity(void)
     int slot = particle_spawn_water(&g_pp, 100000, 200000);
     T_ASSERT(slot >= 0);
     g_pp.states[slot].vel_y = -80000;
-    g_pp.states[slot].vel_x = -25000;   /* facing 0 -> moves +250/tick (right)   */
+    g_pp.states[slot].vel_x = -25000;   /* facing 1 (spawn) -> x += vel_x/100 left */
 
     particle_pool_step(&g_pp);
     const actor_render_state *rs = &g_pp.states[slot];
     T_ASSERT_EQ_I(rs->vel_y, -72000);                  /* -80000 + 8000           */
     T_ASSERT_EQ_I(rs->world_y, 200000 + (-72000)/100); /* y += vel_y/100          */
-    T_ASSERT_EQ_I(rs->world_x, 100000 - (-25000)/100); /* x += -(vel_x/100)       */
+    T_ASSERT_EQ_I(rs->world_x, 100000 + (-25000)/100); /* x += vel_x/100 (facing1)*/
 
     /* gravity caps at 80000 after enough ticks (and stays active a while) */
     for (int i = 0; i < 40; i++) particle_pool_step(&g_pp);
@@ -182,6 +183,145 @@ int test_particle_render_emits(void)
     T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
     int n = particle_pool_render(&g_pp, &dp, resolve_pack, NULL);
     T_ASSERT_EQ_I(n, 1);
+    draw_pool_free(&dp);
+    return 0;
+}
+
+/* ===== the SKY-AMBIENT particle (code 0x18704) ============================== */
+
+/* ---- spawn config: bank 0x1aa frame 8, layer 6, 6-frame oneshot clip ------- */
+
+int test_particle_sky_spawn_config(void)
+{
+    particle_pool_reset(&g_pp);
+    rng_srand(0x4f5347u);
+    int slot = particle_spawn_sky(&g_pp, 50000, 10000);
+    T_ASSERT(slot >= 0);
+
+    const actor *a = &g_pp.actors[slot];
+    const actor_render_state *rs = &g_pp.states[slot];
+    T_ASSERT_EQ_U(a->sprite_table[0].bank, 0x1aau);
+    T_ASSERT_EQ_I(a->sprite_table[0].frame_base, 8);
+    T_ASSERT_EQ_U(a->code, 0x18704u);
+    T_ASSERT_EQ_U(a->layer, 6u);
+    T_ASSERT_EQ_U(rs->active, 1u);
+    T_ASSERT_EQ_I(rs->world_x, 50000);
+    T_ASSERT_EQ_I(rs->world_y, 10000);
+    T_ASSERT(rs->clip != NULL);
+    T_ASSERT_EQ_U(rs->clip->frame_count, 6u);    /* 0x644b58: 6 frames, dur 20  */
+    T_ASSERT_EQ_U(rs->clip->frame_dur, 20u);
+    T_ASSERT(rs->clip->oneshot != 0);            /* ONESHOT — expires when done */
+    /* 0x453960(-10000,5000,-1000,1000): vel_y in [-1000,0), vel_x in [-10000,-5000). */
+    T_ASSERT(rs->vel_y >= -1000 && rs->vel_y < 0);
+    T_ASSERT(rs->vel_x >= -10000 && rs->vel_x < -5000);
+    T_ASSERT_EQ_I(rs->facing, 1);                /* trace-confirmed +0x2c == 1  */
+    return 0;
+}
+
+/* ---- the emitter spawns once every 6th tick, drawing 4 LCG on that tick ----- */
+
+int test_particle_sky_emit_cadence(void)
+{
+    particle_pool_reset(&g_pp);
+    int counter = 0;
+    /* ticks 1..5: no spawn */
+    for (int i = 0; i < 5; i++) {
+        particle_sky_emit(&g_pp, 60000, 12000, &counter);
+        int active = 0;
+        for (int j = 0; j < PARTICLE_POOL_SLOTS; j++)
+            if (g_pp.states[j].active) active++;
+        T_ASSERT_EQ_I(active, 0);
+    }
+    /* tick 6: exactly one spawn, counter resets */
+    particle_sky_emit(&g_pp, 60000, 12000, &counter);
+    int active = 0;
+    for (int j = 0; j < PARTICLE_POOL_SLOTS; j++)
+        if (g_pp.states[j].active) active++;
+    T_ASSERT_EQ_I(active, 1);
+    T_ASSERT_EQ_I(counter, 0);
+
+    /* the spawn tick draws exactly 4 LCG (2 jitter + the config's 2 scatter). */
+    rng_srand(0x4f5347u);
+    for (int i = 0; i < 4; i++) (void)rng_rand();
+    uint32_t after4 = rng_peek_state();
+    particle_pool_reset(&g_pp);
+    rng_srand(0x4f5347u);
+    int counter2 = 5;                 /* the next emit is the 6th -> spawns */
+    particle_sky_emit(&g_pp, 60000, 12000, &counter2);
+    T_ASSERT_EQ_U(rng_peek_state(), after4);
+    return 0;
+}
+
+/* ---- step: vel_y decelerates toward -5000, x/y integrate ------------------- */
+
+int test_particle_sky_step_physics(void)
+{
+    particle_pool_reset(&g_pp);
+    int slot = particle_spawn_sky(&g_pp, 100000, 200000);
+    T_ASSERT(slot >= 0);
+    actor_render_state *rs = &g_pp.states[slot];
+    rs->vel_y = -1000;
+    rs->vel_x = -8000;   /* facing 1 (spawn) -> x += vel_x/100 (drifts LEFT)     */
+
+    particle_pool_step(&g_pp);
+    T_ASSERT_EQ_I(rs->vel_y, -1500);                   /* -1000 - 500            */
+    T_ASSERT_EQ_I(rs->world_y, 200000 + (-1500)/100);  /* y += vel_y/100         */
+    T_ASSERT_EQ_I(rs->world_x, 100000 + (-8000)/100);  /* x += vel_x/100 (facing1)*/
+    T_ASSERT_EQ_I(rs->life, 1);
+
+    /* vel_y saturates at the -5000 floor and never undershoots it. */
+    for (int i = 0; i < 40; i++) particle_pool_step(&g_pp);
+    T_ASSERT_EQ_I(rs->vel_y, -5000);
+    return 0;
+}
+
+/* ---- lifetime: the oneshot clip finishes and frees the slot ---------------- */
+
+int test_particle_sky_step_expires(void)
+{
+    particle_pool_reset(&g_pp);
+    int slot = particle_spawn_sky(&g_pp, 0, 0);
+    T_ASSERT(slot >= 0);
+    T_ASSERT_EQ_U(g_pp.states[slot].active, 1u);
+
+    /* 6 frames * dur 20 = 120 ticks to finish the oneshot, then `done` -> the
+     * next step expires it.  Alive at 100, gone by ~121. */
+    for (int i = 0; i < 100; i++) particle_pool_step(&g_pp);
+    int active_at_100 = g_pp.states[slot].active;
+    for (int i = 0; i < 40; i++) particle_pool_step(&g_pp);
+    T_ASSERT(active_at_100 == 1);
+    T_ASSERT_EQ_U(g_pp.states[slot].active, 0u);
+    return 0;
+}
+
+/* ---- render: the sky node carries the ramp_b selector + the fade index ------ */
+
+int test_particle_sky_render_ramp_b(void)
+{
+    particle_pool_reset(&g_pp);
+    int slot = particle_spawn_sky(&g_pp, 12000, 8000);
+    T_ASSERT(slot >= 0);
+    g_pp.states[slot].life = 0;          /* steady-state -> fade idx 18         */
+
+    draw_pool dp;
+    T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
+    int n = particle_pool_render(&g_pp, &dp, resolve_pack, NULL);
+    T_ASSERT_EQ_I(n, 1);
+
+    /* the node lands in layer 6 (the sky), mode 1 (alpha), ramp_b idx 18. */
+    const draw_layer *L = &dp.layers[6];
+    T_ASSERT_EQ_U(L->count, 1u);
+    const draw_node *nd = &L->nodes[0];
+    T_ASSERT_EQ_U(nd->mode, 1u);
+    T_ASSERT((nd->param8 & PARTICLE_PARAM8_RAMP_B) != 0u);
+    T_ASSERT_EQ_U(nd->param8 & PARTICLE_PARAM8_IDX_MASK, 18u);
+
+    /* aged past lifetime 40 -> the fade index drops below 18. */
+    g_pp.states[slot].life = 60;         /* idx = 18 - (60-40)/4 = 13           */
+    draw_pool_reset(&dp);
+    T_ASSERT_EQ_I(particle_pool_render(&g_pp, &dp, resolve_pack, NULL), 1);
+    T_ASSERT_EQ_U(dp.layers[6].nodes[0].param8 & PARTICLE_PARAM8_IDX_MASK, 13u);
+
     draw_pool_free(&dp);
     return 0;
 }

@@ -937,6 +937,11 @@ struct test_case {
     X(particle_clip_cycles)                                    \
     X(particle_roundrobin)                                     \
     X(particle_render_emits)                                   \
+    X(particle_sky_spawn_config)                               \
+    X(particle_sky_emit_cadence)                               \
+    X(particle_sky_step_physics)                               \
+    X(particle_sky_step_expires)                               \
+    X(particle_sky_render_ramp_b)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

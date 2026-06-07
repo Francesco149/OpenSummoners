@@ -2694,3 +2694,30 @@ during the establishing hold).  Corrects the ckpt-84 census guess that the spray
 `0x47b990`/`0x453960`" — `0x47b990` is the `+0x1160` behaviour/AI dispatcher (no fountain
 code), `0x453960` is a generic 2-draw scatter helper.  `findings/in-game-intro.md` "The
 FOUNTAIN SPRAY".
+
+### #88 — particle render-state +0x2c (facing) is **1** for every particle (sky AND water) → x integrates `+= +vel_x/100` (no sign flip); the `0x112e2` sky emitter is an INVISIBLE trigger so its anchor (`0x557370` mode-1 = +0xc/2) is 0 (2026-06-07, ckpt 89)
+
+Two retail ground-truth facts that pin particle placement (live-captured, `runs/sky-facing`
++ `runs/rng-census-repin`):
+
+- **Facing.**  Every active `+0x13e0` particle has render-state **`+0x2c == 1`** (capture:
+  34/34 `0x18704` + 63/63 `0x18708`).  `0x46e510`'s x-integration is
+  `iVar = (+0x2c != 1) ? -0x51eb851f : +0x51eb851f; x += iVar*vel_x>>… (= ±vel_x/100)` — so
+  with +0x2c==1 the sign is **+** (no flip).  Consequence: the sky particle's negative scatter
+  vel_x makes it **drift LEFT** (world X extends LEFT of the emitter prop: retail
+  `[50690..114356]` vs props `62800`/`113600`).  The fountain's 3-way cycle (left-strong/right/
+  left-weak) is likewise relative to +vel_x/100 — a port that spawns facing 0 mirrors every
+  particle's horizontal motion (invisible on the ~symmetric fountain spray, wrong for the sky).
+- **Anchor.**  `0x557370` mode-1 spawns at `parent.world_x + parent_render_state[+0xc]/2 +
+  jitter`.  +0xc is the emitter's display half-extent in world units: an INVISIBLE emitter (the
+  `0x112e2` sky trigger, no cel) has +0xc == 0 → anchor 0 (particles spawn at the prop's exact
+  world pos; trace: `0x18704` fresh ≈ prop ± jitter).  A VISIBLE emitter (the fountain prop)
+  has +0xc ≈ 2810 → +1405; note this is NOT the prop's display-cel width (that measures 3400/
+  +1700), so +0xc is a distinct field whose setter is still un-RE'd.
+
+- **Sky vs fountain particle systems** (both bank `0x1aa`, both render via the `0x493480`
+  alpha arm): `0x18704` = **chimney SMOKE** (emitter `0x112e2`, layer 6, clip `0x644b58`
+  6-frame ONESHOT → expires on completion, fade via **ramp_b** `0x8a9308`, drifts up+left);
+  `0x18708` = fountain WATER (emitter `0x112e5`, layer 11, clip `0x6449c0` 2-frame loop, fade
+  via **ramp_a** `0x8a92e0`, gravity-down).  The town's `+0x13e0` band renders ONLY these two
+  codes.  `findings/in-game-intro.md` "The SKY-AMBIENT particles".

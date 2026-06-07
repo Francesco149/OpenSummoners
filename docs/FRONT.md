@@ -9,34 +9,41 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 88): the FOUNTAIN SPRAY is PORTED + USER-confirmed — translucent
-  `0x18708` water droplets, matching retail's soft glow.** Chip 3 of the in-game-intro
-  arc: RE'd the whole particle subsystem, ground-truthed it, decoded the clips, then
-  ported the fountain water + the **alpha render path**. **USER-confirmed: "the particles
-  blending looks correct."** **PORTED (`src/particle.{c,h}`, NEW):** the `+0x13e0` DEVICE
-  band as a **1024-slot pool** (alloc `0x557370`, round-robin free-slot; evict-oldest
-  deferred), the fountain water `0x18708` (config `0x557550` → bank `0x1aa`=res `0x408`
-  frame 6 + the decoded clip `0x6449c0` 2-frame loop; emitter `0x54f980` case `0x112e5`
-  spawns 1/primary-tick, launched UP+OUT via the 3-way velocity cycle drawing 6 LCG;
-  per-tick step `0x46e510` case `0x18708` = gravity +8000/tick, integrate, fade
-  sub_phase 0→8, expire), and the **ALPHA render** — the d3d/emit trace showed retail
-  emits these **MODE-1 (alpha)**, not mode-0 (keyed) (the bug behind the first opaque
-  pass): `particle_pool_render` emits mode-1 nodes whose param8 = the brightness ramp
-  index **`g_ramp_a[10 - sub_phase]`** (`0x8a92e0` = `&g_pd_boot_group_a[10]`, so the
-  retail `&DAT_008a92e0[-sub_phase]` fade is faithful), `map_present` case 1 +
-  `game_present_blit` PRESENT_ALPHA orchestrate it (`zdd_blit_orchestrate`) — partially
-  retiring PORT-DEBT(present-actor-modes). Extended `actor_render_state` (vel_y/vel_x/
-  sub_phase/life). **WIRED (`main.c`):** `g_fountain_pp`; `enter_game` finds the `0x112e5`
-  prop (emit center 177245,41600); `game_actor_update` emits+steps each sim-tick;
-  `game_actor_walk` renders. **906 pass** (+8 host tests), ledger 199/194 unchanged
-  (particle.c provenance = bare-VA slices). quirk #87; `findings/in-game-intro.md` "The
-  FOUNTAIN SPRAY". **NEXT (toward whole-scene 1:1):** (1) **phase-match the particle RNG**
-  — PORT-DEBT(fountain-rng-phase): exact per-frame alignment needs the co-resident
-  per-tick consumers (`0x47b990` wander + the other `0x54f980` cases) ported too (Phase
-  2); the USER notes "if the particles can be phase matched, this is likely 1:1". (2) the
-  **dark establishing-shot TOP GRADIENT** the USER sees in retail (a per-scene cinematic
-  effect, open since ckpt 66/67 — separate from the letterbox). (3) the **`0x18704` sky-
-  ambient** particles (emitter `0x112e2`, layer 6).
+- **LATEST (ckpt 89): the SKY-AMBIENT particles (`0x18704` = CHIMNEY SMOKE) are PORTED +
+  USER-1:1, and the placement is now TRACE-FAITHFUL (anchor + facing fixed from retail).**
+  Chip 4: the town's second particle system, built on the ckpt-88 pool/alpha path.
+  **PORTED (`src/particle.{c,h}`):** emitter `0x112e2` (`0x54f980:150`, spawns 1 every 6th
+  tick), config `0x557550:630` (bank `0x1aa` frame 8, clip `0x644b58` = 6-frame **ONESHOT**
+  decoded from the exe, layer 6, `0x453960` velocity scatter), step `0x46e510:683` (vel_y
+  decel→-5000, integrate, **expire on the oneshot done flag**, ramp_b fade), and the **ramp_b
+  alpha** path (`game_present_blit` decodes `param8 = (ramp_sel<<8)|idx` → ramp_a water /
+  **ramp_b** `0x8a9308` sky). **WIRED (`main.c`):** finds both `0x112e2` props, emits each
+  sim-tick into the shared `g_fountain_pp`. **USER-confirmed "smoke looks 1:1"** + the USER
+  independently spotted the same chimney smoke in retail. **TRACE VERIFICATION (USER directive)
+  caught + fixed 2 RNG-independent bugs:** (a) **anchor** — I'd HARDCODED +1600; the faithful
+  `0x557370` mode-1 anchor is render-state +0xc/2, and the invisible `0x112e2` trigger has
+  +0xc==0 → **anchor 0** (spawn at the prop's exact world pos); removed the constant. (b)
+  **facing** — `runs/sky-facing` shows every particle has +0x2c==**1** → x `+= +vel_x/100`
+  (no flip) → the sky **drifts LEFT** (matching retail); the port spawned facing 0 → drifted
+  right; fixed `particle_spawn_{water,sky}` to facing 1. After both: port sky world X
+  `[51440..113369]` ≈ retail `[50690..114356]`, Y matching. **911 pass** (+5), ledger
+  unchanged. quirk #88; `findings/in-game-intro.md` "The SKY-AMBIENT particles". **The town's
+  `+0x13e0` band now renders BOTH its codes (`0x18704`+`0x18708`) — no particle remainder.**
+- **Full-intro side-by-side VIDEO (ckpt 89, USER-requested).** Frame-matched (anchor-aligned)
+  retail|port across title→newgame→prologue→town, 64 pairs (`/tmp/intro_sidebyside.mp4` +
+  a feed montage). **title/menu 1:1, prologue aligned, town establishing 1:1** (backdrop +
+  fountain + decorations + townsfolk + chimney smoke all match). The one clear divergence the
+  sequence surfaces: retail's **"Town of Tonkiness" area banner** (~retail flip 1600+) is
+  MISSING in the port = the `0x5a00c0` scripted-overlay debt (PORT-DEBT `ingame-nontile-layers`;
+  a TIMED element, absent at the hold — consistent with ckpt 82). **NEXT (toward whole-scene
+  1:1):** (1) the **`0x5a00c0` banner/scripted overlay** (now precisely timed by the video).
+  (2) **phase-match the particle RNG** (PORT-DEBT `fountain-rng-phase` — exact per-frame
+  positions need the co-resident per-tick consumers ported, Phase 2). (3) the **dark
+  establishing-shot TOP GRADIENT** (open since ckpt 66/67).
+- **Prior (ckpt 88): the FOUNTAIN SPRAY (`0x18708`) is PORTED + USER-confirmed** — the
+  particle subsystem RE'd (1024-slot `+0x13e0` pool, alloc `0x557370` / config `0x557550` /
+  step `0x46e510` / `0x493480` alpha render); translucent water via ramp_a
+  (`g_ramp_a[10-sub_phase]`). `src/particle.{c,h}` NEW; quirk #87.
 - **Prior (ckpt 87): the townsfolk IDLE ANIMATION PHASE is PORTED — they now breathe
   from a per-actor RNG start frame instead of frozen on frame 0.** Builds on the ckpt-86
   anchor; the first user-visible payoff of the spawn-RNG arc. **The model (engine-quirk

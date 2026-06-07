@@ -6,15 +6,25 @@
  * expire), and rendered by 0x493480's default arm.  See engine-quirk #87 +
  * findings/in-game-intro.md "The FOUNTAIN SPRAY".
  *
- * This first chip ports the FOUNTAIN WATER particle (code 0x18708, bank 0x1aa /
- * res 0x408): the emitter is the fountain prop 0x112e5 (0x54f980 case
- * 0x112e5), which spawns one droplet each primary sim-tick and launches it UP +
- * OUT (a 3-way velocity cycle); 0x46e510 case 0x18708 then applies gravity
- * and a fade.  The droplets ALPHA-blend (the +0x13e0 band always blits mode-1,
- * 0x4917b0 -> the 0x5bd550 orchestrate): particle_pool_render emits mode-1 nodes
- * whose param8 carries the brightness ramp index g_ramp_a[10 - sub_phase] (the
- * faithful &DAT_008a92e0[-sub_phase] descriptor), and the present orchestrates
- * the blend (game_present_blit PRESENT_ALPHA + map_present mode-1).
+ * Two particle systems are ported here, both bank 0x1aa / res 0x408, both
+ * ALPHA-blended (the +0x13e0 band always blits mode-1, 0x4917b0 -> the 0x5bd550
+ * orchestrate):
+ *   - the FOUNTAIN WATER (code 0x18708): emitter the fountain prop 0x112e5
+ *     (0x54f980 case 0x112e5), one droplet/primary-tick launched UP + OUT (a
+ *     3-way velocity cycle); 0x46e510 case 0x18708 applies gravity (+8000/tick)
+ *     and a fade.  frame_base 6, layer 11, clip 0x6449c0 (2-frame loop).
+ *   - the SKY-AMBIENT particles (code 0x18704): emitter the prop 0x112e2
+ *     (0x54f980 case 0x112e2), one particle every 6th tick drifting UP + LEFT
+ *     (0x453960 velocity scatter at config); 0x46e510 case 0x18704 accelerates
+ *     vel_y toward -5000 and fades after lifetime 40.  frame_base 8, layer 6,
+ *     clip 0x644b58 (6-frame ONESHOT — the particle expires when it finishes).
+ *
+ * The fade differs by system: the WATER reads ramp_a (&DAT_008a92e0[-sub_phase]
+ * = g_ramp_a[10 - sub_phase]); the SKY reads ramp_b (&DAT_008a9308[idx],
+ * idx = 18 - (life-40)/4 clamped [2,18]).  particle_pool_render emits mode-1
+ * nodes whose param8 carries (ramp-selector << 8) | index; game_present_blit
+ * PRESENT_ALPHA decodes that to g_ramp_a / g_ramp_b and orchestrates the blend
+ * (mirrors title_render's alpha_blit; map_present mode-1).
  *
  * Particles draw RNG (the launch velocity + spawn jitter) via the shared LCG
  * (rng.h).  Under the ckpt-86 spawn re-pin this is deterministic per sim-tick,
@@ -34,6 +44,17 @@
 
 /* The +0x13e0 DEVICE band is 0x400 slots in retail. */
 #define PARTICLE_POOL_SLOTS 1024
+
+/*
+ * The mode-1 (alpha) node param8 contract between particle_pool_render and the
+ * present (game_present_blit PRESENT_ALPHA).  Retail emits the resolved blend
+ * descriptor pointer; the port carries (ramp-selector << 8) | ramp-index, where
+ * bit 8 picks ramp_b (0x8a9308) over ramp_a (0x8a92b8) and the low byte is the
+ * 0..19 index into that 20-entry table.  The fountain water (ramp_a) leaves bit
+ * 8 clear; the sky-ambient particles (ramp_b) set it.
+ */
+#define PARTICLE_PARAM8_RAMP_B 0x100u
+#define PARTICLE_PARAM8_IDX_MASK 0xffu
 
 /*
  * The particle pool — parallel {actor, render-state} arrays like
@@ -75,6 +96,27 @@ int particle_spawn_water(particle_pool *pool, int32_t world_x, int32_t world_y);
  */
 void particle_fountain_emit(particle_pool *pool, int32_t emit_cx, int32_t emit_cy,
                             int *counter);
+
+/*
+ * 0x557370 alloc + 0x557550 case 0x18704 for a SKY-AMBIENT particle at world
+ * (x, y): round-robin to a free slot, install bank 0x1aa frame_base 8 + the sky
+ * clip (0x644b58, 6-frame ONESHOT), layer 6, and the config velocity scatter
+ * 0x453960(-10000,5000,-1000,1000) -> vel_x in [-10000,-5000), vel_y in
+ * [-1000,0) (drifts UP + LEFT).  Draws 2 LCG (the scatter).  Returns the slot,
+ * or -1 if the pool is full.
+ */
+int particle_spawn_sky(particle_pool *pool, int32_t world_x, int32_t world_y);
+
+/*
+ * The sky emitter's one sim-tick — 0x54f980 case 0x112e2 (:150-172).  Advances
+ * `*counter`; on every 6th tick it draws 2 LCG (a y then x spawn jitter:
+ * y=(rand*800>>15)-800, x=(rand*1600>>15)-800), spawns one 0x18704 particle at
+ * the emitter center + jitter (which draws 2 more LCG for the velocity scatter),
+ * and resets the counter.  4 LCG draws on a spawn tick, 0 otherwise.  Unlike the
+ * fountain this case is NOT gated on primary/paused — it free-runs.
+ */
+void particle_sky_emit(particle_pool *pool, int32_t emit_cx, int32_t emit_cy,
+                       int *counter);
 
 /*
  * 0x46e510 — advance every active particle one sim-tick (the 0x18708 arm:

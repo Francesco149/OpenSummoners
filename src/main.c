@@ -211,17 +211,31 @@ static int              g_effects_loaded;
  * The fountain prop 0x112e5 (a CHARACTER in g_actors) emits one 0x18708 water
  * droplet per sim-tick; particle_pool_step applies gravity/fade.  engine-quirk
  * #87; findings "The FOUNTAIN SPRAY".  g_fountain_cx/cy is the emitter's
- * anchor-center (the prop world pos + the body half-width); g_fountain_counter is
- * the emitter's +0x5c %3 velocity-cycle state. */
+ * anchor-center; g_fountain_counter is the +0x5c %3 velocity-cycle state. */
 static particle_pool    g_fountain_pp;
 static int              g_fountain_loaded;
 static int32_t          g_fountain_cx, g_fountain_cy;
 static int              g_fountain_counter;
-/* PORT-DEBT(fountain-anchor): the emitter center is the prop's collision-body
- * center (parent.x + body_w/2).  We lack the fountain body dims, so calibrate the
- * x-offset to the live spray center (run A: particles center x~177245 vs the prop
- * at 176000).  The exact value is the 0x426620 body width; pin at verification. */
+/* PORT-DEBT(fountain-anchor): the 0x557370 mode-1 anchor is parent
+ * render-state +0xc/2.  The trace (0x18708 fresh particles) pins the fountain's
+ * true value at +1405 (render-state +0xc ~= 2810); it is NOT the prop's display-
+ * cel width (that measures +1700), so +0xc is a distinct field whose source is
+ * still un-RE'd.  We keep the calibrated +1245 (USER-confirmed) until +0xc's
+ * setter is identified.  (The SKY emitter needs none — see below.) */
 #define FOUNTAIN_EMIT_X_OFF 1245
+
+/* The 0x18704 SKY-AMBIENT emitters (0x112e2 / 0x54f980:150) — up to a handful of
+ * CHARACTER props (census: 2 in the town); each spawns one 0x18704 particle every
+ * 6th sim-tick into the SHARED particle band (g_fountain_pp = the whole +0x13e0
+ * pool).  The 0x112e2 prop is an INVISIBLE trigger (no display cel), so its
+ * render-state +0xc == 0 -> the 0x557370 mode-1 anchor is ZERO: the faithful
+ * placement is the prop's exact world position (trace-confirmed: 0x18704 fresh
+ * particles cluster at the prop +/- the jitter, no constant offset).  Cached
+ * centers + per-emitter +0x5c counters.  findings "The SKY-AMBIENT particles". */
+#define SKY_EMIT_MAX   8
+static int32_t g_sky_cx[SKY_EMIT_MAX], g_sky_cy[SKY_EMIT_MAX];
+static int     g_sky_counter[SKY_EMIT_MAX];
+static int     g_sky_emit_count;
 
 /* The actor mirror/flip table — the port stand-in for retail's global
  * DAT_008a8440 (a bank-indexed array of sprite-group frames-per-direction that
@@ -1038,6 +1052,28 @@ static void maybe_capture_frame(unsigned flip_frame)
                  g_drive_active ? (int)g_drive.scene.fade.menu_fade : -1,
                  g_game_camera_armed ? (long)g_game_camera.cur_x : -1L,
                  g_game_camera_armed ? (long)g_game_camera.cur_y : -1L);
+        /* Particle census at the capture frame — water/sky counts + the sky
+         * world bbox.  A capture-time diagnostic (dev-only path) that lets a
+         * frame be cross-checked against retail's particle positions without
+         * eyeballing an amplified crop (the 0x18704 smoke is faint + high). */
+        {
+            int nw = 0, ns = 0;
+            int32_t xmn = 1<<30, xmx = -(1<<30), ymn = 1<<30, ymx = -(1<<30);
+            for (int k = 0; k < PARTICLE_POOL_SLOTS; k++) {
+                if (!g_fountain_pp.states[k].active) continue;
+                uint32_t code = g_fountain_pp.actors[k].code;
+                if (code == 0x18708u) { nw++; continue; }
+                ns++;
+                int32_t wx = g_fountain_pp.states[k].world_x;
+                int32_t wy = g_fountain_pp.states[k].world_y;
+                if (wx < xmn) xmn = wx;
+                if (wx > xmx) xmx = wx;
+                if (wy < ymn) ymn = wy;
+                if (wy > ymx) ymx = wy;
+            }
+            log_line("  particles: %d water, %d sky; sky world x[%ld..%ld] y[%ld..%ld]",
+                     nw, ns, (long)xmn, (long)xmx, (long)ymn, (long)ymx);
+        }
         return;
     }
 }
@@ -1613,15 +1649,23 @@ static void game_present_blit(const present_op *op, void *ud)
         zdd_object_blt_keyed(src, g_zdd->primary_obj, op->dst_x, op->dst_y);
     } else if (op->kind == PRESENT_ALPHA) {
         /* Mode 1 — the alpha ACTOR/particle blit (FUN_0048eac0 case 1 ->
-         * FUN_005bd550).  The FOUNTAIN spray (engine-quirk #87): blend the cel
-         * through the brightness ramp g_ramp_a[idx], idx = node param8 =
-         * 10 - sub_phase (the faithful &DAT_008a92e0[-sub_phase] descriptor;
-         * 0x8a92e0 = &g_pd_boot_group_a[10]).  Mirrors title_render's alpha_blit:
-         * zdd_blit_orchestrate adds the cel origin (metric_0c/10) the keyed
-         * primitive would add internally.  A NULL ramp entry falls back to keyed. */
-        uint32_t idx = (op->node != NULL) ? op->node->param8 : 0;
-        if (idx >= PD_BOOT_GROUP_A_COUNT) idx = PD_BOOT_GROUP_A_COUNT - 1;
-        const zdd_blend_desc *desc = g_ramp_a[idx];
+         * FUN_005bd550).  The particle spray (engine-quirk #87): blend the cel
+         * through a brightness ramp.  param8 = (ramp-selector << 8) | index
+         * (PARTICLE_PARAM8_RAMP_B picks ramp_b / 0x8a9308 over ramp_a / 0x8a92b8;
+         * the low byte is the 0..19 index).  The FOUNTAIN water uses ramp_a
+         * (idx = 10 - sub_phase, &DAT_008a92e0[-sub_phase]); the SKY-ambient uses
+         * ramp_b (idx = sky_fade_idx(life), &DAT_008a9308[idx]).  Mirrors
+         * title_render's alpha_blit: zdd_blit_orchestrate adds the cel origin
+         * (metric_0c/10) the keyed primitive would add internally.  A NULL ramp
+         * entry falls back to keyed. */
+        uint32_t p8  = (op->node != NULL) ? op->node->param8 : 0;
+        uint32_t idx = p8 & PARTICLE_PARAM8_IDX_MASK;
+        const zdd_blend_desc *const *ramp;
+        uint32_t cap;
+        if (p8 & PARTICLE_PARAM8_RAMP_B) { ramp = g_ramp_b; cap = PD_BOOT_GROUP_B_COUNT; }
+        else                             { ramp = g_ramp_a; cap = PD_BOOT_GROUP_A_COUNT; }
+        if (idx >= cap) idx = cap - 1;
+        const zdd_blend_desc *desc = ramp[idx];
         if (desc != NULL)
             zdd_blit_orchestrate(desc, g_zdd->primary_obj, src,
                                  src->metric_0c + op->dst_x,
@@ -1700,10 +1744,11 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                                game_sprite_resolve, NULL);
         }
 
-    /* The FOUNTAIN SPRAY (0x493480 default arm) — the 0x18708 water droplets,
-     * bank 0x1aa at layer 11.  Emits MODE-1 (alpha) nodes (param8 = the brightness
-     * ramp index 10 - sub_phase); game_present_blit PRESENT_ALPHA orchestrates the
-     * blend via g_ramp_a, so the droplets are translucent like retail. */
+    /* The PARTICLE band (0x493480 default arm), bank 0x1aa — the 0x18708 fountain
+     * water (layer 11) + the 0x18704 sky-ambient particles (layer 6).  Emits
+     * MODE-1 (alpha) nodes (param8 = (ramp-selector << 8) | index);
+     * game_present_blit PRESENT_ALPHA orchestrates the blend via g_ramp_a (water)
+     * / g_ramp_b (sky), so the particles are translucent like retail. */
     int particle_emitted = particle_pool_render(&g_fountain_pp, pool,
                                                 game_sprite_resolve, NULL);
 
@@ -1927,14 +1972,19 @@ static void game_actor_update(void)
     CALL_TRACE_I32("advanced", advanced); /* port-side: actors stepped this tick */
     CALL_TRACE_END();
 
-    /* The FOUNTAIN: the emitter (0x112e5 / 0x54f980:218) spawns one 0x18708 water
-     * droplet this sim-tick (drawing the shared LCG for the launch velocity), then
-     * 0x46e510 steps every active droplet (gravity / integrate / fade / expire).
+    /* The PARTICLE band.  The FOUNTAIN emitter (0x112e5 / 0x54f980:218) spawns one
+     * 0x18708 water droplet this sim-tick; the SKY emitters (0x112e2 /
+     * 0x54f980:150) each spawn one 0x18704 ambient particle every 6th tick.  Both
+     * draw the shared LCG for their jitter/velocity.  particle_pool_step then steps
+     * every active particle (gravity/integrate/fade/expire, dispatched by code).
      * RNG-driven, so frame-exact alignment with retail is Phase 2
      * (PORT-DEBT(fountain-rng-phase)); the physics here are faithful. */
     if (g_fountain_loaded)
         particle_fountain_emit(&g_fountain_pp, g_fountain_cx, g_fountain_cy,
                                &g_fountain_counter);
+    for (int i = 0; i < g_sky_emit_count; i++)
+        particle_sky_emit(&g_fountain_pp, g_sky_cx[i], g_sky_cy[i],
+                          &g_sky_counter[i]);
     particle_pool_step(&g_fountain_pp);
 }
 
@@ -2118,25 +2168,39 @@ static void enter_game(void)
                  "(standing villagers, DATA 1022; %d flip-table banks; 0xe29a "
                  "wanderers deferred)", en, fn);
 
-        /* Arm the FOUNTAIN SPRAY (Chip 3).  The emitter is the fountain prop
-         * 0x112e5 (a CHARACTER already in g_actors, bank 0x16c frame 36); find it
-         * and cache its anchor-center so game_actor_update can emit 0x18708 water
-         * droplets each sim-tick.  engine-quirk #87; findings "The FOUNTAIN
-         * SPRAY".  The 0x18704 sky-ambient emitter (0x112e2) is deferred. */
+        /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
+         * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):
+         *   - the FOUNTAIN 0x112e5 (bank 0x16c frame 36) emits 0x18708 water every
+         *     primary sim-tick (engine-quirk #87, "The FOUNTAIN SPRAY").
+         *   - the SKY emitters 0x112e2 emit 0x18704 ambient particles every 6th
+         *     sim-tick ("The SKY-AMBIENT particles").
+         * Find each, cache its anchor-center, reset its counter. */
         particle_pool_reset(&g_fountain_pp);
         g_fountain_loaded = 0;
         g_fountain_counter = 0;
+        g_sky_emit_count = 0;
         for (int i = 0; i < g_actors.count; i++) {
-            if (g_actors.actors[i].code == 0x112e5u) {
+            uint32_t code = g_actors.actors[i].code;
+            if (code == 0x112e5u && !g_fountain_loaded) {
+                /* fountain prop: anchor +0xc/2 (PORT-DEBT, calibrated +1245). */
                 g_fountain_cx = g_actors.states[i].world_x + FOUNTAIN_EMIT_X_OFF;
                 g_fountain_cy = g_actors.states[i].world_y;
                 g_fountain_loaded = 1;
-                break;
+            } else if (code == 0x112e2u && g_sky_emit_count < SKY_EMIT_MAX) {
+                /* invisible trigger: +0xc==0 -> anchor 0 -> the prop's world pos. */
+                g_sky_cx[g_sky_emit_count] = g_actors.states[i].world_x;
+                g_sky_cy[g_sky_emit_count] = g_actors.states[i].world_y;
+                g_sky_counter[g_sky_emit_count] = 0;
+                g_sky_emit_count++;
             }
         }
-        log_line("enter_game: fountain emitter 0x112e5 %s (emit center %d,%d)",
+        log_line("enter_game: fountain emitter 0x112e5 %s (emit center %d,%d); "
+                 "%d sky-ambient emitter(s) 0x112e2",
                  g_fountain_loaded ? "found" : "NOT found",
-                 g_fountain_cx, g_fountain_cy);
+                 g_fountain_cx, g_fountain_cy, g_sky_emit_count);
+        for (int i = 0; i < g_sky_emit_count; i++)
+            log_line("enter_game:   sky emitter[%d] 0x112e2 center %d,%d",
+                     i, g_sky_cx[i], g_sky_cy[i]);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

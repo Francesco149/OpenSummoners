@@ -2550,3 +2550,70 @@ cases, so frame-exact alignment is entangled with porting those co-resident per-
 consumers — the broader Phase-2 work).  This refines quirk #77: its "non-determinism" was
 the pre-re-pin seed drift, not a per-present LCG consumer.  (A second seed-pinned run to
 prove run-to-run determinism is the clean confirmation.)
+
+### The SKY-AMBIENT particles — CHIMNEY SMOKE (ckpt 89)
+
+The second of the town's two particle systems (the first was the fountain water): code
+**`0x18704`**, which the live capture + the USER's retail run identify as **chimney
+smoke** — a translucent white plume rising from a house chimney, visible at the very top
+of the screen after the camera pans left from the fountain.  Built directly on the ckpt-88
+particle subsystem (same 1024-slot `+0x13e0` pool, same `0x493480` alpha render).
+
+**The pieces (decompile-read, all confirmed against the trace below).**
+- **Emitter** = the prop `0x112e2` (`0x54f980:150-172`), an INVISIBLE CHARACTER trigger the
+  port already spawns (ckpt 79); census has 2 in the town (world `62800,4800` + `113600,
+  18400` — LEFT of the fountain at `176000`, so they pan into view after it).  Every **6th**
+  sim-tick (`if (5 < +0x5c+1)`) it draws 2 LCG (a y then x spawn jitter) and spawns one
+  `0x18704` via `0x557370`.  NOT gated on primary/paused (unlike the fountain).
+- **Config** `0x557550:630-640`: bank `0x1aa` frame_base **8**, clip **`0x644b58`** (decoded:
+  base 0, 6 frames, dur 20, **ONESHOT**, deltas `{0,1,2,3,4,5}`), layer **6** (the sky), the
+  velocity scatter `0x453960(-10000,5000,-1000,1000)` → vel_x ∈ [-10000,-5000), vel_y ∈
+  [-1000,0), and the base brightness `in_ECX[0x3d/0x3e]=DAT_008a9350` (= ramp_b[18]).
+- **Step** `0x46e510:683-710`: vel_y decelerates by 500 toward a -5000 floor (accelerate UP),
+  integrate x (signed by facing +0x2c) + y, **expire when the oneshot clip finishes** (the
+  +0x74 done flag), lifetime++, and a ramp_b fade `(&DAT_008a9308)[18 - (life-40)/4]` (clamp
+  [2,18]) once life > 40.
+- **Render** `0x493480` default arm → `0x4917b0` ALPHA-blit, exactly like the fountain — the
+  node alpha is the render-state +0xf4 descriptor (sky → **ramp_b** `0x8a9308`; fountain →
+  ramp_a `0x8a92e0`).  Port: `particle_pool_render` emits param8 = `(ramp_sel<<8) | idx`;
+  `game_present_blit` PRESENT_ALPHA decodes ramp_a vs ramp_b.
+
+**Trace verification (the USER directive "tracing to verify correctness").**  Mined the
+ckpt-88 `runs/rng-census-repin` (`0x493480`, 5924 events) + a fresh `runs/sky-facing`
+field-spec capture.  Ground truth that pins the port:
+- The town's `+0x13e0` band renders **only** `0x18704` (3256) + `0x18708` (2668) — both now
+  ported; **nothing else particle-wise remains** in the town.
+- A sample `0x18704` render: **layer 6, bank 0x1aa, frame_base 8, clip 0x644b58** — exactly
+  the port.  World **Y [-1734..18397]** ≈ port **[-1643..18225]** (the rise physics + emitter
+  Y match nearly exactly).
+- **Two RNG-independent port bugs the trace caught (now fixed):**
+  1. **Anchor** (`0x557370` mode-1 = `parent_render_state[+0xc]/2`).  The `0x112e2` trigger is
+     invisible → +0xc == 0 → the faithful anchor is **0** (the particle spawns at the prop's
+     exact world pos); the port had a **hardcoded +1600** (USER caught it).  Removed — the sky
+     now spawns at the prop.  (The fountain's +0xc ≈ 2810 → +1405; NOT its display-cel width,
+     which measures +1700, so +0xc's setter is still un-RE'd → fountain keeps PORT-DEBT
+     `fountain-anchor`, the calibrated +1245.)
+  2. **Facing** (render-state +0x2c, the `0x46e510` x-integration sign).  The `runs/sky-facing`
+     capture shows **all particles (sky AND water) have +0x2c == 1**, so x integrates
+     `+= +vel_x/100` (no flip): the sky's negative vel_x → it **drifts LEFT** (retail world X
+     [50690..114356], extending LEFT of the prop).  The port spawned facing 0 → sign-flipped →
+     drifted RIGHT (invisible on the symmetric fountain spray, hence the fountain passed, but
+     wrong for the always-left sky).  Fixed: `particle_spawn_{water,sky}` set `facing = 1`.
+- After both fixes the port sky distribution is **world X [51440..113369]** ≈ retail
+  **[50690..114356]**, Y matching — the shape now matches retail (exact per-frame positions
+  still await the Phase-2 RNG phase-match, PORT-DEBT `fountain-rng-phase`).
+
+**USER-confirmed:** "smoke looks 1:1, no alpha needed" + independently spotted the same
+chimney smoke in retail ("smoke on a chimney at the very top of the screen … after some
+left panning from the fountain").  During the establishing shot most of the plume is behind
+the top letterbox bar; only the base (at the chimney) peeks below it — consistent with retail.
+
+**Full-intro side-by-side video (ckpt 89).**  Frame-matched (anchor-aligned: port newgame
+690/prologue 826/game_enter 1116 vs retail 748/945/1430) retail|port capture across
+title→newgame→prologue→town, 64 pairs (`/tmp/intro_sidebyside.mp4` + a feed montage).
+Verdict: **title/menu 1:1, prologue aligned, town establishing 1:1** (backdrop + fountain +
+decorations + townsfolk + chimney smoke all match).  The one clear divergence the full
+sequence surfaces: retail's **"Town of Tonkiness" area banner** (appears ~retail flip 1600+)
+is MISSING in the port — the long-known `0x5a00c0` scripted-overlay debt
+(PORT-DEBT `ingame-nontile-layers`); it is a TIMED scene element, not present at the hold
+(consistent with ckpt 82's "no banner at the hold").

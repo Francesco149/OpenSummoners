@@ -1,10 +1,59 @@
-# Session handoff — rolling current state (last updated ckpt 88, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 89, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 89
+
+**The SKY-AMBIENT particles (`0x18704` = CHIMNEY SMOKE) are PORTED + USER-1:1, placement
+made TRACE-FAITHFUL, and a full-intro side-by-side video shipped.**  Chip 4 of the
+in-game-intro arc, built on the ckpt-88 particle pool + alpha path.  Durable in
+`findings/in-game-intro.md` "The SKY-AMBIENT particles" + engine-quirk #88.
+
+- **Ported (`src/particle.{c,h}`; 911 pass, +5; ledger unchanged — bare-VA slices).**  The
+  second town particle system: emitter `0x112e2` (`0x54f980:150`, 1 spawn / 6th tick), config
+  `0x557550:630` (bank `0x1aa` frame 8, clip `0x644b58` = 6-frame ONESHOT decoded from the
+  exe, layer 6, `0x453960` scatter), step `0x46e510:683` (vel_y decel→-5000, integrate,
+  **expire on the oneshot +0x74 done flag**, lifetime fade), render via the ckpt-88 alpha arm
+  but through **ramp_b** (`0x8a9308`) not ramp_a.  `game_present_blit` PRESENT_ALPHA now
+  decodes `param8 = (ramp_sel<<8)|idx`.  Wired in `main.c` (both `0x112e2` props → the shared
+  `g_fountain_pp`).
+- **USER-confirmed 1:1** ("smoke looks 1:1") + the USER independently spotted the chimney smoke
+  in retail.  It's a translucent plume at the very top of the screen, visible after the camera
+  pans left from the fountain; during the establishing shot most of the plume is behind the top
+  letterbox bar.
+- **Trace verification (USER directive) caught + fixed 2 RNG-independent placement bugs:**
+  1. **Anchor** — I had HARDCODED `+1600` (USER caught it: "are you hardcoding the offset?").
+     The faithful `0x557370` mode-1 anchor is render-state `+0xc/2`; the invisible `0x112e2`
+     trigger has `+0xc==0` → **anchor 0** (spawn at the prop's exact world pos).  Removed the
+     constant.  (Fountain: `+0xc`≈2810→+1405 ≠ its display-cel width 3400/+1700, so `+0xc`'s
+     setter is still un-RE'd → fountain keeps PORT-DEBT `fountain-anchor`, calibrated +1245.)
+  2. **Facing** — `runs/sky-facing` field-spec capture: every particle (sky+water) has
+     render-state `+0x2c == 1` → `0x46e510` x-integrates `+= +vel_x/100` (no flip) → the sky's
+     negative scatter vel_x makes it **drift LEFT** (matching retail world X `[50690..114356]`).
+     The port spawned facing 0 → mirrored → drifted right.  Fixed: `particle_spawn_{water,sky}`
+     set facing 1.  After: port sky world X `[51440..113369]` ≈ retail, Y matching.
+- **The town `+0x13e0` band renders ONLY `0x18704` + `0x18708`** (trace: 3256 + 2668) — both
+  ported, so **no particle remainder** in the town.
+- **Full-intro side-by-side VIDEO (USER-requested).**  Frame-matched (anchor-aligned: port
+  newgame 690/prologue 826/game_enter 1116 vs retail 748/945/1430) retail|port across
+  title→newgame→prologue→town, 64 pairs (`/tmp/intro_sidebyside.mp4` + feed montage).
+  **title/menu 1:1, prologue aligned, town establishing 1:1** (backdrop + fountain +
+  decorations + townsfolk + chimney smoke).  ONE divergence: retail's **"Town of Tonkiness"
+  area banner** (~retail flip 1600+) is MISSING in the port = `0x5a00c0` scripted-overlay debt
+  (PORT-DEBT `ingame-nontile-layers`); a TIMED element (absent at the hold, consistent #82).
+- **NEXT (toward whole-scene 1:1):**
+  1. **The `0x5a00c0` banner / scripted overlay** — now precisely timed by the video (retail
+     flip ~1600+).  The last clearly-visible missing town element.
+  2. **Phase-match the particle RNG** (PORT-DEBT `fountain-rng-phase`) — exact per-frame
+     particle positions need the co-resident per-tick consumers (`0x47b990` wander + other
+     `0x54f980` cases) ported too; Phase 2.
+  3. The **dark establishing-shot TOP GRADIENT** (open since ckpt 66/67).
+- Artifacts: `runs/sky-facing/` (the facing capture), `runs/video-retail/` (the 67 retail
+  video frames), `/tmp/intro_sidebyside.mp4`, `/tmp/videostitch/` (the 64 stitched pairs).
 
 ## Where we are — ckpt 88
 

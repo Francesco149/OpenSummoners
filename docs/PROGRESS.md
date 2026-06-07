@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 89) — the SKY-AMBIENT particles (chimney smoke `0x18704`) PORTED + trace-faithful placement + full-intro side-by-side video
+
+Chip 4 of the in-game-intro arc, on the ckpt-88 particle pool/alpha path.  Ported the
+town's second particle system — `0x18704`, the **chimney smoke** (emitter `0x112e2`
+`0x54f980:150`, clip `0x644b58` 6-frame ONESHOT, layer 6, ramp_b alpha) — in
+`src/particle.{c,h}` + `main.c`.  USER-confirmed 1:1 ("smoke looks 1:1"); the USER
+independently spotted the same chimney smoke in retail.  **911 pass** (+5); ledger
+unchanged (bare-VA slices).
+
+Per the USER directive "tracing to verify correctness is always good", mined the existing
+`0x493480` trace + a fresh `runs/sky-facing` field-spec capture, which confirmed the render
+path (layer/bank/frame/clip/Y all exact) AND caught two RNG-independent placement bugs now
+fixed faithfully: (a) the emitter **anchor** was a HARDCODED `+1600` (USER: "are you
+hardcoding the offset?") — the faithful `0x557370` mode-1 anchor is render-state `+0xc/2`,
+and the invisible `0x112e2` trigger has `+0xc==0` → anchor 0 (removed the constant); (b) the
+particle **facing** is `+0x2c==1` for every particle (capture), so x integrates `+vel_x/100`
+(no flip) → the sky drifts LEFT like retail (the port spawned facing 0 → drifted right).
+After both, the port sky world X `[51440..113369]` ≈ retail `[50690..114356]`.  The town's
+`+0x13e0` band renders only `0x18704`+`0x18708`, both now ported (no particle remainder).
+quirk #88; `findings/in-game-intro.md` "The SKY-AMBIENT particles".
+
+Built a USER-requested **full-intro side-by-side video** (frame-matched retail|port across
+title→newgame→prologue→town, 64 anchor-aligned pairs; `/tmp/intro_sidebyside.mp4` + feed
+montage).  Verdict: title/menu 1:1, prologue aligned, town establishing 1:1.  The one clear
+divergence the full sequence surfaces is retail's **"Town of Tonkiness" area banner**
+(~retail flip 1600+), MISSING in the port — the `0x5a00c0` scripted-overlay debt
+(`ingame-nontile-layers`), now precisely timed; it's the next chip toward whole-scene 1:1.
+
+---
+
 ## 2026-06-07 (ckpt 88) — the FOUNTAIN SPRAY particle subsystem RE'd + live-ground-truthed + clips decoded (Chip 3, RE milestone)
 
 Read the engine's particle subsystem end-to-end and ground-truthed the fountain from
