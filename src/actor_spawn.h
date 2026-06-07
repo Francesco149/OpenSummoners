@@ -119,12 +119,29 @@ int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
  * three composited cels are: wagon-body-left (frame 0) | wagon-body (frame 1) |
  * the horses (the animated body, sprite 2).
  *
- * PORT-DEBT(actor-protagonist-clip): the per-tick stepper (0x46cd70/0x54f980)
- * that SPINS the wheels / TROTS the horses isn't wired, so the body is frozen on
- * the clip's first frame (sprite 2) — a complete wagon-and-horses, just not
- * moving; and the spawn pos is the census const, not the cutscene's
- * anchor-relative roll-in.  Both are follow-ups.
+ * The looping clip is driven once per sim-tick by actor_pool_update (the
+ * 0x46cd70/0x54f980 stepper), so the horses TROT (body cel cycles sprite 2..5).
+ * PORT-DEBT(actor-protagonist-clip) narrows to: the RNG-driven behaviour (idle
+ * waits / wander, deferred ckpt 73) and the cutscene's anchor-relative roll-in
+ * (the spawn pos is still the settled census const, not 0x431d10's anchor 0x65
+ * arrival path).  Both are follow-ups.
  */
 int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t world_y);
+
+/*
+ * The per-SIM-TICK actor UPDATE walk — the 0x46cd70:123-169 main-band slice
+ * (DAT_008a9b50+0x11e0, 0x80 slots).  Retail's per-tick driver 0x46cd70 calls
+ * 0x54f980 for each active band actor; 0x54f980 runs (1) the deterministic
+ * frame-stepper then (2) the RNG-driven behaviour.  This ports HALF (1): advance
+ * every active actor whose render-state carries a clip by one tick
+ * (actor_anim_advance).  In the opening town only the protagonist (0x1872d) has
+ * a clip, so this trots its horses; the 32 static actors (clip NULL) no-op.
+ * Behaviour half (2) — idle waits / wander — stays deferred (ckpt 73).
+ *
+ * Call once per sim tick (every 2nd Flip), on the SAME cadence as the camera
+ * easer (retail 0x439690 runs 0x46cd70 at :1108, then the easer 0x43d1d0 at
+ * :1123).  Returns the count of actors advanced (clip != NULL), for logging.
+ */
+int actor_pool_update(actor_spawn_pool *pool);
 
 #endif /* OSS_ACTOR_SPAWN_H */

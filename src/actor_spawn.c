@@ -103,10 +103,13 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
  * delta {0,1,2,3} so the animated body cel cycles sprite frames 2..5 — the HORSES
  * (USER-confirmed), zero per-frame offset.  This is RE'd timing/indexing metadata
  * (4 shorts), not the binary asset — the sprite PIXELS (bank 0x175) load from the
- * user's file at runtime.  PORT-DEBT(actor-protagonist-clip): the per-tick
- * stepper (0x46cd70/0x54f980) that would TROT the horses isn't wired, so the
- * spawn freezes the body on the clip's first frame (sprite 2) — a COMPLETE
- * horse-drawn caravan (wagon-left | wagon-body | horses), just not moving. */
+ * user's file at runtime.  The looping clip is now driven once per sim-tick by
+ * actor_pool_update -> actor_anim_advance (the 0x46cd70/0x54f980 stepper), so
+ * the body cel cycles sprite frames 2..5 — the horses TROT.  PORT-DEBT
+ * (actor-protagonist-clip) narrows to the remaining halves: the RNG-driven
+ * behaviour (idle/wander, deferred ckpt 73) and the cutscene's anchor-relative
+ * roll-in (the spawn pos is still the settled census const, not 0x431d10's
+ * anchor 0x65 / x 0x3200 arrival path). */
 static const anim_clip WAGON_CLIP = {
     .base_sprite = 2,
     .frame_delta = { 0, 1, 2, 3 },
@@ -141,6 +144,26 @@ int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t wor
     rs->world_y = world_y;               /* +0x08 */
     rs->facing  = ACTOR_PROT_FACING;     /* +0x2c = 99 (not 3 -> not mirrored) */
     rs->clip    = &WAGON_CLIP;           /* +0x6c — the wagon's HORSES animation */
-    rs->frame   = 0;                     /* +0x72 — frozen on frame 0 (sprite 2)  */
+    rs->timer   = 0;                     /* +0x70 — clip-set resets the cycle    */
+    rs->frame   = 0;                     /* +0x72 — starts on frame 0 (sprite 2) */
+    rs->done    = 0;                     /* +0x74 */
     return slot;
+}
+
+int actor_pool_update(actor_spawn_pool *pool)
+{
+    if (pool == NULL) return 0;
+    int advanced = 0;
+    /* 0x46cd70:123-169 — walk the active main-band slots; 0x54f980's frame
+     * stepper runs on each.  We advance only render-states with a clip (the
+     * stepper short-circuits on clip==0 anyway), so the 32 static actors no-op
+     * and only the protagonist's horses trot. */
+    for (int i = 0; i < pool->count; i++) {
+        actor_render_state *rs = &pool->states[i];
+        if (rs->active == 0 || rs->clip == NULL)
+            continue;
+        actor_anim_advance(rs);
+        advanced++;
+    }
+    return advanced;
 }

@@ -496,3 +496,49 @@ int test_actor_protagonist_skip_and_gate(void)
     draw_pool_free(&p);
     return 0;
 }
+
+/* ---- actor_anim_advance (0x54f980's frame stepper on a render-state) ------- */
+
+/* The render-state anim sub-block (clip/timer/frame/done) IS an anim_state, so
+ * actor_anim_advance must produce byte-identical trajectories to the single
+ * ported stepper anim_clip_advance — two ports of the same 0x54f980 idiom. */
+int test_actor_anim_advance_matches_stepper(void)
+{
+    /* a looping 4-frame clip, 18 ticks/frame, loop_to 0 (the WAGON_CLIP shape) */
+    anim_clip c = (anim_clip){0};
+    c.base_sprite = 2;
+    c.frame_delta[0] = 0; c.frame_delta[1] = 1;
+    c.frame_delta[2] = 2; c.frame_delta[3] = 3;
+    c.frame_count = 4; c.frame_dur = 18; c.oneshot = 0; c.loop_to = 0;
+
+    actor_render_state rs; memset(&rs, 0, sizeof rs);
+    rs.active = 1; rs.clip = &c;
+    anim_state ref = (anim_state){0};
+    anim_state_set(&ref, &c);
+
+    /* step both for two full cycles (4 frames * 18 ticks * 2) + a bit */
+    for (int t = 0; t < 4 * 18 * 2 + 7; t++) {
+        actor_anim_advance(&rs);
+        anim_clip_advance(&ref);
+        T_ASSERT_EQ_U(rs.frame, ref.frame);
+        T_ASSERT_EQ_U(rs.timer, ref.timer);
+        T_ASSERT_EQ_U(rs.done, ref.done);
+    }
+    /* it loops: frame stays in [0,4), never the dead [4,...] */
+    T_ASSERT(rs.frame < 4);
+    return 0;
+}
+
+/* A NULL clip (the 32 static town actors) is a no-op — the stepper short-
+ * circuits on clip==0, so a static render-state never advances. */
+int test_actor_anim_advance_null_is_noop(void)
+{
+    actor_render_state rs; memset(&rs, 0, sizeof rs);
+    rs.active = 1; rs.clip = NULL; rs.frame = 0; rs.timer = 0;
+    for (int t = 0; t < 50; t++)
+        actor_anim_advance(&rs);
+    T_ASSERT_EQ_U(rs.frame, 0u);
+    T_ASSERT_EQ_U(rs.timer, 0u);
+    T_ASSERT_EQ_U(rs.done, 0u);
+    return 0;
+}

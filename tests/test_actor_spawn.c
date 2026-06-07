@@ -227,3 +227,83 @@ int test_actor_spawn_guards(void)
     T_ASSERT_EQ_I(actor_spawn_from_map(&pool, &md), -1);
     return 0;
 }
+
+/* ---- actor_pool_update: the per-sim-tick trot (0x46cd70 -> 0x54f980 stepper) */
+
+/* Render the protagonist and return its animated body cel (node[2]) sprite. */
+static uint32_t prot_body_cel(const actor_spawn_pool *pool, int slot)
+{
+    draw_pool dp; draw_pool_init(&dp);
+    actor_render_protagonist(&pool->actors[slot], &pool->states[slot], NULL, &dp,
+                             resolve_pack, NULL);
+    uint32_t cel = dp.layers[9].nodes[2].sprite;
+    draw_pool_free(&dp);
+    return cel;
+}
+
+/* The protagonist's looping WAGON_CLIP (base 2, 4 frames, dur 18) trots when the
+ * pool is updated once per sim-tick: rs.frame cycles 0->1->2->3->0 every 18
+ * ticks, so the rendered body cel cycles sprite 2->3->4->5.  A co-spawned static
+ * actor (clip NULL) is left frozen, and actor_pool_update reports only the 1
+ * animated actor advanced. */
+int test_actor_pool_update_trots(void)
+{
+    actor_spawn_pool pool;
+    memset(&pool, 0, sizeof pool);
+
+    int pslot = actor_spawn_protagonist(&pool, 54400, 32000);
+    T_ASSERT_EQ_I(pslot, 0);
+
+    /* a co-spawned STATIC actor (clip NULL, active) — must not advance. */
+    int sslot = pool.count++;
+    pool.actors[sslot].code = 0x1129eu;
+    pool.actors[sslot].dir  = 0;
+    pool.actors[sslot].layer = 9;
+    pool.actors[sslot].sprite_table[0].bank = 0x16cu;
+    pool.states[sslot].active = 1;
+    pool.states[sslot].clip   = NULL;
+
+    actor_render_state *prs = &pool.states[pslot];
+    T_ASSERT_EQ_U(prs->frame, 0u);
+
+    /* frame 0 -> body sprite 2 (base 2 + delta[0] 0). */
+    T_ASSERT_EQ_U(prot_body_cel(&pool, pslot),
+                  resolve_pack(ACTOR_PROT_SPRITE_BANK, 2u, NULL));
+
+    /* 17 ticks: still frame 0 (timer climbing), only the protagonist advanced. */
+    for (int t = 0; t < 17; t++)
+        T_ASSERT_EQ_I(actor_pool_update(&pool), 1);
+    T_ASSERT_EQ_U(prs->frame, 0u);
+    T_ASSERT_EQ_U(prs->timer, 17u);
+
+    /* tick 18 -> frame 1 -> body sprite 3. */
+    actor_pool_update(&pool);
+    T_ASSERT_EQ_U(prs->frame, 1u);
+    T_ASSERT_EQ_U(prs->timer, 0u);
+    T_ASSERT_EQ_U(prot_body_cel(&pool, pslot),
+                  resolve_pack(ACTOR_PROT_SPRITE_BANK, 3u, NULL));
+
+    /* the static actor never moved. */
+    T_ASSERT_EQ_U(pool.states[sslot].frame, 0u);
+    T_ASSERT_EQ_U(pool.states[sslot].timer, 0u);
+
+    /* frames 2, 3 (ticks 36, 54) -> body sprites 4, 5. */
+    for (int t = 0; t < 18; t++) actor_pool_update(&pool);
+    T_ASSERT_EQ_U(prs->frame, 2u);
+    T_ASSERT_EQ_U(prot_body_cel(&pool, pslot),
+                  resolve_pack(ACTOR_PROT_SPRITE_BANK, 4u, NULL));
+    for (int t = 0; t < 18; t++) actor_pool_update(&pool);
+    T_ASSERT_EQ_U(prs->frame, 3u);
+    T_ASSERT_EQ_U(prot_body_cel(&pool, pslot),
+                  resolve_pack(ACTOR_PROT_SPRITE_BANK, 5u, NULL));
+
+    /* tick 72 -> loops back to frame 0 (loop_to 0) -> body sprite 2 again. */
+    for (int t = 0; t < 18; t++) actor_pool_update(&pool);
+    T_ASSERT_EQ_U(prs->frame, 0u);
+    T_ASSERT_EQ_U(prot_body_cel(&pool, pslot),
+                  resolve_pack(ACTOR_PROT_SPRITE_BANK, 2u, NULL));
+
+    /* NULL guard. */
+    T_ASSERT_EQ_I(actor_pool_update(NULL), 0);
+    return 0;
+}

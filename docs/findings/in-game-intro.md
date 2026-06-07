@@ -1948,9 +1948,48 @@ render-state clip at a reconstructed `WAGON_CLIP` (those 4 RE'd values — timin
 metadata, not the asset), so the body draws sprite 2 = the horses.  Re-captured
 + USER-confirmed correct on the feed.
 
-**Still open / PORT-DEBT(actor-protagonist-clip):** the body is FROZEN on the
-clip's first frame (sprite 2) — the un-ported per-tick stepper
-(`0x46cd70`/`0x54f980`) would trot the horses / spin the wheels; and the spawn pos
-is the census const, not the cutscene's anchor-relative roll-in
-(`0x431d10(…, anchor 0x65, x 0x3200, …)`).  Cross-check: `render_diff` vs a
-panned-camera retail capture keyed on `(res 0x058f, frame)`.
+### The horses TROT — the per-tick anim wired (ckpt 81)
+
+The ckpt-80 wagon was frozen on the clip's first frame.  Reading the per-actor
+update `FUN_0054f980` case-`0x1872d` (`:911-970`) shows its two halves are cleanly
+separable (engine-quirk #82):
+
+- **`:911-928` is the frame-stepper, UNCONDITIONAL** (gated only on the clip
+  `+0x6c != 0`) — byte-identical to `anim_clip_advance` (quirk #76), reads no
+  RNG/clock.  So the wagon's body cel **always** cycles, deterministically.
+- **`:929-970` is the behaviour**, which `break`s out entirely unless this is the
+  primary entry AND the global scene-lock `*(DAT_008a9b50+0x27a8)==0`, then draws
+  the LCG (`FUN_005bf505`) for idle waits / wander — the deferred RNG layer (#77).
+
+So the trot is portable in isolation.  Driver `FUN_0046cd70:123-169` walks the
+0x80-slot `+0x11e0` band once per sim-tick, calling `0x54f980` per active actor.
+
+**PORTED:**
+- `actor_render_state` gains the anim sub-block `timer` (+0x70) / `done` (+0x74)
+  (it already had clip +0x6c / frame +0x72) — the slice the stepper writes IS an
+  `anim_state`.
+- `actor_anim_advance` (`actor_render.c`) — the per-actor stepper; a thin adapter
+  that bridges the render-state's anim block to the single ported stepper
+  `anim_clip_advance` (one source of truth, host-tested bit-exact, ckpt 72).
+- `actor_pool_update` (`actor_spawn.c`) — the `0x46cd70` main-band walk: advance
+  every active render-state with a clip (the 32 static actors no-op on clip NULL,
+  only the wagon trots).  Returns the count advanced.
+- `main.c game_actor_update` calls it on the SAME sim-tick gate as the camera
+  easer (`(g_game_camera_hold & 1)==0`), BEFORE `camera_follow_step` — mirroring
+  retail's `0x439690` per-tick body order (`0x46cd70`@:1108 then `0x43d1d0`@:1123).
+  A `CALL_TRACE_BEGIN(0x46cd70)` port mirror emits the advanced count.  Reset is
+  automatic: `enter_game` re-spawns the pool (frame/timer 0) + zeroes the hold.
+
+**LIVE-VERIFIED (port blit trace, settled cam 12800, flips 2100-2244 spanning one
+144-Flip clip cycle):** the wagon (bank `0x175`) renders as **3 keyed cels (res
+`0x3ec`, NOT `0x058f` as ckpt-80 mis-noted)** at screen x 160/288/416 (the
+−256/−128/0 composite); the body cel (x416) steps **5→2→3→4→5** (one body-frame
+per 36 Flips = 18 sim-ticks) while the two fixed wagon cels hold frames 0/1, and
+the `0x46cd70` mirror reports `advanced:1` each tick.  USER-confirmed on the feed.
+Host tests: `actor_anim_advance_matches_stepper` / `_null_is_noop`,
+`actor_pool_update_trots` (the body cel cycles 2→5, the static actor stays frozen).
+
+**Still open / PORT-DEBT(actor-protagonist-clip), narrowed:** the RNG-driven
+behaviour (`0x54f980:929+`, deferred ckpt 73) + the cutscene roll-in (the spawn pos
+is the census const, not `0x431d10(…, anchor 0x65, x 0x3200, …)`).  Cross-check:
+`render_diff` vs a panned-camera retail capture keyed on `(res 0x3ec, frame)`.

@@ -1796,6 +1796,19 @@ static void game_camera_step(void)
     game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
 }
 
+/* The per-sim-tick actor UPDATE (0x46cd70 main-band slice → 0x54f980's frame
+ * stepper): advance the room's animated actors' clips by one tick.  In the
+ * opening town only the protagonist (0x1872d) animates, so this trots its
+ * horses (engine-quirk #76: the anim rides the sim-tick clock).  The RNG-driven
+ * behaviour half stays deferred (ckpt 73). */
+static void game_actor_update(void)
+{
+    int advanced = actor_pool_update(&g_actors);
+    CALL_TRACE_BEGIN(0x46cd70);           /* port mirror of the per-tick driver */
+    CALL_TRACE_I32("advanced", advanced); /* port-side: actors trotted this tick */
+    CALL_TRACE_END();
+}
+
 static void game_render(void *user)
 {
     (void)user;
@@ -1807,6 +1820,15 @@ static void game_render(void *user)
          * back to the static first-frame hold if it was never armed. */
         const mr_camera *cam = &MAP_RENDER_CAM_TOWN_3F2;
         if (g_game_camera_armed) {
+            /* retail's in-game loop 0x439690 runs the per-tick body once per sim
+             * tick: the actor update 0x46cd70 (:1108) THEN the camera easer
+             * 0x43d1d0 (:1123).  Mirror that order + cadence — the port's sim
+             * tick is every 2nd Flip (game_camera_step gates the easer on the
+             * same g_game_camera_hold parity, then bumps it), so the horses trot
+             * in lockstep with the pan.  Reset is automatic: enter_game
+             * re-spawns the pool (frame/timer 0) and zeroes the hold counter. */
+            if (g_actors_loaded && (g_game_camera_hold & 1u) == 0u)
+                game_actor_update();
             game_camera_step();
             cam = &g_game_camera_mr;
         }

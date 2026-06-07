@@ -99,7 +99,9 @@ typedef struct actor_render_state {
     int32_t          dst_base_x;  /* +0x40 — added to the descriptor off_x     */
     int32_t          dst_base_y;  /* +0x44 — added to the descriptor off_y     */
     const anim_clip *clip;        /* +0x6c — current clip (NULL => static)     */
+    uint16_t         timer;       /* +0x70 — sim-ticks elapsed in current frame */
     uint16_t         frame;       /* +0x72 — current frame index               */
+    uint8_t          done;        /* +0x74 — one-shot finished flag            */
     const uint8_t   *layer_override; /* +0x284 — non-NULL => layer = *(it+0x100)*/
 } actor_render_state;
 
@@ -188,5 +190,21 @@ int actor_render_static(const actor *a, const actor_render_state *rs,
 int actor_render_protagonist(const actor *a, const actor_render_state *rs,
                              const int16_t *flip_table, draw_pool *pool,
                              mr_sprite_fn resolve, void *resolve_ctx);
+
+/*
+ * The per-sim-tick animation step for one actor render-state — the deterministic
+ * frame-stepper every animating behaviour in 0x54f980 runs (e.g. the
+ * protagonist's case-0x1872d at 0x54f980:911-928), advancing the render-state's
+ * anim sub-block (+0x6c clip / +0x70 timer / +0x72 frame / +0x74 done) by one
+ * tick.  That block IS an anim_state, so this bridges to the single ported
+ * stepper anim_clip_advance: a NULL clip (the 32 static town actors) is a no-op,
+ * a looping clip cycles, a one-shot freezes on its last frame + sets `done`.
+ *
+ * This is ONLY the deterministic anim half of 0x54f980.  The RNG-driven
+ * behaviour half (idle waits + wander, 0x54f980:929+, drawing the LCG
+ * 0x5bf505) is deferred — defer-all-RNG-order-parity, ckpt 73 / engine-quirk
+ * #77.  Drive it once per SIM-TICK via actor_pool_update.
+ */
+void actor_anim_advance(actor_render_state *rs);
 
 #endif /* OSS_ACTOR_RENDER_H */

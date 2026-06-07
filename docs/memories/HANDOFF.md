@@ -1,10 +1,61 @@
-# Session handoff — rolling current state (last updated ckpt 80, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 81, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 81
+
+**The caravan's HORSES now TROT — the per-tick actor animation is wired and
+BIT-VERIFIED live.**  Builds directly on ckpt 80 (the frozen wagon); the trot is
+the first thing the per-sim-tick actor UPDATE pass drives in the port.
+
+- **The RE that made it safe (engine-quirk #82).**  `FUN_0054f980`'s case-`0x1872d`
+  (`:911-970`) splits cleanly: **`:911-928` is the frame-stepper, run
+  UNCONDITIONALLY** (gated only on the clip `+0x6c != 0`; byte-identical to
+  `anim_clip_advance`, reads no RNG/clock), and **`:929-970` is the behaviour**,
+  which `break`s out unless this is the primary entry AND the global scene-lock
+  `*(DAT_008a9b50+0x27a8)==0`, then draws the LCG (`FUN_005bf505`) for idle waits /
+  wander — the RNG layer deferred by ckpt 73 / quirk #77.  So the horse-trot is a
+  pure deterministic function of sim-ticks and portable in isolation; the wander
+  stays deferred.  Driver `FUN_0046cd70:123-169` walks the 0x80-slot `+0x11e0` band
+  once per sim-tick calling `0x54f980` per active actor.
+- **PORTED (pure + host-tested; +3 tests, 896 pass).**
+  - `actor_render_state` gains the anim sub-block `timer` (+0x70) / `done` (+0x74)
+    — it already had `clip` (+0x6c) / `frame` (+0x72); the slice the stepper writes
+    IS an `anim_state`.
+  - **`actor_anim_advance`** (`actor_render.c`) — the per-actor stepper; a thin
+    adapter bridging the render-state's anim block to the single ported stepper
+    `anim_clip_advance` (one source of truth, host-tested bit-exact ckpt 72).
+  - **`actor_pool_update`** (`actor_spawn.c`) — the `0x46cd70` main-band walk:
+    advance every active render-state with a clip; the 32 static actors (clip NULL)
+    no-op, only the wagon trots.  Returns the count advanced.
+  - `main.c game_actor_update` runs it on the SAME sim-tick gate as the camera
+    easer (`(g_game_camera_hold & 1)==0`), BEFORE `camera_follow_step` — mirroring
+    retail's `0x439690` per-tick body order (`0x46cd70`@:1108 then `0x43d1d0`@:1123).
+    `CALL_TRACE_BEGIN(0x46cd70)` port mirror (emits `advanced`).  Reset is automatic
+    (`enter_game` re-spawns the pool frame/timer 0 + zeroes the hold counter).
+- **LIVE-VERIFIED at the byte level** (port blit trace, settled cam 12800, flips
+  2100-2244 = one 144-Flip clip cycle): the wagon (bank `0x175`) is **3 keyed cels
+  res `0x3ec`** at screen x 160/288/416 (the −256/−128/0 composite); the body cel
+  (x416) steps **5→2→3→4→5** (one body-frame per 36 Flips = 18 sim-ticks) while the
+  two fixed wagon cels hold frames 0/1; the `0x46cd70` mirror reports `advanced:1`
+  each tick.  **CORRECTION:** the wagon's render_id is **res `0x3ec`** (asset_register
+  idx 215), NOT `0x058f` as ckpt-80 noted — fixed in FRONT/quirk #81.  Montage +
+  full settled frame pushed to the feed (USER visual confirm).
+- **State: 896 pass / 0 fail / 6 skip** (+3).  Ledger **199/194 unchanged** (the
+  stepper/walk are bare-VA slices of `0x46cd70`/`0x54f980`; `anim_clip_advance` was
+  already counted).  quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed (the
+  trot half is done; the RNG behaviour + the cutscene roll-in remain).  Writeup:
+  `findings/in-game-intro.md` "The horses TROT".
+- **NEXT:** (a) the scripted caravan **ROLL-IN** + anchor-relative spawn (the
+  `0x4d7d80` cutscene drives the arrival; `0x431d10(…, anchor 0x65, x 0x3200, …)`);
+  (b) the siblings `0x1872e`/`0x1872f` (likely the CHARACTERS — `0x539e80`/
+  `0x5034b0`); (c) byte-confirm via `render_diff` keyed on `(res 0x3ec, frame)` vs a
+  panned-camera retail capture; (d) the broader RNG-driven actor wander (the
+  scene-wide RNG-consumer census — the standing deferral).
 
 ## Where we are — ckpt 80
 

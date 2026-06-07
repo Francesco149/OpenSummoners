@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 81) — the caravan's HORSES TROT: the per-tick actor anim wired + bit-verified
+
+Built the per-sim-tick actor UPDATE pass and drove the ckpt-80 wagon's looping
+clip with it, so the horses trot instead of freezing on frame 1.  The RE that made
+it safe (engine-quirk #82): `FUN_0054f980`'s case-`0x1872d` (`:911-970`) splits into
+an **unconditional frame-stepper** (`:911-928`, gated only on the clip; byte-
+identical to `anim_clip_advance`, reads no RNG/clock) and a **gated RNG behaviour**
+(`:929-970`, breaks out unless primary + the scene-lock `*(0x8a9b50+0x27a8)==0`,
+then draws the LCG for idle/wander — the deferred #77 layer).  So the trot is a
+pure function of sim-ticks, portable in isolation; the wander stays deferred.
+
+Ported (pure + host-tested): `actor_render_state` gains the anim block `timer`
+(+0x70)/`done` (+0x74); **`actor_anim_advance`** (a thin adapter to the single
+ported stepper `anim_clip_advance`); **`actor_pool_update`** = the `0x46cd70:123-169`
+band walk (advance every active render-state with a clip — the 32 static actors
+no-op on clip NULL).  `main.c game_actor_update` runs it on the SAME sim-tick gate
+as the camera easer (`hold & 1`), before `camera_follow_step` (retail `0x439690`
+order :1108→:1123), with a `CALL_TRACE_BEGIN(0x46cd70)` mirror.
+
+LIVE-VERIFIED at the byte level (port blit trace, settled cam 12800, one 144-Flip
+cycle): the wagon (bank `0x175`) is 3 keyed cels **res `0x3ec`** at x 160/288/416;
+the body cel steps **5→2→3→4→5** every 36 Flips (18 sim-ticks) while the two fixed
+cels hold frames 0/1; the `0x46cd70` mirror reports `advanced:1`/tick.  Correction:
+the wagon's render_id is res `0x3ec` (asset_register idx 215), NOT `0x058f` as
+ckpt-80 noted (fixed in FRONT/quirk #81).  Montage + full settled frame pushed to
+the feed (USER visual confirm).  **896 pass** (+3); ledger 199/194 unchanged
+(bare-VA slices).  quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed to the
+RNG behaviour + the cutscene roll-in.  Writeup: `findings/in-game-intro.md`
+"The horses TROT — the per-tick anim wired".
+
 ## 2026-06-07 (ckpt 80) — the town intro `0x1872d` is the arrival HORSE-DRAWN CARAVAN: render arm + spawn RE'd + wired + USER-confirmed
 
 Ported the one animated town actor.  Three commits + the horses fix:

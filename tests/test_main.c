@@ -918,12 +918,15 @@ struct test_case {
     X(actor_protagonist_three_cels)                            \
     X(actor_protagonist_body_is_describe)                      \
     X(actor_protagonist_skip_and_gate)                         \
+    X(actor_anim_advance_matches_stepper)                      \
+    X(actor_anim_advance_null_is_noop)                         \
     X(actor_spawn_census)                                      \
     X(actor_spawn_sprite_lookup)                               \
     X(actor_spawn_invisible_self_skips)                        \
     X(actor_spawn_protagonist)                                 \
     X(actor_spawn_prop_renders)                                \
     X(actor_spawn_guards)                                      \
+    X(actor_pool_update_trots)                                 \
 
 #define X(n) extern int test_##n(void);
 TESTS

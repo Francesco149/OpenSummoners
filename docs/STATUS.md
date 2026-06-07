@@ -35,7 +35,28 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 80): the town intro `0x1872d` is PORTED + SPAWN-RE'd + WIRED + LIVE-VERIFIED —
+- **LATEST (ckpt 81): the caravan's HORSES now TROT — the per-tick actor anim is wired +
+  BIT-VERIFIED live.** Read `0x54f980` case-`0x1872d` (`:911-970`): its two halves are
+  separable (quirk #82) — **`:911-928` is the frame-stepper, UNCONDITIONAL** (gated only on
+  clip `+0x6c`, byte-identical to `anim_clip_advance`, reads no RNG/clock → the horses ALWAYS
+  trot), and **`:929-970` is the behaviour**, which `break`s out unless primary AND the global
+  scene-lock `*(0x8a9b50+0x27a8)==0`, then draws the LCG for idle/wander (the deferred RNG
+  layer #77). So the trot is portable in isolation. PORTED: `actor_render_state` gains the anim
+  block `timer`(+0x70)/`done`(+0x74); **`actor_anim_advance`** (a thin adapter to the single
+  ported stepper `anim_clip_advance`); **`actor_pool_update`** = the `0x46cd70:123-169` band
+  walk (advance every active render-state with a clip — static actors no-op); `main.c
+  game_actor_update` runs it on the SAME sim-tick gate as the camera easer (`hold & 1`), BEFORE
+  `camera_follow_step` (retail `0x439690` order :1108→:1123), with a `CALL_TRACE_BEGIN(0x46cd70)`
+  mirror. **LIVE (port blit trace, settled cam 12800, one 144-Flip cycle):** the wagon is **3
+  keyed cels res `0x3ec`** (corrects ckpt-80's mis-noted `0x058f`) at x160/288/416; the body
+  cel (x416) steps **5→2→3→4→5** every 36 Flips while the two fixed cels hold frames 0/1;
+  `0x46cd70` mirror reports `advanced:1`/tick. **896 pass** (+3); ledger 199/194 unchanged
+  (bare-VA slices). quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed to the RNG behaviour
+  + the cutscene roll-in. `findings/in-game-intro.md` "The horses TROT". **NEXT:** the scripted
+  caravan ROLL-IN + anchor-relative spawn (the `0x4d7d80` cutscene); the siblings
+  `0x1872e`/`0x1872f` (likely the characters — `0x539e80`/`0x5034b0`); byte-confirm via
+  `render_diff` keyed on res `0x3ec` vs a panned-camera retail capture.
+- **Prior (ckpt 80): the town intro `0x1872d` is PORTED + SPAWN-RE'd + WIRED + LIVE-VERIFIED —
   and it's the arrival WAGON, not "the protagonist" (corrects #79/#80).** Three parts: (1) **the
   render arm** — `actor_render_protagonist` ports `0x491ae0`'s case-`0x1872d` (a 3-cel composite;
   part 2 is byte-identical to `FUN_0044d160`/`actor_render_describe`, wrapped with two fixed
@@ -59,7 +80,8 @@ understates how much actual instruction volume is ported.
   the per-tick stepper that trots them + the cutscene roll-in are deferred).
   `findings/in-game-intro.md` "The 0x1872d SPAWN + the arrival WAGON". **NEXT:** the per-tick anim
   (trot the horses) + the scripted roll-in; then the caravan's siblings `0x1872e`/`0x1872f` (likely
-  the characters — spawned by `0x539e80`/`0x5034b0`); byte-confirm via `render_diff` (res `0x058f`).
+  the characters — spawned by `0x539e80`/`0x5034b0`); byte-confirm via `render_diff` (res `0x3ec` —
+  ckpt 81 corrects the `0x058f` here from the live blit trace).
 - **Prior (ckpt 79): the town CHARACTER band is RE'd, SPAWNED, RENDERED + WIRED — and it's
   mostly PROPS, not NPCs (USER-confirmed live).** Per the methodology ("capture each slot's
   `+0x48` live"), extended the `0x491ae0` field spec + captured every active `+0x11e0` actor at the

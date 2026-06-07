@@ -167,3 +167,19 @@ int actor_render_protagonist(const actor *a, const actor_render_state *rs,
     emitted += actor_emit_part(pool, layer, a, rs, &body, resolve, resolve_ctx);
     return emitted;
 }
+
+/*
+ * 0x54f980's inline frame-stepper, applied to one render-state (see header).
+ * The render-state's anim sub-block (clip/timer/frame/done) is exactly an
+ * anim_state, so we step the single ported stepper and write the result back —
+ * one source of truth, host-tested bit-exact (anim_clip_advance, ckpt 72).
+ */
+void actor_anim_advance(actor_render_state *rs)
+{
+    anim_state st = { .clip = rs->clip, .timer = rs->timer,
+                      .frame = rs->frame, .done = rs->done };
+    anim_clip_advance(&st);
+    rs->timer = st.timer;
+    rs->frame = st.frame;
+    rs->done  = st.done;
+}

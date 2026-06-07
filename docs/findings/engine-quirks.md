@@ -2458,8 +2458,10 @@ spawned and rendered by a path entirely separate from the map's CHARACTER object
   writes `row+0x00=bank`, `+0x02=frame_base`, `+0x04=b`, `+0x08=mirror_x`,
   `+0x0c=x_off`, `+0x10=y_off` at `actor + 0x48 + dir*0x14`.  For `0x1872d` it is
   `FUN_00426db0(0, 0x175, 0, 1, 0, 0, 0)` → **row 0 only: bank `0x175`, frame_base 0**.
-- **The asset is a covered WAGON, not a person.**  Bank `0x175` (res `0x058f`,
-  64×160) decodes to a wagon/caravan sheet.  Proven port-side by a with-`0x1872d`
+- **The asset is a covered WAGON, not a person.**  Bank `0x175` (res `0x3ec` —
+  the port's render_id blit trace ground truth, ckpt 81; the ckpt-80 note of
+  `0x058f` was unverified and matches no registered bank) decodes to a
+  wagon/caravan sheet.  Proven port-side by a with-`0x1872d`
   vs without-`0x1872d` settled-frame diff (cam 12800), which isolates the exact
   `0x1872d` pixels as a wagon composite — and since bank `0x175` is the user's own
   decoded asset (identical both sides), this is ground truth.  The `0x491ae0`
@@ -2476,3 +2478,33 @@ spawned and rendered by a path entirely separate from the map's CHARACTER object
 Port: `src/actor_render.c` (`actor_render_protagonist`), `src/actor_spawn.c`
 (`actor_spawn_protagonist`).  Writeup: `findings/in-game-intro.md` "The 0x1872d
 SPAWN + the arrival WAGON".
+
+### #82 — `0x54f980`'s per-actor update splits into an UNCONDITIONAL anim stepper + a GATED behaviour; the wagon's horses always trot, its wander is RNG/cutscene-gated (2026-06-07, ckpt 81)
+
+Reading the case-`0x1872d` arm of the per-actor update `FUN_0054f980` (`:911-970`,
+called once per sim-tick by `0x46cd70` for each active `+0x11e0` actor) shows the
+two halves are cleanly separable — which is *why* the horse-trot can be ported now
+while the RNG layer stays deferred:
+
+- **Half 1, the frame-stepper (`:911-928`) runs UNCONDITIONALLY** — gated only on
+  `render-state +0x6c` (the clip) being non-zero.  It is the byte-identical
+  `timer++ / dur-gate / frame++ / loop-or-hold` idiom of quirk #76 (port:
+  `anim_clip_advance`).  No GetTickCount / Flip / RNG → a pure function of
+  (sim-ticks since clip-set).  So the wagon's body cel **always cycles** sprite
+  2..5 (the horses trot) for as long as the actor is active — at the hold, during
+  the pan, at the settled camera, regardless of input or RNG.
+- **Half 2, the behaviour (`:929-970`) is GATED then RNG-driven.**  It first
+  `break`s out entirely if `param_3 != 0` (a kinematic sub-entry, not the primary)
+  **or** `*(DAT_008a9b50+0x27a8) != 0` (a global "scene/cutscene busy" lock).
+  Only past that gate does it draw the LCG `FUN_005bf505` for the idle-wait timer
+  (`+0x5c`), the idle→wander branch pick, and the move direction — the
+  non-deterministic motion deferred by #77 / ckpt 73.
+
+So an actor's APPEARANCE-animation (clip stepper) and its AI/MOTION (behaviour)
+are independent subsystems sharing one `0x54f980` call: the former is deterministic
+and portable in isolation; the latter is the RNG layer.  The port drives only
+half 1 (`actor_pool_update` → `actor_anim_advance`, once per sim-tick on the camera
+cadence); LIVE-VERIFIED on the port blit trace — at the settled camera the wagon's
+body cel (res `0x3ec`) steps 2→3→4→5→2 every 36 Flips (18 sim-ticks) while the two
+fixed wagon cels stay frames 0/1.  Writeup: `findings/in-game-intro.md` "The horses
+TROT — the per-tick anim wired".
