@@ -1745,6 +1745,14 @@
      "type": "i32",
      "reason": "world y (param_5)",
      "benign": true
+    },
+    {
+     "name": "alpha",
+     "src": "arg",
+     "index": 7,
+     "type": "i32",
+     "reason": "alpha (param_8 -> node+0x14); the fountain particle 0x18708 blend level (FUN_00493480 passes actor+0xf4). 0 => clipped, !=0 => alpha-blend.",
+     "benign": true
     }
    ]
   }

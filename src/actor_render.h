@@ -94,10 +94,14 @@ typedef struct actor_render_state {
     uint8_t          active;      /* +0x00 — 0 => skip (the *param_1=='\0' gate) */
     int32_t          world_x;     /* +0x04 — world x (px*100)                  */
     int32_t          world_y;     /* +0x08 — world y                           */
+    int32_t          vel_y;       /* +0x18 — particle y velocity (0x46e510)    */
+    int32_t          vel_x;       /* +0x28 — particle x velocity (0x46e510)    */
     int32_t          facing;      /* +0x2c — 3 => mirrored (flip horizontally) */
     int32_t          angle;       /* +0x34 — accumulated angle (angle anim)    */
     int32_t          dst_base_x;  /* +0x40 — added to the descriptor off_x     */
     int32_t          dst_base_y;  /* +0x44 — added to the descriptor off_y     */
+    uint16_t         sub_phase;   /* +0x58 — particle sub-state (fade/cycle)   */
+    int32_t          life;        /* +0x5c — particle lifetime/step counter    */
     const anim_clip *clip;        /* +0x6c — current clip (NULL => static)     */
     uint16_t         timer;       /* +0x70 — sim-ticks elapsed in current frame */
     uint16_t         frame;       /* +0x72 — current frame index               */

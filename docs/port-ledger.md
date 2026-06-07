@@ -66,7 +66,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
 | 0x48e6d0 | FUN_0048e6d0 | 389 | glyph_render.c, glyph_render.h |
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h |
-| 0x48eac0 | FUN_0048eac0 | 1131 | map_present.c, map_present.h, town_render.c (+1) |
+| 0x48eac0 | FUN_0048eac0 | 1131 | main.c, map_present.c, map_present.h (+2) |
 | 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h, town_render.h |
 | 0x490cd0 | FUN_00490cd0 | 603 | color_grade.h, main.c, parallax.c (+3) |
 | 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |

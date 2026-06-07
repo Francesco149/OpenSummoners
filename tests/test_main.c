@@ -929,6 +929,14 @@ struct test_case {
     X(actor_pool_update_trots)                                 \
     X(actor_spawn_struct)                                      \
     X(actor_spawn_effect)                                      \
+    X(particle_spawn_config)                                   \
+    X(particle_fountain_draw_count)                            \
+    X(particle_fountain_velocity_cycle)                        \
+    X(particle_step_gravity)                                   \
+    X(particle_step_expires)                                   \
+    X(particle_clip_cycles)                                    \
+    X(particle_roundrobin)                                     \
+    X(particle_render_emits)                                   \
 
 #define X(n) extern int test_##n(void);
 TESTS

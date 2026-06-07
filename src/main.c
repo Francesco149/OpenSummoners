@@ -73,6 +73,7 @@
 #include "letterbox.h"        /* the establishing-shot cinematic letterbox (0x48c150 slice) */
 #include "actor_spawn.h"      /* the town CHARACTER-band spawn (0x58d460 -> 0x431e30) */
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
+#include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -205,6 +206,22 @@ static int              g_structs_loaded;
  * idle clip's frame 0 for now (Phase 1b animates).  engine-quirk #84. */
 static actor_spawn_pool g_effects;
 static int              g_effects_loaded;
+
+/* The particle band (0x13e0 DEVICE pool / 0x493480 render) — the FOUNTAIN SPRAY.
+ * The fountain prop 0x112e5 (a CHARACTER in g_actors) emits one 0x18708 water
+ * droplet per sim-tick; particle_pool_step applies gravity/fade.  engine-quirk
+ * #87; findings "The FOUNTAIN SPRAY".  g_fountain_cx/cy is the emitter's
+ * anchor-center (the prop world pos + the body half-width); g_fountain_counter is
+ * the emitter's +0x5c %3 velocity-cycle state. */
+static particle_pool    g_fountain_pp;
+static int              g_fountain_loaded;
+static int32_t          g_fountain_cx, g_fountain_cy;
+static int              g_fountain_counter;
+/* PORT-DEBT(fountain-anchor): the emitter center is the prop's collision-body
+ * center (parent.x + body_w/2).  We lack the fountain body dims, so calibrate the
+ * x-offset to the live spray center (run A: particles center x~177245 vs the prop
+ * at 176000).  The exact value is the 0x426620 body width; pin at verification. */
+#define FOUNTAIN_EMIT_X_OFF 1245
 
 /* The actor mirror/flip table — the port stand-in for retail's global
  * DAT_008a8440 (a bank-indexed array of sprite-group frames-per-direction that
@@ -1594,8 +1611,27 @@ static void game_present_blit(const present_op *op, void *ud)
          * projected pos, the source's own color key honored.  The town's static
          * villagers (bank 0x16c) land here via game_actor_walk. */
         zdd_object_blt_keyed(src, g_zdd->primary_obj, op->dst_x, op->dst_y);
+    } else if (op->kind == PRESENT_ALPHA) {
+        /* Mode 1 — the alpha ACTOR/particle blit (FUN_0048eac0 case 1 ->
+         * FUN_005bd550).  The FOUNTAIN spray (engine-quirk #87): blend the cel
+         * through the brightness ramp g_ramp_a[idx], idx = node param8 =
+         * 10 - sub_phase (the faithful &DAT_008a92e0[-sub_phase] descriptor;
+         * 0x8a92e0 = &g_pd_boot_group_a[10]).  Mirrors title_render's alpha_blit:
+         * zdd_blit_orchestrate adds the cel origin (metric_0c/10) the keyed
+         * primitive would add internally.  A NULL ramp entry falls back to keyed. */
+        uint32_t idx = (op->node != NULL) ? op->node->param8 : 0;
+        if (idx >= PD_BOOT_GROUP_A_COUNT) idx = PD_BOOT_GROUP_A_COUNT - 1;
+        const zdd_blend_desc *desc = g_ramp_a[idx];
+        if (desc != NULL)
+            zdd_blit_orchestrate(desc, g_zdd->primary_obj, src,
+                                 src->metric_0c + op->dst_x,
+                                 src->metric_10 + op->dst_y,
+                                 src->metric_14, src->metric_18,
+                                 0, 0, src->colorkey_out, NULL);
+        else
+            zdd_object_blt_keyed(src, g_zdd->primary_obj, op->dst_x, op->dst_y);
     }
-    /* PRESENT_ALPHA / SCALED: deferred (no town producer emits them yet;
+    /* PRESENT_SCALED (mode 2): deferred (no town producer emits it yet;
      * PORT-DEBT present-actor-modes). */
 }
 
@@ -1664,6 +1700,13 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                                game_sprite_resolve, NULL);
         }
 
+    /* The FOUNTAIN SPRAY (0x493480 default arm) — the 0x18708 water droplets,
+     * bank 0x1aa at layer 11.  Emits MODE-1 (alpha) nodes (param8 = the brightness
+     * ramp index 10 - sub_phase); game_present_blit PRESENT_ALPHA orchestrates the
+     * blend via g_ramp_a, so the droplets are translucent like retail. */
+    int particle_emitted = particle_pool_render(&g_fountain_pp, pool,
+                                                game_sprite_resolve, NULL);
+
     static int logged;
     if (!logged) {
         logged = 1;
@@ -1671,15 +1714,18 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
         ar_sprite_slot *pb = ar_pool_get_slot(ACTOR_PROT_SPRITE_BANK);/* 0x175    */
         ar_sprite_slot *tb = ar_pool_get_slot(0x15f);                /* tree bank */
         ar_sprite_slot *eb = ar_pool_get_slot(0x0f9);                /* townsperson bank */
-        log_line("game_actor_walk: %d actor + %d structure + %d effect nodes "
-                 "(prop bank 0x16c %s; protagonist bank 0x175 %s; tree bank 0x15f %s; "
-                 "townsfolk bank 0xf9 %s)",
-                 emitted, struct_emitted, effect_emitted,
+        ar_sprite_slot *fb = ar_pool_get_slot(0x1aa);                /* fountain particle bank */
+        log_line("game_actor_walk: %d actor + %d structure + %d effect + %d particle "
+                 "nodes (prop bank 0x16c %s; protagonist bank 0x175 %s; tree bank 0x15f "
+                 "%s; townsfolk bank 0xf9 %s; particle bank 0x1aa %s)",
+                 emitted, struct_emitted, effect_emitted, particle_emitted,
                  vb ? "registered" : "NOT registered",
                  pb ? "registered" : "NOT registered -> protagonist invisible",
                  tb ? "registered" : "NOT registered -> tree invisible",
-                 eb ? "registered" : "NOT registered -> townsfolk invisible");
+                 eb ? "registered" : "NOT registered -> townsfolk invisible",
+                 fb ? "registered" : "NOT registered -> fountain invisible");
     }
+    (void)particle_emitted;
 }
 
 /* Mirror FUN_00417c40's flag-3 / tint-case-0 field stamp (417c40.c:33-60).  The
@@ -1880,6 +1926,16 @@ static void game_actor_update(void)
     CALL_TRACE_BEGIN(0x46cd70);           /* port mirror of the per-tick driver */
     CALL_TRACE_I32("advanced", advanced); /* port-side: actors stepped this tick */
     CALL_TRACE_END();
+
+    /* The FOUNTAIN: the emitter (0x112e5 / 0x54f980:218) spawns one 0x18708 water
+     * droplet this sim-tick (drawing the shared LCG for the launch velocity), then
+     * 0x46e510 steps every active droplet (gravity / integrate / fade / expire).
+     * RNG-driven, so frame-exact alignment with retail is Phase 2
+     * (PORT-DEBT(fountain-rng-phase)); the physics here are faithful. */
+    if (g_fountain_loaded)
+        particle_fountain_emit(&g_fountain_pp, g_fountain_cx, g_fountain_cy,
+                               &g_fountain_counter);
+    particle_pool_step(&g_fountain_pp);
 }
 
 static void game_render(void *user)
@@ -2061,6 +2117,26 @@ static void enter_game(void)
         log_line("enter_game: actor_spawn_effect_from_map -> %d EFFECT townsfolk "
                  "(standing villagers, DATA 1022; %d flip-table banks; 0xe29a "
                  "wanderers deferred)", en, fn);
+
+        /* Arm the FOUNTAIN SPRAY (Chip 3).  The emitter is the fountain prop
+         * 0x112e5 (a CHARACTER already in g_actors, bank 0x16c frame 36); find it
+         * and cache its anchor-center so game_actor_update can emit 0x18708 water
+         * droplets each sim-tick.  engine-quirk #87; findings "The FOUNTAIN
+         * SPRAY".  The 0x18704 sky-ambient emitter (0x112e2) is deferred. */
+        particle_pool_reset(&g_fountain_pp);
+        g_fountain_loaded = 0;
+        g_fountain_counter = 0;
+        for (int i = 0; i < g_actors.count; i++) {
+            if (g_actors.actors[i].code == 0x112e5u) {
+                g_fountain_cx = g_actors.states[i].world_x + FOUNTAIN_EMIT_X_OFF;
+                g_fountain_cy = g_actors.states[i].world_y;
+                g_fountain_loaded = 1;
+                break;
+            }
+        }
+        log_line("enter_game: fountain emitter 0x112e5 %s (emit center %d,%d)",
+                 g_fountain_loaded ? "found" : "NOT found",
+                 g_fountain_cx, g_fountain_cy);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

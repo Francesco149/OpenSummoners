@@ -90,6 +90,41 @@ int map_present(const draw_pool *pool, const mr_camera *cam,
                 presented++;
                 break;
             }
+            case 1: {
+                /* The ALPHA actor/particle path (FUN_0048eac0 case 1) — the
+                 * +0x13e0 fountain particles (engine-quirk #87).  Same cull/
+                 * projection as mode 0 (the cel's pixel size), but the blit is
+                 * alpha-blended: the node's param8 carries the brightness ramp
+                 * index (g_ramp_a[10 - sub_phase]) for the present to orchestrate.
+                 * Partially retires PORT-DEBT(present-actor-modes). */
+                if (!dims) { deferred++; break; }
+
+                int32_t cw = 0, ch = 0;
+                dims(n->sprite, &cw, &ch, dims_ud);
+
+                int32_t dx, dy;
+                if (!map_present_project(cam, n->dst_x, n->dst_y,
+                                         (int32_t)n->param6, (int32_t)n->param7,
+                                         cw, ch, &dx, &dy))
+                    break;   /* culled */
+
+                if (blit) {
+                    present_op op;
+                    op.kind   = PRESENT_ALPHA;
+                    op.layer  = li;
+                    op.sprite = n->sprite;
+                    op.dst_x  = dx;
+                    op.dst_y  = dy;
+                    op.src_x  = 0;
+                    op.src_y  = 0;
+                    op.w      = cw;
+                    op.h      = ch;
+                    op.node   = n;
+                    blit(&op, ud);
+                }
+                presented++;
+                break;
+            }
             case 3: {
                 /* The static-backdrop TILE path map_render_walk emits.
                  * Project with the node's placement adjust (+0x0c/+0x10) and
