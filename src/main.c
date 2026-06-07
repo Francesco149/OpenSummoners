@@ -372,9 +372,13 @@ static size_t    g_n_call_trace_frames;
  * each requested Flip (present) frame, GetDC the composed primary surface,
  * BitBlt it into a 24bpp DIB, and write <dir>/port_frame_NNNNN.bmp.  Lets us
  * diff the port's actual pixels against the retail goldens in runs/. */
-#define CAPTURE_FRAMES_CAP 64
+#define CAPTURE_FRAMES_CAP 4096
 static unsigned  g_capture_frames[CAPTURE_FRAMES_CAP];
 static size_t    g_n_capture_frames;
+/* --capture-all: dump EVERY present frame (a dense video capture; avoids a huge
+ * --capture-frames whitelist).  Optional "--capture-all-from N" lower bound. */
+static int       g_capture_all;
+static unsigned  g_capture_all_from;
 static char      g_capture_dir_buf[1024] = ".";
 static const char *g_capture_dir = g_capture_dir_buf;
 
@@ -1034,6 +1038,13 @@ static int capture_primary_to_bmp(const char *path)
 /* If flip_frame is in the --capture-frames whitelist, dump it. */
 static void maybe_capture_frame(unsigned flip_frame)
 {
+    if (g_capture_all && flip_frame >= g_capture_all_from) {
+        char path[1200];
+        snprintf(path, sizeof path, "%s/port_frame_%05u.bmp",
+                 g_capture_dir, flip_frame);
+        capture_primary_to_bmp(path);   /* dense video dump — no per-frame log */
+        return;
+    }
     for (size_t i = 0; i < g_n_capture_frames; i++) {
         if (g_capture_frames[i] != flip_frame) continue;
         char path[1200];
@@ -2648,6 +2659,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 list = end;
                 while (*list == ',' || *list == ' ') list++;
             }
+        }
+        else if (!strcmp(tok, "--capture-all")) {
+            g_capture_all = 1;
+        }
+        else if (!strcmp(tok, "--capture-all-from")) {
+            tok = strtok(NULL, " \t");
+            if (tok) { g_capture_all = 1; g_capture_all_from = (unsigned)strtoul(tok, NULL, 10); }
         }
         else if (!strcmp(tok, "--capture-dir")) {
             tok = strtok(NULL, " \t");

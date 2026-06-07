@@ -35,11 +35,18 @@
   fountain + decorations + townsfolk + chimney smoke all match). The one clear divergence the
   sequence surfaces: retail's **"Town of Tonkiness" area banner** (~retail flip 1600+) is
   MISSING in the port = the `0x5a00c0` scripted-overlay debt (PORT-DEBT `ingame-nontile-layers`;
-  a TIMED element, absent at the hold — consistent with ckpt 82). **NEXT (toward whole-scene
-  1:1):** (1) the **`0x5a00c0` banner/scripted overlay** (now precisely timed by the video).
-  (2) **phase-match the particle RNG** (PORT-DEBT `fountain-rng-phase` — exact per-frame
-  positions need the co-resident per-tick consumers ported, Phase 2). (3) the **dark
-  establishing-shot TOP GRADIENT** (open since ckpt 66/67).
+  a TIMED element, absent at the hold — consistent with ckpt 82). **NEXT — the USER's
+  golden-video review (ckpt 89) flagged 5 concrete items (quirk #89):** (1) the **establishing
+  REVEAL** — a VERTICAL FADE opening from the MIDDLE of the screen outward (CONFIRMED off the
+  golden; this IS the long-open "dark top gradient" of ckpt 66/67 — a vertical-iris reveal, not
+  a static tint; the port jumps straight to the letterboxed scene). (2) the **`0x5a00c0`
+  banner/scripted overlay** ("Town of Tonkiness", timed ~retail flip 1600+). (3) **ground
+  BUTTERFLIES** by the flowerbeds at the SETTLED town (~flip 2150) — likely a `0x557550` "leaf"
+  particle code (`0x18707`/`0x18709`) the hold-only census missed; RE via a render trace at the
+  settled town. (4) the Start-Game menu **SCALE transition** (scales IN on appear + OUT on confirm; port pops
+  it in/out). (5) **phase-match
+  the particle RNG** (PORT-DEBT `fountain-rng-phase`, Phase 2). PORT bug to verify: the
+  menu-cursor pulse looked fast (dev-build frame rate? — TODO).
 - **Prior (ckpt 88): the FOUNTAIN SPRAY (`0x18708`) is PORTED + USER-confirmed** — the
   particle subsystem RE'd (1024-slot `+0x13e0` pool, alloc `0x557370` / config `0x557550` /
   step `0x46e510` / `0x493480` alpha render); translucent water via ramp_a

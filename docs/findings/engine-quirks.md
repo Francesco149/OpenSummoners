@@ -2721,3 +2721,35 @@ Two retail ground-truth facts that pin particle placement (live-captured, `runs/
   `0x18708` = fountain WATER (emitter `0x112e5`, layer 11, clip `0x6449c0` 2-frame loop, fade
   via **ramp_a** `0x8a92e0`, gravity-down).  The town's `+0x13e0` band renders ONLY these two
   codes.  `findings/in-game-intro.md` "The SKY-AMBIENT particles".
+
+### #89 — the establishing-scene REVEAL is a VERTICAL FADE opening from the MIDDLE of the screen (corrects the "dark top gradient" read); + ground BUTTERFLIES and a Start-Game SHRINK-DOWN are port-missing elements (2026-06-07, ckpt 89, golden video review)
+
+Spotted in the ckpt-89 dense golden capture (`runs/video60-retail`) + the USER's real-time
+side-by-side review.  Three retail behaviors the port lacks:
+
+- **The establishing REVEAL** — CONFIRMED off the golden (frame-stepped at game_enter): the
+  scene is revealed by a **vertical fade that opens from the MIDDLE of the screen outward**.
+  At game_enter the frame is fully BLACK (sim_tick ~6), then a horizontal band of the scene
+  grows from the vertical center (t~13 → t~23), the black top + bottom shrinking, until it
+  settles into the cinematic LETTERBOX (the quirk-#74 thin top/bottom bars).  So the
+  long-open "dark establishing-shot TOP GRADIENT" (ckpt 66/67) is NOT a static tint — it is
+  this reveal mid-animation (the top is still black before the iris fully opens).  A
+  vertical-curtain/iris reveal.  The port jumps straight to the letterboxed scene (no reveal).
+- **BUTTERFLIES** flit near the GROUND in the town square — by the flowerbeds / the townsfolk
+  (USER-pinpointed: next to the girl in pink, above the flowers, over the dog; small, easy to
+  mistake for birds).  Absent in the port.  KEY: they appear at the **settled town** (~retail
+  flip 2150), which is AFTER the establishing-hold range my particle census covered
+  (`runs/rng-census-repin`, ~flip 1420-1550) — so the ckpt-89 "the +0x13e0 band renders only
+  `0x18704`+`0x18708`" holds only for the HOLD.  Likely one of the other `0x557550` particle
+  codes (`0x18707` clip `0x644cf0`, or `0x18709` clip `0x644e88` — the "leaf"-ish entries; cf.
+  the ckpt-84 "green leafy particles") spawned near the foliage at the settled town.  RE via a
+  render trace at the settled town (NOT the hold).
+- **The Start-Game menu has a SCALE transition BOTH WAYS** (USER): it scales **IN/UP** when it
+  APPEARS (a grow-from-small reveal) and the reverse — scales **OUT/DOWN** — when dismissed
+  (confirming Start Game, id `0x24`), before the next scene.  The port pops it in/out with no
+  scale.  (A scale-anim on the menu panel — likely the same blit-scale path as other UI; RE the
+  menu show/hide transition.)
+
+(Separately, the PORT's menu-cursor pulse looked fast in the review — a port-side timing item
+to verify at matched timing, possibly the dev-build's uncapped flip rate or the 2x video
+speed-up; NOT a retail quirk → tracked as a TODO, not here.)
