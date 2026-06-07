@@ -96,3 +96,15 @@ COLOROP ADDSIGNED) — each a one-divergence chip backed by a quirk + ledger ent
   by hand becomes a bottleneck — the model is already written (`parity-model.md`).
 - Git hooks (`commit-msg` co-author trailer + `pre-commit` ledger-regen/test gate) to make
   the manual conventions enforced, as openrecet does. Currently manual here.
+
+## Phase C (deferred — gated on a CONTROLLABLE CHARACTER milestone)
+**Adapt openrecet's TRACE STUDIO to this project** (USER directive, ckpt 89).  Reference:
+`/opt/src/openrecet/tools/trace_studio` + `trace_studio_web` (+ `test_trace_studio_session.py`
+/ `_anchoring.py` / `_recapture.py`).  It is a frame-by-frame trace SCRUBBER: step a captured
+trace one frame at a time, peek at the annotated game state at each frame, and see WHICH
+ANCHORS fired on each side (port vs retail) per frame — the interactive successor to the
+ad-hoc `--capture-all` dump + the static `render_diff`/`flow_diff` lenses.  **Do NOT start
+until we at least reach a controllable character** (the USER's stated trigger — the scrubber
+pays off once there's interactive gameplay to diff, not just the scripted intro).  Until then
+the `tools/frida_capture.py` + the three diff lenses suffice.  The `--capture-all` flag added
+ckpt 89 is a throwaway stopgap, to be subsumed by the studio.
