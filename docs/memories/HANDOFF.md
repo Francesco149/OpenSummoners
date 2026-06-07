@@ -61,22 +61,52 @@ the first thing the per-sim-tick actor UPDATE pass drives in the port.
   codes (100141-100144) are outside the 70000 map-object range, and the town script
   `FUN_004d7d80` (area-210 rooms `0x334be`…) spawns ONLY the wagon `0x1872d`.  So
   code-adjacency ≠ same scene (engine-quirk #83); the siblings are later-area beats.
-  `findings/in-game-intro.md` "The caravan 'siblings' … are OUT-OF-SCENE".  The actual
-  remaining chips for the town-intro parity arc:
-  - (a) the town frame's remaining **DETERMINISTIC** visible residual = the
-    **foreground TREE + "Town of Tonkiness" BANNER** (`ingame-nontile-layers`, the
-    non-actor half of the ckpt-74 36-blit residual).  Next: **pin the producer
-    empirically** from a fresh retail blit-trace's per-blit return addresses (the loop
-    that pinned the letterbox to `0x48c150:124-162`) — the `0x5a00c0` GDI overlay
-    player (13.7 KB, called from the map-object arm `0x59f2c0`) is the HYPOTHESIS to
-    confirm/refute, NOT an established fact.  Then RE that slice + port + wire + verify.
-  - (b) byte-confirm the wagon via `render_diff` keyed on `(res 0x3ec, frame)` vs a
-    panned-camera (cam 12800) retail capture, aligned by `cam_x60` (ckpt-70b method).
-  - (c) the scripted caravan ROLL-IN (the `0x4d7d80` anchor-relative `0x431d10(…,
-    anchor 0x65, x 0x3200, …)` arrival) — only visible earlier in the cutscene, not at
-    the settled hold; lower priority (wagon is parked-correct).
-  - (d) the broader RNG-driven actor wander — the scene-wide RNG-consumer census
-    (standing deferral, ckpt 73).
+  `findings/in-game-intro.md` "The caravan 'siblings' … are OUT-OF-SCENE".
+
+- **GROUND TRUTH (ckpt 82) — the hold residual is the CHARACTER CAST + foreground
+  TREE, NOT a "banner".**  Re-captured the retail blit trace + a PNG at the
+  scene-LOCKED establishing hold (`game_enter@1434`, flip 1500, cam 128000;
+  `--seed-pin --lockstep --no-turbo`, field-spec).  The 108 `blt_keyed` (`0x5b9b70`)
+  split into TWO producers:
+  - **54 VISIBLE via present `FUN_0048eac0` (`ret_va 0x48ecc2`, 18/frame)** = res
+    `0x481` **320×320** @ (496,64) the foreground **TREE** + ~5-7 multi-part townsfolk
+    **CHARACTERS** (banks `0x426`×5 / `0x459` / `0x462` / `0x46a` / `0x46b` / `0x472`
+    / `0x47b`) + props `0x403` + tiny details `0x3fa`.  The PNG confirms a tree (right)
+    + a knot of townsfolk in the square + a flowerbed.
+  - **54 INVISIBLE via `FUN_004962a0` (`ret_va 0x49632a`/`5c`/`8b`)** parked at
+    **dst y=572 (off the 480 screen)**, NO render-id — a scratch/HUD parked during the
+    cutscene; draws nothing visible.  (Identify `0x4962a0` before porting.)
+  - **No "Town of Tonkiness" banner blit at the hold** — zero `0x5a00c0`-range
+    `ret_va`s → the docs' banner attribution AND the `0x5a00c0`-overlay producer guess
+    are BOTH refuted (same as the letterbox turned out to be `0x48c150`).  Any
+    area-title card is GDI text / a different time (TBD).
+  - The cast is **NOT** the main map-object band (bank `0x16c`/`0x175`, world-x
+    88200-176000 = off-screen-LEFT at cam 128000; the 6 drawing main-band actors don't
+    present here).  Source = the 8 PARTY actors (`0x59f2c0`→`0x560e60`, `ret_va
+    0x59f578`) and/or a scene-actor band — PIN IT NEXT.
+  `findings/in-game-intro.md` "The hold residual is the CHARACTER CAST + foreground
+  tree".  Artifacts (local `/tmp`): `/tmp/blit_banner_retail/`, `/tmp/spawn_disc/`.
+
+- **USER DIRECTIVE (ckpt 82): the intro scene must render 1:1 on EVERY frame before
+  moving to the next scene; THEN pinpoint + port every RNG consumer in the scene 1:1.**
+  Per quirk #82 the hold is scene-locked ⇒ deterministic, so this decomposes cleanly:
+  - **PHASE 1 (this residual) — the CHARACTER / multi-part static render.**  Pin each
+    cast cel to its actor (annotate the emit `FUN_00492670` / the band-walk feeding
+    `0x48eac0` with the actor code `+0x1d4`, recapture → cel↔actor map), RE the cast
+    spawn (party `0x59f2c0` and/or the scene-actor band), port the multi-part static
+    render (generalise the `0x491ae0` `0x1872d` arm past the wagon; the lazy `+0x48`
+    sprite-table fill, PORT-DEBT `actor-sprite-table`) → the LOCKED establishing frames
+    go differ_px==0.  Also byte-confirm the wagon (`render_diff` keyed `(res 0x3ec,
+    frame)`).  The foreground TREE (res `0x481`, a static prop) is the simplest single
+    cel to land first.
+  - **PHASE 2 — every in-scene RNG consumer.**  Post-unlock the scene-lock clears and
+    `0x54f980:929+` draws the LCG for idle/wander; RE + port every consumer and match
+    consumption order (rng + rngcalls both sides, the flow trace's unified signal) so
+    the post-cutscene frames stay 1:1.  (This RETIRES the ckpt-73 "defer all RNG"
+    deferral — it is now scheduled, not indefinite.)
+  - **Big foundational arc — best started with a fresh `/clear`** (the character render
+    system underlies every scene).  Orient: this file → FRONT → here → the ground-truth
+    finding above.
 
 ## Where we are — ckpt 80
 

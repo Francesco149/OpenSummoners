@@ -2038,7 +2038,55 @@ OUTSIDE the 70000-79999 CHARACTER range, so the map-object pass
 ckpt-79 live census (33 active actors at the town hold = 32 map-objects + the
 wagon; no siblings).  **Conclusion:** the siblings belong to later story beats in
 other areas; they are not part of the town-intro parity arc and were dropped from
-the NEXT list.  The remaining DETERMINISTIC visible residual of the town frame is
-the **foreground tree + "Town of Tonkiness" banner** (`ingame-nontile-layers`,
-the non-actor half of the 36-blit residual — `ddraw-blit-trace.md` "The TOWN
-frame"); the rest of the 36 is the RNG-driven NPC wander (deferred, ckpt 73).
+the NEXT list.
+
+### The hold residual is the CHARACTER CAST + foreground tree, NOT a "banner" (ckpt 82, blit-trace ground truth)
+
+Re-captured the retail blit trace + a PNG at the establishing hold
+(`game_enter@1434`, cam 128000, the scene-LOCKED cinematic; flips 1450/1500/1600,
+`--seed-pin --lockstep --no-turbo`, field-spec).  This **refines/corrects** the
+ckpt-74 "the 36 residual = NPC actors + tree + banner" characterization with
+exact producers + a visual:
+
+- **108 `blt_keyed` (`0x5b9b70`) at the hold split into two producers:**
+  - **54 via the present `FUN_0048eac0` (`ret_va 0x48ecc2`), 18/frame — THE
+    VISIBLE residual** (the cast + tree).  Banks: `0x481` (1× **320×320** @ dst
+    (496,64) = the **foreground TREE**, right edge), `0x426` (5× frame 5 @ y≈344-352
+    = a row of similar townsfolk), `0x459`/`0x462`/`0x46a`/`0x46b`/`0x472`/`0x47b`
+    (1× each, 25-50 × 53-90 px = distinct standing CHARACTERS), `0x403` (props),
+    `0x3fa` (2× tiny 14×8 details).  The PNG confirms: a foreground tree on the
+    right + ~5-7 townsfolk standing in the square + a flowerbed.
+  - **54 via `FUN_004962a0` (`ret_va 0x49632a`/`0x49635c`/`0x49638b`, 3 stacked
+    layers × 6 columns), all at dst **y=572 (BELOW the 480 screen → OFF-SCREEN /
+    invisible)**, NO render-id (a scratch/dynamically-built cel).  Not part of the
+    visible frame — likely the party HUD parked off-screen during the cutscene.
+    Identify `FUN_004962a0` before porting (it draws nothing visible at the hold).**
+- **There is NO "Town of Tonkiness" banner blit at the hold** — zero keyed blits
+  with `ret_va` in `0x5a00c0`'s range, refuting both the docs' banner attribution
+  AND the `0x5a00c0`-overlay-player producer hypothesis (the same way the letterbox
+  turned out to be `0x48c150`, not `0x5a00c0`).  If an area-title card exists it is
+  GDI text and/or at a different time (TBD — not in 1450-1600).
+- **The visible cast is NOT the main map-object band.**  The `0x491ae0` main-band
+  census at flip 1500 shows banks `0x16c`/`0x175` only (the 5 props + the wagon),
+  and at cam 128000 those sit world-x 88200-176000 = OFF-SCREEN-LEFT, so they never
+  present here.  The 18 cast cels (banks `0x426`/`0x459`/…) come from a **different
+  render source** — the 8 PARTY actors are reset by `0x59f2c0`→`0x560e60` (`ret_va
+  0x59f578`, spawn-discovery probe), and/or a separate scene-actor band.  **Pin the
+  exact source next: annotate the actor emit `FUN_00492670` (or the band-walk that
+  feeds `0x48eac0`) with the actor code/`+0x1d4`, recapture → each cast cel ties to
+  its actor** (the methodical loop, mirror of how `0x48ecc2` pinned the present).
+- **Determinism (quirk #82):** at the establishing hold the scene-lock
+  `*(DAT_008a9b50+0x27a8)!=0`, so EVERY actor's behaviour half `break`s out — no LCG
+  drawn — so the whole hold frame is **deterministic**.  This decomposes the user's
+  "1:1 on every frame, then the RNG consumers" exactly into two phases:
+  - **Phase 1 (this residual):** RE the cast's spawn + multi-part static render
+    (positions + sprite tables + clips at the locked pose) → the establishing-shot
+    frames go differ_px==0.  This is the protagonist/character render system (the
+    `0x491ae0` multi-part arm generalised past the wagon; the lazy `+0x48` sprite
+    fill, PORT-DEBT `actor-sprite-table`).
+  - **Phase 2 (the RNG consumers):** their post-unlock wander — RE + port every
+    in-scene LCG consumer (`0x54f980:929+` idle/wander, etc.) and match consumption
+    order (rng+rngcalls both sides) so the post-cutscene frames stay 1:1.
+- Artifacts (local, `/tmp`, ephemeral): `/tmp/blit_banner_retail/call_trace.jsonl`,
+  `/tmp/spawn_disc/` (+ the hold PNG, pushed to the feed).  Regenerate via the
+  field-spec capture above.
