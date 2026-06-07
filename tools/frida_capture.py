@@ -651,6 +651,24 @@ def run_capture(cfg: CaptureConfig) -> int:
                 "before": payload.get("before"),
                 "value": payload.get("value"),
             }
+        elif kind == "rng_anchor":
+            # The town SPAWN RNG re-pin (ckpt 86): fired at the first FUN_0041f200
+            # after the game_enter anchor armed it, re-aligning the shared LCG
+            # right before the per-object spawn burst so the town's spawn-time
+            # randomness (idle anim phases, particle jitter) is reproducible
+            # despite the non-deterministic title->town consumption (quirk #77).
+            # `before` is the natural (drifted) seed; the spawn now starts from
+            # `value` on both sides.
+            print(f"[frida_capture] town SPAWN RNG re-pinned @ frame "
+                  f"{payload.get('frame')} ({payload.get('name')}): "
+                  f"DAT_008a4f94 0x{int(payload.get('before',0)):08x} -> "
+                  f"0x{int(payload.get('value',0)):08x}", file=sys.stderr)
+            summary["rng_anchor"] = {
+                "frame": payload.get("frame"),
+                "name": payload.get("name"),
+                "before": payload.get("before"),
+                "value": payload.get("value"),
+            }
         elif kind == "fade_level":
             frame = int(payload.get("frame", -1))
             if fade_f is not None:

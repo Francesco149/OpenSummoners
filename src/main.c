@@ -1033,6 +1033,23 @@ static void maybe_capture_frame(unsigned flip_frame)
  * group are unfilled/unmodeled at a cold boot, so they pass through as NULL
  * (plain blits / no compose — faithful).  skip_intro stays 0 so a first boot
  * plays the studio fade from the start, exactly like retail's cold launch. */
+/* Resolve the pinned engine RNG seed: OSS_RNG_DEFAULT_SEED, overridable by the
+ * OPENSUMMONERS_RNG_SEED env var (for experiments).  The retail parity harness
+ * pins DAT_008a4f94 to the SAME value at two points: the boot title sparkle
+ * (FUN_0056c070) and — re-aligning the non-deterministic title->town stream
+ * (engine-quirk #77) — the first 0x41f200 effect spawn after the game_enter
+ * entry (0x59f2c0).  The port mirrors both: rng_srand at boot (build_title_drive)
+ * and at the top of enter_game, so the town SPAWN draws march in lockstep. */
+static uint32_t game_rng_seed(void)
+{
+    char sbuf[32];
+    uint32_t seed = OSS_RNG_DEFAULT_SEED;
+    DWORD n = GetEnvironmentVariableA("OPENSUMMONERS_RNG_SEED", sbuf, sizeof sbuf);
+    if (n > 0 && n < sizeof sbuf)
+        seed = (uint32_t)strtoul(sbuf, NULL, 0);
+    return seed;
+}
+
 /* Build (or rebuild) the title-scene drive against the live ZDD.  Shared by
  * the cold-boot init_title_drive and the post-dispatch reenter_title; the only
  * difference is `skip_intro` — retail's FUN_00562ea0 passes the title runner a
@@ -1061,11 +1078,7 @@ static int build_title_drive(int skip_intro)
      * DAT_008a4f94 to the same value).  OPENSUMMONERS_RNG_SEED overrides the
      * default for experiments. */
     {
-        char sbuf[32];
-        uint32_t seed = OSS_RNG_DEFAULT_SEED;
-        DWORD n = GetEnvironmentVariableA("OPENSUMMONERS_RNG_SEED", sbuf, sizeof sbuf);
-        if (n > 0 && n < sizeof sbuf)
-            seed = (uint32_t)strtoul(sbuf, NULL, 0);
+        uint32_t seed = game_rng_seed();
         rng_srand(seed);
         log_line("build_title_drive: RNG seed pinned to 0x%08lx", (unsigned long)seed);
     }
@@ -1928,6 +1941,27 @@ static void enter_game(void)
         g_prologue_active = 0;
     }
     emit_anchor("game_enter");
+
+    /* RNG ANCHOR (ckpt 86): re-seed the engine LCG here, at scene entry, BEFORE
+     * the town spawn consumes any rand().  The title->town RNG is
+     * non-deterministic run-to-run even under the boot seed-pin (engine-quirk
+     * #77: a per-present consumer desyncs the shared stream between the title
+     * sparkle pin and the town), so the town SPAWN burst (the EFFECT activator
+     * 0x41f200's per-object position jitter / idle-phase / particle draws) would
+     * otherwise start from an unpredictable phase.
+     *
+     * Retail re-pins DAT_008a4f94 at the matching point: the FIRST 0x41f200
+     * call after the game_enter anchor (the agent arms at 0x59f2c0, fires at
+     * 0x41f200 onEnter — NOT at game_enter itself, because a pre-spawn one-off
+     * draw 0x4c5e00 fires in between).  This re-seed is the port's mirror of THAT
+     * point: nothing between here and actor_spawn_effect_from_map (the port's
+     * effect-spawn replay) draws rand — the character/protagonist/structure
+     * spawns are RNG-free, exactly as retail's 0x431e30/0x438a60 dispatches are —
+     * so the effect spawn is the first consumer on both sides and the two streams
+     * march in lockstep.  (Invariant: keep all pre-effect-spawn enter_game code
+     * RNG-free, or move this re-seed down to the effect spawn.)  USER directive:
+     * pin the RNG seed on both sides, compare by anchor/tick. */
+    rng_srand(game_rng_seed());
 
     game_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);

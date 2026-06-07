@@ -2622,3 +2622,36 @@ flip (frames/dir) per bank read live from `DAT_008a8440`.  PORTED: facing + the 
 table (`actor_spawn.c` defs + `actor_spawn_effect_fill_flip_table`, wired in
 `main.c`); the townsfolk now mirror RNG-free.  Idle-phase + fountain remain (need the
 RNG anchor).  `findings/in-game-intro.md` "Townsfolk facing is a map field".
+
+### #86 — the town SPAWN draws a fixed RNG burst of 19 EFFECT objects at the game_enter load frame; the re-pin point is the FIRST `0x41f200` (a pre-spawn `0x4c5e00` draw sits between game_enter and it) (2026-06-07, ckpt 86)
+
+Ground truth from the seed-pinned `0x5bf505` flow-trace census (the new
+`runs/rng-census-repin` capture, `--seed-pin --lockstep --no-turbo`).  At the
+single town-LOAD frame (`game_enter`, flip 1419/1434 — it VARIES run-to-run, quirk
+#77), the room object-population pass `0x58d460` dispatches the map's EFFECT objects
+to `0x41f200` in map-layer order, drawing a deterministic **238-draw burst over
+exactly 19 EFFECT objects** (the port renders only 11 standing townsfolk, but all 19
+consume RNG — the 4 wandering `0xe29a` + 4 more script/particle effects draw too).
+
+**The per-object draw pattern** (run-length, from the trace) is, in order:
+`0x426fd0`×1 (the `+0xf4` field init, `0x41f200:237`) → `0x41f200`×7 (the prologue:
+2 position-jitter `:294`/`:301` + 5 particle-param `:326-334`) → **optionally
+`0x427670`×5** (the per-case particle init — fires for 4 of the 19, the shape-2
+objects) → `0x426ec0`×2 (the idle anim PHASE: start frame `+0x72` + timer `+0x70`).
+So an object is **10 draws** (shape-1, no `0x427670`) or **15 draws** (shape-2).  Two
+objects carry an extra per-case one-off INSIDE the type switch (`0x431cb0`×1,
+`0x427360`×1), and one fires the conditional `0x41f200:2849` draw (`0x425caa`).  The
+totals are stable across runs: `0x41f200` 134, `0x426ec0` 38 (=19×2), `0x426fd0` 19,
+`0x427670` 20 (=4×5) — the re-pin changes seed VALUES, not the draw COUNT/ORDER
+(control flow is keyed on the object CODE, not the seed).
+
+**The re-pin point is the first `0x41f200`, NOT the `game_enter` anchor.** A lone
+pre-spawn draw `0x4c5e00`×1 (plus the engine's own `0x439690`/`0x5531b0`/… ticks)
+fires BETWEEN the `game_enter` entry (`0x59f2c0`) and the first `0x41f200`, so pinning
+`DAT_008a4f94` at `game_enter` would leave the spawn one draw out of phase vs a port
+that replays only the `0x41f200` effect burst.  Verified live: at the first
+`0x41f200` the natural seed was `0x71cc78f1` while `game_enter`'s was `0x46fe3f46`
+(different → there ARE intervening draws).  The harness re-pins at `0x41f200` onEnter
+(armed at `game_enter`); the port re-seeds at the top of `enter_game` (mirror — all
+pre-effect-spawn code is RNG-free).  `findings/in-game-intro.md` "The town SPAWN RNG
+anchor".

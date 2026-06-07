@@ -2358,3 +2358,49 @@ order (`0x41f200` jitter + `0x426ec0` phase + `0x427670`/`0x427b70` particles) s
 idle phases + fountain align; then the per-tick `0x47b990`/`0x453960` + `0xe29a`
 wander.  Tooling: `rng_consumer_census.py`, `flow_diff.py`, the `rng_state`/`rngcalls`
 fields.  Artifacts (ephemeral): `runs/facing-census/`, `runs/read_fliptable.py`.
+
+### The town SPAWN RNG anchor — LANDED + verified (ckpt 86)
+
+The keystone that makes the two ckpt-85 RNG residuals (townsfolk idle PHASE + the
+fountain SPRAY) portable: re-align `DAT_008a4f94` on both sides at the town spawn so
+the per-object spawn draws (idle frame, particle jitter) are reproducible despite the
+non-deterministic title->town consumption (quirk #77).  RE + tooling milestone (no
+visual change yet — that lands when the spawn consumers are ported, Chip 2).
+
+**The spawn RNG structure (retail ground truth, engine-quirk #86).**  The seed-pinned
+`0x5bf505` census (`runs/rng-census-repin`) shows the town-LOAD frame draws a fixed
+238-draw burst over **19 EFFECT objects** (`0x58d460` -> `0x41f200`, map-layer order).
+Per object: `0x426fd0`(1) + `0x41f200`(7 = jitter + particle params) + optionally
+`0x427670`(5, 4 objects) + `0x426ec0`(2 = idle frame `+0x72` / timer `+0x70`); two
+objects carry a type-switch one-off (`0x431cb0`/`0x427360`).  The port renders 11
+standing townsfolk but ALL 19 consume RNG, so the replay must process all 19 in order
+(rendering only the 11) to keep the idle phases aligned.
+
+**The re-pin point — first `0x41f200`, not `game_enter`.**  A pre-spawn one-off draw
+`0x4c5e00`(1) fires between the `game_enter` entry (`0x59f2c0`) and the first
+`0x41f200`, so pinning at `game_enter` would desync the port by one draw.  The anchor
+is therefore: arm at the `game_enter` agent anchor, write the seed at the FIRST
+`0x41f200` onEnter (`installRngAnchor`, a per-map latch; emits the `rng_anchor`
+event).  The port mirrors it by re-seeding `rng_srand(game_rng_seed())` at the top of
+`enter_game` — faithful because all pre-effect-spawn `enter_game` code
+(load_town_scene, camera, the CHARACTER/STRUCTURE spawns) is RNG-free, exactly as
+retail's `0x431e30`/`0x438a60` dispatches are.
+
+**Verified live.**  `town SPAWN RNG re-pinned @ frame 1419 (game_spawn):
+DAT_008a4f94 0x71cc78f1 -> 0x004f5347`.  The `before` (0x71cc78f1) differs from the
+`game_enter` seed (0x46fe3f46) — proving the intervening pre-spawn draw — and the
+spawn burst's draw counts are byte-identical pre/post re-pin (134/38/20/19), so the
+re-pin resets seed VALUES only, not control flow.  The spawn is now deterministic from
+`0x4f5347` on both sides.
+
+**Code.**  Agent: `installRngAnchor()` + the `g_rng_anchor_armed`/`g_rng_anchored`
+latch armed in the `game_enter` scene-anchor handler (`opensummoners-agent.js`);
+`frida_capture.py` logs the `rng_anchor` event.  Port: `game_rng_seed()` helper
+(shared by boot + `enter_game`) + the `rng_srand` re-seed at `enter_game`
+(`main.c`).  **898 pass, ledger 199/194 unchanged** (no function ported — a harness +
+seam change).
+
+**NEXT (Chip 2):** port `0x41f200`'s per-object RNG consumption in map order (the
+19-object burst above), give the 11 townsfolk the idle clip `0x6290e0` + set
+`+0x72`/`+0x70` from the aligned `0x426ec0` draws, then verify the idle phases vs
+retail's render-state `+0x72` per townsperson.  Then the fountain (Chip 3).

@@ -1,10 +1,76 @@
-# Session handoff — rolling current state (last updated ckpt 85, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 86, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 86
+
+**The town SPAWN RNG ANCHOR is LANDED + LIVE-VERIFIED** — the keystone that makes the
+two ckpt-85 RNG residuals (townsfolk idle PHASE + the fountain SPRAY) portable.  RE +
+tooling milestone; no visual change yet (that lands when the spawn consumers are
+ported, Chip 2).
+
+- **The problem (quirk #77, re-confirmed).**  The title→town RNG is non-deterministic
+  run-to-run even under the boot title seed-pin: a per-present consumer desyncs the
+  shared LCG between the title sparkle pin and the town, so `game_enter`'s seed was
+  `0x46fe3f46` this run vs `0x83600390` last.  The town SPAWN draws (idle frame,
+  particle jitter) therefore started from an unpredictable phase.
+- **The spawn structure (retail ground truth, engine-quirk #86; the seed-pinned
+  `0x5bf505` census `runs/rng-census-repin`, `--split-frame 1419`).**  The town-LOAD
+  frame draws a fixed **238-draw burst over 19 EFFECT objects** (`0x58d460` →
+  `0x41f200`, map-layer order).  Per object: `0x426fd0`(1, the `+0xf4` init) +
+  `0x41f200`(7 = 2 position-jitter `:294`/`:301` + 5 particle-param `:326-334`) +
+  **optionally `0x427670`(5)** (per-case particle init; 4 of the 19 are this "shape-2",
+  15 draws; the rest "shape-1", 10 draws) + `0x426ec0`(2 = idle frame `+0x72` / timer
+  `+0x70`).  Two objects carry a type-switch one-off (`0x431cb0`/`0x427360`); one fires
+  the conditional `0x41f200:2849`.  Stable counts: 134/38/20/19.  **The port renders 11
+  standing townsfolk but ALL 19 consume RNG**, so the Chip-2 replay must process all 19
+  in map order (rendering only the 11) to keep the idle phases aligned.
+- **The re-pin point — the FIRST `0x41f200`, NOT `game_enter`.**  A pre-spawn one-off
+  `0x4c5e00`(1 draw) fires between the `game_enter` entry (`0x59f2c0`) and the first
+  `0x41f200`, so a `game_enter` pin would leave the spawn one draw out of phase vs a
+  port that replays only the `0x41f200` burst.  Verified: at the first `0x41f200` the
+  natural seed was `0x71cc78f1` (≠ `game_enter`'s `0x46fe3f46` → the intervening draw is
+  real).
+- **Implementation.**
+  - **Agent (`opensummoners-agent.js`):** `installRngAnchor()` hooks `0x41f200`;
+    `g_rng_anchor_armed`/`g_rng_anchored` armed in the `game_enter` scene-anchor
+    handler, fired (write `DAT_008a4f94 <- 0x4f5347`) at the first `0x41f200` onEnter,
+    per-map latch; emits the `rng_anchor` event.  `frida_capture.py` logs it.
+  - **Port (`main.c`):** `game_rng_seed()` helper (default `OSS_RNG_DEFAULT_SEED`, env
+    `OPENSUMMONERS_RNG_SEED`; shared by boot + `enter_game`) + `rng_srand(game_rng_seed())`
+    re-seed at the top of `enter_game` — the faithful mirror, since all pre-effect-spawn
+    `enter_game` code (load_town_scene, camera, CHARACTER/STRUCTURE spawns) is RNG-free,
+    exactly as retail's `0x431e30`/`0x438a60` dispatches are.
+- **Verified live** (`runs/rng-census-repin`, `--seed-pin --lockstep --no-turbo`):
+  `town SPAWN RNG re-pinned @ frame 1419 (game_spawn): DAT_008a4f94 0x71cc78f1 ->
+  0x004f5347`.  Spawn draw counts byte-identical pre/post (134/38/20/19) ⇒ the re-pin
+  resets seed VALUES only, control flow untouched.  The spawn is now deterministic from
+  `0x4f5347` on both sides.  **898 pass, ledger 199/194 unchanged** (harness + a port
+  seam, no function ported).  quirk #86; `findings/in-game-intro.md` "The town SPAWN RNG
+  anchor".
+- **NEXT (Chip 2 — the idle PHASE, the first user-visible payoff):**
+  1. Port `0x41f200`'s per-object RNG consumption in map order for all 19 EFFECT
+     objects (consume-to-advance: replay the right draw count/order per object shape;
+     only the values feeding the idle phase + later the particles are USED).  The
+     shape (10 vs 15 draws) is keyed on the object CODE — determine which codes hit the
+     `0x427670` cases (likely the 4 wandering `0xe29a`) + the `0x431cb0`/`0x427360`
+     one-offs.
+  2. Give the 11 townsfolk the idle clip `0x6290e0` (reconstruct it from the exe like
+     the wagon clip `0x671c48`, ckpt 80; ~20 frames dur 14 looping per ckpt-85) and set
+     render-state `+0x72`/`+0x70` from the aligned `0x426ec0` draws (frame =
+     `(rand*frame_count)>>15`, timer = `(rand*frame_dur)>>15`).
+  3. Verify vs retail: capture render-state `+0x72` per townsperson (a `0x493ba0`
+     field-spec `rs_frame` read) under the re-pin and compare to the port.
+  - Tooling: `rng_consumer_census.py --order`, `flow_diff.py`, the `0x5bf505`
+    `rand_draw` field + `rngcalls`.  Fresh ground-truth trace:
+    `runs/rng-census-repin/call_trace.jsonl` (re-pinned, game_enter@1419).
+- **Then Chip 3 — the fountain SPRAY** (band `+0x13e0`/`0x493480`, res `0x408`): the
+  `0x41f200` particle params (`:326-334` → `0x427b70`) + `0x427670`(20) at spawn, then
+  the per-tick `0x47b990`/`0x453960` update + the 4 `0xe29a` wander.
 
 ## Where we are — ckpt 85
 

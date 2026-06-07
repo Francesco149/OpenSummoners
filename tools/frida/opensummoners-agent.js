@@ -453,7 +453,16 @@ let g_render_id_n       = 0;
 
 let   g_seed_pin          = false;
 let   g_seed_value        = 0x4f5347;   // OSS_RNG_DEFAULT_SEED (matches port)
-let   g_seed_pinned       = false;      // one-shot latch
+let   g_seed_pinned       = false;      // one-shot latch (title sparkle pin)
+// RNG ANCHOR (ckpt 86): the town SPAWN re-pin.  Armed at the game_enter per-map
+// entry, fired at the FIRST FUN_0041f200 (the EFFECT activator) after — the exact
+// point the port's effect-spawn replay starts.  Re-pinning at game_enter itself
+// would be off by the pre-spawn one-off draw 0x4c5e00 (seq 9, between the anchor
+// and the first 0x41f200); the town's per-object 426fd0/41f200/427670/426ec0
+// burst then begins from the pinned seed on both sides.  Re-armed every map entry
+// (each map's spawn re-aligns), so it is NOT the same one-shot as g_seed_pinned.
+let   g_rng_anchor_armed  = false;      // set at game_enter, cleared after the pin
+let   g_rng_anchored      = false;      // per-map latch (first 0x41f200 only)
 
 // ─── intro-pace probe (parity residual R3) ──────────────────────────────
 // Timestamps Flips so the flip-RATE can be measured: it discriminates
@@ -2438,7 +2447,19 @@ function installSceneAnchors() {
                 // easer-calls-SINCE-game_enter — a load-anchored, cross-run
                 // deterministic frame index.  (User directive 2026-06-06: at a
                 // non-deterministic load, add an anchor to synchronize.)
-                if (a.name === 'game_enter') g_sim_tick = 0;
+                if (a.name === 'game_enter') {
+                    g_sim_tick = 0;
+                    // ARM the town SPAWN RNG re-pin (ckpt 86).  The actual write
+                    // happens at the first FUN_0041f200 (installRngAnchor) — NOT
+                    // here — because a pre-spawn one-off draw (0x4c5e00) fires
+                    // between this anchor and the first 0x41f200, so pinning here
+                    // would leave the spawn off by one draw vs the port (which
+                    // replays only the 0x41f200 effect-spawn burst).  The emitted
+                    // `rng` below is the NATURAL (pre-pin) seed — a useful
+                    // diagnostic of the title->town drift (engine-quirk #77).
+                    g_rng_anchor_armed = g_seed_pin;
+                    g_rng_anchored = false;
+                }
                 send({kind: 'anchor', name: a.name, frame: g_flip_frame,
                       rng: seed, sim_tick: g_sim_tick});
                 // rand-probe window: arm at newgame_enter, flush at prologue_enter.
@@ -2459,7 +2480,45 @@ function installSceneAnchors() {
     g_scene_anchors_hooked = true;
     logmsg('scene anchors installed @ ' +
            SCENE_ANCHORS.map(function (a) {
-               return a.name + '(0x' + a.va.toString(16) + ')'; }).join(', '));
+               return a.name + '(0x' + a.va.toString(16) + ')'; }).join(', ') +
+           (g_seed_pin ? ' (+ arms the town SPAWN RNG re-pin at game_enter)'
+                       : ''));
+}
+
+// ─── town SPAWN RNG anchor (ckpt 86) ─────────────────────────────────────────
+// Re-pin DAT_008a4f94 at the FIRST FUN_0041f200 (the EFFECT band activator) after
+// game_enter has armed it.  This is the exact point the port's effect-spawn
+// replay starts (enter_game re-seeds right before actor_spawn_effect_from_map),
+// so the town's per-object spawn draws — position jitter (41f200:294/301), the
+// particle-init cluster (41f200:326-334 + the per-case 0x427670), and the idle
+// anim PHASE (0x426ec0: render-state +0x72 start frame / +0x70 timer) — march in
+// lockstep with the port under the shared seed 0x4f5347.  Pinning at game_enter
+// itself would be off by the pre-spawn one-off 0x4c5e00 (1 draw between the
+// game_enter anchor and the first 0x41f200).  Armed per map entry, latched once.
+const RNG_ANCHOR_VA = 0x41f200;   // FUN_0041f200 (EFFECT band activator)
+let g_rng_anchor_hooked = false;
+function installRngAnchor() {
+    if (g_rng_anchor_hooked) return;
+    const seedAddr = rva(SEED_VA);
+    Interceptor.attach(rva(RNG_ANCHOR_VA), {
+        onEnter: function () {
+            if (!g_rng_anchor_armed || g_rng_anchored) return;
+            g_rng_anchored = true;
+            g_rng_anchor_armed = false;
+            let before = 0;
+            try { before = seedAddr.readU32() >>> 0; } catch (e) {}
+            try { seedAddr.writeU32(g_seed_value >>> 0); }
+            catch (e) { err('rng_anchor_write', '' + e); }
+            send({kind: 'rng_anchor', name: 'game_spawn', frame: g_flip_frame,
+                  before: before >>> 0, value: g_seed_value >>> 0});
+        },
+    });
+    g_rng_anchor_hooked = true;
+    logmsg('town spawn RNG anchor installed @ FUN_0041f200' +
+           (g_seed_pin
+            ? ' (re-pin DAT_008a4f94 <- 0x' + (g_seed_value >>> 0).toString(16) +
+              ' at first call after game_enter)'
+            : ' (disarmed: no --seed-pin)'));
 }
 
 function memWatchFlush(frameNumber) {
@@ -2968,6 +3027,10 @@ rpc.exports = {
                 g_call_trace_enabled) {
                 try { installSceneAnchors(); }
                 catch (e) { err('install_scene_anchors', '' + e); }
+                // The town SPAWN RNG re-pin (ckpt 86) — armed by the game_enter
+                // scene anchor above, fired at the first FUN_0041f200.
+                try { installRngAnchor(); }
+                catch (e) { err('install_rng_anchor', '' + e); }
             }
             // Install the single RAND_VA hook when EITHER the legacy windowed
             // probe is requested OR any flow-trace field declares src:"rngcalls"

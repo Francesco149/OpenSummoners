@@ -9,7 +9,31 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 85): townsfolk FACING is PORTED + USER-1:1 — it's a deterministic MAP
+- **LATEST (ckpt 86): the town SPAWN RNG ANCHOR is LANDED + LIVE-VERIFIED — the keystone
+  for the two remaining RNG residuals (idle PHASE + fountain SPRAY).** Phase-2 matching
+  half, the foundational chip (no visual change yet — that lands when the spawn consumers
+  are ported, Chip 2). The title→town RNG is non-deterministic run-to-run even under the
+  boot seed-pin (quirk #77; game_enter seed was `0x46fe3f46` this run vs `0x83600390`
+  last), so the town SPAWN draws started from an unpredictable phase. **FIX:** re-pin
+  `DAT_008a4f94` on BOTH sides at the spawn start. **Ground truth (engine-quirk #86, the
+  seed-pinned `0x5bf505` census `runs/rng-census-repin`):** the town-LOAD frame draws a
+  fixed **238-draw burst over 19 EFFECT objects** (`0x58d460`→`0x41f200`, map order; the
+  port renders 11 but ALL 19 consume RNG). Per object: `0x426fd0`(1)+`0x41f200`(7 jitter
+  +particle-params)+optional `0x427670`(5, 4 objects)+`0x426ec0`(2 idle frame/timer).
+  **The re-pin point is the FIRST `0x41f200`, NOT game_enter** — a pre-spawn one-off
+  `0x4c5e00`(1 draw) sits between them (so a game_enter pin would desync the port by one
+  draw). **Agent:** `installRngAnchor()` arms at the game_enter anchor, writes the seed at
+  the first `0x41f200` onEnter (`rng_anchor` event). **Port:** `game_rng_seed()` helper +
+  `rng_srand` re-seed at `enter_game` top (faithful — all pre-effect-spawn code is
+  RNG-free). **VERIFIED LIVE:** `re-pinned @ frame 1419: 0x71cc78f1 -> 0x004f5347`
+  (`before` ≠ game_enter seed ⇒ the intervening draw is real); spawn draw counts
+  byte-identical pre/post (134/38/20/19) ⇒ values reset, control flow untouched. **898
+  pass, ledger 199/194 unchanged** (harness+seam, no fn ported). quirk #86;
+  `findings/in-game-intro.md` "The town SPAWN RNG anchor". **NEXT (Chip 2):** port
+  `0x41f200`'s 19-object RNG consumption in order, give the 11 townsfolk the idle clip
+  `0x6290e0` + set `+0x72`/`+0x70` from the aligned `0x426ec0` draws → idle phases 1:1;
+  then the fountain (Chip 3).
+- **Prior (ckpt 85): townsfolk FACING is PORTED + USER-1:1 — it's a deterministic MAP
   field, NOT RNG (corrects the ckpt-84 guess).** Phase-2 matching half, first chip. RE'd
   the three ckpt-84 RNG residuals: **facing is RNG-FREE** — the dispatcher `0x58d460:96`
   computes `cVar12 = (puVar1[4]!=0)?3:1` from the map sub-record `puVar1[4]` and forwards it
