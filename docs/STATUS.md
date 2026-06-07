@@ -55,11 +55,19 @@ understates how much actual instruction volume is ported.
   clip `0x6290e0` (20f dur 14) + stepper are ported but the per-actor START phase is staggered
   (likely RNG); (3) **the FOUNTAIN PARTICLE SPRAY** — the entire `+0x13e0` band (`0x493480`,
   res `0x408`) is MISSING (USER pointed out the purple/blue spray + leafy particles); RNG
-  positions. PORT-DEBT `effect-anim-phase`/`effect-wanderers`. **NEXT = the scene-wide
-  RNG-CONSUMER CENSUS** — hook the LCG (`0x5bf505`/`DAT_008a4f94`) retail-side, log every
-  draw's `ret_va`+`rngcalls`+value, enumerate every consumer in CONSUMPTION ORDER (facing /
-  phase / `0xe29a` wander / fountain `0x13e0` / `0x54f980`), match both sides. RETIRES the
-  ckpt-73 "defer all RNG" deferral.
+  positions. PORT-DEBT `effect-anim-phase`/`effect-wanderers`.
+- **RNG-CONSUMER CENSUS DONE (ckpt 84) — integrated into the flow trace.** Per the USER
+  ("integrate, not a bespoke probe"): added `0x5bf505` (the LCG) as a `retail_fields.json`
+  entry (the auto `ret_va` names the consumer site) + `tools/rng_consumer_census.py`. Captured
+  1142 town-scene draws (game_enter@1434), cross-checked vs the decompile (`0x41f200` has
+  exactly 8 rand calls = the 8 sites). **SPAWN (room-load):** `FUN_0041f200` (the EFFECT
+  activator, 134/8 sites = townsfolk facing+phase) + helpers `0x426ec0`/`0x427670`/`0x426fd0`.
+  **HOLD (per-tick):** `FUN_0054f980` (behaviour/wander 425), `FUN_0047b990` (the `+0x1160`
+  EFFECT update = fountain particles/wander 320), `FUN_00453960` (154). Retires the ckpt-73
+  defer-all-RNG. `findings/in-game-intro.md` "The scene-wide RNG-consumer census". **NEXT = the
+  MATCHING half:** RE each consumer's draws (facing/phase/particles) → an RNG ANCHOR at
+  game_enter both sides (re-seed the town scene; the port can't replay the whole boot RNG chain)
+  → annotate producers (`rngcalls` + port `CALL_TRACE_BEGIN`) + `flow_diff` → port in order → 1:1.
 - **Prior (ckpt 83): the establishing-hold CAST is PINNED to FOUR map-object bands — the
   Phase-1 producer map is complete (no port yet, RE+census milestone).** Resolves ckpt-82's
   "pin each cast cel to its actor" via a field-spec **band census** (`retail_fields.json`

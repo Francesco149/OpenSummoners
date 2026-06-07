@@ -46,20 +46,41 @@ begins.**  Builds on the ckpt-83 census; the wagon/STRUCTURE precedent
   3. **The FOUNTAIN PARTICLE SPRAY** — the entire `+0x13e0` band (`0x493480`, res `0x408`
      bank `0x1aa`) is MISSING (USER crop: a purple/blue/white sparkle spray erupting from
      the fountain + green leafy particles right).  Clearly RNG (particle pos/vel).
-- **NEXT — the scene-wide RNG-CONSUMER CENSUS (Phase 2):** hook the LCG (`FUN_005bf505`
-  / the seeded `DAT_008a4f94`) in the retail town scene under `--seed-pin --lockstep`,
-  log every draw's consumer site (`ret_va`) + `rngcalls` + value across the establishing
-  scene → enumerate WHO consumes RNG and in what ORDER; attribute each `ret_va` to a
-  producer (facing / idle phase / `0xe29a` wander / fountain `0x13e0` / `0x54f980`
-  behaviour / …); then port + match consumption order both sides (rng + rngcalls per
-  anchor) → the scene goes 1:1 on every frame.  RETIRES the ckpt-73 defer-all-RNG.  Best
-  started fresh — orient: CLAUDE.md → FRONT → here → `findings/in-game-intro.md` "The
-  EFFECT townsfolk PORTED".  Tooling: `tools/rng_tick_diff.py`, the `rng`/`rngcalls`
-  field sources (`retail_fields.json`).
-- Artifacts (local `/tmp`, ephemeral): `/tmp/cast_census/call_trace.jsonl` (retail hold
-  census, the EFFECT field spec), `/tmp/eff_port_trace.jsonl` (port blit trace @1200),
-  `/tmp/decode_clips.py` (clip decoder: wagon control + the 4 townsfolk clips),
-  `/tmp/eff_objs.py` (the world=(map−dst)×100 cross-ref).
+- **RNG-CONSUMER CENSUS — DONE + integrated into the flow trace** (USER directive
+  "integrate, not a bespoke probe").  Added `0x5bf505` (the LCG) as a
+  `retail_fields.json` entry (the auto `ret_va` names the consumer site) +
+  `tools/rng_consumer_census.py` (ret_va+0x400000 → function via `functions.csv`,
+  split spawn/hold).  Captured 1142 town-scene draws (game_enter@1434); enumerated
+  EVERY consumer, cross-checked vs the decompile (`0x41f200` has exactly 8 rand calls
+  = the 8 sites):
+  - **SPAWN (room-load, one-shot):** `FUN_0041f200` (the EFFECT activator, 134 draws /
+    8 sites — the townsfolk facing + idle phase + a per-object 7-draw cluster
+    `0x41f200:294-336` feeding `0x426e00` pos/scale + `0x427b70` particle sub-spawn) +
+    helpers `0x426ec0`/`0x427670`/`0x426fd0` (77).
+  - **HOLD (per-tick):** `FUN_0054f980` (behaviour/wander, 425), `FUN_0047b990` (the
+    `+0x1160` EFFECT-band update — fountain particles / wander, 320), `FUN_00453960`
+    (154).
+- **NEXT (the MATCHING half — Phase 2 cont.):**
+  1. **RE each consumer's draw semantics** — `0x41f200`'s 8 sites (which sets facing
+     `+0x2c` — note it reads `param_8`, so trace the facing's randomness UPSTREAM — vs
+     idle phase `+0x72` vs particle init); then `0x47b990`/`0x453960` (the fountain
+     spray) + `0x54f980` (wander).
+  2. **An RNG ANCHOR at game_enter, both sides** (the ckpt-73 fix): the port can't
+     replay the whole boot RNG chain, so snapshot/restore `DAT_008a4f94` to a known
+     value at the town-scene entry on BOTH sides (retail: a new agent re-pin at the
+     `game_enter` anchor; port: re-seed in `enter_game`), so the town RNG starts
+     aligned.
+  3. **Annotate each producer** with a `rngcalls` field + a port `CALL_TRACE_BEGIN`
+     mirror, then `flow_diff` localizes the first divergent draw → port the consumers
+     in order → the facing/phase/particles/wander go 1:1.
+  Best started fresh — orient: CLAUDE.md → FRONT → here → `findings/in-game-intro.md`
+  "The scene-wide RNG-consumer census".  Tooling: `tools/rng_consumer_census.py`,
+  `tools/flow_diff.py`, `tools/rng_tick_diff.py`, the `0x5bf505`/`rng`/`rngcalls` field
+  sources (`retail_fields.json`).
+- Artifacts (local, ephemeral): `runs/rng-census/` & `/tmp/rng_census/call_trace.jsonl`
+  (the RNG census), `/tmp/cast_census/call_trace.jsonl` (retail hold cast census),
+  `/tmp/eff_port_trace.jsonl` (port blit trace @1200), `/tmp/decode_clips.py` (clip
+  decoder), `/tmp/eff_objs.py` (the world=(map−dst)×100 cross-ref).
 
 ## Where we are — ckpt 83
 
