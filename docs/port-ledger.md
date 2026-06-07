@@ -43,7 +43,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, color_grade.c, color_grade.h (+1) |
+| 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
 | 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
 | 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h |
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
@@ -72,7 +72,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
-| 0x492670 | FUN_00492670 | 118 | actor_render.h, draw_pool.c, draw_pool.h (+1) |
+| 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
 | 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |

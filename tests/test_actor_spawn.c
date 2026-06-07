@@ -379,3 +379,74 @@ int test_actor_spawn_struct(void)
     T_ASSERT_EQ_I(actor_spawn_struct_from_map(NULL, &md), -1);
     return 0;
 }
+
+/* ---- the EFFECT band: map-driven townsfolk (0x41f200 / 0x493ba0), quirk #84 ---- */
+
+int test_actor_spawn_effect(void)
+{
+    /* DATA-1022-shaped sample: two standing townsfolk + 0xe29a (wanderer,
+     * deferred -> skipped) + a STRUCTURE object (out of range -> skipped) + an
+     * unknown EFFECT code (not in the def table -> skipped). */
+    map_layer layers[5];
+    layer_set(&layers[0], 0xc3e6u,  208, 384);   /* townsperson -> bank 0xe5, dst (-30,-32), layer 13 */
+    layer_set(&layers[1], 0xe29au, 1056, 448);   /* wanderer (RNG, Phase 2) -> skipped                */
+    layer_set(&layers[2], 0xc404u, 1808, 416);   /* townsperson -> bank 0xf9, dst (-30,-20)           */
+    layer_set(&layers[3], 0xec55u,  100, 100);   /* STRUCTURE   -> out of EFFECT range -> skipped      */
+    layer_set(&layers[4], 0xc999u,  50,  50);    /* unknown EFFECT code -> not in def table -> skipped */
+
+    map_data md;
+    memset(&md, 0, sizeof md);
+    md.count  = 5;
+    md.layers = layers;
+
+    actor_spawn_pool pool;
+    T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md), 2);  /* 2 townsfolk */
+
+    /* slot 0 = 0xc3e6: bank 0xe5, fb 0, layer 13, dst (-30,-32), clip NULL.
+     * world = (map - dst) * 100 = ((208,384) - (-30,-32)) * 100 = (23800,41600)
+     * — matches the live census rs_x/rs_y exactly. */
+    T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0xe5u);
+    T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 0);
+    T_ASSERT_EQ_U(pool.actors[0].layer, 13u);
+    T_ASSERT_EQ_I(pool.states[0].world_x, 23800);
+    T_ASSERT_EQ_I(pool.states[0].world_y, 41600);
+    T_ASSERT_EQ_I(pool.states[0].dst_base_x, -30);
+    T_ASSERT_EQ_I(pool.states[0].dst_base_y, -32);
+    T_ASSERT(pool.states[0].clip == NULL);
+
+    /* slot 1 = 0xc404: bank 0xf9, dst (-30,-20), world ((1808,416)-(-30,-20))*100
+     * = (183800,43600) — the live census value. */
+    T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0xf9u);
+    T_ASSERT_EQ_I(pool.states[1].world_x, 183800);
+    T_ASSERT_EQ_I(pool.states[1].world_y, 43600);
+    T_ASSERT_EQ_I(pool.states[1].dst_base_x, -30);
+    T_ASSERT_EQ_I(pool.states[1].dst_base_y, -20);
+
+    /* the def lookup itself. */
+    uint16_t b = 0; int16_t dx = 0, dy = 0; uint32_t ly = 0;
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe2a5u, &b, &dx, &dy, &ly), 1);
+    T_ASSERT_EQ_U(b, 0x14cu);
+    T_ASSERT_EQ_I(dx, -16);
+    T_ASSERT_EQ_I(dy, -32);
+    T_ASSERT_EQ_U(ly, 13u);
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe29au, &b, &dx, &dy, &ly), 0); /* wanderer */
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc999u, &b, &dx, &dy, &ly), 0); /* unknown  */
+
+    /* a townsperson renders through actor_render_static into layer 13 — cel =
+     * (bank 0xe5, frame 0, frozen), at the projected world pos; the render adds
+     * the dst anchor back (dst_x -30) so the screen offset matches retail. */
+    draw_pool dp;
+    T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
+    int e = actor_render_static(&pool.actors[0], &pool.states[0], NULL, &dp,
+                                resolve_pack, NULL);
+    T_ASSERT_EQ_I(e, 1);
+    T_ASSERT_EQ_U(dp.layers[13].count, 1u);
+    T_ASSERT_EQ_U(dp.layers[13].nodes[0].sprite, resolve_pack(0xe5u, 0u, NULL));
+    T_ASSERT_EQ_I(dp.layers[13].nodes[0].dst_x, 23800);
+    T_ASSERT_EQ_I((int32_t)dp.layers[13].nodes[0].param6, -30); /* the render dst anchor */
+    draw_pool_free(&dp);
+
+    /* NULL guard. */
+    T_ASSERT_EQ_I(actor_spawn_effect_from_map(NULL, &md), -1);
+    return 0;
+}

@@ -182,6 +182,93 @@ int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md)
     return pool->count;
 }
 
+/* PORT-DEBT(effect-sprite-table): the EFFECT townsfolk code -> (bank, dst, layer)
+ * map, captured from the retail town-hold census (the 0x493ba0 field spec at
+ * flips 1450/1500/1600 — code, row0 bank, rs +0x40/+0x44 dst, +0xfc layer).
+ * Stands in for 0x41f200's per-type install switch.  All the standing town
+ * villagers share the idle clip 0x6290e0 (decoded: base 0, 20 frames, dur 14,
+ * loop) and draw layer 13; 0xe2a5 has its own anchor.  Banks resolve to the
+ * villager sheets res 0x459/0x462/0x46a/0x46b/0x472/0x47b/0x47f (FUN_00417c40).
+ * Excludes 0xe29a (RNG wanderers) + 0xc35a/0xc3dc/0xc3f0 (non-map party/script
+ * spawns). */
+static const struct {
+    uint32_t code;
+    uint16_t bank;
+    int16_t  dstx, dsty;
+    uint32_t layer;
+} TOWN_EFFECT_DEFS[] = {
+    {0xc3beu, 0x0d4u, -30, -24, 13u},
+    {0xc3ddu, 0x0e1u, -30, -20, 13u},
+    {0xc3e6u, 0x0e5u, -30, -32, 13u},
+    {0xc3f2u, 0x0f0u, -30, -20, 13u},
+    {0xc404u, 0x0f9u, -30, -20, 13u},
+    {0xc422u, 0x093u, -30, -24, 13u},
+    {0xc42cu, 0x099u, -30, -24, 13u},
+    {0xc440u, 0x0a6u, -30, -20, 13u},
+    {0xc441u, 0x0a9u, -30, -20, 13u},
+    {0xc468u, 0x0d0u, -30, -20, 13u},
+    {0xe2a5u, 0x14cu, -16, -32, 13u},
+};
+
+int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
+                                    int16_t *dstx, int16_t *dsty, uint32_t *layer)
+{
+    for (size_t i = 0; i < sizeof TOWN_EFFECT_DEFS / sizeof TOWN_EFFECT_DEFS[0]; i++) {
+        if (TOWN_EFFECT_DEFS[i].code == code) {
+            if (bank)  *bank  = TOWN_EFFECT_DEFS[i].bank;
+            if (dstx)  *dstx  = TOWN_EFFECT_DEFS[i].dstx;
+            if (dsty)  *dsty  = TOWN_EFFECT_DEFS[i].dsty;
+            if (layer) *layer = TOWN_EFFECT_DEFS[i].layer;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
+{
+    if (pool == NULL || md == NULL) return -1;
+    memset(pool, 0, sizeof *pool);
+    if (md->layers == NULL) return 0;
+
+    for (uint32_t li = 0; li < md->count; li++) {
+        const uint8_t *h = md->layers[li].hdr;
+        uint32_t code = hdr_u32(h, HDR_OFF_CODE);
+        if (code < ACTOR_CODE_EFFECT_LO || code > ACTOR_CODE_EFFECT_HI)
+            continue;                          /* not an EFFECT object */
+
+        uint16_t bank; int16_t dstx, dsty; uint32_t layer;
+        if (!actor_spawn_effect_def_for_code(code, &bank, &dstx, &dsty, &layer))
+            continue;                          /* wanderer / non-map / unknown */
+
+        if (pool->count >= ACTOR_BAND_SLOTS)   /* "Effect Object Count Over" */
+            return -1;
+
+        int slot = pool->count++;
+        actor              *a  = &pool->actors[slot];
+        actor_render_state *rs = &pool->states[slot];
+
+        /* 0x41f200: behaviour code (+0x1d4), dir 0 (+0xe8), draw layer (+0xfc).
+         * Sprite row 0 = {bank, frame_base 0}; the per-frame sprite comes from
+         * the idle clip — FROZEN here on frame 0 (clip NULL, the spawn
+         * end-state).  World = (map (x,y) - dst) * 100; the render dst anchor
+         * lives in the render-state (+0x40/+0x44), added back at emit. */
+        a->code  = code;
+        a->dir   = 0;
+        a->layer = layer;
+        a->sprite_table[0].bank       = bank;
+        a->sprite_table[0].frame_base = 0;
+
+        rs->active     = 1;                     /* +0x00 (the *param_1!='\0' gate) */
+        rs->world_x    = (hdr_i32(h, HDR_OFF_X) - dstx) * 100;   /* +0x04 */
+        rs->world_y    = (hdr_i32(h, HDR_OFF_Y) - dsty) * 100;   /* +0x08 */
+        rs->dst_base_x = dstx;                  /* +0x40 — the render anchor */
+        rs->dst_base_y = dsty;                  /* +0x44 */
+        rs->clip       = NULL;                  /* +0x6c — frozen (Phase 1b animates) */
+    }
+    return pool->count;
+}
+
 /* The caravan's idle clip — reconstructed from &DAT_00671c48 (the clip pointer
  * the 0x431e30 case-0x1872d arm installs; read from the user's sotes.exe .rdata
  * for analysis): base_sprite 2, 4 frames, 18 sim-ticks/frame, LOOPING, per-frame

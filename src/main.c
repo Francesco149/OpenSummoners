@@ -198,6 +198,14 @@ static int              g_actors_loaded;
 static actor_spawn_pool g_structs;
 static int              g_structs_loaded;
 
+/* The EFFECT band (0x41f200 spawn / 0x493ba0 render) — the standing townsfolk in
+ * the square.  Map-driven (world = (map - dst) * 100), rendered by the same
+ * actor_render_static (the 0x493ba0 static arm reduces to describe + emit for a
+ * plain townsperson — one mode-0 keyed cel each), at layer 13.  Frozen on the
+ * idle clip's frame 0 for now (Phase 1b animates).  engine-quirk #84. */
+static actor_spawn_pool g_effects;
+static int              g_effects_loaded;
+
 /* The LIVE in-game camera (the room-state's +0x104c view object).  enter_game
  * spawn-snaps it to the hold origin (camera_apply_snap → cur=tgt=128000/12800);
  * game_render steps it each frame with camera_follow_step (FUN_0043d1d0) and
@@ -1609,6 +1617,19 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                                   /*flip_table=*/NULL, pool,
                                                   game_sprite_resolve, NULL);
 
+    /* The EFFECT band (0x493ba0) — the standing townsfolk.  For a plain
+     * townsperson the static arm is bit-identical to the default actor arm (one
+     * mode-0 keyed cel; verified against the hold blit trace), so reuse
+     * actor_render_static; the +0xfc layer (13) routes them in front of the
+     * bg decorations (layer 8) and behind the fg hedges (layer 15). */
+    int effect_emitted = 0;
+    if (g_effects_loaded)
+        for (int i = 0; i < g_effects.count; i++)
+            effect_emitted += actor_render_static(&g_effects.actors[i],
+                                                  &g_effects.states[i],
+                                                  /*flip_table=*/NULL, pool,
+                                                  game_sprite_resolve, NULL);
+
     if (g_actors_loaded)
         for (int i = 0; i < g_actors.count; i++) {
             const actor *a = &g_actors.actors[i];
@@ -1628,12 +1649,15 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
         ar_sprite_slot *vb = ar_pool_get_slot(0x16c);                /* prop bank */
         ar_sprite_slot *pb = ar_pool_get_slot(ACTOR_PROT_SPRITE_BANK);/* 0x175    */
         ar_sprite_slot *tb = ar_pool_get_slot(0x15f);                /* tree bank */
-        log_line("game_actor_walk: %d actor + %d structure nodes "
-                 "(prop bank 0x16c %s; protagonist bank 0x175 %s; tree bank 0x15f %s)",
-                 emitted, struct_emitted,
+        ar_sprite_slot *eb = ar_pool_get_slot(0x0f9);                /* townsperson bank */
+        log_line("game_actor_walk: %d actor + %d structure + %d effect nodes "
+                 "(prop bank 0x16c %s; protagonist bank 0x175 %s; tree bank 0x15f %s; "
+                 "townsfolk bank 0xf9 %s)",
+                 emitted, struct_emitted, effect_emitted,
                  vb ? "registered" : "NOT registered",
                  pb ? "registered" : "NOT registered -> protagonist invisible",
-                 tb ? "registered" : "NOT registered -> tree invisible");
+                 tb ? "registered" : "NOT registered -> tree invisible",
+                 eb ? "registered" : "NOT registered -> townsfolk invisible");
     }
 }
 
@@ -1925,6 +1949,8 @@ static void enter_game(void)
      * 1022.  On failure game_render falls back to the faithful black frame. */
     g_town_loaded = 0;
     g_actors_loaded = 0;
+    g_structs_loaded = 0;
+    g_effects_loaded = 0;
     load_town_scene(/*scene=*/1022);
 
     /* Arm the live in-game camera once the map dims are known (the easer clamps
@@ -1974,6 +2000,16 @@ static void enter_game(void)
         g_structs_loaded = (sn > 0);
         log_line("enter_game: actor_spawn_struct_from_map -> %d STRUCTURE objects "
                  "(tree + hedges + decorations, DATA 1022)", sn);
+
+        /* Spawn the room's EFFECT-band townsfolk from the map (0x58d460 ->
+         * 0x41f200 slice) — the standing villagers in the square, map-driven
+         * (world = (map - dst) * 100), frozen on the idle clip's frame 0.
+         * game_actor_walk also walks g_effects (layer 13).  The 4 wandering
+         * 0xe29a + the non-map party townsfolk are deferred (RNG / Phase 2). */
+        int en = actor_spawn_effect_from_map(&g_effects, &g_town.map);
+        g_effects_loaded = (en > 0);
+        log_line("enter_game: actor_spawn_effect_from_map -> %d EFFECT townsfolk "
+                 "(standing villagers, DATA 1022; 0xe29a wanderers deferred)", en);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "

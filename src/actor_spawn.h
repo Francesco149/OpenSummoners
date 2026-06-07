@@ -66,6 +66,18 @@
 #define ACTOR_CODE_STRUCTURE_LO 60000u
 #define ACTOR_CODE_STRUCTURE_HI 69999u
 
+/* EFFECT type-code range (0x58d460's dispatch band; 50000..59999 -> the +0x1160
+ * pool, activator 0x41f200, rendered by the multi-part 0x493ba0).  The town's
+ * townsfolk — the standing villagers in the square.  For a plain (non-spell,
+ * non-shadowed) townsperson the 0x493ba0 static arm REDUCES to the same
+ * describe (FUN_0044d160) + emit (FUN_00492670 = draw_pool_emit_actor) the
+ * 0x491ae0 default arm runs (empirically: each townsperson emits exactly ONE
+ * mode-0 keyed cel at the hold, no shadow/0x4917b0 split, no color-remap), so
+ * the EFFECT band REUSES actor_render_static — exactly as STRUCTURE does.
+ * engine-quirk #84. */
+#define ACTOR_CODE_EFFECT_LO 50000u
+#define ACTOR_CODE_EFFECT_HI 59999u
+
 /*
  * A spawned band: parallel {actor, render-state} arrays the render walk drives
  * (actor_render_static(&actors[i], &states[i], ...)).  The two are separate
@@ -124,6 +136,47 @@ int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md);
  * code, else 0.  RE'd from the activator (not a capture), so it is not PORT-DEBT.
  */
 int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank);
+
+/*
+ * Populate `pool` with the EFFECT townsfolk of the parsed map `md`:  for each
+ * object-placement layer whose type code is in 50000..59999 AND is one of the
+ * standing-townsperson codes in the def table below, activate one slot.  Like
+ * STRUCTURE the placement is FULLY MAP-DRIVEN, but the EFFECT band offsets the
+ * world position by the render dst anchor (RE'd from the census + the map:
+ * 0x41f200 stores world = (map (x,y) - dst) * 100, so the +0x40/+0x44 render-dst
+ * shifts the SPRITE for centering while the +0x30..-px world offset keeps the
+ * logical position the map point — the two cancel at the screen: screen = map -
+ * cam).  Per townsperson:
+ *   - world pos      = (map (x,y) @ +0x04/+0x08  -  dst) * 100
+ *   - render dst     = rs +0x40/+0x44 = the per-code (dstx, dsty) anchor
+ *   - sprite bank    = the per-code def-table value (PORT-DEBT, see below)
+ *   - draw layer     = the per-code def-table value (12/13)
+ *   - dir 0; clip NULL, frame_base 0 — FROZEN on the idle clip's frame 0 (the
+ *     spawn end-state, pre-update).  The idle breathing clip (0x6290e0, 20
+ *     frames, dur 14) + the per-actor anim PHASE are the next chip (Phase 1b);
+ *     the phase is staggered run-deterministically but is NOT a map-record field
+ *     (likely an RNG draw at spawn -> Phase 2), so it is deferred.
+ *
+ * Excludes the 4 wandering 0xe29a (RNG motion -> Phase 2) and the non-map
+ * party/script townsfolk 0xc35a/0xc3dc/0xc3f0 (spawned like the wagon, outside
+ * the map) — none are in the def table, so they are skipped.  Zeroes `pool`
+ * first.  Returns the count spawned (DATA 1022 -> 11), or -1 on a NULL arg /
+ * pool overflow.
+ */
+int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md);
+
+/*
+ * PORT-DEBT(effect-sprite-table): the EFFECT code -> (bank, dst, layer) map,
+ * CAPTURED from the retail town-hold census (live +0x48 / render-state read via
+ * the 0x493ba0 field spec, flips 1450/1500/1600), standing in for 0x41f200's
+ * per-type switch (a 27 KB function — captured like the CHARACTER band's
+ * actor-sprite-table rather than RE'd case-by-case).  Returns 1 + the fields for
+ * a known standing-townsperson code, else 0 (caller skips the object).  Retire
+ * by RE'ing 0x41f200's town cases (bank/dst/layer install + the anim-phase
+ * source).  The MAP supplies the position (x,y); only the appearance anchor is
+ * captured. */
+int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
+                                    int16_t *dstx, int16_t *dsty, uint32_t *layer);
 
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a

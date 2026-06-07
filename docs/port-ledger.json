@@ -1528,6 +1528,7 @@
    "status": "tested",
    "src": [
     "src/actor_render.h",
+    "src/actor_spawn.c",
     "src/color_grade.c",
     "src/color_grade.h",
     "src/main.c"
@@ -5725,6 +5726,7 @@
    "status": "tested",
    "src": [
     "src/actor_render.h",
+    "src/actor_spawn.h",
     "src/draw_pool.c",
     "src/draw_pool.h",
     "src/map_present.h"
