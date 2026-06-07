@@ -1866,15 +1866,19 @@ static void game_camera_step(void)
 }
 
 /* The per-sim-tick actor UPDATE (0x46cd70 main-band slice → 0x54f980's frame
- * stepper): advance the room's animated actors' clips by one tick.  In the
- * opening town only the protagonist (0x1872d) animates, so this trots its
- * horses (engine-quirk #76: the anim rides the sim-tick clock).  The RNG-driven
- * behaviour half stays deferred (ckpt 73). */
+ * stepper): advance the room's animated actors' clips by one tick.  The
+ * protagonist (0x1872d) trots its horses, and the EFFECT townsfolk run their
+ * idle breathing clip (0x6290e0) from the RNG start phase the spawn set
+ * (engine-quirk #76: the anim rides the sim-tick clock; #86: the start phase is
+ * RNG).  Both steppers are deterministic (anim_clip_advance reads no RNG); the
+ * RNG-driven behaviour half — wander / particles — stays deferred (ckpt 73). */
 static void game_actor_update(void)
 {
     int advanced = actor_pool_update(&g_actors);
+    if (g_effects_loaded)
+        advanced += actor_pool_update(&g_effects);  /* the townsfolk breathe */
     CALL_TRACE_BEGIN(0x46cd70);           /* port mirror of the per-tick driver */
-    CALL_TRACE_I32("advanced", advanced); /* port-side: actors trotted this tick */
+    CALL_TRACE_I32("advanced", advanced); /* port-side: actors stepped this tick */
     CALL_TRACE_END();
 }
 

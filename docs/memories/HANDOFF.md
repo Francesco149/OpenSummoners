@@ -1,10 +1,57 @@
-# Session handoff — rolling current state (last updated ckpt 86, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 87, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 87
+
+**The townsfolk IDLE ANIMATION PHASE is PORTED** — built directly on the ckpt-86 RNG
+anchor.  The 11 standing villagers now run the idle breathing clip from a per-actor
+RNG start frame (matching retail's staggered phases) instead of frozen on frame 0.
+The first user-visible payoff of the spawn-RNG arc.
+
+- **The model (engine-quirk #86, decompile- + census-verified).**  For each of the
+  15 map EFFECT objects in dispatch (= map-layer) order, `0x41f200` consumes a fixed
+  per-object RNG burst before its `0x426ec0` idle-phase pair:
+  `0x426fd0`(1) + prologue(7) = 8, PLUS the per-CODE type-switch draw — 5 for the 4
+  `0xe29a` wanderers (`0x427670` case 2, decompile-confirmed :2181), 1 for `0xe2a5`
+  (`0x431cb0`, :2272), 0 for the plain villagers — then `0x426ec0`(2):
+  `frame = (rand * clip.frame_count) >> 15`, `timer = (rand * clip.frame_dur) >> 15`.
+  The shared idle clip is `0x6290e0` (decoded from the exe: base 0, **20 frames, dur
+  14**, looping, sprite delta {0,1,2,1,0,1,2,1,0,1,2,3,0,1,2,1,0,3,2,3}, zero offsets).
+  Crucially, **all 11 rendered townsfolk are in the first 15 (map) effects**; the 4
+  script effects (`0xc35a`×2/`0xc3dc`/`0xc3f0`) + the conditional `0x41f200:2849` draw
+  spawn AFTER them, so they do not affect the townsfolk phases.
+- **Ported.**  `actor_spawn_effect_from_map` (`actor_spawn.c`) now walks EVERY map
+  EFFECT object in order and replays its draws (consume-to-advance via `rng_rand`; the
+  jitter/particle values feed unmodelled fields, only the `0x426ec0` pair is USED, and
+  only for the rendered townsfolk — the `0xe29a` wanderers + unknown codes still consume
+  their draws but are not spawned).  Embeds `IDLE_CLIP` + `effect_prefix_draws(code)`.
+  Sets `rs->clip = &IDLE_CLIP`, `rs->frame`/`rs->timer` from the phase draws.  `main.c`
+  `game_actor_update` also advances `g_effects` per sim-tick (RNG-free
+  `anim_clip_advance`) so they breathe in lockstep with the protagonist's horses.
+- **Verified.**  Host test `actor_spawn_effect` locks the replay to an inline reference
+  LCG (exact frame/timer per slot) — **898 pass**.  The draw model is census-verified
+  (counts 134/38/20/19, the per-object shape RLE in `runs/rng-census-repin`) +
+  decompile-verified (the `0xe29a`/`0xe2a5` cases).  Offline from the pinned `0x4f5347`
+  the 11 start frames are {1,17,17,17,3,14,4,16,18,12,10}, timers
+  {3,13,10,4,7,5,10,1,12,0,1}.  Ledger 199/194 unchanged (bare-VA slice of `0x41f200`).
+- **VALIDATION PENDING — NOT yet differ_px==0.**  The chain (Chip-1 seed + census draws
+  + decompile shapes + decoded clip + host test) is complete, but the live bit-exact
+  cross-check has not run.  **Do this first next:** capture retail's `+0x72`/`+0x70`
+  per townsperson under the re-pin and compare to the offline values above.  Cleanest
+  routes: (a) add a `0x426ec0` **onLeave** field read (arg0+0x72/+0x70) — the field-spec
+  currently reads onEnter only (`ctReadField`), so this needs a small onLeave path in the
+  agent; or (b) render_diff the townsfolk cels (res,frame) at a matched sim-tick (port
+  capture + retail re-pin capture).  If a townsperson's frame mismatches, it pinpoints
+  the first wrong object's draw count.
+- **NEXT (Chip 3) — the FOUNTAIN SPRAY** (band `+0x13e0` / `0x493480`, res `0x408`): the
+  spawn particle init (`0x41f200`'s `0x427b70` params `:326-334` + the `0x427670`(20)
+  helper) + the per-tick `0x47b990`/`0x453960` update + the 4 `0xe29a` wander.  All RNG,
+  riding the same re-pinned stream.
 
 ## Where we are — ckpt 86
 

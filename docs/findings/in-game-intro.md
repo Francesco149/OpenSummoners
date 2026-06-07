@@ -2404,3 +2404,31 @@ seam change).
 19-object burst above), give the 11 townsfolk the idle clip `0x6290e0` + set
 `+0x72`/`+0x70` from the aligned `0x426ec0` draws, then verify the idle phases vs
 retail's render-state `+0x72` per townsperson.  Then the fountain (Chip 3).
+
+### The townsfolk idle PHASE — PORTED (ckpt 87)
+
+Chip 2 of the spawn-RNG arc, on top of the ckpt-86 anchor.  The 11 standing villagers
+now run the idle breathing clip from a per-actor RNG start frame (retail staggers them),
+instead of frozen on frame 0.
+
+**The model (decompile- + census-verified).**  Per map EFFECT object in dispatch order,
+`0x41f200` draws `8 + extra` before `0x426ec0`: `0x426fd0`(1) + prologue(7); extra = 5
+for the 4 `0xe29a` wanderers (`0x427670` case 2, :2181), 1 for `0xe2a5` (`0x431cb0`,
+:2272), else 0.  Then `0x426ec0`(2): `frame=(rand*20)>>15`, `timer=(rand*14)>>15` over
+the shared idle clip `0x6290e0` (base 0, 20 frames, dur 14, looping; decoded from the
+exe).  All 11 rendered townsfolk are in the first 15 (map) effects — the 4 script
+effects + the conditional `:2849` draw spawn after, so they do not perturb the phases.
+
+**Ported.**  `actor_spawn_effect_from_map` replays every map EFFECT object's draws in
+order (consume-to-advance; the `0xe29a` wanderers + unknown codes consume but are not
+spawned; only the rendered townsfolk use the `0x426ec0` pair), embeds `IDLE_CLIP` +
+`effect_prefix_draws(code)`, sets `rs->clip`/`frame`/`timer`.  `game_actor_update`
+advances `g_effects` per sim-tick.  Host test `actor_spawn_effect` locks the replay to an
+inline reference LCG; 898 pass.  Offline from `0x4f5347`: start frames
+{1,17,17,17,3,14,4,16,18,12,10}.
+
+**Validation pending (not yet differ_px==0).**  The chain is complete (Chip-1 seed +
+census draw counts + decompile shapes + decoded clip + host test), but the live bit-exact
+cross-check of `+0x72` per townsperson vs retail has not run.  Cleanest: a `0x426ec0`
+onLeave field read (the field-spec is onEnter-only today) or render_diff at a matched
+sim-tick.

@@ -14,6 +14,7 @@
 #include "actor_spawn.h"
 #include "actor_render.h"
 #include "draw_pool.h"
+#include "rng.h"
 #include "t.h"
 
 #include <string.h>
@@ -399,10 +400,31 @@ int test_actor_spawn_effect(void)
     md.count  = 5;
     md.layers = layers;
 
+    /* Replicate the engine LCG (the same draw model the spawn replays) from a
+     * pinned seed, so the idle-PHASE assertions lock in the per-object draw count
+     * + order (engine-quirk #86): 0xc3e6 draws 8 prefix then 2 phase; 0xe29a
+     * draws 8+5(0x427670) then 2; 0xc404 draws 8 then 2; 0xc999 (unknown effect,
+     * not spawned) still draws 8+2.  Slot 0's phase is the 1st pair; slot 1's is
+     * after 0xc3e6 (10) + 0xe29a (15) = 25 draws.  (The structure 0xec55 draws
+     * nothing — it is out of the EFFECT range.) */
+    uint32_t s = 0x4f5347u;
+#define RREF() ((s = s * 0x343fdu + 0x269ec3u), (uint32_t)((s >> 16) & 0x7fffu))
+    for (int k = 0; k < 8; k++) (void)RREF();          /* 0xc3e6 prefix */
+    uint16_t ef0 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 0 frame  */
+    uint16_t et0 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 0 timer  */
+    for (int k = 0; k < 13; k++) (void)RREF();         /* 0xe29a 8+5    */
+    (void)RREF(); (void)RREF();                        /* 0xe29a phase  */
+    for (int k = 0; k < 8; k++) (void)RREF();          /* 0xc404 prefix */
+    uint16_t ef1 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 1 frame  */
+    uint16_t et1 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 1 timer  */
+#undef RREF
+
+    rng_srand(0x4f5347u);   /* same pinned seed -> the spawn replay aligns */
     actor_spawn_pool pool;
     T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md), 2);  /* 2 townsfolk */
 
-    /* slot 0 = 0xc3e6: bank 0xe5, fb 0, layer 13, dst (-30,-32), clip NULL.
+    /* slot 0 = 0xc3e6: bank 0xe5, fb 0, layer 13, dst (-30,-32), idle clip set,
+     * RNG start phase (frame in [0,20), timer in [0,14)).
      * world = (map - dst) * 100 = ((208,384) - (-30,-32)) * 100 = (23800,41600)
      * — matches the live census rs_x/rs_y exactly. */
     T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0xe5u);
@@ -412,15 +434,25 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(pool.states[0].world_y, 41600);
     T_ASSERT_EQ_I(pool.states[0].dst_base_x, -30);
     T_ASSERT_EQ_I(pool.states[0].dst_base_y, -32);
-    T_ASSERT(pool.states[0].clip == NULL);
+    T_ASSERT(pool.states[0].clip != NULL);
+    T_ASSERT_EQ_U(pool.states[0].clip->frame_count, 20u);  /* the idle clip 0x6290e0 */
+    T_ASSERT_EQ_U(pool.states[0].clip->frame_dur, 14u);
+    T_ASSERT_EQ_U(pool.states[0].frame, ef0);              /* 0x426ec0 start frame */
+    T_ASSERT_EQ_U(pool.states[0].timer, et0);              /* 0x426ec0 start timer */
+    T_ASSERT(pool.states[0].frame < 20u);
+    T_ASSERT(pool.states[0].timer < 14u);
 
     /* slot 1 = 0xc404: bank 0xf9, dst (-30,-20), world ((1808,416)-(-30,-20))*100
-     * = (183800,43600) — the live census value. */
+     * = (183800,43600) — the live census value.  Its idle phase reflects the
+     * 0xe29a wanderer's 15 draws consumed in between. */
     T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0xf9u);
     T_ASSERT_EQ_I(pool.states[1].world_x, 183800);
     T_ASSERT_EQ_I(pool.states[1].world_y, 43600);
     T_ASSERT_EQ_I(pool.states[1].dst_base_x, -30);
     T_ASSERT_EQ_I(pool.states[1].dst_base_y, -20);
+    T_ASSERT(pool.states[1].clip != NULL);
+    T_ASSERT_EQ_U(pool.states[1].frame, ef1);
+    T_ASSERT_EQ_U(pool.states[1].timer, et1);
 
     /* the def lookup itself. */
     uint16_t b = 0; int16_t dx = 0, dy = 0; uint32_t ly = 0; int16_t fc = 0, fl = 0;
@@ -446,8 +478,12 @@ int test_actor_spawn_effect(void)
 
     /* a townsperson renders through actor_render_static into layer 13.  actor[0]
      * is 0xc3e6 (bank 0xe5) — a MIRRORED townsperson (facing 3).  With a NULL
-     * flip table the mirror reads flip 0, so the frozen frame stays 0; the world
-     * pos projects to 23800 and the render adds the dst anchor (-30) back. */
+     * flip table the mirror reads flip 0; the world pos projects to 23800 and the
+     * render adds the dst anchor (-30) back.  Pin the clip frame to 0 here so this
+     * sub-test isolates the FACING-mirror cel math from the RNG idle phase
+     * (verified above): at frame 0 the idle clip's sprite delta is 0
+     * (frame_delta[0] == 0), so the cel reduces to frame_base + frame_off. */
+    pool.states[0].frame = 0;
     draw_pool dp;
     T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
     int e = actor_render_static(&pool.actors[0], &pool.states[0], NULL, &dp,

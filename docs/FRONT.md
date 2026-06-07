@@ -9,7 +9,32 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 86): the town SPAWN RNG ANCHOR is LANDED + LIVE-VERIFIED — the keystone
+- **LATEST (ckpt 87): the townsfolk IDLE ANIMATION PHASE is PORTED — they now breathe
+  from a per-actor RNG start frame instead of frozen on frame 0.** Builds on the ckpt-86
+  anchor; the first user-visible payoff of the spawn-RNG arc. **The model (engine-quirk
+  #86, decompile- + census-verified):** for each of the 15 map EFFECT objects in
+  dispatch (layer) order, `0x41f200` consumes `8 + extra` draws (`0x426fd0`(1) + prologue
+  (7); extra = 5 for the 4 `0xe29a` wanderers via `0x427670`, 1 for `0xe2a5` via
+  `0x431cb0`, else 0) then `0x426ec0`'s 2 idle-phase draws (`frame=(rand*20)>>15`,
+  `timer=(rand*14)>>15`). All 11 rendered townsfolk fall in the first 15 effects (the 4
+  script effects spawn after), so they are unaffected by the rest. **PORTED:**
+  `actor_spawn_effect_from_map` replays the per-object draws in map order (consume-to-
+  advance; only the `0x426ec0` pair is used, only for the rendered townsfolk — the
+  wanderers/unknowns still consume their draws), embeds the shared idle clip `IDLE_CLIP`
+  (= `0x6290e0`: base 0, 20f, dur 14, looping, delta {0,1,2,1,…} — decoded from the exe),
+  and sets `rs->clip`/`frame`/`timer`; `game_actor_update` now also advances `g_effects`
+  per sim-tick (RNG-free `anim_clip_advance`) so they breathe in lockstep. **Verified:**
+  host test locks the replay to a reference LCG (frame/timer per slot); the draw model is
+  census-verified (counts 134/38/20/19) + decompile-verified (the `0xe29a`/`0xe2a5`
+  cases); offline from `0x4f5347` the 11 start frames are {1,17,17,17,3,14,4,16,18,12,10}.
+  **898 pass, ledger 199/194 unchanged** (bare-VA slice of `0x41f200`). quirk #86;
+  `findings/in-game-intro.md` "The town SPAWN RNG anchor" + the idle-phase note.
+  **VALIDATION PENDING (not yet differ_px==0):** a bit-exact cross-check of the port's
+  `+0x72` per townsperson vs retail (a `0x426ec0` onLeave capture, or render_diff at a
+  matched sim-tick) — the chain is complete but the live pixel/`+0x72` diff is the next
+  step. **THEN Chip 3 — the FOUNTAIN SPRAY** (band `+0x13e0`/`0x493480`; the `0x427b70`/
+  `0x427670`(20) particle init + per-tick `0x47b990`/`0x453960`).
+- **Prior (ckpt 86): the town SPAWN RNG ANCHOR is LANDED + LIVE-VERIFIED — the keystone
   for the two remaining RNG residuals (idle PHASE + fountain SPRAY).** Phase-2 matching
   half, the foundational chip (no visual change yet — that lands when the spawn consumers
   are ported, Chip 2). The title→town RNG is non-deterministic run-to-run even under the

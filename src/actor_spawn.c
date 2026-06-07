@@ -5,6 +5,7 @@
  * visible-code sprite-table stand-in (the lazy 0x40afe0/0x41e600 fill).
  */
 #include "actor_spawn.h"
+#include "rng.h"            /* rng_rand — the engine LCG the spawn replays      */
 
 #include <string.h>
 
@@ -256,6 +257,43 @@ int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n)
     return written;
 }
 
+/* The town villagers' shared idle clip — reconstructed from DAT_006290e0 (the
+ * clip 0x426fd0 installs for the standing EFFECT townsfolk; decoded from the
+ * user's sotes.exe .rdata for analysis): base 0, 20 frames, 14 sim-ticks/frame,
+ * LOOPING, per-frame sprite delta {0,1,2,1,0,...} (a slow breathing/sway cycle),
+ * zero per-frame offset.  RE'd timing/indexing metadata (the 0x154-B descriptor),
+ * not the asset — the sprite PIXELS load from the user's file at runtime.  At
+ * spawn, 0x426ec0 randomizes the START phase into this clip (frame in
+ * [0,frame_count), timer in [0,frame_dur)); the per-sim-tick stepper
+ * (actor_pool_update -> anim_clip_advance) then runs the breathing loop. */
+static const anim_clip IDLE_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2, 1, 0, 1, 2, 1, 0, 1,
+                     2, 3, 0, 1, 2, 1, 0, 3, 2, 3 },
+    .frame_count = 20,
+    .frame_dur   = 14,
+    .oneshot     = 0,    /* loops */
+};
+
+/* The fixed per-object RNG draw count 0x41f200 consumes BEFORE its 0x426ec0
+ * idle-phase pair, by EFFECT type code (engine-quirk #86, the seed-pinned
+ * 0x5bf505 census cross-checked against the decompile):
+ *   0x426fd0 (1, the +0xf4 init) + 0x41f200 prologue (7 = 2 position-jitter
+ *   :294/:301 + 5 particle-param :326-334) = 8, PLUS the per-type-switch draw:
+ *     0xe29a -> 0x427670 case 2 (5 draws; the wandering villagers, :2181)
+ *     0xe2a5 -> 0x431cb0     (1 draw; :2272)
+ *     all other town effects -> none.
+ * (The conditional 0x41f200:2849 draw + the script effects 0xc35a/0xc3dc/0xc3f0
+ * fall AFTER all 11 rendered townsfolk in the spawn order, so they do not affect
+ * the townsfolk idle phases and are not modelled here.) */
+static int effect_prefix_draws(uint32_t code)
+{
+    int n = 8;                       /* 0x426fd0 (1) + 0x41f200 prologue (7) */
+    if (code == 0xe29au) n += 5;     /* 0x427670 case 2 (the wanderers)      */
+    else if (code == 0xe2a5u) n += 1;/* 0x431cb0                             */
+    return n;
+}
+
 int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
 {
     if (pool == NULL || md == NULL) return -1;
@@ -266,12 +304,30 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         const uint8_t *h = md->layers[li].hdr;
         uint32_t code = hdr_u32(h, HDR_OFF_CODE);
         if (code < ACTOR_CODE_EFFECT_LO || code > ACTOR_CODE_EFFECT_HI)
-            continue;                          /* not an EFFECT object */
+            continue;                          /* not an EFFECT object: no spawn RNG */
+
+        /* RNG REPLAY (engine-quirk #86): EVERY map EFFECT object runs 0x41f200's
+         * per-object spawn-draw burst in this (map-layer = 0x58d460 dispatch)
+         * order, so the shared LCG must advance identically here for the idle
+         * PHASE to land 1:1 with retail under the game_enter re-seed (ckpt 86).
+         * The prefix draws feed position jitter / particle params the port does
+         * not model (the townsfolk positions are map-driven; the fountain is a
+         * later chip), so they are consumed-to-advance; only the 0x426ec0 pair
+         * is USED — and only for the rendered townsfolk (the 0xe29a wanderers +
+         * unknown codes still consume their draws, they are just not spawned). */
+        for (int k = effect_prefix_draws(code); k > 0; k--)
+            (void)rng_rand();
+        /* 0x426ec0: the idle PHASE.  frame = (rand * clip.frame_count) >> 15,
+         * then timer = (rand * clip.frame_dur) >> 15 (the >>15 is /32768; both
+         * operands are small + non-negative so it matches retail's signed form).
+         * Every town effect carries a clip, so both draws always fire. */
+        uint16_t ph_frame = (uint16_t)((rng_rand() * IDLE_CLIP.frame_count) >> 15);
+        uint16_t ph_timer = (uint16_t)((rng_rand() * IDLE_CLIP.frame_dur)   >> 15);
 
         uint16_t bank; int16_t dstx, dsty; uint32_t layer; int16_t facing, flip;
         if (!actor_spawn_effect_def_for_code(code, &bank, &dstx, &dsty, &layer,
                                              &facing, &flip))
-            continue;                          /* wanderer / non-map / unknown */
+            continue;        /* wanderer (0xe29a) / non-map: draws consumed, not spawned */
         (void)flip;                            /* lands in the render flip table */
 
         if (pool->count >= ACTOR_BAND_SLOTS)   /* "Effect Object Count Over" */
@@ -283,9 +339,9 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
 
         /* 0x41f200: behaviour code (+0x1d4), dir 0 (+0xe8), draw layer (+0xfc).
          * Sprite row 0 = {bank, frame_base 0}; the per-frame sprite comes from
-         * the idle clip — FROZEN here on frame 0 (clip NULL, the spawn
-         * end-state).  World = (map (x,y) - dst) * 100; the render dst anchor
-         * lives in the render-state (+0x40/+0x44), added back at emit. */
+         * the idle clip via the anim stepper.  World = (map (x,y) - dst) * 100;
+         * the render dst anchor lives in the render-state (+0x40/+0x44), added
+         * back at emit. */
         a->code  = code;
         a->dir   = 0;
         a->layer = layer;
@@ -298,7 +354,10 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->facing     = facing;                /* +0x2c — 1 normal / 3 mirrored */
         rs->dst_base_x = dstx;                  /* +0x40 — the render anchor */
         rs->dst_base_y = dsty;                  /* +0x44 */
-        rs->clip       = NULL;                  /* +0x6c — frozen (Phase 1b animates) */
+        rs->clip       = &IDLE_CLIP;            /* +0x6c — the idle breathing clip */
+        rs->timer      = ph_timer;              /* +0x70 — 0x426ec0 start timer */
+        rs->frame      = ph_frame;              /* +0x72 — 0x426ec0 start frame */
+        rs->done       = 0;                     /* +0x74 */
     }
     return pool->count;
 }
