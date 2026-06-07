@@ -9,7 +9,29 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 84): the EFFECT townsfolk are PORTED — positions USER-confirmed 1:1; the
+- **LATEST (ckpt 85): townsfolk FACING is PORTED + USER-1:1 — it's a deterministic MAP
+  field, NOT RNG (corrects the ckpt-84 guess).** Phase-2 matching half, first chip. RE'd
+  the three ckpt-84 RNG residuals: **facing is RNG-FREE** — the dispatcher `0x58d460:96`
+  computes `cVar12 = (puVar1[4]!=0)?3:1` from the map sub-record `puVar1[4]` and forwards it
+  as **param_8** to `0x41f200`/`0x431e30` → render-state `+0x2c`; `0x44d160` mirrors the cel
+  (`frame += flip`) + reflects `off_x` only on `facing==3`, where **`flip = *(s16)(DAT_008a8440
+  [bank])` = the sprite group's frames-per-direction** (`0x8a8440` confirmed live a POINTER
+  array → heap descriptors; 4 or 16 for the town banks). Live census (the `0x493ba0` spec +
+  a new `rs_facing` field + a one-shot read of `DAT_008a8440`): of the 11 map townsfolk **7
+  are facing 3** (`c3be/c3dd/c3e6/c422/c42c/c441/c468`), 4 normal. **PORTED:** `TOWN_EFFECT_
+  DEFS` gains `facing`+`flip`; `actor_spawn_effect_fill_flip_table` fills the bank-indexed
+  stand-in for the global `DAT_008a8440`, wired into every `game_actor_walk` render call;
+  **898 pass**, builds clean. **USER-confirmed: "npc orientation matches retail yes."** quirk
+  #85; `findings/in-game-intro.md` "Townsfolk facing is a MAP field". (Townsfolk still
+  frozen-frame — the idle anim PHASE is RNG, next.) PORT-DEBT `effect-sprite-table` extended.
+  **THE REMAINING TWO RESIDUALS ARE RNG → need the game_enter RNG ANCHOR:** (1) **idle PHASE**
+  — `0x426ec0` sets `rs+0x72 = (rand()*clip.frame_count)>>15` (every townsperson runs clip
+  `0x6290e0` at a random start frame); (2) **the FOUNTAIN SPRAY** (band `+0x13e0`/`0x493480`)
+  — `0x41f200`'s 8 rand draws are position-jitter (`0x426e00` `+0x58`/`+0x60`) + a particle
+  sub-spawn (`0x427b70`); helper `0x427670` (20 draws) + per-tick `0x47b990`/`0x453960` drive
+  the spray. **NEXT:** re-pin `DAT_008a4f94` at `game_enter` both sides → port the spawn RNG
+  consumers in order → idle phase + fountain land 1:1.
+- **Prior (ckpt 84): the EFFECT townsfolk are PORTED — positions USER-confirmed 1:1; the
   residual is now PINNED to the RNG pillar (Phase 2 begins).** Landed the EFFECT band (the
   standing villagers in the square) positioned 1:1, frozen on the idle clip's frame 0 (the
   wagon/STRUCTURE precedent). **The render REUSES `actor_render_static`** — for a plain

@@ -174,9 +174,22 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md);
  * a known standing-townsperson code, else 0 (caller skips the object).  Retire
  * by RE'ing 0x41f200's town cases (bank/dst/layer install + the anim-phase
  * source).  The MAP supplies the position (x,y); only the appearance anchor is
- * captured. */
+ * captured.
+ *
+ * facing (rs +0x2c, 1 normal / 3 mirrored) and flip (the mirror frame offset =
+ * DAT_008a8440[bank] first short = frames-per-direction) are out-params for the
+ * facing==3 mirror; pass NULL to ignore.  facing is a deterministic MAP field
+ * (dispatcher 0x58d460:96 from puVar1[4]), NOT RNG. */
 int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
-                                    int16_t *dstx, int16_t *dsty, uint32_t *layer);
+                                    int16_t *dstx, int16_t *dsty, uint32_t *layer,
+                                    int16_t *facing, int16_t *flip);
+
+/* Fill a bank-indexed mirror/flip table (port stand-in for retail's global
+ * DAT_008a8440) from the town EFFECT defs.  table[bank] = frames-per-direction;
+ * FUN_0044d160 adds it to the frame on the facing==3 arm.  Only the town villager
+ * banks are written (the only mirrored actors in the scene); other banks stay 0.
+ * `n` is the table length (banks >= n are skipped).  Returns entries written. */
+int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n);
 
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a

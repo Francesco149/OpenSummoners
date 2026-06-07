@@ -2578,3 +2578,47 @@ structure objects are FIXED (only the anim frame steps, #76); only `0xe29a` ×4
 roam (RNG, refines #82 — the EFFECT band updates during the hold).  The "foreground
 tree" is thus a STRUCTURE map-object, not a banner/`0x5a00c0` overlay/tile.
 `findings/in-game-intro.md` "The establishing-hold cast is FOUR map-object bands".
+
+### #85 — townsfolk FACING is a deterministic MAP field (not RNG); idle PHASE + fountain ARE RNG; the 8 rand draws in `0x41f200` are position-jitter + a particle sub-spawn (2026-06-07, ckpt 85)
+
+Resolving the three ckpt-84 RNG residuals (facing / idle-phase / fountain) by RE +
+a live census, the facing turns out to be RNG-FREE while the other two are genuine
+LCG consumers — correcting the ckpt-84 guess that all three were RNG.
+
+**FACING (the "flipped orientation") is the map sub-record field `puVar1[4]`.** The
+room-object dispatcher `FUN_0058d460:96` computes the facing as
+`cVar12 = (-(puVar1[4] != 0) & 2) + 1` → **1 (normal) or 3 (mirrored)**, where
+`puVar1 = *(*(mapobj+0x3c) + i*0x10)` is the per-object sub-record (built by the
+unported decoder `0x587e00`).  It forwards `cVar12` as **param_8** to BOTH the EFFECT
+activator `0x41f200` (`:151`) and the CHARACTER activator `0x431e30` (`:227`);
+`0x41f200:861` stores it at render-state `+0x2c` and passes it to every `0x426620`
+sprite install.  The renderer `FUN_0044d160` mirrors only on `facing == 3`: it picks
+the mirror cel `frame += flip` and reflects `off_x = mirror_x - off_x`, where
+`flip = *(short*)(DAT_008a8440[bank])` — **`0x8a8440` is a pointer array** (confirmed
+live: each cell derefs to a heap sprite-group descriptor) whose first short is the
+group's **frames-per-direction** (read live for the town banks: 4 or 16).  So the
+flip cel = `frame_base + frames_per_dir`.  No RNG anywhere on this path.
+
+**IDLE PHASE is RNG.** `FUN_00426ec0` (the spawn phase-randomizer, called per actor
+in the `0x41f200` chain) does, when the render-state has a clip (`+0x6c != 0`):
+`+0x72 = (rand() * clip.frame_count@+0x42) >> 15` (a uniform start frame in
+`[0, frame_count)`), then a 2nd `rand()` for the timer phase via `clip+0x44`.  The
+live census confirms every townsperson runs the idle clip `0x6290e0` with a scattered
+per-actor start frame.  So matching the idle phase 1:1 needs the **game_enter RNG
+anchor** (snapshot/restore `DAT_008a4f94` both sides) + replaying the spawn draws in
+order — it is NOT deterministic.
+
+**The 8 `FUN_005bf505` calls in `0x41f200` are position-jitter + a particle
+sub-spawn, NOT facing/phase.** Two (`:294`/`:301`) feed `FUN_00426e00` writing the
+motion sub-struct `+0x58`/`+0x60`; five (`:326-334`) feed `FUN_00427b70` (the particle
+sub-emitter).  Helper `0x427670` draws 20× (the fountain particle init).  These + the
+per-tick `0x47b990`/`0x453960` are the FOUNTAIN SPRAY (band `+0x13e0`/`0x493480`),
+also RNG.
+
+Ground truth (live `0x493ba0` census, `--seed-pin --lockstep --no-turbo`, flips
+1450-1600): of the 11 map townsfolk, **7 are facing 3** (`0xc3be`/`0xc3dd`/`0xc3e6`/
+`0xc422`/`0xc42c`/`0xc441`/`0xc468`), 4 facing 1 (`0xc3f2`/`0xc404`/`0xc440`/`0xe2a5`);
+flip (frames/dir) per bank read live from `DAT_008a8440`.  PORTED: facing + the flip
+table (`actor_spawn.c` defs + `actor_spawn_effect_fill_flip_table`, wired in
+`main.c`); the townsfolk now mirror RNG-free.  Idle-phase + fountain remain (need the
+RNG anchor).  `findings/in-game-intro.md` "Townsfolk facing is a map field".

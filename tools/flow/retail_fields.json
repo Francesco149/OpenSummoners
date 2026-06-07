@@ -1606,6 +1606,17 @@
      "type": "i32",
      "benign": true,
      "reason": "primary render-state +0x44 — dst base y added to desc off_y."
+    },
+    {
+     "name": "rs_facing",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 44,
+     "type": "i32",
+     "benign": true,
+     "reason": "primary render-state +0x2c — FACING (1 normal / 3 mirrored; FUN_0044d160 mirrors the cel + reflects off_x at ==3). Set by the dispatcher FUN_0058d460:96 cVar12 = (puVar1[4]!=0)?3:1 from the MAP sub-record puVar1[4] (NOT RNG), passed as param_8 to FUN_0041f200/FUN_00431e30. Phase-2 census: read per townsperson to port the per-code facing (the USER 'flipped orientation' residual)."
     }
    ]
   },

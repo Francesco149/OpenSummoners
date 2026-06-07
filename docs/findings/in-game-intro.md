@@ -2291,3 +2291,70 @@ known state on both sides), then match consumption order (rng+rngcalls) tick-for
 `flow_diff` localizes the first divergence.  Then the fountain particles (`0x47b990`/
 `0x453960`) + the `0xe29a` wander land 1:1.  Artifacts (ephemeral): `runs/rng-census/` /
 `/tmp/rng_census/`; `tools/rng_consumer_census.py`.
+
+### Townsfolk facing is a MAP field (PORTED + USER-1:1); idle phase + fountain are RNG (ckpt 85)
+
+Phase-2 "matching half", first chip.  RE'd the three ckpt-84 RNG residuals and found
+the facing is RNG-FREE (a map field) while idle-phase + fountain are genuine LCG
+consumers — so the facing landed standalone, USER-confirmed, with no RNG anchor.
+
+**FACING = the map sub-record field `puVar1[4]` (NOT RNG).**  The room-object
+dispatcher `FUN_0058d460:96` computes `cVar12 = (-(puVar1[4] != 0) & 2) + 1` →
+**1 (normal) / 3 (mirrored)**, where `puVar1 = *(*(mapobj+0x3c) + i*0x10)`, and
+forwards it as **param_8** to the EFFECT activator `0x41f200` (`:151`) + the CHARACTER
+activator `0x431e30` (`:227`).  `0x41f200:861` stores param_8 at render-state `+0x2c`.
+The renderer `FUN_0044d160` mirrors only on `facing == 3`: cel `frame += flip`,
+`off_x = mirror_x - off_x`, where `flip = *(short*)(DAT_008a8440[bank])`.  Read live,
+**`0x8a8440` is a pointer array** whose entries deref to heap sprite-group descriptors;
+the first short is the group's **frames-per-direction** (4 or 16 for the town banks).
+So the mirrored cel = `frame_base + frames_per_dir`.
+
+**Live census ground truth** (`0x493ba0` field spec + a new `rs_facing` field, plus a
+one-shot read of `DAT_008a8440[bank]`; `--seed-pin --lockstep --no-turbo`, flips
+1450/1500/1550/1600):
+
+| code | bank | facing | flip (frames/dir) |
+|---|---|---|---|
+| 0xc3be | 0xd4 | **3** | 16 |
+| 0xc3dd | 0xe1 | **3** | 4 |
+| 0xc3e6 | 0xe5 | **3** | 4 |
+| 0xc422 | 0x93 | **3** | 16 |
+| 0xc42c | 0x99 | **3** | 16 |
+| 0xc441 | 0xa9 | **3** | 16 |
+| 0xc468 | 0xd0 | **3** | 4 |
+| 0xc3f2 | 0xf0 | 1 | (4) |
+| 0xc404 | 0xf9 | 1 | (4) |
+| 0xc440 | 0xa6 | 1 | (16) |
+| 0xe2a5 | 0x14c | 1 | (16) |
+
+(The census also re-confirms `0xc3dc`/`0xc3f0` are the non-map script-spawned pair —
+correctly absent from the port's 11 map townsfolk; `0xc440` is multi-part, banks
+0xa6+0xb5 — a separate render gap, facing 1.)
+
+**PORTED (898 pass, builds clean):** `TOWN_EFFECT_DEFS` gains `facing`+`flip` columns;
+`actor_spawn_effect_def_for_code` returns them; the spawn sets `rs->facing`;
+`actor_spawn_effect_fill_flip_table` fills a bank-indexed stand-in for the global
+`DAT_008a8440`, wired in `main.c` and passed to every `game_actor_walk`
+`actor_render_static` call.  **USER-confirmed on the feed: "npc orientation matches
+retail yes."**  (Frozen-frame still — the idle anim PHASE differs; that's the next
+residual.)  PORT-DEBT `effect-sprite-table` extended (facing+flip captured; proper
+source = map `puVar1[4]` via the unported `0x587e00`, + `DAT_008a8440` frames/dir).
+
+**IDLE PHASE is RNG.**  `FUN_00426ec0` (spawn phase-randomizer): with a clip,
+`+0x72 = (rand() * clip.frame_count@+0x42) >> 15` (uniform start frame) + a 2nd rand
+for the timer.  Matching it 1:1 needs the **game_enter RNG anchor** + replaying the
+spawn draws in order.
+
+**The 8 rand draws in `0x41f200` are position-jitter + a particle sub-spawn** (`:294`/
+`:301` → `0x426e00` motion `+0x58`/`+0x60`; `:326-334` → `0x427b70` particle emitter),
+NOT facing/phase.  Helper `0x427670` (20 draws) is the fountain particle init; with
+the per-tick `0x47b990`/`0x453960` it drives the FOUNTAIN SPRAY (band `+0x13e0` /
+`0x493480`) — all RNG.
+
+**NEXT (the remaining two residuals → the RNG anchor):** snapshot/restore
+`DAT_008a4f94` to a fixed value at the `game_enter` anchor on BOTH sides (retail: a new
+harness re-pin; port: re-seed in `enter_game`), then port the spawn RNG consumers in
+order (`0x41f200` jitter + `0x426ec0` phase + `0x427670`/`0x427b70` particles) so the
+idle phases + fountain align; then the per-tick `0x47b990`/`0x453960` + `0xe29a`
+wander.  Tooling: `rng_consumer_census.py`, `flow_diff.py`, the `rng_state`/`rngcalls`
+fields.  Artifacts (ephemeral): `runs/facing-census/`, `runs/read_fliptable.py`.

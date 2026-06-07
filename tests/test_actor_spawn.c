@@ -423,18 +423,31 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(pool.states[1].dst_base_y, -20);
 
     /* the def lookup itself. */
-    uint16_t b = 0; int16_t dx = 0, dy = 0; uint32_t ly = 0;
-    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe2a5u, &b, &dx, &dy, &ly), 1);
+    uint16_t b = 0; int16_t dx = 0, dy = 0; uint32_t ly = 0; int16_t fc = 0, fl = 0;
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe2a5u, &b, &dx, &dy, &ly, &fc, &fl), 1);
     T_ASSERT_EQ_U(b, 0x14cu);
     T_ASSERT_EQ_I(dx, -16);
     T_ASSERT_EQ_I(dy, -32);
     T_ASSERT_EQ_U(ly, 13u);
-    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe29au, &b, &dx, &dy, &ly), 0); /* wanderer */
-    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc999u, &b, &dx, &dy, &ly), 0); /* unknown  */
+    T_ASSERT_EQ_I(fc, 1);                 /* 0xe2a5 faces normal (not mirrored) */
+    /* a mirrored townsperson: facing 3 + the captured flip (frames/dir). */
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc3beu, &b, &dx, &dy, &ly, &fc, &fl), 1);
+    T_ASSERT_EQ_I(fc, 3);
+    T_ASSERT_EQ_I(fl, 16);
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe29au, &b, &dx, &dy, &ly, NULL, NULL), 0); /* wanderer */
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc999u, &b, &dx, &dy, &ly, NULL, NULL), 0); /* unknown  */
 
-    /* a townsperson renders through actor_render_static into layer 13 — cel =
-     * (bank 0xe5, frame 0, frozen), at the projected world pos; the render adds
-     * the dst anchor back (dst_x -30) so the screen offset matches retail. */
+    /* the flip table fills the mirrored villager banks (stand-in for DAT_008a8440). */
+    int16_t flip_tbl[1024] = {0};
+    int filled = actor_spawn_effect_fill_flip_table(flip_tbl, 1024);
+    T_ASSERT_EQ_I(filled, 11);            /* all 11 town EFFECT banks written  */
+    T_ASSERT_EQ_I(flip_tbl[0xd4], 16);   /* 0xc3be bank 0xd4 -> 16 frames/dir  */
+    T_ASSERT_EQ_I(flip_tbl[0xe5], 4);    /* 0xc3e6 bank 0xe5 -> 4              */
+
+    /* a townsperson renders through actor_render_static into layer 13.  actor[0]
+     * is 0xc3e6 (bank 0xe5) — a MIRRORED townsperson (facing 3).  With a NULL
+     * flip table the mirror reads flip 0, so the frozen frame stays 0; the world
+     * pos projects to 23800 and the render adds the dst anchor (-30) back. */
     draw_pool dp;
     T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
     int e = actor_render_static(&pool.actors[0], &pool.states[0], NULL, &dp,
@@ -445,6 +458,17 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(dp.layers[13].nodes[0].dst_x, 23800);
     T_ASSERT_EQ_I((int32_t)dp.layers[13].nodes[0].param6, -30); /* the render dst anchor */
     draw_pool_free(&dp);
+
+    /* WITH the flip table, the facing==3 arm picks the mirrored cel: frame =
+     * frame_base(0) + flip(4) = 4 (the 0xc3e6 bank 0xe5 mirror block). */
+    T_ASSERT_EQ_I(pool.states[0].facing, 3);
+    draw_pool dpm;
+    T_ASSERT_EQ_I(draw_pool_init(&dpm), 0);
+    e = actor_render_static(&pool.actors[0], &pool.states[0], flip_tbl, &dpm,
+                            resolve_pack, NULL);
+    T_ASSERT_EQ_I(e, 1);
+    T_ASSERT_EQ_U(dpm.layers[13].nodes[0].sprite, resolve_pack(0xe5u, 4u, NULL));
+    draw_pool_free(&dpm);
 
     /* NULL guard. */
     T_ASSERT_EQ_I(actor_spawn_effect_from_map(NULL, &md), -1);

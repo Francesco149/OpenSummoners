@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 85) — townsfolk FACING ported + USER-1:1 (a MAP field, NOT RNG); idle phase + fountain pinned to RNG
+
+Phase-2 "matching half", first chip.  RE'd the three ckpt-84 RNG residuals and
+found the **facing is RNG-free** — a deterministic map field — while idle-phase +
+fountain are genuine LCG consumers.  So the facing landed standalone, USER-confirmed,
+with no RNG anchor.
+
+**Facing = the map sub-record `puVar1[4]`.**  The room-object dispatcher
+`FUN_0058d460:96` computes `cVar12 = (-(puVar1[4]!=0) & 2) + 1` → 1 (normal) / 3
+(mirrored) and forwards it as **param_8** to the EFFECT activator `0x41f200` (`:151`)
+and the CHARACTER activator `0x431e30` (`:227`); `0x41f200:861` stores it at
+render-state `+0x2c`.  `FUN_0044d160` mirrors only on `facing==3`: cel `frame += flip`,
+`off_x = mirror_x - off_x`, where `flip = *(short*)(DAT_008a8440[bank])`.  Confirmed
+live: **`0x8a8440` is a pointer array** whose entries deref to heap sprite-group
+descriptors; the first short = the group's frames-per-direction (4 or 16 for the town
+banks), so the mirrored cel = `frame_base + frames_per_dir`.
+
+**Ground truth** (the `0x493ba0` census + a new `rs_facing` field; a one-shot read of
+`DAT_008a8440` via `runs/read_fliptable.py`): of the 11 map townsfolk, **7 face 3**
+(`c3be/c3dd/c3e6/c422/c42c/c441/c468`), 4 normal.  **Ported (898 pass, builds clean):**
+`TOWN_EFFECT_DEFS` gains `facing`+`flip`; `actor_spawn_effect_fill_flip_table` fills a
+bank-indexed stand-in for the global `DAT_008a8440`, wired into every `game_actor_walk`
+`actor_render_static` call.  **USER-confirmed on the feed: "npc orientation matches
+retail yes."**  PORT-DEBT `effect-sprite-table` extended.  quirk #85;
+`findings/in-game-intro.md` "Townsfolk facing is a MAP field".
+
+**The remaining two residuals are RNG** → need the **game_enter RNG anchor**: the
+idle PHASE (`FUN_00426ec0`: `rs+0x72 = (rand()*clip.frame_count)>>15` — a random start
+frame in the idle clip `0x6290e0`) and the FOUNTAIN SPRAY (band `+0x13e0`/`0x493480`;
+`0x41f200`'s 8 rand draws are position-jitter + a `0x427b70` particle sub-spawn, helper
+`0x427670` 20 draws, + per-tick `0x47b990`/`0x453960`).  Next: re-pin `DAT_008a4f94` at
+`game_enter` both sides → port the spawn RNG consumers in order → 1:1.
+
 ## 2026-06-07 (ckpt 84) — the EFFECT townsfolk PORTED (positions USER-1:1); the residual pinned to RNG → Phase 2
 
 Landed the EFFECT band (the standing townsfolk in the square) positioned 1:1 vs

@@ -1,10 +1,56 @@
-# Session handoff — rolling current state (last updated ckpt 84, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 85, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 85
+
+**Townsfolk FACING is PORTED + USER-confirmed 1:1 — and it's a deterministic MAP
+field, NOT RNG (correcting the ckpt-84 guess).**  Phase-2 "matching half", first
+chip; built on the ckpt-84 census.
+
+- **Facing = the map sub-record `puVar1[4]` (RNG-free).**  Dispatcher
+  `FUN_0058d460:96` computes `cVar12 = (puVar1[4]!=0)?3:1` (1 normal / 3 mirrored)
+  and forwards it as **param_8** to the EFFECT activator `0x41f200` (`:151`) + the
+  CHARACTER activator `0x431e30` (`:227`); `0x41f200:861` stores it at render-state
+  `+0x2c`.  `FUN_0044d160` mirrors only on `facing==3`: cel `frame += flip`,
+  `off_x = mirror_x - off_x`, where `flip = *(s16)(DAT_008a8440[bank])`.  **`0x8a8440`
+  is a POINTER array** (confirmed live — each cell derefs to a heap sprite-group
+  descriptor) whose first short = the group's **frames-per-direction** (4 or 16 for
+  the town banks).  So the mirrored cel = `frame_base + frames_per_dir`.
+- **Ground truth** (live `0x493ba0` census + a new `rs_facing` field + a one-shot read
+  of `DAT_008a8440` via `runs/read_fliptable.py`): of the 11 map townsfolk **7 are
+  facing 3** (`c3be/c3dd/c3e6/c422/c42c/c441/c468`), 4 normal (`c3f2/c404/c440/e2a5`);
+  flip per bank = {0xd4:16, 0xe1:4, 0xe5:4, 0x93:16, 0x99:16, 0xa9:16, 0xd0:4, …}.
+- **Ported (898 pass, builds clean):** `TOWN_EFFECT_DEFS` gains `facing`+`flip`
+  columns; `actor_spawn_effect_def_for_code` returns them; the spawn sets
+  `rs->facing`; **`actor_spawn_effect_fill_flip_table`** fills a bank-indexed
+  stand-in for the global `DAT_008a8440`, wired in `main.c` and passed to every
+  `game_actor_walk` `actor_render_static` call.  **USER-confirmed: "npc orientation
+  matches retail yes."**  PORT-DEBT `effect-sprite-table` extended (facing+flip
+  captured; proper source = map `puVar1[4]` via the unported `0x587e00` + the
+  `DAT_008a8440` frames/dir).  quirk #85; `findings/in-game-intro.md` "Townsfolk
+  facing is a MAP field".
+- **The remaining TWO residuals are RNG → need the game_enter RNG ANCHOR:**
+  1. **Idle PHASE** — `FUN_00426ec0` sets `rs+0x72 = (rand()*clip.frame_count@+0x42)
+     >>15` (every townsperson runs the idle clip `0x6290e0` at a random start frame)
+     + a 2nd rand for the timer.  The port still spawns them clip=NULL (frozen).
+  2. **The FOUNTAIN SPRAY** (band `+0x13e0` / `0x493480`, res `0x408`) — `0x41f200`'s
+     8 rand draws are position-jitter (`:294`/`:301` → `0x426e00` `+0x58`/`+0x60`) +
+     a particle sub-spawn (`:326-334` → `0x427b70`); helper `0x427670` (20 draws) +
+     per-tick `0x47b990`/`0x453960` drive the spray.
+- **NEXT (the RNG anchor — the keystone for both):** re-pin `DAT_008a4f94` to a fixed
+  value at the `game_enter` anchor on BOTH sides (retail: a new `frida_capture`
+  re-pin at the anchor; port: re-seed in `enter_game`), then port the spawn RNG
+  consumers IN ORDER (`0x41f200` jitter → `0x426ec0` phase → `0x427670`/`0x427b70`
+  particles), `flow_diff` to localize the first divergent draw, → the idle phases +
+  fountain land 1:1.  Then the per-tick consumers + `0xe29a` wander.  Tooling:
+  `rng_consumer_census.py`, `flow_diff.py`, the `rng_state`/`rngcalls` fields,
+  `rng_tick_diff.py`.  Artifacts (ephemeral): `runs/facing-census/`,
+  `runs/read_fliptable.py`.
 
 ## Where we are — ckpt 84
 

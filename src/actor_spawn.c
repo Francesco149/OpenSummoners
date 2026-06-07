@@ -182,47 +182,78 @@ int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md)
     return pool->count;
 }
 
-/* PORT-DEBT(effect-sprite-table): the EFFECT townsfolk code -> (bank, dst, layer)
- * map, captured from the retail town-hold census (the 0x493ba0 field spec at
- * flips 1450/1500/1600 — code, row0 bank, rs +0x40/+0x44 dst, +0xfc layer).
- * Stands in for 0x41f200's per-type install switch.  All the standing town
- * villagers share the idle clip 0x6290e0 (decoded: base 0, 20 frames, dur 14,
- * loop) and draw layer 13; 0xe2a5 has its own anchor.  Banks resolve to the
- * villager sheets res 0x459/0x462/0x46a/0x46b/0x472/0x47b/0x47f (FUN_00417c40).
- * Excludes 0xe29a (RNG wanderers) + 0xc35a/0xc3dc/0xc3f0 (non-map party/script
- * spawns). */
+/* PORT-DEBT(effect-sprite-table): the EFFECT townsfolk code -> (bank, dst, layer,
+ * facing, flip) map, captured from the retail town-hold census (the 0x493ba0
+ * field spec at flips 1450/1500/1600 — code, row0 bank, rs +0x40/+0x44 dst, +0xfc
+ * layer, +0x2c facing).  Stands in for 0x41f200's per-type install switch.  All
+ * the standing town villagers share the idle clip 0x6290e0 (decoded: base 0, 20
+ * frames, dur 14, loop) and draw layer 13; 0xe2a5 has its own anchor.  Banks
+ * resolve to the villager sheets res 0x459/0x462/0x46a/0x46b/0x472/0x47b/0x47f
+ * (FUN_00417c40).  Excludes 0xe29a (RNG wanderers) + 0xc35a/0xc3dc/0xc3f0
+ * (non-map party/script spawns).
+ *
+ * facing (rs +0x2c): 1 normal / 3 mirrored.  Set by the dispatcher 0x58d460:96
+ *   cVar12 = (puVar1[4] != 0) ? 3 : 1 from the MAP sub-record puVar1[4] (NOT RNG;
+ *   built by the unported 0x587e00 decoder, so captured here, not yet map-parsed),
+ *   forwarded as param_8 to 0x41f200.  FUN_0044d160 mirrors the cel + reflects
+ *   off_x when facing==3.
+ * flip: the mirror frame offset = *(int16)(DAT_008a8440[bank]) = the sprite group's
+ *   frames-per-direction (read live from retail; mirrored cel = frame_base + flip).
+ *   Used by actor_render_describe only on the facing==3 arm. */
 static const struct {
     uint32_t code;
     uint16_t bank;
     int16_t  dstx, dsty;
     uint32_t layer;
+    int16_t  facing;   /* rs +0x2c: 1 normal / 3 mirrored                       */
+    int16_t  flip;     /* DAT_008a8440[bank] first short (frames/dir) for ==3   */
 } TOWN_EFFECT_DEFS[] = {
-    {0xc3beu, 0x0d4u, -30, -24, 13u},
-    {0xc3ddu, 0x0e1u, -30, -20, 13u},
-    {0xc3e6u, 0x0e5u, -30, -32, 13u},
-    {0xc3f2u, 0x0f0u, -30, -20, 13u},
-    {0xc404u, 0x0f9u, -30, -20, 13u},
-    {0xc422u, 0x093u, -30, -24, 13u},
-    {0xc42cu, 0x099u, -30, -24, 13u},
-    {0xc440u, 0x0a6u, -30, -20, 13u},
-    {0xc441u, 0x0a9u, -30, -20, 13u},
-    {0xc468u, 0x0d0u, -30, -20, 13u},
-    {0xe2a5u, 0x14cu, -16, -32, 13u},
+    {0xc3beu, 0x0d4u, -30, -24, 13u, 3, 16},
+    {0xc3ddu, 0x0e1u, -30, -20, 13u, 3,  4},
+    {0xc3e6u, 0x0e5u, -30, -32, 13u, 3,  4},
+    {0xc3f2u, 0x0f0u, -30, -20, 13u, 1,  4},
+    {0xc404u, 0x0f9u, -30, -20, 13u, 1,  4},
+    {0xc422u, 0x093u, -30, -24, 13u, 3, 16},
+    {0xc42cu, 0x099u, -30, -24, 13u, 3, 16},
+    {0xc440u, 0x0a6u, -30, -20, 13u, 1, 16},
+    {0xc441u, 0x0a9u, -30, -20, 13u, 3, 16},
+    {0xc468u, 0x0d0u, -30, -20, 13u, 3,  4},
+    {0xe2a5u, 0x14cu, -16, -32, 13u, 1, 16},
 };
 
 int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
-                                    int16_t *dstx, int16_t *dsty, uint32_t *layer)
+                                    int16_t *dstx, int16_t *dsty, uint32_t *layer,
+                                    int16_t *facing, int16_t *flip)
 {
     for (size_t i = 0; i < sizeof TOWN_EFFECT_DEFS / sizeof TOWN_EFFECT_DEFS[0]; i++) {
         if (TOWN_EFFECT_DEFS[i].code == code) {
-            if (bank)  *bank  = TOWN_EFFECT_DEFS[i].bank;
-            if (dstx)  *dstx  = TOWN_EFFECT_DEFS[i].dstx;
-            if (dsty)  *dsty  = TOWN_EFFECT_DEFS[i].dsty;
-            if (layer) *layer = TOWN_EFFECT_DEFS[i].layer;
+            if (bank)   *bank   = TOWN_EFFECT_DEFS[i].bank;
+            if (dstx)   *dstx   = TOWN_EFFECT_DEFS[i].dstx;
+            if (dsty)   *dsty   = TOWN_EFFECT_DEFS[i].dsty;
+            if (layer)  *layer  = TOWN_EFFECT_DEFS[i].layer;
+            if (facing) *facing = TOWN_EFFECT_DEFS[i].facing;
+            if (flip)   *flip   = TOWN_EFFECT_DEFS[i].flip;
             return 1;
         }
     }
     return 0;
+}
+
+/* Fill a bank-indexed mirror/flip table (the port stand-in for retail's global
+ * DAT_008a8440) from the town EFFECT defs: table[bank] = the sprite group's
+ * frames-per-direction, which FUN_0044d160 adds to the frame on the facing==3
+ * arm to pick the mirrored cel.  Only the town villager banks are filled (the
+ * only mirrored actors in the scene); all other banks stay 0 (no mirror).
+ * Returns the number of entries written. */
+int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n)
+{
+    if (table == NULL) return 0;
+    int written = 0;
+    for (size_t i = 0; i < sizeof TOWN_EFFECT_DEFS / sizeof TOWN_EFFECT_DEFS[0]; i++) {
+        uint16_t bank = TOWN_EFFECT_DEFS[i].bank;
+        if (bank < n) { table[bank] = TOWN_EFFECT_DEFS[i].flip; written++; }
+    }
+    return written;
 }
 
 int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
@@ -237,9 +268,11 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         if (code < ACTOR_CODE_EFFECT_LO || code > ACTOR_CODE_EFFECT_HI)
             continue;                          /* not an EFFECT object */
 
-        uint16_t bank; int16_t dstx, dsty; uint32_t layer;
-        if (!actor_spawn_effect_def_for_code(code, &bank, &dstx, &dsty, &layer))
+        uint16_t bank; int16_t dstx, dsty; uint32_t layer; int16_t facing, flip;
+        if (!actor_spawn_effect_def_for_code(code, &bank, &dstx, &dsty, &layer,
+                                             &facing, &flip))
             continue;                          /* wanderer / non-map / unknown */
+        (void)flip;                            /* lands in the render flip table */
 
         if (pool->count >= ACTOR_BAND_SLOTS)   /* "Effect Object Count Over" */
             return -1;
@@ -262,6 +295,7 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->active     = 1;                     /* +0x00 (the *param_1!='\0' gate) */
         rs->world_x    = (hdr_i32(h, HDR_OFF_X) - dstx) * 100;   /* +0x04 */
         rs->world_y    = (hdr_i32(h, HDR_OFF_Y) - dsty) * 100;   /* +0x08 */
+        rs->facing     = facing;                /* +0x2c — 1 normal / 3 mirrored */
         rs->dst_base_x = dstx;                  /* +0x40 — the render anchor */
         rs->dst_base_y = dsty;                  /* +0x44 */
         rs->clip       = NULL;                  /* +0x6c — frozen (Phase 1b animates) */

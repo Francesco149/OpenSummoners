@@ -206,6 +206,14 @@ static int              g_structs_loaded;
 static actor_spawn_pool g_effects;
 static int              g_effects_loaded;
 
+/* The actor mirror/flip table — the port stand-in for retail's global
+ * DAT_008a8440 (a bank-indexed array of sprite-group frames-per-direction that
+ * FUN_0044d160 adds to the frame on the facing==3 mirror arm).  Filled from the
+ * EFFECT defs in enter_game (only the town villager banks; all others 0 = no
+ * mirror) and passed to game_actor_walk's actor_render_static calls.  Sized to
+ * AR_SPRITE_SLOT_COUNT so any actor bank indexes in-bounds. */
+static int16_t g_actor_flip_table[AR_SPRITE_SLOT_COUNT];
+
 /* The LIVE in-game camera (the room-state's +0x104c view object).  enter_game
  * spawn-snaps it to the hold origin (camera_apply_snap → cur=tgt=128000/12800);
  * game_render steps it each frame with camera_follow_step (FUN_0043d1d0) and
@@ -1614,7 +1622,7 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
         for (int i = 0; i < g_structs.count; i++)
             struct_emitted += actor_render_static(&g_structs.actors[i],
                                                   &g_structs.states[i],
-                                                  /*flip_table=*/NULL, pool,
+                                                  /*flip_table=*/g_actor_flip_table, pool,
                                                   game_sprite_resolve, NULL);
 
     /* The EFFECT band (0x493ba0) — the standing townsfolk.  For a plain
@@ -1627,7 +1635,7 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
         for (int i = 0; i < g_effects.count; i++)
             effect_emitted += actor_render_static(&g_effects.actors[i],
                                                   &g_effects.states[i],
-                                                  /*flip_table=*/NULL, pool,
+                                                  /*flip_table=*/g_actor_flip_table, pool,
                                                   game_sprite_resolve, NULL);
 
     if (g_actors_loaded)
@@ -1635,11 +1643,11 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
             const actor *a = &g_actors.actors[i];
             if (a->code == ACTOR_CODE_PROTAGONIST)
                 emitted += actor_render_protagonist(a, &g_actors.states[i],
-                                                    /*flip_table=*/NULL, pool,
+                                                    /*flip_table=*/g_actor_flip_table, pool,
                                                     game_sprite_resolve, NULL);
             else
                 emitted += actor_render_static(a, &g_actors.states[i],
-                                               /*flip_table=*/NULL, pool,
+                                               /*flip_table=*/g_actor_flip_table, pool,
                                                game_sprite_resolve, NULL);
         }
 
@@ -2008,8 +2016,13 @@ static void enter_game(void)
          * 0xe29a + the non-map party townsfolk are deferred (RNG / Phase 2). */
         int en = actor_spawn_effect_from_map(&g_effects, &g_town.map);
         g_effects_loaded = (en > 0);
+        /* Fill the mirror/flip table so the facing==3 townsfolk pick the mirrored
+         * cel (frame_base + flip).  Faithful to retail's DAT_008a8440 global. */
+        int fn = actor_spawn_effect_fill_flip_table(g_actor_flip_table,
+                                                    AR_SPRITE_SLOT_COUNT);
         log_line("enter_game: actor_spawn_effect_from_map -> %d EFFECT townsfolk "
-                 "(standing villagers, DATA 1022; 0xe29a wanderers deferred)", en);
+                 "(standing villagers, DATA 1022; %d flip-table banks; 0xe29a "
+                 "wanderers deferred)", en, fn);
     }
 
     log_line("enter_game: 0x59ec30(0,0,0x3f2) — opening map 0x3f2 → room 210110 "
