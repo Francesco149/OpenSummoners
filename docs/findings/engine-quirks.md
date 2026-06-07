@@ -2655,3 +2655,42 @@ that replays only the `0x41f200` effect burst.  Verified live: at the first
 (armed at `game_enter`); the port re-seeds at the top of `enter_game` (mirror — all
 pre-effect-spawn code is RNG-free).  `findings/in-game-intro.md` "The town SPAWN RNG
 anchor".
+
+### #87 — the engine's PARTICLE subsystem: a 1024-slot `+0x13e0` DEVICE pool, round-robin alloc (`0x557370`), per-code config (`0x557550`) + per-tick physics (`0x46e510`), alpha-blit render (`0x493480` default arm); the fountain spray is emitter `0x112e5` → `0x18708` (2026-06-07, ckpt 88)
+
+Read end-to-end from the decompile (live capture pending).  The visible particle
+effects (fountain spray, leaves, combat hits, dust) are one subsystem distinct from the
+actor bands:
+
+- **Band.**  `DAT_008a9b50 + 0x13e0` is a **1024-slot** pool (`0x46cd70:103-112` walks it,
+  `iVar10 = 0x400`, calling `0x46e510` per active slot).  Slots reuse the actor render-
+  state shape (`+0x40`→record: `+4/+8` world x/y, `+0x18`/`+0x28` y/x velocity, `+0x2c`
+  facing, `+0x58` sub-phase, `+0x5c` lifetime, `+0x6c/+0x70/+0x72/+0x74` clip/anim,
+  `+0x1d0` active, `+0x1d4` code, `+0x280` age/priority).
+- **Alloc** `0x557370`: round-robin to the first free slot (`+0x1d0==0`, cursor
+  `*(mapctl+0xce) & 0x3ff`); on full, evict the oldest (lowest `+0x280`) below the
+  caller's priority.  Position is parent-relative by anchor mode (1=center / 2=top /
+  3=center-top / 4=center-bottom), then → `0x557550`.
+- **Config** `0x557550` (a 21 KB per-code switch).  Each particle CODE installs its bank/
+  frame (`0x426d70`), clip (`0x407b80`), optional launch-velocity scatter (`0x453960`, 2
+  draws), and body (`0x426620`).  The fountain droplets are bank **`0x1aa`** (res `0x408`):
+  `0x18708` frame 6 (main water), `0x18704` frame 8 (upward), `0x18707` frame 8, `0x18709`
+  frame 0.  `0x186ca` is a sprite-less controller (timer `+0x96=0x3c`).
+- **Per-tick** `0x46e510` (a 10.7 KB switch on `+0x1d4`): integrate `x += ±vel/100`,
+  `y += vel_y/100`; age the y-velocity toward a clamp (gravity — `0x18708` +8000/tick→
+  down, `0x18704` −500/tick→up); cycle the clip; fade via the alpha LUT `&DAT_008a9308`
+  into `in_ECX+0xf4/+0xf8`; expire on lifetime or a collision-grid hit
+  (`(x,y)/0xc80 → mapctl+0x21c04`).
+- **Render** `0x493480` (the `+0x13e0` renderer, from `0x48c150`): the **default arm**
+  (`:93-117`) is `0x44d160` describe → `0x4917b0` **ALPHA-blit** (clipped/translucent —
+  NOT the keyed `0x5b9b70` opaque path; a new sink the port lacks).  The `0x186ca` arm
+  is a separate horizontal cel-string renderer (the controller, not a particle).
+
+**The fountain.**  The emitter is the fountain prop **`0x112e5`** (CHARACTER `+0x11e0`,
+already spawned — quirk #80), whose per-tick behaviour `0x54f980:218` spawns one `0x18708`
+droplet each primary sim-tick (2 RNG for spread + ~2 for sound).  The spray is therefore a
+**continuous per-tick RNG consumer**, NOT gated by the scene-lock `+0x27a8` (so it runs
+during the establishing hold).  Corrects the ckpt-84 census guess that the spray "lives in
+`0x47b990`/`0x453960`" — `0x47b990` is the `+0x1160` behaviour/AI dispatcher (no fountain
+code), `0x453960` is a generic 2-draw scatter helper.  `findings/in-game-intro.md` "The
+FOUNTAIN SPRAY".

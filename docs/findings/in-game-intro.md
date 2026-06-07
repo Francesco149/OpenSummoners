@@ -2432,3 +2432,81 @@ census draw counts + decompile shapes + decoded clip + host test), but the live 
 cross-check of `+0x72` per townsperson vs retail has not run.  Cleanest: a `0x426ec0`
 onLeave field read (the field-spec is onEnter-only today) or render_diff at a matched
 sim-tick.
+
+### The FOUNTAIN SPRAY — the particle subsystem RE'd (ckpt 88, Chip 3)
+
+Chip 3 of the in-game-intro arc: the purple/blue/white water spray erupting from the
+fountain (+ leafy particles), the last visible-but-missing element of the establishing
+scene.  This is a full RE of the engine's **particle subsystem** — read end-to-end from
+the decompile; the live ground-truth capture + parity bar are the next step.
+
+**Corrects the ckpt-84 census misattribution.**  The RNG census guessed "the FOUNTAIN
+SPRAY lives in `0x47b990`/`0x453960`".  Read at the byte level, `0x47b990` is the
+**`+0x1160` EFFECT-band behaviour/AI dispatcher** (player aura, the `0xe29a` wander,
+`0xc35a`…) keyed on `+0x1d4`; it does **not** handle any fountain code.  `0x453960` is a
+generic **2-draw scatter helper** (`rs[+0x18]=rand_range(p3,+p4)`, `rs[+0x28]=
+rand_range(p1,+p2)`), used by many particle spawns — not the fountain owner.  The census
+counted RNG draws by function and lumped these in; the real owners are below.
+
+**The architecture (5 parts).**
+1. **The band.**  `DAT_008a9b50 + 0x13e0` is the **DEVICE / particle pool — 1024 slots**
+   (`0x46cd70:103` walks `0x13e0` for `iVar10=0x400`).  Each slot is a render-state-style
+   record (the same `+0x40`→sub-record shape as actors: `+4/+8` world x/y, `+0x18`/`+0x28`
+   velocity, `+0x2c` facing, `+0x5c` lifetime counter, `+0x58` sub-phase, `+0x6c` clip,
+   `+0x70/+0x72/+0x74` anim, `+0x1d4` code, `+0x1d0` active, `+0x280` age/priority).
+2. **The emitter** = the **fountain prop `0x112e5`** (a CHARACTER, `+0x11e0` band —
+   **already spawned by the port since ckpt-79**, bank `0x16c` res `0x403` frame 36, at
+   map pos `+0/+0`).  Its per-tick behaviour `0x54f980` **case `0x112e5`** (`:218-235`):
+   when primary (`param_3==0`) and not paused (`in_ECX[3]!=1`), every sim-tick it draws
+   2 LCG values (`y = (rand*400>>15) - 3000`; `x = (rand*800>>15) - 400`) and calls
+   `0x557370(this, 0x18708, parent, x, y, 99, 1, 0,0,2,…)` to spawn one **`0x18708`**
+   water droplet, then draws ~2 more for a splash sound.  (The neighbouring `0x112e2`
+   case `:150-172` spawns `0x18704` every 6th tick — a second emitter; confirm live which
+   are active in the town.)
+3. **The allocator** `0x557370` (452 B): round-robin scan of the 1024 `+0x13e0` slots for
+   a free one (`+0x1d0==0`, index `*(mapctl+0xce) & 0x3ff`); if none, evict the lowest-
+   `+0x280` (oldest) slot below the caller's priority `param_13`.  Computes the spawn
+   position parent-relative by anchor mode `param_7` (1=center, 2=top, 3=center-top,
+   4=center-bottom), then `0x557550(code, x, y, …)`.
+4. **The config** `0x557550` (21 KB, a per-code switch — the DEVICE activator).  Fountain
+   cases install bank **`0x1aa`** (= res **`0x408`**, the census bank):
+   - **`0x18708`** (`:670`): `0x426d70(0,0x1aa,6)` frame 6 + clip `&DAT_006449c0` +
+     `0x4385c0(DAT_008a9330)`.  No velocity scatter (velocity comes from the stepper's
+     gravity).  **The main fountain water.**
+   - **`0x18704`** (`:630`): frame 8 + clip `&DAT_00644b58` + `0x453960(-10000,5000,
+     -1000,1000)` → launch `rs[+0x28]∈[-10000,-5000)`, `rs[+0x18]∈[-1000,0)` (upward).
+   - **`0x18707`** (`:661`): frame 8 + clip `&DAT_00644cf0` + `0x453960(-25000,10000,
+     -5000,10000)`.  **`0x18709`** (`:676`): frame 0 + clip `&DAT_00644e88` + `rs[+0x58]=
+     rand%2` (a leaf?).  All bank `0x1aa`.
+   - `0x186ca` (`:37`) is an **invisible controller** (no sprite; sets timer `+0x96=0x3c`,
+     `rs[+0x28]=8000`) — distinct from the visible droplets.
+5. **The per-tick stepper** `0x46e510` (10.7 KB, called once/slot from `0x46cd70:107`): a
+   giant switch on `+0x1d4` with per-type physics.  Common shape: integrate
+   `rs[+4] += ±rs[+0x28]/100` (x, signed by facing `+0x2c`), `rs[+8] += rs[+0x18]/100`
+   (y), age `rs[+0x18]` toward a clamp (gravity), advance/fade the clip via the alpha LUT
+   `&DAT_008a9308[phase]` into `in_ECX+0xf4/+0xf8`, and expire (`*pcVar3=0` free, or
+   `0x556180`) on lifetime or a collision-grid hit (`(x/0xc80,y/0xc80)` → `mapctl+0x21c04`).
+   - **`0x18708`** (`:529`): `rs[+0x18] = min(rs[+0x18]+8000, 80000)` (accelerate DOWN),
+     x/y integrate, cycle 8 frames (`+0x58`), expire on water/ground grid hit.
+   - **`0x18704`** (`:683`): `rs[+0x18] = max(rs[+0x18]-500, -5000)` (decelerate UP),
+     integrate, fade after lifetime `+0x5c > 0x28`.
+6. **The render** `0x493480` (the `+0x13e0` band renderer, called from `0x48c150`).  For a
+   plain particle it takes the **default (`else`) arm** `:93-117`: `0x44d160` describe →
+   `0x4917b0` **alpha-blit** (NOT the keyed `0x5b9b70` path the port uses for opaque
+   actors — particles are alpha/clipped; this is a new sink for the port).  The `0x186ca`
+   arm `:33-91` is a separate horizontal-cel-string renderer (the controller), not a
+   single particle.
+
+**Scope / parity question (drives the next step).**  The emitter draws RNG **every
+sim-tick, continuously** (≈2-4 draws/tick + per-particle draws).  The establishing-hold
+gates the wander RNG via the scene-lock `*(0x8a9b50+0x27a8)==0`, but the fountain case is
+**NOT** gated on it (so the spray runs during the hold — consistent with the USER seeing
+it).  Whether the per-tick fountain stream is deterministic run-to-run under the ckpt-86
+re-pin (quirk #77's per-present desync vs the deterministic sim-tick clock during the
+locked hold) is the **open question that sets the parity bar** (bit-exact vs
+"data-1:1 given a matched RNG state").  **Verify live next** (two seed-pinned retail runs,
+compare `+0x13e0` particle positions tick-for-tick) before porting — do not guess.
+
+**Clips to decode from the exe** (like the wagon `0x671c48` / idle `0x6290e0`):
+`&DAT_006449c0` (0x18708), `&DAT_00644b58` (0x18704), `&DAT_00644cf0` (0x18707),
+`&DAT_00644e88` (0x18709); + the alpha LUTs `&DAT_008a9308` / `&DAT_008a92e0`.
