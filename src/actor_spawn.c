@@ -362,6 +362,85 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
     return pool->count;
 }
 
+/* PORT-DEBT(cutscene-cast): the town-intro cutscene 0x4d7d80 (case 0x334be)
+ * spawns the arriving party IN FRONT of the wagon, anchor-relative to it
+ * (anchor 0x65) via 0x41f0e0 -> 0x41f200: 0xc3f0 by code + two
+ * 0x5f5e1dx HANDLE actors resolved through the dramatist table DAT_006b6ea8
+ * (the party/new-game system the port lacks).  Their RESOLVED render-states are
+ * captured here from the settled-town 0x493ba0 census (runs/cutscene-cast, flip
+ * 2400): code / bank / dst (+0x40/+0x44) / facing (+0x2c) / world pos (+0x04/+0x08)
+ * / idle-clip phase (+0x72).  Stands in for the cutscene spawn + the handle
+ * resolution.  The 0xc35a actor is drawn twice in retail (one overdraw); spawned
+ * once here.  The 0xc35a clip is 0x62a8c8 (un-decoded) -> IDLE_CLIP stand-in.
+ * NOTE positions are the captured SETTLED absolutes; the faithful source is the
+ * wagon anchor + per-char offset (0x6400 / 8000 / -3200), deferred with the
+ * wagon roll-in (actor-protagonist-clip).  facing==3 banks need their flip value
+ * (DAT_008a8440[bank], an in-scene read) for the mirror cel — provisional 0 here
+ * (refine). */
+static const struct {
+    uint32_t code;
+    uint16_t bank;
+    int16_t  dstx, dsty;
+    uint32_t layer;
+    int16_t  facing;        /* rs +0x2c: 1 normal / 3 mirrored                 */
+    int16_t  flip;          /* DAT_008a8440[bank] frames/dir (in-scene read)   */
+    int32_t  world_x, world_y;
+    uint16_t clip_frame;    /* rs +0x72: the captured idle-clip start phase    */
+} CUTSCENE_CAST_DEFS[] = {
+    /* 0xc35a is a PLAYER-PARTY character: bank 0x8b is NOT in game_sprites[]
+     * (it registers through the unported party/character loader), so it CULLS
+     * (game_sprite_resolve -> NULL) until that bank is registered — PORT-DEBT.
+     * The little girl is a second party actor (a different band, not in the
+     * 0x493ba0 EFFECT census).  The two town NPCs 0xc3dc/0xc3f0 (banks 0xe3/0xeb,
+     * registered) DO render; flip 4 (the in-scene DAT_008a8440 read) gives them
+     * the correct facing==3 mirror cel. */
+    {0xc35au, 0x08bu, -30, -24, 13u, 1, 152, 41600, 45600,  1},
+    {0xc3dcu, 0x0e3u, -30, -20, 13u, 3,   4, 49600, 43600, 13},
+    {0xc3f0u, 0x0ebu, -30, -20, 13u, 3,   4, 67200, 43600,  0},
+};
+
+/* Append the cutscene party cast to an already-filled EFFECT pool (g_effects,
+ * after actor_spawn_effect_from_map).  Does NOT memset — it extends the pool.
+ * Also writes each cast bank's mirror/flip value into `flip_table` (the port
+ * stand-in for DAT_008a8440) so the facing==3 cast pick the mirrored cel; pass
+ * the same table actor_spawn_effect_fill_flip_table filled (NULL to skip).
+ * Returns the number spawned (-1 on bad arg). */
+int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_t flip_n)
+{
+    if (pool == NULL) return -1;
+    int spawned = 0;
+    for (size_t i = 0; i < sizeof CUTSCENE_CAST_DEFS / sizeof CUTSCENE_CAST_DEFS[0]; i++) {
+        if (pool->count >= ACTOR_BAND_SLOTS) return spawned;   /* pool full */
+        int slot = pool->count++;
+        actor              *a  = &pool->actors[slot];
+        actor_render_state *rs = &pool->states[slot];
+
+        a->code  = CUTSCENE_CAST_DEFS[i].code;
+        a->dir   = 0;
+        a->layer = CUTSCENE_CAST_DEFS[i].layer;
+        a->sprite_table[0].bank       = CUTSCENE_CAST_DEFS[i].bank;
+        a->sprite_table[0].frame_base = 0;
+
+        rs->active     = 1;
+        rs->world_x    = CUTSCENE_CAST_DEFS[i].world_x;
+        rs->world_y    = CUTSCENE_CAST_DEFS[i].world_y;
+        rs->facing     = CUTSCENE_CAST_DEFS[i].facing;
+        rs->dst_base_x = CUTSCENE_CAST_DEFS[i].dstx;
+        rs->dst_base_y = CUTSCENE_CAST_DEFS[i].dsty;
+        rs->clip       = &IDLE_CLIP;            /* breathe like the townsfolk */
+        rs->timer      = 0;
+        rs->frame      = CUTSCENE_CAST_DEFS[i].clip_frame;
+        rs->done       = 0;
+
+        if (flip_table != NULL) {
+            uint16_t bank = CUTSCENE_CAST_DEFS[i].bank;
+            if (bank < flip_n) flip_table[bank] = CUTSCENE_CAST_DEFS[i].flip;
+        }
+        spawned++;
+    }
+    return spawned;
+}
+
 /* The caravan's idle clip — reconstructed from &DAT_00671c48 (the clip pointer
  * the 0x431e30 case-0x1872d arm installs; read from the user's sotes.exe .rdata
  * for analysis): base_sprite 2, 4 frames, 18 sim-ticks/frame, LOOPING, per-frame

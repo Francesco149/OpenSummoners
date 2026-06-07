@@ -191,6 +191,16 @@ int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
  * `n` is the table length (banks >= n are skipped).  Returns entries written. */
 int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n);
 
+/* Append the town-intro cutscene party cast (the script-spawned characters
+ * standing in front of the wagon: 0xc35a/0xc3dc/0xc3f0, spawned by 0x4d7d80
+ * via the anchor-relative 0x41f0e0) to an already-filled EFFECT pool, AFTER
+ * actor_spawn_effect_from_map.  Captured render-states (PORT-DEBT cutscene-cast);
+ * rendered by the same actor_render_static path as the townsfolk (layer 13).
+ * Also writes each cast bank's facing==3 mirror/flip value into `flip_table`
+ * (the DAT_008a8440 stand-in; pass the same one actor_spawn_effect_fill_flip_table
+ * filled, or NULL to skip).  Returns the number spawned (-1 on NULL pool). */
+int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_t flip_n);
+
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a
  * map CHARACTER object (its code is outside 70000..79999); it is spawned by the

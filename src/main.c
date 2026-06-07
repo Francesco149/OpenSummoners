@@ -2179,6 +2179,18 @@ static void enter_game(void)
                  "(standing villagers, DATA 1022; %d flip-table banks; 0xe29a "
                  "wanderers deferred)", en, fn);
 
+        /* The town-intro cutscene cast (0x4d7d80 -> 0x41f0e0): the arriving party
+         * characters standing in front of the wagon (0xc35a/0xc3dc/0xc3f0),
+         * appended to the EFFECT pool so they render via the same layer-13 path.
+         * PORT-DEBT(cutscene-cast): captured settled render-states. */
+        if (g_effects_loaded) {
+            int cn = actor_spawn_cutscene_cast(&g_effects, g_actor_flip_table,
+                                               AR_SPRITE_SLOT_COUNT);
+            log_line("enter_game: actor_spawn_cutscene_cast -> %d cutscene party "
+                     "characters (in front of the wagon; 0xc35a/party deferred — "
+                     "bank 0x8b unregistered)", cn);
+        }
+
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):
          *   - the FOUNTAIN 0x112e5 (bank 0x16c frame 36) emits 0x18708 water every

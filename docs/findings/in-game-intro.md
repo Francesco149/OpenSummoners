@@ -2677,6 +2677,24 @@ arriving party via `FUN_0041f0e0` (a by-code/by-handle spawn helper, distinct fr
 These are the story/party characters arriving with the caravan (the ckpt-83 "`0xc3f0`/`0xc35a`/
 `0xc3dc` are script/party-spawned, not in the map" note).  PORT path: the cutscene-spawn helper
 `0x41f0e0` (+ the `0x5f5e1dx` handle resolution) → render via the existing actor machinery
-(`0x493ba0`/`0x44d160`, already ported).  Tracked as a NEXT chip (PORT-DEBT — town-intro
-cutscene cast).  NB the wagon was the FIRST `0x4d7d80` spawn we ported (ckpt 80); the party
-spawns are the rest of the same cutscene.
+(`0x493ba0`/`0x44d160`, already ported).  NB the wagon was the FIRST `0x4d7d80` spawn we
+ported (ckpt 80); the party spawns are the rest of the same cutscene.
+
+**PORTED (ckpt 90, partial) — `actor_spawn_cutscene_cast` (`src/actor_spawn.c`).**  Appends
+the 3 EFFECT-band script spawns (`0xc35a`/`0xc3dc`/`0xc3f0`) to `g_effects` after the
+townsfolk, captured from the settled census (`runs/cutscene-cast`, flip 2400): world pos /
+bank / dst / facing / idle phase, rendered by the same `actor_render_static` (layer 13).
+**Outcome (USER-reviewed):**
+- **`0xc3dc` (bank `0xe3`) + `0xc3f0` (bank `0xeb`) RENDER** — the two town-NPC members
+  (near the wagon/horse).  Their facing==3 was initially wrong (mirror flip 0); fixed with
+  the in-scene `DAT_008a8440[bank]` read (`flip = 4` for both; chain-field capture
+  `runs/flip-probe`).  USER-confirmed the 2 appear; facing corrected.
+- **`0xc35a` (bank `0x8b`) CULLS** + the **little girl is absent** — these two are the
+  **PLAYER-PARTY characters** (the "woman + little girl on the wagon", USER).  `0xc35a`'s
+  bank `0x8b` is NOT in `game_sprites[]` (`ar_register_game_sprites`) — it registers through
+  the unported party/character loader, so `game_sprite_resolve` returns NULL and the actor
+  culls; the little girl isn't an EFFECT actor at all (a different band — the party renderer
+  `0x4997b0` / `0x560e60`).  Confirmed via a port emit probe (`emitted=0` for `0xc35a`, =1
+  for the other two).  **DEFERRED — PORT-DEBT(cutscene-party-chars):** rendering the woman +
+  girl needs the party-character bank registration (+ likely the party render path), a
+  separate arc from the town-NPC EFFECT spawn.  `911 pass`.
