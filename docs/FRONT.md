@@ -9,7 +9,38 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 87): the townsfolk IDLE ANIMATION PHASE is PORTED — they now breathe
+- **LATEST (ckpt 88): the FOUNTAIN SPRAY particle subsystem is RE'd end-to-end + live
+  ground-truthed + clips decoded — Chip 3, the port is the next concrete step.** RE
+  milestone (no port code yet). **The architecture (engine-quirk #87, decompile + the
+  ckpt-86 capture):** the `+0x13e0` DEVICE band is a **1024-slot particle pool** —
+  alloc `0x557370` (round-robin free-slot / evict-oldest) → config `0x557550` (per-code,
+  bank `0x1aa`=res `0x408`) → per-tick physics `0x46e510` (gravity/integrate/clip/fade/
+  expire, a switch on `+0x1d4`) → render `0x493480` **default arm** via the **alpha-blit
+  `0x4917b0`** (brightness `actor+0xf4`; a sink the port has infra for via
+  `zdd_alpha_blit`/the `0x8a9308` ramps). The emitters are CHARACTER props already
+  spawned by the port (ckpt 79): the fountain `0x112e5` (`0x54f980:218`) spawns one
+  **`0x18708`** water droplet each primary sim-tick; **`0x112e2`** (`:150`) spawns a
+  **`0x18704`** sky particle every 6th tick. **Live ground truth (run A
+  `runs/rng-census-repin`, `0x493480` 5924 calls):** `0x18708` = the fountain water (clip
+  `0x6449c0` base0/count2/dur2/loop{0,1}, frame_base 6, layer 11, a tight ~158px column
+  at the fountain x≈1772, falling); `0x18704` = wide sky ambient (clip `0x644b58`
+  base0/count6/dur20/ONESHOT, frame_base 8, layer 6, x 507-1143); ~58-69 particles alive/
+  frame. **Parity bar (corrects my first mis-read + refines quirk #77):** filtered to
+  `va==0x5bf505`, the hold LCG is a REGULAR per-sim-tick stream (238 spawn + period-6
+  `[6,14,6,14,14,14]`) consumed only by per-sim-tick updaters
+  (`0x54f980`/`0x47b990`/`0x453960`) — the render draws NO LCG. In `--lockstep` (1
+  present/tick) there is no per-present variance, so under the re-pin the spray is
+  **bit-exact portable, CONTINGENT on reproducing the per-tick consumption ORDER**
+  (entangled with the co-resident consumers `0x47b990`/other `0x54f980` cases — the
+  broader Phase 2). **898 pass, ledger 199/194 unchanged** (RE + docs only). quirk #87;
+  `findings/in-game-intro.md` "The FOUNTAIN SPRAY". **NEXT (Chip 3 port):** a `particle.
+  {c,h}` subsystem (1024-slot pool + `0x557370` alloc + `0x557550` `0x18708`/`0x18704`
+  config + `0x46e510` step) + the emitter arms in `game_actor_update` + the `0x493480`
+  alpha render in `game_actor_walk`; host-test the pure pieces, then visual-verify the
+  fountain water on the feed (frame-exact RNG = Phase-2 debt). One open detail to resolve
+  in the port: `0x18708`'s observed 158px x-span vs the ±4px spawn offset + apparent
+  vel_x=0 (a 2nd emitter, a wider body, or a mis-read velocity — re-check at port time).
+- **Prior (ckpt 87): the townsfolk IDLE ANIMATION PHASE is PORTED — they now breathe
   from a per-actor RNG start frame instead of frozen on frame 0.** Builds on the ckpt-86
   anchor; the first user-visible payoff of the spawn-RNG arc. **The model (engine-quirk
   #86, decompile- + census-verified):** for each of the 15 map EFFECT objects in

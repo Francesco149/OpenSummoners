@@ -1,10 +1,80 @@
-# Session handoff — rolling current state (last updated ckpt 87, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 88, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 88
+
+**The FOUNTAIN SPRAY particle subsystem is RE'd end-to-end, live-ground-truthed, and
+its clips decoded** — Chip 3 of the in-game-intro arc.  RE milestone; no port code yet,
+the port is the next concrete step.  All durable in `findings/in-game-intro.md` "The
+FOUNTAIN SPRAY" + engine-quirk #87.
+
+- **The architecture (5 parts, decompile-read).**  The `+0x13e0` DEVICE band is a
+  **1024-slot particle pool** (`0x46cd70:103` walks it, calls `0x46e510` per slot):
+  1. **alloc** `0x557370` — round-robin to the first free slot (`+0x1d0==0`, cursor
+     `& 0x3ff`), else evict the oldest (lowest `+0x280`); position parent-relative by
+     anchor mode (1=center/2=top/3=center-top/4=center-bottom).
+  2. **config** `0x557550` (a 21 KB per-code switch) — installs bank/frame (`0x426d70`),
+     clip (`0x407b80`), optional launch-velocity scatter (`0x453960`, 2 draws), body
+     (`0x426620`).
+  3. **per-tick** `0x46e510` (10.7 KB switch on `+0x1d4`) — integrate `x += ±vel/100`
+     (signed by facing `+0x2c`), `y += vel_y/100`; age vel_y toward a clamp (gravity);
+     cycle the clip; fade via the alpha LUT `&DAT_008a9308` into `actor+0xf4/+0xf8`;
+     expire on lifetime or a collision-grid hit (`(x,y)/0xc80 → mapctl+0x21c04`).
+  4. **render** `0x493480` default arm — `0x44d160` describe → `0x4917b0` **ALPHA-blit**
+     (brightness `actor+0xf4`).  (Its `0x186ca` arm is a separate cel-string renderer,
+     not a particle.)
+  5. **emitters** = CHARACTER props the port ALREADY spawns (ckpt 79): the fountain
+     `0x112e5` (`0x54f980:218`) spawns one **`0x18708`** water droplet each primary
+     sim-tick; `0x112e2` (`:150`) spawns a **`0x18704`** sky particle every 6th tick.
+- **Live ground truth (run A `runs/rng-census-repin`, `0x493480` 5924 render calls; both
+  bank `0x1aa`=res `0x408`).**
+  - `0x18708` — fountain WATER: clip `0x6449c0` (base0/count2/dur2/loop {0,1}), frame_base
+    6, **layer 11**, a tight ~158px column at the fountain (x 1697-1855, center ~1772,
+    denser at top y≈357 → falling to y≈461).
+  - `0x18704` — SKY ambient: clip `0x644b58` (base0/count6/dur20/ONESHOT {0,1,2,3,4,5}),
+    frame_base 8, **layer 6**, wide upper area (x 507-1143, y ≈ -17..184).  A separate
+    system from the fountain.
+  - ~58-69 particles alive/frame.  Clips decoded from the exe (decoder validated vs
+    IDLE_CLIP, exact).
+- **Parity bar (corrects a first mis-read; refines quirk #77).**  Filtered to the actual
+  LCG (`va==0x5bf505`; an earlier histogram wrongly included the blit hooks), the hold
+  stream is REGULAR per-sim-tick — 238 at the spawn tick (#86) then a period-6 cycle
+  `[6,14,6,14,14,14]` consumed only by per-sim-tick updaters
+  (`0x54f980`/`0x47b990`/`0x453960`, the last ≈1 particle spawn/tick).  **The render
+  draws NO LCG.**  In `--lockstep` (1 present/tick = the port's cadence) there is no
+  per-present variance, so under the re-pin the spray is **bit-exact portable, CONTINGENT
+  on reproducing the per-tick consumption ORDER** — entangled with the co-resident
+  consumers (`0x47b990` wander + other `0x54f980` cases), i.e. the broader Phase 2.  A
+  second seed-pinned run to prove run-to-run determinism is blocked on the title→town
+  input automation; settle it directly at verification (render_diff vs retail).
+- **NEXT (Chip 3 — the port).**
+  1. **`src/particle.{c,h}` (pure, host-tested).**  A 1024-slot pool (reuse the
+     `actor`/`actor_render_state` logical structs; extend the render-state with the
+     particle fields `vel_y`+0x18 / `vel_x`+0x28 / `sub_phase`+0x58 / `life`+0x5c —
+     it has NO offset asserts, so add freely).  `particle_alloc` = `0x557370`,
+     `particle_spawn` = `0x557550` cases `0x18708`/`0x18704` (embed the two clips),
+     `particle_step` = `0x46e510` cases `0x18708`/`0x18704`.
+  2. **Emitter arms** — the `0x112e5`/`0x112e2` cases of `0x54f980` (spawn into the
+     particle pool each sim-tick), wired into `main.c game_actor_update` (after the
+     existing g_actors/g_effects clip advance) — they draw RNG via `rng_rand`.
+  3. **Render** — extend `game_actor_walk` to walk the particle pool through the
+     `0x493480` default arm; add the alpha emit/present path (the port has
+     `zdd_alpha_blit` + the `0x8a9308` ramps + `init_alpha_ramps`).  Start with the
+     fountain water `0x18708` (the clear visual target); add `0x18704` after.
+  4. **Verify** — build, push the fountain to the feed, USER visual-verify; render_diff
+     vs a re-pinned retail capture at a matched sim-tick.  Frame-exact RNG = Phase-2 debt
+     (PORT-DEBT; needs the co-resident consumers).
+  - **Open detail to resolve at port time:** `0x18708`'s observed 158px x-span vs the
+    ±4px spawn offset + apparent vel_x=0 in `0x46e510` case `0x18708` — re-check the
+    velocity source (a 2nd emitter, a wider body, or a decompile mis-read).
+- Artifacts: `runs/rng-census-repin/` (run A — the `0x493480`/`0x5bf505` capture mined
+  for the ground truth above); the clip decoder is a one-liner over
+  `vendor/original/sotes.unpacked.exe` at file offset `VA-0x400000`.
 
 ## Where we are — ckpt 87
 

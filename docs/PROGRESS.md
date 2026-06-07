@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 88) — the FOUNTAIN SPRAY particle subsystem RE'd + live-ground-truthed + clips decoded (Chip 3, RE milestone)
+
+Read the engine's particle subsystem end-to-end and ground-truthed the fountain from
+the existing ckpt-86 capture; no port code yet (the port is the next chip).
+
+**Architecture (engine-quirk #87).**  The `+0x13e0` DEVICE band is a 1024-slot particle
+pool: alloc `0x557370` (round-robin free-slot / evict-oldest, parent-relative position)
+→ config `0x557550` (per-code switch; fountain codes install bank `0x1aa`=res `0x408`)
+→ per-tick physics `0x46e510` (gravity / integrate / clip / alpha-fade / expire) →
+render `0x493480` default arm via the alpha-blit `0x4917b0`.  The emitters are CHARACTER
+props the port already spawns (ckpt 79): the fountain `0x112e5` (`0x54f980:218`) emits a
+`0x18708` water droplet each primary sim-tick; `0x112e2` (`:150`) emits a `0x18704` sky
+particle every 6th tick.
+
+**Live ground truth + clips.**  Mined run A (`runs/rng-census-repin`, `0x493480` 5924
+render calls): `0x18708` = fountain water (clip `0x6449c0` base0/count2/dur2/loop {0,1},
+frame_base 6, layer 11, a ~158px column at the fountain, falling); `0x18704` = wide sky
+ambient (clip `0x644b58` base0/count6/dur20/oneshot, frame_base 8, layer 6).  ~58-69
+particles alive/frame.  Clips decoded from the exe (decoder validated vs IDLE_CLIP).
+
+**Parity bar (refines quirk #77).**  Filtered to the actual LCG (`va==0x5bf505`), the
+hold stream is regular per-sim-tick (238 spawn + period-6 `[6,14,6,14,14,14]`), consumed
+only by per-sim-tick updaters; the render draws no LCG.  In `--lockstep` (1 present/tick)
+there is no per-present variance, so under the re-pin the spray is bit-exact portable —
+contingent on reproducing the per-tick consumption ORDER (entangled with the co-resident
+consumers, the broader Phase 2).  Corrects a first mis-read that wrongly attributed
+"render-pass RNG bursts" (those were blit hooks, not the LCG).
+
+Commits: the architecture writeup (`4748468`), the ground truth + clips (`3480b53`).
+`findings/in-game-intro.md` "The FOUNTAIN SPRAY"; engine-quirk #87.  898 pass, ledger
+199/194 unchanged (RE + docs only).  **NEXT:** the `particle.{c,h}` port (pool + alloc +
+config + step), the `0x112e5`/`0x112e2` emitter arms in `game_actor_update`, the
+`0x493480` alpha render in `game_actor_walk`; host-test, then USER visual-verify the
+fountain water (frame-exact RNG = Phase-2 debt).
+
 ## 2026-06-07 (ckpt 85) — townsfolk FACING ported + USER-1:1 (a MAP field, NOT RNG); idle phase + fountain pinned to RNG
 
 Phase-2 "matching half", first chip.  RE'd the three ckpt-84 RNG residuals and
