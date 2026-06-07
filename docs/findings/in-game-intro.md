@@ -2698,3 +2698,37 @@ bank / dst / facing / idle phase, rendered by the same `actor_render_static` (la
   for the other two).  **DEFERRED — PORT-DEBT(cutscene-party-chars):** rendering the woman +
   girl needs the party-character bank registration (+ likely the party render path), a
   separate arc from the town-NPC EFFECT spawn.  `911 pass`.
+
+### The PARTY-character render path is SCOPED — it reuses `0x493ba0` (ckpt 90)
+
+USER directive: render the woman + little girl (the player party).  Scoped, not yet ported.
+
+- **The party renderer `FUN_004997b0` (150 B) is tiny and reuses the EFFECT renderer.**  It
+  walks the **8 party actors** at `room_state+0x4030` (`i=7..0`); for each active one
+  (`+0x9c4==1` && `+0x9f4!=0`, skipping the leader `+0x200c`) it calls **`FUN_00493ba0`** —
+  the SAME multi-part char renderer the townsfolk + cutscene cast use (the port already
+  reuses it as `actor_render_static`).  `param_2!=0` renders just the leader `+0x200c`.  The
+  8 party slots are reset by `FUN_00560e60` (42 B) at `0x59f578` inside `game_enter`
+  (`0x59f2c0`).  So the party RENDER side is mostly in hand; the work is the SPAWN (where the
+  party actors + their banks come from) + wiring `0x4997b0` into the walk.
+- **The two front-of-wagon characters (golden crop confirmed = a tall WOMAN in red + a short
+  GIRL in pink holding a slate):**
+  - **The woman** is the single keyed-blit (`0x5b9b70`) character at the wagon front:
+    **res `0x477` frame 5, 40×89, screen dx≈234** (`runs/party-res`, flip 2240).  A plain
+    opaque cel → renders fine once her sheet is registered.
+  - **The little girl** has **NO keyed blit** at the wagon front — she renders via a richer
+    path (alpha/shadow/multi-part, i.e. the protagonist drawn by `0x4997b0`→`0x493ba0`), which
+    is why she's absent from the keyed-blit trace.  She IS the controllable-character actor.
+- **Bank registration is the real blocker + has a MISMATCH to resolve.**  Banks register from
+  `game_sprites[]` (`ar_register_game_sprites`); the rendering NPC banks are there as full
+  character entries (`0xe3`→res `0x479` 0x50×0x60 type 2; `0xeb`→`0x79f`).  But the census
+  bank for `0xc35a` (`row0`=`0x8b`) maps to a SHORT-form `{139, 0x4fb, …}` (res `0x4fb`, not
+  the rendered `0x477`) — so `0x8b` is NOT the woman's render bank; `0xc35a`'s `+0x48` is a
+  multi-part/party indirection, and the true bank is whichever `game_sprites[]` id = `0x477`.
+  **NEXT (the party arc):** (1) find the bank whose `game_sprites[]` id = `0x477` (the woman)
+  + confirm it's registered → spawn her with it (she's already in `g_effects`, just culling on
+  the wrong bank); (2) RE the party SPAWN (`0x560e60`-reset slots at `room_state+0x4030`, filled
+  during `0x59f2c0` game_enter) + wire `0x4997b0` into `game_actor_walk` for the little girl /
+  protagonist; (3) register the protagonist's sheet.  PORT-DEBT(cutscene-party-chars).  This is
+  the gateway to the controllable-character milestone (Phase C).  Artifacts: `runs/party-res`
+  (the keyed-blit res capture), `runs/cutscene-cast` (the EFFECT census), `runs/flip-probe`.

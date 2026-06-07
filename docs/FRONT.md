@@ -9,7 +9,36 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 89): the SKY-AMBIENT particles (`0x18704` = CHIMNEY SMOKE) are PORTED +
+- **LATEST (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
+  (a fade-grid, NOT the letterbox) and the town-intro cutscene NPCs are PORTED; the woman +
+  little girl are PLAYER-PARTY characters, render path now SCOPED.**
+  1. **The establishing REVEAL = a per-cell FADE-GRID transition, not the letterbox bars
+     (committed, quirk #90).** Pixel envelope: top/bottom black ramps ~240→64 at −8px/sim-tick.
+     **Refuted by live field capture** — both `0x499ab0`'s and the grid-fill `0x48c150`'s bar
+     heights read **constant 64** the whole reveal (scroll 0). The real producer is **`0x48e920`**
+     (a 64×4 per-cell black-tile fade-grid, the center-out iris; `ret_va 0x48e9c3` emits
+     ~1010→0 tiles), rendered from `0x48c150:175`, updated 2×/tick by **`0x49af40`** from the
+     cinematic step `0x499ab0`. Explains the long-open ckpt-66/67 "dark top gradient". PORT:
+     unported (the reveal chip — port `0x49af40`+`0x48e920`+trigger). `findings/in-game-intro.md`
+     "The establishing REVEAL is a per-cell FADE-GRID".
+  2. **The town-intro cutscene NPCs (in front of the wagon) PORTED — `actor_spawn_cutscene_cast`
+     (committed).** USER flagged 4 missing characters at the pan end. RE'd the spawn (cutscene
+     `0x4d7d80` → anchor-relative `0x41f0e0` → `0x41f200`, positioned vs the wagon's anchor
+     `0x65`) + captured the settled census (`runs/cutscene-cast`). Ported the 3 EFFECT spawns
+     to `g_effects`; **`0xc3dc`+`0xc3f0` (banks `0xe3`/`0xeb`) RENDER** (the 2 NPCs near the
+     horse), facing fixed with the in-scene `DAT_008a8440` flip read (=4). **`0xc35a` (the
+     woman) CULLS + the little girl is absent — both are PLAYER-PARTY characters.** 911 pass.
+  3. **The PARTY render path SCOPED (next arc, USER-chosen).** The party renderer **`0x4997b0`**
+     (150 B) just iterates the 8 party actors (`room_state+0x4030`, reset by `0x560e60`) and
+     renders each via **`0x493ba0`** — the renderer the port ALREADY reuses. The woman is a
+     keyed blit **res `0x477`**; the little girl (the controllable-character actor) renders via
+     a richer path (no keyed blit). **Blocker = bank registration** (`game_sprites[]`), with a
+     mismatch to resolve (census bank `0x8b`→res `0x4fb` ≠ the rendered `0x477`; `0xc35a`'s
+     `+0x48` is a party indirection). **NEXT:** find the bank for res `0x477` → spawn the woman;
+     RE the party spawn + wire `0x4997b0` for the girl/protagonist (gateway to the
+     controllable-character milestone, Phase C). `findings/in-game-intro.md` "The PARTY-character
+     render path is SCOPED". PORT-DEBT(cutscene-party-chars).
+- **Prior (ckpt 89): the SKY-AMBIENT particles (`0x18704` = CHIMNEY SMOKE) are PORTED +
   USER-1:1, and the placement is now TRACE-FAITHFUL (anchor + facing fixed from retail).**
   Chip 4: the town's second particle system, built on the ckpt-88 pool/alpha path.
   **PORTED (`src/particle.{c,h}`):** emitter `0x112e2` (`0x54f980:150`, spawns 1 every 6th
