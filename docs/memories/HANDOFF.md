@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 66, 2026-06-05)
+# Session handoff — rolling current state (last updated ckpt 78, 2026-06-07)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,12 +6,49 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
+## Where we are — ckpt 78
+
+**The town actor SPAWN is RE'd end-to-end + byte-verified against the map bytes —
+no live drive needed.**  This unblocks the (ckpt-77) ported renderer: the spawn's
+*inputs* (per-actor code + world x/y) are now known, parsed by `map_data` already.
+Docs-only checkpoint (no C touched; 883 pass unchanged).
+
+- **The chain (corrects the ckpt-76 guess `0x42eb20`/"`0x587e00`'s layer pass"):**
+  `0x586010:698` → **`FUN_0058d460`** (room object-population pass) → **`FUN_00431e30`**
+  (character activator).  `0x58d460` walks the map descriptor's **86 object-placement
+  layers** (`mapobj+0x38` headers ×0x3c + `mapobj+0x3c` sub-ptr records ×0x10) and
+  dispatches each by the **range of its type code** (`header+0x10`) into four
+  pre-allocated bands off `DAT_008a9b50`, each guarded by a named `"<kind> Object
+  Count Over"` abort:  EFFECT 50k→`+0x1160` (`0x41f200`), STRUCTURE 60k→`+0x2560`
+  (`0x438a60`), **CHARACTER 70k→`+0x11e0` (`0x431e30`)**, DEVICE 80k→`+0x13e0`
+  (`0x557550`).  `0x431e30` (`__thiscall`, ECX=free slot) is a per-type switch:
+  sets `+0x1d0=1`/`+0x1d4=type`/`+0xfc=9`(layer)/`+0xe8=0`(dir), zeroes the `+0x48`
+  sprite table, stores world (x,y), and a per-type helper (`0x426620` + the
+  `0x4264xx–0x4273xx` cluster) installs the sprite/anim from a def table
+  (`type*0x80+0x21c04`).
+- **The byte-level proof (resolves "codes never assigned as constants"):** the town
+  behaviour codes ARE the map object type fields.  `tools/extract/map_data.py …
+  --objects` decodes DATA 1022's 86 layers → **15 effect + 39 structure + 32
+  character + 0 device**; the 32 character codes + multiplicities are IDENTICAL to
+  the ckpt-76 live census (0x112e6 ×10, 0x111d6 ×7, 0x1129e ×3, 0x112e2/0x11365 ×2,
+  8 more ×1), with world positions.  The 33rd live actor = the 1 animated NPC
+  (`0x1872d`=100141, outside the char range → separate path).
+  Proof: `docs/proofs/map-object-layer-format.md`; engine-quirk #79;
+  `findings/in-game-intro.md` "The town actor SPAWN".
+- **The port input that remains:** the **code → `+0x48` sprite table** mapping (the
+  only datum NOT in the map record — `0x431e30`'s per-type def-table install).  RE
+  the 13 town codes' cases, OR capture each spawned slot's `+0x48` table live (hook
+  `0x431e30` onLeave).  Then a minimal spawn (read the 32 objects from `map_data`,
+  fill render-state pos + sprite table + dir + layer 9) drives the ported renderer →
+  wire into `game_render` → `render_diff` vs retail flip 1500 (the 36-blit residual
+  should drop) → human pixel-verify.
+
 ## Where we are — ckpt 77
 
 **The town ACTOR RENDER SIDE is PORTED + host-tested** (the default arm that
 draws 32/33 town actors), ahead of the spawn.  Pure, no harness; the SPAWN
-(band population) + the `0x1872d` animated arm + the `game_render` wiring +
-pixel-verify are the next arc (needs the harness, then the human for the feed).
+(band population — RE'd ckpt 78 above) + the `0x1872d` animated arm + the
+`game_render` wiring + pixel-verify are the next arc (needs the human for the feed).
 
 - **Ported (commit `0533603`):**
   - `draw_pool_emit_actor` = **`FUN_00492670`** (`src/draw_pool.c`): the actor

@@ -1701,33 +1701,70 @@ res **0x403** (×4 villagers, frames 16/1/36), **0x426** (×5, frames 0-5),
 ckey `0xf81f` (magenta).  **0x403 + 0x426 are exactly the ckpt-75 render_diff
 residual's named NPC banks** → these blits ARE the 36 leftover divergences.
 
-### The SPAWN — narrowed, NOT a single function (the remaining RE)
-- `0x560e60` (the per-actor reset) fires **8× at game_enter, all `ret_va=0x59f578`
-  (inside `0x59f2c0`)** = the **8 PARTY actors** (`map+0x4030`, the `0xeec` sub-objects,
-  per `game_map.c`) — **not** the 33-actor room band.  `0x584710` never fires (refuted).
-- The town behaviour codes (0x112e6, 0x111d6, the 0x1136x run, …) are **never assigned
-  as constants** anywhere in the decompile — they are **computed (base+subtype delta)
-  / read from an entity-definition table**, i.e. the town actors are spawned by a
-  **data-driven entity-by-id subsystem** (ROADMAP `0x420000`: `0x42eb20` spawn-by-id,
-  `0x4282f0` def-lookup), reading the room's actor list (likely the map DATA 1022 layer
-  entries or the room record), activating a `+0x11e0` slot, and filling its `+0x48`
-  sprite table + `+0xe8` dir + render-state position + `+0x1d4` code.
-- **The band is a PRE-ALLOCATED fixed pool** — `FUN_004022d0` (the find-actor-by-tag
-  accessor: scans for active `+0x1d0` + flag `+0x278` + tag `+0x274==arg`) indexes the
-  128 slot pointers directly, and **`FUN_00586010:476-506` pre-allocates them**:
-  `FUN_0058cf60(0x40)` called **0x80 (128)×** for the main band (`0x58cf60` allocs +
-  zeroes a slot, sets `+0x1d0=0` = inactive), preceded by the other bands
-  (0x40/0x20/0x400/0x60/0x80 — matching the six band sizes).  So the per-room "spawn"
-  is an **ACTIVATE + configure** of a subset, not an alloc.
-- **The activation runs AFTER the `"Init Objects"` debug marker** (`0x586010:508`,
-  `s_Init_Objects_008a2db0`) — that is the boundary between the empty-pool pre-alloc
-  and the room-object population.
-- **NEXT (find the `+0x11e0` activator):** instrument the code right after
-  `0x586010`'s "Init Objects" marker — hook the function(s) it calls that set a slot's
-  `+0x1d0`/`+0x1d4`/`+0x274` (the activation), reading `ret_va`; OR a `mem_watch --hw`
-  on a slot's `+0x1d0` armed at the "Init Objects" flip.  Cross-reference ROADMAP
-  `0x420000` (`0x42eb20` spawn-by-id, `0x4282f0` def-lookup) + the map DATA 1022 layer
-  entries (the likely room actor-placement list).
+### The town actor SPAWN — RE'd + byte-verified (ckpt 78)
+The ckpt-76 narrowing ("a data-driven entity-by-id subsystem, NOT a single
+function, via `0x587e00`'s layer pass") was the right *idea* but the wrong
+functions.  The real chain is **`0x586010:698` → `FUN_0058d460` → `FUN_00431e30`**
+— NOT `0x42eb20`/`0x4282f0`, NOT inside `0x587e00`.  Established by static read +
+**proven against the map bytes** (no live drive needed):
+`docs/proofs/map-object-layer-format.md`.
+
+**`FUN_0058d460` — the room object-population pass** (3341 B; called from
+`0x586010:698`, immediately after `FUN_00587970` parses the map + `FUN_00587e00`
+decodes the tiles; `param_2` = that map-descriptor object).  It walks the map's
+**`count` (=86) object-placement layers** — the `0x3c`-byte layer headers at
+`mapobj+0x38` (the `puVar14` cursor, stride `0x3c`) paired with the layer
+sub-pointer records at `mapobj+0x3c` (`local_268`, stride `0x10` = the four
+sub-array pointers {a,b,c,d}).  The 0x3c header **is the object's placement
+record**: `+0x04` x, `+0x08` y (both ×100 → world), **`+0x10` the type code**,
+`+0x18` u16 sub-type; sub-array `a` (n_a=12 dwords) is the per-instance config
+(mostly zero for the town props).  Each object is dispatched by the **range of its
+type code** into one of four pre-allocated bands off `DAT_008a9b50` (a free-slot
+scan, then a named `"<kind> Object Count Over"` abort if the band is full):
+
+| type range | kind | band | spawn fn | DATA 1022 |
+|------------|------|------|----------|----------:|
+| 50000–59999 | EFFECT | `+0x1160` | `FUN_0041f200` | 15 |
+| 60000–69999 | STRUCTURE | `+0x2560` | `FUN_00438a60` | 39 |
+| **70000–79999** | **CHARACTER** | **`+0x11e0`** | **`FUN_00431e30`** | **32** |
+| 80000–89999 | DEVICE | `+0x13e0` | `FUN_00557550` | 0 |
+
+**`FUN_00431e30` — the character activator** (25293 B, `__thiscall` ECX = the free
+`+0x11e0` slot `0x58d460` just found).  A giant per-type `switch(param_4 = type)`;
+every case sets **`actor+0x1d0 = 1`** (active), **`actor+0x1d4 = type`** (the
+behaviour code), **`actor+0xfc = 9`** (draw layer — matching the live trace's layer
+9-10), `actor+0xe8 = 0` (dir), zeroes the 8-row `+0x48` sprite table, saves the
+world (x,y) from params 1-2 into the render-state, and calls per-type init helpers
+(`FUN_00426620` & the `0x4264xx–0x4273xx` cluster — the "entity" region ckpt-76
+guessed at `0x42eb20`) that look up a **per-type entity-def table** (base +
+`type*0x80 + 0x21c04`, stride 0xc, `426620:168`) to install the sprite/anim/
+collision.  So the **appearance is keyed by the type code, NOT carried in the map
+record** — the code→sprite-table mapping is the one remaining port input.
+
+**The byte-level proof (resolves "codes never assigned as constants").**  The town
+codes are not constants at all — they ARE the map's object type fields.  Decoding
+`header[+0x10]` for DATA 1022's 86 layers
+(`tools/extract/map_data.py … --objects`) yields exactly **32 CHARACTER objects**
+whose codes + multiplicities are **identical** to the ckpt-76 live census
+(0x112e6 ×10, 0x111d6 ×7, 0x1129e ×3, 0x112e2 ×2, 0x11365 ×2, and
+0x112e5/0x1129f/0x111d9/0x111f2/0x1136f/0x11366/0x11367/0x11370 ×1), with their
+world positions (e.g. layer[1] `0x111d6` @ (2144,416), layer[49] `0x112e6` @
+(624,288)).  The 33rd live actor is the one animated NPC (`0x1872d` = 100141,
+outside the character range → a separate spawn path).  The port's `map_data`
+already parses these layers (`map_layer.hdr[0x3c]`), so the spawn's *inputs* (code,
+x, y per object) are in hand.
+- The 8 PARTY actors remain a separate set (`0x560e60`-reset at `0x59f578` inside
+  `0x59f2c0`, `map+0x4030`) — unrelated to this room-object band.
+- The band stays a PRE-ALLOCATED fixed pool (`0x586010:476-506`,
+  `FUN_0058cf60(0x40)` ×128 → `+0x1d0=0`); `0x58d460` ACTIVATES a subset.  After it,
+  `0x586010:707-718` walks the now-active `+0x11e0` slots and sets each one's clip
+  (`FUN_0041e600`) — the static town props get clip 0 (no anim), the animated NPC
+  its clip.
+- **NEXT (the port input):** the **code → `+0x48` sprite table** mapping — RE the
+  relevant `FUN_00431e30` cases + the `type*0x80+0x21c04` def table for the 13 town
+  codes, OR capture each spawned slot's `+0x48` table live (hook `0x431e30` onLeave,
+  dump `actor+0x48`).  Then a minimal spawn (read the 32 objects from `map_data`,
+  fill render-state pos + sprite table + dir + layer) drives the ported renderer.
 
 ### Port plan (render side is ready; spawn is the gating input)
 1. **Render (pure, host-testable now):** `FUN_0044d160` (static-prop desc) +
@@ -1735,12 +1772,15 @@ residual's named NPC banks** → these blits ARE the 36 leftover divergences.
    into the draw_pool.  The animated `0x1872d` arm reuses `anim_clip` (follow-up).
 2. **Present:** wire `map_present` modes 0 (keyed `0x5b9b70`) / 1 (alpha `0x5bd550`),
    reading the cull dims from the sprite (the mode-0/1 arms of `FUN_0048eac0`).
-3. **Spawn:** RE the entity subsystem that populates the band (above), or a
-   PORT-DEBT-tagged stand-in seeded from the room's actor list, to drive the render.
+3. **Spawn:** RE'd (ckpt 78, above) — `0x58d460` → `0x431e30`, inputs (code/x/y)
+   in `map_data`.  The port reads the 32 character objects from `map_data` and
+   fills a render-state per object; the one missing datum is the code → `+0x48`
+   sprite-table mapping (a PORT-DEBT-tagged stand-in can seed it from a live
+   `0x431e30` capture until the def-table slice is ported).
 4. **Verify:** the town NPC blits vs retail flip 1500 (the ckpt-75 36-divergence
    residual); `render_diff` keyed on `(res, frame)`.
 
-Engine-quirk #78; PORT-DEBT `present-actor-modes` (render-emit half lands here).
+Engine-quirk #78 (render) + #79 (spawn); PORT-DEBT `present-actor-modes`.
 
 ### The town ACTOR render side — PORTED (ckpt 77)
 

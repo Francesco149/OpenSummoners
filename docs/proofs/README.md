@@ -40,3 +40,6 @@ Which sheet/cell this fills or corrects, and what was there before.
 ## Published
 - [`map-data-format.md`](map-data-format.md) — the in-game map DATA resource format
   (absent from the ods; bit-exact consumption proof).
+- [`map-object-layer-format.md`](map-object-layer-format.md) — the map's object-placement
+  layers = the actor spawn list (type code at hdr+0x10, the type-range → actor-band
+  dispatch); byte-level cross-check vs the live actor census.

@@ -2318,12 +2318,45 @@ population.  Each actor's appearance is its **per-direction sprite table** at
 res `0x403`/`0x426` (villagers) + `0x459`/`0x462`/`0x46a`/`0x47b`/`0x481`/… (the
 ckpt-75 render_diff residual's named NPC banks).
 
-The behaviour codes are **never assigned as literals** in the decompile — they are
-data-driven (base+subtype), so the town actors are spawned by an **entity-by-id
-subsystem** reading the room's actor list, NOT a per-type constant.  (The 8 PARTY
-actors are a separate set: `FUN_00560e60`-reset at `0x59f578` inside `0x59f2c0`,
-stored at `map+0x4030`.)  Consequence for the port: the render side
+The behaviour codes are **never assigned as literals** in the decompile because
+they are not constants — they are read from the room's map resource (see #79).
+(The 8 PARTY actors are a separate set: `FUN_00560e60`-reset at `0x59f578` inside
+`0x59f2c0`, stored at `map+0x4030`.)  Consequence for the port: the render side
 (`FUN_0044d160` + `0x492670` + present modes 0/1) is small + tractable and renders
-the whole static town; the spawn (band population) is the larger remaining unit.
+the whole static town; the spawn (band population) is RE'd in #79.
 Tool: the `thischain` field source + the `0x491ae0` annotation in
 `tools/flow/retail_fields.json`; `findings/in-game-intro.md` "The town ACTORS".
+
+### #79 — the room object/actor spawn: a type-RANGE dispatch over the map's object layers, into four pre-allocated bands (2026-06-07, ckpt 78)
+
+A room's actors/props/effects are **placed by the map resource, not by code**.  The
+room-object pass **`FUN_0058d460`** (called from `FUN_00586010:698`, right after the
+map is parsed + the tiles decoded) walks the map's **object-placement layers** — the
+`count` `0x3c`-byte layer headers at `mapobj+0x38` (DATA 1022 has **86**).  Each
+header IS an object placement: `+0x04` x, `+0x08` y (×100 → world), **`+0x10` the
+type code**, `+0x18` a u16 sub-type.  Each object is dispatched **by the integer
+RANGE of its type code** into one of four actor-pool bands off `DAT_008a9b50`, each
+band a fixed pool pre-allocated empty by `FUN_00586010:476-506`
+(`FUN_0058cf60(0x40)`); the pass scans the band for a free slot (`+0x1d0==0`) and
+aborts with a named `"<kind> Object Count Over"` debug string if the band is full:
+
+| type-code range | kind | band | spawn fn |
+|-----------------|------|------|----------|
+| 50000–59999 | EFFECT | `+0x1160` | `FUN_0041f200` |
+| 60000–69999 | STRUCTURE | `+0x2560` | `FUN_00438a60` |
+| **70000–79999** | **CHARACTER** | **`+0x11e0`** | **`FUN_00431e30`** |
+| 80000–89999 | DEVICE | `+0x13e0` | `FUN_00557550` |
+
+The **CHARACTER** band (`+0x11e0`) is the town-NPC band `FUN_00491ae0` renders
+(#78).  The character activator **`FUN_00431e30`** (`__thiscall`, ECX = the free
+slot) is a per-type `switch` that sets `actor+0x1d0=1` (active),
+**`actor+0x1d4 = type`** (so the placement type code becomes the behaviour code
+verbatim), `actor+0xfc=9` (draw layer), `actor+0xe8=0` (dir), zeroes the `+0x48`
+sprite table, stores the world (x,y), and calls per-type helpers (`FUN_00426620` &
+the `0x4264xx–0x4273xx` cluster) that look up a per-type entity-def table
+(`type*0x80 + 0x21c04`, stride 0xc) to install the sprite/anim/collision — so an
+actor's **appearance is keyed by its type code**, not stored in the map record (the
+layer sub-arrays are ~empty for the town props).  For DATA 1022 the object layers
+decode to **15 effects + 39 structures + 32 characters + 0 devices = 86**, and the
+32 character codes + multiplicities match the live actor census exactly (proof:
+`docs/proofs/map-object-layer-format.md`; `tools/extract/map_data.py … --objects`).

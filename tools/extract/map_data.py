@@ -158,7 +158,7 @@ def decode(blob: bytes, verbose: bool = True) -> dict:
         na, nb, nc, nd = dw(lh, 0x1C), dw(lh, 0x20), dw(lh, 0x24), dw(lh, 0x28)
         sub = na * 4 + nb * 0xC + nc * 0x100 + nd * 8
         rd(sub)
-        layers.append((dw(lh, 0), na, nb, nc, nd, sub))
+        layers.append((dw(lh, 0), na, nb, nc, nd, sub, bytes(lh)))
 
     res = {
         "magic": magic,
@@ -177,7 +177,7 @@ def decode(blob: bytes, verbose: bool = True) -> dict:
         print(f"dims       {dim0} x {dim1} x {dim2}  (product {dim0*dim1*dim2})")
         print(f"cell array {cells_len} bytes  (0x1c per cell)")
         print(f"layers     {count}")
-        for i, (h0, na, nb, nc, nd, sub) in enumerate(layers):
+        for i, (h0, na, nb, nc, nd, sub, _lh) in enumerate(layers):
             if i < 6 or i >= count - 2:
                 print(
                     f"  layer[{i:3}] id={h0:#x}  +0x1c={na} +0x20={nb} "
@@ -277,6 +277,87 @@ def render_cells(blob: bytes, info: dict) -> None:
         print(f"    {tid:#08x}:  {shown}")
 
 
+# ---------------------------------------------------------------------------
+# object-layer (entity-placement) interpretation
+#
+# The `count` layer entries are the room's OBJECT PLACEMENT LIST, consumed by the
+# room-object pass FUN_0058d460 (called from FUN_00586010:698, right after the map
+# parse).  Each 0x3c-byte layer header IS one object's placement record:
+#
+#     hdr+0x04  x   (tile px; FUN_0058d460 multiplies by 100 -> world x)
+#     hdr+0x08  y   (tile px;                                -> world y)
+#     hdr+0x10  TYPE CODE  -- the dispatch key + the spawned actor's +0x1d4 code
+#     hdr+0x18  u16 sub-type / variant (forwarded to the spawn)
+#     hdr+0x00  a small per-instance id (0x0..0x6a here); +0x0c/+0x2c/+0x30 params
+#
+# FUN_0058d460 dispatches each object by the TYPE CODE's RANGE into one of four
+# pre-allocated actor-pool bands off DAT_008a9b50 (a free-slot scan + a named
+# "<kind> Object Count Over" overflow abort):
+#     50000..59999  EFFECT     -> band +0x1160  via FUN_0041f200
+#     60000..69999  STRUCTURE  -> band +0x2560  via FUN_00438a60
+#     70000..79999  CHARACTER  -> band +0x11e0  via FUN_00431e30   (the town NPCs)
+#     80000..89999  DEVICE     -> band +0x13e0  via FUN_00557550
+#
+# The CHARACTER band (+0x11e0) is the one FUN_00491ae0 renders (engine-quirk #78);
+# so the 70000-range entries here ARE the town's static actors, and their type
+# codes are exactly the behaviour codes seen live at flip 1500 (proof:
+# docs/proofs/map-object-layer-format.md; finding: findings/in-game-intro.md
+# "The town actor SPAWN").  The object's appearance (the +0x48 sprite table) is
+# NOT in the map record (the sub-arrays are ~empty); it is looked up by code in
+# FUN_00431e30 — the code->sprite mapping is the remaining port input.
+# ---------------------------------------------------------------------------
+_OBJ_BANDS = (
+    (50000, 60000, "EFFECT   ", "+0x1160", "0x41f200"),
+    (60000, 70000, "STRUCTURE", "+0x2560", "0x438a60"),
+    (70000, 80000, "CHARACTER", "+0x11e0", "0x431e30"),
+    (80000, 90000, "DEVICE   ", "+0x13e0", "0x557550"),
+)
+
+
+def _obj_band(code: int):
+    for lo, hi, kind, band, fn in _OBJ_BANDS:
+        if lo < code < hi:
+            return kind, band, fn
+    return None
+
+
+def render_objects(info: dict) -> None:
+    from collections import Counter
+
+    sd = lambda buf, o: struct.unpack_from("<i", buf, o)[0]
+    ud = lambda buf, o: struct.unpack_from("<I", buf, o)[0]
+
+    per_band = Counter()
+    per_code = Counter()
+    chars = []
+    for i, (_h0, _na, _nb, _nc, _nd, _sub, lh) in enumerate(info["layers"]):
+        code = ud(lh, 0x10)
+        x, y = sd(lh, 0x04), sd(lh, 0x08)
+        b = _obj_band(code)
+        kind = b[0].strip() if b else "OTHER"
+        per_band[kind] += 1
+        per_code[code] += 1
+        if b and b[0].startswith("CHARACTER"):
+            chars.append((i, ud(lh, 0), x, y, code))
+
+    print(f"\n# object-placement layers  ({info['count']} entries -> FUN_0058d460 bands)")
+    for lo, hi, kind, band, fn in _OBJ_BANDS:
+        n = sum(k for c, k in per_code.items() if lo < c < hi)
+        print(f"#   {kind} {lo}-{hi-1:<5}  band {band}  via {fn}   x{n}")
+    other = sum(k for c, k in per_code.items() if not _obj_band(c))
+    if other:
+        print(f"#   OTHER (no band)                                   x{other}")
+
+    print("\n# type code (+0x10) histogram:")
+    for code, k in sorted(per_code.items()):
+        b = _obj_band(code)
+        print(f"    {code:#08x} ({code:>6})  x{k:<3} {b[0].strip() if b else ''}")
+
+    print(f"\n# the {len(chars)} CHARACTER objects (band +0x11e0, rendered by FUN_00491ae0):")
+    for i, h0, x, y, code in chars:
+        print(f"    layer[{i:2}] id={h0:#06x}  x={x:<5} y={y:<5} code={code:#x}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("pe", help="PE file holding the map DATA resource (the EXE)")
@@ -287,6 +368,11 @@ def main() -> int:
         "--cells",
         action="store_true",
         help="decode + render the tilemap cell grid (per-z occupancy + histograms)",
+    )
+    ap.add_argument(
+        "--objects",
+        action="store_true",
+        help="decode the object-placement layers (the FUN_0058d460 spawn dispatch)",
     )
     args = ap.parse_args()
 
@@ -307,6 +393,8 @@ def main() -> int:
     info = decode(blob)
     if args.cells:
         render_cells(blob, info)
+    if args.objects:
+        render_objects(info)
     return 0 if info["consumed"] == info["size"] else 3
 
 

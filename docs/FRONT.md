@@ -9,7 +9,27 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 77): the town ACTOR RENDER SIDE is PORTED + host-tested** (the default arm
+- **LATEST (ckpt 78): the town actor SPAWN is RE'd + BYTE-VERIFIED — no live drive needed**
+  (unblocks the ckpt-77 ported renderer; docs-only, 883 pass unchanged). **The chain**
+  (corrects the ckpt-76 guess `0x42eb20`/"`0x587e00` layer pass"): `0x586010:698` →
+  **`FUN_0058d460`** (room object-population pass) → **`FUN_00431e30`** (character activator).
+  `0x58d460` walks the map's **86 object-placement layers** (`mapobj+0x38` headers, `+0x10`=type
+  code, `+0x04/+0x08`=x/y) and dispatches each by **type RANGE** into four pre-alloc bands off
+  `DAT_008a9b50` (EFFECT 50k→`+0x1160`, STRUCTURE 60k→`+0x2560`, **CHARACTER 70k→`+0x11e0` via
+  `0x431e30`**, DEVICE 80k→`+0x13e0`; each a `"<kind> Object Count Over"`-guarded free-slot scan).
+  `0x431e30` (thiscall, ECX=slot) per-type switch: `+0x1d0=1`/`+0x1d4=type`/`+0xfc=9`/`+0xe8=0`,
+  zeroes `+0x48` sprite table, stores world (x,y); a helper (`0x426620`) installs the sprite from a
+  def table (`type*0x80+0x21c04`). **The proof** (resolves "codes never assigned as constants"):
+  the town codes ARE the map object type fields — `map_data.py --objects` on DATA 1022 → 15 effect
+  + 39 structure + **32 character** + 0 device; the 32 char codes + multiplicities are IDENTICAL to
+  the ckpt-76 live census (0x112e6 ×10, 0x111d6 ×7, …), with world positions. The 33rd live actor =
+  the 1 animated NPC (`0x1872d`, separate path). `docs/proofs/map-object-layer-format.md`; quirk #79.
+  **NEXT (the port):** the **code → `+0x48` sprite-table** mapping (the only datum not in the map —
+  `0x431e30`'s def-table install; RE the 13 town codes OR capture each slot's `+0x48` live) → minimal
+  spawn (32 objects from `map_data` → render-state pos + sprite + dir + layer 9) → wire into
+  `game_render` → `render_diff` vs retail flip 1500 (the 36-blit residual drops) → human pixel-verify.
+  `findings/in-game-intro.md` "The town actor SPAWN".
+- **Prior (ckpt 77): the town ACTOR RENDER SIDE is PORTED + host-tested** (the default arm
   that draws 32/33 town actors), ahead of the spawn. Pure, no harness.
   **Ported (commit `0533603`):** `draw_pool_emit_actor` = `FUN_00492670` (the actor analog
   of `draw_pool_emit`; node mode = `bool(alpha!=0)`); **`actor_render.{c,h}` (NEW)** —
