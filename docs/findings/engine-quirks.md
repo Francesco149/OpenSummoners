@@ -2479,20 +2479,26 @@ Port: `src/actor_render.c` (`actor_render_protagonist`), `src/actor_spawn.c`
 (`actor_spawn_protagonist`).  Writeup: `findings/in-game-intro.md` "The 0x1872d
 SPAWN + the arrival WAGON".
 
-### #82 — `0x54f980`'s per-actor update splits into an UNCONDITIONAL anim stepper + a GATED behaviour; the wagon's horses always trot, its wander is RNG/cutscene-gated (2026-06-07, ckpt 81)
+### #82 — `0x54f980`'s per-actor update splits into an UNCONDITIONAL anim stepper + a GATED behaviour; the wagon's horses always idle-animate, its wander is RNG/cutscene-gated (2026-06-07, ckpt 81)
 
 Reading the case-`0x1872d` arm of the per-actor update `FUN_0054f980` (`:911-970`,
 called once per sim-tick by `0x46cd70` for each active `+0x11e0` actor) shows the
-two halves are cleanly separable — which is *why* the horse-trot can be ported now
-while the RNG layer stays deferred:
+two halves are cleanly separable — which is *why* the horses' idle animation can be
+ported now while the RNG layer stays deferred:
 
 - **Half 1, the frame-stepper (`:911-928`) runs UNCONDITIONALLY** — gated only on
   `render-state +0x6c` (the clip) being non-zero.  It is the byte-identical
   `timer++ / dur-gate / frame++ / loop-or-hold` idiom of quirk #76 (port:
   `anim_clip_advance`).  No GetTickCount / Flip / RNG → a pure function of
   (sim-ticks since clip-set).  So the wagon's body cel **always cycles** sprite
-  2..5 (the horses trot) for as long as the actor is active — at the hold, during
-  the pan, at the settled camera, regardless of input or RNG.
+  2..5 for as long as the actor is active — at the hold, during the pan, at the
+  settled camera, regardless of input or RNG.  **USER-confirmed retail behaviour
+  (ckpt 81): at the settled position the wagon is PARKED (stationary) and the
+  horses just IDLE-animate — a subtle 4-frame loop (ear flicks), not locomotion.**
+  So `WAGON_CLIP` is an idle cycle; the body-cel "trot" elsewhere in these notes is
+  shorthand for this idle loop, not movement.  (Whether the caravan visibly ROLLS
+  IN earlier in the intro is a separate question for the `0x4d7d80` cutscene — not
+  this stepper, and not observed at the settled hold.)
 - **Half 2, the behaviour (`:929-970`) is GATED then RNG-driven.**  It first
   `break`s out entirely if `param_3 != 0` (a kinematic sub-entry, not the primary)
   **or** `*(DAT_008a9b50+0x27a8) != 0` (a global "scene/cutscene busy" lock).

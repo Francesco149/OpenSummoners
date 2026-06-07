@@ -1985,11 +1985,19 @@ So the trot is portable in isolation.  Driver `FUN_0046cd70:123-169` walks the
 `0x3ec`, NOT `0x058f` as ckpt-80 mis-noted)** at screen x 160/288/416 (the
 −256/−128/0 composite); the body cel (x416) steps **5→2→3→4→5** (one body-frame
 per 36 Flips = 18 sim-ticks) while the two fixed wagon cels hold frames 0/1, and
-the `0x46cd70` mirror reports `advanced:1` each tick.  USER-confirmed on the feed.
-Host tests: `actor_anim_advance_matches_stepper` / `_null_is_noop`,
-`actor_pool_update_trots` (the body cel cycles 2→5, the static actor stays frozen).
+the `0x46cd70` mirror reports `advanced:1` each tick.  **USER-confirmed on the feed
+(ckpt 81): "I can see the horses' ears animating slightly, looks correct.  The
+wagon doesn't move — the horses are just idling, which is how it's supposed to be."**
+So `WAGON_CLIP` is a SUBTLE IDLE loop (ear flicks), the wagon is PARKED at the
+settled position, and "trot" above is shorthand for that idle cycle — no locomotion
+at the hold (retail ground truth, quirk #82).  Host tests:
+`actor_anim_advance_matches_stepper` / `_null_is_noop`, `actor_pool_update_trots`
+(the body cel cycles 2→5, the static actor stays frozen).
 
 **Still open / PORT-DEBT(actor-protagonist-clip), narrowed:** the RNG-driven
-behaviour (`0x54f980:929+`, deferred ckpt 73) + the cutscene roll-in (the spawn pos
-is the census const, not `0x431d10(…, anchor 0x65, x 0x3200, …)`).  Cross-check:
-`render_diff` vs a panned-camera retail capture keyed on `(res 0x3ec, frame)`.
+behaviour (`0x54f980:929+`, deferred ckpt 73).  The spawn pos is the settled census
+const (54400,32000) — USER-confirmed correct as the PARKED position; whether the
+caravan visibly ROLLS IN earlier in the intro (the cutscene's anchor-relative
+`0x431d10(…, anchor 0x65, x 0x3200, …)` arrival) is a separate `0x4d7d80` question,
+not observed at the settled hold.  Cross-check: `render_diff` vs a panned-camera
+retail capture keyed on `(res 0x3ec, frame)`.

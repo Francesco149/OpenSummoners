@@ -50,7 +50,9 @@ understates how much actual instruction volume is ported.
   mirror. **LIVE (port blit trace, settled cam 12800, one 144-Flip cycle):** the wagon is **3
   keyed cels res `0x3ec`** (corrects ckpt-80's mis-noted `0x058f`) at x160/288/416; the body
   cel (x416) steps **5→2→3→4→5** every 36 Flips while the two fixed cels hold frames 0/1;
-  `0x46cd70` mirror reports `advanced:1`/tick. **896 pass** (+3); ledger 199/194 unchanged
+  `0x46cd70` mirror reports `advanced:1`/tick. **USER-confirmed** (horses idle subtly — ear
+  flicks; the wagon is PARKED, not moving — "which is how it's supposed to be"; so `WAGON_CLIP`
+  is an IDLE loop, not locomotion — quirk #82). **896 pass** (+3); ledger 199/194 unchanged
   (bare-VA slices). quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed to the RNG behaviour
   + the cutscene roll-in. `findings/in-game-intro.md` "The horses TROT". **NEXT:** the scripted
   caravan ROLL-IN + anchor-relative spawn (the `0x4d7d80` cutscene); the siblings

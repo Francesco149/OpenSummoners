@@ -43,8 +43,11 @@ the first thing the per-sim-tick actor UPDATE pass drives in the port.
   (x416) steps **5→2→3→4→5** (one body-frame per 36 Flips = 18 sim-ticks) while the
   two fixed wagon cels hold frames 0/1; the `0x46cd70` mirror reports `advanced:1`
   each tick.  **CORRECTION:** the wagon's render_id is **res `0x3ec`** (asset_register
-  idx 215), NOT `0x058f` as ckpt-80 noted — fixed in FRONT/quirk #81.  Montage +
-  full settled frame pushed to the feed (USER visual confirm).
+  idx 215), NOT `0x058f` as ckpt-80 noted — fixed in FRONT/quirk #81.  **USER-CONFIRMED
+  on the feed:** "the horses' ears animate slightly, looks correct.  The wagon doesn't
+  move — the horses are just idling, which is how it's supposed to be."  So `WAGON_CLIP`
+  is a SUBTLE IDLE loop, the wagon is PARKED at the settled hold (no locomotion), and the
+  "trot" wording is shorthand for that idle cycle (quirk #82).
 - **State: 896 pass / 0 fail / 6 skip** (+3).  Ledger **199/194 unchanged** (the
   stepper/walk are bare-VA slices of `0x46cd70`/`0x54f980`; `anim_clip_advance` was
   already counted).  quirk #82; PORT-DEBT `actor-protagonist-clip` narrowed (the
