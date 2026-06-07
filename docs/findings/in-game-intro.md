@@ -1610,3 +1610,122 @@ closable by the camera's `g_sim_tick` anchor.  An RNG-reading subsystem needs it
 own RNG anchor — snapshot/restore `DAT_008a4f94` at the game_enter sim-tick on both
 sides (or re-seed the actor RNG per tick).  Port↔retail bar for the band: data-1:1
 given a matched RNG state.  Tool `tools/rng_tick_diff.py`; engine-quirk #77.
+
+## The town ACTORS — render path RE'd LIVE + the spawn narrowed (ckpt 76)
+
+The user directed: "implement the NPCs", "consult the runtime trace to track down
+the code paths", "improve the trace tooling … pinpoint the code paths and document
+them for future traces."  Did exactly that.  Result: the **render** side is fully
+pinned + tractable; the **spawn** side is a data-driven entity subsystem (narrowed,
+not yet ported).
+
+### Tooling added (the durable foundation)
+- **`thischain` field source** (`tools/frida/opensummoners-agent.js` `ctReadField`):
+  like `chain` but **rooted at the `__thiscall` `this` (ECX)** instead of a global —
+  start at ECX, follow each `hops` pointer hop, read typed at `off`.  Reaches a field
+  *behind* a this-pointer (an actor's render-state at `*(actor+0x40)+off`).  The
+  reusable primitive for probing any entity/actor by its live `this`.
+- **Annotated** `0x491ae0` (actor render entry), `0x560e60` (actor reset →
+  spawn-caller via `ret_va`), `0x584710` (candidate, refuted) in
+  `tools/flow/retail_fields.json` — documented for every future trace.
+
+### The actor walk (two passes, six bands, off `DAT_008a9b50`)
+The per-frame **render/emit** driver `FUN_0048c150` (free-roam branch,
+`in_ECX[7]==0`) and the per-sim-tick **update** driver `FUN_0046cd70` both walk the
+same six actor-pool bands; a slot is live when `actor+0x1d0 != 0`:
+
+| band off | slots | render emitter (0x48c150) | update (0x46cd70) |
+|----------|------:|---------------------------|-------------------|
+| **0x11e0** | **0x80 (128)** | **`FUN_00491ae0`** (the MAIN band — town NPCs/props/party) | `FUN_0054f980` |
+| 0x1160 | 0x20 | `FUN_00493ba0` | `FUN_0054e5c0`/`478ba0`/`47b990` |
+| 0x1060 | 0x40 | `FUN_004937c0` | `FUN_004710c0` |
+| 0x13e0 | 0x400 | `FUN_00493480` | `FUN_0046e510` |
+| 0x23e0 | 0x60 | `FUN_00492fc0` | `FUN_0046da00` |
+| 0x2560 | 0x80 | `FUN_00493230` | — |
+
+`0x491ae0` is `__thiscall` (ECX = the actor), called `FUN_00491ae0(sub_idx=0, view)`
+once per live main-band slot.
+
+### LIVE TRACE (retail, in-game town hold, flip 1500; `--seed-pin --lockstep --no-turbo`)
+**33 active main-band actors.**  Their behaviour codes `actor+0x1d4` (the `0x491ae0`
+switch key / `0x54f980` dispatch key):
+
+| code | n | code | n | code | n |
+|------|--:|------|--:|------|--:|
+| 0x112e6 | 10 | 0x111d6 | 7 | 0x1129e | 3 |
+| 0x112e2 | 2 | 0x11365 | 2 | 0x112e5/0x1129f/0x111d9/0x111f2/0x1136f/0x11366/0x11367/0x11370 | 1 each |
+| **0x1872d** | **1** | | | | |
+
+- **32/33 are STATIC** (render-state `+0x6c` clip == 0, frame 0).  **Exactly ONE is
+  animated** (`0x1872d`, clip=`0x671c48`, frame 2, `+0x2c`=0x63 — the protagonist /
+  key NPC at world (54400,32000)).
+- **CRUCIAL: 32/33 codes are NOT explicit cases in `0x491ae0`'s switch** — they fall
+  through to the **default arm `caseD_11257`**, which calls
+  **`FUN_0044d160(render_state, &desc)`** then emits ONE node.  So **one function
+  renders nearly every town actor.**  (The behaviour code drives the *update/AI* in
+  `0x54f980`, NOT the render — static props render identically regardless.  RNG-driven
+  motion stays deferred, ckpt 73.)  Only the animated arm `0x1872d` differs (it reads
+  the clip per quirk #76).
+
+### `FUN_0044d160` (379 B) — the static-actor descriptor builder (the linchpin)
+ECX = actor, `param_1` = primary render-state (`*(actor+0x40)`), `param_2` = out desc.
+- `dir = actor+0xe8` (u16) selects the per-direction **sprite table** at
+  **`actor+0x48`, stride 0x14**: `+0x00` bank (u16, ==0 ⇒ skip), `+0x02` frame_base
+  (s16), `+0x0c` x_off, `+0x10` y_off.  (So table row = `actor + 0x48 + dir*0x14`;
+  `+0x4a`/`+0x54`/`+0x58` are that row's frame_base/xoff/yoff.)
+- clip (`render_state+0x6c`): **0 ⇒ static** → desc off=(0,0), `sprite_delta=0`;
+  non-0 ⇒ animated → off = `clip.off_x[frame]`/`off_y[frame]` (`+0x50`/`+0xd0`),
+  `sprite_delta = clip.base + clip.frame_delta[frame]`, and `clip+0x150` may override dir.
+- facing: if `render_state+0x2c == 3`, mirror via the flip table `&DAT_008a8440[bank]`.
+- out desc (the 10-short element the emit tail reads): off_x, off_y, **bank**,
+  **frame** (= `row.frame_base + facing + sprite_delta`), alpha=0.
+
+### The emit (`0x491ae0` tail `LAB_004923eb`)
+Per descriptor element: dst world = `render_state+0x04/+0x08`; offset
+`(off_x+rs+0x40, off_y+rs+0x44)`; `FUN_004927c0(bank,frame,…)` marks tile occlusion
+(the `grid+0x190030` buffer `0x48c150` pre-clears — **deferrable**); cel =
+`FUN_00417c40(bank, frame)` (the palette-aware getter + the in-game LUT grade,
+`color_grade`); then **`FUN_00492670`** emits the node.
+
+**`FUN_00492670` (118 B)** = the actor analog of `draw_pool_emit` (`0x4917b0`):
+writes `node = (*(view+0x54))[layer].array + count*0x3c` — `node[0]=cel`, `[1]/[2]`=
+world x/y, `[3]/[4]`=dx/dy (= `param6`/`param7`), `[5]`=alpha, **`[6]=mode=bool(alpha)`**
+(`param7!=0`).  `layer = actor+0xfc` (the live trace: layer 9-10).  So actors emit
+into the SAME `view+0x54` draw_pool `map_present` walks, as **mode 0 (keyed, opaque,
+`FUN_005b9b70`)** or **mode 1 (alpha, `FUN_005bd550`)** — exactly the deferred
+PORT-DEBT `present-actor-modes`.
+
+### Render OUTPUT (live, the 36 mode-0 keyed `0x5b9b70` blits at flip 1500)
+res **0x403** (×4 villagers, frames 16/1/36), **0x426** (×5, frames 0-5),
+0x459/0x462/0x46a/0x46b/0x472/0x47b/0x481/0x3fa — the town's villagers + props,
+ckey `0xf81f` (magenta).  **0x403 + 0x426 are exactly the ckpt-75 render_diff
+residual's named NPC banks** → these blits ARE the 36 leftover divergences.
+
+### The SPAWN — narrowed, NOT a single function (the remaining RE)
+- `0x560e60` (the per-actor reset) fires **8× at game_enter, all `ret_va=0x59f578`
+  (inside `0x59f2c0`)** = the **8 PARTY actors** (`map+0x4030`, the `0xeec` sub-objects,
+  per `game_map.c`) — **not** the 33-actor room band.  `0x584710` never fires (refuted).
+- The town behaviour codes (0x112e6, 0x111d6, the 0x1136x run, …) are **never assigned
+  as constants** anywhere in the decompile — they are **computed (base+subtype delta)
+  / read from an entity-definition table**, i.e. the town actors are spawned by a
+  **data-driven entity-by-id subsystem** (ROADMAP `0x420000`: `0x42eb20` spawn-by-id,
+  `0x4282f0` def-lookup), reading the room's actor list (likely the map DATA 1022 layer
+  entries or the room record), allocating/activating a `+0x11e0` slot, and filling its
+  `+0x48` sprite table + `+0xe8` dir + render-state position + `+0x1d4` code.
+- **NEXT (find the `+0x11e0` populator):** a wider-window `0x560e60`/alloc trace
+  (the room actors may reset at a flip in 1435..1499, not 1434) OR a `mem_watch` on the
+  band region `*(0x8a9b50)+0x11e0` armed right after the god-object alloc
+  (`0x586010` `operator_new(0x27b8)`), backtracing the writer of a slot's `+0x1d0`.
+
+### Port plan (render side is ready; spawn is the gating input)
+1. **Render (pure, host-testable now):** `FUN_0044d160` (static-prop desc) +
+   `FUN_00492670` (node emit) + the `0x491ae0` default-arm tail → emit actor nodes
+   into the draw_pool.  The animated `0x1872d` arm reuses `anim_clip` (follow-up).
+2. **Present:** wire `map_present` modes 0 (keyed `0x5b9b70`) / 1 (alpha `0x5bd550`),
+   reading the cull dims from the sprite (the mode-0/1 arms of `FUN_0048eac0`).
+3. **Spawn:** RE the entity subsystem that populates the band (above), or a
+   PORT-DEBT-tagged stand-in seeded from the room's actor list, to drive the render.
+4. **Verify:** the town NPC blits vs retail flip 1500 (the ckpt-75 36-divergence
+   residual); `render_diff` keyed on `(res, frame)`.
+
+Engine-quirk #78; PORT-DEBT `present-actor-modes` (render-emit half lands here).

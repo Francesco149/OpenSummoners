@@ -4,7 +4,7 @@
     "key": "engine VA (0x-hex or decimal). Matches the port's CALL_TRACE_BEGIN(va).",
     "name": "short label for flow_diff output (wins over functions.csv).",
     "chain_benign": "true => exclude this VA's POSITION from chain alignment (a clock read / harness-substituted poll that legitimately floats). No field payload needed.",
-    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | renderid (the blit SOURCE cel's cross-side identity from the render_id registry; reads ECX (__thiscall this) or args[index] for a cdecl blit, then `key`:res|frame; auto-installs the FUN_00418470 resolver hook — the DDraw blit-trace identity, Phase-B B3, mirrors src/render_id.c) | thisderef (read a field off ECX + `off`: the source cel's placement metrics / DDraw state at the blit's onEnter) | retval (onLeave).",
+    "fields[].src": "global (read DAT at `va`) | arg (Frida onEnter arg index) | argderef (deref arg[index] + `off`) | chain (global root + pointer hops) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the single FUN_005bf505 hook — the RNG-CONSUMPTION signal unified into the flow trace, no ad-hoc flag) | renderid (the blit SOURCE cel's cross-side identity from the render_id registry; reads ECX (__thiscall this) or args[index] for a cdecl blit, then `key`:res|frame; auto-installs the FUN_00418470 resolver hook — the DDraw blit-trace identity, Phase-B B3, mirrors src/render_id.c) | thisderef (read a field off ECX + `off`: the __thiscall `this` object's own field at the call's onEnter) | thischain (like chain but ROOTED at ECX, not a global: start at ECX, follow each `hops` pointer hop, read typed at `off` — reaches a field behind a this-pointer, e.g. an actor's render-state at *(actor+0x40)+off) | retval (onLeave).",
     "fields[].key": "for src=renderid: which identity component to return — res (resource_id) | frame.",
     "fields[].va": "for src=global/chain: the DAT_ VA to read (chain reads it as the root pointer).",
     "fields[].index": "for src=arg/argderef: Frida InvocationArguments index, 0-BASED (index 0 = first STACK param).",
@@ -109,6 +109,53 @@
          "reason": "actor[0] render-state +0x70 — frame timer (low u16; sim-ticks in the current frame). anim_state.timer."},
         {"name": "a0_frame", "src": "chain", "va": "0x8a9b50", "hops": [4576, 64], "off": 114, "type": "u32", "benign": true,
          "reason": "actor[0] render-state +0x72 — current frame index (low u16). anim_state.frame; advances once per sim-tick, deterministic under the g_sim_tick anchor."}
+      ]
+    },
+
+    "0x491ae0": {
+      "name": "actor_render_emit",
+      "_note": "FUN_00491ae0 (2599 B) — the per-actor RENDER/EMIT pass for the MAIN actor band (DAT_008a9b50+0x11e0, 0x80 slots = the town NPCs + party), called FUN_00491ae0(sub_idx=0, view) per active slot (actor+0x1d0!=0) from the per-frame render driver FUN_0048c150:52 (the in_ECX[7]==0 free-roam branch). __thiscall: ECX = the ACTOR object; args[0]=sub-entry index (0 for the primary), args[1]=the view (param_2). Body = a switch on the actor TYPE/behaviour code ECX+0x1d4 (uVar11): cases 0x11256/0x11260/0x112ec/0x112f6/0x11314/0x1131e/0x1133c/0x11346/0x11350/0x1872d/0x1872f + default 0x11257. The 0x1872d arm is the ANIMATED-CHARACTER case (reads the render-state clip ptr +0x6c / frame +0x72 — quirk #76's 3rd witness, base+delta sprite from the 0x154-B clip). The common tail LAB_004923eb builds draw nodes from a 10-dword stack descriptor and emits via FUN_00417c40(bank,frame)+FUN_00492670 (the actor analog of map_render_walk's draw_pool_emit). NO PORT MIRROR yet (PORT-DEBT present-actor-modes / present-actor-modes); these fields are RETAIL GROUND TRUTH to pin which arm the town NPCs hit + their render-state, so the port emits present modes 0/1/2. Fields: ECX (actor) own fields via thisderef; the primary render-state (*(ECX+0x40)+0*0x294) via thischain hops=[0x40].",
+      "fields": [
+        {"name": "b1d4", "src": "thisderef", "off": 468, "type": "hex", "benign": true,
+         "reason": "actor+0x1d4 — the behaviour/TYPE code (the 0x491ae0 switch key uVar11; also FUN_0054f980's dispatch key in_ECX[0x75]). THE datum: which render arm + which 0x54f980 behaviour the town NPC runs. 0x1872d = animated character."},
+        {"name": "active1d0", "src": "thisderef", "off": 464, "type": "hex", "benign": true,
+         "reason": "actor+0x1d0 — the active gate (0x48c150/0x46cd70 only walk a slot when this != 0). Confirms the slot is live."},
+        {"name": "count44", "src": "thisderef", "off": 68, "type": "u32", "benign": true,
+         "reason": "actor+0x44 — u16 count of render-state entries (the kinematic body-part chain; 0x46cd70/0x48c150 loop sub-entries 1..count-1 at +0x294 stride)."},
+        {"name": "layer_fc", "src": "thisderef", "off": 252, "type": "u32", "benign": true,
+         "reason": "actor+0xfc — u16 draw-pool LAYER index (the 0x1872f arm emits into *(view+0x54)+layer*8 = draw_pool layer; the actor's draw-order key)."},
+        {"name": "ctx30", "src": "thisderef", "off": 48, "type": "hex", "benign": true,
+         "reason": "actor+0x30 — the paint/palette context ptr passed as the node's aux arg in several arms."},
+        {"name": "rs_first", "src": "thischain", "hops": [64], "off": 0, "type": "hex", "benign": true,
+         "reason": "primary render-state +0x00 — the *pcVar1=='\\0' early-out gate (0x1872d returns if 0). low byte = the entry's enabled flag/first field."},
+        {"name": "rs_x", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "benign": true,
+         "reason": "primary render-state +0x04 — the actor world X (dest base *(pcVar1+4); +0x40 anim-x is added at draw)."},
+        {"name": "rs_y", "src": "thischain", "hops": [64], "off": 8, "type": "i32", "benign": true,
+         "reason": "primary render-state +0x08 — the actor world Y (dest base *(pcVar1+8))."},
+        {"name": "rs_kind2c", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "benign": true,
+         "reason": "primary render-state +0x2c — the orientation/mode field the 0x1872d arm branches on (==3 = the &DAT_008a8440-indexed facing)."},
+        {"name": "rs_clip", "src": "thischain", "hops": [64], "off": 108, "type": "hex", "benign": true,
+         "reason": "primary render-state +0x6c — the animation CLIP ptr (anim_state.clip; non-null = animated, the 0x154-B 32-frame descriptor anim_clip pins). 0 = static."},
+        {"name": "rs_frame", "src": "thischain", "hops": [64], "off": 114, "type": "u32", "benign": true,
+         "reason": "primary render-state +0x72 — current frame index (low u16; the renderer reads base+frame_delta[frame] for the sprite id). anim_state.frame."}
+      ]
+    },
+
+    "0x560e60": {
+      "name": "actor_slot_reset",
+      "_note": "FUN_00560e60 (42 B) — per-actor SLOT RESET (zeros actor dwords [0],[1],[2],[0x271],[0x27c..0x27e] + u16 [0x272]); __thiscall ECX = the actor being (re)spawned. Called at EVERY actor spawn — so its `ret_va` (auto, an RVA; +0x400000 = absolute) names the SPAWN caller. SPAWN-DISCOVERY probe (ckpt 76): drive to game_enter, whitelist flip 1434 (the load runs inside 0x59f2c0 with no Flip yet), read the distinct ret_va to find who populates the room actor band DAT_008a9b50+0x11e0. Distinguishes the 8 party actors (ret_va in 0x59f2c0) from the room/NPC band spawn (ret_va elsewhere).",
+      "fields": [
+        {"name": "who", "src": "thisderef", "off": 0, "type": "hex", "benign": true,
+         "reason": "actor+0x00 — presence/identity of the actor being reset (forces the VA to hook; the real datum is the auto ret_va = the spawn call site)."}
+      ]
+    },
+
+    "0x584710": {
+      "name": "actor_manifest_build",
+      "_note": "FUN_00584710 (2280 B) — a suspected room ACTOR-MANIFEST builder (calls 0x560e60; builds ~12 ~0x50-byte stack descriptors). SPAWN-DISCOVERY probe (ckpt 76): does it fire at game_enter, and what is its ret_va (caller)? Confirms/refutes it as the town-NPC spawner + maps the spawn call chain (god-object DAT_008a9b50+0x11e0 population).",
+      "fields": [
+        {"name": "who", "src": "thisderef", "off": 0, "type": "hex", "benign": true,
+         "reason": "ECX+0x00 — presence (forces the hook; the datum is the auto ret_va)."}
       ]
     },
 

@@ -663,6 +663,19 @@ function ctReadField(fld, args, ctx) {
             if (!ctx || !ctx.ecx || ctx.ecx.isNull()) return null;
             return ctFormatTyped(type, ctx.ecx.add(fld.off | 0), null);
         }
+        // thischain — like `chain` but ROOTED AT the __thiscall `this` (ECX)
+        // instead of a global: start at ECX → follow each `hops` offset as a
+        // pointer hop → read typed at the final `off`.  Reaches a field behind a
+        // this-pointer (e.g. an actor's render-state at *(actor+0x40)+off, the
+        // clip ptr / frame / world pos the actor renderer 0x491ae0 reads).  A
+        // null/bad pointer anywhere in the chain faults and is caught → null.
+        if (src === 'thischain') {
+            if (!ctx || !ctx.ecx || ctx.ecx.isNull()) return null;
+            let p = ctx.ecx;
+            const hops = fld.hops || [];
+            for (let i = 0; i < hops.length; i++) p = p.add(hops[i] | 0).readPointer();
+            return ctFormatTyped(type, p.add(fld.off | 0), null);
+        }
         if (src === 'chain') {
             // Global pointer (rva(va).readPointer()) → follow each `hops` offset
             // as a pointer hop → read typed at the final `off`. Reads a field of

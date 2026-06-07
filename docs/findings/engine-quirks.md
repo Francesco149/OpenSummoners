@@ -2290,3 +2290,40 @@ Reproduce: `tools/run-retail.sh --no-turbo --hide-window --seed-pin --lockstep
 --input-trace tests/scenarios/in-game-intro/trace-retail.jsonl --call-trace
 --field-spec-only` ×2 into two run dirs, then `tools/rng_tick_diff.py runA runB`
 (the `rng` field is on `0x46cd70` in `tools/flow/retail_fields.json`).
+
+### #78 — the opening town's "NPCs" are 32 STATIC scenery actors + 1 animated; the main actor band renders 32/33 via the renderer's DEFAULT arm (2026-06-07, ckpt 76)
+
+The in-game world has **six actor-pool bands** off the room-state god-object
+`DAT_008a9b50`, each walked by the per-frame render driver `FUN_0048c150`
+(free-roam branch) and the per-sim-tick update driver `FUN_0046cd70`; a slot is
+live when `actor+0x1d0 != 0`.  The **MAIN band is `+0x11e0` (0x80 = 128 slots)**,
+rendered by `FUN_00491ae0` and updated by `FUN_0054f980`.  (The others: `+0x1160`
+0x20 → `0x493ba0`; `+0x1060` 0x40 → `0x4937c0`/`0x4710c0`; `+0x13e0` 0x400 →
+`0x493480`; `+0x23e0` 0x60 → `0x492fc0`; `+0x2560` 0x80 → `0x493230`.)
+
+Live trace of the town hold (retail flip 1500, `--seed-pin --lockstep`):
+**33 active main-band actors.**  **32 are STATIC** (render-state `+0x6c` clip == 0,
+frame 0 — fixed scenery/villager sprites); **exactly ONE is animated** (`+0x1d4` =
+`0x1872d`, clip set, the protagonist/key NPC).  The behaviour code `+0x1d4`
+(0x112e6 ×10, 0x111d6 ×7, 0x1129e, the 0x1136x run, …) is the dispatch key of BOTH
+`0x491ae0` (render) and `0x54f980` (update/AI) — but **for 32/33 codes it is NOT an
+explicit case in `0x491ae0`'s switch**, so they fall through to the **default arm**
+(`caseD_11257` → `FUN_0044d160` → emit one node).  Net: the behaviour code selects
+the actor's *AI/motion* (in `0x54f980`), while **rendering is code-agnostic for
+static actors** — one function (`FUN_0044d160`) draws nearly the whole town
+population.  Each actor's appearance is its **per-direction sprite table** at
+`actor+0x48` (stride 0x14: bank/frame_base/x_off/y_off), indexed by `actor+0xe8`
+(dir); the node is emitted (`FUN_00492670`) into the `view+0x54` draw_pool as
+**mode 0 (keyed) / 1 (alpha)** — the present-pass actor modes.  Render output banks:
+res `0x403`/`0x426` (villagers) + `0x459`/`0x462`/`0x46a`/`0x47b`/`0x481`/… (the
+ckpt-75 render_diff residual's named NPC banks).
+
+The behaviour codes are **never assigned as literals** in the decompile — they are
+data-driven (base+subtype), so the town actors are spawned by an **entity-by-id
+subsystem** reading the room's actor list, NOT a per-type constant.  (The 8 PARTY
+actors are a separate set: `FUN_00560e60`-reset at `0x59f578` inside `0x59f2c0`,
+stored at `map+0x4030`.)  Consequence for the port: the render side
+(`FUN_0044d160` + `0x492670` + present modes 0/1) is small + tractable and renders
+the whole static town; the spawn (band population) is the larger remaining unit.
+Tool: the `thischain` field source + the `0x491ae0` annotation in
+`tools/flow/retail_fields.json`; `findings/in-game-intro.md` "The town ACTORS".
