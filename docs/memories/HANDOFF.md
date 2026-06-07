@@ -6,11 +6,49 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 76
+## Where we are — ckpt 77
+
+**The town ACTOR RENDER SIDE is PORTED + host-tested** (the default arm that
+draws 32/33 town actors), ahead of the spawn.  Pure, no harness; the SPAWN
+(band population) + the `0x1872d` animated arm + the `game_render` wiring +
+pixel-verify are the next arc (needs the harness, then the human for the feed).
+
+- **Ported (commit `0533603`):**
+  - `draw_pool_emit_actor` = **`FUN_00492670`** (`src/draw_pool.c`): the actor
+    analog of `draw_pool_emit`; same 0x3c node, mode = `bool(alpha!=0)`, alpha in
+    the param8 slot, NULL cel emits nothing.
+  - **`src/actor_render.{c,h}` (NEW):** `actor_render_describe` = **`FUN_0044d160`**
+    (the static/animated/mirrored/angle sprite descriptor over the per-direction
+    table `actor+0x48`) + `actor_render_static` = the **`0x491ae0` default arm**
+    (skip flag, layer + override, describe, emit).  actor + render-state are
+    LOGICAL structs (the spawn fills them); `actor_sprite_row` (0x14) pinned.
+  - `map_present` **MODE 0** (`src/map_present.c`): the opaque-actor keyed path
+    (project + cel-dims cull via the new `present_dims_fn` → `PRESENT_KEYED`
+    `FUN_005b9b70`).  `dims=NULL` keeps the tile-only contract.
+- **Validated:** render-state offsets match the ckpt-76 live `0x491ae0` field spec
+  exactly (`rs_x`/`rs_y`/`rs_clip`/`rs_frame` = +4/+8/+0x6c/+0x72); logic
+  host-tested bit-exact vs the decompile.  **883 pass / 0 fail / 6 skip** (+18).
+  Ledger **199/194** (+`FUN_0044d160`, +`FUN_00492670`).  Both GUI builds clean.
+- **NEXT (the gating arc — `findings/in-game-intro.md` "The town ACTOR render side"):**
+  1. **The SPAWN** (the `+0x11e0` band activator).  Narrowed: NOT `0x560e60`
+     (8 party actors) / NOT `0x584710` (refuted) / NOT the `+0x1d0`+`+0x1d4`
+     static writers (`0x456a50` find-by-code, `0x487dc0` cell/collision).  It is
+     the **entity subsystem** (`0x42eb20`/`0x4282f0`/`0x429060`/27 KB `0x41f200`)
+     processing the **DATA 1022 layer entries** (86 — `map_data` parses them) via
+     `FUN_00587e00`'s layer pass.  Empirical pin: `mem_watch --hw` an **ACTIVE**
+     slot's `+0x1d4` (only the activation writes it; slot 0 is inert — find an
+     active index first via a `0x491ae0` ECX log).
+  2. **The `0x1872d` animated arm** (1 actor — a 3-element multi-part descriptor,
+     `0x491ae0:112-192`); port WITH the spawn so it pixel-verifies.
+  3. **Wire** the band walk into `game_render` (between `map_render_walk` and
+     `map_present`) + the Win32 keyed sink + cel-dims callback → `render_diff` vs
+     retail flip 1500 (the 36-blit residual should drop).
+
+## Where we are — ckpt 76 (the RE that ckpt 77 built on)
 
 **The town NPC/actor RENDER PATH is RE'd live, the trace tooling is hardened +
 documented, and the spawn is narrowed to a precise lead.**  (RE + instrumentation
-half of "implement the NPCs"; the render-side port + spawn + wire follow.)
+half of "implement the NPCs"; the render-side port landed ckpt 77 above.)
 
 - **Trace tooling (the user's mandate "harden + document the foundation"):**
   - **`thischain`** field source (`tools/frida/opensummoners-agent.js` `ctReadField`):
@@ -591,7 +629,11 @@ newgame_cursor (`0x48d940` selection cursor), newgame_picker (`0x567ba0` option 
 game_drive (the in-game run-loop shell), **anim_clip** (the actor animation cycle:
 the per-sim-tick frame-stepper `0x54f980` + clip-set `0x40afe0`/`0x41e600` + the
 0x154-B 32-frame clip descriptor — ckpt 72, pure + host-tested; not yet driven,
-lands with the actor/entity system), **camera_follow** (the per-frame camera
+lands with the actor/entity system), **actor_render** (the town ACTOR render side,
+ckpt 77 — `actor_render_describe` = `FUN_0044d160` static-actor descriptor +
+`actor_render_static` = the `0x491ae0` default arm; pure + host-tested, not yet
+WIRED — blocked on the spawn; the `0x1872d` animated arm + spawn + wiring follow),
+**camera_follow** (the per-frame camera
 ease-to-target `0x43d1d0` + shake sub-applier `0x43d340` + the `0x439690` SNAP/PAN
 target-setters `camera_apply_snap`/`_pan`, ckpt 69-70 — pure + host-tested bit-exact;
 **WIRED LIVE into `main.c game_render` ckpt 70** — `g_game_camera` stepped each frame,

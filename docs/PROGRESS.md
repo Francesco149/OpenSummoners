@@ -6,6 +6,48 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-07 (ckpt 77) — the town ACTOR render side PORTED (FUN_0044d160 + 0x491ae0 default arm + present mode 0)
+
+Ported the render half of ckpt-76's "implement the NPCs" arc — pure + host-tested,
+ahead of the spawn RE.  32/33 town actors render through one path: `0x491ae0`'s
+behaviour switch has no case for their codes, so they fall through to the **default
+arm** (`caseD_11257` → `FUN_0044d160` → emit one node); `map_present` then blits them
+as **mode 0** (keyed).  Ported that path bit-exact against the decompile (commit
+`0533603`).
+
+**Ported.**  (1) `draw_pool_emit_actor` = **`FUN_00492670`** — the actor analog of
+`draw_pool_emit` (`0x4917b0`): the same 0x3c node, but mode = `bool(alpha != 0)` and
+alpha lands in the param8 slot; a NULL cel emits nothing.  (2) **`actor_render.{c,h}`
+(NEW):** `actor_render_describe` = **`FUN_0044d160`** (the static / animated / mirrored
+/ angle sprite descriptor over the per-direction sprite table `actor+0x48`, stride
+0x14, indexed by `actor+0xe8`) + `actor_render_static` = the **`0x491ae0` default arm**
+(skip flag `+0x284`, layer `+0xfc` + the render-state `+0x284` override, describe, emit).
+The actor + render-state are LOGICAL structs (the spawn fills them, like `anim_clip`'s
+`anim_state`); only `actor_sprite_row` (0x14) is a pinned data layout.  (3) `map_present`
+**MODE 0** (`FUN_0048eac0` case 0): project like a tile but the cull box comes from the
+CEL dims (`cel+0x1c/+0x20`) via a new `present_dims_fn` callback → `PRESENT_KEYED`
+(`FUN_005b9b70`).  `dims=NULL` keeps the tile-only contract (`town_render_step`).
+
+**Validated.**  The render-state offsets the port models (`world_x@+4`, `world_y@+8`,
+`facing@+0x2c`, `clip@+0x6c`, `frame@+0x72`) match the ckpt-76 live-RE'd `0x491ae0`
+field spec exactly (`rs_x`/`rs_y`/`rs_kind2c`/`rs_clip`/`rs_frame`) — so the struct
+modelling is pinned to live retail data; the logic is host-tested bit-exact vs the
+decompile.  **883 pass / 0 fail / 6 skip** (+18).  Ledger **199/194** (+`FUN_0044d160`,
++`FUN_00492670`).  Both GUI builds clean.  PORT-DEBT `present-actor-modes` narrowed
+(mode 0 done; modes 1/2 + the wiring blocked on the spawn) + `actor-occlusion`.
+
+**Still open (the next arc — needs the harness, then the human for pixel-verify):** the
+**SPAWN** (the `+0x11e0` band activator) is the gating input.  Narrowed: NOT `0x560e60`
+(8 party actors) / NOT `0x584710` (refuted) / NOT the static `+0x1d0`+`+0x1d4` writers
+(`0x456a50` find-by-code, `0x487dc0` cell/collision); it is the **entity subsystem**
+(`0x42eb20`/`0x4282f0`/`0x429060`/27 KB `0x41f200`) processing the **DATA 1022 layer
+entries** (86, `map_data` parses them) via `FUN_00587e00`'s layer pass.  Then the
+`0x1872d` animated arm (1 actor), then wire the band walk into `game_render` +
+`render_diff` vs retail flip 1500.  `findings/in-game-intro.md` "The town ACTOR render
+side".
+
+---
+
 ## 2026-06-07 (ckpt 76) — the town NPC/actor RENDER PATH RE'd live + the trace tooling hardened
 
 Next task: **implement the NPCs.**  User direction: *consult the runtime trace to

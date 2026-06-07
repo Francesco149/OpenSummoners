@@ -1741,3 +1741,58 @@ residual's named NPC banks** → these blits ARE the 36 leftover divergences.
    residual); `render_diff` keyed on `(res, frame)`.
 
 Engine-quirk #78; PORT-DEBT `present-actor-modes` (render-emit half lands here).
+
+### The town ACTOR render side — PORTED (ckpt 77)
+
+Ported the render half of the arc above (steps 1+2), pure + host-tested, ahead of
+the spawn.  32/33 town actors render through the **default arm**, now in the port:
+
+- **`draw_pool_emit_actor` = `FUN_00492670`** (`src/draw_pool.c`).  The actor analog
+  of `draw_pool_emit` (`0x4917b0`): the SAME 0x3c draw node, but the node MODE is
+  derived `= bool(alpha != 0)` (opaque → mode 0 keyed, translucent → mode 1 alpha)
+  and `alpha` lands in the param8 slot; a NULL cel emits nothing (`492670.c:12`).
+- **`actor_render.{c,h}` (NEW).**  `actor_render_describe` = **`FUN_0044d160`**
+  bit-exact: the per-direction sprite-table row (`actor+0x48`, stride 0x14, 8 dirs,
+  indexed by `actor+0xe8`) → the static / animated / mirrored / angle frame +
+  placement offset, into the 10-short descriptor.  `actor_render_static` = the
+  **`0x491ae0` default arm (`caseD_11257`)**: skip flag (`actor+0x284`), layer
+  (`actor+0xfc`, overridden by the render-state's `+0x284` sub-object `+0x100`),
+  describe, then `draw_pool_emit_actor`.  The actor + render-state are LOGICAL
+  structs (the spawn fills them, like `anim_clip`'s `anim_state`); only
+  `actor_sprite_row` (0x14) is a pinned data layout.
+- **`map_present` MODE 0** (`src/map_present.c`).  The opaque-actor keyed path
+  (`FUN_0048eac0` case 0): project like a tile (`map_present_project`), but the cull
+  box comes from the CEL dims (`cel+0x1c/+0x20`) via a new `present_dims_fn`
+  callback; a visible node → `PRESENT_KEYED` (`FUN_005b9b70`, whole-sprite
+  color-keyed blit, no src rect).  `dims == NULL` keeps the tile-only contract
+  (`town_render_step` passes NULL today → actor nodes deferred, never dropped).
+  `present-actor-modes` narrowed to modes 1/2.
+
+**Validation.**  The render-state offsets the port models (`world_x@+0x04`,
+`world_y@+0x08`, `facing@+0x2c`, `clip@+0x6c`, `frame@+0x72`) match the ckpt-76
+live-RE'd `0x491ae0` field spec exactly (`retail_fields.json`: `rs_x` off 4, `rs_y`
+off 8, `rs_kind2c` off 44, `rs_clip` off 108, `rs_frame` off 114) — so the struct
+modelling is already pinned to live retail data; the *logic* is host-tested
+bit-exact vs the decompile (18 new tests, `test_actor_render.c` +
+`test_draw_pool.c` + `test_map_present.c`).  883 pass.
+
+**Still open (the next arc — needs the harness + then the human for pixel-verify):**
+1. **The SPAWN** (the band-population activator) — the gating input.  Narrowed:
+   it is NOT `0x560e60` (the 8 PARTY actors, `ret_va` in `0x59f2c0`) nor `0x584710`
+   (refuted ckpt 76); the static candidates that write both `+0x1d0`+`+0x1d4`
+   (`0x456a50` find-by-code, `0x487dc0` cell/collision) are NOT the activator
+   either.  It is the **entity subsystem** (`0x42eb20`/`0x4282f0`/`0x429060`/the
+   27 KB `0x41f200`) processing the **DATA 1022 layer entries** (86 of them, the
+   room object list `map_data` already parses) via `FUN_00587e00`'s layer pass — a
+   multi-function unit.  **The empirical pin (next):** the slots are pre-allocated
+   inert (`0x58cf60` sets `+0x1d0=0`); `FUN_0058cf60` allocs each slot's
+   render-state array (`param_1 * 0x294` entries — main band `0x40`=64 sub-entries
+   per slot), it does NOT activate.  Slot 0 of the main band is INERT all run
+   (ckpt 73), so a `mem_watch --hw` must target an ACTIVE slot's `+0x1d4` (only the
+   activation writes it; `0x58cf60` never touches `+0x1d4`) — find an active slot
+   index first (hook `0x491ae0`, log the ECX actor ptr, cross-ref the band array).
+2. **The `0x1872d` animated arm** (1 actor, the key NPC) — a 3-element multi-part
+   descriptor (`0x491ae0:112-192`); port it WITH the spawn so it can be pixel-verified.
+3. **Wire** the actor band walk into `game_render` (between `map_render_walk` and
+   `map_present`) + the Win32 mode-0 keyed sink + cel-dims callback; then
+   `render_diff` vs retail flip 1500 (the 36-blit residual should drop).

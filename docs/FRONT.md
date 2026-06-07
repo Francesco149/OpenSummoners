@@ -9,7 +9,25 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 76): the town NPC/actor RENDER PATH is RE'd LIVE + the trace tooling hardened.**
+- **LATEST (ckpt 77): the town ACTOR RENDER SIDE is PORTED + host-tested** (the default arm
+  that draws 32/33 town actors), ahead of the spawn. Pure, no harness.
+  **Ported (commit `0533603`):** `draw_pool_emit_actor` = `FUN_00492670` (the actor analog
+  of `draw_pool_emit`; node mode = `bool(alpha!=0)`); **`actor_render.{c,h}` (NEW)** —
+  `actor_render_describe` = `FUN_0044d160` (the static/animated/mirrored/angle sprite
+  descriptor over the per-direction table `actor+0x48`) + `actor_render_static` = the
+  `0x491ae0` **default arm** (`caseD_11257`: 32/33 town actors hit it); `map_present`
+  **MODE 0** (the opaque-actor keyed path `FUN_005b9b70`, cull dims from the cel via a new
+  `present_dims_fn`). actor + render-state are LOGICAL structs (the spawn fills them);
+  `actor_sprite_row` (0x14) pinned. **Validated:** the render-state offsets match the ckpt-76
+  live `0x491ae0` field spec exactly (`rs_x`/`rs_y`/`rs_clip`/`rs_frame` = +4/+8/+0x6c/+0x72);
+  logic host-tested bit-exact. **883 pass** (+18); ledger 199/194. **NEXT (the gating arc —
+  needs the harness, then the human for pixel-verify):** the **SPAWN** (the `+0x11e0` band
+  activator — NOT `0x560e60`/`0x584710`; it's the entity subsystem `0x42eb20`/`0x4282f0`/…
+  over the DATA 1022 layer entries) → the `0x1872d` animated arm (the 1 key NPC) → **wire**
+  the band walk into `game_render` → `render_diff` vs retail flip 1500 (the 36-blit residual
+  drops). PORT-DEBT `present-actor-modes` (narrowed: mode 0 done, wiring blocked on spawn) +
+  `actor-occlusion`. `findings/in-game-intro.md` "The town ACTOR render side".
+- **Prior (ckpt 76): the town NPC/actor RENDER PATH is RE'd LIVE + the trace tooling hardened.**
   User: "implement the NPCs / consult the runtime trace / harden + document the trace tooling."
   Did the RE + instrumentation half (render-side port follows). **Tooling:** added the reusable
   **`thischain`** field source (ECX-rooted pointer hops — probes any actor by its live `__thiscall`
