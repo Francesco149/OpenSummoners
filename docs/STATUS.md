@@ -35,7 +35,30 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 78): the town actor SPAWN is RE'd + BYTE-VERIFIED — no live drive needed**
+- **LATEST (ckpt 79): the town actor RENDER CENSUS overturns "32 static actors" — only 6 of 33
+  DRAW — and the minimal CHARACTER SPAWN is PORTED + host-tested.** Per the methodology
+  ("capture each slot's `+0x48` live"), extended the `0x491ae0` field spec with the `+0x48`
+  sprite-table reads + captured every active `+0x11e0` actor at the town hold (flip 1480/1500/1520,
+  `--seed-pin --lockstep --no-turbo`). **Result (corrects quirks #78/#79):** **27 of 33 main-band
+  actors are INVISIBLE** (all-zero `+0x48` → renderer self-skips; collision/trigger/spawn volumes —
+  the `0x111d6`/`0x112e6`/… physics-body codes). **Only 6 draw**, all dir 0 / clip 0 / static:
+  `0x1129e`×3 (bank `0x16c` f1 layer 9), `0x1129f` (f2), `0x112e5` (f36 **layer 10**) — the
+  villagers (res `0x403`) — + **`0x1872d` the animated protagonist** (bank `0x175`, clip set;
+  OUTSIDE the 70000 range = a SEPARATE spawn; needs the `0x491ae0` multi-part arm — the **bulk of
+  the 36-blit residual**). Also corrected: `0x426620` **ZEROES** `+0x48` (the `type*0x80+0x21c04`
+  in it is the **collision-grid** lookup #79 misnamed, not a sprite table); the sprite table is
+  filled **LAZILY** by the state-set `0x40afe0`/`0x41e600` from a (un-RE'd) type-keyed def table.
+  And the villagers **WANDERED** by flip 1500 (`rs_x` ≠ `map_x*100` by ≈½ cell — the deferred RNG
+  pillar #77), so the deterministic spawn anchor is `map_x*100`. **PORTED (`src/actor_spawn.{c,h}`,
+  +5 tests → 888 pass):** `actor_spawn_from_map` reads the 32 CHARACTER objects from `map_data`
+  (code 70000–79999), fills `{actor, render-state}` at `(x,y)*100` (dir 0 / layer 9 / static),
+  seeds the 3 visible villager rows from the captured stand-in (PORT-DEBT `actor-sprite-table`),
+  leaves the 29 invisible at bank 0 — driving the ckpt-77 `actor_render_static` end-to-end (a
+  spawned villager emits a mode-0 node). quirk #80; `findings/in-game-intro.md` "The town actor
+  RENDER CENSUS". **NEXT:** WIRE the band walk into `game_render` (between `map_render_walk` and
+  `map_present`) + the keyed sink → the 5 villager blits drop from the 36 → pixel-verify; THEN the
+  `0x1872d` protagonist multi-part arm (the bulk) as its own arc.
+- **Prior (ckpt 78): the town actor SPAWN is RE'd + BYTE-VERIFIED — no live drive needed**
   (unblocks the ckpt-77 ported renderer; docs-only, 883 pass unchanged). **The chain**
   (corrects the ckpt-76 guess `0x42eb20`/"`0x587e00` layer pass"): `0x586010:698` →
   **`FUN_0058d460`** (room object-population pass) → **`FUN_00431e30`** (character activator).

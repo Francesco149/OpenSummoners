@@ -914,6 +914,11 @@ struct test_case {
     X(actor_static_skip_flag)                                  \
     X(actor_static_layer_override)                             \
     X(actor_static_describe_fail)                              \
+    X(actor_spawn_census)                                      \
+    X(actor_spawn_sprite_lookup)                               \
+    X(actor_spawn_invisible_self_skips)                        \
+    X(actor_spawn_villager_renders)                            \
+    X(actor_spawn_guards)                                      \
 
 #define X(n) extern int test_##n(void);
 TESTS

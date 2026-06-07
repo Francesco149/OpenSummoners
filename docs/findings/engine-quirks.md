@@ -2293,6 +2293,12 @@ Reproduce: `tools/run-retail.sh --no-turbo --hide-window --seed-pin --lockstep
 
 ### #78 — the opening town's "NPCs" are 32 STATIC scenery actors + 1 animated; the main actor band renders 32/33 via the renderer's DEFAULT arm (2026-06-07, ckpt 76)
 
+> **CORRECTED by #80 (ckpt 79):** the live `+0x48`-sprite-table capture shows
+> only **6 of the 33** main-band actors actually DRAW (3 villager codes + the 1
+> animated protagonist); the other **27 are invisible** collision/trigger volumes
+> (all-zero sprite table → the renderer's `bank==0 => skip`).  "32 static scenery
+> actors" overstates it — they are 32 character-band *entities*, mostly invisible.
+
 The in-game world has **six actor-pool bands** off the room-state god-object
 `DAT_008a9b50`, each walked by the per-frame render driver `FUN_0048c150`
 (free-roam branch) and the per-sim-tick update driver `FUN_0046cd70`; a slot is
@@ -2329,6 +2335,15 @@ Tool: the `thischain` field source + the `0x491ae0` annotation in
 
 ### #79 — the room object/actor spawn: a type-RANGE dispatch over the map's object layers, into four pre-allocated bands (2026-06-07, ckpt 78)
 
+> **CORRECTION (ckpt 79, see #80):** the closing paragraph's claim that
+> `FUN_00426620` "installs the sprite from a per-type def table `type*0x80 +
+> 0x21c04`" is **wrong** — that formula is **cell-indexed** (`*(grid+0x1048)` at
+> `(cell_x*0x80 + 0x21c04 + cell_y)*0xc`) and writes the actor's **collision/region
+> flags** (`+0x288/+0x28c`), NOT a sprite.  `FUN_00426620` in fact **ZEROES** the
+> `+0x48` sprite table; the table is filled **lazily** by the state machine
+> (`FUN_0040afe0`/`FUN_0041e600`) — see #80.  The "appearance keyed by type"
+> *intent* stands; the *mechanism* was misattributed.
+
 A room's actors/props/effects are **placed by the map resource, not by code**.  The
 room-object pass **`FUN_0058d460`** (called from `FUN_00586010:698`, right after the
 map is parsed + the tiles decoded) walks the map's **object-placement layers** — the
@@ -2360,3 +2375,51 @@ layer sub-arrays are ~empty for the town props).  For DATA 1022 the object layer
 decode to **15 effects + 39 structures + 32 characters + 0 devices = 86**, and the
 32 character codes + multiplicities match the live actor census exactly (proof:
 `docs/proofs/map-object-layer-format.md`; `tools/extract/map_data.py … --objects`).
+
+### #80 — the town CHARACTER band is MOSTLY INVISIBLE (only 3 of 13 codes draw); the `+0x48` sprite table is filled LAZILY (not by the spawn), keyed by type (2026-06-07, ckpt 79)
+
+A live `+0x48`-sprite-table capture of every active `+0x11e0` main-band actor at
+the town hold (retail flip 1480/1500/1520, `--seed-pin --lockstep --no-turbo`;
+hooked `FUN_00491ae0`, `__thiscall` ECX = actor, reading its `+0x48` table per the
+field spec) corrects #78 + #79:
+
+- **Only 6 of the 33 active main-band actors actually DRAW.**  The renderer
+  (`FUN_0044d160`) reads the per-direction sprite row at `actor + 0x48 + dir*0x14`
+  and returns 0 (draws nothing) when its `+0x00` **bank is 0**.  Capture: **27 of
+  the 33 actors have an ALL-ZERO `+0x48` table** in every direction — they are
+  invisible **collision / trigger / spawn volumes** (the `0x111d6`/`0x112e6`/… codes
+  whose `FUN_00431e30` arms set up a physics/kinematic body, not a sprite).  Only
+  these draw (all `dir==0`, `clip==0` = static, `skip==0`):
+
+  | code | n | bank | frame_base | draw layer | note |
+  |------|--:|------|-----------:|-----------:|------|
+  | `0x1129e` | 3 | `0x16c` | 1  | 9  | villager (res `0x403`) |
+  | `0x1129f` | 1 | `0x16c` | 2  | 9  | villager |
+  | `0x112e5` | 1 | `0x16c` | 36 | 10 | villager (layer 10, not 9) |
+  | `0x1872d` | 1 | `0x175` | 0  | 9  | the **animated protagonist** (clip `0x671c48`, `+0x2c`=0x63; **outside** the 70000 CHARACTER range — a SEPARATE spawn; needs the `0x491ae0` `0x1872d` multi-part arm) |
+
+  So the town's mode-0 keyed-blit residual (#74/#75's 36 blits) is **5 static
+  villager blits (bank `0x16c`) + the multi-part protagonist** (bank `0x175` +
+  its body-part banks `0x426`/`0x459`/… — the bulk), NOT 32 visible scenery actors.
+
+- **The `+0x48` table is filled LAZILY, not by the spawn.**  `FUN_00431e30`
+  (via `FUN_00426620`) **zeroes** `+0x48`; yet at flip 1500 the 6 visible actors
+  have a non-zero bank/frame there.  So the table is populated **after** the spawn,
+  by the per-state animation set machinery (`FUN_0040afe0`/`FUN_0041e600`) reading
+  a **type-keyed entity-def table** (the actual def table, distinct from the
+  collision lookup #79 misnamed).  That def table is **not yet RE'd** — captured
+  ground truth stands in for it (PORT-DEBT `actor-sprite-table`).
+
+- **The visible villagers have WANDERED by flip 1500.**  Their captured render-state
+  world pos differs from their map-placement coords by ≈half a cell, per-actor and
+  inconsistent (e.g. `0x1129e` +1800x/+1600y, `0x112e5` +0/+0) — the RNG-driven AI
+  motion (`FUN_0054f980` idle→wander), the **deferred RNG pillar** (#77, ckpt 73).
+  So the deterministic anchor for the spawn is the **map-placement coords ×100**
+  (`rs_x = map_x*100` confirmed exactly for the un-wandered `0x112e5` + every
+  invisible volume); the flip-1500 positions are not reproducible without the
+  deferred RNG/AI port.
+
+Field spec: `tools/flow/retail_fields.json` `0x491ae0` (the `row0_bf`/`d1_bf`..
+`d7_bf`/`dir_e8`/… `thisderef` fields).  Port: `src/actor_spawn.c` (the spawn +
+the visible-code stand-in map).  Writeup: `findings/in-game-intro.md` "The town
+actor RENDER CENSUS".

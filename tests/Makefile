@@ -45,7 +45,8 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/parallax.c ../src/town_render.c \
                 ../src/color_grade.c ../src/camera_follow.c \
                 ../src/anim_clip.c ../src/render_id.c \
-                ../src/letterbox.c ../src/actor_render.c
+                ../src/letterbox.c ../src/actor_render.c \
+                ../src/actor_spawn.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
@@ -64,7 +65,8 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_parallax.c test_town_render.c \
                 test_color_grade.c test_camera_follow.c \
                 test_anim_clip.c test_render_id.c \
-                test_letterbox.c test_actor_render.c
+                test_letterbox.c test_actor_render.c \
+                test_actor_spawn.c
 
 OUT := build/run_tests
 
