@@ -95,8 +95,18 @@ bank → resource → settled pos), which fixes the exact work in Phase 1/2. (Ex
 `tools/flow/retail_fields.json` with party-band + `+0x1d8`/`+0x9f4`-chain entries rather
 than a bespoke probe.)
 
+> **UPDATE (ckpt 93) — Phase 1's PORT landed (bar Arche).** `src/party.{c,h}` ports the static
+> dramatist table `DAT_006b6ea8` + `party_resolve_spawn` (`0x41f200:54-69`) + the archetype
+> default-bank arm; `actor_spawn_cutscene_cast` now spawns the arrival family through the resolve,
+> so **Arche's Mother (`0xc440`→`0xb5`) renders** (USER-confirmed; the frozen `CUTSCENE_CAST_DEFS`
+> is retired).  Barnard/Father/Mother/Guard are all present + positioned 1:1.  **Still open in
+> Phase 1/2:** Arche herself (`0xc35a`, bank 0 → the unported new-game per-character sprite-load
+> for banks `0x8b`–`0x8e`) + the LIVE-actor handle registry (`0x556eb0`, for dialogue).  These
+> fold into Phase 2 (the party band `0x4997b0`).
+
 ### Phase 1 — The dramatist registry + per-character creation & sprite loading
-New module **`src/party.{c,h}`**.
+New module **`src/party.{c,h}`** — the STATIC dramatist table + resolution is DONE (ckpt 93);
+the LIVE-actor registry + per-character sprite-load remain (with Phase 2).
 - Port the handle registry: the `+0x2790` dynamic array + `0x555f00` (add/remove) +
   **`0x556eb0`** (resolve). Model the registry on a small growable array of actor refs.
 - Port the **party-member creation** at new-game/scene-load: RE where the story party

@@ -35,29 +35,27 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 92): the DRAMATIST TABLE is RE'd — the arrival cast is now named from
-  GROUND TRUTH, correcting ckpt-91b's tangled identities. `docs/proofs/dramatist-table.md`
-  (100%-proven: static table + decompile + retail census all agree). RE milestone, no port
-  code yet (911 pass).**
-  1. **Character identity is a 32-bit HANDLE → the "Get Dramatist Info" table `DAT_006b6ea8`**
-     (rows `{handle, code, name[0x28], bank@+0x30}`). `0x41f200:54-69`: spawn with a handle +
-     code 0 → look up handle → set actor code `+0x1d4` = row code (the ARCHETYPE), and the row
-     bank overrides the archetype default sheet (`sVar17` → `0x426d70`). So **code = archetype
-     (pose/clip), bank = the specific sheet**; the handle picks both. `tools/dump_dramatist_table.py`.
-  2. **The arrival family, NAMED** (cutscene `0x4d7d80:334be` spawns by handle, anchor `0x65`):
-     `0x5f5e1d3`→`0xc3dc` bank `0xe3` = **Arche's Father** (renders ✓); `0x5f5e1d4`→`0xc440`
-     bank `0xb5` = **Arche's Mother**; `0xc3f0` bank `0xeb` = **Dr. Barnard** (the man right of
-     the horses, renders ✓ — NOT "the woman"); `0xc3e6` = **Guard**; and **`0x5f5e165`→`0xc35a`
-     = Arche** (the protagonist, clip `0x62a8c8`, banks `0x8b`/`0x8c`/`0x8d`), the persistent
-     party LEADER created at new-game (not spawned by the cutscene).
-  3. **The corrected gap (vs 91b): only ARCHE (`0xc35a`) is missing (culls), and MOM's real
-     sheet (`0xc440` bank `0xb5`) is mis-rendered** — the port spawns the generic *map* `0xc440`
-     bank `0xa6` townswoman (the `case 0xc440`="Woman" facing-1 default) instead of Mom's `0xb5`.
-     **Dad (`0xc3dc`) + Dr. Barnard already render.** **NEXT = Phase 1 port:** the dramatist
-     resolve (`DAT_006b6ea8` + `0x41f200:54-69` + archetype cases `0xc440`/`0xc3dc`/`0xc35a`) →
-     spawn the family by handle (Mom gets `0xb5`) → register Arche's banks `0x8b`–`0x8e` + clip
-     `0x62a8c8` + render her (gateway to controllable Arche). EXE-embedded sheets → runtime
-     extract / `%APPDATA%` cache, never embedded (USER directive).
+- **LATEST (ckpt 93): the DRAMATIST RESOLVE + arrival-cast spawn is PORTED — Arche's MOTHER
+  (`0xc440` bank `0xb5`) now renders her own sheet. USER-confirmed: "all characters except for
+  arche are there and positioned correctly." (914 pass, +3.)**
+  1. **New `src/party.{c,h}`** ports the static "Get Dramatist Info" table `DAT_006b6ea8`
+     (79 rows `{handle, code, bank}`, numeric facts only — names stay in the proof/dump tool,
+     not embedded) + **`party_resolve_spawn`** = `0x41f200:54-69` (handle→code/bank lookup; the
+     spawn path passes the activator's param_4=3, so the row code overrides only when code_in==0)
+     + **`party_archetype_default_bank`** = the per-case `if (sVar17==0) sVar17 = <facing default>`
+     arm (the RE'd subset `0xc3dc`/`0xc3e6`/`0xc3f0`/`0xc440`/… read off the decompile). Host-tested.
+  2. **`actor_spawn_cutscene_cast` rewritten** to spawn the family by their RE'd `0x41f0e0` params
+     and resolve each through `party_resolve_spawn`: **Dr. Barnard** (by code → `0xeb`), **Father**
+     (handle → `0xe3`), **Mother** (handle → OVERRIDE `0xb5`). Mom's `0xb5` is registered in group3
+     (idx 168), so she renders — fixing her absence (the port had only the far-right map townswoman
+     `0xa6`). Positions = the wagon's settled anchor 41600 + the RE'd offsets (reproduces the census
+     exactly). The frozen `CUTSCENE_CAST_DEFS` snapshot is retired.
+  3. **The one remaining gap: ARCHE the GIRL** (`0xc35a`, dramatist bank 0) — she is the party
+     LEADER (party band `0x4997b0`), her body banks `0x8b`–`0x8e` (idx 126-129, UNREGISTERED) are
+     party-loaded by the unported new-game path. **NEXT (Phase 2):** the party band `0x4997b0` +
+     per-character sprite-load (register `0x8b`–`0x8e` + her clip `0x62a8c8` via the multi-part
+     `0x493ba0` arm) → Arche renders → gateway to controllable Arche. Then Phase 3: the walk-in
+     dialogue movement + portrait/textbox (`0x5a00c0`). PORT-DEBT(cutscene-party-chars).
 - **Prior (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
   (a fade-grid, NOT the letterbox) and the town-intro cutscene NPCs are PORTED; the woman +
   little girl are PLAYER-PARTY characters, render path now SCOPED (PARTLY WRONG — see ckpt 91).**

@@ -1,10 +1,56 @@
-# Session handoff — rolling current state (last updated ckpt 92, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 93, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 93
+
+**The DRAMATIST RESOLVE + the arrival-cast spawn are PORTED — Arche's Mother (`0xc440` bank
+`0xb5`) now renders her own sheet, and the frozen cast snapshot is retired.  USER-confirmed:
+"all characters except for arche are there and positioned correctly."  914 pass (+3).**
+Builds on the ckpt-92 RE (the dramatist table proof).  Module: `src/party.{c,h}` (NEW).
+
+- **`src/party.{c,h}` (NEW, pure + host-tested).**  Ports the static "Get Dramatist Info"
+  table `DAT_006b6ea8` (79 rows `{handle, code, bank}` — NUMERIC facts only; the names stay
+  in `docs/proofs/dramatist-table.md` + the dump tool, NOT embedded as story content) +:
+  - **`party_resolve_spawn(handle, code_in, facing_sel, &code, &bank)`** = `0x41f200:54-69`.
+    The spawn path (`0x41f0e0`) passes the activator's param_4 = 3, so the row's code overrides
+    only when `code_in==0`; the row's bank (`+0x30`) is the OVERRIDE (sVar17); if it is 0, fall
+    to the archetype default.
+  - **`party_archetype_default_bank(code, facing_sel)`** = the per-case `if (sVar17==0) sVar17
+    = <facing default>` arm, the RE'd subset read off the decompile (`0xc3dc`/`0xc3dd`/`0xc3e6`/
+    `0xc3eb`/`0xc3f0`-`0xc3f3`/`0xc440`/`0xc441`).  PORT-DEBT(dramatist-archetype-defaults).
+- **`actor_spawn_cutscene_cast` rewritten** (`actor_spawn.c`).  Replaces the frozen
+  `CUTSCENE_CAST_DEFS` identity snapshot with the family's RE'd `0x41f0e0` spawn params
+  (`{handle, code_in, facing, facing_sel, x_off}`), resolving each through `party_resolve_spawn`:
+  **Dr. Barnard** (handle 0, code `0xc3f0`, facing_sel 0 → base bank `0xeb`), **Arche's Father**
+  (handle `0x5f5e1d3` → code `0xc3dc`, bank `0xe3`), **Arche's Mother** (handle `0x5f5e1d4` →
+  code `0xc440`, OVERRIDE bank `0xb5`).  Mom's `0xb5` is registered in group3 (idx 168 =
+  `0xb5`-13; the port resolves bank→`g_ar_sprite_slots[bank-13]`), so she renders — the fix.
+  Positions = `CUTSCENE_WAGON_ANCHOR_X` (41600, the wagon's settled anchor) + the RE'd
+  anchor-relative offsets {Barnard +25600, Father +8000, Mother −3200} → census {67200, 49600,
+  38400} exactly.  Arche is dropped from the EFFECT cast (she is the party LEADER, not an
+  `0x41f0e0` spawn).
+- **The ONE remaining gap: Arche the GIRL** (`0xc35a`, dramatist bank 0).  She is the party
+  LEADER (party band `0x4997b0`), her body banks `0x8b`–`0x8e` (idx 126-129) are UNREGISTERED
+  (loaded by the unported new-game party sprite-load), her clip is `0x62a8c8`, render via the
+  multi-part `0x493ba0` arm.  All four would cull today; deferred to Phase 2.
+- **Verified.**  Host test `test_party.c` (3 cases: dramatist find / archetype defaults / the
+  arrival cast resolves to the expected (code, bank), incl. Mom `0xb5` ≠ map `0xa6` and Arche →
+  bank 0/return 0).  914 pass.  Settled-town port|retail side-by-side pushed to the feed →
+  **USER-confirmed** the cast (Guard + Mom + Father + horses + Barnard) is present + positioned
+  1:1; only Arche the girl is absent.  Ledger 199/194 unchanged (party.c uses bare-VA refs for
+  the `0x41f200`/`0x426d70` slices, not `FUN_` forms).
+
+- **NEXT — Phase 2: the party band + Arche.**  Port `0x4997b0` (the 8-slot + leader walk, the
+  `slot+0x9f4`→entity→`+0x40` indirect render-state) + RE the new-game per-character sprite-load
+  (where banks `0x8b`–`0x8e` get their resources → `ar_sprite_slot_register`) + the rich
+  `0x493ba0` arms (shadow `0x4917b0`, color-remap, multi-part).  This renders Arche (gateway to
+  the controllable leader).  First sub-step likely needs a live capture (hook the party spawn +
+  `0x556eb0`) to pin Arche's exact sprite RESOURCE per bank.  Plan: `docs/plans/party-character-system.md`.
 
 ## Where we are — ckpt 92
 

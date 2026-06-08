@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-08 (ckpt 93) — the DRAMATIST RESOLVE + arrival-cast spawn PORTED; Arche's Mother (`0xc440`/`0xb5`) renders
+
+Ported the ckpt-92 RE (the dramatist table proof) into the port.  New module **`src/party.{c,h}`**
+ports the static "Get Dramatist Info" table `DAT_006b6ea8` (79 `{handle, code, bank}` rows —
+numeric facts only; the character names stay in `docs/proofs/dramatist-table.md` + the dump
+tool, not embedded as story content) + **`party_resolve_spawn`** (= `0x41f200:54-69`, the
+handle→code/bank lookup; the `0x41f0e0` spawn path passes the activator's param_4 = 3, so the
+row code overrides only when `code_in==0`, and the row bank `+0x30` overrides the archetype's
+facing default) + **`party_archetype_default_bank`** (the per-case `if (sVar17==0)` arm, the
+RE'd subset read off the decompile).
+
+**`actor_spawn_cutscene_cast` rewritten** to spawn the arrival family by their RE'd `0x41f0e0`
+params and resolve each through the dramatist system: **Dr. Barnard** (by code → `0xeb`),
+**Arche's Father** (handle → `0xe3`), **Arche's Mother** (handle → OVERRIDE bank `0xb5`).  Mom's
+`0xb5` is registered in group3 (idx 168; the port resolves bank→`g_ar_sprite_slots[bank-13]`),
+so she now RENDERS her own sheet — fixing her absence (the port previously showed only the
+far-right map townswoman `0xa6`).  Positions = the wagon's settled anchor (41600) + the RE'd
+anchor-relative offsets, reproducing the census {Barnard 67200, Father 49600, Mother 38400}
+exactly.  The frozen `CUTSCENE_CAST_DEFS` identity snapshot is retired.
+
+The one remaining gap is **Arche the GIRL** (`0xc35a`, dramatist bank 0): she is the party
+LEADER (party band `0x4997b0`), her body banks `0x8b`–`0x8e` are loaded by the unported new-game
+party sprite path (UNREGISTERED → would cull), deferred to Phase 2.  **914 pass** (+3,
+`test_party.c`); ledger 199/194 unchanged (bare-VA slices).  Settled-town port|retail
+side-by-side pushed to the feed → **USER-confirmed: "all characters except for arche are there
+and positioned correctly."**  PORT-DEBT(cutscene-party-chars) updated; quirk #91 (the RE) stands.
+Plan: `docs/plans/party-character-system.md` (Phase 1 port done bar Arche).
+
+---
+
 ## 2026-06-07 (ckpt 89) — the SKY-AMBIENT particles (chimney smoke `0x18704`) PORTED + trace-faithful placement + full-intro side-by-side video
 
 Chip 4 of the in-game-intro arc, on the ckpt-88 particle pool/alpha path.  Ported the
