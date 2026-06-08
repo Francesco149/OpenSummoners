@@ -9,7 +9,26 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 93): the DRAMATIST RESOLVE + arrival-cast spawn is PORTED — Arche's MOTHER
+- **LATEST (ckpt 94): ARCHE RENDERS — the in-game intro cast is now COMPLETE. USER-confirmed on
+  the live port window: "everyone is rendering correctly now." (914 pass.)**
+  1. **The whole "party band" Phase-2 framing was unnecessary for the arrival scene.** A live
+     census (`runs/cutscene-cast`) showed Arche (`0xc35a`) is drawn by the SAME `0x493ba0` EFFECT
+     path as the rest of the cast — row0 bank `0x8b`, clip `0x62a8c8` (decoded byte-identical to the
+     idle clip), world (41600, 45600), dst (−30,−24), facing 1, layer 13. Her ONLY blocker was bank
+     registration.
+  2. **Her body banks `0x8b`–`0x8e` (slots 126–129) are EXE-EMBEDDED sprites res `0x570`–`0x573`**
+     — pinned by a field-spec chain read of the live retail slots (`runs/arche-res`/`arche-params`,
+     validated vs known slots). **The trap (quirk #92):** those ids are `WAVE` *sounds* in sotesd.dll
+     but `DATA` *sprites* in **sotes.exe**'s own `.rsrc` — a numeric collision that derailed ckpt 90.
+     So they load from the user's `sotes.exe` at runtime (`FindResourceA`), NEVER embedded (USER
+     directive). New `ar_register_party_exe_sprites` registers slots 126–129 with `settings =
+     g_sotes_exe`; `actor_spawn_cutscene_cast` gains an Arche row (`bank_override 0x8b`, since her
+     dramatist bank is 0). She renders via `actor_render_static` (one keyed cel).
+  3. **Bit-level confirm:** port blit trace (settled frame 2200) emits res `0x570` frame 1 at screen
+     (258, 304) — exactly world (41600,45600) − settled cam + dst. PORT-DEBT(cutscene-party-chars)
+     **narrowed:** the static-cast Arche, not yet the party band `0x4997b0`; her multi-part body
+     `0x8c`–`0x8e`, the walk-in roll-in, and the live-actor handle registry (dialogue) remain Phase 2/3.
+- **Prior (ckpt 93): the DRAMATIST RESOLVE + arrival-cast spawn is PORTED — Arche's MOTHER
   (`0xc440` bank `0xb5`) now renders her own sheet. USER-confirmed: "all characters except for
   arche are there and positioned correctly." (914 pass, +3.)**
   1. **New `src/party.{c,h}`** ports the static "Get Dramatist Info" table `DAT_006b6ea8`

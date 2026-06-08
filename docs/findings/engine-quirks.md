@@ -2801,3 +2801,22 @@ Dr. Barnard (`0xc3f0`) by code, then resolves the persistent LEADER **Arche** (`
 `+0x1d8`): `DAT_006b6ea8` is the static character DEFINITION, the registry is the runtime lookup.
 The full table is the game's entire named-NPC roster (party leads Arche/Sana/Stella/Chiffon at
 bank 0 = dynamically loaded; teachers, shopkeepers, monsters, …).
+
+### #92 — the playable-character body sheets are EXE-EMBEDDED sprites with a numeric COLLISION: res `0x570`–`0x573` are `DATA` (sprites) in sotes.exe but `WAVE` (sounds) in sotesd.dll (2026-06-08, ckpt 94)
+
+Retail ground truth (PE `.rsrc` manifests of both modules + a live slot read,
+`runs/arche-res`/`runs/arche-params`).  Arche the party leader (code `0xc35a`) installs a 4-bank
+body **`0x8b`–`0x8e`** (sprite slots **126–129** = bank−13; `0x41f200` case `0xc35a` `:899`,
+`FUN_00426db0(row, 0x8b..0x8d, …)` + `+0x21 = 0x8e`).  Those banks resolve to PE resources
+**`0x570`/`0x571`/`0x572`/`0x573`** (group 3, type 2, scale 1, ck 0; dims 80×80/80×80/80×96/80×80).
+The trap: **the same numeric resource id is two different assets in two different modules** —
+`0x570`–`0x573` are type **`WAVE`** (sound effects) in **sotesd.dll** but type **`DATA`** (the
+lizsoft sprite container) in **sotes.exe**'s own `.rsrc`.  The town *NPC* sheets (res `0x459`–`0x47b`,
+slots ~161–236) live in sotesd.dll; the **playable-character** sheets (Arche/Sana/Stella…) live in
+the EXE, and retail loads them via `FindResourceA(NULL = the exe module, …, "DATA")` (= the
+`init_sprite_banks` "EXE-embedded banks `0x570`-`0x572`" note).  A sprite slot's source module is its
+`settings` field (`FUN_005748c0` arg2; `ar_sprite_decode` reads it as the `FindResource` HMODULE), so
+registering these slots with `settings = NULL/the-exe-handle` is what makes them decode from the EXE.
+This collision is what derailed ckpt 90 (the `0x8b→0x4fb` read was the *sound* table
+`game_sounds[139]`, not a sprite — retracted in 91b).  **The character's identity is its `0x493ba0`
+render path + bank, NOT the bare resource number** — always pin which MODULE a resource id means.

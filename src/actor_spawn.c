@@ -384,13 +384,18 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
  *     registered in group3 (idx 168), so she renders as the woman the USER sees
  *     on the golden — instead of being absent.
  *
- * Arche herself (handle 0x5f5e165 -> code 0xc35a, bank 0) is NOT spawned by this
- * cutscene: she is the persistent party LEADER (room_state+0x200c), created at
- * new-game and rendered by the party band 0x4997b0 (Phase 2) via her 4-bank body
- * 0x8b-0x8e + clip 0x62a8c8.  Those banks are unregistered (her dramatist bank is
- * 0 -> the unported new-game party sprite-load), so she would cull anyway; the
- * cutscene dialogue only RESOLVES her handle for her speaker lines (Phase 3).
- * PORT-DEBT(cutscene-party-chars): she lands when the party band ports.
+ * Arche the party LEADER (handle 0x5f5e165 -> code 0xc35a) is ALSO rendered here
+ * (ckpt 94).  In retail she is the persistent leader (room_state+0x200c), created
+ * at new-game and drawn by the party band 0x4997b0; but at the settled town she
+ * renders through the SAME 0x493ba0 path as the rest of the cast (live census
+ * runs/cutscene-cast: one 0x493ba0 call, row0 bank 0x8b, clip 0x62a8c8, facing 1,
+ * pos 41600/45600).  Her only blocker was bank registration: her body banks
+ * 0x8b-0x8e are EXE-embedded (res 0x570-0x573 in sotes.exe, see
+ * ar_register_party_exe_sprites), unregistered until ckpt 94.  Her dramatist bank
+ * is 0, so party_resolve_spawn yields 0 -> the bank_override 0x8b (her 0x41f200
+ * case's row-0 install).  PORT-DEBT(cutscene-party-chars): she is the static-cast
+ * member, not yet the party-band leader; the multi-part banks 0x8c-0x8e + the
+ * walk-in roll-in + the live-actor handle registry (dialogue) remain Phase 2/3.
  *
  * Positions: world x = the wagon's settled anchor (CUTSCENE_WAGON_ANCHOR_X) +
  * each member's anchor-relative x offset (the RE'd 0x41f0e0 arg4); this
@@ -400,7 +405,6 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
  * wagon clip), and the walk-in DIALOGUE movement (the family animates to these
  * spots) is Phase 3 — these are the settled hold positions. */
 #define CUTSCENE_WAGON_ANCHOR_X 41600   /* wagon anchor 0x65 settled world_x      */
-#define CUTSCENE_CAST_Y         43600   /* census world_y (the family line)       */
 
 static const struct {
     uint32_t handle;        /* 0x41f0e0 arg1 (0 => spawned by code)              */
@@ -408,12 +412,27 @@ static const struct {
     int16_t  facing;        /* 0x41f0e0 arg6 -> rs +0x2c (1 normal / 3 mirrored) */
     int16_t  facing_sel;    /* 0x41f0e0 arg8 -> param_11 (archetype default sel) */
     int16_t  flip;          /* DAT_008a8440[resolved bank] for the facing==3 cel */
+    uint16_t bank_override;  /* non-0 => use this bank, NOT party_resolve_spawn's
+                              * (for the party LEADER Arche, whose dramatist bank
+                              * is 0 but whose 0x41f200 case installs body 0x8b)  */
     int32_t  x_off;         /* 0x41f0e0 arg4 -> anchor-relative world x          */
+    int32_t  world_y;       /* rs +0x08 settled world_y (census)                 */
+    int16_t  dst_y;         /* rs +0x44 render anchor y (census)                 */
     uint16_t clip_frame;    /* rs +0x72: idle-clip start phase (cosmetic)        */
 } CUTSCENE_FAMILY[] = {
-    {0,          0xc3f0u, 3, 0, 4,  0x6400,  0},  /* Dr. Barnard      -> bank 0xeb */
-    {0x5f5e1d3u, 0,       3, 0, 4,  8000,   13},  /* Arche's Father   -> bank 0xe3 */
-    {0x5f5e1d4u, 0,       1, 0, 0,  -3200,   1},  /* Arche's Mother   -> bank 0xb5 */
+    {0,          0xc3f0u, 3, 0, 4, 0,     0x6400,  43600, -20,  0},  /* Dr. Barnard    -> 0xeb */
+    {0x5f5e1d3u, 0,       3, 0, 4, 0,     8000,    43600, -20, 13},  /* Arche's Father -> 0xe3 */
+    {0x5f5e1d4u, 0,       1, 0, 0, 0,     -3200,   43600, -20,  1},  /* Arche's Mother -> 0xb5 */
+    /* Arche the party LEADER: handle 0x5f5e165 -> code 0xc35a, dramatist bank 0
+     * (party-loaded), so party_resolve_spawn yields bank 0 -> override to her body
+     * bank 0x8b (the 0x41f200 case 0xc35a :899 install).  Her banks 0x8b-0x8e now
+     * register from the EXE (ar_register_party_exe_sprites), so 0x8b decodes and
+     * she renders.  Settled census pos: x 41600 (= the wagon anchor, x_off 0),
+     * y 45600, dst (-30,-24), facing 1, clip 0x62a8c8 (byte-identical to the idle
+     * clip).  PORT-DEBT(cutscene-party-chars): rendered as the static-cast member
+     * here (not yet via the party band 0x4997b0); the multi-part body banks
+     * 0x8c-0x8e + the walk-in roll-in remain Phase 2/3. */
+    {0x5f5e165u, 0,       1, 0, 0, 0x8bu, 0,       45600, -24, 15},  /* Arche -> body 0x8b */
 };
 
 /* Append the cutscene arrival family to an already-filled EFFECT pool (g_effects,
@@ -434,6 +453,10 @@ int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_
         uint32_t code; uint16_t bank;
         party_resolve_spawn(CUTSCENE_FAMILY[i].handle, CUTSCENE_FAMILY[i].code_in,
                             CUTSCENE_FAMILY[i].facing_sel, &code, &bank);
+        /* The party leader Arche resolves to bank 0 (party-loaded sheet); her
+         * 0x41f200 case installs body bank 0x8b explicitly -> the override. */
+        if (CUTSCENE_FAMILY[i].bank_override != 0)
+            bank = CUTSCENE_FAMILY[i].bank_override;
 
         int slot = pool->count++;
         actor              *a  = &pool->actors[slot];
@@ -447,10 +470,10 @@ int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_
 
         rs->active     = 1;
         rs->world_x    = CUTSCENE_WAGON_ANCHOR_X + CUTSCENE_FAMILY[i].x_off;
-        rs->world_y    = CUTSCENE_CAST_Y;
+        rs->world_y    = CUTSCENE_FAMILY[i].world_y;
         rs->facing     = CUTSCENE_FAMILY[i].facing;
         rs->dst_base_x = -30;                   /* the town villager render anchor */
-        rs->dst_base_y = -20;
+        rs->dst_base_y = CUTSCENE_FAMILY[i].dst_y;
         rs->clip       = &IDLE_CLIP;            /* breathe like the townsfolk (clip 0x6290e0) */
         rs->timer      = 0;
         rs->frame      = CUTSCENE_FAMILY[i].clip_frame;

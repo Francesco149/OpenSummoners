@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-08 (ckpt 94) — ARCHE RENDERS — the in-game intro cast is COMPLETE (her body banks are EXE-embedded sprites)
+
+Closed the ckpt-93 gap ("all characters except arche").  Arche the party leader now renders her
+own sheet — and the heavy Phase-2 "party band" plan turned out to be **unnecessary** for the
+arrival scene.  A live census (`runs/cutscene-cast`, the `0x493ba0` field spec) showed Arche
+(`0xc35a`) is drawn by the **SAME `0x493ba0` EFFECT path** as the rest of the cast — row0 bank
+`0x8b`, clip `0x62a8c8` (decoded byte-identical to the idle clip `0x6290e0`), world (41600, 45600),
+dst (−30,−24), facing 1, layer 13.  Her ONLY blocker was bank registration (slot 126 = bank−13 had
+no sprite).
+
+A field-spec **chain read** of the live retail slots (`g_ar_sprite_table[idx]` @ `0x8a7640+idx*4` →
+slot → `+0x40` resource_id; `runs/arche-res`/`arche-params`, validated against known slots
+168/222/338) pinned her 4 banks `0x8b`–`0x8e` (slots 126–129) to resources **`0x570`–`0x573`**
+(group 3, type 2, scale 1; dims 80×80/80×80/80×96/80×80).  **The trap (engine-quirk #92):** those
+ids are type `WAVE` (sounds) in sotesd.dll but type `DATA` (sprites) in **sotes.exe**'s own `.rsrc`
+— a numeric collision that derailed ckpt 90 (its `0x8b→0x4fb` read was the *sound* table).  The
+playable-character sheets live in the EXE; retail loads them via `FindResourceA(NULL,…)`.
+
+**Ported.**  New `ar_register_party_exe_sprites` (asset_register.c) registers slots 126–129 with
+`settings = g_sotes_exe` — the module `ar_sprite_decode` reads via `FindResource`, so they load
+from the user's own `sotes.exe` at runtime, never embedded (USER directive).  Called in `enter_game`
+after `load_town_scene` opens the exe datafile.  `actor_spawn_cutscene_cast` (actor_spawn.c) gains
+an Arche row: handle `0x5f5e165`, `bank_override 0x8b` (her dramatist bank is 0 → `party_resolve_
+spawn` yields 0), her own settled world_y 45600 / dst_y −24.  She renders via `actor_render_static`
+(one keyed cel, like the rest of the cast).
+
+**Verified.**  914 host tests pass (no regression); both GUI + debug exes build clean.  Port blit
+trace (settled frame 2200): res `0x570` frame 1 emits at screen (258, 304) = world (41600,45600) −
+settled cam + dst (−30,−24).  **USER-confirmed on the live port window: "everyone is rendering
+correctly now."**  `findings/in-game-intro.md` "ARCHE RENDERS"; quirk #92; ledger 199/194 unchanged
+(no function ported — registration data + a spawn-table row).  PORT-DEBT(cutscene-party-chars)
+narrowed: the static-cast Arche, not yet the party band `0x4997b0`; her multi-part body `0x8c`–`0x8e`,
+the walk-in roll-in, and the live-actor handle registry (dialogue) remain Phase 2/3.
+
+---
+
 ## 2026-06-08 (ckpt 93) — the DRAMATIST RESOLVE + arrival-cast spawn PORTED; Arche's Mother (`0xc440`/`0xb5`) renders
 
 Ported the ckpt-92 RE (the dramatist table proof) into the port.  New module **`src/party.{c,h}`**

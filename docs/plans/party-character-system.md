@@ -3,6 +3,19 @@
 **Status:** approved 2026-06-08 (ckpt 91). Scope chosen by USER: *render + arrival cutscene*
 (controllable Arche = a scoped future phase). Multi-session.
 
+> **UPDATE (ckpt 94) — ARCHE RENDERS; the arrival cast is COMPLETE (USER-confirmed).** The
+> heavy "party band" framing below turned out to be UNNECESSARY for the arrival scene: a live
+> census showed Arche (`0xc35a`) is drawn by the SAME `0x493ba0` EFFECT path as the rest of the
+> cast (row0 bank `0x8b`, clip `0x62a8c8` = the idle clip). Her only blocker was bank
+> registration — her body banks `0x8b`-`0x8e` (slots 126-129) are **EXE-embedded** sprites res
+> `0x570`-`0x573` (DATA in sotes.exe; the same ids are WAVE *sounds* in sotesd.dll — quirk #92).
+> Ported: `ar_register_party_exe_sprites` (settings = g_sotes_exe, never embedded) + an Arche
+> row in `actor_spawn_cutscene_cast` (`bank_override 0x8b`). She renders via `actor_render_static`.
+> **Phase 1 + the rendering half of Phase 2 are DONE.** Remaining: the party band `0x4997b0` (the
+> *controllable* leader), her multi-part body `0x8c`-`0x8e`, and Phase 3 (walk-in + dialogue +
+> `0x5a00c0` overlay). The `findings/in-game-intro.md` "ARCHE RENDERS" writeup supersedes the
+> per-phase detail below where they conflict.
+>
 > **UPDATE (ckpt 92) — Phase-1 RE substantially DONE; the character→sprite map is the
 > "dramatist table" `DAT_006b6ea8`.** Proof: `docs/proofs/dramatist-table.md`; quirk #91.
 > Character identity is a 32-bit HANDLE → `DAT_006b6ea8` (`{handle, code, name, bank}`);

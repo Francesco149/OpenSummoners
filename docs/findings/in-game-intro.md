@@ -2945,3 +2945,49 @@ man archetype, bank `0xe3`.
 
 The full table is the game's entire named-NPC roster (Arche/Sana/Stella/Chiffon party leads at
 banks 0 = dynamic; teachers, shopkeepers, monsters…) — see the proof doc.
+
+### ARCHE RENDERS — her body banks are EXE-embedded sprites res `0x570`–`0x573` (ckpt 94, USER-confirmed)
+
+The ckpt-93 gap ("all characters except Arche") is **closed**: Arche the party leader now renders
+her own sheet.  The whole Phase-2 "party band" framing turned out to be **unnecessary for the
+arrival scene** — a live census (`runs/cutscene-cast`, the `0x493ba0` field spec) showed Arche is
+drawn by the SAME `0x493ba0` EFFECT path as the rest of the cast, not a separate band:
+
+| field | Arche `0xc35a` (live, settled town) |
+|-------|-------------------------------------|
+| `row0` bank | **`0x8b`** (sprite slot **126** = bank−13) |
+| clip | `0x62a8c8` (decoded byte-identical to the idle clip `0x6290e0`) |
+| world (x,y) | (41600, 45600) — x = the wagon anchor; dst (−30,−24); facing 1 |
+| layer | 13 (the townsfolk layer) |
+
+So her ONLY blocker was **bank registration**: slot 126 had no sprite (only the numeric-collision
+WAVE sound; see below).  A field-spec **chain read** of the live retail slots
+(`g_ar_sprite_table[idx]` @ `0x8a7640+idx*4` → slot → `+0x40` resource_id; `runs/arche-res`,
+`runs/arche-params`, validated against known slots 168/222/338) pinned her 4 banks:
+
+| bank | slot | resource | w×h | grp/scale/type |
+|------|-----:|----------|-----|----------------|
+| `0x8b` | 126 | **`0x570`** | 80×80 | 3 / 1 / 2 |
+| `0x8c` | 127 | **`0x571`** | 80×80 | 3 / 1 / 2 |
+| `0x8d` | 128 | **`0x572`** | 80×96 | 3 / 1 / 2 |
+| `0x8e` | 129 | **`0x573`** | 80×80 | 3 / 1 / 2 |
+
+**The key engine fact — these are EXE-embedded sprites with a numeric collision.**  Resources
+`0x570`–`0x573` are type **`WAVE` (sounds) in sotesd.dll** but type **`DATA` (sprites) in
+sotes.exe's own `.rsrc`**.  The town NPC sheets (res `0x459`–`0x47b`, slots ~161–236) live in
+sotesd.dll; the **playable-character** sheets live in the EXE and retail loads them via
+`FindResourceA(NULL=the exe, …, "DATA")` (the `init_sprite_banks` note's "EXE-embedded banks
+`0x570`-`0x572`").  This collision is exactly what misled ckpt 90 (`0x8b→0x4fb` was the sound
+table `game_sounds[139]`, retracted).
+
+**Ported (ckpt 94).**  `ar_register_party_exe_sprites` (asset_register.c) registers slots 126–129
+with `settings = g_sotes_exe` (the sotes.exe datafile handle `ar_sprite_decode` reads from — never
+embeds the asset, the USER directive), called in `enter_game` after `load_town_scene` opens the
+exe.  `actor_spawn_cutscene_cast` gains an Arche row (handle `0x5f5e165`; her dramatist bank is 0 so
+`party_resolve_spawn` yields 0 → an explicit `bank_override` `0x8b`, her `0x41f200` case's row-0
+install).  She renders via `actor_render_static` (one keyed cel).  **Bit-level confirm** (port blit
+trace, settled frame 2200): res `0x570` frame 1 emits at screen (258, 304) — exactly world
+(41600,45600) − settled cam + dst (−30,−24).  **USER-confirmed on the live port window: "everyone is
+rendering correctly now."**  914 tests pass.  PORT-DEBT(cutscene-party-chars): the static-cast Arche,
+not yet the party-band leader (`0x4997b0`) — her multi-part body banks `0x8c`–`0x8e`, the walk-in
+roll-in, and the live-actor handle registry (dialogue) remain Phase 2/3.

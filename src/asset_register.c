@@ -2090,6 +2090,45 @@ void ar_register_game_sprites(void *zdd, uint16_t group, void *settings)
     }
 }
 
+/* ─── Arche's playable-character body banks (EXE-embedded) ─────────────
+ *
+ * The party LEADER Arche (code 0xc35a) installs a 4-bank body 0x8b-0x8e
+ * (sprite slots 126-129 = bank-13) in retail's 0x41f200 case 0xc35a (:899,
+ * 0x426db0(row, 0x8b..0x8d, ...) + +0x21 = 0x8e).  Unlike the town NPC
+ * sheets (res 0x459-0x47b, in sotesd.dll), these are **EXE-EMBEDDED** DATA
+ * resources (res 0x570-0x573): the SAME numeric ids are WAVE *sounds* in
+ * sotesd.dll (a collision), but type "DATA" sprites in sotes.exe's own .rsrc.
+ * So the port must load them from the user's own sotes.exe at runtime
+ * (FindResourceA(exe, ..., "DATA")), never embed the asset — the USER
+ * directive for the FindResourceA(NULL,…) banks.  ar_sprite_decode uses
+ * slot->settings as the HMODULE, so `exe_module` (the sotes.exe datafile
+ * handle the town-scene load opened) is passed as the slot's settings.
+ *
+ * Params (w/h/colorkey/scale/type) are read live from retail's slots
+ * (runs/arche-params, validated against the known town slots idx 168/222);
+ * all group 3, type 2, scale 1, colourkey 0.  Resolves the long-standing
+ * "Arche culls" gap: with these slots registered, bank 0x8b decodes and the
+ * party leader renders her own sheet (ckpt 94). */
+static const struct ar_game_sprite_entry party_exe_sprites[] = {
+    /* slot, res,   w,     h,     ck,  scale, type   (bank = slot+13) */
+    { 126, 0x570, 0x50, 0x50, 0x0, 1, 2 },  /* bank 0x8b — Arche body (render row 0) */
+    { 127, 0x571, 0x50, 0x50, 0x0, 1, 2 },  /* bank 0x8c                              */
+    { 128, 0x572, 0x50, 0x60, 0x0, 1, 2 },  /* bank 0x8d                              */
+    { 129, 0x573, 0x50, 0x50, 0x0, 1, 2 },  /* bank 0x8e                              */
+};
+
+void ar_register_party_exe_sprites(void *zdd, void *exe_module)
+{
+    if (exe_module == NULL) return;          /* no sotes.exe datafile -> skip */
+    for (size_t i = 0; i < sizeof party_exe_sprites / sizeof party_exe_sprites[0]; i++) {
+        const struct ar_game_sprite_entry *e = &party_exe_sprites[i];
+        ar_sprite_slot_register(&g_ar_sprite_slots[e->idx],
+            zdd, /*settings=*/exe_module, e->id,
+            e->width, e->height, e->colorkey,
+            e->scale_flag, e->type, /*group=*/3);
+    }
+}
+
 /* ─── FUN_0057ca40 — group-3 sprite-register batch (PARTIAL PORT) ──
  *
  * 233 sprite-slot register operations in retail issue order — the

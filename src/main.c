@@ -2116,6 +2116,14 @@ static void enter_game(void)
     g_effects_loaded = 0;
     load_town_scene(/*scene=*/1022);
 
+    /* Register Arche's EXE-embedded body banks 0x8b-0x8e (slots 126-129, res
+     * 0x570-0x573) now that load_town_scene has opened the sotes.exe datafile.
+     * These DATA sprites live ONLY in sotes.exe's .rsrc (the same ids are WAVE
+     * sounds in sotesd.dll), loaded from the user's own file at runtime — not
+     * embedded.  With them registered, the party leader Arche (bank 0x8b) decodes
+     * and renders instead of culling (ckpt 94).  Idempotent re-register per enter. */
+    ar_register_party_exe_sprites(g_zdd, g_sotes_exe);
+
     /* Arm the live in-game camera once the map dims are known (the easer clamps
      * the pan target to [0, map_w-vp_w] x [0, map_h-vp_h]).  camera_apply_snap
      * spawn-snaps cur=tgt to the hold origin (128000/12800 = 40/4 cells, the
@@ -2182,15 +2190,17 @@ static void enter_game(void)
         /* The town-intro cutscene arrival family (0x4d7d80 -> 0x41f0e0), resolved
          * through the dramatist table (party.c): Dr. Barnard (0xc3f0 -> 0xeb),
          * Arche's Father (0xc3dc -> 0xe3), Arche's Mother (0xc440 -> 0xb5 — her
-         * own sheet, ckpt 92).  Appended to the EFFECT pool (layer-13 path).
-         * Arche (the party leader) renders via the party band 0x4997b0 (Phase 2);
-         * her banks 0x8b-0x8e are party-loaded (unported). */
+         * own sheet, ckpt 92), and Arche the party LEADER (0xc35a -> body bank
+         * 0x8b, the EXE banks registered just above, ckpt 94).  Appended to the
+         * EFFECT pool (layer-13 path); she renders via the same 0x493ba0 static
+         * path as the rest of the cast (PORT-DEBT cutscene-party-chars: the party
+         * band 0x4997b0 + multi-part body remain Phase 2). */
         if (g_effects_loaded) {
             int cn = actor_spawn_cutscene_cast(&g_effects, g_actor_flip_table,
                                                AR_SPRITE_SLOT_COUNT);
             log_line("enter_game: actor_spawn_cutscene_cast -> %d arrival family "
-                     "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5; Arche -> "
-                     "party band Phase 2)", cn);
+                     "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5 / Arche 0x8b)",
+                     cn);
         }
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props

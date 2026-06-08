@@ -1,10 +1,53 @@
-# Session handoff — rolling current state (last updated ckpt 93, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 94, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 94
+
+**ARCHE RENDERS — the in-game intro cast is COMPLETE.  USER-confirmed on the live port
+window: "everyone is rendering correctly now."  914 pass.**  The ckpt-93 gap ("all
+characters except arche") is closed, and the heavy Phase-2 "party band" plan turned out
+to be **unnecessary** for the arrival scene.
+
+- **The shortcut (live census `runs/cutscene-cast`, the `0x493ba0` field spec).**  Arche
+  (`0xc35a`) is drawn by the SAME `0x493ba0` EFFECT path as the rest of the cast, not a
+  separate band: row0 bank `0x8b`, clip `0x62a8c8` (decoded byte-identical to the idle clip
+  `0x6290e0`), world (41600, 45600), dst (−30,−24), facing 1, layer 13.  Her only blocker was
+  **bank registration** (slot 126 = bank−13 had no sprite).
+- **Her body banks `0x8b`–`0x8e` (slots 126–129) = EXE-embedded res `0x570`–`0x573`** — pinned
+  by a field-spec **chain read** of the live retail slots (`g_ar_sprite_table[idx]` @
+  `0x8a7640+idx*4` → slot → `+0x40`; `runs/arche-res`/`arche-params`, validated against known
+  slots 168/222/338).  **Numeric collision (quirk #92):** those ids are `WAVE` sounds in
+  sotesd.dll but `DATA` sprites in **sotes.exe**'s `.rsrc` — what derailed ckpt 90.  Loaded
+  from the user's exe at runtime (`FindResourceA`), never embedded (USER directive).
+- **Ported.**  `ar_register_party_exe_sprites` (asset_register.c) registers slots 126–129 with
+  `settings = g_sotes_exe` (the module `ar_sprite_decode` reads from), called in `enter_game`
+  after `load_town_scene` opens the exe.  `actor_spawn_cutscene_cast` (actor_spawn.c) gains an
+  Arche row — handle `0x5f5e165`, `bank_override 0x8b` (her dramatist bank is 0 → `party_resolve_
+  spawn` yields 0), her own world_y/dst_y.  She renders via `actor_render_static` (one keyed cel).
+- **Verified.**  914 tests pass; build clean (both exes).  Port blit trace (settled frame 2200):
+  res `0x570` frame 1 emits at screen (258, 304) = world (41600,45600) − settled cam + dst.  USER
+  visually confirmed the live window.
+
+- **NEXT — open options (no single forced next chip; the intro cast is visually complete):**
+  1. **Whole-scene RNG phase parity (Phase 2 proper)** — the townsfolk + Arche idle PHASES and the
+     fountain/particle positions are visually right but not yet `differ_px==0` (the per-tick LCG
+     consumers `0x47b990`/`0x54f980` cases aren't ported, so the stream phase drifts).  This is the
+     standing "validation pending" item back to ckpt 87.
+  2. **The remaining golden-review gaps (quirk #89):** the establishing REVEAL fade-grid
+     (`0x49af40`/`0x48e920`, quirk #90, unported), the `0x5a00c0` "Town of Tonkiness" banner +
+     portrait/textbox overlay (PORT-DEBT ingame-nontile-layers), ground butterflies, the Start-Game
+     scale transition.
+  3. **The arrival cutscene DYNAMICS (Phase 3):** the walk-in movement + dialogue runner `0x49d6e0`
+     + the `0x5a00c0` overlay — turns the frozen settled cast into the played-out arrival.
+  4. **Controllable Arche (Phase 4):** the party band `0x4997b0` + the in-game movement/physics FSM
+     (its own RE pass) — the gateway milestone.
+  PORT-DEBT(cutscene-party-chars) narrowed to: party-band leader render + multi-part body
+  `0x8c`–`0x8e` + walk-in roll-in + live-actor handle registry (dialogue).
 
 ## Where we are — ckpt 93
 

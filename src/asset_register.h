@@ -1102,6 +1102,14 @@ void ar_register_palette_ramps(void *zdd, uint16_t group, void *settings,
  * raw bytes via `pD 0x672c @ 0x56e190 | awk`). */
 void ar_register_game_sprites(void *zdd, uint16_t group, void *settings);
 
+/* Register Arche's playable-character body banks 0x8b-0x8e (slots 126-129),
+ * group 3.  These sheets are EXE-EMBEDDED (res 0x570-0x573 are DATA sprites in
+ * sotes.exe's .rsrc — the same ids are WAVE sounds in sotesd.dll), so pass the
+ * sotes.exe datafile HMODULE as `exe_module` (becomes slot->settings, the module
+ * ar_sprite_decode reads from).  Idempotent; no-op when exe_module is NULL.  See
+ * the .c docstring + runs/arche-params for the live-read params. */
+void ar_register_party_exe_sprites(void *zdd, void *exe_module);
+
 /* FUN_00579bd0 — boot-driver asset-register batch (fonts).
  *
  * Effects (slot-by-slot):
