@@ -534,3 +534,41 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(actor_spawn_effect_from_map(NULL, &md), -1);
     return 0;
 }
+
+/* The cutscene arrival cast advances the shared LCG by exactly the 4 SCRIPT
+ * EFFECT objects' spawn-draw burst (engine-quirk #94: 19-object room-load burst =
+ * 15 map + 4 cutscene), so the establishing REVEAL's iris-variant draw lands on
+ * retail's town value.  Locks the 42-draw contract + the post-spawn variant. */
+int test_actor_spawn_cutscene_iris(void)
+{
+    /* (A) cutscene_cast consumes exactly 42 draws (Arche 12 + Barnard/Father/
+     * Mother 10 each).  Compare the live seed word against a reference LCG. */
+    rng_srand(0x4f5347u);
+    actor_spawn_pool pool;
+    memset(&pool, 0, sizeof pool);
+    T_ASSERT_EQ_I(actor_spawn_cutscene_cast(&pool, NULL, 0), 4);
+    uint32_t got = rng_peek_state();
+    uint32_t ref = 0x4f5347u;
+    for (int k = 0; k < 42; k++) ref = ref * 0x343fdu + 0x269ec3u;
+    T_ASSERT_EQ_U(got, ref);   /* exactly 42 LCG steps (party_resolve is RNG-free) */
+
+    /* (B) the full room-load chain: 15 map EFFECT objects (171 draws) + the 4
+     * cutscene cast (42) = 213, then the iris-variant draw (rand*3)>>15 == 0
+     * (center-out, the live town value — proven offline from the pinned seed). */
+    rng_srand(0x4f5347u);
+    for (int k = 0; k < 171; k++) (void)rng_rand();   /* the 15 map EFFECT burst */
+    memset(&pool, 0, sizeof pool);
+    T_ASSERT_EQ_I(actor_spawn_cutscene_cast(&pool, NULL, 0), 4);   /* +42 */
+    uint32_t v = rng_rand();                           /* the 214th draw = iris  */
+    T_ASSERT_EQ_U((v * 3u) >> 15, 0u);                 /* variant 0 = center-out */
+
+    /* the wrong (pre-fix) phase — 171 draws, NO cutscene — would pick variant 2. */
+    rng_srand(0x4f5347u);
+    for (int k = 0; k < 171; k++) (void)rng_rand();
+    uint32_t vbad = rng_rand();
+    T_ASSERT_EQ_U((vbad * 3u) >> 15, 2u);              /* the bug this fixes */
+
+    /* NULL guard. */
+    T_ASSERT_EQ_I(actor_spawn_cutscene_cast(NULL, NULL, 0), -1);
+    return 0;
+}

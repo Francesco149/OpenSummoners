@@ -452,11 +452,25 @@ static const struct {
     int32_t  x_off;         /* 0x41f0e0 arg4 -> anchor-relative world x          */
     int32_t  world_y;       /* rs +0x08 settled world_y (census)                 */
     int16_t  dst_y;         /* rs +0x44 render anchor y (census)                 */
-    uint16_t clip_frame;    /* rs +0x72: idle-clip start phase (cosmetic)        */
+    uint16_t clip_frame;    /* rs +0x72: idle-clip start phase (census, cosmetic) */
+    uint8_t  spawn_draws;   /* the LCG draws this member's 0x41f200 spawn consumes
+                             * (engine-quirk #94, the seed-pinned 0x5bf505 census).
+                             * The town room-load draws a 19-object EFFECT burst:
+                             * the 15 MAP objects (effect_from_map, 171 draws) THEN
+                             * these 4 SCRIPT objects (0x4d7d80 -> 0x41f0e0), each a
+                             * 0x426fd0(1)+0x41f200(7)+0x426ec0(2)=10-draw shape.
+                             * ARCHE (0xc35a) draws 12: her 0x41f200 case 0xc35a is
+                             * the only one that calls 0x427360 (+1) and trips the
+                             * conditional 0x41f200:25caa (+1).  In retail she spawns
+                             * FIRST of the four (the obj16 12-draw block in the
+                             * census); the port consumes in render-array order since
+                             * only the TOTAL (42) is load-bearing — it advances the
+                             * shared LCG to the post-spawn phase so the establishing
+                             * REVEAL's iris-variant draw lands on retail's value. */
 } CUTSCENE_FAMILY[] = {
-    {0,          0xc3f0u, 3, 0, 4, 0,     0x6400,  43600, -20,  0},  /* Dr. Barnard    -> 0xeb */
-    {0x5f5e1d3u, 0,       3, 0, 4, 0,     8000,    43600, -20, 13},  /* Arche's Father -> 0xe3 */
-    {0x5f5e1d4u, 0,       1, 0, 0, 0,     -3200,   43600, -20,  1},  /* Arche's Mother -> 0xb5 */
+    {0,          0xc3f0u, 3, 0, 4, 0,     0x6400,  43600, -20,  0, 10},  /* Dr. Barnard    -> 0xeb */
+    {0x5f5e1d3u, 0,       3, 0, 4, 0,     8000,    43600, -20, 13, 10},  /* Arche's Father -> 0xe3 */
+    {0x5f5e1d4u, 0,       1, 0, 0, 0,     -3200,   43600, -20,  1, 10},  /* Arche's Mother -> 0xb5 */
     /* Arche the party LEADER: handle 0x5f5e165 -> code 0xc35a, dramatist bank 0
      * (party-loaded), so party_resolve_spawn yields bank 0 -> override to her body
      * bank 0x8b (the 0x41f200 case 0xc35a :899 install).  Her banks 0x8b-0x8e now
@@ -466,7 +480,7 @@ static const struct {
      * clip).  PORT-DEBT(cutscene-party-chars): rendered as the static-cast member
      * here (not yet via the party band 0x4997b0); the multi-part body banks
      * 0x8c-0x8e + the walk-in roll-in remain Phase 2/3. */
-    {0x5f5e165u, 0,       1, 0, 0, 0x8bu, 0,       45600, -24, 15},  /* Arche -> body 0x8b */
+    {0x5f5e165u, 0,       1, 0, 0, 0x8bu, 0,       45600, -24, 15, 12},  /* Arche -> body 0x8b (0x427360, 12 draws) */
 };
 
 /* Append the cutscene arrival family to an already-filled EFFECT pool (g_effects,
@@ -481,6 +495,18 @@ int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_
     if (pool == NULL) return -1;
     int spawned = 0;
     for (size_t i = 0; i < sizeof CUTSCENE_FAMILY / sizeof CUTSCENE_FAMILY[0]; i++) {
+        /* RNG REPLAY (engine-quirk #94): each cutscene member's 0x41f200 spawn
+         * consumes its draws on the room-load tick, in the 19-object EFFECT burst
+         * AFTER the 15 map objects (actor_spawn_effect_from_map) and BEFORE the
+         * establishing REVEAL's iris-variant draw.  Consume them here — like
+         * effect_from_map's prefix replay — so the shared LCG reaches retail's
+         * post-spawn phase (the values feed each member's idle phase/position,
+         * which the port takes from the settled census, so they are consumed-to-
+         * advance).  Done before the pool-full guard: retail always spawns all 4
+         * (32 EFFECT slots), and the iris depends on the full 42-draw advance. */
+        for (int k = CUTSCENE_FAMILY[i].spawn_draws; k > 0; k--)
+            (void)rng_rand();
+
         if (pool->count >= ACTOR_BAND_SLOTS) return spawned;   /* pool full */
 
         /* 0x41f200:54-69 + the archetype default arm: handle/code -> (code, bank). */

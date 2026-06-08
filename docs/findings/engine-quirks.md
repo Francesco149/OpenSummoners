@@ -2861,3 +2861,38 @@ identify a small/ambient actor, capture the rendered RESOURCE (the blit `res` / 
 just the code+bank — a "wandering NPC" can be a butterfly.  Ported ckpt 96 (`src/actor_spawn.c`:
 `0xe29a` added to `TOWN_EFFECT_DEFS` + `BUTTERFLY_CLIP`); per-instance direction/variant + RNG
 wander drift are PORT-DEBT(butterfly-wander).
+
+### #94 — the town room-load RNG burst is **19 EFFECT objects** (15 MAP + 4 SCRIPT cutscene cast), and the establishing-REVEAL iris-variant draw fires AFTER the whole burst (2026-06-09, ckpt 97)
+
+The first in-game frame (the seed-pinned `0x5bf505` census `runs/rng-census-repin`, sim-tick 0,
+238 draws) consumes the LCG in this exact order — the keystone for the scene-wide RNG-phase work:
+
+1. **`0x4c5e00`** — 1 pre-spawn draw (BEFORE the re-pin point; the port re-seeds `enter_game`
+   AFTER it, matching ckpt 86: the re-pin is the first `0x41f200` onEnter, and `0x426fd0` is called
+   *inside* `0x41f200` so it lands post-re-pin).
+2. **The 19-object EFFECT spawn burst = 213 draws**, each object via `0x58d460`/`0x4d7d80` →
+   `0x41f200`, shape `0x426fd0`(1) + `0x41f200`(7) + [per-type extra] + `0x426ec0`(2):
+   - **15 MAP objects (171 draws)** — `0x58d460` room population, map-layer order: 10 plain
+     townsfolk (10 draws each) + **4 butterflies** `0xe29a` (15 each: `+0x427670` case-2 ×5) + 1
+     `0xe2a5` (11: `+0x431cb0` ×1).  Ported by `actor_spawn_effect_from_map`.
+   - **4 SCRIPT objects (42 draws)** — `0x4d7d80` (the town intro cutscene, case `0x334be`) spawns
+     the arrival cast via `0x41f0e0`→`0x41f200`: **Arche** (`0xc35a`) is obj16 and draws **12** (her
+     `case 0xc35a` is the ONLY one that calls `0x427360` (+1) and trips the conditional
+     `0x41f200:25caa` (+1)); Barnard/Father/Mother draw **10** each.  Ported by
+     `actor_spawn_cutscene_cast` (ckpt 97 — previously consumed 0 → the bug below).
+3. **`0x439690`@`0x43a941`** — **1 draw = the establishing-REVEAL iris VARIANT** `(rand*3)>>15`
+   (`0x439690:555-583`, quirk #90 / `src/scene_fade.c`).  It fires AFTER all 19 spawns, so its value
+   depends on the FULL 213-draw advance.  From the pinned seed `0x4f5347`: after 213 draws the draw
+   = 7211 → variant **0 (center-out)** = retail's live town value.  The pre-ckpt-97 port consumed
+   only the 15 map objects (171) → the draw = 31664 → variant **2 (sweep)** — the
+   PORT-DEBT(scene-fade-rng-phase) bug.  **Only the draw COUNT matters** (the MSVC LCG state after N
+   steps is independent of how the values are used), so the cutscene cast just consumes 42 to advance
+   the phase; the iris is now DRAWN, not pinned.
+4. Then the first per-tick update `0x46cd70`: `0x47b990` ×4 (the butterflies — the ONLY EFFECT-band
+   per-tick RNG consumer; townsfolk go to the RNG-free `0x478ba0`), then the `0x54f980`/`0x453960`
+   particle emitters.  (Per-tick model: quirk #95.)
+
+Verified: host test `actor_spawn_cutscene_iris` (the 42-draw contract + variant 0 vs the bug's 2) +
+the live port log (`scene_fade_arm … variant=0 … DRAWN at the post-spawn LCG phase`).  This retires
+the RNG-phase half of PORT-DEBT(scene-fade-rng-phase); the residual is only the skipped black-load
+WINDOW (the reveal's absolute start-tick offset).

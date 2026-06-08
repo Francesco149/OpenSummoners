@@ -2262,22 +2262,21 @@ static void enter_game(void)
         }
 
         /* Arm the establishing REVEAL fade-grid (0x439690:555-583).  Town params
-         * (live: runs/reveal-grid): mode 1 (fade-out), speed 1000; the iris
-         * VARIANT is the LCG draw (rand*3)>>15 in {0,1,2}.  Retail arms it in the
-         * first in-game frame FSM AFTER the room-load spawn burst, so the variant
-         * is drawn at the POST-spawn phase — which the port can't reproduce yet:
-         * the effect spawn doesn't consume the full 238-draw burst (only the idle
-         * phases are ported, ckpt 87), so the drawn value is off (it picks 2/sweep,
-         * retail's town is 0/center-out).  Consume the draw to keep the eventual
-         * RNG order, but PIN the live-confirmed town variant 0 until the spawn-RNG
-         * is complete + the skipped black-load window is modeled.
-         * PORT-DEBT(scene-fade-rng-phase). */
-        (void)((rng_rand() * 3u) >> 15);   /* the faithful variant draw (Phase 2) */
-        int sf_variant = 0;                /* live town ground truth: center-out  */
+         * (live: runs/reveal-grid): mode 1 (fade-out), speed 1000; the iris VARIANT
+         * is the LCG draw (rand*3)>>15 in {0,1,2} = center-out/edges-in/sweep.
+         * Retail arms it in the first in-game frame FSM AFTER the room-load EFFECT
+         * spawn burst (19 objects = 15 map + 4 cutscene cast, all consumed above),
+         * so the variant is drawn at the post-spawn phase.  With the full 213-draw
+         * burst now replayed (171 map via effect_from_map + 42 cutscene via
+         * cutscene_cast) the draw yields retail's town value 0 (center-out) — proven
+         * offline from the pinned seed and live (engine-quirk #94).  This retires the
+         * RNG-phase half of PORT-DEBT(scene-fade-rng-phase); the residual is now only
+         * the skipped black-load WINDOW (the reveal's absolute start tick offset). */
+        int sf_variant = (int)((rng_rand() * 3u) >> 15);
         scene_fade_arm(&g_scene_fade, SCENE_FADE_MODE_OUT, sf_variant, 1000);
         log_line("enter_game: scene_fade_arm mode=1 speed=1000 variant=%d "
-                 "(center-out; pinned to the live town value, PORT-DEBT "
-                 "scene-fade-rng-phase)", sf_variant);
+                 "(0=center-out; DRAWN at the post-spawn LCG phase, engine-quirk #94)",
+                 sf_variant);
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):
