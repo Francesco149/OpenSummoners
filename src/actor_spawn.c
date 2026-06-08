@@ -5,6 +5,7 @@
  * visible-code sprite-table stand-in (the lazy 0x40afe0/0x41e600 fill).
  */
 #include "actor_spawn.h"
+#include "party.h"          /* the dramatist resolve (handle -> code/bank)       */
 #include "rng.h"            /* rng_rand — the engine LCG the spawn replays      */
 
 #include <string.h>
@@ -362,89 +363,102 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
     return pool->count;
 }
 
-/* PORT-DEBT(cutscene-cast): the town-intro cutscene 0x4d7d80 (case 0x334be)
- * spawns the arriving party IN FRONT of the wagon, anchor-relative to it
- * (anchor 0x65) via 0x41f0e0 -> 0x41f200: 0xc3f0 by code + two
- * 0x5f5e1dx HANDLE actors resolved through the dramatist table DAT_006b6ea8
- * (the party/new-game system the port lacks).  Their RESOLVED render-states are
- * captured here from the settled-town 0x493ba0 census (runs/cutscene-cast, flip
- * 2400): code / bank / dst (+0x40/+0x44) / facing (+0x2c) / world pos (+0x04/+0x08)
- * / idle-clip phase (+0x72).  Stands in for the cutscene spawn + the handle
- * resolution.  The 0xc35a actor is drawn twice in retail (one overdraw); spawned
- * once here.  The 0xc35a clip is 0x62a8c8 (un-decoded) -> IDLE_CLIP stand-in.
- * NOTE positions are the captured SETTLED absolutes; the faithful source is the
- * wagon anchor + per-char offset (0x6400 / 8000 / -3200), deferred with the
- * wagon roll-in (actor-protagonist-clip).  facing==3 banks need their flip value
- * (DAT_008a8440[bank], an in-scene read) for the mirror cel — provisional 0 here
- * (refine). */
+/* The town-intro cutscene 0x4d7d80 (case 0x334be) spawns the arriving family IN
+ * FRONT of the wagon, anchor-relative to it (anchor 0x65) via three 0x41f0e0
+ * calls (-> the EFFECT activator 0x41f200).  RE'd verbatim from the decompile
+ * (docs/proofs/dramatist-table.md, the 0x41f0e0 arg shape):
+ *
+ *   0x41f0e0(0,          0xc3f0, 0x65, 0x6400,     0, 3, 0, 0);  // Dr. Barnard (by code)
+ *   0x41f0e0(0x5f5e1d3,  0,      0x65, 8000,       0, 3, 0, 0);  // Arche's Father (handle)
+ *   0x41f0e0(0x5f5e1d4,  0,      0x65, 0xfffff380, 0, 1, 0, 0);  // Arche's Mother (handle)
+ *
+ * Each member's CODE + sprite BANK is resolved through the dramatist table
+ * DAT_006b6ea8 + the archetype default-bank arm (src/party.c, the 0x41f200:54-69
+ * + per-case logic) — NOT a frozen census snapshot:
+ *   - Dr. Barnard: handle 0 -> archetype 0xc3f0 default (facing_sel 0 -> base
+ *     bank 0xeb).  Renders (0xeb registered in group3).
+ *   - Arche's Father: handle 0x5f5e1d3 -> code 0xc3dc, bank OVERRIDE 0xe3.  Renders.
+ *   - Arche's Mother: handle 0x5f5e1d4 -> code 0xc440 (the "Woman" archetype),
+ *     bank OVERRIDE 0xb5 (NOT the generic map townswoman's facing default 0xa6).
+ *     This is the ckpt-92 fix: the port now spawns Mom's OWN 0xb5 sheet, which is
+ *     registered in group3 (idx 168), so she renders as the woman the USER sees
+ *     on the golden — instead of being absent.
+ *
+ * Arche herself (handle 0x5f5e165 -> code 0xc35a, bank 0) is NOT spawned by this
+ * cutscene: she is the persistent party LEADER (room_state+0x200c), created at
+ * new-game and rendered by the party band 0x4997b0 (Phase 2) via her 4-bank body
+ * 0x8b-0x8e + clip 0x62a8c8.  Those banks are unregistered (her dramatist bank is
+ * 0 -> the unported new-game party sprite-load), so she would cull anyway; the
+ * cutscene dialogue only RESOLVES her handle for her speaker lines (Phase 3).
+ * PORT-DEBT(cutscene-party-chars): she lands when the party band ports.
+ *
+ * Positions: world x = the wagon's settled anchor (CUTSCENE_WAGON_ANCHOR_X) +
+ * each member's anchor-relative x offset (the RE'd 0x41f0e0 arg4); this
+ * reproduces the census settled positions exactly (Barnard 67200 / Father 49600
+ * / Mother 38400) AND ports the real offsets.  PORT-DEBT(cutscene-party-chars):
+ * the wagon-anchor BASE is the settled value (the roll-in is deferred with the
+ * wagon clip), and the walk-in DIALOGUE movement (the family animates to these
+ * spots) is Phase 3 — these are the settled hold positions. */
+#define CUTSCENE_WAGON_ANCHOR_X 41600   /* wagon anchor 0x65 settled world_x      */
+#define CUTSCENE_CAST_Y         43600   /* census world_y (the family line)       */
+
 static const struct {
-    uint32_t code;
-    uint16_t bank;
-    int16_t  dstx, dsty;
-    uint32_t layer;
-    int16_t  facing;        /* rs +0x2c: 1 normal / 3 mirrored                 */
-    int16_t  flip;          /* DAT_008a8440[bank] frames/dir (in-scene read)   */
-    int32_t  world_x, world_y;
-    uint16_t clip_frame;    /* rs +0x72: the captured idle-clip start phase    */
-} CUTSCENE_CAST_DEFS[] = {
-    /* NAMED ckpt 92 from the dramatist table DAT_006b6ea8 (docs/proofs/
-     * dramatist-table.md; supersedes the retracted ckpt-91 "0xc3f0 = the woman /
-     * decode bug" — there is NO decode bug):
-     *   - 0xc3f0 (bank 0xeb) is Dr. BARNARD (a man, right of the horses); renders OK.
-     *   - 0xc3dc (bank 0xe3) is Arche's FATHER (handle 0x5f5e1d3); renders OK.
-     *   - 0xc35a (bank 0x8b -> idx 126, NO sprite registration) is ARCHE, the
-     *     protagonist (clip 0x62a8c8, banks 0x8b/0x8c/0x8d); the one true culler.
-     *     Created at new-game as the party leader, not by this cutscene.
-     *   - Arche's MOTHER is a SEPARATE actor: code 0xc440 bank 0xb5 (handle
-     *     0x5f5e1d4), at rs_x 38400 (just left of Arche).  NOT spawned here -> the
-     *     port shows only the generic map 0xc440 bank 0xa6 townswoman, never Mom's
-     *     0xb5 sheet.  TODO add her (the real Phase-1 fix is the dramatist resolve:
-     *     spawn handle->code->bank, not this frozen snapshot).
-     * PORT-DEBT(cutscene-party-chars).  flip 4 (the in-scene DAT_008a8440 read)
-     * gives the facing==3 cast the mirror cel.  The town-intro is a walk-in DIALOGUE
-     * cutscene (positions time-varying); these are a single flip-2400 census snapshot. */
-    {0xc35au, 0x08bu, -30, -24, 13u, 1, 152, 41600, 45600,  1},
-    {0xc3dcu, 0x0e3u, -30, -20, 13u, 3,   4, 49600, 43600, 13},
-    {0xc3f0u, 0x0ebu, -30, -20, 13u, 3,   4, 67200, 43600,  0},
+    uint32_t handle;        /* 0x41f0e0 arg1 (0 => spawned by code)              */
+    uint32_t code_in;       /* 0x41f0e0 arg2 (0 => take the dramatist row's code) */
+    int16_t  facing;        /* 0x41f0e0 arg6 -> rs +0x2c (1 normal / 3 mirrored) */
+    int16_t  facing_sel;    /* 0x41f0e0 arg8 -> param_11 (archetype default sel) */
+    int16_t  flip;          /* DAT_008a8440[resolved bank] for the facing==3 cel */
+    int32_t  x_off;         /* 0x41f0e0 arg4 -> anchor-relative world x          */
+    uint16_t clip_frame;    /* rs +0x72: idle-clip start phase (cosmetic)        */
+} CUTSCENE_FAMILY[] = {
+    {0,          0xc3f0u, 3, 0, 4,  0x6400,  0},  /* Dr. Barnard      -> bank 0xeb */
+    {0x5f5e1d3u, 0,       3, 0, 4,  8000,   13},  /* Arche's Father   -> bank 0xe3 */
+    {0x5f5e1d4u, 0,       1, 0, 0,  -3200,   1},  /* Arche's Mother   -> bank 0xb5 */
 };
 
-/* Append the cutscene party cast to an already-filled EFFECT pool (g_effects,
+/* Append the cutscene arrival family to an already-filled EFFECT pool (g_effects,
  * after actor_spawn_effect_from_map).  Does NOT memset — it extends the pool.
- * Also writes each cast bank's mirror/flip value into `flip_table` (the port
- * stand-in for DAT_008a8440) so the facing==3 cast pick the mirrored cel; pass
- * the same table actor_spawn_effect_fill_flip_table filled (NULL to skip).
- * Returns the number spawned (-1 on bad arg). */
+ * Resolves each member's (code, bank) through the dramatist system (party.c) and
+ * spawns it anchor-relative to the wagon.  Also writes each facing==3 member's
+ * mirror/flip value into `flip_table` (the port stand-in for DAT_008a8440) so the
+ * mirrored cel resolves; pass the same table actor_spawn_effect_fill_flip_table
+ * filled (NULL to skip).  Returns the number spawned (-1 on bad arg). */
 int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_t flip_n)
 {
     if (pool == NULL) return -1;
     int spawned = 0;
-    for (size_t i = 0; i < sizeof CUTSCENE_CAST_DEFS / sizeof CUTSCENE_CAST_DEFS[0]; i++) {
+    for (size_t i = 0; i < sizeof CUTSCENE_FAMILY / sizeof CUTSCENE_FAMILY[0]; i++) {
         if (pool->count >= ACTOR_BAND_SLOTS) return spawned;   /* pool full */
+
+        /* 0x41f200:54-69 + the archetype default arm: handle/code -> (code, bank). */
+        uint32_t code; uint16_t bank;
+        party_resolve_spawn(CUTSCENE_FAMILY[i].handle, CUTSCENE_FAMILY[i].code_in,
+                            CUTSCENE_FAMILY[i].facing_sel, &code, &bank);
+
         int slot = pool->count++;
         actor              *a  = &pool->actors[slot];
         actor_render_state *rs = &pool->states[slot];
 
-        a->code  = CUTSCENE_CAST_DEFS[i].code;
+        a->code  = code;
         a->dir   = 0;
-        a->layer = CUTSCENE_CAST_DEFS[i].layer;
-        a->sprite_table[0].bank       = CUTSCENE_CAST_DEFS[i].bank;
+        a->layer = 13u;                         /* EFFECT townsfolk layer */
+        a->sprite_table[0].bank       = bank;
         a->sprite_table[0].frame_base = 0;
 
         rs->active     = 1;
-        rs->world_x    = CUTSCENE_CAST_DEFS[i].world_x;
-        rs->world_y    = CUTSCENE_CAST_DEFS[i].world_y;
-        rs->facing     = CUTSCENE_CAST_DEFS[i].facing;
-        rs->dst_base_x = CUTSCENE_CAST_DEFS[i].dstx;
-        rs->dst_base_y = CUTSCENE_CAST_DEFS[i].dsty;
-        rs->clip       = &IDLE_CLIP;            /* breathe like the townsfolk */
+        rs->world_x    = CUTSCENE_WAGON_ANCHOR_X + CUTSCENE_FAMILY[i].x_off;
+        rs->world_y    = CUTSCENE_CAST_Y;
+        rs->facing     = CUTSCENE_FAMILY[i].facing;
+        rs->dst_base_x = -30;                   /* the town villager render anchor */
+        rs->dst_base_y = -20;
+        rs->clip       = &IDLE_CLIP;            /* breathe like the townsfolk (clip 0x6290e0) */
         rs->timer      = 0;
-        rs->frame      = CUTSCENE_CAST_DEFS[i].clip_frame;
+        rs->frame      = CUTSCENE_FAMILY[i].clip_frame;
         rs->done       = 0;
 
-        if (flip_table != NULL) {
-            uint16_t bank = CUTSCENE_CAST_DEFS[i].bank;
-            if (bank < flip_n) flip_table[bank] = CUTSCENE_CAST_DEFS[i].flip;
-        }
+        if (flip_table != NULL && CUTSCENE_FAMILY[i].facing == 3 &&
+            bank < flip_n)
+            flip_table[bank] = CUTSCENE_FAMILY[i].flip;
         spawned++;
     }
     return spawned;

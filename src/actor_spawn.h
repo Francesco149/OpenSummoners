@@ -191,14 +191,21 @@ int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
  * `n` is the table length (banks >= n are skipped).  Returns entries written. */
 int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n);
 
-/* Append the town-intro cutscene party cast (the script-spawned characters
- * standing in front of the wagon: 0xc35a/0xc3dc/0xc3f0, spawned by 0x4d7d80
- * via the anchor-relative 0x41f0e0) to an already-filled EFFECT pool, AFTER
- * actor_spawn_effect_from_map.  Captured render-states (PORT-DEBT cutscene-cast);
- * rendered by the same actor_render_static path as the townsfolk (layer 13).
- * Also writes each cast bank's facing==3 mirror/flip value into `flip_table`
- * (the DAT_008a8440 stand-in; pass the same one actor_spawn_effect_fill_flip_table
- * filled, or NULL to skip).  Returns the number spawned (-1 on NULL pool). */
+/* Append the town-intro cutscene arrival FAMILY (the characters standing in
+ * front of the wagon, spawned by 0x4d7d80's three 0x41f0e0 calls) to an
+ * already-filled EFFECT pool, AFTER actor_spawn_effect_from_map.  Each member's
+ * code + sprite bank is resolved through the dramatist table DAT_006b6ea8 + the
+ * archetype default arm (src/party.c, the 0x41f200:54-69 logic): Dr. Barnard (by
+ * code -> 0xeb), Arche's Father (handle -> 0xe3), Arche's Mother (handle -> the
+ * OVERRIDE bank 0xb5, the ckpt-92 fix that makes Mom render her own sheet instead
+ * of being absent).  Arche (the party LEADER) is NOT here — she renders via the
+ * party band 0x4997b0 (Phase 2); her banks 0x8b-0x8e are party-loaded (unported).
+ * Positions = the wagon's settled anchor + each RE'd anchor-relative offset.
+ * Rendered by the same actor_render_static path as the townsfolk (layer 13).
+ * Writes each facing==3 member's mirror/flip value into `flip_table` (the
+ * DAT_008a8440 stand-in; pass the same one actor_spawn_effect_fill_flip_table
+ * filled, or NULL to skip).  Returns the number spawned (-1 on NULL pool).
+ * PORT-DEBT(cutscene-party-chars): the walk-in DIALOGUE movement is Phase 3. */
 int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_t flip_n);
 
 /*

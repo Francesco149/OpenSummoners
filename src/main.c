@@ -2179,16 +2179,18 @@ static void enter_game(void)
                  "(standing villagers, DATA 1022; %d flip-table banks; 0xe29a "
                  "wanderers deferred)", en, fn);
 
-        /* The town-intro cutscene cast (0x4d7d80 -> 0x41f0e0): the arriving party
-         * characters standing in front of the wagon (0xc35a/0xc3dc/0xc3f0),
-         * appended to the EFFECT pool so they render via the same layer-13 path.
-         * PORT-DEBT(cutscene-cast): captured settled render-states. */
+        /* The town-intro cutscene arrival family (0x4d7d80 -> 0x41f0e0), resolved
+         * through the dramatist table (party.c): Dr. Barnard (0xc3f0 -> 0xeb),
+         * Arche's Father (0xc3dc -> 0xe3), Arche's Mother (0xc440 -> 0xb5 — her
+         * own sheet, ckpt 92).  Appended to the EFFECT pool (layer-13 path).
+         * Arche (the party leader) renders via the party band 0x4997b0 (Phase 2);
+         * her banks 0x8b-0x8e are party-loaded (unported). */
         if (g_effects_loaded) {
             int cn = actor_spawn_cutscene_cast(&g_effects, g_actor_flip_table,
                                                AR_SPRITE_SLOT_COUNT);
-            log_line("enter_game: actor_spawn_cutscene_cast -> %d cutscene party "
-                     "characters (in front of the wagon; 0xc35a/party deferred — "
-                     "bank 0x8b unregistered)", cn);
+            log_line("enter_game: actor_spawn_cutscene_cast -> %d arrival family "
+                     "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5; Arche -> "
+                     "party band Phase 2)", cn);
         }
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props

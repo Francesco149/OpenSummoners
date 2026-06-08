@@ -942,6 +942,9 @@ struct test_case {
     X(particle_sky_step_physics)                               \
     X(particle_sky_step_expires)                               \
     X(particle_sky_render_ramp_b)                              \
+    X(party_dramatist_find)                                    \
+    X(party_archetype_default_bank)                            \
+    X(party_resolve_arrival_cast)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS
