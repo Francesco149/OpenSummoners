@@ -9,7 +9,30 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 95): the establishing REVEAL is PORTED — the center-out vertical iris that opens
+- **LATEST (ckpt 96): the town BUTTERFLIES are PORTED — and `0xe29a` was NEVER "wandering
+  villagers" (a ~13-checkpoint mislabel). USER-confirmed the retail capture + identification. (919 pass.)**
+  1. **The chase (USER-pointed: tiny ~3px butterflies by the flowerbeds, "over the dark wood, below
+     the ARMS/sword sign, above the dog", retail flips 2028/2138).** No capture had hooked the particle
+     band at the SETTLED town, so I drove retail there (`--seed-pin --lockstep`) + captured PNGs/traces.
+     The particle band (`0x493480`) renders ONLY the ported `0x18704`+`0x18708`; the EFFECT band only
+     townsfolk/cast. A **blit trace** found the butterfly at the screen pos = **res `0x3fa`, 14×8**; an
+     **emit trace** (`0x492670` cel_res+ret_va) named the producer `0x493ba0` at world positions
+     matching the **`0xe29a`** census **1:1** → the "wandering villagers" ARE the butterflies.
+  2. **Asset:** res `0x3fa` = bank `0x146` (slot 313, 32×32, sotesd.dll DATA — already group3-registered,
+     just unused), clip **`0x65ddf0`** (decoded: 3-frame flap, dur 4, loop). Two colour variants
+     (yellow+white) = per-instance frame_base 0/4/8/12.
+  3. **Port (`src/actor_spawn.c`):** added `0xe29a` to `TOWN_EFFECT_DEFS` (bank `0x146`, dst 0/0, layer
+     12) + `BUTTERFLY_CLIP`; the spawn selects the per-code clip before the `0x426ec0` phase draws (draw
+     COUNT unchanged → no townsfolk-phase regression). Was *excluded* (draws consumed, not spawned); now
+     spawns + renders via `actor_render_static`. **Verified:** 919 pass; port blit trace emits res `0x3fa`
+     frames 0/1/2 on-screen (frame 1600 @dx 116/180, 1850 @dx 491/555) — 2 yellow butterflies flapping by
+     the ARMS sign / flowers / dog, matching retail. Pushed to feed. quirk #93;
+     `in-game-intro.md` "The town BUTTERFLIES". PORT-DEBT(butterfly-wander): per-instance direction/colour
+     + RNG flit drift (the 5 `0x427670` draws are consumed, motion not applied) — Phase 2.
+  4. **Lesson:** to ID a small/ambient actor, capture the rendered RESOURCE (blit `res`/emit `cel_res`),
+     not just the actor code+bank — a "wandering NPC" can be a butterfly. The hold census missed it
+     (off-screen-left at flip 1500; the camera only pans to the inn half during the arrival).
+- **Prior (ckpt 95): the establishing REVEAL is PORTED — the center-out vertical iris that opens
   the town from black. USER: "the iris looks reasonable." (919 pass, +5.)**
   1. **A self-contained scene-transition FADE-GRID** (`src/scene_fade.{c,h}`, NEW): a 10×120 grid of
      64×4px cells over the screen, each `state 0 opaque → 1 fading → 2 clear`. **render** = `0x48e920`

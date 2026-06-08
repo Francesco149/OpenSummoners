@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-09 (ckpt 96) — the town BUTTERFLIES are PORTED (`0xe29a` was never "wandering villagers")
+
+USER (golden review #89) pointed out tiny ~3px butterflies that flit by the flowerbeds at the
+settled town — "over the dark wood, below the ARMS/sword sign, above the dog" (retail flips ~2028 +
+2138).  Chasing them corrected a mislabel that stood from ckpt 83 through 95: the 4 map **`0xe29a`**
+EFFECT objects, called "wandering villagers" all along (the spawn excluded them, consuming only their
+RNG), are the **butterflies**.
+
+**The chase** followed the methodology's "RE via a live render trace at the SETTLED town, not the
+hold."  No prior capture had hooked the particle band there, so I drove retail to flips 2028/2138
+(`--seed-pin --lockstep`, `trace-retail.jsonl`) and captured frames + field-spec traces.  The
+particle band (`0x493480`) rendered only the ported `0x18704`+`0x18708`; the EFFECT band
+(`0x493ba0`) only townsfolk/cast — the butterfly was in neither known band.  A **blit trace**
+(`blt_keyed` res/dx/dy) found it at the butterfly's screen position = **res `0x3fa`, 14×8 cels**; an
+**emit trace** (`0x492670` cel_res + ret_va) named the producer `FUN_00493ba0` at world positions
+matching the `0xe29a` census **1:1**.  Asset: res `0x3fa` = bank `0x146` (sprite slot 313 = bank−13,
+32×32, sotesd.dll DATA — already group3-registered, just unused), clip `0x65ddf0` (decoded: 3-frame
+flap, dur 4, looping); two colour variants (yellow + white) = per-instance frame_base 0/4/8/12.
+
+**The port (`src/actor_spawn.c`).**  Added `0xe29a` to `TOWN_EFFECT_DEFS` (bank `0x146`, dst (0,0),
+layer 12) + a `BUTTERFLY_CLIP`; the spawn now selects the per-code clip BEFORE the `0x426ec0` phase
+draws (the draw COUNT is unchanged, so the shared LCG stays aligned — no townsfolk-phase regression).
+`0xe29a` was previously excluded; now it spawns + renders via the existing `actor_render_static`
+path.  **919 host tests pass** (`test_actor_spawn` updated: `0xe29a` def found, effect count 2→3,
+the butterfly slot + flap clip).  Port blit trace: res `0x3fa` frames 0/1/2 emit on-screen as the
+camera pans (frame 1600 @dx 116/180, frame 1850 @dx 491/555) — two yellow butterflies flapping by
+the ARMS sign / flowers / dog, matching retail's placement (pushed to the feed).  engine-quirk #93;
+`findings/in-game-intro.md` "The town BUTTERFLIES".  PORT-DEBT(butterfly-wander): per-instance
+direction/colour (the white variant) + the RNG wander drift (the 5 `0x427670` draws are consumed but
+the motion isn't applied) — Phase 2.  **Lesson:** to ID a small/ambient actor, capture the rendered
+RESOURCE (blit `res` / emit `cel_res`), not just the actor code+bank.
+
 ## 2026-06-08 (ckpt 95) — the establishing REVEAL is PORTED (the center-out vertical iris)
 
 The room-enter iris that opens the static town from black — a self-contained scene-transition

@@ -3040,3 +3040,37 @@ trace, settled frame 2200): res `0x570` frame 1 emits at screen (258, 304) — e
 rendering correctly now."**  914 tests pass.  PORT-DEBT(cutscene-party-chars): the static-cast Arche,
 not yet the party-band leader (`0x4997b0`) — her multi-part body banks `0x8c`–`0x8e`, the walk-in
 roll-in, and the live-actor handle registry (dialogue) remain Phase 2/3.
+
+### The town BUTTERFLIES — `0xe29a` is NOT "wandering villagers" (ckpt 96, USER-confirmed)
+
+USER (golden review #89): tiny butterflies flit by the flowerbeds at the settled town — "over the
+dark wood, below the sword/ARMS sign, above the dog" (retail flips ~2028 + 2138; ~3–5 px).  The port
+lacked them.  Full ground truth + the mislabel post-mortem are in engine-quirks **#93**; the chase
+and port:
+
+- **The chase (live, the methodology's "RE via a render trace at the settled town").**  No existing
+  capture hooked the particle band at the settled town, so I drove retail (`--seed-pin --lockstep
+  --no-turbo`, input `tests/scenarios/in-game-intro/trace-retail.jsonl`) and captured PNGs +
+  field-spec traces at flips 2028/2138.  The particle band (`0x493480`) rendered ONLY the ported
+  `0x18704`+`0x18708`; the EFFECT band (`0x493ba0`) only townsfolk/cast — so the butterfly was in
+  neither known band.  A **blit trace** (`blt_keyed` `res`/`dx`/`dy`) found it at the butterfly's
+  screen pos: **res `0x3fa`, 14×8 cels**.  An **emit trace** (`0x492670` `cel_res`+`ret_va`) named
+  the producer: `FUN_00493ba0`, at world positions that match the **`0xe29a`** census 1:1 → the
+  "wandering villagers" ARE the butterflies (`runs/butterfly-{census,allbands,blits,emit}`).
+- **The asset.**  res `0x3fa` = bank `0x146` (sprite-pool slot **313** = bank−13; **32×32**, ck 0,
+  scale 1, type 2, group 3, in **sotesd.dll** — a plain DATA sprite, already group3-registered in the
+  port's `group3_sprites[]` at idx 313, just never used).  Clip **`0x65ddf0`** decoded (base 0,
+  **3 frames, dur 4, looping, delta {0,1,2}** — wing-flap).  Two colour variants (yellow + white) =
+  per-instance frame_base/facing (0/4/8/12).
+- **The port (`src/actor_spawn.c`).**  Added `0xe29a` to `TOWN_EFFECT_DEFS` (bank `0x146`, dst (0,0),
+  layer 12, facing 1, flip 4) + a `BUTTERFLY_CLIP`; the spawn now selects the per-code clip (butterfly
+  vs IDLE_CLIP) BEFORE the `0x426ec0` phase draws (the draw COUNT is unchanged, so the shared LCG
+  stays aligned — no townsfolk-phase regression).  `0xe29a` was previously *excluded* (draws consumed,
+  not spawned); now it spawns + renders via the existing `actor_render_static` path.
+- **Verified.**  919 host tests pass (`test_actor_spawn` updated: `0xe29a`→def found, count 2→3, the
+  butterfly slot + flap clip).  Port blit trace: res `0x3fa` emits frames 0/1/2 on-screen as the
+  camera pans (frame 1600 @dx 116/180; frame 1850 @dx 491/555) — two yellow butterflies flapping by
+  the ARMS sign / dark wood / flowers / dog, matching retail's placement.
+- **PORT-DEBT(butterfly-wander):** the per-instance direction/colour (frame_base 0/4/8/12 → the white
+  variant) and the RNG wander drift (the 5 `0x427670` draws are consumed but the motion isn't applied)
+  — Phase 2, alongside the other scene RNG residuals.

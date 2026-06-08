@@ -191,8 +191,9 @@ int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md)
  * the standing town villagers share the idle clip 0x6290e0 (decoded: base 0, 20
  * frames, dur 14, loop) and draw layer 13; 0xe2a5 has its own anchor.  Banks
  * resolve to the villager sheets res 0x459/0x462/0x46a/0x46b/0x472/0x47b/0x47f
- * (FUN_00417c40).  Excludes 0xe29a (RNG wanderers) + 0xc35a/0xc3dc/0xc3f0
- * (non-map party/script spawns).
+ * (FUN_00417c40).  Now INCLUDES the 4 butterflies (0xe29a, bank 0x146, clip
+ * BUTTERFLY_CLIP, layer 12 — corrected ckpt 96 from the "wandering villagers"
+ * mis-ID); excludes only 0xc35a/0xc3dc/0xc3f0 (non-map party/script spawns).
  *
  * facing (rs +0x2c): 1 normal / 3 mirrored.  Set by the dispatcher 0x58d460:96
  *   cVar12 = (puVar1[4] != 0) ? 3 : 1 from the MAP sub-record puVar1[4] (NOT RNG;
@@ -221,6 +222,13 @@ static const struct {
     {0xc441u, 0x0a9u, -30, -20, 13u, 3, 16},
     {0xc468u, 0x0d0u, -30, -20, 13u, 3,  4},
     {0xe2a5u, 0x14cu, -16, -32, 13u, 1, 16},
+    /* The 4 BUTTERFLIES (was mis-ID'd as "wandering villagers" through ckpt 95).
+     * bank 0x146 -> sprite res 0x3fa (slot 313, 32x32, already group3-registered),
+     * dst (0,0), draw layer 12, flap clip BUTTERFLY_CLIP (selected by code in the
+     * spawn).  flip 4 = the sheet's frames-per-direction (cels step by 4: dir0 0-2,
+     * dir1 4-6, ...; live blit cel_fr 0/4/8/12 + flap).  facing 1 (the per-instance
+     * direction + RNG wander drift are PORT-DEBT(butterfly-wander), Phase 2). */
+    {0xe29au, 0x146u,   0,   0, 12u, 1,  4},
 };
 
 int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
@@ -276,12 +284,32 @@ static const anim_clip IDLE_CLIP = {
     .oneshot     = 0,    /* loops */
 };
 
+/* The town BUTTERFLY's wing-flap clip — reconstructed from DAT_0065ddf0 (the clip
+ * the 0xe29a actor carries, decoded from the user's sotes.exe .rdata): base 0,
+ * 3 frames, 4 sim-ticks/frame, LOOPING, per-frame sprite delta {0,1,2}, zero
+ * per-frame offset.  A fast 3-cel wing flap (vs the villagers' slow 20-frame
+ * breathe).  CORRECTS the long-standing mis-ID: every prior checkpoint called the
+ * 4 town 0xe29a EFFECT objects "wandering villagers", but the live settled-town
+ * blit + emit census (runs/butterfly-{blits,emit}, retail flips 2028/2138) proves
+ * they render sprite res 0x3fa (bank 0x146, slot 313, 32x32) via 0x493ba0 at
+ * layer 12 — they are the small yellow + white BUTTERFLIES that flit by the
+ * flowerbeds (USER-pinpointed: over the dark wood beam, below the ARMS sign,
+ * above the dog).  Like the villagers, 0x426ec0 randomizes the start phase into
+ * this clip at spawn (frame in [0,3), timer in [0,4)). */
+static const anim_clip BUTTERFLY_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2 },
+    .frame_count = 3,
+    .frame_dur   = 4,
+    .oneshot     = 0,    /* loops */
+};
+
 /* The fixed per-object RNG draw count 0x41f200 consumes BEFORE its 0x426ec0
  * idle-phase pair, by EFFECT type code (engine-quirk #86, the seed-pinned
  * 0x5bf505 census cross-checked against the decompile):
  *   0x426fd0 (1, the +0xf4 init) + 0x41f200 prologue (7 = 2 position-jitter
  *   :294/:301 + 5 particle-param :326-334) = 8, PLUS the per-type-switch draw:
- *     0xe29a -> 0x427670 case 2 (5 draws; the wandering villagers, :2181)
+ *     0xe29a -> 0x427670 case 2 (5 draws; the wandering BUTTERFLIES, :2181)
  *     0xe2a5 -> 0x431cb0     (1 draw; :2272)
  *     all other town effects -> none.
  * (The conditional 0x41f200:2849 draw + the script effects 0xc35a/0xc3dc/0xc3f0
@@ -290,7 +318,7 @@ static const anim_clip IDLE_CLIP = {
 static int effect_prefix_draws(uint32_t code)
 {
     int n = 8;                       /* 0x426fd0 (1) + 0x41f200 prologue (7) */
-    if (code == 0xe29au) n += 5;     /* 0x427670 case 2 (the wanderers)      */
+    if (code == 0xe29au) n += 5;     /* 0x427670 case 2 (the butterflies)    */
     else if (code == 0xe2a5u) n += 1;/* 0x431cb0                             */
     return n;
 }
@@ -314,21 +342,27 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
          * The prefix draws feed position jitter / particle params the port does
          * not model (the townsfolk positions are map-driven; the fountain is a
          * later chip), so they are consumed-to-advance; only the 0x426ec0 pair
-         * is USED — and only for the rendered townsfolk (the 0xe29a wanderers +
-         * unknown codes still consume their draws, they are just not spawned). */
+         * is USED — for the rendered townsfolk AND the butterflies (0xe29a); the
+         * remaining unknown codes still consume their draws, just not spawned. */
         for (int k = effect_prefix_draws(code); k > 0; k--)
             (void)rng_rand();
+        /* The actor's anim clip: the butterfly (0xe29a) flaps the 3-frame
+         * BUTTERFLY_CLIP; every other town effect breathes the 20-frame IDLE_CLIP.
+         * Selected by code BEFORE the phase draws so 0x426ec0 scales the start
+         * phase by THIS clip's count/dur — the draw COUNT is 2 either way, so the
+         * shared LCG stream stays aligned regardless of which clip is chosen. */
+        const anim_clip *clip = (code == 0xe29au) ? &BUTTERFLY_CLIP : &IDLE_CLIP;
         /* 0x426ec0: the idle PHASE.  frame = (rand * clip.frame_count) >> 15,
          * then timer = (rand * clip.frame_dur) >> 15 (the >>15 is /32768; both
          * operands are small + non-negative so it matches retail's signed form).
          * Every town effect carries a clip, so both draws always fire. */
-        uint16_t ph_frame = (uint16_t)((rng_rand() * IDLE_CLIP.frame_count) >> 15);
-        uint16_t ph_timer = (uint16_t)((rng_rand() * IDLE_CLIP.frame_dur)   >> 15);
+        uint16_t ph_frame = (uint16_t)((rng_rand() * clip->frame_count) >> 15);
+        uint16_t ph_timer = (uint16_t)((rng_rand() * clip->frame_dur)   >> 15);
 
         uint16_t bank; int16_t dstx, dsty; uint32_t layer; int16_t facing, flip;
         if (!actor_spawn_effect_def_for_code(code, &bank, &dstx, &dsty, &layer,
                                              &facing, &flip))
-            continue;        /* wanderer (0xe29a) / non-map: draws consumed, not spawned */
+            continue;        /* unmapped effect code: draws consumed, not spawned */
         (void)flip;                            /* lands in the render flip table */
 
         if (pool->count >= ACTOR_BAND_SLOTS)   /* "Effect Object Count Over" */
@@ -355,7 +389,7 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->facing     = facing;                /* +0x2c — 1 normal / 3 mirrored */
         rs->dst_base_x = dstx;                  /* +0x40 — the render anchor */
         rs->dst_base_y = dsty;                  /* +0x44 */
-        rs->clip       = &IDLE_CLIP;            /* +0x6c — the idle breathing clip */
+        rs->clip       = clip;                  /* +0x6c — idle breathe / butterfly flap */
         rs->timer      = ph_timer;              /* +0x70 — 0x426ec0 start timer */
         rs->frame      = ph_frame;              /* +0x72 — 0x426ec0 start frame */
         rs->done       = 0;                     /* +0x74 */

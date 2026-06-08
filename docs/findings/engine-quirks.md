@@ -2738,12 +2738,11 @@ side-by-side review.  Three retail behaviors the port lacks:
 - **BUTTERFLIES** flit near the GROUND in the town square — by the flowerbeds / the townsfolk
   (USER-pinpointed: next to the girl in pink, above the flowers, over the dog; small, easy to
   mistake for birds).  Absent in the port.  KEY: they appear at the **settled town** (~retail
-  flip 2150), which is AFTER the establishing-hold range my particle census covered
-  (`runs/rng-census-repin`, ~flip 1420-1550) — so the ckpt-89 "the +0x13e0 band renders only
-  `0x18704`+`0x18708`" holds only for the HOLD.  Likely one of the other `0x557550` particle
-  codes (`0x18707` clip `0x644cf0`, or `0x18709` clip `0x644e88` — the "leaf"-ish entries; cf.
-  the ckpt-84 "green leafy particles") spawned near the foliage at the settled town.  RE via a
-  render trace at the settled town (NOT the hold).
+  flip 2150), which is AFTER the establishing-hold range my particle census covered.
+  **RESOLVED ckpt 96 (quirk #93) — and the particle hypothesis here was WRONG.** They are NOT a
+  `0x557550` particle (the `+0x13e0` band renders only `0x18704`+`0x18708` at any frame); they are
+  the 4 **`0xe29a` EFFECT** objects (res `0x3fa`, bank `0x146`, clip `0x65ddf0`, `0x493ba0` layer 12)
+  that every prior checkpoint mis-labelled "wandering villagers" and the port excluded.  Ported.
 - **The Start-Game menu has a SCALE transition BOTH WAYS** (USER): it scales **IN/UP** when it
   APPEARS (a grow-from-small reveal) and the reverse — scales **OUT/DOWN** — when dismissed
   (confirming Start Game, id `0x24`), before the next scene.  The port pops it in/out with no
@@ -2832,3 +2831,33 @@ registering these slots with `settings = NULL/the-exe-handle` is what makes them
 This collision is what derailed ckpt 90 (the `0x8b→0x4fb` read was the *sound* table
 `game_sounds[139]`, not a sprite — retracted in 91b).  **The character's identity is its `0x493ba0`
 render path + bank, NOT the bare resource number** — always pin which MODULE a resource id means.
+
+### #93 — the town `0xe29a` EFFECT objects are the BUTTERFLIES, not "wandering villagers" (corrects #84–#89; res `0x3fa` / bank `0x146`, clip `0x65ddf0`) (2026-06-09, ckpt 96, USER-confirmed)
+
+The 4 map `0xe29a` (58010) EFFECT objects were called "wandering villagers" from ckpt 83 onward
+(the spawn excluded them, consuming only their RNG).  They are actually the **4 small BUTTERFLIES**
+that flit by the flowerbeds at the settled town (USER-pinpointed: over the dark wood beam, below
+the **ARMS** weapon-shop sign, above the dog — retail flips ~2028 + 2138; tiny ~3–5 px, easy to
+mistake for birds).
+
+**Ground truth (live, seed-pinned + lockstep, `runs/butterfly-{census,allbands,blits,emit}`):**
+- They render via **`0x493ba0`** (the EFFECT multi-part renderer) at **layer 12**, sprite **res
+  `0x3fa`** (bank **`0x146`**, sprite-pool slot **313** = bank−13; **32×32**, group-3 registered in
+  sotesd.dll — a DATA resource, NOT exe-embedded), animated by clip **`0x65ddf0`** (decoded: base 0,
+  **3 frames, dur 4, looping, delta {0,1,2}** — a fast wing-flap, vs the villagers' 20-frame breathe).
+- The butterfly emit world positions match the `0xe29a` `0x493ba0` render positions **1:1** (e.g.
+  @flip 2138: 0xe29a at (103850,44750)/(107990,45140)/(187360,42810)/(173050,44990); res `0x3fa`
+  emits at (104250,44110)/(107960,44500)/(186960,42450)/(173450,44350)).
+- **Two colour variants** (yellow + white/gray) = different cel ranges in the sheet, selected by the
+  per-instance **frame_base / facing** (census `row0_bf` high bits = 0/4/8/12 → cels 0-2 / 4-6 /
+  8-10 / 12-14, plus higher variants; live `cel_fr` 0/4/5/8/12/17/25/30).  The wander is real (the
+  5 `0x427670`-case-2 draws #86 attributed to "the wanderers" ARE the butterfly's RNG flit).
+
+**Why it hid for ~13 checkpoints:** the particle/cast censuses ran at the establishing HOLD
+(flip ~1500), where the butterflies are off-screen LEFT (they live at world x 104k–187k = the
+inn/arms half, which the camera only pans to during the arrival); and the EFFECT band census read
+only the actor `code` + `row0_bf` bank, never the rendered cel's **resource id**.  **Lesson:** to
+identify a small/ambient actor, capture the rendered RESOURCE (the blit `res` / emit `cel_res`), not
+just the code+bank — a "wandering NPC" can be a butterfly.  Ported ckpt 96 (`src/actor_spawn.c`:
+`0xe29a` added to `TOWN_EFFECT_DEFS` + `BUTTERFLY_CLIP`); per-instance direction/variant + RNG
+wander drift are PORT-DEBT(butterfly-wander).

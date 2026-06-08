@@ -385,12 +385,12 @@ int test_actor_spawn_struct(void)
 
 int test_actor_spawn_effect(void)
 {
-    /* DATA-1022-shaped sample: two standing townsfolk + 0xe29a (wanderer,
-     * deferred -> skipped) + a STRUCTURE object (out of range -> skipped) + an
-     * unknown EFFECT code (not in the def table -> skipped). */
+    /* DATA-1022-shaped sample: two standing townsfolk + 0xe29a (the BUTTERFLY,
+     * now spawned) + a STRUCTURE object (out of range -> skipped) + an unknown
+     * EFFECT code (not in the def table -> skipped). */
     map_layer layers[5];
     layer_set(&layers[0], 0xc3e6u,  208, 384);   /* townsperson -> bank 0xe5, dst (-30,-32), layer 13 */
-    layer_set(&layers[1], 0xe29au, 1056, 448);   /* wanderer (RNG, Phase 2) -> skipped                */
+    layer_set(&layers[1], 0xe29au, 1056, 448);   /* BUTTERFLY -> bank 0x146, dst (0,0), layer 12       */
     layer_set(&layers[2], 0xc404u, 1808, 416);   /* townsperson -> bank 0xf9, dst (-30,-20)           */
     layer_set(&layers[3], 0xec55u,  100, 100);   /* STRUCTURE   -> out of EFFECT range -> skipped      */
     layer_set(&layers[4], 0xc999u,  50,  50);    /* unknown EFFECT code -> not in def table -> skipped */
@@ -410,18 +410,19 @@ int test_actor_spawn_effect(void)
     uint32_t s = 0x4f5347u;
 #define RREF() ((s = s * 0x343fdu + 0x269ec3u), (uint32_t)((s >> 16) & 0x7fffu))
     for (int k = 0; k < 8; k++) (void)RREF();          /* 0xc3e6 prefix */
-    uint16_t ef0 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 0 frame  */
-    uint16_t et0 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 0 timer  */
-    for (int k = 0; k < 13; k++) (void)RREF();         /* 0xe29a 8+5    */
-    (void)RREF(); (void)RREF();                        /* 0xe29a phase  */
+    uint16_t ef0 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 0 frame (idle clip 20)  */
+    uint16_t et0 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 0 timer (idle clip 14)  */
+    for (int k = 0; k < 13; k++) (void)RREF();          /* 0xe29a 8+5 prefix           */
+    uint16_t efb = (uint16_t)((RREF() * 3u)  >> 15);   /* slot 1 butterfly frame (clip 3) */
+    uint16_t etb = (uint16_t)((RREF() * 4u)  >> 15);   /* slot 1 butterfly timer (clip 4) */
     for (int k = 0; k < 8; k++) (void)RREF();          /* 0xc404 prefix */
-    uint16_t ef1 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 1 frame  */
-    uint16_t et1 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 1 timer  */
+    uint16_t ef1 = (uint16_t)((RREF() * 20u) >> 15);   /* slot 2 frame  */
+    uint16_t et1 = (uint16_t)((RREF() * 14u) >> 15);   /* slot 2 timer  */
 #undef RREF
 
     rng_srand(0x4f5347u);   /* same pinned seed -> the spawn replay aligns */
     actor_spawn_pool pool;
-    T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md), 2);  /* 2 townsfolk */
+    T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md), 3);  /* 2 townsfolk + 1 butterfly */
 
     /* slot 0 = 0xc3e6: bank 0xe5, fb 0, layer 13, dst (-30,-32), idle clip set,
      * RNG start phase (frame in [0,20), timer in [0,14)).
@@ -442,17 +443,33 @@ int test_actor_spawn_effect(void)
     T_ASSERT(pool.states[0].frame < 20u);
     T_ASSERT(pool.states[0].timer < 14u);
 
-    /* slot 1 = 0xc404: bank 0xf9, dst (-30,-20), world ((1808,416)-(-30,-20))*100
-     * = (183800,43600) — the live census value.  Its idle phase reflects the
-     * 0xe29a wanderer's 15 draws consumed in between. */
-    T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0xf9u);
-    T_ASSERT_EQ_I(pool.states[1].world_x, 183800);
-    T_ASSERT_EQ_I(pool.states[1].world_y, 43600);
-    T_ASSERT_EQ_I(pool.states[1].dst_base_x, -30);
-    T_ASSERT_EQ_I(pool.states[1].dst_base_y, -20);
+    /* slot 1 = 0xe29a the BUTTERFLY: bank 0x146, dst (0,0), layer 12, the 3-frame
+     * flap clip, world = (1056,448)*100 = (105600,44800).  Start phase scaled by
+     * the butterfly clip's count/dur (frame in [0,3), timer in [0,4)). */
+    T_ASSERT_EQ_U(pool.actors[1].code, 0xe29au);
+    T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0x146u);
+    T_ASSERT_EQ_U(pool.actors[1].layer, 12u);
+    T_ASSERT_EQ_I(pool.states[1].world_x, 105600);
+    T_ASSERT_EQ_I(pool.states[1].world_y, 44800);
     T_ASSERT(pool.states[1].clip != NULL);
-    T_ASSERT_EQ_U(pool.states[1].frame, ef1);
-    T_ASSERT_EQ_U(pool.states[1].timer, et1);
+    T_ASSERT_EQ_U(pool.states[1].clip->frame_count, 3u);   /* butterfly flap 0x65ddf0 */
+    T_ASSERT_EQ_U(pool.states[1].clip->frame_dur, 4u);
+    T_ASSERT_EQ_U(pool.states[1].frame, efb);
+    T_ASSERT_EQ_U(pool.states[1].timer, etb);
+    T_ASSERT(pool.states[1].frame < 3u);
+    T_ASSERT(pool.states[1].timer < 4u);
+
+    /* slot 2 = 0xc404: bank 0xf9, dst (-30,-20), world ((1808,416)-(-30,-20))*100
+     * = (183800,43600) — the live census value.  Its idle phase reflects the
+     * 0xe29a butterfly's 15 draws consumed in between. */
+    T_ASSERT_EQ_U(pool.actors[2].sprite_table[0].bank, 0xf9u);
+    T_ASSERT_EQ_I(pool.states[2].world_x, 183800);
+    T_ASSERT_EQ_I(pool.states[2].world_y, 43600);
+    T_ASSERT_EQ_I(pool.states[2].dst_base_x, -30);
+    T_ASSERT_EQ_I(pool.states[2].dst_base_y, -20);
+    T_ASSERT(pool.states[2].clip != NULL);
+    T_ASSERT_EQ_U(pool.states[2].frame, ef1);
+    T_ASSERT_EQ_U(pool.states[2].timer, et1);
 
     /* the def lookup itself. */
     uint16_t b = 0; int16_t dx = 0, dy = 0; uint32_t ly = 0; int16_t fc = 0, fl = 0;
@@ -466,13 +483,20 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc3beu, &b, &dx, &dy, &ly, &fc, &fl), 1);
     T_ASSERT_EQ_I(fc, 3);
     T_ASSERT_EQ_I(fl, 16);
-    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe29au, &b, &dx, &dy, &ly, NULL, NULL), 0); /* wanderer */
+    /* 0xe29a is the BUTTERFLY (bank 0x146, dst 0/0, layer 12) — corrected ckpt 96
+     * from the "wanderer" mis-ID; it now resolves + spawns. */
+    T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xe29au, &b, &dx, &dy, &ly, &fc, &fl), 1);
+    T_ASSERT_EQ_U(b, 0x146u);
+    T_ASSERT_EQ_I(dx, 0);
+    T_ASSERT_EQ_I(dy, 0);
+    T_ASSERT_EQ_U(ly, 12u);
+    T_ASSERT_EQ_I(fl, 4);                 /* res 0x3fa frames-per-direction      */
     T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc999u, &b, &dx, &dy, &ly, NULL, NULL), 0); /* unknown  */
 
     /* the flip table fills the mirrored villager banks (stand-in for DAT_008a8440). */
     int16_t flip_tbl[1024] = {0};
     int filled = actor_spawn_effect_fill_flip_table(flip_tbl, 1024);
-    T_ASSERT_EQ_I(filled, 11);            /* all 11 town EFFECT banks written  */
+    T_ASSERT_EQ_I(filled, 12);            /* 11 villager banks + butterfly 0x146 */
     T_ASSERT_EQ_I(flip_tbl[0xd4], 16);   /* 0xc3be bank 0xd4 -> 16 frames/dir  */
     T_ASSERT_EQ_I(flip_tbl[0xe5], 4);    /* 0xc3e6 bank 0xe5 -> 4              */
 

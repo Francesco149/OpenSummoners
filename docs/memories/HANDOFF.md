@@ -1,10 +1,45 @@
-# Session handoff — rolling current state (last updated ckpt 95, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 96, 2026-06-09)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 96
+
+**The town BUTTERFLIES are PORTED — and the 4 `0xe29a` EFFECT objects were NEVER "wandering
+villagers" (a mislabel that stood from ckpt 83 through 95).  USER-confirmed the retail
+identification.  919 pass.**  Module: `src/actor_spawn.c` (+`BUTTERFLY_CLIP`, `0xe29a` in
+`TOWN_EFFECT_DEFS`).  Full writeup: `findings/in-game-intro.md` "The town BUTTERFLIES" +
+engine-quirk **#93**.
+
+- **What they are.**  res `0x3fa` (bank `0x146`, sprite slot 313 = bank−13, 32×32, sotesd.dll
+  DATA — already group3-registered, just unused), rendered by `0x493ba0` at layer 12, animated by
+  clip `0x65ddf0` (decoded: base 0, 3 frames, dur 4, looping, delta {0,1,2} — a wing-flap).  4 in
+  the map (EFFECT `0xe29a` ×4), 2 colour variants (yellow + white) selected by per-instance
+  frame_base (0/4/8/12).  They wander (the 5 `0x427670`-case-2 draws #86 called "the wanderers"
+  ARE the butterfly flit RNG).
+- **How it was found (the methodology's live render trace at the SETTLED town, NOT the hold).**
+  Drove retail to flips 2028/2138 (`--seed-pin --lockstep`, `trace-retail.jsonl`) with the render
+  bands hooked: particle band rendered only the ported `0x18704`/`0x18708`, EFFECT band only
+  townsfolk/cast → butterfly in neither.  A **blit trace** (`blt_keyed` res/dx/dy) found res `0x3fa`
+  at the butterfly's screen pos; an **emit trace** (`0x492670` cel_res+ret_va) named producer
+  `0x493ba0` at world positions matching the `0xe29a` census 1:1.  `runs/butterfly-{census,allbands,
+  blits,emit}`.
+- **Port.**  `0xe29a` added to `TOWN_EFFECT_DEFS` (bank `0x146`, dst 0/0, layer 12, facing 1, flip 4);
+  new `BUTTERFLY_CLIP`; the spawn selects the per-code clip (butterfly vs IDLE_CLIP) BEFORE the
+  `0x426ec0` phase draws — the draw COUNT is unchanged so the shared LCG stays aligned (no
+  townsfolk-phase regression).  Previously `0xe29a` was excluded (draws consumed, not spawned).
+- **Verified.**  919 host tests pass (`test_actor_spawn` updated).  Port blit trace: res `0x3fa`
+  frames 0/1/2 emit on-screen as the camera pans (frame 1600 @dx 116/180, 1850 @dx 491/555) — two
+  yellow butterflies flapping by the ARMS sign / flowers / dog, matching retail's placement.  Pushed
+  to the feed.
+- **PORT-DEBT(butterfly-wander):** per-instance direction/colour (the white variant via frame_base
+  4/8/12) + the RNG wander drift (the 5 draws are consumed but the motion is not applied) — Phase 2,
+  with the other scene-RNG residuals.  **NEXT — open options unchanged from ckpt 95** (whole-scene RNG
+  phase parity / the `0x5a00c0` banner+textbox / arrival cutscene dynamics / controllable Arche); see
+  ckpt 95 below.
 
 ## Where we are — ckpt 95
 
