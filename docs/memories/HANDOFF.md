@@ -1,10 +1,49 @@
-# Session handoff — rolling current state (last updated ckpt 91b, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 92, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 92
+
+**The DRAMATIST TABLE `DAT_006b6ea8` is RE'd — the arrival cast is NAMED from ground truth,
+correcting ckpt-91b's tangled identities.  RE milestone (no port code yet, 911 pass).**
+Proof: `docs/proofs/dramatist-table.md` (`tools/dump_dramatist_table.py`); full writeup
+`findings/in-game-intro.md` "THE DRAMATIST TABLE (ckpt 92)".
+
+- **The mechanism.** Character identity is a 32-bit **handle** → the "Get Dramatist Info"
+  table `DAT_006b6ea8` (rows `{handle@+0, code@+4, name[0x28]@+8, bank@+0x30}`).
+  `FUN_0041f200:54-69`: spawned with a handle + code 0, it looks the handle up, sets the
+  actor's effective **code** `+0x1d4` = the row's code (the ARCHETYPE / sprite-switch
+  selector), and uses the row's **bank** as `sVar17` to override the archetype's default
+  sheet (`FUN_00426d70(0, sVar17, 0)`). **code = archetype, bank = the sheet.**
+- **The arrival family** (cutscene `0x4d7d80:334be` spawns by handle, anchor `0x65`):
+  `0x5f5e1d3`→`0xc3dc` bank `0xe3` = **Arche's Father** (renders ✓); `0x5f5e1d4`→`0xc440`
+  bank `0xb5` = **Arche's Mother**; `0xc3f0` bank `0xeb` = **Dr. Barnard** (renders ✓);
+  `0xc3e6` = **Guard**; **`0x5f5e165`→`0xc35a` = Arche** (clip `0x62a8c8`, banks
+  `0x8b`/`0x8c`/`0x8d`), the persistent party LEADER created at new-game, referenced (not
+  spawned) by the cutscene dialogue.
+- **The corrected gap (vs 91b).** Only **Arche (`0xc35a`)** culls (sprite unregistered), and
+  **Mom's real sheet (`0xc440` bank `0xb5`)** is mis-rendered — the port spawns the generic
+  *map* `0xc440` bank `0xa6` townswoman (the `case 0xc440`="Woman" facing-1 default) instead.
+  **Dad (`0xc3dc`) + Dr. Barnard already render.** `0xc3f0` is Dr. Barnard, NOT "the woman"
+  (the `CUTSCENE_CAST_DEFS` decode-bug comment was the retracted ckpt-91 error — now fixed).
+- **NEXT — Phase 1 port** (new `src/party.{c,h}` or extend `actor_spawn`):
+  1. Port `DAT_006b6ea8` + the `0x41f200:54-69` handle→code/bank resolution + the archetype
+     cases `0xc440` (Woman, default `0xa6`/override `0xb5`), `0xc3dc` (man, `0xe3`), `0xc35a`
+     (Arche, banks `0x8b`–`0x8e` + clip `0x62a8c8`).
+  2. Spawn the cutscene family by handle so **Mother → bank `0xb5`** (retire the frozen
+     `CUTSCENE_CAST_DEFS` snapshot; PORT-DEBT cutscene-party-chars).
+  3. Register **Arche's banks `0x8b`–`0x8e`** (`ar_sprite_slot_register`) + render her via the
+     `0x493ba0` multi-part arm (party leader → gateway to controllable Arche).
+  - The dramatist/handle **registry** (`0x556eb0` resolve / `0x555f00` add-remove over
+     `DAT_008a9b50+0x2790`) is the *live-actor* lookup (distinct from the static def table):
+     `0x556eb0` scans the array for an actor whose `+0x1d8` == handle.  The cutscene dialogue
+     uses it (resolve a live speaker); the static def (`DAT_006b6ea8`) is used at spawn.
+  - EXE-embedded sheets (if any party bank lives in `sotes.exe` `.rsrc`) → runtime extract /
+     `%APPDATA%` cache, never embedded (USER directive).
 
 ## Where we are — ckpt 91b
 

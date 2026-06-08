@@ -3,6 +3,20 @@
 **Status:** approved 2026-06-08 (ckpt 91). Scope chosen by USER: *render + arrival cutscene*
 (controllable Arche = a scoped future phase). Multi-session.
 
+> **UPDATE (ckpt 92) — Phase-1 RE substantially DONE; the character→sprite map is the
+> "dramatist table" `DAT_006b6ea8`.** Proof: `docs/proofs/dramatist-table.md`; quirk #91.
+> Character identity is a 32-bit HANDLE → `DAT_006b6ea8` (`{handle, code, name, bank}`);
+> `0x41f200:54-69` maps handle→archetype **code** (`+0x1d4`) + sheet **bank** (`sVar17` →
+> `0x426d70`). The arrival family is NAMED: handle `0x5f5e1d3`→`0xc3dc` bank `0xe3` **Father**
+> (renders), `0x5f5e1d4`→`0xc440` bank `0xb5` **Mother**, `0xc3f0` bank `0xeb` **Dr. Barnard**
+> (renders), and the LEADER `0x5f5e165`→`0xc35a` **Arche** (banks `0x8b`–`0x8e`, clip
+> `0x62a8c8`). **Corrected gap:** only Arche culls + Mom's `0xb5` sheet is mis-rendered (port
+> spawns the map `0xc440` bank `0xa6` default townswoman); Dad already renders. So Phase-1's
+> "RE the character→resource→bank map" (below) is answered — the remaining Phase-1 work is the
+> PORT: the dramatist resolve + the archetype cases + Arche's sprite registration. The
+> persistent-party-band (`0x4997b0`) framing below still holds for the *controllable* leader,
+> but the *arrival* cast (incl. Arche standing at center) is the EFFECT-band dramatist path.
+
 ## Context
 
 The ckpt-90 "PARTY render path" scope was built on a wrong `bank == idx` assumption.

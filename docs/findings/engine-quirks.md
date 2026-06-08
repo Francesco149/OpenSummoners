@@ -2777,3 +2777,27 @@ the per-cell update is **`FUN_0049af40`** (3313 B), run **2×/sim-tick** from `0
 (the 2× is why the small per-call step reads as −8 px/sim-tick).  This also explains the
 ckpt-66/67 "dark establishing TOP GRADIENT": the fade-grid mid-animation, not a tint.  Full
 writeup: `findings/in-game-intro.md` "The establishing REVEAL is a per-cell FADE-GRID".
+
+### #91 — character identity is a 32-bit HANDLE resolved through the "Get Dramatist Info" table `DAT_006b6ea8` (`{handle, code, name, bank}`); `0x41f200` maps handle→archetype code + sheet bank at spawn (2026-06-08, ckpt 92)
+
+Retail ground truth (static `.rdata` + decompile + the `runs/cutscene-cast` census; proof
+`docs/proofs/dramatist-table.md`).  A *named character* (a "dramatist") is keyed by a 32-bit
+**handle**, not by its actor code.  **`FUN_0041f200`** (the EFFECT activator) logs the literal
+`"Get Dramatist Info"` (`:51`), then (`:54-69`) when spawned with a non-zero handle (`param_9`)
++ code 0 it linear-scans the table **`DAT_006b6ea8`** (rows of `0x34` bytes =
+`{+0x00 u32 handle, +0x04 u32 code, +0x08 char[0x28] name, +0x30 u16 bank}`, handle==0
+terminated) and: sets the actor's effective **code** `+0x1d4` = the row's code (the ARCHETYPE
+/ sprite-switch selector — shared by many NPCs), and carries the row's **bank** as `sVar17`,
+which **overrides** the archetype's facing-default sheet (each `case`:
+`if (sVar17==0) sVar17 = <default>; FUN_00426d70(0, sVar17, 0)`).  So **code = archetype
+(pose/clip set), bank = the specific sheet**; the handle picks both.  E.g. case `0xc440` is the
+**"Woman"** archetype (string `s_Woman_00855174`): facing-1 default bank `0xa6` (the generic map
+townswoman) but `0xb5` for Arche's Mother (handle `0x5f5e1d4`); case `0xc35a` is **Arche** (banks
+`0x8b`/`0x8c`/`0x8d`, clip `0x62a8c8`).  The town-intro cutscene `0x4d7d80:334be` spawns the
+arriving family BY HANDLE (`0x41f0e0(0x5f5e1d3=Father, …)`, `0x41f0e0(0x5f5e1d4=Mother, …)`) +
+Dr. Barnard (`0xc3f0`) by code, then resolves the persistent LEADER **Arche** (`0x5f5e165`, code
+`0xc35a`) — created at new-game — for dialogue.  Distinct from the *live-actor* handle registry
+(`0x556eb0` resolve / `0x555f00` add-remove over `DAT_008a9b50+0x2790`, matching an actor's
+`+0x1d8`): `DAT_006b6ea8` is the static character DEFINITION, the registry is the runtime lookup.
+The full table is the game's entire named-NPC roster (party leads Arche/Sana/Stella/Chiffon at
+bank 0 = dynamically loaded; teachers, shopkeepers, monsters, …).

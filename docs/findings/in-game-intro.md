@@ -2819,6 +2819,12 @@ golden, woman+girl @ dx 321).  Tool: the `OPENSUMMONERS_DUMP_BANK=<bank>` env (n
 
 ### DEFINITIVE (ckpt 91b): res `0x477` is the MAN (no decode bug) — the woman (Arche's mom) + Arche are at `0xc35a`'s spot, which CULLS (2026-06-08, USER-confirmed)
 
+> **⚠ IDENTITIES REFINED by "THE DRAMATIST TABLE (ckpt 92)" below.**  The cull/gap
+> conclusion stands, but the cast is now named from ground truth: `0xc35a` is **Arche
+> alone** (not "Arche + mom"); the "woman (mom)" is the *distinct* actor `0xc440` bank
+> `0xb5`; `0xc3f0`/res `0x477` is **Dr. Barnard**; **Arche's Father (`0xc3dc`) already
+> renders**.  See the ckpt-92 section + `docs/proofs/dramatist-table.md`.
+
 The ckpt-91 "decode bug / woman = `0xc3f0`" above is WRONG.  Pinned the cast with
 **single-run-consistent** evidence (the prior error was cross-run flip misalignment — the
 `cutscene-cast` census, `party-res` trace, and `video60-retail` golden each boot at a
@@ -2869,3 +2875,73 @@ to the EXE-`NULL`-module banks.
 Artifacts: `runs/extract/{sotesd,sotesp,sotesexe}` (offline PE-resource dumps);
 `runs/cutscene-cast` (the settled cast census); feed crops `cs_0xc35a_dx288` (Arche+mom) /
 `cs_0xc3f0_dx544` (the man).
+
+### THE DRAMATIST TABLE (ckpt 92): the arrival cast resolved BY NAME — `DAT_006b6ea8` is the handle→character map (2026-06-08, 100%-proven)
+
+Full proof + reproduction: **`docs/proofs/dramatist-table.md`** (`tools/dump_dramatist_table.py`).
+Three independent sources agree (static table, decompile control-flow, retail census), so this
+is settled ground truth — it NAMES every arrival character and supersedes the census's
+"townsman" guesses.
+
+**The mechanism — character identity is a HANDLE, resolved through a "dramatist" registry.**
+`FUN_0041f200` (the EFFECT activator) logs `"Get Dramatist Info"` at `:51`, then (`:54-69`) when
+spawned with a non-zero **handle** (`param_9`) + code 0 it scans **`DAT_006b6ea8`** (rows of
+`0x34` B = `{+0x00 handle, +0x04 code, +0x08 name[0x28], +0x30 bank}`) for the handle and:
+- sets the actor's **effective code** `+0x1d4` = the row's **code** (the archetype / sprite-switch
+  selector — shared by many NPCs); and
+- carries the row's **bank** `+0x30` as `sVar17`, which **overrides** the archetype default sheet
+  (each `case`: `if (sVar17==0) sVar17 = <facing default>; FUN_00426d70(0, sVar17, 0)`).
+
+So **code = archetype** (pose/clip set), **bank = the specific sheet**; the handle picks both.
+(This is the dramatist/handle registry the plan scoped via `0x556eb0`/`0x555f00` — `0x556eb0`
+resolves a handle to a *live actor* in `DAT_008a9b50+0x2790`; `DAT_006b6ea8` is the *static
+character definition*.  The cutscene uses BOTH: spawn-by-handle resolves the def, later dialogue
+resolves the live actor.)
+
+**The arrival family — cutscene `0x4d7d80:334be` spawns (anchor-relative to the wagon `0x65`):**
+
+```
+FUN_00431d10(0,         0x1872d, 0x65, 0x3200,     0,0);            // the wagon (PORTED)
+FUN_0041f0e0(0,         0xc3f0,  0x65, 0x6400,     0,3,0,0);        // Dr. Barnard (by code, no handle)
+FUN_0041f0e0(0x5f5e1d3, 0,       0x65, 8000,       0,3,0,0);        // handle -> Arche's Father
+FUN_0041f0e0(0x5f5e1d4, 0,       0x65, 0xfffff380, 0,1,0,0);        // handle -> Arche's Mother
+```
+
+…then runs a walk-in/camera step machine (`in_ECX[…]` writes gated on `FUN_00439680`
+yield-until-done) and dialogue (`FUN_00556eb0(0x5f5e1d3)` → `FUN_0049d6e0` "Ahh, here we are at
+last!…"), referencing **Arche** (`0x5f5e165`, the persistent party LEADER created at new-game,
+NOT spawned here).
+
+**The cast, named + cross-checked vs `runs/cutscene-cast` (settled frame 2550):**
+
+| handle | code | name (dramatist) | bank | rs_x | port today |
+|--------|------|------|------|------|------------|
+| `0x0c878d35` | `0xc3e6` | **Guard** | `0xe5` | 23800 | renders ✓ |
+| **`0x5f5e1d4`** | **`0xc440`** | **Arche's Mother** | **`0xb5`** | 38400 | **WRONG sheet — port spawns the map `0xc440` bank `0xa6`** |
+| **`0x5f5e165`** | **`0xc35a`** | **Arche** (clip `0x62a8c8`, banks `0x8b`/`0x8c`/`0x8d`) | `0`→dyn | 41600 | **MISSING — culls (sprite unregistered, party render unported)** |
+| **`0x5f5e1d3`** | **`0xc3dc`** | **Arche's Father** | `0xe3` | 49600 | renders ✓ |
+| `0x35a4e901` | `0xc3f0` | **Dr. Barnard** | `0xeb` | 67200 | renders ✓ |
+| (map obj) | `0xc440` | townswoman (no handle) | `0xa6` | 92600 | renders ✓ |
+
+Decompile-confirmed banks: case `0xc35a` (`:793`) installs `0x8b`/`0x8c`/`0x8d` + clip `0x62a8c8`
+(`:908`); case `0xc440` (`:1768`, archetype string **`"Woman"`**) defaults to `0xa6` (facing 1,
+no dramatist bank — the map townswoman) but uses `0xb5` for Mom; case `0xc3dc` (`:1386`) is the
+man archetype, bank `0xe3`.
+
+**Corrections to ckpt 91b** (its cull conclusion stands; identities were tangled):
+- `0xc3f0`/res `0x477` = **Dr. Barnard** (renders), NOT "the woman".  The `CUTSCENE_CAST_DEFS`
+  code comment's "0xc3f0 = THE WOMAN / decode bug" is the retracted ckpt-91 error — now fixed.
+- **`0xc35a` = Arche alone**, the one true cull.  The "woman (mom)" is the *separate* actor
+  `0xc440` bank `0xb5` (same archetype as the map townswoman `0xa6`, different sheet).
+- **Arche's Father `0xc3dc` already renders correctly.**  So the wrong/missing arrival
+  characters are exactly **Arche** (missing) + **Mom's real sheet** (`0xb5`, mis-rendered).
+
+**Phase-1 port chips made concrete by this:**
+1. Port `DAT_006b6ea8` + the `0x41f200:54-69` handle→code/bank resolution + the archetype cases
+   `0xc440` (Woman) / `0xc3dc` (man) / `0xc35a` (Arche).
+2. Spawn the cutscene family by handle so **Mother gets bank `0xb5`** (not the map default `0xa6`).
+3. Register **Arche's banks `0x8b`–`0x8e` + her clip `0x62a8c8`** and render the protagonist (the
+   party-leader render — gateway to controllable Arche).
+
+The full table is the game's entire named-NPC roster (Arche/Sana/Stella/Chiffon party leads at
+banks 0 = dynamic; teachers, shopkeepers, monsters…) — see the proof doc.

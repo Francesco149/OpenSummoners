@@ -9,27 +9,29 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 91b): the PARTY-character system is SCOPED + PLANNED (`docs/plans/
-  party-character-system.md`, USER-approved) and the cast is GROUND-TRUTHED + USER-confirmed.
-  There is NO decode bug — res `0x477` is the MAN (rendered correctly); the woman (Arche's
-  mom) + Arche are MISSING party characters whose sheets the port never loads. No port code
-  ported yet (RE + planning; 911 pass unchanged).**
-  1. **Runtime `bank = registration_idx + 13`** (PROVEN: the bit-exact tree is bank `0x15f`=351,
-     res `0x481`@idx 338). This corrected the ckpt-90 `bank=idx` reads. (ckpt 91's *further*
-     claim "woman=`0xc3f0`, decode bug" was itself WRONG — a cross-run flip-misalignment
-     artifact; superseded here.)
-  2. **The cast, USER-confirmed (settled-state aligned, `findings/in-game-intro.md` "DEFINITIVE
-     (ckpt 91b)"):** `0xc3f0` bank `0xeb`→res `0x477` = **the MAN right of the horses, renders
-     CORRECTLY**; `0xc3dc`→res `0x473` + others = townsmen; **`0xc35a` bank `0x8b`→idx 126
-     (UNREGISTERED → CULLS) sits at center where Arche + the woman (mom) stand** — ckpt-90 was
-     RIGHT. NO decode bug: sotesd.dll res `0x477` is the man (port + offline decode agree);
-     it's the only sprite source (sotesp.dll lacks it; the EXE's res 1143 is `MPED2DT` map data).
-  3. **So the woman + Arche are missing because the party/character system that loads their
-     sheets is unported** — exactly the approved plan. **NEXT = Phase 1** (the dramatist/handle
-     registry `0x556eb0`/`DAT_008a9b50+0x2790` + per-character sprite loading) → Phase 2 (party
-     band `0x4997b0` + the rich `0x493ba0` arms) → Phase 3 (walk-in + dialogue `0x49d6e0` +
-     `0x5a00c0` overlay). **EXE-embedded sheets (if any) must be extracted from the user's
-     `sotes.exe` at runtime or cached in `%APPDATA%` — never embedded (USER directive).**
+- **LATEST (ckpt 92): the DRAMATIST TABLE is RE'd — the arrival cast is now named from
+  GROUND TRUTH, correcting ckpt-91b's tangled identities. `docs/proofs/dramatist-table.md`
+  (100%-proven: static table + decompile + retail census all agree). RE milestone, no port
+  code yet (911 pass).**
+  1. **Character identity is a 32-bit HANDLE → the "Get Dramatist Info" table `DAT_006b6ea8`**
+     (rows `{handle, code, name[0x28], bank@+0x30}`). `0x41f200:54-69`: spawn with a handle +
+     code 0 → look up handle → set actor code `+0x1d4` = row code (the ARCHETYPE), and the row
+     bank overrides the archetype default sheet (`sVar17` → `0x426d70`). So **code = archetype
+     (pose/clip), bank = the specific sheet**; the handle picks both. `tools/dump_dramatist_table.py`.
+  2. **The arrival family, NAMED** (cutscene `0x4d7d80:334be` spawns by handle, anchor `0x65`):
+     `0x5f5e1d3`→`0xc3dc` bank `0xe3` = **Arche's Father** (renders ✓); `0x5f5e1d4`→`0xc440`
+     bank `0xb5` = **Arche's Mother**; `0xc3f0` bank `0xeb` = **Dr. Barnard** (the man right of
+     the horses, renders ✓ — NOT "the woman"); `0xc3e6` = **Guard**; and **`0x5f5e165`→`0xc35a`
+     = Arche** (the protagonist, clip `0x62a8c8`, banks `0x8b`/`0x8c`/`0x8d`), the persistent
+     party LEADER created at new-game (not spawned by the cutscene).
+  3. **The corrected gap (vs 91b): only ARCHE (`0xc35a`) is missing (culls), and MOM's real
+     sheet (`0xc440` bank `0xb5`) is mis-rendered** — the port spawns the generic *map* `0xc440`
+     bank `0xa6` townswoman (the `case 0xc440`="Woman" facing-1 default) instead of Mom's `0xb5`.
+     **Dad (`0xc3dc`) + Dr. Barnard already render.** **NEXT = Phase 1 port:** the dramatist
+     resolve (`DAT_006b6ea8` + `0x41f200:54-69` + archetype cases `0xc440`/`0xc3dc`/`0xc35a`) →
+     spawn the family by handle (Mom gets `0xb5`) → register Arche's banks `0x8b`–`0x8e` + clip
+     `0x62a8c8` + render her (gateway to controllable Arche). EXE-embedded sheets → runtime
+     extract / `%APPDATA%` cache, never embedded (USER directive).
 - **Prior (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
   (a fade-grid, NOT the letterbox) and the town-intro cutscene NPCs are PORTED; the woman +
   little girl are PLAYER-PARTY characters, render path now SCOPED (PARTLY WRONG — see ckpt 91).**
