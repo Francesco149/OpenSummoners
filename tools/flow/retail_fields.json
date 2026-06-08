@@ -1769,7 +1769,7 @@
   },
   "0x499ab0": {
    "name": "scene_cinematic_step",
-   "_note": "FUN_00499ab0 (1356 B) — the in-game SCENE CINEMATIC controller step, called once/sim-tick from 0x439690:1124 (right after the camera easer 0x43d1d0:1123) and from the cutscene drivers 0x55f190:136 / 0x58f360:478. Its __thiscall this holds the LETTERBOX bar heights (+0x44/+0x48) + scroll (+0x4c), ramped ±2/call toward targets (mode +0x40: 0 => toward 0; !=0 => +0x44/+0x48 toward 0x40=64, +0x4c toward +0x50). LIVE-MEASURED (ckpt 90): during the opening-town establishing shot these bars are CONSTANT 64 (mode 1, already settled) and scroll is 0 — so the letterbox is fixed 64px (= the constant grid-fill 0x48c48a/0x48c4fe) and 0x499ab0 is NOT the establishing REVEAL. The REVEAL is a SEPARATE per-cell FADE-GRID: 0x499ab0:180-183 calls the grid UPDATE FUN_0049af40 (2x/sim-tick), rendered by FUN_0048e920 (via 0x48c150:175). So this entry's role is the steady letterbox + the fade-grid clock, not the iris itself. Fields read at onEnter off ECX.",
+   "_note": "FUN_00499ab0 (1356 B) — the in-game SCENE CINEMATIC controller step, called once/sim-tick from 0x439690:1124 (right after the camera easer 0x43d1d0:1123) and from the cutscene drivers 0x55f190:136 / 0x58f360:478. Its __thiscall this holds the LETTERBOX bar heights (+0x44/+0x48) + scroll (+0x4c), ramped ±2/call toward targets (mode +0x40: 0 => toward 0; !=0 => +0x44/+0x48 toward 0x40=64, +0x4c toward +0x50). LIVE-MEASURED (ckpt 90): during the opening-town establishing shot these bars are CONSTANT 64 (mode 1, already settled) and scroll is 0 — so the letterbox is fixed 64px (= the constant grid-fill 0x48c48a/0x48c4fe) and 0x499ab0 is NOT the establishing REVEAL. The REVEAL is a SEPARATE per-cell FADE-GRID at *(0x8a9b50+0x1040). CORRECTED ckpt 95 (the ckpt-90 attribution of the update to FUN_0049af40 was WRONG — reading 0x49af40 it is the HUD/portrait/HP-bar animator, walks the party array room+0x4030, returns a counter): the grid UPDATE is the INLINE loop here at 0x499ab0:125-177 (advance each fading cell's timer; the iris PATTERN is set by FUN_0049a890 (variant 0)/0x49a740 (1)/0x49aae0+0x49aa00 (2)), and the grid is RENDERED by FUN_0048e920 (via 0x48c150:175). 1x/sim-tick (mode 1 advances 2 rows/tick = the measured -8px/sim-tick). PORTED ckpt 95: src/scene_fade.c. Fields read at onEnter off ECX.",
    "fields": [
     {
      "name": "mode",
@@ -1807,7 +1807,7 @@
   },
   "0x48e920": {
    "name": "scene_fade_grid_render",
-   "_note": "FUN_0048e920 (403 B) — the SCENE-TRANSITION FADE-GRID render (the establishing REVEAL producer, ckpt 90). Walks a grid of per-cell records (this[0] = cell array, this[2] = cell count, this[3] = mode 1/2/3) stride 0xc: cell+0=state(0/1/2), cell+2=fade timer, cell+4=col (<<6 => dest x), cell+8=row (<<2 => dest y, 4px rows). Per cell, by mode+state it either ALPHA-blits the 64x4 black cel (res 0x583) via FUN_005bd550 (alpha = 0x1f-(timer<<5)/1000, the partial-fade case, ret 0x48e9c3-region) or OPAQUE-blits it via FUN_005b9a40 (ret 0x48e9c3, the fully-black case) or skips (clear). Called from the in-game render driver 0x48c150:175 (FUN_0048e920(*(0x8a93cc+0x16c))), AFTER the constant-64 letterbox bars. LIVE (ckpt 90, runs/reveal-blit): at game_enter it emits ~1010 black tiles (both bars ~202px) shrinking to 0 by the settled hold (sim_tick~33) = the center-out vertical iris. NOT the letterbox (0x48c150's bars are constant 64). PORT: unported — the REVEAL chip (with the update 0x49af40 + a trigger). ret_va 0x48e9c3 on FUN_005b9a40 is THE signature of this producer in a 0x5b9a40 blit trace.",
+   "_note": "FUN_0048e920 (403 B) — the SCENE-TRANSITION FADE-GRID render (the establishing REVEAL producer, ckpt 90). Walks a grid of per-cell records (this[0] = cell array, this[2] = cell count, this[3] = mode 1/2/3) stride 0xc: cell+0=state(0/1/2), cell+2=fade timer, cell+4=col (<<6 => dest x), cell+8=row (<<2 => dest y, 4px rows). Per cell, by mode+state it either ALPHA-blits the 64x4 black cel (res 0x583) via FUN_005bd550 (alpha = 0x1f-(timer<<5)/1000, the partial-fade case, ret 0x48e9c3-region) or OPAQUE-blits it via FUN_005b9a40 (ret 0x48e9c3, the fully-black case) or skips (clear). The cel-by-alpha-level table is *(0x8a76e0) (slot 40 = res 0x458, frame=alpha); the opaque cel is *(0x8a76e4) (slot 41 = res 0x583). Called from the in-game render driver 0x48c150:175 (FUN_0048e920(*(0x8a93cc+0x16c) = the paint_ctx dest); this/ECX = the grid *(0x8a9b50+0x1040)), AFTER the constant-64 letterbox bars. LIVE (ckpt 95, runs/reveal-grid): grid W=10 H=120 count=1200, mode=1, speed=1000, variant=0 (center-out). At game_enter ~1490 black tiles shrinking to 320 (the letterbox only) by ~sim_tick 25 = the center-out vertical iris. PORTED ckpt 95: src/scene_fade.c (render scene_fade_render; update = the 0x499ab0 inline loop + 0x49a8xx setters; arm = 0x439690:555-583). ret_va 0x48e9c3 on FUN_005b9a40 is THE signature of this producer in a 0x5b9a40 blit trace.",
    "fields": [
     {
      "name": "ncells",
@@ -1824,22 +1824,60 @@
      "type": "i32",
      "benign": true,
      "reason": "this[3] — fade mode (1/2/3): selects alpha-fade-in vs fade-out vs opaque per-cell branch."
+    },
+    {
+     "name": "variant",
+     "src": "thisderef",
+     "off": 16,
+     "type": "i32",
+     "benign": true,
+     "reason": "this[4] — iris VARIANT, RNG-chosen at arm (0x439690:563, (rand*3)>>15 in {0,1,2}): 0=center-out vertical (0x49a890), 1=edges-in vertical (0x49a740), 2=single vertical sweep (0x49aae0/0x49aa00)."
+    },
+    {
+     "name": "speed",
+     "src": "thisderef",
+     "off": 28,
+     "type": "i32",
+     "benign": true,
+     "reason": "this[7] — fade speed (request+0x2c at arm 0x439690:564); pattern/timer step = speed*100/1000 = speed/10 per sim-tick. The per-cell alpha fade rate (NOT the row-advance, which is mode's 2/4 rows/tick)."
+    },
+    {
+     "name": "wh",
+     "src": "thisderef",
+     "off": 4,
+     "type": "i32",
+     "benign": true,
+     "reason": "low16 = W (cols, dest x = col<<6), high16 = H (rows, dest y = row<<2). count this[2] = W*H. Expect W=10 (640/64), H=120 (480/4) => 1200."
+    },
+    {
+     "name": "reveal_desc",
+     "src": "global",
+     "va": "0x8a93b8",
+     "type": "hex",
+     "benign": true,
+     "reason": "RESOLVED (ckpt 95): the alpha blend descriptor the reveal's 0x5bd550 uses (ECX from 0x48ea67 = [0x8a93b8]) = the [19]/full entry of the group-E ramp table 0x8a936c. UNIQUE vs ramp_a[19](0x8a9304)/ramp_b[19](0x8a9354) — runs/reveal-desc. The port builds it: g_pd_boot_group_e[19] (weight 1000, mode-2 subtract-blend). Wired into game_scene_fade_alpha."
+    },
+    {
+     "name": "rampa19",
+     "src": "global",
+     "va": "0x8a9304",
+     "type": "hex",
+     "benign": true,
+     "reason": "ramp_a[19] (the port's g_ramp_a full entry, 0x8a92b8 table). Alias check vs reveal_desc."
+    },
+    {
+     "name": "rampb19",
+     "src": "global",
+     "va": "0x8a9354",
+     "type": "hex",
+     "benign": true,
+     "reason": "ramp_b[19] (the port's g_ramp_b full entry, 0x8a9308 table). Alias check vs reveal_desc."
     }
    ]
   },
   "0x49af40": {
-   "name": "scene_fade_grid_update",
-   "_note": "FUN_0049af40 (3313 B) — the SCENE-TRANSITION FADE-GRID per-cell state/timer UPDATE (drives the establishing REVEAL, ckpt 90). Called 2x/sim-tick from the scene cinematic step 0x499ab0:180-183 (do{}while loop, iVar5=2). Gated on this[2] (cell count, same object as the render 0x48e920); advances each cell's fade state (state 0/1/2) + timer in the center-out reveal pattern, writing the cells the render reads. The exact per-cell pattern logic (which cells clear first => the vertical-iris-from-center shape) lives here (3313 B switch). PORT: unported — the core of the REVEAL chip. Pair with 0x48e920 (render) + the trigger that arms the grid at scene entry.",
-   "fields": [
-    {
-     "name": "ncells",
-     "src": "thisderef",
-     "off": 8,
-     "type": "i32",
-     "benign": true,
-     "reason": "this[2] — cell count (0 => no transition active; the gate at 49af40.c:29)."
-    }
-   ]
+   "name": "hud_party_anim_update",
+   "_note": "FUN_0049af40 (3313 B) — the per-frame HUD/PORTRAIT/HP-BAR animator (NOT the fade grid — ckpt-90 mislabeled it 'scene_fade_grid_update'; CORRECTED ckpt 95). Called 2x/sim-tick from 0x499ab0:180-183. Walks the 8 party slots (room+0x4030, local_8=0x4030 stepped +4 x8 at :505-558), lerps HP/MP-ratio fill bars ((+0x54*1000)/(+0x84+0x9c+0x58)) + portrait/icon fade timers (+0xe2/+0xe4/+0xf6 etc.) toward targets via FUN_0049bdf0, and returns a rolling counter ((uVar13+3)/100). The establishing REVEAL fade-grid update is instead the inline loop at 0x499ab0:125-177 + the FUN_0049a8xx pattern setters (ported src/scene_fade.c). Left annotated for the eventual HUD port."
   }
  }
 }

@@ -2656,12 +2656,61 @@ the measured −8 px/sim-tick envelope.
 
 **So the long-open "dark establishing-shot TOP GRADIENT" (ckpt 66/67) is finally explained:**
 it is this fade-grid transition mid-animation (the top cells still opaque before the iris
-opens), NOT a static tint and NOT the letterbox.  Annotated `0x499ab0`/`0x48e920`/`0x49af40`
-in `retail_fields.json`.  **PORT (the REVEAL chip, unported):** the update `0x49af40` (the
-cell pattern) + the render `0x48e920` (alpha/opaque black-cel tiler, on the ported `0x5bd550`
-alpha + `0x5b9a40` opaque primitives) + the trigger that arms the grid at scene entry.  Bigger
-than the bar-ramp first assumed — a self-contained scene-transition subsystem (it will also
-serve every other room-enter fade).
+opens), NOT a static tint and NOT the letterbox.
+
+### The establishing REVEAL is PORTED — `src/scene_fade.{c,h}` (ckpt 95)
+
+**Correction first (the ckpt-90 `0x49af40` was WRONG).**  Reading `FUN_0049af40` (3313 B): it
+is the per-frame **HUD/portrait/HP-bar animator** (walks the 8 party slots `room+0x4030`, lerps
+the fill bars + portrait fade timers, returns a counter) — it never touches a 64×4 grid.  The
+real per-cell **update is the INLINE loop at `0x499ab0:125-177`** (`1×/sim-tick`, advance each
+fading cell's timer), and the iris **pattern** is set by **`0x49a890`** (variant 0, center-out)
+/ `0x49a740` (1, edges-in) / `0x49aae0`+`0x49aa00` (2, sweep).  So the measured −8 px/sim-tick =
+mode-1's **2 rows/tick** × the 4 px row pitch (not the ckpt-90 "`0x49af40` 2×").
+
+**The subsystem (the grid object `*(0x8a9b50+0x1040)`):**
+- **arm** `0x439690:555-583` (the frame-FSM, gated on a transition request): `mode = req+0x28`,
+  **`variant = (rand*3)>>15` ∈ {0,1,2}** (one LCG draw — the iris shape is RNG-chosen),
+  `speed = req+0x2c`, `radius=0`, `done=0`, then fill all W×H cells `{state 0, timer 0, col, row}`.
+- **render** `0x48e920` (after the letterbox, `0x48c150:175`): per cell by mode+state — state 0 →
+  opaque black res `0x583` (slot 41, `0x5b9a40`); state 1 → alpha black res `0x458` (slot 40,
+  frame[`0x1f-(timer<<5)/1000`], `0x5bd550`); state 2 → skip.
+- **live params** (`runs/reveal-grid`, the `0x48e920` field spec): W=10, H=120, count=1200,
+  mode=1, speed=1000, **variant=0** (center-out, this RNG run).
+
+**Ported + wired** (`scene_fade.{c,h}` + `main.c`): `scene_fade_arm` at `enter_game` (after the
+spawn burst, mirroring retail's order), `scene_fade_step` once/sim-tick after the camera easer
+(`0x439690:1124` order), `scene_fade_render` after `letterbox_render`.  The opaque sink reuses
+the letterbox cel (res `0x583`).
+
+**The alpha edge — the true `0x5bd550` composite (the descriptor Ghidra dropped).**  The first cut
+KEYED-blitted res `0x458` frame[level], which drew the gray MASK opaquely (USER: "white on the
+outside, black on the inside, no transparency").  Disassembling `0x48e920` (`0x48eaa9`, the
+`0x5bd550` call) recovered the thiscall ECX Ghidra omitted: **the blend descriptor is `*(0x8a93b8)`
+= the `[19]`/full entry of the group-E ramp table `0x8a936c`** (`0x55f150` indexes it; the live
+pointer is unique vs ramp_a[19]/ramp_b[19] — `runs/reveal-desc`).  The port already builds it:
+**`g_pd_boot_group_e[19]`** (weight 1000, **mode-2 subtract-blend** = darken the dest by the source).
+So res `0x458` frame[level] is a per-level GRAY MASK (light = opaque, black = clear) and the
+subtract-blend darkens the town by it — just-marked cells (level 31, light) go near-black,
+almost-cleared cells (level 1, black) leave the town.  `game_scene_fade_alpha` now does
+`zdd_blit_orchestrate(&g_pd_boot_group_e[19], primary, res0x458[level], x, y, 0x40, 4, 0, 0,
+0x1ffffff, NULL)` — exactly retail's call (gdi_ctx `*(0x8a6ec0)`≈NULL → the simple path; colorkey
+`0x1ffffff` > 16-bit → no keying).  **VERIFIED on the composited capture** (`port_frame_01160`): the
+blue town sky shows through and darkens smoothly to near-black across the receding edge (true
+translucency), not the opaque gray.
+
+**VERIFIED** (port blit trace): black tiles 1490 → 650 → 320 over frames 1118→1200, the center-out
+iris opening from dead center and settling to the 64px letterbox by ~sim-tick 25 — matching
+retail's 240→64 envelope.  **USER: "the iris looks reasonable."**  Host-tested (`test_scene_fade.c`,
+5 cases); 919 pass.
+
+**PORT-DEBT(scene-fade-rng-phase):** the iris variant is RNG, but the port's post-spawn LCG phase
+isn't retail's yet (the effect spawn doesn't consume the full 238-draw burst — only the idle phases
+are ported, ckpt 87), so the drawn variant is wrong (2/sweep) — pinned to the live town value 0
+until the spawn-RNG is complete.  And the port arms at `enter_game` (no black-load window), so the
+reveal's absolute start tick is offset from retail's by the skipped load frames.  Both resolve in
+Phase 2 (whole-scene RNG + load-window timing).  A self-contained subsystem — it will serve every
+other room-enter fade.
 
 ### USER flag (ckpt 90): 4 characters arrive in front of the wagon at the end of the pan
 

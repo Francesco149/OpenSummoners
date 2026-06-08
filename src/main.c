@@ -71,6 +71,7 @@
 #include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
 #include "camera_follow.h"    /* the in-game camera easer (0x43d1d0) + setters (0x439690) */
 #include "letterbox.h"        /* the establishing-shot cinematic letterbox (0x48c150 slice) */
+#include "scene_fade.h"       /* the establishing REVEAL fade-grid (0x48e920 / 0x439690 arm) */
 #include "actor_spawn.h"      /* the town CHARACTER-band spawn (0x58d460 -> 0x431e30) */
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
@@ -1025,6 +1026,13 @@ static int capture_primary_to_bmp(const char *path)
                 fwrite(bits, 1, pixsz, f);
                 fclose(f);
                 ok = 1;
+            } else {
+                /* The #1 capture footgun: --capture-dir is a WSL path (e.g.
+                 * /tmp/foo) the Windows exe can't fopen.  Default "." (the game
+                 * dir after chdir) or a /mnt/c path works. */
+                log_line("capture: fopen(\"%s\") failed (errno %d) — is "
+                         "--capture-dir a Windows-writable path?  Default is the "
+                         "game dir.", path, errno);
             }
         }
         SelectObject(mem, old);
@@ -1846,6 +1854,45 @@ static void game_letterbox_blit(void *ctx, int x, int y)
     zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
 }
 
+/* The establishing REVEAL fade-grid (scene_fade.{c,h}): the room-enter iris that
+ * opens the static town from black, armed in enter_game.  Its two render sinks
+ * mirror FUN_0048e920's primitives — slot 41 (res 0x583, opaque) for fully-black
+ * cells (== the letterbox cel), slot 40 (res 0x458, the alpha-level black tile)
+ * for the fading edge. */
+static scene_fade_grid g_scene_fade;
+#define SCENE_FADE_ALPHA_SLOT 40   /* 0x8a76e0 — res 0x458, frame = alpha level */
+
+/* scene_fade_opaque_fn — a solid black cell (FUN_005b9a40): same cel as the
+ * letterbox, so reuse the sink. */
+static void game_scene_fade_opaque(void *ctx, int x, int y)
+{
+    game_letterbox_blit(ctx, x, y);
+}
+
+/* scene_fade_alpha_fn — a fading black cell.  Retail (0x48e920:0x48eaa9) ALPHA-
+ * COMPOSITES res 0x458 frame[level] over the backdrop via FUN_005bd550 with the
+ * blend descriptor ECX = *(0x8a93b8) = the [19]/full entry of the group-E ramp
+ * (0x8a936c; weight 1000, the mode-2 subtract-blend = darken the dest by the
+ * source).  res 0x458 frame[level] is the per-level GRAY MASK (light = opaque,
+ * black = clear), so the subtract-blend darkens the town by it: just-marked cells
+ * (level 31, light) go near-black, almost-cleared cells (level 1, black) leave the
+ * town — the soft translucent gradient.  A plain keyed blit (the first cut) drew
+ * the gray opaquely (USER: "white outside, black inside, no transparency"); this
+ * is the faithful composite (gdi_ctx = *(0x8a6ec0) is ~NULL => orchestrate's
+ * simple path; colorkey 0x1ffffff > 16-bit => no keying, every pixel blends). */
+static void game_scene_fade_alpha(void *ctx, int x, int y, int level)
+{
+    (void)ctx;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
+    void *cel = ar_sprite_slot_frame(&g_ar_sprite_slots[SCENE_FADE_ALPHA_SLOT],
+                                     (uint16_t)level);
+    if (cel == NULL) return;
+    const zdd_blend_desc *desc =
+        (const zdd_blend_desc *)&g_pd_boot_group_e[PD_BOOT_GROUP_E_COUNT - 1];
+    zdd_blit_orchestrate(desc, g_zdd->primary_obj, (zdd_object *)cel,
+                         x, y, 0x40, 4, 0, 0, 0x1ffffff, NULL);
+}
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -2017,9 +2064,16 @@ static void game_render(void *user)
              * same g_game_camera_hold parity, then bumps it), so the horses trot
              * in lockstep with the pan.  Reset is automatic: enter_game
              * re-spawns the pool (frame/timer 0) and zeroes the hold counter. */
-            if (g_actors_loaded && (g_game_camera_hold & 1u) == 0u)
+            int is_sim_tick = (g_game_camera_hold & 1u) == 0u;
+            if (g_actors_loaded && is_sim_tick)
                 game_actor_update();
             game_camera_step();
+            /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
+             * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
+             * (2 rows/tick -> 8px/sim-tick, the measured envelope).  Deterministic
+             * (no RNG), so it rides the sim-tick clock like the actor steppers. */
+            if (is_sim_tick)
+                scene_fade_step(&g_scene_fade);
             cam = &g_game_camera_mr;
         }
         /* 0x48c150 order: the parallax far-plane FIRST (0x490cd0, behind the
@@ -2038,6 +2092,10 @@ static void game_render(void *user)
          * backdrop (after the present pass), during the establishing shot. */
         letterbox_render(g_letterbox_top, g_letterbox_bottom,
                          game_letterbox_blit, NULL);
+        /* 0x48c150:175 — the establishing REVEAL fade-grid, rendered AFTER the
+         * letterbox bars: the black iris that opens the town from center-out. */
+        scene_fade_render(&g_scene_fade,
+                          game_scene_fade_opaque, game_scene_fade_alpha, NULL);
     }
 }
 
@@ -2202,6 +2260,24 @@ static void enter_game(void)
                      "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5 / Arche 0x8b)",
                      cn);
         }
+
+        /* Arm the establishing REVEAL fade-grid (0x439690:555-583).  Town params
+         * (live: runs/reveal-grid): mode 1 (fade-out), speed 1000; the iris
+         * VARIANT is the LCG draw (rand*3)>>15 in {0,1,2}.  Retail arms it in the
+         * first in-game frame FSM AFTER the room-load spawn burst, so the variant
+         * is drawn at the POST-spawn phase — which the port can't reproduce yet:
+         * the effect spawn doesn't consume the full 238-draw burst (only the idle
+         * phases are ported, ckpt 87), so the drawn value is off (it picks 2/sweep,
+         * retail's town is 0/center-out).  Consume the draw to keep the eventual
+         * RNG order, but PIN the live-confirmed town variant 0 until the spawn-RNG
+         * is complete + the skipped black-load window is modeled.
+         * PORT-DEBT(scene-fade-rng-phase). */
+        (void)((rng_rand() * 3u) >> 15);   /* the faithful variant draw (Phase 2) */
+        int sf_variant = 0;                /* live town ground truth: center-out  */
+        scene_fade_arm(&g_scene_fade, SCENE_FADE_MODE_OUT, sf_variant, 1000);
+        log_line("enter_game: scene_fade_arm mode=1 speed=1000 variant=%d "
+                 "(center-out; pinned to the live town value, PORT-DEBT "
+                 "scene-fade-rng-phase)", sf_variant);
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):

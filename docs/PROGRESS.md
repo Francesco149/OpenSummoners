@@ -6,6 +6,50 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-08 (ckpt 95) — the establishing REVEAL is PORTED (the center-out vertical iris)
+
+The room-enter iris that opens the static town from black — a self-contained scene-transition
+**fade-grid** (`src/scene_fade.{c,h}`, NEW).  A 10×120 grid of 64×4px cells over the screen, each
+`state 0 opaque → 1 fading → 2 clear`.  **render** = `FUN_0048e920` (drawn after the letterbox,
+`0x48c150:175`); **update** = the INLINE loop `0x499ab0:125-177` + the iris **pattern setters**
+`0x49a890` (variant 0 center-out) / `0x49a740` (1 edges-in) / `0x49aae0`+`0x49aa00` (2 sweep);
+**arm** = `0x439690:555-583` (`mode=req+0x28`, `variant=(rand*3)>>15`, `speed=req+0x2c`, fill cells).
+Live town params (`runs/reveal-grid`, the `0x48e920` field spec): W=10 H=120 count=1200, mode 1,
+speed 1000, variant 0.
+
+**Corrects engine-quirk #90.**  The ckpt-90 attribution of the per-cell update to `FUN_0049af40`
+was WRONG: reading `0x49af40`, it is the per-frame HUD/portrait/HP-bar animator (walks the 8 party
+slots `room+0x4030`, lerps the fill bars + portrait fade timers, returns a counter) — it never
+touches a 64×4 grid.  The real update is the `0x499ab0` inline loop + the `0x49a8xx` pattern setters.
+The measured −8px/sim-tick = mode-1's **2 rows/tick** × the 4px row pitch (1×/sim-tick), not the
+ckpt-90 "`0x49af40` 2×".  Fixed in `engine-quirks.md` #90, `findings/in-game-intro.md`, and
+`retail_fields.json` (`0x49af40` renamed `hud_party_anim_update`; `0x48e920`/`0x499ab0` notes
+corrected).
+
+**Wired + verified.**  `enter_game` arms the grid (after the spawn burst, mirroring retail's order);
+`game_render` steps it once/sim-tick after the camera easer + renders it after `letterbox_render`.
+opaque sink = the letterbox cel (res `0x583`); **alpha sink = the true `0x5bd550` composite** of res
+`0x458` frame[level] (the per-level GRAY MASK) through the descriptor **`g_pd_boot_group_e[19]`** (=
+`*(0x8a93b8)`, the group-E ramp `0x8a936c` [19]: weight 1000, mode-2 subtract-blend = darken the dest
+by the source).  The first cut KEYED-blitted res `0x458`, which drew the gray opaquely (USER: "white
+outside, black inside, no transparency"); disassembling `0x48e920` (the `0x5bd550` call at `0x48eaa9`)
+recovered the thiscall ECX descriptor Ghidra dropped (`runs/reveal-desc` confirmed it's unique vs
+ramp_a/b[19] → the group-E ramp the port already builds).  VERIFIED on the composited capture
+`port_frame_01160`: the blue town sky shows through and darkens to near-black across the receding edge
+(true translucency).  Host-tested (`test_scene_fade.c`, 5 cases); **919 pass** (+5);
+ledger 204/199 (+5: the render `0x48e920` + the 4 iris pattern setters; the partial `0x499ab0`/
+`0x439690` slices stay bare-VA).  Port blit trace: black tiles 1490 → 650 → 320 over
+frames 1118→1200, the center-out iris settling to the 64px letterbox by ~sim-tick 25 (= retail's
+240→64).  Real composited frames pushed to the feed → **USER: "the iris looks reasonable."**
+PORT-DEBT(scene-fade-rng-phase): the iris variant is RNG but the port's post-spawn LCG phase isn't
+retail's (the spawn doesn't consume the full 238-draw burst, ckpt 87), so the drawn variant is wrong
+(2/sweep) — pinned to the live town 0; that + the skipped black-load window's start offset are Phase 2.
+
+**BMP capture footgun (USER caught it — "how is in-game capture broken? we capture a video of the
+whole intro before").**  It was never broken: I'd passed a WSL `--capture-dir /tmp/…` the Windows exe
+can't `fopen`.  The default capture-dir (the game dir after chdir) works; in-game capture is fine.
+Added a `fopen`-failure hint in `capture_primary_to_bmp`.
+
 ## 2026-06-08 (ckpt 94) — ARCHE RENDERS — the in-game intro cast is COMPLETE (her body banks are EXE-embedded sprites)
 
 Closed the ckpt-93 gap ("all characters except arche").  Arche the party leader now renders her

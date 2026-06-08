@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-██░░░░░░░░░░░░░░░░░░  12.5% touched   (12.5% host-tested, 13.5% of code bytes)
+███░░░░░░░░░░░░░░░░░  12.8% touched   (12.8% host-tested, 13.6% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   194 | ported + module covered by the host unit suite       |
+| tested      |   199 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **199** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1559 | exists in engine, never referenced from src/         |
+| **touched** | **204** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1554 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (13.5% of engine-proper bytes) is the truer progress
+Code-byte coverage (13.6% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -35,7 +35,30 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 94): ARCHE RENDERS — the in-game intro cast is now COMPLETE. USER-confirmed on
+- **LATEST (ckpt 95): the establishing REVEAL is PORTED — the center-out vertical iris that opens
+  the town from black. USER: "the iris looks reasonable." (919 pass, +5.)**
+  1. **A self-contained scene-transition FADE-GRID** (`src/scene_fade.{c,h}`, NEW): a 10×120 grid of
+     64×4px cells over the screen, each `state 0 opaque → 1 fading → 2 clear`. **render** = `0x48e920`
+     (after the letterbox, `0x48c150:175`); **update** = the INLINE loop `0x499ab0:125-177` + the iris
+     **pattern setters** `0x49a890` (variant 0 center-out) / `0x49a740` (1 edges-in) / `0x49aae0`+
+     `0x49aa00` (2 sweep); **arm** = `0x439690:555-583`. Live town params (`runs/reveal-grid`, the
+     `0x48e920` field spec): W=10 H=120 count=1200, **mode 1, speed 1000, variant 0** (the variant is
+     the LCG draw `(rand*3)>>15`).
+  2. **CORRECTS quirk #90:** `0x49af40` is **NOT** the grid update — reading it, it's the HUD/portrait/
+     HP-bar animator (walks the party array `room+0x4030`). The −8px/sim-tick = mode-1's **2 rows/tick**
+     × 4px (not `0x49af40` 2×). Fixed in `engine-quirks.md` #90 + `retail_fields.json`.
+  3. **Wired + verified.** `enter_game` arms it; `scene_fade_step` runs once/sim-tick after the camera
+     easer; `scene_fade_render` after the letterbox. opaque sink = letterbox cel (res `0x583`); alpha
+     sink = res `0x458` frame[level] keyed (the alpha is BAKED per-level → a plain keyed blit gives the
+     soft gradient, confirmed on the composited capture). **Port blit trace:** black tiles 1490→650→320
+     over frames 1118→1200, center-out, settling to the 64px letterbox by ~sim-tick 25 (= retail's
+     240→64). Host-tested (`test_scene_fade.c`, 5). PORT-DEBT(scene-fade-rng-phase): the iris variant is
+     RNG + the spawn-RNG phase isn't aligned yet → pinned to the live town 0; the load-window start
+     offset + the variant land in Phase 2.
+  4. **BMP capture footgun fixed (USER caught it):** the in-game capture was never broken — passing a
+     WSL `--capture-dir /tmp/…` the Windows exe can't `fopen`; default (game dir) works. Added a hint on
+     `fopen` failure.
+- **Prior (ckpt 94): ARCHE RENDERS — the in-game intro cast is COMPLETE. USER-confirmed on
   the live port window: "everyone is rendering correctly now." (914 pass.)**
   1. **The whole "party band" Phase-2 framing was unnecessary for the arrival scene.** A live
      census (`runs/cutscene-cast`) showed Arche (`0xc35a`) is drawn by the SAME `0x493ba0` EFFECT

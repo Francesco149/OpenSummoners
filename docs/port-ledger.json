@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 194,
+  "tested": 199,
   "ported": 5,
-  "unported": 1559,
+  "unported": 1554,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 199,
-  "pct_touched": 12.5,
-  "pct_tested": 12.5,
-  "engine_proper_touched": 186,
+  "touched": 204,
+  "pct_touched": 12.8,
+  "pct_tested": 12.8,
+  "engine_proper_touched": 191,
   "bytes_total": 1694868,
-  "bytes_touched": 229090,
-  "pct_bytes_touched": 13.5
+  "bytes_touched": 230640,
+  "pct_bytes_touched": 13.6
  },
  "orphan_refs": [
   "0x56c470",
@@ -5554,8 +5554,12 @@
    "name": "FUN_0048e920",
    "size": 403,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/main.c",
+    "src/scene_fade.c",
+    "src/scene_fade.h"
+   ]
   },
   {
    "va": "0x48eac0",
@@ -6176,32 +6180,44 @@
    "name": "FUN_0049a740",
    "size": 336,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/scene_fade.c",
+    "src/scene_fade.h"
+   ]
   },
   {
    "va": "0x49a890",
    "name": "FUN_0049a890",
    "size": 361,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/scene_fade.c",
+    "src/scene_fade.h"
+   ]
   },
   {
    "va": "0x49aa00",
    "name": "FUN_0049aa00",
    "size": 216,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/scene_fade.c",
+    "src/scene_fade.h"
+   ]
   },
   {
    "va": "0x49aae0",
    "name": "FUN_0049aae0",
    "size": 234,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/scene_fade.c",
+    "src/scene_fade.h"
+   ]
   },
   {
    "va": "0x49abd0",
@@ -12669,6 +12685,7 @@
     "src/map_present.h",
     "src/newgame_box.h",
     "src/newgame_cursor.h",
+    "src/scene_fade.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"

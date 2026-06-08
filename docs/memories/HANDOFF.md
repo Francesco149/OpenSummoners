@@ -1,10 +1,67 @@
-# Session handoff — rolling current state (last updated ckpt 94, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 95, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 95
+
+**The establishing REVEAL is PORTED — the center-out vertical iris that opens the town
+from black.  USER: "the iris looks reasonable."  919 pass (+5).**  Module: `src/scene_fade.
+{c,h}` (NEW).  Full writeup: `findings/in-game-intro.md` "The establishing REVEAL is PORTED".
+
+- **The subsystem (a self-contained scene-transition fade-grid, the grid object
+  `*(0x8a9b50+0x1040)`).**  A 10×120 grid of 64×4px cells over the screen; each cell
+  `state 0 opaque → 1 fading → 2 clear`, `timer` 0..1000.
+  - **render** `0x48e920` → `scene_fade_render` (after the letterbox, `0x48c150:175`): state 0 →
+    opaque black res `0x583`; state 1 → alpha black res `0x458` frame[`0x1f-(timer<<5)/1000`];
+    state 2 → skip.
+  - **update** the INLINE loop `0x499ab0:125-177` (advance each fading cell's timer, 1×/sim-tick)
+    + the iris **pattern setters** `0x49a890` (variant 0 center-out) / `0x49a740` (1 edges-in) /
+    `0x49aae0`+`0x49aa00` (2 sweep) → `scene_fade_step`.
+  - **arm** `0x439690:555-583` → `scene_fade_arm`: `mode=req+0x28`, `variant=(rand*3)>>15`,
+    `speed=req+0x2c`, fill cells.  Live town: mode 1, speed 1000, variant 0 (W=10 H=120,
+    `runs/reveal-grid`).
+- **CORRECTS quirk #90 (important for future sessions):** `0x49af40` is **NOT** the grid update —
+  it's the per-frame HUD/portrait/HP-bar animator (walks the party array `room+0x4030`, returns a
+  counter).  The grid update is the `0x499ab0` inline loop + the `0x49a8xx` setters.  The
+  −8px/sim-tick = mode-1's **2 rows/tick** × 4px, 1×/sim-tick (not `0x49af40` 2×).  Fixed in
+  `engine-quirks.md` #90 + `retail_fields.json` (`0x49af40` → `hud_party_anim_update`).
+- **Wired (`main.c`):** `enter_game` arms the grid after the spawn burst; `game_render` steps it
+  once/sim-tick after the camera easer (the `0x439690:1124` order) + renders it after
+  `letterbox_render`.  opaque sink = the letterbox cel (res `0x583`, slot 41); **alpha sink = the
+  true `0x5bd550` composite** of res `0x458` (slot 40) frame[level] — the per-level GRAY MASK —
+  through the descriptor **`g_pd_boot_group_e[19]`** (= `*(0x8a93b8)`, the group-E ramp `0x8a936c`
+  [19]: weight 1000, mode-2 subtract-blend = darken the dest by the source).  The first keyed-blit
+  cut drew the gray opaquely (USER: "white outside, black inside, no transparency"); disassembling
+  `0x48e920` (the `0x5bd550` call at `0x48eaa9`) recovered the ECX descriptor Ghidra dropped
+  (`runs/reveal-desc` confirmed it's unique vs ramp_a/b[19] → group-E).  VERIFIED on
+  `port_frame_01160`: the blue town sky shows through, darkening to near-black across the edge.
+- **Verified.**  Host test `test_scene_fade.c` (5 cases: arm fills the screen / center-out iris /
+  edges-in / completes+done-latch / alpha ramp).  **Port blit trace:** black tiles 1490 → 650 → 320
+  over frames 1118→1200, the center-out iris settling to the 64px letterbox by ~sim-tick 25 (=
+  retail's 240→64 envelope).  Real composited capture pushed to the feed → **USER: "the iris looks
+  reasonable."**  919 pass; ledger 204/199 (+5: the render `0x48e920` + the 4 iris pattern
+  setters `0x49a890`/`0x49a740`/`0x49aae0`/`0x49aa00`; the partial `0x499ab0`/`0x439690` slices
+  stay bare-VA).
+- **BMP capture footgun (USER flagged "how is in-game capture broken?"):** it was never broken —
+  I'd passed a WSL `--capture-dir /tmp/…` the Windows exe can't `fopen`.  The default (game dir
+  after chdir) works; in-game capture works fine.  Added a `fopen`-failure hint in
+  `capture_primary_to_bmp`.
+
+- **NEXT — open options (the intro is visually complete + the reveal plays):**
+  1. **Whole-scene RNG phase parity (Phase 2 proper)** — now the keystone for THREE pinned residuals:
+     the reveal VARIANT (PORT-DEBT scene-fade-rng-phase — pinned to 0 until the post-spawn LCG phase
+     matches), the townsfolk/Arche idle PHASES, and the fountain/particle positions.  All need the
+     full per-tick + spawn LCG consumers ported in order.  Plus the reveal's load-window START offset
+     (the port arms at `enter_game` with no black-load window).
+  2. **The `0x5a00c0` "Town of Tonkiness" banner + portrait/textbox overlay** (PORT-DEBT
+     ingame-nontile-layers) — the next clearly-visible missing town element (the golden-video review #89).
+  3. **The arrival cutscene DYNAMICS (Phase 3):** the walk-in movement + dialogue runner `0x49d6e0`.
+  4. **Controllable Arche (Phase 4):** the party band `0x4997b0` + the movement/physics FSM.
+  Ground-truth artifacts: `runs/reveal-grid` (the `0x48e920` grid header live).
 
 ## Where we are — ckpt 94
 

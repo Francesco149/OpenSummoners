@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **216**
-- of those, zero-dependency **leaves: 122** (recommended order below)
+- frontier functions: **212**
+- of those, zero-dependency **leaves: 118** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -157,7 +157,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
 | 0x48ef40 | 4389 | 1 | 8 |  |
 
-### tile/sprite grid render + spell fx + battle UI + palette (16)
+### tile/sprite grid render + spell fx + battle UI + palette (12)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -165,11 +165,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x491740 | 38 | 2 | 0 | ✓ |
 | 0x49a2f0 | 76 | 1 | 0 | ✓ |
 | 0x49abd0 | 168 | 1 | 0 | ✓ |
-| 0x49aa00 | 216 | 1 | 0 | ✓ |
-| 0x49aae0 | 234 | 1 | 0 | ✓ |
 | 0x49a340 | 291 | 1 | 0 | ✓ |
-| 0x49a740 | 336 | 1 | 0 | ✓ |
-| 0x49a890 | 361 | 1 | 0 | ✓ |
 | 0x49bf90 | 424 | 1 | 2 |  |
 | 0x49a470 | 622 | 1 | 1 |  |
 | 0x49a060 | 651 | 1 | 3 |  |

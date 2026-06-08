@@ -903,6 +903,11 @@ struct test_case {
     X(letterbox_zero_bars)                                     \
     X(letterbox_null_sink)                                     \
     X(letterbox_round_up)                                      \
+    X(scene_fade_arm_fills_screen)                             \
+    X(scene_fade_center_out)                                   \
+    X(scene_fade_edges_in)                                     \
+    X(scene_fade_completes)                                    \
+    X(scene_fade_alpha_ramp)                                   \
     X(actor_describe_static)                                   \
     X(actor_describe_skips)                                    \
     X(actor_describe_mirrored)                                 \

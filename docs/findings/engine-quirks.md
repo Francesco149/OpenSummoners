@@ -2772,11 +2772,23 @@ besides the constant letterbox bars (`ret_va 0x48c48a`/`0x48c4fe`, 160 tiles eac
 **`FUN_0048e920`** (403 B), a **scene-transition FADE-GRID**: a grid of 64×4 cells (`this[0]`
 array / `this[2]` count / `this[3]` mode; stride 0xc = state/timer/col/row) each ALPHA-blitted
 (`0x5bd550`, alpha `0x1f-(timer<<5)/1000`), OPAQUE-blitted (`0x5b9a40`), or skipped per cell —
-the center-out clear pattern is the iris.  Rendered from `0x48c150:175` (after the letterbox);
-the per-cell update is **`FUN_0049af40`** (3313 B), run **2×/sim-tick** from `0x499ab0:180-183`
-(the 2× is why the small per-call step reads as −8 px/sim-tick).  This also explains the
-ckpt-66/67 "dark establishing TOP GRADIENT": the fade-grid mid-animation, not a tint.  Full
-writeup: `findings/in-game-intro.md` "The establishing REVEAL is a per-cell FADE-GRID".
+the center-out clear pattern is the iris.  Rendered from `0x48c150:175` (after the letterbox).
+This also explains the ckpt-66/67 "dark establishing TOP GRADIENT": the fade-grid
+mid-animation, not a tint.  Full writeup: `findings/in-game-intro.md` "The establishing REVEAL
+is a per-cell FADE-GRID".
+
+**CORRECTION (ckpt 95) — the update is NOT `0x49af40`; the grid is `*(0x8a9b50+0x1040)`.**
+Reading `FUN_0049af40` (3313 B), it is the per-frame **HUD/portrait/HP-bar animator** (walks
+the 8 party slots `room+0x4030`, lerps the HP/MP fill bars + portrait fade timers, returns a
+counter) — it never touches a 64×4 grid.  The real per-cell **update is the INLINE loop at
+`0x499ab0:125-177`** (advance each fading cell's timer, `1×/sim-tick`), and the iris **pattern**
+is set by **`FUN_0049a890`** (variant 0, center-out) / `0x49a740` (1, edges-in) / `0x49aae0`+
+`0x49aa00` (2, sweep).  The grid object is **`*(0x8a9b50+0x1040)`**; it is **armed at
+`0x439690:555-583`** (mode = request +0x28, **variant = `(rand*3)>>15`** ∈ {0,1,2} — one LCG
+draw, the iris shape is RNG-chosen, speed = request +0x2c, then fill W×H cells).  The measured
+−8 px/sim-tick = mode-1's **2 rows/tick** × the 4 px row pitch, `1×/sim-tick` (not the ckpt-90
+"`0x49af40` 2×").  **PORTED ckpt 95: `src/scene_fade.{c,h}`.**  Live town params
+(`runs/reveal-grid`): W=10, H=120, count=1200, mode=1, speed=1000, variant=0.
 
 ### #91 — character identity is a 32-bit HANDLE resolved through the "Get Dramatist Info" table `DAT_006b6ea8` (`{handle, code, name, bank}`); `0x41f200` maps handle→archetype code + sheet bank at spawn (2026-06-08, ckpt 92)
 
