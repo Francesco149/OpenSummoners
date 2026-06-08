@@ -9,29 +9,27 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 91): the ckpt-90 PARTY scope was built on a WRONG bank→res map — corrected +
-  re-verified empirically. The woman is `0xc3f0` (ALREADY emits), and the real blocker is a
-  port DECODE bug, not a missing bank. No port code ported yet (RE-correction + findings;
-  911 pass unchanged).** Re-checked every ckpt-90 claim with blit traces + sheet dumps + retail
-  goldens:
+- **LATEST (ckpt 91b): the PARTY-character system is SCOPED + PLANNED (`docs/plans/
+  party-character-system.md`, USER-approved) and the cast is GROUND-TRUTHED + USER-confirmed.
+  There is NO decode bug — res `0x477` is the MAN (rendered correctly); the woman (Arche's
+  mom) + Arche are MISSING party characters whose sheets the port never loads. No port code
+  ported yet (RE + planning; 911 pass unchanged).**
   1. **Runtime `bank = registration_idx + 13`** (PROVEN: the bit-exact tree is bank `0x15f`=351,
-     res `0x481`@idx 338; `351-338=13`). The ckpt-90 note assumed `bank=idx` → every res
-     attribution was off (one even matched the *sound* table). Corrected cast: `0xc3dc` bank
-     `0xe3`→res `0x473` (renders), **`0xc3f0` bank `0xeb`→res `0x477` = THE WOMAN** (emits!),
-     `0xc35a` bank `0x8b`→idx 126 (NO registration → the *actual* culler, a different char).
-  2. **So the ckpt-90 "woman = `0xc35a`, culling" is INVERTED — she's `0xc3f0` and already
-     emits via the keyed primitive.** BUT she renders the WRONG sheet: the port's res `0x477`
-     decodes to the **mustached man** (= retail's res `0x461` content; dump-confirmed all 8
-     frames), while retail's res `0x477` is the woman (golden-confirmed @ flip 2300, the little
-     girl in pink beside her). A real port DECODE bug — leading hypothesis: a **missing SS_MGR
-     clone** into slot 222 (`group3_clones[]` is ~79 of a stated 94). VERIFY via the decompile
-     (`0x57ca40` clone calls) or a Frida `bs_decode_resource` dump.
-  3. **The town-intro is a walk-in DIALOGUE cutscene** (portrait "Arche's Father" + textbox =
-     the `0x5a00c0` overlay; party walks in → positions time-varying), so even the
-     correctly-identified cast sit at frozen mid-walk spots. The little girl (Arche) = the
-     party-renderer `0x4997b0` path, genuinely absent. `findings/in-game-intro.md` "CORRECTION
-     (ckpt 91)". **NEXT (pick one): (a) chase the res-`0x477` decode bug → render the woman
-     right; (b) port `0x4997b0` for the girl; (c) the `0x5a00c0` dialogue overlay.**
+     res `0x481`@idx 338). This corrected the ckpt-90 `bank=idx` reads. (ckpt 91's *further*
+     claim "woman=`0xc3f0`, decode bug" was itself WRONG — a cross-run flip-misalignment
+     artifact; superseded here.)
+  2. **The cast, USER-confirmed (settled-state aligned, `findings/in-game-intro.md` "DEFINITIVE
+     (ckpt 91b)"):** `0xc3f0` bank `0xeb`→res `0x477` = **the MAN right of the horses, renders
+     CORRECTLY**; `0xc3dc`→res `0x473` + others = townsmen; **`0xc35a` bank `0x8b`→idx 126
+     (UNREGISTERED → CULLS) sits at center where Arche + the woman (mom) stand** — ckpt-90 was
+     RIGHT. NO decode bug: sotesd.dll res `0x477` is the man (port + offline decode agree);
+     it's the only sprite source (sotesp.dll lacks it; the EXE's res 1143 is `MPED2DT` map data).
+  3. **So the woman + Arche are missing because the party/character system that loads their
+     sheets is unported** — exactly the approved plan. **NEXT = Phase 1** (the dramatist/handle
+     registry `0x556eb0`/`DAT_008a9b50+0x2790` + per-character sprite loading) → Phase 2 (party
+     band `0x4997b0` + the rich `0x493ba0` arms) → Phase 3 (walk-in + dialogue `0x49d6e0` +
+     `0x5a00c0` overlay). **EXE-embedded sheets (if any) must be extracted from the user's
+     `sotes.exe` at runtime or cached in `%APPDATA%` — never embedded (USER directive).**
 - **Prior (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
   (a fade-grid, NOT the letterbox) and the town-intro cutscene NPCs are PORTED; the woman +
   little girl are PLAYER-PARTY characters, render path now SCOPED (PARTLY WRONG — see ckpt 91).**

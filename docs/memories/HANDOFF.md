@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 91, 2026-06-08)
+# Session handoff — rolling current state (last updated ckpt 91b, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,33 +6,39 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 91
+## Where we are — ckpt 91b
 
-**The ckpt-90 PARTY-render scope was built on a WRONG bank→res map; corrected +
-re-verified empirically (no port code ported — an RE-correction + findings checkpoint,
-911 pass unchanged).**  Full detail: `findings/in-game-intro.md` "CORRECTION (ckpt 91)".
+**The PARTY-character system is SCOPED, PLANNED (USER-approved), and the arrival cast is
+GROUND-TRUTHED + USER-confirmed.  There is NO decode bug — the woman (Arche's mom) + Arche
+are MISSING party characters; the port never loads their sheets.  No port code ported yet
+(RE + planning checkpoint, 911 pass unchanged).**  Plan: `docs/plans/party-character-system.md`.
+Full RE: `findings/in-game-intro.md` "DEFINITIVE (ckpt 91b)" (supersedes "CORRECTION (ckpt 91)",
+whose `bank=idx+13` stands but whose "woman=`0xc3f0`/decode-bug" was a cross-run-flip artifact).
 
-- **Runtime `bank = registration_idx + 13`** — PROVEN (the bit-exact tree: bank `0x15f`=351,
-  res `0x481`@idx 338).  The ckpt-90 note assumed `bank=idx`, mis-attributing every cast res
-  (one even hit the *sound* table).  Corrected: `0xc3dc` `0xe3`→res `0x473`; **`0xc3f0`
-  `0xeb`→res `0x477` = THE WOMAN** (already emits via the keyed primitive); `0xc35a` `0x8b`→
-  idx 126 (unregistered → the actual culler, a *different* character).
-- **So "the woman culls" (ckpt 90) is INVERTED.**  She's `0xc3f0` and emits — but renders the
-  WRONG sheet: the port's res `0x477` decodes to the **mustached man** (= retail's res `0x461`;
-  dump-confirmed), while retail's res `0x477` is the woman (golden-confirmed @ flip 2300).
-  **A port DECODE bug.**  Leading hypothesis: a missing SS_MGR clone into slot 222
-  (`group3_clones[]` ~79 of a stated 94, no dst `0xeb`).  VERIFY: regenerate the decompile +
-  grep `0x57ca40` for `FUN_004179b0(0xeb,…)`, or Frida-dump retail's decoded res `0x477`.
-- **The town-intro is a walk-in DIALOGUE cutscene** (portrait "Arche's Father" + `0x5a00c0`
-  textbox; party walks in → time-varying positions).  The port's `CUTSCENE_CAST_DEFS` are one
-  flip-2400 mid-walk snapshot → frozen at wrong spots.  The little girl (Arche) = the
-  party-renderer `0x4997b0` path, genuinely absent.
-- **NEXT — pick one (USER decision pending):** (a) chase the res-`0x477` decode bug (the clone)
-  → the woman renders right; (b) port `0x4997b0` (the little girl / Phase-C gateway); (c) the
-  `0x5a00c0` dialogue overlay.  Artifacts (ephemeral): `/tmp/blit_port_settled.jsonl`,
-  `/tmp/dump_row8.png` (res `0x477`=man), `/tmp/retail2300_band.png` (woman+girl @ dx 321).
-  Reusable probe: `OPENSUMMONERS_DUMP_BANK=<bank>` (needs `WSLENV` fwd) spawns a frames-0..7
-  row of `<bank>` (reverted from `main.c`; re-add the ~20-line `enter_game` block if needed).
+- **`bank = registration_idx + 13`** — PROVEN (the bit-exact tree: bank `0x15f`=351, res
+  `0x481`@idx 338).  Corrected the ckpt-90 `bank=idx` reads.
+- **The cast (USER-confirmed, settled-state aligned):** `0xc3f0` `0xeb`→res `0x477` = **the MAN
+  right of the horses — the port renders him CORRECTLY**; `0xc3dc`→res `0x473` etc. = townsmen;
+  **`0xc35a` `0x8b`→idx 126 (UNREGISTERED → CULLS) = center, where Arche + the woman (mom)
+  stand** (ckpt-90 was right).  **NO decode bug:** sotesd.dll res `0x477` is the man (port
+  in-game dump + offline `lizsoft_sprite` decode agree); it's the only sprite source (sotesp.dll
+  has no res 1143; the EXE's res 1143 is `MPED2DT` map data, not a sprite).
+- **So the woman + Arche are missing because the party/character system (dramatist registry +
+  per-character sprite loading + party band) is unported.**  `0xc35a` is the keyed party actor;
+  Arche's richer multi-part render is the other half.
+- **NEXT = execute the plan, Phase 1:** the dramatist/handle registry (`DAT_008a9b50+0x2790`,
+  add `0x555f00`, resolve `0x556eb0`) + per-character creation & sprite loading at new-game
+  (RE the character→resource→bank map + `ar_sprite_slot_register` per member).  First sub-step:
+  a clean SINGLE-run retail capture (hook the party spawn + `0x556eb0`) to pin the exact
+  `0xc35a`-vs-Arche split + each one's true sprite source (bank/resource/**module**).
+- **EXE-embedded sheets (USER directive):** if a needed sheet lives in `sotes.exe`'s `.rsrc`
+  (retail uses `FindResourceA(NULL,…)` for banks `0x570`-`0x572`), the port must NOT embed it —
+  load from the user's packed `sotes.exe` at runtime (`LoadLibraryEx`+`FindResource`; `.rsrc`
+  survives the Steam `.bind` DRM) or cache under `%APPDATA%`.
+- Artifacts: `runs/extract/{sotesd,sotesp,sotesexe}` (offline PE dumps), `runs/cutscene-cast`
+  (settled cast census), feed crops `cs_0xc35a_dx288` (Arche+mom) / `cs_0xc3f0_dx544` (man).
+  Reusable probe: `OPENSUMMONERS_DUMP_BANK=<bank>` (needs `WSLENV` fwd) spawns a frames-row of
+  `<bank>` (reverted from `main.c`; re-add the ~20-line `enter_game` block if needed).
 
 ## Where we are — ckpt 89
 

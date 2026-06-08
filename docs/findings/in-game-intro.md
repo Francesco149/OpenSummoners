@@ -2735,6 +2735,15 @@ USER directive: render the woman + little girl (the player party).  Scoped, not 
 
 ### CORRECTION (ckpt 91): the ckpt-90 party scope mis-mapped bank→res — the woman is `0xc3f0` (already emits, but as the WRONG sheet) (2026-06-08)
 
+> **⚠ SUPERSEDED on the IDENTITY by "DEFINITIVE (ckpt 91b)" below.** The `bank = idx + 13`
+> finding here is correct and stands.  But the woman identity is WRONG: res `0x477` is the
+> **MAN** (the NPC right of the horses, rendered CORRECTLY by the port), NOT the woman, and
+> there is **no decode bug**.  The woman (Arche's mom) + Arche herself are at `0xc35a`'s
+> position (center) — `0xc35a` CULLS (ckpt-90 was right).  This section's "woman = `0xc3f0`,
+> decode bug" was a cross-run-flip-misalignment artifact (the three retail runs boot at
+> different game_enter flips, so "flip 2300" is a different cutscene moment in each).  Read
+> ckpt 91b for the USER-confirmed truth.
+
 The ckpt-90 "PARTY render path" scope above is built on `bank == registration_idx`.
 **That is wrong: the runtime bank = registration `idx` + 13.**  Re-verifying every claim
 empirically (port blit traces + sheet dumps + retail goldens) overturns the character map.
@@ -2807,3 +2816,56 @@ Artifacts (this session, ephemeral): `/tmp/blit_port_settled.jsonl` (port settle
 golden, woman+girl @ dx 321).  Tool: the `OPENSUMMONERS_DUMP_BANK=<bank>` env (needs
 `WSLENV` forwarding) spawns a frames-0..7 row of `<bank>` — reusable for sprite-identity Qs
 (reverted from `main.c` after use; re-add the ~20-line block in `enter_game` if needed).
+
+### DEFINITIVE (ckpt 91b): res `0x477` is the MAN (no decode bug) — the woman (Arche's mom) + Arche are at `0xc35a`'s spot, which CULLS (2026-06-08, USER-confirmed)
+
+The ckpt-91 "decode bug / woman = `0xc3f0`" above is WRONG.  Pinned the cast with
+**single-run-consistent** evidence (the prior error was cross-run flip misalignment — the
+`cutscene-cast` census, `party-res` trace, and `video60-retail` golden each boot at a
+different game_enter flip, so the same flip number is a different cutscene moment in each;
+align by the SETTLED state — the cast is stationary once arrived — not by flip).
+
+**The settled cast (census `runs/cutscene-cast`, all positions constant once arrived; bank →
+idx = bank−13 → res):**
+
+| code | bank | idx | res | port | settled spot | who |
+|------|------|-----|-----|------|------|-----|
+| `0xc3e6` | `0xe5` | 216 | `0x475` | renders | far left | townsman |
+| `0xc440` | `0xb5` | 168 | `0x467` | renders | left-center | townsman |
+| **`0xc35a`** | **`0x8b`** | **126** | **— (idx 126 UNREGISTERED)** | **CULLS** | **center** | **Arche + the woman (mom)** |
+| `0xc3dc` | `0xe3` | 214 | `0x473` | renders | center-right | townsman |
+| **`0xc3f0`** | **`0xeb`** | **222** | **`0x477`** | **renders (correctly)** | **far right (right of the horses)** | **a MAN (NPC)** |
+
+**USER-confirmed on the feed:** the crop at `0xc35a`'s center spot "correctly shows Arche and
+the woman (her mom)"; the crop at `0xc3f0`/res `0x477` (far right) is "the guy to the right of
+the horses, correct".  So:
+- **res `0x477` = the MAN.**  The port already renders him correctly.  **There is NO decode
+  bug** — `sotesd.dll` res `0x477` is the man (port in-game dump + offline `lizsoft_sprite`
+  decode both agree), and `sotesd.dll` is the only sprite source (sotesp.dll has no res 1143;
+  the EXE's res 1143 is a different `MPED2DT` map-data format, not a sprite).
+- **The woman (Arche's mom) + Arche (the protagonist girl) are the missing party characters.**
+  `0xc35a` (bank `0x8b` → idx 126) CULLS because idx 126 has no sprite registration — the
+  port never loads these party-character sheets.  ckpt-90's "woman = `0xc35a`, culls, a
+  player-party character" was RIGHT.
+
+**So the task is exactly the approved plan — port the party/character system (the dramatist
+registry + per-character sprite loading + the party band + the cutscene), NO decode fix.**
+`0xc35a` is the keyed party actor (the woman, and/or Arche's keyed body); Arche's richer
+multi-part render (`0x493ba0` shadow/remap arms) is the other half.  Refine the exact
+`0xc35a`-vs-Arche split + each one's true sprite source (bank/resource/module) as Phase-1's
+first step (a clean single-run capture hooking the party spawn + `0x556eb0` handle resolve).
+
+**EXE-embedded resources — loading strategy (USER directive, ckpt 91b).**  If a needed
+party/character sheet turns out to live in `sotes.exe`'s own `.rsrc` (retail loads some banks
+via `FindResourceA(NULL, …)` — see `main.c` init_sprite_banks note, banks `0x570`-`0x572`),
+the port must **NOT embed the asset**.  Load it from the user's own files at runtime: either
+extract on the fly from the (packed) retail `sotes.exe` — `LoadLibraryEx(sotes.exe,
+LOAD_LIBRARY_AS_DATAFILE)` then `FindResourceA`/`bs_decode_resource` (the `.rsrc` survives the
+Steam `.bind` DRM, which packs `.text` not resources) — or extract once and **cache under
+`%APPDATA%`**.  This keeps the legal line (the port reads the user's binary, never
+redistributes assets).  Most town/party sheets are in `sotesd.dll` already; this only applies
+to the EXE-`NULL`-module banks.
+
+Artifacts: `runs/extract/{sotesd,sotesp,sotesexe}` (offline PE-resource dumps);
+`runs/cutscene-cast` (the settled cast census); feed crops `cs_0xc35a_dx288` (Arche+mom) /
+`cs_0xc3f0_dx544` (the man).

@@ -6,15 +6,22 @@
 ## Context
 
 The ckpt-90 "PARTY render path" scope was built on a wrong `bank == idx` assumption.
-ckpt 91 (committed) corrected it: runtime `bank = registration_idx + 13`, the woman is
-the cel res `0x477`, and the port's res `0x477` decodes to a generic **mustached man**
-(the group3 *placeholder*) while retail shows the **woman**. The reason — confirmed by
-RE — is that **the woman + little girl (Arche) are party characters fed by an entirely
-unported subsystem**: a handle/"dramatist" registry + the party band (`0x4997b0`) +
-per-character sprite loading. The port currently fakes the arriving cast with
-`CUTSCENE_CAST_DEFS` (a single flip-2400 mid-walk snapshot of EFFECT-band actors using
-group3 placeholder banks), so the woman renders as the placeholder man, the girl is absent,
-positions are frozen, and there is no dialogue.
+ckpt 91/91b corrected it: runtime `bank = registration_idx + 13` (proven). **There is NO
+decode bug** (ckpt 91 briefly claimed one — a cross-run-flip artifact, retracted in 91b):
+res `0x477` is the **MAN right of the horses, which the port renders CORRECTLY**, and it's
+the only sprite source (sotesd.dll; sotesp.dll lacks it; the EXE's res 1143 is map data).
+The real situation (USER-confirmed, `findings/in-game-intro.md` "DEFINITIVE (ckpt 91b)"):
+**the woman (Arche's mom) + Arche (the protagonist girl) are party characters fed by an
+entirely unported subsystem** — a handle/"dramatist" registry + the party band (`0x4997b0`)
++ per-character sprite loading. They stand at center where `0xc35a` (bank `0x8b` → idx 126,
+**UNREGISTERED → CULLS**) sits; the port never loads their sheets, so they're absent. The
+port also fakes the arriving cast with `CUTSCENE_CAST_DEFS` (a flip-2400 mid-walk snapshot
+of EFFECT-band actors), positions are frozen, and there is no dialogue.
+
+**Confirmed settled cast** (census `runs/cutscene-cast`; bank → idx−13 → res): `0xc3e6`
+`0xe5`→`0x475`, `0xc440` `0xb5`→`0x467`, **`0xc35a` `0x8b`→idx 126 (CULLS) = Arche + the
+woman (mom), center**, `0xc3dc` `0xe3`→`0x473`, **`0xc3f0` `0xeb`→`0x477` = the MAN, far
+right (renders OK)** — all townsmen except the `0xc35a` party pair.
 
 **Goal:** render the woman + girl **1:1** and play the **arrival cutscene** (walk-in +
 dialogue + portrait/textbox). The fully *controllable* Arche (Phase C — in-game
@@ -55,8 +62,14 @@ its own RE pass). No MVPs — port the real system, retire the `CUTSCENE_CAST_DE
 
 ## Plan (phased)
 
-### Phase 0 — Ground-truth the cast (Frida; pin identities before porting)
-The one real ambiguity: which visible character is which actor. Positions suggest the
+### Phase 0 — Ground-truth the cast — DONE (ckpt 91b, USER-confirmed)
+Resolved: res `0x477` = the MAN (renders OK, no decode bug); `0xc35a` (bank `0x8b`→idx 126,
+CULLS) = Arche + the woman (mom) at center; the party/character sprite loading is the gap.
+See the cast table above + `findings/in-game-intro.md` "DEFINITIVE (ckpt 91b)".  One detail
+deferred to Phase 1's first step: the exact `0xc35a`-vs-Arche split + each one's true sprite
+source (bank/resource/**module**), via a clean single-run capture hooking the party spawn +
+`0x556eb0`.  *(Original Phase-0 framing below, for reference.)*
+The one real ambiguity was: which visible character is which actor. Positions suggest the
 woman+girl are the **handle** actors (`0x5f5e1d3`/`0x5f5e1d4`, anchor-relative x `8000`/
 `-3200`, landing center) and `0xc3f0` (x `+0x6400`→screen ~514) is the separate far-right
 man. Confirm with one seed-pinned `--lockstep` capture at the settled town that annotates,
@@ -78,6 +91,14 @@ New module **`src/party.{c,h}`**.
   so their **real sheets** load into their banks (replacing the group3 placeholders). This
   is the chip that makes the woman render as the woman.
 - Wire into `enter_game` (`src/main.c`) alongside the existing `0x560e60` party-slot reset.
+- **EXE-embedded sheets (USER directive):** if a party/character sheet lives in `sotes.exe`'s
+  own `.rsrc` (retail loads some banks via `FindResourceA(NULL,…)` — e.g. `0x570`-`0x572`,
+  per the `init_sprite_banks` note in `main.c`), the port must **NOT embed the asset**. Load
+  it from the user's own files at runtime: `LoadLibraryEx("<gamedir>/sotes.exe",
+  LOAD_LIBRARY_AS_DATAFILE)` + `FindResourceA`/`bs_decode_resource` (the `.rsrc` survives the
+  Steam `.bind` DRM, which packs `.text` not resources), **or** extract once and cache under
+  `%APPDATA%/OpenSummoners/`. Keeps the legal line. Most sheets are in `sotesd.dll` already;
+  this applies only to the EXE-`NULL`-module banks.
 
 ### Phase 2 — The party band + the rich renderer arms
 - Port **`0x4997b0`** (the 8-slot + leader walk, the `+0x9f4`→`+0x40` indirect
