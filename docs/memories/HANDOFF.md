@@ -1,10 +1,38 @@
-# Session handoff — rolling current state (last updated ckpt 89, 2026-06-07)
+# Session handoff — rolling current state (last updated ckpt 91, 2026-06-08)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 91
+
+**The ckpt-90 PARTY-render scope was built on a WRONG bank→res map; corrected +
+re-verified empirically (no port code ported — an RE-correction + findings checkpoint,
+911 pass unchanged).**  Full detail: `findings/in-game-intro.md` "CORRECTION (ckpt 91)".
+
+- **Runtime `bank = registration_idx + 13`** — PROVEN (the bit-exact tree: bank `0x15f`=351,
+  res `0x481`@idx 338).  The ckpt-90 note assumed `bank=idx`, mis-attributing every cast res
+  (one even hit the *sound* table).  Corrected: `0xc3dc` `0xe3`→res `0x473`; **`0xc3f0`
+  `0xeb`→res `0x477` = THE WOMAN** (already emits via the keyed primitive); `0xc35a` `0x8b`→
+  idx 126 (unregistered → the actual culler, a *different* character).
+- **So "the woman culls" (ckpt 90) is INVERTED.**  She's `0xc3f0` and emits — but renders the
+  WRONG sheet: the port's res `0x477` decodes to the **mustached man** (= retail's res `0x461`;
+  dump-confirmed), while retail's res `0x477` is the woman (golden-confirmed @ flip 2300).
+  **A port DECODE bug.**  Leading hypothesis: a missing SS_MGR clone into slot 222
+  (`group3_clones[]` ~79 of a stated 94, no dst `0xeb`).  VERIFY: regenerate the decompile +
+  grep `0x57ca40` for `FUN_004179b0(0xeb,…)`, or Frida-dump retail's decoded res `0x477`.
+- **The town-intro is a walk-in DIALOGUE cutscene** (portrait "Arche's Father" + `0x5a00c0`
+  textbox; party walks in → time-varying positions).  The port's `CUTSCENE_CAST_DEFS` are one
+  flip-2400 mid-walk snapshot → frozen at wrong spots.  The little girl (Arche) = the
+  party-renderer `0x4997b0` path, genuinely absent.
+- **NEXT — pick one (USER decision pending):** (a) chase the res-`0x477` decode bug (the clone)
+  → the woman renders right; (b) port `0x4997b0` (the little girl / Phase-C gateway); (c) the
+  `0x5a00c0` dialogue overlay.  Artifacts (ephemeral): `/tmp/blit_port_settled.jsonl`,
+  `/tmp/dump_row8.png` (res `0x477`=man), `/tmp/retail2300_band.png` (woman+girl @ dx 321).
+  Reusable probe: `OPENSUMMONERS_DUMP_BANK=<bank>` (needs `WSLENV` fwd) spawns a frames-0..7
+  row of `<bank>` (reverted from `main.c`; re-add the ~20-line `enter_game` block if needed).
 
 ## Where we are — ckpt 89
 

@@ -387,13 +387,22 @@ static const struct {
     int32_t  world_x, world_y;
     uint16_t clip_frame;    /* rs +0x72: the captured idle-clip start phase    */
 } CUTSCENE_CAST_DEFS[] = {
-    /* 0xc35a is a PLAYER-PARTY character: bank 0x8b is NOT in game_sprites[]
-     * (it registers through the unported party/character loader), so it CULLS
-     * (game_sprite_resolve -> NULL) until that bank is registered — PORT-DEBT.
-     * The little girl is a second party actor (a different band, not in the
-     * 0x493ba0 EFFECT census).  The two town NPCs 0xc3dc/0xc3f0 (banks 0xe3/0xeb,
-     * registered) DO render; flip 4 (the in-scene DAT_008a8440 read) gives them
-     * the correct facing==3 mirror cel. */
+    /* CORRECTED ckpt 91 (the ckpt-90 comment mis-mapped bank->res; runtime
+     * bank = registration idx + 13, see findings/in-game-intro.md "CORRECTION
+     * (ckpt 91)"):
+     *   - 0xc3f0 (bank 0xeb=235 -> idx 222 -> res 0x477) is THE WOMAN.  She
+     *     emits via the keyed primitive, BUT the port's res 0x477 sheet decodes
+     *     to the mustached man (retail's res 0x461 content) — a port DECODE bug
+     *     (likely a missing SS_MGR clone into slot 222).  So she renders the
+     *     wrong sheet + at the frozen mid-walk pos.  PORT-DEBT(cutscene-party-chars).
+     *   - 0xc3dc (bank 0xe3=227 -> idx 214 -> res 0x473) is a young-man NPC; renders.
+     *   - 0xc35a (bank 0x8b=139 -> idx 126, NO sprite registration) is the actual
+     *     culler — a separate party character (NOT the woman).
+     *   - the little girl (Arche) is a party-renderer (0x4997b0) actor, not an
+     *     EFFECT actor — absent here.
+     * flip 4 (the in-scene DAT_008a8440 read) gives the facing==3 cast the mirror
+     * cel.  The town-intro is a walk-in DIALOGUE cutscene (positions time-varying);
+     * these are a single flip-2400 census snapshot. */
     {0xc35au, 0x08bu, -30, -24, 13u, 1, 152, 41600, 45600,  1},
     {0xc3dcu, 0x0e3u, -30, -20, 13u, 3,   4, 49600, 43600, 13},
     {0xc3f0u, 0x0ebu, -30, -20, 13u, 3,   4, 67200, 43600,  0},

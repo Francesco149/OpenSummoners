@@ -9,9 +9,32 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
+- **LATEST (ckpt 91): the ckpt-90 PARTY scope was built on a WRONG bank→res map — corrected +
+  re-verified empirically. The woman is `0xc3f0` (ALREADY emits), and the real blocker is a
+  port DECODE bug, not a missing bank. No port code ported yet (RE-correction + findings;
+  911 pass unchanged).** Re-checked every ckpt-90 claim with blit traces + sheet dumps + retail
+  goldens:
+  1. **Runtime `bank = registration_idx + 13`** (PROVEN: the bit-exact tree is bank `0x15f`=351,
+     res `0x481`@idx 338; `351-338=13`). The ckpt-90 note assumed `bank=idx` → every res
+     attribution was off (one even matched the *sound* table). Corrected cast: `0xc3dc` bank
+     `0xe3`→res `0x473` (renders), **`0xc3f0` bank `0xeb`→res `0x477` = THE WOMAN** (emits!),
+     `0xc35a` bank `0x8b`→idx 126 (NO registration → the *actual* culler, a different char).
+  2. **So the ckpt-90 "woman = `0xc35a`, culling" is INVERTED — she's `0xc3f0` and already
+     emits via the keyed primitive.** BUT she renders the WRONG sheet: the port's res `0x477`
+     decodes to the **mustached man** (= retail's res `0x461` content; dump-confirmed all 8
+     frames), while retail's res `0x477` is the woman (golden-confirmed @ flip 2300, the little
+     girl in pink beside her). A real port DECODE bug — leading hypothesis: a **missing SS_MGR
+     clone** into slot 222 (`group3_clones[]` is ~79 of a stated 94). VERIFY via the decompile
+     (`0x57ca40` clone calls) or a Frida `bs_decode_resource` dump.
+  3. **The town-intro is a walk-in DIALOGUE cutscene** (portrait "Arche's Father" + textbox =
+     the `0x5a00c0` overlay; party walks in → positions time-varying), so even the
+     correctly-identified cast sit at frozen mid-walk spots. The little girl (Arche) = the
+     party-renderer `0x4997b0` path, genuinely absent. `findings/in-game-intro.md` "CORRECTION
+     (ckpt 91)". **NEXT (pick one): (a) chase the res-`0x477` decode bug → render the woman
+     right; (b) port `0x4997b0` for the girl; (c) the `0x5a00c0` dialogue overlay.**
+- **Prior (ckpt 90): two golden-review gaps chased — the establishing REVEAL is RE'd
   (a fade-grid, NOT the letterbox) and the town-intro cutscene NPCs are PORTED; the woman +
-  little girl are PLAYER-PARTY characters, render path now SCOPED.**
+  little girl are PLAYER-PARTY characters, render path now SCOPED (PARTLY WRONG — see ckpt 91).**
   1. **The establishing REVEAL = a per-cell FADE-GRID transition, not the letterbox bars
      (committed, quirk #90).** Pixel envelope: top/bottom black ramps ~240→64 at −8px/sim-tick.
      **Refuted by live field capture** — both `0x499ab0`'s and the grid-fill `0x48c150`'s bar

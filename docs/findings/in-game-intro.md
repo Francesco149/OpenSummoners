@@ -2732,3 +2732,78 @@ USER directive: render the woman + little girl (the player party).  Scoped, not 
   protagonist; (3) register the protagonist's sheet.  PORT-DEBT(cutscene-party-chars).  This is
   the gateway to the controllable-character milestone (Phase C).  Artifacts: `runs/party-res`
   (the keyed-blit res capture), `runs/cutscene-cast` (the EFFECT census), `runs/flip-probe`.
+
+### CORRECTION (ckpt 91): the ckpt-90 party scope mis-mapped bank→res — the woman is `0xc3f0` (already emits, but as the WRONG sheet) (2026-06-08)
+
+The ckpt-90 "PARTY render path" scope above is built on `bank == registration_idx`.
+**That is wrong: the runtime bank = registration `idx` + 13.**  Re-verifying every claim
+empirically (port blit traces + sheet dumps + retail goldens) overturns the character map.
+
+**The offset, PROVEN.**  `ar_register_group3_sprites`/`ar_register_game_sprites` write the
+slot at `g_ar_sprite_slots[idx]` (raw `idx`); the resolver `ar_pool_get_slot(bank)` returns
+`g_ar_sprite_slots[bank - (AR_SPRITE_RAMP_COUNT+1)]` = `[bank-13]`.  So **a runtime bank
+resolves to the table row whose `idx == bank-13`**.  Ground truth: the foreground TREE
+(render_diff-verified bit-exact, ckpt 83b) is `STRUCT_BANK_DEFS` bank `0x15f`=351, and res
+`0x481` registers at **idx 338** — `351-338 = 13`.  Confirmed live for the cast banks too
+(below).  The ckpt-90 note's `bank=idx` reads (`0xe3`→`0x479`, `0xeb`→`0x79f`, `0x8b`→`0x4fb`)
+are all artifacts of the missing `+13` (and one was matched against the *sound* table —
+`{139,0x4fb,4}` is `game_sounds[]`, not a sprite).
+
+**The corrected cutscene-cast map** (census `runs/cutscene-cast` banks + the proven offset,
+re-confirmed by the port's own settled blit trace at flip 2300):
+
+| actor | census bank | →idx (−13) | res | renders in port? |
+|------|------|------|------|------|
+| `0xc3dc` | `0xe3`=227 | 214 | **0x473** | yes — a young-man NPC, dx 338 |
+| `0xc3f0` | `0xeb`=235 | 222 | **0x477** | **yes — but as the WRONG sheet (see below), dx 514** |
+| `0xc35a` | `0x8b`=139 | **126** | — (idx 126 has NO sprite registration) | **no — this is the actual culler** |
+
+So **the woman is `0xc3f0` (res `0x477`), and she ALREADY emits** (via the keyed primitive
+`0x5b9b70`, like every other character) — the ckpt-90 note's "the woman is `0xc35a`, culling"
+is **inverted**.  `0xc35a` is a *different* character (idx 126 unregistered) that genuinely
+culls.
+
+**BUT the woman still doesn't render correctly — a real port DECODE bug.**  Dumping the port's
+res `0x477` sheet (env `OPENSUMMONERS_DUMP_BANK`, a static frames-0..7 row) shows **all frames
+are a portly MUSTACHED man** (brown vest / orange scarf / green pants).  Retail's res `0x477`
+is the **WOMAN in red** — golden-confirmed at flip 2300 (`runs/video60-retail/frame_02300`,
+dx 321, the little girl in pink beside her) and by the ckpt-90 predecessor's own party-res
+crop.  Retail's res `0x461` is the mustached man (idx 152, bank `0xa5`, far right by the INN
+@ dx 575) — and **the port's res `0x477` content == retail's res `0x461` content**.  So the
+port's slot 222 (res `0x477`) holds the *man's* pixels, not the woman's.  Slot 222 has the
+correct `resource_id` (`0x477`, render_id-confirmed) but the wrong decoded image.
+
+**Leading hypothesis (UNVERIFIED — needs the decompile or a Frida decode dump):** res `0x477`'s
+*native* DLL bitmap is the man, and retail **clones the woman's frames INTO slot 222** via an
+SS_MGR slot-clone (`FUN_004179b0`, dst pool `0xeb`) — keeping the `0x477` id but swapping the
+pixels.  The port's `group3_clones[]` is **incomplete** (the comment claims 94 distinct dsts;
+only ~79 rows are present) and has **no dst `0xeb`** → the port keeps the native (man) decode.
+To confirm: regenerate the decompile (`tools/ghidra-headless.sh`) and grep `0x57ca40` for a
+`FUN_004179b0(0xeb, …)` clone, OR Frida-dump retail's decoded res `0x477` (the
+`bs_decode_resource` hook).  The alternative — a resource-id→DLL-bitmap loader error specific
+to `0x477` — is less likely (the tree/townsfolk resources decode fine).
+
+**The little girl (Arche)** is NOT an EFFECT actor and has NO keyed blit at the wagon front —
+golden-confirmed she stands in pink beside the woman (dx ~345), rendered via the richer party
+path (`0x4997b0`→`0x493ba0`, alpha/shadow/multi-part).  Genuinely absent in the port.
+
+**The scene is a party-arrival DIALOGUE cutscene**, not a static tableau: the portrait+textbox
+("Arche's Father — Ahh, here we…", the `0x5a00c0` overlay, PORT-DEBT `ingame-nontile-layers`)
+plus the party **walking in** (res `0x477` walks dx 234→321 over flips 2240→2300) → the cast
+positions are time-varying.  The port's `CUTSCENE_CAST_DEFS` are a single mid-walk snapshot
+(`runs/cutscene-cast` flip 2400, rs_x 67200 → screen ~514), so even the *correctly-identified*
+actors sit at the wrong (frozen) spots vs the settled dialogue state.
+
+**So the corrected NEXT for the woman + girl:**
+1. **The woman** needs the res `0x477` DECODE fixed (the missing clone, most likely), not a new
+   bank — she already spawns/emits as `0xc3f0`.  Then her settled position (the walk-in end
+   state, not the flip-2400 snapshot).
+2. **The little girl** needs the party renderer `0x4997b0` + her sheet registration (Phase C
+   gateway), as ckpt 90 said.
+3. The `0x5a00c0` dialogue overlay is the other large visible gap (separate debt).
+
+Artifacts (this session, ephemeral): `/tmp/blit_port_settled.jsonl` (port settled cast),
+`/tmp/dump_row8.png` (the res `0x477`=man sheet dump), `/tmp/retail2300_band.png` (retail
+golden, woman+girl @ dx 321).  Tool: the `OPENSUMMONERS_DUMP_BANK=<bank>` env (needs
+`WSLENV` forwarding) spawns a frames-0..7 row of `<bank>` — reusable for sprite-identity Qs
+(reverted from `main.c` after use; re-add the ~20-line block in `enter_game` if needed).
