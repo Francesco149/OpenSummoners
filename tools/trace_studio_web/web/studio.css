@@ -1,0 +1,181 @@
+/* web/studio.css — styles for the v2 SPA, layered on /style.css.
+   Components added per phase (Filmstrip S6, DiffRibbon S6, JobTray S7, …). */
+
+/* ── S5: model-dump skeleton ───────────────────────────────────────────────── */
+.seg-dump { font: 12px/1.6 ui-monospace, monospace; background: #0d1117;
+  border: 1px solid #30363d; border-radius: 6px; padding: .6rem .8rem; margin: .6rem 0;
+  overflow-x: auto; color: #c9d1d9; }
+.seg-dump > div { white-space: pre-wrap; }
+.seg-dump .k { color: #79c0ff; }
+.seg-dump .seam { color: #d29922; }
+.seg-dump .game { color: #7ee787; }
+.badge { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: 11px;
+  margin-left: .4em; }
+.badge.green { background: #1a4d2e; color: #7ee787; }
+.badge.amber { background: #5a4500; color: #f0c674; }
+.badge.red   { background: #5a1e1e; color: #ffa198; }
+.badge.gray  { background: #21262d; color: #8b949e; }
+
+/* ── S6: Filmstrip (the segmented scrubber) ────────────────────────────────── */
+.filmstrip { display: flex; align-items: stretch; height: 40px; margin: .5rem 0;
+  border: 1px solid var(--edge); border-radius: 6px; overflow: hidden;
+  background: #0c0d10; user-select: none; }
+.film-seg { position: relative; cursor: pointer; min-width: 28px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; border-right: 1px solid #0007; }
+.film-seg:last-child { border-right: none; }
+.film-seg.green { background: linear-gradient(#205c39, #163f28); }
+.film-seg.amber { background: linear-gradient(#6a5200, #463700); }
+.film-seg.red   { background: linear-gradient(#6a2424, #451818); }
+.film-seg.gray  { background: linear-gradient(#262b33, #1a1d22); }
+.film-seg.active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.film-seg .film-lbl { font-size: 10px; color: #cdd3da; opacity: .75; pointer-events: none; }
+.film-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
+  box-shadow: 0 0 5px var(--accent); pointer-events: none; }
+.seam-chev { flex: 0 0 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--warn); font-size: 13px; cursor: help; border-right: 1px solid #0007;
+  background: repeating-linear-gradient(45deg, #1a1d22, #1a1d22 3px, #262b33 3px, #262b33 6px); }
+
+/* ── S7b: work-area layout — videos left, sticky reference panels right ────────
+   Per-frame state + verdict + marks are reference data you glance at every frame,
+   so they live in a sticky right column that stays on screen while scrubbing; the
+   occasional record/iterate actions fold away at the bottom. Stacks on narrow. */
+/* WIDE (≥1280, JS-gated): left column = videos → folded tools → Verdict (fills the whole
+   left bottom); right = a full-height sidebar dominated by the per-frame State. The
+   sidebar stretches to the column height; State is sticky inside it so it follows the
+   scroll. The left column is a flex stack so the Verdict grows to fill the bottom. */
+.workarea { display: flex; gap: .8rem; align-items: stretch; }
+.scrub-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.scrub-col > .below-panels { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.scrub-col > .below-panels > .panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.scrub-col > .below-panels .verdict { flex: 1 1 auto; max-height: none; min-height: 0; }
+.ref-col { flex: 0 0 340px; }
+.ref-col > .panel { position: sticky; top: .5rem;
+  max-height: calc(100vh - 1rem); overflow: auto; }
+.below-panels { margin-top: .6rem; }            /* wide: Verdict fills the left-bottom */
+/* NARROW (<1280): Verdict | State side-by-side at EQUAL height (tools fold above them).
+   The grid stretches both panels to the taller one; the verdict/state bodies flex-fill. */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .6rem; }
+.two-col > .panel { display: flex; flex-direction: column; min-height: 0; }
+.two-col .verdict, .two-col .state { flex: 1 1 auto; min-height: 0; }
+/* the verdict <pre> caps at 260px by default — lift it so its body fills the stretched
+   panel (matching the per-frame State height) instead of stopping short. */
+.two-col .verdict { max-height: none; overflow: auto; }
+.tools-fold { margin-top: .9rem; border-top: 1px solid var(--edge); padding-top: .5rem; }
+.tools-fold > summary { cursor: pointer; color: var(--dim); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em; user-select: none; padding: .2rem 0; }
+.tools-fold > summary:hover { color: var(--fg); }
+.tools-fold > summary .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tools-fold[open] > summary { margin-bottom: .5rem; }
+
+/* ── S9: TraceEditor fold (the re-homed advanced timeline editor) ──────────────
+   A full-width collapsible under the Filmstrip/DrillBar; the disclosure matches the
+   tools-fold so the "advanced" affordances read the same. Lazy-mounted (the timeline
+   only renders when open). The in-editor ⟳ re-capture button gets the accent so the
+   edit→recapture loop is self-contained in the toolbar. */
+.trace-editor-fold { margin: .2rem 0 .4rem; border-top: 1px solid var(--edge); padding-top: .4rem; }
+.trace-editor-fold > summary { cursor: pointer; color: var(--dim); font-size: 12px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: .04em; user-select: none;
+  padding: .2rem 0; }
+.trace-editor-fold > summary:hover { color: var(--fg); }
+.trace-editor-fold > summary .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.trace-editor-fold[open] > summary { margin-bottom: .35rem; }
+.tl-bar .seg.recap { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.tl-bar .seg.recap:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+/* capture-window controls (trace duration + window position) */
+.capctl { display: inline-flex; align-items: center; gap: .12rem; }
+.capctl .dim { margin-right: .15rem; font-size: 11px; }
+.capctl .seg { padding: .05rem .3rem; min-width: 1.6rem; }
+.capnum { min-width: 2.6rem; text-align: center; font: 12px/1.4 ui-monospace, monospace;
+  color: var(--accent); padding: 0 .2rem; }
+.capwarn { font: 11px/1.4 ui-monospace, monospace; color: var(--bad);
+  cursor: help; margin: 0 .1rem; }
+.cappend { font: 11px/1.4 ui-monospace, monospace; color: var(--accent);
+  cursor: help; margin-left: .2rem; }
+
+/* ── S8: DrillBar (densify a strided overview sub-window in-browser) ────────── */
+.drillbar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+  margin: .1rem 0 .4rem; font-size: 12px; }
+.drillbar .span-in { color: var(--dim); display: inline-flex; align-items: center; gap: .3rem; }
+.drillbar .span-in input { width: 4rem; }
+.drillbar button { font-size: 12px; }
+
+/* ── S7: MarkBar marks-list polish ─────────────────────────────────────────── */
+/* the frame-number link was raw browser blue (unreadable on the dark panel) */
+.marks .m a { color: var(--accent); text-decoration: none; }
+.marks .m a:hover { text-decoration: underline; }
+.marks .m { padding: .25rem 0; }
+.crop-thumb { position: relative; overflow: hidden; margin: .25rem 0 .1rem 1.2rem;
+  border: 1px solid var(--edge); border-radius: 3px; background: #0c0d10; }
+
+/* ── S7: JobTray (the one unified job poller's status strip) ────────────────── */
+.jobtray { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  margin: .4rem 0; font-size: 12px; }
+.job { padding: .1rem .5rem; border-radius: 4px; border: 1px solid var(--edge);
+  background: var(--panel); color: var(--dim); white-space: nowrap; }
+.job.run { color: var(--accent); border-color: var(--accent); }
+.job.ok  { color: var(--good); border-color: #1a4d2e; }
+.job.bad { color: var(--bad); border-color: #5a1e1e; }
+.job.idle { opacity: .55; }
+.job .dim { color: inherit; opacity: .7; }
+.job-cancel { margin-left: .4rem; padding: 0 .35rem; border-radius: 3px;
+  border: 1px solid currentColor; background: transparent; color: inherit;
+  font: 11px/1.2 ui-monospace, monospace; cursor: pointer; opacity: .8; }
+.job-cancel:hover { background: var(--bad); border-color: var(--bad);
+  color: #fff; opacity: 1; }
+.job-tail { flex: 1 1 100%; font: 11px/1.4 ui-monospace, monospace; opacity: .65;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spin { display: inline-block; animation: ts-spin 1s linear infinite; }
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+
+/* ── S6: DiffRibbon (per-frame diff strip) ─────────────────────────────────── */
+.diff-ribbon-wrap { margin: .35rem 0 .2rem; }
+.diff-ribbon { display: flex; height: 16px; border: 1px solid var(--edge); border-radius: 4px;
+  overflow: hidden; background: #0c0d10; cursor: pointer; }
+.diff-cell { flex: 1 1 0; min-width: 1px; }
+.diff-cell.cur { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 2; }
+.diff-bar { display: flex; align-items: center; gap: .5rem; font-size: 12px; color: var(--dim);
+  margin-top: .25rem; }
+.diff-bar .spacer { flex: 1; }
+.diff-bar b { color: var(--fg); }
+.diff-bar button { font-size: 11px; padding: 0 .45rem; }
+
+/* RNG/phase-pin cheatsheet (bottom of page) */
+.cheatsheet { margin: 24px 0 40px; border-top: 1px solid #333; padding-top: 8px; }
+.cheatsheet > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.cheat-body { font-size: 13px; line-height: 1.5; max-width: 980px; }
+.cheat-body h4 { margin: 16px 0 4px; color: #9cf; }
+.cheat-body code { background: #1c1c22; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.cheat-body pre { background: #1c1c22; padding: 8px 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+.cheat-body .ok { color: #6c6; font-weight: 600; }
+.cheat-body .warn { color: #db4; font-weight: 600; }
+.cheat-body .bad { color: #e66; font-weight: 600; }
+.cheat-tbl { border-collapse: collapse; width: 100%; margin: 6px 0; }
+.cheat-tbl th, .cheat-tbl td { border: 1px solid #333; padding: 4px 8px; text-align: left; vertical-align: top; }
+.cheat-tbl th { background: #222; }
+
+/* ── OSS additions: anchor track · state meta · trace panel ───────────────── */
+.anchor-track { position: relative; height: 22px; margin: 2px 0 6px;
+  border-bottom: 1px solid var(--edge); }
+.anchor-tick { position: absolute; top: 0; width: 2px; height: 10px;
+  background: var(--dim); cursor: pointer; }
+.anchor-tick.active { background: var(--accent); }
+.anchor-tick .anchor-lbl { position: absolute; top: 9px; left: -2px;
+  font-size: 10px; color: var(--dim); white-space: nowrap;
+  transform: translateX(-30%); }
+.anchor-tick.active .anchor-lbl { color: var(--accent); }
+.anchor-tick:hover .anchor-lbl { color: var(--fg); z-index: 5; }
+
+.state-meta { font-size: 12px; color: var(--dim); margin: .15rem 0 .3rem;
+  display: flex; gap: .4rem; flex-wrap: wrap; }
+.state-meta b, .state-meta .accent { color: var(--accent); }
+.state-meta.ok { color: #6c6; }
+.state-meta.bad { color: var(--bad); font-weight: 600; }
+
+.trace-panel .trace-cols { display: flex; gap: 12px; flex-wrap: wrap; }
+.trace-panel .trace-side { flex: 1 1 320px; display: flex;
+  flex-direction: column; gap: 6px; }
+.trace-panel h4 { margin: 0; font-size: 12px; color: var(--dim); }
+.trace-panel textarea { width: 100%; box-sizing: border-box;
+  background: #101317; color: var(--fg); border: 1px solid var(--edge);
+  border-radius: 4px; font: 11px/1.5 ui-monospace, monospace; padding: 6px; }
+.trace-panel button { align-self: flex-start; }
