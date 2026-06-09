@@ -3177,3 +3177,38 @@ the sim-tick block after `scene_fade`).  **VERIFIED `differ_px=0/36720`** over t
 - 5 host tests (`tests/test_banner.c`: arm / fade-in / hold→fade-out / layout ladder / alpha-ramp gate)
   — 933 pass.  parity-ledger #11; engine-quirk #96.  Artifacts: `runs/banner-verify` (the matched
   retail cap).
+
+## The DIALOGUE BOX subsystem (ckpt 102 RE) — chips/plan in `plans/dialogue-cutscene.md`
+
+The town-arrival **dialogue** (portrait + name + textbox, Z-advanced; golden ~flip 2200+)
+is driven by a **linear cutscene coroutine**, fully RE'd here.  All render primitives it
+needs are ALREADY in the port.
+
+- **Script** `0x4d7d80` case `0x334be` (scene-id `*(0x8a9b50+0x1038)`, area `0xd2`; called
+  by the dispatcher `0x40c380`).  Linear sequence of beats: configure a beat on the
+  scene-controller, then `FUN_00439680()` (9-byte thunk → the beat-runner `0x439690`) which
+  BLOCKS until the beat completes; `ret == 6` = Escape/abort → the script unwinds.
+- **Beat-runner** `0x439690` (8866 B): on the dialogue dirty flag rebuilds the box widget
+  tree, runs a `GetTickCount`-paced frame-pump (each frame → `0x48c150` render + `0x5b8fc0`
+  flip + `0x5b1030` pump), and returns when the beat's completion holds.  Beat-type switch
+  @ `:1128` — `1`=dialogue (advance via `0x43b980` Z-poll), `2`=flag `+0x24`, `3`=camera at
+  target (`*(0x8a9b50+0x104c)` cur==tgt), `4`=entity flag, `6`=timer `+0x57c`≤0, `7`=portrait
+  anim/`+0x57c`, `9`=entity `+0x20`.
+- **Dialogue-line setup** `0x49d6e0`: writes the controller's dialogue fields — text→`+0x8a`,
+  name (actor `+0x750`)→`+0x28a`, voice→`+0x2e8`, dirty `+0x78=1`, beat `+0x20=1`; resolves
+  the PORTRAIT id into `+0x84` via the face table **`DAT_006b6568`** (stride 0x10, key
+  `[actor head-state +0x1d8, face_id]`, frame `+8/+10/+12` by the actor anim-state).
+- **Render path (primitives all ported):** `0x48c150` → `0x48c820` (widget-tree walk, 873 B,
+  NOT yet ported) → `0x48cf80` (9-slice FRAME = `src/newgame_box.c`, box res **`0x456`** slot
+  `DAT_008a7708`, 0x20×0x20) + `0x48e200` (GDI text = `src/glyph_render.c`, **Courier New**
+  via `0x579f40`, 7×16 slot `DAT_008a927c`, +1/+1 shadow, 7-px advance).  Portrait =
+  `(&DAT_008a760c)[+0x84]` set by `0x415860`, faded by `0x49c910`, positioned by `0x49c640`.
+- **Live speaker** `0x556eb0(handle)` scans the actor registry `*(0x8a9b50+0x2790)` for
+  `actor+0x1d8 == handle`.  Town handles: Father `0x5f5e1d3`, Arche `0x5f5e165`, Mother
+  `0x5f5e1d4`, Sana `0x5f5e166`.
+- **Text = story content** in the user's exe `.rdata` (line 1 @ VA `0x86d58c`, voices
+  `0x3eb`–`0x3f4`).  The port reads these from the user's `sotes.exe` at runtime by VA —
+  NEVER embedded in source (dramatist-table precedent + legal line).
+- **Object model (to confirm):** `0x439680` tail-calls with no stack arg ⇒ the runner's
+  `param_1` and `in_ECX` are almost certainly the SAME `this` (a single scene-controller
+  holding beat + dialogue + widget state).
