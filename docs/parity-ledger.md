@@ -108,6 +108,31 @@ every fade value rendered** (phase curve now the canonical 51/102/153/254/275/
 target is the *distinct-content sequence* (every scene state rendered in order),
 which now matches. R1 re-verified post-fix at `menu_fade=750`: **differ_px=0**.
 
+### R5 — town-intro cutscene PAN smoothness: retail spikes, port smooth (OPEN, USER-observed 2026-06-09)
+
+**Observation (USER, real-time viewing):** during the town-arrival cutscene camera pan,
+retail "consistently has spikes and is slightly less smooth" than the port. Goal per the
+USER: **either replicate retail's stepping in the port, or normalize retail during trace
+runs so both sides behave the same** (whichever is the faithful frame-for-frame model —
+this is a *comparability* requirement, not a pixel residual per se).
+
+Hypotheses (untested, in pillar order):
+1. **Phase pillar (most likely; the R3 pattern):** live retail renders at display
+   refresh and duplicates/drops camera states unevenly (real-clock `timeGetTime` deltas
+   feeding the easer/sim gate), while the port is fixed-timestep 1-update/present → the
+   pan advances perfectly evenly. Under `--lockstep` retail banks exactly one update
+   quantum per Flip, so the spikes should VANISH in seed-pinned studio captures —
+   verify with a per-frame camera-x state field (`0x43d1d0` easer / camera global) on
+   both sides in a trace-studio session.
+2. **Logic:** the easer `0x43d1d0` consumes a measured dt (not a fixed quantum) and the
+   port's port of it fixed the quantum — then the port is UNFAITHFUL under real clock
+   and should reproduce the dt-driven step under live play (but stay fixed under
+   lockstep/TAS).
+3. If the spikes persist even under lockstep, it's a real per-tick camera-step logic
+   divergence → flow_diff on the easer fields.
+
+Status: OPEN — investigate with the trace studio (per-frame camera state + scrub).
+
 ### R4 — phase-7 subtitle sparkle: RESOLVED (ckpt 31) — both parts now bit-exact
 
 The phase-7 flourish has **two independent parts**, both now `differ_px=0`:

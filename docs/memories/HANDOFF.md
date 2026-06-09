@@ -1,10 +1,41 @@
-# Session handoff — rolling current state (last updated ckpt 102, 2026-06-09)
+# Session handoff — rolling current state (last updated ckpt 103, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 103
+
+**The TRACE STUDIO is built + live (`tools/trace_studio.py`, `docs/trace-studio.md`) — the
+review loop is now: capture both sides → the USER scrubs port|retail|diff in the browser
+(:8779) and drops divergence MARKS → `worklist.md` → Claude chases each with
+render_diff/flow_diff → `recapture --only port` → re-check.  First live session `intro-1`
+(2598 paired frames, whole intro).  36 tool checks.**
+
+- **Live right now:** `serve --session intro-1` is running; the USER was pinged to review +
+  mark.  NEXT SESSION: read `runs/trace-studio/intro-1/worklist.md` + `edits.jsonl` FIRST —
+  the USER's marks are the work queue.  The known big town gap is the ckpt-102 dialogue-box
+  chip (below); butterflies frozen + pan offsets are the other expected reds.
+- **Studio facts:** sessions in `runs/trace-studio/<name>/`; pairing is anchor-segmented
+  (boot/subtitle/newgame/prologue/game_enter) with sticky ±8 drift; ordinal-named frames
+  (same `frame_<k>.png` = same moment all panels); `pair` re-analyses without re-driving;
+  the prologue locks at −7 drift (192/290 bit-exact) — a clean segment LOCKS, a
+  content-divergent one hunts.  boot/title redness = R3 (documented); pre-game_enter
+  anchor-rng DESYNC = quirk #77 (this nav skips the title-sparkle pin; town re-pins).
+- **Footguns (all hit live, all now handled/documented):** agent-side capture emit ceiling
+  (else device.kill starves behind the frame firehose); leftover sotes.unpacked.exe must be
+  killed through FRIDA (taskkill → Access-denied, elevated parent) and is pre-killed before
+  each drive; WSL-interop vsock `accept4 failed 110` when launching the port exe from
+  detached/sandboxed contexts — run captures from an interactive shell.
+- **R5 (new, USER-observed):** retail's cutscene pan has spikes vs the port's smooth pan —
+  attribute under lockstep (phase pillar suspected); a `--call-trace` studio session with a
+  camera-x field is the tool.  parity-ledger R5.
+- **Tooling debt:** the frida_capture one-shot probe flags (cursor/fade/pace/textout/box/res/
+  parallax/rand) are superseded by the field spec — mechanical removal chip queued
+  (`tools/archive/README.md`).  Plan B1 (unified scenario-test) is superseded by
+  `trace_studio capture`.
 
 ## Where we are — ckpt 102
 

@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 103) — the TRACE STUDIO: capture → scrub → mark → worklist → re-capture (openrecet-style), live on the full intro
+
+USER directive: build the trace viewer now (it was Phase-C-gated on a controllable character, but
+input injection exists and visual checks are frequent), improve/clean the tooling around it, archive
+stale ad-hoc flows.  Built `tools/trace_studio.py` + the `tools/trace_studio/` package + the
+`tools/trace_studio_web/` SPA (htm+preact, adapted from openrecet's proven studio), 36 tool checks.
+How-to: `docs/trace-studio.md`; architecture: `docs/plans/trace-studio.md`.  3 commits.
+
+**The loop it lands:** `capture in-game-intro` drives BOTH targets concurrently (port:
+`run-opensummoners.sh --capture-all` staged to C:/; retail: `frida_capture --no-turbo --lockstep
+--seed-pin --capture-frames all --max-flips N`), pairs the two flip axes ANCHOR-SEGMENTED
+(boot/subtitle/newgame/prologue/game_enter) with a sticky ±drift best-match (tas_diff's model made
+dense — absorbs the port's duplicate-frame wobble), and emits ordinal-named frame trees (same
+`frame_<k>.png` = same moment on port/retail/diff), all-intra scrub mp4s, `state.jsonl`, an
+anchor-RNG + per-segment bit-exact verdict.  `serve` (:8779) scrubs the three panels in lockstep
+with a differ_px ribbon (black = the bit-exact bar), anchor track, per-frame state; the USER flags
+divergences as MARKS (note/feature/rng/phase + drag-box → retail|port|white-diff crop thumbnails);
+`apply` renders them into `worklist.md` (the Claude hand-off); re-capture (`--only port` = fast
+loop vs the cached retail) keeps marks + working-trace edits.
+
+**First live session (`intro-1`, 2598 paired frames over 4 segments) validated the model and
+visualized the whole current gap in one artifact:** the prologue segment LOCKS at constant −7 drift
+with 192/290 frames differ_px==0 (the −7 measures the per-side anchor→content arm offset); the town
+segment hunts at 0/1483 because content genuinely differs every frame — the missing dialogue box
+(the ckpt-102 front), frozen butterflies (PORT-DEBT butterfly-wander), pan offsets.  boot/title
+redness = the documented R3 render-rate skew; anchor-rng DESYNC before game_enter = expected
+(quirk #77 — this scenario's nav skips the title-sparkle seed pin; the verdict explains it inline).
+
+**Harness hardening from the live smokes** (each found by a real failure): every anchor firing now
+streams to `<run>/anchors.jsonl`; `--max-flips` stops a capture at a Flip count WITH an agent-side
+emit ceiling (the ~900KB/frame firehose otherwise starves the teardown RPC for minutes); leftover
+games must be killed THROUGH frida (children of the elevated frida-server give taskkill
+Access-denied) + a pre-flight kill (the "Game is already running." boot bail); the WSL-interop
+vsock footgun (port launches fail with `accept4 failed 110` from detached contexts).  New
+parity-ledger **R5** (USER-observed): the retail cutscene pan shows spikes vs the port's smooth pan
+— hypothesis: real-clock phase pillar, should vanish under lockstep; verify with per-frame camera
+state in a `--call-trace` session.  Archive sweep: `tools/archive/README.md` (the ad-hoc /tmp
+side-by-side video flow → superseded by the studio; the frida_capture probe-flag graveyard marked
+for mechanical removal).  Plan B1 (`plans/trace-tooling-phase-b.md`) is superseded by the studio's
+capture as the one entry point.
+
 ## 2026-06-09 (ckpt 102) — the in-game DIALOGUE BOX subsystem RE'd + the legal text-reader built (foundation for Phase 3 dialogue → controllable Arche)
 
 The directive: dialogue next, leading to controllable Arche after the cutscene + dialogue.  Reverse-

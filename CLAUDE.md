@@ -148,8 +148,14 @@ changelog. Active multi-session plans: `docs/plans/`.
   `retail_fields.json` field, NOT a bespoke `--foo-probe` flag** (`src:` global/arg/
   argderef/chain/rngcalls/renderid/thisderef; a new *kind* = one `src:` in the **Frida
   agent**'s `ctReadField`, `tools/frida/opensummoners-agent.js`). How-to:
-  `docs/parity-harness.md`. Remaining tooling: **B1** unified
-  `tools/scenario-test.py` (`docs/plans/trace-tooling-phase-b.md`; B2 flow + B3 blit DONE).
+  `docs/parity-harness.md`.
+- **TRACE STUDIO — the scrub-and-mark review loop (ckpt 103, supersedes plan B1+C).**
+  `tools/trace_studio.py capture <scenario>` drives BOTH targets, pairs the flip axes
+  anchor-segmented (sticky ±drift), and builds a session (frames/videos/state/verdict);
+  `serve` (:8779) scrubs port|retail|diff in lockstep where the **USER flags divergences
+  as MARKS** → `worklist.md` is the hand-off Claude works from; `recapture --only port` =
+  the fast fix loop. **Read the live session's worklist/edits before picking new work.**
+  How-to: `docs/trace-studio.md`; sessions in `runs/trace-studio/`.
 
 ## The binary & paths
 - **Game install:** `/mnt/c/Program Files (x86)/Steam/steamapps/common/Fortune Summoners/`.

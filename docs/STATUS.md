@@ -35,7 +35,38 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 102): the in-game DIALOGUE BOX subsystem is fully RE'd + the legal text-reader is
+- **LATEST (ckpt 103): the TRACE STUDIO is BUILT + LIVE — the openrecet-style scrub-and-mark
+  viewer, pulled forward from Phase C by USER directive. The review loop is now: capture → USER
+  scrubs + drops divergence notes in the browser → worklist.md → Claude fixes → `--only port`
+  re-capture. (36 tool checks pass; first live session `intro-1` = 2598 paired frames.)**
+  1. **`tools/trace_studio.py {capture,recapture,pair,serve,apply,sessions}`** (package
+     `tools/trace_studio/`, SPA `tools/trace_studio_web/`; how-to `docs/trace-studio.md`,
+     architecture `docs/plans/trace-studio.md`). Capture drives BOTH targets concurrently
+     (port `--capture-all` → C:/ staging; retail `--no-turbo --lockstep --seed-pin
+     --capture-frames all --max-flips`), pairs the flip axes ANCHOR-SEGMENTED with a sticky
+     ±drift best-match, emits ordinal-named frame trees + all-intra scrub mp4s + state.jsonl +
+     an anchor-RNG/per-segment verdict. Serve = 3 lockstep panels + differ_px ribbon + anchor
+     track + marks with crop thumbnails + working-trace editor + re-capture jobs.
+  2. **The pairing model is PROVEN on the live intro-1:** the prologue segment LOCKS at a
+     constant −7 drift with 192/290 bit-exact (the per-side anchor arm offset, measured); the
+     town hunts (0/1483) because content genuinely differs every frame — the missing dialogue
+     box (the ckpt-102 front), frozen butterflies, pan offsets. The studio made the whole gap
+     visible in one artifact. boot/title redness = documented R3; anchor-rng DESYNC before
+     game_enter = expected (quirk #77, the verdict explains it inline).
+  3. **Harness hardening from the live smokes:** anchors.jsonl stream + `--max-flips` with an
+     agent-side emit ceiling (the ~900KB/frame firehose starved device.kill for minutes);
+     leftover-game kill must go THROUGH FRIDA (elevated frida-server children get Access-denied
+     from taskkill); pre-flight leftover kill; WSL-interop vsock footgun (run captures from an
+     interactive shell). New parity item **R5**: USER-observed retail cutscene-pan spikes vs
+     smooth port (hypothesis: real-clock phase pillar; verify under lockstep with per-frame
+     camera state).
+  4. **Archive sweep:** `tools/archive/README.md` — the ad-hoc /tmp side-by-side video flow is
+     SUPERSEDED by the studio; the frida_capture probe-flag graveyard is marked for mechanical
+     removal (deferred so the live capture path stayed stable during the first review round).
+  5. **NEXT:** (a) read the USER's intro-1 worklist marks and chase them (the dialogue-box chip
+     ckpt-102 step 5 is the known big one); (b) the probe-flag removal chip; (c) optional:
+     `--call-trace` studio session for per-frame flow fields (camera-x for R5).
+- **Prior (ckpt 102): the in-game DIALOGUE BOX subsystem is fully RE'd + the legal text-reader is
   BUILT/TESTED, and the box render is GROUND-TRUTHED — foundation for the town-intro dialogue →
   controllable Arche (Phase 3→4). (932 pass, +5; 2 commits, no pixels yet.)** Plan: `plans/dialogue-cutscene.md`.
   1. **Architecture (decompile-verified).** The town arrival is a linear cutscene coroutine: script
