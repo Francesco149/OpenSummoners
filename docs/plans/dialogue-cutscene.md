@@ -109,6 +109,32 @@ the user's file at runtime by VA — never embedded in source** (dramatist-table
 6. **Controllable Arche** (Phase 4, separate plan): the party band `0x4997b0` + the movement
    FSM `0x43f880` — after the cutscene ends, control hands to the player.
 
+## Ground truth — captured (ckpt 102, `runs/dialogue-probe` + `runs/dialogue-portrait`)
+
+Retail at the town-intro line 1 (Father "Ahh, here we are at last!%nLook, Arche…"),
+driven by the nav trace + no Z (line 1 appears ~flip 2743 and waits/types):
+
+- **Box frame** = res `0x456` (9-patch, `tl..br` frames 0–8, corners 32×32), node
+  **408×112 at (174,148)**, alpha fade-in (`fade` rises).  Verified via the `0x48cf80`
+  box-probe (`box_cells.jsonl`).
+- **Speaker NAME** ("Arche's Father") in a header strip at the box top, GDI **Courier New
+  7×18**, color `0x455dbb`, origin ~(410,139) (right portion of the header).  Drawn by
+  `0x40fa00`.  Name text = the actor's `+0x750` (from the dramatist table, an exe string).
+- **Body TEXT** = Courier New 7×18, **2 rows** (the `%n` splits the line), origin row1
+  ~(300,170)/row2 ~(300,195); typewriter ~1 char / 10 flips; main color `0x3e537d` +
+  light outline `0xa8b9cc` (3 TextOut passes at (x,y+1)/(x+1,y)/(x,y)).
+- **Advance arrow** = res `0x3e8` (1000), animated frames 0–3 (base 20 → frameSel 20–23),
+  bobbing `fdy` 0→2 at ~(542,240) (bottom-right inside the box).
+- **Portrait** = a large bust on the LEFT (res **`0x7ef`**, 160×176, magenta colorkey
+  `0xff00ff`, slot `DAT_008a809c`) — loads exactly at dialogue time (flip 2775).  Exact
+  x/y/scale to pin by render-diff in chip 1b.
+- **Timing:** game_enter=1432; box appears ~2743 (after camera pan + banner hold).
+- PNG: `runs/dialogue-probe/.../frames/frame_03100*.png` (the box up, typing) — visually
+  confirms: big Father bust left, parchment box right, name header, 2 text rows.
+
+Resources loaded at box-appearance: `0x456` (frame), `0x44a` (192×64 — name-tab bg?),
+`0x7ef` (portrait).  Arrow `0x3e8` is in the always-loaded UI set.
+
 ## Open / to-verify (resolve via the capture, chip 1)
 
 - **Object model.**  `0x439680` tail-calls `0x439690` with no stack arg, so the runner's

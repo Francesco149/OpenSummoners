@@ -958,6 +958,11 @@ struct test_case {
     X(banner_hold_then_fade)                                   \
     X(banner_layout)                                           \
     X(banner_alpha_ramp)                                       \
+    X(exe_strings_resolve)                                     \
+    X(exe_strings_bounds)                                      \
+    X(exe_strings_malformed)                                   \
+    X(exe_strings_unterminated)                                \
+    X(exe_strings_real_exe)                                    \
 
 #define X(n) extern int test_##n(void);
 TESTS
