@@ -3144,10 +3144,36 @@ across flips 1640/1700/1900.
 has ALL the building blocks: `zdd_object_get_dc`/`_release_dc` (= `0x5b94e0`/`0x5b9500`), `glyph_row_draw`
 (= `0x48e860`), `ar_make_font` (CreateFontIndirectA), the sprite/alpha blits, and `g_ramp_a` (= the
 `0x8a9308` ramp).  Mirror the object + the phase machine + the render; arm in `enter_game` on the measured
-timer; render after `scene_fade` in `game_render`.  **Open items for the port:** (a) res `0x449`'s bank
-id / asset-pool index (the `FUN_00418470(0)` source — needs one asset-getter capture or the registry);
+timer; render after `scene_fade` in `game_render`.  **Open items for the port:** (a) ~~res `0x449`'s
+bank~~ **RESOLVED (disasm):** the mode-1 block `0x494b5a` fetches the scroll cel via `FUN_00418470(0)`
+**`__thiscall` with ECX = `DAT_008a7714`** — a DEDICATED bank slot (NOT the main `DAT_008a760c` pool),
+frame 0 = res `0x449` (sotesd.dll DATA, 314×108).  `*DAT_008a7714` is the "text composed?" cache flag
+(`0x494b62`: `if (*(int*)*DAT_008a7714 == 0)` compose).  `DAT_008a7718` is the separate sprite-banner
+pool (modes 2/3/4, unused).  → the port registers a dedicated slot for res `0x449` (like the font slots
+`AR_SPR_FONT_TEX_457`), gets frame 0, composes the text onto it once, blits.
 (b) the ARM trigger SOURCE (who sets `enable=1`/`mode=1`/the text — measured timer + PORT-DEBT for now,
 precedent = the camera-pan/letterbox triggers, all the same scene-script source); (c) the area-name
 source (area table `0xd2` → "Town of Tonkiness" — read from the table or hard-code for the town with a
 PORT-DEBT).  Ground truth: `runs/banner-probe` (PNGs/textout/res), `runs/banner-state` (3-slot config),
 `runs/banner-blits` (the res-0x449 blit), `tools/flow/banner_fields.json` (the reusable field-spec).
+
+**PORTED + BIT-EXACT (ckpt 101, USER-confirmed "banner looks good").**  `src/banner.{c,h}` (NEW, pure +
+host-tested: `banner_arm`/`banner_step` = the `0x499ab0` mode-1 phase machine, `banner_text_layout`/
+`banner_alpha_ramp_index` = the `0x494a60` case-1 length+alpha math) + `main.c` wiring (the scroll-cel
+fetch via slot 53, the GDI text compose `zdd_object_get_dc`→`SetTextColor`/`SelectObject`/`TextOutA`→
+`zdd_object_release_dc`, the keyed/alpha blit at (160,64), armed at game_enter+78, stepped + rendered in
+the sim-tick block after `scene_fade`).  **VERIFIED `differ_px=0/36720`** over the whole banner region
+(scroll + vines + GDI text + sky behind), camera-matched (port frame 1300 vs retail `runs/banner-verify`
+1614, both `cam_x60=128000`); amplified diff all-black.
+- **The decisive fix — the scroll decodes UNGRADED.**  res `0x449` is bound by retail's PLAIN getter
+  `0x418470(0)` (NO `0x417c40` grade descriptor), so its 8bpp palette is NOT colour-graded.  The port's
+  8bpp grade was global → the parchment rendered ~10% too dark (a uniform per-channel offset; the GDI
+  text + the sky behind were already bit-exact).  Skipping the grade for slot 53 (the decode hook) →
+  parchment `differ_px=0`.  General gate (PORT-DEBT `banner-grade`): grade only via the `0x417c40`
+  getter; the slot-53 skip is the stand-in.
+- **Residuals (named, outside the bit-exact window):** the arm trigger + the text + the hold are
+  measured constants (PORT-DEBT `banner-trigger`, the same scene-script source as the camera-pan +
+  letterbox); only the font-6 length band is built (PORT-DEBT `banner-font-table`).
+- 5 host tests (`tests/test_banner.c`: arm / fade-in / hold→fade-out / layout ladder / alpha-ramp gate)
+  — 933 pass.  parity-ledger #11; engine-quirk #96.  Artifacts: `runs/banner-verify` (the matched
+  retail cap).

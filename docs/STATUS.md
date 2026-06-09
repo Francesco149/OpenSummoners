@@ -35,7 +35,29 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 99): the SETTLED-town per-tick RNG stream is now bit-exact ALL THE WAY (not just the
+- **LATEST (ckpt 101): the "Town of Tonkiness" area-title BANNER is PORTED + BIT-EXACT (differ_px=0) —
+  USER-confirmed "banner looks good". (933 pass, +5.)**
+  1. **It's `FUN_00494a60`, NOT the `0x5a00c0` overlay player** (ckpt-100 RE; `0x5a00c0` is the scrolling
+     story-text/dialogue runner). The area card = a 3-slot renderer called from `0x48c150:176-178` (AFTER
+     the scene-fade grid); only slot0 (`view+0x11c`) is the title. mode 1 = the scroll SPRITE (res `0x449`,
+     slot 53 / the `0x8a7714` bank) with the area name **GDI-composed onto it** (Courier New h20 w10, white
+     + `0x404040` outline) then blit at (160,64); animation = the `0x499ab0` phase machine (fade-in
+     `alpha+=0x14`/sim-tick → hold 400 → fade-out).
+  2. **PORTED (`src/banner.{c,h}`, NEW + host-tested) + `main.c` wiring** — the scroll fetch (slot 53), the
+     GDI compose (`zdd_object_get_dc`→`TextOutA`→`release_dc`), the keyed/alpha blit, armed at game_enter+78,
+     stepped+rendered in the sim-tick block after `scene_fade`. The port already had every primitive
+     (GetDC/`glyph_row_draw`/`ar_make_font`/blits/`g_ramp_b`).
+  3. **BIT-EXACT: `differ_px=0/36720`** over the whole banner (scroll+vines+text+sky), camera-matched (port
+     1300 vs retail `runs/banner-verify` 1614). **Key fix:** the scroll decodes **UNGRADED** — retail binds
+     it via the plain getter `0x418470(0)` (no `0x417c40` grade), so skipping the in-game 8bpp palette grade
+     for slot 53 made the parchment bit-exact (a graded decode was ~10% too dark). parity-ledger #11;
+     engine-quirk #96.
+  4. **NEXT (open options):** (a) the `0x5a00c0` dialogue box + scrolling story-text overlay (the remaining
+     non-tile layer); (b) the movement FSM `0x43f880` → butterflies drift + controllable Arche (Phase 4).
+     Residual debt: PORT-DEBT(banner-trigger) (arm timer +78 + text are measured constants, real source =
+     the scene script), (banner-grade) (the slot-53 grade-skip is by index; the faithful gate is the
+     `0x417c40` getter), (banner-font-table) (only the font-6 length band).
+- **Prior (ckpt 99): the SETTLED-town per-tick RNG stream is now bit-exact ALL THE WAY (not just the
   REVEAL window) — the 4 IRREGULAR ambient/event timers are ported, closing PORT-DEBT(fountain-rng-phase).
   (922 pass, +1.)**
   1. **The residual was FOUR self-clocked timers, not "all 0x5531b0"** (corrects the ckpt-98 guess).
@@ -52,8 +74,9 @@ understates how much actual instruction volume is ported.
      `0xe2a5` sub-effect (none ported) but the COUNTS + TIMING keep the stream aligned. Replaced the
      ckpt-98 blanket 3-draw consume.
   3. **VALIDATED 3 ways:** offline LCG replay **0/297** vs the capture's `0x46cd70` checkpoints (full
-     298-tick window); **LIVE port 0/127** (incl. the tick-33 fire — port `0x46cd70` rng matches retail
-     tick-for-tick); host test `ambient_pertick`. **Retires** the RNG residual of fountain-rng-phase +
+     298-tick window); **LIVE port bit-exact ticks 0-248** (two `--call-trace` windows; the port's
+     per-tick `0x46cd70` rng matches retail tick-for-tick through ALL FOUR fires 33/134/183/189); host
+     test `ambient_pertick`. **Retires** the RNG residual of fountain-rng-phase +
      the RNG half of PORT-DEBT(actor-protagonist-clip) (the wagon's idle-wander draws). New tooling: the
      reusable `argfield` field source (read a struct field off a stack-arg pointer).
   4. **NEXT (open options):** (a) the `0x5a00c0` banner/textbox overlay (visible gap, high leverage —

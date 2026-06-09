@@ -1,10 +1,51 @@
-# Session handoff — rolling current state (last updated ckpt 99, 2026-06-09)
+# Session handoff — rolling current state (last updated ckpt 101, 2026-06-09)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 101
+
+**The "Town of Tonkiness" area-title BANNER is PORTED + BIT-EXACT (differ_px=0) — USER-confirmed
+"banner looks good". 933 pass (+5).**  Module: `src/banner.{c,h}` (NEW) + `main.c` wiring.  Full RE:
+ckpt 100 (engine-quirk #96, findings "The area-title BANNER"); the port: parity-ledger #11.
+
+- **The producer (corrects the long-standing `0x5a00c0` attribution).**  The area card is `FUN_00494a60`
+  (918 B), called 3× from the render driver `0x48c150:176-178` (slots `view+0x11c/0x120/0x124`, AFTER the
+  `scene_fade` reveal grid); only slot0 is the title.  `0x5a00c0` is a SEPARATE thing — the scrolling
+  story-text / dialogue overlay player (deferred).  mode 1 = the scroll SPRITE (res `0x449`, slot 53 /
+  the `0x8a7714` bank) with the area name GDI-composed onto it, blit at (160,64).
+- **The model.**  Animation = `0x499ab0`'s mode-1 phase machine (once/sim-tick = every 2 flips): phase 0
+  compose → 1 fade-in (`alpha+=0x14`→1000) → 2 hold (`hold_ctr`→400) → 3 fade-out (`alpha-=0x14`→off).
+  Render = `0x494a60` case 1: GDI text (Courier New h20 w10, white + `0x404040` 12× outline shadow,
+  centred `x=160-(len*adv)/2`) composed onto the scroll cel via `zdd_object_get_dc`/`TextOutA`/
+  `release_dc`, then keyed blit (alpha 1000) or alpha blit (ramp_b, fading).
+- **Ported (`banner.{c,h}` pure + host-tested; `main.c` Win32 sink).**  `banner_arm`/`banner_step`/
+  `banner_text_layout`/`banner_alpha_ramp_index` (pure) + `game_render_banner`/`banner_compose_text` +
+  the arm at game_enter+78 + step/render in the sim-tick block after `scene_fade`.  All primitives
+  already existed (GetDC, `glyph_row_draw`, `ar_make_font`, blits, `g_ramp_b`, slot 53 via
+  `ar_register_palette_ramps`).
+- **BIT-EXACT `differ_px=0/36720`** (whole banner region, camera-matched port 1300 ↔ retail
+  `runs/banner-verify` 1614).  **The decisive fix:** the scroll sheet (slot 53) decodes UNGRADED —
+  retail binds it via the plain getter `0x418470(0)` (no `0x417c40` grade), so skipping the in-game 8bpp
+  palette grade for slot 53 made the parchment bit-exact (graded → ~10% too dark).
+- **NEXT (open):** (a) the `0x5a00c0` dialogue box + scrolling story-text overlay; (b) the movement FSM
+  `0x43f880` → butterflies drift + controllable Arche (Phase 4).  Residual debt: PORT-DEBT(banner-trigger)
+  (arm +78 / text / hold = measured constants, real source = the scene script — same as camera-pan +
+  letterbox), (banner-grade) (the slot-53 grade-skip is by index; faithful gate = the `0x417c40` getter),
+  (banner-font-table) (only the font-6 length band).  Artifacts: `runs/banner-{probe,state,blits,verify}`,
+  `tools/flow/banner_fields.json`.
+
+## Where we are — ckpt 100
+
+**The area-title BANNER is fully RE'd + ground-truthed (RE milestone, no port code — see ckpt 101 for the
+port).**  Producer `FUN_00494a60`; the `0x5a00c0` attribution corrected.  engine-quirk #96; findings
+"The area-title BANNER".  Ground truth: `runs/banner-probe` (PNGs/textout/res — the banner is a parchment
+scroll res `0x449` 314×108 @ (160,64) with the GDI-composed area name, arms ~game_enter+78, holds the whole
+intro), `runs/banner-state` (the 3-slot `0x494a60` field-spec → only slot0 enabled, the full alpha/phase
+timeline), `runs/banner-blits` (the res-0x449 keyed blit).  New reusable field-spec `tools/flow/banner_fields.json`.
 
 ## Where we are — ckpt 99
 

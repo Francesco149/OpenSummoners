@@ -77,6 +77,7 @@
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
+#include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -290,6 +291,18 @@ static mr_camera      g_game_camera_mr;       /* derived per-frame projection ca
  * stand-in).  The grid-fill geometry itself is bit-exact RE'd (letterbox.c). */
 static int            g_letterbox_top;
 static int            g_letterbox_bottom;
+
+/* The area-title banner ("Town of Tonkiness", banner.{c,h}; engine-quirk #96).
+ * Declared here (before init_sprite_banks, which builds the GDI font) — the
+ * render + arm wiring lives further down by the scene_fade sinks. */
+static area_banner    g_banner;
+static void          *g_banner_font;  /* HFONT — Courier New h20 w10 (DAT_008a9274[6]) */
+static int            g_banner_armed; /* one-shot arm latch, reset per enter_game */
+#define BANNER_SCROLL_SLOT  53        /* res 0x449 / the 0x8a7714 bank */
+/* The banner arms ~game_enter+78 flips (live: enable 0->1 between flips 1511/1515,
+ * game_enter@~1434).  PORT-DEBT(banner-trigger): the real source is the scene
+ * script (the same unported source as the camera-pan + letterbox triggers). */
+#define BANNER_ARM_FRAMES   78u
 
 /* Flips the camera holds at the spawn origin before the scripted pan begins.
  * MEASURED from a retail field-spec trace (--seed-pin --lockstep): Flip 1616 is
@@ -756,8 +769,17 @@ static void title_sheet_format(ar_sprite_slot *slot,
      * packed to the display depth — matching retail's order (LUT the palette,
      * then convert), so the result is bit-exact (not LUT-after-565).  Only 8bpp
      * sheets carry a palette; only armed once in-game (g_color_grade_on).  8bpp
-     * color-keying is by index, so grading the colors is key-safe. */
-    if (g_color_grade_on && src == 8)
+     * color-keying is by index, so grading the colors is key-safe.
+     *
+     * EXCEPT the area-title banner sheet (slot 53 / res 0x449): retail binds it
+     * via the plain getter FUN_00418470(0) (NO 0x417c40 grade descriptor), so its
+     * palette is NOT graded — grading it renders the parchment ~10% too dark
+     * (differ_px=0 vs retail once skipped, ckpt 101).  PORT-DEBT(banner-grade):
+     * the faithful gate is "grade only via the 0x417c40 getter" (the tiles/sky
+     * use it, the banner + letterbox plain getter don't); the port's 8bpp grade
+     * is global, so this skips the one visible plain-getter sheet by slot. */
+    if (g_color_grade_on && src == 8 &&
+        slot != &g_ar_sprite_slots[BANNER_SCROLL_SLOT])
         color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {
@@ -847,6 +869,13 @@ static void init_sprite_banks(void)
                               /*sotesp_module=*/g_sotesd);
     ar_register_group3_sprites(g_zdd, /*group=*/3, /*settings=*/g_sotesd);
     ar_register_game_sprites  (g_zdd, /*group=*/5, /*settings=*/g_sotesd);
+
+    /* The area-title banner's GDI font (0x494a60 DAT_008a9274[6], the
+     * font picked for the town name's length 17): Courier New, h20 w10,
+     * weight 400, charset 1 (the live LOGFONT, engine-quirk #96).  Built once
+     * here through the same CreateFontIndirectA path as the menu fonts. */
+    g_banner_font = (void *)ar_gdi_create_font(/*width=*/10, /*height=*/20,
+                                               /*italic=*/0, "Courier New");
 
     log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
              "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c) + 8 GDI fonts "
@@ -1910,6 +1939,75 @@ static void game_scene_fade_alpha(void *ctx, int x, int y, int level)
                          x, y, 0x40, 4, 0, 0, 0x1ffffff, NULL);
 }
 
+/* ─── the AREA-TITLE BANNER ("Town of Tonkiness", banner.{c,h}) ──────────────
+ *
+ * The area card shown on entering the town: a scroll sprite (res 0x449, slot 53
+ * / the 0x8a7714 bank, registered by ar_register_palette_ramps) with the area
+ * name GDI-composed onto it, faded in.  Producer 0x494a60 (mode 1) + the
+ * cinematic-step phase machine 0x499ab0; rendered AFTER the scene_fade grid
+ * (0x48c150:176-178).  engine-quirk #96; findings "The area-title BANNER".
+ * (g_banner / g_banner_font / g_banner_armed declared above, before
+ * init_sprite_banks.) */
+
+/* Compose the area name onto the scroll cel via GDI, ONCE (0x494a60 case-1:
+ * GetDC the cel -> shadow 0x404040 (3 rows x 4 cols) + white 0xffffff (2x) ->
+ * ReleaseDC).  TextOutA == FUN_0048e860 for the single-record ASCII string; the
+ * text bakes into the shared slot-53 cel, like retail's DAT_008a7714 cache. */
+static void banner_compose_text(zdd_object *cel)
+{
+    void *hdc = NULL;
+    if (!zdd_object_get_dc(cel, &hdc) || hdc == NULL)
+        return;
+    banner_layout L = banner_text_layout(g_banner.text);
+    SetBkMode((HDC)hdc, TRANSPARENT);                  /* bkmode 1 */
+    if (g_banner_font != NULL)
+        SelectObject((HDC)hdc, (HGDIOBJ)g_banner_font);
+    SetTextColor((HDC)hdc, (COLORREF)0x404040);        /* the dark outline shadow */
+    for (int row = 0; row < 3; row++)                  /* y = y_off+9..+11 */
+        for (int dx = -2; dx < 2; dx++)                /* x = x_base-2..+1 */
+            TextOutA((HDC)hdc, L.x_base + dx, L.y_off + 9 + row, g_banner.text, L.len);
+    SetTextColor((HDC)hdc, (COLORREF)0xffffff);        /* the white fill */
+    TextOutA((HDC)hdc, L.x_base - 1, L.y_off + 10, g_banner.text, L.len);
+    TextOutA((HDC)hdc, L.x_base,     L.y_off + 10, g_banner.text, L.len);
+    zdd_object_release_dc(cel, hdc);
+}
+
+/* Render the area-title banner (0x494a60 case 1), AFTER scene_fade_render.
+ * Composes the text once, then blits the scroll cel at (160,64): keyed when fully
+ * opaque (alpha 1000), alpha-composited through ramp_b while fading in. */
+static void game_render_banner(void)
+{
+    if (!banner_active(&g_banner))
+        return;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+    /* The scroll sheet (slot 53) is decoded UNGRADED — retail binds it via the
+     * plain getter FUN_00418470(0) (NO 0x417c40 grade), so its palette skips the
+     * in-game colour-grade (the skip is in the decode hook).  With that, the
+     * parchment is bit-exact vs retail (differ_px=0); a graded decode rendered it
+     * ~10% too dark. */
+    zdd_object *cel = (zdd_object *)ar_sprite_slot_frame(
+        &g_ar_sprite_slots[BANNER_SCROLL_SLOT], 0);
+    if (cel == NULL)
+        return;
+    if (!g_banner.composed) {
+        banner_compose_text(cel);
+        g_banner.composed = 1;
+    }
+    int idx = banner_alpha_ramp_index(g_banner.alpha);
+    const zdd_blend_desc *desc =
+        (idx >= 0 && idx < PD_BOOT_GROUP_B_COUNT) ? g_ramp_b[idx] : NULL;
+    if (desc != NULL) {
+        zdd_blit_orchestrate(desc, g_zdd->primary_obj, cel,
+                             cel->metric_0c + BANNER_DST_X,
+                             cel->metric_10 + BANNER_DST_Y,
+                             cel->metric_14, cel->metric_18,
+                             0, 0, cel->colorkey_out, NULL);
+    } else {
+        zdd_object_blt_keyed(cel, g_zdd->primary_obj, BANNER_DST_X, BANNER_DST_Y);
+    }
+}
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -2108,6 +2206,19 @@ static void game_render(void *user)
              * (no RNG), so it rides the sim-tick clock like the actor steppers. */
             if (is_sim_tick)
                 scene_fade_step(&g_scene_fade);
+            /* The area-title banner (0x494a60) is updated by the SAME cinematic
+             * step 0x499ab0 — arm it at the measured +78-flip trigger, then run
+             * its mode-1 phase machine once/sim-tick. */
+            if (is_sim_tick) {
+                if (!g_banner_armed && g_game_camera_hold >= BANNER_ARM_FRAMES) {
+                    banner_arm(&g_banner, "Town of Tonkiness", BANNER_HOLD_DUR);
+                    g_banner_armed = 1;
+                    log_line("enter_game: banner_arm \"Town of Tonkiness\" "
+                             "@hold=%u (game_enter+%u)", g_game_camera_hold,
+                             g_game_camera_hold);
+                }
+                banner_step(&g_banner);
+            }
             cam = &g_game_camera_mr;
         }
         /* 0x48c150 order: the parallax far-plane FIRST (0x490cd0, behind the
@@ -2130,6 +2241,9 @@ static void game_render(void *user)
          * letterbox bars: the black iris that opens the town from center-out. */
         scene_fade_render(&g_scene_fade,
                           game_scene_fade_opaque, game_scene_fade_alpha, NULL);
+        /* 0x48c150:176-178 — the area-title banner ("Town of Tonkiness"),
+         * rendered AFTER the reveal grid (slot0 of the 3 banner calls). */
+        game_render_banner();
     }
 }
 
@@ -2313,6 +2427,13 @@ static void enter_game(void)
         log_line("enter_game: scene_fade_arm mode=1 speed=1000 variant=%d "
                  "(0=center-out; DRAWN at the post-spawn LCG phase, engine-quirk #94)",
                  sf_variant);
+
+        /* The area-title banner arms later (at +78 flips, in the sim-tick block,
+         * engine-quirk #96), not here — just clear it + the one-shot latch so a
+         * re-entry re-arms and no stale card renders during the 0..78 window. */
+        g_banner.enable = 0;
+        g_banner.composed = 0;
+        g_banner_armed = 0;
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):

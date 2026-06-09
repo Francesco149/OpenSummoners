@@ -953,6 +953,11 @@ struct test_case {
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \
+    X(banner_arm)                                              \
+    X(banner_fade_in)                                          \
+    X(banner_hold_then_fade)                                   \
+    X(banner_layout)                                           \
+    X(banner_alpha_ramp)                                       \
 
 #define X(n) extern int test_##n(void);
 TESTS

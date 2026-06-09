@@ -5546,7 +5546,8 @@
    "status": "tested",
    "src": [
     "src/glyph_render.c",
-    "src/glyph_render.h"
+    "src/glyph_render.h",
+    "src/main.c"
    ]
   },
   {
