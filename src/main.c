@@ -75,6 +75,7 @@
 #include "actor_spawn.h"      /* the town CHARACTER-band spawn (0x58d460 -> 0x431e30) */
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
+#include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -207,6 +208,15 @@ static int              g_structs_loaded;
  * idle clip's frame 0 for now (Phase 1b animates).  engine-quirk #84. */
 static actor_spawn_pool g_effects;
 static int              g_effects_loaded;
+
+/* The 4 town BUTTERFLIES' per-sim-tick LCG behaviour (engine-quirk #95) — the
+ * EFFECT band's ONLY per-tick RNG consumer (0x47b990's 0xe29a case).  Registered
+ * by actor_spawn_effect_from_map (their 0xc874 move-freq, in map order); stepped
+ * once per sim-tick in game_actor_update BEFORE the particle emitters so the
+ * shared LCG stream stays aligned with retail (the fountain/sky positions read it
+ * downstream).  g_first_sim_tick gates the one-shot tick-0 init draws below. */
+static butterfly_pool   g_butterflies;
+static int              g_first_sim_tick;
 
 /* The particle band (0x13e0 DEVICE pool / 0x493480 render) — the FOUNTAIN SPRAY.
  * The fountain prop 0x112e5 (a CHARACTER in g_actors) emits one 0x18708 water
@@ -2027,22 +2037,42 @@ static void game_actor_update(void)
     if (g_effects_loaded)
         advanced += actor_pool_update(&g_effects);  /* the townsfolk breathe */
     CALL_TRACE_BEGIN(0x46cd70);           /* port mirror of the per-tick driver */
+    CALL_TRACE_HEX("rng", rng_peek_state()); /* the shared LCG state at onEnter   */
     CALL_TRACE_I32("advanced", advanced); /* port-side: actors stepped this tick */
     CALL_TRACE_END();
 
-    /* The PARTICLE band.  The FOUNTAIN emitter (0x112e5 / 0x54f980:218) spawns one
-     * 0x18708 water droplet this sim-tick; the SKY emitters (0x112e2 /
-     * 0x54f980:150) each spawn one 0x18704 ambient particle every 6th tick.  Both
-     * draw the shared LCG for their jitter/velocity.  particle_pool_step then steps
-     * every active particle (gravity/integrate/fade/expire, dispatched by code).
-     * RNG-driven, so frame-exact alignment with retail is Phase 2
-     * (PORT-DEBT(fountain-rng-phase)); the physics here are faithful. */
+    /* The per-tick LCG stream, in 0x46cd70's band order (engine-quirk #95):
+     *
+     * (1) EFFECT band (0x47b990): the 4 BUTTERFLIES, the band's only per-tick RNG
+     *     consumer (the townsfolk take the RNG-free arm).  Stepped FIRST so their
+     *     draws precede the emitters' — keeping the shared stream aligned. */
+    butterfly_step(&g_butterflies);
+
+    /* (2) CHARACTER band (0x54f980): the particle EMITTERS.  The FOUNTAIN 0x112e5
+     *     spawns one 0x18708 water droplet (6 draws); the SKY emitters 0x112e2
+     *     each spawn one 0x18704 ambient particle every 6th tick (4 draws each).
+     *     particle_pool_step (0x46e510, RNG-free) then integrates every particle.
+     *     With the butterflies now consumed first, the stream matches retail
+     *     bit-exact through the establishing REVEAL window (verified, engine-quirk
+     *     #95); the irregular ambient-event timer 0x5531b0 (PORT-DEBT(fountain-rng-
+     *     phase)) desyncs it beyond ~tick 33. */
     if (g_fountain_loaded)
         particle_fountain_emit(&g_fountain_pp, g_fountain_cx, g_fountain_cy,
                                &g_fountain_counter);
     for (int i = 0; i < g_sky_emit_count; i++)
         particle_sky_emit(&g_fountain_pp, g_sky_cx[i], g_sky_cy[i],
                           &g_sky_counter[i]);
+
+    /* (3) The first sim-tick's tail CHARACTER-band draws the port does not model:
+     *     the ambient-event timer 0x5531b0 (2) + a 0x54f980 site (0x5525be, 1).
+     *     Consume-to-advance so tick 0 — the reveal's first tick — stays aligned
+     *     (PORT-DEBT(fountain-rng-phase): 0x5531b0 also fires irregularly later). */
+    if (g_first_sim_tick) {
+        (void)rng_rand(); (void)rng_rand();   /* 0x5531b0 x2 */
+        (void)rng_rand();                      /* 0x5525be    */
+        g_first_sim_tick = 0;
+    }
+
     particle_pool_step(&g_fountain_pp);
 }
 
@@ -2235,7 +2265,9 @@ static void enter_game(void)
          * (world = (map - dst) * 100), frozen on the idle clip's frame 0.
          * game_actor_walk also walks g_effects (layer 13).  The 4 wandering
          * 0xe29a + the non-map party townsfolk are deferred (RNG / Phase 2). */
-        int en = actor_spawn_effect_from_map(&g_effects, &g_town.map);
+        butterfly_pool_reset(&g_butterflies);
+        g_first_sim_tick = 1;
+        int en = actor_spawn_effect_from_map(&g_effects, &g_town.map, &g_butterflies);
         g_effects_loaded = (en > 0);
         /* Fill the mirror/flip table so the facing==3 townsfolk pick the mirrored
          * cel (frame_base + flip).  Faithful to retail's DAT_008a8440 global. */

@@ -1,10 +1,43 @@
-# Session handoff — rolling current state (last updated ckpt 96, 2026-06-09)
+# Session handoff — rolling current state (last updated ckpt 98, 2026-06-09)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 98
+
+**The town's PER-TICK RNG STREAM is ported + LIVE-bit-exact through the establishing-REVEAL
+window — the long-standing "intro-cutscene RNG" sweep.  921 pass (+2).**  Modules:
+`src/butterfly.{c,h}` (NEW), `src/actor_spawn.c` (cutscene-cast spawn draws + the butterfly
+freq capture), `src/main.c` (`game_actor_update` order).  Full RE: engine-quirk #94 (the
+room-load burst) + #95 (the per-tick model); `findings/in-game-intro.md` is the writeup home.
+
+- **The sweep, in two chips:**
+  1. **ckpt 97 — the room-load SPAWN BURST (engine-quirk #94).**  The first in-game frame draws a
+     19-object EFFECT burst (15 MAP via `effect_from_map` = 171 draws + **4 SCRIPT cutscene cast** via
+     `cutscene_cast` = 42 draws: Arche `0xc35a` 12 + 3×10), THEN the REVEAL iris-variant draw.  The port
+     consumed only the 15 map → iris variant 2 (sweep); now `cutscene_cast` consumes its 42 → variant
+     **0 (center-out)**, retail's value.  Only the COUNT matters (LCG state is value-independent).
+     `0x4f5347`+214 draws = `0x9c2b551d` = retail's tick-0 state ⇒ **the spawn is byte-aligned.**
+  2. **ckpt 98 — the PER-TICK stream (engine-quirk #95).**  `0x46cd70` walks the bands; only the 4
+     BUTTERFLIES (`0x47b990`, EFFECT band, update-mode 1) + the fountain/sky emitters (`0x54f980`,
+     CHARACTER band, already ported) draw RNG.  `src/butterfly.{c,h}`'s `butterfly_step` runs the
+     `0xe29a` draw model once/sim-tick BEFORE the emitters (the gate `0x14232` + flit timer `0x14236` +
+     heading/flag, each butterfly's `0xc874` captured at spawn).  COUNT model: `tick0=23`, then
+     `6 + 8·[even] + 8·[N≡5 mod6]`.
+- **Verified:** offline LCG replay reproduces retail's `0x46cd70` onEnter rng for ticks 0-33 (293/298
+  overall; the 5 misses are the irregular `0x5531b0` ambient ×3 + the flit re-fire at 162 + 2 unknown);
+  host tests `actor_spawn_cutscene_iris` + `butterfly_pertick`; **LIVE the port's per-tick rng matches
+  retail tick-for-tick** (`0x9c2b551d, 0xb92fc6fa, 0x5c22a348, …`, ticks 0-11).
+- **Debts moved:** scene-fade-rng-phase → `scene-fade-window` (variant drawn; only the black-load start
+  offset left).  fountain-rng-phase narrowed to the irregular `0x5531b0` ambient.  butterfly-wander is
+  no longer RNG-blocked — the DRIFT now waits on the movement FSM `0x43f880` (5.5 KB, Phase 4).
+- **NEXT (open):** (a) RE + port the ambient timer `0x5531b0` (+ the 2 unknowns) → the SETTLED-town
+  fountain/sky bit-exact (closes fountain-rng-phase); (b) the `0x5a00c0` banner/textbox overlay;
+  (c) the movement FSM `0x43f880` → butterflies drift + controllable Arche (Phase 4).  Artifacts:
+  `runs/rng-census-repin` (the per-tick ground truth).
 
 ## Where we are — ckpt 96
 

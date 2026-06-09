@@ -163,7 +163,14 @@ int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank);
  * first.  Returns the count spawned (DATA 1022 -> 11), or -1 on a NULL arg /
  * pool overflow.
  */
-int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md);
+struct butterfly_pool;   /* fwd — src/butterfly.h (the per-tick LCG behaviour) */
+
+/* `bp` (may be NULL): as each butterfly (0xe29a) is spawned, its move-frequency
+ * 0xc874 (engine-quirk #95 — the 5th draw of 0x427670 case 2 = (rand*100>>15) +
+ * 0x28a, captured from the spawn replay) is registered into the pool IN MAP
+ * (EFFECT-band) ORDER, so the per-tick butterfly_step draws in retail's order. */
+int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md,
+                                struct butterfly_pool *bp);
 
 /*
  * PORT-DEBT(effect-sprite-table): the EFFECT code -> (bank, dst, layer) map,

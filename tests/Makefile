@@ -47,7 +47,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/anim_clip.c ../src/render_id.c \
                 ../src/letterbox.c ../src/actor_render.c \
                 ../src/actor_spawn.c ../src/particle.c \
-                ../src/party.c ../src/scene_fade.c
+                ../src/party.c ../src/scene_fade.c ../src/butterfly.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \

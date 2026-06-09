@@ -2896,3 +2896,54 @@ Verified: host test `actor_spawn_cutscene_iris` (the 42-draw contract + variant 
 the live port log (`scene_fade_arm … variant=0 … DRAWN at the post-spawn LCG phase`).  This retires
 the RNG-phase half of PORT-DEBT(scene-fade-rng-phase); the residual is only the skipped black-load
 WINDOW (the reveal's absolute start-tick offset).
+
+### #95 — the town's PER-TICK LCG stream is a clean COUNT model (butterflies even + fountain 6 + sky every-6); the ckpt-73 "non-deterministic RNG" was the missing butterfly draws, NOT true nondeterminism (2026-06-09, ckpt 98)
+
+Under the seed pin, the town's per-sim-tick LCG consumption is fully deterministic and reproducible —
+resolving the ckpt-73/#77 "the stream desyncs run-to-run even under `--seed-pin`" mystery: that was
+the *port* missing the EFFECT-band draws + the non-deterministic presents-per-tick (quirk #75), not
+nondeterminism in retail's per-tick logic.  Ground truth: the seed-pinned `0x5bf505` per-tick census
+(`runs/rng-census-repin`), validated bit-exact by replaying the MSVC LCG against the `0x46cd70`
+onEnter rng at **293 of 298 ticks** (the 5 misses are named irregulars, below).
+
+**The per-tick driver `0x46cd70` walks the bands in this order; only two draw RNG in the town:**
+1. **EFFECT band `0x47b990`** — called ONLY for update-mode-1 actors (`actor+0x200==1`), which in the
+   town is just the **4 BUTTERFLIES** (`0xe29a`); the 11 standing townsfolk + the 4 cutscene cast take
+   the RNG-free arm `0x478ba0`.  So the butterflies ARE the EFFECT-band per-tick stream.
+   - **Every OTHER sim-tick** (the 1-bit gate `0x14232`: work when 0, set 1; next tick dec to 0 +
+     return).  Fresh-spawned they share phase → all 4 work on EVEN ticks.
+   - On a work tick: the flit-pick timer `0x14236` (work-tick countdown reloaded to `0x50`) gates the
+     wander draws — when 0 it draws the move test `(rand*1000)>>15 < 0xc874` (+ a 2nd draw, the flit
+     offset, if it passes) then reloads `0x50`.  Init 0 → fires on the spawn tick, then every `0x50`
+     = 80 work-ticks = **160 sim-ticks** (observed re-fire: tick 162).
+   - The `0xe29a` case (`:768-801`) then ALWAYS draws twice: heading `0xc890 = (rand*0xc80>>15)+0x640`
+     and the flutter flag `(rand*1000)>>15 < 100`.
+   - So a butterfly draws **2** per work-tick (heading+flag), or **3-4** when the flit pick fires.
+     Each one's `0xc874` (~650-749) is set at spawn by `0x427670` case 2 (= `(rand*100>>15)+0x28a`,
+     the 5th of its 5 draws).  The drawn values feed the flit MOTION (`0x43f880`, the 5.5 KB
+     movement/collision FSM) + the facing/bounds — DEFERRED, so the butterflies hold position but the
+     stream advances (consume-to-advance).
+2. **CHARACTER band `0x54f980`** — the particle EMITTERS: the fountain `0x112e5` (6 draws/tick: jitter
+   y/x + splash×2 + velocity×2, the velocity either inline `0x550bf8/0x550c22` or via `0x453960`,
+   always 6) and the 2 sky `0x112e2` emitters (4 draws each — jitter + `0x453960` velocity — every 6th
+   tick, at ticks 5/11/17/23/…).  Already ported (`src/particle.c`); the cadence matches.
+
+**The clean count model** (reproduces retail's per-tick rng exactly):
+`tick 0 = 23` (14 butterfly + 6 fountain + 3 first-tick init); then per tick N≥1:
+`6 (fountain) + 8·[N even] + 8·[N≡5 mod 6]`.
+
+**The 5 irregular consumers** (the only model misses, all RNG-self-clocked): the ambient-event timer
+`0x5531b0` (a per-object random-event countdown — fires ticks 0/33/134/189, +2/+3 draws), the
+butterfly flit-pick re-fire (tick 162, +7), and 2 unknown (ticks 183/189).  These desync the stream
+beyond ~tick 33, so the fountain/sky positions are bit-exact only through the REVEAL window
+(PORT-DEBT(fountain-rng-phase) narrowed to these).
+
+**Ported (ckpt 98, `src/butterfly.{c,h}`):** `butterfly_step` runs the EFFECT-band draw model once per
+sim-tick (in `game_actor_update`, BEFORE the emitters), with each butterfly's `0xc874` captured by
+`actor_spawn_effect_from_map` from the spawn replay; `game_actor_update` consumes the 3 tick-0 init
+draws.  **Validated:** the offline LCG replay (the 4 freqs 653/686/735/698, state after spawn =
+`0x9c2b551d`) reproduces retail's `0x46cd70` onEnter rng for **all 34 ticks 0-33** with zero
+mismatches; host test `butterfly_pertick` locks the gate / flit-timer / count model.  **LIVE-CONFIRMED:**
+the running port's per-tick LCG state (a `0x46cd70` debug read) matches retail tick-for-tick —
+`0x9c2b551d, 0xb92fc6fa, 0x5c22a348, 0x9bf8e1ee, 0x1027c41c, 0x22322222, 0x056084f8, 0x7bc49e1e,
+0xd2b528cc, 0xa60bc952, 0xede48fe0, 0x1886fdc6` for ticks 0-11, exactly retail's `runs/rng-census-repin`.

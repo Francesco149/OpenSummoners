@@ -6,6 +6,42 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-09 (ckpt 98) — the intro-cutscene PER-TICK RNG STREAM is ported + LIVE bit-exact
+
+The directive was "sweep all the rng gaps in the intro cutscene + fix the debts blocked by this."
+Two chips, both ground-truthed against the seed-pinned per-tick census `runs/rng-census-repin` and
+validated by replaying the MSVC LCG offline + live.
+
+**ckpt 97 — the room-load SPAWN BURST (engine-quirk #94, commit `b1bc5af`).** The town's first in-game
+frame draws a 19-object EFFECT burst — 15 MAP objects (`actor_spawn_effect_from_map`, 171 draws) + **4
+SCRIPT cutscene-cast** objects (`0x4d7d80`→`0x41f0e0`→`0x41f200`: Arche `0xc35a` 12 draws via her
+`0x427360`, Barnard/Father/Mother 10 each), THEN the establishing-REVEAL iris-variant draw `(rand*3)>>15`.
+The port consumed only the 15 map objects, so the iris drew variant 2 (sweep) — pinned to 0. Now
+`actor_spawn_cutscene_cast` consumes its 42-draw burst, so the iris VARIANT is DRAWN at the right phase =
+**0 (center-out)**, retail's town value. Only the count matters (the LCG state after N steps is value-
+independent); proven offline (`0x4f5347`+214 draws = `0x9c2b551d` = retail's tick-0 state — the spawn is
+now byte-aligned), host-tested (`actor_spawn_cutscene_iris`), live (`scene_fade_arm … variant=0 … DRAWN`).
+Retires the RNG half of PORT-DEBT(scene-fade-rng-phase) (renamed `scene-fade-window`).
+
+**ckpt 98 — the PER-TICK stream (engine-quirk #95, `src/butterfly.{c,h}` NEW).** Resolves the ckpt-73/#77
+"the stream desyncs run-to-run even under `--seed-pin`" mystery: under the pin it is fully deterministic
+— that was the *port* missing the EFFECT-band draws, not nondeterminism. `0x46cd70` walks the bands; only
+two draw RNG in the town: the **4 BUTTERFLIES** (`0x47b990`, called ONLY for update-mode-1 EFFECT actors;
+the townsfolk + cast take the RNG-free `0x478ba0`) and the **fountain/sky emitters** (`0x54f980`, already
+ported). `butterfly_step` runs the `0xe29a` draw model once/sim-tick BEFORE the emitters — the gate
+`0x14232` (work on even ticks), the flit-pick timer `0x14236` (fires every 80 work-ticks = 160 sim-ticks),
+and the heading+flag draws — with each butterfly's move-freq `0xc874` captured by the spawn replay. Clean
+count model: `tick0=23`, then `6 + 8·[N even] + 8·[N≡5 mod 6]`. **Validated:** the offline LCG replay
+reproduces retail's `0x46cd70` onEnter rng for **293/298 ticks** (the 5 misses are named irregulars — the
+ambient timer `0x5531b0` ×3, the flit re-fire at tick 162, +2 unknown); host test `butterfly_pertick`
+locks the gate/timer/count; and **the LIVE port's per-tick rng matches retail tick-for-tick**
+(`0x9c2b551d, 0xb92fc6fa, 0x5c22a348, …` for ticks 0-11). The flit MOTION (`0x43f880`, the 5.5 KB movement
+FSM) is deferred consume-to-advance, so the butterflies hold position but the stream stays aligned.
+PORT-DEBT(fountain-rng-phase) narrows to the irregular `0x5531b0`; PORT-DEBT(butterfly-wander) is no
+longer RNG-blocked (the drift waits on the movement FSM). 921 pass.
+
+---
+
 ## 2026-06-09 (ckpt 96) — the town BUTTERFLIES are PORTED (`0xe29a` was never "wandering villagers")
 
 USER (golden review #89) pointed out tiny ~3px butterflies that flit by the flowerbeds at the

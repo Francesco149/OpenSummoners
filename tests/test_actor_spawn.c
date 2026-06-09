@@ -13,6 +13,7 @@
  */
 #include "actor_spawn.h"
 #include "actor_render.h"
+#include "butterfly.h"
 #include "draw_pool.h"
 #include "rng.h"
 #include "t.h"
@@ -422,7 +423,7 @@ int test_actor_spawn_effect(void)
 
     rng_srand(0x4f5347u);   /* same pinned seed -> the spawn replay aligns */
     actor_spawn_pool pool;
-    T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md), 3);  /* 2 townsfolk + 1 butterfly */
+    T_ASSERT_EQ_I(actor_spawn_effect_from_map(&pool, &md, NULL), 3);  /* 2 townsfolk + 1 butterfly */
 
     /* slot 0 = 0xc3e6: bank 0xe5, fb 0, layer 13, dst (-30,-32), idle clip set,
      * RNG start phase (frame in [0,20), timer in [0,14)).
@@ -531,7 +532,7 @@ int test_actor_spawn_effect(void)
     draw_pool_free(&dpm);
 
     /* NULL guard. */
-    T_ASSERT_EQ_I(actor_spawn_effect_from_map(NULL, &md), -1);
+    T_ASSERT_EQ_I(actor_spawn_effect_from_map(NULL, &md, NULL), -1);
     return 0;
 }
 
@@ -570,5 +571,68 @@ int test_actor_spawn_cutscene_iris(void)
 
     /* NULL guard. */
     T_ASSERT_EQ_I(actor_spawn_cutscene_cast(NULL, NULL, 0), -1);
+    return 0;
+}
+
+/* The butterfly per-tick draw model (0x47b990 0xe29a, engine-quirk #95): the
+ * every-other-tick gate, the flit-pick timer, and the heading+flag draws. */
+int test_butterfly_pertick(void)
+{
+    butterfly_pool p;
+    butterfly_pool_reset(&p);
+    T_ASSERT_EQ_I(p.count, 0);
+
+    /* A butterfly with freq 0: the (rand*1000>>15) < freq test NEVER passes, so
+     * the flit pick draws ONLY the 523 test (no 534).  Deterministic vs the seed. */
+    rng_srand(0x4f5347u);
+    T_ASSERT_EQ_I(butterfly_register(&p, 0), 0);
+    T_ASSERT_EQ_I(butterfly_step(&p), 3);   /* tick 0: 523 test(1) + heading+flag(2) */
+    T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* tick 1: gate -> skip                  */
+    T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* tick 2: heading+flag (timer != 0)     */
+    T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* tick 3: gate                          */
+    T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* tick 4                                */
+
+    /* A butterfly with freq 0x8000: the test ALWAYS passes (rand*1000>>15 < 32768),
+     * so the flit pick draws the 523 test + the 534 offset. */
+    butterfly_pool_reset(&p);
+    rng_srand(0x4f5347u);
+    T_ASSERT_EQ_I(butterfly_register(&p, 0x8000u), 0);
+    T_ASSERT_EQ_I(butterfly_step(&p), 4);   /* tick 0: 523(1) + 534(1) + heading+flag(2) */
+    T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* gate */
+    T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* tick 2: just heading+flag */
+
+    /* The flit-pick timer reloads 0x50 work-ticks, so after the first pick (tick 0)
+     * the next fires 0x50 work-ticks (= 0x50*2 sim-ticks) later.  Walk the even work
+     * ticks: each draws only heading+flag (2) until the timer hits 0 again. */
+    butterfly_pool_reset(&p);
+    rng_srand(0x4f5347u);
+    butterfly_register(&p, 0x8000u);
+    butterfly_step(&p);                     /* tick 0 work-tick 0: pick fires, reload 0x50 */
+    /* The timer reloads 0x50 AFTER firing, so it decrements over the next 0x50 work
+     * ticks and re-fires on work-tick 0x51 (= sim-tick 162, matching the census). */
+    for (int wt = 1; wt <= BUTTERFLY_WANDER_PERIOD; wt++) {
+        T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* odd tick: gate */
+        T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* even work-tick: no pick (timer>0) */
+    }
+    T_ASSERT_EQ_I(butterfly_step(&p), 0);            /* gate */
+    T_ASSERT_EQ_I(butterfly_step(&p), 4);            /* work-tick 0x51: the pick re-fires */
+
+    /* End-to-end: the 4 town butterflies, registered with their seed-pinned move
+     * frequencies (engine-quirk #95: captured 653/686/735/698 from the spawn), draw
+     * exactly 14 on the spawn tick (2 of the 4 pass the move test) and 8 thereafter
+     * on even ticks — matching the seed-pinned per-tick census bit-exact. */
+    butterfly_pool_reset(&p);
+    rng_srand(0x9c2b551du);                  /* the post-spawn LCG state (tick-0 onEnter) */
+    butterfly_register(&p, 653);
+    butterfly_register(&p, 686);
+    butterfly_register(&p, 735);
+    butterfly_register(&p, 698);
+    T_ASSERT_EQ_I(butterfly_step(&p), 14);   /* spawn tick: 4 picks, 2 pass -> 14 */
+    T_ASSERT_EQ_I(butterfly_step(&p), 0);    /* odd: gate */
+    T_ASSERT_EQ_I(butterfly_step(&p), 8);    /* even: 4 x heading+flag */
+
+    /* NULL guards. */
+    T_ASSERT_EQ_I(butterfly_register(NULL, 0), -1);
+    T_ASSERT_EQ_I(butterfly_step(NULL), 0);
     return 0;
 }

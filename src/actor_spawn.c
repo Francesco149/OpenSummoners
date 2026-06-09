@@ -5,6 +5,7 @@
  * visible-code sprite-table stand-in (the lazy 0x40afe0/0x41e600 fill).
  */
 #include "actor_spawn.h"
+#include "butterfly.h"      /* butterfly_register — the per-tick LCG behaviour   */
 #include "party.h"          /* the dramatist resolve (handle -> code/bank)       */
 #include "rng.h"            /* rng_rand — the engine LCG the spawn replays      */
 
@@ -323,7 +324,8 @@ static int effect_prefix_draws(uint32_t code)
     return n;
 }
 
-int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
+int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md,
+                                struct butterfly_pool *bp)
 {
     if (pool == NULL || md == NULL) return -1;
     memset(pool, 0, sizeof *pool);
@@ -343,9 +345,14 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
          * not model (the townsfolk positions are map-driven; the fountain is a
          * later chip), so they are consumed-to-advance; only the 0x426ec0 pair
          * is USED — for the rendered townsfolk AND the butterflies (0xe29a); the
-         * remaining unknown codes still consume their draws, just not spawned. */
+         * remaining unknown codes still consume their draws, just not spawned.
+         * For a butterfly the LAST prefix draw is the 5th of 0x427670 case 2 =
+         * its move-frequency 0xc874 (engine-quirk #95) — captured for the per-tick
+         * behaviour butterfly_step. */
+        uint32_t last_prefix = 0;
         for (int k = effect_prefix_draws(code); k > 0; k--)
-            (void)rng_rand();
+            last_prefix = rng_rand();
+        uint16_t wander_freq = (uint16_t)(((last_prefix * 100u) >> 15) + BUTTERFLY_FREQ_BASE);
         /* The actor's anim clip: the butterfly (0xe29a) flaps the 3-frame
          * BUTTERFLY_CLIP; every other town effect breathes the 20-frame IDLE_CLIP.
          * Selected by code BEFORE the phase draws so 0x426ec0 scales the start
@@ -393,6 +400,11 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->timer      = ph_timer;              /* +0x70 — 0x426ec0 start timer */
         rs->frame      = ph_frame;              /* +0x72 — 0x426ec0 start frame */
         rs->done       = 0;                     /* +0x74 */
+
+        /* Register the butterfly's per-tick behaviour (the EFFECT band's only
+         * per-tick LCG consumer) with its captured move frequency, IN MAP ORDER. */
+        if (code == 0xe29au && bp != NULL)
+            butterfly_register(bp, wander_freq);
     }
     return pool->count;
 }
