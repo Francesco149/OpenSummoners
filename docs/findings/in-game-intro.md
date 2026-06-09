@@ -3074,3 +3074,80 @@ and port:
 - **PORT-DEBT(butterfly-wander):** the per-instance direction/colour (frame_base 0/4/8/12 → the white
   variant) and the RNG wander drift (the 5 `0x427670` draws are consumed but the motion isn't applied)
   — Phase 2, alongside the other scene RNG residuals.
+
+### The area-title BANNER — "Town of Tonkiness" is `FUN_00494a60`, NOT the `0x5a00c0` overlay player (ckpt 100, RE complete, ground-truthed)
+
+The long-known missing "Town of Tonkiness" area banner (the golden-video review #89; PORT-DEBT
+`ingame-nontile-layers`).  Fully RE'd + captured.  **It is NOT `0x5a00c0`** (that's the scrolling
+story-text / dialogue overlay player — the 3-state `GetTickCount` loop + caption array; it renders the
+prologue narration, not the area card).  The area-title banner is a separate, small producer.
+
+**Producer — `FUN_00494a60` (918 B), the area-title banner renderer.**  Called **3× per frame** from
+the in-game render driver `FUN_0048c150:176-178` — once per banner slot, ECX = `*(view+0x11c)` /
+`*(view+0x120)` / `*(view+0x124)` (view = `*(room_state+0x104c)`, the 0x78-byte view object, quirk #73).
+The 3 calls sit **right after the scene-fade REVEAL grid** `FUN_0048e920` (`:175`, the ported
+`scene_fade`) and before `FUN_0048c820` — that is the render ORDER for the port (banner draws after the
+iris/letterbox).  **Only slot0 (`view+0x11c`) is the area card; slots 1,2 stay `enable=0`** (other
+banner instances, unused in the town).
+
+**The banner state object (ECX) layout** (pinned live, `runs/banner-state` field-spec on `0x494a60`):
+- `[0]` (`+0`)   = **mode**: `1` = GDI-text card (the area title); `2/3/4` = sprite banner (a scroll
+  sprite from the `DAT_008a7718` pool, idx `1/0/2`) — *unused for the town*.
+- `[1]` (`+4`)   = `{phase: u16 low, hold_ctr: u16 high}` — the animation phase (0/1/2/3) + hold counter.
+- `[2]` (`+8`)   = **alpha** 0..1000.
+- `[3]` (`+0xc`) = text-struct ptr (`+0xa` = string length).
+- `[4]` (`+0x10`)= **hold duration** = **400** (live).
+- `[5]/[6]` (`+0x14/+0x18`) = dst x/y (0/0 for mode 1 — case 1 hard-codes the position; see render).
+- `[8]` (`+0x20`)= **enable**.
+
+**Animation — `FUN_00499ab0` (the per-sim-tick cinematic step; runs once per 2 flips, the sim-tick gate;
+also updates the `scene_fade` grid).**  For slot0 when `enable!=0`, `switch(mode)`; mode-1 sub-machine on
+`phase`:
+- **phase 0** — compose the text (`FUN_0049a050` "text ready?" → `FUN_004118b0` free-old), `phase++`.
+- **phase 1 (FADE IN)** — `alpha += 0x14` (cap 1000); when `>=1000`, `phase++`.
+- **phase 2 (HOLD)**   — `hold_ctr += 1` until `hold_ctr >= [4]` (400), then `phase++`.
+- **phase 3 (FADE OUT)** — `alpha -= 0x14` (clamp ≥0); when `<1`, set `enable=0` (done).
+- (`0x14`/tick × ½ flip-rate = **+10 alpha/flip** — matches the live ramp 20→60→260→…→1000.)
+
+**Render — `FUN_00494a60` case 1 (mode 1).**  Gets the scroll cel `ppVar5 = FUN_00418470(0)` (res
+**`0x449`**, 314×108; loaded lazily via `0x4184a0` when the banner first renders — `runs/banner-probe`
+res_load @flip 1511).  If the text isn't composed yet (`*(int*)*DAT_008a7714 == 0`), it **GDI-composes
+the area name onto the cel ONCE** (cached): `paint_ctx::FUN_005b94e0` (GetDC) → draw → `FUN_005b9500`
+(ReleaseDC).  Then blit at the **hard-coded (0xa0, 0x40) = (160, 64)**: `alpha<1000` → `FUN_00494e10`
+(alpha blit via `0x5bd550`, ramp `(&DAT_008a9308)[alpha*0x14/1000]`); `alpha==1000` → `FUN_005b9b70`
+(opaque keyed).  Confirmed in `runs/banner-blits`: res `0x449` keyed @ (160,64) wh (314,108) once alpha
+hits 1000 (flips ≥1620); during the fade it's the unhooked alpha primitive.
+
+**The GDI text** (`runs/banner-probe/textout.jsonl` — the "Courier New" textout earlier mistaken for a
+debug overlay IS this real composition):
+- Font `(&DAT_008a9274)[iVar6]`, `iVar6` chosen by string length: `len 11-14`→adv 12; `15-22`→**font idx
+  6, adv 10**; `23-28`→idx 8 adv 9; `≥29`→idx 8 adv 8; `≤10`→adv 0xe.  "Town of Tonkiness" = len 17 →
+  font 6, **advance 10**.  Live LOGFONT: **face "Courier New", h 20, w 10, weight 400 (normal), italic 0,
+  charset 1**.  The bold/outlined look is the multi-offset shadow, NOT a bold weight.
+- x centred: `iVar2 = -((len*adv)/2)`, `iVar7 = iVar2 + 0xa0`.  For len 17: iVar2 −85, iVar7 75
+  (cel-relative; matches the textout x 73-236).
+- **Shadow** (`SetTextColor 0x404040`): the whole string drawn **12×** at x ∈ `iVar7+{-2,-1,0,1}`,
+  y ∈ `{13,14,15}` (3 rows × 4 cols, the outline) via `FUN_0048e860` (= the ported `glyph_row_draw`).
+- **Fill** (`SetTextColor 0xffffff`): drawn **2×** at x ∈ `{iVar7-1, iVar7}`, y 14.
+- The 2nd font pass (`FUN_0048e6d0` / font idx 7) is the **furigana/ruby** pass — **no-op for English**
+  (every record's ruby flag is 0; the port's `glyph_ruby_draw` already models this as a no-op).
+- `bkmode TRANSPARENT`.  Drawn onto the scroll cel's DC; cel then blits at (160,64) → on-screen text
+  centred ≈ x 235-405 (screen centre 320).
+
+**Timing (live, game_enter@~1434, seed-pinned lockstep).**  Banner **arms ~flip 1513** (`= game_enter +
+~78`; `enable` 0→1, `mode` 0→1 between flips 1511 and 1515).  Fade-in ≈100 ticks → **alpha 1000 by ~flip
+1614**.  HOLD until `hold_ctr` reaches 400 → fades out ~**flip 2422** (well past the settled town 2138 —
+the banner is up the whole intro).  Decoded f1 confirmed the model exactly: phase 2, hold_ctr 12→42→139
+across flips 1640/1700/1900.
+
+**Port plan (a self-contained `src/banner.{c,h}` producer, like `scene_fade`/`letterbox`).** The port
+has ALL the building blocks: `zdd_object_get_dc`/`_release_dc` (= `0x5b94e0`/`0x5b9500`), `glyph_row_draw`
+(= `0x48e860`), `ar_make_font` (CreateFontIndirectA), the sprite/alpha blits, and `g_ramp_a` (= the
+`0x8a9308` ramp).  Mirror the object + the phase machine + the render; arm in `enter_game` on the measured
+timer; render after `scene_fade` in `game_render`.  **Open items for the port:** (a) res `0x449`'s bank
+id / asset-pool index (the `FUN_00418470(0)` source — needs one asset-getter capture or the registry);
+(b) the ARM trigger SOURCE (who sets `enable=1`/`mode=1`/the text — measured timer + PORT-DEBT for now,
+precedent = the camera-pan/letterbox triggers, all the same scene-script source); (c) the area-name
+source (area table `0xd2` → "Town of Tonkiness" — read from the table or hard-code for the town with a
+PORT-DEBT).  Ground truth: `runs/banner-probe` (PNGs/textout/res), `runs/banner-state` (3-slot config),
+`runs/banner-blits` (the res-0x449 blit), `tools/flow/banner_fields.json` (the reusable field-spec).

@@ -2965,3 +2965,33 @@ mismatches; host test `butterfly_pertick` locks the gate / flit-timer / count mo
 the running port's per-tick LCG state (a `0x46cd70` debug read) matches retail tick-for-tick —
 `0x9c2b551d, 0xb92fc6fa, 0x5c22a348, 0x9bf8e1ee, 0x1027c41c, 0x22322222, 0x056084f8, 0x7bc49e1e,
 0xd2b528cc, 0xa60bc952, 0xede48fe0, 0x1886fdc6` for ticks 0-11, exactly retail's `runs/rng-census-repin`.
+
+### #96 — the "Town of Tonkiness" area-title banner is `FUN_00494a60` (a 3-slot card renderer), NOT the `0x5a00c0` overlay player; mode-1 = a scroll sprite (res `0x449`) with the area name GDI-composed onto it and faded in (2026-06-09, ckpt 100)
+
+The area-title card the player sees on entering an area.  Long mis-attributed to the `0x5a00c0`
+"scripted overlay player" (which is actually the scrolling story-TEXT / dialogue runner — the
+3-state `GetTickCount` loop + the 0x124-stride caption array; the ckpt-82 blit trace already found
+"no `0x5a00c0` banner blit at the hold" — correct, the card is a different producer, shown later).
+
+- **Renderer `FUN_00494a60` (918 B)** — called **3× per frame** from the render driver
+  `FUN_0048c150:176-178`, ECX = `*(view+0x11c)`/`*(view+0x120)`/`*(view+0x124)` (3 banner slots;
+  view = `*(room_state+0x104c)`).  Drawn **right after** the scene-fade reveal grid `FUN_0048e920`.
+  Only **slot0** (`view+0x11c`) is the area card; the other 2 stay `enable=0`.
+- **Object:** `[0]`=mode (1=GDI-text card; 2/3/4=sprite-pool banner, unused here), `[1]`={phase
+  u16, hold_ctr u16}, `[2]`=alpha 0..1000, `[3]`=text ptr, `[4]`=hold (400), `[5/6]`=dst, `[8]`=enable.
+- **Animation `FUN_00499ab0`** (per-sim-tick = every 2 flips): phase 0 compose → 1 fade-in
+  (`alpha+=0x14`→1000) → 2 hold (`hold_ctr→400`) → 3 fade-out (`alpha-=0x14`→`enable=0`).
+- **Render (case 1):** scroll cel = `FUN_00418470(0)` = **res `0x449`** (314×108, lazy-decoded @flip
+  1511); the area name is **GDI-composed onto the cel ONCE** (cached via `DAT_008a7714`) — `GetDC`
+  (`0x5b94e0`) → `FUN_0048e860` text → `ReleaseDC` (`0x5b9500`) — then blit at hard-coded **(160,64)**:
+  `alpha<1000` → alpha blit (`0x5bd550`, ramp `(&DAT_008a9308)[alpha·0x14/1000]`), `=1000` → keyed
+  (`0x5b9b70`).
+- **GDI text:** font `DAT_008a9274[len-keyed idx]` (len 17 "Town of Tonkiness" → idx 6, advance 10);
+  LOGFONT **Courier New, h20 w10 weight 400, italic 0, charset 1**; shadow `0x404040` drawn 12× (x
+  ±2px / y 13-15) + white `0xffffff` 2× — the outline IS the multi-offset shadow, not a bold weight;
+  centred `x = 160 − (len·adv)/2`.  The 2nd font pass (`FUN_0048e6d0`/font 7) is the furigana pass,
+  no-op for English.  (The "Courier New" GDI textout seen in a probe is THIS, not a debug overlay.)
+- **Timing** (seed-pinned, game_enter@~1434): arms ~flip **1513** (`game_enter+78`), alpha 1000 by
+  ~1614, holds (hold_ctr→400) to ~flip **2422**, then fades.  Up the whole intro.
+- Ground truth: `runs/banner-probe` / `runs/banner-state` / `runs/banner-blits`;
+  `tools/flow/banner_fields.json`.  Full writeup: `findings/in-game-intro.md` "The area-title BANNER".

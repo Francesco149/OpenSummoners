@@ -1,0 +1,21 @@
+{
+  "_doc": "Minimal field-spec for the area-title banner renderer FUN_00494a60.",
+  "fields": {
+    "0x494a60": {
+     "name": "area_banner",
+     "_note": "FUN_00494a60 — area-title banner renderer, called 3x/frame from 0x48c150:176-178. ECX = banner state object (one of 3 slots). [0]=mode(1=GDI-text,2/3/4=sprite pool idx 1/0/2), [2]=alpha 0..1000, [3]=text struct ptr (+0xa=len), [5]/[6]=dst x/y, [8]=enable.",
+     "fields": [
+      {"name":"mode","src":"thisderef","off":0,"type":"i32"},
+      {"name":"f1","src":"thisderef","off":4,"type":"i32"},
+      {"name":"alpha","src":"thisderef","off":8,"type":"i32"},
+      {"name":"txtptr","src":"thisderef","off":12,"type":"hex"},
+      {"name":"f4","src":"thisderef","off":16,"type":"i32"},
+      {"name":"dstx","src":"thisderef","off":20,"type":"i32"},
+      {"name":"dsty","src":"thisderef","off":24,"type":"i32"},
+      {"name":"f7","src":"thisderef","off":28,"type":"i32"},
+      {"name":"enable","src":"thisderef","off":32,"type":"i32"},
+      {"name":"f9","src":"thisderef","off":36,"type":"i32"}
+     ]
+    }
+  }
+}
