@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-09 (ckpt 99) — the settled-town per-tick RNG stream is bit-exact ALL THE WAY (4 ambient/event timers)
+
+The directive: close PORT-DEBT(fountain-rng-phase) — make the SETTLED-town per-tick LCG stream
+bit-exact, not just through the establishing-REVEAL window (ckpt 98).  The ckpt-98 model had 5
+"misses" beyond ~tick 33, guessed to be "the ambient timer `0x5531b0` ×3 + 2 unknown".  RE'd them
+properly: they are **FOUR self-clocked ambient/event timers** (+ the butterfly re-fire `butterfly.c`
+already models), each a clean **unit-decrement** countdown.  Pinned by a seed-pinned timer-state
+capture (`runs/ambient-timer`, new `0x5531b0`/`0x467380`/`0x54f980` field-spec entries reading each
+one's `+0x5c`/`+0x20c` `cd` directly — plus a reusable `argfield` agent source to read a struct field
+off a stack-arg pointer): `0x11370` (`0x5531b0` ambient SOUND) fires tick 33, the wagon `0x1872d`'s
+idle-wander (`0x54f980:932`) tick 134, the `0x467380` `0xe2a5` event timer tick 183, `0x1136f`
+(`0x5531b0` SOUND) tick 189.  The census's earlier C-values (141/189/33) were **off-by-one** — the
+`0x5bf505` `rng_state` field is the state *before* the draw (value = `rval(step(state))`).
+
+**Ported `src/ambient.{c,h}` (NEW)** — four consume-to-advance timers run in the proven `0x46cd70`
+band order (`game_actor_update`): EFFECT `butterfly_step → ambient_effect_step` (`0x467380`), then
+CHARACTER `fountain → sky → ambient_character_step` (`0x1136f`, `0x11370`, wagon).  Each inits
+`(rand*300)>>15` at tick 0 and fires (3-4 draws) when its countdown expires; the drawn values feed
+sounds / the wagon wander / an `0xe2a5` sub-effect (none ported) but the COUNTS + TIMING keep the
+shared LCG aligned so the fountain/sky particle positions read the same stream as retail.  Replaced
+the ckpt-98 blanket 3-draw tick-0 consume.
+
+**Validated 3 ways:** an offline MSVC-LCG replay reproduces the capture's `0x46cd70` onEnter rng for
+the FULL 298-tick window (**0/297** transitions); two **live port** runs (frame-window `--call-trace`)
+match retail tick-for-tick across ticks 0-248 — through ALL FOUR ambient fires (33/134/183/189,
+including the `ambient_effect_step` event timer at 183); host test `ambient_pertick` (922 pass, +1).  **Retires** the RNG residual of fountain-rng-phase + the
+RNG half of PORT-DEBT(actor-protagonist-clip) (the wagon idle-wander).  Residual: PORT-DEBT(ambient-event-cd)
+(the `0x467380` cd-init = the seed-pinned 184; real source = the unported `0xe2a5` spawn arm `0x431cb0`).
+engine-quirk #95 (amended); `findings/in-game-intro.md` "The per-tick RNG stream".
+
 ## 2026-06-09 (ckpt 98) — the intro-cutscene PER-TICK RNG STREAM is ported + LIVE bit-exact
 
 The directive was "sweep all the rng gaps in the intro cutscene + fix the debts blocked by this."

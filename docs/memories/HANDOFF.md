@@ -1,10 +1,46 @@
-# Session handoff — rolling current state (last updated ckpt 98, 2026-06-09)
+# Session handoff — rolling current state (last updated ckpt 99, 2026-06-09)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 99
+
+**The SETTLED-town per-tick RNG stream is now bit-exact across the WHOLE window (not just the
+REVEAL) — the four irregular ambient/event timers are ported, closing PORT-DEBT(fountain-rng-phase).
+922 pass (+1).**  Module: `src/ambient.{c,h}` (NEW), `src/main.c` (`game_actor_update` band order),
+`tools/flow/retail_fields.json` (the `0x5531b0`/`0x467380` timer-state field-spec entries + the new
+`argfield` agent source).  Full RE: engine-quirk **#95** (amended with the corrected attribution);
+`findings/in-game-intro.md` "The per-tick RNG stream" is the writeup home.
+
+- **What the residual actually was.**  Not "all `0x5531b0`" (the ckpt-98 guess) but FOUR self-clocked
+  timers, each a clean unit-decrement countdown (pinned by the seed-pinned timer-state capture
+  `runs/ambient-timer` — direct `+0x5c`/`+0x20c` reads):
+  - `0x11370` — `0x5531b0` ambient SOUND emitter (CHARACTER band): init `(rand*300)>>15`=33, fires tick **33** (+3).
+  - wagon `0x1872d` — `0x54f980:932` idle-wander (CHARACTER): init `(rand*300)>>15`=134, fires tick **134** (+3).
+  - `0x467380` — `0xe2a5` event timer (EFFECT band, via `0x442a70`): `+0x20c`=184 (spawn-set), fires tick **183** (+4).
+  - `0x1136f` — `0x5531b0` ambient SOUND emitter (CHARACTER): init `(rand*300)>>15`=189, fires tick **189** (+3).
+  The butterfly flit re-fire (tick 162, +7) was already modelled by `butterfly.c`.  **The census's
+  earlier C-values (141/189/33) were off-by-one** — the `0x5bf505` `rng_state` field is the state
+  *before* the draw (value = `rval(step(state))`); the `cd` reads are authoritative.
+- **Ported (`ambient.{c,h}`).**  Four consume-to-advance timers in the proven `0x46cd70` walk order:
+  EFFECT `butterfly_step → ambient_effect_step` (`0x467380`), then CHARACTER `fountain emit → sky emit
+  → ambient_character_step` (`0x1136f`, then `0x11370`, then wagon — slot order; the 3 tick-0 inits
+  must run in that order so each gets the right value).  Replaced the ckpt-98 blanket 3-draw consume.
+- **Validated 3 ways:** offline LCG replay **0/297** vs the capture's `0x46cd70` checkpoints (the FULL
+  298-tick window); **live port bit-exact ticks 0-248** (two frame-window `--call-trace` runs — the
+  port's per-tick `0x46cd70` rng matches retail tick-for-tick through ALL FOUR fires 33/134/183/189,
+  incl. the `ambient_effect_step` event timer at 183); host test `ambient_pertick`.
+- **Debts moved:** fountain-rng-phase RETIRED (RNG stream bit-exact at the settled town).
+  actor-protagonist-clip narrowed (the wagon's idle-wander RNG draws are ported; only the `0x43f880`
+  motion remains).  NEW PORT-DEBT(ambient-event-cd): the `0x467380` cd-init is the seed-pinned 184
+  (real source = the unported `0xe2a5` spawn arm `0x431cb0`).
+- **NEXT (open):** (a) the `0x5a00c0` "Town of Tonkiness" banner + portrait/textbox overlay (the next
+  clearly-visible town gap; high leverage — also gates the letterbox heights + camera-pan trigger);
+  (b) the movement FSM `0x43f880` → the butterflies + wagon drift + controllable Arche (Phase 4).
+  Artifacts: `runs/ambient-timer` (the timer-state ground truth), `runs/ambient-port` (the live port trace).
 
 ## Where we are — ckpt 98
 

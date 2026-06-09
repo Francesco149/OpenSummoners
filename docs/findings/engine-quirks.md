@@ -2932,11 +2932,29 @@ onEnter rng at **293 of 298 ticks** (the 5 misses are named irregulars, below).
 `tick 0 = 23` (14 butterfly + 6 fountain + 3 first-tick init); then per tick N≥1:
 `6 (fountain) + 8·[N even] + 8·[N≡5 mod 6]`.
 
-**The 5 irregular consumers** (the only model misses, all RNG-self-clocked): the ambient-event timer
-`0x5531b0` (a per-object random-event countdown — fires ticks 0/33/134/189, +2/+3 draws), the
-butterfly flit-pick re-fire (tick 162, +7), and 2 unknown (ticks 183/189).  These desync the stream
-beyond ~tick 33, so the fountain/sky positions are bit-exact only through the REVEAL window
-(PORT-DEBT(fountain-rng-phase) narrowed to these).
+**The irregular consumers — RESOLVED (ckpt 99, `src/ambient.{c,h}`; corrects the earlier "5 misses /
+all 0x5531b0" guess).**  A seed-pinned timer-state capture (`runs/ambient-timer`, the
+`0x5531b0`/`0x467380`/`0x54f980` field-spec reads of each one's `+0x5c`/`+0x20c` countdown) pinned the
+residual to **FOUR self-clocked ambient/event timers** (+ the butterfly re-fire that `butterfly.c`
+already models), ALL clean **unit-decrement** (1/sim-tick) — not the suspected "all `0x5531b0`":
+| timer | mechanism / band | init | fires | draws |
+|---|---|---|---|---|
+| `0x11370` | `0x5531b0` ambient SOUND (CHARACTER) | `(rand*300)>>15` = 33 @t0 | tick **33** | +3 |
+| wagon `0x1872d` | `0x54f980:932` idle-wander (CHARACTER) | `(rand*300)>>15` = 134 @t0 | tick **134** | +3 |
+| `0x467380` | `0xe2a5` event timer (EFFECT, via `0x442a70`) | `+0x20c`=184 (spawn-set) | tick **183** | +4 |
+| `0x1136f` | `0x5531b0` ambient SOUND (CHARACTER) | `(rand*300)>>15` = 189 @t0 | tick **189** | +3 |
+A 0x5531b0/0x54f980 timer fires when its countdown hits ≤0 (so init `C` → fires at tick `C`); the
+`0x467380` fires at `+0x20c==1`.  **The census's earlier C-values (141/189/33) were off-by-one** — the
+`0x5bf505` `rng_state` field is the state *before* the draw, so the returned value is
+`rval(step(state))`, not `rval(state)`; reading the `cd` directly gives 189/33/134.  **Order in the
+`0x46cd70` walk** (proven by the capture seq order): EFFECT `butterfly_step → 0x467380`, then CHARACTER
+`fountain → sky → 0x1136f → 0x11370 → wagon`.  Ported as four consume-to-advance timers
+(`ambient_effect_step` + `ambient_character_step`); the values feed sounds / the wagon wander / an
+`0xe2a5` sub-effect (none ported) but the COUNTS + TIMING keep the stream aligned.  **The whole
+settled-town per-tick stream is now bit-exact** (offline replay 0/297 vs the capture; live port
+bit-exact ticks 0-248 through all four fires 33/134/183/189; host test `ambient_pertick`).  Retires the RNG residual of
+PORT-DEBT(fountain-rng-phase) + the RNG half of PORT-DEBT(actor-protagonist-clip); the only synthetic
+remainder is the `0x467380` `cd`-init (seed-pinned 184, PORT-DEBT(ambient-event-cd)).
 
 **Ported (ckpt 98, `src/butterfly.{c,h}`):** `butterfly_step` runs the EFFECT-band draw model once per
 sim-tick (in `game_actor_update`, BEFORE the emitters), with each butterfly's `0xc874` captured by

@@ -76,6 +76,7 @@
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
+#include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -214,9 +215,15 @@ static int              g_effects_loaded;
  * by actor_spawn_effect_from_map (their 0xc874 move-freq, in map order); stepped
  * once per sim-tick in game_actor_update BEFORE the particle emitters so the
  * shared LCG stream stays aligned with retail (the fountain/sky positions read it
- * downstream).  g_first_sim_tick gates the one-shot tick-0 init draws below. */
+ * downstream). */
 static butterfly_pool   g_butterflies;
-static int              g_first_sim_tick;
+
+/* The town's IRREGULAR per-tick RNG timers (engine-quirk #95) — the two 0x5531b0
+ * ambient SOUND emitters (0x1136f/0x11370), the wagon 0x1872d's idle-wander, and
+ * the 0x467380 (0xe2a5) event timer.  Each fires once in the settled-town window
+ * (ticks 189/33/134/183), consuming the LCG so the fountain/sky stay aligned past
+ * the REVEAL.  Stepped in band order around the emitters in game_actor_update. */
+static ambient_pool     g_ambient;
 
 /* The particle band (0x13e0 DEVICE pool / 0x493480 render) — the FOUNTAIN SPRAY.
  * The fountain prop 0x112e5 (a CHARACTER in g_actors) emits one 0x18708 water
@@ -2045,17 +2052,16 @@ static void game_actor_update(void)
      *
      * (1) EFFECT band (0x47b990): the 4 BUTTERFLIES, the band's only per-tick RNG
      *     consumer (the townsfolk take the RNG-free arm).  Stepped FIRST so their
-     *     draws precede the emitters' — keeping the shared stream aligned. */
+     *     draws precede the emitters' — keeping the shared stream aligned.
+     *     Then the EFFECT-band event timer 0x467380 (the 0xe2a5 object, via
+     *     0x442a70) — it follows the butterflies in slot order (fires tick 183). */
     butterfly_step(&g_butterflies);
+    ambient_effect_step(&g_ambient);
 
     /* (2) CHARACTER band (0x54f980): the particle EMITTERS.  The FOUNTAIN 0x112e5
      *     spawns one 0x18708 water droplet (6 draws); the SKY emitters 0x112e2
      *     each spawn one 0x18704 ambient particle every 6th tick (4 draws each).
-     *     particle_pool_step (0x46e510, RNG-free) then integrates every particle.
-     *     With the butterflies now consumed first, the stream matches retail
-     *     bit-exact through the establishing REVEAL window (verified, engine-quirk
-     *     #95); the irregular ambient-event timer 0x5531b0 (PORT-DEBT(fountain-rng-
-     *     phase)) desyncs it beyond ~tick 33. */
+     *     particle_pool_step (0x46e510, RNG-free) then integrates every particle. */
     if (g_fountain_loaded)
         particle_fountain_emit(&g_fountain_pp, g_fountain_cx, g_fountain_cy,
                                &g_fountain_counter);
@@ -2063,15 +2069,13 @@ static void game_actor_update(void)
         particle_sky_emit(&g_fountain_pp, g_sky_cx[i], g_sky_cy[i],
                           &g_sky_counter[i]);
 
-    /* (3) The first sim-tick's tail CHARACTER-band draws the port does not model:
-     *     the ambient-event timer 0x5531b0 (2) + a 0x54f980 site (0x5525be, 1).
-     *     Consume-to-advance so tick 0 — the reveal's first tick — stays aligned
-     *     (PORT-DEBT(fountain-rng-phase): 0x5531b0 also fires irregularly later). */
-    if (g_first_sim_tick) {
-        (void)rng_rand(); (void)rng_rand();   /* 0x5531b0 x2 */
-        (void)rng_rand();                      /* 0x5525be    */
-        g_first_sim_tick = 0;
-    }
+    /* (3) The CHARACTER-band tail: the two 0x5531b0 ambient sound emitters
+     *     (0x1136f/0x11370) and the wagon 0x1872d's idle-wander, AFTER the
+     *     fountain/sky in slot order (their tick-0 init draws then fire on cue at
+     *     ticks 33/134/189).  With (1)-(3) the per-tick stream now matches retail
+     *     bit-exact across the whole settled-town window (engine-quirk #95) — this
+     *     retires the RNG residual of PORT-DEBT(fountain-rng-phase). */
+    ambient_character_step(&g_ambient);
 
     particle_pool_step(&g_fountain_pp);
 }
@@ -2266,7 +2270,7 @@ static void enter_game(void)
          * game_actor_walk also walks g_effects (layer 13).  The 4 wandering
          * 0xe29a + the non-map party townsfolk are deferred (RNG / Phase 2). */
         butterfly_pool_reset(&g_butterflies);
-        g_first_sim_tick = 1;
+        ambient_reset(&g_ambient);   /* the irregular ambient/event RNG timers */
         int en = actor_spawn_effect_from_map(&g_effects, &g_town.map, &g_butterflies);
         g_effects_loaded = (en > 0);
         /* Fill the mirror/flip table so the facing==3 townsfolk pick the mirrored

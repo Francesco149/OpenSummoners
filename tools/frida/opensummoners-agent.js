@@ -651,6 +651,12 @@ function ctReadField(fld, args, ctx) {
         if (src === 'arg')      return ctFormatTyped(type, null, args[fld.index | 0]);
         if (src === 'argderef') return ctFormatTyped(
             type, args[fld.index | 0].readPointer().add(fld.off | 0), null);
+        // argfield — read a field DIRECTLY off a stack-arg pointer: *(args[index] + off).
+        // (argderef double-derefs *(*(arg)+off); use argfield when the arg IS the
+        // struct pointer and you want one of its fields, e.g. a timer countdown at
+        // +0x5c on the render-state passed to FUN_005531b0.)
+        if (src === 'argfield') return ctFormatTyped(
+            type, args[fld.index | 0].add(fld.off | 0), null);
         // renderid — the blit's SOURCE cel identity from g_render_id_map (the
         // retail render_id registry).  The source object is the __thiscall
         // `this` (ECX) by default, or args[fld.index] for a cdecl blit; fld.key

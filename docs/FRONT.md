@@ -9,7 +9,33 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 98): the town's PER-TICK RNG STREAM is bit-exact through the establishing-REVEAL
+- **LATEST (ckpt 99): the SETTLED-town per-tick RNG stream is now bit-exact ALL THE WAY (not just the
+  REVEAL window) — the 4 IRREGULAR ambient/event timers are ported, closing PORT-DEBT(fountain-rng-phase).
+  (922 pass, +1.)**
+  1. **The residual was FOUR self-clocked timers, not "all 0x5531b0"** (corrects the ckpt-98 guess).
+     A seed-pinned timer-state capture (`runs/ambient-timer`, the `0x5531b0`/`0x467380`/`0x54f980`
+     `+0x5c`/`+0x20c` field-spec reads) pinned each one — all clean **unit-decrement**: the two
+     `0x5531b0` ambient SOUND emitters **`0x11370`** (fires tick 33) + **`0x1136f`** (189), the wagon
+     **`0x1872d`** idle-wander (134), and the **`0x467380`** (`0xe2a5`) event timer (183). The
+     census's earlier C-values (141/189/33) were **off-by-one** — the `rng_state` field is the state
+     *before* the draw, so the value is `rval(step(state))`; reading `cd` directly gave 189/33/134/184.
+  2. **PORTED (`src/ambient.{c,h}`, NEW).** Four consume-to-advance timers in `0x46cd70` band order
+     (proven by the capture seq): EFFECT `butterfly_step → ambient_effect_step` (`0x467380`), then
+     CHARACTER `fountain → sky → ambient_character_step` (`0x1136f`, `0x11370`, wagon). Each inits
+     `(rand*300)>>15` @t0 and fires (3-4 draws) on cue; the values feed sounds / the wagon wander / an
+     `0xe2a5` sub-effect (none ported) but the COUNTS + TIMING keep the stream aligned. Replaced the
+     ckpt-98 blanket 3-draw consume.
+  3. **VALIDATED 3 ways:** offline LCG replay **0/297** vs the capture's `0x46cd70` checkpoints (full
+     298-tick window); **LIVE port bit-exact ticks 0-248** (two `--call-trace` windows; the port's
+     per-tick `0x46cd70` rng matches retail tick-for-tick through ALL FOUR fires 33/134/183/189); host
+     test `ambient_pertick`. **Retires** the RNG residual of fountain-rng-phase +
+     the RNG half of PORT-DEBT(actor-protagonist-clip) (the wagon's idle-wander draws). New tooling: the
+     reusable `argfield` field source (read a struct field off a stack-arg pointer).
+  4. **NEXT (open options):** (a) the `0x5a00c0` banner/textbox overlay (visible gap, high leverage —
+     gates letterbox heights + camera-pan trigger); (b) the movement FSM `0x43f880` → butterflies drift
+     + controllable Arche (Phase 4). Residual debt: PORT-DEBT(ambient-event-cd) (the `0x467380` cd-init
+     = the seed-pinned 184; real source = the unported `0xe2a5` spawn arm `0x431cb0`).
+- **Prior (ckpt 98): the town's PER-TICK RNG STREAM is bit-exact through the establishing-REVEAL
   window — the ckpt-73 "non-deterministic RNG" was the MISSING butterfly draws, not nondeterminism.
   (921 pass, +2.)**
   1. **The complete per-tick model (engine-quirk #95), validated bit-exact at 293/298 ticks.** `0x46cd70`

@@ -411,6 +411,31 @@
      "type": "u32",
      "benign": true,
      "reason": "actor[0] render-state +0x72 — current frame index (low u16). anim_state.frame; advances once per sim-tick, deterministic under the g_sim_tick anchor."
+    },
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "benign": true,
+     "reason": "in_ECX+0x1d4 = the actor behaviour code (the 0x54f980 switch selector); filter for ambient codes 0x11365-0x1137x."
+    },
+    {
+     "name": "p3",
+     "src": "arg",
+     "index": 2,
+     "type": "i32",
+     "benign": true,
+     "reason": "param_3 — the sub-cel flag (0 = primary update; the sound cases break when !=0)."
+    },
+    {
+     "name": "cd5c",
+     "src": "argfield",
+     "index": 1,
+     "off": 92,
+     "type": "i32",
+     "benign": true,
+     "reason": "*(param_2+0x5c) = puVar4+0x5c, the inline-sound-case countdown (case 0x11367/0x11379). Meaningful only for ambient codes."
     }
    ]
   },
@@ -1878,6 +1903,68 @@
   "0x49af40": {
    "name": "hud_party_anim_update",
    "_note": "FUN_0049af40 (3313 B) — the per-frame HUD/PORTRAIT/HP-BAR animator (NOT the fade grid — ckpt-90 mislabeled it 'scene_fade_grid_update'; CORRECTED ckpt 95). Called 2x/sim-tick from 0x499ab0:180-183. Walks the 8 party slots (room+0x4030, local_8=0x4030 stepped +4 x8 at :505-558), lerps HP/MP-ratio fill bars ((+0x54*1000)/(+0x84+0x9c+0x58)) + portrait/icon fade timers (+0xe2/+0xe4/+0xf6 etc.) toward targets via FUN_0049bdf0, and returns a rolling counter ((uVar13+3)/100). The establishing REVEAL fade-grid update is instead the inline loop at 0x499ab0:125-177 + the FUN_0049a8xx pattern setters (ported src/scene_fade.c). Left annotated for the eventual HUD port."
+  },
+  "0x5531b0": {
+   "name": "ambient_sound_timer",
+   "_note": "FUN_005531b0 (756 B) — the ambient-event SOUND timer (a per-object random-event countdown). Called from FUN_0054f980 cases 0x1136f (x2)/0x11370 (the town's ambient sound emitters, map CHARACTER codes 70511/70512). param_1 (arg0) = the render-state carrying the countdown +0x5c (int) + first-call init-flag +0x58 (short); param_2 (arg1) = the gate (the body runs only when param_2==0 AND scene-lock global+0x27a8==0 AND sound globals +0x2770==0/+0x2764!=1). First call (+0x58==0): +0x5c=(rand*param_4>>15) [DRAW]. Then if +0x5c<1: reload +0x5c=(rand*param_4>>15)+param_3 [DRAW], pick (rand*param_9>>15) a wave [DRAW], conditional sound-param [DRAW] — else +0x5c--. Captured to pin the per-tick decrement cadence: the 0x5531b0 fires (ticks 33/189, +3 each) do NOT fit unit cadence from the tick-0 init countdowns (C=141 for 0x1136f / C=189 for 0x11370) — the decrement is gated. engine-quirk #95; fountain-rng-phase.",
+   "fields": [
+    {
+     "name": "obj",
+     "src": "arg",
+     "index": 0,
+     "type": "hex",
+     "benign": true,
+     "reason": "param_1 = the render-state ptr (distinguishes the two timer objects)."
+    },
+    {
+     "name": "gate",
+     "src": "arg",
+     "index": 1,
+     "type": "i32",
+     "benign": true,
+     "reason": "param_2 = the gate; the timer body runs only when this is 0."
+    },
+    {
+     "name": "cd",
+     "src": "argfield",
+     "index": 0,
+     "off": 92,
+     "type": "i32",
+     "benign": true,
+     "reason": "*(param_1+0x5c) at onEnter = the countdown BEFORE this call's decrement/fire. Decreases 1/active-tick; fires (reload) at <1."
+    },
+    {
+     "name": "initf",
+     "src": "argfield",
+     "index": 0,
+     "off": 88,
+     "type": "u32",
+     "benign": true,
+     "reason": "*(param_1+0x58) low u16 = the first-call init flag (0 -> inits +0x5c this call, then 1 forever)."
+    }
+   ]
+  },
+  "0x467380": {
+   "name": "ambient_event_timer",
+   "_note": "FUN_00467380 (376 B, __thiscall ECX=obj) — a periodic event timer. +0x208 = enable, +0x20c = countdown (short). When +0x20c==1: fire (DRAW 500-(rand*1000>>15)) + conditional FUN_004099a0 (which draws). When +0x20c==0: reload +0x20c=(rand*1000)%param_4 + param_3 [DRAW]. Else +0x20c--. Captured to pin the tick-183 fire (+4 draws: fire + 2x 0x4099a0 + reload). engine-quirk #95; fountain-rng-phase.",
+   "fields": [
+    {
+     "name": "enable",
+     "src": "thisderef",
+     "off": 520,
+     "type": "i32",
+     "benign": true,
+     "reason": "in_ECX+0x208 — the timer-enable flag (body runs only when !=0)."
+    },
+    {
+     "name": "cd",
+     "src": "thisderef",
+     "off": 524,
+     "type": "i32",
+     "benign": true,
+     "reason": "in_ECX+0x20c low u16 = the countdown; fires at 1, reloads at 0."
+    }
+   ]
   }
  }
 }

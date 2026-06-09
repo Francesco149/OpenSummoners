@@ -936,6 +936,7 @@ struct test_case {
     X(actor_spawn_effect)                                      \
     X(actor_spawn_cutscene_iris)                               \
     X(butterfly_pertick)                                       \
+    X(ambient_pertick)                                         \
     X(particle_spawn_config)                                   \
     X(particle_fountain_draw_count)                            \
     X(particle_fountain_velocity_cycle)                        \
