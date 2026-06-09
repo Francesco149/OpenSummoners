@@ -229,6 +229,12 @@ class CaptureConfig:
     rand_probe:          bool = False
 
     max_frames:        int  = 30_000
+    # Stop once a captured frame's Flip index reaches this (0 = no cap).  The
+    # natural stop for a fixed-length trace replay: "capture through Flip N,
+    # then exit" — duration_ms stays a backstop for a hung/stalled boot.
+    # Only effective while frame capture is on (the Flip count is read off the
+    # captured-frame stream).
+    max_flips:         int  = 0
     duration_ms:       int  = 30_000
 
     remote:            str  = DEFAULT_REMOTE
@@ -623,6 +629,14 @@ def run_capture(cfg: CaptureConfig) -> int:
             summary.setdefault("anchors", {})[name] = payload.get("frame")
             if isinstance(rng, int):
                 summary.setdefault("anchor_rng", {})[name] = rng
+            # Full anchor STREAM (every firing, not just the summary's last-
+            # per-name) — the trace-studio pairing + any anchor-relative tool
+            # reads this instead of re-deriving from run.json.
+            row = {"name": name, "flip": payload.get("frame")}
+            if isinstance(rng, int):
+                row["rng"] = rng
+            with (run_dir / "anchors.jsonl").open("a") as af:
+                af.write(json.dumps(row) + "\n")
         elif kind == "rand_window":
             callers = payload.get("callers", {})
             order = sorted(callers.items(), key=lambda kv: -kv[1])
@@ -797,6 +811,11 @@ def run_capture(cfg: CaptureConfig) -> int:
         "field_spec":         cfg.field_spec or {},
         "capture_frames_enabled": cfg.capture,
         "capture_frames":     [int(f) for f in (cfg.capture_frames or [])],
+        # Agent-side emit ceiling: stop sending frames past this Flip so the
+        # ~900KB/frame firehose self-stops at the source.  Without it the
+        # harness-side --max-flips break leaves the channel saturated and the
+        # teardown RPC (device.kill) starves behind queued frames for minutes.
+        "capture_max_flip":   int(cfg.max_flips or 0),
         "input_inject_enabled": bool(cfg.input_trace),
         "input_trace":        cfg.input_trace or [],
         "inject_debug":       cfg.inject_debug,
@@ -864,6 +883,10 @@ def run_capture(cfg: CaptureConfig) -> int:
                 print(f"[frida_capture] reached {summary['msg_count']} "
                       f"drained messages (cap {cfg.max_frames})",
                       file=sys.stderr)
+                break
+            if cfg.max_flips and summary["last_frame"] >= cfg.max_flips:
+                print(f"[frida_capture] reached Flip {summary['last_frame']} "
+                      f"(--max-flips {cfg.max_flips})", file=sys.stderr)
                 break
             time.sleep(0.05)
     finally:
@@ -978,6 +1001,10 @@ def main() -> int:
     p.add_argument("--rand-probe", action="store_true", default=False,
                    help="tally rand() (0x5bf505) call sites between newgame_enter and "
                         "prologue_enter — locates the transition's rand consumer by caller VA")
+    p.add_argument("--max-flips",      type=int, default=0,
+                   help="stop once a captured frame's Flip index reaches N "
+                        "(0 = off; needs frame capture on). The natural stop "
+                        "for a fixed-length trace replay.")
     p.add_argument("--max-frames",     type=int, default=30_000,
                    help="exit after N drained Peek/GetMessage events "
                         "(default 30000 ≈ ~5 min of typical 60 Hz play)")
@@ -1193,6 +1220,7 @@ def main() -> int:
         lockstep_epsilon_ms = args.lockstep_epsilon_ms,
         rand_probe        = args.rand_probe,
         max_frames        = args.max_frames,
+        max_flips         = args.max_flips,
         duration_ms       = args.duration_ms,
         remote            = args.remote,
         exe               = args.exe,

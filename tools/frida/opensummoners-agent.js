@@ -309,6 +309,7 @@ const DIB_RGB_COLORS      = 0;
 
 let g_capture_enabled = false;
 let g_capture_frames  = null;   // Set<int> or null (capture every Flip frame)
+let g_capture_max_flip = 0;     // >0: stop emitting frames past this Flip
 let g_capture_n       = 0;
 let g_capture_diag_done = false;   // one-shot surface-acquisition diagnostic
 
@@ -1604,6 +1605,10 @@ function captureFrame(frameNumber) {
 
 function captureShouldEmit() {
     if (!g_capture_enabled) return false;
+    // Emit ceiling (harness --max-flips): stop the ~900KB/frame firehose at
+    // the source once the window is captured, so the teardown RPC isn't
+    // starved behind queued frame messages (the smoke-1 hang).
+    if (g_capture_max_flip > 0 && g_flip_frame > g_capture_max_flip) return false;
     if (g_capture_frames === null) return true;
     return g_capture_frames.has(g_flip_frame);
 }
@@ -2950,6 +2955,8 @@ rpc.exports = {
             g_capture_frames =
                 (Array.isArray(opts.capture_frames) && opts.capture_frames.length)
                     ? new Set(opts.capture_frames) : null;
+            if (typeof opts.capture_max_flip === 'number')
+                g_capture_max_flip = opts.capture_max_flip | 0;
         }
         if (opts.input_inject_enabled && Array.isArray(opts.input_trace)) {
             g_inject_enabled = true;
