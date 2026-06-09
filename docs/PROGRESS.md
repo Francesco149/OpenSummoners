@@ -6,6 +6,52 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-09 (ckpt 102) — the in-game DIALOGUE BOX subsystem RE'd + the legal text-reader built (foundation for Phase 3 dialogue → controllable Arche)
+
+The directive: dialogue next, leading to controllable Arche after the cutscene + dialogue.  Reverse-
+engineered the whole town-arrival dialogue subsystem and laid its foundations (no pixels yet; 2 commits,
+932 pass).  Writeup: `findings/in-game-intro.md` "The DIALOGUE BOX subsystem"; chip plan:
+`plans/dialogue-cutscene.md`.
+
+**Architecture (decompile-verified).**  The arrival is a *linear cutscene coroutine*: the script
+`FUN_004d7d80` case `0x334be` (dispatched by `0x40c380`) configures a "beat" on a scene-controller
+object, then calls `FUN_00439680` (a 9-byte thunk → the blocking BEAT-RUNNER `FUN_00439690`, 8866 B)
+which pumps frames (`0x48c150` render + `0x5b8fc0` flip + `0x5b1030` pump, `GetTickCount`-paced) until
+the beat's completion condition holds — returning 6 on Escape, which unwinds the script.  Dialogue-line
+setup `FUN_0049d6e0` writes the controller's fields: text→`+0x8a`, speaker name (actor `+0x750`)→`+0x28a`,
+voice→`+0x2e8`, portrait id→`+0x84` (resolved via the face table `DAT_006b6568`, keyed on the actor's
+head-state `+0x1d8` + a script face id), dirty `+0x78`, beat `+0x20=1`.  Beat-type switch (`0x439690:1128`):
+1 dialogue (advance via the Z poll `0x43b980`), 2 flag, 3 camera-reached-target, 4 entity, 6 timer
+`+0x57c`, 7 portrait-anim, 9 entity.  The render goes `0x48c150 → 0x48c820` (widget-tree walk) `→
+0x48cf80` (9-slice frame) `+ 0x48e200` (GDI text) — and BOTH primitives are already ported (`newgame_box.c`,
+`glyph_render.c`).
+
+**exe_strings — read story text from the user's exe by VA (committed).**  The dialogue text + speaker
+names are story content in the retail exe's `.data` (town line 1 @ VA `0x86d58c`: "Ahh, here we are at
+last!%nLook, Arche…").  Per the legal line + the dramatist-table precedent, the port must not embed them.
+Confirmed the Steam `.bind` DRM leaves `.data` intact (the string is byte-identical at file offset
+`0x46d58c` in BOTH the installed packed exe and the unpacked vendor copy), so a plain raw-file read works
+— no unpack.  Built `src/exe_strings.{c,h}` (pure `pe_string_at`: PE32 VA→file-offset, fully
+bounds-checked) + `exe_strings_win32.c` (`exe_data_string` maps the user's `sotes.exe` once).  5 host
+tests incl. a real-exe validation (skips if the vendor binary is absent).
+
+**Ground truth captured** (`runs/dialogue-probe`, `runs/dialogue-portrait` — seed-pinned nav trace, no Z
+after game_enter so line 1 appears + waits; PNG `frame_03100` visually confirms): big Father bust portrait
+on the left, parchment box on the right with a name header + 2 typing text rows.  Box frame res `0x456`
+(9-patch, corners 32×32, node 408×112 @ (174,148), alpha fade-in); name "Arche's Father" Courier New
+**7×18** color `0x455dbb` ~(410,139); 2 body rows Courier New 7×18 (typewriter ~1 char/10 flips, main
+`0x3e537d` + light outline `0xa8b9cc`); advance arrow res `0x3e8` (animated, ~(542,240)); portrait res
+`0x7ef` (160×176, magenta colorkey).  Town script ≈15 lines (Father `0x5f5e1d3` / Arche `0x5f5e165` /
+Mother `0x5f5e1d4` / Sana `0x5f5e166`; voices `0x3eb`–`0x3f4`).
+
+**Next:** `src/dialogue.{c,h}` — register res `0x456` + `0x7ef`, compose box + name + 2 text rows +
+portrait at the captured geometry, arm via a measured-constant trigger (PORT-DEBT) after the banner,
+verify `differ_px==0` vs `runs/dialogue-probe`.  Then typewriter + Z-advance + the full script; then the
+beat-runner driver (retires the banner/camera-pan/letterbox measured-constant debts); then Phase 4
+(party band `0x4997b0` + movement FSM `0x43f880`) = controllable Arche.
+
+---
+
 ## 2026-06-09 (ckpt 99) — the settled-town per-tick RNG stream is bit-exact ALL THE WAY (4 ambient/event timers)
 
 The directive: close PORT-DEBT(fountain-rng-phase) — make the SETTLED-town per-tick LCG stream

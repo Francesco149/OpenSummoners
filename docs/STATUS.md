@@ -35,7 +35,32 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 101): the "Town of Tonkiness" area-title BANNER is PORTED + BIT-EXACT (differ_px=0) —
+- **LATEST (ckpt 102): the in-game DIALOGUE BOX subsystem is fully RE'd + the legal text-reader is
+  BUILT/TESTED, and the box render is GROUND-TRUTHED — foundation for the town-intro dialogue →
+  controllable Arche (Phase 3→4). (932 pass, +5; 2 commits, no pixels yet.)** Plan: `plans/dialogue-cutscene.md`.
+  1. **Architecture (decompile-verified).** The town arrival is a linear cutscene coroutine: script
+     `0x4d7d80` case `0x334be` configures a beat on the scene-controller, then `FUN_00439680`→ the
+     blocking BEAT-RUNNER `0x439690` (pumps frames via `0x48c150`+flip until the beat completes; returns
+     6 on Escape). Dialogue-line setup `0x49d6e0`: text→`+0x8a`, name→`+0x28a`, voice→`+0x2e8`, portrait
+     id→`+0x84` (resolved via the face table `DAT_006b6568`), dirty `+0x78`, beat `+0x20=1`. Beat types
+     (switch `:1128`): 1=dialogue (Z via `0x43b980`), 2=flag, 3=camera-at-target, 6=timer `+0x57c`, etc.
+  2. **Render path — both primitives ALREADY in the port.** `0x48c150`→`0x48c820` (widget tree)→
+     `0x48cf80` (9-slice frame = `src/newgame_box.c`) + `0x48e200` (GDI text = `src/glyph_render.c`).
+  3. **exe_strings (COMMITTED, host-tested incl. the real exe).** The story text + names are content in
+     the user's `sotes.exe` `.data` (line 1 @ VA `0x86d58c`); the Steam DRM leaves `.data` intact, so the
+     port reads them at runtime by VA (`pe_string_at`/`exe_data_string`) — never embedded as source.
+  4. **GROUND TRUTH captured (`runs/dialogue-probe`/`-portrait`, PNG confirms):** box frame res `0x456`
+     (9-patch 32×32, **174,148, 408×112**, alpha fade-in), speaker-name header ("Arche's Father", Courier
+     New **7×18**, color `0x455dbb`, ~(410,139)), **2** body rows (Courier New 7×18, typewriter ~1 char/10
+     flips, main `0x3e537d` + light outline `0xa8b9cc`), advance arrow res `0x3e8` (animated, ~(542,240)),
+     **large portrait bust** res `0x7ef` (160×176, magenta key) on the left. Town script = ~15 lines
+     (Father/Arche/Mother/Sana, voices `0x3eb`–`0x3f4`).
+  5. **NEXT (the immediate chip, all inputs ready):** port `src/dialogue.{c,h}` — register res `0x456`
+     (box) + `0x7ef` (portrait); compose box (`newgame_box`) + name + 2 text rows (`glyph_render`) +
+     portrait at the captured geometry; arm with a measured-constant trigger (PORT-DEBT, like the banner)
+     after the banner; verify `differ_px==0` vs `runs/dialogue-probe`. Then typewriter + Z-advance + the
+     full script; then the beat-runner driver (retires banner/camera-pan/letterbox debts); then Phase 4.
+- **Prior (ckpt 101): the "Town of Tonkiness" area-title BANNER is PORTED + BIT-EXACT (differ_px=0) —
   USER-confirmed "banner looks good". (933 pass, +5.)**
   1. **It's `FUN_00494a60`, NOT the `0x5a00c0` overlay player** (ckpt-100 RE; `0x5a00c0` is the scrolling
      story-text/dialogue runner). The area card = a 3-slot renderer called from `0x48c150:176-178` (AFTER

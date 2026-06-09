@@ -1,10 +1,51 @@
-# Session handoff — rolling current state (last updated ckpt 101, 2026-06-09)
+# Session handoff — rolling current state (last updated ckpt 102, 2026-06-09)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
 > append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
+
+## Where we are — ckpt 102
+
+**The in-game DIALOGUE BOX subsystem is fully RE'd, the legal story-text reader is built+tested,
+and the box render is ground-truthed — the foundation for the town-intro dialogue → controllable
+Arche (Phase 3→4). 932 pass (+5). 2 commits; no pixels yet.** Plan: `plans/dialogue-cutscene.md`;
+RE writeup: `findings/in-game-intro.md` "The DIALOGUE BOX subsystem".
+
+- **Architecture.** Linear cutscene coroutine: script `0x4d7d80` case `0x334be` (dispatched by
+  `0x40c380`) configures a beat on the scene-controller, then `FUN_00439680`→ the blocking BEAT-RUNNER
+  `0x439690` (pumps frames via `0x48c150`+`0x5b8fc0` flip + `0x5b1030` pump until the beat completes;
+  returns 6 on Escape). Dialogue setup `0x49d6e0`: text→`+0x8a`, name (actor `+0x750`)→`+0x28a`,
+  voice→`+0x2e8`, portrait id→`+0x84` (via face table `DAT_006b6568`), dirty `+0x78`, beat `+0x20=1`.
+  Beat types (switch `:1128`): 1 dialogue (Z = `0x43b980`), 2 flag, 3 camera-at-target, 4 entity, 6
+  timer `+0x57c`, 7 portrait-anim, 9 entity. **Object model (to confirm):** `0x439680` tail-calls with
+  no stack arg ⇒ `0x439690`'s `param_1` and `in_ECX` are almost certainly the SAME `this` (one
+  scene-controller holding beat + dialogue + widget state).
+- **Render path — both primitives ALREADY ported.** `0x48c150` (the driver letterbox/scene_fade/banner
+  hang off) → `0x48c820` (widget-tree walk, 873 B, unported) → `0x48cf80` (9-slice frame = `newgame_box.c`)
+  + `0x48e200` (GDI text = `glyph_render.c`).
+- **exe_strings (COMMITTED).** `src/exe_strings.{c,h}` (pure `pe_string_at`, PE32 VA→file-offset) +
+  `exe_strings_win32.c` (`exe_data_string` maps the user's sotes.exe). Story text/names are content in
+  the exe `.data` (line 1 @ VA `0x86d58c`); the Steam DRM leaves `.data` intact (byte-identical packed
+  vs unpacked) so a raw read works — read at runtime, never embedded. 5 host tests incl. real-exe
+  validation (VA `0x86d58c` → "Ahh, here we are at last!").
+- **Ground truth captured** (`runs/dialogue-probe`/`dialogue-portrait`, PNG `frame_03100`): box frame
+  res `0x456` (9-patch, frames 0–8, corners 32×32, node **408×112 @ (174,148)**, alpha fade-in); speaker
+  NAME header ("Arche's Father", Courier New **7×18**, color `0x455dbb`, ~(410,139), via `0x40fa00`); **2**
+  body rows (the `%n` split; Courier New 7×18, typewriter ~1 char/10 flips, main `0x3e537d` + outline
+  `0xa8b9cc`, 3 TextOut passes); advance arrow res `0x3e8` (frames 0–3 base 20, bobbing, ~(542,240));
+  **large portrait bust** res `0x7ef` (160×176, magenta key `0xff00ff`, slot `DAT_008a809c`) on the left.
+  Box appears ~flip 2743 (game_enter 1432, after camera pan + banner hold). Town script ~15 lines:
+  Father `0x5f5e1d3`, Arche `0x5f5e165`, Mother `0x5f5e1d4`, Sana `0x5f5e166`; voices `0x3eb`–`0x3f4`.
+- **NEXT (the immediate chip — all inputs ready):** `src/dialogue.{c,h}` — register res `0x456` (box) +
+  `0x7ef` (portrait); compose box (`newgame_box`) + name + 2 text rows (`glyph_render`) + portrait at the
+  captured geometry; arm via a measured-constant trigger (PORT-DEBT, like banner-trigger) after the
+  banner in `game_render`; verify `differ_px==0` vs `runs/dialogue-probe`. Watch: the text LAYOUT
+  (word-wrap into 2 rows + the `%n` break = `0x4031c0`/`0x413ed0`) and the GDI name path (`0x40fa00`) —
+  for chip 1 the captured static positions can anchor it; generalise in the typewriter chip. Then
+  typewriter + Z-advance + full script; then the beat-runner driver (retires banner/camera-pan/letterbox
+  measured-constant debts); then Phase 4 (party band `0x4997b0` + movement FSM `0x43f880`).
 
 ## Where we are — ckpt 101
 
