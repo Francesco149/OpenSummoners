@@ -108,30 +108,39 @@ every fade value rendered** (phase curve now the canonical 51/102/153/254/275/
 target is the *distinct-content sequence* (every scene state rendered in order),
 which now matches. R1 re-verified post-fix at `menu_fade=750`: **differ_px=0**.
 
-### R5 — town-intro cutscene PAN smoothness: retail spikes, port smooth (OPEN, USER-observed 2026-06-09)
+### R5 — town-intro cutscene PAN smoothness: RESOLVED as the presentation-cadence
+### (phase) pillar — pan LOGIC measured identical; retail occasionally coalesces 2
+### ticks/present (ckpt 103, measured on studio session intro-1)
 
-**Observation (USER, real-time viewing):** during the town-arrival cutscene camera pan,
-retail "consistently has spikes and is slightly less smooth" than the port. Goal per the
-USER: **either replicate retail's stepping in the port, or normalize retail during trace
-runs so both sides behave the same** (whichever is the faithful frame-for-frame model —
-this is a *comparability* requirement, not a pixel residual per se).
+**Observation (USER, live viewing, 2026-06-09):** retail's arrival pan "consistently
+has spikes and is slightly less smooth" than the port's.
 
-Hypotheses (untested, in pillar order):
-1. **Phase pillar (most likely; the R3 pattern):** live retail renders at display
-   refresh and duplicates/drops camera states unevenly (real-clock `timeGetTime` deltas
-   feeding the easer/sim gate), while the port is fixed-timestep 1-update/present → the
-   pan advances perfectly evenly. Under `--lockstep` retail banks exactly one update
-   quantum per Flip, so the spikes should VANISH in seed-pinned studio captures —
-   verify with a per-frame camera-x state field (`0x43d1d0` easer / camera global) on
-   both sides in a trace-studio session.
-2. **Logic:** the easer `0x43d1d0` consumes a measured dt (not a fixed quantum) and the
-   port's port of it fixed the quantum — then the port is UNFAITHFUL under real clock
-   and should reproduce the dt-driven step under live play (but stay fixed under
-   lockstep/TAS).
-3. If the spikes persist even under lockstep, it's a real per-tick camera-step logic
-   divergence → flow_diff on the easer fields.
+**Measurement (phase correlation per consecutive paired frame over the whole pan
+window, ordinals 1115–1619 of `intro-1`, lockstep + seed-pinned):**
+- **The pan MODEL is identical.** Step histogram port `{−1×11, −2×9, −3×135}` vs
+  retail `{−1×11, −2×9, −3×129, −6×3}` — same ease curve, same step timing (every
+  2 flips = the sim-tick gate), and the SAME total displacement **434 px** on both
+  sides. The first ~30 moving frames match step-for-step at the same ordinals.
+- **The residual is pure cadence:** retail, even under the lockstep virtual clock,
+  occasionally presents one frame carrying TWO camera steps (−6 between
+  *consecutive* retail flips — drift-verified, not a pairing artifact) flanked by
+  0-step holds, 3× in this pan. The port (fixed-timestep, 1 update/present, every
+  tick rendered) never does. Under the LIVE real clock this same quantization is
+  pervasive (display-refresh update banking) — that is exactly the USER-visible
+  spikiness. Conversely the port's own duplicate-frame wrinkle shows as (−3,0) vs
+  (0,−3) transpositions, absorbed by the studio's sticky matcher.
 
-Status: OPEN — investigate with the trace studio (per-frame camera state + scrub).
+**Verdict: phase pillar (presentation cadence), zero logic divergence.** On the
+sim-tick axis the two pans are identical; `--lockstep` already normalizes retail to
+near-port smoothness (3 hiccups/pan vs pervasive live spikes). Per the USER's
+"replicate or normalize" framing: **normalized in traces (done — that's the studio
+context); replicating retail's flip-level quantization in the port** would mean
+porting the real frame-pump's update banking (`0x439690` GetTickCount pacing — the
+beat-runner chip already planned for the dialogue cutscene). Decide then whether the
+TAS clock should preserve or smooth the quantization; for now the port's
+every-tick rendering is the better behavior and the studio pairs through the
+difference. (The chase also hardened the matcher: drift hysteresis — move off the
+sticky offset only on a ≥5% better match.)
 
 ### R4 — phase-7 subtitle sparkle: RESOLVED (ckpt 31) — both parts now bit-exact
 

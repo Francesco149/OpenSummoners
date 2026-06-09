@@ -29,9 +29,12 @@ render_diff/flow_diff → `recapture --only port` → re-check.  First live sess
   killed through FRIDA (taskkill → Access-denied, elevated parent) and is pre-killed before
   each drive; WSL-interop vsock `accept4 failed 110` when launching the port exe from
   detached/sandboxed contexts — run captures from an interactive shell.
-- **R5 (new, USER-observed):** retail's cutscene pan has spikes vs the port's smooth pan —
-  attribute under lockstep (phase pillar suspected); a `--call-trace` studio session with a
-  camera-x field is the tool.  parity-ledger R5.
+- **R5 (USER-observed pan spikes): RESOLVED by measurement** (phase correlation over the
+  intro-1 pan): pan LOGIC identical both sides (same ease histogram −1×11/−2×9/−3×~135,
+  same 434px total, step-for-step timing); residual = retail occasionally coalescing 2
+  sim ticks into one present even under lockstep (3×/pan; pervasive live = the spikes).
+  Phase pillar, zero logic divergence; flip-level replication would ride the planned
+  beat-runner (`0x439690`) pump port.  parity-ledger R5.
 - **Tooling debt:** the frida_capture one-shot probe flags (cursor/fade/pace/textout/box/res/
   parallax/rand) are superseded by the field spec — mechanical removal chip queued
   (`tools/archive/README.md`).  Plan B1 (unified scenario-test) is superseded by

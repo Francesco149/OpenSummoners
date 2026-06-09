@@ -31,15 +31,17 @@
      agent-side emit ceiling (the ~900KB/frame firehose starved device.kill for minutes);
      leftover-game kill must go THROUGH FRIDA (elevated frida-server children get Access-denied
      from taskkill); pre-flight leftover kill; WSL-interop vsock footgun (run captures from an
-     interactive shell). New parity item **R5**: USER-observed retail cutscene-pan spikes vs
-     smooth port (hypothesis: real-clock phase pillar; verify under lockstep with per-frame
-     camera state).
+     interactive shell). **R5 (USER-observed pan spikes) RESOLVED same-day by measurement on
+     intro-1:** pan LOGIC identical (same ease histogram, same 434px, step-for-step timing);
+     the residual is retail occasionally coalescing 2 ticks into one present even under
+     lockstep (3×/pan; pervasive under the live real clock = the USER's spikes) — the phase
+     pillar, zero logic divergence. parity-ledger R5 has the numbers.
   4. **Archive sweep:** `tools/archive/README.md` — the ad-hoc /tmp side-by-side video flow is
      SUPERSEDED by the studio; the frida_capture probe-flag graveyard is marked for mechanical
      removal (deferred so the live capture path stayed stable during the first review round).
   5. **NEXT:** (a) read the USER's intro-1 worklist marks and chase them (the dialogue-box chip
      ckpt-102 step 5 is the known big one); (b) the probe-flag removal chip; (c) optional:
-     `--call-trace` studio session for per-frame flow fields (camera-x for R5).
+     `--call-trace` studio session for per-frame flow fields in the state panel.
 - **Prior (ckpt 102): the in-game DIALOGUE BOX subsystem is fully RE'd + the legal text-reader is
   BUILT/TESTED, and the box render is GROUND-TRUTHED — foundation for the town-intro dialogue →
   controllable Arche (Phase 3→4). (932 pass, +5; 2 commits, no pixels yet.)** Plan: `plans/dialogue-cutscene.md`.

@@ -204,8 +204,17 @@ def pair_session(sess_dir: Path, port_anchors: list[dict],
                     if b is None or b.shape != a.shape:
                         continue
                     st = diff_stats(a, b)
-                    # move off the sticky drift only when STRICTLY better
-                    if best is None or st[0] < best[0]:
+                    # Hysteresis: move off the sticky drift only on a CLEARLY
+                    # better match (≥5% lower differ).  Without the margin the
+                    # matcher walks ±1 on noise whenever content genuinely
+                    # differs (e.g. mid-pan with the dialogue-era divergence
+                    # dominating differ), folding repeated/skipped retail
+                    # frames into the ordinal stream (the fake −6/0 pan steps
+                    # the R5 analysis chased).  A real offset change (dup
+                    # frame / arm offset) shows a large drop and still moves.
+                    if best is None:
+                        best = (*st, d, b)
+                    elif st[0] < best[0] * 0.95:
                         best = (*st, d, b)
             if best is None:
                 gaps += 1
