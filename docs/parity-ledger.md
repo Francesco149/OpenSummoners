@@ -149,24 +149,34 @@ sticky offset only on a ≥5% better match.)
 > FRAMES=182`; the flip-axis 184 was 1 tick late) — full-frame residual at
 > tick-equal = the fountain/smoke/butterfly ensembles only (ledger #13).
 
-### R6 — establishing-REVEAL frontier: the port's iris runs ~1 tick AHEAD at
-### tick-equal, divergence = the whole fading-frontier band (OPEN, ckpt 105)
+### R6 — establishing-REVEAL frontier: tick ORIGIN now aligned (the one-tick
+### fence landed); the residual is a per-row fade-LEVEL map mismatch inside the
+### frontier band (OPEN, ckpt 105)
 
 At forced tick-equality on `intro-1`, the reveal box differs by 1-10k px (peak
 ~tick 9-13) while the saturated center matches — the divergent region is exactly
 the **fading frontier band** (~20 grid rows per side = cells live 10 ticks × 4
-rows started/tick), expanding with T.  The dt scan has NO clean zero (the in-box
-particles ride on top); the closest whole-state shift is **dt=+1** (port state k
-≈ retail state k+1).  The retail arm site (`0x439690:555-583`) and the cinematic
-step (`:1124`) run in the SAME beat-runner invocation — same order as the port —
-so the extra tick lives in WHEN the script posts the arm request relative to the
-first pumped tick (the load window).  Hypotheses: (1) retail's arm request lands
-one beat-runner iteration after the spawn (the port arms inside `enter_game`,
-before the first tick); (2) a first-update fence (retail renders the armed
-all-opaque grid for one tick before updating).  Chase: shift the port's first
-`scene_fade_step` one tick later and re-verify in a particle-free region
-(differ_px==0 expected if the band is a pure 1-tick shift); the faithful fix
-rides the beat-runner port (PORT-DEBT scene-fade-window).
+rows started/tick).  **Phase A RESOLVED:** the dt-scan minimum sat at +1 (port
+one tick ahead); the retail arm site (`0x439690:555-583`) and the cinematic step
+(`:1124`) run in the same beat-runner invocation, so the extra tick is WHEN the
+script posts the arm request — the port now fences its first `scene_fade_step`
+one tick (`main.c`, hold>=2), the dt minimum moved to **0** and the mark box
+improved (t9: 10318→7251, t13: 7369→6579).
+**Phase B OPEN — the level map:** at matched tick the per-grid-row darkening
+ratios (t13, x<400 strip, vs the settled scene) show a structured mismatch:
+every 4th row EQUAL (r44/48/52/68/72/76), the in-between rows render the PORT
+~1 ramp index CLEARER (e.g. r49 0.500 vs 0.415, r50 0.668 vs 0.566), while the
+clear-edge rows (r53/r67) have RETAIL already cleared (state 2, timer≥1000)
+where the port still renders index ~3 (timer 900).  Opposite directions at once
+⇒ NOT a uniform timer/tick shift — the stagger/aging accounting differs even
+though `0x49a890` (setter), the `0x499ab0:125-177` aging loop, and `0x48e920`
+(render: frame[0x1f−(timer<<5)/1000] via the `0x8a76e0` cel table) all read
+byte-identical to the port.  Next recipe: dump the real per-index luminance of
+res `0x458` through the group-E descriptor (the port can render each index
+standalone), invert BOTH sides' row-ratio maps to integer (marked-tick, stagger)
+per row, and solve for the model delta; suspects after the solve — the timer
+cap/clear boundary (`>999 → state 2` order vs render), or a half-step (+50) in
+how fresh marks age on their mark tick.
 
 ### R7 — fountain/smoke particle ENSEMBLE: a flat ~2-4k px residual at EVERY
 ### tick shift — position/age model offset, not a tick origin (OPEN, ckpt 105)

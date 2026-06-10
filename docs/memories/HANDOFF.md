@@ -44,14 +44,27 @@ scene-fade-window / fountain-anchor.
   184→**182** (cmd t92, first move t93; tick-equal pan residual = fountain/smoke/butterfly
   clusters only, localized + named), `DIALOGUE_ARM_FRAMES` 1298→**1282** (arm t642 → first
   visible change t645 = retail's; the pop/portrait change SEQUENCE pixel-identical at Δ=0).
-- **NEXT (in order):** (a) **R6** — delay the port reveal's first update by 1 tick (or arm one
-  tick later), verify differ_px==0 at tick-equal in a particle-free region; faithful source =
-  the beat-runner arm-request timing (scene-fade-window debt).  (b) **R7** — dual blit trace
-  at ONE matched tick (`render_diff` lens) → per-particle (res,frame,dst) deltas; suspects:
-  fountain-anchor (+1245), smoke anchor, population age.  (c) **R8** — RE the typewriter
-  char-class→grade map, esp. the ROW-CLOSE grade (`0x439690:499-505` slots; which 0x414xxx
-  steps `+0x170[4]/[6]`).  (d) dialogue chip 4 cont. (Z-advance + ~15-line script table +
-  module-aware arrow-bank re-probe) + the probe-flag removal chip (ckpt-103 leftover).
+- **R6 phase A LANDED (same ckpt):** the reveal's first `scene_fade_step` is fenced one tick
+  (`main.c` hold>=2, modelling the beat-runner arm-request latency) — the dt minimum moved
+  +1→0 and the @1122 mark box improved at tick-equal (t9 10318→7251, t13 7369→6579); banner/
+  pan/dialogue/NPC unaffected.  **Phase B OPEN (the real remaining reveal residual):** at
+  matched tick the frontier band's per-row LEVELS mismatch with structure — every 4th row
+  equal, interior rows the PORT ~1 ramp index clearer, clear-edge rows (53/67 at t13) RETAIL
+  already cleared (timer≥1000 vs the port's 900) — opposite directions ⇒ not a uniform shift,
+  even though the setter `0x49a890`, the `0x499ab0` aging loop, and the `0x48e920` render all
+  read byte-identical to the port.  Per-row ratio table in parity-ledger R6.
+- **NEXT (in order):** (a) **R6-B** — dump res `0x458`'s per-index luminance through the
+  group-E descriptor (render each index standalone in the port), invert BOTH sides' measured
+  row-ratio maps to integer (marked-tick, stagger) per row, solve for the model delta
+  (suspects: the timer cap/clear-vs-render order, a +50 half-step in fresh-mark aging).
+  (b) **R7** — dual blit trace at ONE matched tick (`render_diff` lens) → per-particle
+  (res,frame,dst) deltas; suspects: fountain-anchor (+1245), smoke anchor, population age.
+  (c) **R8** — RE the typewriter char-class→grade map, esp. the ROW-CLOSE grade
+  (`0x439690:499-505` slots; the stepper that advances `+0x170[4]/[6]` is NOT yet located —
+  413b70/419eb0/40df40/4123a0 are all SETTERS; next: a `thisderef` field-spec on `0x48da70`'s
+  node reading `+0x170` [4]/[6]/[0x18] per flip pins the grade table empirically without the
+  static hunt).  (d) dialogue chip 4 cont. (Z-advance + ~15-line script table + module-aware
+  arrow-bank re-probe) + the probe-flag removal chip (ckpt-103 leftover).
 
 ## Where we were — ckpt 104
 

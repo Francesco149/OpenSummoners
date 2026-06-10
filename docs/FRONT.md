@@ -31,11 +31,16 @@
      t93; tick-equal pan residual = the named fountain/butterfly ensembles only), dialogue
      1298→**1282** (arm t642, first change t645 = retail; the pop/fade window differ_px==0 —
      was a constant 8 ticks late).
-  4. **NEXT:** (a) R6 — shift the reveal's first update +1 tick, verify particle-free
-     differ_px==0 (faithful source = the beat-runner arm-request timing); (b) R7 — dual blit
-     trace at one matched tick → per-particle (res,frame,dst) attribution; (c) R8 — RE the
-     typewriter char-class→grade map (the row-close grade); (d) then dialogue chip 4 cont.
-     (Z-advance + script table + module-aware arrow re-probe) + the probe-flag removal chip.
+  4. **R6 phase A LANDED same-ckpt:** the reveal's first update is fenced one tick
+     (main.c hold>=2) — the dt minimum moved +1→0, mark box improved (t9 10318→7251).
+     Phase B OPEN: a per-row fade-LEVEL map mismatch inside the frontier band (interior
+     rows port ~1 index clearer, clear-edge rows retail already cleared — NOT a uniform
+     shift; per-row ratios measured in ledger R6).
+  5. **NEXT:** (a) R6-B — dump res 0x458 per-index luminance, invert both sides' row maps
+     to (marked-tick, stagger), solve the model delta; (b) R7 — dual blit trace at one
+     matched tick → per-particle (res,frame,dst) attribution; (c) R8 — RE the typewriter
+     char-class→grade map (the row-close grade); (d) dialogue chip 4 cont. (Z-advance +
+     script table + module-aware arrow re-probe) + the probe-flag removal chip.
 - **Prior (ckpt 104): the in-game DIALOGUE BUBBLE is PORTED + BIT-EXACT in-window — pop-in,
   speaker tail, name tab, name, portrait cross-fade, and the TYPEWRITER all pair `differ_px==0`
   on trace-studio intro-1 (the worklist's big mark @2429 CLOSED). (939 pass, +7.)**

@@ -2399,8 +2399,15 @@ static void game_render(void *user)
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
              * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
              * (2 rows/tick -> 8px/sim-tick, the measured envelope).  Deterministic
-             * (no RNG), so it rides the sim-tick clock like the actor steppers. */
-            if (is_sim_tick)
+             * (no RNG), so it rides the sim-tick clock like the actor steppers.
+             * The hold>=2 fence delays the FIRST update one tick: retail's reveal
+             * state k renders at tick k+1 (tick-axis measurement, parity-ledger
+             * R6 — the script posts the arm request one pumped tick after the
+             * spawn, so tick 1 presents the armed all-opaque grid), while an
+             * unfenced port rendered state k at tick k.  PORT-DEBT(scene-fade-
+             * window): the faithful source is the beat-runner arm-request
+             * timing. */
+            if (is_sim_tick && g_game_camera_hold >= 2)
                 scene_fade_step(&g_scene_fade);
             /* The area-title banner (0x494a60) is updated by the SAME cinematic
              * step 0x499ab0 — arm it at the measured +78-flip trigger, then run
