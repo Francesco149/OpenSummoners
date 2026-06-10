@@ -155,6 +155,10 @@ changelog. Active multi-session plans: `docs/plans/`.
   `serve` (:8779) scrubs port|retail|diff in lockstep where the **USER flags divergences
   as MARKS** → `worklist.md` is the hand-off Claude works from; `recapture --only port` =
   the fast fix loop. **Read the live session's worklist/edits before picking new work.**
+  **Keep `serve` UP every session so the USER can review/mark at any time — start it if
+  down** (the OpenSummoners studio is `:8779`; sibling projects hold 8777/8778): `nohup nix
+  develop --command python3 tools/trace_studio.py serve --session <name> &` (most-recent
+  session; `ls runs/trace-studio/`). Verify: `ss -tlnp | grep :8779`.
   **Chase marks on the SIM-TICK axis, never the flip axis** (ckpt 105): both sides'
   frames are `frame_<flip>_t<tick>` (tick = easer `0x43d1d0` call count; port mirror
   `g_sim_tick_count`), state/worklist carry both — tick mismatch at a mark = phase
