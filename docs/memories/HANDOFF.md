@@ -49,15 +49,21 @@ decelerates to a stop on release; facing flips 1↔3 with the travel direction.
 APPLY is the shared band pass, so `0x46cd70` DOES reach her (as an active band actor), it just never
 reads the party array `+0x4030`.  The candidate guesses are superseded.
 
+**The invocation site (RESOLVED statically, same ckpt):** the `0x46cd70` band walk, the `0x1160`
+band (32 slots).  `46cd70.c:38-60` pass 1 dispatches each active slot on `entity+0x200` (`==0` →
+`0x478ba0` character AI, `==1` → `0x47b990` effect AI; override `iVar6==0 && entity+0x1f0!=0`→1);
+pass 2 (`:66-76`) calls `0x485fc0` for every slot.  So Arche in freeroam is an ordinary `0x1160`-band
+actor → the port already mirrors this band order (`game_actor_update`); chip 3 adds the `0x478ba0`
+branch + the full apply.  **Polarity nuance:** quirk #101 #2 said control-transfer sets `+0x200=1`
+yet `==1` is the EFFECT AI and Arche provably routes to `0x478ba0` — reconcile by reading
+`entity+0x200`/`+0x1f0` for `0xc35a` at port time.
+
 **NEXT (chip 3, in order):**
-1. **Trace the CALLER** of `0x478ba0`/`0x485fc0` for `0xc35a` (`--call-trace` their `ret_va`): is
-   Arche processed as a `0x46cd70` band slot in freeroam, or via the party path `0x4997b0`?  This
-   tells the port where to invoke the character AI+apply for the leader.
-2. **RE the run/jump scancodes** (the `0x8a6e80` keybind defaults; jump is an action button at
+1. **RE the run/jump scancodes** (the `0x8a6e80` keybind defaults; jump is an action button at
    inputmgr `+0x124`/`+0x128`, cmd `[4]=0xe`) → extend the held-trace walk to capture **run + jump**
    per-tick.  The `freeroam_arche_fields.json` body spec already reads her independent of the mover →
    the bit-exact target for the whole moveset.
-3. **PORT** — the `0x478ba0` character AI (held-axis→command block) + the FULL `0x442a70` integrator
+2. **PORT** — the `0x478ba0` character AI (held-axis→command block) + the FULL `0x442a70` integrator
    (the port has only the open-air butterfly reduction; chip 2's `collision_move_vertical` +
    probes get their first LIVE caller here) → validate "Arche walks + stops at terrain" field-exact.
 

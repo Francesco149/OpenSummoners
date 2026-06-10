@@ -171,10 +171,14 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
      per-tick step accelerates +16/tick → ~+240 cap.  So chip 3's port = the `0x478ba0` character
      AI (input→command) + the FULL `0x442a70` integrator (the port has only the butterfly open-air
      reduction).  Supersedes the `0x405e80`/`0x406210`/`0x40c380` candidate guesses.
+   - **Invocation site RESOLVED (ckpt 114, static):** the `0x46cd70` band walk, `0x1160` band —
+     pass 1 dispatches each active slot on `entity+0x200` (`==0`→`0x478ba0` char AI, `==1`→`0x47b990`
+     effect AI), pass 2 calls `0x485fc0` (apply).  So Arche is an ordinary band actor; the port
+     already mirrors this band order (`game_actor_update`).  (Polarity vs #2's "+0x200=1" to
+     reconcile at port time.)
    - **NEXT (in order):** (c) RE the run/jump scancodes (the `0x8a6e80` keybind defaults) →
      capture walk/run/jump per-tick (the body spec `tools/flow/freeroam_arche_fields.json` reads her
-     independent of the mover) → bit-exact target; trace the CALLER of `0x478ba0`/`0x485fc0` for
-     `0xc35a` (band slot vs party path `0x4997b0`); (d) PORT the `0x478ba0` AI + the full `0x442a70`
+     independent of the mover) → bit-exact target; (d) PORT the `0x478ba0` AI + the full `0x442a70`
      integrator + wire the chip-2 collision mover/probes (their first LIVE caller) → validate
      "Arche walks + stops at terrain" field-exact.
 4. **Freeroam** — REACHED in retail (ckpt 112). Remaining for the PORT side: finish the cutscene

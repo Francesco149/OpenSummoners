@@ -3238,7 +3238,23 @@ transfers to the player INSIDE the inn (`runs/freeroam-gt`).
     reduction).  This RECONCILES finding #3: Arche's AI is indeed not `0x47b990`
     (it's `0x478ba0`), but the apply IS the shared band pass — so `0x46cd70` does
     reach her (as an active band actor), it just never reads the party array
-    `+0x4030`.  **Open thread:** the CALLER of `0x478ba0`/`0x485fc0` for `0xc35a`
-    (band slot vs the party path `0x4997b0`) is the next `ret_va` trace; and the
-    run/jump scancodes (the `0x8a6e80` keybind defaults) are needed to capture
-    run+jump per-tick.
+    `+0x4030`.
+  - **The invocation site (statically confirmed): the `0x46cd70` band walk, the
+    `0x1160` band (32 slots).**  `46cd70.c:38-60` pass 1 walks each active slot
+    (`entity+0x1d0 != 0`), pre-steps the body via `0x54e5c0`, then DISPATCHES on a
+    per-slot flag: **`entity+0x200 == 0` → `FUN_00478ba0` (character/input AI),
+    `== 1` → `FUN_0047b990` (effect/butterfly AI)** (with an override
+    `iVar6==0 && entity+0x1f0 != 0 → treat as 1`).  `46cd70.c:66-76` pass 2 calls
+    `FUN_00485fc0` for every active slot = the apply.  So Arche in freeroam is an
+    ordinary `0x1160`-band actor, dispatched to the character AI — the port already
+    mirrors this band order (`game_actor_update`); chip 3 adds the `0x478ba0`
+    branch + the full apply.  (Other static callers `0x590410`/`0x58f360` are
+    alternate scene-mode band walks, not the in-game path.)  **Port-time nuance to
+    reconcile:** finding #2 said control-transfer sets `entity+0x200 = 1`, yet here
+    `== 1` routes to the EFFECT AI and Arche provably routes to `0x478ba0` (the
+    live capture) — so either the `+0x200` attribution in #2 is off, or the
+    `+0x1f0` override / `iVar6` selects her; resolve by reading `entity+0x200`/
+    `+0x1f0` for `0xc35a` in freeroam when wiring the dispatch.
+  - **Open thread:** the run/jump scancodes (the `0x8a6e80` keybind defaults; jump
+    is an action button at inputmgr `+0x124`/`+0x128`, cmd `[4]=0xe`) are needed to
+    extend the held-trace walk to capture run+jump per-tick.

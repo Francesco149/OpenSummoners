@@ -33,10 +33,12 @@
      write; the per-tick step accelerates +16/tick → ~+240 cap. **Reconciles quirk #101 finding
      #3** (the `0x405e80`/… candidate guesses are superseded; `0x46cd70` DOES reach her as a band
      actor, just never via the party array).
-  4. **NEXT (chip 3):** (a) trace the CALLER of `0x478ba0`/`0x485fc0` for `0xc35a` (band slot vs
-     party path `0x4997b0`); (b) RE the run/jump scancodes (`0x8a6e80` keybind defaults) → capture
-     walk/run/jump per-tick = bit-exact target; (c) PORT the `0x478ba0` AI + the FULL `0x442a70`
-     integrator (chip-2 collision mover/probes get their first LIVE caller). **OPEN (USER):**
+  4. **Invocation site RESOLVED (static):** the `0x46cd70` band walk, `0x1160` band — pass 1
+     dispatches on `entity+0x200` (`==0`→`0x478ba0`, `==1`→`0x47b990`), pass 2 calls `0x485fc0`. So
+     Arche is an ordinary band actor (the port already mirrors this band order). **NEXT (chip 3):**
+     (a) RE the run/jump scancodes (`0x8a6e80` keybind defaults) → capture walk/run/jump per-tick =
+     bit-exact target; (b) PORT the `0x478ba0` AI + the FULL `0x442a70` integrator (chip-2 collision
+     mover/probes get their first LIVE caller). **OPEN (USER):**
      butterfly chip-1 drift visual-verify still pending. Debt unchanged: PORT-DEBT(held-axis-array-b),
      PORT-DEBT(effect-color-variant).
 - **Prior (ckpt 113): PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS landed + LIVE-VALIDATED:
