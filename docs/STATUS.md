@@ -35,36 +35,45 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4 — the town intro renders ~1:1; now porting the **entity MOVEMENT system**
   (butterflies → controllable Arche → freeroam). Milestone map: `ROADMAP.md`; active arc:
   `plans/movement-system.md`. Mechanical render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 108): the PHASE-4 MOVEMENT SYSTEM arc is OPENED (USER-chosen over the smaller
-  intro-polish chips). The town intro is visually complete + ~1:1; the LAST residual — the
-  butterfly drift (@1177 box 305px + @1627 "not 1:1, not multicolor") — is NOT a particle but
-  the full ENTITY MOVEMENT FSM, the same code that drives controllable Arche + freeroam.
-  Architecture MAPPED + plan WRITTEN; no port code yet (an RE/planning checkpoint). (939 pass.)**
+- **LATEST (ckpt 109): PHASE-4 chip 0 is DONE — the butterfly FSM is GROUND-TRUTHED per-tick,
+  and the dense capture resolved BOTH of the plan's open items as bycatch (the apply location +
+  the bounds formula). No port code yet (chip 0 = RE/capture); chip 1 (the port) is next. (939
+  pass.)** Capture: `runs/butterfly-fsm/` (seed-pinned+lockstep, `game_enter@1434`, sim-ticks
+  0..285 × 4 butterflies; spec `tools/flow/butterfly_capture_fields.json`, analysis `…/analyze.py`).
   Plan: `plans/movement-system.md`.
-  1. **The pipeline (mapped):** `0x46cd70` band walk (PORT MIRRORS) → `0x47b990` actor AI (7461B;
-     `butterfly_step` already consumes the `0xe29a` gate/flit/heading RNG draws, ckpt 98 — the
-     MOTION + the `this+0x1422c` state machine are unported) → `0x43f880` (5491B; builds an
-     ordered collision-tested action list, writes the 8-int **command block** to `this+0x14854`)
-     → `0x4412d0` (a swept collision PROBE, NOT the integrator) + `0x442a70` (the path stepper) +
-     the tile grid `0x2c1030`/`0x2c1040` (movement quantum `0xc80`=3200=one tile).
-  2. **The butterfly `0xe29a` case (read):** each work-tick (every-other, gate `0x14232`)
-     recompute wander range `+0xc890`, decrement flip-cooldown `+0x14248`, roll a 10% flag, flip
-     heading `+0x14244` 1↔3 when near a patrol bound (`+0x14264`/`+0x14268`) OR on the roll OR a
-     `0x47dbb0` collision, then `FUN_0043f880(bound,0xc80,body,…,1,0)` moves toward the bound.
-  3. **TWO chip-1 unknowns:** (a) **the apply step is unlocated** — `+0x14854` is the RESOLVED
-     move; which step READS it + writes the body position is TBD (likely `0x442a70` on the real
-     body — pin empirically, don't read every helper). (b) **the bounds `+0x14264`/`+0x14268` are
-     NEVER written in the decompile** (full static grep) yet the butterfly drifts BIDIRECTIONALLY
-     (ground truth) ⇒ set via a computed-pointer write static analysis can't see → `mem_watch` live.
-  4. **Ground truth (`runs/butterfly-emit`, 2 snapshots t294/t347):** drift ~25–80 u/tick with
-     direction changes; `cel_fr` = direction_base (mult-of-4) + flap, the base FOLLOWS heading ⇒
-     the "multicolor" half is ALSO FSM-driven (colour + motion land together). NEED a dense
-     per-tick capture (chip-1 step 0 = the bit-exact target).
-  5. **NEXT (chip 1, next session):** (0) field-spec the butterfly body/heading/state per sim-tick
-     + `mem_watch` the bounds writer; (1) port the `0xe29a` heading FSM + the reduced open-air
-     `0x43f880` path + the apply + the direction→`cel_fr` map → verify bit-exact vs the capture →
-     closes PORT-DEBT(butterfly-wander). Then chip 2 (tile collision) → 3 (controllable Arche) → 4
-     (freeroam). Deferred intro chips (fountain-anchor 2×, sky-anchor, R8 typewriter grade) remain.
+  1. **The pipeline (capture-verified).** `0x46cd70` makes TWO EFFECT-band passes: pass 1 = the AI
+     `0x47b990` (`0xe29a` → heading flip → `0x43f880` writes the 8-int cmd block `this+0x14854`),
+     **work ticks only** (gate `0x14232`); pass 2 = the APPLY **`0x485fc0`** (`46cd70:71`) →
+     `FUN_00442a70(cmd, body, body)` (`485fc0:348`) integrates the REAL body, **EVERY tick**.
+     `0x442a70` (12KB): `vel(+0x18)+=2000` toward target (clamp), worldX step via the mover
+     `0x54e5c0(body, vel/100)`. So the decision is gated; the motion glides. (`0x47b990` is the AI
+     for 18 town actors, NOT butterflies-only — corrects a ckpt-108 note; filter code `0xe29a`.)
+  2. **RESOLVED — the apply** (plan open #1): the 2nd EFFECT pass `0x485fc0`, every tick. NOT a
+     state-handler/`0x484c10` (the `0xe29a` case jumps past them to the tail).
+  3. **RESOLVED — the bounds** (plan open #2, the "decompile lie"): no static writer, but the
+     capture pins them DEAD CONSTANT per butterfly: **`b1(+0x14264)=spawn_wx+11200`,
+     `b3(+0x14268)=spawn_wx−8000`** (center spawn_wx+1600 ± 9600=3 tiles; `8000=+0xc894`).
+     spawn_wx ∈ {99200,105600,176400,181200} = the 4 map worldX. `PORT-DEBT(butterfly-bounds-writer)`
+     for the un-RE'd spawn derivation (mem_watch deferred — values are bit-exact for the town).
+  4. **Motion model.** `vel` ramps ±2000/tick → ±16000 cap; worldX step → ±100/tick, decel→reverse
+     on a heading flip. Heading `+0x14244` = INTENT (which bound to chase); facing `body+0x2c` =
+     actual travel dir (integrator flips it on the velocity-sign change, LAGS heading ~5 ticks).
+     Flip on a work tick when cooldown `+0x14248`==0 AND (`|worldX-bound|<0xc81` OR `0x47dbb0`
+     collision OR a 10% RNG roll); cooldown 0x3c on flip, decrements ~1.5/tick. Flap `rs+0x72` ∈
+     {0,1,2} is heading-INDEPENDENT (the looping clip).
+  5. **NEXT (chip 1, next session — the PORT):** in `src/butterfly.{c,h}`: (a) `butterfly_register`
+     takes spawn_wx → set `b1/b3`; (b) MOVE the 2 RNG draws/tick from the `butterfly_step` stub
+     into a real `0xe29a` heading FSM (draw count/order UNCHANGED or the ckpt-99 stream regresses);
+     (c) port the open-air integrator (`vel+=2000` clamp, `worldX += vel/100`-style — FIT to the
+     captured dwx) as a new APPLY step in `game_actor_update` after the AI pass; (d) validate
+     field-exact vs `runs/butterfly-fsm` on the sim-tick axis → closes PORT-DEBT(butterfly-wander).
+     OPEN: correlate the EMIT `cel_fr` (`0x492670`) with heading before assuming a direction→base
+     map (the flap doesn't track heading). Then chip 2 (tile collision) → 3 (Arche) → 4 (freeroam).
+     Deferred intro chips (fountain-anchor 2×, sky-anchor, R8 typewriter grade) remain.
+- **Prior (ckpt 108): the PHASE-4 MOVEMENT SYSTEM arc OPENED** (USER-chosen over the smaller
+  intro-polish chips) — the butterfly drift (@1177/@1627) is the full ENTITY MOVEMENT FSM, the
+  same code that drives controllable Arche + freeroam. Architecture mapped + plan written
+  (`plans/movement-system.md`); ckpt 109 then ground-truthed it (above). (939 pass.)
 - **Prior (ckpt 107): R7 FOUNTAIN spray RESOLVED + USER-CONFIRMED 1:1 — the water is BIT-EXACT
   (upper spray `differ_px==0`); fountain-box differ `4286 → 305` at stamp-equal t30, and 100% of
   the 305 is the butterflies (separate subsystem). Finishes a fable session cut short by a Windows

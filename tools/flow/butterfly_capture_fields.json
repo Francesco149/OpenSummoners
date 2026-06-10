@@ -1,0 +1,30 @@
+{
+  "_doc": "Butterfly chip-0 capture spec (Phase-4 ENTITY MOVEMENT, plans/movement-system.md). Hooks 0x47b990 (the EFFECT-band actor AI) onEnter and reads the butterfly FSM state + body position per sim-tick. 0x47b990 is mode-1-EFFECT-band-only, and the 4 town butterflies (code 0xe29a) are the ONLY mode-1 EFFECT actors (quirk #95) -> the capture is butterflies-only (the `code` field confirms). param_2 == *(this+0x40) == the render-state/body; body+4/+8 = worldX/Y, +0x18 vel, +0x2c facing, +0x38 state, render-state+0x72 = the drawn frame. The 16-bit FSM fields (gate/cooldown/state/timers/celfr/bstate) are read as u32 -> MASK & 0xffff offline (ctFormatTyped has no u16). THROWAWAY capture spec: the durable retail_fields.json annotation lands once chip 1 is validated. Run: frida_capture.py --no-turbo --lockstep --seed-pin --input-trace tests/scenarios/in-game-intro/trace-retail.jsonl --field-spec tools/flow/butterfly_capture_fields.json --field-spec-only --call-trace --call-trace-frames <game_enter..+~280 ticks>.",
+  "fields": {
+    "0x47b990": {
+      "name": "butterfly_ai",
+      "_note": "FUN_0047b990 (7461 B) the per-actor EFFECT-band behaviour; the butterfly takes the 0xe29a case (47b990.c:769-801): wander range 0xc890=(rand*0xc80>>15)+0x640, decrement flip-cooldown 0x14248, 10% flag, flip heading 0x14244 1<->3 when |worldX-bound| < 0xc81 OR a 0x47dbb0 collision OR the 10% roll, then FUN_0043f880(bound,0xc80,body,...) which writes the 8-int command block to this+0x14854; the apply is the band-walk's SECOND EFFECT pass 0x485fc0 -> FUN_00442a70(this+0x14854, body, body) (46cd70.c:71, 485fc0.c:348). Captured per sim-tick (chip 0). cmd_* at onEnter = the PREVIOUS tick's resolved command (pos here = post-apply of it).",
+      "fields": [
+        {"name": "code",      "src": "thisderef", "off": 468,   "type": "hex", "reason": "this+0x1d4 actor code; 0xe29a == butterfly (sanity filter)"},
+        {"name": "wx",        "src": "thischain", "hops": [64], "off": 4,   "type": "i32", "reason": "body+4 worldX (the drift target)"},
+        {"name": "wy",        "src": "thischain", "hops": [64], "off": 8,   "type": "i32", "reason": "body+8 worldY"},
+        {"name": "vel",       "src": "thischain", "hops": [64], "off": 24,  "type": "i32", "reason": "body+0x18 velocity (0x47b990:97 cmp +-10000)"},
+        {"name": "facing",    "src": "thischain", "hops": [64], "off": 44,  "type": "i32", "reason": "body+0x2c facing 1/3 (0x47b990:62)"},
+        {"name": "bstate",    "src": "thischain", "hops": [64], "off": 56,  "type": "u32", "reason": "body+0x38 state (mask&0xffff); 0x47b990:55/189"},
+        {"name": "celfr",     "src": "thischain", "hops": [64], "off": 114, "type": "u32", "reason": "render-state+0x72 drawn frame (mask&0xffff); the direction->cel_fr map"},
+        {"name": "heading",   "src": "thisderef", "off": 82500, "type": "i32", "reason": "this+0x14244 heading 1/3"},
+        {"name": "cooldown",  "src": "thisderef", "off": 82504, "type": "u32", "reason": "this+0x14248 flip cooldown (mask&0xffff); set 0x3c on flip"},
+        {"name": "state",     "src": "thisderef", "off": 82476, "type": "u32", "reason": "this+0x1422c state selector (mask&0xffff); the 0x47b990 state switch"},
+        {"name": "gate",      "src": "thisderef", "off": 82482, "type": "u32", "reason": "this+0x14232 every-other-tick gate (mask&0xffff)"},
+        {"name": "movedur",   "src": "thisderef", "off": 82484, "type": "u32", "reason": "this+0x14234 move duration (mask&0xffff)"},
+        {"name": "flittimer", "src": "thisderef", "off": 82486, "type": "u32", "reason": "this+0x14236 flit-pick timer (mask&0xffff); reload 0x50"},
+        {"name": "wrange",    "src": "thisderef", "off": 51344, "type": "i32", "reason": "this+0xc890 wander range = (rand*0xc80>>15)+0x640"},
+        {"name": "bound1",    "src": "thisderef", "off": 82532, "type": "i32", "reason": "this+0x14264 patrol bound (heading 1 target) -- the decompile LIE, no static write"},
+        {"name": "bound3",    "src": "thisderef", "off": 82536, "type": "i32", "reason": "this+0x14268 patrol bound (heading 3 target)"},
+        {"name": "cmd_act",   "src": "thisderef", "off": 84052, "type": "i32", "reason": "this+0x14854 command block [0] action axis/type"},
+        {"name": "cmd_1",     "src": "thisderef", "off": 84056, "type": "i32", "reason": "this+0x14858 command block [1]"},
+        {"name": "cmd_2",     "src": "thisderef", "off": 84060, "type": "i32", "reason": "this+0x1485c command block [2]"}
+      ]
+    }
+  }
+}

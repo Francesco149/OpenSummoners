@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 109) — PHASE-4 chip 0 DONE: the butterfly FSM ground-truthed per-tick; the capture resolved BOTH plan open items (the apply pass + the bounds formula)
+
+Chip 0 of the entity-movement arc (`plans/movement-system.md`).  A seed-pinned + lockstep
+field-spec capture of `0x47b990` (the EFFECT-band AI) over `game_enter@1434` → sim-tick 285
+× the 4 town butterflies (`runs/butterfly-fsm/`; spec `tools/flow/butterfly_capture_fields.json`,
+analysis `analyze.py`) is now the **bit-exact target for the chip-1 port**.  It reads worldX/Y,
+heading `+0x14244`, facing `body+0x2c`, the patrol bounds `+0x14264/+0x14268`, the cooldown/
+gate/flit timers, the wander range, the cmd block `+0x14854`, vel `body+0x18`, and the flap.
+
+The capture resolved BOTH of the plan's open items as bycatch.  **(1) The apply** (was
+"unlocated"): `0x46cd70` makes TWO passes over the EFFECT band — pass 1 the AI `0x47b990`
+(writes the cmd block, GATED to work ticks), pass 2 **`0x485fc0`** (`46cd70:71`) which calls
+the integrator `FUN_00442a70(this+0x14854, body, body)` (`485fc0:348`) on the REAL body, EVERY
+tick (capture-confirmed: position moves on both gate phases).  So the AI decision is gated; the
+motion glides because the integrator (`vel+=2000` clamp ±16000, worldX step via `0x54e5c0(body,
+vel/100)`) carries velocity between decisions.  **(2) The bounds** (the "decompile lie" — no
+static writer): dead-constant per butterfly, **`b1 = spawn_wx + 11200`, `b3 = spawn_wx − 8000`**
+(center spawn_wx+1600 ± 9600=3 tiles; `8000=+0xc894`, `11200=8000+0xc80`), spawn_wx = the 4 map
+worldX.  Chip 1 sets them at register-time; `PORT-DEBT(butterfly-bounds-writer)` for the un-RE'd
+spawn derivation (mem_watch deferred — values are bit-exact for the town).
+
+Also pinned: heading `+0x14244` = INTENT, facing `body+0x2c` = actual travel dir (the integrator
+flips it on the velocity-sign change, LAGGING heading ~5 ticks); the heading flips on a work tick
+when cooldown==0 AND (`|worldX-bound|<0xc81` OR a `0x47dbb0` collision OR a 10% RNG roll); the
+flap `rs+0x72`∈{0,1,2} is heading-INDEPENDENT.  `0x47b990` is the AI for 18 town actors (NOT
+butterflies-only, correcting a ckpt-108 note).  No port code yet — chip 1 (the FSM + integrator
+port + bit-exact validation) is the next session.  939 pass.  (ckpt 107 = R7 fountain 1:1,
+ckpt 108 = the arc opening — both in FRONT/HANDOFF; not separately logged here.)
+
 ## 2026-06-10 (ckpt 106) — R6 establishing-REVEAL RESOLVED: two stacked causes (graded mask cels + the 105b fence); the frontier band differ_px==0 at every stamp-equal tick; R7 narrowed to the fountain alone
 
 The R6 chase started with the queued recipe and ended somewhere better: a live per-row
