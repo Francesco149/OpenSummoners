@@ -35,10 +35,10 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 107): R7 FOUNTAIN spray RESOLVED — the water is BIT-EXACT (upper spray
-  `differ_px==0`); fountain-box differ `4286 → 305` at stamp-equal t30, and 100% of the 305 is
-  the butterflies (separate). Finishes a fable session cut short by a Windows update + the
-  USER-caught fade. (939 pass.)** USER: "positions match 1:1; 3 fountain particles, rest is butterflies."
+- **LATEST (ckpt 107): R7 FOUNTAIN spray RESOLVED + USER-CONFIRMED 1:1 — the water is BIT-EXACT
+  (upper spray `differ_px==0`); fountain-box differ `4286 → 305` at stamp-equal t30, and 100% of
+  the 305 is the butterflies (separate subsystem). Finishes a fable session cut short by a Windows
+  update + the USER-caught fade. (939 pass.)** USER: "can confirm fountain is 1:1."
   1. **Anchor (the bulk).** New `0x557370` field-spec (`runs/r7-anchor-retail`) reads the
      fountain prop's box `+0xc/+0x10` = (6400,6400) + world (176000,41600) — byte-identical to
      the PORT's prop world. A port|retail water-droplet blit match (t30, 27 droplets each, same

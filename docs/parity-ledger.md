@@ -187,9 +187,9 @@ extract the EFFECTIVE per-index source levels from the frames themselves
 (s5 = d5 − out5 against a settled-backdrop reference) before touching model
 code — it separates "wrong state" from "wrong cel content" in one shot.
 
-### R7 — FOUNTAIN spray: RESOLVED (ckpt 107) — anchor + band-order + fresh-droplet
-### fade all fixed by RE; the fountain water is bit-exact (upper spray differ_px==0,
-### box 4286 → 305), and 100% of the 305 remainder is the butterflies (separate)
+### R7 — FOUNTAIN spray: RESOLVED + USER-CONFIRMED 1:1 (ckpt 107) — anchor +
+### band-order + fresh-droplet fade all fixed by RE; the fountain water is bit-exact
+### (upper spray differ_px==0, box 4286 → 305), and 100% of the 305 is butterflies
 
 **Three bugs, all fixed by RE (decompile + field-spec + USER-caught fade), drop the
 fountain-box residual 4286 → 305 px at stamp-equal tick 30 (the water is then
