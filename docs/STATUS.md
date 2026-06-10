@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  12.8% touched   (12.8% host-tested, 13.6% of code bytes)
+███░░░░░░░░░░░░░░░░░  12.9% touched   (12.9% host-tested, 13.7% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   199 | ported + module covered by the host unit suite       |
+| tested      |   200 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **204** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1554 | exists in engine, never referenced from src/         |
+| **touched** | **205** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1553 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (13.6% of engine-proper bytes) is the truer progress
+Code-byte coverage (13.7% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -37,7 +37,7 @@ understates how much actual instruction volume is ported.
   active arc: `plans/movement-system.md`. Mechanical render-chip backlog: `port-frontier.md`.
 - **LATEST (ckpt 110): PHASE-4 chip 1 LANDED — the butterfly OPEN-AIR PATROL MOTION is PORTED +
   FIELD-EXACT. The 4 butterflies now drift left↔right 1:1 (heading/facing field-exact); the RNG
-  stream stays bit-exact. (941 pass, +1.)** `src/butterfly.{c,h}` grew from the ckpt-98 RNG-consumer
+  stream stays bit-exact. (940 pass, +1.)** `src/butterfly.{c,h}` grew from the ckpt-98 RNG-consumer
   stub to the full open-air FSM; `main.c` apply-wires it into the rendered EFFECT actors. Validated
   `runs/butterfly-fsm/compare.py` (port `--call-trace` vs the ckpt-109 capture, SIM-TICK axis).
   1. **Ported — the open-air REDUCTION of `0x47b990`/`0x43f880`/`0x485fc0`→`0x442a70`.** (a) bounds

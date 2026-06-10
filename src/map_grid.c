@@ -2,6 +2,7 @@
 #include "map_grid.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 /* Typed views into the flat grid at an absolute byte offset. */
 static inline int32_t  *mg_i32(uint8_t *g, size_t off) { return (int32_t *)(g + off); }
@@ -134,4 +135,31 @@ void map_grid_emit_tile(uint8_t *grid, int32_t p1, int32_t p2, int32_t slot,
             }
         }
     }
+}
+
+/* ── READ accessors (collision read-side) ─────────────────────────────────────
+ * idx = col*0x80 + row; the engine indexes region B as `(col*0x80 + 0x14003 +
+ * row)*0x10` (54e990.c:65, a ushort* base = byte 0x140030 + idx*0x10) and
+ * region D as `0x2c1040 + idx*2` (441ae0.c:47).  No bounds checking — see the
+ * header note. */
+const uint8_t *map_grid_obj_record(const uint8_t *grid, int32_t col, int32_t row)
+{
+    int32_t idx = col * (int32_t)MG_ROW_PITCH + row;
+    return grid + MG_REGION_B + (size_t)idx * 0x10;
+}
+
+uint16_t map_grid_obj_class(const uint8_t *grid, int32_t col, int32_t row)
+{
+    uint16_t v; memcpy(&v, map_grid_obj_record(grid, col, row) + 0x0, 2); return v;
+}
+
+uint32_t map_grid_obj_slope(const uint8_t *grid, int32_t col, int32_t row)
+{
+    uint32_t v; memcpy(&v, map_grid_obj_record(grid, col, row) + 0x8, 4); return v;
+}
+
+int16_t map_grid_flag(const uint8_t *grid, int32_t col, int32_t row)
+{
+    int32_t idx = col * (int32_t)MG_ROW_PITCH + row;
+    int16_t v; memcpy(&v, grid + MG_REGION_D + (size_t)idx * 2, 2); return v;
 }

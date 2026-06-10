@@ -49,7 +49,8 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/actor_spawn.c ../src/particle.c \
                 ../src/party.c ../src/scene_fade.c ../src/butterfly.c \
                 ../src/ambient.c ../src/banner.c \
-                ../src/exe_strings.c ../src/dialogue.c
+                ../src/exe_strings.c ../src/dialogue.c \
+                ../src/collision.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
@@ -71,7 +72,8 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_letterbox.c test_actor_render.c \
                 test_actor_spawn.c test_particle.c \
                 test_party.c test_scene_fade.c test_banner.c \
-                test_exe_strings.c test_dialogue.c
+                test_exe_strings.c test_dialogue.c \
+                test_collision.c
 
 OUT := build/run_tests
 

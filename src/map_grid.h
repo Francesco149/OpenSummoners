@@ -133,4 +133,20 @@ void map_grid_emit_tile(uint8_t *grid, int32_t p1, int32_t p2, int32_t slot,
                         int32_t span_rows, int32_t span_cols,
                         mg_bank_dims_fn dims, void *ctx);
 
+/* ── READ accessors over a BUILT grid (the collision read-side, chip 2) ───────
+ * The collision probes (0x441ae0/0x47dbb0) and the tile-mover (0x54e990) index
+ * the grid by CELL: idx = col*0x80 + row, where col = worldX/0xc80 (the DIM0 /
+ * 0x80-pitch axis) and row = worldY/0xc80 (DIM1).  The cell is 0xc80 = 3200
+ * world units (MG_PX_PER_DIM).  These accessors do NO bounds checking — the
+ * engine trusts its own dim-clamp before indexing, and the callers (which port
+ * that clamp verbatim) pass already-clamped col/row; the MG_GRID_BYTES buffer
+ * covers every in-range cell.  Region B carries the per-cell collision CLASS
+ * (u16 @+0x0: 1 = slope-test, 10 = solid wall) + the slope-profile reference
+ * (u32 @+0x8: an engine .rdata VA — 0 = flat); region D carries the 2-byte flag
+ * the directional probes test (b == 1 = wall). */
+const uint8_t *map_grid_obj_record(const uint8_t *grid, int32_t col, int32_t row);
+uint16_t       map_grid_obj_class (const uint8_t *grid, int32_t col, int32_t row);
+uint32_t       map_grid_obj_slope (const uint8_t *grid, int32_t col, int32_t row);
+int16_t        map_grid_flag      (const uint8_t *grid, int32_t col, int32_t row);
+
 #endif /* OSS_MAP_GRID_H */

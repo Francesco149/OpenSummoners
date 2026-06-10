@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **204** (12.8% of engine-proper) — tested 199, ported 5
-- code bytes touched: **13.6%** (230,640 / 1,694,868 B of engine-proper)
-- unported: **1554**
+- touched: **205** (12.9% of engine-proper) — tested 200, ported 5
+- code bytes touched: **13.7%** (231,501 / 1,694,868 B of engine-proper)
+- unported: **1553**
 - orphan refs in src/ not in this table: 4
 
-## tested (199) — ported + host unit suite
+## tested (200) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -82,6 +82,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49aae0 | FUN_0049aae0 | 234 | scene_fade.c, scene_fade.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
+| 0x54e990 | FUN_0054e990 | 861 | collision.c, collision.h |
 | 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x560e60 | FUN_00560e60 | 42 | game_map.c, game_map.h |
 | 0x561c90 | FUN_00561c90 | 94 | game_map.h, game_world.h |
@@ -125,7 +126,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, main.c (+1) |
 | 0x587970 | FUN_00587970 | 866 | main.c, map_data.c, map_data.h (+4) |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, map_data.c, map_data.h (+4) |
+| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, collision.h, map_data.c (+5) |
 | 0x58c910 | FUN_0058c910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | FUN_0058ca80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |

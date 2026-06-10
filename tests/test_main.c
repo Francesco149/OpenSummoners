@@ -820,6 +820,12 @@ struct test_case {
     X(map_grid_emit_obj_clamps_dims)                           \
     X(map_grid_emit_tile_explicit_span)                        \
     X(map_grid_emit_tile_bank_span)                            \
+    X(collision_drop_clamps_on_floor)                          \
+    X(collision_open_air_clears)                               \
+    X(collision_wall_off_axis_no_block)                        \
+    X(collision_ceiling_blocks_upward)                         \
+    X(collision_zero_delta_noop)                               \
+    X(collision_slope_callback_invoked)                        \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
     X(map_decode_1b58d_shape2_blend)                           \

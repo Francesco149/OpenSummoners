@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 199,
+  "tested": 200,
   "ported": 5,
-  "unported": 1554,
+  "unported": 1553,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 204,
-  "pct_touched": 12.8,
-  "pct_tested": 12.8,
-  "engine_proper_touched": 191,
+  "touched": 205,
+  "pct_touched": 12.9,
+  "pct_tested": 12.9,
+  "engine_proper_touched": 192,
   "bytes_total": 1694868,
-  "bytes_touched": 230640,
-  "pct_bytes_touched": 13.6
+  "bytes_touched": 231501,
+  "pct_bytes_touched": 13.7
  },
  "orphan_refs": [
   "0x56c470",
@@ -7688,8 +7688,11 @@
    "name": "FUN_0054e990",
    "size": 861,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/collision.c",
+    "src/collision.h"
+   ]
   },
   {
    "va": "0x54ecf0",
@@ -9355,6 +9358,7 @@
    "status": "tested",
    "src": [
     "src/asset_register.h",
+    "src/collision.h",
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.c",
