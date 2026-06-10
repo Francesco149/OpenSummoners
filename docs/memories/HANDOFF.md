@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 109, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 111, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,48 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 110
+## Where we are — ckpt 111
+
+**PHASE-4 chip 2 (TILE COLLISION) — the READ-SIDE CORE is PORTED + host-tested. 946 pass
+(+6).**  The chip RE-SCOPED on a discovery: the town's collision GRID is **already built** by
+`map_decode.c` (the `0x587e00` town arms deposit region B class/slope + C slope-type + D flag
+per cell, on the proven-1:1 render path) — so "port the grid" was moot.  Modules:
+`src/collision.{c,h}` (NEW), `src/map_grid.{c,h}` (read accessors), `tests/test_collision.c`.
+
+- **`collision.{c,h}` — `collision_move_vertical` = `FUN_0054e990`**, the VERTICAL tile-grid
+  mover (gravity/ground/ceiling clamp).  FAITHFUL + PURE over (grid, body box, delta) — its
+  decompiled `in_ECX` is the GRID base, not the actor.  Sweeps world-Y in ≤100 steps, scans the
+  X-extent cells vs region-B class (10=solid wall, 1=slope-surface w/ the verbatim `d==0`
+  contact predicate), clamps + writes the new world-Y.  Slopes resolve via a caller callback
+  (region-B `+0x8` = the exe VA `0x5cc410`/`0x5cc430` height profiles) — town is flat so unused
+  → PORT-DEBT(collision-slopes).
+- **`map_grid` read accessors** — `map_grid_obj_record/_class/_slope` (region B `0x140030`) +
+  `map_grid_flag` (region D `0x2c1040`).  `idx = col*0x80 + row` (col=worldX/0xc80, row=worldY/0xc80).
+- **`test_collision.c` (6 tests, exact clamps hand-derived)** — drop→floor (out 15000, ret 0),
+  open-air clear (20000, ret 1), off-axis wall (no block), ceiling upward (9600, ret 0),
+  zero-delta no-op, slope-callback wired.
+
+**DEFERRED → chip 3** (they need a live grounded actor + the probes are actor-entangled, and
+the user accepted "host-tested only, live payoff at Arche"): the directional AI probes
+`0x441ae0`/`0x47dbb0` (read region D flag + region C slope-type + `in_ECX` actor state); the
+integrator generalization (wiring the mover into `0x442a70`/`0x485fc0` — the butterfly apply
+STAYS the field-exact open-air reduction, NOT regressed); `0x4412d0`/`0x440e40` = ENTITY-vs-entity
+collision (the `in_ECX+0x40` actor list, stride 0x294 — corrects the plan's "tile grid" label).
+
+**NEXT — chip 3 (controllable Arche).**  The party-leader band `0x4997b0`
+(`plans/party-character-system.md`) + DirectInput → the `0xc35a` case in `0x47b990` →
+walk/run/jump physics — this gives the chip-2 mover + probes their first LIVE caller (validate
+"Arche stops at terrain" field-exact, then port the probes + integrator wiring + the slope
+resolver).  The milestone.
+
+**OPEN (USER):** the butterfly chip-1 drift VISUAL-VERIFY artifact is pushed (trace-studio
+`intro-1`, game_enter ~frame 1580-1670, + a feed montage) — field-exact per `runs/butterfly-fsm/
+compare.py` but not yet USER-confirmed 1:1 on screen.  Incidental find logged this session:
+PORT-DEBT(effect-color-variant) — the INN townsgirl renders the wrong colour variant (port
+brunette/blue vs retail blonde/pink, ~tick 276; same class as the butterfly multicolor, on
+generic townsfolk).
+
+## Where we were — ckpt 110
 
 **PHASE-4 chip 1 is DONE — the butterfly OPEN-AIR PATROL MOTION is PORTED + FIELD-EXACT.
 The 4 town butterflies now drift left↔right 1:1 (heading + facing field-exact vs the

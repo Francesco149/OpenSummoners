@@ -26,11 +26,12 @@ Per-tick flow, top to bottom:
 | master band walk | `0x46cd70` | 1031 | walks the per-tick bands. **TWO passes over the EFFECT band (`+0x1160`, 32 slots): pass 1 = the AI `0x47b990` (writes the cmd block), pass 2 = the APPLY `0x485fc0` (integrates).** Both run for every active EFFECT actor. | **PORT MIRRORS** (`game_actor_update`, band order proven ckpt 98/99) — but the port mirrors only the AI consume-stub, NOT the apply pass yet |
 | actor AI / update | `0x47b990` | 7461 | per-tick per-actor (18 town actors: townsfolk + the 4 butterflies + `0xe2a5` — NOT butterflies-only, corrects a chip-108 note). Big `switch(this+0x1d4)`. **GATED to work-ticks** (`+0x14232`, every-other). butterfly = the `0xe29a` case → picks heading → `0x43f880`; jumps PAST the `0x1422c` state machine to the tail (`0x484c10` at :826 is NOT on the butterfly path) | **PARTIAL** — `butterfly_step` consumes the gate/flit/heading RNG draws ONLY; the heading-flip + `0x43f880` unported |
 | movement intent | `0x43f880` | 5491 | open-air butterfly: `0x15998==0` ⇒ skips the tile-grid block ⇒ the action list resolves to a simple move; writes the 8-int **command block** to `this+0x14854`. Runs only on **work ticks** (gated) | unported |
-| swept collision probe | `0x4412d0` | 993 | allocs a temp swept-path (`operator_new 0xa500`), steps it via `0x442a70`, tests vs the entity list (`DAT_008a9b50+0x278c`) + the tile grid (`0x440e40`). Returns blocked/clear. **Does NOT move the actor.** | unported (chip 2) |
+| swept collision probe | `0x4412d0` | 993 | allocs a temp swept-path (`operator_new 0xa500`), steps it via `0x442a70`, tests vs the **two ENTITY lists** (`DAT_008a9b50+0x278c`/`+0x2788`) via `0x440e40`. **CORRECTION (ckpt 111): `0x440e40` is ENTITY-vs-entity (`in_ECX+0x40` actor list, stride 0x294), NOT the tile grid.** Returns blocked/clear; does NOT move the actor. | unported — chip 3 (entity collision) |
 | **apply pass** | **`0x485fc0`** | 4593 | **the 2nd EFFECT-band pass (`0x46cd70:71`). Reads the cmd block + calls the integrator `0x442a70(this+0x14854, body, body, 0, 0)` on the REAL body (`485fc0:348`, gated `local_2c==0`). Runs EVERY tick (NOT gated) — capture-confirmed: position moves on both gate phases.** | unported (chip 1) |
 | path stepper / integrator | `0x442a70` | 12026 | shadow-copies src→dst body (`:49-100`) then integrates **in place** when called `(cmd, body, body)`. Core: `vel(+0x18) += 2000` toward target (clamped `>-20000`), position step via the mover `FUN_0054e5c0(body, vel/100, …)`; multiple axis/direction cases = the 12 KB. Shared with probing | unported (chip 1 reduced / chip 2 full) |
-| ledge/dir probe | `0x47dbb0`, `0x441ae0` | ? | directional collision-grid probes (clear/blocked in a direction) | unported |
-| tile collision grid | `DAT_008a9b50+0x1048` → `+0x2c1030` (row widths) / `+0x2c1040` (tile flags) | — | indexed by `worldX/0xc80`, `worldY/0xc80`. **`0xc80` = 3200 = one tile = the movement quantum** | unported |
+| ledge/dir probe | `0x47dbb0`, `0x441ae0` | 655/749 | directional tile-grid probes (clear/blocked in a direction) — read region **D** (`+0x2c1040` flag, `==1` wall) + region **C** (`+0x195030` slope-type) + actor state (`in_ECX` fields gate the ledge scan). **ACTOR-entangled** | unported — chip 3 (the AI caller is live there) |
+| vertical tile-mover | `0x54e990` | 861 | **PORTED ckpt 111 → `collision.c` `collision_move_vertical`.** The gravity/ground/ceiling clamp: pure over (grid, body box, delta); `in_ECX` is the GRID, not the actor. Sweeps world-Y in ≤100 steps, scans the X-extent vs region-B class (10=wall, 1=slope), clamps. Slopes via callback (PORT-DEBT `collision-slopes`) | **DONE (chip 2)** — host-tested ×6 |
+| tile collision grid | `DAT_008a9b50+0x1048` → region **B** `+0x140030` (class+slope) · region **C** `+0x195030` (slope-type) · region **D** `+0x2c1040` (flag) | — | indexed `idx = (worldX/0xc80)*0x80 + worldY/0xc80`. **`0xc80`=3200=one tile.** **ALREADY BUILT (corrects "unported"): `map_decode.c` (the 0x587e00 town arms) deposits all three regions on the proven-1:1 render path; read accessors PORTED ckpt 111 (`map_grid_obj_*`/`map_grid_flag`)** | **BUILT + read accessors DONE (chip 2)** |
 
 ### The command block `this+0x14854` (8 ints / 32 bytes)
 The **resolved per-tick move**: `{action_type, dx, dy, sub, …}`. Written by `0x479e40`
@@ -129,9 +130,21 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
    VERTICAL axis (`0x442a70`'s gravity/flutter block writes `body+8` via `0x54e5c0(body,vel/100)`)
    — the horizontal patrol is the separate clean ±10/tick→±100 law fit above. **RNG preserved**
    (host `butterfly_pertick` unchanged; the exact flip ticks prove it).
-2. **Tile collision** — port the grid (`0x2c1030`/`0x2c1040`) + `0x4412d0`/`0x440e40` swept
-   probe + `0x441ae0`/`0x47dbb0` directional probes. Ground actors stop clipping terrain.
-   Prereq for Arche.
+2. **Tile collision — RE-SCOPED + core DONE (ckpt 111).** The big surprise: the collision
+   GRID is **already built** — `map_decode.c` (the `0x587e00` town arms) deposits region B
+   (class+slope) / C (slope-type) / D (flag) per cell on the proven-1:1 render path, so
+   "port the grid" was moot. Chip 2 is the **read side**:
+   - **DONE:** the grid read accessors (`map_grid_obj_*`/`map_grid_flag`) + the VERTICAL
+     tile-mover `0x54e990` (`collision.c` `collision_move_vertical`, flat collision, slopes
+     via callback = PORT-DEBT `collision-slopes`), host-tested ×6. Pure over (grid, body,
+     delta) — no live actor needed.
+   - **DEFERRED → chip 3** (they need a live grounded actor to validate, and the probes are
+     actor-entangled): the directional AI probes `0x441ae0`/`0x47dbb0`; the integrator
+     generalization (wiring the mover into `0x442a70`/`0x485fc0` so a grounded actor stops
+     clipping — the butterfly apply stays the field-exact open-air reduction). `0x4412d0`/
+     `0x440e40` are ENTITY-vs-entity, also chip 3.
+   So "ground actors stop clipping terrain" lands WITH Arche (chip 3), where the mover gets
+   its first live caller.
 3. **Controllable Arche** — the party-leader band `0x4997b0` (see
    `plans/party-character-system.md`) + DirectInput → the `0xc35a` case in `0x47b990` →
    walk/run/jump physics. The milestone.

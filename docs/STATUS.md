@@ -33,9 +33,31 @@ understates how much actual instruction volume is ported.
 ## Current front
 
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
-  (butterflies ✓ → tile collision → controllable Arche → freeroam). Milestone map: `ROADMAP.md`;
-  active arc: `plans/movement-system.md`. Mechanical render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 110): PHASE-4 chip 1 LANDED — the butterfly OPEN-AIR PATROL MOTION is PORTED +
+  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche → freeroam). Milestone map:
+  `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
+- **LATEST (ckpt 111): PHASE-4 chip 2 (TILE COLLISION) — the READ-SIDE CORE is PORTED + host-tested.
+  946 pass (+6).** The chip RE-SCOPED on a discovery: the town's collision GRID is **already built**
+  by `map_decode.c` (the `0x587e00` town arms deposit region B class/slope + C slope-type + D flag
+  per cell, on the proven-1:1 render path) — "port the grid" was moot.
+  1. **`src/collision.{c,h}` (NEW) — `collision_move_vertical` = `FUN_0054e990`**, the VERTICAL
+     tile-grid mover (gravity/ground/ceiling clamp). FAITHFUL + PURE over (grid, body box, delta)
+     — its `in_ECX` is the GRID, not the actor. Sweeps world-Y in ≤100 steps, scans the X-extent
+     vs region-B class (10=wall, 1=slope-surface w/ the verbatim `d==0` contact predicate), clamps.
+     Slopes via a caller callback (region-B `+0x8` = exe VA `0x5cc410`/`0x5cc430`) — town flat so
+     unused → PORT-DEBT(collision-slopes).
+  2. **`map_grid` read accessors** (`map_grid_obj_*`/`map_grid_flag`, region B `0x140030` / D
+     `0x2c1040`; `idx=col*0x80+row`) + **`test_collision.c` (6 tests, exact clamps hand-derived):**
+     drop→floor (15000), open-air (20000), off-axis wall, ceiling (9600), zero-delta, slope-cb.
+  3. **DEFERRED → chip 3** (need a live grounded actor; probes are actor-entangled; user accepted
+     "host-tested only, live payoff at Arche"): the AI probes `0x441ae0`/`0x47dbb0`; the integrator
+     generalization (butterfly apply STAYS the field-exact open-air reduction); `0x4412d0`/`0x440e40`
+     = ENTITY-vs-entity (corrects the plan's "tile grid" label).
+  4. **NEXT — chip 3 (controllable Arche):** party band `0x4997b0` + DirectInput → the `0xc35a` case
+     → walk/run/jump, giving the mover+probes their first LIVE caller. **OPEN (USER):** butterfly
+     chip-1 drift visual-verify pushed (trace-studio `intro-1` ~frame 1580-1670 + feed montage) —
+     field-exact per `compare.py`, not yet USER-confirmed on screen. Incidental:
+     PORT-DEBT(effect-color-variant) (the INN townsgirl renders the wrong colour variant).
+- **Prior (ckpt 110): PHASE-4 chip 1 LANDED — the butterfly OPEN-AIR PATROL MOTION is PORTED +
   FIELD-EXACT. The 4 butterflies now drift left↔right 1:1 (heading/facing field-exact); the RNG
   stream stays bit-exact. (940 pass, +1.)** `src/butterfly.{c,h}` grew from the ckpt-98 RNG-consumer
   stub to the full open-air FSM; `main.c` apply-wires it into the rendered EFFECT actors. Validated
