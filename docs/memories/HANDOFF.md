@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 113, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 114, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,66 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 113
+## Where we are — ckpt 114
+
+**PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position architecture is fully
+RE'd. Pure ground-truth (no port code). 954 host pass (unchanged).**  Method: with the ckpt-113
+held-axis harness driving the walk, `--call-trace` the integrator `0x442a70` over the walk window
+with arg/this field reads and filter to Arche (`in_ECX+0x1d4==0xc35a`; in_ECX IS the ~90 KB
+entity).  Artifacts: `runs/mover-caller/` (`find_mover.py` + the `cap/.../call_trace.jsonl`),
+field-spec `tools/flow/freeroam_mover_fields.json`.  Full writeup: **engine-quirk #101 final
+bullet** (amended); plan `plans/movement-system.md` chip 3.
+
+**The architecture (TWO layers, BOTH shared with the existing actor system — the big result):**
+freeroam character movement mirrors the butterfly exactly, but on the CHARACTER band and with the
+FULL integrator.
+- **AI / intent: `FUN_00478ba0`** — the RNG-free character update (the SAME fn townsfolk use; the
+  counterpart of the butterfly's `0x47b990`).  Called `0x478ba0(body)` with `ECX=entity`.  Reads
+  the HELD AXIS at `*(entity+0x158a4)` (= the input manager) `+0x114`=UP `+0x118`=DOWN `+0x11c`=LEFT
+  `+0x120`=RIGHT (quirk #41 confirmed) + action buttons (`+0x124/+0x128`) + the keybind config
+  `*DAT_008a6e80`.  SAVES+CLEARS then rebuilds the **command block `entity+0x14854`** (8 ints):
+  **LEFT→`[0]`=1 (walk)/5 (run), RIGHT→2/6, DOWN→`[3]=+0x14860`=10, UP→`[3]`=0xb**, jump/action
+  →`[2]=+0x1485c`=7/9, `[4]=+0x14864`=0xe/0xf.  Walk-vs-run gated by a speed-mode `entity+0x158a0`
+  (`<2`→thr 10, `==2`→thr 0x50) + the run modifier `*(*0x8a6e80+0x510)==2`.  Also runs a 4-step
+  collision LOOK-AHEAD via `0x442a70` into TWO STACK scratch bodies (`0x1a0270`/`0x1a0504`, both
+  `<0x400000` — the 488+488 "shadow" calls, NOT the commit).  Explicit `0xc35a` special-casing
+  (`478ba0.c:337,463`).  Uses `GetTickCount` for TAP auto-repeat (`0x479ca0`/`0x479960`/`0x47a7f0`);
+  HELD walking reads the axis flag directly → no wall-clock dependence (a determinism win).
+- **APPLY / commit: `FUN_00485fc0+0x96e` → `FUN_00442a70`** — the EFFECT/apply band pass (the SAME
+  one that integrates the butterflies, `0x46cd70:71`).  `485fc0.c:348`:
+  `FUN_00442a70(in_ECX+0x5215, iVar6, iVar6, 0, 0)` where `in_ECX+0x5215` (int*) = byte `+0x14854`
+  (the command block) and `iVar6=in_ECX[0x10]`=`*(entity+0x40)`=the REAL body — an IN-PLACE
+  integrate (param_2==param_3==body), gated `local_2c==0`.  The ONLY fn that commits Arche's
+  real-body (`0xe637b80`) position (244 calls; `body_wx==new_wx`, tracking the walk
+  **19200→40800→44280→24120**, facing 1=right→3=left).
+
+**The observed position law (the bit-exact target outline; nail it during the port):** vel
+`body+0x18` = 0 the WHOLE walk ⇒ a **direct position write**, NOT velocity-integrated.  The per-tick
+displacement accelerates from rest (Δwx ramps **+16/tick**: 64, 80, 96, … ) to a **~+240 cap**, then
+decelerates to a stop on release; facing flips 1↔3 with the travel direction.
+
+**This RECONCILES quirk #101 finding #3** (ckpt 112's "separate party-leader path, candidates
+`0x405e80`/`0x406210`/`0x40c380`"): Arche's AI is indeed not `0x47b990` — it's `0x478ba0` — but the
+APPLY is the shared band pass, so `0x46cd70` DOES reach her (as an active band actor), it just never
+reads the party array `+0x4030`.  The candidate guesses are superseded.
+
+**NEXT (chip 3, in order):**
+1. **Trace the CALLER** of `0x478ba0`/`0x485fc0` for `0xc35a` (`--call-trace` their `ret_va`): is
+   Arche processed as a `0x46cd70` band slot in freeroam, or via the party path `0x4997b0`?  This
+   tells the port where to invoke the character AI+apply for the leader.
+2. **RE the run/jump scancodes** (the `0x8a6e80` keybind defaults; jump is an action button at
+   inputmgr `+0x124`/`+0x128`, cmd `[4]=0xe`) → extend the held-trace walk to capture **run + jump**
+   per-tick.  The `freeroam_arche_fields.json` body spec already reads her independent of the mover →
+   the bit-exact target for the whole moveset.
+3. **PORT** — the `0x478ba0` character AI (held-axis→command block) + the FULL `0x442a70` integrator
+   (the port has only the open-air butterfly reduction; chip 2's `collision_move_vertical` +
+   probes get their first LIVE caller here) → validate "Arche walks + stops at terrain" field-exact.
+
+**USER-CONFIRMED (ckpt 113):** the walk is verified on screen.  **OPEN (USER):** butterfly chip-1
+drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).  Debt unchanged:
+PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 113
 
 **PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS is landed + LIVE-VALIDATED: Arche WALKS in
 retail freeroam. The chip-3 ground-truth blocker (quirk #101 finding #4) is CLOSED. 954 host pass

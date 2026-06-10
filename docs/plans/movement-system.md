@@ -153,19 +153,30 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
    - **The leader `room_state+0x200c` is PERSISTENT (Arche since new-game), not cutscene-set;**
      the transfer flips a per-actor controllable flag (`entity+0x200=1` via `0x41e070`/`0x4c6830`).
      `0x4997b0` (leader render) is real, but the leader is already Arche.
-   - **Arche's freeroam mover is NOT `0x47b990`** (it fired only for the townsfolk 0xc3dc/0xc440;
-     `0x46cd70` never walks the party) — a SEPARATE party-leader update path (candidates that read
-     the leader body: `0x405e80`/`0x406210`/`0x40c380`). The `0xc35a` case in `0x47b990` is the
-     CUTSCENE-actor behaviour, NOT the freeroam mover. **This corrects the original chip-3 framing.**
+   - **Arche's freeroam mover is NOT `0x47b990`** (it fired only for the townsfolk 0xc3dc/0xc440).
+     The `0xc35a` case in `0x47b990` is the CUTSCENE-actor behaviour, NOT the freeroam mover.
    - **Freeroam movement reads the HELD-AXIS array `input-mgr+0x114` (quirk #41), not the event
      ring** — the harness's `--input-trace` ring injection drives menus + dialogue-advance but NOT
-     held walking (injected dir ids leave Arche idle). **Blocker: the harness needs a HELD-AXIS
-     injection mode.**
-   - **NEXT (in order):** (a) add held-axis injection to the harness; (b) pin Arche's freeroam
-     mover (`mem_watch` her worldX writer once she walks); (c) capture walk/run/jump per-tick (the
-     leader-chain body spec `tools/flow/freeroam_arche_fields.json` reads her body independent of
-     the mover) → bit-exact target; (d) PORT the party-leader update + input + wire the chip-2
-     mover/probes (their first LIVE caller) → validate "Arche stops at terrain" field-exact.
+     held walking (injected dir ids leave Arche idle).
+   - **RESOLVED (ckpt 113 harness + ckpt 114 mover):** (a) the held-axis injection harness landed
+     (`src/held_trace.{c,h}` + the agent leaf-hook `0x5ba520`; Arche WALKS, ckpt 113). (b) The
+     mover is PINNED by call-tracing `0x442a70` over the walk (`runs/mover-caller`, quirk #101 final
+     bullet): freeroam movement is **TWO layers, both shared with the actor system** —
+     **AI `FUN_00478ba0`** (the RNG-free character update, townsfolk-shared, counterpart of the
+     butterfly's `0x47b990`) reads the held axis at `*(entity+0x158a4)+0x114/118/11c/120` (U/D/L/R)
+     and builds the command block **`entity+0x14854`** (LEFT→`[0]`=1/5, RIGHT→2/6, DOWN→`[3]`=10,
+     UP→`[3]`=0xb; walk/run via speed-mode `entity+0x158a0`); **APPLY `FUN_00485fc0+0x96e`→
+     `FUN_00442a70(cmd,body,body,0,0)`** integrates it in-place on the real body — the SAME apply
+     pass the butterflies use (`0x46cd70:71`).  vel `body+0x18`=0 ⇒ direct position write; the
+     per-tick step accelerates +16/tick → ~+240 cap.  So chip 3's port = the `0x478ba0` character
+     AI (input→command) + the FULL `0x442a70` integrator (the port has only the butterfly open-air
+     reduction).  Supersedes the `0x405e80`/`0x406210`/`0x40c380` candidate guesses.
+   - **NEXT (in order):** (c) RE the run/jump scancodes (the `0x8a6e80` keybind defaults) →
+     capture walk/run/jump per-tick (the body spec `tools/flow/freeroam_arche_fields.json` reads her
+     independent of the mover) → bit-exact target; trace the CALLER of `0x478ba0`/`0x485fc0` for
+     `0xc35a` (band slot vs party path `0x4997b0`); (d) PORT the `0x478ba0` AI + the full `0x442a70`
+     integrator + wire the chip-2 collision mover/probes (their first LIVE caller) → validate
+     "Arche walks + stops at terrain" field-exact.
 4. **Freeroam** — REACHED in retail (ckpt 112). Remaining for the PORT side: finish the cutscene
    (dialogue chip 4, `plans/dialogue-cutscene.md`) → the control hand-off → a NEW trace-studio
    session (the USER's "house freeroam" directive). The port reaches the dialogue but not yet the

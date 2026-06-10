@@ -3150,7 +3150,7 @@ against trace-studio `intro-1`:
   (Field spec: the `0x499ab0` `ovl_*`/`r40..r80` chain fields dump the whole
   object; `runs/r6-grid` is the seed-pinned reveal-window ground truth.)
 
-### #101 — the town arrival → HOUSE FREEROAM transition: freeroam is reachable by advancing the dialogue (no map reload), the party leader is PERSISTENT (not cutscene-set), Arche's freeroam mover is NOT `0x47b990`, and movement reads the HELD-AXIS array — not the event ring (2026-06-10, ckpt 112)
+### #101 — the town arrival → HOUSE FREEROAM transition: freeroam is reachable by advancing the dialogue (no map reload), the party leader is PERSISTENT (not cutscene-set), Arche's freeroam mover is NOT `0x47b990`, and movement reads the HELD-AXIS array — not the event ring (2026-06-10, ckpt 112; **mover RESOLVED ckpt 114 → AI `0x478ba0` + apply `0x485fc0`→`0x442a70`, see final bullet**)
 
 Ground-truthed by driving retail past the whole town-arrival cutscene under
 `--seed-pin --lockstep --no-turbo`, spamming Z (the ring `0x24` confirm) every
@@ -3193,3 +3193,52 @@ transfers to the player INSIDE the inn (`runs/freeroam-gt`).
   `0x43bca0`/`0x448cb0`/`0x44e730`/`0x44b160`/`0x4539b0`/…).  ⇒ to ground-truth
   / validate the walk, the harness needs a HELD-AXIS injection mode (the
   current `--input-trace` only fills the discrete ring).
+
+- **RESOLVED (ckpt 114) — the freeroam character-movement architecture is TWO
+  LAYERS, both shared with the existing actor system; finding #3's candidate
+  list is superseded.**  Method: with the ckpt-113 held-axis harness driving the
+  walk (`runs/freeroam-walk`), `--call-trace` the integrator `0x442a70` over the
+  walk window with arg/this field reads (`tools/flow/freeroam_mover_fields.json`)
+  and filter to Arche by `in_ECX+0x1d4==0xc35a` (in_ECX IS the ~90 KB entity) +
+  her real heap body (`0xe637b80`, the param_3 whose `body_wx` tracks the leader
+  chain).  Artifacts: `runs/mover-caller/{cap,find_mover.py}`.
+  - **AI / intent: `FUN_00478ba0`** (the RNG-free character-band update — the
+    SAME fn townsfolk use, the counterpart of the butterfly's `0x47b990`).  It is
+    invoked `0x478ba0(body)` with `ECX=entity`; reads the held axis at
+    `*(entity+0x158a4)` (= the input manager) `+0x114`=UP `+0x118`=DOWN
+    `+0x11c`=LEFT `+0x120`=RIGHT (quirk #41 confirmed), plus action buttons
+    (`+0x124`/`+0x128`) and the keybind config `*DAT_008a6e80`.  It SAVES+CLEARS
+    then rebuilds the per-actor **command block `entity+0x14854`** (8 ints):
+    LEFT→`[0]=+0x14854`=1 (walk) / 5 (run), RIGHT→2 / 6, DOWN→`[3]=+0x14860`=10,
+    UP→`[3]`=0xb, jump/action→`[2]=+0x1485c`=7/9, `[4]=+0x14864`=0xe/0xf.  Walk vs
+    run is gated by a speed-mode `entity+0x158a0` (`<2`→thr 10, `==2`→thr 0x50)
+    and the run-modifier `*(*0x8a6e80+0x510)==2`.  It also runs a **4-step
+    collision LOOK-AHEAD** — `0x442a70(local_cmd, src, dst, 2, step)` into TWO
+    STACK scratch bodies (`0x1a0270`/`0x1a0504`, both `<0x400000`), tested by
+    `0x440f40`, to set the blocked flag — these are the 488+488 shadow calls, NOT
+    the position commit.  Explicit `0xc35a` special-casing at `478ba0.c:337,463`.
+    Uses `GetTickCount` for TAP auto-repeat (`0x479ca0`/`0x479960`/`0x47a7f0`);
+    HELD walking reads the axis flag directly, so it does not depend on the
+    wall-clock repeat (a determinism win for the port).
+  - **APPLY / commit: `FUN_00485fc0+0x96e` → `FUN_00442a70`** — the EFFECT/apply
+    band pass (the SAME one that integrates the butterflies, `0x46cd70:71`).
+    `485fc0.c:348`: `FUN_00442a70(in_ECX+0x5215, iVar6, iVar6, 0, 0)` where
+    `in_ECX+0x5215` (int*) = byte `+0x14854` (the command block above) and
+    `iVar6=in_ECX[0x10]`=`*(entity+0x40)`=the REAL body — an IN-PLACE integrate
+    (param_2==param_3==body), gated `local_2c==0`.  This is the ONLY fn that
+    commits Arche's real-body position (244 calls; `body_wx==new_wx`, tracking the
+    walk **19200→40800→44280→24120**, facing 1=right→3=left).  vel `body+0x18`
+    stays 0 the whole walk ⇒ the move is a **direct position write**, not
+    velocity-integrated; the observed per-tick step accelerates from rest
+    (Δwx ramps +16/tick: 64,80,96,… ) to a ~+240 cap.
+  - So freeroam character movement = **AI `0x478ba0` (input→command `+0x14854`) +
+    APPLY `0x485fc0`→`0x442a70` (command→position)** — structurally identical to
+    the butterfly (`0x47b990`+`0x485fc0`), but the CHARACTER band and the FULL
+    `0x442a70` integrator (the port currently has only the open-air butterfly
+    reduction).  This RECONCILES finding #3: Arche's AI is indeed not `0x47b990`
+    (it's `0x478ba0`), but the apply IS the shared band pass — so `0x46cd70` does
+    reach her (as an active band actor), it just never reads the party array
+    `+0x4030`.  **Open thread:** the CALLER of `0x478ba0`/`0x485fc0` for `0xc35a`
+    (band slot vs the party path `0x4997b0`) is the next `ret_va` trace; and the
+    run/jump scancodes (the `0x8a6e80` keybind defaults) are needed to capture
+    run+jump per-tick.

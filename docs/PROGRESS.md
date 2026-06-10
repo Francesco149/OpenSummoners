@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 114) — PHASE-4 chip 3: Arche's FREEROAM MOVER pinned — input→position is AI `0x478ba0` + apply `0x485fc0`→`0x442a70` (pure RE)
+
+With the ckpt-113 held-axis harness driving the walk, `--call-trace`'d the kinematic integrator
+`0x442a70` over the walk window with arg/`this` field reads (`tools/flow/freeroam_mover_fields.json`)
+and filtered to Arche (`in_ECX+0x1d4==0xc35a` — in_ECX IS the ~90 KB entity).  Every call-trace row
+carries `ret_va` (the caller), so this names the mover directly.  Artifacts: `runs/mover-caller/`
+(`find_mover.py` + the capture); no port code, 954 host pass unchanged.
+
+The result: freeroam character movement is **TWO layers, both shared with the existing actor
+system** — structurally identical to the butterfly, but on the CHARACTER band and with the FULL
+integrator.  **AI `FUN_00478ba0`** (the RNG-free character update townsfolk share; counterpart of
+the butterfly's `0x47b990`) reads the held axis at `*(entity+0x158a4)+0x114/118/11c/120` (U/D/L/R,
+quirk #41 confirmed) and builds the command block `entity+0x14854` (LEFT→`[0]`=1/5, RIGHT→2/6,
+DOWN→`[3]`=10, UP→`[3]`=0xb; walk/run via speed-mode `entity+0x158a0`), plus a 4-step collision
+look-ahead into STACK scratch (the "shadow" `0x442a70` calls).  **APPLY `FUN_00485fc0+0x96e`**
+(`485fc0.c:348`: `FUN_00442a70(in_ECX+0x5215=cmd, body, body, 0,0)`, in-place on `*(entity+0x40)`,
+gated `local_2c==0`) is the ONLY committer of Arche's real-body (`0xe637b80`) position — 244 calls,
+`body_wx==new_wx`, tracking the walk **19200→40800→44280→24120**, facing 1=right→3=left.  vel
+`body+0x18`=0 ⇒ a direct position write; the per-tick step accelerates +16/tick → a ~+240 cap.
+
+This **reconciles engine-quirk #101 finding #3** (ckpt 112's "separate party-leader path, candidates
+`0x405e80`/`0x406210`/`0x40c380`"): Arche's AI is indeed not `0x47b990` — it's `0x478ba0` — but the
+apply IS the shared band pass, so `0x46cd70` reaches her as an active band actor (it just never reads
+the party array `+0x4030`).  The candidate guesses are superseded.  Writeup: engine-quirk #101 final
+bullet (amended); plan `plans/movement-system.md` chip 3.  NEXT: trace the caller of
+`0x478ba0`/`0x485fc0` for `0xc35a` (band slot vs party path `0x4997b0`); RE the run/jump scancodes
+(`0x8a6e80` keybind defaults) → capture run+jump per-tick; then PORT the `0x478ba0` AI + the full
+`0x442a70` integrator.
+
 ## 2026-06-10 (ckpt 113) — PHASE-4 chip 3: the HELD-AXIS INJECTION HARNESS — Arche WALKS in retail freeroam (the chip-3 blocker closed)
 
 The ckpt-112 ground-truth found that the freeroam mover reads the HELD-AXIS array

@@ -8,9 +8,38 @@
 <!-- FRONT:BEGIN -->
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
-  held-axis harness ✓ → pin mover → port). Milestone map: `ROADMAP.md`; active arc:
+  held-axis harness ✓ → pin mover ✓ → port). Milestone map: `ROADMAP.md`; active arc:
   `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 113): PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS landed + LIVE-VALIDATED:
+- **LATEST (ckpt 114): PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position
+  architecture is fully RE'd. Pure ground-truth, no port code. 954 pass (unchanged).** Method:
+  with the ckpt-113 held-axis harness driving the walk, `--call-trace` the integrator `0x442a70`
+  over the walk window with arg/this field reads (`tools/flow/freeroam_mover_fields.json`) and
+  filter to Arche (`in_ECX+0x1d4==0xc35a`; in_ECX IS the ~90 KB entity). Artifacts:
+  `runs/mover-caller/` (`find_mover.py`). Writeup: **engine-quirk #101 final bullet**.
+  1. **The architecture is TWO LAYERS, both SHARED with the actor system — mirrors the butterfly
+     exactly, but the CHARACTER band + the FULL integrator.** AI `FUN_00478ba0` (held-axis →
+     command block) + APPLY `FUN_00485fc0+0x96e`→`FUN_00442a70` (command → in-place position).
+  2. **AI `0x478ba0`** (the RNG-free character update townsfolk share; counterpart of the
+     butterfly's `0x47b990`): reads the held axis at `*(entity+0x158a4)+0x114/118/11c/120`
+     (U/D/L/R, quirk #41 confirmed) → builds the **command block `entity+0x14854`**: LEFT→`[0]`=1
+     (walk)/5 (run), RIGHT→2/6, DOWN→`[3]`=10, UP→`[3]`=0xb (walk/run via speed-mode
+     `entity+0x158a0`). Also a 4-step collision LOOK-AHEAD into STACK scratch (the "shadow" calls).
+     Explicit `0xc35a` special-casing. HELD walking reads the axis flag directly (no GetTickCount
+     repeat dependence = a determinism win).
+  3. **APPLY `0x485fc0+0x96e`** (the SAME pass that integrates the butterflies, `0x46cd70:71`):
+     `FUN_00442a70(in_ECX+0x5215=cmd +0x14854, body, body, 0,0)` in-place on the REAL body — the
+     ONLY committer of Arche's position (244 calls; `body_wx==new_wx`, tracking the walk
+     **19200→40800→44280→24120**, facing 1=right→3=left). vel `body+0x18`=0 ⇒ direct position
+     write; the per-tick step accelerates +16/tick → ~+240 cap. **Reconciles quirk #101 finding
+     #3** (the `0x405e80`/… candidate guesses are superseded; `0x46cd70` DOES reach her as a band
+     actor, just never via the party array).
+  4. **NEXT (chip 3):** (a) trace the CALLER of `0x478ba0`/`0x485fc0` for `0xc35a` (band slot vs
+     party path `0x4997b0`); (b) RE the run/jump scancodes (`0x8a6e80` keybind defaults) → capture
+     walk/run/jump per-tick = bit-exact target; (c) PORT the `0x478ba0` AI + the FULL `0x442a70`
+     integrator (chip-2 collision mover/probes get their first LIVE caller). **OPEN (USER):**
+     butterfly chip-1 drift visual-verify still pending. Debt unchanged: PORT-DEBT(held-axis-array-b),
+     PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 113): PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS landed + LIVE-VALIDATED:
   Arche WALKS in retail freeroam. The chip-3 blocker (quirk #101 finding #4) is CLOSED. 954 pass
   (+8).** The freeroam mover reads the held-axis array (`input-mgr+0x114`), NOT the event ring, so
   `--input-trace` left Arche idle. RE'd the producer `0x46a880` (fills `+0x114` each frame from the

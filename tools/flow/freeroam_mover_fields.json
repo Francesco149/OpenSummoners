@@ -1,0 +1,27 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (Phase-4 chip 3, ckpt 114). Finds the FREEROAM MOVER = the CALLER of the kinematic-commit integrator FUN_00442a70 that updates Arche's body in freeroam. Every --call-trace row carries ret_va (the caller's Ghidra VA) automatically, so hooking 0x442a70 over the walk window and filtering to Arche's calls names the mover. SIGNATURE (decompile 442a70.c:7): FUN_00442a70(int *param_1=cmd, int *param_2=src_state, undefined1 *param_3=DEST BODY, p4, p5) + int *in_ECX (huge offsets in_ECX[0x5653]=+0x1594c => in_ECX is the ~90KB ENTITY itself). The handoff-trapped wx write 0x442a70+0x2f = *(param_3+4)=param_2[1] (442a70.c:51), so param_3 (Frida args[2]) is the dest body, param_2 (args[1]) the precomputed source state. IDENTIFY Arche's calls two ways: (A) ecx_code = in_ECX+0x1d4 -- IF ecx is the entity this reads 0xc35a for Arche (decisive direct filter); (B) cross-ref body_wx (param_3+4 at onEnter = current worldX) against arche_body.wx per frame, then the body pointer pins the rest. The ret_va on Arche's real-body calls = the freeroam mover to RE + port. Probe/collision calls use a TEMP body (param_3 != Arche's real body) and filter out by body ptr / wx. RUN: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/freeroam-walk/trace-nav.jsonl --held-trace runs/freeroam-walk/walk-held.jsonl --field-spec tools/flow/freeroam_mover_fields.json --field-spec-only --call-trace --call-trace-frames <4540..5040> --run-dir runs/mover-caller/cap.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_body",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's body: room_state(0x8a9b50+0x2784) -> +0x200c leader-slot -> +0x9f4 entity -> +0x40 body. Per-frame Arche ground truth for the body-wx cross-ref.",
+      "fields": [
+        {"name": "code",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468, "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
+        {"name": "wx",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,   "type": "i32", "reason": "body+4 worldX"},
+        {"name": "vel",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 24,  "type": "i32", "reason": "body+0x18 velocity"},
+        {"name": "facing", "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 44,  "type": "i32", "reason": "body+0x2c facing 1/3"}
+      ]
+    },
+    "0x442a70": {
+      "name": "kin_commit",
+      "_note": "FUN_00442a70 kinematic COMMIT / integrator (the apply pass; handoff ckpt 113 pinned its +0x2f as Arche's wx writer, 90%). __thiscall-hybrid: in_ECX = the entity, stack args param_1..5. ret_va (AUTO on every row) = the CALLER = the per-actor update path we're hunting. param_3 = args[2] = dest body. Filter offline to Arche (ecx_code==0xc35a OR body_wx tracks arche_body.wx); the ret_va on those rows is the freeroam mover.",
+      "fields": [
+        {"name": "ecx_code", "src": "thisderef", "off": 468,   "type": "hex", "reason": "in_ECX+0x1d4 actor code IF ecx is the entity; 0xc35a == Arche (decisive direct filter, validate it's not garbage)"},
+        {"name": "body",     "src": "arg",       "index": 2,    "type": "hex", "reason": "param_3 dest body pointer (stable per-entity identity; temp probe bodies differ)"},
+        {"name": "body_wx",  "src": "argfield",  "index": 2, "off": 4,  "type": "i32", "reason": "param_3+4 current worldX at onEnter (cross-ref arche_body.wx to pin Arche's body)"},
+        {"name": "body_vel", "src": "argfield",  "index": 2, "off": 24, "type": "i32", "reason": "param_3+0x18 velocity"},
+        {"name": "body_fac", "src": "argfield",  "index": 2, "off": 44, "type": "i32", "reason": "param_3+0x2c facing"},
+        {"name": "new_wx",   "src": "argfield",  "index": 1, "off": 4,  "type": "i32", "reason": "param_2[1] the NEW worldX about to be committed = the mover's computed output (proves the caller is the mover)"}
+      ]
+    }
+  }
+}
