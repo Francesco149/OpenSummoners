@@ -72,8 +72,15 @@ typedef struct input_event {
  *   ring[i]      manager + 0xc + i*4 — pointer to the i-th event record.
  *                ring[63] sits at manager+0x108, where retail's poll/scan
  *                pointer starts (both walk it newest-first, high→low).
- *   axis_held[]  manager + 0x114 (11 dwords) — array A; the title menu
- *                reads axis_held[0] (vertical) and axis_held[1] (horizontal).
+ *   axis_held[]  manager + 0x114 (11 dwords) — array A; per-DIRECTION held
+ *                flags written each frame by the input producer 0x46a880
+ *                from the DInput keyboard buffer (leaf query 0x5ba520 =
+ *                keyboard_state[scancode] & 0x80):
+ *                  [0] = UP   (DIK 0xc8)   [2] = LEFT  (0xcb)
+ *                  [1] = DOWN (0xd0)       [3] = RIGHT (0xcd)
+ *                ([4..] are configurable action buttons.)  The title menu reads
+ *                slots 0/1 for vertical auto-repeat; the freeroam character
+ *                mover reads them for held walking (engine-quirk #41/#101).
  *   axis_held_b[] manager + 0x140 (11 dwords) — array B, parallel to A
  *                (semantics not yet recovered; the skip-splash flush zeros
  *                it alongside A).
@@ -83,20 +90,22 @@ typedef struct input_mgr {
     input_event *ring[INPUT_RING_LEN];        /* 0x0c..0x108 — 64 ptrs  */
     int32_t      field_10c;                   /* 0x10c — flushed by skip-splash */
     int32_t      field_110;                   /* 0x110 — flushed by skip-splash */
-    int32_t      axis_held[11];               /* 0x114..0x13f — array A; [0]=V [1]=H */
+    int32_t      axis_held[11];               /* 0x114..0x13f — array A; [0]=UP [1]=DOWN [2]=LEFT [3]=RIGHT */
     int32_t      axis_held_b[11];             /* 0x140..0x16b — array B (parallel)  */
     uint16_t     field_16c;                   /* 0x16c — flushed by skip-splash */
 } input_mgr;
 
-/* axis_held[0] / axis_held[1] are read by the title-menu input dispatch
- * (0x56aea0 default branch, `[in_ECX[1]+0x114]` / `+0x118`) to synthesise an
- * auto-repeat / release event when no discrete nav button was pressed this
- * frame: axis_held[0] (vertical) gates the 6 (held) / 7 (released) menu
- * action, and axis_held[1] (horizontal) gates the 4 (held) / 5 (released)
- * one.  They are the first two slots of the 11-dword array A; the rest of A
- * (and all of the parallel array B at +0x140) are written by the
- * still-black-box producer and zeroed wholesale by the skip-splash flush.
- * Only the poll's ring fields are touched by FUN_0043c110. */
+/* axis_held[0] (UP) / axis_held[1] (DOWN) are read by the title-menu input
+ * dispatch (0x56aea0 default branch, `[in_ECX[1]+0x114]` / `+0x118`) to
+ * synthesise an auto-repeat / release event when no discrete nav button was
+ * pressed this frame: axis_held[0] gates the 6 (held) / 7 (released) menu
+ * action, and axis_held[1] gates the 4 (held) / 5 (released) one — vertical
+ * list auto-repeat off the two vertical directions.  They are the first two of
+ * the four direction slots of array A; the producer 0x46a880 fills all
+ * four (UP/DOWN/LEFT/RIGHT) plus action buttons [4..] each frame from the
+ * DInput keyboard buffer (engine-quirk #41/#101 — no longer a black box), and
+ * the skip-splash flush zeros all of A + parallel array B at +0x140.  Only the
+ * poll's ring fields are touched by FUN_0043c110. */
 
 /* Pin the retail offsets on the real 32-bit build (where pointers are
  * 4 bytes); the 64-bit host build skips these, exactly as zdd.h does —

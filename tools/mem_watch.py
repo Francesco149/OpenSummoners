@@ -256,6 +256,13 @@ def _capture(args, regions: list[dict]) -> None:
             input_trace = fc.parse_input_trace(args.input_trace)
             print(f"[mem_watch] input-trace: {len(input_trace)} entries from "
                   f"{args.input_trace.name}", file=sys.stderr)
+        held_trace = None
+        if getattr(args, "held_trace", None) is not None:
+            if not args.held_trace.exists():
+                raise SystemExit(f"--held-trace: file not found: {args.held_trace}")
+            held_trace = fc.parse_held_trace(args.held_trace)
+            print(f"[mem_watch] held-trace: {len(held_trace)} entries from "
+                  f"{args.held_trace.name}", file=sys.stderr)
         cfg = fc.CaptureConfig(
             exe=drop, cwd=game_dir,
             run_dir=args.run_dir, exact_run_dir=True,
@@ -266,6 +273,7 @@ def _capture(args, regions: list[dict]) -> None:
             hide_window=args.hide_window,
             seed_pin=args.seed_pin,
             input_trace=input_trace,
+            held_trace=held_trace,
             mem_watch=True,
             mem_watch_regions=[{**r, "access": args.access} for r in regions],
             mem_watch_precise=not args.no_precise,
@@ -331,6 +339,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--input-trace", type=Path, default=None,
                     help="drive retail with this input-trace JSONL (needed to "
                          "reach in-game scenes, e.g. the town pan).")
+    ap.add_argument("--held-trace", type=Path, default=None,
+                    help="drive retail with this HELD-AXIS JSONL ({frame,keys}) — "
+                         "held walking the ring can't produce (engine-quirk #41); "
+                         "pair with --input-trace to walk + watch the mover's writes.")
     ap.add_argument("--no-turbo", action="store_true",
                     help="disable turbo (required for live boots that need the "
                          "message pump — engine-quirk #29).")

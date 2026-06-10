@@ -930,10 +930,31 @@ the "press a button to skip the intro" early-out) reveals their real shape: it
 zeroes `+0x114..+0x140` and `+0x140..+0x16c` as **two parallel 11-dword arrays**
 (`mov [eax+0x2c],ebx; mov [eax],ebx; add eax,4` ×11), plus the `+0x16c` half-word
 and the `+0x10c`/`+0x110` dwords.  So `+0x114` is `array_A[0]`, `+0x118` is
-`array_A[1]` — the vertical/horizontal flags are just the first two of eleven
-per-direction(?) entries, and a second array B sits at `+0x140`.  B's semantics
-aren't recovered yet (the flush zeroes it alongside A); the title path only ever
-reads A[0]/A[1].
+`array_A[1]` — the first two of eleven entries, and a second array B sits at
+`+0x140`.  B's semantics aren't recovered yet (the flush zeroes it alongside A);
+the title path only ever reads A[0]/A[1].
+
+**The "per-direction(?)" guess is CONFIRMED, and the array is PER-DIRECTION, not
+[0]=vertical/[1]=horizontal (2026-06-10, ckpt 113).**  The producer
+`FUN_0046a880` (the per-frame input update) fills array A each frame from the
+DInput keyboard buffer via the leaf query `FUN_005ba520` (=
+`keyboard_state[scancode] & 0x80`), one slot per key
+(`FUN_0046a880:1497-1512`):
+
+```
+    axis_held[0] (+0x114) = UP    (DIK 0xc8)    axis_held[2] (+0x11c) = LEFT  (0xcb)
+    axis_held[1] (+0x118) = DOWN  (0xd0)        axis_held[3] (+0x120) = RIGHT (0xcd)
+```
+
+(`[4..]` are configurable action buttons, e.g. `+0x124`/`+0x128` from the
+`DAT_008a6e80` keybind config.)  So the title menu's A[0]/A[1] are UP/DOWN — the
+two **vertical** directions of a vertical list, both auto-repeat (`0x56aea0:482`
+UP→action 6, `:495` DOWN→action 4), NOT a vertical-vs-horizontal pair.  Each slot
+is a held BOOLEAN (literal `1`), rebuilt clear-then-set each frame.  The producer
+is no longer a "black box".  The freeroam character mover reads the same array
+for held walking (quirk #101); the harness drives it by hooking `FUN_005ba520`
+(retail) / writing `axis_held[]` (port) — see `--held-trace` (`held_trace.h`,
+`tools/frida_capture.py`).
 
 The flush also walks the 64-entry ring-pointer table at `+0xc..+0x108` and zeros
 each slot's *id* dword (`*ring[i] = 0`) — a wholesale consume of every pending

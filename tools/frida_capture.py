@@ -204,6 +204,42 @@ def parse_input_trace(path: Path) -> list[dict]:
     return out
 
 
+# DInput keyboard scancodes for the four movement keys the engine's input
+# producer (FUN_0046a880) maps to the axis-held slots; the parser accepts these
+# names or raw scancodes.
+_HELD_DIK = {"up": 0xc8, "down": 0xd0, "left": 0xcb, "right": 0xcd}
+
+
+def parse_held_trace(path: Path) -> list[dict]:
+    """Parse a JSONL HELD-AXIS trace: one {"frame": N, "keys": [..]} per line.
+
+    Each entry SETS the held key-set from that Flip frame on (a LEVEL, persisting
+    until the next entry — the counterpart of the discrete ring trace).  `keys`
+    are DIK scancodes (decimal or `0x`-hex, as JSON numbers or strings) or the
+    names up/down/left/right.  The agent forces FUN_005ba520 to report those
+    scancodes pressed so the real producer fills mgr+0x114 (engine-quirk #41).
+    Tolerates blank lines and `# ...` comments.  Returns a list sorted by frame.
+    """
+    out: list[dict] = []
+    for lineno, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        obj = json.loads(s)
+        frame = int(obj["frame"])
+        keys = []
+        for v in (obj.get("keys") or []):
+            if isinstance(v, str) and v.lower() in _HELD_DIK:
+                keys.append(_HELD_DIK[v.lower()])
+            elif isinstance(v, str):
+                keys.append(int(v, 0) & 0xff)
+            else:
+                keys.append(int(v) & 0xff)
+        out.append({"frame": frame, "keys": keys})
+    out.sort(key=lambda e: e["frame"])
+    return out
+
+
 # ─── capture session ──────────────────────────────────────────────────────
 
 
@@ -290,6 +326,15 @@ class CaptureConfig:
     # that Flip frame.  Replayed into retail's input ring by the agent.
     input_trace:       list[dict] | None = None
     inject_debug:      bool = False
+
+    # ── deterministic HELD-AXIS injection (held walking; engine-quirk #41/#101) ──
+    # held_trace: list of {"frame": int, "keys": [scancode,...]} — each entry SETS
+    # the held key-set from that Flip frame on (a level, not an edge).  The agent
+    # hooks the leaf key-down query FUN_005ba520 and forces those scancodes to
+    # report pressed, so the producer fills the input-manager's axis-held array
+    # (mgr+0x114) exactly as a physical keypress would.  This is what drives the
+    # freeroam character mover; the discrete ring trace (input_trace) does not.
+    held_trace:        list[dict] | None = None
 
     # ── cursor-level probe (parity-ledger R1) ──
     # Hook FUN_0056c470 and log the per-frame level_num retail draws the menu
@@ -549,6 +594,22 @@ def run_capture(cfg: CaptureConfig) -> int:
                   file=sys.stderr)
             summary.setdefault("injects", 0)
             summary["injects"] += 1
+        elif kind == "held":
+            keys = payload.get("keys") or []
+            keys_s = ",".join(f"0x{k:x}" for k in keys) if keys else "(release)"
+            print(f"[frida_capture] held @flip={payload.get('frame')} "
+                  f"keys=[{keys_s}]", file=sys.stderr)
+            summary.setdefault("held_changes", 0)
+            summary["held_changes"] += 1
+        elif kind == "axis":
+            # Read-back of the producer's axis-held array — proves injection
+            # landed in mgr+0x114 (and tracks the live held state at the mover).
+            print(f"[frida_capture] axis @flip={payload.get('frame')} "
+                  f"U={payload.get('up')} D={payload.get('down')} "
+                  f"L={payload.get('left')} R={payload.get('right')}",
+                  file=sys.stderr)
+            summary.setdefault("axis_samples", 0)
+            summary["axis_samples"] += 1
         elif kind == "flip_hook_ready":
             print(f"[frida_capture] flip frame anchor installed "
                   f"(va=0x{payload.get('va', 0):x})", file=sys.stderr)
@@ -819,6 +880,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         "input_inject_enabled": bool(cfg.input_trace),
         "input_trace":        cfg.input_trace or [],
         "inject_debug":       cfg.inject_debug,
+        "held_inject_enabled": bool(cfg.held_trace),
+        "held_trace":         cfg.held_trace or [],
         "cursor_probe":       cfg.cursor_probe,
         "fade_probe":         cfg.fade_probe,
         "pace_probe":         cfg.pace_probe,
@@ -1044,6 +1107,12 @@ def main() -> int:
     p.add_argument("--input-trace", default=None, type=Path,
                    help="JSONL input trace ({\"frame\":N,\"ids\":[..]}) to inject "
                         "into retail's input ring (deterministic replay).")
+    p.add_argument("--held-trace", default=None, type=Path,
+                   help="JSONL HELD-AXIS trace ({\"frame\":N,\"keys\":[..]}) — keys "
+                        "are DIK scancodes or up/down/left/right. Each entry SETS "
+                        "the held key-set from that Flip on (a level); drives held "
+                        "WALKING the discrete ring can't (engine-quirk #41/#101). "
+                        "Composes with --input-trace.")
     p.add_argument("--inject-debug", action="store_true",
                    help="log poll/latch internals in a small window around the "
                         "first scripted press (diagnostics).")
@@ -1200,6 +1269,14 @@ def main() -> int:
         print(f"[frida_capture] input-trace: {len(input_trace)} entries from "
               f"{args.input_trace.name}", file=sys.stderr)
 
+    held_trace = None
+    if args.held_trace is not None:
+        if not args.held_trace.exists():
+            p.error(f"--held-trace: file not found: {args.held_trace}")
+        held_trace = parse_held_trace(args.held_trace)
+        print(f"[frida_capture] held-trace: {len(held_trace)} entries from "
+              f"{args.held_trace.name}", file=sys.stderr)
+
     capture = False
     capture_frames: list[int] | None = None
     if args.capture_frames is not None:
@@ -1235,6 +1312,7 @@ def main() -> int:
         capture           = capture,
         capture_frames    = capture_frames,
         input_trace       = input_trace,
+        held_trace        = held_trace,
         inject_debug      = args.inject_debug,
         cursor_probe      = args.cursor_probe,
         fade_probe        = args.fade_probe,

@@ -33,6 +33,11 @@
  *     (the harness format, tools/frida_capture.py) into the drive's input
  *     ring, keyed on the present/Flip count — drives the title scene
  *     deterministically (skip-splash / menu nav).  No-op without the drive.
+ *   - --held-trace <file.jsonl>: replay a sparse {frame,keys} HELD-AXIS trace
+ *     (held_trace.h) — rebuilds the drive's input_mgr.axis_held[] each frame so
+ *     held WALKING replays deterministically (the level counterpart of the ring
+ *     presses; the freeroam mover / title auto-repeat read it).  Composes with
+ *     --input-trace (ring Z-advance + held walk together).  No-op without the drive.
  *
  * Build: `make -C src` from inside `nix develop`.
  */
@@ -52,6 +57,7 @@
 #include "title_drive.h"
 #include "title_sink.h"       /* title_sink_menu_trace — --menu-trace toggle */
 #include "input_trace.h"
+#include "held_trace.h"
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 #include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
 #include "pixel_drawer.h"     /* pd_boot_init_slots — the alpha-ramp descriptors */
@@ -459,6 +465,15 @@ static struct input_trace g_input_trace;
 static int               g_input_trace_active;
 static uint32_t          g_present_frame;
 
+/* --held-trace <file.jsonl> — port-side deterministic HELD-AXIS replay (the
+ * harness's {frame,keys} level format; held_trace.h).  Rebuilds the drive's
+ * input_mgr.axis_held[] every frame so held WALKING replays deterministically,
+ * the level counterpart of --input-trace's discrete ring presses. */
+static char              g_held_trace_path_buf[1024];
+static const char       *g_held_trace_path;
+static struct held_trace g_held_trace;
+static int               g_held_trace_active;
+
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
 static uint32_t  g_total_ms;
@@ -550,6 +565,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * location is never a mystery. */
     resolve_launch_path(g_input_trace_path_buf, sizeof g_input_trace_path_buf,
                         "--input-trace");
+    resolve_launch_path(g_held_trace_path_buf, sizeof g_held_trace_path_buf,
+                        "--held-trace");
     resolve_launch_path(g_call_trace_path_buf, sizeof g_call_trace_path_buf,
                         "--call-trace");
 
@@ -697,6 +714,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_input_trace_active) {
         input_trace_free(&g_input_trace);
         g_input_trace_active = 0;
+    }
+    if (g_held_trace_active) {
+        held_trace_free(&g_held_trace);
+        g_held_trace_active = 0;
     }
     shutdown_ddraw();
     if (g_sotesd != NULL) {
@@ -1344,6 +1365,17 @@ static void init_title_drive(void)
             input_trace_free(&g_input_trace);
             log_line("init_title_drive: failed to load input trace %s",
                      g_input_trace_path);
+        }
+    }
+    if (g_held_trace_path != NULL) {
+        if (held_trace_load(g_held_trace_path, &g_held_trace)) {
+            g_held_trace_active = 1;
+            log_line("init_title_drive: held trace loaded (%zu entries) from %s",
+                     g_held_trace.count, g_held_trace_path);
+        } else {
+            held_trace_free(&g_held_trace);
+            log_line("init_title_drive: failed to load held trace %s",
+                     g_held_trace_path);
         }
     }
 }
@@ -3010,6 +3042,9 @@ static void main_loop_body(void)
         if (g_input_trace_active)
             input_trace_replay(&g_input_trace, g_present_frame,
                                &g_prologue_drive.input, now);
+        if (g_held_trace_active)
+            held_trace_replay(&g_held_trace, g_present_frame,
+                              &g_prologue_drive.input);
         prologue_status st = prologue_drive_step(&g_prologue_drive, now);
         if (st == PROLOGUE_DONE)
             enter_game();   /* 3rd beat → 0x59ec30(0,0,0x3f2) in-game seam */
@@ -3025,6 +3060,9 @@ static void main_loop_body(void)
         if (g_input_trace_active)
             input_trace_replay(&g_input_trace, g_present_frame,
                                &g_game_drive.input, now);
+        if (g_held_trace_active)
+            held_trace_replay(&g_held_trace, g_present_frame,
+                              &g_game_drive.input);
         (void)game_drive_step(&g_game_drive, now);   /* GAME_RUNNING until ported */
     } else if (g_newgame_active) {
         /* The new-game config scene: one newgame_drive_step per presented frame
@@ -3035,6 +3073,9 @@ static void main_loop_body(void)
         if (g_input_trace_active)
             input_trace_replay(&g_input_trace, g_present_frame,
                                &g_newgame_drive.input, now);
+        if (g_held_trace_active)
+            held_trace_replay(&g_held_trace, g_present_frame,
+                              &g_newgame_drive.input);
         newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
         if (st == NEWGAME_START) {
             newgame_start_save_salt(); /* match retail's save-write RNG advance */
@@ -3066,6 +3107,9 @@ static void main_loop_body(void)
             if (g_input_trace_active)
                 input_trace_replay(&g_input_trace, g_present_frame,
                                    &g_drive.input, now);
+            if (g_held_trace_active)
+                held_trace_replay(&g_held_trace, g_present_frame,
+                                  &g_drive.input);
             unsigned pf_before = g_present_frame;
             title_scene_status st = title_drive_step(&g_drive, now);
             /* R3 intro-pace instrumentation: log each phase transition with the
@@ -3186,6 +3230,19 @@ static void parse_cmdline(LPSTR lpCmdLine)
             strncpy(g_input_trace_path_buf, tok + 14,
                     sizeof(g_input_trace_path_buf) - 1);
             g_input_trace_path = g_input_trace_path_buf;
+        }
+        else if (!strcmp(tok, "--held-trace")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_held_trace_path_buf, tok,
+                        sizeof(g_held_trace_path_buf) - 1);
+                g_held_trace_path = g_held_trace_path_buf;
+            }
+        }
+        else if (!strncmp(tok, "--held-trace=", 13)) {
+            strncpy(g_held_trace_path_buf, tok + 13,
+                    sizeof(g_held_trace_path_buf) - 1);
+            g_held_trace_path = g_held_trace_path_buf;
         }
         else if (!strcmp(tok, "--frames")) {
             tok = strtok(NULL, " \t");

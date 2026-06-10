@@ -428,12 +428,12 @@ void title_menu_input_step(input_mgr *mgr, menu_ctrl *ctrl, uint32_t now,
     if (input_poll_consume(mgr, now, 4))    esi = menu_list_latch(ctrl, 3, now);
     if (input_poll_consume(mgr, now, 1))    esi = menu_list_latch(ctrl, 0, now);
     if (esi == 0) {                                  /* 0x56b871 */
-        uint32_t dir = (mgr->axis_held[0] != 0) ? 6 : 7;   /* +0x114 vertical */
+        uint32_t dir = (mgr->axis_held[0] != 0) ? 6 : 7;   /* +0x114 = UP held */
         esi = menu_list_latch(ctrl, dir, now);
     }
     if (input_poll_consume(mgr, now, 3))    esi = menu_list_latch(ctrl, 1, now);
     if (esi == 0) {                                  /* 0x56b8ab */
-        uint32_t dir = (mgr->axis_held[1] != 0) ? 4 : 5;   /* +0x118 horizontal */
+        uint32_t dir = (mgr->axis_held[1] != 0) ? 4 : 5;   /* +0x118 = DOWN held */
         esi = menu_list_latch(ctrl, dir, now);
     }
     if (input_poll_consume(mgr, now, 0x24)) esi = menu_list_latch(ctrl, 9, now);

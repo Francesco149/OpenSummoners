@@ -826,6 +826,14 @@ struct test_case {
     X(collision_ceiling_blocks_upward)                         \
     X(collision_zero_delta_noop)                               \
     X(collision_slope_callback_invoked)                        \
+    X(held_scancode_slot)                                      \
+    X(held_trace_parse_basic)                                  \
+    X(held_trace_parse_names)                                  \
+    X(held_trace_parse_out_of_order_fails)                     \
+    X(held_trace_parse_malformed_fails)                        \
+    X(held_trace_replay_levels)                                \
+    X(held_trace_replay_catches_up)                            \
+    X(held_trace_replay_guards)                                \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
     X(map_decode_1b58d_shape2_blend)                           \

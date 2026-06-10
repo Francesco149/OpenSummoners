@@ -353,6 +353,37 @@ let g_poll_dbg_hi     = 0;
 let g_gdi_ready       = false;
 let g_gdi = {};                 // resolved GDI/user32 NativeFunctions
 
+// ─── deterministic HELD-AXIS injection ────────────────────────────────────
+//
+// The ring injection above drives discrete events (menu nav, dialogue Z).
+// Held WALKING reads a DIFFERENT path: the per-frame input update FUN_0046a880
+// fills the input-manager's axis-held array (mgr+0x114: UP/DOWN/LEFT/RIGHT in
+// slots 0..3) from the DInput keyboard buffer, via the leaf query FUN_005ba520
+// = keyboard_state[scancode] & 0x80.  The freeroam character mover reads that
+// array (engine-quirk #41/#101) — injecting ring presses leaves the leader idle.
+//
+// We inject by hooking the LEAF query and forcing it to report the held
+// scancodes as pressed: the real producer then fills mgr+0x114 exactly as a
+// physical keypress would.  This is the most faithful + robust point — it
+// covers both the array-mediated mover and any direct-query consumer, and it
+// does not depend on real DInput focus (the hidden window's GetDeviceState
+// yields nothing; we override the query result anyway).
+//
+// Trace schema (one JSON object per line): {"frame": N, "keys": [0xcb]} — SETS
+// the held set to exactly those DIK scancodes from Flip frame N on (a LEVEL,
+// not an edge), persisting until the next entry.  Scancodes: up 0xc8, down
+// 0xd0, left 0xcb, right 0xcd.
+const KEYDOWN_VA          = 0x5ba520;   // FUN_005ba520: keyboard_state[sc] & 0x80
+const INPUT_PRODUCER_VA   = 0x46a880;   // FUN_0046a880: fills axis-held from DInput
+let   g_held_inject_enabled = false;
+let   g_held_trace          = [];       // [{frame, keys:[scancode,...]}] by frame
+let   g_held_i              = 0;        // cursor into g_held_trace
+let   g_held_scancodes      = new Set();// current held scancodes (the level)
+let   g_held_last_flip      = -1;       // last flip the cursor was advanced for
+let   g_held_hooked         = false;
+let   g_held_mgr            = null;     // input-manager (producer's ecx) for read-back
+let   g_axis_last_flip      = -1;       // last flip the axis read-back emitted
+
 // ── cursor-level probe (R1 investigation) ────────────────────────────────
 // Hook the menu-cursor draw wrapper FUN_0056c470 (__thiscall) and log the
 // per-frame level_num it is actually called with.  The port drives this to
@@ -1726,6 +1757,72 @@ function installInputInjection() {
            g_inject_trace.length + ' trace entries)');
 }
 
+// Advance the held-axis cursor to the latest entry at-or-before the current
+// Flip and set g_held_scancodes to its key set (the level).  Once/flip — the
+// leaf query fires many times per frame, so guard on the flip number.
+function heldAdvance() {
+    if (g_flip_frame === g_held_last_flip) return;
+    g_held_last_flip = g_flip_frame;
+    let changed = false;
+    while (g_held_i < g_held_trace.length &&
+           g_flip_frame >= g_held_trace[g_held_i].frame) {
+        g_held_scancodes = new Set(g_held_trace[g_held_i].keys);
+        g_held_i++;
+        changed = true;
+    }
+    if (changed) {
+        send({ kind: 'held', frame: g_flip_frame,
+               keys: Array.from(g_held_scancodes) });
+    }
+}
+
+// Hook the leaf key-down query FUN_005ba520 (__thiscall(scancode); ecx=device)
+// and force its return to 0x80 ("pressed") for any scancode in the current held
+// set.  Un-held scancodes pass through (real value — zero on the hidden window).
+function installHeldAxisInjection() {
+    if (g_held_hooked) return;
+    Interceptor.attach(rva(KEYDOWN_VA), {
+        onEnter: function (args) {
+            heldAdvance();
+            // thiscall: this in ecx, scancode is the first stack arg [esp+4]
+            // (same layout the ring poll reads `now`/`button_id` from).
+            let sc = -1;
+            try { sc = this.context.esp.add(4).readU32() & 0xff; } catch (e) {}
+            this._heldSc = sc;
+        },
+        onLeave: function (retval) {
+            if (g_held_scancodes.size === 0) return;
+            if (this._heldSc >= 0 && g_held_scancodes.has(this._heldSc)) {
+                retval.replace(ptr(0x80));   // keyboard_state high bit = pressed
+            }
+        },
+    });
+    // Read-back diagnostic: hook the producer FUN_0046a880 (ecx = the input
+    // manager) and, on leave (after it has rebuilt the array this frame), emit
+    // the four direction slots when any is set — proves the injection landed in
+    // mgr+0x114 exactly as a physical keypress would, and gives the freeroam
+    // mover work a live axis-state signal.  Once per Flip; quiet when idle.
+    Interceptor.attach(rva(INPUT_PRODUCER_VA), {
+        onEnter: function () { this._mgr = this.context.ecx; g_held_mgr = this._mgr; },
+        onLeave: function () {
+            if (g_axis_last_flip === g_flip_frame) return;
+            g_axis_last_flip = g_flip_frame;
+            try {
+                const m = this._mgr;
+                const a0 = m.add(0x114).readU32(), a1 = m.add(0x118).readU32();
+                const a2 = m.add(0x11c).readU32(), a3 = m.add(0x120).readU32();
+                if ((a0 | a1 | a2 | a3) !== 0) {
+                    send({ kind: 'axis', frame: g_flip_frame,
+                           up: a0, down: a1, left: a2, right: a3 });
+                }
+            } catch (e) {}
+        },
+    });
+    g_held_hooked = true;
+    logmsg('held-axis injection hooked @ FUN_005ba520 + read-back @ FUN_0046a880 (' +
+           g_held_trace.length + ' held entries)');
+}
+
 // Hook the DDraw Flip dispatcher (FUN_005b8fc0) so its entry is the
 // per-frame boundary: flush the batches accumulated during the frame that
 // is ending (tagged with that frame number), THEN bump.  Same
@@ -2971,6 +3068,15 @@ rpc.exports = {
                 g_poll_dbg_hi = last + 3;
             }
         }
+        if (opts.held_inject_enabled && Array.isArray(opts.held_trace)) {
+            g_held_inject_enabled = true;
+            g_held_trace = opts.held_trace
+                .map(function (e) {
+                    return { frame: e.frame | 0,
+                             keys: (e.keys || []).map(function (k) { return k & 0xff; }) };
+                })
+                .sort(function (a, b) { return a.frame - b.frame; });
+        }
 
         withModule(function (mod) {
             g_base = mod.base;
@@ -2993,9 +3099,9 @@ rpc.exports = {
             // Structural-parity harness: frame anchor + call-trace + mem-watch
             // + frame capture + input injection all key off the Flip frame.
             if (g_call_trace_enabled || opts.mem_watch || g_capture_enabled ||
-                g_inject_enabled || g_cursor_probe || g_fade_probe ||
-                g_pace_probe || g_textout_probe || g_box_probe || g_res_probe ||
-                g_parallax_probe || g_lockstep) {
+                g_inject_enabled || g_held_inject_enabled || g_cursor_probe ||
+                g_fade_probe || g_pace_probe || g_textout_probe || g_box_probe ||
+                g_res_probe || g_parallax_probe || g_lockstep) {
                 try { installFlipFrameHook(); } catch (e) { err('install_flip', '' + e); }
                 // The sim-tick anchor (engine-quirk #75): count easer calls so
                 // captures/call-trace can be matched by the deterministic
@@ -3030,14 +3136,15 @@ rpc.exports = {
             // pin) — install whenever we have a flip-frame counter to stamp it,
             // or when seed-pinning is requested.
             if (g_seed_pin || g_capture_enabled || g_pace_probe ||
-                g_fade_probe || g_cursor_probe || g_inject_enabled || g_lockstep) {
+                g_fade_probe || g_cursor_probe || g_inject_enabled ||
+                g_held_inject_enabled || g_lockstep) {
                 try { installSparkleAnchor(); }
                 catch (e) { err('install_sparkle_anchor', '' + e); }
             }
             // Scene-boundary anchors ride the same flip counter as the sparkle
             // anchor; install whenever the flip hook is live.
-            if (g_capture_enabled || g_inject_enabled || g_lockstep ||
-                g_call_trace_enabled) {
+            if (g_capture_enabled || g_inject_enabled || g_held_inject_enabled ||
+                g_lockstep || g_call_trace_enabled) {
                 try { installSceneAnchors(); }
                 catch (e) { err('install_scene_anchors', '' + e); }
                 // The town SPAWN RNG re-pin (ckpt 86) — armed by the game_enter
@@ -3072,6 +3179,10 @@ rpc.exports = {
             if (g_inject_enabled) {
                 try { installInputInjection(); }
                 catch (e) { err('install_inject', '' + e); }
+            }
+            if (g_held_inject_enabled) {
+                try { installHeldAxisInjection(); }
+                catch (e) { err('install_held_inject', '' + e); }
             }
             if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
                 try { installCallTraceHooks(g_call_trace_vas); }
