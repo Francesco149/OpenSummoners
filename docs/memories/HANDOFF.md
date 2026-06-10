@@ -43,10 +43,20 @@ speed-mode `+0x158a0`, facing) — names the next flow_diff on the freeroam move
 `character_step` into `game_actor_update`.
 
 **NEXT (chip 3, in order):**
-1. **RE the run/jump scancodes** (`0x8a6e80` keybind defaults) → extend the held-trace capture to
-   **run + jump** per-tick (the `freeroam_arche_fields.json` body spec already reads her independent of
-   the mover) → port the run cap/accel + the jump vertical integrator (the `0x442a70` case-3 flap
-   sub-FSM, shared with PORT-DEBT(butterfly-flutter)) → clears PORT-DEBT(char-run-jump).
+1. **chip-3b run/jump — RE LANDED (ckpt 115, engine-quirk #102), the TRIGGER is the open gap.** The
+   action-input map is RE'd + the live keybind scancodes read (`runs/runjump-gt`, the throwaway spec
+   `tools/flow/freeroam_runjump_fields.json`): the producer `0x46a880` maps slot `+0x128`=`*(*0x8a6e80
+   +0x558)`=**X `0x2d`** (AI→cmd`[4]=0xe`, held>200ms), `+0x124`=`+0x574`=**C `0x2e`** (→cmd`[2]=8`),
+   `+0x12c`=`+0x5c8`=0; run-mode `+0x510`=0; **run = a direction DOUBLE-TAP via the EVENT RING** (`0x478ba0`
+   sets cmd 5/6 on `iVar9=0x479e70(…,id 2|4,…)` = two ring events for the dir action-id within `*0x8a6e80
+   +0xf8`, read off `*(input-mgr+0x158a4)+0xc` via `0x479960`). **BONUS: the capture re-confirmed the
+   chip-3a WALK port byte-for-byte** — the `hvel`(`body+0x28`) column = 1600,3200,…,24000 ramping +1600/tick
+   to the 24000 cap, then −800/tick; `body+0x18`(vertical) + `wy` stay 0/52000 (flat, no jump). **STILL
+   OPEN (don't guess-port):** 3 captures did NOT trigger run (the injected ring double-tap id-4@4561/4563
+   left cmd`[0]`=2 walk, capped at 240) nor a jump arc (X-held@4791-4815 while braking left `wy`/`vvel`=0,
+   cmd`[4]`=0; C@4837 fired cmd`[2]`=8 but no motion). The double-tap WINDOW + the jump button-state
+   requirement (grounded/idle? tap-vs-hold? a different action-id) need deeper RE (read `0x479960`'s exact
+   ring-match + the integrator's jump response) before the run/jump MOTION can be captured + ported.
 2. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the control transfer
    `entity+0x200`) gives `character_step` its first live caller in `game_actor_update` → Arche walks on
    screen, the chip-2 collision mover/probes get a live grounded actor (clears char-collision-mover),

@@ -36,12 +36,19 @@
      PORT-DEBT(char-run-jump), (char-input-autorepeat) (the press→latch warmup constant = the wall-clock
      auto-repeat), (char-walk-tuning) (accel/cap/brake = the captured consts; real source `in_ECX[0x565b/c/e]`),
      (char-collision-mover) (the flat worldX commit + the untested reverse-decel rate).
-  4. **NEXT (chip 3, in order):** (a) RE the run/jump scancodes (`0x8a6e80` keybind defaults) → extend
-     the held-trace capture to **run + jump** per-tick → port (clears char-run-jump). (b) The LIVE wire:
-     the chip-4 freeroam hand-off (dialogue chip 4 → control transfer) gives `character_step` its first
-     live caller in `game_actor_update` → Arche walks on screen + the chip-2 collision mover/probes get a
-     live grounded actor → USER visual-verify. **OPEN (USER):** butterfly chip-1 drift visual-verify still
-     pending. Debt unchanged: PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+  4. **NEXT (chip 3):** (a) **chip-3b RE LANDED (ckpt 115, quirk #102), but the run/jump TRIGGER is an
+     open harness gap.** The action-input map is RE'd + the live scancodes read (`runs/runjump-gt`): jump
+     button = **X `0x2d`** (→ inputmgr `+0x128`, cmd`[4]=0xe`), action = **C `0x2e`** (→ `+0x124`,
+     cmd`[2]=8`), run-mode `+0x510`=0; **run = a direction DOUBLE-TAP via the event ring** (`0x479e70`
+     matches two id-2/4 ring events within `*0x8a6e80+0xf8`). The capture also INDEPENDENTLY re-confirmed
+     the chip-3a walk port byte-for-byte (the `hvel`=`body+0x28` column = 1600..24000). **Still OPEN:** 3
+     captures did NOT trigger run (the injected ring double-tap left cmd`[0]`=2 walk) nor a jump arc (X-held
+     while braking left `wy`/`vvel`=0, cmd`[4]`=0) — the double-tap window + the jump button-state
+     requirement need deeper RE before the motion can be captured + ported (don't guess-port). (b) The LIVE
+     wire: the chip-4 freeroam hand-off gives `character_step` its first live caller → Arche walks on screen
+     + the chip-2 collision mover/probes get a live grounded actor → USER visual-verify. **OPEN (USER):**
+     butterfly chip-1 drift visual-verify still pending. Debt unchanged: PORT-DEBT(held-axis-array-b),
+     PORT-DEBT(effect-color-variant).
 - **Prior (ckpt 114): PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position
   architecture is fully RE'd. Pure ground-truth, no port code. 954 pass (unchanged).** Method:
   with the ckpt-113 held-axis harness driving the walk, `--call-trace` the integrator `0x442a70`

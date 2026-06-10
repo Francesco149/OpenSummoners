@@ -3258,3 +3258,35 @@ transfers to the player INSIDE the inn (`runs/freeroam-gt`).
   - **Open thread:** the run/jump scancodes (the `0x8a6e80` keybind defaults; jump
     is an action button at inputmgr `+0x124`/`+0x128`, cmd `[4]=0xe`) are needed to
     extend the held-trace walk to capture run+jump per-tick.
+
+### #102 — the freeroam ACTION INPUT map: the producer `0x46a880` action-button slots, the live keybind scancodes (X = `0x2d`, C = `0x2e`), and run = a direction DOUBLE-TAP via the event ring (2026-06-11, ckpt 115)
+
+Ground-truth from the chip-3b capture (`runs/runjump-gt`, seed-pinned + lockstep
+held-axis drive to freeroam; live config field-spec read + Arche's per-tick body).
+These are RETAIL facts; the harness side that hasn't cracked the run/jump *trigger*
+is a port note in `FRONT.md`/`HANDOFF.md`, not here.
+
+- **The producer `0x46a880` maps action buttons to the input-manager's action slots**
+  (right after the 4 direction slots `+0x114..+0x120`, `:1515-1538`), each gated by an
+  enable flag and read via the leaf query `0x5ba520(scancode)`:
+  - slot **`+0x128`** = `0x5ba520(*(*0x8a6e80+0x558))`, enable `*(*0x8a6e80+0x548)`.
+  - slot **`+0x124`** = `0x5ba520(*(*0x8a6e80+0x574))`, enable `*(*0x8a6e80+0x564)`.
+  - slot **`+0x12c`** = `0x5ba520(*(*0x8a6e80+0x5c8))`, enable `*(*0x8a6e80+0x5b8)`; also
+    a hardwired `0x5ba520(0xf)` (TAB) → `+0x12c` under one branch.
+- **The live keybind scancodes (read off the running game; there is NO static default —
+  the config god-object `*0x8a6e80` is filled at runtime):**
+  `*(*0x8a6e80+0x558)` = **`0x2d` (DIK X)** → slot `+0x128` (the AI `0x478ba0` reads it
+  for cmd`[4]=0xe`, gated held > 200 ms); `*(*0x8a6e80+0x574)` = **`0x2e` (DIK C)** →
+  slot `+0x124` (AI → cmd`[2]=8`); `*(*0x8a6e80+0x5c8)` = `0` (unbound). The control-scheme
+  mode `*(*0x8a6e80+0x510)` = **`0`** (the normal / double-tap-to-run scheme, not the
+  hold-to-run `==2` scheme).
+- **Run (cmd`[0]`=5/6) is a direction DOUBLE-TAP detected via the EVENT RING, not the held
+  array.** `0x478ba0` sets cmd 5/6 when `(was-running) || (iVar9 != 0)` where `iVar9 =
+  0x479e70(…, action-id 2|4, action-id 2|4, …)` — `0x479e70` matches two ring events for the
+  direction action-id (2=LEFT, 4=RIGHT) within the config window `*(*0x8a6e80+0xf8)`, reading
+  the ring `*(input-mgr+0x158a4)+0xc` via `0x479960`. The held-array walk (chip 3a) is a
+  SEPARATE level path; run layers a ring double-tap on top.
+- **The horizontal velocity accumulator is `body+0x28`** (signed): the capture's `hvel` column
+  re-confirms the chip-3a walk port BYTE-FOR-BYTE — `1600, 3200, …, 24000` ramping +1600/tick
+  to the 24000 cap (dwx = `hvel/100`), then `-800/tick` on release. `body+0x18` (the VERTICAL
+  / jump vel) and `wy` stay 0/52000 the whole flat walk (no vertical motion without a jump).
