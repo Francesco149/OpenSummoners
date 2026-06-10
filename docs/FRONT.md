@@ -26,12 +26,14 @@
      case-for-case identical, aligned from tick 0 — `runs/r7-vel-retail`/`r7-anchor-retail`).
   3. **Annotations added** (the openrecet "annotate as you RE" step): `0x557370` (particle_spawn
      + anchor), `0x453960` (velocity_scatter), `0x5bd550` (blt_alpha) in `retail_fields.json`.
-  4. **Remaining ~560 px (NOT the anchor) = two known debts (USER: visually indistinguishable).**
-     The larger share is the 2 BUTTERFLIES (res `0x3fa`, KEYED blit `0x5b9b70` — missed by the
-     alpha-only particle sweep) frozen IN the box at (484,320)/(532,320) = PORT-DEBT(butterfly-
-     wander, movement FSM `0x43f880`); plus ~3 fountain water particles (lower box 13 port vs 6
-     retail droplets) = PORT-DEBT(fountain-collide, the room collision-grid expiry). USER: "3
-     fountain particles, the rest is butterflies — revisit later + check it stays synced."
+  4. **Remaining ~560 px (NOT the anchor) — USER pinpointed both, visually indistinguishable.**
+     POSITIONS + COUNT are 1:1 (per single flip 27/6 both). The larger share is the 2 BUTTERFLIES
+     (res `0x3fa`, KEYED blit `0x5b9b70` — missed by the alpha-only sweep) frozen in the box =
+     PORT-DEBT(butterfly-wander, movement FSM `0x43f880`); plus ~3 fountain droplets that render
+     too BRIGHT/opaque (retail shows them dim/transparent) = the water FADE alpha, PORT-DEBT(
+     fountain-fade) — index mapping `g_ramp_a[10−sub_phase]` is correct, suspect the group-A
+     blend-descriptor values at mid sub_phases. (`fountain-collide` was a mis-attribution — the
+     "13 vs 6" was a 2-flip doubling artifact; per-flip counts match.) USER: "revisit later."
   5. **NEXT:** (a) `fountain-collide` — port the room collision grid into the particle step →
      the lower-droplet count matches; (b) resolve the anchor 2× (RE `0x557550`/`0x426620`);
      (c) `sky-anchor` — the spec read the sky prop box=3200 too (≠ quirk-#88 "+0xc==0"),

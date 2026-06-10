@@ -218,29 +218,36 @@ fountain-box residual 4286 → ~560 px at stamp-equal tick 30:**
    `abs_tick%3==0→case1 / ==1→case2 / ==2→inline-case0` from tick 0 (verified
    `runs/r7-anchor-retail` + `runs/r7-vel-retail`).
 
-**Remaining ~560 px — TWO separate, known debts (USER-confirmed visually
-indistinguishable, ckpt 107):**
+**Remaining ~560 px — TWO separate causes, USER-confirmed visually
+indistinguishable (ckpt 107; the USER pinpointed both: "positions match 1:1; 3
+fountain particles, the rest is butterflies"):**
 - **The 2 BUTTERFLIES (the larger share) — PORT-DEBT(butterfly-wander).**  res
   `0x3fa` (1018), rendered via the KEYED blit `0x5b9b70` (NOT the `0x5bd550` alpha
   path the particle analysis traced — which is why a droplets-only sweep first
   missed them).  At t30 they sit at (484,320)/(532,320), INSIDE the fountain box;
-  the port FREEZES them (movement FSM `0x43f880` unported) while retail's drift, so
-  they differ.  The USER reads the diff as "~3 fountain particles, the rest is
-  butterflies" — matching this.
-- **~3 fountain water particles — PORT-DEBT(fountain-collide).**  res `0x408`
-  (1032).  The lower/basin box holds 13 port vs 6 retail droplets at t30 (total 27
-  both): retail expires droplets on the collision-grid water hit (`0x46e510:561-586`,
-  `(x,y)/0xc80`), the port's fixed `sub_phase==8` lifetime (~27 ticks) lets them
-  fall lower.  A handful of pixels; the eye picks out ~3.
-Plus minor spray-top halo.  Chimney smoke contributes 0 in-window (letterbox-
-occluded; sky anchor left at 0 — but the `0x557370` spec read the sky prop box =
-3200, contradicting quirk-#88's "+0xc==0", flagged TODO(sky-anchor)).
+  the port FREEZES them (movement FSM `0x43f880` unported) while retail's drift.
+- **~3 fountain water droplets — the FADE ALPHA (NOT position, NOT collision).**
+  res `0x408` (1032).  The USER caught the exact cause: ~3 mid-life droplets render
+  too BRIGHT/opaque in the port (blown-out pink-white) where retail shows them dim
+  (transparent purple over the brick).  **Position + COUNT are 1:1** (per single
+  flip: port 27 full / 6 lower-box == retail 27 / 6 — the earlier "13 vs 6" was a
+  2-flips-per-tick DOUBLING artifact, so `fountain-collide` is NOT observable here
+  and was a mis-attribution).  sub_phase TIMING also matches (positions match).
+  So the residual is the per-sub_phase ALPHA VALUE: the port picks `g_ramp_a[10 −
+  sub_phase]` and the index mapping is verified correct (`DAT_008a92e0` = ramp_a[10]
+  since `0x8a92e0` = `0x8a92b8`+0x28), so the suspect is the GROUP-A blend-descriptor
+  values `g_pd_boot_group_a[~4-8]` (the mid-fade water ramp) or the blend
+  orchestration — a render-lens / descriptor-dump chase (the water ramp was never
+  validated per-index).  TODO(fountain-fade).
+Chimney smoke contributes 0 in-window (letterbox-occluded; sky anchor left at 0 —
+but the `0x557370` spec read the sky prop box = 3200, contradicting quirk-#88's
+"+0xc==0", flagged TODO(sky-anchor)).
 
 **REGRESSION GUARD (USER directive — "check that it stays synced"):** the fountain
-spray is bit-exact-modulo-the-above at stamp-equal t30; re-running `trace_studio
-recapture --only port intro-1` + the fountain-box differ (expect ~560, dominated
-by butterflies) is the watch.  Revisit when `butterfly-wander` (movement FSM) and
-`fountain-collide` (room collision grid) land — the box should then approach 0.
+spray POSITIONS are bit-exact at stamp-equal t30; the watch is `trace_studio
+recapture --only port intro-1` + the fountain-box differ (expect ~560: butterflies
++ the ~3 over-bright droplets).  It should approach 0 when `butterfly-wander`
+(movement FSM) and `fountain-fade` (the mid-sub_phase water-ramp alpha) land.
 
 ### R8 — dialogue typewriter ROW-TRANSITION pauses: the fitted grade model
 ### mis-distributes the row-close pause (net −3 ticks; OPEN, ckpt 105) — and the
