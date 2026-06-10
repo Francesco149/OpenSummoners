@@ -58,10 +58,23 @@ Walk montage pushed to the feed (6 panels showing the position shift).  **Caveat
 body+0x18; the mover writes `wx` directly or holds velocity elsewhere (a lead for pinning the mover).
 
 **NEXT (chip-3 ground-truth, now unblocked):**
-1. **Pin Arche's freeroam MOVER.**  `mem_watch --input-trace trace-nav --held-trace walk-held` with
-   a write-watch on her body `wx` (the address the field-spec chain resolves) → the function that
-   writes it under held input.  Cross-check the leader-body readers (`0x405e80`/`0x406210`/`0x40c380`)
-   + the held-axis readers (`0x43bca0`/`0x448cb0`/`0x44e730`/`0x4539b0`).  That fn is the chip-3 port.
+1. **The wx WRITERS are PINNED (ckpt 113, `runs/mover-pin`, `--hw` watchpoint on her body `wx`,
+   armed flip 4540).**  Two instructions wrote it over the walk (6577 traps):
+   - **`0x442a70+0x2f` (5941, 90%)** — `FUN_00442a70`, the shared kinematic COMMIT/apply (the
+     butterfly-known `0x485fc0`→`0x442a70`).  Its top (`442a70.c:48-58`) copies a source state
+     `param_2` into the body `param_3`: `body+4 = param_2[1]` (wx, the trapped +0x2f write),
+     `+8`=wy, `+0x18 = param_2[6]` (vel).  So `0x442a70` COMMITS a precomputed kinematic state;
+     the MOVER is its **caller** (computes `param_2` from input).  vel(body+0x18)=0 all walk ⇒ her
+     walk is a direct position update (`param_2[1]`=new wx), NOT velocity-integrated.
+   - **`0x54ded0+0x5da` (636, 10%)** — `FUN_0054ded0` (1555 B, called by `0x54db10`), a TILE-GRID
+     COLLISION fn (reads region C/D `in_ECX+0x2c103c`/`+0x2c1038`, `worldX/0xc80` cell index) — the
+     collision clamp on her wx, a sibling of the chip-2-ported `0x54e990`.
+   ⇒ the chip-3 MOVER = the caller of `0x442a70` that handles the party leader (`0xc35a`) and reads
+   the held-axis.  **DO NEXT:** call-trace `0x442a70` with a `ret_va` field over the walk window
+   (`--call-trace`, frames ~4560-4760) → the ret_va names the caller; filter to Arche's body.
+   Candidate callers (xrefs of `0x442a70`): `0x43f880` (move-cmd FSM, butterfly-used), `0x4834f0`,
+   `0x481ac0`, `0x441f50`, `0x4412d0`, `0x478ba0`, … — NOT the EFFECT band (`0x485fc0`, quirk #101).
+   Then read that caller's held-axis read (`+0x114..0x120`) → the input→position law → the port.
 2. **Capture walk/run/jump per-tick** (run = a modifier scancode held + dir; jump = an action button,
    scancode from the `0x8a6e80` keybind config — RE the default).  The `freeroam_arche` body spec
    already reads her independent of the mover → the bit-exact target.

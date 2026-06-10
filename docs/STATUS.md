@@ -57,9 +57,12 @@ understates how much actual instruction volume is ported.
      (facing flips 1→3); the walk anim cycles + decelerates to a stop — vs the ring run's **static
      wx=19200**. The `axis` read-back shows `R=1`/`L=1` in the freeroam array. Walk montage pushed to
      the feed.
-  4. **NEXT (chip-3 ground-truth, NOW UNBLOCKED):** (a) pin Arche's freeroam MOVER — `mem_watch` her
-     `wx` writer under held walk (note: `vel`=body+0x18 reads **0** while she moves, so the mover
-     writes `wx` directly / elsewhere); (b) capture walk/run/jump per-tick → bit-exact target → THEN
+  4. **NEXT (chip-3 ground-truth, NOW UNBLOCKED):** (a) her `wx` WRITERS are PINNED (`runs/mover-pin`,
+     `--hw` watchpoint): `0x442a70+0x2f` (the butterfly-known kinematic COMMIT — copies a precomputed
+     `param_2` state into the body; 90%) + `0x54ded0+0x5da` (tile-grid collision clamp, 10%). vel=0 ⇒
+     position-based, so the MOVER is `0x442a70`'s **caller** — DO NEXT: call-trace `0x442a70`'s `ret_va`
+     over the walk → the party-leader caller that reads the held-axis. (b) capture walk/run/jump
+     per-tick → bit-exact target → THEN
      port (party-leader update + the chip-2 mover/probes get their first LIVE caller). **USER-CONFIRMED:
      the trace is set up correctly + Arche walks right↔left as described.** Butterfly chip-1 drift verify
      still pending;
