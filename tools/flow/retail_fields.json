@@ -2707,6 +2707,21 @@
     { "name": "heading", "src": "thisderef", "off": 82500, "type": "i32", "_note": "this+0x14244 heading intent (0 init / 1 right / 3 left)" },
     { "name": "cooldown", "src": "thisderef", "off": 82504, "type": "u32", "_note": "this+0x14248 flip cooldown (mask&0xffff); set 0x3c on flip" }
    ]
+  },
+  "0x478ba0": {
+   "name": "char_ai",
+   "_note": "FUN_00478ba0 (3514 B) the RNG-free CHARACTER AI — the held-axis -> command-block builder townsfolk AND the controllable party leader (Arche 0xc35a) share (engine-quirk #101; counterpart of the EFFECT-band AI 0x47b990). Dispatched by 0x46cd70 pass 1 when entity+0x200==0. Saves+clears then rebuilds the command block this+0x14854 from the input manager *(this+0x158a4): LEFT(+0x11c)->[0]=1 walk/5 run, RIGHT(+0x120)->2/6, DOWN(+0x118)->[3](+0x14860)=10, UP(+0x114)->0xb; walk-vs-run via speed-mode this+0x158a0 (<2 thr 10, ==2 thr 0x50) + run modifier *(*0x8a6e80+0x510)==2. press->latch = GetTickCount auto-repeat. APPLY 0x485fc0+0x96e -> 0x442a70 case 0x75 integrates EVERY tick (ramp 0x445db0 accel 1600/cap 24000/brake 800 -> worldX += vel/100; facing flips at v==0). Port: the open-air flat WALK reduction src/character.c (character_step), host-tested field-exact vs runs/mover-caller (ckpt 114). No live port CALL_TRACE mirror yet (awaits the freeroam hand-off, chip 4).",
+   "fields": [
+    { "name": "code", "src": "thisderef", "off": 468, "type": "hex", "_note": "this+0x1d4 actor code; 0xc35a == Arche (filter)" },
+    { "name": "held_up", "src": "thischain", "hops": [88228], "off": 276, "type": "i32", "_note": "*(this+0x158a4 input-mgr)+0x114 UP held" },
+    { "name": "held_down", "src": "thischain", "hops": [88228], "off": 280, "type": "i32", "_note": "input-mgr+0x118 DOWN held" },
+    { "name": "held_left", "src": "thischain", "hops": [88228], "off": 284, "type": "i32", "_note": "input-mgr+0x11c LEFT held" },
+    { "name": "held_right", "src": "thischain", "hops": [88228], "off": 288, "type": "i32", "_note": "input-mgr+0x120 RIGHT held" },
+    { "name": "speed_mode", "src": "thisderef", "off": 88224, "type": "i32", "_note": "this+0x158a0 speed-mode (<2 walk thr 10, ==2 run thr 0x50)" },
+    { "name": "cmd0", "src": "thisderef", "off": 84052, "type": "i32", "_note": "this+0x14854 command block [0]: 1/2 walk L/R, 5/6 run L/R" },
+    { "name": "wx", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "_note": "body+4 worldX" },
+    { "name": "facing", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "_note": "body+0x2c facing 1/3" }
+   ]
   }
  }
 }

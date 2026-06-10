@@ -176,11 +176,20 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
      effect AI), pass 2 calls `0x485fc0` (apply).  So Arche is an ordinary band actor; the port
      already mirrors this band order (`game_actor_update`).  (Polarity vs #2's "+0x200=1" to
      reconcile at port time.)
-   - **NEXT (in order):** (c) RE the run/jump scancodes (the `0x8a6e80` keybind defaults) →
-     capture walk/run/jump per-tick (the body spec `tools/flow/freeroam_arche_fields.json` reads her
-     independent of the mover) → bit-exact target; (d) PORT the `0x478ba0` AI + the full `0x442a70`
-     integrator + wire the chip-2 collision mover/probes (their first LIVE caller) → validate
-     "Arche walks + stops at terrain" field-exact.
+   - **chip 3a — the WALK is PORTED + field-exact (ckpt 115).** `src/character.{c,h}` +
+     `tests/test_character.c` (4 tests): the open-air reduction of the AI `0x478ba0` (held L/R →
+     latched walk dir) + the `0x442a70` case-0x75 horizontal integrator — vel `body+0x28` ramps via
+     `0x445db0` (**accel 1600/cap 24000/brake 800**), worldX += vel/100, facing flips at v==0.  Fit
+     BIT-EXACT to Arche's real-body per-tick worldX (`runs/mover-caller`); host-tested vs the embedded
+     captured bytes (no live caller yet — like chip 2, "host-tested only, live payoff at the hand-off").
+     `0x478ba0` annotated (`char_ai`) in `retail_fields.json`.  Tagged PORT-DEBT(char-run-jump /
+     char-input-autorepeat / char-walk-tuning / char-collision-mover).
+   - **NEXT (in order):** (c) RE the run/jump scancodes (the `0x8a6e80` keybind defaults) → capture
+     **run + jump** per-tick (the body spec `tools/flow/freeroam_arche_fields.json` reads her
+     independent of the mover) → port the run cap/accel + the jump vertical integrator (the `0x442a70`
+     case-3 flap sub-FSM, shared with butterfly-flutter); (d) the LIVE wire — the chip-4 hand-off gives
+     `character_step` its first caller in `game_actor_update` + the chip-2 collision mover/probes a live
+     grounded actor → validate "Arche walks + stops at terrain" field-exact, then the slope resolver.
 4. **Freeroam** — REACHED in retail (ckpt 112). Remaining for the PORT side: finish the cutscene
    (dialogue chip 4, `plans/dialogue-cutscene.md`) → the control hand-off → a NEW trace-studio
    session (the USER's "house freeroam" directive). The port reaches the dialogue but not yet the

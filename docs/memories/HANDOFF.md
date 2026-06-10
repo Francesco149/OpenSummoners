@@ -6,7 +6,57 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 114
+## Where we are — ckpt 115
+
+**PHASE-4 chip 3a — Arche's freeroam WALK is PORTED + FIELD-EXACT (host-tested vs the ckpt-114
+ground-truth capture). New `src/character.{c,h}` + `tests/test_character.c` (4 tests). 958 host pass
+(+4).**  A field-exact open-air reduction of the AI `0x478ba0` (held-axis → command) + the `0x442a70`
+case-0x75 walk integrator — mirroring butterfly chip 1 exactly (host-tested vs the capture; the LIVE
+payoff awaits the freeroam hand-off, chip 4, since the port can't reach freeroam yet).  Modules:
+`src/character.{c,h}` (NEW), `tests/test_character.c` (NEW), `tests/{Makefile,test_main.c}` (wiring),
+`tools/flow/retail_fields.json` (the durable `0x478ba0` annotation), `docs/port-debt.md` (4 rows).
+
+**The WALK law (the bit-exact target = RETAIL's captured per-tick worldX, `runs/mover-caller`):**
+- the horizontal velocity accumulator is **`body+0x28`** (signed), NOT `body+0x18` (= the VERTICAL /
+  jump velocity, which reads 0 the whole flat walk — this reconciles the ckpt-113 "vel=0" note).
+- **accelerate (held):** `vel += 1600/tick` toward the cap **24000** → dwx = vel/100 ramps **+16/tick**
+  (16,32,48,…,240) to the +240 cap, via the 150-B clamp-ramp `0x445db0`.
+- **brake (released):** `vel -= 800/tick` toward 0 → dwx ramps **−8/tick** (240,232,…,8,0) to a stop.
+- **facing `body+0x2c`:** holds (1 right) through the entire brake-to-stop; flips 1↔3 only at **v==0**
+  when the opposite direction is commanded (the integrator's `local_14` v==0 facing flip), then accels.
+- **commit:** `worldX += vel/100` — a flat reduction of the collision-aware horizontal mover `0x54db10`
+  (town street flat → no clamp).  The real body `0xe637b80`, committed by `0x485fc0+0x96e`→`0x442a70`,
+  tracks `arche_body.wx` tick-for-tick (RIGHT 19200→44280, then the LEFT mirror to 28440).
+
+**The port (`character_step(c, axis_held[4])`):** the AI reduction reads the held L/R axis → a latched
+walk direction (a `CHAR_INPUT_REPEAT_DELAY`=3 warmup reproduces the capture's 2 idle ticks before
+motion, then self-sustains — PORT-DEBT(char-input-autorepeat)); UP/DOWN (`cmd[3]`), run (`cmd[0]`=5/6),
+and jump (`cmd[2]`/`[4]`) are read but deferred.  The apply reduction ramps the velocity, flips facing
+at v==0, and commits worldX.  `test_character.c` asserts the accel ramp, the cap sustain, the brake to
+a stop, and the LEFT-from-rest symmetry against the **embedded captured worldX bytes** (not law-derived
+— a pass proves the port reproduces retail's bytes).
+
+**The annotation step (compounds coverage):** `0x478ba0` got the durable `char_ai` entry in
+`retail_fields.json` (held axis U/D/L/R via `*(this+0x158a4)+0x114..0x120`, `cmd[0]` `+0x14854`,
+speed-mode `+0x158a0`, facing) — names the next flow_diff on the freeroam mover.  No live port
+`CALL_TRACE_BEGIN(0x478ba0)` mirror yet: there is no live caller until the chip-4 hand-off wires
+`character_step` into `game_actor_update`.
+
+**NEXT (chip 3, in order):**
+1. **RE the run/jump scancodes** (`0x8a6e80` keybind defaults) → extend the held-trace capture to
+   **run + jump** per-tick (the `freeroam_arche_fields.json` body spec already reads her independent of
+   the mover) → port the run cap/accel + the jump vertical integrator (the `0x442a70` case-3 flap
+   sub-FSM, shared with PORT-DEBT(butterfly-flutter)) → clears PORT-DEBT(char-run-jump).
+2. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the control transfer
+   `entity+0x200`) gives `character_step` its first live caller in `game_actor_update` → Arche walks on
+   screen, the chip-2 collision mover/probes get a live grounded actor (clears char-collision-mover),
+   and the USER can visual-verify on the feed.
+
+**OPEN (USER):** butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).
+Debt: PORT-DEBT(char-run-jump / char-input-autorepeat / char-walk-tuning / char-collision-mover) (this
+chip), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 114
 
 **PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position architecture is fully
 RE'd. Pure ground-truth (no port code). 954 host pass (unchanged).**  Method: with the ckpt-113

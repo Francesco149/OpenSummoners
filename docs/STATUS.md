@@ -34,9 +34,41 @@ understates how much actual instruction volume is ported.
 
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
-  held-axis harness ✓ → pin mover ✓ → port). Milestone map: `ROADMAP.md`; active arc:
+  held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → run/jump → live wire at the
+  freeroam hand-off). Milestone map: `ROADMAP.md`; active arc:
   `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 114): PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position
+- **LATEST (ckpt 115): PHASE-4 chip 3a — Arche's freeroam WALK is PORTED + FIELD-EXACT (host-tested
+  vs the ground-truth capture). New `src/character.{c,h}`; 958 pass (+4).** The reduction of the AI
+  `0x478ba0` (held-axis → command) + the `0x442a70` case-0x75 walk integrator, fit BIT-EXACT to Arche's
+  real-body per-tick worldX (`runs/mover-caller`, ckpt 114). Mirrors butterfly chip 1 (a field-exact
+  open-air reduction, host-tested; the LIVE payoff awaits the freeroam hand-off, chip 4 — the port
+  can't reach freeroam yet).
+  1. **The WALK law (the embedded host-test target = RETAIL's captured bytes, `test_character.c`):**
+     velocity accumulator `body+0x28` (NOT `body+0x18` = the 0-the-whole-walk VERTICAL vel) ramps via
+     the 150-B clamp-ramp `0x445db0`: **accel +1600/tick → cap 24000** (dwx = vel/100 ramps +16/tick:
+     16,32,…,240), **brake −800/tick → 0** on release (dwx −8: 240,232,…,8,0); facing `body+0x2c` holds
+     through the brake-to-stop and flips 1↔3 only at **v==0** when the opposite dir is commanded. worldX
+     += vel/100 (a flat reduction of the collision mover `0x54db10`). Confirmed: the real body `0xe637b80`,
+     committed by `0x485fc0+0x96e`→`0x442a70`, tracks `arche_body.wx` tick-for-tick (19200→44280 then
+     LEFT mirror).
+  2. **`src/character.{c,h}` (NEW) + `test_character.c` (4 tests, field-exact):** `character_step(c,
+     axis_held[4])` runs the AI reduction (held L/R → latched walk dir, the `0x478ba0` reduction; UP/DOWN
+     `cmd[3]` + run `5/6` + jump read but deferred) then the apply reduction (the velocity ramp + facing
+     flip + commit). Accel-ramp, cap-sustain, brake-to-stop, and the LEFT-from-rest symmetry all assert
+     against the embedded captured worldX sequences.
+  3. **Annotated** `0x478ba0` (the durable `char_ai` entry: held axis U/D/L/R + cmd[0] + speed-mode +
+     facing) in `retail_fields.json` — compounds the next flow_diff on the freeroam mover (no live port
+     CALL_TRACE mirror yet; that lands with the chip-4 hand-off). Reduction tagged 4 PORT-DEBTs:
+     PORT-DEBT(char-run-jump), (char-input-autorepeat) (the press→latch warmup constant = the wall-clock
+     auto-repeat), (char-walk-tuning) (accel/cap/brake = the captured consts; real source `in_ECX[0x565b/c/e]`),
+     (char-collision-mover) (the flat worldX commit + the untested reverse-decel rate).
+  4. **NEXT (chip 3, in order):** (a) RE the run/jump scancodes (`0x8a6e80` keybind defaults) → extend
+     the held-trace capture to **run + jump** per-tick → port (clears char-run-jump). (b) The LIVE wire:
+     the chip-4 freeroam hand-off (dialogue chip 4 → control transfer) gives `character_step` its first
+     live caller in `game_actor_update` → Arche walks on screen + the chip-2 collision mover/probes get a
+     live grounded actor → USER visual-verify. **OPEN (USER):** butterfly chip-1 drift visual-verify still
+     pending. Debt unchanged: PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 114): PHASE-4 chip 3 — Arche's FREEROAM MOVER is PINNED + the input→position
   architecture is fully RE'd. Pure ground-truth, no port code. 954 pass (unchanged).** Method:
   with the ckpt-113 held-axis harness driving the walk, `--call-trace` the integrator `0x442a70`
   over the walk window with arg/this field reads (`tools/flow/freeroam_mover_fields.json`) and

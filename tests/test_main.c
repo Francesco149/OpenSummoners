@@ -834,6 +834,10 @@ struct test_case {
     X(held_trace_replay_levels)                                \
     X(held_trace_replay_catches_up)                            \
     X(held_trace_replay_guards)                                \
+    X(character_walk_accel)                                    \
+    X(character_walk_brake)                                    \
+    X(character_walk_left_symmetry)                            \
+    X(character_idle_and_conflict)                             \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
     X(map_decode_1b58d_shape2_blend)                           \

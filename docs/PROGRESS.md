@@ -6,6 +6,33 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 115) — PHASE-4 chip 3a: Arche's freeroam WALK is PORTED + field-exact (`src/character.{c,h}`)
+
+Ported the controllable-character WALK as a field-exact open-air reduction of the AI `0x478ba0`
+(held-axis → command block) + the `0x442a70` case-0x75 horizontal integrator — the symmetric
+counterpart of butterfly chip 1 (ckpt 110), on the CHARACTER band.  New `src/character.{c,h}` +
+`tests/test_character.c` (4 tests); 958 host pass (+4).  No live port caller yet — the payoff (Arche
+walking on screen) lands with the chip-4 freeroam hand-off; this chip ports + validates the LOGIC
+against the ckpt-114 ground-truth capture (`runs/mover-caller`), exactly like chip 2's collision
+read-side ("host-tested only, live payoff at Arche").
+
+The WALK law, fit BIT-EXACT to Arche's real-body (`0xe637b80`) per-tick worldX: the horizontal
+velocity accumulator `body+0x28` (NOT `body+0x18` = the vertical/jump vel, 0 the whole flat walk)
+ramps via the 150-byte clamp-ramp `0x445db0` — **accel +1600/tick → cap 24000** (dwx = vel/100 ramps
++16/tick: 16,32,…,240) when held, **brake −800/tick → 0** (dwx −8: 240,232,…,8,0) on release; facing
+`body+0x2c` holds through the brake-to-stop and flips 1↔3 only at v==0 on an opposite command; worldX
++= vel/100 (a flat reduction of the collision mover `0x54db10`).  `test_character.c` asserts the accel
+ramp, the cap sustain, the brake-to-stop, and the LEFT-from-rest symmetry against the **embedded
+captured worldX bytes** — a pass proves the port reproduces retail's bytes tick-for-tick.
+
+Annotated `0x478ba0` (the durable `char_ai` field-spec: held axis U/D/L/R, cmd[0], speed-mode, facing)
+in `retail_fields.json`.  Reduction tagged 4 PORT-DEBTs: `char-run-jump` (walk only; run cmd 5/6 +
+jump cmd[2]/[4] need their scancode RE + capture), `char-input-autorepeat` (the press→latch warmup
+constant reproduces the wall-clock auto-repeat), `char-walk-tuning` (accel/cap/brake = the captured
+consts; real source `in_ECX[0x565b/c/e]`), `char-collision-mover` (the flat worldX commit + the
+untested reverse-decel rate).  NEXT: (a) the run/jump capture + port; (b) the chip-4 hand-off wires
+`character_step` live → Arche walks + the collision mover/probes get a live grounded actor.
+
 ## 2026-06-11 (ckpt 114) — PHASE-4 chip 3: Arche's FREEROAM MOVER pinned — input→position is AI `0x478ba0` + apply `0x485fc0`→`0x442a70` (pure RE)
 
 With the ckpt-113 held-axis harness driving the walk, `--call-trace`'d the kinematic integrator
