@@ -6,10 +6,40 @@
   Port state / next-move detail belongs here or in HANDOFF.md, NOT in engine-quirks.md.
 -->
 <!-- FRONT:BEGIN -->
-- **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
-  that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
-  Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 107): R7 FOUNTAIN spray RESOLVED + USER-CONFIRMED 1:1 — the water is BIT-EXACT
+- **Phase:** Phase 4 — the town intro renders ~1:1; now porting the **entity MOVEMENT system**
+  (butterflies → controllable Arche → freeroam). Milestone map: `ROADMAP.md`; active arc:
+  `plans/movement-system.md`. Mechanical render-chip backlog: `port-frontier.md`.
+- **LATEST (ckpt 108): the PHASE-4 MOVEMENT SYSTEM arc is OPENED (USER-chosen over the smaller
+  intro-polish chips). The town intro is visually complete + ~1:1; the LAST residual — the
+  butterfly drift (@1177 box 305px + @1627 "not 1:1, not multicolor") — is NOT a particle but
+  the full ENTITY MOVEMENT FSM, the same code that drives controllable Arche + freeroam.
+  Architecture MAPPED + plan WRITTEN; no port code yet (an RE/planning checkpoint). (939 pass.)**
+  Plan: `plans/movement-system.md`.
+  1. **The pipeline (mapped):** `0x46cd70` band walk (PORT MIRRORS) → `0x47b990` actor AI (7461B;
+     `butterfly_step` already consumes the `0xe29a` gate/flit/heading RNG draws, ckpt 98 — the
+     MOTION + the `this+0x1422c` state machine are unported) → `0x43f880` (5491B; builds an
+     ordered collision-tested action list, writes the 8-int **command block** to `this+0x14854`)
+     → `0x4412d0` (a swept collision PROBE, NOT the integrator) + `0x442a70` (the path stepper) +
+     the tile grid `0x2c1030`/`0x2c1040` (movement quantum `0xc80`=3200=one tile).
+  2. **The butterfly `0xe29a` case (read):** each work-tick (every-other, gate `0x14232`)
+     recompute wander range `+0xc890`, decrement flip-cooldown `+0x14248`, roll a 10% flag, flip
+     heading `+0x14244` 1↔3 when near a patrol bound (`+0x14264`/`+0x14268`) OR on the roll OR a
+     `0x47dbb0` collision, then `FUN_0043f880(bound,0xc80,body,…,1,0)` moves toward the bound.
+  3. **TWO chip-1 unknowns:** (a) **the apply step is unlocated** — `+0x14854` is the RESOLVED
+     move; which step READS it + writes the body position is TBD (likely `0x442a70` on the real
+     body — pin empirically, don't read every helper). (b) **the bounds `+0x14264`/`+0x14268` are
+     NEVER written in the decompile** (full static grep) yet the butterfly drifts BIDIRECTIONALLY
+     (ground truth) ⇒ set via a computed-pointer write static analysis can't see → `mem_watch` live.
+  4. **Ground truth (`runs/butterfly-emit`, 2 snapshots t294/t347):** drift ~25–80 u/tick with
+     direction changes; `cel_fr` = direction_base (mult-of-4) + flap, the base FOLLOWS heading ⇒
+     the "multicolor" half is ALSO FSM-driven (colour + motion land together). NEED a dense
+     per-tick capture (chip-1 step 0 = the bit-exact target).
+  5. **NEXT (chip 1, next session):** (0) field-spec the butterfly body/heading/state per sim-tick
+     + `mem_watch` the bounds writer; (1) port the `0xe29a` heading FSM + the reduced open-air
+     `0x43f880` path + the apply + the direction→`cel_fr` map → verify bit-exact vs the capture →
+     closes PORT-DEBT(butterfly-wander). Then chip 2 (tile collision) → 3 (controllable Arche) → 4
+     (freeroam). Deferred intro chips (fountain-anchor 2×, sky-anchor, R8 typewriter grade) remain.
+- **Prior (ckpt 107): R7 FOUNTAIN spray RESOLVED + USER-CONFIRMED 1:1 — the water is BIT-EXACT
   (upper spray `differ_px==0`); fountain-box differ `4286 → 305` at stamp-equal t30, and 100% of
   the 305 is the butterflies (separate subsystem). Finishes a fable session cut short by a Windows
   update + the USER-caught fade. (939 pass.)** USER: "can confirm fountain is 1:1."

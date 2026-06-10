@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 106, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 108, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,57 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 106
+## Where we are — ckpt 108
+
+**The PHASE-4 ENTITY MOVEMENT SYSTEM arc is OPENED (USER-chosen this session over the smaller
+intro-polish chips).  The town intro is visually complete + ~1:1; the one remaining residual —
+the butterfly DRIFT (@1177 box 305px + @1627 "not 1:1, not multicolor") — turned out to be the
+full entity movement FSM, the same code that drives controllable Arche + the freeroam scene.
+Architecture MAPPED + the plan WRITTEN (`plans/movement-system.md`); NO port code yet (an
+RE/planning checkpoint).  939 pass.**  (ckpt 107 = R7 fountain, in FRONT/PROGRESS.)
+
+- **Why butterfly-wander is the whole movement system, not a particle:** the butterfly's
+  per-tick update is the actor-AI dispatcher `0x47b990` (`switch(this+0x1d4)`, the `0xe29a`
+  case), which picks a heading and calls the movement-intent fn `0x43f880`; both operate on the
+  ~90 KB entity struct + the tile collision grid.  Porting it faithfully == porting the movement
+  system; the butterfly is just its simplest exerciser (open air, no input).
+- **The pipeline (mapped — full table in the plan):** `0x46cd70` band walk (the port already
+  mirrors this as `game_actor_update`) → `0x47b990` AI (7461B; `butterfly_step` ckpt 98 already
+  consumes the `0xe29a` gate `0x14232`/flit-timer `0x14236`/heading RNG draws — the MOTION + the
+  `this+0x1422c` state machine are unported) → `0x43f880` (5491B; builds an ordered,
+  collision-tested action list, writes the 8-int command block to `this+0x14854`) → `0x4412d0`
+  (a swept collision PROBE — allocs a temp path, steps via `0x442a70`, tests vs the entity list +
+  the tile grid `0x440e40`; NOT the integrator) + the grid `0x2c1030` (row widths)/`0x2c1040`
+  (tile flags), indexed by `world/0xc80` (`0xc80`=3200=one tile = the movement quantum).
+- **The butterfly `0xe29a` case (`47b990.c` ~769):** every work-tick (every-other via gate
+  `0x14232`) recompute wander range `+0xc890`=`(rand*0xc80)>>15+0x640`, decrement flip-cooldown
+  `+0x14248`, roll a 10% flag, flip heading `+0x14244` 1↔3 when within `0xc81` of the patrol
+  bound (`+0x14264` for heading 1, `+0x14268` for 3) OR on the 10% roll OR a `0x47dbb0`
+  collision, then `FUN_0043f880(bound,0xc80,body,…,1,0)` moves toward the bound.
+- **TWO open items the chip-1 capture must resolve (both classic "hook the live value"):**
+  1. **The apply/integration step is unlocated.**  `+0x14854` is the RESOLVED move, not the
+     position write; `0x46cd70` has no separate apply call, so integration is inside the AI path
+     (likely `0x442a70` on the REAL body, or a `0x1422c` state handler / `0x484c10:826`).  Pin it
+     empirically — do NOT read every helper.
+  2. **The patrol bounds `+0x14264`/`+0x14268` are NEVER written in the decompile** (full static
+     grep of by-address/) — yet the butterfly's move TARGET is that bound and the ground truth
+     shows BIDIRECTIONAL drift, so they're non-zero per-instance.  Set via a computed-pointer
+     write static analysis can't see → `mem_watch` `+0x14264` at spawn.  (`0x428780` sets the
+     wander range `+0xc890/4/8`; `0x427c30` the `0x15950` min/max — neither is the bound.)
+- **Ground truth (`runs/butterfly-emit`, seed-pinned, 2 snapshots t294/t347):** 4 butterflies
+  drift ~25–80 u/tick with direction changes (left pair ~102–108k by the flowerbeds, right pair
+  ~173–188k by the fountain); `cel_fr` = direction_base (multiples of 4, {0,4,8,12,16,24,28}
+  seen) + flap(0..2), the base FOLLOWS the heading ⇒ the "multicolor" half of @1627 is ALSO
+  FSM-driven.  Only 2 sparse ticks — chip 1 needs a DENSE per-tick capture (the bit-exact target).
+- **NEXT — chip 1 (next session, after `/clear`):** (0) a `retail_fields.json` field-spec on the
+  butterfly body `+4/+8`/heading/state/bounds/`cel_fr` per sim-tick + `mem_watch` the bounds
+  writer; (1) port the `0xe29a` heading FSM + the reduced open-air `0x43f880` path + the apply +
+  the direction→`cel_fr` map → bit-exact vs the capture → closes PORT-DEBT(butterfly-wander).
+  Then chip 2 (tile collision) → 3 (controllable Arche, the party band `0x4997b0`) → 4 (freeroam:
+  dialogue chip 4 → hand control → a new trace session).  Deferred intro chips still on the board:
+  fountain-anchor 2× (RE +1600 vs +3200), sky-anchor, R8 typewriter row-close grade.
+
+## Where we were — ckpt 106
 
 **R6 (the establishing-REVEAL frontier) is RESOLVED — the band renders `differ_px==0` at
 every stamp-equal tick 2..32 on the recaptured intro-1; the whole remaining reveal-window
