@@ -113,16 +113,22 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
    items as bycatch: the apply (`0x485fc0`→`0x442a70`, every tick) and the bounds formula
    (`spawn_wx + 11200 / − 8000`, constant). `mem_watch` the bounds writer is DEFERRED (values
    are exact; writer derivation → chip 2/3).
-1. **Butterfly open-air motion** — port the `0xe29a` heading FSM (`0x47b990`: gate/flit timer
-   already done → MOVE the 2 RNG draws/tick into the real FSM unchanged + add the heading flip)
-   + set bounds at register-time (`b1=spawn_wx+11200`, `b3=spawn_wx-8000`) + the **reduced**
-   `0x43f880` path (open air ⇒ action list = move-toward-bound) + the per-tick apply (the
-   `0x442a70` open-air integrator: `vel+=2000` clamp ±16000, `worldX += vel/100`-style step —
-   **fit to the captured dwx until tick-exact**). Validate **field-exact** vs `runs/butterfly-fsm`
-   on the sim-tick axis (worldX/Y/heading/facing per tick). Closes **butterfly-wander** (motion).
-   Tag the open-air reduction `PORT-DEBT(...)` so it doesn't fork the shared `0x43f880` — chip 2
-   generalises it. **RNG-stream risk:** keep the draw count/order identical or the ckpt-99
-   settled-town stream regresses.
+1. **Butterfly open-air motion — DONE (ckpt 110).** Ported the `0xe29a` heading FSM (the 2 RNG
+   draws/tick MOVED into the real flip logic, count/order unchanged; flip toward the far bound
+   when `cd==0` AND `|wx−bound|<0xc81`/10%-roll; `0x47dbb0` collision omitted = open-air clear),
+   bounds at register (`b1=spawn_wx+11200`, `b3=spawn_wx−8000`), and the reduced apply (the
+   open-air HORIZONTAL integrator: `world_x += hvel` then `hvel` ramps ±10/tick→±100, **step
+   before ramp** = the capture's form, run EVERY tick). `main.c` apply-wires it into the rendered
+   actors. **Validated field-exact** vs `runs/butterfly-fsm` on the sim-tick axis
+   (`compare.py`): HEADING 0 mismatches (every flip tick, all 4 → LCG byte-aligned thru tick 269),
+   facing ≤1/286, worldX exact between reversals; residual = a ≤170-unit ≈ ≤2px BOUNDED transient
+   at turn-arounds. **Deferred** (`PORT-DEBT`, retire with the full integrator chip 2/3):
+   `butterfly-flutter` (the VERTICAL flutter sawtooth `body+0x18` + the `cmd_2` flap sub-FSM →
+   worldY bob + the flap/reversal coupling = the ≤2px residual), `butterfly-bounds-writer`,
+   per-instance frame_base multicolor. The `vel`-based motion model in §"Ground truth" was the
+   VERTICAL axis (`0x442a70`'s gravity/flutter block writes `body+8` via `0x54e5c0(body,vel/100)`)
+   — the horizontal patrol is the separate clean ±10/tick→±100 law fit above. **RNG preserved**
+   (host `butterfly_pertick` unchanged; the exact flip ticks prove it).
 2. **Tile collision** — port the grid (`0x2c1030`/`0x2c1040`) + `0x4412d0`/`0x440e40` swept
    probe + `0x441ae0`/`0x47dbb0` directional probes. Ground actors stop clipping terrain.
    Prereq for Arche.

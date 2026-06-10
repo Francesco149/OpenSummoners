@@ -2384,7 +2384,39 @@ static void game_actor_update(void)
      *     draws precede the emitters' — keeping the shared stream aligned.
      *     Then the EFFECT-band event timer 0x467380 (the 0xe2a5 object, via
      *     0x442a70) — it follows the butterflies in slot order (fires tick 183). */
+    /* Chip-1 validation emit (the sim-tick axis vs runs/butterfly-fsm): the
+     * butterfly state at AI onEnter — i.e. BEFORE butterfly_step runs this tick's
+     * AI+apply — mirroring the retail 0x47b990 onEnter capture (worldX is the
+     * value left by the previous tick's apply).  One record per butterfly, in
+     * registration (map) order; the validator matches by spawn worldX. */
+    for (int i = 0; i < g_butterflies.count; i++) {
+        butterfly *b = &g_butterflies.b[i];
+        CALL_TRACE_BEGIN(0x47b990);
+        CALL_TRACE_HEX("code", 0xe29au);
+        CALL_TRACE_I32("sim_tick", (int32_t)g_sim_tick_count);
+        CALL_TRACE_I32("wx", b->world_x);
+        CALL_TRACE_I32("heading", b->heading);
+        CALL_TRACE_I32("facing", b->facing);
+        CALL_TRACE_I32("cooldown", b->cooldown);
+        CALL_TRACE_I32("cmd_dir", b->cmd_dir);
+        CALL_TRACE_I32("hvel", b->hvel);
+        CALL_TRACE_END();
+    }
+
     butterfly_step(&g_butterflies);
+    /* The apply pass (inside butterfly_step) integrated each butterfly's open-air
+     * worldX/facing every tick — mirror it into the rendered EFFECT actor's
+     * render-state so the blit drifts with it (in retail 0x485fc0 writes the real
+     * body; here the butterfly module owns the reduced open-air body). */
+    if (g_effects_loaded) {
+        for (int i = 0; i < g_butterflies.count; i++) {
+            int slot = g_butterflies.b[i].effect_slot;
+            if (slot >= 0 && slot < g_effects.count) {
+                g_effects.states[slot].world_x = g_butterflies.b[i].world_x;
+                g_effects.states[slot].facing  = (int16_t)g_butterflies.b[i].facing;
+            }
+        }
+    }
     ambient_effect_step(&g_ambient);
 
     /* (2) The PARTICLE band (+0x13e0, 0x46e510) steps BEFORE the CHARACTER band

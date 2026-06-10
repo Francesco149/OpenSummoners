@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 110) — PHASE-4 chip 1 DONE: the butterfly open-air PATROL MOTION ported + FIELD-EXACT (heading 0 mismatches; the butterflies drift left↔right 1:1)
+
+Chip 1 of the entity-movement arc (`plans/movement-system.md`).  `src/butterfly.{c,h}` grew from
+the ckpt-98 RNG-consumer stub into the full open-air FSM — a documented REDUCTION of `0x47b990`
+(the `0xe29a` heading AI) / `0x43f880` (the move command) / `0x485fc0`→`0x442a70` (the apply
+integrator).  Ported: (a) the patrol bounds set at register (`b1=spawn_wx+11200`,
+`b3=spawn_wx−8000`); (b) the heading FSM — the two RNG draws/tick (wander range + the 10% flag)
+MOVED from the consume-stub into their real use (decrement cooldown `+0x14248`; flip heading
+`+0x14244` toward the far bound when `cd==0` AND `(|wx−bound|<0xc81` OR the 10% roll); the
+`0x47dbb0` collision term omitted = open-air clear); (c) the horizontal integrator run EVERY tick
+(`world_x += hvel` then `hvel` ramps ±10/tick→±100 — the capture's step-before-ramp), apply-wired
+into the rendered EFFECT actors via an `effect_slot` link in `main.c`.  Critically the RNG draw
+**count/order is UNCHANGED**, so the ckpt-99 settled-town stream stays bit-exact.
+
+**Validated field-exact on the SIM-TICK axis** (`runs/butterfly-fsm/compare.py`): the port emits
+a `CALL_TRACE_BEGIN(0x47b990)` mirror per butterfly per tick; diffed vs the ckpt-109 capture, the
+HEADING matches retail with **0 mismatches** for all 4 butterflies — every flip tick exact (bf0
+[35,85,155,199,243], bf2 [3,47,101,149,189,269], …), which proves the LCG is byte-aligned through
+tick 269 (beating ckpt-99's 0-248).  facing ≤1/286; worldX field-exact between reversals (bf0 to
+t37, bf3 to t51).  The ONLY worldX residual is a ≤170-unit ≈ ≤2px BOUNDED transient at
+turn-arounds — the deferred flap-coupling — which does not accumulate because the exact flips
+phase-lock it.  Host `butterfly_motion` (new) + `butterfly_pertick` (unchanged → RNG intact); 940
+pass.  Durable annotation `0x47b990` added to `retail_fields.json`.
+
+Deferred (PORT-DEBT, all retire with the full `0x442a70` integrator in chip 2/3):
+`butterfly-flutter` (the vertical flutter sawtooth `body+0x18` + the `cmd_2` flap sub-FSM →
+worldY bob, + the flap/reversal coupling = the ≤2px residual; worldY currently holds spawn);
+`butterfly-bounds-writer` (the +11200/−8000 derivation un-RE'd); per-instance frame_base
+multicolor.  NEXT: chip 2 = tile collision (`0x2c1030`/`0x2c1040` grid + `0x4412d0`/`0x47dbb0`
+probes) → chip 3 = controllable Arche.
+
 ## 2026-06-10 (ckpt 109) — PHASE-4 chip 0 DONE: the butterfly FSM ground-truthed per-tick; the capture resolved BOTH plan open items (the apply pass + the bounds formula)
 
 Chip 0 of the entity-movement arc (`plans/movement-system.md`).  A seed-pinned + lockstep

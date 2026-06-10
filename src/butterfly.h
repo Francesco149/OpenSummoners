@@ -1,42 +1,41 @@
 /*
- * butterfly.{c,h} — the town BUTTERFLIES' per-sim-tick RNG behaviour (the EFFECT
- * band's only per-tick LCG consumer).  See engine-quirk #95 + findings/
- * in-game-intro.md "The per-tick RNG stream".
+ * butterfly.{c,h} — the town BUTTERFLIES' per-sim-tick behaviour: the EFFECT
+ * band's only per-tick LCG consumer (the RNG draws) AND, as of chip 1, their
+ * open-air PATROL MOTION (the left/right drift).  See engine-quirk #95 +
+ * findings/in-game-intro.md "The per-tick RNG stream" + the movement arc
+ * docs/plans/movement-system.md (Phase 4, chip 1).
  *
  * Of the 19 EFFECT-band actors in the town (15 map + 4 cutscene cast), ONLY the
- * 4 butterflies (code 0xe29a) draw RNG per sim-tick: the per-tick driver 0x46cd70
- * calls the behaviour 0x47b990 only for actors whose update-mode (+0x200) is 1,
- * and the butterflies are the only such EFFECT actors (the 11 standing townsfolk
- * + the cast take the RNG-free arm 0x478ba0).  So this module IS the EFFECT-band
- * per-tick stream — porting it (consume-to-advance) keeps the shared LCG aligned
- * for the downstream CHARACTER-band emitters (the fountain / sky particles), whose
- * per-tick positions otherwise drift (PORT-DEBT(fountain-rng-phase)).
+ * 4 butterflies (code 0xe29a) take the mode-1 AI 0x47b990 (the 11 townsfolk +
+ * the cast take the RNG-free 0x478ba0).  So this module IS the EFFECT-band
+ * per-tick stream — porting it (same draw count/order) keeps the shared LCG
+ * aligned for the downstream CHARACTER-band emitters (the ckpt-99 settled-town
+ * stream is bit-exact and MUST NOT regress: the heading FSM here moves the two
+ * RNG draws/tick into their real use, it does not add or reorder draws).
  *
- * The draw model, read off 0x47b990 (the 0xe29a case at :768-801 + the generic
- * wander block :509-545) and validated bit-exact against the seed-pinned per-tick
- * census (runs/rng-census-repin):
- *   - The behaviour runs every OTHER sim-tick: 0x14232 is a 1-bit gate (work on
- *     the tick it is 0, set it 1; next tick decrement to 0 and return).  Fresh-
- *     spawned butterflies share a phase, so all 4 work on the EVEN ticks.
- *   - On a work tick the wander-pick timer 0x14236 (a work-tick countdown from
- *     0x50) gates the "choose a new flit" draws: when it hits 0 it draws once
- *     ((rand*1000)>>15 < 0xc874 ? — the move-frequency test), and if that passes,
- *     a second draw (the flit offset), then reloads 0x50.  Fresh-spawned it is 0,
- *     so the pick fires on the spawn tick and then every 0x50 = 80 work-ticks =
- *     160 sim-ticks.
- *   - The 0xe29a case then ALWAYS draws twice: the heading 0xc890 =
- *     (rand*0xc80>>15)+0x640 and the flutter flag (rand*1000>>15 < 100).
- * Per work tick a butterfly draws 2 (heading+flag), or 3-4 when the wander pick
- * fires.  The drawn values feed the flit MOTION (0x43f880, the 5.5 KB movement /
- * collision FSM) + the facing/bounds — DEFERRED (PORT-DEBT(butterfly-wander) is
- * now blocked on that FSM, not on RNG), so the values are consumed-to-advance:
- * the butterflies hold their map-spawn positions but the stream stays aligned.
+ * ── The two clocks (capture-verified, runs/butterfly-fsm; movement-system.md) ──
+ *   - The AI (0x47b990, the 0xe29a case 47b990.c:769-801) runs on WORK ticks only
+ *     (the every-other gate 0x14232): it draws the wander range + the 10% flutter
+ *     flag, decrements the flip cooldown, FLIPS the heading toward the far patrol
+ *     bound when the cooldown is 0 and (within ~1 tile of the bound OR the 10%
+ *     roll), and writes the move command (0x43f880) toward the near bound.
+ *   - The APPLY (the band's 2nd EFFECT pass 0x485fc0 -> the integrator 0x442a70)
+ *     integrates EVERY tick: it carries a horizontal velocity that ramps toward
+ *     the commanded direction, so the butterfly keeps GLIDING on the gated-out
+ *     ticks.  Decision is gated; motion glides.
  *
- * Each butterfly's 0xc874 (the move-frequency threshold, ~650-749) is set at
- * spawn by 0x427670 case 2 (= (rand*100>>15)+0x28a, the 5th of its 5 draws);
- * actor_spawn_effect_from_map captures it from the spawn replay.
+ * ── Chip-1 OPEN-AIR REDUCTION (PORT-DEBT(butterfly-wander) motion half) ──
+ * The real 0x442a70 is a 12 KB shared integrator (X + Y + gravity + the vertical
+ * flutter sawtooth + entity/tile collision sweeps) built for Arche; chip 2/3
+ * generalise it.  Here we port only the OPEN-AIR HORIZONTAL law, fit bit-exact to
+ * the capture's per-tick worldX on the non-reversal stretches:
+ *   - hvel ramps +-10/tick toward +-100 (the commanded direction), worldX += hvel.
+ * DEFERRED, tagged below: the VERTICAL flutter (body+0x18 vel sawtooth + the
+ * cmd_2 flap sub-FSM -> worldY bob) and the flap/heading-reversal COUPLING (a
+ * +-100 worldX lurch when a flap coincides with a turn).  See PORT-DEBT rows
+ * butterfly-flutter + butterfly-bounds-writer in docs/port-debt.md.
  *
- * Win32-free + pure (it only advances the shared LCG); host-tested.
+ * Win32-free + pure (advances the shared LCG + its own body state); host-tested.
  */
 #ifndef OSS_BUTTERFLY_H
 #define OSS_BUTTERFLY_H
@@ -51,10 +50,35 @@
 /* 0x427670 case 2 — the move-frequency base added to (rand*100>>15). */
 #define BUTTERFLY_FREQ_BASE 0x28a
 
+/* The patrol bounds, set at register-time from the spawn worldX (ckpt-109 capture:
+ * dead-constant per butterfly; PORT-DEBT(butterfly-bounds-writer) for the un-RE'd
+ * spawn-time derivation).  center = spawn_wx + 1600, half = 9600 = 3 tiles. */
+#define BUTTERFLY_BOUND1_OFF  11200   /* 0x14264 (heading 1 -> right) = spawn_wx + 11200 */
+#define BUTTERFLY_BOUND3_OFF  (-8000) /* 0x14268 (heading 3 -> left)  = spawn_wx -  8000 */
+
+/* 0x47b990:782 — flip when |worldX - target bound| < 0xc81 (~one tile). */
+#define BUTTERFLY_BOUND_NEAR  0xc81
+/* 0x47b990:786/498 — the flip cooldown reload (0x3c work/skip-weighted ticks). */
+#define BUTTERFLY_FLIP_COOLDOWN 0x3c
+/* The open-air horizontal patrol speed cap + per-tick ramp (fit to the capture). */
+#define BUTTERFLY_HSPEED_CAP  100
+#define BUTTERFLY_HSPEED_RAMP 10
+
 typedef struct {
+    /* --- AI / RNG state (the per-tick draw model, ckpt 95/98) --- */
     uint16_t wander_freq;   /* 0xc874 — the (rand*1000>>15) < freq move test     */
     int16_t  gate;          /* 0x14232 — 0 => work this sim-tick, 1 => skip next */
     int16_t  wander_timer;  /* 0x14236 — work-ticks until the next flit pick     */
+    /* --- motion state (chip-1 open-air reduction) --- */
+    int32_t  world_x;       /* body+4  — patrol position (mirrors the render-state) */
+    int32_t  bound1;        /* 0x14264 — right target (spawn_wx + 11200)           */
+    int32_t  bound3;        /* 0x14268 — left  target (spawn_wx -  8000)           */
+    int32_t  heading;       /* 0x14244 — INTENT: 0(init)/1(right)/3(left)          */
+    int32_t  hvel;          /* the open-air horizontal velocity (-100..+100)       */
+    int16_t  facing;        /* body+0x2c — travel dir: 1 right / 3 left            */
+    int16_t  cooldown;      /* 0x14248 — flip cooldown                             */
+    int      cmd_dir;       /* the commanded move dir the apply integrates (+1/-1/0)*/
+    int      effect_slot;   /* index of this butterfly's actor in the EFFECT pool  */
 } butterfly;
 
 typedef struct butterfly_pool {
@@ -65,16 +89,21 @@ typedef struct butterfly_pool {
 /* Clear the pool (call at scene entry, before the spawn registers the town's). */
 void butterfly_pool_reset(butterfly_pool *p);
 
-/* Register one butterfly with its spawn-derived move frequency (0xc874).  Order
+/* Register one butterfly with its spawn-derived move frequency (0xc874), its
+ * spawn worldX (-> the patrol bounds), and the EFFECT-pool slot of its rendered
+ * actor (so butterfly_apply can drive that actor's worldX/facing).  Order
  * matters: register in EFFECT-band (map-layer) order so the per-tick draw order
  * matches retail's 0x46cd70 walk.  Returns the slot index, or -1 if full/NULL. */
-int butterfly_register(butterfly_pool *p, uint16_t wander_freq);
+int butterfly_register(butterfly_pool *p, uint16_t wander_freq,
+                       int32_t spawn_world_x, int effect_slot);
 
 /* One sim-tick of the butterfly behaviour for the whole pool: advances the shared
  * LCG by each working butterfly's draws (heading + flag, + the wander pick when
- * its timer fires), in registration order.  MUST run in the 0x46cd70 slot — i.e.
- * the EFFECT band BEFORE the CHARACTER-band particle emitters — so the stream
- * stays aligned.  Returns the number of LCG draws consumed this tick. */
+ * its timer fires) in registration order, runs the gated heading FSM, and
+ * integrates the open-air horizontal patrol motion (EVERY tick, both gate phases,
+ * mirroring the 0x485fc0 apply pass).  MUST run in the 0x46cd70 slot — i.e. the
+ * EFFECT band BEFORE the CHARACTER-band particle emitters — so the stream stays
+ * aligned.  Returns the number of LCG draws consumed this tick. */
 int butterfly_step(butterfly_pool *p);
 
 #endif /* OSS_BUTTERFLY_H */

@@ -402,9 +402,11 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md,
         rs->done       = 0;                     /* +0x74 */
 
         /* Register the butterfly's per-tick behaviour (the EFFECT band's only
-         * per-tick LCG consumer) with its captured move frequency, IN MAP ORDER. */
+         * per-tick LCG consumer) with its captured move frequency, its spawn
+         * worldX (-> the patrol bounds), and this actor's slot (so the per-tick
+         * motion drives THIS render-state's worldX/facing), IN MAP ORDER. */
         if (code == 0xe29au && bp != NULL)
-            butterfly_register(bp, wander_freq);
+            butterfly_register(bp, wander_freq, rs->world_x, slot);
     }
     return pool->count;
 }

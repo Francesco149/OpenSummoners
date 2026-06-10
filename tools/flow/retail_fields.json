@@ -2696,6 +2696,17 @@
      "type": "i32"
     }
    ]
+  },
+  "0x47b990": {
+   "name": "actor_ai",
+   "_note": "FUN_0047b990 (7461 B) the per-actor EFFECT-band AI; the 4 town BUTTERFLIES (code 0xe29a) take the 0xe29a case (47b990.c:769-801): wander range 0xc890, decrement flip-cooldown 0x14248, the 10% flag, then FLIP heading 0x14244 (1<->3) toward the far patrol bound when cooldown==0 AND (|worldX-bound|<0xc81 OR the 10% roll), then 0x43f880 writes the move command; the band's 2nd EFFECT pass 0x485fc0->0x442a70 integrates worldX EVERY tick. Port mirror: src/main.c game_actor_update emits CALL_TRACE_BEGIN(0x47b990) per butterfly (the open-air reduction src/butterfly.c). Chip-1 validated field-exact vs runs/butterfly-fsm: heading 0 mismatches (every flip tick), worldX exact between reversals (movement-system.md). Throwaway dense spec: tools/flow/butterfly_capture_fields.json.",
+   "fields": [
+    { "name": "code", "src": "thisderef", "off": 468, "type": "hex", "_note": "this+0x1d4 actor code; 0xe29a == butterfly (filter)" },
+    { "name": "wx", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "_note": "body+4 worldX (the patrol drift)" },
+    { "name": "facing", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "_note": "body+0x2c facing 1/3 (travel dir)" },
+    { "name": "heading", "src": "thisderef", "off": 82500, "type": "i32", "_note": "this+0x14244 heading intent (0 init / 1 right / 3 left)" },
+    { "name": "cooldown", "src": "thisderef", "off": 82504, "type": "u32", "_note": "this+0x14248 flip cooldown (mask&0xffff); set 0x3c on flip" }
+   ]
   }
  }
 }

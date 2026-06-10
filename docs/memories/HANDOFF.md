@@ -6,54 +6,49 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 109
+## Where we are — ckpt 110
 
-**PHASE-4 chip 0 is DONE — the butterfly FSM is GROUND-TRUTHED per-tick, and the capture
-resolved BOTH of the plan's open items as bycatch (the apply location + the bounds formula).
-No port code yet (chip 0 = RE/capture); chip 1 (the actual port) is the next session.
-939 pass.**  (ckpt 108 = the arc opening; the full map is `plans/movement-system.md`.)
+**PHASE-4 chip 1 is DONE — the butterfly OPEN-AIR PATROL MOTION is PORTED + FIELD-EXACT.
+The 4 town butterflies now drift left↔right 1:1 (heading + facing field-exact vs the
+ckpt-109 capture); the per-tick RNG stream stays bit-exact.  940 pass (+1).**  Module:
+`src/butterfly.{c,h}` (grown from the ckpt-98 RNG-consumer stub), `src/main.c`
+(`game_actor_update`: the apply-wire + the validation emit), `src/actor_spawn.c`
+(`butterfly_register` args).  The full map is `plans/movement-system.md`.
 
-- **The capture** (`runs/butterfly-fsm/`, seed-pinned + lockstep, `game_enter@1434`, sim-ticks
-  0..285 × 4 butterflies).  Spec `tools/flow/butterfly_capture_fields.json` hooks `0x47b990`
-  (the EFFECT-band AI) onEnter, reading per tick: worldX/Y, heading `+0x14244`, facing
-  `body+0x2c`, bounds `+0x14264/+0x14268`, cooldown/gate/flit/movedur, wander-range, the cmd
-  block `+0x14854`, vel `body+0x18`, flap `rs+0x72`.  Analysis: `runs/butterfly-fsm/analyze.py`.
-  **`0x47b990` is the AI for 18 town actors (townsfolk + 4 butterflies + `0xe2a5`), NOT
-  butterflies-only** (corrects a ckpt-108 note); filter to code `0xe29a`.
-- **The full pipeline (all capture-verified).**  `0x46cd70` makes **TWO passes over the EFFECT
-  band**: pass 1 = the AI `0x47b990` (`0xe29a` → heading flip → `0x43f880` writes the 8-int cmd
-  block `this+0x14854`), on **work ticks only** (gate `+0x14232`, every-other); pass 2 = **the
-  APPLY `0x485fc0`** (`46cd70:71`) → `FUN_00442a70(this+0x14854, body, body, 0,0)` (`485fc0:348`)
-  integrates the REAL body, **EVERY tick** (not gated).  Decision is gated, motion glides.
-  `0x442a70` (12 KB shared physics): `vel(+0x18) += 2000` toward target (clamp `>-20000`),
-  worldX step via the mover `FUN_0054e5c0(body, vel/100, …)`.
-- **RESOLVED — the apply** (plan open #1): it's the band's 2nd EFFECT pass `0x485fc0`, NOT a
-  state-handler / `0x484c10` (the `0xe29a` case jumps past those to the tail).  Runs every tick.
-- **RESOLVED — the bounds** (plan open #2 / the "decompile lie"): no static writer, but the
-  capture pins them DEAD CONSTANT per butterfly: **`b1(+0x14264) = spawn_wx + 11200`,
-  `b3(+0x14268) = spawn_wx − 8000`** (≡ center spawn_wx+1600 ± 9600=3 tiles; `8000=+0xc894`,
-  `11200=8000+0xc80`).  spawn_wx ∈ {99200,105600,176400,181200} = the 4 map worldX (= wx@tick0).
-  Chip 1: set at register-time from the spawn worldX.  `PORT-DEBT(butterfly-bounds-writer)` for
-  the un-RE'd spawn derivation (mem_watch deferred — the values are bit-exact for the town).
-- **The motion model (capture-verified).**  `vel` ramps ±2000/tick → ±16000 cap; worldX step
-  ramps → ±100/tick, decelerates → reverses on a heading flip.  Heading `+0x14244` = INTENT
-  (which bound to chase); facing `body+0x2c` = actual travel dir, set by the integrator on the
-  velocity-sign flip (LAGS heading ~5 ticks).  Heading flips on a work tick when cooldown
-  `+0x14248`==0 AND (`|worldX-bound|<0xc81` OR `0x47dbb0` collision OR a 10% RNG roll); cooldown
-  set 0x3c on flip, decrements ~1.5/tick (`:405` every tick + `:773` on work ticks).  The flap
-  `rs+0x72` ∈{0,1,2} is heading-INDEPENDENT (the looping clip).
-- **NEXT — chip 1 (next session, after `/clear`; the PORT).**  In `src/butterfly.{c,h}`:
-  (a) extend `butterfly_register` to take spawn_wx → set `b1/b3`; (b) MOVE the 2 RNG draws/tick
-  from the `butterfly_step` stub into a real `0xe29a` heading FSM (gate/flit already there — add
-  the heading-flip decision; draw count/order UNCHANGED or the ckpt-99 RNG stream regresses);
-  (c) port the per-tick open-air integrator (`vel+=2000` clamp ±16000, `worldX += vel/100`-style
-  — FIT to the captured dwx until tick-exact) as a new APPLY step in `game_actor_update` AFTER
-  the AI pass (mirrors `0x485fc0`), moving the body render-state worldX; (d) validate field-exact
-  vs `runs/butterfly-fsm` on the sim-tick axis.  OPEN: whether the resolved emit `cel_fr` base
-  tracks direction (correlate the EMIT `0x492670` cel_fr with heading before assuming a map —
-  the flap does NOT).  Tag the open-air reduction `PORT-DEBT(...)` so chip 2 generalises rather
-  than rewrites.  Then chip 2 (tile collision) → 3 (Arche, party band `0x4997b0`) → 4 (freeroam).
-  Deferred intro chips unchanged: fountain-anchor 2× (RE +1600 vs +3200), sky-anchor, R8 grade.
+- **Ported — the open-air REDUCTION** of `0x47b990` (AI) / `0x43f880` (move cmd) /
+  `0x485fc0`→`0x442a70` (apply), all capture-verified:
+  - **bounds at register** — `butterfly_register(freq, spawn_wx, slot)` sets
+    `b1(+0x14264)=spawn_wx+11200`, `b3(+0x14268)=spawn_wx−8000` (the ckpt-109 dead constants).
+  - **the `0xe29a` HEADING FSM** — the 2 RNG draws/tick (wander range + the 10% flag) MOVED from
+    the consume-stub into their real use: decrement cooldown `+0x14248`, then FLIP heading
+    `+0x14244` (1↔3) toward the far bound when `cd==0` AND (`|wx−bound|<0xc81` OR the 10% roll).
+    The `0x47dbb0` collision term is OMITTED (open air = clear → PORT-DEBT, chip 2).  Draw
+    count/order UNCHANGED — the ckpt-99 settled-town stream does NOT regress.
+  - **the horizontal APPLY** — `butterfly_step` ends with the integrator EVERY tick (both gate
+    phases, mirroring the band's 2nd EFFECT pass): `world_x += hvel` THEN `hvel` ramps ±10/tick
+    toward `cmd_dir*100` (the capture's **step-before-ramp**: tick 0 has hvel 0 so dwx is 0).
+    `facing` follows the velocity sign.  `main.c` mirrors each butterfly's `world_x`/`facing`
+    into its rendered EFFECT actor (linked by `effect_slot` at register).
+- **Validated field-exact (sim-tick axis, `runs/butterfly-fsm/compare.py`):** the port emits a
+  `CALL_TRACE_BEGIN(0x47b990)` per butterfly per tick; diffed vs the ckpt-109 capture.  HEADING
+  **0 mismatches** for all 4 (every flip tick exact, e.g. bf0 [35,85,155,199,243]) ⇒ the LCG is
+  byte-aligned through **tick 269** (beats ckpt-99's 0-248).  FACING ≤1/286.  worldX exact
+  BETWEEN reversals (bf0→t37, bf3→t51); residual = a **≤170-unit ≈ ≤2px BOUNDED** transient at
+  turn-arounds (the deferred flap-coupling; non-accumulating because the flips phase-lock it).
+  Host `butterfly_motion` (new) + `butterfly_pertick` (unchanged).
+- **DEFERRED (PORT-DEBT, all retire with the full integrator chip 2/3):**
+  - `butterfly-flutter` — the VERTICAL flutter sawtooth (`body+0x18` vel + the `cmd_2` flap
+    sub-FSM = `0x442a70` case-3 `:832-877` → worldY bob) + the flap/heading-reversal COUPLING
+    (= the ≤2px worldX residual).  worldY currently holds the spawn value (butterflies glide flat).
+  - `butterfly-bounds-writer` — the +11200/−8000 spawn-time derivation un-RE'd (values exact).
+  - per-instance frame_base multicolor (the white variant) — part of `butterfly-wander`.
+- **NEXT — chip 2 (TILE COLLISION).**  Port the grid (`DAT_008a9b50+0x1048`→`+0x2c1030` row
+  widths / `+0x2c1040` tile flags; index `worldX/0xc80`), the swept probe `0x4412d0`/`0x440e40`,
+  and the directional probes `0x441ae0`/`0x47dbb0` — so grounded actors stop clipping terrain
+  (prereq for Arche, chip 3 = the party band `0x4997b0` + DirectInput + the `0xc35a` case).
+  This also generalises the `0x442a70` integrator → clears `butterfly-flutter`.  Deferred intro
+  chips unchanged: fountain-anchor 2× (RE +1600 vs +3200), sky-anchor, R8 grade.  **USER
+  visual-verify of the drifting butterflies pending (a fresh trace-studio session).**
 
 ## Where we were — ckpt 106
 
