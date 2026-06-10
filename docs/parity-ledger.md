@@ -187,22 +187,60 @@ extract the EFFECTIVE per-index source levels from the frames themselves
 (s5 = d5 − out5 against a settled-backdrop reference) before touching model
 code — it separates "wrong state" from "wrong cel content" in one shot.
 
-### R7 — FOUNTAIN particle ensemble: a flat ~2-4k px residual at EVERY tick
-### shift — position/age model offset, not a tick origin (OPEN, ckpt 105;
-### NARROWED ckpt 106: fountain ONLY — smoke contributes 0)
+### R7 — FOUNTAIN particle ensemble: LARGELY RESOLVED (ckpt 107) — the ANCHOR
+### was the dominant bug (fountain-box differ 4286 → 560 at stamp-equal t30);
+### the residual is the collision-expiry debt + halo, NOT a tick origin
 
-The fountain spray differs ~2-4k px against EVERY retail tick in dt∈[−8,+8] —
-a tick shift never zeroes it, so the ensemble itself is offset (anchor
-constant, age origin, or a sub-population).  **ckpt-106 narrowing (post-R6):**
-at stamp-equal t30 on the recaptured intro-1, 100% of the whole-frame residual
-(4286 px) sits inside x 428-591, y 222-351 — the fountain box; the chimney
-smoke region contributes ZERO (the ckpt-105 "smoke anchor" suspect is cleared
-during the reveal window).  The per-tick LCG stream is bit-exact (ckpt 99), so
-draw VALUES are aligned — suspects are the position MODEL:
-PORT-DEBT(fountain-anchor) (the +1245 calibrated emit center) or particle ages
-(the emitter starting k ticks offset ages the whole population).  Chase: the
-RENDER lens — a dual blit trace at one matched tick → per-particle
-(res, frame, dst) deltas attribute it in one capture (pixel probes are spent).
+**Two independent bugs, both fixed by RE (decompile + field-spec), drop the
+fountain-box residual 4286 → ~560 px at stamp-equal tick 30:**
+
+1. **Anchor (the bulk).**  `0x557370` mode-1 spawns at `world + (box)/2 + jitter`
+   (decompile `0x557370:56-60`).  The new `0x557370` field-spec (`runs/r7-anchor-
+   retail`) reads the fountain prop's `+0xc/+0x10` box = (6400,6400), world =
+   (176000,41600) — and the PORT's prop world is byte-identical, so the offset is
+   the only free variable.  A port|retail water-droplet blit match at tick 30 (27
+   droplets each, same cel sheet res 1032 → identical cel offset, same camera
+   since R6 background = differ_px 0) pins the EMPIRICAL anchor at **+1600 both
+   axes** (= `+0xc/4`).  At the old +1245/no-Y the spray sat high-left; at +1600
+   the spray centroid matches and the box differ falls to ~560.  **OPEN 2× gap:**
+   the decompile reads `+0xc/2` = +3200, but the rendered spawn matches at +1600 —
+   root cause un-RE'd (`0x557550`/`0x426620` water-config second halving, or a
+   doubled `+0xc` unit).  The value is validated against pixels; the formula is not
+   yet understood end-to-end (PORT-DEBT fountain-anchor).
+2. **Band-order one-tick lead.**  `0x46cd70` walks the PARTICLE band `0x13e0`
+   (`0x46e510` step) BEFORE the CHARACTER band `0x11e0` (`0x54f980` emit) — so a
+   freshly-spawned droplet renders UNSTEPPED for one tick.  The old port stepped
+   then emitted (emit-then-step), integrating fresh droplets one tick early.
+   `particle_pool_step` moved before the emitters (RNG-free → stream intact).
+   Decompile-verified (`46cd70.c:103-169`).
+   The 3-way velocity CYCLE was already correct: `54f980:218-285` increments
+   `+0x5c` first then `%3`; init 0 yields `(k+1)%3`, matching retail's
+   `abs_tick%3==0→case1 / ==1→case2 / ==2→inline-case0` from tick 0 (verified
+   `runs/r7-anchor-retail` + `runs/r7-vel-retail`).
+
+**Remaining ~560 px — TWO separate, known debts (USER-confirmed visually
+indistinguishable, ckpt 107):**
+- **The 2 BUTTERFLIES (the larger share) — PORT-DEBT(butterfly-wander).**  res
+  `0x3fa` (1018), rendered via the KEYED blit `0x5b9b70` (NOT the `0x5bd550` alpha
+  path the particle analysis traced — which is why a droplets-only sweep first
+  missed them).  At t30 they sit at (484,320)/(532,320), INSIDE the fountain box;
+  the port FREEZES them (movement FSM `0x43f880` unported) while retail's drift, so
+  they differ.  The USER reads the diff as "~3 fountain particles, the rest is
+  butterflies" — matching this.
+- **~3 fountain water particles — PORT-DEBT(fountain-collide).**  res `0x408`
+  (1032).  The lower/basin box holds 13 port vs 6 retail droplets at t30 (total 27
+  both): retail expires droplets on the collision-grid water hit (`0x46e510:561-586`,
+  `(x,y)/0xc80`), the port's fixed `sub_phase==8` lifetime (~27 ticks) lets them
+  fall lower.  A handful of pixels; the eye picks out ~3.
+Plus minor spray-top halo.  Chimney smoke contributes 0 in-window (letterbox-
+occluded; sky anchor left at 0 — but the `0x557370` spec read the sky prop box =
+3200, contradicting quirk-#88's "+0xc==0", flagged TODO(sky-anchor)).
+
+**REGRESSION GUARD (USER directive — "check that it stays synced"):** the fountain
+spray is bit-exact-modulo-the-above at stamp-equal t30; re-running `trace_studio
+recapture --only port intro-1` + the fountain-box differ (expect ~560, dominated
+by butterflies) is the watch.  Revisit when `butterfly-wander` (movement FSM) and
+`fountain-collide` (room collision grid) land — the box should then approach 0.
 
 ### R8 — dialogue typewriter ROW-TRANSITION pauses: the fitted grade model
 ### mis-distributes the row-close pause (net −3 ticks; OPEN, ckpt 105) — and the

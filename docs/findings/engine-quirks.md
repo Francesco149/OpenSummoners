@@ -2708,12 +2708,19 @@ Two retail ground-truth facts that pin particle placement (live-captured, `runs/
   `[50690..114356]` vs props `62800`/`113600`).  The fountain's 3-way cycle (left-strong/right/
   left-weak) is likewise relative to +vel_x/100 — a port that spawns facing 0 mirrors every
   particle's horizontal motion (invisible on the ~symmetric fountain spray, wrong for the sky).
-- **Anchor.**  `0x557370` mode-1 spawns at `parent.world_x + parent_render_state[+0xc]/2 +
-  jitter`.  +0xc is the emitter's display half-extent in world units: an INVISIBLE emitter (the
-  `0x112e2` sky trigger, no cel) has +0xc == 0 → anchor 0 (particles spawn at the prop's exact
-  world pos; trace: `0x18704` fresh ≈ prop ± jitter).  A VISIBLE emitter (the fountain prop)
-  has +0xc ≈ 2810 → +1405; note this is NOT the prop's display-cel width (that measures 3400/
-  +1700), so +0xc is a distinct field whose setter is still un-RE'd.
+- **Anchor (CORRECTED ckpt 107 — direct field-spec read at the `0x557370` call).**  Mode 1
+  spawns at `parent.world_x + parent_render_state[+0xc]/2 + jitter` (decompile `0x557370:56-60`).
+  The new `0x557370` field-spec (`runs/r7-anchor-retail`, `argfield` on param_3 = arg index 2)
+  reads `+0xc/+0x10` directly at the call: the **fountain** prop (`0x112e5`) box = (6400,6400),
+  the **sky** prop (`0x112e2`) box = (3200,3200).  This SUPERSEDES the earlier inferred values
+  (fountain "+0xc≈2810", sky "+0xc==0"), which were not read off the formula's actual operand.
+  **2× puzzle (OPEN):** a port|retail water-droplet blit match (tick 30, 27 droplets each, same
+  cel/camera) pins the fountain's RENDERED anchor at **+1600 = +0xc/4**, not the decompile's
+  +0xc/2 = +3200 — a factor of 2 whose root cause (a second halving in the `0x557550`/`0x426620`
+  config path, or a doubled `+0xc` unit) is un-RE'd.  The sky read of +0xc==3200 (→ mode-1 would
+  be +1600, not the 0 the port uses) is UNVALIDATED — the smoke is letterbox-occluded in the
+  reveal window and was USER-1:1 at the settled town, so the port keeps sky anchor 0 pending a
+  settled-town smoke render_diff (TODO sky-anchor).
 
 - **Sky vs fountain particle systems** (both bank `0x1aa`, both render via the `0x493480`
   alpha arm): `0x18704` = **chimney SMOKE** (emitter `0x112e2`, layer 6, clip `0x644b58`

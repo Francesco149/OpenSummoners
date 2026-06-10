@@ -237,13 +237,40 @@ static particle_pool    g_fountain_pp;
 static int              g_fountain_loaded;
 static int32_t          g_fountain_cx, g_fountain_cy;
 static int              g_fountain_counter;
-/* PORT-DEBT(fountain-anchor): the 0x557370 mode-1 anchor is parent
- * render-state +0xc/2.  The trace (0x18708 fresh particles) pins the fountain's
- * true value at +1405 (render-state +0xc ~= 2810); it is NOT the prop's display-
- * cel width (that measures +1700), so +0xc is a distinct field whose source is
- * still un-RE'd.  We keep the calibrated +1245 (USER-confirmed) until +0xc's
- * setter is identified.  (The SKY emitter needs none — see below.) */
-#define FOUNTAIN_EMIT_X_OFF 1245
+/* The 0x557370 mode-1 (param_7==1) anchor CENTERS the spawn on the emitter
+ * prop's BOX (decompile 0x557370:56-60):
+ *     final_x = world_x + (+0xc)/2  + jitter_x
+ *     final_y = world_y + (+0x10)/2 + jitter_y
+ * GROUND TRUTH (runs/r7-anchor-retail, the new 0x557370 field-spec; R7): the
+ * fountain prop (0x18708 emitter) reads world=(176000,41600), box +0xc/+0x10 =
+ * (6400,6400) — and the PORT's prop world is byte-identical (176000,41600), so
+ * the only free variable is the offset.
+ *
+ * EMPIRICAL anchor = +1600 on BOTH axes (NOT the decompile's +0xc/2 = 3200).
+ * Proof: a port|retail water-droplet blit comparison at stamp-equal tick 30
+ * (runs/trace-studio/intro-1 port call-trace vs runs/r7-anchor-retail; both
+ * render exactly 27 droplets, same cel sheet res 1032 → identical cel offset,
+ * same camera since R6 background is differ_px==0).  At offset +3200 the port
+ * spray centroid sat +14.6px right / +16.2px BELOW retail's; backing that out
+ * (centroidΔ × 100, jitters cancel) puts retail's offset at ~1740/1580 ≈ 1600,
+ * i.e. +0xc/4.  So the decompile reads /2 but the rendered spawn matches at /4.
+ * PORT-DEBT(fountain-anchor) — OPEN 2× discrepancy: the missing factor is either
+ * a second halving in the 0x557550/0x426620 water-config path (not in the cases
+ * read so far) or a doubled +0xc unit; pin it before claiming the formula.  The
+ * +1600 value retires the old curve-fit X=+1245 / missing-Y (R7 proved those
+ * wrong: the spray sat too high-left) and matches the spray centroid. */
+#define FOUNTAIN_EMIT_X_OFF 1600   /* empirical (= +0xc/4); see the 2× note above */
+#define FOUNTAIN_EMIT_Y_OFF 1600   /* empirical (= +0x10/4); R7 tick-30 blit match */
+/* The 0x112e5 emitter's +0x5c velocity-cycle counter.  particle_fountain_emit
+ * mirrors retail byte-for-byte (54f980:218-285): increment FIRST
+ * (counter=(counter+1)%30) THEN switch(counter%3) — 1 = right (0x453960
+ * 20000,10000,-80000,-10000), 2 = weak-left (-10000,..), 0 = left-strong
+ * (inline, no 0x453960).  So init 0 already yields cycle (k+1)%3 at emit #k,
+ * matching the retail 0x453960 arg trace (runs/r7-vel-retail: abs_tick%3==0 →
+ * right, ==1 → weak-left, ==2 → the inline case-0 with no scatter call).  Init 0
+ * is faithful; the R7 "fake X-mirror" was the emit-then-step ORDER (now fixed in
+ * game_actor_update), not this phase. */
+#define FOUNTAIN_CYCLE_INIT 0
 
 /* The 0x18704 SKY-AMBIENT emitters (0x112e2 / 0x54f980:150) — up to a handful of
  * CHARACTER props (census: 2 in the town); each spawns one 0x18704 particle every
@@ -2360,10 +2387,17 @@ static void game_actor_update(void)
     butterfly_step(&g_butterflies);
     ambient_effect_step(&g_ambient);
 
-    /* (2) CHARACTER band (0x54f980): the particle EMITTERS.  The FOUNTAIN 0x112e5
+    /* (2) The PARTICLE band (+0x13e0, 0x46e510) steps BEFORE the CHARACTER band
+     *     in 0x46cd70's walk (bands: 0x1160 EFFECT → 0x1060 → 0x13e0 PARTICLES →
+     *     0x23e0 → 0x11e0 CHARACTER) — so a droplet spawned this tick renders
+     *     UNSTEPPED (spawn pos, frame 6, timer 0) until the next tick.  The old
+     *     emit-then-step order integrated fresh droplets one tick early — the R7
+     *     one-anim-tick lead.  RNG-free, so the move leaves the stream intact. */
+    particle_pool_step(&g_fountain_pp);
+
+    /* (3) CHARACTER band (0x54f980): the particle EMITTERS.  The FOUNTAIN 0x112e5
      *     spawns one 0x18708 water droplet (6 draws); the SKY emitters 0x112e2
-     *     each spawn one 0x18704 ambient particle every 6th tick (4 draws each).
-     *     particle_pool_step (0x46e510, RNG-free) then integrates every particle. */
+     *     each spawn one 0x18704 ambient particle every 6th tick (4 draws each). */
     if (g_fountain_loaded)
         particle_fountain_emit(&g_fountain_pp, g_fountain_cx, g_fountain_cy,
                                &g_fountain_counter);
@@ -2371,15 +2405,13 @@ static void game_actor_update(void)
         particle_sky_emit(&g_fountain_pp, g_sky_cx[i], g_sky_cy[i],
                           &g_sky_counter[i]);
 
-    /* (3) The CHARACTER-band tail: the two 0x5531b0 ambient sound emitters
+    /* (4) The CHARACTER-band tail: the two 0x5531b0 ambient sound emitters
      *     (0x1136f/0x11370) and the wagon 0x1872d's idle-wander, AFTER the
      *     fountain/sky in slot order (their tick-0 init draws then fire on cue at
-     *     ticks 33/134/189).  With (1)-(3) the per-tick stream now matches retail
+     *     ticks 33/134/189).  With (1)-(4) the per-tick stream matches retail
      *     bit-exact across the whole settled-town window (engine-quirk #95) — this
      *     retires the RNG residual of PORT-DEBT(fountain-rng-phase). */
     ambient_character_step(&g_ambient);
-
-    particle_pool_step(&g_fountain_pp);
 }
 
 static void game_render(void *user)
@@ -2706,17 +2738,24 @@ static void enter_game(void)
          * Find each, cache its anchor-center, reset its counter. */
         particle_pool_reset(&g_fountain_pp);
         g_fountain_loaded = 0;
-        g_fountain_counter = 0;
+        g_fountain_counter = FOUNTAIN_CYCLE_INIT;
         g_sky_emit_count = 0;
         for (int i = 0; i < g_actors.count; i++) {
             uint32_t code = g_actors.actors[i].code;
             if (code == 0x112e5u && !g_fountain_loaded) {
-                /* fountain prop: anchor +0xc/2 (PORT-DEBT, calibrated +1245). */
+                /* fountain prop: 0x557370 mode-1 anchor = world + empirical +1600
+                 * both axes (= +0xc/4; the decompile reads /2 — open 2×, above). */
                 g_fountain_cx = g_actors.states[i].world_x + FOUNTAIN_EMIT_X_OFF;
-                g_fountain_cy = g_actors.states[i].world_y;
+                g_fountain_cy = g_actors.states[i].world_y + FOUNTAIN_EMIT_Y_OFF;
                 g_fountain_loaded = 1;
             } else if (code == 0x112e2u && g_sky_emit_count < SKY_EMIT_MAX) {
-                /* invisible trigger: +0xc==0 -> anchor 0 -> the prop's world pos. */
+                /* sky trigger: anchor KEPT at 0 (the prop's world pos).  NOTE
+                 * (R7, ckpt 107): the 0x557370 field-spec reads this prop's
+                 * box=3200 too (→ mode-1 anchor would be +1600), contradicting
+                 * the old quirk-#88 "+0xc==0".  Out of R7 scope (fountain-only;
+                 * smoke is letterbox-occluded in the reveal window + was USER-1:1
+                 * at the settled town) — kept 0 pending a settled-town smoke
+                 * render_diff.  TODO(sky-anchor): validate the +1600 anchor. */
                 g_sky_cx[g_sky_emit_count] = g_actors.states[i].world_x;
                 g_sky_cy[g_sky_emit_count] = g_actors.states[i].world_y;
                 g_sky_counter[g_sky_emit_count] = 0;

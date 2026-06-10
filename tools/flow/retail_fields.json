@@ -2526,6 +2526,176 @@
      "type": "i32"
     }
    ]
+  },
+  "0x5bd550": {
+   "name": "blt_alpha",
+   "_note": "FUN_005bd550 — the software alpha/colorize blit orchestrator (__cdecl, ECX carries the blend descriptor — recovered by disassembly ckpt 95). Stack args per the 0x48e920/0x493480 call shape: [0]=dest, [1]=src cel, [2]=dx, [3]=dy, [4]=w, [5]=h, [6]=sx, [7]=sy, [8]=colorkey. renderid on args[1] names the source cel when the cel is registry-known (cels bound via the 0x418470 family); particle cels may resolve null — the (dx,dy,w,h) payload still attributes per-particle deltas (R7). Port mirror: zdd.c zdd_emit_blit(0x5bd550).",
+   "fields": [
+    {
+     "name": "res",
+     "src": "renderid",
+     "index": 1,
+     "key": "res"
+    },
+    {
+     "name": "frame",
+     "src": "renderid",
+     "index": 1,
+     "key": "frame"
+    },
+    {
+     "name": "dx",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "dy",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "reqw",
+     "src": "arg",
+     "index": 4,
+     "type": "i32"
+    },
+    {
+     "name": "reqh",
+     "src": "arg",
+     "index": 5,
+     "type": "i32"
+    },
+    {
+     "name": "sx",
+     "src": "arg",
+     "index": 6,
+     "type": "i32"
+    },
+    {
+     "name": "sy",
+     "src": "arg",
+     "index": 7,
+     "type": "i32"
+    },
+    {
+     "name": "ckey",
+     "src": "arg",
+     "index": 8,
+     "type": "hex"
+    }
+   ]
+  },
+  "0x453960": {
+   "name": "velocity_scatter",
+   "_note": "FUN_00453960 — the 2-draw velocity scatter helper (vel_y then vel_x; writes this+0x18/+0x28). __thiscall; the 4 STACK args are (x_base, x_spread, y_base, y_spread)-family ranges (exact role per call site). Logged to read the FOUNTAIN 3-way cycle's true ranges per droplet (R7) — the port's fitted cycle signs/order are suspect. ECX = the droplet render-state; rs_x/rs_y via thisderef pin which droplet.",
+   "fields": [
+    {
+     "name": "a0",
+     "src": "arg",
+     "index": 0,
+     "type": "i32"
+    },
+    {
+     "name": "a1",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "a2",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "a3",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "rs_x",
+     "src": "thisderef",
+     "off": 4,
+     "type": "i32"
+    },
+    {
+     "name": "rs_y",
+     "src": "thisderef",
+     "off": 8,
+     "type": "i32"
+    },
+    {
+     "name": "rngcalls",
+     "src": "rngcalls",
+     "type": "i32"
+    }
+   ]
+  },
+  "0x557370": {
+   "name": "particle_spawn",
+   "_note": "FUN_00557370 — the particle pool alloc + ANCHOR resolve (then tail-calls 0x557550 to configure). __cdecl; param_3 (arg index 2) = the EMITTER prop's render-state (+4 world_x, +8 world_y, +0xc box_w, +0x10 box_h); param_7 (arg index 6) = anchor MODE. Mode 1 (the fountain 0x18708 + sky 0x18704): decompile reads final = world + (+0xc/+0x10)/2 + jitter (0x557370:56-60). param_2 (arg 1) = particle code (0x18708 water / 0x18704 sky). R7 ground truth: the fountain prop reads world=(176000,41600), box=(6400,6400); but a port|retail water-droplet blit match at tick 30 (27 droplets each, same cel/camera) puts the EMPIRICAL anchor at +1600 = +0xc/4, NOT +0xc/2 = 3200 — a 2× discrepancy still open (a second halving in 0x557550/0x426620, or a doubled +0xc unit). jx/jy are the pre-anchor jitter args; mode distinguishes invisible triggers.",
+   "fields": [
+    {
+     "name": "code",
+     "src": "arg",
+     "index": 1,
+     "type": "hex"
+    },
+    {
+     "name": "mode",
+     "src": "arg",
+     "index": 6,
+     "type": "i32"
+    },
+    {
+     "name": "world_x",
+     "src": "argfield",
+     "index": 2,
+     "off": 4,
+     "type": "i32"
+    },
+    {
+     "name": "world_y",
+     "src": "argfield",
+     "index": 2,
+     "off": 8,
+     "type": "i32"
+    },
+    {
+     "name": "box_w",
+     "src": "argfield",
+     "index": 2,
+     "off": 12,
+     "type": "i32"
+    },
+    {
+     "name": "box_h",
+     "src": "argfield",
+     "index": 2,
+     "off": 16,
+     "type": "i32"
+    },
+    {
+     "name": "jx",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "jy",
+     "src": "arg",
+     "index": 4,
+     "type": "i32"
+    },
+    {
+     "name": "rngcalls",
+     "src": "rngcalls",
+     "type": "i32"
+    }
+   ]
   }
  }
 }

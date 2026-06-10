@@ -9,7 +9,34 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 106): R6 establishing-REVEAL RESOLVED — the frontier band is
+- **LATEST (ckpt 107): R7 FOUNTAIN largely RESOLVED — the ANCHOR was the dominant bug;
+  the fountain-box differ drops `4286 → 560` px at stamp-equal t30. Finishes a fable session
+  cut short by a Windows update (its uncommitted main.c + retail_fields.json). (939 pass.)**
+  1. **Anchor (the bulk).** New `0x557370` field-spec (`runs/r7-anchor-retail`) reads the
+     fountain prop's box `+0xc/+0x10` = (6400,6400) + world (176000,41600) — byte-identical to
+     the PORT's prop world. A port|retail water-droplet blit match (t30, 27 droplets each, same
+     cel/camera) pins the EMPIRICAL anchor at **+1600 both axes** (`FOUNTAIN_EMIT_{X,Y}_OFF`,
+     was X=+1245/no-Y → the spray sat high-left). **OPEN 2×:** the decompile (`0x557370:58`)
+     reads `+0xc/2` = +3200 but the rendered spawn matches at +1600 = `+0xc/4` (root cause
+     un-RE'd — `0x557550`/`0x426620` 2nd halving, or doubled `+0xc`).
+  2. **Band-order one-tick lead (decompile-verified, `46cd70.c:103-169`).** `0x46cd70` steps the
+     PARTICLE band `0x13e0` (`0x46e510`) BEFORE the CHARACTER band `0x11e0` (`0x54f980` emit), so
+     a fresh droplet renders UNSTEPPED one tick; `particle_pool_step` moved before the emitters
+     (RNG-free → stream intact). The 3-way velocity CYCLE was already correct (init 0 → `(k+1)%3`,
+     case-for-case identical, aligned from tick 0 — `runs/r7-vel-retail`/`r7-anchor-retail`).
+  3. **Annotations added** (the openrecet "annotate as you RE" step): `0x557370` (particle_spawn
+     + anchor), `0x453960` (velocity_scatter), `0x5bd550` (blt_alpha) in `retail_fields.json`.
+  4. **Remaining ~560 px (NOT the anchor) = two known debts (USER: visually indistinguishable).**
+     The larger share is the 2 BUTTERFLIES (res `0x3fa`, KEYED blit `0x5b9b70` — missed by the
+     alpha-only particle sweep) frozen IN the box at (484,320)/(532,320) = PORT-DEBT(butterfly-
+     wander, movement FSM `0x43f880`); plus ~3 fountain water particles (lower box 13 port vs 6
+     retail droplets) = PORT-DEBT(fountain-collide, the room collision-grid expiry). USER: "3
+     fountain particles, the rest is butterflies — revisit later + check it stays synced."
+  5. **NEXT:** (a) `fountain-collide` — port the room collision grid into the particle step →
+     the lower-droplet count matches; (b) resolve the anchor 2× (RE `0x557550`/`0x426620`);
+     (c) `sky-anchor` — the spec read the sky prop box=3200 too (≠ quirk-#88 "+0xc==0"),
+     validate +1600 at the settled town; (d) the ckpt-106 R8 typewriter grade + dialogue chip 4.
+- **Prior (ckpt 106): R6 establishing-REVEAL RESOLVED — the frontier band is
   `differ_px==0` at EVERY stamp-equal tick (2..32); the residual was TWO stacked causes,
   each hiding the other's fix. R7 narrowed to the fountain ONLY. (939 pass.)**
   1. **Cause 1 — graded mask cels:** retail binds res `0x458` (alpha mask ramp) + `0x583`
