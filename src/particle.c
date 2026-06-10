@@ -333,7 +333,9 @@ int particle_pool_render(const particle_pool *pool, draw_pool *pool_out,
          * +0x13e0 band always alpha-blends (engine-quirk #87).  The node's alpha
          * (param8) carries (ramp-selector << 8) | index; the present picks the
          * descriptor + orchestrates:
-         *   - WATER: ramp_a, idx = 10 - sub_phase ((&DAT_008a92e0)[-sub_phase]).
+         *   - WATER: sub_phase 0 = the config alpha ramp_b[10] (mode 0, NORMAL —
+         *            DAT_008a9330); sub_phase 1+ = ramp_a[10-sub_phase] (mode 1
+         *            ADD, (&DAT_008a92e0)[-sub_phase]).  See the sub_phase==0 arm.
          *   - SKY:   ramp_b, idx = sky_fade_idx(life) ((&DAT_008a9308)[idx]). */
         actor_desc d;
         if (!actor_render_describe(a, rs, /*flip_table=*/NULL, &d)) continue;
@@ -343,8 +345,18 @@ int particle_pool_render(const particle_pool *pool, draw_pool *pool_out,
         uint32_t param8;
         if (a->code == PARTICLE_CODE_SKY) {
             param8 = PARTICLE_PARAM8_RAMP_B | (uint32_t)sky_fade_idx(rs->life);
+        } else if (rs->sub_phase == 0) {
+            /* 0x557550 case 0x18708 sets the FRESH droplet's alpha via
+             * 0x4385c0(DAT_008a9330) = ramp_b[10] (group B, mode 0 / NORMAL
+             * blend), NOT ramp_a[10] (group A, mode 1 / ADD).  The step
+             * 0x46e510 only overwrites +0xf4 with ramp_a[10-sub_phase] from
+             * sub_phase 1 onward (the increment branch).  Rendering the 3
+             * sub_phase-0 spawn-cluster droplets through ramp_a's ADD-blend made
+             * them accumulate and blow out white — the R7 fade residual the USER
+             * caught (ckpt 107); ramp_b[10] is the dim/transparent retail look. */
+            param8 = PARTICLE_PARAM8_RAMP_B | 10u;
         } else {
-            int idx = 10 - (int)rs->sub_phase;   /* DAT_008a92e0[-sub_phase] */
+            int idx = 10 - (int)rs->sub_phase;   /* ramp_a[10-sub_phase] = DAT_008a92e0[-sub_phase] */
             if (idx < 0) idx = 0;
             if (idx > 19) idx = 19;
             param8 = (uint32_t)idx;

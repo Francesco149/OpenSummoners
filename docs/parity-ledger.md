@@ -187,12 +187,13 @@ extract the EFFECTIVE per-index source levels from the frames themselves
 (s5 = d5 − out5 against a settled-backdrop reference) before touching model
 code — it separates "wrong state" from "wrong cel content" in one shot.
 
-### R7 — FOUNTAIN particle ensemble: LARGELY RESOLVED (ckpt 107) — the ANCHOR
-### was the dominant bug (fountain-box differ 4286 → 560 at stamp-equal t30);
-### the residual is the collision-expiry debt + halo, NOT a tick origin
+### R7 — FOUNTAIN spray: RESOLVED (ckpt 107) — anchor + band-order + fresh-droplet
+### fade all fixed by RE; the fountain water is bit-exact (upper spray differ_px==0,
+### box 4286 → 305), and 100% of the 305 remainder is the butterflies (separate)
 
-**Two independent bugs, both fixed by RE (decompile + field-spec), drop the
-fountain-box residual 4286 → ~560 px at stamp-equal tick 30:**
+**Three bugs, all fixed by RE (decompile + field-spec + USER-caught fade), drop the
+fountain-box residual 4286 → 305 px at stamp-equal tick 30 (the water is then
+bit-exact; the 305 remainder is the butterflies):**
 
 1. **Anchor (the bulk).**  `0x557370` mode-1 spawns at `world + (box)/2 + jitter`
    (decompile `0x557370:56-60`).  The new `0x557370` field-spec (`runs/r7-anchor-
@@ -218,36 +219,35 @@ fountain-box residual 4286 → ~560 px at stamp-equal tick 30:**
    `abs_tick%3==0→case1 / ==1→case2 / ==2→inline-case0` from tick 0 (verified
    `runs/r7-anchor-retail` + `runs/r7-vel-retail`).
 
-**Remaining ~560 px — TWO separate causes, USER-confirmed visually
-indistinguishable (ckpt 107; the USER pinpointed both: "positions match 1:1; 3
-fountain particles, the rest is butterflies"):**
-- **The 2 BUTTERFLIES (the larger share) — PORT-DEBT(butterfly-wander).**  res
-  `0x3fa` (1018), rendered via the KEYED blit `0x5b9b70` (NOT the `0x5bd550` alpha
-  path the particle analysis traced — which is why a droplets-only sweep first
-  missed them).  At t30 they sit at (484,320)/(532,320), INSIDE the fountain box;
-  the port FREEZES them (movement FSM `0x43f880` unported) while retail's drift.
-- **~3 fountain water droplets — the FADE ALPHA (NOT position, NOT collision).**
-  res `0x408` (1032).  The USER caught the exact cause: ~3 mid-life droplets render
-  too BRIGHT/opaque in the port (blown-out pink-white) where retail shows them dim
-  (transparent purple over the brick).  **Position + COUNT are 1:1** (per single
-  flip: port 27 full / 6 lower-box == retail 27 / 6 — the earlier "13 vs 6" was a
-  2-flips-per-tick DOUBLING artifact, so `fountain-collide` is NOT observable here
-  and was a mis-attribution).  sub_phase TIMING also matches (positions match).
-  So the residual is the per-sub_phase ALPHA VALUE: the port picks `g_ramp_a[10 −
-  sub_phase]` and the index mapping is verified correct (`DAT_008a92e0` = ramp_a[10]
-  since `0x8a92e0` = `0x8a92b8`+0x28), so the suspect is the GROUP-A blend-descriptor
-  values `g_pd_boot_group_a[~4-8]` (the mid-fade water ramp) or the blend
-  orchestration — a render-lens / descriptor-dump chase (the water ramp was never
-  validated per-index).  TODO(fountain-fade).
-Chimney smoke contributes 0 in-window (letterbox-occluded; sky anchor left at 0 —
-but the `0x557370` spec read the sky prop box = 3200, contradicting quirk-#88's
-"+0xc==0", flagged TODO(sky-anchor)).
+3. **Fade — the FRESH-droplet blend (USER-caught).**  The sub_phase-0 droplets
+   rendered too BRIGHT (blown-out pink-white) where retail shows them dim/
+   transparent.  Cause: `0x557550` case `0x18708` sets the fresh droplet's alpha
+   via `FUN_004385c0(DAT_008a9330)` = **ramp_b[10]** (group B, mode 0 / NORMAL
+   blend); the step `0x46e510` only overwrites `+0xf4` with `ramp_a[10−sub_phase]`
+   (group A, mode 1 / ADD) from sub_phase 1 on.  The port rendered ALL water via
+   ramp_a, so the 3 overlapping spawn-cluster droplets ADD-accumulated to white.
+   Fix: `particle_pool_render` renders sub_phase 0 via `ramp_b[10]`, sub_phase 1+
+   via `ramp_a[10−sub_phase]` (`particle.c`; host test `particle_render_emits`
+   extended).  Position + count + sub_phase timing were already 1:1 (per single
+   flip 27/6 == 27/6; the earlier "13 vs 6" was a 2-flips-per-tick DOUBLING
+   artifact, so `fountain-collide` is a latent debt, NOT observable here).
+
+**The fountain spray is now BIT-EXACT** — upper spray (y222-286) `differ_px == 0`
+at stamp-equal t30; box 4286 → 305 (the fade step alone: 560 → 305, upper 154 →
+0), and 100% of the 305 remainder is the butterflies (a separate subsystem).
+
+**Remaining ~305 px = the 2 BUTTERFLIES only — PORT-DEBT(butterfly-wander).**  res
+`0x3fa` (1018), KEYED blit `0x5b9b70`, at (484,320)/(532,320) inside the box; the
+port FREEZES them (movement FSM `0x43f880` unported) while retail's drift.  A
+separate subsystem — the fountain is done.  (Chimney smoke contributes 0 in-window,
+letterbox-occluded; sky anchor left at 0 — but the `0x557370` spec read the sky
+prop box = 3200, contradicting quirk-#88's "+0xc==0", flagged TODO(sky-anchor).)
 
 **REGRESSION GUARD (USER directive — "check that it stays synced"):** the fountain
-spray POSITIONS are bit-exact at stamp-equal t30; the watch is `trace_studio
-recapture --only port intro-1` + the fountain-box differ (expect ~560: butterflies
-+ the ~3 over-bright droplets).  It should approach 0 when `butterfly-wander`
-(movement FSM) and `fountain-fade` (the mid-sub_phase water-ramp alpha) land.
+spray (position + fade) is bit-exact at stamp-equal t30; the watch is `trace_studio
+recapture --only port intro-1` + the fountain-box differ (expect ~305 = the 2
+butterflies only).  It should approach 0 when `butterfly-wander` (movement FSM)
+lands — the fountain water itself (position + fade) is already bit-exact.
 
 ### R8 — dialogue typewriter ROW-TRANSITION pauses: the fitted grade model
 ### mis-distributes the row-close pause (net −3 ticks; OPEN, ckpt 105) — and the

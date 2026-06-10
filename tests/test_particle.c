@@ -178,11 +178,28 @@ int test_particle_roundrobin(void)
 int test_particle_render_emits(void)
 {
     particle_pool_reset(&g_pp);
-    (void)particle_spawn_water(&g_pp, 12000, 8000);
+    int slot = particle_spawn_water(&g_pp, 12000, 8000);
+    T_ASSERT(slot >= 0);
     draw_pool dp;
     T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
     int n = particle_pool_render(&g_pp, &dp, resolve_pack, NULL);
     T_ASSERT_EQ_I(n, 1);
+    /* FRESH (sub_phase 0): the config alpha is ramp_b[10] (mode 0, NORMAL blend
+     * = DAT_008a9330), NOT ramp_a[10] (mode 1 ADD).  Rendering it via ramp_a's
+     * add-blend blew the spawn-cluster droplets out white (R7 fade fix, ckpt 107;
+     * 0x557550 case 0x18708 / 0x4385c0). */
+    const draw_node *fresh = &dp.layers[11 /*PARTICLE_LAYER_WATER*/].nodes[0];
+    T_ASSERT((fresh->param8 & PARTICLE_PARAM8_RAMP_B) != 0u);
+    T_ASSERT_EQ_U(fresh->param8 & PARTICLE_PARAM8_IDX_MASK, 10u);
+    draw_pool_free(&dp);
+
+    /* AGED (sub_phase 2): ramp_a (no RAMP_B bit), idx = 10 - sub_phase = 8. */
+    g_pp.states[slot].sub_phase = 2;
+    T_ASSERT_EQ_I(draw_pool_init(&dp), 0);
+    T_ASSERT_EQ_I(particle_pool_render(&g_pp, &dp, resolve_pack, NULL), 1);
+    const draw_node *aged = &dp.layers[11].nodes[0];
+    T_ASSERT((aged->param8 & PARTICLE_PARAM8_RAMP_B) == 0u);
+    T_ASSERT_EQ_U(aged->param8 & PARTICLE_PARAM8_IDX_MASK, 8u);
     draw_pool_free(&dp);
     return 0;
 }

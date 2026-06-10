@@ -35,9 +35,10 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 107): R7 FOUNTAIN largely RESOLVED — the ANCHOR was the dominant bug;
-  the fountain-box differ drops `4286 → 560` px at stamp-equal t30. Finishes a fable session
-  cut short by a Windows update (its uncommitted main.c + retail_fields.json). (939 pass.)**
+- **LATEST (ckpt 107): R7 FOUNTAIN spray RESOLVED — the water is BIT-EXACT (upper spray
+  `differ_px==0`); fountain-box differ `4286 → 305` at stamp-equal t30, and 100% of the 305 is
+  the butterflies (separate). Finishes a fable session cut short by a Windows update + the
+  USER-caught fade. (939 pass.)** USER: "positions match 1:1; 3 fountain particles, rest is butterflies."
   1. **Anchor (the bulk).** New `0x557370` field-spec (`runs/r7-anchor-retail`) reads the
      fountain prop's box `+0xc/+0x10` = (6400,6400) + world (176000,41600) — byte-identical to
      the PORT's prop world. A port|retail water-droplet blit match (t30, 27 droplets each, same
@@ -50,20 +51,23 @@ understates how much actual instruction volume is ported.
      a fresh droplet renders UNSTEPPED one tick; `particle_pool_step` moved before the emitters
      (RNG-free → stream intact). The 3-way velocity CYCLE was already correct (init 0 → `(k+1)%3`,
      case-for-case identical, aligned from tick 0 — `runs/r7-vel-retail`/`r7-anchor-retail`).
-  3. **Annotations added** (the openrecet "annotate as you RE" step): `0x557370` (particle_spawn
-     + anchor), `0x453960` (velocity_scatter), `0x5bd550` (blt_alpha) in `retail_fields.json`.
-  4. **Remaining ~560 px (NOT the anchor) — USER pinpointed both, visually indistinguishable.**
-     POSITIONS + COUNT are 1:1 (per single flip 27/6 both). The larger share is the 2 BUTTERFLIES
-     (res `0x3fa`, KEYED blit `0x5b9b70` — missed by the alpha-only sweep) frozen in the box =
-     PORT-DEBT(butterfly-wander, movement FSM `0x43f880`); plus ~3 fountain droplets that render
-     too BRIGHT/opaque (retail shows them dim/transparent) = the water FADE alpha, PORT-DEBT(
-     fountain-fade) — index mapping `g_ramp_a[10−sub_phase]` is correct, suspect the group-A
-     blend-descriptor values at mid sub_phases. (`fountain-collide` was a mis-attribution — the
-     "13 vs 6" was a 2-flip doubling artifact; per-flip counts match.) USER: "revisit later."
-  5. **NEXT:** (a) `fountain-collide` — port the room collision grid into the particle step →
-     the lower-droplet count matches; (b) resolve the anchor 2× (RE `0x557550`/`0x426620`);
-     (c) `sky-anchor` — the spec read the sky prop box=3200 too (≠ quirk-#88 "+0xc==0"),
-     validate +1600 at the settled town; (d) the ckpt-106 R8 typewriter grade + dialogue chip 4.
+  3. **Fade — the FRESH-droplet blend (USER-caught, RESOLVED).** The sub_phase-0 droplets blew
+     out white (pink-white) where retail is dim/transparent. `0x557550` case `0x18708` sets the
+     fresh alpha via `FUN_004385c0(DAT_008a9330)` = **ramp_b[10]** (group B, mode 0 NORMAL); the
+     step `0x46e510` only switches to `ramp_a[10−sub_phase]` (mode 1 ADD) from sub_phase 1. The
+     port drew ALL water via ramp_a → the 3 overlapping spawn droplets ADD-accumulated to white.
+     Fix: `particle_pool_render` renders sub_phase 0 via `ramp_b[10]`. Upper-spray differ 154→0,
+     box 560→305. (Positions/count/timing were already 1:1; `fountain-collide` is a latent debt,
+     NOT observable here — the "13 vs 6" was a 2-flip doubling artifact.)
+  4. **Annotations** (the openrecet "annotate as you RE" step): `0x557370` (particle_spawn +
+     anchor), `0x453960` (velocity_scatter), `0x5bd550` (blt_alpha) in `retail_fields.json`.
+  5. **Remaining ~305 px = the 2 BUTTERFLIES only — PORT-DEBT(butterfly-wander).** res `0x3fa`,
+     KEYED blit `0x5b9b70`, frozen at (484,320)/(532,320) in the box (movement FSM `0x43f880`
+     unported) while retail's drift. A separate subsystem — the fountain water itself is done.
+  6. **NEXT:** (a) `butterfly-wander` — the movement FSM `0x43f880` (clears the last box residual);
+     (b) resolve the anchor 2× (RE `0x557550`/`0x426620`); (c) `sky-anchor` — the spec read the
+     sky prop box=3200 (≠ quirk-#88 "+0xc==0"), validate +1600 at the settled town; (d) the
+     ckpt-106 R8 typewriter grade + dialogue chip 4.
 - **Prior (ckpt 106): R6 establishing-REVEAL RESOLVED — the frontier band is
   `differ_px==0` at EVERY stamp-equal tick (2..32); the residual was TWO stacked causes,
   each hiding the other's fix. R7 narrowed to the fountain ONLY. (939 pass.)**
