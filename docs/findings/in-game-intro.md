@@ -3212,3 +3212,38 @@ needs are ALREADY in the port.
 - **Object model (to confirm):** `0x439680` tail-calls with no stack arg ⇒ the runner's
   `param_1` and `in_ECX` are almost certainly the SAME `this` (a single scene-controller
   holding beat + dialogue + widget state).
+
+## The DIALOGUE BUBBLE is PORTED + BIT-EXACT in-window (ckpt 104) — pop-in, tail, tab, name, portrait fade, typewriter
+
+`src/dialogue.{c,h}` (pure state machine, host-tested ×7) + `main.c game_render_dialogue`
+(rendered after the 3 banner slots = `0x48c150:179`'s widget-tree position), verified on
+trace-studio `intro-1` (`recapture --only port`): **the box region pairs `differ_px==0` on
+22/25 sampled frames across pop-in → portrait fade → typing**; every non-zero frame is one
+glyph at a reveal boundary (below).  Model details in engine-quirk **#97** (the widget:
+scale pop-in + content gate, speaker-anchored tail pair, fade-snap at 500, 3-pass
+typewriter, hidden arrow) and **#98** (the 24bpp portrait blob + the 565 surface round
+trip).  Debt: `dialogue-trigger` / `dialogue-line-table` / `dialogue-arrow-art` /
+`dialogue-pause-grades` / `dialogue-textwrap`.
+
+- **What nailed the portrait:** the bust (res `0x7ef`) matched the raw decoded sheet
+  EXACTLY through one RGB565 quantize+bit-replicate round trip at 1:1 scale (150,76) —
+  proving no grade, no scale, no blend at settle; the UI sheets (`0x456`/`0x44a`) decode
+  UNGRADED like the banner scroll (the plain-getter family), so the decode hook's grade
+  skip-list gained slots 50 + 52.
+- **What nailed the fade:** retail's bust luminance is FINAL from mid-fade — `0x49c910`
+  clears the desc to 0 (plain keyed) the moment `(fade·0x14)/500` exceeds 0x13, i.e. the
+  incoming portrait snaps opaque at fade 500; a hold-at-ramp-19 model lagged it by 156.1 vs
+  159.3 mean luminance over 3 paired frames.
+- **What nailed the satellites:** the first cut drew box-bank frames 9/10 at the box's
+  LEFT edge (a misread of `0x49c640`'s param_4/param_5 writes) → an 851-px steady residual;
+  re-reading the math: both cels sit at the SPEAKER-anchored x (clamp − 0x10) at the box
+  BOTTOM (y H−0x20 / H) — the bubble tail.  With that, the residual collapsed to 0.
+- **The USER-flagged reveal offset ("retail a couple frames ahead on the text", mark
+  @2463) is the PHASE pillar, zero-mean:** measuring the rightmost body-text pixel per
+  side across 2456-2596, the boundaries oscillate — retail ~2 flips ahead at 2462/2472/
+  2544, simultaneous at 2516/2526/2536/2580, port ~2 flips ahead at 2558/2568/2590.  The
+  inter-char cadence itself matches everywhere (same 5-update steps, the comma 3i pause,
+  the space fast-reveal).  Mechanism = retail's tick-coalescing under lockstep (the R5
+  pan finding: ~occasionally 2 sim-ticks land in one present), which the sticky pairing
+  absorbs in steps — between drift steps the offset swings ±1 tick.  No logic divergence;
+  same standing class as R5.

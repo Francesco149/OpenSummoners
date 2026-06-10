@@ -2995,3 +2995,67 @@ The area-title card the player sees on entering an area.  Long mis-attributed to
   ~1614, holds (hold_ctr→400) to ~flip **2422**, then fades.  Up the whole intro.
 - Ground truth: `runs/banner-probe` / `runs/banner-state` / `runs/banner-blits`;
   `tools/flow/banner_fields.json`.  Full writeup: `findings/in-game-intro.md` "The area-title BANNER".
+
+### #97 — the in-game DIALOGUE BUBBLE is one widget node + satellite cells: a 9-slice POP-IN (scale `+0x54`, content gated until 1000), a speaker-anchored TAIL pair, a portrait cross-fade that snaps OPAQUE at fade 500, and a 3-pass per-char typewriter (2026-06-10, ckpt 104)
+
+The town-intro speech bubble (`0x439690` builder + `0x48c820` walk), live-verified bit-exact
+against trace-studio `intro-1`:
+
+- **Pop-in = the node scale mode** (`0x48c820` `+0x1c==1`): the 9-slice frame (`0x48cf80`, box
+  bank `DAT_008a7708` = res `0x456`, 32×32 cells, frames 0-8) is drawn at `w·scale/1000 ×
+  h·scale/1000`, CENTERED in the full rect (integer division); `+0x54` steps **+50 per widget
+  update** (one update ≈ 2 flips = the sim-tick cadence) → 0→1000 in 20 updates ≈ 40 flips.
+  ALL content cells are gated on `+0x54 < 1000 && +0x58 == 0` — the box pops in EMPTY, then the
+  name/tab/portrait/text appear on the next update.
+- **Geometry** (`0x439690:395-482`, the portrait layout `param_1+0x84 != 0`): box W=0x198 (408)
+  H=0x70 (112); body text cell at box+(0x88,0x14) = (136,20), **36 chars × 3 rows**, row pitch
+  `+0x1ac` = 28, per-glyph advance 7; name cell at (long-name: W−0xc0+5, −9) with colors
+  **white main + `0x455f7b` shadow** (`:464-465`); name TAB cel = bank `DAT_008a7710` (res
+  `0x44a`) frame **0 for names > 12 chars / 1 for short** at (W−0xc0, −0x20); TWO portrait
+  cells (cross-fade pair) at (−0x18,−0x48).  Box position from the SPEAKER via `0x49c640`:
+  x = clamp(speaker_center − W/2, 0x20, 0x260−W), y ≈ speaker_top − H − 0x30 (town line 1 →
+  (174,148), Father center 378).
+- **The bubble TAIL** (`0x49c640:70-115`): TWO cels from the BOX bank — frame **9** (the notch
+  over the border) at (tail_x, H−0x20) and frame **10** (the spike below) at (tail_x, H),
+  where `tail_x = clamp(speaker_center_boxrel, 0x20, W−0x20) − 0x10`; frames **11/12** =
+  the flipped-below variants, **13/14** = the twin-layout variants.  The pair hangs at the
+  box BOTTOM at the speaker's x (mostly behind the portrait bust on line 1).
+- **Portrait cross-fade** (`0x49c910`, gated on box scale==1000): fade `[0x21]` += `[0x22]`=50
+  per update; the NEW cel blends via `ramp_b[(fade·0x14)/500]` while the index ≤ 0x13, and the
+  moment it exceeds 0x13 (fade ≥ 500) the desc is cleared to 0 = the **plain keyed blit — the
+  incoming portrait is FULLY OPAQUE from fade 500**; the second half only fades the OLD cel out
+  (`ramp_b[((1000−fade)·0x14)/500]`).  A hold-at-19 model measurably lags retail.
+- **Typewriter** (`0x439690:499-514` config; the body renderer `0x48da70`): interval =
+  `*(*DAT_008a6e80+0x248)` widget updates per char (measured 5 ≈ 10 flips), grade slots
+  `2i/3i/5i`; VOICED lines override to `6/0x12/0x18/0x24`.  Reveal cadence fitted from the
+  line-1 trace: space ≈ 1 update, `,` ≈ 3i, a row close adds ≈ +i.  Each revealed row draws
+  **3 full GDI passes** (`0x48da70`: shadow (x,y+1) + shadow (x+1,y) in `+0x184`, then main
+  (x,y) in `+0x180`), per-char TextOutA at `col·7 + cell.x + node.x`; body colors `0x3e537d`
+  main / `0xa8b9cc` shadow, font Courier New **7×18** charset 1 (live LOGFONT — not the 7×16
+  menu slot).
+- **The advance ARROW** (`0x410560` config on the text cell): bank from the widget manager
+  god+`0xb8c` (module unresolved — the probe's res_id 1000 collides with sotesd's parallax
+  mountain sheet, see #92/#98), frame base `+0x2c`=0x14 + anim table {0,1,2,3} (`+0x2e..`),
+  one step per `+0x70`=10 updates, pos = (boxW−cell.x)−0x20−8, (boxH−cell.y)−0x20+0xc →
+  (542,240); the 1px bob is baked in the per-frame cel placement metrics.  **Hidden while the
+  typewriter runs** (`0x48d940`'s `+0x174[0]==1` early-out; confirmed: no arrow pixels at
+  flips 2800/3100 mid-typing) — it shows only when the finished line waits for Z.
+- **The UI sheets decode UNGRADED**: the bubble/tab cels resolve through the plain getter
+  family (`0x4184a0`/`0x418470`), skipping the in-game `0x417c40` palette grade — same as the
+  banner scroll (#96).  Proven by exact-pixel matches of the raw palettes against live frames.
+
+### #98 — the 24bpp resource blobs (dialogue portraits, parallax planes) carry a plain 24bpp BMP whose "palette" slot is UNINITIALIZED packer memory (XP-era heap droppings), and land on the 16bpp 565 surface — the on-screen pixels are the sheet through one RGB565 quantize+bit-replicate round trip (2026-06-10, ckpt 104)
+
+- The standard sprite container (32B magic + 1024B palette + 64B + BMFH + pixels) holds, for
+  24bpp resources, a **BM with `data_off 0x36` and no palette** — the 1024-byte palette slot
+  contains build-machine memory (pointer-rich `0x7c95xxxx` XP DLL addresses in sotesd's blobs).
+  Pixels start at `+0x458 + pixel_off` (the self-rebasing header, `FUN_005b7c10`); the Father
+  portrait res `0x7ef` = exactly 160×176×3 BGR bottom-up, magenta `0xff00ff` key.
+- **The screen math:** the engine's surfaces are 16bpp RGB565; a 24bpp sheet quantizes at
+  upload and the readback expands by bit replication — `R8=(r5<<3)|(r5>>2)`,
+  `G8=(g6<<2)|(g6>>4)`.  The live retail bust matches the raw decoded sheet **exactly** through
+  that round trip alone (no grade, no blend) at 1:1 scale, position (150,76).
+- **Numeric-collision warning (extends #92):** res id 1000 (`0x3e8`) in sotesd.dll is a 640×352
+  24bpp PARALLAX MOUNTAIN plane (registered twice: pool slot 65 as 80×352 columns), while the
+  dialogue arrow bank that a probe reported as "res 1000" lives on another module/slot —
+  always record the slot's `settings` HMODULE alongside the id.

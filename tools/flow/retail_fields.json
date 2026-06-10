@@ -1965,6 +1965,36 @@
      "reason": "in_ECX+0x20c low u16 = the countdown; fires at 1, reloads at 0."
     }
    ]
+  },
+  "0x48cf80": {
+   "name": "widget_box_frame",
+   "_note": "FUN_0048cf80 — the widget 9-slice box-frame tiler (newgame panels + the in-game dialogue bubble). Args 1-4 = the draw rect; during the dialogue pop-in (0x48c820 node mode +0x1c==1) w/h are the +0x54-scaled extent, so a cross-side diff here names a pop-in phase/geometry divergence directly. Port mirror: src/main.c game_render_dialogue (CALL_TRACE_BEGIN(0x48cf80)).",
+   "fields": [
+    {
+     "name": "x",
+     "src": "arg",
+     "index": 1,
+     "type": "i32"
+    },
+    {
+     "name": "y",
+     "src": "arg",
+     "index": 2,
+     "type": "i32"
+    },
+    {
+     "name": "w",
+     "src": "arg",
+     "index": 3,
+     "type": "i32"
+    },
+    {
+     "name": "h",
+     "src": "arg",
+     "index": 4,
+     "type": "i32"
+    }
+   ]
   }
  }
 }

@@ -1566,7 +1566,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/main.c"
    ]
   },
   {

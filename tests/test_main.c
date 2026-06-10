@@ -963,6 +963,13 @@ struct test_case {
     X(exe_strings_malformed)                                   \
     X(exe_strings_unterminated)                                \
     X(exe_strings_real_exe)                                    \
+    X(dialogue_expand_break)                                   \
+    X(dialogue_expand_wrap)                                    \
+    X(dialogue_expand_real_line1)                              \
+    X(dialogue_popin)                                          \
+    X(dialogue_reveal_cadence)                                 \
+    X(dialogue_arrow_anim)                                     \
+    X(dialogue_portrait_fade)                                  \
 
 #define X(n) extern int test_##n(void);
 TESTS

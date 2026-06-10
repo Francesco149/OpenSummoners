@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 103, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 104, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,40 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 103
+## Where we are — ckpt 104
+
+**The in-game DIALOGUE BUBBLE is ported + bit-exact in-window (`src/dialogue.{c,h}` + `main.c`
+game_render_dialogue) — the intro-1 worklist's big mark (@2429 pop-in) is CLOSED.  939 pass (+7).**
+Model: engine-quirk #97 (+#98 formats); parity-ledger #12; plan `plans/dialogue-cutscene.md`
+(chips 3 + the typewriter half of 4 done; Z-advance/full-script/beat-runner remain).
+
+- **What renders (all differ_px==0 at paired drift on intro-1):** the 9-slice bubble (res
+  `0x456`, slot 50) with the `+0x1c==1` SCALE pop-in (+50/update, content gated till 1000);
+  the speaker-anchored bubble-TAIL pair (box-bank frames 9/10 at clamp(speaker)−16, box
+  bottom — NOT the box left edge, a first-cut misread the studio loop caught as an 851-px
+  residual); the name tab (res `0x44a` slot 52, f0); the name (white + `0x455f7b`, 3-pass);
+  the portrait bust (res `0x7ef` slot 663, 24bpp keyed, 1:1 at (150,76)) with the `0x49c910`
+  cross-fade — **the incoming cel SNAPS opaque at fade 500** (round-1 catch: a hold-at-19
+  model lags retail); typewriter body rows (Courier 7×18, `0x3e537d`/`0xa8b9cc`, 310/168
+  +28/row, 5 updates/char, comma 3i, space 1, row close +i — fitted).  Armed at
+  game_enter+1298 (PORT-DEBT dialogue-trigger); text/name from the user's exe by VA
+  (`0x86d58c`/`0x6b6f80`).
+- **The USER's mark @2463 ("retail a couple frames ahead on the text reveal") = the phase
+  pillar, zero-mean (measured):** reveal boundaries oscillate ±2 flips around the sticky
+  pairing drift (retail ahead 2462/2472/2544, simultaneous 2516-2580, port ahead
+  2558/2568/2590) — retail's lockstep tick-coalescing (the R5 mechanism).  Cadence 1:1.
+- **Format facts (quirk #98):** 24bpp blobs = plain BMP at +0x458+off, palette slot =
+  uninitialized XP packer memory; the screen = sheet through ONE RGB565 round trip.  res
+  1000 in sotesd = a parallax mountain (the probe's "arrow res 1000" is a quirk-#92
+  collision; module unresolved → PORT-DEBT dialogue-arrow-art, benign in-window because the
+  arrow HIDES during typing).  UI sheets decode UNGRADED → grade skip-list += slots 50/52.
+- **NEXT:** (a) the remaining intro-1 marks — the @1122 reveal-phase + @1177 fountain/NPC-anim
+  trio (suspect one sim-tick-origin cause; diff at matched sim_tick per the timestep memory),
+  @218 lizsoft fade (boot phase), @2159 banner fade-out check; (b) dialogue chip 4 cont.:
+  Z-advance + the ~15-line script table + a module-aware arrow-bank re-probe; (c) the
+  probe-flag removal chip.
+
+## Where we were — ckpt 103
 
 **The TRACE STUDIO is built + live (`tools/trace_studio.py`, `docs/trace-studio.md`) — the
 review loop is now: capture both sides → the USER scrubs port|retail|diff in the browser

@@ -6,6 +6,46 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 104) — the in-game DIALOGUE BUBBLE: ported + bit-exact in-window (pop-in, tail, tab, name, portrait fade, typewriter); the intro-1 worklist's big mark closed
+
+The first chip worked off the USER's trace-studio worklist (mark @2429 "dialogue bubble pop in
+animation" = the ckpt-102 plan's chips 3+4 reveal half).  `src/dialogue.{c,h}` (NEW, pure,
+host-tested ×7) + `main.c game_render_dialogue` at the `0x48c150:179` widget-tree position.
+The model (engine-quirk #97, decompile + live): the 9-slice bubble (res `0x456`) drawn at the
+node SCALE `+0x54` (the pop-in: +50/update, content gated till 1000, centered integer math),
+the speaker-anchored bubble-TAIL pair (box-bank frames 9/10 — a first-cut misread placed them
+at the box left edge; `0x49c640`'s math puts them at clamp(speaker_center)−16, box bottom),
+the name tab (res `0x44a` f0 long-name), the name (white main + `0x455f7b` shadow, 3-pass),
+the portrait bust (res `0x7ef`, 24bpp magenta-keyed, 1:1 at (150,76)) cross-faded via ramp_b
+with the `0x49c910` SNAP — the incoming cel goes fully opaque at fade 500, not 1000 (round 1
+of the studio loop caught the lag) — and the typewriter body rows (Courier 7×18,
+`0x3e537d`/`0xa8b9cc`, 5 updates/char, comma 3i, space 1, row close +i — fitted to the
+ckpt-102 reveal trace, PORT-DEBT dialogue-pause-grades).  Line 1's text + speaker name are
+read from the user's exe by VA (`0x86d58c` / `0x6b6f80`) — story content never in source.
+
+**Verified on trace-studio intro-1 (`recapture --only port`, 2 rounds): the box region pairs
+`differ_px==0` on 22/25 sampled frames across pop-in → fade → typing**; the remainder is ONE
+GLYPH at a reveal boundary.  The USER's follow-up mark @2463 ("retail a couple frames ahead
+on the text reveal") measured zero-mean: the boundaries oscillate ±2 flips (retail ahead
+2462/2472/2544, simultaneous 2516-2580, port ahead 2558/2568/2590) = retail's tick-coalescing
+under lockstep stepping through the sticky pairing drift (the R5 mechanism) — cadence 1:1,
+no logic divergence.  parity-ledger #12.
+
+Format finds (quirk #98): the 24bpp blobs embed a plain BMP whose 1024-byte palette slot is
+uninitialized packer memory (XP-era heap pointers shipped in sotesd.dll), and the screen
+pixels are the sheet through ONE RGB565 quantize+bit-replicate round trip (16bpp surfaces) —
+proven by an exact-match of the raw portrait against the live frame.  Also: res 1000 in
+sotesd is a parallax MOUNTAIN plane, NOT the advance arrow the box_cell probe reported —
+a quirk-#92 numeric collision; the arrow bank's module is unresolved (PORT-DEBT
+dialogue-arrow-art; benign in-window since the arrow is HIDDEN during typing — confirmed on
+retail PNGs — and no capture reaches a finished line).  The UI sheets (`0x456`/`0x44a`)
+decode UNGRADED (plain-getter family) — the decode-hook grade skip-list gained slots 50/52
+(extends `banner-grade`).  +`0x48cf80` flow-trace annotation both sides (the box-frame rect).
+939 host tests (+7).  Debt added: dialogue-trigger / dialogue-line-table /
+dialogue-arrow-art / dialogue-pause-grades / dialogue-textwrap.
+
+---
+
 ## 2026-06-10 (ckpt 103) — the TRACE STUDIO: capture → scrub → mark → worklist → re-capture (openrecet-style), live on the full intro
 
 USER directive: build the trace viewer now (it was Phase-C-gated on a controllable character, but

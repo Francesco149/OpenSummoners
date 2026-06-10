@@ -35,7 +35,36 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 103): the TRACE STUDIO is BUILT + LIVE — the openrecet-style scrub-and-mark
+- **LATEST (ckpt 104): the in-game DIALOGUE BUBBLE is PORTED + BIT-EXACT in-window — pop-in,
+  speaker tail, name tab, name, portrait cross-fade, and the TYPEWRITER all pair `differ_px==0`
+  on trace-studio intro-1 (the worklist's big mark @2429 CLOSED). (939 pass, +7.)**
+  1. **`src/dialogue.{c,h}` (NEW, host-tested ×7) + `main.c` wiring** — the `0x439690`-builder
+     widget model (quirk #97): 9-slice bubble res `0x456` at (174,148) 408×112 with the
+     `+0x1c==1` SCALE pop-in (+50/update, content gated till 1000), speaker-anchored TAIL pair
+     (box-bank frames 9/10 at clamp(speaker)−16, box bottom), name tab res `0x44a` f0, name
+     white+`0x455f7b` 3-pass GDI, portrait res `0x7ef` keyed 1:1 at (150,76) with the `0x49c910`
+     cross-fade (ramp_b, SNAPS opaque at fade 500), body rows (310,168)+28/row Courier 7×18
+     `0x3e537d`/`0xa8b9cc`, typewriter 5 updates/char (space 1, comma 3i, row close +i — fitted,
+     `dialogue-pause-grades`). Armed at game_enter+1298 (`dialogue-trigger`); line 1 text+name
+     read from the user's exe by VA (`0x86d58c`/`0x6b6f80` — never embedded).
+  2. **Verification (the studio loop, 2 recapture rounds):** round 1 caught the fade lag (the
+     hold-at-19 model — retail snaps the new cel OPAQUE at fade 500) + the satellite misplace
+     (851-px residual → the tail pair belongs at the SPEAKER x, not the box left edge); round 2:
+     box region differ 0 at 22/25 sampled frames, the rest = ONE GLYPH at a reveal boundary.
+  3. **The USER's new mark @2463 ("retail a couple frames ahead on the text reveal") MEASURED
+     = the phase pillar, zero-mean:** reveal boundaries oscillate (retail +2 flips at 2462/2472/
+     2544, simultaneous 2516-2580, port +2 at 2558/2568/2590) — retail's tick-coalescing under
+     lockstep (the R5 mechanism) stepped through the sticky pairing drift. Cadence itself 1:1.
+  4. **Format finds (quirk #98):** the 24bpp blobs (portraits/parallax) embed a plain BMP whose
+     palette slot is XP-era packer heap garbage; the screen = the sheet through ONE RGB565
+     quantize+bit-replicate round trip (565 surfaces). And res 1000 in sotesd = a parallax
+     MOUNTAIN plane — the arrow bank's "res 1000" is another module (quirk #92 collision), so
+     the arrow art is PORT-DEBT(dialogue-arrow-art) (it's hidden during typing = out-of-window).
+  5. **NEXT:** (a) the remaining intro-1 marks: the reveal/fountain/NPC-anim phase trio (@1122/
+     @1177 — likely one sim-tick-origin cause), the lizsoft-logo fade @218 (boot phase), the
+     banner fade-out @2159 check; (b) chip 4 cont.: Z-advance + the ~15-line script table +
+     the arrow-bank re-probe (module-aware); (c) the probe-flag removal chip (ckpt-103 leftover).
+- **Prior (ckpt 103): the TRACE STUDIO is BUILT + LIVE — the openrecet-style scrub-and-mark
   viewer, pulled forward from Phase C by USER directive. The review loop is now: capture → USER
   scrubs + drops divergence notes in the browser → worklist.md → Claude fixes → `--only port`
   re-capture. (36 tool checks pass; first live session `intro-1` = 2598 paired frames.)**

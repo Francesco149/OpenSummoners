@@ -78,6 +78,8 @@
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
+#include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
+#include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -303,6 +305,25 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
  * game_enter@~1434).  PORT-DEBT(banner-trigger): the real source is the scene
  * script (the same unported source as the camera-pan + letterbox triggers). */
 #define BANNER_ARM_FRAMES   78u
+
+/* The in-game DIALOGUE BOX (dialogue.{c,h}; the town-intro line 1).  Banks:
+ * the bubble 9-slice + corner/tail cels = res 0x456 (pool slot 50, the
+ * DAT_008a7708 bank), the name tab = res 0x44a (slot 52, DAT_008a7710), the
+ * portrait bust = res 0x7ef (slot 663, 24bpp magenta-keyed), and the advance
+ * arrow = res 0x3e8 sliced 32x32 (the widget manager's own bank at god+0xb8c,
+ * not a pool slot — registered standalone below). */
+static dialogue_box   g_dialogue;
+static void          *g_dialogue_font;   /* HFONT — Courier New h18 w7 (textout probe) */
+static int            g_dialogue_armed;  /* one-shot arm latch, reset per enter_game */
+#define DIALOGUE_BOX_BANK_SLOT      50   /* res 0x456 (DAT_008a7708) */
+#define DIALOGUE_TAB_BANK_SLOT      52   /* res 0x44a (DAT_008a7710) */
+#define DIALOGUE_PORTRAIT_BANK_SLOT 663  /* res 0x7ef (Father bust)  */
+/* The bubble pops ~game_enter+1300 flips (trace-studio intro-1: retail
+ * game_enter@1437, first scaled box draw @2737; runs/dialogue-probe agrees at
+ * +1304).  Even (a sim tick).  PORT-DEBT(dialogue-trigger): the real source is
+ * the town script's beat sequence (0x4d7d80 case 0x334be -> 0x439690), the
+ * same unported driver as the banner/camera-pan triggers. */
+#define DIALOGUE_ARM_FRAMES 1298u
 
 /* Flips the camera holds at the spawn origin before the scripted pan begins.
  * MEASURED from a retail field-spec trace (--seed-pin --lockstep): Flip 1616 is
@@ -771,15 +792,23 @@ static void title_sheet_format(ar_sprite_slot *slot,
      * sheets carry a palette; only armed once in-game (g_color_grade_on).  8bpp
      * color-keying is by index, so grading the colors is key-safe.
      *
-     * EXCEPT the area-title banner sheet (slot 53 / res 0x449): retail binds it
-     * via the plain getter FUN_00418470(0) (NO 0x417c40 grade descriptor), so its
-     * palette is NOT graded — grading it renders the parchment ~10% too dark
-     * (differ_px=0 vs retail once skipped, ckpt 101).  PORT-DEBT(banner-grade):
-     * the faithful gate is "grade only via the 0x417c40 getter" (the tiles/sky
-     * use it, the banner + letterbox plain getter don't); the port's 8bpp grade
-     * is global, so this skips the one visible plain-getter sheet by slot. */
+     * EXCEPT the plain-getter UI sheets: retail binds these via FUN_00418470(0)
+     * (NO 0x417c40 grade descriptor), so their palettes are NOT graded —
+     * grading renders them ~10% too dark:
+     *   - the area-title banner scroll (slot 53 / res 0x449; differ_px=0 vs
+     *     retail once skipped, ckpt 101);
+     *   - the dialogue bubble 9-slice (slot 50 / res 0x456) + name tab
+     *     (slot 52 / res 0x44a) — the widget tree resolves cels through the
+     *     plain getter family (0x48d940's FUN_004184a0(0)); an exact-pixel
+     *     match of the decoded tab against the live retail frame confirms the
+     *     ungraded palette (565-quantized only).
+     * PORT-DEBT(banner-grade): the faithful gate is "grade only via the
+     * 0x417c40 getter" (the tiles/sky use it, the UI sheets don't); the port's
+     * 8bpp grade is global, so the plain-getter sheets are skipped by slot. */
     if (g_color_grade_on && src == 8 &&
-        slot != &g_ar_sprite_slots[BANNER_SCROLL_SLOT])
+        slot != &g_ar_sprite_slots[BANNER_SCROLL_SLOT] &&
+        slot != &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT])
         color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {
@@ -876,6 +905,11 @@ static void init_sprite_banks(void)
      * here through the same CreateFontIndirectA path as the menu fonts. */
     g_banner_font = (void *)ar_gdi_create_font(/*width=*/10, /*height=*/20,
                                                /*italic=*/0, "Courier New");
+
+    /* The dialogue text font: Courier New h18 w7 weight 400 charset 1 (the
+     * live TextOutA LOGFONT, runs/dialogue-probe textout.jsonl). */
+    g_dialogue_font = (void *)ar_gdi_create_font(/*width=*/7, /*height=*/18,
+                                                 /*italic=*/0, "Courier New");
 
     log_line("init_sprite_banks: sotesd.dll=%p, registered title banks "
              "(MAIN=pool19/id0x91b, CURSOR=pool20/id0x91c) + 8 GDI fonts "
@@ -2008,6 +2042,143 @@ static void game_render_banner(void)
     }
 }
 
+/* ─── the in-game DIALOGUE BOX (dialogue.{c,h}, 0x48c820 widget tree) ────────
+ *
+ * Rendered AFTER the 3 banner slots (0x48c150:179).  Per frame: the 9-slice
+ * bubble frame (res 0x456 frames 0-8) at the pop-in scale (0x48c820 mode
+ * +0x1c==1), then — once the content gate opens (scale==1000) — the cels in
+ * retail cell order (bubble corner 9 / tail 10 / name tab / portrait), the GDI
+ * text pass (name + revealed body rows, 3 TextOut passes each), and the
+ * advance arrow (0x48d940, after the content loop). */
+
+static void *dialogue_box_frame_resolve(void *user, int id)
+{
+    (void)user;
+    return ar_sprite_slot_frame(&g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT],
+                                (uint16_t)id);
+}
+
+/* One GDI text row, the 0x48da70/0x48e200 3-pass shape: full shadow pass at
+ * (x,y+1), full shadow pass at (x+1,y), then the main pass at (x,y) — each a
+ * per-char TextOutA at the 7px advance. */
+static void dialogue_text_row(HDC hdc, const char *s, int n, int x, int y,
+                              uint32_t shadow, uint32_t main_color)
+{
+    if (n <= 0)
+        return;
+    SetTextColor(hdc, (COLORREF)shadow);
+    for (int i = 0; i < n; i++)
+        TextOutA(hdc, x + i * DIALOGUE_ADVANCE, y + 1, &s[i], 1);
+    for (int i = 0; i < n; i++)
+        TextOutA(hdc, x + i * DIALOGUE_ADVANCE + 1, y, &s[i], 1);
+    SetTextColor(hdc, (COLORREF)main_color);
+    for (int i = 0; i < n; i++)
+        TextOutA(hdc, x + i * DIALOGUE_ADVANCE, y, &s[i], 1);
+}
+
+static void game_render_dialogue(void)
+{
+    if (!dialogue_active(&g_dialogue))
+        return;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+
+    /* the 9-slice bubble frame at the current pop-in scale */
+    static const int frames9[9] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+    int bx, by, bw, bh;
+    dialogue_scaled_rect(&g_dialogue, &bx, &by, &bw, &bh);
+    CALL_TRACE_BEGIN(0x48cf80);          /* the box-frame draw, cross-side */
+    CALL_TRACE_I32("x", bx);
+    CALL_TRACE_I32("y", by);
+    CALL_TRACE_I32("w", bw);
+    CALL_TRACE_I32("h", bh);
+    CALL_TRACE_END();
+    if (bw > 0 && bh > 0) {
+        newgame_box_ops bops = { dialogue_box_frame_resolve, newgame_box_blt, NULL };
+        newgame_box_render(&bops, bx, by, bw, bh, frames9, NEWGAME_BOX_CELL);
+    }
+    if (!dialogue_content_visible(&g_dialogue))
+        return;                          /* 0x48c820's +0x54<1000 content gate */
+
+    const int box_x = DIALOGUE_BOX_X, box_y = DIALOGUE_BOX_Y;
+
+    /* content cels, retail cell creation order ([0x17] tail notch, [0x18]
+     * tail spike, [0x1b] tab, then the portrait pair) — all plain keyed
+     * blits; the cel's own placement metrics are applied inside
+     * zdd_object_blt_keyed.  The tail pair hangs at the box bottom at the
+     * speaker-anchored x (0x49c640). */
+    zdd_object *cel;
+    cel = (zdd_object *)ar_sprite_slot_frame(
+        &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT], DIALOGUE_BOX_FRAME_CORNER);
+    if (cel != NULL)
+        zdd_object_blt_keyed(cel, g_zdd->primary_obj,
+                             box_x + DIALOGUE_TAIL_X, box_y + DIALOGUE_TAIL_NOTCH_Y);
+    cel = (zdd_object *)ar_sprite_slot_frame(
+        &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT], DIALOGUE_BOX_FRAME_TAIL);
+    if (cel != NULL)
+        zdd_object_blt_keyed(cel, g_zdd->primary_obj,
+                             box_x + DIALOGUE_TAIL_X, box_y + DIALOGUE_TAIL_SPIKE_Y);
+    cel = (zdd_object *)ar_sprite_slot_frame(
+        &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT], DIALOGUE_TAB_FRAME_LONG);
+    if (cel != NULL)
+        zdd_object_blt_keyed(cel, g_zdd->primary_obj,
+                             box_x + DIALOGUE_TAB_DX, box_y + DIALOGUE_TAB_DY);
+
+    /* the portrait bust (res 0x7ef, 24bpp magenta-keyed, drawn 1:1): the
+     * cross-fade blends through ramp_b while fading (0x49c910), then snaps to
+     * the plain keyed blit. */
+    cel = (zdd_object *)ar_sprite_slot_frame(
+        &g_ar_sprite_slots[DIALOGUE_PORTRAIT_BANK_SLOT], 0);
+    if (cel != NULL) {
+        int ridx = dialogue_portrait_ramp_index(&g_dialogue);
+        const zdd_blend_desc *desc =
+            (ridx >= 0 && ridx < PD_BOOT_GROUP_B_COUNT) ? g_ramp_b[ridx] : NULL;
+        if (desc != NULL)
+            zdd_blit_orchestrate(desc, g_zdd->primary_obj, cel,
+                                 cel->metric_0c + box_x + DIALOGUE_PORTRAIT_DX,
+                                 cel->metric_10 + box_y + DIALOGUE_PORTRAIT_DY,
+                                 cel->metric_14, cel->metric_18,
+                                 0, 0, cel->colorkey_out, NULL);
+        else
+            zdd_object_blt_keyed(cel, g_zdd->primary_obj,
+                                 box_x + DIALOGUE_PORTRAIT_DX,
+                                 box_y + DIALOGUE_PORTRAIT_DY);
+    }
+
+    /* the GDI text pass (0x48c820: GetDC the paint target, TRANSPARENT bk) */
+    void *hdc = NULL;
+    if (zdd_object_get_dc(g_zdd->primary_obj, &hdc) && hdc != NULL) {
+        SetBkMode((HDC)hdc, TRANSPARENT);
+        if (g_dialogue_font != NULL)
+            SelectObject((HDC)hdc, (HGDIOBJ)g_dialogue_font);
+        /* speaker name (the [0x1c] cell: white main, 0x455f7b shadow) */
+        dialogue_text_row((HDC)hdc, g_dialogue.name,
+                          (int)strlen(g_dialogue.name),
+                          box_x + DIALOGUE_NAME_DX, box_y + DIALOGUE_NAME_DY,
+                          DIALOGUE_NAME_SHADOW, DIALOGUE_NAME_MAIN);
+        /* revealed body rows (the [0x1d] grid: 0x3e537d main, 0xa8b9cc shadow) */
+        for (int r = 0; r < g_dialogue.row_count; r++)
+            dialogue_text_row((HDC)hdc, g_dialogue.rows[r],
+                              dialogue_row_revealed(&g_dialogue, r),
+                              box_x + DIALOGUE_TEXT_DX,
+                              box_y + DIALOGUE_TEXT_DY + r * DIALOGUE_LINE_H,
+                              DIALOGUE_BODY_SHADOW, DIALOGUE_BODY_MAIN);
+        zdd_object_release_dc(g_zdd->primary_obj, hdc);
+    }
+
+    /* The advance arrow (0x48d940, drawn after the content loop) is HIDDEN
+     * while the typewriter runs (the +0x174[0]==1 early-out; confirmed on the
+     * retail PNGs: no arrow at flips 2800/3100 mid-typing) and appears only
+     * once the line completes, waiting for Z — a state past every current
+     * capture.  PORT-DEBT(dialogue-arrow-art): its bank (god+0xb8c; the
+     * box_cell probe's res_id 1000 collides with sotesd's parallax mountain
+     * sheet — quirk #92 numeric collision, module unresolved) needs a module-
+     * aware re-probe; the config is RE'd (0x410560: frame base 0x14 + table
+     * {0,1,2,3}, step per 10 updates, 1px bob in the cel metrics, pos
+     * box+(368,92)) and dialogue_arrow_frame() tracks it. */
+    (void)dialogue_arrow_frame(&g_dialogue);
+}
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -2218,6 +2389,26 @@ static void game_render(void *user)
                              g_game_camera_hold);
                 }
                 banner_step(&g_banner);
+                /* The dialogue bubble (0x439690 beat 1).  Armed at the
+                 * measured trigger (PORT-DEBT dialogue-trigger), then its
+                 * widget updates (pop-in scale / portrait fade / typewriter /
+                 * arrow anim) run once per sim-tick — the beat-runner pump's
+                 * update cadence. */
+                if (!g_dialogue_armed && g_game_camera_hold >= DIALOGUE_ARM_FRAMES) {
+                    const char *line = exe_data_string(DIALOGUE_VA_TOWN_LINE1);
+                    const char *name = exe_data_string(DIALOGUE_VA_NAME_FATHER);
+                    if (line != NULL) {
+                        dialogue_arm(&g_dialogue, name, line);
+                        log_line("enter_game: dialogue_arm line1 (name=%s) "
+                                 "@hold=%u", name ? name : "<null>",
+                                 g_game_camera_hold);
+                    } else {
+                        log_line("enter_game: dialogue line1 VA unresolved — "
+                                 "box stays disarmed");
+                    }
+                    g_dialogue_armed = 1;
+                }
+                dialogue_step(&g_dialogue);
             }
             cam = &g_game_camera_mr;
         }
@@ -2244,6 +2435,8 @@ static void game_render(void *user)
         /* 0x48c150:176-178 — the area-title banner ("Town of Tonkiness"),
          * rendered AFTER the reveal grid (slot0 of the 3 banner calls). */
         game_render_banner();
+        /* 0x48c150:179 — the widget tree (0x48c820): the dialogue bubble. */
+        game_render_dialogue();
     }
 }
 
@@ -2434,6 +2627,11 @@ static void enter_game(void)
         g_banner.enable = 0;
         g_banner.composed = 0;
         g_banner_armed = 0;
+
+        /* The dialogue bubble likewise arms later (at +1298 flips); clear the
+         * state + the one-shot latch so a re-entry re-arms cleanly. */
+        memset(&g_dialogue, 0, sizeof(g_dialogue));
+        g_dialogue_armed = 0;
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):
