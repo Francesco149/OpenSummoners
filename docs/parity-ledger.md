@@ -149,48 +149,59 @@ sticky offset only on a ≥5% better match.)
 > FRAMES=182`; the flip-axis 184 was 1 tick late) — full-frame residual at
 > tick-equal = the fountain/smoke/butterfly ensembles only (ledger #13).
 
-### R6 — establishing-REVEAL frontier: tick ORIGIN now aligned (the one-tick
-### fence landed); the residual is a per-row fade-LEVEL map mismatch inside the
-### frontier band (OPEN, ckpt 105)
+### R6 — establishing-REVEAL frontier: RESOLVED (ckpt 106) — two confounded
+### causes (graded mask cels + the ckpt-105b fence); band differ_px==0 at every
+### stamp-equal tick
 
-At forced tick-equality on `intro-1`, the reveal box differs by 1-10k px (peak
-~tick 9-13) while the saturated center matches — the divergent region is exactly
-the **fading frontier band** (~20 grid rows per side = cells live 10 ticks × 4
-rows started/tick).  **Phase A RESOLVED:** the dt-scan minimum sat at +1 (port
-one tick ahead); the retail arm site (`0x439690:555-583`) and the cinematic step
-(`:1124`) run in the same beat-runner invocation, so the extra tick is WHEN the
-script posts the arm request — the port now fences its first `scene_fade_step`
-one tick (`main.c`, hold>=2), the dt minimum moved to **0** and the mark box
-improved (t9: 10318→7251, t13: 7369→6579).
-**Phase B OPEN — the level map:** at matched tick the per-grid-row darkening
-ratios (t13, x<400 strip, vs the settled scene) show a structured mismatch:
-every 4th row EQUAL (r44/48/52/68/72/76), the in-between rows render the PORT
-~1 ramp index CLEARER (e.g. r49 0.500 vs 0.415, r50 0.668 vs 0.566), while the
-clear-edge rows (r53/r67) have RETAIL already cleared (state 2, timer≥1000)
-where the port still renders index ~3 (timer 900).  Opposite directions at once
-⇒ NOT a uniform timer/tick shift — the stagger/aging accounting differs even
-though `0x49a890` (setter), the `0x499ab0:125-177` aging loop, and `0x48e920`
-(render: frame[0x1f−(timer<<5)/1000] via the `0x8a76e0` cel table) all read
-byte-identical to the port.  Next recipe: dump the real per-index luminance of
-res `0x458` through the group-E descriptor (the port can render each index
-standalone), invert BOTH sides' row-ratio maps to integer (marked-tick, stagger)
-per row, and solve for the model delta; suspects after the solve — the timer
-cap/clear boundary (`>999 → state 2` order vs render), or a half-step (+50) in
-how fresh marks age on their mark tick.
+**Resolution.**  The grid model was always bit-exact — a live per-row grid dump
+(the `0x499ab0` `r40..r80` chain fields, `runs/r6-grid` + the port mirror) shows
+retail's per-cell `(state, timer)` identical to the port's at every pre-step
+boundary over the whole reveal (41 rows × 31 ticks, zero mismatches; the
+per-row staircase = `timer(u,d) = 100u+50−50d`, the clean −50/row gradient).
+The pixel residual was TWO stacked errors, each masking the other's fix:
+1. **Graded mask cels (one 5-bit step weak).**  Retail binds res `0x458` (the
+   alpha mask sheet) and res `0x583` (the opaque cel) through the PLAIN getter
+   `FUN_004184a0(0)` at `0x48e920:37/66` — UNGRADED, the quirk-#96 family
+   (banner scroll / dialogue bubble / name tab).  The port graded them →
+   masks one quantization step weaker → frontier rows ~8 RGB bright.  Fixed:
+   slots 40/41 joined the grade skip-list.
+2. **The ckpt-105b `hold>=2` fence (one tick late).**  Mask-level extraction on
+   the fixed cels (s5 = backdrop5 − out5 per pixel, mode over a 64×4 cell)
+   shows retail's frame stamped tick u presents the post-update-u grid
+   (`s5(a) == a` exactly, a = 0x1f−(timer<<5)/1000), while the fenced port
+   presented post-update-(u−1) (`s5_port(a) == index(T−100)` — fits all 11
+   probes including both 5-bit wobbles).  The 105b dt-scan that justified the
+   fence ran over the GRADED cels — the content error biased the cost surface
+   by exactly one tick.  Fence removed; the step runs every sim tick unfenced.
 
-### R7 — fountain/smoke particle ENSEMBLE: a flat ~2-4k px residual at EVERY
-### tick shift — position/age model offset, not a tick origin (OPEN, ckpt 105)
+**Verified:** the reveal band (x<400, grid rows 40-80) is **differ_px = 0 at
+EVERY stamp-equal tick 2..32** on the recaptured intro-1; at t30 100% of the
+remaining whole-frame residual sits in the fountain box (x 428-591, y 222-351)
+= R7, smoke contributes 0.  The ckpt-105 "retail already cleared at t13 /
+every-4th-row-equal" readings are RETRACTED as measurement artifacts (pixel
+ratios inverted through an assumed linear luminance map + cross-stamp frame
+pairing); the grid memory dump is the authority.
 
-The particle region (fountain spray + chimney smoke) differs ~2-4k px against
-EVERY retail tick in dt∈[−8,+8] — a tick shift never zeroes it, so the ensemble
-itself is offset (anchor constant, age origin, or a sub-population).  The
-per-tick LCG stream is bit-exact (ckpt 99), so draw VALUES are aligned —
-suspects are the position MODEL: PORT-DEBT(fountain-anchor) (the +1245
-calibrated emit center), the smoke anchor, or particle ages (emitters starting
-k ticks offset would age the whole population).  Localized clusters at
-tick-equal: x≈574-630 y≈238-337 (spray, mid-pan t150) + x≈289 y≈66 (smoke) —
-the butterflies (x≈85 y≈337) are the separate `butterfly-wander` debt.  Chase:
-the RENDER lens — a dual blit trace at one matched tick → per-particle
+**Method note (durable):** when a residual survives a state-equality proof,
+extract the EFFECTIVE per-index source levels from the frames themselves
+(s5 = d5 − out5 against a settled-backdrop reference) before touching model
+code — it separates "wrong state" from "wrong cel content" in one shot.
+
+### R7 — FOUNTAIN particle ensemble: a flat ~2-4k px residual at EVERY tick
+### shift — position/age model offset, not a tick origin (OPEN, ckpt 105;
+### NARROWED ckpt 106: fountain ONLY — smoke contributes 0)
+
+The fountain spray differs ~2-4k px against EVERY retail tick in dt∈[−8,+8] —
+a tick shift never zeroes it, so the ensemble itself is offset (anchor
+constant, age origin, or a sub-population).  **ckpt-106 narrowing (post-R6):**
+at stamp-equal t30 on the recaptured intro-1, 100% of the whole-frame residual
+(4286 px) sits inside x 428-591, y 222-351 — the fountain box; the chimney
+smoke region contributes ZERO (the ckpt-105 "smoke anchor" suspect is cleared
+during the reveal window).  The per-tick LCG stream is bit-exact (ckpt 99), so
+draw VALUES are aligned — suspects are the position MODEL:
+PORT-DEBT(fountain-anchor) (the +1245 calibrated emit center) or particle ages
+(the emitter starting k ticks offset ages the whole population).  Chase: the
+RENDER lens — a dual blit trace at one matched tick → per-particle
 (res, frame, dst) deltas attribute it in one capture (pixel probes are spent).
 
 ### R8 — dialogue typewriter ROW-TRANSITION pauses: the fitted grade model

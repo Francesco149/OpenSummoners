@@ -307,6 +307,13 @@ static area_banner    g_banner;
 static void          *g_banner_font;  /* HFONT — Courier New h20 w10 (DAT_008a9274[6]) */
 static int            g_banner_armed; /* one-shot arm latch, reset per enter_game */
 #define BANNER_SCROLL_SLOT  53        /* res 0x449 / the 0x8a7714 bank */
+/* The scene-fade sinks (defined with their wiring further down, but the
+ * grade skip-list above needs the slot ids early): retail binds BOTH via
+ * the plain getter FUN_004184a0(0) at 0x48e920:37/66 — UNGRADED (the
+ * quirk-#96 family; graded masks read one 5-bit step weak → the R6-B
+ * frontier-band residual). */
+#define SCENE_FADE_ALPHA_SLOT 40   /* 0x8a76e0 — res 0x458, frame = alpha level */
+#define LETTERBOX_BANK_SLOT   41   /* 0x8a76e4 — res 0x583, the opaque black cel */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -828,7 +835,9 @@ static void title_sheet_format(ar_sprite_slot *slot,
     if (g_color_grade_on && src == 8 &&
         slot != &g_ar_sprite_slots[BANNER_SCROLL_SLOT] &&
         slot != &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT] &&
-        slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT])
+        slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[SCENE_FADE_ALPHA_SLOT] &&
+        slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT])
         color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {
@@ -1940,13 +1949,13 @@ static void game_parallax_blit(void *ctx, uint16_t bank, int32_t frame,
     zdd_object_blt_onto((zdd_object *)cel, g_zdd->primary_obj, x, y);
 }
 
-/* The letterbox cel is main sprite-pool slot 41 (PE resource 0x583, 64x4,
+/* The letterbox cel is main sprite-pool slot 41 = LETTERBOX_BANK_SLOT
+ * (defined by the grade skip-list block up top) — PE resource 0x583, 64x4,
  * opaque) — registered by ar_register_main_sprites (extras[] idx 41).  The
  * engine binds it via FUN_00418470(0) (the plain frame getter, NO 0x417c40
  * grade) before the FUN_005b9a40 tile blits, so the port resolves the fixed
  * slot directly (frame 0) and blits it whole — same primitive the parallax
  * far-plane uses, minus the 24bpp grade stamp. */
-#define LETTERBOX_BANK_SLOT 41
 
 /* letterbox_blit_fn — draw one letterbox cel at screen (x,y) (FUN_005b9a40). */
 static void game_letterbox_blit(void *ctx, int x, int y)
@@ -1964,7 +1973,6 @@ static void game_letterbox_blit(void *ctx, int x, int y)
  * cells (== the letterbox cel), slot 40 (res 0x458, the alpha-level black tile)
  * for the fading edge. */
 static scene_fade_grid g_scene_fade;
-#define SCENE_FADE_ALPHA_SLOT 40   /* 0x8a76e0 — res 0x458, frame = alpha level */
 
 /* scene_fade_opaque_fn — a solid black cell (FUN_005b9a40): same cel as the
  * letterbox, so reuse the sink. */
@@ -2400,14 +2408,38 @@ static void game_render(void *user)
              * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
              * (2 rows/tick -> 8px/sim-tick, the measured envelope).  Deterministic
              * (no RNG), so it rides the sim-tick clock like the actor steppers.
-             * The hold>=2 fence delays the FIRST update one tick: retail's reveal
-             * state k renders at tick k+1 (tick-axis measurement, parity-ledger
-             * R6 — the script posts the arm request one pumped tick after the
-             * spawn, so tick 1 presents the armed all-opaque grid), while an
-             * unfenced port rendered state k at tick k.  PORT-DEBT(scene-fade-
-             * window): the faithful source is the beat-runner arm-request
-             * timing. */
-            if (is_sim_tick && g_game_camera_hold >= 2)
+             * UNFENCED (R6 resolution, ckpt 106): retail's frame stamped tick u
+             * presents the post-update-u grid (mask-level extraction on intro-1
+             * at forced stamp equality: retail s5(a)==a exactly), so the port
+             * steps BEFORE rendering every sim tick from the first.  The ckpt-105b
+             * "hold>=2 one-tick fence" was a misfix: its dt-scan minimum was
+             * computed over GRADED mask cels (one 5-bit step weak), which biased
+             * the cost surface by exactly one tick.  With the cels ungraded
+             * (quirk #96 family, slots 40/41 on the grade skip-list) the unfenced
+             * step is bit-exact at stamp equality. */
+            if (is_sim_tick) {
+                /* Port mirror of the retail 0x499ab0 grid dump (R6-B): the
+                 * fade-grid's column-0 cell per row, packed state|timer<<16,
+                 * read BEFORE this tick's update = retail's onEnter view.
+                 * Same field names as tools/flow/retail_fields.json. */
+                CALL_TRACE_BEGIN(0x499ab0);
+                CALL_TRACE_I32("sf_mode",    g_scene_fade.mode);
+                CALL_TRACE_I32("sf_variant", g_scene_fade.variant);
+                CALL_TRACE_U32("sf_rad",     g_scene_fade.radius);
+                CALL_TRACE_I32("sf_done",    g_scene_fade.done);
+                {
+                    char rn[8];
+                    for (int r = 40; r <= 80; r++) {
+                        const scene_fade_cell *c =
+                            &g_scene_fade.cells[r * SCENE_FADE_W];
+                        snprintf(rn, sizeof rn, "r%d", r);
+                        call_trace_field_u32(rn,
+                            (uint32_t)c->state | ((uint32_t)c->timer << 16));
+                    }
+                }
+                CALL_TRACE_END();
+            }
+            if (is_sim_tick)
                 scene_fade_step(&g_scene_fade);
             /* The area-title banner (0x494a60) is updated by the SAME cinematic
              * step 0x499ab0 — arm it at the measured +78-flip trigger, then run

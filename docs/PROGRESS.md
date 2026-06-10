@@ -6,6 +6,33 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 106) — R6 establishing-REVEAL RESOLVED: two stacked causes (graded mask cels + the 105b fence); the frontier band differ_px==0 at every stamp-equal tick; R7 narrowed to the fountain alone
+
+The R6 chase started with the queued recipe and ended somewhere better: a live per-row
+grid dump (new `0x499ab0` field-spec chain fields `r40..r80` + a port mirror in main.c)
+proved the fade-grid's per-cell `(state,timer)` BIT-IDENTICAL both sides — 41 rows × 31
+ticks, staircase `timer=100u+50−50d` — so the pixel residual had to be cel content or
+registration.  Per-pixel mask-level extraction (`s5 = backdrop5 − out5`, mode per cell)
+against the studio frames showed retail's effective mask level == the frame index
+EXACTLY (`s5(a)==a`), while the port's content sat at `index(T−100)` — one aging step
+young — AND one 5-bit step weak.  Two causes: (1) the port graded res `0x458`/`0x583`;
+retail binds both through the plain getter `0x4184a0(0)` (quirk-#96 family) — slots
+40/41 now on the grade skip-list; (2) the ckpt-105b `hold>=2` fence — a misfix whose
+dt-scan justification had been computed over the graded cels (biased exactly one tick)
+— removed.  After both: the reveal band is differ_px==0 at EVERY stamp-equal tick 2..32,
+and 100% of the remaining reveal-window residual is the fountain box (smoke 0) → R7.
+quirk #100; parity-ledger R6 (incl. the reusable state-proof → cel-extraction method).
+
+Bycatch: the grid object's +0x20/24/28 ramp is the town's ambient AUDIO fade-in
+(0→1000 at +10/tick, ducking ~12 DSound position updaters through the `0x5bb870/80/90`
+vol/pan/freq thunks) — pixels never read it; logged for the future sound port (quirk
+#100).  Tooling: the studio's port driver must hand the child a PIPE stdout — WSL
+interop's exec of a Windows binary fails its vsock handshake when stdout is a regular
+file (`UtilAcceptVsock accept4 110`; this wiped intro-1's port side once mid-session —
+recaptured).  939 pass; ledger unchanged (bare-VA work).
+
+---
+
 ## 2026-06-10 (ckpt 105) — the SIM-TICK AXIS in the trace studio; the whole intro-1 worklist attributed at tick-equality; banner/pan/dialogue triggers recalibrated to differ_px==0; the @2463 "zero-mean" verdict retracted
 
 The marks left on intro-1 resisted flip-axis chasing (the pairing's pixel-driven drift wanders

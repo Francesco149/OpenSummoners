@@ -77,10 +77,14 @@ def drive_port(sess_dir: Path, trace: Path, frames: int,
     env["OPENSUMMONERS_TIMEOUT_MS"] = str(timeout_ms)
     cmd = ["bash", str(ROOT / "tools" / "run-opensummoners.sh"), "--"] + child
 
-    with log_path.open("w") as lf:
-        proc = subprocess.run(cmd, cwd=str(ROOT), stdout=lf,
-                              stderr=subprocess.STDOUT, env=env,
-                              timeout=timeout_ms / 1000 + 120)
+    # stdout must be a PIPE, not a file handle: WSL interop's exec of a
+    # Windows binary fails its vsock handshake (UtilAcceptVsock accept4
+    # errno 110 → the port never launches) when the child's stdout is a
+    # regular file.  Capture via pipe and write the log ourselves.
+    proc = subprocess.run(cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, env=env,
+                          timeout=timeout_ms / 1000 + 120)
+    log_path.write_bytes(proc.stdout or b"")
     log_text = log_path.read_text(errors="replace")
     anchors = parse_anchors(log_text)
     (sess_dir / "anchors.port.jsonl").write_text(

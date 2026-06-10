@@ -1794,7 +1794,7 @@
   },
   "0x499ab0": {
    "name": "scene_cinematic_step",
-   "_note": "FUN_00499ab0 (1356 B) — the in-game SCENE CINEMATIC controller step, called once/sim-tick from 0x439690:1124 (right after the camera easer 0x43d1d0:1123) and from the cutscene drivers 0x55f190:136 / 0x58f360:478. Its __thiscall this holds the LETTERBOX bar heights (+0x44/+0x48) + scroll (+0x4c), ramped ±2/call toward targets (mode +0x40: 0 => toward 0; !=0 => +0x44/+0x48 toward 0x40=64, +0x4c toward +0x50). LIVE-MEASURED (ckpt 90): during the opening-town establishing shot these bars are CONSTANT 64 (mode 1, already settled) and scroll is 0 — so the letterbox is fixed 64px (= the constant grid-fill 0x48c48a/0x48c4fe) and 0x499ab0 is NOT the establishing REVEAL. The REVEAL is a SEPARATE per-cell FADE-GRID at *(0x8a9b50+0x1040). CORRECTED ckpt 95 (the ckpt-90 attribution of the update to FUN_0049af40 was WRONG — reading 0x49af40 it is the HUD/portrait/HP-bar animator, walks the party array room+0x4030, returns a counter): the grid UPDATE is the INLINE loop here at 0x499ab0:125-177 (advance each fading cell's timer; the iris PATTERN is set by FUN_0049a890 (variant 0)/0x49a740 (1)/0x49aae0+0x49aa00 (2)), and the grid is RENDERED by FUN_0048e920 (via 0x48c150:175). 1x/sim-tick (mode 1 advances 2 rows/tick = the measured -8px/sim-tick). PORTED ckpt 95: src/scene_fade.c. Fields read at onEnter off ECX.",
+   "_note": "FUN_00499ab0 (1356 B) — the in-game SCENE CINEMATIC controller step, called once/sim-tick from 0x439690:1124 (right after the camera easer 0x43d1d0:1123) and from the cutscene drivers 0x55f190:136 / 0x58f360:478. Its __thiscall this holds the LETTERBOX bar heights (+0x44/+0x48) + scroll (+0x4c), ramped ±2/call toward targets (mode +0x40: 0 => toward 0; !=0 => +0x44/+0x48 toward 0x40=64, +0x4c toward +0x50). LIVE-MEASURED (ckpt 90): during the opening-town establishing shot these bars are CONSTANT 64 (mode 1, already settled) and scroll is 0 — so the letterbox is fixed 64px (= the constant grid-fill 0x48c48a/0x48c4fe) and 0x499ab0 is NOT the establishing REVEAL. The REVEAL is a SEPARATE per-cell FADE-GRID at *(0x8a9b50+0x1040). CORRECTED ckpt 95 (the ckpt-90 attribution of the update to FUN_0049af40 was WRONG — reading 0x49af40 it is the HUD/portrait/HP-bar animator, walks the party array room+0x4030, returns a counter): the grid UPDATE is the INLINE loop here at 0x499ab0:125-177 (advance each fading cell's timer; the iris PATTERN is set by FUN_0049a890 (variant 0)/0x49a740 (1)/0x49aae0+0x49aa00 (2)), and the grid is RENDERED by FUN_0048e920 (via 0x48c150:175). 1x/sim-tick (mode 1 advances 2 rows/tick = the measured -8px/sim-tick). PORTED ckpt 95: src/scene_fade.c. Fields read at onEnter off ECX. R6-B GRID DUMP (ckpt 106): the sf_/ovl_/r40..r80 chain fields read the fade-GRID object (*(0x8a9b50+0x1040)) at onEnter = state BEFORE this tick's overlay-level update + iris setter/aging. r<N> = column-0 cell of grid row N packed u32 (state | timer<<16); cells base *(grid+0), stride 0xc, W=10. Port mirror: main.c CALL_TRACE_BEGIN(0x499ab0) right before scene_fade_step.",
    "fields": [
     {
      "name": "mode",
@@ -1827,6 +1827,537 @@
      "type": "i32",
      "benign": true,
      "reason": "this+0x4c — the vertical scroll accumulator written to view+0x74 (used by the tilemap renderer 0x490f30 row origin). Ramps ±2/call toward this+0x50."
+    },
+    {
+     "name": "sf_mode",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 12,
+     "type": "i32",
+     "_note": "fade-GRID +0xc mode (1=out/reveal, 2=in)"
+    },
+    {
+     "name": "sf_variant",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 16,
+     "type": "i32"
+    },
+    {
+     "name": "sf_rad",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 20,
+     "type": "u32",
+     "_note": "low u16 = grid radius (+0x14); high u16 = +0x16 (mask in analysis)"
+    },
+    {
+     "name": "sf_done",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 24,
+     "type": "i32"
+    },
+    {
+     "name": "ovl_mode",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 32,
+     "type": "i32",
+     "_note": "grid[8] — the OVERLAY screen-fade mode (1=zero level, 2=ramp level to 1000, 3=ramp to 0), updated at 0x499ab0:104-124 BEFORE the iris setter/aging; armed by the beat-runner +0x30 request (0x439690:585+). NOT modelled by the port (R6-B suspect)."
+    },
+    {
+     "name": "ovl_speed",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 36,
+     "type": "i32",
+     "_note": "grid[9] — overlay fade speed; per-tick rate = speed*20/1000"
+    },
+    {
+     "name": "ovl_level",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160
+     ],
+     "off": 40,
+     "type": "i32",
+     "_note": "grid[10] — the overlay screen-fade LEVEL 0..1000, consumed by ~12 renderers as (level-1000)*3000/1000 + X (whole-scene darkening: 0x407ba0/0x40a010/0x40ac90/0x40bb90/0x46d180/0x46d4a0/0x46e510:1771/0x489280/0x554570/0x557060/0x54d090)."
+    },
+    {
+     "name": "sf_rngcalls",
+     "src": "rngcalls",
+     "type": "i32"
+    },
+    {
+     "name": "r40",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 4800,
+     "type": "u32"
+    },
+    {
+     "name": "r41",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 4920,
+     "type": "u32"
+    },
+    {
+     "name": "r42",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5040,
+     "type": "u32"
+    },
+    {
+     "name": "r43",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5160,
+     "type": "u32"
+    },
+    {
+     "name": "r44",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5280,
+     "type": "u32"
+    },
+    {
+     "name": "r45",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5400,
+     "type": "u32"
+    },
+    {
+     "name": "r46",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5520,
+     "type": "u32"
+    },
+    {
+     "name": "r47",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5640,
+     "type": "u32"
+    },
+    {
+     "name": "r48",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5760,
+     "type": "u32"
+    },
+    {
+     "name": "r49",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 5880,
+     "type": "u32"
+    },
+    {
+     "name": "r50",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6000,
+     "type": "u32"
+    },
+    {
+     "name": "r51",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6120,
+     "type": "u32"
+    },
+    {
+     "name": "r52",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6240,
+     "type": "u32"
+    },
+    {
+     "name": "r53",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6360,
+     "type": "u32"
+    },
+    {
+     "name": "r54",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6480,
+     "type": "u32"
+    },
+    {
+     "name": "r55",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6600,
+     "type": "u32"
+    },
+    {
+     "name": "r56",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6720,
+     "type": "u32"
+    },
+    {
+     "name": "r57",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6840,
+     "type": "u32"
+    },
+    {
+     "name": "r58",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 6960,
+     "type": "u32"
+    },
+    {
+     "name": "r59",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7080,
+     "type": "u32"
+    },
+    {
+     "name": "r60",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7200,
+     "type": "u32"
+    },
+    {
+     "name": "r61",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7320,
+     "type": "u32"
+    },
+    {
+     "name": "r62",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7440,
+     "type": "u32"
+    },
+    {
+     "name": "r63",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7560,
+     "type": "u32"
+    },
+    {
+     "name": "r64",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7680,
+     "type": "u32"
+    },
+    {
+     "name": "r65",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7800,
+     "type": "u32"
+    },
+    {
+     "name": "r66",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 7920,
+     "type": "u32"
+    },
+    {
+     "name": "r67",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8040,
+     "type": "u32"
+    },
+    {
+     "name": "r68",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8160,
+     "type": "u32"
+    },
+    {
+     "name": "r69",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8280,
+     "type": "u32"
+    },
+    {
+     "name": "r70",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8400,
+     "type": "u32"
+    },
+    {
+     "name": "r71",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8520,
+     "type": "u32"
+    },
+    {
+     "name": "r72",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8640,
+     "type": "u32"
+    },
+    {
+     "name": "r73",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8760,
+     "type": "u32"
+    },
+    {
+     "name": "r74",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 8880,
+     "type": "u32"
+    },
+    {
+     "name": "r75",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9000,
+     "type": "u32"
+    },
+    {
+     "name": "r76",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9120,
+     "type": "u32"
+    },
+    {
+     "name": "r77",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9240,
+     "type": "u32"
+    },
+    {
+     "name": "r78",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9360,
+     "type": "u32"
+    },
+    {
+     "name": "r79",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9480,
+     "type": "u32"
+    },
+    {
+     "name": "r80",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4160,
+      0
+     ],
+     "off": 9600,
+     "type": "u32"
     }
    ]
   },

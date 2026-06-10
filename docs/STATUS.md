@@ -35,7 +35,32 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 105): the SIM-TICK AXIS lands in the studio — the whole intro-1 worklist
+- **LATEST (ckpt 106): R6 establishing-REVEAL RESOLVED — the frontier band is
+  `differ_px==0` at EVERY stamp-equal tick (2..32); the residual was TWO stacked causes,
+  each hiding the other's fix. R7 narrowed to the fountain ONLY. (939 pass.)**
+  1. **Cause 1 — graded mask cels:** retail binds res `0x458` (alpha mask ramp) + `0x583`
+     (opaque cel) via the PLAIN getter `0x4184a0(0)` — UNGRADED (quirk-#96 family).  The
+     port graded them → masks one 5-bit step weak.  Slots 40/41 → the grade skip-list.
+  2. **Cause 2 — the ckpt-105b fence was a misfix:** mask-level extraction (per-pixel
+     `s5 = backdrop5 − out5`, mode per cell) proves retail's frame stamped tick u presents
+     the POST-update-u grid (`s5(a)==a` exactly, 11 indexes); the fenced port presented
+     u−1.  The 105b dt-scan that justified the fence ran over GRADED cels — the content
+     error biased it one tick.  Fence removed (`scene_fade_step` unfenced every sim tick).
+  3. **The grid model itself was always bit-exact:** new `0x499ab0` grid-dump annotation
+     (`r40..r80` chain fields + port mirror in main.c) — 41 rows × 31 ticks, ZERO
+     mismatches (`runs/r6-grid`, the staircase `timer=100u+50−50d`).  quirk #100;
+     parity-ledger R6 has the method writeup (state-equality proof → cel-content
+     extraction — reusable).
+  4. **Bycatch:** grid+0x20/24/28 = an overlay AUDIO-fade ramp (town: 0→1000 at +10/tick,
+     ducking ~12 DSound position updaters via `0x5bb870/80/90` — vol/pan/freq thunks),
+     NOT video (quirk #100) — matters when town sound lands.  R7 NARROWED: at t30 100% of
+     the whole-frame residual = the fountain box (smoke 0; retail half of the dual blit
+     trace already captured, `runs/r7-blits-retail`).  Tooling: studio port-driver
+     stdout must be a PIPE (WSL interop vsock fails exec when child stdout is a file).
+  5. **NEXT:** (a) R7 — finish the dual blit trace (port half) → per-particle attribution;
+     (b) R8 typewriter row-close grade; (c) dialogue chip 4 (Z-advance + script table);
+     (d) probe-flag removal; (e) a deeper working trace (past dialogue → house freeroam).
+- **Prior (ckpt 105): the SIM-TICK AXIS lands in the studio — the whole intro-1 worklist
   attributed at forced tick-equality; 3 trigger constants recalibrated (banner/pan/dialogue
   now `differ_px==0` at tick-equal); ckpt-104's @2463 "zero-mean" read RETRACTED. (939 pass.)**
   1. **Instrumentation:** the port stamps its easer-call count into `--capture-all` names

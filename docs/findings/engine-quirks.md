@@ -3087,3 +3087,37 @@ against trace-studio `intro-1`:
   fitted grades: across the row-1→row-2 boundary retail paused {5, 14, 5} ticks
   between changes where the fitted model produced {1, 5, 16} (net −3) — the real
   char→grade map is still unread (PORT-DEBT dialogue-pause-grades).
+
+### #100 — the fade-grid's render cels decode through the PLAIN getter (UNGRADED), retail's tick-stamped present shows the post-update grid, and the grid object carries an overlay AUDIO-fade level — three reveal facts that closed R6 (2026-06-10, ckpt 106)
+
+- **res `0x458` (the 32-frame alpha mask ramp) + res `0x583` (the opaque black
+  cel) bind through the plain getter `FUN_004184a0(0)`** (`0x48e920:37/66`
+  lazy-bind) — NO `0x417c40` palette grade, the same ungraded family as quirk
+  #96 (banner scroll / dialogue bubble / name tab).  The mask sheet is a pure
+  linear gray ramp: 32 vertical 64×4 cells, storage bottom-up white→black, so
+  visual cell v has exactly `gray5 == v` after the 565 round trip; the
+  composite `out5 = dst5 − mask5` (group-E weight-1000 mode-2 LUT is exact:
+  `lut[s][d] = clamp(d−s)`).  A graded decode reads one 5-bit step weak across
+  most of the ramp — the whole R6 "level map mismatch" was this plus a
+  one-tick stamp offset stacked.
+- **Stamp registration: a retail frame tick-stamped u presents the
+  POST-update-u cinematic state.**  Proven by mask-level extraction at forced
+  stamp equality (effective `s5(a) == a` exactly, 11 indexes, both 5-bit
+  wobble points included).  The port must run its cinematic step BEFORE
+  rendering on the same tick the stamp increments — an extra "arm latency"
+  fence reads as exactly one aging step of frontier lag.
+- **The fade-grid object carries a second, AUDIO ramp at +0x20/+0x24/+0x28**
+  ([8] mode: 1=zero, 2=ramp to 1000, 3=ramp to 0; [9] speed; [10] level
+  0..1000; updated at `0x499ab0:104-124` BEFORE the iris block at
+  `rate = speed*20/1000` per tick; armed by the beat-runner `+0x30` request,
+  `0x439690:585+`).  Town entry runs mode 2 speed 500 → level += 10/tick, 0 →
+  1000 over the first 100 ticks.  Consumed by ~12 SOUND-position updaters
+  (`0x46d180`/`0x46d4a0`/`0x46e510:1771`/`0x554570`/`0x557060`/`0x54d090`/
+  `0x489280`/`0x407ba0`/`0x40a010`/`0x40ac90`/`0x40bb90`) as
+  `vol += (level−1000)*3000/1000` clamped to [−10000, 0] — fed to
+  `FUN_005bb870/80/90`, which are vtable thunks into DirectSound-land
+  (live-resolved targets in a loaded sound module; param ranges = DSound
+  volume hundredths-dB / pan / `(p+10000)*22050/10000` frequency).  It is the
+  town's ambient-audio fade-in, NOT a video term — pixels never read [10].
+  (Field spec: the `0x499ab0` `ovl_*`/`r40..r80` chain fields dump the whole
+  object; `runs/r6-grid` is the seed-pinned reveal-window ground truth.)

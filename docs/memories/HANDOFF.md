@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 105, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 106, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,50 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 105
+## Where we are — ckpt 106
+
+**R6 (the establishing-REVEAL frontier) is RESOLVED — the band renders `differ_px==0` at
+every stamp-equal tick 2..32 on the recaptured intro-1; the whole remaining reveal-window
+residual is the FOUNTAIN box alone (R7; smoke contributes 0).  939 pass.**
+Retail ground truth: engine-quirk #100; the resolution writeup: parity-ledger R6.
+
+- **What it was (two stacked causes — each fix alone made pixels WORSE, which is why
+  ckpt 105 mis-read it):**
+  1. The port GRADED the mask cels.  Retail binds res `0x458`/`0x583` through the plain
+     getter `FUN_004184a0(0)` (`0x48e920:37/66`) — ungraded, quirk-#96 family.  Fixed:
+     `SCENE_FADE_ALPHA_SLOT`(40)/`LETTERBOX_BANK_SLOT`(41) joined the grade skip-list
+     (main.c).
+  2. The ckpt-105b `hold>=2` fence held the reveal one tick behind its stamps.  Retail's
+     tick-stamped frame presents the POST-update grid (mask-level extraction:
+     `s5(a)==a` exactly).  The fence's original dt-scan justification was computed over
+     graded cels — biased exactly one tick.  Fence REMOVED.
+- **Hard proof artifacts:** `runs/r6-grid` (retail per-row grid dump, the new `0x499ab0`
+  `sf_*`/`ovl_*`/`r40..r80` chain fields) + `runs/r6-grid-port` (the port mirror) — the
+  grids are bit-identical 41 rows × 31 ticks at every pre-step boundary; the per-row
+  staircase is `timer(u,d)=100u+50−50d`.  The mask sheet (`runs/extract/sotesd/type=DATA/
+  1112.bin`) is a pure linear ramp: visual cell v ⇒ `gray5==v`; the group-E weight-1000
+  mode-2 LUT is exact `clamp(d−s)` — so effective `s5` IS the frame index, which made the
+  cel-content extraction decisive.
+- **Bycatch (quirk #100):** the fade-grid object's +0x20/+0x24/+0x28 = an overlay
+  AUDIO-fade ramp (town entry: mode 2, speed 500 → level 0→1000 at +10/tick over 100
+  ticks), consumed by ~12 DirectSound position updaters (`(level−1000)*3` → vol clamp
+  [−10000,0] → the `0x5bb870/80/90` vtable thunks = DSound volume/pan/frequency).  NOT a
+  video term.  Needed when the town's ambient sound is ported.
+- **Tooling hardening:** `tools/trace_studio/drive/port.py` must give the port child a
+  PIPE stdout — WSL interop's exec of a Windows binary fails its vsock handshake
+  (`UtilAcceptVsock accept4 errno 110`) when stdout is a regular FILE (this also wiped
+  the intro-1 port side once before the diagnosis; recaptured fine after).
+- **NEXT (in order):** (a) **R7** — the dual blit trace: the RETAIL half is captured
+  (`runs/r7-blits-retail`, flips 1489-1496 ≈ ticks 29-32); run the PORT half over the
+  same ticks (`--call-trace`, flips ~1174-1186), then `render_diff` → per-particle
+  (res,frame,dst) deltas; suspects PORT-DEBT(fountain-anchor) +1245 vs the emitter age
+  origin.  (b) **R8** — the typewriter row-close grade (the `0x48da70` thisderef
+  field-spec recipe in the ckpt-105 NEXT below).  (c) dialogue chip 4 (Z-advance +
+  script table + arrow re-probe).  (d) the probe-flag removal chip.  (e) when intro-1 is
+  exhausted: a NEW deeper working trace (advance past the dialogue into the house
+  freeroam scene) — USER directive 2026-06-10.
+
+## Where we were — ckpt 105
 
 **The SIM-TICK AXIS is in the trace studio end-to-end, the whole intro-1 worklist is
 attributed at forced tick-equality, and the 3 measured trigger constants are recalibrated
