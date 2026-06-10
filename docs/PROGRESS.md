@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 113) — PHASE-4 chip 3: the HELD-AXIS INJECTION HARNESS — Arche WALKS in retail freeroam (the chip-3 blocker closed)
+
+The ckpt-112 ground-truth found that the freeroam mover reads the HELD-AXIS array
+(`input-mgr+0x114`), not the discrete event ring — so `--input-trace` (ring presses) drives menus
+and the dialogue Z-advance but leaves the controllable leader idle when walking.  This checkpoint
+builds the level-injection mode that was the movement ground-truth's blocker, and live-validates it.
+
+RE (ground truth): the producer `0x46a880` (the per-frame global input update) fills array A each
+frame from the DInput keyboard buffer via the leaf query `0x5ba520` (= `keyboard_state[scancode] &
+0x80`), one slot per key — `+0x114=UP(0xc8) +0x118=DOWN(0xd0) +0x11c=LEFT(0xcb) +0x120=RIGHT(0xcd)`,
+action buttons at `[4..]`.  So array A is PER-DIRECTION held booleans, correcting the long-standing
+input.h / `0x56aea0` "[0]=vertical/[1]=horizontal" label (engine-quirk #41 confirmed + amended).
+
+Retail (`tools/frida/opensummoners-agent.js` + `frida_capture.py --held-trace`): hook the leaf
+`0x5ba520` and force its return to pressed for the injected scancodes — the real producer then fills
+`+0x114` exactly as a physical keypress would.  Hooking the leaf rather than writing the array is the
+decisive choice: it needs no model of the engine's per-frame clear/produce path (release is
+automatic), covers both the array-mediated mover and any direct-query consumer, and survives the
+hidden window's loss of DInput focus.  A read-back diagnostic hooks the producer `0x46a880` onLeave
+(`{kind:'axis'}`).  Port (`src/held_trace.{c,h}`, NEW, host-tested ×8): the LEVEL counterpart of
+`input_trace` — `{"frame":N,"keys":[scancode|name]}` rebuilds `mgr->axis_held[0..3]` every frame;
+`main.c` wires `--held-trace` at the 4 drive replay sites (the title menu already consumes it);
+`mem_watch` gets it too.  954 host pass (+8).  Commit 776f575.
+
+Live-validated (`runs/freeroam-walk`): drove retail to freeroam (stripped Z-spam so held-axis is the
+sole mover) then held RIGHT 4560-4760 / LEFT 4820-5020.  Arche's `arche_body.wx` went **19200→41760**
+(RIGHT, facing 1) then **45472→25320** (LEFT, facing flips to 3), walk anim cycling + decel to a
+stop — versus the ckpt-112 ring run's static wx=19200.  Walk montage pushed to the feed.  Lead for
+pinning the mover: `vel` (body+0x18) reads 0 throughout, so her horizontal speed lives elsewhere.
+NEXT: `mem_watch` her `wx` writer under held walk → the chip-3 mover; then walk/run/jump per-tick →
+bit-exact target → port.
+
+---
+
 ## 2026-06-10 (ckpt 110) — PHASE-4 chip 1 DONE: the butterfly open-air PATROL MOTION ported + FIELD-EXACT (heading 0 mismatches; the butterflies drift left↔right 1:1)
 
 Chip 1 of the entity-movement arc (`plans/movement-system.md`).  `src/butterfly.{c,h}` grew from

@@ -33,10 +33,38 @@ understates how much actual instruction volume is ported.
 ## Current front
 
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
-  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed →
-  port). Milestone map: `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog:
-  `port-frontier.md`.
-- **LATEST (ckpt 112): PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") —
+  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
+  held-axis harness ✓ → pin mover → port). Milestone map: `ROADMAP.md`; active arc:
+  `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
+- **LATEST (ckpt 113): PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS landed + LIVE-VALIDATED:
+  Arche WALKS in retail freeroam. The chip-3 blocker (quirk #101 finding #4) is CLOSED. 954 pass
+  (+8).** The freeroam mover reads the held-axis array (`input-mgr+0x114`), NOT the event ring, so
+  `--input-trace` left Arche idle. RE'd the producer `0x46a880` (fills `+0x114` each frame from the
+  DInput buffer via the leaf query `0x5ba520`; slots `[0]=UP [1]=DOWN [2]=LEFT [3]=RIGHT` —
+  **quirk #41 CONFIRMED + the "[0]=V/[1]=H" guess corrected**).
+  1. **Retail (`tools/frida/opensummoners-agent.js` + `frida_capture.py --held-trace`):** hook the
+     LEAF query `0x5ba520`, force its return to pressed for injected scancodes → the real producer
+     fills `+0x114` exactly as a physical keypress would. Hooking the leaf (vs writing the array) is
+     decisive: it needs NO model of the engine's per-frame clear/produce path (release "just works")
+     + survives the hidden window's loss of DInput focus. Read-back diagnostic hooks `0x46a880`
+     (`{kind:'axis'}`). `mem_watch` gets `--held-trace` too (for pinning the mover next).
+  2. **Port (`src/held_trace.{c,h}` NEW + host-tested ×8):** the LEVEL counterpart of `input_trace` —
+     `{"frame":N,"keys":[scancode|name]}` rebuilds `mgr->axis_held[0..3]` each frame (clear-then-set).
+     `main.c` wires `--held-trace` at the 4 drive replay sites; the title menu already consumes
+     `axis_held[0/1]`. Composes with `--input-trace` (ring Z-advance + held walk together).
+  3. **LIVE-VALIDATED (`runs/freeroam-walk`, the contrast vs the ckpt-112 ring run):** held RIGHT
+     4560-4760 → `arche_body.wx` **19200→41760** (facing 1); held LEFT 4820-5020 → wx **45472→25320**
+     (facing flips 1→3); the walk anim cycles + decelerates to a stop — vs the ring run's **static
+     wx=19200**. The `axis` read-back shows `R=1`/`L=1` in the freeroam array. Walk montage pushed to
+     the feed.
+  4. **NEXT (chip-3 ground-truth, NOW UNBLOCKED):** (a) pin Arche's freeroam MOVER — `mem_watch` her
+     `wx` writer under held walk (note: `vel`=body+0x18 reads **0** while she moves, so the mover
+     writes `wx` directly / elsewhere); (b) capture walk/run/jump per-tick → bit-exact target → THEN
+     port (party-leader update + the chip-2 mover/probes get their first LIVE caller). **OPEN (USER):
+     verify the freeroam-WALK montage on the feed.** Butterfly chip-1 drift verify still pending;
+     incidental PORT-DEBT(effect-color-variant), PORT-DEBT(held-axis-array-b) (the port replay models
+     array A only; array B at +0x140 deferred until a consumer needs it).
+- **Prior (ckpt 112): PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") —
   the HOUSE FREEROAM is REACHED in retail + four chip-3-reshaping facts pinned. NO port code (pure
   RE). 946 pass.** Method: drive retail past the whole town-arrival cutscene (`--seed-pin --lockstep
   --no-turbo`), Z-spam (ring id `0x24`) every ~12 flips from game_enter; the ~15 dialogue beats clear

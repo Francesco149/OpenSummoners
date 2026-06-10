@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 112, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 113, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,74 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 112
+## Where we are — ckpt 113
+
+**PHASE-4 chip 3 — the HELD-AXIS INJECTION HARNESS is landed + LIVE-VALIDATED: Arche WALKS in
+retail freeroam. The chip-3 ground-truth blocker (quirk #101 finding #4) is CLOSED. 954 host pass
+(+8).**  Modules: `src/held_trace.{c,h}` (NEW) + `tests/test_held_trace.c`; `src/main.c`,
+`src/input.h`, `src/title_scene.c` (port wiring + mislabel fix); `tools/frida/opensummoners-agent.js`,
+`tools/frida_capture.py`, `tools/mem_watch.py` (`--held-trace`); engine-quirk #41 amended.
+Live artifacts: `runs/freeroam-walk/` (`trace-nav.jsonl` + `walk-held.jsonl` + `cap/`).
+
+**The gap it closed.**  The freeroam character mover reads the HELD-AXIS array (`input-mgr+0x114`),
+NOT the discrete event ring — so the ring injection (`--input-trace`) drives menus + the dialogue
+Z-advance but leaves the controllable leader IDLE when walking (the ckpt-112 trace-b ring ids 3/4
+moved her 0 px).  This adds the level-injection mode the movement ground-truth was blocked on.
+
+**The RE (ground truth, not curve-fit).**  The producer `0x46a880` (the per-frame global input
+update) fills array A each frame from the DInput keyboard buffer via the leaf query `0x5ba520`
+(= `keyboard_state[scancode] & 0x80`), one slot per key (`0x46a880:1497-1512`):
+`+0x114=UP(0xc8) +0x118=DOWN(0xd0) +0x11c=LEFT(0xcb) +0x120=RIGHT(0xcd)`, action buttons at `[4..]`.
+So array A is PER-DIRECTION held booleans — the input.h/`0x56aea0` "[0]=vertical/[1]=horizontal"
+label was wrong (it's UP/DOWN; the title menu's two reads are both vertical-list auto-repeat).
+The producer doesn't clear inline; a per-frame flush (`0x56a220`) handles release — which is exactly
+why hooking the LEAF is the right call (see below).
+
+- **Retail injection (`agent` + `frida_capture.py --held-trace`):** hook the leaf `0x5ba520` and
+  force its return to `0x80` (pressed) for the injected scancodes; the real producer then fills
+  `+0x114` exactly as a physical keypress.  Hooking the leaf (vs writing the array directly) is the
+  decisive choice — it covers both the array-mediated mover and any direct-query consumer, survives
+  the hidden window's loss of DInput focus (we never depend on GetDeviceState), and needs NO model
+  of the engine's per-frame clear/produce path (release is automatic).  A read-back diagnostic hooks
+  the producer `0x46a880` onLeave and emits the 4 slots (`{kind:'axis'}`) — proves the injection
+  landed and gives the mover work a live axis signal.  `g_held_inject_enabled` gates it; the agent
+  also threads it through the flip/sparkle/scene anchors.
+- **Port replay (`held_trace.{c,h}`):** the LEVEL counterpart of `input_trace` (edge/ring).  Parses
+  `{"frame":N,"keys":[scancode|name]}` (names up/down/left/right) and rebuilds `mgr->axis_held[0..3]`
+  EVERY frame from the current held set (clear-then-set, mirroring the producer).  `main.c` calls it
+  at all 4 drive replay sites after `input_trace_replay`; the only current port consumer is the title
+  menu (`axis_held[0/1]`), the freeroam mover will read it when ported.  8 host tests
+  (parse scancodes/names, malformed, level-persist, catch-up, guards).
+
+**LIVE VALIDATION (`runs/freeroam-walk`, the clean contrast vs ckpt-112's ring run).**  Drove retail
+to freeroam (the stripped Z-spam `trace-nav.jsonl`, ring 3/4 walk attempts removed so the held-axis
+is the SOLE mover), then `walk-held.jsonl` = RIGHT held flips 4560-4760, idle, LEFT held 4820-5020.
+The `freeroam_arche_fields.json` field-spec read `arche_body` (leader-chain, code `0xc35a`) per flip:
+- RIGHT window: `wx 19200 → 41760` (Δ **+22560**, facing 1), walk anim `celfr` cycling.
+- LEFT window: `wx 45472 → 25320` (Δ **−20152**, facing flips 1→**3**), decelerating to a stop after
+  release (realistic accel/decel).  The `axis` read-back showed `R=1`/`L=1` in the freeroam array.
+- vs the ckpt-112 RING run: `wx` static at 19200, `vel`=0 — she never moved.
+Walk montage pushed to the feed (6 panels showing the position shift).  **Caveat to chase next:**
+`vel` (body+0x18) reads **0** the whole walk while `wx` changes — so her horizontal speed is NOT in
+body+0x18; the mover writes `wx` directly or holds velocity elsewhere (a lead for pinning the mover).
+
+**NEXT (chip-3 ground-truth, now unblocked):**
+1. **Pin Arche's freeroam MOVER.**  `mem_watch --input-trace trace-nav --held-trace walk-held` with
+   a write-watch on her body `wx` (the address the field-spec chain resolves) → the function that
+   writes it under held input.  Cross-check the leader-body readers (`0x405e80`/`0x406210`/`0x40c380`)
+   + the held-axis readers (`0x43bca0`/`0x448cb0`/`0x44e730`/`0x4539b0`).  That fn is the chip-3 port.
+2. **Capture walk/run/jump per-tick** (run = a modifier scancode held + dir; jump = an action button,
+   scancode from the `0x8a6e80` keybind config — RE the default).  The `freeroam_arche` body spec
+   already reads her independent of the mover → the bit-exact target.
+3. **THEN port** — the party-leader update path + input read + the chip-2 mover/probes get their first
+   LIVE caller (validate "Arche walks + stops at terrain" field-exact, then the slope resolver).
+
+**OPEN (USER):** (a) verify the freeroam-WALK montage on the feed (Arche shifts right then left).
+(b) butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).  Debt:
+PORT-DEBT(held-axis-array-b) (the port replay models array A only; array B at +0x140 is un-RE'd —
+add when a consumer needs it), PORT-DEBT(effect-color-variant) (INN townsgirl wrong colour variant).
+
+## Where we were — ckpt 112
 
 **PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") — the HOUSE FREEROAM
 is REACHED in retail and four chip-3-reshaping facts are pinned. NO port code (pure RE). 946
