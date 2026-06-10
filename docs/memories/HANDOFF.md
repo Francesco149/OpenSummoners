@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 104, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 105, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,54 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 104
+## Where we are — ckpt 105
+
+**The SIM-TICK AXIS is in the trace studio end-to-end, the whole intro-1 worklist is
+attributed at forced tick-equality, and the 3 measured trigger constants are recalibrated
+onto the tick axis (banner/pan/dialogue all `differ_px==0` at tick-equal).  939 pass.**
+Retail ground truth: engine-quirk #99; residuals: parity-ledger #13 + R6/R7/R8; debts
+updated: banner-trigger / dialogue-trigger / ingame-camera-pan / dialogue-pause-grades /
+scene-fade-window / fountain-anchor.
+
+- **Instrumentation (the timestep-determinism rule, now tooled).**  Port: `g_sim_tick_count`
+  (main.c) counts easer steps exactly like the retail agent's `0x43d1d0` hook; `--capture-all`
+  BMPs are named `port_frame_<flip>_t<tick>.bmp`.  Studio: `index_frames` parses both sides'
+  `_t` names, pair rows carry `port_tick`, `state.jsonl` gets `port.sim_tick`, the viewer
+  shows `sim_tick port N / retail M` (red on mismatch), worklist rows print both ticks.
+  **Chase any mark at FORCED tick-equality (pull both `_t` maps, probe dt around 0) — the
+  pairing's pixel-driven drift wanders ±3 ticks through content-quiet stretches.**
+- **The intro-1 marks, attributed:**
+  - @1177 **NPC anim** — differ_px=0 at every sampled tick-equal pair → pairing phase, CLOSED.
+  - @218 **lizsoft fade** — R3 boot stretching (retail's wall-clock title accumulator renders
+    each value 2-4×; the port machine is decompile-exact: +0x14/−0x14, 0x32 hold); the logo is
+    differ_px=0 at MATCHED fade level across its whole lifecycle (fade-in/hold/out).  CLOSED.
+  - @2159 **banner fade-out** — NOT sampling noise: the banner ran 2 ticks early end-to-end
+    (trigger offset).  CLOSED by the 78→82 recalibration (both edges differ_px==0 now).
+  - @1122 **reveal** — REAL: the iris frontier runs ~1 tick ahead at tick-equal; the divergent
+    region = the whole ~20-row/side fading band (cells live 10 ticks × 4 rows/tick).  R6 OPEN.
+  - @1177 **fountain** — REAL: the particle ensemble differs ~2-4k px at EVERY dt∈[−8,+8] →
+    a position/age model offset (anchor/age), not a tick origin.  R7 OPEN.
+  - @2463 **text reveal** — REAL: the row-1→row-2 pause structure differs (retail {5,14,5} vs
+    the fitted {1,5,16}, net −3) on top of the (now fixed) 8-tick arm lag.  **The ckpt-104
+    "zero-mean oscillation / phase pillar" verdict is RETRACTED** — it read the flip-axis
+    pairing, whose drift absorbed the constant lag.  R8 OPEN.
+  - @1627 butterflies — unchanged known debt (butterfly-wander, movement FSM Phase 4).
+- **Trigger recalibrations (all tick-axis, quirk #99):** `BANNER_ARM_FRAMES` 78→**82** (first
+  alpha step t42 both sides; the 2.5-tick alpha-ramp plateaus made dt-probes under-read the
+  error — calibrate fades off per-present VALUE sequences), `GAME_CAMERA_HOLD_FRAMES`
+  184→**182** (cmd t92, first move t93; tick-equal pan residual = fountain/smoke/butterfly
+  clusters only, localized + named), `DIALOGUE_ARM_FRAMES` 1298→**1282** (arm t642 → first
+  visible change t645 = retail's; the pop/portrait change SEQUENCE pixel-identical at Δ=0).
+- **NEXT (in order):** (a) **R6** — delay the port reveal's first update by 1 tick (or arm one
+  tick later), verify differ_px==0 at tick-equal in a particle-free region; faithful source =
+  the beat-runner arm-request timing (scene-fade-window debt).  (b) **R7** — dual blit trace
+  at ONE matched tick (`render_diff` lens) → per-particle (res,frame,dst) deltas; suspects:
+  fountain-anchor (+1245), smoke anchor, population age.  (c) **R8** — RE the typewriter
+  char-class→grade map, esp. the ROW-CLOSE grade (`0x439690:499-505` slots; which 0x414xxx
+  steps `+0x170[4]/[6]`).  (d) dialogue chip 4 cont. (Z-advance + ~15-line script table +
+  module-aware arrow-bank re-probe) + the probe-flag removal chip (ckpt-103 leftover).
+
+## Where we were — ckpt 104
 
 **The in-game DIALOGUE BUBBLE is ported + bit-exact in-window (`src/dialogue.{c,h}` + `main.c`
 game_render_dialogue) — the intro-1 worklist's big mark (@2429 pop-in) is CLOSED.  939 pass (+7).**

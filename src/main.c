@@ -284,6 +284,12 @@ static int            g_game_camera_armed;   /* live camera in use this scene   
 static uint32_t       g_game_camera_hold;    /* frames since the spawn snap     */
 static mr_camera      g_game_camera_mr;       /* derived per-frame projection cam */
 
+/* Easer-call count since boot — the port mirror of the retail capture's
+ * sim_tick axis (the Frida agent counts 0x43d1d0 onEnter; 0 until the in-game
+ * scene pumps).  Stamped into --capture-all BMP names (_t suffix) so the trace
+ * studio can pair/attribute on the deterministic tick axis, not the Flip axis. */
+static unsigned       g_sim_tick_count;
+
 /* The establishing-shot cinematic letterbox bar heights (0x48c150's
  * in_ECX+0x44 / +0x48).  Set to LETTERBOX_INTRO_BAR (64) for the opening-town
  * intro = the quirk-#74 letterbox; 0 = no bars.
@@ -301,10 +307,17 @@ static area_banner    g_banner;
 static void          *g_banner_font;  /* HFONT — Courier New h20 w10 (DAT_008a9274[6]) */
 static int            g_banner_armed; /* one-shot arm latch, reset per enter_game */
 #define BANNER_SCROLL_SLOT  53        /* res 0x449 / the 0x8a7714 bank */
-/* The banner arms ~game_enter+78 flips (live: enable 0->1 between flips 1511/1515,
- * game_enter@~1434).  PORT-DEBT(banner-trigger): the real source is the scene
- * script (the same unported source as the camera-pan + letterbox triggers). */
-#define BANNER_ARM_FRAMES   78u
+/* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
+ * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
+ * sequence is bit-exact both sides; at +78 the port's first step landed t40
+ * (2 ticks early), at +80 t41 (1 early — both fade-in AND fade-out edges lead
+ * by exactly 1, the dt-probe plateaus from the 2.5-tick alpha-ramp
+ * quantization hid the second tick); +82 puts arm+first-step on tick 42.
+ * (The old flip-axis calibration "enable 0->1 between flips 1511/1515"
+ * absorbed retail's present-coalescing.)  PORT-DEBT(banner-trigger): the real
+ * source is the scene script (the same unported source as the camera-pan +
+ * letterbox triggers). */
+#define BANNER_ARM_FRAMES   82u
 
 /* The in-game DIALOGUE BOX (dialogue.{c,h}; the town-intro line 1).  Banks:
  * the bubble 9-slice + corner/tail cels = res 0x456 (pool slot 50, the
@@ -318,20 +331,27 @@ static int            g_dialogue_armed;  /* one-shot arm latch, reset per enter_
 #define DIALOGUE_BOX_BANK_SLOT      50   /* res 0x456 (DAT_008a7708) */
 #define DIALOGUE_TAB_BANK_SLOT      52   /* res 0x44a (DAT_008a7710) */
 #define DIALOGUE_PORTRAIT_BANK_SLOT 663  /* res 0x7ef (Father bust)  */
-/* The bubble pops ~game_enter+1300 flips (trace-studio intro-1: retail
- * game_enter@1437, first scaled box draw @2737; runs/dialogue-probe agrees at
- * +1304).  Even (a sim tick).  PORT-DEBT(dialogue-trigger): the real source is
- * the town script's beat sequence (0x4d7d80 case 0x334be -> 0x439690), the
- * same unported driver as the banner/camera-pan triggers. */
-#define DIALOGUE_ARM_FRAMES 1298u
+/* The bubble's first visible change lands at sim tick 645 on retail —
+ * TICK-AXIS calibrated on trace-studio intro-1: the pop-in/portrait-fade
+ * change sequence is pixel-identical both sides but at the old +1298 (arm
+ * tick 650, first change t653) the port ran a constant 8 ticks late; arm
+ * tick 642 (+1282) puts the port's first change at t645 = retail's.  (The
+ * old flip-axis "+1300/+1304" readings absorbed retail's present-coalescing
+ * drift.)  PORT-DEBT(dialogue-trigger): the real source is the town script's
+ * beat sequence (0x4d7d80 case 0x334be -> 0x439690), the same unported
+ * driver as the banner/camera-pan triggers. */
+#define DIALOGUE_ARM_FRAMES 1282u
 
 /* Flips the camera holds at the spawn origin before the scripted pan begins.
- * MEASURED from a retail field-spec trace (--seed-pin --lockstep): Flip 1616 is
- * still HOLD (tgt=128000/cap=0), Flip 1617 = PAN (tgt=12800/cap=300), and
- * game_enter@1433 → 1617-1433 = 184.  Even (so the trigger Flip is also a sim
+ * TICK-AXIS calibrated on trace-studio intro-1: retail's camera first moves at
+ * sim tick 93 vs the port's 94 at the old 184, and at tick-equal frames the
+ * whole pan matched retail tick T-1 (differ ~= the particle residual only) —
+ * the pan command belongs on tick 92, hold 182.  (The original flip-axis
+ * reading "Flip 1617 = PAN, game_enter@1433 → 184" had a 1-tick error from
+ * retail's present-coalescing.)  Even (so the trigger Flip is also a sim
  * tick — see game_camera_step).  Synthetic stand-in for the cutscene-script
  * trigger source; see PORT-DEBT(ingame-camera-pan) above. */
-#define GAME_CAMERA_HOLD_FRAMES 184u
+#define GAME_CAMERA_HOLD_FRAMES 182u
 
 /* The in-game palette color-grade LUT (src/color_grade.{c,h}).  Retail's in-game
  * render paths (FUN_00417c40 parallax + FUN_00490f30 tilemap) remap every sprite
@@ -1128,8 +1148,12 @@ static void maybe_capture_frame(unsigned flip_frame)
 {
     if (g_capture_all && flip_frame >= g_capture_all_from) {
         char path[1200];
-        snprintf(path, sizeof path, "%s/port_frame_%05u.bmp",
-                 g_capture_dir, flip_frame);
+        /* The _t suffix = the sim-tick axis (easer-call count), mirroring the
+         * retail capture's frame_<flip>_t<tick>.png names — the studio pairs/
+         * attributes on it.  --capture-frames names stay bare (tas_diff et al
+         * parse the plain form). */
+        snprintf(path, sizeof path, "%s/port_frame_%05u_t%06u.bmp",
+                 g_capture_dir, flip_frame, g_sim_tick_count);
         capture_primary_to_bmp(path);   /* dense video dump — no per-frame log */
         return;
     }
@@ -2284,6 +2308,7 @@ static void game_camera_step(void)
      * sim tick — GAME_CAMERA_HOLD_FRAMES is even, matching retail's 1617 = pan
      * command + first easer tick on the same Flip). */
     if ((g_game_camera_hold & 1u) == 0u) {
+        g_sim_tick_count++;     /* the capture's tick axis (retail: 0x43d1d0 hook) */
         /* Fields read at onEnter = the state going INTO the easer (retail reads
          * the view before the step), so emit before camera_follow_step. */
         CALL_TRACE_BEGIN(0x43d1d0);

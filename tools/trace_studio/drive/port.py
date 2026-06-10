@@ -87,13 +87,20 @@ def drive_port(sess_dir: Path, trace: Path, frames: int,
         "".join(json.dumps(a) + "\n" for a in anchors))
 
     # BMP → PNG into port/raw (parallel; the BMPs are deleted as they convert).
+    # New-style names carry the sim-tick axis (port_frame_<flip>_t<tick>.bmp,
+    # mirroring retail) — preserved in the PNG name for tick-axis pairing.
     bmps = sorted(stage.glob("port_frame_*.bmp"))
     jobs = []
     for b in bmps:
-        m = re.search(r"port_frame_(\d+)\.bmp$", b.name)
-        if not m:
-            continue
-        jobs.append((str(b), str(raw_dir / f"frame_{int(m.group(1)):05d}.png")))
+        m = re.search(r"port_frame_(\d+)_t(\d+)\.bmp$", b.name)
+        if m:
+            dst = f"frame_{int(m.group(1)):05d}_t{int(m.group(2)):06d}.png"
+        else:
+            m = re.search(r"port_frame_(\d+)\.bmp$", b.name)
+            if not m:
+                continue
+            dst = f"frame_{int(m.group(1)):05d}.png"
+        jobs.append((str(b), str(raw_dir / dst)))
     n_ok = 0
     if jobs:
         with ProcessPoolExecutor(max_workers=8) as ex:

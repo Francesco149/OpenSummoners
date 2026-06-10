@@ -49,6 +49,7 @@ after changes that touch the relevant render path.
 | 10 | In-game town **EFFECT townsfolk FACING/orientation** — the 7 mirrored villagers (facing 3: `c3be/c3dd/c3e6/c422/c42c/c441/c468`) now face the correct direction | port frame 1200 (cam hold 128000) | live `0x493ba0` `rs_facing` census + a `DAT_008a8440` one-shot read, flips 1450-1600 | 2026-06-07 ckpt 85 — **USER-confirmed on the feed: "npc orientation matches retail yes."** Facing is the deterministic map field `puVar1[4]` (dispatcher `0x58d460:96` → `cVar12 = (puVar1[4]!=0)?3:1` → param_8 → render-state `+0x2c`), NOT RNG; `0x44d160` mirrors the cel (`frame += flip`) + reflects `off_x` at facing==3, `flip = *(s16)(DAT_008a8440[bank])` = the sprite group's frames-per-direction (4/16, read live). Ported via `TOWN_EFFECT_DEFS` facing+flip + `actor_spawn_effect_fill_flip_table` (quirk #85). **Named residual: the idle ANIMATION PHASE** — the townsfolk are still frozen (clip NULL); retail runs the idle clip `0x6290e0` at an RNG start frame (`0x426ec0`), so full per-frame 1:1 awaits the game_enter RNG anchor (idle phase + fountain) |
 | 11 | In-game **area-title BANNER** — the "Town of Tonkiness" card (scroll sprite res `0x449` + vines + the area name in Courier New h20 w10, white fill + `0x404040` outline shadow) | port frame 1300 (banner up, cam hold 128000, game_enter+184) | retail `--seed-pin --lockstep --no-turbo` cap `runs/banner-verify/frame_01614` (banner up, cam hold; game_enter+~180) | 2026-06-09 ckpt 101 — **`differ_px=0/36720`** over the whole banner region (scroll + vines + GDI text + sky behind), camera-matched (`cam_x60=128000` both); **USER-confirmed on the feed ("banner looks good").** Producer = `0x494a60` mode 1 (NOT the `0x5a00c0` overlay player — corrects entries #7's attribution); animation = the `0x499ab0` phase machine (fade-in `alpha+=0x14`/sim-tick → hold 400 → fade-out); GDI text composed onto the scroll cel via `zdd_object_get_dc`+`glyph`/`TextOutA` (the live LOGFONT).  `src/banner.{c,h}` (host-tested) + `main.c` wiring; engine-quirk #96.  **Key fix:** the scroll sheet (slot 53/res `0x449`) is decoded UNGRADED — retail binds it via the plain getter `0x418470(0)` (no `0x417c40` grade), so skipping the in-game palette grade for it made the parchment bit-exact (a graded decode rendered it ~10% too dark).  **Named residuals (NOT in the bit-exact window):** the arm trigger + text are measured constants (`banner-trigger`), and only the font-6 length band is ported (`banner-font-table`) |
 | 12 | In-game **DIALOGUE BUBBLE, town line 1** — the whole widget: 9-slice bubble (res `0x456`) **incl. the POP-IN scale animation**, speaker-anchored tail pair (frames 9+10), name tab (res `0x44a` f0), "Arche's Father" name (white + `0x455f7b` shadow), the **portrait bust cross-FADE** (res `0x7ef`, ramp_b), and the **TYPEWRITER body text** (Courier New 7×18, `0x3e537d`+`0xa8b9cc`, 5 updates/char incl. the comma 3i pause + space fast-reveal) | trace-studio `intro-1` port frames 2400-2598 (pop @port flip ~2416 = game_enter+1300) | the SAME session's retail capture (pop @retail flip 2737), anchor-segmented pairing, drift −3..−8 | 2026-06-10 ckpt 104 — **the box region pairs `differ_px=0` on 22 of 25 sampled frames across pop-in → fade → typing**; the 3 non-zero frames are 55-62 px = ONE GLYPH at a reveal boundary (the port and the paired retail frame are ±1 tick apart on a coalesced flip pair — the phase pillar / R5 coalescing, self-correcting next frame) — a named, understood delta.  Full-frame residual in the window = the pre-existing town items (fountain/NPC-anim/butterflies, intro-1 marks).  `src/dialogue.{c,h}` (host-tested ×7) + `main.c` wiring; the model from `0x439690` (builder/pump) + `0x48c820` (walk + scale mode) + `0x48cf80` (9-slice) + `0x48da70` (3-pass typewriter text) + `0x49c640` (position/tail) + `0x49c910` (portrait fade — the new cel snaps OPAQUE at fade 500) + `0x410560` (arrow config).  **Key facts:** the UI sheets decode UNGRADED (plain-getter family, like the banner) and the portrait is a 24bpp BMP stored on the 16bpp surface (565 round trip proven exact).  **Named residuals:** `dialogue-trigger` (+1298 measured arm), `dialogue-line-table` (line 1 only, no Z yet), `dialogue-arrow-art` (bank module unresolved; hidden during typing so out-of-window), `dialogue-pause-grades` (fitted), `dialogue-textwrap` (subset) |
+| 13 | In-game town **per-tick WORLD at TICK-EQUAL frames** — NPC idle animation (the breathing townsfolk), the **camera PAN across its whole sweep**, the **area-banner fade-in AND fade-out edges**, and the **dialogue pop-in/portrait-fade window**, each compared at FORCED sim-tick equality (`frame_<flip>_t<tick>` both sides, ckpt-105 instrumentation) | trace-studio `intro-1` port (3rd recapture, tick-calibrated triggers) | the SAME session's retail capture, tick-indexed | 2026-06-10 ckpt 105 — **NPC box differ_px=0** at every sampled tick (28-34); **banner box differ_px=0** at fade-in (t60) AND fade-out (t510/525 — closes the intro-1 @2159 mark: it was the 2-tick trigger offset, NOT sampling noise) with the per-present luma sequence matching tick-for-tick (onset t42, drop t493 both sides); **dialogue bubble box differ_px=0** at t650/t660 (pop + portrait fade); **pan full-frame residual 2441/1754 px (t150/t250) = ONLY the named open ensembles** (fountain spray x≈574-630 mid-pan; frozen butterflies x≈85 + chimney smoke at t250 — `butterfly-wander`/`fountain-anchor` debts).  The triggers were recalibrated onto the tick axis (banner 78→**82**, pan 184→**182**, dialogue 1298→**1282**; quirk #99) — the old flip-axis constants carried ±1-8 tick errors absorbed by retail's present-coalescing.  **Method note:** fade dt-probes plateau on the alpha-ramp quantization (~2.5 ticks/index) — the banner's 2-tick error read as 1 until the per-present VALUE sequence was compared |
 
 > **R1 CLOSED (ckpt 28).** The residual was the **cursor pulse**. Retail
 > animates the cursor `level_num` (`[esp+0x20]`) as a triangle wave — `local_58`
@@ -142,6 +143,61 @@ TAS clock should preserve or smooth the quantization; for now the port's
 every-tick rendering is the better behavior and the studio pairs through the
 difference. (The chase also hardened the matcher: drift hysteresis — move off the
 sticky offset only on a ≥5% better match.)
+
+> **ckpt-105 addendum:** the pan now also matches at FORCED tick-equality across
+> its whole sweep (the cmd trigger recalibrated to tick 92, `GAME_CAMERA_HOLD_
+> FRAMES=182`; the flip-axis 184 was 1 tick late) — full-frame residual at
+> tick-equal = the fountain/smoke/butterfly ensembles only (ledger #13).
+
+### R6 — establishing-REVEAL frontier: the port's iris runs ~1 tick AHEAD at
+### tick-equal, divergence = the whole fading-frontier band (OPEN, ckpt 105)
+
+At forced tick-equality on `intro-1`, the reveal box differs by 1-10k px (peak
+~tick 9-13) while the saturated center matches — the divergent region is exactly
+the **fading frontier band** (~20 grid rows per side = cells live 10 ticks × 4
+rows started/tick), expanding with T.  The dt scan has NO clean zero (the in-box
+particles ride on top); the closest whole-state shift is **dt=+1** (port state k
+≈ retail state k+1).  The retail arm site (`0x439690:555-583`) and the cinematic
+step (`:1124`) run in the SAME beat-runner invocation — same order as the port —
+so the extra tick lives in WHEN the script posts the arm request relative to the
+first pumped tick (the load window).  Hypotheses: (1) retail's arm request lands
+one beat-runner iteration after the spawn (the port arms inside `enter_game`,
+before the first tick); (2) a first-update fence (retail renders the armed
+all-opaque grid for one tick before updating).  Chase: shift the port's first
+`scene_fade_step` one tick later and re-verify in a particle-free region
+(differ_px==0 expected if the band is a pure 1-tick shift); the faithful fix
+rides the beat-runner port (PORT-DEBT scene-fade-window).
+
+### R7 — fountain/smoke particle ENSEMBLE: a flat ~2-4k px residual at EVERY
+### tick shift — position/age model offset, not a tick origin (OPEN, ckpt 105)
+
+The particle region (fountain spray + chimney smoke) differs ~2-4k px against
+EVERY retail tick in dt∈[−8,+8] — a tick shift never zeroes it, so the ensemble
+itself is offset (anchor constant, age origin, or a sub-population).  The
+per-tick LCG stream is bit-exact (ckpt 99), so draw VALUES are aligned —
+suspects are the position MODEL: PORT-DEBT(fountain-anchor) (the +1245
+calibrated emit center), the smoke anchor, or particle ages (emitters starting
+k ticks offset would age the whole population).  Localized clusters at
+tick-equal: x≈574-630 y≈238-337 (spray, mid-pan t150) + x≈289 y≈66 (smoke) —
+the butterflies (x≈85 y≈337) are the separate `butterfly-wander` debt.  Chase:
+the RENDER lens — a dual blit trace at one matched tick → per-particle
+(res, frame, dst) deltas attribute it in one capture (pixel probes are spent).
+
+### R8 — dialogue typewriter ROW-TRANSITION pauses: the fitted grade model
+### mis-distributes the row-close pause (net −3 ticks; OPEN, ckpt 105) — and the
+### ckpt-104 "@2463 zero-mean" attribution is RETRACTED
+
+On the tick axis the dialogue machine is rigid: after the arm recalibration the
+pop-in/portrait-fade change SEQUENCE is pixel-identical at Δ=0 (ledger #13) and
+the steady typewriter cadence is 5 ticks/char on BOTH sides.  The residual is
+confined to the row-1→row-2 boundary: retail's change-tick gaps run {5, 14, 5}
+where the fitted grades produce {1, 5, 16} (net −3 → row 2 types ~3-5 ticks
+early at tick-equal).  The USER's intro-1 mark @2463 ("retail a couple frames
+early on the text reveal") was THIS, compounded by the then-8-tick arm error —
+the ckpt-104 "zero-mean oscillation / phase pillar" read came off the flip-axis
+pairing whose drift absorbed the constant lag, and is **retracted**.  Chase:
+RE the reveal stepper's char-class → grade-slot map, esp. the row-close grade
+(PORT-DEBT dialogue-pause-grades).
 
 ### R4 — phase-7 subtitle sparkle: RESOLVED (ckpt 31) — both parts now bit-exact
 

@@ -6,6 +6,34 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-10 (ckpt 105) — the SIM-TICK AXIS in the trace studio; the whole intro-1 worklist attributed at tick-equality; banner/pan/dialogue triggers recalibrated to differ_px==0; the @2463 "zero-mean" verdict retracted
+
+The marks left on intro-1 resisted flip-axis chasing (the pairing's pixel-driven drift wanders
+±3 ticks through content-quiet stretches), so the timestep-determinism rule got tooled
+end-to-end: the port now stamps its easer-call count (`g_sim_tick_count`, the exact mirror of
+the retail agent's `0x43d1d0` hook) into `--capture-all` BMP names
+(`port_frame_<flip>_t<tick>.bmp`), and the studio carries BOTH sides' ticks through pairing →
+`state.jsonl` (`port.sim_tick`) → the viewer (red on pair mismatch) → worklist rows.  Marks
+are now chased at FORCED tick-equality (`docs/trace-studio.md`).
+
+That attributed every open mark in one pass (parity-ledger #13 + R6/R7/R8; quirk #99):
+**@1177 NPC-anim** differ_px=0 at tick-equal (pairing phase, closed); **@218 lizsoft fade** =
+R3 boot stretching, the logo differ_px=0 at matched fade across its lifecycle (closed);
+**@2159 banner fade-out** = NOT noise but a 2-tick trigger offset (closed by recalibration);
+**@1122 reveal** = real ~1-tick frontier lead (R6 open); **@1177 fountain** = real
+tick-shift-invariant ensemble offset (R7 open); **@2463 text reveal** = real row-close
+pause-grade mismatch (retail {5,14,5} vs fitted {1,5,16}) on top of an 8-tick arm lag — the
+ckpt-104 "zero-mean oscillation" attribution was a flip-axis pairing artifact, retracted.
+
+Three measured-constant triggers recalibrated onto the tick axis (flip-axis readings absorb
+retail's coalesced ticks; fade dt-probes plateau on the 2.5-tick alpha-ramp quantization —
+calibrate off per-present VALUE sequences): banner arm 78→82 (first step t42; both fade edges
+differ_px==0 at tick-equal), pan 184→182 (cmd t92/move t93; tick-equal pan residual = the
+named fountain/smoke/butterfly clusters only), dialogue 1298→1282 (arm t642/first change t645;
+the pop/portrait window differ_px==0).  3 port-side recaptures verified each step.  939 pass.
+
+---
+
 ## 2026-06-10 (ckpt 104) — the in-game DIALOGUE BUBBLE: ported + bit-exact in-window (pop-in, tail, tab, name, portrait fade, typewriter); the intro-1 worklist's big mark closed
 
 The first chip worked off the USER's trace-studio worklist (mark @2429 "dialogue bubble pop in

@@ -3059,3 +3059,31 @@ against trace-studio `intro-1`:
   24bpp PARALLAX MOUNTAIN plane (registered twice: pool slot 65 as 80×352 columns), while the
   dialogue arrow bank that a probe reported as "res 1000" lives on another module/slot —
   always record the slot's `settings` HMODULE alongside the id.
+
+### #99 — the town-arrival script schedule on the SIM-TICK axis (easer-call counts from game_enter): pan command at tick 92 (camera first moves t93), banner first alpha step t42, dialogue bubble first visible change t645; presents run ~2 flips/tick with single-tick coalesces (2026-06-10, ckpt 105)
+
+- **The deterministic comparison axis is the easer-call count** (`0x43d1d0` onEnter
+  count = the capture `_t` stamp), NOT the Flip index: under `--lockstep` retail
+  still presents each tick a VARIABLE number of times (mostly 2 flips/tick, with
+  occasional 1-flip ticks and 3-flip stretches — e.g. intro-1 ticks 41 and 491 were
+  never presented at all).  Flip-axis trigger calibrations silently absorb these
+  coalesces as ±1-tick errors; two independent earlier reads of the same triggers
+  disagreed by 1-2 ticks for exactly this reason.
+- **The town-arrival schedule (intro-1 nav, ticks counted from the first in-game
+  easer call):** the camera-pan command lands on the controller at **tick 92** (the
+  eased camera first MOVES on the t93 present — the easer's first step with a fresh
+  target produces no displacement); the area-banner's first composed alpha step
+  (value `0x14`) renders at **tick 42**; the dialogue bubble's first visible change
+  (pop-in onset) renders at **tick 645**.  The dialogue pop/portrait-fade/typewriter
+  change SEQUENCE from t645 is pixel-identical to the port's machine run 1:1 —
+  retail's whole bubble timeline is rigid once the start tick matches.
+- **Fade-phase probes through the alpha ramps PLATEAU:** the banner blit's ramp
+  index is `alpha*20/1000` (one index per 50 alpha = 2.5 ticks at ±0x14/tick), so
+  tick-shift probes that diff pixels at `dt` offsets return differ_px==0 for 2-3
+  consecutive dt — a 2-tick offset can read as 1.  Calibrate fade phases off the
+  per-present VALUE sequence (each distinct level's first tick), not a dt scan.
+- **The typewriter's steady cadence is 5 ticks/char on BOTH sides** (confirming the
+  ckpt-104 fit), but the ROW-TRANSITION pause structure differs from the port's
+  fitted grades: across the row-1→row-2 boundary retail paused {5, 14, 5} ticks
+  between changes where the fitted model produced {1, 5, 16} (net −3) — the real
+  char→grade map is still unread (PORT-DEBT dialogue-pause-grades).

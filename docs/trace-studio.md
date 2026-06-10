@@ -49,6 +49,29 @@ cheat-sheet. Everything runs inside `nix develop`.
 Also: `pair NAME [--drift-window K] [--amp X]` re-runs pairing/videos/verdict
 from the existing raw captures (no re-drive); `sessions` lists sessions.
 
+## The SIM-TICK axis (ckpt 105) — attribute on ticks, not flips
+
+Both sides' captured frame names carry the deterministic sim-tick axis:
+`frame_<flip>_t<tick>.png`.  The tick = the **easer-call count** (retail: the
+Frida agent counts `0x43d1d0` onEnter; port: `g_sim_tick_count` in `main.c`,
+incremented in the same gated easer block — 0 until the in-game scene pumps).
+`state.jsonl` carries `port.sim_tick` + `retail.sim_tick` per paired frame, the
+viewer shows both (red when they differ at the pair), and worklist rows print
+both ticks — **a tick MISMATCH at a mark is the phase pillar (pairing offset)
+at a glance; a tick MATCH with pixels differing is a real logic lead.**
+
+Chasing a mark, compare at FORCED tick-equality (pull both `_t` maps, diff
+port tick T against retail T+dt for dt around 0), not at the pairing's choice —
+the sticky drift is pixel-driven and wanders ±1-3 ticks through content-quiet
+stretches.  Two footguns measured on intro-1:
+- **Retail coalesces ticks**: mostly 2 flips/tick but with 1-flip ticks and
+  un-presented ticks (intro-1 never presented ticks 41/491).  Flip-axis trigger
+  calibrations absorb these as ±1-2 tick errors (engine-quirk #99).
+- **Fade phases plateau**: alpha-ramp indices quantize (~2.5 ticks/index for
+  the banner), so a dt scan returns differ_px==0 over 2-3 consecutive dt.
+  Calibrate fade timing off the per-present VALUE sequence (each distinct
+  level's first tick), never a dt minimum.
+
 ## Reading the output honestly
 
 - **boot/title segment redness is documented** — parity-ledger R3: retail

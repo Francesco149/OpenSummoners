@@ -23,7 +23,11 @@ export function StatePanel({ view, cur }) {
     <div class="state-meta">
       <span>seg <b>${row.seg || "?"}</b></span>
       <span>· drift ${row.drift ?? 0}</span>
-      ${row.retail?.sim_tick !== undefined && html`<span>· retail sim_tick ${row.retail.sim_tick}</span>`}
+      ${row.retail?.sim_tick !== undefined && html`<span
+        class=${row.port?.sim_tick !== undefined && row.port.sim_tick !== row.retail.sim_tick ? "bad" : ""}
+        >· sim_tick ${row.port?.sim_tick !== undefined
+          ? `port ${row.port.sim_tick} / retail ${row.retail.sim_tick}`
+          : `retail ${row.retail.sim_tick}`}</span>`}
       ${row.anchor && html`<span class="accent"> · ⚓ ${row.anchor}</span>`}
     </div>
     ${(row.port_rng !== undefined || row.retail_rng !== undefined) && html`

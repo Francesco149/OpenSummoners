@@ -34,17 +34,9 @@ _PORT_RE = re.compile(r"frame_(\d+)\.png$")
 _RETAIL_RE = re.compile(r"frame_(\d+)_t(\d+)\.png$")
 
 
-def index_port(raw_dir: Path) -> dict[int, Path]:
-    out: dict[int, Path] = {}
-    for p in Path(raw_dir).glob("frame_*.png"):
-        m = _PORT_RE.search(p.name)
-        if m:
-            out[int(m.group(1))] = p
-    return out
-
-
-def index_retail(frames_dir: Path) -> dict[int, tuple[Path, int]]:
-    """flip → (path, sim_tick).  Retail capture names carry both axes."""
+def index_frames(frames_dir: Path) -> dict[int, tuple[Path, int]]:
+    """flip → (path, sim_tick).  Both sides' capture names carry the tick axis
+    (frame_<flip>_t<tick>.png); plain names (pre-tick port captures) get -1."""
     out: dict[int, tuple[Path, int]] = {}
     for p in Path(frames_dir).glob("frame_*.png"):
         m = _RETAIL_RE.search(p.name)
@@ -55,6 +47,11 @@ def index_retail(frames_dir: Path) -> dict[int, tuple[Path, int]]:
             if m2:
                 out[int(m2.group(1))] = (p, -1)
     return out
+
+
+# Both sides share the indexer; the names are kept for call-site readability.
+index_port = index_frames
+index_retail = index_frames
 
 
 # ─── segmentation ────────────────────────────────────────────────────────────
@@ -184,7 +181,7 @@ def pair_session(sess_dir: Path, port_anchors: list[dict],
             if p_flip not in port_by:
                 gaps += 1
                 continue
-            a = load_rgb(port_by[p_flip])
+            a = load_rgb(port_by[p_flip][0])
             if a is None:
                 gaps += 1
                 continue
@@ -223,13 +220,14 @@ def pair_session(sess_dir: Path, port_anchors: list[dict],
             r_flip = base + drift
 
             name = f"frame_{ordinal:05d}.png"
-            _link(port_by[p_flip], sess_dir / "port" / "frames" / name)
+            _link(port_by[p_flip][0], sess_dir / "port" / "frames" / name)
             _link(retail_by[r_flip][0], sess_dir / "retail" / "frames" / name)
             save_diff_png(a, b, amp, sess_dir / "diff" / "frames" / name)
 
             row = {"frame": ordinal, "seg": seg["name"],
                    "port_flip": p_flip, "retail_flip": r_flip,
-                   "sim_tick": retail_by[r_flip][1], "drift": drift,
+                   "sim_tick": retail_by[r_flip][1],
+                   "port_tick": port_by[p_flip][1], "drift": drift,
                    "differ": differ, "gt8": gt8,
                    "meanabs": round(meanabs, 4)}
             if k == 0:

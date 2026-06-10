@@ -9,7 +9,34 @@
 - **Phase:** Phase 4–5 — porting the **in-game town backdrop** render path toward a trace
   that plays 1:1 pixel-perfect frame by frame on both sides. Milestone map: `ROADMAP.md`.
   Mechanical next chip: `port-frontier.md`.
-- **LATEST (ckpt 104): the in-game DIALOGUE BUBBLE is PORTED + BIT-EXACT in-window — pop-in,
+- **LATEST (ckpt 105): the SIM-TICK AXIS lands in the studio — the whole intro-1 worklist
+  attributed at forced tick-equality; 3 trigger constants recalibrated (banner/pan/dialogue
+  now `differ_px==0` at tick-equal); ckpt-104's @2463 "zero-mean" read RETRACTED. (939 pass.)**
+  1. **Instrumentation:** the port stamps its easer-call count into `--capture-all` names
+     (`port_frame_<flip>_t<tick>.bmp`, mirroring the retail agent's `0x43d1d0` count;
+     `g_sim_tick_count` in main.c); the studio pairs/carries BOTH ticks (state.jsonl
+     `port.sim_tick`, viewer red on mismatch, worklist rows print both). **Chase marks at
+     FORCED tick-equality, never the pairing's drift** (the timestep-determinism rule, now
+     tooled — `docs/trace-studio.md`).
+  2. **The worklist attributed:** @1177 NPC-anim = differ 0 at tick-equal (pairing phase —
+     CLOSED); @218 lizsoft fade = R3 boot stretching, logo differ 0 at matched fade (CLOSED);
+     @2159 banner fade-out = NOT noise, a trigger offset (CLOSED by recalibration); @1122
+     reveal = REAL ~1-tick frontier lead (R6 OPEN); @1177 fountain = REAL tick-independent
+     ensemble offset (R7 OPEN); @2463 text reveal = REAL row-close pause-grade mismatch (R8
+     OPEN — the ckpt-104 "zero-mean phase" verdict was a flip-axis pairing artifact).
+  3. **Trigger recalibration (quirk #99 — flip-axis constants absorb retail's coalesced
+     ticks):** banner arm 78→**82** (first alpha step t42; both fade edges differ_px==0 at
+     tick-equal — the 2.5-tick alpha-ramp plateaus had hidden a 2-tick error from dt-probes;
+     calibrate fades off per-present VALUE sequences), pan 184→**182** (cmd t92, first move
+     t93; tick-equal pan residual = the named fountain/butterfly ensembles only), dialogue
+     1298→**1282** (arm t642, first change t645 = retail; the pop/fade window differ_px==0 —
+     was a constant 8 ticks late).
+  4. **NEXT:** (a) R6 — shift the reveal's first update +1 tick, verify particle-free
+     differ_px==0 (faithful source = the beat-runner arm-request timing); (b) R7 — dual blit
+     trace at one matched tick → per-particle (res,frame,dst) attribution; (c) R8 — RE the
+     typewriter char-class→grade map (the row-close grade); (d) then dialogue chip 4 cont.
+     (Z-advance + script table + module-aware arrow re-probe) + the probe-flag removal chip.
+- **Prior (ckpt 104): the in-game DIALOGUE BUBBLE is PORTED + BIT-EXACT in-window — pop-in,
   speaker tail, name tab, name, portrait cross-fade, and the TYPEWRITER all pair `differ_px==0`
   on trace-studio intro-1 (the worklist's big mark @2429 CLOSED). (939 pass, +7.)**
   1. **`src/dialogue.{c,h}` (NEW, host-tested ×7) + `main.c` wiring** — the `0x439690`-builder

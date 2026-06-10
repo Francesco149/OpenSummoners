@@ -61,6 +61,8 @@ def build_state(sess_dir: Path, pairs: list[dict],
         retail = {"flip": p["retail_flip"], **rf.get(p["retail_flip"], {})}
         if p.get("sim_tick", -1) >= 0:
             retail["sim_tick"] = p["sim_tick"]
+        if p.get("port_tick", -1) >= 0:
+            port["sim_tick"] = p["port_tick"]
         row = {"frame": p["frame"], "seg": p["seg"], "drift": p["drift"],
                "port": port, "retail": retail}
         for k in ("anchor", "port_rng", "retail_rng"):

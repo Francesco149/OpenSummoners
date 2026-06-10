@@ -46,9 +46,14 @@ def apply(sess_dir: Path) -> dict:
         port_flip = (st.get("port") or {}).get("flip", "?")
         retail_flip = (st.get("retail") or {}).get("flip", "?")
         sim_tick = (st.get("retail") or {}).get("sim_tick")
-        ctx = (f"seg `{seg}` · port flip {port_flip} · retail flip "
-               f"{retail_flip}"
-               + (f" (sim_tick {sim_tick})" if sim_tick is not None else "")
+        port_tick = (st.get("port") or {}).get("sim_tick")
+        # Both ticks when available — a tick MISMATCH at the paired frame is
+        # the phase pillar at a glance (pairing offset), a tick MATCH with
+        # pixels differing is a logic lead.
+        port_t = f" (tick {port_tick})" if port_tick is not None else ""
+        retail_t = (f" (tick {sim_tick})" if sim_tick is not None else "")
+        ctx = (f"seg `{seg}` · port flip {port_flip}{port_t} · retail flip "
+               f"{retail_flip}{retail_t}"
                + f" · differ_px {d.get('differ', '?')}"
                + (f" · gt8 {d.get('gt8')}" if "gt8" in d else ""))
         lines.append(f"- [ ] **{m.get('kind', 'note')}** @ frame {k} — {ctx}")
