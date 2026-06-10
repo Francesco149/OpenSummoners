@@ -68,8 +68,9 @@ body+0x18; the mover writes `wx` directly or holds velocity elsewhere (a lead fo
 3. **THEN port** — the party-leader update path + input read + the chip-2 mover/probes get their first
    LIVE caller (validate "Arche walks + stops at terrain" field-exact, then the slope resolver).
 
-**OPEN (USER):** (a) verify the freeroam-WALK montage on the feed (Arche shifts right then left).
-(b) butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).  Debt:
+**USER-CONFIRMED (a):** the freeroam WALK is verified — "the trace is set up correctly and arche moves
+the way you said" (Arche shifts right then left under held injection).  **OPEN (USER):** (b) butterfly
+chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).  Debt:
 PORT-DEBT(held-axis-array-b) (the port replay models array A only; array B at +0x140 is un-RE'd —
 add when a consumer needs it), PORT-DEBT(effect-color-variant) (INN townsgirl wrong colour variant).
 

@@ -34,8 +34,9 @@
   4. **NEXT (chip-3 ground-truth, NOW UNBLOCKED):** (a) pin Arche's freeroam MOVER — `mem_watch` her
      `wx` writer under held walk (note: `vel`=body+0x18 reads **0** while she moves, so the mover
      writes `wx` directly / elsewhere); (b) capture walk/run/jump per-tick → bit-exact target → THEN
-     port (party-leader update + the chip-2 mover/probes get their first LIVE caller). **OPEN (USER):
-     verify the freeroam-WALK montage on the feed.** Butterfly chip-1 drift verify still pending;
+     port (party-leader update + the chip-2 mover/probes get their first LIVE caller). **USER-CONFIRMED:
+     the trace is set up correctly + Arche walks right↔left as described.** Butterfly chip-1 drift verify
+     still pending;
      incidental PORT-DEBT(effect-color-variant), PORT-DEBT(held-axis-array-b) (the port replay models
      array A only; array B at +0x140 deferred until a consumer needs it).
 - **Prior (ckpt 112): PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") —
