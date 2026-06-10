@@ -145,11 +145,31 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
      `0x440e40` are ENTITY-vs-entity, also chip 3.
    So "ground actors stop clipping terrain" lands WITH Arche (chip 3), where the mover gets
    its first live caller.
-3. **Controllable Arche** — the party-leader band `0x4997b0` (see
-   `plans/party-character-system.md`) + DirectInput → the `0xc35a` case in `0x47b990` →
-   walk/run/jump physics. The milestone.
-4. **Freeroam** — finish the cutscene (dialogue chip 4, `plans/dialogue-cutscene.md`) →
-   hand control to Arche → a NEW trace-studio session (the USER's "house freeroam" directive).
+3. **Controllable Arche** — the milestone. **GROUND-TRUTH STARTED (ckpt 112, USER chose
+   "ground-truth freeroam first"; engine-quirk #101).** Driving retail past the town-arrival
+   cutscene (Z-spam the ring) **REACHES the inn FREEROAM** (control transfers at the "PLAYER!"
+   prompt, flip 4500/sim-tick 1556 — `runs/freeroam-gt`), so the state IS reachable. Three
+   findings RESHAPE the port plan:
+   - **The leader `room_state+0x200c` is PERSISTENT (Arche since new-game), not cutscene-set;**
+     the transfer flips a per-actor controllable flag (`entity+0x200=1` via `0x41e070`/`0x4c6830`).
+     `0x4997b0` (leader render) is real, but the leader is already Arche.
+   - **Arche's freeroam mover is NOT `0x47b990`** (it fired only for the townsfolk 0xc3dc/0xc440;
+     `0x46cd70` never walks the party) — a SEPARATE party-leader update path (candidates that read
+     the leader body: `0x405e80`/`0x406210`/`0x40c380`). The `0xc35a` case in `0x47b990` is the
+     CUTSCENE-actor behaviour, NOT the freeroam mover. **This corrects the original chip-3 framing.**
+   - **Freeroam movement reads the HELD-AXIS array `input-mgr+0x114` (quirk #41), not the event
+     ring** — the harness's `--input-trace` ring injection drives menus + dialogue-advance but NOT
+     held walking (injected dir ids leave Arche idle). **Blocker: the harness needs a HELD-AXIS
+     injection mode.**
+   - **NEXT (in order):** (a) add held-axis injection to the harness; (b) pin Arche's freeroam
+     mover (`mem_watch` her worldX writer once she walks); (c) capture walk/run/jump per-tick (the
+     leader-chain body spec `tools/flow/freeroam_arche_fields.json` reads her body independent of
+     the mover) → bit-exact target; (d) PORT the party-leader update + input + wire the chip-2
+     mover/probes (their first LIVE caller) → validate "Arche stops at terrain" field-exact.
+4. **Freeroam** — REACHED in retail (ckpt 112). Remaining for the PORT side: finish the cutscene
+   (dialogue chip 4, `plans/dialogue-cutscene.md`) → the control hand-off → a NEW trace-studio
+   session (the USER's "house freeroam" directive). The port reaches the dialogue but not yet the
+   hand-off; the retail ground truth is now HAD.
 
 ## Validation (per chip)
 Seed-pinned + lockstep field-spec capture of the entity's per-tick fields (a

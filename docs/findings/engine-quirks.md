@@ -3128,3 +3128,47 @@ against trace-studio `intro-1`:
   town's ambient-audio fade-in, NOT a video term — pixels never read [10].
   (Field spec: the `0x499ab0` `ovl_*`/`r40..r80` chain fields dump the whole
   object; `runs/r6-grid` is the seed-pinned reveal-window ground truth.)
+
+### #101 — the town arrival → HOUSE FREEROAM transition: freeroam is reachable by advancing the dialogue (no map reload), the party leader is PERSISTENT (not cutscene-set), Arche's freeroam mover is NOT `0x47b990`, and movement reads the HELD-AXIS array — not the event ring (2026-06-10, ckpt 112)
+
+Ground-truthed by driving retail past the whole town-arrival cutscene under
+`--seed-pin --lockstep --no-turbo`, spamming Z (the ring `0x24` confirm) every
+~12 flips from game_enter; the cast dialogue (~15 beats) clears and control
+transfers to the player INSIDE the inn (`runs/freeroam-gt`).
+
+- **Freeroam is reached WITHOUT a second map load.**  Only one `game_enter`
+  anchor fires (the town, ~flip 1420); the inn-interior freeroam is the SAME
+  scene (the engine renders the building as a cutaway interior).  The control
+  transfer shows on-screen as the **"PLAYER!" prompt + the HUD fade-in**
+  (portrait / HP / item bar / D-pad) — captured at **flip 4500 / sim-tick
+  1556**, settled by ~4660.  So the chip-3/4 "house freeroam" target is
+  reachable purely by advancing the dialogue.
+- **The party leader `room_state+0x200c` is the PERSISTENT party slot, NOT set
+  by the town cutscene.**  `game_enter` (`0x59f2c0:174`) zeroes the freshly
+  `operator_new`'d room's `+0x200c`, but the persistent room/party object at
+  `*(DAT_008a9b50+0x2784)` holds Arche's slot the ENTIRE town visit — a
+  per-Flip chain read `*(*(0x8a9b50+0x2784)+0x200c)` is a constant non-zero slot
+  pointer (`0xd1dcc58` in the run), and `slot+0x9f4`→entity has code `0xc35a`
+  (Arche) from game_enter through freeroam.  (She was made leader at new-game.)
+  So the cutscene→freeroam transfer is **not** a leader-set; it flips a
+  **per-actor controllable flag**: the setters `0x41e070`(by handle 0x5f5e1xx)
+  / `0x4c6830`(by slot) write the leader entity's `+0x200 = 1` (sole-active) +
+  `+0x158a4`, and (re)place it via the mover `0x54e5c0`.
+- **Arche's freeroam update is NOT the EFFECT-band AI `0x47b990`.**  In the
+  freeroam window a `0x47b990` hook fired only for codes `0xc3dc`/`0xc440`
+  (Father/Mother — still active townsfolk), NEVER `0xc35a`.  And the master
+  band walk `0x46cd70` never touches the party (`+0x4030`/`+0x200c`).  So the
+  controllable leader is driven by a SEPARATE party-leader/protagonist update
+  path (candidates that read the leader body: `0x405e80`/`0x406210`/`0x40c380`;
+  the `0xc35a` case inside `0x47b990` is the CUTSCENE-actor behaviour, not the
+  freeroam mover — a correction to the chip-3 plan).
+- **Freeroam movement reads the HELD-AXIS array `input-manager+0x114`
+  (`array_A[0]`=vertical, `[1]`=horizontal; quirk #41), NOT the discrete event
+  ring.**  The harness's ring injection (`0x43c110` consumer) drives menus +
+  the dialogue Z-advance (proven — it cleared the whole arrival dialogue), but
+  does NOT drive held walking: injecting direction ids 3/4 every flip left
+  Arche fully idle (`wx`/`vel`/`facing` constant, only the idle-anim `celfr`
+  cycling).  Held movement must fill the `+0x114` axis path (readers:
+  `0x43bca0`/`0x448cb0`/`0x44e730`/`0x44b160`/`0x4539b0`/…).  ⇒ to ground-truth
+  / validate the walk, the harness needs a HELD-AXIS injection mode (the
+  current `--input-trace` only fills the discrete ring).

@@ -1,0 +1,22 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (Phase-4 chip 3, plans/movement-system.md). Pins the cutscene->freeroam CONTROL HAND-OFF: (1) per-Flip read of the party-leader pointer *(room_state+0x200c) [room_state = *(0x8a9b50+0x2784)] -- 0 during the cutscene, non-zero once control transfers; (2) hooks the leader-SETTER 0x4c6830 (47b990/4c6830.c: swaps room_state+0x200c to the slot arg, places its entity via the mover 0x54e5c0, sets the controllable flag +0x200) to NAME the mechanism + read the new leader slot's handle/active/entity. Run: frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/freeroam-gt/trace-retail.jsonl --field-spec tools/flow/freeroam_handoff_fields.json --field-spec-only --call-trace --capture-frames <sampled>. The durable retail_fields.json annotation lands once chip 3 is validated.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "flip_leader",
+      "_note": "FUN_005b8fc0 DDraw Flip (once/frame). leader = *(room_state+0x200c) pointer value (hex; 0=cutscene, !=0 = control handed off). mode = base+0x1030 global game mode (47b990:722 reads ==2 to force-advance Arche).",
+      "fields": [
+        {"name": "leader", "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 8204, "type": "hex", "reason": "*(room_state+0x200c) party-leader pointer; non-zero = control transferred"},
+        {"name": "mode",   "src": "chain", "va": "0x8a9b50", "hops": [], "off": 4144, "type": "i32", "reason": "base+0x1030 global game-mode flag"}
+      ]
+    },
+    "0x4c6830": {
+      "name": "set_leader",
+      "_note": "FUN_004c6830 the leader hand-off (thiscall ecx=room_state, param_1=the party slot). Sets room_state+0x200c=slot, places slot+0x9f4 entity via 0x54e5c0 with controllable flag +0x200.",
+      "fields": [
+        {"name": "slot_handle", "src": "argfield", "index": 0, "off": 2544, "type": "hex", "reason": "param_1+0x9f0 new-leader slot handle (0x5f5e167 = Arche/protagonist sentinel?)"},
+        {"name": "slot_active", "src": "argfield", "index": 0, "off": 2500, "type": "i32", "reason": "param_1+0x9c4 slot active flag (==1)"},
+        {"name": "slot_entity", "src": "argfield", "index": 0, "off": 2548, "type": "hex", "reason": "param_1+0x9f4 slot entity pointer (the controllable actor)"}
+      ]
+    }
+  }
+}

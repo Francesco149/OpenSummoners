@@ -1,0 +1,32 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (Phase-4 chip 3). Captures CONTROLLABLE ARCHE per-tick in freeroam (after the town-arrival cutscene hands off control ~flip 4500). (A) arche_body: per-Flip read of the party LEADER's body via a global chain *(0x8a9b50+0x2784)=room_state -> +0x200c=leader slot -> +0x9f4=entity -> +0x40=body; reads worldX/Y/vel/facing/state/celfr + the entity code (==0xc35a confirms Arche). INDEPENDENT of which fn updates her -> shows the input->motion law directly. (B) arche_ai: hooks 0x47b990 (the EFFECT-band actor AI) reading code/state/cmd-block/ctrl-flag -- if it fires with code==0xc35a, she's still EFFECT-band-updated in freeroam; if not, her mover is elsewhere (a key finding). Input: nav+Z to ~4520 (reach freeroam), then RIGHT(id4) held every flip 4560..4760, idle, LEFT(id3) held 4820..5020. Run: frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/freeroam-gt/trace-b.jsonl --field-spec tools/flow/freeroam_arche_fields.json --field-spec-only --call-trace --call-trace-frames <4400..5200> --capture-frames <sampled>.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_body",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's body. hops = [room_state 0x2784, leader-slot 0x200c, entity 0x9f4, body 0x40].",
+      "fields": [
+        {"name": "code",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468, "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
+        {"name": "wx",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,   "type": "i32", "reason": "body+4 worldX"},
+        {"name": "wy",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 8,   "type": "i32", "reason": "body+8 worldY"},
+        {"name": "vel",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 24,  "type": "i32", "reason": "body+0x18 velocity"},
+        {"name": "facing", "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 44,  "type": "i32", "reason": "body+0x2c facing 1/3"},
+        {"name": "bstate", "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 56,  "type": "u32", "reason": "body+0x38 state (mask&0xffff)"},
+        {"name": "celfr",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 114, "type": "u32", "reason": "render-state+0x72 drawn frame (mask&0xffff)"}
+      ]
+    },
+    "0x47b990": {
+      "name": "arche_ai",
+      "_note": "FUN_0047b990 EFFECT-band AI. Filter code==0xc35a offline. cmd block this+0x14854; state this+0x1422c; ctrl flag *(this+0x750)+0xd4.",
+      "fields": [
+        {"name": "code",    "src": "thisderef", "off": 468,   "type": "hex", "reason": "this+0x1d4 actor code"},
+        {"name": "state",   "src": "thisderef", "off": 82476, "type": "u32", "reason": "this+0x1422c state selector (mask&0xffff)"},
+        {"name": "ctrl",    "src": "thischain",  "hops": [1872], "off": 212, "type": "i32", "reason": "*(this+0x750)+0xd4 controller mode (0xc35a case 47b990:719)"},
+        {"name": "cmd_act", "src": "thisderef", "off": 84052, "type": "i32", "reason": "this+0x14854 command block [0]"},
+        {"name": "cmd_1",   "src": "thisderef", "off": 84056, "type": "i32", "reason": "this+0x14858 command block [1]"},
+        {"name": "cmd_2",   "src": "thisderef", "off": 84060, "type": "i32", "reason": "this+0x1485c command block [2]"},
+        {"name": "wx",      "src": "thischain",  "hops": [64], "off": 4,  "type": "i32", "reason": "body+4 worldX"},
+        {"name": "facing",  "src": "thischain",  "hops": [64], "off": 44, "type": "i32", "reason": "body+0x2c facing"}
+      ]
+    }
+  }
+}

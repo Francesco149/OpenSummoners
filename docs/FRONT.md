@@ -7,9 +7,33 @@
 -->
 <!-- FRONT:BEGIN -->
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
-  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche → freeroam). Milestone map:
-  `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 111): PHASE-4 chip 2 (TILE COLLISION) — the READ-SIDE CORE is PORTED + host-tested.
+  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed →
+  port). Milestone map: `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog:
+  `port-frontier.md`.
+- **LATEST (ckpt 112): PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") —
+  the HOUSE FREEROAM is REACHED in retail + four chip-3-reshaping facts pinned. NO port code (pure
+  RE). 946 pass.** Method: drive retail past the whole town-arrival cutscene (`--seed-pin --lockstep
+  --no-turbo`), Z-spam (ring id `0x24`) every ~12 flips from game_enter; the ~15 dialogue beats clear
+  and control transfers INSIDE the inn (the **"PLAYER!" prompt + HUD at flip 4500 / sim-tick 1556**,
+  pushed to the feed). Detail: **engine-quirk #101**; artifacts `runs/freeroam-gt/` + throwaway specs
+  `tools/flow/freeroam_{handoff,arche}_fields.json`.
+  1. **Freeroam needs NO map reload** (one `game_enter`; the inn interior is the same cutaway scene)
+     ⇒ the USER's "house freeroam" target is reachable by advancing dialogue.
+  2. **The party leader `room_state+0x200c` is PERSISTENT (Arche since new-game), NOT cutscene-set** —
+     a per-Flip chain `*(*(0x8a9b50+0x2784)+0x200c)` = a constant slot (entity code `0xc35a`) the whole
+     town visit; the transfer flips a **per-actor controllable flag** (`entity+0x200=1` via the setters
+     `0x41e070`/`0x4c6830`), not the leader.
+  3. **Arche's freeroam mover is NOT `0x47b990`** (in freeroam it fired only for `0xc3dc`/`0xc440` =
+     Father/Mother; `0x46cd70` never touches the party) — a SEPARATE party-leader path (corrects the
+     chip-3 plan; the `0xc35a` case in `0x47b990` is the CUTSCENE-actor behaviour).
+  4. **Freeroam movement reads the HELD-AXIS array `input-mgr+0x114` (quirk #41), NOT the event ring** —
+     Z-advance worked, but injecting dir ids 3/4 every flip left Arche fully idle (only the idle anim
+     cycling). ⇒ the harness needs a **held-axis injection** mode to drive/validate the walk.
+  5. **NEXT:** (a) add held-axis injection to the harness; (b) pin Arche's freeroam mover (`mem_watch`
+     her worldX writer once walking); (c) capture walk/run/jump per-tick → bit-exact target → THEN port.
+     **OPEN (USER):** verify the freeroam frames on the feed; the butterfly chip-1 drift verify still
+     pending. Incidental: PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 111): PHASE-4 chip 2 (TILE COLLISION) — the READ-SIDE CORE is PORTED + host-tested.
   946 pass (+6).** The chip RE-SCOPED on a discovery: the town's collision GRID is **already built**
   by `map_decode.c` (the `0x587e00` town arms deposit region B class/slope + C slope-type + D flag
   per cell, on the proven-1:1 render path) — "port the grid" was moot.

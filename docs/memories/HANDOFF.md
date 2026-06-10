@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 111, 2026-06-10)
+# Session handoff — rolling current state (last updated ckpt 112, 2026-06-10)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,54 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 111
+## Where we are — ckpt 112
+
+**PHASE-4 chip 3 GROUND-TRUTH (USER chose "ground-truth freeroam first") — the HOUSE FREEROAM
+is REACHED in retail and four chip-3-reshaping facts are pinned. NO port code (pure RE). 946
+pass (unchanged).**  Retail ground truth: **engine-quirk #101**; artifacts: `runs/freeroam-gt/`
+(`cap` = the dialogue→freeroam frame sweep + the hand-off field-spec; `capb` = the
+controllable-Arche per-tick capture); throwaway field-specs `tools/flow/freeroam_handoff_fields.json`
++ `freeroam_arche_fields.json`; the drive traces `runs/freeroam-gt/trace-{retail,b}.jsonl`.
+
+The method: drive retail past the whole town-arrival cutscene under `--seed-pin --lockstep
+--no-turbo`, Z-spam (ring id `0x24`) every ~12 flips from game_enter (1420).  The ~15 dialogue
+beats clear and control transfers to the player INSIDE the inn (the **"PLAYER!" prompt + HUD
+fade-in at flip 4500 / sim-tick 1556**, settled ~4660; pushed to the feed).
+
+The four findings (full detail in quirk #101):
+1. **Freeroam needs NO map reload** — one `game_enter` (1420); the inn interior is the same
+   scene (cutaway).  So the USER's "house freeroam" target is reachable by advancing dialogue.
+2. **The party leader `room_state+0x200c` is PERSISTENT (Arche since new-game), NOT cutscene-set.**
+   A per-Flip chain read `*(*(0x8a9b50+0x2784)+0x200c)` = a constant slot (entity code `0xc35a`)
+   from game_enter through freeroam.  The transfer flips a **per-actor controllable flag**
+   (`entity+0x200=1` via the setters `0x41e070`/`0x4c6830` + a `0x54e5c0` placement), not the
+   leader.  ⇒ the chip-3 leader-render via `0x4997b0` is real but the leader is already Arche.
+3. **Arche's freeroam mover is NOT `0x47b990`.**  In freeroam a `0x47b990` hook fired only for
+   `0xc3dc`/`0xc440` (Father/Mother), never `0xc35a`; the band walk `0x46cd70` never touches the
+   party.  Her freeroam update is a SEPARATE party-leader path (the `0xc35a` case in `0x47b990`
+   is the CUTSCENE-actor behaviour — a correction to the chip-3 plan, which assumed `0x47b990`).
+4. **Freeroam movement reads the HELD-AXIS array `input-mgr+0x114` (quirk #41), NOT the event
+   ring.**  Z-advance worked (ring), but injecting direction ids 3/4 every flip left Arche fully
+   idle (`wx`/`vel`/`facing` constant, only the idle-anim `celfr` cycling).
+
+**NEXT (the chip-3 ground-truth, blocked on a harness gap):**
+1. **Add a HELD-AXIS injection mode to the harness** (the current `--input-trace` only fills the
+   discrete ring `0x43c110`; held movement needs `input-mgr+0x114` `array_A[0/1]` filled each
+   frame).  Likely a new trace kind / agent hook writing the axis array (watch the DInput
+   producer doesn't zero it on a hidden window).  This unblocks ALL movement ground-truth + the
+   eventual port validation.
+2. **Pin Arche's freeroam MOVER** — once she walks, `mem_watch` her body worldX writer (or hook
+   the leader-body readers `0x405e80`/`0x406210`/`0x40c380` + the held-axis readers
+   `0x43bca0`/`0x448cb0`/`0x44e730`/`0x4539b0`) → the function to port for chip 3.
+3. **Capture her walk/run/jump per-tick** (the leader-chain body spec in
+   `freeroam_arche_fields.json` already reads her body independent of the mover) → the bit-exact
+   target → THEN port (party-leader update + input + the chip-2 mover/probes get their LIVE caller).
+
+**OPEN (USER):** (a) verify the freeroam-reached result on the feed (flip 4500/4740). (b) the
+butterfly chip-1 drift visual-verify is still pending (trace-studio `intro-1` ~1580-1670).
+Incidental debt unchanged: PORT-DEBT(effect-color-variant) (INN townsgirl wrong colour variant).
+
+## Where we were — ckpt 111
 
 **PHASE-4 chip 2 (TILE COLLISION) — the READ-SIDE CORE is PORTED + host-tested. 946 pass
 (+6).**  The chip RE-SCOPED on a discovery: the town's collision GRID is **already built** by
