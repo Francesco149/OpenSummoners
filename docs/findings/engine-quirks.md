@@ -3274,12 +3274,14 @@ is a port note in `FRONT.md`/`HANDOFF.md`, not here.
   - slot **`+0x12c`** = `0x5ba520(*(*0x8a6e80+0x5c8))`, enable `*(*0x8a6e80+0x5b8)`; also
     a hardwired `0x5ba520(0xf)` (TAB) → `+0x12c` under one branch.
 - **The live keybind scancodes (read off the running game; there is NO static default —
-  the config god-object `*0x8a6e80` is filled at runtime):**
-  `*(*0x8a6e80+0x558)` = **`0x2d` (DIK X)** → slot `+0x128` (the AI `0x478ba0` reads it
-  for cmd`[4]=0xe`, gated held > 200 ms); `*(*0x8a6e80+0x574)` = **`0x2e` (DIK C)** →
-  slot `+0x124` (AI → cmd`[2]=8`); `*(*0x8a6e80+0x5c8)` = `0` (unbound). The control-scheme
-  mode `*(*0x8a6e80+0x510)` = **`0`** (the normal / double-tap-to-run scheme, not the
-  hold-to-run `==2` scheme).
+  the config god-object `*0x8a6e80` is filled at runtime), with the USER-confirmed roles:**
+  `*(*0x8a6e80+0x558)` = **`0x2d` (DIK X) = ATTACK / interact** → slot `+0x128` (AI →
+  cmd`[4]=0xe`, gated held > 200 ms; X attacks when the sword is OUT, else interacts —
+  e.g. talks to mom); `*(*0x8a6e80+0x574)` = **`0x2e` (DIK C) = JUMP** → slot `+0x124`
+  (AI → cmd`[2]=8`; **jump-buffered** — fires on a tap edge); `*(*0x8a6e80+0x5c8)` = `0`
+  (unbound — **Z = sheathe/unsheathe sword** is a separate ring action). The control-scheme
+  mode `*(*0x8a6e80+0x510)` = **`0`** (normal / double-tap-to-dash, not hold-to-run `==2`).
+  **(Corrects the heading's tentative "jump = X" — it is C; X is attack/interact.)**
 - **Run (cmd`[0]`=5/6) is a direction DOUBLE-TAP detected via the EVENT RING, not the held
   array.** `0x478ba0` sets cmd 5/6 when `(was-running) || (iVar9 != 0)` where `iVar9 =
   0x479e70(…, action-id 2|4, action-id 2|4, …)` — `0x479e70` matches two ring events for the
@@ -3290,3 +3292,26 @@ is a port note in `FRONT.md`/`HANDOFF.md`, not here.
   re-confirms the chip-3a walk port BYTE-FOR-BYTE — `1600, 3200, …, 24000` ramping +1600/tick
   to the 24000 cap (dwx = `hvel/100`), then `-800/tick` on release. `body+0x18` (the VERTICAL
   / jump vel) and `wy` stay 0/52000 the whole flat walk (no vertical motion without a jump).
+
+**The full freeroam MOVESET (USER ground-truth, 2026-06-11 — the game owner; the roadmap
+for the movement arc, each item to be captured + ported + bit-exact-verified in turn):**
+- **Movement is SMOOTH / dampened with INPUT BUFFERING** at various levels — the accel/cap/
+  brake ramps (chip 3a) are one face of this; jump + actions are jump/input-buffered. Port +
+  validate buffering depth per action, not just the steady law.
+- **Dash (run):** DOUBLE-TAP a direction and KEEP HOLDING the 2nd tap (release ends the dash).
+  (cmd`[0]`=5/6; the chip-3b ring double-tap didn't fire yet — window/edge to crack.)
+- **Down during a dash → SLIDE** (hold to keep sliding). **Down in place → CROUCH.**
+- **Up → enter doors + a DEFENSIVE POSE** that stops you faster if held during a dash/walk;
+  Up in front of a door triggers a dialogue (dad). (= cmd`[3]`=0xb, the UP held read.)
+- **Z = unsheathe / sheathe the sword** (toggle; a ring action, scancode-3 path unbound above
+  so Z is the discrete ring id — relates to `0x479ca0(…,0x18..0x1c)` sword-stance arms in
+  `0x478ba0:341-374`). **Two distinct POSES/anims for everything by sword-out vs sword-in.**
+- **X = ATTACK when the sword is out, INTERACT when not** (e.g. talk to mom). Different attacks
+  by holding FORWARD / UP / DOWN while attacking.
+- **C = JUMP** (jump-buffered; AI cmd`[2]`=8 on the C edge — confirmed firing). **But across 4
+  chip-3b captures the jump produced NO vertical arc** (`wy`=52000 / `vvel`=0) even on a clean C
+  tap from a fully idle/grounded rest, and the dash double-tap never set cmd`[0]`=5/6 → the
+  integrator GATES the dash/jump response on a precondition the **flat town/inn cutaway doesn't
+  satisfy**. Strong hypothesis: **dash/jump are platforming mechanics that need a DUNGEON /
+  platforming scene** — capture there, or RE the integrator's vertical-motion gate. (So the town
+  freeroam is NOT the right context to ground-truth jump/dash; the WALK is the only town mover.)
