@@ -841,9 +841,13 @@ struct test_case {
     X(input_live_direction_ring_ids)                           \
     X(input_live_guards)                                       \
     X(cutscene_town_arrival_table)                             \
+    X(cutscene_town_house_table)                               \
+    X(cutscene_town_chain)                                     \
     X(cutscene_arm_first_line)                                 \
     X(cutscene_advance_only_when_typed)                        \
-    X(cutscene_completes_after_last_line)                      \
+    X(cutscene_room_transition)                                \
+    X(cutscene_completes_after_chain)                          \
+    X(cutscene_room_key)                                       \
     X(cutscene_guards)                                         \
     X(character_walk_accel)                                    \
     X(character_walk_brake)                                    \

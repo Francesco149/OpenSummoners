@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 204,
+  "tested": 202,
   "ported": 5,
-  "unported": 1549,
+  "unported": 1551,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 209,
-  "pct_touched": 13.2,
-  "pct_tested": 13.2,
-  "engine_proper_touched": 196,
+  "touched": 207,
+  "pct_touched": 13.0,
+  "pct_tested": 13.0,
+  "engine_proper_touched": 194,
   "bytes_total": 1694868,
-  "bytes_touched": 250630,
-  "pct_bytes_touched": 14.8
+  "bytes_touched": 241174,
+  "pct_bytes_touched": 14.2
  },
  "orphan_refs": [
   "0x56c470",
@@ -2869,10 +2869,8 @@
    "name": "FUN_00439690",
    "size": 8866,
    "is_thunk": false,
-   "status": "tested",
-   "src": [
-    "src/cutscene.h"
-   ]
+   "status": "unported",
+   "src": []
   },
   {
    "va": "0x43b980",
@@ -6385,11 +6383,8 @@
    "name": "FUN_0049d6e0",
    "size": 590,
    "is_thunk": false,
-   "status": "tested",
-   "src": [
-    "src/cutscene.c",
-    "src/cutscene.h"
-   ]
+   "status": "unported",
+   "src": []
   },
   {
    "va": "0x49d930",

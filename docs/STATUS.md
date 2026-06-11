@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  13.2% touched   (13.2% host-tested, 14.8% of code bytes)
+███░░░░░░░░░░░░░░░░░  13.0% touched   (13.0% host-tested, 14.2% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   204 | ported + module covered by the host unit suite       |
+| tested      |   202 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **209** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1549 | exists in engine, never referenced from src/         |
+| **touched** | **207** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1551 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (14.8% of engine-proper bytes) is the truer progress
+Code-byte coverage (14.2% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -35,10 +35,40 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: WALK/JUMP/DASH/windup ported
   bit-exact ✓ → MVP live-wire (measured trigger) **REMOVED** ✓ → **FAITHFUL live keyboard input ✓**
-  → **town-arrival DIALOGUE ADVANCE ✓** → **the real CONTROL-TRANSFER chain = the active arc**
-  (USER-committed full-faithful; harness-verify the live room/control path FIRST)). Milestone map:
-  `ROADMAP.md`; active arc: `plans/controllable-arche-faithful.md`. Render backlog: `port-frontier.md`.
-- **LATEST (ckpt 121): UN-MVP'd the movement — 3 of 4 steps LANDED (MVP wire REMOVED; FAITHFUL live
+  → **town-arrival DIALOGUE ADVANCE ✓** → **CONTROL-PATH HARNESS-VERIFIED ✓** (quirk #103: a 3-room
+  chain → the errands room IS the freeroam; control = `+0x200==0` char-AI, not `+0x200=1`) → **PORT the
+  verified chain = the active arc**). Milestone map: `ROADMAP.md`; active arc:
+  `plans/controllable-arche-faithful.md`. Render backlog: `port-frontier.md`.
+- **LATEST (ckpt 122): the CONTROL-TRANSFER PATH is HARNESS-VERIFIED — the static-vs-live conflict is
+  RESOLVED (both prior readings half-right), the porting model is CORRECTED. Pure RE/harness (no port
+  code); 974 host pass (unchanged). quirk #103; artifacts `runs/control-path-gt/` (montage on the feed).**
+  The ckpt-121 "DO FIRST: harness-verify" step, done. Seed-pinned `--lockstep --no-turbo` retail drove
+  the proven ckpt-112 nav (Z-spam from `game_enter`, extended to flip 8392) under a per-Flip field spec
+  (`tools/flow/control_handoff_fields.json`) reading `room_state = *(*(0x8a9b50)+0x2784)`.
+  1. **3-ROOM CHAIN, confirmed** — the committed room key `room_state+0x4024` swaps **`0x334be` arrival
+     (flip 1430) → `0x334c8` house (3661) → `0x334dc` errands (4270)**, staged by `FUN_00401d40` (@3659/
+     @4268), committed by `FUN_00402030`. The static room sequence is REAL.
+  2. **LIGHT room-key swap, NOT a full reload** — ONE `game_enter`; `room_state`/leader `+0x200c`
+     (`0xd1dcc58`)/entity (`+0x9f4`, code `0xc35a`)/`+0x158a4` hold CONSTANT across both swaps. So
+     ckpt-112's "no reload, entities persist" was right; its "same scene" was wrong.
+  3. **CONTROL IS `entity+0x200 == 0` (char-AI), NOT `+0x200=1`** (the ckpt-114 polarity open, RESOLVED).
+     A held-axis walk in the errands room drove Arche bit-exact (held-RIGHT `wx 19200→73800` facing 1,
+     held-LEFT →`14640` facing 3) with `+0x200`==0 + `+0x158a4` non-null throughout — matching `0x46cd70`'s
+     dispatch (`+0x200==0` → char AI `0x478ba0`). The `0x41e070`/`0x4c6830` `+0x200=1` setters are a
+     LATER/different control point (party / end-of-day), NOT the entry to player movement.
+  4. **The errands room `0x334dc` IS the freeroam** — "PLAYER!" marker + HUD on screen (= ckpt-112's
+     "PLAYER!@4500", correctly located). USER-confirmed: "a house with mom and dad, run some errands,
+     short dialogue at the start." Z-spam STALLS there because it's gameplay — the stall IS the boundary.
+  **NEXT (the active arc — PORT the verified chain):** extend `cutscene.c` to chain the 3 room scripts
+  (arrival ✓ → house `0x334c8` 8 lines → errands `0x334dc` + its short opening dialogue) via the LIGHT
+  room-key swap (`0x401d40` stage → `0x402030` commit; no full reload); at the errands room STOP the
+  sequencer and run `character_step` on live `axis_held` (the `+0x200==0` char-AI path — the faithful
+  replacement for the ckpt-120 `CHAR_CONTROL_ARM_FRAMES` MVP arm). DROP the `+0x200=1` model for the
+  first freeroam. OPEN (don't block): the LATER `+0x200=1` transfer (post-errands → Sana, needs a
+  walk-to-trigger nav); is char-AI suppressed during the cutscenes or just un-fed (held-input untested
+  there). Plan corrected: `plans/controllable-arche-faithful.md` "Phase 2 VERIFIED". Throwaway specs/runs
+  gitignored. Debt unchanged from ckpt 121.
+- **Prior (ckpt 121): UN-MVP'd the movement — 3 of 4 steps LANDED (MVP wire REMOVED; FAITHFUL live
   keyboard input + the town-arrival DIALOGUE ADVANCE ported + verified). USER COMMITTED to the FULL
   FAITHFUL control-transfer chain (the big arc). 974 host pass (+11), 0 fail; 4 commits.** The USER's
   un-MVP directive (ckpt-120): remove the throwaway controllable-Arche scaffold, then build the faithful

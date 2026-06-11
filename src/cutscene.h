@@ -1,30 +1,42 @@
 /*
- * cutscene.{c,h} — the town-arrival CUTSCENE driver (the dialogue advance).
+ * cutscene.{c,h} — the town-intro CUTSCENE driver (the multi-room dialogue chain).
  *
- * The port-side beat sequence of 0x4d7d80 case 0x334be (the town-gate
- * family conversation) + the beat-runner FUN_00439690.  Retail runs the script
- * as a BLOCKING coroutine — each beat calls 0x439680 (→ 0x439690) which
- * pumps frames until the beat completes, then falls through to the next.  The
- * port's frame loop is non-blocking, so this models the same sequence as a
- * STATE MACHINE stepped once per sim-tick: it drives the dialogue box
- * (dialogue.{c,h}) through the ~N lines, advancing on the Z input (ring id 0x24
- * = the 0x43b980 advance-poll) exactly when the current line is fully typed
- * (dialogue_awaiting_advance — the beat-runner's DIALOGUE-beat completion gate,
- * 0x439690:1004).  When the last line clears, the cutscene completes (the
- * caller then performs the control hand-off).
+ * The port-side beat sequence of 0x4d7d80 (the town-intro script) + the
+ * beat-runner 0x439690.  Retail runs the script as a BLOCKING coroutine —
+ * each beat calls 0x439680 (→ 0x439690) which pumps frames until the beat
+ * completes, then falls through to the next.  The port's frame loop is
+ * non-blocking, so this models the same sequence as a STATE MACHINE stepped once
+ * per sim-tick: it drives the dialogue box (dialogue.{c,h}) through the lines,
+ * advancing on the Z input (ring id 0x24 = the 0x43b980 advance-poll) exactly
+ * when the current line is fully typed (dialogue_awaiting_advance — the
+ * beat-runner's DIALOGUE-beat completion gate, 0x439690:1004).
  *
- * SCOPE (this chip = "the dialogue advance"): the DIALOGUE lines only.  The
- * interleaved non-dialogue beats of the real script — the opening/closing fades
- * (beat type 2), the camera pans (type 3), the wait timers (type 6), and the
- * actor emotes/run-offs (0x401e60 / 0x402730) — stay on the port's
- * existing measured-frame triggers (the camera pan / banner / letterbox /
- * scene-fade, all separately validated) and are NOT sequenced here yet.
- * PORT-DEBT(cutscene-beat-runner): fold the camera/timer/action beats into this
- * sequencer (retiring those measured triggers) so the arrival plays on the
- * engine's schedule.  The town-arrival vignette also CHAINS to scene 0x334c8
- * (return 2) before the real inn control transfer — PORT-DEBT(cutscene-scene-
- * chain): the downstream scenes (0x334c8 → … → the inn "PLAYER!" prompt) are a
- * separate arc; this chip ends at the last arrival line.
+ * MULTI-ROOM CHAIN (ckpt 123): the town intro is a CHAIN of rooms, not one
+ * scene.  0x4d7d80 dispatches on the committed room key (room_state+0x4024); a
+ * room's closing beat STAGES the next room via 0x401d40 (writes the next key
+ * to map+0x900/0x904/0x908) and 0x402030 COMMITS it (→ room_state+0x4024),
+ * re-dispatching 0x4d7d80 on the new key (the case `return 2` path).  The
+ * harness-verified chain (quirk #103, runs/control-path-gt):
+ *     0x334be arrival (10 lines) → 0x334c8 house (8 lines) → 0x334dc errands.
+ * It is a LIGHT key swap (one game_enter; entities/room_state persist), so the
+ * port models it as advancing a ROOMS LIST — when a room's lines complete, the
+ * sequencer commits the next room key and arms its line 0.  This chip chains
+ * 0x334be → 0x334c8; the chain ends at the ERRANDS BOUNDARY (0x334dc), which is
+ * the freeroam control hand-off point (the errands room IS the freeroam — the
+ * caller starts character_step there; see plans/controllable-arche-faithful.md).
+ *
+ * SCOPE (this chip = "the dialogue chain"): the DIALOGUE lines + the room-key
+ * swap (CONTROL FLOW).  Two pieces stay deferred:
+ *   - PORT-DEBT(cutscene-beat-runner): the interleaved non-dialogue beats — the
+ *     fades (type 2), camera pans (type 3), wait timers (type 6), actor
+ *     emotes/run-offs (0x401e60 / 0x402730) — stay on the port's measured-frame
+ *     triggers (camera pan / banner / letterbox / scene-fade, separately
+ *     validated) and are NOT sequenced here yet.
+ *   - PORT-DEBT(cutscene-room-render): the house (0x334c8) and errands (0x334dc)
+ *     ROOM BACKDROPS are not rendered — the room key drives an unported
+ *     map-load path (the 0x585ae0/0x586010 family, 14 consumers of +0x4024), so
+ *     the house lines currently play over the town-arrival backdrop.  The
+ *     errands questline (the separate dispatcher 0x4dc510) is a later arc.
  *
  * The line text + speaker names are STORY CONTENT in the user's sotes.exe — the
  * script table holds only their VAs; the strings are read at runtime via a
@@ -44,7 +56,13 @@
  * input ring for it each sim-tick and passes the hit to cutscene_step. */
 #define CUTSCENE_ADVANCE_RING_ID 0x24
 
-/* One scripted dialogue line — the args the script passes to FUN_0049d6e0
+/* The committed room keys (room_state+0x4024) the town-intro chain swaps through
+ * (0x4d7d80 switch cases; staged by 0x401d40, committed by 0x402030). */
+#define CUTSCENE_ROOM_ARRIVAL 0x334beu  /* the town-gate arrival (10 lines)        */
+#define CUTSCENE_ROOM_HOUSE   0x334c8u  /* the new-house interior (8 lines)        */
+#define CUTSCENE_ROOM_ERRANDS 0x334dcu  /* the errands room = the freeroam (gamepl.)*/
+
+/* One scripted dialogue line — the args the script passes to 0x49d6e0
  * (the dialogue-line setup): the speaker's dramatist NAME and the line TEXT by
  * exe VA, the portrait FACE id, and the VOICE clip id.  name_or_0 in the real
  * call is 0, so the name resolves from the speaker actor's +0x750 (= the
@@ -59,37 +77,62 @@ typedef struct cutscene_line {
 /* A resolver VA → string (main.c supplies exe_data_string; tests stub it). */
 typedef const char *(*cutscene_str_resolver)(uint32_t va);
 
+/* One ROOM in the town-intro chain: a committed room key (the 0x402030 +0x4024
+ * value) + its dialogue line table.  The sequencer plays the rooms in order,
+ * advancing to the next when the current room's lines complete (the port's
+ * model of the retail stage/commit/re-dispatch room swap). */
+typedef struct cutscene_room {
+    uint32_t             room_key;   /* committed +0x4024 key (CUTSCENE_ROOM_*)   */
+    const cutscene_line *script;     /* the room's line table                     */
+    int                  n_lines;
+} cutscene_room;
+
 typedef struct cutscene {
-    const cutscene_line  *script;    /* the line table (static; e.g. town arrival) */
-    int                   n_lines;
-    int                   line_idx;  /* current line (0-based)                     */
-    int                   active;    /* the sequence is running                    */
-    int                   complete;  /* all lines cleared (one-shot, set once)     */
+    const cutscene_room  *rooms;     /* the room chain (arrival → house → …)       */
+    int                   n_rooms;
+    int                   room_idx;  /* current room (0-based)                     */
+    int                   line_idx;  /* current line within the room (0-based)     */
+    int                   active;    /* the chain is running                       */
+    int                   complete;  /* the whole chain cleared (one-shot)         */
     cutscene_str_resolver resolve;
     dialogue_box         *box;       /* the box the caller owns + renders          */
 } cutscene;
 
 /* The town-gate family conversation (0x4d7d80 case 0x334be, flag 0x5f76805==0,
- * lines 33-292): 10 lines, Father/Arche/Mother.  Returns the static table and
- * its length via *n. */
+ * lines 33-292): 10 lines, Father/Arche/Mother.  Returns the line table + *n. */
 const cutscene_line *cutscene_town_arrival(int *n);
 
-/* Arm a cutscene: bind the script + resolver + box, reset to line 0, and arm
- * the box with line 0 (resolving its name/text VAs).  Safe no-op if any of
- * script/resolve/box is NULL or n <= 0. */
-void cutscene_arm(cutscene *cs, const cutscene_line *script, int n,
+/* The new-house interior conversation (0x4d7d80 case 0x334c8, flag==0, lines
+ * 1029-1218): 8 lines, Arche/Mother/Father.  Returns the line table + *n. */
+const cutscene_line *cutscene_town_house(int *n);
+
+/* The town-intro ROOM CHAIN: arrival (0x334be) → house (0x334c8).  The chain
+ * completes at the errands boundary (0x334dc).  Returns the room table + *n. */
+const cutscene_room *cutscene_town_chain(int *n_rooms);
+
+/* Arm a cutscene: bind the room chain + resolver + box, reset to room 0 / line
+ * 0, and arm the box with room-0 line-0 (resolving its name/text VAs).  Safe
+ * no-op if any of rooms/resolve/box is NULL or n_rooms <= 0 (or the first line
+ * does not resolve). */
+void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
                   cutscene_str_resolver resolve, dialogue_box *box);
 
 /* One sim-tick: step the box (pop-in / fade / typewriter), then — if the
  * advance input fired this tick AND the line is fully typed
- * (dialogue_awaiting_advance) — advance to the next line (re-arm the box) or,
- * past the last line, complete (deactivate the box, set complete=1).
+ * (dialogue_awaiting_advance) — advance to the next line; at a room's last line
+ * COMMIT the next room key (advance room_idx) and arm its line 0; past the last
+ * room, complete (deactivate the box, set complete=1).
  * `advance_pressed` = Z was consumed from the ring this tick (ring id 0x24).
- * Returns 1 on the tick the sequence COMPLETES (the caller fires the control
- * hand-off), else 0. */
+ * Returns 1 on the tick the chain COMPLETES (the caller fires the control
+ * hand-off at the errands boundary), else 0. */
 int cutscene_step(cutscene *cs, int advance_pressed);
 
 int cutscene_active(const cutscene *cs);
 int cutscene_complete(const cutscene *cs);
+
+/* The current committed room key (CUTSCENE_ROOM_*), or 0 if inactive/invalid —
+ * the caller reads it to drive the (deferred) room backdrop + to know when the
+ * chain has reached the errands boundary. */
+uint32_t cutscene_room_key(const cutscene *cs);
 
 #endif /* OPENSUMMONERS_CUTSCENE_H */

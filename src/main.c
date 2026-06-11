@@ -2564,23 +2564,27 @@ static void game_render(void *user)
                              g_game_camera_hold);
                 }
                 banner_step(&g_banner);
-                /* The town-arrival CUTSCENE (0x4d7d80 case 0x334be -> the
-                 * beat-runner 0x439690).  Armed at the measured trigger (the
-                 * same PORT-DEBT(dialogue-trigger) window as before, so LINE 1
-                 * stays bit-exact), then cutscene_step sequences the 10
-                 * family-conversation lines, advancing on Z.  The box widget
-                 * updates (pop-in / portrait fade / typewriter / arrow) run
-                 * once per sim-tick inside cutscene_step -> dialogue_step. */
+                /* The town-intro CUTSCENE CHAIN (0x4d7d80 -> the beat-runner
+                 * 0x439690).  Armed at the measured trigger (the same
+                 * PORT-DEBT(dialogue-trigger) window as before, so LINE 1 stays
+                 * bit-exact), then cutscene_step sequences the room chain
+                 * (arrival 0x334be 10 lines -> house 0x334c8 8 lines) advancing
+                 * on Z, modeling the 0x401d40/0x402030 room-key swap by walking
+                 * the rooms list.  Box widget updates (pop-in / portrait fade /
+                 * typewriter / arrow) run once per sim-tick inside cutscene_step
+                 * -> dialogue_step.  PORT-DEBT(cutscene-room-render): the house
+                 * backdrop is not loaded yet, so its lines play over the town
+                 * scene; the chain ends at the errands boundary (0x334dc). */
                 if (!g_cutscene_armed && g_game_camera_hold >= DIALOGUE_ARM_FRAMES) {
-                    int n = 0;
-                    const cutscene_line *script = cutscene_town_arrival(&n);
-                    cutscene_arm(&g_cutscene, script, n,
+                    int n_rooms = 0;
+                    const cutscene_room *chain = cutscene_town_chain(&n_rooms);
+                    cutscene_arm(&g_cutscene, chain, n_rooms,
                                  exe_data_string, &g_dialogue);
                     if (cutscene_active(&g_cutscene))
-                        log_line("enter_game: cutscene_arm town-arrival "
-                                 "(%d lines) @hold=%u", n, g_game_camera_hold);
+                        log_line("enter_game: cutscene_arm town-intro chain "
+                                 "(%d rooms) @hold=%u", n_rooms, g_game_camera_hold);
                     else
-                        log_line("enter_game: cutscene town-arrival line1 VA "
+                        log_line("enter_game: cutscene town-intro line1 VA "
                                  "unresolved — box stays disarmed");
                     g_cutscene_armed = 1;
                 }
@@ -2592,8 +2596,9 @@ static void game_render(void *user)
                                                    GetTickCount(),
                                                    CUTSCENE_ADVANCE_RING_ID);
                     if (cutscene_step(&g_cutscene, z_adv))
-                        log_line("game: town-arrival cutscene COMPLETE @hold=%u "
-                                 "(control hand-off -> PORT-DEBT cutscene-scene-chain)",
+                        log_line("game: town-intro cutscene chain COMPLETE @hold=%u "
+                                 "(reached errands boundary 0x334dc -> control "
+                                 "hand-off; PORT-DEBT cutscene-room-render/freeroam)",
                                  g_game_camera_hold);
                 }
             }
