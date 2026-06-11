@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 120) — PHASE-4 chip 3c: the LIVE WIRE — Arche is CONTROLLABLE ON SCREEN (the movement-system milestone)
+
+`character_step` got its FIRST live caller.  The chip-3a/b character mover (walk/run/jump/windup, all
+host-validated bit-exact) now drives Arche's rendered sprite live: held-axis input walks her around the
+settled town.  `src/main.c` wiring only (963 host pass, unchanged).  USER visual-verify pending — montages
+pushed to the feed (`runs/livewire/arche_walk_scene.png` + `arche_walk2_montage.png`).
+
+The wire mirrors the butterfly pattern.  Arche is the cutscene-cast EFFECT actor (code `0xc35a`, resolved
+by scanning `g_effects` after `actor_spawn_cutscene_cast` — slot 18, body bank 0x8b, world 41600/45600,
+facing 1, idle clip).  At a MEASURED control-transfer frame (`CHAR_CONTROL_ARM_FRAMES`=200 flips past
+game_enter; PORT-DEBT(char-control-trigger), since the port's dialogue does not yet drive the real
+`entity+0x200=1` hand-off), `game_actor_update` (already sim-tick-gated) `character_init`s `g_arche` from
+her settled render pos and each sim-tick runs `character_step(&g_arche, m->axis_held, m->axis_held[4],
+/*run=*/0)` (`m`=`g_game_drive.input`; `axis_held[0..3]` align with `CHAR_AXIS_*`, `[4]`=jump C), then
+mirrors `world_x/world_y/facing` into her render-state — exactly as `butterfly_step` mirrors into the
+EFFECT actors.  The port has no live in-game keyboard producer (WM_KEYDOWN is a no-op), so input is the
+`held_trace`/`input_trace` REPLAY — the same deterministic path walk/jump/dash were all validated on.
+
+Verified by capture (`runs/livewire`): drove the port to the settled town (nav `edit.trace.port.jsonl`,
+game_enter@1116; the scripted camera pans LEFT from cur_x 128000 to 12800, settling ~flip 2097 with Arche
+~45% across frame), then a held-LEFT-then-RIGHT trace — Arche walks left to Barnard (world ~27600) then
+back right, smooth accel/decel, no glitch.  KNOWN DEFERRED (render polish, NOT the mover): she SLIDES on
+the idle clip (no walk-cycle) and stays RIGHT-FACING when walking left — the render's `facing==3` mirror
+selects a pre-mirrored FRAME (`frame_base + flip_table[0x8b]`), and bank 0x8b has no mirror-frame
+registered; both are PORT-DEBT(cutscene-party-chars) (the multi-part party-band render).  The `facing`
+data is written correctly, so the animated render will mirror with no further wiring.  NEXT (USER's call):
+render polish (directional/walk frames + party band, retires cutscene-party-chars) / dialogue chip 4 (the
+real hand-off + live ring jump-dash) / collision wiring (real terrain).
+
+---
+
 ## 2026-06-11 (ckpt 119) — PHASE-4 chip 3b: the jump WINDUP is PORTED + bit-exact (the 4-tick launch-anticipation delay)
 
 Ported the jump WINDUP into `src/character.{c,h}` and validated it BIT-EXACT — no fresh capture needed,

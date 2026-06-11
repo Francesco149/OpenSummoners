@@ -36,9 +36,61 @@ understates how much actual instruction volume is ported.
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
   held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → jump/dash blocker resolved
   + jump arc captured ✓ → **JUMP ported + field-exact ✓** → **DASH (run) ported + field-exact ✓** →
-  live wire at the freeroam hand-off). Milestone map: `ROADMAP.md`; active arc:
+  **jump WINDUP ported + bit-exact ✓** → **LIVE WIRE: Arche walks on screen under control ✓**
+  (measured trigger; facing/anim deferred)). Milestone map: `ROADMAP.md`; active arc:
   `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 118): PHASE-4 chip 3b — Arche's DASH (run) is PORTED + FIELD-EXACT, validated
+- **LATEST (ckpt 120): PHASE-4 chip 3c — the LIVE WIRE: Arche is CONTROLLABLE ON SCREEN. `character_step`
+  gets its FIRST live caller; held-axis input drives Arche walking in the settled town. `src/main.c` only;
+  963 pass (unchanged). USER VISUAL-VERIFY PENDING (pushed to the feed).** The chip-3a/b walk physics
+  (host-validated bit-exact) now drive Arche's rendered sprite live — the movement-system MILESTONE.
+  1. **The wire (`game_actor_update`, mirroring the butterfly pattern).** Arche is the cutscene-cast
+     EFFECT actor (code `0xc35a`, slot 18, bank 0x8b); at a MEASURED control-transfer frame
+     (`CHAR_CONTROL_ARM_FRAMES`=200 post-game_enter, PORT-DEBT(char-control-trigger)) `character_step`
+     runs once/sim-tick off `g_game_drive.input.axis_held[0..3]` (held_trace-driven; aligns with
+     `CHAR_AXIS_*`) + `[4]` (jump C) and its `world_x/world_y/facing` mirror into her render-state.
+  2. **VERIFIED (the capture, `runs/livewire`).** Drove the port to the settled town (nav `edit.trace.port.jsonl`,
+     game_enter@1116; camera pans to cur_x 12800 by ~flip 2097), then a held-LEFT-then-RIGHT trace
+     (`walk2.jsonl`): Arche walks left to Barnard then back right, smooth accel/decel, no glitch.
+     Montages pushed to the feed.
+  3. **KNOWN DEFERRED (render polish, NOT the mover).** She SLIDES on the idle clip (no walk-cycle) and
+     stays RIGHT-FACING when walking left — `facing==3` selects `frame_base+flip_table[0x8b]` and bank
+     0x8b has no mirror-frame registered. Both are the **animated-render** debt PORT-DEBT(cutscene-party-chars)
+     (the multi-part party-band render `0x4997b0`). `run`=0 (no live double-tap → PORT-DEBT(char-run-trigger));
+     no live keyboard producer yet (WM_KEYDOWN no-op) — driven via held_trace replay (the capture path).
+  4. **NEXT (USER's call):** (a) the render polish — Arche's directional/walk-cycle frames + the party-band
+     render (retires cutscene-party-chars) so she faces + animates correctly; (b) dialogue chip 4 → the REAL
+     control hand-off (retires char-control-trigger) + the live ring jump/dash (retires char-run-trigger);
+     (c) wire the chip-2 collision mover for real terrain (retires char-collision-mover). **OPEN (USER):**
+     verify Arche-walks on the feed; butterfly chip-1 drift verify still pending. Debt:
+     PORT-DEBT(char-control-trigger / char-run-trigger / char-jump-fall-grav-source / char-walk-tuning /
+     char-collision-mover / char-input-autorepeat / cutscene-party-chars), PORT-DEBT(held-axis-array-b),
+     PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 119): PHASE-4 chip 3b — the jump WINDUP is PORTED + BIT-EXACT (the launch-anticipation
+  delay between the jump trigger and the impulse). `src/character.{c,h}` + `test_character.c`; 963 pass
+  (+1).** The jump execute enters the airborne state IMMEDIATELY but the body stays STATIONARY for
+  exactly **4 sim-ticks** (a visible launch crouch, ~8 flips) before the impulse fires — RE'd from the
+  `0x442a70:834-841` case-3 sub-state-0 branch (`counter++; if (4<counter) { vvel:=impulse; sub:=1 }`;
+  `0x426f50(body,3)` resets sub+counter on entry) and ground-truthed bit-exact off the EXISTING
+  `capjump-ring2` capture (NO fresh capture needed). Writeup: **engine-quirk #102** (the windup bullet).
+  1. **The ground truth (the `bstate` field reveals it).** `capjump-ring2`'s `bstate` reads `body+0x38`
+     = main | sub<<16; decoding it: flips **4602-4609 = (main 3, sub 0, vvel 0)** = the 4 stationary
+     windup ticks, flip **4610 = (main 3, sub 1, vvel −76000)** = the impulse. The earlier `jump_arc.py`
+     keyed on `vvel!=0`, so the windup was invisible to the arc extraction (but always in the data).
+  2. **The port (`character.c` + `test_character.c`).** Added `jump_sub`/`jump_ctr` (mirror `body+0x3a`/
+     `+0x3c`) + the windup branch: on the jump rising edge enter airborne sub-0; count up; on the tick
+     the counter exceeds `CHAR_JUMP_WINDUP_THRESH`=4 apply the impulse + advance to sub-1. New
+     `test_character_jump_windup` asserts the 4-tick count + the impulse tick bit-exact; the short-hop /
+     held-rise arc tests got the windup prefix and still pass bit-exact. The real sub-states 1/2/3
+     (transient/rise/fall anim bookkeeping) collapse to the port's vvel-sign branch; the main-state-4
+     landing recovery is subsumed by the flat ground clamp.
+  3. **NEXT (chip 3c — the milestone):** **The LIVE wire** — the chip-4 freeroam hand-off (dialogue
+     chip 4 → the `entity+0x200` control transfer) gives `character_step` its first live caller in
+     `game_actor_update` → Arche walks/jumps/dashes on screen + the chip-2 collision mover/probes get a
+     live grounded actor → USER visual-verify. The live wire also retires PORT-DEBT(char-run-trigger /
+     char-walk-tuning / char-collision-mover). **OPEN (USER):** butterfly chip-1 drift visual-verify
+     still pending. Debt: PORT-DEBT(char-run-trigger / char-jump-fall-grav-source / char-walk-tuning /
+     char-collision-mover / char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 118): PHASE-4 chip 3b — Arche's DASH (run) is PORTED + FIELD-EXACT, validated
   bit-exact vs a fresh RING-double-tap capture. `src/character.{c,h}` + `test_character.c`; 962 pass
   (+1).** The run is the captured two-phase delta on the walk (same `body+0x28` accumulator, same
   `0x445db0` clamp-ramp) — RE'd from the `0x442a70` case-0x75 run branch + the live const band, then

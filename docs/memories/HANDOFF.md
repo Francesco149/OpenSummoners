@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 119, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 120, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,60 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 119
+## Where we are — ckpt 120
+
+**PHASE-4 chip 3c — the LIVE WIRE: Arche is CONTROLLABLE ON SCREEN. `character_step` gets its FIRST
+live caller; held-axis input drives Arche walking in the settled town. 963 host pass (unchanged —
+`src/main.c` wiring only). USER VISUAL-VERIFY PENDING (montages pushed to the feed).**  The movement-
+system MILESTONE: the chip-3a/b walk physics (host-validated bit-exact across walk/run/jump/windup) now
+drive Arche's rendered sprite live.  Module: `src/main.c` (the include + the `g_arche`/`g_arche_slot`/
+`g_arche_armed` globals + `CHAR_CONTROL_ARM_FRAMES` + the `enter_game` slot-find + the
+`game_actor_update` step+mirror).  Capture artifacts (gitignored): `runs/livewire/` (`walk.jsonl`/
+`walk2.jsonl` traces, `arche_walk_scene.png`/`arche_walk2_montage.png`).
+
+**The wire (mirrors the butterfly pattern exactly).**  Arche is the cutscene-cast EFFECT actor (code
+`0xc35a`, found by scanning `g_effects` after `actor_spawn_cutscene_cast`; slot 18, body bank 0x8b,
+world 41600/45600, facing 1, idle clip).  At a MEASURED control-transfer frame (`CHAR_CONTROL_ARM_FRAMES`
+=200 flips post-game_enter; PORT-DEBT(char-control-trigger)) `game_actor_update` (already sim-tick-gated)
+`character_init`s `g_arche` from her settled render pos, then each sim-tick runs `character_step(&g_arche,
+m->axis_held, m->axis_held[4], /*run=*/0)` (`m`=`g_game_drive.input`; `axis_held[0..3]` align with
+`CHAR_AXIS_*`, `[4]`=jump C) and mirrors `world_x/world_y/facing` into her render-state — exactly how
+`butterfly_step`'s output mirrors into the EFFECT actors.
+
+**Input path (the verification is the REPLAY capture, the established model).**  The port has NO live
+in-game keyboard producer (WM_KEYDOWN is a no-op), so input comes via the `held_trace`/`input_trace`
+REPLAY — the same path walk/jump/dash were all validated on.  `held_trace_replay` fills `axis_held[0..3]`
+(walk); jump (`[4]`) needs a held_trace extension (deferred — the walk is the milestone).
+
+**VERIFIED (the capture, `runs/livewire`).**  Drove the port to the settled town (nav
+`runs/trace-studio/intro-1/edit.trace.port.jsonl`; game_enter@1116; the scripted camera pans LEFT from
+cur_x 128000 to **12800**, settling ~flip 2097 with Arche at ~45% across frame).  Held-LEFT-then-RIGHT
+(`walk2.jsonl`, frames 2110-2390, the clean window post-pan / pre-dialogue@2398): Arche walks left to
+Barnard (world ~27600) then back right, smooth accel/decel, NO position glitch.  Montages on the feed.
+
+**KNOWN DEFERRED (render polish, NOT the mover — the mover is bit-exact).**
+- She SLIDES on the IDLE clip (no walk-cycle animation) and stays RIGHT-FACING when walking left: the
+  render's `facing==3` mirror selects `frame_base + flip_table[bank]` (a pre-mirrored FRAME, not a blit
+  flip), and bank 0x8b has no mirror-frame registered (she spawned facing-right).  No position glitch
+  (the off_x reflection is benign).  Both = PORT-DEBT(cutscene-party-chars) (the multi-part party-band
+  render `0x4997b0` + her directional/walk frames).  The `facing` DATA is written correctly, so when the
+  animated render lands it mirrors with no further wiring.
+- `run`=0 (no live double-tap source under held-axis replay → PORT-DEBT(char-run-trigger)).
+
+**NEXT (the USER's call — three independent threads, all retire a debt):**
+1. **Render polish** — Arche's directional + walk-cycle frames + the party-band render `0x4997b0`
+   (retires cutscene-party-chars) → she faces + animates correctly while walking.  Highest visual payoff.
+2. **Dialogue chip 4** → the REAL control hand-off (`0x4d7d80`→`0x439690`→`entity+0x200=1`, retires
+   char-control-trigger) + the live ring jump/dash (`0x479e70`, retires char-run-trigger).
+3. **Collision** — wire the chip-2 `collision_move_vertical`/`0x54db10` for real terrain (retires
+   char-collision-mover) → Arche stops at walls / lands on slopes.
+
+**OPEN (USER):** verify Arche-walks on the feed (the milestone); butterfly chip-1 drift visual-verify
+still pending.  Debt: PORT-DEBT(char-control-trigger / char-run-trigger / char-jump-fall-grav-source /
+char-walk-tuning / char-collision-mover / char-input-autorepeat / cutscene-party-chars),
+PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 119
 
 **PHASE-4 chip 3b — the jump WINDUP is PORTED + BIT-EXACT (the launch-anticipation delay between the
 jump trigger and the impulse). 963 host pass (+1).**  The jump execute enters the airborne state
