@@ -201,6 +201,11 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
    (dialogue chip 4, `plans/dialogue-cutscene.md`) → the control hand-off → a NEW trace-studio
    session (the USER's "house freeroam" directive). The port reaches the dialogue but not yet the
    hand-off; the retail ground truth is now HAD.
+   - **ckpt 120: the mover is DONE (bit-exact walk/run/jump/windup) + an MVP live wire prototyped the
+     seams (`character_step` drives Arche's sprite via a measured trigger + held_trace replay).** The
+     USER SET THE MVP ASIDE (don't build the animation system on it). NEXT = the **FAITHFUL** controllable
+     Arche: real freeroam scene + LIVE input + animation on the party band —
+     **`plans/controllable-arche-faithful.md`**.
 
 ## Validation (per chip)
 Seed-pinned + lockstep field-spec capture of the entity's per-tick fields (a

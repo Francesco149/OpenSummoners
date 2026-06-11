@@ -46,18 +46,26 @@ Barnard (world ~27600) then back right, smooth accel/decel, NO position glitch. 
   animated render lands it mirrors with no further wiring.
 - `run`=0 (no live double-tap source under held-axis replay → PORT-DEBT(char-run-trigger)).
 
-**NEXT (the USER's call — three independent threads, all retire a debt):**
-1. **Render polish** — Arche's directional + walk-cycle frames + the party-band render `0x4997b0`
-   (retires cutscene-party-chars) → she faces + animates correctly while walking.  Highest visual payoff.
-2. **Dialogue chip 4** → the REAL control hand-off (`0x4d7d80`→`0x439690`→`entity+0x200=1`, retires
-   char-control-trigger) + the live ring jump/dash (`0x479e70`, retires char-run-trigger).
-3. **Collision** — wire the chip-2 `collision_move_vertical`/`0x54db10` for real terrain (retires
-   char-collision-mover) → Arche stops at walls / lands on slopes.
+**NEXT — the USER has SET ASIDE this MVP (ckpt-120 directive 2026-06-11): go FAITHFUL next session.**
+The MVP wire proved the seams (the actor/input/render path works end-to-end) but is a throwaway scaffold
+— measured trigger + replay-only input + static render.  The USER's call: *don't build the animation
+system on the MVP (annoying to un-MVP); go straight to the actual scene where Arche is genuinely
+controllable, plus faithful LIVE input so movement is meaningfully testable in the port.*  Full plan:
+**`docs/plans/controllable-arche-faithful.md`**.  Three phases (the mover itself is DONE — bit-exact):
+1. **Faithful LIVE input** (the USER's emphasis) — port the held-axis producer `0x46a880` + the ring
+   producer so REAL keyboard fills `input_mgr.axis_held`/the ring (the port has no live keyboard — WM_KEYDOWN
+   is a no-op), alongside the deterministic replay (which stays the parity path).  Most self-contained.
+2. **The REAL control hand-off** — dialogue chip 4 (`0x4d7d80`→`0x439690` beat-runner + the ~15-line
+   script) → the `entity+0x200=1` transfer (`0x41e070`/`0x4c6830`) → `character_step` wired at the REAL
+   transition, REPLACING the `CHAR_CONTROL_ARM_FRAMES` MVP scaffold + the dash trigger `0x479e70`.
+3. **The animation system** — on the faithful party-band render `0x4997b0` (Arche's directional/walk-cycle
+   frames + the facing mirror), NOT the MVP static slot.  Retires cutscene-party-chars.
 
-**OPEN (USER):** verify Arche-walks on the feed (the milestone); butterfly chip-1 drift visual-verify
-still pending.  Debt: PORT-DEBT(char-control-trigger / char-run-trigger / char-jump-fall-grav-source /
-char-walk-tuning / char-collision-mover / char-input-autorepeat / cutscene-party-chars),
-PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+**OPEN (USER):** the ckpt-120 MVP commit stays in history as the seam-proving prototype — REVERTABLE for a
+clean slate if the USER wants (Phase 2 supersedes it regardless; ask before reverting).  Butterfly chip-1
+drift visual-verify still pending.  Debt: PORT-DEBT(char-control-trigger / char-run-trigger /
+char-jump-fall-grav-source / char-walk-tuning / char-collision-mover / char-input-autorepeat /
+cutscene-party-chars), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
 
 ## Where we were — ckpt 119
 

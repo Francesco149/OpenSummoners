@@ -31,14 +31,19 @@
      0x8b has no mirror-frame registered. Both are the **animated-render** debt PORT-DEBT(cutscene-party-chars)
      (the multi-part party-band render `0x4997b0`). `run`=0 (no live double-tap → PORT-DEBT(char-run-trigger));
      no live keyboard producer yet (WM_KEYDOWN no-op) — driven via held_trace replay (the capture path).
-  4. **NEXT (USER's call):** (a) the render polish — Arche's directional/walk-cycle frames + the party-band
-     render (retires cutscene-party-chars) so she faces + animates correctly; (b) dialogue chip 4 → the REAL
-     control hand-off (retires char-control-trigger) + the live ring jump/dash (retires char-run-trigger);
-     (c) wire the chip-2 collision mover for real terrain (retires char-collision-mover). **OPEN (USER):**
-     verify Arche-walks on the feed; butterfly chip-1 drift verify still pending. Debt:
-     PORT-DEBT(char-control-trigger / char-run-trigger / char-jump-fall-grav-source / char-walk-tuning /
-     char-collision-mover / char-input-autorepeat / cutscene-party-chars), PORT-DEBT(held-axis-array-b),
-     PORT-DEBT(effect-color-variant).
+  4. **NEXT — the USER has SET ASIDE this MVP (ckpt-120 directive): go FAITHFUL.** The MVP wire proved the
+     seams but is a throwaway scaffold (measured trigger + replay-only input + static render); building the
+     animation system on it would be annoying to un-MVP. Instead, next session: **the FAITHFUL controllable
+     Arche** — the real freeroam scene + LIVE input handling — per the new plan
+     **`docs/plans/controllable-arche-faithful.md`**: (1) faithful LIVE input (port the `0x46a880` producer +
+     ring → real keyboard fills `axis_held`/ring, alongside the replay) so movement is testable live; (2) the
+     REAL control hand-off (dialogue chip 4 → `entity+0x200=1`) — REPLACES the MVP trigger; (3) the animation
+     system on the faithful party-band render (retires cutscene-party-chars). The mover itself is DONE
+     (bit-exact). **OPEN (USER):** the MVP commit (ckpt 120) stays in history as the seam-proving prototype —
+     revertable for a clean slate if wanted; Phase 2 supersedes it regardless. Butterfly chip-1 drift verify
+     still pending. Debt: PORT-DEBT(char-control-trigger / char-run-trigger / char-jump-fall-grav-source /
+     char-walk-tuning / char-collision-mover / char-input-autorepeat / cutscene-party-chars),
+     PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
 - **Prior (ckpt 119): PHASE-4 chip 3b — the jump WINDUP is PORTED + BIT-EXACT (the launch-anticipation
   delay between the jump trigger and the impulse). `src/character.{c,h}` + `test_character.c`; 963 pass
   (+1).** The jump execute enters the airborne state IMMEDIATELY but the body stays STATIONARY for
