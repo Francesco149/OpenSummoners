@@ -223,10 +223,20 @@ int test_character_jump_arc(void)
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, 0);                                  /* no walk -> pure vertical */
 
-    /* The capture is a ring TAP: press on the launch edge, then RELEASED the whole
-     * rise (cmd[2]==0) -> the FREE rise grav (8000).  jump_held=1 only on tick 0. */
+    /* The 4-tick launch WINDUP (case 3 sub 0): airborne immediately on the trigger but
+     * stationary until the impulse fires.  The capture is a ring TAP (cmd[2]=7 a one-tick
+     * event), so the button is pressed only on the edge -> cmd[2]==0 the whole rise ->
+     * the FREE rise grav (8000). */
+    for (int w = 0; w < CHAR_JUMP_WINDUP_THRESH; w++) {
+        character_step(&c, axis, /*jump_held=*/(w == 0) ? 1 : 0, /*run=*/0);
+        T_ASSERT_EQ_I(c.airborne, 1);                   /* airborne at once */
+        T_ASSERT_EQ_I(c.vvel, 0);                       /* but stationary (windup) */
+        T_ASSERT_EQ_I(c.world_y, 52000);
+    }
+
+    /* The launch (the 5th tick) + the arc, button released the whole rise. */
     for (int i = 0; i < N; i++) {
-        character_step(&c, axis, /*jump_held=*/(i == 0) ? 1 : 0, /*run=*/0);
+        character_step(&c, axis, /*jump_held=*/0, /*run=*/0);
         T_ASSERT_EQ_I(c.vvel, VVEL[i]);                 /* field-exact vs retail */
         T_ASSERT_EQ_I(c.world_y, WY[i]);
     }
@@ -234,6 +244,52 @@ int test_character_jump_arc(void)
     T_ASSERT_EQ_I(c.airborne, 0);
     T_ASSERT_EQ_I(c.world_y, 52000);
     T_ASSERT_EQ_I(c.vvel, 0);
+    return 0;
+}
+
+/* The jump WINDUP (Phase-4 chip 3b, ckpt 119): the launch-anticipation delay between
+ * the jump trigger and the impulse (0x442a70 case 3 sub-state 0, counter > 4).  GROUND-
+ * TRUTHED bit-exact from the bstate (body+0x38 = main | sub<<16) field of the ring-
+ * injected capture (runs/runjump-gt/capjump-ring2): on the trigger the body enters the
+ * airborne state immediately but stays STATIONARY (vvel 0, wy 52000) for exactly 4 sim-
+ * ticks (capture flips 4602-4609 = main 3 / sub 0), then the impulse fires on the 5th
+ * tick (flip 4610 = main 3 / sub 1 / vvel -76000). */
+int test_character_jump_windup(void)
+{
+    character c;
+    character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT];
+    axis_set(axis, 0);
+
+    /* The trigger tick: the rising edge enters the airborne state THIS tick (sub 0,
+     * counter incremented to 1) but the impulse has NOT fired — the body is stationary. */
+    int32_t dwx = character_step(&c, axis, /*jump_held=*/1, /*run=*/0);
+    T_ASSERT_EQ_I(dwx, 0);
+    T_ASSERT_EQ_I(c.airborne, 1);          /* airborne immediately */
+    T_ASSERT_EQ_I(c.jump_sub, 0);          /* sub-state 0 = windup */
+    T_ASSERT_EQ_I(c.jump_ctr, 1);          /* counter incremented on the entry tick */
+    T_ASSERT_EQ_I(c.vvel, 0);              /* no impulse yet */
+    T_ASSERT_EQ_I(c.world_y, 52000);       /* stationary */
+
+    /* 3 more stationary windup ticks (counter 2,3,4 — button released, the windup is
+     * button-independent: it always completes). */
+    for (int w = 2; w <= CHAR_JUMP_WINDUP_THRESH; w++) {
+        character_step(&c, axis, /*jump_held=*/0, /*run=*/0);
+        T_ASSERT_EQ_I(c.airborne, 1);
+        T_ASSERT_EQ_I(c.jump_sub, 0);
+        T_ASSERT_EQ_I(c.jump_ctr, w);
+        T_ASSERT_EQ_I(c.vvel, 0);
+        T_ASSERT_EQ_I(c.world_y, 52000);
+    }
+
+    /* The 5th tick: the counter exceeds 4 -> the impulse fires, sub-state advances to 1,
+     * worldY takes its first step (-800), vvel reads -76000 (impulse + one fall grav).
+     * Matches the capture's flip 4610 exactly. */
+    character_step(&c, axis, /*jump_held=*/0, /*run=*/0);
+    T_ASSERT_EQ_I(c.jump_sub, 1);          /* launched */
+    T_ASSERT_EQ_I(c.jump_ctr, 0);          /* counter reset on launch */
+    T_ASSERT_EQ_I(c.vvel, -76000);         /* the launch impulse */
+    T_ASSERT_EQ_I(c.world_y, 51200);
     return 0;
 }
 
@@ -275,11 +331,18 @@ int test_character_jump_edge_and_ground(void)
     T_ASSERT_EQ_I(c.world_y, 52000);
     T_ASSERT(52000 - apex > 4800);                   /* higher than the short hop */
 
-    /* Releasing and re-pressing arms a second jump (a fresh rising edge). */
+    /* Releasing and re-pressing arms a second jump (a fresh rising edge -> a fresh
+     * windup -> the same launch impulse). */
     character_step(&c, axis, 0, 0);                     /* release */
     T_ASSERT_EQ_I(c.airborne, 0);
-    character_step(&c, axis, 1, 0);                     /* re-press -> new edge */
+    character_step(&c, axis, 1, 0);                     /* re-press -> new edge, windup begins */
     T_ASSERT_EQ_I(c.airborne, 1);
+    T_ASSERT_EQ_I(c.vvel, 0);                           /* windup: no impulse yet */
+    for (int w = 1; w < CHAR_JUMP_WINDUP_THRESH; w++) { /* the rest of the 4-tick windup */
+        character_step(&c, axis, 1, 0);
+        T_ASSERT_EQ_I(c.vvel, 0);
+    }
+    character_step(&c, axis, 1, 0);                     /* the 5th tick -> launch */
     T_ASSERT_EQ_I(c.vvel, -76000);                   /* same launch impulse */
     return 0;
 }
@@ -306,6 +369,13 @@ int test_character_jump_held_rise(void)
     character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, 0);
+
+    /* The 4-tick WINDUP, button HELD (the windup is button-independent — stationary). */
+    for (int w = 0; w < CHAR_JUMP_WINDUP_THRESH; w++) {
+        character_step(&c, axis, /*jump_held=*/1, /*run=*/0);
+        T_ASSERT_EQ_I(c.vvel, 0);
+        T_ASSERT_EQ_I(c.world_y, 52000);
+    }
 
     /* HOLD the jump every tick -> cmd[2]=8 -> the 2000 rise grav (the high jump). */
     for (int i = 0; i < N; i++) {

@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 118, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 119, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,52 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 118
+## Where we are — ckpt 119
+
+**PHASE-4 chip 3b — the jump WINDUP is PORTED + BIT-EXACT (the launch-anticipation delay between the
+jump trigger and the impulse). 963 host pass (+1).**  The jump execute enters the airborne state
+IMMEDIATELY but the body stays STATIONARY for exactly **4 sim-ticks** (a visible launch crouch, ~8
+flips) before the impulse fires.  RE'd from the `0x442a70:834-841` case-3 sub-state-0 branch and
+ground-truthed bit-exact off the EXISTING `capjump-ring2` capture (no fresh capture needed).  Modules:
+`src/character.{c,h}` (+ `jump_sub`/`jump_ctr` + the windup branch), `tests/test_character.c`
+(+`character_jump_windup`; the arc/held-rise tests got the windup prefix), `tests/test_main.c`.
+Writeup: **engine-quirk #102** (the windup bullet).
+
+**The windup LAW (`0x442a70` case 3 sub-state 0, the decompile-decisive branch):**
+- the execute (`cmd[2]==7` → `0x426f50(body,3)`) sets `body+0x38`=3 (main), `+0x3a`=0 (sub), `+0x3c`=0
+  (counter) — a 3-write setter, so the windup count is independent of prior state.
+- case 3 sub 0: `counter = counter + 1; if (4 < counter) { vvel := in_ECX[0x5667]; sub := 1; counter := 0 }`.
+  So counter 0→1 on the entry tick, 1→2, 2→3, 3→4 (all stationary, `vvel`=0), then 4→5 (`4<5`) → impulse.
+  **4 stationary windup ticks, launch on the 5th.**
+
+**The ground truth (the `bstate` field already had it).**  `capjump-ring2`'s `bstate` reads `body+0x38`
+as u32 = main | sub<<16.  Decoding the first jump: flips **4602-4609 = (main 3, sub 0, vvel 0)** = the 4
+windup ticks (8 flips = 4 sim-ticks, body updates every 2 flips), flip **4610 = (main 3, sub 1, vvel
+−76000)** = the impulse.  The earlier `jump_arc.py` keyed on `vvel!=0`, so the windup was invisible to
+the arc extraction — but it was always in the capture.
+
+**The port (`character.c`).**  Added `jump_sub`/`jump_ctr` (mirror `body+0x3a`/`+0x3c`) + the windup
+branch (`CHAR_JUMP_WINDUP_THRESH`=4): the jump rising edge enters airborne sub-0 with a fresh counter;
+the windup block runs THIS tick (the entry tick is windup tick 1); on the tick the counter exceeds 4
+the impulse fires (+ one fall-grav step → −76000) and sub advances to 1.  The real sub-states 1/2/3
+(transient/rise/fall anim bookkeeping) collapse to the port's existing vvel-sign branch; the main-state-4
+landing recovery is subsumed by the flat ground clamp.  `test_character_jump_windup` asserts the entry
+tick (airborne, sub 0, ctr 1, vvel 0, stationary), the 3 more windup ticks (ctr 2,3,4), and the launch
+tick (sub 1, ctr 0, vvel −76000, wy 51200) bit-exact vs the capture.
+
+**NEXT (chip 3c — the milestone):**
+1. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the `entity+0x200` control
+   transfer) gives `character_step` its first live caller in `game_actor_update` → Arche walks/jumps/
+   dashes on screen, the chip-2 collision mover/probes get a live grounded actor → USER visual-verify
+   (the milestone).  The live wire also retires PORT-DEBT(char-run-trigger) (real `0x479e70` ring access)
+   + char-walk-tuning (read `in_ECX[…]` off the live entity) + char-collision-mover (the real terrain
+   surface + the held-jump ceiling).
+
+**OPEN (USER):** butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).
+Debt: PORT-DEBT(char-run-trigger / char-jump-fall-grav-source / char-walk-tuning / char-collision-mover
+/ char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 118
 
 **PHASE-4 chip 3b — Arche's DASH (run) is PORTED + FIELD-EXACT, validated BIT-EXACT against a fresh
 ring-double-tap capture. 962 host pass (+1).**  The run is a small, fully-understood delta on the walk

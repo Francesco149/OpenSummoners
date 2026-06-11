@@ -3378,7 +3378,20 @@ for the movement arc, each item to be captured + ported + bit-exact-verified in 
     descending (`vvel = min(vvel+4000, 64000)`). Ported as `CHAR_JUMP_FALL_TERMINAL` (the short hop is
     unaffected — it reaches exactly 64000 at the landing tick). Source un-located, like the fall grav
     (64000 = 16·4000) → PORT-DEBT(char-jump-fall-grav-source).
-  - the windup is ~7 flips (execute@4603 → launch@4610, both captures); collapsed to an instant launch.
+- **The jump WINDUP is RE'd + PORTED bit-exact (ckpt 119, `0x442a70:834-841` = case 3 sub-state 0).**
+  The execute (`cmd[2]==7` → `0x426f50(body,3)` sets `body+0x38`=3 main / `+0x3a`=0 sub / `+0x3c`=0
+  counter) enters the airborne state IMMEDIATELY but the body stays STATIONARY (`vvel`=0) while the
+  counter increments once per tick; the IMPULSE fires on the tick the counter exceeds 4 (the 5th),
+  advancing to sub-state 1. So there are **exactly 4 stationary windup ticks** (a launch-anticipation
+  crouch, ~8 flips) between trigger and launch. GROUND-TRUTHED from the `bstate` (`body+0x38` = main |
+  sub<<16) field of `capjump-ring2`: flips **4602-4609 = (main 3, sub 0, vvel 0)** = the 4 windup ticks,
+  flip **4610 = (main 3, sub 1, vvel −76000)** = the impulse (no fresh capture — the existing capture's
+  `bstate` reveals it; `jump_arc.py` had keyed on `vvel!=0` so it was invisible to the arc extraction).
+  `0x426f50` resets sub+counter to 0 on entry (a 3-write setter), so the windup count is independent of
+  prior state. Ported: `character.c` adds `jump_sub`/`jump_ctr` (mirror `body+0x3a`/`+0x3c`) + the windup
+  branch; `CHAR_JUMP_WINDUP_THRESH`=4; `test_character_jump_windup` asserts the 4-tick count + the impulse
+  tick bit-exact. The real sub-states 1/2/3 (transient/rise/fall anim bookkeeping) collapse to the port's
+  vvel-sign branch; the main-state-4 landing recovery is subsumed by the flat ground clamp.
 - **Dash (run, cmd`[0]`=5/6) is ALSO ring-sourced** (the same harness gap): `0x479e70` matches a
   direction DOUBLE-TAP in the ring (action-id 2=LEFT / 4=RIGHT within `*0x8a6e80+0xf8`), so the
   held-axis injection (which only sets the held array) can never trigger it. To ground-truth the

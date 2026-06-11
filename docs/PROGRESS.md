@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 119) — PHASE-4 chip 3b: the jump WINDUP is PORTED + bit-exact (the 4-tick launch-anticipation delay)
+
+Ported the jump WINDUP into `src/character.{c,h}` and validated it BIT-EXACT — no fresh capture needed,
+the EXISTING `runs/runjump-gt/capjump-ring2` already had the ground truth in its `bstate` field.  963
+host pass (+1: `character_jump_windup`).  The jump execute enters the airborne state IMMEDIATELY but the
+body stays STATIONARY for exactly **4 sim-ticks** (a visible launch crouch, ~8 flips) before the impulse
+fires — the launch lag that the earlier arc port collapsed to an instant launch.
+
+The law is decompile-decisive (`0x442a70:834-841`, case 3 sub-state 0): the execute `cmd[2]==7` calls
+`0x426f50(body,3)` which sets `body+0x38`=3 (main state), `+0x3a`=0 (sub), `+0x3c`=0 (counter) — a 3-write
+setter, so the count is independent of prior state.  Then case 3 sub 0 runs `counter++; if (4 < counter)
+{ vvel := in_ECX[0x5667]; sub := 1; counter := 0 }`: counter 0→1 on the entry tick, 1→2, 2→3, 3→4 (all
+stationary, vvel 0), then 4→5 (`4<5`) → impulse.  Four stationary windup ticks, launch on the fifth.
+
+The ground truth: `capjump-ring2`'s `bstate` reads `body+0x38` as u32 = main | sub<<16.  Decoding the
+first jump's raw flips: **4602-4609 = (main 3, sub 0, vvel 0)** = the 4 windup ticks (8 flips = 4 sim-
+ticks; the body updates every 2 flips), then **4610 = (main 3, sub 1, vvel −76000)** = the impulse.  The
+earlier `jump_arc.py` keyed on `vvel!=0`, so the windup was invisible to the arc extraction but was always
+in the data.  The port added `jump_sub`/`jump_ctr` (mirror `body+0x3a`/`+0x3c`) + the windup branch
+(`CHAR_JUMP_WINDUP_THRESH`=4); the real sub-states 1/2/3 (transient/rise/fall anim bookkeeping) collapse
+to the port's vvel-sign branch and the main-state-4 landing recovery is subsumed by the flat ground clamp.
+`test_character_jump_windup` asserts the entry/windup/launch ticks bit-exact; the short-hop and held-rise
+arc tests got the windup prefix and still pass.  This retires the windup half of
+PORT-DEBT(char-jump-variable-height) (the remaining half = the town-ceiling apex clamp = char-collision-mover).
+Writeup: engine-quirk #102 (the windup bullet).  NEXT: the LIVE wire (chip 3c, the milestone — `character_step`'s
+first live caller at the freeroam hand-off → USER visual-verify).
+
+---
+
 ## 2026-06-11 (ckpt 118) — PHASE-4 chip 3b: Arche's DASH (run) is PORTED + field-exact, validated bit-exact vs a fresh ring-double-tap capture
 
 Ported the RUN (dash) into `src/character.{c,h}` and validated it BIT-EXACT against retail's per-tick

@@ -135,6 +135,19 @@ enum {
  * short hop (it reaches exactly 64000 at the landing tick, so the clamp is a no-op). */
 #define CHAR_JUMP_FALL_TERMINAL    64000
 
+/* ── The jump WINDUP (0x442a70 case 3 sub-state 0, decompile :834-841; chip 3b,
+ * ckpt 119) ──  The jump EXECUTE (cmd[2]==7 -> 0x426f50(body,3) sets body+0x38=3
+ * main state, +0x3a=0 sub-state, +0x3c=0 counter) enters the airborne state IMMEDIATELY
+ * but the body stays STATIONARY (vvel 0) while a counter increments once per tick; the
+ * IMPULSE fires on the tick the counter exceeds 4 (the 5th tick in sub-0), advancing to
+ * sub-state 1.  So there are 4 stationary windup ticks — a visible launch-anticipation
+ * (crouch) ~8 flips long — between the trigger and the launch.  GROUND-TRUTHED bit-exact
+ * from the bstate (body+0x38 = main | sub<<16) field of the ring-injected capture
+ * (runs/runjump-gt/capjump-ring2): flips 4602-4609 read (main 3, sub 0, vvel 0) = the 4
+ * windup ticks, flip 4610 reads (main 3, sub 1, vvel -76000) = the impulse.  Invisible
+ * to the earlier arc extraction (jump_arc.py keys on vvel!=0) but visible live. */
+#define CHAR_JUMP_WINDUP_THRESH  4   /* impulse fires when the counter exceeds this (5th tick) */
+
 /* The press->latch warmup (PORT-DEBT(char-input-autorepeat)).  A fresh direction
  * press must persist this many ticks before the walk command latches; the capture
  * shows motion start 2 idle ticks after the press, so the third held tick latches
@@ -159,6 +172,8 @@ typedef struct {
     int16_t held_dir;  /* last tick's commanded direction (re-arms warm on change)*/
     int16_t airborne;  /* body+0x38==3 — in the airborne (jump) state            */
     int16_t jump_held; /* last tick's jump button (for the launch rising edge)   */
+    int16_t jump_sub;  /* body+0x3a — airborne sub-state: 0 = windup, 1 = launched*/
+    int16_t jump_ctr;  /* body+0x3c — the windup tick counter (case 3 sub 0)     */
 } character;
 
 /* Initialise a character at a spawn world position + facing (1 right / 3 left), at
@@ -175,7 +190,9 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
  * the horizontal velocity ramp (walk OR run cap/accel) + worldX commit + facing flip
  * (0x442a70 case 0x75) AND the vertical jump integrator (case 3 airborne).  Returns the
  * worldX delta applied this tick (dwx = vel/100); the jump arc is read from world_y/vvel.
- * The jump triggers on the rising edge of `jump_held` while grounded. */
+ * The jump triggers on the rising edge of `jump_held` while grounded: the body enters the
+ * airborne state at once but stays stationary for a 4-tick WINDUP (CHAR_JUMP_WINDUP_THRESH)
+ * before the launch impulse fires (case 3 sub-state 0). */
 int32_t character_step(character *c, const int *axis_held, int jump_held, int run);
 
 #endif /* OSS_CHARACTER_H */
