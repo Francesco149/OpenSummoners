@@ -82,7 +82,6 @@
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
-#include "character.h"        /* the controllable-character mover (Arche; chip 3c live wire) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
@@ -227,21 +226,6 @@ static int              g_effects_loaded;
  * shared LCG stream stays aligned with retail (the fountain/sky positions read it
  * downstream). */
 static butterfly_pool   g_butterflies;
-
-/* ── Arche, the controllable party LEADER (Phase-4 chip 3c, the LIVE WIRE) ──
- * The chip-3a/b character mover (src/character.{c,h}) gets its FIRST live caller.
- * In retail the freeroam hand-off flips a per-actor control flag (entity+0x200=1)
- * at the dialogue's "PLAYER!" prompt; the port reaches the dialogue but not yet
- * that hand-off (dialogue chip 4 is unported), so the control transfer is armed at
- * a MEASURED frame (PORT-DEBT(char-control-trigger), like the banner/dialogue
- * triggers).  Once armed, character_step runs once per sim-tick off the held-axis
- * input (g_game_drive.input, held_trace-driven) and its world_x/world_y/facing are
- * mirrored into Arche's rendered EFFECT actor (the cutscene-cast slot, code 0xc35a)
- * — exactly how butterfly_step mirrors into the EFFECT render-state.  The walk-cycle
- * animation cel (vs the held idle clip) is PORT-DEBT(char-walk-anim). */
-static character        g_arche;
-static int              g_arche_slot = -1;  /* her g_effects slot (code 0xc35a), or -1 */
-static int              g_arche_armed;      /* one-shot control-transfer latch, reset per enter_game */
 
 /* The town's IRREGULAR per-tick RNG timers (engine-quirk #95) — the two 0x5531b0
  * ambient SOUND emitters (0x1136f/0x11370), the wagon 0x1872d's idle-wander, and
@@ -397,16 +381,6 @@ static int            g_dialogue_armed;  /* one-shot arm latch, reset per enter_
  * beat sequence (0x4d7d80 case 0x334be -> 0x439690), the same unported
  * driver as the banner/camera-pan triggers. */
 #define DIALOGUE_ARM_FRAMES 1282u
-
-/* The control transfer that makes Arche controllable (Phase-4 chip 3c, the live
- * wire).  In retail control transfers at the dialogue's "PLAYER!" prompt (~game_enter
- * +3067 flips, ckpt 112), AFTER the ~15-line town script — which the port's dialogue
- * (line 1 only) does not yet drive.  So this is a MEASURED frame in the settled town,
- * after the camera pan settles and BEFORE the dialogue arms (1282), giving a clean
- * window to demonstrate + capture the controllable mover.  PORT-DEBT(char-control-
- * trigger): the real source is the same town-script beat sequence (0x4d7d80 ->
- * 0x439690 -> the entity+0x200=1 control flag) as the banner/dialogue triggers. */
-#define CHAR_CONTROL_ARM_FRAMES 200u
 
 /* Flips the camera holds at the spawn origin before the scripted pan begins.
  * TICK-AXIS calibrated on trace-studio intro-1: retail's camera first moves at
@@ -2502,40 +2476,6 @@ static void game_actor_update(void)
      *     bit-exact across the whole settled-town window (engine-quirk #95) — this
      *     retires the RNG residual of PORT-DEBT(fountain-rng-phase). */
     ambient_character_step(&g_ambient);
-
-    /* ── Arche, the controllable party leader (chip 3c — the LIVE WIRE) ─────────
-     * character_step's FIRST live caller.  In retail the freeroam hand-off
-     * (0x46cd70 pass 1 dispatch on entity+0x200) routes Arche to the char AI
-     * 0x478ba0 + the apply 0x442a70; here character_step is the open-air reduction
-     * of both, run once per sim-tick (we are already inside the sim-tick gate) off
-     * the held-axis input the held_trace replay fills.  Armed at the measured
-     * control-transfer frame; init from Arche's settled cutscene position. */
-    if (g_arche_slot >= 0 && g_arche_slot < g_effects.count) {
-        actor_render_state *rs = &g_effects.states[g_arche_slot];
-        if (!g_arche_armed && g_game_camera_hold >= CHAR_CONTROL_ARM_FRAMES) {
-            character_init(&g_arche, rs->world_x, rs->world_y,
-                           rs->facing == CHAR_FACE_LEFT ? CHAR_FACE_LEFT
-                                                        : CHAR_FACE_RIGHT);
-            g_arche_armed = 1;
-            log_line("game: arche control transfer @hold=%u (world %d,%d facing %d)",
-                     g_game_camera_hold, g_arche.world_x, g_arche.world_y,
-                     (int)g_arche.facing);
-        }
-        if (g_arche_armed) {
-            input_mgr *m = &g_game_drive.input;
-            /* axis_held[0..3] = UP/DOWN/LEFT/RIGHT (aligns with CHAR_AXIS_*); [4] =
-             * the jump button C (producer slot +0x124).  run (the dash double-tap) is
-             * the AI's 0x479e70 ring detection, deferred to the input layer ->
-             * PORT-DEBT(char-run-trigger) (run = 0 here).  Mirror the mover's world
-             * pos + facing into Arche's render-state (as butterfly_step does for the
-             * EFFECT actors); the walk-cycle cel vs the idle clip is
-             * PORT-DEBT(char-walk-anim). */
-            character_step(&g_arche, m->axis_held, m->axis_held[4], /*run=*/0);
-            rs->world_x = g_arche.world_x;
-            rs->world_y = g_arche.world_y;
-            rs->facing  = g_arche.facing;
-        }
-    }
 }
 
 static void game_render(void *user)
@@ -2822,16 +2762,7 @@ static void enter_game(void)
             log_line("enter_game: actor_spawn_cutscene_cast -> %d arrival family "
                      "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5 / Arche 0x8b)",
                      cn);
-            /* Find Arche's render slot (the party leader, code 0xc35a) so the chip-3c
-             * live wire can mirror character_step's motion into her sprite.  She is the
-             * last cutscene member appended; resolve by code to stay robust. */
-            g_arche_slot = -1;
-            for (int i = g_effects.count - 1; i >= 0; i--) {
-                if (g_effects.actors[i].code == 0xc35au) { g_arche_slot = i; break; }
-            }
-            log_line("enter_game: arche control slot = %d (code 0xc35a)", g_arche_slot);
         }
-        g_arche_armed = 0;   /* re-arm the control transfer on (re-)entry */
 
         /* Arm the establishing REVEAL fade-grid (0x439690:555-583).  Town params
          * (live: runs/reveal-grid): mode 1 (fade-out), speed 1000; the iris VARIANT
