@@ -65,7 +65,8 @@ int dialogue_expand_text(const char *src,
 void dialogue_arm(dialogue_box *d, const char *name, const char *text)
 {
     memset(d, 0, sizeof(*d));
-    d->active    = 1;
+    d->active        = 1;
+    d->portrait_slot = -1;   /* none until the caller resolves one (portrait.c) */
     d->row_count = dialogue_expand_text(text, d->rows);
     for (int i = 0; i < d->row_count; i++)
         d->total += (int32_t)strlen(d->rows[i]);

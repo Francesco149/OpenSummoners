@@ -1,0 +1,17 @@
+{
+  "_doc": "THROWAWAY (ckpt 123, un-MVP dialogue portraits). Hook 0x49d6e0 (the dialogue-line setup) onEnter and read the INPUTS that key the face table DAT_006b6568: the speaker actor (param_2 = stack arg index 1) code +0x1d4 + head-state +0x1d8, and the face_id (param_8 = index 7). param_2 IS the actor pointer, so use argfield (*(args[1]+off)), not argderef. Combined with the static DAT_006b6568 dump, this gives the per-line portrait_id per speaker (head_state -> face-table key dword[0]; face_id -> key dword[1]; portrait_id variants at record +8/+a/+c by anim-state). Drive: the control-path-gt nav (Z-spam through arrival(10)+house(8) dialogue). Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/portrait_face_fields.json --field-spec-only --call-trace --run-dir runs/portrait-gt/cap --duration-ms 240000",
+  "fields": {
+    "0x49d6e0": {
+      "name": "dlg_line",
+      "_note": "FUN_0049d6e0(type,speaker,text,p4,p5,p6,name_or_0,face_id,p9,voice). speaker=param_2 (stack arg index 1, the actor ptr); +0x1d4=code (0xc35a Arche / 0xc3dc Father / 0xc440 Mother); +0x1d8=head_state (face-table key); face_id=param_8 (index 7).",
+      "fields": [
+        {"name": "code", "src": "argfield",  "index": 1, "off": 468, "type": "hex", "reason": "speaker actor +0x1d4 behaviour code (0xc35a=Arche, 0xc3dc=Father, 0xc440=Mother)"},
+        {"name": "head", "src": "argfield",  "index": 1, "off": 472, "type": "i32", "reason": "speaker actor +0x1d8 head-state (face-table DAT_006b6568 key dword[0])"},
+        {"name": "face", "src": "arg",       "index": 7,            "type": "hex", "reason": "param_8 face_id (face-table key dword[1]; e.g. arrival line1 = 0x1e)"},
+        {"name": "box2f0","src": "thisderef","off": 752,            "type": "i32", "reason": "in_ECX+0x2f0 (bVar4 input: !=0); CAPTURED 0 -> bVar4 FALSE -> NOT the +0xc variant-C column"},
+        {"name": "box7c", "src": "thisderef","off": 124,            "type": "i32", "reason": "in_ECX+0x7c (bVar4 input: in {0,1,2,4}); 0x49d6e0:121 bVar4 gate"},
+        {"name": "box84", "src": "thisderef","off": 132,            "type": "i32", "reason": "in_ECX+0x84 the RESOLVED portrait slot — written by the PRIOR 0x49d6e0 call, so read onEnter it gives line N's id at line N+1 (the 1-line-lag disambiguates variant A vs B)"}
+      ]
+    }
+  }
+}

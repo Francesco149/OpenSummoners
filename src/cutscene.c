@@ -2,6 +2,7 @@
  * cutscene.c — the town-intro multi-room dialogue chain (see cutscene.h).
  */
 #include "cutscene.h"
+#include "portrait.h"
 
 #include <stddef.h>
 
@@ -14,6 +15,37 @@
 #define NAME_ARCHE   0x6b6eb0u   /* "Arche"          (actor 0x5f5e165) */
 #define NAME_FATHER  0x6b6f80u   /* "Arche's Father" (actor 0x5f5e1d3) */
 #define NAME_MOTHER  0x6b6fb4u   /* "Arche's Mother" (actor 0x5f5e1d4) */
+
+/* The speaker's head-state (actor +0x1d8) — the face-table key (portrait.c).
+ * HARNESS-CAPTURED off 0x49d6e0's speaker arg (runs/portrait-gt): each speaker's
+ * head-state is constant across all lines.  The portrait resolves from
+ * (head_state, line face) — the per-speaker BUST the MVP couldn't show. */
+#define HEAD_ARCHE   100000101
+#define HEAD_FATHER  100000211
+#define HEAD_MOTHER  100000212
+
+static int32_t speaker_head_state(uint32_t name_va)
+{
+    switch (name_va) {
+    case NAME_ARCHE:  return HEAD_ARCHE;
+    case NAME_FATHER: return HEAD_FATHER;
+    case NAME_MOTHER: return HEAD_MOTHER;
+    default:          return 0;   /* unknown speaker → no portrait record */
+    }
+}
+
+/* The face-table variant column (HARNESS-RESOLVED, runs/portrait-gt).  bVar4
+ * (the +0xc variant-C path the old MVP wrongly used) is FALSE for the town
+ * dialogue — in_ECX+0x2f0 == 0 on every line (captured) — so it is never C.
+ * The +0x8 (var A) vs +0xa (var B) choice is the speaker's BODY-FACING at the
+ * moment of the line (0x49d6e0:143, local_110 = body+0x2c == 3 → A, else B):
+ * it is DYNAMIC (the same speaker/face resolved A on one line, B on another as
+ * the cast turned — captured tally A=8/B=10).  The port's cutscene cast is
+ * STATIC (no per-line facing — PORT-DEBT(cutscene-party-chars)), so the
+ * per-line A/B flip is not modelable here; we use B, the default (non-facing-3)
+ * path + the plurality.  PORT-DEBT(dialogue-portrait-facing): the exact A/B per
+ * line lands with the animated cast (which gives each speaker a live facing). */
+#define CUTSCENE_PORTRAIT_VARIANT PORTRAIT_VAR_B
 
 /* The town-gate family conversation — 0x4d7d80 case 0x334be, the first-run
  * (flag 0x5f76805 == 0) path, decompile lines 33-292.  Ten 0x49d6e0 calls,
@@ -95,6 +127,11 @@ static int arm_current_line(cutscene *cs)
     if (text == NULL)
         return 0;
     dialogue_arm(cs->box, cs->resolve(ln->name_va), text);
+    /* Resolve the per-speaker portrait bust (0x49d6e0's face-table lookup): the
+     * speaker's head-state + this line's face → the portrait pool-slot.  -1 (no
+     * record) leaves the box's reset -1 → no portrait, faithful to +0x20=1. */
+    cs->box->portrait_slot = portrait_resolve(speaker_head_state(ln->name_va),
+                                              ln->face, CUTSCENE_PORTRAIT_VARIANT);
     return 1;
 }
 

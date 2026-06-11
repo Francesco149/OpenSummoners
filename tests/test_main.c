@@ -849,6 +849,10 @@ struct test_case {
     X(cutscene_completes_after_chain)                          \
     X(cutscene_room_key)                                       \
     X(cutscene_guards)                                         \
+    X(portrait_resolve_variant_b)                              \
+    X(portrait_resolve_variants_ac)                            \
+    X(portrait_resolve_distinct)                               \
+    X(portrait_resolve_missing)                                \
     X(character_walk_accel)                                    \
     X(character_walk_brake)                                    \
     X(character_walk_left_symmetry)                            \

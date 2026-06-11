@@ -136,6 +136,11 @@ typedef struct {
     int32_t  row_count;
     int32_t  total;         /* total revealable chars across rows            */
     char     name[32];      /* speaker name (an exe string, copied)          */
+    int32_t  portrait_slot; /* resolved portrait pool-slot (0x49d6e0 +0x84;  */
+                            /* g_ar_sprite_slots index); -1 = no portrait.   */
+                            /* Set by the caller per line (portrait.c); reset */
+                            /* to -1 by dialogue_arm so a re-arm without a    */
+                            /* resolve shows none, faithful to +0x20=1.       */
 } dialogue_box;
 
 /* Expand a raw script line into wrapped rows: '%n' forces a row break, longer

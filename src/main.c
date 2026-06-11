@@ -2227,14 +2227,15 @@ static void game_render_dialogue(void)
         zdd_object_blt_keyed(cel, g_zdd->primary_obj,
                              box_x + DIALOGUE_TAB_DX, box_y + DIALOGUE_TAB_DY);
 
-    /* the portrait bust (res 0x7ef, 24bpp magenta-keyed, drawn 1:1): the
-     * cross-fade blends through ramp_b while fading (0x49c910), then snaps to
-     * the plain keyed blit.  PORT-DEBT(dialogue-portrait-per-speaker): this is
-     * the LINE-1 Father bank, hardcoded — it does NOT switch per speaker, so
-     * the cutscene's Arche/Mother lines render the Father bust (the per-speaker
-     * portrait sheets + the 0x49d6e0 face table are deferred render detail). */
-    cel = (zdd_object *)ar_sprite_slot_frame(
-        &g_ar_sprite_slots[DIALOGUE_PORTRAIT_BANK_SLOT], 0);
+    /* the portrait bust (24bpp magenta-keyed, drawn 1:1): the cross-fade blends
+     * through ramp_b while fading (0x49c910), then snaps to the plain keyed
+     * blit.  PER-SPEAKER (ckpt 123): the slot is resolved per line by the
+     * 0x49d6e0 face table (portrait.c — speaker head-state + face → pool-slot),
+     * carried on the box (portrait_slot); -1 = no portrait (the no-record path). */
+    int pslot = g_dialogue.portrait_slot;
+    cel = (pslot >= 0 && pslot < AR_SPRITE_SLOT_COUNT)
+        ? (zdd_object *)ar_sprite_slot_frame(&g_ar_sprite_slots[pslot], 0)
+        : NULL;
     if (cel != NULL) {
         int ridx = dialogue_portrait_ramp_index(&g_dialogue);
         const zdd_blend_desc *desc =
