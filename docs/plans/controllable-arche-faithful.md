@@ -1,19 +1,65 @@
 # Plan — FAITHFUL controllable Arche (the real freeroam scene + live input)
 
-> **Status (ckpt 122): Phase 1 DONE, dialogue advance DONE, Phase 2 HARNESS-VERIFIED — the live
-> path is now GROUND TRUTH (quirk #103), porting is unblocked.**
-> The MVP wire is removed; faithful LIVE input (`src/input_live.{c,h}`, the `0x46a880` producer)
-> + the town-arrival DIALOGUE ADVANCE (`src/cutscene.{c,h}`, the 10-line Z-advanced family
-> conversation) are ported + verified.  **The ckpt-121 harness verification is DONE (ckpt 122,
-> `runs/control-path-gt`, quirk #103): the path is a 3-ROOM chain (arrival `0x334be` → house
-> `0x334c8` → errands `0x334dc`, light room-key swaps, ONE `game_enter`), and player control is
-> `entity+0x200 == 0` (char-AI), NOT `+0x200=1`.  The errands room IS the freeroam.**  The
-> static-vs-live conflict is RESOLVED — both prior readings were half-right.  The next move is
-> PORTING the verified chain — see "Phase 2 VERIFIED" below.  Phase 3 (animation) stays deferred.
+> **Status (ckpt 123): Phase 1 DONE, dialogue advance DONE, Phase 2 HARNESS-VERIFIED, the
+> arrival→house DIALOGUE CHAIN PORTED + verified.  ACTIVE CHIP = render the rooms (USER-chosen).**
+> The MVP wire is removed; faithful LIVE input (`src/input_live.{c,h}`, the `0x46a880` producer),
+> the town-arrival DIALOGUE ADVANCE, and now the **arrival→house multi-room CHAIN**
+> (`src/cutscene.{c,h}`, the room-key swap, ckpt 123, commit `daa1f65`) are ported + verified — the
+> live chain reaches the errands boundary `0x334dc`.  **The ckpt-122 harness verification (quirk
+> #103): a 3-ROOM chain (arrival `0x334be` → house `0x334c8` → errands `0x334dc`, light room-key
+> swaps, ONE `game_enter`); player control = `entity+0x200 == 0` (char-AI), NOT `+0x200=1`; the
+> errands room IS the freeroam.**  Two findings reshaped the next move (ckpt 123): the errands room
+> is a flag-gated QUESTLINE (`0x4dc510`), and NEITHER the house nor errands ROOM is rendered (the
+> house lines play over the town backdrop).  **USER decision (ckpt 123): RENDER THE ROOMS FIRST —
+> the faithful foundation for a non-fake freeroam.  See "Phase 2a — RENDER THE ROOMS" below.**
+> The freeroam hand-off + Phase 3 (animation) follow.
 >
 > Orient: `CLAUDE.md` → `FRONT.md` → this file.  Sibling plans:
 > `plans/movement-system.md` (the mover chips), `plans/dialogue-cutscene.md` (the cutscene
 > coroutine), `plans/party-character-system.md` (the party band / leader render).
+
+## Phase 2a — RENDER THE ROOMS (ckpt 123, USER-chosen — the ACTIVE CHIP)
+
+The arrival→house dialogue CHAIN is ported (ckpt 123); the live chain reaches the errands
+boundary `0x334dc`.  But neither the house (`0x334c8`) nor errands (`0x334dc`) ROOM is rendered —
+the house lines play over the town backdrop — so the freeroam hand-off would put Arche in the
+wrong scene (the ckpt-120 fake the USER removed).  **USER decision: render the rooms first** (the
+faithful foundation; fixes the house backdrop AND unblocks a non-fake freeroam).
+
+**The render path + resource scheme are ALREADY GENERAL (the big head start, scoped ckpt 123):**
+- `load_town_scene(uint16_t scene)` (`main.c:2294`) — `FindResourceA(sotes.exe, scene, "DATA")` →
+  `LockResource` → `town_render_load` → parse (`map_data.c`/`0x587970`) + decode (`map_decode.c`/
+  `0x587e00`).  Per-room by design; the town hardcodes `load_town_scene(1022)`.
+- The port has the FULL ROOM REGISTRY embedded (`world_tables_data.c`: 417 records @ `0x6940c8`,
+  0x150 stride) + `game_world_find_room(w, room_key)` (mirrors retail's `0x585ae0` key lookup) +
+  `game_map_room_key`.  **CONFIRMED:** ROOM record `+0x0c` dword = `GW_ROOM_SCENE` = the per-room
+  DATA resource id (the town room — registry entry [61], id `0x334be`, area `0xd2` — is scene
+  **1022**).  So `room_key → find_room → [GW_ROOM_SCENE] → load_town_scene(that)` is the whole
+  resource lookup, on data the port ALREADY HAS.
+
+**Tasks (in order):**
+1. **The room→scene mapping is CONFIRMED (ckpt 123, registry dump):** house `0x334c8` = entry[62] →
+   DATA scene **1023**, errands `0x334dc` = entry[64] → DATA scene **1025** (parent chain town
+   `0x334be`[61]/scene 1022 → house → errands, all area `0xd2`).  So `load_town_scene(1023)` = the
+   house map, `load_town_scene(1025)` = the errands map.  Both rooms exist with valid sequential
+   ids — the arc premise holds.
+2. **Drive `load_town_scene` from the active room** — replace the hardcoded `1022` with the active
+   room's scene (via `game_map`/`game_world`); confirm the town still renders 1:1 (regression).
+3. **Room-keyed RELOAD on the cutscene transition** — when `cutscene_step` commits a new room key
+   (`cutscene_room_key` changes), `town_render_free` + `load_town_scene(new room's scene)` so the
+   backdrop swaps.  (The cutscene already exposes `cutscene_room_key`.)
+4. **Per-room CAMERA** — `MAP_RENDER_CAM_TOWN_3F2` is a town constant (PORT-DEBT
+   ingame-camera-snap); each room needs its view origin (the spawn-snap).  Capture/RE per room.
+5. **map_decode COVERAGE (the main RISK)** — `0x587e00`'s ported arms are the TOWN tileset; the
+   house/errands INTERIORS likely use tile shapes/ids not yet implemented → expect to add decode
+   arms (the framework is there; transcribe the needed arms from `587e00.c`).  Validate each room
+   bit-exact vs a retail capture (the usual divergence loop).
+6. (Deferred to Phase 2b) the room ACTORS/NPCs (house/errands have their own cast — the cutscene
+   cast spawn is town-specific) + the errands QUESTLINE (`0x4dc510`) + the freeroam hand-off
+   (`character_step` at the errands room) + DROP `+0x200=1` for the first freeroam.
+
+**Verify:** each room renders bit-exact vs a seed-pinned retail capture at the matching room key
+(reuse the `runs/control-path-gt` nav to reach each room in retail); push montages to the feed.
 
 ## Phase 2 VERIFIED (ckpt 122) — the live path is GROUND TRUTH; porting is unblocked
 
