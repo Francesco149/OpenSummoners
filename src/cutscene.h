@@ -70,8 +70,13 @@
 typedef struct cutscene_line {
     uint32_t name_va;   /* dramatist name string VA (DAT_006b6ea8 row +0x08)     */
     uint32_t text_va;   /* line text string VA (0x4d7d80 pcVar6 label)           */
-    int16_t  face;      /* portrait face id (uVar9; render detail — deferred)    */
+    int16_t  face;      /* portrait face id (uVar9 → the face-table key)         */
     int16_t  voice;     /* voice clip id (uVar5; 1_%07d.wma — deferred)          */
+    int16_t  pvar;      /* portrait face-table VARIANT (portrait_variant): the   */
+                        /* speaker's body-facing at this line (0x49d6e0:143,     */
+                        /* facing==3 → A else B), HARNESS-CAPTURED per line       */
+                        /* (runs/portrait-gt) — the variants are different busts/ */
+                        /* sizes, so this picks the 1:1 slot.  See portrait.h.    */
 } cutscene_line;
 
 /* A resolver VA → string (main.c supplies exe_data_string; tests stub it). */

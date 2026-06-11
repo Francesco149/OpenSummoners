@@ -12,6 +12,13 @@
         {"name": "box7c", "src": "thisderef","off": 124,            "type": "i32", "reason": "in_ECX+0x7c (bVar4 input: in {0,1,2,4}); 0x49d6e0:121 bVar4 gate"},
         {"name": "box84", "src": "thisderef","off": 132,            "type": "i32", "reason": "in_ECX+0x84 the RESOLVED portrait slot — written by the PRIOR 0x49d6e0 call, so read onEnter it gives line N's id at line N+1 (the 1-line-lag disambiguates variant A vs B)"}
       ]
+    },
+    "0x439680": {
+      "name": "beat_run",
+      "_note": "FUN_00439680 the 9-byte thunk -> 0x439690 beat-runner, called by 0x4d7d80 RIGHT AFTER 0x49d6e0 sets the box +0x84 (same in_ECX=controller). Reading +0x84 here gives the CURRENT line's resolved portrait slot with NO lag and no loss at the room transition (unlike the 0x49d6e0-onEnter lag).",
+      "fields": [
+        {"name": "slot", "src": "thisderef", "off": 132, "type": "i32", "reason": "in_ECX+0x84 the resolved portrait slot for the line whose 0x49d6e0 just ran"}
+      ]
     }
   }
 }

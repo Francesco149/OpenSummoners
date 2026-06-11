@@ -34,18 +34,20 @@ static int32_t speaker_head_state(uint32_t name_va)
     }
 }
 
-/* The face-table variant column (HARNESS-RESOLVED, runs/portrait-gt).  bVar4
- * (the +0xc variant-C path the old MVP wrongly used) is FALSE for the town
- * dialogue — in_ECX+0x2f0 == 0 on every line (captured) — so it is never C.
- * The +0x8 (var A) vs +0xa (var B) choice is the speaker's BODY-FACING at the
- * moment of the line (0x49d6e0:143, local_110 = body+0x2c == 3 → A, else B):
- * it is DYNAMIC (the same speaker/face resolved A on one line, B on another as
- * the cast turned — captured tally A=8/B=10).  The port's cutscene cast is
- * STATIC (no per-line facing — PORT-DEBT(cutscene-party-chars)), so the
- * per-line A/B flip is not modelable here; we use B, the default (non-facing-3)
- * path + the plurality.  PORT-DEBT(dialogue-portrait-facing): the exact A/B per
- * line lands with the animated cast (which gives each speaker a live facing). */
-#define CUTSCENE_PORTRAIT_VARIANT PORTRAIT_VAR_B
+/* The face-table variant is PER LINE (the `pvar` column of the script tables).
+ * 0x49d6e0 picks one of each record's 3 portrait-slot variants by the speaker's
+ * BODY-FACING (0x49d6e0:143, body+0x2c == 3 → A=+0x8, else B=+0xa) + the bVar4
+ * box-state (→ C=+0xc).  bVar4 is FALSE for the town dialogue (in_ECX+0x2f0==0,
+ * captured), so it is A or B — and the variants are DIFFERENT busts/sizes (e.g.
+ * Father A=676 is 160x176 but B=683 is 176x144), so the right one is required
+ * for a 1:1 portrait.  The facing is DYNAMIC (the cast turns mid-scene) and the
+ * port's cast is STATIC (PORT-DEBT(cutscene-party-chars)), so the per-line
+ * variant is BAKED from the harness capture (runs/portrait-gt — read off the
+ * beat-runner thunk 0x439680's +0x84, no lag) into each line's `pvar`.
+ * PORT-DEBT(dialogue-portrait-facing): when the animated cast lands, pvar will
+ * derive from the speaker's live facing instead of this captured bake. */
+#define VA PORTRAIT_VAR_A      /* facing==3 (the +0x8 column) */
+#define VB PORTRAIT_VAR_B      /* the default (+0xa column)   */
 
 /* The town-gate family conversation — 0x4d7d80 case 0x334be, the first-run
  * (flag 0x5f76805 == 0) path, decompile lines 33-292.  Ten 0x49d6e0 calls,
@@ -54,17 +56,17 @@ static int32_t speaker_head_state(uint32_t name_va)
  * (0x3eb..0x3f4, sequential — voice deferred).  All strings live in the user's
  * sotes.exe and are read at runtime by VA (never embedded). */
 static const cutscene_line TOWN_ARRIVAL[] = {
-    /*  # decompile  speaker  name         text        face  voice  gist */
-    /*  1 :105 */ { NAME_FATHER, 0x86d58cu, 0x1e, 0x3eb }, /* "Ahh, here we are at last!…" */
-    /*  2 :119 */ { NAME_ARCHE,  0x86d55cu, 0x02, 0x3ec }, /* "Yay, we're finally here!…"  */
-    /*  3 :133 */ { NAME_MOTHER, 0x86d500u, 0x1e, 0x3ed }, /* "We haven't been here since…"*/
-    /*  4 :147 */ { NAME_ARCHE,  0x86d4c8u, 0x03, 0x3ee }, /* "Yeah! There's people and…"  */
-    /*  5 :161 */ { NAME_ARCHE,  0x86d47cu, 0x09, 0x3ef }, /* "Hey, Dad! Our shop is in…"  */
-    /*  6 :175 */ { NAME_ARCHE,  0x86d45cu, 0x0d, 0x3f0 }, /* "I wanna see it! Where is it?"*/
-    /*  7 :196 */ { NAME_FATHER, 0x86d42cu, 0x1e, 0x3f1 }, /* "Mm-hmm. It's just down the…" */
-    /*  8 :210 */ { NAME_ARCHE,  0x86d424u, 0x03, 0x3f2 }, /* "Cool!"                       */
-    /*  9 :248 */ { NAME_ARCHE,  0x86d410u, 0x03, 0x3f3 }, /* "Mom! Dad! c'mon!"            */
-    /* 10 :262 */ { NAME_MOTHER, 0x86d3d4u, 0x1e, 0x3f4 }, /* "Hmhm. Well, wait up for…"    */
+    /*  # decompile  speaker  name         text       face  voice pvar  gist */
+    /*  1 :105 */ { NAME_FATHER, 0x86d58cu, 0x1e, 0x3eb, VA }, /* "Ahh, here we are at last!…" */
+    /*  2 :119 */ { NAME_ARCHE,  0x86d55cu, 0x02, 0x3ec, VB }, /* "Yay, we're finally here!…"  */
+    /*  3 :133 */ { NAME_MOTHER, 0x86d500u, 0x1e, 0x3ed, VB }, /* "We haven't been here since…"*/
+    /*  4 :147 */ { NAME_ARCHE,  0x86d4c8u, 0x03, 0x3ee, VB }, /* "Yeah! There's people and…"  */
+    /*  5 :161 */ { NAME_ARCHE,  0x86d47cu, 0x09, 0x3ef, VB }, /* "Hey, Dad! Our shop is in…"  */
+    /*  6 :175 */ { NAME_ARCHE,  0x86d45cu, 0x0d, 0x3f0, VB }, /* "I wanna see it! Where is it?"*/
+    /*  7 :196 */ { NAME_FATHER, 0x86d42cu, 0x1e, 0x3f1, VB }, /* "Mm-hmm. It's just down the…" */
+    /*  8 :210 */ { NAME_ARCHE,  0x86d424u, 0x03, 0x3f2, VB }, /* "Cool!"                       */
+    /*  9 :248 */ { NAME_ARCHE,  0x86d410u, 0x03, 0x3f3, VA }, /* "Mom! Dad! c'mon!"            */
+    /* 10 :262 */ { NAME_MOTHER, 0x86d3d4u, 0x1e, 0x3f4, VB }, /* "Hmhm. Well, wait up for…"    */
 };
 #define TOWN_ARRIVAL_COUNT ((int)(sizeof(TOWN_ARRIVAL) / sizeof(TOWN_ARRIVAL[0])))
 
@@ -75,15 +77,15 @@ static const cutscene_line TOWN_ARRIVAL[] = {
  * Voices are all 0 (the house lines are unvoiced).  After line 8 the script
  * stages room 0x334dc (the errands/freeroam) via 0x401d40 and `return 2`. */
 static const cutscene_line TOWN_HOUSE[] = {
-    /*  # decompile   speaker  name         text        face  voice  gist */
-    /*  1 :1093 */ { NAME_ARCHE,  0x86d390u, 0x0d, 0 }, /* "So this is our new house!…"  */
-    /*  2 :1107 */ { NAME_ARCHE,  0x86d35cu, 0x0d, 0 }, /* "Hee, there's even an item…"  */
-    /*  3 :1121 */ { NAME_MOTHER, 0x86d318u, 0x1e, 0 }, /* "Oh, this is lovely. …your…" */
-    /*  4 :1135 */ { NAME_FATHER, 0x86d2d4u, 0x1e, 0 }, /* "Mm-hmm. I'm hoping I can…"   */
-    /*  5 :1149 */ { NAME_FATHER, 0x86d294u, 0x1e, 0 }, /* "…helping the townsfolk out…"*/
-    /*  6 :1163 */ { NAME_FATHER, 0x86d240u, 0x1e, 0 }, /* "…Well, Arche, I'll be count…"*/
-    /*  7 :1184 */ { NAME_ARCHE,  0x86d22cu, 0x03, 0 }, /* "I will, I promise."          */
-    /*  8 :1198 */ { NAME_MOTHER, 0x86d1dcu, 0x1e, 0 }, /* "And today, we need your help"*/
+    /*  # decompile   speaker  name         text       face  voice pvar  gist */
+    /*  1 :1093 */ { NAME_ARCHE,  0x86d390u, 0x0d, 0, VA }, /* "So this is our new house!…"  */
+    /*  2 :1107 */ { NAME_ARCHE,  0x86d35cu, 0x0d, 0, VA }, /* "Hee, there's even an item…"  */
+    /*  3 :1121 */ { NAME_MOTHER, 0x86d318u, 0x1e, 0, VA }, /* "Oh, this is lovely. …your…" */
+    /*  4 :1135 */ { NAME_FATHER, 0x86d2d4u, 0x1e, 0, VA }, /* "Mm-hmm. I'm hoping I can…"   */
+    /*  5 :1149 */ { NAME_FATHER, 0x86d294u, 0x1e, 0, VA }, /* "…helping the townsfolk out…"*/
+    /*  6 :1163 */ { NAME_FATHER, 0x86d240u, 0x1e, 0, VA }, /* "…Well, Arche, I'll be count…"*/
+    /*  7 :1184 */ { NAME_ARCHE,  0x86d22cu, 0x03, 0, VB }, /* "I will, I promise."          */
+    /*  8 :1198 */ { NAME_MOTHER, 0x86d1dcu, 0x1e, 0, VA }, /* "And today, we need your help"*/
 };
 #define TOWN_HOUSE_COUNT ((int)(sizeof(TOWN_HOUSE) / sizeof(TOWN_HOUSE[0])))
 
@@ -131,7 +133,7 @@ static int arm_current_line(cutscene *cs)
      * speaker's head-state + this line's face → the portrait pool-slot.  -1 (no
      * record) leaves the box's reset -1 → no portrait, faithful to +0x20=1. */
     cs->box->portrait_slot = portrait_resolve(speaker_head_state(ln->name_va),
-                                              ln->face, CUTSCENE_PORTRAIT_VARIANT);
+                                              ln->face, (portrait_variant)ln->pvar);
     return 1;
 }
 
