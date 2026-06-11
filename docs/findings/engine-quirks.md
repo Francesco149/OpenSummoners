@@ -3150,7 +3150,7 @@ against trace-studio `intro-1`:
   (Field spec: the `0x499ab0` `ovl_*`/`r40..r80` chain fields dump the whole
   object; `runs/r6-grid` is the seed-pinned reveal-window ground truth.)
 
-### #101 — the town arrival → HOUSE FREEROAM transition: freeroam is reachable by advancing the dialogue (no map reload), the party leader is PERSISTENT (not cutscene-set), Arche's freeroam mover is NOT `0x47b990`, and movement reads the HELD-AXIS array — not the event ring (2026-06-10, ckpt 112; **mover RESOLVED ckpt 114 → AI `0x478ba0` + apply `0x485fc0`→`0x442a70`, see final bullet**)
+### #101 — the town arrival → HOUSE FREEROAM transition: freeroam is reachable by advancing the dialogue (no map reload), the party leader is PERSISTENT (not cutscene-set), Arche's freeroam mover is NOT `0x47b990`, and movement reads the HELD-AXIS array — not the event ring (2026-06-10, ckpt 112; **mover RESOLVED ckpt 114 → AI `0x478ba0` + apply `0x485fc0`→`0x442a70`, see final bullet**; **CORRECTED ckpt 122 by #103: it is a 3-ROOM chain (0x334be→0x334c8→0x334dc) not one scene, and control is `+0x200==0` not `+0x200=1` — the "PLAYER!@4500" is the errands room**)
 
 Ground-truthed by driving retail past the whole town-arrival cutscene under
 `--seed-pin --lockstep --no-turbo`, spamming Z (the ring `0x24` confirm) every
@@ -3398,3 +3398,60 @@ for the movement arc, each item to be captured + ported + bit-exact-verified in 
   dash, inject two direction ring presses within the window then hold (`ids:[4],…,ids:[4]` + the
   held axis). (So the town freeroam IS a valid context for jump/dash — they just need RING
   injection, not held-axis; the chip-3a WALK remains the only HELD-array town mover.)
+
+### #103 — the town intro → freeroam is a 3-ROOM chain (arrival `0x334be` → house `0x334c8` → errands `0x334dc`, light room-key swaps with NO second `game_enter`), and player control is `entity+0x200 == 0` (the char-AI path) — NOT `+0x200=1`; the errands room IS the freeroam ("PLAYER!" + HUD) (2026-06-11, ckpt 122; USER-confirmed "house with mom & dad, run errands, short dialogue at start"; corrects #101's "same scene" + "+0x200=1 transfer", resolves the ckpt-114 polarity open)
+
+Harness verification of the Phase-2 control hand-off (`plans/controllable-arche-faithful.md`):
+seed-pinned `--lockstep --no-turbo` retail, the PROVEN ckpt-112 nav (Z-spam from `game_enter`,
+incl the two `id=3` LEFT presses @830/865 that pass the new-game submenu) extended to flip 8392,
+under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading off
+**`room_state = *(*(0x8a9b50)+0x2784)`**.  Artifacts: `runs/control-path-gt/` (`nav.jsonl`,
+`errands-walk.jsonl`, `cap/call_trace.jsonl`, frames; montage on the feed).
+
+- **The path is a 3-ROOM chain — the static RE's room sequence is CONFIRMED.**  The committed
+  room-lookup key at **`room_state+0x4024`** (written by `FUN_00402030` from the map sub-object
+  `*in_ECX+0x900`, staged by `FUN_00401d40(key,p2,p3)` → `*in_ECX+0x900/904/908`) swaps:
+  **`0x334be` (town arrival, flip 1430/tick 1) → `0x334c8` (house, flip 3661/tick 1103) →
+  `0x334dc` (errands, flip 4270/tick 1406)**.  The stager `0x401d40` fired exactly twice
+  (`staged_key 0x334c8`@flip 3659, `0x334dc`@flip 4268 — 2 flips before each commit).  Companions
+  `+0x4028/+0x402c` carry the p2/p3 words.  The story-flag table is `*(room_state+0x40ac)` (scanned
+  by `FUN_0041e2f0` for key `0x5f76805` etc.).
+- **It is a LIGHT room-key swap, NOT a full map reload — reconciling #101's "no reload".**  Only
+  ONE `game_enter` (`0x59f2c0`) fires (flip ~1429), and `room_state+0x200c` (leader slot `0xd1dcc58`),
+  `slot+0x9f4`→entity (code `0xc35a`), `+0x40ac` (flag table), and `entity+0x158a4` all hold
+  CONSTANT pointer values across both room swaps.  So #101 was right that there's no second
+  `game_enter`/reload, but wrong that it's the "SAME scene" — the room KEY does change (3 distinct
+  scenes); the engine swaps the room without tearing down room_state/entities.
+- **Player control is `entity+0x200 == 0`, NOT `+0x200 = 1` — the ckpt-114 polarity open is
+  RESOLVED empirically.**  In the errands room, injecting a HELD-AXIS walk drove Arche's leader-chain
+  body: held-RIGHT (flip 4400-4900) ramped `wx 19200→73800` (facing 1) on the exact ported walk
+  accel/cap, held-LEFT (5000-5500) back to `14640` (facing flips 1→3) — i.e. **fully player-
+  controllable while `entity+0x200` reads 0 and `entity+0x158a4` (input-mgr) is non-null** the whole
+  time.  This matches `0x46cd70`'s band dispatch (`+0x200==0` → char AI `0x478ba0`, which reads the
+  held axis; `==1` → effect AI `0x47b990`).  So #101's claim that the transfer "flips `+0x200=1`
+  (sole-active)" to grant control is WRONG for the first freeroam: the `0x41e070`/`0x4c6830`
+  `+0x200=1` setters are a LATER/different control point (party-member / end-of-day, the `4d7d80`
+  sites B `:719-733` flag 0x140 / C `:882-896` resume==3), not the entry to player movement.
+- **The errands room `0x334dc` IS the freeroam — = ckpt-112's "PLAYER!@4500".**  Captured frames
+  show the room as a multi-floor HOUSE INTERIOR (mom/dad/shopkeeper) with the **"PLAYER" marker over
+  Arche + the full HUD (portrait, "Arche Lv1", HP, item bar)** — the player-controlled state.  This
+  is exactly the #101 "PLAYER! prompt + HUD @ flip ~4500" observation, now correctly located: it is
+  the errands room reached via the 2 room-key swaps, NOT the arrival scene.  USER-confirmed: "the
+  scene is a house with mom and dad and you run some errands and there's short dialogue at the start."
+- **Why Z-spam STALLS at errands (and why that's the signal).**  The arrival (0x334be) + house
+  (0x334c8) are Z-advanced cutscenes (cleared flip 1430→4270), but the errands room does NOT auto-
+  advance on Z — it is freeroam gameplay (the player must walk/interact to finish the errands), so
+  dense Z alone plateaus there (`room_key` constant `0x334dc` flip 4270→end).  The stall IS the
+  "you now have control" boundary.
+- **Offsets (off goldens, read at `room_state = *(*(0x8a9b50)+0x2784)`):** `+0x200c` leader slot ptr;
+  `slot+0x9f4` entity, `slot+0x9f0` handle, `slot+0x9c4` active; `+0x4024/4028/402c` committed
+  room-key triple; `+0x40ac` story-flag table (`{key,val,?}`×count@`+0x600`); entity `+0x1d4` code
+  (`0xc35a`), `+0x200` control flag (0=char-AI/controllable), `+0x158a4` input-mgr/AI-script ptr,
+  `+0x40` body (`+4` wx / `+8` wy / `+0x2c` facing).  Global game-mode `*(*(0x8a9b50))+0x1030` = 2.
+- **OPEN:** (a) the LATER `+0x200=1` transfer (after the errands complete → town `0x334be` flag-0xd2
+  → Sana scene) — reaching it needs a richer nav (walk-to-trigger / interact), not Z-spam.  (b)
+  whether the char-AI is actively SUPPRESSED during the arrival/house cutscenes (held-input not
+  tested there) or just un-fed — i.e. is "control transfer" a gate flip or merely "the errands scene
+  stops scripting her".  Both refine the port model but don't change the result: the faithful
+  controllable-Arche target is the errands room `0x334dc`, control via the char-AI (`+0x200==0`,
+  `character_step` reading live `axis_held`), reached by chaining the 3 room scripts.

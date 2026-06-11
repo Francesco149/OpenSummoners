@@ -1,61 +1,67 @@
 # Plan — FAITHFUL controllable Arche (the real freeroam scene + live input)
 
-> **Status (ckpt 121): Phase 1 DONE, the dialogue advance DONE, Phase 2 RESHAPED + ACTIVE.**
+> **Status (ckpt 122): Phase 1 DONE, dialogue advance DONE, Phase 2 HARNESS-VERIFIED — the live
+> path is now GROUND TRUTH (quirk #103), porting is unblocked.**
 > The MVP wire is removed; faithful LIVE input (`src/input_live.{c,h}`, the `0x46a880` producer)
 > + the town-arrival DIALOGUE ADVANCE (`src/cutscene.{c,h}`, the 10-line Z-advanced family
-> conversation) are ported + verified.  **Phase 2 (the control hand-off) turned out ~5× bigger
-> than planned — it is a MULTI-ROOM CHAIN, not a few lines — and the USER COMMITTED to the full
-> faithful path (ckpt 121).  The next move is HARNESS VERIFICATION (resolve the static-vs-live
-> conflict) BEFORE porting** — see "Phase 2 RESHAPED" below.  Phase 3 (animation) stays deferred.
+> conversation) are ported + verified.  **The ckpt-121 harness verification is DONE (ckpt 122,
+> `runs/control-path-gt`, quirk #103): the path is a 3-ROOM chain (arrival `0x334be` → house
+> `0x334c8` → errands `0x334dc`, light room-key swaps, ONE `game_enter`), and player control is
+> `entity+0x200 == 0` (char-AI), NOT `+0x200=1`.  The errands room IS the freeroam.**  The
+> static-vs-live conflict is RESOLVED — both prior readings were half-right.  The next move is
+> PORTING the verified chain — see "Phase 2 VERIFIED" below.  Phase 3 (animation) stays deferred.
 >
 > Orient: `CLAUDE.md` → `FRONT.md` → this file.  Sibling plans:
 > `plans/movement-system.md` (the mover chips), `plans/dialogue-cutscene.md` (the cutscene
 > coroutine), `plans/party-character-system.md` (the party band / leader render).
 
-## Phase 2 RESHAPED (ckpt 121) — the control hand-off is a MULTI-ROOM CHAIN; harness-verify first
+## Phase 2 VERIFIED (ckpt 122) — the live path is GROUND TRUTH; porting is unblocked
 
-The RE (two general-purpose subagent maps of `0x4d7d80` / `0x401d40` / `0x41e070`) found the
-player-control hand-off is NOT a few lines past the town-arrival dialogue:
+The ckpt-121 harness verification is DONE (`runs/control-path-gt`, **quirk #103**).  Seed-pinned
+`--lockstep --no-turbo` retail, the proven ckpt-112 nav (Z-spam from `game_enter`) extended to flip
+8392, under a per-Flip field spec reading `room_state = *(*(0x8a9b50)+0x2784)`.  **Result — both the
+static RE and ckpt-112 were HALF-right:**
 
-- **`FUN_00401d40(scene_id, p2, p3)` stages a ROOM TRANSITION** — it writes the next room-lookup
-  key into the map object `+0x900/+0x904/+0x908` (committed to `+0x4024` by `FUN_00402030`, the
-  `+0x4024 = room-key` the in-game-intro proof established); the script then `return 2` (yield +
-  transition) and the engine reloads.  It is NOT "fall through to the next `case`".
-- **The narrative spine (cross-room):** arrival `0x334be` flag-0 (10 lines, DONE) → load room
-  **`0x334c8`** (the new house interior; 8 lines, text VAs 0x86d390..0x86d1dc) → load room
-  **`0x334dc`** (morning errands — a SEPARATE dispatcher `FUN_004dc510`, NOT in `4d7d80.c`; this
-  is where story-flag `0x5f76805` advances 0→0xd2) → back to **town `0x334be` flag-0xd2** → the
-  Sana-walk-home scene (`4d7d80.c:295-481`) → **the control transfer**.
-- **The transfer (`4d7d80.c:449-463`, the inlined `0x41e070`/`0x4c6830` idiom):**
-  `piVar1 = FUN_00413b20(handle); FUN_004c63a0(piVar1,1)` (release from the cutscene script-band);
-  guard `FUN_004cc250(1,piVar1)==0`; then **`*(entity+0x200) = 1`** (the master "player-controlled"
-  flag) + `*(entity+0x158a4) = 0` (clear the AI-script), `FUN_0041e180(1)` (clear the cmd ring),
-  `FUN_0041e280()` (re-bind DirectInput → `FUN_0054e5c0` to the entity), `FUN_0041dc90()` (recompute
-  the party band).  Returns NOT 2 → no room reload; control stays in the town room.  Two LATER
-  transfer sites (B `:719-733` flag 0x140 end-of-day; C `:882-896` resume==3 post-school) are not the
-  first.  The canonical helpers `0x41e070`/`0x4c6830` do the same flip on the leader slot `+0x200c`.
+- **3-ROOM CHAIN, confirmed.**  The committed room key **`room_state+0x4024`** swaps
+  **`0x334be` (arrival, flip 1430) → `0x334c8` (house, flip 3661) → `0x334dc` (errands, flip 4270)**,
+  staged by `FUN_00401d40(key,…)` (fired @3659/@4268), committed by `FUN_00402030`.  The static
+  room sequence is REAL.
+- **But it's a LIGHT room-key swap, NOT a full reload.**  ONE `game_enter`; `room_state`, the leader
+  slot `+0x200c` (`0xd1dcc58`), the entity (`+0x9f4`, code `0xc35a`), and `+0x158a4` hold CONSTANT
+  across both swaps.  So ckpt-112's "no second reload / entities persist" was right; its "same scene"
+  was wrong (the room key does change).
+- **CONTROL IS `entity+0x200 == 0` (char-AI), NOT `+0x200=1`** (the ckpt-114 polarity open, RESOLVED).
+  In the errands room a held-axis walk drove Arche bit-exact (held-RIGHT `wx 19200→73800` facing 1,
+  held-LEFT →`14640` facing 3) **with `+0x200`==0 and `+0x158a4` non-null the whole time** — matching
+  `0x46cd70`'s dispatch (`+0x200==0` → char AI `0x478ba0` reads the held axis).  The `0x41e070`/
+  `0x4c6830` `+0x200=1` setters in `4d7d80:449` are a LATER/different control point (party / end-of-day
+  sites B/C), NOT the entry to player movement.
+- **The errands room `0x334dc` IS the freeroam** ("PLAYER!" marker + HUD on screen = ckpt-112's
+  "PLAYER!@4500", just correctly located in the errands room).  USER-confirmed: "a house with mom and
+  dad and you run some errands and there's short dialogue at the start."  Z-spam STALLS there because
+  it's gameplay, not dialogue — the stall IS the control boundary.
 
-**THE CONFLICT (resolve FIRST, don't guess — harness):** ckpt-112 observed retail reaching control
-via Z-spam with **ONE `game_enter` and NO map reload** ("the inn interior is the same cutaway scene").
-The static read implies room transitions (`0x334c8`/`0x334dc`).  Either those keys map to the SAME
-town map (the transitions are camera-only scene changes), or the live path is shorter than the static
-chain.  **DO FIRST (the next session's opening move):**
-1. **Harness-verify the live room/control path.** A Frida field-spec reading, per Flip across a
-   Z-spam from `game_enter` to the hand-off: the scene-controller room key `*(*(0x8a9b50+0x2790)…)`
-   / the map object `+0x4024`; Arche's entity `+0x200` (the control flag) + `+0x158a4`; the story
-   flag `0x5f76805` (via `FUN_0041e2f0`).  This tells us: how many rooms/`game_enter`s actually
-   occur, whether the map reloads, and the exact Flip/tick the `+0x200` flips to 1.  (Reuse the
-   `runs/freeroam-gt` / ckpt-112 nav; `tools/frida_capture.py --seed-pin --lockstep --no-turbo`.)
-2. **THEN port** the actual (possibly-reduced) chain: the room-transition system (`0x401d40` →
-   the map reload) IF the live path really reloads; the intervening room scripts (`0x334c8`
-   house, the `0x334dc` errands in `FUN_004dc510`) IF on the path; the Sana scene; then the
-   `+0x200=1` transfer + wire `character_step` at that transition.  If the live path is same-map
-   camera-only, the port is much smaller (extend `cutscene.c` to chain the scene scripts in-place).
+**The port plan (the verified, no-longer-conditional version):**
+1. **Chain the 3 room scripts in `cutscene.c`** (extend the 10-line arrival sequencer): on the arrival's
+   completing beat, transition to room `0x334c8` (the house, 8 lines, text VAs 0x86d390..0x86d1dc), then
+   to `0x334dc` (the errands scene + its short opening dialogue).  Port the room-key swap mechanism
+   (`0x401d40` stage → `0x402030` commit → load the room's script + scene) — it is a LIGHT swap (no full
+   teardown), so the port models it as a scene/script change within the live town, NOT a full map reload.
+2. **At the errands room, run FREEROAM:** stop the cutscene sequencer and run `character_step` on the
+   leader entity reading live `g_game_drive.input.axis_held` (the char-AI `+0x200==0` path) + the live
+   keyboard producer (`input_live.c`, Phase 1 — already ported).  This is the faithful replacement for
+   the ckpt-120 `CHAR_CONTROL_ARM_FRAMES` MVP arm.  The port does NOT need to model `+0x200` for the
+   first freeroam — control = "the errands scene yields to the char AI."
+3. **DROP** the "`+0x200=1` transfer" from the first-freeroam port path (it was a static-RE
+   mis-attribution; it's a later party/end-of-day mechanic).
 
-**The control MECHANISM is small + clear; reaching retail's exact LOCATION is the arc.**  The
-`cutscene.c` sequencer (the 10-line advance) is the foundation to extend; `character_step` is DONE
-(bit-exact); the render is the static cutscene-cast slot (Arche slides, no walk-cycle —
-PORT-DEBT(cutscene-party-chars), the animation system is Phase 3, out of the un-MVP scope).
+**Two refinements stay OPEN (don't block the port):** (a) the LATER `+0x200=1` transfer (after the
+errands complete → town flag-0xd2 → Sana scene) — needs a walk-to-trigger nav, a separate capture; (b)
+whether the char-AI is actively SUPPRESSED during the arrival/house cutscenes or merely un-fed (held-
+input not tested there) — i.e. is the port's "switch to freeroam" a gate or just "stop scripting her".
+Both refine the model; neither changes the target: controllable Arche = the errands room `0x334dc`, via
+`character_step` on live input.  `character_step` is DONE (bit-exact); the render is the static
+cutscene-cast slot (Arche slides, no walk-cycle — PORT-DEBT(cutscene-party-chars), Phase 3).
 
 ## Why (the pivot)
 

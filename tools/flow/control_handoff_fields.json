@@ -1,0 +1,32 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (plans/controllable-arche-faithful.md Phase 2, ckpt 122). Resolves the STATIC-vs-LIVE conflict: does the live Z-spam path from game_enter to the player-control hand-off RELOAD ROOMS (room key 0x334be->0x334c8->0x334dc->...) or stay SAME-MAP (camera-only)? Per-Flip on the DDraw Flip 0x5b8fc0 it reads, off room_state = *(*(0x8a9b50)+0x2784): the committed ROOM KEY +0x4024 (FUN_00402030 commits *(map+0x900) here) + companions +0x4028/+0x402c; the story-flag table ptr +0x40ac (FUN_0041e2f0 scans it; 0x5f76805 advances 0->0xd2 in the errands room); the LEADER slot +0x200c (ckpt-112 model: 0=cutscene, !=0 once control transfers); the global game-mode *(*(0x8a9b50)+0x1030); and Arche's leader-chain ENTITY (+0x200c -> +0x9f4) code +0x1d4 (0xc35a sanity), the master CONTROL flag +0x200 (0->1 at the transfer, FUN_0041e070/4d7d80:449-463) + the AI-script ptr +0x158a4 (->0 at the transfer). Null-safe (a null leader during the cutscene faults the entity hops -> null). ALSO hooks the room-transition STAGER FUN_00401d40(key,p2,p3) to NAME any reload (arg0=the staged room key); if it never fires across the drive, the path is same-map. Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/control_handoff_fields.json --field-spec-only --call-trace --run-dir runs/control-path-gt/cap --duration-ms 240000.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "scene",
+      "_note": "FUN_005b8fc0 DDraw Flip (once/frame). room_state = *(*(0x8a9b50)+0x2784); chain root *(0x8a9b50). hops decode: 10116=+0x2784 room_state, 8204=+0x200c leader slot, 2548=+0x9f4 entity.",
+      "fields": [
+        {"name": "room_key",  "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16420, "type": "hex", "reason": "room_state+0x4024 committed room-lookup key (FUN_00402030); 0x334be=town arrival, 0x334c8=house, 0x334dc=errands"},
+        {"name": "room_k2",   "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16424, "type": "hex", "reason": "room_state+0x4028 companion key word (param_2 of 0x401d40)"},
+        {"name": "room_k3",   "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16428, "type": "hex", "reason": "room_state+0x402c companion key word (param_3 of 0x401d40)"},
+        {"name": "flagtab",   "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16556, "type": "hex", "reason": "room_state+0x40ac story-flag table ptr (FUN_0041e2f0 scans {key,val,?}x count@+0x600 for 0x5f76805)"},
+        {"name": "leader",    "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 8204,  "type": "hex", "reason": "room_state+0x200c party-leader slot ptr; ckpt-112: 0 during cutscene, !=0 once control transfers"},
+        {"name": "mode",      "src": "chain", "va": "0x8a9b50", "hops": [],      "off": 4144,  "type": "i32", "reason": "*(0x8a9b50)+0x1030 global game-mode flag (47b990:722 reads ==2)"},
+        {"name": "ent_code",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468,   "type": "hex", "reason": "entity+0x1d4 leader-chain actor code; 0xc35a == Arche (null while leader null)"},
+        {"name": "ctrl",      "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 512,   "type": "i32", "reason": "entity+0x200 master player-controlled flag; 0->1 at the hand-off"},
+        {"name": "aiscript",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88228, "type": "hex", "reason": "entity+0x158a4 AI-script/input-mgr ptr; ->0 (cleared) at the hand-off"},
+        {"name": "wx",        "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,  "type": "i32", "reason": "body+4 worldX (moves if controllable/walking)"},
+        {"name": "wy",        "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 8,  "type": "i32", "reason": "body+8 worldY"},
+        {"name": "facing",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 44, "type": "i32", "reason": "body+0x2c facing 1/3"}
+      ]
+    },
+    "0x401d40": {
+      "name": "room_stage",
+      "_note": "FUN_00401d40(param_1,param_2,param_3) thiscall — stages a ROOM TRANSITION: writes the next room-lookup key to *in_ECX+0x900/904/908 (committed to room_state+0x4024 by FUN_00402030). Fires ONLY on a real room change -> NAMES every reload. If absent across the drive, the path is same-map (camera-only).",
+      "fields": [
+        {"name": "staged_key", "src": "arg", "index": 0, "type": "hex", "reason": "param_1 the staged room-lookup key (the next room)"},
+        {"name": "staged_2",   "src": "arg", "index": 1, "type": "hex", "reason": "param_2 companion word"},
+        {"name": "staged_3",   "src": "arg", "index": 2, "type": "hex", "reason": "param_3 companion word"}
+      ]
+    }
+  }
+}

@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 122) — the control-transfer PATH is HARNESS-VERIFIED: a 3-room chain, the errands room IS the freeroam, control = `+0x200==0`
+
+The ckpt-121 "DO FIRST: harness-verify the live room/control path before porting" step, done — and it
+RESOLVES the static-vs-live conflict (both prior readings were half-right) and CORRECTS the porting model.
+Pure RE/harness, no port code (974 host pass unchanged).  Method: seed-pinned `--lockstep --no-turbo` retail
+drove the proven ckpt-112 nav (Z-spam from `game_enter`, incl the two `id=3` LEFT presses @830/865 that pass
+the new-game submenu — a uniform-Z nav stalled before `game_enter` without them) extended to flip 8392, under
+a new per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading off
+`room_state = *(*(0x8a9b50)+0x2784)`: the committed room key `+0x4024`, the leader `+0x200c`→entity, the
+control flag `entity+0x200` + input-mgr `+0x158a4`, the story-flag table `+0x40ac`.  Artifacts:
+`runs/control-path-gt/` (gitignored); montage on the feed.  Full writeup: **engine-quirk #103** (corrects #101).
+
+**Findings:** (1) the path IS a 3-ROOM CHAIN — the room key swaps `0x334be` arrival (flip 1430) → `0x334c8`
+house (3661) → `0x334dc` errands (4270), staged by `FUN_00401d40` (@3659/@4268), committed by `FUN_00402030`
+(the static RE's sequence is real).  (2) But it's a LIGHT room-key swap, NOT a full reload — ONE `game_enter`,
+and `room_state`/leader/entity/flag-table pointers hold constant across both swaps (so ckpt-112's "no reload,
+entities persist" was right; its "same scene" was wrong).  (3) CONTROL IS `entity+0x200 == 0` (the char-AI
+path `0x478ba0`), NOT `+0x200=1` — a held-axis walk in the errands room drove Arche bit-exact (held-RIGHT
+`wx 19200→73800` facing 1, held-LEFT →`14640` facing 3) with `+0x200`==0 + `+0x158a4` non-null throughout;
+the ckpt-114 polarity open is resolved, and the `0x41e070`/`0x4c6830` `+0x200=1` setters are a later/different
+control point.  (4) the errands room `0x334dc` IS the freeroam ("PLAYER!" marker + HUD on screen = ckpt-112's
+"PLAYER!@4500", correctly located) — USER-confirmed "a house with mom and dad, run some errands, short dialogue
+at the start"; Z-spam stalls there because it's gameplay, and the stall IS the control boundary.
+
+**Next (the active arc — PORT the verified chain):** extend `src/cutscene.{c,h}` to chain the 3 room scripts
+via the light room-key swap (`0x401d40`→`0x402030`, no full reload), and at the errands room stop the
+sequencer + run `character_step` on live `axis_held` (the `+0x200==0` char-AI path) — the faithful replacement
+for the ckpt-120 `CHAR_CONTROL_ARM_FRAMES` MVP arm.  Drop the `+0x200=1` model for the first freeroam.  Plan
+corrected: `plans/controllable-arche-faithful.md` "Phase 2 VERIFIED".  Open (don't block): the later
+`+0x200=1` transfer (post-errands → Sana, needs a walk-to-trigger nav); whether the char-AI is suppressed
+during the arrival/house cutscenes or merely un-fed.
+
+---
+
 ## 2026-06-11 (ckpt 121) — UN-MVP'd the movement: MVP wire REMOVED, FAITHFUL live input + the town-arrival DIALOGUE ADVANCE ported
 
 The USER's directive: the ckpt-120 live-wire put control in the wrong scene via a measured trigger — un-MVP
