@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 117) — PHASE-4 chip 3b: Arche's JUMP is PORTED + field-exact, and the move-tuning consts are CAPTURED LIVE (resolving a decompile mis-read)
+
+Ported the vertical airborne integrator into `src/character.{c,h}` (the chip-3a walk module), bit-exact
+to the ckpt-116 captured SHORT-HOP arc, and CAPTURED the per-entity move-tuning constants live off
+Arche's entity to RE the model rather than curve-fit it.  960 host pass (+2: `character_jump_arc`,
+`character_jump_edge_and_ground`).  `character_step(c, axis_held, jump_held)` now runs the vertical
+integrator every tick alongside the horizontal walk: launch impulse on the jump rising edge, then
+`worldY += vvel/100` with ASYMMETRIC + VARIABLE-HEIGHT gravity and a flat ground clamp (the open-air
+reduction of `0x442a70` case 3 + the vertical collision mover `0x54e5c0`).  The 27-tick short-hop arc
+asserts bit-exact vs retail's captured `(vvel, worldY)` bytes.
+
+The RE was decompile-STRUCTURE + live-CONSTS, not line-by-line.  A first pass read the 12 KB shared
+integrator `0x442a70`'s decompile literally and mis-mapped the gravity/terminal to `in_ECX[0x565b]`/
+`[0x565e]` — but a live const capture (`tools/flow/jump_consts_fields.json` → `runs/runjump-gt/capconsts`,
+reading `in_ECX[idx]` = entity byte `idx*4` @flip 1500) showed those are the WALK cap (24000) and brake
+(−800), CONFIRMING the ckpt-115 walk-tuning hypothesis.  The real jump consts: impulse `[0x5667]`=−80000,
+rise grav HELD `[0x5668]`=2000 (the floaty high jump), rise grav FREE `[0x5669]`=8000 (the short hop), run
+accel `[0x565d]`=3200.  A wider band scan (`capband`, `0x565a..0x566f`) showed the fall grav (4000, arc-
+pinned) is NOT a move-tuning field → a global/derived gravity (4000 = 8000/2).  The decompile's
+variable-reuse across vertical/horizontal terms is exactly why the project ground-truths values with the
+harness; logged as the METHOD LESSON in engine-quirk #102 (amended) + HANDOFF.
+
+The captured arc is the SHORT HOP, confirmed empirically: the ring execute `cmd[2]=7` fires for ONE tick
+(frame 4603) then `cmd[2]==0` the whole rise (4610-4630) → the FREE rise grav 8000 (apex at tick 10).  A
+held-C jump (`cmd[2]=8`) would use 2000 → a much higher arc; the port models both via `jump_held`, with a
+structural test asserting the held apex is strictly higher, but only the short hop is bit-exact validated.
+Debt: PORT-DEBT(char-jump-variable-height) (the held arc unvalidated + the ~7-flip windup collapsed),
+PORT-DEBT(char-jump-fall-grav-source) (the 4000 source un-located), `char-run-jump` renamed `char-run`
+(jump done; run remains).  NEXT: a held-C capture to validate the 2000 branch; the dash double-tap; then
+the chip-4 live wire (`character_step`'s first live caller) → Arche jumps on screen → USER visual-verify.
+
+---
+
 ## 2026-06-11 (ckpt 116) — PHASE-4 chip 3b: the run/jump BLOCKER is RESOLVED — jump/dash are RING-sourced, and Arche's JUMP is captured bit-exact in the TOWN
 
 Resolved the ckpt-115 chip-3b blocker by RE + a live experiment, and **REFUTED** the "dash/jump need a

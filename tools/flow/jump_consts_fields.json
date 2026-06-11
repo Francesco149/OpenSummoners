@@ -1,0 +1,21 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (Phase-4 chip 3b, ckpt 117). Reads the per-entity MOVE-TUNING constants 0x442a70 uses for the JUMP off Arche's entity (in_ECX[idx] = entity byte idx*4; the command block in_ECX+0x14854 = int 0x5215 = byte 0x14854 confirms the *4 scale). Resolves the index->constant provenance that the bit-exact arc pins by VALUE only (impulse -80000, rise-held grav 8000, fall grav 4000) and captures the two UNOBSERVED consts: the terminal-velocity clamp + the short-hop (jump-released) rise grav. Entity chain = the leader chain [room_state 0x2784, leader-slot 0x200c, entity 0x9f4] (stop at the entity, off = idx*4). Drive: nav to settled freeroam (jump-ring.jsonl), read a few frames ~4555. RUN: frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/runjump-gt/jump-ring.jsonl --field-spec tools/flow/jump_consts_fields.json --field-spec-only --call-trace --call-trace-frames 4554,4556,4558,4560 --run-dir runs/runjump-gt/capconsts.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_tuning",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's ENTITY (code 0xc35a) + the 0x442a70 move-tuning consts read as in_ECX[idx] (byte idx*4).",
+      "fields": [
+        {"name": "code",      "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468,   "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
+        {"name": "wy",        "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 8, "type": "i32", "reason": "body+8 worldY (confirm grounded = 52000)"},
+        {"name": "vvel",      "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 24,"type": "i32", "reason": "body+0x18 vvel (confirm 0 grounded)"},
+        {"name": "c_5667",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88476, "type": "i32", "reason": "in_ECX[0x5667] (442a70:837) JUMP IMPULSE; expect -80000"},
+        {"name": "c_5668",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88480, "type": "i32", "reason": "in_ECX[0x5668] (442a70:862) RISE grav, jump HELD; expect 8000"},
+        {"name": "c_5669",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88484, "type": "i32", "reason": "in_ECX[0x5669] (442a70:859/865) RISE grav, jump RELEASED (short-hop); UNOBSERVED"},
+        {"name": "c_565b",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88428, "type": "i32", "reason": "in_ECX[0x565b] (442a70:950) FALL grav (my read)=4000 vs ckpt-115 walk-cap hypothesis=24000"},
+        {"name": "c_565c",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88432, "type": "i32", "reason": "in_ECX[0x565c] (442a70:957) walk accel hypothesis=1600"},
+        {"name": "c_565d",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88436, "type": "i32", "reason": "in_ECX[0x565d] (442a70:999) run accel?"},
+        {"name": "c_565e",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88440, "type": "i32", "reason": "in_ECX[0x565e] (442a70:951) TERMINAL velocity (my read) vs ckpt-115 walk-brake hypothesis=800"}
+      ]
+    }
+  }
+}

@@ -3259,7 +3259,7 @@ transfers to the player INSIDE the inn (`runs/freeroam-gt`).
     is an action button at inputmgr `+0x124`/`+0x128`, cmd `[4]=0xe`) are needed to
     extend the held-trace walk to capture run+jump per-tick.
 
-### #102 — the freeroam ACTION INPUT map: the producer `0x46a880` action-button slots, the live keybind scancodes (X = `0x2d`, C = `0x2e`), and run = a direction DOUBLE-TAP via the event ring (2026-06-11, ckpt 115)
+### #102 — the freeroam ACTION INPUT map: the producer `0x46a880` action-button slots, the live keybind scancodes (X = `0x2d`, C = `0x2e`), run = a direction DOUBLE-TAP via the event ring; + the JUMP physics (impulse/variable-height gravity, consts captured) (2026-06-11, ckpt 115; jump arc ckpt 116; physics+consts ckpt 117)
 
 Ground-truth from the chip-3b capture (`runs/runjump-gt`, seed-pinned + lockstep
 held-axis drive to freeroam; live config field-spec read + Arche's per-tick body).
@@ -3325,6 +3325,32 @@ for the movement arc, each item to be captured + ported + bit-exact-verified in 
   ground-clamp at `wy=52000` zeroes vvel. The apex/fall branch is gated by the body+0x38==3
   airborne sub-FSM (`0x442a70:832-877`, the `-20000` vvel threshold) + the impulse/gravity consts
   `in_ECX[0x5667/0x565b/0x565e]` (un-RE'd exactly → the port chip).
+- **JUMP PHYSICS RE'd + the move-tuning consts CAPTURED LIVE (ckpt 117, `runs/runjump-gt/capconsts`
+  + `capband`).** The per-entity move-tuning is `in_ECX[idx]` = entity byte `idx*4` (the command
+  block `+0x14854` = int `0x5215` confirms the scale). Read off Arche's entity:
+  - **impulse `in_ECX[0x5667]` = −80000** (set at windup-complete, `0x442a70:837`).
+  - **rise grav is VARIABLE-HEIGHT** (`:858-866` selects on cmd[2]): jump **HELD** (cmd[2]≠0) →
+    `in_ECX[0x5668]` = **2000** (slow decel = the FLOATY HIGH jump, apex ~38 ticks); **RELEASED**
+    (cmd[2]==0) → `in_ECX[0x5669]` = **8000** (fast decel = the SHORT HOP, apex 10 ticks).
+  - **the captured arc is the SHORT HOP:** the ring execute `cmd[2]=7` is a ONE-tick event
+    (verified: `cmd[2]=7` at one flip, then `cmd[2]==0` the whole rise — `capjump-ring2`), so the
+    ring-injected jump never holds → the free grav 8000. A HELD-C jump would use 2000 → much higher.
+  - **the walk-tuning indices are CONFIRMED (the ckpt-115 hypothesis PROVEN):** `in_ECX[0x565b]`=24000
+    (walk cap), `[0x565c]`=1600 (walk accel), `[0x565d]`=3200 (run accel), `[0x565e]`=−800 (walk brake).
+  - **the launch tick samples vvel = −76000, not −80000:** the launch applies ONE fall-grav step
+    (the grav was selected from the pre-impulse `vvel==0` = the fall branch): −80000 + 4000 = −76000.
+  - **the FALL grav (4000, while `vvel>=0` + the launch tick) is NOT in the move-tuning band
+    `0x565a..0x566f`** (all captured) → a GLOBAL/derived gravity (note 4000 = 8000/2 = the free rise
+    grav halved). Source un-located → PORT-DEBT(char-jump-fall-grav-source).
+  - **METHOD LESSON:** `0x442a70` is a 12 KB shared integrator (walk+run+jump+skills+collision+anim);
+    its Ghidra decompile reuses `param_2`/`param_3`/`local_20` for both vertical and horizontal terms
+    and has control-flow reconstruction artifacts — an earlier line-by-line read mis-attributed the
+    fall grav to `[0x565b]`/terminal to `[0x565e]` (both actually the WALK cap/brake). RE the STRUCTURE
+    from the decompile, but pin the VALUES + index→constant provenance with a LIVE const capture, never
+    a line-by-line port. The bit-exact 27-tick arc + the captured consts together are the ground truth.
+  Ported chip 3b: `src/character.c` airborne integrator (the short hop bit-exact; the held branch uses
+  the captured 2000 + the RE'd selection, structural test only). The −20000 threshold at `:847` is an
+  ANIMATION sub-state transition (rise→apex anim), not a physics term.
 - **Dash (run, cmd`[0]`=5/6) is ALSO ring-sourced** (the same harness gap): `0x479e70` matches a
   direction DOUBLE-TAP in the ring (action-id 2=LEFT / 4=RIGHT within `*0x8a6e80+0xf8`), so the
   held-axis injection (which only sets the held array) can never trigger it. To ground-truth the

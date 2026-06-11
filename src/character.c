@@ -7,16 +7,22 @@
  */
 #include "character.h"
 
-void character_init(character *c, int32_t spawn_world_x, int facing)
+void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
+                    int facing)
 {
     if (c == NULL) return;
-    c->world_x  = spawn_world_x;
-    c->vel      = 0;
-    c->facing   = (int16_t)((facing == CHAR_FACE_LEFT) ? CHAR_FACE_LEFT
-                                                       : CHAR_FACE_RIGHT);
-    c->cmd_dir  = 0;
-    c->warm     = 0;
-    c->held_dir = 0;
+    c->world_x   = spawn_world_x;
+    c->world_y   = spawn_world_y;
+    c->vel       = 0;
+    c->vvel      = 0;
+    c->ground_y  = spawn_world_y;
+    c->facing    = (int16_t)((facing == CHAR_FACE_LEFT) ? CHAR_FACE_LEFT
+                                                        : CHAR_FACE_RIGHT);
+    c->cmd_dir   = 0;
+    c->warm      = 0;
+    c->held_dir  = 0;
+    c->airborne  = 0;
+    c->jump_held = 0;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -28,7 +34,7 @@ static int32_t ramp_toward(int32_t cur, int32_t target, int32_t rate)
     return cur;
 }
 
-int32_t character_step(character *c, const int *axis_held)
+int32_t character_step(character *c, const int *axis_held, int jump_held)
 {
     if (c == NULL) return 0;
 
@@ -85,5 +91,47 @@ int32_t character_step(character *c, const int *axis_held)
 
     int32_t dwx = c->vel / 100;               /* the 0x54db10 step (flat) */
     c->world_x += dwx;
+
+    /* ── VERTICAL jump integrator (0x442a70 case 3, the body+0x38==3 airborne
+     *    sub-FSM): launch impulse -> asymmetric gravity -> ground clamp. ───────
+     * worldY += vvel/100 each airborne tick (the 0x54e5c0 collision mover, here
+     * reduced to a flat ground clamp at ground_y — PORT-DEBT(char-collision-mover)
+     * for the real terrain surface).  Bit-exact to the captured arc (runs/runjump-
+     * gt, ckpt 116; tests/test_character.c). */
+    int jump_edge = (jump_held != 0) && (c->jump_held == 0);
+    c->jump_held = (int16_t)(jump_held != 0);
+
+    if (!c->airborne) {
+        if (jump_edge) {
+            /* Launch (windup-complete tick).  vvel := impulse, step worldY by the
+             * pre-grav impulse, then add one FALL grav step (the grav was selected
+             * from the pre-impulse vvel==0 = fall branch) -> first sampled -76000. */
+            c->airborne = 1;
+            c->vvel = CHAR_JUMP_IMPULSE;
+            c->world_y += c->vvel / 100;
+            c->vvel += CHAR_JUMP_FALL_GRAV;
+        }
+        /* else grounded: world_y holds at ground_y, vvel 0. */
+    } else {
+        int32_t step = c->vvel / 100;
+        if (c->vvel > 0 && c->world_y + step > c->ground_y) {
+            /* a downward step that would penetrate the ground -> the collision
+             * mover returns blocked: clamp to the surface and zero vvel (line
+             * 926-931 -> 0x426f50 grounded). */
+            c->world_y = c->ground_y;
+            c->vvel = 0;
+            c->airborne = 0;
+        } else if (c->vvel < 0) {
+            /* RISING: variable-height decel — jump HELD floats up slowly (2000),
+             * RELEASED cuts the rise short (8000); release mid-rise to shorten it. */
+            c->world_y += step;
+            c->vvel += jump_held ? CHAR_JUMP_RISE_GRAV_HELD : CHAR_JUMP_RISE_GRAV_FREE;
+        } else {
+            /* FALLING: the (button-independent) fall accel. */
+            c->world_y += step;
+            c->vvel += CHAR_JUMP_FALL_GRAV;
+        }
+    }
+
     return dwx;
 }

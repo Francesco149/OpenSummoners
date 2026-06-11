@@ -8,10 +8,40 @@
 <!-- FRONT:BEGIN -->
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
-  held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → **jump/dash blocker resolved
-  + jump arc captured ✓** → jump/dash port → live wire at the freeroam hand-off). Milestone map:
-  `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 116): PHASE-4 chip 3b — the run/jump BLOCKER is RESOLVED and Arche's JUMP is captured
+  held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → jump/dash blocker resolved
+  + jump arc captured ✓ → **JUMP ported + field-exact ✓** → dash port → live wire at the freeroam
+  hand-off). Milestone map: `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog:
+  `port-frontier.md`.
+- **LATEST (ckpt 117): PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning
+  consts are CAPTURED LIVE (resolving an earlier decompile mis-read). `src/character.{c,h}` grew the
+  vertical airborne integrator; 960 pass (+2).** The short-hop arc is reproduced BIT-EXACT vs the ckpt-116
+  capture; the variable-height high jump is RE'd + uses captured consts. Writeup: **engine-quirk #102**
+  (amended, ckpt 117). Artifacts: `runs/runjump-gt/capconsts` + `capband` (the live const reads),
+  `jump_arc.png` (pushed to the feed).
+  1. **The port (`character.{c,h}` + `test_character.c` ×2):** `character_step(c, axis, jump_held)` now
+     runs the vertical integrator alongside the walk — launch impulse on the jump rising edge, then
+     `worldY += vvel/100` with ASYMMETRIC, VARIABLE-HEIGHT gravity + a flat ground clamp (the open-air
+     reduction of `0x442a70` case 3 + the vertical mover `0x54e5c0`). The 27-tick short-hop arc asserts
+     bit-exact vs retail's captured bytes.
+  2. **The consts CAPTURED off Arche's entity (the rigor step — `in_ECX[idx]` = entity byte `idx*4`):**
+     impulse `[0x5667]`=**−80000**, rise grav HELD `[0x5668]`=**2000** (floaty high jump), rise grav FREE
+     `[0x5669]`=**8000** (short hop), and the walk cap/accel/brake `[0x565b/c/e]`=**24000/1600/−800** —
+     **confirming the ckpt-115 walk-tuning hypothesis**. The fall grav (**4000**, arc-pinned) is NOT in
+     the move-tuning band → a global/derived gravity (4000 = 8000/2). **METHOD:** the 12 KB shared
+     integrator `0x442a70`'s decompile reuses vars across vertical/horizontal terms — an earlier
+     line-by-line read mis-mapped `[0x565b]/[0x565e]` to fall-grav/terminal (they're the WALK cap/brake).
+     RE the structure, PIN the values + provenance with a live capture.
+  3. **The captured arc is the SHORT HOP** (ring tap → `cmd[2]==0` the whole rise → free grav 8000,
+     verified); a HELD-C jump (`cmd[2]=8`) uses 2000 → a much higher arc.
+  4. **NEXT (chip 3b/3c, in order):** (a) **bit-exact-validate the HELD high jump** — a held-C capture
+     (held-trace scancode `0x2e` + the ring id-7 execute → `cmd[2]=8` the rise) gives the high-jump arc
+     → confirm the 2000 branch + the ~7-flip windup. (b) **Capture + port the DASH** (a direction
+     double-tap + hold → cmd[0]=5/6, the run cap). (c) **The LIVE wire** — the chip-4 freeroam hand-off
+     gives `character_step` its first live caller → Arche walks/jumps on screen → USER visual-verify.
+     **OPEN (USER):** butterfly chip-1 drift visual-verify still pending. Debt: PORT-DEBT(char-run /
+     char-jump-variable-height / char-jump-fall-grav-source / char-walk-tuning / char-collision-mover /
+     char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 116): PHASE-4 chip 3b — the run/jump BLOCKER is RESOLVED and Arche's JUMP is captured
   bit-exact in the TOWN. Pure ground-truth (no port code yet). 958 pass (unchanged).** The ckpt-115
   "dash/jump need a platforming/dungeon scene" hypothesis is **REFUTED**: jump/dash are sourced from
   the discrete EVENT RING, and the chip-3b captures only injected the HELD-AXIS — a harness gap, not a

@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 116, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 117, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,60 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 116
+## Where we are — ckpt 117
+
+**PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning consts are CAPTURED
+LIVE off her entity (resolving an earlier decompile mis-read). 960 host pass (+2).**  The vertical
+airborne integrator now lives in `src/character.{c,h}` alongside the chip-3a walk; the captured
+SHORT-HOP arc is reproduced bit-exact.  Modules: `src/character.{c,h}` (+ `world_y`/`vvel`/`airborne`
++ the jump integrator), `tests/test_character.c` (+`character_jump_arc`, `character_jump_edge_and_ground`),
+`tests/test_main.c`; throwaway specs `tools/flow/jump_consts_fields.json` + `jump_constband_fields.json`;
+docs (`engine-quirks.md` #102 amended, `port-debt.md` rows).  Writeup: **engine-quirk #102** (ckpt 117).
+
+**The jump model (RE'd from `0x442a70` case 3 + the bit-exact arc + the captured consts):**
+- `character_step(c, axis_held, jump_held)` runs the vertical integrator EVERY tick alongside the walk.
+- **launch** on the jump rising edge (grounded): `vvel = impulse (-80000)`; step `worldY += vvel/100`;
+  then ONE fall-grav step (the grav was selected from the pre-impulse `vvel==0` = fall branch) → the
+  first sampled vvel is **−76000**, not −80000.
+- **rise** (`vvel<0`): `worldY += vvel/100`; `vvel += rise_grav`, VARIABLE-HEIGHT — jump HELD → 2000
+  (floaty high jump), RELEASED → 8000 (short hop).
+- **fall** (`vvel>=0`): `worldY += vvel/100`; `vvel += 4000` (button-independent).
+- **land**: a downward step that would penetrate `ground_y` → clamp `worldY=ground_y`, `vvel=0`,
+  grounded (the flat reduction of the vertical collision mover `0x54e5c0`; town street is flat).
+
+**The consts CAPTURED off Arche's entity (`in_ECX[idx]` = entity byte `idx*4`; `runs/runjump-gt/capconsts`
++ `capband`, read live @flip 1500):** impulse `[0x5667]`=−80000, rise grav HELD `[0x5668]`=2000, rise grav
+FREE `[0x5669]`=8000, walk cap `[0x565b]`=24000, walk accel `[0x565c]`=1600, run accel `[0x565d]`=3200,
+walk brake `[0x565e]`=−800.  **This CONFIRMS the ckpt-115 walk-tuning hypothesis** and corrects an
+earlier line-by-line decompile read that mis-mapped `[0x565b]/[0x565e]` to fall-grav/terminal.  The fall
+grav (4000) is NOT in the move-tuning band `0x565a..0x566f` → a global/derived gravity (4000 = 8000/2).
+
+**The captured arc is the SHORT HOP** (verified, `capjump-ring2`): the ring execute `cmd[2]=7` is a
+ONE-tick event, so `cmd[2]==0` the whole rise → the FREE grav 8000.  A held-C jump (`cmd[2]=8`) would use
+2000 → a much higher arc.  The port models both via `jump_held`; only the short hop is bit-exact validated.
+
+**METHOD LESSON (durable):** `0x442a70` is a 12 KB shared integrator (walk+run+jump+skills+collision+anim)
+whose Ghidra decompile reuses `param_2`/`param_3`/`local_20` across vertical and horizontal terms and has
+control-flow reconstruction artifacts.  RE the STRUCTURE from it, but PIN the values + index→constant
+provenance with a LIVE const capture — never a line-by-line port.  The bit-exact arc + the captured consts
+together are the ground truth (this is how the `[0x565b]` fall-grav-vs-cap ambiguity was resolved).
+
+**NEXT (chip 3b/3c, in order):**
+1. **Bit-exact-validate the HELD high jump** — drive a held-C jump (a held-trace forcing the leaf for
+   scancode `0x2e` so `cmd[2]=8` each rise tick, + the ring id-7 execute to trigger) → capture the
+   high-jump arc → confirm the 2000 rise-grav branch + RE the ~7-flip windup (execute→launch).
+2. **Capture + port the DASH (run)** — inject two direction ring presses within the double-tap window
+   then hold (`ids:[4]` ×2 + the held RIGHT axis) → cmd[0]=5/6 → capture the run cap (> the walk's 240;
+   run accel `[0x565d]`=3200 already captured) → port.
+3. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the `entity+0x200` control
+   transfer) gives `character_step` its first live caller in `game_actor_update` → Arche walks/jumps on
+   screen, the chip-2 collision mover/probes get a live grounded actor → USER visual-verify.
+
+**OPEN (USER):** butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).
+Debt: PORT-DEBT(char-run / char-jump-variable-height / char-jump-fall-grav-source / char-walk-tuning /
+char-collision-mover / char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 116
 
 **PHASE-4 chip 3b — the run/jump BLOCKER is RESOLVED and Arche's JUMP is captured BIT-EXACT in the
 TOWN freeroam. Pure ground-truth (no port code yet). 958 host pass (unchanged).**  The ckpt-115

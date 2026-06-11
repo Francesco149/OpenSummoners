@@ -33,21 +33,21 @@ int test_character_walk_accel(void)
     const int N = (int)(sizeof EXPECT / sizeof EXPECT[0]);
 
     character c;
-    character_init(&c, 19200, CHAR_FACE_RIGHT);
+    character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);
     T_ASSERT_EQ_I(c.world_x, 19200);
     T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
 
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, +1);                       /* hold RIGHT */
     for (int i = 0; i < N; i++) {
-        character_step(&c, axis);
+        character_step(&c, axis, 0);
         T_ASSERT_EQ_I(c.world_x, EXPECT[i]);  /* field-exact vs retail */
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);  /* facing holds through the walk */
     }
     /* At the cap the per-tick step is a steady +240 (dwx = 24000/100). */
     T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
     int32_t before = c.world_x;
-    int32_t dwx = character_step(&c, axis);
+    int32_t dwx = character_step(&c, axis, 0);
     T_ASSERT_EQ_I(dwx, 240);
     T_ASSERT_EQ_I(c.world_x, before + 240);
     return 0;
@@ -65,16 +65,16 @@ int test_character_walk_brake(void)
     const int N = (int)(sizeof BRAKE_DWX / sizeof BRAKE_DWX[0]);
 
     character c;
-    character_init(&c, 40000, CHAR_FACE_RIGHT);
+    character_init(&c, 40000, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, +1);
-    for (int i = 0; i < 60; i++) character_step(&c, axis);  /* reach the cap */
+    for (int i = 0; i < 60; i++) character_step(&c, axis, 0);  /* reach the cap */
     T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
 
     axis_set(axis, 0);                        /* release */
     int32_t wx = c.world_x;
     for (int i = 0; i < N; i++) {
-        int32_t dwx = character_step(&c, axis);
+        int32_t dwx = character_step(&c, axis, 0);
         T_ASSERT_EQ_I(dwx, BRAKE_DWX[i]);     /* field-exact decel */
         wx += BRAKE_DWX[i];
         T_ASSERT_EQ_I(c.world_x, wx);
@@ -82,7 +82,7 @@ int test_character_walk_brake(void)
     }
     T_ASSERT_EQ_I(c.vel, 0);                   /* stopped */
     /* Held idle stays stopped. */
-    T_ASSERT_EQ_I(character_step(&c, axis), 0);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
     T_ASSERT_EQ_I(c.world_x, wx);
     return 0;
 }
@@ -92,23 +92,23 @@ int test_character_walk_brake(void)
 int test_character_walk_left_symmetry(void)
 {
     character c;
-    character_init(&c, 50000, CHAR_FACE_RIGHT);
+    character_init(&c, 50000, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, -1);                        /* hold LEFT */
 
     /* warmup (CHAR_INPUT_REPEAT_DELAY ticks: cmd not latched -> no motion) */
     for (int i = 0; i < CHAR_INPUT_REPEAT_DELAY - 1; i++) {
-        T_ASSERT_EQ_I(character_step(&c, axis), 0);
+        T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
     }
     /* latch tick: facing != want -> flip to LEFT at rest, still 0 motion */
-    T_ASSERT_EQ_I(character_step(&c, axis), 0);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
     T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT);
 
     /* now accelerate left: dwx -16,-32,..,-240 (mirror of the right walk) */
     int32_t wx = c.world_x;
     for (int k = 1; k <= 15; k++) {
-        int32_t dwx = character_step(&c, axis);
+        int32_t dwx = character_step(&c, axis, 0);
         T_ASSERT_EQ_I(dwx, -16 * k);
         wx += dwx;
         T_ASSERT_EQ_I(c.world_x, wx);
@@ -116,7 +116,7 @@ int test_character_walk_left_symmetry(void)
     }
     T_ASSERT_EQ_I(c.vel, -CHAR_WALK_CAP);
     /* capped at -240 */
-    T_ASSERT_EQ_I(character_step(&c, axis), -240);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0), -240);
     return 0;
 }
 
@@ -124,17 +124,107 @@ int test_character_walk_left_symmetry(void)
 int test_character_idle_and_conflict(void)
 {
     character c;
-    character_init(&c, 12345, CHAR_FACE_RIGHT);
+    character_init(&c, 12345, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0};
-    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis), 0);
+    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
     T_ASSERT_EQ_I(c.world_x, 12345);
 
     axis[CHAR_AXIS_LEFT] = axis[CHAR_AXIS_RIGHT] = 1;   /* both held -> idle */
-    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis), 0);
+    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
     T_ASSERT_EQ_I(c.world_x, 12345);
 
     /* NULL guards. */
-    T_ASSERT_EQ_I(character_step(NULL, axis), 0);
-    T_ASSERT_EQ_I(character_step(&c, NULL), 0);  /* no axis -> brake (already 0) */
+    T_ASSERT_EQ_I(character_step(NULL, axis, 0), 0);
+    T_ASSERT_EQ_I(character_step(&c, NULL, 0), 0);  /* no axis -> brake (already 0) */
+    return 0;
+}
+
+/* The JUMP arc (Phase-4 chip 3b): the airborne integrator (0x442a70 case 3) is
+ * FIELD-EXACT against RETAIL's captured per-tick body (runs/runjump-gt, ckpt 116:
+ * a seed-pinned ring-injected jump from the town freeroam, byte-identical across
+ * both captured jumps).  This is the SHORT HOP: the ring execute (cmd[2]=7) is a
+ * one-tick event so cmd[2]==0 the whole rise -> the FREE rise grav (8000, the
+ * in_ECX[0x5669] captured at ckpt 117).  The embedded (vvel, world_y) are retail's
+ * bytes, so a pass proves the port reproduces the engine's jump arc tick-for-tick. */
+int test_character_jump_arc(void)
+{
+    static const int32_t VVEL[] = {
+        -76000, -68000, -60000, -52000, -44000, -36000, -28000, -20000, -12000, -4000,
+          4000,   8000,  12000,  16000,  20000,  24000,  28000,  32000,  36000, 40000,
+         44000,  48000,  52000,  56000,  60000,  64000,      0,
+    };
+    static const int32_t WY[] = {
+        51200, 50440, 49760, 49160, 48640, 48200, 47840, 47560, 47360, 47240,
+        47200, 47240, 47320, 47440, 47600, 47800, 48040, 48320, 48640, 49000,
+        49400, 49840, 50320, 50840, 51400, 52000, 52000,
+    };
+    const int N = (int)(sizeof VVEL / sizeof VVEL[0]);
+
+    character c;
+    character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);  /* grounded at the town wy */
+    T_ASSERT_EQ_I(c.airborne, 0);
+    T_ASSERT_EQ_I(c.world_y, 52000);
+
+    int axis[CHAR_AXIS_COUNT];
+    axis_set(axis, 0);                                  /* no walk -> pure vertical */
+
+    /* The capture is a ring TAP: press on the launch edge, then RELEASED the whole
+     * rise (cmd[2]==0) -> the FREE rise grav (8000).  jump_held=1 only on tick 0. */
+    for (int i = 0; i < N; i++) {
+        character_step(&c, axis, /*jump_held=*/(i == 0) ? 1 : 0);
+        T_ASSERT_EQ_I(c.vvel, VVEL[i]);                 /* field-exact vs retail */
+        T_ASSERT_EQ_I(c.world_y, WY[i]);
+    }
+    /* Landed: back on the ground, vvel zeroed, airborne cleared. */
+    T_ASSERT_EQ_I(c.airborne, 0);
+    T_ASSERT_EQ_I(c.world_y, 52000);
+    T_ASSERT_EQ_I(c.vvel, 0);
+    return 0;
+}
+
+/* Grounded idle stays put; the jump triggers on the rising edge only (no double-
+ * jump while held); and HOLDING the button is the variable-height HIGH jump (the
+ * 2000 rise grav -> a strictly higher apex than the short hop's 4800). */
+int test_character_jump_edge_and_ground(void)
+{
+    character c;
+    character_init(&c, 30000, 52000, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT];
+    axis_set(axis, 0);
+
+    /* Grounded, no jump button: no vertical motion at all. */
+    for (int i = 0; i < 5; i++) {
+        character_step(&c, axis, 0);
+        T_ASSERT_EQ_I(c.airborne, 0);
+        T_ASSERT_EQ_I(c.world_y, 52000);
+        T_ASSERT_EQ_I(c.vvel, 0);
+    }
+
+    /* HOLD the jump the whole time (the floaty high jump, rise grav 2000): launch
+     * once on the edge, and — held, never re-pressed — NO double-jump.  Track the
+     * apex; loop until it lands (generous cap for the high arc). */
+    int launches = 0, lands = 0, was_air = 0;
+    int32_t apex = 52000;
+    for (int t = 0; t < 400; t++) {
+        int before_air = c.airborne;
+        character_step(&c, axis, 1);
+        if (!before_air && c.airborne) launches++;
+        if (was_air && !c.airborne) lands++;
+        if (c.world_y < apex) apex = c.world_y;     /* highest point (smaller wy) */
+        was_air = c.airborne;
+        if (lands == 1) break;
+    }
+    T_ASSERT_EQ_I(launches, 1);                      /* exactly one jump */
+    T_ASSERT_EQ_I(lands, 1);                         /* one landing */
+    T_ASSERT_EQ_I(c.airborne, 0);
+    T_ASSERT_EQ_I(c.world_y, 52000);
+    T_ASSERT(52000 - apex > 4800);                   /* higher than the short hop */
+
+    /* Releasing and re-pressing arms a second jump (a fresh rising edge). */
+    character_step(&c, axis, 0);                     /* release */
+    T_ASSERT_EQ_I(c.airborne, 0);
+    character_step(&c, axis, 1);                     /* re-press -> new edge */
+    T_ASSERT_EQ_I(c.airborne, 1);
+    T_ASSERT_EQ_I(c.vvel, -76000);                   /* same launch impulse */
     return 0;
 }

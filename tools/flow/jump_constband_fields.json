@@ -1,0 +1,310 @@
+{
+  "_doc": "THROWAWAY (ckpt 117): wide in_ECX const band 0x565a..0x566f off Arche entity to locate the FALL grav (value 4000, pinned by the arc; index unknown). Fast: consts are static, read @flip 1500. RUN: frida_capture.py --no-turbo --lockstep --seed-pin --duration-ms 60000 --input-trace runs/runjump-gt/jump-ring.jsonl --field-spec tools/flow/jump_constband_fields.json --field-spec-only --call-trace --call-trace-frames 1500,1550 --max-flips 1560 --run-dir runs/runjump-gt/capband --exact-run-dir.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_constband",
+      "_note": "const band",
+      "fields": [
+        {
+          "name": "code",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 468,
+          "type": "hex",
+          "reason": "0xc35a sanity"
+        },
+        {
+          "name": "c_565a",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88424,
+          "type": "i32",
+          "reason": "in_ECX[0x565a]"
+        },
+        {
+          "name": "c_565b",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88428,
+          "type": "i32",
+          "reason": "in_ECX[0x565b]"
+        },
+        {
+          "name": "c_565c",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88432,
+          "type": "i32",
+          "reason": "in_ECX[0x565c]"
+        },
+        {
+          "name": "c_565d",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88436,
+          "type": "i32",
+          "reason": "in_ECX[0x565d]"
+        },
+        {
+          "name": "c_565e",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88440,
+          "type": "i32",
+          "reason": "in_ECX[0x565e]"
+        },
+        {
+          "name": "c_565f",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88444,
+          "type": "i32",
+          "reason": "in_ECX[0x565f]"
+        },
+        {
+          "name": "c_5660",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88448,
+          "type": "i32",
+          "reason": "in_ECX[0x5660]"
+        },
+        {
+          "name": "c_5661",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88452,
+          "type": "i32",
+          "reason": "in_ECX[0x5661]"
+        },
+        {
+          "name": "c_5662",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88456,
+          "type": "i32",
+          "reason": "in_ECX[0x5662]"
+        },
+        {
+          "name": "c_5663",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88460,
+          "type": "i32",
+          "reason": "in_ECX[0x5663]"
+        },
+        {
+          "name": "c_5664",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88464,
+          "type": "i32",
+          "reason": "in_ECX[0x5664]"
+        },
+        {
+          "name": "c_5665",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88468,
+          "type": "i32",
+          "reason": "in_ECX[0x5665]"
+        },
+        {
+          "name": "c_5666",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88472,
+          "type": "i32",
+          "reason": "in_ECX[0x5666]"
+        },
+        {
+          "name": "c_5667",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88476,
+          "type": "i32",
+          "reason": "in_ECX[0x5667]"
+        },
+        {
+          "name": "c_5668",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88480,
+          "type": "i32",
+          "reason": "in_ECX[0x5668]"
+        },
+        {
+          "name": "c_5669",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88484,
+          "type": "i32",
+          "reason": "in_ECX[0x5669]"
+        },
+        {
+          "name": "c_566a",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88488,
+          "type": "i32",
+          "reason": "in_ECX[0x566a]"
+        },
+        {
+          "name": "c_566b",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88492,
+          "type": "i32",
+          "reason": "in_ECX[0x566b]"
+        },
+        {
+          "name": "c_566c",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88496,
+          "type": "i32",
+          "reason": "in_ECX[0x566c]"
+        },
+        {
+          "name": "c_566d",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88500,
+          "type": "i32",
+          "reason": "in_ECX[0x566d]"
+        },
+        {
+          "name": "c_566e",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88504,
+          "type": "i32",
+          "reason": "in_ECX[0x566e]"
+        },
+        {
+          "name": "c_566f",
+          "src": "chain",
+          "va": "0x8a9b50",
+          "hops": [
+            10116,
+            8204,
+            2548
+          ],
+          "off": 88508,
+          "type": "i32",
+          "reason": "in_ECX[0x566f]"
+        }
+      ]
+    }
+  }
+}
