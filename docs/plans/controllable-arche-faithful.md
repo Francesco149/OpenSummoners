@@ -1,14 +1,61 @@
 # Plan — FAITHFUL controllable Arche (the real freeroam scene + live input)
 
-> **Status: NEXT SESSION (planned, not started).**  USER directive (ckpt 120, 2026-06-11):
-> *skip the MVP measured-trigger live wire — go straight to the actual scene where Arche
-> is genuinely controllable in the real game, plus wire FAITHFUL input handling so the
-> movement can be meaningfully tested LIVE in the port.  Don't build the animation system
-> on the MVP — it would be annoying to un-MVP later.*
+> **Status (ckpt 121): Phase 1 DONE, the dialogue advance DONE, Phase 2 RESHAPED + ACTIVE.**
+> The MVP wire is removed; faithful LIVE input (`src/input_live.{c,h}`, the `0x46a880` producer)
+> + the town-arrival DIALOGUE ADVANCE (`src/cutscene.{c,h}`, the 10-line Z-advanced family
+> conversation) are ported + verified.  **Phase 2 (the control hand-off) turned out ~5× bigger
+> than planned — it is a MULTI-ROOM CHAIN, not a few lines — and the USER COMMITTED to the full
+> faithful path (ckpt 121).  The next move is HARNESS VERIFICATION (resolve the static-vs-live
+> conflict) BEFORE porting** — see "Phase 2 RESHAPED" below.  Phase 3 (animation) stays deferred.
 >
 > Orient: `CLAUDE.md` → `FRONT.md` → this file.  Sibling plans:
 > `plans/movement-system.md` (the mover chips), `plans/dialogue-cutscene.md` (the cutscene
 > coroutine), `plans/party-character-system.md` (the party band / leader render).
+
+## Phase 2 RESHAPED (ckpt 121) — the control hand-off is a MULTI-ROOM CHAIN; harness-verify first
+
+The RE (two general-purpose subagent maps of `0x4d7d80` / `0x401d40` / `0x41e070`) found the
+player-control hand-off is NOT a few lines past the town-arrival dialogue:
+
+- **`FUN_00401d40(scene_id, p2, p3)` stages a ROOM TRANSITION** — it writes the next room-lookup
+  key into the map object `+0x900/+0x904/+0x908` (committed to `+0x4024` by `FUN_00402030`, the
+  `+0x4024 = room-key` the in-game-intro proof established); the script then `return 2` (yield +
+  transition) and the engine reloads.  It is NOT "fall through to the next `case`".
+- **The narrative spine (cross-room):** arrival `0x334be` flag-0 (10 lines, DONE) → load room
+  **`0x334c8`** (the new house interior; 8 lines, text VAs 0x86d390..0x86d1dc) → load room
+  **`0x334dc`** (morning errands — a SEPARATE dispatcher `FUN_004dc510`, NOT in `4d7d80.c`; this
+  is where story-flag `0x5f76805` advances 0→0xd2) → back to **town `0x334be` flag-0xd2** → the
+  Sana-walk-home scene (`4d7d80.c:295-481`) → **the control transfer**.
+- **The transfer (`4d7d80.c:449-463`, the inlined `0x41e070`/`0x4c6830` idiom):**
+  `piVar1 = FUN_00413b20(handle); FUN_004c63a0(piVar1,1)` (release from the cutscene script-band);
+  guard `FUN_004cc250(1,piVar1)==0`; then **`*(entity+0x200) = 1`** (the master "player-controlled"
+  flag) + `*(entity+0x158a4) = 0` (clear the AI-script), `FUN_0041e180(1)` (clear the cmd ring),
+  `FUN_0041e280()` (re-bind DirectInput → `FUN_0054e5c0` to the entity), `FUN_0041dc90()` (recompute
+  the party band).  Returns NOT 2 → no room reload; control stays in the town room.  Two LATER
+  transfer sites (B `:719-733` flag 0x140 end-of-day; C `:882-896` resume==3 post-school) are not the
+  first.  The canonical helpers `0x41e070`/`0x4c6830` do the same flip on the leader slot `+0x200c`.
+
+**THE CONFLICT (resolve FIRST, don't guess — harness):** ckpt-112 observed retail reaching control
+via Z-spam with **ONE `game_enter` and NO map reload** ("the inn interior is the same cutaway scene").
+The static read implies room transitions (`0x334c8`/`0x334dc`).  Either those keys map to the SAME
+town map (the transitions are camera-only scene changes), or the live path is shorter than the static
+chain.  **DO FIRST (the next session's opening move):**
+1. **Harness-verify the live room/control path.** A Frida field-spec reading, per Flip across a
+   Z-spam from `game_enter` to the hand-off: the scene-controller room key `*(*(0x8a9b50+0x2790)…)`
+   / the map object `+0x4024`; Arche's entity `+0x200` (the control flag) + `+0x158a4`; the story
+   flag `0x5f76805` (via `FUN_0041e2f0`).  This tells us: how many rooms/`game_enter`s actually
+   occur, whether the map reloads, and the exact Flip/tick the `+0x200` flips to 1.  (Reuse the
+   `runs/freeroam-gt` / ckpt-112 nav; `tools/frida_capture.py --seed-pin --lockstep --no-turbo`.)
+2. **THEN port** the actual (possibly-reduced) chain: the room-transition system (`0x401d40` →
+   the map reload) IF the live path really reloads; the intervening room scripts (`0x334c8`
+   house, the `0x334dc` errands in `FUN_004dc510`) IF on the path; the Sana scene; then the
+   `+0x200=1` transfer + wire `character_step` at that transition.  If the live path is same-map
+   camera-only, the port is much smaller (extend `cutscene.c` to chain the scene scripts in-place).
+
+**The control MECHANISM is small + clear; reaching retail's exact LOCATION is the arc.**  The
+`cutscene.c` sequencer (the 10-line advance) is the foundation to extend; `character_step` is DONE
+(bit-exact); the render is the static cutscene-cast slot (Arche slides, no walk-cycle —
+PORT-DEBT(cutscene-party-chars), the animation system is Phase 3, out of the un-MVP scope).
 
 ## Why (the pivot)
 
@@ -45,7 +92,7 @@ It can be reverted for a clean slate — ask the USER; otherwise Phase 2 superse
 
 ## The three phases (recommended order)
 
-### Phase 1 — FAITHFUL LIVE INPUT (the USER's emphasis: testable live)
+### Phase 1 — FAITHFUL LIVE INPUT (the USER's emphasis: testable live)  ✅ DONE (ckpt 121, `src/input_live.{c,h}`)
 
 Goal: real keyboard drives the port's input manager each frame, so any input-reading
 subsystem (the mover, menus) works interactively — alongside the existing deterministic
@@ -76,7 +123,7 @@ wall-clock = non-deterministic, so it must NOT be the parity path).
 - **Validation**: run the port windowed (NOT `--hide-window`), walk Arche with the arrow
   keys, confirm she moves; the existing `character_step` host tests stay the bit-exact guard.
 
-### Phase 2 — THE REAL CONTROL HAND-OFF (replace the MVP trigger)
+### Phase 2 — THE REAL CONTROL HAND-OFF (replace the MVP trigger)  ⚠ RESHAPED — see "Phase 2 RESHAPED (ckpt 121)" above; the dialogue chip 4 (the 10-line advance) is DONE (`src/cutscene.{c,h}`), the control transfer is the multi-room chain (harness-verify first)
 
 Goal: Arche becomes controllable when the town-arrival cutscene actually completes — the
 genuine freeroam scene — not at a measured frame.

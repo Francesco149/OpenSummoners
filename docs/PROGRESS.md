@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 121) — UN-MVP'd the movement: MVP wire REMOVED, FAITHFUL live input + the town-arrival DIALOGUE ADVANCE ported
+
+The USER's directive: the ckpt-120 live-wire put control in the wrong scene via a measured trigger — un-MVP
+it.  Three of four steps landed (4 commits direct to master; 974 host pass, +11, 0 fail).  **Step 1**
+(`42e0fc1`) removed the throwaway scaffold from `src/main.c` (the `g_arche`/`CHAR_CONTROL_ARM_FRAMES`
+measured-frame wire); the bit-exact mover `character.{c,h}` is untouched.  **Step 2** (`61a6aaa`) ported
+FAITHFUL live keyboard input — new `src/input_live.{c,h}` (the port of the per-frame producer `0x46a880`):
+real keys fill `input_mgr.axis_held[0..6]` (clear-then-set) + post discrete ring EDGES each frame; a single
+`main.c feed_input` gates REPLAY (the deterministic parity path) vs LIVE (interactive, focus-gated on
+`g_app_active_flag`), mutually exclusive so live keys never perturb a capture.  Movement is now testable
+with a real keyboard (USER windowed verify pending: title menu navigable with arrows + Z).
+
+**Step 3** (`8d4c096`) ported the town-arrival DIALOGUE ADVANCE — new `src/cutscene.{c,h}`, a port-side
+reduction of `0x4d7d80` case 0x334be (lines 33-292) + the beat-runner `0x439690`.  The port was stuck on
+dialogue line 1; now it sequences the real 10-line family conversation, Z-advancing Father→Arche→Mother
+(each line's text+name read from the user's exe by VA — dramatist rows 0/4/5; Z advances only when the line
+is fully typed = the beat-completion gate `0x439690:1004`).  Replay-verified end-to-end
+(`runs/cutscene-verify`: game_enter@1116 → cutscene_arm@hold 1283 → f2600 "Ahh…" → f3150 "Yay" → f3700 "We
+haven…"; montage on the feed).  Retires PORT-DEBT(dialogue-line-table); new debt dialogue-portrait-per-speaker
+(the portrait stays the Father bust — a deferred render detail).
+
+**Step 4 — the full faithful CONTROL TRANSFER — is the active arc (USER-committed).**  RE (two
+general-purpose subagent maps of `0x4d7d80`/`0x401d40`/`0x41e070`) found the hand-off is a MULTI-ROOM CHAIN,
+not a few lines: `FUN_00401d40` does a ROOM TRANSITION (arrival → load room 0x334c8 house → load room
+0x334dc errands via the SEPARATE dispatcher `FUN_004dc510`, which advances story-flag `0x5f76805`→0xd2 →
+back to town 0x334be flag-0xd2 → the Sana-walk-home scene → `entity+0x200=1` at `4d7d80.c:449-463`, the
+inlined `0x41e070`/`0x4c6830` idiom).  This CONFLICTS with ckpt-112's live "one game_enter, no map reload" —
+so the next move is to **harness-verify the live room/control path FIRST** (field-spec the scene-controller
+room key `*(0x8a9b50+0x1038)[0]` + Arche's `+0x200` + flag `0x5f76805`, Z-spam retail to the hand-off) before
+porting the room-transition system + the intervening rooms.  Plan rewritten:
+`docs/plans/controllable-arche-faithful.md`.
+
+---
+
 ## 2026-06-11 (ckpt 120) — PHASE-4 chip 3c: the LIVE WIRE — Arche is CONTROLLABLE ON SCREEN (the movement-system milestone)
 
 `character_step` got its FIRST live caller.  The chip-3a/b character mover (walk/run/jump/windup, all

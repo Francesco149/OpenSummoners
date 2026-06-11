@@ -6,7 +6,81 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 120
+## Where we are — ckpt 121
+
+**UN-MVP'd the movement: 3 of 4 steps landed (the MVP wire REMOVED; FAITHFUL live keyboard input + the
+town-arrival DIALOGUE ADVANCE ported + verified). USER COMMITTED to the FULL FAITHFUL control-transfer
+chain. 974 host pass (+11 over ckpt 120), 0 fail, 6 skip; 4 commits direct to master.**  The USER's
+directive: un-MVP the controllable Arche (the ckpt-120 live-wire put control in the wrong scene via a
+measured trigger) — remove it, then build the faithful base (live input + the real dialogue-driven hand-off).
+
+**Step 1 — REMOVED the MVP wire** (`src/main.c`; commit `42e0fc1`).  Deleted the
+`g_arche`/`CHAR_CONTROL_ARM_FRAMES` scaffold (the measured-frame controllable-Arche in the settled-town
+cutaway).  The mover (`src/character.{c,h}`, bit-exact) is UNTOUCHED — its faithful caller returns with step 4.
+
+**Step 2 — FAITHFUL LIVE INPUT** (`src/input_live.{c,h}` NEW + `tests/test_input_live.c`; the port of the
+per-frame producer `FUN_0046a880`; commit `61a6aaa`).  Each frame: rebuild `input_mgr.axis_held[0..6]` from
+the DIK keyboard snapshot (clear-then-set = the `0x46a880:1497-1538` fill + the `0x56a220` release flush) +
+post a ring event on each key press/release EDGE (the `0x46a880:1380-1496` push, the SAME ring
+`input_trace_replay` injects).  Default keybinds (PORT-DEBT(keybind-config)): arrows → axis[0..3]+ring
+1/3/2/4, C → axis[4]+ring 7 (jump), X → axis[5], Z → ring 0x24 (advance).  `main.c`: a single
+`feed_input(m, now)` drives the active scene's input — REPLAY wins (`--input-trace`/`--held-trace`, the
+deterministic parity path), else the LIVE producer (gated on `g_app_active_flag` = focus); mutually
+exclusive so live keys never perturb a capture.  `live_keyboard_snapshot` = `GetAsyncKeyState` (DIK→VK).
+6 host tests; boot smoke clean.  **USER VISUAL-VERIFY PENDING** (windowed: title menu navigable with arrows + Z).
+
+**Step 3 — the DIALOGUE ADVANCE** (`src/cutscene.{c,h}` NEW + `tests/test_cutscene.c`; `dialogue.{c,h}`
++`dialogue_awaiting_advance`; commit `8d4c096`).  The port was stuck on dialogue LINE 1.  Now
+`src/cutscene.c` sequences the real town-gate family conversation — a 10-line script table reduced from
+`0x4d7d80` case 0x334be (lines 33-292) + the beat-runner `0x439690` — Z-advancing through all 10 lines.
+Each line = (speaker dramatist NAME VA, line TEXT VA, face, voice), strings read from the user's exe by VA
+at runtime (names = dramatist rows 0/4/5: Arche 0x6b6eb0 / Father 0x6b6f80 / Mother 0x6b6fb4; text
+0x86d58c..0x86d3d4).  `cutscene_step` advances on Z (ring 0x24) ONLY when the line is fully typed
+(`dialogue_awaiting_advance` = `0x439690:1004`); Z while typing is ignored (faithful — no skip).  Armed at
+the SAME measured trigger as the old line-1 arm (line 1 stays bit-exact).  REPLAY-VERIFIED end-to-end
+(`runs/cutscene-verify`: game_enter@1116 → cutscene_arm@hold 1283 → f2600 "Father: Ahh…" → f3150 "Arche:
+Yay" → f3700 "Mother: We haven…"; montage on the feed).  5 host tests.  KNOWN: the portrait stays the
+Father bust (PORT-DEBT(dialogue-portrait-per-speaker)).  Retires `dialogue-line-table`.
+
+**Step 4 — the FULL FAITHFUL CONTROL TRANSFER (USER-committed; the active arc, NOT started).**  The RE
+(two general-purpose subagent maps of `0x4d7d80`/`0x401d40`/`0x41e070`):
+- the hand-off is NOT a few lines past the arrival.  `FUN_00401d40(scene_id,…)` stages a ROOM TRANSITION
+  (writes the next room-lookup key into the map object `+0x900`→committed `+0x4024`; the engine reloads).
+  Narrative spine: arrival `0x334be` flag-0 (10 lines) → load room **0x334c8** (house interior; 8 lines,
+  text 0x86d390..0x86d1dc) → load room **0x334dc** (morning errands, the SEPARATE dispatcher
+  `FUN_004dc510`; advances story-flag `0x5f76805` 0→0xd2) → back to **town 0x334be flag 0xd2** → the
+  Sana-walk-home scene (lines 295-481) → **the control transfer**.
+- the transfer (`4d7d80.c:449-463`, the inlined `0x41e070`/`0x4c6830` idiom): `FUN_00413b20(handle)` →
+  `FUN_004c63a0(actor,1)` (release from the cutscene band) → `FUN_004cc250` guard → **`*(entity+0x200)=1`**
+  (the master player-controlled flag; `+0x158a4=0` clears the AI script) → `FUN_0041e180(1)` (clear the cmd
+  ring) → `FUN_0041e280()` (re-bind DirectInput to the entity) → `FUN_0041dc90()` (recompute the party band).
+  Returns NOT 2 → no room reload; control stays in the town.  Two later sites (B 719-733 flag 0x140, C
+  882-896 resume==3) are end-of-day / post-school — NOT the first.
+- **CONFLICT to resolve FIRST (don't guess — harness):** ckpt-112 observed retail reaching control via
+  Z-spam with ONE game_enter and NO map reload.  The static read implies room transitions.  Either those
+  keys map to the SAME town map (camera-only), or the live path is shorter.  **DO FIRST:** a Frida
+  field-spec on the scene-controller room key (`*(0x8a9b50+0x1038)[0]` / map `+0x4024`) + Arche's `+0x200`
+  + flag `0x5f76805`, Z-spam retail from game_enter to the hand-off → the ACTUAL live sequence.  THEN port
+  the (possibly-reduced) chain + the room-transition system if needed + the transfer + wire `character_step`
+  at the real `+0x200=1` transition.
+
+**NEXT MOVE:** the harness verification above (Phase 2 of `plans/controllable-arche-faithful.md`, rewritten
+this ckpt).  The control MECHANISM is small + clear; reaching retail's exact LOCATION is the arc.  The
+mover is DONE; the render is the static cutscene-cast slot (Arche slides, no walk-cycle —
+PORT-DEBT(cutscene-party-chars), the animation system is a later Phase 3, out of the un-MVP scope).
+
+**Module layout (this ckpt):** `src/input_live.{c,h}` (live producer), `src/cutscene.{c,h}` (the
+town-arrival sequencer), `src/main.c` (`feed_input` + cutscene wiring; MVP wire removed), `src/dialogue.{c,h}`
+(+`dialogue_awaiting_advance`).  Tests: `test_input_live.c` (6), `test_cutscene.c` (5).  Throwaway verify
+artifacts (gitignored): `runs/cutscene-verify/`.
+
+**OPEN (USER):** (a) windowed visual-verify of LIVE input (title menu arrows + Z) + the dialogue advance;
+(b) butterfly chip-1 drift visual-verify still pending.  Debt: cutscene-beat-runner / cutscene-scene-chain /
+dialogue-portrait-per-speaker / keybind-config (new); char-control-trigger / cutscene-party-chars /
+char-run-trigger / char-walk-tuning / char-collision-mover / char-input-autorepeat /
+char-jump-fall-grav-source / held-axis-array-b / effect-color-variant (carried).
+
+## Where we were — ckpt 120
 
 **PHASE-4 chip 3c — the LIVE WIRE: Arche is CONTROLLABLE ON SCREEN. `character_step` gets its FIRST
 live caller; held-axis input drives Arche walking in the settled town. 963 host pass (unchanged —
