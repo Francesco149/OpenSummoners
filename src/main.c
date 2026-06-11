@@ -58,6 +58,7 @@
 #include "title_sink.h"       /* title_sink_menu_trace — --menu-trace toggle */
 #include "input_trace.h"
 #include "held_trace.h"
+#include "input_live.h"        /* the live keyboard producer (0x46a880; interactive) */
 #include "asset_register.h"   /* ar_sprite_decode / ar_sprite_decode_hook */
 #include "bitmap_session.h"   /* bs_convert_* for the 8d format switch adapter */
 #include "pixel_drawer.h"     /* pd_boot_init_slots — the alpha-ramp descriptors */
@@ -473,6 +474,15 @@ static char              g_held_trace_path_buf[1024];
 static const char       *g_held_trace_path;
 static struct held_trace g_held_trace;
 static int               g_held_trace_active;
+
+/* The LIVE keyboard producer (0x46a880; src/input_live.{c,h}).  When NO replay
+ * is active and the window is focused, real keys fill the active drive's input
+ * manager each frame — the INTERACTIVE path (the replay is the deterministic
+ * parity path; the two are mutually exclusive, see feed_input). */
+static struct input_live g_input_live;
+/* Set by WM_ACTIVATEAPP (defined in app_pump.c, the pump module) — the live
+ * producer's focus gate, matching retail's input pause on deactivate. */
+extern uint32_t g_app_active_flag;
 
 static uint32_t  g_frame_counter;
 static uint32_t  g_base_time_ms;
@@ -3017,6 +3027,46 @@ static void sync_window_position(void)
     }
 }
 
+/* Snapshot the real keyboard into the DIK-indexed buffer the producer reads
+ * (the leaf 0x5ba520 = keyboard_state[scancode] & 0x80).  GetAsyncKeyState's
+ * high bit is the physical-down state; map each bound DIK scancode to its VK.
+ * Only the mapped keys are filled (the producer only ever reads those). */
+static void live_keyboard_snapshot(uint8_t dik[256])
+{
+    static const struct { uint8_t sc; int vk; } M[] = {
+        { DIK_UP_ARROW,    VK_UP    }, { DIK_DOWN_ARROW,  VK_DOWN  },
+        { DIK_LEFT_ARROW,  VK_LEFT  }, { DIK_RIGHT_ARROW, VK_RIGHT },
+        { DIK_Z, 'Z' }, { DIK_X, 'X' }, { DIK_C, 'C' },
+    };
+    memset(dik, 0, 256);
+    for (int i = 0; i < (int)(sizeof(M) / sizeof(M[0])); i++)
+        if (GetAsyncKeyState(M[i].vk) & 0x8000)
+            dik[M[i].sc] = 0x80;
+}
+
+/* Feed one frame of input into the active drive's input manager.  REPLAY wins
+ * (the deterministic parity path): if a --input-trace and/or --held-trace is
+ * active, inject the due events and return.  Otherwise drive the LIVE keyboard
+ * producer (0x46a880) — the interactive path — gated on the window being
+ * focused (g_app_active_flag; retail pauses input on WM_ACTIVATEAPP deactivate,
+ * wnd_proc on_deactivate).  The two paths are mutually exclusive so live
+ * (wall-clock) input never perturbs a capture. */
+static void feed_input(input_mgr *m, uint32_t now)
+{
+    if (g_input_trace_active || g_held_trace_active) {
+        if (g_input_trace_active)
+            input_trace_replay(&g_input_trace, g_present_frame, m, now);
+        if (g_held_trace_active)
+            held_trace_replay(&g_held_trace, g_present_frame, m);
+        return;
+    }
+    if (g_app_active_flag == 0)
+        return;                       /* unfocused → input paused (faithful) */
+    uint8_t dik[256];
+    live_keyboard_snapshot(dik);
+    input_live_step(&g_input_live, m, dik, now);
+}
+
 static void main_loop_body(void)
 {
     /* Open this call-trace frame before any traced work.  Frame axis =
@@ -3039,12 +3089,7 @@ static void main_loop_body(void)
          * frame (the FUN_0056cd20 update/render tick).  Same replay-inject-then-
          * step shape as the newgame scene; on DONE the game proper is unported. */
         uint32_t now = GetTickCount();
-        if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame,
-                               &g_prologue_drive.input, now);
-        if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame,
-                              &g_prologue_drive.input);
+        feed_input(&g_prologue_drive.input, now);
         prologue_status st = prologue_drive_step(&g_prologue_drive, now);
         if (st == PROLOGUE_DONE)
             enter_game();   /* 3rd beat → 0x59ec30(0,0,0x3f2) in-game seam */
@@ -3057,12 +3102,7 @@ static void main_loop_body(void)
          * Inject any due replay input so the trace's in-game Z presses land in
          * the drive's ring for when the engine (input-driven) is ported. */
         uint32_t now = GetTickCount();
-        if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame,
-                               &g_game_drive.input, now);
-        if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame,
-                              &g_game_drive.input);
+        feed_input(&g_game_drive.input, now);
         (void)game_drive_step(&g_game_drive, now);   /* GAME_RUNNING until ported */
     } else if (g_newgame_active) {
         /* The new-game config scene: one newgame_drive_step per presented frame
@@ -3070,12 +3110,7 @@ static void main_loop_body(void)
          * replay events into the drive's ring before it polls (keyed on the
          * Flip count drive_present bumps), then act on the outcome. */
         uint32_t now = GetTickCount();
-        if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame,
-                               &g_newgame_drive.input, now);
-        if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame,
-                              &g_newgame_drive.input);
+        feed_input(&g_newgame_drive.input, now);
         newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
         if (st == NEWGAME_START) {
             newgame_start_save_salt(); /* match retail's save-write RNG advance */
@@ -3104,12 +3139,7 @@ static void main_loop_body(void)
             /* Inject any due replay events into the drive's input ring before
              * the scene polls it (keyed on the present/Flip count, stable
              * across the spin; input_trace_replay's cursor never re-injects). */
-            if (g_input_trace_active)
-                input_trace_replay(&g_input_trace, g_present_frame,
-                                   &g_drive.input, now);
-            if (g_held_trace_active)
-                held_trace_replay(&g_held_trace, g_present_frame,
-                                  &g_drive.input);
+            feed_input(&g_drive.input, now);
             unsigned pf_before = g_present_frame;
             title_scene_status st = title_drive_step(&g_drive, now);
             /* R3 intro-pace instrumentation: log each phase transition with the

@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 200,
+  "tested": 201,
   "ported": 5,
-  "unported": 1553,
+  "unported": 1552,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 205,
-  "pct_touched": 12.9,
-  "pct_tested": 12.9,
-  "engine_proper_touched": 192,
+  "touched": 206,
+  "pct_touched": 13.0,
+  "pct_tested": 13.0,
+  "engine_proper_touched": 193,
   "bytes_total": 1694868,
-  "bytes_touched": 231501,
-  "pct_bytes_touched": 13.7
+  "bytes_touched": 240391,
+  "pct_bytes_touched": 14.2
  },
  "orphan_refs": [
   "0x56c470",
@@ -4275,8 +4275,11 @@
    "name": "FUN_0046a880",
    "size": 8890,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/input_live.c",
+    "src/input_live.h"
+   ]
   },
   {
    "va": "0x46cb40",

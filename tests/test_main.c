@@ -834,6 +834,12 @@ struct test_case {
     X(held_trace_replay_levels)                                \
     X(held_trace_replay_catches_up)                            \
     X(held_trace_replay_guards)                                \
+    X(input_live_axis_fill)                                    \
+    X(input_live_axis_clear_then_set)                          \
+    X(input_live_ring_press_once)                              \
+    X(input_live_first_frame_no_phantom)                       \
+    X(input_live_direction_ring_ids)                           \
+    X(input_live_guards)                                       \
     X(character_walk_accel)                                    \
     X(character_walk_brake)                                    \
     X(character_walk_left_symmetry)                            \
