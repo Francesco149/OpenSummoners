@@ -8,10 +8,10 @@
 
 ## Where we are — ckpt 117
 
-**PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning consts are CAPTURED
-LIVE off her entity (resolving an earlier decompile mis-read). 960 host pass (+2).**  The vertical
-airborne integrator now lives in `src/character.{c,h}` alongside the chip-3a walk; the captured
-SHORT-HOP arc is reproduced bit-exact.  Modules: `src/character.{c,h}` (+ `world_y`/`vvel`/`airborne`
+**PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT (BOTH the short hop and the variable-height
+held rise), and the move-tuning consts are CAPTURED LIVE off her entity (resolving an earlier decompile
+mis-read). 961 host pass (+3).**  The vertical airborne integrator now lives in `src/character.{c,h}`
+alongside the chip-3a walk; the captured SHORT-HOP arc + the HELD high-jump RISE are reproduced bit-exact.  Modules: `src/character.{c,h}` (+ `world_y`/`vvel`/`airborne`
 + the jump integrator), `tests/test_character.c` (+`character_jump_arc`, `character_jump_edge_and_ground`),
 `tests/test_main.c`; throwaway specs `tools/flow/jump_consts_fields.json` + `jump_constband_fields.json`;
 docs (`engine-quirks.md` #102 amended, `port-debt.md` rows).  Writeup: **engine-quirk #102** (ckpt 117).
@@ -34,9 +34,14 @@ walk brake `[0x565e]`=−800.  **This CONFIRMS the ckpt-115 walk-tuning hypothes
 earlier line-by-line decompile read that mis-mapped `[0x565b]/[0x565e]` to fall-grav/terminal.  The fall
 grav (4000) is NOT in the move-tuning band `0x565a..0x566f` → a global/derived gravity (4000 = 8000/2).
 
-**The captured arc is the SHORT HOP** (verified, `capjump-ring2`): the ring execute `cmd[2]=7` is a
-ONE-tick event, so `cmd[2]==0` the whole rise → the FREE grav 8000.  A held-C jump (`cmd[2]=8`) would use
-2000 → a much higher arc.  The port models both via `jump_held`; only the short hop is bit-exact validated.
+**Both jump heights bit-exact (verified):** the SHORT HOP (`capjump-ring2` — the ring execute `cmd[2]=7`
+is a ONE-tick event, so `cmd[2]==0` the whole rise → FREE grav 8000) AND the HELD high-jump RISE
+(`capheld` — held C via the leaf → `cmd[2]=8` the rise → grav 2000, matches the port's held model for 16
+ticks, apex 2.2× higher).  **Two mechanics found in the held capture:** (a) retail's held apex CLAMPS on
+a **town CEILING** (~tick 16, wy≈41600; the `wy += vvel/100` relation breaks = a vertical collision clamp
+by `0x54e5c0`) — NOT jump physics; the flat-ground port keeps rising (the `char-collision-mover` debt);
+(b) **terminal fall velocity = 64000** (the held fall plateaus at 64000 for 8 ticks) — ported as
+`CHAR_JUMP_FALL_TERMINAL` (the short hop reaches exactly 64000 at landing, so unaffected).
 
 **METHOD LESSON (durable):** `0x442a70` is a 12 KB shared integrator (walk+run+jump+skills+collision+anim)
 whose Ghidra decompile reuses `param_2`/`param_3`/`local_20` across vertical and horizontal terms and has
@@ -45,12 +50,11 @@ provenance with a LIVE const capture — never a line-by-line port.  The bit-exa
 together are the ground truth (this is how the `[0x565b]` fall-grav-vs-cap ambiguity was resolved).
 
 **NEXT (chip 3b/3c, in order):**
-1. **Bit-exact-validate the HELD high jump** — drive a held-C jump (a held-trace forcing the leaf for
-   scancode `0x2e` so `cmd[2]=8` each rise tick, + the ring id-7 execute to trigger) → capture the
-   high-jump arc → confirm the 2000 rise-grav branch + RE the ~7-flip windup (execute→launch).
-2. **Capture + port the DASH (run)** — inject two direction ring presses within the double-tap window
+1. **Capture + port the DASH (run)** — inject two direction ring presses within the double-tap window
    then hold (`ids:[4]` ×2 + the held RIGHT axis) → cmd[0]=5/6 → capture the run cap (> the walk's 240;
    run accel `[0x565d]`=3200 already captured) → port.
+2. **RE + port the jump WINDUP** (the ~7-flip execute→launch delay = case-3 sub-state-0 counter>4) — a
+   few-tick launch lag, invisible to the arc but visible live (PORT-DEBT(char-jump-variable-height)).
 3. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the `entity+0x200` control
    transfer) gives `character_step` its first live caller in `game_actor_update` → Arche walks/jumps on
    screen, the chip-2 collision mover/probes get a live grounded actor → USER visual-verify.

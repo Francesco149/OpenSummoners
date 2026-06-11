@@ -30,12 +30,20 @@ harness; logged as the METHOD LESSON in engine-quirk #102 (amended) + HANDOFF.
 
 The captured arc is the SHORT HOP, confirmed empirically: the ring execute `cmd[2]=7` fires for ONE tick
 (frame 4603) then `cmd[2]==0` the whole rise (4610-4630) → the FREE rise grav 8000 (apex at tick 10).  A
-held-C jump (`cmd[2]=8`) would use 2000 → a much higher arc; the port models both via `jump_held`, with a
-structural test asserting the held apex is strictly higher, but only the short hop is bit-exact validated.
-Debt: PORT-DEBT(char-jump-variable-height) (the held arc unvalidated + the ~7-flip windup collapsed),
-PORT-DEBT(char-jump-fall-grav-source) (the 4000 source un-located), `char-run-jump` renamed `char-run`
-(jump done; run remains).  NEXT: a held-C capture to validate the 2000 branch; the dash double-tap; then
-the chip-4 live wire (`character_step`'s first live caller) → Arche jumps on screen → USER visual-verify.
+held-C jump (`cmd[2]=8`) would use 2000 → a much higher arc; the port models both via `jump_held`.
+
+Then VALIDATED the held high jump bit-exact with a held-C capture (`runs/runjump-gt/capheld`: held C via
+the leaf scancode `0x2e` → `cmd[2]=8` the whole rise → grav 2000).  The held RISE matches the port's held
+model BIT-EXACT for 16 ticks (`test_character_jump_held_rise`; apex rise 10400 vs the short hop's 4800,
+2.2× higher).  The capture revealed two more mechanics: (a) retail's held apex CLAMPS on a town CEILING
+(~tick 16, wy≈41600 — the `wy += vvel/100` relation breaks = a vertical collision clamp by `0x54e5c0`),
+which the flat-ground port can't model (it keeps rising) → the `char-collision-mover` debt, NOT a
+jump-physics gap; (b) a terminal fall velocity of 64000 (the held fall plateaus at 64000 for 8 ticks),
+now ported as `CHAR_JUMP_FALL_TERMINAL` (the short hop is unaffected — it reaches exactly 64000 at
+landing).  961 host pass.  Debt: PORT-DEBT(char-jump-variable-height) (the rise validated; the ceiling +
+the ~7-flip windup remain), PORT-DEBT(char-jump-fall-grav-source) (the 4000 + 64000 sources un-located),
+`char-run-jump` renamed `char-run` (jump done; run remains).  NEXT: the dash double-tap; the jump windup;
+then the chip-4 live wire (`character_step`'s first live caller) → Arche jumps on screen → USER visual-verify.
 
 ---
 

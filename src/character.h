@@ -107,6 +107,12 @@ enum {
 #define CHAR_JUMP_RISE_GRAV_HELD    2000   /* in_ECX[0x5668]  rising, jump HELD      */
 #define CHAR_JUMP_RISE_GRAV_FREE    8000   /* in_ECX[0x5669]  rising, jump RELEASED  */
 #define CHAR_JUMP_FALL_GRAV         4000   /* falling + the launch tick (global/der.)*/
+/* Terminal fall velocity — vvel caps here on the way down (observed bit-exact: the
+ * held high jump plateaus at 64000 for 8 ticks while still falling, ckpt 117
+ * runs/runjump-gt/capheld).  Source NOT in the move-tuning band (= the fall grav's
+ * cousin, 64000 = 16*4000) -> PORT-DEBT(char-jump-fall-grav-source).  Safe for the
+ * short hop (it reaches exactly 64000 at the landing tick, so the clamp is a no-op). */
+#define CHAR_JUMP_FALL_TERMINAL    64000
 
 /* The press->latch warmup (PORT-DEBT(char-input-autorepeat)).  A fresh direction
  * press must persist this many ticks before the walk command latches; the capture

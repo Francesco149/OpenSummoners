@@ -127,9 +127,10 @@ int32_t character_step(character *c, const int *axis_held, int jump_held)
             c->world_y += step;
             c->vvel += jump_held ? CHAR_JUMP_RISE_GRAV_HELD : CHAR_JUMP_RISE_GRAV_FREE;
         } else {
-            /* FALLING: the (button-independent) fall accel. */
+            /* FALLING: the (button-independent) fall accel, capped at terminal. */
             c->world_y += step;
             c->vvel += CHAR_JUMP_FALL_GRAV;
+            if (c->vvel > CHAR_JUMP_FALL_TERMINAL) c->vvel = CHAR_JUMP_FALL_TERMINAL;
         }
     }
 

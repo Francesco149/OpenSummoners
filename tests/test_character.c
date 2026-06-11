@@ -228,3 +228,40 @@ int test_character_jump_edge_and_ground(void)
     T_ASSERT_EQ_I(c.vvel, -76000);                   /* same launch impulse */
     return 0;
 }
+
+/* The VARIABLE-HEIGHT held jump RISE, validated FIELD-EXACT against a held-C capture
+ * (runs/runjump-gt/capheld, ckpt 117: C held via the leaf -> cmd[2]=8 the whole rise
+ * -> the floaty 2000 rise grav).  The embedded (vvel, world_y) are retail's captured
+ * bytes for the 16 rise ticks BEFORE the town CEILING clamps the apex (~tick 16, wy
+ * 41600 — a collision-mover concern, not jump physics; the flat-ground port has no
+ * ceiling so it keeps rising at 2000).  Proves the held branch reproduces retail. */
+int test_character_jump_held_rise(void)
+{
+    static const int32_t VVEL[] = {
+        -76000, -74000, -72000, -70000, -68000, -66000, -64000, -62000,
+        -60000, -58000, -56000, -54000, -52000, -50000, -48000, -46000,
+    };
+    static const int32_t WY[] = {
+        51200, 50440, 49700, 48980, 48280, 47600, 46940, 46300,
+        45680, 45080, 44500, 43940, 43400, 42880, 42380, 41900,
+    };
+    const int N = (int)(sizeof VVEL / sizeof VVEL[0]);
+
+    character c;
+    character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT];
+    axis_set(axis, 0);
+
+    /* HOLD the jump every tick -> cmd[2]=8 -> the 2000 rise grav (the high jump). */
+    for (int i = 0; i < N; i++) {
+        character_step(&c, axis, /*jump_held=*/1);
+        T_ASSERT_EQ_I(c.vvel, VVEL[i]);              /* field-exact vs the held capture */
+        T_ASSERT_EQ_I(c.world_y, WY[i]);
+    }
+    /* Still rising (the held jump is much taller than the short hop) — the port has
+     * no town ceiling, so it keeps going up at 2000 (retail's apex here is a ceiling). */
+    T_ASSERT(c.vvel < 0);
+    T_ASSERT_EQ_I(c.airborne, 1);
+    T_ASSERT(52000 - c.world_y > 4800);              /* already past the short-hop apex */
+    return 0;
+}

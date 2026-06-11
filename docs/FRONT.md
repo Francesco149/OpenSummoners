@@ -14,10 +14,10 @@
   `port-frontier.md`.
 - **LATEST (ckpt 117): PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning
   consts are CAPTURED LIVE (resolving an earlier decompile mis-read). `src/character.{c,h}` grew the
-  vertical airborne integrator; 960 pass (+2).** The short-hop arc is reproduced BIT-EXACT vs the ckpt-116
-  capture; the variable-height high jump is RE'd + uses captured consts. Writeup: **engine-quirk #102**
-  (amended, ckpt 117). Artifacts: `runs/runjump-gt/capconsts` + `capband` (the live const reads),
-  `jump_arc.png` (pushed to the feed).
+  vertical airborne integrator; 961 pass (+3).** The short-hop arc is reproduced BIT-EXACT vs the ckpt-116
+  capture; the variable-height high-jump RISE is now ALSO bit-exact validated (a held-C capture). Writeup:
+  **engine-quirk #102** (amended, ckpt 117). Artifacts: `runs/runjump-gt/capconsts` + `capband` (the live
+  const reads), `capheld` (the held jump), `jump_variable_height.png` (pushed to the feed).
   1. **The port (`character.{c,h}` + `test_character.c` ×2):** `character_step(c, axis, jump_held)` now
      runs the vertical integrator alongside the walk — launch impulse on the jump rising edge, then
      `worldY += vvel/100` with ASYMMETRIC, VARIABLE-HEIGHT gravity + a flat ground clamp (the open-air
@@ -31,13 +31,14 @@
      integrator `0x442a70`'s decompile reuses vars across vertical/horizontal terms — an earlier
      line-by-line read mis-mapped `[0x565b]/[0x565e]` to fall-grav/terminal (they're the WALK cap/brake).
      RE the structure, PIN the values + provenance with a live capture.
-  3. **The captured arc is the SHORT HOP** (ring tap → `cmd[2]==0` the whole rise → free grav 8000,
-     verified); a HELD-C jump (`cmd[2]=8`) uses 2000 → a much higher arc.
-  4. **NEXT (chip 3b/3c, in order):** (a) **bit-exact-validate the HELD high jump** — a held-C capture
-     (held-trace scancode `0x2e` + the ring id-7 execute → `cmd[2]=8` the rise) gives the high-jump arc
-     → confirm the 2000 branch + the ~7-flip windup. (b) **Capture + port the DASH** (a direction
-     double-tap + hold → cmd[0]=5/6, the run cap). (c) **The LIVE wire** — the chip-4 freeroam hand-off
-     gives `character_step` its first live caller → Arche walks/jumps on screen → USER visual-verify.
+  3. **Both jump heights validated bit-exact:** the SHORT HOP (ring tap → `cmd[2]==0` → free grav 8000,
+     full arc) and the HELD high-jump RISE (held-C → `cmd[2]=8` → grav 2000, 16 rise ticks, apex 2.2×
+     higher). The held apex clamps on a **town CEILING** (wy≈41600 — a collision concern, not jump
+     physics) and a **terminal fall velocity 64000** was found + ported.
+  4. **NEXT (chip 3b/3c, in order):** (a) **Capture + port the DASH (run)** — a direction double-tap +
+     hold → cmd[0]=5/6, the run cap (run accel `[0x565d]`=3200 already captured). (b) RE + port the
+     ~7-flip jump WINDUP. (c) **The LIVE wire** — the chip-4 freeroam hand-off gives `character_step` its
+     first live caller → Arche walks/jumps on screen → USER visual-verify.
      **OPEN (USER):** butterfly chip-1 drift visual-verify still pending. Debt: PORT-DEBT(char-run /
      char-jump-variable-height / char-jump-fall-grav-source / char-walk-tuning / char-collision-mover /
      char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).

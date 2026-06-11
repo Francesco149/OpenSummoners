@@ -3351,6 +3351,19 @@ for the movement arc, each item to be captured + ported + bit-exact-verified in 
   Ported chip 3b: `src/character.c` airborne integrator (the short hop bit-exact; the held branch uses
   the captured 2000 + the RE'd selection, structural test only). The −20000 threshold at `:847` is an
   ANIMATION sub-state transition (rise→apex anim), not a physics term.
+- **HELD high-jump VALIDATED + two more mechanics found (ckpt 117, `runs/runjump-gt/capheld`).** Held C
+  via the leaf (held-trace scancode `0x2e` → `cmd[2]=8` the whole rise, confirmed) + the ring id-7
+  execute. The rise is **+2000/tick** (the floaty grav) and matches the port's held model **BIT-EXACT
+  for 16 ticks** (`test_character_jump_held_rise`); apex rise **10400** vs the short hop's 4800. Two new
+  facts:
+  - **a town CEILING clamps the held apex** (~tick 16, wy≈41600): the `wy += vvel/100` relation BREAKS
+    (the step shortens, vvel jumps −46000→+2000), i.e. a vertical collision clamp by `0x54e5c0` — NOT a
+    jump-physics term. The flat-ground port has no ceiling → keeps rising (= PORT-DEBT(char-collision-mover)).
+  - **terminal fall velocity = 64000**: the held fall plateaus at exactly 64000 for 8 ticks while still
+    descending (`vvel = min(vvel+4000, 64000)`). Ported as `CHAR_JUMP_FALL_TERMINAL` (the short hop is
+    unaffected — it reaches exactly 64000 at the landing tick). Source un-located, like the fall grav
+    (64000 = 16·4000) → PORT-DEBT(char-jump-fall-grav-source).
+  - the windup is ~7 flips (execute@4603 → launch@4610, both captures); collapsed to an instant launch.
 - **Dash (run, cmd`[0]`=5/6) is ALSO ring-sourced** (the same harness gap): `0x479e70` matches a
   direction DOUBLE-TAP in the ring (action-id 2=LEFT / 4=RIGHT within `*0x8a6e80+0xf8`), so the
   held-axis injection (which only sets the held array) can never trigger it. To ground-truth the
