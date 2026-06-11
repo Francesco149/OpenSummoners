@@ -159,6 +159,12 @@ int  dialogue_active(const dialogue_box *d);
 /* 1 once the pop-in finished (content cells render; 0x48c820's content gate). */
 int  dialogue_content_visible(const dialogue_box *d);
 
+/* 1 once the line is fully typed and the box is waiting for the advance input
+ * (the arrow shows) — the beat-runner's DIALOGUE-beat completion gate
+ * (0x439690:1004, the FUN_0043b980 Z-poll fires only in this "state 2").  The
+ * cutscene driver advances to the next line on Z exactly here. */
+int  dialogue_awaiting_advance(const dialogue_box *d);
+
 /* The 9-slice frame rect at the current pop-in scale (0x48c820 mode +0x1c==1:
  * w/h scaled by +0x54/1000, centered in the full rect — integer math). */
 void dialogue_scaled_rect(const dialogue_box *d,

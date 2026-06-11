@@ -86,6 +86,7 @@
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
+#include "cutscene.h"         /* the town-arrival dialogue sequence (0x4d7d80 case 0x334be) */
 #include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
@@ -366,9 +367,10 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
  * portrait bust = res 0x7ef (slot 663, 24bpp magenta-keyed), and the advance
  * arrow = res 0x3e8 sliced 32x32 (the widget manager's own bank at god+0xb8c,
  * not a pool slot — registered standalone below). */
-static dialogue_box   g_dialogue;
+static dialogue_box   g_dialogue;        /* the box widget (rendered by game_render_dialogue) */
+static cutscene       g_cutscene;        /* the town-arrival line SEQUENCER, drives g_dialogue */
 static void          *g_dialogue_font;   /* HFONT — Courier New h18 w7 (textout probe) */
-static int            g_dialogue_armed;  /* one-shot arm latch, reset per enter_game */
+static int            g_cutscene_armed;  /* one-shot arm latch, reset per enter_game */
 #define DIALOGUE_BOX_BANK_SLOT      50   /* res 0x456 (DAT_008a7708) */
 #define DIALOGUE_TAB_BANK_SLOT      52   /* res 0x44a (DAT_008a7710) */
 #define DIALOGUE_PORTRAIT_BANK_SLOT 663  /* res 0x7ef (Father bust)  */
@@ -2227,7 +2229,10 @@ static void game_render_dialogue(void)
 
     /* the portrait bust (res 0x7ef, 24bpp magenta-keyed, drawn 1:1): the
      * cross-fade blends through ramp_b while fading (0x49c910), then snaps to
-     * the plain keyed blit. */
+     * the plain keyed blit.  PORT-DEBT(dialogue-portrait-per-speaker): this is
+     * the LINE-1 Father bank, hardcoded — it does NOT switch per speaker, so
+     * the cutscene's Arche/Mother lines render the Father bust (the per-speaker
+     * portrait sheets + the 0x49d6e0 face table are deferred render detail). */
     cel = (zdd_object *)ar_sprite_slot_frame(
         &g_ar_sprite_slots[DIALOGUE_PORTRAIT_BANK_SLOT], 0);
     if (cel != NULL) {
@@ -2559,26 +2564,38 @@ static void game_render(void *user)
                              g_game_camera_hold);
                 }
                 banner_step(&g_banner);
-                /* The dialogue bubble (0x439690 beat 1).  Armed at the
-                 * measured trigger (PORT-DEBT dialogue-trigger), then its
-                 * widget updates (pop-in scale / portrait fade / typewriter /
-                 * arrow anim) run once per sim-tick — the beat-runner pump's
-                 * update cadence. */
-                if (!g_dialogue_armed && g_game_camera_hold >= DIALOGUE_ARM_FRAMES) {
-                    const char *line = exe_data_string(DIALOGUE_VA_TOWN_LINE1);
-                    const char *name = exe_data_string(DIALOGUE_VA_NAME_FATHER);
-                    if (line != NULL) {
-                        dialogue_arm(&g_dialogue, name, line);
-                        log_line("enter_game: dialogue_arm line1 (name=%s) "
-                                 "@hold=%u", name ? name : "<null>",
-                                 g_game_camera_hold);
-                    } else {
-                        log_line("enter_game: dialogue line1 VA unresolved — "
-                                 "box stays disarmed");
-                    }
-                    g_dialogue_armed = 1;
+                /* The town-arrival CUTSCENE (0x4d7d80 case 0x334be -> the
+                 * beat-runner 0x439690).  Armed at the measured trigger (the
+                 * same PORT-DEBT(dialogue-trigger) window as before, so LINE 1
+                 * stays bit-exact), then cutscene_step sequences the 10
+                 * family-conversation lines, advancing on Z.  The box widget
+                 * updates (pop-in / portrait fade / typewriter / arrow) run
+                 * once per sim-tick inside cutscene_step -> dialogue_step. */
+                if (!g_cutscene_armed && g_game_camera_hold >= DIALOGUE_ARM_FRAMES) {
+                    int n = 0;
+                    const cutscene_line *script = cutscene_town_arrival(&n);
+                    cutscene_arm(&g_cutscene, script, n,
+                                 exe_data_string, &g_dialogue);
+                    if (cutscene_active(&g_cutscene))
+                        log_line("enter_game: cutscene_arm town-arrival "
+                                 "(%d lines) @hold=%u", n, g_game_camera_hold);
+                    else
+                        log_line("enter_game: cutscene town-arrival line1 VA "
+                                 "unresolved — box stays disarmed");
+                    g_cutscene_armed = 1;
                 }
-                dialogue_step(&g_dialogue);
+                /* Advance on Z: poll+consume the ring (id 0x24 = the 0x43b980
+                 * advance-poll); the beat completes when it fires in the
+                 * fully-typed wait state (dialogue_awaiting_advance). */
+                {
+                    int z_adv = input_poll_consume(&g_game_drive.input,
+                                                   GetTickCount(),
+                                                   CUTSCENE_ADVANCE_RING_ID);
+                    if (cutscene_step(&g_cutscene, z_adv))
+                        log_line("game: town-arrival cutscene COMPLETE @hold=%u "
+                                 "(control hand-off -> PORT-DEBT cutscene-scene-chain)",
+                                 g_game_camera_hold);
+                }
             }
             cam = &g_game_camera_mr;
         }
@@ -2798,10 +2815,12 @@ static void enter_game(void)
         g_banner.composed = 0;
         g_banner_armed = 0;
 
-        /* The dialogue bubble likewise arms later (at +1298 flips); clear the
-         * state + the one-shot latch so a re-entry re-arms cleanly. */
+        /* The town-arrival cutscene + its box likewise arm later (at the
+         * measured trigger); clear the state + the one-shot latch so a
+         * re-entry re-arms cleanly. */
         memset(&g_dialogue, 0, sizeof(g_dialogue));
-        g_dialogue_armed = 0;
+        memset(&g_cutscene, 0, sizeof(g_cutscene));
+        g_cutscene_armed = 0;
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):

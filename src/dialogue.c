@@ -81,6 +81,11 @@ void dialogue_arm(dialogue_box *d, const char *name, const char *text)
 int dialogue_active(const dialogue_box *d)          { return d->active; }
 int dialogue_content_visible(const dialogue_box *d) { return d->active && d->scale >= 1000; }
 
+int dialogue_awaiting_advance(const dialogue_box *d)
+{
+    return dialogue_content_visible(d) && d->reveal >= d->total;
+}
+
 int dialogue_char_grade(char c)
 {
     if (c == ' ')

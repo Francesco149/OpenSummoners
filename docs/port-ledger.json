@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 201,
+  "tested": 204,
   "ported": 5,
-  "unported": 1552,
+  "unported": 1549,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 206,
-  "pct_touched": 13.0,
-  "pct_tested": 13.0,
-  "engine_proper_touched": 193,
+  "touched": 209,
+  "pct_touched": 13.2,
+  "pct_tested": 13.2,
+  "engine_proper_touched": 196,
   "bytes_total": 1694868,
-  "bytes_touched": 240391,
-  "pct_bytes_touched": 14.2
+  "bytes_touched": 250630,
+  "pct_bytes_touched": 14.8
  },
  "orphan_refs": [
   "0x56c470",
@@ -2869,16 +2869,20 @@
    "name": "FUN_00439690",
    "size": 8866,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/cutscene.h"
+   ]
   },
   {
    "va": "0x43b980",
    "name": "FUN_0043b980",
    "size": 783,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/dialogue.h"
+   ]
   },
   {
    "va": "0x43bca0",
@@ -6381,8 +6385,11 @@
    "name": "FUN_0049d6e0",
    "size": 590,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/cutscene.c",
+    "src/cutscene.h"
+   ]
   },
   {
    "va": "0x49d930",

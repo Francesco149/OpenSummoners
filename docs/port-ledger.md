@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **206** (13.0% of engine-proper) — tested 201, ported 5
-- code bytes touched: **14.2%** (240,391 / 1,694,868 B of engine-proper)
-- unported: **1552**
+- touched: **209** (13.2% of engine-proper) — tested 204, ported 5
+- code bytes touched: **14.8%** (250,630 / 1,694,868 B of engine-proper)
+- unported: **1549**
 - orphan refs in src/ not in this table: 4
 
-## tested (201) — ported + host unit suite
+## tested (204) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -50,6 +50,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
 | 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x439690 | FUN_00439690 | 8866 | cutscene.h |
+| 0x43b980 | FUN_0043b980 | 783 | dialogue.h |
 | 0x43bca0 | FUN_0043bca0 | 1105 | newgame_drive.c, newgame_drive.h |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h (+1) |
 | 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
@@ -81,6 +83,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49a890 | FUN_0049a890 | 361 | scene_fade.c, scene_fade.h |
 | 0x49aa00 | FUN_0049aa00 | 216 | scene_fade.c, scene_fade.h |
 | 0x49aae0 | FUN_0049aae0 | 234 | scene_fade.c, scene_fade.h |
+| 0x49d6e0 | FUN_0049d6e0 | 590 | cutscene.c, cutscene.h |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x54e990 | FUN_0054e990 | 861 | collision.c, collision.h |
