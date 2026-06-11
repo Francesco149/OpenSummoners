@@ -24,17 +24,23 @@ the resolved slot (with the existing cross-fade).
 `0x49d6e0` (`tools/flow/portrait_face_fields.json`, driven by the control-path nav):
 - the speaker→head-state map (the face-table key dword[0]): Arche (code 0xc35a) = 100000101, Father
   (0xc3dc) = 100000211, Mother (0xc440) = 100000212 — constant per character.
-- the VARIANT: `bVar4`/var-C (the old MVP's wrong column) is FALSE — `in_ECX+0x2f0`==0 on every dialogue
-  line; the A (`+0x8`) vs B (`+0xa`) choice is the speaker's body-facing (`body+0x2c`==3 → A), which is
-  DYNAMIC (read the resolved `+0x84` via a 1-line-lag trick — the same speaker+face flipped A↔B as the cast
-  turned; tally A=8/B=10).  The port's cast is STATIC, so it uses B (the default path + plurality).
+- the VARIANT (the ALIGNMENT fix, commit `1a527cb`): `bVar4`/var-C is FALSE (`in_ECX+0x2f0`==0 every line);
+  the A (`+0x8`) vs B (`+0xa`) choice is the speaker's body-facing (`0x49d6e0:143`, body+0x2c==3 → A).  It
+  is DYNAMIC AND the variants are DIFFERENT busts/SIZES (Father A=676 160x176 vs B=683 176x144) — using one
+  column (B) rendered Father L1 as the squished 176x144 (the misaligned overlay the USER flagged).  RE'd
+  the per-line variant for ALL 18 lines by harness-reading the RESOLVED `+0x84` off the beat-runner thunk
+  `0x439680` (NO lag, no loss at the room transition — `runs/portrait-gt` cap4): arrival A,B,B,B,B,B,B,B,A,B
+  / house A,A,A,A,A,A,B,A.  Baked into `cutscene_line.pvar`; `arm_current_line` resolves with it.
 The face table is embedded by `tools/extract/portrait_face_table.py` → `src/portrait_face_data.{c,h}` (147
 records, the `world_tables_data` precedent).
 
-**VERIFIED (replay, `runs/portrait-gt/verify`).** Father (green shirt, f2700), Arche (headband girl, f8100),
-Mother (brown-haired woman, f9300) busts each render correctly per line — the per-speaker switch the MVP
-lacked.  Retires `dialogue-portrait-per-speaker`; new `dialogue-portrait-facing` (the dynamic A/B, deferred
-to the animated cast / `cutscene-party-chars`).
+**VERIFIED.** Father/Arche/Mother busts each render the correct per-line bust+pose; Father L1 = slot 676
+(160x176) aligned to the box, matching retail f2980 (port|retail montages on the feed).  **USER-CONFIRMED
+the portraits look correct.**  Retires `dialogue-portrait-per-speaker`; `dialogue-portrait-facing` reduced
+to "`pvar` is captured data, not yet derived from a live cast facing".  OPEN (deferred, USER): a
+frame-by-frame TRACE-STUDIO pass to verify the exact expression/pose per line — the ad-hoc comparison
+frames were not sim-tick aligned (the portrait cross-fade `0x49c910` blends two busts, so a mid-fade frame
+differs); the studio's sim-tick axis is the right tool.
 
 **NEXT MOVE (UNCHANGED from ckpt 123 — the planned arc).** Render the house/errands ROOMS
 (`plans/controllable-arche-faithful.md` Phase 2a): room-key → `GW_ROOM_SCENE` → `load_town_scene` (scene

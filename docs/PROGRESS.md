@@ -29,9 +29,20 @@ records, the `world_tables_data` precedent — RE'd mapping only, never assets).
 
 **Verified** (replay, `runs/portrait-gt/verify`): the Father (green shirt), Arche (headband girl), and
 Mother (brown-haired woman) busts each render correctly per line (montage on the feed).  Retires
-PORT-DEBT(dialogue-portrait-per-speaker); adds PORT-DEBT(dialogue-portrait-facing) (the dynamic A/B head
-facing, which lands with the animated party-band cast / `cutscene-party-chars`).  The planned next arc is
-unchanged: render the house/errands ROOMS (`plans/controllable-arche-faithful.md` Phase 2a).
+PORT-DEBT(dialogue-portrait-per-speaker).
+
+**ALIGNMENT fix (commit `1a527cb`, USER-flagged + USER-CONFIRMED).** The first pass used one variant column
+(B), but the face table's 3 variants are DIFFERENT busts/SIZES (Father A=676 160x176 vs B=683 176x144),
+picked per line by the speaker's body-facing (`0x49d6e0:143`) — so Father line 1 rendered as the squished
+176x144 crop (a misaligned overlay) where retail uses the 160x176 bust.  RE'd the per-line variant for all
+18 arrival+house lines by harness-reading the RESOLVED `+0x84` off the beat-runner thunk `0x439680` (no lag,
+no loss at the room transition — `runs/portrait-gt` cap4): arrival A,B,B,B,B,B,B,B,A,B / house
+A,A,A,A,A,A,B,A, baked into `cutscene_line.pvar`.  Father L1 now matches retail f2980 (port|retail montage
+on the feed); USER confirmed the portraits look correct.  `dialogue-portrait-facing` reduced to "`pvar` is
+captured data, not yet derived from a live cast facing".  OPEN (deferred, USER): a frame-by-frame
+TRACE-STUDIO pass to verify the exact expression/pose per line (the ad-hoc comparison frames were not
+sim-tick aligned — the portrait cross-fade blends two busts).  The planned next arc is unchanged: render
+the house/errands ROOMS (`plans/controllable-arche-faithful.md` Phase 2a).
 
 ---
 
