@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 122, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 123, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,70 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 122
+## Where we are — ckpt 123
+
+**The town-intro CUTSCENE now CHAINS arrival→house — the room-key swap is PORTED + BEHAVIORALLY VERIFIED.
+`src/cutscene.{c,h}` grew from a single-script driver to a multi-ROOM sequencer; 978 host pass (+4), 0 fail,
+6 skip; one commit `daa1f65` direct to master. Montage on the feed.**
+
+**The chip.** `cutscene.c` walks a ROOMS list modeling the room-key swap (`0x401d40` stages the next key to
+map+0x900/4/8; `0x402030` commits it to `room_state+0x4024`; `0x4d7d80` re-dispatches on the new key — the
+case `return 2` path). The harness-verified chain (quirk #103): arrival `0x334be` (10 lines) → house
+`0x334c8` (8 lines) → ENDS at the errands boundary `0x334dc` (= the freeroam control hand-off point). On a
+room's last line it COMMITs the next room key (`room_idx++`) + arms its line 0; past the last room it
+completes. New API: a `cutscene_room` struct, `cutscene_town_house`/`_chain`, `cutscene_room_key`;
+`cutscene_arm` now takes a room chain (the tests + `main.c` updated).
+
+**The house script (RE'd from `0x4d7d80` case 0x334c8, decompile lines 1029-1218).** 8 dialogue lines
+(`0x49d6e0` calls), text VAs 0x86d390..0x86d1dc, all unvoiced (voice 0). Speakers are actor ids resolved to
+dramatist names — 0x5f5e165=Arche, 0x5f5e1d3=Father, 0x5f5e1d4=Mother — CONFIRMED against the arrival's
+known speakers (the arrival uses the same `0x556eb0(id)` actors). Order: Arche/Arche/Mother/Father/Father/
+Father → [emote beat `0x401e60`, skipped — `cutscene-beat-runner`] → Arche/Mother.
+
+**VERIFIED (behavioral, `runs/cutscene-verify`).** A seed-pinned replay (the ckpt-121 nav-zspam extended
+with Z presses out to flip 13000) drove the LIVE chain through all 18 lines and logged "town-intro cutscene
+chain COMPLETE @hold=11365 (reached errands boundary 0x334dc → control hand-off)". Captured house frames
+(f8400 "Arche: Hee, there's even an item shop"; f9900 "Arche's Father: Mm-hmm. I'm hoping I can make a
+living as a shopkeeper") render correct text + name. KNOWN (tagged debts, NOT bugs): the portrait stays the
+Father bust (`dialogue-portrait-per-speaker`); the backdrop is still the town scene — NEW
+`PORT-DEBT(cutscene-room-render)`.
+
+**Ledger correction.** `0x439690`/`0x49d6e0` were `FUN_` form in the ckpt-121 cutscene.c (over-claiming
+"ported"); the sequencer REDUCES a slice of the beat-runner + captures the line-setup ARGS — it doesn't
+port either function → converted to bare VAs (touched 209→207, tested 204→202; the correct count).
+
+**NEXT MOVE — the errands room = the freeroam (a SCOPE DECISION pending with the USER).** Two findings
+reshape the plan's "errands + short opening dialogue → stop sequencer, freeroam":
+1. The errands room `0x334dc` is handled by the SEPARATE dispatcher `0x4dc510` (21 KB) — a flag-gated
+   QUESTLINE (gates on `scene[1]==0xd2`; its own dialogue API `0x4a5ee0`; storage-room/Sana sub-scenes),
+   NOT a linear cutscene. The errands room IS gameplay/freeroam (quirk #103 finding #4).
+2. NEITHER the house nor errands ROOM is RENDERED. The committed room key `room_state+0x4024` drives an
+   unported map-load path (the `0x585ae0`/`0x586010` family, 14 `+0x4024` consumers). So the house lines
+   currently play over the TOWN-ARRIVAL backdrop.
+The freeroam hand-off (stop the sequencer + run `character_step` on live `axis_held`, the `+0x200==0`
+char-AI path — the mover is DONE bit-exact, live input DONE) is only NON-FAKE once the errands room
+RENDERS — else Arche walks over the town backdrop, recreating the ckpt-120 "wrong scene" the USER removed.
+**Recommendation: the ROOM-RENDER path is the faithful foundation** (port the room-key→map-load/decode so
+house+errands backdrops render → fixes the house-dialogue backdrop AND unblocks a real freeroam); the
+freeroam hand-off + DROP-`+0x200=1` then follow. Asking the USER to confirm this order vs alternatives.
+Plan: `plans/controllable-arche-faithful.md` Phase 2.
+
+**Module layout (this ckpt):** `src/cutscene.{c,h}` (multi-room sequencer + arrival/house line tables +
+the room chain), `src/main.c` (arms `cutscene_town_chain`, the completion log = "reached errands boundary"),
+`tests/test_cutscene.c` (9 tests: tables, chain, room transition, room_key, full-chain completion).
+Throwaway verify artifacts (gitignored): `runs/cutscene-verify/` (`nav-zspam-ext.jsonl`, `house/*.png`).
+
+**OPEN RE threads (don't block):** (a) the errands questline `0x4dc510` flag machinery (needs harness
+verification, not static reading — the `scene[1]==0xd2` gate vs the staged `(0x334dc,1,1)`); (b) the LATER
+`+0x200=1` transfer (post-errands → Sana, a separate capture); (c) the room-render path SIZE (a reuse of
+the town `map_decode` with the room's map data, or deeply entangled — investigate when the render chip
+starts). Carried: butterfly chip-1 drift visual-verify; LIVE-input windowed visual-verify (title menu
+arrows + Z). Debt: + `cutscene-room-render`, retired the SCRIPT-chain part of `cutscene-scene-chain`;
+carried char-control-trigger / cutscene-party-chars / dialogue-portrait-per-speaker / keybind-config /
+cutscene-beat-runner / char-run-trigger / char-walk-tuning / char-collision-mover / char-input-autorepeat /
+char-jump-fall-grav-source / held-axis-array-b / effect-color-variant.
+
+## Where we were — ckpt 122
 
 **The control-transfer PATH is HARNESS-VERIFIED — the ckpt-121 "DO FIRST" step is done; the
 static-vs-live conflict is RESOLVED and the porting model CORRECTED. Pure RE/harness, NO port code;
