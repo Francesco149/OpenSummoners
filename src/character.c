@@ -34,7 +34,9 @@ static int32_t ramp_toward(int32_t cur, int32_t target, int32_t rate)
     return cur;
 }
 
-int32_t character_step(character *c, const int *axis_held, int jump_held)
+static int32_t iabs32(int32_t v) { return v < 0 ? -v : v; }
+
+int32_t character_step(character *c, const int *axis_held, int jump_held, int run)
 {
     if (c == NULL) return 0;
 
@@ -71,9 +73,21 @@ int32_t character_step(character *c, const int *axis_held, int jump_held)
     if (c->cmd_dir != 0) {
         int want_face = (c->cmd_dir > 0) ? CHAR_FACE_RIGHT : CHAR_FACE_LEFT;
         if (c->facing == want_face) {
-            /* facing matches the move dir -> accelerate toward the cap */
-            int32_t target = (int32_t)c->cmd_dir * CHAR_WALK_CAP;
-            c->vel = ramp_toward(c->vel, target, CHAR_WALK_ACCEL);
+            /* facing matches the move dir -> accelerate toward the cap.  RUN (dash)
+             * raises the cap to 48000 and accelerates +3200/tick while |vel| < the
+             * walk cap 24000, then the walk accel 1600 up to 48000 (the captured
+             * two-phase ramp).  Releasing the dash while still holding the dir leaves
+             * |vel| over the now-walk cap -> the 0x445db0 over-cap path decelerates at
+             * the BRAKE rate toward the cap, then walks. */
+            int32_t cap    = run ? CHAR_RUN_CAP : CHAR_WALK_CAP;
+            int32_t target = (int32_t)c->cmd_dir * cap;
+            if (iabs32(c->vel) > cap) {
+                c->vel = ramp_toward(c->vel, target, CHAR_WALK_BRAKE);
+            } else {
+                int32_t accel = (run && iabs32(c->vel) < CHAR_WALK_CAP)
+                                    ? CHAR_RUN_ACCEL : CHAR_WALK_ACCEL;
+                c->vel = ramp_toward(c->vel, target, accel);
+            }
         } else if (c->vel == 0) {
             /* at rest, commanded the other way -> flip facing now (accel next tick,
              * the integrator's local_14 v==0 facing flip) */

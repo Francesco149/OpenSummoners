@@ -3288,6 +3288,21 @@ is a port note in `FRONT.md`/`HANDOFF.md`, not here.
   direction action-id (2=LEFT, 4=RIGHT) within the config window `*(*0x8a6e80+0xf8)`, reading
   the ring `*(input-mgr+0x158a4)+0xc` via `0x479960`. The held-array walk (chip 3a) is a
   SEPARATE level path; run layers a ring double-tap on top.
+- **The RUN (dash) PHYSICS, captured per-tick (ckpt 118, `runs/runjump-gt/capdash2` — a
+  seed-pinned RING double-tap RIGHT injected from the town freeroam, `ids:[4,4]` → two id-4
+  ring events in slots 63/62 → `0x479e70` fires → `cmd[0]=6`; the live `hvel`=`body+0x28`
+  read off Arche's entity).** In the apply integrator `0x442a70` case-0x75 the run differs
+  from the walk in exactly TWO per-entity consts:
+  - **RUN cap `in_ECX[0x5664]` = 48000** → dwx cap **±480** (exactly 2× the walk's ±240).
+  - **RUN accel is TWO-PHASE.** `442a70:998` selects accel `in_ECX[0x565d]`=**3200** only while
+    `hvel < param_3` where param_3 is still the WALK cap 24000 (line 950) before being reassigned
+    to 48000 (line 1001); at/above 24000 the accel drops to the default walk accel `in_ECX[0x565c]`
+    =**1600**. Captured ramp (per sim-tick, RIGHT held from rest): walk `1600,3200` (cmd0=2), then
+    the double-tap latches cmd0=6 → `6400,9600,12800,16000,19200,22400,25600` (+3200/tick to 24000),
+    then `27200,28800,…,46400,48000` (+1600/tick to the cap). The brake is the WALK brake −800
+    (`local_20`=`in_ECX[0x565e]`, unchanged in the run branch); releasing the dash while still
+    holding the dir decays 48000→24000 at −800/tick via the `0x445db0` over-cap path (`+local_18`).
+    Same `body+0x28` accumulator + same `0x445db0` clamp-ramp as the walk → only the cap+accel differ.
 - **The horizontal velocity accumulator is `body+0x28`** (signed): the capture's `hvel` column
   re-confirms the chip-3a walk port BYTE-FOR-BYTE — `1600, 3200, …, 24000` ramping +1600/tick
   to the 24000 cap (dwx = `hvel/100`), then `-800/tick` on release. `body+0x18` (the VERTICAL

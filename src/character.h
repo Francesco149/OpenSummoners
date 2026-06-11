@@ -76,6 +76,27 @@ enum {
 #define CHAR_WALK_CAP    24000   /* |vel| cap              -> dwx cap +-240        */
 #define CHAR_WALK_BRAKE   800    /* vel -= 800/tick on release -> dwx -8/tick      */
 
+/* ── The RUN (dash) velocity law (0x442a70 case 0x75, the cmd[0]=5/6 branch; chip 3b,
+ * ckpt 118) ──  A direction DOUBLE-TAP (the event ring, detected by 0x479e70 in the AI
+ * 0x478ba0) latches the run; it SELF-SUSTAINS while the direction is held and ends on
+ * release.  In the apply integrator the run differs from the walk in exactly TWO captured
+ * per-entity consts + nothing else (same body+0x28 accumulator, same 0x445db0 ramp, same
+ * -800 brake) — VALIDATED BIT-EXACT vs retail's per-tick body (runs/runjump-gt/capdash2,
+ * ckpt 118: a ring-injected double-tap RIGHT from the town freeroam):
+ *   - RUN cap   in_ECX[0x5664] = 48000  -> dwx cap +-480 (exactly 2x the walk's +-240).
+ *   - RUN accel in_ECX[0x565d] =  3200  -> +-32/tick, but ONLY while |vel| < the WALK cap
+ *     24000 (decompile 442a70:998 `hvel < param_3`, param_3 still the walk cap there);
+ *     from 24000 up to 48000 the accel DROPS to the walk accel 1600.  So the run ramp is
+ *     TWO-PHASE: +3200/tick to 24000 (the captured 1600,3200 walk ticks then 6400..25600),
+ *     then +1600/tick to 48000 (27200,28800,..,48000).
+ * Releasing the dash while still holding the direction (cmd[0]->2 walk, |vel| over the now-
+ * walk cap) decelerates 48000->24000 at the BRAKE rate (the 0x445db0 over-cap path reduces
+ * by local_18 = -800), then walks at 24000.  The double-tap DETECTION that produces the run
+ * flag is the AI's job (0x479e70 ring scan), deferred to the live wire -> the `run` arg of
+ * character_step is the resolved cmd[0]==5/6 (PORT-DEBT(char-run-trigger)). */
+#define CHAR_RUN_CAP    48000    /* in_ECX[0x5664]  |vel| cap when running -> dwx +-480 */
+#define CHAR_RUN_ACCEL   3200    /* in_ECX[0x565d]  accel while |vel| < CHAR_WALK_CAP    */
+
 /* ── The JUMP law (0x442a70 case 3 = the body+0x38==3 airborne sub-FSM, chip 3b) ──
  * vvel is the signed VERTICAL accumulator body+0x18; worldY advances by vvel/100
  * each airborne tick (worldY grows DOWNWARD — ground is the larger value, apex the
@@ -147,12 +168,14 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
 
 /* One sim-tick of the controllable character: `axis_held[0..3]` are the UP/DOWN/
  * LEFT/RIGHT held booleans (held_trace replay / the real producer 0x46a880);
- * `jump_held` is the jump button level (C; the AI's cmd[2], producer slot +0x124).
- * Runs the AI reduction (held axis -> latched walk direction) then the apply
- * reduction: the horizontal velocity ramp + worldX commit + facing flip (0x442a70
- * case 0x75) AND the vertical jump integrator (case 3 airborne).  Returns the
- * worldX delta applied this tick (dwx = vel/100); the jump arc is read from
- * world_y/vvel.  The jump triggers on the rising edge of `jump_held` while grounded. */
-int32_t character_step(character *c, const int *axis_held, int jump_held);
+ * `jump_held` is the jump button level (C; the AI's cmd[2], producer slot +0x124);
+ * `run` is the resolved RUN flag (the AI's cmd[0]==5/6 — a direction double-tap held;
+ * the 0x479e70 ring detection is deferred to the live wire, PORT-DEBT(char-run-trigger)).
+ * Runs the AI reduction (held axis -> latched walk direction) then the apply reduction:
+ * the horizontal velocity ramp (walk OR run cap/accel) + worldX commit + facing flip
+ * (0x442a70 case 0x75) AND the vertical jump integrator (case 3 airborne).  Returns the
+ * worldX delta applied this tick (dwx = vel/100); the jump arc is read from world_y/vvel.
+ * The jump triggers on the rising edge of `jump_held` while grounded. */
+int32_t character_step(character *c, const int *axis_held, int jump_held, int run);
 
 #endif /* OSS_CHARACTER_H */

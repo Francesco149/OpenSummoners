@@ -35,10 +35,39 @@ understates how much actual instruction volume is ported.
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
   held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → jump/dash blocker resolved
-  + jump arc captured ✓ → **JUMP ported + field-exact ✓** → dash port → live wire at the freeroam
-  hand-off). Milestone map: `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog:
-  `port-frontier.md`.
-- **LATEST (ckpt 117): PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning
+  + jump arc captured ✓ → **JUMP ported + field-exact ✓** → **DASH (run) ported + field-exact ✓** →
+  live wire at the freeroam hand-off). Milestone map: `ROADMAP.md`; active arc:
+  `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
+- **LATEST (ckpt 118): PHASE-4 chip 3b — Arche's DASH (run) is PORTED + FIELD-EXACT, validated
+  bit-exact vs a fresh RING-double-tap capture. `src/character.{c,h}` + `test_character.c`; 962 pass
+  (+1).** The run is the captured two-phase delta on the walk (same `body+0x28` accumulator, same
+  `0x445db0` clamp-ramp) — RE'd from the `0x442a70` case-0x75 run branch + the live const band, then
+  validated tick-for-tick. Writeup: **engine-quirk #102** (amended, the run-physics bullet). Artifacts:
+  `runs/runjump-gt/capdash2` (the dash capture), `dash-ring2.jsonl`/`dash-held.jsonl`/`dash_fields.json`.
+  1. **The CAPTURE (the chip-3b blocker CLEARED — the ring double-tap fires).** `0x479e70` matches two
+     direction ring events with `flag==1` in the window, marking them BY SLOT (not ts), so injecting
+     `ids:[4,4]` (two id-4 events → slots 63/62, same ts) IS a valid double-tap. Held RIGHT (axis)
+     sustains it. `capdash` failed to reach freeroam (a flaky 2-VA/held-hook stall); `capdash2` (lean
+     1-VA spec + the PROVEN `freeroam-walk` nav) reached it and the dash fired clean: cmd0 2 (walk)→6
+     (run), `hvel` ramps to **48000**, `wx` to **+480/tick**.
+  2. **The run LAW (`0x442a70` case 0x75, the cmd[0]=5/6 branch).** Two captured consts differ from the
+     walk: **cap `in_ECX[0x5664]`=48000** (dwx ±480 = 2× walk) + a **TWO-PHASE accel** — `in_ECX[0x565d]`
+     =**3200** while `|hvel| < 24000` (the walk cap), then the walk accel **1600** up to 48000 (decompile
+     `:998` tests `hvel < param_3` before param_3 is reassigned to 48000). Brake stays the walk −800;
+     releasing the dash while holding dir decays 48000→24000 at −800 (the `0x445db0` over-cap path).
+  3. **The port (`character_step(c, axis, jump_held, run)` — `run`=the resolved cmd[0]==5/6).** The
+     accelerate branch picks the run cap + two-phase accel; `test_character_run_ramp` asserts the captured
+     `(hvel, worldX)` bytes tick-for-tick (1600,3200, then 6400…22400,25600 at +3200, then 27200…48000 at
+     +1600) AND the over-cap decay. The double-tap DETECTION (`0x479e70`) is deferred to the live wire →
+     PORT-DEBT(char-run-trigger) (the port replays the held AXIS, not the discrete ring).
+  4. **NEXT (chip 3b/3c, in order):** (a) RE + port the ~7-flip jump WINDUP (case-3 sub-state-0 counter>4
+     — a launch lag invisible to the arc). (b) **The LIVE wire** — the chip-4 freeroam hand-off gives
+     `character_step` its first live caller → Arche walks/jumps/dashes on screen + the chip-2 collision
+     mover/probes get a live grounded actor → USER visual-verify (the milestone).
+     **OPEN (USER):** butterfly chip-1 drift visual-verify still pending. Debt: PORT-DEBT(char-run-trigger
+     / char-jump-variable-height / char-jump-fall-grav-source / char-walk-tuning / char-collision-mover /
+     char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 117): PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT, and the move-tuning
   consts are CAPTURED LIVE (resolving an earlier decompile mis-read). `src/character.{c,h}` grew the
   vertical airborne integrator; 961 pass (+3).** The short-hop arc is reproduced BIT-EXACT vs the ckpt-116
   capture; the variable-height high-jump RISE is now ALSO bit-exact validated (a held-C capture). Writeup:

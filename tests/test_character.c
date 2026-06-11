@@ -40,14 +40,14 @@ int test_character_walk_accel(void)
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, +1);                       /* hold RIGHT */
     for (int i = 0; i < N; i++) {
-        character_step(&c, axis, 0);
+        character_step(&c, axis, 0, 0);
         T_ASSERT_EQ_I(c.world_x, EXPECT[i]);  /* field-exact vs retail */
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);  /* facing holds through the walk */
     }
     /* At the cap the per-tick step is a steady +240 (dwx = 24000/100). */
     T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
     int32_t before = c.world_x;
-    int32_t dwx = character_step(&c, axis, 0);
+    int32_t dwx = character_step(&c, axis, 0, 0);
     T_ASSERT_EQ_I(dwx, 240);
     T_ASSERT_EQ_I(c.world_x, before + 240);
     return 0;
@@ -68,13 +68,13 @@ int test_character_walk_brake(void)
     character_init(&c, 40000, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT];
     axis_set(axis, +1);
-    for (int i = 0; i < 60; i++) character_step(&c, axis, 0);  /* reach the cap */
+    for (int i = 0; i < 60; i++) character_step(&c, axis, 0, 0);  /* reach the cap */
     T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
 
     axis_set(axis, 0);                        /* release */
     int32_t wx = c.world_x;
     for (int i = 0; i < N; i++) {
-        int32_t dwx = character_step(&c, axis, 0);
+        int32_t dwx = character_step(&c, axis, 0, 0);
         T_ASSERT_EQ_I(dwx, BRAKE_DWX[i]);     /* field-exact decel */
         wx += BRAKE_DWX[i];
         T_ASSERT_EQ_I(c.world_x, wx);
@@ -82,7 +82,7 @@ int test_character_walk_brake(void)
     }
     T_ASSERT_EQ_I(c.vel, 0);                   /* stopped */
     /* Held idle stays stopped. */
-    T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
     T_ASSERT_EQ_I(c.world_x, wx);
     return 0;
 }
@@ -98,17 +98,17 @@ int test_character_walk_left_symmetry(void)
 
     /* warmup (CHAR_INPUT_REPEAT_DELAY ticks: cmd not latched -> no motion) */
     for (int i = 0; i < CHAR_INPUT_REPEAT_DELAY - 1; i++) {
-        T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
+        T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
     }
     /* latch tick: facing != want -> flip to LEFT at rest, still 0 motion */
-    T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
     T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT);
 
     /* now accelerate left: dwx -16,-32,..,-240 (mirror of the right walk) */
     int32_t wx = c.world_x;
     for (int k = 1; k <= 15; k++) {
-        int32_t dwx = character_step(&c, axis, 0);
+        int32_t dwx = character_step(&c, axis, 0, 0);
         T_ASSERT_EQ_I(dwx, -16 * k);
         wx += dwx;
         T_ASSERT_EQ_I(c.world_x, wx);
@@ -116,7 +116,61 @@ int test_character_walk_left_symmetry(void)
     }
     T_ASSERT_EQ_I(c.vel, -CHAR_WALK_CAP);
     /* capped at -240 */
-    T_ASSERT_EQ_I(character_step(&c, axis, 0), -240);
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), -240);
+    return 0;
+}
+
+/* The RUN (dash) ramp (Phase-4 chip 3b): a direction double-tap held -> cmd[0]=6,
+ * the higher cap + two-phase accel (0x442a70 case 0x75, the run branch).  Validated
+ * FIELD-EXACT against retail's captured per-tick body (runs/runjump-gt/capdash2, ckpt
+ * 118: a seed-pinned RING double-tap RIGHT from the town freeroam).  The capture is
+ * RIGHT held from the press: 2 warmup ticks, 2 WALK ticks (cmd0=2: hvel 1600,3200),
+ * then the double-tap latches cmd0=6 and the run accel kicks in (+3200/tick to 24000,
+ * then +1600/tick to the 48000 cap).  The embedded (hvel, worldX) are retail's bytes. */
+int test_character_run_ramp(void)
+{
+    /* per-tick from the press tick (capdash2 t1550..t1578); run latches at tick 4. */
+    static const int32_t HVEL[] = {
+            0,     0,  1600,  3200,  6400,  9600, 12800, 16000, 19200, 22400,
+        25600, 27200, 28800, 30400, 32000, 33600, 35200, 36800, 38400, 40000,
+        41600, 43200, 44800, 46400, 48000, 48000, 48000, 48000, 48000,
+    };
+    static const int32_t WX[] = {
+        19200, 19200, 19216, 19248, 19312, 19408, 19536, 19696, 19888, 20112,
+        20368, 20640, 20928, 21232, 21552, 21888, 22240, 22608, 22992, 23392,
+        23808, 24240, 24688, 25152, 25632, 26112, 26592, 27072, 27552,
+    };
+    const int N = (int)(sizeof HVEL / sizeof HVEL[0]);
+    const int RUN_FROM = 4;                   /* the double-tap latches cmd0=6 here */
+
+    character c;
+    character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT];
+    axis_set(axis, +1);                       /* hold RIGHT the whole dash */
+
+    for (int i = 0; i < N; i++) {
+        character_step(&c, axis, /*jump_held=*/0, /*run=*/(i >= RUN_FROM) ? 1 : 0);
+        T_ASSERT_EQ_I(c.vel, HVEL[i]);        /* field-exact vs retail (the two-phase ramp) */
+        T_ASSERT_EQ_I(c.world_x, WX[i]);
+        T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
+    }
+    /* At the run cap the per-tick step is a steady +480 (dwx = 48000/100 = 2x the walk). */
+    T_ASSERT_EQ_I(c.vel, CHAR_RUN_CAP);
+    int32_t before = c.world_x;
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 1), 480);
+    T_ASSERT_EQ_I(c.world_x, before + 480);
+
+    /* Release the dash but KEEP holding the dir (run flag off, axis still RIGHT): the
+     * over-cap path decelerates 48000 -> the walk cap 24000 at the BRAKE rate (-800/
+     * tick, dwx -8), then holds the walk.  (0x445db0 over-cap, decompile 442a70:1091.) */
+    int32_t v = c.vel;                        /* 48000 */
+    for (int i = 0; i < 30 && v > CHAR_WALK_CAP; i++) {
+        character_step(&c, axis, 0, /*run=*/0);
+        v -= CHAR_WALK_BRAKE;                 /* -800/tick toward the walk cap */
+        T_ASSERT_EQ_I(c.vel, v);
+    }
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);      /* settled at the walk cap */
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 240);  /* now walking (+240) */
     return 0;
 }
 
@@ -126,16 +180,17 @@ int test_character_idle_and_conflict(void)
     character c;
     character_init(&c, 12345, 52000, CHAR_FACE_RIGHT);
     int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0};
-    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
+    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
     T_ASSERT_EQ_I(c.world_x, 12345);
 
     axis[CHAR_AXIS_LEFT] = axis[CHAR_AXIS_RIGHT] = 1;   /* both held -> idle */
-    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0), 0);
+    for (int i = 0; i < 10; i++) T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
     T_ASSERT_EQ_I(c.world_x, 12345);
 
     /* NULL guards. */
-    T_ASSERT_EQ_I(character_step(NULL, axis, 0), 0);
-    T_ASSERT_EQ_I(character_step(&c, NULL, 0), 0);  /* no axis -> brake (already 0) */
+    T_ASSERT_EQ_I(character_step(NULL, axis, 0, 0), 0);
+    T_ASSERT_EQ_I(character_step(&c, NULL, 0, 0), 0);  /* no axis -> brake (already 0) */
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 1), 0);  /* run flag but no dir -> idle */
     return 0;
 }
 
@@ -171,7 +226,7 @@ int test_character_jump_arc(void)
     /* The capture is a ring TAP: press on the launch edge, then RELEASED the whole
      * rise (cmd[2]==0) -> the FREE rise grav (8000).  jump_held=1 only on tick 0. */
     for (int i = 0; i < N; i++) {
-        character_step(&c, axis, /*jump_held=*/(i == 0) ? 1 : 0);
+        character_step(&c, axis, /*jump_held=*/(i == 0) ? 1 : 0, /*run=*/0);
         T_ASSERT_EQ_I(c.vvel, VVEL[i]);                 /* field-exact vs retail */
         T_ASSERT_EQ_I(c.world_y, WY[i]);
     }
@@ -194,7 +249,7 @@ int test_character_jump_edge_and_ground(void)
 
     /* Grounded, no jump button: no vertical motion at all. */
     for (int i = 0; i < 5; i++) {
-        character_step(&c, axis, 0);
+        character_step(&c, axis, 0, 0);
         T_ASSERT_EQ_I(c.airborne, 0);
         T_ASSERT_EQ_I(c.world_y, 52000);
         T_ASSERT_EQ_I(c.vvel, 0);
@@ -207,7 +262,7 @@ int test_character_jump_edge_and_ground(void)
     int32_t apex = 52000;
     for (int t = 0; t < 400; t++) {
         int before_air = c.airborne;
-        character_step(&c, axis, 1);
+        character_step(&c, axis, 1, 0);
         if (!before_air && c.airborne) launches++;
         if (was_air && !c.airborne) lands++;
         if (c.world_y < apex) apex = c.world_y;     /* highest point (smaller wy) */
@@ -221,9 +276,9 @@ int test_character_jump_edge_and_ground(void)
     T_ASSERT(52000 - apex > 4800);                   /* higher than the short hop */
 
     /* Releasing and re-pressing arms a second jump (a fresh rising edge). */
-    character_step(&c, axis, 0);                     /* release */
+    character_step(&c, axis, 0, 0);                     /* release */
     T_ASSERT_EQ_I(c.airborne, 0);
-    character_step(&c, axis, 1);                     /* re-press -> new edge */
+    character_step(&c, axis, 1, 0);                     /* re-press -> new edge */
     T_ASSERT_EQ_I(c.airborne, 1);
     T_ASSERT_EQ_I(c.vvel, -76000);                   /* same launch impulse */
     return 0;
@@ -254,7 +309,7 @@ int test_character_jump_held_rise(void)
 
     /* HOLD the jump every tick -> cmd[2]=8 -> the 2000 rise grav (the high jump). */
     for (int i = 0; i < N; i++) {
-        character_step(&c, axis, /*jump_held=*/1);
+        character_step(&c, axis, /*jump_held=*/1, /*run=*/0);
         T_ASSERT_EQ_I(c.vvel, VVEL[i]);              /* field-exact vs the held capture */
         T_ASSERT_EQ_I(c.world_y, WY[i]);
     }

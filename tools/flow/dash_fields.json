@@ -1,0 +1,79 @@
+{
+ "_doc": "THROWAWAY (ckpt 118) dash capture: Arche body (hvel=body+0x28) + cmd0 (entity+0x14854) via the leader chain, 1 VA to minimize hook overhead.",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "arche_dash",
+   "_note": "leader-chain Arche body + cmd0",
+   "fields": [
+    {
+     "name": "code",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 468,
+     "type": "hex",
+     "reason": "0xc35a sanity"
+    },
+    {
+     "name": "wx",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "reason": "body+4 worldX"
+    },
+    {
+     "name": "hvel",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 40,
+     "type": "i32",
+     "reason": "body+0x28 horiz vel"
+    },
+    {
+     "name": "facing",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 44,
+     "type": "i32",
+     "reason": "body+0x2c facing"
+    },
+    {
+     "name": "cmd0",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 84052,
+     "type": "i32",
+     "reason": "entity+0x14854 cmd[0]; 6=run-right"
+    }
+   ]
+  }
+ }
+}

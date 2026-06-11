@@ -6,6 +6,34 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 118) — PHASE-4 chip 3b: Arche's DASH (run) is PORTED + field-exact, validated bit-exact vs a fresh ring-double-tap capture
+
+Ported the RUN (dash) into `src/character.{c,h}` and validated it BIT-EXACT against retail's per-tick
+body (`runs/runjump-gt/capdash2`).  962 host pass (+1: `character_run_ramp`).  The run is a small,
+fully-understood delta on the chip-3a walk — the SAME `body+0x28` accumulator and the SAME `0x445db0`
+clamp-ramp, differing only in two captured per-entity consts: the cap `in_ECX[0x5664]`=**48000** (dwx
+±480 = 2× the walk's ±240) and a TWO-PHASE accel `in_ECX[0x565d]`=**3200** while `|hvel| < 24000` (the
+walk cap), then the walk accel 1600 up to 48000.  `character_step` grew a 4th arg `run` (the resolved
+cmd[0]==5/6); the existing 6 character tests got `run=0`.
+
+The chip-3b RUN BLOCKER (ckpt 115/116: "the dash double-tap didn't fire") is CLEARED.  `0x478ba0` sets
+cmd[0]=5/6 when the AI's `0x479e70` matches two direction ring events (id 2=LEFT/4=RIGHT) in the window
+`*(*0x8a6e80+0xf8)`; `0x479e70`/`0x479960` mark found events BY SLOT INDEX (not timestamp), so injecting
+`ids:[4,4]` (two id-4 ring events → slots 63/62, same ts) IS a valid double-tap, and the held RIGHT axis
+sustains it (`local_608[0]==6` while held).  The detection doesn't consume the events and they linger a
+few flips (≪ the window), so the timing is forgiving.
+
+Capture method lesson: the first attempt (`capdash`, a 2-VA field spec + the held-leaf hook) STALLED —
+`sim_tick=0` the whole run, freeroam never reached (the heavy hooking tripped the lockstep stall-breaker
+/ dialogue desync).  The clean run (`capdash2`) used a LEAN 1-VA `dash_fields.json` + the PROVEN
+`runs/freeroam-walk` nav: it reached freeroam and the dash fired (cmd0 2→6, `hvel` 0→48000, `wx`
++480/tick), giving the bit-exact target.  Fewer hooks + a known-good nav when a capture must drive deep
+under lockstep.  The run LAW comes from the `0x442a70` case-0x75 run branch (`:998` selects the run accel
+while `hvel < param_3`=the walk cap, then reassigns the cap to 48000 at `:1001`) + the live const band;
+the brake stays the walk −800 and releasing the dash decays 48000→24000 at −800 via the `0x445db0`
+over-cap path.  The double-tap DETECTION is deferred to the live wire → PORT-DEBT(char-run-trigger).
+Writeup: engine-quirk #102 (the run-physics bullet); model `docs/plans/movement-system.md` chip 3.
+
 ## 2026-06-11 (ckpt 117) — PHASE-4 chip 3b: Arche's JUMP is PORTED + field-exact, and the move-tuning consts are CAPTURED LIVE (resolving a decompile mis-read)
 
 Ported the vertical airborne integrator into `src/character.{c,h}` (the chip-3a walk module), bit-exact

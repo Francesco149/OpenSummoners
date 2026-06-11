@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 117, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 118, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,63 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 117
+## Where we are — ckpt 118
+
+**PHASE-4 chip 3b — Arche's DASH (run) is PORTED + FIELD-EXACT, validated BIT-EXACT against a fresh
+ring-double-tap capture. 962 host pass (+1).**  The run is a small, fully-understood delta on the walk
+(same `body+0x28` accumulator, same `0x445db0` clamp-ramp) — RE'd from the `0x442a70` case-0x75 run
+branch + the live const band (ckpt 117), then validated tick-for-tick vs retail's captured per-tick body.
+Modules: `src/character.{c,h}` (the `run` arg + the run accel/cap branch), `tests/test_character.c`
+(+`character_run_ramp`), `tests/test_main.c`; throwaway capture artifacts `runs/runjump-gt/{capdash2,
+dash-ring2.jsonl,dash-held.jsonl,dashframes.txt}` + `tools/flow/dash_fields.json`.  Writeup:
+**engine-quirk #102** (the run-physics bullet); debt **PORT-DEBT(char-run-trigger)**.
+
+**The chip-3b RUN BLOCKER is CLEARED (the ring double-tap fires).**  `0x479e70` matches two direction
+ring events (id 2=LEFT / 4=RIGHT) with `flag==1` in the window `*(*0x8a6e80+0xf8)`, marking found events
+**by slot index** (`0x479960`'s `local_100` scratch), NOT by timestamp — so injecting `ids:[4,4]` (two
+id-4 events → ring slots 63/62, same ts) is a VALID double-tap.  Held RIGHT (the `--held-trace` axis)
+sustains it (`local_608[0]==6` self-sustain while held).  The detection doesn't consume the events
+(`param_9=0`), and events linger a few flips (32 ms ≪ window) → timing is forgiving.
+
+**Capture method (the flaky→clean lesson).**  `capdash` (2-VA field spec + the held-leaf hook) STALLED —
+`sim_tick=0` the whole run, the leader chain null, freeroam never reached (the heavy hooking tripped the
+lockstep stall-breaker / dialogue desync).  `capdash2` (a **lean 1-VA** `dash_fields.json` + the **PROVEN
+`runs/freeroam-walk` nav** `trace-nav.jsonl` + the id-4 double-taps) reached freeroam clean and the dash
+fired: cmd0 **2 (walk)→6 (run)**, `hvel` ramped to **48000**, `wx` to **+480/tick**.  LESSON: fewer hooks
++ a known-good nav when a capture must drive deep through dialogue under lockstep.
+
+**The run LAW (`0x442a70` case 0x75, the cmd[0]=5/6 branch — bit-exact target = retail's captured bytes):**
+- **RUN cap `in_ECX[0x5664]` = 48000** → dwx cap **±480** (exactly 2× the walk's ±240).
+- **TWO-PHASE accel:** `442a70:998` picks `in_ECX[0x565d]`=**3200** only while `hvel < param_3` where
+  param_3 is still the WALK cap 24000 (line 950, before it's reassigned to 48000 at `:1001`); at/above
+  24000 the accel falls to the default walk accel `in_ECX[0x565c]`=**1600**.  Captured per-tick (RIGHT
+  held from rest): `1600,3200` (walk, cmd0=2) → double-tap latches cmd0=6 → `6400,9600,12800,16000,
+  19200,22400,25600` (+3200) → `27200,28800,…,46400,48000` (+1600 to the cap).
+- **Brake = the WALK brake −800** (`local_20`=`in_ECX[0x565e]`, unchanged in the run branch).  Releasing
+  the dash while still holding the dir decays 48000→24000 at −800/tick (the `0x445db0` over-cap path,
+  `+local_18`), then walks at 24000.  Same accumulator + same ramp as the walk → only cap+accel differ.
+
+**The port (`character_step(c, axis_held, jump_held, run)`).**  Added the `run` arg = the RESOLVED
+cmd[0]==5/6 (the AI's `0x479e70` double-tap detection is INPUT-layer, deferred to the live wire →
+PORT-DEBT(char-run-trigger); mirrors how `jump_held` is the resolved button).  The accelerate branch:
+`cap = run ? 48000 : 24000`, `accel = (run && |vel| < 24000) ? 3200 : 1600`, with the over-cap brake when
+`|vel| > cap`.  `test_character_run_ramp` asserts the captured `(hvel, worldX)` bytes tick-for-tick + the
+over-cap decay.  The existing 6 character tests got the 4th arg (`run=0`) — all still pass.
+
+**NEXT (chip 3b/3c, in order):**
+1. **RE + port the jump WINDUP** (the ~7-flip execute→launch delay = case-3 sub-state-0 counter>4,
+   `0x442a70:835-841`) — a launch lag invisible to the arc but visible live (PORT-DEBT(char-jump-variable-height)).
+2. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the `entity+0x200` control transfer)
+   gives `character_step` its first live caller in `game_actor_update` → Arche walks/jumps/dashes on screen,
+   the chip-2 collision mover/probes get a live grounded actor → USER visual-verify (the milestone).  The
+   live wire also retires PORT-DEBT(char-run-trigger) (real `0x479e70` ring access) + char-walk-tuning
+   (read `in_ECX[…]` off the live entity) + char-collision-mover.
+
+**OPEN (USER):** butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).
+Debt: PORT-DEBT(char-run-trigger / char-jump-variable-height / char-jump-fall-grav-source / char-walk-tuning
+/ char-collision-mover / char-input-autorepeat), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 117
 
 **PHASE-4 chip 3b — Arche's JUMP is PORTED + FIELD-EXACT (BOTH the short hop and the variable-height
 held rise), and the move-tuning consts are CAPTURED LIVE off her entity (resolving an earlier decompile

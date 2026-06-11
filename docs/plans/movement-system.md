@@ -184,12 +184,19 @@ target for chip 1.** Findings (the per-tick motion model, all capture-verified):
      captured bytes (no live caller yet — like chip 2, "host-tested only, live payoff at the hand-off").
      `0x478ba0` annotated (`char_ai`) in `retail_fields.json`.  Tagged PORT-DEBT(char-run-jump /
      char-input-autorepeat / char-walk-tuning / char-collision-mover).
-   - **NEXT (in order):** (c) RE the run/jump scancodes (the `0x8a6e80` keybind defaults) → capture
-     **run + jump** per-tick (the body spec `tools/flow/freeroam_arche_fields.json` reads her
-     independent of the mover) → port the run cap/accel + the jump vertical integrator (the `0x442a70`
-     case-3 flap sub-FSM, shared with butterfly-flutter); (d) the LIVE wire — the chip-4 hand-off gives
-     `character_step` its first caller in `game_actor_update` + the chip-2 collision mover/probes a live
-     grounded actor → validate "Arche walks + stops at terrain" field-exact, then the slope resolver.
+   - **chip 3b — the JUMP (ckpt 117) + the DASH/RUN (ckpt 118) are PORTED + field-exact.** JUMP: the
+     `0x442a70` case-3 airborne integrator (impulse `in_ECX[0x5667]`=−80000, asymmetric variable-height
+     gravity, bit-exact to the captured short-hop + held-rise arcs).  RUN: the case-0x75 run branch (cap
+     `in_ECX[0x5664]`=48000 + the two-phase accel `in_ECX[0x565d]`=3200→1600), validated tick-for-tick
+     vs `runs/runjump-gt/capdash2` (a ring `ids:[4,4]` double-tap + held RIGHT).  `character_step` is now
+     `(c, axis, jump_held, run)` — the move-tuning consts were CAPTURED LIVE off Arche's entity (the
+     const band `0x565a..0x566f`).  Both the run TRIGGER (`0x479e70` double-tap detection) and the jump
+     WINDUP are the deferred input/timing layer (PORT-DEBT(char-run-trigger / char-jump-variable-height)).
+   - **NEXT (in order):** (c) RE + port the jump WINDUP (the ~7-flip execute→launch delay, case-3
+     sub-state-0 counter>4); (d) the LIVE wire — the chip-4 hand-off gives `character_step` its first
+     caller in `game_actor_update` + the chip-2 collision mover/probes a live grounded actor → validate
+     "Arche walks/jumps/dashes + stops at terrain" field-exact, then the slope resolver.  The live wire
+     also retires char-run-trigger (real ring access) + char-walk-tuning (read the live entity consts).
 4. **Freeroam** — REACHED in retail (ckpt 112). Remaining for the PORT side: finish the cutscene
    (dialogue chip 4, `plans/dialogue-cutscene.md`) → the control hand-off → a NEW trace-studio
    session (the USER's "house freeroam" directive). The port reaches the dialogue but not yet the

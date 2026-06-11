@@ -837,6 +837,7 @@ struct test_case {
     X(character_walk_accel)                                    \
     X(character_walk_brake)                                    \
     X(character_walk_left_symmetry)                            \
+    X(character_run_ramp)                                      \
     X(character_idle_and_conflict)                             \
     X(character_jump_arc)                                      \
     X(character_jump_edge_and_ground)                          \
