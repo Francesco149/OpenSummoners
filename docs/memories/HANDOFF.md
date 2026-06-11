@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 123, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 124, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,53 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 123
+## Where we are — ckpt 124
+
+**The dialogue PORTRAITS are UN-MVP'd — the bust RESOLVES per speaker (USER-requested side-fix). New
+`src/portrait.{c,h}` + the embedded face table; 982 host pass (+4), 0 fail, 6 skip; one commit `ce1af81`.
+Montage on the feed.**
+
+**The fix.** The portrait was hardcoded to `g_ar_sprite_slots[663]` — a WRONG character (face-table head
+100000104, face 0xc), so EVERY speaker showed the same bust.  `src/portrait.c` ports the `0x49d6e0`
+face-table lookup: `portrait_resolve(head_state, face_id, variant)` scans the embedded `DAT_006b6568` for
+the `(head, face)` record → the portrait pool-slot (the `g_ar_sprite_slots`/`DAT_008a760c` index; -1 = no
+record = retail's no-portrait path).  `cutscene.c` maps speaker → head-state + resolves the slot per line;
+`dialogue_box` carries `portrait_slot` (reset -1 by `dialogue_arm`); `main.c game_render_dialogue` blits
+the resolved slot (with the existing cross-fade).
+
+**The data (HARNESS-GROUND-TRUTHED, `runs/portrait-gt`).** Two unknowns resolved by a Frida field-spec on
+`0x49d6e0` (`tools/flow/portrait_face_fields.json`, driven by the control-path nav):
+- the speaker→head-state map (the face-table key dword[0]): Arche (code 0xc35a) = 100000101, Father
+  (0xc3dc) = 100000211, Mother (0xc440) = 100000212 — constant per character.
+- the VARIANT: `bVar4`/var-C (the old MVP's wrong column) is FALSE — `in_ECX+0x2f0`==0 on every dialogue
+  line; the A (`+0x8`) vs B (`+0xa`) choice is the speaker's body-facing (`body+0x2c`==3 → A), which is
+  DYNAMIC (read the resolved `+0x84` via a 1-line-lag trick — the same speaker+face flipped A↔B as the cast
+  turned; tally A=8/B=10).  The port's cast is STATIC, so it uses B (the default path + plurality).
+The face table is embedded by `tools/extract/portrait_face_table.py` → `src/portrait_face_data.{c,h}` (147
+records, the `world_tables_data` precedent).
+
+**VERIFIED (replay, `runs/portrait-gt/verify`).** Father (green shirt, f2700), Arche (headband girl, f8100),
+Mother (brown-haired woman, f9300) busts each render correctly per line — the per-speaker switch the MVP
+lacked.  Retires `dialogue-portrait-per-speaker`; new `dialogue-portrait-facing` (the dynamic A/B, deferred
+to the animated cast / `cutscene-party-chars`).
+
+**NEXT MOVE (UNCHANGED from ckpt 123 — the planned arc).** Render the house/errands ROOMS
+(`plans/controllable-arche-faithful.md` Phase 2a): room-key → `GW_ROOM_SCENE` → `load_town_scene` (scene
+ids confirmed: house `0x334c8`=1023, errands `0x334dc`=1025) → room-keyed reload on the cutscene transition
+→ per-room camera → the `map_decode` interior-tileset coverage (the risk) → then the freeroam hand-off.
+The portrait un-MVP was a USER-requested side-fix off the ckpt-123 chain landing.
+
+**Module layout (this ckpt):** `src/portrait.{c,h}` (the resolver), `src/portrait_face_data.{c,h}` (the
+embedded face table, generated), `src/dialogue.{c,h}` (+`portrait_slot`), `src/cutscene.c` (speaker→head +
+per-line resolve), `src/main.c` (renders the resolved slot).  Tools: `tools/extract/portrait_face_table.py`
+(generator), `tools/flow/portrait_face_fields.json` (the capture spec).  Tests: `test_portrait.c` (4).
+Artifacts (gitignored): `runs/portrait-gt/` (cap/cap2/cap3 + verify/*.png).
+
+**OPEN RE threads (don't block):** the A/B portrait FACING (dynamic; lands with the animated cast); carried
+from ckpt 123 — the errands questline `0x4dc510` flag machinery, the later `+0x200=1` transfer, the
+room-render path size.
+
+## Where we were — ckpt 123
 
 **The town-intro CUTSCENE now CHAINS arrival→house — the room-key swap is PORTED + BEHAVIORALLY VERIFIED.
 `src/cutscene.{c,h}` grew from a single-script driver to a multi-ROOM sequencer; 978 host pass (+4), 0 fail,

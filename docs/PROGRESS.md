@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 124) — the dialogue PORTRAITS are un-MVP'd: the bust resolves per speaker
+
+A USER-requested side-fix off the ckpt-123 chain landing: the dialogue portrait was hardcoded to
+`g_ar_sprite_slots[663]` — which, the RE now shows, is a WRONG character (the face table's head 100000104),
+so every speaker (Arche/Father/Mother) showed the same bust.  New `src/portrait.{c,h}` ports the `0x49d6e0`
+face-table lookup: `portrait_resolve(head_state, face_id, variant)` scans the embedded `DAT_006b6568` for
+the `(head, face)` record → the portrait pool-slot (the `g_ar_sprite_slots`/`DAT_008a760c` index; -1 = no
+record = retail's no-portrait path).  `cutscene.c` maps the speaker → head-state + resolves the slot per
+line; `dialogue_box` carries `portrait_slot` (reset -1 by `dialogue_arm`); `main.c game_render_dialogue`
+blits it with the existing cross-fade.  982 host pass (+4); commit `ce1af81`.
+
+**Ground-truthed by Frida (`runs/portrait-gt`, spec `tools/flow/portrait_face_fields.json` on `0x49d6e0`).**
+Two unknowns the decompile couldn't pin: (1) the speaker→head-state key — captured Arche (code 0xc35a) =
+100000101, Father (0xc3dc) = 100000211, Mother (0xc440) = 100000212 (constant per character); (2) the
+variant column — `bVar4`/var-C (the old MVP's pick) is FALSE for the town dialogue (`in_ECX+0x2f0`==0
+captured), and the A (`+0x8`) vs B (`+0xa`) choice is the speaker's DYNAMIC body-facing (`body+0x2c`==3 → A;
+read the resolved `+0x84` via a 1-line-lag trick — the same speaker+face flipped A↔B as the cast turned,
+tally A=8/B=10).  The port's cutscene cast is STATIC, so it uses B (the default path + plurality).  The
+face table is embedded by `tools/extract/portrait_face_table.py` → `src/portrait_face_data.{c,h}` (147
+records, the `world_tables_data` precedent — RE'd mapping only, never assets).
+
+**Verified** (replay, `runs/portrait-gt/verify`): the Father (green shirt), Arche (headband girl), and
+Mother (brown-haired woman) busts each render correctly per line (montage on the feed).  Retires
+PORT-DEBT(dialogue-portrait-per-speaker); adds PORT-DEBT(dialogue-portrait-facing) (the dynamic A/B head
+facing, which lands with the animated party-band cast / `cutscene-party-chars`).  The planned next arc is
+unchanged: render the house/errands ROOMS (`plans/controllable-arche-faithful.md` Phase 2a).
+
+---
+
 ## 2026-06-11 (ckpt 123) — the town-intro CUTSCENE CHAINS arrival→house: the room-key swap ported + behaviorally verified
 
 The ckpt-122 harness-verified chain (quirk #103) starts landing in code.  `src/cutscene.{c,h}` grew from a
