@@ -6,6 +6,33 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-11 (ckpt 116) — PHASE-4 chip 3b: the run/jump BLOCKER is RESOLVED — jump/dash are RING-sourced, and Arche's JUMP is captured bit-exact in the TOWN
+
+Resolved the ckpt-115 chip-3b blocker by RE + a live experiment, and **REFUTED** the "dash/jump need a
+platforming/dungeon scene" hypothesis.  Pure ground-truth (no port code); 958 host pass (unchanged).
+The root cause is a HARNESS-injection gap, not a scene gate: the chip-3b captures pressed C (and the
+dash directions) only through the HELD-AXIS leaf `0x5ba520`, which fills the held array and yields the
+marker `cmd[2]=8` — but the apply `0x442a70` executes the jump on **`cmd[2]==7`** (`:801`), which
+`0x478ba0:287` sets from a discrete **EVENT-RING** match `FUN_00479960(now,0,800,1,7,…)` scanning the
+ring `input-mgr+0xc` (64 × `{id,ts,flag}`) for `id==7,flag==1`.  `cmd[2]=8` (the held marker, from
+`+0x124`) is consumed nowhere — it is the variable-height hold-to-rise input.  Dash (cmd[0]=5/6) is the
+same gap (`FUN_00479e70` direction double-tap in the ring).  Reading `FUN_00479960` (it reads
+`in_ECX+0xc`, the same ring `--input-trace` fills for the Z-advance id `0x24`) was the linchpin.
+
+Confirmed empirically with ZERO harness changes: re-captured the town freeroam with the existing nav
+(Z-spam to the inn control transfer) + `{"frame":N,"ids":[7]}` jump presses (`runs/runjump-gt/jump-ring.jsonl`,
+capture `capjump-ring2`).  Arche jumps — `vvel 0 → −76000`, `wy 52000 → 47200 (apex) → 52000`, lands
+clean, **two byte-identical jumps** (deterministic).  Plot pushed to the feed.  The jump arc is the
+bit-exact port target: impulse **vvel = −80000**, `wy(t+1)=wy(t)+vvel(t)/100`, **ASYMMETRIC** gravity
+(rise decel +8000/tick, fall accel +4000/tick — a floaty fall, ~27 ticks airtime, apex rise 4800),
+ground-clamp at `wy=52000`.  The apex/fall branch is the body+0x38==3 airborne sub-FSM (`0x442a70:832-877`,
+the `-20000` threshold); consts `in_ECX[0x5667/0x565b/0x565e]`.  engine-quirk #102 amended.
+
+NEXT: (a) PORT the jump (extend `character.{c,h}` with `world_y/vvel` + the airborne integrator,
+host-tested vs the captured arc; RE the apex/fall + variable-height first, don't curve-fit).
+(b) Capture + port the DASH (two direction ring presses + hold → cmd[0]=5/6, the run cap).  (c) The
+chip-4 LIVE wire (Arche walks/jumps on screen → USER visual-verify).
+
 ## 2026-06-11 (ckpt 115) — PHASE-4 chip 3a: Arche's freeroam WALK is PORTED + field-exact (`src/character.{c,h}`)
 
 Ported the controllable-character WALK as a field-exact open-air reduction of the AI `0x478ba0`

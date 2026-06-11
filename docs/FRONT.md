@@ -8,10 +8,39 @@
 <!-- FRONT:BEGIN -->
 - **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
   (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: freeroam ground-truthed ✓ →
-  held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → run/jump → live wire at the
-  freeroam hand-off). Milestone map: `ROADMAP.md`; active arc:
-  `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
-- **LATEST (ckpt 115): PHASE-4 chip 3a — Arche's freeroam WALK is PORTED + FIELD-EXACT (host-tested
+  held-axis harness ✓ → pin mover ✓ → **WALK ported + field-exact ✓** → **jump/dash blocker resolved
+  + jump arc captured ✓** → jump/dash port → live wire at the freeroam hand-off). Milestone map:
+  `ROADMAP.md`; active arc: `plans/movement-system.md`. Render-chip backlog: `port-frontier.md`.
+- **LATEST (ckpt 116): PHASE-4 chip 3b — the run/jump BLOCKER is RESOLVED and Arche's JUMP is captured
+  bit-exact in the TOWN. Pure ground-truth (no port code yet). 958 pass (unchanged).** The ckpt-115
+  "dash/jump need a platforming/dungeon scene" hypothesis is **REFUTED**: jump/dash are sourced from
+  the discrete EVENT RING, and the chip-3b captures only injected the HELD-AXIS — a harness gap, not a
+  scene gate. Writeup: **engine-quirk #102** (amended). Artifacts: `runs/runjump-gt/capjump-ring2`
+  (`jump_arc.py` + `jump_arc.png`, pushed to the feed); the jump-via-ring trace `jump-ring.jsonl`.
+  1. **The RE (decompile-decisive).** The apply `0x442a70` executes the jump on **`cmd[2]==7`** (the
+     execute), NOT the held-array **`cmd[2]==8`** (the hold-to-rise marker, consumed nowhere). `cmd[2]=7`
+     comes from `0x478ba0:287` matching a discrete ring event via `0x479960(now,0,800,1,7,…)` — it scans
+     the ring `input-mgr+0xc` (64×`{id,ts,flag}`) for `id==7, flag==1` in an 800 ms window. The
+     chip-3b captures pressed C only through the held leaf `0x5ba520` (→ `+0x124` → `cmd[2]=8`), so the
+     ring jump (id 7) was never posted → no execute. **Dash (cmd[0]=5/6) is the same gap** (`0x479e70`
+     direction double-tap in the ring).
+  2. **Empirically confirmed (the harness, not a guess).** Injecting `ids:[7]` (one ring press, the
+     SAME channel as the Z-advance id `0x24`, ZERO harness changes) at a settled town freeroam frame
+     makes Arche jump — a clean, deterministic parabola from grounded rest, **two byte-identical jumps**.
+  3. **The jump arc (the bit-exact port target, per sim-tick):** vvel impulse **−80000**, then `wy +=
+     vvel/100`; gravity is **ASYMMETRIC** — rise decel **+8000/tick**, fall accel **+4000/tick** (a
+     floaty fall ≈ Arche's reputation; ~27 ticks airtime, apex `wy 52000→47200` = rise **4800**),
+     ground-clamp `wy=52000` zeroes vvel.
+  4. **NEXT (chip 3b/3c, in order):** (a) **PORT the jump** — extend `character.{c,h}` with `world_y/vvel`
+     + the airborne integrator, host-tested vs the captured arc (like chip 3a). RE the apex/fall branch
+     in the body+0x38==3 sub-FSM (`0x442a70:832-877`, the `-20000` threshold) + read the consts
+     `in_ECX[0x5667/0x565b/0x565e]` and the variable-height hold (cmd[2]=8) so it's RE'd, not curve-fit.
+     (b) **Capture + port the DASH** (inject 2 direction ring presses + hold → cmd[0]=5/6, the run cap).
+     (c) **The LIVE wire** — the chip-4 freeroam hand-off gives `character_step` its first live caller →
+     Arche walks/jumps on screen → USER visual-verify. **OPEN (USER):** butterfly chip-1 drift
+     visual-verify still pending. Debt: PORT-DEBT(char-run-jump / char-input-autorepeat / char-walk-tuning
+     / char-collision-mover), PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+- **Prior (ckpt 115): PHASE-4 chip 3a — Arche's freeroam WALK is PORTED + FIELD-EXACT (host-tested
   vs the ground-truth capture). New `src/character.{c,h}`; 958 pass (+4).** The reduction of the AI
   `0x478ba0` (held-axis → command) + the `0x442a70` case-0x75 walk integrator, fit BIT-EXACT to Arche's
   real-body per-tick worldX (`runs/mover-caller`, ckpt 114). Mirrors butterfly chip 1 (a field-exact

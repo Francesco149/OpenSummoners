@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 114, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 116, 2026-06-11)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,61 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 115
+## Where we are — ckpt 116
+
+**PHASE-4 chip 3b — the run/jump BLOCKER is RESOLVED and Arche's JUMP is captured BIT-EXACT in the
+TOWN freeroam. Pure ground-truth (no port code yet). 958 host pass (unchanged).**  The ckpt-115
+"dash/jump need a platforming/dungeon scene" hypothesis is **REFUTED** — jump/dash are sourced from
+the discrete EVENT RING, and the chip-3b captures only injected the HELD-AXIS, so the ring events
+that EXECUTE the jump/dash were never posted. A harness-injection gap, not a scene gate. Full
+writeup: **engine-quirk #102** (amended). Artifacts: `runs/runjump-gt/` — `jump-ring.jsonl` (the
+nav + jump-as-ring-event trace), `capjump-ring2/` (the capture), `jump_arc.py` + `jump_arc.png`
+(extraction + plot, pushed to the feed).
+
+**The RE (decompile-decisive).**  The apply `0x442a70` reads the 8-int command block and executes
+the jump on **`cmd[2]==7`** (line 801: → `FUN_00426f50(body,3)` airborne state + the impulse) — it
+NEVER consumes **`cmd[2]==8`** (only a generic "any cmd set" check at `:123`). `cmd[2]=8` is the C
+button's HELD-array marker (`0x478ba0:483` reads `input-mgr+0x124` → `cmd[2]=(prev==9)+8`) = the
+hold-to-rise / variable-height input. `cmd[2]=7` (execute) comes from `0x478ba0:287` matching a
+discrete **ring** event: `FUN_00479960(now,0,800,1,7,…)` scans the ring `input-mgr+0xc` (64 ×
+`{id@0,ts@4,flag@8}`, the SAME ring `--input-trace` fills for the Z-advance id `0x24`) for `id==7`
+within an 800 ms window with `flag==1`. The agent's `injectPress` writes `flag=1`, so injecting
+`ids:[7]` matches. **Dash (cmd[0]=5/6) is the same gap:** `FUN_00479e70` matches a direction
+DOUBLE-TAP in the ring (id 2=LEFT / 4=RIGHT within `*0x8a6e80+0xf8`), unreachable from held injection.
+
+**Empirically confirmed (`runs/runjump-gt/capjump-ring2`).**  Re-captured the town freeroam with the
+nav (Z-spam to the inn control transfer) + `{"frame":N,"ids":[7]}` jump presses at 4600/4660/4720/
+4780 — ZERO harness changes (the ring injection already existed). Arche jumps: `vvel 0 → −76000`,
+`wy 52000 → 47200 (apex) → 52000`, lands clean. **Two byte-identical jumps** (deterministic).
+
+**The jump arc — the bit-exact port target (per sim-tick, from `jump_arc.py`):**
+- impulse **vvel = −80000** (the first wy step is −800; the displayed vvel starts −76000), then
+  `wy(t+1) = wy(t) + vvel(t)/100` (verified exactly for all 27 ticks).
+- gravity is **ASYMMETRIC**: rise decel **+8000/tick**, fall accel **+4000/tick** (a floaty fall ≈
+  Arche's reputation; ~27 ticks airtime, apex `wy=47200` = rise **4800** above the `52000` ground).
+- ground contact (`wy ≥ 52000` while `vvel > 0`) clamps `wy=52000`, zeroes vvel.
+- the apex/fall branch is the body+0x38==3 airborne sub-FSM (`0x442a70:832-877`, the `-20000` vvel
+  threshold at `:847`); the consts are `in_ECX[0x5667]` (impulse) / `[0x565b]` (grav) / `[0x565e]`
+  (terminal) — read them off the game when porting (don't curve-fit the asymmetry).
+
+**NEXT (chip 3b/3c, in order):**
+1. **PORT the jump** — extend `src/character.{c,h}` with `world_y` + `vvel` + the airborne integrator
+   (impulse on a jump command, asymmetric gravity, ground clamp), host-tested vs the captured arc
+   (the same "fit to RETAIL's captured bytes" discipline as chip 3a). RE the apex/fall branch +
+   variable-height (hold C = cmd[2]=8) first so it is RE'd, not curve-fit; add `in_ECX[0x5667/
+   0x565b/0x565e]` to the field spec and capture the consts.
+2. **Capture + port the DASH** (run) — inject two direction ring presses within the double-tap window
+   then hold (`ids:[4]` ×2 + the held RIGHT axis) → cmd[0]=5/6 → capture the run cap (> the walk's
+   240) → port.
+3. **The LIVE wire** — the chip-4 freeroam hand-off (dialogue chip 4 → the `entity+0x200` control
+   transfer) gives `character_step` its first live caller in `game_actor_update` → Arche walks/jumps
+   on screen, the chip-2 collision mover/probes get a live grounded actor → USER visual-verify.
+
+**OPEN (USER):** butterfly chip-1 drift visual-verify still pending (trace-studio `intro-1` ~1580-1670).
+Debt: PORT-DEBT(char-run-jump / char-input-autorepeat / char-walk-tuning / char-collision-mover),
+PORT-DEBT(held-axis-array-b), PORT-DEBT(effect-color-variant).
+
+## Where we were — ckpt 115
 
 **PHASE-4 chip 3a — Arche's freeroam WALK is PORTED + FIELD-EXACT (host-tested vs the ckpt-114
 ground-truth capture). New `src/character.{c,h}` + `tests/test_character.c` (4 tests). 958 host pass

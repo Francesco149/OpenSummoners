@@ -3308,10 +3308,26 @@ for the movement arc, each item to be captured + ported + bit-exact-verified in 
   `0x478ba0:341-374`). **Two distinct POSES/anims for everything by sword-out vs sword-in.**
 - **X = ATTACK when the sword is out, INTERACT when not** (e.g. talk to mom). Different attacks
   by holding FORWARD / UP / DOWN while attacking.
-- **C = JUMP** (jump-buffered; AI cmd`[2]`=8 on the C edge — confirmed firing). **But across 4
-  chip-3b captures the jump produced NO vertical arc** (`wy`=52000 / `vvel`=0) even on a clean C
-  tap from a fully idle/grounded rest, and the dash double-tap never set cmd`[0]`=5/6 → the
-  integrator GATES the dash/jump response on a precondition the **flat town/inn cutaway doesn't
-  satisfy**. Strong hypothesis: **dash/jump are platforming mechanics that need a DUNGEON /
-  platforming scene** — capture there, or RE the integrator's vertical-motion gate. (So the town
-  freeroam is NOT the right context to ground-truth jump/dash; the WALK is the only town mover.)
+- **C = JUMP** — and it FIRES in the flat town freeroam (the earlier "needs a platforming
+  scene" hypothesis is REFUTED; ckpt 116, 2026-06-11). The chip-3b captures saw no arc because
+  they pressed C only through the HELD-AXIS leaf (`0x5ba520` → held array `+0x124`), which yields
+  the **held marker `cmd[2]=8` — consumed NOWHERE by the apply**. The apply `0x442a70` executes
+  the jump on **`cmd[2]==7`**, which `0x478ba0:287` sets from a discrete **EVENT-RING** match:
+  `0x479960(now,0,800,1,7,…)` scans the ring `input-mgr+0xc` (64×`{id@0,ts@4,flag@8}`) for an
+  event whose `id==7` within an 800 ms window with `flag==1`. So a real C press posts ring
+  action-id 7 (execute) AND sets `+0x124` (the held marker → `cmd[2]=8` = the variable-height
+  hold-to-rise input). **Empirically confirmed:** injecting `ids:[7]` (one ring press, the same
+  channel as the Z-advance id `0x24`) at a settled town-freeroam frame makes Arche jump — a clean,
+  deterministic parabola from a fully grounded rest (`runs/runjump-gt/capjump-ring2`, two
+  byte-identical jumps). The jump arc (per sim-tick, the bit-exact port target): vvel impulse
+  **−80000**, then `wy += vvel/100`; gravity is **ASYMMETRIC** — rise decel **+8000/tick**, fall
+  accel **+4000/tick** (a floaty fall, ~27 ticks airtime, apex `wy 52000→47200` = rise **4800**),
+  ground-clamp at `wy=52000` zeroes vvel. The apex/fall branch is gated by the body+0x38==3
+  airborne sub-FSM (`0x442a70:832-877`, the `-20000` vvel threshold) + the impulse/gravity consts
+  `in_ECX[0x5667/0x565b/0x565e]` (un-RE'd exactly → the port chip).
+- **Dash (run, cmd`[0]`=5/6) is ALSO ring-sourced** (the same harness gap): `0x479e70` matches a
+  direction DOUBLE-TAP in the ring (action-id 2=LEFT / 4=RIGHT within `*0x8a6e80+0xf8`), so the
+  held-axis injection (which only sets the held array) can never trigger it. To ground-truth the
+  dash, inject two direction ring presses within the window then hold (`ids:[4],…,ids:[4]` + the
+  held axis). (So the town freeroam IS a valid context for jump/dash — they just need RING
+  injection, not held-axis; the chip-3a WALK remains the only HELD-array town mover.)
