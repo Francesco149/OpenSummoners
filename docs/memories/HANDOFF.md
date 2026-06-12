@@ -11,8 +11,9 @@
 **TRACE STUDIO v2 — M1+M2+M3a+M3b LANDED. The native, Frida-free capture proxy (`tools/capture_proxy/`, all
 C/mingw32) boots retail seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor (M1+M2),
 WRITES a native `.osr` draw-stream (M3a), and now records the full BLIT op stream — the 5 source-bearing
-DDraw primitives + the render-id identity per frame (M3b). 6 commits this ckpt (`02495e5` M1, `8e23999`
-M2a, `16f7977` M2b-1, `2ce391c` M2b-2, `8c42c02` M3a, `cc63407` M3b).** The USER pulled this tooling rebuild
+DDraw primitives + the render-id identity per frame (M3b), captured at FULL TURBO (~950 fps in-game via an
+E9-jmp trampoline). 8 commits this ckpt (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2,
+`8c42c02` M3a, `cc63407` M3b, `ee55e5b`+`50ec26b` M3b-perf).** The USER pulled this tooling rebuild
 forward before the room-render/freeroam port because v1 Frida capture is too slow/coarse to iterate the
 render parity that work needs. Design + build order M1→M7: `docs/plans/trace-studio-v2.md`. v2 is built in
 ISOLATION — it does not touch v1 (`tools/trace_studio*`, `frida_capture.py`, the agent); v1 archives only
@@ -41,12 +42,10 @@ pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + 
   2377 frames, 89% render-id-named, all 3 anchors at the M2b flips + both seed pins; the town establishing
   shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop columns 8×80px, res=2234 `clipped`
   32×32 sub-tiles at the camera scroll dst=-32, KEYSRC st=0x8000 ckey=0xf81f) — matching the documented town
-  render. **PERF (measured):** title/menu ~2400 fps WITH capture; in-game town ~25 fps first cut → **~56 fps
-  after the RWX-pages perf chip** (commit `ee55e5b`): the hooked pages are made permanently RWX at install
-  so the hot INT3 dance drops the per-patch `VirtualProtect` (was 2×) — a 2.2× in-game speedup, integrity
-  unchanged. The remaining 2 INT3+VEH exception dispatches/blit keep it below turbo (~800 fps without blits);
-  only the E9-jmp trampoline removes those (OPTIONAL — 56 fps is usable+cached). `dhash`/`dst_handle` stay 0
-  retail-side until M3c.
+  render. **PERF — FULL TURBO RESTORED (measured):** in-game town ~25 fps first cut → ~56 fps (RWX pages,
+  `ee55e5b`) → **~950 fps (E9-jmp trampoline, `50ec26b`)**. The 6 hot hooks (resolver + 5 blits) are now
+  inline 5-byte E9 jumps with ZERO exceptions/hit (`trampoline.h`); a 30 s run captures 29k frames / 14.6M
+  blits, geometry byte-identical to the INT3 baseline. `dhash`/`dst_handle` stay 0 retail-side until M3c.
 - **M3a** — the `.osr` writer. `src/osr_format.h` = the shared pure-C codec (64-B header + framed
   `{type,len,payload}` records, little-endian, append-only + truncated-tail recoverable for the harness
   hard-kill) used by the proxy, the port emitter (M5), the reconstructor (M4), and `osr.py`.
@@ -75,22 +74,25 @@ pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + 
 
 **Module layout (this ckpt, all under `tools/capture_proxy/`):** `ddraw_proxy.c` (entry/forward + init
 order), `proxy_log.h`, `proxy_config.h`, `iat_hook.h`, `clock.h`, `va_detour.h`, `engine_hooks.h`,
-`engine_input.h`, `render_id.h` (NEW, M3b — the cel registry), `harness.h`, `Makefile` (single-TU →
+`engine_input.h`, `render_id.h` (M3b — the cel registry), `trampoline.h` (M3b-perf — the E9 hooks for the
+6 hot VAs), `harness.h`, `Makefile` (single-TU →
 `build/ddraw_proxy.dll`), `ddraw_proxy.def`, `run_proxy.sh` (deploy → run → collect → ALWAYS clean up
 `ddraw.dll` so v1 Frida runs are unaffected) + `osr_format.h` (in `src/`, M3a+M3b), `osr_writer.h`.
 `tools/trace_studio2/osr.py` = the Python reader (SUMMARY/FRAMES/BLITS). Boot artifacts land on native NTFS
 `C:\oss-osr\` (storage discipline). Throwaway nav: `runs/proxy-m2b/nav.jsonl` (the cadence-tolerant boot).
 
-**NEXT MOVE — M3c, or finish the perf chip (USER call).** The M3b PERF FORK's cheap half is DONE (commit
-`ee55e5b`): `detour_make_rwx` makes each hooked page permanently `PAGE_EXECUTE_READWRITE` once at install,
-so the hot INT3 dance (`detour_patch_byte`, called twice/hit) is now just a byte write + `FlushInstruction
-Cache` — no per-patch `VirtualProtect`. Measured in-game town ~25 → ~56 fps (2.2×), integrity unchanged.
-The remaining cost is the 2 INT3+VEH exception dispatches/blit (inherent to the breakpoint mechanism); only
-the plan's hand-rolled 5-byte `E9`-jmp trampoline (hardcode each blit VA's head bytes — known stdcall/
-thiscall prologues, no length-disassembler; save+relay the overwritten bytes) removes those = the real turbo
-fix, but the riskier code and OPTIONAL: 56 fps in-game is comfortably usable+cached (a town capture is ~13 s
-in-game, recapture is `--only port`). So **M3c can go first.** **M3c** = the DDraw7+Surface7 COM vtable
-wrap: surface identity (stable `dst_handle`) + the one-time dedup'd
+**NEXT MOVE — M3c: the COM wrap + SHEET (the risky piece).** The M3b PERF FORK is FULLY RESOLVED — both
+halves landed: (1) RWX pages (`ee55e5b`, ~25→56 fps), and (2) the E9-jmp trampoline (`50ec26b`, ~56→**950
+fps**, full turbo). `tools/capture_proxy/trampoline.h` (NEW): the 6 hot hooks (resolver + 5 blits) are now
+inline 5-byte `E9` jumps — per hook a thunk (`pushad`/`pushfd` → push `entry_esp`+`ecx` → `call cb` (the
+light `(ecx, entry_esp)` signature) → `popfd`/`popad` → `jmp relay`) + a relay (the relocated head bytes →
+`jmp va+head_len`) in one RX arena; the VA is patched `E9 -> thunk`. Head bytes are HARDCODED from the
+unpacked exe (instruction-aligned, head_len>=5, no rel jmp/call in the relocated span — verified by disasm
+in `docs/decompiled/by-address/`). ZERO exceptions/hit. The rare hooks (flip/sim-tick/anchors/seed/input)
+stay on the proven INT3+VEH path. Geometry byte-identical to the INT3 baseline (the `entry_esp` math is
+exact — a 4-byte error would shift every arg). So the draw-stream capture is now turbo + complete +
+verified. **M3c** = the DDraw7+Surface7 COM vtable wrap: surface identity (stable `dst_handle`) + the
+one-time dedup'd
 source-pixel grab → SHEET (dhash via the render_id FNV-1a + miniz), which backfills BLIT `dhash`/`dst_handle`
 and corrects the header pixfmt/screen from `DDSURFACEDESC2` — the RISKY piece, isolated. Then **M3d** GDI
 `TextOutA`/`ExtTextOutA` + `SelectObject`/`CreateFontIndirectA` → TEXT/FONT; M4 reconstruct (`--osr-replay`),

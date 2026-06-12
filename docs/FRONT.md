@@ -20,7 +20,8 @@
 - **LATEST (ckpt 125): TRACE STUDIO v2 — M3b LANDED: the native BLIT draw-stream is captured. The retail
   proxy records the ORDERED 5-primitive blit op list + the render-id identity per frame (INT3+VEH detours,
   NO Frida) → an `.osr` carries the full draw list keyed to the load-stable `(resource_id,frame)`
-  `render_diff.py` aligns on. 989 host pass (+1). Commit `cc63407` (M3b) + 5 prior (M1/M2a/M2b-1/M2b-2/M3a).**
+  `render_diff.py` aligns on, captured at FULL TURBO (~950 fps in-game via an E9-jmp trampoline). 989 host
+  pass (+1). Commits `cc63407` (M3b feat) + `ee55e5b`/`50ec26b` (perf: RWX pages + E9 trampoline) + 5 prior.**
   - **M3b — the BLIT op stream.** `src/osr_format.h` grew the `OSR_BLIT` record (fixed 76-B payload =
     render_diff's schema: `va/seq`, `res/frame`, `dhash/dst_handle`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy`,
     `state/ckey/bmode/mode`). `tools/capture_proxy/render_id.h` (NEW, retail mirror of `src/render_id.c`):
@@ -33,10 +34,11 @@
     `runs/proxy-m2b` → game_enter): 867k blits / 2377 frames, **89% render-id-named**, all 3 anchors + both
     seed pins; the town establishing shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop
     columns, res=2234 clipped 32×32 sub-tiles at the camera scroll, KEYSRC ckey 0xf81f) — matching the
-    documented town render. **PERF (measured):** title ~2400 fps WITH capture; in-game town ~25 fps first
-    cut → **~56 fps after the RWX-pages perf chip** (commit `ee55e5b`, drops the per-patch `VirtualProtect`).
-    Below turbo (the 2 INT3+VEH exceptions/blit remain) but comfortably usable+cached. `dhash/dst_handle`
-    stay 0 retail-side until M3c.
+    documented town render. **PERF — FULL TURBO RESTORED** (measured): in-game town ~25 fps first cut →
+    ~56 fps (RWX pages, `ee55e5b`) → **~950 fps (E9-jmp trampoline, `50ec26b`)**. The 6 hot hooks (resolver
+    + 5 blits) are now inline 5-byte E9 jumps (ZERO exceptions/hit) vs the rare hooks' INT3+VEH; a 30 s run
+    captures 29k frames / 14.6M blits, byte-identical geometry to the INT3 baseline. `dhash/dst_handle` stay
+    0 retail-side until M3c.
   - **M3a (prior) — `.osr` format + the cheap records.** `src/osr_format.h` codec + `osr_writer.h` (bg-thread
     ring → `C:\` `.osr`) + FRAMEBEG/PRESENT/ANCHOR/SEED records + `osr.py`. PROVEN on a real boot (417 KB,
     11585 frames). Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes.
@@ -61,13 +63,12 @@
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — M3c, or finish the perf chip (USER call).** The PERF FORK's cheap half is DONE (commit
-  `ee55e5b`): the hooked pages are made permanently RWX once at install so the hot INT3 dance drops the
-  per-patch `VirtualProtect` → in-game town **~25 → ~56 fps** (2.2×), capture integrity unchanged. The
-  remaining gap to turbo (~800 fps without blits) is the 2 INT3+VEH exception dispatches/blit — only the
-  plan's hand-rolled 5-byte E9-jmp trampoline (hardcode each blit VA's head bytes — known stdcall/thiscall
-  prologues, no length-disassembler) removes those. 56 fps in-game is comfortably usable+cached, so the
-  trampoline is OPTIONAL — **M3c can go first.** **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
+  **NEXT — M3c: the COM wrap + SHEET (the risky piece).** The M3b PERF FORK is FULLY RESOLVED: the cheap
+  RWX-pages win (`ee55e5b`, ~25→56 fps) + the E9-jmp trampoline (`50ec26b`, ~56→**950 fps**, full turbo).
+  The 6 hot hooks are inline 5-byte E9 jumps (`trampoline.h`: per-hook thunk pushad/pushfd→call cb→popad +
+  a relay of the relocated head bytes; head bytes hardcoded from the unpacked exe, no length-disassembler);
+  the rare hooks stay on INT3+VEH. So the draw-stream capture is now turbo + complete + integrity-verified.
+  **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
   identity → `dst_handle`; the one-time dedup'd source-sheet grab → SHEET via the render_id FNV-1a + miniz;
   corrects the header pixfmt/screen from `DDSURFACEDESC2`; backfills BLIT `dhash`/`dst_handle`) — the risky
   piece, isolated; **M3d** GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct

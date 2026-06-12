@@ -44,14 +44,22 @@ res=1002 backdrop columns (8×80px = 640 wide), res=1722/1082 KEYSRC parallax la
 32×32 sub-tiles drawn at the camera scroll offset (dst x=-32) with the proper src sub-offsets, ckey 0xf81f
 (RGB565 magenta) — matching the documented town render path (`findings/ddraw-blit-trace.md`).
 
-**PERF FORK (measured, plan §M3b).** Title/menu runs at ~2400 fps WITH full blit capture; the in-game town
-runs at **~25 fps** — the INT3+VEH cost (2 exception dispatches/blit, plus `detour_patch_byte`'s 2×
-`VirtualProtect` + `FlushInstructionCache` per patch, ×2 patches/hit) dominates at ~1500 blits/frame. Usable
-+ cached (a title→town capture is ~30 s, recapture is `--only port`) but below turbo. This resolves the fork
-toward a perf chip: cheapest first = leave the hooked pages permanently RWX + skip the per-patch
-protect/flush (removes ~4 syscalls/blit); the real turbo fix = the plan's hand-rolled `E9`-jmp trampoline
-(removes the exceptions). M3c can also go first since 25 fps is workable. See `FRONT.md` / `HANDOFF.md` for
-the next-move fork.
+**PERF FORK (measured, plan §M3b) — RESOLVED, FULL TURBO.** Title/menu ~2400 fps WITH capture; the in-game
+town was **~25 fps** first cut — the INT3+VEH cost (2 exception dispatches/blit + `detour_patch_byte`'s 2×
+`VirtualProtect`/`FlushInstructionCache` per patch, ×2 patches/hit) at ~1500 blits/frame. Two chips closed
+the gap (both this session):
+- **RWX pages (`ee55e5b`):** make each hooked page permanently `PAGE_EXECUTE_READWRITE` once at install
+  (`detour_make_rwx`) so the hot INT3 dance is just a byte write + flush — no per-patch `VirtualProtect`.
+  ~25 → **~56 fps** (2.2×), integrity unchanged.
+- **E9-jmp trampoline (`50ec26b`, USER-chosen, the real fix):** `tools/capture_proxy/trampoline.h` replaces
+  the 6 HOT hooks (resolver + 5 blits) with inline 5-byte `E9` jumps — ZERO exceptions/hit. Per hook a
+  thunk (`pushad`/`pushfd` → push `entry_esp`+`ecx` → `call cb` → `popfd`/`popad` → `jmp relay`) + a relay
+  (the relocated head bytes → `jmp va+head_len`) live in one RX arena; the VA is patched `E9 -> thunk`. No
+  length-disassembler — each VA's head bytes are HARDCODED from the unpacked exe (instruction-aligned,
+  head_len ≥ 5, no rel jmp/call in the relocated span — disasm-verified). The hot callbacks take the light
+  `(ecx, entry_esp)` signature; the rare hooks keep INT3+VEH. ~56 → **~950 fps** (sustained over 28k flips,
+  full turbo). A 30 s run now captures 29k frames / 14.6M blits, 91% named, geometry byte-identical to the
+  INT3 baseline (the `entry_esp` math is exact). No crash on the real game.
 
 ---
 

@@ -7,9 +7,9 @@
 > records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py`. M3b: the BLIT op stream — the
 > 5 blit detours + the cel→(res,frame) registry (`render_id.h`, onEnter-computed) →
 > OSR_BLIT records. PROVEN on a real boot to game_enter (867k blits, 89% named, all
-> anchors). PERF: title ~2400 fps; in-game town ~25 → ~56 fps after the RWX-pages
-> perf chip (`ee55e5b`); the E9 trampoline (removes the INT3 exceptions) is the
-> optional turbo fix. M3c (COM wrap + SHEET) is NEXT (or the E9 trampoline first).
+> anchors). PERF — FULL TURBO RESTORED: in-game town ~25 → ~56 (RWX pages `ee55e5b`)
+> → ~950 fps (E9-jmp trampoline `50ec26b`, `trampoline.h`). M3c (COM wrap + SHEET)
+> is NEXT.
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -375,13 +375,14 @@ it earliest. Each milestone is independently testable.
     game_enter, **89% render-id-named**, all anchors + seed pins; the town establishing
     shot decodes coherently (res=1002 backdrop columns, res=2234 clipped 32×32 sub-tiles
     at the camera scroll, KEYSRC ckey 0xf81f). dhash/dst_handle stay 0 until M3c.
-    **PERF FORK RESOLVED (measured):** the INT3+VEH framework handles the volume. First
-    cut ~25 fps in-game; the cheap perf half is DONE (commit `ee55e5b`) — hooked pages
-    made permanently RWX at install so the hot dance drops the per-patch `VirtualProtect`
-    → **~56 fps in-game** (2.2×; title ~2400 fps). The remaining 2 exception dispatches/
-    blit keep it below turbo; the hand-rolled 5-byte E9-jmp trampoline (removes the
-    exceptions — the real turbo fix) is OPTIONAL since 56 fps is usable+cached. Either
-    before or after M3c (USER call).
+    **PERF FORK RESOLVED — FULL TURBO (measured), both chips landed:** (1) RWX pages
+    (`ee55e5b`) — hooked pages made permanently RWX at install so the hot INT3 dance drops
+    the per-patch `VirtualProtect`, ~25 → ~56 fps; (2) the E9-jmp trampoline (`50ec26b`,
+    `trampoline.h`) — the 6 hot hooks (resolver + 5 blits) become inline 5-byte `E9` jumps
+    (per-hook thunk pushad/pushfd→call cb→popad + a relay of the relocated head bytes;
+    head bytes hardcoded from the unpacked exe, no length-disassembler), ZERO exceptions/
+    hit, ~56 → **~950 fps** (full turbo). Rare hooks stay INT3+VEH. A 30 s run = 29k
+    frames / 14.6M blits, geometry byte-identical to the INT3 baseline.
   - **M3c — COM wrap + SHEET (the risky piece, isolated).** Wrap the DDraw7 + Surface7
     vtables for surface identity (stable dst handles) + the one-time dedup'd source-pixel
     grab → SHEET records (dhash via the render_id FNV-1a, miniz-compressed). Backfills the
