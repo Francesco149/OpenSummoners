@@ -17,10 +17,23 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M1+M2 LANDED: a fully native, Frida-free capture proxy boots the
-  real retail game seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor emitted.
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M3a LANDED: the native `.osr` draw-stream WRITER captures a real
+  seed-pinned lockstep turbo boot, `osr.py` round-trips it, ZERO throughput regression (~800 fps WITH
+  capture). M1+M2 below. Commit `8c42c02` (M3a) + 4 prior (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1,
+  `2ce391c` M2b-2).**
+  - **M3a — `.osr` format + the cheap records.** `src/osr_format.h` (pure-C header-only codec: 64-B header
+    + framed `{type,len,payload}` records, little-endian, append-only + truncated-tail recoverable for the
+    harness hard-kill). `tools/capture_proxy/osr_writer.h` (double-buffer ring drained by a bg thread to a
+    `C:\` `.osr`, fflush per drain → durable to the last drain on a hard kill; the engine thread inside the
+    VEH callbacks only locks+memcpy, so disk latency never stalls it). Wired: FRAMEBEG+PRESENT per flip (the
+    tick-join axis), ANCHOR at newgame/prologue/game_enter, SEED at the title pin + per-map re-pin.
+    `tools/trace_studio2/osr.py` reader/validator. 6 host tests (988 pass). **PROVEN:** `retail.osr` (417 KB,
+    11585 frames flip 1..11585 / sim_tick 0..10358), all 3 anchors at the exact M2b flips, both seed pins,
+    no torn tail. Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes it.
+- **TRACE STUDIO v2 — M1+M2 (prior, ckpt 125): a fully native, Frida-free capture proxy boots the real
+  retail game seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor emitted.
   `tools/capture_proxy/` (proxy `ddraw.dll`, all C/mingw32); ~790 fps in-game turbo (vs v1's ~60fps
-  `--no-turbo` cap). 4 commits (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2).**
+  `--no-turbo` cap).**
   1. **M1 — auto-load + forward.** The retail exe imports one DDRAW symbol (`DirectDrawCreateEx`) with a
      FIXED base 0x400000 + relocations stripped, so a proxy `ddraw.dll` dropped next to the exe wins the DLL
      search order — no Frida, no injector. `ddraw_proxy.c` forwards to the real SysWOW64 ddraw.
@@ -37,10 +50,16 @@
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — M3: `.osr` draw-stream capture** (the DDraw COM vtable wrap for surface identity + one-time
-  source-sheet grab; the 5 blit-VA detours + GDI `TextOutA` hooks for the op stream; the dedup'd+miniz
-  `.osr` writer on a bg thread). Then M4 reconstruct (`--osr-replay`), M5 port emitter, M6 the tick-join
-  studio (`:8780`). Plan: `plans/trace-studio-v2.md`.
+  **NEXT — M3b: the BLIT op stream.** Detour the 5 blit VAs (`0x5b9a40`/`b70`/`ae0`/`bf0`/`0x5bd550`) +
+  the resolver `0x418470` (cel→`(res,frame)` identity, the agent's `g_render_id_map`) → BLIT records
+  (layout finalized = `render_diff.py`'s fields: `res/frame/dhash`, `dx,dy,reqw,reqh,sx,sy`,
+  `ow,oh,ox,oy` from cel `+0xb8/+0xbc/+0x0c/+0x10`, `state +0xd4`, `ckey`, `bmode`, `mode`); restructure
+  the flip hook to FRAMEBEG-at-open / draws / PRESENT-at-flip. **WATCH:** blit VAs fire hundreds×/frame
+  but the INT3+VEH detour costs 2 exceptions/call — first cut on the proven framework, MEASURE fps, build
+  the plan's E9-jmp trampoline only if prohibitive. Then **M3c** the DDraw COM vtable wrap (surface
+  identity + the one-time dedup'd source-sheet grab → SHEET, miniz) — the risky piece, isolated; **M3d**
+  GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct (`--osr-replay`), M5 port emitter
+  (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). Plan: `plans/trace-studio-v2.md`.
 - **Prior (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
   the right face-table VARIANT per line (USER-CONFIRMED correct). `src/portrait.{c,h}` + the embedded
   face table; 982 host pass (+4); commits `ce1af81` (per-speaker) + `1a527cb` (per-line variant). Montages

@@ -6,6 +6,52 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3a: native `.osr` draw-stream writer (cheap records) PROVEN
+
+M3 of the v2 plan begins, sliced by risk. M3a is the lowest-risk, highest-leverage first cut: the shared
+`.osr` capture format + the proxy-side background-thread ring writer, emitting the cheap records the boot
+already produces (FRAMEBEG / PRESENT / ANCHOR / SEED) — no COM wrap yet, so ZERO game-crash risk. One commit
+(`8c42c02`). It proves the format, the writer, and the Windows-FS storage discipline end-to-end on the real
+game before the riskier draw-capture pieces land.
+
+**`src/osr_format.h` — the shared codec.** Pure-C, header-only, no Win32 (so it links into the host suite +
+both targets). A fixed 64-B header (magic `OSR1`, version, side, pixfmt, screen, seed, flags, scenario) then
+a stream of framed `{u32 type, u32 len, payload}` records. Little-endian (x86 only). Append-only +
+self-describing: a reader skips an unknown type by len, and a run HARD-KILLED mid-record (the harness
+Stop-Processes the game) is still valid up to the last complete record (`osr_rec_next` stops cleanly at a
+torn tail). M3a implements FRAMEBEG/PRESENT/ANCHOR/SEED; the bulky/draw record ids (CLEAR/BLIT/TEXT/SHEET/
+FONT/PALETTE/INPUT) are reserved for M3b+.
+
+**`tools/capture_proxy/osr_writer.h` — the bg-thread ring.** The engine main thread, inside the INT3+VEH
+detour callbacks, only ever locks + memcpy's a small encoded record into a double buffer; a dedicated
+background thread swaps the buffers under the lock and drains the inactive half to the `.osr` file every
+~30 ms, fflushing after each drain. So disk latency never stalls the engine (the plan's hot-path rule), and
+because the harness hard-kills the game (no clean shutdown), whatever is on disk at kill time is a valid
+`.osr` up to the last drain (≤30 ms lost). The file lives on native NTFS (`C:\oss-osr\retail.osr`), never
+the WSL 9p mount. Records wired: FRAMEBEG+PRESENT at the flip hook (the deterministic tick-join axis), ANCHOR
+at the newgame/prologue/game_enter anchors, SEED at the title pin + the per-map re-pin. New config:
+`OSS_OSR` / `OSS_OSR_PATH` / `OSS_SCENARIO`; `run_proxy.sh` stages the path and prints the `osr.py` summary.
+
+**`tools/trace_studio2/osr.py` — the reader/validator.** Mirrors `osr_format.h` exactly (kept in lockstep);
+`SUMMARY` prints the header + frame count + tick range + anchors + seeds + a torn-tail note, `FRAMES` dumps
+per-frame `(flip, sim_tick)`. The M3a round-trip gate.
+
+**PROVEN on a real boot** (`OSS_SCENARIO=intro-1 run_proxy.sh 15 runs/proxy-m2b/nav.jsonl`): `retail.osr` =
+417 KB, 11585 frames (flip 1..11585 / sim_tick 0..10358), all 3 anchors at the EXACT M2b flips (newgame@652,
+prologue@1000, game_enter@1242), both seed pins (@432 title, @1242 re-pin → 0x4f5347), no torn tail; `osr.py`
+round-trips it cleanly. Throughput held at ~800 fps WITH capture (813/804/800 at flips 6k/8k/10k) — NO
+regression over the ~790 fps M2 baseline, confirming the design thesis: the hot path logs calls, not pixels.
+6 host tests (988 pass, +6): header + record round-trip, bad-magic reject, empty-anchor-name, truncated-tail
+recovery.
+
+**NEXT — M3b: the BLIT op stream** (detour the 5 blit VAs + resolver `0x418470` → BLIT records, layout
+finalized = `render_diff.py`'s schema; restructure flip → FRAMEBEG-at-open / draws / PRESENT-at-flip). The
+known fork: blit VAs fire hundreds×/frame and the INT3+VEH detour pays 2 exceptions/call — first cut on the
+proven framework, measure fps, build the plan's E9-jmp trampoline only if prohibitive. Then M3c (COM wrap +
+SHEET pixels, the risky piece), M3d (GDI text). Plan + sub-milestones: `docs/plans/trace-studio-v2.md`.
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M2b: native engine-VA detours + ring input → BOOT TO game_enter
 
 M2 of the v2 plan completes — the native proxy now does everything the Frida agent did to STAND UP a

@@ -1,8 +1,12 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2 LANDED (proxy auto-loads, native headless turbo
-> boot, the INT3+VEH engine-VA detour layer, ring input injection → seed-pinned
-> lockstep boot to game_enter with all anchors). M3 (`.osr` capture) is NEXT.
+> Status (2026-06-12): M1+M2+M3a LANDED. M1+M2: proxy auto-loads, native headless
+> turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
+> seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
+> (`src/osr_format.h`) + the bg-thread ring writer (`osr_writer.h`) + the cheap
+> records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py` — PROVEN on a real boot
+> (retail.osr, 11585 frames, all anchors/seeds, ~800 fps, no regression). M3b (the
+> BLIT op stream) is NEXT.
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -352,7 +356,29 @@ it earliest. Each milestone is independently testable.
   needs a return-value override, i.e. an onLeave-style hook, not the onEnter framework).
 - **M3 — `.osr` capture.** Record the draw/GDI/state stream + dedup'd sources via the
   COM wrap + VA detours + GDI hooks → `.osr` on the Windows FS. Validate the format
-  round-trips (`osr.py` reads it).
+  round-trips (`osr.py` reads it). Sliced by risk:
+  - **M3a — format + cheap records. ✓ DONE (ckpt 125, `8c42c02`).** `src/osr_format.h`
+    (pure-C header-only codec, append-only, truncated-tail recoverable) + the bg-thread
+    ring writer (`tools/capture_proxy/osr_writer.h`, the engine thread only locks+memcpy;
+    a bg thread drains+fflushes so a hard kill loses ≤1 drain) + the records the boot
+    already produces (FRAMEBEG/PRESENT per flip = the tick-join axis; ANCHOR; SEED) +
+    `tools/trace_studio2/osr.py`. PROVEN: a real boot writes retail.osr (11585 frames,
+    all 3 anchors at the M2b flips, both seed pins) at ~800 fps, no regression.
+  - **M3b — the BLIT op stream (NEXT).** Detour the 5 blit VAs + the resolver `0x418470`
+    (cel→`(res,frame)`) → BLIT records (fields = `render_diff.py`'s schema:
+    `res/frame/dhash`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy` off cel `+0xb8/+0xbc/
+    +0x0c/+0x10`, `state +0xd4`, `ckey`, `bmode`, `mode`). Restructure flip →
+    FRAMEBEG-at-open / draws / PRESENT-at-flip. **PERF FORK:** blit VAs fire hundreds×
+    /frame; the INT3+VEH detour pays 2 exceptions/call — first cut on the proven
+    framework, MEASURE fps; if prohibitive, build the hand-rolled 5-byte E9-jmp
+    trampoline (hardcode each VA's head bytes — they're stdcall/thiscall with known
+    prologues, no length-disassembler). dhash stays 0 retail-side until M3c grabs pixels.
+  - **M3c — COM wrap + SHEET (the risky piece, isolated).** Wrap the DDraw7 + Surface7
+    vtables for surface identity (stable dst handles) + the one-time dedup'd source-pixel
+    grab → SHEET records (dhash via the render_id FNV-1a, miniz-compressed). Backfills the
+    BLIT `dhash`/`dst_handle` and corrects the header pixfmt/screen from `DDSURFACEDESC2`.
+  - **M3d — GDI text.** Hook `gdi32!TextOutA`/`ExtTextOutA` + `SelectObject`/
+    `CreateFontIndirectA` → TEXT/FONT records.
 - **M4 — reconstruct.** `opensummoners.exe --osr-replay` rebuilds frames 1:1; the
   `--validate` fidelity gate (`differ_px==0` vs a real snapshot) passes.
 - **M5 — port emitter.** `src/osr_emit.c` emits the same `.osr` from the port.
