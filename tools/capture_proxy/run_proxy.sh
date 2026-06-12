@@ -36,6 +36,12 @@ LOG_WSL="$(wslpath -u "$LOG_WIN")"
 mkdir -p "$(dirname "$LOG_WSL")"
 : > "$LOG_WSL"   # truncate prior log
 
+# The .osr draw-stream capture also lands on native NTFS (read via /mnt/c after).
+OSR_WIN="${OSS_OSR_PATH:-C:\\oss-osr\\retail.osr}"
+OSR_WSL="$(wslpath -u "$OSR_WIN")"
+mkdir -p "$(dirname "$OSR_WSL")"
+rm -f "$OSR_WSL"   # drop a stale capture so the summary can't read an old one
+
 # Optional nav trace: stage it on C:\ and point the proxy at it.
 TRACE_WIN=""
 if [[ -n "$TRACE" ]]; then
@@ -64,10 +70,11 @@ WIN_CWD="$(wslpath -w "$GAME_DIR")"
 # Pass the OSS_* config + the log path through the PowerShell env to the child.
 PS_ENV=""
 PS_ENV+="\$env:OSS_PROXY_LOG='$LOG_WIN'; "
+PS_ENV+="\$env:OSS_OSR_PATH='$OSR_WIN'; "
 [[ -n "$TRACE_WIN" ]] && PS_ENV+="\$env:OSS_INPUT_TRACE='$TRACE_WIN'; "
 for v in OSS_TURBO OSS_LOCKSTEP OSS_TURBO_STEP_MS OSS_LOCKSTEP_STEP_MS \
          OSS_HIDE_WINDOW OSS_DISMISS_DIALOG OSS_SILENT_AUDIO \
-         OSS_SEED_PIN OSS_SEED_VALUE; do
+         OSS_SEED_PIN OSS_SEED_VALUE OSS_OSR OSS_SCENARIO; do
     val="${!v:-}"
     [[ -n "$val" ]] && PS_ENV+="\$env:$v='$val'; "
 done
@@ -86,3 +93,11 @@ powershell.exe -NoProfile -Command "$PS_CMD" || true
 
 echo "[run_proxy] ===== proxy log ($LOG_WSL) ====="
 cat "$LOG_WSL" 2>/dev/null || echo "(no log written)"
+
+echo "[run_proxy] ===== .osr capture ($OSR_WSL) ====="
+if [[ -s "$OSR_WSL" ]]; then
+    ls -l "$OSR_WSL"
+    python3 "$ROOT/tools/trace_studio2/osr.py" SUMMARY "$OSR_WSL" || true
+else
+    echo "(no .osr written)"
+fi

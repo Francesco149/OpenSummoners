@@ -8,6 +8,7 @@ CC = i686-w64-mingw32-gcc
 
 CFLAGS  ?= -std=c11 -O2 -g \
            -Wall -Wextra -Wno-unused-parameter \
+           -I../../src \
            -DUNICODE=0 -D_UNICODE=0 \
            -DWINVER=0x0501 -D_WIN32_WINNT=0x0501
 # -static-libgcc so the DLL has no libgcc runtime dependency in the game dir.

@@ -77,7 +77,7 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_exe_strings.c test_dialogue.c \
                 test_collision.c test_held_trace.c \
                 test_character.c test_input_live.c test_cutscene.c \
-                test_portrait.c
+                test_portrait.c test_osr_format.c
 
 OUT := build/run_tests
 

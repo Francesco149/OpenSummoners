@@ -21,6 +21,9 @@ typedef struct {
     int  silent_audio;     /* OSS_SILENT_AUDIO     (default 1) */
     int  seed_pin;         /* OSS_SEED_PIN         (default 1) */
     DWORD seed_value;      /* OSS_SEED_VALUE       (default 0x4f5347) */
+    int  osr_enable;       /* OSS_OSR              (default 1) — .osr capture */
+    char osr_path[MAX_PATH]; /* OSS_OSR_PATH       (default C:\oss-osr\retail.osr) */
+    char scenario[40];     /* OSS_SCENARIO         (default "") */
 } proxy_config;
 
 static proxy_config g_cfg;
@@ -31,6 +34,12 @@ static int cfg_env_int(const char *name, int dflt)
     DWORD n = GetEnvironmentVariableA(name, buf, sizeof(buf));
     if (n == 0 || n >= sizeof(buf)) return dflt;
     return (int)strtol(buf, NULL, 0);
+}
+
+static void cfg_env_str(const char *name, const char *dflt, char *out, DWORD cap)
+{
+    DWORD n = GetEnvironmentVariableA(name, out, cap);
+    if (n == 0 || n >= cap) lstrcpynA(out, dflt, (int)cap);
 }
 
 static void proxy_config_load(void)
@@ -44,12 +53,17 @@ static void proxy_config_load(void)
     g_cfg.silent_audio     = cfg_env_int("OSS_SILENT_AUDIO", 1);
     g_cfg.seed_pin         = cfg_env_int("OSS_SEED_PIN", 1);
     g_cfg.seed_value       = (DWORD)cfg_env_int("OSS_SEED_VALUE", 0x4f5347);
+    g_cfg.osr_enable       = cfg_env_int("OSS_OSR", 1);
+    cfg_env_str("OSS_OSR_PATH", "C:\\oss-osr\\retail.osr",
+                g_cfg.osr_path, sizeof(g_cfg.osr_path));
+    cfg_env_str("OSS_SCENARIO", "", g_cfg.scenario, sizeof(g_cfg.scenario));
     proxy_logf("[cfg] turbo=%d lockstep=%d step=%d/%d hide=%d dismiss=%d "
-               "silent=%d seed_pin=%d seed=0x%lx",
+               "silent=%d seed_pin=%d seed=0x%lx osr=%d path=%s scenario='%s'",
                g_cfg.turbo, g_cfg.lockstep, g_cfg.turbo_step_ms,
                g_cfg.lockstep_step_ms, g_cfg.hide_window, g_cfg.dismiss_dialog,
                g_cfg.silent_audio, g_cfg.seed_pin,
-               (unsigned long)g_cfg.seed_value);
+               (unsigned long)g_cfg.seed_value, g_cfg.osr_enable,
+               g_cfg.osr_path, g_cfg.scenario);
 }
 
 #endif /* OSS_PROXY_CONFIG_H */

@@ -28,6 +28,7 @@
 #include "proxy_log.h"
 #include "clock.h"
 #include "va_detour.h"
+#include "osr_writer.h"
 
 /* ── engine VAs (absolute; base 0x400000, relocations stripped) ───────────── */
 #define EH_FLIP_VA        0x005b8fc0u
@@ -60,6 +61,11 @@ static void eh_flip_cb(PCONTEXT ctx)
     (void)ctx;
     LONG f = InterlockedIncrement(&g_eh_flip);
     clock_on_flip();                       /* arm + step the lockstep clock */
+    /* M3a: one (flip, sim_tick) frame record per present — the tick-join axis.
+     * M3c restructures this to FRAMEBEG-at-open / draws / PRESENT-at-flip once
+     * the blit detours emit draws between flips. */
+    osr_w_framebeg((uint32_t)f, (uint32_t)g_eh_sim_tick, 0);
+    osr_w_present(0, 0);
     if (f <= 3)
         proxy_logf("[hook] flip #%ld (sim_tick=%ld)", f, g_eh_sim_tick);
     if (f == 1 && real_GetTickCount) g_eh_hb_t0 = real_GetTickCount();
@@ -87,6 +93,7 @@ static void eh_seed_pin_cb(PCONTEXT ctx)
     if (g_cfg.seed_pin) {
         DWORD before = eh_read_seed();
         *(volatile DWORD *)EH_SEED_ADDR = g_cfg.seed_value;
+        osr_w_seed((uint32_t)g_eh_flip, before, g_cfg.seed_value);
         proxy_logf("[hook] seed PINNED @flip %ld: DAT_008a4f94 0x%lx -> 0x%lx",
                    g_eh_flip, (unsigned long)before,
                    (unsigned long)g_cfg.seed_value);
@@ -103,6 +110,7 @@ static void eh_rng_anchor_cb(PCONTEXT ctx)
     if (g_cfg.seed_pin) {
         DWORD before = eh_read_seed();
         *(volatile DWORD *)EH_SEED_ADDR = g_cfg.seed_value;
+        osr_w_seed((uint32_t)g_eh_flip, before, g_cfg.seed_value);
         proxy_logf("[hook] RNG re-pin @flip %ld (game_enter spawn): "
                    "0x%lx -> 0x%lx", g_eh_flip, (unsigned long)before,
                    (unsigned long)g_cfg.seed_value);
@@ -114,6 +122,8 @@ static void eh_emit_anchor(const char *name)
 {
     proxy_logf("[anchor] %s flip=%ld sim_tick=%ld rng=0x%lx",
                name, g_eh_flip, g_eh_sim_tick, (unsigned long)eh_read_seed());
+    osr_w_anchor((uint32_t)g_eh_flip, (uint32_t)g_eh_sim_tick,
+                 eh_read_seed(), name);
 }
 
 static void eh_newgame_cb(PCONTEXT ctx)  { (void)ctx; eh_emit_anchor("newgame_enter"); }

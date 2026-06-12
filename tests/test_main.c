@@ -672,6 +672,12 @@ struct test_case {
     X(render_id_sheet_hash_table)                              \
     X(render_id_fnv1a_known_vector)                            \
     X(render_id_fnv1a_sensitive_and_seeded)                    \
+    X(osr_header_roundtrip)                                    \
+    X(osr_header_rejects_bad_magic)                            \
+    X(osr_header_encode_too_small)                             \
+    X(osr_records_roundtrip)                                   \
+    X(osr_anchor_empty_name)                                   \
+    X(osr_truncated_tail_recovers)                             \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \

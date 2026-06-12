@@ -23,6 +23,7 @@
 #include "proxy_config.h"
 #include "iat_hook.h"
 #include "clock.h"
+#include "osr_writer.h"
 #include "va_detour.h"
 #include "engine_hooks.h"
 #include "engine_input.h"
@@ -39,6 +40,7 @@ static void proxy_init_once(void)
 {
     if (InterlockedExchange(&g_init_done, 1)) return;
     proxy_config_load();
+    osr_writer_start();       /* .osr ring + bg drain thread, before hooks fire */
     clock_install();
     engine_hooks_install();   /* INT3+VEH detours: flip/sim-tick/seed/anchors */
     engine_input_install();   /* ring injection (drives the menu → game_enter) */
@@ -122,6 +124,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         proxy_init_once();
         break;
     case DLL_PROCESS_DETACH:
+        osr_writer_stop();    /* best-effort final flush (harness usually hard-kills) */
         proxy_logf("[proxy] DLL_PROCESS_DETACH");
         break;
     }
