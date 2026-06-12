@@ -54,16 +54,27 @@ static int   g_detour_disarm_req = 0;
 
 static const DWORD TRAP_FLAG = 0x100;
 
-static void detour_patch_byte(DWORD va, BYTE val)
+/* Make the page holding `va` permanently writable+executable.  Done ONCE per
+ * hook at install (the proxy owns the process for its lifetime, so there is no
+ * reason to flip protection back), so the hot INT3 dance below never pays a
+ * VirtualProtect — the M3b perf win for the blit detours, which patch twice per
+ * hit hundreds of times a frame. */
+static void detour_make_rwx(DWORD va)
 {
     DWORD old;
-    if (VirtualProtect((void *)va, 1, PAGE_EXECUTE_READWRITE, &old)) {
-        *(volatile BYTE *)va = val;
-        VirtualProtect((void *)va, 1, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), (void *)va, 1);
-    } else {
-        proxy_logf("[detour] VirtualProtect failed @0x%lx", (unsigned long)va);
-    }
+    if (!VirtualProtect((void *)va, 1, PAGE_EXECUTE_READWRITE, &old))
+        proxy_logf("[detour] VirtualProtect(RWX) failed @0x%lx err=%lu",
+                   (unsigned long)va, GetLastError());
+}
+
+/* Hot path: the page is already RWX (detour_make_rwx at install), so just write
+ * the byte + flush.  On x86 the same thread executes the patched op next and the
+ * VEH return (IRET) serialises, but FlushInstructionCache is cheap insurance and
+ * keeps the dance correct if the engine ever runs a hooked VA cross-thread. */
+static void detour_patch_byte(DWORD va, BYTE val)
+{
+    *(volatile BYTE *)va = val;
+    FlushInstructionCache(GetCurrentProcess(), (void *)va, 1);
 }
 
 static detour_entry *detour_find(DWORD va)
@@ -143,6 +154,7 @@ static void detour_add(DWORD va, detour_cb cb)
     detour_entry *e = &g_detours[g_detour_n++];
     e->va = va;
     e->cb = cb;
+    detour_make_rwx(va);                /* one VirtualProtect per hook, for good */
     e->orig = *(volatile BYTE *)va;
     e->armed = 1;
     detour_patch_byte(va, 0xCC);
