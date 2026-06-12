@@ -28,6 +28,7 @@
 #include "proxy_log.h"
 #include "clock.h"
 #include "va_detour.h"
+#include "trampoline.h"
 #include "osr_writer.h"
 #include "render_id.h"
 
@@ -155,11 +156,14 @@ static void eh_rng_anchor_cb(PCONTEXT ctx)
  * the cel on its next resolve (banks decode early, cels persist, and every cel
  * blitted in steady state has been re-resolved with the bank decoded).  This
  * keeps M3b on the proven onEnter-only detour framework — no onLeave needed. */
-static void eh_resolver_cb(PCONTEXT ctx)
+/* The hot hooks (resolver + 5 blits) are E9-trampolined (trampoline.h), so they
+ * take the light `(ecx, entry_esp)` signature, NOT the VEH PCONTEXT: ecx = the
+ * thiscall `this`, entry_esp = the function-entry esp (return addr at [esp]). */
+static void eh_resolver_cb(DWORD slot, DWORD esp)
 {
-    DWORD slot = ctx->Ecx;
+    (void)esp;
     if (!slot) return;
-    DWORD frame = (DWORD)(*(int32_t *)((DWORD)ctx->Esp + 4u)) & 0xffffu;
+    DWORD frame = (DWORD)(*(int32_t *)(esp + 4u)) & 0xffffu;
     DWORD p0 = *(DWORD *)slot;             /* *in_ECX */
     if (!p0) return;
     DWORD frames = *(DWORD *)p0;           /* *(int*)*in_ECX — the cel array */
@@ -171,8 +175,8 @@ static void eh_resolver_cb(PCONTEXT ctx)
 }
 
 /* ── M3b: the 5 source-bearing blit primitives → BLIT records ─────────────── */
-/* stack arg i (0-based, past the return address) at a detour's onEnter */
-#define EH_STK(ctx, i) (*(int32_t *)((DWORD)(ctx)->Esp + 4u + (DWORD)(i) * 4u))
+/* stack arg i (0-based, past the return address) given the function-entry esp */
+#define EH_STK(esp, i) (*(int32_t *)((esp) + 4u + (DWORD)(i) * 4u))
 
 static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel,
                            int32_t dx, int32_t dy, int32_t reqw, int32_t reqh,
@@ -201,53 +205,48 @@ static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel,
 }
 
 /* mode 0/1: __thiscall ECX=cel, stack (dest, x, y); dst extent = cel +0xb8/+0xbc */
-static void eh_blt_onto_cb(PCONTEXT ctx)
+static void eh_blt_onto_cb(DWORD cel, DWORD esp)
 {
-    DWORD cel = (DWORD)ctx->Ecx;
-    eh_blit_record(EH_BLT_ONTO_VA, 0, cel, EH_STK(ctx, 1), EH_STK(ctx, 2),
+    eh_blit_record(EH_BLT_ONTO_VA, 0, cel, EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
                    0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
 }
-static void eh_blt_keyed_cb(PCONTEXT ctx)
+static void eh_blt_keyed_cb(DWORD cel, DWORD esp)
 {
-    DWORD cel = (DWORD)ctx->Ecx;
-    eh_blit_record(EH_BLT_KEYED_VA, 1, cel, EH_STK(ctx, 1), EH_STK(ctx, 2),
+    eh_blit_record(EH_BLT_KEYED_VA, 1, cel, EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
                    0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
 }
 /* mode 2: __thiscall ECX=cel, (dest, dst_x, dst_y, dst_w, dst_h, src_x, src_y, …) */
-static void eh_blt_rects_cb(PCONTEXT ctx)
+static void eh_blt_rects_cb(DWORD cel, DWORD esp)
 {
-    DWORD cel = (DWORD)ctx->Ecx;
     eh_blit_record(EH_BLT_RECTS_VA, 2, cel,
-                   EH_STK(ctx, 1), EH_STK(ctx, 2), EH_STK(ctx, 3), EH_STK(ctx, 4),
-                   EH_STK(ctx, 5), EH_STK(ctx, 6), -1,
+                   EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
+                   EH_STK(esp, 5), EH_STK(esp, 6), -1,
                    cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
 }
 /* mode 3: __thiscall ECX=cel, (dest, dst_x, dst_y, width, height, src_x, src_y) — RAW pre-clip */
-static void eh_blt_clip_cb(PCONTEXT ctx)
+static void eh_blt_clip_cb(DWORD cel, DWORD esp)
 {
-    DWORD cel = (DWORD)ctx->Ecx;
     eh_blit_record(EH_BLT_CLIP_VA, 3, cel,
-                   EH_STK(ctx, 1), EH_STK(ctx, 2), EH_STK(ctx, 3), EH_STK(ctx, 4),
-                   EH_STK(ctx, 5), EH_STK(ctx, 6), -1,
+                   EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
+                   EH_STK(esp, 5), EH_STK(esp, 6), -1,
                    cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
 }
 /* mode 4: __cdecl (dest, cel, dst_x, dst_y, width, height, src_x, src_y, colorkey, gdi_ctx).
- * The blend descriptor is the __thiscall `this` (ECX) forwarded to FUN_005bd680
- * (mode at +0x0); ckey is the explicit colorkey arg, not a cel field.  ECX-as-desc
+ * The blend descriptor is the __thiscall `this` (ecx) forwarded to FUN_005bd680
+ * (mode at +0x0); ckey is the explicit colorkey arg, not a cel field.  ecx-as-desc
  * is best-effort (guarded against a wild deref) — verify the blend modes are the
  * valid 0/1/2 (quirk #44) against a real capture; refine in M3c if not. */
-static void eh_blt_alpha_cb(PCONTEXT ctx)
+static void eh_blt_alpha_cb(DWORD desc_ecx, DWORD esp)
 {
-    DWORD cel  = (DWORD)EH_STK(ctx, 1);
-    DWORD desc = (DWORD)ctx->Ecx;
-    int32_t bmode = (desc >= 0x10000u) ? *(int32_t *)desc : -1;
+    DWORD cel  = (DWORD)EH_STK(esp, 1);
+    int32_t bmode = (desc_ecx >= 0x10000u) ? *(int32_t *)desc_ecx : -1;
     eh_blit_record(EH_BLT_ALPHA_VA, 4, cel,
-                   EH_STK(ctx, 2), EH_STK(ctx, 3), EH_STK(ctx, 4), EH_STK(ctx, 5),
-                   EH_STK(ctx, 6), EH_STK(ctx, 7), bmode, (uint32_t)EH_STK(ctx, 8));
+                   EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4), EH_STK(esp, 5),
+                   EH_STK(esp, 6), EH_STK(esp, 7), bmode, (uint32_t)EH_STK(esp, 8));
 }
 
 /* ── scene anchors (assertions / alignment points) ───────────────────────── */
@@ -286,15 +285,25 @@ static void engine_hooks_install(void)
     detour_add(EH_PROLOGUE_VA,   eh_prologue_cb);
     detour_add(EH_GAME_ENTER_VA, eh_game_enter_cb);
     detour_add(EH_RNG_ANCHOR_VA, eh_rng_anchor_cb);
-    /* M3b: the render-id resolver + the 5 blit primitives (the draw stream). */
-    detour_add(EH_RESOLVER_VA,   eh_resolver_cb);
-    detour_add(EH_BLT_ONTO_VA,   eh_blt_onto_cb);
-    detour_add(EH_BLT_KEYED_VA,  eh_blt_keyed_cb);
-    detour_add(EH_BLT_RECTS_VA,  eh_blt_rects_cb);
-    detour_add(EH_BLT_CLIP_VA,   eh_blt_clip_cb);
-    detour_add(EH_BLT_ALPHA_VA,  eh_blt_alpha_cb);
-    proxy_logf("[hook] engine-VA detour layer installed (%d hooks)",
-               g_detour_n);
+    /* M3b: the render-id resolver + the 5 blit primitives (the draw stream) are
+     * E9-TRAMPOLINED, not INT3'd — they fire hundreds×/frame and the INT3+VEH
+     * 2-exceptions/call is the in-game fps wall.  Head bytes are hardcoded from
+     * the unpacked exe (instruction-aligned, head_len>=5, no rel jmp/call inside
+     * the relocated span — verified by disasm). */
+    static const uint8_t HEAD_RESOLVER[5] = { 0x56, 0x8b, 0xf1, 0x8b, 0x06 };
+    static const uint8_t HEAD_ONTO[6]  = { 0x8b, 0x51, 0x2c, 0x83, 0xec, 0x10 };
+    static const uint8_t HEAD_KEYED[6] = { 0x8b, 0x51, 0x2c, 0x83, 0xec, 0x10 };
+    static const uint8_t HEAD_RECTS[6] = { 0x8b, 0x51, 0x2c, 0x83, 0xec, 0x20 };
+    static const uint8_t HEAD_CLIP[6]  = { 0x83, 0xec, 0x24, 0x8b, 0x41, 0x2c };
+    static const uint8_t HEAD_ALPHA[8] = { 0x83, 0xec, 0x08, 0x56, 0x8b, 0x74, 0x24, 0x34 };
+    trampoline_add(EH_RESOLVER_VA,  eh_resolver_cb,  HEAD_RESOLVER, 5);
+    trampoline_add(EH_BLT_ONTO_VA,  eh_blt_onto_cb,  HEAD_ONTO,  6);
+    trampoline_add(EH_BLT_KEYED_VA, eh_blt_keyed_cb, HEAD_KEYED, 6);
+    trampoline_add(EH_BLT_RECTS_VA, eh_blt_rects_cb, HEAD_RECTS, 6);
+    trampoline_add(EH_BLT_CLIP_VA,  eh_blt_clip_cb,  HEAD_CLIP,  6);
+    trampoline_add(EH_BLT_ALPHA_VA, eh_blt_alpha_cb, HEAD_ALPHA, 8);
+    proxy_logf("[hook] engine-VA detour+trampoline layer installed "
+               "(%d INT3 + 6 E9)", g_detour_n);
 }
 
 #endif /* OSS_ENGINE_HOOKS_H */
