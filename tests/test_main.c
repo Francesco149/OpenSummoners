@@ -682,6 +682,12 @@ struct test_case {
     X(osr_text_roundtrip)                                      \
     X(osr_anchor_empty_name)                                   \
     X(osr_truncated_tail_recovers)                             \
+    X(osr_replay_dispatches_all_kinds)                         \
+    X(osr_replay_sheet_pixels_intact)                          \
+    X(osr_replay_preserves_draw_order)                         \
+    X(osr_replay_truncated_tail_recovers)                      \
+    X(osr_replay_rejects_bad_header)                           \
+    X(osr_replay_null_callbacks_skipped)                       \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \
