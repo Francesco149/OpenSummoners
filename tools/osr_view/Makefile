@@ -67,5 +67,16 @@ $(OUT_GDI): osr_view.c $(CSRC)
 	  ../../src/call_trace.c ../../src/render_id.c \
 	  -lddraw -ldxguid -lgdi32 -luser32 -lkernel32 -lwinmm
 
+# console profiler (build/osr_prof.exe)
+OUT_PROF := ../../build/osr_prof.exe
+prof: $(OUT_PROF)
+$(OUT_PROF): osr_prof.c osr_scrub.c $(CSRC)
+	@mkdir -p ../../build
+	$(CC) $(CFLAGS) -o $@ osr_prof.c osr_scrub.c \
+	  ../../src/recon_apply.c ../../src/zdd.c ../../src/zdd_win32.c \
+	  ../../src/bitmap_session.c ../../src/bitmap_session_win32.c \
+	  ../../src/call_trace.c ../../src/render_id.c \
+	  -lddraw -ldxguid -lgdi32 -luser32 -lkernel32 -lwinmm
+
 clean:
-	rm -rf $(OBJ) $(OUT) $(OUT_GDI)
+	rm -rf $(OBJ) $(OUT) $(OUT_GDI) $(OUT_PROF)

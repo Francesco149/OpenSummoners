@@ -8,6 +8,7 @@
 #include "recon_apply.h"
 
 #include <windows.h>
+#include <ddraw.h>     /* DDSCAPS_SYSTEMMEMORY */
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -109,9 +110,13 @@ void recon_apply_sheet(recon_tables *rt, const osr_sheet *s)
 
     zdd_object *obj = zdd_object_alloc_and_ctor(rt->z);
     if (obj == NULL) return;
-    /* plain offscreen source surface; no colorkey at build (it is per-blit). */
-    if (!zdd_object_create_surface_pair(obj, 0, 0, 0, 0x1ffffff, 0, 0, 0,
-                                        s->w, s->h)) {
+    /* SYSTEM-memory offscreen source surface (no colorkey at build — per-blit).
+     * System memory is decisive for the viewer: a VIDEO-memory surface Lock'd
+     * for readback after blitting stalls on a GPU→CPU sync (~270 ms/frame under
+     * WSLg); system memory Locks as a direct CPU pointer.  Keeping the sources
+     * system-side too makes every blit a CPU copy (no cross-memory transfer). */
+    if (!zdd_object_create_surface_pair(obj, 0, 0, DDSCAPS_SYSTEMMEMORY,
+                                        0x1ffffff, 0, 0, 0, s->w, s->h)) {
         zdd_object_dtor(obj);
         free(obj);
         return;

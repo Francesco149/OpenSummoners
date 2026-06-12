@@ -39,6 +39,12 @@ void osr_scrub_frame_info(const osr_scrub *s, int idx,
  * is a short replay.  Returns 1 on success. */
 int  osr_scrub_render_rgba(osr_scrub *s, int idx, uint32_t *out_rgba);
 
+/* Accumulated profiling timings (ms): the one-time index/open, and the running
+ * totals for the clear / blit-replay / RGBA-readback phases across all renders
+ * (plus the render count).  Any out-pointer may be NULL. */
+void osr_scrub_prof(const osr_scrub *s, double *index_ms, double *clear_ms,
+                    double *replay_ms, double *readback_ms, long *renders);
+
 #ifdef __cplusplus
 }
 #endif

@@ -112,7 +112,8 @@ static void rc_frame_begin(void *u, const osr_framebeg *fb)
     recon_release_dc(&c->rt);       /* a prior frame must not leave a DC held */
     c->cur_flip = fb->flip;
     c->cur_tick = fb->sim_tick;
-    /* draw EVERY frame onto the (accumulating) dest; no per-frame clear. */
+    /* draw EVERY frame onto the (accumulating) dest; no per-frame clear (the
+     * streaming BMP tool retains prior pixels for empty re-present frames). */
 }
 static void rc_blit(void *u, const osr_blit *b)
 { recon_ctx *c = u; recon_apply_blit(&c->rt, c->dest, b); }
