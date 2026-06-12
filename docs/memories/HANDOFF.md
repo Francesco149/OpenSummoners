@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 124, 2026-06-11)
+# Session handoff — rolling current state (last updated ckpt 125, 2026-06-12)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,60 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 124
+## Where we are — ckpt 125
+
+**TRACE STUDIO v2 — M1+M2 LANDED. A fully native, Frida-free capture proxy (`tools/capture_proxy/`, all
+C/mingw32) boots the real retail game seed-pinned + lockstep + headless TURBO all the way to `game_enter`
+with every anchor emitted, at ~790 fps in-game (vs v1's ~60fps `--no-turbo` cap). 4 commits this ckpt
+(`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2).** The USER pulled this tooling rebuild
+forward before the room-render/freeroam port because v1 Frida capture is too slow/coarse to iterate the
+render parity that work needs. Design + build order M1→M7: `docs/plans/trace-studio-v2.md`. v2 is built in
+ISOLATION — it does not touch v1 (`tools/trace_studio*`, `frida_capture.py`, the agent); v1 archives only
+once v2 reaches parity.
+
+**The thesis (USER-directed):** capture the DRAW-CALL STREAM (DDraw blits + GDI text + state + dedup'd
+source surfaces) via a proxy `ddraw.dll` — NOT pixels — and reconstruct frames 1:1 on Windows (real GDI →
+text is bit-exact; the offline-GDI blocker is void). Join the two sides by deterministic `sim_tick`, not a
+pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + reviews via `/mnt/c`.
+
+**What landed (M1+M2):**
+- **M1** — the retail exe imports ONE DDRAW symbol (`DirectDrawCreateEx`) with a FIXED base 0x400000 +
+  relocations stripped, so a proxy `ddraw.dll` next to the exe auto-loads (no Frida, no injector).
+  `ddraw_proxy.c` forwards to the real SysWOW64 ddraw.
+- **M2a** — IAT-patched turbo/lockstep clock (`clock.h`, port of the agent's `installTurboHooks`), env
+  config (`proxy_config.h`), harness thread (`harness.h` — hide window, `WM_ACTIVATEAPP` keep-alive,
+  auto-dismiss the launcher dialog). Headless turbo boot in ~1 s.
+- **M2b** — the engine-VA detour layer. `va_detour.h`: INT3 + a vectored exception handler (NO
+  length-disassembler, no vendored lib) — patch byte→0xCC, VEH runs the onEnter callback off the `CONTEXT`,
+  then restore/rewind-Eip/trap-flag/single-step/re-arm resumes the real op in place; one-shot disarm
+  supported. `engine_hooks.h`: flip `0x5b8fc0` (+lockstep advance + throughput heartbeat), sim-tick
+  `0x43d1d0`, one-shot title seed-pin `0x56c070`→`DAT_008a4f94`, newgame/prologue/game_enter anchors,
+  per-map RNG re-pin `0x41f200`. `engine_input.h`: ring injection (hook `0x43c110`, fill the input ring;
+  manager re-read each poll for sub-menus; ts from `[esp+4]`). PROVEN: newgame@flip652 → prologue@1000 →
+  game_enter@1242 (RNG re-pin fires) → sim_tick ~1:1 with flips.
+
+**Module layout (this ckpt, all under `tools/capture_proxy/`):** `ddraw_proxy.c` (entry/forward + init
+order), `proxy_log.h`, `proxy_config.h`, `iat_hook.h`, `clock.h`, `va_detour.h`, `engine_hooks.h`,
+`engine_input.h`, `harness.h`, `Makefile` (single-TU → `build/ddraw_proxy.dll`), `ddraw_proxy.def`,
+`run_proxy.sh` (deploy → run → collect → ALWAYS clean up `ddraw.dll` so v1 Frida runs are unaffected).
+Boot artifacts land on native NTFS `C:\oss-osr\` (storage discipline). Throwaway nav: `runs/proxy-m2b/`.
+
+**NEXT MOVE — M3: the `.osr` draw-stream capture.** Wrap the DDraw7 + Surface7 COM vtables (returned from
+`DirectDrawCreateEx`→`CreateSurface`) for surface IDENTITY + the one-time dedup'd source-sheet grab + the
+real `DDSURFACEDESC2` format; inline-detour the 5 engine blit VAs (the `res`/`frame`/state semantics the
+existing `retail_fields.json` documents) → BLIT records; hook `gdi32!TextOutA`/`ExtTextOutA` +
+`SelectObject`/`CreateFontIndirectA` → TEXT/FONT records; write the dedup'd (by `dhash`) + miniz-compressed
+`.osr` on a background thread off a ring (engine thread pays only a memcpy). Format + record types:
+`plans/trace-studio-v2.md` §Component 3. Then M4 reconstruct (`opensummoners.exe --osr-replay`), M5 the
+port-side emitter (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). The held-axis leaf inject
+(`0x5ba520`, needs a return-value/onLeave-style hook) is DEFERRED until freeroam capture needs it.
+
+**OPEN RE threads (don't block):** none new for v2. The PAUSED movement-system arc (carried, resumes after
+v2): the errands/house ROOM-render path (`plans/controllable-arche-faithful.md` Phase 2a; scene ids
+house=1023/errands=1025) → the freeroam hand-off; the A/B portrait FACING (dynamic, lands with the animated
+cast); the errands questline `0x4dc510`; the later `+0x200=1` transfer.
+
+## Where we were — ckpt 124
 
 **The dialogue PORTRAITS are UN-MVP'd — the bust RESOLVES per speaker (USER-requested side-fix). New
 `src/portrait.{c,h}` + the embedded face table; 982 host pass (+4), 0 fail, 6 skip; one commit `ce1af81`.

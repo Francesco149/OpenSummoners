@@ -32,15 +32,42 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway
-  (butterflies ✓ → tile collision: read-side ✓ → controllable Arche: WALK/JUMP/DASH/windup ported
-  bit-exact ✓ → MVP live-wire (measured trigger) **REMOVED** ✓ → **FAITHFUL live keyboard input ✓**
-  → **town-arrival DIALOGUE ADVANCE ✓** → **CONTROL-PATH HARNESS-VERIFIED ✓** (quirk #103: a 3-room
-  chain → the errands room IS the freeroam; control = `+0x200==0` char-AI, not `+0x200=1`) → **arrival→house
-  dialogue CHAIN ported + verified ✓** → **dialogue PORTRAITS un-MVP'd per-speaker ✓** → **the errands ROOM
-  (render + freeroam) = next**). Milestone map: `ROADMAP.md`; active arc:
-  `plans/controllable-arche-faithful.md`. Render backlog: `port-frontier.md`.
-- **LATEST (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
+- **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway.
+  **DETOUR (USER-pulled-forward, ckpt 125): TRACE STUDIO v2** — rebuild the parity studio to capture the
+  DRAW-CALL STREAM natively (a proxy `ddraw.dll`, NO Frida) + reconstruct frames 1:1 on Windows, before
+  resuming the room-render/freeroam port (v1 Frida capture is too slow/coarse to iterate that at the needed
+  granularity). Design + build order M1→M7: `plans/trace-studio-v2.md`. (The movement-system arc below is
+  PAUSED, not dropped.) Milestone map: `ROADMAP.md`; movement arc: `plans/controllable-arche-faithful.md`.
+  - Movement-system progress (paused): butterflies ✓ → tile collision read-side ✓ → controllable Arche
+    WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
+    town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
+    CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
+    next, once v2 lands**.
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M1+M2 LANDED: a fully native, Frida-free capture proxy boots the
+  real retail game seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor emitted.
+  `tools/capture_proxy/` (proxy `ddraw.dll`, all C/mingw32); ~790 fps in-game turbo (vs v1's ~60fps
+  `--no-turbo` cap). 4 commits (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2).**
+  1. **M1 — auto-load + forward.** The retail exe imports one DDRAW symbol (`DirectDrawCreateEx`) with a
+     FIXED base 0x400000 + relocations stripped, so a proxy `ddraw.dll` dropped next to the exe wins the DLL
+     search order — no Frida, no injector. `ddraw_proxy.c` forwards to the real SysWOW64 ddraw.
+  2. **M2a — native lifecycle.** IAT-patched turbo/lockstep clock (`clock.h`, port of the agent's
+     `installTurboHooks`), env config (`proxy_config.h`), harness thread (`harness.h` — hide window,
+     keep-alive, auto-dismiss the launcher dialog). Headless turbo boot to `DirectDrawCreateEx` in ~1 s.
+  3. **M2b — the engine-VA detour layer (`va_detour.h` INT3 + a vectored exception handler; NO
+     length-disassembler).** `engine_hooks.h` ports the agent's VA map: flip `0x5b8fc0` (+lockstep advance),
+     sim-tick `0x43d1d0`, one-shot title seed-pin `0x56c070`→`DAT_008a4f94`, the newgame/prologue/game_enter
+     anchors, the per-map RNG re-pin `0x41f200`. `engine_input.h` ports ring injection (hook `0x43c110`,
+     fill the input ring) → drives the menu. **Live: newgame@flip652 → prologue@1000 → game_enter@1242
+     (RNG re-pin fires) → sim_tick climbs ~1:1 with flips (lockstep engaged in-game).** Launcher:
+     `tools/capture_proxy/run_proxy.sh` (deploy → run → collect → ALWAYS clean up ddraw.dll so v1 is safe).
+  4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
+     differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
+     (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
+  **NEXT — M3: `.osr` draw-stream capture** (the DDraw COM vtable wrap for surface identity + one-time
+  source-sheet grab; the 5 blit-VA detours + GDI `TextOutA` hooks for the op stream; the dedup'd+miniz
+  `.osr` writer on a bg thread). Then M4 reconstruct (`--osr-replay`), M5 port emitter, M6 the tick-join
+  studio (`:8780`). Plan: `plans/trace-studio-v2.md`.
+- **Prior (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
   the right face-table VARIANT per line (USER-CONFIRMED correct). `src/portrait.{c,h}` + the embedded
   face table; 982 host pass (+4); commits `ce1af81` (per-speaker) + `1a527cb` (per-line variant). Montages
   on the feed.**

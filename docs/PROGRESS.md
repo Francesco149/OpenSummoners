@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M2b: native engine-VA detours + ring input → BOOT TO game_enter
+
+M2 of the v2 plan completes — the native proxy now does everything the Frida agent did to STAND UP a
+deterministic boot, with no Frida and no injector. Two commits: M2b-1 (`16f7977`) the detour framework +
+observe hooks, M2b-2 (`2ce391c`) ring input injection.
+
+**The detour framework (`tools/capture_proxy/va_detour.h`) — INT3 + a vectored exception handler, no
+length-disassembler, no vendored lib (~120 lines).** Patch a function's first byte to 0xCC; a
+first-priority VEH catches `EXCEPTION_BREAKPOINT` at our VAs, runs the registered onEnter callback (which
+reads thiscall ecx/edx + `[esp+4]` args and writes engine globals off the `CONTEXT`), then resumes via the
+classic restore-byte / rewind-Eip / set-trap-flag / single-step / re-arm dance (the real op executes IN
+PLACE, correct even for rel call/jmp). A callback can request a permanent one-shot disarm. The fixed base
+0x400000 + stripped relocations means zero base math; the VEH passes through every non-ours fault.
+
+**The hooks (`engine_hooks.h`) — faithful port of the agent's VA map:** flip `0x5b8fc0` (flip++ + the
+lockstep clock advance + a throughput heartbeat), sim-tick `0x43d1d0` (the deterministic index, reset at
+game_enter), one-shot title seed-pin `0x56c070`→`DAT_008a4f94`, the newgame/prologue/game_enter scene
+anchors, and the per-map RNG re-pin `0x41f200` (armed at game_enter, latched). **Ring input
+(`engine_input.h`):** hook the poll consumer `0x43c110` (thiscall, ecx = the current scene's
+input-manager, re-read every poll so the difficulty SUB-menu's distinct manager gets the presses), read the
+engine's cached `now` from `[esp+4]`, and write `{id,ts,flag=1}` records into the top ring slots
+(63,62,…=newest) of mgr+0x0c. Trace = the existing JSONL nav shape via a tolerant scanner (`OSS_INPUT_TRACE`,
+a `C:\` path), flip-keyed, fire-once. `clock.h` grew to install the GetTickCount/pump hooks when turbo OR
+lockstep (enabling the agent's --no-turbo --lockstep mode).
+
+**PROVEN live (no Frida):** seed PINNED @flip 432; with a cadence-tolerant nav, newgame_enter @flip 652 →
+prologue_enter @flip 1000 → game_enter @flip 1242 (RNG re-pin `0x8fafd240`→`0x4f5347` fires there), then
+sim_tick climbs ~1:1 with flips (16773 @flip 18000 = lockstep engaged in-game) at **~790 fps turbo — vs
+v1's ~60fps `--no-turbo` capture cap**. The order-of-magnitude throughput win the v2 thesis predicted is
+real. NAV LESSON: a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
+differs, so the ckpt-122 flip-keyed nav stalled at the submenu — a window-spread nav reaches game_enter
+robustly (fine for a boot, where game_enter re-pins the seed). DEFERRED: the held-axis leaf inject
+(`0x5ba520` needs a return-value override) until freeroam capture needs it. Launcher
+`tools/capture_proxy/run_proxy.sh` deploys → runs → collects → ALWAYS cleans up ddraw.dll (so v1 Frida runs
+sharing the game dir never load the proxy). NEXT: M3 — the `.osr` draw-stream capture (DDraw COM vtable
+wrap + the 5 blit-VA detours + GDI text hooks + the dedup'd/miniz writer).
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 design + M1: the native capture-proxy vector is PROVEN
 
 The USER asked to rebuild the trace studio in a radically faster/richer way before resuming the freeroam

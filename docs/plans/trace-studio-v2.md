@@ -1,10 +1,13 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): DESIGN. Built in isolation from v1 (`tools/trace_studio*`,
-> `tools/frida_capture.py`, the Frida agent) — none of those are touched until v2
-> is proven, at which point v1 is archived. The USER pulled this forward before
-> porting the freeroam scene because v1 capture is too slow/coarse to iterate the
-> render parity at the granularity the room-render + freeroam work needs.
+> Status (2026-06-12): M1+M2 LANDED (proxy auto-loads, native headless turbo
+> boot, the INT3+VEH engine-VA detour layer, ring input injection → seed-pinned
+> lockstep boot to game_enter with all anchors). M3 (`.osr` capture) is NEXT.
+> Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
+> the Frida agent) — none of those are touched until v2 is proven, at which point
+> v1 is archived. The USER pulled this forward before porting the freeroam scene
+> because v1 capture is too slow/coarse to iterate the render parity at the
+> granularity the room-render + freeroam work needs.
 
 ## Why v1 is the bottleneck (measured, see the digest in this checkpoint)
 
@@ -334,13 +337,19 @@ nix develop --command python3 -m tools.trace_studio2 serve --session NAME
 The riskiest/highest-leverage piece is the **proxy DLL on the real game**, so prove
 it earliest. Each milestone is independently testable.
 
-- **M1 — proxy loads + forwards.** `ddraw_proxy.dll` that forwards all DDRAW exports
-  to the real one and wraps `DirectDrawCreateEx`; the game boots normally with it in
-  place. Prove auto-load + no regression (a smoke boot to title).
-- **M2 — clock + lifecycle.** IAT turbo/lockstep clock + the engine-VA inline-detour
-  framework (seed pin, anchors, sim-tick, input inject) ported from the agent's VA
-  map. Prove a seed-pinned, lockstep, headless turbo boot to `game_enter` with
-  anchors emitted — and **measure it's faster than v1 + unthrottled**.
+- **M1 — proxy loads + forwards. ✓ DONE (ckpt 125).** `ddraw_proxy.dll` forwards all
+  DDRAW exports to the real SysWOW64 ddraw and wraps `DirectDrawCreateEx`; the game
+  boots normally with it in place (auto-load proven, no regression).
+- **M2 — clock + lifecycle. ✓ DONE (ckpt 125).** M2a: IAT turbo/lockstep clock +
+  config + harness thread (headless turbo boot to `DirectDrawCreateEx`). M2b: the
+  engine-VA detour layer — `va_detour.h` (INT3 + a vectored exception handler, NO
+  length-disassembler), `engine_hooks.h` (flip+lockstep / sim-tick / one-shot title
+  seed-pin / newgame·prologue·game_enter anchors / per-map RNG re-pin), `engine_input.h`
+  (ring injection @0x43c110). PROVEN: seed-pinned lockstep headless turbo boot to
+  `game_enter` (newgame@flip652 → prologue@1000 → game_enter@1242, RNG re-pin fires,
+  sim_tick climbs ~1:1) at **~790 fps in-game vs v1's ~60fps `--no-turbo` cap**.
+  DEFERRED to when freeroam capture needs it: the held-axis leaf inject (`0x5ba520` —
+  needs a return-value override, i.e. an onLeave-style hook, not the onEnter framework).
 - **M3 — `.osr` capture.** Record the draw/GDI/state stream + dedup'd sources via the
   COM wrap + VA detours + GDI hooks → `.osr` on the Windows FS. Validate the format
   round-trips (`osr.py` reads it).
