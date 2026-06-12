@@ -26,8 +26,20 @@ the DLL search order and loads automatically; later milestones inline-detour eng
 existing mingw32 → `build/ddraw_proxy.dll`) forwards `DirectDrawCreateEx`/`DirectDrawCreate` to the real
 system ddraw (loaded by absolute SysWOW64 path to avoid self-recursion). Live-proven on the real game:
 `DLL_PROCESS_ATTACH pid=23032`, process boots clean. Launch mechanism nailed: **PowerShell `Start-Process
--WorkingDirectory`** (no exec bit, no Frida, no Steam). NEXT: M2 — IAT turbo/lockstep clock + the engine-VA
-inline-detour framework (seed/anchors/sim-tick/input), ported from the Frida agent's VA map.
+-WorkingDirectory`** (no exec bit, no Frida, no Steam).
+
+**M2a LANDED — a fully native, Frida-free, HEADLESS TURBO BOOT.** `tools/capture_proxy/` grew the IAT patcher
+(`iat_hook.h`), clock virtualization (`clock.h` — `GetTickCount`/`Sleep`/`WaitMessage`/`PeekMessageA` hooked,
+turbo + lockstep model + pump-entered latch, faithful port of the agent's `installTurboHooks`), env-driven
+config (`proxy_config.h`), and the harness thread (`harness.h` — window-hide, `WM_ACTIVATEAPP` keep-alive,
+launcher-dialog auto-dismiss). Live-proven: config loaded → clock hooks installed → harness dismissed the
+dialog (clicked "Launch") → `DirectDrawCreateEx -> hr=0` reached in **~1 s**, then `pump entered → clock
+virtualization armed`. **No Frida, headless, turbo.** Two benign gaps: the exe imports neither
+`user32!GetMessageA` (uses `PeekMessageA`) nor `winmm!waveOutSetVolume` (audio is DSOUND — silent-audio IAT
+clamp is a no-op; TODO proxy DSOUND or find the launcher's sound control). NEXT: M2b — the engine-VA
+inline-detour layer (INT3 + a vectored exception handler; no length-disassembler) for the flip counter
+(`0x5b8fc0` → lockstep advance), sim-tick (`0x43d1d0`), anchors (`0x56c070`/`0x59f2c0`/…), seed pin
+(`DAT_008a4f94`), and input injection (`0x43c110` ring / `0x5ba520` held leaf).
 
 ## 2026-06-11 (ckpt 124) — the dialogue PORTRAITS are un-MVP'd: the bust resolves per speaker
 

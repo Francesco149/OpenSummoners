@@ -20,6 +20,26 @@
 #include <ddraw.h>
 
 #include "proxy_log.h"
+#include "proxy_config.h"
+#include "iat_hook.h"
+#include "clock.h"
+#include "harness.h"
+
+static LONG g_init_done = 0;
+
+/* One-time proxy init: config + clock IAT hooks + the harness thread.  Run
+ * from DllMain (PROCESS_ATTACH) — IAT patches are pure memory writes (loader-
+ * lock safe); CreateThread is safe here with DisableThreadLibraryCalls + no
+ * wait.  The clock hooks must be live before the engine's pre-DirectDraw
+ * busy-waits + the launcher dialog, so DllMain is the right (earliest) place. */
+static void proxy_init_once(void)
+{
+    if (InterlockedExchange(&g_init_done, 1)) return;
+    proxy_config_load();
+    clock_install();
+    harness_start();
+    proxy_logf("[proxy] init complete");
+}
 
 /* The real system ddraw.dll, resolved lazily by absolute path so we never
  * recurse into ourselves (a bare LoadLibrary("ddraw.dll") would find THIS
@@ -94,6 +114,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         proxy_logf("[proxy] DLL_PROCESS_ATTACH pid=%lu",
                    (unsigned long)GetCurrentProcessId());
         DisableThreadLibraryCalls(inst);
+        proxy_init_once();
         break;
     case DLL_PROCESS_DETACH:
         proxy_logf("[proxy] DLL_PROCESS_DETACH");
