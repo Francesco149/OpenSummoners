@@ -26,6 +26,7 @@
 #include "osr_writer.h"
 #include "va_detour.h"
 #include "engine_hooks.h"
+#include "engine_gdi.h"
 #include "engine_input.h"
 #include "harness.h"
 
@@ -43,6 +44,7 @@ static void proxy_init_once(void)
     osr_writer_start();       /* .osr ring + bg drain thread, before hooks fire */
     clock_install();
     engine_hooks_install();   /* INT3+VEH detours: flip/sim-tick/seed/anchors */
+    engine_gdi_install();     /* IAT GDI text hooks → TEXT/FONT records (M3d) */
     engine_input_install();   /* ring injection (drives the menu → game_enter) */
     harness_start();
     proxy_logf("[proxy] init complete");

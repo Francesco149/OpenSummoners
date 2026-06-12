@@ -43,7 +43,10 @@ understates how much actual instruction volume is ported.
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M3c LANDED: the SOURCE pixels + surface identity are captured —
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M3d LANDED: GDI text → TEXT/FONT, so the `.osr` is now a COMPLETE
+  frame description (blits + sources + surface identity + text) → M4 reconstruct is unblocked. Detail in the
+  "M3d LANDED" bullet below; 992 host pass (+2). Prior step M3c (the SOURCE pixels + surface identity) ↓.**
+- **M3c (prior, ckpt 125): the SOURCE pixels + surface identity are captured —
   the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
   the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls
   `dest->Blt(&dr, src, &sr, …)` via vtable +0x14), so the proxy interns those raw surface pointers + grabs
@@ -94,16 +97,25 @@ understates how much actual instruction volume is ported.
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — M3d: GDI text → TEXT/FONT.** The draw stream now carries blits + sources + surface identity; the
-  one remaining draw class is GDI text (the engine `TextOutA`s straight onto the backbuffer, outside the 5
-  blits — `findings/text-glyph-pipeline.md`). **M3d** = hook `gdi32!TextOutA`/`ExtTextOutA` +
-  `SelectObject`/`CreateFontIndirectA`/`SetTextColor` → TEXT records (dst_handle, x, y, string, font_ref,
-  color, bk_mode) + dedup'd FONT records (LOGFONTA). With M3d the `.osr` is a COMPLETE frame description.
-  Then **M4** reconstruct (`opensummoners.exe --osr-replay` — rebuild a source surface per SHEET, replay each
-  frame's BLITs through `zdd.c` + TEXT through `glyph_render_win32.c`'s real GDI; the `--validate`
-  `differ_px==0` gate vs one real snapshot), **M5** port emitter (`src/osr_emit.c` → same `.osr`), **M6** the
-  tick-join studio (`:8780` scrub). Plan: `plans/trace-studio-v2.md`. Two M3c follow-ups are tagged
-  PORT-DEBT (raw SHEET pixels → miniz; cross-side dhash reconciliation) — neither blocks M3d/M4.
+  **M3d — GDI text → TEXT/FONT: LANDED (ckpt 125). The `.osr` is now a COMPLETE frame description.** The one
+  remaining draw class — GDI text (the engine `TextOutA`s straight onto the backbuffer DC, outside the 5
+  blits — `findings/text-glyph-pipeline.md` / quirk #63) — is captured by IAT-patching the engine's gdi32
+  imports (`tools/capture_proxy/engine_gdi.h`, via `iat_hook.h`; an IAT swap is a full wrapper that SEES the
+  return value, so `CreateFontIndirectA`'s new HFONT needs no onLeave framework): `TextOutA` → TEXT records
+  (seq, dst_handle, x, y, font_ref, color, bk_mode, string), `CreateFontIndirectA` → dedup'd FONT (LOGFONTA),
+  `SelectObject`/`SetTextColor`/`SetBkMode` track per-HDC font/colour/bk_mode. TEXT shares the per-frame draw
+  `seq` with BLIT (replayer interleaves them) + targets the single backbuffer handle (M3c). `OSR_TEXT`/
+  `OSR_FONT` codec records in `src/osr_format.h` (+ round-trip tests, 992 host pass / +2); `osr.py` decodes
+  them (+`TEXTS` dump). PROVEN on a fresh nav→game_enter capture: **9 FONT** (Courier New h8..20) + **553k
+  TEXT** (font_ref/dst_handle 100% set, 7 distinct colours), all anchors + both seed pins + BLIT/SHEET
+  coverage byte-identical to M3c. The decode matches quirk #63 EXACTLY — font ref 3 = Courier New 7×18,
+  per-glyph TextOutA at 7px advance, the 3-copy shadow (`0xa8b9cc`/`0xa8b9cc`/main `0x3e537d`), bk
+  TRANSPARENT, dst=1.
+  **NEXT — M4 reconstruct** (`opensummoners.exe --osr-replay` — rebuild a source surface per SHEET, replay
+  each frame's BLITs through `zdd.c` + TEXT through `glyph_render_win32.c`'s real GDI; the `--validate`
+  `differ_px==0` gate vs one real snapshot), then **M5** port emitter (`src/osr_emit.c` → same `.osr`), **M6**
+  the tick-join studio (`:8780` scrub). Plan: `plans/trace-studio-v2.md`. Two M3c follow-ups stay tagged
+  PORT-DEBT (raw SHEET pixels → miniz; cross-side dhash reconciliation) — neither blocks M4.
 - **Prior (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
   the right face-table VARIANT per line (USER-CONFIRMED correct). `src/portrait.{c,h}` + the embedded
   face table; 982 host pass (+4); commits `ce1af81` (per-speaker) + `1a527cb` (per-line variant). Montages

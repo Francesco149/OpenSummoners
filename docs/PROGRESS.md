@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3d: GDI text → TEXT/FONT (the `.osr` is now a COMPLETE frame)
+
+The engine renders ALL dynamic text + the prologue narration through Win32 GDI `TextOutA` straight onto the
+backbuffer DC — OUTSIDE the 5 DDraw blit primitives (`docs/findings/text-glyph-pipeline.md`, quirk #63). M3d
+captures that last draw class, so the `.osr` is now a complete frame description (blits + sources + surface
+identity + text) and M4 reconstruct is unblocked. 992 host pass (+2: `osr_font_roundtrip`, `osr_text_roundtrip`).
+
+**Mechanism — IAT-patch, not a VA detour.** The engine imports `GDI32.dll!{TextOutA, CreateFontIndirectA,
+SelectObject, SetTextColor, SetBkMode}` by name (objdump; no `ExtTextOutA`/`SetBkColor`). `engine_gdi.h` (NEW)
+swaps those IAT slots via the existing `iat_hook.h`. Unlike the engine-VA INT3/E9 trampolines (onEnter-only),
+an IAT swap is a FULL wrapper that calls the real function and SEES ITS RETURN VALUE — exactly what
+`CreateFontIndirectA` (the new HFONT) needs, with no onLeave framework (the gap the held-axis leaf was
+deferred for). Near-zero per-call cost, and only the engine's own calls are intercepted.
+
+**State model (engine-thread-only, no locking).** A font cache HFONT→font_ref: `CreateFontIndirectA` interns
+the returned HFONT and emits ONE dedup'd `FONT` record (the LOGFONTA the M4 replayer recreates). A tiny
+per-HDC state table {font_ref, color, bk_mode}: `SelectObject` updates the current font (only when the object
+is a KNOWN HFONT — it is also called with bitmaps/pens), `SetTextColor`/`SetBkMode` the colour/mode.
+`TextOutA` emits a `TEXT` record with that state + position + string, the SHARED per-frame draw `seq`
+(`eh_next_draw_seq`, so the replayer interleaves text and blits in issue order) and the single backbuffer
+`dst_handle` (learned from the blit path — M3c found exactly one dst surface). `OSR_TEXT`/`OSR_FONT` are the
+codec records in `src/osr_format.h` (host round-trip tested); `osr.py` decodes them (+ a `TEXTS` dump and
+font/text coverage in `SUMMARY`).
+
+**PROVEN** (fresh nav→game_enter capture): **9 FONT** records (all Courier New, h 8..20 — the
+`ar_register_fonts` boot fonts) + **553k TEXT** records (font_ref 100% set ⇒ every TextOutA had a tracked
+selected HFONT; dst_handle 100% set; 7 distinct colours; 12260 frames with text); all 3 anchors + both seed
+pins + the BLIT/SHEET coverage byte-identical to M3c (no regression). The decoded text matches quirk #63's
+retail ground truth EXACTLY: font ref 3 = Courier New 7×18, per-glyph `TextOutA` at a 7px advance, the 3-copy
+shadow (shadow `0xa8b9cc` at (x,y+1) & (x+1,y), main `0x3e537d` at (x,y)), `bk=TRANSPARENT`, `dst=1` — e.g.
+the new-game menu label "Allows you t…" laid out glyph-for-glyph at flip 671. Two M3c follow-ups
+(`osr-sheet-compression`, `osr-sheet-dhash-xside`) stay tagged PORT-DEBT; neither blocks M4.
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3c: SOURCE pixels + surface identity captured (no COM wrap)
 
 M3c gives the draw stream the two things reconstruction (M4) needs beyond geometry: each blit's DEST surface

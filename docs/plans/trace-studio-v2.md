@@ -1,6 +1,6 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2+M3a+M3b+M3c LANDED. M1+M2: proxy auto-loads, native
+> Status (2026-06-12): M1+M2+M3a+M3b+M3c+M3d LANDED. M1+M2: proxy auto-loads, native
 > headless turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
 > (`src/osr_format.h`) + the bg-thread ring writer (`osr_writer.h`) + the cheap
@@ -12,7 +12,9 @@
 > ptrs (`surface_id.h`) + grabs source pixels from the blit detour (`sheet_grab.h`)
 > → SHEET records + BLIT dhash/dst_handle + header pixfmt re-stamp. PROVEN on a
 > nav→town capture (dst_handle/dhash 100% set, 496 SHEETs/420 distinct, 912 fps).
-> M3d (GDI text → TEXT/FONT) is NEXT.
+> M3d: GDI text → TEXT/FONT — IAT-hooked gdi32!{TextOutA,CreateFontIndirectA,
+> SelectObject,SetTextColor,SetBkMode}; the .osr is now a COMPLETE frame
+> description. M4 (reconstruct, --osr-replay) is NEXT.
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -405,8 +407,23 @@ it earliest. Each milestone is independently testable.
     cross-side (native pitch/pixfmt differ → a legit render_diff `[decode]` signal →
     `osr-sheet-dhash-xside`); the alpha (mode-4) source is a GDI/`paint_ctx` blend so its
     `+0x2c` grab is best-effort.
-  - **M3d — GDI text.** Hook `gdi32!TextOutA`/`ExtTextOutA` + `SelectObject`/
-    `CreateFontIndirectA` → TEXT/FONT records.
+  - **M3d — GDI text. ✓ DONE (ckpt 125).** The engine renders all dynamic text +
+    prologue narration through GDI `TextOutA` straight onto the backbuffer DC
+    (outside the 5 blits — text-glyph-pipeline.md / quirk #63).  IAT-patched the
+    engine's gdi32 imports (`engine_gdi.h`, via `iat_hook.h` — an IAT swap is a full
+    wrapper that SEES the return value, so `CreateFontIndirectA`'s new HFONT needs no
+    onLeave framework): `TextOutA` → TEXT records, `CreateFontIndirectA` → dedup'd
+    FONT records (LOGFONTA), `SelectObject`/`SetTextColor`/`SetBkMode` track per-HDC
+    state (font_ref/color/bk_mode).  TEXT shares the per-frame draw seq with BLIT (so
+    the replayer interleaves text + blits) and targets the single backbuffer handle
+    (from the blit path).  `OSR_TEXT`/`OSR_FONT` are the codec records (`osr_format.h`
+    + round-trip tests); `osr.py` decodes them (+`TEXTS` dump).  PROVEN on a fresh
+    nav→game_enter capture: **9 FONT** (Courier New h8..20) + **553k TEXT** records
+    (font_ref/dst_handle 100% set, 7 distinct colours), all anchors + both seed pins +
+    BLIT/SHEET coverage byte-identical to M3c.  The decoded text matches quirk #63
+    ground truth EXACTLY — font ref 3 = Courier New 7×18, per-glyph TextOutA at 7px
+    advance, the 3-copy shadow (`0xa8b9cc`/`0xa8b9cc`/main `0x3e537d`), bk TRANSPARENT.
+    The `.osr` is now a complete frame description.
 - **M4 — reconstruct.** `opensummoners.exe --osr-replay` rebuilds frames 1:1; the
   `--validate` fidelity gate (`differ_px==0` vs a real snapshot) passes.
 - **M5 — port emitter.** `src/osr_emit.c` emits the same `.osr` from the port.

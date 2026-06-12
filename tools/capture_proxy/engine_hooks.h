@@ -71,6 +71,16 @@ static volatile LONG g_eh_sim_tick = 0;
 static int g_eh_frame_open = 0;    /* a FRAMEBEG has opened the current frame   */
 static int g_eh_blit_seq   = 0;    /* draw ordinal within the current frame     */
 
+/* M3d: the single dst (backbuffer) surface handle, learned from the blit path
+ * (M3c found exactly one distinct dst surface).  GDI text renders onto that same
+ * backbuffer DC, so engine_gdi.h stamps TEXT records with this handle.  Text also
+ * SHARES the per-frame draw ordinal (g_eh_blit_seq) so the replayer interleaves
+ * text and blits in issue order — both go through eh_next_draw_seq().  Accessors
+ * keep engine_gdi.h decoupled from these statics (it is included after us). */
+static uint32_t g_eh_backbuffer_handle = 0;
+static uint32_t eh_next_draw_seq(void)     { return (uint32_t)g_eh_blit_seq++; }
+static uint32_t eh_backbuffer_handle(void) { return g_eh_backbuffer_handle; }
+
 /* The .osr header is written UNKNOWN/640x480 at file-open (before any surface
  * exists).  The first dest surface we touch is the backbuffer, whose desc gives
  * the real screen pixfmt + dims; correct the header once (the bg writer thread
@@ -231,6 +241,7 @@ static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel, DWORD dest_arg
     /* M3c: the dest surface → a stable handle; the first one fixes the header. */
     void *dst_surf = dest_arg ? *(void **)(dest_arg + BLIT_SURF_PTR) : NULL;
     b.dst_handle = surfid_get(dst_surf);
+    if (b.dst_handle) g_eh_backbuffer_handle = b.dst_handle;  /* M3d: TEXT dst */
     if (!g_eh_hdr_fixed) eh_fixup_header_from(dst_surf);
     /* M3c-2: the source surface → its dedup'd SHEET (grabbed once); dhash refs it. */
     void *src_surf = cel ? *(void **)(cel + BLIT_SURF_PTR) : NULL;

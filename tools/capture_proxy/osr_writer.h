@@ -180,6 +180,22 @@ static void osr_w_sheet(const osr_sheet *s)
         osr__ring_put(s->bytes, s->byte_len);
     LeaveCriticalSection(&g_osr.cs);
 }
+/* FONT — fixed 64-byte payload (dedup'd; written once per unique HFONT). */
+static void osr_w_font(const osr_font *f)
+{
+    uint8_t b[8 + OSR_FONT_PAYLOAD];
+    osr__emit(b, osr_enc_font(b, sizeof(b), f));
+}
+/* TEXT — one TextOutA op; the string is short (the engine TextOutA's per glyph /
+ * short run), so a stack buffer covers it.  The caller clamps str_len; drop a
+ * pathologically long string rather than overrun. */
+#define OSR_W_TEXT_MAX 480u
+static void osr_w_text(const osr_text *t)
+{
+    if (t->str_len > OSR_W_TEXT_MAX) return;
+    uint8_t b[8 + OSR_TEXT_HDR + OSR_W_TEXT_MAX];
+    osr__emit(b, osr_enc_text(b, sizeof(b), t));
+}
 
 /* ── lifecycle ───────────────────────────────────────────────────────────── */
 static void osr_writer_start(void)
