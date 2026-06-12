@@ -8,10 +8,11 @@
 
 ## Where we are — ckpt 125
 
-**TRACE STUDIO v2 — M1+M2+M3a LANDED. The native, Frida-free capture proxy (`tools/capture_proxy/`, all
+**TRACE STUDIO v2 — M1+M2+M3a+M3b LANDED. The native, Frida-free capture proxy (`tools/capture_proxy/`, all
 C/mingw32) boots retail seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor (M1+M2),
-and now WRITES a native `.osr` draw-stream file from the real boot (M3a). 5 commits this ckpt (`02495e5` M1,
-`8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2, `8c42c02` M3a).** The USER pulled this tooling rebuild
+WRITES a native `.osr` draw-stream (M3a), and now records the full BLIT op stream — the 5 source-bearing
+DDraw primitives + the render-id identity per frame (M3b). 6 commits this ckpt (`02495e5` M1, `8e23999`
+M2a, `16f7977` M2b-1, `2ce391c` M2b-2, `8c42c02` M3a, `cc63407` M3b).** The USER pulled this tooling rebuild
 forward before the room-render/freeroam port because v1 Frida capture is too slow/coarse to iterate the
 render parity that work needs. Design + build order M1→M7: `docs/plans/trace-studio-v2.md`. v2 is built in
 ISOLATION — it does not touch v1 (`tools/trace_studio*`, `frida_capture.py`, the agent); v1 archives only
@@ -22,7 +23,28 @@ source surfaces) via a proxy `ddraw.dll` — NOT pixels — and reconstruct fram
 text is bit-exact; the offline-GDI blocker is void). Join the two sides by deterministic `sim_tick`, not a
 pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + reviews via `/mnt/c`.
 
-**What landed (M1+M2+M3a):**
+**What landed (M1+M2+M3a+M3b):**
+- **M3b** — the BLIT op stream. `src/osr_format.h` grew the `OSR_BLIT` record (fixed 76-B payload =
+  `tools/render_diff.py`'s schema: `va/seq`, `res/frame`, `dhash/dst_handle`, `dx,dy,reqw,reqh,sx,sy`,
+  `ow,oh,ox,oy`, `state/ckey/bmode/mode`) + host-tested enc/dec. `tools/capture_proxy/render_id.h` (NEW) =
+  the retail mirror of `src/render_id.c`: a cel→`(res,frame)` open-addressing registry, populated by the
+  resolver detour `0x418470` which COMPUTES the cel AT onEnter from the decompile
+  (`cel = *(*(*slot) + (frame&0xffff)*4)` whenever the bank is decoded, i.e. `*(int*)*in_ECX != 0`) — so
+  M3b stays on the proven onEnter-only `va_detour.h` framework, NO onLeave. (The undecoded-bank first
+  resolve is skipped and self-heals on the cel's next resolve; banks decode early + cels persist, so steady
+  state is 89% named.) `engine_hooks.h` detours the 5 blit VAs (`0x5b9a40` onto / `b70` keyed / `ae0` rects
+  / `bf0` clipped / `0x5bd550` alpha), reading geometry + cel-fields per the decompiled arg conventions
+  (thiscall ECX=cel for 4; alpha is cdecl with cel=arg[1], dx=arg2..sy=arg7, ckey=arg8, bmode from the
+  forwarded blend-desc `this` in ECX +0x0). The flip hook is restructured to FRAMEBEG-at-open / draws /
+  PRESENT-at-flip with a per-frame draw `seq` (reset each FRAMEBEG). `osr.py` decodes BLIT + adds the `BLITS`
+  draw-list dump + per-VA/named% SUMMARY stats. **PROVEN** (nav `runs/proxy-m2b` → game_enter): 867k blits /
+  2377 frames, 89% render-id-named, all 3 anchors at the M2b flips + both seed pins; the town establishing
+  shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop columns 8×80px, res=2234 `clipped`
+  32×32 sub-tiles at the camera scroll dst=-32, KEYSRC st=0x8000 ckey=0xf81f) — matching the documented town
+  render. **PERF (measured):** title/menu ~2400 fps WITH capture; in-game town **~25 fps** — the INT3+VEH
+  2-exceptions/blit cost (plus `detour_patch_byte`'s 2× `VirtualProtect`+`FlushInstructionCache` per patch,
+  ×2 patches/hit) dominates at ~1500 blits/frame. Usable+cached but below turbo → the perf chip is the fork
+  resolution (see NEXT). `dhash`/`dst_handle` stay 0 retail-side until M3c.
 - **M3a** — the `.osr` writer. `src/osr_format.h` = the shared pure-C codec (64-B header + framed
   `{type,len,payload}` records, little-endian, append-only + truncated-tail recoverable for the harness
   hard-kill) used by the proxy, the port emitter (M5), the reconstructor (M4), and `osr.py`.
@@ -51,29 +73,36 @@ pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + 
 
 **Module layout (this ckpt, all under `tools/capture_proxy/`):** `ddraw_proxy.c` (entry/forward + init
 order), `proxy_log.h`, `proxy_config.h`, `iat_hook.h`, `clock.h`, `va_detour.h`, `engine_hooks.h`,
-`engine_input.h`, `harness.h`, `Makefile` (single-TU → `build/ddraw_proxy.dll`), `ddraw_proxy.def`,
-`run_proxy.sh` (deploy → run → collect → ALWAYS clean up `ddraw.dll` so v1 Frida runs are unaffected) +
-M3a `osr_format.h` (in `src/`), `osr_writer.h`. Boot artifacts land on native NTFS `C:\oss-osr\` (storage
-discipline). Throwaway nav: `runs/proxy-m2b/`.
+`engine_input.h`, `render_id.h` (NEW, M3b — the cel registry), `harness.h`, `Makefile` (single-TU →
+`build/ddraw_proxy.dll`), `ddraw_proxy.def`, `run_proxy.sh` (deploy → run → collect → ALWAYS clean up
+`ddraw.dll` so v1 Frida runs are unaffected) + `osr_format.h` (in `src/`, M3a+M3b), `osr_writer.h`.
+`tools/trace_studio2/osr.py` = the Python reader (SUMMARY/FRAMES/BLITS). Boot artifacts land on native NTFS
+`C:\oss-osr\` (storage discipline). Throwaway nav: `runs/proxy-m2b/nav.jsonl` (the cadence-tolerant boot).
 
-**NEXT MOVE — M3b: the BLIT op stream.** Detour the 5 engine blit VAs (`0x5b9a40` onto / `0x5b9b70` keyed /
-`0x5b9ae0` rects / `0x5b9bf0` clipped-tile / `0x5bd550` alpha) + the resolver `0x418470` (cel→`(res,frame)`,
-mirror the agent's `g_render_id_map`: `res = slot+0x40` (u16), `frame = arg0` (u16), retval = cel ptr) →
-BLIT records. **Record layout FINALIZED** (= `tools/render_diff.py`'s schema so cross-side diff works
-unchanged): `va, seq, res_id(u16), frame(u16), dhash(u32), dst_handle, dx,dy,reqw,reqh, sx,sy, ow,oh,ox,oy
-(off cel +0xb8 w / +0xbc h / +0x0c origin_x / +0x10 origin_y), state(+0xd4), ckey, bmode, mode`. The 5 VAs'
-arg conventions (all __thiscall ECX=src cel except `0x5bd550` __cdecl with the cel as stack arg[1]) are in
-`retail_fields.json` + the M3b survey. Restructure the flip hook → FRAMEBEG-at-open / draws / PRESENT-at-flip
-(M3a's one-pair-per-flip is the placeholder). **PERF FORK (decide by measuring):** blit VAs fire hundreds×
-/frame but the INT3+VEH detour costs 2 exceptions/call — first cut on the PROVEN `va_detour.h`, MEASURE fps;
-if it tanks throughput, build the plan's hand-rolled 5-byte E9-jmp trampoline (hardcode each VA's head bytes
-— stdcall/thiscall known prologues, no length-disassembler). dhash stays 0 retail-side until M3c grabs
-pixels. Then **M3c** the DDraw7+Surface7 COM vtable wrap (surface identity + the one-time dedup'd
-source-sheet grab → SHEET via the render_id FNV-1a + miniz; backfills BLIT `dhash`/`dst_handle` + corrects
-the header pixfmt/screen from `DDSURFACEDESC2`) — the RISKY piece, isolated; **M3d** GDI `TextOutA`/
-`ExtTextOutA` + `SelectObject`/`CreateFontIndirectA` → TEXT/FONT. Then M4 reconstruct (`--osr-replay`), M5
-the port emitter (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). The held-axis leaf inject
+**NEXT MOVE — a fork (USER call): (a) M3b-perf — restore turbo, or (b) M3c — COM wrap + SHEET.** The PERF
+measurement (~25 fps in-game town) resolves the M3b fork toward a perf chip. The cost is the INT3+VEH
+detour: 2 exception dispatches/blit AND `detour_patch_byte`'s 2× `VirtualProtect` + `FlushInstructionCache`
+per patch, ×2 patches/hit (restore + re-arm). Two options, cheapest first: **(i)** leave the hooked code
+pages permanently `PAGE_EXECUTE_READWRITE` (one `VirtualProtect` at install) and skip the per-patch
+protect/flush in the hot dance — removes ~4 syscalls/blit, keeps the 2 exception dispatches (a quick win, no
+new risk); **(ii)** the plan's hand-rolled 5-byte `E9`-jmp trampoline (hardcode each blit VA's head bytes —
+known stdcall/thiscall prologues, no length-disassembler; save+relay the overwritten bytes) — removes the
+exceptions entirely, the real turbo fix but the riskier code. 25 fps is USABLE+cached (a title→town capture
+is ~30 s, recapture is `--only port`), so **M3c can also go first** if the USER prefers feature progress.
+**M3c** = the DDraw7+Surface7 COM vtable wrap: surface identity (stable `dst_handle`) + the one-time dedup'd
+source-pixel grab → SHEET (dhash via the render_id FNV-1a + miniz), which backfills BLIT `dhash`/`dst_handle`
+and corrects the header pixfmt/screen from `DDSURFACEDESC2` — the RISKY piece, isolated. Then **M3d** GDI
+`TextOutA`/`ExtTextOutA` + `SelectObject`/`CreateFontIndirectA` → TEXT/FONT; M4 reconstruct (`--osr-replay`),
+M5 the port emitter (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). The held-axis leaf inject
 (`0x5ba520`, needs an onLeave-style return-value hook) is DEFERRED until freeroam capture needs it.
+
+**M3b validation detail (durable):** the 5 blit VAs' arg conventions were RE'd from the engine decompiles
+(`docs/decompiled/by-address/5b9a40.c` etc.) cross-checked against the port's `zdd_emit_blit` field set —
+NOT from `retail_fields.json` (the blit entries there were throwaway; the current file has only the flip
+spec). onto/keyed: `(dest, x, y)`, dst extent = cel +0xb8/+0xbc, sx/sy=0. rects: `(dest, dx, dy, dw, dh,
+sx, sy, sw, sh)`. clipped: `(dest, dx, dy, w, h, sx, sy)` RAW pre-clip. alpha `0x5bd550`: cdecl `(dest, cel,
+dx, dy, w, h, sx, sy, ckey, gdi_ctx)`, blend mode = `*(int*)ECX` (the `0x5bd680` thiscall `this` forwarded
+through — best-effort, verify the modes are the valid 0/1/2 per quirk #44 against a capture).
 
 **OPEN RE threads (don't block):** none new for v2. The PAUSED movement-system arc (carried, resumes after
 v2): the errands/house ROOM-render path (`plans/controllable-arche-faithful.md` Phase 2a; scene ids

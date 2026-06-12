@@ -17,19 +17,29 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M3a LANDED: the native `.osr` draw-stream WRITER captures a real
-  seed-pinned lockstep turbo boot, `osr.py` round-trips it, ZERO throughput regression (~800 fps WITH
-  capture). M1+M2 below. Commit `8c42c02` (M3a) + 4 prior (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1,
-  `2ce391c` M2b-2).**
-  - **M3a — `.osr` format + the cheap records.** `src/osr_format.h` (pure-C header-only codec: 64-B header
-    + framed `{type,len,payload}` records, little-endian, append-only + truncated-tail recoverable for the
-    harness hard-kill). `tools/capture_proxy/osr_writer.h` (double-buffer ring drained by a bg thread to a
-    `C:\` `.osr`, fflush per drain → durable to the last drain on a hard kill; the engine thread inside the
-    VEH callbacks only locks+memcpy, so disk latency never stalls it). Wired: FRAMEBEG+PRESENT per flip (the
-    tick-join axis), ANCHOR at newgame/prologue/game_enter, SEED at the title pin + per-map re-pin.
-    `tools/trace_studio2/osr.py` reader/validator. 6 host tests (988 pass). **PROVEN:** `retail.osr` (417 KB,
-    11585 frames flip 1..11585 / sim_tick 0..10358), all 3 anchors at the exact M2b flips, both seed pins,
-    no torn tail. Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes it.
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M3b LANDED: the native BLIT draw-stream is captured. The retail
+  proxy records the ORDERED 5-primitive blit op list + the render-id identity per frame (INT3+VEH detours,
+  NO Frida) → an `.osr` carries the full draw list keyed to the load-stable `(resource_id,frame)`
+  `render_diff.py` aligns on. 989 host pass (+1). Commit `cc63407` (M3b) + 5 prior (M1/M2a/M2b-1/M2b-2/M3a).**
+  - **M3b — the BLIT op stream.** `src/osr_format.h` grew the `OSR_BLIT` record (fixed 76-B payload =
+    render_diff's schema: `va/seq`, `res/frame`, `dhash/dst_handle`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy`,
+    `state/ckey/bmode/mode`). `tools/capture_proxy/render_id.h` (NEW, retail mirror of `src/render_id.c`):
+    cel→`(res,frame)` registry, populated by the resolver detour `0x418470` which COMPUTES the cel AT onEnter
+    from the decompile (`cel = *(*(*slot)+frame*4)` when the bank is decoded) — so M3b stays on the proven
+    onEnter-only framework, NO onLeave. `engine_hooks.h` detours the 5 blit VAs reading geometry+cel-fields
+    per the decompiled arg conventions (thiscall ECX=cel except alpha cdecl cel=arg[1]; alpha bmode from the
+    forwarded blend-desc ECX); flip restructured to FRAMEBEG-at-open / draws / PRESENT-at-flip + a per-frame
+    draw seq. `osr.py` decodes BLIT + the `BLITS` draw-list dump + per-VA/named% stats. **PROVEN** (nav
+    `runs/proxy-m2b` → game_enter): 867k blits / 2377 frames, **89% render-id-named**, all 3 anchors + both
+    seed pins; the town establishing shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop
+    columns, res=2234 clipped 32×32 sub-tiles at the camera scroll, KEYSRC ckey 0xf81f) — matching the
+    documented town render. **PERF FORK (measured):** title ~2400 fps WITH capture; in-game town **~25 fps**
+    (the INT3+VEH 2-exceptions/blit cost dominates at ~1500 blits/frame) — usable+cached but below turbo.
+    `dhash/dst_handle` stay 0 retail-side until M3c.
+  - **M3a (prior) — `.osr` format + the cheap records.** `src/osr_format.h` codec + `osr_writer.h` (bg-thread
+    ring → `C:\` `.osr`) + FRAMEBEG/PRESENT/ANCHOR/SEED records + `osr.py`. PROVEN on a real boot (417 KB,
+    11585 frames). Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes.
+    Commit `8c42c02`.
 - **TRACE STUDIO v2 — M1+M2 (prior, ckpt 125): a fully native, Frida-free capture proxy boots the real
   retail game seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor emitted.
   `tools/capture_proxy/` (proxy `ddraw.dll`, all C/mingw32); ~790 fps in-game turbo (vs v1's ~60fps
@@ -50,16 +60,19 @@
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — M3b: the BLIT op stream.** Detour the 5 blit VAs (`0x5b9a40`/`b70`/`ae0`/`bf0`/`0x5bd550`) +
-  the resolver `0x418470` (cel→`(res,frame)` identity, the agent's `g_render_id_map`) → BLIT records
-  (layout finalized = `render_diff.py`'s fields: `res/frame/dhash`, `dx,dy,reqw,reqh,sx,sy`,
-  `ow,oh,ox,oy` from cel `+0xb8/+0xbc/+0x0c/+0x10`, `state +0xd4`, `ckey`, `bmode`, `mode`); restructure
-  the flip hook to FRAMEBEG-at-open / draws / PRESENT-at-flip. **WATCH:** blit VAs fire hundreds×/frame
-  but the INT3+VEH detour costs 2 exceptions/call — first cut on the proven framework, MEASURE fps, build
-  the plan's E9-jmp trampoline only if prohibitive. Then **M3c** the DDraw COM vtable wrap (surface
-  identity + the one-time dedup'd source-sheet grab → SHEET, miniz) — the risky piece, isolated; **M3d**
-  GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct (`--osr-replay`), M5 port emitter
-  (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). Plan: `plans/trace-studio-v2.md`.
+  **NEXT — a fork (USER call): (a) M3b-perf — restore turbo, or (b) M3c — COM wrap + SHEET.** The PERF
+  FORK measurement (~25 fps in-game) resolves toward a perf chip: the INT3+VEH detour pays 2 exceptions/blit
+  AND `detour_patch_byte` does 2× `VirtualProtect` + `FlushInstructionCache` per patch (×2 patches/hit).
+  Two options, cheapest first: (i) leave the hooked pages permanently RWX (one `VirtualProtect` at install)
+  + skip the per-patch protect/flush — removes ~4 syscalls/blit, keeps the 2 exception dispatches; (ii) the
+  plan's hand-rolled 5-byte E9-jmp trampoline (hardcode each blit VA's head bytes — known stdcall/thiscall
+  prologues, no length-disassembler) — removes the exceptions entirely, the real turbo fix. 25 fps is
+  USABLE+cached for now, so M3c can also go first. **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
+  identity → `dst_handle`; the one-time dedup'd source-sheet grab → SHEET via the render_id FNV-1a + miniz;
+  corrects the header pixfmt/screen from `DDSURFACEDESC2`; backfills BLIT `dhash`/`dst_handle`) — the risky
+  piece, isolated; **M3d** GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct
+  (`--osr-replay`), M5 port emitter (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). Plan:
+  `plans/trace-studio-v2.md`.
 - **Prior (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
   the right face-table VARIANT per line (USER-CONFIRMED correct). `src/portrait.{c,h}` + the embedded
   face table; 982 host pass (+4); commits `ce1af81` (per-speaker) + `1a527cb` (per-line variant). Montages

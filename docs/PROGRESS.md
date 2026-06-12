@@ -6,6 +6,55 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3b: native BLIT draw-stream captured (town PROVEN)
+
+M3b records the ORDERED draw-call stream — the 5 source-bearing DDraw blit primitives + the render-id
+identity per frame — natively via INT3+VEH detours (no Frida), so an `.osr` now carries the full draw list
+per frame keyed to the load-stable `(resource_id, frame)` identity `tools/render_diff.py` aligns on. One
+commit (`cc63407`). 989 host pass (+1, `osr_blit_roundtrip`).
+
+**`src/osr_format.h` — the `OSR_BLIT` record.** A fixed 76-byte payload mirroring `render_diff.py`'s schema
+(`va/seq`, `res/frame`, `dhash/dst_handle`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy`, `state/ckey/bmode/mode`)
+so the cross-side draw diff works unchanged; host-tested encode→decode (the Python reader struct.unpacks the
+same layout). `dhash`/`dst_handle` stay 0 retail-side until M3c grabs surface pixels/identity.
+
+**`tools/capture_proxy/render_id.h` (NEW) — the cel→(res,frame) registry.** The retail mirror of
+`src/render_id.c` (and the Frida agent's `g_render_id_map`): an open-addressing table populated by the
+resolver detour `0x418470`. The cel is the resolver's RETURN value, but it is COMPUTABLE at onEnter from the
+decompile — `cel = *( *( *(int*)slot ) + (frame & 0xffff) * 4 )` whenever the bank is already decoded
+(`*(int*)*in_ECX != 0`). On a bank's very first resolve the array is still 0 (the call lazily decodes it);
+we skip that one and register the cel on its next resolve — banks decode early and cels persist, so steady
+state is 89% named. This keeps M3b entirely on the proven onEnter-only `va_detour.h` framework — no onLeave
+hook needed (the onLeave/return-value mechanism stays deferred to the held-axis leaf inject).
+
+**`engine_hooks.h` — the 5 blit detours + the restructured flip.** Each blit VA's callback reads the source
+cel (ECX for the 4 thiscall primitives; stack arg[1] for the cdecl alpha `0x5bd550`), looks up its
+`(res,frame)`, reads the cel placement metrics (+0xb8/+0xbc/+0x0c/+0x10/+0xd4/+0x28), and the call geometry
+off the stack per the decompiled arg conventions (RE'd from `docs/decompiled/by-address/5b9a40.c` … cross-
+checked against the port's `zdd_emit_blit`). The alpha blend mode is read from the forwarded `0x5bd680`
+thiscall `this` in ECX (best-effort, guarded). The flip hook is restructured from M3a's empty
+FRAMEBEG+PRESENT-per-flip to FRAMEBEG-at-open / draws / PRESENT-at-flip, with a per-frame draw `seq` reset
+at each FRAMEBEG. `osr.py` gains BLIT decode, a `BLITS <flip>` frame-draw-list dump, and per-VA / named%
+stats in SUMMARY.
+
+**PROVEN on a real boot** driven to game_enter (nav `runs/proxy-m2b/nav.jsonl`): 867k BLIT records over 2377
+frames, 89% render-id-named, all 3 anchors at the exact M2b flips (newgame@652 / prologue@1000 /
+game_enter@1242) + both seed pins. The town establishing shot (flip 1250, 1815 blits) decodes coherently —
+res=1002 backdrop columns (8×80px = 640 wide), res=1722/1082 KEYSRC parallax layers, res=2234 `clipped`
+32×32 sub-tiles drawn at the camera scroll offset (dst x=-32) with the proper src sub-offsets, ckey 0xf81f
+(RGB565 magenta) — matching the documented town render path (`findings/ddraw-blit-trace.md`).
+
+**PERF FORK (measured, plan §M3b).** Title/menu runs at ~2400 fps WITH full blit capture; the in-game town
+runs at **~25 fps** — the INT3+VEH cost (2 exception dispatches/blit, plus `detour_patch_byte`'s 2×
+`VirtualProtect` + `FlushInstructionCache` per patch, ×2 patches/hit) dominates at ~1500 blits/frame. Usable
++ cached (a title→town capture is ~30 s, recapture is `--only port`) but below turbo. This resolves the fork
+toward a perf chip: cheapest first = leave the hooked pages permanently RWX + skip the per-patch
+protect/flush (removes ~4 syscalls/blit); the real turbo fix = the plan's hand-rolled `E9`-jmp trampoline
+(removes the exceptions). M3c can also go first since 25 fps is workable. See `FRONT.md` / `HANDOFF.md` for
+the next-move fork.
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3a: native `.osr` draw-stream writer (cheap records) PROVEN
 
 M3 of the v2 plan begins, sliced by risk. M3a is the lowest-risk, highest-leverage first cut: the shared

@@ -1,12 +1,15 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2+M3a LANDED. M1+M2: proxy auto-loads, native headless
+> Status (2026-06-12): M1+M2+M3a+M3b LANDED. M1+M2: proxy auto-loads, native headless
 > turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
 > (`src/osr_format.h`) + the bg-thread ring writer (`osr_writer.h`) + the cheap
-> records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py` — PROVEN on a real boot
-> (retail.osr, 11585 frames, all anchors/seeds, ~800 fps, no regression). M3b (the
-> BLIT op stream) is NEXT.
+> records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py`. M3b: the BLIT op stream — the
+> 5 blit detours + the cel→(res,frame) registry (`render_id.h`, onEnter-computed) →
+> OSR_BLIT records. PROVEN on a real boot to game_enter (867k blits, 89% named, all
+> anchors). PERF: title ~2400 fps but in-game town ~25 fps (INT3+VEH 2-exceptions/
+> blit) → the perf chip (RWX-pages or the E9 trampoline) is the fork resolution.
+> M3c (COM wrap + SHEET) is NEXT (or the perf chip first — USER call).
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -364,15 +367,21 @@ it earliest. Each milestone is independently testable.
     already produces (FRAMEBEG/PRESENT per flip = the tick-join axis; ANCHOR; SEED) +
     `tools/trace_studio2/osr.py`. PROVEN: a real boot writes retail.osr (11585 frames,
     all 3 anchors at the M2b flips, both seed pins) at ~800 fps, no regression.
-  - **M3b — the BLIT op stream (NEXT).** Detour the 5 blit VAs + the resolver `0x418470`
-    (cel→`(res,frame)`) → BLIT records (fields = `render_diff.py`'s schema:
-    `res/frame/dhash`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy` off cel `+0xb8/+0xbc/
-    +0x0c/+0x10`, `state +0xd4`, `ckey`, `bmode`, `mode`). Restructure flip →
-    FRAMEBEG-at-open / draws / PRESENT-at-flip. **PERF FORK:** blit VAs fire hundreds×
-    /frame; the INT3+VEH detour pays 2 exceptions/call — first cut on the proven
-    framework, MEASURE fps; if prohibitive, build the hand-rolled 5-byte E9-jmp
-    trampoline (hardcode each VA's head bytes — they're stdcall/thiscall with known
-    prologues, no length-disassembler). dhash stays 0 retail-side until M3c grabs pixels.
+  - **M3b — the BLIT op stream. ✓ DONE (ckpt 125, `cc63407`).** Detoured the 5 blit VAs
+    + the resolver `0x418470` (cel→`(res,frame)`, COMPUTED at onEnter from the decompile
+    `cel = *(*(*slot)+frame*4)` — no onLeave needed; `render_id.h`) → BLIT records
+    (`render_diff.py`'s 76-B schema). Restructured flip → FRAMEBEG-at-open / draws /
+    PRESENT-at-flip + per-frame `seq`. PROVEN: 867k blits / 2377 frames driven to
+    game_enter, **89% render-id-named**, all anchors + seed pins; the town establishing
+    shot decodes coherently (res=1002 backdrop columns, res=2234 clipped 32×32 sub-tiles
+    at the camera scroll, KEYSRC ckey 0xf81f). dhash/dst_handle stay 0 until M3c.
+    **PERF FORK RESOLVED (measured):** the INT3+VEH framework handles the volume but at
+    ~25 fps in-game (~2 exceptions/blit + `detour_patch_byte`'s `VirtualProtect`/
+    `FlushInstructionCache` per patch dominate at ~1500 blits/frame); title ~2400 fps.
+    Usable+cached but below turbo → **M3b-perf** chip: (i) leave hooked pages permanently
+    RWX + skip the per-patch protect/flush (cheap, ~4 syscalls/blit saved, keeps the 2
+    exceptions); (ii) the hand-rolled 5-byte E9-jmp trampoline (removes the exceptions —
+    the real turbo fix). Either before or after M3c (USER call).
   - **M3c — COM wrap + SHEET (the risky piece, isolated).** Wrap the DDraw7 + Surface7
     vtables for surface identity (stable dst handles) + the one-time dedup'd source-pixel
     grab → SHEET records (dhash via the render_id FNV-1a, miniz-compressed). Backfills the
