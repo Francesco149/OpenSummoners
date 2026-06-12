@@ -20,9 +20,10 @@
  *
  * M3a implements the cheap records the boot already produces (FRAMEBEG / PRESENT /
  * ANCHOR / SEED); M3b adds BLIT (the 5 source-bearing draw primitives, with the
- * render_id identity but dhash/dst_handle deferred to M3c).  The remaining bulky /
- * draw records (CLEAR / TEXT / SHEET / FONT / PALETTE / INPUT) have reserved type
- * ids here and land with the COM-wrap + GDI hooks (M3c+).
+ * render_id identity but dhash/dst_handle deferred to M3c); M3c adds SHEET (the
+ * dedup'd source pixels); M3d adds TEXT + FONT (the GDI TextOut stream).  The
+ * remaining records (CLEAR / PALETTE / INPUT) have reserved type ids here and land
+ * as the reconstructor needs them.
  */
 #ifndef OPENSUMMONERS_OSR_FORMAT_H
 #define OPENSUMMONERS_OSR_FORMAT_H
@@ -242,6 +243,46 @@ typedef struct osr_sheet {
 
 #define OSR_SHEET_HDR 24u    /* the fixed-size SHEET payload prefix before bytes */
 
+/* FONT — a dedup'd GDI logical font (M3d).  The retail engine builds 8 HFONTs at
+ * boot (ar_register_fonts → CreateFontIndirectA) and the replayer (M4) recreates
+ * them from these LOGFONTA fields; a TEXT record names its font by font_ref.
+ * Mirrors the Win32 LOGFONTA field-for-field but stays Win32-free (plain int/byte)
+ * so this header still links into the host suite.  font_ref is a stable 1-based id
+ * (0 = none/unknown).  Fixed 64-byte payload. */
+typedef struct osr_font {
+    uint32_t font_ref;
+    int32_t  height, width, escapement, orientation, weight;
+    uint8_t  italic, underline, strikeout, charset;
+    uint8_t  out_prec, clip_prec, quality, pitch_family;
+    char     face[32];      /* LF_FACESIZE; nul-padded face name */
+} osr_font;
+
+#define OSR_FONT_PAYLOAD 64u   /* 4 + 5*4 + 8 + 32 */
+
+/* TEXT — one GDI TextOutA op (M3d).  The engine renders all dynamic text + the
+ * prologue narration through GDI TextOutA straight onto the backbuffer DC
+ * (text-glyph-pipeline.md); the replayer re-issues these on Windows so glyphs are
+ * bit-exact.  Variable length (the string trails a fixed 32-byte prefix).
+ *   seq        — the draw's ordinal WITHIN its frame, SHARED with BLIT.seq so the
+ *                replayer interleaves text and blits in issue order
+ *   dst_handle — the target surface's stable handle (the single backbuffer, M3c)
+ *   x,y        — TextOutA position
+ *   font_ref   — the currently-selected HFONT's font_ref (→ a FONT record)
+ *   color      — the current text COLORREF (SetTextColor)
+ *   bk_mode    — the current background mode (TRANSPARENT=1 / OPAQUE=2)
+ *   str_len    — byte length of the string (TextOutA's explicit count, not NUL)
+ *   str        — str_len bytes (SJIS/ASCII as the engine passed them) */
+typedef struct osr_text {
+    uint32_t seq, dst_handle;
+    int32_t  x, y;
+    uint32_t font_ref, color;
+    int32_t  bk_mode;
+    uint32_t str_len;
+    const char *str;        /* not owned; len = str_len */
+} osr_text;
+
+#define OSR_TEXT_HDR 32u     /* the fixed-size TEXT payload prefix before str */
+
 /* ── typed encoders (write a complete framed record) ──────────────────────── */
 static inline size_t osr_enc_framebeg(uint8_t *buf, size_t cap,
                                       uint32_t flip, uint32_t sim_tick,
@@ -357,6 +398,47 @@ static inline size_t osr_enc_sheet(uint8_t *buf, size_t cap, const osr_sheet *s)
     return total;
 }
 
+/* FONT — a fixed 64-byte payload mirroring struct osr_font's field order so the
+ * Python reader (tools/trace_studio2/osr.py) can struct.unpack it directly. */
+static inline size_t osr_enc_font(uint8_t *buf, size_t cap, const osr_font *f)
+{
+    if (cap < (size_t)8 + OSR_FONT_PAYLOAD) return 0;
+    osr_put_u32(buf, OSR_FONT);
+    osr_put_u32(buf + 4, OSR_FONT_PAYLOAD);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, f->font_ref);
+    osr_put_u32(p +  4, (uint32_t)f->height);
+    osr_put_u32(p +  8, (uint32_t)f->width);
+    osr_put_u32(p + 12, (uint32_t)f->escapement);
+    osr_put_u32(p + 16, (uint32_t)f->orientation);
+    osr_put_u32(p + 20, (uint32_t)f->weight);
+    p[24] = f->italic;   p[25] = f->underline;  p[26] = f->strikeout;  p[27] = f->charset;
+    p[28] = f->out_prec; p[29] = f->clip_prec;  p[30] = f->quality;    p[31] = f->pitch_family;
+    memcpy(p + 32, f->face, 32);
+    return (size_t)8 + OSR_FONT_PAYLOAD;
+}
+
+/* TEXT — a variable-length record: the 32-byte prefix (OSR_TEXT_HDR) followed by
+ * str_len string bytes.  Returns total bytes written, or 0 if cap is too small. */
+static inline size_t osr_enc_text(uint8_t *buf, size_t cap, const osr_text *t)
+{
+    size_t total = (size_t)8 + OSR_TEXT_HDR + t->str_len;
+    if (cap < total) return 0;
+    osr_put_u32(buf, OSR_TEXT);
+    osr_put_u32(buf + 4, OSR_TEXT_HDR + t->str_len);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, t->seq);
+    osr_put_u32(p +  4, t->dst_handle);
+    osr_put_u32(p +  8, (uint32_t)t->x);
+    osr_put_u32(p + 12, (uint32_t)t->y);
+    osr_put_u32(p + 16, t->font_ref);
+    osr_put_u32(p + 20, t->color);
+    osr_put_u32(p + 24, (uint32_t)t->bk_mode);
+    osr_put_u32(p + 28, t->str_len);
+    if (t->str_len && t->str) memcpy(p + OSR_TEXT_HDR, t->str, t->str_len);
+    return total;
+}
+
 /* ── typed payload decoders (operate on the payload slice from osr_rec_next) ─*/
 static inline int osr_dec_framebeg(const uint8_t *p, uint32_t len, osr_framebeg *o)
 {
@@ -427,6 +509,35 @@ static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)
     o->byte_len = osr_get_u32(p + 20);
     if ((size_t)o->byte_len > (size_t)(len - OSR_SHEET_HDR)) return 0;
     o->bytes    = p + OSR_SHEET_HDR;
+    return 1;
+}
+static inline int osr_dec_font(const uint8_t *p, uint32_t len, osr_font *o)
+{
+    if (len < OSR_FONT_PAYLOAD) return 0;
+    o->font_ref    = osr_get_u32(p +  0);
+    o->height      = (int32_t)osr_get_u32(p +  4);
+    o->width       = (int32_t)osr_get_u32(p +  8);
+    o->escapement  = (int32_t)osr_get_u32(p + 12);
+    o->orientation = (int32_t)osr_get_u32(p + 16);
+    o->weight      = (int32_t)osr_get_u32(p + 20);
+    o->italic = p[24]; o->underline = p[25]; o->strikeout = p[26]; o->charset = p[27];
+    o->out_prec = p[28]; o->clip_prec = p[29]; o->quality = p[30]; o->pitch_family = p[31];
+    memcpy(o->face, p + 32, 32);
+    return 1;
+}
+static inline int osr_dec_text(const uint8_t *p, uint32_t len, osr_text *o)
+{
+    if (len < OSR_TEXT_HDR) return 0;
+    o->seq        = osr_get_u32(p +  0);
+    o->dst_handle = osr_get_u32(p +  4);
+    o->x          = (int32_t)osr_get_u32(p +  8);
+    o->y          = (int32_t)osr_get_u32(p + 12);
+    o->font_ref   = osr_get_u32(p + 16);
+    o->color      = osr_get_u32(p + 20);
+    o->bk_mode    = (int32_t)osr_get_u32(p + 24);
+    o->str_len    = osr_get_u32(p + 28);
+    if ((size_t)o->str_len > (size_t)(len - OSR_TEXT_HDR)) return 0;
+    o->str        = (const char *)(p + OSR_TEXT_HDR);
     return 1;
 }
 

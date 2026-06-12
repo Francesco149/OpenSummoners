@@ -195,6 +195,80 @@ int test_osr_sheet_roundtrip(void)
     return 0;
 }
 
+/* FONT — the dedup'd LOGFONTA record (M3d).  Fixed 64-byte payload; the Python
+ * reader struct.unpack's the same <I iiiii BBBB BBBB> prefix + 32-byte face. */
+int test_osr_font_roundtrip(void)
+{
+    osr_font f = {0};
+    f.font_ref = 3;
+    f.height = 18; f.width = 7; f.escapement = 0; f.orientation = 0; f.weight = 400;
+    f.italic = 0; f.underline = 0; f.strikeout = 0; f.charset = 128 /* SHIFTJIS */;
+    f.out_prec = 3; f.clip_prec = 2; f.quality = 1; f.pitch_family = 0x31;
+    strcpy(f.face, "Courier New");
+
+    uint8_t buf[8 + OSR_FONT_PAYLOAD];
+    size_t n = osr_enc_font(buf, sizeof(buf), &f);
+    T_ASSERT_EQ_U(n, 8 + OSR_FONT_PAYLOAD);
+    T_ASSERT_EQ_U(OSR_FONT_PAYLOAD, 64);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);
+    T_ASSERT_EQ_U(type, OSR_FONT);
+    T_ASSERT_EQ_U(plen, OSR_FONT_PAYLOAD);
+
+    osr_font g = {0};
+    T_ASSERT(osr_dec_font(pay, plen, &g));
+    T_ASSERT_EQ_U(g.font_ref, 3);
+    T_ASSERT_EQ_I(g.height, 18); T_ASSERT_EQ_I(g.width, 7);
+    T_ASSERT_EQ_I(g.weight, 400);
+    T_ASSERT_EQ_U(g.charset, 128);
+    T_ASSERT_EQ_U(g.out_prec, 3); T_ASSERT_EQ_U(g.clip_prec, 2);
+    T_ASSERT_EQ_U(g.quality, 1);  T_ASSERT_EQ_U(g.pitch_family, 0x31);
+    T_ASSERT(strcmp(g.face, "Courier New") == 0);
+
+    osr_font small = {0};
+    T_ASSERT_EQ_U(osr_dec_font(pay, OSR_FONT_PAYLOAD - 1, &small), 0);  /* short */
+    return 0;
+}
+
+/* TEXT — the variable-length GDI TextOut record (M3d).  Verify the 32-byte prefix
+ * (incl. the signed x/y/bk_mode) + the trailing string round-trip, framing too. */
+int test_osr_text_roundtrip(void)
+{
+    static const char s[] = "Ahh";
+    osr_text t = {0};
+    t.seq = 41; t.dst_handle = 0xbeef;
+    t.x = 72; t.y = -3;
+    t.font_ref = 3; t.color = 0x3e537d; t.bk_mode = 1 /* TRANSPARENT */;
+    t.str_len = (uint32_t)strlen(s); t.str = s;
+
+    uint8_t buf[8 + OSR_TEXT_HDR + sizeof(s)];
+    size_t n = osr_enc_text(buf, sizeof(buf), &t);
+    T_ASSERT_EQ_U(n, 8 + OSR_TEXT_HDR + strlen(s));
+    T_ASSERT_EQ_U(OSR_TEXT_HDR, 32);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);
+    T_ASSERT_EQ_U(type, OSR_TEXT);
+    T_ASSERT_EQ_U(plen, OSR_TEXT_HDR + strlen(s));
+
+    osr_text g = {0};
+    T_ASSERT(osr_dec_text(pay, plen, &g));
+    T_ASSERT_EQ_U(g.seq, 41); T_ASSERT_EQ_U(g.dst_handle, 0xbeef);
+    T_ASSERT_EQ_I(g.x, 72); T_ASSERT_EQ_I(g.y, -3);
+    T_ASSERT_EQ_U(g.font_ref, 3); T_ASSERT_EQ_U(g.color, 0x3e537d);
+    T_ASSERT_EQ_I(g.bk_mode, 1);
+    T_ASSERT_EQ_U(g.str_len, strlen(s));
+    T_ASSERT(memcmp(g.str, s, strlen(s)) == 0);
+
+    /* a header claiming more string bytes than the slice holds must be rejected */
+    osr_text bad = {0};
+    T_ASSERT_EQ_U(osr_dec_text(pay, OSR_TEXT_HDR - 1, &bad), 0);  /* short hdr */
+    return 0;
+}
+
 int test_osr_anchor_empty_name(void)
 {
     uint8_t buf[64];

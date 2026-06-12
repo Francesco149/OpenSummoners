@@ -678,6 +678,8 @@ struct test_case {
     X(osr_records_roundtrip)                                   \
     X(osr_blit_roundtrip)                                      \
     X(osr_sheet_roundtrip)                                     \
+    X(osr_font_roundtrip)                                      \
+    X(osr_text_roundtrip)                                      \
     X(osr_anchor_empty_name)                                   \
     X(osr_truncated_tail_recovers)                             \
     X(title_render_resolve_basic)                              \

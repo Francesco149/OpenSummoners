@@ -16,6 +16,7 @@ Usage:
     python3 tools/trace_studio2/osr.py FRAMES  <file.osr>          # one line per frame
     python3 tools/trace_studio2/osr.py BLITS   <file.osr> [flip]   # one frame's draw list
     python3 tools/trace_studio2/osr.py SHEETS  <file.osr>          # dedup'd source sheets
+    python3 tools/trace_studio2/osr.py TEXTS   <file.osr> [flip]   # FONT table + GDI text
 """
 from __future__ import annotations
 
@@ -113,6 +114,24 @@ class Record:
         pix = self.payload[24:24 + byte_len]
         return Sheet(dhash, res, frame, w, h, pitch, pixfmt, codec, byte_len, pix)
 
+    def font(self):
+        # mirror struct osr_font / osr_dec_font (fixed 64 bytes)
+        (font_ref, height, width, escapement, orientation, weight,
+         italic, underline, strikeout, charset,
+         out_prec, clip_prec, quality, pitch_family) = struct.unpack_from(
+            "<I iiiii BBBB BBBB", self.payload)
+        face = self.payload[32:64].split(b"\x00", 1)[0].decode("latin-1", "replace")
+        return Font(font_ref, height, width, escapement, orientation, weight,
+                    italic, underline, strikeout, charset,
+                    out_prec, clip_prec, quality, pitch_family, face)
+
+    def text(self):
+        # mirror struct osr_text / osr_dec_text (32-byte prefix + str bytes)
+        (seq, dst_handle, x, y, font_ref, color, bk_mode,
+         str_len) = struct.unpack_from("<II ii II i I", self.payload)
+        s = self.payload[32:32 + str_len].decode("latin-1", "replace")
+        return Text(seq, dst_handle, x, y, font_ref, color, bk_mode, str_len, s)
+
 
 @dataclass
 class Blit:
@@ -150,6 +169,38 @@ class Sheet:
     codec: int
     byte_len: int
     pixels: bytes = b""
+
+
+@dataclass
+class Font:
+    font_ref: int
+    height: int
+    width: int
+    escapement: int
+    orientation: int
+    weight: int
+    italic: int
+    underline: int
+    strikeout: int
+    charset: int
+    out_prec: int
+    clip_prec: int
+    quality: int
+    pitch_family: int
+    face: str
+
+
+@dataclass
+class Text:
+    seq: int
+    dst_handle: int
+    x: int
+    y: int
+    font_ref: int
+    color: int
+    bk_mode: int
+    str_len: int
+    text: str
 
 
 # the 5 source-bearing blit primitives (mirror zdd.c / engine_hooks.h)
@@ -206,6 +257,31 @@ class Osr:
         for r in self.records:
             if r.type == SHEET:
                 yield r.sheet()
+
+    def fonts(self):
+        for r in self.records:
+            if r.type == FONT:
+                yield r.font()
+
+    def texts(self):
+        for r in self.records:
+            if r.type == TEXT:
+                yield r.text()
+
+    def frames_with_texts(self):
+        """Yield (flip, sim_tick, [Text, ...]) per frame — the TEXT records
+        between a FRAMEBEG and the next FRAMEBEG belong to that frame."""
+        cur = None
+        for r in self.records:
+            if r.type == FRAMEBEG:
+                if cur is not None:
+                    yield cur
+                flip, tick, _ = r.framebeg()
+                cur = (flip, tick, [])
+            elif r.type == TEXT and cur is not None:
+                cur[2].append(r.text())
+        if cur is not None:
+            yield cur
 
 
 def parse(path: str) -> Osr:
@@ -299,6 +375,20 @@ def cmd_summary(path: str) -> int:
         print(f"sheets    : {len(sheets)}  distinct_dhash={len(uniq)}  "
               f"pixels={total/1024:.0f} KiB  "
               + " ".join(f"{PIXFMT_NAME.get(f, f)}={c}" for f, c in sorted(fmts.items())))
+    fonts = list(o.fonts())
+    if fonts:
+        faces = sorted({f"{f.face}/{f.height}" for f in fonts})
+        print(f"fonts     : {len(fonts)}  " + " ".join(faces))
+    texts = list(o.texts())
+    if texts:
+        named = sum(1 for t in texts if t.font_ref)
+        dst_ok = sum(1 for t in texts if t.dst_handle)
+        ft = [(fl, len(tl)) for fl, _, tl in o.frames_with_texts() if tl]
+        colors = {t.color for t in texts}
+        print(f"texts     : {len(texts)}  font_ref set={named} "
+              f"({100*named//len(texts)}%)  dst_handle set={dst_ok} "
+              f"({100*dst_ok//len(texts)}%)  distinct_colors={len(colors)}  "
+              f"frames_w_text={len(ft)}")
     print(f"anchors   : {len(anchors)}")
     for flip, tick, rng, name in anchors:
         print(f"    {name:<16} flip={flip} sim_tick={tick} rng=0x{rng:x}")
@@ -348,8 +438,40 @@ def cmd_sheets(path: str) -> int:
     return 0
 
 
+BKMODE_NAME = {1: "TRANSPARENT", 2: "OPAQUE"}
+
+
+def cmd_texts(path: str, want_flip: int | None) -> int:
+    """Dump the GDI TEXT stream (M3d): the FONT table, then per-frame TextOut ops."""
+    o = parse(path)
+    fonts = list(o.fonts())
+    print(f"== {len(fonts)} FONT records ==")
+    for f in fonts:
+        print(f"  ref={f.font_ref} '{f.face}' h={f.height} w={f.width} "
+              f"weight={f.weight} italic={f.italic} charset={f.charset} "
+              f"pitch_family=0x{f.pitch_family:02x}")
+    shown = False
+    for flip, tick, tl in o.frames_with_texts():
+        if not tl:
+            continue
+        if want_flip is not None and flip != want_flip:
+            continue
+        print(f"== frame flip={flip} sim_tick={tick}  {len(tl)} texts ==")
+        for t in tl:
+            print(f"  #{t.seq:<3} ({t.x},{t.y}) ref={t.font_ref} "
+                  f"color=0x{t.color:06x} bk={BKMODE_NAME.get(t.bk_mode, t.bk_mode)} "
+                  f"dst={t.dst_handle} {t.text!r}")
+        shown = True
+        if want_flip is None:
+            break
+    if not shown:
+        print("(no frame with text found)")
+    return 0
+
+
 def main(argv) -> int:
-    if len(argv) < 3 or argv[1] not in ("SUMMARY", "FRAMES", "BLITS", "SHEETS"):
+    if len(argv) < 3 or argv[1] not in (
+            "SUMMARY", "FRAMES", "BLITS", "SHEETS", "TEXTS"):
         print(__doc__)
         return 2
     if argv[1] == "SUMMARY":
@@ -359,6 +481,9 @@ def main(argv) -> int:
         return cmd_blits(argv[2], flip)
     if argv[1] == "SHEETS":
         return cmd_sheets(argv[2])
+    if argv[1] == "TEXTS":
+        flip = int(argv[3]) if len(argv) > 3 else None
+        return cmd_texts(argv[2], flip)
     return cmd_frames(argv[2])
 
 
