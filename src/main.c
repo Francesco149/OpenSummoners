@@ -88,6 +88,7 @@
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
 #include "cutscene.h"         /* the town-arrival dialogue sequence (0x4d7d80 case 0x334be) */
 #include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
+#include "osr_recon.h"        /* --osr-replay: reconstruct frames from a .osr (M4) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -527,6 +528,19 @@ static const char *g_capture_dir = g_capture_dir_buf;
 static int       g_render_glyph_test;
 static int       g_glyph_test_font = 2;
 
+/* --osr-replay <file.osr> [--osr-out <dir>] [--osr-replay-frames i,j] — Trace
+ * Studio v2 M4: reconstruct frames from a captured .osr draw stream.  After the
+ * DDraw boot we stream the .osr (osr_recon.c) and replay each frame's blits +
+ * GDI text onto the offscreen primary surface, snapshotting the wanted frames to
+ * <dir>/recon_<flip>_t<tick>.bmp, then exit.  An empty frame whitelist renders
+ * every frame.  Forces a headless windowed boot (no title scene). */
+#define OSR_REPLAY_FRAMES_CAP 4096
+static char       g_osr_replay_path_buf[1024];
+static const char *g_osr_replay_path;
+static char       g_osr_out_dir_buf[1024] = ".";
+static unsigned   g_osr_replay_frames[OSR_REPLAY_FRAMES_CAP];
+static size_t     g_n_osr_replay_frames;
+
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
 static int  create_main_window(void);
@@ -581,6 +595,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         "--held-trace");
     resolve_launch_path(g_call_trace_path_buf, sizeof g_call_trace_path_buf,
                         "--call-trace");
+    resolve_launch_path(g_osr_replay_path_buf, sizeof g_osr_replay_path_buf,
+                        "--osr-replay");
+
+    /* --osr-replay is a self-contained reconstruction mode: it builds its own
+     * source surfaces + fonts from the .osr and snapshots to BMP, so it needs
+     * neither a visible window nor the title scene.  Force headless. */
+    if (g_osr_replay_path != NULL) {
+        g_hide_window    = 1;
+        g_no_title_scene = 1;
+    }
 
     /* Open the port-side call trace (no-op unless --call-trace given).
      * Done before any traced function (boot DDraw path) can run. */
@@ -660,6 +684,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * there anyway). */
     if (g_zdd != NULL)
         zdd_set_present_hwnd(g_hwnd);
+
+    /* --osr-replay: reconstruct frames from a captured .osr, then exit.  Runs
+     * before init_title_drive (forced off above) — it composes onto the same
+     * offscreen primary surface the title scene would, building its own source
+     * surfaces (SHEET) + HFONTs (FONT) from the stream.  No sprite banks needed. */
+    if (g_osr_replay_path != NULL && g_zdd != NULL && g_zdd->primary_obj != NULL) {
+        osr_recon_run(g_zdd, g_zdd->primary_obj, g_osr_out_dir_buf,
+                      g_osr_replay_path, g_osr_replay_frames,
+                      g_n_osr_replay_frames);
+        g_shutdown = 1;
+    }
 
     /* Register the title sprite banks from sotesd.dll BEFORE the drive starts,
      * so the render sink's bank getter (ar_pool_get_slot 19/20) resolves to
@@ -3383,6 +3418,44 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strcmp(tok, "--glyph-test-font")) {
             tok = strtok(NULL, " \t");
             if (tok) g_glyph_test_font = (int)strtol(tok, NULL, 0);
+        }
+        else if (!strcmp(tok, "--osr-replay")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_osr_replay_path_buf, tok,
+                        sizeof(g_osr_replay_path_buf) - 1);
+                g_osr_replay_path = g_osr_replay_path_buf;
+            }
+        }
+        else if (!strncmp(tok, "--osr-replay=", 13)) {
+            strncpy(g_osr_replay_path_buf, tok + 13,
+                    sizeof(g_osr_replay_path_buf) - 1);
+            g_osr_replay_path = g_osr_replay_path_buf;
+        }
+        else if (!strcmp(tok, "--osr-out")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_osr_out_dir_buf, tok, sizeof(g_osr_out_dir_buf) - 1);
+                g_osr_out_dir_buf[sizeof(g_osr_out_dir_buf) - 1] = '\0';
+            }
+        }
+        else if (!strncmp(tok, "--osr-out=", 10)) {
+            strncpy(g_osr_out_dir_buf, tok + 10, sizeof(g_osr_out_dir_buf) - 1);
+            g_osr_out_dir_buf[sizeof(g_osr_out_dir_buf) - 1] = '\0';
+        }
+        else if (!strcmp(tok, "--osr-replay-frames") ||
+                 !strncmp(tok, "--osr-replay-frames=", 20)) {
+            const char *list = NULL;
+            if (!strncmp(tok, "--osr-replay-frames=", 20)) list = tok + 20;
+            else                                           list = strtok(NULL, " \t");
+            while (list && *list && g_n_osr_replay_frames < OSR_REPLAY_FRAMES_CAP) {
+                char *end = NULL;
+                unsigned v = (unsigned)strtoul(list, &end, 10);
+                if (end == list) break;
+                g_osr_replay_frames[g_n_osr_replay_frames++] = v;
+                list = end;
+                while (*list == ',' || *list == ' ') list++;
+            }
         }
         tok = strtok(NULL, " \t");
     }
