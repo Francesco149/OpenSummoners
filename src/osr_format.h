@@ -219,6 +219,29 @@ typedef struct osr_blit {
 
 #define OSR_BLIT_PAYLOAD 76u   /* the fixed BLIT payload size (see osr_enc_blit) */
 
+/* SHEET — the dedup'd decoded SOURCE pixels a blit reads from (M3c).  Written
+ * ONCE per unique source surface (dedup'd by dhash); BLIT.dhash references it.
+ * The replayer (M4) rebuilds a source surface from each SHEET, then replays the
+ * frame's BLITs reading sub-rects (sx,sy,reqw,reqh) out of it.
+ *   dhash      — FNV-1a of (w,h,pixfmt-seed) + the raw pixel bytes; the sheet_ref
+ *   res/frame  — a representative (resource_id, frame) that first referenced it
+ *   w,h        — surface dimensions in pixels
+ *   pitch      — bytes per row as captured (Lock pitch; may exceed w*bytespp)
+ *   pixfmt     — OSR_PIXFMT_* of the captured bytes
+ *   codec      — 0 = raw, 1 = miniz/zlib (deferred; raw first per port-debt)
+ *   bytes      — pitch*h bytes of the (possibly compressed) surface contents */
+typedef struct osr_sheet {
+    uint32_t dhash;
+    uint16_t res, frame;
+    uint16_t w, h;
+    uint32_t pitch;
+    uint8_t  pixfmt, codec;
+    uint32_t byte_len;
+    const uint8_t *bytes;   /* not owned; len = byte_len */
+} osr_sheet;
+
+#define OSR_SHEET_HDR 24u    /* the fixed-size SHEET payload prefix before bytes */
+
 /* ── typed encoders (write a complete framed record) ──────────────────────── */
 static inline size_t osr_enc_framebeg(uint8_t *buf, size_t cap,
                                       uint32_t flip, uint32_t sim_tick,
@@ -297,6 +320,43 @@ static inline size_t osr_enc_blit(uint8_t *buf, size_t cap, const osr_blit *b)
     return (size_t)8 + OSR_BLIT_PAYLOAD;
 }
 
+/* SHEET — write only the framed 8-byte header + the 24-byte prefix (NOT the
+ * pixel bytes), with the len field accounting for the full byte_len.  Lets a
+ * writer stream large pixel payloads straight into its ring after the prefix
+ * (one copy, no temp buffer).  Returns 8 + OSR_SHEET_HDR, or 0 if cap is short. */
+static inline size_t osr_enc_sheet_prefix(uint8_t *buf, size_t cap,
+                                          const osr_sheet *s)
+{
+    if (cap < (size_t)8 + OSR_SHEET_HDR) return 0;
+    osr_put_u32(buf, OSR_SHEET);
+    osr_put_u32(buf + 4, OSR_SHEET_HDR + s->byte_len);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, s->dhash);
+    osr_put_u16(p +  4, s->res);
+    osr_put_u16(p +  6, s->frame);
+    osr_put_u16(p +  8, s->w);
+    osr_put_u16(p + 10, s->h);
+    osr_put_u32(p + 12, s->pitch);
+    p[16] = s->pixfmt;
+    p[17] = s->codec;
+    p[18] = 0; p[19] = 0;            /* reserved */
+    osr_put_u32(p + 20, s->byte_len);
+    return (size_t)8 + OSR_SHEET_HDR;
+}
+
+/* SHEET — a variable-length record: the 24-byte prefix (OSR_SHEET_HDR) followed
+ * by byte_len bytes of (possibly compressed) pixels.  Returns total bytes
+ * written, or 0 if cap is too small. */
+static inline size_t osr_enc_sheet(uint8_t *buf, size_t cap, const osr_sheet *s)
+{
+    size_t total = (size_t)8 + OSR_SHEET_HDR + s->byte_len;
+    if (cap < total) return 0;
+    osr_enc_sheet_prefix(buf, cap, s);
+    if (s->byte_len && s->bytes)
+        memcpy(buf + 8 + OSR_SHEET_HDR, s->bytes, s->byte_len);
+    return total;
+}
+
 /* ── typed payload decoders (operate on the payload slice from osr_rec_next) ─*/
 static inline int osr_dec_framebeg(const uint8_t *p, uint32_t len, osr_framebeg *o)
 {
@@ -351,6 +411,22 @@ static inline int osr_dec_blit(const uint8_t *p, uint32_t len, osr_blit *o)
     o->ckey  = osr_get_u32(p + 64);
     o->bmode = (int32_t)osr_get_u32(p + 68);
     o->mode  = osr_get_u32(p + 72);
+    return 1;
+}
+static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)
+{
+    if (len < OSR_SHEET_HDR) return 0;
+    o->dhash    = osr_get_u32(p +  0);
+    o->res      = osr_get_u16(p +  4);
+    o->frame    = osr_get_u16(p +  6);
+    o->w        = osr_get_u16(p +  8);
+    o->h        = osr_get_u16(p + 10);
+    o->pitch    = osr_get_u32(p + 12);
+    o->pixfmt   = p[16];
+    o->codec    = p[17];
+    o->byte_len = osr_get_u32(p + 20);
+    if ((size_t)o->byte_len > (size_t)(len - OSR_SHEET_HDR)) return 0;
+    o->bytes    = p + OSR_SHEET_HDR;
     return 1;
 }
 

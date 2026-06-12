@@ -157,6 +157,44 @@ int test_osr_blit_roundtrip(void)
     return 0;
 }
 
+/* SHEET — the variable-length dedup'd source-pixel record (M3c).  Verify the
+ * 24-byte prefix + the trailing pixel bytes round-trip, framing included (the
+ * Python reader struct.unpack's the same <I HH HH I BB xx I> prefix). */
+int test_osr_sheet_roundtrip(void)
+{
+    static const uint8_t pix[7] = { 0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03 };
+    osr_sheet s = {0};
+    s.dhash = 0x12345678; s.res = 0x91b; s.frame = 5;
+    s.w = 64; s.h = 48; s.pitch = 128;
+    s.pixfmt = OSR_PIXFMT_RGB565; s.codec = 0;
+    s.byte_len = sizeof(pix); s.bytes = pix;
+
+    uint8_t buf[8 + OSR_SHEET_HDR + sizeof(pix)];
+    size_t n = osr_enc_sheet(buf, sizeof(buf), &s);
+    T_ASSERT_EQ_U(n, 8 + OSR_SHEET_HDR + sizeof(pix));
+    T_ASSERT_EQ_U(OSR_SHEET_HDR, 24);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);                 /* consumed exactly */
+    T_ASSERT_EQ_U(type, OSR_SHEET);
+    T_ASSERT_EQ_U(plen, OSR_SHEET_HDR + sizeof(pix));
+
+    osr_sheet g = {0};
+    T_ASSERT(osr_dec_sheet(pay, plen, &g));
+    T_ASSERT_EQ_U(g.dhash, 0x12345678);
+    T_ASSERT_EQ_U(g.res, 0x91b); T_ASSERT_EQ_U(g.frame, 5);
+    T_ASSERT_EQ_U(g.w, 64); T_ASSERT_EQ_U(g.h, 48); T_ASSERT_EQ_U(g.pitch, 128);
+    T_ASSERT_EQ_U(g.pixfmt, OSR_PIXFMT_RGB565); T_ASSERT_EQ_U(g.codec, 0);
+    T_ASSERT_EQ_U(g.byte_len, sizeof(pix));
+    T_ASSERT(memcmp(g.bytes, pix, sizeof(pix)) == 0);
+
+    /* a header claiming more bytes than the slice holds must be rejected */
+    osr_sheet bad = {0};
+    T_ASSERT_EQ_U(osr_dec_sheet(pay, OSR_SHEET_HDR - 1, &bad), 0);  /* short hdr */
+    return 0;
+}
+
 int test_osr_anchor_empty_name(void)
 {
     uint8_t buf[64];
