@@ -15,6 +15,7 @@ Usage:
     python3 tools/trace_studio2/osr.py SUMMARY <file.osr>
     python3 tools/trace_studio2/osr.py FRAMES  <file.osr>          # one line per frame
     python3 tools/trace_studio2/osr.py BLITS   <file.osr> [flip]   # one frame's draw list
+    python3 tools/trace_studio2/osr.py SHEETS  <file.osr>          # dedup'd source sheets
 """
 from __future__ import annotations
 
@@ -105,6 +106,13 @@ class Record:
                     dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
                     state, ckey, bmode, mode)
 
+    def sheet(self):
+        # mirror struct osr_sheet / osr_dec_sheet (24-byte prefix + bytes)
+        (dhash, res, frame, w, h, pitch, pixfmt, codec,
+         _rsv, byte_len) = struct.unpack_from("<I HH HH I BB H I", self.payload)
+        pix = self.payload[24:24 + byte_len]
+        return Sheet(dhash, res, frame, w, h, pitch, pixfmt, codec, byte_len, pix)
+
 
 @dataclass
 class Blit:
@@ -128,6 +136,20 @@ class Blit:
     ckey: int
     bmode: int
     mode: int
+
+
+@dataclass
+class Sheet:
+    dhash: int
+    res: int
+    frame: int
+    w: int
+    h: int
+    pitch: int
+    pixfmt: int
+    codec: int
+    byte_len: int
+    pixels: bytes = b""
 
 
 # the 5 source-bearing blit primitives (mirror zdd.c / engine_hooks.h)
@@ -179,6 +201,11 @@ class Osr:
         for r in self.records:
             if r.type == SEED:
                 yield r.seed()
+
+    def sheets(self):
+        for r in self.records:
+            if r.type == SHEET:
+                yield r.sheet()
 
 
 def parse(path: str) -> Osr:
@@ -239,21 +266,39 @@ def cmd_summary(path: str) -> int:
               f"flip {flips[0]}..{flips[-1]}  sim_tick {min(ticks)}..{max(ticks)}")
     nblit = counts.get(BLIT, 0)
     if nblit:
+        all_blits = list(o.blits())           # decode once; several stats below
         fb = [(fl, len(bl)) for fl, _, bl in o.frames_with_blits() if bl]
-        named = sum(1 for b in o.blits() if b.res)
+        named = sum(1 for b in all_blits if b.res)
         per_va: dict[int, int] = {}
-        for b in o.blits():
+        for b in all_blits:
             per_va[b.va] = per_va.get(b.va, 0) + 1
         print(f"blits     : {nblit}  named(res!=0)={named} "
               f"({100*named//nblit if nblit else 0}%)  "
               + " ".join(f"{BLIT_VA_NAME.get(v, hex(v))}={c}"
                          for v, c in sorted(per_va.items())))
+        # M3c coverage: how many blits carry a dest handle / a source dhash
+        dst_ok = sum(1 for b in all_blits if b.dst_handle)
+        dh_ok = sum(1 for b in all_blits if b.dhash)
+        dst_handles = {b.dst_handle for b in all_blits if b.dst_handle}
+        print(f"            dst_handle set={dst_ok} ({100*dst_ok//nblit}%) "
+              f"distinct={len(dst_handles)}  "
+              f"src dhash set={dh_ok} ({100*dh_ok//nblit}%)")
         if fb:
             cnts = [c for _, c in fb]
             busiest = max(fb, key=lambda x: x[1])
             print(f"            {len(fb)} frames w/ blits, "
                   f"{min(cnts)}..{max(cnts)} per frame "
                   f"(busiest flip={busiest[0]}: {busiest[1]})")
+    sheets = list(o.sheets())
+    if sheets:
+        total = sum(s.byte_len for s in sheets)
+        uniq = {s.dhash for s in sheets}
+        fmts: dict[int, int] = {}
+        for s in sheets:
+            fmts[s.pixfmt] = fmts.get(s.pixfmt, 0) + 1
+        print(f"sheets    : {len(sheets)}  distinct_dhash={len(uniq)}  "
+              f"pixels={total/1024:.0f} KiB  "
+              + " ".join(f"{PIXFMT_NAME.get(f, f)}={c}" for f, c in sorted(fmts.items())))
     print(f"anchors   : {len(anchors)}")
     for flip, tick, rng, name in anchors:
         print(f"    {name:<16} flip={flip} sim_tick={tick} rng=0x{rng:x}")
@@ -290,8 +335,21 @@ def cmd_blits(path: str, want_flip: int | None) -> int:
     return 0
 
 
+def cmd_sheets(path: str) -> int:
+    """Dump the dedup'd SHEET records (the source-pixel sheets, M3c)."""
+    o = parse(path)
+    sheets = list(o.sheets())
+    print(f"== {len(sheets)} SHEET records ==")
+    for s in sheets:
+        print(f"  dhash=0x{s.dhash:08x} res={s.res} frame={s.frame} "
+              f"{s.w}x{s.h} pitch={s.pitch} "
+              f"{PIXFMT_NAME.get(s.pixfmt, s.pixfmt)} codec={s.codec} "
+              f"bytes={s.byte_len}")
+    return 0
+
+
 def main(argv) -> int:
-    if len(argv) < 3 or argv[1] not in ("SUMMARY", "FRAMES", "BLITS"):
+    if len(argv) < 3 or argv[1] not in ("SUMMARY", "FRAMES", "BLITS", "SHEETS"):
         print(__doc__)
         return 2
     if argv[1] == "SUMMARY":
@@ -299,6 +357,8 @@ def main(argv) -> int:
     if argv[1] == "BLITS":
         flip = int(argv[3]) if len(argv) > 3 else None
         return cmd_blits(argv[2], flip)
+    if argv[1] == "SHEETS":
+        return cmd_sheets(argv[2])
     return cmd_frames(argv[2])
 
 

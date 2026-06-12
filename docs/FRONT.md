@@ -17,28 +17,33 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M3b LANDED: the native BLIT draw-stream is captured. The retail
-  proxy records the ORDERED 5-primitive blit op list + the render-id identity per frame (INT3+VEH detours,
-  NO Frida) → an `.osr` carries the full draw list keyed to the load-stable `(resource_id,frame)`
-  `render_diff.py` aligns on, captured at FULL TURBO (~950 fps in-game via an E9-jmp trampoline). 989 host
-  pass (+1). Commits `cc63407` (M3b feat) + `ee55e5b`/`50ec26b` (perf: RWX pages + E9 trampoline) + 5 prior.**
-  - **M3b — the BLIT op stream.** `src/osr_format.h` grew the `OSR_BLIT` record (fixed 76-B payload =
-    render_diff's schema: `va/seq`, `res/frame`, `dhash/dst_handle`, `dx,dy,reqw,reqh,sx,sy`, `ow,oh,ox,oy`,
-    `state/ckey/bmode/mode`). `tools/capture_proxy/render_id.h` (NEW, retail mirror of `src/render_id.c`):
-    cel→`(res,frame)` registry, populated by the resolver detour `0x418470` which COMPUTES the cel AT onEnter
-    from the decompile (`cel = *(*(*slot)+frame*4)` when the bank is decoded) — so M3b stays on the proven
-    onEnter-only framework, NO onLeave. `engine_hooks.h` detours the 5 blit VAs reading geometry+cel-fields
-    per the decompiled arg conventions (thiscall ECX=cel except alpha cdecl cel=arg[1]; alpha bmode from the
-    forwarded blend-desc ECX); flip restructured to FRAMEBEG-at-open / draws / PRESENT-at-flip + a per-frame
-    draw seq. `osr.py` decodes BLIT + the `BLITS` draw-list dump + per-VA/named% stats. **PROVEN** (nav
-    `runs/proxy-m2b` → game_enter): 867k blits / 2377 frames, **89% render-id-named**, all 3 anchors + both
-    seed pins; the town establishing shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop
-    columns, res=2234 clipped 32×32 sub-tiles at the camera scroll, KEYSRC ckey 0xf81f) — matching the
-    documented town render. **PERF — FULL TURBO RESTORED** (measured): in-game town ~25 fps first cut →
-    ~56 fps (RWX pages, `ee55e5b`) → **~950 fps (E9-jmp trampoline, `50ec26b`)**. The 6 hot hooks (resolver
-    + 5 blits) are now inline 5-byte E9 jumps (ZERO exceptions/hit) vs the rare hooks' INT3+VEH; a 30 s run
-    captures 29k frames / 14.6M blits, byte-identical geometry to the INT3 baseline. `dhash/dst_handle` stay
-    0 retail-side until M3c.
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M3c LANDED: the SOURCE pixels + surface identity are captured —
+  the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
+  the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls
+  `dest->Blt(&dr, src, &sr, …)` via vtable +0x14), so the proxy interns those raw surface pointers + grabs
+  source pixels straight from the blit detour. Per a fresh nav→town capture: `dst_handle` 100% set
+  (1 distinct = the backbuffer), src `dhash` 100% set, **496 SHEETs / 420 distinct (9.4 MiB raw RGB565)**,
+  header re-stamped `640×480 RGB565` (was UNKNOWN), all 3 anchors + both seed pins byte-identical to M3b,
+  90% named, **912 fps in-game** (<4% vs M3b's 950 — well under the 10% budget, no Lock stall/crash).
+  990 host pass (+1). Two commits this step (M3c-fmt SHEET record+test; M3c proxy+reader).**
+  - **M3c — surface identity + SHEET (the source-pixel grab).** `src/osr_format.h` grew the variable-length
+    `OSR_SHEET` record (24-B prefix `dhash/res/frame/w/h/pitch/pixfmt/codec/byte_len` + raw pixels) +
+    `osr_enc_sheet_prefix` so the writer streams big pixel payloads into the ring with ONE copy.
+    `tools/capture_proxy/surface_id.h` (NEW) interns surface ptr→stable handle; `sheet_grab.h` (NEW) Locks a
+    source surface READONLY on first sighting, FNV-1a's it (mirroring `asset_register.c`'s w/h/bitcount+pixels
+    seed order), emits one dedup'd SHEET per surface ptr, caches the dhash; `engine_pixfmt.h` (NEW) classifies
+    `DDPIXELFORMAT`→`OSR_PIXFMT_*`. `engine_hooks.h` reads the dest surface (`*(void**)(arg0+0x2c)`) → handle
+    + first-one fixes the header, and the src surface (`*(void**)(cel+0x2c)`) → SHEET → BLIT `dhash`.
+    `osr_writer.h` re-stamps the header at offset 0 from the bg thread once the first desc lands.
+    `osr.py` decodes SHEET (+`SHEETS` dump, dst/dhash coverage in SUMMARY). The captured sheets are coherent:
+    640×480 backdrop/scroll layers, a sparkle particle series (22→20→…→6), 18× 160×176 portrait busts, 32×32
+    town tiles. **KNOWN follow-ups (NOT bugs):** raw SHEET pixels (miniz deferred → `PORT-DEBT(osr-sheet-compression)`);
+    the retail dhash won't byte-match the port's cross-side (native pitch/pixfmt differ → a legit render_diff
+    `[decode]` signal, `PORT-DEBT(osr-sheet-dhash-xside)`); the alpha (mode-4) source is a GDI/`paint_ctx`
+    blend whose `+0x2c` surface grab is best-effort.
+  - **M3b (prior): the native BLIT draw-stream** — the ORDERED 5-primitive blit op list + the render-id
+    identity per frame (INT3+VEH + E9-jmp trampoline detours, NO Frida) keyed to the load-stable
+    `(resource_id,frame)` `render_diff.py` aligns on, FULL TURBO. Commits `cc63407` + `ee55e5b`/`50ec26b`.
   - **M3a (prior) — `.osr` format + the cheap records.** `src/osr_format.h` codec + `osr_writer.h` (bg-thread
     ring → `C:\` `.osr`) + FRAMEBEG/PRESENT/ANCHOR/SEED records + `osr.py`. PROVEN on a real boot (417 KB,
     11585 frames). Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes.
@@ -63,17 +68,16 @@
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — M3c: the COM wrap + SHEET (the risky piece).** The M3b PERF FORK is FULLY RESOLVED: the cheap
-  RWX-pages win (`ee55e5b`, ~25→56 fps) + the E9-jmp trampoline (`50ec26b`, ~56→**950 fps**, full turbo).
-  The 6 hot hooks are inline 5-byte E9 jumps (`trampoline.h`: per-hook thunk pushad/pushfd→call cb→popad +
-  a relay of the relocated head bytes; head bytes hardcoded from the unpacked exe, no length-disassembler);
-  the rare hooks stay on INT3+VEH. So the draw-stream capture is now turbo + complete + integrity-verified.
-  **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
-  identity → `dst_handle`; the one-time dedup'd source-sheet grab → SHEET via the render_id FNV-1a + miniz;
-  corrects the header pixfmt/screen from `DDSURFACEDESC2`; backfills BLIT `dhash`/`dst_handle`) — the risky
-  piece, isolated; **M3d** GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct
-  (`--osr-replay`), M5 port emitter (`src/osr_emit.c`), M6 the tick-join studio (`:8780`). Plan:
-  `plans/trace-studio-v2.md`.
+  **NEXT — M3d: GDI text → TEXT/FONT.** The draw stream now carries blits + sources + surface identity; the
+  one remaining draw class is GDI text (the engine `TextOutA`s straight onto the backbuffer, outside the 5
+  blits — `findings/text-glyph-pipeline.md`). **M3d** = hook `gdi32!TextOutA`/`ExtTextOutA` +
+  `SelectObject`/`CreateFontIndirectA`/`SetTextColor` → TEXT records (dst_handle, x, y, string, font_ref,
+  color, bk_mode) + dedup'd FONT records (LOGFONTA). With M3d the `.osr` is a COMPLETE frame description.
+  Then **M4** reconstruct (`opensummoners.exe --osr-replay` — rebuild a source surface per SHEET, replay each
+  frame's BLITs through `zdd.c` + TEXT through `glyph_render_win32.c`'s real GDI; the `--validate`
+  `differ_px==0` gate vs one real snapshot), **M5** port emitter (`src/osr_emit.c` → same `.osr`), **M6** the
+  tick-join studio (`:8780` scrub). Plan: `plans/trace-studio-v2.md`. Two M3c follow-ups are tagged
+  PORT-DEBT (raw SHEET pixels → miniz; cross-side dhash reconciliation) — neither blocks M3d/M4.
 - **Prior (ckpt 124): the dialogue PORTRAITS are UN-MVP'd + ALIGNED — the bust RESOLVES per speaker AND
   the right face-table VARIANT per line (USER-CONFIRMED correct). `src/portrait.{c,h}` + the embedded
   face table; 982 host pass (+4); commits `ce1af81` (per-speaker) + `1a527cb` (per-line variant). Montages

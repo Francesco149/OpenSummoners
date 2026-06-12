@@ -1,15 +1,18 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2+M3a+M3b LANDED. M1+M2: proxy auto-loads, native headless
-> turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
+> Status (2026-06-12): M1+M2+M3a+M3b+M3c LANDED. M1+M2: proxy auto-loads, native
+> headless turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
 > (`src/osr_format.h`) + the bg-thread ring writer (`osr_writer.h`) + the cheap
 > records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py`. M3b: the BLIT op stream — the
 > 5 blit detours + the cel→(res,frame) registry (`render_id.h`, onEnter-computed) →
-> OSR_BLIT records. PROVEN on a real boot to game_enter (867k blits, 89% named, all
-> anchors). PERF — FULL TURBO RESTORED: in-game town ~25 → ~56 (RWX pages `ee55e5b`)
-> → ~950 fps (E9-jmp trampoline `50ec26b`, `trampoline.h`). M3c (COM wrap + SHEET)
-> is NEXT.
+> OSR_BLIT records, FULL TURBO (~950 fps, E9-jmp trampoline `50ec26b`). M3c: source
+> pixels + surface identity — NO COM vtable wrap needed (the blit decompiles showed
+> cel/dest hold a real IDirectDrawSurface7* at +0x2c), so the proxy interns surface
+> ptrs (`surface_id.h`) + grabs source pixels from the blit detour (`sheet_grab.h`)
+> → SHEET records + BLIT dhash/dst_handle + header pixfmt re-stamp. PROVEN on a
+> nav→town capture (dst_handle/dhash 100% set, 496 SHEETs/420 distinct, 912 fps).
+> M3d (GDI text → TEXT/FONT) is NEXT.
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -383,10 +386,25 @@ it earliest. Each milestone is independently testable.
     head bytes hardcoded from the unpacked exe, no length-disassembler), ZERO exceptions/
     hit, ~56 → **~950 fps** (full turbo). Rare hooks stay INT3+VEH. A 30 s run = 29k
     frames / 14.6M blits, geometry byte-identical to the INT3 baseline.
-  - **M3c — COM wrap + SHEET (the risky piece, isolated).** Wrap the DDraw7 + Surface7
-    vtables for surface identity (stable dst handles) + the one-time dedup'd source-pixel
-    grab → SHEET records (dhash via the render_id FNV-1a, miniz-compressed). Backfills the
-    BLIT `dhash`/`dst_handle` and corrects the header pixfmt/screen from `DDSURFACEDESC2`.
+  - **M3c — surface identity + SHEET. ✓ DONE (ckpt 125).** The "risky COM vtable wrap"
+    turned out UNNECESSARY: the blit decompiles (`5b9a40.c` etc.) showed each cel/dest holds
+    a real `IDirectDrawSurface7*` at `+0x2c` and the engine calls `dest->Blt(&dr, src, &sr,
+    flags, NULL)` via vtable +0x14 — so the proxy interns the RAW surface pointers
+    (`surface_id.h`: ptr→stable handle) + grabs source pixels straight from the blit detour
+    (`sheet_grab.h`: Lock READONLY on first sighting → FNV-1a dhash mirroring the port's
+    `asset_register.c` seed order → one dedup'd SHEET per surface ptr), NO surface wrapping
+    + NO per-blit COM overhead. `engine_hooks.h` reads the dest surface → `dst_handle` (+ the
+    first one re-stamps the header pixfmt/screen from its `DDSURFACEDESC2`, applied at offset 0
+    by the bg writer thread) and the src surface → SHEET → BLIT `dhash`. `OSR_SHEET` is a
+    variable-length record (`osr_format.h`, `osr_enc_sheet_prefix` streams big payloads with
+    one ring copy); `osr.py` decodes it. PROVEN (nav→town): `dst_handle` 100% set (1 distinct =
+    backbuffer), `dhash` 100% set, 496 SHEETs / 420 distinct (9.4 MiB raw RGB565), header
+    `640×480 RGB565`, all anchors + seed pins byte-identical to M3b, 90% named, **912 fps**
+    (<4% over M3b). FOLLOW-UPS (tagged PORT-DEBT, NON-blocking): raw SHEET pixels (miniz
+    deferred → `osr-sheet-compression`); the retail dhash won't byte-match the port's
+    cross-side (native pitch/pixfmt differ → a legit render_diff `[decode]` signal →
+    `osr-sheet-dhash-xside`); the alpha (mode-4) source is a GDI/`paint_ctx` blend so its
+    `+0x2c` grab is best-effort.
   - **M3d — GDI text.** Hook `gdi32!TextOutA`/`ExtTextOutA` + `SelectObject`/
     `CreateFontIndirectA` → TEXT/FONT records.
 - **M4 — reconstruct.** `opensummoners.exe --osr-replay` rebuilds frames 1:1; the
@@ -404,9 +422,11 @@ it earliest. Each milestone is independently testable.
   replay) — the GDI blocker is void because reconstruction runs on Windows.
 - **Frame scrub first**, draw-call/data drill-in later — incremental growth into a
   complete v1 replacement.
-- **Proxy scope:** wrap DDraw COM *and* inline-detour the engine VAs (the COM wrap
-  gives surface identity for the draw stream + one-time source grab; the VA detours
-  give the engine's `res`/`frame`/state semantics + clock/seed/input/anchors). The
-  god-object surface pointer (`0x8a93cc`→`+0x16c`→`+0x2c`) is the fallback for the
-  `--validate` real-snapshot only.
+- **Proxy scope (REVISED at M3c):** inline-detour the engine VAs only — NO COM vtable
+  wrap. The VA detours give the engine's `res`/`frame`/state semantics + clock/seed/
+  input/anchors AND (M3c finding) the surface identity for free: each cel/dest holds a
+  real `IDirectDrawSurface7*` at `+0x2c`, so the blit detour interns those pointers for
+  `dst_handle` + Locks the source for the SHEET, with no surface wrapping and no per-blit
+  COM overhead. The god-object surface pointer (`0x8a93cc`→`+0x16c`→`+0x2c`) remains the
+  fallback for the `--validate` real-snapshot only.
 ```

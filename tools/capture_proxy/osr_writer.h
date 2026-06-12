@@ -42,6 +42,8 @@ typedef struct {
     FILE    *file;
     int      enabled;
     LONG     dropped;       /* records dropped on OOM (never stall the engine) */
+    osr_header hdr;         /* the header as last written (for the M3c re-stamp) */
+    volatile LONG hdr_fixup;/* set by the engine thread; bg thread re-stamps once */
 } osr_writer;
 
 static osr_writer g_osr;
@@ -84,15 +86,48 @@ static void osr__drain(void)
     g_osr.len[drain_idx] = 0;          /* bg thread is the only resetter */
 }
 
+/* Re-stamp the 64-byte header at offset 0 (bg thread only — it owns the FILE*).
+ * Done once after the first surface desc corrects the UNKNOWN/640x480 placeholder
+ * (M3c).  Append-only otherwise; this is the sole non-sequential write, and the
+ * reader re-reads the header from offset 0, so a mid-stream re-stamp is safe. */
+static void osr__apply_header_fixup(void)
+{
+    if (!InterlockedCompareExchange(&g_osr.hdr_fixup, 0, 1)) return;  /* not pending */
+    if (!g_osr.file) return;
+    uint8_t hb[OSR_HEADER_SIZE];
+    osr_header_encode(hb, sizeof(hb), &g_osr.hdr);
+    long pos = ftell(g_osr.file);
+    fseek(g_osr.file, 0, SEEK_SET);
+    fwrite(hb, 1, sizeof(hb), g_osr.file);
+    if (pos >= 0) fseek(g_osr.file, pos, SEEK_SET);
+    else          fseek(g_osr.file, 0, SEEK_END);
+    fflush(g_osr.file);
+    proxy_logf("[osr] header re-stamped: %ux%u pixfmt=%u",
+               g_osr.hdr.screen_w, g_osr.hdr.screen_h, g_osr.hdr.pixfmt);
+}
+
 static DWORD WINAPI osr__bg_thread(LPVOID arg)
 {
     (void)arg;
     while (InterlockedCompareExchange(&g_osr.run, 1, 1)) {
         Sleep(OSR_DRAIN_MS);
         osr__drain();
+        osr__apply_header_fixup();
     }
     osr__drain();                      /* final best-effort flush */
+    osr__apply_header_fixup();
     return 0;
+}
+
+/* Engine thread: record the corrected screen pixfmt/dims + flag the re-stamp.
+ * The bg thread applies it (above) on its next tick — no cross-thread fseek. */
+static void osr_w_fixup_header(uint8_t pixfmt, uint16_t w, uint16_t h)
+{
+    if (!g_osr.enabled) return;
+    g_osr.hdr.pixfmt   = pixfmt;
+    if (w) g_osr.hdr.screen_w = w;
+    if (h) g_osr.hdr.screen_h = h;
+    InterlockedExchange(&g_osr.hdr_fixup, 1);
 }
 
 /* ── public append API (engine thread; no-op if capture disabled) ─────────── */
@@ -131,6 +166,20 @@ static void osr_w_blit(const osr_blit *blit)
     uint8_t b[8 + OSR_BLIT_PAYLOAD];
     osr__emit(b, osr_enc_blit(b, sizeof(b), blit));
 }
+/* SHEET — large + variable: the pixel bytes are streamed straight into the ring
+ * after the framed prefix (one copy, no temp buffer).  The caller's `bytes` is a
+ * locked-surface pointer valid only until Unlock, so the copy MUST finish before
+ * the caller unlocks — it does (we hold the cs synchronously here). */
+static void osr_w_sheet(const osr_sheet *s)
+{
+    if (!g_osr.enabled) return;
+    uint8_t pre[8 + OSR_SHEET_HDR];
+    size_t pn = osr_enc_sheet_prefix(pre, sizeof(pre), s);
+    EnterCriticalSection(&g_osr.cs);
+    if (osr__ring_put(pre, pn) && s->byte_len && s->bytes)
+        osr__ring_put(s->bytes, s->byte_len);
+    LeaveCriticalSection(&g_osr.cs);
+}
 
 /* ── lifecycle ───────────────────────────────────────────────────────────── */
 static void osr_writer_start(void)
@@ -150,22 +199,24 @@ static void osr_writer_start(void)
         return;
     }
 
-    /* Header: the proxy is always the RETAIL side; screen dims/pixfmt corrected
-     * from the real DDSURFACEDESC2 at M3b (UNKNOWN/640x480 for now). */
-    osr_header h;
-    memset(&h, 0, sizeof(h));
-    h.side     = OSR_SIDE_RETAIL;
-    h.pixfmt   = OSR_PIXFMT_UNKNOWN;
-    h.screen_w = 640;
-    h.screen_h = 480;
-    h.seed     = g_cfg.seed_value;
-    h.flags    = (g_cfg.turbo    ? OSR_FLAG_TURBO    : 0) |
-                 (g_cfg.lockstep ? OSR_FLAG_LOCKSTEP : 0) |
-                 (g_cfg.seed_pin ? OSR_FLAG_SEED_PIN : 0);
-    lstrcpynA(h.scenario, g_cfg.scenario, (int)sizeof(h.scenario));
+    /* Header: the proxy is always the RETAIL side; screen dims/pixfmt are the
+     * UNKNOWN/640x480 placeholder until the first surface desc re-stamps it
+     * (M3c, osr_w_fixup_header).  Kept in g_osr.hdr so the bg thread can rewrite
+     * offset 0 in place. */
+    osr_header *h = &g_osr.hdr;
+    memset(h, 0, sizeof(*h));
+    h->side     = OSR_SIDE_RETAIL;
+    h->pixfmt   = OSR_PIXFMT_UNKNOWN;
+    h->screen_w = 640;
+    h->screen_h = 480;
+    h->seed     = g_cfg.seed_value;
+    h->flags    = (g_cfg.turbo    ? OSR_FLAG_TURBO    : 0) |
+                  (g_cfg.lockstep ? OSR_FLAG_LOCKSTEP : 0) |
+                  (g_cfg.seed_pin ? OSR_FLAG_SEED_PIN : 0);
+    lstrcpynA(h->scenario, g_cfg.scenario, (int)sizeof(h->scenario));
 
     uint8_t hb[OSR_HEADER_SIZE];
-    osr_header_encode(hb, sizeof(hb), &h);
+    osr_header_encode(hb, sizeof(hb), h);
     fwrite(hb, 1, sizeof(hb), g_osr.file);
     fflush(g_osr.file);
 

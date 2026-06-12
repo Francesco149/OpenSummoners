@@ -23,6 +23,7 @@
 #define OSS_ENGINE_HOOKS_H
 
 #include <windows.h>
+#include <ddraw.h>
 
 #include "proxy_config.h"
 #include "proxy_log.h"
@@ -31,6 +32,9 @@
 #include "trampoline.h"
 #include "osr_writer.h"
 #include "render_id.h"
+#include "surface_id.h"
+#include "engine_pixfmt.h"
+#include "sheet_grab.h"
 
 /* ── engine VAs (absolute; base 0x400000, relocations stripped) ───────────── */
 #define EH_FLIP_VA        0x005b8fc0u
@@ -57,6 +61,7 @@
 #define CEL_METRIC_B8   0xb8u   /* source width                            */
 #define CEL_METRIC_BC   0xbcu   /* source height                           */
 #define CEL_STATE       0xd4u   /* state flag (0x8000 = KEYSRC armed)       */
+#define BLIT_SURF_PTR   0x2cu   /* cel/dest +0x2c = IDirectDrawSurface7* (M3c) */
 
 /* ── observable counters (read later by the .osr emitter) ─────────────────── */
 static volatile LONG g_eh_flip     = 0;
@@ -65,6 +70,27 @@ static volatile LONG g_eh_sim_tick = 0;
 /* ── frame-stream state (M3b: FRAMEBEG-at-open / draws / PRESENT-at-flip) ──── */
 static int g_eh_frame_open = 0;    /* a FRAMEBEG has opened the current frame   */
 static int g_eh_blit_seq   = 0;    /* draw ordinal within the current frame     */
+
+/* The .osr header is written UNKNOWN/640x480 at file-open (before any surface
+ * exists).  The first dest surface we touch is the backbuffer, whose desc gives
+ * the real screen pixfmt + dims; correct the header once (the bg writer thread
+ * re-stamps offset 0 — osr_w_fixup_header). */
+static int g_eh_hdr_fixed = 0;
+static void eh_fixup_header_from(void *surf)
+{
+    if (g_eh_hdr_fixed || !surf) return;
+    DDSURFACEDESC2 dd;
+    memset(&dd, 0, sizeof(dd));
+    dd.dwSize = sizeof(dd);
+    if (FAILED(IDirectDrawSurface7_GetSurfaceDesc((LPDIRECTDRAWSURFACE7)surf, &dd)))
+        return;
+    g_eh_hdr_fixed = 1;
+    osr_w_fixup_header(eh_pixfmt_of(&dd.ddpfPixelFormat),
+                       (uint16_t)dd.dwWidth, (uint16_t)dd.dwHeight);
+    proxy_logf("[hook] header fixup: %lux%lu pixfmt=%u (RGBbits=%lu)",
+               dd.dwWidth, dd.dwHeight, eh_pixfmt_of(&dd.ddpfPixelFormat),
+               (unsigned long)dd.ddpfPixelFormat.dwRGBBitCount);
+}
 
 /* ── seed/rng pin state (mirrors the agent latches) ──────────────────────── */
 static int g_eh_seed_pinned     = 0;   /* one-shot: the title sparkle pin */
@@ -178,7 +204,9 @@ static void eh_resolver_cb(DWORD slot, DWORD esp)
 /* stack arg i (0-based, past the return address) given the function-entry esp */
 #define EH_STK(esp, i) (*(int32_t *)((esp) + 4u + (DWORD)(i) * 4u))
 
-static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel,
+/* dest_arg = the blit's stack arg0 (the paint_ctx); its +0x2c is the dest
+ * IDirectDrawSurface7 (uniform across all 5 primitives — see the decompiles). */
+static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel, DWORD dest_arg,
                            int32_t dx, int32_t dy, int32_t reqw, int32_t reqh,
                            int32_t sx, int32_t sy, int32_t bmode, uint32_t ckey)
 {
@@ -200,21 +228,29 @@ static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel,
         b.oy    = *(int32_t  *)(cel + CEL_METRIC_10);
         b.state = *(uint32_t *)(cel + CEL_STATE);
     }
-    /* dhash + dst_handle stay 0 retail-side until M3c grabs surface pixels. */
+    /* M3c: the dest surface → a stable handle; the first one fixes the header. */
+    void *dst_surf = dest_arg ? *(void **)(dest_arg + BLIT_SURF_PTR) : NULL;
+    b.dst_handle = surfid_get(dst_surf);
+    if (!g_eh_hdr_fixed) eh_fixup_header_from(dst_surf);
+    /* M3c-2: the source surface → its dedup'd SHEET (grabbed once); dhash refs it. */
+    void *src_surf = cel ? *(void **)(cel + BLIT_SURF_PTR) : NULL;
+    b.dhash = sheet_capture_source(src_surf, res, frame);
     osr_w_blit(&b);
 }
 
 /* mode 0/1: __thiscall ECX=cel, stack (dest, x, y); dst extent = cel +0xb8/+0xbc */
 static void eh_blt_onto_cb(DWORD cel, DWORD esp)
 {
-    eh_blit_record(EH_BLT_ONTO_VA, 0, cel, EH_STK(esp, 1), EH_STK(esp, 2),
+    eh_blit_record(EH_BLT_ONTO_VA, 0, cel, EH_STK(esp, 0),
+                   EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
                    0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
 }
 static void eh_blt_keyed_cb(DWORD cel, DWORD esp)
 {
-    eh_blit_record(EH_BLT_KEYED_VA, 1, cel, EH_STK(esp, 1), EH_STK(esp, 2),
+    eh_blit_record(EH_BLT_KEYED_VA, 1, cel, EH_STK(esp, 0),
+                   EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
                    0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
@@ -222,7 +258,7 @@ static void eh_blt_keyed_cb(DWORD cel, DWORD esp)
 /* mode 2: __thiscall ECX=cel, (dest, dst_x, dst_y, dst_w, dst_h, src_x, src_y, …) */
 static void eh_blt_rects_cb(DWORD cel, DWORD esp)
 {
-    eh_blit_record(EH_BLT_RECTS_VA, 2, cel,
+    eh_blit_record(EH_BLT_RECTS_VA, 2, cel, EH_STK(esp, 0),
                    EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
                    EH_STK(esp, 5), EH_STK(esp, 6), -1,
                    cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
@@ -230,7 +266,7 @@ static void eh_blt_rects_cb(DWORD cel, DWORD esp)
 /* mode 3: __thiscall ECX=cel, (dest, dst_x, dst_y, width, height, src_x, src_y) — RAW pre-clip */
 static void eh_blt_clip_cb(DWORD cel, DWORD esp)
 {
-    eh_blit_record(EH_BLT_CLIP_VA, 3, cel,
+    eh_blit_record(EH_BLT_CLIP_VA, 3, cel, EH_STK(esp, 0),
                    EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
                    EH_STK(esp, 5), EH_STK(esp, 6), -1,
                    cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0);
@@ -242,9 +278,12 @@ static void eh_blt_clip_cb(DWORD cel, DWORD esp)
  * valid 0/1/2 (quirk #44) against a real capture; refine in M3c if not. */
 static void eh_blt_alpha_cb(DWORD desc_ecx, DWORD esp)
 {
+    /* PORT-DEBT(osr-alpha-src-grab): mode 4 is a GDI BitBlt+blend over a paint_ctx
+     * source (0x5bd550/0x5bd680), so cel+0x2c may not be the blend's true pixel
+     * source — the SHEET grab here is best-effort; dst_handle + geometry are exact. */
     DWORD cel  = (DWORD)EH_STK(esp, 1);
     int32_t bmode = (desc_ecx >= 0x10000u) ? *(int32_t *)desc_ecx : -1;
-    eh_blit_record(EH_BLT_ALPHA_VA, 4, cel,
+    eh_blit_record(EH_BLT_ALPHA_VA, 4, cel, EH_STK(esp, 0),
                    EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4), EH_STK(esp, 5),
                    EH_STK(esp, 6), EH_STK(esp, 7), bmode, (uint32_t)EH_STK(esp, 8));
 }

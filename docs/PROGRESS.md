@@ -6,6 +6,48 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3c: SOURCE pixels + surface identity captured (no COM wrap)
+
+M3c gives the draw stream the two things reconstruction (M4) needs beyond geometry: each blit's DEST surface
+identity (a stable `dst_handle`) and its SOURCE pixels (a dedup'd `SHEET`). The plan called this "the risky
+COM vtable wrap" — but the blit decompiles (`docs/decompiled/by-address/5b9a40.c` etc.) showed every cel/dest
+holds a real `IDirectDrawSurface7*` at `+0x2c` and the engine issues `dest->Blt(&dr, src, &sr, flags, 0)` via
+vtable +0x14, so the proxy interns those RAW surface pointers and Locks the source straight from the blit
+detour — NO surface wrapping, NO per-blit COM overhead, far lower risk than the planned wrap. Two commits;
+990 host pass (+1, `osr_sheet_roundtrip`).
+
+**The format (`src/osr_format.h`).** Added the variable-length `OSR_SHEET` record (a 24-byte prefix —
+`dhash/res/frame/w/h/pitch/pixfmt/codec/byte_len` — then raw pixel bytes) + `osr_enc_sheet_prefix` so the
+writer can stream a large pixel payload into its ring with a single copy. Host round-trip tested.
+
+**The proxy (`tools/capture_proxy/`).** `surface_id.h` (NEW) interns a surface pointer → a small stable
+handle. `sheet_grab.h` (NEW) Locks a source surface `DDLOCK_READONLY` on its first sighting, fingerprints it
+with FNV-1a mirroring `src/asset_register.c`'s seed order (w/h/bitcount, then pixels), emits ONE dedup'd
+`SHEET` per surface pointer, and caches the dhash for the per-blit hot path. `engine_pixfmt.h` (NEW)
+classifies a `DDPIXELFORMAT` → `OSR_PIXFMT_*`. `engine_hooks.h` reads the dest surface (`*(void**)(arg0+0x2c)`)
+→ `dst_handle` and re-stamps the `.osr` header pixfmt/screen from the first dest's `DDSURFACEDESC2`, and reads
+the src surface (`*(void**)(cel+0x2c)`) → `SHEET` → BLIT `dhash`. `osr_writer.h` applies the header re-stamp
+at offset 0 from the bg thread (the only non-sequential write). `osr.py` decodes `SHEET` (+ a `SHEETS` dump
+and dst/dhash coverage in `SUMMARY`).
+
+**PROVEN** (`m3c-verify` nav→town capture): the header re-stamped to `640×480 RGB565` (was UNKNOWN);
+`dst_handle` 100% set with 1 distinct value (= the single backbuffer, correct for a 2D blit compositor); src
+`dhash` 100% set; **496 SHEETs / 420 distinct dhash / 9.4 MiB raw RGB565**; all 3 anchors + both seed pins
+byte-identical to M3b; 90% render-id-named; **912 fps in-game** (<4% under M3b's 950 — the grab is
+once-per-surface, no Lock stall or crash). The captured sheets are coherent: 640×480 backdrop/scroll layers,
+a sparkle particle series (22→20→18→14→12→10→8→6), 18× 160×176 portrait busts, 32×32 town tiles, tall 80×N
+sprite columns.
+
+**FOLLOW-UPS (PORT-DEBT, none block M3d/M4):** `osr-sheet-compression` (SHEET pixels are raw — miniz
+deferred); `osr-sheet-dhash-xside` (the retail dhash mirrors the port's seed SHAPE but is computed over the
+native-pitch/pixfmt locked surface, so it won't byte-match the port's packed decode — a legitimate
+render_diff `[decode]` signal, with `(resource_id, frame)` remaining the primary cross-side join);
+`osr-alpha-src-grab` (mode-4 alpha is a GDI/`paint_ctx` blend, its `+0x2c` source grab best-effort). **NEXT:
+M3d** — hook `gdi32!TextOutA`/`ExtTextOutA` + font selection → TEXT/FONT records (the last draw class), then
+M4 reconstruct.
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3b: native BLIT draw-stream captured (town PROVEN)
 
 M3b records the ORDERED draw-call stream — the 5 source-bearing DDraw blit primitives + the render-id
