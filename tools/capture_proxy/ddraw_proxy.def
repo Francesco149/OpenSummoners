@@ -1,0 +1,8 @@
+; ddraw_proxy.def — export the DDRAW entry points the retail exe imports,
+; undecorated (no @N stdcall decoration), so sotes.exe's import-by-name
+; resolves against our proxy.  sotes.exe imports only DirectDrawCreateEx;
+; DirectDrawCreate is exported too for drop-in completeness.
+LIBRARY ddraw
+EXPORTS
+    DirectDrawCreateEx
+    DirectDrawCreate

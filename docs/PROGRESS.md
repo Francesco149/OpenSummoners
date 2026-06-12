@@ -6,6 +6,29 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 design + M1: the native capture-proxy vector is PROVEN
+
+The USER asked to rebuild the trace studio in a radically faster/richer way before resuming the freeroam
+port: capture the **draw-call stream** (DDraw blits + GDI text + state, dedup'd source surfaces) rather than
+pixels, and **reconstruct the frame 1:1 on Windows** (where real GDI is available — this dissolves the
+offline-GDI-text blocker). Everything heavy runs Windows-side; WSL only orchestrates + reviews. Full design:
+`docs/plans/trace-studio-v2.md` (capture-vs-replay fork RESOLVED with the USER; tick-join convergence
+discipline; the `.osr` format; the incremental build order M1→M7; **storage discipline — all hot-path writes
+land on native NTFS `C:\`, never the WSL 9p mount**). v2 is built in **isolation** — it does not touch v1
+(`tools/trace_studio*`, `tools/frida_capture.py`, the Frida agent); v1 is archived only once v2 reaches
+parity.
+
+**M1 LANDED — the proxy `ddraw.dll` auto-loads into the real retail game with NO Frida and NO injector.**
+The retail exe imports exactly one DDRAW symbol (`DirectDrawCreateEx`) and has a fixed ImageBase `0x400000`
+with **relocations stripped** (verified `objdump -p`), so a proxy `ddraw.dll` dropped next to the exe wins
+the DLL search order and loads automatically; later milestones inline-detour engine VAs with zero base-fixup.
+`tools/capture_proxy/` (`ddraw_proxy.c` + `.def` undecorated stdcall exports + Makefile, built by the
+existing mingw32 → `build/ddraw_proxy.dll`) forwards `DirectDrawCreateEx`/`DirectDrawCreate` to the real
+system ddraw (loaded by absolute SysWOW64 path to avoid self-recursion). Live-proven on the real game:
+`DLL_PROCESS_ATTACH pid=23032`, process boots clean. Launch mechanism nailed: **PowerShell `Start-Process
+-WorkingDirectory`** (no exec bit, no Frida, no Steam). NEXT: M2 — IAT turbo/lockstep clock + the engine-VA
+inline-detour framework (seed/anchors/sim-tick/input), ported from the Frida agent's VA map.
+
 ## 2026-06-11 (ckpt 124) — the dialogue PORTRAITS are un-MVP'd: the bust resolves per speaker
 
 A USER-requested side-fix off the ckpt-123 chain landing: the dialogue portrait was hardcoded to
