@@ -33,9 +33,10 @@
     `runs/proxy-m2b` → game_enter): 867k blits / 2377 frames, **89% render-id-named**, all 3 anchors + both
     seed pins; the town establishing shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop
     columns, res=2234 clipped 32×32 sub-tiles at the camera scroll, KEYSRC ckey 0xf81f) — matching the
-    documented town render. **PERF FORK (measured):** title ~2400 fps WITH capture; in-game town **~25 fps**
-    (the INT3+VEH 2-exceptions/blit cost dominates at ~1500 blits/frame) — usable+cached but below turbo.
-    `dhash/dst_handle` stay 0 retail-side until M3c.
+    documented town render. **PERF (measured):** title ~2400 fps WITH capture; in-game town ~25 fps first
+    cut → **~56 fps after the RWX-pages perf chip** (commit `ee55e5b`, drops the per-patch `VirtualProtect`).
+    Below turbo (the 2 INT3+VEH exceptions/blit remain) but comfortably usable+cached. `dhash/dst_handle`
+    stay 0 retail-side until M3c.
   - **M3a (prior) — `.osr` format + the cheap records.** `src/osr_format.h` codec + `osr_writer.h` (bg-thread
     ring → `C:\` `.osr`) + FRAMEBEG/PRESENT/ANCHOR/SEED records + `osr.py`. PROVEN on a real boot (417 KB,
     11585 frames). Config: `OSS_OSR`/`OSS_OSR_PATH`/`OSS_SCENARIO`; `run_proxy.sh` collects + summarizes.
@@ -60,14 +61,13 @@
   4. **NAV lesson:** a nav with EXACT flip frames is calibrated to one boot cadence (the agent's); the proxy's
      differs (newgame@652), so the ckpt-122 flip-keyed nav's submenu presses stalled — a cadence-TOLERANT nav
      (presses over windows) reaches game_enter robustly (fine for a boot: game_enter re-pins the seed).
-  **NEXT — a fork (USER call): (a) M3b-perf — restore turbo, or (b) M3c — COM wrap + SHEET.** The PERF
-  FORK measurement (~25 fps in-game) resolves toward a perf chip: the INT3+VEH detour pays 2 exceptions/blit
-  AND `detour_patch_byte` does 2× `VirtualProtect` + `FlushInstructionCache` per patch (×2 patches/hit).
-  Two options, cheapest first: (i) leave the hooked pages permanently RWX (one `VirtualProtect` at install)
-  + skip the per-patch protect/flush — removes ~4 syscalls/blit, keeps the 2 exception dispatches; (ii) the
+  **NEXT — M3c, or finish the perf chip (USER call).** The PERF FORK's cheap half is DONE (commit
+  `ee55e5b`): the hooked pages are made permanently RWX once at install so the hot INT3 dance drops the
+  per-patch `VirtualProtect` → in-game town **~25 → ~56 fps** (2.2×), capture integrity unchanged. The
+  remaining gap to turbo (~800 fps without blits) is the 2 INT3+VEH exception dispatches/blit — only the
   plan's hand-rolled 5-byte E9-jmp trampoline (hardcode each blit VA's head bytes — known stdcall/thiscall
-  prologues, no length-disassembler) — removes the exceptions entirely, the real turbo fix. 25 fps is
-  USABLE+cached for now, so M3c can also go first. **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
+  prologues, no length-disassembler) removes those. 56 fps in-game is comfortably usable+cached, so the
+  trampoline is OPTIONAL — **M3c can go first.** **M3c** = the DDraw7+Surface7 COM vtable wrap (surface
   identity → `dst_handle`; the one-time dedup'd source-sheet grab → SHEET via the render_id FNV-1a + miniz;
   corrects the header pixfmt/screen from `DDSURFACEDESC2`; backfills BLIT `dhash`/`dst_handle`) — the risky
   piece, isolated; **M3d** GDI `TextOutA`/`ExtTextOutA` + font → TEXT/FONT. Then M4 reconstruct

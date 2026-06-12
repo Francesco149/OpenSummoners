@@ -7,9 +7,9 @@
 > records (FRAMEBEG/PRESENT/ANCHOR/SEED) + `osr.py`. M3b: the BLIT op stream — the
 > 5 blit detours + the cel→(res,frame) registry (`render_id.h`, onEnter-computed) →
 > OSR_BLIT records. PROVEN on a real boot to game_enter (867k blits, 89% named, all
-> anchors). PERF: title ~2400 fps but in-game town ~25 fps (INT3+VEH 2-exceptions/
-> blit) → the perf chip (RWX-pages or the E9 trampoline) is the fork resolution.
-> M3c (COM wrap + SHEET) is NEXT (or the perf chip first — USER call).
+> anchors). PERF: title ~2400 fps; in-game town ~25 → ~56 fps after the RWX-pages
+> perf chip (`ee55e5b`); the E9 trampoline (removes the INT3 exceptions) is the
+> optional turbo fix. M3c (COM wrap + SHEET) is NEXT (or the E9 trampoline first).
 > Built in isolation from v1 (`tools/trace_studio*`, `tools/frida_capture.py`,
 > the Frida agent) — none of those are touched until v2 is proven, at which point
 > v1 is archived. The USER pulled this forward before porting the freeroam scene
@@ -375,13 +375,13 @@ it earliest. Each milestone is independently testable.
     game_enter, **89% render-id-named**, all anchors + seed pins; the town establishing
     shot decodes coherently (res=1002 backdrop columns, res=2234 clipped 32×32 sub-tiles
     at the camera scroll, KEYSRC ckey 0xf81f). dhash/dst_handle stay 0 until M3c.
-    **PERF FORK RESOLVED (measured):** the INT3+VEH framework handles the volume but at
-    ~25 fps in-game (~2 exceptions/blit + `detour_patch_byte`'s `VirtualProtect`/
-    `FlushInstructionCache` per patch dominate at ~1500 blits/frame); title ~2400 fps.
-    Usable+cached but below turbo → **M3b-perf** chip: (i) leave hooked pages permanently
-    RWX + skip the per-patch protect/flush (cheap, ~4 syscalls/blit saved, keeps the 2
-    exceptions); (ii) the hand-rolled 5-byte E9-jmp trampoline (removes the exceptions —
-    the real turbo fix). Either before or after M3c (USER call).
+    **PERF FORK RESOLVED (measured):** the INT3+VEH framework handles the volume. First
+    cut ~25 fps in-game; the cheap perf half is DONE (commit `ee55e5b`) — hooked pages
+    made permanently RWX at install so the hot dance drops the per-patch `VirtualProtect`
+    → **~56 fps in-game** (2.2×; title ~2400 fps). The remaining 2 exception dispatches/
+    blit keep it below turbo; the hand-rolled 5-byte E9-jmp trampoline (removes the
+    exceptions — the real turbo fix) is OPTIONAL since 56 fps is usable+cached. Either
+    before or after M3c (USER call).
   - **M3c — COM wrap + SHEET (the risky piece, isolated).** Wrap the DDraw7 + Surface7
     vtables for surface identity (stable dst handles) + the one-time dedup'd source-pixel
     grab → SHEET records (dhash via the render_id FNV-1a, miniz-compressed). Backfills the

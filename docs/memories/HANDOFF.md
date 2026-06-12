@@ -41,10 +41,12 @@ pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + 
   2377 frames, 89% render-id-named, all 3 anchors at the M2b flips + both seed pins; the town establishing
   shot (flip 1250, 1815 blits) decodes coherently (res=1002 backdrop columns 8×80px, res=2234 `clipped`
   32×32 sub-tiles at the camera scroll dst=-32, KEYSRC st=0x8000 ckey=0xf81f) — matching the documented town
-  render. **PERF (measured):** title/menu ~2400 fps WITH capture; in-game town **~25 fps** — the INT3+VEH
-  2-exceptions/blit cost (plus `detour_patch_byte`'s 2× `VirtualProtect`+`FlushInstructionCache` per patch,
-  ×2 patches/hit) dominates at ~1500 blits/frame. Usable+cached but below turbo → the perf chip is the fork
-  resolution (see NEXT). `dhash`/`dst_handle` stay 0 retail-side until M3c.
+  render. **PERF (measured):** title/menu ~2400 fps WITH capture; in-game town ~25 fps first cut → **~56 fps
+  after the RWX-pages perf chip** (commit `ee55e5b`): the hooked pages are made permanently RWX at install
+  so the hot INT3 dance drops the per-patch `VirtualProtect` (was 2×) — a 2.2× in-game speedup, integrity
+  unchanged. The remaining 2 INT3+VEH exception dispatches/blit keep it below turbo (~800 fps without blits);
+  only the E9-jmp trampoline removes those (OPTIONAL — 56 fps is usable+cached). `dhash`/`dst_handle` stay 0
+  retail-side until M3c.
 - **M3a** — the `.osr` writer. `src/osr_format.h` = the shared pure-C codec (64-B header + framed
   `{type,len,payload}` records, little-endian, append-only + truncated-tail recoverable for the harness
   hard-kill) used by the proxy, the port emitter (M5), the reconstructor (M4), and `osr.py`.
@@ -79,17 +81,16 @@ order), `proxy_log.h`, `proxy_config.h`, `iat_hook.h`, `clock.h`, `va_detour.h`,
 `tools/trace_studio2/osr.py` = the Python reader (SUMMARY/FRAMES/BLITS). Boot artifacts land on native NTFS
 `C:\oss-osr\` (storage discipline). Throwaway nav: `runs/proxy-m2b/nav.jsonl` (the cadence-tolerant boot).
 
-**NEXT MOVE — a fork (USER call): (a) M3b-perf — restore turbo, or (b) M3c — COM wrap + SHEET.** The PERF
-measurement (~25 fps in-game town) resolves the M3b fork toward a perf chip. The cost is the INT3+VEH
-detour: 2 exception dispatches/blit AND `detour_patch_byte`'s 2× `VirtualProtect` + `FlushInstructionCache`
-per patch, ×2 patches/hit (restore + re-arm). Two options, cheapest first: **(i)** leave the hooked code
-pages permanently `PAGE_EXECUTE_READWRITE` (one `VirtualProtect` at install) and skip the per-patch
-protect/flush in the hot dance — removes ~4 syscalls/blit, keeps the 2 exception dispatches (a quick win, no
-new risk); **(ii)** the plan's hand-rolled 5-byte `E9`-jmp trampoline (hardcode each blit VA's head bytes —
-known stdcall/thiscall prologues, no length-disassembler; save+relay the overwritten bytes) — removes the
-exceptions entirely, the real turbo fix but the riskier code. 25 fps is USABLE+cached (a title→town capture
-is ~30 s, recapture is `--only port`), so **M3c can also go first** if the USER prefers feature progress.
-**M3c** = the DDraw7+Surface7 COM vtable wrap: surface identity (stable `dst_handle`) + the one-time dedup'd
+**NEXT MOVE — M3c, or finish the perf chip (USER call).** The M3b PERF FORK's cheap half is DONE (commit
+`ee55e5b`): `detour_make_rwx` makes each hooked page permanently `PAGE_EXECUTE_READWRITE` once at install,
+so the hot INT3 dance (`detour_patch_byte`, called twice/hit) is now just a byte write + `FlushInstruction
+Cache` — no per-patch `VirtualProtect`. Measured in-game town ~25 → ~56 fps (2.2×), integrity unchanged.
+The remaining cost is the 2 INT3+VEH exception dispatches/blit (inherent to the breakpoint mechanism); only
+the plan's hand-rolled 5-byte `E9`-jmp trampoline (hardcode each blit VA's head bytes — known stdcall/
+thiscall prologues, no length-disassembler; save+relay the overwritten bytes) removes those = the real turbo
+fix, but the riskier code and OPTIONAL: 56 fps in-game is comfortably usable+cached (a town capture is ~13 s
+in-game, recapture is `--only port`). So **M3c can go first.** **M3c** = the DDraw7+Surface7 COM vtable
+wrap: surface identity (stable `dst_handle`) + the one-time dedup'd
 source-pixel grab → SHEET (dhash via the render_id FNV-1a + miniz), which backfills BLIT `dhash`/`dst_handle`
 and corrects the header pixfmt/screen from `DDSURFACEDESC2` — the RISKY piece, isolated. Then **M3d** GDI
 `TextOutA`/`ExtTextOutA` + `SelectObject`/`CreateFontIndirectA` → TEXT/FONT; M4 reconstruct (`--osr-replay`),
