@@ -126,6 +126,11 @@ static void osr_w_anchor(uint32_t flip, uint32_t sim_tick, uint32_t rng,
     size_t n = osr_enc_anchor(b, sizeof(b), flip, sim_tick, rng, name);
     osr__emit(b, n);
 }
+static void osr_w_blit(const osr_blit *blit)
+{
+    uint8_t b[8 + OSR_BLIT_PAYLOAD];
+    osr__emit(b, osr_enc_blit(b, sizeof(b), blit));
+}
 
 /* ── lifecycle ───────────────────────────────────────────────────────────── */
 static void osr_writer_start(void)

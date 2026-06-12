@@ -19,9 +19,10 @@
  * to the last fully-written record.
  *
  * M3a implements the cheap records the boot already produces (FRAMEBEG / PRESENT /
- * ANCHOR / SEED); the bulky / draw records (CLEAR / BLIT / TEXT / SHEET / FONT /
- * PALETTE / INPUT) have reserved type ids here and land with the COM-wrap + blit
- * detours (M3b+).
+ * ANCHOR / SEED); M3b adds BLIT (the 5 source-bearing draw primitives, with the
+ * render_id identity but dhash/dst_handle deferred to M3c).  The remaining bulky /
+ * draw records (CLEAR / TEXT / SHEET / FONT / PALETTE / INPUT) have reserved type
+ * ids here and land with the COM-wrap + GDI hooks (M3c+).
  */
 #ifndef OPENSUMMONERS_OSR_FORMAT_H
 #define OPENSUMMONERS_OSR_FORMAT_H
@@ -193,6 +194,31 @@ typedef struct osr_anchor {
     uint32_t name_len;
 } osr_anchor;
 
+/* BLIT — one of the 5 source-bearing draw primitives (M3b).  The field set is
+ * tools/render_diff.py's schema so the cross-side draw diff works unchanged:
+ *   va        — which primitive (0x5b9a40/b70/ae0/bf0 thiscall, 0x5bd550 cdecl)
+ *   seq       — the draw's ordinal WITHIN its frame (reset at each FRAMEBEG)
+ *   res/frame — the source cel's load-stable identity (render_id registry)
+ *   dhash     — decoded-sheet fingerprint (0 retail-side until M3c grabs pixels)
+ *   dst_handle— the dest surface's stable handle (0 until the M3c COM wrap)
+ *   dx,dy,reqw,reqh,sx,sy — the RAW call geometry (clip math is a deterministic
+ *               bit-exact port from these, so we emit inputs not post-clip rects)
+ *   ow,oh,ox,oy — the source cel placement metrics (+0xb8/+0xbc/+0x0c/+0x10)
+ *   state     — cel +0xd4 (0x8000 = KEYSRC armed); ckey — bound color key;
+ *   bmode     — alpha blend mode (-1 if N/A); mode — the 0..4 primitive index. */
+typedef struct osr_blit {
+    uint32_t va, seq;
+    uint16_t res, frame;
+    uint32_t dhash, dst_handle;
+    int32_t  dx, dy, reqw, reqh, sx, sy;
+    int32_t  ow, oh, ox, oy;
+    uint32_t state, ckey;
+    int32_t  bmode;
+    uint32_t mode;
+} osr_blit;
+
+#define OSR_BLIT_PAYLOAD 76u   /* the fixed BLIT payload size (see osr_enc_blit) */
+
 /* ── typed encoders (write a complete framed record) ──────────────────────── */
 static inline size_t osr_enc_framebeg(uint8_t *buf, size_t cap,
                                       uint32_t flip, uint32_t sim_tick,
@@ -239,6 +265,38 @@ static inline size_t osr_enc_anchor(uint8_t *buf, size_t cap,
     return total;
 }
 
+/* BLIT — a fixed 76-byte payload (OSR_BLIT_PAYLOAD).  Mirrors struct osr_blit
+ * field order so the Python reader (tools/trace_studio2/osr.py) can struct.unpack
+ * it directly. */
+static inline size_t osr_enc_blit(uint8_t *buf, size_t cap, const osr_blit *b)
+{
+    if (cap < (size_t)8 + OSR_BLIT_PAYLOAD) return 0;
+    osr_put_u32(buf, OSR_BLIT);
+    osr_put_u32(buf + 4, OSR_BLIT_PAYLOAD);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, b->va);
+    osr_put_u32(p +  4, b->seq);
+    osr_put_u16(p +  8, b->res);
+    osr_put_u16(p + 10, b->frame);
+    osr_put_u32(p + 12, b->dhash);
+    osr_put_u32(p + 16, b->dst_handle);
+    osr_put_u32(p + 20, (uint32_t)b->dx);
+    osr_put_u32(p + 24, (uint32_t)b->dy);
+    osr_put_u32(p + 28, (uint32_t)b->reqw);
+    osr_put_u32(p + 32, (uint32_t)b->reqh);
+    osr_put_u32(p + 36, (uint32_t)b->sx);
+    osr_put_u32(p + 40, (uint32_t)b->sy);
+    osr_put_u32(p + 44, (uint32_t)b->ow);
+    osr_put_u32(p + 48, (uint32_t)b->oh);
+    osr_put_u32(p + 52, (uint32_t)b->ox);
+    osr_put_u32(p + 56, (uint32_t)b->oy);
+    osr_put_u32(p + 60, b->state);
+    osr_put_u32(p + 64, b->ckey);
+    osr_put_u32(p + 68, (uint32_t)b->bmode);
+    osr_put_u32(p + 72, b->mode);
+    return (size_t)8 + OSR_BLIT_PAYLOAD;
+}
+
 /* ── typed payload decoders (operate on the payload slice from osr_rec_next) ─*/
 static inline int osr_dec_framebeg(const uint8_t *p, uint32_t len, osr_framebeg *o)
 {
@@ -268,6 +326,31 @@ static inline int osr_dec_anchor(const uint8_t *p, uint32_t len, osr_anchor *o)
     o->name_len = osr_get_u32(p + 12);
     if ((size_t)o->name_len > (size_t)(len - 16)) return 0;
     o->name = (const char *)(p + 16);
+    return 1;
+}
+static inline int osr_dec_blit(const uint8_t *p, uint32_t len, osr_blit *o)
+{
+    if (len < OSR_BLIT_PAYLOAD) return 0;
+    o->va         = osr_get_u32(p +  0);
+    o->seq        = osr_get_u32(p +  4);
+    o->res        = osr_get_u16(p +  8);
+    o->frame      = osr_get_u16(p + 10);
+    o->dhash      = osr_get_u32(p + 12);
+    o->dst_handle = osr_get_u32(p + 16);
+    o->dx   = (int32_t)osr_get_u32(p + 20);
+    o->dy   = (int32_t)osr_get_u32(p + 24);
+    o->reqw = (int32_t)osr_get_u32(p + 28);
+    o->reqh = (int32_t)osr_get_u32(p + 32);
+    o->sx   = (int32_t)osr_get_u32(p + 36);
+    o->sy   = (int32_t)osr_get_u32(p + 40);
+    o->ow   = (int32_t)osr_get_u32(p + 44);
+    o->oh   = (int32_t)osr_get_u32(p + 48);
+    o->ox   = (int32_t)osr_get_u32(p + 52);
+    o->oy   = (int32_t)osr_get_u32(p + 56);
+    o->state = osr_get_u32(p + 60);
+    o->ckey  = osr_get_u32(p + 64);
+    o->bmode = (int32_t)osr_get_u32(p + 68);
+    o->mode  = osr_get_u32(p + 72);
     return 1;
 }
 

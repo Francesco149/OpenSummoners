@@ -13,7 +13,8 @@ rather than raising.
 
 Usage:
     python3 tools/trace_studio2/osr.py SUMMARY <file.osr>
-    python3 tools/trace_studio2/osr.py FRAMES  <file.osr>   # one line per frame
+    python3 tools/trace_studio2/osr.py FRAMES  <file.osr>          # one line per frame
+    python3 tools/trace_studio2/osr.py BLITS   <file.osr> [flip]   # one frame's draw list
 """
 from __future__ import annotations
 
@@ -94,6 +95,47 @@ class Record:
         name = self.payload[16:16 + name_len].decode("latin-1", "replace")
         return flip, sim_tick, rng, name
 
+    def blit(self):
+        # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (76 bytes)
+        (va, seq, res, frame, dhash, dst_handle,
+         dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
+         state, ckey, bmode, mode) = struct.unpack_from(
+            "<IIHHII iiiiii iiii IIiI", self.payload)
+        return Blit(va, seq, res, frame, dhash, dst_handle,
+                    dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
+                    state, ckey, bmode, mode)
+
+
+@dataclass
+class Blit:
+    va: int
+    seq: int
+    res: int
+    frame: int
+    dhash: int
+    dst_handle: int
+    dx: int
+    dy: int
+    reqw: int
+    reqh: int
+    sx: int
+    sy: int
+    ow: int
+    oh: int
+    ox: int
+    oy: int
+    state: int
+    ckey: int
+    bmode: int
+    mode: int
+
+
+# the 5 source-bearing blit primitives (mirror zdd.c / engine_hooks.h)
+BLIT_VA_NAME = {
+    0x5b9a40: "onto", 0x5b9b70: "keyed", 0x5b9ae0: "rects",
+    0x5b9bf0: "clipped", 0x5bd550: "alpha",
+}
+
 
 @dataclass
 class Osr:
@@ -107,6 +149,26 @@ class Osr:
             if r.type == FRAMEBEG:
                 flip, tick, _ = r.framebeg()
                 yield flip, tick
+
+    def frames_with_blits(self):
+        """Yield (flip, sim_tick, [Blit, ...]) per frame — the BLIT records
+        between a FRAMEBEG and the next PRESENT/FRAMEBEG belong to that frame."""
+        cur = None
+        for r in self.records:
+            if r.type == FRAMEBEG:
+                if cur is not None:
+                    yield cur
+                flip, tick, _ = r.framebeg()
+                cur = (flip, tick, [])
+            elif r.type == BLIT and cur is not None:
+                cur[2].append(r.blit())
+        if cur is not None:
+            yield cur
+
+    def blits(self):
+        for r in self.records:
+            if r.type == BLIT:
+                yield r.blit()
 
     def anchors(self):
         for r in self.records:
@@ -175,6 +237,23 @@ def cmd_summary(path: str) -> int:
         ticks = [t for _, t in frames]
         print(f"frames    : {len(frames)}  "
               f"flip {flips[0]}..{flips[-1]}  sim_tick {min(ticks)}..{max(ticks)}")
+    nblit = counts.get(BLIT, 0)
+    if nblit:
+        fb = [(fl, len(bl)) for fl, _, bl in o.frames_with_blits() if bl]
+        named = sum(1 for b in o.blits() if b.res)
+        per_va: dict[int, int] = {}
+        for b in o.blits():
+            per_va[b.va] = per_va.get(b.va, 0) + 1
+        print(f"blits     : {nblit}  named(res!=0)={named} "
+              f"({100*named//nblit if nblit else 0}%)  "
+              + " ".join(f"{BLIT_VA_NAME.get(v, hex(v))}={c}"
+                         for v, c in sorted(per_va.items())))
+        if fb:
+            cnts = [c for _, c in fb]
+            busiest = max(fb, key=lambda x: x[1])
+            print(f"            {len(fb)} frames w/ blits, "
+                  f"{min(cnts)}..{max(cnts)} per frame "
+                  f"(busiest flip={busiest[0]}: {busiest[1]})")
     print(f"anchors   : {len(anchors)}")
     for flip, tick, rng, name in anchors:
         print(f"    {name:<16} flip={flip} sim_tick={tick} rng=0x{rng:x}")
@@ -186,17 +265,40 @@ def cmd_summary(path: str) -> int:
 
 def cmd_frames(path: str) -> int:
     o = parse(path)
-    for flip, tick in o.frames():
-        print(f"flip={flip}\tsim_tick={tick}")
+    for flip, tick, bl in o.frames_with_blits():
+        print(f"flip={flip}\tsim_tick={tick}\tblits={len(bl)}")
+    return 0
+
+
+def cmd_blits(path: str, want_flip: int | None) -> int:
+    """Dump the draw list of one frame (by flip), or the first frame with blits."""
+    o = parse(path)
+    for flip, tick, bl in o.frames_with_blits():
+        if not bl:
+            continue
+        if want_flip is not None and flip != want_flip:
+            continue
+        print(f"== frame flip={flip} sim_tick={tick}  {len(bl)} blits ==")
+        for b in bl:
+            name = BLIT_VA_NAME.get(b.va, hex(b.va))
+            print(f"  #{b.seq:<3} {name:<7} res={b.res} frame={b.frame} "
+                  f"dst=({b.dx},{b.dy}) {b.reqw}x{b.reqh} src=({b.sx},{b.sy}) "
+                  f"o=({b.ox},{b.oy},{b.ow},{b.oh}) "
+                  f"st=0x{b.state:x} ckey=0x{b.ckey:x} bmode={b.bmode}")
+        return 0
+    print("(no frame with blits found)")
     return 0
 
 
 def main(argv) -> int:
-    if len(argv) < 3 or argv[1] not in ("SUMMARY", "FRAMES"):
+    if len(argv) < 3 or argv[1] not in ("SUMMARY", "FRAMES", "BLITS"):
         print(__doc__)
         return 2
     if argv[1] == "SUMMARY":
         return cmd_summary(argv[2])
+    if argv[1] == "BLITS":
+        flip = int(argv[3]) if len(argv) > 3 else None
+        return cmd_blits(argv[2], flip)
     return cmd_frames(argv[2])
 
 

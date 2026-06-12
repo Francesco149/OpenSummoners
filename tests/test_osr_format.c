@@ -114,6 +114,49 @@ int test_osr_records_roundtrip(void)
     return 0;
 }
 
+/* The BLIT record (M3b) pins render_diff.py's draw-stream schema; encode→decode
+ * must be byte-exact including the signed-geometry fields and the 76-byte size
+ * (the Python reader struct.unpack's the same fixed layout). */
+int test_osr_blit_roundtrip(void)
+{
+    osr_blit b = {0};
+    b.va = 0x5b9bf0; b.seq = 7;
+    b.res = 0x91b; b.frame = 5;
+    b.dhash = 0x77c7a334; b.dst_handle = 0xdead;
+    b.dx = 12; b.dy = -34; b.reqw = 4; b.reqh = 48;
+    b.sx = -8; b.sy = 16;
+    b.ow = 64; b.oh = 4; b.ox = -2; b.oy = -3;
+    b.state = 0x8000; b.ckey = 0x1f; b.bmode = -1; b.mode = 3;
+
+    uint8_t buf[8 + OSR_BLIT_PAYLOAD];
+    size_t n = osr_enc_blit(buf, sizeof(buf), &b);
+    T_ASSERT_EQ_U(n, 8 + OSR_BLIT_PAYLOAD);
+    T_ASSERT_EQ_U(OSR_BLIT_PAYLOAD, 76);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);                 /* consumed exactly */
+    T_ASSERT_EQ_U(type, OSR_BLIT);
+    T_ASSERT_EQ_U(plen, OSR_BLIT_PAYLOAD);
+
+    osr_blit g = {0};
+    T_ASSERT(osr_dec_blit(pay, plen, &g));
+    T_ASSERT_EQ_U(g.va, 0x5b9bf0); T_ASSERT_EQ_U(g.seq, 7);
+    T_ASSERT_EQ_U(g.res, 0x91b);   T_ASSERT_EQ_U(g.frame, 5);
+    T_ASSERT_EQ_U(g.dhash, 0x77c7a334); T_ASSERT_EQ_U(g.dst_handle, 0xdead);
+    T_ASSERT_EQ_I(g.dx, 12);  T_ASSERT_EQ_I(g.dy, -34);
+    T_ASSERT_EQ_I(g.reqw, 4); T_ASSERT_EQ_I(g.reqh, 48);
+    T_ASSERT_EQ_I(g.sx, -8);  T_ASSERT_EQ_I(g.sy, 16);
+    T_ASSERT_EQ_I(g.ow, 64);  T_ASSERT_EQ_I(g.oh, 4);
+    T_ASSERT_EQ_I(g.ox, -2);  T_ASSERT_EQ_I(g.oy, -3);
+    T_ASSERT_EQ_U(g.state, 0x8000); T_ASSERT_EQ_U(g.ckey, 0x1f);
+    T_ASSERT_EQ_I(g.bmode, -1); T_ASSERT_EQ_U(g.mode, 3);
+
+    osr_blit small = {0};
+    T_ASSERT_EQ_U(osr_dec_blit(pay, OSR_BLIT_PAYLOAD - 1, &small), 0);  /* short */
+    return 0;
+}
+
 int test_osr_anchor_empty_name(void)
 {
     uint8_t buf[64];
