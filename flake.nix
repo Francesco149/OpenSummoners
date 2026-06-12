@@ -17,6 +17,12 @@
         # i686 to match the original's process bitness.
         mingw32 = pkgs.pkgsCross.mingw32.buildPackages;
 
+        # Dear ImGui sources for the Trace Studio v2 native frame viewer
+        # (tools/osr_view).  We compile the .cpp directly into the mingw32
+        # Windows PE (DX11 backend) — ImGui is source-vendored, not a lib, so we
+        # only need the checkout.  IMGUI_DIR is exported into the dev shell.
+        imguiSrc = pkgs.imgui.src;
+
         # Python environment for tooling.  Same shape as the OpenMare /
         # openrecet siblings so authoring habits transfer:
         #   - pillow / numpy / scikit-image / opencv4 for frame work
@@ -113,6 +119,10 @@
             export MINGW_CC=i686-w64-mingw32-gcc
             export MINGW_AR=i686-w64-mingw32-ar
             export MINGW_STRIP=i686-w64-mingw32-strip
+
+            # Dear ImGui source checkout for the native frame viewer
+            # (tools/osr_view — DX11 backend compiled into the Windows PE).
+            export IMGUI_DIR=${imguiSrc}
 
             # Shared Frida instance.  cutestation.soy is the Windows host's
             # LAN-resolvable name; frida-server.exe binds 0.0.0.0:27042 there
