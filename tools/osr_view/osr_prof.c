@@ -12,9 +12,49 @@
 
 #include "osr_scrub.h"
 
+static void write_bmp(const char *path, const uint32_t *rgba, int w, int h)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    uint32_t row = (uint32_t)((w * 3 + 3) & ~3), pix = row * (uint32_t)h;
+    uint8_t fh[14] = {0}, ih[40] = {0};
+    fh[0]='B'; fh[1]='M';
+    *(uint32_t*)(fh+2) = 14 + 40 + pix; *(uint32_t*)(fh+10) = 14 + 40;
+    *(uint32_t*)(ih+0) = 40; *(int32_t*)(ih+4) = w; *(int32_t*)(ih+8) = h;
+    *(uint16_t*)(ih+12) = 1; *(uint16_t*)(ih+14) = 24;
+    fwrite(fh,1,14,f); fwrite(ih,1,40,f);
+    uint8_t *line = (uint8_t*)calloc(row,1);
+    for (int y = h-1; y >= 0; y--) {        /* bottom-up */
+        for (int x = 0; x < w; x++) {
+            uint32_t p = rgba[y*w+x];        /* 0xAABBGGRR (R low) */
+            line[x*3+0] = (p >> 16) & 0xff;  /* B */
+            line[x*3+1] = (p >> 8) & 0xff;   /* G */
+            line[x*3+2] = p & 0xff;          /* R */
+        }
+        fwrite(line,1,row,f);
+    }
+    free(line); fclose(f);
+}
+
 int main(int argc, char **argv)
 {
     const char *path = argc > 1 ? argv[1] : "C:\\oss-osr\\retail.osr";
+    /* dump mode: osr_prof <osr> dump <frame_index> <out.bmp> */
+    if (argc >= 5 && !strcmp(argv[2], "dump")) {
+        WNDCLASSA wc; memset(&wc,0,sizeof wc); wc.lpfnWndProc=DefWindowProcA;
+        wc.hInstance=GetModuleHandle(NULL); wc.lpszClassName="osr_prof";
+        RegisterClassA(&wc);
+        HWND hw = CreateWindowA("osr_prof","p",0,0,0,16,16,HWND_MESSAGE,NULL,wc.hInstance,NULL);
+        osr_scrub *s = osr_scrub_open((void*)hw, path);
+        if (!s) { printf("open failed\n"); return 1; }
+        int idx = atoi(argv[3]), w = osr_scrub_width(s), h = osr_scrub_height(s);
+        uint32_t *b = (uint32_t*)malloc((size_t)w*h*4);
+        osr_scrub_render_rgba(s, idx, b);
+        write_bmp(argv[4], b, w, h);
+        uint32_t fl=0,tk=0; osr_scrub_frame_info(s, idx, &fl, &tk);
+        printf("dumped frame idx %d (flip=%u tick=%u) -> %s\n", idx, fl, tk, argv[4]);
+        free(b); osr_scrub_close(s); return 0;
+    }
     int nsamp = argc > 2 ? atoi(argv[2]) : 300;
 
     /* a message-only window for the ddraw cooperative level */

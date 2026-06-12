@@ -41,13 +41,24 @@
     global) → captured via VirtualQuery-guarded reads + CONTENT dedup. Re-captured: BLEND=38, 100% of alpha
     blits referenced, ~944 fps. Reconstructor rebuilds a `zdd_blend_desc` → `zdd_blit_orchestrate` (0
     alpha-skipped). Town flip 1250 + prologue 1200 on the feed.
+  - **M6 native VIEWER LANDED (ckpt 125) — `tools/osr_view`, a Dear ImGui + DX11 native Windows PE** that
+    reconstructs `.osr` frames (DDraw+GDI via the shared `recon_apply` core) and scrubs them INSTANTLY:
+    **~1.4 ms/frame (~720 fps), ~0.3 s open**, USER-CONFIRMED. Three perf fixes (commit `5118724`):
+    self-contained render (a SotES non-empty frame is a full redraw, 0.0% vs accumulated) + SYSTEM-memory
+    surfaces (a video-mem readback Lock STALLED ~274 ms/frame on a GPU sync) + a block-buffered index (was a
+    16M-record per-record stdio loop, ~50 s). ImGui from the flake (`pkgs.imgui`/`IMGUI_DIR`); profiler +
+    frame-dumper `make -C tools/osr_view prof`. (Replaces the planned Python `:8780` studio.)
+  - **OPEN BUG (next session): the HOUSE FREEROAM scene mis-renders** — a HOLE behind Arche (backdrop shows
+    where a wall tile should cover) + stray FRAGMENTS of Arche's sprite. Present in BOTH the BMP tool AND the
+    viewer ⇒ a shared `recon_apply` blit-GEOMETRY bug (sheets all build; wall sheets extract correct). Prime
+    suspects: mode-2 RECTS src_w/src_h (defaults to dest extent) + mode-3 CLIPPED edge cases. Full writeup +
+    repro + debug plan: `plans/trace-studio-v2.md` "osr_view — OPEN BUG". (House freeroam = the errands room
+    — ties into the PAUSED movement arc.)
   - **NEXT — M4d the `--validate` differ_px==0 gate** (a real retail-backbuffer snapshot from the proxy →
-    diff vs reconstruction) is the verification tool: it confirms alpha pixel-correctness AND diagnoses the
-    menu-panel CLIPPED-blit artifact the USER flagged (cyan corners / grey triangles). Then **M5** the port
-    emitter (`src/osr_emit.c` → same `.osr`), **M6** the tick-join `:8780` studio. Remaining capture gaps
-    (flagged): scene-transition CLEARs (`OSR_CLEAR` — stale content bleeds across a scene boundary until the
-    next full redraw); mode-2 RECTS src_w/src_h (no `osr_blit` field; defaults to dest extent). Plan:
-    `plans/trace-studio-v2.md`.
+    diff vs reconstruction) is the ground-truth tool: it diagnoses the house-freeroam bug AND the menu
+    CLIPPED artifact, and confirms alpha pixel-correctness. Then **M5** the port emitter (`src/osr_emit.c` →
+    same `.osr`) for the port|retail DIFF pane. Remaining capture gaps (flagged): scene-transition CLEARs
+    (`OSR_CLEAR`); mode-2 RECTS src_w/src_h (no `osr_blit` field). Plan: `plans/trace-studio-v2.md`.
 - **M3c (prior, ckpt 125): the SOURCE pixels + surface identity are captured —
   the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
   the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls

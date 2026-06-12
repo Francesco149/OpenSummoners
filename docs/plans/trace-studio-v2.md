@@ -470,3 +470,50 @@ it earliest. Each milestone is independently testable.
   COM overhead. The god-object surface pointer (`0x8a93cc`→`+0x16c`→`+0x2c`) remains the
   fallback for the `--validate` real-snapshot only.
 ```
+
+## osr_view — the native ImGui scrubber (ckpt 125 — DONE + one OPEN bug)
+
+`tools/osr_view/` is a native Windows PE (mingw-cross): DDraw+GDI reconstruction
+(the C `osr_scrub` engine over the shared `recon_apply` core) + a Dear ImGui / DX11
+UI in ONE process.  USER-CONFIRMED fast + good.  Perf (profiled, `osr_prof.exe`):
+**~1.4 ms/frame (~720 fps), ~0.3 s open** after three fixes (commit `5118724`):
+(1) self-contained render (a SotES non-empty frame is a full redraw — clear+its
+draws == accumulated, 0.0% diff on frames 700/1250/5000; empty re-present → last
+non-empty); (2) **system-memory surfaces** (`recon_apply` + `osr_scrub`) — a
+video-mem Lock readback STALLED ~274 ms/frame on a GPU sync; (3) block-buffered
+index (was a 16M-record per-record stdio loop = ~50 s).  Build: `make -C
+tools/osr_view` (`IMGUI_DIR` from the flake, `pkgs.imgui`).  GDI fallback:
+`make gdi`.  Profiler/frame-dumper: `make prof` → `osr_prof.exe <osr> [n]` (perf)
+or `osr_prof.exe <osr> dump <frame_index> <out.bmp>`.
+
+### OPEN BUG (next session) — the HOUSE FREEROAM scene mis-renders
+On the **house freeroam scene** (the errands room — USER-flagged, feed image
+`20260612T225244_014e`) the reconstruction has rendering defects:
+- **a HOLE behind Arche** — the backdrop (res=1002 sky) shows where a building/wall
+  tile should be (a keyed/clipped wall tile not covering);
+- **stray FRAGMENTS of Arche** rendered in the middle of the frame (her sprite drawn
+  with wrong src/clip geometry → fragmented/duplicated).
+
+Key facts: present in BOTH the BMP tool (`osr_recon`) AND the viewer → a bug in the
+SHARED `recon_apply` blit dispatch, NOT viewer/scrub-specific.  Every blit has its
+source sheet (0 no-sheet); the wall sheets EXTRACT correctly (a quick `.osr` sheet
+extractor by dhash → PPM confirmed a timber-building tile w/ intentional magenta=
+transparent sky above).  So the failing draw is a SPECIFIC tile/sprite with wrong
+GEOMETRY — prime suspects: **mode-2 RECTS** (src_w/src_h still default to the dest
+extent — no `osr_blit` field; a SCALING rects blit reconstructs wrong, `port-debt`)
+and **mode-3 CLIPPED** edge cases (the clip recompute from ox/oy/ow/oh).  The Arche
+"fragments" smell like a sprite blit with a bad clip/src sub-rect.
+
+Repro: reconstruct the scene's flip with the BMP tool — `build/opensummoners-debug.exe
+--osr-replay C:\oss-osr\retail.osr --osr-out C:\oss-osr\recon --osr-replay-frames <FLIP>
+--allow-multi` (NB: `--osr-replay-frames` is by FLIP; the viewer's frame INDEX differs
+— `osr_prof dump <index>` prints the matching flip).  The frame near the report was
+viewer frame-index 6389 = flip 6390 / tick 5163 (the `osr_view` bottom bar shows the
+exact flip/tick — read it off the holey frame).
+
+Debug approach: add a **render-up-to-draw-N** isolation (openrecet's primitive:
+issue only the first N draws of a frame) to binary-search which draw makes the
+hole / the fragment, and/or land **M4d `--validate`** (a real retail backbuffer
+snapshot from the proxy → `differ_px` diff) for ground truth.  Then the viewer's
+planned **draw-inspector panel** (click a pixel → which draw; per-draw fields) makes
+this self-serve.
