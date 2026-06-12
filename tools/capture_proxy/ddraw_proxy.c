@@ -23,6 +23,8 @@
 #include "proxy_config.h"
 #include "iat_hook.h"
 #include "clock.h"
+#include "va_detour.h"
+#include "engine_hooks.h"
 #include "harness.h"
 
 static LONG g_init_done = 0;
@@ -37,6 +39,7 @@ static void proxy_init_once(void)
     if (InterlockedExchange(&g_init_done, 1)) return;
     proxy_config_load();
     clock_install();
+    engine_hooks_install();   /* INT3+VEH detours: flip/sim-tick/seed/anchors */
     harness_start();
     proxy_logf("[proxy] init complete");
 }
