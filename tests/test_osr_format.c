@@ -126,12 +126,12 @@ int test_osr_blit_roundtrip(void)
     b.dx = 12; b.dy = -34; b.reqw = 4; b.reqh = 48;
     b.sx = -8; b.sy = 16;
     b.ow = 64; b.oh = 4; b.ox = -2; b.oy = -3;
-    b.state = 0x8000; b.ckey = 0x1f; b.bmode = -1; b.mode = 3;
+    b.state = 0x8000; b.ckey = 0x1f; b.bmode = 1; b.mode = 4; b.blend_ref = 9;
 
     uint8_t buf[8 + OSR_BLIT_PAYLOAD];
     size_t n = osr_enc_blit(buf, sizeof(buf), &b);
     T_ASSERT_EQ_U(n, 8 + OSR_BLIT_PAYLOAD);
-    T_ASSERT_EQ_U(OSR_BLIT_PAYLOAD, 76);
+    T_ASSERT_EQ_U(OSR_BLIT_PAYLOAD, 80);
 
     uint32_t type, plen; const uint8_t *pay;
     const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
@@ -150,10 +150,53 @@ int test_osr_blit_roundtrip(void)
     T_ASSERT_EQ_I(g.ow, 64);  T_ASSERT_EQ_I(g.oh, 4);
     T_ASSERT_EQ_I(g.ox, -2);  T_ASSERT_EQ_I(g.oy, -3);
     T_ASSERT_EQ_U(g.state, 0x8000); T_ASSERT_EQ_U(g.ckey, 0x1f);
-    T_ASSERT_EQ_I(g.bmode, -1); T_ASSERT_EQ_U(g.mode, 3);
+    T_ASSERT_EQ_I(g.bmode, 1); T_ASSERT_EQ_U(g.mode, 4);
+    T_ASSERT_EQ_U(g.blend_ref, 9);
 
     osr_blit small = {0};
     T_ASSERT_EQ_U(osr_dec_blit(pay, OSR_BLIT_PAYLOAD - 1, &small), 0);  /* short */
+    return 0;
+}
+
+/* BLEND — the variable-length dedup'd alpha blend descriptor (M4 alpha).  Verify
+ * the 44-byte prefix (mode + 3×{shift,mask,lut_len}) + the 3 concatenated channel
+ * LUTs round-trip, framing included. */
+int test_osr_blend_roundtrip(void)
+{
+    uint8_t lut0[4] = { 0x10, 0x20, 0x30, 0x40 };
+    uint8_t lut1[2] = { 0x55, 0x66 };
+    uint8_t lut2[3] = { 0x77, 0x88, 0x99 };
+    uint8_t lut[9];
+    memcpy(lut, lut0, 4); memcpy(lut + 4, lut1, 2); memcpy(lut + 6, lut2, 3);
+
+    osr_blend b = {0};
+    b.blend_ref = 5; b.mode = 1;
+    b.shift[0] = 11; b.shift[1] = 5; b.shift[2] = 0;
+    b.mask[0] = 0xF800; b.mask[1] = 0x07E0; b.mask[2] = 0x001F;
+    b.lut_len[0] = 4; b.lut_len[1] = 2; b.lut_len[2] = 3;
+    b.lut = lut;
+
+    uint8_t buf[8 + OSR_BLEND_HDR + 9];
+    size_t n = osr_enc_blend(buf, sizeof(buf), &b);
+    T_ASSERT_EQ_U(n, 8 + OSR_BLEND_HDR + 9);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);
+    T_ASSERT_EQ_U(type, OSR_BLEND);
+    T_ASSERT_EQ_U(plen, OSR_BLEND_HDR + 9);
+
+    osr_blend g = {0};
+    T_ASSERT(osr_dec_blend(pay, plen, &g));
+    T_ASSERT_EQ_U(g.blend_ref, 5); T_ASSERT_EQ_I(g.mode, 1);
+    T_ASSERT_EQ_I(g.shift[0], 11); T_ASSERT_EQ_I(g.shift[2], 0);
+    T_ASSERT_EQ_U(g.mask[0], 0xF800); T_ASSERT_EQ_U(g.mask[1], 0x07E0);
+    T_ASSERT_EQ_U(g.lut_len[0], 4); T_ASSERT_EQ_U(g.lut_len[1], 2);
+    T_ASSERT_EQ_U(g.lut_len[2], 3);
+    T_ASSERT_MEM_EQ(g.lut, lut, 9);
+
+    osr_blend small = {0};
+    T_ASSERT_EQ_U(osr_dec_blend(pay, OSR_BLEND_HDR - 1, &small), 0);  /* short */
     return 0;
 }
 

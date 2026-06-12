@@ -21,16 +21,16 @@
  * acquired lazily for a run of TEXT ops and released before the next BLIT (and
  * at PRESENT) — the same GetDC/ReleaseDC dance the real engine does.
  *
- * KNOWN LIMITATIONS (flagged, non-fatal — the --validate gate, M4d, measures
- * their pixel impact):
- *   - mode-4 ALPHA blits are SKIPPED: the captured record carries the blend
- *     MODE but not the per-channel blend LUT (PORT-DEBT(osr-alpha-src-grab) /
- *     osr-recon-alpha), so the software blend can't be reproduced yet.  ~2.4%
- *     of town blits; surfaces as missing pixels until the LUT is captured.
- *   - mode-2 RECTS src_w/src_h default to the dest extent (reqw/reqh): the
- *     capture grabs only 6 of blt_rects' 8 coords (engine_hooks.h
- *     eh_blt_rects_cb), so a SCALING rects blit (rare; 1.3% of blits) is
- *     reconstructed at 1:1.  Capture-side follow-up.
+ * mode-4 ALPHA is now reconstructed via the captured blend descriptor (OSR_BLEND
+ * → a rebuilt zdd_blend_desc, fed to zdd_blit_orchestrate) — the prologue + the
+ * town sky/ground come back.  A mode-4 blit whose blend_ref wasn't captured (a
+ * bad/transient descriptor pointer) is still counted + skipped.
+ *
+ * KNOWN LIMITATION (flagged, non-fatal — the M4d --validate gate measures the
+ * pixel impact):
+ *   - mode-2 RECTS src_w/src_h default to the dest extent (reqw/reqh): osr_blit
+ *     has no field for them yet, so a SCALING rects blit (rare; ~1.3% of blits)
+ *     reconstructs at 1:1.  Capture-side follow-up.
  */
 #include "osr_recon.h"
 
@@ -46,6 +46,7 @@
 /* ── the reconstruction context (the sink's `user`) ───────────────────────── */
 #define RECON_SHEET_SLOTS 4096u   /* open-addressing; ~420 live dhashes */
 #define RECON_FONT_CAP    64      /* font_ref is a small 1-based id (≤ 9 seen) */
+#define RECON_BLEND_CAP   512     /* blend_ref is a small dedup'd 1-based id */
 
 typedef struct recon_ctx {
     zdd        *z;                 /* DDraw god-object (allocs source surfaces) */
@@ -63,6 +64,12 @@ typedef struct recon_ctx {
 
     /* font_ref → HFONT */
     void       *font[RECON_FONT_CAP];
+
+    /* blend_ref → a rebuilt zdd_blend_desc (M4 alpha).  blend_ref is small +
+     * 1-based; the owned LUT bytes back the descriptor's channel lut pointers. */
+    zdd_blend_desc blend[RECON_BLEND_CAP];
+    uint8_t       *blend_lut[RECON_BLEND_CAP];
+    int            blend_present[RECON_BLEND_CAP];
 
     /* per-frame state */
     int         frame_active;      /* the current frame is wanted → draw it     */
@@ -228,6 +235,31 @@ static void rc_font(void *u, const osr_font *f)
     c->font[f->font_ref] = (void *)CreateFontIndirectA(&lf);
 }
 
+static void rc_blend(void *u, const osr_blend *b)
+{
+    recon_ctx *c = u;
+    if (b->blend_ref == 0 || b->blend_ref >= RECON_BLEND_CAP) return;
+    if (c->blend_present[b->blend_ref]) return;     /* dedup'd; first wins */
+
+    uint32_t total = b->lut_len[0] + b->lut_len[1] + b->lut_len[2];
+    uint8_t *store = (uint8_t *)malloc(total ? total : 1);
+    if (store == NULL) return;
+    if (total && b->lut) memcpy(store, b->lut, total);
+
+    zdd_blend_desc *d = &c->blend[b->blend_ref];
+    memset(d, 0, sizeof *d);
+    d->mode = b->mode;
+    uint32_t off = 0;
+    for (int i = 0; i < 3; i++) {
+        d->ch[i].shift = b->shift[i];
+        d->ch[i].mask  = b->mask[i];
+        d->ch[i].lut   = store + off;   /* the channel's LUT slice */
+        off += b->lut_len[i];
+    }
+    c->blend_lut[b->blend_ref] = store;
+    c->blend_present[b->blend_ref] = 1;
+}
+
 static void rc_sheet(void *u, const osr_sheet *s)
 {
     recon_ctx *c = u;
@@ -256,9 +288,13 @@ static void rc_frame_begin(void *u, const osr_framebeg *fb)
     recon_release_dc(c);            /* a prior frame must not leave a DC held */
     c->cur_flip = fb->flip;
     c->cur_tick = fb->sim_tick;
-    c->frame_active = recon_want(c, fb->flip);
-    if (c->frame_active && c->dest != NULL)
-        zdd_object_clear(c->dest);  /* a fresh black canvas to compose onto */
+    /* We ALWAYS draw each frame's ops onto the dest — and do NOT clear between
+     * frames.  Retail flips a back-buffer chain, so an EMPTY frame (no draws —
+     * retail coalesces / re-presents, quirk #99) must retain the prior frame's
+     * pixels, not go black; a full-redraw frame's backdrop overwrites
+     * everything anyway.  So the dest accumulates, cleared only ONCE at start
+     * (osr_recon_run).  We snapshot only the wanted frames (rc_present). */
+    c->frame_active = 1;
 }
 
 /* Stamp the source object's per-cel placement metrics + keying from the BLIT
@@ -294,8 +330,6 @@ static void rc_blit(void *u, const osr_blit *b)
     if (!c->frame_active) return;
     recon_release_dc(c);            /* can't blit while a GDI DC is held */
 
-    if (b->mode == 4) { c->n_blit_alpha_skipped++; return; }  /* no blend LUT */
-
     zdd_object *s = recon_find_sheet(c, b->dhash);
     if (s == NULL) { c->n_blit_no_sheet++; return; }
     recon_stamp_source(c, s, b);
@@ -303,14 +337,25 @@ static void rc_blit(void *u, const osr_blit *b)
     switch (b->mode) {
     case 0: zdd_object_blt_onto(s, c->dest, b->dx, b->dy); break;
     case 1: zdd_object_blt_keyed(s, c->dest, b->dx, b->dy); break;
-    case 2: /* src_w/_h default to the dest extent — see file header */
-        zdd_object_blt_rects(s, c->dest, b->dx, b->dy, b->reqw, b->reqh,
-                             b->sx, b->sy, b->reqw, b->reqh);
+    case 2: zdd_object_blt_rects(s, c->dest, b->dx, b->dy, b->reqw, b->reqh,
+                                 b->sx, b->sy, b->reqw, b->reqh);
         break;
     case 3:
         zdd_object_blt_clipped(s, c->dest, b->dx, b->dy, b->reqw, b->reqh,
                                b->sx, b->sy);
         break;
+    case 4: {
+        /* software alpha blend through the captured descriptor (M4) */
+        if (b->blend_ref == 0 || b->blend_ref >= RECON_BLEND_CAP ||
+            !c->blend_present[b->blend_ref]) {
+            c->n_blit_alpha_skipped++;     /* no blend descriptor captured */
+            break;
+        }
+        zdd_blit_orchestrate(&c->blend[b->blend_ref], c->dest, s,
+                             b->dx, b->dy, b->reqw, b->reqh, b->sx, b->sy,
+                             (int32_t)b->ckey, NULL);
+        break;
+    }
     default: break;
     }
 }
@@ -337,13 +382,12 @@ static void rc_present(void *u, const osr_present *pr)
 {
     (void)pr;
     recon_ctx *c = u;
-    if (!c->frame_active) return;
     recon_release_dc(c);
+    if (!recon_want(c, c->cur_flip)) return;   /* draw all, snapshot wanted */
     char path[1200];
     snprintf(path, sizeof path, "%s/recon_%05u_t%06u.bmp",
              c->out_dir, c->cur_flip, c->cur_tick);
     if (recon_snapshot_bmp(c, path)) c->n_frames_out++;
-    c->frame_active = 0;
 }
 
 /* ── driver ───────────────────────────────────────────────────────────────── */
@@ -366,6 +410,7 @@ int osr_recon_run(zdd *z, zdd_object *dest, const char *out_dir,
     sink.user           = &c;
     sink.on_header      = rc_header;
     sink.on_font        = rc_font;
+    sink.on_blend       = rc_blend;
     sink.on_sheet       = rc_sheet;
     sink.on_frame_begin = rc_frame_begin;
     sink.on_blit        = rc_blit;
@@ -374,6 +419,7 @@ int osr_recon_run(zdd *z, zdd_object *dest, const char *out_dir,
 
     fprintf(stderr, "[opensummoners] osr-replay: streaming %s → %s (want=%zu)\n",
             osr_path, c.out_dir, n_want);
+    if (dest != NULL) zdd_object_clear(dest);   /* one initial black canvas */
     int r = osr_replay_file(osr_path, &sink);
     recon_release_dc(&c);
 
@@ -386,6 +432,8 @@ int osr_recon_run(zdd *z, zdd_object *dest, const char *out_dir,
     }
     for (int i = 0; i < RECON_FONT_CAP; i++)
         if (c.font[i] != NULL) DeleteObject((HGDIOBJ)c.font[i]);
+    for (int i = 0; i < RECON_BLEND_CAP; i++)
+        if (c.blend_lut[i] != NULL) free(c.blend_lut[i]);
 
     fprintf(stderr, "[opensummoners] osr-replay done (rc=%d): %ld frames out, "
             "%ld sheets, %ld alpha-skipped, %ld no-sheet, %ld no-font\n",

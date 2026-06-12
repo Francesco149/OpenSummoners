@@ -68,7 +68,8 @@ enum osr_rec_type {
     OSR_SHEET    = 8,   /* dedup'd decoded source pixels (once per unique dhash) */
     OSR_FONT     = 9,   /* dedup'd LOGFONT for the replayer's HFONT */
     OSR_PALETTE  = 10,  /* 256-entry palette for a PAL8 surface */
-    OSR_INPUT    = 11   /* injected ring/held input at a flip */
+    OSR_INPUT    = 11,  /* injected ring/held input at a flip */
+    OSR_BLEND    = 12   /* dedup'd software-alpha blend descriptor (M4 alpha) */
 };
 
 /* ── little-endian put/get (x86; byte-wise so unaligned is fine) ──────────── */
@@ -206,7 +207,10 @@ typedef struct osr_anchor {
  *               bit-exact port from these, so we emit inputs not post-clip rects)
  *   ow,oh,ox,oy — the source cel placement metrics (+0xb8/+0xbc/+0x0c/+0x10)
  *   state     — cel +0xd4 (0x8000 = KEYSRC armed); ckey — bound color key;
- *   bmode     — alpha blend mode (-1 if N/A); mode — the 0..4 primitive index. */
+ *   bmode     — alpha blend mode (-1 if N/A); mode — the 0..4 primitive index;
+ *   blend_ref — for mode-4 alpha, the OSR_BLEND record this blit blends through
+ *               (0 = none); the per-channel blend LUT can't be reconstructed from
+ *               bmode alone (mode-4 reconstruction needs it).  0 for modes 0..3. */
 typedef struct osr_blit {
     uint32_t va, seq;
     uint16_t res, frame;
@@ -216,9 +220,10 @@ typedef struct osr_blit {
     uint32_t state, ckey;
     int32_t  bmode;
     uint32_t mode;
+    uint32_t blend_ref;
 } osr_blit;
 
-#define OSR_BLIT_PAYLOAD 76u   /* the fixed BLIT payload size (see osr_enc_blit) */
+#define OSR_BLIT_PAYLOAD 80u   /* the fixed BLIT payload size (see osr_enc_blit) */
 
 /* SHEET — the dedup'd decoded SOURCE pixels a blit reads from (M3c).  Written
  * ONCE per unique source surface (dedup'd by dhash); BLIT.dhash references it.
@@ -242,6 +247,32 @@ typedef struct osr_sheet {
 } osr_sheet;
 
 #define OSR_SHEET_HDR 24u    /* the fixed-size SHEET payload prefix before bytes */
+
+/* BLEND — a dedup'd software-alpha blend descriptor (M4 alpha).  The engine's
+ * mode-4 blit (zdd_blit_orchestrate → zdd_alpha_blit) blends through a
+ * zdd_blend_desc: a `mode` (0 remap / 1 src×dst / 2 colorize) + 3 channel
+ * records, each carrying a `shift`, a `mask`, and a byte LUT the blend math
+ * indexes.  Only `mode` is recoverable from the BLIT record; the LUTs are not —
+ * so the reconstructor needs this.  Dedup'd by descriptor identity (the engine's
+ * ramp descriptors are persistent globals) and referenced by osr_blit.blend_ref.
+ *   blend_ref   — the stable 1-based id (0 = none); osr_blit.blend_ref points here
+ *   mode        — desc->mode (0/1/2; the blit's bmode mirrors it)
+ *   shift[3]    — per-channel right/left shift (R/G/B; 11/5/0 for RGB565)
+ *   mask[3]     — per-channel channel mask (0xF800/0x07E0/0x001F for RGB565)
+ *   lut_len[3]  — per-channel LUT byte length (sized to the max index the blend
+ *                 math reaches: mode0 = (mask>>shift)+1; mode1 = ((m>>s)<<5)+
+ *                 (m>>s)+1; mode2 = Σ(m>>s)/3 + 1 — see zdd_blend_pixel)
+ *   lut         — lut_len[0]+lut_len[1]+lut_len[2] bytes, the 3 LUTs concatenated */
+typedef struct osr_blend {
+    uint32_t blend_ref;
+    int32_t  mode;
+    int32_t  shift[3];
+    uint32_t mask[3];
+    uint32_t lut_len[3];
+    const uint8_t *lut;     /* not owned; len = lut_len[0]+lut_len[1]+lut_len[2] */
+} osr_blend;
+
+#define OSR_BLEND_HDR 44u    /* fixed prefix: 4 + 4 + 3*4 + 3*4 + 3*4 = 44 */
 
 /* FONT — a dedup'd GDI logical font (M3d).  The retail engine builds 8 HFONTs at
  * boot (ar_register_fonts → CreateFontIndirectA) and the replayer (M4) recreates
@@ -358,6 +389,7 @@ static inline size_t osr_enc_blit(uint8_t *buf, size_t cap, const osr_blit *b)
     osr_put_u32(p + 64, b->ckey);
     osr_put_u32(p + 68, (uint32_t)b->bmode);
     osr_put_u32(p + 72, b->mode);
+    osr_put_u32(p + 76, b->blend_ref);
     return (size_t)8 + OSR_BLIT_PAYLOAD;
 }
 
@@ -395,6 +427,26 @@ static inline size_t osr_enc_sheet(uint8_t *buf, size_t cap, const osr_sheet *s)
     osr_enc_sheet_prefix(buf, cap, s);
     if (s->byte_len && s->bytes)
         memcpy(buf + 8 + OSR_SHEET_HDR, s->bytes, s->byte_len);
+    return total;
+}
+
+/* BLEND — a variable-length record: the 44-byte prefix (OSR_BLEND_HDR) followed
+ * by the 3 concatenated channel LUTs (lut_len[0..2] bytes).  Returns total bytes
+ * written, or 0 if cap is too small. */
+static inline size_t osr_enc_blend(uint8_t *buf, size_t cap, const osr_blend *b)
+{
+    uint32_t lut_total = b->lut_len[0] + b->lut_len[1] + b->lut_len[2];
+    size_t total = (size_t)8 + OSR_BLEND_HDR + lut_total;
+    if (cap < total) return 0;
+    osr_put_u32(buf, OSR_BLEND);
+    osr_put_u32(buf + 4, OSR_BLEND_HDR + lut_total);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, b->blend_ref);
+    osr_put_u32(p +  4, (uint32_t)b->mode);
+    for (int i = 0; i < 3; i++) osr_put_u32(p +  8 + i * 4, (uint32_t)b->shift[i]);
+    for (int i = 0; i < 3; i++) osr_put_u32(p + 20 + i * 4, b->mask[i]);
+    for (int i = 0; i < 3; i++) osr_put_u32(p + 32 + i * 4, b->lut_len[i]);
+    if (lut_total && b->lut) memcpy(p + OSR_BLEND_HDR, b->lut, lut_total);
     return total;
 }
 
@@ -493,6 +545,7 @@ static inline int osr_dec_blit(const uint8_t *p, uint32_t len, osr_blit *o)
     o->ckey  = osr_get_u32(p + 64);
     o->bmode = (int32_t)osr_get_u32(p + 68);
     o->mode  = osr_get_u32(p + 72);
+    o->blend_ref = osr_get_u32(p + 76);
     return 1;
 }
 static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)
@@ -509,6 +562,19 @@ static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)
     o->byte_len = osr_get_u32(p + 20);
     if ((size_t)o->byte_len > (size_t)(len - OSR_SHEET_HDR)) return 0;
     o->bytes    = p + OSR_SHEET_HDR;
+    return 1;
+}
+static inline int osr_dec_blend(const uint8_t *p, uint32_t len, osr_blend *o)
+{
+    if (len < OSR_BLEND_HDR) return 0;
+    o->blend_ref = osr_get_u32(p +  0);
+    o->mode      = (int32_t)osr_get_u32(p + 4);
+    for (int i = 0; i < 3; i++) o->shift[i]   = (int32_t)osr_get_u32(p +  8 + i * 4);
+    for (int i = 0; i < 3; i++) o->mask[i]    = osr_get_u32(p + 20 + i * 4);
+    for (int i = 0; i < 3; i++) o->lut_len[i] = osr_get_u32(p + 32 + i * 4);
+    uint32_t lut_total = o->lut_len[0] + o->lut_len[1] + o->lut_len[2];
+    if ((size_t)lut_total > (size_t)(len - OSR_BLEND_HDR)) return 0;
+    o->lut = p + OSR_BLEND_HDR;
     return 1;
 }
 static inline int osr_dec_font(const uint8_t *p, uint32_t len, osr_font *o)

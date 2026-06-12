@@ -75,6 +75,12 @@ int osr_replay_stream(FILE *f, const osr_replay_sink *sink)
                 sink->on_sheet(sink->user, &s);
             break;
         }
+        case OSR_BLEND: {
+            osr_blend bl;
+            if (sink->on_blend && osr_dec_blend(buf, len, &bl))
+                sink->on_blend(sink->user, &bl);
+            break;
+        }
         case OSR_FONT: {
             osr_font fo;
             if (sink->on_font && osr_dec_font(buf, len, &fo))

@@ -677,6 +677,7 @@ struct test_case {
     X(osr_header_encode_too_small)                             \
     X(osr_records_roundtrip)                                   \
     X(osr_blit_roundtrip)                                      \
+    X(osr_blend_roundtrip)                                     \
     X(osr_sheet_roundtrip)                                     \
     X(osr_font_roundtrip)                                      \
     X(osr_text_roundtrip)                                      \

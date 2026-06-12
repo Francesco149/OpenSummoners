@@ -40,11 +40,12 @@ SHEET = 8
 FONT = 9
 PALETTE = 10
 INPUT = 11
+BLEND = 12
 
 REC_NAME = {
     FRAMEBEG: "FRAMEBEG", PRESENT: "PRESENT", ANCHOR: "ANCHOR", SEED: "SEED",
     CLEAR: "CLEAR", BLIT: "BLIT", TEXT: "TEXT", SHEET: "SHEET",
-    FONT: "FONT", PALETTE: "PALETTE", INPUT: "INPUT",
+    FONT: "FONT", PALETTE: "PALETTE", INPUT: "INPUT", BLEND: "BLEND",
 }
 
 SIDE_NAME = {0: "port", 1: "retail"}
@@ -98,14 +99,22 @@ class Record:
         return flip, sim_tick, rng, name
 
     def blit(self):
-        # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (76 bytes)
+        # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (80 bytes)
         (va, seq, res, frame, dhash, dst_handle,
          dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
-         state, ckey, bmode, mode) = struct.unpack_from(
-            "<IIHHII iiiiii iiii IIiI", self.payload)
+         state, ckey, bmode, mode, blend_ref) = struct.unpack_from(
+            "<IIHHII iiiiii iiii IIiI I", self.payload)
         return Blit(va, seq, res, frame, dhash, dst_handle,
                     dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
-                    state, ckey, bmode, mode)
+                    state, ckey, bmode, mode, blend_ref)
+
+    def blend(self):
+        # mirror struct osr_blend / osr_dec_blend (44-byte prefix + 3 LUTs)
+        (blend_ref, mode, sh0, sh1, sh2, m0, m1, m2,
+         l0, l1, l2) = struct.unpack_from("<I i iii III III", self.payload)
+        lut = self.payload[44:44 + l0 + l1 + l2]
+        return Blend(blend_ref, mode, (sh0, sh1, sh2), (m0, m1, m2),
+                     (l0, l1, l2), lut)
 
     def sheet(self):
         # mirror struct osr_sheet / osr_dec_sheet (24-byte prefix + bytes)
@@ -155,6 +164,17 @@ class Blit:
     ckey: int
     bmode: int
     mode: int
+    blend_ref: int = 0
+
+
+@dataclass
+class Blend:
+    blend_ref: int
+    mode: int
+    shift: tuple = (0, 0, 0)
+    mask: tuple = (0, 0, 0)
+    lut_len: tuple = (0, 0, 0)
+    lut: bytes = b""
 
 
 @dataclass

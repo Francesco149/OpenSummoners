@@ -180,6 +180,17 @@ static void osr_w_sheet(const osr_sheet *s)
         osr__ring_put(s->bytes, s->byte_len);
     LeaveCriticalSection(&g_osr.cs);
 }
+/* BLEND — variable: the 44-byte prefix + up to 3 channel LUTs (dedup'd; written
+ * once per unique blend descriptor, only a few dozen across a scenario, so a
+ * static encode buffer covers the largest mode-1 descriptor).  Called only on the
+ * engine thread inside a blit detour (single-threaded), so the static buffer is
+ * safe; osr__emit serialises the ring write. */
+static void osr_w_blend(const osr_blend *b)
+{
+    static uint8_t buf[8 + OSR_BLEND_HDR + 3u * 8192u];
+    size_t n = osr_enc_blend(buf, sizeof(buf), b);
+    osr__emit(buf, n);
+}
 /* FONT — fixed 64-byte payload (dedup'd; written once per unique HFONT). */
 static void osr_w_font(const osr_font *f)
 {
