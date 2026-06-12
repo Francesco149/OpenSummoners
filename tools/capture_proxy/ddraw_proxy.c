@@ -25,6 +25,7 @@
 #include "clock.h"
 #include "va_detour.h"
 #include "engine_hooks.h"
+#include "engine_input.h"
 #include "harness.h"
 
 static LONG g_init_done = 0;
@@ -40,6 +41,7 @@ static void proxy_init_once(void)
     proxy_config_load();
     clock_install();
     engine_hooks_install();   /* INT3+VEH detours: flip/sim-tick/seed/anchors */
+    engine_input_install();   /* ring injection (drives the menu → game_enter) */
     harness_start();
     proxy_logf("[proxy] init complete");
 }

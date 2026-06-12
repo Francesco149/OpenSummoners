@@ -83,8 +83,13 @@ static DWORD WINAPI hook_GetTickCount(void)
                 g_lock_clock_ms += LOCKSTEP_EPSILON_MS;  /* unstick a stall */
             return g_lock_clock_ms;
         }
-        g_virtual_now_ms += (DWORD)g_cfg.turbo_step_ms;
-        return g_virtual_now_ms;
+        if (g_cfg.turbo) {                            /* per-call turbo advance */
+            g_virtual_now_ms += (DWORD)g_cfg.turbo_step_ms;
+            return g_virtual_now_ms;
+        }
+        /* no-turbo + lockstep-not-yet-armed: real time during boot/load (the
+         * deterministic lockstep clock takes over at the first flip). */
+        return real_GetTickCount();
     }
     return real_GetTickCount();
 }
@@ -127,7 +132,10 @@ static void clock_install(void)
 {
     HMODULE exe = GetModuleHandleA(NULL);
 
-    if (g_cfg.turbo) {
+    /* Install the clock hooks when EITHER turbo or lockstep is requested:
+     * lockstep needs the GetTickCount/pump hooks to freeze time between flips
+     * even with turbo off (the agent's --no-turbo --lockstep mode). */
+    if (g_cfg.turbo || g_cfg.lockstep) {
         real_GetTickCount =
             (GetTickCount_t)iat_hook(exe, "kernel32.dll", "GetTickCount",
                                      (void *)hook_GetTickCount);

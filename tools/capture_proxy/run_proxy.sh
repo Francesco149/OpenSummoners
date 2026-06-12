@@ -9,7 +9,9 @@
 # and ALWAYS cleans up — especially ddraw.dll, so v1 Frida runs (which use the
 # same game dir) never accidentally load this proxy.
 #
-# Usage:  nix develop --command tools/capture_proxy/run_proxy.sh [seconds]
+# Usage:  nix develop --command tools/capture_proxy/run_proxy.sh [seconds] [input-trace]
+#         input-trace = a WSL-path JSONL nav trace ({"frame":N,"ids":[..]});
+#                       copied to C:\ and replayed via the ring injection.
 # Env:    OSS_* config (see proxy_config.h) is passed through to the proxy.
 #         OSS_PROXY_LOG defaults to C:\oss-osr\proxy.log (native NTFS staging).
 #
@@ -18,6 +20,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SECS="${1:-8}"
+TRACE="${2:-}"
 
 DLL="$ROOT/build/ddraw_proxy.dll"
 UNPACKED="$ROOT/vendor/unpacked/sotes.unpacked.exe"
@@ -32,6 +35,16 @@ LOG_WIN="${OSS_PROXY_LOG:-C:\\oss-osr\\proxy.log}"
 LOG_WSL="$(wslpath -u "$LOG_WIN")"
 mkdir -p "$(dirname "$LOG_WSL")"
 : > "$LOG_WSL"   # truncate prior log
+
+# Optional nav trace: stage it on C:\ and point the proxy at it.
+TRACE_WIN=""
+if [[ -n "$TRACE" ]]; then
+    [[ -f "$TRACE" ]] || { echo "error: trace not found: $TRACE" >&2; exit 1; }
+    TRACE_WSL="$(dirname "$LOG_WSL")/input.trace"
+    cp -f "$TRACE" "$TRACE_WSL"
+    TRACE_WIN="$(wslpath -w "$TRACE_WSL")"
+    echo "[run_proxy] trace: $TRACE -> $TRACE_WIN ($(grep -c . "$TRACE") lines)"
+fi
 
 DROP_EXE="$GAME_DIR/sotes-unpacked-proxy-$$.exe"
 DROP_DLL="$GAME_DIR/ddraw.dll"
@@ -51,6 +64,7 @@ WIN_CWD="$(wslpath -w "$GAME_DIR")"
 # Pass the OSS_* config + the log path through the PowerShell env to the child.
 PS_ENV=""
 PS_ENV+="\$env:OSS_PROXY_LOG='$LOG_WIN'; "
+[[ -n "$TRACE_WIN" ]] && PS_ENV+="\$env:OSS_INPUT_TRACE='$TRACE_WIN'; "
 for v in OSS_TURBO OSS_LOCKSTEP OSS_TURBO_STEP_MS OSS_LOCKSTEP_STEP_MS \
          OSS_HIDE_WINDOW OSS_DISMISS_DIALOG OSS_SILENT_AUDIO \
          OSS_SEED_PIN OSS_SEED_VALUE; do
