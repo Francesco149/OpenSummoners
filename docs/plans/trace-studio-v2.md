@@ -1,6 +1,13 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2+M3a+M3b+M3c+M3d LANDED. M1+M2: proxy auto-loads, native
+> Status (2026-06-12): M1+M2+M3a+M3b+M3c+M3d + M4 (reconstruct) LANDED.  M4: the
+> port's `--osr-replay` mode (`src/osr_replay.{c,h}` streaming reader + `src/osr_recon.c`
+> Win32 reconstructor) rebuilds frames 1:1 through zdd.c blits + real GDI text + a
+> BMP snapshot; the mode-4 ALPHA blend descriptor is now captured (`OSR_BLEND` +
+> `blend_grab.h`, the "capture everything we're missing" pass) so the prologue +
+> sky/ground reconstruct.  USER-CONFIRMED the town looks correct.  NEXT: M4d
+> `--validate` differ_px==0 gate, then M5 port emitter, M6 the :8780 studio.
+> (history below.) M1+M2: proxy auto-loads, native
 > headless turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
 > (`src/osr_format.h`) + the bg-thread ring writer (`osr_writer.h`) + the cheap
@@ -424,8 +431,24 @@ it earliest. Each milestone is independently testable.
     ground truth EXACTLY — font ref 3 = Courier New 7×18, per-glyph TextOutA at 7px
     advance, the 3-copy shadow (`0xa8b9cc`/`0xa8b9cc`/main `0x3e537d`), bk TRANSPARENT.
     The `.osr` is now a complete frame description.
-- **M4 — reconstruct.** `opensummoners.exe --osr-replay` rebuilds frames 1:1; the
-  `--validate` fidelity gate (`differ_px==0` vs a real snapshot) passes.
+- **M4 — reconstruct. ✓ DONE (ckpt 125) except the --validate gate (M4d).**
+  `opensummoners.exe --osr-replay <osr> --osr-out <dir> [--osr-replay-frames i,j]`
+  rebuilds frames 1:1.  M4a: the STREAMING reader `src/osr_replay.{c,h}` (a 1.5 GB
+  capture can't be slurped by the 32-bit port → record-by-record dispatch to an
+  `osr_replay_sink`; host-tested + validated against the real capture's counts vs
+  osr.py).  M4b+M4c: the Win32 reconstructor `src/osr_recon.c` — SHEET→DDraw source
+  surface (TOP-DOWN load), FONT→HFONT, BLIT→the zdd.c primitive (colorkey bound RAW,
+  not re-converted — the magenta-leak fix), TEXT→real GDI TextOutA, PRESENT→BMP; the
+  dest accumulates with NO per-frame clear (empty re-present frames retain prior
+  pixels, quirk #99).  M4-alpha: the mode-4 blend descriptor is captured (`OSR_BLEND`
+  + `blend_ref`, `tools/capture_proxy/blend_grab.h` — VirtualQuery-guarded reads +
+  content dedup, the descriptor is a HEAP object) so alpha replays via
+  `zdd_blit_orchestrate` (0 alpha-skipped).  USER-CONFIRMED the town reconstruction.
+  - **M4d (OPEN) — the `--validate` differ_px==0 gate**: grab one real retail
+    backbuffer snapshot from the proxy (at the present hook) → diff vs the
+    reconstruction.  This both proves alpha pixel-correctness AND diagnoses the
+    menu-panel clipped-blit artifact the USER flagged.  Remaining capture gaps:
+    scene-transition CLEARs (`OSR_CLEAR`); mode-2 rects src_w/src_h.
 - **M5 — port emitter.** `src/osr_emit.c` emits the same `.osr` from the port.
 - **M6 — studio.** tick-join pairing + `:8780` viewer with the v1 scrub UX over the
   reconstructed frames. **This is the first usable replacement — frame-by-frame 1:1

@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M4: the `.osr` → frames RECONSTRUCTOR (+ the alpha blend capture)
+
+M4 reconstruct lands: the port binary's `--osr-replay` mode rebuilds frames 1:1 from a captured draw stream
+through the port's OWN bit-exact sinks (zdd.c blits + real GDI text), and the capture is extended to record
+the ALPHA blend descriptor it was missing (the USER's "capture everything we're missing" pass). 5 commits;
+998 host pass (+6). USER-CONFIRMED the town reconstruction looks correct.
+
+**M4a — the STREAMING reader** (`src/osr_replay.{c,h}`, `ea38484`). A real capture is 1.5 GB / 16M blits and
+the port is a 32-bit process, so the `.osr` CANNOT be slurped — it streams the framed records to an
+`osr_replay_sink` visitor (truncated-tail-safe, host-tested). Validated against the REAL capture: a throwaway
+host harness's per-type counts match `osr.py` byte-for-byte.
+
+**M4b+M4c — the Win32 RECONSTRUCTOR** (`src/osr_recon.c`, `afb3e64`). SHEET → a DDraw source surface (loaded
+TOP-DOWN — the capture grabbed a Lock, not a bottom-up DIB), FONT → an HFONT, BLIT → the matching zdd.c
+primitive onto the dest, TEXT → real GDI `TextOutA`, PRESENT → a BMP snapshot. RAN on the real capture (0
+no-sheet / 0 no-font). Two fidelity fixes: (1) the record's `ckey` is `colorkey_OUT` (already RGB565), so bind
+it RAW via `zdd_surface_set_color_key` — going through `zdd_object_set_color_key` re-runs the RGB888→565
+conversion and leaks magenta; (2) NO per-frame clear — retail flips a back-buffer chain, so an empty
+re-present frame (quirk #99) must retain the prior pixels (prologue 0%→99.7%); the dest is cleared once at
+start and accumulates.
+
+**M4-alpha — capture + replay the blend descriptor** (`d22d456`). The `.osr` recorded only the blend MODE, so
+every mode-4 ALPHA blit (~333k: the prologue narration, the town sky/ground, fades) reconstructed as black.
+NEW `OSR_BLEND` record (mode + 3 channels {shift, mask, exact-sized LUT — sized to the max index
+`zdd_blend_pixel` reaches}) + `osr_blit.blend_ref` (76→80 B); `tools/capture_proxy/blend_grab.h` grabs the
+descriptor at the alpha detour. First cut captured ZERO — the descriptor is a HEAP object (≈0x069a…, not a
+global), so the global-range filter + ptr-dedup failed; fixed with VirtualQuery-guarded reads (safe for
+stack/heap, no fault in the trampoline) + CONTENT dedup (mode + per-channel shift/mask/lut-pointer, the LUTs
+being stable globals). Re-captured nav→town: BLEND=38 distinct, 100% of alpha blits referenced, full turbo
+(~944 fps). The reconstructor rebuilds a `zdd_blend_desc` → `zdd_blit_orchestrate` (0 alpha-skipped). Town
+flip 1250 (USER-CONFIRMED) + prologue 1200 on the feed.
+
+**NEXT — M4d the `--validate` differ_px==0 gate**: a real retail backbuffer snapshot from the proxy → diff vs
+reconstruction. It both proves alpha pixel-correctness AND diagnoses the menu-panel CLIPPED-blit artifact the
+USER flagged. Remaining capture gaps (flagged): scene-transition CLEARs (`OSR_CLEAR`); mode-2 rects
+src_w/src_h. Then M5 (port emitter), M6 (the :8780 tick-join studio). Plan: `plans/trace-studio-v2.md`.
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M3d: GDI text → TEXT/FONT (the `.osr` is now a COMPLETE frame)
 
 The engine renders ALL dynamic text + the prologue narration through Win32 GDI `TextOutA` straight onto the

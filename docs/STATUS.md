@@ -43,9 +43,37 @@ understates how much actual instruction volume is ported.
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M3d LANDED: GDI text → TEXT/FONT, so the `.osr` is now a COMPLETE
-  frame description (blits + sources + surface identity + text) → M4 reconstruct is unblocked. Detail in the
-  "M3d LANDED" bullet below; 992 host pass (+2). Prior step M3c (the SOURCE pixels + surface identity) ↓.**
+- **LATEST (ckpt 125): TRACE STUDIO v2 — M4 RECONSTRUCT LANDS (the `.osr` → frames, on Windows). The port
+  binary's `--osr-replay` mode rebuilds frames 1:1 from a captured draw stream through the port's OWN
+  bit-exact sinks, and the capture now records the ALPHA blend descriptor it was missing. 5 commits; 998 host
+  pass (+6). USER-CONFIRMED the town reconstruction looks correct.**
+  - **M4a — the `.osr` STREAMING reader (`src/osr_replay.{c,h}`, host-tested).** A real capture is 1.5 GB /
+    16M blits and the port is 32-bit, so it can't be slurped — it STREAMS records to an `osr_replay_sink`
+    visitor. Validated against the REAL capture: a throwaway host harness streamed it and its per-type counts
+    match `osr.py` EXACTLY (BLIT/TEXT/SHEET/FONT/BLEND). +6 host tests.
+  - **M4b+M4c — the RECONSTRUCTOR (`src/osr_recon.c`, Win32; `--osr-replay <osr> --osr-out <dir>
+    [--osr-replay-frames i,j]`).** SHEET → a DDraw source surface (loaded TOP-DOWN — the capture grabbed a
+    Lock, not a bottom-up DIB); FONT → an HFONT; BLIT → the matching `zdd.c` primitive onto the dest with the
+    source metrics/colorkey/state stamped from the record; TEXT → real GDI TextOutA on the dest DC; PRESENT →
+    BMP snapshot. RAN on the real capture: 0 no-sheet / 0 no-font. **Colorkey fix:** the record's `ckey` is
+    `colorkey_OUT` (already RGB565), so bind it raw — NOT via `set_color_key` (which re-converts → the
+    magenta-leak). **No-clear accumulation:** the reconstructor does NOT clear between frames — retail flips a
+    back-buffer chain so an empty re-present frame (quirk #99) retains the prior pixels (prologue 0%→99.7%);
+    cleared once at start.
+  - **M4-alpha — "capture everything we're missing" (USER): the mode-4 ALPHA blend is now captured + replayed.**
+    The `.osr` recorded only the blend MODE, so alpha (~333k blits: prologue, sky/ground, fades) was black.
+    NEW `OSR_BLEND` record (mode + 3 channels {shift, mask, exact-sized LUT}) + `osr_blit.blend_ref` (76→80 B);
+    proxy `blend_grab.h` grabs the descriptor at the alpha detour. The descriptor is a HEAP object (not a
+    global) → captured via VirtualQuery-guarded reads + CONTENT dedup. Re-captured: BLEND=38, 100% of alpha
+    blits referenced, ~944 fps. Reconstructor rebuilds a `zdd_blend_desc` → `zdd_blit_orchestrate` (0
+    alpha-skipped). Town flip 1250 + prologue 1200 on the feed.
+  - **NEXT — M4d the `--validate` differ_px==0 gate** (a real retail-backbuffer snapshot from the proxy →
+    diff vs reconstruction) is the verification tool: it confirms alpha pixel-correctness AND diagnoses the
+    menu-panel CLIPPED-blit artifact the USER flagged (cyan corners / grey triangles). Then **M5** the port
+    emitter (`src/osr_emit.c` → same `.osr`), **M6** the tick-join `:8780` studio. Remaining capture gaps
+    (flagged): scene-transition CLEARs (`OSR_CLEAR` — stale content bleeds across a scene boundary until the
+    next full redraw); mode-2 RECTS src_w/src_h (no `osr_blit` field; defaults to dest extent). Plan:
+    `plans/trace-studio-v2.md`.
 - **M3c (prior, ckpt 125): the SOURCE pixels + surface identity are captured —
   the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
   the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls
