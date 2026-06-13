@@ -486,34 +486,42 @@ tools/osr_view` (`IMGUI_DIR` from the flake, `pkgs.imgui`).  GDI fallback:
 `make gdi`.  Profiler/frame-dumper: `make prof` → `osr_prof.exe <osr> [n]` (perf)
 or `osr_prof.exe <osr> dump <frame_index> <out.bmp>`.
 
-### OPEN BUG (next session) — the HOUSE FREEROAM scene mis-renders
-On the **house freeroam scene** (the errands room — USER-flagged, feed image
-`20260612T225244_014e`) the reconstruction has rendering defects:
-- **a HOLE behind Arche** — the backdrop (res=1002 sky) shows where a building/wall
-  tile should be (a keyed/clipped wall tile not covering);
-- **stray FRAGMENTS of Arche** rendered in the middle of the frame (her sprite drawn
-  with wrong src/clip geometry → fragmented/duplicated).
+### RESOLVED (ckpt 126) — the HOUSE FREEROAM mis-render was a CAPTURE bug
+The USER-flagged defects (white panel "holes" + stray Arche-head fragments on the
+house freeroam frame, flip 6390 / tick 5163) were **NOT recon geometry** — the
+`.osr` itself referenced the WRONG SHEETS.  Root cause: `sheet_grab.h` cached
+ptr→dhash **forever** ("once-per-surface"), but the engine **destroys + reallocates
+sheet surfaces at a room swap** (zdd_object dtor `0x5b9390` Releases `+0xac` then
+`+0x2c`; eviction bursts observed at flips 652 / 2495 / 2926 / 3065).  A house cel
+allocated at a recycled pointer hit the stale cache entry, so its BLITs recorded
+the dhash of a town-era surface: the "holes" were a **640×480 100%-WHITE dialog-
+panel sheet** (captured at flip 96), the Arche heads were her old bank, plus
+extent-overflow garbage (a 128×160 cel reading a 20×20 old sheet).  Diagnosed
+offline by a streaming scan cross-checking each blit's dhash against its SHEET
+record: **79/509 blits flagged** on the stale capture.
 
-Key facts: present in BOTH the BMP tool (`osr_recon`) AND the viewer → a bug in the
-SHARED `recon_apply` blit dispatch, NOT viewer/scrub-specific.  Every blit has its
-source sheet (0 no-sheet); the wall sheets EXTRACT correctly (a quick `.osr` sheet
-extractor by dhash → PPM confirmed a timber-building tile w/ intentional magenta=
-transparent sky above).  So the failing draw is a SPECIFIC tile/sprite with wrong
-GEOMETRY — prime suspects: **mode-2 RECTS** (src_w/src_h still default to the dest
-extent — no `osr_blit` field; a SCALING rects blit reconstructs wrong, `port-debt`)
-and **mode-3 CLIPPED** edge cases (the clip recompute from ox/oy/ow/oh).  The Arche
-"fragments" smell like a sprite blit with a bad clip/src sub-rect.
+Fix (capture-side, two parts):
+1. **dtor eviction** — the proxy INT3-hooks `0x5b9390` and evicts `+0x2c`/`+0xac`
+   from BOTH caches (`sheet_grab_evict` / `surfid_evict`, tombstoned open
+   addressing); re-grabs of identical content skip re-EMISSION via an
+   emitted-dhash set.  A recycled dest pointer also interns a FRESH dst_handle.
+2. **mode-2 RECTS src extent closed** (the suspected gap, fixed while the format
+   was open): `osr_blit` grew `srcw/srch` (args 7/8 of the 8-coord call; BLIT
+   payload 80→88 B), the reconstructor passes them to `blt_rects` (src≠dst extent
+   = a scaling Blt).  **Legacy 80-byte captures still decode** (srcw/srch
+   zero-fill → the old dest-extent fallback); osr.py mirrors both sizes.
 
-Repro: reconstruct the scene's flip with the BMP tool — `build/opensummoners-debug.exe
---osr-replay C:\oss-osr\retail.osr --osr-out C:\oss-osr\recon --osr-replay-frames <FLIP>
---allow-multi` (NB: `--osr-replay-frames` is by FLIP; the viewer's frame INDEX differs
-— `osr_prof dump <index>` prints the matching flip).  The frame near the report was
-viewer frame-index 6389 = flip 6390 / tick 5163 (the `osr_view` bottom bar shows the
-exact flip/tick — read it off the holey frame).
+Verified: recaptured the same nav (anchors byte-identical: newgame@652,
+game_enter@1242; ~950 fps — the dtor INT3 costs nothing measurable); flip 6390
+reconstructs clean (USER-confirmed) — 79→7 flagged blits, all 7 benign
+first-referencer res-0 labels (dims match).  Prologue 1200 + town 1250
+`differ_px==0` vs the stale capture's reconstruction (the fix perturbed nothing
+already-correct).  Also: `run_proxy.sh` now skips `osr.py SUMMARY` above 256 MB —
+its non-streaming parse() OOMs on GB captures (it SIGKILLed a tmux session).
 
-Debug approach: add a **render-up-to-draw-N** isolation (openrecet's primitive:
-issue only the first N draws of a frame) to binary-search which draw makes the
-hole / the fragment, and/or land **M4d `--validate`** (a real retail backbuffer
-snapshot from the proxy → `differ_px` diff) for ground truth.  Then the viewer's
-planned **draw-inspector panel** (click a pixel → which draw; per-draw fields) makes
-this self-serve.
+Still open (unchanged): **M4d `--validate`** stays the ground-truth gate (it would
+have caught this in one diff); the menu CLIPPED artifact; scene-transition CLEARs
+(`OSR_CLEAR`).  The planned **draw-inspector panel** + render-up-to-draw-N remain
+the self-serve debug path for the next visual defect.  Residual staleness risk
+(accepted, --validate will catch real instances): a surface RE-COMPOSED in place
+via Lock/GDI (not through the blit primitives) keeps its first-grab pixels.

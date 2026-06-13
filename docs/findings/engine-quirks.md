@@ -3455,3 +3455,24 @@ under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading o
   stops scripting her".  Both refine the port model but don't change the result: the faithful
   controllable-Arche target is the errands room `0x334dc`, control via the char-AI (`+0x200==0`,
   `character_step` reading live `axis_held`), reached by chaining the 3 room scripts.
+
+### #104 — sheet SURFACES are destroyed + reallocated mid-game (room swaps / scene churn): a DDraw surface pointer is NOT a stable sheet identity; only `(resource_id, frame)` → content is stable (2026-06-13, ckpt 126)
+
+- **The fact.** The engine tears down `ZDDObject`s during play via the dtor
+  `FUN_005b9390` (Releases `+0xac` com_back, then `+0x2c` com_primary, decrements
+  the parent's open-object count) and builds NEW cels whose surfaces land at
+  RECYCLED heap/DDraw addresses.  Observed (proxy dtor hook, nav → house freeroam):
+  destruction bursts of blitted-from surfaces at flips **652** (newgame menu
+  teardown) and **2495 / 2926 / 3065** (the town-intro room-script chain), ~400+
+  total by the house scene.
+- **The consequence (how it was found).** The capture proxy's ptr-keyed
+  once-per-surface sheet grab went stale across a room swap: house-scene blits
+  recorded town-era sheet fingerprints (a 640×480 all-WHITE dialog-panel surface,
+  Arche's old bank), reconstructing as white "holes" + sprite fragments — 79/509
+  blits on the house frame referenced dead surfaces.  Fix = evict on the dtor
+  (`tools/capture_proxy/engine_hooks.h`); writeup in `plans/trace-studio-v2.md`
+  "RESOLVED (ckpt 126)".
+- **The rule.** Treat `(resource_id, frame)` (the `0x418470` registry identity) as
+  the durable sheet identity; treat surface POINTERS as per-lifetime handles that
+  die at `0x5b9390`.  Content per `(res, frame)` is load-stable; the surface
+  object carrying it is not.

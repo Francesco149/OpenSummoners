@@ -74,17 +74,21 @@ understates how much actual instruction volume is ported.
     surfaces (a video-mem readback Lock STALLED ~274 ms/frame on a GPU sync) + a block-buffered index (was a
     16M-record per-record stdio loop, ~50 s). ImGui from the flake (`pkgs.imgui`/`IMGUI_DIR`); profiler +
     frame-dumper `make -C tools/osr_view prof`. (Replaces the planned Python `:8780` studio.)
-  - **OPEN BUG (next session): the HOUSE FREEROAM scene mis-renders** — a HOLE behind Arche (backdrop shows
-    where a wall tile should cover) + stray FRAGMENTS of Arche's sprite. Present in BOTH the BMP tool AND the
-    viewer ⇒ a shared `recon_apply` blit-GEOMETRY bug (sheets all build; wall sheets extract correct). Prime
-    suspects: mode-2 RECTS src_w/src_h (defaults to dest extent) + mode-3 CLIPPED edge cases. Full writeup +
-    repro + debug plan: `plans/trace-studio-v2.md` "osr_view — OPEN BUG". (House freeroam = the errands room
-    — ties into the PAUSED movement arc.)
+  - **HOUSE-FREEROAM BUG FIXED (ckpt 126) — it was the CAPTURE, not recon geometry.** The white "holes" +
+    Arche-head fragments were STALE SHEET references: `sheet_grab.h` cached ptr→dhash forever, but the
+    engine DESTROYS + REALLOCATES sheet surfaces at a room swap (zdd dtor `0x5b9390`, quirk #104) — a
+    recycled pointer recorded the OLD surface's dhash (the holes = a town-era 100%-WHITE dialog-panel
+    sheet). Fix: the proxy hooks the dtor and EVICTS `+0x2c`/`+0xac` from the sheet+surfid caches
+    (tombstoned); also CLOSED the mode-2 RECTS gap — `osr_blit` grew `srcw/srch` (80→88 B; legacy 80-B
+    captures still decode, zero-filled). Recaptured (anchors byte-identical, ~950 fps): flip 6390 clean
+    (**USER-CONFIRMED**), 79→7 flagged blits (all benign res-0 labels), prologue/town `differ_px==0` vs
+    the old reconstruction. 999 host pass (+1). Writeup: `plans/trace-studio-v2.md` "RESOLVED (ckpt 126)".
   - **NEXT — M4d the `--validate` differ_px==0 gate** (a real retail-backbuffer snapshot from the proxy →
-    diff vs reconstruction) is the ground-truth tool: it diagnoses the house-freeroam bug AND the menu
-    CLIPPED artifact, and confirms alpha pixel-correctness. Then **M5** the port emitter (`src/osr_emit.c` →
-    same `.osr`) for the port|retail DIFF pane. Remaining capture gaps (flagged): scene-transition CLEARs
-    (`OSR_CLEAR`); mode-2 RECTS src_w/src_h (no `osr_blit` field). Plan: `plans/trace-studio-v2.md`.
+    diff vs reconstruction) is the ground-truth tool: it confirms alpha pixel-correctness, catches any
+    residual capture staleness (e.g. a surface re-composed in place via Lock/GDI), and diagnoses the menu
+    CLIPPED artifact. Then **M5** the port emitter (`src/osr_emit.c` → same `.osr`) for the port|retail
+    DIFF pane. Remaining capture gap (flagged): scene-transition CLEARs (`OSR_CLEAR`).
+    Plan: `plans/trace-studio-v2.md`.
 - **M3c (prior, ckpt 125): the SOURCE pixels + surface identity are captured —
   the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
   the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls

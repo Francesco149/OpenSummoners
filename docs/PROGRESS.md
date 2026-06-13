@@ -6,6 +6,25 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 126) — the house-freeroam recon bug was the CAPTURE: stale sheet cache fixed (+ mode-2 src extent)
+
+The USER-flagged house-freeroam defects (white panel "holes" + Arche-head fragments) were not recon
+geometry — the `.osr` referenced the WRONG SHEETS.  `sheet_grab.h` cached ptr→dhash once-per-surface
+forever, but the engine destroys + reallocates sheet surfaces at a room swap (**quirk #104**, zdd dtor
+`0x5b9390`); a cel at a recycled pointer recorded a town-era dhash — 79/509 blits on flip 6390, the
+"holes" being a 640×480 all-white dialog-panel sheet.  Diagnosed offline with a streaming blit↔SHEET
+cross-check over the 1.5 GB capture.
+
+Fix: the proxy INT3-hooks the dtor and evicts `+0x2c`/`+0xac` from the sheet + surfid ptr caches
+(tombstoned); while the format was open, the mode-2 RECTS gap closed too — `osr_blit` grew `srcw/srch`
+(80→88 B payload, legacy captures still decode zero-filled).  Recaptured the same nav (anchors
+byte-identical, ~950 fps): flip 6390 clean (**USER-confirmed**), prologue/town `differ_px==0` vs the
+old reconstruction; 999 host pass.  Also `run_proxy.sh` no longer auto-SUMMARYs GB captures (osr.py's
+non-streaming parse OOMed the tmux session).  Commits `f39ca4c` `3832e4a` `588605f`; writeup in
+`plans/trace-studio-v2.md` "RESOLVED (ckpt 126)".
+
+---
+
 ## 2026-06-12 (ckpt 125) — TRACE STUDIO v2 M4: the `.osr` → frames RECONSTRUCTOR (+ the alpha blend capture)
 
 M4 reconstruct lands: the port binary's `--osr-replay` mode rebuilds frames 1:1 from a captured draw stream
