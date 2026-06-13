@@ -468,8 +468,7 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     notes_load(notes_path, notes);
     char note_buf[256] = {0};
     bool   crop_valid = false, crop_dragging = false;
-    ImVec2 crop_a(0,0), crop_b(0,0), crop_start_mn(0,0);
-    float  crop_start_sc = 1.0f;
+    ImVec2 crop_a(0,0), crop_b(0,0);
 
     // draw-inspector state (M7 N3 — render-up-to-K / draw list / pixel→draw pick)
     Panel  pInsp;
@@ -634,50 +633,43 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
         if (scale > 1.0f) scale = 1.0f;
         if (scale < 0.1f) scale = 0.1f;
 
-        // advance an in-progress crop drag ONCE per UI frame, mapped from the panel
-        // it started on, so all three panels show the same frame-space rect.
-        if (crop_dragging) {
-            ImVec2 m = ImGui::GetMousePos();
-            float fx = (m.x - crop_start_mn.x) / crop_start_sc;
-            float fy = (m.y - crop_start_mn.y) / crop_start_sc;
-            fx = fx < 0 ? 0 : (fx > w ? w : fx);
-            fy = fy < 0 ? 0 : (fy > h ? h : fy);
-            crop_b = ImVec2(fx, fy);
-            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                crop_dragging = false;
-                crop_valid = (fabsf(crop_a.x - crop_b.x) >= 3 && fabsf(crop_a.y - crop_b.y) >= 3);
-            }
-        }
-
         auto draw_panel = [&](Panel& pn, const char* label, bool has_frame) {
             ImGui::BeginGroup();
             ImGui::TextUnformatted(label);
-            ImVec2 mn = ImGui::GetCursorScreenPos();
-            if (pn.srv) ImGui::Image((ImTextureID)pn.srv, ImVec2(w * scale, h * scale));
-            else        ImGui::Dummy(ImVec2(w * scale, h * scale));
-            ImVec2 mx = ImGui::GetItemRectMax();
+            ImVec2 p0 = ImGui::GetCursorScreenPos();
+            ImVec2 sz(w * scale, h * scale);
+            // an InvisibleButton OWNS the drag → dragging a crop no longer moves the
+            // ImGui window (the bug).  The image is drawn into the same rect.
+            ImGui::InvisibleButton(label, sz);
             ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 p1(p0.x + sz.x, p0.y + sz.y);
+            if (pn.srv) dl->AddImage((ImTextureID)pn.srv, p0, p1);
+            else        dl->AddRectFilled(p0, p1, IM_COL32(15, 15, 18, 255));
             if (!has_frame) {                          // honest gap → label, not black
                 const char* msg = "- no frame at this tick (gap) -";
                 ImVec2 ts = ImGui::CalcTextSize(msg);
-                dl->AddText(ImVec2((mn.x + mx.x - ts.x) * 0.5f, (mn.y + mx.y - ts.y) * 0.5f),
+                dl->AddText(ImVec2((p0.x + p1.x - ts.x) * 0.5f, (p0.y + p1.y - ts.y) * 0.5f),
                             IM_COL32(220, 190, 90, 255), msg);
             }
-            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !crop_dragging) {
-                ImVec2 m = ImGui::GetMousePos();
-                float fx = (m.x - mn.x) / scale, fy = (m.y - mn.y) / scale;
-                fx = fx < 0 ? 0 : (fx > w ? w : fx);
-                fy = fy < 0 ? 0 : (fy > h ? h : fy);
-                crop_dragging = true; crop_start_mn = mn; crop_start_sc = scale;
-                crop_a = crop_b = ImVec2(fx, fy);
+            // crop drag, mapped from THIS panel's rect; the activated button stays the
+            // active item for the whole drag, even if the mouse moves over a sibling.
+            ImVec2 m = ImGui::GetMousePos();
+            float fx = (m.x - p0.x) / scale, fy = (m.y - p0.y) / scale;
+            fx = fx < 0 ? 0 : (fx > w ? w : fx);
+            fy = fy < 0 ? 0 : (fy > h ? h : fy);
+            if (ImGui::IsItemActivated())   { crop_a = crop_b = ImVec2(fx, fy); crop_dragging = true; }
+            if (ImGui::IsItemActive())      { crop_b = ImVec2(fx, fy); }
+            if (ImGui::IsItemDeactivated()) {
+                crop_dragging = false;
+                crop_valid = (fabsf(crop_a.x - crop_b.x) >= 3 && fabsf(crop_a.y - crop_b.y) >= 3);
             }
             if (crop_valid || crop_dragging) {         // overlay the crop on every panel
                 float x0 = crop_a.x < crop_b.x ? crop_a.x : crop_b.x;
                 float y0 = crop_a.y < crop_b.y ? crop_a.y : crop_b.y;
                 float x1 = crop_a.x > crop_b.x ? crop_a.x : crop_b.x;
                 float y1 = crop_a.y > crop_b.y ? crop_a.y : crop_b.y;
-                dl->AddRect(ImVec2(mn.x + x0 * scale, mn.y + y0 * scale),
-                            ImVec2(mn.x + x1 * scale, mn.y + y1 * scale),
+                dl->AddRect(ImVec2(p0.x + x0 * scale, p0.y + y0 * scale),
+                            ImVec2(p0.x + x1 * scale, p0.y + y1 * scale),
                             IM_COL32(0, 230, 230, 255), 0.0f, 0, 1.5f);
             }
             ImGui::EndGroup();
@@ -787,9 +779,12 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                 if (iscale > 1.0f) iscale = 1.0f;
                 if (iscale < 0.3f) iscale = 0.3f;
                 ImVec2 imn = ImGui::GetCursorScreenPos();
-                if (pInsp.srv) ImGui::Image((ImTextureID)pInsp.srv, ImVec2(w * iscale, h * iscale));
-                else           ImGui::Dummy(ImVec2(w * iscale, h * iscale));
-                if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                ImVec2 isz(w * iscale, h * iscale);
+                ImGui::InvisibleButton("##inspimg", isz);   // owns the click → no window drag
+                ImDrawList* idl = ImGui::GetWindowDrawList();
+                if (pInsp.srv) idl->AddImage((ImTextureID)pInsp.srv, imn, ImVec2(imn.x + isz.x, imn.y + isz.y));
+                else           idl->AddRectFilled(imn, ImVec2(imn.x + isz.x, imn.y + isz.y), IM_COL32(15, 15, 18, 255));
+                if (ImGui::IsItemActivated()) {
                     ImVec2 mp = ImGui::GetMousePos();
                     int px = (int)((mp.x - imn.x) / iscale), py = (int)((mp.y - imn.y) / iscale);
                     int d = osr_scrub_pick_draw(isc, iframe, px, py);
@@ -797,7 +792,7 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                 }
                 if (insp_sel >= 0 && insp_sel < nd) {          // highlight the selected draw
                     osr_draw_info& di = insp_draws[insp_sel];
-                    ImGui::GetWindowDrawList()->AddRect(
+                    idl->AddRect(
                         ImVec2(imn.x + di.dx * iscale, imn.y + di.dy * iscale),
                         ImVec2(imn.x + (di.dx + di.w) * iscale, imn.y + (di.dy + di.h) * iscale),
                         IM_COL32(0, 255, 0, 255), 0.0f, 0, 2.0f);
