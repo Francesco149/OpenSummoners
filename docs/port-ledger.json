@@ -2879,6 +2879,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/cutscene.c",
     "src/dialogue.h"
    ]
   },
@@ -2889,6 +2890,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/cutscene.c",
+    "src/dialogue.h",
     "src/newgame_drive.c",
     "src/newgame_drive.h"
    ]
@@ -2971,6 +2974,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/cutscene.c",
+    "src/dialogue.c",
+    "src/dialogue.h",
     "src/menu_list.c",
     "src/menu_list.h"
    ]
@@ -2982,6 +2988,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/cutscene.c",
+    "src/dialogue.h",
     "src/menu_list.c",
     "src/menu_list.h"
    ]

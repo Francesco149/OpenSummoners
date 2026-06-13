@@ -50,12 +50,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
 | 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x43b980 | FUN_0043b980 | 783 | dialogue.h |
-| 0x43bca0 | FUN_0043bca0 | 1105 | newgame_drive.c, newgame_drive.h |
+| 0x43b980 | FUN_0043b980 | 783 | cutscene.c, dialogue.h |
+| 0x43bca0 | FUN_0043bca0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h (+1) |
 | 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
-| 0x43ca40 | FUN_0043ca40 | 970 | menu_list.c, menu_list.h |
-| 0x43ce50 | FUN_0043ce50 | 220 | menu_list.c, menu_list.h |
+| 0x43ca40 | FUN_0043ca40 | 970 | cutscene.c, dialogue.c, dialogue.h (+2) |
+| 0x43ce50 | FUN_0043ce50 | 220 | cutscene.c, dialogue.h, menu_list.c (+1) |
 | 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |

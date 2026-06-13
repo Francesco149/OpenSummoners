@@ -87,6 +87,21 @@ int dialogue_awaiting_advance(const dialogue_box *d)
     return dialogue_content_visible(d) && d->reveal >= d->total;
 }
 
+int dialogue_typing(const dialogue_box *d)
+{
+    return dialogue_content_visible(d) && d->reveal < d->total;
+}
+
+void dialogue_skip_reveal(dialogue_box *d)
+{
+    if (!dialogue_typing(d))
+        return;
+    /* FUN_0043ca40(9): jump the reveal to the end (the text machine's display
+     * extent snaps to the full line).  reveal>=total then gates the typewriter
+     * block off in dialogue_step and flips dialogue_awaiting_advance true. */
+    d->reveal = d->total;
+}
+
 int dialogue_char_grade(char c)
 {
     if (c == ' ')

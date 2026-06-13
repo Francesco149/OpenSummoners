@@ -193,9 +193,24 @@ int  dialogue_content_visible(const dialogue_box *d);
 
 /* 1 once the line is fully typed and the box is waiting for the advance input
  * (the arrow shows) — the beat-runner's DIALOGUE-beat completion gate
- * (0x439690:1004, the FUN_0043b980 Z-poll fires only in this "state 2").  The
- * cutscene driver advances to the next line on Z exactly here. */
+ * (0x439690:1004, the FUN_0043b980 confirm-poll fires only in this "state 2").
+ * The cutscene driver advances to the next line on a confirm exactly here. */
 int  dialogue_awaiting_advance(const dialogue_box *d);
+
+/* 1 while the line is actively REVEALING — the pop-in is done (content visible)
+ * but the typewriter has not finished (reveal < total).  This is retail's
+ * dialogue "state 1" (0x439690:978, the FUN_0043bca0 typewriter step): a confirm
+ * press here SKIPS (completes the reveal) rather than advancing.  During the
+ * pop-in (scale < 1000) this is 0 — a confirm is consumed but has no effect
+ * (FUN_0043ce50 returns 0 until scale==1000). */
+int  dialogue_typing(const dialogue_box *d);
+
+/* Complete the typewriter reveal INSTANTLY — the confirm-while-typing SKIP
+ * (retail FUN_0043ce50(9) → FUN_0043ca40(9) forces the text machine to
+ * fully-shown, so FUN_0043bca0 returns 3 and the beat-runner steps the box
+ * state 1 → 2).  After this the line is awaiting-advance, so the NEXT confirm
+ * advances.  No-op unless currently dialogue_typing. */
+void dialogue_skip_reveal(dialogue_box *d);
 
 /* The 9-slice frame rect at the current pop-in scale (0x48c820 mode +0x1c==1:
  * w/h scaled by +0x54/1000, centered in the full rect — integer math).

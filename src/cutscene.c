@@ -178,43 +178,49 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
         cs->active = 1;
 }
 
-int cutscene_step(cutscene *cs, int advance_pressed)
+int cutscene_step(cutscene *cs, int confirm_pressed)
 {
     if (cs == NULL || !cs->active)
         return 0;
 
     dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter, one tick */
 
-    /* The dialogue-interaction input is ENTER or X — the CONFIRM action, which
-     * the nav injects as ring id 0x24 and which BOTH sides advance on through the
-     * captures (so 0x24 IS that confirm; the old "Z" label was WRONG — USER ckpt
-     * 132: Z has NO dialogue interaction).  Retail's ONE confirm key does BOTH, in
-     * order: press while TYPING -> SKIP (complete the line's reveal instantly);
-     * press while COMPLETE -> ADVANCE to the next line.
-     *
-     * GAP (USER-flagged ckpt 132, next-session — `dialogue-typewriter-skip`): the
-     * port models only the ADVANCE half (advance a fully-typed line); it has NO
-     * skip, so the typewriter always runs full while retail skips+advances (~2
-     * presses/line) -> the port LAGS retail's dialogue progression -> desync ->
-     * blocks the 1:1 studio compare of the dialogue section.  FIX (next session):
-     * when confirm fires while still typing, jump reveal -> total (the skip); the
-     * NEXT confirm advances.  RE-verify the exact semantics first (the typewriter
-     * stepper 0x43bca0; whether the skip press is consumed; the key->ring-id map
-     * via the producer 0x46a880) + harness-capture the reveal jump under a nav. */
-    if (advance_pressed && dialogue_awaiting_advance(cs->box)) {
-        cs->line_idx++;
-        if (cs->line_idx >= cs->rooms[cs->room_idx].n_lines) {
-            /* End of this room — COMMIT the next room key (the 0x401d40
-             * stage / 0x402030 commit / 0x4d7d80 re-dispatch, modeled as
-             * advancing the chain) and arm its line 0. */
-            cs->room_idx++;
-            cs->line_idx = 0;
-        }
-        if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs)) {
-            cs->active   = 0;
-            cs->complete = 1;
-            cs->box->active = 0;    /* close the box (the 0x49cd70 teardown) */
-            return 1;               /* chain complete → caller hands off control */
+    /* The dialogue-interaction input is the CONFIRM action — ENTER or X (the nav
+     * injects it as ring id 0x24; Z has NO dialogue role, USER ckpt 132).  Retail's
+     * ONE confirm key does BOTH, and they are MUTUALLY EXCLUSIVE per tick — the box
+     * widget is in state 1 (typing) OR state 2 (waiting), an if/else-if at
+     * 0x439690:978 vs :1004 — so a single press does exactly one of:
+     *   - press while TYPING  -> SKIP: complete the reveal instantly.  Retail
+     *     FUN_0043bca0's 0x24 poll calls FUN_0043ce50(9) -> FUN_0043ca40(9), which
+     *     forces the text machine to fully-shown and returns 3; the beat-runner
+     *     reads that to step the box state 1 -> 2.  The press is CONSUMED by the
+     *     skip; it does NOT also advance this tick.
+     *   - press while COMPLETE -> ADVANCE to the next line (the FUN_0043b980
+     *     state-2 poll).
+     * So a line takes ~2 confirms (skip, then advance) — the SAME press cadence as
+     * retail, which keeps the port tick-aligned through the dialogue (the old
+     * advance-only model waited out every typewriter and lagged retail -> desync,
+     * the `dialogue-typewriter-skip` blocker, USER ckpt 132).  A confirm during the
+     * pop-in (neither typing nor awaiting) is eaten with no effect, faithful to
+     * FUN_0043ce50 returning 0 until scale==1000. */
+    if (confirm_pressed) {
+        if (dialogue_typing(cs->box)) {
+            dialogue_skip_reveal(cs->box);  /* SKIP — completes the line, no advance */
+        } else if (dialogue_awaiting_advance(cs->box)) {
+            cs->line_idx++;
+            if (cs->line_idx >= cs->rooms[cs->room_idx].n_lines) {
+                /* End of this room — COMMIT the next room key (the 0x401d40
+                 * stage / 0x402030 commit / 0x4d7d80 re-dispatch, modeled as
+                 * advancing the chain) and arm its line 0. */
+                cs->room_idx++;
+                cs->line_idx = 0;
+            }
+            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs)) {
+                cs->active   = 0;
+                cs->complete = 1;
+                cs->box->active = 0;    /* close the box (the 0x49cd70 teardown) */
+                return 1;               /* chain complete → caller hands off control */
+            }
         }
     }
     return 0;

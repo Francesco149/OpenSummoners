@@ -51,9 +51,11 @@
 #include <stdint.h>
 #include "dialogue.h"
 
-/* The advance/confirm ring id (the Z key) the DIALOGUE beat polls via 0x43b980
- * — the same id the title menu's confirm reads (input.h).  The caller polls the
- * input ring for it each sim-tick and passes the hit to cutscene_step. */
+/* The CONFIRM ring id the DIALOGUE beat polls via 0x43b980 — the same id the
+ * title menu's confirm reads (input.h).  The physical key is ENTER or X (NOT Z —
+ * Z has no dialogue role, USER ckpt 132; the key→ring map is the 0x46a880
+ * producer).  The caller polls the input ring for it each sim-tick and passes
+ * the hit to cutscene_step, which SKIPS or ADVANCES with it (see cutscene_step). */
 #define CUTSCENE_ADVANCE_RING_ID 0x24
 
 /* The committed room keys (room_state+0x4024) the town-intro chain swaps through
@@ -126,15 +128,18 @@ const cutscene_room *cutscene_town_chain(int *n_rooms);
 void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
                   cutscene_str_resolver resolve, dialogue_box *box);
 
-/* One sim-tick: step the box (pop-in / fade / typewriter), then — if the
- * advance input fired this tick AND the line is fully typed
- * (dialogue_awaiting_advance) — advance to the next line; at a room's last line
- * COMMIT the next room key (advance room_idx) and arm its line 0; past the last
- * room, complete (deactivate the box, set complete=1).
- * `advance_pressed` = Z was consumed from the ring this tick (ring id 0x24).
- * Returns 1 on the tick the chain COMPLETES (the caller fires the control
- * hand-off at the errands boundary), else 0. */
-int cutscene_step(cutscene *cs, int advance_pressed);
+/* One sim-tick: step the box (pop-in / fade / typewriter), then — if the CONFIRM
+ * input fired this tick — do exactly ONE of (mutually exclusive, 0x439690 state
+ * 1 vs 2): SKIP the typewriter if the line is still revealing (dialogue_typing →
+ * complete the reveal, no advance), else ADVANCE if the line is fully typed
+ * (dialogue_awaiting_advance) — at a room's last line COMMIT the next room key
+ * (advance room_idx) and arm its line 0; past the last room, complete
+ * (deactivate the box, set complete=1).  So a line takes ~2 confirms (skip, then
+ * advance), matching retail's press cadence (keeps the port tick-aligned).
+ * `confirm_pressed` = a confirm (ring id 0x24, ENTER/X) was consumed from the
+ * ring this tick.  Returns 1 on the tick the chain COMPLETES (the caller fires
+ * the control hand-off at the errands boundary), else 0. */
+int cutscene_step(cutscene *cs, int confirm_pressed);
 
 int cutscene_active(const cutscene *cs);
 int cutscene_complete(const cutscene *cs);

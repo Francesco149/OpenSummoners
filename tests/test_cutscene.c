@@ -36,6 +36,14 @@ static void run_to_wait(cutscene *cs)
         cutscene_step(cs, 0);
 }
 
+/* Step (no advance) until the box is content-visible and still REVEALING (past
+ * the pop-in, before the typewriter finishes) — the state where a confirm SKIPS. */
+static void run_to_typing(cutscene *cs)
+{
+    for (int i = 0; i < 5000 && !dialogue_typing(cs->box); i++)
+        cutscene_step(cs, 0);
+}
+
 /* Type+advance `count` lines; return the number of completion edges seen. */
 static int step_through(cutscene *cs, int count)
 {
@@ -129,6 +137,41 @@ int test_cutscene_advance_only_when_typed(void)
     T_ASSERT_EQ_I(cs.line_idx, 1);
     T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 0);
     T_ASSERT(strcmp(box.name, "Arche") == 0);
+    return 0;
+}
+
+/* ── confirm-while-typing SKIPS (completes the reveal), and the NEXT confirm
+ *    advances — the two-press cadence (0x439690 state 1 -> 2 -> advance) ── */
+int test_cutscene_typewriter_skip(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* line 1 = "Here at last." (multi-char) — run past the pop-in into typing */
+    run_to_typing(&cs);
+    T_ASSERT_EQ_I(dialogue_typing(&box), 1);
+    T_ASSERT(box.reveal < box.total);            /* not yet fully revealed     */
+    T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 0);
+
+    /* CONFIRM while typing -> SKIP: reveal completes, but it does NOT advance */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 0);               /* still line 1               */
+    T_ASSERT_EQ_I(box.reveal, box.total);        /* reveal jumped to the end   */
+    T_ASSERT_EQ_I(dialogue_typing(&box), 0);     /* no longer typing           */
+    T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 1);
+
+    /* the NEXT confirm advances to line 2 (a second press — the skip press was
+     * consumed, faithful to retail's mutually-exclusive state 1/2) */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 1);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
+
+    /* a confirm during the POP-IN (not yet content-visible) is eaten — no skip,
+     * no advance (FUN_0043ce50 returns 0 until scale==1000) */
+    T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);  /* line 2 just re-armed */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 1);               /* unchanged                  */
     return 0;
 }
 

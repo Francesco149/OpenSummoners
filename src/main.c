@@ -2841,14 +2841,15 @@ static void game_render(void *user)
                                  "unresolved — box stays disarmed");
                     g_cutscene_armed = 1;
                 }
-                /* Advance on Z: poll+consume the ring (id 0x24 = the 0x43b980
-                 * advance-poll); the beat completes when it fires in the
-                 * fully-typed wait state (dialogue_awaiting_advance). */
+                /* Confirm (ENTER/X = ring id 0x24): poll+consume one edge from the
+                 * ring; cutscene_step SKIPS the typewriter if the line is still
+                 * revealing, else ADVANCES the fully-typed line (the 0x43bca0
+                 * state-1 skip / 0x43b980 state-2 advance, ~2 confirms/line). */
                 {
-                    int z_adv = input_poll_consume(&g_game_drive.input,
-                                                   GetTickCount(),
-                                                   CUTSCENE_ADVANCE_RING_ID);
-                    int done = cutscene_step(&g_cutscene, z_adv);
+                    int confirm = input_poll_consume(&g_game_drive.input,
+                                                     GetTickCount(),
+                                                     CUTSCENE_ADVANCE_RING_ID);
+                    int done = cutscene_step(&g_cutscene, confirm);
                     /* The room-key swap drives the BACKDROP: when cutscene_step
                      * advances to a new room (arrival 0x334be -> house 0x334c8),
                      * reload that room's scene + snap its camera — the port's
