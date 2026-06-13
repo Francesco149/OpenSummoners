@@ -61,6 +61,17 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   retail-coalesced flip).  The ckpt-134 first cut (curve-fit close + guessed z-order) was
   rejected by the USER → CLAUDE.md no-approximation / drawcall-per-drawcall rule persisted.
 - **Note #4** (tick 661: port full line vs retail "A") — CLOSED, it was the spam-nav cadence.
+- **FOLLOW-UP (USER-flagged, next session) — the PORTRAIT FADE-IN curve.** At tick 661 (L0's
+  first reveal) the port's portrait bust is "slightly less dim" than retail (USER note,
+  crop 205,159 104×91, differ 5834 but **maxd only 17** — a uniform low-magnitude
+  over-brightness across the whole bust, on the feed + `note_render/`).  The port blends to
+  fuller opacity/colour a hair faster than retail during the cross-fade — chase the early
+  `dialogue_portrait_ramp_index` ramp (idx=(fade·0x14)/500, opaque from fade 500) against a
+  per-tick retail portrait-luminance probe.  Likely entangled with the FIRST-box open
+  animation (the port opens L0 from scale 0 over ~20 updates; retail spawns at ~250 over ~15
+  updates — `DIALOGUE_OPEN_SCALE0` applies to reopens but `dialogue_arm` still spawns at 0,
+  so the first box's pop-in + the fade phase differ slightly).  Both are first-box polish,
+  NOT a cadence/box-overlap bug (those are 1:1).
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)
 
