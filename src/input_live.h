@@ -41,9 +41,13 @@
 #define DIK_DOWN_ARROW   0xd0
 #define DIK_LEFT_ARROW   0xcb
 #define DIK_RIGHT_ARROW  0xcd
-#define DIK_Z            0x2c   /* advance / confirm / sword sheathe          */
-#define DIK_X            0x2d   /* attack / interact   (config +0x558 default) */
-#define DIK_C            0x2e   /* jump                (config +0x574 default) */
+#define DIK_RETURN       0x1c   /* CONFIRM — the FIXED 0x46a880 binding (0x1c → ring 0x24,
+                                 *           decompile-proven, 46a880.c:590-602)         */
+#define DIK_Z            0x2c   /* sheathe/draw sword — a config button, NOT confirm     *
+                                 * (USER ckpt 132: Z has NO dialogue/menu role; by       *
+                                 * elimination the config +0x590 button → ring 9)        */
+#define DIK_X            0x2d   /* attack/interact + CONFIRM (config +0x558 → ring 0x24) */
+#define DIK_C            0x2e   /* jump                      (config +0x574 → ring 7)    */
 
 /* The live producer's per-frame state: the previous DIK snapshot (for edge
  * detection — the ring push is edge-driven) + the ring write cursor (parallels

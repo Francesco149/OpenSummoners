@@ -1,8 +1,8 @@
 # Input subsystem — the event ring and its poll
 
 > Milestone 1.  This is the *read* side, recovered and ported (checkpoint
-> 3).  The *producer* (the DInput `GetDeviceState` path that fills the
-> ring) is still a black box — see "Open" below.
+> 3).  The *producer* (`FUN_0046a880`, the DInput path that fills the ring) is
+> now RECOVERED — see "The producer" below.
 
 ## The event ring (`input-manager + 0x108`)
 
@@ -103,13 +103,51 @@ The new-game **difficulty config** sub-menu is a *separate scene with its own
 input-manager instance* (engine-quirks #43) and polls a different id set —
 `0x22, 1, 3, 0x24, 0x27` (down is still id 3; 0x27 is the value left/right).
 
-## Open (still black box)
+## The producer (`FUN_0046a880`) — RESOLVED (ckpt 132)
 
-- **Producer.** Who calls `IDirectInputDevice7::GetDeviceState` (vtable
-  `[0x24]`) and writes the `+0x108` ring?  Point
-  `mem_watch.py --region <+0x108 addr>:64:input_ring` at a live retail run
-  to catch the writer (the milestone-1 human-verification gate).  This is
-  now the *only* remaining black box in the input chain.
+The ring WRITER.  It walks the currently-pressed DInput keys (each `uVar9` a
+pressed-key handle) and, per key, reads its scancode (`FUN_005ba3a0`), pressed
+flag (`FUN_005ba3d0`) and timestamp (`FUN_005ba3f0`), then for each ACTION the
+key is bound to **pushes a ring event**: shift the 64-slot `+0x108` ring down one,
+write the new record at the head (`+0xc`) with `id`, `ts`, `flag` (1=press, the
+`+0x00`/`+0x04`/`+0x08` shape this doc already documents).  So ONE physical key
+can post SEVERAL ring ids in a frame (the fan-out below).
+
+Two binding halves:
+
+- **FIXED keyboard scancodes** (always active, literal `if (scancode == k)`):
+
+  | DIK scancode        | ring id | action  |
+  |---------------------|---------|---------|
+  | `0x1c` **RETURN**   | `0x24`  | CONFIRM |
+  | `0x01` ESCAPE       | `0x27`  | cancel  |
+  | `0x0e` BACKSPACE    | `0x27`  | cancel  |
+  | `0x0b` `0`          | `0x21`  | (quit?) |
+  | `0xc8/0xd0/0xcb/0xcd` arrows | 1/3/2/4 | dir |
+
+- **CONFIGURABLE buttons** (scancode read from the `*DAT_008a6e80` launcher
+  config, each gated by its `+enable` dword).  Each button fans out to several
+  ring ids:
+
+  | config key off | enable off | ring ids posted          | default key (port) |
+  |----------------|------------|--------------------------|--------------------|
+  | `+0x558`       | `+0x548`   | `8`, `0x25`, **`0x24`**  | **X** (attack)     |
+  | `+0x574`       | `+0x564`   | **`7`**, `0x27`          | **C** (jump)       |
+  | `+0x5ac`       | `+0x59c`   | `0x26`, `0x24`           | —                  |
+  | `+0x590`       | `+0x580`   | `9`, …                   | **Z** (sheathe)    |
+
+So the dialogue/menu **CONFIRM (ring `0x24`) is ENTER _or_ X** — ENTER via the
+fixed binding, X via the `+0x558` config button (which is also the attack key).
+**Z is NOT a confirm** (USER ckpt 132): by elimination it is the `+0x590` button
+(→ ring 9, the sheathe action), not the `0x24`-posting `+0x5ac`.  Ported to the
+port's reduced live producer `src/input_live.c` (`KEYMAP`): ENTER + X → ring
+`0x24`, C → ring 7, Z has no confirm role.  The per-button SCANCODE *defaults*
+(which physical key fills each config slot) remain `PORT-DEBT(keybind-config)` —
+the `*0x8a6e80` launcher config isn't modeled; the X/C/Z assignments above are
+the port's existing annotations (`input_live.h`), USER-confirmed for the confirm.
+
+## Open
+
 - ~~**Action latch `FUN_0043ce50`** and the **cursor-nav engine
   `FUN_0043ca40`**~~ — **DONE** (checkpoint 4).  The jump table Ghidra
   mis-rendered was recovered via radare2; both ported to `src/menu_list.c`.

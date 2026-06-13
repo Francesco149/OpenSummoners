@@ -65,7 +65,9 @@ int test_input_live_axis_clear_then_set(void)
     return 0;
 }
 
-/* ── ring edge: Z press posts id 0x24; a held key does NOT re-post ── */
+/* ── ring edge: the CONFIRM (X or ENTER) posts id 0x24; a held key does NOT
+ *    re-post; Z does NOT confirm.  USER ckpt 132: the dialogue/menu confirm is
+ *    ENTER or X (NOT Z) — grounded in the 0x46a880 producer. ── */
 int test_input_live_ring_press_once(void)
 {
     input_mgr m; mgr_init(&m);
@@ -76,16 +78,28 @@ int test_input_live_ring_press_once(void)
     input_live_step(&st, &m, dik, 1000);
     T_ASSERT_EQ_I(input_poll_consume(&m, 1000, 0x24), 0);
 
-    hold(dik, DIK_Z);                    /* frame 2: Z down → one press */
+    hold(dik, DIK_X);                    /* frame 2: X down → one confirm press */
     input_live_step(&st, &m, dik, 1016);
     T_ASSERT_EQ_I(input_poll_consume(&m, 1016, 0x24), 1);
 
-    input_live_step(&st, &m, dik, 1032); /* frame 3: Z still held → no edge */
+    input_live_step(&st, &m, dik, 1032); /* frame 3: X still held → no edge */
     T_ASSERT_EQ_I(input_poll_consume(&m, 1032, 0x24), 0);
 
     memset(dik, 0, sizeof dik);          /* frame 4: release → flag-0 (not a press) */
     input_live_step(&st, &m, dik, 1048);
     T_ASSERT_EQ_I(input_poll_consume(&m, 1048, 0x24), 0);
+
+    /* ENTER is the other confirm (the FIXED 0x1c → ring 0x24 binding) */
+    hold(dik, DIK_RETURN);               /* frame 5: ENTER down → one confirm press */
+    input_live_step(&st, &m, dik, 1064);
+    T_ASSERT_EQ_I(input_poll_consume(&m, 1064, 0x24), 1);
+
+    /* Z does NOT confirm (no dialogue/menu role — not in the KEYMAP) */
+    memset(dik, 0, sizeof dik);
+    input_live_step(&st, &m, dik, 1080);
+    hold(dik, DIK_Z);                    /* frame 6: Z down → posts nothing */
+    input_live_step(&st, &m, dik, 1096);
+    T_ASSERT_EQ_I(input_poll_consume(&m, 1096, 0x24), 0);
     return 0;
 }
 

@@ -12,17 +12,25 @@
  *   ring : the discrete ring id it posts on a press/release EDGE, or -1 = none.
  * Directions fill an axis (held walking + the title-menu vertical auto-repeat)
  * AND post a ring id (the 0x479e70 dash double-tap + the 0x56aea0 menu nav,
- * which polls ids 2/4/1/3/0x24).  Jump fills axis[4] (the mover's jump_held)
- * and posts ring id 7 (the 0x442a70 cmd[2]=7 execute).  Z is ring-only (the
- * 0x24 advance/confirm). */
+ * which polls ids 2/4/1/3/0x24).  Jump (C = config +0x574) fills axis[4] (the
+ * mover's jump_held) and posts ring id 7 (the 0x442a70 cmd[2]=7 execute).
+ *
+ * The CONFIRM (the dialogue/menu advance, ring id 0x24) is ENTER or X (USER ckpt
+ * 132 — NOT Z), grounded in the 0x46a880 producer: ENTER (0x1c) is a FIXED
+ * binding → 0x24 (46a880.c:590-602); X (config +0x558, the attack key) also
+ * posts 0x24 (46a880.c:793-808) — so X is attack-held (axis 5) AND confirm.  Z
+ * (a config button → ring 9, by elimination) has NO confirm/dialogue role; its
+ * gameplay action (sheathe sword) is not in the port's reduced ring set, so it
+ * has no row here. */
 static const struct { uint8_t dik; int8_t axis; int16_t ring; } KEYMAP[] = {
-    { DIK_UP_ARROW,    0, 1    },   /* +0x114, menu/up      */
-    { DIK_DOWN_ARROW,  1, 3    },   /* +0x118, menu/down    */
-    { DIK_LEFT_ARROW,  2, 2    },   /* +0x11c, walk/dash L  */
-    { DIK_RIGHT_ARROW, 3, 4    },   /* +0x120, walk/dash R  */
-    { DIK_C,           4, 7    },   /* +0x124, jump         */
-    { DIK_X,           5, -1   },   /* +0x128, attack       */
-    { DIK_Z,          -1, 0x24 },   /* advance / confirm    */
+    { DIK_UP_ARROW,    0, 1    },   /* +0x114, menu/up                       */
+    { DIK_DOWN_ARROW,  1, 3    },   /* +0x118, menu/down                     */
+    { DIK_LEFT_ARROW,  2, 2    },   /* +0x11c, walk/dash L                   */
+    { DIK_RIGHT_ARROW, 3, 4    },   /* +0x120, walk/dash R                   */
+    { DIK_C,           4, 7    },   /* +0x124, jump (config +0x574 → ring 7) */
+    { DIK_X,           5, 0x24 },   /* +0x128, attack-held + CONFIRM         *
+                                     * (config +0x558 → ring 0x24)           */
+    { DIK_RETURN,     -1, 0x24 },   /* CONFIRM (the FIXED 0x1c → ring 0x24)  */
 };
 #define KEYMAP_LEN ((int)(sizeof(KEYMAP) / sizeof(KEYMAP[0])))
 
