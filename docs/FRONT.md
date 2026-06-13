@@ -77,6 +77,20 @@
     semantic panel) pull-when-needed.  CAVEAT: port-m5 only reaches tick 191; the 190-paired region is the
     working demo.  Roadmap: `plans/trace-studio-v2.md`
     §openrecet-v3-survey (items 1/2/3/7 done; 4/5/6 remain).
+- **ALSO ckpt 129: M8 — the GAME-STATE PANEL (USER-requested; openrecet orv3_state model).** A native,
+  opt-in OSR_STATE record (`src/osr_format.h`; generic NAMED fields, extensible) captured both sides — port
+  via `--osr-emit --osr-state`, retail via `OSS_OSR_STATE=1` — and shown in an osr_view "ENGINE STATE" panel
+  per joined tick, port-vs-retail, diff-highlighted.  The **RNG census/survey is folded in**: `rng` (LCG
+  state `DAT_008a4f94`/`rng_peek_state`) both sides + `rngcalls` (cumulative draw count, new `rng_call_count`)
+  port-side; this LIVE per-tick rng diff SUPERSEDES `tools/rng_tick_diff.py` (archived → `tools/archive/`).
+  Commits `ba0b801` (M8a format+port emit+osr.py+test, 1003 host pass) + `8da3dcb` (M8c viewer panel) +
+  `2a6f424` (M8b proxy rng emit).  VERIFIED headless: a 150-frame port capture emits STATE=150
+  (rng=0x4f5347 pinned, rngcalls=0), `osr.py STATES`/`SUMMARY` read it, `osr_scrub_frame_state` feeds the
+  panel.  **EXTENSIBLE — add fields as we annotate** (`osr_emit_state_field` in `main.c` drive_present +
+  the read in the proxy `eh_flip_cb`): player px/py, scene id, flags, dialogue state next.  OPEN: retail
+  `rngcalls` (`PORT-DEBT(osr-state-rngcalls-retail)` — a `0x5bf505` trampoline); GUI panel + the retail
+  capture are USER-verify.  Consumer ATTRIBUTION stays `tools/rng_consumer_census.py` (separate).  Pointer
+  persisted in CLAUDE.md.
 - **Prior (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
   retail proxy captures, and `--osr-replay` of the port's OWN `.osr` rebuilds its frames
   `differ_px==0` (newgame menu 700 / prologue 900 / town 1250 vs the port's live captures) — the

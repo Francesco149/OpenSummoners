@@ -155,8 +155,18 @@ changelog. Active multi-session plans: `docs/plans/`.
   `opensummoners.exe --osr-emit <path>` (same codec `src/osr_format.h`).  Review is the NATIVE
   viewer **`tools/osr_view`** (ImGui/DX11, Windows): `osr_view.exe <port.osr> <retail.osr>` = the
   tick-joined PORT|RETAIL|DIFF scrub + a diff heat ribbon + the **frame-draw DRILL** (step a frame
-  draw-by-draw, pixel→draw pick) + the NOTE/mark hand-off; `--osr-replay` is headless BMP recon.
-  Verdict/pairing + the agent read-side of marks: `tools/trace_studio2/{osr.py,pair.py,notes.py}`.
+  draw-by-draw, pixel→draw pick) + the NOTE/mark hand-off + the **ENGINE STATE panel**; `--osr-replay`
+  is headless BMP recon.  Verdict/pairing + the agent read-side of marks:
+  `tools/trace_studio2/{osr.py,pair.py,notes.py}`.
+  **GAME STATE (the RNG census + annotated fields) is an OPT-IN pass** (OSR_STATE, M8; openrecet's
+  orv3_state model): capture the port with `--osr-state` and retail with `OSS_OSR_STATE=1`, then the
+  state panel shows the named once-per-frame fields per joined tick, port-vs-retail, diff-highlighted
+  (the determinism/RNG-census survey, ex-`tools/archive/rng_tick_diff.py`).  `osr.py STATES <file>` is
+  the headless dump.  **EXTEND IT as you annotate state:** add `osr_emit_state_field(name, kind, ival,
+  fval)` calls at the port's `drive_present` flip site (`src/main.c`) + the matching read in the proxy's
+  `eh_flip_cb` (`tools/capture_proxy/engine_hooks.h`) — RNG (rng/rngcalls) is the seed set; player px/py,
+  scene id, flags, dialogue state come next.  (Consumer ATTRIBUTION — which fn draws the LCG — stays
+  `tools/rng_consumer_census.py`, a separate analysis.)
   **Do NOT start the old `:8779` web serve or `tools/trace_studio.py` captures** (RETIRED; old
   `runs/trace-studio/` sessions are read-only nav inputs only).  Plan/roadmap:
   `docs/plans/trace-studio-v2.md`.

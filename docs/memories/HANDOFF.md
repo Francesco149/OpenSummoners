@@ -107,6 +107,29 @@ system").**  Commits `953ee74` (notes) + `b568104` (inspector engine) + `6279274
   bar for the room-render/freeroam port: diff the draw streams (the `render_diff` lens, openrecet survey #6)
   and align them.
 
+**M8 — the GAME-STATE panel (this ckpt, USER-requested; openrecet orv3_state model).**  Commits `ba0b801`
+(M8a) + `8da3dcb` (M8c) + `2a6f424` (M8b).  A native, OPT-IN engine-state pillar in the studio.
+- **Format (M8a):** `OSR_STATE` (=14) in `src/osr_format.h` — a generic list of NAMED scalar fields
+  `{name[16], kind(hex/int/f32), i64 ival, f64 fval}` (`osr_enc_state`/`osr_dec_state_field` + u64/f64
+  helpers).  Extensible: the emitter appends what it reads, the decoder is field-agnostic.
+- **Port emit (M8a):** `osr_emit.c` per-frame accumulator (`osr_emit_state_field` push +
+  `osr_emit_state_enable`) flushed as one OSR_STATE after each FRAMEBEG; armed by `--osr-state`.  `main.c`
+  pushes `rng` (`rng_peek_state` = `DAT_008a4f94`) + `rngcalls` (new `rng_call_count` in `rng.c`) at the
+  drive_present flip site — **ADD MORE `osr_emit_state_field` calls there as you annotate** (player px/py,
+  scene id, flags, dialogue state).  `osr.py` decodes (`STATES` dump, streamed; SUMMARY line).
+- **Retail emit (M8b):** opt-in `OSS_OSR_STATE` (`proxy_config.h`); the proxy flip hook (`engine_hooks.h`
+  `eh_flip_cb`) writes one OSR_STATE with `rng` (eh_read_seed, a free global read) after FRAMEBEG.  Retail
+  `rngcalls` is `PORT-DEBT(osr-state-rngcalls-retail)` — needs a 0x5bf505 trampoline counter.  **Add the
+  matching read here when you add a port field.**
+- **Viewer (M8c):** `osr_scrub_frame_state(idx)` decodes a frame's OSR_STATE; an "ENGINE STATE" table
+  (field | port | retail) shows the union of both sides' fields, formatted by kind, port≠retail red.
+- **RNG census FOLDED IN:** the live per-tick rng/rngcalls diff is the panel's first content — it
+  SUPERSEDES `tools/rng_tick_diff.py` (archived → `tools/archive/`, banner'd).  `rng_consumer_census.py`
+  (which fn draws the LCG — ATTRIBUTION) is a different concern, KEPT.
+- VERIFIED headless: a 150-frame port capture emits STATE=150 (rng=0x4f5347 pinned, rngcalls=0);
+  `osr.py STATES`/`SUMMARY` + `osr_scrub_frame_state` read it; host test `test_osr_emit_state` (+1, 1003).
+  **OPEN (USER): the GUI panel + the retail `OSS_OSR_STATE` capture.**  CLAUDE.md carries the how-to.
+
 **OPEN (USER): GUI visual-verify of the M7 additions** — the windowed DX11 app can't be driven from WSL.
 In `build/osr_view.exe 'C:\oss-osr\port-m5.osr' 'C:\oss-osr\retail-snap.osr'`: (1) drag a crop on a panel,
 type a note, Add → it lands in the list + `C:\oss-osr\osr_notes.jsonl` (then I run `notes.py --render`);

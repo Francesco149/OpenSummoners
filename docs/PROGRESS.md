@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 129) — M8: the trace-studio GAME-STATE panel (opt-in OSR_STATE; the RNG census folded in)
+
+The studio gains an engine-state pillar (USER-requested, modeled on openrecet's orv3_state opt-in pass): a
+native, extensible record of NAMED once-per-frame engine-state fields, captured opt-in on both sides and
+shown in osr_view per joined tick, port-vs-retail, diff-highlighted. The RNG census/survey is its first
+content — the live per-tick rng diff supersedes the standalone `rng_tick_diff.py`.
+
+Format (M8a, `src/osr_format.h`): a new OSR_STATE record (=14) — `u32 nfields` then `{name[16], kind
+(hex/int/f32), i64 ival, f64 fval}` per field; `osr_enc_state` / `osr_dec_state_field` + u64/f64 helpers.
+Generic by construction (the emitter appends whatever it reads; the decoder is field-agnostic), so the field
+set grows as engine state is annotated. Port emit: a per-frame accumulator in `osr_emit.c`
+(`osr_emit_state_field` push + `osr_emit_state_enable`) flushed as one OSR_STATE after each FRAMEBEG, armed
+by `--osr-state`; `main.c` pushes `rng` (the `DAT_008a4f94` mirror `rng_peek_state`) + `rngcalls` (new
+cumulative `rng_call_count` in `rng.c`) at the drive_present flip site — add more `osr_emit_state_field`
+calls there as annotated. `osr.py` decodes it (`STATES` dump, streamed; a SUMMARY line). Retail (M8b,
+`tools/capture_proxy`): opt-in `OSS_OSR_STATE` → the flip hook writes one OSR_STATE with `rng` (eh_read_seed,
+a free global read) right after FRAMEBEG; retail `rngcalls` deferred (`PORT-DEBT(osr-state-rngcalls-retail)`
+— it needs a 0x5bf505 trampoline counter). Viewer (M8c, `tools/osr_view`): `osr_scrub_frame_state` decodes
+a frame's OSR_STATE; an "ENGINE STATE" table (field | port | retail) shows the union of both sides' fields,
+each formatted by kind, a port≠retail value highlighted red.
+
+Verified headless: a 150-frame port boot capture emits STATE=150 (rng=0x4f5347 pinned, rngcalls=0 — no RNG
+in the title, correct); `osr.py STATES`/`SUMMARY` and `osr_scrub_frame_state` read them; host test
+`test_osr_emit_state` (+1, 1003 pass) asserts the codec round-trips all three kinds + the accumulator resets
+per frame. `tools/rng_tick_diff.py` archived to `tools/archive/` with a banner (superseded by the panel);
+`rng_consumer_census.py` kept (consumer ATTRIBUTION is a separate analysis). CLAUDE.md carries the how-to +
+extend-it pointer. Commits `ba0b801` (M8a) + `8da3dcb` (M8c) + `2a6f424` (M8b). OPEN: the GUI panel + the
+retail OSS_OSR_STATE capture are USER-verify.
+
 ## 2026-06-13 (ckpt 129) — M7: the studio drill-in + the note hand-off (draw inspector + crop/note marks)
 
 The studio becomes self-diagnosing and gains the human→agent channel (USER-requested: "the M7 stuff plus a
