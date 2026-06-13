@@ -40,7 +40,10 @@ understates how much actual instruction volume is ported.
   CADENCE nav + the dialogue cadence TICK-1:1 — THEME 1 of the punch-list DONE** (the arrival dialogue L0-L7
   now tracks retail tick-for-tick, 314/323 ticks bit-equal); **ckpt 135 the dialogue PORTRAIT FADE-IN
   (USER ckpt-134 follow-up) — drawcall+LUT-exact, tick 661 now pixel-identical** (the cross-fade arms one
-  tick after scale==1000 so idx 0 holds 2 ticks; surfaced the FADE-OUT dissolve as the next chip, quirk #108).
+  tick after scale==1000 so idx 0 holds 2 ticks; quirk #108); **ckpt 136 the dialogue PORTRAIT FADE-OUT
+  dissolve — drawcall+LUT-exact, ALL 3 arrival speaker changes tick-1:1** (the closing bust dissolves via
+  the reverse ramp idx 18→2 then GONE; the advance presses 2t early + the new box's re-pop delays 2t so the
+  box-frame stays 28/28, quirk #108).
   **NEXT (the punch-list
   `plans/intro-cutscene-1to1.md`, THEMES left): (3) the arrival→house TRANSITION CHOREOGRAPHY — retail scripts
   Arche running to the house (the 167-tick beat between arrival L8/L9, note #5) + a fade-from-black house-entry
@@ -54,9 +57,29 @@ understates how much actual instruction volume is ported.
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → trace-studio v2 ✓ (ckpt 125-129) →
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → dialogue BOX POSITION ✓ (132) → TYPEWRITER-SKIP
-    ✓ (133) → **dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → the arrival→house TRANSITION CHOREOGRAPHY
-    (THEME 3) + the cast render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 135): the dialogue PORTRAIT FADE-IN is DRAWCALL+LUT-EXACT — the USER's ckpt-134 "slightly
+    ✓ (133) → dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → dialogue PORTRAIT FADE-IN ✓ (135) +
+    FADE-OUT dissolve ✓ (136) → **the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) + the cast
+    render (THEME 2) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 136): the dialogue PORTRAIT FADE-OUT dissolve is PORTED + DRAWCALL+LUT-EXACT — the
+  ckpt-135 next-chip is CLOSED; on a speaker change the OUTGOING bust now dissolves out via the reverse
+  ramp idx 18→2 then GONE, matching retail TICK-FOR-TICK on ALL THREE arrival speaker changes.**  The
+  coordinated fix (engine-quirk #108): retail processes the advance ~2t BEFORE the new box opens, so
+  (1) the matched nav presses the speaker-change advance 2t early (`−8` not `−6`, `dialogue_timeline.py`),
+  (2) `cutscene.c` DELAYS the new box's re-pop 2t (`reopen_delay`/`CUTSCENE_REOPEN_DELAY`: the main box is
+  hidden, the closing-box snapshot dissolves, then ARM_REOPEN fires — the box-frame stays at `advance_tick−6`
+  so the ckpt-134 28/28 overlap is preserved), (3) the closing box runs the reverse ramp (`dialogue_arm_fadeout`
+  + `dialogue_fadeout_step`: `portrait_fade` 450→0, idx 18→2 then `DIALOGUE_PORTRAIT_GONE`=draw-nothing).
+  **VERIFIED off both seed-pinned `.osr` (`tools/trace_studio2/portrait_fade_probe.py`, the portrait blit's
+  per-tick BLEND ref → ramp idx): port == retail tick-for-tick** — L0→L1 idx 18,16,..,2 over [688,696] gone
+  697; L1→L2 [733,741] gone 742; L2→L3 [778,786] gone 787 (the per-side BLEND ref numbers differ by a
+  constant — same `ramp_b` LUTs — the IDX is identical).  Recon montage on the feed: **differ_px=0 at the
+  mid/late dissolve ticks (690/692/694/696/697)**, the only residual a 1px ≤1-LSB cross-side sheet sample on
+  the OPAQUE pre-dissolve bust (present with or without the fade-out — the standing accepted noise).  1021
+  host pass (+2: `dialogue_portrait_fadeout` + `cutscene_portrait_fadeout`).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-fadeout.osr C:\oss-osr\retail.osr`** — scrub the arrival dialogue speaker
+  changes (ticks 688/733/778): the outgoing bust dissolves out as the box closes, tracking retail; the
+  box-overlap/cadence/fade-in stay 1:1.
+- **Prior (ckpt 135): the dialogue PORTRAIT FADE-IN is DRAWCALL+LUT-EXACT — the USER's ckpt-134 "slightly
   less dim" note is RESOLVED (tick 661 now PIXEL-identical, differ_px=0).**  NOT the ramp formula or the
   box-open (both already faithful): retail HOLDS the dimmest cross-fade step (ramp_b idx 0) for TWO opening
   ticks because the cross-fade state (`0x49c910` `uVar1`/`+0x2e`) arms one tick AFTER scale hits 1000 —

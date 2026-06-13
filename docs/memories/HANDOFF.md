@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 133, 2026-06-13)
+# Session handoff — rolling current state (last updated ckpt 136, 2026-06-14)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,40 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 134
+## Where we are — ckpt 136
+
+**The dialogue PORTRAIT CROSS-FADE is now DRAWCALL+LUT-EXACT in BOTH directions — fade-IN (ckpt 135) and
+fade-OUT (ckpt 136).**  On a speaker change the OUTGOING bust DISSOLVES out via the reverse cross-fade ramp
+(the `ramp_b` LUTs idx 18→2 backwards, then GONE) at its old box anchor while the box is still full, matching
+`retail.osr` **TICK-FOR-TICK on ALL THREE arrival speaker changes** (L0→L1 [688,696] gone 697; L1→L2
+[733,741] gone 742; L2→L3 [778,786] gone 787 — verified with the new `tools/trace_studio2/portrait_fade_probe.py`
+mapping the portrait blit's per-tick BLEND ref to the ramp idx; recon montage differ_px=0 at the mid/late
+ticks).  1021 host pass (+2).  Engine-quirk #108; parity-ledger #14.
+
+- **The mechanism (quirk #108): retail processes the advance ~2 ticks BEFORE the new box opens.**  It arms the
+  OLD box's reverse dissolve immediately while the new box's re-pop has a ~2-tick latency, so the dissolve LEADS
+  the box-frame close by 2.  The coordinated fix: (1) the matched nav presses the speaker-change advance 2t
+  early (`dialogue_timeline.py`: `−8` not `−6`); (2) `cutscene.c` DELAYS the new box's re-pop 2t
+  (`reopen_delay`/`CUTSCENE_REOPEN_DELAY` — the main box is hidden, the closing-box snapshot dissolves, then
+  ARM_REOPEN fires; the box-frame growth stays at `advance_tick−6` so the ckpt-134 28/28 overlap is preserved;
+  `arm_current_line` ARM_REOPEN no longer gates on `box->active`); (3) the closing box runs the reverse ramp
+  (`dialogue_arm_fadeout` sets `portrait_fade`=`DIALOGUE_FADEOUT_START`=450=idx 18 + `fade_out`=1;
+  `dialogue_fadeout_step` −50/tick → 0; `dialogue_portrait_ramp_index` returns idx 18→2 then
+  `DIALOGUE_PORTRAIT_GONE`=-2 = draw nothing — `main.c render_dialogue_box` skips the portrait blit on -2).
+- **ckpt 135 (the fade-IN, the prior chip): `dialogue_box.fade_armed`** gates the `portrait_fade` increment on
+  a prior arm tick so idx 0 holds for TWO opening ticks (the cross-fade state `0x49c910 +0x2e` arms one tick
+  AFTER scale==1000).  Both directions now LUT-byte-identical to retail.
+- **USER-VERIFY (this chip):** `osr_view.exe C:\oss-osr\port-fadeout.osr C:\oss-osr\retail.osr` — scrub the
+  arrival speaker changes (ticks 688/733/778): the outgoing bust dissolves out as the box closes, tracking
+  retail; the box-overlap / cadence / fade-in stay 1:1.
+- **NEXT:** THEME 3 (the arrival→house TRANSITION choreography — the scripted "Arche runs to the house" beat
+  + the fade-from-black house-entry reveal, `cutscene-beat-runner`, notes #5/#6/#7) and THEME 2 (the cutscene
+  CAST colour/animation, `cutscene-party-chars`/butterfly debts), THEN the FREEROAM HAND-OFF.  See
+  `plans/intro-cutscene-1to1.md`.
+
+---
+
+### THEME 1 detail (ckpt 134, the dialogue cadence) — still the module-layout reference
 
 **The dialogue CADENCE is TICK-1:1 — THEME 1 of the intro-cutscene punch-list is DONE.**  With a
 MATCHED-CADENCE nav (tick-keyed confirms at retail's exact dialogue ticks) the port's arrival dialogue

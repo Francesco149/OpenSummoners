@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-14 (ckpt 136) — the dialogue PORTRAIT FADE-OUT dissolve: DRAWCALL+LUT-EXACT on every arrival speaker change
+
+On a speaker change the OUTGOING bust now DISSOLVES out via the reverse cross-fade ramp (idx 18→2, the
+`ramp_b` LUTs played backwards, then GONE) at its old box anchor while the box is still full — the chip the
+ckpt-135 fade-in verification surfaced.  Verified off both seed-pinned `.osr` with a new probe
+(`tools/trace_studio2/portrait_fade_probe.py`, the portrait blit's per-tick BLEND ref → ramp idx): the port
+matches `retail.osr` **TICK-FOR-TICK on ALL THREE arrival speaker changes** — L0→L1 idx 18,16,..,2 over
+ticks [688,696] gone 697; L1→L2 [733,741] gone 742; L2→L3 [778,786] gone 787 (the per-side BLEND ref numbers
+differ by a constant — the same shared LUTs — but the IDX is identical).  Recon montage on the feed:
+differ_px=0 at the mid/late dissolve ticks, the only residual a 1px ≤1-LSB cross-side sheet sample present on
+the OPAQUE pre-dissolve bust too (the standing accepted noise).  1021 host pass (+2).  Engine-quirk #108.
+
+- **The mechanism (engine-quirk #108): retail processes the advance ~2 ticks BEFORE the new box opens.**  It
+  arms the OLD box's reverse-ramp dissolve immediately, while the new box's re-pop has a ~2-tick setup
+  latency, so the dissolve LEADS the box-frame close by 2.  The coordinated faithful fix:
+  (1) the matched nav presses the speaker-change advance 2t early (`dialogue_timeline.py`: `−8` not `−6`);
+  (2) `cutscene.c` DELAYS the new box's re-pop 2t (`reopen_delay`/`CUTSCENE_REOPEN_DELAY` — the main box is
+  hidden, the closing-box snapshot dissolves, then ARM_REOPEN fires; the box-frame growth stays at
+  `advance_tick−6` so the ckpt-134 28/28 box overlap is preserved);
+  (3) the closing box runs the reverse ramp — `dialogue_arm_fadeout` (`portrait_fade`=450=idx 18) +
+  `dialogue_fadeout_step` (−50/tick → 0), `dialogue_portrait_ramp_index` returns idx 18→2 then
+  `DIALOGUE_PORTRAIT_GONE` (-2 = draw nothing; `main.c` skips the portrait blit on it).
+- **No new render divergence.**  The fade-IN, the box overlap (quirk #107), the cadence (THEME 1) all stay
+  1:1 — the same `portrait_fade_probe.py` confirms the fade-in mapping (idx 0,0,2,..,18) on both sides
+  unchanged.  USER-VERIFY: `osr_view.exe C:\oss-osr\port-fadeout.osr C:\oss-osr\retail.osr`.
+
+## 2026-06-13 (ckpt 135) — the dialogue PORTRAIT FADE-IN: drawcall+LUT-exact (the 2-tick idx-0 hold)
+
+The USER's ckpt-134 "portrait slightly less dim at tick 661" note: NOT the ramp formula or the box-open (both
+already faithful).  Retail HOLDS the dimmest cross-fade step (ramp_b idx 0) for TWO opening ticks because the
+cross-fade state (`0x49c910` `+0x2e`) arms one tick AFTER scale hits 1000 — `0x49c910` returns early WITHOUT
+`f += 50` on the first fully-open tick.  Fix: `dialogue_box.fade_armed` gates the `portrait_fade` increment on
+a prior arm tick (`dialogue.c` `dialogue_step`).  Verified LUT-byte-identical port↔retail, 13/13 portrait
+ticks, every arrival line (commit `9153763`).  Engine-quirk #108; surfaced the FADE-OUT dissolve (ckpt 136).
+
 ## 2026-06-13 (ckpt 134) — the dialogue CADENCE is TICK-1:1: the matched-cadence nav + the box re-pop model land THEME 1 of the intro-cutscene punch-list
 
 With a MATCHED-CADENCE nav (tick-keyed confirms at retail's exact dialogue ticks) the port's arrival dialogue

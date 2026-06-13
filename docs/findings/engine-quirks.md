@@ -3636,9 +3636,18 @@ truth, drawcall + LUT exact:
   2/3 = the f-decrementing fade-out, 0 = idle), the fade counter f at `+0x30`; the old
   box re-arms state 2/3 on the speaker change.  **The port processes the advance AT the
   box-open (no latency), so it can't fade the 2 leading ticks** (the old box is still the
-  MAIN box, opaque).  **Faithful fix (the open chip, ckpt 135):** a coordinated change —
-  (1) process the speaker-change advance 2 ticks earlier (nav `−8` not `−6`), (2) DELAY
-  the new box's re-pop 2 ticks (so the box-frame stays at `advance_tick−6` = 28/28
-  preserved), (3) render the closing box's portrait via the reverse ramp idx 18→2 over
-  `[advance, advance+8]`.  Verify drawcall-exact: fade-out `[688,696]` + box 28/28 +
-  cadence 1:1 all hold.  Until then the port holds the old bust OPAQUE then cuts it at +7.
+  MAIN box, opaque).  **PORTED + DRAWCALL+LUT-VERIFIED (ckpt 136):** a coordinated change —
+  (1) process the speaker-change advance 2 ticks earlier (nav `−8` not `−6`,
+  `dialogue_timeline.py`), (2) DELAY the new box's re-pop 2 ticks (`cutscene.c`
+  `reopen_delay`/`CUTSCENE_REOPEN_DELAY`: the main box is hidden, the closing-box snapshot
+  dissolves, then ARM_REOPEN fires — so the box-frame stays at `advance_tick−6` = 28/28
+  preserved), (3) the closing box renders the reverse ramp via `dialogue_arm_fadeout` +
+  `dialogue_fadeout_step` (`portrait_fade` 450→0, idx 18→2 then `DIALOGUE_PORTRAIT_GONE`).
+  **Verified off the two seed-pinned `.osr` (`tools/trace_studio2/portrait_fade_probe.py`,
+  the portrait blit's per-tick BLEND ref → ramp idx): the port matches retail TICK-FOR-TICK
+  on ALL THREE arrival speaker changes** — L0→L1 idx 18,16,..,2 over [688,696] gone 697;
+  L1→L2 [733,741] gone 742; L2→L3 [778,786] gone 787 (the per-side BLEND ref numbers differ
+  by a constant — the same `ramp_b` LUTs — but the idx is identical).  Recon montage:
+  differ_px=0 at the mid/late dissolve ticks (690/692/694/696/697), the only residual a 1px
+  ≤1-LSB cross-side sheet sample on the opaque pre-dissolve bust (present with or without the
+  fade-out — `PORT-DEBT(osr-sheet-dhash-xside)`, the standing accepted noise).

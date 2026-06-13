@@ -74,6 +74,16 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   arm tick).  **VERIFIED LUT-byte-identical port↔retail, 13/13 portrait ticks, EVERY arrival
   line** (L0 @150,76 / L1 @70,88 / L2 @38,76 / L3 @70,88 — all fade-in ticks match).  See
   engine-quirk #108.
+- **FOLLOW-UP — the PORTRAIT FADE-OUT dissolve — DONE (ckpt 136), DRAWCALL+LUT EXACT.**  The
+  closing box's portrait now dissolves out via the reverse ramp idx 18→2 (the `ramp_b` LUTs
+  backwards) matching retail TICK-FOR-TICK on EVERY arrival speaker change — L0→L1 [688,696]
+  gone 697, L1→L2 [733,741] gone 742, L2→L3 [778,786] gone 787 (verified off both `.osr` with
+  `tools/trace_studio2/portrait_fade_probe.py`: identical ramp idx per tick; recon differ_px=0
+  at the mid/late ticks, the only residual the standing ≤1-LSB opaque-bust sheet noise).  The
+  coordinated fix (engine-quirk #108): nav presses 2 ticks early (`−8`, `dialogue_timeline.py`)
+  + `cutscene.c` delays the new box's re-pop 2 ticks (`reopen_delay`, the box-frame stays at
+  `advance_tick−6` = 28/28 preserved) + `dialogue_arm_fadeout`/`dialogue_fadeout_step` walk the
+  closing box's `portrait_fade` 450→0.  Original RE below:
 - **FOLLOW-UP (NEW, ckpt 135) — the PORTRAIT FADE-OUT dissolve (the open chip).**  Surfaced
   by the fade-in verification: on a SPEAKER CHANGE retail DISSOLVES the OUTGOING bust out via
   the REVERSE ramp (idx 18→2, the same ramp_b LUTs as the fade-in backwards, verified
