@@ -30,6 +30,7 @@ typedef struct {
     int  snap_every;       /* OSS_OSR_SNAP_EVERY   (default 0 = off) */
     DWORD snap_flips[64];  /* OSS_OSR_SNAP_FLIPS   (comma list; default empty) */
     int  n_snap_flips;
+    int  state_on;         /* OSS_OSR_STATE        (default 0) — emit OSR_STATE (rng) */
 } proxy_config;
 
 static proxy_config g_cfg;
@@ -64,6 +65,7 @@ static void proxy_config_load(void)
                 g_cfg.osr_path, sizeof(g_cfg.osr_path));
     cfg_env_str("OSS_SCENARIO", "", g_cfg.scenario, sizeof(g_cfg.scenario));
     g_cfg.snap_every = cfg_env_int("OSS_OSR_SNAP_EVERY", 0);
+    g_cfg.state_on   = cfg_env_int("OSS_OSR_STATE", 0);
     {
         char buf[512];
         DWORD n = GetEnvironmentVariableA("OSS_OSR_SNAP_FLIPS", buf, sizeof(buf));
@@ -81,13 +83,13 @@ static void proxy_config_load(void)
     }
     proxy_logf("[cfg] turbo=%d lockstep=%d step=%d/%d hide=%d dismiss=%d "
                "silent=%d seed_pin=%d seed=0x%lx osr=%d path=%s scenario='%s' "
-               "snap_every=%d snap_flips=%d",
+               "snap_every=%d snap_flips=%d state=%d",
                g_cfg.turbo, g_cfg.lockstep, g_cfg.turbo_step_ms,
                g_cfg.lockstep_step_ms, g_cfg.hide_window, g_cfg.dismiss_dialog,
                g_cfg.silent_audio, g_cfg.seed_pin,
                (unsigned long)g_cfg.seed_value, g_cfg.osr_enable,
                g_cfg.osr_path, g_cfg.scenario,
-               g_cfg.snap_every, g_cfg.n_snap_flips);
+               g_cfg.snap_every, g_cfg.n_snap_flips, g_cfg.state_on);
 }
 
 #endif /* OSS_PROXY_CONFIG_H */

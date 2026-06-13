@@ -154,6 +154,12 @@ static void osr_w_seed(uint32_t flip, uint32_t before, uint32_t value)
     uint8_t b[8 + 12];
     osr__emit(b, osr_enc_seed(b, sizeof(b), flip, before, value));
 }
+/* M8: one OSR_STATE record (the opt-in engine-state / RNG census fields). */
+static void osr_w_state(const osr_state_field *fl, uint32_t nf)
+{
+    uint8_t b[8 + 4 + OSR_STATE_MAXF * OSR_STATE_FIELDSZ];
+    osr__emit(b, osr_enc_state(b, sizeof(b), fl, nf));
+}
 static void osr_w_anchor(uint32_t flip, uint32_t sim_tick, uint32_t rng,
                          const char *name)
 {

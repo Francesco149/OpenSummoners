@@ -196,6 +196,19 @@ static void eh_flip_cb(PCONTEXT ctx)
         osr_w_present(0, 0);
     }
     osr_w_framebeg((uint32_t)f, (uint32_t)g_eh_sim_tick, 0);
+    /* M8: the opt-in engine STATE (rng census) right after FRAMEBEG.  rng = the
+     * LCG state word read at the flip; retail rngcalls (the per-draw count) is a
+     * follow-up — it needs a 0x5bf505 trampoline counter, PORT-DEBT(osr-state-
+     * rngcalls-retail).  The port already emits rngcalls; the panel shows it
+     * port-side with retail "-" until the proxy counter lands. */
+    if (g_cfg.state_on) {
+        osr_state_field sf[1];
+        memset(sf, 0, sizeof sf);
+        snprintf(sf[0].name, sizeof sf[0].name, "rng");
+        sf[0].kind = OSR_ST_HEX;
+        sf[0].ival = (int64_t)(uint32_t)eh_read_seed();
+        osr_w_state(sf, 1);
+    }
     g_eh_frame_open = 1;
     g_eh_blit_seq   = 0;                    /* draws restart at 0 each frame */
     if (f <= 3)
