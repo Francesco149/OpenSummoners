@@ -3494,6 +3494,14 @@ under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading o
   is wiped before the next; any renderer that accumulates draws WITHOUT the
   clear shows the whole onion (the USER-flagged "menu CLIPPED artifact" —
   which was never a clip bug at all).
+- **The box identified (frame-scrub, same capture).** The center box is the
+  **Game Difficulty sub-dropdown** (`1:Easy/2:Normal/3:Hard/4:Expert`, fully
+  open at ~flip 791); flip 800 caught it mid-CLOSE after the nav's Z selected
+  Easy (empty shrinking frames at ~796/801/806/811, gone by ~821).  Menu
+  sub-windows are the SAME gated pop-in widget as the dialogue bubble
+  (quirk #97): **content renders only at full scale** — the open/close ramp
+  draws an empty panel frame.  A sub-second blink in normal play; perfectly
+  normal retail behavior (USER flagged it off the frozen snapshot).
 - **The rule.** "A SotES non-empty frame is a full redraw" (the osr_view
   self-contained-render result) holds for the title/town scenes but NOT for
   the menus: correctness requires replaying the CLEAR as an ORDERED draw.
