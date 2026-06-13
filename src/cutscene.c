@@ -155,8 +155,11 @@ static int arm_current_line(cutscene *cs, int mode)
         return 0;
     if (mode == ARM_KEEP && cs->box->active)
         dialogue_set_text(cs->box, text);          /* same speaker — keep the box   */
-    else if (mode == ARM_REOPEN && cs->box->active)
-        dialogue_reopen(cs->box, cs->resolve(ln->name_va), text); /* speaker change */
+    else if (mode == ARM_REOPEN)
+        dialogue_reopen(cs->box, cs->resolve(ln->name_va), text); /* speaker change *
+                                * (the box is HIDDEN during the re-pop latency, so   *
+                                * REOPEN does not gate on cs->box->active — quirk     *
+                                * #108; dialogue_reopen re-arms from the spawn scale) */
     else
         dialogue_arm(cs->box, cs->resolve(ln->name_va), text);    /* first open     */
     /* Resolve the per-speaker portrait bust (0x49d6e0's face-table lookup): the
@@ -188,6 +191,7 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     cs->box      = box;
     cs->closing.active = 0;   /* no box closing until the first speaker change */
     cs->pending_keep   = 0;
+    cs->reopen_delay   = 0;
     if (rooms == NULL || resolve == NULL || box == NULL || n_rooms <= 0 ||
         rooms[0].script == NULL || rooms[0].n_lines <= 0)
         return;
@@ -208,15 +212,31 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
         cs->pending_keep = 0;
         arm_current_line(cs, ARM_KEEP);
     }
-    dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter, one tick */
-    /* The OLD box stays FULL (text shown) BEHIND the opening new box until the
-     * NEW box has PASSED half-open (scale > 500), THEN it pops OUT (40/update).
-     * retail's overlap: at a speaker change the new box opens in front while the
-     * old box lingers full, closing the tick AFTER the new box hits 500 (main
-     * 500 @t, old still full @t, old closes @t+1 when main=550) — drawcall-exact
-     * vs retail.osr (engine-quirk #107). */
-    if (cs->box->scale > 500)
-        dialogue_close_step(&cs->closing);
+    dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter (no-op while *
+                                 * the main box is hidden during the re-pop latency)*/
+
+    /* Re-pop the new box AFTER the speaker-change latency (engine-quirk #108):
+     * retail processes the advance ~2 ticks before the new box opens.  The press
+     * armed the OLD box's portrait dissolve + hid the main box; here, once the
+     * countdown expires, ARM_REOPEN spawns the new box.  ARM_REOPEN runs AFTER
+     * dialogue_step so the box's FIRST render is the spawn scale (like an
+     * immediate reopen), landing the box-frame growth at advance_tick−6 (the
+     * ckpt-134 28/28 overlap match) two ticks behind the dissolve start. */
+    if (cs->reopen_delay > 0 && --cs->reopen_delay == 0)
+        arm_current_line(cs, ARM_REOPEN);
+
+    /* The CLOSING (old) box: dissolve its portrait out via the reverse ramp EVERY
+     * tick from the speaker change (idx 18→2, then gone), and pop the FRAME out
+     * (40/update) once the new box has PASSED half-open (scale > 500).  The
+     * portrait fade LEADS the frame close by ~2 ticks (the latency above), so by
+     * the time the frame starts shrinking the bust has dissolved to gone —
+     * drawcall+LUT-exact vs retail.osr (engine-quirk #108; the #107 overlap is
+     * unchanged: the old box lingers full behind the opening new box). */
+    if (cs->closing.active) {
+        dialogue_fadeout_step(&cs->closing);
+        if (cs->box->active && cs->box->scale > 500)
+            dialogue_close_step(&cs->closing);
+    }
 
     /* The dialogue-interaction input is the CONFIRM action — ENTER or X (the nav
      * injects it as ring id 0x24; Z has NO dialogue role, USER ckpt 132).  Retail's
@@ -268,20 +288,30 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                  * completes (mid-room). */
                 cs->pending_keep = 1;
             } else {
-                /* SPEAKER CHANGE (or a room boundary / the chain end) — snapshot
-                 * the just-shown box (still full) into the CLOSING box so it pops
-                 * OUT (dialogue_close_step) in FRONT while the new box opens
-                 * behind; retail overlaps the two during the ~9t transition
-                 * (quirk #107).  This also keeps the old box on the advance tick. */
-                if (cs->room_idx < cs->n_rooms && cs->box->active)
-                    cs->closing = *cs->box;
+                /* SPEAKER CHANGE (or a room boundary / the chain end).  The chain
+                 * end (ran off the last room, or the next line's text VA does not
+                 * resolve) closes the box immediately and hands off control. */
                 if (cs->room_idx >= cs->n_rooms ||
-                    !arm_current_line(cs, ARM_REOPEN)) {
+                    cs->resolve(cs->rooms[cs->room_idx]
+                                    .script[cs->line_idx].text_va) == NULL) {
                     cs->active   = 0;
                     cs->complete = 1;
                     cs->box->active = 0;  /* close the box (the 0x49cd70 teardown) */
                     return 1;             /* chain complete → caller hands off ctrl */
                 }
+                /* Snapshot the just-shown box (still full) into the CLOSING box and
+                 * arm its reverse-ramp portrait DISSOLVE (idx 18→2, engine-quirk
+                 * #108) — it pops OUT in FRONT while the new box opens behind
+                 * (quirk #107 overlap).  HIDE the main box and DELAY its re-pop
+                 * CUTSCENE_REOPEN_DELAY ticks: retail processes the advance ~2t
+                 * before the new box opens, so the dissolve leads the box-frame by
+                 * 2 while the box-frame transition stays at advance_tick−6 (the
+                 * 28/28 match).  The reopen latency fires ARM_REOPEN above. */
+                if (cs->box->active)
+                    cs->closing = *cs->box;
+                dialogue_arm_fadeout(&cs->closing);
+                cs->box->active  = 0;                     /* hidden during the latency */
+                cs->reopen_delay = CUTSCENE_REOPEN_DELAY;
             }
         }
     }

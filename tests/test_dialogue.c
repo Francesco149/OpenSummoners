@@ -339,3 +339,44 @@ int test_dialogue_close_step(void)
     T_ASSERT_EQ_I(d.active, 0);
     return 0;
 }
+
+/* ── fade-out: a speaker-change OLD bust dissolves via the REVERSE ramp (idx
+ *    18→2 over 9 ticks, then GONE) while the box stays full — engine-quirk #108 ── */
+int test_dialogue_portrait_fadeout(void)
+{
+    dialogue_box d;
+    dialogue_arm(&d, "Arche's Father", "Hi");
+    for (int i = 0; i < 35; i++) dialogue_step(&d);        /* open + fade in opaque */
+    T_ASSERT_EQ_I(d.scale, 1000);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(&d), -1);   /* fade-in done: opaque  */
+
+    /* arm the reverse dissolve: the FIRST render is idx 18 (no step yet) */
+    dialogue_arm_fadeout(&d);
+    T_ASSERT_EQ_I(d.fade_out, 1);
+    T_ASSERT_EQ_I(d.portrait_fade, DIALOGUE_FADEOUT_START);   /* 450 */
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(&d), 18);
+    T_ASSERT_EQ_I(d.scale, 1000);                            /* the box stays full */
+
+    /* walk it down: idx 16,14,..,2 over 8 steps */
+    static const int want[8] = { 16, 14, 12, 10, 8, 6, 4, 2 };
+    for (int s = 0; s < 8; s++) {
+        dialogue_fadeout_step(&d);
+        if (dialogue_portrait_ramp_index(&d) != want[s])
+            T_FAIL("fade-out step %d = %d (want %d)", s + 1,
+                   dialogue_portrait_ramp_index(&d), want[s]);
+    }
+    /* one more step: fade 0 → GONE (draw nothing, NOT the opaque -1) */
+    dialogue_fadeout_step(&d);
+    T_ASSERT_EQ_I(d.portrait_fade, 0);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(&d), DIALOGUE_PORTRAIT_GONE);
+    /* clamps at 0 (no underflow), stays GONE */
+    dialogue_fadeout_step(&d);
+    T_ASSERT_EQ_I(d.portrait_fade, 0);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(&d), DIALOGUE_PORTRAIT_GONE);
+
+    /* no-op on an inactive box */
+    d.active = 0;
+    dialogue_fadeout_step(&d);
+    T_ASSERT_EQ_I(d.portrait_fade, 0);
+    return 0;
+}

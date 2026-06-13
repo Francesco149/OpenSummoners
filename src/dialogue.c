@@ -115,6 +115,27 @@ void dialogue_close_step(dialogue_box *d)
         d->active = 0;
 }
 
+void dialogue_arm_fadeout(dialogue_box *d)
+{
+    if (!d->active)
+        return;
+    /* The reverse cross-fade (0x49c910 state 2/3): the dissolving bust starts at
+     * idx 18 (DIALOGUE_FADEOUT_START) and walks down via dialogue_fadeout_step.
+     * The box keeps its name/text/scale (still full) — only the portrait fades;
+     * the frame pop-OUT is the caller's separate dialogue_close_step. */
+    d->fade_out      = 1;
+    d->portrait_fade = DIALOGUE_FADEOUT_START;
+}
+
+void dialogue_fadeout_step(dialogue_box *d)
+{
+    if (!d->active || !d->fade_out)
+        return;
+    d->portrait_fade -= DIALOGUE_FADE_STEP;     /* reverse ramp 450 -> 0 */
+    if (d->portrait_fade < 0)
+        d->portrait_fade = 0;
+}
+
 void dialogue_reopen(dialogue_box *d, const char *name, const char *text)
 {
     /* A fresh line opening like the first box — from DIALOGUE_OPEN_SCALE0,
@@ -282,6 +303,16 @@ void dialogue_box_position(const dialogue_box *d,
 
 int dialogue_portrait_ramp_index(const dialogue_box *d)
 {
+    if (d->fade_out) {
+        /* 0x49c910 state 2/3, the speaker-change OLD bust dissolving: the SAME
+         * ramp LUTs played BACKWARDS (idx 18→2 as fade falls 450→50), then GONE
+         * (draw nothing) once below idx 2.  Drawcall+LUT-exact off retail.osr —
+         * idx 18,16,..,2 over the 9-tick window, the bust gone the next tick (as
+         * the frame starts shrinking).  quirk #108. */
+        if (d->portrait_fade < 50)
+            return DIALOGUE_PORTRAIT_GONE;
+        return (d->portrait_fade * 0x14) / 500;
+    }
     /* 0x49c910 state 1, the fade<0x1f5 arm: idx = (fade*0x14)/500; once idx
      * exceeds 0x13 the NEW cel's desc is cleared to 0 = the plain keyed blit
      * (the 0x43d470 desc setter, args (0,0,0)) — the incoming portrait is FULLY OPAQUE from

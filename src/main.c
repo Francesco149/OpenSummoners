@@ -2408,18 +2408,25 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
     cel = (pobj != NULL) ? (zdd_object *)ar_sprite_slot_frame(pobj, 0) : NULL;
     if (cel != NULL) {
         int ridx = dialogue_portrait_ramp_index(d);
-        const zdd_blend_desc *desc =
-            (ridx >= 0 && ridx < PD_BOOT_GROUP_B_COUNT) ? g_ramp_b[ridx] : NULL;
-        if (desc != NULL)
-            zdd_blit_orchestrate(desc, g_zdd->primary_obj, cel,
-                                 cel->metric_0c + box_x + DIALOGUE_PORTRAIT_DX,
-                                 cel->metric_10 + box_y + DIALOGUE_PORTRAIT_DY,
-                                 cel->metric_14, cel->metric_18,
-                                 0, 0, cel->colorkey_out, NULL);
-        else
-            zdd_object_blt_keyed(cel, g_zdd->primary_obj,
-                                 box_x + DIALOGUE_PORTRAIT_DX,
-                                 box_y + DIALOGUE_PORTRAIT_DY);
+        if (ridx == DIALOGUE_PORTRAIT_GONE) {
+            /* the speaker-change OLD bust has fully dissolved out (fade-out past
+             * idx 2) — draw NO portrait (quirk #108).  In practice the closing
+             * box's content gate (scale < 1000) hits the same tick; this guards
+             * the case the frame lingers full a tick longer. */
+        } else {
+            const zdd_blend_desc *desc =
+                (ridx >= 0 && ridx < PD_BOOT_GROUP_B_COUNT) ? g_ramp_b[ridx] : NULL;
+            if (desc != NULL)
+                zdd_blit_orchestrate(desc, g_zdd->primary_obj, cel,
+                                     cel->metric_0c + box_x + DIALOGUE_PORTRAIT_DX,
+                                     cel->metric_10 + box_y + DIALOGUE_PORTRAIT_DY,
+                                     cel->metric_14, cel->metric_18,
+                                     0, 0, cel->colorkey_out, NULL);
+            else
+                zdd_object_blt_keyed(cel, g_zdd->primary_obj,
+                                     box_x + DIALOGUE_PORTRAIT_DX,
+                                     box_y + DIALOGUE_PORTRAIT_DY);
+        }
     }
 
     /* the GDI text pass (0x48c820: GetDC the paint target, TRANSPARENT bk) */

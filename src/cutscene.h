@@ -58,6 +58,15 @@
  * the hit to cutscene_step, which SKIPS or ADVANCES with it (see cutscene_step). */
 #define CUTSCENE_ADVANCE_RING_ID 0x24
 
+/* The speaker-change re-pop LATENCY (engine-quirk #108): retail processes a
+ * speaker-change advance ~2 ticks BEFORE the new box opens — it arms the OLD
+ * box's reverse-ramp portrait dissolve immediately, but the new box's re-pop has
+ * a ~2-tick setup latency.  So the driver presses 2 ticks early (the matched nav
+ * uses advance_tick−8, not −6) and DELAYS the new box's dialogue_reopen by this
+ * many ticks, keeping the box-frame transition at advance_tick−6 (the ckpt-134
+ * 28/28 overlap match) while the portrait fade-out leads it by 2. */
+#define CUTSCENE_REOPEN_DELAY 2
+
 /* The committed room keys (room_state+0x4024) the town-intro chain swaps through
  * (0x4d7d80 switch cases; staged by 0x401d40, committed by 0x402030). */
 #define CUTSCENE_ROOM_ARRIVAL 0x334beu  /* the town-gate arrival (10 lines)        */
@@ -114,6 +123,11 @@ typedef struct cutscene {
                                       * to the NEXT tick's start, so the old line    *
                                       * still renders on the advance tick (retail    *
                                       * clears the body one flip after the press)    */
+    int                   reopen_delay; /* a SPEAKER-CHANGE advance counts down this  *
+                                      * many ticks (CUTSCENE_REOPEN_DELAY) before     *
+                                      * the new box re-pops — the main box is hidden  *
+                                      * meanwhile while the OLD box's portrait         *
+                                      * dissolves out (engine-quirk #108)             */
 } cutscene;
 
 /* The town-gate family conversation (0x4d7d80 case 0x334be, flag 0x5f76805==0,

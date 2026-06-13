@@ -47,13 +47,18 @@ static void run_to_typing(cutscene *cs)
         cutscene_step(cs, 0);
 }
 
-/* Type+advance `count` lines; return the number of completion edges seen. */
+/* Type+advance `count` lines; return the number of completion edges seen.  A
+ * speaker-change advance HIDES the box for the re-pop latency (engine-quirk
+ * #108); settle past it so each iteration leaves a re-popped box (the next
+ * run_to_wait would too, but the LAST line's caller inspects the box directly). */
 static int step_through(cutscene *cs, int count)
 {
     int completes = 0;
     for (int i = 0; i < count; i++) {
         run_to_wait(cs);
         completes += cutscene_step(cs, 1);
+        for (int k = 0; k < CUTSCENE_REOPEN_DELAY && !dialogue_active(cs->box); k++)
+            cutscene_step(cs, 0);          /* drive the speaker-change re-pop latency */
     }
     return completes;
 }
@@ -135,9 +140,14 @@ int test_cutscene_advance_only_when_typed(void)
     cutscene_step(&cs, 0);
     T_ASSERT_EQ_I(cs.line_idx, 0);
 
-    /* Z press → advance to line 2 (box re-armed, not yet typed) */
+    /* Z press → advance to line 2 (Father → Arche, a SPEAKER CHANGE): the box is
+     * HIDDEN for the re-pop latency (engine-quirk #108), then re-pops with the new
+     * speaker.  The OLD box dissolves out as the closing box meanwhile. */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 1);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);          /* hidden during the latency  */
+    for (int i = 0; i < CUTSCENE_REOPEN_DELAY; i++)
+        cutscene_step(&cs, 0);
     T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 0);
     T_ASSERT(strcmp(box.name, "Arche") == 0);
     return 0;
@@ -165,14 +175,18 @@ int test_cutscene_typewriter_skip(void)
     T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 1);
 
     /* the NEXT confirm advances to line 2 (a second press — the skip press was
-     * consumed, faithful to retail's mutually-exclusive state 1/2) */
+     * consumed, faithful to retail's mutually-exclusive state 1/2).  Line 1 → 2 is
+     * a SPEAKER CHANGE: the box is hidden for the re-pop latency, then re-pops. */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 1);
-    T_ASSERT(strcmp(box.name, "Arche") == 0);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);           /* hidden during the latency */
+    for (int i = 0; i < CUTSCENE_REOPEN_DELAY; i++)
+        cutscene_step(&cs, 0);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);          /* re-popped, new speaker    */
 
     /* a confirm during the POP-IN (not yet content-visible) is eaten — no skip,
      * no advance (FUN_0043ce50 returns 0 until scale==1000) */
-    T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);  /* line 2 just re-armed */
+    T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);  /* line 2 still popping in */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 1);               /* unchanged                  */
     return 0;
@@ -222,11 +236,15 @@ int test_cutscene_same_speaker_keeps_box(void)
     T_ASSERT_EQ_I(cs.pending_keep, 1);
     cutscene_step(&cs, 0);                            /* apply the deferred re-text */
 
-    /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE opens the new box from the
-     * spawn scale (DIALOGUE_OPEN_SCALE0, +50/update; content gated until full) */
+    /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE.  The box is HIDDEN for the
+     * re-pop latency (engine-quirk #108), then opens from the spawn scale
+     * (DIALOGUE_OPEN_SCALE0, +50/update; content gated until full). */
     run_to_wait(&cs);
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 6);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);         /* hidden during the latency */
+    for (int i = 0; i < CUTSCENE_REOPEN_DELAY; i++)
+        cutscene_step(&cs, 0);
     T_ASSERT_EQ_I(box.scale, DIALOGUE_OPEN_SCALE0);  /* new box opens from spawn  */
     T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);
     T_ASSERT(strcmp(box.name, "Arche's Father") == 0);
@@ -279,6 +297,67 @@ int test_cutscene_closing_box_overlap(void)
     return 0;
 }
 
+/* ── the speaker-change PORTRAIT DISSOLVE (engine-quirk #108): on a speaker change
+ *    the OLD bust dissolves out via the reverse ramp idx 18→2 over a 9-tick window
+ *    [press, press+8] (gone the next tick), while the new box's re-pop is DELAYED 2
+ *    ticks (the dissolve leads the box-frame by 2).  Drawcall+LUT-exact off
+ *    retail.osr ([688,696] idx 18→2, gone 697 / box re-pops at advance_tick−6) ── */
+int test_cutscene_portrait_fadeout(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* run L0 (Father) to fully-typed + awaiting advance, portrait opaque */
+    run_to_wait(&cs);
+    T_ASSERT(strcmp(box.name, "Arche's Father") == 0);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(&box), -1);
+
+    /* ADVANCE L0 → L1 (Father → Arche): the OLD box snapshots into the closing box
+     * with the reverse dissolve armed (FIRST render = idx 18 at the press), and the
+     * main box is HIDDEN for the re-pop latency. */
+    cutscene_step(&cs, 1);                                /* T0 = the press */
+    const dialogue_box *cl = cutscene_closing_box(&cs);
+    T_ASSERT(cl != NULL);
+    T_ASSERT(strcmp(cl->name, "Arche's Father") == 0);   /* the OLD speaker */
+    T_ASSERT_EQ_I(cl->fade_out, 1);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(cl), 18); /* idx 18 @ the press */
+    T_ASSERT_EQ_I(cl->scale, 1000);                      /* the frame stays full */
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);             /* main box hidden */
+    T_ASSERT_EQ_I(cs.reopen_delay, CUTSCENE_REOPEN_DELAY);
+    T_ASSERT_EQ_I(cs.line_idx, 1);
+
+    /* the reverse ramp walks 18→2 over the window; the closing FRAME stays full
+     * (the bust dissolves while the box lingers, the frame closes only after the
+     * new box passes half-open). */
+    static const int want[9] = { 18, 16, 14, 12, 10, 8, 6, 4, 2 };
+    for (int t = 1; t <= 8; t++) {                       /* T0+1 .. T0+8 */
+        cutscene_step(&cs, 0);
+        cl = cutscene_closing_box(&cs);
+        T_ASSERT(cl != NULL);
+        if (dialogue_portrait_ramp_index(cl) != want[t])
+            T_FAIL("dissolve @T0+%d idx=%d (want %d)", t,
+                   dialogue_portrait_ramp_index(cl), want[t]);
+        T_ASSERT_EQ_I(cl->scale, 1000);                  /* frame still full */
+    }
+    /* by now the new box re-popped at the latency (T0+2) and is the new speaker */
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
+
+    /* T0+9: the dissolve completes (GONE) AND the frame begins to shrink (the new
+     * box has passed half-open) — the bust is gone the tick the box closes. */
+    cutscene_step(&cs, 0);
+    cl = cutscene_closing_box(&cs);
+    T_ASSERT(cl != NULL);
+    T_ASSERT_EQ_I(dialogue_portrait_ramp_index(cl), DIALOGUE_PORTRAIT_GONE);
+    T_ASSERT(cl->scale < 1000);                          /* frame now shrinking */
+
+    /* drain: the closing box is removed once it shrinks below CLOSE_MIN */
+    for (int i = 0; i < 40; i++) cutscene_step(&cs, 0);
+    T_ASSERT_EQ_P(cutscene_closing_box(&cs), NULL);
+    return 0;
+}
+
 /* ── the room swap: the 10th arrival advance commits the HOUSE key (0x334c8)
  *    and arms house line 0 — it does NOT complete the chain ── */
 int test_cutscene_room_transition(void)
@@ -295,7 +374,8 @@ int test_cutscene_room_transition(void)
     T_ASSERT_EQ_I(cs.room_idx, 1);               /* now in the house room      */
     T_ASSERT_EQ_I(cs.line_idx, 0);
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
-    /* house line 0 armed (Arche, the new-house line) */
+    /* house line 0 armed (Arche, the new-house line) — step_through settled the
+     * room-boundary re-pop latency (Mother → Arche is a speaker change) */
     T_ASSERT_EQ_I(dialogue_active(&box), 1);
     T_ASSERT(strcmp(box.name, "Arche") == 0);
     return 0;

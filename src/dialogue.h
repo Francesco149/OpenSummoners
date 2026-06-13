@@ -150,6 +150,11 @@ typedef struct {
                              * one tick AFTER scale hits 1000 — the portrait  *
                              * holds idx 0 for that first armed tick before   *
                              * the counter advances (drawcall-exact, quirk).  */
+    int32_t  fade_out;      /* 0x49c910 state +0x2e == 2/3: this box's portrait*
+                             * is DISSOLVING out (a speaker-change OLD bust) — *
+                             * portrait_fade runs the ramp BACKWARDS (450→0,   *
+                             * idx 18→2 then gone).  Set on the closing-box     *
+                             * snapshot by dialogue_arm_fadeout (quirk #108).  */
     int32_t  reveal;        /* typewriter: glyph records revealed so far     */
     int32_t  type_timer;    /* updates until the next reveal                 */
     int32_t  arrow_idx;     /* +0x72: 0..3 into the anim table               */
@@ -231,6 +236,31 @@ void dialogue_step(dialogue_box *d);
  * engine-quirk #107. */
 void dialogue_close_step(dialogue_box *d);
 
+/* The portrait FADE-OUT (the speaker-change DISSOLVE, 0x49c910 state 2/3): on a
+ * speaker change the OUTGOING bust dissolves out via the ramp_b LUTs played
+ * BACKWARDS (idx 18→2, the same steps as the fade-in reversed), at its old box
+ * anchor while the box is still full-scale, THEN the box closes.  Drawcall+LUT-
+ * exact off retail.osr (every arrival speaker change): a 9-tick window
+ * [advance, advance+8] (idx 18,16,..,2), the bust GONE on the next tick (when
+ * the box starts shrinking).  The fade LEADS the box-frame close by ~2 ticks
+ * because retail processes the advance ~2 ticks before the new box re-pops —
+ * the caller (cutscene.c) presses 2 ticks early and delays the new box's re-pop
+ * to compensate.  See engine-quirk #108. */
+#define DIALOGUE_FADEOUT_START 450  /* portrait_fade for idx 18 (the first step) */
+#define DIALOGUE_PORTRAIT_GONE (-2) /* dialogue_portrait_ramp_index: dissolved   *
+                                     * out — draw NO portrait (vs -1 = opaque)   */
+
+/* Arm `d` (a closing-box snapshot) for the reverse-ramp portrait dissolve: set
+ * fade_out and portrait_fade = DIALOGUE_FADEOUT_START so the FIRST render is idx
+ * 18, then dialogue_fadeout_step walks it down.  No-op on an inactive box. */
+void dialogue_arm_fadeout(dialogue_box *d);
+
+/* One tick of the portrait dissolve: portrait_fade -= DIALOGUE_FADE_STEP (the
+ * reverse ramp 450→0).  Called every tick on the closing box from the speaker
+ * change (independent of the frame pop-OUT, which the caller gates on the new
+ * box passing half-open).  No-op unless active && fade_out. */
+void dialogue_fadeout_step(dialogue_box *d);
+
 int  dialogue_active(const dialogue_box *d);
 
 /* 1 once the pop-in finished (content cells render; 0x48c820's content gate). */
@@ -275,10 +305,12 @@ void dialogue_box_position(const dialogue_box *d,
                            int32_t cam_x, int32_t cam_y, int32_t cam_scroll,
                            int *out_x, int *out_y);
 
-/* The portrait blend for the current fade (0x49c910): -1 = plain keyed blit
- * (fade complete), else the ramp_b index 0..19 (rises over fade 0..499, then
- * HOLDS the last step until fade==1000 — the second fade half only matters for
- * the old cel of a cross-fade, absent on the first line). */
+/* The portrait blend for the current fade (0x49c910).  FADE-IN (the default,
+ * the incoming cel): -1 = plain keyed blit (fade complete), else the ramp_b
+ * index 0..18 (rises over fade 0..499, opaque past it).  FADE-OUT (d->fade_out,
+ * the speaker-change OLD bust dissolving): the index runs 18→2 as portrait_fade
+ * falls 450→50, then DIALOGUE_PORTRAIT_GONE (-2) once it drops below idx 2 —
+ * the caller draws NO portrait for -2 (vs the opaque blit for -1). */
 int  dialogue_portrait_ramp_index(const dialogue_box *d);
 
 /* The arrow cel frame for the current anim step (base 20 + table {0,1,2,3}). */

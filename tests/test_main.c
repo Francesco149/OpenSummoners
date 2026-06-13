@@ -874,6 +874,7 @@ struct test_case {
     X(cutscene_typewriter_skip)                                \
     X(cutscene_same_speaker_keeps_box)                         \
     X(cutscene_closing_box_overlap)                            \
+    X(cutscene_portrait_fadeout)                               \
     X(cutscene_room_transition)                                \
     X(cutscene_completes_after_chain)                          \
     X(cutscene_room_key)                                       \
@@ -1050,6 +1051,7 @@ struct test_case {
     X(dialogue_set_text)                                       \
     X(dialogue_reopen)                                         \
     X(dialogue_close_step)                                     \
+    X(dialogue_portrait_fadeout)                               \
 
 #define X(n) extern int test_##n(void);
 TESTS
