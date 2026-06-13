@@ -61,32 +61,65 @@ parity (sim_tick) axis.**  1002 host pass (unchanged — tooling only, no `src/`
 WSLInterop, and shares the exact `osr_scrub` engine the GUI wraps):**
 - The join frame indices match `pair.py` EXACTLY: port idx 1115 → flip 1116 tick 0, retail idx 1241 → flip
   1242 tick 0 (so `osr_scrub`'s ordinal == `pair.py`'s ordinal — the Python verdict and the C renderer agree).
-- Two-session reconstruction works; the cross-side diff is real and meaningful: **sim_tick 0 (the game_enter
-  town establishing shot) reconstructs `differ_px==0` — PIXEL-IDENTICAL port vs retail** (a real parity win
-  surfaced by the studio); sim_tick 97 `differ_px=264` (0.09%, maxd=239 — a small localized divergence, the
-  exact signal the studio exists to surface).  Montages on the feed.
-- **OPEN (USER): GUI visual-verify** — the windowed DX11 app can't be driven from WSL.  Launch on Windows:
-  `build/osr_view.exe 'C:\oss-osr\port-m5.osr' 'C:\oss-osr\retail-snap.osr'`; scrub the timeline, check the
-  three panels track + the ribbon reads green at the start (it should — differ_px 0 at tick 0) with the few
-  divergent ticks in yellow/red.
+- Two-session reconstruction works; the cross-side diff is real and meaningful: **sim_tick 0 reconstructs
+  `differ_px==0` — PIXEL-IDENTICAL port vs retail.**  CORRECTION (the draw inspector caught it): tick 0 is
+  the game_enter TRANSITION frame, NOT the town establishing shot — its full render is near-black (53
+  non-black px) because a LATE mid-frame scene-transition CLEAR (quirk #105) wipes a fully-composed town
+  within that frame (visible at the inspector's K=894, gone by K=1789); both sides do it identically (hence
+  differ_px==0).  The settled town renders a few ticks in (e.g. tick 97 `differ_px=264`, 0.09% — the
+  animated butterflies, a small localized divergence the studio surfaces).  Montages on the feed.
+- **USER-CONFIRMED the GUI** ("studio looks good"; off-screen tile-load regions are wanted; the post-tick-191
+  black PORT panel is the honest gap — port-m5 ends at tick 191).
 
-**NEXT MOVE.**  The studio is now usable to iterate render parity → the PAUSED room-render/freeroam arc is
-UNBLOCKED (that was the whole reason v2 was pulled forward, ckpt 125).  Two tracks, USER's call on order:
-(a) RESUME the movement arc — render the house/errands ROOMS (`plans/controllable-arche-faithful.md` Phase
-2a; scene ids house=1023/errands=1025) → the freeroam hand-off, now with the tick-join studio to verify each
-frame; (b) M7 studio drill-in (the openrecet survey items 1/4/5/6/7: draw-inspector panel + pixel→draw pick,
-an `.osr` slice tool, a content-addressed capture cache + one orchestrator command, the draw-program semantic
-panel, marks/worklist) — the next *studio* increment, best pulled in when a specific divergence needs it.
-**CAVEAT for a real comparison:** the port-m5 capture only reaches tick 191 (its intro-1 nav is short); a
-matched-length port capture awaits the freeroam port, so for now the 190-paired region — incl. the bit-exact
-game_enter establishing shot — is the working demo.  Roadmap: `plans/trace-studio-v2.md`
-§openrecet-v3-survey (items 2→3 DONE this ckpt; 1/4/5/6/7 remain).
+**M7 — the DRILL-IN + the NOTE hand-off (this ckpt, USER-requested "the M7 stuff plus a simple note
+system").**  Commits `953ee74` (notes) + `b568104` (inspector engine) + `6279274` (inspector GUI).
+
+- **The NOTE / mark system (the human→agent contract — openrecet N4, our v1 marks/worklist returning).**
+  In osr_view dual mode the USER drags a crop rect on any panel (frame-space, drawn live on all 3) + types a
+  note → it persists to `osr_notes.jsonl` beside the `.osr` (one JSON line: tick, port_flip, retail_flip,
+  crop[x,y,w,h], differ, text); a notes-list panel seeks (`go`) / deletes (`x`); notes load on startup.
+  Keyboard scrub is suppressed while typing (`WantCaptureKeyboard`).  Gap panels now LABEL "no frame at this
+  tick" instead of bare black.  `tools/trace_studio2/notes.py` is the agent READ side: reads the JSONL,
+  resolves each note's tick → per-side frame index via the same join as `pair.py`, and `--render`
+  reconstructs the cropped port|retail|diff at that tick (`osr_prof` dump + PIL crop), `--feed` pushes it.
+  So a mark says exactly "look HERE at THIS sim_tick" and round-trips to a precise visual.  VERIFIED
+  end-to-end headless: a hand-crafted JSONL in the EXACT C `note_write_line` format parses; notes.py
+  resolved + rendered the crops (tick-97 crop differ 264, tick-0 whole-frame differ 0).
+- **The DRAW INSPECTOR (openrecet N3 — the self-serve "which draw made this pixel" loop).**  `osr_scrub`
+  grew: `frame_ndraws`/`frame_draws` (the ordered BLIT/TEXT/CLEAR list + human labels like "onto res=1002
+  f=0 @(0,0) 80x352"), `render_rgba_upto(idx,K)` (reconstruct applying only the first K draws — watch a
+  frame build; replay_frame refactored to `replay_frame_upto`, readback factored to `readback_rgba`),
+  `pick_draw(idx,px,py)` (which draw last changed a pixel — one incremental pass: clear → apply each draw →
+  sample the RGB565 pixel, releasing the GDI DC each step so text flushes before sampling), `resolve_nonempty`
+  shared by all.  GUI: a 2nd osr_view window — PORT/RETAIL radio, an "up to draw K" slider, the clipped draw
+  list (`ImGuiListClipper`; click a row → render-to-there + highlight its dest rect green), click the image →
+  `pick_draw` selects the painting draw.  ENGINE VERIFIED headless: `render_rgba_upto(all)==render_rgba`
+  (differ 0); on port frame 1309 (settled town, 616 draws) the build-up is clean (K=1 CLEAR=black → K=308
+  full town 300k px → K=616 +banner), `pick(200,150)`=draw #615 the `keyed res=1097` banner; and it earned
+  its keep immediately (surfaced the tick-0 mid-frame CLEAR above).  GUI interaction = USER visual-verify.
+
+**OPEN (USER): GUI visual-verify of the M7 additions** — the windowed DX11 app can't be driven from WSL.
+In `build/osr_view.exe 'C:\oss-osr\port-m5.osr' 'C:\oss-osr\retail-snap.osr'`: (1) drag a crop on a panel,
+type a note, Add → it lands in the list + `C:\oss-osr\osr_notes.jsonl` (then I run `notes.py --render`); (2)
+the "draw inspector" window — slide K to watch a frame build, click a draw row / click the image to pick.
+
+**NEXT MOVE.**  The studio is usable + self-diagnosing → the PAUSED room-render/freeroam arc is UNBLOCKED
+(the whole reason v2 was pulled forward, ckpt 125): RESUME it — render the house/errands ROOMS
+(`plans/controllable-arche-faithful.md` Phase 2a; scene ids house=1023/errands=1025) → the freeroam hand-off,
+now with the tick-join studio + the note hand-off + the draw inspector to verify/diagnose each frame.
+Remaining *studio* polish (openrecet survey 4/5/6: an `.osr` slice tool, a capture cache + one orchestrator
+command, the draw-program semantic panel) is pull-when-needed.  **CAVEAT for a real comparison:** the port-m5
+capture only reaches tick 191 (its intro-1 nav is short); a matched-length port capture awaits the freeroam
+port, so for now the 190-paired region is the working demo.  Roadmap: `plans/trace-studio-v2.md`
+§openrecet-v3-survey (items 1/2/3/7 DONE this ckpt; 4/5/6 remain).
 
 **Module layout (v2, current additions):** `tools/trace_studio2/osr.py` (+ streaming iterator),
-`tools/trace_studio2/pair.py` (NEW — the tick-join verdict), `tools/osr_view/osr_view_imgui.cpp` (+ dual
-mode `run_dual` / `build_join` / `diff_image` / the ribbon; `run_single` unchanged), `tools/osr_view/Makefile`
-(+ osr_emit.c).  Capture/recon modules unchanged from ckpt 128 (see below).  Artifacts on `C:\oss-osr\`:
-`port-m5.osr` (the port side), `retail-snap.osr` (the retail side), `cmp_*.png` (the tick-join montages).
+`tools/trace_studio2/pair.py` (the tick-join verdict), `tools/trace_studio2/notes.py` (the note read side),
+`tools/osr_view/osr_scrub.{c,h}` (+ frame_draws / render_rgba_upto / pick_draw), `tools/osr_view/
+osr_view_imgui.cpp` (dual `run_dual` / `build_join` / `diff_image` / ribbon / notes / draw inspector;
+`run_single` unchanged), `tools/osr_view/Makefile` (+ osr_emit.c).  Capture/recon modules unchanged from
+ckpt 128 (see below).  Artifacts on `C:\oss-osr\`: `port-m5.osr` + `retail-snap.osr` (the two sides),
+`osr_notes.jsonl` (the marks), `note_render/` (notes.py crops), `cmp_*.png`/`drawbuildup2.png` (montages).
 
 **OPEN RE threads (don't block):** none new for v2.  The PAUSED movement-system arc (carried): the
 errands/house ROOM-render path → the freeroam hand-off; the A/B portrait FACING (dynamic); the errands

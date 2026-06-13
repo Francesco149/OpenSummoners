@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 129) — M7: the studio drill-in + the note hand-off (draw inspector + crop/note marks)
+
+The studio becomes self-diagnosing and gains the human→agent channel (USER-requested: "the M7 stuff plus a
+simple note system so I can add notes with a crop region to tell you what to look at").
+
+The NOTE/mark system (openrecet N4, our v1 marks/worklist returning natively): in osr_view dual mode the
+USER drags a crop rectangle on any panel (frame-space, drawn live on all three) + types a note → it persists
+to `osr_notes.jsonl` beside the `.osr` (tick, port/retail flip, crop[x,y,w,h], differ, text); a notes-list
+panel seeks/deletes; notes load on startup; keyboard scrub is suppressed while typing.  `tools/trace_studio2/
+notes.py` is the agent READ side — it reads the JSONL, resolves each note's tick → per-side frame index via
+the same join as `pair.py`, and with `--render` reconstructs the cropped port|retail|diff at that tick
+(`osr_prof` dump + PIL crop), `--feed` pushes it.  So a mark says exactly "look HERE at THIS sim_tick" and
+round-trips to a precise visual on the agent's side (verified end-to-end headless against a C-format sample).
+Gap panels now label "no frame at this tick" instead of bare black (the USER flagged the honest post-tick-191
+black port panel).
+
+The DRAW INSPECTOR (openrecet N3, the self-serve "which draw made this pixel" loop): `osr_scrub` grew
+`frame_ndraws`/`frame_draws` (the ordered BLIT/TEXT/CLEAR list + human labels), `render_rgba_upto(idx,K)`
+(reconstruct applying only the first K draws — watch a frame build), and `pick_draw(idx,px,py)` (which draw
+last changed a pixel, one incremental pass).  A second osr_view window exposes them: a PORT/RETAIL radio, an
+"up to draw K" slider, the clipped draw list (click a row → render-to-there + highlight its rect), and
+click-the-image pixel→draw pick.  Engine verified headless (`render_rgba_upto(all)==render_rgba`; on port
+frame 1309 the build-up is clean CLEAR→town→+banner, `pick(200,150)`=draw #615 the banner) — and it earned
+its keep immediately: it revealed that the tick-0 game_enter frame is a TRANSITION (near-black, a town
+composed then wiped by a late mid-frame scene-transition CLEAR, quirk #105; both sides identical → the
+earlier "town establishing shot" label was corrected to "transition frame").  USER-CONFIRMED the studio
+("looks good"); the M7 crop-drag / inspector interaction is the open visual-verify.  Commits `953ee74`
+(notes) + `b568104` (inspector engine) + `6279274` (inspector GUI); montages on the feed.  NEXT: RESUME the
+now-unblocked room-render/freeroam port (the studio exists to iterate it); studio polish (survey 4/5/6) is
+pull-when-needed.
+
 ## 2026-06-13 (ckpt 129) — M6: the tick-join studio — both sides' `.osr` paired by `sim_tick`, native PORT|RETAIL|DIFF three-panel + diff ribbon
 
 Trace Studio v2 reaches its first usable deliverable: a frame-by-frame 1:1 port-vs-retail scrub on the

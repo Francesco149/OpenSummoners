@@ -72,16 +72,33 @@ understates how much actual instruction volume is ported.
     into all 3 osr_view targets (zdd.c hard-refs its M5 taps — fixes a latent M5 link break).
   - **VERIFIED headless (`osr_prof` dumps, the same `osr_scrub` engine the GUI wraps):** the join indices
     match `pair.py` exactly, two-session reconstruction works, and the cross-side diff is real — **sim_tick 0
-    (the game_enter town establishing shot) reconstructs `differ_px==0` — PIXEL-IDENTICAL port vs retail**;
-    sim_tick 97 `differ_px=264` (0.09%, maxd=239, a small localized divergence the studio surfaces).
-    **OPEN (USER): GUI visual-verify** — launch `build/osr_view.exe 'C:\oss-osr\port-m5.osr'
-    'C:\oss-osr\retail-snap.osr'` on Windows; scrub + check the three panels + the ribbon.
-  - **NEXT:** the studio is now usable to iterate render parity → the PAUSED room-render/freeroam arc is
-    UNBLOCKED (the reason v2 was pulled forward). M7 drill-in (draw-inspector / pixel→draw pick / marks-
-    worklist) is the next *studio* increment, available when a divergence needs it. CAVEAT: the port-m5
-    capture only reaches tick 191 (a matched-length port capture awaits the freeroam port); the 190-paired
-    region — incl. the bit-exact game_enter shot — is the working demo. Roadmap: `plans/trace-studio-v2.md`
-    §openrecet-v3-survey (items 2→3 done; 1/4/5/6/7 remain).
+    (the game_enter TRANSITION frame — near-black, the inspector showed it's a town composed then wiped by a
+    late mid-frame scene-transition CLEAR, quirk #105) reconstructs `differ_px==0` PIXEL-IDENTICAL on both
+    sides**; the settled town renders a few ticks in (e.g. tick 97 `differ_px=264` 0.09%, the animated
+    butterflies — a small localized divergence the studio surfaces). USER-CONFIRMED the GUI ("studio looks
+    good"); the post-tick-191 black PORT panel is the honest gap (port-m5 ends at tick 191).
+- **ALSO ckpt 129: M7 — the DRILL-IN + the NOTE hand-off (USER-requested "M7 stuff + a note system").**
+  Commits `953ee74` (notes) + `b568104` (inspector engine) + `6279274` (inspector GUI). On the feed.
+  - **NOTES (the human→agent contract):** in osr_view the USER drags a crop rect on any panel + types a
+    note → `osr_notes.jsonl` beside the `.osr` (tick, port/retail flip, crop xywh, differ, text); a list
+    panel seeks/deletes; loads on startup. `tools/trace_studio2/notes.py` is the agent READ side — resolves
+    each note's tick → frame indices via the join, and `--render` reconstructs the cropped port|retail|diff
+    at that tick (`osr_prof` dump + crop), `--feed` pushes it. So a mark says "look HERE at THIS tick" and
+    round-trips to a precise visual. VERIFIED end-to-end headless (a C-format sample → notes.py rendered the
+    crops). Gap panels now LABEL "no frame at this tick" instead of bare black.
+  - **DRAW INSPECTOR (openrecet N3):** `osr_scrub` grew `frame_ndraws`/`frame_draws` (the ordered draw list
+    + labels), `render_rgba_upto(K)` (watch a frame build draw-by-draw), `pick_draw(px,py)` (which draw last
+    painted a pixel — one incremental pass). A 2nd osr_view window: PORT/RETAIL radio, "up to draw K" slider,
+    the clipped draw list (click a row → render-to-there + highlight its rect), click the image → pick. ENGINE
+    VERIFIED headless: `render_rgba_upto(all)==render_rgba`; on port frame 1309 the build-up is clean
+    (CLEAR→full town→+banner), pick(200,150)=draw #615 the banner; and it already earned its keep (found the
+    game_enter mid-frame CLEAR). GUI = USER visual-verify.
+  - **NEXT:** the studio is usable + self-diagnosing → the PAUSED room-render/freeroam arc is UNBLOCKED (the
+    reason v2 was pulled forward); resume it with the studio to verify each frame. Remaining studio polish
+    (openrecet survey 4/5/6: `.osr` slice tool, capture cache + one orchestrator cmd, draw-program semantic
+    panel) pull in when needed. CAVEAT: port-m5 only reaches tick 191 (a matched-length port capture awaits
+    the freeroam port); the 190-paired region is the working demo. Roadmap: `plans/trace-studio-v2.md`
+    §openrecet-v3-survey (items 1/2/3/7 done; 4/5/6 remain).
 - **Prior (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
   retail proxy captures, and `--osr-replay` of the port's OWN `.osr` rebuilds its frames
   `differ_px==0` (newgame menu 700 / prologue 900 / town 1250 vs the port's live captures) — the

@@ -1,13 +1,19 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-13, ckpt 129): **M1..M6 COMPLETE** — M6 (this ckpt) is the
-> TICK-JOIN STUDIO: both sides' `.osr` paired by the deterministic `sim_tick` (the
-> identity join, openrecet E3 — honest gaps, NO flip-drift search) via `pair.py`
-> (verdict) + a streaming `osr.py` (no OOM on the 1.9 GB capture), and `osr_view`
-> grows a native PORT|RETAIL|DIFF three-panel + a diff heat ribbon.  Verified
-> headless: sim_tick 0 reconstructs `differ_px==0` port-vs-retail.  GUI visual-verify
-> is the one open (USER).  NEXT: M7 drill-in, or RESUME the room-render/freeroam port
-> (now unblocked — the studio exists to iterate it).  (history below.)  M1..M4:
+> Status (2026-06-13, ckpt 129): **M1..M6 COMPLETE + M7 partial** — this ckpt landed
+> the TICK-JOIN STUDIO (M6) AND its drill-in + note hand-off (M7).  M6: both sides'
+> `.osr` paired by the deterministic `sim_tick` (the identity join, openrecet E3 —
+> honest gaps, NO flip-drift search) via `pair.py` (verdict) + a streaming `osr.py`
+> (no OOM on the 1.9 GB capture), and `osr_view` grows a native PORT|RETAIL|DIFF
+> three-panel + a diff heat ribbon.  M7: a NOTE/mark system (drag a crop + type →
+> `osr_notes.jsonl` → `notes.py` renders the cropped port|retail|diff for the agent —
+> the human→agent contract) + a DRAW INSPECTOR (render-up-to-K / draw list / pixel→draw
+> pick, openrecet N3).  USER-CONFIRMED the GUI ("studio looks good"); the M7 crop-drag /
+> inspector interaction is the open visual-verify.  Verified headless: sim_tick 0
+> reconstructs `differ_px==0` port-vs-retail (it's the game_enter TRANSITION frame —
+> near-black, the inspector showed a late mid-frame CLEAR; the town is a few ticks in).
+> NEXT: RESUME the now-unblocked room-render/freeroam port (the studio exists to iterate
+> it); studio polish (survey 4/5/6) is pull-when-needed.  (history below.)  M1..M4:
 > M1..M4 COMPLETE — **M4d the `--validate` gate
 > LANDED and PASSES 71/71 snaps `differ_px==0`** (real retail backbuffer snapshots
 > sampled every 200 flips across boot→title→newgame-menu→prologue→town→dialogue→
@@ -510,13 +516,23 @@ it earliest. Each milestone is independently testable.
     yellow→red where divergent).  Single-file mode unchanged.  Makefile links
     `osr_emit.c` (zdd.c hard-refs its M5 taps).
   - **VERIFIED headless (`osr_prof` dumps, the same `osr_scrub` engine):** join
-    indices match `pair.py`; sim_tick 0 (game_enter town shot) reconstructs
-    `differ_px==0` (PIXEL-IDENTICAL port vs retail), sim_tick 97 `differ_px=264`.
-    **OPEN: GUI visual-verify (USER)** — the windowed DX11 app needs a Windows launch.
+    indices match `pair.py`; sim_tick 0 reconstructs `differ_px==0` (PIXEL-IDENTICAL
+    port vs retail — it's the game_enter TRANSITION frame, near-black; the inspector
+    showed a late mid-frame CLEAR wiping a composed town, the town renders a few ticks
+    in, e.g. tick 97 `differ_px=264`).  **USER-CONFIRMED the GUI** ("studio looks good").
     **CAVEAT:** port-m5 only reaches tick 191 (a matched-length port capture awaits
     the freeroam port); the 190-paired region is the working demo.
-- **M7+ — drill-in.** Draw-inspector panel, in-frame draw stepping, draw-level
-  `render_diff`, marks/worklist — grow v2 to full v1 parity, then archive v1.
+- **M7 — drill-in + the note hand-off. ✓ PARTIAL (ckpt 129).** Done: the NOTE/mark
+  system (crop+text → `osr_notes.jsonl` → `notes.py` renders the cropped port|retail|
+  diff for the agent — the human→agent contract, openrecet N4) AND the DRAW INSPECTOR
+  (osr_scrub `frame_draws`/`render_rgba_upto`/`pick_draw`; a 2nd osr_view window with a
+  PORT/RETAIL radio, an up-to-draw-K slider, the clipped draw list + click-to-select,
+  and pixel→draw pick — openrecet N3).  Gap panels labelled (not bare black).  Engine
+  verified headless (`render_rgba_upto(all)==render_rgba`; clean build-up + pick on
+  port frame 1309); GUI = USER visual-verify.  REMAINING (pull-when-needed, openrecet
+  survey 4/5/6): an `.osr` slice tool, a content-addressed capture cache + one
+  orchestrator command, the draw-program semantic (`render_diff`) panel — then archive
+  v1.
 
 ## Resolved design decisions (USER, 2026-06-12)
 
