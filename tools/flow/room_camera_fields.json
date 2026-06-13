@@ -1,0 +1,18 @@
+{
+  "_doc": "Room-render arc (ckpt 130): the per-room CAMERA origin.  Per-flip (on the DDraw Flip 0x5b8fc0) reads the scene view object (view = *(*(0x8a9b50)+0x104c)) cur/tgt scroll origin + map dims + the committed room_key (room_state+0x4024), across the cutscene chain (arrival 0x334be -> house 0x334c8 -> errands 0x334dc).  Lets the port re-snap g_game_camera to each room's settled origin on the room swap (PORT-DEBT ingame-camera-snap, per-room).  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/room_camera_fields.json --field-spec-only --call-trace --run-dir runs/room-render-gt/camera --duration-ms 240000",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "flip",
+      "_note": "DDraw Flip (once/frame). view = *(*(0x8a9b50)+0x104c) (camera_follow.h: cur_y@+0x5c, cur_x@+0x60, vp_w@+0x64, vp_h@+0x68, tgt_x@+0x6c, tgt_y@+0x70, map_w@+0x00, map_h@+0x04). room_state = *(*(0x8a9b50)+0x2784), key@+0x4024.",
+      "fields": [
+        {"name": "room_key", "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16420, "type": "hex"},
+        {"name": "cur_x",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 96,  "type": "i32"},
+        {"name": "cur_y",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 92,  "type": "i32"},
+        {"name": "tgt_x",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 108, "type": "i32"},
+        {"name": "tgt_y",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 112, "type": "i32"},
+        {"name": "map_w",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 0,   "type": "i32"},
+        {"name": "map_h",    "src": "chain", "va": "0x8a9b50", "hops": [4172],  "off": 4,   "type": "i32"}
+      ]
+    }
+  }
+}

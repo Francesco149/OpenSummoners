@@ -197,6 +197,7 @@ static int            g_game_active;
  * (g_sotes_exe), the engine-time module DAT_008a6e7c the ckpt-56 finding pinned. */
 static town_render    g_town;
 static int            g_town_loaded;
+static uint32_t       g_loaded_room_key;  /* the room key whose backdrop is loaded */
 static game_world     g_world;       /* the room registry (lazily built)         */
 static int            g_world_built;
 static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
@@ -2415,6 +2416,10 @@ static void game_render_dialogue(void)
     (void)dialogue_arrow_frame(&g_dialogue);
 }
 
+/* Forward decl: reload_room_backdrop (below) re-derives the projection cam via
+ * game_camera_to_mr, which is defined later with the camera-step helpers. */
+static void game_camera_to_mr(const camera_view *v, mr_camera *out);
+
 /* Load the room's map-data DATA resource from the original sotes.exe and build
  * the town backdrop scene.  Mirrors retail FUN_00587970: FindResourceA(EXE,
  * scene&0xffff, "DATA") + LoadResource + LockResource, then the parse + decode
@@ -2491,7 +2496,52 @@ static int load_room(uint32_t room_key)
     }
     log_line("load_room: room 0x%05x -> DATA scene %u, parallax (p2=%d p3=%d)",
              room_key, scene, p2, p3);
-    return load_town_scene(scene, p2, p3);
+    int ok = load_town_scene(scene, p2, p3);
+    if (ok)
+        g_loaded_room_key = room_key;
+    return ok;
+}
+
+/* The per-room SETTLED camera scroll origin (the view object's cur_x/cur_y the
+ * room snaps to on entry — camera_follow.h +0x60/+0x5c).  HARNESS-CAPTURED off
+ * the live scene view across the cutscene chain (runs/room-render-gt/camera,
+ * tools/flow/room_camera_fields.json, ckpt 130): the house + errands cameras are
+ * STATIC (constant across every flip in the room).  PORT-DEBT(ingame-camera-snap):
+ * captured constants per room (the town's MAP_RENDER_CAM_TOWN_3F2 precedent), not
+ * yet derived from the room entry params.  Returns 1 if known. */
+static int room_camera_origin(uint32_t room_key, int32_t *cur_x, int32_t *cur_y)
+{
+    switch (room_key) {
+    case CUTSCENE_ROOM_HOUSE:   *cur_x = 89600; *cur_y = 3200;  return 1;  /* map 153600x51200 */
+    case CUTSCENE_ROOM_ERRANDS: *cur_x = 0;     *cur_y = 16000; return 1;  /* map 108800x64000 */
+    default: return 0;   /* town stays on its own spawn-snap + pan path */
+    }
+}
+
+/* Swap the loaded backdrop to a new room (the cutscene room-key swap / the
+ * errands hand-off): free the current scene, load the new one, update the live
+ * camera's map bounds, and re-snap it to that room's settled origin.  Returns
+ * load_room's result. */
+static int reload_room_backdrop(uint32_t room_key)
+{
+    log_line("game: room swap 0x%05x -> 0x%05x — reloading backdrop",
+             g_loaded_room_key, room_key);
+    town_render_free(&g_town);
+    g_town_loaded = 0;
+    int ok = load_room(room_key);
+    if (ok) {
+        int32_t cx, cy;
+        if (room_camera_origin(room_key, &cx, &cy)) {
+            /* the view's map bounds drive camera_apply_snap's [0, map-vp] clamp */
+            g_game_camera.map_w = (int32_t)g_town.map.dim0 * (int32_t)MG_PX_PER_DIM;
+            g_game_camera.map_h = (int32_t)g_town.map.dim1 * (int32_t)MG_PX_PER_DIM;
+            camera_apply_snap(&g_game_camera, cx, cy);
+            game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
+        }
+        /* the room's actors/effects are not spawned (PORT-DEBT cutscene-room-render
+         * Phase 2b); the town cast is suppressed for non-town rooms below. */
+    }
+    return ok;
 }
 
 /* The in-game frame render (game_drive cfg.render).  Clears to black (the
@@ -2670,7 +2720,12 @@ static void game_render(void *user)
              * in lockstep with the pan.  Reset is automatic: enter_game
              * re-spawns the pool (frame/timer 0) and zeroes the hold counter. */
             int is_sim_tick = (g_game_camera_hold & 1u) == 0u;
-            if (g_actors_loaded && is_sim_tick)
+            /* The town cast/effects (props/villagers/butterflies/arrival family)
+             * are spawned for the TOWN (DATA 1022); a house/errands room swap
+             * suppresses them (the room cast is PORT-DEBT cutscene-room-render
+             * Phase 2b) so they don't render over the new backdrop. */
+            int room_is_town = (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL);
+            if (g_actors_loaded && is_sim_tick && room_is_town)
                 game_actor_update();
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
@@ -2753,11 +2808,27 @@ static void game_render(void *user)
                     int z_adv = input_poll_consume(&g_game_drive.input,
                                                    GetTickCount(),
                                                    CUTSCENE_ADVANCE_RING_ID);
-                    if (cutscene_step(&g_cutscene, z_adv))
+                    int done = cutscene_step(&g_cutscene, z_adv);
+                    /* The room-key swap drives the BACKDROP: when cutscene_step
+                     * advances to a new room (arrival 0x334be -> house 0x334c8),
+                     * reload that room's scene + snap its camera — the port's
+                     * model of the 0x401d40 stage / 0x402030 commit -> 0x586010
+                     * map reload (ckpt-130 harness-confirmed: a fresh 0x587e00
+                     * per room).  Retires PORT-DEBT(cutscene-room-render). */
+                    uint32_t want = cutscene_room_key(&g_cutscene);
+                    if (want != 0 && want != g_loaded_room_key)
+                        reload_room_backdrop(want);
+                    if (done) {
                         log_line("game: town-intro cutscene chain COMPLETE @hold=%u "
-                                 "(reached errands boundary 0x334dc -> control "
-                                 "hand-off; PORT-DEBT cutscene-room-render/freeroam)",
+                                 "-> errands room 0x334dc (the freeroam scene)",
                                  g_game_camera_hold);
+                        /* The chain ends at the errands boundary: load that room's
+                         * backdrop (the freeroam scene).  The control hand-off
+                         * (character_step on live input) is the next arc; the
+                         * errands backdrop renders static at its spawn camera. */
+                        if (g_loaded_room_key != CUTSCENE_ROOM_ERRANDS)
+                            reload_room_backdrop(CUTSCENE_ROOM_ERRANDS);
+                    }
                 }
             }
             cam = &g_game_camera_mr;
@@ -2773,7 +2844,8 @@ static void game_render(void *user)
                             game_sprite_resolve, NULL,
                             game_present_blit, NULL,
                             game_cel_dims, NULL,
-                            game_actor_walk, NULL, &deferred);
+                            (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
+                                ? game_actor_walk : NULL, NULL, &deferred);
         /* 0x48c150:124-162 — the cinematic letterbox tiled ON TOP of the
          * backdrop (after the present pass), during the establishing shot. */
         letterbox_render(g_letterbox_top, g_letterbox_bottom,
