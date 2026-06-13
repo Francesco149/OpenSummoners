@@ -525,3 +525,65 @@ have caught this in one diff); the menu CLIPPED artifact; scene-transition CLEAR
 the self-serve debug path for the next visual defect.  Residual staleness risk
 (accepted, --validate will catch real instances): a surface RE-COMPOSED in place
 via Lock/GDI (not through the blit primitives) keeps its first-grab pixels.
+
+## The openrecet v3 survey — the UX/feature roadmap for osr_view (ckpt 126)
+
+Surveyed `/opt/src/openrecet/tools/trace_studio_v3/` (their NATIVE viewer arc, one
+generation ahead of ours: plan `openrecet/docs/plans/trace-studio-v3.md`).  Their
+pipeline: d3d8 proxy capture (BOTH sides load it) → flat dedup'd container →
+content-addressed cache + slice-serve → RESIDENT replay core (open once, render
+any frame ~1.4-3 ms) → ImGui/D3D9 three-panel viewer.  We independently converged
+on several pieces (native proxy, flat stream, resident recon in the viewer,
+~1.4 ms/frame, headless frame dump); the gaps below are the roadmap, ordered by
+leverage.  Engine-API specifics (their D3D8 state machine vs our DDraw blits +
+GDI text) do NOT transfer; the architecture does.
+
+1. **Draw-level inspection in osr_view (their N3 — the self-serve debug loop).**
+   `render_upto(frame, K)` (first K draws), `render_range` (SOLO one draw over a
+   clear), a draw-list panel, and **pixel→draw pick** (click → linear-scan the
+   prefixes for the draw that last changed that pixel; at our ~1.4 ms/frame a
+   pick costs ~150-300 ms).  Our recon already replays a frame's record list —
+   the draw cap is a loop bound, NOT new architecture.  This is what makes the
+   NEXT visual defect self-diagnosing (this checkpoint's bug took an offline
+   capture-scan instead).  Ref: `viewer/viewer.cpp` (draw-step + solo + pick),
+   `replay/replay_core.c` (`render_upto`/`render_range`).
+2. **Identity JOIN for the M5/M6 port|retail pairing (their E3 — kills the v2
+   sync-bug class).**  Pair frames by a STORED key — for them `(anchor,
+   occurrence, present-offset)`; for us **sim_tick is already on every FRAMEBEG**
+   (a stronger key than their present-count).  Compute the pairing ONCE
+   (`pairs.json`-equivalent), render HONEST GAPS (port-only / retail-only spans)
+   instead of silently mispairing across load stretches.  Ref: `orv3_sync.py`.
+3. **Three-panel port|retail|diff + a diff ribbon (their N2).**  After M5 (the
+   port .osr emitter): per-pair pixel metrics (gt8 / meanabs / maxd) precomputed
+   at open → a clickable heat ribbon (seek-to-worst-frame).  Our single-panel
+   scrubber grows panels, not a rewrite.  Ref: `viewer/viewer.cpp` (live CPU
+   diff), `orv3_view.py` (precomputed per-frame metadata).
+4. **An .osr SLICE tool (their slice-serve).**  Re-emit a sub-window as a
+   STANDALONE container, pulling forward the SHEET/FONT/BLEND records it
+   references — a 50-frame repro becomes ~tens of MB instead of the 1.9 GB
+   session, and the viewer opens it instantly.  Capture the full extent ONCE,
+   slice forever (zero re-drive).  Ref: `orv3.py slice_window()`, `orv3_slice.py`.
+5. **A content-addressed capture cache + ONE orchestrator command (their
+   orv3_window.py).**  `<scenario> --window X:Y --launch`: reuse the cached
+   full-extent capture (keyed on trace-bytes + arm spec; port side staleness =
+   exe mtime), slice the window, drive only the MISSING side, join, launch the
+   viewer.  Collapses the capture→recon→view loop to one command.  Ref:
+   `v3cache.py`, `orv3_window.py`.
+6. **A draw-program semantic panel (their material_diff).**  Cross-side per-draw
+   verdicts (ALIGNED / BATCHING / DIVERGENT) over the (res,frame)+dhash identity
+   — our render_diff.py already computes this offline; fold it into the viewer's
+   draw panel once the JOIN exists.  Their HOUSE lesson: identical pixels can
+   come from DIFFERENT render programs — pixel diff alone can't see it.  Ref:
+   `orv3_draws.py`.
+7. **Marks/worklist in the native viewer (their N4 / our v1-parity tail).**  The
+   :8779 serve flow's USER-marks → worklist.md remains the hand-off contract;
+   port it into osr_view last, once the diff panes exist.
+
+NOT copying: their deferred-snapshot kept-window capture (we capture every frame
+at ~950 fps and the full session is the point for scrub); their content-hash-only
+resource identity (our (res,frame) registry + dhash + the ckpt-126 dtor eviction
+already cover surface reuse); their web view — **ABANDONED upstream (USER): the
+NATIVE viewer is the only target**, the web/PNG-bake path reintroduced the
+stale-intermediate pain and is not part of this roadmap in any form.
+Tooling debt their survey re-confirmed: `osr.py parse()` must grow a STREAMING
+iterator (the OOM band-aid in run_proxy.sh caps SUMMARY at 256 MB).
