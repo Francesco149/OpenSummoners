@@ -6,6 +6,7 @@
  * Single-TU build picks this up via the src/Makefile wildcard.
  */
 #include "asset_register.h"
+#include "osr_emit.h"        /* M5: dedup'd FONT records for the port .osr */
 
 #include <windows.h>
 #include <wingdi.h>
@@ -32,7 +33,30 @@ ar_gdi_handle ar_gdi_create_font(int32_t width, int32_t height,
         strncpy(lf.lfFaceName, face, LF_FACESIZE - 1);
         lf.lfFaceName[LF_FACESIZE - 1] = '\0';
     }
-    return (ar_gdi_handle)CreateFontIndirectA(&lf);
+    HFONT hf = CreateFontIndirectA(&lf);
+    /* M5: register the LOGFONTA as a dedup'd .osr FONT record (no-op unless
+     * --osr-emit is on) — the one CreateFontIndirectA chokepoint, mirroring
+     * the retail proxy's gdi32 IAT wrap. */
+    if (hf != NULL) {
+        osr_font f;
+        memset(&f, 0, sizeof f);
+        f.height       = lf.lfHeight;
+        f.width        = lf.lfWidth;
+        f.escapement   = lf.lfEscapement;
+        f.orientation  = lf.lfOrientation;
+        f.weight       = lf.lfWeight;
+        f.italic       = lf.lfItalic;
+        f.underline    = lf.lfUnderline;
+        f.strikeout    = lf.lfStrikeOut;
+        f.charset      = lf.lfCharSet;
+        f.out_prec     = lf.lfOutPrecision;
+        f.clip_prec    = lf.lfClipPrecision;
+        f.quality      = lf.lfQuality;
+        f.pitch_family = lf.lfPitchAndFamily;
+        memcpy(f.face, lf.lfFaceName, sizeof f.face);
+        osr_emit_font_create((void *)hf, &f);
+    }
+    return (ar_gdi_handle)hf;
 }
 
 ar_gdi_handle ar_gdi_create_pen(int style, int32_t width, uint32_t color)

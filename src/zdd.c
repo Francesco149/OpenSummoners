@@ -17,6 +17,7 @@
 #include "bitmap_session.h"     /* per-cell builder reads the decoded sheet */
 #include "call_trace.h"
 #include "render_id.h"          /* cross-side blit identity for the blit trace */
+#include "osr_emit.h"           /* Trace Studio v2 M5: the port .osr draw stream */
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -131,6 +132,9 @@ void zdd_object_release_pixel_buf(zdd_object *self)
 
 void zdd_object_dtor(zdd_object *self)
 {
+    /* M5: drop the object's .osr sheet-grab cache entry — a surface recycled
+     * at this pointer must re-grab (the ckpt-126 stale-sheet lesson). */
+    osr_emit_evict(self);
     /* Retail issue order: pixel buffer first, then com_back (+0xac),
      * then com_primary (+0x2c), then parent counter decrement. */
     zdd_object_release_pixel_buf(self);
@@ -803,6 +807,10 @@ int zdd_object_get_dc(zdd_object *self, void **out_hdc)
         return 0;
     }
     zdd_surface_get_dc(self->com_primary, out_hdc);
+    /* M5: bind the HDC to its surface so the GDI TEXT sink can filter to the
+     * primary (the proxy's engine_gdi per-DC shadow). */
+    if (out_hdc != NULL && *out_hdc != NULL)
+        osr_emit_dc_open(self, *out_hdc);
     return 1;
 }
 
@@ -816,6 +824,7 @@ int zdd_object_get_dc(zdd_object *self, void **out_hdc)
 void zdd_object_release_dc(zdd_object *self, void *hdc)
 {
     if (self == NULL) return;
+    osr_emit_dc_close(hdc);
     zdd_surface_release_dc(self->com_primary, hdc);
 }
 
@@ -842,11 +851,18 @@ enum {
     ZDD_BLIT_ALPHA   = 4    /* FUN_005bd550 software alpha/colorize       */
 };
 
-static void zdd_emit_blit(uint32_t va, const void *ret, const zdd_object *src,
+static void zdd_emit_blit(uint32_t va, const void *ret, zdd_object *src,
+                          zdd_object *dest,
                           int32_t dx, int32_t dy, int32_t reqw, int32_t reqh,
-                          int32_t sx, int32_t sy, int32_t mode,
-                          int32_t bmode, uint32_t ckey)
+                          int32_t sx, int32_t sy, int32_t srcw, int32_t srch,
+                          int32_t mode, const zdd_blend_desc *desc,
+                          uint32_t ckey)
 {
+    int32_t bmode = desc != NULL ? desc->mode : -1;
+    /* Trace Studio v2 M5: the port-side .osr draw stream (osr_emit gates
+     * internally on --osr-emit, like call_trace below). */
+    osr_emit_blit(va, (uint32_t)mode, src, dest,
+                  dx, dy, reqw, reqh, sx, sy, srcw, srch, desc, ckey);
     call_trace_begin((uint32_t)va, ret);
     render_id rid;
     if (src != NULL && render_id_lookup(src, &rid)) {
@@ -887,10 +903,10 @@ static void zdd_emit_blit(uint32_t va, const void *ret, const zdd_object *src,
 int zdd_object_blt_onto(zdd_object *self, zdd_object *dest,
                         int32_t dest_x, int32_t dest_y)
 {
-    zdd_emit_blit(0x5b9a40, __builtin_return_address(0), self,
+    zdd_emit_blit(0x5b9a40, __builtin_return_address(0), self, dest,
                   dest_x, dest_y,
                   self ? self->metric_b8 : 0, self ? self->metric_bc : 0,
-                  0, 0, ZDD_BLIT_ONTO, -1,
+                  0, 0, 0, 0, ZDD_BLIT_ONTO, NULL,
                   self ? (uint32_t)self->colorkey_out : 0);
     if (self == NULL || self->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
@@ -1159,6 +1175,10 @@ void zdd_object_unlock(zdd_object *self)
 void zdd_object_clear(zdd_object *self)
 {
     if (self == NULL) return;
+    /* M5: the scene-transition CLEAR is an ORDERED draw in the .osr stream
+     * (quirk #105) — emitted before the fill, filtered internally to the
+     * primary compose surface (the proxy's 0x5b9410 filter). */
+    osr_emit_clear(self, 0);
     if (!zdd_object_lock(self)) return;
 
     void *surf = NULL;
@@ -1705,10 +1725,10 @@ void zdd_restore_all_surfaces(zdd *self)
 int zdd_object_blt_keyed(zdd_object *self, zdd_object *dest,
                          int32_t dest_x, int32_t dest_y)
 {
-    zdd_emit_blit(0x5b9b70, __builtin_return_address(0), self,
+    zdd_emit_blit(0x5b9b70, __builtin_return_address(0), self, dest,
                   dest_x, dest_y,
                   self ? self->metric_b8 : 0, self ? self->metric_bc : 0,
-                  0, 0, ZDD_BLIT_KEYED, -1,
+                  0, 0, 0, 0, ZDD_BLIT_KEYED, NULL,
                   self ? (uint32_t)self->colorkey_out : 0);
     if (self == NULL || self->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
@@ -1763,9 +1783,9 @@ int zdd_object_blt_rects(zdd_object *src, zdd_object *dest,
                          int32_t src_x, int32_t src_y,
                          int32_t src_w, int32_t src_h)
 {
-    zdd_emit_blit(0x5b9ae0, __builtin_return_address(0), src,
+    zdd_emit_blit(0x5b9ae0, __builtin_return_address(0), src, dest,
                   dst_x, dst_y, dst_w, dst_h, src_x, src_y,
-                  ZDD_BLIT_RECTS, -1,
+                  src_w, src_h, ZDD_BLIT_RECTS, NULL,
                   src ? (uint32_t)src->colorkey_out : 0);
     if (src == NULL || src->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal */
@@ -1816,9 +1836,9 @@ int zdd_object_blt_clipped(zdd_object *src, zdd_object *dest,
                            int32_t width, int32_t height,
                            int32_t src_x, int32_t src_y)
 {
-    zdd_emit_blit(0x5b9bf0, __builtin_return_address(0), src,
+    zdd_emit_blit(0x5b9bf0, __builtin_return_address(0), src, dest,
                   dst_x, dst_y, width, height, src_x, src_y,
-                  ZDD_BLIT_CLIPPED, -1,
+                  0, 0, ZDD_BLIT_CLIPPED, NULL,
                   src ? (uint32_t)src->colorkey_out : 0);
     if (src == NULL || src->com_primary == NULL) {
         return 1;  /* degenerate-success — retail's literal at 0x5b9c03 */
@@ -1879,9 +1899,9 @@ void zdd_blit_orchestrate(const zdd_blend_desc *desc, zdd_object *dest,
                           int32_t colorkey,
                           zdd_object *gdi_ctx)
 {
-    zdd_emit_blit(0x5bd550, __builtin_return_address(0), src,
+    zdd_emit_blit(0x5bd550, __builtin_return_address(0), src, dest,
                   dst_x, dst_y, width, height, src_x, src_y,
-                  ZDD_BLIT_ALPHA, desc ? desc->mode : -1, (uint32_t)colorkey);
+                  0, 0, ZDD_BLIT_ALPHA, desc, (uint32_t)colorkey);
     if (gdi_ctx == NULL) {
         /* Simple path — the only one this binary ever takes.  Lock the
          * dest (retail ignores the return; zdd_alpha_blit reads its

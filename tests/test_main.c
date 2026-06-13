@@ -690,6 +690,8 @@ struct test_case {
     X(osr_replay_truncated_tail_recovers)                      \
     X(osr_replay_rejects_bad_header)                           \
     X(osr_replay_null_callbacks_skipped)                       \
+    X(osr_emit_inactive_noop)                                  \
+    X(osr_emit_roundtrip)                                      \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \

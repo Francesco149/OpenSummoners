@@ -699,3 +699,9 @@ int zdd_object_get_locked_info(zdd_object *self, void **out_buf,
     }
     return 1;
 }
+
+int32_t zdd_object_get_locked_width(zdd_object *self)
+{
+    if (self == NULL) return 0;
+    return *(int32_t *)&self->embedded_ddsd[0x0c];   /* DDSD dwWidth */
+}

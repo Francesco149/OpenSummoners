@@ -1713,6 +1713,12 @@ void zdd_surface_unlock(void *surface);
 int  zdd_object_get_locked_info(zdd_object *self, void **out_buf,
                                 int32_t *out_pitch, int32_t *out_height);
 
+/* The post-Lock DDSD dwWidth (DDSD offset 0x0c) — the sibling of the slots
+ * above, added for the M5 .osr emitter's SHEET grab (the record needs the
+ * surface width, which pitch alone can't give: pitch may carry padding).
+ * Win32-only consumer (main.c's osr surface reader); 0 if self is NULL. */
+int32_t zdd_object_get_locked_width(zdd_object *self);
+
 /* IDirectDrawSurface7::GetDC via vtable[17] (byte 0x44).  Underlying
  * primitive that zdd_object_get_dc forwards to after dereferencing
  * self->com_primary.  Tests use this directly for raw-COM scenarios;

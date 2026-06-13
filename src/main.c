@@ -89,6 +89,7 @@
 #include "cutscene.h"         /* the town-arrival dialogue sequence (0x4d7d80 case 0x334be) */
 #include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
 #include "osr_recon.h"        /* --osr-replay: reconstruct frames from a .osr (M4) */
+#include "osr_emit.h"         /* --osr-emit: the port-side .osr draw stream (M5) */
 
 #define OPENSUMMONERS_CLASS  "OpenSummonersMain"
 #define OPENSUMMONERS_TITLE  "Fortune Summoners"
@@ -541,6 +542,15 @@ static char       g_osr_out_dir_buf[1024] = ".";
 static unsigned   g_osr_replay_frames[OSR_REPLAY_FRAMES_CAP];
 static size_t     g_n_osr_replay_frames;
 
+/* --osr-emit <file.osr> [--osr-scenario <name>] — Trace Studio v2 M5: the port
+ * writes the SAME .osr draw stream the retail capture proxy produces, from its
+ * own sinks (zdd blits/clears, GDI text/fonts, anchors, seed pins), so the M6
+ * studio can tick-join the two sides.  All sinks gate internally on the open
+ * file — zero cost when the flag is absent. */
+static char       g_osr_emit_path_buf[1024];
+static const char *g_osr_emit_path;
+static char       g_osr_scenario_buf[40];
+
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
 static int  create_main_window(void);
@@ -568,6 +578,36 @@ static void maybe_capture_frame(unsigned flip_frame);
 static int  capture_primary_to_bmp(const char *path);
 static void drive_present(void *user);
 static void drive_log_flip(void *user);
+static uint32_t game_rng_seed(void);
+
+/* The .osr emitter's injected surface reader (M5 SHEET grab): lock a source
+ * zdd_object and expose its pixels/geometry; done() unlocks.  The grab is
+ * once-per-surface (cached by the emitter), so a slow video-memory Lock is
+ * amortized.  Bit depth comes from the ZDD's display format (windowed boot =
+ * 16bpp RGB565; every cel is converted to it at decode). */
+static int osr_surf_read(zdd_object *obj, osr_emit_surf *out)
+{
+    if (!zdd_object_lock(obj)) return 0;
+    void *buf = NULL;
+    int32_t pitch = 0, height = 0;
+    zdd_object_get_locked_info(obj, &buf, &pitch, &height);
+    int32_t width = zdd_object_get_locked_width(obj);
+    if (buf == NULL || pitch <= 0 || height <= 0 || width <= 0) {
+        zdd_object_unlock(obj);
+        return 0;
+    }
+    out->pixels   = buf;
+    out->pitch    = (uint32_t)pitch;
+    out->w        = (uint32_t)width;
+    out->h        = (uint32_t)height;
+    out->bitcount = (uint16_t)(g_zdd != NULL && g_zdd->pixel_format_bpp > 0
+                               ? g_zdd->pixel_format_bpp : 16);
+    return 1;
+}
+static void osr_surf_done(zdd_object *obj)
+{
+    zdd_object_unlock(obj);
+}
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -597,6 +637,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         "--call-trace");
     resolve_launch_path(g_osr_replay_path_buf, sizeof g_osr_replay_path_buf,
                         "--osr-replay");
+    resolve_launch_path(g_osr_emit_path_buf, sizeof g_osr_emit_path_buf,
+                        "--osr-emit");
 
     /* --osr-replay is a self-contained reconstruction mode: it builds its own
      * source surfaces + fonts from the .osr and snapshots to BMP, so it needs
@@ -610,6 +652,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * Done before any traced function (boot DDraw path) can run. */
     call_trace_init_from_cli(g_call_trace_path,
                              g_call_trace_frames, g_n_call_trace_frames);
+
+    /* Open the port-side .osr emitter (no-op unless --osr-emit given).  Done
+     * before init_ddraw so the boot fonts (ar_gdi_create_font) land as FONT
+     * records; the primary-dest filter + surface reader bind after the ZDD
+     * boot below.  Header mirrors the proxy's: seed-pinned, windowed RGB565. */
+    if (g_osr_emit_path != NULL) {
+        osr_emit_open(g_osr_emit_path, game_rng_seed(), OSR_FLAG_SEED_PIN,
+                      g_osr_scenario_buf, DEFAULT_WIDTH, DEFAULT_HEIGHT,
+                      OSR_PIXFMT_RGB565);
+    }
 
     /* Install MessageBox→stderr hook as early as possible.  Any modal
      * popup between here and uninstall (in shutdown) gets redirected
@@ -684,6 +736,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * there anyway). */
     if (g_zdd != NULL)
         zdd_set_present_hwnd(g_hwnd);
+
+    /* Bind the .osr emitter to the live ZDD: the primary compose surface is
+     * the BLIT/CLEAR/TEXT dest filter (dst_handle 1), and the SHEET grab reads
+     * source pixels through the lock-based reader below. */
+    if (osr_emit_is_active() && g_zdd != NULL && g_zdd->primary_obj != NULL) {
+        osr_emit_set_primary(g_zdd->primary_obj);
+        osr_emit_set_surf_reader(osr_surf_read, osr_surf_done);
+    }
 
     /* --osr-replay: reconstruct frames from a captured .osr, then exit.  Runs
      * before init_title_drive (forced off above) — it composes onto the same
@@ -772,6 +832,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         g_sotesd = NULL;
     }
     call_trace_shutdown();
+    osr_emit_close();
     timeEndPeriod(1);
     dev_hooks_uninstall_messagebox();
     release_singleton();
@@ -837,6 +898,10 @@ static void drive_present(void *user)
     /* The Flip count is the input-trace's frame axis (matching the harness's
      * Flip-anchored injection), so bump it on every present. */
     g_present_frame++;
+    /* M5: the .osr frame boundary — PRESENT closes the open frame, FRAMEBEG
+     * opens the next (the proxy's present-then-framebeg order; the draws under
+     * FRAMEBEG(f) are issued after flip f, presented by flip f+1). */
+    osr_emit_flip(g_present_frame, g_sim_tick_count);
     /* Capture BEFORE the flip: the fully-composed frame is on primary_obj's
      * surface here, exactly as the sink drew it this iteration. */
     maybe_capture_frame(g_present_frame);
@@ -1359,7 +1424,9 @@ static int build_title_drive(int skip_intro)
      * default for experiments. */
     {
         uint32_t seed = game_rng_seed();
+        uint32_t before = rng_peek_state();
         rng_srand(seed);
+        osr_emit_seed(g_present_frame, before, seed);
         log_line("build_title_drive: RNG seed pinned to 0x%08lx", (unsigned long)seed);
     }
 
@@ -1662,6 +1729,7 @@ static void newgame_render(void *user)
         return;
 
     SetBkMode((HDC)hdc, TRANSPARENT);
+    osr_emit_gdi_bkmode(hdc, TRANSPARENT);
     glyph_gdi_ops ops = glyph_gdi_ops_win32(hdc);
     glyph_grid_render(&d->scene.node, &ops, /*x=*/32, /*y=*/32, hfont, hfont);
 
@@ -2205,13 +2273,21 @@ static void dialogue_text_row(HDC hdc, const char *s, int n, int x, int y,
     if (n <= 0)
         return;
     SetTextColor(hdc, (COLORREF)shadow);
-    for (int i = 0; i < n; i++)
+    osr_emit_gdi_color(hdc, shadow);
+    for (int i = 0; i < n; i++) {
+        osr_emit_gdi_text(hdc, x + i * DIALOGUE_ADVANCE, y + 1, &s[i], 1);
         TextOutA(hdc, x + i * DIALOGUE_ADVANCE, y + 1, &s[i], 1);
-    for (int i = 0; i < n; i++)
+    }
+    for (int i = 0; i < n; i++) {
+        osr_emit_gdi_text(hdc, x + i * DIALOGUE_ADVANCE + 1, y, &s[i], 1);
         TextOutA(hdc, x + i * DIALOGUE_ADVANCE + 1, y, &s[i], 1);
+    }
     SetTextColor(hdc, (COLORREF)main_color);
-    for (int i = 0; i < n; i++)
+    osr_emit_gdi_color(hdc, main_color);
+    for (int i = 0; i < n; i++) {
+        osr_emit_gdi_text(hdc, x + i * DIALOGUE_ADVANCE, y, &s[i], 1);
         TextOutA(hdc, x + i * DIALOGUE_ADVANCE, y, &s[i], 1);
+    }
 }
 
 static void game_render_dialogue(void)
@@ -2291,8 +2367,11 @@ static void game_render_dialogue(void)
     void *hdc = NULL;
     if (zdd_object_get_dc(g_zdd->primary_obj, &hdc) && hdc != NULL) {
         SetBkMode((HDC)hdc, TRANSPARENT);
-        if (g_dialogue_font != NULL)
+        osr_emit_gdi_bkmode(hdc, TRANSPARENT);
+        if (g_dialogue_font != NULL) {
             SelectObject((HDC)hdc, (HGDIOBJ)g_dialogue_font);
+            osr_emit_gdi_select_font(hdc, g_dialogue_font);
+        }
         /* speaker name (the [0x1c] cell: white main, 0x455f7b shadow) */
         dialogue_text_row((HDC)hdc, g_dialogue.name,
                           (int)strlen(g_dialogue.name),
@@ -2709,7 +2788,11 @@ static void enter_game(void)
      * march in lockstep.  (Invariant: keep all pre-effect-spawn enter_game code
      * RNG-free, or move this re-seed down to the effect spawn.)  USER directive:
      * pin the RNG seed on both sides, compare by anchor/tick. */
-    rng_srand(game_rng_seed());
+    {
+        uint32_t before = rng_peek_state();
+        rng_srand(game_rng_seed());
+        osr_emit_seed(g_present_frame, before, game_rng_seed());
+    }
 
     game_drive_cfg cfg;
     memset(&cfg, 0, sizeof cfg);
@@ -3443,6 +3526,30 @@ static void parse_cmdline(LPSTR lpCmdLine)
             strncpy(g_osr_out_dir_buf, tok + 10, sizeof(g_osr_out_dir_buf) - 1);
             g_osr_out_dir_buf[sizeof(g_osr_out_dir_buf) - 1] = '\0';
         }
+        else if (!strcmp(tok, "--osr-emit")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_osr_emit_path_buf, tok,
+                        sizeof(g_osr_emit_path_buf) - 1);
+                g_osr_emit_path = g_osr_emit_path_buf;
+            }
+        }
+        else if (!strncmp(tok, "--osr-emit=", 11)) {
+            strncpy(g_osr_emit_path_buf, tok + 11,
+                    sizeof(g_osr_emit_path_buf) - 1);
+            g_osr_emit_path = g_osr_emit_path_buf;
+        }
+        else if (!strcmp(tok, "--osr-scenario")) {
+            tok = strtok(NULL, " \t");
+            if (tok) {
+                strncpy(g_osr_scenario_buf, tok, sizeof(g_osr_scenario_buf) - 1);
+                g_osr_scenario_buf[sizeof(g_osr_scenario_buf) - 1] = '\0';
+            }
+        }
+        else if (!strncmp(tok, "--osr-scenario=", 15)) {
+            strncpy(g_osr_scenario_buf, tok + 15, sizeof(g_osr_scenario_buf) - 1);
+            g_osr_scenario_buf[sizeof(g_osr_scenario_buf) - 1] = '\0';
+        }
         else if (!strcmp(tok, "--osr-replay-frames") ||
                  !strncmp(tok, "--osr-replay-frames=", 20)) {
             const char *list = NULL;
@@ -3485,4 +3592,5 @@ static void emit_anchor(const char *name)
 {
     log_line("anchor: %s flip=%u rng=0x%08lx",
              name, g_present_frame, (unsigned long)rng_peek_state());
+    osr_emit_anchor(name, g_present_frame, g_sim_tick_count, rng_peek_state());
 }
