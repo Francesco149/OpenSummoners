@@ -2316,9 +2316,16 @@ static void dialogue_text_row(HDC hdc, const char *s, int n, int x, int y,
     }
 }
 
-static void game_render_dialogue(void)
+/* Render ONE dialogue box `d` (the 9-slice frame at its pop-in/out scale, then —
+ * once content-visible — the tail/tab cels, the portrait, and the GDI text).
+ * `emit_trace` gates the cross-side CALL_TRACE points (box pos + frame) to the
+ * MAIN box only: the closing box (the OLD box popping out during a speaker
+ * change, ckpt 134 / quirk #107) is port-only polish with no retail trace to
+ * align.  A closing box has scale < 1000, so it renders ONLY the shrinking frame
+ * (the content gate stops the cels/text) — retail's disappearing box. */
+static void render_dialogue_box(dialogue_box *d, int emit_trace)
 {
-    if (!dialogue_active(&g_dialogue))
+    if (!dialogue_active(d))
         return;
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
@@ -2328,32 +2335,36 @@ static void game_render_dialogue(void)
      * live in-game camera (g_game_camera_mr) — replacing the old hardcoded
      * (174,148).  Harness-verified bit-exact for the town intro (box-pos-inputs). */
     int box_x, box_y;
-    dialogue_box_position(&g_dialogue, DIALOGUE_BOX_W, DIALOGUE_BOX_H,
+    dialogue_box_position(d, DIALOGUE_BOX_W, DIALOGUE_BOX_H,
                           g_game_camera_mr.off60, g_game_camera_mr.off5c,
                           g_game_camera_mr.off74, &box_x, &box_y);
     /* Mirror retail's box-position read-point (0x49c910 boxpos_out): the values
      * 0x49c640 wrote to box+0xc/+0x10.  flow_diff aligns this against the retail
      * capture (tools/flow/box_pos_inputs_fields.json). */
-    CALL_TRACE_BEGIN(0x49c910);
-    CALL_TRACE_I32("box_x", box_x);
-    CALL_TRACE_I32("box_y", box_y);
-    CALL_TRACE_END();
+    if (emit_trace) {
+        CALL_TRACE_BEGIN(0x49c910);
+        CALL_TRACE_I32("box_x", box_x);
+        CALL_TRACE_I32("box_y", box_y);
+        CALL_TRACE_END();
+    }
 
     /* the 9-slice bubble frame at the current pop-in scale, centered on the box */
     static const int frames9[9] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
     int bx, by, bw, bh;
-    dialogue_scaled_rect(&g_dialogue, box_x, box_y, &bx, &by, &bw, &bh);
-    CALL_TRACE_BEGIN(0x48cf80);          /* the box-frame draw, cross-side */
-    CALL_TRACE_I32("x", bx);
-    CALL_TRACE_I32("y", by);
-    CALL_TRACE_I32("w", bw);
-    CALL_TRACE_I32("h", bh);
-    CALL_TRACE_END();
+    dialogue_scaled_rect(d, box_x, box_y, &bx, &by, &bw, &bh);
+    if (emit_trace) {
+        CALL_TRACE_BEGIN(0x48cf80);          /* the box-frame draw, cross-side */
+        CALL_TRACE_I32("x", bx);
+        CALL_TRACE_I32("y", by);
+        CALL_TRACE_I32("w", bw);
+        CALL_TRACE_I32("h", bh);
+        CALL_TRACE_END();
+    }
     if (bw > 0 && bh > 0) {
         newgame_box_ops bops = { dialogue_box_frame_resolve, newgame_box_blt, NULL };
         newgame_box_render(&bops, bx, by, bw, bh, frames9, NEWGAME_BOX_CELL);
     }
-    if (!dialogue_content_visible(&g_dialogue))
+    if (!dialogue_content_visible(d))
         return;                          /* 0x48c820's +0x54<1000 content gate */
 
     /* content cels, retail cell creation order ([0x17] tail notch, [0x18]
@@ -2383,7 +2394,7 @@ static void game_render_dialogue(void)
      * blit.  PER-SPEAKER (ckpt 123): the slot is resolved per line by the
      * 0x49d6e0 face table (portrait.c — speaker head-state + face → pool-slot),
      * carried on the box (portrait_slot); -1 = no portrait (the no-record path). */
-    int pslot = g_dialogue.portrait_slot;
+    int pslot = d->portrait_slot;
     /* The 0x49d6e0 face table (portrait.c) returns a POOL index, NOT a raw
      * g_ar_sprite_slots array index — the sprite pool is offset by the ramp
      * slots (ar_pool_get_slot maps pool i → g_ar_sprite_slots[i-(RAMP+1)]).  The
@@ -2396,7 +2407,7 @@ static void game_render_dialogue(void)
     ar_sprite_slot *pobj = (pslot >= 0) ? ar_pool_get_slot((uint16_t)pslot) : NULL;
     cel = (pobj != NULL) ? (zdd_object *)ar_sprite_slot_frame(pobj, 0) : NULL;
     if (cel != NULL) {
-        int ridx = dialogue_portrait_ramp_index(&g_dialogue);
+        int ridx = dialogue_portrait_ramp_index(d);
         const zdd_blend_desc *desc =
             (ridx >= 0 && ridx < PD_BOOT_GROUP_B_COUNT) ? g_ramp_b[ridx] : NULL;
         if (desc != NULL)
@@ -2421,14 +2432,14 @@ static void game_render_dialogue(void)
             osr_emit_gdi_select_font(hdc, g_dialogue_font);
         }
         /* speaker name (the [0x1c] cell: white main, 0x455f7b shadow) */
-        dialogue_text_row((HDC)hdc, g_dialogue.name,
-                          (int)strlen(g_dialogue.name),
+        dialogue_text_row((HDC)hdc, d->name,
+                          (int)strlen(d->name),
                           box_x + DIALOGUE_NAME_DX, box_y + DIALOGUE_NAME_DY,
                           DIALOGUE_NAME_SHADOW, DIALOGUE_NAME_MAIN);
         /* revealed body rows (the [0x1d] grid: 0x3e537d main, 0xa8b9cc shadow) */
-        for (int r = 0; r < g_dialogue.row_count; r++)
-            dialogue_text_row((HDC)hdc, g_dialogue.rows[r],
-                              dialogue_row_revealed(&g_dialogue, r),
+        for (int r = 0; r < d->row_count; r++)
+            dialogue_text_row((HDC)hdc, d->rows[r],
+                              dialogue_row_revealed(d, r),
                               box_x + DIALOGUE_TEXT_DX,
                               box_y + DIALOGUE_TEXT_DY + r * DIALOGUE_LINE_H,
                               DIALOGUE_BODY_SHADOW, DIALOGUE_BODY_MAIN);
@@ -2445,7 +2456,20 @@ static void game_render_dialogue(void)
      * aware re-probe; the config is RE'd (0x410560: frame base 0x14 + table
      * {0,1,2,3}, step per 10 updates, 1px bob in the cel metrics, pos
      * box+(368,92)) and dialogue_arrow_frame() tracks it. */
-    (void)dialogue_arrow_frame(&g_dialogue);
+    (void)dialogue_arrow_frame(d);
+}
+
+/* Render the dialogue: the MAIN box (the current/opening line) behind, then —
+ * during a speaker-change transition — the OLD box popping OUT on top of it
+ * (retail overlaps the two, quirk #107).  The closing box is owned + stepped by
+ * the cutscene (cutscene_closing_box); it is at the PREVIOUS speaker's anchor
+ * and shrinks to nothing over ~10 ticks. */
+static void game_render_dialogue(void)
+{
+    render_dialogue_box(&g_dialogue, 1);                 /* main (behind)        */
+    const dialogue_box *closing = cutscene_closing_box(&g_cutscene);
+    if (closing != NULL)
+        render_dialogue_box((dialogue_box *)closing, 0); /* old box (in front)   */
 }
 
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via

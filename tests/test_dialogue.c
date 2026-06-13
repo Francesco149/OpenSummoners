@@ -298,3 +298,33 @@ int test_dialogue_reopen(void)
     T_ASSERT_EQ_I(asteps, 20);
     return 0;
 }
+
+/* ── close_step: the pop-OUT shrinks the box, gates content off immediately, and
+ *    deactivates at scale 0 — the OLD box disappearing on a speaker change ── */
+int test_dialogue_close_step(void)
+{
+    dialogue_box d;
+    dialogue_arm(&d, "Arche", "Hello");
+    for (int i = 0; i < 25; i++)                  /* open + type */
+        dialogue_step(&d);
+    T_ASSERT_EQ_I(d.scale, 1000);
+    T_ASSERT_EQ_I(dialogue_content_visible(&d), 1);
+
+    /* one close step: scale -100, content gates OFF (scale < 1000), box still
+     * active (the shrinking frame keeps rendering) */
+    dialogue_close_step(&d);
+    T_ASSERT_EQ_I(d.scale, 1000 - DIALOGUE_CLOSE_STEP);
+    T_ASSERT_EQ_I(dialogue_content_visible(&d), 0);
+    T_ASSERT_EQ_I(d.active, 1);
+
+    /* 1000/100 = 10 steps total to close; after 9 more it deactivates */
+    for (int i = 0; i < 9; i++)
+        dialogue_close_step(&d);
+    T_ASSERT_EQ_I(d.scale, 0);
+    T_ASSERT_EQ_I(d.active, 0);
+
+    /* no-op on an inactive box */
+    dialogue_close_step(&d);
+    T_ASSERT_EQ_I(d.active, 0);
+    return 0;
+}

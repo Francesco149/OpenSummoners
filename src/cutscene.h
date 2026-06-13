@@ -107,6 +107,13 @@ typedef struct cutscene {
     int                   complete;  /* the whole chain cleared (one-shot)         */
     cutscene_str_resolver resolve;
     dialogue_box         *box;       /* the box the caller owns + renders          */
+    dialogue_box          closing;   /* the OLD box popping OUT during a speaker    *
+                                      * change (rendered IN FRONT of `box` opening  *
+                                      * behind it); active only mid-transition      */
+    int                   pending_keep; /* a SAME-speaker advance defers its re-text *
+                                      * to the NEXT tick's start, so the old line    *
+                                      * still renders on the advance tick (retail    *
+                                      * clears the body one flip after the press)    */
 } cutscene;
 
 /* The town-gate family conversation (0x4d7d80 case 0x334be, flag 0x5f76805==0,
@@ -148,5 +155,11 @@ int cutscene_complete(const cutscene *cs);
  * the caller reads it to drive the (deferred) room backdrop + to know when the
  * chain has reached the errands boundary. */
 uint32_t cutscene_room_key(const cutscene *cs);
+
+/* The OLD box popping OUT during a speaker-change transition, or NULL when none
+ * is closing.  The caller renders it IN FRONT of the main box (`cs->box`), which
+ * is opening behind it — retail's overlap (engine-quirks #107).  Valid only
+ * while it is closing (a few ticks after a speaker-change advance). */
+const dialogue_box *cutscene_closing_box(const cutscene *cs);
 
 #endif /* OPENSUMMONERS_CUTSCENE_H */

@@ -213,6 +213,21 @@ void dialogue_reopen(dialogue_box *d, const char *name, const char *text);
  * portrait fade + arrow anim + typewriter reveal. */
 void dialogue_step(dialogue_box *d);
 
+/* Per-tick scale drop for a CLOSING box (the pop-OUT) — the box shrinks toward
+ * its center as the speaker changes.  Faster than the pop-in (DIALOGUE_SCALE_STEP
+ * 50) so the old box is gone ~10 ticks after the advance, when retail re-shows
+ * the new line's name (advance+10).  STUDIO-CALIBRATABLE (the exact close curve
+ * is not cleanly probeable from the .osr — the 9-slice only emits a corner cel). */
+#define DIALOGUE_CLOSE_STEP   100
+
+/* One tick of a CLOSING box's pop-OUT: shrink scale by DIALOGUE_CLOSE_STEP; at
+ * <= 0 the box deactivates (gone).  Because the content gate is scale >= 1000,
+ * a closing box (scale < 1000) renders ONLY its shrinking frame — no text /
+ * portrait — exactly retail's disappearing box.  No-op if not active.  Used for
+ * the speaker-change overlap: the OLD box closes (this) in front while the NEW
+ * box opens (dialogue_reopen) behind.  See engine-quirks #107. */
+void dialogue_close_step(dialogue_box *d);
+
 int  dialogue_active(const dialogue_box *d);
 
 /* 1 once the pop-in finished (content cells render; 0x48c820's content gate). */

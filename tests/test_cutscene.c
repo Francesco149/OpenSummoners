@@ -29,10 +29,13 @@ static const char *stub_resolve(uint32_t va)
 }
 static const char *null_resolve(uint32_t va) { (void)va; return NULL; }
 
-/* Step (no advance) until the current line is fully typed and waiting. */
+/* Step (no advance) until the current line is fully typed and waiting — AND any
+ * deferred same-speaker re-text (cs->pending_keep) has been applied + typed, so
+ * the box is genuinely settled on the line the caller will advance from. */
 static void run_to_wait(cutscene *cs)
 {
-    for (int i = 0; i < 5000 && !dialogue_awaiting_advance(cs->box); i++)
+    for (int i = 0; i < 5000 &&
+         (!dialogue_awaiting_advance(cs->box) || cs->pending_keep); i++)
         cutscene_step(cs, 0);
 }
 
@@ -192,22 +195,32 @@ int test_cutscene_same_speaker_keeps_box(void)
     T_ASSERT(strcmp(box.name, "Arche") == 0);
 
     /* type line 3 fully (scale settles 1000), then advance to line 4 — Arche ->
-     * Arche, the SAME speaker: the box must STAY open (scale held at 1000,
-     * content immediately visible, typewriter reset to 0 — no pop-in). */
+     * Arche, the SAME speaker: the box STAYS open (scale held at 1000, no
+     * re-pop) and the re-text is DEFERRED one tick (the old line still renders
+     * on the advance tick — retail clears the body one flip after the press). */
     run_to_wait(&cs);
     T_ASSERT_EQ_I(box.scale, 1000);
+    int l3_total = box.total;
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 4);
     T_ASSERT_EQ_I(box.scale, 1000);                  /* kept open — no re-pop   */
-    T_ASSERT_EQ_I(dialogue_content_visible(&box), 1);
-    T_ASSERT_EQ_I(box.reveal, 0);                    /* typewriter reset        */
+    T_ASSERT_EQ_I(cs.pending_keep, 1);               /* re-text deferred        */
+    T_ASSERT_EQ_I(box.reveal, l3_total);             /* old line STILL shown    */
     T_ASSERT(strcmp(box.name, "Arche") == 0);
+    /* the deferred re-text applies on the next step: body resets to the new line
+     * + starts typing, box still open (scale 1000, no pop-in) */
+    cutscene_step(&cs, 0);
+    T_ASSERT_EQ_I(cs.pending_keep, 0);
+    T_ASSERT_EQ_I(box.scale, 1000);
+    T_ASSERT_EQ_I(dialogue_content_visible(&box), 1);
 
-    /* line 4 -> 5 (Arche -> Arche) again keeps the box */
+    /* line 4 -> 5 (Arche -> Arche) again keeps the box, deferred re-text */
     run_to_wait(&cs);
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 5);
     T_ASSERT_EQ_I(box.scale, 1000);
+    T_ASSERT_EQ_I(cs.pending_keep, 1);
+    cutscene_step(&cs, 0);                            /* apply the deferred re-text */
 
     /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE re-opens from HALF scale
      * (DIALOGUE_REOPEN_SCALE — the fast ~10-update reopen, content still gated
@@ -218,6 +231,44 @@ int test_cutscene_same_speaker_keeps_box(void)
     T_ASSERT_EQ_I(box.scale, DIALOGUE_REOPEN_SCALE); /* re-opened (half scale)  */
     T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);
     T_ASSERT(strcmp(box.name, "Arche's Father") == 0);
+    return 0;
+}
+
+/* ── a SPEAKER CHANGE snapshots the OLD box into the CLOSING box (it pops out in
+ *    front while the new box opens behind — retail's overlap); a SAME-speaker
+ *    advance does NOT (THEME 1 / quirk #107) ── */
+int test_cutscene_closing_box_overlap(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+    T_ASSERT_EQ_P(cutscene_closing_box(&cs), NULL);   /* none at arm */
+
+    /* advance L0 -> L1 (Father -> Arche, a SPEAKER CHANGE): the closing box
+     * snapshots L0 at full (scale 1000, the OLD speaker's name) */
+    run_to_wait(&cs);
+    cutscene_step(&cs, 1);
+    const dialogue_box *cl = cutscene_closing_box(&cs);
+    T_ASSERT(cl != NULL);
+    T_ASSERT(strcmp(cl->name, "Arche's Father") == 0);   /* the OLD speaker  */
+    T_ASSERT_EQ_I(cl->scale, 1000);                       /* snapshot at full */
+    T_ASSERT_EQ_I(cs.line_idx, 1);
+
+    /* it pops out over ~10 ticks, then is gone */
+    for (int i = 0; i < 10; i++)
+        cutscene_step(&cs, 0);
+    T_ASSERT_EQ_P(cutscene_closing_box(&cs), NULL);
+
+    /* now advance to line 4 (Arche), then 4->5 is a SAME-speaker advance: NO
+     * closing box (the box stays open, just re-texts) */
+    while (cs.line_idx < 4) { run_to_wait(&cs); cutscene_step(&cs, 1); }
+    /* draining any closing box from the 3->4 change first */
+    for (int i = 0; i < 12; i++) cutscene_step(&cs, 0);
+    T_ASSERT_EQ_P(cutscene_closing_box(&cs), NULL);
+    run_to_wait(&cs);
+    cutscene_step(&cs, 1);                                 /* 4 -> 5, same Arche */
+    T_ASSERT_EQ_I(cs.line_idx, 5);
+    T_ASSERT_EQ_P(cutscene_closing_box(&cs), NULL);        /* no overlap         */
     return 0;
 }
 

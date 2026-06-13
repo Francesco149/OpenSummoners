@@ -186,6 +186,8 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     cs->complete = 0;
     cs->resolve  = resolve;
     cs->box      = box;
+    cs->closing.active = 0;   /* no box closing until the first speaker change */
+    cs->pending_keep   = 0;
     if (rooms == NULL || resolve == NULL || box == NULL || n_rooms <= 0 ||
         rooms[0].script == NULL || rooms[0].n_lines <= 0)
         return;
@@ -198,7 +200,16 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
     if (cs == NULL || !cs->active)
         return 0;
 
+    /* Apply a DEFERRED same-speaker re-text at the tick AFTER the advance press:
+     * the old line rendered on the press tick (retail clears the body one flip
+     * later), and re-texting here — BEFORE dialogue_step — lets the first char
+     * reveal this same tick, so the new line's start tick is unchanged. */
+    if (cs->pending_keep) {
+        cs->pending_keep = 0;
+        arm_current_line(cs, ARM_KEEP);
+    }
     dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter, one tick */
+    dialogue_close_step(&cs->closing);  /* the OLD box (if any) pops OUT this tick */
 
     /* The dialogue-interaction input is the CONFIRM action — ENTER or X (the nav
      * injects it as ring id 0x24; Z has NO dialogue role, USER ckpt 132).  Retail's
@@ -243,12 +254,27 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                                cs->room_idx == prev_room &&
                                cs->rooms[cs->room_idx].script[cs->line_idx].name_va
                                    == prev_name;
-            int mode = same_speaker ? ARM_KEEP : ARM_REOPEN;
-            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs, mode)) {
-                cs->active   = 0;
-                cs->complete = 1;
-                cs->box->active = 0;    /* close the box (the 0x49cd70 teardown) */
-                return 1;               /* chain complete → caller hands off control */
+            if (same_speaker) {
+                /* SAME speaker: keep the box open, but DEFER the re-text to the
+                 * next tick — the old line still renders on this advance tick
+                 * (retail clears the body one flip after the press).  Never
+                 * completes (mid-room). */
+                cs->pending_keep = 1;
+            } else {
+                /* SPEAKER CHANGE (or a room boundary / the chain end) — snapshot
+                 * the just-shown box (still full) into the CLOSING box so it pops
+                 * OUT (dialogue_close_step) in FRONT while the new box opens
+                 * behind; retail overlaps the two during the ~9t transition
+                 * (quirk #107).  This also keeps the old box on the advance tick. */
+                if (cs->room_idx < cs->n_rooms && cs->box->active)
+                    cs->closing = *cs->box;
+                if (cs->room_idx >= cs->n_rooms ||
+                    !arm_current_line(cs, ARM_REOPEN)) {
+                    cs->active   = 0;
+                    cs->complete = 1;
+                    cs->box->active = 0;  /* close the box (the 0x49cd70 teardown) */
+                    return 1;             /* chain complete → caller hands off ctrl */
+                }
             }
         }
     }
@@ -264,4 +290,11 @@ uint32_t cutscene_room_key(const cutscene *cs)
         cs->room_idx >= cs->n_rooms)
         return 0;
     return cs->rooms[cs->room_idx].room_key;
+}
+
+const dialogue_box *cutscene_closing_box(const cutscene *cs)
+{
+    if (cs == NULL || !cs->closing.active)
+        return NULL;
+    return &cs->closing;
 }

@@ -101,6 +101,21 @@ void dialogue_set_text(dialogue_box *d, const char *text)
     d->type_timer = 1;   /* the first char reveals one update later (as dialogue_arm) */
 }
 
+void dialogue_close_step(dialogue_box *d)
+{
+    if (!d->active)
+        return;
+    /* Pop-OUT: shrink toward the center.  Content (text/portrait) stops drawing
+     * the instant scale drops below 1000 (the dialogue_content_visible gate), so
+     * only the shrinking frame remains — retail's disappearing box.  Deactivate
+     * when fully closed. */
+    d->scale -= DIALOGUE_CLOSE_STEP;
+    if (d->scale <= 0) {
+        d->scale  = 0;
+        d->active = 0;
+    }
+}
+
 void dialogue_reopen(dialogue_box *d, const char *name, const char *text)
 {
     /* A fresh line (new name/portrait reset/typewriter) like dialogue_arm, but
