@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include "osr_format.h"   /* osr_state_field, OSR_STATE_MAXF — the state panel */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,6 +77,12 @@ int osr_scrub_render_rgba_upto(osr_scrub *s, int idx, int kdraws, uint32_t *out)
  * index (matching osr_scrub_frame_draws ordering), or -1 if no draw touches it.
  * Single incremental pass (clear → apply each draw → sample the pixel). */
 int osr_scrub_pick_draw(osr_scrub *s, int idx, int px, int py);
+
+/* The opt-in engine STATE fields of frame `idx` (M8 — the RNG/state panel): the
+ * OSR_STATE record that follows the frame's FRAMEBEG, decoded into out[0..cap).
+ * Returns the field count (0 if the capture has no state pass). Uses the ACTUAL
+ * frame (not resolve_nonempty) — state is per-flip. */
+int osr_scrub_frame_state(osr_scrub *s, int idx, osr_state_field *out, int cap);
 
 #ifdef __cplusplus
 }

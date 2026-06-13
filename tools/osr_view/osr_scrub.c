@@ -417,6 +417,30 @@ static int read_px565(osr_scrub *s, int px, int py, uint16_t *out)
     return ok;
 }
 
+int osr_scrub_frame_state(osr_scrub *s, int idx, osr_state_field *out, int cap)
+{
+    if (!s || !out || idx < 0 || idx >= s->nframes) return 0;
+    if (_fseeki64(s->f, s->frames[idx].off, SEEK_SET) != 0) return 0;
+    uint8_t hdr[8];
+    while (fread(hdr, 1, 8, s->f) == 8) {
+        uint32_t t = osr_get_u32(hdr), len = osr_get_u32(hdr + 4);
+        if (!buf_ensure(s, len ? len : 1)) break;
+        if (len && fread(s->buf, 1, len, s->f) != len) break;
+        if (t == OSR_FRAMEBEG) continue;
+        if (t == OSR_STATE) {
+            uint32_t nf = osr_state_nfields(s->buf, len);
+            int n = 0;
+            for (uint32_t i = 0; i < nf && n < cap; i++)
+                if (osr_dec_state_field(s->buf, len, i, &out[n])) n++;
+            return n;
+        }
+        /* STATE sits right after FRAMEBEG (before the draws); a draw/PRESENT means
+         * this frame has no state (the pass was off). */
+        if (t == OSR_PRESENT || t == OSR_CLEAR || t == OSR_BLIT || t == OSR_TEXT) break;
+    }
+    return 0;
+}
+
 int osr_scrub_pick_draw(osr_scrub *s, int idx, int px, int py)
 {
     if (!s || s->nframes <= 0) return -1;

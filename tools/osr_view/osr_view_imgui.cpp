@@ -841,6 +841,53 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
         }
         ImGui::EndChild();
 
+        // ── engine STATE panel (M8 — the RNG census + annotated fields) ──────
+        {
+            osr_state_field pst[OSR_STATE_MAXF], rst[OSR_STATE_MAXF];
+            int nps = (e.pidx >= 0) ? osr_scrub_frame_state(port,   e.pidx, pst, OSR_STATE_MAXF) : 0;
+            int nrs = (e.ridx >= 0) ? osr_scrub_frame_state(retail, e.ridx, rst, OSR_STATE_MAXF) : 0;
+            ImGui::SeparatorText("ENGINE STATE — RNG census + annotated fields (port vs retail at this tick)");
+            if (!nps && !nrs) {
+                ImGui::TextDisabled("(no state — capture the port with --osr-state, retail with OSS_OSR_STATE=1)");
+            } else if (ImGui::BeginTable("##statetbl", 3,
+                       ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableSetupColumn("field");
+                ImGui::TableSetupColumn("port");
+                ImGui::TableSetupColumn("retail");
+                ImGui::TableHeadersRow();
+                auto fmt = [](const osr_state_field& f, char* b, size_t nb) {
+                    if (f.kind == OSR_ST_HEX)      snprintf(b, nb, "0x%llx", (unsigned long long)(uint64_t)f.ival);
+                    else if (f.kind == OSR_ST_F32) snprintf(b, nb, "%g", f.fval);
+                    else                           snprintf(b, nb, "%lld", (long long)f.ival);
+                };
+                auto find = [](osr_state_field* a, int n, const char* nm) -> osr_state_field* {
+                    for (int i = 0; i < n; i++) if (!strcmp(a[i].name, nm)) return &a[i];
+                    return nullptr;
+                };
+                char seen[OSR_STATE_MAXF][16]; int nseen = 0;
+                const ImVec4 DIFFCOL(1.0f, 0.47f, 0.47f, 1.0f);
+                auto emit_row = [&](const char* nm) {
+                    for (int i = 0; i < nseen; i++) if (!strcmp(seen[i], nm)) return;
+                    snprintf(seen[nseen++], 16, "%s", nm);
+                    osr_state_field* p = find(pst, nps, nm);
+                    osr_state_field* r = find(rst, nrs, nm);
+                    bool diff = p && r && (p->kind != r->kind || p->ival != r->ival || p->fval != r->fval);
+                    char b[48];
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn(); ImGui::TextUnformatted(nm);
+                    ImGui::TableNextColumn();
+                    if (p) { fmt(*p, b, sizeof b); if (diff) ImGui::TextColored(DIFFCOL, "%s", b); else ImGui::TextUnformatted(b); }
+                    else ImGui::TextDisabled("-");
+                    ImGui::TableNextColumn();
+                    if (r) { fmt(*r, b, sizeof b); if (diff) ImGui::TextColored(DIFFCOL, "%s", b); else ImGui::TextUnformatted(b); }
+                    else ImGui::TextDisabled("-");
+                };
+                for (int i = 0; i < nps; i++) emit_row(pst[i].name);
+                for (int i = 0; i < nrs; i++) emit_row(rst[i].name);
+                ImGui::EndTable();
+            }
+        }
+
         ImGui::End();
 
         ImGui::Render();
