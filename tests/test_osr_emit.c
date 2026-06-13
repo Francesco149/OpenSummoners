@@ -13,6 +13,10 @@
  * whole lifecycle lives in ONE test body; the no-op safety of calling sinks
  * while closed is checked first.
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "../src/osr_emit.h"
 #include "../src/osr_replay.h"
 #include "../src/zdd.h"
@@ -352,5 +356,69 @@ int test_osr_emit_roundtrip(void)
 
     render_id_forget(&src);
     remove(path);
+    return 0;
+}
+
+/* M8 — the opt-in OSR_STATE pass: the emitter accumulates named state fields and
+ * flushes one OSR_STATE per frame after FRAMEBEG; the accumulator resets each
+ * frame; the codec round-trips all three kinds (hex/int/f32).  Read back by RAW
+ * record scan (osr_replay's sink ignores STATE — it isn't a draw). */
+int test_osr_emit_state(void)
+{
+    const char *path = "build/test_osr_emit_state.osr";
+    T_ASSERT(osr_emit_open(path, 0x4f5347, OSR_FLAG_SEED_PIN, "st",
+                           640, 480, OSR_PIXFMT_RGB565) == 1);
+    osr_emit_state_enable(1);
+    /* frame 1: three fields, one of each kind */
+    osr_emit_state_field("rng",      OSR_ST_HEX, (int64_t)0x4f5347, 0.0);
+    osr_emit_state_field("rngcalls", OSR_ST_INT, 7, 0.0);
+    osr_emit_state_field("px",       OSR_ST_F32, 0, -0.5);
+    osr_emit_flip(1, 0);
+    /* frame 2: a single field — proves the accumulator reset between frames */
+    osr_emit_state_field("rng",      OSR_ST_HEX, (int64_t)0x12345678, 0.0);
+    osr_emit_flip(2, 1);
+    osr_emit_close();
+
+    FILE *f = fopen(path, "rb");
+    T_ASSERT(f != NULL);
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    T_ASSERT(sz > OSR_HEADER_SIZE);
+    uint8_t *buf = (uint8_t *)malloc((size_t)sz);
+    T_ASSERT(buf && fread(buf, 1, (size_t)sz, f) == (size_t)sz);
+    fclose(f);
+
+    long p = OSR_HEADER_SIZE;
+    int nstate = 0, f1ok = 0, f2ok = 0;
+    while (p + 8 <= sz) {
+        uint32_t t = osr_get_u32(buf + p), len = osr_get_u32(buf + p + 4);
+        if (p + 8 + (long)len > sz) break;
+        if (t == OSR_STATE) {
+            const uint8_t *pp = buf + p + 8;
+            uint32_t nf = osr_state_nfields(pp, len);
+            osr_state_field sf;
+            nstate++;
+            if (nstate == 1) {
+                T_ASSERT(nf == 3);
+                T_ASSERT(osr_dec_state_field(pp, len, 0, &sf) && !strcmp(sf.name, "rng")
+                         && sf.kind == OSR_ST_HEX && sf.ival == (int64_t)0x4f5347);
+                T_ASSERT(osr_dec_state_field(pp, len, 1, &sf) && !strcmp(sf.name, "rngcalls")
+                         && sf.kind == OSR_ST_INT && sf.ival == 7);
+                T_ASSERT(osr_dec_state_field(pp, len, 2, &sf) && !strcmp(sf.name, "px")
+                         && sf.kind == OSR_ST_F32 && sf.fval == -0.5);
+                f1ok = 1;
+            } else if (nstate == 2) {
+                T_ASSERT(nf == 1);
+                T_ASSERT(osr_dec_state_field(pp, len, 0, &sf)
+                         && sf.ival == (int64_t)0x12345678);
+                f2ok = 1;
+            }
+        }
+        p += 8 + (long)len;
+    }
+    free(buf);
+    remove(path);
+    T_ASSERT(nstate == 2 && f1ok && f2ok);
     return 0;
 }

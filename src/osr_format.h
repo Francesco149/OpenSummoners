@@ -70,7 +70,8 @@ enum osr_rec_type {
     OSR_PALETTE  = 10,  /* 256-entry palette for a PAL8 surface */
     OSR_INPUT    = 11,  /* injected ring/held input at a flip */
     OSR_BLEND    = 12,  /* dedup'd software-alpha blend descriptor (M4 alpha) */
-    OSR_SNAP     = 13   /* REAL backbuffer pixels at a flip (the M4d validate gate) */
+    OSR_SNAP     = 13,  /* REAL backbuffer pixels at a flip (the M4d validate gate) */
+    OSR_STATE    = 14   /* opt-in once-per-frame engine STATE: named fields (M8) */
 };
 
 /* ── little-endian put/get (x86; byte-wise so unaligned is fine) ──────────── */
@@ -91,6 +92,23 @@ static inline uint32_t osr_get_u32(const uint8_t *p)
 static inline uint16_t osr_get_u16(const uint8_t *p)
 {
     return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+static inline void osr_put_u64(uint8_t *p, uint64_t v)
+{
+    osr_put_u32(p, (uint32_t)v);
+    osr_put_u32(p + 4, (uint32_t)(v >> 32));
+}
+static inline uint64_t osr_get_u64(const uint8_t *p)
+{
+    return (uint64_t)osr_get_u32(p) | ((uint64_t)osr_get_u32(p + 4) << 32);
+}
+static inline void osr_put_f64(uint8_t *p, double v)
+{
+    uint64_t b; memcpy(&b, &v, 8); osr_put_u64(p, b);
+}
+static inline double osr_get_f64(const uint8_t *p)
+{
+    uint64_t b = osr_get_u64(p); double v; memcpy(&v, &b, 8); return v;
 }
 
 /* ── header struct + codec ─────────────────────────────────────────────────
@@ -719,6 +737,70 @@ static inline int osr_dec_text(const uint8_t *p, uint32_t len, osr_text *o)
     o->str_len    = osr_get_u32(p + 28);
     if ((size_t)o->str_len > (size_t)(len - OSR_TEXT_HDR)) return 0;
     o->str        = (const char *)(p + OSR_TEXT_HDR);
+    return 1;
+}
+
+/* ── OSR_STATE — opt-in once-per-frame engine STATE (M8) ────────────────────
+ * A generic list of NAMED scalar fields (rng / rngcalls first; whatever else we
+ * annotate later — player px/py, scene id, flags, dialogue state, …).  Each field
+ * is a short name + a kind + an i64 + an f64; the kind tells the viewer/osr.py how
+ * to format (hex/int from ival, float from fval).  Extensible by construction: the
+ * emitter just appends the fields it reads, the decoder is generic.  Captured only
+ * when the state pass is opt-in enabled (the rng-call counter has per-draw cost). */
+enum osr_state_kind { OSR_ST_HEX = 0, OSR_ST_INT = 1, OSR_ST_F32 = 2 };
+
+#define OSR_STATE_NAME    16
+#define OSR_STATE_FIELDSZ 36   /* name[16] + u32 kind + i64 ival + f64 fval, on the wire */
+#define OSR_STATE_MAXF    64   /* a generous per-frame field cap */
+
+typedef struct osr_state_field {
+    char     name[OSR_STATE_NAME];   /* NUL-padded; ≤15 usable chars */
+    uint32_t kind;                   /* osr_state_kind */
+    int64_t  ival;
+    double   fval;
+} osr_state_field;
+
+/* payload: u32 nfields, then nfields × {name[16], u32 kind, i64 ival, f64 fval} */
+static inline size_t osr_enc_state(uint8_t *buf, size_t cap,
+                                   const osr_state_field *fl, uint32_t nf)
+{
+    size_t payload = 4 + (size_t)nf * OSR_STATE_FIELDSZ;
+    if (cap < 8 + payload) return 0;
+    osr_put_u32(buf, OSR_STATE);
+    osr_put_u32(buf + 4, (uint32_t)payload);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p, nf); p += 4;
+    for (uint32_t i = 0; i < nf; i++) {
+        memset(p, 0, OSR_STATE_NAME);
+        size_t nl = strlen(fl[i].name);
+        if (nl > OSR_STATE_NAME) nl = OSR_STATE_NAME;
+        memcpy(p, fl[i].name, nl);
+        osr_put_u32(p + 16, fl[i].kind);
+        osr_put_u64(p + 20, (uint64_t)fl[i].ival);
+        osr_put_f64(p + 28, fl[i].fval);
+        p += OSR_STATE_FIELDSZ;
+    }
+    return 8 + payload;
+}
+
+static inline uint32_t osr_state_nfields(const uint8_t *p, uint32_t len)
+{
+    if (len < 4) return 0;
+    uint32_t nf = osr_get_u32(p);
+    if ((size_t)4 + (size_t)nf * OSR_STATE_FIELDSZ > (size_t)len) return 0;
+    return nf;
+}
+
+static inline int osr_dec_state_field(const uint8_t *p, uint32_t len,
+                                      uint32_t i, osr_state_field *o)
+{
+    if (i >= osr_state_nfields(p, len)) return 0;
+    const uint8_t *q = p + 4 + (size_t)i * OSR_STATE_FIELDSZ;
+    memcpy(o->name, q, OSR_STATE_NAME);
+    o->name[OSR_STATE_NAME - 1] = 0;
+    o->kind = osr_get_u32(q + 16);
+    o->ival = (int64_t)osr_get_u64(q + 20);
+    o->fval = osr_get_f64(q + 28);
     return 1;
 }
 

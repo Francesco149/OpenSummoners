@@ -42,13 +42,16 @@ PALETTE = 10
 INPUT = 11
 BLEND = 12
 SNAP = 13
+STATE = 14
 
 REC_NAME = {
     FRAMEBEG: "FRAMEBEG", PRESENT: "PRESENT", ANCHOR: "ANCHOR", SEED: "SEED",
     CLEAR: "CLEAR", BLIT: "BLIT", TEXT: "TEXT", SHEET: "SHEET",
     FONT: "FONT", PALETTE: "PALETTE", INPUT: "INPUT", BLEND: "BLEND",
-    SNAP: "SNAP",
+    SNAP: "SNAP", STATE: "STATE",
 }
+
+STATE_KIND_NAME = {0: "hex", 1: "int", 2: "f32"}
 
 SIDE_NAME = {0: "port", 1: "retail"}
 PIXFMT_NAME = {0: "unknown", 1: "RGB565", 2: "XRGB8888", 3: "PAL8"}
@@ -159,6 +162,20 @@ class Record:
         s = self.payload[32:32 + str_len].decode("latin-1", "replace")
         return Text(seq, dst_handle, x, y, font_ref, color, bk_mode, str_len, s)
 
+    def state(self):
+        # mirror OSR_STATE / osr_dec_state_field: u32 nfields, then nfields ×
+        # {name[16], u32 kind, i64 ival, f64 fval} (36 bytes each)
+        nf = struct.unpack_from("<I", self.payload)[0]
+        out, off = [], 4
+        for _ in range(nf):
+            if off + 36 > len(self.payload):
+                break
+            name = self.payload[off:off + 16].split(b"\x00", 1)[0].decode("latin-1", "replace")
+            kind, ival, fval = struct.unpack_from("<I q d", self.payload, off + 16)
+            out.append(StateField(name, kind, ival, fval))
+            off += 36
+        return out
+
 
 @dataclass
 class Blit:
@@ -256,6 +273,21 @@ class Text:
     text: str
 
 
+@dataclass
+class StateField:
+    name: str
+    kind: int      # 0=hex 1=int 2=f32 (STATE_KIND_NAME)
+    ival: int
+    fval: float
+
+    def fmt(self) -> str:
+        if self.kind == 0:
+            return f"0x{self.ival & 0xffffffffffffffff:x}"
+        if self.kind == 2:
+            return f"{self.fval:g}"
+        return str(self.ival)
+
+
 # the 5 source-bearing blit primitives (mirror zdd.c / engine_hooks.h)
 BLIT_VA_NAME = {
     0x5b9a40: "onto", 0x5b9b70: "keyed", 0x5b9ae0: "rects",
@@ -339,6 +371,27 @@ class Osr:
             elif r.type == TEXT and cur is not None:
                 cur[2].append(r.text())
         if cur is not None:
+            yield cur
+
+    def states(self):
+        for r in self.records:
+            if r.type == STATE:
+                yield r.state()
+
+    def frames_with_state(self):
+        """Yield (flip, sim_tick, {name: StateField}) per frame that carries an
+        OSR_STATE record (the STATE follows its FRAMEBEG)."""
+        cur = None
+        for r in self.records:
+            if r.type == FRAMEBEG:
+                if cur is not None and cur[2]:
+                    yield cur
+                flip, tick, _ = r.framebeg()
+                cur = (flip, tick, {})
+            elif r.type == STATE and cur is not None:
+                for f in r.state():
+                    cur[2][f.name] = f
+        if cur is not None and cur[2]:
             yield cur
 
 
@@ -523,6 +576,11 @@ def cmd_summary(path: str) -> int:
               f"({100*named//len(texts)}%)  dst_handle set={dst_ok} "
               f"({100*dst_ok//len(texts)}%)  distinct_colors={len(colors)}  "
               f"frames_w_text={len(ft)}")
+    fws = list(o.frames_with_state())
+    if fws:
+        names = sorted({n for _, _, fl in fws for n in fl})
+        print(f"states    : {len(fws)} frames w/ STATE  fields: {' '.join(names)} "
+              f"(the M8 RNG/state panel)")
     print(f"anchors   : {len(anchors)}")
     for flip, tick, rng, name in anchors:
         print(f"    {name:<16} flip={flip} sim_tick={tick} rng=0x{rng:x}")
@@ -604,9 +662,28 @@ def cmd_texts(path: str, want_flip: int | None) -> int:
     return 0
 
 
+def cmd_states(path: str) -> int:
+    """Dump the per-frame OSR_STATE fields (M8: the RNG/state panel data) — streamed,
+    so it works on a multi-GB capture.  One line per state-bearing frame."""
+    shown = 0
+    cur = None
+    for r in stream_records(path, {FRAMEBEG, STATE}):
+        if r.type == FRAMEBEG:
+            flip, tick, _ = r.framebeg()
+            cur = (flip, tick)
+        elif r.type == STATE and cur is not None:
+            fields = r.state()
+            print(f"flip={cur[0]:<6} tick={cur[1]:<6} " +
+                  "  ".join(f"{f.name}={f.fmt()}" for f in fields))
+            shown += 1
+    if not shown:
+        print("(no OSR_STATE records — capture the port with --osr-state / retail with OSS_OSR_STATE=1)")
+    return 0
+
+
 def main(argv) -> int:
     if len(argv) < 3 or argv[1] not in (
-            "SUMMARY", "FRAMES", "BLITS", "SHEETS", "TEXTS"):
+            "SUMMARY", "FRAMES", "BLITS", "SHEETS", "TEXTS", "STATES"):
         print(__doc__)
         return 2
     if argv[1] == "SUMMARY":
@@ -619,6 +696,8 @@ def main(argv) -> int:
     if argv[1] == "TEXTS":
         flip = int(argv[3]) if len(argv) > 3 else None
         return cmd_texts(argv[2], flip)
+    if argv[1] == "STATES":
+        return cmd_states(argv[2])
     return cmd_frames(argv[2])
 
 

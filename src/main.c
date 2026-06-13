@@ -550,6 +550,7 @@ static size_t     g_n_osr_replay_frames;
 static char       g_osr_emit_path_buf[1024];
 static const char *g_osr_emit_path;
 static char       g_osr_scenario_buf[40];
+static int        g_osr_state_on;     /* --osr-state: emit OSR_STATE (rng census) */
 
 static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 static int  register_window_class(void);
@@ -661,6 +662,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         osr_emit_open(g_osr_emit_path, game_rng_seed(), OSR_FLAG_SEED_PIN,
                       g_osr_scenario_buf, DEFAULT_WIDTH, DEFAULT_HEIGHT,
                       OSR_PIXFMT_RGB565);
+        osr_emit_state_enable(g_osr_state_on);   /* M8: arm the OSR_STATE pass */
     }
 
     /* Install MessageBox→stderr hook as early as possible.  Any modal
@@ -898,6 +900,12 @@ static void drive_present(void *user)
     /* The Flip count is the input-trace's frame axis (matching the harness's
      * Flip-anchored injection), so bump it on every present. */
     g_present_frame++;
+    /* M8: push this frame's engine STATE (the RNG census + whatever else is
+     * annotated) before the frame boundary; flushed as OSR_STATE after FRAMEBEG.
+     * No-op unless --osr-state armed.  Add more osr_emit_state_field() calls here
+     * as relevant game state is annotated (player px/py, scene id, flags, …). */
+    osr_emit_state_field("rng",      OSR_ST_HEX, (int64_t)rng_peek_state(), 0.0);
+    osr_emit_state_field("rngcalls", OSR_ST_INT, (int64_t)rng_call_count(), 0.0);
     /* M5: the .osr frame boundary — PRESENT closes the open frame, FRAMEBEG
      * opens the next (the proxy's present-then-framebeg order; the draws under
      * FRAMEBEG(f) are issued after flip f, presented by flip f+1). */
@@ -3549,6 +3557,9 @@ static void parse_cmdline(LPSTR lpCmdLine)
         else if (!strncmp(tok, "--osr-scenario=", 15)) {
             strncpy(g_osr_scenario_buf, tok + 15, sizeof(g_osr_scenario_buf) - 1);
             g_osr_scenario_buf[sizeof(g_osr_scenario_buf) - 1] = '\0';
+        }
+        else if (!strcmp(tok, "--osr-state")) {   /* opt-in OSR_STATE (rng census) */
+            g_osr_state_on = 1;
         }
         else if (!strcmp(tok, "--osr-replay-frames") ||
                  !strncmp(tok, "--osr-replay-frames=", 20)) {

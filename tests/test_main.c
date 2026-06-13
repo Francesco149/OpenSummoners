@@ -692,6 +692,7 @@ struct test_case {
     X(osr_replay_null_callbacks_skipped)                       \
     X(osr_emit_inactive_noop)                                  \
     X(osr_emit_roundtrip)                                      \
+    X(osr_emit_state)                                          \
     X(title_render_resolve_basic)                              \
     X(title_render_resolve_frame_index_min_clamp)              \
     X(title_render_resolve_frame_index_masks_to_u16)           \

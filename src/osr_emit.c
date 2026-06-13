@@ -27,6 +27,12 @@ static const struct zdd_object *g_oe_primary;
 static osr_emit_surf_read_fn    g_oe_surf_read;
 static osr_emit_surf_done_fn    g_oe_surf_done;
 
+/* opt-in engine STATE (M8): the per-frame named-field accumulator, flushed as
+ * one OSR_STATE after each FRAMEBEG when armed (--osr-state). */
+static int             g_oe_state_on;
+static osr_state_field g_oe_sf[OSR_STATE_MAXF];
+static uint32_t        g_oe_snf;
+
 /* The write buffer for fixed-size records (the largest is FONT's 8+64). */
 static void oe_write(const uint8_t *buf, size_t n)
 {
@@ -384,9 +390,36 @@ void osr_emit_flip(uint32_t flip, uint32_t sim_tick)
         oe_write(buf, osr_enc_present(buf, sizeof buf, 0, 0));
     }
     oe_write(buf, osr_enc_framebeg(buf, sizeof buf, flip, sim_tick, 0));
+    /* flush the frame's accumulated STATE fields right after FRAMEBEG (M8) */
+    if (g_oe_state_on && g_oe_snf > 0) {
+        static uint8_t sbuf[8 + 4 + OSR_STATE_MAXF * OSR_STATE_FIELDSZ];
+        oe_write(sbuf, osr_enc_state(sbuf, sizeof sbuf, g_oe_sf, g_oe_snf));
+    }
+    g_oe_snf = 0;
     g_oe_frame_open = 1;
     g_oe_seq = 0;
     g_oe_n_frames++;
+}
+
+/* ── opt-in engine STATE accumulator (M8) ──────────────────────────────────── */
+void osr_emit_state_enable(int on)
+{
+    g_oe_state_on = on;
+}
+
+void osr_emit_state_field(const char *name, uint32_t kind, int64_t ival, double fval)
+{
+    if (!g_oe_state_on || g_oe_fp == NULL || name == NULL ||
+        g_oe_snf >= OSR_STATE_MAXF)
+        return;
+    osr_state_field *f = &g_oe_sf[g_oe_snf++];
+    memset(f->name, 0, sizeof f->name);
+    size_t nl = strlen(name);
+    if (nl >= sizeof f->name) nl = sizeof f->name - 1;
+    memcpy(f->name, name, nl);
+    f->kind = kind;
+    f->ival = ival;
+    f->fval = fval;
 }
 
 void osr_emit_anchor(const char *name, uint32_t flip, uint32_t sim_tick,

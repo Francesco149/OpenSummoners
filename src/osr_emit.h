@@ -90,6 +90,16 @@ void osr_emit_anchor(const char *name, uint32_t flip, uint32_t sim_tick,
                      uint32_t rng);
 void osr_emit_seed(uint32_t flip, uint32_t before, uint32_t value);
 
+/* ── opt-in engine STATE (M8 — the trace-studio RNG/state panel) ─────────────
+ * Arm with osr_emit_state_enable(1) (the port's --osr-state).  Each frame, the
+ * caller PUSHES named scalar fields (osr_emit_state_field) BEFORE osr_emit_flip;
+ * they are flushed as one OSR_STATE record right after the frame's FRAMEBEG and
+ * the accumulator is cleared.  No-op unless armed AND --osr-emit is active.
+ * kind ∈ {OSR_ST_HEX, OSR_ST_INT, OSR_ST_F32} (osr_format.h) — extend the field
+ * set freely as more engine state is annotated. */
+void osr_emit_state_enable(int on);
+void osr_emit_state_field(const char *name, uint32_t kind, int64_t ival, double fval);
+
 /* ── draw sinks (zdd.c) ──────────────────────────────────────────────────────
  * osr_emit_blit reads the source identity (render_id), placement metrics and
  * state off `src` itself; `desc` is non-NULL only on the mode-4 alpha path

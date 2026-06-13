@@ -45,4 +45,8 @@ uint32_t rng_rand(void);
 /* Direct read of the live seed word (DAT_008a4f94) — for tests / probes. */
 uint32_t rng_peek_state(void);
 
+/* Cumulative rng_rand() draw count since boot (the `rngcalls` consumption signal
+ * for the trace studio's RNG state panel; not reset by srand). */
+uint64_t rng_call_count(void);
+
 #endif /* OPENSUMMONERS_RNG_H */
