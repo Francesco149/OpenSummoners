@@ -228,15 +228,109 @@ static ImU32 heat_col(int differ, int total_px)
     return IM_COL32(r, g, 30, 255);
 }
 
-static void render_panel_image(Panel& pn, int w, int h, float scale, const char* label)
+// ── the NOTE / mark system (M7 — the human→agent hand-off contract) ─────────
+// The USER drags a crop region on a panel + types a note → it persists to
+// osr_notes.jsonl beside the .osr, keyed by the joined sim_tick + a crop rect in
+// frame coords.  The agent reads that JSONL (tools/trace_studio2/notes.py renders
+// the cropped port|retail|diff at each noted tick) — so a mark says exactly "look
+// HERE at THIS tick".
+struct Note {
+    uint32_t tick;
+    int port_flip, retail_flip;
+    int crop[4];          // x, y, w, h in frame pixels (all 0 = whole frame)
+    int differ;
+    char text[256];
+};
+
+static void json_escape(const char* in, char* out, size_t cap)
 {
-    ImGui::BeginGroup();
-    ImGui::TextUnformatted(label);
-    if (pn.srv)
-        ImGui::Image((ImTextureID)pn.srv, ImVec2(w * scale, h * scale));
-    else
-        ImGui::Dummy(ImVec2(w * scale, h * scale));
-    ImGui::EndGroup();
+    size_t j = 0;
+    for (size_t i = 0; in[i] && j + 2 < cap; i++) {
+        char c = in[i];
+        if (c == '"' || c == '\\') { out[j++] = '\\'; out[j++] = c; }
+        else if (c == '\n')        { out[j++] = '\\'; out[j++] = 'n'; }
+        else if ((unsigned char)c >= 0x20) out[j++] = c;
+    }
+    out[j] = 0;
+}
+
+static void note_write_line(FILE* f, const Note& nt)
+{
+    char esc[512]; json_escape(nt.text, esc, sizeof esc);
+    fprintf(f, "{\"tick\":%u,\"port_flip\":%d,\"retail_flip\":%d,"
+               "\"crop\":[%d,%d,%d,%d],\"differ\":%d,\"text\":\"%s\"}\n",
+            nt.tick, nt.port_flip, nt.retail_flip,
+            nt.crop[0], nt.crop[1], nt.crop[2], nt.crop[3], nt.differ, esc);
+}
+
+static void notes_append(const char* path, const Note& nt)
+{
+    FILE* f = fopen(path, "a");
+    if (!f) return;
+    note_write_line(f, nt);
+    fclose(f);
+}
+
+static void notes_rewrite(const char* path, const std::vector<Note>& v)
+{
+    FILE* f = fopen(path, "w");
+    if (!f) return;
+    for (const Note& nt : v) note_write_line(f, nt);
+    fclose(f);
+}
+
+static bool note_scan_int(const char* s, const char* key, int* out)
+{
+    const char* p = strstr(s, key);
+    if (!p) return false;
+    return sscanf(p + strlen(key), "%d", out) == 1;
+}
+
+static void notes_load(const char* path, std::vector<Note>& v)
+{
+    FILE* f = fopen(path, "r");
+    if (!f) return;
+    char line[2048];
+    while (fgets(line, sizeof line, f)) {
+        Note nt; memset(&nt, 0, sizeof nt);
+        int tk;
+        if (!note_scan_int(line, "\"tick\":", &tk)) continue;
+        nt.tick = (uint32_t)tk;
+        note_scan_int(line, "\"port_flip\":", &nt.port_flip);
+        note_scan_int(line, "\"retail_flip\":", &nt.retail_flip);
+        note_scan_int(line, "\"differ\":", &nt.differ);
+        const char* cp = strstr(line, "\"crop\":[");
+        if (cp) sscanf(cp + 8, "%d,%d,%d,%d", &nt.crop[0], &nt.crop[1], &nt.crop[2], &nt.crop[3]);
+        const char* tp = strstr(line, "\"text\":\"");
+        if (tp) {
+            tp += 8;
+            size_t k = 0;
+            while (*tp && k + 1 < sizeof nt.text) {
+                if (*tp == '\\' && tp[1]) { tp++; nt.text[k++] = (*tp == 'n') ? '\n' : *tp; tp++; }
+                else if (*tp == '"') break;
+                else nt.text[k++] = *tp++;
+            }
+            nt.text[k] = 0;
+        }
+        v.push_back(nt);
+    }
+    fclose(f);
+}
+
+static void derive_notes_path(const char* port_path, char* out, size_t cap)
+{
+    const char* bs = strrchr(port_path, '\\');
+    const char* fs = strrchr(port_path, '/');
+    const char* slash = (fs > bs) ? fs : bs;
+    if (slash) {
+        size_t n = (size_t)(slash - port_path) + 1;
+        if (n >= cap) n = cap - 1;
+        memcpy(out, port_path, n);
+        out[n] = 0;
+        strncat(out, "osr_notes.jsonl", cap - strlen(out) - 1);
+    } else {
+        snprintf(out, cap, "osr_notes.jsonl");
+    }
 }
 
 // ── single-panel mode (the original, unchanged behaviour) ───────────────────
@@ -366,6 +460,16 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     bool playing = false;
     int metric_cursor = 0;           // background precompute progress over tl[]
 
+    // note/mark state (the human→agent hand-off)
+    std::vector<Note> notes;
+    char notes_path[512];
+    derive_notes_path(port_path, notes_path, sizeof notes_path);
+    notes_load(notes_path, notes);
+    char note_buf[256] = {0};
+    bool   crop_valid = false, crop_dragging = false;
+    ImVec2 crop_a(0,0), crop_b(0,0), crop_start_mn(0,0);
+    float  crop_start_sc = 1.0f;
+
     bool done = false;
     while (!done) {
         MSG msg;
@@ -393,14 +497,17 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
             metric_cursor++;
         }
 
-        // keyboard scrub (timeline index)
-        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) cur++;
-        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))  cur--;
-        if (ImGui::IsKeyPressed(ImGuiKey_PageDown))   cur += 30;
-        if (ImGui::IsKeyPressed(ImGuiKey_PageUp))     cur -= 30;
-        if (ImGui::IsKeyPressed(ImGuiKey_Home))       cur = 0;
-        if (ImGui::IsKeyPressed(ImGuiKey_End))        cur = n - 1;
-        if (ImGui::IsKeyPressed(ImGuiKey_Space))      playing = !playing;
+        // keyboard scrub (timeline index) — suppressed while typing a note so
+        // arrows/space edit the text instead of scrubbing the frame
+        if (!ImGui::GetIO().WantCaptureKeyboard) {
+            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) cur++;
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))  cur--;
+            if (ImGui::IsKeyPressed(ImGuiKey_PageDown))   cur += 30;
+            if (ImGui::IsKeyPressed(ImGuiKey_PageUp))     cur -= 30;
+            if (ImGui::IsKeyPressed(ImGuiKey_Home))       cur = 0;
+            if (ImGui::IsKeyPressed(ImGuiKey_End))        cur = n - 1;
+            if (ImGui::IsKeyPressed(ImGuiKey_Space))      playing = !playing;
+        }
         if (playing) { cur++; if (cur >= n) { cur = n - 1; playing = false; } }
         if (cur < 0) cur = 0;
         if (cur >= n) cur = n - 1;
@@ -516,11 +623,115 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
         float scale = (avail - 24) / (3.0f * w);
         if (scale > 1.0f) scale = 1.0f;
         if (scale < 0.1f) scale = 0.1f;
-        render_panel_image(pPort,   w, h, scale, "PORT");
+
+        // advance an in-progress crop drag ONCE per UI frame, mapped from the panel
+        // it started on, so all three panels show the same frame-space rect.
+        if (crop_dragging) {
+            ImVec2 m = ImGui::GetMousePos();
+            float fx = (m.x - crop_start_mn.x) / crop_start_sc;
+            float fy = (m.y - crop_start_mn.y) / crop_start_sc;
+            fx = fx < 0 ? 0 : (fx > w ? w : fx);
+            fy = fy < 0 ? 0 : (fy > h ? h : fy);
+            crop_b = ImVec2(fx, fy);
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                crop_dragging = false;
+                crop_valid = (fabsf(crop_a.x - crop_b.x) >= 3 && fabsf(crop_a.y - crop_b.y) >= 3);
+            }
+        }
+
+        auto draw_panel = [&](Panel& pn, const char* label, bool has_frame) {
+            ImGui::BeginGroup();
+            ImGui::TextUnformatted(label);
+            ImVec2 mn = ImGui::GetCursorScreenPos();
+            if (pn.srv) ImGui::Image((ImTextureID)pn.srv, ImVec2(w * scale, h * scale));
+            else        ImGui::Dummy(ImVec2(w * scale, h * scale));
+            ImVec2 mx = ImGui::GetItemRectMax();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            if (!has_frame) {                          // honest gap → label, not black
+                const char* msg = "- no frame at this tick (gap) -";
+                ImVec2 ts = ImGui::CalcTextSize(msg);
+                dl->AddText(ImVec2((mn.x + mx.x - ts.x) * 0.5f, (mn.y + mx.y - ts.y) * 0.5f),
+                            IM_COL32(220, 190, 90, 255), msg);
+            }
+            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !crop_dragging) {
+                ImVec2 m = ImGui::GetMousePos();
+                float fx = (m.x - mn.x) / scale, fy = (m.y - mn.y) / scale;
+                fx = fx < 0 ? 0 : (fx > w ? w : fx);
+                fy = fy < 0 ? 0 : (fy > h ? h : fy);
+                crop_dragging = true; crop_start_mn = mn; crop_start_sc = scale;
+                crop_a = crop_b = ImVec2(fx, fy);
+            }
+            if (crop_valid || crop_dragging) {         // overlay the crop on every panel
+                float x0 = crop_a.x < crop_b.x ? crop_a.x : crop_b.x;
+                float y0 = crop_a.y < crop_b.y ? crop_a.y : crop_b.y;
+                float x1 = crop_a.x > crop_b.x ? crop_a.x : crop_b.x;
+                float y1 = crop_a.y > crop_b.y ? crop_a.y : crop_b.y;
+                dl->AddRect(ImVec2(mn.x + x0 * scale, mn.y + y0 * scale),
+                            ImVec2(mn.x + x1 * scale, mn.y + y1 * scale),
+                            IM_COL32(0, 230, 230, 255), 0.0f, 0, 1.5f);
+            }
+            ImGui::EndGroup();
+        };
+        draw_panel(pPort,   "PORT",   e.pidx >= 0);
         ImGui::SameLine();
-        render_panel_image(pRetail, w, h, scale, "RETAIL");
+        draw_panel(pRetail, "RETAIL", e.ridx >= 0);
         ImGui::SameLine();
-        render_panel_image(pDiff,   w, h, scale, "DIFF (yellow→red = divergence)");
+        draw_panel(pDiff,   "DIFF (yellow->red = divergence)", e.kind_paired());
+
+        // ── notes (the human→agent hand-off: drag a region, type, Add) ──────
+        ImGui::SeparatorText("NOTES — drag a region on a panel, type, Add  →  osr_notes.jsonl (the agent reads it)");
+        int cx = 0, cy = 0, cw = 0, ch = 0;
+        if (crop_valid) {
+            cx = (int)(crop_a.x < crop_b.x ? crop_a.x : crop_b.x);
+            cy = (int)(crop_a.y < crop_b.y ? crop_a.y : crop_b.y);
+            cw = (int)fabsf(crop_a.x - crop_b.x);
+            ch = (int)fabsf(crop_a.y - crop_b.y);
+            ImGui::Text("crop: (%d,%d) %dx%d", cx, cy, cw, ch);
+        } else {
+            ImGui::TextDisabled("crop: (none — drag on a panel; no crop = whole frame)");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("clear crop")) crop_valid = false;
+        ImGui::SetNextItemWidth(560);
+        bool enter = ImGui::InputText("##notetext", note_buf, sizeof note_buf,
+                                      ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::SameLine();
+        if ((ImGui::Button("Add note") || enter) && note_buf[0]) {
+            Note nt; memset(&nt, 0, sizeof nt);
+            nt.tick = e.tick;
+            uint32_t pf = 0, pt = 0, rf = 0, rt = 0;
+            if (e.pidx >= 0) osr_scrub_frame_info(port,   e.pidx, &pf, &pt);
+            if (e.ridx >= 0) osr_scrub_frame_info(retail, e.ridx, &rf, &rt);
+            nt.port_flip = (int)pf; nt.retail_flip = (int)rf;
+            nt.crop[0] = cx; nt.crop[1] = cy; nt.crop[2] = cw; nt.crop[3] = ch;
+            nt.differ = e.kind_paired() ? e.differ : -1;
+            snprintf(nt.text, sizeof nt.text, "%s", note_buf);
+            notes.push_back(nt);
+            notes_append(notes_path, nt);
+            note_buf[0] = 0; crop_valid = false;
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(%d notes)", (int)notes.size());
+
+        ImGui::BeginChild("##noteslist", ImVec2(0, 92), ImGuiChildFlags_Borders);
+        for (int i = 0; i < (int)notes.size(); i++) {
+            Note& nt = notes[i];
+            ImGui::PushID(i);
+            if (ImGui::SmallButton("go")) {
+                for (int j = 0; j < n; j++) if (tl[j].tick == nt.tick) { cur = j; break; }
+            }
+            ImGui::SameLine();
+            bool del = ImGui::SmallButton("x");
+            ImGui::SameLine();
+            if (nt.crop[2] || nt.crop[3])
+                ImGui::Text("[t%u] %s  {crop %d,%d %dx%d}", nt.tick, nt.text,
+                            nt.crop[0], nt.crop[1], nt.crop[2], nt.crop[3]);
+            else
+                ImGui::Text("[t%u] %s", nt.tick, nt.text);
+            ImGui::PopID();
+            if (del) { notes.erase(notes.begin() + i); notes_rewrite(notes_path, notes); break; }
+        }
+        ImGui::EndChild();
 
         ImGui::End();
 
