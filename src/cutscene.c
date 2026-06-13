@@ -185,10 +185,22 @@ int cutscene_step(cutscene *cs, int advance_pressed)
 
     dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter, one tick */
 
-    /* DIALOGUE-beat completion (0x439690:1004): Z advances ONLY once the line
-     * is fully typed (the "state 2" wait — the arrow shows).  Z while typing is
-     * ignored, faithful to the beat-runner (the typewriter auto-advances on its
-     * own cadence; there is no player skip). */
+    /* The dialogue-interaction input is ENTER or X — the CONFIRM action, which
+     * the nav injects as ring id 0x24 and which BOTH sides advance on through the
+     * captures (so 0x24 IS that confirm; the old "Z" label was WRONG — USER ckpt
+     * 132: Z has NO dialogue interaction).  Retail's ONE confirm key does BOTH, in
+     * order: press while TYPING -> SKIP (complete the line's reveal instantly);
+     * press while COMPLETE -> ADVANCE to the next line.
+     *
+     * GAP (USER-flagged ckpt 132, next-session — `dialogue-typewriter-skip`): the
+     * port models only the ADVANCE half (advance a fully-typed line); it has NO
+     * skip, so the typewriter always runs full while retail skips+advances (~2
+     * presses/line) -> the port LAGS retail's dialogue progression -> desync ->
+     * blocks the 1:1 studio compare of the dialogue section.  FIX (next session):
+     * when confirm fires while still typing, jump reveal -> total (the skip); the
+     * NEXT confirm advances.  RE-verify the exact semantics first (the typewriter
+     * stepper 0x43bca0; whether the skip press is consumed; the key->ring-id map
+     * via the producer 0x46a880) + harness-capture the reveal jump under a nav. */
     if (advance_pressed && dialogue_awaiting_advance(cs->box)) {
         cs->line_idx++;
         if (cs->line_idx >= cs->rooms[cs->room_idx].n_lines) {

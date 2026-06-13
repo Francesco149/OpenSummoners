@@ -10,10 +10,13 @@
   ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
   errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Five gaps closed (ckpt 131:
   errands floor tileset, house+errands props, the dialogue-portrait +13 offset; ckpt 132: the dialogue BOX
-  POSITION — faithful `0x49c640`).  **The rendering gaps up to the errands are CLOSED → NEXT: the FREEROAM
-  HAND-OFF (controllable Arche in the errands room, `character_step` on live input — the mover is DONE
-  bit-exact).**  Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`;
-  milestones: `ROADMAP.md`.
+  POSITION — faithful `0x49c640`).  **NEXT (USER-set ckpt 132): the dialogue TYPEWRITER-SKIP — the dialogue
+  input is ENTER/X (the confirm; press once = SKIP the typewriter, again = ADVANCE; Z has NO dialogue role),
+  and the port models only ADVANCE (no skip) → it lags retail's progression → the two DESYNC → blocks the
+  1:1 studio compare; then SWEEP the studio for any other gap blocking a clean frame-by-frame 1:1 up to the
+  errands.  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live
+  input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
+  freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue

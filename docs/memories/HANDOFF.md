@@ -35,13 +35,30 @@ projected through the LIVE camera.  1011 host pass (+1).  Quirk #106; fresh port
   it at 12800: the upstream-input pillar (the camera), downstream of PORT-DEBT(cutscene-party-chars) + the
   camera-pan debt, NOT a box-logic bug.
 
-**NEXT MOVE — the FREEROAM HAND-OFF (the rendering gaps up to the errands are now CLOSED).**  At the errands
-room (`0x334dc`, the cutscene chain's end) STOP the sequencer and run `character_step` on the live
-`axis_held` (the `+0x200==0` char-AI path; the mover is DONE bit-exact, quirk #103).  Plan:
-`plans/controllable-arche-faithful.md` Phase 2 (VERIFIED).  Smaller follow-ups: the bubble TAIL x (still
-`box_x+188`; derive from the same projection — `0x49c640`'s tail-x clamp); the L10 camera pan/cast
-walk-in (`cutscene-party-chars`); the errands CHARACTER-band shop items + room cast (per-room sprite
-tables, `actor-sprite-table`).
+**NEXT MOVE (USER-set ckpt 132) — close the dialogue TYPEWRITER-SKIP, then SWEEP for a clean 1:1 up to the
+errands BEFORE the freeroam.**  The USER's bar is a clean frame-by-frame 1:1 through the errands; the
+studio compare of the DIALOGUE section is currently blocked by a sync gap I missed:
+- **`dialogue-typewriter-skip` (the blocker).** The dialogue input is ENTER or X — the CONFIRM action, which
+  the nav injects as ring id 0x24 and which BOTH sides advance on through the captures (so 0x24 IS that
+  confirm; the port's old "Z" label was WRONG — USER ckpt 132: **Z has NO dialogue interaction**).  Retail's
+  ONE confirm does BOTH, in order: press while TYPING → SKIP (complete the reveal instantly); press while
+  COMPLETE → ADVANCE.  The port models only ADVANCE (`cutscene_step` takes `advance_pressed`; `dialogue_step`
+  auto-reveals at its cadence) — NO skip — so retail rips through lines (~2 presses each) while the port
+  waits out every typewriter → the port LAGS → desync → no tick-aligned compare.  **RE first** (don't guess):
+  the typewriter stepper `0x43bca0` (returns 3 when fully shown — `439690.c:980`), whether the skip press is
+  consumed, and the key→ring-id map via the producer `0x46a880`.  Harness-capture the reveal counter under a
+  confirm-driven nav.  **Then port:** on confirm-while-typing jump `reveal -> total` (the next confirm
+  advances); consider renaming `advance_pressed` → `confirm_pressed`.
+- **Then SWEEP** the studio (`osr_view` port vs retail, tick-joined) across arrival→house→errands for ANY
+  other gap blocking a clean 1:1 (the USER's loop: drill each divergence; the box position + portraits are
+  done).
+- **Carried follow-ups** (do as the sweep surfaces them): the bubble TAIL x (still `box_x+188`; derive via
+  `0x49c640`'s tail-x clamp from the same projection); the arrival L10 camera pan / cast walk-in
+  (`cutscene-party-chars`); the errands CHARACTER-band shop items + room cast (`actor-sprite-table`).
+
+**THEN the FREEROAM HAND-OFF** (deferred behind the 1:1 bar): at the errands room (`0x334dc`) STOP the
+sequencer and run `character_step` on the live `axis_held` (`+0x200==0` char-AI; mover DONE bit-exact, quirk
+#103).  Plan: `plans/controllable-arche-faithful.md` Phase 2 (VERIFIED).
 
 **Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub (`osr_view.exe <one.osr>`)
 has no notes panel.  The mark→`notes.py` round-trip needs single-file support.
@@ -53,8 +70,9 @@ box anchor fields; `dialogue_scaled_rect` takes the anchor), `src/cutscene.{c,h}
 Spec: `tools/flow/box_pos_inputs_fields.json`.  Artifacts (gitignored): `runs/box-pos-inputs`;
 `C:\oss-osr\port-boxpos.osr`.
 
-**OPEN RE threads:** the freeroam hand-off (next); the bubble tail x; the errands CHARACTER-band shop items +
-room cast; carried — the errands questline `0x4dc510`.
+**OPEN RE threads:** the dialogue typewriter-SKIP (`0x43bca0` + the ENTER/X ring id, next); the studio 1:1
+sweep up to errands; the bubble tail x; the errands CHARACTER-band shop items + room cast; the freeroam
+hand-off (behind the 1:1 bar); carried — the errands questline `0x4dc510`.
 
 ## Where we were — ckpt 131
 
