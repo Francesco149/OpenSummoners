@@ -734,7 +734,7 @@ struct test_case {
     X(input_trace_replay_catches_up)                           \
     X(input_trace_replay_guards)                               \
     X(input_trace_tick_axis)                                   \
-    X(input_trace_mixed_axis_fails)                            \
+    X(input_trace_mixed_axis)                                  \
     X(app_flow_dispatch_codes)                                 \
     X(glyph_token_search_found)                                \
     X(glyph_token_search_absent)                               \

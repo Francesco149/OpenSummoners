@@ -179,7 +179,7 @@ int test_input_trace_tick_axis(void)
     struct input_trace t;
     T_ASSERT_EQ_I(input_trace_parse_buf(buf, strlen(buf), &t), 1);
     T_ASSERT_EQ_U(t.count, 2);
-    T_ASSERT_EQ_U(t.axis, INPUT_TRACE_AXIS_TICK);
+    T_ASSERT_EQ_U(t.entries[0].axis, INPUT_TRACE_AXIS_TICK);
     T_ASSERT_EQ_U(t.entries[0].frame, 5);   /* threshold lives in .frame */
 
     input_mgr m; mk_input(&m);
@@ -202,20 +202,44 @@ int test_input_trace_tick_axis(void)
     return 0;
 }
 
-/* ── mixed axes (a "frame" then a "tick" entry) fail the parse ── */
-int test_input_trace_mixed_axis_fails(void)
+/* ── mixed axes: a flip-keyed boot prefix then tick-keyed in-game confirms (the
+ *    matched-cadence nav shape) parses + replays per-entry ── */
+int test_input_trace_mixed_axis(void)
 {
-    const char *buf = "{\"frame\":1,\"ids\":[1]}\n{\"tick\":2,\"ids\":[1]}\n";
+    const char *buf =
+        "{\"frame\":700, \"ids\":[0x24]}\n"   /* boot: fires by Flip frame   */
+        "{\"tick\":5,    \"ids\":[0x24]}\n";  /* in-game: fires by sim_tick  */
     struct input_trace t;
-    T_ASSERT_EQ_I(input_trace_parse_buf(buf, strlen(buf), &t), 0);
-    T_ASSERT_EQ_U(t.count, 1);   /* the first (frame) entry survives */
-    T_ASSERT_EQ_U(t.axis, INPUT_TRACE_AXIS_FRAME);
+    T_ASSERT_EQ_I(input_trace_parse_buf(buf, strlen(buf), &t), 1);
+    T_ASSERT_EQ_U(t.count, 2);
+    T_ASSERT_EQ_U(t.entries[0].axis, INPUT_TRACE_AXIS_FRAME);
+    T_ASSERT_EQ_U(t.entries[1].axis, INPUT_TRACE_AXIS_TICK);
+
+    input_mgr m; mk_input(&m);
+
+    /* boot: present_frame 700 reached, sim_tick still 0 → only the flip entry */
+    input_trace_replay(&t, 700, 0, &m, 1000);
+    T_ASSERT_EQ_U(t.cursor, 1);
+    T_ASSERT_EQ_I(it_ring[0].id, 0x24);
+
+    /* the tick entry waits for sim_tick 5 even though the frame keeps climbing */
+    input_trace_replay(&t, 9999, 4, &m, 2000);
+    T_ASSERT_EQ_U(t.cursor, 1);
+    input_trace_replay(&t, 9999, 5, &m, 3000);
+    T_ASSERT_EQ_U(t.cursor, 2);
+    T_ASSERT_EQ_I(it_ring[1].id, 0x24);
     input_trace_free(&t);
 
-    /* and a single object carrying BOTH keys is ambiguous → fail */
+    /* a single object carrying BOTH a frame and a tick key is ambiguous → fail */
     const char *buf2 = "{\"frame\":1,\"tick\":2,\"ids\":[1]}\n";
     struct input_trace t2;
     T_ASSERT_EQ_I(input_trace_parse_buf(buf2, strlen(buf2), &t2), 0);
     input_trace_free(&t2);
+
+    /* out-of-order WITHIN one axis still fails */
+    const char *buf3 = "{\"tick\":10,\"ids\":[1]}\n{\"tick\":9,\"ids\":[1]}\n";
+    struct input_trace t3;
+    T_ASSERT_EQ_I(input_trace_parse_buf(buf3, strlen(buf3), &t3), 0);
+    input_trace_free(&t3);
     return 0;
 }

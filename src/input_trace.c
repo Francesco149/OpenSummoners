@@ -125,12 +125,12 @@ static int parse_id_array(const char **pp, const char *end,
 }
 
 /* Parse one `{"frame":N, "ids":[..]}` (or `{"tick":N, ...}`) object at *pp into
- * *out.  Keys may be in any order; an absent "ids" yields n_ids == 0.  Reports
- * the threshold axis the object used via *axis (INPUT_TRACE_AXIS_FRAME/_TICK);
- * an object carrying BOTH a "frame" and a "tick" key is an error (ambiguous
- * axis).  Returns 1 on success. */
+ * *out.  Keys may be in any order; an absent "ids" yields n_ids == 0.  Records
+ * the threshold axis on out->axis (INPUT_TRACE_AXIS_FRAME/_TICK); an object
+ * carrying BOTH a "frame" and a "tick" key is an error (ambiguous axis).
+ * Returns 1 on success. */
 static int parse_entry(const char **pp, const char *end,
-                       struct input_trace_entry *out, uint8_t *axis)
+                       struct input_trace_entry *out)
 {
     memset(out, 0, sizeof *out);
     int have_thresh = 0;
@@ -149,7 +149,7 @@ static int parse_entry(const char **pp, const char *end,
             if (!parse_number(pp, end, &v)) return 0;
             if (have_thresh) return 0;       /* a second threshold key (ambiguous) */
             out->frame = (uint32_t)v;
-            *axis = (kind == 2) ? INPUT_TRACE_AXIS_TICK : INPUT_TRACE_AXIS_FRAME;
+            out->axis  = (kind == 2) ? INPUT_TRACE_AXIS_TICK : INPUT_TRACE_AXIS_FRAME;
             have_thresh = 1;
         } else if (kind == 1) {                             /* ids */
             if (!parse_id_array(pp, end, out)) return 0;
@@ -187,8 +187,11 @@ int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
 
     const char *p = buf;
     const char *end = buf + len;
-    uint32_t last_frame = 0;
-    int have_prev = 0;
+    /* Per-axis monotonicity: each axis's thresholds must be non-decreasing
+     * among themselves; the two axes may interleave (the boot-flips +
+     * in-game-ticks pattern), so they are tracked independently. */
+    uint32_t last[2] = { 0, 0 };
+    int      have[2] = { 0, 0 };
 
     while (p < end) {
         skip_ws(&p, end);
@@ -198,16 +201,11 @@ int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
             continue;
         }
         struct input_trace_entry e;
-        uint8_t axis = INPUT_TRACE_AXIS_FRAME;
-        if (!parse_entry(&p, end, &e, &axis)) return 0;
-        if (have_prev) {
-            if (axis != out->axis) return 0;                /* mixed axes      */
-            if (e.frame < last_frame) return 0;             /* out of order    */
-        } else {
-            out->axis = axis;                               /* first sets axis */
-        }
-        last_frame = e.frame;
-        have_prev = 1;
+        if (!parse_entry(&p, end, &e)) return 0;
+        int ax = (e.axis == INPUT_TRACE_AXIS_TICK) ? 1 : 0;
+        if (have[ax] && e.frame < last[ax]) return 0;       /* out of order (per axis) */
+        last[ax] = e.frame;
+        have[ax] = 1;
         if (!push_entry(out, &e)) return 0;
         /* Tolerate trailing junk up to the newline (e.g. a trailing comma in
          * the harness's pretty output is not produced, but be lenient). */
@@ -248,14 +246,16 @@ void input_trace_replay(struct input_trace *t, uint32_t present_frame,
 {
     if (t == NULL || mgr == NULL) return;
 
-    uint32_t counter = (t->axis == INPUT_TRACE_AXIS_TICK) ? sim_tick
-                                                          : present_frame;
-    while (t->cursor < t->count && t->entries[t->cursor].frame <= counter) {
-        const struct input_trace_entry *e = &t->entries[t->cursor];
-        for (uint16_t i = 0; i < e->n_ids; i++) {
+    while (t->cursor < t->count) {
+        const struct input_trace_entry *ce = &t->entries[t->cursor];
+        uint32_t counter = (ce->axis == INPUT_TRACE_AXIS_TICK) ? sim_tick
+                                                               : present_frame;
+        if (ce->frame > counter)
+            break;
+        for (uint16_t i = 0; i < ce->n_ids; i++) {
             input_event *rec = mgr->ring[t->ring_head];
             if (rec != NULL) {
-                rec->id   = e->ids[i];      /* fresh press */
+                rec->id   = ce->ids[i];     /* fresh press */
                 rec->flag = 1;
                 rec->ts   = now;
             }
