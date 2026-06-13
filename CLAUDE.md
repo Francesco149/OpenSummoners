@@ -149,16 +149,26 @@ changelog. Active multi-session plans: `docs/plans/`.
   argderef/chain/rngcalls/renderid/thisderef; a new *kind* = one `src:` in the **Frida
   agent**'s `ctReadField`, `tools/frida/opensummoners-agent.js`). How-to:
   `docs/parity-harness.md`.
-- **TRACE STUDIO v2 — the draw-stream review loop (the v1 web studio is RETIRED, ckpt 128
-  USER directive).** Capture is the `.osr` draw stream on BOTH sides: retail via the native
-  Frida-free proxy `tools/capture_proxy/run_proxy.sh`, the port via
-  `opensummoners.exe --osr-emit <path>` (M5; same codec `src/osr_format.h`).  Review is the
-  NATIVE viewer `tools/osr_view` (ImGui/DX11, Windows) + `--osr-replay` for headless BMP
-  reconstruction; reader `tools/trace_studio2/osr.py`.  **Do NOT start the old `:8779` web
-  serve or generate `tools/trace_studio.py` captures** — v2 supersedes them entirely (the
-  marks/worklist hand-off returns inside osr_view at M7; plan `docs/plans/trace-studio-v2.md`).
-  Old v1 sessions in `runs/trace-studio/` are kept read-only (their navs/traces are still
-  the proven scenario inputs).
+- **TRACE STUDIO v2 is THE parity studio — the draw-stream review loop (v1 web studio RETIRED,
+  ckpt 128 USER directive).** Capture is the `.osr` draw stream on BOTH sides: retail via the
+  native Frida-free proxy `tools/capture_proxy/run_proxy.sh`, the port via
+  `opensummoners.exe --osr-emit <path>` (same codec `src/osr_format.h`).  Review is the NATIVE
+  viewer **`tools/osr_view`** (ImGui/DX11, Windows): `osr_view.exe <port.osr> <retail.osr>` = the
+  tick-joined PORT|RETAIL|DIFF scrub + a diff heat ribbon + the **frame-draw DRILL** (step a frame
+  draw-by-draw, pixel→draw pick) + the NOTE/mark hand-off; `--osr-replay` is headless BMP recon.
+  Verdict/pairing + the agent read-side of marks: `tools/trace_studio2/{osr.py,pair.py,notes.py}`.
+  **Do NOT start the old `:8779` web serve or `tools/trace_studio.py` captures** (RETIRED; old
+  `runs/trace-studio/` sessions are read-only nav inputs only).  Plan/roadmap:
+  `docs/plans/trace-studio-v2.md`.
+  **THE WORKFLOW (USER-set 2026-06-13, persist it):** (1) inspect EVERY render divergence in the
+  frame-draw DRILL — don't eyeball; step the draws / pick the pixel to name the wrong, missing, or
+  mis-ordered draw; the draw SEQUENCE itself is eventually matched port↔retail for maximum
+  faithfulness.  (2) On ANY change the USER should visually confirm, GIVE the exact
+  `osr_view.exe <port.osr> <retail.osr>` command (the human launches it on Windows) — make this a
+  standing habit, not an afterthought.  (3) The USER drops crop+text MARKS → `osr_notes.jsonl`;
+  read them with `nix develop --command python3 tools/trace_studio2/notes.py <port.osr>
+  <retail.osr> --render` (renders the cropped port|retail|diff at the marked tick).  (4) A studio
+  SHORTCOMING is a new studio FEATURE to build, never a workaround.
   **Chase divergences on the SIM-TICK axis, never the flip axis** (ckpt 105): tick = easer
   `0x43d1d0` call count (port mirror `g_sim_tick_count`), carried on every `.osr` FRAMEBEG —
   tick mismatch at a divergence = phase pillar, tick match with pixels differing = real

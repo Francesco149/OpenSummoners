@@ -350,17 +350,27 @@ is "at which tick do the pixels first differ, and which draw caused it."
   costs are gone. Reconstruction (the pixel work) is a separate Windows batch step,
   off the capture hot path entirely.
 
-## Build / run (provisional)
+## Build / run (ACTUAL — the native flow; the original ":8780 server" plan was
+## abandoned for the native osr_view, USER ckpt 126)
 
 ```sh
-# build the proxy DLL (same toolchain as the port):
+# build the proxy DLL + the native viewer (same toolchain as the port):
 nix develop --command make -C tools/capture_proxy      # → build/ddraw_proxy.dll
+nix develop --command make -C tools/osr_view           # → build/osr_view.exe
 
-# capture a scenario on both sides into a v2 session (NO Frida):
-nix develop --command python3 -m tools.trace_studio2 capture <scenario> --session NAME
+# CAPTURE both sides' .osr (NO Frida; artifacts on native C:\oss-osr\):
+tools/capture_proxy/run_proxy.sh <nav>                 # retail → C:\oss-osr\retail.osr
+opensummoners.exe --osr-emit C:\oss-osr\port.osr [--osr-scenario NAME]   # port (inside nix develop)
 
-# serve the viewer (:8780, isolated from v1's :8779):
-nix develop --command python3 -m tools.trace_studio2 serve --session NAME
+# VERDICT (tick-join PASS/gaps/anchor-RNG, runs from WSL, streams multi-GB files):
+nix develop --command python3 tools/trace_studio2/pair.py <port.osr> <retail.osr>
+
+# REVIEW (on Windows): the tick-joined PORT|RETAIL|DIFF scrub + diff ribbon + the
+# frame-draw drill + the crop/note marks:
+build/osr_view.exe C:\oss-osr\port.osr C:\oss-osr\retail.osr
+
+# READ the USER's marks back (renders the cropped port|retail|diff at each mark):
+nix develop --command python3 tools/trace_studio2/notes.py <port.osr> <retail.osr> --render
 ```
 
 ## Isolation + retirement

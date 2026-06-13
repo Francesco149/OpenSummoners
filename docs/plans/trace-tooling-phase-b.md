@@ -1,7 +1,9 @@
 # Phase B — unified harness + divergence tracing
 
 > **Status (2026-06-10, ckpt 103): PLAN CLOSED.** B2 + B3 landed 2026-06-05/06; B1 and
-> Phase C are both SUPERSEDED/DELIVERED by the **TRACE STUDIO**
+> Phase C are both SUPERSEDED/DELIVERED by the **TRACE STUDIO** — note the studio named
+> below (v1 `trace_studio.py`/`:8779`) is itself RETIRED as of ckpt 128; the live studio
+> is the native **v2** (`docs/plans/trace-studio-v2.md`, CLAUDE.md).  Historical text:
 > (`docs/plans/trace-studio.md`, `docs/trace-studio.md`): `trace_studio.py capture` IS
 > the one scenario entry point B1 wanted (input replay, seed pin, lockstep, alignment,
 > capture, diff, verdict in one command), and `serve` is the Phase-C scrubber — pulled

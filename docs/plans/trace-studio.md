@@ -1,8 +1,15 @@
-# Trace Studio — the scrub-and-mark viewer for port↔retail trace parity
+# Trace Studio v1 — the scrub-and-mark viewer for port↔retail trace parity (RETIRED)
 
-> Status (2026-06-09): v1 BUILT this checkpoint. The USER pulled this forward from
-> Phase C ("gated on a controllable character") because input injection already
-> works and visual checks are now frequent. Modeled on openrecet's
+> **RETIRED (ckpt 128, USER directive) — SUPERSEDED by Trace Studio v2.**  This v1
+> plan (the Python `tools/trace_studio.py` + `:8779` web SPA) is kept only as a design
+> record.  The current studio is the native draw-stream pipeline: `.osr` capture on
+> both sides → the native `tools/osr_view` scrub/drill/marks.  Do NOT build or run
+> anything described here.  See **`docs/plans/trace-studio-v2.md`** and CLAUDE.md's
+> trace-studio bullet.
+>
+> Status (2026-06-09, historical): v1 BUILT this checkpoint. The USER pulled this
+> forward from Phase C ("gated on a controllable character") because input injection
+> already works and visual checks are now frequent. Modeled on openrecet's
 > `tools/trace_studio` (the proven loop); adapted to this project's harness.
 
 ## What it is
