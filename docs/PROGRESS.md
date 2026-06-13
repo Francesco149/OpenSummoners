@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 133) — the dialogue TYPEWRITER-SKIP ported: the confirm-while-typing desync blocker is closed; the port advances at the press cadence (chain @hold 2571 vs 11365)
+
+The USER-flagged ckpt-132 blocker.  The port modeled only the ADVANCE half of the dialogue confirm, so it
+waited out every typewriter while retail skips+advances — the port lagged, the two desynced, and the
+dialogue-section 1:1 studio compare was blocked.
+
+- **RE'd the skip from the beat-runner `0x439690:976-1011`.** The dialogue box widget is in state 1 (typing)
+  OR state 2 (waiting) — an `if/else-if` (`:978` vs `:1004`), MUTUALLY EXCLUSIVE per tick.  Retail's ONE
+  confirm (ENTER/X = ring `0x24`) does exactly one thing: press while TYPING → SKIP (`FUN_0043bca0`'s `0x24`
+  poll calls `FUN_0043ce50(9)`→`FUN_0043ca40(9)`, forcing the text machine fully-shown and returning 3; the
+  beat-runner reads the 3 to step state 1→2); press while COMPLETE → ADVANCE (`FUN_0043b980`).  The skip
+  press is consumed by state 1; it does NOT also advance that tick → ~2 confirms/line, retail's cadence.
+  (`FUN_0043ca40`/`FUN_0043ce50` are the SAME generic widget engine the menu ports — `menu_list_nav`/the
+  latch; the dialogue box is a separate reduced model.)  Commit `56f270d`.
+- **Ported** `dialogue_typing` (content-visible && reveal<total = state 1) + `dialogue_skip_reveal`
+  (reveal→total) in `dialogue.{c,h}`; `cutscene_step` now SKIPs (if typing) else ADVANCEs (if awaiting) on
+  the confirm — a confirm during the pop-in is eaten with no effect (faithful to `FUN_0043ce50` returning 0
+  until scale==1000).  Renamed `advance_pressed`→`confirm_pressed`.  Host test `cutscene_typewriter_skip`.
+- **The live CONFIRM is ENTER/X not Z — RE'd the `0x46a880` producer** (the `findings/input.md` "only
+  remaining black box", now RESOLVED — commit `3bd9a76`).  The ring WRITER walks the pressed keys and posts
+  ring events: FIXED binds (ENTER `0x1c`→`0x24`, ESC/BACKSPACE→`0x27`, arrows→1/3/2/4) + CONFIGURABLE buttons
+  from `*0x8a6e80` (each fans out): `+0x558`(X)→{8,0x25,**0x24**}, `+0x574`(C)→{**7**,0x27}, `+0x5ac`→
+  {0x26,0x24}, `+0x590`(Z)→{**9**,…}.  So CONFIRM = ENTER (fixed) or X (config +0x558); Z is the `+0x590`
+  sheathe button (ring 9, NOT confirm).  Fixed `input_live.c` KEYMAP (ENTER+X→`0x24`, dropped Z→`0x24`); the
+  per-key SCANCODE defaults stay `PORT-DEBT(keybind-config)`.
+- **Verified.** Host suite 1012 pass (+1).  Over the same confirm nav the chain COMPLETES @hold 2571 vs the
+  old advance-only 11365 (4.4× — the port advances at the press cadence, no longer waiting out typewriters).
+  A fresh `C:\oss-osr\port-skip.osr` tick-joins `retail.osr` **2027/2042 paired, 3 anchors RNG-aligned** —
+  the port stays on retail's tick axis through the dialogue.  Montage on the feed (arrival→house, skip-driven).
+  RETIRES `PORT-DEBT(dialogue-typewriter-skip)`.  NEXT: the studio CONTENT 1:1 sweep — a matched-cadence nav
+  (the port spam-nav vs retail's nav must press `0x24` at the same sim-ticks for per-line content alignment),
+  then drill residual divergences in `osr_view`.
+
 ## 2026-06-13 (ckpt 132) — the dialogue BOX POSITION ported faithfully (`0x49c640`): the box anchors to the speaker, 17/18 town lines bit-exact
 
 The last ckpt-131 rendering gap up to the errands.  The port hardcoded the box at (174,148) (the line-1

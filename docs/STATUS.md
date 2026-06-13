@@ -34,14 +34,15 @@ understates how much actual instruction volume is ported.
 
 - **Phase:** Phase 4 — the town intro renders ~1:1; the cutscene chains arrival→house→errands and all three
   ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
-  errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Five gaps closed (ckpt 131:
-  errands floor tileset, house+errands props, the dialogue-portrait +13 offset; ckpt 132: the dialogue BOX
-  POSITION — faithful `0x49c640`).  **NEXT (USER-set ckpt 132): the dialogue TYPEWRITER-SKIP — the dialogue
-  input is ENTER/X (the confirm; press once = SKIP the typewriter, again = ADVANCE; Z has NO dialogue role),
-  and the port models only ADVANCE (no skip) → it lags retail's progression → the two DESYNC → blocks the
-  1:1 studio compare; then SWEEP the studio for any other gap blocking a clean frame-by-frame 1:1 up to the
-  errands.  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live
-  input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
+  errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Gaps closed: ckpt 131 errands
+  floor tileset / house+errands props / the dialogue-portrait +13 offset; ckpt 132 the dialogue BOX POSITION
+  (faithful `0x49c640`); **ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker) — DONE.**  **NEXT
+  (USER-set): SWEEP the studio for a clean frame-by-frame 1:1 of the dialogue up to the errands — the skip
+  unblocked it; the immediate sweep step is a MATCHED-CADENCE nav (the port + retail must press confirm 0x24
+  at the SAME sim-ticks so per-line progression aligns; the current port nav is a `0x24`-spam, retail drives
+  its own cadence → the timelines pair but the dialogue CONTENT won't be tick-1:1 until the navs match).
+  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input —
+  mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -49,7 +50,27 @@ understates how much actual instruction volume is ported.
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **trace-studio v2 ✓ (ckpt 125-129) →
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → the FREEROAM HAND-OFF (controllable Arche in
     the errands room) = next**.
-- **LATEST (ckpt 132): the dialogue BOX POSITION is PORTED FAITHFULLY (`0x49c640` over the `0x490b90`
+- **LATEST (ckpt 133): the dialogue TYPEWRITER-SKIP is PORTED — the confirm-while-typing desync blocker is
+  CLOSED; the port now advances dialogue at the PRESS cadence (chain COMPLETE @hold 2571 vs the old 11365,
+  4.4×).**  The USER-flagged ckpt-132 blocker.  RE'd from the beat-runner `0x439690:976-1011` — the box
+  widget is in state 1 (typing) OR state 2 (waiting), an if/else-if, so retail's ONE confirm (ENTER/X = ring
+  `0x24`) does exactly ONE thing per tick: press while TYPING → SKIP (`FUN_0043ce50(9)`→`FUN_0043ca40(9)`
+  forces the text fully-shown, `FUN_0043bca0` returns 3 → state 1→2); press while COMPLETE → ADVANCE
+  (`FUN_0043b980`).  The skip press is consumed, NOT also advancing — ~2 confirms/line, the SAME cadence as
+  retail (the old advance-only port waited out every typewriter → lagged → desync).  **Ported** `dialogue_typing`
+  + `dialogue_skip_reveal` (reveal→total) in `dialogue.{c,h}`; `cutscene_step` now SKIPs-or-ADVANCEs on the
+  confirm (mutually exclusive); renamed `advance_pressed`→`confirm_pressed`.  **Also (ckpt 133): the live
+  CONFIRM is ENTER/X not Z — RE'd the `0x46a880` producer** (the ring WRITER, the input.md "only remaining
+  black box", now RESOLVED): ENTER (`0x1c`) is the FIXED `0x24` binding, X (config `+0x558`, the attack key)
+  also posts `0x24`; Z is the `+0x590` sheathe button (→ ring 9, NOT confirm).  Fixed `input_live.c` KEYMAP
+  (ENTER+X→`0x24`, dropped the wrong Z→`0x24`).  **Verified:** host test (skip-then-advance, X/ENTER confirm,
+  Z does not) + the 4.4× completion collapse + a fresh `C:\oss-osr\port-skip.osr` tick-joins retail.osr
+  **2027/2042 paired, 3 anchors RNG-OK** (the port stays on retail's tick axis through the dialogue).  1012
+  host pass (+1).  Montage on the feed (arrival→house, skip-driven).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-skip.osr C:\oss-osr\retail.osr`** — boot→town is pixel-1:1; the DIALOGUE
+  section will show nav-cadence divergence (the port spam-nav vs retail's nav) until a matched nav lands —
+  that mismatch is the NEXT sweep step, NOT a skip bug.
+- **Prior (ckpt 132): the dialogue BOX POSITION is PORTED FAITHFULLY (`0x49c640` over the `0x490b90`
   projection) — 17/18 town-intro lines bit-exact vs retail; the box now ANCHORS to the speaker.**  The
   USER-chosen faithful fix for the last ckpt-131 rendering gap.  Captured EVERY `0x49c640` input from retail
   (`tools/flow/box_pos_inputs_fields.json` + a new `argchain` agent read kind; `runs/box-pos-inputs`), which

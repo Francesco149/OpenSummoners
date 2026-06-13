@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 132, 2026-06-13)
+# Session handoff — rolling current state (last updated ckpt 133, 2026-06-13)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,73 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 132
+## Where we are — ckpt 133
+
+**The dialogue TYPEWRITER-SKIP is ported — the confirm-while-typing desync blocker (USER-flagged ckpt 132)
+is CLOSED.  The port now advances dialogue at the PRESS cadence: over the same confirm nav the chain
+COMPLETES @hold 2571 vs the old advance-only 11365 (4.4×), and a fresh `port-skip.osr` tick-joins
+`retail.osr` 2027/2042 paired with all 3 anchors RNG-aligned.**  1012 host pass (+1).
+
+**What landed:**
+- **The skip mechanic (RE'd from the beat-runner `0x439690:976-1011`).** The dialogue box widget is in
+  state 1 (typing) OR state 2 (waiting) — an `if/else-if` (`:978` vs `:1004`), MUTUALLY EXCLUSIVE per tick.
+  Retail's ONE confirm (ENTER/X = ring `0x24`) does exactly one thing: press while TYPING → SKIP
+  (`FUN_0043bca0`'s `0x24` poll calls `FUN_0043ce50(9)`→`FUN_0043ca40(9)`, which forces the text machine
+  fully-shown and returns 3; the beat-runner reads the 3 to step state 1→2); press while COMPLETE → ADVANCE
+  (`FUN_0043b980`).  The skip press is CONSUMED by state 1; it does NOT also advance that tick → ~2
+  confirms/line, retail's cadence.  The old port modeled only the advance half → waited out every typewriter
+  → lagged → desync → blocked the dialogue 1:1 compare.  NOTE: `FUN_0043ca40`/`FUN_0043ce50` are the SAME
+  generic widget engine the menu ports (`menu_list_nav`/the latch) — the dialogue box is a separate reduced
+  model.
+- **Port:** `dialogue_typing` (content-visible && reveal<total = state 1) + `dialogue_skip_reveal`
+  (reveal→total = the `FUN_0043ca40(9)` force-complete) in `dialogue.{c,h}`; `cutscene_step` now SKIPs (if
+  typing) else ADVANCEs (if awaiting) on the confirm; a confirm during the pop-in is eaten with no effect
+  (faithful to `FUN_0043ce50` returning 0 until scale==1000).  Renamed `advance_pressed`→`confirm_pressed`.
+- **The live CONFIRM is ENTER/X not Z (RE'd the `0x46a880` producer — the input.md "only remaining black
+  box", now RESOLVED).** The ring WRITER: walks the pressed keys, per key posts ring events.  FIXED keyboard
+  binds (ENTER `0x1c`→`0x24` confirm, ESC `0x01`/BACKSPACE `0x0e`→`0x27`, arrows→1/3/2/4) + CONFIGURABLE
+  buttons read from `*0x8a6e80` (each fans out to several ring ids): `+0x558`(X)→{8,0x25,**0x24**},
+  `+0x574`(C)→{**7**,0x27}, `+0x5ac`→{0x26,0x24}, `+0x590`(Z)→{**9**,…}.  So CONFIRM = ENTER (fixed) or X
+  (config +0x558); Z is the `+0x590` sheathe button (→ ring 9, NOT confirm — by elimination + the USER).
+  Fixed `input_live.c` KEYMAP: ENTER+X→`0x24`, dropped the wrong Z→`0x24`.  The per-key SCANCODE *defaults*
+  stay `PORT-DEBT(keybind-config)`.
+- **Verified:** host test `cutscene_typewriter_skip` (confirm-while-typing completes the reveal, no advance;
+  the NEXT confirm advances; a confirm in pop-in is a no-op) + `input_live_ring_press_once` (X AND ENTER
+  post `0x24`, Z does not); the 4.4× completion collapse (11365→2571 @hold); `pair.py port-skip.osr
+  retail.osr` = PASS, 2027/2042 ticks paired, anchors RNG-aligned (the port stays on retail's tick axis).
+
+**NEXT MOVE (USER-set) — the studio CONTENT sweep: a clean frame-by-frame 1:1 of the dialogue up to the
+errands.**  The skip unblocked it (the port can now keep up).  The immediate step is a **MATCHED-CADENCE
+nav**: the port + retail must press confirm `0x24` at the SAME sim-ticks so the per-line progression aligns.
+The current port nav (`runs/cutscene-verify/nav-zspam-ext.jsonl`) is a `0x24`-SPAM; retail.osr was driven by
+the proxy's own nav — so `pair.py` shows the timelines PAIR (2027/2042) but the dialogue CONTENT won't be
+tick-1:1 until the navs match.  Build the matched nav (derive retail's per-line advance ticks from
+`retail.osr`'s dialogue-text changes → a port nav that presses `0x24` at those ticks; or drive BOTH sides
+from one tick-keyed nav), then drill any residual per-line divergence in `osr_view`.  USER-VERIFY of the
+skip:  `osr_view.exe C:\oss-osr\port-skip.osr C:\oss-osr\retail.osr` (boot→town pixel-1:1; the DIALOGUE shows
+nav-cadence divergence until the matched nav lands — NOT a skip bug).  **Carried follow-ups** (do as the
+sweep surfaces them): the bubble TAIL x (still `box_x+188`; derive via `0x49c640`'s tail-x clamp); the
+arrival L10 camera pan / cast walk-in (`cutscene-party-chars`); the errands CHARACTER-band shop items + room
+cast (`actor-sprite-table`).  **THEN the FREEROAM HAND-OFF** (behind the 1:1 bar): at the errands room
+(`0x334dc`) STOP the sequencer + run `character_step` on the live `axis_held` (`+0x200==0` char-AI; mover
+DONE bit-exact, quirk #103).  Plan: `plans/controllable-arche-faithful.md` Phase 2.
+
+**Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub (`osr_view.exe <one.osr>`)
+has no notes panel.  The mark→`notes.py` round-trip needs single-file support.
+
+**Module layout (ckpt 133):** `src/dialogue.{c,h}` (`dialogue_typing` + `dialogue_skip_reveal`),
+`src/cutscene.{c,h}` (`cutscene_step` SKIP-or-ADVANCE; `confirm_pressed` rename), `src/main.c` (the confirm
+poll → `cutscene_step`), `src/input_live.{c,h}` (KEYMAP: ENTER+X→`0x24`, Z dropped; `DIK_RETURN`),
+`tests/test_cutscene.c` (+`cutscene_typewriter_skip`), `tests/test_input_live.c` (the X/ENTER/Z confirm
+asserts), `docs/findings/input.md` (the `0x46a880` producer RESOLVED).  Artifacts (gitignored):
+`C:\oss-osr\port-skip.osr` (the skip capture).
+
+**OPEN RE threads:** the studio CONTENT 1:1 sweep (matched-cadence nav, next); the bubble tail x; the
+errands CHARACTER-band shop items + room cast; the freeroam hand-off (behind the 1:1 bar); the per-key
+SCANCODE defaults (`PORT-DEBT(keybind-config)`, the `*0x8a6e80` launcher config); carried — the errands
+questline `0x4dc510`.
+
+## Where we were — ckpt 132
 
 **The dialogue BOX POSITION is ported FAITHFULLY (the last ckpt-131 rendering gap up to the errands): the
 box now ANCHORS to the speaker — 17/18 town-intro lines bit-exact vs retail.**  `dialogue_box_position`
@@ -35,44 +101,15 @@ projected through the LIVE camera.  1011 host pass (+1).  Quirk #106; fresh port
   it at 12800: the upstream-input pillar (the camera), downstream of PORT-DEBT(cutscene-party-chars) + the
   camera-pan debt, NOT a box-logic bug.
 
-**NEXT MOVE (USER-set ckpt 132) — close the dialogue TYPEWRITER-SKIP, then SWEEP for a clean 1:1 up to the
-errands BEFORE the freeroam.**  The USER's bar is a clean frame-by-frame 1:1 through the errands; the
-studio compare of the DIALOGUE section is currently blocked by a sync gap I missed:
-- **`dialogue-typewriter-skip` (the blocker).** The dialogue input is ENTER or X — the CONFIRM action, which
-  the nav injects as ring id 0x24 and which BOTH sides advance on through the captures (so 0x24 IS that
-  confirm; the port's old "Z" label was WRONG — USER ckpt 132: **Z has NO dialogue interaction**).  Retail's
-  ONE confirm does BOTH, in order: press while TYPING → SKIP (complete the reveal instantly); press while
-  COMPLETE → ADVANCE.  The port models only ADVANCE (`cutscene_step` takes `advance_pressed`; `dialogue_step`
-  auto-reveals at its cadence) — NO skip — so retail rips through lines (~2 presses each) while the port
-  waits out every typewriter → the port LAGS → desync → no tick-aligned compare.  **RE first** (don't guess):
-  the typewriter stepper `0x43bca0` (returns 3 when fully shown — `439690.c:980`), whether the skip press is
-  consumed, and the key→ring-id map via the producer `0x46a880`.  Harness-capture the reveal counter under a
-  confirm-driven nav.  **Then port:** on confirm-while-typing jump `reveal -> total` (the next confirm
-  advances); consider renaming `advance_pressed` → `confirm_pressed`.
-- **Then SWEEP** the studio (`osr_view` port vs retail, tick-joined) across arrival→house→errands for ANY
-  other gap blocking a clean 1:1 (the USER's loop: drill each divergence; the box position + portraits are
-  done).
-- **Carried follow-ups** (do as the sweep surfaces them): the bubble TAIL x (still `box_x+188`; derive via
-  `0x49c640`'s tail-x clamp from the same projection); the arrival L10 camera pan / cast walk-in
-  (`cutscene-party-chars`); the errands CHARACTER-band shop items + room cast (`actor-sprite-table`).
+**Planned next (ckpt 132): the dialogue TYPEWRITER-SKIP then the studio 1:1 sweep — DONE/SET in ckpt 133
+(above): the skip landed; the studio CONTENT sweep (matched-cadence nav) is the current next move.**
 
-**THEN the FREEROAM HAND-OFF** (deferred behind the 1:1 bar): at the errands room (`0x334dc`) STOP the
-sequencer and run `character_step` on the live `axis_held` (`+0x200==0` char-AI; mover DONE bit-exact, quirk
-#103).  Plan: `plans/controllable-arche-faithful.md` Phase 2 (VERIFIED).
-
-**Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub (`osr_view.exe <one.osr>`)
-has no notes panel.  The mark→`notes.py` round-trip needs single-file support.
-
-**Module layout (this ckpt):** `src/dialogue.{c,h}` (`dialogue_box_position` + `dialogue_speaker_body` + the
+**Module layout (ckpt 132):** `src/dialogue.{c,h}` (`dialogue_box_position` + `dialogue_speaker_body` + the
 box anchor fields; `dialogue_scaled_rect` takes the anchor), `src/cutscene.{c,h}` (per-line `spk_wx/wy` +
 `speaker_body`), `src/main.c` (`game_render_dialogue` projects the live camera + the `0x49c910` annotation),
 `tools/frida/opensummoners-agent.js` (+`argchain`), `tests/test_dialogue.c` (+`dialogue_box_position_town`).
 Spec: `tools/flow/box_pos_inputs_fields.json`.  Artifacts (gitignored): `runs/box-pos-inputs`;
 `C:\oss-osr\port-boxpos.osr`.
-
-**OPEN RE threads:** the dialogue typewriter-SKIP (`0x43bca0` + the ENTER/X ring id, next); the studio 1:1
-sweep up to errands; the bubble tail x; the errands CHARACTER-band shop items + room cast; the freeroam
-hand-off (behind the 1:1 bar); carried — the errands questline `0x4dc510`.
 
 ## Where we were — ckpt 131
 
