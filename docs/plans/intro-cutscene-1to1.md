@@ -74,15 +74,22 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   arm tick).  **VERIFIED LUT-byte-identical port↔retail, 13/13 portrait ticks, EVERY arrival
   line** (L0 @150,76 / L1 @70,88 / L2 @38,76 / L3 @70,88 — all fade-in ticks match).  See
   engine-quirk #108.
-- **FOLLOW-UP (NEW, ckpt 135) — the PORTRAIT FADE-OUT dissolve.**  Surfaced by the fade-in
-  verification: on a SPEAKER CHANGE retail DISSOLVES the OUTGOING bust out (reverse ramp idx
-  18→0, `0x49c910` f≥0x1f5 half) at its OLD box anchor while that box is still full-scale —
-  retail.osr L0→L1: the Father bust at (150,76) ramps idx 18→2 over ticks 688-696 then
-  vanishes, BEFORE the new box re-opens at (70,88) tick 706.  The PORT holds the old bust
-  OPAQUE through 688-696 then cuts it (no dissolve).  Pre-existing (the fade-in fix did not
-  cause it); the port models the speaker change as a separate closing box that draws content
-  at full opacity.  Owner: a new chip — fade the closing box's portrait via the reverse ramp.
-  See engine-quirk #108 (FADE-OUT bullet).
+- **FOLLOW-UP (NEW, ckpt 135) — the PORTRAIT FADE-OUT dissolve (the open chip).**  Surfaced
+  by the fade-in verification: on a SPEAKER CHANGE retail DISSOLVES the OUTGOING bust out via
+  the REVERSE ramp (idx 18→2, the same ramp_b LUTs as the fade-in backwards, verified
+  LUT-exact) at its OLD anchor while the box is still full-scale, THEN the box closes.  The
+  PORT holds the old bust OPAQUE then cuts it.  **Drawcall-exact model (consistent across
+  every arrival speaker change): the fade-out is `[advance_press − 2, advance_press + 6]`
+  (9 ticks idx 18,16,..,2), the bust GONE at `press + 7`** = the tick the box shrinks.
+  L0→L1 press 690 → 688-696 (Father @150,76); L1→L2 735 → 733-741 (Arche @70,88); L2→L3 780
+  → 778-786 (Mother @38,76).  **The catch: the fade-out LEADS the advance press by 2 ticks**
+  — decoupled from the box-frame overlap (which the port triggers AT the press; the box 28/28
+  used the `advance_tick − 6` nav).  So the fix is NOT just "fade the closing snapshot from
+  the press": it needs the closing-box portrait fade-out (reverse ramp) AND a re-derivation
+  of the speaker-change advance offset jointly against the box-frame + this 2-tick lead (is
+  the true advance at press−2?  does input register 2 ticks before the box reacts?).  An
+  approximation (fade from the press → first 2 ticks idx 18,16 wrong) is forbidden.  See
+  engine-quirk #108 (FADE-OUT bullet).
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)
 

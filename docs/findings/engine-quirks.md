@@ -3611,10 +3611,22 @@ truth, drawcall + LUT exact:
   early (idx 2 at 661 = the USER's ckpt-134 "portrait slightly less dim", maxd 17 — a
   uniform 1-ramp-step over-brightness).  Ported: `dialogue_box.fade_armed` (`dialogue.c`
   `dialogue_step` gates the `portrait_fade += 50` on a prior arm tick).
-- **FADE-OUT (the old cel, `0x49c910` state 1, f >= 0x1f5):** as f runs 500→1000 the
-  PREVIOUS speaker's bust dissolves out via the REVERSE ramp `((1000-f)*0x14)/500`
-  (idx 18→0) at its OLD box anchor while that box is still full-scale — retail.osr
-  L0→L1: the Father bust at (150,76) ramps 18→2 over ticks 688-696 then vanishes,
-  BEFORE the new box re-opens at (70,88) tick 706.  (Port status as of ckpt 135: the
-  fade-IN is ported; the fade-OUT dissolve is the open follow-up — the port holds the
-  old bust OPAQUE then cuts it.)
+- **FADE-OUT (the old cel, `0x49c910` state 1, f >= 0x1f5, or the state-2/3 fade-out):**
+  on a SPEAKER CHANGE the PREVIOUS speaker's bust dissolves out via the REVERSE ramp
+  (idx 18→2, the SAME ramp_b LUTs as the fade-in played backwards — verified LUT-exact)
+  at its OLD box anchor while that box is still full-scale, THEN the box closes.
+  **Window (drawcall+LUT-exact, CONSISTENT across every arrival speaker change):
+  `[advance_press − 2, advance_press + 6]` (9 ticks, idx 18,16,..,2), the bust GONE at
+  `advance_press + 7` — the tick the box starts shrinking.**  retail.osr (matched nav):
+  L0→L1 press 690 → fade-out 688-696, gone 697 (Father @150,76); L1→L2 press 735 →
+  733-741, gone 742 (Arche @70,88); L2→L3 press 780 → 778-786, gone 787 (Mother @38,76).
+  **The fade-out LEADS the advance press by 2 ticks** — i.e. it is decoupled from the
+  box-frame overlap/close, which the port triggers AT the press (the box-frame 28/28
+  match used the `advance_tick − 6` nav).  So a faithful port can NOT just fade the
+  closing-box snapshot from the press tick: the first 2 fade-out ticks (idx 18,16) land
+  while the OLD box is still the MAIN box, before the advance is processed.
+  **Port status (ckpt 135): the fade-IN is ported; the fade-OUT is the open chip** — it
+  needs the closing-box portrait fade-out (reverse ramp) AND a re-derivation of the
+  speaker-change advance offset jointly against the box-frame + this 2-tick lead (is the
+  real advance at press−2, or does the input register 2 ticks before the box reacts?).
+  The port currently holds the old bust OPAQUE through the linger then cuts it at +7.
