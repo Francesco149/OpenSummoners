@@ -3542,3 +3542,37 @@ under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading o
   clamp is load-bearing, not cosmetic — porting the LOGIC (not baking the result)
   is what reproduces the off-screen-speaker cases.  Formula verified bit-exact
   against all 18 town-intro lines (port-side `dialogue_box_position`, ckpt 131).
+
+### #107 — the dialogue box is PERSISTENT across a conversation: a SAME-speaker page advance keeps it open (body re-types on the next tick, gap 1t), but a SPEAKER CHANGE closes it ~9t then re-opens, and the typewriter is 1 char / 5 ticks with an INSTANT skip (2026-06-13, ckpt 134)
+
+Read straight off `retail.osr` (the rendered body-text glyphs per sim-tick,
+colour `0x3e537d`; `tools/trace_studio2/dialogue_timeline.py`) over the town
+arrival dialogue — retail ground truth, not the port's behaviour:
+- **The typewriter is `1 char / 5 ticks`** (a normal char's reveal grade is 5
+  sim-ticks; a SPACE reveals in 1 — e.g. L5 'I'+5t→' '+1t→'w').  The SKIP is an
+  **instant `reveal → total` jump in ONE tick** (L0 tick 671→672: 3 chars → all
+  63).  Retail's nav types a few chars then presses confirm to SKIP, holds, then
+  presses again to ADVANCE — ~2 confirms/line.  (So note #4's "port reveals text
+  earlier" was the port's `0x24`-SPAM skipping the instant each line armed, NOT a
+  reveal-rate difference — the rate + instant skip were already faithful.)
+- **A SAME-speaker page advance KEEPS the box open** — the speaker NAME persists,
+  only the body clears and re-types from the very next tick (gap 1t).  retail.osr
+  arrival L3→L4→L5 are all Arche: each advance is a 1-tick body reset, the name
+  unbroken, no pop-in.
+- **A SPEAKER CHANGE closes + re-opens the box.**  The NAME and body both go
+  blank for ~9 ticks (retail L0 Father last shown tick 696, blank 697-705), then
+  the new speaker's NAME appears (tick 706 = advance+10) and the body types from
+  tick 707 (advance+11).  The re-open is FASTER than the first box: the first box
+  of the conversation SLIDES in over ~15t (a single cel moving from the speaker to
+  the anchor, tick 645→660, content gated at the end), but a mid-conversation
+  re-open grows in place over ~10t.  Every arrival speaker change is **advance+11t
+  to the next line's first char**, uniformly.
+- **Port model (ckpt 134):** `dialogue_set_text` (same-speaker, no re-pop) +
+  `dialogue_reopen` from half scale (`DIALOGUE_REOPEN_SCALE=500` → the +50/update
+  pop-in completes in ~10 updates = advance+11t).  The word-wrap also KEEPS the
+  trailing space (retail renders it: y=196 row "…our new " ends in a space), so
+  the body is byte-identical.  Verified: the matched-cadence-nav `port-matched.osr`
+  tracks `retail.osr` tick-for-tick over arrival L0-L7 (314/323 ticks of name+body
+  identical; start/full/advance all bit-equal).  Known residual: the body clears
+  one FLIP early at an advance (the port consumes the confirm the same flip it is
+  pressed; retail clears it the next flip) — a sub-tick input-ordering detail.

@@ -10,25 +10,43 @@
   ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
   errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Gaps closed: ckpt 131 errands
   floor tileset / house+errands props / the dialogue-portrait +13 offset; ckpt 132 the dialogue BOX POSITION
-  (faithful `0x49c640`); **ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker) — DONE** (the port now
-  advances at the press cadence; USER: "an improvement but not 1:1 — retail is a little slower").  **NEXT
-  (USER-set ckpt 133): make the WHOLE intro cutscene → errands 1:1 — the skip unblocked a real studio compare
-  and the USER's `osr_view` pass flagged 8 GAPS in 3 themes (the punch-list →
-  `plans/intro-cutscene-1to1.md`): (1) dialogue TIMING (the port reveals faster than retail — probe retail's
-  reveal curve), (2) the cutscene CAST + ambient render (butterfly/NPC colour + animation —
-  `cutscene-party-chars`/butterfly debts), (3) the arrival→house TRANSITION CHOREOGRAPHY (retail scripts
-  Arche running to the house + a fade-from-black house-entry reveal; the port SNAPS — `cutscene-beat-runner`).
-  Prerequisite: a MATCHED-CADENCE nav (port + retail press 0x24 at the same sim-ticks).  THEN the FREEROAM
+  (faithful `0x49c640`); ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker); **ckpt 134 the MATCHED-
+  CADENCE nav + the dialogue cadence TICK-1:1 — THEME 1 of the punch-list DONE** (the arrival dialogue L0-L7
+  now tracks retail tick-for-tick, 314/323 ticks bit-equal).  **NEXT (the punch-list
+  `plans/intro-cutscene-1to1.md`, THEMES left): (3) the arrival→house TRANSITION CHOREOGRAPHY — retail scripts
+  Arche running to the house (the 167-tick beat between arrival L8/L9, note #5) + a fade-from-black house-entry
+  reveal (#6/#7), the port SNAPS (`cutscene-beat-runner`); (2) the cutscene CAST + ambient render
+  (butterfly/NPC colour + animation — `cutscene-party-chars`/butterfly debts).  THEN the FREEROAM
   HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
   Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
-    CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **trace-studio v2 ✓ (ckpt 125-129) →
-    the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → the FREEROAM HAND-OFF (controllable Arche in
-    the errands room) = next**.
-- **LATEST (ckpt 133): the dialogue TYPEWRITER-SKIP is PORTED — the confirm-while-typing desync blocker is
+    CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → trace-studio v2 ✓ (ckpt 125-129) →
+    the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → dialogue BOX POSITION ✓ (132) → TYPEWRITER-SKIP
+    ✓ (133) → **dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → the arrival→house TRANSITION CHOREOGRAPHY
+    (THEME 3) + the cast render (THEME 2) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 134): the dialogue CADENCE is TICK-1:1 — the MATCHED-CADENCE nav landed and the arrival
+  dialogue (L0-L7) now tracks retail TICK-FOR-TICK (start/full/advance all bit-equal, 314/323 ticks of
+  name+body identical).  THEME 1 of the intro-cutscene punch-list DONE.**  Three chips: (1) **tick-keyed
+  input-trace** — `input_trace` entries may key on the SIM-TICK (`{"tick":N}`) not just the Flip frame, axis
+  PER-ENTRY so one nav MIXES a flip-keyed boot prefix + tick-keyed in-game confirms (the port's Flip cadence
+  differs from retail's, so only the shared sim-tick aligns the dialogue).  (2) **the box re-pop model** —
+  the port re-armed (20-update pop-in) EVERY line; retail keeps the box on a SAME-speaker advance (gap 1t,
+  `dialogue_set_text`, no re-pop) and on a SPEAKER CHANGE re-opens from HALF scale
+  (`dialogue_reopen`, DIALOGUE_REOPEN_SCALE=500 → ~10-update reopen, content at advance+11t = retail).  Plus
+  KEEP the word-wrap space (`dialogue_expand_text`: retail renders the trailing space → body byte-identical).
+  (3) **`dialogue_timeline.py`** reads the reveal curve off any `.osr` (body MAIN glyphs 0x3e537d per tick)
+  + emits the matched nav.  **PROVEN: the port reveal/skip MECHANICS were already faithful** (retail.osr:
+  1 char/5t, space 1t, instant skip — the port's exact model), so note #4 was a CADENCE artifact (the spam
+  nav skipped instantly), NOT a reveal-rate bug.  Residual: the 9 per-tick diffs are the single-tick
+  body-clear FLICKER at the 8 advance boundaries (the port consumes the advance confirm the same flip it is
+  pressed; retail clears one flip later — a sub-tick ordering detail).  1017 host pass (+5).  **USER-VERIFY:
+  recapture `runs/cutscene-verify/nav-matched.jsonl` then `osr_view.exe C:\oss-osr\port-matched.osr
+  C:\oss-osr\retail.osr`** — scrub the arrival dialogue (ticks 661-982): the port now reveals/skips/advances
+  on retail's ticks.  Note the advance-boundary flicker; THEME 3 (Arche-runs gap) starts after L7 (tick 982).
+- **Prior (ckpt 133): the dialogue TYPEWRITER-SKIP is PORTED — the confirm-while-typing desync blocker is
   CLOSED; the port now advances dialogue at the PRESS cadence (chain COMPLETE @hold 2571 vs the old 11365,
   4.4×).**  The USER-flagged ckpt-132 blocker.  RE'd from the beat-runner `0x439690:976-1011` — the box
   widget is in state 1 (typing) OR state 2 (waiting), an if/else-if, so retail's ONE confirm (ENTER/X = ring

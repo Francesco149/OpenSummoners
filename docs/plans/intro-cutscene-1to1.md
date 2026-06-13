@@ -1,12 +1,13 @@
 # Plan — a 1:1 intro cutscene → errands freeroam (the gap punch-list)
 
-> **Status:** OPEN (set ckpt 133).  The dialogue TYPEWRITER-SKIP landed (the port can
-> now keep up with retail's dialogue cadence), which UNBLOCKED a real frame-by-frame
-> studio compare of the intro — and that compare surfaced the remaining gaps below.
-> The USER drove an `osr_view` pass over `port-skip.osr` vs `retail.osr` and dropped 8
-> crop+text MARKS (`C:\oss-osr\osr_notes.jsonl`, rendered to the feed + `note_render/`).
-> **Until ALL of these are faithful there is no 1:1 intro → errands.**  This doc is the
-> durable punch-list; tackle it next session.
+> **Status:** IN PROGRESS (set ckpt 133).  **THEME 1 (dialogue TIMING) + the
+> MATCHED-CADENCE-NAV prerequisite are DONE (ckpt 134)** — the arrival dialogue (L0-L7)
+> now tracks `retail.osr` TICK-FOR-TICK (start/full/advance bit-equal, 314/323 ticks of
+> name+body identical).  THEMES 3 (room-transition choreography) and 2 (cast render)
+> remain.  This doc is the durable punch-list; the USER drove an `osr_view` pass over
+> `port-skip.osr` vs `retail.osr` and dropped 8 crop+text MARKS
+> (`C:\oss-osr\osr_notes.jsonl`).  **Until ALL of these are faithful there is no 1:1
+> intro → errands.**
 
 ## How to reproduce the compare
 - Port capture: `C:\oss-osr\port-skip.osr` (the ckpt-133 skip binary over
@@ -19,39 +20,39 @@
   /mnt/c/oss-osr/port-skip.osr /mnt/c/oss-osr/retail.osr /mnt/c/oss-osr/osr_notes.jsonl
   --render --feed`.
 
-## A prerequisite for ALL per-line/per-tick compares — the MATCHED-CADENCE nav
-The port nav is a `0x24`-SPAM and retail.osr was driven by the proxy's own nav, so the
-two progress through the dialogue at DIFFERENT speeds — the port runs AHEAD (e.g. at tick
-997 the port is already in the house while retail is still in the arrival scene).  The
-`sim_tick` timelines PAIR (2027/2042, `pair.py`), but the CONTENT won't be tick-1:1 until
-both sides press confirm `0x24` at the SAME sim-ticks.  **Build a matched nav** (derive
-retail's per-line advance ticks from `retail.osr`'s dialogue-text changes → a port nav
-that presses `0x24` at those ticks; or drive both sides from one tick-keyed nav).  Several
-gaps below are partly "the port is ahead" artifacts that this collapses — but each names a
-REAL missing feature underneath, so they stand on their own.
+## ✅ DONE (ckpt 134) — the MATCHED-CADENCE nav (the prerequisite)
+Built `tools/trace_studio2/dialogue_timeline.py NAV`: it reads retail's per-line SKIP tick
+(the reveal-jump) + ADVANCE tick off `retail.osr` and emits a nav that presses `0x24` at
+those exact SIM-TICKS.  Enabled by **tick-keyed input-trace** (`input_trace` entries may key
+on `{"tick":N}` not just `{"frame":N}`, axis per-entry so one nav mixes a flip-keyed boot
+prefix + tick-keyed in-game confirms — the port's Flip cadence differs from retail's, so
+only the shared sim-tick aligns the dialogue).  Regen:
+`dialogue_timeline.py NAV /mnt/c/oss-osr/retail.osr runs/cutscene-verify/nav-zspam-ext.jsonl
+600 985 0 1100 | grep -E '^[#{]' > runs/cutscene-verify/nav-matched.jsonl`.
 
 ---
 
-## THEME 1 — the dialogue SKIP / progression TIMING (refine the ckpt-133 skip)
+## ✅ DONE (ckpt 134) — THEME 1, the dialogue progression TIMING
 
-**The skip is an improvement but NOT 1:1 — retail is a little SLOWER than the port** (USER
-ckpt 133).  The port's `dialogue_skip_reveal` jumps `reveal → total` INSTANTLY; retail's
-appears to fill over a tick or two (and/or the per-line start/advance is gated differently).
-
-- **Note #4 — tick 661 (port flip 2437 / retail 1898), crop (296,157 231×90), differ 19282.**
-  "port reveals text earlier than retail after X/Enter."  The render shows the PORT line 1
-  FULLY revealed ("Ahh, here we are at last! Look, Arche. This is our new hometown.") while
-  RETAIL shows only **"A"** (just started typing).  So the port reaches the fully-shown
-  state much earlier.
-- **Likely cause (RE next):** (a) retail's skip is NOT an instant `reveal→total` —
-  `FUN_0043ce50(9)`→`FUN_0043ca40(9)` sets the text-machine state to 3 (fully-shown) but the
-  per-tick filler `FUN_0043c650` may paint the remaining glyphs over a tick or two; and/or
-  (b) the per-line START / pop-in / advance gating differs from the port's
-  `DIALOGUE_ARM_FRAMES` + cadence.  **Probe retail** (don't guess): hook the reveal counter
-  / text-machine `+0x18`/`+0x1c` per tick under a CONFIRM-driven nav, capture the exact
-  reveal-vs-tick curve for a skipped line, and match `dialogue_step` / `dialogue_skip_reveal`
-  to it.  Then verify with the matched nav.
-- **Owner:** new (refines this session's `dialogue_typing`/`dialogue_skip_reveal`).
+**The port's reveal/skip MECHANICS were ALREADY faithful — note #4 was a CADENCE artifact,
+not a reveal-rate bug.**  `dialogue_timeline.py` read the curve off `retail.osr`: retail
+types **1 char / 5 ticks** (space 1t) and the skip is an **instant `reveal→total` jump** —
+exactly the port's model.  The port "revealed text earlier" (note #4) only because the
+`0x24`-SPAM nav skipped every line the instant it armed and raced ahead.  With the matched
+nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps were fixed
+(NOT the reveal rate, which was already right):
+- **The box re-pop model.**  The port re-armed (full 20-update pop-in) every line; retail
+  keeps the box on a SAME-speaker advance (`dialogue_set_text`, gap 1t) and re-opens from
+  HALF scale on a SPEAKER CHANGE (`dialogue_reopen`, `DIALOGUE_REOPEN_SCALE=500` →
+  ~10-update reopen = retail's advance+11t; vs the first box's ~20-update slide-in).
+- **The word-wrap space.**  `dialogue_expand_text` consumed the wrap space; retail renders
+  it → keep it (body byte-identical).
+- **VERIFIED:** `port-matched.osr` L0-L7 start/full/advance all bit-equal to `retail.osr`;
+  314/323 ticks of (name,body) identical.  **Residual:** the 9 per-tick diffs are the
+  single-tick body-CLEAR flicker at the 8 advance boundaries (the port consumes the advance
+  confirm the same flip it is pressed; retail clears one flip later — a sub-tick ordering
+  detail; USER-verify in the studio, deferred-advance fix if it matters).
+- **Note #4** (tick 661: port full line vs retail "A") — CLOSED, it was the spam-nav cadence.
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)
 
@@ -104,15 +105,19 @@ non-dialogue beats: actor run-offs + fades) but the specifics below are newly pi
 
 ---
 
-## Suggested order (next session)
-1. **The matched-cadence nav** (the prerequisite) — collapses the "port is ahead" half of
-   #4/#5/#7 and makes every per-line compare honest.
-2. **THEME 1** (skip timing) — small, refines fresh code, and removes the dominant dialogue
-   drift; probe retail's reveal curve.
-3. **THEME 3** (room transition) — the big-differ, clearly-missing features (Arche-runs +
-   house fade-in); ports a chunk of `cutscene-beat-runner`.
-4. **THEME 2** (cast colour/animation) — the cutscene-party-chars render + butterfly
-   variants; the most involved (the animated party-band render `0x4997b0`).
+## Suggested order
+1. ~~The matched-cadence nav (prerequisite)~~ **DONE ckpt 134.**
+2. ~~THEME 1 (dialogue timing)~~ **DONE ckpt 134** — mechanics were already faithful; fixed
+   the box re-pop cadence + the wrap space → tick-1:1.  (One residual: the advance-boundary
+   1-flip clear, USER-verify.)
+3. **THEME 3** (room transition) — NEXT.  The big-differ, clearly-missing features: the
+   167-tick "Arche runs to the house" beat between arrival L7/L8 (#5, `0x402730`/`0x401e60`,
+   gate the room load on it) + the fade-from-black / inverted-iris house-entry reveal
+   (#6/#7, the `scene_fade` the port lacks on `reload_room_backdrop`).  The divergence after
+   tick 982 (port advances L7→L8 instantly; retail's L8 is at tick 1149).
+4. **THEME 2** (cast colour/animation) — the most involved (the party-band render `0x4997b0`
+   + butterfly variants).  Now that the dialogue is tick-1:1, the matched nav makes the
+   cast/ambient frames at ticks 274-339 (notes #0-#3) honestly comparable.
 
 Cross-refs: `docs/port-debt.md` (butterfly-wander / butterfly-flutter / cutscene-party-chars
 / cutscene-beat-runner / effect-color-variant), `docs/findings/engine-quirks.md`,

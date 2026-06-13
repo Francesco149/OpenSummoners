@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 134) — the dialogue CADENCE is TICK-1:1: the matched-cadence nav + the box re-pop model land THEME 1 of the intro-cutscene punch-list
+
+With a MATCHED-CADENCE nav (tick-keyed confirms at retail's exact dialogue ticks) the port's arrival dialogue
+(L0-L7) now tracks `retail.osr` TICK-FOR-TICK — every line's start / full-reveal / advance tick is bit-equal,
+and 314/323 ticks of (speaker name, revealed body) are identical.  THEME 1 of `plans/intro-cutscene-1to1.md`
+is DONE.  1017 host pass (+5).
+
+- **The high-value diagnosis: the port's reveal/skip MECHANICS were ALREADY faithful.**  A new tool
+  `tools/trace_studio2/dialogue_timeline.py` reads the reveal curve straight off `retail.osr` (counting the
+  body MAIN glyphs, colour `0x3e537d`, per sim-tick — the cross-side identity, NOT font_ref) and proved retail
+  types 1 char / 5 ticks (space 1t) with an instant `reveal→total` skip — EXACTLY the port's model.  So note
+  #4 ("port reveals text earlier after X/Enter") was a CADENCE artifact: the `0x24`-SPAM nav skipped every
+  line the instant it armed and raced ahead.  Engine-quirk #107.
+- **Tick-keyed input-trace (`input_trace.{c,h}`).** An entry may key on the SIM-TICK (`{"tick":N}`) not just
+  the Flip frame — the axis the trace-studio tick-join shares, so a tick-keyed confirm fires at the same
+  sim-tick on both sides (the port's Flip cadence differs from retail's).  Axis is PER-ENTRY → one nav mixes a
+  flip-keyed boot prefix + tick-keyed in-game confirms.  `input_trace_replay` takes `sim_tick`.
+- **The box re-pop model (`dialogue.{c,h}` + `cutscene.{c,h}`).** The port re-armed (full 20-update pop-in)
+  EVERY line.  Retail keeps the box OPEN across a SAME-speaker advance (`dialogue_set_text`, gap 1t) and
+  re-opens from HALF scale on a SPEAKER CHANGE (`dialogue_reopen`, `DIALOGUE_REOPEN_SCALE=500` → ~10-update
+  reopen, content at advance+11t = retail).  `cutscene_step` picks the arm mode per advance (OPEN/REOPEN/KEEP
+  by speaker `name_va`).  Plus `dialogue_expand_text` now KEEPS the word-wrap space (retail renders it) → the
+  body is byte-identical.
+- **Verified:** `port-matched.osr` (over `runs/cutscene-verify/nav-matched.jsonl`) L0-L7 start/full/advance
+  all bit-equal to `retail.osr`; per-tick (name,body) 314/323.  Commits: tick-keyed input
+  (`c5895f9`+`dce9023`), same-speaker keep-box (`14cc140`), reopen+wrap (`e1f3646`), the tool (`552a46c`).
+- **The ONE residual (USER-verify):** the 9 per-tick diffs are the single-tick body-CLEAR flicker at the 8
+  advance boundaries — the port consumes the advance confirm the same flip it is pressed (clears the box),
+  retail clears it one flip later (a sub-tick input-ordering detail).  Decide in the studio if it needs the
+  deferred-advance fix.  **USER-VERIFY: `osr_view.exe C:\oss-osr\port-matched.osr C:\oss-osr\retail.osr`** —
+  scrub the arrival dialogue (ticks 661-982).  NEXT: THEME 3 (the Arche-runs-to-house beat after L7) then
+  THEME 2 (the cast render).
+
 ## 2026-06-13 (ckpt 133) — the dialogue TYPEWRITER-SKIP ported: the confirm-while-typing desync blocker is closed; the port advances at the press cadence (chain @hold 2571 vs 11365)
 
 The USER-flagged ckpt-132 blocker.  The port modeled only the ADVANCE half of the dialogue confirm, so it
