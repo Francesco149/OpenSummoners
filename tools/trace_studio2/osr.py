@@ -41,11 +41,13 @@ FONT = 9
 PALETTE = 10
 INPUT = 11
 BLEND = 12
+SNAP = 13
 
 REC_NAME = {
     FRAMEBEG: "FRAMEBEG", PRESENT: "PRESENT", ANCHOR: "ANCHOR", SEED: "SEED",
     CLEAR: "CLEAR", BLIT: "BLIT", TEXT: "TEXT", SHEET: "SHEET",
     FONT: "FONT", PALETTE: "PALETTE", INPUT: "INPUT", BLEND: "BLEND",
+    SNAP: "SNAP",
 }
 
 SIDE_NAME = {0: "port", 1: "retail"}
@@ -98,6 +100,11 @@ class Record:
         name = self.payload[16:16 + name_len].decode("latin-1", "replace")
         return flip, sim_tick, rng, name
 
+    def clear(self):
+        # mirror struct osr_clear / osr_dec_clear (12 bytes)
+        seq, dst_handle, value = struct.unpack_from("<III", self.payload)
+        return seq, dst_handle, value
+
     def blit(self):
         # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (88 bytes;
         # a LEGACY 80-byte payload zero-fills srcw/srch — pre-srcw captures)
@@ -126,6 +133,13 @@ class Record:
          _rsv, byte_len) = struct.unpack_from("<I HH HH I BB H I", self.payload)
         pix = self.payload[24:24 + byte_len]
         return Sheet(dhash, res, frame, w, h, pitch, pixfmt, codec, byte_len, pix)
+
+    def snap(self):
+        # mirror struct osr_snap / osr_dec_snap (24-byte prefix + raw pixels)
+        (flip, sim_tick, w, h, pitch, pixfmt, codec,
+         _rsv, byte_len) = struct.unpack_from("<II HH I BB H I", self.payload)
+        pix = self.payload[24:24 + byte_len]
+        return Snap(flip, sim_tick, w, h, pitch, pixfmt, codec, byte_len, pix)
 
     def font(self):
         # mirror struct osr_font / osr_dec_font (fixed 64 bytes)
@@ -188,6 +202,19 @@ class Sheet:
     dhash: int
     res: int
     frame: int
+    w: int
+    h: int
+    pitch: int
+    pixfmt: int
+    codec: int
+    byte_len: int
+    pixels: bytes = b""
+
+
+@dataclass
+class Snap:
+    flip: int
+    sim_tick: int
     w: int
     h: int
     pitch: int
@@ -288,6 +315,11 @@ class Osr:
         for r in self.records:
             if r.type == FONT:
                 yield r.font()
+
+    def snaps(self):
+        for r in self.records:
+            if r.type == SNAP:
+                yield r.snap()
 
     def texts(self):
         for r in self.records:
@@ -405,6 +437,12 @@ def cmd_summary(path: str) -> int:
     if fonts:
         faces = sorted({f"{f.face}/{f.height}" for f in fonts})
         print(f"fonts     : {len(fonts)}  " + " ".join(faces))
+    snaps = list(o.snaps())
+    if snaps:
+        total = sum(s.byte_len for s in snaps)
+        flips = [s.flip for s in snaps]
+        print(f"snaps     : {len(snaps)}  flip {min(flips)}..{max(flips)}  "
+              f"pixels={total/1024:.0f} KiB (the M4d validate gate)")
     texts = list(o.texts())
     if texts:
         named = sum(1 for t in texts if t.font_ref)

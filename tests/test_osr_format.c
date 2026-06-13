@@ -66,6 +66,7 @@ int test_osr_records_roundtrip(void)
 
     n = osr_enc_framebeg(buf + off, sizeof(buf) - off, 1242, 17, 0); T_ASSERT(n); off += n;
     n = osr_enc_present(buf + off, sizeof(buf) - off, 3, 0xabcd);    T_ASSERT(n); off += n;
+    n = osr_enc_clear(buf + off, sizeof(buf) - off, 0, 1, 0);       T_ASSERT(n); off += n;
     n = osr_enc_seed(buf + off, sizeof(buf) - off, 652, 0x111, 0x4f5347); T_ASSERT(n); off += n;
     n = osr_enc_anchor(buf + off, sizeof(buf) - off, 1242, 0, 0x4f5347, "game_enter");
     T_ASSERT(n); off += n;
@@ -90,6 +91,14 @@ int test_osr_records_roundtrip(void)
     count++;
 
     p = osr_rec_next(p, end, &type, &pay, &plen);
+    T_ASSERT(p != NULL); T_ASSERT_EQ_U(type, OSR_CLEAR);
+    osr_clear cl;
+    T_ASSERT(osr_dec_clear(pay, plen, &cl));
+    T_ASSERT_EQ_U(cl.seq, 0); T_ASSERT_EQ_U(cl.dst_handle, 1);
+    T_ASSERT_EQ_U(cl.value, 0);
+    count++;
+
+    p = osr_rec_next(p, end, &type, &pay, &plen);
     T_ASSERT(p != NULL); T_ASSERT_EQ_U(type, OSR_SEED);
     osr_seed sd;
     T_ASSERT(osr_dec_seed(pay, plen, &sd));
@@ -109,7 +118,7 @@ int test_osr_records_roundtrip(void)
 
     /* exact end: the next call sees no complete record */
     T_ASSERT(osr_rec_next(p, end, &type, &pay, &plen) == NULL);
-    T_ASSERT_EQ_I(count, 4);
+    T_ASSERT_EQ_I(count, 5);
     T_ASSERT_EQ_P(p, end);   /* consumed exactly */
     return 0;
 }
@@ -245,6 +254,44 @@ int test_osr_sheet_roundtrip(void)
     /* a header claiming more bytes than the slice holds must be rejected */
     osr_sheet bad = {0};
     T_ASSERT_EQ_U(osr_dec_sheet(pay, OSR_SHEET_HDR - 1, &bad), 0);  /* short hdr */
+    return 0;
+}
+
+/* SNAP — the real-backbuffer validation snapshot (M4d).  Verify the 24-byte
+ * prefix + the trailing pixel bytes round-trip, framing included (the Python
+ * reader struct.unpack's the same <II HH I BB xx I> prefix). */
+int test_osr_snap_roundtrip(void)
+{
+    static const uint8_t pix[10] = { 1,2,3,4,5,6,7,8,9,10 };
+    osr_snap s = {0};
+    s.flip = 1250; s.sim_tick = 8;
+    s.w = 640; s.h = 480; s.pitch = 1280;
+    s.pixfmt = OSR_PIXFMT_RGB565; s.codec = 0;
+    s.byte_len = sizeof(pix); s.bytes = pix;
+
+    uint8_t buf[8 + OSR_SNAP_HDR + sizeof(pix)];
+    size_t n = osr_enc_snap(buf, sizeof(buf), &s);
+    T_ASSERT_EQ_U(n, 8 + OSR_SNAP_HDR + sizeof(pix));
+    T_ASSERT_EQ_U(OSR_SNAP_HDR, 24);
+
+    uint32_t type, plen; const uint8_t *pay;
+    const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
+    T_ASSERT(p == buf + n);
+    T_ASSERT_EQ_U(type, OSR_SNAP);
+    T_ASSERT_EQ_U(plen, OSR_SNAP_HDR + sizeof(pix));
+
+    osr_snap g = {0};
+    T_ASSERT(osr_dec_snap(pay, plen, &g));
+    T_ASSERT_EQ_U(g.flip, 1250); T_ASSERT_EQ_U(g.sim_tick, 8);
+    T_ASSERT_EQ_U(g.w, 640); T_ASSERT_EQ_U(g.h, 480); T_ASSERT_EQ_U(g.pitch, 1280);
+    T_ASSERT_EQ_U(g.pixfmt, OSR_PIXFMT_RGB565); T_ASSERT_EQ_U(g.codec, 0);
+    T_ASSERT_EQ_U(g.byte_len, sizeof(pix));
+    T_ASSERT(memcmp(g.bytes, pix, sizeof(pix)) == 0);
+
+    /* a header claiming more bytes than the slice holds must be rejected */
+    osr_snap bad = {0};
+    T_ASSERT_EQ_U(osr_dec_snap(pay, OSR_SNAP_HDR - 1, &bad), 0);   /* short hdr */
+    T_ASSERT_EQ_U(osr_dec_snap(pay, OSR_SNAP_HDR + 2, &bad), 0);   /* short bytes */
     return 0;
 }
 

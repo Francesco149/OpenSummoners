@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "osr_replay.h"
@@ -36,6 +37,11 @@ typedef struct recon_ctx {
     size_t       n_want;
     uint32_t     cur_flip, cur_tick;
     long         n_frames_out;
+    /* M4d --validate: SNAP records (real retail backbuffer pixels) are compared
+     * against the just-composed dest; the gate is differ_px==0 on every snap. */
+    long         n_snaps, n_snaps_clean;
+    long         worst_differ;
+    uint32_t     worst_flip;
 } recon_ctx;
 
 /* ── BMP snapshot of the dest surface (mirrors main.c capture_primary_to_bmp) ─*/
@@ -87,6 +93,48 @@ static int recon_snapshot_bmp(recon_ctx *c, const char *path)
     return ok;
 }
 
+/* ── M4d: write a 24-bit BMP from raw top-down RGB565 rows (the SNAP pixels) ─ */
+static int recon_write_bmp_rgb565(const char *path, const uint8_t *pix,
+                                  int w, int h, uint32_t pitch)
+{
+    const uint32_t row   = (uint32_t)((w * 3 + 3) & ~3);
+    const uint32_t pixsz = row * (uint32_t)h;
+    BITMAPFILEHEADER fh;
+    BITMAPINFOHEADER bih;
+    memset(&fh, 0, sizeof fh);
+    memset(&bih, 0, sizeof bih);
+    fh.bfType    = 0x4D42;
+    fh.bfOffBits = sizeof fh + sizeof bih;
+    fh.bfSize    = fh.bfOffBits + pixsz;
+    bih.biSize   = sizeof bih;
+    bih.biWidth  = w;
+    bih.biHeight = h;                       /* +h = bottom-up file order */
+    bih.biPlanes = 1;
+    bih.biBitCount = 24;
+    bih.biCompression = BI_RGB;
+
+    FILE *f = fopen(path, "wb");
+    if (f == NULL) return 0;
+    fwrite(&fh, sizeof fh, 1, f);
+    fwrite(&bih, sizeof bih, 1, f);
+    uint8_t *line = malloc(row);
+    if (line == NULL) { fclose(f); return 0; }
+    for (int y = h - 1; y >= 0; y--) {      /* bottom-up: last snap row first */
+        const uint16_t *src = (const uint16_t *)(pix + (size_t)y * pitch);
+        memset(line, 0, row);
+        for (int x = 0; x < w; x++) {
+            uint16_t v = src[x];
+            line[x * 3 + 0] = (uint8_t)(((v & 0x001f) << 3) | ((v & 0x001f) >> 2));
+            line[x * 3 + 1] = (uint8_t)(((v & 0x07e0) >> 3) | ((v & 0x07e0) >> 9));
+            line[x * 3 + 2] = (uint8_t)(((v & 0xf800) >> 8) | (v >> 13));
+        }
+        fwrite(line, 1, row, f);
+    }
+    free(line);
+    fclose(f);
+    return 1;
+}
+
 static int recon_want(recon_ctx *c, uint32_t flip)
 {
     if (c->n_want == 0) return 1;
@@ -115,10 +163,68 @@ static void rc_frame_begin(void *u, const osr_framebeg *fb)
     /* draw EVERY frame onto the (accumulating) dest; no per-frame clear (the
      * streaming BMP tool retains prior pixels for empty re-present frames). */
 }
+static void rc_clear(void *u, const osr_clear *cl)
+{
+    (void)cl;                       /* proxy-filtered to the backbuffer */
+    recon_ctx *c = u;
+    recon_release_dc(&c->rt);       /* a held GDI DC blocks the clear's Lock */
+    zdd_object_clear(c->dest);
+}
 static void rc_blit(void *u, const osr_blit *b)
 { recon_ctx *c = u; recon_apply_blit(&c->rt, c->dest, b); }
 static void rc_text(void *u, const osr_text *t)
 { recon_ctx *c = u; recon_apply_text(&c->rt, c->dest, t); }
+
+/* ── M4d --validate: a SNAP holds the REAL retail backbuffer pixels for the
+ * frame being closed (in-stream just before its PRESENT, after all its draws),
+ * so the accumulated dest must match it EXACTLY — differ_px==0 is the gate.
+ * On a mismatch, dump the real snapshot + the reconstruction side by side. */
+static void rc_snap(void *u, const osr_snap *s)
+{
+    recon_ctx *c = u;
+    c->n_snaps++;
+    if (s->pixfmt != OSR_PIXFMT_RGB565) {
+        fprintf(stderr, "[validate] flip=%u SKIP: snap pixfmt=%u (want RGB565)\n",
+                s->flip, s->pixfmt);
+        return;
+    }
+    recon_release_dc(&c->rt);               /* a held GDI DC blocks the Lock */
+    if (!zdd_object_lock(c->dest)) {
+        fprintf(stderr, "[validate] flip=%u SKIP: dest Lock failed\n", s->flip);
+        return;
+    }
+    void   *buf = NULL;
+    int32_t pitch = 0, height = 0;
+    zdd_object_get_locked_info(c->dest, &buf, &pitch, &height);
+
+    int w = s->w < c->rt.screen_w ? s->w : c->rt.screen_w;
+    int h = s->h < (int)height    ? s->h : (int)height;
+    long differ = 0;
+    if (buf != NULL) {
+        for (int y = 0; y < h; y++) {
+            const uint16_t *real  = (const uint16_t *)(s->bytes + (size_t)y * s->pitch);
+            const uint16_t *recon = (const uint16_t *)((const uint8_t *)buf
+                                                       + (size_t)y * (size_t)pitch);
+            for (int x = 0; x < w; x++)
+                if (real[x] != recon[x]) differ++;
+        }
+    }
+    zdd_object_unlock(c->dest);
+
+    if (differ == 0) c->n_snaps_clean++;
+    if (differ > c->worst_differ) { c->worst_differ = differ; c->worst_flip = s->flip; }
+    fprintf(stderr, "[validate] flip=%u tick=%u differ_px=%ld (%dx%d)\n",
+            s->flip, s->sim_tick, differ, w, h);
+    if (differ != 0) {
+        char path[1200];
+        snprintf(path, sizeof path, "%s/real_%05u_t%06u.bmp",
+                 c->out_dir, s->flip, s->sim_tick);
+        recon_write_bmp_rgb565(path, s->bytes, w, h, s->pitch);
+        snprintf(path, sizeof path, "%s/recon_%05u_t%06u.bmp",
+                 c->out_dir, c->cur_flip, c->cur_tick);
+        recon_snapshot_bmp(c, path);         /* the mismatching reconstruction */
+    }
+}
 
 static void rc_present(void *u, const osr_present *pr)
 {
@@ -153,8 +259,10 @@ int osr_recon_run(zdd *z, zdd_object *dest, const char *out_dir,
     sink.on_blend       = rc_blend;
     sink.on_sheet       = rc_sheet;
     sink.on_frame_begin = rc_frame_begin;
+    sink.on_clear       = rc_clear;
     sink.on_blit        = rc_blit;
     sink.on_text        = rc_text;
+    sink.on_snap        = rc_snap;
     sink.on_present     = rc_present;
 
     fprintf(stderr, "[opensummoners] osr-replay: streaming %s → %s (want=%zu)\n",
@@ -168,5 +276,13 @@ int osr_recon_run(zdd *z, zdd_object *dest, const char *out_dir,
             "%ld sheets, %ld alpha-skipped, %ld no-sheet, %ld no-font\n",
             r, c.n_frames_out, c.rt.n_sheets_built, c.rt.n_blit_alpha_skipped,
             c.rt.n_blit_no_sheet, c.rt.n_text_no_font);
+    if (c.n_snaps) {
+        fprintf(stderr, "[opensummoners] VALIDATE: %ld/%ld snaps differ_px==0",
+                c.n_snaps_clean, c.n_snaps);
+        if (c.n_snaps_clean != c.n_snaps)
+            fprintf(stderr, " — WORST flip=%u differ_px=%ld",
+                    c.worst_flip, c.worst_differ);
+        fprintf(stderr, "\n");
+    }
     return r;
 }

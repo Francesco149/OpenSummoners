@@ -38,9 +38,11 @@ typedef struct osr_replay_sink {
     void (*on_header)(void *user, const osr_header *h);
     void (*on_frame_begin)(void *user, const osr_framebeg *fb);
     void (*on_present)(void *user, const osr_present *pr);
+    void (*on_clear)(void *user, const osr_clear *c);
     void (*on_blit)(void *user, const osr_blit *b);
     void (*on_text)(void *user, const osr_text *t);
     void (*on_sheet)(void *user, const osr_sheet *s);
+    void (*on_snap)(void *user, const osr_snap *s);
     void (*on_blend)(void *user, const osr_blend *b);
     void (*on_font)(void *user, const osr_font *f);
     void (*on_anchor)(void *user, const osr_anchor *a);

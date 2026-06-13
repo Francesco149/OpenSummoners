@@ -22,7 +22,7 @@
 #define REC_OPS_CAP 32
 typedef struct rec_sink {
     int n_header, n_framebeg, n_present, n_blit, n_text, n_sheet, n_font,
-        n_anchor, n_seed;
+        n_anchor, n_seed, n_snap, n_clear;
     osr_header   last_header;
     osr_framebeg last_framebeg;
     osr_blit     last_blit;
@@ -38,6 +38,11 @@ typedef struct rec_sink {
     uint32_t text_str_len;
     uint32_t text_seq, text_color;
     int32_t  text_x, text_y;
+    /* SNAP: copy the pixel bytes out (only valid during the call) */
+    uint32_t snap_flip;
+    uint16_t snap_w, snap_h;
+    uint8_t  snap_pix[64];
+    uint32_t snap_pix_len;
     /* ANCHOR: copy the name */
     char     anchor_name[32];
     /* the seq of every blit + text op, in dispatch order (the replay order) */
@@ -75,6 +80,19 @@ static void r_sheet(void *u, const osr_sheet *s)
                                                         : (uint32_t)sizeof r->sheet_pix;
     if (s->bytes) memcpy(r->sheet_pix, s->bytes, r->sheet_pix_len);
 }
+static void r_clear(void *u, const osr_clear *cl)
+{
+    rec_sink *r = u; r->n_clear++;
+    if (r->n_ops < REC_OPS_CAP) r->op_seq[r->n_ops++] = cl->seq;
+}
+static void r_snap(void *u, const osr_snap *s)
+{
+    rec_sink *r = u; r->n_snap++;
+    r->snap_flip = s->flip; r->snap_w = s->w; r->snap_h = s->h;
+    r->snap_pix_len = s->byte_len < sizeof r->snap_pix ? s->byte_len
+                                                       : (uint32_t)sizeof r->snap_pix;
+    if (s->bytes) memcpy(r->snap_pix, s->bytes, r->snap_pix_len);
+}
 static void r_font(void *u, const osr_font *f)
 { rec_sink *r = u; r->n_font++; r->last_font = *f; }
 static void r_anchor(void *u, const osr_anchor *a)
@@ -96,6 +114,7 @@ static osr_replay_sink make_rec_sink(rec_sink *r)
     s.on_header = r_header;       s.on_frame_begin = r_framebeg;
     s.on_present = r_present;     s.on_blit = r_blit;
     s.on_text = r_text;           s.on_sheet = r_sheet;
+    s.on_snap = r_snap;           s.on_clear = r_clear;
     s.on_font = r_font;           s.on_anchor = r_anchor;
     s.on_seed = r_seed;
     return s;
@@ -130,21 +149,32 @@ static size_t build_sample_osr(uint8_t *out, size_t cap)
 
     off += osr_enc_framebeg(out + off, cap - off, /*flip*/1250, /*tick*/8, /*anchor*/0);
 
+    /* the frame opens with an ORDERED backbuffer CLEAR (seq 0, shared axis) */
+    off += osr_enc_clear(out + off, cap - off, /*seq*/0, /*dst_handle*/1, 0);
+
     osr_blit b = {0};
-    b.va = 0x5b9a40; b.seq = 0; b.res = 1002; b.frame = 5; b.dhash = 0xABCD1234;
+    b.va = 0x5b9a40; b.seq = 1; b.res = 1002; b.frame = 5; b.dhash = 0xABCD1234;
     b.dst_handle = 1; b.dx = 100; b.dy = 50; b.reqw = 2; b.reqh = 2;
     b.ow = 2; b.oh = 2; b.state = 0x8000; b.ckey = 0xf81f; b.bmode = -1; b.mode = 0;
     off += osr_enc_blit(out + off, cap - off, &b);
 
     osr_text t = {0};
-    t.seq = 1; t.dst_handle = 1; t.x = 64; t.y = 200; t.font_ref = 3;
+    t.seq = 2; t.dst_handle = 1; t.x = 64; t.y = 200; t.font_ref = 3;
     t.color = 0x3e537d; t.bk_mode = 1;
     const char *str = "Arche";
     t.str_len = (uint32_t)strlen(str); t.str = str;
     off += osr_enc_text(out + off, cap - off, &t);
 
-    b.seq = 2; b.dx = 120; b.mode = 1; b.va = 0x5b9b70;
+    b.seq = 3; b.dx = 120; b.mode = 1; b.va = 0x5b9b70;
     off += osr_enc_blit(out + off, cap - off, &b);
+
+    /* the real-backbuffer SNAP sits just before the frame's PRESENT (M4d) */
+    uint8_t snap_pix[8] = { 0xa0,0xa1, 0xb0,0xb1, 0xc0,0xc1, 0xd0,0xd1 };
+    osr_snap sn = {0};
+    sn.flip = 1250; sn.sim_tick = 8; sn.w = 2; sn.h = 2; sn.pitch = 4;
+    sn.pixfmt = OSR_PIXFMT_RGB565; sn.codec = 0;
+    sn.byte_len = 8; sn.bytes = snap_pix;
+    off += osr_enc_snap(out + off, cap - off, &sn);
 
     off += osr_enc_present(out + off, cap - off, /*mode*/0, /*src_handle*/1);
 
@@ -174,6 +204,8 @@ int test_osr_replay_dispatches_all_kinds(void)
     T_ASSERT_EQ_I(r.n_text, 1);
     T_ASSERT_EQ_I(r.n_present, 1);
     T_ASSERT_EQ_I(r.n_anchor, 1);
+    T_ASSERT_EQ_I(r.n_snap, 1);
+    T_ASSERT_EQ_I(r.n_clear, 1);
 
     /* header survived */
     T_ASSERT_EQ_U(r.last_header.screen_w, 640);
@@ -209,6 +241,13 @@ int test_osr_replay_sheet_pixels_intact(void)
     T_ASSERT_EQ_U(r.sheet_pix_len, 8);
     uint8_t expect[8] = { 0x11,0x22, 0x33,0x44, 0x55,0x66, 0x77,0x88 };
     T_ASSERT_MEM_EQ(r.sheet_pix, expect, 8);
+
+    /* the SNAP record's pixels survive too (the M4d validate gate reads them) */
+    T_ASSERT_EQ_U(r.snap_flip, 1250);
+    T_ASSERT_EQ_U(r.snap_w, 2); T_ASSERT_EQ_U(r.snap_h, 2);
+    T_ASSERT_EQ_U(r.snap_pix_len, 8);
+    uint8_t snap_expect[8] = { 0xa0,0xa1, 0xb0,0xb1, 0xc0,0xc1, 0xd0,0xd1 };
+    T_ASSERT_MEM_EQ(r.snap_pix, snap_expect, 8);
     return 0;
 }
 
@@ -222,14 +261,15 @@ int test_osr_replay_preserves_draw_order(void)
     T_ASSERT_EQ_I(osr_replay_stream(f, &sink), OSR_REPLAY_OK);
     fclose(f);
 
-    /* The frame issued blit(seq0), text(seq1), blit(seq2) — the replayer must
-     * see them in that exact dispatch order (seq is the interleave key). */
-    T_ASSERT_EQ_I(r.n_ops, 3);
+    /* The frame issued clear(seq0), blit(seq1), text(seq2), blit(seq3) — the
+     * replayer must see them in that exact dispatch order (seq interleaves). */
+    T_ASSERT_EQ_I(r.n_ops, 4);
     T_ASSERT_EQ_U(r.op_seq[0], 0);
     T_ASSERT_EQ_U(r.op_seq[1], 1);
     T_ASSERT_EQ_U(r.op_seq[2], 2);
+    T_ASSERT_EQ_U(r.op_seq[3], 3);
     /* the text record's fields */
-    T_ASSERT_EQ_U(r.text_seq, 1);
+    T_ASSERT_EQ_U(r.text_seq, 2);
     T_ASSERT_EQ_I(r.text_x, 64);
     T_ASSERT_EQ_I(r.text_y, 200);
     T_ASSERT_EQ_U(r.text_color, 0x3e537d);

@@ -161,6 +161,11 @@ static void osr_w_anchor(uint32_t flip, uint32_t sim_tick, uint32_t rng,
     size_t n = osr_enc_anchor(b, sizeof(b), flip, sim_tick, rng, name);
     osr__emit(b, n);
 }
+static void osr_w_clear(uint32_t seq, uint32_t dst_handle, uint32_t value)
+{
+    uint8_t b[8 + 12];
+    osr__emit(b, osr_enc_clear(b, sizeof(b), seq, dst_handle, value));
+}
 static void osr_w_blit(const osr_blit *blit)
 {
     uint8_t b[8 + OSR_BLIT_PAYLOAD];
@@ -175,6 +180,19 @@ static void osr_w_sheet(const osr_sheet *s)
     if (!g_osr.enabled) return;
     uint8_t pre[8 + OSR_SHEET_HDR];
     size_t pn = osr_enc_sheet_prefix(pre, sizeof(pre), s);
+    EnterCriticalSection(&g_osr.cs);
+    if (osr__ring_put(pre, pn) && s->byte_len && s->bytes)
+        osr__ring_put(s->bytes, s->byte_len);
+    LeaveCriticalSection(&g_osr.cs);
+}
+/* SNAP — large + variable, same streaming discipline as SHEET: the caller's
+ * `bytes` is a locked-surface pointer valid only until Unlock, so the copy MUST
+ * finish before the caller unlocks — it does (cs held synchronously here). */
+static void osr_w_snap(const osr_snap *s)
+{
+    if (!g_osr.enabled) return;
+    uint8_t pre[8 + OSR_SNAP_HDR];
+    size_t pn = osr_enc_snap_prefix(pre, sizeof(pre), s);
     EnterCriticalSection(&g_osr.cs);
     if (osr__ring_put(pre, pn) && s->byte_len && s->bytes)
         osr__ring_put(s->bytes, s->byte_len);

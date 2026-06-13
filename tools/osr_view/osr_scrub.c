@@ -79,7 +79,12 @@ static void replay_frame(osr_scrub *s, int n)
         if (len && fread(s->buf, 1, len, s->f) != len) break;
         if (t == OSR_FRAMEBEG) continue;
         if (t == OSR_PRESENT)  break;
-        if (t == OSR_BLIT) {
+        if (t == OSR_CLEAR) {
+            /* an ORDERED clear of the compose surface (proxy-filtered to the
+             * backbuffer) — wipes this frame's earlier draws too */
+            recon_release_dc(&s->rt);
+            zdd_object_clear(s->dest);
+        } else if (t == OSR_BLIT) {
             osr_blit b;
             if (osr_dec_blit(s->buf, len, &b)) recon_apply_blit(&s->rt, s->dest, &b);
         } else if (t == OSR_TEXT) {
@@ -149,8 +154,8 @@ static int build_index(osr_scrub *s, const char *path)
         uint32_t t   = osr_get_u32(B + pos);
         uint32_t len = osr_get_u32(B + pos + 4);
 
-        if (t == OSR_BLIT || t == OSR_TEXT) {
-            pndraws++;
+        if (t == OSR_BLIT || t == OSR_TEXT || t == OSR_CLEAR) {
+            pndraws++;   /* CLEAR counts: a clear-only frame is NON-empty */
             size_t avail = fill - pos - 8;
             if (avail >= len) {
                 pos += 8 + len;

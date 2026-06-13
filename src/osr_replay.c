@@ -57,6 +57,12 @@ int osr_replay_stream(FILE *f, const osr_replay_sink *sink)
                 sink->on_present(sink->user, &pr);
             break;
         }
+        case OSR_CLEAR: {
+            osr_clear cl;
+            if (sink->on_clear && osr_dec_clear(buf, len, &cl))
+                sink->on_clear(sink->user, &cl);
+            break;
+        }
         case OSR_BLIT: {
             osr_blit b;
             if (sink->on_blit && osr_dec_blit(buf, len, &b))
@@ -73,6 +79,12 @@ int osr_replay_stream(FILE *f, const osr_replay_sink *sink)
             osr_sheet s;
             if (sink->on_sheet && osr_dec_sheet(buf, len, &s))
                 sink->on_sheet(sink->user, &s);
+            break;
+        }
+        case OSR_SNAP: {
+            osr_snap sn;
+            if (sink->on_snap && osr_dec_snap(buf, len, &sn))
+                sink->on_snap(sink->user, &sn);
             break;
         }
         case OSR_BLEND: {

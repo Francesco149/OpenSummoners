@@ -55,6 +55,7 @@
 #define EH_BLT_CLIP_VA    0x005b9bf0u   /* mode 3  __thiscall ECX=cel           */
 #define EH_BLT_ALPHA_VA   0x005bd550u   /* mode 4  __cdecl    cel=arg[1]         */
 #define EH_ZDD_DTOR_VA    0x005b9390u   /* zdd_object dtor — Releases +0xac/+0x2c */
+#define EH_ZDD_CLEAR_VA   0x005b9410u   /* zdd_object clear — Lock + zero-fill    */
 
 /* cel (zdd_object) field offsets — confirmed in the blit decompiles + src/zdd.h */
 #define CEL_METRIC_0C   0x0cu   /* placement origin x (keyed dst-left bias) */
@@ -81,6 +82,7 @@ static int g_eh_blit_seq   = 0;    /* draw ordinal within the current frame     
  * text and blits in issue order — both go through eh_next_draw_seq().  Accessors
  * keep engine_gdi.h decoupled from these statics (it is included after us). */
 static uint32_t g_eh_backbuffer_handle = 0;
+static void    *g_eh_backbuffer_surf   = NULL;  /* M4d: the dest surface ptr */
 static uint32_t eh_next_draw_seq(void)     { return (uint32_t)g_eh_blit_seq++; }
 static uint32_t eh_backbuffer_handle(void) { return g_eh_backbuffer_handle; }
 
@@ -115,6 +117,62 @@ static DWORD eh_read_seed(void)
     return *(volatile DWORD *)EH_SEED_ADDR;
 }
 
+/* ── M4d: the real-backbuffer SNAP (the --validate ground truth) ────────────
+ * At flip entry the engine has finished the closing frame's draws (blits + GDI
+ * text) and is about to present, so the dest surface holds EXACTLY the pixels
+ * the reconstructor must reproduce for that frame.  Lock it READONLY (nothing
+ * is writing it now) and stream a SNAP record labeled with the closing frame's
+ * flip; in-stream it sits just before that frame's PRESENT, so the validating
+ * reconstructor compares at exactly that point.  Sampled (every-N / explicit
+ * flips) — a snap is ~600 KB, so a capture carries only a handful.
+ * Only frames WITH draws are snapped: an empty re-present frame's backbuffer
+ * content depends on the flip-chain rotation (quirk #99), which the recon's
+ * single accumulating dest intentionally does not model. */
+static LONG g_eh_n_snaps = 0;
+static int eh_snap_wanted(uint32_t closing_flip)
+{
+    if (g_cfg.snap_every > 0 &&
+        (closing_flip % (uint32_t)g_cfg.snap_every) == 0) return 1;
+    for (int i = 0; i < g_cfg.n_snap_flips; i++)
+        if (g_cfg.snap_flips[i] == closing_flip) return 1;
+    return 0;
+}
+static void eh_snap_backbuffer(uint32_t closing_flip)
+{
+    LPDIRECTDRAWSURFACE7 s = (LPDIRECTDRAWSURFACE7)g_eh_backbuffer_surf;
+    if (!s) return;
+    DDSURFACEDESC2 dd;
+    memset(&dd, 0, sizeof(dd));
+    dd.dwSize = sizeof(dd);
+    if (FAILED(IDirectDrawSurface7_Lock(
+            s, NULL, &dd, DDLOCK_READONLY | DDLOCK_WAIT | DDLOCK_SURFACEMEMORYPTR,
+            NULL)) || !dd.lpSurface) {
+        proxy_logf("[snap] flip %lu: backbuffer Lock FAILED", (unsigned long)closing_flip);
+        return;
+    }
+    size_t bytes = (size_t)dd.lPitch * dd.dwHeight;
+    if (bytes <= 8u * 1024u * 1024u) {
+        osr_snap sn;
+        memset(&sn, 0, sizeof(sn));
+        sn.flip     = closing_flip;
+        sn.sim_tick = (uint32_t)g_eh_sim_tick;
+        sn.w        = (uint16_t)dd.dwWidth;
+        sn.h        = (uint16_t)dd.dwHeight;
+        sn.pitch    = (uint32_t)dd.lPitch;
+        sn.pixfmt   = eh_pixfmt_of(&dd.ddpfPixelFormat);
+        sn.codec    = 0;
+        sn.byte_len = (uint32_t)bytes;
+        sn.bytes    = (const uint8_t *)dd.lpSurface;
+        osr_w_snap(&sn);
+        LONG t = InterlockedIncrement(&g_eh_n_snaps);
+        if (t <= 4 || (t & 15) == 0)
+            proxy_logf("[snap] #%ld @flip %lu (%lux%lu, %u KB)", t,
+                       (unsigned long)closing_flip, dd.dwWidth, dd.dwHeight,
+                       (unsigned)(bytes / 1024u));
+    }
+    IDirectDrawSurface7_Unlock(s, NULL);
+}
+
 /* ── flip: frame boundary + the lockstep clock advance ───────────────────── */
 static DWORD g_eh_hb_t0 = 0;   /* real GetTickCount at flip 1 (throughput base) */
 static void eh_flip_cb(PCONTEXT ctx)
@@ -129,7 +187,14 @@ static void eh_flip_cb(PCONTEXT ctx)
      * tick-join uses sim_tick (the deterministic axis), so this one-flip offset
      * between a frame's label and its present is immaterial to pairing; the
      * port emitter (M5) mirrors the same present-then-framebeg order. */
-    if (g_eh_frame_open) osr_w_present(0, 0);
+    if (g_eh_frame_open) {
+        /* M4d: snapshot the real backbuffer for the frame this flip closes
+         * (label f-1), positioned just before its PRESENT. */
+        uint32_t closing = (uint32_t)(f - 1);
+        if (g_eh_blit_seq > 0 && eh_snap_wanted(closing))
+            eh_snap_backbuffer(closing);
+        osr_w_present(0, 0);
+    }
     osr_w_framebeg((uint32_t)f, (uint32_t)g_eh_sim_tick, 0);
     g_eh_frame_open = 1;
     g_eh_blit_seq   = 0;                    /* draws restart at 0 each frame */
@@ -247,7 +312,10 @@ static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel, DWORD dest_arg
     /* M3c: the dest surface → a stable handle; the first one fixes the header. */
     void *dst_surf = dest_arg ? *(void **)(dest_arg + BLIT_SURF_PTR) : NULL;
     b.dst_handle = surfid_get(dst_surf);
-    if (b.dst_handle) g_eh_backbuffer_handle = b.dst_handle;  /* M3d: TEXT dst */
+    if (b.dst_handle) {
+        g_eh_backbuffer_handle = b.dst_handle;  /* M3d: TEXT dst */
+        g_eh_backbuffer_surf   = dst_surf;      /* M4d: the SNAP Lock target */
+    }
     if (!g_eh_hdr_fixed) eh_fixup_header_from(dst_surf);
     /* M3c-2: the source surface → its dedup'd SHEET (grabbed once); dhash refs it. */
     void *src_surf = cel ? *(void **)(cel + BLIT_SURF_PTR) : NULL;
@@ -329,12 +397,37 @@ static void eh_zdd_dtor_cb(PCONTEXT ctx)
     int n = 0;
     if (prim) { n += sheet_grab_evict(prim); surfid_evict(prim); }
     if (back) { n += sheet_grab_evict(back); surfid_evict(back); }
+    /* M4d: never SNAP-Lock a destroyed surface */
+    if (prim && prim == g_eh_backbuffer_surf) g_eh_backbuffer_surf = NULL;
+    if (back && back == g_eh_backbuffer_surf) g_eh_backbuffer_surf = NULL;
     if (n) {
         LONG t = InterlockedIncrement(&g_eh_dtor_evicted);
         if (t <= 8 || (t & 63) == 0)
             proxy_logf("[hook] zdd dtor evicted blitted-from surface "
                        "#%ld @flip %ld", t, g_eh_flip);
     }
+}
+
+/* ── zdd_object clear → an ORDERED CLEAR draw (the flip-800 validate fix) ────
+ * FUN_005b9410 Locks +0x2c and zero-fills pitch×height.  The engine clears its
+ * compose surface at scene transitions (newgame menu / prologue entry) and the
+ * title redraw — WITHOUT this record the reconstructor accumulates stale pixels
+ * under any scene that doesn't fully redraw (the menu-over-title artifact).
+ * Only the BACKBUFFER clear is a frame op; the engine also zero-fills offscreen
+ * panel sheets through the same fn (those are re-grabbed as SHEETs), so filter
+ * to the tracked compose surface.  INT3 is fine: ~1/frame at the title, bursts
+ * at transitions. */
+static LONG g_eh_n_clears = 0;
+static void eh_zdd_clear_cb(PCONTEXT ctx)
+{
+    DWORD obj = ctx->Ecx;
+    if (!obj) return;
+    void *surf = *(void **)(obj + BLIT_SURF_PTR);
+    if (!surf || surf != g_eh_backbuffer_surf) return;
+    osr_w_clear(eh_next_draw_seq(), surfid_get(surf), 0);
+    LONG t = InterlockedIncrement(&g_eh_n_clears);
+    if (t <= 4 || (t & 1023) == 0)
+        proxy_logf("[hook] backbuffer CLEAR #%ld @flip %ld", t, g_eh_flip);
 }
 
 /* ── scene anchors (assertions / alignment points) ───────────────────────── */
@@ -374,6 +467,7 @@ static void engine_hooks_install(void)
     detour_add(EH_GAME_ENTER_VA, eh_game_enter_cb);
     detour_add(EH_RNG_ANCHOR_VA, eh_rng_anchor_cb);
     detour_add(EH_ZDD_DTOR_VA,   eh_zdd_dtor_cb);   /* sheet/surfid eviction */
+    detour_add(EH_ZDD_CLEAR_VA,  eh_zdd_clear_cb);  /* backbuffer CLEAR record */
     /* M3b: the render-id resolver + the 5 blit primitives (the draw stream) are
      * E9-TRAMPOLINED, not INT3'd — they fire hundreds×/frame and the INT3+VEH
      * 2-exceptions/call is the in-game fps wall.  Head bytes are hardcoded from

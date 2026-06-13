@@ -69,7 +69,8 @@ enum osr_rec_type {
     OSR_FONT     = 9,   /* dedup'd LOGFONT for the replayer's HFONT */
     OSR_PALETTE  = 10,  /* 256-entry palette for a PAL8 surface */
     OSR_INPUT    = 11,  /* injected ring/held input at a flip */
-    OSR_BLEND    = 12   /* dedup'd software-alpha blend descriptor (M4 alpha) */
+    OSR_BLEND    = 12,  /* dedup'd software-alpha blend descriptor (M4 alpha) */
+    OSR_SNAP     = 13   /* REAL backbuffer pixels at a flip (the M4d validate gate) */
 };
 
 /* ── little-endian put/get (x86; byte-wise so unaligned is fine) ──────────── */
@@ -190,6 +191,12 @@ static inline const uint8_t *osr_rec_next(const uint8_t *p, const uint8_t *end,
 typedef struct osr_framebeg { uint32_t flip, sim_tick, anchor_id; } osr_framebeg;
 typedef struct osr_present   { uint32_t mode, src_handle;          } osr_present;
 typedef struct osr_seed      { uint32_t flip, before, value;       } osr_seed;
+/* CLEAR — the engine zero-fills its compose surface (FUN_005b9410, scene
+ * transitions: newgame menu / prologue / title resets).  An ORDERED draw in the
+ * frame's op list (seq shared with BLIT/TEXT); the proxy emits it only for the
+ * backbuffer (offscreen panel-sheet clears are filtered out capture-side).
+ * value is the fill word (retail always 0). */
+typedef struct osr_clear     { uint32_t seq, dst_handle, value;    } osr_clear;
 typedef struct osr_anchor {
     uint32_t flip, sim_tick, rng;
     const char *name;        /* not nul-required; len carried separately */
@@ -254,6 +261,30 @@ typedef struct osr_sheet {
 } osr_sheet;
 
 #define OSR_SHEET_HDR 24u    /* the fixed-size SHEET payload prefix before bytes */
+
+/* SNAP — the REAL backbuffer pixels at a flip (M4d, the --validate gate).  The
+ * capture proxy Locks the engine's dest surface at the flip hook (after the
+ * frame's draws, before the present) and records what retail ACTUALLY put on
+ * screen; the reconstructor compares its just-composed frame against it and the
+ * difference must be differ_px==0 (docs/plans/trace-studio-v2.md M4d).  Sampled
+ * (every-N-flips / an explicit flip list), so a capture carries only a handful.
+ *   flip      — the label of the frame this snapshot closes (the FRAMEBEG flip;
+ *               positioned in-stream just before that frame's PRESENT)
+ *   sim_tick  — the sim tick at snapshot time (metadata; join is by position)
+ *   w,h,pitch — surface dims + Lock pitch (pitch may exceed w*bytespp)
+ *   pixfmt    — OSR_PIXFMT_* of the captured bytes
+ *   codec     — 0 = raw
+ *   bytes     — pitch*h bytes of surface contents (rows top-down, Lock order) */
+typedef struct osr_snap {
+    uint32_t flip, sim_tick;
+    uint16_t w, h;
+    uint32_t pitch;
+    uint8_t  pixfmt, codec;
+    uint32_t byte_len;
+    const uint8_t *bytes;   /* not owned; len = byte_len */
+} osr_snap;
+
+#define OSR_SNAP_HDR 24u     /* the fixed-size SNAP payload prefix before bytes */
 
 /* BLEND — a dedup'd software-alpha blend descriptor (M4 alpha).  The engine's
  * mode-4 blit (zdd_blit_orchestrate → zdd_alpha_blit) blends through a
@@ -349,6 +380,16 @@ static inline size_t osr_enc_seed(uint8_t *buf, size_t cap,
     osr_put_u32(p + 8, value);
     return osr_rec_write(buf, cap, OSR_SEED, p, sizeof(p));
 }
+static inline size_t osr_enc_clear(uint8_t *buf, size_t cap,
+                                   uint32_t seq, uint32_t dst_handle,
+                                   uint32_t value)
+{
+    uint8_t p[12];
+    osr_put_u32(p, seq);
+    osr_put_u32(p + 4, dst_handle);
+    osr_put_u32(p + 8, value);
+    return osr_rec_write(buf, cap, OSR_CLEAR, p, sizeof(p));
+}
 /* ANCHOR payload: u32 flip, sim_tick, rng, name_len, char name[name_len]. */
 static inline size_t osr_enc_anchor(uint8_t *buf, size_t cap,
                                     uint32_t flip, uint32_t sim_tick, uint32_t rng,
@@ -439,6 +480,42 @@ static inline size_t osr_enc_sheet(uint8_t *buf, size_t cap, const osr_sheet *s)
     return total;
 }
 
+/* SNAP — write only the framed 8-byte header + the 24-byte prefix (NOT the
+ * pixel bytes), with the len field accounting for the full byte_len; the writer
+ * streams the Lock'd pixels straight into its ring after the prefix (the same
+ * one-copy discipline as SHEET).  Returns 8 + OSR_SNAP_HDR, or 0 if cap is short. */
+static inline size_t osr_enc_snap_prefix(uint8_t *buf, size_t cap,
+                                         const osr_snap *s)
+{
+    if (cap < (size_t)8 + OSR_SNAP_HDR) return 0;
+    osr_put_u32(buf, OSR_SNAP);
+    osr_put_u32(buf + 4, OSR_SNAP_HDR + s->byte_len);
+    uint8_t *p = buf + 8;
+    osr_put_u32(p +  0, s->flip);
+    osr_put_u32(p +  4, s->sim_tick);
+    osr_put_u16(p +  8, s->w);
+    osr_put_u16(p + 10, s->h);
+    osr_put_u32(p + 12, s->pitch);
+    p[16] = s->pixfmt;
+    p[17] = s->codec;
+    p[18] = 0; p[19] = 0;            /* reserved */
+    osr_put_u32(p + 20, s->byte_len);
+    return (size_t)8 + OSR_SNAP_HDR;
+}
+
+/* SNAP — a variable-length record: the 24-byte prefix (OSR_SNAP_HDR) followed
+ * by byte_len bytes of raw pixels.  Returns total bytes written, or 0 if cap
+ * is too small. */
+static inline size_t osr_enc_snap(uint8_t *buf, size_t cap, const osr_snap *s)
+{
+    size_t total = (size_t)8 + OSR_SNAP_HDR + s->byte_len;
+    if (cap < total) return 0;
+    osr_enc_snap_prefix(buf, cap, s);
+    if (s->byte_len && s->bytes)
+        memcpy(buf + 8 + OSR_SNAP_HDR, s->bytes, s->byte_len);
+    return total;
+}
+
 /* BLEND — a variable-length record: the 44-byte prefix (OSR_BLEND_HDR) followed
  * by the 3 concatenated channel LUTs (lut_len[0..2] bytes).  Returns total bytes
  * written, or 0 if cap is too small. */
@@ -521,6 +598,13 @@ static inline int osr_dec_seed(const uint8_t *p, uint32_t len, osr_seed *o)
     o->value = osr_get_u32(p + 8);
     return 1;
 }
+static inline int osr_dec_clear(const uint8_t *p, uint32_t len, osr_clear *o)
+{
+    if (len < 12) return 0;
+    o->seq = osr_get_u32(p); o->dst_handle = osr_get_u32(p + 4);
+    o->value = osr_get_u32(p + 8);
+    return 1;
+}
 static inline int osr_dec_anchor(const uint8_t *p, uint32_t len, osr_anchor *o)
 {
     if (len < 16) return 0;
@@ -578,6 +662,21 @@ static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)
     o->byte_len = osr_get_u32(p + 20);
     if ((size_t)o->byte_len > (size_t)(len - OSR_SHEET_HDR)) return 0;
     o->bytes    = p + OSR_SHEET_HDR;
+    return 1;
+}
+static inline int osr_dec_snap(const uint8_t *p, uint32_t len, osr_snap *o)
+{
+    if (len < OSR_SNAP_HDR) return 0;
+    o->flip     = osr_get_u32(p +  0);
+    o->sim_tick = osr_get_u32(p +  4);
+    o->w        = osr_get_u16(p +  8);
+    o->h        = osr_get_u16(p + 10);
+    o->pitch    = osr_get_u32(p + 12);
+    o->pixfmt   = p[16];
+    o->codec    = p[17];
+    o->byte_len = osr_get_u32(p + 20);
+    if ((size_t)o->byte_len > (size_t)(len - OSR_SNAP_HDR)) return 0;
+    o->bytes    = p + OSR_SNAP_HDR;
     return 1;
 }
 static inline int osr_dec_blend(const uint8_t *p, uint32_t len, osr_blend *o)

@@ -24,6 +24,12 @@ typedef struct {
     int  osr_enable;       /* OSS_OSR              (default 1) — .osr capture */
     char osr_path[MAX_PATH]; /* OSS_OSR_PATH       (default C:\oss-osr\retail.osr) */
     char scenario[40];     /* OSS_SCENARIO         (default "") */
+    /* M4d --validate: real-backbuffer SNAP sampling.  snap_every=N grabs every
+     * Nth presented frame (0 = off); snap_flips lists explicit frame labels
+     * (comma-separated flips) for targeted checks.  Both may be combined. */
+    int  snap_every;       /* OSS_OSR_SNAP_EVERY   (default 0 = off) */
+    DWORD snap_flips[64];  /* OSS_OSR_SNAP_FLIPS   (comma list; default empty) */
+    int  n_snap_flips;
 } proxy_config;
 
 static proxy_config g_cfg;
@@ -57,13 +63,31 @@ static void proxy_config_load(void)
     cfg_env_str("OSS_OSR_PATH", "C:\\oss-osr\\retail.osr",
                 g_cfg.osr_path, sizeof(g_cfg.osr_path));
     cfg_env_str("OSS_SCENARIO", "", g_cfg.scenario, sizeof(g_cfg.scenario));
+    g_cfg.snap_every = cfg_env_int("OSS_OSR_SNAP_EVERY", 0);
+    {
+        char buf[512];
+        DWORD n = GetEnvironmentVariableA("OSS_OSR_SNAP_FLIPS", buf, sizeof(buf));
+        g_cfg.n_snap_flips = 0;
+        if (n > 0 && n < sizeof(buf)) {
+            char *p = buf;
+            while (*p && g_cfg.n_snap_flips < 64) {
+                char *end = NULL;
+                long v = strtol(p, &end, 0);
+                if (end == p) break;
+                g_cfg.snap_flips[g_cfg.n_snap_flips++] = (DWORD)v;
+                p = (*end == ',') ? end + 1 : end;
+            }
+        }
+    }
     proxy_logf("[cfg] turbo=%d lockstep=%d step=%d/%d hide=%d dismiss=%d "
-               "silent=%d seed_pin=%d seed=0x%lx osr=%d path=%s scenario='%s'",
+               "silent=%d seed_pin=%d seed=0x%lx osr=%d path=%s scenario='%s' "
+               "snap_every=%d snap_flips=%d",
                g_cfg.turbo, g_cfg.lockstep, g_cfg.turbo_step_ms,
                g_cfg.lockstep_step_ms, g_cfg.hide_window, g_cfg.dismiss_dialog,
                g_cfg.silent_audio, g_cfg.seed_pin,
                (unsigned long)g_cfg.seed_value, g_cfg.osr_enable,
-               g_cfg.osr_path, g_cfg.scenario);
+               g_cfg.osr_path, g_cfg.scenario,
+               g_cfg.snap_every, g_cfg.n_snap_flips);
 }
 
 #endif /* OSS_PROXY_CONFIG_H */
