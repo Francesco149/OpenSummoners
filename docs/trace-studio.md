@@ -1,7 +1,14 @@
-# Trace Studio — how to run the scrub-and-mark loop
+# Trace Studio (v1) — RETIRED (ckpt 128, USER directive)
 
-Architecture/design: `docs/plans/trace-studio.md`. This is the operational
-cheat-sheet. Everything runs inside `nix develop`.
+> **Do not run this loop.** The v1 web studio (`tools/trace_studio.py` capture +
+> the `:8779` serve) is superseded by **Trace Studio v2**: `.osr` draw-stream
+> capture on both sides (`tools/capture_proxy/run_proxy.sh` retail,
+> `opensummoners.exe --osr-emit` port) reviewed in the native `tools/osr_view`.
+> See `docs/plans/trace-studio-v2.md`.  Old sessions in `runs/trace-studio/`
+> stay read-only — their navs/traces remain the proven scenario inputs.
+
+Architecture/design: `docs/plans/trace-studio.md`. This was the operational
+cheat-sheet, kept for reading old sessions. Everything runs inside `nix develop`.
 
 ## The loop
 

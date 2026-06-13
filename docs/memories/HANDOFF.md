@@ -16,8 +16,10 @@ one codec's files: retail via the native Frida-free proxy (`tools/capture_proxy/
 TEXT/FONT/BLEND/CLEAR/SNAP, 71/71 `--validate` snaps clean, ckpt 127), the port via `src/osr_emit.{c,h}`
 (M5, commit `cc99f3a`).  Reconstruction: `--osr-replay` (`src/osr_replay.{c,h}` → `src/osr_recon.c`) +
 `tools/osr_view` (native ImGui scrubber, ~1.4 ms/frame) — both open either side's file unchanged.
-1002 host pass (+2).  Design + build order M1→M7: `docs/plans/trace-studio-v2.md`.  v2 is built in
-ISOLATION from v1; v1 archives only once v2 reaches parity.
+1002 host pass (+2).  Design + build order M1→M7: `docs/plans/trace-studio-v2.md`.  **v1 is RETIRED
+(ckpt 128, USER directive): do not start the `:8779` web serve or generate `tools/trace_studio.py`
+captures — v2 (.osr + osr_view) supersedes it; the marks/worklist hand-off returns inside osr_view at
+M7.  Old `runs/trace-studio/` sessions stay read-only (their navs are the proven scenario inputs).**
 
 **M5 detail (durable):**
 - `src/osr_emit.{c,h}` — pure C, host-linkable, every sink gating internally on `--osr-emit` (the
