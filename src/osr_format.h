@@ -210,7 +210,12 @@ typedef struct osr_anchor {
  *   bmode     — alpha blend mode (-1 if N/A); mode — the 0..4 primitive index;
  *   blend_ref — for mode-4 alpha, the OSR_BLEND record this blit blends through
  *               (0 = none); the per-channel blend LUT can't be reconstructed from
- *               bmode alone (mode-4 reconstruction needs it).  0 for modes 0..3. */
+ *               bmode alone (mode-4 reconstruction needs it).  0 for modes 0..3.
+ *   srcw,srch — mode-2 RECTS only: the SOURCE rect extent (the 8-coord call's
+ *               args 7/8; src_w != dst_w means a SCALING Blt).  0 = N/A (modes
+ *               0/1/3/4 carry no independent source extent).  Appended after
+ *               blend_ref; the decoder zero-fills them on a legacy 80-byte
+ *               payload so pre-existing captures stay readable. */
 typedef struct osr_blit {
     uint32_t va, seq;
     uint16_t res, frame;
@@ -221,9 +226,11 @@ typedef struct osr_blit {
     int32_t  bmode;
     uint32_t mode;
     uint32_t blend_ref;
+    int32_t  srcw, srch;
 } osr_blit;
 
-#define OSR_BLIT_PAYLOAD 80u   /* the fixed BLIT payload size (see osr_enc_blit) */
+#define OSR_BLIT_PAYLOAD        88u  /* the fixed BLIT payload size (osr_enc_blit) */
+#define OSR_BLIT_PAYLOAD_LEGACY 80u  /* pre-srcw/srch captures (decoder zero-fills) */
 
 /* SHEET — the dedup'd decoded SOURCE pixels a blit reads from (M3c).  Written
  * ONCE per unique source surface (dedup'd by dhash); BLIT.dhash references it.
@@ -360,7 +367,7 @@ static inline size_t osr_enc_anchor(uint8_t *buf, size_t cap,
     return total;
 }
 
-/* BLIT — a fixed 76-byte payload (OSR_BLIT_PAYLOAD).  Mirrors struct osr_blit
+/* BLIT — a fixed 88-byte payload (OSR_BLIT_PAYLOAD).  Mirrors struct osr_blit
  * field order so the Python reader (tools/trace_studio2/osr.py) can struct.unpack
  * it directly. */
 static inline size_t osr_enc_blit(uint8_t *buf, size_t cap, const osr_blit *b)
@@ -390,6 +397,8 @@ static inline size_t osr_enc_blit(uint8_t *buf, size_t cap, const osr_blit *b)
     osr_put_u32(p + 68, (uint32_t)b->bmode);
     osr_put_u32(p + 72, b->mode);
     osr_put_u32(p + 76, b->blend_ref);
+    osr_put_u32(p + 80, (uint32_t)b->srcw);
+    osr_put_u32(p + 84, (uint32_t)b->srch);
     return (size_t)8 + OSR_BLIT_PAYLOAD;
 }
 
@@ -524,7 +533,7 @@ static inline int osr_dec_anchor(const uint8_t *p, uint32_t len, osr_anchor *o)
 }
 static inline int osr_dec_blit(const uint8_t *p, uint32_t len, osr_blit *o)
 {
-    if (len < OSR_BLIT_PAYLOAD) return 0;
+    if (len < OSR_BLIT_PAYLOAD_LEGACY) return 0;
     o->va         = osr_get_u32(p +  0);
     o->seq        = osr_get_u32(p +  4);
     o->res        = osr_get_u16(p +  8);
@@ -546,6 +555,13 @@ static inline int osr_dec_blit(const uint8_t *p, uint32_t len, osr_blit *o)
     o->bmode = (int32_t)osr_get_u32(p + 68);
     o->mode  = osr_get_u32(p + 72);
     o->blend_ref = osr_get_u32(p + 76);
+    if (len >= OSR_BLIT_PAYLOAD) {
+        o->srcw = (int32_t)osr_get_u32(p + 80);
+        o->srch = (int32_t)osr_get_u32(p + 84);
+    } else {
+        o->srcw = 0;            /* legacy capture: source extent not recorded */
+        o->srch = 0;
+    }
     return 1;
 }
 static inline int osr_dec_sheet(const uint8_t *p, uint32_t len, osr_sheet *o)

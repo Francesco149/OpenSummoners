@@ -99,14 +99,18 @@ class Record:
         return flip, sim_tick, rng, name
 
     def blit(self):
-        # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (80 bytes)
+        # mirror struct osr_blit / osr_dec_blit in src/osr_format.h (88 bytes;
+        # a LEGACY 80-byte payload zero-fills srcw/srch — pre-srcw captures)
         (va, seq, res, frame, dhash, dst_handle,
          dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
          state, ckey, bmode, mode, blend_ref) = struct.unpack_from(
             "<IIHHII iiiiii iiii IIiI I", self.payload)
+        srcw = srch = 0
+        if len(self.payload) >= 88:
+            srcw, srch = struct.unpack_from("<ii", self.payload, 80)
         return Blit(va, seq, res, frame, dhash, dst_handle,
                     dx, dy, reqw, reqh, sx, sy, ow, oh, ox, oy,
-                    state, ckey, bmode, mode, blend_ref)
+                    state, ckey, bmode, mode, blend_ref, srcw, srch)
 
     def blend(self):
         # mirror struct osr_blend / osr_dec_blend (44-byte prefix + 3 LUTs)
@@ -165,6 +169,8 @@ class Blit:
     bmode: int
     mode: int
     blend_ref: int = 0
+    srcw: int = 0
+    srch: int = 0
 
 
 @dataclass
@@ -436,10 +442,11 @@ def cmd_blits(path: str, want_flip: int | None) -> int:
         print(f"== frame flip={flip} sim_tick={tick}  {len(bl)} blits ==")
         for b in bl:
             name = BLIT_VA_NAME.get(b.va, hex(b.va))
+            srcext = f" srcext={b.srcw}x{b.srch}" if b.srcw or b.srch else ""
             print(f"  #{b.seq:<3} {name:<7} res={b.res} frame={b.frame} "
                   f"dst=({b.dx},{b.dy}) {b.reqw}x{b.reqh} src=({b.sx},{b.sy}) "
                   f"o=({b.ox},{b.oy},{b.ow},{b.oh}) "
-                  f"st=0x{b.state:x} ckey=0x{b.ckey:x} bmode={b.bmode}")
+                  f"st=0x{b.state:x} ckey=0x{b.ckey:x} bmode={b.bmode}{srcext}")
         return 0
     print("(no frame with blits found)")
     return 0

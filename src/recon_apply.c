@@ -210,9 +210,13 @@ void recon_apply_blit(recon_tables *rt, zdd_object *dest, const osr_blit *b)
     switch (b->mode) {
     case 0: zdd_object_blt_onto(s, dest, b->dx, b->dy); break;
     case 1: zdd_object_blt_keyed(s, dest, b->dx, b->dy); break;
-    case 2: /* src_w/_h default to the dest extent (no osr_blit field yet) */
+    case 2: /* srcw/srch carry the 8-coord call's source extent; a LEGACY
+             * 80-byte capture zero-fills them — fall back to the dest extent
+             * (non-scaling assumption) so old captures still reconstruct. */
         zdd_object_blt_rects(s, dest, b->dx, b->dy, b->reqw, b->reqh,
-                             b->sx, b->sy, b->reqw, b->reqh);
+                             b->sx, b->sy,
+                             b->srcw ? b->srcw : b->reqw,
+                             b->srch ? b->srch : b->reqh);
         break;
     case 3:
         zdd_object_blt_clipped(s, dest, b->dx, b->dy, b->reqw, b->reqh,

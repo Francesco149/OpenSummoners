@@ -115,7 +115,7 @@ int test_osr_records_roundtrip(void)
 }
 
 /* The BLIT record (M3b) pins render_diff.py's draw-stream schema; encode→decode
- * must be byte-exact including the signed-geometry fields and the 76-byte size
+ * must be byte-exact including the signed-geometry fields and the 88-byte size
  * (the Python reader struct.unpack's the same fixed layout). */
 int test_osr_blit_roundtrip(void)
 {
@@ -127,11 +127,12 @@ int test_osr_blit_roundtrip(void)
     b.sx = -8; b.sy = 16;
     b.ow = 64; b.oh = 4; b.ox = -2; b.oy = -3;
     b.state = 0x8000; b.ckey = 0x1f; b.bmode = 1; b.mode = 4; b.blend_ref = 9;
+    b.srcw = 96; b.srch = -7;
 
     uint8_t buf[8 + OSR_BLIT_PAYLOAD];
     size_t n = osr_enc_blit(buf, sizeof(buf), &b);
     T_ASSERT_EQ_U(n, 8 + OSR_BLIT_PAYLOAD);
-    T_ASSERT_EQ_U(OSR_BLIT_PAYLOAD, 80);
+    T_ASSERT_EQ_U(OSR_BLIT_PAYLOAD, 88);
 
     uint32_t type, plen; const uint8_t *pay;
     const uint8_t *p = osr_rec_next(buf, buf + n, &type, &pay, &plen);
@@ -152,9 +153,18 @@ int test_osr_blit_roundtrip(void)
     T_ASSERT_EQ_U(g.state, 0x8000); T_ASSERT_EQ_U(g.ckey, 0x1f);
     T_ASSERT_EQ_I(g.bmode, 1); T_ASSERT_EQ_U(g.mode, 4);
     T_ASSERT_EQ_U(g.blend_ref, 9);
+    T_ASSERT_EQ_I(g.srcw, 96); T_ASSERT_EQ_I(g.srch, -7);
+
+    /* A LEGACY 80-byte payload (pre-srcw/srch capture) still decodes, with the
+     * source extent zero-filled — old .osr files stay readable. */
+    osr_blit legacy = {0};
+    legacy.srcw = 123; legacy.srch = 456;   /* must be overwritten to 0 */
+    T_ASSERT(osr_dec_blit(pay, OSR_BLIT_PAYLOAD_LEGACY, &legacy));
+    T_ASSERT_EQ_U(legacy.blend_ref, 9);
+    T_ASSERT_EQ_I(legacy.srcw, 0); T_ASSERT_EQ_I(legacy.srch, 0);
 
     osr_blit small = {0};
-    T_ASSERT_EQ_U(osr_dec_blit(pay, OSR_BLIT_PAYLOAD - 1, &small), 0);  /* short */
+    T_ASSERT_EQ_U(osr_dec_blit(pay, OSR_BLIT_PAYLOAD_LEGACY - 1, &small), 0);  /* short */
     return 0;
 }
 
