@@ -6,6 +6,26 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 127) — M4d: the `--validate` ground-truth gate lands, passes 71/71 `differ_px==0`, and fixes the menu artifact (`OSR_CLEAR`)
+
+The trace-studio-v2 fidelity gate is real: a new `OSR_SNAP` record carries the REAL retail backbuffer
+(the proxy Locks the compose surface at the flip hook, after the closing frame's draws, before its
+PRESENT; `OSS_OSR_SNAP_EVERY` / `OSS_OSR_SNAP_FLIPS`), and the reconstructor compares its accumulated
+dest at exactly that stream point, dumping `real_/recon_` BMP pairs on mismatch.  First run: **67/68
+snaps `differ_px==0`** across boot→title→menu→prologue→town→dialogue→house-freeroam — alpha, GDI text
+and the house scene are now proven against retail's actual screen.
+
+The one failure (flip 800) was the USER-flagged "menu CLIPPED artifact", root-caused as the missing
+scene-transition CLEAR (**quirk #105**): retail zero-fills the compose surface via `FUN_005b9410`
+(per-frame at the title, bursts at transitions) and the newgame-menu scene does NOT fully redraw — the
+accumulating recon kept stale title pixels and the menu dialog's grow animation stacked onion-ring
+borders.  New `OSR_CLEAR` record (proxy INT3 at `0x5b9410`, filtered to the tracked backbuffer; an
+ORDERED draw replayed by the recon and by osr_view's scrub, where a clear-only frame now counts
+non-empty).  Re-capture (anchors byte-identical): **71/71 clean**; osr_view renders flip 800 identical
+to retail.  1000 host pass; montage on the feed.  Next: M5 the port emitter.
+
+---
+
 ## 2026-06-13 (ckpt 126) — the house-freeroam recon bug was the CAPTURE: stale sheet cache fixed (+ mode-2 src extent)
 
 The USER-flagged house-freeroam defects (white panel "holes" + Arche-head fragments) were not recon

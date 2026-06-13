@@ -3476,3 +3476,27 @@ under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading o
   the durable sheet identity; treat surface POINTERS as per-lifetime handles that
   die at `0x5b9390`.  Content per `(res, frame)` is load-stable; the surface
   object carrying it is not.
+
+### #105 — frame composition is NOT always a full redraw: the newgame-menu scene draws ONLY its panels over a `0x5b9410` backbuffer zero-fill at the scene transition, and its dialog boxes run a multi-frame GROW animation (an expanding border each frame); the title redraw clears the compose surface EVERY frame through the same fn (2026-06-13, ckpt 127)
+
+- **The fact (proven by the M4d `--validate` real-backbuffer snapshots).** The
+  engine's compose surface is zero-filled by `FUN_005b9410` (Lock + memset 0 +
+  Unlock, the port's `zdd_object_clear`): once per frame during the title
+  redraw loop, then in a burst at scene transitions (boot flips 1-4, the
+  title→newgame-menu swap).  After the menu transition the scene does **NOT**
+  repaint the screen — it draws only its panel/text widgets and relies on the
+  transition clear for the black background.  A real backbuffer snapshot at
+  flip 800 (between `newgame_enter` @652 and `prologue_enter` @1000) shows the
+  menu panels over pure black.
+- **The grow animation (the "nested borders" evidence).** The menu's center
+  dialog box animates OPEN over several frames, each frame drawing its border
+  at a larger extent.  Retail never shows the intermediate rings because each
+  is wiped before the next; any renderer that accumulates draws WITHOUT the
+  clear shows the whole onion (the USER-flagged "menu CLIPPED artifact" —
+  which was never a clip bug at all).
+- **The rule.** "A SotES non-empty frame is a full redraw" (the osr_view
+  self-contained-render result) holds for the title/town scenes but NOT for
+  the menus: correctness requires replaying the CLEAR as an ORDERED draw.
+  Captured as `OSR_CLEAR` (proxy hook at `0x5b9410`, filtered to the tracked
+  compose surface — the engine also zero-fills offscreen panel sheets through
+  the same fn, which must NOT wipe the frame).

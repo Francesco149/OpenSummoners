@@ -1,12 +1,18 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-12): M1+M2+M3a+M3b+M3c+M3d + M4 (reconstruct) LANDED.  M4: the
-> port's `--osr-replay` mode (`src/osr_replay.{c,h}` streaming reader + `src/osr_recon.c`
-> Win32 reconstructor) rebuilds frames 1:1 through zdd.c blits + real GDI text + a
-> BMP snapshot; the mode-4 ALPHA blend descriptor is now captured (`OSR_BLEND` +
-> `blend_grab.h`, the "capture everything we're missing" pass) so the prologue +
-> sky/ground reconstruct.  USER-CONFIRMED the town looks correct.  NEXT: M4d
-> `--validate` differ_px==0 gate, then M5 port emitter, M6 the :8780 studio.
+> Status (2026-06-13, ckpt 127): M1..M4 COMPLETE — **M4d the `--validate` gate
+> LANDED and PASSES 71/71 snaps `differ_px==0`** (real retail backbuffer snapshots
+> sampled every 200 flips across boot→title→newgame-menu→prologue→town→dialogue→
+> house-freeroam, each compared against the reconstruction; `OSR_SNAP` record +
+> proxy flip-hook Lock + the recon's per-snap compare).  The gate's ONE failure
+> (flip 800, the newgame menu) root-caused the USER-flagged "menu CLIPPED
+> artifact": retail clears the compose surface at scene transitions via
+> `FUN_005b9410` and the menu does NOT fully redraw (quirk #105) — now captured
+> as `OSR_CLEAR` (ordered draw, proxy-filtered to the backbuffer) and replayed by
+> recon + osr_view.  M4: the port's `--osr-replay` mode (`src/osr_replay.{c,h}`
+> streaming reader + `src/osr_recon.c` Win32 reconstructor) rebuilds frames 1:1
+> through zdd.c blits + real GDI text + BMP snapshots; mode-4 ALPHA captured
+> (`OSR_BLEND`).  NEXT: M5 port emitter, M6 the tick-join studio over osr_view.
 > (history below.) M1+M2: proxy auto-loads, native
 > headless turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
@@ -444,11 +450,25 @@ it earliest. Each milestone is independently testable.
   + `blend_ref`, `tools/capture_proxy/blend_grab.h` — VirtualQuery-guarded reads +
   content dedup, the descriptor is a HEAP object) so alpha replays via
   `zdd_blit_orchestrate` (0 alpha-skipped).  USER-CONFIRMED the town reconstruction.
-  - **M4d (OPEN) — the `--validate` differ_px==0 gate**: grab one real retail
-    backbuffer snapshot from the proxy (at the present hook) → diff vs the
-    reconstruction.  This both proves alpha pixel-correctness AND diagnoses the
-    menu-panel clipped-blit artifact the USER flagged.  Remaining capture gaps:
-    scene-transition CLEARs (`OSR_CLEAR`); mode-2 rects src_w/src_h.
+  - **M4d ✓ DONE (ckpt 127) — the `--validate` gate PASSES 71/71 snaps
+    `differ_px==0`.**  `OSR_SNAP` (24-B prefix + raw Lock pixels, streamed like
+    SHEET) records the REAL backbuffer at the flip hook — after the closing
+    frame's draws, before its PRESENT, so in-stream it sits just before the
+    PRESENT and the recon compares its accumulated dest at exactly that point.
+    Sampling: `OSS_OSR_SNAP_EVERY=N` + `OSS_OSR_SNAP_FLIPS=a,b,…`; only frames
+    WITH draws are snapped (an empty re-present's backbuffer depends on the
+    flip-chain rotation, quirk #99).  The recon's `on_snap` locks the dest,
+    counts mismatching RGB565 px, dumps `real_/recon_` BMP pairs on failure.
+    **The gate immediately earned its keep:** first run = 67/68 clean, the one
+    failure (flip 800) was the USER-flagged menu artifact — root cause: the
+    un-captured scene-transition CLEAR (quirk #105, retail's `0x5b9410`
+    backbuffer zero-fill; the menu draws only its panels over it, and its
+    dialog GROW animation left onion-ring borders in an accumulating recon).
+    Fixed by `OSR_CLEAR` (proxy INT3 at `0x5b9410`, filtered to the tracked
+    compose surface; replayed as an ORDERED draw by recon + osr_view scrub,
+    where a clear-only frame now counts non-empty).  Re-capture → **71/71
+    clean** (3 more snaps than before: clear-only frames now qualify).
+    Remaining capture gap: none known (mode-2 srcw/srch closed in ckpt 126).
 - **M5 — port emitter.** `src/osr_emit.c` emits the same `.osr` from the port.
 - **M6 — studio.** tick-join pairing + `:8780` viewer with the v1 scrub UX over the
   reconstructed frames. **This is the first usable replacement — frame-by-frame 1:1
@@ -519,12 +539,13 @@ first-referencer res-0 labels (dims match).  Prologue 1200 + town 1250
 already-correct).  Also: `run_proxy.sh` now skips `osr.py SUMMARY` above 256 MB —
 its non-streaming parse() OOMs on GB captures (it SIGKILLed a tmux session).
 
-Still open (unchanged): **M4d `--validate`** stays the ground-truth gate (it would
-have caught this in one diff); the menu CLIPPED artifact; scene-transition CLEARs
-(`OSR_CLEAR`).  The planned **draw-inspector panel** + render-up-to-draw-N remain
-the self-serve debug path for the next visual defect.  Residual staleness risk
-(accepted, --validate will catch real instances): a surface RE-COMPOSED in place
-via Lock/GDI (not through the blit primitives) keeps its first-grab pixels.
+~~Still open: M4d `--validate`; the menu CLIPPED artifact; scene-transition
+CLEARs.~~ **All three closed in ckpt 127** — the gate landed, passed 71/71, and
+its single failure WAS the menu artifact WAS the missing CLEAR (quirk #105).
+The planned **draw-inspector panel** + render-up-to-draw-N remain the self-serve
+debug path for the next visual defect.  Residual staleness risk (accepted, and
+now actively policed by --validate snaps): a surface RE-COMPOSED in place via
+Lock/GDI (not through the blit primitives) keeps its first-grab pixels.
 
 ## The openrecet v3 survey — the UX/feature roadmap for osr_view (ckpt 126)
 

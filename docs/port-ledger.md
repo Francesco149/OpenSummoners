@@ -183,7 +183,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9350 | FUN_005b9350 | 50 | zdd.c, zdd.h |
 | 0x5b9390 | FUN_005b9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5b93e0 | FUN_005b93e0 | 42 | zdd.h, zdd_win32.c |
-| 0x5b9410 | FUN_005b9410 | 49 | zdd.c, zdd.h |
+| 0x5b9410 | FUN_005b9410 | 49 | osr_format.h, zdd.c, zdd.h |
 | 0x5b9490 | FUN_005b9490 | 63 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b94d0 | FUN_005b94d0 | 15 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b94e0 | FUN_005b94e0 | 29 | wnd_proc.h, zdd.c, zdd.h (+1) |

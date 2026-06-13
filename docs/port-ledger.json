@@ -11645,6 +11645,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/osr_format.h",
     "src/zdd.c",
     "src/zdd.h"
    ]

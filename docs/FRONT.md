@@ -17,7 +17,30 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 125): TRACE STUDIO v2 — M4 RECONSTRUCT LANDS (the `.osr` → frames, on Windows). The port
+- **LATEST (ckpt 127): M4d — the `--validate` GROUND-TRUTH GATE LANDS and PASSES: 71/71 real retail
+  backbuffer snapshots reconstruct `differ_px==0` (boot→title→newgame-menu→prologue→town→dialogue→
+  house-freeroam), and the gate's ONE initial failure root-caused + FIXED the USER-flagged menu
+  artifact. 1000 host pass (+0 net: +1 snap test); flip-800 before/after montage on the feed.**
+  - **OSR_SNAP (the gate).** The proxy Locks the REAL backbuffer at the flip hook (after the closing
+    frame's draws, before its PRESENT) and streams a SNAP record (`OSS_OSR_SNAP_EVERY=200` +
+    `OSS_OSR_SNAP_FLIPS=…`; draws-bearing frames only — an empty re-present's content is flip-chain-
+    rotation-dependent, quirk #99; ~600 KB each, <1% fps cost). The recon's `on_snap` compares its
+    accumulated dest at exactly that stream point (RGB565, per-pixel) and dumps `real_/recon_` BMP
+    pairs on mismatch. Alpha + GDI text + the house freeroam are now PROVEN pixel-exact against
+    retail's actual screen — not just eyeballed.
+  - **The menu artifact = the missing scene-transition CLEAR (quirk #105), caught on the gate's first
+    run (67/68).** Real flip 800 shows the newgame menu over BLACK: retail zero-fills the compose
+    surface via `FUN_005b9410` at scene transitions (+ per-frame at the title) and the menu scene does
+    NOT fully redraw — the accumulating recon kept stale title pixels, and the menu dialog's GROW
+    animation stacked "onion-ring" borders (never a clip bug). NEW `OSR_CLEAR` record (proxy INT3 at
+    `0x5b9410`, filtered to the tracked compose surface — the engine zero-fills offscreen panel sheets
+    through the same fn), replayed as an ORDERED draw by the recon AND osr_view's scrub (a clear-only
+    frame counts NON-empty). Re-captured (anchors byte-identical) → **71/71 clean**; osr_view renders
+    flip 800 identical to retail.
+  - **NEXT — M5 the port emitter** (`src/osr_emit.c` — the port writes the SAME `.osr` from its 5 zdd
+    blit sinks + GDI text + clear), then **M6** the tick-join studio (port|retail|diff scrub over
+    osr_view). No known capture gaps remain; --validate snaps police future staleness for free.
+- **Prior (ckpt 125): TRACE STUDIO v2 — M4 RECONSTRUCT LANDS (the `.osr` → frames, on Windows). The port
   binary's `--osr-replay` mode rebuilds frames 1:1 from a captured draw stream through the port's OWN
   bit-exact sinks, and the capture now records the ALPHA blend descriptor it was missing. 5 commits; 998 host
   pass (+6). USER-CONFIRMED the town reconstruction looks correct.**
@@ -57,12 +80,8 @@
     captures still decode, zero-filled). Recaptured (anchors byte-identical, ~950 fps): flip 6390 clean
     (**USER-CONFIRMED**), 79→7 flagged blits (all benign res-0 labels), prologue/town `differ_px==0` vs
     the old reconstruction. 999 host pass (+1). Writeup: `plans/trace-studio-v2.md` "RESOLVED (ckpt 126)".
-  - **NEXT — M4d the `--validate` differ_px==0 gate** (a real retail-backbuffer snapshot from the proxy →
-    diff vs reconstruction) is the ground-truth tool: it confirms alpha pixel-correctness, catches any
-    residual capture staleness (e.g. a surface re-composed in place via Lock/GDI), and diagnoses the menu
-    CLIPPED artifact. Then **M5** the port emitter (`src/osr_emit.c` → same `.osr`) for the port|retail
-    DIFF pane. Remaining capture gap (flagged): scene-transition CLEARs (`OSR_CLEAR`).
-    Plan: `plans/trace-studio-v2.md`.
+  - ~~NEXT — M4d the `--validate` gate~~ **DONE ckpt 127** (see LATEST above): 71/71 snaps clean,
+    menu artifact root-caused (quirk #105) + fixed via `OSR_CLEAR`. Plan: `plans/trace-studio-v2.md`.
 - **M3c (prior, ckpt 125): the SOURCE pixels + surface identity are captured —
   the draw stream is now self-contained enough to reconstruct frames (M4). NO COM vtable wrap was needed:
   the blit decompiles showed each cel/dest holds a real `IDirectDrawSurface7*` at `+0x2c` (the engine calls

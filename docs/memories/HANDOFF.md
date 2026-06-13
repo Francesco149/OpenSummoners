@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 125, 2026-06-12)
+# Session handoff — rolling current state (last updated ckpt 127, 2026-06-13)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,18 +6,20 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 125
+## Where we are — ckpt 127
 
-**TRACE STUDIO v2 — M1+M2+M3a+M3b+M3c LANDED. The native, Frida-free capture proxy (`tools/capture_proxy/`,
-all C/mingw32) boots retail seed-pinned + lockstep + headless TURBO to `game_enter` with every anchor
-(M1+M2), WRITES a native `.osr` draw-stream (M3a), records the full BLIT op stream (M3b), and now captures
-the SOURCE pixels + surface identity (M3c) — the draw stream is now self-contained enough to reconstruct
-frames (M4). 10 commits this ckpt (`02495e5` M1, `8e23999` M2a, `16f7977` M2b-1, `2ce391c` M2b-2,
-`8c42c02` M3a, `cc63407` M3b, `ee55e5b`+`50ec26b` M3b-perf, +2 M3c).** The USER pulled this tooling rebuild
-forward before the room-render/freeroam port because v1 Frida capture is too slow/coarse to iterate the
-render parity that work needs. Design + build order M1→M7: `docs/plans/trace-studio-v2.md`. v2 is built in
-ISOLATION — it does not touch v1 (`tools/trace_studio*`, `frida_capture.py`, the agent); v1 archives only
-once v2 reaches parity.
+**TRACE STUDIO v2 — M1 through M4 COMPLETE, including M4d the `--validate` GROUND-TRUTH GATE: 71/71 real
+retail backbuffer snapshots reconstruct `differ_px==0`** (boot→title→newgame-menu→prologue→town→dialogue→
+house-freeroam).  The capture chain: the native Frida-free proxy (`tools/capture_proxy/`, M1+M2) boots
+retail seed-pinned/lockstep/turbo and streams a `.osr` carrying the COMPLETE frame description — BLIT op
+stream (M3b), dedup'd source SHEETs + surface identity (M3c), GDI TEXT/FONT (M3d), mode-4 alpha BLEND
+descriptors (M4-alpha), scene-transition CLEARs (ckpt 127, quirk #105), and sampled real-backbuffer SNAPs
+(M4d).  The reconstruction chain: `--osr-replay` (streaming reader `src/osr_replay.{c,h}` → `src/osr_recon.c`
+through the port's bit-exact zdd/GDI sinks) + `tools/osr_view` (native ImGui scrubber, ~1.4 ms/frame).
+The gate's one initial failure (flip 800) root-caused + FIXED the USER-flagged menu artifact: retail clears
+the compose surface via `FUN_005b9410` at scene transitions and the menu does NOT fully redraw — now an
+ORDERED `OSR_CLEAR` draw.  1000 host pass.  Design + build order M1→M7: `docs/plans/trace-studio-v2.md`.
+v2 is built in ISOLATION from v1; v1 archives only once v2 reaches parity.
 
 **The thesis (USER-directed):** capture the DRAW-CALL STREAM (DDraw blits + GDI text + state + dedup'd
 source surfaces) via a proxy `ddraw.dll` — NOT pixels — and reconstruct frames 1:1 on Windows (real GDI →
@@ -96,28 +98,26 @@ pixel-drift search. Everything heavy runs Windows-side; WSL only orchestrates + 
   manager re-read each poll for sub-menus; ts from `[esp+4]`). PROVEN: newgame@flip652 → prologue@1000 →
   game_enter@1242 (RNG re-pin fires) → sim_tick ~1:1 with flips.
 
-**Module layout (this ckpt, all under `tools/capture_proxy/`):** `ddraw_proxy.c` (entry/forward + init
-order), `proxy_log.h`, `proxy_config.h`, `iat_hook.h`, `clock.h`, `va_detour.h`, `engine_hooks.h`,
-`engine_input.h`, `render_id.h` (M3b — the cel registry), `trampoline.h` (M3b-perf — the E9 hooks for the
-6 hot VAs), `surface_id.h`+`sheet_grab.h`+`engine_pixfmt.h` (M3c — surface identity + source-pixel SHEET),
-`harness.h`, `Makefile` (single-TU →
-`build/ddraw_proxy.dll`), `ddraw_proxy.def`, `run_proxy.sh` (deploy → run → collect → ALWAYS clean up
-`ddraw.dll` so v1 Frida runs are unaffected) + `osr_format.h` (in `src/`, M3a+M3b+M3c), `osr_writer.h`.
-`tools/trace_studio2/osr.py` = the Python reader (SUMMARY/FRAMES/BLITS/SHEETS). Boot artifacts land on
-native NTFS `C:\oss-osr\` (storage discipline). Throwaway nav: `runs/proxy-m2b/nav.jsonl` (cadence-tolerant).
+**Module layout (current, all under `tools/capture_proxy/` unless noted):** `ddraw_proxy.c` (entry/forward
++ init order), `proxy_log.h`, `proxy_config.h` (incl. `OSS_OSR_SNAP_EVERY`/`OSS_OSR_SNAP_FLIPS`),
+`iat_hook.h`, `clock.h`, `va_detour.h`, `engine_hooks.h` (anchors/blits/dtor-evict/CLEAR `0x5b9410`/SNAP
+grab), `engine_input.h`, `engine_gdi.h` (M3d TEXT/FONT), `render_id.h`, `trampoline.h`,
+`surface_id.h`+`sheet_grab.h`+`engine_pixfmt.h`, `blend_grab.h` (M4-alpha), `harness.h`, `Makefile`,
+`ddraw_proxy.def`, `run_proxy.sh`.  Port-side: `src/osr_format.h` (the shared codec: BLIT 88-B, SHEET,
+BLEND, FONT, TEXT, CLEAR, SNAP), `src/osr_replay.{c,h}` (streaming reader), `src/osr_recon.c` (the
+`--osr-replay` reconstructor + the SNAP `differ_px` validate), `src/recon_apply.{c,h}` (shared sinks),
+`tools/osr_view/` (ImGui scrubber + `build/osr_prof.exe` frame-dumper).  `tools/trace_studio2/osr.py` =
+the Python reader.  Artifacts on native NTFS `C:\oss-osr\` (`retail.osr` = the ckpt-126 USER-confirmed
+capture; `retail-snap.osr` = the ckpt-127 snap+clear capture).  Nav: `runs/proxy-m2b/nav.jsonl`.
 
-**NEXT MOVE — M3d: GDI text → TEXT/FONT.** The draw stream now carries blits + source pixels + surface
-identity; the one remaining draw class is GDI text — the engine `TextOutA`s strings straight onto the
-backbuffer, OUTSIDE the 5 blit primitives (`findings/text-glyph-pipeline.md`). **M3d** = hook
-`gdi32!TextOutA`/`ExtTextOutA` + `SelectObject`/`CreateFontIndirectA`/`SetTextColor` (IAT-patch or a
-trampoline on the gdi32 thunks) → TEXT records (dst_handle, x, y, string, font_ref, color, bk_mode) +
-dedup'd FONT records (LOGFONTA). With M3d the `.osr` is a COMPLETE frame description → **M4** reconstruct
-(`opensummoners.exe --osr-replay`: rebuild a `zdd_object` per SHEET, replay each frame's CLEAR/BLIT through
-`zdd.c` + TEXT through `glyph_render_win32.c`'s real GDI, PRESENT → PNG; the `--validate` `differ_px==0`
-fidelity gate vs one real snapshot), **M5** the port emitter (`src/osr_emit.c` → same `.osr`), **M6** the
-tick-join studio (`:8780` scrub). The held-axis leaf inject (`0x5ba520`, needs an onLeave-style return-value
-hook) stays DEFERRED until freeroam capture needs it. The 3 M3c PORT-DEBT follow-ups
-(`osr-sheet-compression`, `osr-sheet-dhash-xside`, `osr-alpha-src-grab`) are NON-blocking for M3d/M4.
+**NEXT MOVE — M5: the port emitter (`src/osr_emit.c`).** The port writes the SAME `.osr` from its own
+sinks — FRAMEBEG/PRESENT at the drive loop, BLIT at the 5 `zdd_emit_blit` primitives, TEXT/FONT from
+`glyph_render_win32.c`, SHEET from `asset_register.c`'s decoded sheets (the dhash machinery already
+mirrors), CLEAR at `zdd_object_clear`, SEED/ANCHOR at the existing anchor sites.  Then **M6** the
+tick-join studio: pair both sides' `.osr` by `sim_tick`, scrub port|retail|diff in osr_view (or feed the
+v1 `:8779` UX from reconstructed frames).  The held-axis leaf inject (`0x5ba520`) stays DEFERRED until
+freeroam capture needs it.  PORT-DEBT follow-ups (`osr-sheet-compression`, `osr-sheet-dhash-xside`,
+`osr-alpha-src-grab`) remain NON-blocking.
 
 **M3c validation detail (durable):** the surface convention was RE'd from the blit decompiles
 (`docs/decompiled/by-address/5b9a40.c`/`5b9ae0.c`/`5b9b70.c`/`5b9bf0.c`/`5bd550.c`): every primitive does
