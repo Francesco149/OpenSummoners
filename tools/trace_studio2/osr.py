@@ -373,6 +373,76 @@ def parse(path: str) -> Osr:
     return out
 
 
+def read_header(path: str) -> Header:
+    """Decode JUST the 64-byte header (no record scan) — cheap on any size file."""
+    with open(path, "rb") as f:
+        data = f.read(HEADER_SIZE)
+    if len(data) < HEADER_SIZE:
+        raise ValueError(f"{path}: too short for a header ({len(data)} bytes)")
+    if data[0:4] != MAGIC:
+        raise ValueError(f"{path}: bad magic {data[0:4]!r} (want {MAGIC!r})")
+    version = struct.unpack_from("<I", data, 4)[0]
+    if version != VERSION:
+        raise ValueError(f"{path}: version {version} (want {VERSION})")
+    side, pixfmt = data[8], data[9]
+    screen_w, screen_h = struct.unpack_from("<HH", data, 10)
+    seed, flags = struct.unpack_from("<II", data, 16)
+    scenario = data[24:64].split(b"\x00", 1)[0].decode("latin-1", "replace")
+    return Header(side, pixfmt, screen_w, screen_h, seed, flags, scenario)
+
+
+def stream_records(path: str, types):
+    """STREAMING record iterator — the antidote to parse() OOMing on multi-GB
+    captures (retail.osr is ~1.9 GB / 16M records).  Reads the file in big blocks
+    and yields Record(type, payload) ONLY for records whose type is in `types`;
+    every other record's payload (the bulky BLIT/TEXT/SHEET/SNAP bytes) is SKIPPED
+    by pointer/seek arithmetic, never copied or materialized.  Mirrors the C
+    block-buffered scan in tools/osr_view/osr_scrub.c build_index().  Stops cleanly
+    at a torn tail (hard-killed capture), like parse().
+
+    `types` is a set/container of record-type ints (e.g. {FRAMEBEG, ANCHOR}).
+    Use this for pairing / verdict / anchor checks where only the small records
+    matter; use parse() (whole-file) only for small captures + round-trip tests."""
+    BLOCK = 4 * 1024 * 1024              # > the largest SHEET/SNAP (~600 KB)
+    want = set(types)
+    with open(path, "rb") as f:
+        if len(f.read(HEADER_SIZE)) < HEADER_SIZE:
+            return
+        buf = b""
+        pos = 0                          # buf[pos:] is unparsed
+        while True:
+            if len(buf) - pos < 8:       # need a record header
+                buf = buf[pos:] + f.read(BLOCK)
+                pos = 0
+                if len(buf) < 8:
+                    return               # EOF / torn tail
+            rtype, rlen = struct.unpack_from("<II", buf, pos)
+            if rtype in want:
+                if len(buf) - pos - 8 < rlen:      # make the payload contiguous
+                    buf = buf[pos:] + f.read(max(BLOCK, rlen + 8))
+                    pos = 0
+                    if len(buf) - 8 < rlen:
+                        return           # torn trailing record
+                yield Record(rtype, buf[pos + 8:pos + 8 + rlen])
+                pos += 8 + rlen
+            else:                        # skip the payload without copying it
+                avail = len(buf) - pos - 8
+                if avail >= rlen:
+                    pos += 8 + rlen
+                else:                    # payload runs past the buffer → seek over it
+                    f.seek(rlen - avail, 1)
+                    buf = b""
+                    pos = 0
+
+
+def stream_frames(path: str):
+    """Stream (flip, sim_tick) per FRAMEBEG — the tick-join axis — on any size
+    file.  Convenience wrapper over stream_records({FRAMEBEG})."""
+    for r in stream_records(path, {FRAMEBEG}):
+        flip, tick, _ = r.framebeg()
+        yield flip, tick
+
+
 def cmd_summary(path: str) -> int:
     o = parse(path)
     h = o.header
