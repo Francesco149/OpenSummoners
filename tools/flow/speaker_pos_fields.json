@@ -1,0 +1,15 @@
+{
+  "_doc": "Per-line SPEAKER world position (ckpt 131, the 0x49c640+dynamic-cast arc): 0x49c640 projects the speaker's body world pos (*(speaker+0x40)+4/+8) to screen and centers the box on it.  Does the cast WALK during the dialogue (so the box moves per line) or is it static per speaker?  Hook 0x439680 (in_ECX = the beat-runner controller): slot=+0x84 (current line); the speaker = in_ECX[0x1e] = *(this+0x78); its body = speaker+0x40; world_x/y = body+4/+8.  thischain hops=[0x78,0x40] off=4/8.  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/speaker_pos_fields.json --field-spec-only --call-trace --run-dir runs/speaker-pos --duration-ms 90000",
+  "fields": {
+    "0x439680": {
+      "name": "beat",
+      "_note": "slot=thisderef+0x84. speaker=*(this+0x78); body=speaker+0x40; world=body+4/+8.",
+      "fields": [
+        {"name": "slot", "src": "thisderef", "off": 132, "type": "i32"},
+        {"name": "spk_code", "src": "thischain", "hops": [120], "off": 468, "type": "hex"},
+        {"name": "wx", "src": "thischain", "hops": [120, 64], "off": 4, "type": "i32"},
+        {"name": "wy", "src": "thischain", "hops": [120, 64], "off": 8, "type": "i32"}
+      ]
+    }
+  }
+}

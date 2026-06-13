@@ -1,0 +1,14 @@
+{
+  "_doc": "Per-line dialogue BOX position ground truth (ckpt 131): 0x49c640 anchors the box to the SPEAKER's projected screen pos and writes the box obj +0xc/+0x10.  Hook 0x49c910 (FUN_0049c910(param_1), __cdecl, called RIGHT AFTER 0x49c640 with param_1 = piVar17 = this+0x54): *param_1 = the box obj, so box_x=*(*param_1+0xc) (argderef 0,0xc), box_y=*(*param_1+0x10); the resolved portrait slot = param_1[0xc] = *(param_1+0x30) (argfield 0,0x30, = this+0x84).  No lag, slot+pos aligned in one hook.  Bake box_x/box_y per line (the port hardcodes DIALOGUE_BOX_X=174/Y=148).  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/portrait_pos_fields.json --field-spec-only --call-trace --run-dir runs/portrait-pos --duration-ms 90000",
+  "fields": {
+    "0x49c910": {
+      "name": "boxpos",
+      "_note": "param_1 (arg0) = this+0x54. *param_1 = box obj. box_x = *(*param_1+0xc), box_y = *(*param_1+0x10). slot = param_1[0xc] = *(param_1+0x30).",
+      "fields": [
+        {"name": "slot",  "src": "argfield", "index": 0, "off": 48, "type": "i32"},
+        {"name": "box_x", "src": "argderef", "index": 0, "off": 12, "type": "i32"},
+        {"name": "box_y", "src": "argderef", "index": 0, "off": 16, "type": "i32"}
+      ]
+    }
+  }
+}

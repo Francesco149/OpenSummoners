@@ -32,19 +32,33 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase:** Phase 4 — the town intro renders ~1:1; the town-intro CUTSCENE chains arrival→house→errands
-  and **all three ROOM BACKDROPS now render** (ckpt 130).  The trace-studio-v2 DETOUR (ckpt 125-129) is
-  DONE (the native `.osr` capture + `osr_view` parity studio); it unblocked this room-render arc.  **NEXT:
-  the FREEROAM HAND-OFF — make Arche controllable in the errands room** (`character_step` on live input, the
-  mover is DONE bit-exact).  Studio: `plans/trace-studio-v2.md`; movement/freeroam arc:
-  `plans/controllable-arche-faithful.md` (Phase 2a render DONE → Phase 2b freeroam); milestones: `ROADMAP.md`.
+- **Phase:** Phase 4 — the town intro renders ~1:1; the cutscene chains arrival→house→errands and all three
+  ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
+  errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Four bugs fixed (ckpt 131:
+  errands floor tileset, house+errands props, the dialogue-portrait +13 offset).  **NEXT (the one remaining
+  1:1 gap): the dialogue BOX POSITION — port `0x49c640` (anchor the box to the speaker's projected screen
+  pos) over the cast positions; USER chose the faithful fix.**  THEN the FREEROAM HAND-OFF (controllable
+  Arche, `character_step` on live input — the mover is DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
+  freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **trace-studio v2 ✓ (ckpt 125-129) →
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → the FREEROAM HAND-OFF (controllable Arche in
     the errands room) = next**.
-- **LATEST (ckpt 130): ROOM-RENDER LANDS — the house (DATA 1023) + errands/freeroam (DATA 1025) ROOM
+- **LATEST (ckpt 131): the dialogue-rendering gaps up to the errands — FOUR bugs fixed, harness-verified;
+  the box POSITION is the one remaining 1:1 gap.**  USER drove a frame-by-frame trace-studio pass.  (1) the
+  errands BOTTOM FLOOR (bank 0x188 cloned from the wrong source → floor tiles culled; fixed the inline-clone
+  {0x187←0x184}/{0x188←0x185}, `e8d5c0b`); (2) house + errands PROPS (the map-driven STRUCTURE band now
+  re-spawns + renders per room — house flowers/"Items" sign, errands furniture; `1d826c3`); (3) the dialogue
+  PORTRAITS — **the +13 pool/array offset made EVERY bust wrong** (the render indexed
+  `g_ar_sprite_slots[pslot]` directly, but the face table returns a POOL index → use `ar_pool_get_slot`;
+  `cbbab94`, verified the port now emits retail's exact slots res 0x7ef/0x5a3/0x7f9 + the right 160×176
+  dims).  REMAINING: the box POSITION (port hardcodes (174,148); retail anchors to the speaker via
+  `0x49c640`) — USER-chose to port it faithfully; ground truth captured (`tools/flow/portrait_pos_fields.json`,
+  the per-line box obj +0xc/+0x10).  1010 host pass (+1).  Montages on the feed (L1 Father / L3 Mother
+  port-vs-retail).  Studio note: the NOTE UI is dual-mode only (a single-file-scrub gap to build).
+- **Prior (ckpt 130): ROOM-RENDER LANDS — the house (DATA 1023) + errands/freeroam (DATA 1025) ROOM
   BACKDROPS RENDER.** The whole reason trace-studio v2 was pulled forward: resume the room-render arc.  The
   cutscene room-key swap (arrival 0x334be → house 0x334c8 → errands 0x334dc) now RELOADS the backdrop, the
   per-room `map_decode` tilesets are ported BIT-EXACT, and both rooms render (montages on the feed).  5

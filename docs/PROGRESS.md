@@ -6,7 +6,51 @@ specific commits where relevant.
 
 ---
 
-## 2026-06-13 (ckpt 130) — ROOM-RENDER: the house + errands/freeroam ROOM BACKDROPS render (the paused movement arc resumes)
+## 2026-06-13 (ckpt 131) — ROOM-RENDER GAPS CLOSED (errands floor + house/errands props) + the dialogue-portrait BUST bug; the box-POSITION arc is next
+
+USER directive: use trace-studio v2 to find + close the rendering gaps up to the errands, frame-by-frame
+1:1, before going further.  Four real bugs found + fixed (the portrait one via the draw-drill the USER
+insisted on), all harness-verified; the box-position is the remaining 1:1 gap (USER-chosen the faithful
+fix).
+
+- **Errands BOTTOM FLOOR — fixed** (`e8d5c0b`).  The floor tileset bank `0x188` was boot-cloned from the
+  wrong source (`0x186` = a 1-frame 32×32 sprite res 0x76b), so its floor tiles (frames 4/7/11 at row
+  y=13) were culled by the `ar_sprite_slot_frame` f_38 bound → the whole bottom floor missing.  Retail
+  RUNTIME ground truth (frida pool read, `tools/flow/errands_tileset_fields.json`): bank 0x187=res 0x769
+  f_38=24, 0x188=res 0x76a f_38=16 — the town (DATA 1022) floor banks 0x184/0x185 CLONED into 0x187/0x188
+  (the two area-0xd2 rooms share the floor sheets).  Fixed the inline-clone sources {0x187←0x184},
+  {0x188←0x185}; +1 regression test.  Retires the errands-floor half of `assetreg-clone-defer`.
+
+- **House + errands PROPS — rendered** (`1d826c3`).  `game_actor_walk` (the band walk) was gated to the
+  arrival room only, and the bands were spawned once in `enter_game` from the TOWN map.  The STRUCTURE band
+  is fully MAP-DRIVEN (quirk #84), so `reload_room_backdrop` now re-spawns `g_structs` per room (house→21,
+  errands→58 props) and `game_actor_walk` runs for EVERY room (STRUCTURE always; the town-specific
+  EFFECT/CHARACTER cast bands stay gated on `room_is_town`).  House renders its flower boxes / "Items" sign;
+  errands its shop furniture.  Remaining errands gap: the CHARACTER-band shop items (35) + the room cast —
+  per-room sprite tables (`actor-sprite-table`, Phase 2b).
+
+- **Dialogue PORTRAITS — the +13 pool/array offset (EVERY bust was wrong)** (`cbbab94`).  The USER flagged
+  "many divergences"; the draw-drill (osr.py BLIT scan + osr_prof recon) showed L3 Mother rendering 176×144
+  vs retail 160×176.  Root cause: the portrait render indexed `g_ar_sprite_slots[pslot]` DIRECTLY, but the
+  0x49d6e0 face table returns a POOL index, and the pool is offset from the array by the ramp slots
+  (`ar_pool_get_slot` = `[i-(RAMP+1)]` = i−13).  So every portrait was shifted +13 → the wrong bust
+  resource (right character, wrong expression/variant) AND, for var-B slots, wrong dims.  HARNESS-VERIFIED:
+  retail pool 676=res 0x7ef / 704=0x7f9 / 460=0x5a3 (all 160×176) live at the port's slots 663/691/447.
+  Fix: resolve via `ar_pool_get_slot(pslot)`.  Verified the port now emits res 0x7ef (L1) / 0x5a3 (L2) /
+  0x7f9 (L3) — matching retail's slots EXACTLY — and L3 renders 160×176.
+
+- **Dialogue box POSITION — the remaining 1:1 gap (USER-chose the faithful fix; next chip).**  Retail
+  anchors the dialogue box to the SPEAKER's projected screen position (`0x49c640`: project the speaker body
+  world pos via `0x490b90`, center the box, clamp), so the box moves to whoever speaks (Father box≈(174,148),
+  Arche≈(94,160), Mother≈(62,148)).  The port HARDCODES `DIALOGUE_BOX_X=174/Y=148`.  Ground truth captured:
+  `tools/flow/portrait_pos_fields.json` reads the live box obj `+0xc/+0x10` per line (hook 0x49c910,
+  param_1=this+0x54, *param_1=box obj).  The arrival cast is largely CLUSTERED/static during the dialogue
+  (early vs late frames match) with slight drift, so the fix is: port `0x49c640` over the cast's
+  (mostly-static) positions + the projector, then refine with the walk-in cast if the drift matters
+  (`cutscene-party-chars`).  NOT YET DONE.
+
+Trace-studio note: the NOTE/mark UI is dual-mode only (single-file scrub has no notes panel) — a studio gap
+to build.  The USER flagged frames directly (4103/5165) which worked.
 
 The whole reason trace-studio v2 was pulled forward (ckpt 125): resume the room-render/freeroam port.  The
 town-intro cutscene chains arrival → house → errands; previously the house/errands lines played over the
