@@ -60,18 +60,22 @@
     at that tick (`osr_prof` dump + crop), `--feed` pushes it. So a mark says "look HERE at THIS tick" and
     round-trips to a precise visual. VERIFIED end-to-end headless (a C-format sample → notes.py rendered the
     crops). Gap panels now LABEL "no frame at this tick" instead of bare black.
-  - **DRAW INSPECTOR (openrecet N3):** `osr_scrub` grew `frame_ndraws`/`frame_draws` (the ordered draw list
-    + labels), `render_rgba_upto(K)` (watch a frame build draw-by-draw), `pick_draw(px,py)` (which draw last
-    painted a pixel — one incremental pass). A 2nd osr_view window: PORT/RETAIL radio, "up to draw K" slider,
-    the clipped draw list (click a row → render-to-there + highlight its rect), click the image → pick. ENGINE
-    VERIFIED headless: `render_rgba_upto(all)==render_rgba`; on port frame 1309 the build-up is clean
-    (CLEAR→full town→+banner), pick(200,150)=draw #615 the banner; and it already earned its keep (found the
-    game_enter mid-frame CLEAR). GUI = USER visual-verify.
-  - **NEXT:** the studio is usable + self-diagnosing → the PAUSED room-render/freeroam arc is UNBLOCKED (the
-    reason v2 was pulled forward); resume it with the studio to verify each frame. Remaining studio polish
-    (openrecet survey 4/5/6: `.osr` slice tool, capture cache + one orchestrator cmd, draw-program semantic
-    panel) pull in when needed. CAVEAT: port-m5 only reaches tick 191 (a matched-length port capture awaits
-    the freeroam port); the 190-paired region is the working demo. Roadmap: `plans/trace-studio-v2.md`
+  - **DRAW DRILL, UNIFIED into the main panels (openrecet N3 + the USER's UX):** `osr_scrub` grew
+    `frame_ndraws`/`frame_draws` (the ordered draw list + labels), `render_rgba_upto(K)`, `pick_draw(px,py)`.
+    A **frame/draw-drill MODE toggle** + per-panel **show** checkboxes (NOT a separate window); in drill mode
+    ONE K slider drives `render_rgba_upto` on BOTH sides synchronously → the DIFF panel shows where the two
+    draw sequences diverge.  DRAG=crop, CLICK=pick (InvisibleButton owns both → the crop-drag window-move bug
+    is FIXED).  ENGINE VERIFIED headless (`render_rgba_upto(all)==render_rgba`; clean build-up; cross-side
+    up-to-K diff at tick 112 peaks ~1020px @K≈158 then settles to 380).  **USER-CONFIRMED** the scrub + the
+    note round-trip (cropped Sana = pixel-identical).  Direction: eventually MATCH the draw SEQUENCE port↔
+    retail for max faithfulness (tick 112 already shows port 616 vs retail 634 draws — a real mismatch).
+  - **WORKFLOW (CLAUDE.md, USER-set):** inspect every divergence in the draw drill; GIVE the `osr_view.exe
+    <port> <retail>` command on any visually-confirmable change; crop MARKS → `notes.py --render`; a studio
+    shortcoming is a new studio FEATURE.  **NEXT:** the studio is usable + self-diagnosing → RESUME the
+    now-unblocked room-render/freeroam port (verify each frame in the studio + draw-sequence-match).  Studio
+    polish (openrecet survey 4/5/6: `.osr` slice tool, capture cache + one orchestrator cmd, draw-program
+    semantic panel) pull-when-needed.  CAVEAT: port-m5 only reaches tick 191; the 190-paired region is the
+    working demo.  Roadmap: `plans/trace-studio-v2.md`
     §openrecet-v3-survey (items 1/2/3/7 done; 4/5/6 remain).
 - **Prior (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
   retail proxy captures, and `--osr-replay` of the port's OWN `.osr` rebuilds its frames

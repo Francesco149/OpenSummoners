@@ -534,15 +534,22 @@ it earliest. Each milestone is independently testable.
     the freeroam port); the 190-paired region is the working demo.
 - **M7 — drill-in + the note hand-off. ✓ PARTIAL (ckpt 129).** Done: the NOTE/mark
   system (crop+text → `osr_notes.jsonl` → `notes.py` renders the cropped port|retail|
-  diff for the agent — the human→agent contract, openrecet N4) AND the DRAW INSPECTOR
-  (osr_scrub `frame_draws`/`render_rgba_upto`/`pick_draw`; a 2nd osr_view window with a
-  PORT/RETAIL radio, an up-to-draw-K slider, the clipped draw list + click-to-select,
-  and pixel→draw pick — openrecet N3).  Gap panels labelled (not bare black).  Engine
-  verified headless (`render_rgba_upto(all)==render_rgba`; clean build-up + pick on
-  port frame 1309); GUI = USER visual-verify.  REMAINING (pull-when-needed, openrecet
-  survey 4/5/6): an `.osr` slice tool, a content-addressed capture cache + one
-  orchestrator command, the draw-program semantic (`render_diff`) panel — then archive
-  v1.
+  diff for the agent — the human→agent contract, openrecet N4) AND the DRAW DRILL
+  (osr_scrub `frame_draws`/`render_rgba_upto`/`pick_draw`, openrecet N3).  The drill is
+  UNIFIED into the main 3 panels (USER's openrecet-UX ask — NOT a separate window): a
+  frame/draw-drill MODE toggle + per-panel show checkboxes; in drill mode ONE K slider
+  drives `render_rgba_upto` on BOTH sides synchronously so the DIFF panel shows where the
+  two draw SEQUENCES diverge; focus radio + click-to-pick + green selected-draw rect; a
+  panel DRAG=crop, CLICK=pick (the InvisibleButton fix also cured the crop-drag
+  window-move bug, USER-reported).  Gap panels labelled (not bare black).  Engine verified
+  headless (`render_rgba_upto(all)==render_rgba`; clean build-up + pick on port frame 1309;
+  cross-side up-to-K diff at tick 112 peaks ~1020px then settles to 380).  USER-CONFIRMED
+  the scrub + the note round-trip.  **The DRAW-SEQUENCE MATCH is the faithfulness bar
+  (USER):** match the port↔retail draw stream, not just the final pixels — tick 112 already
+  shows port 616 vs retail 634 draws.  REMAINING (pull-when-needed, openrecet survey 4/5/6):
+  an `.osr` slice tool, a content-addressed capture cache + one orchestrator command, the
+  draw-program semantic (`render_diff`) panel that scores the draw-sequence divergence —
+  then archive v1.
 
 ## Resolved design decisions (USER, 2026-06-12)
 

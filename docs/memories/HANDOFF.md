@@ -91,24 +91,39 @@ system").**  Commits `953ee74` (notes) + `b568104` (inspector engine) + `6279274
   frame build; replay_frame refactored to `replay_frame_upto`, readback factored to `readback_rgba`),
   `pick_draw(idx,px,py)` (which draw last changed a pixel — one incremental pass: clear → apply each draw →
   sample the RGB565 pixel, releasing the GDI DC each step so text flushes before sampling), `resolve_nonempty`
-  shared by all.  GUI: a 2nd osr_view window — PORT/RETAIL radio, an "up to draw K" slider, the clipped draw
-  list (`ImGuiListClipper`; click a row → render-to-there + highlight its dest rect green), click the image →
-  `pick_draw` selects the painting draw.  ENGINE VERIFIED headless: `render_rgba_upto(all)==render_rgba`
-  (differ 0); on port frame 1309 (settled town, 616 draws) the build-up is clean (K=1 CLEAR=black → K=308
-  full town 300k px → K=616 +banner), `pick(200,150)`=draw #615 the `keyed res=1097` banner; and it earned
-  its keep immediately (surfaced the tick-0 mid-frame CLEAR above).  GUI interaction = USER visual-verify.
+  shared by all.  GUI (UNIFIED into the main 3 panels per the USER's openrecet-UX ask — NO separate window):
+  a **frame / draw-drill MODE toggle** + per-panel **show** checkboxes (focus one side / hide the diff); in
+  drill mode ONE "draw K (both sides)" slider drives `render_rgba_upto` on BOTH sides synchronously, so the
+  DIFF panel shows exactly where the two draw sequences diverge.  A focus radio (port/retail) picks the draw
+  list + pick side; the selected draw's rect is highlighted green on every panel.  Interaction split: a panel
+  DRAG = a crop (notes, any mode), a CLICK in drill = pixel→draw pick on that side (the InvisibleButton owns
+  both → no window-move, the ckpt-129 bug fix).  ENGINE VERIFIED headless: `render_rgba_upto(all)==render_rgba`
+  (differ 0); on port frame 1309 the build-up is clean (K=1 CLEAR=black → K=308 full town → K=616 +banner),
+  `pick(200,150)`=draw #615 the banner; the cross-side up-to-K diff at tick 112 peaks ~1020px @K≈158 then
+  settles to 380 — it reveals sequence divergence.  GUI interaction = USER visual-verify.
+- **The DRAW-SEQUENCE-MATCH direction (USER, for max faithfulness):** the drill exists to eventually MATCH
+  the port↔retail draw SEQUENCE, not just the final pixels.  Already a concrete lead: at tick 112 port emits
+  616 draws vs retail 634 (18 extra retail draws) — a structural mismatch to reconcile.  This is the parity
+  bar for the room-render/freeroam port: diff the draw streams (the `render_diff` lens, openrecet survey #6)
+  and align them.
 
 **OPEN (USER): GUI visual-verify of the M7 additions** — the windowed DX11 app can't be driven from WSL.
 In `build/osr_view.exe 'C:\oss-osr\port-m5.osr' 'C:\oss-osr\retail-snap.osr'`: (1) drag a crop on a panel,
-type a note, Add → it lands in the list + `C:\oss-osr\osr_notes.jsonl` (then I run `notes.py --render`); (2)
-the "draw inspector" window — slide K to watch a frame build, click a draw row / click the image to pick.
+type a note, Add → it lands in the list + `C:\oss-osr\osr_notes.jsonl` (then I run `notes.py --render`);
+(2) flip to **draw-drill** mode → slide K to watch both sides build, the DIFF lights up where they diverge;
+toggle the show-panel checkboxes; click a panel pixel to pick its draw.  **USER-CONFIRMED so far:** the
+3-panel scrub + the note round-trip (cropped Sana = pixel-identical); window-drag-while-cropping was the one
+bug, FIXED.
 
 **NEXT MOVE.**  The studio is usable + self-diagnosing → the PAUSED room-render/freeroam arc is UNBLOCKED
 (the whole reason v2 was pulled forward, ckpt 125): RESUME it — render the house/errands ROOMS
 (`plans/controllable-arche-faithful.md` Phase 2a; scene ids house=1023/errands=1025) → the freeroam hand-off,
-now with the tick-join studio + the note hand-off + the draw inspector to verify/diagnose each frame.
-Remaining *studio* polish (openrecet survey 4/5/6: an `.osr` slice tool, a capture cache + one orchestrator
-command, the draw-program semantic panel) is pull-when-needed.  **CAVEAT for a real comparison:** the port-m5
+verified frame-by-frame in the studio AND draw-sequence-matched (the 616-vs-634 kind of mismatch reconciled).
+**The standing WORKFLOW (CLAUDE.md, USER-set):** inspect every render divergence in the draw drill; GIVE the
+`osr_view.exe <port> <retail>` command on any visually-confirmable change; the USER drops crop marks →
+`notes.py --render`; a studio shortcoming is a new studio FEATURE.  Remaining studio polish (openrecet survey
+4/5/6: `.osr` slice tool, capture cache + one orchestrator command, the draw-program semantic panel) is
+pull-when-needed.  **CAVEAT for a real comparison:** the port-m5
 capture only reaches tick 191 (its intro-1 nav is short); a matched-length port capture awaits the freeroam
 port, so for now the 190-paired region is the working demo.  Roadmap: `plans/trace-studio-v2.md`
 §openrecet-v3-survey (items 1/2/3/7 DONE this ckpt; 4/5/6 remain).
