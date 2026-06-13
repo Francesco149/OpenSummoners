@@ -68,51 +68,77 @@ static int buf_ensure(osr_scrub *s, uint32_t n)
     return 1;
 }
 
-/* Replay frame n's own draws onto the (already-cleared) dest — self-contained. */
-static void replay_frame(osr_scrub *s, int n)
+/* Replay frame n's own draws onto the (already-cleared) dest — self-contained.
+ * klimit < 0 = all draws; else stop after the first klimit ordered draws (the
+ * render-up-to-K of the draw inspector; BLIT/TEXT/CLEAR each count as one). */
+static void replay_frame_upto(osr_scrub *s, int n, int klimit)
 {
     if (_fseeki64(s->f, s->frames[n].off, SEEK_SET) != 0) return;
     uint8_t hdr[8];
+    int drawn = 0;
     while (fread(hdr, 1, 8, s->f) == 8) {
         uint32_t t = osr_get_u32(hdr), len = osr_get_u32(hdr + 4);
         if (!buf_ensure(s, len ? len : 1)) break;
         if (len && fread(s->buf, 1, len, s->f) != len) break;
         if (t == OSR_FRAMEBEG) continue;
         if (t == OSR_PRESENT)  break;
-        if (t == OSR_CLEAR) {
-            /* an ORDERED clear of the compose surface (proxy-filtered to the
-             * backbuffer) — wipes this frame's earlier draws too */
-            recon_release_dc(&s->rt);
-            zdd_object_clear(s->dest);
-        } else if (t == OSR_BLIT) {
-            osr_blit b;
-            if (osr_dec_blit(s->buf, len, &b)) recon_apply_blit(&s->rt, s->dest, &b);
-        } else if (t == OSR_TEXT) {
-            osr_text x;
-            if (osr_dec_text(s->buf, len, &x)) recon_apply_text(&s->rt, s->dest, &x);
+        if (t == OSR_CLEAR || t == OSR_BLIT || t == OSR_TEXT) {
+            if (klimit >= 0 && drawn >= klimit) break;     /* stop after K draws */
+            if (t == OSR_CLEAR) {
+                /* an ORDERED clear of the compose surface (proxy-filtered to the
+                 * backbuffer) — wipes this frame's earlier draws too */
+                recon_release_dc(&s->rt);
+                zdd_object_clear(s->dest);
+            } else if (t == OSR_BLIT) {
+                osr_blit b;
+                if (osr_dec_blit(s->buf, len, &b)) recon_apply_blit(&s->rt, s->dest, &b);
+            } else {
+                osr_text x;
+                if (osr_dec_text(s->buf, len, &x)) recon_apply_text(&s->rt, s->dest, &x);
+            }
+            drawn++;
         }
     }
     recon_release_dc(&s->rt);
 }
 
 /* Resolve frame n → the frame actually drawn (n itself, or the last non-empty
- * frame ≤ n for a re-present), and render it self-contained. */
-static void render(osr_scrub *s, int n)
+ * frame ≤ n for a re-present). */
+static int resolve_nonempty(const osr_scrub *s, int n)
 {
     if (n < 0) n = 0;
     if (n >= s->nframes) n = s->nframes - 1;
-    int m = n;
-    while (m > 0 && s->frames[m].ndraws == 0) m--;
+    while (n > 0 && s->frames[n].ndraws == 0) n--;
+    return n;
+}
+
+/* Render frame n self-contained (clear + all its draws), with the cache. */
+static void render(osr_scrub *s, int n)
+{
+    int m = resolve_nonempty(s, n);
     if (m == s->rendered) return;          /* already on screen */
     double t0 = qpc_now_ms();
     zdd_object_clear(s->dest);
     double t1 = qpc_now_ms();
-    replay_frame(s, m);
+    replay_frame_upto(s, m, -1);
     double t2 = qpc_now_ms();
     s->prof_clear_ms  += t1 - t0;
     s->prof_replay_ms += t2 - t1;
     s->prof_renders++;
     s->rendered = m;
+}
+
+/* the 5 source-bearing blit primitives (mirror osr.py BLIT_VA_NAME). */
+static const char *blit_va_name(uint32_t va)
+{
+    switch (va) {
+    case 0x5b9a40: return "onto";
+    case 0x5b9b70: return "keyed";
+    case 0x5b9ae0: return "rects";
+    case 0x5b9bf0: return "clipped";
+    case 0x5bd550: return "alpha";
+    default:       return "blit";
+    }
 }
 
 /* ── index pass: frame offsets/draw-counts + load all dedup'd tables ──────── */
@@ -276,10 +302,9 @@ void osr_scrub_frame_info(const osr_scrub *s, int idx, uint32_t *flip, uint32_t 
     if (tick) *tick = s->frames[idx].tick;
 }
 
-int osr_scrub_render_rgba(osr_scrub *s, int idx, uint32_t *out)
+/* Lock the dest, convert its RGB565 → RGBA8 into out, unlock. */
+static int readback_rgba(osr_scrub *s, uint32_t *out)
 {
-    if (!s || !out) return 0;
-    render(s, idx);
     double tr0 = qpc_now_ms();
     if (!zdd_object_lock(s->dest)) return 0;
     void *buf = NULL; int32_t pitch = 0, hh = 0;
@@ -303,6 +328,129 @@ int osr_scrub_render_rgba(osr_scrub *s, int idx, uint32_t *out)
     zdd_object_unlock(s->dest);
     s->prof_readback_ms += qpc_now_ms() - tr0;
     return 1;
+}
+
+int osr_scrub_render_rgba(osr_scrub *s, int idx, uint32_t *out)
+{
+    if (!s || !out) return 0;
+    render(s, idx);
+    return readback_rgba(s, out);
+}
+
+/* ── draw-level drill-in ─────────────────────────────────────────────────── */
+
+int osr_scrub_frame_ndraws(osr_scrub *s, int idx)
+{
+    if (!s || s->nframes <= 0) return 0;
+    return (int)s->frames[resolve_nonempty(s, idx)].ndraws;
+}
+
+int osr_scrub_frame_draws(osr_scrub *s, int idx, osr_draw_info *out, int cap)
+{
+    if (!s || s->nframes <= 0) return 0;
+    int m = resolve_nonempty(s, idx);
+    if (_fseeki64(s->f, s->frames[m].off, SEEK_SET) != 0) return 0;
+    uint8_t hdr[8];
+    int count = 0;
+    while (fread(hdr, 1, 8, s->f) == 8) {
+        uint32_t t = osr_get_u32(hdr), len = osr_get_u32(hdr + 4);
+        if (!buf_ensure(s, len ? len : 1)) break;
+        if (len && fread(s->buf, 1, len, s->f) != len) break;
+        if (t == OSR_FRAMEBEG) continue;
+        if (t == OSR_PRESENT)  break;
+        if (t != OSR_CLEAR && t != OSR_BLIT && t != OSR_TEXT) continue;
+        if (out && count < cap) {
+            osr_draw_info *d = &out[count];
+            memset(d, 0, sizeof *d);
+            if (t == OSR_CLEAR) {
+                d->kind = OSR_DRAW_CLEAR;
+                d->dx = 0; d->dy = 0; d->w = s->w; d->h = s->h;
+                snprintf(d->label, sizeof d->label, "CLEAR");
+            } else if (t == OSR_BLIT) {
+                osr_blit b;
+                if (osr_dec_blit(s->buf, len, &b)) {
+                    d->kind = OSR_DRAW_BLIT;
+                    d->dx = b.dx; d->dy = b.dy; d->w = b.reqw; d->h = b.reqh;
+                    d->res = b.res; d->frame = b.frame; d->va = b.va; d->dhash = b.dhash;
+                    snprintf(d->label, sizeof d->label, "%-7s res=%u f=%d @(%d,%d) %dx%d",
+                             blit_va_name(b.va), b.res, b.frame, b.dx, b.dy, b.reqw, b.reqh);
+                }
+            } else {
+                osr_text x;
+                if (osr_dec_text(s->buf, len, &x)) {
+                    d->kind = OSR_DRAW_TEXT;
+                    d->dx = x.x; d->dy = x.y; d->w = 0; d->h = 0;
+                    int sl = (int)(x.str_len < 24 ? x.str_len : 24);
+                    snprintf(d->label, sizeof d->label, "TEXT    @(%d,%d) '%.*s'",
+                             x.x, x.y, sl, x.str ? x.str : "");
+                }
+            }
+        }
+        count++;
+    }
+    return count;
+}
+
+int osr_scrub_render_rgba_upto(osr_scrub *s, int idx, int kdraws, uint32_t *out)
+{
+    if (!s || !out || s->nframes <= 0) return 0;
+    int m = resolve_nonempty(s, idx);
+    zdd_object_clear(s->dest);
+    replay_frame_upto(s, m, kdraws);
+    s->rendered = -2;                  /* a partial frame is on the dest — cache invalid */
+    return readback_rgba(s, out);
+}
+
+/* read one RGB565 pixel off the (system-memory) dest. */
+static int read_px565(osr_scrub *s, int px, int py, uint16_t *out)
+{
+    if (px < 0 || py < 0 || px >= s->w || py >= s->h) return 0;
+    if (!zdd_object_lock(s->dest)) return 0;
+    void *buf = NULL; int32_t pitch = 0, hh = 0;
+    zdd_object_get_locked_info(s->dest, &buf, &pitch, &hh);
+    int ok = 0;
+    if (buf) {
+        *out = *(const uint16_t *)((const uint8_t *)buf + (size_t)py * pitch + (size_t)px * 2);
+        ok = 1;
+    }
+    zdd_object_unlock(s->dest);
+    return ok;
+}
+
+int osr_scrub_pick_draw(osr_scrub *s, int idx, int px, int py)
+{
+    if (!s || s->nframes <= 0) return -1;
+    int m = resolve_nonempty(s, idx);
+    if (_fseeki64(s->f, s->frames[m].off, SEEK_SET) != 0) return -1;
+    zdd_object_clear(s->dest);
+    s->rendered = -2;
+    uint16_t prev = 0; read_px565(s, px, py, &prev);
+    uint8_t hdr[8];
+    int d = 0, lastd = -1;
+    while (fread(hdr, 1, 8, s->f) == 8) {
+        uint32_t t = osr_get_u32(hdr), len = osr_get_u32(hdr + 4);
+        if (!buf_ensure(s, len ? len : 1)) break;
+        if (len && fread(s->buf, 1, len, s->f) != len) break;
+        if (t == OSR_FRAMEBEG) continue;
+        if (t == OSR_PRESENT)  break;
+        if (t != OSR_CLEAR && t != OSR_BLIT && t != OSR_TEXT) continue;
+        if (t == OSR_CLEAR) {
+            recon_release_dc(&s->rt);
+            zdd_object_clear(s->dest);
+        } else if (t == OSR_BLIT) {
+            osr_blit b;
+            if (osr_dec_blit(s->buf, len, &b)) recon_apply_blit(&s->rt, s->dest, &b);
+        } else {
+            osr_text x;
+            if (osr_dec_text(s->buf, len, &x)) recon_apply_text(&s->rt, s->dest, &x);
+        }
+        recon_release_dc(&s->rt);      /* flush GDI text to the surface before sampling */
+        uint16_t cur = prev; read_px565(s, px, py, &cur);
+        if (cur != prev) { lastd = d; prev = cur; }
+        d++;
+    }
+    recon_release_dc(&s->rt);
+    return lastd;
 }
 
 void osr_scrub_prof(const osr_scrub *s, double *index_ms, double *clear_ms,
