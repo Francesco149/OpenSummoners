@@ -33,8 +33,15 @@ int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
         return -1;
     }
 
-    /* FUN_00587e00 — decode the parsed cells into the runtime grid (once). */
-    map_decode(&tr->map, tr->grid, dims, dims_ctx);
+    /* FUN_00587e00 — decode the parsed cells into the runtime grid (once).  The
+     * prologue cfg selects this room's tileset banks (param_4 = room[0x43] =
+     * parallax_p3) + the scene frame (param_3 = the captured scene field, 0x14
+     * for the town-area rooms; see map_decode.h).  The town's arms ignore the
+     * cfg, so the town decodes identically; the house/errands interior tiles
+     * read it. */
+    map_decode_cfg dcfg;
+    map_decode_cfg_init(&dcfg, MAP_DECODE_SCENE_PARAM3, parallax_p3);
+    map_decode(&tr->map, tr->grid, &dcfg, dims, dims_ctx);
 
     /* The 0x587e00 prologue's parallax-bank selection for this room (the
      * front-header slice map_decode otherwise defers).  param_2 = room[0x44],

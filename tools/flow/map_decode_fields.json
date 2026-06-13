@@ -1,0 +1,46 @@
+{
+  "_doc": "Room-render arc (ckpt 130): the DECODE ground truth (args + EMIT SEQUENCE). 0x587e00 marks each room load (room_key/p2/p3/p4/dims); the emits that follow (0x58c910 emit_tile, 0x58ca80 emit_obj) until the next 0x587e00 are THAT room's decode output — the bit-exact gate for the ported map_decode arms.  RESOLVED ckpt 130: the cutscene room swap RE-RUNS 0x587e00 per room (town 0x334be@flip1434 / house 0x334c8@3671 / errands 0x334dc@4290), and param_3(local_918)=20(0x14) for all three (normalizes to 0).  All thiscall (ECX=grid); arg index N = param_(N+1).  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/map_decode_fields.json --field-spec-only --call-trace --run-dir runs/room-render-gt/emit --duration-ms 240000",
+  "fields": {
+    "0x587e00": {
+      "name": "map_decode",
+      "_note": "FUN_00587e00(map=arg0, room[0x44]=arg1, local_918=arg2, room[0x43]=arg3), ECX=grid. Once per room load.",
+      "fields": [
+        {"name": "room_key", "src": "chain",   "va": "0x8a9b50", "hops": [10116], "off": 16420, "type": "hex"},
+        {"name": "p2_r44",   "src": "arg",      "index": 1, "type": "i32"},
+        {"name": "p3_l918",  "src": "arg",      "index": 2, "type": "i32"},
+        {"name": "p4_r43",   "src": "arg",      "index": 3, "type": "i32"},
+        {"name": "dim0",     "src": "argfield", "index": 0, "off": 32, "type": "i32"},
+        {"name": "dim1",     "src": "argfield", "index": 0, "off": 36, "type": "i32"}
+      ]
+    },
+    "0x58c910": {
+      "name": "emit_tile",
+      "_note": "FUN_0058c910(x,y,slot,bank,frame,flag,p7,p8,p9,p10) thiscall ECX=grid. The map_grid_emit_tile ground truth: one row per placed base tile.",
+      "fields": [
+        {"name": "x",     "src": "arg", "index": 0, "type": "i32"},
+        {"name": "y",     "src": "arg", "index": 1, "type": "i32"},
+        {"name": "slot",  "src": "arg", "index": 2, "type": "i32"},
+        {"name": "bank",  "src": "arg", "index": 3, "type": "hex"},
+        {"name": "frame", "src": "arg", "index": 4, "type": "i32"},
+        {"name": "flag",  "src": "arg", "index": 5, "type": "i32"},
+        {"name": "p7",    "src": "arg", "index": 6, "type": "i32"},
+        {"name": "p8",    "src": "arg", "index": 7, "type": "i32"}
+      ]
+    },
+    "0x58ca80": {
+      "name": "emit_obj",
+      "_note": "FUN_0058ca80(x,y,p3,p4,p5,p6,blend,p8,p9) thiscall ECX=grid. The map_grid_emit_obj ground truth: one row per object-block placement.",
+      "fields": [
+        {"name": "x",     "src": "arg", "index": 0, "type": "i32"},
+        {"name": "y",     "src": "arg", "index": 1, "type": "i32"},
+        {"name": "a2",    "src": "arg", "index": 2, "type": "i32"},
+        {"name": "a3",    "src": "arg", "index": 3, "type": "i32"},
+        {"name": "a4",    "src": "arg", "index": 4, "type": "i32"},
+        {"name": "a5",    "src": "arg", "index": 5, "type": "i32"},
+        {"name": "blend", "src": "arg", "index": 6, "type": "hex"},
+        {"name": "a7",    "src": "arg", "index": 7, "type": "i32"},
+        {"name": "a8",    "src": "arg", "index": 8, "type": "i32"}
+      ]
+    }
+  }
+}

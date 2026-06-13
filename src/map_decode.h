@@ -57,24 +57,61 @@
 #include "map_grid.h"
 
 /* Engine .rdata blend-descriptor addresses written verbatim into region B +0x8
- * by the 0x1b58d arm (587e00.c:2317.. / 2328..).  Preserved as the retail VA. */
+ * by the 0x1b58d / 0x272e arms (587e00.c:2317.. / :2221..).  Preserved as the
+ * retail VA — the render port translates them when it consumes region B. */
+#define MD_BLEND_5cc390  0x005cc390u
+#define MD_BLEND_5cc3b0  0x005cc3b0u
+#define MD_BLEND_5cc3d0  0x005cc3d0u
+#define MD_BLEND_5cc3f0  0x005cc3f0u
 #define MD_BLEND_5cc410  0x005cc410u
 #define MD_BLEND_5cc430  0x005cc430u
+
+/* The captured scene render param (FUN_00587e00 param_3 = the scene-controller
+ * field local_918, FUN_00586010:675).  HARNESS-CAPTURED = 0x14 for every
+ * town-area (0xd2) room load — town/house/errands (runs/room-render-gt, ckpt
+ * 130).  It NORMALIZES to 0 (587e00.c:64-80: not 10/0x28/0x32/0x3c/0x3d), and
+ * that normalized value is the FRAME of the 113xxx auto-footprint floor/wall
+ * tiles (0x1b97c/72/77).  PORT-DEBT(decode-prologue): the real source is the
+ * scene controller; 0x14 is the captured constant for these rooms. */
+#define MAP_DECODE_SCENE_PARAM3  0x14
+
+/* The 0x587e00 prologue's per-room tileset selection (587e00.c:49-52 defaults +
+ * the param_4=room[0x43] switch :197-214) and the normalized scene frame.  The
+ * decode arms that read these are the house/errands interior tiles; the town's
+ * arms never touch them, so the town decodes identically with or without it. */
+typedef struct map_decode_cfg {
+    uint16_t bank_1c;     /* local_1c — 0x1b972 (dir-1 wall span) bank          */
+    uint16_t bank_18;     /* local_18 — 0x1b977 (dir-2 wall span) bank          */
+    uint16_t bank_24;     /* local_24 — 0x1b986 / 0x1b990 bank                  */
+    uint16_t bank_20;     /* local_20 — 0x1b98b bank                            */
+    int16_t  scene_frame; /* normalized param_3 (the 113xxx direct-write frame) */
+} map_decode_cfg;
+
+/* Build the prologue config from the decode's param_3 (the scene field;
+ * MAP_DECODE_SCENE_PARAM3 for the town-area rooms) and param_4 (= room[0x43]).
+ * Town/house (param_4=1) get the :49-52 defaults; errands (param_4=4) the case-4
+ * banks.  cases 5-8 (the pointer-based local_28 areas) are not modeled (no
+ * town-area room uses them).  A "town default" cfg = (MAP_DECODE_SCENE_PARAM3, 1). */
+void map_decode_cfg_init(map_decode_cfg *cfg, int param_3, int param_4);
 
 /* Dispatch one cell at (x,y,z): read its record from `m` and issue the
  * map_grid_* recipe for its tile id (no-op for an empty / unhandled cell).
  * Does NOT clear the cell's region-E slot (map_decode does that per the loop).
- * `dims`/`ctx` supply sprite-bank pixel sizes for bank-derived footprints. */
+ * `cfg` supplies the per-room tileset banks + scene frame (NULL → the town
+ * default, which the town arms ignore).  `dims`/`ctx` supply sprite-bank pixel
+ * sizes for bank-derived footprints. */
 void map_decode_cell(const map_data *m, uint8_t *grid,
                      uint32_t x, uint32_t y, uint32_t z,
+                     const map_decode_cfg *cfg,
                      mg_bank_dims_fn dims, void *ctx);
 
 /* Decode a whole parsed map into a runtime render grid (FUN_00587e00's body
- * minus the deferred prologue + layer pass): write the dim header, pre-clear
+ * minus the deferred prologue HUD/layer pass): write the dim header, pre-clear
  * region C over dim0 x dim1, then for every cell (z-major) run map_decode_cell
  * and zero the cell's region-E co-id slot.  `grid` must be MG_GRID_BYTES (e.g.
- * from map_grid_alloc) and is assumed zeroed. */
-void map_decode(const map_data *m, uint8_t *grid,
+ * from map_grid_alloc) and is assumed zeroed.  `cfg` per the room (NULL → town
+ * default). */
+void map_decode(const map_data *m, uint8_t *grid, const map_decode_cfg *cfg,
                 mg_bank_dims_fn dims, void *ctx);
 
 #endif /* OSS_MAP_DECODE_H */

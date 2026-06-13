@@ -892,6 +892,10 @@ struct test_case {
     X(map_decode_29ff4_shape14_z1)                             \
     X(map_decode_single_tile_arms)                             \
     X(map_decode_1b5ab)                                        \
+    X(map_decode_cfg_init)                                     \
+    X(map_decode_house_arms)                                   \
+    X(map_decode_block_arms)                                   \
+    X(map_decode_errands_arms)                                 \
     X(map_decode_full_small)                                   \
     X(map_decode_empty_cell_noop)                              \
     X(map_render_camera_init)                                  \
