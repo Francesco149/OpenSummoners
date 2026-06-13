@@ -124,6 +124,7 @@
 static HINSTANCE g_hInstance;
 static HWND      g_hwnd;
 static int       g_hide_window;
+static int       g_no_frame_limit;   /* --no-frame-limit: uncap the 60 FPS gate */
 static int       g_show_msgbox;
 static int       g_allow_multi;
 static int       g_skip_cd;
@@ -3480,6 +3481,22 @@ static void main_loop_body(void)
  * its 20 ms gate. */
 static void frame_limiter(void)
 {
+    /* Harness knob: --no-frame-limit (g_no_frame_limit) skips the 60 FPS
+     * wall-clock gate so long deterministic IN-GAME replays (--input-trace /
+     * --osr-emit captures that must march thousands of frames to the
+     * house/errands rooms) run as fast as the CPU allows.  GATED on g_game_active:
+     * the in-game sim is frame-counter deterministic (the cutscene typewriter +
+     * camera ride g_game_camera_hold parity, the nav is frame-keyed, the port
+     * flips once per iteration), so uncapping there changes only the wall-clock
+     * rate.  The title/menu/prologue phases are NOT uncapped — their intro pacing
+     * is flip/wall-clock sensitive (uncapping desyncs the frame-keyed title nav:
+     * newgame_enter slid 750 -> 5403 flips).  g_total_ms still tracks the real
+     * clock for any wall-clock reader. */
+    if (g_no_frame_limit && g_game_active) {
+        g_total_ms = timeGetTime() - g_base_time_ms;
+        return;
+    }
+
     uint32_t now = timeGetTime();
     uint32_t elapsed = now - g_base_time_ms;
     uint32_t target  = (g_frame_counter + 1) * FRAME_PERIOD_MS;
@@ -3502,6 +3519,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
     char *tok = strtok(buf, " \t");
     while (tok) {
         if      (!strcmp(tok, "--hide-window"))  g_hide_window = 1;
+        else if (!strcmp(tok, "--no-frame-limit")) g_no_frame_limit = 1;
         else if (!strcmp(tok, "--show-msgbox"))  g_show_msgbox = 1;
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;
