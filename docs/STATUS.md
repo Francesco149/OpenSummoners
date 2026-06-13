@@ -61,20 +61,23 @@ understates how much actual instruction volume is ported.
   differs from retail's, so only the shared sim-tick aligns the dialogue).  (2) **the box re-pop model** —
   the port re-armed (20-update pop-in) EVERY line; retail keeps the box on a SAME-speaker advance (gap 1t,
   `dialogue_set_text`, no re-pop) and on a SPEAKER CHANGE re-opens from HALF scale
-  (`dialogue_reopen`, DIALOGUE_REOPEN_SCALE=500 → ~10-update reopen, content at advance+11t = retail).  Plus
-  KEEP the word-wrap space (`dialogue_expand_text`: retail renders the trailing space → body byte-identical).
+  (`dialogue_reopen`; the exact open/close is the box-overlap chip below).  Plus KEEP the word-wrap space
+  (`dialogue_expand_text`: retail renders the trailing space → body byte-identical).
   (3) **`dialogue_timeline.py`** reads the reveal curve off any `.osr` (body MAIN glyphs 0x3e537d per tick)
   + emits the matched nav.  **PROVEN: the port reveal/skip MECHANICS were already faithful** (retail.osr:
   1 char/5t, space 1t, instant skip — the port's exact model), so note #4 was a CADENCE artifact (the spam
   nav skipped instantly), NOT a reveal-rate bug.  (4) **the speaker-change box OVERLAP** (USER studio note,
   tick 696): retail overlaps the closing OLD box (front) over the opening NEW box (behind) ~9t —
   `dialogue_close_step` + a `cutscene.closing` box (`render_dialogue_box` ×2) + a deferred same-speaker
-  re-text (`pending_keep`); this also fixed the advance-boundary residual.  **Per-tick (name,body) now
-  322/323** (the one miss is tick 884, a retail-coalesced flip).  1019 host pass (+7).  **USER-VERIFY:
-  recapture `runs/cutscene-verify/nav-matched.jsonl` then `osr_view.exe C:\oss-osr\port-matched.osr
-  C:\oss-osr\retail.osr`** — scrub the arrival dialogue (ticks 661-982): reveals/skips/advances on retail's
-  ticks + the box overlap.  Open (low): the box-close CURVE is a linear approx (studio-calibratable).  THEME
-  3 (Arche-runs gap) starts after L7 (tick 982).
+  re-text (`pending_keep`); this also fixed the advance-boundary residual.  **The overlap is DRAWCALL-EXACT**
+  (USER: no approximation — the first cut was a curve-fit close + a guessed z-order; redone after reading the
+  exact drawcalls with the NEW `tools/trace_studio2/draw_probe.py` ordered-drawcall region probe): z-order
+  CORRECTED (new box in front), open spawn 200 +50/update, close -40/update removed <160, old box lingers
+  full until new>half, advance fires advance_tick-6.  Every box-frame cell (pos+scale) matches retail across
+  L0->L1/L1->L2/L2->L3/L5->L6 (28/28/29/33 ticks EXACT); per-tick (name,body) 322/323 (tick 884 = a
+  retail-coalesced flip).  1019 host pass (+8).  **USER-VERIFY: `osr_view.exe C:\oss-osr\port-matched.osr
+  C:\oss-osr\retail.osr`** — scrub the arrival dialogue (ticks 661-982): reveals/skips/advances + the box
+  overlap on retail's ticks.  THEME 3 (Arche-runs gap) starts after L7 (tick 982).
 - **Prior (ckpt 133): the dialogue TYPEWRITER-SKIP is PORTED — the confirm-while-typing desync blocker is
   CLOSED; the port now advances dialogue at the PRESS cadence (chain COMPLETE @hold 2571 vs the old 11365,
   4.4×).**  The USER-flagged ckpt-132 blocker.  RE'd from the beat-runner `0x439690:976-1011` — the box

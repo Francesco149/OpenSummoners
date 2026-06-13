@@ -40,24 +40,23 @@ ahead), NOT a reveal-rate bug.  Two cadence gaps remained, both fixed:
 - **`dialogue_timeline.py`** (`tools/trace_studio2/`) — the analysis + matched-nav tool (reads the reveal
   curve off any `.osr`; `NAV` mode emits the matched nav from retail's per-line skip + advance ticks).
 
-- **The speaker-change box OVERLAP (USER studio note, tick 696).** Retail OVERLAPS the closing OLD box
-  (shrinking, in front) over the opening NEW box (behind) for ~9t on a speaker change; the port single-
-  swapped.  `dialogue_close_step` (pop-OUT: scale -= `DIALOGUE_CLOSE_STEP`, content auto-gates off below
-  1000 → only the shrinking frame) + a `closing` box in the cutscene (snapshot the old box on a speaker-
-  change advance, render it IN FRONT of the new box opening behind — `game_render_dialogue` →
-  `render_dialogue_box(d)` ×2).  A SAME-speaker advance instead DEFERS its re-text one tick
-  (`cs->pending_keep`) so the old line still renders on the press tick.  Together these also fixed the
-  advance-boundary residual (the port cleared the box one flip early).
+- **The speaker-change box OVERLAP (USER studio note, tick 696) — DRAWCALL-EXACT.**  Retail OVERLAPS the
+  opening NEW box (IN FRONT) over the closing OLD box (BEHIND) on a speaker change; the port single-swapped.
+  USER directive: NO approximation — so I built `tools/trace_studio2/draw_probe.py` (the ordered-drawcall
+  region probe; the box scale/pos/z WAS in the `.osr` all along, I just hadn't read it) and ported retail's
+  EXACT choreography cell-for-cell: Z-ORDER new-box-in-front (`render_dialogue_box` draws the `cutscene.closing`
+  box first = behind, the main box on top); OPEN spawn `DIALOGUE_OPEN_SCALE0`=200 +50/update; CLOSE
+  `DIALOGUE_CLOSE_STEP`=-40/update removed below `DIALOGUE_CLOSE_MIN`=160; LINGER (old box full until the new
+  box passes half, `cutscene_step` gate `box->scale > 500`); NAV speaker-change advance at `advance_tick - 6`.
+  A SAME-speaker advance defers its re-text one tick (`cs->pending_keep`).  This also fixed the
+  advance-boundary residual (the old box now renders on the press flip).  (The ckpt-134 first cut — linear
+  -100/t close + scale-500 reopen + old-box-in-front — was a curve-fit I shipped without reading the trace;
+  the USER rejected it.  See CLAUDE.md's no-approximation rule.)
 
-**Verified:** the matched-nav `port-matched.osr` timeline is bit-equal to `retail.osr` on every L0-L7
-start/full/adv; the per-tick (name,body) match is **322/323** (the one miss, tick 884, is a retail-coalesced
-tick — pair.py's port-only gap, not a divergence).  +7 host tests (tick/mixed axis, set_text, reopen, close
-step, same-speaker keep-box w/ deferred re-text, closing-box overlap; expand keeps the wrap space).
-
-**Residual (USER-verify, low):** the box-close CURVE is a linear approximation (`DIALOGUE_CLOSE_STEP=100` →
-gone in ~10t; the 9-slice frame scale isn't cleanly probeable from the `.osr`, so calibrate by eye in the
-studio), and the overlap Z-ORDER follows the USER's wording ("new box behind the disappearing old box" → old
-in front); flip it if the studio shows otherwise.
+**Verified DRAWCALL-PER-DRAWCALL (draw_probe, port-matched.osr vs retail.osr):** every box-frame cell (dest
+rect = position + scale) matches across EVERY arrival speaker change — L0->L1 28/28, L1->L2 28/28, L2->L3
+29/29, L5->L6 33/33 ticks EXACT.  Per-tick (name,body) **322/323** (the one miss, tick 884, is a
+retail-coalesced flip — pair.py's port-only gap, not a divergence).  +host tests for the exact model.
 
 **NEXT MOVE — the remaining punch-list themes (`plans/intro-cutscene-1to1.md`):**
 - **THEME 3 — the arrival→house TRANSITION CHOREOGRAPHY (`cutscene-beat-runner`).**  Between arrival L7
@@ -76,15 +75,18 @@ in front); flip it if the studio shows otherwise.
 **Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub has no notes panel.
 
 **Module layout (ckpt 134):** `src/input_trace.{c,h}` (per-entry FRAME/TICK axis; `input_trace_replay` takes
-`sim_tick`), `src/main.c` (`feed_input` passes `g_sim_tick_count`), `src/dialogue.{c,h}` (`dialogue_set_text`
-+ `dialogue_reopen` + `DIALOGUE_REOPEN_SCALE`; `dialogue_expand_text` keeps the wrap space),
-`src/cutscene.{c,h}` (`arm_current_line(mode)` ARM_OPEN/REOPEN/KEEP; `cutscene_step` picks the mode by
-speaker), `tools/trace_studio2/dialogue_timeline.py` (NEW), `tests/{test_input_trace,test_dialogue,
-test_cutscene}.c`.  Artifacts (gitignored): `runs/cutscene-verify/nav-matched.jsonl` (regen:
-`dialogue_timeline.py NAV /mnt/c/oss-osr/retail.osr runs/cutscene-verify/nav-zspam-ext.jsonl 600 985 0 1100 |
-grep -E '^[#{]'`), `C:\oss-osr\port-matched.osr`.
+`sim_tick`), `src/main.c` (`feed_input` passes `g_sim_tick_count`; `render_dialogue_box(d)` draws the closing
+box behind + the main box in front), `src/dialogue.{c,h}` (`dialogue_set_text`/`dialogue_reopen`/
+`dialogue_close_step`; `DIALOGUE_OPEN_SCALE0`=200, `DIALOGUE_CLOSE_STEP`=-40, `DIALOGUE_CLOSE_MIN`=160;
+`dialogue_expand_text` keeps the wrap space), `src/cutscene.{c,h}` (`arm_current_line(mode)` ARM_OPEN/REOPEN/
+KEEP; `cutscene.closing` box snapshot + the `box->scale > 500` close gate; `pending_keep`),
+`tools/trace_studio2/{dialogue_timeline.py,draw_probe.py}` (NEW — the reveal-curve/matched-nav tool + the
+ordered-drawcall region probe), `tests/{test_input_trace,test_dialogue,test_cutscene}.c`.  Artifacts
+(gitignored): `runs/cutscene-verify/nav-matched.jsonl` (regen: `dialogue_timeline.py NAV
+/mnt/c/oss-osr/retail.osr runs/cutscene-verify/nav-zspam-ext.jsonl 600 985 0 1100 | grep -E '^[#{]'`),
+`C:\oss-osr\port-matched.osr`.
 
-**OPEN RE threads:** the advance-boundary 1-flip clear (sub-tick ordering); THEME 3 (the Arche-runs run-off
+**OPEN RE threads:** THEME 3 (the Arche-runs run-off
 `0x402730` + the house-entry fade — the 167-tick beat); THEME 2 (the cast colour/animation render `0x4997b0`,
 butterfly variants); the bubble tail x; the errands questline `0x4dc510`; the per-key SCANCODE defaults
 (`PORT-DEBT(keybind-config)`); the freeroam hand-off (behind the 1:1 bar).

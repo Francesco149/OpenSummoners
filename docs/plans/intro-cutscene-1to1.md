@@ -47,16 +47,19 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   ~10-update reopen = retail's advance+11t; vs the first box's ~20-update slide-in).
 - **The word-wrap space.**  `dialogue_expand_text` consumed the wrap space; retail renders
   it → keep it (body byte-identical).
-- **The speaker-change box OVERLAP (USER studio note, tick 696).** Retail OVERLAPS the
-  closing old box (front) over the opening new box (behind) for ~9t; the port single-
-  swapped.  `dialogue_close_step` + a `cutscene.closing` box (snapshot the old box on a
-  speaker-change advance, render it in front of the new box opening behind) + a deferred
-  same-speaker re-text (`pending_keep`).  This also fixed the advance-boundary residual.
-- **VERIFIED:** `port-matched.osr` L0-L7 start/full/advance all bit-equal to `retail.osr`;
-  **322/323 ticks of (name,body) identical** (the one miss is tick 884, a retail-coalesced
-  flip — not a divergence).  **Open (low):** the box-close CURVE is a linear approximation
-  (`DIALOGUE_CLOSE_STEP`; the 9-slice scale isn't cleanly probeable) + the overlap Z-order
-  follows the USER's wording — both studio-calibratable.
+- **The speaker-change box OVERLAP (USER studio note, tick 696) — DRAWCALL-EXACT.** Retail
+  OVERLAPS the opening NEW box (IN FRONT) over the closing OLD box (BEHIND) on a speaker
+  change; the port single-swapped.  USER: no approximation — so `tools/trace_studio2/
+  draw_probe.py` (the ordered-drawcall region probe) read retail's EXACT choreography and the
+  port reproduces it cell-for-cell: z-order new-in-front (`render_dialogue_box` closing-then-
+  main), open spawn 200 +50/update, close -40/update removed <160, old box lingers full until
+  the new box passes half (`box->scale > 500`), advance at `advance_tick - 6`; same-speaker
+  re-text deferred (`pending_keep`).  Also fixed the advance-boundary residual.
+- **VERIFIED drawcall-per-drawcall** (draw_probe, port vs retail.osr): every box-frame cell
+  (pos+scale) matches across EVERY arrival speaker change — L0->L1 28/28, L1->L2 28/28,
+  L2->L3 29/29, L5->L6 33/33 ticks EXACT; per-tick (name,body) 322/323 (tick 884 = a
+  retail-coalesced flip).  The ckpt-134 first cut (curve-fit close + guessed z-order) was
+  rejected by the USER → CLAUDE.md no-approximation / drawcall-per-drawcall rule persisted.
 - **Note #4** (tick 661: port full line vs retail "A") — CLOSED, it was the spam-nav cadence.
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)

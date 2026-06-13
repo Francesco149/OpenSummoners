@@ -3570,17 +3570,26 @@ arrival dialogue — retail ground truth, not the port's behaviour:
   anchor, tick 645→660, content gated at the end), a mid-conversation re-open
   grows in place over ~10t.  Every arrival speaker change is **advance+11t to the
   next line's first char**, uniformly.
-- **Port model (ckpt 134):** `dialogue_set_text` (same-speaker, no re-pop, the
-  re-text DEFERRED one tick via `cutscene.pending_keep` so the old line renders on
-  the press flip) + `dialogue_reopen` from half scale (`DIALOGUE_REOPEN_SCALE=500`
-  → the +50/update pop-in completes in ~10 updates = advance+11t) for the new box,
-  + a `cutscene.closing` box (`dialogue_close_step`, scale -= `DIALOGUE_CLOSE_STEP`
-  100) holding the OLD box popping out IN FRONT (`render_dialogue_box` draws the
-  main box behind, the closing box in front).  The word-wrap also KEEPS the
-  trailing space (retail renders it: y=196 row "…our new " ends in a space), so
-  the body is byte-identical.  Verified: the matched-cadence-nav `port-matched.osr`
-  tracks `retail.osr` tick-for-tick over arrival L0-L7 — **322/323 ticks of
-  name+body identical** (the one miss is tick 884, a retail-coalesced flip);
-  start/full/advance all bit-equal.  Open: the box-close CURVE is a linear
-  approximation (the 9-slice scale isn't cleanly probeable from the `.osr` — only
-  a corner cel emits), studio-calibratable.
+- **Port model (ckpt 134), DRAWCALL-EXACT (read off retail.osr with
+  `tools/trace_studio2/draw_probe.py`, the ordered-drawcall region probe):**
+  - OPEN: every box spawns at `DIALOGUE_OPEN_SCALE0` (200) and grows +50/update
+    (centered scale, `dialogue_scaled_rect`) to 1000 — ~16 updates.  `dialogue_arm`
+    (first box) spawns at 0 (20 updates; the entrance), `dialogue_reopen` (speaker
+    change) at 200.
+  - CLOSE: the OLD box shrinks `DIALOGUE_CLOSE_STEP` (-40)/update from 1000 and is
+    removed below `DIALOGUE_CLOSE_MIN` (160) — ~21 updates (`dialogue_close_step`).
+  - Z-ORDER: the OPENING box draws IN FRONT (`render_dialogue_box` draws the
+    `cutscene.closing` box first = behind, the main box on top).
+  - LINGER: the old box stays FULL (text shown) behind the opening box until the
+    new box has passed half (`cutscene_step` gates the close on `box->scale > 500`),
+    then closes — the ~6t linger + the body clearing one flip after the advance.
+  - NAV: a speaker-change advance fires at `advance_tick - 6` (the confirm spawns
+    the new box ~6t before the old box's body-last-shown).
+  - SAME-speaker advance: `dialogue_set_text` (no re-pop), the re-text DEFERRED one
+    tick via `cutscene.pending_keep`.  The word-wrap KEEPS the trailing space
+    (retail renders it) so the body is byte-identical.
+  - **VERIFIED drawcall-per-drawcall** (draw_probe, port vs retail.osr): every
+    box-frame cell (dest rect = position + scale) matches across EVERY arrival
+    speaker change — L0->L1 28/28, L1->L2 28/28, L2->L3 29/29, L5->L6 33/33 ticks
+    EXACT.  Per-tick (name,body) 322/323 (the one miss, tick 884, is a
+    retail-coalesced flip).
