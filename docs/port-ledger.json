@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 202,
+  "tested": 203,
   "ported": 5,
-  "unported": 1551,
+  "unported": 1550,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 207,
-  "pct_touched": 13.0,
-  "pct_tested": 13.0,
-  "engine_proper_touched": 194,
+  "touched": 208,
+  "pct_touched": 13.1,
+  "pct_tested": 13.1,
+  "engine_proper_touched": 195,
   "bytes_total": 1694868,
-  "bytes_touched": 241174,
-  "pct_bytes_touched": 14.2
+  "bytes_touched": 241894,
+  "pct_bytes_touched": 14.3
  },
  "orphan_refs": [
   "0x56c470",
@@ -5637,6 +5637,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/dialogue.c",
     "src/map_present.c",
     "src/map_present.h",
     "src/town_render.h"
@@ -6319,8 +6320,10 @@
    "name": "FUN_0049c640",
    "size": 720,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/dialogue.c"
+   ]
   },
   {
    "va": "0x49c910",

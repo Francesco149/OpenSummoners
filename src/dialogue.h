@@ -65,7 +65,11 @@
 #include <stdint.h>
 
 /* ── the town line-1 bubble geometry (decompile-derived; see header) ── */
-#define DIALOGUE_BOX_X        174   /* 0x49c640 speaker-anchor result (measured) */
+#define DIALOGUE_BOX_X        174   /* 0x49c640 line-1 reference (Father, cam     *
+                                     * 12800) — the box (x,y) is now COMPUTED per *
+                                     * line by dialogue_box_position (the ported  *
+                                     * 0x49c640 anchor); this is the L1 value the  *
+                                     * formula reproduces + the no-cutscene default*/
 #define DIALOGUE_BOX_Y        148
 #define DIALOGUE_BOX_W        0x198 /* 408 — 0x439690:407 (the portrait layout)  */
 #define DIALOGUE_BOX_H        0x70  /* 112 — 0x439690:445                        */
@@ -122,6 +126,21 @@
 #define DIALOGUE_VA_TOWN_LINE1   0x86d58cu /* "Ahh, here we are at last!%n..."   */
 #define DIALOGUE_VA_NAME_FATHER  0x6b6f80u /* the dramatist-name region          */
 
+/* The speaker body geometry the box-anchor projection reads (0x49c640's
+ * iVar2 = *(speaker+0x40) sub-object + the speaker entity +0x1c/+0x20).
+ * HARNESS-CAPTURED per CHARACTER (runs/box-pos-inputs, the 0x49c640 field-spec):
+ * the town cast share sprite_w/metric_14/off_20; off_1c/metric_10 distinguish the
+ * child Arche from the adults.  Captured because the live/animated cast that owns
+ * these fields is PORT-DEBT(cutscene-party-chars) (arrival) + the suppressed room
+ * cast (PORT-DEBT cutscene-room-render Phase 2b, house/errands). */
+typedef struct {
+    int32_t sprite_w;   /* body +0x0c — /200 = the sprite-center half-offset    */
+    int32_t metric_10;  /* body +0x10 — the flip-below y term (dead in town)    */
+    int32_t metric_14;  /* body +0x14 — /100 into box_y (0 for the town cast)   */
+    int32_t off_1c;     /* speaker +0x1c — head-y bias (Arche -8, adults 0)     */
+    int32_t off_20;     /* speaker +0x20 — flip-below y term (dead in town)     */
+} dialogue_speaker_body;
+
 /* ── the box state (mirrors the scene-controller + widget subset) ── */
 typedef struct {
     int32_t  active;        /* box exists (armed)                            */
@@ -141,6 +160,14 @@ typedef struct {
                             /* Set by the caller per line (portrait.c); reset */
                             /* to -1 by dialogue_arm so a re-arm without a    */
                             /* resolve shows none, faithful to +0x20=1.       */
+    /* The speaker-anchor inputs for dialogue_box_position (0x49c640).  Set by
+     * the cutscene driver per line; anchored==0 falls back to the centered box
+     * (the param_6==0 branch).  spk_wx/spk_wy are the speaker's world pos this
+     * line (it moves: Arche runs ahead at arrival L9); spk_body is the speaker's
+     * captured body geometry.  Reset to centered by dialogue_arm. */
+    int32_t  anchored;
+    int32_t  spk_wx, spk_wy;
+    dialogue_speaker_body spk_body;
 } dialogue_box;
 
 /* Expand a raw script line into wrapped rows: '%n' forces a row break, longer
@@ -171,9 +198,22 @@ int  dialogue_content_visible(const dialogue_box *d);
 int  dialogue_awaiting_advance(const dialogue_box *d);
 
 /* The 9-slice frame rect at the current pop-in scale (0x48c820 mode +0x1c==1:
- * w/h scaled by +0x54/1000, centered in the full rect — integer math). */
-void dialogue_scaled_rect(const dialogue_box *d,
+ * w/h scaled by +0x54/1000, centered in the full rect — integer math).
+ * box_x/box_y = the box anchor (dialogue_box_position's result). */
+void dialogue_scaled_rect(const dialogue_box *d, int box_x, int box_y,
                           int *x, int *y, int *w, int *h);
+
+/* The box top-left (x,y) for this line — the port of 0x49c640 over the 0x490b90
+ * world->screen projection.  When d->anchored, the box centers on the speaker's
+ * WORLD position (d->spk_wx/wy) projected through the camera (cam_x = view+0x60,
+ * cam_y = view+0x5c, cam_scroll = view+0x74), clamped to [0x20, 0x260-W] in x and
+ * placed above the speaker's head in y; otherwise it falls back to the centered
+ * box (0x49c640 param_6==0).  HARNESS-VERIFIED bit-exact against all 18 town-intro
+ * lines (runs/box-pos-inputs).  Replaces the hardcoded DIALOGUE_BOX_X/Y. */
+void dialogue_box_position(const dialogue_box *d,
+                           int32_t box_w, int32_t box_h,
+                           int32_t cam_x, int32_t cam_y, int32_t cam_scroll,
+                           int *out_x, int *out_y);
 
 /* The portrait blend for the current fade (0x49c910): -1 = plain keyed blit
  * (fade complete), else the ramp_b index 0..19 (rises over fade 0..499, then

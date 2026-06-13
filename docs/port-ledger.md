@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **207** (13.0% of engine-proper) — tested 202, ported 5
-- code bytes touched: **14.2%** (241,174 / 1,694,868 B of engine-proper)
-- unported: **1551**
+- touched: **208** (13.1% of engine-proper) — tested 203, ported 5
+- code bytes touched: **14.3%** (241,894 / 1,694,868 B of engine-proper)
+- unported: **1550**
 - orphan refs in src/ not in this table: 4
 
-## tested (202) — ported + host unit suite
+## tested (203) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -70,7 +70,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h, main.c |
 | 0x48e920 | FUN_0048e920 | 403 | main.c, scene_fade.c, scene_fade.h |
 | 0x48eac0 | FUN_0048eac0 | 1131 | main.c, map_present.c, map_present.h (+2) |
-| 0x490b90 | FUN_00490b90 | 307 | map_present.c, map_present.h, town_render.h |
+| 0x490b90 | FUN_00490b90 | 307 | dialogue.c, map_present.c, map_present.h (+1) |
 | 0x490cd0 | FUN_00490cd0 | 603 | color_grade.h, main.c, parallax.c (+3) |
 | 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
@@ -82,6 +82,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49a890 | FUN_0049a890 | 361 | scene_fade.c, scene_fade.h |
 | 0x49aa00 | FUN_0049aa00 | 216 | scene_fade.c, scene_fade.h |
 | 0x49aae0 | FUN_0049aae0 | 234 | scene_fade.c, scene_fade.h |
+| 0x49c640 | FUN_0049c640 | 720 | dialogue.c |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x54e990 | FUN_0054e990 | 861 | collision.c, collision.h |

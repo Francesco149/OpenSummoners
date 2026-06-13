@@ -153,16 +153,62 @@ void dialogue_step(dialogue_box *d)
 
 /* ── render queries ──────────────────────────────────────────────────────── */
 
-void dialogue_scaled_rect(const dialogue_box *d,
+void dialogue_scaled_rect(const dialogue_box *d, int box_x, int box_y,
                           int *x, int *y, int *w, int *h)
 {
-    /* 0x48c820 mode +0x1c==1: sw = w*scale/1000 (integer), centered. */
+    /* 0x48c820 mode +0x1c==1: sw = w*scale/1000 (integer), centered in the box's
+     * full rect at its live anchor (box_x/box_y = the speaker-anchored pos the
+     * caller resolved via dialogue_box_position). */
     int sw = (DIALOGUE_BOX_W * d->scale) / 1000;
     int sh = (DIALOGUE_BOX_H * d->scale) / 1000;
-    *x = DIALOGUE_BOX_X + (DIALOGUE_BOX_W / 2 - sw / 2);
-    *y = DIALOGUE_BOX_Y + (DIALOGUE_BOX_H / 2 - sh / 2);
+    *x = box_x + (DIALOGUE_BOX_W / 2 - sw / 2);
+    *y = box_y + (DIALOGUE_BOX_H / 2 - sh / 2);
     *w = sw;
     *h = sh;
+}
+
+/* FUN_0049c640 (the box-anchor) over FUN_00490b90 (the world->screen projection,
+ * param_9==1 arm).  HARNESS-VERIFIED bit-exact against all 18 town-intro lines
+ * (runs/box-pos-inputs); see engine-quirks #106. */
+void dialogue_box_position(const dialogue_box *d,
+                           int32_t box_w, int32_t box_h,
+                           int32_t cam_x, int32_t cam_y, int32_t cam_scroll,
+                           int *out_x, int *out_y)
+{
+    if (!d->anchored) {
+        /* FUN_0049c640 param_6==0 — the centered box at a fixed y (no speaker). */
+        *out_x = (0x280 - box_w) / 2;
+        *out_y = 0x50;
+        return;
+    }
+    const dialogue_speaker_body *b = &d->spk_body;
+
+    /* FUN_00490b90 param_9==1 — project the speaker world pos to screen.  TWO
+     * separate /100 truncating divisions (NOT (wx-cam_x)/100), faithful to the
+     * decompile (param_1/100 - *(ECX+0x60)/100; param_2/100 - (off5c+off74*100)/100). */
+    int32_t scr_x = d->spk_wx / 100 - cam_x / 100;
+    int32_t scr_y = d->spk_wy / 100 - (cam_y + cam_scroll * 100) / 100;
+
+    /* box_x — center the box on the speaker, clamp to [0x20, 0x260-W].  iVar6 =
+     * sprite_w/200 is the sprite-center half-offset; iVar7 = the pre-clamp left. */
+    int32_t iVar7  = (b->sprite_w / 200 - box_w / 2) + scr_x;
+    int32_t right  = 0x260 - box_w;
+    int32_t bx     = right;
+    if (iVar7 <= right) bx = iVar7;
+    if (bx < 0x20)            bx = 0x20;     /* below the left margin -> clamp     */
+    else if (iVar7 <= right)  bx = iVar7;    /* within range -> the candidate      */
+    else                      bx = right;    /* past the right margin -> clamp     */
+
+    /* box_y — above the speaker's head (metric_14/100 + off_1c, minus the box
+     * height + the 0x30 gap).  The flip-below branch (param_8 != 0 -> threshold
+     * 0x40) is provably DEAD for the town intro (by >= 148 >> 0x40); ported for
+     * fidelity.  All captured town lines pass param_8 == 1. */
+    int32_t by = (b->metric_14 / 100 + b->off_1c) - box_h - 0x30 + scr_y;
+    if (by < 0x18 + 0x28)
+        by = b->metric_10 / 100 + b->off_20 + scr_y;
+
+    *out_x = bx;
+    *out_y = by;
 }
 
 int dialogue_portrait_ramp_index(const dialogue_box *d)

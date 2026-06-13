@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 132) — the dialogue BOX POSITION ported faithfully (`0x49c640`): the box anchors to the speaker, 17/18 town lines bit-exact
+
+The last ckpt-131 rendering gap up to the errands.  The port hardcoded the box at (174,148) (the line-1
+value); retail computes it per line by `FUN_0049c640` from the SPEAKER's world position projected through
+the camera.  USER chose the faithful fix — port the function, not bake the result.
+
+- **Harness-captured EVERY `0x49c640` input from retail first** (`tools/flow/box_pos_inputs_fields.json`;
+  `runs/box-pos-inputs`).  Needed a new agent read kind `argchain` (arg-rooted pointer hops, like `thischain`
+  from ECX) to reach the speaker's body sub-object `*(*(arg+0x40)+off)`.  The capture PROVED the formula and
+  confirmed the port's `mr_camera` IS `0x490b90`'s `in_ECX` (the same `off34/4c/5c/60/64/68/74` the tile walk
+  reads), so the projection is a free reuse.  Formula (quirk #106):
+  `box_x = clamp((sprite_w/200 - W/2) + scr_x, 0x20, 0x260-W)`,
+  `box_y = (metric_14/100 + spk+0x1c) - H - 0x30 + scr_y`, `scr_x = wx/100 - cam_x/100` (two truncating
+  divisions), `scr_y = wy/100 - (cam_y + scroll·100)/100`.  Both clamps fire in the real data (box_x 32/200).
+
+- **Ported as `dialogue_box_position`** (pure C in `dialogue.c`, host-tested bit-exact vs all 10 distinct
+  captured cases incl. both clamps + the centered fallback).  `cutscene.c` bakes the per-line speaker world
+  pos (the cast MOVES — Arche runs ahead at arrival L9) + the per-character body geometry (Arche's head sits
+  8px lower → off_1c=-8); these are HARNESS-CAPTURED because the live cast that owns them is
+  PORT-DEBT(cutscene-party-chars).  `game_render_dialogue` projects through the LIVE `g_game_camera_mr` each
+  frame, so the box tracks the camera (`dialogue_scaled_rect` now takes the anchor).
+
+- **Verified:** a port `--call-trace` (the new `0x49c910` box-position annotation) over the same nav
+  reproduced retail's box position for arrival L1-L9 + ALL house lines BIT-EXACT.  The ONE residual —
+  arrival L10 Mother, port (62,148) vs retail (32,148) — is because retail's camera panned to 28000 to follow
+  Arche running ahead at L9, while the port's static cast keeps the camera at 12800: an upstream-input pillar
+  (the camera), downstream of PORT-DEBT(cutscene-party-chars) + the camera-pan debt, NOT the box logic.
+  Retires the box half of PORT-DEBT(dialogue-trigger).  1011 host pass (+1).  Fresh port `.osr` at
+  `C:\oss-osr\port-boxpos.osr` for `osr_view` vs `retail.osr`; per-speaker-anchor montage on the feed.
+
+---
+
 ## 2026-06-13 (ckpt 131) — ROOM-RENDER GAPS CLOSED (errands floor + house/errands props) + the dialogue-portrait BUST bug; the box-POSITION arc is next
 
 USER directive: use trace-studio v2 to find + close the rendering gaps up to the errands, frame-by-frame

@@ -34,6 +34,21 @@ static int32_t speaker_head_state(uint32_t name_va)
     }
 }
 
+/* The speaker's body geometry the box-anchor projection reads (0x49c640).
+ * HARNESS-CAPTURED per character (runs/box-pos-inputs, the 0x49c640 field-spec):
+ * the whole town cast share sprite_w=2000 / metric_14=0 / off_20=32; the child
+ * Arche differs in metric_10 (5600 vs the adults' 7600) and off_1c (-8 vs 0 — her
+ * head sits lower, so her box drops 8px, e.g. arrival L2 box_y 160 vs Father 148).
+ * Captured because the live cast that owns these fields is PORT-DEBT
+ * (cutscene-party-chars / cutscene-room-render Phase 2b). */
+static const dialogue_speaker_body BODY_ARCHE = { 2000, 5600, 0, -8, 32 };
+static const dialogue_speaker_body BODY_ADULT = { 2000, 7600, 0,  0, 32 };
+
+static const dialogue_speaker_body *speaker_body(uint32_t name_va)
+{
+    return (name_va == NAME_ARCHE) ? &BODY_ARCHE : &BODY_ADULT;
+}
+
 /* The face-table variant is PER LINE (the `pvar` column of the script tables).
  * 0x49d6e0 picks one of each record's 3 portrait-slot variants by the speaker's
  * BODY-FACING (0x49d6e0:143, body+0x2c == 3 → A=+0x8, else B=+0xa) + the bVar4
@@ -56,17 +71,17 @@ static int32_t speaker_head_state(uint32_t name_va)
  * (0x3eb..0x3f4, sequential — voice deferred).  All strings live in the user's
  * sotes.exe and are read at runtime by VA (never embedded). */
 static const cutscene_line TOWN_ARRIVAL[] = {
-    /*  # decompile  speaker  name         text       face  voice pvar  gist */
-    /*  1 :105 */ { NAME_FATHER, 0x86d58cu, 0x1e, 0x3eb, VA }, /* "Ahh, here we are at last!…" */
-    /*  2 :119 */ { NAME_ARCHE,  0x86d55cu, 0x02, 0x3ec, VB }, /* "Yay, we're finally here!…"  */
-    /*  3 :133 */ { NAME_MOTHER, 0x86d500u, 0x1e, 0x3ed, VB }, /* "We haven't been here since…"*/
-    /*  4 :147 */ { NAME_ARCHE,  0x86d4c8u, 0x03, 0x3ee, VB }, /* "Yeah! There's people and…"  */
-    /*  5 :161 */ { NAME_ARCHE,  0x86d47cu, 0x09, 0x3ef, VB }, /* "Hey, Dad! Our shop is in…"  */
-    /*  6 :175 */ { NAME_ARCHE,  0x86d45cu, 0x0d, 0x3f0, VB }, /* "I wanna see it! Where is it?"*/
-    /*  7 :196 */ { NAME_FATHER, 0x86d42cu, 0x1e, 0x3f1, VB }, /* "Mm-hmm. It's just down the…" */
-    /*  8 :210 */ { NAME_ARCHE,  0x86d424u, 0x03, 0x3f2, VB }, /* "Cool!"                       */
-    /*  9 :248 */ { NAME_ARCHE,  0x86d410u, 0x03, 0x3f3, VA }, /* "Mom! Dad! c'mon!"            */
-    /* 10 :262 */ { NAME_MOTHER, 0x86d3d4u, 0x1e, 0x3f4, VB }, /* "Hmhm. Well, wait up for…"    */
+    /*  # decompile  speaker  name         text       face  voice pvar  wx     wy     gist */
+    /*  1 :105 */ { NAME_FATHER, 0x86d58cu, 0x1e, 0x3eb, VA, 49600, 43600 }, /* "Ahh, here we are at last!…" */
+    /*  2 :119 */ { NAME_ARCHE,  0x86d55cu, 0x02, 0x3ec, VB, 41600, 45600 }, /* "Yay, we're finally here!…"  */
+    /*  3 :133 */ { NAME_MOTHER, 0x86d500u, 0x1e, 0x3ed, VB, 38400, 43600 }, /* "We haven't been here since…"*/
+    /*  4 :147 */ { NAME_ARCHE,  0x86d4c8u, 0x03, 0x3ee, VB, 41600, 45600 }, /* "Yeah! There's people and…"  */
+    /*  5 :161 */ { NAME_ARCHE,  0x86d47cu, 0x09, 0x3ef, VB, 41600, 45600 }, /* "Hey, Dad! Our shop is in…"  */
+    /*  6 :175 */ { NAME_ARCHE,  0x86d45cu, 0x0d, 0x3f0, VB, 41600, 45600 }, /* "I wanna see it! Where is it?"*/
+    /*  7 :196 */ { NAME_FATHER, 0x86d42cu, 0x1e, 0x3f1, VB, 49600, 43600 }, /* "Mm-hmm. It's just down the…" */
+    /*  8 :210 */ { NAME_ARCHE,  0x86d424u, 0x03, 0x3f2, VB, 41600, 45600 }, /* "Cool!"                       */
+    /*  9 :248 */ { NAME_ARCHE,  0x86d410u, 0x03, 0x3f3, VA, 73104, 45600 }, /* "Mom! Dad! c'mon!" (runs ahead)*/
+    /* 10 :262 */ { NAME_MOTHER, 0x86d3d4u, 0x1e, 0x3f4, VB, 38400, 43600 }, /* "Hmhm. Well, wait up for…"    */
 };
 #define TOWN_ARRIVAL_COUNT ((int)(sizeof(TOWN_ARRIVAL) / sizeof(TOWN_ARRIVAL[0])))
 
@@ -77,15 +92,15 @@ static const cutscene_line TOWN_ARRIVAL[] = {
  * Voices are all 0 (the house lines are unvoiced).  After line 8 the script
  * stages room 0x334dc (the errands/freeroam) via 0x401d40 and `return 2`. */
 static const cutscene_line TOWN_HOUSE[] = {
-    /*  # decompile   speaker  name         text       face  voice pvar  gist */
-    /*  1 :1093 */ { NAME_ARCHE,  0x86d390u, 0x0d, 0, VA }, /* "So this is our new house!…"  */
-    /*  2 :1107 */ { NAME_ARCHE,  0x86d35cu, 0x0d, 0, VA }, /* "Hee, there's even an item…"  */
-    /*  3 :1121 */ { NAME_MOTHER, 0x86d318u, 0x1e, 0, VA }, /* "Oh, this is lovely. …your…" */
-    /*  4 :1135 */ { NAME_FATHER, 0x86d2d4u, 0x1e, 0, VA }, /* "Mm-hmm. I'm hoping I can…"   */
-    /*  5 :1149 */ { NAME_FATHER, 0x86d294u, 0x1e, 0, VA }, /* "…helping the townsfolk out…"*/
-    /*  6 :1163 */ { NAME_FATHER, 0x86d240u, 0x1e, 0, VA }, /* "…Well, Arche, I'll be count…"*/
-    /*  7 :1184 */ { NAME_ARCHE,  0x86d22cu, 0x03, 0, VB }, /* "I will, I promise."          */
-    /*  8 :1198 */ { NAME_MOTHER, 0x86d1dcu, 0x1e, 0, VA }, /* "And today, we need your help"*/
+    /*  # decompile   speaker  name         text       face  voice pvar  wx      wy     gist */
+    /*  1 :1093 */ { NAME_ARCHE,  0x86d390u, 0x0d, 0, VA, 128000, 39200 }, /* "So this is our new house!…"  */
+    /*  2 :1107 */ { NAME_ARCHE,  0x86d35cu, 0x0d, 0, VA, 128000, 39200 }, /* "Hee, there's even an item…"  */
+    /*  3 :1121 */ { NAME_MOTHER, 0x86d318u, 0x1e, 0, VA, 131200, 37200 }, /* "Oh, this is lovely. …your…" */
+    /*  4 :1135 */ { NAME_FATHER, 0x86d2d4u, 0x1e, 0, VA, 134400, 37200 }, /* "Mm-hmm. I'm hoping I can…"   */
+    /*  5 :1149 */ { NAME_FATHER, 0x86d294u, 0x1e, 0, VA, 134400, 37200 }, /* "…helping the townsfolk out…"*/
+    /*  6 :1163 */ { NAME_FATHER, 0x86d240u, 0x1e, 0, VA, 134400, 37200 }, /* "…Well, Arche, I'll be count…"*/
+    /*  7 :1184 */ { NAME_ARCHE,  0x86d22cu, 0x03, 0, VB, 128024, 39200 }, /* "I will, I promise."          */
+    /*  8 :1198 */ { NAME_MOTHER, 0x86d1dcu, 0x1e, 0, VA, 131200, 37200 }, /* "And today, we need your help"*/
 };
 #define TOWN_HOUSE_COUNT ((int)(sizeof(TOWN_HOUSE) / sizeof(TOWN_HOUSE[0])))
 
@@ -134,6 +149,13 @@ static int arm_current_line(cutscene *cs)
      * record) leaves the box's reset -1 → no portrait, faithful to +0x20=1. */
     cs->box->portrait_slot = portrait_resolve(speaker_head_state(ln->name_va),
                                               ln->face, (portrait_variant)ln->pvar);
+    /* Arm the box-position anchor (0x49c640): the speaker's world pos + its body
+     * geometry; the caller projects them through the live camera each frame so
+     * the box rides the speaker (dialogue_box_position). */
+    cs->box->anchored = 1;
+    cs->box->spk_wx   = ln->spk_wx;
+    cs->box->spk_wy   = ln->spk_wy;
+    cs->box->spk_body = *speaker_body(ln->name_va);
     return 1;
 }
 

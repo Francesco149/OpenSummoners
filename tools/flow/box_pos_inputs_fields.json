@@ -1,0 +1,34 @@
+{
+  "_doc": "Faithful-port ground truth for 0x49c640 (the dialogue BOX position): capture EVERY input the box-anchor math reads, per line, so the port can reproduce box_x/box_y by porting 0x49c640 + the 0x490b90 projection (NOT bake the constants).  0x49c640(param_1,param_2=BOX,param_3,param_4,param_5,param_6=SPEAKER,param_7,param_8): box_x=*(box+0xc), box_y=*(box+0x10) (written at exit; read via the 0x49c910 hook right after).  The speaker-anchored branch (param_6!=0) reads the speaker's body sub-object iVar2=*(speaker+0x40) -> +4 wx, +8 wy, +0xc sprite-w (/200 = half), +0x10, +0x14; the speaker entity +0x1c/+0x20; box +0x14 W, +0x18 H.  The world->screen projection 0x490b90(wx,wy,...,1) reads the live view/camera *(*0x8a9b50+0x104c): +0x60 cam_x, +0x5c cam_y, +0x74 scroll.  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/box_pos_inputs_fields.json --field-spec-only --call-trace --run-dir runs/box-pos-inputs --duration-ms 95000",
+  "fields": {
+    "0x49c640": {
+      "name": "boxpos_in",
+      "_note": "ONENTER: all inputs the box-anchor math reads.  param_6 (speaker) is 0 for the centered case (argchain faults -> null).",
+      "fields": [
+        {"name": "spk",        "src": "arg",      "index": 5, "type": "hex"},
+        {"name": "p7",         "src": "arg",      "index": 6, "type": "i32"},
+        {"name": "p8",         "src": "arg",      "index": 7, "type": "i32"},
+        {"name": "spk_wx",     "src": "argchain", "index": 5, "hops": [64], "off": 4,  "type": "i32"},
+        {"name": "spk_wy",     "src": "argchain", "index": 5, "hops": [64], "off": 8,  "type": "i32"},
+        {"name": "spr_0c",     "src": "argchain", "index": 5, "hops": [64], "off": 12, "type": "i32"},
+        {"name": "spr_10",     "src": "argchain", "index": 5, "hops": [64], "off": 16, "type": "i32"},
+        {"name": "spr_14",     "src": "argchain", "index": 5, "hops": [64], "off": 20, "type": "i32"},
+        {"name": "spk_1c",     "src": "argfield", "index": 5, "off": 28, "type": "i32"},
+        {"name": "spk_20",     "src": "argfield", "index": 5, "off": 32, "type": "i32"},
+        {"name": "box_w",      "src": "argfield", "index": 1, "off": 20, "type": "i32"},
+        {"name": "box_h",      "src": "argfield", "index": 1, "off": 24, "type": "i32"},
+        {"name": "cam_x",      "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 96, "type": "i32"},
+        {"name": "cam_y",      "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 92, "type": "i32"},
+        {"name": "cam_scroll", "src": "chain", "va": "0x8a9b50", "hops": [4172], "off": 116, "type": "i32"}
+      ]
+    },
+    "0x49c910": {
+      "name": "boxpos_out",
+      "_note": "param_1 = box obj ptr (this+0x54). box_x=*(*param_1+0xc), box_y=*(*param_1+0x10).",
+      "fields": [
+        {"name": "box_x", "src": "argderef", "index": 0, "off": 12, "type": "i32"},
+        {"name": "box_y", "src": "argderef", "index": 0, "off": 16, "type": "i32"}
+      ]
+    }
+  }
+}

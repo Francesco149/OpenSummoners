@@ -93,7 +93,7 @@ int test_dialogue_popin(void)
     dialogue_step(&d);
     if (d.scale != 50) T_FAIL("scale = %d after 1 update (want 50)", d.scale);
     int x, y, w, h;
-    dialogue_scaled_rect(&d, &x, &y, &w, &h);
+    dialogue_scaled_rect(&d, DIALOGUE_BOX_X, DIALOGUE_BOX_Y, &x, &y, &w, &h);
     /* 408*50/1000=20, 112*50/1000=5, centered (integer math) */
     if (w != 20 || h != 5) T_FAIL("scaled w/h = %d/%d (want 20/5)", w, h);
     if (x != DIALOGUE_BOX_X + (DIALOGUE_BOX_W / 2 - 10)) T_FAIL("x = %d", x);
@@ -106,7 +106,7 @@ int test_dialogue_popin(void)
     if (d.scale != 1000) T_FAIL("scale = %d after 20 updates", d.scale);
     if (!dialogue_content_visible(&d)) T_FAIL("content gate closed at 1000");
     if (d.reveal != 0) T_FAIL("reveal = %d before the first content update", d.reveal);
-    dialogue_scaled_rect(&d, &x, &y, &w, &h);
+    dialogue_scaled_rect(&d, DIALOGUE_BOX_X, DIALOGUE_BOX_Y, &x, &y, &w, &h);
     if (x != DIALOGUE_BOX_X || y != DIALOGUE_BOX_Y ||
         w != DIALOGUE_BOX_W || h != DIALOGUE_BOX_H)
         T_FAIL("full rect = %d,%d %dx%d", x, y, w, h);
@@ -180,5 +180,54 @@ int test_dialogue_portrait_fade(void)
     if (dialogue_portrait_ramp_index(&d) != -1)
         T_FAIL("ramp(500) = %d (want -1: the new cel snaps opaque)",
                dialogue_portrait_ramp_index(&d));
+    return 0;
+}
+
+/* ---- box position (0x49c640 anchor) ------------------------------------ */
+
+int test_dialogue_box_position_town(void)
+{
+    /* The captured speaker body geometry (runs/box-pos-inputs, cutscene.c):
+     * {sprite_w, metric_10, metric_14, off_1c, off_20}. */
+    const dialogue_speaker_body ARCHE = { 2000, 5600, 0, -8, 32 };
+    const dialogue_speaker_body ADULT = { 2000, 7600, 0,  0, 32 };
+
+    /* Every distinct (speaker, world, camera) -> box GROUND TRUTH the 0x49c640
+     * field-spec captured across the arrival + house + errands lines.  The box
+     * = clamp(speaker-center - W/2) anchored above the head; the L9/house/errands
+     * cases exercise BOTH clamps (32 = left 0x20, 200 = right 0x260-W). */
+    struct { const dialogue_speaker_body *b; int32_t wx, wy, cx, cy; int ex, ey; } C[] = {
+        { &ADULT,  49600, 43600, 12800, 12800, 174, 148 }, /* arrival L1 Father  */
+        { &ARCHE,  41600, 45600, 12800, 12800,  94, 160 }, /* arrival L2 Arche   */
+        { &ADULT,  38400, 43600, 12800, 12800,  62, 148 }, /* arrival L3 Mother  */
+        { &ARCHE,  73104, 45600, 28000, 12800, 200, 160 }, /* arrival L9 (clamp R)*/
+        { &ADULT,  38400, 43600, 28000, 12800,  32, 148 }, /* arrival L10 (clamp L)*/
+        { &ARCHE, 128000, 39200, 89600,  3200, 190, 192 }, /* house L1 Arche     */
+        { &ADULT, 131200, 37200, 89600,  3200, 200, 180 }, /* house L3 Mother(clmp)*/
+        { &ADULT, 134400, 37200, 89600,  3200, 200, 180 }, /* house L4 Father(clmp)*/
+        { &ARCHE, 128024, 39200, 89600,  3200, 190, 192 }, /* house L7 Arche     */
+        { &ARCHE,  19200, 52000,     0, 16000,  32, 192 }, /* errands (clamp L)  */
+    };
+    for (size_t i = 0; i < sizeof C / sizeof C[0]; i++) {
+        dialogue_box d;
+        memset(&d, 0, sizeof d);
+        d.anchored = 1;
+        d.spk_wx   = C[i].wx;
+        d.spk_wy   = C[i].wy;
+        d.spk_body = *C[i].b;
+        int bx, by;
+        dialogue_box_position(&d, DIALOGUE_BOX_W, DIALOGUE_BOX_H,
+                              C[i].cx, C[i].cy, 0, &bx, &by);
+        if (bx != C[i].ex || by != C[i].ey)
+            T_FAIL("case %zu: box=(%d,%d) want (%d,%d)", i, bx, by, C[i].ex, C[i].ey);
+    }
+
+    /* anchored==0 -> the centered fallback (0x49c640 param_6==0): x=(640-W)/2, y=80. */
+    dialogue_box dc;
+    memset(&dc, 0, sizeof dc);
+    int cx, cy;
+    dialogue_box_position(&dc, DIALOGUE_BOX_W, DIALOGUE_BOX_H, 99999, 99999, 0, &cx, &cy);
+    if (cx != (0x280 - DIALOGUE_BOX_W) / 2 || cy != 0x50)
+        T_FAIL("centered box=(%d,%d) want (%d,80)", cx, cy, (0x280 - DIALOGUE_BOX_W) / 2);
     return 0;
 }

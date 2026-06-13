@@ -77,6 +77,10 @@ typedef struct cutscene_line {
                         /* facing==3 → A else B), HARNESS-CAPTURED per line       */
                         /* (runs/portrait-gt) — the variants are different busts/ */
                         /* sizes, so this picks the 1:1 slot.  See portrait.h.    */
+    int32_t  spk_wx;    /* the speaker's WORLD pos this line (0x49c640 anchors    */
+    int32_t  spk_wy;    /* the box to its projection).  HARNESS-CAPTURED          */
+                        /* (runs/box-pos-inputs); the cast moves (Arche runs      */
+                        /* ahead at arrival L9), so it is per-line, not per-actor. */
 } cutscene_line;
 
 /* A resolver VA → string (main.c supplies exe_data_string; tests stub it). */

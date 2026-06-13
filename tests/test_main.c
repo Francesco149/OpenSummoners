@@ -1041,6 +1041,7 @@ struct test_case {
     X(dialogue_reveal_cadence)                                 \
     X(dialogue_arrow_anim)                                     \
     X(dialogue_portrait_fade)                                  \
+    X(dialogue_box_position_town)                              \
 
 #define X(n) extern int test_##n(void);
 TESTS

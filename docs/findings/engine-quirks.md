@@ -3508,3 +3508,37 @@ under a per-Flip field spec (`tools/flow/control_handoff_fields.json`) reading o
   Captured as `OSR_CLEAR` (proxy hook at `0x5b9410`, filtered to the tracked
   compose surface — the engine also zero-fills offscreen panel sheets through
   the same fn, which must NOT wipe the frame).
+
+### #106 — the dialogue BOX POSITION is the SPEAKER's world pos projected through the camera (`0x49c640` over `0x490b90`), clamped to `[0x20, 0x260-W]` in x and placed above the head in y; the box TRACKS the camera, and the speaker MOVES per line (2026-06-13, ckpt 131)
+
+- **The formula (`FUN_0049c640`, the speaker-anchored `param_6 != 0` branch).**
+  The box top-left is computed from the speaker entity's body sub-object
+  `iVar2 = *(speaker+0x40)` — its world pos `(+4, +8)` projected to screen via
+  `FUN_00490b90(wx, wy, …, param_9=1)`:
+  `scr_x = wx/100 - cam->0x60/100`, `scr_y = wy/100 - (cam->0x5c + cam->0x74·100)/100`
+  (TWO separate truncating /100 divisions, NOT `(wx-cam)/100`).  Then
+  `box_x = clamp( (sprite_w/200 - W/2) + scr_x, 0x20, 0x260-W )` and
+  `box_y = (metric_14/100 + spk+0x1c) - H - 0x30 + scr_y` (above the head); a
+  flip-below branch (`box_y < 0x40` when `param_8 != 0`) re-places it under the
+  speaker but is DEAD for the town intro (`box_y >= 148`).  `cam` = the live view
+  object `*(*0x8a9b50 + 0x104c)` — the SAME object the port's `mr_camera`
+  (`off34/4c/5c/60/64/68/74`) and `0x490f30` tile walk already model.
+- **The box TRACKS the camera + the speaker MOVES per line.** Box position is
+  `(speaker_world - camera)`, so it follows BOTH: arrival L1-L8 sit at cam 12800
+  (settled), but L9 ("Mom! Dad! c'mon!") Arche RUNS AHEAD to world 73104 and the
+  camera follows RIGHT to 28000, shifting L9/L10's box; the house room is cam
+  89600, errands cam 0/16000.  So the box (x,y) is NOT a constant — it is per-line
+  and per-camera (the ckpt-130 "hardcoded (174,148)" was only the L1 value).
+- **The per-CHARACTER body constants (HARNESS-CAPTURED, `runs/box-pos-inputs`,
+  the `0x49c640` field-spec).** The whole town cast share `sprite_w = 2000`
+  (→ center half-offset 10), `metric_14 = 0`, `+0x20 = 32`; the child Arche
+  differs in `+0x1c` (-8 vs the adults' 0 — her head sits 8px lower, so her box
+  drops 8: arrival L2 box_y 160 vs Father's 148) and `metric_10` (5600 vs 7600,
+  the dead flip term).  `W = 0x198` (408), `H = 0x70` (112), `param_8 = 1` for
+  every captured line.
+- **Both clamps fire in the real data.** box_x = 32 is the left clamp `0x20`
+  (errands Arche, arrival L10 Mother under the panned camera); box_x = 200 is the
+  right clamp `0x260-W = 608-408` (arrival L9 Arche, every house adult).  So the
+  clamp is load-bearing, not cosmetic — porting the LOGIC (not baking the result)
+  is what reproduces the off-screen-speaker cases.  Formula verified bit-exact
+  against all 18 town-intro lines (port-side `dialogue_box_position`, ckpt 131).

@@ -2323,10 +2323,26 @@ static void game_render_dialogue(void)
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
 
-    /* the 9-slice bubble frame at the current pop-in scale */
+    /* The live speaker-anchored box position (0x49c640 over the 0x490b90
+     * projection): the box rides the speaker's world pos projected through the
+     * live in-game camera (g_game_camera_mr) — replacing the old hardcoded
+     * (174,148).  Harness-verified bit-exact for the town intro (box-pos-inputs). */
+    int box_x, box_y;
+    dialogue_box_position(&g_dialogue, DIALOGUE_BOX_W, DIALOGUE_BOX_H,
+                          g_game_camera_mr.off60, g_game_camera_mr.off5c,
+                          g_game_camera_mr.off74, &box_x, &box_y);
+    /* Mirror retail's box-position read-point (0x49c910 boxpos_out): the values
+     * 0x49c640 wrote to box+0xc/+0x10.  flow_diff aligns this against the retail
+     * capture (tools/flow/box_pos_inputs_fields.json). */
+    CALL_TRACE_BEGIN(0x49c910);
+    CALL_TRACE_I32("box_x", box_x);
+    CALL_TRACE_I32("box_y", box_y);
+    CALL_TRACE_END();
+
+    /* the 9-slice bubble frame at the current pop-in scale, centered on the box */
     static const int frames9[9] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
     int bx, by, bw, bh;
-    dialogue_scaled_rect(&g_dialogue, &bx, &by, &bw, &bh);
+    dialogue_scaled_rect(&g_dialogue, box_x, box_y, &bx, &by, &bw, &bh);
     CALL_TRACE_BEGIN(0x48cf80);          /* the box-frame draw, cross-side */
     CALL_TRACE_I32("x", bx);
     CALL_TRACE_I32("y", by);
@@ -2339,8 +2355,6 @@ static void game_render_dialogue(void)
     }
     if (!dialogue_content_visible(&g_dialogue))
         return;                          /* 0x48c820's +0x54<1000 content gate */
-
-    const int box_x = DIALOGUE_BOX_X, box_y = DIALOGUE_BOX_Y;
 
     /* content cels, retail cell creation order ([0x17] tail notch, [0x18]
      * tail spike, [0x1b] tab, then the portrait pair) — all plain keyed

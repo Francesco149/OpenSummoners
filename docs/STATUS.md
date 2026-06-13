@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  13.0% touched   (13.0% host-tested, 14.2% of code bytes)
+███░░░░░░░░░░░░░░░░░  13.1% touched   (13.1% host-tested, 14.3% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   202 | ported + module covered by the host unit suite       |
+| tested      |   203 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **207** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1551 | exists in engine, never referenced from src/         |
+| **touched** | **208** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1550 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (14.2% of engine-proper bytes) is the truer progress
+Code-byte coverage (14.3% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -34,19 +34,38 @@ understates how much actual instruction volume is ported.
 
 - **Phase:** Phase 4 — the town intro renders ~1:1; the cutscene chains arrival→house→errands and all three
   ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
-  errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Four bugs fixed (ckpt 131:
-  errands floor tileset, house+errands props, the dialogue-portrait +13 offset).  **NEXT (the one remaining
-  1:1 gap): the dialogue BOX POSITION — port `0x49c640` (anchor the box to the speaker's projected screen
-  pos) over the cast positions; USER chose the faithful fix.**  THEN the FREEROAM HAND-OFF (controllable
-  Arche, `character_step` on live input — the mover is DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
-  freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
+  errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Five gaps closed (ckpt 131:
+  errands floor tileset, house+errands props, the dialogue-portrait +13 offset; ckpt 132: the dialogue BOX
+  POSITION — faithful `0x49c640`).  **The rendering gaps up to the errands are CLOSED → NEXT: the FREEROAM
+  HAND-OFF (controllable Arche in the errands room, `character_step` on live input — the mover is DONE
+  bit-exact).**  Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`;
+  milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **trace-studio v2 ✓ (ckpt 125-129) →
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → the FREEROAM HAND-OFF (controllable Arche in
     the errands room) = next**.
-- **LATEST (ckpt 131): the dialogue-rendering gaps up to the errands — FOUR bugs fixed, harness-verified;
+- **LATEST (ckpt 132): the dialogue BOX POSITION is PORTED FAITHFULLY (`0x49c640` over the `0x490b90`
+  projection) — 17/18 town-intro lines bit-exact vs retail; the box now ANCHORS to the speaker.**  The
+  USER-chosen faithful fix for the last ckpt-131 rendering gap.  Captured EVERY `0x49c640` input from retail
+  (`tools/flow/box_pos_inputs_fields.json` + a new `argchain` agent read kind; `runs/box-pos-inputs`), which
+  PROVED the formula: `box_x = clamp((sprite_w/200 - W/2) + scr_x, 0x20, 0x260-W)`,
+  `box_y = (metric_14/100 + spk+0x1c) - H - 0x30 + scr_y`, where `(scr_x,scr_y)` is the speaker WORLD pos
+  projected through the LIVE camera (`scr_x = wx/100 - cam->0x60/100`, …) — the SAME `mr_camera` the port
+  already has.  Ported as `dialogue_box_position` (pure C, host-tested bit-exact vs all 10 captured cases);
+  per-line speaker world pos + per-character body geometry baked into `cutscene.c` (HARNESS-CAPTURED — the
+  live cast that owns them is PORT-DEBT(cutscene-party-chars)); `game_render_dialogue` projects through the
+  live `g_game_camera_mr` each frame (the box TRACKS the camera).  A port `--call-trace` over the same nav
+  reproduced retail's box position for arrival L1-L9 + ALL house lines bit-exact (both clamps fire: box_x 32
+  left / 200 right).  **The ONE residual — arrival L10 Mother (port 62 vs retail 32) — is the camera not
+  panning to 28000 to follow Arche running ahead at L9 (Arche is static = PORT-DEBT(cutscene-party-chars) +
+  the camera-pan debt), NOT a box-logic bug** (quirk #106, the upstream-input pillar).  Retires the box half
+  of PORT-DEBT(dialogue-trigger); the bubble TAIL x still rides box_x+188 (the same projection would derive
+  it — a small follow-up).  1011 host pass (+1).  Montage on the feed (per-speaker anchoring).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-boxpos.osr C:\oss-osr\retail.osr`** (scrub the arrival/house dialogue; the box
+  rides each speaker).
+- **Prior (ckpt 131): the dialogue-rendering gaps up to the errands — FOUR bugs fixed, harness-verified;
   the box POSITION is the one remaining 1:1 gap.**  USER drove a frame-by-frame trace-studio pass.  (1) the
   errands BOTTOM FLOOR (bank 0x188 cloned from the wrong source → floor tiles culled; fixed the inline-clone
   {0x187←0x184}/{0x188←0x185}, `e8d5c0b`); (2) house + errands PROPS (the map-driven STRUCTURE band now

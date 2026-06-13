@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 131, 2026-06-13)
+# Session handoff — rolling current state (last updated ckpt 132, 2026-06-13)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,54 +6,61 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 131
+## Where we are — ckpt 132
 
-**The USER drove a frame-by-frame trace-studio pass to close the dialogue-rendering gaps up to the errands
-(directive: "we do not go any further until this is perfect 1:1").  FOUR bugs fixed + harness-verified; the
-dialogue BOX POSITION is the one remaining 1:1 gap (USER chose the faithful fix).**  Commits `e8d5c0b`
-(errands floor) / `1d826c3` (props) / `cbbab94` (portrait offset); 1010 host pass (+1).
+**The dialogue BOX POSITION is ported FAITHFULLY (the last ckpt-131 rendering gap up to the errands): the
+box now ANCHORS to the speaker — 17/18 town-intro lines bit-exact vs retail.**  `dialogue_box_position`
+ports `FUN_0049c640` over the `FUN_00490b90` world→screen projection; the box rides the speaker's world pos
+projected through the LIVE camera.  1011 host pass (+1).  Quirk #106; fresh port `.osr` at
+`C:\oss-osr\port-boxpos.osr`.
 
-**Fixed this ckpt:**
-- **Errands bottom floor** — the floor tileset bank 0x188 was boot-cloned from `0x186` (res 0x76b, a
-  1-frame 32×32 sprite), so its floor tiles (frames 4/7/11 at row y=13) were f_38-culled.  Frida pool read
-  (`tools/flow/errands_tileset_fields.json`): retail bank 0x187=res 0x769 f_38=24, 0x188=res 0x76a f_38=16
-  = the town floor banks 0x184/0x185 (area-0xd2 rooms share the floor sheets).  Fixed the inline-clone
-  sources {0x187←0x184}/{0x188←0x185}; +1 test.
-- **House + errands props** — the STRUCTURE band (map-driven, quirk #84) now re-spawns per room
-  (`reload_room_backdrop` → `actor_spawn_struct_from_map`, house 21 / errands 58) and `game_actor_walk`
-  runs for every room (STRUCTURE always; the town cast bands gated on `room_is_town`).
-- **Dialogue portraits — the +13 pool/array offset (EVERY bust wrong).**  The render indexed
-  `g_ar_sprite_slots[pslot]` directly; the 0x49d6e0 face table returns a POOL index → must go through
-  `ar_pool_get_slot` (−13, the ramp slots).  So every portrait was shifted +13 → wrong bust resource (right
-  character, wrong expression/variant) + wrong dims (var-B 176×144 vs 160×176).  Frida-verified: retail pool
-  676=0x7ef / 704=0x7f9 / 460=0x5a3 live at the port's slots 663/691/447.  Fix: `ar_pool_get_slot(pslot)`;
-  port now emits retail's exact slots + 160×176.
+**What landed:**
+- **Captured EVERY `0x49c640` input from retail first** (`tools/flow/box_pos_inputs_fields.json`,
+  `runs/box-pos-inputs`).  Added a new agent read kind `argchain` (arg-rooted pointer hops, like `thischain`
+  from ECX) to reach the speaker body `*(*(arg5+0x40)+off)`.  PROVED the formula AND that the port's
+  `mr_camera` IS `0x490b90`'s `in_ECX` (same `off34/4c/5c/60/64/68/74`) → the projection is a free reuse.
+- **The formula (quirk #106):** `scr_x = wx/100 - cam_x/100` (two truncating /100), `scr_y = wy/100 -
+  (cam_y + scroll·100)/100`; `box_x = clamp((sprite_w/200 - W/2) + scr_x, 0x20, 0x260-W)`;
+  `box_y = (metric_14/100 + spk+0x1c) - H - 0x30 + scr_y`.  Both clamps fire in real data (box_x 32 left /
+  200 right); the flip-below branch is dead in the town intro.
+- **Port:** `dialogue_box_position` (pure C, `dialogue.c`; host-tested bit-exact vs all 10 captured cases +
+  the centered fallback).  `cutscene.c` bakes per-line speaker world pos (the cast MOVES: Arche runs ahead
+  at arrival L9 → world 73104) + per-character body geometry (`BODY_ARCHE`/`BODY_ADULT`; Arche off_1c=-8 →
+  her box drops 8px).  These are HARNESS-CAPTURED because the live cast is PORT-DEBT(cutscene-party-chars).
+  `game_render_dialogue` projects through the live `g_game_camera_mr` each frame; `dialogue_scaled_rect` now
+  takes the anchor.  Port-side annotation: `CALL_TRACE_BEGIN(0x49c910)` emits the computed box_x/box_y.
+- **Verified:** a port `--call-trace` over `nav-zspam-ext.jsonl` reproduced retail's box for arrival L1-L9 +
+  ALL house lines BIT-EXACT.  The ONE residual — arrival L10 Mother, port (62,148) vs retail (32,148) — is
+  retail's camera panning to 28000 (following Arche running ahead at L9) while the port's static cast keeps
+  it at 12800: the upstream-input pillar (the camera), downstream of PORT-DEBT(cutscene-party-chars) + the
+  camera-pan debt, NOT a box-logic bug.
 
-**NEXT MOVE — the dialogue box POSITION (the remaining 1:1 gap, USER-chose the faithful fix):** retail
-anchors the box to the SPEAKER's projected screen position (`0x49c640`: project the speaker body world pos
-via `0x490b90`, center the box, clamp), so the box moves to whoever speaks (Father box≈(174,148),
-Arche≈(94,160), Mother≈(62,148)).  The port hardcodes `DIALOGUE_BOX_X=174/Y=148` (`dialogue.h`).  The
-arrival cast is largely CLUSTERED/static during the dialogue (early-vs-late frames match, slight drift), so:
-port `0x49c640` over the cast's positions + the port projector → drive `box_x/box_y` per speaker in
-`game_render_dialogue`; refine with the walk-in cast only if the drift matters (`cutscene-party-chars`).
-Ground truth: `tools/flow/portrait_pos_fields.json` reads the live box obj `+0xc/+0x10` per line (hook
-0x49c910, param_1=this+0x54, *param_1=box obj; `0x49c640` decompile in `by-address/49c640.c`).  TODO before
-this: locate the port's cast actor world positions + the world→screen projector; map the dialogue speaker
-(name → cast code 0xc3dc/0xc35a/0xc440) → actor.
+**NEXT MOVE — the FREEROAM HAND-OFF (the rendering gaps up to the errands are now CLOSED).**  At the errands
+room (`0x334dc`, the cutscene chain's end) STOP the sequencer and run `character_step` on the live
+`axis_held` (the `+0x200==0` char-AI path; the mover is DONE bit-exact, quirk #103).  Plan:
+`plans/controllable-arche-faithful.md` Phase 2 (VERIFIED).  Smaller follow-ups: the bubble TAIL x (still
+`box_x+188`; derive from the same projection — `0x49c640`'s tail-x clamp); the L10 camera pan/cast
+walk-in (`cutscene-party-chars`); the errands CHARACTER-band shop items + room cast (per-room sprite
+tables, `actor-sprite-table`).
 
 **Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub (`osr_view.exe <one.osr>`)
-has no notes panel.  The USER flagged frames directly (port-rooms.osr 4103=L3 Mother / 5165=L5 Arche) which
-worked, but the mark→`notes.py` round-trip needs single-file support.
+has no notes panel.  The mark→`notes.py` round-trip needs single-file support.
 
-**Module layout (this ckpt):** `src/asset_register.c` (the inline-clone fix + the f_38 guard from ckpt 130),
-`src/main.c` (`game_actor_walk` per-room STRUCTURE + the portrait `ar_pool_get_slot` fix +
-`reload_room_backdrop` struct re-spawn), `tests/test_asset_register.c` (+`inline_clones_errands_floor_tilesets`).
-Specs: `tools/flow/{errands_tileset,portrait_slot_dims,portrait_pos}_fields.json`.  Artifacts (gitignored):
-`runs/{errands-tileset-gt,portrait-slot-dims,portrait-pos,speaker-pos}`; `C:\oss-osr\port-rooms.osr` (the
-fixed full capture) + `port-dlg.osr` (arrival).
+**Module layout (this ckpt):** `src/dialogue.{c,h}` (`dialogue_box_position` + `dialogue_speaker_body` + the
+box anchor fields; `dialogue_scaled_rect` takes the anchor), `src/cutscene.{c,h}` (per-line `spk_wx/wy` +
+`speaker_body`), `src/main.c` (`game_render_dialogue` projects the live camera + the `0x49c910` annotation),
+`tools/frida/opensummoners-agent.js` (+`argchain`), `tests/test_dialogue.c` (+`dialogue_box_position_town`).
+Spec: `tools/flow/box_pos_inputs_fields.json`.  Artifacts (gitignored): `runs/box-pos-inputs`;
+`C:\oss-osr\port-boxpos.osr`.
 
-**OPEN RE threads:** the box-position arc above; the errands CHARACTER-band shop items + room cast (per-room
-sprite tables, `actor-sprite-table`); carried — the freeroam hand-off, the errands questline 0x4dc510.
+**OPEN RE threads:** the freeroam hand-off (next); the bubble tail x; the errands CHARACTER-band shop items +
+room cast; carried — the errands questline `0x4dc510`.
+
+## Where we were — ckpt 131
+
+**The USER drove a frame-by-frame trace-studio pass; FOUR dialogue-rendering bugs fixed** (commits `e8d5c0b`
+errands floor / `1d826c3` house+errands props / `cbbab94` the dialogue-portrait +13 pool-vs-array offset).
+Full detail in `PROGRESS.md`; the box-POSITION gap that pass left is closed above (ckpt 132).
 
 ## Where we were — ckpt 130
 

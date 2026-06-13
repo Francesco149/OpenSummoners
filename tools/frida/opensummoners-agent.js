@@ -689,6 +689,18 @@ function ctReadField(fld, args, ctx) {
         // +0x5c on the render-state passed to FUN_005531b0.)
         if (src === 'argfield') return ctFormatTyped(
             type, args[fld.index | 0].add(fld.off | 0), null);
+        // argchain — like `thischain` but ROOTED AT a stack-arg pointer instead
+        // of ECX: start at args[index] → follow each `hops` offset as a pointer
+        // hop → read typed at the final `off`.  Reaches a field behind an arg's
+        // sub-object (e.g. the speaker's body/render-state at *(arg+0x40)+off, the
+        // world pos / sprite metrics 0x49c640 projects).  A null/bad pointer
+        // anywhere in the chain faults and is caught → null.
+        if (src === 'argchain') {
+            let p = args[fld.index | 0];
+            const hops = fld.hops || [];
+            for (let i = 0; i < hops.length; i++) p = p.add(hops[i] | 0).readPointer();
+            return ctFormatTyped(type, p.add(fld.off | 0), null);
+        }
         // renderid — the blit's SOURCE cel identity from g_render_id_map (the
         // retail render_id registry).  The source object is the __thiscall
         // `this` (ECX) by default, or args[fld.index] for a cdecl blit; fld.key
