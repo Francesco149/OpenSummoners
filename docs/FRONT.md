@@ -10,13 +10,17 @@
   ROOM BACKDROPS render (ckpt 130).  **USER directive (ckpt 131): close EVERY rendering gap up to the
   errands, frame-by-frame 1:1 via trace-studio v2, BEFORE the freeroam.**  Gaps closed: ckpt 131 errands
   floor tileset / house+errands props / the dialogue-portrait +13 offset; ckpt 132 the dialogue BOX POSITION
-  (faithful `0x49c640`); **ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker) — DONE.**  **NEXT
-  (USER-set): SWEEP the studio for a clean frame-by-frame 1:1 of the dialogue up to the errands — the skip
-  unblocked it; the immediate sweep step is a MATCHED-CADENCE nav (the port + retail must press confirm 0x24
-  at the SAME sim-ticks so per-line progression aligns; the current port nav is a `0x24`-spam, retail drives
-  its own cadence → the timelines pair but the dialogue CONTENT won't be tick-1:1 until the navs match).
-  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input —
-  mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
+  (faithful `0x49c640`); **ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker) — DONE** (the port now
+  advances at the press cadence; USER: "an improvement but not 1:1 — retail is a little slower").  **NEXT
+  (USER-set ckpt 133): make the WHOLE intro cutscene → errands 1:1 — the skip unblocked a real studio compare
+  and the USER's `osr_view` pass flagged 8 GAPS in 3 themes (the punch-list →
+  `plans/intro-cutscene-1to1.md`): (1) dialogue TIMING (the port reveals faster than retail — probe retail's
+  reveal curve), (2) the cutscene CAST + ambient render (butterfly/NPC colour + animation —
+  `cutscene-party-chars`/butterfly debts), (3) the arrival→house TRANSITION CHOREOGRAPHY (retail scripts
+  Arche running to the house + a fade-from-black house-entry reveal; the port SNAPS — `cutscene-beat-runner`).
+  Prerequisite: a MATCHED-CADENCE nav (port + retail press 0x24 at the same sim-ticks).  THEN the FREEROAM
+  HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
+  Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →

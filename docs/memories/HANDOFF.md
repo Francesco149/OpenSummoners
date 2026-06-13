@@ -41,21 +41,31 @@ COMPLETES @hold 2571 vs the old advance-only 11365 (4.4×), and a fresh `port-sk
   post `0x24`, Z does not); the 4.4× completion collapse (11365→2571 @hold); `pair.py port-skip.osr
   retail.osr` = PASS, 2027/2042 ticks paired, anchors RNG-aligned (the port stays on retail's tick axis).
 
-**NEXT MOVE (USER-set) — the studio CONTENT sweep: a clean frame-by-frame 1:1 of the dialogue up to the
-errands.**  The skip unblocked it (the port can now keep up).  The immediate step is a **MATCHED-CADENCE
-nav**: the port + retail must press confirm `0x24` at the SAME sim-ticks so the per-line progression aligns.
-The current port nav (`runs/cutscene-verify/nav-zspam-ext.jsonl`) is a `0x24`-SPAM; retail.osr was driven by
-the proxy's own nav — so `pair.py` shows the timelines PAIR (2027/2042) but the dialogue CONTENT won't be
-tick-1:1 until the navs match.  Build the matched nav (derive retail's per-line advance ticks from
-`retail.osr`'s dialogue-text changes → a port nav that presses `0x24` at those ticks; or drive BOTH sides
-from one tick-keyed nav), then drill any residual per-line divergence in `osr_view`.  USER-VERIFY of the
-skip:  `osr_view.exe C:\oss-osr\port-skip.osr C:\oss-osr\retail.osr` (boot→town pixel-1:1; the DIALOGUE shows
-nav-cadence divergence until the matched nav lands — NOT a skip bug).  **Carried follow-ups** (do as the
-sweep surfaces them): the bubble TAIL x (still `box_x+188`; derive via `0x49c640`'s tail-x clamp); the
-arrival L10 camera pan / cast walk-in (`cutscene-party-chars`); the errands CHARACTER-band shop items + room
-cast (`actor-sprite-table`).  **THEN the FREEROAM HAND-OFF** (behind the 1:1 bar): at the errands room
-(`0x334dc`) STOP the sequencer + run `character_step` on the live `axis_held` (`+0x200==0` char-AI; mover
-DONE bit-exact, quirk #103).  Plan: `plans/controllable-arche-faithful.md` Phase 2.
+**NEXT MOVE (USER-set ckpt 133) — make the WHOLE intro cutscene → errands 1:1; the skip unblocked a real
+studio compare and the USER's `osr_view` pass flagged 8 gaps.  The full punch-list is
+`docs/plans/intro-cutscene-1to1.md`** (rendered to the feed + `C:\oss-osr\note_render/` from
+`C:\oss-osr\osr_notes.jsonl`).  The USER's verdict: the skip is "definitely an improvement but not 1:1 to
+retail — retail is a little slower than us".  The 8 gaps in 3 themes:
+- **THEME 1 — dialogue TIMING (refine the ckpt-133 skip):** the port reveals/advances FASTER than retail
+  (note #4 tick 661: port shows the full line 1 while retail shows just "A").  PROBE retail's reveal curve
+  (hook the text-machine `+0x18`/`+0x1c` / reveal counter per tick under a confirm nav) — the port's instant
+  `reveal→total` is too fast and/or the per-line start gating differs.
+- **THEME 2 — the cutscene CAST + ambient render (colour + animation):** butterfly colour (#0,
+  `butterfly-wander` frame_base 0/4/8/12), NPC colour variant (#1, `effect-color-variant`/actor frame_base),
+  butterfly movement (#2, `butterfly-flutter`), NPC animation frame (#3, `cutscene-party-chars` — the static
+  cast, the big one).
+- **THEME 3 — the arrival→house ROOM-TRANSITION CHOREOGRAPHY (NEW detail, `cutscene-beat-runner`):** retail
+  SCRIPTS Arche running to the house (#5 — actor run-off `0x402730`, the room load gated on it; the port
+  SNAPS) + a fade-from-black / inverted-iris REVEAL on house entry (#6/#7, the `scene_fade` the port lacks on
+  `reload_room_backdrop`).
+- **PREREQUISITE for honest per-tick compares — the MATCHED-CADENCE nav:** the port nav is a `0x24`-SPAM,
+  retail.osr ran its own nav, so the port runs AHEAD (tick 997 = port in the house, retail still in arrival).
+  Build a nav that presses `0x24` at retail's per-line advance ticks (derive from `retail.osr`'s text
+  changes), so every per-line compare is honest.  Suggested order in the plan doc: matched-nav → THEME 1 →
+  THEME 3 → THEME 2.
+- **THEN the FREEROAM HAND-OFF** (behind the 1:1 bar): at the errands room (`0x334dc`) STOP the sequencer +
+  run `character_step` on the live `axis_held` (`+0x200==0` char-AI; mover DONE, quirk #103).  Plan:
+  `plans/controllable-arche-faithful.md` Phase 2.
 
 **Studio gap (build it):** the NOTE/mark UI is dual-mode only — single-file scrub (`osr_view.exe <one.osr>`)
 has no notes panel.  The mark→`notes.py` round-trip needs single-file support.
@@ -67,10 +77,12 @@ poll → `cutscene_step`), `src/input_live.{c,h}` (KEYMAP: ENTER+X→`0x24`, Z d
 asserts), `docs/findings/input.md` (the `0x46a880` producer RESOLVED).  Artifacts (gitignored):
 `C:\oss-osr\port-skip.osr` (the skip capture).
 
-**OPEN RE threads:** the studio CONTENT 1:1 sweep (matched-cadence nav, next); the bubble tail x; the
-errands CHARACTER-band shop items + room cast; the freeroam hand-off (behind the 1:1 bar); the per-key
-SCANCODE defaults (`PORT-DEBT(keybind-config)`, the `*0x8a6e80` launcher config); carried — the errands
-questline `0x4dc510`.
+**OPEN RE threads:** the intro-cutscene 1:1 punch-list (`plans/intro-cutscene-1to1.md`, the 8 USER-flagged
+gaps — next, see NEXT MOVE); the matched-cadence nav; the skip-timing reveal curve (retail slower); the
+Arche-runs-to-house run-off `0x402730` + the house-entry fade; the cast colour/animation render `0x4997b0`;
+the bubble tail x; the errands CHARACTER-band shop items + room cast; the freeroam hand-off (behind the 1:1
+bar); the per-key SCANCODE defaults (`PORT-DEBT(keybind-config)`, the `*0x8a6e80` launcher config); carried —
+the errands questline `0x4dc510`.
 
 ## Where we were — ckpt 132
 
