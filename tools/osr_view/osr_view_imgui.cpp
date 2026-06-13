@@ -452,12 +452,11 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     uint32_t* ma    = (uint32_t*)malloc((size_t)total_px * 4);   // metric scratch
     uint32_t* mb    = (uint32_t*)malloc((size_t)total_px * 4);
     uint32_t* mtmp  = (uint32_t*)malloc((size_t)total_px * 4);
-    uint32_t* binsp = (uint32_t*)malloc((size_t)total_px * 4);   // draw-inspector
 
     // start the scrubber on the first paired tick (skip leading gaps)
     int cur = 0;
     for (int i = 0; i < n; i++) { if (tl[i].kind_paired()) { cur = i; break; } }
-    int shown = -1;
+    int shown_idx = -2;
     bool playing = false;
     int metric_cursor = 0;           // background precompute progress over tl[]
 
@@ -470,14 +469,15 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     bool   crop_valid = false, crop_dragging = false;
     ImVec2 crop_a(0,0), crop_b(0,0);
 
-    // draw-inspector state (M7 N3 — render-up-to-K / draw list / pixel→draw pick)
-    Panel  pInsp;
-    int    insp_side = 0;            // 0 = port, 1 = retail
-    int    insp_k = -1;             // render up to K draws (-1 = all)
-    int    insp_sel = -1;           // selected draw index (highlighted)
-    std::vector<osr_draw_info> insp_draws;
-    int    insp_list_idx = -2, insp_list_side = -2;            // what insp_draws holds
-    int    insp_shown_k = -99, insp_shown_idx = -2, insp_shown_side = -2;  // texture state
+    // view mode + the draw-drill state (M7 — folded into the main 3 panels)
+    int    view_mode = 0;           // 0 = frame, 1 = draw-drill (both sides up to K)
+    bool   show_port = true, show_retail = true, show_diff = true;
+    int    drill_k = -1;            // synchronized draw step shared by both sides (-1 = all)
+    int    focus_side = 0;          // 0 = port, 1 = retail (the draw list + pick highlight)
+    int    drill_sel = -1;          // selected draw index on the focus side
+    std::vector<osr_draw_info> draws_port, draws_retail;
+    int    draws_idx = -2;          // which timeline idx the draw lists hold
+    int    shown_mode = -1, shown_k = -99;   // panel-texture cache (with shown_idx)
 
     bool done = false;
     while (!done) {
@@ -522,8 +522,20 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
         if (cur >= n) cur = n - 1;
 
         ImGui::SetNextWindowPos(ImVec2(8, 8), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(3 * w + 60, h + 230), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(3 * w + 60, h + 400), ImGuiCond_FirstUseEver);
         ImGui::Begin("Trace Studio v2 — port | retail | diff  (tick-joined)");
+
+        // view mode + panel toggles (the drill folds into these same 3 panels)
+        ImGui::RadioButton("frame", &view_mode, 0);
+        ImGui::SameLine(); ImGui::RadioButton("draw-drill", &view_mode, 1);
+        ImGui::SameLine(); ImGui::TextDisabled("|  show:");
+        ImGui::SameLine(); ImGui::Checkbox("port##show", &show_port);
+        ImGui::SameLine(); ImGui::Checkbox("retail##show", &show_retail);
+        ImGui::SameLine(); ImGui::Checkbox("diff##show", &show_diff);
+        if (view_mode == 1) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("|  drill: slide K, watch the DIFF for where the sequences split; click a panel pixel = pick its draw");
+        }
 
         JoinEntry& e = tl[cur];
         ImGui::Text("timeline %d / %d   sim_tick=%u   %s",
@@ -611,35 +623,73 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
             }
         }
 
-        // ── render the three panels at the joined tick ──────────────────────
-        if (cur != shown || precomputing) {
-            if (e.pidx >= 0 && osr_scrub_render_rgba(port, e.pidx, bport)) pPort.upload(bport);
-            else { memset(bport, 0, (size_t)total_px * 4); pPort.upload(bport); }
-            if (e.ridx >= 0 && osr_scrub_render_rgba(retail, e.ridx, bret)) pRetail.upload(bret);
-            else { memset(bret, 0, (size_t)total_px * 4); pRetail.upload(bret); }
+        // ── (DRILL) load both sides' draw lists for this tick + the K control ─
+        int np = 0, nr = 0;
+        if (view_mode == 1 && e.kind_paired()) {
+            if (draws_idx != cur) {
+                np = osr_scrub_frame_ndraws(port,   e.pidx);
+                nr = osr_scrub_frame_ndraws(retail, e.ridx);
+                draws_port.resize(np > 0 ? (size_t)np : 0);
+                draws_retail.resize(nr > 0 ? (size_t)nr : 0);
+                if (np > 0) osr_scrub_frame_draws(port,   e.pidx, draws_port.data(),   np);
+                if (nr > 0) osr_scrub_frame_draws(retail, e.ridx, draws_retail.data(), nr);
+                draws_idx = cur; drill_k = -1; drill_sel = -1;
+            } else { np = (int)draws_port.size(); nr = (int)draws_retail.size(); }
+            int maxnd = np > nr ? np : nr;
+            int kshow = (drill_k < 0) ? maxnd : drill_k;
+            ImGui::SetNextItemWidth((float)(2 * w));
+            if (ImGui::SliderInt("draw K (both sides)", &kshow, 0, maxnd))
+                drill_k = (kshow >= maxnd) ? -1 : kshow;
+            ImGui::SameLine(); if (ImGui::Button("all##k")) { drill_k = -1; drill_sel = -1; }
+            ImGui::SameLine(); ImGui::Text("  port=%d retail=%d draws", np, nr);
+            ImGui::SameLine(); ImGui::RadioButton("focus port##f", &focus_side, 0);
+            ImGui::SameLine(); ImGui::RadioButton("focus retail##f", &focus_side, 1);
+        }
+
+        // ── render the (visible) panels, mode-aware, into the textures ────────
+        if (shown_idx != cur || shown_mode != view_mode || shown_k != drill_k || precomputing) {
+            if (e.pidx >= 0) {
+                if (view_mode == 1) osr_scrub_render_rgba_upto(port, e.pidx, drill_k, bport);
+                else                osr_scrub_render_rgba(port, e.pidx, bport);
+            } else memset(bport, 0, (size_t)total_px * 4);
+            pPort.upload(bport);
+            if (e.ridx >= 0) {
+                if (view_mode == 1) osr_scrub_render_rgba_upto(retail, e.ridx, drill_k, bret);
+                else                osr_scrub_render_rgba(retail, e.ridx, bret);
+            } else memset(bret, 0, (size_t)total_px * 4);
+            pRetail.upload(bret);
             if (e.kind_paired()) {
                 int dpx = 0, md = 0;
                 diff_image(bport, bret, bdiff, w, h, &dpx, &md);
-                if (e.differ < 0) { e.differ = dpx; e.maxd = md; }
-            } else {
-                memset(bdiff, 0, (size_t)total_px * 4);
-            }
+                if (view_mode == 0 && e.differ < 0) { e.differ = dpx; e.maxd = md; }  // frame metric
+            } else memset(bdiff, 0, (size_t)total_px * 4);
             pDiff.upload(bdiff);
-            shown = cur;
+            shown_idx = cur; shown_mode = view_mode; shown_k = drill_k;
         }
 
+        // selected draw (focus side) for the green highlight, drawn on every panel
+        const osr_draw_info* seldraw = nullptr;
+        if (view_mode == 1 && drill_sel >= 0) {
+            std::vector<osr_draw_info>& fd = (focus_side == 0) ? draws_port : draws_retail;
+            if (drill_sel < (int)fd.size()) seldraw = &fd[drill_sel];
+        }
+
+        int nshown = (show_port ? 1 : 0) + (show_retail ? 1 : 0) + (show_diff ? 1 : 0);
+        if (nshown < 1) nshown = 1;
         float avail = ImGui::GetContentRegionAvail().x;
-        float scale = (avail - 24) / (3.0f * w);
+        float scale = (avail - 8.0f * nshown) / (nshown * (float)w);
         if (scale > 1.0f) scale = 1.0f;
         if (scale < 0.1f) scale = 0.1f;
 
-        auto draw_panel = [&](Panel& pn, const char* label, bool has_frame) {
+        // pick_sc/pick_frame/pick_focus: in DRILL mode a CLICK (no drag) picks that
+        // side's draw; a DRAG is always a crop.  diff panel = crop only (pick_sc null).
+        auto draw_panel = [&](Panel& pn, const char* label, bool has_frame,
+                              osr_scrub* pick_sc, int pick_frame, int pick_focus) {
             ImGui::BeginGroup();
             ImGui::TextUnformatted(label);
             ImVec2 p0 = ImGui::GetCursorScreenPos();
             ImVec2 sz(w * scale, h * scale);
-            // an InvisibleButton OWNS the drag → dragging a crop no longer moves the
-            // ImGui window (the bug).  The image is drawn into the same rect.
+            // an InvisibleButton OWNS the drag → it no longer moves the ImGui window.
             ImGui::InvisibleButton(label, sz);
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 p1(p0.x + sz.x, p0.y + sz.y);
@@ -651,8 +701,6 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                 dl->AddText(ImVec2((p0.x + p1.x - ts.x) * 0.5f, (p0.y + p1.y - ts.y) * 0.5f),
                             IM_COL32(220, 190, 90, 255), msg);
             }
-            // crop drag, mapped from THIS panel's rect; the activated button stays the
-            // active item for the whole drag, even if the mouse moves over a sibling.
             ImVec2 m = ImGui::GetMousePos();
             float fx = (m.x - p0.x) / scale, fy = (m.y - p0.y) / scale;
             fx = fx < 0 ? 0 : (fx > w ? w : fx);
@@ -660,10 +708,15 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
             if (ImGui::IsItemActivated())   { crop_a = crop_b = ImVec2(fx, fy); crop_dragging = true; }
             if (ImGui::IsItemActive())      { crop_b = ImVec2(fx, fy); }
             if (ImGui::IsItemDeactivated()) {
+                bool dragged = (fabsf(crop_a.x - crop_b.x) >= 3 && fabsf(crop_a.y - crop_b.y) >= 3);
                 crop_dragging = false;
-                crop_valid = (fabsf(crop_a.x - crop_b.x) >= 3 && fabsf(crop_a.y - crop_b.y) >= 3);
+                if (dragged) crop_valid = true;        // a drag = a crop region
+                else if (view_mode == 1 && pick_sc) {  // a click in drill = pick this draw
+                    int d = osr_scrub_pick_draw(pick_sc, pick_frame, (int)crop_a.x, (int)crop_a.y);
+                    if (d >= 0) { focus_side = pick_focus; drill_sel = d; drill_k = d + 1; }
+                }
             }
-            if (crop_valid || crop_dragging) {         // overlay the crop on every panel
+            if (crop_valid || crop_dragging) {         // crop overlay (cyan)
                 float x0 = crop_a.x < crop_b.x ? crop_a.x : crop_b.x;
                 float y0 = crop_a.y < crop_b.y ? crop_a.y : crop_b.y;
                 float x1 = crop_a.x > crop_b.x ? crop_a.x : crop_b.x;
@@ -672,13 +725,38 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                             ImVec2(p0.x + x1 * scale, p0.y + y1 * scale),
                             IM_COL32(0, 230, 230, 255), 0.0f, 0, 1.5f);
             }
+            if (seldraw) {                             // selected-draw rect (green)
+                dl->AddRect(ImVec2(p0.x + seldraw->dx * scale, p0.y + seldraw->dy * scale),
+                            ImVec2(p0.x + (seldraw->dx + seldraw->w) * scale,
+                                   p0.y + (seldraw->dy + seldraw->h) * scale),
+                            IM_COL32(0, 255, 0, 255), 0.0f, 0, 2.0f);
+            }
             ImGui::EndGroup();
         };
-        draw_panel(pPort,   "PORT",   e.pidx >= 0);
-        ImGui::SameLine();
-        draw_panel(pRetail, "RETAIL", e.ridx >= 0);
-        ImGui::SameLine();
-        draw_panel(pDiff,   "DIFF (yellow->red = divergence)", e.kind_paired());
+        const char* plab = view_mode == 1 ? "PORT (up to K)"   : "PORT";
+        const char* rlab = view_mode == 1 ? "RETAIL (up to K)" : "RETAIL";
+        bool first = true;
+        if (show_port)   { draw_panel(pPort, plab, e.pidx >= 0, port, e.pidx, 0); first = false; }
+        if (show_retail) { if (!first) ImGui::SameLine(); draw_panel(pRetail, rlab, e.ridx >= 0, retail, e.ridx, 1); first = false; }
+        if (show_diff)   { if (!first) ImGui::SameLine(); draw_panel(pDiff, "DIFF (yellow->red = divergence)", e.kind_paired(), nullptr, -1, 0); }
+
+        // ── (DRILL) the focus side's draw list (click a row → render up to it) ─
+        if (view_mode == 1 && e.kind_paired()) {
+            std::vector<osr_draw_info>& fd = (focus_side == 0) ? draws_port : draws_retail;
+            if (seldraw) ImGui::Text("selected #%d (%s): %s", drill_sel,
+                                     focus_side == 0 ? "port" : "retail", seldraw->label);
+            else ImGui::TextDisabled("click a panel pixel (port/retail) or a draw row below to select a draw");
+            ImGui::BeginChild("##drawlist", ImVec2(0, 150), ImGuiChildFlags_Borders);
+            ImGuiListClipper clip;
+            clip.Begin((int)fd.size());
+            while (clip.Step())
+                for (int i = clip.DisplayStart; i < clip.DisplayEnd; i++) {
+                    char lbl[112];
+                    snprintf(lbl, sizeof lbl, "#%-4d %s", i, fd[i].label);
+                    if (ImGui::Selectable(lbl, i == drill_sel)) { drill_sel = i; drill_k = i + 1; }
+                }
+            ImGui::EndChild();
+        }
 
         // ── notes (the human→agent hand-off: drag a region, type, Add) ──────
         ImGui::SeparatorText("NOTES — drag a region on a panel, type, Add  →  osr_notes.jsonl (the agent reads it)");
@@ -737,83 +815,6 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
 
         ImGui::End();
 
-        // ── the draw inspector (M7 N3 — separate window) ────────────────────
-        ImGui::SetNextWindowPos(ImVec2(60, 560), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(720, 660), ImGuiCond_FirstUseEver);
-        ImGui::Begin("draw inspector");
-        {
-            osr_scrub* isc = (insp_side == 0) ? port : retail;
-            int iframe = (insp_side == 0) ? e.pidx : e.ridx;
-            ImGui::RadioButton("PORT", &insp_side, 0); ImGui::SameLine();
-            ImGui::RadioButton("RETAIL", &insp_side, 1);
-            ImGui::SameLine();
-            ImGui::TextDisabled("(click the image to pick the draw at a pixel)");
-
-            if (iframe < 0) {
-                ImGui::Text("no %s frame at tick %u (honest gap)",
-                            insp_side == 0 ? "port" : "retail", e.tick);
-            } else {
-                if (insp_list_idx != cur || insp_list_side != insp_side) {
-                    int nd = osr_scrub_frame_ndraws(isc, iframe);
-                    insp_draws.resize(nd > 0 ? (size_t)nd : 0);
-                    if (nd > 0) osr_scrub_frame_draws(isc, iframe, insp_draws.data(), nd);
-                    insp_list_idx = cur; insp_list_side = insp_side;
-                    insp_k = -1; insp_sel = -1;
-                }
-                int nd = (int)insp_draws.size();
-                ImGui::Text("tick %u   %s frame #%d   %d draws", e.tick,
-                            insp_side == 0 ? "port" : "retail", iframe, nd);
-                int kshow = (insp_k < 0) ? nd : insp_k;
-                ImGui::SetNextItemWidth(340);
-                if (ImGui::SliderInt("up to draw K", &kshow, 0, nd))
-                    insp_k = (kshow >= nd) ? -1 : kshow;
-                ImGui::SameLine(); if (ImGui::Button("all")) { insp_k = -1; insp_sel = -1; }
-
-                pInsp.ensure(w, h);
-                if (insp_shown_k != insp_k || insp_shown_idx != cur || insp_shown_side != insp_side) {
-                    if (osr_scrub_render_rgba_upto(isc, iframe, insp_k, binsp)) pInsp.upload(binsp);
-                    insp_shown_k = insp_k; insp_shown_idx = cur; insp_shown_side = insp_side;
-                }
-                float iavail = ImGui::GetContentRegionAvail().x;
-                float iscale = iavail / (float)w;
-                if (iscale > 1.0f) iscale = 1.0f;
-                if (iscale < 0.3f) iscale = 0.3f;
-                ImVec2 imn = ImGui::GetCursorScreenPos();
-                ImVec2 isz(w * iscale, h * iscale);
-                ImGui::InvisibleButton("##inspimg", isz);   // owns the click → no window drag
-                ImDrawList* idl = ImGui::GetWindowDrawList();
-                if (pInsp.srv) idl->AddImage((ImTextureID)pInsp.srv, imn, ImVec2(imn.x + isz.x, imn.y + isz.y));
-                else           idl->AddRectFilled(imn, ImVec2(imn.x + isz.x, imn.y + isz.y), IM_COL32(15, 15, 18, 255));
-                if (ImGui::IsItemActivated()) {
-                    ImVec2 mp = ImGui::GetMousePos();
-                    int px = (int)((mp.x - imn.x) / iscale), py = (int)((mp.y - imn.y) / iscale);
-                    int d = osr_scrub_pick_draw(isc, iframe, px, py);
-                    if (d >= 0) { insp_sel = d; insp_k = d + 1; }
-                }
-                if (insp_sel >= 0 && insp_sel < nd) {          // highlight the selected draw
-                    osr_draw_info& di = insp_draws[insp_sel];
-                    idl->AddRect(
-                        ImVec2(imn.x + di.dx * iscale, imn.y + di.dy * iscale),
-                        ImVec2(imn.x + (di.dx + di.w) * iscale, imn.y + (di.dy + di.h) * iscale),
-                        IM_COL32(0, 255, 0, 255), 0.0f, 0, 2.0f);
-                    ImGui::Text("selected #%d: %s", insp_sel, di.label);
-                } else {
-                    ImGui::TextDisabled("no draw selected — click the image or a list row");
-                }
-                ImGui::BeginChild("##drawlist", ImVec2(0, 0), ImGuiChildFlags_Borders);
-                ImGuiListClipper clip;
-                clip.Begin(nd);
-                while (clip.Step())
-                    for (int i = clip.DisplayStart; i < clip.DisplayEnd; i++) {
-                        char lbl[112];
-                        snprintf(lbl, sizeof lbl, "#%-4d %s", i, insp_draws[i].label);
-                        if (ImGui::Selectable(lbl, i == insp_sel)) { insp_sel = i; insp_k = i + 1; }
-                    }
-                ImGui::EndChild();
-            }
-        }
-        ImGui::End();
-
         ImGui::Render();
         const float clear[4] = { 0.08f, 0.08f, 0.10f, 1.0f };
         g_ctx->OMSetRenderTargets(1, &g_rtv, nullptr);
@@ -823,8 +824,8 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     }
 
     osr_scrub_close(port); osr_scrub_close(retail);
-    pPort.release(); pRetail.release(); pDiff.release(); pInsp.release();
-    free(bport); free(bret); free(bdiff); free(ma); free(mb); free(mtmp); free(binsp);
+    pPort.release(); pRetail.release(); pDiff.release();
+    free(bport); free(bret); free(bdiff); free(ma); free(mb); free(mtmp);
     return 0;
 }
 
@@ -838,7 +839,7 @@ int main(int argc, char** argv)
                        nullptr, nullptr, nullptr, nullptr, L"osr_view", nullptr };
     RegisterClassExW(&wc);
     int win_w = dual ? 1960 : 1100;
-    int win_h = dual ? 820  : 720;
+    int win_h = dual ? 1000 : 720;
     HWND hwnd = CreateWindowW(wc.lpszClassName, L"osr_view — Trace Studio v2",
                               WS_OVERLAPPEDWINDOW, 60, 60, win_w, win_h,
                               nullptr, nullptr, wc.hInstance, nullptr);
