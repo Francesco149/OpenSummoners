@@ -872,6 +872,7 @@ struct test_case {
     X(cutscene_arm_first_line)                                 \
     X(cutscene_advance_only_when_typed)                        \
     X(cutscene_typewriter_skip)                                \
+    X(cutscene_same_speaker_keeps_box)                         \
     X(cutscene_room_transition)                                \
     X(cutscene_completes_after_chain)                          \
     X(cutscene_room_key)                                       \
@@ -1045,6 +1046,7 @@ struct test_case {
     X(dialogue_arrow_anim)                                     \
     X(dialogue_portrait_fade)                                  \
     X(dialogue_box_position_town)                              \
+    X(dialogue_set_text)                                       \
 
 #define X(n) extern int test_##n(void);
 TESTS

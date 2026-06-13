@@ -136,14 +136,21 @@ const cutscene_room *cutscene_town_chain(int *n_rooms)
  * Returns 1 on success; 0 if the text VA does not resolve (the caller treats a
  * room-0 line-0 miss as "disarmed" and any later miss as "complete").  A NULL
  * name is tolerated (dialogue_arm copies nothing). */
-static int arm_current_line(cutscene *cs)
+/* `keep_box` (the SAME speaker continues, retail's page advance): re-text the
+ * already-open box (dialogue_set_text — no close, no pop-in, gap 1t) instead of
+ * arming a fresh one (dialogue_arm — close + re-pop, for the first line and
+ * every speaker change).  See plans/intro-cutscene-1to1.md THEME 1. */
+static int arm_current_line(cutscene *cs, int keep_box)
 {
     const cutscene_room *room = &cs->rooms[cs->room_idx];
     const cutscene_line *ln   = &room->script[cs->line_idx];
     const char *text = cs->resolve(ln->text_va);
     if (text == NULL)
         return 0;
-    dialogue_arm(cs->box, cs->resolve(ln->name_va), text);
+    if (keep_box && cs->box->active)
+        dialogue_set_text(cs->box, text);          /* same speaker — keep the box */
+    else
+        dialogue_arm(cs->box, cs->resolve(ln->name_va), text);  /* open / re-pop  */
     /* Resolve the per-speaker portrait bust (0x49d6e0's face-table lookup): the
      * speaker's head-state + this line's face → the portrait pool-slot.  -1 (no
      * record) leaves the box's reset -1 → no portrait, faithful to +0x20=1. */
@@ -174,7 +181,7 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     if (rooms == NULL || resolve == NULL || box == NULL || n_rooms <= 0 ||
         rooms[0].script == NULL || rooms[0].n_lines <= 0)
         return;
-    if (arm_current_line(cs))   /* room-0 line-0 unresolved → stays disarmed */
+    if (arm_current_line(cs, 0)) /* room-0 line-0: full open (unresolved → disarmed) */
         cs->active = 1;
 }
 
@@ -207,6 +214,12 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
         if (dialogue_typing(cs->box)) {
             dialogue_skip_reveal(cs->box);  /* SKIP — completes the line, no advance */
         } else if (dialogue_awaiting_advance(cs->box)) {
+            /* Remember the line just shown so the next-line arm can tell a
+             * same-speaker page advance (keep the box) from a speaker change
+             * (close + re-pop) — retail keeps the box on a same-speaker advance
+             * (gap 1t) but closes it ~9t on a speaker change (THEME 1). */
+            uint32_t prev_name = cs->rooms[cs->room_idx].script[cs->line_idx].name_va;
+            int      prev_room = cs->room_idx;
             cs->line_idx++;
             if (cs->line_idx >= cs->rooms[cs->room_idx].n_lines) {
                 /* End of this room — COMMIT the next room key (the 0x401d40
@@ -215,7 +228,13 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                 cs->room_idx++;
                 cs->line_idx = 0;
             }
-            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs)) {
+            /* Keep the box open only for a same-speaker advance WITHIN a room; a
+             * room boundary is always a context (and backdrop) change → re-pop. */
+            int keep_box = cs->room_idx < cs->n_rooms &&
+                           cs->room_idx == prev_room &&
+                           cs->rooms[cs->room_idx].script[cs->line_idx].name_va
+                               == prev_name;
+            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs, keep_box)) {
                 cs->active   = 0;
                 cs->complete = 1;
                 cs->box->active = 0;    /* close the box (the 0x49cd70 teardown) */

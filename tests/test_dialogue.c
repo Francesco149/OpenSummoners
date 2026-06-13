@@ -231,3 +231,36 @@ int test_dialogue_box_position_town(void)
         T_FAIL("centered box=(%d,%d) want (%d,80)", cx, cy, (0x280 - DIALOGUE_BOX_W) / 2);
     return 0;
 }
+
+/* ── set_text: a same-speaker page advance keeps the box open + resets ONLY the
+ *    typewriter (no pop-in) — retail's 1-tick same-speaker reset (THEME 1) ── */
+int test_dialogue_set_text(void)
+{
+    dialogue_box d;
+    dialogue_arm(&d, "Arche", "Hello there");
+    for (int i = 0; i < 25; i++)               /* run the pop-in + a few chars */
+        dialogue_step(&d);
+    T_ASSERT_EQ_I(d.scale, 1000);
+    T_ASSERT(d.reveal > 0);
+
+    dialogue_set_text(&d, "Bye");
+    T_ASSERT_EQ_I(d.active, 1);
+    T_ASSERT_EQ_I(d.scale, 1000);              /* box stays open — no re-pop    */
+    T_ASSERT_EQ_I(d.reveal, 0);                /* typewriter reset              */
+    T_ASSERT_EQ_I(d.total, 3);                 /* "Bye"                         */
+    T_ASSERT(strcmp(d.name, "Arche") == 0);    /* name persists                 */
+    T_ASSERT_EQ_I(dialogue_content_visible(&d), 1);
+    T_ASSERT_EQ_I(dialogue_typing(&d), 1);     /* immediately typing (no gate)  */
+
+    /* the body reveals from the very next step (no 20-update pop-in wait) */
+    dialogue_step(&d);
+    T_ASSERT_EQ_I(d.reveal, 1);
+
+    /* set_text on an inactive box is a no-op */
+    dialogue_box e;
+    memset(&e, 0, sizeof e);
+    dialogue_set_text(&e, "x");
+    T_ASSERT_EQ_I(e.active, 0);
+    T_ASSERT_EQ_I(e.total, 0);
+    return 0;
+}

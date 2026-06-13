@@ -79,6 +79,22 @@ void dialogue_arm(dialogue_box *d, const char *name, const char *text)
     d->type_timer = 1;
 }
 
+void dialogue_set_text(dialogue_box *d, const char *text)
+{
+    if (!d->active)
+        return;
+    /* Reset ONLY the typewriter — the box stays open (scale, name, portrait,
+     * portrait_fade, arrow, anchor all persist).  Retail's same-speaker page
+     * advance: the body clears and re-types from the next tick, no pop-in. */
+    memset(d->rows, 0, sizeof d->rows);
+    d->row_count = dialogue_expand_text(text, d->rows);
+    d->total = 0;
+    for (int i = 0; i < d->row_count; i++)
+        d->total += (int32_t)strlen(d->rows[i]);
+    d->reveal     = 0;
+    d->type_timer = 1;   /* the first char reveals one update later (as dialogue_arm) */
+}
+
 int dialogue_active(const dialogue_box *d)          { return d->active; }
 int dialogue_content_visible(const dialogue_box *d) { return d->active && d->scale >= 1000; }
 

@@ -182,6 +182,16 @@ int dialogue_expand_text(const char *src,
  * animation state (scale 0 = pop-in starts on the next update). */
 void dialogue_arm(dialogue_box *d, const char *name, const char *text);
 
+/* Re-text an ALREADY-OPEN box for the next line of the SAME speaker — reset ONLY
+ * the typewriter (rows + reveal 0 + total + type_timer), keeping the box open
+ * (scale stays 1000, name/portrait/anchor untouched).  This is retail's
+ * same-speaker page advance: the box does NOT close + re-pop, it just clears the
+ * body and types the next line on the very next tick (retail.osr: arrival
+ * L3->L4->L5 advance with a 1-tick body reset, the name persisting — vs a
+ * speaker CHANGE, which closes the box ~9 ticks then re-opens, dialogue_arm).
+ * No-op if the box is not active.  See plans/intro-cutscene-1to1.md THEME 1. */
+void dialogue_set_text(dialogue_box *d, const char *text);
+
 /* One widget update (one sim-tick): pop-in scale, then (once scale==1000)
  * portrait fade + arrow anim + typewriter reveal. */
 void dialogue_step(dialogue_box *d);

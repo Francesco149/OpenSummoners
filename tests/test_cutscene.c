@@ -175,6 +175,51 @@ int test_cutscene_typewriter_skip(void)
     return 0;
 }
 
+/* ── a SAME-speaker advance keeps the box open (no re-pop); a speaker change
+ *    closes + re-pops it.  Arrival lines 4/5/6 (indices 3/4/5) are all Arche;
+ *    line 7 (index 6) is Father (THEME 1: retail's 1-tick same-speaker reset
+ *    vs the ~9-tick close on a speaker change) ── */
+int test_cutscene_same_speaker_keeps_box(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* advance to line index 3 (Arche); the last advance (Mother L2 -> Arche L3)
+     * was a speaker change, so the box was freshly re-popped. */
+    step_through(&cs, 3);
+    T_ASSERT_EQ_I(cs.line_idx, 3);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
+
+    /* type line 3 fully (scale settles 1000), then advance to line 4 — Arche ->
+     * Arche, the SAME speaker: the box must STAY open (scale held at 1000,
+     * content immediately visible, typewriter reset to 0 — no pop-in). */
+    run_to_wait(&cs);
+    T_ASSERT_EQ_I(box.scale, 1000);
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 4);
+    T_ASSERT_EQ_I(box.scale, 1000);                  /* kept open — no re-pop   */
+    T_ASSERT_EQ_I(dialogue_content_visible(&box), 1);
+    T_ASSERT_EQ_I(box.reveal, 0);                    /* typewriter reset        */
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
+
+    /* line 4 -> 5 (Arche -> Arche) again keeps the box */
+    run_to_wait(&cs);
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 5);
+    T_ASSERT_EQ_I(box.scale, 1000);
+
+    /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE re-pops (scale 0, content
+     * gated until the pop-in completes) */
+    run_to_wait(&cs);
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 6);
+    T_ASSERT_EQ_I(box.scale, 0);                     /* re-popped               */
+    T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);
+    T_ASSERT(strcmp(box.name, "Arche's Father") == 0);
+    return 0;
+}
+
 /* ── the room swap: the 10th arrival advance commits the HOUSE key (0x334c8)
  *    and arms house line 0 — it does NOT complete the chain ── */
 int test_cutscene_room_transition(void)
