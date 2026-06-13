@@ -6,6 +6,57 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 130) — ROOM-RENDER: the house + errands/freeroam ROOM BACKDROPS render (the paused movement arc resumes)
+
+The whole reason trace-studio v2 was pulled forward (ckpt 125): resume the room-render/freeroam port.  The
+town-intro cutscene chains arrival → house → errands; previously the house/errands lines played over the
+TOWN backdrop because their rooms never loaded (PORT-DEBT(cutscene-room-render)).  This ckpt ports the
+per-room map-load so **both the house (DATA 1023) and the errands/freeroam (DATA 1025) ROOM BACKDROPS now
+render** — the main-goal room renders its real scene.  5 commits (`c2b1568`..`87bf668`); 1009 host pass
+(+5).  House + errands frames on the feed.
+
+**M1 (`c2b1568`) — scene + parallax from the active room.**  `game_world_room_render_cfg(w, key, &scene,
+&p2, &p3)` resolves a room key to its DATA scene (`GW_ROOM_SCENE`, the FindResourceA id) + the 0x587e00
+prologue params (param_2=room[0x44], param_3≈room[0x43]) from the embedded registry; `town_render_load`
+takes the parallax params; `main.c load_room(key)` drives the load.  Byte-verified: arrival 0x334be→1022/(4,1),
+house 0x334c8→1023/(4,1), errands 0x334dc→1025/(9,4).
+
+**M2 (`e228150`) — the house + errands map_decode arms, BIT-EXACT to a retail emit capture (the "main
+RISK").**  Ported the 14 new FUN_00587e00 tile-id arms the interiors exercise (the 10xxx/112xxx/113xxx/
+171xxx/172xxx families, incl. the 113xxx AUTO-FOOTPRINT floor/walls retail inlines as a grid-rectangle loop
+= emit_tile span 0/0) + the param_4 tileset-bank prologue (`map_decode_cfg` / `map_decode_cfg_init`).
+GROUND TRUTH: a retail capture of the decode emit sequence (frida hooks on the emit primitives
+0x58c910/0x58ca80 across the cutscene chain, `runs/room-render-gt`, `tools/flow/map_decode_fields.json`)
+cross-referenced with the cell (tile id, shape) histograms (`map_data.py --cells`).  A standalone host probe
+decodes the real DATA 1023/1025 with recording emit-stubs — every emit_tile/emit_obj (bank, slot, flag,
+count) matches retail EXACTLY (town 178/104 regression, house 111/50, errands 98 obj + 37 captured-arm tiles
++ 78 direct-write 113xxx = the histogram).  Resolved the architecture question: the room swap DOES re-run
+0x587e00 per room (3 decodes captured), and param_3 (the scene field local_918) = 0x14 for every town-area
+room (normalizes to 0 = the 113xxx tile frame).  Deferred: PORT-DEBT(decode-occlusion-mark) (the 113xxx
+shape-1/2 region-B/D culling marks).
+
+**M3 (`c3accc0`) — room-keyed reload + per-room camera.**  `reload_room_backdrop(key)` (town_render_free +
+load_room + camera snap) fires on the cutscene room swap (arrival→house) + the chain-complete errands load.
+The house/errands SETTLED camera origins are HARNESS-CAPTURED (`tools/flow/room_camera_fields.json` reading
+the scene view object `*(*(0x8a9b50)+0x104c)` cur_x/cur_y across the chain — both STATIC): house
+(89600,3200), errands (0,16000).  The town cast/effects are suppressed for non-town rooms (`room_is_town`).
+Retires PORT-DEBT(cutscene-room-render).
+
+**Tooling (`87fafd5`) — `--no-frame-limit`** uncaps the in-game 60 FPS gate (gated on g_game_active; the
+title/menu nav stays capped, since uncapping the whole run desyncs the frame-keyed title nav) so the
+~13000-frame cutscene→errands replay captures in ~9 s.
+
+**M4 (`87bf668`) — the errands-render CRASH fixed.**  Rendering DATA 1025 access-violated: an under-loaded
+errands tileset bank (PORT-DEBT(assetreg-clone-defer)) made `ar_sprite_slot_frame`'s unbounded
+`frames[frame_id]` read OOB → a garbage cel `game_present_blit` dereferenced.  Bound frame_id against
+`slot->f_38` (the slice frame count) when known — an under-loaded bank culls the tile (a gap) instead of
+crashing; retail's f_38 always covers the index, so no behavior change there.  The errands now renders
+coherently (gaps where a bank is under-loaded).
+
+**NEXT:** the FREEROAM HAND-OFF (controllable Arche in the errands room via `character_step` on live input,
+the mover is DONE bit-exact); load the under-loaded errands tileset banks (the gaps); the room cast (Phase
+2b).  See HANDOFF + `plans/controllable-arche-faithful.md`.
+
 ## 2026-06-13 (ckpt 129) — M8: the trace-studio GAME-STATE panel (opt-in OSR_STATE; the RNG census folded in)
 
 The studio gains an engine-state pillar (USER-requested, modeled on openrecet's orv3_state opt-in pass): a

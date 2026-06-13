@@ -9295,8 +9295,10 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
+    "src/game_world.h",
     "src/main.c",
-    "src/map_data.h"
+    "src/map_data.h",
+    "src/map_decode.h"
    ]
   },
   {
@@ -9364,6 +9366,7 @@
    "src": [
     "src/asset_register.h",
     "src/collision.h",
+    "src/game_world.h",
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.c",

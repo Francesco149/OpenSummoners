@@ -1,7 +1,17 @@
 # Plan — FAITHFUL controllable Arche (the real freeroam scene + live input)
 
-> **Status (ckpt 123): Phase 1 DONE, dialogue advance DONE, Phase 2 HARNESS-VERIFIED, the
-> arrival→house DIALOGUE CHAIN PORTED + verified.  ACTIVE CHIP = render the rooms (USER-chosen).**
+> **Status (ckpt 130): Phase 2a — RENDER THE ROOMS — DONE.** The house (DATA 1023) + errands
+> (DATA 1025) ROOM BACKDROPS now render: `game_world_room_render_cfg` drives the scene + parallax
+> from the active room, the per-room `map_decode` tilesets are ported BIT-EXACT (validated vs a
+> retail emit capture), `reload_room_backdrop` swaps the backdrop + camera on the cutscene room-key
+> change, and the errands-render crash (an OOB frame read on an under-loaded tileset bank) is fixed
+> (the `ar_sprite_slot_frame` f_38 bound).  **NEXT = Phase 2b: the FREEROAM HAND-OFF** — at the
+> errands room stop the sequencer + run `character_step` on live `axis_held` (the `+0x200==0`
+> char-AI path; the mover is DONE bit-exact).  Carried: load the under-loaded errands tileset banks
+> (the render gaps, assetreg-clone-defer); the room CAST (NPCs).  See HANDOFF "ckpt 130".
+>
+> **(prior, ckpt 123): Phase 1 DONE, dialogue advance DONE, Phase 2 HARNESS-VERIFIED, the
+> arrival→house DIALOGUE CHAIN PORTED + verified.**
 > The MVP wire is removed; faithful LIVE input (`src/input_live.{c,h}`, the `0x46a880` producer),
 > the town-arrival DIALOGUE ADVANCE, and now the **arrival→house multi-room CHAIN**
 > (`src/cutscene.{c,h}`, the room-key swap, ckpt 123, commit `daa1f65`) are ported + verified — the

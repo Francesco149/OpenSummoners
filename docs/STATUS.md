@@ -32,18 +32,55 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase:** Phase 4 — the town intro renders ~1:1; the **entity MOVEMENT system** is underway.
-  **DETOUR (USER-pulled-forward, ckpt 125): TRACE STUDIO v2** — rebuild the parity studio to capture the
-  DRAW-CALL STREAM natively (a proxy `ddraw.dll`, NO Frida) + reconstruct frames 1:1 on Windows, before
-  resuming the room-render/freeroam port (v1 Frida capture is too slow/coarse to iterate that at the needed
-  granularity). Design + build order M1→M7: `plans/trace-studio-v2.md`. (The movement-system arc below is
-  PAUSED, not dropped.) Milestone map: `ROADMAP.md`; movement arc: `plans/controllable-arche-faithful.md`.
-  - Movement-system progress (paused): butterflies ✓ → tile collision read-side ✓ → controllable Arche
+- **Phase:** Phase 4 — the town intro renders ~1:1; the town-intro CUTSCENE chains arrival→house→errands
+  and **all three ROOM BACKDROPS now render** (ckpt 130).  The trace-studio-v2 DETOUR (ckpt 125-129) is
+  DONE (the native `.osr` capture + `osr_view` parity studio); it unblocked this room-render arc.  **NEXT:
+  the FREEROAM HAND-OFF — make Arche controllable in the errands room** (`character_step` on live input, the
+  mover is DONE bit-exact).  Studio: `plans/trace-studio-v2.md`; movement/freeroam arc:
+  `plans/controllable-arche-faithful.md` (Phase 2a render DONE → Phase 2b freeroam); milestones: `ROADMAP.md`.
+  - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
-    CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
-    next, once v2 lands**.
-- **LATEST (ckpt 129): M6 — the TICK-JOIN STUDIO LANDS: both sides' `.osr` are paired by the
+    CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **trace-studio v2 ✓ (ckpt 125-129) →
+    the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → the FREEROAM HAND-OFF (controllable Arche in
+    the errands room) = next**.
+- **LATEST (ckpt 130): ROOM-RENDER LANDS — the house (DATA 1023) + errands/freeroam (DATA 1025) ROOM
+  BACKDROPS RENDER.** The whole reason trace-studio v2 was pulled forward: resume the room-render arc.  The
+  cutscene room-key swap (arrival 0x334be → house 0x334c8 → errands 0x334dc) now RELOADS the backdrop, the
+  per-room `map_decode` tilesets are ported BIT-EXACT, and both rooms render (montages on the feed).  5
+  commits (`c2b1568` M1 → `87bf668` M4); 1009 host pass (+5).  **The main-goal room — the errands/freeroam
+  scene — now renders its real backdrop; the controllable-Arche hand-off is the next arc.**
+  - **M1 (`c2b1568`) — scene + parallax from the active room.**  `game_world_room_render_cfg(key)` resolves
+    a room's DATA scene (GW_ROOM_SCENE) + the 0x587e00 prologue params (room[0x44]/room[0x43]) from the
+    registry; `town_render_load` takes them; `main.c load_room(key)` drives the load.  Verified at the byte
+    level: arrival→1022/(4,1), house→1023/(4,1), errands→1025/(9,4).
+  - **M2 (`e228150`) — the house + errands map_decode arms, BIT-EXACT to a retail emit capture.**  The
+    "main RISK" resolved: ported the 14 new FUN_00587e00 tile-id arms (the 10xxx/112xxx/113xxx/171xxx/172xxx
+    families + the 113xxx auto-footprint floor/walls) + the param_4 tileset-bank prologue
+    (`map_decode_cfg`).  Ground-truthed against a retail capture of the decode emit sequence
+    (0x58c910/0x58ca80 across the chain, `runs/room-render-gt`) cross-referenced with the cell
+    (tile id, shape) histograms — every emit_tile/emit_obj (bank, slot, flag, count) matches retail EXACTLY
+    (a host probe decodes the real DATA 1023/1025).  RESOLVED the architecture Q: the room swap DOES re-run
+    0x587e00 per room (3 decodes captured); param_3(local_918)=0x14 for all town-area rooms.
+  - **M3 (`c3accc0`) — room-keyed backdrop reload + per-room camera.**  `reload_room_backdrop(key)` (free +
+    load_room + camera snap) fires on the cutscene room swap; the house/errands SETTLED camera origins are
+    harness-captured (house (89600,3200), errands (0,16000)).  Town cast suppressed for non-town rooms (the
+    room cast is PORT-DEBT Phase 2b).  Retires PORT-DEBT(cutscene-room-render): the house lines play IN the
+    house.  **USER-VERIFY: `osr_view.exe 'C:\oss-osr\port-rooms.osr'`** (scrub to the house ~tick 3185 +
+    errands ~tick 5938; drill the draws).
+  - **Tooling (`87fafd5`) — `--no-frame-limit`** uncaps the in-game 60 FPS gate (gated on g_game_active; the
+    title nav stays capped) so the full ~13000-frame cutscene→errands replay captures in ~9 s not ~210 s.
+  - **M4 (`87bf668`) — the errands-render CRASH fixed.**  Rendering DATA 1025 access-violated: an
+    under-loaded tileset bank (PORT-DEBT(assetreg-clone-defer)) made `ar_sprite_slot_frame`'s unbounded
+    `frames[frame_id]` read OOB → a garbage cel the blit deref'd.  Bound frame_id against `slot->f_38` (the
+    slice frame count; retail's bank always has enough, so no behavior change there — the port culls a
+    frame a bank genuinely lacks).  The errands now renders (gaps where a bank is under-loaded).
+  - **OPEN / NEXT:** (1) the FREEROAM HAND-OFF — at the errands room, stop the sequencer + run
+    `character_step` on live `axis_held` (the `+0x200==0` char-AI path, mover DONE bit-exact); (2) load the
+    under-loaded errands tileset banks (the render gaps; assetreg-clone-defer); (3) the room CAST
+    (Phase 2b); (4) a tick-aligned port↔retail studio diff needs a matched-cadence nav (the port
+    cutscene-verify nav vs retail control-path nav reach the rooms at very different ticks).
+- **Prior (ckpt 129): M6 — the TICK-JOIN STUDIO LANDS: both sides' `.osr` are paired by the
   deterministic `sim_tick` (the openrecet E3 identity join — NO flip-drift search) and `osr_view` grows a
   native PORT|RETAIL|DIFF three-panel + a diff heat ribbon. The studio is now a usable frame-by-frame 1:1
   port-vs-retail scrub. 1002 host pass (unchanged — tooling only); commits `2788ed9` (M6a) + `57260be`

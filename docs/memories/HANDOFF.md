@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 128, 2026-06-13)
+# Session handoff — rolling current state (last updated ckpt 130, 2026-06-13)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,86 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 129
+## Where we are — ckpt 130
+
+**ROOM-RENDER LANDS — the house (DATA 1023) + errands/freeroam (DATA 1025) ROOM BACKDROPS RENDER.**  The
+paused movement-system arc resumes (trace-studio v2 unblocked it): the town-intro cutscene's room-key swap
+(arrival `0x334be` → house `0x334c8` → errands `0x334dc`) now RELOADS the backdrop per room, the per-room
+`map_decode` tilesets are ported BIT-EXACT, and both interior/freeroam rooms render their real backdrops
+(montages on the feed).  **5 commits** (`c2b1568` M1, `e228150` M2, `c3accc0` M3, `87fafd5` tooling,
+`87bf668` M4); **1009 host pass** (+5).  The **main-goal room (the errands/freeroam scene) renders**; the
+controllable-Arche hand-off is the next arc.
+
+**What landed (M1–M4):**
+- **M1 — scene + parallax from the active room.**  `game_world_room_render_cfg(w, key, &scene, &p2, &p3)`
+  resolves a room key to its DATA scene (`GW_ROOM_SCENE`) + the 0x587e00 prologue params (param_2=room[0x44],
+  param_3≈room[0x43]); `town_render_load` takes `(parallax_p2, parallax_p3)`; `main.c load_room(key)` builds
+  the registry (lazy) + loads.  `enter_game` → `load_room(0x334be)`.  Byte-verified: arrival→1022/(4,1),
+  house→1023/(4,1), errands→1025/(9,4).
+- **M2 — the house + errands map_decode arms, BIT-EXACT to a retail emit capture (the "main RISK" RE).**
+  `map_decode_cfg` + `map_decode_cfg_init(param_3, param_4)` port the 0x587e00 prologue's tileset-bank
+  selection (param_4=room[0x43] switch → local_1c/18/24/20) + the param_3 scene-frame normalization.  14 new
+  tile-id arms: dir6 family generalized (0x29ffe→0x178/0x29c02→0x190/0x29c0c→0x191), 0x1b59f, 0x1b5b3,
+  0x2724/0x2738 (block, base 0x5d), 0x272e (block w/ blends, base 0x60), 0x1b986/0x1b98b/0x1b990 (local
+  banks), and the 113xxx AUTO-FOOTPRINT floor/walls 0x1b97c/0x1b972/0x1b977 (retail inlines them as a
+  grid-rectangle loop == emit_tile span 0/0).  **GROUND TRUTH:** a retail capture of the decode emit sequence
+  (hooks on 0x58c910/0x58ca80 across the cutscene chain, `runs/room-render-gt`, `tools/flow/map_decode_fields.json`)
+  cross-referenced with the cell (tile id, shape) histograms (`map_data.py --cells`).  A host probe decodes
+  the real DATA 1023/1025 with recording emit-stubs — every emit_tile/emit_obj (bank, slot, flag, count)
+  matches retail EXACTLY (house 111 tile/50 obj; errands 98 obj + 37 captured-arm tiles + 78 direct-write
+  113xxx tiles = the cell histogram).  RESOLVED the architecture Q: **the room swap DOES re-run 0x587e00 per
+  room** (3 decodes captured: town@flip1434/house@3671/errands@4290) and **param_3 (local_918) = 0x14 for
+  every town-area room** (normalizes to 0 = the 113xxx tile frame).  Deferred: PORT-DEBT(decode-occlusion-mark)
+  (the 113xxx shape-1/2 region-B/D culling marks, ~7 errands cells, no visible tile).
+- **M3 — room-keyed backdrop reload + per-room camera.**  `reload_room_backdrop(key)` (town_render_free +
+  load_room + camera snap + map-bounds) fires when `cutscene_room_key` changes (arrival→house) and on chain
+  COMPLETE (→ errands).  The house/errands SETTLED camera origins are HARNESS-CAPTURED
+  (`tools/flow/room_camera_fields.json` reading the scene view `*(*(0x8a9b50)+0x104c)` cur_x/cur_y across the
+  chain — both STATIC): house (89600,3200) map 153600x51200, errands (0,16000) map 108800x64000.  The town
+  cast/effects (spawned for DATA 1022) are suppressed for non-town rooms (`room_is_town`) so they don't
+  render over the new backdrop.  Retires PORT-DEBT(cutscene-room-render).
+- **Tooling — `--no-frame-limit`** uncaps the in-game 60 FPS gate (gated on g_game_active; the title/menu nav
+  stays capped — uncapping the WHOLE run desyncs the frame-keyed title nav, newgame slid flip 750→5403) so
+  the full ~13000-frame cutscene→errands replay captures in ~9 s.  Verified: game_enter@1116, chain
+  COMPLETE@hold 11365 (identical to the capped boot).
+- **M4 — the errands-render CRASH fixed.**  Rendering DATA 1025 access-violated (0xC0000005): an under-loaded
+  errands tileset bank (PORT-DEBT(assetreg-clone-defer)) made `ar_sprite_slot_frame`'s unbounded
+  `frames[frame_id]` read OOB → a garbage cel `game_present_blit` deref'd.  FIX: bound frame_id against
+  `slot->f_38` (the `ar_sprite_slice` frame count) when known (>0) — under-loaded bank → NULL (tile culled,
+  a gap) not a crash; f_38==0 keeps the retail-faithful raw read.  Faithful: retail's f_38 ≥ every tile's
+  frame index (no behavior change there).  RESULT: the full chain runs to completion (exit 0) + the errands
+  backdrop RENDERS (the 113xxx floor/walls + the multi-level town scene at camera (0,16000)).
+
+**VERIFIED visually (on the feed):** `pf7485.png` = the HOUSE facade (timber frame/roof/door/fence,
+parallax sky), `errands.png` = the ERRANDS multi-level town scene (buildings/staircase/chimney/hedges/grass).
+Both render coherently with the town cast suppressed.  Captured `C:\oss-osr\port-rooms.osr` (12998 frames,
+town→house→errands).
+
+**OPEN (USER) / NEXT MOVE.**  (1) **The FREEROAM HAND-OFF** (the main goal's last mile): at the errands room
+stop the cutscene sequencer + run `character_step` on live `g_game_drive.input.axis_held` (the `+0x200==0`
+char-AI path — quirk #103; the mover is DONE bit-exact) so Arche is controllable.  (2) **Load the
+under-loaded errands tileset banks** (the render GAPS — the f_38 guard culls frames those banks lack;
+PORT-DEBT(assetreg-clone-defer) now exercised by errands).  (3) **The room CAST** (house/errands NPCs;
+Phase 2b — the town cast is suppressed, not yet replaced).  (4) **A tick-aligned port↔retail studio diff**
+needs a matched-cadence nav: the port reaches the rooms via the cutscene-verify nav at very different ticks
+than retail's control-path nav (house port-tick ~3185 vs retail ~1103), so the automated tick-join
+misaligns — a single-file `osr_view.exe 'C:\oss-osr\port-rooms.osr'` scrub + the feed images are the current
+verification.  The decode is bit-exact (the rigorous gate).  Plan: `plans/controllable-arche-faithful.md`.
+
+**Module layout (this ckpt):** `src/game_world.{c,h}` (+`game_world_room_render_cfg`), `src/town_render.{c,h}`
+(+parallax params, +`map_decode_cfg`), `src/map_decode.{c,h}` (the cfg + the 14 new arms + the 2 block
+helpers), `src/main.c` (`load_room`/`reload_room_backdrop`/`room_camera_origin`, `--no-frame-limit`, the
+room-swap trigger + actor suppression), `src/asset_register.c` (the `ar_sprite_slot_frame` f_38 guard).
+Tools: `tools/flow/map_decode_fields.json` (the decode emit-capture spec), `tools/flow/room_camera_fields.json`
+(the per-room camera spec).  Artifacts (gitignored): `runs/room-render-gt/{emit,camera}` (the retail
+captures), `C:\oss-osr\port-rooms.osr` + `errands.png`/`pf7485.png`.  Tests: +5 (game_world_room_render_cfg,
+map_decode_cfg_init, map_decode_house_arms, map_decode_block_arms, map_decode_errands_arms,
+ar_sprite_slot_frame_f38_bound).
+
+**OPEN RE threads (don't block):** the errands questline `0x4dc510` (the freeroam gameplay); the later
+`+0x200=1` transfer; the A/B portrait facing (dynamic).
+
+## Where we were — ckpt 129
 
 **TRACE STUDIO v2 — M6 COMPLETE: the TICK-JOIN STUDIO.  Both sides' `.osr` are now paired by the
 deterministic `sim_tick` (the openrecet E3 identity join — group each side by tick, take the LAST flip per

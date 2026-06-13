@@ -126,9 +126,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582d10 | FUN_00582d10 | 379 | asset_register.c, asset_register.h |
 | 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
-| 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, main.c (+1) |
+| 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+3) |
 | 0x587970 | FUN_00587970 | 866 | main.c, map_data.c, map_data.h (+4) |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, collision.h, map_data.c (+5) |
+| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, collision.h, game_world.h (+6) |
 | 0x58c910 | FUN_0058c910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | FUN_0058ca80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
