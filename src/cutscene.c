@@ -136,21 +136,29 @@ const cutscene_room *cutscene_town_chain(int *n_rooms)
  * Returns 1 on success; 0 if the text VA does not resolve (the caller treats a
  * room-0 line-0 miss as "disarmed" and any later miss as "complete").  A NULL
  * name is tolerated (dialogue_arm copies nothing). */
-/* `keep_box` (the SAME speaker continues, retail's page advance): re-text the
- * already-open box (dialogue_set_text — no close, no pop-in, gap 1t) instead of
- * arming a fresh one (dialogue_arm — close + re-pop, for the first line and
- * every speaker change).  See plans/intro-cutscene-1to1.md THEME 1. */
-static int arm_current_line(cutscene *cs, int keep_box)
+/* How to bring up the line's box (THEME 1 cadence — see plans/intro-cutscene-1to1.md):
+ *   ARM_OPEN   the FIRST line of the conversation: full slide-in (dialogue_arm,
+ *              scale 0 -> ~20-update entrance).
+ *   ARM_REOPEN a mid-conversation SPEAKER CHANGE: the box was up, so it re-opens
+ *              from half scale (dialogue_reopen, ~10-update pop-in = retail's
+ *              advance+11t reopen).
+ *   ARM_KEEP   the SAME speaker continues: keep the box open, re-text only
+ *              (dialogue_set_text, gap 1t). */
+enum { ARM_OPEN = 0, ARM_REOPEN = 1, ARM_KEEP = 2 };
+
+static int arm_current_line(cutscene *cs, int mode)
 {
     const cutscene_room *room = &cs->rooms[cs->room_idx];
     const cutscene_line *ln   = &room->script[cs->line_idx];
     const char *text = cs->resolve(ln->text_va);
     if (text == NULL)
         return 0;
-    if (keep_box && cs->box->active)
-        dialogue_set_text(cs->box, text);          /* same speaker — keep the box */
+    if (mode == ARM_KEEP && cs->box->active)
+        dialogue_set_text(cs->box, text);          /* same speaker — keep the box   */
+    else if (mode == ARM_REOPEN && cs->box->active)
+        dialogue_reopen(cs->box, cs->resolve(ln->name_va), text); /* speaker change */
     else
-        dialogue_arm(cs->box, cs->resolve(ln->name_va), text);  /* open / re-pop  */
+        dialogue_arm(cs->box, cs->resolve(ln->name_va), text);    /* first open     */
     /* Resolve the per-speaker portrait bust (0x49d6e0's face-table lookup): the
      * speaker's head-state + this line's face → the portrait pool-slot.  -1 (no
      * record) leaves the box's reset -1 → no portrait, faithful to +0x20=1. */
@@ -181,7 +189,7 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     if (rooms == NULL || resolve == NULL || box == NULL || n_rooms <= 0 ||
         rooms[0].script == NULL || rooms[0].n_lines <= 0)
         return;
-    if (arm_current_line(cs, 0)) /* room-0 line-0: full open (unresolved → disarmed) */
+    if (arm_current_line(cs, ARM_OPEN)) /* room-0 line-0: full slide-in entrance */
         cs->active = 1;
 }
 
@@ -229,12 +237,14 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                 cs->line_idx = 0;
             }
             /* Keep the box open only for a same-speaker advance WITHIN a room; a
-             * room boundary is always a context (and backdrop) change → re-pop. */
-            int keep_box = cs->room_idx < cs->n_rooms &&
-                           cs->room_idx == prev_room &&
-                           cs->rooms[cs->room_idx].script[cs->line_idx].name_va
-                               == prev_name;
-            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs, keep_box)) {
+             * speaker change re-opens (fast, half-scale); a room boundary is a
+             * full context change handled as a re-open too. */
+            int same_speaker = cs->room_idx < cs->n_rooms &&
+                               cs->room_idx == prev_room &&
+                               cs->rooms[cs->room_idx].script[cs->line_idx].name_va
+                                   == prev_name;
+            int mode = same_speaker ? ARM_KEEP : ARM_REOPEN;
+            if (cs->room_idx >= cs->n_rooms || !arm_current_line(cs, mode)) {
                 cs->active   = 0;
                 cs->complete = 1;
                 cs->box->active = 0;    /* close the box (the 0x49cd70 teardown) */

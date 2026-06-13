@@ -28,8 +28,9 @@ int test_dialogue_expand_break(void)
 
 int test_dialogue_expand_wrap(void)
 {
-    /* 36-char row limit: a 39-char second segment wraps at the last space,
-     * consuming it (the line-1 shape: 25 + %n + 38 -> 25 / 28 / 9). */
+    /* 36-char row limit: a 38-char second segment wraps at the last space,
+     * KEEPING it on the wrapped row (retail renders the trailing space — the
+     * line-1 shape: 25 + %n -> 25 / "...bbb " (29, with the space) / 9). */
     char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
     const char *src =
         "aaaaaaaaaaaaaaaaaaaaaaaaa%n"          /* 25 a's              */
@@ -38,8 +39,8 @@ int test_dialogue_expand_wrap(void)
     int n = dialogue_expand_text(src, rows);
     if (n != 3) T_FAIL("rows = %d (want 3)", n);
     if (strlen(rows[0]) != 25) T_FAIL("row0 len = %zu", strlen(rows[0]));
-    if (strcmp(rows[1], "bbbbb bbbbbb bbbb bb bbb bbb") != 0)
-        T_FAIL("row1 = \"%s\" (wrap space not consumed?)", rows[1]);
+    if (strcmp(rows[1], "bbbbb bbbbbb bbbb bb bbb bbb ") != 0)
+        T_FAIL("row1 = \"%s\" (wrap space should be KEPT)", rows[1]);
     if (strcmp(rows[2], "ccccccccc") != 0) T_FAIL("row2 = \"%s\"", rows[2]);
     return 0;
 }
@@ -66,14 +67,15 @@ int test_dialogue_expand_real_line1(void)
     char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
     int rc = dialogue_expand_text(line1, rows);
     if (rc != 3) { free(img); T_FAIL("line1 rows = %d (want 3)", rc); }
-    /* the textout probe: row 1 = 25 chars ("Ahh, ... last!"), row 2 starts
-     * "Look," and fits "...our new" (28), row 3 = "hometown." (9) */
+    /* row 1 = 25 chars ("Ahh, ... last!"), row 2 = "Look, ... our new " (29 —
+     * the trailing wrap space is KEPT, matching retail.osr's y=196 row), row 3 =
+     * "hometown." (9). */
     if (strlen(rows[0]) != 25)
         { free(img); T_FAIL("row0 len = %zu (want 25)", strlen(rows[0])); }
     if (strncmp(rows[1], "Look,", 5) != 0)
         { free(img); T_FAIL("row1 = \"%.10s...\"", rows[1]); }
-    if (strlen(rows[1]) != 28)
-        { free(img); T_FAIL("row1 len = %zu (want 28)", strlen(rows[1])); }
+    if (strlen(rows[1]) != 29)
+        { free(img); T_FAIL("row1 len = %zu (want 29)", strlen(rows[1])); }
     if (strlen(rows[2]) != 9)
         { free(img); T_FAIL("row2 len = %zu (want 9)", strlen(rows[2])); }
     free(img);
@@ -262,5 +264,37 @@ int test_dialogue_set_text(void)
     dialogue_set_text(&e, "x");
     T_ASSERT_EQ_I(e.active, 0);
     T_ASSERT_EQ_I(e.total, 0);
+    return 0;
+}
+
+/* ── reopen: a speaker change re-opens from HALF scale → content gates in ~10
+ *    updates, half of dialogue_arm's full slide-in (THEME 1) ── */
+int test_dialogue_reopen(void)
+{
+    dialogue_box d;
+    dialogue_reopen(&d, "Arche's Father", "Hi");
+    T_ASSERT_EQ_I(d.active, 1);
+    T_ASSERT_EQ_I(d.scale, DIALOGUE_REOPEN_SCALE);   /* starts half-open */
+    T_ASSERT(strcmp(d.name, "Arche's Father") == 0);
+    T_ASSERT_EQ_I(dialogue_content_visible(&d), 0);  /* gated by the pop-in */
+
+    /* (1000-500)/50 = 10 updates to finish the pop-in; content gates then */
+    int steps = 0;
+    while (!dialogue_content_visible(&d) && steps < 100) {
+        dialogue_step(&d);
+        steps++;
+    }
+    T_ASSERT_EQ_I(steps, 10);
+
+    /* a cold dialogue_arm takes ~20 (twice as long) — the contrast that makes
+     * the first box's slide-in slower than a mid-conversation reopen */
+    dialogue_box a;
+    dialogue_arm(&a, "Arche", "Hi");
+    int asteps = 0;
+    while (!dialogue_content_visible(&a) && asteps < 100) {
+        dialogue_step(&a);
+        asteps++;
+    }
+    T_ASSERT_EQ_I(asteps, 20);
     return 0;
 }

@@ -188,9 +188,26 @@ void dialogue_arm(dialogue_box *d, const char *name, const char *text);
  * same-speaker page advance: the box does NOT close + re-pop, it just clears the
  * body and types the next line on the very next tick (retail.osr: arrival
  * L3->L4->L5 advance with a 1-tick body reset, the name persisting — vs a
- * speaker CHANGE, which closes the box ~9 ticks then re-opens, dialogue_arm).
+ * speaker CHANGE, which closes the box ~9 ticks then re-opens, dialogue_reopen).
  * No-op if the box is not active.  See plans/intro-cutscene-1to1.md THEME 1. */
 void dialogue_set_text(dialogue_box *d, const char *text);
+
+/* The pop-in scale a mid-conversation SPEAKER-CHANGE reopen starts from.  The
+ * first box of a conversation slides in from scale 0 (the full ~20-update
+ * entrance, DIALOGUE_SCALE_STEP), but a speaker change mid-conversation re-opens
+ * from HALF scale — the box never fully collapsed — so +50/update reaches 1000
+ * in ~10 updates: content gates at advance+~10t, matching retail's reopen
+ * (retail.osr: every arrival speaker change is advance+11t to the next line's
+ * first char, vs the first box's longer entrance).  See engine-quirks #106-adj /
+ * plans/intro-cutscene-1to1.md THEME 1. */
+#define DIALOGUE_REOPEN_SCALE 500
+
+/* Arm the box for a mid-conversation SPEAKER CHANGE: a fresh line (new
+ * name/text, typewriter reset, like dialogue_arm) but the pop-in starts from
+ * DIALOGUE_REOPEN_SCALE (half-open) rather than 0 — the faster ~10-update reopen
+ * (vs the first box's ~20-update slide-in).  Content is gated by the pop-in as
+ * usual (the ~9t blank between speakers).  See plans/intro-cutscene-1to1.md. */
+void dialogue_reopen(dialogue_box *d, const char *name, const char *text);
 
 /* One widget update (one sim-tick): pop-in scale, then (once scale==1000)
  * portrait fade + arrow anim + typewriter reveal. */

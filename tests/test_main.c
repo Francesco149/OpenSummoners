@@ -1047,6 +1047,7 @@ struct test_case {
     X(dialogue_portrait_fade)                                  \
     X(dialogue_box_position_town)                              \
     X(dialogue_set_text)                                       \
+    X(dialogue_reopen)                                         \
 
 #define X(n) extern int test_##n(void);
 TESTS

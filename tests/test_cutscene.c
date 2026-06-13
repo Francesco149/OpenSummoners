@@ -209,12 +209,13 @@ int test_cutscene_same_speaker_keeps_box(void)
     T_ASSERT_EQ_I(cs.line_idx, 5);
     T_ASSERT_EQ_I(box.scale, 1000);
 
-    /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE re-pops (scale 0, content
-     * gated until the pop-in completes) */
+    /* line 5 -> 6 (Arche -> Father): a SPEAKER CHANGE re-opens from HALF scale
+     * (DIALOGUE_REOPEN_SCALE — the fast ~10-update reopen, content still gated
+     * until the pop-in completes) */
     run_to_wait(&cs);
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cs.line_idx, 6);
-    T_ASSERT_EQ_I(box.scale, 0);                     /* re-popped               */
+    T_ASSERT_EQ_I(box.scale, DIALOGUE_REOPEN_SCALE); /* re-opened (half scale)  */
     T_ASSERT_EQ_I(dialogue_content_visible(&box), 0);
     T_ASSERT(strcmp(box.name, "Arche's Father") == 0);
     return 0;

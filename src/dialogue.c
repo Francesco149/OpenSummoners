@@ -32,11 +32,17 @@ int dialogue_expand_text(const char *src,
             while (brk > 0 && rows[r][brk] != ' ')
                 brk--;
             if (brk > 0) {
-                /* move the partial word down a row */
+                /* move the partial word down a row, KEEPING the wrap space at the
+                 * end of this row — retail's word-wrap renders the trailing space
+                 * (retail.osr: row "Look, Arche. This is our new " ends in a
+                 * space, then "hometown." starts the next row), so the body is
+                 * byte-identical.  The space's reveal grade is 1 and it sits past
+                 * every line's skip point, so the typewriter cadence is unchanged
+                 * (plans/intro-cutscene-1to1.md THEME 1). */
                 char tail[DIALOGUE_ROW_CHARS + 1];
                 int  tail_len = col - (brk + 1);
                 memcpy(tail, &rows[r][brk + 1], (size_t)tail_len);
-                rows[r][brk] = '\0';
+                rows[r][brk + 1] = '\0';   /* keep the space at brk, terminate after it */
                 r++; col = 0;
                 if (r >= DIALOGUE_MAX_ROWS)
                     break;
@@ -93,6 +99,17 @@ void dialogue_set_text(dialogue_box *d, const char *text)
         d->total += (int32_t)strlen(d->rows[i]);
     d->reveal     = 0;
     d->type_timer = 1;   /* the first char reveals one update later (as dialogue_arm) */
+}
+
+void dialogue_reopen(dialogue_box *d, const char *name, const char *text)
+{
+    /* A fresh line (new name/portrait reset/typewriter) like dialogue_arm, but
+     * the box re-opens from HALF scale — a mid-conversation speaker swap, not a
+     * cold open — so the pop-in completes in ~10 updates instead of ~20.  The
+     * content stays gated by the pop-in (dialogue_content_visible), giving the
+     * ~9t blank-then-reveal retail shows between speakers. */
+    dialogue_arm(d, name, text);
+    d->scale = DIALOGUE_REOPEN_SCALE;
 }
 
 int dialogue_active(const dialogue_box *d)          { return d->active; }
