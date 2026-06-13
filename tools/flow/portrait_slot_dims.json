@@ -1,0 +1,29 @@
+{
+  "_doc": "Portrait-slot RESOURCE+DIMS ground truth (ckpt 131): the dialogue portraits diverge port-vs-retail (L3 Mother: port renders var_b slot 704 at 176x144 res 0x882, retail renders 160x176). The resolved SLOT matches retail (cap4), so the port's slot->(resource,dims) REGISTRATION is the suspect. Pool table &DAT_008a760c; slot[i] addr = 0x8a760c + i*4; resource_id @+0x40, width @+0x20, height @+0x24. Read the arrival+house slots + the Father/Mother face-0x1e variant triples. PORT regs (asset_register.c): 676=0x8a4 160x176, 683=0x880 176x144, 697=0x8a6 160x176, 704=0x882 176x144, 711=?, 440=0x5a1 160x176, 450=0x5a6 160x176, 460=0x5b0 160x176, 461=0x5b1 160x176, 467=0x71f 176x144, 471=0x723 176x144. Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/portrait_slot_dims.json --field-spec-only --call-trace --run-dir runs/portrait-slot-dims --duration-ms 60000",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "flip",
+      "_note": "DDraw Flip; read each portrait pool slot's resource_id(+0x40) width(+0x20) height(+0x24).",
+      "fields": [
+        {"name": "s676_res", "src": "chain", "va": "0x8a809c", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s676_w", "src": "chain", "va": "0x8a809c", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s676_h", "src": "chain", "va": "0x8a809c", "hops": [], "off": 36, "type": "i32"},
+        {"name": "s683_res", "src": "chain", "va": "0x8a80b8", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s683_w", "src": "chain", "va": "0x8a80b8", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s683_h", "src": "chain", "va": "0x8a80b8", "hops": [], "off": 36, "type": "i32"},
+        {"name": "s697_res", "src": "chain", "va": "0x8a80f0", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s697_w", "src": "chain", "va": "0x8a80f0", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s697_h", "src": "chain", "va": "0x8a80f0", "hops": [], "off": 36, "type": "i32"},
+        {"name": "s704_res", "src": "chain", "va": "0x8a810c", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s704_w", "src": "chain", "va": "0x8a810c", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s704_h", "src": "chain", "va": "0x8a810c", "hops": [], "off": 36, "type": "i32"},
+        {"name": "s711_res", "src": "chain", "va": "0x8a8128", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s711_w", "src": "chain", "va": "0x8a8128", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s711_h", "src": "chain", "va": "0x8a8128", "hops": [], "off": 36, "type": "i32"},
+        {"name": "s460_res", "src": "chain", "va": "0x8a7d3c", "hops": [], "off": 64, "type": "hex"},
+        {"name": "s460_w", "src": "chain", "va": "0x8a7d3c", "hops": [], "off": 32, "type": "i32"},
+        {"name": "s460_h", "src": "chain", "va": "0x8a7d3c", "hops": [], "off": 36, "type": "i32"}
+      ]
+    }
+  }
+}

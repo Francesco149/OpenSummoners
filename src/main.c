@@ -2370,9 +2370,17 @@ static void game_render_dialogue(void)
      * 0x49d6e0 face table (portrait.c — speaker head-state + face → pool-slot),
      * carried on the box (portrait_slot); -1 = no portrait (the no-record path). */
     int pslot = g_dialogue.portrait_slot;
-    cel = (pslot >= 0 && pslot < AR_SPRITE_SLOT_COUNT)
-        ? (zdd_object *)ar_sprite_slot_frame(&g_ar_sprite_slots[pslot], 0)
-        : NULL;
+    /* The 0x49d6e0 face table (portrait.c) returns a POOL index, NOT a raw
+     * g_ar_sprite_slots array index — the sprite pool is offset by the ramp
+     * slots (ar_pool_get_slot maps pool i → g_ar_sprite_slots[i-(RAMP+1)]).  The
+     * ckpt-123 render indexed g_ar_sprite_slots[pslot] DIRECTLY, so every
+     * portrait was shifted +13 slots → the wrong bust resource AND dims per line
+     * (HARNESS-VERIFIED ckpt 131: retail pool 676=res 0x7ef/160x176 lives at the
+     * port's slot 663; the raw index rendered slot 676=res 0x8a4 = retail pool
+     * 689's bust — a different expression, and for var-B slots a 176x144 vs the
+     * correct 160x176).  Resolve via the pool accessor so the right bust loads. */
+    ar_sprite_slot *pobj = (pslot >= 0) ? ar_pool_get_slot((uint16_t)pslot) : NULL;
+    cel = (pobj != NULL) ? (zdd_object *)ar_sprite_slot_frame(pobj, 0) : NULL;
     if (cel != NULL) {
         int ridx = dialogue_portrait_ramp_index(&g_dialogue);
         const zdd_blend_desc *desc =
