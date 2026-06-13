@@ -3064,8 +3064,20 @@ static const struct ar_group3_inline_clone group3_inline_clones[] = {
     /*  dst,    src      (retail issue order; 57ca40.c line) */
     { 0x180, 0x17f },  /* L2138  0x008a7c0c <- 0x008a7c08 */
     { 0x181, 0x17f },  /* L2143  0x008a7c10 <- 0x008a7c08 */
-    { 0x187, 0x186 },  /* L2282  0x008a7c28 <- 0x008a7c24 */
-    { 0x188, 0x186 },  /* L2287  0x008a7c2c <- 0x008a7c24 */
+    /* The errands floor tileset banks: the town (DATA 1022) floor banks 0x184
+     * (res 0x769) / 0x185 (res 0x76a) are CLONED into the errands (DATA 1025)
+     * floor banks 0x187 / 0x188 — the two rooms share the same area-0xd2 floor
+     * sheets under different bank numbers.  HARNESS-VERIFIED (ckpt 131, the live
+     * retail pool read tools/flow/errands_tileset_fields.json: at the errands
+     * room bank 0x187 = res 0x769 f_38=24, bank 0x188 = res 0x76a f_38=16).  The
+     * ckpt-130 extraction mis-sourced these from 0x186 (res 0x76b, a 1-frame
+     * 32x32 sprite) — the 57ca40.c "last paVar1" ECX heuristic guessed the wrong
+     * source slot; the clone's ECX is reloaded to 0x184/0x185 before each call.
+     * That left bank 0x188 with 1 frame so the errands BOTTOM FLOOR (bank 0x188
+     * frames 4/7/11 at row y=13) was culled by the ar_sprite_slot_frame f_38
+     * bound.  Retires the errands half of PORT-DEBT(assetreg-clone-defer). */
+    { 0x187, 0x184 },  /* L2282  0x008a7c28 <- 0x008a7c1c (res 0x769, town floor) */
+    { 0x188, 0x185 },  /* L2287  0x008a7c2c <- 0x008a7c20 (res 0x76a, town floor) */
     { 0x101, 0x192 },  /* L3082  0x008a7a10 <- 0x008a7c54 */
     { 0x102, 0x192 },  /* L3090  0x008a7a14 <- 0x008a7c54 */
     { 0x103, 0x192 },  /* L3098  0x008a7a18 <- 0x008a7c54 */

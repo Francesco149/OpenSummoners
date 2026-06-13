@@ -168,6 +168,7 @@ struct test_case {
     X(group3_clones_fires_from_register_group3_sprites)        \
     X(inline_clones_targets_populated_after_register)          \
     X(inline_clones_propagate_source_metadata)                 \
+    X(inline_clones_errands_floor_tilesets)                    \
     X(inline_clones_late_cluster_shares_one_source)            \
     X(inline_clones_apply_is_idempotent)                       \
     X(inline_clones_src_dst_sets_disjoint)                     \

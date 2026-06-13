@@ -2686,6 +2686,42 @@ int test_inline_clones_propagate_source_metadata(void)
     return 0;
 }
 
+int test_inline_clones_errands_floor_tilesets(void)
+{
+    /* The errands (DATA 1025) floor tileset banks 0x187/0x188 are clones of the
+     * TOWN (DATA 1022) floor banks 0x184 (res 0x769) / 0x185 (res 0x76a) — the
+     * two area-0xd2 rooms share the same floor sheets under different bank ids.
+     * HARNESS-VERIFIED against the live retail pool (ckpt 131,
+     * tools/flow/errands_tileset_fields.json: at the errands room bank 0x187 =
+     * res 0x769 f_38=24, bank 0x188 = res 0x76a f_38=16).  Guards against a
+     * regression to the ckpt-130 mis-source (0x186 = res 0x76b, a 1-frame 32x32
+     * sprite) that culled the errands bottom floor. */
+    ar_state_init();
+    ar_register_group3_sprites((void *)0x1, /*group=*/3, (void *)0x2);
+
+    /* 0x187 <- 0x184 (the town's res 0x769 floor tileset, 64x160 type 2). */
+    ar_sprite_slot *s184 = ar_pool_get_slot(0x184);
+    ar_sprite_slot *s187 = ar_pool_get_slot(0x187);
+    T_ASSERT_EQ_U(s184->resource_id, 0x769u);
+    T_ASSERT_EQ_U(s187->resource_id, 0x769u);
+    T_ASSERT_EQ_U(s187->width,  0x40u);
+    T_ASSERT_EQ_U(s187->height, 0xa0u);
+    T_ASSERT_EQ_U(s187->type,   2u);
+
+    /* 0x188 <- 0x185 (the town's res 0x76a floor tileset, 128x160 type 2). */
+    ar_sprite_slot *s185 = ar_pool_get_slot(0x185);
+    ar_sprite_slot *s188 = ar_pool_get_slot(0x188);
+    T_ASSERT_EQ_U(s185->resource_id, 0x76au);
+    T_ASSERT_EQ_U(s188->resource_id, 0x76au);
+    T_ASSERT_EQ_U(s188->width,  0x80u);
+    T_ASSERT_EQ_U(s188->height, 0xa0u);
+    T_ASSERT_EQ_U(s188->type,   2u);
+
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
 int test_inline_clones_late_cluster_shares_one_source(void)
 {
     /* The 5 late clusters (pool[257..261]) all clone from the SAME

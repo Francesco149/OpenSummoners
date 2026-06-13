@@ -1,0 +1,24 @@
+{
+  "_doc": "Errands tileset-bank diagnosis (ckpt 131): per-flip read of the pool slots for banks 0x186/0x187/0x188 (the errands floor uses bank_20=0x188).  Pool table = &DAT_008a760c (slot-ptr array); slot[bank] addr = 0x8a760c + bank*4 (0x186->0x8a7c24, 0x187->0x8a7c28, 0x188->0x8a7c2c).  Slot fields: width@+0x20, height@+0x24, f_38(frame count)@+0x38, resource_id@+0x40.  Goal: learn what retail's bank 0x188 IS at the errands render (the port boot-clones it to res 0x76b = 1 frame, but retail renders frame 11 -> retail re-registers it).  room_key filters the errands (0x334dc).  Run: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/control-path-gt/nav.jsonl --field-spec tools/flow/errands_tileset_fields.json --field-spec-only --call-trace --run-dir runs/errands-tileset-gt --duration-ms 240000",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "flip",
+      "_note": "DDraw Flip (once/frame). Read the errands tileset bank slots + room_key.",
+      "fields": [
+        {"name": "room_key", "src": "chain", "va": "0x8a9b50", "hops": [10116], "off": 16420, "type": "hex"},
+        {"name": "b186_res",  "src": "chain", "va": "0x8a7c24", "hops": [], "off": 64, "type": "hex"},
+        {"name": "b186_w",    "src": "chain", "va": "0x8a7c24", "hops": [], "off": 32, "type": "i32"},
+        {"name": "b186_h",    "src": "chain", "va": "0x8a7c24", "hops": [], "off": 36, "type": "i32"},
+        {"name": "b186_f38",  "src": "chain", "va": "0x8a7c24", "hops": [], "off": 56, "type": "i32"},
+        {"name": "b187_res",  "src": "chain", "va": "0x8a7c28", "hops": [], "off": 64, "type": "hex"},
+        {"name": "b187_w",    "src": "chain", "va": "0x8a7c28", "hops": [], "off": 32, "type": "i32"},
+        {"name": "b187_h",    "src": "chain", "va": "0x8a7c28", "hops": [], "off": 36, "type": "i32"},
+        {"name": "b187_f38",  "src": "chain", "va": "0x8a7c28", "hops": [], "off": 56, "type": "i32"},
+        {"name": "b188_res",  "src": "chain", "va": "0x8a7c2c", "hops": [], "off": 64, "type": "hex"},
+        {"name": "b188_w",    "src": "chain", "va": "0x8a7c2c", "hops": [], "off": 32, "type": "i32"},
+        {"name": "b188_h",    "src": "chain", "va": "0x8a7c2c", "hops": [], "off": 36, "type": "i32"},
+        {"name": "b188_f38",  "src": "chain", "va": "0x8a7c2c", "hops": [], "off": 56, "type": "i32"}
+      ]
+    }
+  }
+}
