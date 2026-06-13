@@ -40,6 +40,17 @@ changelog. Active multi-session plans: `docs/plans/`.
   read the algorithm in the decompile, port *that logic*, then validate bit-exact at
   matching animation phase. Standing accepted residuals:
   documented benign deviations + occasional ≤1-LSB texture-sampling noise only.
+- **NEVER ship an approximation — this is a faithful port, DRAWCALL PER DRAWCALL (USER,
+  ckpt 134).** A linear-fit close curve, a guessed z-order, a "reasonable" rate — all
+  forbidden. Every draw's source cel, dest rect (scale+position), blend, colorkey, AND
+  ORDER (z = the per-frame `seq`; later seq draws on top) is GROUND TRUTH sitting in the
+  `.osr` — read the exact values and reproduce them. **If a probe/tool can't surface the
+  exact truth, the TOOL is the gap: IMPROVE it until it can** (e.g. dump every ordered draw
+  intersecting a region, not just one res) — "not cleanly probeable" is NEVER license to
+  approximate, curve-fit, or guess. **And LOOK at it yourself before reporting:** open the
+  trace / the side-by-side, step the draw sequence, confirm scale+position+z match — a
+  frame or animation you did not actually inspect is NOT done, and "approximate / calibrate
+  later" is not a deliverable. When in doubt, build the probe and read the bytes.
 - **Attribute every divergence to a PILLAR before suspecting logic.** (1) **logic/data→
   output** (the pure contract we port), (2) **phase** (load-dependent counter/anim origin
   — e.g. the title render-rate ×2.2 + flip-skew, `parity-ledger.md` R3), (3) **RNG** (LCG
