@@ -171,9 +171,17 @@ int test_dialogue_portrait_fade(void)
 {
     dialogue_box d;
     dialogue_arm(&d, "N", "x");
-    for (int i = 0; i < 20; i++) dialogue_step(&d);   /* pop-in */
-    if (dialogue_portrait_ramp_index(&d) != 0) T_FAIL("ramp at gate = %d", dialogue_portrait_ramp_index(&d));
-    dialogue_step(&d);                                /* fade 50 */
+    for (int i = 0; i < 20; i++) dialogue_step(&d);   /* pop-in -> scale==1000 */
+    /* The cross-fade holds idx 0 for TWO opening ticks (drawcall-exact vs
+     * retail.osr L0 ticks 660,661): the pop-in completion tick, then the ARM
+     * tick (fade_armed 0->1, no counter advance), THEN the ramp starts. */
+    if (dialogue_portrait_ramp_index(&d) != 0)
+        T_FAIL("ramp at open tick = %d (want 0)", dialogue_portrait_ramp_index(&d));
+    dialogue_step(&d);                                /* arm tick: still idx 0 */
+    if (dialogue_portrait_ramp_index(&d) != 0)
+        T_FAIL("ramp at arm tick = %d (want 0, the 2-tick hold)",
+               dialogue_portrait_ramp_index(&d));
+    dialogue_step(&d);                                /* fade 50 -> idx 2 */
     if (dialogue_portrait_ramp_index(&d) != 2) T_FAIL("ramp(50) = %d (want 2)", dialogue_portrait_ramp_index(&d));
     for (int i = 0; i < 8; i++) dialogue_step(&d);    /* fade 450 */
     if (dialogue_portrait_ramp_index(&d) != 18)

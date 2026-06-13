@@ -3593,3 +3593,28 @@ arrival dialogue — retail ground truth, not the port's behaviour:
     speaker change — L0->L1 28/28, L1->L2 28/28, L2->L3 29/29, L5->L6 33/33 ticks
     EXACT.  Per-tick (name,body) 322/323 (the one miss, tick 884, is a
     retail-coalesced flip).
+
+### #108 — the dialogue PORTRAIT cross-fade (`0x49c910`): the incoming bust fades in over ramp_b idx 0→18 but HOLDS idx 0 for TWO opening ticks (the cross-fade state arms one tick AFTER scale==1000), and on a speaker change the OUTGOING bust DISSOLVES out (reverse ramp idx 18→0) at its old anchor (2026-06-13, ckpt 135)
+
+Read off `retail.osr` with `tools/trace_studio2/draw_probe.py` (the portrait blit's
+per-tick blend descriptor — the alpha primitive `0x5bd550`, the bust at the box's
+portrait anchor; each ramp step is a distinct captured BLEND LUT) — retail ground
+truth, drawcall + LUT exact:
+- **FADE-IN (the new cel, `0x49c910` state 1, fade `f` < 0x1f5):** the blend index is
+  `(f*0x14)/500` (idx 0..18 even steps), opaque once idx > 0x13; `f += 0x32` (50) per
+  update once scale==1000.  BUT the counter does NOT advance on the FIRST fully-open
+  tick: the cross-fade state `uVar1` (`+0x2e`) is still 0 there, so `0x49c910` returns
+  early WITHOUT the `f += 50` — the portrait renders the dimmest step (idx 0) for TWO
+  ticks, THEN ramps.  retail.osr L0: idx 0 at ticks 660+661, then 2,4,..,18 (662-670),
+  opaque at 671.  Every arrival line fades in identically (LUT-byte-identical
+  port↔retail, 13/13 portrait ticks).  Without the arm tick the port advanced one step
+  early (idx 2 at 661 = the USER's ckpt-134 "portrait slightly less dim", maxd 17 — a
+  uniform 1-ramp-step over-brightness).  Ported: `dialogue_box.fade_armed` (`dialogue.c`
+  `dialogue_step` gates the `portrait_fade += 50` on a prior arm tick).
+- **FADE-OUT (the old cel, `0x49c910` state 1, f >= 0x1f5):** as f runs 500→1000 the
+  PREVIOUS speaker's bust dissolves out via the REVERSE ramp `((1000-f)*0x14)/500`
+  (idx 18→0) at its OLD box anchor while that box is still full-scale — retail.osr
+  L0→L1: the Father bust at (150,76) ramps 18→2 over ticks 688-696 then vanishes,
+  BEFORE the new box re-opens at (70,88) tick 706.  (Port status as of ckpt 135: the
+  fade-IN is ported; the fade-OUT dissolve is the open follow-up — the port holds the
+  old bust OPAQUE then cuts it.)

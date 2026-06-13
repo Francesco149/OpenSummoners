@@ -146,6 +146,10 @@ typedef struct {
     int32_t  active;        /* box exists (armed)                            */
     int32_t  scale;         /* node +0x54: 0..1000 pop-in                    */
     int32_t  portrait_fade; /* 0x49c910 [0x21]: 0..1000 once scale==1000     */
+    int32_t  fade_armed;    /* 0x49c910 state +0x2e: the cross-fade arms to 1 *
+                             * one tick AFTER scale hits 1000 — the portrait  *
+                             * holds idx 0 for that first armed tick before   *
+                             * the counter advances (drawcall-exact, quirk).  */
     int32_t  reveal;        /* typewriter: glyph records revealed so far     */
     int32_t  type_timer;    /* updates until the next reveal                 */
     int32_t  arrow_idx;     /* +0x72: 0..3 into the anim table               */

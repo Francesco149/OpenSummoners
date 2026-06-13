@@ -61,17 +61,28 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   retail-coalesced flip).  The ckpt-134 first cut (curve-fit close + guessed z-order) was
   rejected by the USER → CLAUDE.md no-approximation / drawcall-per-drawcall rule persisted.
 - **Note #4** (tick 661: port full line vs retail "A") — CLOSED, it was the spam-nav cadence.
-- **FOLLOW-UP (USER-flagged, next session) — the PORTRAIT FADE-IN curve.** At tick 661 (L0's
-  first reveal) the port's portrait bust is "slightly less dim" than retail (USER note,
-  crop 205,159 104×91, differ 5834 but **maxd only 17** — a uniform low-magnitude
-  over-brightness across the whole bust, on the feed + `note_render/`).  The port blends to
-  fuller opacity/colour a hair faster than retail during the cross-fade — chase the early
-  `dialogue_portrait_ramp_index` ramp (idx=(fade·0x14)/500, opaque from fade 500) against a
-  per-tick retail portrait-luminance probe.  Likely entangled with the FIRST-box open
-  animation (the port opens L0 from scale 0 over ~20 updates; retail spawns at ~250 over ~15
-  updates — `DIALOGUE_OPEN_SCALE0` applies to reopens but `dialogue_arm` still spawns at 0,
-  so the first box's pop-in + the fade phase differ slightly).  Both are first-box polish,
-  NOT a cadence/box-overlap bug (those are 1:1).
+- **FOLLOW-UP (USER-flagged ckpt 134) — the PORTRAIT FADE-IN curve — DONE (ckpt 135),
+  DRAWCALL+LUT EXACT.**  The "slightly less dim at tick 661" (USER note, crop 205,159 104×91,
+  maxd 17) was NOT the ramp formula or the box-open — the ramp `(fade·0x14)/500` + the 50/tick
+  rate + the scale==1000 gate were already faithful.  The bug: retail HOLDS the dimmest step
+  (idx 0) for TWO opening ticks because the cross-fade state (`0x49c910` `uVar1`/`+0x2e`) arms
+  one tick AFTER scale hits 1000 — `0x49c910` returns early (no `f += 50`) on the first
+  fully-open tick.  The port advanced immediately → one ramp step bright early.  Read off
+  retail.osr per-tick (the portrait blit's BLEND LUT, `draw_probe.py`): retail idx 0 at ticks
+  660+661 then 2,4,..,18 (662-670), opaque 671; the port did 660→0, 661→2, …, opaque 670.
+  Fix: `dialogue_box.fade_armed` (`dialogue.c` `dialogue_step` gates the increment on a prior
+  arm tick).  **VERIFIED LUT-byte-identical port↔retail, 13/13 portrait ticks, EVERY arrival
+  line** (L0 @150,76 / L1 @70,88 / L2 @38,76 / L3 @70,88 — all fade-in ticks match).  See
+  engine-quirk #108.
+- **FOLLOW-UP (NEW, ckpt 135) — the PORTRAIT FADE-OUT dissolve.**  Surfaced by the fade-in
+  verification: on a SPEAKER CHANGE retail DISSOLVES the OUTGOING bust out (reverse ramp idx
+  18→0, `0x49c910` f≥0x1f5 half) at its OLD box anchor while that box is still full-scale —
+  retail.osr L0→L1: the Father bust at (150,76) ramps idx 18→2 over ticks 688-696 then
+  vanishes, BEFORE the new box re-opens at (70,88) tick 706.  The PORT holds the old bust
+  OPAQUE through 688-696 then cuts it (no dissolve).  Pre-existing (the fade-in fix did not
+  cause it); the port models the speaker change as a separate closing box that draws content
+  at full opacity.  Owner: a new chip — fade the closing box's portrait via the reverse ramp.
+  See engine-quirk #108 (FADE-OUT bullet).
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)
 

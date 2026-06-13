@@ -86,10 +86,11 @@ ordered-drawcall region probe), `tests/{test_input_trace,test_dialogue,test_cuts
 /mnt/c/oss-osr/retail.osr runs/cutscene-verify/nav-zspam-ext.jsonl 600 985 0 1100 | grep -E '^[#{]'`),
 `C:\oss-osr\port-matched.osr`.
 
-**OPEN RE threads:** the PORTRAIT FADE-IN curve (USER-flagged ckpt 134, next session — the port bust is
-"slightly less dim" than retail at tick 661, maxd 17; chase `dialogue_portrait_ramp_index` + the first-box
-open `dialogue_arm` scale-0/20t vs retail's ~250/15t; both first-box polish, see `plans/intro-cutscene-1to1.md`
-THEME 1 FOLLOW-UP); THEME 3 (the Arche-runs run-off
+**OPEN RE threads:** the PORTRAIT FADE-OUT dissolve (NEW ckpt 135 — on a SPEAKER CHANGE retail dissolves the
+OUTGOING bust out via the reverse ramp idx 18→0 at its old anchor, `0x49c910` f≥0x1f5 half; the port holds it
+OPAQUE then cuts it.  retail.osr L0→L1: Father bust (150,76) idx 18→2 over ticks 688-696.  Surfaced by the
+fade-IN verification, which is now DONE drawcall+LUT-exact — `dialogue_box.fade_armed`, the cross-fade arms one
+tick after scale==1000 so idx 0 holds for 2 ticks; quirk #108); THEME 3 (the Arche-runs run-off
 `0x402730` + the house-entry fade — the 167-tick beat); THEME 2 (the cast colour/animation render `0x4997b0`,
 butterfly variants); the bubble tail x; the errands questline `0x4dc510`; the per-key SCANCODE defaults
 (`PORT-DEBT(keybind-config)`); the freeroam hand-off (behind the 1:1 bar).

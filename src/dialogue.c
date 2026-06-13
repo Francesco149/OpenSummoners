@@ -182,8 +182,17 @@ void dialogue_step(dialogue_box *d)
             d->scale = 1000;
         return;                                     /* content waits */
     }
-    /* portrait cross-fade (0x49c910, gated on scale==1000) */
-    if (d->portrait_fade < 1000) {
+    /* portrait cross-fade (0x49c910, gated on scale==1000).  The cross-fade
+     * state (retail uVar1 at +0x2e) arms to 1 only on the FIRST fully-open tick:
+     * while still 0 the 0x49c910 update returns early WITHOUT advancing the
+     * fade counter, so the portrait renders one extra tick at idx 0 (the dimmest
+     * step) before the ramp starts.  DRAWCALL-EXACT vs retail.osr (L0 ticks
+     * 660-671): retail holds idx 0 for two opening ticks (660,661) then 2,4,..,18
+     * (662-670), opaque at 671; without this arm the port advanced a tick early
+     * (idx 2 at 661 = USER's "slightly less dim", maxd 17).  See engine-quirk. */
+    if (!d->fade_armed) {
+        d->fade_armed = 1;          /* this tick renders idx 0; fade starts next */
+    } else if (d->portrait_fade < 1000) {
         d->portrait_fade += DIALOGUE_FADE_STEP;
         if (d->portrait_fade > 1000)
             d->portrait_fade = 1000;
