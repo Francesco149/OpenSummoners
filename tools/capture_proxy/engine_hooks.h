@@ -54,6 +54,7 @@
 #define EH_BLT_RECTS_VA   0x005b9ae0u   /* mode 2  __thiscall ECX=cel           */
 #define EH_BLT_CLIP_VA    0x005b9bf0u   /* mode 3  __thiscall ECX=cel           */
 #define EH_BLT_ALPHA_VA   0x005bd550u   /* mode 4  __cdecl    cel=arg[1]         */
+#define EH_ZDD_DTOR_VA    0x005b9390u   /* zdd_object dtor — Releases +0xac/+0x2c */
 
 /* cel (zdd_object) field offsets — confirmed in the blit decompiles + src/zdd.h */
 #define CEL_METRIC_0C   0x0cu   /* placement origin x (keyed dst-left bias) */
@@ -63,6 +64,7 @@
 #define CEL_METRIC_BC   0xbcu   /* source height                           */
 #define CEL_STATE       0xd4u   /* state flag (0x8000 = KEYSRC armed)       */
 #define BLIT_SURF_PTR   0x2cu   /* cel/dest +0x2c = IDirectDrawSurface7* (M3c) */
+#define CEL_COM_BACK    0xacu   /* zdd_object +0xac = back/attached surface  */
 
 /* ── observable counters (read later by the .osr emitter) ─────────────────── */
 static volatile LONG g_eh_flip     = 0;
@@ -220,7 +222,7 @@ static void eh_resolver_cb(DWORD slot, DWORD esp)
 static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel, DWORD dest_arg,
                            int32_t dx, int32_t dy, int32_t reqw, int32_t reqh,
                            int32_t sx, int32_t sy, int32_t bmode, uint32_t ckey,
-                           uint32_t blend_ref)
+                           uint32_t blend_ref, int32_t srcw, int32_t srch)
 {
     osr_blit b;
     memset(&b, 0, sizeof(b));
@@ -231,6 +233,7 @@ static void eh_blit_record(uint32_t va, uint32_t mode, DWORD cel, DWORD dest_arg
     b.ckey = ckey;
     b.blend_ref = blend_ref;
     b.dx = dx; b.dy = dy; b.reqw = reqw; b.reqh = reqh; b.sx = sx; b.sy = sy;
+    b.srcw = srcw; b.srch = srch;
     uint16_t res = 0, frame = 0;
     rid_lookup(cel, &res, &frame);
     b.res = res; b.frame = frame;
@@ -259,7 +262,7 @@ static void eh_blt_onto_cb(DWORD cel, DWORD esp)
                    EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
-                   0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0);
+                   0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0, 0, 0);
 }
 static void eh_blt_keyed_cb(DWORD cel, DWORD esp)
 {
@@ -267,18 +270,18 @@ static void eh_blt_keyed_cb(DWORD cel, DWORD esp)
                    EH_STK(esp, 1), EH_STK(esp, 2),
                    cel ? *(int32_t *)(cel + CEL_METRIC_B8) : 0,
                    cel ? *(int32_t *)(cel + CEL_METRIC_BC) : 0,
-                   0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0);
+                   0, 0, -1, cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0, 0, 0);
 }
 /* mode 2: __thiscall ECX=cel, (dest, dst_x, dst_y, dst_w, dst_h, src_x, src_y,
- * src_w, src_h).  We record 6 of the 8 coords (src_w/src_h have no osr_blit
- * field yet); the reconstructor defaults them to the dest extent — a scaling
- * rects blit is the open follow-up. */
+ * src_w, src_h).  All 8 coords recorded — srcw/srch carry args 7/8 (src_w !=
+ * dst_w means a SCALING Blt; the reconstructor passes them to blt_rects). */
 static void eh_blt_rects_cb(DWORD cel, DWORD esp)
 {
     eh_blit_record(EH_BLT_RECTS_VA, 2, cel, EH_STK(esp, 0),
                    EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
                    EH_STK(esp, 5), EH_STK(esp, 6), -1,
-                   cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0);
+                   cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0,
+                   EH_STK(esp, 7), EH_STK(esp, 8));
 }
 /* mode 3: __thiscall ECX=cel, (dest, dst_x, dst_y, width, height, src_x, src_y) — RAW pre-clip */
 static void eh_blt_clip_cb(DWORD cel, DWORD esp)
@@ -286,7 +289,7 @@ static void eh_blt_clip_cb(DWORD cel, DWORD esp)
     eh_blit_record(EH_BLT_CLIP_VA, 3, cel, EH_STK(esp, 0),
                    EH_STK(esp, 1), EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4),
                    EH_STK(esp, 5), EH_STK(esp, 6), -1,
-                   cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0);
+                   cel ? *(uint32_t *)(cel + CEL_COLORKEY) : 0, 0, 0, 0);
 }
 /* mode 4: __cdecl (dest, cel, dst_x, dst_y, width, height, src_x, src_y, colorkey, gdi_ctx).
  * The blend descriptor is the __thiscall `this` (ecx) forwarded to FUN_005bd680
@@ -306,7 +309,32 @@ static void eh_blt_alpha_cb(DWORD desc_ecx, DWORD esp)
     eh_blit_record(EH_BLT_ALPHA_VA, 4, cel, EH_STK(esp, 0),
                    EH_STK(esp, 2), EH_STK(esp, 3), EH_STK(esp, 4), EH_STK(esp, 5),
                    EH_STK(esp, 6), EH_STK(esp, 7), bmode, (uint32_t)EH_STK(esp, 8),
-                   blend_ref);
+                   blend_ref, 0, 0);
+}
+
+/* ── zdd_object dtor → surface-cache eviction (the stale-sheet fix, ckpt 126) ──
+ * FUN_005b9390 Releases the object's +0xac (com_back) then +0x2c (com_primary).
+ * A LATER surface allocated at a recycled pointer must NOT hit the old
+ * ptr→dhash / ptr→handle cache entries — that staleness made house-freeroam
+ * blits reference town-era sheets (white dialog panels / the wrong sprite).
+ * Evict both pointers at dtor entry (before the Releases zero them).  INT3+VEH
+ * is fine here: destruction is a scene-transition burst, not per-frame-hot. */
+static LONG g_eh_dtor_evicted = 0;
+static void eh_zdd_dtor_cb(PCONTEXT ctx)
+{
+    DWORD obj = ctx->Ecx;
+    if (!obj) return;
+    void *prim = *(void **)(obj + BLIT_SURF_PTR);
+    void *back = *(void **)(obj + CEL_COM_BACK);
+    int n = 0;
+    if (prim) { n += sheet_grab_evict(prim); surfid_evict(prim); }
+    if (back) { n += sheet_grab_evict(back); surfid_evict(back); }
+    if (n) {
+        LONG t = InterlockedIncrement(&g_eh_dtor_evicted);
+        if (t <= 8 || (t & 63) == 0)
+            proxy_logf("[hook] zdd dtor evicted blitted-from surface "
+                       "#%ld @flip %ld", t, g_eh_flip);
+    }
 }
 
 /* ── scene anchors (assertions / alignment points) ───────────────────────── */
@@ -345,6 +373,7 @@ static void engine_hooks_install(void)
     detour_add(EH_PROLOGUE_VA,   eh_prologue_cb);
     detour_add(EH_GAME_ENTER_VA, eh_game_enter_cb);
     detour_add(EH_RNG_ANCHOR_VA, eh_rng_anchor_cb);
+    detour_add(EH_ZDD_DTOR_VA,   eh_zdd_dtor_cb);   /* sheet/surfid eviction */
     /* M3b: the render-id resolver + the 5 blit primitives (the draw stream) are
      * E9-TRAMPOLINED, not INT3'd — they fire hundreds×/frame and the INT3+VEH
      * 2-exceptions/call is the in-game fps wall.  Head bytes are hardcoded from

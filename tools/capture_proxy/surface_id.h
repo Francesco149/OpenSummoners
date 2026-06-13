@@ -15,12 +15,13 @@
  * cross-run anyway).  Pure pointer interning — open-addressing, same shape as
  * src/render_id.c, no COM, no Win32 here.
  *
- * Surface lifetime: the engine creates a handful of persistent surfaces (the
- * primary/back buffers + one per decoded sprite-bank sheet) and rarely frees
- * them mid-scenario, so the table is small and entries are effectively
- * permanent.  A freed-then-reallocated pointer would alias a stale handle, but
- * that is benign for the draw stream (a SHEET is re-grabbed when its dhash
- * changes — M3c-2); we do not track Release here.
+ * Surface lifetime (REVISED, ckpt 126): the engine destroys + reallocates
+ * surfaces at a room swap (zdd dtor 0x5b9390), so a freed-then-reallocated
+ * pointer WOULD alias a stale handle (the same staleness that hit the sheet
+ * grab — the house-freeroam recon bug).  engine_hooks.h hooks the dtor and
+ * calls surfid_evict(): the recycled pointer then interns as a FRESH handle.
+ * Eviction tombstones the slot (open addressing — clearing would break probe
+ * chains).
  */
 #ifndef OSS_SURFACE_ID_H
 #define OSS_SURFACE_ID_H
@@ -29,6 +30,7 @@
 #include <string.h>
 
 #define SURFID_SLOTS 1024u      /* power of two; the engine keeps ~dozens live */
+#define SURFID_TOMB  ((const void *)1)   /* evicted slot — probe past, reusable */
 
 typedef struct {
     const void *key;            /* surface pointer; NULL = empty slot */
@@ -54,17 +56,37 @@ static uint32_t surfid_get(const void *surf)
 {
     if (!surf) return 0;
     unsigned h = surfid_hash(surf);
+    unsigned ins = SURFID_SLOTS;
     for (unsigned i = 0; i < SURFID_SLOTS; i++) {
         unsigned s = (h + i) & (SURFID_SLOTS - 1u);
         const void *k = g_surfid[s].key;
         if (k == surf) return g_surfid[s].handle;
-        if (k == NULL) {
-            g_surfid[s].key    = surf;
-            g_surfid[s].handle = g_surfid_next++;
-            return g_surfid[s].handle;
-        }
+        if (k == SURFID_TOMB) { if (ins == SURFID_SLOTS) ins = s; continue; }
+        if (k == NULL) { if (ins == SURFID_SLOTS) ins = s; break; }
     }
-    return 0;                   /* table full — unidentified (best-effort) */
+    if (ins == SURFID_SLOTS) return 0;  /* table full — unidentified (best-effort) */
+    g_surfid[ins].key    = surf;
+    g_surfid[ins].handle = g_surfid_next++;
+    return g_surfid[ins].handle;
+}
+
+/* Drop a (being-destroyed) surface's handle so a future surface recycled at the
+ * same pointer interns fresh.  Returns 1 if an entry was present. */
+static int surfid_evict(const void *surf)
+{
+    if (!surf) return 0;
+    unsigned h = surfid_hash(surf);
+    for (unsigned i = 0; i < SURFID_SLOTS; i++) {
+        unsigned s = (h + i) & (SURFID_SLOTS - 1u);
+        const void *k = g_surfid[s].key;
+        if (k == surf) {
+            g_surfid[s].key = SURFID_TOMB;
+            g_surfid[s].handle = 0;
+            return 1;
+        }
+        if (k == NULL) return 0;
+    }
+    return 0;
 }
 
 #endif /* OSS_SURFACE_ID_H */

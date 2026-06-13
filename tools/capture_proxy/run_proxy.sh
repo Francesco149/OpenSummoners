@@ -97,7 +97,17 @@ cat "$LOG_WSL" 2>/dev/null || echo "(no log written)"
 echo "[run_proxy] ===== .osr capture ($OSR_WSL) ====="
 if [[ -s "$OSR_WSL" ]]; then
     ls -l "$OSR_WSL"
-    python3 "$ROOT/tools/trace_studio2/osr.py" SUMMARY "$OSR_WSL" || true
+    # osr.py parse() slurps the WHOLE file into Python objects — on a GB-scale
+    # capture that is tens of GB of RAM and the Linux OOM killer takes out the
+    # whole shell (observed: SIGKILLed the tmux pane).  Only auto-summarize
+    # small captures; big ones get the streaming scanners / the viewer.
+    OSR_BYTES=$(stat -c %s "$OSR_WSL")
+    if (( OSR_BYTES <= 256 * 1024 * 1024 )); then
+        python3 "$ROOT/tools/trace_studio2/osr.py" SUMMARY "$OSR_WSL" || true
+    else
+        echo "(capture > 256 MB — skipping osr.py SUMMARY, its non-streaming"
+        echo " parse would OOM; use the osr_view viewer or a streaming scan)"
+    fi
 else
     echo "(no .osr written)"
 fi

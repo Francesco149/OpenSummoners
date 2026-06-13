@@ -8,6 +8,17 @@
  * decoded at load and are stable thereafter — so the per-blit cost is just a
  * cache hit returning the cached dhash.
  *
+ * STALENESS (the house-freeroam recon bug, ckpt 126): "once-per-surface" is only
+ * sound while the surface LIVES.  The engine destroys + reallocates sheet
+ * surfaces at a room swap (zdd dtor 0x5b9390 Releases +0x2c), and a NEW surface
+ * allocated at a recycled pointer would hit the old cache entry → the blit
+ * records the OLD sheet's dhash (the reconstructor then draws white dialog
+ * panels / the wrong sprite).  engine_hooks.h hooks the dtor and calls
+ * sheet_grab_evict() so a recycled pointer re-grabs.  Eviction uses TOMBSTONES
+ * (open addressing — clearing a key would break probe chains).  Re-grabs of
+ * identical content skip re-EMISSION via the emitted-dhash set (the reader
+ * dedups by dhash anyway; this just keeps the file small).
+ *
  * dhash mirrors the port's src/asset_register.c fingerprint SHAPE (FNV-1a seeded
  * with width/height/bitcount, then the raw pixel bytes) so the two sides hash
  * EQUAL iff the decoded source pixels + geometry are identical.  They generally
@@ -45,8 +56,9 @@ static uint32_t sg_hash_seed(uint32_t seed, const void *data, size_t len)
     return h;
 }
 
-/* ── ptr → captured-dhash cache (dedup: grab each surface once) ───────────── */
-#define SG_SLOTS 1024u
+/* ── ptr → captured-dhash cache (dedup: grab each LIVE surface once) ──────── */
+#define SG_SLOTS 4096u
+#define SG_TOMB  ((const void *)1)   /* evicted slot — probe past, reuse on insert */
 
 typedef struct { const void *key; uint32_t dhash; } sg_entry;
 static sg_entry g_sg[SG_SLOTS];
@@ -56,6 +68,37 @@ static unsigned sg_slot(const void *p)
     uintptr_t x = (uintptr_t)p;
     x ^= x >> 16; x *= 0x9E3779B1u; x ^= x >> 13;
     return (unsigned)(x & (SG_SLOTS - 1u));
+}
+
+/* Drop a (being-destroyed) surface's cache entry so a future surface recycled
+ * at the same pointer re-grabs.  Returns 1 if an entry was actually present
+ * (i.e. the surface had been blitted from) — the caller's logging signal. */
+static int sheet_grab_evict(const void *surf)
+{
+    if (!surf) return 0;
+    unsigned h = sg_slot(surf);
+    for (unsigned i = 0; i < SG_SLOTS; i++) {
+        unsigned s = (h + i) & (SG_SLOTS - 1u);
+        const void *k = g_sg[s].key;
+        if (k == surf) { g_sg[s].key = SG_TOMB; g_sg[s].dhash = 0; return 1; }
+        if (k == NULL) return 0;
+    }
+    return 0;
+}
+
+/* ── emitted-dhash set (skip re-EMITTING identical content after an evict) ── */
+static uint32_t g_sg_emitted[SG_SLOTS];   /* dhash values; 0 = empty */
+
+static int sg_emitted_test_and_set(uint32_t dhash)
+{
+    if (dhash == 0) return 0;
+    unsigned h = (unsigned)((dhash * 0x9E3779B1u) & (SG_SLOTS - 1u));
+    for (unsigned i = 0; i < SG_SLOTS; i++) {
+        unsigned s = (h + i) & (SG_SLOTS - 1u);
+        if (g_sg_emitted[s] == dhash) return 1;
+        if (g_sg_emitted[s] == 0) { g_sg_emitted[s] = dhash; return 0; }
+    }
+    return 1;   /* set full — claim "already emitted" (best-effort, never grows) */
 }
 
 /* Cap a single SHEET's pixel payload so a pathological surface can't blow the
@@ -75,7 +118,8 @@ static uint32_t sheet_capture_source(void *surf, uint16_t res, uint16_t frame)
         unsigned s = (h + i) & (SG_SLOTS - 1u);
         const void *k = g_sg[s].key;
         if (k == surf) return g_sg[s].dhash;       /* cached — the hot path */
-        if (k == NULL) { ins = s; break; }
+        if (k == SG_TOMB) { if (ins == SG_SLOTS) ins = s; continue; }
+        if (k == NULL) { if (ins == SG_SLOTS) ins = s; break; }
     }
     if (ins == SG_SLOTS) return 0;                 /* cache full (never seen) */
 
@@ -105,19 +149,21 @@ static uint32_t sheet_capture_source(void *surf, uint16_t res, uint16_t frame)
     seed = sg_hash_seed(seed, &bitcount, sizeof(bitcount));
     uint32_t dhash = sg_hash_seed(seed, dd.lpSurface, bytes);
 
-    osr_sheet sh;
-    memset(&sh, 0, sizeof(sh));
-    sh.dhash    = dhash;
-    sh.res      = res;
-    sh.frame    = frame;
-    sh.w        = (uint16_t)w;
-    sh.h        = (uint16_t)ht;
-    sh.pitch    = pitch;
-    sh.pixfmt   = eh_pixfmt_of(&dd.ddpfPixelFormat);
-    sh.codec    = 0;                 /* raw; miniz is PORT-DEBT(osr-sheet-compression) */
-    sh.byte_len = (uint32_t)bytes;
-    sh.bytes    = (const uint8_t *)dd.lpSurface;
-    osr_w_sheet(&sh);                /* streams pixels into the ring under the cs */
+    if (!sg_emitted_test_and_set(dhash)) {
+        osr_sheet sh;
+        memset(&sh, 0, sizeof(sh));
+        sh.dhash    = dhash;
+        sh.res      = res;
+        sh.frame    = frame;
+        sh.w        = (uint16_t)w;
+        sh.h        = (uint16_t)ht;
+        sh.pitch    = pitch;
+        sh.pixfmt   = eh_pixfmt_of(&dd.ddpfPixelFormat);
+        sh.codec    = 0;             /* raw; miniz is PORT-DEBT(osr-sheet-compression) */
+        sh.byte_len = (uint32_t)bytes;
+        sh.bytes    = (const uint8_t *)dd.lpSurface;
+        osr_w_sheet(&sh);            /* streams pixels into the ring under the cs */
+    }
 
     IDirectDrawSurface7_Unlock(s, NULL);
 
