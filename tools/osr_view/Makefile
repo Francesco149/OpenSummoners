@@ -25,11 +25,14 @@ LDFLAGS := -mwindows -static -static-libgcc -static-libstdc++
 LIBS    := -ld3d11 -ldxgi -ld3dcompiler -lddraw -ldxguid -lgdi32 -luser32 \
            -lkernel32 -lwinmm -ldwmapi
 
-# the C reconstruction engine (shared with the port's recon_apply)
+# the C reconstruction engine (shared with the port's recon_apply).  osr_emit.c is
+# linked because zdd.c hard-references its sink taps (osr_emit_blit/evict/clear/dc_*,
+# the M5 port emitter); it self-gates on g_oe_fp (NULL here = no-op), so it adds no
+# behaviour to the viewer, only the symbols.
 CSRC := osr_scrub.c ../../src/recon_apply.c \
         ../../src/zdd.c ../../src/zdd_win32.c \
         ../../src/bitmap_session.c ../../src/bitmap_session_win32.c \
-        ../../src/call_trace.c ../../src/render_id.c
+        ../../src/call_trace.c ../../src/render_id.c ../../src/osr_emit.c
 # the C++ UI + Dear ImGui
 CXXSRC := osr_view_imgui.cpp \
           $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp \
@@ -64,7 +67,7 @@ $(OUT_GDI): osr_view.c $(CSRC)
 	$(CC) -mwindows -static-libgcc $(CFLAGS) -o $@ osr_view.c \
 	  ../../src/recon_apply.c ../../src/zdd.c ../../src/zdd_win32.c \
 	  ../../src/bitmap_session.c ../../src/bitmap_session_win32.c \
-	  ../../src/call_trace.c ../../src/render_id.c \
+	  ../../src/call_trace.c ../../src/render_id.c ../../src/osr_emit.c \
 	  -lddraw -ldxguid -lgdi32 -luser32 -lkernel32 -lwinmm
 
 # console profiler (build/osr_prof.exe)
@@ -75,7 +78,7 @@ $(OUT_PROF): osr_prof.c osr_scrub.c $(CSRC)
 	$(CC) $(CFLAGS) -o $@ osr_prof.c osr_scrub.c \
 	  ../../src/recon_apply.c ../../src/zdd.c ../../src/zdd_win32.c \
 	  ../../src/bitmap_session.c ../../src/bitmap_session_win32.c \
-	  ../../src/call_trace.c ../../src/render_id.c \
+	  ../../src/call_trace.c ../../src/render_id.c ../../src/osr_emit.c \
 	  -lddraw -ldxguid -lgdi32 -luser32 -lkernel32 -lwinmm
 
 clean:
