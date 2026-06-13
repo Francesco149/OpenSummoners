@@ -428,6 +428,18 @@ void *ar_sprite_slot_frame(ar_sprite_slot *slot, uint16_t frame_id)
             return NULL;                   /* headless: still undecoded   */
         }
     }
+    /* Bound frame_id against the slice's frame count (f_38, set by
+     * ar_sprite_slice).  Retail derefs frames[frame_id] unbounded because its
+     * bank always carries enough frames; the PORT can under-load a bank (a
+     * deferred SS_MGR clone placeholder — PORT-DEBT(assetreg-clone-defer)) whose
+     * frames[] is shorter than a tile's frame index, and the OOB read returns a
+     * garbage cel the blit then dereferences (the ckpt-130 errands-render crash:
+     * bank 0x17e frame 7 with f_38 < 8).  When f_38 is known (>0) and frame_id
+     * exceeds it, skip (return NULL → the tile is culled, a gap, not a crash);
+     * when f_38 is 0 (count not recorded) keep the retail-faithful raw read. */
+    if (slot->f_38 != 0 && (uint32_t)frame_id >= slot->f_38) {
+        return NULL;
+    }
     void **frames = (void **)slot->entries[0].frames;
     return frames[frame_id];               /* arr[id & 0xffff] */
 }

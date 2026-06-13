@@ -76,6 +76,7 @@ struct test_case {
     X(palette_install_reuses_existing_buffer)                  \
     X(palette_install_destroy_frees_buffer)                    \
     X(sprite_destroy_frees_aux_and_entries)                    \
+    X(ar_sprite_slot_frame_f38_bound)                          \
     X(sprite_destroy_safe_on_zero_slot)                        \
     X(sprite_register_writes_all_named_fields)                 \
     X(sprite_register_frees_existing_aux_and_entries)          \

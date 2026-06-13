@@ -313,6 +313,35 @@ int test_sprite_destroy_frees_aux_and_entries(void)
     return 0;
 }
 
+/* ar_sprite_slot_frame bounds frame_id against f_38 (the slice frame count) when
+ * f_38 is known (>0): an under-loaded bank (a deferred clone placeholder whose
+ * frames[] is shorter than a tile's frame index — PORT-DEBT(assetreg-clone-defer))
+ * returns NULL (the tile is culled) instead of an OOB read of a garbage cel that
+ * the blit then dereferences (the ckpt-130 errands-render crash).  f_38==0 keeps
+ * the retail-faithful raw read. */
+int test_ar_sprite_slot_frame_f38_bound(void)
+{
+    ar_sprite_slot s = {0};
+    s.entries     = (ar_sprite_entry *)calloc(1, sizeof(ar_sprite_entry));
+    s.entry_count = 1;
+    static void *fr[4] = { (void *)0x1000, (void *)0x2000, (void *)0x3000, (void *)0x4000 };
+    s.entries[0].frames = fr;
+
+    /* f_38 = 4 (the frame count): 0..3 read the frame; >=4 -> NULL (no OOB). */
+    s.f_38 = 4;
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 0), (void *)0x1000);
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 3), (void *)0x4000);
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 4), NULL);
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 99), NULL);
+
+    /* f_38 = 0 (count not recorded): the retail-faithful raw read. */
+    s.f_38 = 0;
+    T_ASSERT_EQ_P(ar_sprite_slot_frame(&s, 2), (void *)0x3000);
+
+    free(s.entries);
+    return 0;
+}
+
 int test_sprite_destroy_safe_on_zero_slot(void)
 {
     ar_sprite_slot s = {0};   /* BSS-zero — no pointers to free. */
