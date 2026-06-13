@@ -506,9 +506,11 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
             metric_cursor++;
         }
 
-        // keyboard scrub (timeline index) — suppressed while typing a note so
-        // arrows/space edit the text instead of scrubbing the frame
-        if (!ImGui::GetIO().WantCaptureKeyboard) {
+        // keyboard scrub — gated only on WantTextInput (a note field is focused), so
+        // arrows/space scrub everywhere EXCEPT while typing a note.  In draw-drill mode
+        // up/down step the draw K (frame-by-frame on the draw axis); left/right always
+        // step the timeline.
+        if (!ImGui::GetIO().WantTextInput) {
             if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) cur++;
             if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))  cur--;
             if (ImGui::IsKeyPressed(ImGuiKey_PageDown))   cur += 30;
@@ -557,9 +559,20 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                         e.ridx >= 0 ? "" : "[gap]", rf, e.ridx);
         }
 
-        // slider + nav buttons
+        // frame-step buttons (mouse) + keybind hint, then the FULL-WIDTH slider
+        if (ImGui::Button("|<")) cur = 0;
+        ImGui::SameLine(); if (ImGui::Button("<<")) cur -= 10;
+        ImGui::SameLine(); if (ImGui::Button("<"))  cur -= 1;
+        ImGui::SameLine(); if (ImGui::Button(">"))  cur += 1;
+        ImGui::SameLine(); if (ImGui::Button(">>")) cur += 10;
+        ImGui::SameLine(); if (ImGui::Button(">|")) cur = n - 1;
+        if (cur < 0) cur = 0;
+        if (cur >= n) cur = n - 1;
+        ImGui::SameLine();
+        ImGui::TextDisabled("keys: <-/-> = +/-1 frame, PgUp/PgDn = +/-30, Home/End, Space=play%s",
+                            view_mode == 1 ? ", Up/Dn = +/-1 draw K" : "");
         int slider = cur;
-        ImGui::SetNextItemWidth((float)(3 * w));
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);   // scales with the window
         if (ImGui::SliderInt("##scrub", &slider, 0, n - 1)) cur = slider;
         if (ImGui::Button("|< first paired")) {
             for (int i = 0; i < n; i++) if (tl[i].kind_paired()) { cur = i; break; }
@@ -636,12 +649,27 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
                 draws_idx = cur; drill_k = -1; drill_sel = -1;
             } else { np = (int)draws_port.size(); nr = (int)draws_retail.size(); }
             int maxnd = np > nr ? np : nr;
-            int kshow = (drill_k < 0) ? maxnd : drill_k;
-            ImGui::SetNextItemWidth((float)(2 * w));
-            if (ImGui::SliderInt("draw K (both sides)", &kshow, 0, maxnd))
-                drill_k = (kshow >= maxnd) ? -1 : kshow;
+            // Up/Dn step the draw K (frame-by-frame on the draw axis); clamp here
+            // where maxnd is known (-1 = "all", the max).
+            if (!ImGui::GetIO().WantTextInput) {
+                if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+                    drill_k = (drill_k < 0) ? -1 : (drill_k + 1 >= maxnd ? -1 : drill_k + 1);
+                if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+                    drill_k = (drill_k < 0) ? (maxnd > 0 ? maxnd - 1 : 0) : (drill_k <= 0 ? 0 : drill_k - 1);
+            }
+            // line 1: K step buttons + the full-width K slider
+            if (ImGui::Button("|<##k")) drill_k = 0;
+            ImGui::SameLine(); if (ImGui::Button("<##k")) drill_k = (drill_k < 0) ? (maxnd > 0 ? maxnd - 1 : 0) : (drill_k <= 0 ? 0 : drill_k - 1);
+            ImGui::SameLine(); if (ImGui::Button(">##k")) drill_k = (drill_k < 0) ? -1 : (drill_k + 1 >= maxnd ? -1 : drill_k + 1);
             ImGui::SameLine(); if (ImGui::Button("all##k")) { drill_k = -1; drill_sel = -1; }
-            ImGui::SameLine(); ImGui::Text("  port=%d retail=%d draws", np, nr);
+            ImGui::SameLine();
+            int kshow = (drill_k < 0) ? maxnd : drill_k;
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            if (ImGui::SliderInt("##drawk", &kshow, 0, maxnd))
+                drill_k = (kshow >= maxnd) ? -1 : kshow;
+            // line 2: counts + focus side
+            ImGui::Text("draw K = %d / %d%s   port=%d retail=%d draws   (Up/Dn step K)",
+                        kshow, maxnd, drill_k < 0 ? " (all)" : "", np, nr);
             ImGui::SameLine(); ImGui::RadioButton("focus port##f", &focus_side, 0);
             ImGui::SameLine(); ImGui::RadioButton("focus retail##f", &focus_side, 1);
         }
@@ -855,7 +883,9 @@ int main(int argc, char** argv)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // NOT NavEnableKeyboard: the arrow keys are reserved for frame scrubbing (the
+    // dual viewer drives cur/K with them), not ImGui widget navigation.
+    (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_dev, g_ctx);
