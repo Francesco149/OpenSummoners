@@ -452,6 +452,7 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     uint32_t* ma    = (uint32_t*)malloc((size_t)total_px * 4);   // metric scratch
     uint32_t* mb    = (uint32_t*)malloc((size_t)total_px * 4);
     uint32_t* mtmp  = (uint32_t*)malloc((size_t)total_px * 4);
+    uint32_t* binsp = (uint32_t*)malloc((size_t)total_px * 4);   // draw-inspector
 
     // start the scrubber on the first paired tick (skip leading gaps)
     int cur = 0;
@@ -469,6 +470,15 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     bool   crop_valid = false, crop_dragging = false;
     ImVec2 crop_a(0,0), crop_b(0,0), crop_start_mn(0,0);
     float  crop_start_sc = 1.0f;
+
+    // draw-inspector state (M7 N3 — render-up-to-K / draw list / pixel→draw pick)
+    Panel  pInsp;
+    int    insp_side = 0;            // 0 = port, 1 = retail
+    int    insp_k = -1;             // render up to K draws (-1 = all)
+    int    insp_sel = -1;           // selected draw index (highlighted)
+    std::vector<osr_draw_info> insp_draws;
+    int    insp_list_idx = -2, insp_list_side = -2;            // what insp_draws holds
+    int    insp_shown_k = -99, insp_shown_idx = -2, insp_shown_side = -2;  // texture state
 
     bool done = false;
     while (!done) {
@@ -735,6 +745,80 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
 
         ImGui::End();
 
+        // ── the draw inspector (M7 N3 — separate window) ────────────────────
+        ImGui::SetNextWindowPos(ImVec2(60, 560), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(720, 660), ImGuiCond_FirstUseEver);
+        ImGui::Begin("draw inspector");
+        {
+            osr_scrub* isc = (insp_side == 0) ? port : retail;
+            int iframe = (insp_side == 0) ? e.pidx : e.ridx;
+            ImGui::RadioButton("PORT", &insp_side, 0); ImGui::SameLine();
+            ImGui::RadioButton("RETAIL", &insp_side, 1);
+            ImGui::SameLine();
+            ImGui::TextDisabled("(click the image to pick the draw at a pixel)");
+
+            if (iframe < 0) {
+                ImGui::Text("no %s frame at tick %u (honest gap)",
+                            insp_side == 0 ? "port" : "retail", e.tick);
+            } else {
+                if (insp_list_idx != cur || insp_list_side != insp_side) {
+                    int nd = osr_scrub_frame_ndraws(isc, iframe);
+                    insp_draws.resize(nd > 0 ? (size_t)nd : 0);
+                    if (nd > 0) osr_scrub_frame_draws(isc, iframe, insp_draws.data(), nd);
+                    insp_list_idx = cur; insp_list_side = insp_side;
+                    insp_k = -1; insp_sel = -1;
+                }
+                int nd = (int)insp_draws.size();
+                ImGui::Text("tick %u   %s frame #%d   %d draws", e.tick,
+                            insp_side == 0 ? "port" : "retail", iframe, nd);
+                int kshow = (insp_k < 0) ? nd : insp_k;
+                ImGui::SetNextItemWidth(340);
+                if (ImGui::SliderInt("up to draw K", &kshow, 0, nd))
+                    insp_k = (kshow >= nd) ? -1 : kshow;
+                ImGui::SameLine(); if (ImGui::Button("all")) { insp_k = -1; insp_sel = -1; }
+
+                pInsp.ensure(w, h);
+                if (insp_shown_k != insp_k || insp_shown_idx != cur || insp_shown_side != insp_side) {
+                    if (osr_scrub_render_rgba_upto(isc, iframe, insp_k, binsp)) pInsp.upload(binsp);
+                    insp_shown_k = insp_k; insp_shown_idx = cur; insp_shown_side = insp_side;
+                }
+                float iavail = ImGui::GetContentRegionAvail().x;
+                float iscale = iavail / (float)w;
+                if (iscale > 1.0f) iscale = 1.0f;
+                if (iscale < 0.3f) iscale = 0.3f;
+                ImVec2 imn = ImGui::GetCursorScreenPos();
+                if (pInsp.srv) ImGui::Image((ImTextureID)pInsp.srv, ImVec2(w * iscale, h * iscale));
+                else           ImGui::Dummy(ImVec2(w * iscale, h * iscale));
+                if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    ImVec2 mp = ImGui::GetMousePos();
+                    int px = (int)((mp.x - imn.x) / iscale), py = (int)((mp.y - imn.y) / iscale);
+                    int d = osr_scrub_pick_draw(isc, iframe, px, py);
+                    if (d >= 0) { insp_sel = d; insp_k = d + 1; }
+                }
+                if (insp_sel >= 0 && insp_sel < nd) {          // highlight the selected draw
+                    osr_draw_info& di = insp_draws[insp_sel];
+                    ImGui::GetWindowDrawList()->AddRect(
+                        ImVec2(imn.x + di.dx * iscale, imn.y + di.dy * iscale),
+                        ImVec2(imn.x + (di.dx + di.w) * iscale, imn.y + (di.dy + di.h) * iscale),
+                        IM_COL32(0, 255, 0, 255), 0.0f, 0, 2.0f);
+                    ImGui::Text("selected #%d: %s", insp_sel, di.label);
+                } else {
+                    ImGui::TextDisabled("no draw selected — click the image or a list row");
+                }
+                ImGui::BeginChild("##drawlist", ImVec2(0, 0), ImGuiChildFlags_Borders);
+                ImGuiListClipper clip;
+                clip.Begin(nd);
+                while (clip.Step())
+                    for (int i = clip.DisplayStart; i < clip.DisplayEnd; i++) {
+                        char lbl[112];
+                        snprintf(lbl, sizeof lbl, "#%-4d %s", i, insp_draws[i].label);
+                        if (ImGui::Selectable(lbl, i == insp_sel)) { insp_sel = i; insp_k = i + 1; }
+                    }
+                ImGui::EndChild();
+            }
+        }
+        ImGui::End();
+
         ImGui::Render();
         const float clear[4] = { 0.08f, 0.08f, 0.10f, 1.0f };
         g_ctx->OMSetRenderTargets(1, &g_rtv, nullptr);
@@ -744,8 +828,8 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
     }
 
     osr_scrub_close(port); osr_scrub_close(retail);
-    pPort.release(); pRetail.release(); pDiff.release();
-    free(bport); free(bret); free(bdiff); free(ma); free(mb); free(mtmp);
+    pPort.release(); pRetail.release(); pDiff.release(); pInsp.release();
+    free(bport); free(bret); free(bdiff); free(ma); free(mb); free(mtmp); free(binsp);
     return 0;
 }
 
