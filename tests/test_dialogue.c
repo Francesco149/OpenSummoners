@@ -267,27 +267,26 @@ int test_dialogue_set_text(void)
     return 0;
 }
 
-/* ── reopen: a speaker change re-opens from HALF scale → content gates in ~10
- *    updates, half of dialogue_arm's full slide-in (THEME 1) ── */
+/* ── reopen: a box opens from spawn scale 200 (+50/update) → content gates in 16
+ *    updates; the first box (cold arm, scale 0) takes 20 (engine-quirk #107) ── */
 int test_dialogue_reopen(void)
 {
     dialogue_box d;
     dialogue_reopen(&d, "Arche's Father", "Hi");
     T_ASSERT_EQ_I(d.active, 1);
-    T_ASSERT_EQ_I(d.scale, DIALOGUE_REOPEN_SCALE);   /* starts half-open */
+    T_ASSERT_EQ_I(d.scale, DIALOGUE_OPEN_SCALE0);    /* spawn scale 200 */
     T_ASSERT(strcmp(d.name, "Arche's Father") == 0);
     T_ASSERT_EQ_I(dialogue_content_visible(&d), 0);  /* gated by the pop-in */
 
-    /* (1000-500)/50 = 10 updates to finish the pop-in; content gates then */
+    /* (1000-200)/50 = 16 updates of +50 to reach full, then content gates */
     int steps = 0;
     while (!dialogue_content_visible(&d) && steps < 100) {
         dialogue_step(&d);
         steps++;
     }
-    T_ASSERT_EQ_I(steps, 10);
+    T_ASSERT_EQ_I(steps, 16);
 
-    /* a cold dialogue_arm takes ~20 (twice as long) — the contrast that makes
-     * the first box's slide-in slower than a mid-conversation reopen */
+    /* the first box (cold arm, scale 0) takes 20 updates */
     dialogue_box a;
     dialogue_arm(&a, "Arche", "Hi");
     int asteps = 0;
@@ -299,29 +298,33 @@ int test_dialogue_reopen(void)
     return 0;
 }
 
-/* ── close_step: the pop-OUT shrinks the box, gates content off immediately, and
- *    deactivates at scale 0 — the OLD box disappearing on a speaker change ── */
+/* ── close_step: the pop-OUT shrinks the box -40/update, gates content off
+ *    immediately, and removes it once scale < DIALOGUE_CLOSE_MIN (160) — the OLD
+ *    box disappearing behind the opening new box on a speaker change ── */
 int test_dialogue_close_step(void)
 {
     dialogue_box d;
     dialogue_arm(&d, "Arche", "Hello");
-    for (int i = 0; i < 25; i++)                  /* open + type */
+    for (int i = 0; i < 25; i++)                  /* open + type to full */
         dialogue_step(&d);
     T_ASSERT_EQ_I(d.scale, 1000);
     T_ASSERT_EQ_I(dialogue_content_visible(&d), 1);
 
-    /* one close step: scale -100, content gates OFF (scale < 1000), box still
+    /* one close step: scale -40, content gates OFF (scale < 1000), box still
      * active (the shrinking frame keeps rendering) */
     dialogue_close_step(&d);
-    T_ASSERT_EQ_I(d.scale, 1000 - DIALOGUE_CLOSE_STEP);
+    T_ASSERT_EQ_I(d.scale, 1000 - DIALOGUE_CLOSE_STEP);   /* 960 */
     T_ASSERT_EQ_I(dialogue_content_visible(&d), 0);
     T_ASSERT_EQ_I(d.active, 1);
 
-    /* 1000/100 = 10 steps total to close; after 9 more it deactivates */
-    for (int i = 0; i < 9; i++)
+    /* -40/update from 1000; removed once scale < 160 (last active scale 160 at
+     * step 21, removed on step 22 = scale 120) */
+    int steps = 1;
+    while (d.active && steps < 100) {
         dialogue_close_step(&d);
-    T_ASSERT_EQ_I(d.scale, 0);
-    T_ASSERT_EQ_I(d.active, 0);
+        steps++;
+    }
+    T_ASSERT_EQ_I(steps, 22);
 
     /* no-op on an inactive box */
     dialogue_close_step(&d);

@@ -105,26 +105,23 @@ void dialogue_close_step(dialogue_box *d)
 {
     if (!d->active)
         return;
-    /* Pop-OUT: shrink toward the center.  Content (text/portrait) stops drawing
-     * the instant scale drops below 1000 (the dialogue_content_visible gate), so
-     * only the shrinking frame remains — retail's disappearing box.  Deactivate
-     * when fully closed. */
+    /* Pop-OUT: shrink the centered-scale frame by 40/update (MEASURED, vs the
+     * +50 pop-in).  Content (text/portrait) stops drawing the instant scale
+     * drops below 1000 (the dialogue_content_visible gate), so only the
+     * shrinking frame remains — retail's disappearing box.  Removed once it
+     * drops below DIALOGUE_CLOSE_MIN (retail's last-drawn ~160). */
     d->scale -= DIALOGUE_CLOSE_STEP;
-    if (d->scale <= 0) {
-        d->scale  = 0;
+    if (d->scale < DIALOGUE_CLOSE_MIN)
         d->active = 0;
-    }
 }
 
 void dialogue_reopen(dialogue_box *d, const char *name, const char *text)
 {
-    /* A fresh line (new name/portrait reset/typewriter) like dialogue_arm, but
-     * the box re-opens from HALF scale — a mid-conversation speaker swap, not a
-     * cold open — so the pop-in completes in ~10 updates instead of ~20.  The
-     * content stays gated by the pop-in (dialogue_content_visible), giving the
-     * ~9t blank-then-reveal retail shows between speakers. */
+    /* A fresh line opening like the first box — from DIALOGUE_OPEN_SCALE0,
+     * +50/update to 1000 (~16 updates).  The OLD box closes separately (the
+     * cutscene's `closing` box), drawn BEHIND this one (retail's z-order). */
     dialogue_arm(d, name, text);
-    d->scale = DIALOGUE_REOPEN_SCALE;
+    d->scale = DIALOGUE_OPEN_SCALE0;
 }
 
 int dialogue_active(const dialogue_box *d)          { return d->active; }

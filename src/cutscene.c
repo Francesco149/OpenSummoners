@@ -209,7 +209,14 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
         arm_current_line(cs, ARM_KEEP);
     }
     dialogue_step(cs->box);     /* pop-in / portrait fade / typewriter, one tick */
-    dialogue_close_step(&cs->closing);  /* the OLD box (if any) pops OUT this tick */
+    /* The OLD box stays FULL (text shown) BEHIND the opening new box until the
+     * NEW box has PASSED half-open (scale > 500), THEN it pops OUT (40/update).
+     * retail's overlap: at a speaker change the new box opens in front while the
+     * old box lingers full, closing the tick AFTER the new box hits 500 (main
+     * 500 @t, old still full @t, old closes @t+1 when main=550) — drawcall-exact
+     * vs retail.osr (engine-quirk #107). */
+    if (cs->box->scale > 500)
+        dialogue_close_step(&cs->closing);
 
     /* The dialogue-interaction input is the CONFIRM action — ENTER or X (the nav
      * injects it as ring id 0x24; Z has NO dialogue role, USER ckpt 132).  Retail's

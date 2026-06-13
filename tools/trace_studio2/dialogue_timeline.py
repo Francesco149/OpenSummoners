@@ -153,11 +153,24 @@ def cmd_nav(retail, boot_nav, tick_lo, tick_hi, offset, boot_max):
                 print(json.dumps(e, separators=(",", ":")))
     lns = lines(retail, tick_lo, tick_hi)
     confirms = []
-    for ln in lns:
+    for i, ln in enumerate(lns):
         st = skip_tick(ln)
         if st is not None:
             confirms.append((st + offset, f"skip L{ln.idx} {ln.name!r}"))
-        confirms.append((ln.advance_tick + offset, f"adv  L{ln.idx} {ln.name!r}"))
+        # SPEAKER-CHANGE advances fire ~6 ticks BEFORE the body-last-shown tick:
+        # the confirm spawns the new box (opening in front) while the old box
+        # lingers full ~6t (until the new box is half-open) then closes — so the
+        # body-last-shown (advance_tick) is the spawn + 6 (engine-quirk #107).  A
+        # SAME-speaker advance has no overlap, so it fires at advance_tick.
+        # -6 applies only when the NEXT line is a known DIFFERENT speaker (a box
+        # overlap opens early).  The last line in range has no known next (it may
+        # be a same-speaker page or a THEME-3 beat gap, not an overlap) → no -6.
+        nxt = lns[i + 1] if i + 1 < len(lns) else None
+        speaker_change = (nxt is not None) and (nxt.name != ln.name)
+        adv = ln.advance_tick - (6 if speaker_change else 0)
+        confirms.append((adv + offset,
+                         f"adv  L{ln.idx} {ln.name!r}"
+                         + (" [spkr-change -6]" if speaker_change else " [same]")))
     confirms.sort()
     for tick, why in confirms:
         print(f"# {why}")                        # standalone comment line (parser skips)

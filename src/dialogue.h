@@ -192,40 +192,39 @@ void dialogue_arm(dialogue_box *d, const char *name, const char *text);
  * No-op if the box is not active.  See plans/intro-cutscene-1to1.md THEME 1. */
 void dialogue_set_text(dialogue_box *d, const char *text);
 
-/* The pop-in scale a mid-conversation SPEAKER-CHANGE reopen starts from.  The
- * first box of a conversation slides in from scale 0 (the full ~20-update
- * entrance, DIALOGUE_SCALE_STEP), but a speaker change mid-conversation re-opens
- * from HALF scale — the box never fully collapsed — so +50/update reaches 1000
- * in ~10 updates: content gates at advance+~10t, matching retail's reopen
- * (retail.osr: every arrival speaker change is advance+11t to the next line's
- * first char, vs the first box's longer entrance).  See engine-quirks #106-adj /
- * plans/intro-cutscene-1to1.md THEME 1. */
-#define DIALOGUE_REOPEN_SCALE 500
+/* The pop-in scale EVERY box open starts from (the box never renders smaller).
+ * MEASURED drawcall-exact off retail.osr (draw_probe over the box-frame cels):
+ * a box first draws at scale ~200, then +DIALOGUE_SCALE_STEP (50)/update, the
+ * centered-scale frame growing to 1000 in ~16 updates; content gates at 1000
+ * (engine-quirk #107).  (The ckpt-134 "reopen from half scale 500" was a
+ * curve-fit to the name tick, NOT the real animation — corrected.) */
+#define DIALOGUE_OPEN_SCALE0  200
 
-/* Arm the box for a mid-conversation SPEAKER CHANGE: a fresh line (new
- * name/text, typewriter reset, like dialogue_arm) but the pop-in starts from
- * DIALOGUE_REOPEN_SCALE (half-open) rather than 0 — the faster ~10-update reopen
- * (vs the first box's ~20-update slide-in).  Content is gated by the pop-in as
- * usual (the ~9t blank between speakers).  See plans/intro-cutscene-1to1.md. */
+/* Arm the box for a mid-conversation SPEAKER CHANGE: a fresh line (new name/text,
+ * typewriter reset) opening from DIALOGUE_OPEN_SCALE0 (+50/update to 1000, ~16t)
+ * — the SAME open as the first box.  The OLD box closes separately (the
+ * cutscene's `closing` box) and the new box draws IN FRONT of it (retail's
+ * z-order).  See engine-quirk #107 / plans/intro-cutscene-1to1.md. */
 void dialogue_reopen(dialogue_box *d, const char *name, const char *text);
 
 /* One widget update (one sim-tick): pop-in scale, then (once scale==1000)
  * portrait fade + arrow anim + typewriter reveal. */
 void dialogue_step(dialogue_box *d);
 
-/* Per-tick scale drop for a CLOSING box (the pop-OUT) — the box shrinks toward
- * its center as the speaker changes.  Faster than the pop-in (DIALOGUE_SCALE_STEP
- * 50) so the old box is gone ~10 ticks after the advance, when retail re-shows
- * the new line's name (advance+10).  STUDIO-CALIBRATABLE (the exact close curve
- * is not cleanly probeable from the .osr — the 9-slice only emits a corner cel). */
-#define DIALOGUE_CLOSE_STEP   100
+/* Per-tick scale drop for a CLOSING box (the pop-OUT), MEASURED drawcall-exact
+ * off retail.osr: the box shrinks by 40/update (the centered-scale frame, vs the
+ * +50 pop-in) from 1000 and is REMOVED once it drops below DIALOGUE_CLOSE_MIN
+ * (last drawn ~160) — ~21 updates 1000->gone.  See engine-quirk #107. */
+#define DIALOGUE_CLOSE_STEP   40
+#define DIALOGUE_CLOSE_MIN    160
 
-/* One tick of a CLOSING box's pop-OUT: shrink scale by DIALOGUE_CLOSE_STEP; at
- * <= 0 the box deactivates (gone).  Because the content gate is scale >= 1000,
- * a closing box (scale < 1000) renders ONLY its shrinking frame — no text /
- * portrait — exactly retail's disappearing box.  No-op if not active.  Used for
- * the speaker-change overlap: the OLD box closes (this) in front while the NEW
- * box opens (dialogue_reopen) behind.  See engine-quirks #107. */
+/* One tick of a CLOSING box's pop-OUT: shrink scale by DIALOGUE_CLOSE_STEP, and
+ * once it drops below DIALOGUE_CLOSE_MIN the box deactivates (removed).  Because
+ * the content gate is scale >= 1000, a closing box (scale < 1000) renders ONLY
+ * its shrinking frame — no text / portrait — exactly retail's disappearing box.
+ * No-op if not active.  Used for the speaker-change overlap: the OLD box closes
+ * (this) BEHIND while the NEW box opens (dialogue_reopen) in front.  See
+ * engine-quirk #107. */
 void dialogue_close_step(dialogue_box *d);
 
 int  dialogue_active(const dialogue_box *d);

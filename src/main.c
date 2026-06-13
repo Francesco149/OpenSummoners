@@ -2459,17 +2459,17 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
     (void)dialogue_arrow_frame(d);
 }
 
-/* Render the dialogue: the MAIN box (the current/opening line) behind, then —
- * during a speaker-change transition — the OLD box popping OUT on top of it
- * (retail overlaps the two, quirk #107).  The closing box is owned + stepped by
- * the cutscene (cutscene_closing_box); it is at the PREVIOUS speaker's anchor
- * and shrinks to nothing over ~10 ticks. */
+/* Render the dialogue: during a speaker-change transition the OLD box (closing,
+ * at the previous speaker's anchor) draws FIRST = BEHIND, then the MAIN box (the
+ * opening/current line) draws on top = IN FRONT — retail's z-order (the new box
+ * has the higher draw seq; engine-quirk #107, drawcall-verified).  The closing
+ * box is owned + stepped by the cutscene (cutscene_closing_box). */
 static void game_render_dialogue(void)
 {
-    render_dialogue_box(&g_dialogue, 1);                 /* main (behind)        */
     const dialogue_box *closing = cutscene_closing_box(&g_cutscene);
     if (closing != NULL)
-        render_dialogue_box((dialogue_box *)closing, 0); /* old box (in front)   */
+        render_dialogue_box((dialogue_box *)closing, 0); /* old box (behind)     */
+    render_dialogue_box(&g_dialogue, 1);                 /* new/current (in front)*/
 }
 
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via
