@@ -12,7 +12,10 @@
   floor tileset / house+errands props / the dialogue-portrait +13 offset; ckpt 132 the dialogue BOX POSITION
   (faithful `0x49c640`); ckpt 133 the dialogue TYPEWRITER-SKIP (the desync blocker); **ckpt 134 the MATCHED-
   CADENCE nav + the dialogue cadence TICK-1:1 — THEME 1 of the punch-list DONE** (the arrival dialogue L0-L7
-  now tracks retail tick-for-tick, 314/323 ticks bit-equal).  **NEXT (the punch-list
+  now tracks retail tick-for-tick, 314/323 ticks bit-equal); **ckpt 135 the dialogue PORTRAIT FADE-IN
+  (USER ckpt-134 follow-up) — drawcall+LUT-exact, tick 661 now pixel-identical** (the cross-fade arms one
+  tick after scale==1000 so idx 0 holds 2 ticks; surfaced the FADE-OUT dissolve as the next chip, quirk #108).
+  **NEXT (the punch-list
   `plans/intro-cutscene-1to1.md`, THEMES left): (3) the arrival→house TRANSITION CHOREOGRAPHY — retail scripts
   Arche running to the house (the 167-tick beat between arrival L8/L9, note #5) + a fade-from-black house-entry
   reveal (#6/#7), the port SNAPS (`cutscene-beat-runner`); (2) the cutscene CAST + ambient render
@@ -27,7 +30,24 @@
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → dialogue BOX POSITION ✓ (132) → TYPEWRITER-SKIP
     ✓ (133) → **dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → the arrival→house TRANSITION CHOREOGRAPHY
     (THEME 3) + the cast render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 134): the dialogue CADENCE is TICK-1:1 — the MATCHED-CADENCE nav landed and the arrival
+- **LATEST (ckpt 135): the dialogue PORTRAIT FADE-IN is DRAWCALL+LUT-EXACT — the USER's ckpt-134 "slightly
+  less dim" note is RESOLVED (tick 661 now PIXEL-identical, differ_px=0).**  NOT the ramp formula or the
+  box-open (both already faithful): retail HOLDS the dimmest cross-fade step (ramp_b idx 0) for TWO opening
+  ticks because the cross-fade state (`0x49c910` `uVar1`/`+0x2e`) arms one tick AFTER scale hits 1000 —
+  `0x49c910` returns early WITHOUT the `f += 50` on the first fully-open tick.  retail L0: idx 0 at ticks
+  660+661, then 2,4,..,18 (662-670), opaque 671; the port advanced a step early (idx 2 at 661).  Fix:
+  `dialogue_box.fade_armed` (`dialogue.c` `dialogue_step` gates the increment on a prior arm tick; reset by
+  `dialogue_arm`/`dialogue_reopen`, untouched by `dialogue_set_text`).  **VERIFIED LUT-byte-identical
+  port↔retail, 13/13 portrait ticks, EVERY arrival line** (L0 @150,76 / L1 @70,88 / L2 @38,76 / L3 @70,88).
+  1019 host pass.  **SURFACED the next chip — the PORTRAIT FADE-OUT dissolve:** on a speaker change retail
+  dissolves the OUTGOING bust out via the reverse ramp idx 18→2 over `[advance_press−2, +6]` (gone +7,
+  CONSISTENT L0/L1/L2), the port holds it OPAQUE then cuts it; the catch is the fade-out LEADS the press by
+  2 ticks (decoupled from the box-frame close) → needs a joint nav-offset/input-timing re-derivation
+  (quirk #108).  Two commits (`9153763` fix, `c97320b` fade-out RE).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-portrait.osr C:\oss-osr\retail.osr`** — scrub the arrival dialogue: the
+  portrait fade-in tracks retail tick-for-tick (the old box-overlap/cadence stay 1:1); the speaker-change
+  fade-OUT is the visible remaining gap (feed: tick 661 differ 0 / tick 692 differ 13976).
+- **Prior (ckpt 134): the dialogue CADENCE is TICK-1:1 — the MATCHED-CADENCE nav landed and the arrival
   dialogue (L0-L7) now tracks retail TICK-FOR-TICK (start/full/advance all bit-equal, 314/323 ticks of
   name+body identical).  THEME 1 of the intro-cutscene punch-list DONE.**  Three chips: (1) **tick-keyed
   input-trace** — `input_trace` entries may key on the SIM-TICK (`{"tick":N}`) not just the Flip frame, axis
