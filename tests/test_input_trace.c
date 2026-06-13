@@ -101,31 +101,32 @@ int test_input_trace_replay_injects_at_frame(void)
 
     input_mgr m; mk_input(&m);
 
-    /* frame 0/1: nothing due. */
-    input_trace_replay(&t, 0, &m, 1000);
-    input_trace_replay(&t, 1, &m, 1000);
+    /* frame 0/1: nothing due.  (sim_tick arg is ignored for a FRAME-axis
+     * trace — pass a high value to prove the frame counter drives firing.) */
+    input_trace_replay(&t, 0, 999, &m, 1000);
+    input_trace_replay(&t, 1, 999, &m, 1000);
     T_ASSERT_EQ_U(t.cursor, 0);
     for (int i = 0; i < INPUT_RING_LEN; i++) T_ASSERT_EQ_I(it_ring[i].id, 0);
 
     /* frame 2: the first entry fires into ring[0]. */
-    input_trace_replay(&t, 2, &m, 2000);
+    input_trace_replay(&t, 2, 0, &m, 2000);
     T_ASSERT_EQ_U(t.cursor, 1);
     T_ASSERT_EQ_I(it_ring[0].id, 3);
     T_ASSERT_EQ_I(it_ring[0].flag, 1);
     T_ASSERT_EQ_U(it_ring[0].ts, 2000);
 
     /* frame 3: still nothing new (next entry is frame 4). */
-    input_trace_replay(&t, 3, &m, 3000);
+    input_trace_replay(&t, 3, 0, &m, 3000);
     T_ASSERT_EQ_U(t.cursor, 1);
 
     /* frame 5 (>= 4): the second entry fires into ring[1]. */
-    input_trace_replay(&t, 5, &m, 5000);
+    input_trace_replay(&t, 5, 0, &m, 5000);
     T_ASSERT_EQ_U(t.cursor, 2);
     T_ASSERT_EQ_I(it_ring[1].id, 0x24);
     T_ASSERT_EQ_U(it_ring[1].ts, 5000);
 
     /* fully consumed — further calls are no-ops. */
-    input_trace_replay(&t, 100, &m, 9000);
+    input_trace_replay(&t, 100, 0, &m, 9000);
     T_ASSERT_EQ_U(t.cursor, 2);
     input_trace_free(&t);
     return 0;
@@ -143,7 +144,7 @@ int test_input_trace_replay_catches_up(void)
 
     input_mgr m; mk_input(&m);
     /* jump straight to frame 5: all three entries fire in order. */
-    input_trace_replay(&t, 5, &m, 7000);
+    input_trace_replay(&t, 5, 0, &m, 7000);
     T_ASSERT_EQ_U(t.cursor, 3);
     T_ASSERT_EQ_I(it_ring[0].id, 1);
     T_ASSERT_EQ_I(it_ring[1].id, 3);
@@ -157,14 +158,64 @@ int test_input_trace_replay_guards(void)
 {
     struct input_trace t;
     memset(&t, 0, sizeof t);
-    input_trace_replay(&t, 10, NULL, 0);     /* empty + NULL mgr */
+    input_trace_replay(&t, 10, 0, NULL, 0);     /* empty + NULL mgr */
 
     input_mgr m; mk_input(&m);
-    input_trace_replay(&t, 10, &m, 0);       /* empty trace */
+    input_trace_replay(&t, 10, 0, &m, 0);       /* empty trace */
     T_ASSERT_EQ_U(t.cursor, 0);
     input_trace_free(&t);
 
     /* double free is safe. */
     input_trace_free(&t);
+    return 0;
+}
+
+/* ── tick axis: a {"tick":N} trace keys on sim_tick, not the Flip frame ── */
+int test_input_trace_tick_axis(void)
+{
+    const char *buf =
+        "{\"tick\":5, \"ids\":[0x24]}\n"
+        "{\"tick\":12, \"ids\":[0x24]}\n";
+    struct input_trace t;
+    T_ASSERT_EQ_I(input_trace_parse_buf(buf, strlen(buf), &t), 1);
+    T_ASSERT_EQ_U(t.count, 2);
+    T_ASSERT_EQ_U(t.axis, INPUT_TRACE_AXIS_TICK);
+    T_ASSERT_EQ_U(t.entries[0].frame, 5);   /* threshold lives in .frame */
+
+    input_mgr m; mk_input(&m);
+
+    /* A high FRAME but a low TICK: nothing fires (the trace keys on tick). */
+    input_trace_replay(&t, 9999, 4, &m, 1000);
+    T_ASSERT_EQ_U(t.cursor, 0);
+
+    /* tick reaches 5: the first entry fires; the FRAME is irrelevant. */
+    input_trace_replay(&t, 0, 5, &m, 2000);
+    T_ASSERT_EQ_U(t.cursor, 1);
+    T_ASSERT_EQ_I(it_ring[0].id, 0x24);
+    T_ASSERT_EQ_U(it_ring[0].ts, 2000);
+
+    /* tick 12 fires the second. */
+    input_trace_replay(&t, 0, 12, &m, 3000);
+    T_ASSERT_EQ_U(t.cursor, 2);
+    T_ASSERT_EQ_I(it_ring[1].id, 0x24);
+    input_trace_free(&t);
+    return 0;
+}
+
+/* ── mixed axes (a "frame" then a "tick" entry) fail the parse ── */
+int test_input_trace_mixed_axis_fails(void)
+{
+    const char *buf = "{\"frame\":1,\"ids\":[1]}\n{\"tick\":2,\"ids\":[1]}\n";
+    struct input_trace t;
+    T_ASSERT_EQ_I(input_trace_parse_buf(buf, strlen(buf), &t), 0);
+    T_ASSERT_EQ_U(t.count, 1);   /* the first (frame) entry survives */
+    T_ASSERT_EQ_U(t.axis, INPUT_TRACE_AXIS_FRAME);
+    input_trace_free(&t);
+
+    /* and a single object carrying BOTH keys is ambiguous → fail */
+    const char *buf2 = "{\"frame\":1,\"tick\":2,\"ids\":[1]}\n";
+    struct input_trace t2;
+    T_ASSERT_EQ_I(input_trace_parse_buf(buf2, strlen(buf2), &t2), 0);
+    input_trace_free(&t2);
     return 0;
 }

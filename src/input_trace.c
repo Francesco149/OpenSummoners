@@ -82,8 +82,9 @@ static int expect(const char **pp, const char *end, char c)
 }
 
 /* Parse a quoted key at *pp and report which one via *kind:
- * 0 = "frame", 1 = "ids", -1 = unknown/error.  Advances past the closing
- * quote.  Returns 1 on a well-formed quoted key, 0 on a malformed token. */
+ * 0 = "frame", 1 = "ids", 2 = "tick", -1 = unknown/error.  Advances past the
+ * closing quote.  Returns 1 on a well-formed quoted key, 0 on a malformed
+ * token. */
 static int parse_key(const char **pp, const char *end, int *kind)
 {
     if (!expect(pp, end, '"')) return 0;
@@ -97,6 +98,7 @@ static int parse_key(const char **pp, const char *end, int *kind)
 
     if (klen == 5 && memcmp(start, "frame", 5) == 0)      *kind = 0;
     else if (klen == 3 && memcmp(start, "ids", 3) == 0)   *kind = 1;
+    else if (klen == 4 && memcmp(start, "tick", 4) == 0)  *kind = 2;
     else                                                  *kind = -1;
     return 1;
 }
@@ -122,28 +124,33 @@ static int parse_id_array(const char **pp, const char *end,
     }
 }
 
-/* Parse one `{"frame":N, "ids":[..]}` object at *pp into *out.  Keys may be in
- * any order; an absent "ids" yields n_ids == 0.  Returns 1 on success. */
+/* Parse one `{"frame":N, "ids":[..]}` (or `{"tick":N, ...}`) object at *pp into
+ * *out.  Keys may be in any order; an absent "ids" yields n_ids == 0.  Reports
+ * the threshold axis the object used via *axis (INPUT_TRACE_AXIS_FRAME/_TICK);
+ * an object carrying BOTH a "frame" and a "tick" key is an error (ambiguous
+ * axis).  Returns 1 on success. */
 static int parse_entry(const char **pp, const char *end,
-                       struct input_trace_entry *out)
+                       struct input_trace_entry *out, uint8_t *axis)
 {
     memset(out, 0, sizeof *out);
-    int have_frame = 0;
+    int have_thresh = 0;
 
     if (!expect(pp, end, '{')) return 0;
     skip_inline_ws(pp, end);
-    if (*pp < end && **pp == '}') { (*pp)++; return have_frame; }
+    if (*pp < end && **pp == '}') { (*pp)++; return have_thresh; }
 
     for (;;) {
         int kind;
         if (!parse_key(pp, end, &kind)) return 0;
         if (!expect(pp, end, ':')) return 0;
 
-        if (kind == 0) {                                    /* frame */
+        if (kind == 0 || kind == 2) {                       /* frame OR tick */
             long v;
             if (!parse_number(pp, end, &v)) return 0;
+            if (have_thresh) return 0;       /* a second threshold key (ambiguous) */
             out->frame = (uint32_t)v;
-            have_frame = 1;
+            *axis = (kind == 2) ? INPUT_TRACE_AXIS_TICK : INPUT_TRACE_AXIS_FRAME;
+            have_thresh = 1;
         } else if (kind == 1) {                             /* ids */
             if (!parse_id_array(pp, end, out)) return 0;
         } else {
@@ -155,7 +162,7 @@ static int parse_entry(const char **pp, const char *end,
         if (*pp < end && **pp == '}') { (*pp)++; break; }
         return 0;
     }
-    return have_frame;
+    return have_thresh;
 }
 
 static int push_entry(struct input_trace *out, const struct input_trace_entry *e)
@@ -191,8 +198,14 @@ int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
             continue;
         }
         struct input_trace_entry e;
-        if (!parse_entry(&p, end, &e)) return 0;
-        if (have_prev && e.frame < last_frame) return 0;    /* out of order */
+        uint8_t axis = INPUT_TRACE_AXIS_FRAME;
+        if (!parse_entry(&p, end, &e, &axis)) return 0;
+        if (have_prev) {
+            if (axis != out->axis) return 0;                /* mixed axes      */
+            if (e.frame < last_frame) return 0;             /* out of order    */
+        } else {
+            out->axis = axis;                               /* first sets axis */
+        }
         last_frame = e.frame;
         have_prev = 1;
         if (!push_entry(out, &e)) return 0;
@@ -231,11 +244,13 @@ int input_trace_load(const char *path, struct input_trace *out)
 }
 
 void input_trace_replay(struct input_trace *t, uint32_t present_frame,
-                        input_mgr *mgr, uint32_t now)
+                        uint32_t sim_tick, input_mgr *mgr, uint32_t now)
 {
     if (t == NULL || mgr == NULL) return;
 
-    while (t->cursor < t->count && t->entries[t->cursor].frame <= present_frame) {
+    uint32_t counter = (t->axis == INPUT_TRACE_AXIS_TICK) ? sim_tick
+                                                          : present_frame;
+    while (t->cursor < t->count && t->entries[t->cursor].frame <= counter) {
         const struct input_trace_entry *e = &t->entries[t->cursor];
         for (uint16_t i = 0; i < e->n_ids; i++) {
             input_event *rec = mgr->ring[t->ring_head];
