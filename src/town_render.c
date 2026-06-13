@@ -9,7 +9,8 @@
 #include <string.h>
 
 int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
-                     mg_bank_dims_fn dims, void *dims_ctx)
+                     mg_bank_dims_fn dims, void *dims_ctx,
+                     int parallax_p2, int parallax_p3)
 {
     if (tr == NULL) return -1;
     memset(tr, 0, sizeof *tr);
@@ -36,13 +37,15 @@ int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
     map_decode(&tr->map, tr->grid, dims, dims_ctx);
 
     /* The 0x587e00 prologue's parallax-bank selection for this room (the
-     * front-header slice map_decode otherwise defers).  The town (room 210110,
-     * area 0xd2) resolves to param_2 = room[0x44] = 4, param_3 = room[0x43] = 1
-     * (PORT-DEBT ingame-nontile-layers: derive these from game_map/game_world
-     * instead of hardcoding once the room->prologue-param plumbing lands — the
-     * same shape as the hardcoded first-frame camera MAP_RENDER_CAM_TOWN_3F2).
+     * front-header slice map_decode otherwise defers).  param_2 = room[0x44],
+     * param_3 = room[0x43] — now passed in from the active room's registry
+     * record (game_world_room_render_cfg) rather than hardcoded to the town's
+     * (4,1).  The town/house resolve to (4,1) (identical to the old constant),
+     * the errands room to (9,4).  (PORT-DEBT ingame-nontile-layers narrows: the
+     * real param_3 is the scene field local_918, not room[0x43] — but room[0x43]
+     * normalizes the same for the town/house/errands; revisit with the capture.)
      * Write the descriptor into the grid front-header so its bytes match retail. */
-    parallax_select(TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3, &tr->parallax);
+    parallax_select(parallax_p2, parallax_p3, &tr->parallax);
     parallax_to_grid(tr->grid, &tr->parallax);
 
     tr->loaded = 1;

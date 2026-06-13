@@ -81,7 +81,8 @@ int test_town_render_one_tile(void)
     blob_set_cell(blob, 8, 8, 1, 2, 3, 0, 0x1b58b, 0, 0x18);
 
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
     T_ASSERT(tr.loaded);
     /* parse consumed the whole resource (well-formed invariant). */
     T_ASSERT_EQ_U(tr.map.consumed, len);
@@ -124,7 +125,8 @@ int test_town_render_resolver_gate(void)
     blob_set_cell(blob, 8, 8, 1, 2, 3, 0, 0x1b58b, 0, 0x18);
 
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
 
     sink s = { .n = 0 };
     int n = town_render_step(&tr, &CAM0, resolve_none, NULL, rec_blit, &s, NULL);
@@ -143,7 +145,8 @@ int test_town_render_empty(void)
     size_t len; uint8_t *blob = build_blob(8, 8, 1, &len);   /* no cells set */
 
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
 
     sink s = { .n = 0 };
     int n = town_render_step(&tr, &CAM0, resolve_all, NULL, rec_blit, &s, NULL);
@@ -163,7 +166,8 @@ int test_town_render_dry_step(void)
     blob_set_cell(blob, 8, 8, 1, 2, 3, 0, 0x1b58b, 0, 0x18);
 
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
 
     int n = town_render_step(&tr, &CAM0, resolve_all, NULL, /*blit=*/NULL, NULL, NULL);
     T_ASSERT_EQ_I(n, 1);            /* counted even without a sink */
@@ -199,7 +203,8 @@ int test_town_render_malformed(void)
     memcpy(blob + 0x54, &big, 4);   /* dim0 = 1000 -> cells far exceed len */
 
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), -1);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), -1);
     T_ASSERT(!tr.loaded);
     town_render_free(&tr);          /* safe after a failed load */
     free(blob);
@@ -219,7 +224,8 @@ int test_town_render_parallax_wired(void)
      * map-data, so the descriptor is the town one regardless of the cells. */
     size_t len; uint8_t *blob = build_blob(8, 8, 1, &len);
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
 
     /* load selected + stored the town descriptor (case 4) ... */
     T_ASSERT_EQ_U(tr.parallax.a_bank, 0x55);
@@ -262,7 +268,8 @@ int test_town_render_actor_seam(void)
     /* empty 2x2 map (no tiles) so the actor node is the only blit. */
     size_t len; uint8_t *blob = build_blob(2, 2, 1, &len);
     town_render tr;
-    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL), 0);
+    T_ASSERT_EQ_I(town_render_load(&tr, blob, len, dims_1x1, NULL,
+                                   TOWN_RENDER_PARALLAX_P2, TOWN_RENDER_PARALLAX_P3), 0);
 
     /* step_ex with the actor seam + dims: the actor is presented as PRESENT_KEYED. */
     sink s = { 0 };

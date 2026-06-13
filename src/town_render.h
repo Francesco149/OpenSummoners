@@ -51,8 +51,9 @@
 
 /* The town's 0x587e00-prologue parallax-selection params (room 210110, area
  * 0xd2): param_2 = room[0x44] = area-A = 4, param_3 = room[0x43] = area-C = 1.
- * Hardcoded for the only in-game scene today; PORT-DEBT ingame-nontile-layers
- * tracks deriving them from game_map/game_world. */
+ * These are now RESOLVED from the active room's registry record
+ * (game_world_room_render_cfg) and passed to town_render_load; these constants
+ * remain as the town's documented/expected values (used by the parallax tests). */
 #define TOWN_RENDER_PARALLAX_P2  4
 #define TOWN_RENDER_PARALLAX_P3  1
 
@@ -76,7 +77,8 @@ typedef struct town_render {
  * Re-loading: call town_render_free first.
  */
 int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
-                     mg_bank_dims_fn dims, void *dims_ctx);
+                     mg_bank_dims_fn dims, void *dims_ctx,
+                     int parallax_p2, int parallax_p3);
 
 /*
  * An actor-emit hook: called once per frame AFTER the tile walk and BEFORE the

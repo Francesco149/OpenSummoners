@@ -821,6 +821,7 @@ struct test_case {
     X(game_world_area_defaults_filled)                         \
     X(game_world_find_room_by_id)                              \
     X(game_world_map_3f2_opening_room)                         \
+    X(game_world_room_render_cfg)                              \
     X(game_world_header_sentinel)                              \
     X(game_world_reciprocal_exits)                             \
     X(game_map_3f2_room_key)                                   \

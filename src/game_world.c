@@ -152,3 +152,15 @@ uint32_t *game_world_find_room(game_world *w, uint32_t id)
     }
     return NULL;
 }
+
+int game_world_room_render_cfg(game_world *w, uint32_t room_key,
+                               uint16_t *scene, int *px_p2, int *px_p3)
+{
+    uint32_t *r = game_world_find_room(w, room_key);
+    if (r == NULL)
+        return -1;
+    if (scene)  *scene  = (uint16_t)r[GW_ROOM_SCENE];
+    if (px_p2)  *px_p2  = (int)r[0x44];
+    if (px_p3)  *px_p3  = (int)r[0x43];
+    return 0;
+}

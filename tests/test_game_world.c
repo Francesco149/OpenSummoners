@@ -98,6 +98,43 @@ int test_game_world_map_3f2_opening_room(void)
     return 0;
 }
 
+/* game_world_room_render_cfg: a room key resolves to its DATA scene + the
+ * 0x587e00 prologue parallax params (param_2 = room[0x44], param_3 = room[0x43]),
+ * the values main.c's load_room passes to town_render_load.  The town-intro chain
+ * keys (verified against the registry, tools/extract/game_world_tables.py):
+ *   arrival 0x334be -> scene 1022, (p2=4, p3=1)   [the town; identical to the old
+ *                                                   hardcoded TOWN_RENDER_PARALLAX]
+ *   house   0x334c8 -> scene 1023, (p2=4, p3=1)
+ *   errands 0x334dc -> scene 1025, (p2=9, p3=4)   [a DIFFERENT parallax param set]
+ * An unknown key returns -1 (outputs untouched). */
+int test_game_world_room_render_cfg(void)
+{
+    game_world w;
+    T_ASSERT_EQ_I(game_world_build(&w), 0);
+
+    uint16_t scene; int p2, p3;
+
+    T_ASSERT_EQ_I(game_world_room_render_cfg(&w, 0x334be, &scene, &p2, &p3), 0);
+    T_ASSERT_EQ_U(scene, 1022); T_ASSERT_EQ_I(p2, 4); T_ASSERT_EQ_I(p3, 1);
+
+    T_ASSERT_EQ_I(game_world_room_render_cfg(&w, 0x334c8, &scene, &p2, &p3), 0);
+    T_ASSERT_EQ_U(scene, 1023); T_ASSERT_EQ_I(p2, 4); T_ASSERT_EQ_I(p3, 1);
+
+    T_ASSERT_EQ_I(game_world_room_render_cfg(&w, 0x334dc, &scene, &p2, &p3), 0);
+    T_ASSERT_EQ_U(scene, 1025); T_ASSERT_EQ_I(p2, 9); T_ASSERT_EQ_I(p3, 4);
+
+    /* unknown key: -1, outputs untouched */
+    scene = 0xffff; p2 = p3 = -99;
+    T_ASSERT_EQ_I(game_world_room_render_cfg(&w, 0xdeadbeef, &scene, &p2, &p3), -1);
+    T_ASSERT_EQ_U(scene, 0xffff); T_ASSERT_EQ_I(p2, -99); T_ASSERT_EQ_I(p3, -99);
+
+    /* NULL outputs are tolerated */
+    T_ASSERT_EQ_I(game_world_room_render_cfg(&w, 0x334be, NULL, NULL, NULL), 0);
+
+    game_world_free(&w);
+    return 0;
+}
+
 /* Room record [0] is the header sentinel (dword0 == 0xf423f). */
 int test_game_world_header_sentinel(void)
 {

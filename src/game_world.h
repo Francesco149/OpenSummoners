@@ -61,6 +61,21 @@ void game_world_free(game_world *w);
  * (id) == `id`.  Returns a pointer to that 0x54-dword record, or NULL. */
 uint32_t *game_world_find_room(game_world *w, uint32_t id);
 
+/* Resolve a room key's RENDER CONFIG from the registry — what main.c needs to
+ * load + decode the room's backdrop the way the engine does.  The map-load call
+ * site FUN_00586010:697 is FUN_00587e00(map, room[0x44], local_918, room[0x43]),
+ * so the 0x587e00 prologue's parallax/tileset selection reads param_2=room[0x44]
+ * and param_4=room[0x43]; the EXE keys the DATA resource on room[GW_ROOM_SCENE].
+ *   *scene  <- room[GW_ROOM_SCENE]   (the FindResourceA DATA id)
+ *   *px_p2  <- room[0x44]            (parallax_select param_2)
+ *   *px_p3  <- room[0x43]            (parallax_select param_3 — the town's
+ *                                     existing room[0x43] approximation of the
+ *                                     real local_918; see town_render.h)
+ * Returns 0 (room found, outputs filled) or -1 (unknown key, outputs untouched).
+ * Any out pointer may be NULL. */
+int game_world_room_render_cfg(game_world *w, uint32_t room_key,
+                               uint16_t *scene, int *px_p2, int *px_p3);
+
 /* Convenience read accessor for room record `idx` dword `k`. */
 static inline uint32_t gw_room_dw(const game_world *w, unsigned idx, unsigned k)
 {

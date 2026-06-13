@@ -75,6 +75,7 @@
 #include "prologue_drive.h"   /* the Elemental-Stone intro cutscene (FUN_0056cd20) */
 #include "game_drive.h"       /* the in-game map run loop (0x59f2c0 seam)     */
 #include "town_render.h"      /* the in-game backdrop scene (decode→walk→present) */
+#include "game_world.h"       /* the room registry: key -> {scene, parallax params} */
 #include "color_grade.h"      /* the in-game palette color-grade LUT (0x417c40) */
 #include "camera_follow.h"    /* the in-game camera easer (0x43d1d0) + setters (0x439690) */
 #include "letterbox.h"        /* the establishing-shot cinematic letterbox (0x48c150 slice) */
@@ -196,6 +197,8 @@ static int            g_game_active;
  * (g_sotes_exe), the engine-time module DAT_008a6e7c the ckpt-56 finding pinned. */
 static town_render    g_town;
 static int            g_town_loaded;
+static game_world     g_world;       /* the room registry (lazily built)         */
+static int            g_world_built;
 static HMODULE        g_sotes_exe;   /* original sotes.exe as a datafile (.rsrc) */
 
 /* The room's CHARACTER-band actors (0x58d460 -> 0x431e30 spawn, ported
@@ -807,6 +810,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_town_loaded) {
         town_render_free(&g_town);
         g_town_loaded = 0;
+    }
+    if (g_world_built) {
+        game_world_free(&g_world);
+        g_world_built = 0;
     }
     if (g_sotes_exe != NULL) {
         FreeLibrary(g_sotes_exe);
@@ -2414,7 +2421,7 @@ static void game_render_dialogue(void)
  * (here town_render_load).  The opening town (map 0x3f2 → room 210110) is scene
  * 1022.  Returns 1 on success.  On any failure the scene stays unloaded and
  * game_render shows the faithful black map-load frame. */
-static int load_town_scene(uint16_t scene)
+static int load_town_scene(uint16_t scene, int parallax_p2, int parallax_p3)
 {
     if (g_sotes_exe == NULL) {
         /* The original packed sotes.exe is still in the game-dir CWD; Steamless
@@ -2443,7 +2450,8 @@ static int load_town_scene(uint16_t scene)
         return 0;
     }
 
-    if (town_render_load(&g_town, bytes, (size_t)len, game_bank_dims, NULL) != 0) {
+    if (town_render_load(&g_town, bytes, (size_t)len, game_bank_dims, NULL,
+                         parallax_p2, parallax_p3) != 0) {
         log_line("load_town_scene: town_render_load(DATA %u, %lu B) failed "
                  "(malformed resource?) — backdrop stays black", scene, len);
         town_render_free(&g_town);
@@ -2457,6 +2465,33 @@ static int load_town_scene(uint16_t scene)
              map_data_name(&g_town.map, nm),
              g_town.map.dim0, g_town.map.dim1, g_town.map.dim2, g_town.map.count);
     return 1;
+}
+
+/* Resolve a room KEY (room_state+0x4024, e.g. 0x334be town / 0x334c8 house /
+ * 0x334dc errands) to its DATA scene id + 0x587e00 parallax params via the room
+ * registry, then load that backdrop.  This is the faithful map-load selection
+ * (FUN_00586010:697 keys FindResourceA on room[GW_ROOM_SCENE] + passes
+ * room[0x44]/room[0x43] to the decode prologue).  Builds the registry lazily.
+ * Returns 1 on success; 0 leaves the backdrop black (the faithful map-load frame). */
+static int load_room(uint32_t room_key)
+{
+    if (!g_world_built) {
+        if (game_world_build(&g_world) != 0) {
+            log_line("load_room: game_world_build failed — backdrop stays black");
+            return 0;
+        }
+        g_world_built = 1;
+    }
+    uint16_t scene = 0;
+    int p2 = TOWN_RENDER_PARALLAX_P2, p3 = TOWN_RENDER_PARALLAX_P3;
+    if (game_world_room_render_cfg(&g_world, room_key, &scene, &p2, &p3) != 0) {
+        log_line("load_room: room key 0x%05x not in registry — backdrop stays black",
+                 room_key);
+        return 0;
+    }
+    log_line("load_room: room 0x%05x -> DATA scene %u, parallax (p2=%d p3=%d)",
+             room_key, scene, p2, p3);
+    return load_town_scene(scene, p2, p3);
 }
 
 /* The in-game frame render (game_drive cfg.render).  Clears to black (the
@@ -2832,7 +2867,10 @@ static void enter_game(void)
     g_actors_loaded = 0;
     g_structs_loaded = 0;
     g_effects_loaded = 0;
-    load_town_scene(/*scene=*/1022);
+    /* Map 0x3f2 → room 0x334be "Town of Tonkiness" → DATA scene 1022 (resolved
+     * from the registry: scene + parallax params now come from the room record,
+     * not a hardcoded constant — the cutscene room swap re-loads the same way). */
+    load_room(/*room_key=*/0x334beu);
 
     /* Register Arche's EXE-embedded body banks 0x8b-0x8e (slots 126-129, res
      * 0x570-0x573) now that load_town_scene has opened the sotes.exe datafile.
