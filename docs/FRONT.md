@@ -40,10 +40,12 @@
   `dialogue_arm`/`dialogue_reopen`, untouched by `dialogue_set_text`).  **VERIFIED LUT-byte-identical
   port↔retail, 13/13 portrait ticks, EVERY arrival line** (L0 @150,76 / L1 @70,88 / L2 @38,76 / L3 @70,88).
   1019 host pass.  **SURFACED the next chip — the PORTRAIT FADE-OUT dissolve:** on a speaker change retail
-  dissolves the OUTGOING bust out via the reverse ramp idx 18→2 over `[advance_press−2, +6]` (gone +7,
-  CONSISTENT L0/L1/L2), the port holds it OPAQUE then cuts it; the catch is the fade-out LEADS the press by
-  2 ticks (decoupled from the box-frame close) → needs a joint nav-offset/input-timing re-derivation
-  (quirk #108).  Two commits (`9153763` fix, `c97320b` fade-out RE).  **USER-VERIFY:
+  dissolves the OUTGOING bust out via the reverse ramp idx 18→2 over `[advance_tick−8, advance_tick]`
+  (CONSISTENT L0/L1/L2), the port holds it OPAQUE then cuts it.  **MECHANISM RESOLVED (ckpt 135):** retail
+  processes the advance ~2 ticks BEFORE the new box opens (the box-frame is tick-aligned port↔retail at
+  `advance_tick−6`, 28/28 holds; retail box res=0; `0x49c910` is __cdecl, state @+0x2e 1=in/2-3=out, f @+0x30).
+  **Fix spec'd (the open chip):** nav `−8` + delay the box re-pop 2t (28/28 preserved) + closing-box reverse
+  ramp.  Three commits (`9153763` fade-in fix, `c97320b`+ fade-out RE).  **USER-VERIFY:
   `osr_view.exe C:\oss-osr\port-portrait.osr C:\oss-osr\retail.osr`** — scrub the arrival dialogue: the
   portrait fade-in tracks retail tick-for-tick (the old box-overlap/cadence stay 1:1); the speaker-change
   fade-OUT is the visible remaining gap (feed: tick 661 differ 0 / tick 692 differ 13976).

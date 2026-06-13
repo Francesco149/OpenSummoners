@@ -82,14 +82,17 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   every arrival speaker change): the fade-out is `[advance_press − 2, advance_press + 6]`
   (9 ticks idx 18,16,..,2), the bust GONE at `press + 7`** = the tick the box shrinks.
   L0→L1 press 690 → 688-696 (Father @150,76); L1→L2 735 → 733-741 (Arche @70,88); L2→L3 780
-  → 778-786 (Mother @38,76).  **The catch: the fade-out LEADS the advance press by 2 ticks**
-  — decoupled from the box-frame overlap (which the port triggers AT the press; the box 28/28
-  used the `advance_tick − 6` nav).  So the fix is NOT just "fade the closing snapshot from
-  the press": it needs the closing-box portrait fade-out (reverse ramp) AND a re-derivation
-  of the speaker-change advance offset jointly against the box-frame + this 2-tick lead (is
-  the true advance at press−2?  does input register 2 ticks before the box reacts?).  An
-  approximation (fade from the press → first 2 ticks idx 18,16 wrong) is forbidden.  See
-  engine-quirk #108 (FADE-OUT bullet).
+  → 778-786 (Mother @38,76).  **MECHANISM RESOLVED (ckpt 135):** retail processes the advance
+  ~2 ticks BEFORE the new box opens — it arms the old box's reverse-ramp fade-out immediately,
+  while the new box's re-pop has a ~2-tick setup latency.  The box-frame transition is
+  byte-tick-aligned port↔retail (new-box cells grow at `advance_tick−6`, old box closes at
+  `advance_tick+1`; retail box res=0 not 1110, the 28/28 holds), but the portrait fade-out
+  leads it by 2 (`[advance_tick−8, advance_tick]`).  `0x49c910` is __cdecl (args[0]); state
+  u16 @+0x2e (1=fade-in, 2/3=fade-out), f @+0x30.  **Faithful fix (the open chip):** (1) nav
+  `−8` not `−6` (advance 2 ticks earlier), (2) DELAY the new box re-pop 2 ticks (box-frame
+  stays at `advance_tick−6`, 28/28 preserved), (3) closing-box portrait reverse ramp idx 18→2
+  over `[advance, advance+8]`.  Verify: fade-out `[688,696]` + box 28/28 + cadence 1:1 all
+  hold.  See engine-quirk #108 (FADE-OUT bullet).
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)
 

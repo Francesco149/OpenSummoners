@@ -3625,8 +3625,20 @@ truth, drawcall + LUT exact:
   match used the `advance_tick − 6` nav).  So a faithful port can NOT just fade the
   closing-box snapshot from the press tick: the first 2 fade-out ticks (idx 18,16) land
   while the OLD box is still the MAIN box, before the advance is processed.
-  **Port status (ckpt 135): the fade-IN is ported; the fade-OUT is the open chip** — it
-  needs the closing-box portrait fade-out (reverse ramp) AND a re-derivation of the
-  speaker-change advance offset jointly against the box-frame + this 2-tick lead (is the
-  real advance at press−2, or does the input register 2 ticks before the box reacts?).
-  The port currently holds the old bust OPAQUE through the linger then cuts it at +7.
+  **MECHANISM RESOLVED (ckpt 135).** The 2-tick lead is NOT a separate trigger — retail
+  **processes the advance ~2 ticks BEFORE the new box opens**: it arms the OLD box's
+  reverse-ramp fade-out immediately, while the new box's re-pop has a ~2-tick setup
+  latency.  Evidence: the box-frame transition is byte-tick-aligned port↔retail (new-box
+  cells grow at `advance_tick−6`, old box closes at `advance_tick+1` — retail box res is
+  **0**, not the port's 1110; the ckpt-134 28/28 holds), but the portrait fade-out leads
+  it by 2 (`[advance_tick−8, advance_tick]`).  `0x49c910` is **__cdecl** (`param_1` at
+  `[esp+8]` → Frida `args[0]`): the cross-fade STATE is a u16 at `+0x2e` (1 = fade-in,
+  2/3 = the f-decrementing fade-out, 0 = idle), the fade counter f at `+0x30`; the old
+  box re-arms state 2/3 on the speaker change.  **The port processes the advance AT the
+  box-open (no latency), so it can't fade the 2 leading ticks** (the old box is still the
+  MAIN box, opaque).  **Faithful fix (the open chip, ckpt 135):** a coordinated change —
+  (1) process the speaker-change advance 2 ticks earlier (nav `−8` not `−6`), (2) DELAY
+  the new box's re-pop 2 ticks (so the box-frame stays at `advance_tick−6` = 28/28
+  preserved), (3) render the closing box's portrait via the reverse ramp idx 18→2 over
+  `[advance, advance+8]`.  Verify drawcall-exact: fade-out `[688,696]` + box 28/28 +
+  cadence 1:1 all hold.  Until then the port holds the old bust OPAQUE then cuts it at +7.
