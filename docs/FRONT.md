@@ -40,12 +40,15 @@
   (3) **`dialogue_timeline.py`** reads the reveal curve off any `.osr` (body MAIN glyphs 0x3e537d per tick)
   + emits the matched nav.  **PROVEN: the port reveal/skip MECHANICS were already faithful** (retail.osr:
   1 char/5t, space 1t, instant skip — the port's exact model), so note #4 was a CADENCE artifact (the spam
-  nav skipped instantly), NOT a reveal-rate bug.  Residual: the 9 per-tick diffs are the single-tick
-  body-clear FLICKER at the 8 advance boundaries (the port consumes the advance confirm the same flip it is
-  pressed; retail clears one flip later — a sub-tick ordering detail).  1017 host pass (+5).  **USER-VERIFY:
+  nav skipped instantly), NOT a reveal-rate bug.  (4) **the speaker-change box OVERLAP** (USER studio note,
+  tick 696): retail overlaps the closing OLD box (front) over the opening NEW box (behind) ~9t —
+  `dialogue_close_step` + a `cutscene.closing` box (`render_dialogue_box` ×2) + a deferred same-speaker
+  re-text (`pending_keep`); this also fixed the advance-boundary residual.  **Per-tick (name,body) now
+  322/323** (the one miss is tick 884, a retail-coalesced flip).  1019 host pass (+7).  **USER-VERIFY:
   recapture `runs/cutscene-verify/nav-matched.jsonl` then `osr_view.exe C:\oss-osr\port-matched.osr
-  C:\oss-osr\retail.osr`** — scrub the arrival dialogue (ticks 661-982): the port now reveals/skips/advances
-  on retail's ticks.  Note the advance-boundary flicker; THEME 3 (Arche-runs gap) starts after L7 (tick 982).
+  C:\oss-osr\retail.osr`** — scrub the arrival dialogue (ticks 661-982): reveals/skips/advances on retail's
+  ticks + the box overlap.  Open (low): the box-close CURVE is a linear approx (studio-calibratable).  THEME
+  3 (Arche-runs gap) starts after L7 (tick 982).
 - **Prior (ckpt 133): the dialogue TYPEWRITER-SKIP is PORTED — the confirm-while-typing desync blocker is
   CLOSED; the port now advances dialogue at the PRESS cadence (chain COMPLETE @hold 2571 vs the old 11365,
   4.4×).**  The USER-flagged ckpt-132 blocker.  RE'd from the beat-runner `0x439690:976-1011` — the box

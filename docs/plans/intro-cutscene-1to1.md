@@ -47,11 +47,16 @@ nav the arrival dialogue (L0-L7) tracks retail TICK-FOR-TICK.  Two cadence gaps 
   ~10-update reopen = retail's advance+11t; vs the first box's ~20-update slide-in).
 - **The word-wrap space.**  `dialogue_expand_text` consumed the wrap space; retail renders
   it → keep it (body byte-identical).
+- **The speaker-change box OVERLAP (USER studio note, tick 696).** Retail OVERLAPS the
+  closing old box (front) over the opening new box (behind) for ~9t; the port single-
+  swapped.  `dialogue_close_step` + a `cutscene.closing` box (snapshot the old box on a
+  speaker-change advance, render it in front of the new box opening behind) + a deferred
+  same-speaker re-text (`pending_keep`).  This also fixed the advance-boundary residual.
 - **VERIFIED:** `port-matched.osr` L0-L7 start/full/advance all bit-equal to `retail.osr`;
-  314/323 ticks of (name,body) identical.  **Residual:** the 9 per-tick diffs are the
-  single-tick body-CLEAR flicker at the 8 advance boundaries (the port consumes the advance
-  confirm the same flip it is pressed; retail clears one flip later — a sub-tick ordering
-  detail; USER-verify in the studio, deferred-advance fix if it matters).
+  **322/323 ticks of (name,body) identical** (the one miss is tick 884, a retail-coalesced
+  flip — not a divergence).  **Open (low):** the box-close CURVE is a linear approximation
+  (`DIALOGUE_CLOSE_STEP`; the 9-slice scale isn't cleanly probeable) + the overlap Z-order
+  follows the USER's wording — both studio-calibratable.
 - **Note #4** (tick 661: port full line vs retail "A") — CLOSED, it was the spam-nav cadence.
 
 ## THEME 2 — the cutscene CAST + ambient render (colour variants + animation)

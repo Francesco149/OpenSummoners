@@ -3559,20 +3559,28 @@ arrival dialogue — retail ground truth, not the port's behaviour:
   only the body clears and re-types from the very next tick (gap 1t).  retail.osr
   arrival L3→L4→L5 are all Arche: each advance is a 1-tick body reset, the name
   unbroken, no pop-in.
-- **A SPEAKER CHANGE closes + re-opens the box.**  The NAME and body both go
-  blank for ~9 ticks (retail L0 Father last shown tick 696, blank 697-705), then
-  the new speaker's NAME appears (tick 706 = advance+10) and the body types from
-  tick 707 (advance+11).  The re-open is FASTER than the first box: the first box
-  of the conversation SLIDES in over ~15t (a single cel moving from the speaker to
-  the anchor, tick 645→660, content gated at the end), but a mid-conversation
-  re-open grows in place over ~10t.  Every arrival speaker change is **advance+11t
-  to the next line's first char**, uniformly.
-- **Port model (ckpt 134):** `dialogue_set_text` (same-speaker, no re-pop) +
-  `dialogue_reopen` from half scale (`DIALOGUE_REOPEN_SCALE=500` → the +50/update
-  pop-in completes in ~10 updates = advance+11t).  The word-wrap also KEEPS the
+- **A SPEAKER CHANGE OVERLAPS a closing + an opening box.**  The new line's box
+  starts OPENING (behind) while the old line's box is still CLOSING (shrinking, in
+  front) — the two coexist for ~9 ticks (USER studio note, tick 696).  The old
+  box's TEXT clears the flip after the advance (retail L0 Father full through tick
+  696, text blank 697+), and its frame pops OUT while the new box grows; the new
+  NAME appears at tick 706 (= advance+10) and the body types from 707 (advance+11).
+  The new box's re-open is FASTER than the first box of the conversation: the
+  first box SLIDES in over ~15t (a single cel moving from the speaker to the
+  anchor, tick 645→660, content gated at the end), a mid-conversation re-open
+  grows in place over ~10t.  Every arrival speaker change is **advance+11t to the
+  next line's first char**, uniformly.
+- **Port model (ckpt 134):** `dialogue_set_text` (same-speaker, no re-pop, the
+  re-text DEFERRED one tick via `cutscene.pending_keep` so the old line renders on
+  the press flip) + `dialogue_reopen` from half scale (`DIALOGUE_REOPEN_SCALE=500`
+  → the +50/update pop-in completes in ~10 updates = advance+11t) for the new box,
+  + a `cutscene.closing` box (`dialogue_close_step`, scale -= `DIALOGUE_CLOSE_STEP`
+  100) holding the OLD box popping out IN FRONT (`render_dialogue_box` draws the
+  main box behind, the closing box in front).  The word-wrap also KEEPS the
   trailing space (retail renders it: y=196 row "…our new " ends in a space), so
   the body is byte-identical.  Verified: the matched-cadence-nav `port-matched.osr`
-  tracks `retail.osr` tick-for-tick over arrival L0-L7 (314/323 ticks of name+body
-  identical; start/full/advance all bit-equal).  Known residual: the body clears
-  one FLIP early at an advance (the port consumes the confirm the same flip it is
-  pressed; retail clears it the next flip) — a sub-tick input-ordering detail.
+  tracks `retail.osr` tick-for-tick over arrival L0-L7 — **322/323 ticks of
+  name+body identical** (the one miss is tick 884, a retail-coalesced flip);
+  start/full/advance all bit-equal.  Open: the box-close CURVE is a linear
+  approximation (the 9-slice scale isn't cleanly probeable from the `.osr` — only
+  a corner cel emits), studio-calibratable.

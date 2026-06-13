@@ -40,14 +40,24 @@ ahead), NOT a reveal-rate bug.  Two cadence gaps remained, both fixed:
 - **`dialogue_timeline.py`** (`tools/trace_studio2/`) — the analysis + matched-nav tool (reads the reveal
   curve off any `.osr`; `NAV` mode emits the matched nav from retail's per-line skip + advance ticks).
 
-**Verified:** the matched-nav `port-matched.osr` timeline is bit-equal to `retail.osr` on every L0-L7
-start/full/adv; the per-tick (name,body) match is 314/323.  +5 host tests (tick/mixed axis, set_text,
-reopen, same-speaker keep-box; expand keeps the wrap space).
+- **The speaker-change box OVERLAP (USER studio note, tick 696).** Retail OVERLAPS the closing OLD box
+  (shrinking, in front) over the opening NEW box (behind) for ~9t on a speaker change; the port single-
+  swapped.  `dialogue_close_step` (pop-OUT: scale -= `DIALOGUE_CLOSE_STEP`, content auto-gates off below
+  1000 → only the shrinking frame) + a `closing` box in the cutscene (snapshot the old box on a speaker-
+  change advance, render it IN FRONT of the new box opening behind — `game_render_dialogue` →
+  `render_dialogue_box(d)` ×2).  A SAME-speaker advance instead DEFERS its re-text one tick
+  (`cs->pending_keep`) so the old line still renders on the press tick.  Together these also fixed the
+  advance-boundary residual (the port cleared the box one flip early).
 
-**The ONE residual (USER-verify):** the 9 per-tick diffs are all the single-tick body-CLEAR flicker at the 8
-advance boundaries — the port consumes the advance confirm the same FLIP it is pressed and clears the box,
-while retail clears it ONE flip later (an input-processed-same-flip-vs-next sub-tick ordering detail; the box
-otherwise matches).  Decide in the studio whether it needs the deferred-advance fix.
+**Verified:** the matched-nav `port-matched.osr` timeline is bit-equal to `retail.osr` on every L0-L7
+start/full/adv; the per-tick (name,body) match is **322/323** (the one miss, tick 884, is a retail-coalesced
+tick — pair.py's port-only gap, not a divergence).  +7 host tests (tick/mixed axis, set_text, reopen, close
+step, same-speaker keep-box w/ deferred re-text, closing-box overlap; expand keeps the wrap space).
+
+**Residual (USER-verify, low):** the box-close CURVE is a linear approximation (`DIALOGUE_CLOSE_STEP=100` →
+gone in ~10t; the 9-slice frame scale isn't cleanly probeable from the `.osr`, so calibrate by eye in the
+studio), and the overlap Z-ORDER follows the USER's wording ("new box behind the disappearing old box" → old
+in front); flip it if the studio shows otherwise.
 
 **NEXT MOVE — the remaining punch-list themes (`plans/intro-cutscene-1to1.md`):**
 - **THEME 3 — the arrival→house TRANSITION CHOREOGRAPHY (`cutscene-beat-runner`).**  Between arrival L7

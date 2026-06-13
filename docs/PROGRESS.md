@@ -32,12 +32,16 @@ is DONE.  1017 host pass (+5).
 - **Verified:** `port-matched.osr` (over `runs/cutscene-verify/nav-matched.jsonl`) L0-L7 start/full/advance
   all bit-equal to `retail.osr`; per-tick (name,body) 314/323.  Commits: tick-keyed input
   (`c5895f9`+`dce9023`), same-speaker keep-box (`14cc140`), reopen+wrap (`e1f3646`), the tool (`552a46c`).
-- **The ONE residual (USER-verify):** the 9 per-tick diffs are the single-tick body-CLEAR flicker at the 8
-  advance boundaries — the port consumes the advance confirm the same flip it is pressed (clears the box),
-  retail clears it one flip later (a sub-tick input-ordering detail).  Decide in the studio if it needs the
-  deferred-advance fix.  **USER-VERIFY: `osr_view.exe C:\oss-osr\port-matched.osr C:\oss-osr\retail.osr`** —
-  scrub the arrival dialogue (ticks 661-982).  NEXT: THEME 3 (the Arche-runs-to-house beat after L7) then
-  THEME 2 (the cast render).
+- **The box OVERLAP + the boundary residual (USER studio note, tick 696; commit `eb0b3a6`).** Retail
+  OVERLAPS the closing old box (front) over the opening new box (behind) for ~9t on a speaker change; the
+  port single-swapped.  Added `dialogue_close_step` (pop-out) + a `cutscene.closing` box (snapshot the old
+  box, render it in front of the new opening behind) + a deferred same-speaker re-text (`pending_keep`).
+  This also fixed the advance-boundary residual → per-tick (name,body) is now **322/323** (the one miss,
+  tick 884, is a retail-coalesced flip).  Open (low): the box-close CURVE is a linear approximation
+  (studio-calibratable; the 9-slice scale isn't cleanly probeable from the `.osr`).
+- **USER-VERIFY: `osr_view.exe C:\oss-osr\port-matched.osr C:\oss-osr\retail.osr`** — scrub the arrival
+  dialogue (ticks 661-982).  NEXT: THEME 3 (the Arche-runs-to-house beat after L7) then THEME 2 (the cast
+  render).
 
 ## 2026-06-13 (ckpt 133) — the dialogue TYPEWRITER-SKIP ported: the confirm-while-typing desync blocker is closed; the port advances at the press cadence (chain @hold 2571 vs 11365)
 
