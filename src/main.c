@@ -2030,6 +2030,14 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
     (void)cam; (void)ud;
     int emitted = 0, struct_emitted = 0;
 
+    /* The STRUCTURE band is FULLY MAP-DRIVEN (quirk #84) — every room loads its
+     * own scenery/furniture from its map's object-placement layers, so it renders
+     * for ANY room (the town tree/hedges, the house decor, the errands shop
+     * furniture).  The town-specific cast bands (EFFECT townsfolk / CHARACTER /
+     * the fountain PARTICLE) use captured town tables, so they stay suppressed for
+     * non-town rooms (the room CAST is PORT-DEBT(cutscene-room-render) Phase 2b). */
+    int room_is_town = (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL);
+
     /* The STRUCTURE band (0x493230) — the tree + hedges + decorations.  Each is
      * a static single-cel object whose blit is bit-identical to the default
      * actor arm, so actor_render_static draws it; the actor's +0xfc layer (8 or
@@ -2047,14 +2055,14 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
      * actor_render_static; the +0xfc layer (13) routes them in front of the
      * bg decorations (layer 8) and behind the fg hedges (layer 15). */
     int effect_emitted = 0;
-    if (g_effects_loaded)
+    if (g_effects_loaded && room_is_town)
         for (int i = 0; i < g_effects.count; i++)
             effect_emitted += actor_render_static(&g_effects.actors[i],
                                                   &g_effects.states[i],
                                                   /*flip_table=*/g_actor_flip_table, pool,
                                                   game_sprite_resolve, NULL);
 
-    if (g_actors_loaded)
+    if (g_actors_loaded && room_is_town)
         for (int i = 0; i < g_actors.count; i++) {
             const actor *a = &g_actors.actors[i];
             if (a->code == ACTOR_CODE_PROTAGONIST)
@@ -2072,8 +2080,9 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
      * MODE-1 (alpha) nodes (param8 = (ramp-selector << 8) | index);
      * game_present_blit PRESENT_ALPHA orchestrates the blend via g_ramp_a (water)
      * / g_ramp_b (sky), so the particles are translucent like retail. */
-    int particle_emitted = particle_pool_render(&g_fountain_pp, pool,
-                                                game_sprite_resolve, NULL);
+    int particle_emitted = room_is_town
+        ? particle_pool_render(&g_fountain_pp, pool, game_sprite_resolve, NULL)
+        : 0;
 
     static int logged;
     if (!logged) {
@@ -2539,8 +2548,16 @@ static int reload_room_backdrop(uint32_t room_key)
             camera_apply_snap(&g_game_camera, cx, cy);
             game_camera_to_mr(&g_game_camera, &g_game_camera_mr);
         }
-        /* the room's actors/effects are not spawned (PORT-DEBT cutscene-room-render
-         * Phase 2b); the town cast is suppressed for non-town rooms below. */
+        /* Re-spawn the room's STRUCTURE band (scenery/furniture) from the NEW
+         * room's map — it is fully map-driven (quirk #84), so the house decor /
+         * errands shop furniture come straight from DATA 1023/1025's object
+         * layers.  game_actor_walk renders it for every room.  The town-specific
+         * EFFECT/CHARACTER cast bands stay as-is (suppressed for non-town rooms;
+         * the room CAST/NPCs are PORT-DEBT(cutscene-room-render) Phase 2b). */
+        int sn = actor_spawn_struct_from_map(&g_structs, &g_town.map);
+        g_structs_loaded = (sn > 0);
+        log_line("reload_room_backdrop: actor_spawn_struct_from_map -> %d "
+                 "STRUCTURE objects for room 0x%05x", sn, room_key);
     }
     return ok;
 }
@@ -2845,8 +2862,10 @@ static void game_render(void *user)
                             game_sprite_resolve, NULL,
                             game_present_blit, NULL,
                             game_cel_dims, NULL,
-                            (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
-                                ? game_actor_walk : NULL, NULL, &deferred);
+                            /* game_actor_walk now renders for EVERY room: the
+                             * map-driven STRUCTURE band (room scenery/furniture)
+                             * always, the town cast bands only when room_is_town. */
+                            game_actor_walk, NULL, &deferred);
         /* 0x48c150:124-162 — the cinematic letterbox tiled ON TOP of the
          * backdrop (after the present pass), during the establishing shot. */
         letterbox_render(g_letterbox_top, g_letterbox_bottom,
