@@ -6,6 +6,29 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-13 (ckpt 128) — M5: the port `.osr` emitter — the port writes the proxy's draw stream, self-reconstructs `differ_px==0`
+
+Trace Studio v2's two sides now speak from one codec.  New `src/osr_emit.{c,h}` (pure C, host-linkable,
+every sink a cheap no-op without `--osr-emit`) mirrors the retail proxy's hook map exactly: FRAMEBEG/
+PRESENT at `drive_present` (the proxy's present-then-framebeg frame structure), BLIT at the 5 zdd
+primitives (`zdd_emit_blit` extended to carry dest/blend-desc/srcw+srch), dedup'd per-CEL SHEETs grabbed
+through an injected lock-based surface reader (sheet_grab.h's exact hash shape, tombstoned eviction at
+the zdd_object dtor — the ckpt-126 stale-sheet lesson), CLEAR at `zdd_object_clear` (quirk #105), mode-4
+BLEND with blend_grab.h's per-mode LUT sizing, GDI TEXT through a per-HDC shadow bound at
+`zdd_object_get_dc` (glyph ops + dialogue mirrors; the banner-cel compose is filtered — its pixels reach
+the file via the composed cel's SHEET), FONT at the `ar_gdi_create_font` chokepoint, and ANCHOR/SEED at
+the existing pin sites.  BLIT/CLEAR/TEXT emit only for the PRIMARY dest (dst_handle 1), retail's observed
+stream shape.
+
+Verified three ways.  Host: +2 tests (1002 pass / 0 fail) — a full write→`osr_replay` read-back round
+trip (frame structure, shared seq, sheet dedup + post-evict no-reemit, dest filter, font/blend refs).
+Decode: a 1500-flip intro-1 run emits 316k blits / 173 sheets (0 grab fails) / 18k texts / 38 blends,
+and `osr.py` reads it **100% named + 100% dhash/dst coverage** with all 4 anchors at the proven flips.
+Ground truth: `--osr-replay` of the port's OWN `.osr` rebuilds flips 700/900/1250 against the port's live
+`--capture-frames` BMPs at **`differ_px==0`** — the port stream is self-contained, the same bar M4d set
+for retail.  Commit `cc99f3a`; montages on the feed.  NEXT: M6, the sim_tick identity JOIN + the
+port|retail|diff scrub in osr_view.
+
 ## 2026-06-13 (ckpt 127) — M4d: the `--validate` ground-truth gate lands, passes 71/71 `differ_px==0`, and fixes the menu artifact (`OSR_CLEAR`)
 
 The trace-studio-v2 fidelity gate is real: a new `OSR_SNAP` record carries the REAL retail backbuffer

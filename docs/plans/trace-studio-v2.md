@@ -12,7 +12,7 @@
 > recon + osr_view.  M4: the port's `--osr-replay` mode (`src/osr_replay.{c,h}`
 > streaming reader + `src/osr_recon.c` Win32 reconstructor) rebuilds frames 1:1
 > through zdd.c blits + real GDI text + BMP snapshots; mode-4 ALPHA captured
-> (`OSR_BLEND`).  NEXT: M5 port emitter, M6 the tick-join studio over osr_view.
+> (`OSR_BLEND`).  NEXT: M6 the tick-join studio over osr_view (M5 port emitter DONE ckpt 128).
 > (history below.) M1+M2: proxy auto-loads, native
 > headless turbo boot, the INT3+VEH engine-VA detour layer, ring input injection →
 > seed-pinned lockstep boot to game_enter with all anchors. M3a: the `.osr` format
@@ -469,7 +469,17 @@ it earliest. Each milestone is independently testable.
     where a clear-only frame now counts non-empty).  Re-capture → **71/71
     clean** (3 more snaps than before: clear-only frames now qualify).
     Remaining capture gap: none known (mode-2 srcw/srch closed in ckpt 126).
-- **M5 — port emitter.** `src/osr_emit.c` emits the same `.osr` from the port.
+- **M5 — port emitter. ✓ DONE (ckpt 128).** `src/osr_emit.{c,h}` emits the same
+  `.osr` from the port's own sinks (`--osr-emit <path> [--osr-scenario <name>]`),
+  mirroring the proxy hook map 1:1 — FRAMEBEG/PRESENT at drive_present
+  (present-then-framebeg), BLIT at the 5 zdd primitives, per-CEL SHEETs via a
+  lock-based surface reader (sheet_grab.h hash shape + dtor eviction), CLEAR,
+  mode-4 BLEND (exact LUT sizing), GDI TEXT via a per-HDC shadow, FONT at the
+  ar_gdi_create_font chokepoint, ANCHOR/SEED.  Primary-dest filtered
+  (dst_handle 1, retail's observed shape).  PROVEN: +2 host round-trip tests;
+  a 1500-flip intro-1 run reads back 100% named / 100% dhash+dst; and
+  --osr-replay of the port's own .osr rebuilds flips 700/900/1250 vs the port's
+  live captures at differ_px==0 (the port stream is self-contained).
 - **M6 — studio.** tick-join pairing + `:8780` viewer with the v1 scrub UX over the
   reconstructed frames. **This is the first usable replacement — frame-by-frame 1:1
   scrub.**

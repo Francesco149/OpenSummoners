@@ -17,7 +17,30 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 127): M4d — the `--validate` GROUND-TRUTH GATE LANDS and PASSES: 71/71 real retail
+- **LATEST (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
+  retail proxy captures, and `--osr-replay` of the port's OWN `.osr` rebuilds its frames
+  `differ_px==0` (newgame menu 700 / prologue 900 / town 1250 vs the port's live captures) — the
+  port stream is SELF-CONTAINED. 1002 host pass (+2); commit `cc99f3a`. Montages on the feed.**
+  - **`src/osr_emit.{c,h}`** (pure C, host-linkable) mirrors the proxy's hook map 1:1: FRAMEBEG/
+    PRESENT at `drive_present` (present-then-framebeg, the same one-flip label offset), BLIT at the
+    5 zdd primitives (`zdd_emit_blit` extended with dest/desc/srcw+srch), dedup'd per-CEL SHEETs
+    via an injected lock-based surface reader (sheet_grab.h's hash shape; tombstoned eviction at
+    the zdd_object dtor — the ckpt-126 lesson), CLEAR at `zdd_object_clear` (quirk #105), mode-4
+    BLEND (blend_grab.h's exact LUT sizing), TEXT via a per-HDC shadow bound at
+    `zdd_object_get_dc` (glyph ops + dialogue mirrors; banner-cel text correctly filtered — its
+    pixels arrive via the composed cel's SHEET), FONT at the `ar_gdi_create_font` chokepoint,
+    ANCHOR/SEED at the existing pin sites.  BLIT/CLEAR/TEXT filter to the PRIMARY dest
+    (dst_handle 1 — retail's observed stream shape).  CLI: `--osr-emit <path>
+    [--osr-scenario <name>]`; every sink gates internally (the call_trace discipline).
+  - **Proven live (intro-1 nav, 1500 flips):** 316k blits / 173 sheets (0 grab fails) / 18k texts /
+    11 fonts / 38 blends / 909 clears; `osr.py` reads it **100% named, 100% dhash/dst coverage**
+    (above retail's 89-90%), all 4 anchors at the proven flips (game_enter@1116), both seed pins.
+    Port dhash ≠ retail dhash stays expected (pitch is inside the hashed bytes —
+    `PORT-DEBT(osr-sheet-dhash-xside)`); `(res,frame)` remains the cross-side join.
+  - **NEXT — M6 the tick-join studio:** pair both sides' `.osr` by `sim_tick` (the identity JOIN,
+    openrecet E3 — honest gaps, no drift search), then port|retail|diff panels + a diff ribbon in
+    osr_view.  The port file already opens in osr_view/recon unchanged — one shared codec.
+- **Prior (ckpt 127): M4d — the `--validate` GROUND-TRUTH GATE LANDS and PASSES: 71/71 real retail
   backbuffer snapshots reconstruct `differ_px==0` (boot→title→newgame-menu→prologue→town→dialogue→
   house-freeroam), and the gate's ONE initial failure root-caused + FIXED the USER-flagged menu
   artifact. 1000 host pass (+0 net: +1 snap test); flip-800 before/after montage on the feed.**
@@ -37,9 +60,8 @@
     through the same fn), replayed as an ORDERED draw by the recon AND osr_view's scrub (a clear-only
     frame counts NON-empty). Re-captured (anchors byte-identical) → **71/71 clean**; osr_view renders
     flip 800 identical to retail.
-  - **NEXT — M5 the port emitter** (`src/osr_emit.c` — the port writes the SAME `.osr` from its 5 zdd
-    blit sinks + GDI text + clear), then **M6** the tick-join studio (port|retail|diff scrub over
-    osr_view). No known capture gaps remain; --validate snaps police future staleness for free.
+  - ~~NEXT — M5 the port emitter~~ **DONE ckpt 128** (see LATEST above). No known capture gaps
+    remain; --validate snaps police future staleness for free.
 - **Prior (ckpt 125): TRACE STUDIO v2 — M4 RECONSTRUCT LANDS (the `.osr` → frames, on Windows). The port
   binary's `--osr-replay` mode rebuilds frames 1:1 from a captured draw stream through the port's OWN
   bit-exact sinks, and the capture now records the ALPHA blend descriptor it was missing. 5 commits; 998 host
