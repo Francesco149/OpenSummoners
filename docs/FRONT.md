@@ -17,7 +17,46 @@
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → **the errands ROOM (render + freeroam) =
     next, once v2 lands**.
-- **LATEST (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
+- **LATEST (ckpt 129): M6 — the TICK-JOIN STUDIO LANDS: both sides' `.osr` are paired by the
+  deterministic `sim_tick` (the openrecet E3 identity join — NO flip-drift search) and `osr_view` grows a
+  native PORT|RETAIL|DIFF three-panel + a diff heat ribbon. The studio is now a usable frame-by-frame 1:1
+  port-vs-retail scrub. 1002 host pass (unchanged — tooling only); commits `2788ed9` (M6a) + `57260be`
+  (M6b). Tick-join montages on the feed.**
+  - **M6a — the JOIN verdict + the streaming reader (`tools/trace_studio2/`, runnable from WSL).**
+    `osr.py` grew `stream_records`/`stream_frames`/`read_header` — a block-buffered iterator that yields only
+    the small records (FRAMEBEG/ANCHOR/SEED) and SKIPS the bulky BLIT/TEXT/SHEET payloads by seek arithmetic,
+    so it streams the full **1.9 GB `retail.osr` (37673 frames) in ~11 s with NO OOM** (retires the
+    survey-flagged `parse()` OOM debt + the `run_proxy.sh` 256 MB band-aid; byte-identical to `parse()` on
+    the small file). `pair.py` streams both sides → groups frames by `sim_tick`, takes the LAST flip per tick
+    (the presented state — retail coalesces, quirk #99) → joins on the tick union, reporting paired count,
+    honest port-only/retail-only GAPS, per-shared-anchor RNG assertions, and the flip-axis drift contrast.
+    `--write-pairs` emits `pairs.json` (reference; the viewer recomputes natively). VERDICT on
+    (port-m5, retail-snap): **PASS — 190 tick-paired, 2 honest port-only gaps (ticks 41/91, retail coalesced),
+    all 3 shared anchors RNG-aligned** (newgame `0x404a0a8f`, prologue/game_enter `0x40d00581`); game_enter
+    lands at port flip 1116 vs retail 1242, so naive same-flip pairing would silently drift +126 flips
+    (~63 ticks) — the tick-join is immune.
+  - **M6b — the native three-panel (`tools/osr_view`, `osr_view.exe <port.osr> <retail.osr>`).** Opens TWO
+    scrub sessions (two DDraw devices + the DX11 swapchain coexist — recon is system-memory, no contention),
+    builds the tick-join in C from the two frame indices (`build_join`, same semantics as `pair.py`, NO
+    `pairs.json` dependency), and shows PORT | RETAIL | DIFF at the joined tick with a tick-indexed scrubber.
+    `diff_image` = an amplified cross-side diff (faint silhouette where equal, yellow→red by magnitude) +
+    `(differ_px, maxd)`; the diff HEAT RIBBON precomputes per-paired-tick `differ_px` in the background and
+    draws an aggregate worst-per-column strip (green=exact, yellow→red=divergent, blue=honest gap) with
+    click-to-seek + worst/next-diff nav. Single-file mode unchanged. Makefile now links `src/osr_emit.c`
+    into all 3 osr_view targets (zdd.c hard-refs its M5 taps — fixes a latent M5 link break).
+  - **VERIFIED headless (`osr_prof` dumps, the same `osr_scrub` engine the GUI wraps):** the join indices
+    match `pair.py` exactly, two-session reconstruction works, and the cross-side diff is real — **sim_tick 0
+    (the game_enter town establishing shot) reconstructs `differ_px==0` — PIXEL-IDENTICAL port vs retail**;
+    sim_tick 97 `differ_px=264` (0.09%, maxd=239, a small localized divergence the studio surfaces).
+    **OPEN (USER): GUI visual-verify** — launch `build/osr_view.exe 'C:\oss-osr\port-m5.osr'
+    'C:\oss-osr\retail-snap.osr'` on Windows; scrub + check the three panels + the ribbon.
+  - **NEXT:** the studio is now usable to iterate render parity → the PAUSED room-render/freeroam arc is
+    UNBLOCKED (the reason v2 was pulled forward). M7 drill-in (draw-inspector / pixel→draw pick / marks-
+    worklist) is the next *studio* increment, available when a divergence needs it. CAVEAT: the port-m5
+    capture only reaches tick 191 (a matched-length port capture awaits the freeroam port); the 190-paired
+    region — incl. the bit-exact game_enter shot — is the working demo. Roadmap: `plans/trace-studio-v2.md`
+    §openrecet-v3-survey (items 2→3 done; 1/4/5/6/7 remain).
+- **Prior (ckpt 128): M5 — the PORT `.osr` EMITTER LANDS: the port writes the SAME draw stream the
   retail proxy captures, and `--osr-replay` of the port's OWN `.osr` rebuilds its frames
   `differ_px==0` (newgame menu 700 / prologue 900 / town 1250 vs the port's live captures) — the
   port stream is SELF-CONTAINED. 1002 host pass (+2); commit `cc99f3a`. Montages on the feed.**

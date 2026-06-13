@@ -1,6 +1,14 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
-> Status (2026-06-13, ckpt 127): M1..M4 COMPLETE — **M4d the `--validate` gate
+> Status (2026-06-13, ckpt 129): **M1..M6 COMPLETE** — M6 (this ckpt) is the
+> TICK-JOIN STUDIO: both sides' `.osr` paired by the deterministic `sim_tick` (the
+> identity join, openrecet E3 — honest gaps, NO flip-drift search) via `pair.py`
+> (verdict) + a streaming `osr.py` (no OOM on the 1.9 GB capture), and `osr_view`
+> grows a native PORT|RETAIL|DIFF three-panel + a diff heat ribbon.  Verified
+> headless: sim_tick 0 reconstructs `differ_px==0` port-vs-retail.  GUI visual-verify
+> is the one open (USER).  NEXT: M7 drill-in, or RESUME the room-render/freeroam port
+> (now unblocked — the studio exists to iterate it).  (history below.)  M1..M4:
+> M1..M4 COMPLETE — **M4d the `--validate` gate
 > LANDED and PASSES 71/71 snaps `differ_px==0`** (real retail backbuffer snapshots
 > sampled every 200 flips across boot→title→newgame-menu→prologue→town→dialogue→
 > house-freeroam, each compared against the reconstruction; `OSR_SNAP` record +
@@ -480,9 +488,33 @@ it earliest. Each milestone is independently testable.
   a 1500-flip intro-1 run reads back 100% named / 100% dhash+dst; and
   --osr-replay of the port's own .osr rebuilds flips 700/900/1250 vs the port's
   live captures at differ_px==0 (the port stream is self-contained).
-- **M6 — studio.** tick-join pairing + `:8780` viewer with the v1 scrub UX over the
-  reconstructed frames. **This is the first usable replacement — frame-by-frame 1:1
-  scrub.**
+- **M6 — studio. ✓ DONE (ckpt 129).** The tick-join + the native PORT|RETAIL|DIFF
+  three-panel — the first usable replacement, a frame-by-frame 1:1 scrub on the
+  sim_tick axis.  Delivered NATIVELY in `osr_view` (NOT the planned Python `:8780`
+  server — the web view is abandoned, ckpt 126 USER directive; the native viewer is
+  the only target).
+  - **M6a — the JOIN + the streaming reader (`tools/trace_studio2/`).**  `osr.py`
+    grew `stream_records`/`stream_frames`/`read_header` (block-buffered, skips the
+    bulky BLIT/TEXT/SHEET payloads → streams the 1.9 GB `retail.osr` in ~11 s, no
+    OOM — retires the survey's `parse()` OOM debt).  `pair.py` joins both sides by
+    `sim_tick` (last flip per tick, honest port-only/retail-only gaps), reporting the
+    paired count, the gaps, per-shared-anchor RNG assertions, and the flip-axis drift
+    contrast; `--write-pairs` → `pairs.json` (reference only).  VERDICT on
+    (port-m5, retail-snap): PASS, 190 paired, anchors RNG-aligned.
+  - **M6b — `osr_view.exe <port.osr> <retail.osr>`.**  Opens two scrub sessions,
+    builds the tick-join natively (`build_join`, same semantics as `pair.py`, NO
+    `pairs.json` dependency), shows PORT | RETAIL | DIFF at the joined tick with a
+    tick-indexed scrubber + a precomputed diff HEAT RIBBON (per-paired-tick
+    `differ_px`, aggregate worst-per-column, click-to-seek, worst/next-diff nav).
+    `diff_image` = amplified cross-side diff (faint silhouette where equal,
+    yellow→red where divergent).  Single-file mode unchanged.  Makefile links
+    `osr_emit.c` (zdd.c hard-refs its M5 taps).
+  - **VERIFIED headless (`osr_prof` dumps, the same `osr_scrub` engine):** join
+    indices match `pair.py`; sim_tick 0 (game_enter town shot) reconstructs
+    `differ_px==0` (PIXEL-IDENTICAL port vs retail), sim_tick 97 `differ_px=264`.
+    **OPEN: GUI visual-verify (USER)** — the windowed DX11 app needs a Windows launch.
+    **CAVEAT:** port-m5 only reaches tick 191 (a matched-length port capture awaits
+    the freeroam port); the 190-paired region is the working demo.
 - **M7+ — drill-in.** Draw-inspector panel, in-frame draw stepping, draw-level
   `render_diff`, marks/worklist — grow v2 to full v1 parity, then archive v1.
 
