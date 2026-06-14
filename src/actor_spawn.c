@@ -226,10 +226,13 @@ static const struct {
     /* The 4 BUTTERFLIES (was mis-ID'd as "wandering villagers" through ckpt 95).
      * bank 0x146 -> sprite res 0x3fa (slot 313, 32x32, already group3-registered),
      * dst (0,0), draw layer 12, flap clip BUTTERFLY_CLIP (selected by code in the
-     * spawn).  flip 4 = the sheet's frames-per-direction (cels step by 4: dir0 0-2,
-     * dir1 4-6, ...; live blit cel_fr 0/4/8/12 + flap).  facing 1 (the per-instance
-     * direction + RNG wander drift are PORT-DEBT(butterfly-wander), Phase 2). */
-    {0xe29au, 0x146u,   0,   0, 12u, 1,  4},
+     * spawn).  flip 16 = DAT_008a8440[0x146], the MIRROR-cel offset (live-read
+     * ckpt 139): the facing==3 render adds +16 (frames 16-31 = the left-facing
+     * mirror cels) AND reflects off_x.  So cel = frame_base + 16*(facing==3) + flap
+     * where frame_base is the per-instance BASE DIRECTION from the map variant
+     * (set below).  facing toggles 1/3 via the heading FSM (butterfly.c).
+     * (was flip 4 = the wrong per-dir stride; see findings/butterfly-direction-sprite.md.) */
+    {0xe29au, 0x146u,   0,   0, 12u, 1, 16},
 };
 
 int actor_spawn_effect_def_for_code(uint32_t code, uint16_t *bank,
@@ -380,15 +383,23 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md,
         actor_render_state *rs = &pool->states[slot];
 
         /* 0x41f200: behaviour code (+0x1d4), dir 0 (+0xe8), draw layer (+0xfc).
-         * Sprite row 0 = {bank, frame_base 0}; the per-frame sprite comes from
-         * the idle clip via the anim stepper.  World = (map (x,y) - dst) * 100;
-         * the render dst anchor lives in the render-state (+0x40/+0x44), added
-         * back at emit. */
+         * Sprite row 0 = {bank, frame_base}; the per-frame sprite comes from the
+         * clip via the anim stepper.  World = (map (x,y) - dst) * 100; the render
+         * dst anchor lives in the render-state (+0x40/+0x44), added back at emit.
+         *
+         * frame_base: the standing townsfolk hardcode 0 (their install is
+         * 0x426d70(0,bank,0)), but the BUTTERFLY (0xe29a) takes it from the map
+         * record's VARIANT field (+0x18) — its per-instance BASE DIRECTION (0/4/8/12).
+         * Its install is 0x426d70(0,0x146,param_7), param_7 = *(u16)(record+0x18)
+         * (dispatcher 0x58d460:151).  Live-verified (findings/butterfly-direction-sprite.md):
+         * the rendered cel = frame_base + 16*(facing==3) + flap, so the 4 butterflies
+         * each fly a different base pose, mirrored left/right by the facing toggle. */
         a->code  = code;
         a->dir   = 0;
         a->layer = layer;
         a->sprite_table[0].bank       = bank;
-        a->sprite_table[0].frame_base = 0;
+        a->sprite_table[0].frame_base =
+            (code == 0xe29au) ? (int16_t)hdr_u16(h, HDR_OFF_VARIANT) : 0;
 
         rs->active     = 1;                     /* +0x00 (the *param_1!='\0' gate) */
         rs->world_x    = (hdr_i32(h, HDR_OFF_X) - dstx) * 100;   /* +0x04 */

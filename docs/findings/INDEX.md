@@ -47,6 +47,11 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   view (FUN_004192b0), the cursor-nav engine (FUN_0043ca40, jump table
   recovered) and the input-action latch (FUN_0043ce50). Completes the
   poll → latch → nav input chain. **Ported, checkpoint 4.**
+- **[butterfly-direction-sprite.md](butterfly-direction-sprite.md)** — the town
+  butterflies' 8-way flight render (THEME 2 notes #0+#2). The frame model
+  `cel = d*4 + flap` (d = an 8-way wander heading, not the velocity) is PROVEN off
+  `retail.osr`; the port renders only 2 facings. The render path + the one open
+  link (which field carries `d`) for the `butterfly-wander`/`-flutter` debts.
 
 ## Method / cross-cutting
 

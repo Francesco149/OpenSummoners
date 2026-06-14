@@ -396,6 +396,12 @@ int test_actor_spawn_effect(void)
     layer_set(&layers[2], 0xc404u, 1808, 416);   /* townsperson -> bank 0xf9, dst (-30,-20)           */
     layer_set(&layers[3], 0xec55u,  100, 100);   /* STRUCTURE   -> out of EFFECT range -> skipped      */
     layer_set(&layers[4], 0xc999u,  50,  50);    /* unknown EFFECT code -> not in def table -> skipped */
+    /* The map VARIANT field (+0x18): the BUTTERFLY (0xe29a) takes it as its sprite
+     * frame_base (the per-instance base direction; 0x426d70(0,0x146,param_7)); the
+     * standing townsfolk IGNORE it (their install hardcodes frame_base 0).  Set both
+     * to non-zero to prove the conditional (ckpt 139, findings/butterfly-direction-sprite.md). */
+    layers[0].hdr[0x18] = 5;                      /* townsperson variant -> MUST be ignored (fb 0)     */
+    layers[1].hdr[0x18] = 8;                      /* butterfly  variant  -> becomes frame_base (base 2)*/
 
     map_data md;
     memset(&md, 0, sizeof md);
@@ -431,7 +437,7 @@ int test_actor_spawn_effect(void)
      * world = (map - dst) * 100 = ((208,384) - (-30,-32)) * 100 = (23800,41600)
      * — matches the live census rs_x/rs_y exactly. */
     T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0xe5u);
-    T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 0);
+    T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 0);  /* ignores variant 5 (not a butterfly) */
     T_ASSERT_EQ_U(pool.actors[0].layer, 13u);
     T_ASSERT_EQ_I(pool.states[0].world_x, 23800);
     T_ASSERT_EQ_I(pool.states[0].world_y, 41600);
@@ -450,6 +456,9 @@ int test_actor_spawn_effect(void)
      * the butterfly clip's count/dur (frame in [0,3), timer in [0,4)). */
     T_ASSERT_EQ_U(pool.actors[1].code, 0xe29au);
     T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0x146u);
+    /* the butterfly takes frame_base from the map VARIANT (+0x18=8); the cel then
+     * renders frame_base + 16*(facing==3) + flap (live-read ckpt 139). */
+    T_ASSERT_EQ_I(pool.actors[1].sprite_table[0].frame_base, 8);
     T_ASSERT_EQ_U(pool.actors[1].layer, 12u);
     T_ASSERT_EQ_I(pool.states[1].world_x, 105600);
     T_ASSERT_EQ_I(pool.states[1].world_y, 44800);
@@ -492,7 +501,8 @@ int test_actor_spawn_effect(void)
     T_ASSERT_EQ_I(dx, 0);
     T_ASSERT_EQ_I(dy, 0);
     T_ASSERT_EQ_U(ly, 12u);
-    T_ASSERT_EQ_I(fl, 4);                 /* res 0x3fa frames-per-direction      */
+    T_ASSERT_EQ_I(fl, 16);                /* DAT_008a8440[0x146]=16: the facing==3
+                                           * mirror-cel offset (live-read ckpt 139) */
     T_ASSERT_EQ_I(actor_spawn_effect_def_for_code(0xc999u, &b, &dx, &dy, &ly, NULL, NULL), 0); /* unknown  */
 
     /* the flip table fills the mirrored villager banks (stand-in for DAT_008a8440). */

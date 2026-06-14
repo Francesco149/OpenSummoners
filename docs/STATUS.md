@@ -49,10 +49,15 @@ understates how much actual instruction volume is ported.
   **ckpt 138 the TRANSITION FADE punch-list (1)-(3) DONE + TICK-1:1 — center-out var-0 stand-in + the box
   renders OVER the cover + house L0 +8t→0** (the +8t was the cover-arm TIMING, not a hard wipe — retail ages
   the fade cells too; the exit wait recalibrated 20→10t off the draw stream; quirk #109 extended).
-  **NEXT: (4) the "Arche running" SPRITE (cast) + THEME 2 (the cast colour/animation render `0x4997b0`,
-  butterfly/NPC colour variants).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
-  `character_step` on live input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
-  freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
+  **ckpt 139 the BUTTERFLY DIRECTION SPRITE (THEME 2 notes #0+#2) — DONE + DRAWCALL-1:1** (the butterfly
+  `frame_base` = the per-instance map VARIANT +0x18 = base direction 0/4/8/12, + the facing-mirror
+  `DAT_008a8440[0x146]=16` corrected from 4; `cel = frame_base + 16·(facing==3) + flap`, live-read-verified
+  2452/2452, draw_probe 273/280 ticks frame-identical; quirk #110).
+  **NEXT (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
+  bank, NOT the butterfly path), the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`), and the
+  cast render `0x4997b0` (#3, the "Arche running" sprite, `cutscene-party-chars`).  THEN the FREEROAM
+  HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
+  Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
     town-arrival DIALOGUE ADVANCE ✓ → CONTROL-PATH harness-verified ✓ (quirk #103) → arrival→house dialogue
@@ -61,8 +66,29 @@ understates how much actual instruction volume is ported.
     ✓ (133) → dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → dialogue PORTRAIT FADE-IN ✓ (135) +
     FADE-OUT dissolve ✓ (136) → arrival→house TRANSITION CHOREOGRAPHY TICK-1:1 ✓ (137, THEME 3) →
     the TRANSITION FADE (center-out + box-over-cover + house L0 +8t→0) ✓ (138) →
-    **the cast "Arche running" sprite + the cast render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 138): the THEME-3 transition FADE punch-list (the ckpt-137 USER studio residuals) is
+    the BUTTERFLY direction sprite ✓ (139, THEME 2 #0/#2 — frame_base from the map variant) →
+    **the NPC colour variant + butterfly flutter + the cast "Arche running" render (THEME 2) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 139): the BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 — THEME 2 note #0
+  ("butterflies color gap") and the SPRITE half of #2 are CLOSED; the 4 town butterflies now render their
+  correct colours/directions, bit-exact to retail.**  RE'd "trace the code" then live-read-verified (the
+  Frida host, 2452 render calls, 0 deviations) — NOT curve-fit.  **Mechanism (quirk #110): the butterfly cel
+  = `frame_base + 16·(facing==3) + flap`**, where (a) **`frame_base` = the per-instance map VARIANT field
+  (+0x18)** = its BASE DIRECTION (0/4/8/12; the install `0x426d70(0,0x146,param_7)`, `param_7 =
+  *(u16)(record+0x18)` via dispatcher `0x58d460:151`) — the port hardcoded 0 (all butterflies one variant);
+  (b) the **facing mirror is `DAT_008a8440[0x146] = 16`** (frames 16-31 = the left-facing cels) — the port had
+  it wrong as 4; (c) the facing toggle (1/3) was ALREADY ported (the heading FSM).  The render's angle path is
+  DEAD for butterflies (angle_anim=0).  Fix: `src/actor_spawn.c` reads the variant for 0xe29a + flip 4→16 (a
+  2-field change; the facing toggle does the rest).  **VERIFIED** off a fresh port `.osr` vs `retail.osr`
+  (`draw_probe.py --res 0x3fa`): butterfly frames now match tick-for-tick (e.g. ticks 272-278 upper butterfly
+  21,21,5,6,6,6,6 == retail; was the wrong 5,5,1,2,2) — 273/280 settled-town ticks frame-identical (the 7
+  misses are a pre-existing horizontal-position lag of the entering-from-left butterfly, NOT a frame bug).
+  1023 host pass (+butterfly frame_base=variant test).  **RESIDUAL (separate debts, NOT this chip):** the
+  per-tick dst-Y bob (`butterfly-flutter`, note #2's vertical sawtooth) + the entering-butterfly horizontal
+  position (`butterfly-bounds-writer`).  Montages on the feed.  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-bf.osr C:\oss-osr\retail.osr`** (shortcut loaded with this pair) — scrub the
+  settled town (ticks 80-360): each butterfly shows its correct colour/direction; the only residual is a
+  ≤2-5px vertical bob (the flutter).  Writeup: `findings/butterfly-direction-sprite.md`.
+- **Prior (ckpt 138): the THEME-3 transition FADE punch-list (the ckpt-137 USER studio residuals) is
   CLOSED — the arrival→house fade matches retail: CENTER-OUT, the dialogue box renders OVER the cover, and
   house L0 lands tick-1:1 (the +8t is gone).**  Commit `cd1c547`; driven by reading the retail `.osr` DRAW
   STREAM (`tools/trace_studio2/draw_probe.py`), verified tick-1:1 off a fresh port capture.  1023 host pass.

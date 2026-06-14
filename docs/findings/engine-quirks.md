@@ -3743,3 +3743,24 @@ cell census of `retail.osr`):**
   armed the letterbox once at `enter_game` and never disarmed it (`PORT-DEBT(ingame-letterbox)`); ckpt 138
   gates `letterbox_render` on `g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL` so the house/errands render bar-free
   (USER studio note, tick 1293).
+
+### #110 — the town BUTTERFLIES (`0xe29a`) render `cel = frame_base + 16·(facing==3) + flap`: `frame_base` is the per-instance map VARIANT (the base direction 0/4/8/12), the facing toggle adds the +16 mirror cels (`DAT_008a8440[0x146]=16`), and the flap is the 3-frame clip (2026-06-15, ckpt 139, live-read-verified)
+- **The butterfly sprite (bank 0x146, res 0x3fa) frame is THREE terms** (FUN_0044d160:69
+  `out_frame = sVar3 + sVar6 + sVar5`), live-read at the render hook over 2452 calls (0
+  deviations): `frame_base`(+0x4a) + `16·(facing==3)` + `flap`{0,1,2}.
+- **`frame_base` = the per-instance BASE DIRECTION, from the map record's VARIANT field
+  (+0x18)** — set ONCE at spawn (`0x426d70(0,0x146,param_7)`, `param_7 =
+  *(u16)(record+0x18)`, dispatcher `0x58d460:151`), NOT rewritten per-tick.  The 4 town
+  butterflies carry variants {0,4,8,12} → 4 different coloured poses (the "color"
+  the USER saw).  The standing townsfolk IGNORE the variant (their install passes 0).
+- **The facing mirror is `DAT_008a8440[0x146] = 16`, NOT the 4 a prior comment guessed.**
+  Frames 16-31 are the LEFT-facing cels; the render adds +16 AND reflects off_x when the
+  render-state facing (+0x2c) == 3.  So each base direction has a right (0-15) + left
+  (16-31) variant; with 4 bases × 2 facings × 3 flaps = the 24 cels seen in `retail.osr`
+  ({0,1,2}{4,5,6}…{28,29,30}).
+- **The render's ANGLE path is DEAD for butterflies** (`angle_anim`+0xec = 0, `angle`+0x34 =
+  0 always) — the direction is the spawn variant + the facing toggle, not an angle quantize.
+- The facing (1/3) toggles per-tick via the heading FSM (`0x47b990` 0xe29a case, the
+  left/right patrol — already ported, field-exact).  So the WHOLE direction render emerges
+  from {spawn variant frame_base} + {ported facing toggle}.  Port: `src/actor_spawn.c`
+  (frame_base from +0x18; flip 4→16); details `findings/butterfly-direction-sprite.md`.

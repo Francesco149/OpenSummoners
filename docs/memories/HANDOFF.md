@@ -6,7 +6,42 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 138
+## Where we are — ckpt 139
+
+**The BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 (THEME 2 notes #0 "butterflies color gap" + the
+SPRITE half of #2) — the 4 town butterflies now render their correct colours/directions, bit-exact to retail.**
+RE'd by tracing the render math then a LIVE Frida read (2452 render calls, 0 deviations) — the
+"trace-the-code, don't measure" rule (memory [[re-not-measure-choreography]]).  1023 host pass.  Engine-quirk #110;
+findings/butterfly-direction-sprite.md.  Commit pending this ckpt.
+
+- **The mechanism (quirk #110): the butterfly cel = `frame_base + 16·(facing==3) + flap`** (FUN_0044d160:69
+  `out_frame = sVar3 + sVar6 + sVar5`).  Three terms, NOT the angle path (`angle_anim`+0xec = 0 always —
+  DEAD for butterflies; my long "8-way angle quantize" hypothesis was wrong, the live read settled it):
+  - **`frame_base`(+0x4a) = the per-instance map VARIANT field (+0x18)** = the BASE DIRECTION (0/4/8/12), set
+    ONCE at spawn (`0x426d70(0,0x146,param_7)`, `param_7 = *(u16)(record+0x18)`, dispatcher `0x58d460:151`).
+    The 4 butterflies carry variants {0,4,8,12} → 4 different coloured poses.  The port HARDCODED 0 (all one
+    variant) — that was the bug.  (The standing townsfolk IGNORE the variant; their install passes 0 — so the
+    NPC colour variant #1 is a DIFFERENT mechanism, a colour-remap/bank, not this.)
+  - **the facing mirror is `DAT_008a8440[0x146] = 16`** (frames 16-31 = the left-facing cels; the render adds
+    +16 and reflects off_x when render-state +0x2c == 3) — the port had it WRONG as 4.
+  - the facing toggle (1/3) was ALREADY ported (the `0x47b990` heading FSM → render-state facing), so it
+    supplies the +16 mirror at the right ticks for free.
+- **The fix (2 fields, `src/actor_spawn.c`):** `actor_spawn_effect_from_map` reads `frame_base =
+  hdr_u16(h, HDR_OFF_VARIANT)` for 0xe29a (was 0); `TOWN_EFFECT_DEFS` butterfly flip 4 → 16.  +host test
+  (`test_actor_spawn_effect`: butterfly frame_base=variant, townsfolk ignore it).
+- **VERIFIED off `C:\oss-osr\port-bf.osr` vs retail.osr (`draw_probe.py --res 0x3fa`):** butterfly frames now
+  bit-exact — ticks 272-278 upper butterfly 21,21,5,6,6,6,6 == retail (was the wrong 5,5,1,2,2); 273/280
+  settled-town ticks frame-identical.  The 7 misses (ticks 184-190) are a PRE-EXISTING horizontal-position lag
+  of the entering-from-left butterfly (OLD-port has identical positions — my change touched only frames).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-bf.osr C:\oss-osr\retail.osr` (shortcut loaded with this pair)
+  — scrub the settled town (ticks 80-360): each butterfly shows its correct colour/direction; the only residual
+  is a ≤2-5px vertical bob (the flutter).  Montages on the feed.
+- **NEXT (remaining THEME 2):** the NPC COLOUR variant (#1; townsfolk hardcode frame_base 0 → a colour-remap
+  `DAT_008a9358` or the archetype/param_11 bank arm, NOT the butterfly path), the butterfly VERTICAL flutter
+  (#2 residual = `butterfly-flutter`, the body+0x18 sawtooth), and the cast render `0x4997b0` (#3, the "Arche
+  running" sprite = `cutscene-party-chars`).  THEN the FREEROAM HAND-OFF.
+
+## Where we were — ckpt 138
 
 **The THEME-3 transition FADE punch-list (the ckpt-137 USER studio residuals) is CLOSED — the arrival→house
 fade now matches retail: CENTER-OUT, the dialogue box renders OVER the cover, and house L0 lands tick-1:1
