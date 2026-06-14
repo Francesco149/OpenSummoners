@@ -65,32 +65,40 @@ static const dialogue_speaker_body *speaker_body(uint32_t name_va)
 #define VB PORTRAIT_VAR_B      /* the default (+0xa column)   */
 
 /* ── THEME 3, the L7→L8 inter-line beat ("Arche runs ahead to the house").
- * After L7 ("Cool!") the arrival script (0x4d7d80:215-235) runs, in order: a
- * CAMERA PAN to (28000,12800) @speed 400 (in_ECX[8]=3) + an Arche RUN-off
- * (0x402730(Arche, +32000) → world 73104 = L8's baked spk_wx), the beat-runner
- * waits for it, then a WAIT timer of 0x32=50 (in_ECX[8]=6), THEN L8 shows.
+ * RE'd from 0x4d7d80:215-235 (the script) + the beat-runner 0x439690 (the gates),
+ * traced exactly — NOT curve-fit (engine-quirk #109):
+ *   1. set the CAMERA command: in_ECX[0x13]=1, tgt (in_ECX[0x14]/[0x15])=
+ *      (28000,12800), cap (in_ECX[0x16])=400, beat type in_ECX[8]=3.
+ *   2. 0x402730(Arche, +32000): arms Arche's MOVE beat (run to body+32000 = world
+ *      73104 = L8's baked spk_wx) AND OVERWRITES in_ECX[8]=4 (0x402730:54).
+ *   3. 0x439680 → case 4 (NOT case 3 — the camera is not waited on): 0x439690:1137
+ *      loops the 32-slot actor-beat pool, DONE only when no slot is in active-move
+ *      substate (+0x300==1) — i.e. it WAITS FOR THE ARCHE RUN-OFF to finish.
+ *   4. WAIT timer 0x32=50 (in_ECX[8]=6, the +0x57c timer), then L8.
  *
- * MEASURED off retail.osr: L7 advances at sim-tick 982, L8 ("Mom, Dad, c'mon!")
- * first reveals at 1149 — a 167-tick gap.  The camera pan itself is the ported
- * 0x43d1d0 easer (camera_apply_pan(28000,12800,400)); the backdrop scroll was
- * read straight off the draw stream (a town tile's dst.x slid -148px over ticks
- * ~982→1031 then HELD = 12800→~28000, the easer's exact -4px/tick cruise), so
- * the visible camera motion settles in ~53t and holds.  The beat's full 117t
- * hold (= the 167t gap − the 50t script wait) is RUN-GATED — the Arche run-off
- * (0x402730, the cutscene actor mover) gates the beat-runner past the camera's
- * settle.  That mover is PORT-DEBT(cutscene-party-chars) (the same cast debt the
- * baked run TARGET spk_wx=73104 already stands in for), so the 117 is the
- * measured run-gated completion, not a curve-fit rate.  CAMERA_PAN_DUR + WAIT 50
- * = 167 lands L8 at retail's tick (the camera is the ported, draw-verified half). */
+ * So the CAMERA is a FIRE-AND-FORGET command: 0x439690:623-641 sets the view target
+ * then CLEARS in_ECX[0x13] (one-shot), and the 0x43d1d0 easer pans CONCURRENTLY.
+ * The port issues it via camera_apply_pan(28000,12800,400) — the real ported easer
+ * (verified off the draw stream: a town tile's dst.x slid -148px over ~982→1031 =
+ * 12800→~28000 at -4px/tick cruise, settling ~53t, then held).
+ *
+ * The GATE (the 167t L7adv→L8start gap, MEASURED, minus the 50t wait = 117t) is the
+ * case-4 RUN-OFF wait — Arche running 32000 units via the actor MOVE stepper
+ * (0x46cd70 -> 0x54f980).  That stepper is the cast (PORT-DEBT(cutscene-party-chars),
+ * unported), so the 117t is its completion — a clearly-tagged cast-debt STAND-IN for
+ * a not-yet-ported subsystem (the same cast the baked run TARGET spk_wx=73104 stands
+ * in for), NOT a curve-fit rate.  Modeled as one beat: CAMERA_PAN issues the
+ * concurrent pan command + carries the case-4 run-off wait as its `dur`; then WAIT 50. */
 #define ARRIVAL_L8_PAN_X    28000
 #define ARRIVAL_L8_PAN_Y    12800
 #define ARRIVAL_L8_PAN_SPD  400
-#define ARRIVAL_L8_PAN_DUR  117    /* run-gated (167 gap − 50 wait); cast-debt-derived */
-#define ARRIVAL_L8_WAIT     50     /* in_ECX[0x15f]=0x32, the script timer (ported)    */
+#define ARRIVAL_L8_RUNOFF   117    /* case-4 actor-wait: the Arche run-off (0x54f980)  *
+                                    * completion, MEASURED 167−50; cast-debt stand-in   */
+#define ARRIVAL_L8_WAIT     50     /* in_ECX[0x15f]=0x32, the script timer (ported)     */
 static const cutscene_beat ARRIVAL_L8_LEAD[] = {
-    /* type             fade_mode fade_var pan_x  pan_y  param  dur */
+    /* type             fade_mode fade_var pan_x  pan_y  param  dur(=case-4 run-off wait) */
     { CS_BEAT_CAMERA_PAN, 0, 0, ARRIVAL_L8_PAN_X, ARRIVAL_L8_PAN_Y,
-      ARRIVAL_L8_PAN_SPD, ARRIVAL_L8_PAN_DUR },
+      ARRIVAL_L8_PAN_SPD, ARRIVAL_L8_RUNOFF },
     { CS_BEAT_WAIT,       0, 0, 0, 0, 0, ARRIVAL_L8_WAIT },
 };
 #define ARRIVAL_L8_LEAD_N ((int)(sizeof(ARRIVAL_L8_LEAD)/sizeof(ARRIVAL_L8_LEAD[0])))

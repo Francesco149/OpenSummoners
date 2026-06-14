@@ -3673,16 +3673,22 @@ for the completion gate:
 
 **The arrival→house transition, decoded + MEASURED off `retail.osr` (matched-cadence nav):**
 - **L7 "Cool!" (Arche, adv sim-tick 982) → L8 "Mom, Dad, c'mon!" (start 1149) = a 167-tick
-  gap.**  Script (`0x4d7d80:215-235`): a CAMERA PAN to **(28000, 12800) @speed 400** + an
-  Arche RUN-off `0x402730(Arche, +32000)` (→ world 73104 = L8's anchor), the beat-runner
-  waits, THEN a WAIT timer `0x32`=50, then L8.  **The camera pan is the `0x43d1d0` easer:
-  read straight off the draw stream a town tile's `dst.x` slid −148px over ticks ~982→1031
-  (= 12800→~28000, the easer's exact −4px/tick cruise at cap 400) then HELD** — so the
-  visible pan settles in ~53t.  But L8 is at 1149, ~118t after the camera settles: the gap is
-  **RUN-GATED** (the Arche run-off, the cast mover, outlasts the camera; the camera's own case-3
-  gate fires at cur==tgt but L8 still waits ~64t past camera+wait50).  So the 167t is the
-  run-off completion + the script's wait50 — the cast (`0x402730` mover) gates it, the same
-  cast the baked run TARGET `spk_wx=73104` stands in for.
+  gap.**  Script (`0x4d7d80:215-235`), traced exactly: set the CAMERA command (`in_ECX[0x13]=1`,
+  tgt `in_ECX[0x14]/[0x15]`=(28000,12800), cap `in_ECX[0x16]`=400, beat type `in_ECX[8]=3`),
+  THEN `0x402730(Arche, +32000)` — which arms Arche's type-1 MOVE beat (run to body+32000 =
+  world 73104 = L8's anchor) **AND OVERWRITES the beat type `in_ECX[8]=4`** (`0x402730:54`,
+  `*(in_ECX+0x20)=4`).  So the `0x439680` at `:229` is **case 4, not case 3** — the camera is
+  NOT waited on.  **The camera is a FIRE-AND-FORGET command:** `0x439690:623-641` reads the
+  flag, sets the view target (`view+0x6c/+0x70`), and **clears `in_ECX[0x13]` (one-shot)**; the
+  `0x43d1d0` easer then pans concurrently — read off the draw stream a town tile's `dst.x` slid
+  −148px over ticks ~982→1031 (12800→~28000, the easer's −4px/tick cruise at cap 400) then HELD,
+  settling ~53t.  **Case 4 (`0x439690:1137-1143`) loops the 32-slot actor-beat pool and is DONE
+  only when NO slot is in active-move substate (`+0x300==1`)** — i.e. it waits for the Arche
+  RUN-OFF (the actor mover `0x46cd70`→`0x54f980`) to finish, ~117t (the gap 167 − the wait50).
+  THEN the script's WAIT `0x32`=50 (`in_ECX[8]=6`, the `+0x57c` timer), then L8 at 982+117+50=
+  1149.  So the gap is the RUN-OFF completion (case 4) + wait50; the camera just rides along.
+  The run-off duration (117t) is the ACTOR MOVE STEPPER (`0x54f980`, the cast), so it stands in
+  for `PORT-DEBT(cutscene-party-chars)` — the same cast the baked run TARGET `spk_wx=73104` does.
 - **L9 "Hmhm!" (Mother, adv 1224) → house L0 "So this is our new house?" (start 1372) = a
   148-tick gap.**  Script: after L9 a WAIT `0x14`=20 + a fade-to-black (`in_ECX[8]=2`,
   `[0xd]=3`, `:267-282`), then `0x49cd70` box teardown + `0x401d40(0x334c8,…)` stages the

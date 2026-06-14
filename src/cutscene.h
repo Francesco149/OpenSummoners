@@ -94,9 +94,12 @@
  * the same cast-debt family as the already-baked run TARGET spk_wx=73104). */
 typedef enum {
     CS_BEAT_WAIT = 0,    /* hold `dur` sim-ticks (in_ECX[8]=6 timer +0x57c)        */
-    CS_BEAT_CAMERA_PAN,  /* issue camera_apply_pan(pan_x,pan_y,param); hold `dur`  *
-                          * ticks (in_ECX[8]=3 — the easer settles inside `dur`,   *
-                          * which is the run-gated completion, cast-debt-derived)  */
+    CS_BEAT_CAMERA_PAN,  /* issue the FIRE-AND-FORGET camera command (camera_apply_*
+                          * pan(pan_x,pan_y,param); 0x439690:623-641 sets the view  *
+                          * tgt then clears the flag — the 0x43d1d0 easer pans       *
+                          * CONCURRENTLY).  `dur` holds the SEPARATE wait the script  *
+                          * pairs with the pan (for L7→L8: the case-4 run-off wait,   *
+                          * 0x402730 — a cast-debt stand-in, see quirk #109)          */
     CS_BEAT_FADE,        /* issue scene_fade_arm(fade_mode,fade_var,param); hold   *
                           * `dur` ticks until the iris grid settles (in_ECX[8]=2)  */
 } cutscene_beat_type;
