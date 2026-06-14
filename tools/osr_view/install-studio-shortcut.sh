@@ -40,7 +40,8 @@ REM when it produces a new working trace + tells you to run the studio.
 set "DIR=%~dp0"
 set "ARGS="
 set /p ARGS=<"%DIR%studio-current.txt"
-start "OpenSummoners Trace Studio" /D "%DIR%" "%DIR%osr_view.exe" %ARGS%
+REM no /D (a trailing "\" before a quote breaks CMD parsing) — the .lnk sets the cwd.
+start "OpenSummoners Trace Studio" "%DIR%osr_view.exe" %ARGS%
 BAT
 echo "[studio-shortcut] wrote C:\\oss-osr\\open-studio.bat"
 
