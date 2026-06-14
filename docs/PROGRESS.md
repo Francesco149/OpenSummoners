@@ -6,6 +6,46 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-15 (ckpt 138) — the THEME-3 transition FADE punch-list: center-out + box-over-cover + house L0 +8t→0, tick-1:1
+
+**The arrival→house transition FADE now matches retail — the ckpt-137 USER studio residuals (1)-(3) are
+CLOSED.**  Commit `cd1c547` (code).  The fix was driven entirely by reading the retail `.osr` DRAW STREAM as
+ground truth (`tools/trace_studio2/draw_probe.py` + a per-column scene_fade cell census), then a fresh port
+capture verified each point tick-1:1.  1023 host pass (unchanged — no test-shaped logic changed).
+
+- **(1) The fade VARIANT is CENTER-OUT (var 0), not edges-in.**  Read off retail.osr: the arrival-exit COVER
+  (tick 1234) and the house-entry REVEAL (tick 1261) both start at the MIDDLE rows (`half`=60) and grow/recede
+  OUTWARD at +4 rows/tick — center-out.  The variant is genuinely the RNG draw `(rand*3)>>15` (`0x439690:563`,
+  no override), but the port's LCG is **misaligned at these arms**: aligned at game_enter (its establishing
+  reveal correctly rolls 0, quirk #94) but drifted by ~tick 1233 because the unported cast
+  (`cutscene-party-chars`) consumes the LCG differently in between, so the live draw rolls 1.  `main.c`
+  CS_ACT_FADE now forces the beat's `fade_var` (0) as a center-out STAND-IN (keeps the `rng_rand()` draw to
+  match retail's per-arm consumption count); the establishing reveal keeps its faithful live draw.
+  `PORT-DEBT(cutscene-fade-variant)`.
+- **(2) The dialogue box renders IN FRONT of the cover.**  Retail keeps the closing L9 box over the cover —
+  the box shrinks out over ~20t from L9's advance (tick 1224), rendered after scene_fade (`draw_probe`:
+  BOX>fade through tick 1245).  The port already renders the closing box after the fade; it just needed the
+  cover to OVERLAP the close instead of arming after it (fixed by (3)).
+- **(3) House L0 +8t — the COVER-ARM TIMING, NOT a hard wipe.**  Retail ages the fade cells too (alpha
+  `bmode=1`, ~10t) — the ckpt-137 "al=0 hard wipe" was the proxy's `res=0` on the alpha blit.  The real cause:
+  the port armed the cover after the script's literal WAIT 0x14=20t, but off retail.osr the cover arms only
+  ~10t after L9 advances (1224→1234).  The exit wait-timer (`+0x57c`, −1/beat-runner call) evidently runs
+  ~2×/sim-tick in the EXIT context — yet the house-entry WAIT 0x32=50 maps 1:1 (50t); the 2× exit anomaly is
+  not yet pinned in the decompile.  `cutscene.c` calibrates `ARRIVAL_EXIT_WAIT=10` from the draw stream
+  (a flip-vs-tick rate detail, quirk #99 family).  At 20 the cover armed 10t late → the closing box had
+  vanished (no box over cover) AND house L0 opened +8t late.
+
+**Verified off a fresh port `.osr` vs retail.osr:** cover var-0 onset tick 1235 (retail 1234, +1 from the L9
+advance), reveal var-0, the closing box on top of the cover (drawcall z-order), house L0 first-glyph 1370
+(retail 1372, was 1380 = +8t) — and house L1/L2/L3 stay tick-exact (1398/1448/1493, nav-anchored).
+Port|retail montage (ticks 1240/1245/1275) on the feed; engine-quirk #109 extended.  **USER-VERIFY:**
+`osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` (the studio shortcut is loaded with this
+pair) — scrub ticks 1224→1300: the box runs ahead, the screen fades to black from the MIDDLE with the bubble
+on top, the room swaps under black, the house fades in from the middle.
+
+**NEXT:** THEME 2 — the cutscene CAST + ambient render (the "Arche running" sprite `cutscene-party-chars`,
+the butterfly/NPC colour variants `0x4997b0`), THEN the FREEROAM HAND-OFF.  See `plans/intro-cutscene-1to1.md`.
+
 ## 2026-06-14 (ckpt 137) — the arrival→house TRANSITION CHOREOGRAPHY (THEME 3): the non-dialogue beat model lands the transition TICK-1:1
 
 **The town-intro cutscene now plays the interleaved NON-DIALOGUE beats between arrival L7 and the house

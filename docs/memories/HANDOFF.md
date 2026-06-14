@@ -6,7 +6,42 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 137
+## Where we are — ckpt 138
+
+**The THEME-3 transition FADE punch-list (the ckpt-137 USER studio residuals) is CLOSED — the arrival→house
+fade now matches retail: CENTER-OUT, the dialogue box renders OVER the cover, and house L0 lands tick-1:1
+(the +8t is gone).**  Commit `cd1c547`.  Driven by reading the retail `.osr` DRAW STREAM as ground truth
+(`tools/trace_studio2/draw_probe.py` + a per-column scene_fade cell census), verified tick-1:1 off a fresh
+port capture.  1023 host pass (unchanged).  Engine-quirk #109 extended; `PORT-DEBT(cutscene-fade-variant)`.
+
+- **(1) VARIANT → center-out (var 0).**  The cover (retail tick 1234) + reveal (1261) both start at the
+  MIDDLE rows and grow/recede outward (+4 rows/tick) — center-out, NOT edges-in.  The variant is genuinely
+  the RNG draw `(rand*3)>>15` (`0x439690:563`); the port's LCG is aligned at game_enter (establishing reveal
+  rolls 0, quirk #94) but DRIFTS by these arms (rolls 1) because the unported cast (`cutscene-party-chars`)
+  consumes the LCG in between.  `main.c` CS_ACT_FADE forces the beat's `fade_var` (0) as a center-out
+  stand-in (keeps the `rng_rand()` draw to match retail's per-arm consumption count).
+- **(2) Box OVER the cover.**  Retail keeps the closing L9 box in front of the cover (it shrinks out ~20t
+  from L9 advance; `draw_probe` BOX>fade through tick 1245).  The port already renders the closing box after
+  scene_fade — it just needed the cover to OVERLAP the close (fixed by (3)).
+- **(3) House L0 +8t = the COVER-ARM TIMING (NOT a hard wipe — retail ages the cells too, alpha `bmode=1`).**
+  Off retail.osr the cover arms ~10t after L9 advances (1224→1234), but the port waited the script's literal
+  WAIT 0x14=20.  The exit wait-timer (`+0x57c`, −1/beat-runner call, `0x439690:1083`) evidently runs
+  ~2×/sim-tick in the EXIT context — yet the house WAIT 0x32=50 maps 1:1 (50t); the 2× exit anomaly is NOT
+  yet pinned in the decompile (`0x40c380` calls the script once/frame).  `cutscene.c` calibrates
+  `ARRIVAL_EXIT_WAIT=10` from the draw stream.
+- **VERIFIED off a fresh port `.osr` vs retail.osr:** cover var-0 onset 1235 (retail 1234, +1 = the L9
+  advance), reveal var-0, the closing box renders over the cover (drawcall z), house L0 first-glyph 1370
+  (retail 1372, was 1380 = +8t); house L1/L2/L3 still tick-exact (1398/1448/1493).  Port|retail montage on
+  the feed (ticks 1240/1245/1275).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` (shortcut loaded with this
+  pair) — scrub ticks 1224→1300: box runs ahead, fade-to-black from the MIDDLE with the bubble on top, room
+  swaps under black, house fades in from the middle.
+- **NEXT:** THEME 2 — the cutscene CAST + ambient render (the "Arche running" SPRITE `cutscene-party-chars`,
+  the butterfly/NPC colour variants `0x4997b0`), THEN the FREEROAM HAND-OFF.  See
+  `plans/intro-cutscene-1to1.md`.  The 2× exit-wait mechanism (vs the house 1×) stays an OPEN decompile
+  thread.
+
+## Where we were — ckpt 137
 
 **The arrival→house TRANSITION CHOREOGRAPHY (THEME 3 of the intro punch-list) is PORTED + TICK-1:1.**  The
 cutscene now plays the interleaved NON-DIALOGUE beats between arrival L7 and the house dialogue, tracking
@@ -36,34 +71,12 @@ decompile, not curve-fit.  1023 host pass (+2).  Engine-quirk #109.
 - **VERIFIED off `C:\oss-osr\port-theme3.osr` vs retail.osr (dialogue timeline):** L8 first-glyph 1150
   (retail 1149, +1 = the L7-advance), L9 1190 (==), house L1 1398 / L2 1448 / L3 1493 (all ==).
 - **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` — scrub ticks 982→1500.
-- **OPEN RESIDUALS (THEME 3) — the next-session punch-list (USER studio pass over `port-theme3.osr` vs
-  retail, ckpt 137).  The TRANSITION FADE is visually wrong; the dialogue TIMING is right.**  This is the
-  TOP next chip:
-  - **(1) The fade VARIANT is wrong — retail's town transition fades are CENTER-OUT (from the MIDDLE), the
-    port renders top/bottom.**  At tick **1241** retail's cover is a black gradient growing FROM THE MIDDLE
-    out (by 1255 it's full black); the port's capture drew `scene_fade_arm(mode=2 var=1)` = **variant 1
-    (edges-in = top/bottom)** for the cover, but retail is **variant 0 (center-out)**.  The REVEAL (house
-    entry) ALSO opens from the middle — "the gradient opens up from the middle where part of the scene is
-    visible and fades to black with the black dissipating, **like the very 1st transition at the very
-    beginning**" (the establishing reveal, which the port already does as var 0).  So retail's town fades
-    appear to be **always center-out (var 0)**, but the port's RNG draw `(rand*3)>>15` (quirk #109, RE'd
-    correct) gives 1 at the cover arm — the port's LCG is MISALIGNED by the cover (the establishing reveal
-    IS aligned at var 0).  NEXT SESSION: determine whether retail's transition variant is genuinely fixed
-    center-out OR an RNG draw the port mis-aligns (the cast/ambient consume the LCG differently); the
-    establishing reveal var-0 match says the LCG is aligned early then drifts.  Until the LCG aligns, a
-    center-out STAND-IN is the cast-debt-tagged fix (like the run-off dur).
-  - **(2) Z-ORDER: the speech bubble renders IN FRONT of the gradient** (retail keeps the dialogue box over
-    the fade — the fade is behind the bubble).  The port closes the box for the exit beats, so it shows NO
-    bubble over the cover; replicate retail's box-in-front-of-fade.
-  - **(3) The HARD WIPE (the +8t):** the port's `scene_fade` ages each cell over 10t (alpha) but retail's
-    transition fade is a HARD WIPE (`al=0` in the draw stream, settling ~16t cover / ~30t reveal); the cover
-    settles ~8t slow → house L0 +8t.  Likely the SAME scene_fade fidelity gap as (1).
-  - **(4) The "Arche running" SPRITE** (note #5) needs the live cast (`cutscene-party-chars`).
-- **NEXT:** tackle the TRANSITION FADE punch-list (1)-(3) above FIRST (USER: "tackle that next session"),
-  then THEME 2 (the cast colour/animation render `0x4997b0`, butterfly variants), THEN the FREEROAM
-  HAND-OFF.  See `plans/intro-cutscene-1to1.md`.  Reference: scrub `port-theme3.osr` vs retail at ticks
-  1241 (cover starts mid-out) / 1255 (full black) / the house reveal ~1261+ — the studio shortcut is loaded
-  with this pair.
+- **RESIDUALS (THEME 3) — the ckpt-137 USER studio punch-list, now RESOLVED ckpt 138 (see "Where we are"):**
+  (1) the fade VARIANT (was edges-in, now center-out var-0 stand-in), (2) the box-OVER-cover z-order (the
+  cover now overlaps the closing box), and (3) the house L0 +8t (was the cover-arm timing, not a hard wipe —
+  the exit wait recalibrated 20→10t).  Verified tick-1:1 off a fresh port `.osr`.  STILL OPEN: (4) the
+  "Arche running" SPRITE (note #5) needs the live cast (`cutscene-party-chars`, = THEME 2), and the
+  exit-wait 2× rate (vs the house 1×) is an un-pinned decompile thread.
 
 ## Where we were — ckpt 136
 

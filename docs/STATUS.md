@@ -46,13 +46,11 @@ understates how much actual instruction volume is ported.
   box-frame stays 28/28, quirk #108); **ckpt 137 the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) — the
   beat model: the L7→L8 camera-pan + run-off gap + the room-transition fades now track retail TICK-1:1
   through the house dialogue** (L8 1150 / L9 1190 / house L1-L3 all == retail; quirk #109).
-  **NEXT (USER studio pass, ckpt 137 — "tackle next session"): the TRANSITION FADE is visually wrong
-  (timing is right).  (1) retail's town fades are CENTER-OUT (from the MIDDLE — see tick 1241); the port
-  renders top/bottom (drew `var=1`, want `var=0` — the LCG mis-aligns by the cover, the establishing reveal
-  IS var-0 aligned).  (2) the speech bubble renders IN FRONT of the gradient (retail keeps the box up through
-  the cover; the port closes it early).  (3) the HARD WIPE — retail's fade is `al=0` (no alpha aging), the
-  port ages cells 10t (→ house L0 +8t).  Then (4) the "Arche running" SPRITE (cast) + THEME 2 (the cast
-  colour/animation render).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
+  **ckpt 138 the TRANSITION FADE punch-list (1)-(3) DONE + TICK-1:1 — center-out var-0 stand-in + the box
+  renders OVER the cover + house L0 +8t→0** (the +8t was the cover-arm TIMING, not a hard wipe — retail ages
+  the fade cells too; the exit wait recalibrated 20→10t off the draw stream; quirk #109 extended).
+  **NEXT: (4) the "Arche running" SPRITE (cast) + THEME 2 (the cast colour/animation render `0x4997b0`,
+  butterfly/NPC colour variants).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
   `character_step` on live input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
@@ -62,9 +60,28 @@ understates how much actual instruction volume is ported.
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → dialogue BOX POSITION ✓ (132) → TYPEWRITER-SKIP
     ✓ (133) → dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → dialogue PORTRAIT FADE-IN ✓ (135) +
     FADE-OUT dissolve ✓ (136) → arrival→house TRANSITION CHOREOGRAPHY TICK-1:1 ✓ (137, THEME 3) →
-    **the THEME-3 residuals (scene_fade hard-wipe / the cast "Arche running" sprite) + the cast
-    render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 137): the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) is PORTED + TICK-1:1 — the
+    the TRANSITION FADE (center-out + box-over-cover + house L0 +8t→0) ✓ (138) →
+    **the cast "Arche running" sprite + the cast render (THEME 2) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 138): the THEME-3 transition FADE punch-list (the ckpt-137 USER studio residuals) is
+  CLOSED — the arrival→house fade matches retail: CENTER-OUT, the dialogue box renders OVER the cover, and
+  house L0 lands tick-1:1 (the +8t is gone).**  Commit `cd1c547`; driven by reading the retail `.osr` DRAW
+  STREAM (`tools/trace_studio2/draw_probe.py`), verified tick-1:1 off a fresh port capture.  1023 host pass.
+  (1) **VARIANT → center-out (var 0):** retail's cover (tick 1234) + reveal (1261) both grow/recede from the
+  MIDDLE (+4 rows/tick), NOT edges-in.  The variant is genuinely the RNG draw `(rand*3)>>15` (`0x439690:563`)
+  but the port's LCG drifts at these arms (aligned at game_enter — establishing reveal rolls 0 — but the
+  unported cast consumes the LCG in between); `main.c` forces the beat's `fade_var`=0 as a center-out
+  STAND-IN, keeping the `rng_rand()` draw to match the per-arm count.  `PORT-DEBT(cutscene-fade-variant)`.
+  (2) **Box OVER the cover:** the closing L9 box shrinks out in FRONT of the cover (already rendered after
+  scene_fade — it just needed the cover to OVERLAP the close).  (3) **House L0 +8t = the cover-arm TIMING,
+  NOT a hard wipe** (retail ages the cells too, alpha `bmode=1`): off retail.osr the cover arms ~10t after L9
+  advances (1224→1234), not the script's WAIT 0x14=20 — the exit wait runs ~2×/sim-tick (vs the house
+  wait's 1×, not yet pinned); `cutscene.c` calibrates `ARRIVAL_EXIT_WAIT=10`.  **VERIFIED:** cover var-0
+  onset 1235 (retail 1234), reveal var-0, box over the cover, house L0 first-glyph 1370 (retail 1372, was
+  1380); house L1/L2/L3 still tick-exact.  Montage on the feed.  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr`** — scrub ticks 1224→1300: the box runs
+  ahead, the screen fades to black from the MIDDLE with the bubble on top, the room swaps under black, the
+  house fades in from the middle.
+- **Prior (ckpt 137): the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) is PORTED + TICK-1:1 — the
   cutscene now plays the non-dialogue BEATS between L7 and the house, tracking retail tick-for-tick through
   the house dialogue.**  RE'd exactly (USER: trace the code, don't measure — engine-quirk #109): the script
   `0x4d7d80` is a FLAT beat sequence the beat-runner `0x439690` pumps.  Added a beat model to `cutscene.c`
@@ -78,8 +95,8 @@ understates how much actual instruction volume is ported.
   beat completes when the live `scene_fade` grid SETTLES (retail's case-2 gate).  **VERIFIED off a port
   `.osr` vs retail.osr (dialogue timeline): L8 1150 (retail 1149) / L9 1190 (==) / house L1 1398 / L2 1448 /
   L3 1493 — all tick-exact.**  1023 host pass (+2: `cutscene_l8_lead_beats` + `cutscene_transition_fades`).
-  RESIDUAL: house L0 +8t (the port's `scene_fade` ages cells 10t but retail's transition fade is a HARD WIPE,
-  al=0 — a scene_fade follow-up); the "Arche running" sprite is the cast debt.  **USER-VERIFY:
+  RESIDUAL (RESOLVED ckpt 138): house L0 +8t — was the cover-arm timing (the exit wait), NOT a hard wipe;
+  the "Arche running" sprite is the cast debt (THEME 2).  **USER-VERIFY:
   `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr`** — scrub the arrival→house transition
   (ticks 982→1500): Arche's box runs ahead (L8), the screen fades to black, the room swaps under it, then the
   house fades in; the dialogue tracks retail tick-for-tick.

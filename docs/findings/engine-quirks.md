@@ -3706,3 +3706,32 @@ for the completion gate:
   the arrival's establishing reveal at `:56-63`, confirming the USER's "same effect as the
   intro town pan" note) + a WAIT `0x32`=50, then house L0.  So the room SWAPS mid-transition,
   bracketed by a fade-OUT (arrival exit) and a fade-IN (house entry) — note #6/#7.
+
+**The transition FADES, read off the draw stream (ckpt 138, `draw_probe.py`/per-column
+cell census of `retail.osr`):**
+- **Both the arrival-exit COVER and the house-entry REVEAL are variant 0 = CENTER-OUT**
+  (the seed-pinned capture): the cover's fading front starts at the middle rows (57-63,
+  `half`=60) at tick 1234 and grows OUTWARD at +4 rows/tick (mode-IN `rows`=4), full black
+  tick 1259; the reveal opens a clear window at the centre (tick 1261) growing out, clear
+  ~tick 1300.  The variant is genuinely the RNG draw `(rand*3)>>15` (`0x439690:563`, no
+  override) — retail just rolls 0 at both arms under the pinned seed.  The cells DO age
+  (alpha `bmode=1`) over ~10 ticks — it is NOT a hard wipe (the ckpt-137 "al=0" read was
+  the proxy's `res=0` on the alpha blit, not alpha=0).  The port's LCG is aligned at
+  game_enter (its establishing reveal also rolls 0, quirk #94) but DRIFTS by these arms
+  (rolls 1 = edges-in) because the unported cast consumes the LCG in between →
+  `PORT-DEBT(cutscene-fade-variant)`, a center-out stand-in.
+- **The box CLOSE overlaps the cover, in front of it.**  On L9's advance (tick 1224, its
+  name tab — the dialogue-mode marker — vanishes) the box shrinks out over ~20t (frame
+  cels 30→3, gone ~tick 1246), rendered IN FRONT of the cover (drawcall z-order: dialogue
+  after scene_fade; `draw_probe` BOX>fade through tick 1245).  The cover overlaps it
+  (arms tick 1234, mid-close).
+- **The exit pre-cover WAIT 0x14=20 elapses in ~10 SIM-TICKS** (advance 1224 → cover-arm
+  1234), i.e. the `+0x57c` wait-timer (`0x439690:1083`, −1/beat-runner call) runs ~2×/sim-
+  tick in the EXIT context — yet the house-entry WAIT 0x32=50 maps 1:1 (~50t: reveal
+  settle ~1300 + wait50 + box pop-in ~20 → house L0 first-glyph 1372).  The 2× exit anomaly
+  vs the 1× house wait is NOT yet pinned in the decompile (0x40c380 calls the script once/
+  frame, flips are ~1:1 with ticks here); `cutscene.c` calibrates the exit wait to 10t from
+  the draw stream (a flip-vs-tick rate detail, quirk #99 family).  At the old 20 the port
+  armed the cover at advance+20 — after the closing box had shrunk away (no box over the
+  cover) AND landing house L0 +8t late (L1+ stay matched, they are nav-anchored) — the two
+  ckpt-137 residuals.  Fixed: cover var-0 + box-over-cover + house L0 +8t→−2t, tick-1:1.
