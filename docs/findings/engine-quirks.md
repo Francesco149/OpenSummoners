@@ -3690,10 +3690,14 @@ for the completion gate:
   settling ~53t.  **Case 4 (`0x439690:1137-1143`) loops the 32-slot actor-beat pool and is DONE
   only when NO slot is in active-move substate (`+0x300==1`)** — i.e. it waits for the Arche
   RUN-OFF (the actor mover `0x46cd70`→`0x54f980`) to finish, ~117t (the gap 167 − the wait50).
-  THEN the script's WAIT `0x32`=50 (`in_ECX[8]=6`, the `+0x57c` timer), then L8 at 982+117+50=
-  1149.  So the gap is the RUN-OFF completion (case 4) + wait50; the camera just rides along.
-  The run-off duration (117t) is the ACTOR MOVE STEPPER (`0x54f980`, the cast), so it stands in
-  for `PORT-DEBT(cutscene-party-chars)` — the same cast the baked run TARGET `spk_wx=73104` does.
+  THEN the script's WAIT `0x32`=50 (`in_ECX[8]=6`, the `+0x57c` timer), then L8's `0x49d6e0`
+  opens the box.  So the 167t gap (L7adv → L8 first-glyph, MEASURED) = the case-4 RUN-OFF
+  completion + wait50 + the box POP-IN (~20t; L8 opens fresh like L0, and the port reproduces
+  L0-L7's pop-in 1:1).  The camera just rides along.  The run-off duration (= 167 − 50 − 20 =
+  ~97t) is the ACTOR MOVE STEPPER (`0x54f980`, the cast), so it stands in for
+  `PORT-DEBT(cutscene-party-chars)` — the same cast the baked run TARGET `spk_wx=73104` does.
+  **VERIFIED off a port `.osr`: L8 first-glyph lands tick 1150 (retail 1149); L9 1190 (==),
+  house L1/L2/L3 1398/1448/1493 (all ==).  The one residual is house L0 (+8t): the cover fade.**
 - **L9 "Hmhm!" (Mother, adv 1224) → house L0 "So this is our new house?" (start 1372) = a
   148-tick gap.**  Script: after L9 a WAIT `0x14`=20 + a fade-to-black (`in_ECX[8]=2`,
   `[0xd]=3`, `:267-282`), then `0x49cd70` box teardown + `0x401d40(0x334c8,…)` stages the

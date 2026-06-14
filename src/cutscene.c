@@ -82,18 +82,21 @@ static const dialogue_speaker_body *speaker_body(uint32_t name_va)
  * (verified off the draw stream: a town tile's dst.x slid -148px over ~982→1031 =
  * 12800→~28000 at -4px/tick cruise, settling ~53t, then held).
  *
- * The GATE (the 167t L7adv→L8start gap, MEASURED, minus the 50t wait = 117t) is the
- * case-4 RUN-OFF wait — Arche running 32000 units via the actor MOVE stepper
- * (0x46cd70 -> 0x54f980).  That stepper is the cast (PORT-DEBT(cutscene-party-chars),
- * unported), so the 117t is its completion — a clearly-tagged cast-debt STAND-IN for
- * a not-yet-ported subsystem (the same cast the baked run TARGET spk_wx=73104 stands
- * in for), NOT a curve-fit rate.  Modeled as one beat: CAMERA_PAN issues the
- * concurrent pan command + carries the case-4 run-off wait as its `dur`; then WAIT 50. */
+ * The GATE is the case-4 RUN-OFF wait — Arche running 32000 units via the actor MOVE
+ * stepper (0x46cd70 -> 0x54f980).  That stepper is the cast (PORT-DEBT(cutscene-party-
+ * chars), unported), so its duration is a clearly-tagged cast-debt STAND-IN (the same
+ * cast the baked run TARGET spk_wx=73104 stands in for), NOT a curve-fit rate.  The
+ * retail L7adv→L8-first-glyph gap is MEASURED 167t = run-off + wait50 + the box
+ * POP-IN (~20t — L8 opens fresh like L0, and the port reproduces L0-L7's pop-in 1:1,
+ * THEME 1).  So the run-off = 167 − 50 − 20 = 97t; the box pop-in is added by
+ * dialogue_step AFTER the beats.  Modeled as one beat: CAMERA_PAN issues the concurrent
+ * pan command + carries the case-4 run-off wait as its `dur`; then WAIT 50, then L8. */
 #define ARRIVAL_L8_PAN_X    28000
 #define ARRIVAL_L8_PAN_Y    12800
 #define ARRIVAL_L8_PAN_SPD  400
-#define ARRIVAL_L8_RUNOFF   117    /* case-4 actor-wait: the Arche run-off (0x54f980)  *
-                                    * completion, MEASURED 167−50; cast-debt stand-in   */
+#define ARRIVAL_L8_RUNOFF   97     /* case-4 actor-wait: the Arche run-off (0x54f980)   *
+                                    * completion = gap 167 − wait50 − box pop-in 20;     *
+                                    * cast-debt stand-in (MEASURED, draw-verified L8)    */
 #define ARRIVAL_L8_WAIT     50     /* in_ECX[0x15f]=0x32, the script timer (ported)     */
 static const cutscene_beat ARRIVAL_L8_LEAD[] = {
     /* type             fade_mode fade_var pan_x  pan_y  param  dur(=case-4 run-off wait) */

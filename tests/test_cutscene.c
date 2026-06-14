@@ -439,8 +439,9 @@ int test_cutscene_l8_lead_beats(void)
         cutscene_step(&cs, /*confirm=*/1);            /* presses do nothing here */
         t++;
     }
-    T_ASSERT_EQ_I(t, 117 + 50);   /* ARRIVAL_L8_RUNOFF (case-4 run-off wait) +
-                                   * ARRIVAL_L8_WAIT = the retail L7adv→L8start gap (167t) */
+    T_ASSERT_EQ_I(t, 97 + 50);    /* ARRIVAL_L8_RUNOFF (case-4 run-off wait) +
+                                   * ARRIVAL_L8_WAIT = the beat phase (the +20t box
+                                   * pop-in lands L8's first glyph at retail's +167t) */
     /* no stray action emitted across the wait beat (camera was the only one) */
     T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);
 

@@ -168,12 +168,18 @@ def cmd_nav(retail, boot_nav, tick_lo, tick_hi, offset, boot_max):
         # 2).  A SAME-speaker advance has no overlap → fires at advance_tick.  The
         # last line in range has no known next (a same-speaker page or a THEME-3
         # beat gap, not an overlap) → no lead.
+        # The -8 lead is the speaker-change box OVERLAP (#108) — it ONLY applies to
+        # a QUICK reopen (the new box pops in ~10t after the advance).  A LONG gap to
+        # the next line means a NON-dialogue beat ran between them (the L7→L8 run-off,
+        # or the L9→house room transition with its exit/entry fades): the box closes
+        # FULLY (no overlap), so the advance fires at advance_tick with no lead.
         nxt = lns[i + 1] if i + 1 < len(lns) else None
-        speaker_change = (nxt is not None) and (nxt.name != ln.name)
-        adv = ln.advance_tick - (8 if speaker_change else 0)
-        confirms.append((adv + offset,
-                         f"adv  L{ln.idx} {ln.name!r}"
-                         + (" [spkr-change -8]" if speaker_change else " [same]")))
+        gap = (nxt.start_tick - ln.advance_tick) if nxt is not None else 0
+        overlap = (nxt is not None) and (nxt.name != ln.name) and (gap <= 20)
+        adv = ln.advance_tick - (8 if overlap else 0)
+        tag = (" [spkr-change -8]" if overlap
+               else (" [beat-gap]" if (nxt is not None and gap > 20) else " [same]"))
+        confirms.append((adv + offset, f"adv  L{ln.idx} {ln.name!r}" + tag))
     confirms.sort()
     for tick, why in confirms:
         print(f"# {why}")                        # standalone comment line (parser skips)
