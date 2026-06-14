@@ -220,7 +220,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
-| 0x5bf505 | FUN_005bf505 | 30 | main.c, rng.c, rng.h |
+| 0x5bf505 | FUN_005bf505 | 30 | cutscene.c, main.c, rng.c (+1) |
 | 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
 | 0x5bf5fd | FUN_005bf5fd | 153 | wnd_proc.h |
 | 0x5c0907 | FUN_005c0907 | 45 | zdd.c, zdd.h |

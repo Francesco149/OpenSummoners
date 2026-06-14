@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 136, 2026-06-14)
+# Session handoff — rolling current state (last updated ckpt 137, 2026-06-14)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,45 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 136
+## Where we are — ckpt 137
+
+**The arrival→house TRANSITION CHOREOGRAPHY (THEME 3 of the intro punch-list) is PORTED + TICK-1:1.**  The
+cutscene now plays the interleaved NON-DIALOGUE beats between arrival L7 and the house dialogue, tracking
+`retail.osr` tick-for-tick.  USER course-correction this ckpt: *trace the exact retail code, don't measure
+choreography and bake a constant* (memory [[re-not-measure-choreography]]) — so the beats are RE'd from the
+decompile, not curve-fit.  1023 host pass (+2).  Engine-quirk #109.
+
+- **The mechanism (quirk #109): `0x4d7d80` is a FLAT beat sequence** the beat-runner `0x439690` pumps —
+  dialogue lines interleaved with camera pans / actor run-offs / wait timers / scene fades, each blocking
+  (`0x439680` returns 6 = not-done) until it completes.  Ported a beat model to `cutscene.{c,h}`
+  (`cutscene_beat` WAIT / CAMERA_PAN / FADE; a per-room SPARSE `cutscene_line_lead` map + `exit_beats`; a
+  beat sub-phase in `cutscene_step` that closes the box + runs the beats; one-shot `cutscene_action` the
+  caller performs).  Three beats:
+  - **L7→L8 "Arche runs ahead":** a FIRE-AND-FORGET camera pan to (28000,12800)@400 (the `0x43d1d0` easer —
+    `0x439690:623-641` sets the view tgt then clears `in_ECX[0x13]`; draw-verified −148px scroll) + the
+    case-4 RUN-OFF wait.  KEY RE: `0x402730` (the run-off) does `*(in_ECX+0x20)=4` — it OVERWRITES the beat
+    type to 4, so the `0x439680` at `:229` is case 4 (`0x439690:1137` waits for the actor-beat pool to clear),
+    NOT case 3 (camera).  The run-off duration (97t = the MEASURED 167t L7adv→L8-first-glyph gap − wait50 −
+    the ~20t box pop-in) is the actor MOVE stepper `0x54f980` = the cast, a tagged `cutscene-party-chars`
+    stand-in.
+  - **Arrival EXIT:** wait20 + a fade-TO-black (cover) that GATES the room-key swap (the reload happens UNDER
+    full black — no early snap, note #5/#6).
+  - **House ENTRY:** a fade-FROM-black reveal + wait50 (note #7).  The fades RE the arm `0x439690:555-563`
+    (MODE = `in_ECX[10]`: 1 reveal/_OUT, 2 cover/_IN; SPEED 1000; VARIANT = LCG `(rand*3)>>15` — main.c draws
+    it at the wire site).  A FADE beat completes when the live `scene_fade` grid SETTLES (`cutscene_set_fade_active`
+    = retail's case-2 grid-done gate).
+- **VERIFIED off `C:\oss-osr\port-theme3.osr` vs retail.osr (dialogue timeline):** L8 first-glyph 1150
+  (retail 1149, +1 = the L7-advance), L9 1190 (==), house L1 1398 / L2 1448 / L3 1493 (all ==).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` — scrub ticks 982→1500.
+- **OPEN RESIDUALS (THEME 3):** (a) house L0 is +8t — the port's `scene_fade` ages each cell over 10t (alpha)
+  but retail's transition fade is a HARD WIPE (`al=0` in the draw stream, settling ~16t cover / ~30t reveal);
+  the cover thus settles ~8t slow.  A scene_fade alpha-vs-hard-wipe follow-up.  (b) The "Arche running" SPRITE
+  (note #5) needs the live cast (`cutscene-party-chars`).  (c) The RNG fade-VARIANT (iris pattern) alignment
+  needs a retail OSR_STATE capture to diff (retail.osr predates M8 state).
+- **NEXT:** the THEME-3 residuals above, THEME 2 (the cast colour/animation render `0x4997b0`, butterfly
+  variants), THEN the FREEROAM HAND-OFF.  See `plans/intro-cutscene-1to1.md`.
+
+## Where we were — ckpt 136
 
 **The dialogue PORTRAIT CROSS-FADE is now DRAWCALL+LUT-EXACT in BOTH directions — fade-IN (ckpt 135) and
 fade-OUT (ckpt 136).**  On a speaker change the OUTGOING bust DISSOLVES out via the reverse cross-fade ramp

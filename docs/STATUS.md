@@ -43,14 +43,15 @@ understates how much actual instruction volume is ported.
   tick after scale==1000 so idx 0 holds 2 ticks; quirk #108); **ckpt 136 the dialogue PORTRAIT FADE-OUT
   dissolve — drawcall+LUT-exact, ALL 3 arrival speaker changes tick-1:1** (the closing bust dissolves via
   the reverse ramp idx 18→2 then GONE; the advance presses 2t early + the new box's re-pop delays 2t so the
-  box-frame stays 28/28, quirk #108).
-  **NEXT (the punch-list
-  `plans/intro-cutscene-1to1.md`, THEMES left): (3) the arrival→house TRANSITION CHOREOGRAPHY — retail scripts
-  Arche running to the house (the 167-tick beat between arrival L8/L9, note #5) + a fade-from-black house-entry
-  reveal (#6/#7), the port SNAPS (`cutscene-beat-runner`); (2) the cutscene CAST + ambient render
-  (butterfly/NPC colour + animation — `cutscene-party-chars`/butterfly debts).  THEN the FREEROAM
-  HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
-  Studio: `plans/trace-studio-v2.md`;
+  box-frame stays 28/28, quirk #108); **ckpt 137 the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) — the
+  beat model: the L7→L8 camera-pan + run-off gap + the room-transition fades now track retail TICK-1:1
+  through the house dialogue** (L8 1150 / L9 1190 / house L1-L3 all == retail; quirk #109).
+  **NEXT (the punch-list `plans/intro-cutscene-1to1.md`): THEME 3 residuals — (a) house L0 is +8t (the port's
+  scene_fade AGES cells over 10t but retail's transition fade is a HARD WIPE, al=0 — a scene_fade follow-up);
+  (b) the "Arche running" SPRITE (note #5) is the cast (`cutscene-party-chars`); (c) the RNG fade-variant
+  alignment (needs a retail OSR_STATE capture).  Then (2) the cutscene CAST + ambient render (THEME 2 —
+  butterfly/NPC colour + animation).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
+  `character_step` on live input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -58,9 +59,29 @@ understates how much actual instruction volume is ported.
     CHAIN ✓ → dialogue PORTRAITS un-MVP'd per-speaker+aligned ✓ → trace-studio v2 ✓ (ckpt 125-129) →
     the house + errands ROOM BACKDROPS RENDER ✓ (ckpt 130) → dialogue BOX POSITION ✓ (132) → TYPEWRITER-SKIP
     ✓ (133) → dialogue CADENCE TICK-1:1 ✓ (134, THEME 1) → dialogue PORTRAIT FADE-IN ✓ (135) +
-    FADE-OUT dissolve ✓ (136) → **the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) + the cast
+    FADE-OUT dissolve ✓ (136) → arrival→house TRANSITION CHOREOGRAPHY TICK-1:1 ✓ (137, THEME 3) →
+    **the THEME-3 residuals (scene_fade hard-wipe / the cast "Arche running" sprite) + the cast
     render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 136): the dialogue PORTRAIT FADE-OUT dissolve is PORTED + DRAWCALL+LUT-EXACT — the
+- **LATEST (ckpt 137): the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) is PORTED + TICK-1:1 — the
+  cutscene now plays the non-dialogue BEATS between L7 and the house, tracking retail tick-for-tick through
+  the house dialogue.**  RE'd exactly (USER: trace the code, don't measure — engine-quirk #109): the script
+  `0x4d7d80` is a FLAT beat sequence the beat-runner `0x439690` pumps.  Added a beat model to `cutscene.c`
+  (WAIT / CAMERA_PAN / FADE beats, a per-room lead/exit map; main.c performs the camera/fade/reload).
+  Three beats ported: (1) **L7→L8 the "Arche runs ahead" gap** — a FIRE-AND-FORGET camera pan to (28000,12800)
+  (the `0x43d1d0` easer, draw-verified -148px scroll) + the case-4 RUN-OFF wait (`0x402730` overwrites the
+  beat type to 4; gated on the actor mover `0x54f980` = the cast, a tagged `cutscene-party-chars` stand-in,
+  97t); (2) **the arrival EXIT** — wait20 + a fade-TO-black (cover) that GATES the room-key swap (so it
+  happens under black, no early snap); (3) **the house ENTRY** — a fade-FROM-black reveal + wait50.  The
+  fades RE the arm `0x439690:555-563` (MODE = `in_ECX[10]`, SPEED 1000, VARIANT = LCG `(rand*3)>>15`); a FADE
+  beat completes when the live `scene_fade` grid SETTLES (retail's case-2 gate).  **VERIFIED off a port
+  `.osr` vs retail.osr (dialogue timeline): L8 1150 (retail 1149) / L9 1190 (==) / house L1 1398 / L2 1448 /
+  L3 1493 — all tick-exact.**  1023 host pass (+2: `cutscene_l8_lead_beats` + `cutscene_transition_fades`).
+  RESIDUAL: house L0 +8t (the port's `scene_fade` ages cells 10t but retail's transition fade is a HARD WIPE,
+  al=0 — a scene_fade follow-up); the "Arche running" sprite is the cast debt.  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr`** — scrub the arrival→house transition
+  (ticks 982→1500): Arche's box runs ahead (L8), the screen fades to black, the room swaps under it, then the
+  house fades in; the dialogue tracks retail tick-for-tick.
+- **Prior (ckpt 136): the dialogue PORTRAIT FADE-OUT dissolve is PORTED + DRAWCALL+LUT-EXACT — the
   ckpt-135 next-chip is CLOSED; on a speaker change the OUTGOING bust now dissolves out via the reverse
   ramp idx 18→2 then GONE, matching retail TICK-FOR-TICK on ALL THREE arrival speaker changes.**  The
   coordinated fix (engine-quirk #108): retail processes the advance ~2t BEFORE the new box opens, so

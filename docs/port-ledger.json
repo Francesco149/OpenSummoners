@@ -13043,6 +13043,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/cutscene.c",
     "src/main.c",
     "src/rng.c",
     "src/rng.h"

@@ -160,11 +160,16 @@ non-dialogue beats: actor run-offs + fades) but the specifics below are newly pi
 2. ~~THEME 1 (dialogue timing)~~ **DONE ckpt 134** — mechanics were already faithful; fixed
    the box re-pop cadence + the wrap space → tick-1:1.  (One residual: the advance-boundary
    1-flip clear, USER-verify.)
-3. **THEME 3** (room transition) — NEXT.  The big-differ, clearly-missing features: the
-   167-tick "Arche runs to the house" beat between arrival L7/L8 (#5, `0x402730`/`0x401e60`,
-   gate the room load on it) + the fade-from-black / inverted-iris house-entry reveal
-   (#6/#7, the `scene_fade` the port lacks on `reload_room_backdrop`).  The divergence after
-   tick 982 (port advances L7→L8 instantly; retail's L8 is at tick 1149).
+3. ~~**THEME 3** (room transition)~~ **DONE ckpt 137 — TICK-1:1** (quirk #109).  RE'd the FLAT
+   beat sequence (`0x4d7d80` + the beat-runner `0x439690`) exactly (USER: trace the code, don't
+   measure) + ported a beat model to `cutscene.{c,h}`: the L7→L8 camera-pan + the case-4 RUN-OFF
+   gap (`0x402730` overwrites the beat type to 4 — the gate is the actor mover `0x54f980`, a cast
+   stand-in, 97t), the arrival EXIT fade-to-black that GATES the room swap, and the house ENTRY
+   fade-from-black (the fades RE the arm `0x439690:555-563`).  Port `.osr` vs retail: L8 1150
+   (retail 1149) / L9 1190 (==) / house L1-L3 all ==.  RESIDUALS: house L0 +8t (the port's
+   scene_fade ages cells 10t but retail's transition fade is a HARD WIPE, al=0 — a scene_fade
+   follow-up); the "Arche running" SPRITE (#5) is the cast; the RNG fade-variant alignment needs a
+   retail OSR_STATE capture.
 4. **THEME 2** (cast colour/animation) — the most involved (the party-band render `0x4997b0`
    + butterfly variants).  Now that the dialogue is tick-1:1, the matched nav makes the
    cast/ambient frames at ticks 274-339 (notes #0-#3) honestly comparable.
