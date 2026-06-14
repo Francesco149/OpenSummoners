@@ -3735,3 +3735,11 @@ cell census of `retail.osr`):**
   armed the cover at advance+20 — after the closing box had shrunk away (no box over the
   cover) AND landing house L0 +8t late (L1+ stay matched, they are nav-anchored) — the two
   ckpt-137 residuals.  Fixed: cover var-0 + box-over-cover + house L0 +8t→−2t, tick-1:1.
+- **The cinematic LETTERBOX is TOWN-ARRIVAL-only — retail DROPS it at the arrival→house room swap.**  Off
+  `retail.osr` the letterbox bars (res 0x583, the 64px top/bottom, low draw `seq`) are present through the
+  whole arrival (t1190-1245) and GONE in the house (t1291+, the house dialogue renders bar-free); they vanish
+  under the cover at the room swap (~t1260).  (The top-row res-0x583 cells seen DURING the cover/reveal at
+  t1246-1290 are the FADE grid's edge-black, not the letterbox — center-out clears the edges last.)  The port
+  armed the letterbox once at `enter_game` and never disarmed it (`PORT-DEBT(ingame-letterbox)`); ckpt 138
+  gates `letterbox_render` on `g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL` so the house/errands render bar-free
+  (USER studio note, tick 1293).

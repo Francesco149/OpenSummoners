@@ -2968,9 +2968,17 @@ static void game_render(void *user)
                              * always, the town cast bands only when room_is_town. */
                             game_actor_walk, NULL, &deferred);
         /* 0x48c150:124-162 — the cinematic letterbox tiled ON TOP of the
-         * backdrop (after the present pass), during the establishing shot. */
-        letterbox_render(g_letterbox_top, g_letterbox_bottom,
-                         game_letterbox_blit, NULL);
+         * backdrop (after the present pass), during the establishing shot.
+         * GATED to the TOWN/arrival room: retail's letterbox is the town-arrival
+         * establishing-shot framing (quirk #74) and is DROPPED at the arrival→house
+         * room swap — verified off retail.osr (present through the arrival t1190-1245,
+         * GONE in the house t1291+, USER studio note).  The room swap sets
+         * g_loaded_room_key to the house under the cover, so the bars vanish under
+         * full black and the house renders bar-free, matching retail.  The constant
+         * heights stay PORT-DEBT(ingame-letterbox) — only the on/off is now faithful. */
+        if (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
+            letterbox_render(g_letterbox_top, g_letterbox_bottom,
+                             game_letterbox_blit, NULL);
         /* 0x48c150:175 — the establishing REVEAL fade-grid, rendered AFTER the
          * letterbox bars: the black iris that opens the town from center-out. */
         scene_fade_render(&g_scene_fade,

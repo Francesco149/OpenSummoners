@@ -43,6 +43,13 @@ Port|retail montage (ticks 1240/1245/1275) on the feed; engine-quirk #109 extend
 pair) — scrub ticks 1224→1300: the box runs ahead, the screen fades to black from the MIDDLE with the bubble
 on top, the room swaps under black, the house fades in from the middle.
 
+**Follow-up (same ckpt, USER studio note tick 1293): the cinematic LETTERBOX is now town-arrival-only.**  The
+port rendered the establishing-shot letterbox bars in the house too; retail drops them at the arrival→house
+room swap (verified off retail.osr: present through the arrival t1190-1245, GONE in the house t1291+).  Gated
+`letterbox_render` on `g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL`, so the house + errands render bar-free,
+port|retail bit-matching at the top/bottom (montage on the feed).  `PORT-DEBT(ingame-letterbox)` reduced to
+just the constant 64px heights (the on/off is now faithful).
+
 **NEXT:** THEME 2 — the cutscene CAST + ambient render (the "Arche running" sprite `cutscene-party-chars`,
 the butterfly/NPC colour variants `0x4997b0`), THEN the FREEROAM HAND-OFF.  See `plans/intro-cutscene-1to1.md`.
 

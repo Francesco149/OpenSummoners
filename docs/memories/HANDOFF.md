@@ -36,6 +36,12 @@ port capture.  1023 host pass (unchanged).  Engine-quirk #109 extended; `PORT-DE
 - **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` (shortcut loaded with this
   pair) — scrub ticks 1224→1300: box runs ahead, fade-to-black from the MIDDLE with the bubble on top, room
   swaps under black, house fades in from the middle.
+- **LETTERBOX follow-up (same ckpt, USER studio note tick 1293):** the port rendered the cinematic letterbox
+  bars in the house; retail drops them at the arrival→house room swap (present through the arrival t1190-1245,
+  GONE in the house t1291+).  Gated `letterbox_render` on `g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL` →
+  house/errands render bar-free (montage on the feed).  `PORT-DEBT(ingame-letterbox)` reduced to the constant
+  heights (on/off now faithful).  The other 4 studio notes (NPC colour/animation, butterfly movement,
+  Arche-runs-to-house) are THEME-2 cast debts.
 - **NEXT:** THEME 2 — the cutscene CAST + ambient render (the "Arche running" SPRITE `cutscene-party-chars`,
   the butterfly/NPC colour variants `0x4997b0`), THEN the FREEROAM HAND-OFF.  See
   `plans/intro-cutscene-1to1.md`.  The 2× exit-wait mechanism (vs the house 1×) stays an OPEN decompile

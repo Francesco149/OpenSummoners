@@ -80,7 +80,10 @@ understates how much actual instruction volume is ported.
   1380); house L1/L2/L3 still tick-exact.  Montage on the feed.  **USER-VERIFY:
   `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr`** — scrub ticks 1224→1300: the box runs
   ahead, the screen fades to black from the MIDDLE with the bubble on top, the room swaps under black, the
-  house fades in from the middle.
+  house fades in from the middle.  **+ LETTERBOX follow-up (USER studio note tick 1293):** the cinematic
+  letterbox is now town-arrival-only — gated `letterbox_render` on `g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL`
+  so the house/errands render bar-free (retail drops the bars at the room swap; `PORT-DEBT(ingame-letterbox)`
+  reduced to the constant heights).
 - **Prior (ckpt 137): the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) is PORTED + TICK-1:1 — the
   cutscene now plays the non-dialogue BEATS between L7 and the house, tracking retail tick-for-tick through
   the house dialogue.**  RE'd exactly (USER: trace the code, don't measure — engine-quirk #109): the script
