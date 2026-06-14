@@ -3665,8 +3665,13 @@ for the completion gate:
   cur_y==tgt_y`** (the `0x43d1d0` easer settled).
 - **WAIT timer** `in_ECX[8]=6`: `in_ECX[0x15f]` (`+0x57c`) counts down 1/sim-tick
   (`0x439690:1083`); gate = it hit 0.
-- **SCENE FADE** `in_ECX[8]=2`: arms the reveal/cover iris grid (`scene_fade`, quirk #95);
-  gate = the grid settled (`+0x24` cleared when the grid `done` flag sets, `:1125`).
+- **SCENE FADE** `in_ECX[8]=2`: arms the reveal/cover iris grid (`scene_fade`, quirk #95).
+  **The ARM (`0x439690:555-563`, triggered by `in_ECX[9]`):** grid (`*(0x8a9b50)+0x1040`)
+  `+0xc` = MODE = `in_ECX[0xa]` (=`in_ECX[10]`; **1 = reveal/from-black**, **2 = cover/to-
+  black**), `+0x1c` = SPEED = `in_ECX[0xb]` (=1000), `+0x10` = VARIANT = `FUN_005bf505`
+  (the LCG) `(rand*3)>>15` in {0,1,2} — i.e. the variant is an RNG DRAW, one per arm
+  (the same arm the establishing town reveal uses).  Gate (case 2) = the grid settled
+  (`+0x24` cleared when the grid `done` flag sets, `:1125`).
 - **ACTOR RUN-OFF / EMOTE** (`0x402730` arms a type-1 MOVE beat = target x at actor `+0x15b70`,
   y `+0x15b6c`; `0x401e60` a type-2 emote) into the script's 32-slot actor-beat pool
   (`+0x2fc + i*0x14`); the actor update `0x46cd70` (`:1099`) steps them.

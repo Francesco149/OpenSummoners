@@ -132,6 +132,33 @@ static const cutscene_line_lead ARRIVAL_LEADS[] = {
 };
 #define ARRIVAL_LEADS_N ((int)(sizeof(ARRIVAL_LEADS) / sizeof(ARRIVAL_LEADS[0])))
 
+/* ── THEME 3, the arrival→house ROOM-TRANSITION fades (notes #6/#7).  RE'd from
+ * the scene_fade ARM site 0x439690:555-563 (engine-quirk #109): the fade beat
+ * (in_ECX[8]=2) arms the iris grid (*(0x8a9b50)+0x1040) with MODE = in_ECX[10]
+ * (1 = reveal/from-black = SCENE_FADE_MODE_OUT, 2 = cover/to-black = _IN), SPEED =
+ * in_ECX[0xb] = 1000, and a VARIANT drawn from the LCG (FUN_005bf505, (rand*3)>>15
+ * in {0,1,2}) — the SAME arm the establishing town reveal already uses (validated).
+ * The caller (main.c) draws the RNG variant + arms the live grid on CS_ACT_FADE; the
+ * FADE beat then waits for the grid to SETTLE (cutscene_set_fade_active = retail's
+ * case-2 done gate).  These mode values mirror scene_fade.h, carried opaquely. */
+#define CS_FADE_REVEAL 1   /* SCENE_FADE_MODE_OUT — fade FROM black (house entry, #7) */
+#define CS_FADE_COVER  2   /* SCENE_FADE_MODE_IN  — fade TO black   (arrival exit, #6) */
+#define CS_FADE_SPEED  1000               /* in_ECX[0xb] (ported scene_fade speed)    */
+#define CS_FADE_CAP    120                /* a generous safety cap (the grid settles  *
+                                           * in ~15-30t; the real gate is the grid)   */
+
+/* The arrival room's EXIT beats (0x4d7d80:267-291): after L9 ("Hmhm! …") advances,
+ * a WAIT 0x14=20 (in_ECX[0x15f]) then a fade-TO-black (cover) BEFORE the house room
+ * key is staged (the 0x401d40 stage / 0x402030 commit happen under full black).
+ * MEASURED off retail.osr: L9 adv 1224 → fade-to-black starts 1244 (= +20, the
+ * wait20) → full black ~1259, the room swaps ~1260. */
+static const cutscene_beat ARRIVAL_EXIT[] = {
+    /* type           fade_mode      fade_var pan_x pan_y param        dur */
+    { CS_BEAT_WAIT,   0,             0, 0, 0, 0,            20 },
+    { CS_BEAT_FADE,   CS_FADE_COVER, 0, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
+};
+#define ARRIVAL_EXIT_N ((int)(sizeof(ARRIVAL_EXIT) / sizeof(ARRIVAL_EXIT[0])))
+
 /* The new-house interior — 0x4d7d80 case 0x334c8, the first-run (flag
  * 0x5f76805 == 0) path, decompile lines 1029-1218.  Eight 0x49d6e0 calls,
  * in order.  One non-dialogue beat (the actor emote 0x401e60(Arche,1) at
@@ -151,14 +178,35 @@ static const cutscene_line TOWN_HOUSE[] = {
 };
 #define TOWN_HOUSE_COUNT ((int)(sizeof(TOWN_HOUSE) / sizeof(TOWN_HOUSE[0])))
 
+/* The house room's ENTRY beats (0x4d7d80:1056-1080): the house case re-dispatches
+ * (after the arrival staged its key + the room reloaded UNDER the exit fade-to-black)
+ * and OPENS with a fade-FROM-black (reveal — the SAME arm as the establishing town
+ * reveal, in_ECX[10]=1) then a WAIT 0x32=50, before house L0.  Modeled as line 0's
+ * lead beats.  MEASURED off retail.osr: the reveal recedes the black ~1261→1291, the
+ * room is house from there. */
+static const cutscene_beat HOUSE_L0_LEAD[] = {
+    /* type           fade_mode       fade_var pan_x pan_y param         dur */
+    { CS_BEAT_FADE,   CS_FADE_REVEAL, 0, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
+    { CS_BEAT_WAIT,   0,              0, 0, 0, 0,             50 },
+};
+#define HOUSE_L0_LEAD_N ((int)(sizeof(HOUSE_L0_LEAD) / sizeof(HOUSE_L0_LEAD[0])))
+
+/* The house room's lead-beat map (THEME 3): line 0 opens with the fade-from-black. */
+static const cutscene_line_lead HOUSE_LEADS[] = {
+    { /*line_idx=*/0, HOUSE_L0_LEAD, HOUSE_L0_LEAD_N },
+};
+#define HOUSE_LEADS_N ((int)(sizeof(HOUSE_LEADS) / sizeof(HOUSE_LEADS[0])))
+
 /* The room chain: arrival → house.  Each room carries its committed key (the
  * 0x402030 +0x4024 value) so the caller can drive the backdrop + detect the
  * errands boundary.  The chain ends after the house (its retail `return 2`
- * stages 0x334dc, the errands room = the freeroam hand-off). */
+ * stages 0x334dc, the errands room = the freeroam hand-off).  THEME 3: the arrival
+ * EXITs with a wait + fade-to-black (so the room key stages under black), and the
+ * house line 0 ENTERs with a fade-from-black reveal. */
 static const cutscene_room TOWN_CHAIN[] = {
-    /* room_key            script        n_lines            leads          n_leads          exit  n_exit */
-    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, NULL, 0 },
-    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   NULL,          0,               NULL, 0 },
+    /* room_key            script        n_lines            leads          n_leads          exit          n_exit */
+    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N },
+    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   NULL,         0 },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))
 
@@ -261,6 +309,7 @@ static void cs_arm_beat(cutscene *cs)
         cs->action.a = b->fade_mode;
         cs->action.b = b->fade_var;
         cs->action.c = b->param;
+        cs->fade_seen = 0;   /* not yet observed the grid active (1-tick arm latency) */
     }
     /* CS_BEAT_WAIT issues no action — it is a pure hold (the +0x57c timer). */
 }
@@ -328,16 +377,39 @@ static int cs_finish_beats(cutscene *cs)
     return 0;
 }
 
-/* One sim-tick of the beat phase: shrink the closing box, hold the current beat,
- * and advance to the next (or finish the list) when it expires. */
+/* One sim-tick of the beat phase: shrink the closing box, advance the current beat,
+ * and move to the next (or finish the list) when it completes.  A FADE beat
+ * completes when the scene_fade grid SETTLES (retail's case-2 gate); a WAIT /
+ * CAMERA_PAN beat completes when its hold timer expires. */
 static int cs_step_beats(cutscene *cs)
 {
     if (cs->closing.active)
         dialogue_close_step(&cs->closing);   /* the OLD box shrinks out */
-    if (cs->beat_timer > 0)
-        cs->beat_timer--;
-    if (cs->beat_timer > 0)
-        return 0;                            /* still holding this beat */
+
+    const cutscene_beat *b =
+        (cs->beat_idx < cs->n_beats) ? &cs->beats[cs->beat_idx] : NULL;
+    int done = 0;
+
+    if (b != NULL && b->type == CS_BEAT_FADE) {
+        /* wait for the grid the caller drives: once it has gone active and then
+         * settled, the beat is done (retail's grid `done` flag clears the +0x24
+         * trigger that case 2 polls).  `dur` is a SAFETY cap (a headless run with
+         * no fade performer would otherwise stall). */
+        if (cs->fade_active)
+            cs->fade_seen = 1;
+        if (cs->fade_seen && !cs->fade_active)
+            done = 1;
+        if (cs->beat_timer > 0 && --cs->beat_timer == 0)
+            done = 1;                        /* safety cap */
+    } else {
+        if (cs->beat_timer > 0)
+            cs->beat_timer--;
+        if (cs->beat_timer <= 0)
+            done = 1;
+    }
+
+    if (!done)
+        return 0;
     cs->beat_idx++;
     if (cs->beat_idx < cs->n_beats) {
         cs_arm_beat(cs);
@@ -368,6 +440,8 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     cs->beat_idx       = 0;
     cs->beat_timer     = 0;
     cs->action.kind    = CS_ACT_NONE;
+    cs->fade_active    = 0;
+    cs->fade_seen      = 0;
     if (rooms == NULL || resolve == NULL || box == NULL || n_rooms <= 0 ||
         rooms[0].script == NULL || rooms[0].n_lines <= 0)
         return;
@@ -535,6 +609,12 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
 int cutscene_active(const cutscene *cs)   { return cs != NULL && cs->active; }
 int cutscene_complete(const cutscene *cs) { return cs != NULL && cs->complete; }
 int cutscene_in_beats(const cutscene *cs) { return cs != NULL && cs->in_beats; }
+
+void cutscene_set_fade_active(cutscene *cs, int active)
+{
+    if (cs != NULL)
+        cs->fade_active = active;
+}
 
 int cutscene_take_action(cutscene *cs, cutscene_action *out)
 {

@@ -47,18 +47,37 @@ static void run_to_typing(cutscene *cs)
         cutscene_step(cs, 0);
 }
 
-/* Type+advance `count` lines; return the number of completion edges seen.  A
- * speaker-change advance HIDES the box for the re-pop latency (engine-quirk
- * #108); settle past it so each iteration leaves a re-popped box (the next
- * run_to_wait would too, but the LAST line's caller inspects the box directly). */
+/* How long the test SIMULATES the scene_fade grid as active after a FADE beat
+ * issues — the host has no Win32/ddraw, so it stands in for the real grid settle
+ * (the FADE beat then completes via the grid-settle gate, not its safety CAP). */
+#define SIM_FADE_TICKS 16
+
+/* Type+advance `count` lines; return the number of completion edges seen.  After
+ * each advance, drive whatever non-dialogue beat phase it triggers to completion —
+ * a speaker-change re-pop latency (#108), an inter-line lead-beat gap (the L7→L8
+ * camera/run-off), or a room-transition (the arrival EXIT fade + the house ENTRY
+ * fade), SIMULATING the scene_fade grid so the FADE beats settle.  Leaves the next
+ * line armed (or the chain complete). */
 static int step_through(cutscene *cs, int count)
 {
     int completes = 0;
     for (int i = 0; i < count; i++) {
         run_to_wait(cs);
         completes += cutscene_step(cs, 1);
-        for (int k = 0; k < CUTSCENE_REOPEN_DELAY && !dialogue_active(cs->box); k++)
-            cutscene_step(cs, 0);          /* drive the speaker-change re-pop latency */
+        int grid = 0;
+        for (int k = 0; k < 5000; k++) {
+            /* done when a line is armed (box up, not in a beat phase) or the chain
+             * completed — otherwise drive the beat phase / re-pop latency. */
+            if (!cutscene_in_beats(cs) &&
+                (dialogue_active(cs->box) || !cutscene_active(cs)))
+                break;
+            cutscene_set_fade_active(cs, grid > 0);
+            if (grid > 0) grid--;
+            cutscene_step(cs, 0);
+            cutscene_action act;
+            if (cutscene_take_action(cs, &act) && act.kind == CS_ACT_FADE)
+                grid = SIM_FADE_TICKS;     /* the simulated grid is now painting */
+        }
     }
     return completes;
 }
@@ -431,6 +450,63 @@ int test_cutscene_l8_lead_beats(void)
     T_ASSERT(strcmp(box.name, "Arche") == 0);
     run_to_wait(&cs);                                  /* it types + awaits advance */
     T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 1);
+    return 0;
+}
+
+/* ── THEME 3: the arrival→house ROOM-TRANSITION fades (notes #6/#7) ──
+ * Advancing the arrival's LAST line runs its EXIT beats (wait + fade-TO-black =
+ * cover) BEFORE staging the house key — the room must NOT swap until the cover
+ * settles (note #5: no early snap); then the house room OPENS with a fade-FROM-
+ * black (reveal) before line 0. */
+int test_cutscene_transition_fades(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* advance L0..L8 (9 advances) → settle on L9 ("Hmhm! …", Mother, last arrival) */
+    step_through(&cs, 9);
+    run_to_wait(&cs);
+    T_ASSERT_EQ_I(cs.line_idx, 9);
+    T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_ARRIVAL);
+
+    /* advance L9 → the arrival EXIT beats open: box closed, still IN the arrival room
+     * (the house key is NOT staged until the exit beats complete). */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);
+    T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_ARRIVAL);
+
+    /* drive the whole transition, simulating the scene_fade grid; capture the two
+     * fades + assert the room stays arrival until the cover fade settles. */
+    int exit_mode = -1, entry_mode = -1, grid = 0;
+    for (int k = 0; k < 5000 && cutscene_in_beats(&cs); k++) {
+        cutscene_set_fade_active(&cs, grid > 0);
+        if (grid > 0) grid--;
+        cutscene_step(&cs, 0);
+        cutscene_action act;
+        if (cutscene_take_action(&cs, &act) && act.kind == CS_ACT_FADE) {
+            grid = SIM_FADE_TICKS;
+            if (exit_mode < 0) {
+                exit_mode = act.a;                       /* first fade = arrival exit */
+                /* the cover is starting — the room must still be arrival (it stages
+                 * only AFTER the cover settles, so the swap is hidden under black) */
+                T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_ARRIVAL);
+            } else {
+                entry_mode = act.a;                      /* second fade = house entry  */
+                T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
+            }
+        }
+    }
+    T_ASSERT_EQ_I(exit_mode, 2);    /* CS_FADE_COVER  — fade TO black (arrival exit)  */
+    T_ASSERT_EQ_I(entry_mode, 1);   /* CS_FADE_REVEAL — fade FROM black (house entry) */
+
+    /* the transition completed: house room, line 0 (Arche) armed fresh */
+    T_ASSERT_EQ_I(cutscene_in_beats(&cs), 0);
+    T_ASSERT_EQ_I(cs.room_idx, 1);
+    T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
     return 0;
 }
 

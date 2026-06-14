@@ -2880,6 +2880,11 @@ static void game_render(void *user)
                     int confirm = input_poll_consume(&g_game_drive.input,
                                                      GetTickCount(),
                                                      CUTSCENE_ADVANCE_RING_ID);
+                    /* THEME 3: feed the live scene_fade grid state so a FADE beat
+                     * completes exactly when the grid settles (retail's case-2 gate),
+                     * not a guessed duration. */
+                    cutscene_set_fade_active(&g_cutscene,
+                                             scene_fade_active(&g_scene_fade));
                     int done = cutscene_step(&g_cutscene, confirm);
                     /* The room-key swap drives the BACKDROP: when cutscene_step
                      * advances to a new room (arrival 0x334be -> house 0x334c8),
@@ -2904,9 +2909,16 @@ static void game_render(void *user)
                                      "@hold=%u", act.a, act.b, act.c,
                                      g_game_camera_hold);
                         } else if (act.kind == CS_ACT_FADE) {
-                            scene_fade_arm(&g_scene_fade, act.a, act.b, act.c);
+                            /* RE'd arm (0x439690:563): the iris VARIANT is an LCG
+                             * draw (rand*3)>>15 in {0,1,2} — drawn at the wire site
+                             * so the LCG consumption matches retail (one draw per
+                             * fade arm), same as the establishing reveal.  act.a =
+                             * mode (SCENE_FADE_MODE_OUT reveal / _IN cover), act.c =
+                             * speed; act.b (the beat's fixed variant) is ignored. */
+                            int sf_var = (int)((rng_rand() * 3u) >> 15);
+                            scene_fade_arm(&g_scene_fade, act.a, sf_var, act.c);
                             log_line("cutscene beat: scene_fade_arm(mode=%d var=%d "
-                                     "speed=%d) @hold=%u", act.a, act.b, act.c,
+                                     "speed=%d) @hold=%u", act.a, sf_var, act.c,
                                      g_game_camera_hold);
                         }
                     }

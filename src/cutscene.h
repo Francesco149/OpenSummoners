@@ -213,6 +213,13 @@ typedef struct cutscene {
     int                   beat_idx;     /* current beat within the list              */
     int                   beat_timer;   /* sim-ticks left on the current beat        */
     cutscene_action       action;      /* pending one-shot for the caller to perform */
+    /* A FADE beat waits for the scene_fade GRID to settle (retail's case-2 gate =
+     * the grid `done` flag, 0x439690:1125), not a fixed timer.  The caller feeds the
+     * live grid state each tick via cutscene_set_fade_active; the beat completes once
+     * it has SEEN the grid active and then go inactive (`fade_seen` handles the 1-tick
+     * arm latency — main.c arms the grid AFTER cutscene_step). */
+    int                   fade_active; /* the live scene_fade grid is still painting   */
+    int                   fade_seen;   /* the current FADE beat has observed it active  */
 } cutscene;
 
 /* The town-gate family conversation (0x4d7d80 case 0x334be, flag 0x5f76805==0,
@@ -262,6 +269,11 @@ int cutscene_take_action(cutscene *cs, cutscene_action *out);
  * wait / fade between or after lines) rather than awaiting a dialogue confirm —
  * the caller can use it to suppress the advance arrow / confirm polling. */
 int cutscene_in_beats(const cutscene *cs);
+
+/* Feed the live scene_fade grid state (scene_fade_active) each tick BEFORE
+ * cutscene_step, so a FADE beat completes exactly when the grid settles (retail's
+ * case-2 gate).  No-op effect when no fade beat is running. */
+void cutscene_set_fade_active(cutscene *cs, int active);
 
 /* The current committed room key (CUTSCENE_ROOM_*), or 0 if inactive/invalid —
  * the caller reads it to drive the (deferred) room backdrop + to know when the
