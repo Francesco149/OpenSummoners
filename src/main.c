@@ -2910,16 +2910,31 @@ static void game_render(void *user)
                                      g_game_camera_hold);
                         } else if (act.kind == CS_ACT_FADE) {
                             /* RE'd arm (0x439690:563): the iris VARIANT is an LCG
-                             * draw (rand*3)>>15 in {0,1,2} — drawn at the wire site
-                             * so the LCG consumption matches retail (one draw per
-                             * fade arm), same as the establishing reveal.  act.a =
-                             * mode (SCENE_FADE_MODE_OUT reveal / _IN cover), act.c =
-                             * speed; act.b (the beat's fixed variant) is ignored. */
-                            int sf_var = (int)((rng_rand() * 3u) >> 15);
+                             * draw (rand*3)>>15 in {0,1,2}.  act.a = mode
+                             * (SCENE_FADE_MODE_OUT reveal / _IN cover), act.c = speed.
+                             *
+                             * PORT-DEBT(cutscene-fade-variant): retail's seed-pinned
+                             * capture draws variant 0 (CENTER-OUT) for BOTH the
+                             * arrival-exit cover (retail.osr tick 1234) AND the
+                             * house-entry reveal (tick 1261) — confirmed off the draw
+                             * stream (tools/trace_studio2/draw_probe.py: the black
+                             * grows/recedes from the MIDDLE).  The port's LCG is
+                             * aligned at game_enter (the establishing reveal correctly
+                             * rolls 0, quirk #94) but DRIFTS by these arms because the
+                             * unported cast (PORT-DEBT(cutscene-party-chars) — the
+                             * running Arche, butterflies, villagers) consumes the LCG
+                             * differently in between, so the live draw here rolls 1
+                             * (edges-in).  Force the beat's fade_var (0 = center-out)
+                             * as a cast-debt STAND-IN — the same family as the L7→L8
+                             * run-off dur; it derives from the live RNG once the cast
+                             * lands.  KEEP the rng_rand() draw to preserve retail's
+                             * per-arm LCG consumption COUNT (one draw per fade arm). */
+                            (void)rng_rand();         /* consume (retail draws per arm) */
+                            int sf_var = act.b;       /* center-out stand-in, see above */
                             scene_fade_arm(&g_scene_fade, act.a, sf_var, act.c);
                             log_line("cutscene beat: scene_fade_arm(mode=%d var=%d "
-                                     "speed=%d) @hold=%u", act.a, sf_var, act.c,
-                                     g_game_camera_hold);
+                                     "speed=%d) @hold=%u [center-out stand-in]",
+                                     act.a, sf_var, act.c, g_game_camera_hold);
                         }
                     }
                     if (done) {

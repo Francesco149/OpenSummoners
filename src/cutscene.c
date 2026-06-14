@@ -151,13 +151,32 @@ static const cutscene_line_lead ARRIVAL_LEADS[] = {
                                            * in ~15-30t; the real gate is the grid)   */
 
 /* The arrival room's EXIT beats (0x4d7d80:267-291): after L9 ("Hmhm! …") advances,
- * a WAIT 0x14=20 (in_ECX[0x15f]) then a fade-TO-black (cover) BEFORE the house room
- * key is staged (the 0x401d40 stage / 0x402030 commit happen under full black).
- * MEASURED off retail.osr: L9 adv 1224 → fade-to-black starts 1244 (= +20, the
- * wait20) → full black ~1259, the room swaps ~1260. */
+ * a WAIT (in_ECX[0x15f]=0x14) then a fade-TO-black (COVER, fade_var 0 = CENTER-OUT,
+ * the LCG stand-in, see main.c) BEFORE the house room key is staged (the 0x401d40
+ * stage / 0x402030 commit happen under full black, no early snap).
+ *
+ * The COVER overlaps the box CLOSE: on L9's advance the box snapshots into `closing`
+ * and shrinks out (~21t, rendered IN FRONT of the fade — render order puts the
+ * dialogue after scene_fade), and retail keeps that closing box over the early cover
+ * (draw_probe: BOX>fade through retail.osr tick 1245, the box gone ~1246 while the
+ * cover runs to full black ~1259).
+ *
+ * The pre-cover WAIT is 10 sim-ticks, NOT the script's literal 0x14=20: MEASURED off
+ * retail.osr the cover arms ~10t after L9 advances (the box's name tab — its dialogue-
+ * mode marker — vanishes tick 1224/1225 = the advance; the cover's first center alpha
+ * is tick 1234).  The script's 0x14 wait-timer (the +0x57c beat decremented 1/beat-
+ * runner call, 0x439690:1083) thus elapses in ~10 sim-ticks in this exit context — the
+ * beat-runner evidently pumps the exit wait ~2×/sim-tick (a flip-vs-tick rate detail,
+ * quirk #99 family; not yet fully pinned, calibrated from the draw stream).  At 20 the
+ * port armed the cover at advance+20, after the closing box had already shrunk away
+ * (no box over the cover) AND landed house L0 ~+8t late (the chain shifted; L1+ stay
+ * matched, they are nav-anchored) — both the ckpt-137 residual.  The reveal/house
+ * WAIT 0x32=50 maps 1:1 (50t, verified: house L1/L2/L3 tick-exact), so only the exit
+ * wait is the 2× anomaly. */
+#define ARRIVAL_EXIT_WAIT 10     /* 0x14 elapses ~10 sim-ticks here (retail.osr) */
 static const cutscene_beat ARRIVAL_EXIT[] = {
     /* type           fade_mode      fade_var pan_x pan_y param        dur */
-    { CS_BEAT_WAIT,   0,             0, 0, 0, 0,            20 },
+    { CS_BEAT_WAIT,   0,             0, 0, 0, 0,            ARRIVAL_EXIT_WAIT },
     { CS_BEAT_FADE,   CS_FADE_COVER, 0, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
 };
 #define ARRIVAL_EXIT_N ((int)(sizeof(ARRIVAL_EXIT) / sizeof(ARRIVAL_EXIT[0])))
