@@ -20,11 +20,13 @@
   box-frame stays 28/28, quirk #108); **ckpt 137 the arrival→house TRANSITION CHOREOGRAPHY (THEME 3) — the
   beat model: the L7→L8 camera-pan + run-off gap + the room-transition fades now track retail TICK-1:1
   through the house dialogue** (L8 1150 / L9 1190 / house L1-L3 all == retail; quirk #109).
-  **NEXT (the punch-list `plans/intro-cutscene-1to1.md`): THEME 3 residuals — (a) house L0 is +8t (the port's
-  scene_fade AGES cells over 10t but retail's transition fade is a HARD WIPE, al=0 — a scene_fade follow-up);
-  (b) the "Arche running" SPRITE (note #5) is the cast (`cutscene-party-chars`); (c) the RNG fade-variant
-  alignment (needs a retail OSR_STATE capture).  Then (2) the cutscene CAST + ambient render (THEME 2 —
-  butterfly/NPC colour + animation).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
+  **NEXT (USER studio pass, ckpt 137 — "tackle next session"): the TRANSITION FADE is visually wrong
+  (timing is right).  (1) retail's town fades are CENTER-OUT (from the MIDDLE — see tick 1241); the port
+  renders top/bottom (drew `var=1`, want `var=0` — the LCG mis-aligns by the cover, the establishing reveal
+  IS var-0 aligned).  (2) the speech bubble renders IN FRONT of the gradient (retail keeps the box up through
+  the cover; the port closes it early).  (3) the HARD WIPE — retail's fade is `al=0` (no alpha aging), the
+  port ages cells 10t (→ house L0 +8t).  Then (4) the "Arche running" SPRITE (cast) + THEME 2 (the cast
+  colour/animation render).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room,
   `character_step` on live input — mover DONE bit-exact).  Studio: `plans/trace-studio-v2.md`;
   freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche

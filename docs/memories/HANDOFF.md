@@ -36,13 +36,34 @@ decompile, not curve-fit.  1023 host pass (+2).  Engine-quirk #109.
 - **VERIFIED off `C:\oss-osr\port-theme3.osr` vs retail.osr (dialogue timeline):** L8 first-glyph 1150
   (retail 1149, +1 = the L7-advance), L9 1190 (==), house L1 1398 / L2 1448 / L3 1493 (all ==).
 - **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr` — scrub ticks 982→1500.
-- **OPEN RESIDUALS (THEME 3):** (a) house L0 is +8t — the port's `scene_fade` ages each cell over 10t (alpha)
-  but retail's transition fade is a HARD WIPE (`al=0` in the draw stream, settling ~16t cover / ~30t reveal);
-  the cover thus settles ~8t slow.  A scene_fade alpha-vs-hard-wipe follow-up.  (b) The "Arche running" SPRITE
-  (note #5) needs the live cast (`cutscene-party-chars`).  (c) The RNG fade-VARIANT (iris pattern) alignment
-  needs a retail OSR_STATE capture to diff (retail.osr predates M8 state).
-- **NEXT:** the THEME-3 residuals above, THEME 2 (the cast colour/animation render `0x4997b0`, butterfly
-  variants), THEN the FREEROAM HAND-OFF.  See `plans/intro-cutscene-1to1.md`.
+- **OPEN RESIDUALS (THEME 3) — the next-session punch-list (USER studio pass over `port-theme3.osr` vs
+  retail, ckpt 137).  The TRANSITION FADE is visually wrong; the dialogue TIMING is right.**  This is the
+  TOP next chip:
+  - **(1) The fade VARIANT is wrong — retail's town transition fades are CENTER-OUT (from the MIDDLE), the
+    port renders top/bottom.**  At tick **1241** retail's cover is a black gradient growing FROM THE MIDDLE
+    out (by 1255 it's full black); the port's capture drew `scene_fade_arm(mode=2 var=1)` = **variant 1
+    (edges-in = top/bottom)** for the cover, but retail is **variant 0 (center-out)**.  The REVEAL (house
+    entry) ALSO opens from the middle — "the gradient opens up from the middle where part of the scene is
+    visible and fades to black with the black dissipating, **like the very 1st transition at the very
+    beginning**" (the establishing reveal, which the port already does as var 0).  So retail's town fades
+    appear to be **always center-out (var 0)**, but the port's RNG draw `(rand*3)>>15` (quirk #109, RE'd
+    correct) gives 1 at the cover arm — the port's LCG is MISALIGNED by the cover (the establishing reveal
+    IS aligned at var 0).  NEXT SESSION: determine whether retail's transition variant is genuinely fixed
+    center-out OR an RNG draw the port mis-aligns (the cast/ambient consume the LCG differently); the
+    establishing reveal var-0 match says the LCG is aligned early then drifts.  Until the LCG aligns, a
+    center-out STAND-IN is the cast-debt-tagged fix (like the run-off dur).
+  - **(2) Z-ORDER: the speech bubble renders IN FRONT of the gradient** (retail keeps the dialogue box over
+    the fade — the fade is behind the bubble).  The port closes the box for the exit beats, so it shows NO
+    bubble over the cover; replicate retail's box-in-front-of-fade.
+  - **(3) The HARD WIPE (the +8t):** the port's `scene_fade` ages each cell over 10t (alpha) but retail's
+    transition fade is a HARD WIPE (`al=0` in the draw stream, settling ~16t cover / ~30t reveal); the cover
+    settles ~8t slow → house L0 +8t.  Likely the SAME scene_fade fidelity gap as (1).
+  - **(4) The "Arche running" SPRITE** (note #5) needs the live cast (`cutscene-party-chars`).
+- **NEXT:** tackle the TRANSITION FADE punch-list (1)-(3) above FIRST (USER: "tackle that next session"),
+  then THEME 2 (the cast colour/animation render `0x4997b0`, butterfly variants), THEN the FREEROAM
+  HAND-OFF.  See `plans/intro-cutscene-1to1.md`.  Reference: scrub `port-theme3.osr` vs retail at ticks
+  1241 (cover starts mid-out) / 1255 (full black) / the house reveal ~1261+ — the studio shortcut is loaded
+  with this pair.
 
 ## Where we were — ckpt 136
 

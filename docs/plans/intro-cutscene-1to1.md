@@ -166,10 +166,14 @@ non-dialogue beats: actor run-offs + fades) but the specifics below are newly pi
    gap (`0x402730` overwrites the beat type to 4 — the gate is the actor mover `0x54f980`, a cast
    stand-in, 97t), the arrival EXIT fade-to-black that GATES the room swap, and the house ENTRY
    fade-from-black (the fades RE the arm `0x439690:555-563`).  Port `.osr` vs retail: L8 1150
-   (retail 1149) / L9 1190 (==) / house L1-L3 all ==.  RESIDUALS: house L0 +8t (the port's
-   scene_fade ages cells 10t but retail's transition fade is a HARD WIPE, al=0 — a scene_fade
-   follow-up); the "Arche running" SPRITE (#5) is the cast; the RNG fade-variant alignment needs a
-   retail OSR_STATE capture.
+   (retail 1149) / L9 1190 (==) / house L1-L3 all ==.  **RESIDUALS — the TRANSITION FADE is visually
+   wrong (USER studio pass, the TOP next-session chip):** (1) retail's town fades are CENTER-OUT (from
+   the MIDDLE — tick 1241), the port renders top/bottom (drew `var=1`, want `var=0`; the LCG mis-aligns
+   by the cover arm — the establishing reveal IS var-0 aligned; the reveal is "like the very 1st
+   transition"); (2) the speech bubble renders IN FRONT of the gradient (retail keeps the box up through
+   the cover — `0x49cd70` teardown is AFTER the fade beat; the port closes it at L9-advance, too early);
+   (3) the HARD WIPE — retail's fade is `al=0` (no alpha aging), the port ages cells 10t → house L0 +8t;
+   (4) the "Arche running" SPRITE (#5) is the cast.  Full spec in `memories/HANDOFF.md` (ckpt 137 residuals).
 4. **THEME 2** (cast colour/animation) — the most involved (the party-band render `0x4997b0`
    + butterfly variants).  Now that the dialogue is tick-1:1, the matched nav makes the
    cast/ambient frames at ticks 274-339 (notes #0-#3) honestly comparable.
