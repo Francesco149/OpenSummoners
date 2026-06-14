@@ -3651,3 +3651,43 @@ truth, drawcall + LUT exact:
   differ_px=0 at the mid/late dissolve ticks (690/692/694/696/697), the only residual a 1px
   ≤1-LSB cross-side sheet sample on the opaque pre-dissolve bust (present with or without the
   fade-out — `PORT-DEBT(osr-sheet-dhash-xside)`, the standing accepted noise).
+
+### #109 — the town-intro script (`0x4d7d80`) is a FLAT beat sequence: dialogue lines INTERLEAVE with non-dialogue beats (camera pan / actor run-off / wait timer / scene fade), each pumped to completion by the beat-runner `0x439690` before the next; the arrival→house transition is built from them (2026-06-14, ckpt 137)
+
+The cutscene is NOT pure dialogue — `0x4d7d80` (case `0x334be` arrival, `0x334c8` house)
+is a straight-line list of ops, each followed by `0x439680`→`0x439690` which BLOCKS
+(returns 6 = "not done, come back next frame") until that op's beat completes, then falls
+through.  The beat TYPE is `in_ECX[8]` (script ctx `+0x20`); `0x439690:1128` switches on it
+for the completion gate:
+- **DIALOGUE** (`0x49d6e0` sets up the box; gate = the box awaits a confirm).
+- **CAMERA PAN** `in_ECX[8]=3` (`+0x20==3`): sets the view TARGET from `in_ECX[0x14]/[0x15]`
+  (tgt_x/tgt_y) + cap `in_ECX[0x16]` (speed); gate `0x439690:1133` = **`cur_x==tgt_x &&
+  cur_y==tgt_y`** (the `0x43d1d0` easer settled).
+- **WAIT timer** `in_ECX[8]=6`: `in_ECX[0x15f]` (`+0x57c`) counts down 1/sim-tick
+  (`0x439690:1083`); gate = it hit 0.
+- **SCENE FADE** `in_ECX[8]=2`: arms the reveal/cover iris grid (`scene_fade`, quirk #95);
+  gate = the grid settled (`+0x24` cleared when the grid `done` flag sets, `:1125`).
+- **ACTOR RUN-OFF / EMOTE** (`0x402730` arms a type-1 MOVE beat = target x at actor `+0x15b70`,
+  y `+0x15b6c`; `0x401e60` a type-2 emote) into the script's 32-slot actor-beat pool
+  (`+0x2fc + i*0x14`); the actor update `0x46cd70` (`:1099`) steps them.
+
+**The arrival→house transition, decoded + MEASURED off `retail.osr` (matched-cadence nav):**
+- **L7 "Cool!" (Arche, adv sim-tick 982) → L8 "Mom, Dad, c'mon!" (start 1149) = a 167-tick
+  gap.**  Script (`0x4d7d80:215-235`): a CAMERA PAN to **(28000, 12800) @speed 400** + an
+  Arche RUN-off `0x402730(Arche, +32000)` (→ world 73104 = L8's anchor), the beat-runner
+  waits, THEN a WAIT timer `0x32`=50, then L8.  **The camera pan is the `0x43d1d0` easer:
+  read straight off the draw stream a town tile's `dst.x` slid −148px over ticks ~982→1031
+  (= 12800→~28000, the easer's exact −4px/tick cruise at cap 400) then HELD** — so the
+  visible pan settles in ~53t.  But L8 is at 1149, ~118t after the camera settles: the gap is
+  **RUN-GATED** (the Arche run-off, the cast mover, outlasts the camera; the camera's own case-3
+  gate fires at cur==tgt but L8 still waits ~64t past camera+wait50).  So the 167t is the
+  run-off completion + the script's wait50 — the cast (`0x402730` mover) gates it, the same
+  cast the baked run TARGET `spk_wx=73104` stands in for.
+- **L9 "Hmhm!" (Mother, adv 1224) → house L0 "So this is our new house?" (start 1372) = a
+  148-tick gap.**  Script: after L9 a WAIT `0x14`=20 + a fade-to-black (`in_ECX[8]=2`,
+  `[0xd]=3`, `:267-282`), then `0x49cd70` box teardown + `0x401d40(0x334c8,…)` stages the
+  house key + `return 2` (commit `0x402030` → `+0x4024`), the house case re-dispatches and
+  OPENS with a fade-from-black (`in_ECX[8]=2`, `[0xd]=2`, `[0xb]=1000` — the SAME params as
+  the arrival's establishing reveal at `:56-63`, confirming the USER's "same effect as the
+  intro town pan" note) + a WAIT `0x32`=50, then house L0.  So the room SWAPS mid-transition,
+  bracketed by a fade-OUT (arrival exit) and a fade-IN (house entry) — note #6/#7.

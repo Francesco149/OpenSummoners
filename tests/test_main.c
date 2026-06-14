@@ -876,6 +876,7 @@ struct test_case {
     X(cutscene_closing_box_overlap)                            \
     X(cutscene_portrait_fadeout)                               \
     X(cutscene_room_transition)                                \
+    X(cutscene_l8_lead_beats)                                  \
     X(cutscene_completes_after_chain)                          \
     X(cutscene_room_key)                                       \
     X(cutscene_guards)                                         \

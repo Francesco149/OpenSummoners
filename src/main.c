@@ -2890,6 +2890,26 @@ static void game_render(void *user)
                     uint32_t want = cutscene_room_key(&g_cutscene);
                     if (want != 0 && want != g_loaded_room_key)
                         reload_room_backdrop(want);
+                    /* THEME 3: a non-dialogue beat may have issued a one-shot this
+                     * tick — the L7→L8 CAMERA PAN (the 0x43d1d0 easer follows Arche
+                     * running ahead to 28000) or a scene-transition FADE.  Perform
+                     * it against the live camera / scene_fade (cutscene.c is pure C
+                     * so it cannot).  AFTER the room reload so a fade riding a room
+                     * swap paints over the NEW backdrop (note #7's house reveal). */
+                    cutscene_action act;
+                    if (cutscene_take_action(&g_cutscene, &act)) {
+                        if (act.kind == CS_ACT_CAMERA_PAN) {
+                            camera_apply_pan(&g_game_camera, act.a, act.b, act.c);
+                            log_line("cutscene beat: camera_apply_pan(%d,%d,%d) "
+                                     "@hold=%u", act.a, act.b, act.c,
+                                     g_game_camera_hold);
+                        } else if (act.kind == CS_ACT_FADE) {
+                            scene_fade_arm(&g_scene_fade, act.a, act.b, act.c);
+                            log_line("cutscene beat: scene_fade_arm(mode=%d var=%d "
+                                     "speed=%d) @hold=%u", act.a, act.b, act.c,
+                                     g_game_camera_hold);
+                        }
+                    }
                     if (done) {
                         log_line("game: town-intro cutscene chain COMPLETE @hold=%u "
                                  "-> errands room 0x334dc (the freeroam scene)",

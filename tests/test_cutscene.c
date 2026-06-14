@@ -381,6 +381,59 @@ int test_cutscene_room_transition(void)
     return 0;
 }
 
+/* ── THEME 3: the L7→L8 inter-line BEAT phase (the "Arche runs ahead" gap) ──
+ * Advancing L7 ("Cool!") must enter the non-dialogue beat phase — close the box,
+ * issue the camera pan to (28000,12800)@400, hold the run-gated 117t + the 50t
+ * wait, then open L8 fresh.  Confirms during the gap are eaten (automatic beats). */
+int test_cutscene_l8_lead_beats(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* advance L0..L6 (7 advances) → settle on L7 ("Cool!", Arche) */
+    step_through(&cs, 7);
+    run_to_wait(&cs);
+    T_ASSERT_EQ_I(cs.line_idx, 7);
+    T_ASSERT_EQ_I(cutscene_in_beats(&cs), 0);
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);
+
+    /* advance L7 → the beat phase opens: box closed, line index at L8 (8) */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
+    T_ASSERT_EQ_I(cs.line_idx, 8);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);          /* main box hidden during the gap */
+
+    /* the camera pan action is issued on entry (drained once) */
+    cutscene_action act;
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 1);
+    T_ASSERT_EQ_I(act.kind, CS_ACT_CAMERA_PAN);
+    T_ASSERT_EQ_I(act.a, 28000);                      /* tgt_x */
+    T_ASSERT_EQ_I(act.b, 12800);                      /* tgt_y */
+    T_ASSERT_EQ_I(act.c, 400);                        /* speed */
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);/* one-shot drained */
+
+    /* hold the camera-pan dur + the wait — exactly 117 + 50 = 167 ticks — then L8
+     * opens.  A confirm DURING the gap is eaten (the beats are automatic). */
+    int t = 0;
+    while (cutscene_in_beats(&cs) && t < 1000) {
+        cutscene_step(&cs, /*confirm=*/1);            /* presses do nothing here */
+        t++;
+    }
+    T_ASSERT_EQ_I(t, 117 + 50);   /* ARRIVAL_L8_PAN_DUR + ARRIVAL_L8_WAIT = the
+                                   * measured retail L7adv→L8start gap (167t) */
+    /* no stray action emitted across the wait beat (camera was the only one) */
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);
+
+    /* L8 ("Mom! Dad! c'mon!", Arche) is now armed fresh (a full open) */
+    T_ASSERT_EQ_I(cs.line_idx, 8);
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);
+    T_ASSERT(strcmp(box.name, "Arche") == 0);
+    run_to_wait(&cs);                                  /* it types + awaits advance */
+    T_ASSERT_EQ_I(dialogue_awaiting_advance(&box), 1);
+    return 0;
+}
+
 /* ── advancing through the whole chain (10 + 8) completes exactly once + closes
  *    the box at the errands boundary ── */
 int test_cutscene_completes_after_chain(void)

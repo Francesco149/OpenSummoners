@@ -73,6 +73,57 @@
 #define CUTSCENE_ROOM_HOUSE   0x334c8u  /* the new-house interior (8 lines)        */
 #define CUTSCENE_ROOM_ERRANDS 0x334dcu  /* the errands room = the freeroam (gamepl.)*/
 
+/* ── The interleaved NON-DIALOGUE beats (THEME 3, the arrival→house transition).
+ * 0x4d7d80 is a flat sequence of ops the beat-runner 0x439690 pumps: dialogue
+ * lines (0x49d6e0) AND non-dialogue beats — camera pans (in_ECX[8]=3), wait
+ * timers (in_ECX[8]=6, +0x57c), and scene-transition fades (in_ECX[8]=2).  Each
+ * non-dialogue beat runs to completion AUTOMATICALLY (no confirm), then the
+ * script falls through to the next.  The port models them as a per-line LEAD
+ * sequence (beats that run before a line shows, after the previous line's
+ * advance) + a per-room EXIT sequence (beats after the last line, before the
+ * room key is staged).  cutscene.c stays pure C: the beat issues a one-shot
+ * cutscene_action the caller (main.c) performs against the live camera /
+ * scene_fade (those modules are pure C too, but kept at the main.c seam).
+ *
+ * Faithfulness: the CAMERA pan is the real 0x43d1d0 easer (camera_apply_pan,
+ * settles ~53t for 12800→28000 @cap400, MEASURED off retail.osr); the WAIT is the
+ * +0x57c timer; the FADE is the scene_fade reveal grid.  The one cast-coupled
+ * piece is the L7→L8 gap's TOTAL length: the gating beat is the Arche RUN-off
+ * (0x402730, the actor mover in PORT-DEBT(cutscene-party-chars)), so the camera
+ * beat's `dur` carries the run-gated completion (MEASURED 167t L7adv→L8start,
+ * the same cast-debt family as the already-baked run TARGET spk_wx=73104). */
+typedef enum {
+    CS_BEAT_WAIT = 0,    /* hold `dur` sim-ticks (in_ECX[8]=6 timer +0x57c)        */
+    CS_BEAT_CAMERA_PAN,  /* issue camera_apply_pan(pan_x,pan_y,param); hold `dur`  *
+                          * ticks (in_ECX[8]=3 — the easer settles inside `dur`,   *
+                          * which is the run-gated completion, cast-debt-derived)  */
+    CS_BEAT_FADE,        /* issue scene_fade_arm(fade_mode,fade_var,param); hold   *
+                          * `dur` ticks until the iris grid settles (in_ECX[8]=2)  */
+} cutscene_beat_type;
+
+typedef struct cutscene_beat {
+    int16_t type;        /* cutscene_beat_type                                     */
+    int16_t fade_mode;   /* FADE: scene_fade mode (SCENE_FADE_MODE_OUT / _IN)      */
+    int16_t fade_var;    /* FADE: iris variant 0/1/2 (center-out/edges-in/sweep)   */
+    int32_t pan_x, pan_y;/* CAMERA_PAN target scroll origin                        */
+    int32_t param;       /* CAMERA_PAN speed (cap) / FADE speed                    */
+    int32_t dur;         /* sim-ticks to HOLD after issuing the action            */
+} cutscene_beat;
+
+/* A one-shot action the caller performs on the cutscene's behalf (cutscene.c is
+ * pure C; the camera + scene_fade live at the main.c seam).  Set when a beat
+ * issues; the caller drains it with cutscene_take_action each tick. */
+typedef enum {
+    CS_ACT_NONE = 0,
+    CS_ACT_CAMERA_PAN,   /* a=tgt_x  b=tgt_y  c=speed  -> camera_apply_pan         */
+    CS_ACT_FADE,         /* a=mode   b=variant c=speed -> scene_fade_arm           */
+} cutscene_action_kind;
+
+typedef struct cutscene_action {
+    int     kind;        /* cutscene_action_kind (CS_ACT_NONE when drained)        */
+    int32_t a, b, c;     /* see the kind comments above                           */
+} cutscene_action;
+
 /* One scripted dialogue line — the args the script passes to 0x49d6e0
  * (the dialogue-line setup): the speaker's dramatist NAME and the line TEXT by
  * exe VA, the portrait FACE id, and the VOICE clip id.  name_or_0 in the real
@@ -94,6 +145,17 @@ typedef struct cutscene_line {
                         /* ahead at arrival L9), so it is per-line, not per-actor. */
 } cutscene_line;
 
+/* THEME 3: a per-room map "line N is preceded by these non-dialogue beats" —
+ * the interleaved camera pan / wait / fade that runs after line N-1's advance,
+ * before line N shows (e.g. arrival L8's "Arche runs ahead" camera-pan gap).
+ * Kept SPARSE + separate from cutscene_line so the dialogue-content rows stay
+ * focused on story content (text/speaker/portrait), not choreography. */
+typedef struct cutscene_line_lead {
+    int                  line_idx;  /* the line this beat list precedes (0-based) */
+    const cutscene_beat *beats;
+    int                  n_beats;
+} cutscene_line_lead;
+
 /* A resolver VA → string (main.c supplies exe_data_string; tests stub it). */
 typedef const char *(*cutscene_str_resolver)(uint32_t va);
 
@@ -102,9 +164,17 @@ typedef const char *(*cutscene_str_resolver)(uint32_t va);
  * advancing to the next when the current room's lines complete (the port's
  * model of the retail stage/commit/re-dispatch room swap). */
 typedef struct cutscene_room {
-    uint32_t             room_key;   /* committed +0x4024 key (CUTSCENE_ROOM_*)   */
-    const cutscene_line *script;     /* the room's line table                     */
-    int                  n_lines;
+    uint32_t                  room_key;  /* committed +0x4024 key (CUTSCENE_ROOM_*) */
+    const cutscene_line      *script;    /* the room's line table                   */
+    int                       n_lines;
+    const cutscene_line_lead *leads;     /* SPARSE per-line lead-beat map (THEME 3:  *
+                                          * the inter-line camera pan / wait / fade) */
+    int                       n_leads;
+    const cutscene_beat      *exit_beats;/* non-dialogue beats after the LAST line   *
+                                          * advances, BEFORE the next room key is     *
+                                          * staged (the arrival's wait + fade-to-     *
+                                          * black before the house swap); NULL/0=none*/
+    int                       n_exit;
 } cutscene_room;
 
 typedef struct cutscene {
@@ -128,6 +198,18 @@ typedef struct cutscene {
                                       * the new box re-pops — the main box is hidden  *
                                       * meanwhile while the OLD box's portrait         *
                                       * dissolves out (engine-quirk #108)             */
+    /* ── The non-dialogue BEAT sub-state (THEME 3).  While `in_beats`, cutscene_step
+     * runs the active beat list (a line's `lead` or a room's `exit_beats`) once per
+     * tick instead of the dialogue/confirm path; the main box is closed (the OLD box
+     * snapshot in `closing` shrinks out).  When the list completes the sequencer arms
+     * the pending line (lead) or advances the room (exit). */
+    int                   in_beats;    /* a beat list is running                     */
+    int                   beats_exit;  /* the list is a room's exit beats (vs lead)  */
+    const cutscene_beat  *beats;       /* the active beat list                       */
+    int                   n_beats;
+    int                   beat_idx;     /* current beat within the list              */
+    int                   beat_timer;   /* sim-ticks left on the current beat        */
+    cutscene_action       action;      /* pending one-shot for the caller to perform */
 } cutscene;
 
 /* The town-gate family conversation (0x4d7d80 case 0x334be, flag 0x5f76805==0,
@@ -164,6 +246,19 @@ int cutscene_step(cutscene *cs, int confirm_pressed);
 
 int cutscene_active(const cutscene *cs);
 int cutscene_complete(const cutscene *cs);
+
+/* Drain the pending one-shot beat action (THEME 3): if a beat issued a camera
+ * pan or scene fade this tick, copy it into *out, clear it, and return 1; else
+ * return 0.  The caller performs it against the live camera / scene_fade (which
+ * cutscene.c, being pure C, does not touch).  Call once per tick AFTER
+ * cutscene_step (and, for a fade that rides a room swap, after reloading the new
+ * room so the fade grid paints over the new backdrop). */
+int cutscene_take_action(cutscene *cs, cutscene_action *out);
+
+/* True while the sequencer is running a non-dialogue beat list (a camera pan /
+ * wait / fade between or after lines) rather than awaiting a dialogue confirm —
+ * the caller can use it to suppress the advance arrow / confirm polling. */
+int cutscene_in_beats(const cutscene *cs);
 
 /* The current committed room key (CUTSCENE_ROOM_*), or 0 if inactive/invalid —
  * the caller reads it to drive the (deferred) room backdrop + to know when the
