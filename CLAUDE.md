@@ -72,11 +72,21 @@ changelog. Active multi-session plans: `docs/plans/`.
   NOT for our port: drive/module names, host-test counts, ledger deltas, "deferred"/
   "stub" seams, capture reassurances — those go in FRONT/HANDOFF/port-debt/`TODO(...)`
   comments.
-- **Lean on the harness for ground truth — don't guess.** When the decompile is
-  ambiguous, Frida-hook the real values; when two impls seem equivalent, frame-diff a
-  side-by-side. The Frida host is always up + **UAC auto-approved**, so the live gates
-  (`frida_capture.py`, `bisect_call_trace_vas.py`, `mem_watch.py`) are
-  **self-serviceable** — not blocked on the human.
+- **Trace the CODE to replicate it — don't measure-and-approximate (USER, ckpt 137).**
+  "Don't guess" / "lean on the harness" means: find the EXACT retail instructions that
+  PRODUCE the behaviour — read the decompile + follow the execution/beat trace (which gate
+  fires, who writes which field, one-shot vs waited beat) — and port THAT logic, so the
+  timing/shape EMERGES. A measured value (a Frida-hooked field, a draw-stream envelope, a
+  tick gap) is for VERIFYING the ported logic matches (tick-equal / `differ_px==0`) or
+  RESOLVING a decompile ambiguity — **NEVER a curve-fit constant shipped IN PLACE of the
+  logic.** The sole exception: a measured value may STAND IN for a not-yet-ported subsystem,
+  and ONLY when clearly `PORT-DEBT`-tagged with a path to derive it (e.g. the L7→L8 run-off
+  `dur` = the unported cast mover `0x54f980`). The Frida host is always up + **UAC
+  auto-approved** (`frida_capture.py`, `bisect_call_trace_vas.py`, `mem_watch.py`,
+  self-serviceable) — hook it to READ the real control flow, not to fit a black box.
+  *ckpt-137 trap:* the L7→L8 gap looked like a "camera-beat hold" by measurement; tracing
+  `0x402730` showed it OVERWRITES the beat type to 4 (a case-4 actor-wait on the run-off —
+  the camera is a separate fire-and-forget command).  Only reading the code finds that.
 - **Annotate as you RE — two SEPARATE durable practices; never invent a third.** When you
   reverse a function/global, record it in BOTH lanes (not an ad-hoc symbol-rename / parallel
   names DB — that's the outdated trap):
@@ -184,8 +194,14 @@ changelog. Active multi-session plans: `docs/plans/`.
   **THE WORKFLOW (USER-set 2026-06-13, persist it):** (1) inspect EVERY render divergence in the
   frame-draw DRILL — don't eyeball; step the draws / pick the pixel to name the wrong, missing, or
   mis-ordered draw; the draw SEQUENCE itself is eventually matched port↔retail for maximum
-  faithfulness.  (2) On ANY change the USER should visually confirm, GIVE the exact
-  `osr_view.exe <port.osr> <retail.osr>` command (the human launches it on Windows) — make this a
+  faithfulness.  (2) On ANY change the USER should visually confirm, point them at the studio AND
+  **UPDATE THE ONE-CLICK SHORTCUT**: rewrite `C:\oss-osr\studio-current.txt` (one line = the
+  `osr_view` args, e.g. `C:\oss-osr\port-theme3.osr C:\oss-osr\retail.osr`) to the current working
+  trace pair, so the desktop / Start Menu **"OpenSummoners Trace Studio"** shortcut opens it on a
+  click — then tell the USER "click the studio shortcut" (still also quote the exact `osr_view.exe
+  <port> <retail>` command as a fallback).  The shortcut is a stable `.lnk` → `open-studio.bat` →
+  reads that txt; (re)install it with `bash tools/osr_view/install-studio-shortcut.sh` (also after a
+  fresh `make -C tools/osr_view`, to refresh the copied `osr_view.exe`).  Make updating the txt a
   standing habit, not an afterthought.  (3) The USER drops crop+text MARKS → `osr_notes.jsonl`;
   read them with `nix develop --command python3 tools/trace_studio2/notes.py <port.osr>
   <retail.osr> --render` (renders the cropped port|retail|diff at the marked tick).  (4) A studio
