@@ -30,7 +30,15 @@
   **ckpt 140 the cast "ARCHE RUNNING" run-off render (THEME 2 note #5/#3) — DONE + frame-sequence bit-exact**
   (on the L7→L8 beat Arche plays her RUN→DECEL→arrival-IDLE clips and runs to the house via the REAL ported
   run physics; cels 16-21/8-11/152-154 RE'd off retail.osr; quirk —; `findings/arche-runoff-render.md`).
-  **NEXT (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
+  **NEXT (USER-chosen ckpt 140): the run-off CAMERA-PAN OVERLAP restructure** — DIAGNOSED but not yet fixed:
+  retail fires the run-off (Arche's windup ~tick 970 + camera ~977) DURING the "Cool!" line's hold (typed
+  958, advances 982), with the box following running Arche — it OVERLAPS the line; the port SERIALIZES it
+  after the "Cool!" confirm (~983) → the camera onset is ~10t late (the ~40px run-off framing offset; the pan
+  rate/target/easer already MATCH).  The faithful fix = fire the run-off concurrent with "Cool!" + the box
+  tracking running Arche (a `cutscene-beat-runner` restructuring; the ~12t-into-hold trigger is a `0x4d7d80`
+  beat-timer to RE).  CAUTION: touches the tick-1:1 dialogue path (THEME 1) — do it carefully.
+  `findings/arche-runoff-render.md` "The camera-pan phase residual".
+  **THEN (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
   bank, NOT the butterfly path) and the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`).  THEN
   the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.

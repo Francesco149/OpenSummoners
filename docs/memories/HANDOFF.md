@@ -36,9 +36,15 @@ to the house door.  1024 host pass.  findings/arche-runoff-render.md.  Commit pe
 - **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-runoff.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub
   the run-off (ticks ~983→1090): Arche runs to the door (run → decel → idle).  Residual: the whole scene is
   framed ~40px off (the camera pan phase) + her exact velocity/decel is the deferred mover.
-- **NEXT (remaining THEME 2):** the NPC COLOUR variant (#1; townsfolk hardcode frame_base 0 → a colour-remap
-  `DAT_008a9358` or archetype/param_11 bank, NOT the butterfly path) and the butterfly VERTICAL flutter
-  (#2 residual = `butterfly-flutter`).  THEN the FREEROAM HAND-OFF.
+- **NEXT (USER-chosen ckpt 140): the run-off CAMERA-PAN OVERLAP restructure.**  DIAGNOSED this ckpt (see "The
+  camera-pan phase residual" in findings/arche-runoff-render.md): retail fires the run-off (Arche windup ~970 +
+  camera ~977) DURING "Cool!"'s hold (typed 958, advances 982), the box following running Arche — it OVERLAPS
+  the line; the port SERIALIZES it after the "Cool!" confirm (~983) → camera onset ~10t late (~40px framing).
+  Fix = fire the run-off concurrent with "Cool!" + the box tracking running Arche (a `cutscene-beat-runner`
+  restructuring; the ~12t-into-hold trigger is a `0x4d7d80` beat-timer to RE).  **CAUTION: touches the tick-1:1
+  dialogue path (THEME 1) — verify the dialogue cadence doesn't regress.**  THEN the remaining THEME 2: the NPC
+  COLOUR variant (#1; a colour-remap `DAT_008a9358` or archetype/param_11 bank, NOT the butterfly path) + the
+  butterfly VERTICAL flutter (#2 = `butterfly-flutter`).  THEN the FREEROAM HAND-OFF.
 
 ## Where we were — ckpt 139
 
