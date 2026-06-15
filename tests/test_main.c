@@ -1013,6 +1013,7 @@ struct test_case {
     X(actor_spawn_struct)                                      \
     X(actor_spawn_effect)                                      \
     X(actor_spawn_cutscene_iris)                               \
+    X(arche_runoff)                                            \
     X(butterfly_pertick)                                       \
     X(butterfly_motion)                                        \
     X(ambient_pertick)                                         \

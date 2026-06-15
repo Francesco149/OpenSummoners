@@ -6,6 +6,30 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-15 (ckpt 140) — the cast "ARCHE RUNNING" run-off render (THEME 2 note #5/#3): RUN/DECEL/idle clips + run physics, frame-bit-exact
+
+**The town-intro "Arche runs to the house" beat now RENDERS — the USER studio note tick 1027 ("arche runs to
+the house in retail, stands still in port") is resolved.**  On the L7→L8 inter-line beat ("Mom! Dad! c'mon!")
+Arche plays her RUN cycle → DECEL → arrival-IDLE and moves to the house door, instead of standing static at
+her cast anchor.  1024 host pass (+`test_arche_runoff`).  `findings/arche-runoff-render.md`.
+
+- **Ground truth (retail.osr `draw_probe.py --res 0x570`, ticks 980-1130):** Arche renders as res 0x570
+  (bank 0x8b).  Three clip phases — **RUN** cels 16,16,17,18,19,19,20,21 (dur 5, loop; contact frames 16/19
+  held 2× → a 40-tick cycle), **DECEL** cels 8-11 (~6t, one-shot), **arrival-IDLE** 152-154 (~14t, loop).  So
+  the run clip = `base 16, frame_delta {0,0,1,2,3,3,4,5}, dur 5, loop` (RE'd timing metadata, like WAGON_CLIP).
+  The run-off command `0x402730(Arche,+32000)` sets target = world 73104 (= L8 spk_wx); a camera reference
+  (res 1004) confirmed her world velocity ≈ the ported run cap 48000/100 → she runs with the REAL run physics.
+- **The fix:** `actor_spawn.{c,h}` — the 3 clips + a pure, host-tested run-off state machine
+  (`arche_runoff_begin`/`arche_runoff_step`: the real two-phase run accel → cap 48000, `world_x += vel/100`;
+  only the DECEL-approach is the tagged `0x54f980`-mover stand-in).  `main.c` finds Arche's slot (bank 0x8b),
+  begins the run-off on the L7→L8 `CS_ACT_CAMERA_PAN`, and advances her one sim-tick per `game_actor_update`.
+- **VERIFIED** off `C:\oss-osr\port-runoff.osr` vs retail.osr: the cel sequence matches retail tick-for-tick;
+  run-start aligns (port 983 / retail ≤980, the matched dialogue cadence); the ~40px screen-position residual
+  is the PRE-EXISTING camera-pan phase (the static cast cel res 1027 is the same ~40px off, in port-theme3.osr
+  too) = `PORT-DEBT(ingame-camera-pan)`, not an Arche render error.  Residuals: the exact velocity/decel curve
+  + the 12,0,6,159 transition flourish stay the `0x54f980` mover (`cutscene-party-chars`); Arche doesn't turn
+  to face the cast at the door (`dialogue-portrait-facing`).  Port|retail montage on the feed.
+
 ## 2026-06-15 (ckpt 138) — the THEME-3 transition FADE punch-list: center-out + box-over-cover + house L0 +8t→0, tick-1:1
 
 **The arrival→house transition FADE now matches retail — the ckpt-137 USER studio residuals (1)-(3) are

@@ -6,7 +6,41 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 139
+## Where we are — ckpt 140
+
+**The cast "ARCHE RUNNING" RUN-OFF RENDER is PORTED + frame-sequence bit-exact (THEME 2 note #5 / #3,
+cutscene-party-chars) — the USER studio note tick 1027 ("arche runs to the house in retail, stands still in
+port") is RESOLVED.**  On the L7→L8 inter-line beat Arche plays her RUN cycle → DECEL → arrival-IDLE and runs
+to the house door.  1024 host pass.  findings/arche-runoff-render.md.  Commit pending this ckpt.
+
+- **Ground truth (retail.osr, `draw_probe.py --res 0x570` ticks 980-1130):** Arche renders as res 0x570 (bank
+  0x8b — NOT a separate "running" resource; my first probe missed her at y≈304, below the y≤280 band).  Three
+  clip phases: **RUN** cels 16,16,17,18,19,19,20,21 (dur 5, loop — contact frames 16/19 held 2×, a 40-tick
+  cycle), **DECEL** cels 8-11 (~6t each, one-shot), **arrival-IDLE** cels 152-154 (~14t, loop).  So the run
+  clip = `base 16, frame_delta {0,0,1,2,3,3,4,5}, dur 5, loop` (RE'd timing metadata off the draw stream, like
+  WAGON_CLIP).  The run-off command `0x402730(Arche,+32000)` sets the target = `world_x + 32000` = world 73104
+  (= L8's baked spk_wx); the mover `0x54f980` (deferred) drives velocity + clip-switches.  A camera reference
+  (res 1004 buildings) confirmed her world velocity ≈ the ported run cap 48000/100 → she runs with the REAL
+  run physics.
+- **The fix:** `actor_spawn.{c,h}` — `ARCHE_RUN_CLIP`/`ARCHE_DECEL_CLIP`/`ARCHE_ARRIVAL_IDLE_CLIP` + a pure,
+  host-tested run-off state machine `arche_runoff_begin`/`arche_runoff_step` (the REAL two-phase run accel →
+  cap 48000, `world_x += vel/100`; only the DECEL-approach is the tagged `0x54f980` stand-in).  `main.c`
+  finds Arche's slot (cast member on bank 0x8b), begins the run-off when the L7→L8 `CS_ACT_CAMERA_PAN` fires,
+  and advances her one sim-tick per `game_actor_update` (mirrors world_x + switches her clip on a phase
+  change).  +host test `test_arche_runoff`.
+- **VERIFIED off `C:\oss-osr\port-runoff.osr` vs retail.osr:** the cel sequence matches retail tick-for-tick
+  (16-21 loop → 8-11 → 152-154); run-start aligns (port tick 983 / retail ≤980, the matched dialogue cadence);
+  the ~40px screen-position residual is the PRE-EXISTING camera-pan phase (the static cast cel res 1027 is the
+  SAME ~40px off, present in port-theme3.osr before this change) = `PORT-DEBT(ingame-camera-pan)`, NOT an Arche
+  render error (the port|retail montage shows both mid-stride).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-runoff.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub
+  the run-off (ticks ~983→1090): Arche runs to the door (run → decel → idle).  Residual: the whole scene is
+  framed ~40px off (the camera pan phase) + her exact velocity/decel is the deferred mover.
+- **NEXT (remaining THEME 2):** the NPC COLOUR variant (#1; townsfolk hardcode frame_base 0 → a colour-remap
+  `DAT_008a9358` or archetype/param_11 bank, NOT the butterfly path) and the butterfly VERTICAL flutter
+  (#2 residual = `butterfly-flutter`).  THEN the FREEROAM HAND-OFF.
+
+## Where we were — ckpt 139
 
 **The BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 (THEME 2 notes #0 "butterflies color gap" + the
 SPRITE half of #2) — the 4 town butterflies now render their correct colours/directions, bit-exact to retail.**

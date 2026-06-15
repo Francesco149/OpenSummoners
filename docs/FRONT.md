@@ -27,10 +27,12 @@
   `frame_base` = the per-instance map VARIANT +0x18 = base direction 0/4/8/12, + the facing-mirror
   `DAT_008a8440[0x146]=16` corrected from 4; `cel = frame_base + 16·(facing==3) + flap`, live-read-verified
   2452/2452, draw_probe 273/280 ticks frame-identical; quirk #110).
+  **ckpt 140 the cast "ARCHE RUNNING" run-off render (THEME 2 note #5/#3) — DONE + frame-sequence bit-exact**
+  (on the L7→L8 beat Arche plays her RUN→DECEL→arrival-IDLE clips and runs to the house via the REAL ported
+  run physics; cels 16-21/8-11/152-154 RE'd off retail.osr; quirk —; `findings/arche-runoff-render.md`).
   **NEXT (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
-  bank, NOT the butterfly path), the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`), and the
-  cast render `0x4997b0` (#3, the "Arche running" sprite, `cutscene-party-chars`).  THEN the FREEROAM
-  HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
+  bank, NOT the butterfly path) and the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`).  THEN
+  the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -41,8 +43,27 @@
     FADE-OUT dissolve ✓ (136) → arrival→house TRANSITION CHOREOGRAPHY TICK-1:1 ✓ (137, THEME 3) →
     the TRANSITION FADE (center-out + box-over-cover + house L0 +8t→0) ✓ (138) →
     the BUTTERFLY direction sprite ✓ (139, THEME 2 #0/#2 — frame_base from the map variant) →
-    **the NPC colour variant + butterfly flutter + the cast "Arche running" render (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 139): the BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 — THEME 2 note #0
+    the cast "Arche running" run-off render ✓ (140, THEME 2 #5/#3 — RUN/DECEL/idle clips + run physics) →
+    **the NPC colour variant + butterfly flutter (THEME 2) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 140): the cast "ARCHE RUNNING" RUN-OFF RENDER is PORTED + frame-sequence bit-exact — THEME 2
+  note #5 ("arche runs to the house in retail, stands still in port", USER tick 1027) is RESOLVED.**  On the
+  L7→L8 inter-line beat ("Mom! Dad! c'mon!") Arche now plays her RUN cycle → DECEL → arrival-IDLE and runs to
+  the house door, instead of standing static.  **Render is FAITHFUL (the clips are RE'd cel-sequence metadata
+  read off `retail.osr`'s Arche draw stream, `draw_probe.py --res 0x570`): RUN cels 16,16,17,18,19,19,20,21
+  (dur 5, loop — contact frames 16/19 held 2×), DECEL cels 8-11, arrival-IDLE 152-154.**  **Motion is the REAL
+  ported run physics** (char-run, ckpt 118: two-phase accel → cap 48000, `world_x += vel/100`) toward the RE'd
+  target world 73104 (= `0x402730(Arche,+32000)` = L8's spk_wx); only the DECEL-approach is the tagged
+  `0x54f980`-mover stand-in.  **VERIFIED off a fresh `C:\oss-osr\port-runoff.osr` vs `retail.osr`:** the cel
+  sequence matches retail tick-for-tick (16-21 loop → 8-11 → 152-154), the run-start aligns (port tick 983 /
+  retail ≤980 — the matched dialogue cadence), and the ~40px screen-position residual is the PRE-EXISTING
+  camera-pan phase (the static cast cel res 1027 is the same ~40px off, in port-theme3.osr too) =
+  `PORT-DEBT(ingame-camera-pan)`, NOT an Arche render error.  1024 host pass (+`test_arche_runoff`).
+  Port|retail montage on the feed (both show her mid-stride).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-runoff.osr C:\oss-osr\retail.osr`** (shortcut loaded with this pair) — scrub
+  the run-off (ticks ~983→1090): Arche runs to the house door (run cycle then decel then idle).  Residual: the
+  whole scene is framed ~40px off (the camera pan phase) + her exact velocity/decel is the deferred mover.
+  Writeup: `findings/arche-runoff-render.md`.
+- **Prior (ckpt 139): the BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 — THEME 2 note #0
   ("butterflies color gap") and the SPRITE half of #2 are CLOSED; the 4 town butterflies now render their
   correct colours/directions, bit-exact to retail.**  RE'd "trace the code" then live-read-verified (the
   Frida host, 2452 render calls, 0 deviations) — NOT curve-fit.  **Mechanism (quirk #110): the butterfly cel

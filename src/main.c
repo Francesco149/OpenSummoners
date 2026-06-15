@@ -228,6 +228,13 @@ static int              g_structs_loaded;
 static actor_spawn_pool g_effects;
 static int              g_effects_loaded;
 
+/* THEME 2: the town-intro "Arche runs to the house" run-off (cutscene-party-chars).
+ * g_arche_slot is Arche's index in g_effects (the cast member on body bank 0x8b);
+ * g_arche_runoff drives her clip + world_x during the L7->L8 beat.  See
+ * actor_spawn.h (arche_runoff_*) for the RE + the faithful/stand-in boundary. */
+static int          g_arche_slot = -1;
+static arche_runoff g_arche_runoff;
+
 /* The 4 town BUTTERFLIES' per-sim-tick LCG behaviour (engine-quirk #95) — the
  * EFFECT band's ONLY per-tick RNG consumer (0x47b990's 0xe29a case).  Registered
  * by actor_spawn_effect_from_map (their 0xc874 move-freq, in map order); stepped
@@ -2743,6 +2750,25 @@ static void game_actor_update(void)
             }
         }
     }
+
+    /* THEME 2: advance Arche's run-off (the L7->L8 "runs to the house" beat).  One
+     * sim-tick of accel/cruise/decel toward the house door; mirror world_x into her
+     * render-state and switch her clip (run -> decel -> arrival-idle) on a phase
+     * change.  actor_pool_update (top of this fn) steps the active clip each tick,
+     * so the switch lands next tick (a 1-tick latency, immaterial to the cycle). */
+    if (g_arche_runoff.active && g_effects_loaded &&
+        g_arche_slot >= 0 && g_arche_slot < g_effects.count) {
+        const anim_clip *c = arche_runoff_step(&g_arche_runoff);
+        actor_render_state *rs = &g_effects.states[g_arche_slot];
+        rs->world_x = g_arche_runoff.world_x;
+        if (c != NULL && rs->clip != c) {
+            rs->clip  = c;
+            rs->timer = 0;
+            rs->frame = 0;
+            rs->done  = 0;
+        }
+    }
+
     ambient_effect_step(&g_ambient);
 
     /* (2) The PARTICLE band (+0x13e0, 0x46e510) steps BEFORE the CHARACTER band
@@ -2908,6 +2934,22 @@ static void game_render(void *user)
                             log_line("cutscene beat: camera_apply_pan(%d,%d,%d) "
                                      "@hold=%u", act.a, act.b, act.c,
                                      g_game_camera_hold);
+                            /* THEME 2: the L7->L8 camera pan IS the "Arche runs ahead
+                             * to the house" beat — start her run-off (clip + motion)
+                             * here, concurrent with the pan, so she runs to the door
+                             * (USER note tick 1027).  Only the arrival's run-off pans
+                             * (the establishing pan is a separate path; house entry
+                             * fades), so the cutscene CAMERA_PAN action is unambiguous. */
+                            if (g_arche_slot >= 0 && g_arche_slot < g_effects.count &&
+                                !g_arche_runoff.active) {
+                                arche_runoff_begin(&g_arche_runoff,
+                                                   g_effects.states[g_arche_slot].world_x,
+                                                   ARCHE_RUNOFF_TARGET_X);
+                                log_line("cutscene beat: Arche run-off begin "
+                                         "(slot %d, %d -> %d)", g_arche_slot,
+                                         g_effects.states[g_arche_slot].world_x,
+                                         ARCHE_RUNOFF_TARGET_X);
+                            }
                         } else if (act.kind == CS_ACT_FADE) {
                             /* RE'd arm (0x439690:563): the iris VARIANT is an LCG
                              * draw (rand*3)>>15 in {0,1,2}.  act.a = mode
@@ -3160,7 +3202,16 @@ static void enter_game(void)
             log_line("enter_game: actor_spawn_cutscene_cast -> %d arrival family "
                      "(Dr. Barnard 0xeb / Father 0xe3 / Mother 0xb5 / Arche 0x8b)",
                      cn);
+            /* THEME 2: find Arche's slot (the cast member on body bank 0x8b) so the
+             * run-off driver can move/animate her on the L7->L8 beat. */
+            g_arche_slot = -1;
+            for (int i = 0; i < g_effects.count; i++)
+                if (g_effects.actors[i].sprite_table[0].bank == 0x8bu) {
+                    g_arche_slot = i;
+                    break;
+                }
         }
+        g_arche_runoff.active = 0;   /* not running until the L7->L8 beat fires */
 
         /* Arm the establishing REVEAL fade-grid (0x439690:555-583).  Town params
          * (live: runs/reveal-grid): mode 1 (fade-out), speed 1000; the iris VARIANT

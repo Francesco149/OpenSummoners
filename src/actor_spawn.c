@@ -572,6 +572,100 @@ int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_
     return spawned;
 }
 
+/* ── THEME 2: Arche's RUN-OFF clips + motion (the "Arche runs to the house"
+ * beat).  See actor_spawn.h for the RE provenance.  The clips are RE'd cel-
+ * sequence + per-frame-duration metadata read off retail.osr's Arche draw stream
+ * (res 0x570, draw_probe.py ticks 980-1130) — NOT the binary asset (bank 0x8b
+ * pixels load from the user's sotes.exe). */
+
+/* RUN: cels 16,16,17,18,19,19,20,21 (the contact frames 16/19 held 2x), 5 sim-
+ * ticks/clip-frame, looping — matches retail tick-for-tick (cel 16 for 10t, 17/18
+ * 5t each, 19 10t, 20/21 5t; a 40-tick cycle). */
+static const anim_clip ARCHE_RUN_CLIP = {
+    .base_sprite = 16,
+    .frame_delta = { 0, 0, 1, 2, 3, 3, 4, 5 },
+    .frame_count = 8,
+    .frame_dur   = 5,
+    .oneshot     = 0,    /* loops */
+};
+
+/* DECEL: cels 8,9,10,11 as she slows to a stop, 6 sim-ticks/cel, ONE-SHOT (holds
+ * on cel 11 = the planted-foot pose).  Measured ~6t/cel over retail ticks
+ * ~1040-1064.  The brief 12,0,6,159 transition flourish between decel and the
+ * idle is folded into the decel->idle clip switch (a ~11t cosmetic detail,
+ * PORT-DEBT(cutscene-party-chars) refinement). */
+static const anim_clip ARCHE_DECEL_CLIP = {
+    .base_sprite = 8,
+    .frame_delta = { 0, 1, 2, 3 },
+    .frame_count = 4,
+    .frame_dur   = 6,
+    .oneshot     = 1,    /* play once, hold on cel 11 */
+};
+
+/* ARRIVAL IDLE: cels 152,153,154 (a gentle breathe at the house door), 14 sim-
+ * ticks/cel, looping — measured from retail ticks ~1095+ (the 152/153/154 loop). */
+static const anim_clip ARCHE_ARRIVAL_IDLE_CLIP = {
+    .base_sprite = 152,
+    .frame_delta = { 0, 1, 2, 1 },
+    .frame_count = 4,
+    .frame_dur   = 14,
+    .oneshot     = 0,    /* loops */
+};
+
+/* The run physics consts (= the REAL ported char-run law, char.h CHAR_RUN_*; ckpt
+ * 118, validated bit-exact).  Duplicated here (not #included) to keep actor_spawn
+ * decoupled from character.c — the values are the same captured per-entity tuning. */
+#define ARCHE_RUN_CAP        48000   /* = CHAR_RUN_CAP   |vel| cap -> world_x += 480/tick */
+#define ARCHE_RUN_ACCEL1      3200   /* = CHAR_RUN_ACCEL (phase 1, while |vel| < walk cap) */
+#define ARCHE_RUN_ACCEL2      1600   /* = CHAR_WALK_ACCEL (phase 2, up to the run cap)     */
+#define ARCHE_RUN_WALKCAP    24000   /* = CHAR_WALK_CAP (the two-phase accel knee)         */
+/* The decel-APPROACH (distance trigger + linear ramp-down to stop AT the target)
+ * is the PORT-DEBT(cutscene-party-chars) stand-in for the unported mover 0x54f980:
+ * decel over ~the decel clip length (24t) so she plants at the house door. */
+#define ARCHE_RUNOFF_DECEL_DIST 6000
+#define ARCHE_RUNOFF_DECEL_MINV 2000 /* don't asymptote — finish the last approach */
+
+void arche_runoff_begin(arche_runoff *st, int32_t start_x, int32_t target_x)
+{
+    if (st == NULL) return;
+    st->active   = 1;
+    st->phase    = ARCHE_RUNOFF_RUN;
+    st->world_x  = start_x;
+    st->vel      = 0;
+    st->target_x = target_x;
+}
+
+const anim_clip *arche_runoff_step(arche_runoff *st)
+{
+    if (st == NULL || !st->active) return NULL;
+    if (st->phase == ARCHE_RUNOFF_ARRIVED)
+        return &ARCHE_ARRIVAL_IDLE_CLIP;
+
+    int32_t dist = st->target_x - st->world_x;
+    if (dist < 0) dist = 0;
+
+    if (dist <= ARCHE_RUNOFF_DECEL_DIST) {
+        /* DECEL approach: vel proportional to remaining distance -> stop at target
+         * (the mover-approach stand-in; the run accel/cruise above are real). */
+        st->phase = ARCHE_RUNOFF_DECEL;
+        st->vel   = (ARCHE_RUN_CAP * dist) / ARCHE_RUNOFF_DECEL_DIST;
+        if (st->vel < ARCHE_RUNOFF_DECEL_MINV) st->vel = ARCHE_RUNOFF_DECEL_MINV;
+    } else {
+        /* RUN: the ported two-phase accel up to the cap. */
+        st->phase = ARCHE_RUNOFF_RUN;
+        st->vel += (st->vel < ARCHE_RUN_WALKCAP) ? ARCHE_RUN_ACCEL1 : ARCHE_RUN_ACCEL2;
+        if (st->vel > ARCHE_RUN_CAP) st->vel = ARCHE_RUN_CAP;
+    }
+
+    st->world_x += st->vel / 100;
+    if (st->world_x >= st->target_x) {
+        st->world_x = st->target_x;
+        st->phase   = ARCHE_RUNOFF_ARRIVED;
+        return &ARCHE_ARRIVAL_IDLE_CLIP;
+    }
+    return (st->phase == ARCHE_RUNOFF_DECEL) ? &ARCHE_DECEL_CLIP : &ARCHE_RUN_CLIP;
+}
+
 /* The caravan's idle clip — reconstructed from &DAT_00671c48 (the clip pointer
  * the 0x431e30 case-0x1872d arm installs; read from the user's sotes.exe .rdata
  * for analysis): base_sprite 2, 4 frames, 18 sim-ticks/frame, LOOPING, per-frame

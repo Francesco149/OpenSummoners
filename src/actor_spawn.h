@@ -268,4 +268,38 @@ int actor_spawn_protagonist(actor_spawn_pool *pool, int32_t world_x, int32_t wor
  */
 int actor_pool_update(actor_spawn_pool *pool);
 
+/* ── THEME 2: the town-intro "Arche runs to the house" run-off (the L7->L8 beat,
+ * USER studio note tick 1027 "arche runs to the house in retail, stands still in
+ * port").  RE'd from retail.osr's Arche draw stream (res 0x570 = bank 0x8b,
+ * tools/trace_studio2/draw_probe.py over ticks 980-1130) + the run-off command
+ * 0x402730 (target = actor world_x + 32000 = 73104 = L8's spk_wx).
+ *
+ * The RENDER is faithful (the run/decel/arrival clips below are RE'd cel-sequence
+ * + per-frame-duration metadata read off the ground-truth draw stream, like
+ * WAGON_CLIP).  The MOTION reuses the REAL ported run physics (char-run, ckpt 118:
+ * CHAR_RUN_CAP 48000, the two-phase accel, world_x += vel/100); only the
+ * decel-approach (the distance trigger + ramp-down to stop AT the target) is a
+ * clearly-tagged PORT-DEBT(cutscene-party-chars) stand-in for the unported actor
+ * mover 0x54f980 (the same mover the run-off DUR already stands in for, cutscene.c). */
+#define ARCHE_RUNOFF_TARGET_X 73104   /* 0x402730(Arche,+32000) -> world 73104 (= L8 spk_wx) */
+
+enum { ARCHE_RUNOFF_RUN = 0, ARCHE_RUNOFF_DECEL = 1, ARCHE_RUNOFF_ARRIVED = 2 };
+
+typedef struct arche_runoff {
+    int      active;     /* 1 while running to the house                      */
+    int      phase;      /* ARCHE_RUNOFF_RUN / _DECEL / _ARRIVED              */
+    int32_t  world_x;    /* current world x (centi-px; world_x += vel/100)    */
+    int32_t  vel;        /* current velocity (engine units, == char-run vel)  */
+    int32_t  target_x;   /* destination world x (the house door)             */
+} arche_runoff;
+
+/* Begin the run-off: Arche runs from start_x toward target_x (ARCHE_RUNOFF_TARGET_X). */
+void arche_runoff_begin(arche_runoff *st, int32_t start_x, int32_t target_x);
+
+/* Advance one sim-tick (accel/cruise/decel toward the target) and return the clip
+ * to render this tick (ARCHE_RUN_CLIP while running, ARCHE_DECEL_CLIP slowing,
+ * ARCHE_ARRIVAL_IDLE_CLIP once stopped).  Returns NULL if inactive.  Pure +
+ * host-tested (test_actor_spawn.c). */
+const anim_clip *arche_runoff_step(arche_runoff *st);
+
 #endif /* OSS_ACTOR_SPAWN_H */
