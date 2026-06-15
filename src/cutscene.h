@@ -157,6 +157,17 @@ typedef struct cutscene_line_lead {
     int                  line_idx;  /* the line this beat list precedes (0-based) */
     const cutscene_beat *beats;
     int                  n_beats;
+    /* The RUN-OFF box hold (note #5): for a CONCURRENT lead (the L7→L8 "Arche runs
+     * ahead" gap), the preceding line's dialogue beat completes ~box_hold ticks
+     * BEFORE the box visibly clears — retail issues the camera pan + the 0x402730
+     * run-off the moment the beat returns (the camera onset PROVES it: retail.osr
+     * the static caravan pans from tick 977, while "Cool!"'s body holds through
+     * 982 = its own full+24 box auto-hold).  So the lead beats fire on the advance,
+     * but the preceding line's box stays UP showing its full text for box_hold more
+     * ticks (the camera pan + the run play BEHIND it), then cuts.  0 = the normal
+     * close (the box goes to `closing` and shrinks out, e.g. the house entry fade,
+     * which runs AFTER the room swap with the box already gone). */
+    int                  box_hold;
 } cutscene_line_lead;
 
 /* A resolver VA → string (main.c supplies exe_data_string; tests stub it). */
@@ -212,6 +223,11 @@ typedef struct cutscene {
     int                   n_beats;
     int                   beat_idx;     /* current beat within the list              */
     int                   beat_timer;   /* sim-ticks left on the current beat        */
+    int                   box_linger;   /* a CONCURRENT lead (run-off): ticks the     *
+                                         * preceding line's box stays UP (full text,   *
+                                         * tracking the camera) after its advance while *
+                                         * the lead beats play behind it, before it    *
+                                         * cuts (cutscene_line_lead.box_hold; note #5) */
     cutscene_action       action;      /* pending one-shot for the caller to perform */
     /* A FADE beat waits for the scene_fade GRID to settle (retail's case-2 gate =
      * the grid `done` flag, 0x439690:1125), not a fixed timer.  The caller feeds the

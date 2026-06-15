@@ -401,9 +401,11 @@ int test_cutscene_room_transition(void)
 }
 
 /* ── THEME 3: the L7→L8 inter-line BEAT phase (the "Arche runs ahead" gap) ──
- * Advancing L7 ("Cool!") must enter the non-dialogue beat phase — close the box,
- * issue the camera pan to (28000,12800)@400, hold the run-gated 117t + the 50t
- * wait, then open L8 fresh.  Confirms during the gap are eaten (automatic beats). */
+ * Advancing L7 ("Cool!") fires the CONCURRENT run-off lead: it issues the camera pan
+ * to (28000,12800)@400 + (in main.c) Arche's run, but KEEPS the box up showing "Cool!"
+ * for ARRIVAL_RUNOFF_BOX_HOLD ticks (the box rides the pan behind which she runs), then
+ * cuts; the beat phase holds the run-gated 104t + the 50t wait, then opens L8 fresh.
+ * Confirms during the gap are eaten (automatic beats). */
 int test_cutscene_l8_lead_beats(void)
 {
     int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
@@ -417,13 +419,16 @@ int test_cutscene_l8_lead_beats(void)
     T_ASSERT_EQ_I(cutscene_in_beats(&cs), 0);
     T_ASSERT_EQ_I(dialogue_active(&box), 1);
 
-    /* advance L7 → the beat phase opens: box closed, line index at L8 (8) */
+    /* advance L7 → the run-off lead opens: the box LINGERS (still showing "Cool!"),
+     * line index at L8 (8) — retail fires the run-off on this beat completion while
+     * the box holds to its full+24 auto-hold. */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
     T_ASSERT_EQ_I(cs.line_idx, 8);
-    T_ASSERT_EQ_I(dialogue_active(&box), 0);          /* main box hidden during the gap */
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);          /* box LINGERS (run-off lead)  */
 
-    /* the camera pan action is issued on entry (drained once) */
+    /* the camera pan action is issued on entry (drained once) — concurrent with the
+     * box still showing "Cool!" */
     cutscene_action act;
     T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 1);
     T_ASSERT_EQ_I(act.kind, CS_ACT_CAMERA_PAN);
@@ -432,16 +437,19 @@ int test_cutscene_l8_lead_beats(void)
     T_ASSERT_EQ_I(act.c, 400);                        /* speed */
     T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);/* one-shot drained */
 
-    /* hold the camera-pan dur + the wait — exactly 117 + 50 = 167 ticks — then L8
-     * opens.  A confirm DURING the gap is eaten (the beats are automatic). */
-    int t = 0;
+    /* hold the camera-pan dur + the wait — exactly 108 + 50 = 158 ticks (the
+     * ARRIVAL_L8_RUNOFF case-4 run-off wait + ARRIVAL_L8_WAIT) — then L8 opens.  The
+     * box CUTS partway through, after ARRIVAL_RUNOFF_BOX_HOLD (11) beat-ticks (retail's
+     * body cuts at full+24, ~10t after the run-off fired).  Confirms are eaten. */
+    int t = 0, box_cut_at = -1;
     while (cutscene_in_beats(&cs) && t < 1000) {
         cutscene_step(&cs, /*confirm=*/1);            /* presses do nothing here */
         t++;
+        if (box_cut_at < 0 && !dialogue_active(&box))
+            box_cut_at = t;
     }
-    T_ASSERT_EQ_I(t, 97 + 50);    /* ARRIVAL_L8_RUNOFF (case-4 run-off wait) +
-                                   * ARRIVAL_L8_WAIT = the beat phase (the +20t box
-                                   * pop-in lands L8's first glyph at retail's +167t) */
+    T_ASSERT_EQ_I(t, 108 + 50);    /* ARRIVAL_L8_RUNOFF + ARRIVAL_L8_WAIT = beat phase */
+    T_ASSERT_EQ_I(box_cut_at, 11); /* ARRIVAL_RUNOFF_BOX_HOLD (the box auto-hold cut)  */
     /* no stray action emitted across the wait beat (camera was the only one) */
     T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);
 

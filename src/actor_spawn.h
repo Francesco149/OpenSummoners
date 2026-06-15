@@ -285,12 +285,25 @@ int actor_pool_update(actor_spawn_pool *pool);
 
 enum { ARCHE_RUNOFF_RUN = 0, ARCHE_RUNOFF_DECEL = 1, ARCHE_RUNOFF_ARRIVED = 2 };
 
+/* The run CELS lag the motion by a short WINDUP.  The run-off fires (the motion begins)
+ * on "Cool!"'s beat completion (~tick 972, when the camera pan fires), and Arche
+ * accelerates from rest IMMEDIATELY — but retail does not show her RUN cycle (res 0x570
+ * fr=16) until ~tick 980; she plays a forward-lean windup (fr 3/8/9, ticks 970-979)
+ * first.  So the motion accelerates from the start (the char-run accel happens to match
+ * retail's windup drift to ~1px) while the CLIP holds idle for this many ticks, THEN
+ * the run cels begin — keeping the camera onset (977), her position, AND the run-cycle
+ * onset (980) ALL matched to retail.  The fr 3/8/9 lean cels are the unported cast
+ * emote (PORT-DEBT(cutscene-party-chars)); the port shows idle until the run cels. */
+#define ARCHE_RUNOFF_WINDUP_TICKS 7
+
 typedef struct arche_runoff {
     int      active;     /* 1 while running to the house                      */
     int      phase;      /* ARCHE_RUNOFF_RUN / _DECEL / _ARRIVED              */
     int32_t  world_x;    /* current world x (centi-px; world_x += vel/100)    */
     int32_t  vel;        /* current velocity (engine units, == char-run vel)  */
     int32_t  target_x;   /* destination world x (the house door)             */
+    int      windup;     /* sim-ticks the RUN CELS are held back (she accels  *
+                          * meanwhile); 0 once the run cycle is showing       */
 } arche_runoff;
 
 /* Begin the run-off: Arche runs from start_x toward target_x (ARCHE_RUNOFF_TARGET_X). */

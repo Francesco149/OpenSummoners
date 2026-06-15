@@ -1,12 +1,18 @@
 # Arche's town-intro RUN-OFF — "runs to the house" (THEME 2, cutscene-party-chars)
 
-> **Status: RENDER PORTED + frame-sequence verified bit-exact (ckpt 140).** The
-> USER studio note tick 1027 ("arche runs to the house in retail, stands still in
-> port") is resolved: Arche now plays her RUN → DECEL → arrival-IDLE animation and
-> moves to the house door during the L7→L8 beat. The cel sequence matches retail
-> tick-for-tick; the absolute screen position has a ~10–40px residual = the
-> pre-existing camera-pan phase ([[ingame-camera-pan]]) + the tagged mover
-> stand-in (the run-off velocity/decel, `0x54f980` deferred).
+> **Status: RENDER PORTED + the CAMERA-PAN OVERLAP fixed → camera + Arche position
+> now BIT-EXACT (ckpt 141).** The USER studio note tick 1027 ("arche runs to the
+> house in retail, stands still in port") is resolved (ckpt 140), AND the ckpt-140
+> follow-up "the run-off camera-pan is ~10t late (~40px framing offset)" is now
+> CLOSED (ckpt 141, "The camera-pan phase residual" section below): the run-off
+> fires CONCURRENT with "Cool!" (on its beat completion ~tick 972, not its body-clear
+> 982), so off port-runoff2.osr vs retail.osr the **static caravan (res 1004) matches
+> retail tick-for-tick** (the camera framing offset is 0px) and **Arche's screen-x +
+> run cels match tick-for-tick from 975** (the char-run accel matches retail's windup
+> drift to ~1px; the run cycle fr16 lands at tick 980 == retail). Residuals (both
+> documented debts, NOT the camera/run): the ~5-tick windup LEAN cels (retail fr 3/8/9
+> vs the port's idle = [[cutscene-party-chars]] emote) + the box-close SLIDE
+> ([[dialogue-runoff-box-slide]]).
 
 ## The gap (USER studio note, `osr_notes.jsonl` tick 1027)
 `{"tick":1027,"crop":[329,299,105,85],"differ":186394,"text":"arche runs to the
@@ -75,32 +81,53 @@ already stands in for).
 - **Host test** `test_arche_runoff` (1024 pass): the run clip cel sequence + the
   two-phase accel to cap + the decel-stop-at-target.
 
-## The camera-pan phase residual — root cause DIAGNOSED (ckpt 140)
-The ~40px whole-scene framing offset during the run-off is the camera onset being
-**~10 ticks late**, and the root cause is precisely pinned (measured off retail.osr
-vs port-runoff.osr; the static caravan res 1004 is the camera reference):
+## The camera-pan phase residual — DIAGNOSED (ckpt 140) → FIXED (ckpt 141)
+The ~40px whole-scene framing offset during the run-off was the camera onset being
+late, because the port SERIALIZED the run-off after "Cool!"'s confirm.  RE'd + fixed
+(measured off retail.osr vs port-runoff2.osr; the static caravan res 1004 is the
+camera reference, dialogue body off `dialogue_timeline.py`):
 
-- **Retail** (during "Cool!" = L2, typed tick 958 → advances 982): Arche's run
-  **windup** starts ~tick **970** (res 0x570 fr=3→8→9, motion from 975), the
-  **camera** pans from **977** (caravan 288→287), the run cycle (fr 16) at 980 —
-  **ALL during "Cool!"'s hold**, ~5-12 ticks BEFORE "Cool!" advances. And retail's
-  "Cool!" box (res 0x456) STAYS UP and follows Arche as she runs (box_x 94→103→…→184
-  from tick 983) — i.e. the run-off **OVERLAPS** the dialogue line; it is NOT gated
-  on the line's confirm.
-- **Port**: the run-off (camera + run) fires at the "Cool!" CONFIRM (the L8 lead
-  beats run after line 8 advances, ~tick 983), so the camera onset is ~tick 987 —
-  the ~10-tick lag → the ~40px framing offset. The pan RATE + target + easer ramp
-  all MATCH retail (same shape, offset only by the onset).
+**The mechanism (the key correction over the ckpt-140 diagnosis).**  "Cool!" (L7,
+TOWN_ARRIVAL line 9, full at tick 958) holds, and TWO independent things happen:
+- Its dialogue beat COMPLETES at ~tick **972** (full+14) — the script then issues the
+  camera command + `0x402730` run-off.  This is PINNED by the camera onset: the camera
+  easer `0x43d1d0` accelerates from rest (`v += 10`/tick, **5 ticks to the first
+  pixel**), and retail's caravan moves its first pixel at tick **977** ⇒ the command
+  fired at 977−5 = **972**.  (The ckpt-140 diagnosis read the onset as a 1-tick latency
+  → mis-inferred the fire at 976; it is 5t of accel-from-rest, fire at 972.)
+- Its box BODY stays up until tick **982** (full+24) — the box has its own ~24t body
+  auto-hold, INDEPENDENT of the beat.  So the run-off OVERLAPS the line's last ~10t,
+  and the box keeps showing "Cool!" while the camera + the run play behind it.
 
-So the fix is a **cutscene-beat-runner restructuring**: the run-off must fire
-DURING "Cool!" (concurrent with the displayed line, the box following running
-Arche), not serialized after its confirm. The exact trigger tick (~970, ~12t into
-"Cool!"'s hold) is a `0x4d7d80` beat-timer to RE. This touches the tick-1:1
-dialogue path (THEME 1) + the box-position projection (the box would track Arche's
-RUNNING world pos), so it is a focused follow-up done carefully, not a rushed
-end-of-session change.  Owner: `PORT-DEBT(cutscene-beat-runner)` / `ingame-camera-pan`.
+Arche: the `0x402730` run command at 972; she accelerates from rest immediately but
+plays a forward-lean windup (res 0x570 fr 3/8/9, ticks ~970-979) and only breaks into
+her run cycle (fr 16) at tick **980**.
+
+**The port (ckpt 141), all three matched:**
+- The matched nav presses "Cool!"'s advance at tick **972** (= advance_tick 982 − 10,
+  the run-off lead; `dialogue_timeline.py` `runoff_leads`).  The cutscene fires the L8
+  lead beats (camera pan + Arche run) on that advance, but LINGERS the box showing
+  "Cool!" for `ARRIVAL_RUNOFF_BOX_HOLD`=11 ticks (through 982/983, its full+24 body
+  hold), so THEME 1 is preserved.
+- `arche_runoff` accelerates from rest at 972 (the real char-run accel, which matches
+  retail's windup drift to ~1px) but HOLDS the run cel idle for `ARCHE_RUNOFF_WINDUP_
+  TICKS`=7, so the run cycle (fr 16) lands at tick 980 == retail.
+- `ARRIVAL_L8_RUNOFF` bumped 97→108 so L8's first glyph still lands ~1150 (== retail).
+
+**Verified bit-exact off port-runoff2.osr vs retail.osr:** caravan res 1004 position
+identical every tick 977-1000 (framing offset 0px); Arche res 0x570 screen-x + run
+cels identical every tick 975-1010 (fr16@980, fr17@990, fr18@995, fr19@1000); the
+whole arrival→house dialogue chain unchanged (L0-L11 within ~1t).  Recon montage on
+the feed (tick 985): the scene is near-zero diff; the only residuals are the two debts
+below.  1024 host pass.  Owner CLOSED: `ingame-camera-pan` (the run-off onset).
 
 ## Other residuals (NOT this chip)
+- The ~5-tick windup LEAN cels (retail fr 3/8/9 ticks ~975-979 vs the port's idle):
+  the cast emote, `PORT-DEBT(cutscene-party-chars)`.  Her POSITION matches (the run
+  physics) — only the lean cels are unported.
+- The box-close SLIDE: after the body clears (982), retail's empty box bubble (tail
+  res 0x456) SLIDES right ~7px/tick off-screen, gone tick 1004 — the port shrinks it
+  in place instead.  `PORT-DEBT(dialogue-runoff-box-slide)`.
 - The exact run **velocity/decel** curve + the 12,0,6,159 decel→idle transition
   flourish → `PORT-DEBT(cutscene-party-chars)` (the mover `0x54f980`).
 - Arche does **not turn to face the cast** at the door (she holds the right-facing

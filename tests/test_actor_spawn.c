@@ -750,19 +750,30 @@ int test_arche_runoff(void)
     memset(&st, 0, sizeof st);
     T_ASSERT_EQ_I(arche_runoff_step(&st) == NULL, 1);   /* inactive */
 
-    /* Begin: from Arche's anchor (41600) to the house door (73104). */
+    /* Begin: from Arche's anchor (41600) to the house door (73104).  The MOTION runs
+     * (phase RUN) from the first step — the run-off fires on the camera beat — but the
+     * run CELS lag by the windup (retail plays her lean cels first). */
     arche_runoff_begin(&st, 41600, ARCHE_RUNOFF_TARGET_X);
     T_ASSERT_EQ_I(st.active, 1);
     T_ASSERT_EQ_I(st.phase, ARCHE_RUNOFF_RUN);
     T_ASSERT_EQ_I(st.world_x, 41600);
     T_ASSERT_EQ_I(st.vel, 0);
 
-    /* First step: the run clip; the two-phase accel begins (vel 0 -> 3200). */
+    /* During the windup the run CEL is held (idle = NULL clip) but the two-phase accel
+     * ADVANCES — she slides forward while retail plays her lean cels, so her position
+     * (and the camera onset) stay matched; only the run-cycle cel onset lags to ~980. */
+    const anim_clip *c0 = arche_runoff_step(&st);
+    T_ASSERT_EQ_I(c0 == NULL, 1);                 /* run cel held during the windup */
+    T_ASSERT_EQ_I(st.vel, 3200);                  /* but the accel began (0 -> 3200) */
+    T_ASSERT_EQ_I(st.world_x, 41600 + 3200 / 100);
+    for (int t = 1; t < ARCHE_RUNOFF_WINDUP_TICKS; t++)
+        T_ASSERT_EQ_I(arche_runoff_step(&st) == NULL, 1);   /* cel still held */
+    T_ASSERT_EQ_I(st.vel > 3200, 1);              /* kept accelerating through the windup */
+
+    /* First post-windup step: the run clip appears (she keeps accelerating). */
     const anim_clip *run = arche_runoff_step(&st);
     T_ASSERT_EQ_I(run != NULL, 1);
     T_ASSERT_EQ_I(st.phase, ARCHE_RUNOFF_RUN);
-    T_ASSERT_EQ_I(st.vel, 3200);          /* CHAR_RUN_ACCEL phase-1 from 0 */
-    T_ASSERT_EQ_I(st.world_x, 41600 + 3200 / 100);
 
     /* The RUN clip's faithful cel sequence: step an anim_state through it and read
      * cels 16,16,17,18,19,19,20,21, then it wraps back to 16 (a 40-tick loop). */

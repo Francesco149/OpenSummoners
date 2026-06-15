@@ -3764,3 +3764,37 @@ cell census of `retail.osr`):**
   left/right patrol — already ported, field-exact).  So the WHOLE direction render emerges
   from {spawn variant frame_base} + {ported facing toggle}.  Port: `src/actor_spawn.c`
   (frame_base from +0x18; flip 4→16); details `findings/butterfly-direction-sprite.md`.
+
+### #111 — the town-intro RUN-OFF OVERLAPS the "Cool!" line: the dialogue beat COMPLETES at full+14 (the camera pan + `0x402730` run-off fire), but the box BODY holds to full+24, so the run plays behind the still-shown line; the camera easer `0x43d1d0` accelerates from rest (5 ticks to the first pixel) and the box-close is a SLIDE-out (2026-06-15, ckpt 141)
+The L7→L8 "Arche runs ahead" gap (`0x4d7d80`:208-248) is NOT serialized after the
+player advances "Cool!" — the run-off OVERLAPS the line's last ~10 ticks.  Measured off
+retail.osr (`draw_probe.py` caravan res 1004 = camera ref, Arche res 0x570, `dialogue_
+timeline.py` body), all on the seed-pinned sim-tick axis.  "Cool!" (TOWN_ARRIVAL line 9)
+fully types at tick **958**; then TWO INDEPENDENT clocks run:
+- **The dialogue BEAT completes at ~full+14 = tick 972** — the script then issues the
+  camera command + the `0x402730` run-off (beat type→4).  Pinned by the CAMERA ONSET:
+  the easer `0x43d1d0` accelerates from rest (`v += 10`/tick, with `flag`=0 so no
+  far-boost ⇒ cur += 0,10,30,60,**100** = the first whole pixel only on the **5th**
+  step), and the static caravan moves its first pixel at tick **977** ⇒ the command
+  fired at 977 − 5 = **972**.  (A naive "1-tick easer latency" reading mis-infers 976;
+  it is 5 ticks of accel-from-rest.)
+- **The box BODY holds to ~full+24 = tick 982** — the dialogue box has its own ~24t
+  body auto-hold, INDEPENDENT of the beat completion (every arrival line: full+24 =
+  L0 913→937, L1 958→982, L2 1155→1179).  So the box keeps showing "Cool!" while the
+  camera pans + Arche runs BEHIND it for ~10 ticks.
+
+After the body clears (982) the box bubble (tail res 0x456) does NOT shrink in place —
+it SLIDES right ~7px/tick off-screen, EMPTY (94→266 over ticks 983-1003, gone 1004).
+
+Arche: the `0x402730` command at 972 starts her accelerating from rest immediately, but
+she plays a forward-lean WINDUP (res 0x570 fr 3/8/9, ticks ~970-979) and only breaks
+into her RUN cycle (fr 16) at tick **980** (~8t after the command).  Her early run
+accel happens to match the windup's slow forward drift to ~1px.
+
+Port (ckpt 141, `cutscene.c`/`actor_spawn.c`/`nav-theme3.jsonl`): advance "Cool!" at
+972 (the run-off lead −10) firing the camera + run; LINGER the box showing "Cool!" to
+982 (`ARRIVAL_RUNOFF_BOX_HOLD`); accelerate Arche from 972 but hold her run cel idle 7t
+so fr16 lands at 980 (`ARCHE_RUNOFF_WINDUP_TICKS`).  Verified bit-exact: caravan +
+Arche position/cels match retail tick-for-tick 975-1010; framing offset 0px (was ~40).
+Residuals: the windup LEAN cels (cast emote, `cutscene-party-chars`) + the box-close
+SLIDE (`dialogue-runoff-box-slide`).

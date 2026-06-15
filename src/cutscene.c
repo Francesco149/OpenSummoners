@@ -94,10 +94,24 @@ static const dialogue_speaker_body *speaker_body(uint32_t name_va)
 #define ARRIVAL_L8_PAN_X    28000
 #define ARRIVAL_L8_PAN_Y    12800
 #define ARRIVAL_L8_PAN_SPD  400
-#define ARRIVAL_L8_RUNOFF   97     /* case-4 actor-wait: the Arche run-off (0x54f980)   *
-                                    * completion = gap 167 − wait50 − box pop-in 20;     *
-                                    * cast-debt stand-in (MEASURED, draw-verified L8)    */
+#define ARRIVAL_L8_RUNOFF  108     /* case-4 actor-wait: the Arche run-off (0x54f980)   *
+                                    * completion, a cast-debt stand-in.  The lead now    *
+                                    * fires on "Cool!"'s beat-COMPLETION (~tick 972, ~10t*
+                                    * before its box clears, see ARRIVAL_RUNOFF_BOX_HOLD),*
+                                    * so this absorbed +11 vs the old 97 to keep L8 first-*
+                                    * glyph at ~1150 (= 972 confirm + 108 + wait50 + ~20  *
+                                    * pop)                                               */
 #define ARRIVAL_L8_WAIT     50     /* in_ECX[0x15f]=0x32, the script timer (ported)     */
+/* The CONCURRENT box hold for the run-off (note #5): retail issues the camera pan +
+ * the 0x402730 run-off the instant "Cool!"'s dialogue beat returns.  The camera onset
+ * PINS that instant: the easer accelerates from rest (0x43d1d0 v+=10/tick → 5 ticks to
+ * the first pixel) and retail.osr's static caravan (res 1004) moves its first pixel at
+ * tick 977 — so retail FIRED at ~972, while "Cool!"'s body still holds through tick 982
+ * (= its own full+24 box auto-hold).  So the lead beats fire on the advance (tick 972),
+ * but "Cool!"'s box stays UP showing its full text for this many MORE ticks (the pan +
+ * the run play BEHIND it), then cuts.  11 = the box renders ticks 972..982/983 (its
+ * retail body span; the port carries a ~1t coalescing residual). */
+#define ARRIVAL_RUNOFF_BOX_HOLD 11
 static const cutscene_beat ARRIVAL_L8_LEAD[] = {
     /* type             fade_mode fade_var pan_x  pan_y  param  dur(=case-4 run-off wait) */
     { CS_BEAT_CAMERA_PAN, 0, 0, ARRIVAL_L8_PAN_X, ARRIVAL_L8_PAN_Y,
@@ -131,7 +145,7 @@ static const cutscene_line TOWN_ARRIVAL[] = {
 /* The arrival room's inter-line beats (THEME 3): L8 ("Mom! Dad! c'mon!") is
  * preceded by the camera pan + run-gated gap (ARRIVAL_L8_LEAD). */
 static const cutscene_line_lead ARRIVAL_LEADS[] = {
-    { /*line_idx=*/8, ARRIVAL_L8_LEAD, ARRIVAL_L8_LEAD_N },
+    { /*line_idx=*/8, ARRIVAL_L8_LEAD, ARRIVAL_L8_LEAD_N, ARRIVAL_RUNOFF_BOX_HOLD },
 };
 #define ARRIVAL_LEADS_N ((int)(sizeof(ARRIVAL_LEADS) / sizeof(ARRIVAL_LEADS[0])))
 
@@ -215,7 +229,7 @@ static const cutscene_beat HOUSE_L0_LEAD[] = {
 
 /* The house room's lead-beat map (THEME 3): line 0 opens with the fade-from-black. */
 static const cutscene_line_lead HOUSE_LEADS[] = {
-    { /*line_idx=*/0, HOUSE_L0_LEAD, HOUSE_L0_LEAD_N },
+    { /*line_idx=*/0, HOUSE_L0_LEAD, HOUSE_L0_LEAD_N, /*box_hold=*/0 },
 };
 #define HOUSE_LEADS_N ((int)(sizeof(HOUSE_LEADS) / sizeof(HOUSE_LEADS[0])))
 
@@ -301,16 +315,25 @@ static int arm_current_line(cutscene *cs, int mode)
  * main box is closed; the OLD box snapshot in `closing` shrinks out.  Each beat
  * issues a one-shot action (the caller performs it) then holds `dur` sim-ticks. */
 
-/* Look up line `line_idx`'s LEAD beats in a room's sparse leads map; returns the
- * beat list (and sets *n_out) or NULL if the line has none. */
+/* Look up line `line_idx`'s LEAD in a room's sparse leads map (the full struct, so
+ * the caller can read box_hold), or NULL if the line has none. */
+static const cutscene_line_lead *cs_find_lead(const cutscene_room *room, int line_idx)
+{
+    for (int i = 0; i < room->n_leads; i++)
+        if (room->leads[i].line_idx == line_idx)
+            return &room->leads[i];
+    return NULL;
+}
+
+/* Look up line `line_idx`'s LEAD beats; returns the beat list (and sets *n_out) or
+ * NULL if the line has none. */
 static const cutscene_beat *cs_line_lead(const cutscene_room *room, int line_idx,
                                          int *n_out)
 {
-    for (int i = 0; i < room->n_leads; i++) {
-        if (room->leads[i].line_idx == line_idx) {
-            if (n_out != NULL) *n_out = room->leads[i].n_beats;
-            return room->leads[i].beats;
-        }
+    const cutscene_line_lead *l = cs_find_lead(room, line_idx);
+    if (l != NULL) {
+        if (n_out != NULL) *n_out = l->n_beats;
+        return l->beats;
     }
     if (n_out != NULL) *n_out = 0;
     return NULL;
@@ -405,6 +428,23 @@ static int cs_finish_beats(cutscene *cs)
  * CAMERA_PAN beat completes when its hold timer expires. */
 static int cs_step_beats(cutscene *cs)
 {
+    /* The CONCURRENT run-off lead (note #5): "Cool!"'s box stays UP showing its full
+     * text (re-projected through the live camera each frame, so it rides the pan) while
+     * the camera + Arche's run play BEHIND it, then closes when its body auto-hold
+     * (full+24, tick ~982) elapses — retail issues the run-off on the beat completion
+     * ~10t before that (the camera onset, tick 977, pins it).  When the hold expires the
+     * box hands to the normal close (snapshot -> shrink), so a box is present through the
+     * close exactly as for any line.
+     * PORT-DEBT(dialogue-runoff-box-slide): retail's "Cool!" close is a SLIDE-OUT — the
+     * body clears at 982 and the EMPTY frame (bubble tail res 0x456) slides right ~7px/
+     * tick off-screen over ticks 983-1003 (gone 1004), NOT the shrink-in-place the port
+     * does (with the text still on it).  Matching that slide is a box-close-animation
+     * follow-up; the camera/run timing (this chip) is independent of it. */
+    if (cs->box_linger > 0) {
+        cs->box_linger--;
+        if (cs->box_linger == 0)
+            cs_close_box_into_closing(cs);   /* hand to the normal close (shrink-out) */
+    }
     if (cs->closing.active)
         dialogue_close_step(&cs->closing);   /* the OLD box shrinks out */
 
@@ -461,6 +501,7 @@ void cutscene_arm(cutscene *cs, const cutscene_room *rooms, int n_rooms,
     cs->n_beats        = 0;
     cs->beat_idx       = 0;
     cs->beat_timer     = 0;
+    cs->box_linger     = 0;
     cs->action.kind    = CS_ACT_NONE;
     cs->fade_active    = 0;
     cs->fade_seen      = 0;
@@ -569,17 +610,23 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
             }
 
             /* THEME 3: a non-dialogue GAP before the NEXT line (the L7→L8 "Arche
-             * runs ahead" camera pan + wait, note #5) — close the box and run the
-             * lead beats, then OPEN the next line fresh.  Checked before the
-             * same-speaker keep/reopen because the long gap closes the box
-             * regardless of who speaks next. */
+             * runs ahead" camera pan + wait, note #5) — run the lead beats, then
+             * OPEN the next line fresh.  Checked before the same-speaker keep/reopen
+             * because the gap interrupts the dialogue regardless of who speaks next.
+             * A CONCURRENT lead (box_hold > 0, the run-off) keeps the just-shown box
+             * UP showing its full text while the camera pan + Arche's run play behind
+             * it — retail fires the run-off on this advance (the beat completion) but
+             * the box holds ~7t more (its full+24 auto-hold) then cuts.  A normal lead
+             * (box_hold 0) closes the box immediately (snapshot -> shrink). */
             if (cs->room_idx < cs->n_rooms) {
-                int nlead = 0;
-                const cutscene_beat *lead =
-                    cs_line_lead(&cs->rooms[cs->room_idx], cs->line_idx, &nlead);
-                if (lead != NULL && nlead > 0) {
-                    cs_close_box_into_closing(cs);
-                    cs_begin_beats(cs, lead, nlead, /*exit=*/0);
+                const cutscene_line_lead *l =
+                    cs_find_lead(&cs->rooms[cs->room_idx], cs->line_idx);
+                if (l != NULL && l->n_beats > 0) {
+                    if (l->box_hold > 0)
+                        cs->box_linger = l->box_hold;   /* keep the box up (run-off) */
+                    else
+                        cs_close_box_into_closing(cs);  /* normal: snapshot + shrink  */
+                    cs_begin_beats(cs, l->beats, l->n_beats, /*exit=*/0);
                     return 0;
                 }
             }

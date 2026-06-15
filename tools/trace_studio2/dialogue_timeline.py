@@ -132,12 +132,22 @@ def skip_tick(ln):
     return None
 
 
-def cmd_nav(retail, boot_nav, tick_lo, tick_hi, offset, boot_max):
+def cmd_nav(retail, boot_nav, tick_lo, tick_hi, offset, boot_max, runoff_leads=None):
     """Emit a MATCHED-CADENCE nav (stdout): the flip-keyed boot prefix of
     `boot_nav` (entries with frame <= boot_max) then tick-keyed confirms (id
     0x24) at each retail line's SKIP tick + ADVANCE tick, +offset.  The port,
     sharing the sim-tick axis, then advances the dialogue at retail's exact
-    cadence (plans/intro-cutscene-1to1.md, the THEME 1 prerequisite)."""
+    cadence (plans/intro-cutscene-1to1.md, the THEME 1 prerequisite).
+
+    runoff_leads: {line_idx: lead_ticks} — a CONCURRENT beat-gap (the L7->L8
+    "Arche runs ahead" run-off) where the line's dialogue beat COMPLETES
+    lead_ticks before its body clears: retail fires the camera pan + 0x402730
+    run-off on the beat completion (caravan pans tick 977) while the box holds
+    its full text to its full+24 auto-hold.  So press its advance at
+    advance_tick - lead_ticks (the port lingers the box; cutscene.c
+    ARRIVAL_RUNOFF_BOX_HOLD).  The room-transition beat-gap (L9->house) keeps
+    advance_tick (its fades run AFTER the advance), so this is opt-in per line."""
+    runoff_leads = runoff_leads or {}
     import json
     # boot prefix: keep the flip-keyed menu nav, drop the old dialogue spam
     print(f"# matched-cadence nav: boot prefix (frame<= {boot_max}) of "
@@ -176,9 +186,14 @@ def cmd_nav(retail, boot_nav, tick_lo, tick_hi, offset, boot_max):
         nxt = lns[i + 1] if i + 1 < len(lns) else None
         gap = (nxt.start_tick - ln.advance_tick) if nxt is not None else 0
         overlap = (nxt is not None) and (nxt.name != ln.name) and (gap <= 20)
-        adv = ln.advance_tick - (8 if overlap else 0)
-        tag = (" [spkr-change -8]" if overlap
-               else (" [beat-gap]" if (nxt is not None and gap > 20) else " [same]"))
+        runoff = runoff_leads.get(ln.idx)
+        if runoff is not None:
+            adv = ln.advance_tick - runoff
+            tag = f" [run-off lead -{runoff}]"
+        else:
+            adv = ln.advance_tick - (8 if overlap else 0)
+            tag = (" [spkr-change -8]" if overlap
+                   else (" [beat-gap]" if (nxt is not None and gap > 20) else " [same]"))
         confirms.append((adv + offset, f"adv  L{ln.idx} {ln.name!r}" + tag))
     confirms.sort()
     for tick, why in confirms:
@@ -194,11 +209,17 @@ def main(argv):
         return 2
     if argv[1] == "NAV":
         # NAV <retail.osr> <boot_nav.jsonl> <tick_lo> <tick_hi> [offset] [boot_max]
+        #     [runoff_leads]   runoff_leads = "L:T,L:T" (e.g. "7:6" for the L7->L8 run-off)
         retail, boot_nav = argv[2], argv[3]
         tlo, thi = int(argv[4]), int(argv[5])
         offset = int(argv[6]) if len(argv) > 6 else 0
         boot_max = int(argv[7]) if len(argv) > 7 else 1100
-        return cmd_nav(retail, boot_nav, tlo, thi, offset, boot_max)
+        runoff_leads = {}
+        if len(argv) > 8 and argv[8]:
+            for pair in argv[8].split(","):
+                k, v = pair.split(":")
+                runoff_leads[int(k)] = int(v)
+        return cmd_nav(retail, boot_nav, tlo, thi, offset, boot_max, runoff_leads)
     path = argv[1]
     if len(argv) >= 4 and argv[2] == "--curve":
         li = int(argv[3])

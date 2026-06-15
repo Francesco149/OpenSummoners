@@ -30,15 +30,10 @@
   **ckpt 140 the cast "ARCHE RUNNING" run-off render (THEME 2 note #5/#3) — DONE + frame-sequence bit-exact**
   (on the L7→L8 beat Arche plays her RUN→DECEL→arrival-IDLE clips and runs to the house via the REAL ported
   run physics; cels 16-21/8-11/152-154 RE'd off retail.osr; quirk —; `findings/arche-runoff-render.md`).
-  **NEXT (USER-chosen ckpt 140): the run-off CAMERA-PAN OVERLAP restructure** — DIAGNOSED but not yet fixed:
-  retail fires the run-off (Arche's windup ~tick 970 + camera ~977) DURING the "Cool!" line's hold (typed
-  958, advances 982), with the box following running Arche — it OVERLAPS the line; the port SERIALIZES it
-  after the "Cool!" confirm (~983) → the camera onset is ~10t late (the ~40px run-off framing offset; the pan
-  rate/target/easer already MATCH).  The faithful fix = fire the run-off concurrent with "Cool!" + the box
-  tracking running Arche (a `cutscene-beat-runner` restructuring; the ~12t-into-hold trigger is a `0x4d7d80`
-  beat-timer to RE).  CAUTION: touches the tick-1:1 dialogue path (THEME 1) — do it carefully.
-  `findings/arche-runoff-render.md` "The camera-pan phase residual".
-  **THEN (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
+  **ckpt 141 the run-off CAMERA-PAN OVERLAP restructure — DONE + camera/run BIT-EXACT** (the run-off now fires
+  CONCURRENT with "Cool!" — on its beat completion ~tick 972, not its confirm; the static caravan + Arche's
+  screen-x/run cels match retail TICK-FOR-TICK, framing offset 0px (was ~40); quirk #111).
+  **NEXT (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
   bank, NOT the butterfly path) and the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`).  THEN
   the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
@@ -52,8 +47,28 @@
     the TRANSITION FADE (center-out + box-over-cover + house L0 +8t→0) ✓ (138) →
     the BUTTERFLY direction sprite ✓ (139, THEME 2 #0/#2 — frame_base from the map variant) →
     the cast "Arche running" run-off render ✓ (140, THEME 2 #5/#3 — RUN/DECEL/idle clips + run physics) →
+    the run-off CAMERA-PAN OVERLAP ✓ (141 — fires concurrent with "Cool!", camera/run bit-exact) →
     **the NPC colour variant + butterfly flutter (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 140): the cast "ARCHE RUNNING" RUN-OFF RENDER is PORTED + frame-sequence bit-exact — THEME 2
+- **LATEST (ckpt 141): the run-off CAMERA-PAN OVERLAP is FIXED — the camera + Arche's screen position/run cels
+  now match retail TICK-FOR-TICK during the run-off (framing offset 0px, was ~40px); the run-off fires
+  CONCURRENT with "Cool!", not serialized after its confirm.**  RE'd "trace the code" — the ckpt-140 diagnosis
+  ("~10t late") had the trigger tick wrong; the CAMERA ONSET pins it (quirk #111): the easer `0x43d1d0`
+  accelerates from rest (`v+=10`/tick, **5 ticks to the first pixel**), and retail.osr's static caravan moves
+  its first pixel at tick **977**, so the run-off command fired at **972** (= "Cool!"'s beat completion, full+14),
+  NOT 976.  "Cool!"'s box BODY independently holds to tick 982 (its full+24 auto-hold), so the run plays behind
+  the still-shown line.  **The port (`cutscene.c`/`actor_spawn.c`/`nav-theme3.jsonl`):** advance "Cool!" at 972
+  (the run-off lead −10) firing the camera + run, LINGER the box showing "Cool!" to 982 (`ARRIVAL_RUNOFF_BOX_HOLD`,
+  THEME 1 preserved), accelerate Arche from 972 but hold her run cel idle 7t so fr16 lands at 980
+  (`ARCHE_RUNOFF_WINDUP_TICKS`); `ARRIVAL_L8_RUNOFF` 97→108 keeps L8 at ~1150.  **VERIFIED bit-exact off
+  `C:\oss-osr\port-runoff2.osr` vs `retail.osr`:** caravan res 1004 position IDENTICAL every tick 977-1000;
+  Arche res 0x570 screen-x + run cels IDENTICAL every tick 975-1010 (fr16@980, fr17@990, fr18@995, fr19@1000);
+  the whole arrival→house dialogue chain unchanged (L0-L11 within ~1t).  1024 host pass.  Recon montage on the
+  feed (tick 985, near-zero diff).  **USER-VERIFY: `osr_view.exe C:\oss-osr\port-runoff2.osr C:\oss-osr\retail.osr`**
+  (shortcut loaded with this pair) — scrub ticks ~972→1010: Arche runs + the camera pans, framed identically to
+  retail.  Residuals (documented debts, NOT the camera/run): the ~5-tick windup LEAN cels (retail fr 3/8/9 vs
+  the port's idle = `cutscene-party-chars` emote) + the box-close SLIDE (`dialogue-runoff-box-slide` — retail
+  slides the empty bubble off, the port shrinks it).  Writeup: `findings/arche-runoff-render.md`; quirk #111.
+- **Prior (ckpt 140): the cast "ARCHE RUNNING" RUN-OFF RENDER is PORTED + frame-sequence bit-exact — THEME 2
   note #5 ("arche runs to the house in retail, stands still in port", USER tick 1027) is RESOLVED.**  On the
   L7→L8 inter-line beat ("Mom! Dad! c'mon!") Arche now plays her RUN cycle → DECEL → arrival-IDLE and runs to
   the house door, instead of standing static.  **Render is FAITHFUL (the clips are RE'd cel-sequence metadata
@@ -61,16 +76,7 @@
   (dur 5, loop — contact frames 16/19 held 2×), DECEL cels 8-11, arrival-IDLE 152-154.**  **Motion is the REAL
   ported run physics** (char-run, ckpt 118: two-phase accel → cap 48000, `world_x += vel/100`) toward the RE'd
   target world 73104 (= `0x402730(Arche,+32000)` = L8's spk_wx); only the DECEL-approach is the tagged
-  `0x54f980`-mover stand-in.  **VERIFIED off a fresh `C:\oss-osr\port-runoff.osr` vs `retail.osr`:** the cel
-  sequence matches retail tick-for-tick (16-21 loop → 8-11 → 152-154), the run-start aligns (port tick 983 /
-  retail ≤980 — the matched dialogue cadence), and the ~40px screen-position residual is the PRE-EXISTING
-  camera-pan phase (the static cast cel res 1027 is the same ~40px off, in port-theme3.osr too) =
-  `PORT-DEBT(ingame-camera-pan)`, NOT an Arche render error.  1024 host pass (+`test_arche_runoff`).
-  Port|retail montage on the feed (both show her mid-stride).  **USER-VERIFY:
-  `osr_view.exe C:\oss-osr\port-runoff.osr C:\oss-osr\retail.osr`** (shortcut loaded with this pair) — scrub
-  the run-off (ticks ~983→1090): Arche runs to the house door (run cycle then decel then idle).  Residual: the
-  whole scene is framed ~40px off (the camera pan phase) + her exact velocity/decel is the deferred mover.
-  Writeup: `findings/arche-runoff-render.md`.
+  `0x54f980`-mover stand-in.  1024 host pass (+`test_arche_runoff`).  Writeup: `findings/arche-runoff-render.md`.
 - **Prior (ckpt 139): the BUTTERFLY DIRECTION SPRITE is PORTED + DRAWCALL-1:1 — THEME 2 note #0
   ("butterflies color gap") and the SPRITE half of #2 are CLOSED; the 4 town butterflies now render their
   correct colours/directions, bit-exact to retail.**  RE'd "trace the code" then live-read-verified (the

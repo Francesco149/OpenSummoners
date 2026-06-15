@@ -633,6 +633,7 @@ void arche_runoff_begin(arche_runoff *st, int32_t start_x, int32_t target_x)
     st->world_x  = start_x;
     st->vel      = 0;
     st->target_x = target_x;
+    st->windup   = ARCHE_RUNOFF_WINDUP_TICKS;   /* the run CELS lag the motion this much */
 }
 
 const anim_clip *arche_runoff_step(arche_runoff *st)
@@ -663,6 +664,10 @@ const anim_clip *arche_runoff_step(arche_runoff *st)
         st->phase   = ARCHE_RUNOFF_ARRIVED;
         return &ARCHE_ARRIVAL_IDLE_CLIP;
     }
+    /* The run CELS lag the motion by the windup (she accelerates while retail plays the
+     * lean cels; the port shows idle until then — ARCHE_RUNOFF_WINDUP_TICKS, cast-emote
+     * debt).  NULL = the caller keeps her current (idle) clip while world_x advances. */
+    if (st->windup > 0) { st->windup--; return NULL; }
     return (st->phase == ARCHE_RUNOFF_DECEL) ? &ARCHE_DECEL_CLIP : &ARCHE_RUN_CLIP;
 }
 
