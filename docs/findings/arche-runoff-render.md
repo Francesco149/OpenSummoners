@@ -75,9 +75,32 @@ already stands in for).
 - **Host test** `test_arche_runoff` (1024 pass): the run clip cel sequence + the
   two-phase accel to cap + the decel-stop-at-target.
 
-## Residuals (NOT this chip)
-- The **camera-pan phase** during the run-off (~40px whole-scene shift) →
-  `PORT-DEBT(ingame-camera-pan)` (the run-off pan's trigger-tick / easer cadence).
+## The camera-pan phase residual — root cause DIAGNOSED (ckpt 140)
+The ~40px whole-scene framing offset during the run-off is the camera onset being
+**~10 ticks late**, and the root cause is precisely pinned (measured off retail.osr
+vs port-runoff.osr; the static caravan res 1004 is the camera reference):
+
+- **Retail** (during "Cool!" = L2, typed tick 958 → advances 982): Arche's run
+  **windup** starts ~tick **970** (res 0x570 fr=3→8→9, motion from 975), the
+  **camera** pans from **977** (caravan 288→287), the run cycle (fr 16) at 980 —
+  **ALL during "Cool!"'s hold**, ~5-12 ticks BEFORE "Cool!" advances. And retail's
+  "Cool!" box (res 0x456) STAYS UP and follows Arche as she runs (box_x 94→103→…→184
+  from tick 983) — i.e. the run-off **OVERLAPS** the dialogue line; it is NOT gated
+  on the line's confirm.
+- **Port**: the run-off (camera + run) fires at the "Cool!" CONFIRM (the L8 lead
+  beats run after line 8 advances, ~tick 983), so the camera onset is ~tick 987 —
+  the ~10-tick lag → the ~40px framing offset. The pan RATE + target + easer ramp
+  all MATCH retail (same shape, offset only by the onset).
+
+So the fix is a **cutscene-beat-runner restructuring**: the run-off must fire
+DURING "Cool!" (concurrent with the displayed line, the box following running
+Arche), not serialized after its confirm. The exact trigger tick (~970, ~12t into
+"Cool!"'s hold) is a `0x4d7d80` beat-timer to RE. This touches the tick-1:1
+dialogue path (THEME 1) + the box-position projection (the box would track Arche's
+RUNNING world pos), so it is a focused follow-up done carefully, not a rushed
+end-of-session change.  Owner: `PORT-DEBT(cutscene-beat-runner)` / `ingame-camera-pan`.
+
+## Other residuals (NOT this chip)
 - The exact run **velocity/decel** curve + the 12,0,6,159 decel→idle transition
   flourish → `PORT-DEBT(cutscene-party-chars)` (the mover `0x54f980`).
 - Arche does **not turn to face the cast** at the door (she holds the right-facing
