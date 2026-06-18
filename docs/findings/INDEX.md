@@ -52,6 +52,12 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   `cel = d*4 + flap` (d = an 8-way wander heading, not the velocity) is PROVEN off
   `retail.osr`; the port renders only 2 facings. The render path + the one open
   link (which field carries `d`) for the `butterfly-wander`/`-flutter` debts.
+- **[npc-colour-variant.md](npc-colour-variant.md)** — the townswoman's palette swap
+  (THEME 2 note #1). The girl = map townswoman `0xc440`, colour variant `param_11` =
+  map record `+0x2c` = 1; the variant bank is a CLONE of the base 8bpp sheet + a
+  palette-INDEX-remap (`DAT_006748d0`). The clone + remap pointer are already in the
+  port; what's missing is the deferred render consumer that APPLIES the remap, for
+  the `effect-color-variant` debt.
 
 ## Method / cross-cutting
 
