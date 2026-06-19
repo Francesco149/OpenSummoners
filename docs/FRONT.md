@@ -51,9 +51,21 @@
   scene_frame); every tile bank's per-frame count == retail.
   (4) the ERRANDS CAST — Father + Mother + the 10 shop props/NPCs (res 1027) all bit-exact (`ERRANDS_CAST`).
   (5) freeroam JUMP wired (axis_held[4], bit-exact arc).
-  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD + freeroam refinements
-  (run/dash double-tap [char-run-trigger], camera-follow [Arche walks off-screen past ~wx 60000], distance-locked
-  walk cels) — see task list / `controllable-arche-faithful.md`.**
+  **ckpt 145 the house→errands TRANSITION FADE — USER studio notes #6/#7 (the missing transition): the house
+  now EXITs with a fade-TO-black COVER (edges-in var 1, RE'd off 0x4d7d80:1203 + the retail.osr full-frame iris)
+  and the errands ENTERs with a fade-FROM-black REVEAL (center-out var 0, main.c on chain-complete).  Both sides
+  reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
+  pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
+  is, ckpt 134) — a phase-pillar follow-up.**
+  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
+  freeroam refinements (run/dash double-tap [char-run-trigger], camera-follow, distance-locked walk cels).
+  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — RE'd as the emote
+  `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 153→158→7→0 at house line 6→7; the port's
+  static HOUSE_CAST Arche needs the turn clip (a cutscene actor-turn beat).  (B) 3 missing errands FURNITURE
+  STRUCTURE objects (USER note #8 bookshelf frame + 2) — res 1023 fr 3/0/6, codes NOT in `STRUCT_BANK_DEFS`
+  (town-only); RE 0x438a60's errands cases.  + the fireplace FIRE (animated effect).  NB USER notes #7-12's
+  "missing props" were largely the REVEAL-phase offset — post-reveal the counter/shelf props ARE drawn
+  (counter tiles byte-match retail); only the bookshelf frame + fire + a subtle wall tint are genuine.**
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →

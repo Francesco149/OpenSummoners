@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 137, 2026-06-14)
+# Session handoff — rolling current state (last updated ckpt 145, 2026-06-19)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,52 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 144
+## Where we are — ckpt 145
+
+**The house→errands TRANSITION FADE is PORTED + render-correct (commit `22047fb`, 1028 host pass).**  USER
+added studio notes to `port-errands.osr` flagging gaps leading up to the errands: (#3-5) Arche turns the
+other way at the house, (#6-7) a missing fade-out/fade-in transition, (#8-12) missing errands props.  This
+checkpoint closed the FADE and SCOPED the rest.
+
+- **THE FADE (USER notes #6/#7) — DONE.**  The house was hard-cutting to the errands.  RE'd off `0x4d7d80:1203-
+  1220` (the house case's EXIT) + the retail.osr full-frame iris: the house EXITs with a fade-TO-black COVER
+  (no preceding wait, unlike the arrival), then stages the errands key under black + `return 2`.  Added
+  `HOUSE_EXIT` (cutscene.c) as the house room's exit_beats; the chain completes INSIDE the cover beat now.
+  COVER variant = **EDGES-IN (1)** (black grows from top+bottom to middle — the family in the shrinking band);
+  errands ENTRY = a fade-FROM-black REVEAL, **CENTER-OUT (0)** (opens from the middle), armed by main.c on
+  chain-complete (the errands script 0x4dc510 that owns it is unported).  Both variants forced as the existing
+  `PORT-DEBT(cutscene-fade-variant)` stand-in (the LCG drifts via the unported cast); per-arm rng_rand() kept.
+  scene_fade.c already had both iris patterns.  VERIFIED off a fresh port-errands.osr (per-tick full-frame
+  differ, ticks 1672-1729): both sides reach FULL BLACK aligned at tick ~1699 (59k→1379).  +test
+  `cutscene_house_exit_cover` (COVER mode 2 / var 1 / one completion); `step_through` now counts the beat-phase
+  completion edge.  **RESIDUAL: a ~13t cover-START phase offset — the HOUSE dialogue cadence is not yet tick-1:1
+  (only the arrival is, ckpt 134); the house cover starts ~13t late.  A phase-pillar follow-up, NOT a render bug.**
+
+- **THE TURN (USER notes #3-5) — RE'd, NOT yet implemented.**  The emote `0x401e60(Arche,1)` at `0x4d7d80:1170`
+  (house line 6→7) sets actor command kind **2** = "turn to face dir `param`" (FUN_0043e5b0 case 2; the sibling
+  setter 0x406210 is literally "GetHeadLeftRight").  Off retail.osr (res 1392 = Arche), her cels run idle **153
+  → 158 → 7 → 0** (settles ~8t) then standing-idle **0/1** facing RIGHT (toward her father).  The port's
+  HOUSE_CAST Arche is STATIC arrival-idle (152-154) the whole house scene.  Port plan: a cutscene actor-turn
+  beat (CS_BEAT_ACTOR_TURN) on house line 7's lead, main.c switches the room-cast Arche to a one-shot turn clip
+  [158,7] then the standing idle [0,1].  Bounded but real plumbing (new beat/action + cross-module signal).
+
+- **THE ERRANDS PROPS (USER notes #7-12) — MOSTLY THE REVEAL PHASE, not missing.**  KEY finding: at the marked
+  tick 1725 the props were under the receding REVEAL-black (the port reveal is ~13t late, same cadence offset).
+  POST-reveal (tick 1850) the counter/shelf props ARE drawn — the counter is tiles (res 1897/1898 fr 7/8/11)
+  that byte-match retail.  GENUINE residuals: (1) the **bookshelf FRAME** (note #8) — res 1023 **fr 3** @(80,288),
+  one of **3 errands-furniture STRUCTURE objects** (also fr 0 @532,96 + fr 6 @456,288) whose codes are NOT in
+  `STRUCT_BANK_DEFS` (actor_spawn.c — the table only has town scenery; the activator `0x438a60` has the errands
+  cases to RE).  (2) the fireplace **FIRE** (note #9) — an animated effect, missing.  (3) a subtle wall TINT
+  (note #10, maxd 33) + minor lower-shelf props (note #11).  Full-errands differ 34k(mid-reveal)→13k(post,
+  dominated by the unported errands dialogue box + Arche pose + the tint).
+
+**NEXT:** the genuine items above — (A) the errands furniture STRUCT codes (RE 0x438a60), (B) the fireplace fire,
+(C) the Arche house turn beat, (D) the errands opening dialogue + the freeroam HUD/clock (USER notes #13-18) —
+plus the house-dialogue-cadence phase fix (would align both the cover start AND the reveal/props ticks).
+
+---
+
+## Prior — ckpt 144
 
 **The HOUSE/ERRANDS arc — the HOUSE CAST + the FREEROAM HAND-OFF + the ERRANDS tile-frames — all DONE
 (3 commits, 1027 host pass).**  USER directive: "the errands scene and the scene right before it (house) —
