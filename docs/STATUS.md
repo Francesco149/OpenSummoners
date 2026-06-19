@@ -68,9 +68,15 @@ understates how much actual instruction volume is ported.
   cap 16000 / gravs 2000·1000·4000 / windup 4; the flap TRIGGER is the terrain-aware mover `0x43f880` — flap to
   hold ~8000 above the floor it scans — captured as `PORT-DEBT(butterfly-flutter-trigger)` pending the freeroam
   mover; port dst-Y matches retail tick-for-tick, 0 X regression; quirk #112; `findings/butterfly-flutter.md`).
-  **NEXT: the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover
-  DONE bit-exact).  THEME 2 ambient is closed bar the pre-existing entering-butterfly horizontal lag
-  (`butterfly-bounds-writer`, unchanged by the flutter).
+  **ckpt 144 the HOUSE CAST + the FREEROAM HAND-OFF + the ERRANDS tile-frames — the house/errands arc DONE**
+  (USER: "the errands scene and the scene right before it — map 1:1, arche's movement, arche+mom+dad missing
+  in the house"): (1) the HOUSE renders Arche+Mom+Dad bit-exact in position (a per-room cast pool, captured
+  positions == the cutscene speaker coords); (2) the FREEROAM HAND-OFF — controllable Arche walks in the
+  errands on live input via the bit-exact `character_step` (walk/idle clips + facing mirror); (3) the ERRANDS
+  backdrop is now bit-exact — the auto-footprint wall/floor tile FRAME = the cell's `arg_0c` (not the constant
+  scene_frame); every tile bank's per-frame count == retail.
+  **NEXT: the errands CAST (Father + shop NPCs res 1027) + the errands opening dialogue + freeroam refinements
+  (jump/run/double-tap, camera-follow, distance-locked walk cels) — see task list / `controllable-arche-faithful.md`.**
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -85,8 +91,39 @@ understates how much actual instruction volume is ported.
     the run-off CAMERA-PAN OVERLAP ✓ (141 — fires concurrent with "Cool!", camera/run bit-exact) →
     the NPC COLOUR variant ✓ (142, THEME 2 #1 — 8bpp palette-index remap on the cloned variant bank) →
     the BUTTERFLY VERTICAL FLUTTER ✓ (143, THEME 2 #2 — the case-3 jump FSM + captured terrain-mover trigger) →
-    **the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 143): the BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact — THEME 2 note #2's vertical bob
+    the HOUSE CAST (Arche+Mom+Dad, position bit-exact) ✓ (144) → the FREEROAM HAND-OFF (controllable Arche
+    walks the errands on live input) ✓ (144) → the ERRANDS tile-frames (arg_0c, backdrop bit-exact) ✓ (144) →
+    **the errands CAST + dialogue + freeroam refinements = next**.
+- **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
+  committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
+  it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
+  synthesize whatever trace you need."  All three delivered:
+  - **HOUSE CAST (Arche+Mom+Dad) — position bit-exact** (`actor_spawn_room_cast`/`HOUSE_CAST`, `g_room_cast`):
+    the port suppressed the cast in non-town rooms; now a per-room cast pool spawns the family (banks 0x8b/0xe3/
+    0xb5, which PERSIST across the map reload) at their captured world positions + idle clips, rendered +
+    animated only in non-town rooms.  Positions solved from the town cast's 1:1 projection (1 px = 100 world,
+    house cam 89600/3200) → Arche (128000,39200)/Mother (131200,37200)/Father (134400,37200) — land EXACTLY on
+    the cutscene.c house speaker coords (an independent cross-check).  draw_probe tick 1340: Arche @354,336 /
+    Mother @386,320 / Father @418,320 == retail; residual = the idle-breathe frame PHASE only (effect-anim-phase).
+  - **FREEROAM HAND-OFF — controllable Arche walks the errands** (`freeroam_begin`/`freeroam_step`,
+    `g_freeroam_char` = the bit-exact mover): on chain-complete the port hands off to `character_step` on the
+    live held axis (the +0x200==0 char-AI path, quirk #103), REPLACING the removed ckpt-120 MVP (retires
+    PORT-DEBT(char-control-trigger)).  Spawn world (19200,52000) facing right (== retail freeroam-walk /
+    control-path-gt; projects to screen (162,336) at the errands cam (0,16000)).  Walk cels 0-3 (right) / 4-7
+    (left mirror, flip_table[0x8b]=4), idle 0/1.  VERIFIED off `port-freeroam.osr` (dialogue nav + a held-axis
+    walk): Arche walks RIGHT 162→475px then LEFT →181px, facing flips — driven by the live axis.
+  - **ERRANDS tile-frames bit-exact** (`map_decode.c`): the auto-footprint floor/wall arms (0x1b97c/72/77)
+    emitted `cfg->scene_frame` (=0) but the per-cell tile VARIANT is the cell's **`arg_0c`** (+0xc).  PROVEN: the
+    8 errands 0x1b977 cells' arg_0c (4,5,5,8,5,5,6,7) == retail's res 1897 frames exactly; town/house don't use
+    these tiles (so untested before).  Fixed → EVERY errands tile bank's per-frame draw count now == retail
+    (res 1897/1898/1072/1073/1074); full-frame differ 143978→90939 (residual = the errands cast + dialogue).
+  **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-errands.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub
+  the HOUSE (ticks ~1340-1670: the family present) + the ERRANDS (ticks ~1740+: the shop backdrop 1:1, Arche
+  idle); `osr_view.exe C:\oss-osr\port-freeroam.osr C:\oss-osr\retail.osr` shows Arche WALKING the errands
+  (the port walks her on a held-axis trace, retail is idle there — the walk is the port-only demo).  Montages
+  on the feed.  **NEXT: the errands CAST (Father res 1139 + shop NPCs res 1027) + the errands opening dialogue
+  + freeroam refinements (jump/run, camera-follow, distance-locked walk).**
+- **Prior (ckpt 143): the BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact — THEME 2 note #2's vertical bob
   is RESOLVED; the 4 town butterflies now bob up/down matching retail tick-for-tick (port dst-Y == retail, 0 X
   regression).**  RE'd "trace the code" (the physics) + USER-approved captured stand-in for the trigger.
   **Mechanism (quirk #112):** the bob is the SHARED case-3 "jump" FSM (`0x442a70`, the SAME one `character.c`

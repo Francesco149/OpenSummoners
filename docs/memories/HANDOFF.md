@@ -6,11 +6,68 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 143
+## Where we are — ckpt 144
+
+**The HOUSE/ERRANDS arc — the HOUSE CAST + the FREEROAM HAND-OFF + the ERRANDS tile-frames — all DONE
+(3 commits, 1027 host pass).**  USER directive: "the errands scene and the scene right before it (house) —
+map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands; synthesize
+whatever trace you need."  All three delivered.
+
+- **HOUSE CAST (Arche+Mom+Dad) — position bit-exact (commit `56161d3`).**  The port suppressed the town cast
+  band in non-town rooms + never repositioned the persistent family.  Added a per-room cast pool
+  (`g_room_cast`, `actor_spawn_room_cast`/`HOUSE_CAST` in `actor_spawn.c`): the family (banks 0x8b Arche /
+  0xe3 Father / 0xb5 Mother — the SAME town cast banks, which PERSIST across the map reload, render res
+  0x570/0x473/0x467) spawns at captured world positions + idle clips, rendered + animated (idle breathe) in
+  the NON-town rooms (the render gates `!room_is_town`; the update runs in the non-town `else` branch).
+  Positions solved from the town cast's 1:1 projection (1 screen px = 100 world units; house cam 89600/3200)
+  → Arche (128000,39200) / Mother (131200,37200) / Father (134400,37200) — land EXACTLY on cutscene.c's house
+  speaker coords (the ckpt-132 box-anchor RE captured the same entity world pos = independent cross-check).
+  Idle clips: Arche the arrival-idle (cels 152-154), parents IDLE_CLIP frame_base 4 (retail house frames 4-7).
+  VERIFIED draw_probe tick 1340: Arche @354,336 / Mother @386,320 / Father @418,320 == retail; residual = the
+  idle-breathe frame PHASE only (PORT-DEBT(effect-anim-phase), cosmetic ≤1 cel).
+  **GOTCHA learned: res 1127 = Mother (bank 0xb5), res 1139 = Father (bank 0xe3)** — Father is RIGHTMOST in
+  the cast (world 49600 > Mother 38400 in the town).  And bank 0xb5/0xe3 → res 0x467/0x473 PERSIST across the
+  map reload (a DIAG confirmed; town_render_free frees only the map, not the asset-register sprite slots).
+- **FREEROAM HAND-OFF — controllable Arche walks the errands (commit `5e76e45`).**  On chain-complete the port
+  hands off to the bit-exact mover: `freeroam_begin` inits `g_freeroam_char` (a `character`) at world
+  (19200,52000) facing right; `freeroam_step` (each errands sim-tick) runs `character_step` on the live
+  `g_game_drive.input.axis_held` (the +0x200==0 char-AI path, quirk #103 — the held-trace replay or the live
+  keyboard producer), mirrors world_x/y/facing into a render-state, selects + advances the WALK/IDLE clip; her
+  bank-0x8b actor renders on the static-cast path only in the errands.  REPLACES the removed ckpt-120
+  CHAR_CONTROL_ARM_FRAMES MVP → retires PORT-DEBT(char-control-trigger).  Spawn (19200,52000) projects to
+  screen (162,336) at the errands cam (0,16000) == retail (runs/freeroam-walk + control-path-gt; wx 19200 is
+  the control-path walk start).  Clips RE'd off the freeroam-walk capture's celfr: WALK cels 0,1,2,3 (facing
+  right; LEFT cels 4-7 via the facing==3 mirror, flip_table[0x8b]=4), IDLE cels 0/1.  VERIFIED off
+  `port-freeroam.osr` (--input-trace nav-full-errands + --held-trace a walk; feed_input applies BOTH ring +
+  axis): Arche walks RIGHT 162→475px (cels 0-3) then LEFT →181px (cel 6 = the +4 mirror), facing flips.
+  Residuals (debt): jump_held/run wired 0 (PORT-DEBT(char-run-trigger) + the jump button level); walk-cel
+  cadence time-based not distance-locked (PORT-DEBT(char-walk-anim-distance)); errands camera = static room
+  snap (no follow yet).
+- **ERRANDS tile-frames bit-exact (commit `f570f14`).**  The errands (DATA 1025) auto-footprint floor/wall
+  tiles drew the correct src (footprint dy offset) but the WRONG FRAME — the port emitted `cfg->scene_frame`
+  (a constant 0 for the town-area param_3=0x14), so every wall/floor drew its frame-0 placeholder.  ROOT
+  CAUSE (proven, not curve-fit): the per-cell tile VARIANT is the cell's **`arg_0c`** (+0xc), NOT scene_frame
+  — the 8 errands 0x1b977 cells' arg_0c (4,5,5,8,5,5,6,7 by column) == retail's res 1897 frames EXACTLY; the
+  town/house don't use these auto-footprint tiles (0x1b97c/72/77 cell histograms empty), so the scene_frame
+  read was untested.  Fixed `map_decode.c` (the 0x1b97c/72/77 arms emit `c.arg_0c`).  VERIFIED off
+  `port-errands.osr` vs retail.osr (tick 1900): EVERY tile bank's per-frame draw count now == retail (res
+  1897/1898/1072/1073/1074); full-frame differ 143978→90939 (residual = the errands cast + dialogue, not the
+  backdrop).  Updated `test_map_decode_errands_arms` to the arg_0c expectation.
+- **NEXT (task #5):** the errands CAST (Father res 1139/bank 0xe3 @ screen 480,320 + the shop NPCs res 1027
+  multi-frame frames 8/9/11/14/28/29/64 + check Mother res 1127) — same per-room-cast pattern; the errands
+  opening dialogue L18-L20 (questline 0x4dc510, PORT-DEBT(cutscene-scene-chain)); freeroam refinements
+  (jump/run/double-tap, camera-follow, distance-locked walk cels); the errands decode-occlusion-mark (~7 cells).
+- **Capture recipe (this arc):** `nav-full-errands.jsonl` (the USER-provided 21-line matched-cadence nav,
+  in `runs/cutscene-verify/` + `/mnt/c/oss-osr/`) drives the cutscene → errands; add `--held-trace
+  runs/freeroam-walk/port-walk.jsonl` for the walk.  Port reaches errands at sim_tick ~1678 (chain complete
+  @hold 3357 = present_frame ~4473).  `osr_view.exe C:\oss-osr\port-errands.osr C:\oss-osr\retail.osr`
+  (studio-current.txt loaded).
+
+## Where we were — ckpt 143
 
 **The BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact (THEME 2 note #2's vertical bob, `butterfly-flutter`) —
 the 4 town butterflies now bob up/down matching retail tick-for-tick.**  1027 host pass (+1).
-`findings/butterfly-flutter.md`, quirk #112.  Commit pending this ckpt.
+`findings/butterfly-flutter.md`, quirk #112.
 
 - **Mechanism (RE'd, not curve-fit):** the bob is the shared **case-3 "jump" FSM** (`0x442a70`, the SAME airborne
   sub-FSM `character.c` ports for Arche's jump), with the butterfly's per-archetype physics fields set at install

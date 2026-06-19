@@ -6,6 +6,48 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-19 (ckpt 144) — the HOUSE/ERRANDS arc: the HOUSE CAST + the FREEROAM HAND-OFF + the ERRANDS tile-frames
+
+**USER directive (away, autonomous): "the errands scene and the scene right before it (house) — get the map
+1:1, implement arche's movement, arche+mom+dad are missing on the scene right before errands; synthesize
+whatever trace you need."  All three delivered (3 commits, 1027 host pass).**  The USER pre-staged the matched-
+cadence 21-line `nav-full-errands.jsonl` (drives the cutscene → errands); diagnosis via the trace-studio v2
+draw_probe / recon against `retail.osr`.
+
+- **HOUSE CAST — Arche+Mom+Dad, position bit-exact (`56161d3`).**  The house backdrop + dialogue + portrait
+  were already 1:1; the only gap was the missing FAMILY (the port suppresses the town cast band in non-town
+  rooms + never repositioned the persistent entities).  Added a per-room cast pool (`g_room_cast`,
+  `actor_spawn_room_cast`/`HOUSE_CAST`): the family (banks 0x8b/0xe3/0xb5 — the town cast banks, which PERSIST
+  across the map reload, render res 0x570/0x473/0x467) spawns at captured world positions + idle clips,
+  rendered + animated only in the non-town rooms.  Positions solved from the town cast's 1:1 projection
+  (1 px = 100 world; house cam 89600/3200) → Arche (128000,39200)/Mother (131200,37200)/Father (134400,37200)
+  — they land EXACTLY on cutscene.c's house speaker coords (the ckpt-132 box-anchor RE = independent
+  cross-check).  draw_probe tick 1340: Arche @354,336 / Mother @386,320 / Father @418,320 == retail; residual
+  = the idle-breathe frame PHASE only.
+
+- **FREEROAM HAND-OFF — controllable Arche walks the errands (`5e76e45`).**  On chain-complete the port hands
+  off to the bit-exact mover (`freeroam_begin`/`freeroam_step`, `g_freeroam_char`): `character_step` on the
+  live `g_game_drive.input.axis_held` (the +0x200==0 char-AI path, quirk #103), REPLACING the removed ckpt-120
+  CHAR_CONTROL_ARM_FRAMES MVP (retires PORT-DEBT(char-control-trigger)).  Spawn world (19200,52000) facing
+  right (== retail freeroam-walk / control-path-gt; projects to screen (162,336) at the errands cam (0,16000)).
+  Walk cels 0-3 (right) / 4-7 (left mirror, flip_table[0x8b]=4), idle 0/1 — RE'd off the freeroam-walk capture's
+  celfr.  VERIFIED off `port-freeroam.osr` (--input-trace nav-full-errands + --held-trace a walk; feed_input
+  applies BOTH ring + axis): Arche walks RIGHT 162→475px (cels 0-3) then LEFT →181px (cel 6 = the +4 mirror),
+  facing flips.  Residuals (debt): jump/run wired 0, time-based walk cels, static camera (`char-walk-anim-distance`).
+
+- **ERRANDS tile-frames bit-exact (`f570f14`).**  The errands auto-footprint floor/wall tiles drew the correct
+  src (footprint dy) but the WRONG FRAME — the port emitted `cfg->scene_frame` (a constant 0), so every
+  wall/floor drew its frame-0 placeholder.  ROOT CAUSE (proven, not curve-fit): the per-cell tile VARIANT is
+  the cell's **`arg_0c`** (+0xc), NOT scene_frame — the 8 errands 0x1b977 cells' arg_0c (4,5,5,8,5,5,6,7 by
+  column) == retail's res 1897 frames EXACTLY; the town/house don't use these tiles (so the scene_frame read
+  was untested).  Fixed `map_decode.c` (0x1b97c/72/77 → `c.arg_0c`).  EVERY errands tile-bank's per-frame draw
+  count now == retail (res 1897/1898/1072/1073/1074); full-frame differ 143978→90939 (the residual is the
+  errands cast + dialogue, not the backdrop).  Reduces PORT-DEBT(decode-prologue).
+
+**NEXT (task #5):** the errands CAST (Father res 1139 + shop NPCs res 1027 + Mother res 1127) — the
+`errands-cast` debt; the errands opening dialogue L18-L20 (questline 0x4dc510); freeroam refinements
+(jump/run/double-tap, camera-follow, distance-locked walk cels).
+
 ## 2026-06-19 (ckpt 143) — the BUTTERFLY VERTICAL FLUTTER (THEME 2 note #2 residual): the case-3 jump FSM + a captured terrain-mover trigger, bit-exact
 
 **The town butterflies now bob up/down matching retail tick-for-tick — THEME 2's vertical-flutter residual is
