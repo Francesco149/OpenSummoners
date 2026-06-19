@@ -165,6 +165,28 @@ LESSON: a "missing" element may be EMITTED-but-OCCLUDED — always check the dra
 order (the z), not just "is it drawn".  The ckpt-145 furniture stand-in (cast layer 13)
 silently regressed the structure-band props behind it.
 
+## 5. Decode census — the errands DECODE arc is confirmed 1:1 (ckpt 148)
+
+After the wall-tint fix, a FULL-capture sheet-dhash census (`port-walltint.osr` vs
+`retail.osr`, all ticks) confirms **every shared decoded sheet matches retail** except two
+PRE-EXISTING, non-errands residuals — i.e. the floor was the LAST wrong-decode gap in the
+errands; everything the port draws in the town + errands decodes bit-for-bit like retail.
+- Town (ticks 80-360): **58/58** shared sheets match.  Errands (1680-2430): **73/73** match.
+- Full capture: **287/289** shared sheets match.  The 2 that differ are NOT errands floor
+  gaps and are NOT touched by the +8 swap (no swap table):
+  - **res 1110 (=0x456, the dialogue-box 9-slice)** — the port slices it into 30×30 cels,
+    retail into 26×26 (a slice/padding difference); a byte compare of the differently-sized
+    cels is meaningless geometry.  The box RENDER is verified `differ_px==0` (ckpt 135/136,
+    the matched-cadence nav); a recon at tick 690 over THIS errands nav shows ~1700 box-band
+    px diff, but that is the DIALOGUE/PORTRAIT phase (the errands-reaching nav isn't the
+    tick-1:1 dialogue nav — the bust sits at a different fade step), NOT res 1110.  Benign.
+  - **res 2331 fr2 (=0x91b, the title MAIN sheet)** — a ~960px localized diff in one title
+    frame, a pre-game TITLE residual (out of the errands arc; the title was verified 1:1
+    early — likely a title menu-state/animation-phase frame not on the verified path).
+- The REMAINING errands gaps are all MISSING-element (not wrong-decode): the res=0 freeroam
+  HUD (notes #7-9) + door indicator (#5), and the idle-fidget Arche cels (res 1392, note #6,
+  the RNG behaviour subsystem 0x54f980) — best with the USER / a subsystem port.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`.  Map a
