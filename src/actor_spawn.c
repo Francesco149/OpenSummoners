@@ -810,6 +810,24 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     /* bank   fb  world_x  world_y  dbx  dby fac clip        phase  member */
     { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1 }, /* Father res 0x473 @480,320 */
     { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2 }, /* Mother res 0x467 @624,128 */
+    /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
+     * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
+     * the port's struct band doesn't (the codes aren't in the struct-bank table —
+     * PORT-DEBT(errands-cast)/actor-sprite-table; captured here as static room-cast
+     * members instead, the same approach as TOWN_EFFECT_DEFS).  World = the captured
+     * retail screen (tick 2200) back through the errands projection (cam 0/16000,
+     * 1 px = 100 world); facing 1 + the cel pivot folded into dst_base (fitted). */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip  phase   res-1027 frame @screen */
+    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0 }, /* fr4  @500,160 */
+    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0 }, /* fr5  @632,160 */
+    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0 }, /* fr8  @384,-32 */
+    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0 }, /* fr9  @320,352 */
+    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0 }, /* fr9  @384,352 */
+    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0 }, /* fr11 @528,-32 */
+    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0 }, /* fr14 @452,-32 */
+    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0 }, /* fr44 @344,256 */
+    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0 }, /* fr44 @560,64  */
+    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0 }, /* fr64 @256,352 */
 };
 
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
