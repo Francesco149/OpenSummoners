@@ -881,6 +881,7 @@ struct test_case {
     X(cutscene_l8_lead_beats)                                  \
     X(cutscene_transition_fades)                               \
     X(cutscene_house_exit_cover)                               \
+    X(cutscene_house_turn)                                     \
     X(cutscene_completes_after_chain)                          \
     X(cutscene_room_key)                                       \
     X(cutscene_guards)                                         \
@@ -1017,6 +1018,7 @@ struct test_case {
     X(actor_spawn_effect)                                      \
     X(actor_spawn_cutscene_iris)                               \
     X(arche_runoff)                                            \
+    X(arche_house_turn_clip)                                   \
     X(butterfly_pertick)                                       \
     X(butterfly_motion)                                        \
     X(butterfly_flutter)                                       \

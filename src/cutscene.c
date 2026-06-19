@@ -264,6 +264,18 @@ static const cutscene_beat HOUSE_EXIT[] = {
 };
 #define HOUSE_EXIT_N ((int)(sizeof(HOUSE_EXIT) / sizeof(HOUSE_EXIT[0])))
 
+/* USER studio notes #3-5: the house Arche TURN.  The script emote 0x401e60(Arche,1)
+ * at 0x4d7d80:1170 fires AFTER house L5 ("...I'll be countin' on you") advances and
+ * BEFORE L6 ("I will, I promise!"), setting the actor's command kind 2 ("turn to
+ * face dir 1", 0x43e5b0 case 2).  Off retail.osr res 0x570 (ticks 1579-1587)
+ * Arche — static at screen (354,336) through the house — runs cels 158(4t)→7(4t)
+ * then settles to the standing idle 0/1/2, turning from her arrival-listening idle
+ * (152-155) to face her father.  The port plays it as a one-shot clip on the room-
+ * cast Arche (HOUSE_CAST[0], bank 0x8b); see main.c (the CS_ACT_ACTOR_TURN drain) +
+ * actor_spawn.c (arche_house_turn_clip).  Fire-and-forget like retail's emote: it
+ * does NOT block the dialogue — the house cadence already places L6. */
+#define HOUSE_TURN_AFTER_LINE 5
+
 /* The room chain: arrival → house.  Each room carries its committed key (the
  * 0x402030 +0x4024 value) so the caller can drive the backdrop + detect the
  * errands boundary.  The chain ends after the house (its retail `return 2`
@@ -274,9 +286,9 @@ static const cutscene_beat HOUSE_EXIT[] = {
  * var 1) before the errands key stages; main.c arms the matching errands-entry REVEAL
  * (center-out var 0) on chain-complete. */
 static const cutscene_room TOWN_CHAIN[] = {
-    /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold */
-    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0 },
-    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD },
+    /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold  turn_after_line */
+    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0,             -1 },
+    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD, HOUSE_TURN_AFTER_LINE },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))
 
@@ -627,6 +639,7 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
              * (gap 1t) but closes it ~9t on a speaker change (THEME 1). */
             uint32_t prev_name = cs->rooms[cs->room_idx].script[cs->line_idx].name_va;
             int      prev_room = cs->room_idx;
+            int      prev_line = cs->line_idx;
             const cutscene_room *room = &cs->rooms[cs->room_idx];
             int last_in_room = (cs->line_idx + 1 >= room->n_lines);
 
@@ -678,6 +691,21 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                     cs_begin_beats(cs, l->beats, l->n_beats, /*exit=*/0);
                     return 0;
                 }
+            }
+
+            /* USER notes #3-5: the house Arche TURN — when we advance PAST the
+             * room's turn_after_line (house L5), fire a one-shot actor-turn the
+             * caller plays on the room-cast Arche (the script emote 0x401e60).  It
+             * is fire-and-forget (it does NOT gate the next line — the cadence
+             * already places L6), so it sets the action and falls through to the
+             * normal speaker-change handling below.  Only within the same room (a
+             * room boundary is a different transition); checked after the lead
+             * gate above (a turn line never also carries lead beats here). */
+            if (cs->room_idx == prev_room && prev_room < cs->n_rooms &&
+                cs->rooms[prev_room].turn_after_line >= 0 &&
+                prev_line == cs->rooms[prev_room].turn_after_line) {
+                cs->action.kind = CS_ACT_ACTOR_TURN;
+                cs->action.a    = 1;   /* dir param (0x401e60's param_2) */
             }
 
             /* Keep the box open only for a same-speaker advance WITHIN a room; a

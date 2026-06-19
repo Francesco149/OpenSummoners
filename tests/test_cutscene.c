@@ -573,6 +573,50 @@ int test_cutscene_house_exit_cover(void)
     return 0;
 }
 
+/* ── USER notes #3-5: the house Arche TURN — the script emote 0x401e60(Arche,1)
+ *    fires on the L5→L6 advance (after "…I'll be countin' on you", before "I will,
+ *    I promise!"): the cutscene emits CS_ACT_ACTOR_TURN exactly there, and NOT on
+ *    the surrounding advances.  (main.c plays the one-shot turn clip on the room-
+ *    cast Arche; the cels are checked in test_arche_house_turn_clip.) ── */
+int test_cutscene_house_turn(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* the house room carries turn_after_line = 5; arrival/errands carry none */
+    T_ASSERT_EQ_I(chain[0].turn_after_line, -1);   /* arrival: no turn */
+    T_ASSERT_EQ_I(chain[1].turn_after_line, 5);    /* house: after L5  */
+
+    /* advance to the house's L5 ("…I'll be countin' on you"), fully typed + waiting
+     * (10 arrival advances → house L0, +5 → house L5; cf. step_through(17) → L7). */
+    step_through(&cs, 15);
+    run_to_wait(&cs);
+    T_ASSERT_EQ_I(cs.room_idx, 1);                 /* house */
+    T_ASSERT_EQ_I(cs.line_idx, 5);
+
+    cutscene_action act;
+    /* nothing turn-shaped pending at L5 (the emote only fires on the L5→L6 advance) */
+    act.kind = CS_ACT_NONE;
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act) && act.kind == CS_ACT_ACTOR_TURN, 0);
+
+    /* advance L5 → L6 (a SPEAKER CHANGE, Father → Arche): the turn emote fires */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 6);
+    act.kind = CS_ACT_NONE;
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 1);
+    T_ASSERT_EQ_I(act.kind, CS_ACT_ACTOR_TURN);
+    T_ASSERT_EQ_I(act.a, 1);                       /* dir param (0x401e60's param_2) */
+
+    /* the NEXT advance (L6 → L7, Arche → Mother) does NOT re-fire the turn */
+    run_to_wait(&cs);
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cs.line_idx, 7);
+    act.kind = CS_ACT_NONE;
+    T_ASSERT_EQ_I(cutscene_take_action(&cs, &act) && act.kind == CS_ACT_ACTOR_TURN, 0);
+    return 0;
+}
+
 /* ── advancing through the whole chain (10 + 8) completes exactly once + closes
  *    the box at the errands boundary ── */
 int test_cutscene_completes_after_chain(void)

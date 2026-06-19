@@ -869,3 +869,45 @@ int test_arche_runoff(void)
 
     return 0;
 }
+
+/* ── USER notes #3-5: the house Arche TURN clip cels (RE'd off retail.osr res 0x570
+ *    ticks 1579-1587): the one-shot turn 158(4t)→7(4t), then the post-turn base-0
+ *    standing idle 0/1/2 (14t).  Steps an anim_state through both clips. ── */
+int test_arche_house_turn_clip(void)
+{
+    const anim_clip *turn = arche_house_turn_clip();
+    T_ASSERT(turn != NULL);
+    T_ASSERT_EQ_I(turn->frame_count, 2);
+    T_ASSERT_EQ_I(turn->frame_dur, 4);
+    T_ASSERT_EQ_I(turn->oneshot, 1);          /* play once, hold on the last cel */
+
+    /* Stepped: cel 158 held 4 ticks, then cel 7 held 4 ticks, then `done` is raised
+     * and it freezes on cel 7 (the caller swaps to the standing idle on done). */
+    {
+        anim_state as = { .clip = turn, .timer = 0, .frame = 0, .done = 0 };
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 158);
+        for (int t = 0; t < turn->frame_dur; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 7);
+        T_ASSERT_EQ_I(as.done, 0);
+        for (int t = 0; t < turn->frame_dur; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(as.done, 1);            /* one-shot finished after cel 7's dur */
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 7);   /* frozen on the last cel */
+    }
+
+    /* The post-turn standing idle: a base-0 breathe 0,1,2,1 at 14t/cel, looping. */
+    const anim_clip *si = arche_house_turn_idle_clip();
+    T_ASSERT(si != NULL);
+    T_ASSERT_EQ_I(si->oneshot, 0);            /* loops */
+    T_ASSERT_EQ_I(si->frame_count, 4);
+    T_ASSERT_EQ_I(si->frame_dur, 14);
+    {
+        anim_state as = { .clip = si, .timer = 0, .frame = 0, .done = 0 };
+        int16_t want[4] = { 0, 1, 2, 1 };
+        for (int f = 0; f < 4; f++) {
+            T_ASSERT_EQ_I(anim_clip_sprite(&as), want[f]);
+            for (int t = 0; t < si->frame_dur; t++) anim_clip_advance(&as);
+        }
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 0);   /* wrapped back to cel 0 */
+    }
+    return 0;
+}

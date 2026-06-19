@@ -612,6 +612,40 @@ static const anim_clip ARCHE_ARRIVAL_IDLE_CLIP = {
     .oneshot     = 0,    /* loops */
 };
 
+/* ── The house Arche TURN (USER studio notes #3-5).  The town-intro script emote
+ * 0x401e60(Arche,1) at 0x4d7d80:1170 fires AFTER house L5 ("...I'll be countin' on
+ * you, Arche") advances and BEFORE L6 ("I will, I promise!"): it sets the actor's
+ * command kind 2 = "turn to face dir 1" (0x43e5b0 case 2).  Off retail.osr res
+ * 0x570 (Arche, static at screen (354,336) through the house) ticks 1579-1587 her
+ * cel runs 158(4t) → 7(4t) → the standing idle 0/1/2 (a base-0 14t breathe),
+ * turning from her arrival-listening idle (152-155) to face her father.  The port
+ * plays this as a ONE-SHOT clip on the room-cast Arche (HOUSE_CAST[0], bank 0x8b),
+ * fired by CS_ACT_ACTOR_TURN (cutscene.c) and swapped to the standing idle by
+ * main.c when the one-shot finishes (rs->done).  This is RE'd cel-sequence metadata
+ * read off the retail draw stream (the same treatment as ARCHE_RUN_CLIP, ckpt 140 —
+ * the live actor-turn FSM 0x43e5b0 is PORT-DEBT(cutscene-party-chars)). */
+static const anim_clip ARCHE_HOUSE_TURN_CLIP = {
+    .base_sprite = 158,
+    .frame_delta = { 0, -151 },   /* cels 158 -> 7 (158 - 151 = 7) */
+    .frame_count = 2,
+    .frame_dur   = 4,
+    .oneshot     = 1,             /* play once, hold on cel 7 until the idle swap */
+};
+
+/* The house Arche post-turn STANDING idle: a base-0 breathe 0,1,2,1 at 14t/cel
+ * (retail.osr res 0x570 ticks 1587+: fr 0/1/2 loop) — the pose she holds facing her
+ * father for the rest of the house scene (same shape as the arrival idle, base 0). */
+static const anim_clip ARCHE_HOUSE_STAND_IDLE_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2, 1 },
+    .frame_count = 4,
+    .frame_dur   = 14,
+    .oneshot     = 0,             /* loops */
+};
+
+const anim_clip *arche_house_turn_clip(void)      { return &ARCHE_HOUSE_TURN_CLIP; }
+const anim_clip *arche_house_turn_idle_clip(void) { return &ARCHE_HOUSE_STAND_IDLE_CLIP; }
+
 /* The run physics consts (= the REAL ported char-run law, char.h CHAR_RUN_*; ckpt
  * 118, validated bit-exact).  Duplicated here (not #included) to keep actor_spawn
  * decoupled from character.c — the values are the same captured per-entity tuning. */

@@ -262,6 +262,12 @@ static int                g_freeroam_active;
 static int          g_arche_slot = -1;
 static arche_runoff g_arche_runoff;
 
+/* USER studio notes #3-5: the house Arche TURN — 1 while her one-shot turn clip
+ * plays (set by the CS_ACT_ACTOR_TURN drain on the house L5→L6 advance, cleared
+ * when the clip finishes and she settles to the post-turn standing idle).  The
+ * room-cast Arche is HOUSE_CAST[0] (bank 0x8b). */
+static int          g_arche_house_turning;
+
 /* The 4 town BUTTERFLIES' per-sim-tick LCG behaviour (engine-quirk #95) — the
  * EFFECT band's ONLY per-tick RNG consumer (0x47b990's 0xe29a case).  Registered
  * by actor_spawn_effect_from_map (their 0xc874 move-freq, in map order); stepped
@@ -2672,6 +2678,7 @@ static int reload_room_backdrop(uint32_t room_key)
          * there. */
         int cn = actor_spawn_room_cast(&g_room_cast, room_key);
         g_room_cast_loaded = (cn > 0);
+        g_arche_house_turning = 0;   /* a fresh cast spawns Arche on her idle clip */
         log_line("reload_room_backdrop: actor_spawn_room_cast -> %d CAST members "
                  "for room 0x%05x", cn, room_key);
     }
@@ -2939,11 +2946,24 @@ static void game_render(void *user)
             int room_is_town = (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL);
             if (g_actors_loaded && is_sim_tick && room_is_town)
                 game_actor_update();
-            else if (is_sim_tick && g_room_cast_loaded)
+            else if (is_sim_tick && g_room_cast_loaded) {
                 /* Phase 2b: animate the house/errands room cast (the family's
                  * idle breathing) — the town's full game_actor_update doesn't
                  * run in non-town rooms, so step just the room cast's clips. */
                 actor_pool_update(&g_room_cast);
+                /* USER notes #3-5: when Arche's one-shot house TURN clip finishes
+                 * (cel 7 held, rs->done), settle her to the post-turn standing idle
+                 * (base-0 breathe) — RE'd off retail.osr res 0x570: 158(4t)→7(4t)
+                 * →idle 0/1/2 (14t).  HOUSE_CAST[0] = Arche (bank 0x8b). */
+                if (g_arche_house_turning && g_room_cast.count > 0 &&
+                    g_room_cast.states[0].done) {
+                    g_room_cast.states[0].clip  = arche_house_turn_idle_clip();
+                    g_room_cast.states[0].frame = 0;
+                    g_room_cast.states[0].timer = 0;
+                    g_room_cast.states[0].done  = 0;
+                    g_arche_house_turning = 0;
+                }
+            }
             /* Phase 2b: the FREEROAM mover — one sim-tick of controllable Arche on
              * the live held axis (the errands hand-off; independent of the room
              * cast above, both run in the errands). */
@@ -3102,6 +3122,24 @@ static void game_render(void *user)
                             log_line("cutscene beat: scene_fade_arm(mode=%d var=%d "
                                      "speed=%d) @hold=%u [center-out stand-in]",
                                      act.a, sf_var, act.c, g_game_camera_hold);
+                        } else if (act.kind == CS_ACT_ACTOR_TURN) {
+                            /* USER notes #3-5: the house emote 0x401e60(Arche,1) —
+                             * play her one-shot TURN clip (cels 158→7) on the
+                             * room-cast Arche (HOUSE_CAST[0], bank 0x8b); when it
+                             * finishes she settles to the post-turn standing idle
+                             * (the done-swap after actor_pool_update).  RE'd off
+                             * retail.osr res 0x570 (ticks 1579-1587). */
+                            if (g_room_cast_loaded && g_room_cast.count > 0 &&
+                                g_room_cast.actors[0].sprite_table[0].bank == 0x8bu) {
+                                g_room_cast.states[0].clip  = arche_house_turn_clip();
+                                g_room_cast.states[0].frame = 0;
+                                g_room_cast.states[0].timer = 0;
+                                g_room_cast.states[0].done  = 0;
+                                g_arche_house_turning = 1;
+                                log_line("cutscene beat: Arche house TURN begin "
+                                         "(dir %d) @hold=%u", act.a,
+                                         g_game_camera_hold);
+                            }
                         }
                     }
                     if (done) {

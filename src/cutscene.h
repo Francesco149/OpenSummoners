@@ -120,6 +120,9 @@ typedef enum {
     CS_ACT_NONE = 0,
     CS_ACT_CAMERA_PAN,   /* a=tgt_x  b=tgt_y  c=speed  -> camera_apply_pan         */
     CS_ACT_FADE,         /* a=mode   b=variant c=speed -> scene_fade_arm           */
+    CS_ACT_ACTOR_TURN,   /* a=dir    -> play the room-cast Arche's one-shot TURN    *
+                          * clip (the house emote 0x401e60(Arche,dir), USER #3-5);  *
+                          * fire-and-forget (does not gate the next line)           */
 } cutscene_action_kind;
 
 typedef struct cutscene_action {
@@ -195,6 +198,13 @@ typedef struct cutscene_room {
                                           * lingers OVER the darkening scene, like the *
                                           * run-off box_hold), then closes; 0 = close  *
                                           * the box immediately on the exit advance.   */
+    int                       turn_after_line;/* >=0: after this 0-based line advances *
+                                          * (within this room), Arche plays her one-   *
+                                          * shot TURN clip — the script emote          *
+                                          * 0x401e60(Arche,1) (house L5, 0x4d7d80:1170,*
+                                          * USER notes #3-5).  Emits CS_ACT_ACTOR_TURN *
+                                          * on that advance; -1 = no turn (the default *
+                                          * for the arrival/errands rooms).            */
 } cutscene_room;
 
 typedef struct cutscene {

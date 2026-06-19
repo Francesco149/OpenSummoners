@@ -234,6 +234,14 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key);
 extern const int16_t ARCHE_FREEROAM_FLIP;
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run);
 
+/* USER studio notes #3-5: the house Arche TURN.  After house L5 advances, the
+ * cutscene fires CS_ACT_ACTOR_TURN; main.c plays arche_house_turn_clip() (the
+ * one-shot cels 158->7) on the room-cast Arche (HOUSE_CAST[0]), then swaps to
+ * arche_house_turn_idle_clip() (the post-turn standing idle) when it finishes.
+ * RE'd off retail.osr res 0x570 (ticks 1579-1587); see actor_spawn.c. */
+const anim_clip *arche_house_turn_clip(void);
+const anim_clip *arche_house_turn_idle_clip(void);
+
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a
  * map CHARACTER object (its code is outside 70000..79999); it is spawned by the
