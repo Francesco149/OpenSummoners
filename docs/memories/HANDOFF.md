@@ -29,9 +29,12 @@ checkpoint closed the FADE and SCOPED the rest.
   dialogue_timeline L0-L7 within 1t).  Root cause: the cover fires on the last house line's CONFIRM (~1670 retail),
   but the nav advanced L17 at 1678 = dialogue_timeline's "adv" which (for a cover-followed line) is the GLYPH-CLEAR
   (the box closes OVER the cover, glyphs vanish ~8t after the confirm).  Fix: nav advances L17 at the confirm
-  (1670) + the box now LINGERS over the cover (`cutscene_room.exit_box_hold`=8).  Now cover+reveal track retail
-  within ~1-2t (both black @1699, differ 191).  NAV-BUILD CAVEAT for dialogue_timeline: a cover-followed last
-  line's nav tick = its confirm (~box_hold ticks BEFORE its measured "adv").
+  (1668 — refined from 1670 off the fine per-tick brightness curve, retail cover first-darkens 1669) + the box
+  LINGERS over the cover (`cutscene_room.exit_box_hold`=10).  Now the cover darkens TICK-FOR-TICK with retail
+  (1669-1689 within 1-2 luma; cover-region differ 30k→~4k).  Also fixed (USER note #16) a stray errands speech
+  bubble = the house box_linger box froze half-shrunk in `cs->closing` at chain-complete; cs_finish_beats now
+  clears cs->closing on complete.  Commits `2a464eb`+`6108ea4`.  NAV-BUILD CAVEAT for dialogue_timeline: a
+  cover-followed last line's nav tick = its confirm (~box_hold ticks BEFORE its measured "adv").
 
 - **THE TURN (USER notes #3-5) — RE'd, NOT yet implemented.**  The emote `0x401e60(Arche,1)` at `0x4d7d80:1170`
   (house line 6→7) sets actor command kind **2** = "turn to face dir `param`" (FUN_0043e5b0 case 2; the sibling
