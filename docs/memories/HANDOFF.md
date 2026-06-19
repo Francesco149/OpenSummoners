@@ -35,19 +35,24 @@ checkpoint closed the FADE and SCOPED the rest.
   beat (CS_BEAT_ACTOR_TURN) on house line 7's lead, main.c switches the room-cast Arche to a one-shot turn clip
   [158,7] then the standing idle [0,1].  Bounded but real plumbing (new beat/action + cross-module signal).
 
-- **THE ERRANDS PROPS (USER notes #7-12) — MOSTLY THE REVEAL PHASE, not missing.**  KEY finding: at the marked
-  tick 1725 the props were under the receding REVEAL-black (the port reveal is ~13t late, same cadence offset).
-  POST-reveal (tick 1850) the counter/shelf props ARE drawn — the counter is tiles (res 1897/1898 fr 7/8/11)
-  that byte-match retail.  GENUINE residuals: (1) the **bookshelf FRAME** (note #8) — res 1023 **fr 3** @(80,288),
-  one of **3 errands-furniture STRUCTURE objects** (also fr 0 @532,96 + fr 6 @456,288) whose codes are NOT in
-  `STRUCT_BANK_DEFS` (actor_spawn.c — the table only has town scenery; the activator `0x438a60` has the errands
-  cases to RE).  (2) the fireplace **FIRE** (note #9) — an animated effect, missing.  (3) a subtle wall TINT
-  (note #10, maxd 33) + minor lower-shelf props (note #11).  Full-errands differ 34k(mid-reveal)→13k(post,
-  dominated by the unported errands dialogue box + Arche pose + the tint).
+- **THE ERRANDS FURNITURE (USER notes #8/#9/#18-21) — were GENUINELY MISSING, now FIXED (commit `01dc162`).**
+  (I first wrongly guessed these were the reveal-phase offset; the USER corrected with post-reveal notes #19-21
+  — the counter/bookshelf/clock are missing at tick 1748/1890 too.)  ROOT CAUSE: they are **CHARACTER-band**
+  objects (DATA 1025 layer codes in the 0x111xx-0x112xx / 70000 range — 0x112d1 bookshelf, 0x112d2 counter,
+  0x112cf wall-shelf, 0x112d9 clock), NOT structure codes.  They resolve to bank **0x16f** (res 1023, furniture
+  sheet) / **0x16b** (res 1026) with **frame_base = the layer VARIANT** — but the port's CHARACTER band
+  (g_actors) is SUPPRESSED for non-town rooms, and the codes aren't in TOWN_SPRITE_DEFS, so they were invisible
+  volumes.  Found by dumping all 99 errands layers (temp diagnostic) + cross-referencing each to the retail draw
+  stream.  Captured as static `ERRANDS_CAST` members (world = the map pos X*100,Y*100; z-ordered: bookshelf
+  behind its props, counter in front of Dad).  VERIFIED tick 1850: counter ~identical, bookshelf frame + clock
+  render; differ 13236→11233.  **RESIDUAL (finer): some props INSIDE the bookshelf (more character objects), the
+  fireplace FIRE (note #10, animated — needs a clip), a subtle wall TINT (note #11, maxd 33).**
+  PORT-DEBT(errands-cast): the proper fix is to spawn the errands CHARACTER band (frame_base=variant) + the full
+  visible-furniture code→bank table, retiring the captured ERRANDS_CAST.
 
-**NEXT:** the genuine items above — (A) the errands furniture STRUCT codes (RE 0x438a60), (B) the fireplace fire,
-(C) the Arche house turn beat, (D) the errands opening dialogue + the freeroam HUD/clock (USER notes #13-18) —
-plus the house-dialogue-cadence phase fix (would align both the cover start AND the reveal/props ticks).
+**NEXT:** (A) the errands FIRE (animated effect) + the finer bookshelf shelf-props + the wall tint; (B) the Arche
+house TURN beat (RE'd above); (C) the errands opening dialogue + the freeroam HUD (USER notes #13-18); (D) the
+house-dialogue-cadence phase fix (would align the cover-start AND the reveal/furniture ticks — the ~13t lag).
 
 ---
 

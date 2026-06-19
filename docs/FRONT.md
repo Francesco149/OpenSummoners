@@ -62,10 +62,12 @@
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — RE'd as the emote
   `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 153→158→7→0 at house line 6→7; the port's
   static HOUSE_CAST Arche needs the turn clip (a cutscene actor-turn beat).  (B) 3 missing errands FURNITURE
-  STRUCTURE objects (USER note #8 bookshelf frame + 2) — res 1023 fr 3/0/6, codes NOT in `STRUCT_BANK_DEFS`
-  (town-only); RE 0x438a60's errands cases.  + the fireplace FIRE (animated effect).  NB USER notes #7-12's
-  "missing props" were largely the REVEAL-phase offset — post-reveal the counter/shelf props ARE drawn
-  (counter tiles byte-match retail); only the bookshelf frame + fire + a subtle wall tint are genuine.**
+  FURNITURE objects (USER notes #8/#9/#18-21: counter, bookshelf frame, clock) — these are CHARACTER-band
+  codes 0x112d1/d2/cf/d9 (70000-range) → bank 0x16f/0x16b (res 1023/1026), frame_base=variant, that the port's
+  suppressed-for-non-town character band never rendered.  FIXED ckpt 145 (`01dc162`): captured into ERRANDS_CAST,
+  counter/bookshelf/clock now render (differ 13236→11233).  RESIDUAL: finer bookshelf shelf-props + the fireplace
+  FIRE (animated) + a subtle wall tint.  (I first wrongly dismissed these as the reveal phase; the USER corrected
+  with post-reveal notes — they were genuinely missing.)**
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
