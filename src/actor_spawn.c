@@ -820,6 +820,13 @@ struct room_cast_member {
                               * props, occluding them; USER "bookshelf missing      *
                               * props").  Retail draws the frame (seq 261) then the *
                               * props (268+).                                       */
+    int32_t   alpha;         /* a +0xf4 node_alpha.  0 => opaque colorkey blit (the *
+                              * default for every cast member).  Non-zero => an      *
+                              * ADDITIVE alpha blit: the value is the ramp_a index   *
+                              * (PARTICLE_PARAM8, low byte) the present resolves to   *
+                              * g_ramp_a[idx] (mode 1).  The fireplace FIRE is the    *
+                              * only errands member that needs it (ramp_a[14], the    *
+                              * weight-750 additive glow — see FIRE_CLIP).            */
 };
 
 static const struct room_cast_member HOUSE_CAST[] = {
@@ -835,10 +842,10 @@ static const struct room_cast_member HOUSE_CAST[] = {
      * cutscene.c house speaker positions (Arche 128000/39200, Mother 131200/37200,
      * Father 134400/37200) — the box-anchor RE captured the same entity world coords
      * (ckpt 132), an independent cross-check that these are the real cast positions. */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip                      phase lyr  member */
-    { 0x8bu,  0,  128000,  39200,  -30, -24, 1, &ARCHE_ARRIVAL_IDLE_CLIP,   0,   0 }, /* Arche  res 0x570 @354,336 */
-    { 0xb5u,  4,  131200,  37200,  -30, -20, 1, &IDLE_CLIP,                 2,   0 }, /* Mother res 0x467 @386,320 */
-    { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1,   0 }, /* Father res 0x473 @418,320 */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip                      phase lyr alpha member */
+    { 0x8bu,  0,  128000,  39200,  -30, -24, 1, &ARCHE_ARRIVAL_IDLE_CLIP,   0,   0,  0 }, /* Arche  res 0x570 @354,336 */
+    { 0xb5u,  4,  131200,  37200,  -30, -20, 1, &IDLE_CLIP,                 2,   0,  0 }, /* Mother res 0x467 @386,320 */
+    { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1,   0,  0 }, /* Father res 0x473 @418,320 */
 };
 
 /* The ERRANDS room (0x334dc) FAMILY — Father + Mother (the persistent parents) in
@@ -849,6 +856,37 @@ static const struct room_cast_member HOUSE_CAST[] = {
  * res 0x467 @screen 624,128 -> world (65400,30800, on the upper level, mostly off
  * the right edge).  The shop NPCs (res 1027, ~10 instances) are the broader
  * PORT-DEBT(errands-cast)/actor-sprite-table, not modelled here. */
+/* The errands-shop fireplace FIRE (USER osr_notes #3 "missing fire in fireplace",
+ * tick 1726, crop [309,154,96,89]).  RE'd off retail.osr (findings/errands-render-
+ * gaps.md §1 + the ckpt-147 trace-the-code pass):
+ *   - sprite bank 0x1a3 (=419, the resolve POOL index = group3 slot 406 + RAMP_COUNT+1
+ *     (=13), ar_pool_get_slot's offset; slot 406 = PE res 0x40a=1034, 64x64, asset_
+ *     register.c row {406,0x040a,...}; registered at boot group 3, decoded lazily),
+ *   - frames 0..5 LOOPING, a SINGLE uniform per-clip frame_dur — the retail clip
+ *     format (0x154-byte descriptor +0x44) carries one duration for every frame,
+ *     NOT a per-frame list (anim_clip.h).  The .osr clean (non-coalesced) ticks
+ *     bracket it: fr0 1700-1705, fr1 1726-1731, fr4 1744-1749 — six sim-ticks each,
+ *     a 36-tick loop.  (The 1736-1739 "gap" is retail flip-coalescing, not a short
+ *     frame — quirk #99 — so this is the data duration, not a flip-axis measurement.)
+ *   - ADDITIVE alpha: the .osr blit is primitive=alpha, bmode=1, st=0x8000 (KEYSRC),
+ *     ckey=0xf81f, and its blend descriptor (blend_ref 36, CONSTANT across all six
+ *     frames + every tick) is byte-IDENTICAL to the port's g_ramp_a[14] (mode 1,
+ *     weight 750) — proven by a host LUT compare of all 20 ramp_a entries vs the
+ *     descriptor extracted from retail.osr (the only FULL match).  So alpha = 14.
+ * Drawn at a CONSTANT screen dst (329,178) 48x39 (the recess behind the grate at the
+ * base of the brick chimney).  The proper spawn is an un-RE'd map EFFECT (the lazy
+ * def-table fill 0x41e600, PORT-DEBT(errands-cast)/actor-sprite-table); captured here
+ * as an additive-alpha room-cast member, the same stand-in as the family/shop props
+ * above.  World pos = the errands projection (cam 0/16000, 1px=100): (329*100,
+ * (178+160)*100) = (32900,33800); dst_base fitted off the port osr. */
+static const anim_clip FIRE_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2, 3, 4, 5 },
+    .frame_count = 6,
+    .frame_dur   = 6,
+    .oneshot     = 0,    /* loops */
+};
+
 static const struct room_cast_member ERRANDS_CAST[] = {
     /* The shop FURNITURE — the bookshelf frame, the counter in front of Dad, the
      * wall clock (USER studio notes #8/#9/#18/#19/#20/#21: "still missing" post-
@@ -864,14 +902,16 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * cast projection (cam 0/16000) lands them at retail's screen positions.
      * PORT-DEBT(errands-cast): the proper fix is to spawn the errands CHARACTER band
      * with frame_base = variant + the visible-furniture code->bank table. */
-    /* bank   fb  world_x  world_y  dbx dby fac clip  phase  member (map code @screen) */
-    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0, 7 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 — LAYER 7 (behind its layer-8 props) */
-    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
-    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase lyr member */
-    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0 }, /* Father res 0x473 @480,320 */
-    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
-    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0 }, /* Mother res 0x467 @624,128 */
+    /* bank   fb  world_x  world_y  dbx dby fac clip  phase lyr alpha (map code @screen) */
+    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0, 7, 0 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 — LAYER 7 (behind its layer-8 props) */
+    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
+    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
+    /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
+    { 0x1a3u,  0,   32900,  33800,   -9,-18, 1, &FIRE_CLIP, 0, 0, 14 }, /* fireplace FIRE res1034, additive ramp_a[14] @329,178 (dst_base -9,-18 = the 64x64 cel's pivot, fitted; see FIRE_CLIP) */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase lyr alpha member */
+    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
+    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
+    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */
     /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
      * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
      * the port's struct band doesn't (the codes aren't in the struct-bank table —
@@ -880,16 +920,16 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * retail screen (tick 2200) back through the errands projection (cam 0/16000,
      * 1 px = 100 world); facing 1 + the cel pivot folded into dst_base (fitted). */
     /* bank   fb  world_x  world_y  dbx  dby fac clip  phase   res-1027 frame @screen */
-    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0, 0 }, /* fr4  @500,160 */
-    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0, 0 }, /* fr5  @632,160 */
-    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr8  @384,-32 */
-    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0, 7 }, /* fr9  @320,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
-    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0, 7 }, /* fr9  @384,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
-    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr11 @528,-32 */
-    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr14 @452,-32 */
-    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0 }, /* fr44 @344,256 */
-    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0 }, /* fr44 @560,64  */
-    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0 }, /* fr64 @256,352 */
+    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr4  @500,160 */
+    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr5  @632,160 */
+    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr8  @384,-32 */
+    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @320,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
+    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @384,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
+    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr11 @528,-32 */
+    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr14 @452,-32 */
+    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @344,256 */
+    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @560,64  */
+    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0, 0 }, /* fr64 @256,352 */
 };
 
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
@@ -917,6 +957,7 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
         a->code  = 0;
         a->dir   = 0;
         a->layer = cast[i].layer ? cast[i].layer : 13u;  /* 0 => the EFFECT cast layer 13 */
+        a->node_alpha = cast[i].alpha;     /* +0xf4: 0 opaque, else additive ramp_a idx */
         a->sprite_table[0].bank       = cast[i].bank;
         a->sprite_table[0].frame_base = cast[i].frame_base;
         rs->active     = 1;

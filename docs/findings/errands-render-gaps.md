@@ -20,30 +20,59 @@ ports are clean follow-ups.  The exact USER marks (tick + crop + text):
 The errands camera is STATIC (no follow) in the opening — screen positions below are
 stable across the opening ticks.
 
-## 1. The fireplace FIRE (note #10) — FULLY RE'd, port deferred
+## 1. The fireplace FIRE (note #3) — PORTED + DRAWCALL-EXACT (ckpt 147, `actor_spawn.c`)
 
 The fireplace is at screen ~(309-405, 154-243) — the recess behind the grate at the
-base of the brick chimney (upper-center).  PORT shows a BLACK empty recess; RETAIL has
-a roaring orange fire.  Recon crop (`osr_prof` tick 1726) confirms it visually.
+base of the brick chimney (upper-center).  PORT showed a BLACK empty recess; RETAIL has
+a roaring orange fire.  Now PORTED as an additive-alpha `ERRANDS_CAST` member; verified
+off a fresh `port-fire.osr` vs `retail.osr`.
 
 **The fire is `res=1034`** (PE DATA resource 1034), drawn:
 - dst **(329,178), 48x39**, CONSTANT position/size.
-- **ALPHA-blended**: primitive `alpha`, `st=0x8000`, **`bmode=1`** (additive flame glow,
-  NOT the colorkey blit the furniture uses).
-- **frames 0,1,2,3,4,5 looping**, ~**6 sim-ticks/frame** (a 36-tick loop) — measured off
-  `draw_probe --res 1034` over retail ticks 1726-1786 (seq=264, the per-frame cycle).
-- **The PORT draws 0 res=1034** anywhere (town or errands) — its bank (PE DATA 1034) is
-  NOT registered/loaded.
+- **ALPHA-blended**: primitive `alpha`, `st=0x8000` (KEYSRC armed), **`bmode=1`**, ckey
+  `0xf81f` — the additive flame glow, NOT the colorkey blit the furniture uses.
+- **frames 0,1,2,3,4,5 LOOPING, exactly 6 sim-ticks/frame** (a 36-tick loop).  This is the
+  retail clip's SINGLE uniform `frame_dur` (the 0x154-byte clip format carries ONE duration
+  for all frames, +0x44 — `anim_clip.h`; stepper `0x54f980:174`).  Read off the clean
+  (non-coalesced) retail ticks: fr0 1700-1705, fr1 1726-1731, fr4 1744-1749 = 6t each (the
+  1736-1739 "gap" is retail flip-coalescing, quirk #99 — NOT a short frame).  The PORT
+  renders every tick → all six cels held exactly 6t, confirming the data duration.
+- **The additive blend = `ramp_a[14]`** (weight 750, mode 1).  PROVEN bit-exact: the fire's
+  blend descriptor extracted from retail.osr (CONSTANT `blend_ref=36` across all 6 frames +
+  every tick; RGB565 shift (11,6,0)/mask (0xf800,0x7e0,0x1f); 3×1024-byte LUTs) is
+  BYTE-IDENTICAL to the port's `g_pd_boot_group_a[14]` LUTs — a host compare of all 20
+  ramp_a entries found exactly one full match at index 14 (`/tmp/fire_match` harness).
+  (This also independently confirms the port's pixel_drawer ramp_a == retail's, bit-exact.)
 
-**Why deferred (not a clean autonomous chip):** porting it drawcall-exact needs (a) the
-res-1034 sprite bank registered + decoded in the errands load (a new asset-register
-bank, adjacent to PORT-DEBT(assetreg-clone-defer)), AND (b) the alpha blit matched to
-retail's `st=0x8000`/`bmode=1` (the port HAS an alpha path — `zdd_alpha_blit` + the
-`actor` node_alpha — but the exact blend descriptor must match, and the alpha *look*
-wants USER visual confirmation, which is deferred).  When ported, the cleanest shape is
-an animated, alpha-blended `ERRANDS_CAST`-style member (clip = frames 0-5 dur 6) at
-world pos projecting to (329,178), OR via the proper errands CHARACTER band
-(PORT-DEBT(errands-cast)).  Feed: the PORT|RETAIL recon comparison.
+**THE BANK (RE correction).**  res 0x40a is registered at boot (group 3) as g_ar_sprite_slots
+slot **406** (`asset_register.c:2389 {406,0x040a,0x40,0x40,0x0,1,2}`, 64x64; decoded lazily
+on first render — the findings' earlier "not registered/loaded" was WRONG, the real gap was
+no SPAWN).  But the actor's `bank` field is the `ar_pool_get_slot` POOL index, not the slot
+index: `slot = g_ar_sprite_slots[pool_idx - (AR_SPRITE_RAMP_COUNT+1)]`, RAMP_COUNT=12 ⇒
+offset 13.  So the fire's bank = **0x1a3 (419)** = slot 406 + 13 (cross-checked: the furniture
+bank 0x16f=367 → slot 354 = res 0x3ff=1023 ✓).  (First attempt used 0x196=406 the SLOT index
+→ resolved the wrong/empty slot → 0 blits; corrected to 0x1a3.)
+
+**THE ALPHA WIRING.**  `room_cast_member` gained an `alpha` field → `actor.node_alpha`
+(+0xf4); `actor_emit_part` already routes node_alpha≠0 → mode-1 node (`bmode=1`) →
+`map_present` PRESENT_ALPHA → `game_present_blit` resolves `g_ramp_a[param8 & 0xff]`.  So
+`alpha = 14` selects ramp_a[14].  (The retail emit's additive path is the EFFECT
+behaviour-code arm in `0x491ae0`, NOT the clip's +0xa8 — a prior agent misread
+`psVar12[0xa8]`: psVar12 is a `short*`, so [0xa8] is byte +0x150 = the clip `link`/dir-override
+field, not an alpha byte.)
+
+**THE SPAWN (PORT-DEBT(errands-cast) stand-in).**  The proper spawn is an un-RE'd map EFFECT
+(the lazy def-table fill `0x41e600`, in binary DATA 1025).  Captured here as an additive
+room-cast member at world (32900,33800) [= the errands projection of screen (329,178), cam
+0/16000] + `dst_base (-9,-18)` (the 64x64 cel's pivot, fitted off port-fire.osr).  +host test
+`errands_fire`.
+
+**RESIDUAL (a SEPARATE, newly-surfaced gap — NOT the fire):** the recon at the fire crop
+shows the chimney ABOVE the fire is `differ_px==0` (backdrop faithful), the flame itself
+matches, but the BOTTOM rows (y+22..38 of the 39px) + the band just below (309,217-405,250,
+~867px) differ — i.e. a missing/different element at the fireplace BASE (a hearth/grate/log
+detail).  TODO next session: RE the fireplace base off retail.osr (`draw_probe` the
+309,217-405,250 region).  Feed: the PORT|RETAIL|DIFF fire-region montage.
 
 ## 2. The freeroam HUD (notes #13-18) — IDENTIFIED, not ported
 
