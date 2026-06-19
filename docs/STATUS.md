@@ -158,8 +158,31 @@ understates how much actual instruction volume is ported.
     differ_px==0 + the over-grade fix) ✓ (147) →
     the errands WALL-TINT (per-room PALETTE SWAP, FUN_00417bc0 cross-slot — floor reads res 0x76b's
     palette, pixel-exact) ✓ (148) →
+    the dialogue BODY-ROW DISTRIBUTION (line-count-dependent vertical spacing, FUN_0048da70 — fewer
+    rows ⇒ larger gap; the 3-line line now renders all 3 rows, was cut at 2) ✓ (149) →
     **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (run/dash double-tap) = next**.
-- **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
+- **LATEST (ckpt 149): the dialogue BODY-TEXT ROW SPACING is line-count DISTRIBUTED (RE'd, bit-exact) —
+  the USER's tick-770 bug (a 3-line line "We haven't been here since…" showed only 2 lines + too-tall
+  spacing) is FIXED.**  ckpt d16ae1a had set a CONSTANT pitch (LINE_H=36 / TEXT_DY=29) fitted to the
+  2-LINE case, which over-spaced every other line and pushed the 3rd row out of the box.  USER: "RE the
+  exact logic, don't hardcode from empirical data; it's nuanced logic with cases like the box sizing."
+  **RE'd `FUN_0048da70` (@0x48da70, the grid text renderer):** the body rows are VERTICALLY DISTRIBUTED
+  in a fixed 3-row grid — `gap = min(max_gap, ((max_rows-rows)*pitch)/(rows+1))`, row Y = `box_y + base_y
+  + (r+1)*gap + pitch*r`.  Constants RE'd off the decompile (NOT measured): `base_y=20`/`max_rows=3`
+  (`FUN_0040df40` params), `max_gap=20` (`FUN_00410610:19` sets records+0x1c=0x14), `pitch=28` (RE-
+  confirmed by formula consistency — it's BOTH the 3-row pitch AND the 2-row gap candidate (1·28)/3=9).
+  So 1 row→gap 20 (@box+40); 2 rows→9 (@+29,+66, pitch 37); 3 rows→0 (@+20,+48,+76, pitch 28).  `rows`
+  is the line's TOTAL count (over all grid records), so the layout is fixed when the text is set (proven:
+  tick 661 shows 'A' alone already at the 3-row offset 20).  **The port (`dialogue.{c,h}`/`main.c`):**
+  `dialogue_body_gap()` + `dialogue_body_row_dy()` replace the constant `TEXT_DY + r*LINE_H`.  1035 host
+  pass (+1).  **VERIFIED off `port-dlgdist.osr` vs `retail.osr`** (`tools/trace_studio2/dlg_text_probe.py`,
+  the body TextOutA row baselines): port == retail EXACTLY at every arrival line (3-row [20,48,76], 2-row
+  [29,66], 1-row [40]); the 3-line line renders all 3 rows (feed montage: the text aligns 1:1; the
+  residual is the inline book/item art = PORT-DEBT(dialogue-arrow-art)).  Commit `a91696f`.
+  Writeup: `findings/dialogue-body-row-distribution.md`.  **USER-VERIFY: click the studio shortcut**
+  (`studio-current.txt` → `port-dlgdist.osr` | `retail.osr`) — scrub the arrival dialogue (ticks 661-985):
+  the 1/2/3-line lines all space + fit like retail.
+- **Prior (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
   committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
   it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
   synthesize whatever trace you need."  All three delivered:

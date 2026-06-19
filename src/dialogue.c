@@ -365,7 +365,7 @@ int dialogue_row_revealed(const dialogue_box *d, int r)
     return n > len ? len : n;
 }
 
-/* The body-grid row-distribution gap — the EXACT logic of FUN_0048da70 @ 0x48da70
+/* The body-grid row-distribution gap — the EXACT logic of 0x48da70
  * (the grid text renderer), :57-88, ported faithfully:
  *
  *   local_2c = records[+0x1c]              // = DIALOGUE_GRID_MAX_GAP (20)

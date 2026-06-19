@@ -92,7 +92,7 @@
 #define DIALOGUE_NAME_DY      (-9)    /* → 139 (builder local_234 = -9)          */
 #define DIALOGUE_TEXT_DX      0x88    /* 136 → 310 (0x439690:409 local_244)       */
 #define DIALOGUE_TEXT_DY      0x14    /* base_y = the body grid node y (0x439690   *
-                                       * local_2cc = 0x14=20; FUN_0040df40 param_2 *
+                                       * local_2cc = 0x14=20; 0x40df40 param_2     *
                                        * → grid +0x10).  The row Y also adds the   *
                                        * line-count DISTRIBUTION gap — see          *
                                        * dialogue_body_row_dy / findings/dialogue-  *
@@ -108,14 +108,14 @@
                                        * gap candidate (1*28)/3=9 both require 28).  *
                                        * (ckpt d16ae1a's 36 was the 2-row EFFECTIVE *
                                        * pitch 28+gap, mis-taken for the base.)     */
-#define DIALOGUE_GRID_MAX_GAP 0x14    /* records +0x1c = 20 (FUN_00410610:19, set  *
+#define DIALOGUE_GRID_MAX_GAP 0x14    /* records +0x1c = 20 (0x410610:19, set      *
                                        * UNCONDITIONALLY on the body grid at builder*
                                        * 0x439690:469).  Clamps the row-distribution*
                                        * gap (caps the 1-row case at 20, not 28).   */
 #define DIALOGUE_ADVANCE      7       /* px per glyph (0x48da70 col*7)           */
 #define DIALOGUE_ROW_CHARS    0x24    /* 36 — 0x439690:408 (252px = 36*7) = grid  *
-                                       * COLS (FUN_0040dee0 param_3); NOT the pitch */
-#define DIALOGUE_MAX_ROWS     3       /* 0x439690:402 (FUN_0040dee0 param_4)      */
+                                       * COLS (0x40dee0 param_3); NOT the pitch    */
+#define DIALOGUE_MAX_ROWS     3       /* 0x439690:402 (0x40dee0 param_4)          */
 
 /* colors (COLORREF 0x00bbggrr) */
 #define DIALOGUE_NAME_MAIN    0xffffffu /* 0x439690:464                          */

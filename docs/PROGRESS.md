@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-20 (ckpt 149) — dialogue body-text rows are line-count DISTRIBUTED (USER tick 770)
+
+**The dialogue body-text vertical spacing is RE'd + ported bit-exact; commit `a91696f`, 1035
+host pass.**  Autonomous continuation (USER away, verification deferred).  USER: at "We haven't
+been here since…" (tick 770, a 3-line line) retail shows 3 lines; the port cut it at line 2 and
+the spacing was too tall.  ckpt `d16ae1a` had set a CONSTANT row pitch (`LINE_H=36`/`TEXT_DY=29`)
+fitted to the **2-line** case, which over-spaces every other line and pushes the 3rd row out of
+the box.  USER: "RE the exact logic, don't hardcode from empirical data; it's nuanced logic with
+cases like the box sizing/positioning."
+
+RE'd `FUN_0048da70` (@0x48da70, the grid text renderer): the body rows are VERTICALLY DISTRIBUTED
+in a fixed 3-row grid — fewer rows ⇒ a larger inter-row gap.  Per-row baseline Y (`:101`):
+`Y(r) = box_y + base_y + (r+1)*gap + pitch*r`, with (`:57-88`)
+`gap = min(max_gap, ((max_rows-rows)*pitch)/(rows+1))` (0 when full/empty).  Constants RE'd off
+the decompile (the retail.osr data only VERIFIES): `base_y=20`/`max_rows=3` (`FUN_0040df40`
+params), `max_gap=20` (`FUN_00410610:19` sets records+0x1c=0x14, unconditionally, at builder
+`0x439690:469`), `pitch=28` (no static writer; RE-confirmed by the formula's internal consistency
+— the SAME value is the 3-row pitch AND the 2-row gap candidate `(1*28)/3=9`).  So 1 row→gap 20
+(@box+40); 2 rows→9 (@+29,+66, pitch 37); 3 rows→0 (@+20,+48,+76, pitch 28).  `rows` is the line's
+TOTAL count (over ALL grid records, not the typewriter-revealed subset — the layout is fixed when
+the text is set; proven: tick 661 shows 'A' alone already at the 3-row offset 20).
+
+Port: `dialogue_body_gap()` + `dialogue_body_row_dy()` (`dialogue.{c,h}`) replace the constant
+`box_y + TEXT_DY + r*LINE_H` in `main.c game_render_dialogue`.  VERIFIED off `port-dlgdist.osr`
+vs `retail.osr` (`tools/trace_studio2/dlg_text_probe.py`, the body TextOutA row baselines): port
+== retail EXACTLY at every arrival line.  The 3-line line renders all 3 rows (feed montage: the
+text aligns 1:1; the residual diff is the inline book/item art = PORT-DEBT(dialogue-arrow-art),
+not the spacing).  Writeup: `findings/dialogue-body-row-distribution.md`.
+
 ## 2026-06-19 (ckpt 148) — the errands WALL-TINT: per-room palette swap, pixel-exact (USER osr_notes #4)
 
 **The errands floor/wall is PORTED + PIXEL-EXACT (`differ_px==0`); commit `05e8742`, 1034
