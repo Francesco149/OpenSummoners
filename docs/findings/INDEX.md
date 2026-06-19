@@ -65,11 +65,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   `retail.osr` res `0x570`. **Ported drawcall-faithful (ckpt 146)** as a fire-and-
   forget `CS_ACT_ACTOR_TURN`; the ~7t absolute-tick lag is the house-cadence phase debt.
 - **[errands-render-gaps.md](errands-render-gaps.md)** — the remaining errands/freeroam
-  gaps from the USER's `osr_notes.jsonl`, each RE'd off `retail.osr`: the fireplace FIRE
-  (`res=1034`, alpha `bmode=1` `st=0x8000`, frames 0-5 @329,178, port draws none — bank
-  not loaded), the freeroam HUD (`res=0`: HP/MP/level/★★ panel), the wall tint, and the
-  shelf/bookshelf props (more character-band objects). The exact USER note crops + ticks
-  + the `osr_prof` recon recipe. Ports are clean follow-ups (RE done).
+  gaps from the USER's `osr_notes.jsonl`, each RE'd off `retail.osr`: the shelf/bookshelf
+  props (**FIXED ckpt 146** — a Z-ORDER bug: the ckpt-145 ERRANDS_CAST furniture at cast
+  layer 13 occluded the layer-8 structure props; background furniture → layer 7), the
+  fireplace FIRE (`res=1034`, alpha `bmode=1` `st=0x8000`, frames 0-5 @329,178, port draws
+  none — bank not loaded; deferred), the freeroam HUD (`res=0`: HP/MP/level/★★ panel), and
+  the wall tint. The exact USER note crops + ticks + the `osr_prof` recon recipe. LESSON:
+  a "missing" element may be emitted-but-occluded — check the draw-stream seq (z), not just
+  "is it drawn".
 
 ## Method / cross-cutting
 

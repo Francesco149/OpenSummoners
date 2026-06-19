@@ -30,6 +30,19 @@ turn's absolute tick is ~7t later than retail = the documented house-cadence pha
 (FRONT ckpt 145), NOT a turn bug — it auto-aligns when that phase debt lands (the turn
 is keyed to the advance).  +2 host tests.  `findings/arche-house-turn.md`.
 
+**ALSO — the errands shelf/bookshelf props Z-ORDER fix (`ead9c49`).**  The USER's
+"bookshelf missing props" / "missing props in shelves" were NOT a missing spawn: the port
+EMITS them (structure band, res=1026/1027, the exact retail frames/positions), but the
+ckpt-145 ERRANDS_CAST furniture stand-in (the bookshelf frame res=1023 fr3 + the two shelf
+units res=1027 fr9) spawned at the CAST LAYER 13, drawing OVER the layer-8 structure props
+and occluding them (the draw pool walks its 27 layers low→high = back→front).  Retail draws
+the frame/units first (seq 257/261) then the props on top (268+).  Fix: `room_cast_member`
+gained a per-member `layer` (0⇒default 13); the background furniture → layer 7.  Verified
+off port-turn.osr: the seq order now matches retail + both flagged shelves recon pixel-match
+retail (fully stocked).  +1 host test (`errands_cast_zorder`); 1031 host pass.  Found via
+the new `build/osr_prof.exe` headless recon (`findings/errands-render-gaps.md` §4).  LESSON:
+a "missing" element may be emitted-but-OCCLUDED — check the draw-stream seq (z).
+
 ## 2026-06-19 (ckpt 145) — the house→errands TRANSITION FADE + the missing errands FURNITURE (USER studio notes)
 
 **The house now exits with a fade-to-black cover and the errands enters with a fade-from-

@@ -40,6 +40,18 @@ scene.
   `studio-current.txt` are loaded with this pair) — scrub the house (port ticks ~1586-1607): Arche turns to
   face her father just before "I will, I promise!".
 
+**ALSO ckpt 146 — the errands SHELF/BOOKSHELF props Z-ORDER fix (commit `ead9c49`, 1031 host pass).**  Reading
+the USER's `osr_notes.jsonl` ("bookshelf missing props" / "missing props in shelves") + recon via the new
+`osr_prof` showed they were NOT a missing spawn — the port EMITS them (structure band, res=1026/1027, exact
+retail frames/positions), but the ckpt-145 ERRANDS_CAST furniture stand-in (bookshelf frame res=1023 fr3 + the
+two shelf units res=1027 fr9) spawned at the CAST LAYER 13, drawing OVER the layer-8 structure props and
+occluding them (the draw pool walks layers low→high = back→front).  Retail draws the frame/units first (seq
+257/261) then props on top (268+).  Fix: `room_cast_member` gained a per-member `layer` (0⇒default 13); the
+background furniture → layer 7 (behind the layer-8 props).  Verified off port-turn.osr: seq order matches
+retail + both shelves recon pixel-match retail (fully stocked).  Feed: the PORT|RETAIL shelves montage.
+`findings/errands-render-gaps.md` §4.  LESSON: a "missing" element may be emitted-but-OCCLUDED — check the
+draw-stream seq (z), not just "is it drawn"; the cast-layer stand-in silently regressed the structure props.
+
 **NEXT (the house/errands punch-list, USER away).**  The errands gaps from the USER's `osr_notes.jsonl` are
 now ALL RE'd off retail.osr — `findings/errands-render-gaps.md` (exact note crops/ticks + the per-element RE):
 - (A) the errands FIRE (note #10) — FULLY RE'd: `res=1034`, alpha `bmode=1`/`st=0x8000`, 48x39 @screen(329,178),
@@ -47,10 +59,11 @@ now ALL RE'd off retail.osr — `findings/errands-render-gaps.md` (exact note cr
   res-1034 bank registered/decoded in the errands load (adjacent to PORT-DEBT(assetreg-clone-defer)) + the
   alpha blit matched to `st=0x8000` (the port has `zdd_alpha_blit`/node_alpha; match it drawcall-exact via
   draw_probe).  Feed: the PORT(black recess)|RETAIL(fire) recon.
-- (A2) the shelf/bookshelf props (notes [315,343,143,85] + [81,290,102,129]) — more character-band objects,
-  the SAME class as the ckpt-145 furniture; CLEANEST next CODE chip (colorkey, likely banks 0x16c/0x16f already
-  loaded): dump the errands character-band layers in those crops, map code→bank/frame, extend `ERRANDS_CAST`,
-  verify drawcall-exact via draw_probe.  (A3) the wall tint (note #11) — small/subtle, RE the tile/palette.
+- (A2) the shelf/bookshelf props (notes [315,343,143,85] + [81,290,102,129]) — **DONE ckpt 146 (`ead9c49`)**:
+  NOT a missing spawn — the port emitted them (structure band) but the ckpt-145 ERRANDS_CAST furniture (cast
+  layer 13) OCCLUDED the layer-8 props; fixed by giving the background furniture (bookshelf frame + shelf units)
+  layer 7.  Both shelves recon pixel-match retail.  (A3) the wall tint (note #11) — small/subtle, RE the
+  tile/palette.
 - (B) the house-dialogue-cadence phase fix (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
   cover-start AND the reveal/furniture ticks; the arrival is tick-1:1, the house is not).  Likely couples
   making the turn a BLOCKING beat + rebuilding the house nav (dialogue_timeline); may want USER nav verify.

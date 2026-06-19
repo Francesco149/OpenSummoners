@@ -65,16 +65,27 @@ with the USER (the HUD layout is very visual).
 ckpt-145 note).  Likely a palette/tint or a tile-variant on the left wall.  Low priority
 (small, subtle); RE the specific tile/palette when convenient.
 
-## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props")
+## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props") — FIXED (z-order, ckpt 146, `ead9c49`)
 
-[315,343,143,85] + [81,290,102,129] — more CHARACTER-band objects (the same class as the
-counter/bookshelf/clock furniture added ckpt 145, `01dc162`): items sitting ON the shelves
-that the port's suppressed-for-non-town character band never spawns.  The clean port is to
-extend `ERRANDS_CAST` (actor_spawn.c) with the missing prop codes → banks/frames at their
-captured positions (the established stand-in), OR spawn the proper errands character band
-(PORT-DEBT(errands-cast)).  Needs: dump the errands character-band layers in those crop
-regions, map each code→bank/frame off the retail draw stream, add to `ERRANDS_CAST`.
-Colorkey draws (no alpha) — so a clean follow-up to the furniture pattern.
+[315,343,143,85] + [81,290,102,129] — these were **NOT a missing spawn**.  The port
+ALREADY emits the shelf props (the structure band, `res=1026`/`res=1027`, at the exact
+retail frames + positions — verified via `draw_probe`).  The bug was **Z-ORDER**: the
+ckpt-145 ERRANDS_CAST furniture stand-in (the bookshelf FRAME `res=1023 fr3` @80,288, and
+the two shelf UNITS `res=1027 fr9` @320,352 / @384,352) spawned at the **cast layer 13**,
+which draws OVER the layer-8 structure props and OCCLUDED them.  The draw pool walks its 27
+layers in index order (lower = behind), so layer 13 > layer 8.  Retail draws the
+frame/units FIRST (seq 257/261) then the small props ON TOP (seq 268+).
+
+**Fix:** `room_cast_member` gained a per-member `layer` (0 ⇒ the default cast layer 13);
+the BACKGROUND furniture (the bookshelf frame + the two shelf units) is set to **layer 7**
+(below the layer-8 structure props).  `actor_spawn_room_cast` honours it; the family /
+foreground props stay 13.  VERIFIED: the port seq order now matches retail (frame/units
+before props) and both flagged shelves recon pixel-matching retail (fully stocked).
++test `errands_cast_zorder`.
+
+LESSON: a "missing" element may be EMITTED-but-OCCLUDED — always check the draw-stream seq
+order (the z), not just "is it drawn".  The ckpt-145 furniture stand-in (cast layer 13)
+silently regressed the structure-band props behind it.
 
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs

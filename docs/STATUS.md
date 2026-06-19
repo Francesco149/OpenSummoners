@@ -103,6 +103,13 @@ understates how much actual instruction volume is ported.
   verified off port-turn.osr — cels/durations/position match retail EXACTLY (158@1586 / 7@1590 / 0@1594).
   RESIDUAL: ~7t absolute lag = the house-cadence phase debt (auto-aligns when that lands; the turn is keyed to
   the advance).  `findings/arche-house-turn.md`.
+  **ckpt 146 ALSO the errands SHELF/BOOKSHELF props Z-ORDER fix (`ead9c49`, 1031 host pass):** the USER's
+  "bookshelf/shelf missing props" were NOT a missing spawn — the port EMITS them (structure band res=1026/1027,
+  exact retail frames/pos) but the ckpt-145 ERRANDS_CAST furniture stand-in (bookshelf frame + shelf units) at
+  the CAST LAYER 13 drew OVER the layer-8 props, occluding them (draw pool walks layers low→high = back→front;
+  retail draws frame/units seq 257/261 THEN props 268+).  Fix: `room_cast_member.layer` per-member; background
+  furniture → layer 7.  Both shelves recon pixel-match retail.  LESSON: a "missing" element may be emitted-but-
+  OCCLUDED — check the draw seq (z).  `findings/errands-render-gaps.md` §4 (+ the fire/HUD/wall-tint RE).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -120,8 +127,9 @@ understates how much actual instruction volume is ported.
     the HOUSE CAST (Arche+Mom+Dad, position bit-exact) ✓ (144) → the FREEROAM HAND-OFF (controllable Arche
     walks the errands on live input) ✓ (144) → the ERRANDS tile-frames (arg_0c, backdrop bit-exact) ✓ (144) →
     the house→errands TRANSITION FADE + the missing errands FURNITURE ✓ (145) → the house Arche TURN
-    (emote 0x401e60, cels 158→7→idle) ✓ (146) →
-    **the errands FIRE/shelf-props + the house-cadence phase fix + the errands dialogue + freeroam refinements = next**.
+    (emote 0x401e60, cels 158→7→idle) ✓ (146) → the errands SHELF-PROPS z-order (background furniture
+    occluded them) ✓ (146) →
+    **the errands FIRE (res=1034 alpha) + the house-cadence phase fix + the errands dialogue/HUD + freeroam refinements = next**.
 - **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
   committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
   it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
