@@ -97,17 +97,27 @@ This is the in-game status panel — a real UI subsystem to port (the party/char
 exist port-side; the panel LAYOUT + bar/star/number rendering is the work).  Best done
 with the USER (the HUD layout is very visual).
 
-## 3. The wall colour (note #11) — a HUE SHIFT (color-grade / palette), deferred
+## 3. The wall colour (note #4) — res 1897/1898 errands FLOOR/WALL tileset decodes differently (NOT the grade) — deferred (ckpt 147 RE)
 
-[75,283,30,38] "wrong wall colour".  Recon (osr_prof, tick 1780 vs 1726) shows it is a
-clear **hue shift on the wood-plank WALL**: the PORT wall is WARM BROWN, retail's is a
-cooler GREENISH-GRAY — while the props (the plant/vase), the sign, and the shelves render
-identically.  So it is NOT a tile-frame or sprite difference; it is a **palette / scene
-color-grade** difference applied to the wall tiles (the errands scene's grade, or the wall
-bank's decoded palette).  Investigate `color_grade.c` (the per-scene grade) + the wall
-tile bank's palette decode.  DEFERRED — a color change is very visual + wants USER
-confirmation, and it is a subsystem (grade/palette) not a quick tile fix.  Feed: the
-PORT(brown)|RETAIL(grey) wall montage.
+[75,283,30,38] "wrong wall colour": PORT wall WARM BROWN, retail cooler GREENISH-GRAY.
+RE'd off port-fire.osr vs retail.osr (the dhash census method that nailed the fire):
+
+**Pinned to res 1897/1898.**  Of every sheet in the wall region, the BACKDROP sheets
+(res 1002 far-plane, 1722, 1082) and the FURNITURE (res 1023) have dhashes that MATCH
+retail bit-for-bit; only **res 1897 (fr4/5/8) + res 1898 (fr4/7/11) DIFFER** — these are
+the errands floor/wall tileset, the CLONED banks (0x187←0x184 / 0x188←0x185 = the town
+DATA-1022 floor sheets res 0x769/0x76a, `asset_register.c:3157`).  The town doesn't draw
+1897/1898 in the arrival, so this is errands-only.
+
+**RULED OUT the over-grade.**  Unlike the fire (§1), excluding the errands floor clone
+slots (378/379 = pool 0x187/0x188 − RAMP_COUNT−1) from the 8bpp colour-grade was a
+**NO-OP** — the dhash didn't budge.  So the grade was never applied to the floor (the
+floor sheet is likely not 8bpp, or binds via a non-grade path).  Therefore retail renders
+the SAME floor sheet (res 0x769/0x76a) DIFFERENTLY in the errands than in the town — a
+per-room palette / decode / clone-machinery difference, NOT the tone-curve grade.
+DEFERRED.  TODO next session: hook the port vs retail decode of res 0x769 in the errands
+(bit-depth, the source palette, the inline-clone path `ar_apply_group3_inline_clones`) to
+find the divergence.  Feed: the PORT(brown)|RETAIL(grey) wall montage.
 
 ## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props") — FIXED (z-order, ckpt 146, `ead9c49`)
 
