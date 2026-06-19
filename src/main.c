@@ -2473,11 +2473,19 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
     if (cel != NULL)
         zdd_object_blt_keyed(cel, g_zdd->primary_obj,
                              box_x + tail_x, box_y + DIALOGUE_TAIL_SPIKE_Y);
+    /* the name TAB — 0x439690:401-421: the tab CELL x AND the tab FRAME depend on the
+     * NAME LENGTH (the narrow tab + box_w-0x80 for <= 12 chars; the wide tab +
+     * box_w-0xc0 for longer), so a single constant can't serve both "Arche" (5) and
+     * "Arche's Father" (14).  The name glyphs sit at tab_dx + (NAME_DX-TAB_DX). */
+    int name_long = ((int)strlen(d->name) > 12);
+    int tab_dx    = DIALOGUE_BOX_W - (name_long ? 0xc0 : 0x80);
+    int tab_frame = name_long ? DIALOGUE_TAB_FRAME_LONG : DIALOGUE_TAB_FRAME_SHORT;
+    int name_dx   = tab_dx + (DIALOGUE_NAME_DX - DIALOGUE_TAB_DX);
     cel = (zdd_object *)ar_sprite_slot_frame(
-        &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT], DIALOGUE_TAB_FRAME_LONG);
+        &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT], tab_frame);
     if (cel != NULL)
         zdd_object_blt_keyed(cel, g_zdd->primary_obj,
-                             box_x + DIALOGUE_TAB_DX, box_y + DIALOGUE_TAB_DY);
+                             box_x + tab_dx, box_y + DIALOGUE_TAB_DY);
 
     /* the portrait bust (24bpp magenta-keyed, drawn 1:1): the cross-fade blends
      * through ramp_b while fading (0x49c910), then snaps to the plain keyed
@@ -2531,7 +2539,7 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
         /* speaker name (the [0x1c] cell: white main, 0x455f7b shadow) */
         dialogue_text_row((HDC)hdc, d->name,
                           (int)strlen(d->name),
-                          box_x + DIALOGUE_NAME_DX, box_y + DIALOGUE_NAME_DY,
+                          box_x + name_dx, box_y + DIALOGUE_NAME_DY,
                           DIALOGUE_NAME_SHADOW, DIALOGUE_NAME_MAIN);
         /* revealed body rows (the [0x1d] grid: 0x3e537d main, 0xa8b9cc shadow) */
         for (int r = 0; r < d->row_count; r++)
