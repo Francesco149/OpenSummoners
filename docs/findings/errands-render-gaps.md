@@ -109,15 +109,20 @@ the errands floor/wall tileset, the CLONED banks (0x187←0x184 / 0x188←0x185 
 DATA-1022 floor sheets res 0x769/0x76a, `asset_register.c:3157`).  The town doesn't draw
 1897/1898 in the arrival, so this is errands-only.
 
-**RULED OUT the over-grade.**  Unlike the fire (§1), excluding the errands floor clone
-slots (378/379 = pool 0x187/0x188 − RAMP_COUNT−1) from the 8bpp colour-grade was a
-**NO-OP** — the dhash didn't budge.  So the grade was never applied to the floor (the
-floor sheet is likely not 8bpp, or binds via a non-grade path).  Therefore retail renders
-the SAME floor sheet (res 0x769/0x76a) DIFFERENTLY in the errands than in the town — a
-per-room palette / decode / clone-machinery difference, NOT the tone-curve grade.
-DEFERRED.  TODO next session: hook the port vs retail decode of res 0x769 in the errands
-(bit-depth, the source palette, the inline-clone path `ar_apply_group3_inline_clones`) to
-find the divergence.  Feed: the PORT(brown)|RETAIL(grey) wall montage.
+**NOT a simple grade toggle.**  A GRADE-DBG log (temporary, at the `title_sheet_format`
+grade site) confirmed the floor DOES decode via slots **378/379** (pool 0x187/0x188 −
+RAMP_COUNT−1), IS **8bpp**, and IS graded (`src=8 grade_on=1`) — so it is grade-eligible
+(the same path as the town floor source 375/376, which matches retail).  But toggling the
+grade does NOT reach retail's version: with the grade ON the errands-clone dhash differs
+from retail, and excluding slots 378/379 (grade OFF) ALSO differs (it changes the port's
+decode but not to retail's).  So retail's errands floor matches NEITHER the port's graded
+NOR ungraded decode of res 0x769 — retail applies a DIFFERENT transform to the errands
+floor than to the town floor (a per-room PALETTE swap — cf. the NPC colour-variant remap,
+ckpt 142 — or a per-room grade gate), even though both source the same sheet.  DEFERRED.
+TODO next session: dump the port's vs retail's decoded res-0x769 PALETTE in the errands
+(not just the dhash) — find the per-room palette/grade the errands applies that the town
+doesn't; the clone path is `ar_apply_group3_inline_clones` (0x187←0x184).  Feed: the
+PORT(brown)|RETAIL(grey) wall montage.
 
 ## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props") — FIXED (z-order, ckpt 146, `ead9c49`)
 
