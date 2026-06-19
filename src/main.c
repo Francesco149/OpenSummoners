@@ -2398,10 +2398,10 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
      * projection): the box rides the speaker's world pos projected through the
      * live in-game camera (g_game_camera_mr) — replacing the old hardcoded
      * (174,148).  Harness-verified bit-exact for the town intro (box-pos-inputs). */
-    int box_x, box_y;
+    int box_x, box_y, tail_x;
     dialogue_box_position(d, DIALOGUE_BOX_W, DIALOGUE_BOX_H,
                           g_game_camera_mr.off60, g_game_camera_mr.off5c,
-                          g_game_camera_mr.off74, &box_x, &box_y);
+                          g_game_camera_mr.off74, &box_x, &box_y, &tail_x);
     /* Mirror retail's box-position read-point (0x49c910 boxpos_out): the values
      * 0x49c640 wrote to box+0xc/+0x10.  flow_diff aligns this against the retail
      * capture (tools/flow/box_pos_inputs_fields.json). */
@@ -2441,12 +2441,12 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
         &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT], DIALOGUE_BOX_FRAME_CORNER);
     if (cel != NULL)
         zdd_object_blt_keyed(cel, g_zdd->primary_obj,
-                             box_x + DIALOGUE_TAIL_X, box_y + DIALOGUE_TAIL_NOTCH_Y);
+                             box_x + tail_x, box_y + DIALOGUE_TAIL_NOTCH_Y);
     cel = (zdd_object *)ar_sprite_slot_frame(
         &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT], DIALOGUE_BOX_FRAME_TAIL);
     if (cel != NULL)
         zdd_object_blt_keyed(cel, g_zdd->primary_obj,
-                             box_x + DIALOGUE_TAIL_X, box_y + DIALOGUE_TAIL_SPIKE_Y);
+                             box_x + tail_x, box_y + DIALOGUE_TAIL_SPIKE_Y);
     cel = (zdd_object *)ar_sprite_slot_frame(
         &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT], DIALOGUE_TAB_FRAME_LONG);
     if (cel != NULL)
@@ -2537,6 +2537,22 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
  * box is owned + stepped by the cutscene (cutscene_closing_box). */
 static void game_render_dialogue(void)
 {
+    /* During the L7->L8 run-off the SPEAKER (Arche) MOVES: retail's box reads the
+     * speaker actor's LIVE world pos each frame (0x49c640's `*(speaker+0x40)`), so
+     * the bubble rides her as she runs.  The port's captured static spk_wx drifts
+     * (the box stays put while the camera pans) — anchor the lingering "Cool!" box
+     * and its closing snapshot to Arche's LIVE world x (g_arche_runoff.world_x)
+     * instead.  Gated on phase != ARRIVED so it is the RUN ONLY (after she arrives,
+     * the house/errands boxes use their captured speaker pos — g_arche_runoff.active
+     * stays set through the chain).  This is the faithful live-speaker read, not a
+     * curve-fit: g_arche_runoff.world_x IS the ported run physics' live position. */
+    if (g_arche_runoff.active && g_arche_runoff.phase != ARCHE_RUNOFF_ARRIVED) {
+        int32_t live_wx = g_arche_runoff.world_x;
+        g_dialogue.spk_wx = live_wx;
+        dialogue_box *closing_box = (dialogue_box *)cutscene_closing_box(&g_cutscene);
+        if (closing_box != NULL)
+            closing_box->spk_wx = live_wx;
+    }
     const dialogue_box *closing = cutscene_closing_box(&g_cutscene);
     if (closing != NULL)
         render_dialogue_box((dialogue_box *)closing, 0); /* old box (behind)     */

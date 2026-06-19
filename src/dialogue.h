@@ -299,11 +299,17 @@ void dialogue_scaled_rect(const dialogue_box *d, int box_x, int box_y,
  * cam_y = view+0x5c, cam_scroll = view+0x74), clamped to [0x20, 0x260-W] in x and
  * placed above the speaker's head in y; otherwise it falls back to the centered
  * box (0x49c640 param_6==0).  HARNESS-VERIFIED bit-exact against all 18 town-intro
- * lines (runs/box-pos-inputs).  Replaces the hardcoded DIALOGUE_BOX_X/Y. */
+ * lines (runs/box-pos-inputs).  Replaces the hardcoded DIALOGUE_BOX_X/Y.
+ *
+ * out_tail_x (optional, NULL to skip) = the bubble TAIL/arrow x RELATIVE to box_x
+ * (the cel's +0xc the same 0x49c640 writes): clamp(speaker_center - box_x, 0x20,
+ * box_w-0x20) - 0x10, where speaker_center = scr_x + sprite_w/200.  For an
+ * un-clamped box this equals box_w/2 - 0x10 (= the old DIALOGUE_TAIL_X constant);
+ * when the box clamps to a screen edge the tail still points at the speaker. */
 void dialogue_box_position(const dialogue_box *d,
                            int32_t box_w, int32_t box_h,
                            int32_t cam_x, int32_t cam_y, int32_t cam_scroll,
-                           int *out_x, int *out_y);
+                           int *out_x, int *out_y, int *out_tail_x);
 
 /* The portrait blend for the current fade (0x49c910).  FADE-IN (the default,
  * the incoming cel): -1 = plain keyed blit (fade complete), else the ramp_b

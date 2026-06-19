@@ -263,12 +263,13 @@ void dialogue_scaled_rect(const dialogue_box *d, int box_x, int box_y,
 void dialogue_box_position(const dialogue_box *d,
                            int32_t box_w, int32_t box_h,
                            int32_t cam_x, int32_t cam_y, int32_t cam_scroll,
-                           int *out_x, int *out_y)
+                           int *out_x, int *out_y, int *out_tail_x)
 {
     if (!d->anchored) {
         /* FUN_0049c640 param_6==0 — the centered box at a fixed y (no speaker). */
         *out_x = (0x280 - box_w) / 2;
         *out_y = 0x50;
+        if (out_tail_x != NULL) *out_tail_x = box_w / 2 - 0x10;   /* centered tail */
         return;
     }
     const dialogue_speaker_body *b = &d->spk_body;
@@ -299,6 +300,19 @@ void dialogue_box_position(const dialogue_box *d,
 
     *out_x = bx;
     *out_y = by;
+
+    /* the TAIL/arrow x relative to box_x (0x49c640: local_c = speaker_center - box_x,
+     * then clamp(local_c, 0x20, box_w-0x20) - 0x10).  speaker_center = scr_x +
+     * sprite_w/200 = iVar7 + box_w/2 (the un-clamped box left + half).  When the box
+     * is NOT clamped, box_x == iVar7 so local_c == box_w/2 and the tail centers; when
+     * the box clamps to an edge, the tail stays on the speaker. */
+    if (out_tail_x != NULL) {
+        int32_t local_c = (iVar7 + box_w / 2) - bx;     /* speaker_center - box_x */
+        int32_t tail    = local_c;
+        if (tail < 0x20)            tail = 0x20;         /* clamp lo               */
+        else if (tail > box_w - 0x20) tail = box_w - 0x20; /* clamp hi             */
+        *out_tail_x = tail - 0x10;                       /* cel pivot (-0x10)      */
+    }
 }
 
 int dialogue_portrait_ramp_index(const dialogue_box *d)
