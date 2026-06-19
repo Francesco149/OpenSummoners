@@ -798,6 +798,20 @@ static const struct room_cast_member HOUSE_CAST[] = {
     { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1 }, /* Father res 0x473 @418,320 */
 };
 
+/* The ERRANDS room (0x334dc) FAMILY — Father + Mother (the persistent parents) in
+ * their item shop, while Arche (the freeroam player, g_freeroam) runs errands.
+ * Same banks as the house (0xe3/0xb5 — persistent), captured world positions solved
+ * from the house cast's projection (errands cam 0/16000): retail draw_probe tick
+ * 2200 (freeroam) — Father res 0x473 @screen 480,320 -> world (51000,50000), Mother
+ * res 0x467 @screen 624,128 -> world (65400,30800, on the upper level, mostly off
+ * the right edge).  The shop NPCs (res 1027, ~10 instances) are the broader
+ * PORT-DEBT(errands-cast)/actor-sprite-table, not modelled here. */
+static const struct room_cast_member ERRANDS_CAST[] = {
+    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase  member */
+    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1 }, /* Father res 0x473 @480,320 */
+    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2 }, /* Mother res 0x467 @624,128 */
+};
+
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
 {
     if (pool == NULL) return -1;
@@ -808,8 +822,11 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
     case 0x334c8u:  /* CUTSCENE_ROOM_HOUSE */
         cast = HOUSE_CAST; n = sizeof HOUSE_CAST / sizeof HOUSE_CAST[0];
         break;
+    case 0x334dcu:  /* CUTSCENE_ROOM_ERRANDS — the family (shop NPCs are debt) */
+        cast = ERRANDS_CAST; n = sizeof ERRANDS_CAST / sizeof ERRANDS_CAST[0];
+        break;
     default:
-        return 0;   /* no port-modelled cast for this room (e.g. errands TBD) */
+        return 0;   /* no port-modelled cast for this room */
     }
     for (size_t i = 0; i < n && pool->count < ACTOR_BAND_SLOTS; i++) {
         int slot = pool->count++;
