@@ -64,6 +64,12 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   `0x43e5b0` case 2); cels `158(4t)→7(4t)→` the base-0 standing idle, RE'd off
   `retail.osr` res `0x570`. **Ported drawcall-faithful (ckpt 146)** as a fire-and-
   forget `CS_ACT_ACTOR_TURN`; the ~7t absolute-tick lag is the house-cadence phase debt.
+- **[errands-render-gaps.md](errands-render-gaps.md)** — the remaining errands/freeroam
+  gaps from the USER's `osr_notes.jsonl`, each RE'd off `retail.osr`: the fireplace FIRE
+  (`res=1034`, alpha `bmode=1` `st=0x8000`, frames 0-5 @329,178, port draws none — bank
+  not loaded), the freeroam HUD (`res=0`: HP/MP/level/★★ panel), the wall tint, and the
+  shelf/bookshelf props (more character-band objects). The exact USER note crops + ticks
+  + the `osr_prof` recon recipe. Ports are clean follow-ups (RE done).
 
 ## Method / cross-cutting
 

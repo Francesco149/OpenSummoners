@@ -40,12 +40,24 @@ scene.
   `studio-current.txt` are loaded with this pair) — scrub the house (port ticks ~1586-1607): Arche turns to
   face her father just before "I will, I promise!".
 
-**NEXT (the house/errands punch-list, USER away):** (A) the errands FIRE (animated fireplace effect, note #10)
-+ the finer bookshelf shelf-props + the wall tint (note #11); (B) the house-dialogue-cadence phase fix (the
-~7-13t lag — would tick-align the turn AND the cover-start AND the reveal/furniture ticks; the arrival is
-tick-1:1, the house is not); (C) the errands opening dialogue + questline (`0x4dc510`, a separate dialogue API
-`0x4a5ee0`) + the freeroam HUD/clock (USER notes #13-18); (D) freeroam refinements (run/dash double-tap
-[char-run-trigger], camera-follow, distance-locked walk cels).
+**NEXT (the house/errands punch-list, USER away).**  The errands gaps from the USER's `osr_notes.jsonl` are
+now ALL RE'd off retail.osr — `findings/errands-render-gaps.md` (exact note crops/ticks + the per-element RE):
+- (A) the errands FIRE (note #10) — FULLY RE'd: `res=1034`, alpha `bmode=1`/`st=0x8000`, 48x39 @screen(329,178),
+  frames 0-5 looping ~6t/frame; port draws none (bank PE DATA 1034 not loaded).  PORT DEFERRED — needs the
+  res-1034 bank registered/decoded in the errands load (adjacent to PORT-DEBT(assetreg-clone-defer)) + the
+  alpha blit matched to `st=0x8000` (the port has `zdd_alpha_blit`/node_alpha; match it drawcall-exact via
+  draw_probe).  Feed: the PORT(black recess)|RETAIL(fire) recon.
+- (A2) the shelf/bookshelf props (notes [315,343,143,85] + [81,290,102,129]) — more character-band objects,
+  the SAME class as the ckpt-145 furniture; CLEANEST next CODE chip (colorkey, likely banks 0x16c/0x16f already
+  loaded): dump the errands character-band layers in those crops, map code→bank/frame, extend `ERRANDS_CAST`,
+  verify drawcall-exact via draw_probe.  (A3) the wall tint (note #11) — small/subtle, RE the tile/palette.
+- (B) the house-dialogue-cadence phase fix (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
+  cover-start AND the reveal/furniture ticks; the arrival is tick-1:1, the house is not).  Likely couples
+  making the turn a BLOCKING beat + rebuilding the house nav (dialogue_timeline); may want USER nav verify.
+- (C) the freeroam HUD (notes #13-18: top-left HP/MP/level/★★ + bottom HUD strips = `res=0` panel) + the
+  errands opening dialogue/questline (`0x4dc510`, separate dialogue API `0x4a5ee0`).
+- (D) freeroam refinements (run/dash double-tap [char-run-trigger] — clean+deterministic; camera-follow
+  [needs a freeroam-camera capture, USER]; distance-locked walk cels).
 
 ---
 
