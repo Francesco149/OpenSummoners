@@ -91,19 +91,31 @@
                                        * 15 is the one measured-only offset)     */
 #define DIALOGUE_NAME_DY      (-9)    /* → 139 (builder local_234 = -9)          */
 #define DIALOGUE_TEXT_DX      0x88    /* 136 → 310 (0x439690:409 local_244)       */
-#define DIALOGUE_TEXT_DY      29      /* the body grid node y (0x439690 local_2cc *
-                                       * = 0x14=20) + the glyph's baseline offset  *
-                                       * within the 0x24=36 line cell (~9)         */
+#define DIALOGUE_TEXT_DY      0x14    /* base_y = the body grid node y (0x439690   *
+                                       * local_2cc = 0x14=20; FUN_0040df40 param_2 *
+                                       * → grid +0x10).  The row Y also adds the   *
+                                       * line-count DISTRIBUTION gap — see          *
+                                       * dialogue_body_row_dy / findings/dialogue-  *
+                                       * body-row-distribution.md                  */
 #define DIALOGUE_ARROW_DX     0x170   /* 368 → 542: 0x410560 +0x7c (232) + text  *
                                        * cell dx (136)                           */
 #define DIALOGUE_ARROW_DY     0x5c    /* 92 → 240: +0x80 (72) + text cell dy (20)*/
 
-#define DIALOGUE_LINE_H       36      /* row pitch = the body grid cell 0x24=36   *
-                                       * (0x439690:413 local_254 -> FUN_0040dee0   *
-                                       * param_3); the port's old 28 was too tight */
+#define DIALOGUE_LINE_H       28      /* the grid LINE PITCH (0x48da70 +0x1ac).    *
+                                       * Not statically written; RE-confirmed = 28 *
+                                       * by the renderer formula's internal         *
+                                       * consistency (the 3-row pitch AND the 2-row *
+                                       * gap candidate (1*28)/3=9 both require 28).  *
+                                       * (ckpt d16ae1a's 36 was the 2-row EFFECTIVE *
+                                       * pitch 28+gap, mis-taken for the base.)     */
+#define DIALOGUE_GRID_MAX_GAP 0x14    /* records +0x1c = 20 (FUN_00410610:19, set  *
+                                       * UNCONDITIONALLY on the body grid at builder*
+                                       * 0x439690:469).  Clamps the row-distribution*
+                                       * gap (caps the 1-row case at 20, not 28).   */
 #define DIALOGUE_ADVANCE      7       /* px per glyph (0x48da70 col*7)           */
-#define DIALOGUE_ROW_CHARS    0x24    /* 36 — 0x439690:408 (252px = 36*7)        */
-#define DIALOGUE_MAX_ROWS     3       /* 0x439690:402                            */
+#define DIALOGUE_ROW_CHARS    0x24    /* 36 — 0x439690:408 (252px = 36*7) = grid  *
+                                       * COLS (FUN_0040dee0 param_3); NOT the pitch */
+#define DIALOGUE_MAX_ROWS     3       /* 0x439690:402 (FUN_0040dee0 param_4)      */
 
 /* colors (COLORREF 0x00bbggrr) */
 #define DIALOGUE_NAME_MAIN    0xffffffu /* 0x439690:464                          */
@@ -347,6 +359,23 @@ int  dialogue_arrow_frame(const dialogue_box *d);
 /* Revealed chars of row `r` under the current typewriter state (the render
  * draws rows[r][0..n)). */
 int  dialogue_row_revealed(const dialogue_box *d, int r);
+
+/* The body-grid row-distribution GAP (0x48da70: the rows are vertically
+ * distributed in the fixed 3-row grid, so FEWER rows ⇒ a LARGER gap).  Computed
+ * from the line's TOTAL row_count (not the revealed count — the layout is fixed
+ * when the text is set):
+ *   gap = min(DIALOGUE_GRID_MAX_GAP,
+ *             ((DIALOGUE_MAX_ROWS - rows) * DIALOGUE_LINE_H) / (rows + 1))
+ * 0 when the grid is full (3 rows: gap 0, pitch 28) or empty; 9 at 2 rows
+ * (pitch 37); 20 at 1 row (sits at box+40).  See findings/dialogue-body-row-
+ * distribution.md. */
+int  dialogue_body_gap(const dialogue_box *d);
+
+/* The box-RELATIVE Y of body row `r` (0x48da70's per-row iVar11 minus box_y):
+ *   DIALOGUE_TEXT_DY + (r+1)*gap + DIALOGUE_LINE_H*r
+ * The caller adds box_y.  Replaces the old constant `TEXT_DY + r*LINE_H`, which
+ * only matched the 2-row case. */
+int  dialogue_body_row_dy(const dialogue_box *d, int r);
 
 /* The per-char pause grade in updates (fitted to the reveal trace; see the
  * header comment): space 1, ','/'.'/'!'/'?' 3*interval, else interval; a row

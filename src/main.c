@@ -2546,7 +2546,7 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
             dialogue_text_row((HDC)hdc, d->rows[r],
                               dialogue_row_revealed(d, r),
                               box_x + DIALOGUE_TEXT_DX,
-                              box_y + DIALOGUE_TEXT_DY + r * DIALOGUE_LINE_H,
+                              box_y + dialogue_body_row_dy(d, r),
                               DIALOGUE_BODY_SHADOW, DIALOGUE_BODY_MAIN);
         zdd_object_release_dc(g_zdd->primary_obj, hdc);
     }

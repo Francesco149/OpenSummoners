@@ -73,6 +73,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   the wall tint. The exact USER note crops + ticks + the `osr_prof` recon recipe. LESSON:
   a "missing" element may be emitted-but-occluded — check the draw-stream seq (z), not just
   "is it drawn".
+- **[dialogue-body-row-distribution.md](dialogue-body-row-distribution.md)** — the
+  line-count-dependent vertical spacing of the dialogue body text (USER: a 3-line line
+  shows only 2 lines + too-tall spacing).  `FUN_0048da70` distributes the rows in a fixed
+  3-row grid: `gap = min(20, ((3-rows)*28)/(rows+1))`, row Y = `box_y + 20 + (r+1)*gap +
+  28*r` — so 1 row→gap 20, 2 rows→9 (pitch 37), 3 rows→0 (pitch 28).  Constants RE'd
+  (`base_y=20`/`max_rows=3` = `FUN_0040df40` params; `max_gap=20` = `FUN_00410610:19`;
+  `pitch=28` by formula consistency), retail.osr-verified bit-exact at every arrival line.
+  **Ported (ckpt 149)** — `dialogue_body_row_dy()` replaces the old constant pitch.
 
 ## Method / cross-cutting
 

@@ -364,3 +364,34 @@ int dialogue_row_revealed(const dialogue_box *d, int r)
     int len = (r < d->row_count) ? (int)strlen(d->rows[r]) : 0;
     return n > len ? len : n;
 }
+
+/* The body-grid row-distribution gap — the EXACT logic of FUN_0048da70 @ 0x48da70
+ * (the grid text renderer), :57-88, ported faithfully:
+ *
+ *   local_2c = records[+0x1c]              // = DIALOGUE_GRID_MAX_GAP (20)
+ *   rows     = min(max_row_index+1, max_rows)   // the line's TOTAL row count
+ *   if local_2c != 0 && rows != 0:
+ *       cand     = ((max_rows - rows) * pitch) / (rows + 1)   // signed int div
+ *       local_2c = min(local_2c, cand)
+ *   else local_2c = 0
+ *
+ * `rows` is counted over ALL grid records (every glyph of the line), not the
+ * typewriter-revealed subset, so the layout is fixed once the text is set. */
+int dialogue_body_gap(const dialogue_box *d)
+{
+    int rows = d->row_count;
+    if (rows <= 0 || DIALOGUE_GRID_MAX_GAP == 0)
+        return 0;
+    if (rows > DIALOGUE_MAX_ROWS)
+        rows = DIALOGUE_MAX_ROWS;
+    int cand = ((DIALOGUE_MAX_ROWS - rows) * DIALOGUE_LINE_H) / (rows + 1);
+    return cand < DIALOGUE_GRID_MAX_GAP ? cand : DIALOGUE_GRID_MAX_GAP;
+}
+
+/* The box-relative Y of body row `r` (0x48da70:101):
+ *   iVar11 = (r+1)*gap + pitch*r + base_y   (then the caller adds box_y = param_4). */
+int dialogue_body_row_dy(const dialogue_box *d, int r)
+{
+    int gap = dialogue_body_gap(d);
+    return DIALOGUE_TEXT_DY + (r + 1) * gap + DIALOGUE_LINE_H * r;
+}

@@ -82,6 +82,40 @@ int test_dialogue_expand_real_line1(void)
     return 0;
 }
 
+/* ---- body-row vertical distribution (0x48da70) ------------------------- */
+
+int test_dialogue_body_row_dy(void)
+{
+    /* The body grid distributes its rows vertically (FEWER rows ⇒ a LARGER gap),
+     * RE'd from FUN_0048da70 + retail.osr-verified (findings/dialogue-body-row-
+     * distribution.md).  gap = min(20, ((3-rows)*28)/(rows+1)); the box-relative
+     * row Y = 20 + (r+1)*gap + 28*r.  Only row_count drives it. */
+    dialogue_box d;
+    memset(&d, 0, sizeof d);
+
+    /* 1 row : gap 20 (clamped from cand 28) → row0 @ box+40 (the single line
+     * sits low/centered; retail ticks 852/948/1149 rel_off=[40]). */
+    d.row_count = 1;
+    T_ASSERT_EQ_I(dialogue_body_gap(&d), 20);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 0), 40);
+
+    /* 2 rows: gap 9 → @ box+29,+66 (pitch 37; retail tick 717 rel_off=[29,66]). */
+    d.row_count = 2;
+    T_ASSERT_EQ_I(dialogue_body_gap(&d), 9);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 0), 29);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 1), 66);
+
+    /* 3 rows: gap 0 → @ box+20,+48,+76 (pitch 28; retail tick 762/780
+     * rel_off=[20,48,76]).  This is the line the port used to cut at row 2. */
+    d.row_count = 3;
+    T_ASSERT_EQ_I(dialogue_body_gap(&d), 0);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 0), 20);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 1), 48);
+    T_ASSERT_EQ_I(dialogue_body_row_dy(&d, 2), 76);
+
+    return 0;
+}
+
 /* ---- pop-in ------------------------------------------------------------ */
 
 int test_dialogue_popin(void)

@@ -1056,6 +1056,7 @@ struct test_case {
     X(dialogue_expand_break)                                   \
     X(dialogue_expand_wrap)                                    \
     X(dialogue_expand_real_line1)                              \
+    X(dialogue_body_row_dy)                                    \
     X(dialogue_popin)                                          \
     X(dialogue_reveal_cadence)                                 \
     X(dialogue_arrow_anim)                                     \
