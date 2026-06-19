@@ -493,6 +493,10 @@ static int cs_step_beats(cutscene *cs)
      * does (with the text still on it).  Matching that slide is a box-close-animation
      * follow-up; the camera/run timing (this chip) is independent of it. */
     if (cs->box_linger > 0) {
+        /* the run-off close dissolves the lingering box's portrait (armed on the
+         * advance; the box frame+text stay full — dialogue_arm_fadeout) */
+        if (cs->box != NULL && cs->box->fade_out)
+            dialogue_fadeout_step(cs->box);
         cs->box_linger--;
         if (cs->box_linger == 0)
             cs_close_box_into_closing(cs);   /* hand to the normal close (shrink-out) */
@@ -684,9 +688,16 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                 const cutscene_line_lead *l =
                     cs_find_lead(&cs->rooms[cs->room_idx], cs->line_idx);
                 if (l != NULL && l->n_beats > 0) {
-                    if (l->box_hold > 0)
+                    if (l->box_hold > 0) {
                         cs->box_linger = l->box_hold;   /* keep the box up (run-off) */
-                    else
+                        /* The run-off CLOSE begins on THIS advance: retail dissolves
+                         * the portrait (the 0x49c910 reverse ramp idx 18->2->gone over
+                         * ~9t) while the box frame+text stay UP through the linger, THEN
+                         * the empty frame slides out (PORT-DEBT dialogue-runoff-box-slide).
+                         * Arm the dissolve now; cs_step_beats advances it each linger tick
+                         * (the bust is opaque otherwise, USER osr_notes tick 979). */
+                        dialogue_arm_fadeout(cs->box);
+                    } else
                         cs_close_box_into_closing(cs);  /* normal: snapshot + shrink  */
                     cs_begin_beats(cs, l->beats, l->n_beats, /*exit=*/0);
                     return 0;
