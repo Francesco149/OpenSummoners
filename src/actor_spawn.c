@@ -807,8 +807,27 @@ static const struct room_cast_member HOUSE_CAST[] = {
  * the right edge).  The shop NPCs (res 1027, ~10 instances) are the broader
  * PORT-DEBT(errands-cast)/actor-sprite-table, not modelled here. */
 static const struct room_cast_member ERRANDS_CAST[] = {
+    /* The shop FURNITURE — the bookshelf frame, the counter in front of Dad, the
+     * wall clock (USER studio notes #8/#9/#18/#19/#20/#21: "still missing" post-
+     * reveal).  These are CHARACTER-band objects (DATA 1025 layer codes 0x112cf
+     * clock / 0x112d1 bookshelf / 0x112d2 counter, in the 0x111xx-0x112xx / 70000
+     * range, NOT structure codes) that resolve to bank 0x16f (res 1023, the
+     * house/shop furniture sheet) with frame_base = the layer's VARIANT (+0x18) —
+     * confirmed off retail.osr: res 1023 fr 0/3/6 at the projected positions.  The
+     * port's CHARACTER band (g_actors) is SUPPRESSED for non-town rooms, so these
+     * never spawn (they'd be invisible volumes even if spawned — the codes aren't in
+     * TOWN_SPRITE_DEFS).  Captured here as static room-cast members (the same stand-in
+     * as the shop props below).  World = the map layer pos (X*100, Y*100); the room-
+     * cast projection (cam 0/16000) lands them at retail's screen positions.
+     * PORT-DEBT(errands-cast): the proper fix is to spawn the errands CHARACTER band
+     * with frame_base = variant + the visible-furniture code->bank table. */
+    /* bank   fb  world_x  world_y  dbx dby fac clip  phase  member (map code @screen) */
+    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 (behind its props) */
+    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
+    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
     /* bank   fb  world_x  world_y  dbx  dby fac clip        phase  member */
     { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1 }, /* Father res 0x473 @480,320 */
+    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
     { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2 }, /* Mother res 0x467 @624,128 */
     /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
      * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
