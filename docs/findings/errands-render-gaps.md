@@ -67,12 +67,21 @@ room-cast member at world (32900,33800) [= the errands projection of screen (329
 0/16000] + `dst_base (-9,-18)` (the 64x64 cel's pivot, fitted off port-fire.osr).  +host test
 `errands_fire`.
 
-**RESIDUAL (a SEPARATE, newly-surfaced gap — NOT the fire):** the recon at the fire crop
-shows the chimney ABOVE the fire is `differ_px==0` (backdrop faithful), the flame itself
-matches, but the BOTTOM rows (y+22..38 of the 39px) + the band just below (309,217-405,250,
-~867px) differ — i.e. a missing/different element at the fireplace BASE (a hearth/grate/log
-detail).  TODO next session: RE the fireplace base off retail.osr (`draw_probe` the
-309,217-405,250 region).  Feed: the PORT|RETAIL|DIFF fire-region montage.
+**RESIDUAL — the res-1034 SHEET decodes slightly differently (a decode-fidelity
+follow-up, NOT the spawn/blend).**  At a SETTLED, fire-frame-MATCHED recon (port fr4 tick
+2403 vs retail fr4 tick 2430) the backdrop AROUND the fire is `differ_px==0` and ALL the
+residual is inside the 48x39 fire rect (~1046px, maxd 66 sumRGB).  The decoded fire sheet's
+**dhash DIFFERS port↔retail** (fr4 0x52fc66d1 vs 0xfa994282) while neighbour sheets in the
+same region MATCH cross-side (res 1722 fr0-7 all identical dhash) — so the dhash IS
+comparable and res 1034 genuinely decodes to different pixels in the port.  The additive
+blend (×750) amplifies the small per-pixel sheet delta.  Likely a palette / colour-grade /
+flag decode subtlety (cf. the NPC colour-variant ckpt 142, and note #4's wall-tint HUE
+SHIFT — possibly the SAME per-sheet grade); bank 406 carries an info-event `FLAG_SET 0x2`
+(`asset_register.c:2593`) + scale_flag 1 — candidates to investigate.  TODO next session:
+hook the port vs retail decode of res 1034 (the sheet bytes) to find the divergence.
+(My first recon wrongly read this as a "fireplace base gap" — that was a recon artifact:
+port tick 1695 was mid reveal-FADE + the fire was at a different anim frame; the draw lists
+are in fact IDENTICAL.)  Feed: the settled matched-fr4 PORT|RETAIL|DIFF montage.
 
 ## 2. The freeroam HUD (notes #13-18) — IDENTIFIED, not ported
 
