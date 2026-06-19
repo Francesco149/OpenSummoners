@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-19 (ckpt 147) — the errands FIREPLACE FIRE, pixel-exact (USER osr_notes #3)
+
+**The fireplace fire is PORTED + PIXEL-EXACT (`differ_px==0`); commits `e320105` (spawn)
++ `ad405b1` (over-grade fix), 1032 host pass.**  Autonomous continuation (USER away,
+verification deferred).  The port showed a black recess where retail has a roaring fire.
+
+RE'd trace-the-code (off retail.osr + a dhash census): res **1034**, bank **0x1a3** (the
+`ar_pool_get_slot` POOL index = group3 slot 406 + RAMP_COUNT+1; the actor `bank` field is
+NOT the slot index — my first try with 0x196 drew nothing).  Frames **0-5 looping at a
+uniform dur 6** (the clip's single `frame_dur` +0x44, read off the CLEAN non-coalesced
+retail ticks — the apparent 3/9-tick frames were flip-coalescing, quirk #99).  Additive
+**`ramp_a[14]`**: its blend descriptor pulled from retail.osr (constant `blend_ref 36`) is
+BYTE-IDENTICAL to the port's `g_pd_boot_group_a[14]` (one match of 20 — also confirms the
+port's ramp_a == retail's bit-exact).  Ported as an additive `ERRANDS_CAST` member (new
+`room_cast_member.alpha` → `actor.node_alpha`; the existing PRESENT_ALPHA path resolves
+`g_ramp_a[param8]`); world (32900,33800) + dst_base (-9,-18), dst (329,178) 48x39.  +host
+test `errands_fire`.
+
+Then FOUND+FIXED the sheet residual: a frame-matched recon showed the fire SHEET decoded
+to different RGB565 pixels (dhash differed while neighbours matched).  The port's global
+8bpp colour-grade was OVER-darkening it — retail grades only `0x417c40`-getter sheets
+(tiles/sky), not plain-getter EFFECT sheets.  Excluding slot 406 (`FIRE_BANK_SLOT`) from
+the grade → fire sheet dhash == retail bit-for-bit, fire-rect recon `differ_px==0`.
+
+Also RE'd the rest of the errands notes (deferred, entry points logged in
+`findings/errands-render-gaps.md` §1-3): the **wall-tint (#4)** = res 1897/1898 errands
+floor clones decoding differently — over-grade RULED OUT (excluding their slots was a
+no-op), a deeper per-room floor decode; the **door-indicator (#5) + HUD (#7-9)** = the
+res=0 freeroam UI subsystem (best with USER); the **idle-fidget (#6)** = the deferred RNG
+behaviour subsystem `0x54f980`.  Studio shortcut → `port-fire.osr` vs `retail.osr`.
+
 ## 2026-06-19 (ckpt 146) — the house Arche TURN (USER studio notes #3-5)
 
 **Arche turns to face her father just before "I will, I promise!" — drawcall-faithful

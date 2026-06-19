@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 146, 2026-06-19)
+# Session handoff — rolling current state (last updated ckpt 147, 2026-06-19)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,71 +6,64 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 146
+## Where we are — ckpt 147
 
-**The house Arche TURN is PORTED + drawcall-faithful (commit `cfc6a96`, 1030 host pass).**  Continued the
-autonomous house/errands punch-list (the ckpt-145 scoped gap B; USER away, verification deferred).  Arche now
-turns to face her father just before "I will, I promise!" instead of holding the arrival-idle the whole house
-scene.
+**The errands FIREPLACE FIRE is PORTED + PIXEL-EXACT (commits `e320105` spawn + `ad405b1` over-grade fix,
+1032 host pass).**  Autonomous continuation of the house/errands punch-list (USER away, verification deferred).
+The port showed a black empty recess where retail has a roaring fire (USER `osr_notes.jsonl` #3, tick 1726).
 
-- **THE TRIGGER (RE'd).**  The town-intro script `0x4d7d80` (house case `0x334c8`) issues a fire-and-forget
-  actor emote `0x401e60(Arche,1)` at `:1170`, BETWEEN L5 ("...I'll be countin' on you") and L6 ("I will, I
-  promise!") = actor command kind **2** ("turn to face dir 1", `0x43e5b0` case 2; sibling setter `0x406210` =
-  *GetHeadLeftRight*).  In retail it is a BLOCKING beat (`in_ECX[8]=4`, case-4 actor-wait): L5 closes → turn
-  (~8t) → L6 opens.
-- **THE ANIMATION (ground truth, retail.osr res `0x570`).**  Arche is STATIC at screen (354,336) through the
-  house; only her cel changes: idle 152-155 → **158 (4t) → 7 (4t)** → the new STANDING idle **0/1/2** (a base-0
-  14t breathe, different pose set than the arrival idle base 152).
-- **THE PORT (`cfc6a96`).**  `actor_spawn.c` `ARCHE_HOUSE_TURN_CLIP` (base 158, delta {0,-151}=cels{158,7}, dur
-  4, one-shot) + `ARCHE_HOUSE_STAND_IDLE_CLIP` (base 0, {0,1,2,1}, 14t, loop); accessors `arche_house_turn_clip`/
-  `_idle_clip`.  `cutscene.{c,h}`: a new `CS_ACT_ACTOR_TURN` action + `cutscene_room.turn_after_line` (house=5,
-  else -1), emitted on the L5→L6 advance (after the lead gate).  `main.c`: the drain swaps the room-cast Arche
-  (`HOUSE_CAST[0]`, bank 0x8b guard) to the turn clip + sets `g_arche_house_turning`; the done-swap (after
-  `actor_pool_update`) settles her to the standing idle on `rs->done`; reset on `reload_room_backdrop`.
-  CONCURRENT (does NOT gate the next line — the house cadence already places L6); the live turn FSM `0x43e5b0`
-  stays PORT-DEBT(cutscene-party-chars), the RE'd clip is the ARCHE_RUN_CLIP stand-in pattern (ckpt 140).
-- **VERIFIED** off a fresh `port-turn.osr` vs `retail.osr` (`draw_probe --res 0x570`): the turn cels + durations
-  + position match retail EXACTLY (port 158@1586 / 7@1590 / idle 0@1594 / 1@1608).  **RESIDUAL — the ~7t
-  absolute-tick lag** (port turn @1586 vs retail @1579): the documented house-dialogue-cadence phase lag (the
-  FRONT ckpt-145 "~13t cover-start offset"), NOT a turn bug — retail front-loads the turn (blocking, before L6)
-  while the port's nav holds L5 ~6-7t longer to land L6's box at retail's tick.  The turn is keyed to the
-  advance, so it auto-aligns when the house cadence is made tick-1:1.  Writeup: `findings/arche-house-turn.md`.
-  +2 host tests (`cutscene_house_turn`, `arche_house_turn_clip`).
-- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-turn.osr C:\oss-osr\retail.osr` (the studio shortcut +
-  `studio-current.txt` are loaded with this pair) — scrub the house (port ticks ~1586-1607): Arche turns to
-  face her father just before "I will, I promise!".
+- **RE'd (trace-the-code, off retail.osr + the dhash census).**  res 1034: bank **0x1a3** (the
+  `ar_pool_get_slot` POOL index = group3 slot **406** + RAMP_COUNT+1 = +13; cross-checked vs the furniture
+  banks — the actor `bank` field is NOT the slot index, which is why my first try with 0x196 drew nothing).
+  Frames **0-5 LOOPING at a uniform dur 6** — the 0x154-byte clip's SINGLE `frame_dur` (+0x44, stepper
+  `0x54f980`), read off the CLEAN non-coalesced retail ticks (fr0/fr1/fr4 = 6t each; the gaps are flip-
+  coalescing, quirk #99, NOT short frames).  Additive **`ramp_a[14]`** (weight 750, mode 1): the fire's blend
+  descriptor extracted from retail.osr (constant `blend_ref 36`, RGB565, 3×1024 LUTs) is BYTE-IDENTICAL to the
+  port's `g_pd_boot_group_a[14]` — a host compare of all 20 ramp_a entries found exactly one match.  dst
+  (329,178) 48x39 constant.
+- **THE PORT.**  `actor_spawn.c`: `FIRE_CLIP` (base 0, {0..5}, dur 6, loop) + a new `room_cast_member.alpha`
+  field → `actor.node_alpha` (+0xf4); `actor_emit_part` already routes node_alpha≠0 → mode-1 node (`bmode=1`)
+  → `map_present` PRESENT_ALPHA → `g_ramp_a[param8 & 0xff]`, so `alpha=14` selects ramp_a[14].  ERRANDS_CAST
+  fire member: bank 0x1a3, world (32900,33800) [= errands projection of screen 329,178, cam 0/16000] +
+  `dst_base (-9,-18)` (the 64x64 cel pivot, fitted).  +host test `errands_fire`.  The proper map-EFFECT spawn
+  stays PORT-DEBT(errands-cast).
+- **THE OVER-GRADE FIX (`ad405b1`).**  A settled, frame-MATCHED recon showed the fire SHEET decoded to
+  different RGB565 pixels (dhash differed while neighbour sheets matched).  ROOT CAUSE: the port's in-game 8bpp
+  colour-grade (`main.c` `ar_sprite_decode`, gates 700/850) grades ALL 8bpp sheets except a UI blocklist, but
+  retail grades ONLY 0x417c40-getter sheets (tiles/sky) — the fire is a plain-getter EFFECT sheet, so retail
+  does NOT grade it (the port over-darkened it, same class as PORT-DEBT(banner-grade)).  FIX: add slot 406
+  (`FIRE_BANK_SLOT`) to the grade exclusion.  Now the fire sheet dhash == retail bit-for-bit and the fire-rect
+  recon (matched fr4, settled) is **`differ_px==0`, maxd 0** — pixel-exact (drawcall + sheet + composite).
+- **VERIFIED** off a fresh `port-fire.osr` vs `retail.osr` (`draw_probe --res 1034` + the dhash/recon scripts).
+  `findings/errands-render-gaps.md` §1.
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-fire.osr C:\oss-osr\retail.osr` (the studio shortcut +
+  `studio-current.txt` are loaded with this pair) — scrub the errands (port ticks ~1690+): the fireplace burns.
 
-**ALSO ckpt 146 — the errands SHELF/BOOKSHELF props Z-ORDER fix (commit `ead9c49`, 1031 host pass).**  Reading
-the USER's `osr_notes.jsonl` ("bookshelf missing props" / "missing props in shelves") + recon via the new
-`osr_prof` showed they were NOT a missing spawn — the port EMITS them (structure band, res=1026/1027, exact
-retail frames/positions), but the ckpt-145 ERRANDS_CAST furniture stand-in (bookshelf frame res=1023 fr3 + the
-two shelf units res=1027 fr9) spawned at the CAST LAYER 13, drawing OVER the layer-8 structure props and
-occluding them (the draw pool walks layers low→high = back→front).  Retail draws the frame/units first (seq
-257/261) then props on top (268+).  Fix: `room_cast_member` gained a per-member `layer` (0⇒default 13); the
-background furniture → layer 7 (behind the layer-8 props).  Verified off port-turn.osr: seq order matches
-retail + both shelves recon pixel-match retail (fully stocked).  Feed: the PORT|RETAIL shelves montage.
-`findings/errands-render-gaps.md` §4.  LESSON: a "missing" element may be emitted-but-OCCLUDED — check the
-draw-stream seq (z), not just "is it drawn"; the cast-layer stand-in silently regressed the structure props.
+**ALSO ckpt 147 — RE'd the rest of the errands notes (deferred, with entry points).**  `findings/errands-
+render-gaps.md` §2/§3:
+- **wall-tint (#4)** — PINNED to res 1897/1898 (the errands floor/wall tileset, cloned banks 0x187/0x188 = town
+  floor 0x769/0x76a) decoding differently (dhash differs; backdrop res 1002/1722/1082 + furniture 1023 all
+  MATCH).  Over-grade RULED OUT (excluding the clone slots 378/379 was a NO-OP — the floor isn't grade-eligible).
+  So retail renders the SAME floor sheet differently in the errands vs town: a per-room palette/decode/clone
+  difference.  TODO: hook the port vs retail decode of res 0x769 in the errands (bit-depth, palette, the
+  inline-clone path).
+- **door-indicator (#5) + HUD (#7-9)** — the res=0 FREEROAM UI subsystem (door = a res=0 24x42 @200,415; HUD =
+  the res=0 top-left HP/MP/level/★★ + bottom strips).  Not sprite-bank actors; a real UI subsystem, best with
+  the USER (the layout is visual).  The opening dialogue/questline `0x4dc510` (dialogue API `0x4a5ee0`) is the
+  same arc.
+- **idle-fidget (#6)** — RE'd as the deferred RNG behaviour subsystem (`0x54f980`, PORT-DEBT(actor-protagonist-
+  clip), ckpt 73): NOT in the player FSM (0x478ba0/0x442a70); the trigger is an LCG-seeded idle-wait.  Not an
+  autonomous-clean chip (needs the behaviour subsystem); the cel sequence at tick 2413 (res 0x570) is un-decoded.
 
-**NEXT (the house/errands punch-list, USER away).**  The errands gaps from the USER's `osr_notes.jsonl` are
-now ALL RE'd off retail.osr — `findings/errands-render-gaps.md` (exact note crops/ticks + the per-element RE):
-- (A) the errands FIRE (note #10) — FULLY RE'd: `res=1034`, alpha `bmode=1`/`st=0x8000`, 48x39 @screen(329,178),
-  frames 0-5 looping ~6t/frame; port draws none (bank PE DATA 1034 not loaded).  PORT DEFERRED — needs the
-  res-1034 bank registered/decoded in the errands load (adjacent to PORT-DEBT(assetreg-clone-defer)) + the
-  alpha blit matched to `st=0x8000` (the port has `zdd_alpha_blit`/node_alpha; match it drawcall-exact via
-  draw_probe).  Feed: the PORT(black recess)|RETAIL(fire) recon.
-- (A2) the shelf/bookshelf props (notes [315,343,143,85] + [81,290,102,129]) — **DONE ckpt 146 (`ead9c49`)**:
-  NOT a missing spawn — the port emitted them (structure band) but the ckpt-145 ERRANDS_CAST furniture (cast
-  layer 13) OCCLUDED the layer-8 props; fixed by giving the background furniture (bookshelf frame + shelf units)
-  layer 7.  Both shelves recon pixel-match retail.  (A3) the wall tint (note #11) — small/subtle, RE the
-  tile/palette.
-- (B) the house-dialogue-cadence phase fix (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
+**NEXT (priority for the USER's return / next session).**
+- (A) the **wall-tint** res 1897/1898 floor decode — the concrete entry point above; a deterministic decode RE.
+- (B) the **house-dialogue-cadence phase fix** (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
   cover-start AND the reveal/furniture ticks; the arrival is tick-1:1, the house is not).  Likely couples
   making the turn a BLOCKING beat + rebuilding the house nav (dialogue_timeline); may want USER nav verify.
-- (C) the freeroam HUD (notes #13-18: top-left HP/MP/level/★★ + bottom HUD strips = `res=0` panel) + the
-  errands opening dialogue/questline (`0x4dc510`, separate dialogue API `0x4a5ee0`).
+- (C) the **freeroam UI** (door indicator + HUD + the opening dialogue/questline `0x4dc510`) — the res=0
+  subsystem; visual, best with the USER.
 - (D) freeroam refinements (run/dash double-tap [char-run-trigger] — clean+deterministic; camera-follow
-  [needs a freeroam-camera capture, USER]; distance-locked walk cels).
+  [needs a freeroam-camera capture, USER]; distance-locked walk cels; the idle-fidget behaviour subsystem).
 
 ---
 

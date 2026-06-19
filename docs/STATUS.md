@@ -110,6 +110,19 @@ understates how much actual instruction volume is ported.
   retail draws frame/units seq 257/261 THEN props 268+).  Fix: `room_cast_member.layer` per-member; background
   furniture → layer 7.  Both shelves recon pixel-match retail.  LESSON: a "missing" element may be emitted-but-
   OCCLUDED — check the draw seq (z).  `findings/errands-render-gaps.md` §4 (+ the fire/HUD/wall-tint RE).
+  **ckpt 147 the errands FIREPLACE FIRE (USER osr_notes #3) — DONE + PIXEL-EXACT (`e320105`+`ad405b1`, 1032
+  host pass; autonomous, USER away):** the port showed a black recess, retail a roaring fire.  Ported as an
+  additive-alpha `ERRANDS_CAST` member — res 1034 (bank 0x1a3 = the ar_pool POOL index for group3 slot 406),
+  frames 0-5 LOOPING at a uniform dur-6 (the clip's single +0x44, read off the CLEAN non-coalesced retail
+  ticks), additive `ramp_a[14]` (its blend descriptor extracted from retail.osr is BYTE-IDENTICAL to the
+  port's g_pd_boot_group_a[14] — one full match of 20), dst (329,178) 48x39.  Then FOUND+FIXED the sheet's
+  decode residual: the port's global 8bpp colour-grade was OVER-darkening the fire (retail grades only the
+  0x417c40-getter tiles/sky, not plain-getter EFFECT sheets) — excluding slot 406 (`FIRE_BANK_SLOT`) makes the
+  fire sheet dhash == retail bit-for-bit and the fire-rect recon **differ_px==0**.  +host test `errands_fire`.
+  ALSO RE'd (deferred): the wall-tint (#4) = res 1897/1898 errands floor clones decode differently — but the
+  over-grade was RULED OUT (excluding the clone slots was a no-op) → a deeper per-room floor decode, entry
+  point logged; the door-indicator (#5) + HUD (#7-9) = the res=0 freeroam UI subsystem (best with USER); the
+  idle-fidget (#6) = the deferred RNG behaviour subsystem 0x54f980.  `findings/errands-render-gaps.md` §1+§3.
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -128,8 +141,9 @@ understates how much actual instruction volume is ported.
     walks the errands on live input) ✓ (144) → the ERRANDS tile-frames (arg_0c, backdrop bit-exact) ✓ (144) →
     the house→errands TRANSITION FADE + the missing errands FURNITURE ✓ (145) → the house Arche TURN
     (emote 0x401e60, cels 158→7→idle) ✓ (146) → the errands SHELF-PROPS z-order (background furniture
-    occluded them) ✓ (146) →
-    **the errands FIRE (res=1034 alpha) + the house-cadence phase fix + the errands dialogue/HUD + freeroam refinements = next**.
+    occluded them) ✓ (146) → the errands FIREPLACE FIRE (res=1034 additive, PIXEL-EXACT
+    differ_px==0 + the over-grade fix) ✓ (147) →
+    **the errands wall-tint (res 1897/1898 floor decode) + the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements = next**.
 - **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
   committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
   it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
