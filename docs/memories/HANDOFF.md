@@ -6,7 +6,38 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 140
+## Where we are — ckpt 142
+
+**The NPC COLOUR variant is PORTED + bit-exact (THEME 2 note #1, `effect-color-variant`) — the townswoman
+renders her blonde/pink variant instead of the brunette/blue base, pixel-identical to retail (crop tick 274
+differ_px 1387→0).**  1026 host pass.  `findings/npc-colour-variant.md`.  Commit pending this ckpt.
+
+- **Mechanism (RE'd, not curve-fit):** the girl = the map townswoman `0xc440`, colour variant `param_11` = the
+  map record field **`+0x2c`** = 1 (the ONLY town EFFECT with `+0x2c`≠0; proven via an `OSS_DUMP_EFFECTS` spawn
+  dump over nav-matched).  `0x41f200:1768` resolves a per-variant sprite bank (0→`0xa5`/1→`0xa6`/2→`0xa7`/3→`0xa8`);
+  the variant banks are CLONES of the base 8bpp sheet (`FUN_004179b0`) + a palette-INDEX-remap pointer at the
+  info-entry `+8` (`0x57ca40:2870`, `&DAT_006748d0/ad8/ce0`).  The remap tables (.rdata, two parallel 256-byte
+  halves: source-index / dest-index) shift the body palette indices 0x20-0x4f into the next 48-colour bank
+  (the embedded palette holds 4 banks: base 0x20-4f + variants 0x50-7f/0x80-af/0xb0-df).
+- **The fix (`src/asset_register.c`):** (1) `ar_sprite_decode` applies the variant's remap to the 8bpp pixels
+  before the slice (`ar_npc_palette_remap`; data baked from `tools/extract/npc_palette_remap.py`, the
+  world_tables pattern; keyed by the info-entry `->data` .rdata VA; bank = the slot's pool index via the
+  `ar_pool_get_slot` inverse).  (2) **The pass-order bug** — the clone CLEARS the dst info-entry `+8`/`+0xc`
+  (faithful to `FUN_004179b0`, via `in_ECX+0x18e0`), but the port batched ALL info-events THEN ALL clones, so
+  the clone WIPED the remap pointer the info pass set (`info[0xa6]->data` read back 0).  Retail issues each
+  clone-dst's DATA_SET AFTER its clone (proven 98/98, 0 exceptions), so `ar_reapply_group3_data_events()`
+  re-applies the data-sets once more after the clones.  +2 host tests (`npc_palette_remap_lookup`,
+  `reapply_data_events_restores_after_clone`).
+- **VERIFIED off `C:\oss-osr\port-npc.osr` vs `retail.osr`:** crop tick 274 (137,290 48×89) `differ_px==0`
+  (was 1387); full-frame 1518→108 (residual = the pre-existing butterfly/ambient noise, no regression).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-npc.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub the
+  settled town (ticks 80-360): the townswoman by the inn is blonde in a pink dress, matching retail.
+- **NEXT (remaining THEME 2):** the butterfly VERTICAL flutter (#2 residual = `butterfly-flutter`, the
+  body+0x18 velocity sawtooth).  THEN the FREEROAM HAND-OFF.  (The `param_11`-driven bank PICK is currently the
+  captured 0xa6 — correct for this town; deriving it from `+0x2c` generally is a small follow-up under
+  `effect-sprite-table`, the whole captured table.)
+
+## Where we were — ckpt 140
 
 **The cast "ARCHE RUNNING" RUN-OFF RENDER is PORTED + frame-sequence bit-exact (THEME 2 note #5 / #3,
 cutscene-party-chars) — the USER studio note tick 1027 ("arche runs to the house in retail, stands still in

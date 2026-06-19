@@ -33,9 +33,13 @@
   **ckpt 141 the run-off CAMERA-PAN OVERLAP restructure — DONE + camera/run BIT-EXACT** (the run-off now fires
   CONCURRENT with "Cool!" — on its beat completion ~tick 972, not its confirm; the static caravan + Arche's
   screen-x/run cels match retail TICK-FOR-TICK, framing offset 0px (was ~40); quirk #111).
-  **NEXT (remaining THEME 2): the NPC COLOUR variant (#1, townsfolk hardcode frame_base 0 → a colour-remap/
-  bank, NOT the butterfly path) and the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter`).  THEN
-  the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover DONE bit-exact).
+  **ckpt 142 the NPC COLOUR variant (THEME 2 #1) — DONE + bit-exact** (the townswoman `0xc440` colour
+  variant = the map field `+0x2c`=1; her variant bank is a CLONE of the base 8bpp sheet + a palette-INDEX
+  remap `DAT_006748d0` — ported the decode consumer + fixed the info/clone pass-order bug that wiped the
+  remap pointer; she renders blonde/pink, crop tick 274 differ_px 1387→0; quirk —; `findings/npc-colour-variant.md`).
+  **NEXT (remaining THEME 2): the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter` — the body+0x18
+  velocity sawtooth).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step`
+  on live input — mover DONE bit-exact).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -48,8 +52,27 @@
     the BUTTERFLY direction sprite ✓ (139, THEME 2 #0/#2 — frame_base from the map variant) →
     the cast "Arche running" run-off render ✓ (140, THEME 2 #5/#3 — RUN/DECEL/idle clips + run physics) →
     the run-off CAMERA-PAN OVERLAP ✓ (141 — fires concurrent with "Cool!", camera/run bit-exact) →
-    **the NPC colour variant + butterfly flutter (THEME 2) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 141): the run-off CAMERA-PAN OVERLAP is FIXED — the camera + Arche's screen position/run cels
+    the NPC COLOUR variant ✓ (142, THEME 2 #1 — 8bpp palette-index remap on the cloned variant bank) →
+    **the butterfly flutter (THEME 2 #2 residual) → the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 142): the NPC COLOUR variant is PORTED + bit-exact — THEME 2 note #1 ("npc color variant
+  gap", tick 274) is RESOLVED; the townswoman renders her blonde/pink variant instead of the brunette/blue
+  base, pixel-identical to retail (crop differ_px 1387→0).**  RE'd "trace the code" (not curve-fit).
+  **Mechanism:** the girl = the map townswoman `0xc440` with colour variant `param_11` = the map record field
+  **`+0x2c`** = 1 (the ONLY town EFFECT with `+0x2c`≠0; proven via a spawn dump).  `0x41f200:1768` resolves a
+  per-variant sprite BANK (0→`0xa5` base / 1→`0xa6` / 2→`0xa7` / 3→`0xa8`); the variant banks are **CLONES of
+  the base 8bpp sheet + a palette-INDEX-remap** at the info-entry `+8` (`DAT_006748d0/ad8/ce0`, .rdata) that
+  shifts the body palette indices 0x20-0x4f into the next 48-colour bank (the sheet's embedded palette holds 4
+  banks).  **The fix (`src/asset_register.c`):** (1) `ar_sprite_decode` applies the variant's remap to the 8bpp
+  pixels before the slice (`ar_npc_palette_remap`; data from `tools/extract/npc_palette_remap.py`, the
+  world_tables pattern); (2) **the pass-order bug** — the clone (`FUN_004179b0`) CLEARS the dst info-entry `+8`,
+  and the port batched all info-events THEN all clones, so the clone wiped the remap pointer; retail issues each
+  DATA_SET AFTER its clone (proven 98/98), so `ar_reapply_group3_data_events` re-applies the data-sets after the
+  clones.  1026 host pass (+2).  **VERIFIED off `C:\oss-osr\port-npc.osr` vs `retail.osr`:** crop tick 274
+  (137,290 48×89) `differ_px==0`; full-frame 1518→108 (residual = the pre-existing butterfly noise, no
+  regression).  Recon on the feed (blonde/pink).  **USER-VERIFY: `osr_view.exe C:\oss-osr\port-npc.osr
+  C:\oss-osr\retail.osr`** (shortcut loaded with this pair) — scrub the settled town (ticks 80-360): the
+  townswoman by the inn is blonde in a pink dress, matching retail.  Writeup: `findings/npc-colour-variant.md`.
+- **Prior (ckpt 141): the run-off CAMERA-PAN OVERLAP is FIXED — the camera + Arche's screen position/run cels
   now match retail TICK-FOR-TICK during the run-off (framing offset 0px, was ~40px); the run-off fires
   CONCURRENT with "Cool!", not serialized after its confirm.**  RE'd "trace the code" — the ckpt-140 diagnosis
   ("~10t late") had the trigger tick wrong; the CAMERA ONSET pins it (quirk #111): the easer `0x43d1d0`

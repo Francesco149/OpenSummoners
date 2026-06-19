@@ -2519,6 +2519,49 @@ int test_ss_mgr_clone_destroys_old_dst_entries(void)
     return 0;
 }
 
+/* ─── NPC colour-variant palette-index remap (THEME 2 #1) ────────── */
+
+int test_npc_palette_remap_lookup(void)
+{
+    /* The 3 shared variant remaps key on the retail .rdata VA the info-entry
+     * +8 holds; each shifts the body palette indices 0x20-0x4f into the next
+     * 48-colour bank (v1 +0x30 / v2 +0x60 / v3 +0x90), identity elsewhere. */
+    const unsigned char *v1 = ar_npc_palette_remap(0x006748d0u);
+    const unsigned char *v2 = ar_npc_palette_remap(0x00674ad8u);
+    const unsigned char *v3 = ar_npc_palette_remap(0x00674ce0u);
+    T_ASSERT(v1 != NULL && v2 != NULL && v3 != NULL);
+    /* variant 1: 0x20 -> 0x50, 0x4f -> 0x7f */
+    T_ASSERT_EQ_U(v1[0x20], 0x50u);
+    T_ASSERT_EQ_U(v1[0x4f], 0x7fu);
+    /* variant 2/3: +0x60 / +0x90 */
+    T_ASSERT_EQ_U(v2[0x20], 0x80u);
+    T_ASSERT_EQ_U(v3[0x20], 0xb0u);
+    /* outside the body range = identity (outline 0x10, bg 0, the dest bank) */
+    T_ASSERT_EQ_U(v1[0x10], 0x10u);
+    T_ASSERT_EQ_U(v1[0x00], 0x00u);
+    T_ASSERT_EQ_U(v1[0x50], 0x50u);
+    /* unknown / zero VA -> no remap */
+    T_ASSERT_EQ_P(ar_npc_palette_remap(0), NULL);
+    T_ASSERT_EQ_P(ar_npc_palette_remap(0x12345678u), NULL);
+    return 0;
+}
+
+int test_reapply_data_events_restores_after_clone(void)
+{
+    /* The clone clears the dst info-entry +8 (data); retail issues the
+     * colour-variant DATA_SET AFTER the clone, so ar_reapply_group3_data_events
+     * must restore it.  Bank 0xa6 (info idx 166) = the townswoman 0xc440 variant
+     * 1 -> &DAT_006748d0.  Simulate: clear it (as the clone does), re-apply,
+     * confirm the palette-remap pointer is back. */
+    ar_state_init();
+    g_ar_info_table[0xa6]->data = NULL;          /* as ar_ss_mgr_clone_slot leaves it */
+    ar_reapply_group3_data_events();
+    T_ASSERT_EQ_U((unsigned)(uintptr_t)g_ar_info_table[0xa6]->data, 0x006748d0u);
+    /* and it resolves to the variant-1 remap */
+    T_ASSERT(ar_npc_palette_remap((uint32_t)(uintptr_t)g_ar_info_table[0xa6]->data) != NULL);
+    return 0;
+}
+
 /* ─── ar_apply_group3_clones (5th pass of FUN_0057ca40) ─────────── */
 
 int test_group3_clones_apply_is_idempotent(void)

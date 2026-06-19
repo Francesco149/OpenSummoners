@@ -1,10 +1,12 @@
 # NPC colour variant — the townswoman's palette swap (THEME 2, note #1)
 
-> **Status: DIAGNOSED + fully RE'd to the consumer boundary (ckpt 142).** The gap
-> is PINNED to one actor + one mechanism; the data is extracted and the trigger is
-> proven. What remains is porting the **8bpp palette-index-remap render consumer**
-> (a deferred subsystem). The clone + the remap pointer are ALREADY in the port; only
-> the consumer that *applies* the remap is missing.
+> **Status: RESOLVED + PORTED + bit-exact (ckpt 142).** The townswoman now renders
+> her variant colours (blonde / pink dress) **pixel-identical to retail** — the crop
+> at tick 274 (137,290 48×89) is `differ_px == 0` (was 1387), full-frame 1518→108 (the
+> residual is the pre-existing butterfly/ambient noise, no regression). The fix: apply
+> the cloned variant bank's palette-index remap to the 8bpp pixels at decode, AND fix
+> the info-event/clone pass order so the remap pointer survives (see "The fix" below).
+> Retires `PORT-DEBT(effect-color-variant)`.
 
 ## The gap (USER studio note #1)
 `osr_notes.jsonl` tick 274, crop (137,290 48×89), differ 1518 (crop differ_px 1387):
@@ -71,21 +73,41 @@ ALREADY ported (`src/asset_register.c`):
   param_11=1 result — correct for THIS town; reading `+0x2c` to generalise is a
   follow-up, not the colour bug).
 
-MISSING (the chip):
-1. **The render/decode consumer that APPLIES `slot->data`** (the index remap) to the
-   8bpp pixels of a cloned variant bank. It's an unported function in the render path
-   (one of the 0x8a8440-readers — NOTE: 0x8a8440 is overloaded; `DAT_008a8440` read as
-   shorts is the *flip/mirror* table (butterfly #110), while `0x8a8440 + i*4` is the
-   *info-entry pointer* table — disambiguate before porting). The 57ca40 finding flagged
-   this as the deferred "FUN_00586010-style palette draw with flag dispatch".
-2. **The remap-table bytes** — extract `DAT_006748d0/ad8/ce0` from the user's
-   sotes.exe .rdata into a generated data file (the `world_tables_data.c` pattern; a
-   `tools/extract/` script). The data is small (the shared base + 3×48-byte deltas).
+## The fix (ported ckpt 142)
+Two parts, both in `src/asset_register.c`:
 
-## Verify (when ported)
-Re-capture a port `.osr` over `nav-matched`, `draw_probe.py --res 0x461` / the studio
-crop at tick 274 (137,290 48×89): the woman should render **blonde/pink**, the crop
-`differ_px → 0`. Host: a test that the remap maps index 0x?? → 0x5? for variant 1.
+**(1) The remap data + the decode consumer.**
+- `tools/extract/npc_palette_remap.py` reads the 3 tables out of the user's
+  sotes.exe .rdata and emits the flat per-variant `remap[old]=new` (the table is
+  TWO parallel 256-byte arrays — half1[k]=source palette index, half2[k]=dest —
+  so `remap[half1[k]]=half2[k]`; net: indices 0x20-0x4f → 0x50-0x7f / 0x80-0xaf /
+  0xb0-0xdf for v1/v2/v3, identity elsewhere). Baked into `NPC_PALETTE_REMAPS[]`
+  keyed by the retail .rdata VA; `ar_npc_palette_remap(va)` is the lookup.
+- `ar_sprite_decode`: after `bs_decode_resource`, for an **8bpp** sheet whose
+  bank's info-entry `->data` is one of the 3 VAs, rewrite each pixel index through
+  the remap **before the slice** — so the SAME (cloned base) sheet slices against
+  the embedded palette into the variant colour bank. The bank = the slot's pool
+  index (`ar_pool_get_slot` inverse: `(slot - g_ar_sprite_slots) + 0xd`).
+
+**(2) The pass-order bug (the actual blocker).** `FUN_004179b0` (the clone) DOES
+clear the dst info-entry's `+8`/`+0xc` (via `in_ECX + 0x18e0`, NOT the global flip
+table) and copy marker/flag from src — the port models this faithfully. But retail
+issues each clone-dst's DATA_SET **after** its clone (L2870 clone → L2871 data-set),
+whereas the port batched **all** info-events then **all** clones — so the clone
+WIPED the remap pointer the info pass had set (`info[0xa6]->data` read back 0).
+Fix: `ar_reapply_group3_data_events()` re-runs the DATA_SET events once more after
+the clones. PROVEN exact: all 98 clone-dst data-sets follow their clone in retail
+issue order (0 exceptions), so the data-set is always the last writer; marker/flag
+need no re-apply (clone-copied from src, which the first info pass set).
+
+## Verified (ckpt 142)
+Port `.osr` over `nav-matched` (`C:\oss-osr\port-npc.osr`) vs `retail.osr`, the
+studio crop at tick 274 (137,290 48×89): **`differ_px == 0`** (was 1387) — the woman
+renders blonde/pink, pixel-identical. Full-frame 1518→108 (residual = butterflies,
+no regression). Host: `npc_palette_remap_lookup` + `reapply_data_events_restores_after_clone`
+(1026 pass). The bank PICK (TOWN_EFFECT_DEFS bank 0xa6 for 0xc440) was already the
+captured param_11=1 result — correct for this town; reading `+0x2c` to derive it
+generally is a small follow-up under `effect-sprite-table` (the whole captured table).
 
 Cross-refs: `docs/port-debt.md` (`effect-color-variant`), `docs/findings/0057ca40-rabbit-hole.md`
 (the info table + the deferred palette consumer), `docs/findings/butterfly-direction-sprite.md`
