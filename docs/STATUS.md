@@ -123,6 +123,19 @@ understates how much actual instruction volume is ported.
   over-grade was RULED OUT (excluding the clone slots was a no-op) → a deeper per-room floor decode, entry
   point logged; the door-indicator (#5) + HUD (#7-9) = the res=0 freeroam UI subsystem (best with USER); the
   idle-fidget (#6) = the deferred RNG behaviour subsystem 0x54f980.  `findings/errands-render-gaps.md` §1+§3.
+  **ckpt 148 the errands WALL-TINT (USER osr_notes #4) — DONE + PIXEL-EXACT (`05e8742`, 1034 host pass;
+  autonomous, USER away):** the errands floor rendered WARM BROWN vs retail's cooler greenish-gray.  RE'd the
+  code (not curve-fit): the floor banks 0x187/0x188 (clones of the town floor res 0x769/0x76a PIXELS) carry an
+  info-entry **+8 = &DAT_00675500** whose first u16 = **0x186** → **FUN_00417bc0** swaps their palette to slot
+  0x186 = **res 0x76b** (a 32×32 palette-holder with the cooler errands-floor colours).  So the SAME floor
+  pixels render warm in the town (own palette) and grey in the errands (res 0x76b's) — a per-room PALETTE SWAP,
+  the cross-slot sub-case of the same +8 field as the NPC colour variant (which is the within-palette sub-case,
+  first u16 == 0; the port only modelled THAT, identity for the floor → no effect → wrong colour).  Ported
+  `ar_apply_slot_palette_swap` (the cross-slot half of FUN_00417bc0): at decode, before the grade, overwrite the
+  named palette entries with the source slot's RAW +0x34 palette (matching retail 0x490f30's per-bank order
+  embedded→swap→grade→install).  **VERIFIED:** floor sheets res 1897/1898 all `differ_px==0` (dhash byte-
+  identical); the USER wall crop tick 1726 recon `differ_px==0`; town 58/58 + errands 73/73 shared sheets match
+  (no regression).  +2 host tests.  `findings/errands-render-gaps.md` §3.
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -143,7 +156,9 @@ understates how much actual instruction volume is ported.
     (emote 0x401e60, cels 158→7→idle) ✓ (146) → the errands SHELF-PROPS z-order (background furniture
     occluded them) ✓ (146) → the errands FIREPLACE FIRE (res=1034 additive, PIXEL-EXACT
     differ_px==0 + the over-grade fix) ✓ (147) →
-    **the errands wall-tint (res 1897/1898 floor decode) + the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements = next**.
+    the errands WALL-TINT (per-room PALETTE SWAP, FUN_00417bc0 cross-slot — floor reads res 0x76b's
+    palette, pixel-exact) ✓ (148) →
+    **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (run/dash double-tap) = next**.
 - **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
   committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
   it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
