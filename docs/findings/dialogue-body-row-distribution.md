@@ -70,3 +70,17 @@ constants are RE'd from the decompile and the data only confirms them.
 `dialogue.{c,h}`: `DIALOGUE_TEXT_DY` 29→**20**, `DIALOGUE_LINE_H` 36→**28**, new
 `DIALOGUE_GRID_MAX_GAP`=20; `dialogue_body_gap()` / `dialogue_body_row_dy()` compute
 the distribution.  `main.c game_render_dialogue` uses `dialogue_body_row_dy(d,r)`.
+
+## Residual (NOT this fix — a separate, pre-existing box-fill recon nuance)
+
+The tick-780 montage shows a faint frame-shaped diff over the text.  `draw_probe` at
+that tick (region 280,180..430,235) shows it is NOT a missing graphic and NOT the
+spacing: the dialogue box-content tiles draw at the SAME dst rects + seq order on both
+sides, but retail attributes them to **`res=0`** (a backbuffer-region composite the
+proxy can't name) while the port draws **`res=1110 fr=4/7`** (its box-fill bank).  The
+"framed box" is a RECON-ORDERING artifact of retail's res=0 tiles vs the GDI text in
+the reconstruction (the on-screen parchment box is the same).  This box-fill
+composite-source difference is pre-existing, affects every dialogue frame equally, and
+is unrelated to the row distribution.  (My commit `a91696f` loosely called it the
+arrow-art debt — this is the accurate characterization.)  A real follow-up only if the
+box FILL itself is later found to diverge on a live frame, not in recon.
