@@ -253,11 +253,11 @@ static const cutscene_line_lead HOUSE_LEADS[] = {
  * yet ported (PORT-DEBT(cutscene-scene-chain)). */
 #define HOUSE_EXIT_COVER_VAR 1   /* edges-in (retail.osr full-frame dump)            */
 /* The LAST house line's box lingers showing its full text OVER the cover for this
- * many sim-ticks before closing: retail confirms L7 at ~tick 1670 (which fires the
- * cover), but L7's glyphs don't clear until ~1678 — the box stays up over the
- * darkening scene ~8t (measured off retail.osr's brightness curve + the box-glyph
- * timeline; the nav advances L17 at the confirm 1670, NOT the glyph-clear 1678). */
-#define HOUSE_EXIT_BOX_HOLD  8
+ * many sim-ticks before closing: retail confirms L7 at ~tick 1668 (which fires the
+ * cover — first-darkens 1669 per the per-tick brightness curve), but L7's glyphs
+ * don't clear until ~1678 — the box stays up over the darkening scene ~10t (measured
+ * off retail.osr; the nav advances L17 at the confirm 1668, NOT the glyph-clear 1678). */
+#define HOUSE_EXIT_BOX_HOLD  10
 static const cutscene_beat HOUSE_EXIT[] = {
     /* type           fade_mode      fade_var              pan_x pan_y param          dur */
     { CS_BEAT_FADE,   CS_FADE_COVER, HOUSE_EXIT_COVER_VAR, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
@@ -446,6 +446,12 @@ static int cs_finish_beats(cutscene *cs)
             cs->active   = 0;
             cs->complete = 1;
             if (cs->box != NULL) cs->box->active = 0;
+            cs->closing.active = 0;   /* clear any closing/lingering box (USER note:
+                                       * the house-exit box_linger box was snapshotted
+                                       * into `closing` and shrinks slowly over the
+                                       * cover; without this it FREEZES half-shrunk at
+                                       * chain-complete and persists as a stray bubble
+                                       * into the errands — retail's box is gone) */
             return 1;
         }
         return cs_enter_line(cs);
