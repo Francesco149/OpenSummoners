@@ -241,9 +241,12 @@ typedef struct cutscene {
     int                   beat_timer;   /* sim-ticks left on the current beat        */
     int                   box_linger;   /* a CONCURRENT lead (run-off): ticks the     *
                                          * preceding line's box stays UP (full text,   *
-                                         * tracking the camera) after its advance while *
-                                         * the lead beats play behind it, before it    *
-                                         * cuts (cutscene_line_lead.box_hold; note #5) */
+                                         * FROZEN at its open screen pos) after its    *
+                                         * advance while the lead beats play behind it,*
+                                         * before it cuts (cutscene_line_lead.box_hold)*/
+    int                   box_linger_slide; /* 1 = on box_linger expiry the box SLIDES *
+                                         * off (the run-off empty-frame slide); 0 = it  *
+                                         * shrinks (the house-exit close under the cover)*/
     cutscene_action       action;      /* pending one-shot for the caller to perform */
     /* A FADE beat waits for the scene_fade GRID to settle (retail's case-2 gate =
      * the grid `done` flag, 0x439690:1125), not a fixed timer.  The caller feeds the

@@ -111,7 +111,7 @@ static const dialogue_speaker_body *speaker_body(uint32_t name_va)
  * but "Cool!"'s box stays UP showing its full text for this many MORE ticks (the pan +
  * the run play BEHIND it), then cuts.  11 = the box renders ticks 972..982/983 (its
  * retail body span; the port carries a ~1t coalescing residual). */
-#define ARRIVAL_RUNOFF_BOX_HOLD 11
+#define ARRIVAL_RUNOFF_BOX_HOLD 10  /* frozen box shows "Cool!" through ~982, slide @983 */
 static const cutscene_beat ARRIVAL_L8_LEAD[] = {
     /* type             fade_mode fade_var pan_x  pan_y  param  dur(=case-4 run-off wait) */
     { CS_BEAT_CAMERA_PAN, 0, 0, ARRIVAL_L8_PAN_X, ARRIVAL_L8_PAN_Y,
@@ -492,17 +492,38 @@ static int cs_step_beats(cutscene *cs)
      * tick off-screen over ticks 983-1003 (gone 1004), NOT the shrink-in-place the port
      * does (with the text still on it).  Matching that slide is a box-close-animation
      * follow-up; the camera/run timing (this chip) is independent of it. */
+    /* The OLD box's EXIT animation (one step per tick), stepped BEFORE box_linger so
+     * a slide STARTED this tick keeps idx 0 for its first render (it advances on the
+     * NEXT tick): a run-off close SLIDES the empty frame off along the curve; a
+     * speaker-change close SHRINKS. */
+    if (cs->closing.active) {
+        if (cs->closing.slide_idx >= 0) {
+            if (++cs->closing.slide_idx >= DIALOGUE_RUNOFF_SLIDE_N)
+                cs->closing.active = 0;          /* slid off-screen — gone           */
+        } else {
+            dialogue_close_step(&cs->closing);   /* speaker-change OLD box shrinks out */
+        }
+    }
     if (cs->box_linger > 0) {
         /* the run-off close dissolves the lingering box's portrait (armed on the
          * advance; the box frame+text stay full — dialogue_arm_fadeout) */
         if (cs->box != NULL && cs->box->fade_out)
             dialogue_fadeout_step(cs->box);
-        cs->box_linger--;
-        if (cs->box_linger == 0)
-            cs_close_box_into_closing(cs);   /* hand to the normal close (shrink-out) */
+        if (--cs->box_linger == 0) {
+            cs_close_box_into_closing(cs);   /* snapshot the lingered box -> closing */
+            if (cs->box_linger_slide) {
+                /* run-off close = the EMPTY FRAME slides off (NOT the shrink-in-place a
+                 * speaker change does — retail.osr): clear the body + keep full scale,
+                 * start the slide at curve idx 0 (rendered this tick, advanced next).
+                 * dialogue-runoff-box-slide. */
+                cs->closing.reveal    = 0;      /* empty frame (the body cleared)    */
+                cs->closing.row_count = 0;
+                cs->closing.scale     = 1000;   /* full — slide, don't shrink        */
+                cs->closing.slide_idx = 0;
+            }
+            /* else the house-exit box hands to the normal shrink-out (above, next tick). */
+        }
     }
-    if (cs->closing.active)
-        dialogue_close_step(&cs->closing);   /* the OLD box shrinks out */
 
     const cutscene_beat *b =
         (cs->beat_idx < cs->n_beats) ? &cs->beats[cs->beat_idx] : NULL;
@@ -658,9 +679,10 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                  * the box lingers over the cover, then closes), so LINGER it like the
                  * run-off box_hold instead of closing immediately.  cs_step_beats
                  * decrements box_linger and closes the box when it expires. */
-                if (room->exit_box_hold > 0)
+                if (room->exit_box_hold > 0) {
                     cs->box_linger = room->exit_box_hold;
-                else
+                    cs->box_linger_slide = 0;            /* house exit shrinks (under cover) */
+                } else
                     cs_close_box_into_closing(cs);
                 cs_begin_beats(cs, room->exit_beats, room->n_exit, /*exit=*/1);
                 return 0;
@@ -690,6 +712,7 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
                 if (l != NULL && l->n_beats > 0) {
                     if (l->box_hold > 0) {
                         cs->box_linger = l->box_hold;   /* keep the box up (run-off) */
+                        cs->box_linger_slide = 1;        /* close = the empty-frame SLIDE */
                         /* The run-off CLOSE begins on THIS advance: retail dissolves
                          * the portrait (the 0x49c910 reverse ramp idx 18->2->gone over
                          * ~9t) while the box frame+text stay UP through the linger, THEN

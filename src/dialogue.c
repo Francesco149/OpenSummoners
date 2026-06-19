@@ -68,11 +68,21 @@ int dialogue_expand_text(const char *src,
 
 /* ── arm / step ──────────────────────────────────────────────────────────── */
 
+/* The run-off box-close slide curve (header doc): the box-corner screen offset
+ * (dx,dy) from its frozen open position, per tick over the 21-tick slide-off,
+ * measured off retail.osr (the "Cool!" empty frame sliding off lower-right). */
+const int16_t DIALOGUE_RUNOFF_SLIDE[DIALOGUE_RUNOFF_SLIDE_N][2] = {
+    {9,3},{17,5},{25,7},{33,9},{41,12},{49,14},{58,16},{66,18},{74,21},{82,23},
+    {90,24},{98,24},{107,25},{115,25},{123,24},{131,24},{139,25},{147,25},
+    {156,24},{164,24},{172,25},
+};
+
 void dialogue_arm(dialogue_box *d, const char *name, const char *text)
 {
     memset(d, 0, sizeof(*d));
     d->active        = 1;
     d->portrait_slot = -1;   /* none until the caller resolves one (portrait.c) */
+    d->slide_idx     = -1;   /* not sliding (memset 0 would mean slide tick 0)   */
     d->row_count = dialogue_expand_text(text, d->rows);
     for (int i = 0; i < d->row_count; i++)
         d->total += (int32_t)strlen(d->rows[i]);

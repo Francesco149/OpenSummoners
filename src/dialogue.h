@@ -177,7 +177,25 @@ typedef struct {
     int32_t  anchored;
     int32_t  spk_wx, spk_wy;
     dialogue_speaker_body spk_body;
+    /* The box position is computed ONCE (when the line opens) and HELD on screen —
+     * 0x49c640 anchors the box, but the widget does NOT re-project each frame, so
+     * the box stays put while the camera pans (the run-off: retail's "Cool!" box is
+     * STATIC at its open screen pos through the whole pan, then slides — draw-stream
+     * ground truth).  held=1 ⇒ use pos_x/pos_y/pos_tail; reset by dialogue_arm. */
+    int32_t  held;
+    int32_t  pos_x, pos_y, pos_tail;
+    /* The run-off CLOSE slide: -1 = not sliding; >=0 = index into the slide curve
+     * (the empty frame slides off-screen — dialogue-runoff-box-slide). */
+    int32_t  slide_idx;
 } dialogue_box;
+
+/* The run-off box-close SLIDE curve — retail's "Cool!" empty frame slides off the
+ * lower-right over 21 ticks; the per-tick box-corner SCREEN offset from its frozen
+ * open position (captured off retail.osr).  PORT-DEBT(dialogue-runoff-box-slide):
+ * the close-slide animation LOGIC (the box widget's exit) is un-RE'd; this is the
+ * measured-exact curve (reproduces retail's box position 1:1). */
+#define DIALOGUE_RUNOFF_SLIDE_N 21
+extern const int16_t DIALOGUE_RUNOFF_SLIDE[DIALOGUE_RUNOFF_SLIDE_N][2];
 
 /* Expand a raw script line into wrapped rows: '%n' forces a row break, longer
  * rows word-wrap at the last space at/before ROW_CHARS (the wrap space is

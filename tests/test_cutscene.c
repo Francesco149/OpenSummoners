@@ -443,8 +443,9 @@ int test_cutscene_l8_lead_beats(void)
 
     /* hold the camera-pan dur + the wait — exactly 108 + 50 = 158 ticks (the
      * ARRIVAL_L8_RUNOFF case-4 run-off wait + ARRIVAL_L8_WAIT) — then L8 opens.  The
-     * box CUTS partway through, after ARRIVAL_RUNOFF_BOX_HOLD (11) beat-ticks (retail's
-     * body cuts at full+24, ~10t after the run-off fired).  Confirms are eaten. */
+     * box CUTS partway through, after ARRIVAL_RUNOFF_BOX_HOLD (10) beat-ticks (the
+     * frozen "Cool!" box shows through ~tick 982, then the empty frame closes — the
+     * close shrink starts @983, draw-stream bit-exact).  Confirms are eaten. */
     int t = 0, box_cut_at = -1;
     while (cutscene_in_beats(&cs) && t < 1000) {
         cutscene_step(&cs, /*confirm=*/1);            /* presses do nothing here */
@@ -453,7 +454,7 @@ int test_cutscene_l8_lead_beats(void)
             box_cut_at = t;
     }
     T_ASSERT_EQ_I(t, 108 + 50);    /* ARRIVAL_L8_RUNOFF + ARRIVAL_L8_WAIT = beat phase */
-    T_ASSERT_EQ_I(box_cut_at, 11); /* ARRIVAL_RUNOFF_BOX_HOLD (the box auto-hold cut)  */
+    T_ASSERT_EQ_I(box_cut_at, 10); /* ARRIVAL_RUNOFF_BOX_HOLD (the box auto-hold cut)  */
     /* no stray action emitted across the wait beat (camera was the only one) */
     T_ASSERT_EQ_I(cutscene_take_action(&cs, &act), 0);
 
