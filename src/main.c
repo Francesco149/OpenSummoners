@@ -396,6 +396,10 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
  * frontier-band residual). */
 #define SCENE_FADE_ALPHA_SLOT 40   /* 0x8a76e0 — res 0x458, frame = alpha level */
 #define LETTERBOX_BANK_SLOT   41   /* 0x8a76e4 — res 0x583, the opaque black cel */
+#define FIRE_BANK_SLOT       406   /* 0x8a7c98 — res 0x40a, the errands fireplace fire
+                                    * (additive EFFECT sheet, bound via the plain getter
+                                    * 0x418470(0) like the UI sheets => NOT colour-graded;
+                                    * the port's global 8bpp grade over-darkens it). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1054,7 +1058,8 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[SCENE_FADE_ALPHA_SLOT] &&
-        slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT])
+        slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[FIRE_BANK_SLOT])
         color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {

@@ -67,21 +67,21 @@ room-cast member at world (32900,33800) [= the errands projection of screen (329
 0/16000] + `dst_base (-9,-18)` (the 64x64 cel's pivot, fitted off port-fire.osr).  +host test
 `errands_fire`.
 
-**RESIDUAL — the res-1034 SHEET decodes slightly differently (a decode-fidelity
-follow-up, NOT the spawn/blend).**  At a SETTLED, fire-frame-MATCHED recon (port fr4 tick
-2403 vs retail fr4 tick 2430) the backdrop AROUND the fire is `differ_px==0` and ALL the
-residual is inside the 48x39 fire rect (~1046px, maxd 66 sumRGB).  The decoded fire sheet's
-**dhash DIFFERS port↔retail** (fr4 0x52fc66d1 vs 0xfa994282) while neighbour sheets in the
-same region MATCH cross-side (res 1722 fr0-7 all identical dhash) — so the dhash IS
-comparable and res 1034 genuinely decodes to different pixels in the port.  The additive
-blend (×750) amplifies the small per-pixel sheet delta.  Likely a palette / colour-grade /
-flag decode subtlety (cf. the NPC colour-variant ckpt 142, and note #4's wall-tint HUE
-SHIFT — possibly the SAME per-sheet grade); bank 406 carries an info-event `FLAG_SET 0x2`
-(`asset_register.c:2593`) + scale_flag 1 — candidates to investigate.  TODO next session:
-hook the port vs retail decode of res 1034 (the sheet bytes) to find the divergence.
-(My first recon wrongly read this as a "fireplace base gap" — that was a recon artifact:
-port tick 1695 was mid reveal-FADE + the fire was at a different anim frame; the draw lists
-are in fact IDENTICAL.)  Feed: the settled matched-fr4 PORT|RETAIL|DIFF montage.
+**The SHEET decode was a port OVER-GRADE — FOUND + FIXED (ckpt 147, `main.c`), now
+`differ_px==0`.**  At a SETTLED, fire-frame-MATCHED recon the decoded fire sheet's dhash
+DIFFERED port↔retail (fr4 0x52fc66d1 vs 0xfa994282) while neighbour sheets matched cross-
+side (res 1722 fr0-7 identical) — so res 1034 decoded to different RGB565 pixels, amplified
+by the additive blend (maxd 66).  ROOT CAUSE: the port's in-game 8bpp colour-grade
+(`main.c` `ar_sprite_decode`, gates 700/850) is applied to ALL 8bpp sheets except a
+hardcoded UI blocklist; but retail grades ONLY sheets bound via the `0x417c40` getter
+(tiles/sky) — the fire is an additive EFFECT sheet bound via the PLAIN getter `0x418470(0)`,
+so retail does NOT grade it.  The port was over-darkening it (same class as
+PORT-DEBT(banner-grade)).  FIX: add the fire's slot 406 (`FIRE_BANK_SLOT`) to the grade
+exclusion list.  VERIFIED: the fire sheet dhash now == retail (fr4/fr5 byte-identical) and
+the fire rect recon (matched fr4, settled) is **`differ_px==0`, maxd 0** — pixel-perfect.
+(My first recon wrongly read the residual as a "fireplace base gap"; that was an artifact —
+port tick 1695 was mid reveal-FADE at a different anim frame; the draw lists are IDENTICAL.)
+Feed: the differ_px==0 PORT|RETAIL|DIFF montage.
 
 ## 2. The freeroam HUD (notes #13-18) — IDENTIFIED, not ported
 
