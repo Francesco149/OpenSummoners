@@ -58,6 +58,12 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   palette-INDEX-remap (`DAT_006748d0`). The clone + remap pointer are already in the
   port; what's missing is the deferred render consumer that APPLIES the remap, for
   the `effect-color-variant` debt.
+- **[arche-house-turn.md](arche-house-turn.md)** — Arche's house listen→face-father
+  turn (USER studio notes #3-5). The script emote `0x401e60(Arche,1)` at
+  `0x4d7d80:1170` (after house L5) = actor command kind 2 ("turn to face dir 1",
+  `0x43e5b0` case 2); cels `158(4t)→7(4t)→` the base-0 standing idle, RE'd off
+  `retail.osr` res `0x570`. **Ported drawcall-faithful (ckpt 146)** as a fire-and-
+  forget `CS_ACT_ACTOR_TURN`; the ~7t absolute-tick lag is the house-cadence phase debt.
 
 ## Method / cross-cutting
 

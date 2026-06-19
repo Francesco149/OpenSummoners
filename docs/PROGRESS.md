@@ -6,6 +6,59 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-19 (ckpt 146) — the house Arche TURN (USER studio notes #3-5)
+
+**Arche turns to face her father just before "I will, I promise!" — drawcall-faithful
+(commit `cfc6a96`, 1030 host pass).**  Continued the autonomous house/errands punch-list
+(the ckpt-145 scoped gap B).  The town-intro script `0x4d7d80` (house case `0x334c8`)
+issues a fire-and-forget actor emote `0x401e60(Arche,1)` at `:1170` (between L5 and L6)
+= actor command kind 2 ("turn to face dir 1", `0x43e5b0` case 2).  Off `retail.osr`
+res `0x570` (Arche, static at screen (354,336) through the house) her cel runs
+`158(4t) → 7(4t) →` the base-0 standing idle `0/1/2` (14t) — turning from the arrival-
+listening idle (152-155).  The port previously held the arrival-idle the whole scene.
+
+Ported as a new `CS_ACT_ACTOR_TURN` cutscene action (`cutscene_room.turn_after_line`=5)
+emitted on the L5→L6 advance; `main.c` plays a one-shot turn clip on the room-cast Arche
+(`HOUSE_CAST[0]`, bank 0x8b) and swaps her to the post-turn standing idle on `rs->done`.
+Fire-and-forget like retail's emote (does not gate the next line — the house cadence
+already places L6); the live turn FSM `0x43e5b0` stays PORT-DEBT(cutscene-party-chars),
+the RE'd clip is the same stand-in pattern as `ARCHE_RUN_CLIP` (ckpt 140).
+
+VERIFIED off a fresh `port-turn.osr` vs `retail.osr` (`draw_probe --res 0x570`): cels +
+durations + position match retail EXACTLY (port 158@1586 / 7@1590 / idle 0@1594).  The
+turn's absolute tick is ~7t later than retail = the documented house-cadence phase lag
+(FRONT ckpt 145), NOT a turn bug — it auto-aligns when that phase debt lands (the turn
+is keyed to the advance).  +2 host tests.  `findings/arche-house-turn.md`.
+
+## 2026-06-19 (ckpt 145) — the house→errands TRANSITION FADE + the missing errands FURNITURE (USER studio notes)
+
+**The house now exits with a fade-to-black cover and the errands enters with a fade-from-
+black reveal; the missing shop furniture renders (commits `22047fb`…`f99a78f`, 1028 host
+pass).**  USER added studio notes to `port-errands.osr` flagging gaps up to the errands.
+
+- **THE FADE (notes #6/#7).**  The house was hard-cutting to the errands.  RE'd off
+  `0x4d7d80:1203-1220` (the house EXIT) + the retail.osr full-frame iris: the house EXITs
+  with a fade-TO-black COVER (edges-in var 1) — no preceding wait, unlike the arrival —
+  then stages the errands key under black (`return 2`); the errands ENTERs with a fade-
+  FROM-black REVEAL (center-out var 0, armed by main.c on chain-complete).  Added
+  `HOUSE_EXIT` exit-beats (cutscene.c); both variants forced as the existing
+  `PORT-DEBT(cutscene-fade-variant)` stand-in.  **Fade-timing fix (`2a464eb`+`6108ea4`):**
+  the cover/reveal were ~8t late (nav advanced the last line at the GLYPH-CLEAR, not the
+  CONFIRM); fixed to advance at the confirm (1668) + linger the box over the cover
+  (`exit_box_hold`=10) → the cover darkens tick-for-tick with retail.  Also cleared a stray
+  errands speech bubble (the box_linger box froze in `cs->closing` at chain-complete).
+
+- **THE ERRANDS FURNITURE (notes #8/#9/#18-21, `01dc162`).**  The counter/bookshelf/clock
+  were GENUINELY MISSING (first wrongly dismissed as the reveal phase; USER corrected with
+  post-reveal notes).  They are CHARACTER-band objects (DATA 1025 codes 0x112cf/d1/d2/d9 in
+  the 70000 range) → bank 0x16f/0x16b, frame_base = the layer variant — but the port's
+  character band is suppressed for non-town rooms.  Captured into `ERRANDS_CAST` (differ
+  13236→11233).  RESIDUAL: finer bookshelf shelf-props + the fireplace FIRE (animated) + a
+  subtle wall tint.
+
+- **SCOPED (RE'd, deferred):** the Arche house TURN (done ckpt 146 above) + the house-
+  dialogue-cadence phase fix (the ~13t cover-start lag).
+
 ## 2026-06-19 (ckpt 144) — the HOUSE/ERRANDS arc: the HOUSE CAST + the FREEROAM HAND-OFF + the ERRANDS tile-frames
 
 **USER directive (away, autonomous): "the errands scene and the scene right before it (house) — get the map

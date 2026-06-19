@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 145, 2026-06-19)
+# Session handoff — rolling current state (last updated ckpt 146, 2026-06-19)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,50 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 145
+## Where we are — ckpt 146
+
+**The house Arche TURN is PORTED + drawcall-faithful (commit `cfc6a96`, 1030 host pass).**  Continued the
+autonomous house/errands punch-list (the ckpt-145 scoped gap B; USER away, verification deferred).  Arche now
+turns to face her father just before "I will, I promise!" instead of holding the arrival-idle the whole house
+scene.
+
+- **THE TRIGGER (RE'd).**  The town-intro script `0x4d7d80` (house case `0x334c8`) issues a fire-and-forget
+  actor emote `0x401e60(Arche,1)` at `:1170`, BETWEEN L5 ("...I'll be countin' on you") and L6 ("I will, I
+  promise!") = actor command kind **2** ("turn to face dir 1", `0x43e5b0` case 2; sibling setter `0x406210` =
+  *GetHeadLeftRight*).  In retail it is a BLOCKING beat (`in_ECX[8]=4`, case-4 actor-wait): L5 closes → turn
+  (~8t) → L6 opens.
+- **THE ANIMATION (ground truth, retail.osr res `0x570`).**  Arche is STATIC at screen (354,336) through the
+  house; only her cel changes: idle 152-155 → **158 (4t) → 7 (4t)** → the new STANDING idle **0/1/2** (a base-0
+  14t breathe, different pose set than the arrival idle base 152).
+- **THE PORT (`cfc6a96`).**  `actor_spawn.c` `ARCHE_HOUSE_TURN_CLIP` (base 158, delta {0,-151}=cels{158,7}, dur
+  4, one-shot) + `ARCHE_HOUSE_STAND_IDLE_CLIP` (base 0, {0,1,2,1}, 14t, loop); accessors `arche_house_turn_clip`/
+  `_idle_clip`.  `cutscene.{c,h}`: a new `CS_ACT_ACTOR_TURN` action + `cutscene_room.turn_after_line` (house=5,
+  else -1), emitted on the L5→L6 advance (after the lead gate).  `main.c`: the drain swaps the room-cast Arche
+  (`HOUSE_CAST[0]`, bank 0x8b guard) to the turn clip + sets `g_arche_house_turning`; the done-swap (after
+  `actor_pool_update`) settles her to the standing idle on `rs->done`; reset on `reload_room_backdrop`.
+  CONCURRENT (does NOT gate the next line — the house cadence already places L6); the live turn FSM `0x43e5b0`
+  stays PORT-DEBT(cutscene-party-chars), the RE'd clip is the ARCHE_RUN_CLIP stand-in pattern (ckpt 140).
+- **VERIFIED** off a fresh `port-turn.osr` vs `retail.osr` (`draw_probe --res 0x570`): the turn cels + durations
+  + position match retail EXACTLY (port 158@1586 / 7@1590 / idle 0@1594 / 1@1608).  **RESIDUAL — the ~7t
+  absolute-tick lag** (port turn @1586 vs retail @1579): the documented house-dialogue-cadence phase lag (the
+  FRONT ckpt-145 "~13t cover-start offset"), NOT a turn bug — retail front-loads the turn (blocking, before L6)
+  while the port's nav holds L5 ~6-7t longer to land L6's box at retail's tick.  The turn is keyed to the
+  advance, so it auto-aligns when the house cadence is made tick-1:1.  Writeup: `findings/arche-house-turn.md`.
+  +2 host tests (`cutscene_house_turn`, `arche_house_turn_clip`).
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-turn.osr C:\oss-osr\retail.osr` (the studio shortcut +
+  `studio-current.txt` are loaded with this pair) — scrub the house (port ticks ~1586-1607): Arche turns to
+  face her father just before "I will, I promise!".
+
+**NEXT (the house/errands punch-list, USER away):** (A) the errands FIRE (animated fireplace effect, note #10)
++ the finer bookshelf shelf-props + the wall tint (note #11); (B) the house-dialogue-cadence phase fix (the
+~7-13t lag — would tick-align the turn AND the cover-start AND the reveal/furniture ticks; the arrival is
+tick-1:1, the house is not); (C) the errands opening dialogue + questline (`0x4dc510`, a separate dialogue API
+`0x4a5ee0`) + the freeroam HUD/clock (USER notes #13-18); (D) freeroam refinements (run/dash double-tap
+[char-run-trigger], camera-follow, distance-locked walk cels).
+
+---
+
+## Prior — ckpt 145
 
 **The house→errands TRANSITION FADE is PORTED + render-correct (commit `22047fb`, 1028 host pass).**  USER
 added studio notes to `port-errands.osr` flagging gaps leading up to the errands: (#3-5) Arche turns the
@@ -60,8 +103,9 @@ checkpoint closed the FADE and SCOPED the rest.
   visible-furniture code→bank table, retiring the captured ERRANDS_CAST.
 
 **NEXT:** (A) the errands FIRE (animated effect) + the finer bookshelf shelf-props + the wall tint; (B) the Arche
-house TURN beat (RE'd above); (C) the errands opening dialogue + the freeroam HUD (USER notes #13-18); (D) the
-house-dialogue-cadence phase fix (would align the cover-start AND the reveal/furniture ticks — the ~13t lag).
+house TURN beat (RE'd above) — **DONE ckpt 146 (`cfc6a96`)**; (C) the errands opening dialogue + the freeroam HUD
+(USER notes #13-18); (D) the house-dialogue-cadence phase fix (would align the cover-start AND the reveal/furniture
+ticks — the ~13t lag — AND the ckpt-146 turn's ~7t lag).
 
 ---
 

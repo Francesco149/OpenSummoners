@@ -77,9 +77,32 @@ understates how much actual instruction volume is ported.
   scene_frame); every tile bank's per-frame count == retail.
   (4) the ERRANDS CAST — Father + Mother + the 10 shop props/NPCs (res 1027) all bit-exact (`ERRANDS_CAST`).
   (5) freeroam JUMP wired (axis_held[4], bit-exact arc).
-  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD + freeroam refinements
-  (run/dash double-tap [char-run-trigger], camera-follow [Arche walks off-screen past ~wx 60000], distance-locked
-  walk cels) — see task list / `controllable-arche-faithful.md`.**
+  **ckpt 145 the house→errands TRANSITION FADE — USER studio notes #6/#7 (the missing transition): the house
+  now EXITs with a fade-TO-black COVER (edges-in var 1, RE'd off 0x4d7d80:1203 + the retail.osr full-frame iris)
+  and the errands ENTERs with a fade-FROM-black REVEAL (center-out var 0, main.c on chain-complete).  Both sides
+  reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
+  pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
+  is, ckpt 134) — a phase-pillar follow-up.**
+  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
+  freeroam refinements (run/dash double-tap [char-run-trigger], camera-follow, distance-locked walk cels).
+  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146 (`cfc6a96`)**:
+  the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2 after house L5;
+  ported as a fire-and-forget `CS_ACT_ACTOR_TURN` on the room-cast Arche, drawcall-faithful vs retail.osr (res
+  0x570; the ~7t absolute lag = the house-cadence phase debt).  (B) 3 missing errands FURNITURE
+  FURNITURE objects (USER notes #8/#9/#18-21: counter, bookshelf frame, clock) — these are CHARACTER-band
+  codes 0x112d1/d2/cf/d9 (70000-range) → bank 0x16f/0x16b (res 1023/1026), frame_base=variant, that the port's
+  suppressed-for-non-town character band never rendered.  FIXED ckpt 145 (`01dc162`): captured into ERRANDS_CAST,
+  counter/bookshelf/clock now render (differ 13236→11233).  RESIDUAL: finer bookshelf shelf-props + the fireplace
+  FIRE (animated) + a subtle wall tint.  (I first wrongly dismissed these as the reveal phase; the USER corrected
+  with post-reveal notes — they were genuinely missing.)**
+  **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
+  script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
+  (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the
+  base-0 standing idle 0/1/2, turning from the arrival-listening idle (152-155) to face her father.  Ported as a
+  fire-and-forget `CS_ACT_ACTOR_TURN` (cutscene_room.turn_after_line=5) on the room-cast Arche (HOUSE_CAST[0]);
+  verified off port-turn.osr — cels/durations/position match retail EXACTLY (158@1586 / 7@1590 / 0@1594).
+  RESIDUAL: ~7t absolute lag = the house-cadence phase debt (auto-aligns when that lands; the turn is keyed to
+  the advance).  `findings/arche-house-turn.md`.
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -96,7 +119,9 @@ understates how much actual instruction volume is ported.
     the BUTTERFLY VERTICAL FLUTTER ✓ (143, THEME 2 #2 — the case-3 jump FSM + captured terrain-mover trigger) →
     the HOUSE CAST (Arche+Mom+Dad, position bit-exact) ✓ (144) → the FREEROAM HAND-OFF (controllable Arche
     walks the errands on live input) ✓ (144) → the ERRANDS tile-frames (arg_0c, backdrop bit-exact) ✓ (144) →
-    **the errands CAST + dialogue + freeroam refinements = next**.
+    the house→errands TRANSITION FADE + the missing errands FURNITURE ✓ (145) → the house Arche TURN
+    (emote 0x401e60, cels 158→7→idle) ✓ (146) →
+    **the errands FIRE/shelf-props + the house-cadence phase fix + the errands dialogue + freeroam refinements = next**.
 - **LATEST (ckpt 144): the HOUSE/ERRANDS arc — HOUSE CAST + FREEROAM HAND-OFF + ERRANDS tile-frames, all
   committed (3 commits) + 1027 host pass.**  USER directive: "the errands scene and the scene right before
   it (house) — map 1:1, implement arche's movement, arche+mom+dad missing on the scene right before errands;
