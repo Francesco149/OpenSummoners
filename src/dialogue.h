@@ -90,13 +90,17 @@
 #define DIALOGUE_NAME_DX      0xec    /* 236 → 410 (cell 221 + in-cell 15; the   *
                                        * 15 is the one measured-only offset)     */
 #define DIALOGUE_NAME_DY      (-9)    /* → 139 (builder local_234 = -9)          */
-#define DIALOGUE_TEXT_DX      0x88    /* 136 → 310 (0x439690:409)                */
-#define DIALOGUE_TEXT_DY      0x14    /* 20  → 168 (0x439690:400)                */
+#define DIALOGUE_TEXT_DX      0x88    /* 136 → 310 (0x439690:409 local_244)       */
+#define DIALOGUE_TEXT_DY      29      /* the body grid node y (0x439690 local_2cc *
+                                       * = 0x14=20) + the glyph's baseline offset  *
+                                       * within the 0x24=36 line cell (~9)         */
 #define DIALOGUE_ARROW_DX     0x170   /* 368 → 542: 0x410560 +0x7c (232) + text  *
                                        * cell dx (136)                           */
 #define DIALOGUE_ARROW_DY     0x5c    /* 92 → 240: +0x80 (72) + text cell dy (20)*/
 
-#define DIALOGUE_LINE_H       28      /* text cell +0x1ac (row pitch, measured)  */
+#define DIALOGUE_LINE_H       36      /* row pitch = the body grid cell 0x24=36   *
+                                       * (0x439690:413 local_254 -> FUN_0040dee0   *
+                                       * param_3); the port's old 28 was too tight */
 #define DIALOGUE_ADVANCE      7       /* px per glyph (0x48da70 col*7)           */
 #define DIALOGUE_ROW_CHARS    0x24    /* 36 — 0x439690:408 (252px = 36*7)        */
 #define DIALOGUE_MAX_ROWS     3       /* 0x439690:402                            */
