@@ -741,3 +741,97 @@ int actor_pool_update(actor_spawn_pool *pool)
     }
     return advanced;
 }
+
+/* ── The per-room CAST (the house/errands family).  In retail the town-arrival
+ * family — Arche + her parents — are PERSISTENT entities (the leader
+ * room_state+0x200c et al.) carried across the LIGHT room swaps (quirk #103) and
+ * repositioned by the cutscene-script actor movers (0x402730/0x402330).  The port
+ * renders them as static-cast EFFECT actors at the room's CAPTURED positions + idle
+ * clips — the same treatment as the town arrival cast (CUTSCENE_FAMILY) and the
+ * townsfolk (TOWN_EFFECT_DEFS).  PORT-DEBT(cutscene-party-chars): the captured
+ * positions/clips stand in for the live actor movers (Phase 3).
+ *
+ * The banks (Arche 0x8b / Father 0xe3 / Mother 0xb5) and their mirror-flip table
+ * entries are registered ONCE at game start (ar_register_* + actor_spawn_cutscene_cast)
+ * and PERSIST across the map reloads (town_render_free frees only the map scene, not
+ * the asset-register sprite slots), so the room cast reuses them directly — the SAME
+ * sprites the town renders 1:1 (retail draws the house parents as res 0x467/0x473 and
+ * Arche as 0x570, identical to the town arrival cast).
+ *
+ * World positions: derived from the town arrival cast's 1:1 projection (the port
+ * draws the town cast pixel-identical to retail, so its world→screen is ground
+ * truth) — 1 screen px = 100 world units, the house settled camera cur=(89600,3200)
+ * (room_camera_origin).  Each member keeps its town (dst_base, facing); world_x/y
+ * solve the projection to land at retail's house screen positions (retail.osr
+ * draw_probe tick 1340: Arche res 0x570 @354,336 / Father res 0x467 @386,320 /
+ * Mother res 0x473 @418,320).  Idle clips: Arche the arrival-idle (cels 152-154,
+ * her house breathe), the parents the 20-frame breathe (IDLE_CLIP) at frame_base 4
+ * (retail house frames 4-7 vs the town's 0-3 — a different idle pose set). */
+struct room_cast_member {
+    uint16_t  bank;          /* sprite bank (persisted from the town cast)        */
+    uint16_t  frame_base;    /* +0x4a sprite-row frame_base                       */
+    int32_t   world_x;       /* rs +0x04                                          */
+    int32_t   world_y;       /* rs +0x08                                          */
+    int16_t   dst_base_x;    /* rs +0x40                                          */
+    int16_t   dst_base_y;    /* rs +0x44                                          */
+    int16_t   facing;        /* rs +0x2c (1 normal / 3 mirrored)                  */
+    const anim_clip *clip;   /* rs +0x6c idle clip                                */
+    uint16_t  clip_phase;    /* rs +0x72 idle start frame (cosmetic phase)        */
+};
+
+static const struct room_cast_member HOUSE_CAST[] = {
+    /* The dramatist banks: 0x8b->Arche (res 0x570), 0xe3->Father (res 0x473=1139),
+     * 0xb5->Mother (res 0x467=1127) — confirmed off the live registry (Father is the
+     * RIGHTMOST, Mother middle, Arche left).  facing 1 (no mirror) + the parents'
+     * frame_base 4 land the idle frames 4-7 retail draws (their 8-frame house pose
+     * set; f_38=8 so the cel resolves).  dst_base = the town cast anchor (-30,-20)
+     * for the parents, (-30,-24) for Arche.  World positions solve the town cast's
+     * 1:1 projection (1 px = 100 world; house cam 89600/3200) to retail's house
+     * screen positions (draw_probe tick 1340: Arche @354,336 / Mother @386,320 /
+     * Father @418,320).  NOTE the solved world positions land EXACTLY on the
+     * cutscene.c house speaker positions (Arche 128000/39200, Mother 131200/37200,
+     * Father 134400/37200) — the box-anchor RE captured the same entity world coords
+     * (ckpt 132), an independent cross-check that these are the real cast positions. */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip                      phase  member */
+    { 0x8bu,  0,  128000,  39200,  -30, -24, 1, &ARCHE_ARRIVAL_IDLE_CLIP,   0 }, /* Arche  res 0x570 @354,336 */
+    { 0xb5u,  4,  131200,  37200,  -30, -20, 1, &IDLE_CLIP,                 2 }, /* Mother res 0x467 @386,320 */
+    { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1 }, /* Father res 0x473 @418,320 */
+};
+
+int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
+{
+    if (pool == NULL) return -1;
+    pool->count = 0;
+    const struct room_cast_member *cast = NULL;
+    size_t n = 0;
+    switch (room_key) {
+    case 0x334c8u:  /* CUTSCENE_ROOM_HOUSE */
+        cast = HOUSE_CAST; n = sizeof HOUSE_CAST / sizeof HOUSE_CAST[0];
+        break;
+    default:
+        return 0;   /* no port-modelled cast for this room (e.g. errands TBD) */
+    }
+    for (size_t i = 0; i < n && pool->count < ACTOR_BAND_SLOTS; i++) {
+        int slot = pool->count++;
+        actor              *a  = &pool->actors[slot];
+        actor_render_state *rs = &pool->states[slot];
+        memset(a, 0, sizeof *a);
+        memset(rs, 0, sizeof *rs);
+        a->code  = 0;
+        a->dir   = 0;
+        a->layer = 13u;                              /* the EFFECT cast layer */
+        a->sprite_table[0].bank       = cast[i].bank;
+        a->sprite_table[0].frame_base = cast[i].frame_base;
+        rs->active     = 1;
+        rs->world_x    = cast[i].world_x;
+        rs->world_y    = cast[i].world_y;
+        rs->facing     = cast[i].facing;
+        rs->dst_base_x = cast[i].dst_base_x;
+        rs->dst_base_y = cast[i].dst_base_y;
+        rs->clip       = cast[i].clip;
+        rs->timer      = 0;
+        rs->frame      = cast[i].clip_phase;
+        rs->done       = 0;
+    }
+    return (int)pool->count;
+}

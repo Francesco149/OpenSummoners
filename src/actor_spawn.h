@@ -216,6 +216,17 @@ int actor_spawn_effect_fill_flip_table(int16_t *table, size_t n);
 int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_t flip_n);
 
 /*
+ * The per-room CAST (the house/errands family: Arche + her parents).  Resets `pool`
+ * and fills it with `room_key`'s port-modelled cast members at captured world
+ * positions + idle clips (banks/flip-table persist from the town cast spawn).
+ * Rendered + animated by the same actor_render_static / actor_pool_update path as
+ * the town cast, but in the NON-town rooms (the room swap suppresses the town cast).
+ * Returns the count (0 if the room has no port-modelled cast yet; -1 on NULL pool).
+ * PORT-DEBT(cutscene-party-chars): captured positions/clips stand in for the live
+ * cutscene actor movers (0x402730/0x402330). */
+int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key);
+
+/*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a
  * map CHARACTER object (its code is outside 70000..79999); it is spawned by the
  * TOWN INTRO CUTSCENE script 0x4d7d80 (case room-210110 / area 0xd2, gated

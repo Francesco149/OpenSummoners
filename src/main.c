@@ -228,6 +228,15 @@ static int              g_structs_loaded;
 static actor_spawn_pool g_effects;
 static int              g_effects_loaded;
 
+/* Phase 2b: the per-room CAST (the house/errands family — Arche + her parents).
+ * Spawned by actor_spawn_room_cast on the room swap, rendered + animated in the
+ * NON-town rooms (the town cast band g_effects is suppressed there).  Reuses the
+ * town cast's persisted banks (0x8b/0xe3/0xb5) + flip table.  These are the
+ * persistent entities retail carries across the light room swap (quirk #103);
+ * PORT-DEBT(cutscene-party-chars) — captured positions/clips for now. */
+static actor_spawn_pool g_room_cast;
+static int              g_room_cast_loaded;
+
 /* THEME 2: the town-intro "Arche runs to the house" run-off (cutscene-party-chars).
  * g_arche_slot is Arche's index in g_effects (the cast member on body bank 0x8b);
  * g_arche_runoff drives her clip + world_x during the L7->L8 beat.  See
@@ -2069,6 +2078,17 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                                   /*flip_table=*/g_actor_flip_table, pool,
                                                   game_sprite_resolve, NULL);
 
+    /* Phase 2b: the room CAST (the family) in the NON-town rooms — the same
+     * static-cast render path (layer 13) as the town cast above, but the
+     * house/errands family (Arche + parents) at their captured positions.  The
+     * town keeps its own g_effects band; room_cast is empty there. */
+    if (g_room_cast_loaded && !room_is_town)
+        for (int i = 0; i < g_room_cast.count; i++)
+            effect_emitted += actor_render_static(&g_room_cast.actors[i],
+                                                  &g_room_cast.states[i],
+                                                  /*flip_table=*/g_actor_flip_table, pool,
+                                                  game_sprite_resolve, NULL);
+
     if (g_actors_loaded && room_is_town)
         for (int i = 0; i < g_actors.count; i++) {
             const actor *a = &g_actors.actors[i];
@@ -2618,6 +2638,16 @@ static int reload_room_backdrop(uint32_t room_key)
         g_structs_loaded = (sn > 0);
         log_line("reload_room_backdrop: actor_spawn_struct_from_map -> %d "
                  "STRUCTURE objects for room 0x%05x", sn, room_key);
+
+        /* Phase 2b: the room CAST (the family).  In the house/errands the town
+         * cast band is suppressed, so spawn this room's cast (Arche + parents)
+         * as static-cast actors at their captured positions + idle clips.  The
+         * town (arrival) keeps its own cast band (g_effects); room_cast is empty
+         * there. */
+        int cn = actor_spawn_room_cast(&g_room_cast, room_key);
+        g_room_cast_loaded = (cn > 0);
+        log_line("reload_room_backdrop: actor_spawn_room_cast -> %d CAST members "
+                 "for room 0x%05x", cn, room_key);
     }
     return ok;
 }
@@ -2825,6 +2855,11 @@ static void game_render(void *user)
             int room_is_town = (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL);
             if (g_actors_loaded && is_sim_tick && room_is_town)
                 game_actor_update();
+            else if (is_sim_tick && g_room_cast_loaded)
+                /* Phase 2b: animate the house/errands room cast (the family's
+                 * idle breathing) — the town's full game_actor_update doesn't
+                 * run in non-town rooms, so step just the room cast's clips. */
+                actor_pool_update(&g_room_cast);
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
              * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
