@@ -233,16 +233,44 @@ static const cutscene_line_lead HOUSE_LEADS[] = {
 };
 #define HOUSE_LEADS_N ((int)(sizeof(HOUSE_LEADS) / sizeof(HOUSE_LEADS[0])))
 
+/* The house room's EXIT beats (0x4d7d80:1203-1220): after line 8 ("And today, we
+ * need your help…") advances, a fade-TO-black (COVER) — then the errands room key
+ * 0x334dc is staged (0x401d40) UNDER full black and `return 2`.  UNLIKE the arrival
+ * exit, the house exit has NO preceding WAIT: the script arms the cover immediately
+ * after line 8's pump (decompile :1199→:1203, no in_ECX[0x15f]/[8]=6 wait beat).
+ *
+ * The COVER VARIANT is EDGES-IN (variant 1): retail.osr (seed-pinned) shows the
+ * black growing from the TOP+BOTTOM edges toward the middle — the family silhouetted
+ * in the shrinking middle band (full-frame dump ticks 1678-1690, scene_fade.c
+ * sf_pattern_edges_in).  This is a DIFFERENT iris than the arrival→house cover's
+ * center-out (var 0): each fade arm draws its OWN LCG variant ((rand*3)>>15) and the
+ * two arms' pinned draws differ.  Forced as the cast-debt STAND-IN
+ * (PORT-DEBT(cutscene-fade-variant)) — the live LCG drifts (the unported cast
+ * consumes it between arms), so the retail-observed variant is forced until the cast
+ * lands; the CS_ACT_FADE handler still draws one rng_rand() per arm (count-faithful).
+ * The errands ENTRY reveal (the matching fade-FROM-black, center-out var 0) is armed
+ * by main.c on chain-complete — the errands script (0x4dc510) that owns it is not
+ * yet ported (PORT-DEBT(cutscene-scene-chain)). */
+#define HOUSE_EXIT_COVER_VAR 1   /* edges-in (retail.osr full-frame dump)            */
+static const cutscene_beat HOUSE_EXIT[] = {
+    /* type           fade_mode      fade_var              pan_x pan_y param          dur */
+    { CS_BEAT_FADE,   CS_FADE_COVER, HOUSE_EXIT_COVER_VAR, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
+};
+#define HOUSE_EXIT_N ((int)(sizeof(HOUSE_EXIT) / sizeof(HOUSE_EXIT[0])))
+
 /* The room chain: arrival → house.  Each room carries its committed key (the
  * 0x402030 +0x4024 value) so the caller can drive the backdrop + detect the
  * errands boundary.  The chain ends after the house (its retail `return 2`
  * stages 0x334dc, the errands room = the freeroam hand-off).  THEME 3: the arrival
  * EXITs with a wait + fade-to-black (so the room key stages under black), and the
- * house line 0 ENTERs with a fade-from-black reveal. */
+ * house line 0 ENTERs with a fade-from-black reveal.  THEME B (the house→errands
+ * transition): the house also EXITs with a fade-to-black COVER (HOUSE_EXIT, edges-in
+ * var 1) before the errands key stages; main.c arms the matching errands-entry REVEAL
+ * (center-out var 0) on chain-complete. */
 static const cutscene_room TOWN_CHAIN[] = {
     /* room_key            script        n_lines            leads          n_leads          exit          n_exit */
     { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N },
-    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   NULL,         0 },
+    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))
 

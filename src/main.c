@@ -3116,8 +3116,30 @@ static void game_render(void *user)
                          * the port hands off directly. */
                         if (g_loaded_room_key != CUTSCENE_ROOM_ERRANDS)
                             reload_room_backdrop(CUTSCENE_ROOM_ERRANDS);
-                        if (!g_freeroam_active)
+                        /* THEME B: the errands ENTRY reveal (USER studio note #7,
+                         * retail.osr tick ~1707).  The house EXIT (cutscene.c
+                         * HOUSE_EXIT) just covered the screen to full black with the
+                         * errands key staged under it; the room reload above loaded
+                         * the errands backdrop UNDER that black.  Now recede the black
+                         * with a fade-FROM-black REVEAL — CENTER-OUT (variant 0):
+                         * retail.osr shows the errands opening from the middle band
+                         * outward (full-frame dump ticks 1707-1725).  scene_fade_arm
+                         * re-fills the grid all-opaque (state 0) so the first rendered
+                         * tick stays fully black, then scene_fade_step recedes it
+                         * (~25 sim-ticks).  This stands in for the errands script's
+                         * (0x4dc510) own reveal arm — that script + its opening
+                         * dialogue are unported (PORT-DEBT(cutscene-scene-chain)), so
+                         * the port arms the reveal directly on the hand-off.  Same
+                         * forced-variant + per-arm rng_rand() draw as the cutscene
+                         * fades (PORT-DEBT(cutscene-fade-variant)). */
+                        if (!g_freeroam_active) {
+                            (void)rng_rand();   /* per-arm LCG draw (retail draws var) */
+                            scene_fade_arm(&g_scene_fade, SCENE_FADE_MODE_OUT,
+                                           /*variant=*/0, 1000);
+                            log_line("chain-complete: errands reveal "
+                                     "scene_fade_arm(mode=OUT var=0 speed=1000)");
                             freeroam_begin();
+                        }
                     }
                 }
             }

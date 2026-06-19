@@ -73,7 +73,11 @@ static int step_through(cutscene *cs, int count)
                 break;
             cutscene_set_fade_active(cs, grid > 0);
             if (grid > 0) grid--;
-            cutscene_step(cs, 0);
+            /* count completions from the beat phase too: the LAST room (house) now
+             * completes the chain INSIDE its exit-cover beat (HOUSE_EXIT), so the
+             * completion edge is returned by this beat-driving step, not the outer
+             * advance above. */
+            completes += cutscene_step(cs, 0);
             cutscene_action act;
             if (cutscene_take_action(cs, &act) && act.kind == CS_ACT_FADE)
                 grid = SIM_FADE_TICKS;     /* the simulated grid is now painting */
@@ -516,6 +520,55 @@ int test_cutscene_transition_fades(void)
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
     T_ASSERT_EQ_I(dialogue_active(&box), 1);
     T_ASSERT(strcmp(box.name, "Arche") == 0);
+    return 0;
+}
+
+/* ── THEME B: the house→errands ROOM-TRANSITION cover (USER studio notes #6/#7) ──
+ * Advancing the house's LAST line runs its EXIT beats (a fade-TO-black COVER, the
+ * EDGES-IN variant 1) BEFORE the errands key is staged + the chain completes — the
+ * matching errands-entry REVEAL is armed by main.c on completion (not a cutscene
+ * beat).  Mirrors test_cutscene_transition_fades for the arrival, but the house exit
+ * has NO preceding wait and completes the chain (the last room). */
+int test_cutscene_house_exit_cover(void)
+{
+    int n = 0; const cutscene_room *chain = cutscene_town_chain(&n);
+    dialogue_box box; cutscene cs;
+    cutscene_arm(&cs, chain, n, stub_resolve, &box);
+
+    /* advance through arrival (10) + house L0..L6 (7) = 17 → settle on the house's
+     * LAST line (line_idx 7 = "And today, we need your help…"). */
+    step_through(&cs, 17);
+    run_to_wait(&cs);
+    T_ASSERT_EQ_I(cs.room_idx, 1);                 /* house */
+    T_ASSERT_EQ_I(cs.line_idx, 7);                 /* last house line */
+    T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
+
+    /* advance the last house line → the EXIT cover opens: box closed, in beats,
+     * still IN the house room (the chain completes only AFTER the cover settles). */
+    cutscene_step(&cs, 1);
+    T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);
+    T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
+
+    /* drive the cover, simulating the scene_fade grid; capture its mode+variant. */
+    int cover_mode = -1, cover_var = -1, grid = 0, completes = 0;
+    for (int k = 0; k < 5000 && cutscene_active(&cs); k++) {
+        cutscene_set_fade_active(&cs, grid > 0);
+        if (grid > 0) grid--;
+        completes += cutscene_step(&cs, 0);
+        cutscene_action act;
+        if (cutscene_take_action(&cs, &act) && act.kind == CS_ACT_FADE) {
+            grid = SIM_FADE_TICKS;
+            cover_mode = act.a;
+            cover_var  = act.b;
+        }
+    }
+    T_ASSERT_EQ_I(cover_mode, 2);   /* CS_FADE_COVER  — fade TO black              */
+    T_ASSERT_EQ_I(cover_var, 1);    /* EDGES-IN (retail.osr full-frame dump)       */
+    T_ASSERT_EQ_I(completes, 1);    /* the cover settling completes the chain      */
+    T_ASSERT_EQ_I(cutscene_complete(&cs), 1);
+    T_ASSERT_EQ_I(cutscene_active(&cs), 0);
+    T_ASSERT_EQ_I(dialogue_active(&box), 0);   /* box closed at the errands boundary */
     return 0;
 }
 
