@@ -362,6 +362,22 @@ nix develop --command make -C tools/osr_view           # → build/osr_view.exe
 tools/capture_proxy/run_proxy.sh <nav>                 # retail → C:\oss-osr\retail.osr
 opensummoners.exe --osr-emit C:\oss-osr\port.osr [--osr-scenario NAME]   # port (inside nix develop)
 
+# FULL INTRO → ERRANDS port .osr (to scrub the WHOLE intro side-by-side, ckpt 143):
+#   nav = the matched-cadence dialogue nav for ALL 21 lines (arrival+house+errands),
+#   regenerated from retail.osr (the "7:10" = the L7→L8 run-off lead, quirk #111).
+#   GOTCHA: `nix develop --command … > file` prepends the dev-shell BANNER to stdout
+#   → it pollutes the nav → "failed to load input trace".  Strip it with grep '^[#{]'.
+nix develop --command python3 tools/trace_studio2/dialogue_timeline.py NAV \
+  /mnt/c/oss-osr/retail.osr runs/cutscene-verify/nav-zspam-ext.jsonl 600 1900 0 1100 "7:10" \
+  2>/dev/null | grep -E '^[#{]' > runs/cutscene-verify/nav-full-errands.jsonl
+OPENSUMMONERS_FRAMES=8000 OPENSUMMONERS_TIMEOUT_MS=300000 tools/run-opensummoners.sh -- \
+  --osr-emit 'C:\oss-osr\port-flutter.osr' \
+  --input-trace runs/cutscene-verify/nav-full-errands.jsonl --no-frame-limit
+#   PATHS: --osr-emit MUST be a native C:\… path (a WSL /mnt/c/… resolves to a
+#   \\wsl.localhost UNC that fopen("wb") fails); --input-trace tolerates the repo-
+#   relative path (it resolves to the UNC, which fopen("rb") DOES load).  Reaches the
+#   errands (cutscene COMPLETE) at sim_tick ~3360; the 8000-flip run covers 0..~3440.
+
 # VERDICT (tick-join PASS/gaps/anchor-RNG, runs from WSL, streams multi-GB files):
 nix develop --command python3 tools/trace_studio2/pair.py <port.osr> <retail.osr>
 
