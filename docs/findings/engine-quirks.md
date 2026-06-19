@@ -3798,3 +3798,23 @@ so fr16 lands at 980 (`ARCHE_RUNOFF_WINDUP_TICKS`).  Verified bit-exact: caravan
 Arche position/cels match retail tick-for-tick 975-1010; framing offset 0px (was ~40).
 Residuals: the windup LEAN cels (cast emote, `cutscene-party-chars`) + the box-close
 SLIDE (`dialogue-runoff-box-slide`).
+
+### #112 — the town BUTTERFLIES' vertical FLUTTER is the shared case-3 "jump" FSM (the SAME airborne sub-FSM as Arche's jump) with the butterfly's own constants, and the AI flaps to HOLD ALTITUDE above the floor it scans below itself (2026-06-19, ckpt 143, capture-verified)
+The butterfly bob is NOT a bespoke sawtooth — it is the shared kinematic integrator's
+**case-3 airborne sub-FSM** (`0x442a70`, the one `character.c` ports for Arche's jump),
+running with the butterfly's per-archetype physics fields set at install (`0x41f200`
+case `0xe29a`: `0x427d30(0xffff8300=−32000, 1000, 4000, …)` + `0x427c30(1, 16000, 2000,
+…)`).  A flap: a 4-tick windup (the body keeps gliding), then `vvel` snaps to the
+impulse **−32000**; the impulse tick adds the fall accel (+2000 ⇒ −30000) because the
+windup `goto`s past the rise-grav select; then `vvel += grav` capped at **+16000**,
+where grav is the **rise** accel while rising (+1000 while the flap command is HELD
+`cmd_2==8`, +4000 once RELEASED — variable-height, exactly like Arche's jump) else the
+**fall** +2000.  `worldY += vvel/100` each tick (the `0x54e5c0` mover) integrates the bob.
+The flap TRIGGER is the autonomous wander mover `0x43f880` (mode 1): it scans the
+collision grid DOWNWARD for the floor (`local_fc = floor_row*0xc80 − body_h − worldY`)
+and flaps to keep ~8000 units of altitude above it (gated `:311` on
+`in_ECX[0x5659]=8000 ≤ local_fc` ⇒ don't flap while the floor is far).  So the
+butterfly glides down and flaps up to maintain altitude over the terrain — the irregular
+flap cadence (16-38 ticks) is the floor-scan + the every-other-tick AI gate interacting,
+NOT a fixed period.  Verified bit-exact off `runs/butterfly-flutter` (0 vvel mismatches /
+1824 ticks × 4 butterflies); the port reproduces retail's butterfly dst-Y tick-for-tick.

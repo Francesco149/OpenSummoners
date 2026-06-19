@@ -6,11 +6,47 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 142
+## Where we are — ckpt 143
+
+**The BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact (THEME 2 note #2's vertical bob, `butterfly-flutter`) —
+the 4 town butterflies now bob up/down matching retail tick-for-tick.**  1027 host pass (+1).
+`findings/butterfly-flutter.md`, quirk #112.  Commit pending this ckpt.
+
+- **Mechanism (RE'd, not curve-fit):** the bob is the shared **case-3 "jump" FSM** (`0x442a70`, the SAME airborne
+  sub-FSM `character.c` ports for Arche's jump), with the butterfly's per-archetype physics fields set at install
+  (`0x41f200` case `0xe29a`: `0x427d30(0xffff8300=−32000, 1000, 4000, …)` + `0x427c30(1, 16000, 2000, …)`).  Per
+  tick: a 4-tick windup (the body keeps gliding) → `vvel` snaps to the impulse −32000 (the impulse tick adds the
+  fall accel +2000 ⇒ −30000, the windup `goto`s past the grav-select) → `vvel += grav` capped +16000, grav = rise
+  (+1000 while the flap is HELD `cmd_2==8`, +4000 once RELEASED — variable-height like Arche's jump) else fall
+  +2000; `worldY += vvel/100` (the `0x54e5c0` mover).
+- **The flap TRIGGER is the shared TERRAIN-AWARE mover `0x43f880`** (mode 1, set by `0x427c30` p1=1): it scans the
+  collision grid DOWNWARD for the floor (`local_fc = floor_row*0xc80 − body_h − worldY`) and flaps to hold ~8000
+  units above it (gated `:311` on `8000 ≤ local_fc` ⇒ don't flap while the floor is far).  The irregular 16-38t
+  cadence emerges from that scan + the every-other-tick AI gate + the `0x4412d0` command-priority dispatch — the
+  SAME mover the freeroam controllable-Arche arc needs.  **USER-chosen (ckpt 143): port the real PHYSICS now,
+  CAPTURE the trigger** (`PORT-DEBT(butterfly-flutter-trigger)`) — the per-tick `(state3, cmd2_held)` control
+  (2 bits/butterfly) baked from a seed-pinned field-capture (`tools/extract/butterfly_flap_ctrl.py` from
+  `runs/butterfly-flutter` → `src/butterfly_flap_ctrl.h`), replayed by `life_tick`; deterministic + identical to
+  retail.osr under the pinned seed.  Retire when the terrain mover lands.
+- **The port (`butterfly.{c,h}`/`actor_spawn.c`/`main.c`):** added vertical state (`world_y`/`vvel`/`flap_sub`/
+  `flap_cnt`/`life_tick`/`ctrl_lane`) + the case-3 physics in `butterfly_step` (after the horizontal apply);
+  `butterfly_register` takes the spawn worldY + matches a control lane by spawn worldX; `main.c` mirrors
+  `b->world_y` into the EFFECT render-state each tick.  +host test `test_butterfly_flutter` (vvel+worldY bit-exact
+  at ticks 1/8/17/18/21/25; an unlaned butterfly glides to the cap).
+- **VERIFIED:** the ported physics reproduces the captured `vvel` **0 mismatches / 1824 ticks × 4 butterflies**;
+  `C:\oss-osr\port-flutter.osr` vs `retail.osr` (`draw_probe --res 0x3fa`, ticks 80-360) the butterfly dst-Y
+  matches retail tick-for-tick (per-butterfly Y-mis = 1, a crossing/entry artifact), and the change touched **0**
+  dst-X (X byte-identical before/after, 289==289 = the pre-existing `butterfly-bounds-writer` lag).  Plot on the feed.
+- **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-flutter.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub the
+  settled town (ticks 80-360): the butterflies bob up/down matching retail.
+- **NEXT: the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover
+  DONE bit-exact).  THEME 2 ambient is closed bar the pre-existing entering-butterfly horizontal lag.
+
+## Where we were — ckpt 142
 
 **The NPC COLOUR variant is PORTED + bit-exact (THEME 2 note #1, `effect-color-variant`) — the townswoman
 renders her blonde/pink variant instead of the brunette/blue base, pixel-identical to retail (crop tick 274
-differ_px 1387→0).**  1026 host pass.  `findings/npc-colour-variant.md`.  Commit pending this ckpt.
+differ_px 1387→0).**  1026 host pass.  `findings/npc-colour-variant.md`.
 
 - **Mechanism (RE'd, not curve-fit):** the girl = the map townswoman `0xc440`, colour variant `param_11` = the
   map record field **`+0x2c`** = 1 (the ONLY town EFFECT with `+0x2c`≠0; proven via an `OSS_DUMP_EFFECTS` spawn

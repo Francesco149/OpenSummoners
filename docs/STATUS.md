@@ -63,9 +63,14 @@ understates how much actual instruction volume is ported.
   variant = the map field `+0x2c`=1; her variant bank is a CLONE of the base 8bpp sheet + a palette-INDEX
   remap `DAT_006748d0` — ported the decode consumer + fixed the info/clone pass-order bug that wiped the
   remap pointer; she renders blonde/pink, crop tick 274 differ_px 1387→0; quirk —; `findings/npc-colour-variant.md`).
-  **NEXT (remaining THEME 2): the butterfly VERTICAL flutter (#2 residual, `butterfly-flutter` — the body+0x18
-  velocity sawtooth).  THEN the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step`
-  on live input — mover DONE bit-exact).
+  **ckpt 143 the BUTTERFLY VERTICAL FLUTTER (THEME 2 #2 residual) — PHYSICS RE'd + PORTED + bit-exact** (the bob
+  is the shared case-3 "jump" FSM = Arche's jump physics, with the butterfly's install constants impulse −32000 /
+  cap 16000 / gravs 2000·1000·4000 / windup 4; the flap TRIGGER is the terrain-aware mover `0x43f880` — flap to
+  hold ~8000 above the floor it scans — captured as `PORT-DEBT(butterfly-flutter-trigger)` pending the freeroam
+  mover; port dst-Y matches retail tick-for-tick, 0 X regression; quirk #112; `findings/butterfly-flutter.md`).
+  **NEXT: the FREEROAM HAND-OFF** (controllable Arche in the errands room, `character_step` on live input — mover
+  DONE bit-exact).  THEME 2 ambient is closed bar the pre-existing entering-butterfly horizontal lag
+  (`butterfly-bounds-writer`, unchanged by the flutter).
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -79,8 +84,28 @@ understates how much actual instruction volume is ported.
     the cast "Arche running" run-off render ✓ (140, THEME 2 #5/#3 — RUN/DECEL/idle clips + run physics) →
     the run-off CAMERA-PAN OVERLAP ✓ (141 — fires concurrent with "Cool!", camera/run bit-exact) →
     the NPC COLOUR variant ✓ (142, THEME 2 #1 — 8bpp palette-index remap on the cloned variant bank) →
-    **the butterfly flutter (THEME 2 #2 residual) → the FREEROAM HAND-OFF = next**.
-- **LATEST (ckpt 142): the NPC COLOUR variant is PORTED + bit-exact — THEME 2 note #1 ("npc color variant
+    the BUTTERFLY VERTICAL FLUTTER ✓ (143, THEME 2 #2 — the case-3 jump FSM + captured terrain-mover trigger) →
+    **the FREEROAM HAND-OFF = next**.
+- **LATEST (ckpt 143): the BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact — THEME 2 note #2's vertical bob
+  is RESOLVED; the 4 town butterflies now bob up/down matching retail tick-for-tick (port dst-Y == retail, 0 X
+  regression).**  RE'd "trace the code" (the physics) + USER-approved captured stand-in for the trigger.
+  **Mechanism (quirk #112):** the bob is the SHARED case-3 "jump" FSM (`0x442a70`, the SAME one `character.c`
+  ports for Arche's jump), with the butterfly's per-archetype constants read off the install (`0x41f200` case
+  `0xe29a` → `0x427d30(−32000,1000,4000)` + `0x427c30(1,16000,2000)`): a 4-tick windup → impulse **−32000** (+2000
+  on the impulse tick ⇒ −30000) → rise grav **+1000 held / +4000 free** (variable-height like Arche's jump) →
+  fall **+2000** capped **+16000**; `worldY += vvel/100`.  The flap TRIGGER is the terrain-aware wander mover
+  `0x43f880` — it scans the collision grid DOWNWARD for the floor and flaps to hold ~8000 units above it (the
+  irregular 16-38t cadence emerges from the floor scan), the SAME mover the freeroam arc needs.  **The port
+  (`butterfly.{c,h}`):** the real case-3 physics in `butterfly_step`, driven by the captured per-tick
+  `(state3, cmd2_held)` control (`butterfly_flap_ctrl.h`, 2 bits/butterfly, seed-pinned from
+  `runs/butterfly-flutter`) — `PORT-DEBT(butterfly-flutter-trigger)` to retire with the freeroam mover.  1027
+  host pass (+1 `butterfly_flutter`).  **VERIFIED:** the ported physics reproduces the captured `vvel` 0
+  mismatches / 1824 ticks ×4; `port-flutter.osr` vs `retail.osr` (`draw_probe --res 0x3fa`, ticks 80-360) the
+  butterfly dst-Y matches retail tick-for-tick, X byte-identical before/after the change (289==289 = the
+  pre-existing horizontal lag).  Plot on the feed (port·retail dst-Y overlap).  **USER-VERIFY:
+  `osr_view.exe C:\oss-osr\port-flutter.osr C:\oss-osr\retail.osr`** (shortcut loaded) — scrub the settled town
+  (ticks 80-360): the butterflies bob up/down matching retail.  Writeup: `findings/butterfly-flutter.md`.
+- **Prior (ckpt 142): the NPC COLOUR variant is PORTED + bit-exact — THEME 2 note #1 ("npc color variant
   gap", tick 274) is RESOLVED; the townswoman renders her blonde/pink variant instead of the brunette/blue
   base, pixel-identical to retail (crop differ_px 1387→0).**  RE'd "trace the code" (not curve-fit).
   **Mechanism:** the girl = the map townswoman `0xc440` with colour variant `param_11` = the map record field

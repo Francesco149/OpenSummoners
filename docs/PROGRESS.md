@@ -6,6 +6,34 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-19 (ckpt 143) — the BUTTERFLY VERTICAL FLUTTER (THEME 2 note #2 residual): the case-3 jump FSM + a captured terrain-mover trigger, bit-exact
+
+**The town butterflies now bob up/down matching retail tick-for-tick — THEME 2's vertical-flutter residual is
+RESOLVED.**  RE'd "trace the code": the vertical bob is NOT a bespoke sawtooth but the SHARED case-3 "jump" FSM
+(`0x442a70`, the SAME airborne sub-FSM `character.c` ports for Arche's jump), with the butterfly's per-archetype
+constants read straight off the install (`0x41f200` case `0xe29a` → `0x427d30(0xffff8300=−32000, 1000, 4000)` +
+`0x427c30(1, 16000, 2000)`): a 4-tick windup → impulse −32000 (+2000 on the impulse tick ⇒ −30000) → rise grav
++1000 held / +4000 free (variable-height, like Arche's jump) → fall +2000 capped +16000; `worldY += vvel/100`.
+1027 host pass (+1 `test_butterfly_flutter`).  `findings/butterfly-flutter.md`, quirk #112.
+
+- **The flap TRIGGER is the shared TERRAIN-AWARE wander mover `0x43f880`** (mode 1, set by `0x427c30` p1=1): it
+  scans the collision grid DOWNWARD for the floor (`local_fc = floor_row*0xc80 − body_h − worldY`) and flaps to
+  hold ~8000 units of altitude above it (gated `:311` on `8000 ≤ local_fc`).  The irregular 16-38t flap cadence
+  emerges from that scan + the every-other-tick AI gate + the `0x4412d0` command-priority dispatch — the SAME
+  mover the freeroam controllable-Arche arc needs.  **USER-chosen scope (this ckpt):** port the real PHYSICS now,
+  CAPTURE the trigger as `PORT-DEBT(butterfly-flutter-trigger)` — the per-tick `(state3, cmd2_held)` control
+  (2 bits/butterfly) baked from a seed-pinned field-capture (`tools/extract/butterfly_flap_ctrl.py` from
+  `runs/butterfly-flutter` → `src/butterfly_flap_ctrl.h`), replayed by `life_tick`.  Deterministic + identical
+  to retail.osr under the pinned seed; retire when the terrain mover lands.
+
+- **The port** (`butterfly.{c,h}`/`actor_spawn.c`/`main.c`): vertical state + the case-3 physics in
+  `butterfly_step` after the horizontal apply; `butterfly_register` takes the spawn worldY + matches a control
+  lane by spawn worldX; `main.c` mirrors `b->world_y` into the EFFECT render-state.  **VERIFIED:** the ported
+  physics reproduces the captured `vvel` 0 mismatches / 1824 ticks × 4 butterflies; `port-flutter.osr` vs
+  `retail.osr` (`draw_probe --res 0x3fa`, ticks 80-360) the butterfly dst-Y matches retail tick-for-tick, and the
+  change touched 0 dst-X (X byte-identical 289==289 = the pre-existing `butterfly-bounds-writer` lag).  Plot on
+  the feed.  USER-VERIFY: `osr_view.exe C:\oss-osr\port-flutter.osr C:\oss-osr\retail.osr`.
+
 ## 2026-06-15 (ckpt 140) — the cast "ARCHE RUNNING" run-off render (THEME 2 note #5/#3): RUN/DECEL/idle clips + run physics, frame-bit-exact
 
 **The town-intro "Arche runs to the house" beat now RENDERS — the USER studio note tick 1027 ("arche runs to
