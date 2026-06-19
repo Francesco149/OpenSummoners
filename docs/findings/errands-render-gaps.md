@@ -59,11 +59,17 @@ This is the in-game status panel — a real UI subsystem to port (the party/char
 exist port-side; the panel LAYOUT + bar/star/number rendering is the work).  Best done
 with the USER (the HUD layout is very visual).
 
-## 3. The wall colour (note #11) — wall TINT, not yet RE'd
+## 3. The wall colour (note #11) — a HUE SHIFT (color-grade / palette), deferred
 
-[75,283,30,38] "wrong wall colour" — a subtle wall tint/shade difference (maxd ~33 per the
-ckpt-145 note).  Likely a palette/tint or a tile-variant on the left wall.  Low priority
-(small, subtle); RE the specific tile/palette when convenient.
+[75,283,30,38] "wrong wall colour".  Recon (osr_prof, tick 1780 vs 1726) shows it is a
+clear **hue shift on the wood-plank WALL**: the PORT wall is WARM BROWN, retail's is a
+cooler GREENISH-GRAY — while the props (the plant/vase), the sign, and the shelves render
+identically.  So it is NOT a tile-frame or sprite difference; it is a **palette / scene
+color-grade** difference applied to the wall tiles (the errands scene's grade, or the wall
+bank's decoded palette).  Investigate `color_grade.c` (the per-scene grade) + the wall
+tile bank's palette decode.  DEFERRED — a color change is very visual + wants USER
+confirmation, and it is a subsystem (grade/palette) not a quick tile fix.  Feed: the
+PORT(brown)|RETAIL(grey) wall montage.
 
 ## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props") — FIXED (z-order, ckpt 146, `ead9c49`)
 
