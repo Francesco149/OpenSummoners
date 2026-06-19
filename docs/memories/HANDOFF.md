@@ -40,9 +40,12 @@ whatever trace you need."  All three delivered.
   right; LEFT cels 4-7 via the facing==3 mirror, flip_table[0x8b]=4), IDLE cels 0/1.  VERIFIED off
   `port-freeroam.osr` (--input-trace nav-full-errands + --held-trace a walk; feed_input applies BOTH ring +
   axis): Arche walks RIGHT 162→475px (cels 0-3) then LEFT →181px (cel 6 = the +4 mirror), facing flips.
-  Residuals (debt): jump_held/run wired 0 (PORT-DEBT(char-run-trigger) + the jump button level); walk-cel
-  cadence time-based not distance-locked (PORT-DEBT(char-walk-anim-distance)); errands camera = static room
-  snap (no follow yet).
+  **JUMP wired too (commit `5aa1092`): jump_held = axis_held[4] (the C-button level, KEYMAP DIK_C → axis 4;
+  character_step detects the rising edge); off port-jump.osr her dst-Y arcs ground 336→apex 261→land 336 (the
+  bit-exact windup/impulse/variable-height physics).  Extended held_trace to replay the action slots (DIK_C→4
+  jump / DIK_X→5 attack + the "jump"/"attack" names) so it's autonomously testable.  Walk + jump work on live
+  input.**  Residuals (debt): run/dash double-tap (char-run-trigger); walk-cel cadence time-based not distance-
+  locked (char-walk-anim-distance); errands camera = static room snap (no follow yet).
 - **ERRANDS tile-frames bit-exact (commit `f570f14`).**  The errands (DATA 1025) auto-footprint floor/wall
   tiles drew the correct src (footprint dy offset) but the WRONG FRAME — the port emitted `cfg->scene_frame`
   (a constant 0 for the town-area param_3=0x14), so every wall/floor drew its frame-0 placeholder.  ROOT

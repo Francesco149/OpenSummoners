@@ -76,9 +76,10 @@ understates how much actual instruction volume is ported.
   backdrop is now bit-exact — the auto-footprint wall/floor tile FRAME = the cell's `arg_0c` (not the constant
   scene_frame); every tile bank's per-frame count == retail.
   (4) the ERRANDS CAST — Father + Mother + the 10 shop props/NPCs (res 1027) all bit-exact (`ERRANDS_CAST`).
+  (5) freeroam JUMP wired (axis_held[4], bit-exact arc).
   **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD + freeroam refinements
-  (jump/run/double-tap, camera-follow [Arche walks off-screen past ~wx 60000], distance-locked walk cels) — see
-  task list / `controllable-arche-faithful.md`.**
+  (run/dash double-tap [char-run-trigger], camera-follow [Arche walks off-screen past ~wx 60000], distance-locked
+  walk cels) — see task list / `controllable-arche-faithful.md`.**
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -113,7 +114,10 @@ understates how much actual instruction volume is ported.
     PORT-DEBT(char-control-trigger)).  Spawn world (19200,52000) facing right (== retail freeroam-walk /
     control-path-gt; projects to screen (162,336) at the errands cam (0,16000)).  Walk cels 0-3 (right) / 4-7
     (left mirror, flip_table[0x8b]=4), idle 0/1.  VERIFIED off `port-freeroam.osr` (dialogue nav + a held-axis
-    walk): Arche walks RIGHT 162→475px then LEFT →181px, facing flips — driven by the live axis.
+    walk): Arche walks RIGHT 162→475px then LEFT →181px, facing flips — driven by the live axis.  **JUMP
+    wired too (`5aa1092`): jump_held = axis_held[4] (the C-button level, KEYMAP DIK_C); off port-jump.osr her
+    dst-Y arcs ground 336→apex 261→land 336 (the bit-exact windup/impulse/variable-height physics).  Walk +
+    jump both work on live input; run/dash is the only un-wired move (the double-tap detection, char-run-trigger).
   - **ERRANDS tile-frames bit-exact** (`map_decode.c`): the auto-footprint floor/wall arms (0x1b97c/72/77)
     emitted `cfg->scene_frame` (=0) but the per-cell tile VARIANT is the cell's **`arg_0c`** (+0xc).  PROVEN: the
     8 errands 0x1b977 cells' arg_0c (4,5,5,8,5,5,6,7) == retail's res 1897 frames exactly; town/house don't use

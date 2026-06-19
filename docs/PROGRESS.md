@@ -33,7 +33,14 @@ draw_probe / recon against `retail.osr`.
   Walk cels 0-3 (right) / 4-7 (left mirror, flip_table[0x8b]=4), idle 0/1 — RE'd off the freeroam-walk capture's
   celfr.  VERIFIED off `port-freeroam.osr` (--input-trace nav-full-errands + --held-trace a walk; feed_input
   applies BOTH ring + axis): Arche walks RIGHT 162→475px (cels 0-3) then LEFT →181px (cel 6 = the +4 mirror),
-  facing flips.  Residuals (debt): jump/run wired 0, time-based walk cels, static camera (`char-walk-anim-distance`).
+  facing flips.  Residuals (debt): time-based walk cels, static camera (`char-walk-anim-distance`).
+
+- **FREEROAM JUMP wired (`5aa1092`).**  jump_held = axis_held[4] (the C-button level, input_live KEYMAP
+  DIK_C → axis 4; character_step detects the rising edge + runs the host-validated windup/impulse/variable-
+  height arc).  Extended held_trace to replay the action slots (DIK_C→4 / DIK_X→5 + the "jump"/"attack" names)
+  so it's autonomously testable.  VERIFIED off port-jump.osr: Arche's dst-Y arcs ground 336→apex 261→land 336
+  (a clean ~75px parabola, in place).  Walk + jump both work on live input; run/dash (the double-tap detection)
+  is the only un-wired move (char-run-trigger).
 
 - **ERRANDS tile-frames bit-exact (`f570f14`).**  The errands auto-footprint floor/wall tiles drew the correct
   src (footprint dy) but the WRONG FRAME — the port emitted `cfg->scene_frame` (a constant 0), so every
@@ -53,8 +60,8 @@ draw_probe / recon against `retail.osr`.
 
 **NEXT (task #5):** the errands opening DIALOGUE L18-L20 + questline (0x4dc510, separate dialogue API 0x4a5ee0
 — the bulk of the remaining errands diff = the dialogue box+portrait); the freeroam HUD (res 0); freeroam
-refinements (jump/run/double-tap; camera-FOLLOW — Arche walks off-screen past ~wx 60000; distance-locked walk
-cels); the proper actor-sprite-table struct-code fix for the res-1027 props.
+refinements (run/dash double-tap [char-run-trigger]; camera-FOLLOW — Arche walks off-screen past ~wx 60000;
+distance-locked walk cels); the proper actor-sprite-table struct-code fix for the res-1027 props.
 
 ## 2026-06-19 (ckpt 143) — the BUTTERFLY VERTICAL FLUTTER (THEME 2 note #2 residual): the case-3 jump FSM + a captured terrain-mover trigger, bit-exact
 
