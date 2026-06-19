@@ -2746,6 +2746,7 @@ static void game_actor_update(void)
             int slot = g_butterflies.b[i].effect_slot;
             if (slot >= 0 && slot < g_effects.count) {
                 g_effects.states[slot].world_x = g_butterflies.b[i].world_x;
+                g_effects.states[slot].world_y = g_butterflies.b[i].world_y;
                 g_effects.states[slot].facing  = (int16_t)g_butterflies.b[i].facing;
             }
         }

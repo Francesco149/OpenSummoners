@@ -64,6 +64,18 @@
 #define BUTTERFLY_HSPEED_CAP  100
 #define BUTTERFLY_HSPEED_RAMP 10
 
+/* ── The VERTICAL flutter (the case-3 "jump" FSM, RE'd off the install 0x427d30/
+ * 0x427c30; the SAME airborne sub-FSM as Arche's jump in character.c, with the
+ * butterfly's own constants).  Per tick: integrate worldY += vvel/100, then ramp
+ * the vertical velocity by the selected accel, clamped at the fall cap.  A flap
+ * snaps vvel to the (up) impulse after a short windup; gravity returns it. ── */
+#define BUTTERFLY_FLAP_IMPULSE   (-32000)  /* 0x1599c (0xffff8300) the flap up-kick */
+#define BUTTERFLY_FALL_CAP        16000    /* 0x15950 terminal (down) velocity cap  */
+#define BUTTERFLY_FALL_GRAV       2000     /* 0x15954 the fall / default accel      */
+#define BUTTERFLY_RISE_GRAV_HELD  1000     /* 0x159a0 rise accel while cmd_2 held(8) */
+#define BUTTERFLY_RISE_GRAV_FREE  4000     /* 0x159a4 rise accel once cmd_2 released */
+#define BUTTERFLY_FLAP_WINDUP     4        /* 442a70 case-3 sub0: impulse when cnt>4 */
+
 typedef struct {
     /* --- AI / RNG state (the per-tick draw model, ckpt 95/98) --- */
     uint16_t wander_freq;   /* 0xc874 — the (rand*1000>>15) < freq move test     */
@@ -79,6 +91,14 @@ typedef struct {
     int16_t  cooldown;      /* 0x14248 — flip cooldown                             */
     int      cmd_dir;       /* the commanded move dir the apply integrates (+1/-1/0)*/
     int      effect_slot;   /* index of this butterfly's actor in the EFFECT pool  */
+    /* --- vertical flutter state (the case-3 jump FSM; PORT-DEBT trigger) --- */
+    int32_t  world_y;       /* body+8  — bobbing patrol height (-> render-state)    */
+    int32_t  vvel;          /* body+0x18 — vertical velocity (+down/-up)            */
+    int16_t  flap_sub;      /* body+0x3a — 0 windup / 1 airborne                    */
+    int16_t  flap_cnt;      /* body+0x3c — windup counter                          */
+    int16_t  prev_state3;   /* the previous tick's flap-state (flap-start edge)     */
+    int      ctrl_lane;     /* BUTTERFLY_FLAP_CTRL lane (matched by spawn worldX)   */
+    int32_t  life_tick;     /* sim-ticks since register (indexes the flap control)  */
 } butterfly;
 
 typedef struct butterfly_pool {
@@ -95,7 +115,8 @@ void butterfly_pool_reset(butterfly_pool *p);
  * matters: register in EFFECT-band (map-layer) order so the per-tick draw order
  * matches retail's 0x46cd70 walk.  Returns the slot index, or -1 if full/NULL. */
 int butterfly_register(butterfly_pool *p, uint16_t wander_freq,
-                       int32_t spawn_world_x, int effect_slot);
+                       int32_t spawn_world_x, int32_t spawn_world_y,
+                       int effect_slot);
 
 /* One sim-tick of the butterfly behaviour for the whole pool: advances the shared
  * LCG by each working butterfly's draws (heading + flag, + the wander pick when

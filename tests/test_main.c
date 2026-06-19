@@ -1018,6 +1018,7 @@ struct test_case {
     X(arche_runoff)                                            \
     X(butterfly_pertick)                                       \
     X(butterfly_motion)                                        \
+    X(butterfly_flutter)                                       \
     X(ambient_pertick)                                         \
     X(particle_spawn_config)                                   \
     X(particle_fountain_draw_count)                            \

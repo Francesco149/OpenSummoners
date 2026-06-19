@@ -417,7 +417,7 @@ int actor_spawn_effect_from_map(actor_spawn_pool *pool, const map_data *md,
          * worldX (-> the patrol bounds), and this actor's slot (so the per-tick
          * motion drives THIS render-state's worldX/facing), IN MAP ORDER. */
         if (code == 0xe29au && bp != NULL)
-            butterfly_register(bp, wander_freq, rs->world_x, slot);
+            butterfly_register(bp, wander_freq, rs->world_x, rs->world_y, slot);
     }
     return pool->count;
 }

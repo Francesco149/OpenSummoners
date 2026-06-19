@@ -596,7 +596,7 @@ int test_butterfly_pertick(void)
     /* A butterfly with freq 0: the (rand*1000>>15) < freq test NEVER passes, so
      * the flit pick draws ONLY the 523 test (no 534).  Deterministic vs the seed. */
     rng_srand(0x4f5347u);
-    T_ASSERT_EQ_I(butterfly_register(&p, 0, 100000, 0), 0);
+    T_ASSERT_EQ_I(butterfly_register(&p, 0, 100000, 44800, 0), 0);
     T_ASSERT_EQ_I(butterfly_step(&p), 3);   /* tick 0: 523 test(1) + heading+flag(2) */
     T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* tick 1: gate -> skip                  */
     T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* tick 2: heading+flag (timer != 0)     */
@@ -607,7 +607,7 @@ int test_butterfly_pertick(void)
      * so the flit pick draws the 523 test + the 534 offset. */
     butterfly_pool_reset(&p);
     rng_srand(0x4f5347u);
-    T_ASSERT_EQ_I(butterfly_register(&p, 0x8000u, 100000, 0), 0);
+    T_ASSERT_EQ_I(butterfly_register(&p, 0x8000u, 100000, 44800, 0), 0);
     T_ASSERT_EQ_I(butterfly_step(&p), 4);   /* tick 0: 523(1) + 534(1) + heading+flag(2) */
     T_ASSERT_EQ_I(butterfly_step(&p), 0);   /* gate */
     T_ASSERT_EQ_I(butterfly_step(&p), 2);   /* tick 2: just heading+flag */
@@ -617,7 +617,7 @@ int test_butterfly_pertick(void)
      * ticks: each draws only heading+flag (2) until the timer hits 0 again. */
     butterfly_pool_reset(&p);
     rng_srand(0x4f5347u);
-    butterfly_register(&p, 0x8000u, 100000, 0);
+    butterfly_register(&p, 0x8000u, 100000, 44800, 0);
     butterfly_step(&p);                     /* tick 0 work-tick 0: pick fires, reload 0x50 */
     /* The timer reloads 0x50 AFTER firing, so it decrements over the next 0x50 work
      * ticks and re-fires on work-tick 0x51 (= sim-tick 162, matching the census). */
@@ -634,17 +634,62 @@ int test_butterfly_pertick(void)
      * on even ticks — matching the seed-pinned per-tick census bit-exact. */
     butterfly_pool_reset(&p);
     rng_srand(0x9c2b551du);                  /* the post-spawn LCG state (tick-0 onEnter) */
-    butterfly_register(&p, 653, 105600, 0);  /* the 4 town spawn worldX (capture wx@t0) */
-    butterfly_register(&p, 686,  99200, 1);
-    butterfly_register(&p, 735, 181200, 2);
-    butterfly_register(&p, 698, 176400, 3);
+    butterfly_register(&p, 653, 105600, 44800, 0); /* the 4 town spawn (wx,wy)@t0 capture */
+    butterfly_register(&p, 686,  99200, 43200, 1);
+    butterfly_register(&p, 735, 181200, 44800, 2);
+    butterfly_register(&p, 698, 176400, 44800, 3);
     T_ASSERT_EQ_I(butterfly_step(&p), 14);   /* spawn tick: 4 picks, 2 pass -> 14 */
     T_ASSERT_EQ_I(butterfly_step(&p), 0);    /* odd: gate */
     T_ASSERT_EQ_I(butterfly_step(&p), 8);    /* even: 4 x heading+flag */
 
     /* NULL guards. */
-    T_ASSERT_EQ_I(butterfly_register(NULL, 0, 0, 0), -1);
+    T_ASSERT_EQ_I(butterfly_register(NULL, 0, 0, 0, 0), -1);
     T_ASSERT_EQ_I(butterfly_step(NULL), 0);
+    return 0;
+}
+
+/* The VERTICAL flutter (the case-3 jump FSM with the butterfly's RE'd constants,
+ * driven by the captured PORT-DEBT(butterfly-flutter-trigger) control).  Asserts
+ * the ported PHYSICS reproduces the captured lane-0 (spawn worldX 105600) vvel +
+ * worldY sawtooth bit-exact (impulse -32000 -> -30000 after the windup, the held
+ * vs free rise grav, the +2000/16000 fall), and that a butterfly with no control
+ * lane simply glides to the fall cap. */
+int test_butterfly_flutter(void)
+{
+    butterfly_pool p;
+    butterfly_pool_reset(&p);
+    rng_srand(0x4f5347u);    /* the horizontal AI draws — irrelevant to the vertical */
+    butterfly_register(&p, 653, 105600, 44800, 0);   /* lane 0 (BUTTERFLY_FLAP_CTRL_WX[0]) */
+    T_ASSERT_EQ_I(p.b[0].ctrl_lane, 0);
+    T_ASSERT_EQ_I(p.b[0].world_y, 44800);
+    T_ASSERT_EQ_I(p.b[0].vvel, 0);
+    /* reference (tick, vvel, worldY) read off runs/butterfly-flutter lane 0 */
+    struct { int tick; int32_t vvel; int32_t wy; } ref[] = {
+        {1, 2000, 44800}, {8, 16000, 45360}, {17, -30000, 46320},
+        {18, -29000, 46020}, {21, -23000, 45180}, {25, -7000, 44500},
+    };
+    int ri = 0, n = (int)(sizeof ref / sizeof ref[0]);
+    for (int t = 1; t <= 30 && ri < n; t++) {
+        butterfly_step(&p);               /* one sim-tick -> life_tick == t */
+        if (ref[ri].tick == t) {
+            T_ASSERT_EQ_I(p.b[0].life_tick, t);
+            T_ASSERT_EQ_I(p.b[0].vvel, ref[ri].vvel);
+            T_ASSERT_EQ_I(p.b[0].world_y, ref[ri].wy);
+            ri++;
+        }
+    }
+    T_ASSERT_EQ_I(ri, n);
+
+    /* No matching control lane -> never flaps: glides, vvel ramps +2000 to the cap. */
+    butterfly_pool_reset(&p);
+    rng_srand(0x4f5347u);
+    butterfly_register(&p, 0, 123456, 40000, 0);
+    T_ASSERT_EQ_I(p.b[0].ctrl_lane, -1);
+    for (int t = 1; t <= 8; t++) butterfly_step(&p);
+    T_ASSERT_EQ_I(p.b[0].vvel, 16000);    /* the fall terminal cap */
+    T_ASSERT(p.b[0].world_y > 40000);     /* descended (no flap up) */
+    butterfly_step(&p);
+    T_ASSERT_EQ_I(p.b[0].vvel, 16000);    /* stays capped */
     return 0;
 }
 
@@ -658,7 +703,7 @@ int test_butterfly_motion(void)
     rng_srand(0x4f5347u);
     /* freq 0 -> the move test never passes + (with this seed) no early bound/roll
      * flip, so the butterfly just drifts toward its LEFT bound (heading 0 arm). */
-    T_ASSERT_EQ_I(butterfly_register(&p, 0, 100000, 0), 0);
+    T_ASSERT_EQ_I(butterfly_register(&p, 0, 100000, 44800, 0), 0);
     /* Bounds = spawn_wx + 11200 / - 8000 (the capture's dead constants). */
     T_ASSERT_EQ_I(p.b[0].bound1, 100000 + 11200);
     T_ASSERT_EQ_I(p.b[0].bound3, 100000 -  8000);

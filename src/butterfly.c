@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "rng.h"   /* rng_rand — the shared engine LCG (0x5bf505) */
+#include "butterfly_flap_ctrl.h"  /* the captured flap TRIGGER (PORT-DEBT) */
 
 void butterfly_pool_reset(butterfly_pool *p)
 {
@@ -18,7 +19,8 @@ void butterfly_pool_reset(butterfly_pool *p)
 }
 
 int butterfly_register(butterfly_pool *p, uint16_t wander_freq,
-                       int32_t spawn_world_x, int effect_slot)
+                       int32_t spawn_world_x, int32_t spawn_world_y,
+                       int effect_slot)
 {
     if (p == NULL || p->count >= BUTTERFLY_MAX) return -1;
     butterfly *b   = &p->b[p->count];
@@ -35,6 +37,18 @@ int butterfly_register(butterfly_pool *p, uint16_t wander_freq,
     b->cooldown = 0;      /* 0x14248                                              */
     b->cmd_dir  = -1;     /* heading 0 -> target the LEFT bound first             */
     b->effect_slot = effect_slot;
+    /* Vertical flutter: integrate from the spawn worldY; match this butterfly to
+     * its captured flap-control lane by spawn worldX (PORT-DEBT trigger). */
+    b->world_y    = spawn_world_y;
+    b->vvel       = 0;
+    b->flap_sub   = 0;
+    b->flap_cnt   = 0;
+    b->prev_state3 = 0;
+    b->life_tick  = 0;
+    b->ctrl_lane  = -1;
+    for (int L = 0; L < 4; L++) {
+        if (BUTTERFLY_FLAP_CTRL_WX[L] == spawn_world_x) { b->ctrl_lane = L; break; }
+    }
     return p->count++;
 }
 
@@ -132,6 +146,48 @@ int butterfly_step(butterfly_pool *p)
         b->hvel = ramp_toward(b->hvel, target_v, BUTTERFLY_HSPEED_RAMP);
         if (b->hvel > 0)      b->facing = 1;
         else if (b->hvel < 0) b->facing = 3;
+
+        /* ── VERTICAL FLUTTER (0x442a70 case-3 airborne sub-FSM, RE'd off the
+         * install 0x427d30/0x427c30 — the SAME FSM as character.c's jump).  The
+         * PHYSICS is real logic; the per-tick flap TRIGGER (the body+0x38==3 flap
+         * state + the cmd_2==8 "held" control, which retail derives from the
+         * terrain-aware mover scanning the floor below) is the captured
+         * PORT-DEBT(butterfly-flutter-trigger) control stream, replayed by tick.
+         *
+         * Order matches the decompile: the windup may snap vvel to the impulse,
+         * THEN worldY integrates the (current) vvel, THEN vvel ramps by the accel
+         * (capped at the fall terminal).  So the impulse tick moves worldY by the
+         * impulse/100 and the same accel step yields -30000 next.  Verified
+         * bit-exact (0 vvel mismatches / 1824 ticks) vs runs/butterfly-flutter. */
+        b->life_tick++;
+        int s3 = 0, held = 0;
+        if (b->ctrl_lane >= 0 && b->life_tick < BUTTERFLY_FLAP_CTRL_NTICKS) {
+            uint8_t c = BUTTERFLY_FLAP_CTRL[b->life_tick];
+            s3   = (c >> (2 * b->ctrl_lane))     & 1;
+            held = (c >> (2 * b->ctrl_lane + 1)) & 1;
+        }
+        if (s3 && !b->prev_state3) { b->flap_sub = 0; b->flap_cnt = 0; } /* flap start */
+        int32_t grav;
+        if (s3 && b->flap_sub == 0) {            /* windup: glide-hold until impulse */
+            b->flap_cnt++;
+            if (b->flap_cnt > BUTTERFLY_FLAP_WINDUP) {
+                b->vvel     = BUTTERFLY_FLAP_IMPULSE;
+                b->flap_sub = 1;
+                b->flap_cnt = 0;
+            }
+            grav = BUTTERFLY_FALL_GRAV;          /* pre-switch default (windup skips select) */
+        } else if (s3) {                          /* airborne (sub>=1) */
+            grav = (b->vvel < 0)
+                     ? (held ? BUTTERFLY_RISE_GRAV_HELD : BUTTERFLY_RISE_GRAV_FREE)
+                     : BUTTERFLY_FALL_GRAV;
+        } else {                                  /* gliding */
+            b->flap_sub = 0; b->flap_cnt = 0;
+            grav = BUTTERFLY_FALL_GRAV;
+        }
+        b->world_y += b->vvel / 100;             /* C trunc toward 0 = the 0x54e5c0 step */
+        b->vvel += grav;
+        if (b->vvel > BUTTERFLY_FALL_CAP) b->vvel = BUTTERFLY_FALL_CAP;
+        b->prev_state3 = (int16_t)s3;
     }
     return draws;
 }
