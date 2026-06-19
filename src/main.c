@@ -2712,12 +2712,14 @@ static void freeroam_begin(void)
 static void freeroam_step(void)
 {
     /* The SAME input_mgr +0x114 array A the retail char-AI reads (held-trace replay
-     * or the live keyboard producer); axis[0..3] = UP/DOWN/LEFT/RIGHT. */
+     * or the live keyboard producer); axis[0..3] = UP/DOWN/LEFT/RIGHT, [4] = jump
+     * (C, +0x124), [5] = attack (X). */
     const int *axis = (const int *)g_game_drive.input.axis_held;
-    /* jump = the C button level, run = the dash flag — the live ring/double-tap
-     * sources are deferred (PORT-DEBT(char-run-trigger) + the jump button level), so
-     * 0 for now; walk/idle + facing are the first-freeroam deliverable. */
-    int jump = 0;
+    /* jump = the C button LEVEL (axis_held[4]); character_step detects the rising
+     * edge + runs the bit-exact windup/impulse/variable-height arc.  run = the dash
+     * flag — its double-tap DETECTION (0x479e70 ring scan) is still deferred
+     * (PORT-DEBT(char-run-trigger)), so 0 (a USER double-tap won't dash yet). */
+    int jump = axis[CHAR_AXIS_COUNT];   /* axis_held[4] = the jump button level */
     int run  = 0;
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;

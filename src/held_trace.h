@@ -43,12 +43,16 @@
 
 #include "input.h"   /* input_mgr — the replay target (axis_held @ +0x114) */
 
-/* DInput keyboard scancodes for the four movement keys the producer maps to
- * axis-held slots 0..3 (0x46a880).  Exposed so traces/tests can name them. */
+/* DInput keyboard scancodes for the movement + action keys the producer maps to
+ * axis-held slots (0x46a880).  Slots 0..3 = UP/DOWN/LEFT/RIGHT, 4 = jump (C),
+ * 5 = attack (X) — matching input_live.c's KEYMAP.  Exposed so traces/tests can
+ * name them (the freeroam jump reads axis_held[4]). */
 #define HELD_DIK_UP    0xc8
 #define HELD_DIK_DOWN  0xd0
 #define HELD_DIK_LEFT  0xcb
 #define HELD_DIK_RIGHT 0xcd
+#define HELD_DIK_C     0x2e   /* jump  -> axis-held slot 4 (+0x124) */
+#define HELD_DIK_X     0x2d   /* attack-> axis-held slot 5 (+0x128) */
 
 /* Max held keys carried by a single frame entry.  A handful at once (e.g. a
  * diagonal = two directions) is the realistic ceiling; 8 is well past it. */

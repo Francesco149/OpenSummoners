@@ -21,9 +21,15 @@ int held_scancode_slot(int32_t scancode)
     case HELD_DIK_DOWN:  return 1;
     case HELD_DIK_LEFT:  return 2;
     case HELD_DIK_RIGHT: return 3;
+    case HELD_DIK_C:     return 4;   /* jump   (the freeroam mover's jump_held) */
+    case HELD_DIK_X:     return 5;   /* attack                                 */
     default:             return -1;
     }
 }
+
+/* The managed axis-held slots the replay clears+rebuilds each frame (0..3
+ * directions + 4 jump + 5 attack), mirroring the producer 0x46a880. */
+#define HELD_MANAGED_SLOTS 6
 
 void held_trace_free(struct held_trace *t)
 {
@@ -127,6 +133,8 @@ static int parse_held_key(const char **pp, const char *end, long *out)
         else if (n == 4 && memcmp(s, "down",  4) == 0) *out = HELD_DIK_DOWN;
         else if (n == 4 && memcmp(s, "left",  4) == 0) *out = HELD_DIK_LEFT;
         else if (n == 5 && memcmp(s, "right", 5) == 0) *out = HELD_DIK_RIGHT;
+        else if (n == 4 && memcmp(s, "jump",  4) == 0) *out = HELD_DIK_C;
+        else if (n == 6 && memcmp(s, "attack",6) == 0) *out = HELD_DIK_X;
         else return 0;                    /* unknown name */
         return 1;
     }
@@ -274,9 +282,9 @@ void held_trace_replay(struct held_trace *t, uint32_t present_frame,
         t->cursor++;
     }
 
-    /* Rebuild the four managed direction slots from the current held set,
-     * clear-then-set (mirroring the producer 0x46a880). */
-    for (int slot = 0; slot < 4; slot++) mgr->axis_held[slot] = 0;
+    /* Rebuild the managed axis-held slots (0..3 directions + 4 jump + 5 attack)
+     * from the current held set, clear-then-set (mirroring the producer 0x46a880). */
+    for (int slot = 0; slot < HELD_MANAGED_SLOTS; slot++) mgr->axis_held[slot] = 0;
     for (uint16_t i = 0; i < t->cur_n; i++) {
         int slot = held_scancode_slot(t->cur_keys[i]);
         if (slot >= 0) mgr->axis_held[slot] = 1;
