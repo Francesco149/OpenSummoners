@@ -835,3 +835,46 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
     }
     return (int)pool->count;
 }
+
+/* ── Phase 2b: the FREEROAM (controllable Arche) animation clips.  RE'd off the
+ * retail freeroam-walk capture (runs/freeroam-walk, the body 0x5b8fc0/code 0xc35a
+ * celfr sequence under held-axis injection): in the errands room (the first
+ * freeroam) Arche's body bank 0x8b plays —
+ *   WALK : cels 0,1,2,3 (facing RIGHT; the LEFT-facing cels 4-7 come from the
+ *          facing==3 mirror via flip_table[0x8b]=4) — a 4-cel cycle.
+ *   IDLE : cels 0,1 (the slow standing breathe — retail.osr errands idle, res
+ *          0x570 fr 0/1 at the post-dialogue hold).
+ * The RUN (dash) reuses ARCHE_RUN_CLIP (cels 16-21, the run-off clip).  The walk-
+ * cel cadence is time-based (dur 5) here; retail advances it with DISTANCE (the
+ * cel speeds up with velocity) — PORT-DEBT(char-walk-anim-distance), refine when
+ * the distance-locked cycle is pinned. */
+static const anim_clip ARCHE_WALK_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2, 3 },
+    .frame_count = 4,
+    .frame_dur   = 5,
+    .oneshot     = 0,    /* loops */
+};
+static const anim_clip ARCHE_FREEROAM_IDLE_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1 },
+    .frame_count = 2,
+    .frame_dur   = 30,
+    .oneshot     = 0,    /* loops */
+};
+
+/* The flip-table value bank 0x8b needs for the facing==3 (LEFT) walk mirror: the
+ * left cels are the right cels + 4 (capture: RIGHT 0-3, LEFT 4-7). */
+const int16_t ARCHE_FREEROAM_FLIP = 4;
+
+const anim_clip *arche_freeroam_clip(int moving, int airborne, int run)
+{
+    /* Airborne reuses the run/idle pose for now (no RE'd jump-anim cel set yet —
+     * PORT-DEBT(char-jump-anim)); position rides the mover's world_y arc. */
+    if (run && moving)
+        return &ARCHE_RUN_CLIP;
+    if (moving)
+        return &ARCHE_WALK_CLIP;
+    (void)airborne;
+    return &ARCHE_FREEROAM_IDLE_CLIP;
+}

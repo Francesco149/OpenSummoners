@@ -226,6 +226,14 @@ int actor_spawn_cutscene_cast(actor_spawn_pool *pool, int16_t *flip_table, size_
  * cutscene actor movers (0x402730/0x402330). */
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key);
 
+/* Phase 2b: the FREEROAM (controllable Arche) clip selector + the LEFT-facing
+ * mirror value for bank 0x8b.  arche_freeroam_clip picks IDLE / WALK / RUN from
+ * the mover state (moving = a walk direction latched; run = the dash flag); the
+ * caller resets timer/frame on a clip change and advances it once per sim-tick
+ * (actor_anim_advance).  See actor_spawn.c for the RE provenance. */
+extern const int16_t ARCHE_FREEROAM_FLIP;
+const anim_clip *arche_freeroam_clip(int moving, int airborne, int run);
+
 /*
  * The animated PROTAGONIST (code 0x1872d) — the town's one person.  It is NOT a
  * map CHARACTER object (its code is outside 70000..79999); it is spawned by the

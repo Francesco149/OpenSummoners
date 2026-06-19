@@ -82,6 +82,7 @@
 #include "scene_fade.h"       /* the establishing REVEAL fade-grid (0x48e920 / 0x439690 arm) */
 #include "actor_spawn.h"      /* the town CHARACTER-band spawn (0x58d460 -> 0x431e30) */
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
+#include "character.h"        /* the freeroam mover (character_step, bit-exact)  */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
@@ -236,6 +237,23 @@ static int              g_effects_loaded;
  * PORT-DEBT(cutscene-party-chars) — captured positions/clips for now. */
 static actor_spawn_pool g_room_cast;
 static int              g_room_cast_loaded;
+
+/* Phase 2b: the FREEROAM hand-off — controllable Arche in the errands room
+ * (0x334dc).  When the cutscene chain completes the port hands control to the
+ * bit-exact mover (character_step, src/character.c): g_freeroam_char is her mover
+ * state, driven by the live axis_held (g_game_drive.input — the held-trace replay
+ * or the live keyboard producer); g_freeroam_actor/_rs render her body bank 0x8b
+ * with the walk/idle clip selected from the mover state.  Her errands spawn is
+ * world (19200,52000) facing right (runs/freeroam-walk + control-path-gt; projects
+ * to screen (162,336) at the errands cam (0,16000), == retail).  The control path
+ * is the +0x200==0 char-AI hand-off (quirk #103); this REPLACES the removed ckpt-120
+ * CHAR_CONTROL_ARM_FRAMES MVP — retiring PORT-DEBT(char-control-trigger). */
+static character          g_freeroam_char;
+static actor              g_freeroam_actor;
+static actor_render_state g_freeroam_rs;
+static int                g_freeroam_active;
+#define FREEROAM_ARCHE_SPAWN_WX  19200   /* errands spawn world_x (freeroam-walk)  */
+#define FREEROAM_ARCHE_SPAWN_WY  52000   /* errands spawn world_y = ground_y       */
 
 /* THEME 2: the town-intro "Arche runs to the house" run-off (cutscene-party-chars).
  * g_arche_slot is Arche's index in g_effects (the cast member on body bank 0x8b);
@@ -2089,6 +2107,14 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                                   /*flip_table=*/g_actor_flip_table, pool,
                                                   game_sprite_resolve, NULL);
 
+    /* Phase 2b: the FREEROAM controllable Arche (errands) — her body bank 0x8b on
+     * the same static-cast path (layer 13); her render-state world pos/clip/facing
+     * are driven live by freeroam_step (the bit-exact mover). */
+    if (g_freeroam_active && !room_is_town)
+        effect_emitted += actor_render_static(&g_freeroam_actor, &g_freeroam_rs,
+                                              /*flip_table=*/g_actor_flip_table, pool,
+                                              game_sprite_resolve, NULL);
+
     if (g_actors_loaded && room_is_town)
         for (int i = 0; i < g_actors.count; i++) {
             const actor *a = &g_actors.actors[i];
@@ -2652,6 +2678,62 @@ static int reload_room_backdrop(uint32_t room_key)
     return ok;
 }
 
+/* Phase 2b: the FREEROAM hand-off.  When the cutscene chain completes at the
+ * errands room, spawn controllable Arche at her errands world position (the
+ * +0x200==0 char-AI hand-off, quirk #103 — the bit-exact mover takes over).  Her
+ * body bank 0x8b + flip table persist from the town cast registration. */
+static void freeroam_begin(void)
+{
+    character_init(&g_freeroam_char, FREEROAM_ARCHE_SPAWN_WX,
+                   FREEROAM_ARCHE_SPAWN_WY, CHAR_FACE_RIGHT);
+    memset(&g_freeroam_actor, 0, sizeof g_freeroam_actor);
+    memset(&g_freeroam_rs, 0, sizeof g_freeroam_rs);
+    g_freeroam_actor.layer = 13u;                       /* the cast layer */
+    g_freeroam_actor.sprite_table[0].bank       = 0x8bu; /* Arche body */
+    g_freeroam_actor.sprite_table[0].frame_base = 0;
+    g_freeroam_rs.active     = 1;
+    g_freeroam_rs.world_x    = FREEROAM_ARCHE_SPAWN_WX;
+    g_freeroam_rs.world_y    = FREEROAM_ARCHE_SPAWN_WY;
+    g_freeroam_rs.facing     = CHAR_FACE_RIGHT;
+    g_freeroam_rs.dst_base_x = -30;                     /* Arche cast render anchor */
+    g_freeroam_rs.dst_base_y = -24;
+    g_freeroam_rs.clip       = arche_freeroam_clip(/*moving=*/0, 0, 0);  /* idle */
+    /* The LEFT-facing walk mirror for bank 0x8b (cels +4) — set the persisted
+     * flip table so facing==3 picks the mirrored walk cels. */
+    if ((uint16_t)0x8bu < (uint16_t)AR_SPRITE_SLOT_COUNT)
+        g_actor_flip_table[0x8bu] = ARCHE_FREEROAM_FLIP;
+    g_freeroam_active = 1;
+    log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
+             FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
+}
+
+/* One freeroam sim-tick: run the bit-exact mover on the live held axis, mirror its
+ * world pos/facing into the render-state, and advance the walk/idle clip. */
+static void freeroam_step(void)
+{
+    /* The SAME input_mgr +0x114 array A the retail char-AI reads (held-trace replay
+     * or the live keyboard producer); axis[0..3] = UP/DOWN/LEFT/RIGHT. */
+    const int *axis = (const int *)g_game_drive.input.axis_held;
+    /* jump = the C button level, run = the dash flag — the live ring/double-tap
+     * sources are deferred (PORT-DEBT(char-run-trigger) + the jump button level), so
+     * 0 for now; walk/idle + facing are the first-freeroam deliverable. */
+    int jump = 0;
+    int run  = 0;
+    character_step(&g_freeroam_char, axis, jump, run);
+    g_freeroam_rs.world_x = g_freeroam_char.world_x;
+    g_freeroam_rs.world_y = g_freeroam_char.world_y;
+    g_freeroam_rs.facing  = g_freeroam_char.facing;
+    int moving = (g_freeroam_char.cmd_dir != 0) || (g_freeroam_char.vel != 0);
+    const anim_clip *want = arche_freeroam_clip(moving, g_freeroam_char.airborne, run);
+    if (g_freeroam_rs.clip != want) {
+        g_freeroam_rs.clip  = want;
+        g_freeroam_rs.timer = 0;
+        g_freeroam_rs.frame = 0;
+        g_freeroam_rs.done  = 0;
+    }
+    actor_anim_advance(&g_freeroam_rs);   /* advance the clip one sim-tick */
+}
+
 /* The in-game frame render (game_drive cfg.render).  Clears to black (the
  * faithful map-load fill) then, once the town scene is loaded (enter_game),
  * walks the static backdrop through the live-verified first-frame camera
@@ -2860,6 +2942,11 @@ static void game_render(void *user)
                  * idle breathing) — the town's full game_actor_update doesn't
                  * run in non-town rooms, so step just the room cast's clips. */
                 actor_pool_update(&g_room_cast);
+            /* Phase 2b: the FREEROAM mover — one sim-tick of controllable Arche on
+             * the live held axis (the errands hand-off; independent of the room
+             * cast above, both run in the errands). */
+            if (is_sim_tick && g_freeroam_active)
+                freeroam_step();
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
              * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
@@ -3020,11 +3107,15 @@ static void game_render(void *user)
                                  "-> errands room 0x334dc (the freeroam scene)",
                                  g_game_camera_hold);
                         /* The chain ends at the errands boundary: load that room's
-                         * backdrop (the freeroam scene).  The control hand-off
-                         * (character_step on live input) is the next arc; the
-                         * errands backdrop renders static at its spawn camera. */
+                         * backdrop (the freeroam scene) and HAND OFF to the
+                         * controllable mover (Phase 2b — the +0x200==0 char-AI path).
+                         * Retail plays a short errands opening dialogue (the questline
+                         * 0x4dc510, PORT-DEBT(cutscene-scene-chain)) before freeroam;
+                         * the port hands off directly. */
                         if (g_loaded_room_key != CUTSCENE_ROOM_ERRANDS)
                             reload_room_backdrop(CUTSCENE_ROOM_ERRANDS);
+                        if (!g_freeroam_active)
+                            freeroam_begin();
                     }
                 }
             }
