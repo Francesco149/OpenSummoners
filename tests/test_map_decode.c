@@ -385,21 +385,23 @@ int test_map_decode_errands_arms(void)
     map_grid_set_dims(g, 40, 40);
     map_decode_cfg cfg; map_decode_cfg_init(&cfg, MAP_DECODE_SCENE_PARAM3, 4);
 
-    /* 0x1b97c floor: slot 2, bank 0x17c, flag 0x14, frame = scene_frame (0,
-     * NOT arg_0c); shape 0 -> default obj emit_obj(x,y,2,1,10,1,0,6,0). */
+    /* 0x1b97c floor: slot 2, bank 0x17c, flag 0x14, frame = the CELL's arg_0c
+     * (the per-cell tile variant — PROVEN off the errands cells vs retail's res
+     * frames; the prior scene_frame=0 read was an untested assumption, the town/
+     * house don't use these auto-footprint tiles); shape 0 -> default obj. */
     fx_set(&f, 1, 1, 0, 0x1b97c, 0, 0x9);
     map_decode_cell(&f.m, g, 1, 1, 0, &cfg, dims_1x1, NULL);
-    if (chk_tile(g, 1, 1, 2, 0x17c, 0, 0x14, 0, 0)) return 1;
+    if (chk_tile(g, 1, 1, 2, 0x17c, 0x9, 0x14, 0, 0)) return 1;
     if (chk_obj(g, 1, 1, 10, 6, 0, 0, 1)) return 1;
 
-    /* 0x1b972 wall: slot 1, bank local_1c=0x17d, flag 2 */
-    fx_set(&f, 5, 5, 0, 0x1b972, 0, 0x0);
+    /* 0x1b972 wall: slot 1, bank local_1c=0x17d, flag 2, frame = arg_0c */
+    fx_set(&f, 5, 5, 0, 0x1b972, 0, 0x5);
     map_decode_cell(&f.m, g, 5, 5, 0, &cfg, dims_1x1, NULL);
-    if (chk_tile(g, 5, 5, 1, 0x17d, 0, 2, 0, 0)) return 1;
-    /* 0x1b977: bank local_18=0x187 */
-    fx_set(&f, 7, 7, 0, 0x1b977, 0, 0x0);
+    if (chk_tile(g, 5, 5, 1, 0x17d, 0x5, 2, 0, 0)) return 1;
+    /* 0x1b977: bank local_18=0x187, frame = arg_0c */
+    fx_set(&f, 7, 7, 0, 0x1b977, 0, 0x8);
     map_decode_cell(&f.m, g, 7, 7, 0, &cfg, dims_1x1, NULL);
-    if (chk_tile(g, 7, 7, 1, 0x187, 0, 2, 0, 0)) return 1;
+    if (chk_tile(g, 7, 7, 1, 0x187, 0x8, 2, 0, 0)) return 1;
 
     /* 0x1b986: bank local_24=0x17e slot 1 flag 2 (frame = arg_0c here) */
     fx_set(&f, 9, 9, 0, 0x1b986, 0, 0x4);

@@ -356,10 +356,15 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
         break;
 
     /* 0x1b97c (587e00.c:2038-2117): the auto-footprint FLOOR tile (bank 0x17c,
-     * slot 2, flag 0x14, frame = scene param_3) + a shape-switch obj.  The
-     * retail inlined grid-rectangle write == emit_tile with span 0/0. */
+     * slot 2, flag 0x14, frame = the CELL's arg_0c) + a shape-switch obj.  The
+     * retail inlined grid-rectangle write == emit_tile with span 0/0.  FRAME FIX
+     * (errands): the per-cell tile VARIANT is c.arg_0c (the cell +0xc), NOT the
+     * scene param_3 — proven off the errands cells (arg_0c per column) == retail's
+     * res frames exactly (the town/house don't use these auto-footprint tiles, so
+     * the prior scene_frame=0 read was untested; the errands is the first interior
+     * with autotiled walls/floor). */
     case 0x1b97c:
-        map_grid_emit_tile(grid, ix, iy, 2, 0x17c, (uint16_t)cfg->scene_frame,
+        map_grid_emit_tile(grid, ix, iy, 2, 0x17c, (uint16_t)c.arg_0c,
                            0x14, 0, 0, dims, ctx);
         switch (c.shape) {
         case 1:  /* PORT-DEBT(decode-occlusion-mark): the 5-row occlusion loop */ break;
@@ -371,17 +376,20 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
         break;
 
     /* 0x1b972 (587e00.c:1510-1548): auto-footprint wall span, bank local_1c,
-     * slot 1, flag 2, frame = scene param_3.  + shape-1/2 occlusion (deferred). */
+     * slot 1, flag 2, frame = the CELL's arg_0c (the per-cell wall variant; see
+     * 0x1b97c above).  + shape-1/2 occlusion (deferred). */
     case 0x1b972:
-        map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_1c, (uint16_t)cfg->scene_frame,
+        map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_1c, (uint16_t)c.arg_0c,
                            2, 0, 0, dims, ctx);
         /* PORT-DEBT(decode-occlusion-mark): LAB_00589520 shape-1/2 culling mark */
         break;
 
     /* 0x1b977 (587e00.c:1557-1601): auto-footprint wall span, bank local_18,
-     * slot 1, flag 2, frame = scene param_3.  + shape-1/2 occlusion (deferred). */
+     * slot 1, flag 2, frame = the CELL's arg_0c.  PROVEN: the 8 errands 0x1b977
+     * cells' arg_0c (4,5,5,8,5,5,6,7 by column) == retail's res 1897 frames
+     * exactly (draw_probe).  + shape-1/2 occlusion (deferred). */
     case 0x1b977:
-        map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_18, (uint16_t)cfg->scene_frame,
+        map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_18, (uint16_t)c.arg_0c,
                            2, 0, 0, dims, ctx);
         /* PORT-DEBT(decode-occlusion-mark): LAB_00589520 shape-1/2 culling mark */
         break;
