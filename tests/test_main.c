@@ -164,6 +164,8 @@ struct test_case {
     X(ss_mgr_clone_destroys_old_dst_entries)                   \
     X(npc_palette_remap_lookup)                                \
     X(reapply_data_events_restores_after_clone)                \
+    X(cross_slot_palette_swap_tables)                          \
+    X(apply_slot_palette_swap_noop_paths)                      \
     X(group3_clones_apply_is_idempotent)                       \
     X(group3_clones_dst_pool_range)                            \
     X(group3_clones_first_entry_propagates_resource_id)        \

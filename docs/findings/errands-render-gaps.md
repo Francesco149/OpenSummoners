@@ -7,7 +7,7 @@ ports are clean follow-ups.  The exact USER marks (tick + crop + text):
 | tick | crop [x,y,w,h]      | USER note                          |
 |------|---------------------|------------------------------------|
 | 1726 | [309,154,96,89]     | **missing fire in fireplace**      |
-| 1726 | [75,283,30,38]      | **wrong wall colour**              |
+| 1726 | [75,283,30,38]      | **wrong wall colour** (→ DONE ckpt 148, §3 — per-room palette swap) |
 | 1726 | [315,343,143,85]    | **missing props in shelves**       |
 | 1726 | [81,290,102,129]    | **bookshelf missing props**        |
 | 2413 | [0,0,294,92]        | **top left hud**                   |
@@ -97,32 +97,51 @@ This is the in-game status panel — a real UI subsystem to port (the party/char
 exist port-side; the panel LAYOUT + bar/star/number rendering is the work).  Best done
 with the USER (the HUD layout is very visual).
 
-## 3. The wall colour (note #4) — res 1897/1898 errands FLOOR/WALL tileset decodes differently (NOT the grade) — deferred (ckpt 147 RE)
+## 3. The wall colour (note #4) — PER-ROOM PALETTE SWAP (FUN_00417bc0) — RESOLVED + PIXEL-EXACT (ckpt 148)
 
 [75,283,30,38] "wrong wall colour": PORT wall WARM BROWN, retail cooler GREENISH-GRAY.
-RE'd off port-fire.osr vs retail.osr (the dhash census method that nailed the fire):
+**RESOLVED + ported; the floor sheets are now `differ_px==0` vs retail and the USER's exact
+wall crop reconstructs pixel-identical.**
 
-**Pinned to res 1897/1898.**  Of every sheet in the wall region, the BACKDROP sheets
-(res 1002 far-plane, 1722, 1082) and the FURNITURE (res 1023) have dhashes that MATCH
-retail bit-for-bit; only **res 1897 (fr4/5/8) + res 1898 (fr4/7/11) DIFFER** — these are
-the errands floor/wall tileset, the CLONED banks (0x187←0x184 / 0x188←0x185 = the town
-DATA-1022 floor sheets res 0x769/0x76a, `asset_register.c:3157`).  The town doesn't draw
-1897/1898 in the arrival, so this is errands-only.
+**Pinned to res 1897/1898** (the dhash census method that nailed the fire).  Of every sheet
+in the wall region, the backdrop (res 1002/1722/1082) + furniture (res 1023) MATCH retail
+bit-for-bit; only **res 1897 (fr4/5/8) + res 1898 (fr4/7/11) DIFFERED** — the errands floor
+tileset, the CLONED banks (0x187←0x184 / 0x188←0x185 = the town floor res 0x769/0x76a).
+The town doesn't draw 1897/1898 in the arrival, so this is errands-only.
 
-**NOT a simple grade toggle.**  A GRADE-DBG log (temporary, at the `title_sheet_format`
-grade site) confirmed the floor DOES decode via slots **378/379** (pool 0x187/0x188 −
-RAMP_COUNT−1), IS **8bpp**, and IS graded (`src=8 grade_on=1`) — so it is grade-eligible
-(the same path as the town floor source 375/376, which matches retail).  But toggling the
-grade does NOT reach retail's version: with the grade ON the errands-clone dhash differs
-from retail, and excluding slots 378/379 (grade OFF) ALSO differs (it changes the port's
-decode but not to retail's).  So retail's errands floor matches NEITHER the port's graded
-NOR ungraded decode of res 0x769 — retail applies a DIFFERENT transform to the errands
-floor than to the town floor (a per-room PALETTE swap — cf. the NPC colour-variant remap,
-ckpt 142 — or a per-room grade gate), even though both source the same sheet.  DEFERRED.
-TODO next session: dump the port's vs retail's decoded res-0x769 PALETTE in the errands
-(not just the dhash) — find the per-room palette/grade the errands applies that the town
-doesn't; the clone path is `ar_apply_group3_inline_clones` (0x187←0x184).  Feed: the
-PORT(brown)|RETAIL(grey) wall montage.
+**The mechanism — a per-room PALETTE SWAP via the info-entry +8 (the SAME field as the NPC
+colour variant, but a different sub-case of FUN_00417bc0).**  The town floor PIXELS (res
+0x769/0x76a) render in the errands sliced against a DIFFERENT bank's palette — res **0x76b**
+(a 32×32 palette-holder sheet whose embedded palette is the cooler errands-floor colours):
+1. The errands floor banks 0x187/0x188 carry **+8 = &DAT_00675500** (`0057ca40.c:2286/2291`,
+   a group3 DATA_SET in `group3_info_events[]`).
+2. **FUN_00417bc0** is the UNIFIED +8 consumer.  Its table's first u16 is a SOURCE selector:
+   `== 0` ⇒ remap entries WITHIN the bank's own embedded palette (the NPC body-bank shift,
+   ported as the equivalent pixel-index remap); `!= 0` ⇒ a CROSS-SLOT swap — copy palette
+   entries from the slot whose POOL index == that u16.  &DAT_00675500's first u16 = **0x186**
+   = pool 0x186 = res 0x76b, copying entries 1..255 → the floor reads res 0x76b's grey palette.
+3. Retail's per-tile palette build **0x490f30** does, per bank: embedded (`FUN_004178e0`) →
+   FUN_00417bc0 (+8 swap) → FUN_004182d0 (+4 flag scale; a NO-OP for the floor — flag 0 — and
+   for town-area rooms where `DAT_008a93fc`=0x14 hits the switch default) → tone-curve grade →
+   install.  So the errands floor = grade(res 0x76b palette), the town floor = grade(res 0x769
+   palette) — same grade, different source palette, same sheet pixels.
+
+**Why the port was wrong:** the port modelled +8 ONLY as the NPC within-palette PIXEL remap
+(`ar_npc_palette_remap`), which is IDENTITY for the floor's table (first u16 != 0) → no effect
+→ the floor kept its own warm palette.  The earlier "grade ruled out then back in" confusion was
+a red herring: the floor IS graded, but the grade runs AFTER a palette swap the port never did.
+
+**The fix (`asset_register.c`, ckpt 148):** `ar_apply_slot_palette_swap` ports the cross-slot
+half of FUN_00417bc0 — at decode (before the grade in `title_sheet_format`), if the bank's +8
+names a swap table (`AR_PAL_SWAP_TABLES`, generated by `tools/extract/info_palette_swap_tables.py`),
+overwrite the named palette entries with the source slot's RAW +0x34 palette (via
+`ar_decode_slot_palette_raw` — NOT the BGRA-reordered `ar_palette_session_begin`, so src/dst stay
+in the same channel order the grade+convert read).  Disjoint from the NPC remap (those tables have
+first u16 == 0).  **VERIFIED off `port-walltint.osr` vs `retail.osr`:** floor sheets res 1897 fr4/5/8
++ res 1898 fr4/7/11 all `differ_px==0` (dhash byte-identical); the USER wall crop [75,283,30,38] at
+tick 1726 reconstructs `differ_px==0, maxd==0`; town **58/58** + errands **73/73** shared sheets match
+(no regression).  +host tests `cross_slot_palette_swap_tables` + `apply_slot_palette_swap_noop_paths`.
+Feed: the PORT|RETAIL|DIFF wall+floor montage (floor dark = match).
 
 ## 4. The shelf props (notes "missing props in shelves" / "bookshelf missing props") — FIXED (z-order, ckpt 146, `ead9c49`)
 

@@ -2562,6 +2562,66 @@ int test_reapply_data_events_restores_after_clone(void)
     return 0;
 }
 
+int test_cross_slot_palette_swap_tables(void)
+{
+    /* The cross-slot palette-swap tables (FUN_00417bc0, +8 first u16 != 0) — the
+     * per-room floor.  The errands floor banks 0x187/0x188 carry +8 =
+     * &DAT_00675500 (src pool 0x186 = res 0x76b), replacing palette entries
+     * 1..255 with res 0x76b's cooler palette.  Guard the generated data. */
+    const struct ar_pal_swap_table *floor = ar_pal_swap_table_for_va(0x00675500u);
+    T_ASSERT(floor != NULL);
+    T_ASSERT_EQ_U(floor->src_pool, 0x0186u);   /* res 0x76b */
+    T_ASSERT_EQ_U(floor->lo, 1u);
+    T_ASSERT_EQ_U(floor->hi, 255u);
+    /* the sibling floor table + the third cross-slot table */
+    const struct ar_pal_swap_table *f2 = ar_pal_swap_table_for_va(0x006752f8u);
+    T_ASSERT(f2 != NULL && f2->src_pool == 0x017fu && f2->lo == 1 && f2->hi == 255);
+    const struct ar_pal_swap_table *f3 = ar_pal_swap_table_for_va(0x006746c8u);
+    T_ASSERT(f3 != NULL && f3->src_pool == 0x0136u && f3->lo == 32 && f3->hi == 95);
+
+    /* DISJOINT from the NPC within-palette tables (those have first u16 == 0,
+     * so they are NOT swap tables) and from unknown / zero VAs. */
+    T_ASSERT_EQ_P(ar_pal_swap_table_for_va(0x006748d0u), NULL);   /* NPC variant 1 */
+    T_ASSERT_EQ_P(ar_pal_swap_table_for_va(0x00674ad8u), NULL);   /* NPC variant 2 */
+    T_ASSERT_EQ_P(ar_pal_swap_table_for_va(0), NULL);
+    T_ASSERT_EQ_P(ar_pal_swap_table_for_va(0x12345678u), NULL);
+
+    /* The floor's source slot (pool 0x186) resolves to res 0x76b (the grey
+     * errands-floor palette holder) — so the swap reads a real registered bank. */
+    ar_state_init();
+    void *zdd = (void *)0xc0c0, *settings = (void *)0xd0d0;
+    ar_register_group3_sprites(zdd, /*group=*/3, settings);
+    T_ASSERT_EQ_U(ar_pool_get_slot(0x0186u)->resource_id, 0x076bu);
+    for (int i = 0; i < AR_SPRITE_SLOT_COUNT; i++)
+        ar_sprite_slot_destroy(&g_ar_sprite_slots[i]);
+    return 0;
+}
+
+int test_apply_slot_palette_swap_noop_paths(void)
+{
+    /* ar_apply_slot_palette_swap must leave the palette UNTOUCHED unless the
+     * slot's +8 names a cross-slot table — guards the NPC/no-data disjointness
+     * (the NPC remap path runs on pixels, not here). */
+    ar_state_init();
+    uint8_t pal[1024], save[1024];
+    for (int i = 0; i < 1024; i++) pal[i] = (uint8_t)(i * 7 + 3);
+    memcpy(save, pal, 1024);
+
+    /* slot 377 = res 0x76b, no +8 data -> no-op */
+    ar_sprite_slot *s = &g_ar_sprite_slots[377];
+    uint16_t bank = (uint16_t)((s - g_ar_sprite_slots) + AR_SPRITE_RAMP_COUNT + 1);
+    g_ar_info_table[bank]->data = NULL;
+    ar_apply_slot_palette_swap(s, pal);
+    T_ASSERT(memcmp(pal, save, 1024) == 0);
+
+    /* an NPC within-palette VA on the same slot -> still a no-op here */
+    g_ar_info_table[bank]->data = (const void *)(uintptr_t)0x006748d0u;
+    ar_apply_slot_palette_swap(s, pal);
+    T_ASSERT(memcmp(pal, save, 1024) == 0);
+    g_ar_info_table[bank]->data = NULL;
+    return 0;
+}
+
 /* ─── ar_apply_group3_clones (5th pass of FUN_0057ca40) ─────────── */
 
 int test_group3_clones_apply_is_idempotent(void)

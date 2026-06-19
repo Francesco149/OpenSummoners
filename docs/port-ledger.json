@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 203,
+  "tested": 204,
   "ported": 5,
-  "unported": 1550,
+  "unported": 1549,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 208,
-  "pct_touched": 13.1,
-  "pct_tested": 13.1,
-  "engine_proper_touched": 195,
+  "touched": 209,
+  "pct_touched": 13.2,
+  "pct_tested": 13.2,
+  "engine_proper_touched": 196,
   "bytes_total": 1694868,
-  "bytes_touched": 241894,
+  "bytes_touched": 242017,
   "pct_bytes_touched": 14.3
  },
  "orphan_refs": [
@@ -1517,8 +1517,11 @@
    "name": "FUN_00417bc0",
    "size": 123,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/asset_register.c",
+    "src/asset_register.h"
+   ]
   },
   {
    "va": "0x417c40",

@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **208** (13.1% of engine-proper) — tested 203, ported 5
-- code bytes touched: **14.3%** (241,894 / 1,694,868 B of engine-proper)
-- unported: **1550**
+- touched: **209** (13.2% of engine-proper) — tested 204, ported 5
+- code bytes touched: **14.3%** (242,017 / 1,694,868 B of engine-proper)
+- unported: **1549**
 - orphan refs in src/ not in this table: 4
 
-## tested (203) — ported + host unit suite
+## tested (204) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -43,6 +43,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
+| 0x417bc0 | FUN_00417bc0 | 123 | asset_register.c, asset_register.h |
 | 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
 | 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
 | 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h, main.c |
