@@ -51,12 +51,21 @@ whatever trace you need."  All three delivered.
   town/house don't use these auto-footprint tiles (0x1b97c/72/77 cell histograms empty), so the scene_frame
   read was untested.  Fixed `map_decode.c` (the 0x1b97c/72/77 arms emit `c.arg_0c`).  VERIFIED off
   `port-errands.osr` vs retail.osr (tick 1900): EVERY tile bank's per-frame draw count now == retail (res
-  1897/1898/1072/1073/1074); full-frame differ 143978→90939 (residual = the errands cast + dialogue, not the
-  backdrop).  Updated `test_map_decode_errands_arms` to the arg_0c expectation.
-- **NEXT (task #5):** the errands CAST (Father res 1139/bank 0xe3 @ screen 480,320 + the shop NPCs res 1027
-  multi-frame frames 8/9/11/14/28/29/64 + check Mother res 1127) — same per-room-cast pattern; the errands
-  opening dialogue L18-L20 (questline 0x4dc510, PORT-DEBT(cutscene-scene-chain)); freeroam refinements
-  (jump/run/double-tap, camera-follow, distance-locked walk cels); the errands decode-occlusion-mark (~7 cells).
+  1897/1898/1072/1073/1074); full-frame differ 143978→90939.  Updated `test_map_decode_errands_arms` to arg_0c.
+- **ERRANDS CAST — the family + shop props (commits `7ea34cb` + `71717df`).**  Extended the room cast to the
+  errands (`ERRANDS_CAST`): Father (bank 0xe3) world (51000,50000)@480,320 + Mother (bank 0xb5) world
+  (65400,30800)@624,128 + the 10 static shop props/NPCs (res 1027 = bank 0x16c, the prop sheet, 80 frames):
+  clip NULL, frame_base = the captured frame, dst_base (0,0) (bank 0x16c has no pivot offset — fr4 lands
+  @500,160 exactly), world = (screen_x·100, (screen_y+160)·100).  VERIFIED off port-errands.osr vs retail.osr
+  (tick 2200): all 14 res-1027 draws == retail (frame@pos, no missing/extra; was 4/14); Father/Mother == retail.
+  Errands differ 90939→82639 — the BACKDROP + CAST are bit-exact; the residual is the errands DIALOGUE/HUD only.
+- **NEXT (task #5):** the errands opening DIALOGUE L18-L20 + questline (0x4dc510, separate dialogue API
+  0x4a5ee0 — the bulk of the remaining errands diff = the dialogue box+portrait at tick ~2200) +
+  PORT-DEBT(cutscene-scene-chain); the freeroam HUD (res 0 status panel); freeroam refinements (jump/run/
+  double-tap; camera-FOLLOW — the errands cam is static at 0/16000 but retail follows Arche, she walks off-screen
+  past ~wx 60000, needs RE + a freeroam-camera capture while USER is back; distance-locked walk cels); the
+  proper actor-sprite-table struct-code fix for the res-1027 props (vs the captured ERRANDS_CAST);
+  errands decode-occlusion-mark (~7 cells).
 - **Capture recipe (this arc):** `nav-full-errands.jsonl` (the USER-provided 21-line matched-cadence nav,
   in `runs/cutscene-verify/` + `/mnt/c/oss-osr/`) drives the cutscene → errands; add `--held-trace
   runs/freeroam-walk/port-walk.jsonl` for the walk.  Port reaches errands at sim_tick ~1678 (chain complete

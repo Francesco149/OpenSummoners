@@ -44,9 +44,17 @@ draw_probe / recon against `retail.osr`.
   count now == retail (res 1897/1898/1072/1073/1074); full-frame differ 143978→90939 (the residual is the
   errands cast + dialogue, not the backdrop).  Reduces PORT-DEBT(decode-prologue).
 
-**NEXT (task #5):** the errands CAST (Father res 1139 + shop NPCs res 1027 + Mother res 1127) — the
-`errands-cast` debt; the errands opening dialogue L18-L20 (questline 0x4dc510); freeroam refinements
-(jump/run/double-tap, camera-follow, distance-locked walk cels).
+- **ERRANDS CAST — the family + shop props (`7ea34cb` + `71717df`).**  Extended the room cast to the errands
+  (`ERRANDS_CAST`): Father (bank 0xe3) @480,320 + Mother (bank 0xb5) @624,128 + the 10 static shop props/NPCs
+  (res 1027 = bank 0x16c, captured static room-cast members — clip NULL, fixed frame, dst_base 0; the
+  TOWN_EFFECT_DEFS pattern).  All 14 res-1027 draws now == retail (frame@pos, no missing/extra; was 4/14);
+  errands differ 90939→82639.  The errands BACKDROP + CAST are bit-exact; the residual is the errands
+  DIALOGUE/HUD only (the questline 0x4dc510, `cutscene-scene-chain`).
+
+**NEXT (task #5):** the errands opening DIALOGUE L18-L20 + questline (0x4dc510, separate dialogue API 0x4a5ee0
+— the bulk of the remaining errands diff = the dialogue box+portrait); the freeroam HUD (res 0); freeroam
+refinements (jump/run/double-tap; camera-FOLLOW — Arche walks off-screen past ~wx 60000; distance-locked walk
+cels); the proper actor-sprite-table struct-code fix for the res-1027 props.
 
 ## 2026-06-19 (ckpt 143) — the BUTTERFLY VERTICAL FLUTTER (THEME 2 note #2 residual): the case-3 jump FSM + a captured terrain-mover trigger, bit-exact
 

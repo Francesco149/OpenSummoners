@@ -49,8 +49,10 @@
   errands on live input via the bit-exact `character_step` (walk/idle clips + facing mirror); (3) the ERRANDS
   backdrop is now bit-exact — the auto-footprint wall/floor tile FRAME = the cell's `arg_0c` (not the constant
   scene_frame); every tile bank's per-frame count == retail.
-  **NEXT: the errands CAST (Father + shop NPCs res 1027) + the errands opening dialogue + freeroam refinements
-  (jump/run/double-tap, camera-follow, distance-locked walk cels) — see task list / `controllable-arche-faithful.md`.**
+  (4) the ERRANDS CAST — Father + Mother + the 10 shop props/NPCs (res 1027) all bit-exact (`ERRANDS_CAST`).
+  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD + freeroam refinements
+  (jump/run/double-tap, camera-follow [Arche walks off-screen past ~wx 60000], distance-locked walk cels) — see
+  task list / `controllable-arche-faithful.md`.**
   Studio: `plans/trace-studio-v2.md`; freeroam arc: `plans/controllable-arche-faithful.md`; milestones: `ROADMAP.md`.
   - Movement-system progress: butterflies ✓ → tile collision read-side ✓ → controllable Arche
     WALK/JUMP/DASH/windup bit-exact ✓ → MVP live-wire REMOVED ✓ → FAITHFUL live keyboard input ✓ →
@@ -90,13 +92,18 @@
     emitted `cfg->scene_frame` (=0) but the per-cell tile VARIANT is the cell's **`arg_0c`** (+0xc).  PROVEN: the
     8 errands 0x1b977 cells' arg_0c (4,5,5,8,5,5,6,7) == retail's res 1897 frames exactly; town/house don't use
     these tiles (so untested before).  Fixed → EVERY errands tile bank's per-frame draw count now == retail
-    (res 1897/1898/1072/1073/1074); full-frame differ 143978→90939 (residual = the errands cast + dialogue).
+    (res 1897/1898/1072/1073/1074); full-frame differ 143978→90939.
+  - **ERRANDS CAST — the family + shop props (`ERRANDS_CAST`, commits `7ea34cb`+`71717df`).**  Father (bank
+    0xe3) @480,320 + Mother (bank 0xb5) @624,128 + the 10 static shop props/NPCs (res 1027/bank 0x16c) —
+    captured static room-cast members (the TOWN_EFFECT_DEFS pattern).  All 14 res-1027 draws now == retail
+    (frame@pos); errands differ 90939→82639.  The errands BACKDROP + CAST are now bit-exact; the residual is
+    the errands DIALOGUE/HUD only (the questline 0x4dc510, `cutscene-scene-chain`).
   **USER-VERIFY:** `osr_view.exe C:\oss-osr\port-errands.osr C:\oss-osr\retail.osr` (shortcut loaded) — scrub
-  the HOUSE (ticks ~1340-1670: the family present) + the ERRANDS (ticks ~1740+: the shop backdrop 1:1, Arche
-  idle); `osr_view.exe C:\oss-osr\port-freeroam.osr C:\oss-osr\retail.osr` shows Arche WALKING the errands
-  (the port walks her on a held-axis trace, retail is idle there — the walk is the port-only demo).  Montages
-  on the feed.  **NEXT: the errands CAST (Father res 1139 + shop NPCs res 1027) + the errands opening dialogue
-  + freeroam refinements (jump/run, camera-follow, distance-locked walk).**
+  the HOUSE (ticks ~1340-1670: the family present) + the ERRANDS (ticks ~1740+: the shop backdrop + family +
+  props 1:1, Arche idle); `osr_view.exe C:\oss-osr\port-freeroam.osr C:\oss-osr\retail.osr` shows Arche WALKING
+  the errands (the port walks her on a held-axis trace, retail is idle there — the walk is the port-only demo).
+  Montages on the feed.  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD +
+  freeroam refinements (jump/run, camera-FOLLOW [Arche walks off-screen past ~wx 60000], distance-locked walk).**
 - **Prior (ckpt 143): the BUTTERFLY VERTICAL FLUTTER is PORTED + bit-exact — THEME 2 note #2's vertical bob
   is RESOLVED; the 4 town butterflies now bob up/down matching retail tick-for-tick (port dst-Y == retail, 0 X
   regression).**  RE'd "trace the code" (the physics) + USER-approved captured stand-in for the trigger.
