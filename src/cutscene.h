@@ -189,6 +189,12 @@ typedef struct cutscene_room {
                                           * staged (the arrival's wait + fade-to-     *
                                           * black before the house swap); NULL/0=none*/
     int                       n_exit;
+    int                       exit_box_hold;/* >0: keep the LAST line's box UP showing*
+                                          * its full text for this many ticks while   *
+                                          * the exit cover plays BEHIND it (the box    *
+                                          * lingers OVER the darkening scene, like the *
+                                          * run-off box_hold), then closes; 0 = close  *
+                                          * the box immediately on the exit advance.   */
 } cutscene_room;
 
 typedef struct cutscene {

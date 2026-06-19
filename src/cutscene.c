@@ -252,6 +252,12 @@ static const cutscene_line_lead HOUSE_LEADS[] = {
  * by main.c on chain-complete — the errands script (0x4dc510) that owns it is not
  * yet ported (PORT-DEBT(cutscene-scene-chain)). */
 #define HOUSE_EXIT_COVER_VAR 1   /* edges-in (retail.osr full-frame dump)            */
+/* The LAST house line's box lingers showing its full text OVER the cover for this
+ * many sim-ticks before closing: retail confirms L7 at ~tick 1670 (which fires the
+ * cover), but L7's glyphs don't clear until ~1678 — the box stays up over the
+ * darkening scene ~8t (measured off retail.osr's brightness curve + the box-glyph
+ * timeline; the nav advances L17 at the confirm 1670, NOT the glyph-clear 1678). */
+#define HOUSE_EXIT_BOX_HOLD  8
 static const cutscene_beat HOUSE_EXIT[] = {
     /* type           fade_mode      fade_var              pan_x pan_y param          dur */
     { CS_BEAT_FADE,   CS_FADE_COVER, HOUSE_EXIT_COVER_VAR, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
@@ -268,9 +274,9 @@ static const cutscene_beat HOUSE_EXIT[] = {
  * var 1) before the errands key stages; main.c arms the matching errands-entry REVEAL
  * (center-out var 0) on chain-complete. */
 static const cutscene_room TOWN_CHAIN[] = {
-    /* room_key            script        n_lines            leads          n_leads          exit          n_exit */
-    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N },
-    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N },
+    /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold */
+    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0 },
+    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))
 
@@ -623,7 +629,16 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
              * line's advance — close the box and hand to the beat phase;
              * cs_finish_beats commits the next room key when they complete. */
             if (last_in_room && room->exit_beats != NULL && room->n_exit > 0) {
-                cs_close_box_into_closing(cs);
+                /* THEME B (house exit): retail keeps the LAST line's box UP showing
+                 * its full text OVER the darkening cover for ~8t (the confirm fires
+                 * the cover at ~1670, but the box's glyphs don't clear until ~1678 —
+                 * the box lingers over the cover, then closes), so LINGER it like the
+                 * run-off box_hold instead of closing immediately.  cs_step_beats
+                 * decrements box_linger and closes the box when it expires. */
+                if (room->exit_box_hold > 0)
+                    cs->box_linger = room->exit_box_hold;
+                else
+                    cs_close_box_into_closing(cs);
                 cs_begin_beats(cs, room->exit_beats, room->n_exit, /*exit=*/1);
                 return 0;
             }

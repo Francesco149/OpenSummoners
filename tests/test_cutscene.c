@@ -543,11 +543,12 @@ int test_cutscene_house_exit_cover(void)
     T_ASSERT_EQ_I(cs.line_idx, 7);                 /* last house line */
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
 
-    /* advance the last house line → the EXIT cover opens: box closed, in beats,
-     * still IN the house room (the chain completes only AFTER the cover settles). */
+    /* advance the last house line → the EXIT cover opens.  The box LINGERS showing
+     * its full text OVER the cover (exit_box_hold) instead of closing immediately —
+     * in beats, still IN the house room (the chain completes only AFTER the cover). */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
-    T_ASSERT_EQ_I(dialogue_active(&box), 0);
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);   /* box LINGERS over the cover (box_hold) */
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_HOUSE);
 
     /* drive the cover, simulating the scene_fade grid; capture its mode+variant. */
