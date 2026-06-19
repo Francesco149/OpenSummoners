@@ -811,6 +811,15 @@ struct room_cast_member {
     int16_t   facing;        /* rs +0x2c (1 normal / 3 mirrored)                  */
     const anim_clip *clip;   /* rs +0x6c idle clip                                */
     uint16_t  clip_phase;    /* rs +0x72 idle start frame (cosmetic phase)        */
+    uint16_t  layer;         /* a +0xfc draw layer; 0 => the default cast layer   *
+                              * 13.  BACKGROUND furniture that the structure-band  *
+                              * props sit IN FRONT of (the bookshelf back panel)   *
+                              * needs a layer BELOW the structure-bg layer 8 (the  *
+                              * draw pool walks layers in index order, lower=behind*
+                              * — quirk: ERRANDS_CAST at 13 drew OVER the layer-8   *
+                              * props, occluding them; USER "bookshelf missing      *
+                              * props").  Retail draws the frame (seq 261) then the *
+                              * props (268+).                                       */
 };
 
 static const struct room_cast_member HOUSE_CAST[] = {
@@ -826,10 +835,10 @@ static const struct room_cast_member HOUSE_CAST[] = {
      * cutscene.c house speaker positions (Arche 128000/39200, Mother 131200/37200,
      * Father 134400/37200) — the box-anchor RE captured the same entity world coords
      * (ckpt 132), an independent cross-check that these are the real cast positions. */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip                      phase  member */
-    { 0x8bu,  0,  128000,  39200,  -30, -24, 1, &ARCHE_ARRIVAL_IDLE_CLIP,   0 }, /* Arche  res 0x570 @354,336 */
-    { 0xb5u,  4,  131200,  37200,  -30, -20, 1, &IDLE_CLIP,                 2 }, /* Mother res 0x467 @386,320 */
-    { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1 }, /* Father res 0x473 @418,320 */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip                      phase lyr  member */
+    { 0x8bu,  0,  128000,  39200,  -30, -24, 1, &ARCHE_ARRIVAL_IDLE_CLIP,   0,   0 }, /* Arche  res 0x570 @354,336 */
+    { 0xb5u,  4,  131200,  37200,  -30, -20, 1, &IDLE_CLIP,                 2,   0 }, /* Mother res 0x467 @386,320 */
+    { 0xe3u,  4,  134400,  37200,  -30, -20, 1, &IDLE_CLIP,                 1,   0 }, /* Father res 0x473 @418,320 */
 };
 
 /* The ERRANDS room (0x334dc) FAMILY — Father + Mother (the persistent parents) in
@@ -856,13 +865,13 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * PORT-DEBT(errands-cast): the proper fix is to spawn the errands CHARACTER band
      * with frame_base = variant + the visible-furniture code->bank table. */
     /* bank   fb  world_x  world_y  dbx dby fac clip  phase  member (map code @screen) */
-    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 (behind its props) */
-    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
-    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase  member */
-    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1 }, /* Father res 0x473 @480,320 */
-    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
-    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2 }, /* Mother res 0x467 @624,128 */
+    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0, 7 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 — LAYER 7 (behind its layer-8 props) */
+    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
+    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
+    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase lyr member */
+    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0 }, /* Father res 0x473 @480,320 */
+    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
+    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0 }, /* Mother res 0x467 @624,128 */
     /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
      * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
      * the port's struct band doesn't (the codes aren't in the struct-bank table —
@@ -871,16 +880,16 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * retail screen (tick 2200) back through the errands projection (cam 0/16000,
      * 1 px = 100 world); facing 1 + the cel pivot folded into dst_base (fitted). */
     /* bank   fb  world_x  world_y  dbx  dby fac clip  phase   res-1027 frame @screen */
-    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0 }, /* fr4  @500,160 */
-    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0 }, /* fr5  @632,160 */
-    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0 }, /* fr8  @384,-32 */
-    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0 }, /* fr9  @320,352 */
-    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0 }, /* fr9  @384,352 */
-    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0 }, /* fr11 @528,-32 */
-    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0 }, /* fr14 @452,-32 */
-    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0 }, /* fr44 @344,256 */
-    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0 }, /* fr44 @560,64  */
-    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0 }, /* fr64 @256,352 */
+    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0, 0 }, /* fr4  @500,160 */
+    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0, 0 }, /* fr5  @632,160 */
+    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr8  @384,-32 */
+    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0, 7 }, /* fr9  @320,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
+    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0, 7 }, /* fr9  @384,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
+    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr11 @528,-32 */
+    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 0 }, /* fr14 @452,-32 */
+    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0 }, /* fr44 @344,256 */
+    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0 }, /* fr44 @560,64  */
+    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0 }, /* fr64 @256,352 */
 };
 
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
@@ -907,7 +916,7 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
         memset(rs, 0, sizeof *rs);
         a->code  = 0;
         a->dir   = 0;
-        a->layer = 13u;                              /* the EFFECT cast layer */
+        a->layer = cast[i].layer ? cast[i].layer : 13u;  /* 0 => the EFFECT cast layer 13 */
         a->sprite_table[0].bank       = cast[i].bank;
         a->sprite_table[0].frame_base = cast[i].frame_base;
         rs->active     = 1;

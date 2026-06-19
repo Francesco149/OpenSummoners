@@ -1019,6 +1019,7 @@ struct test_case {
     X(actor_spawn_cutscene_iris)                               \
     X(arche_runoff)                                            \
     X(arche_house_turn_clip)                                   \
+    X(errands_cast_zorder)                                     \
     X(butterfly_pertick)                                       \
     X(butterfly_motion)                                        \
     X(butterfly_flutter)                                       \

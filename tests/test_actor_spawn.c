@@ -911,3 +911,38 @@ int test_arche_house_turn_clip(void)
     }
     return 0;
 }
+
+/* ── USER notes "bookshelf missing props" / "missing props in shelves": the errands
+ *    shelf props (structure band, layer 8) were OCCLUDED by the ERRANDS_CAST
+ *    BACKGROUND furniture (the bookshelf frame + the shelf units), which the cast
+ *    spawned at the cast layer 13 — drawn OVER the layer-8 props.  Retail draws the
+ *    frame/units FIRST (lower seq).  Guard that the background furniture gets a layer
+ *    BELOW 8, while the family/foreground stay at the default cast layer 13. ── */
+int test_errands_cast_zorder(void)
+{
+    actor_spawn_pool pool;
+    int n = actor_spawn_room_cast(&pool, 0x334dcu);   /* CUTSCENE_ROOM_ERRANDS */
+    T_ASSERT(n > 0);
+    int saw_bookshelf = 0, saw_shelfunit = 0, saw_family = 0;
+    for (int i = 0; i < pool.count; i++) {
+        uint16_t bank  = pool.actors[i].sprite_table[0].bank;
+        int16_t  fb    = pool.actors[i].sprite_table[0].frame_base;
+        uint32_t layer = pool.actors[i].layer;
+        if (bank == 0x16fu && fb == 3) { saw_bookshelf = 1; T_ASSERT_EQ_I(layer, 7); }  /* bookshelf frame */
+        if (bank == 0x16cu && fb == 9) { saw_shelfunit = 1; T_ASSERT_EQ_I(layer, 7); }  /* shelf units */
+        if (bank == 0xe3u)             { saw_family = 1;    T_ASSERT_EQ_I(layer, 13); } /* Father (default) */
+        /* every background-furniture layer that is non-default must be < 8 (behind
+         * the structure-band props) — never the cast 13 or the foreground 15. */
+        if (layer != 13u) T_ASSERT(layer < 8u);
+    }
+    T_ASSERT_EQ_I(saw_bookshelf, 1);
+    T_ASSERT_EQ_I(saw_shelfunit, 1);
+    T_ASSERT_EQ_I(saw_family, 1);
+
+    /* the HOUSE cast stays at the default cast layer 13 (no z-order overrides). */
+    int hn = actor_spawn_room_cast(&pool, 0x334c8u);   /* CUTSCENE_ROOM_HOUSE */
+    T_ASSERT(hn > 0);
+    for (int i = 0; i < pool.count; i++)
+        T_ASSERT_EQ_I(pool.actors[i].layer, 13);
+    return 0;
+}
