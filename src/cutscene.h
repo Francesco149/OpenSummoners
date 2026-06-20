@@ -102,6 +102,11 @@ typedef enum {
                           * 0x402730 — a cast-debt stand-in, see quirk #109)          */
     CS_BEAT_FADE,        /* issue scene_fade_arm(fade_mode,fade_var,param); hold   *
                           * `dur` ticks until the iris grid settles (in_ECX[8]=2)  */
+    CS_BEAT_ACTOR_TURN,  /* issue CS_ACT_ACTOR_TURN(param=dir); hold `dur` ticks   *
+                          * for the turn animation — the BLOCKING actor-wait beat  *
+                          * 0x401e60 sets (in_ECX[8]=4): the script pumps it        *
+                          * between two dialogue lines so the next line opens only  *
+                          * AFTER the turn completes (house L5→turn→L6, quirk #109) */
 } cutscene_beat_type;
 
 typedef struct cutscene_beat {
@@ -197,14 +202,10 @@ typedef struct cutscene_room {
                                           * the exit cover plays BEHIND it (the box    *
                                           * lingers OVER the darkening scene, like the *
                                           * run-off box_hold), then closes; 0 = close  *
-                                          * the box immediately on the exit advance.   */
-    int                       turn_after_line;/* >=0: after this 0-based line advances *
-                                          * (within this room), Arche plays her one-   *
-                                          * shot TURN clip — the script emote          *
-                                          * 0x401e60(Arche,1) (house L5, 0x4d7d80:1170,*
-                                          * USER notes #3-5).  Emits CS_ACT_ACTOR_TURN *
-                                          * on that advance; -1 = no turn (the default *
-                                          * for the arrival/errands rooms).            */
+                                          * the box immediately on the exit advance.   *
+                                          * The house Arche TURN (USER notes #3-5) is  *
+                                          * modeled as L6's blocking lead beat         *
+                                          * (CS_BEAT_ACTOR_TURN), not a room flag.     */
 } cutscene_room;
 
 typedef struct cutscene {

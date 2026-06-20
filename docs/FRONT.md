@@ -59,10 +59,12 @@
   is, ckpt 134) — a phase-pillar follow-up.**
   **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
   freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
-  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146 (`cfc6a96`)**:
-  the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2 after house L5;
-  ported as a fire-and-forget `CS_ACT_ACTOR_TURN` on the room-cast Arche, drawcall-faithful vs retail.osr (res
-  0x570; the ~7t absolute lag = the house-cadence phase debt).  (B) 3 missing errands FURNITURE
+  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
+  ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
+  after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
+  beat retail uses** (`CS_BEAT_ACTOR_TURN` = L6's lead, `in_ECX[8]=4` actor-wait) — now 158@1579/7@1583/0@1587
+  == retail (the ~7t lag GONE; the house dialogue was already tick-1:1, so the lag was the missing block, not a
+  cadence-phase debt).  (B) 3 missing errands FURNITURE
   FURNITURE objects (USER notes #8/#9/#18-21: counter, bookshelf frame, clock) — these are CHARACTER-band
   codes 0x112d1/d2/cf/d9 (70000-range) → bank 0x16f/0x16b (res 1023/1026), frame_base=variant, that the port's
   suppressed-for-non-town character band never rendered.  FIXED ckpt 145 (`01dc162`): captured into ERRANDS_CAST,
@@ -137,8 +139,27 @@
     the freeroam DASH double-tap TRIGGER (run derives from the live ring — input_dash_double_tap +
     character_resolve_run, the 0x478ba0/0x479e70 detection; window 800ms read live; char-run-trigger
     RETIRED) ✓ (150) →
-    **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (distance-locked walk/run cels) = next**.
-- **LATEST (ckpt 150): the freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end —
+    the house Arche TURN as the BLOCKING beat (CS_BEAT_ACTOR_TURN = L6's lead, keyed to L5's confirm;
+    0x401e60 sets in_ECX[8]=4 the actor-wait the thunk pumps; turn now 158@1579/7@1583/0@1587 == retail,
+    the ckpt-146 ~7t lag GONE) ✓ (151) →
+    **the errands dialogue/HUD (the res=0 freeroam UI + questline 0x4dc510) + freeroam refinements (distance-locked walk/run cels) = next**.
+- **LATEST (ckpt 151): the house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the
+  ckpt-146 ~7t lag is RESOLVED).**  Diagnosis first (off `port-dash.osr`, a fully matched nav): the house
+  DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` ±1t) yet the turn was STILL 7t late — DISPROVING the
+  finding's "auto-aligns once the cadence is tick-1:1" claim.  The real cause: ckpt 146 emitted the turn
+  FIRE-AND-FORGET on the L5→L6 advance (the nav delayed L5 ~7t to land L6, dragging the turn late).  RE'd
+  the decompile (`0x4d7d80:1163-1184`): `0x401e60(Arche,1)` sets cmd-2 + `in_ECX[8]=4` (the actor-WAIT
+  beat) so the thunk `0x439680` PUMPS it to completion BEFORE L6 — a BLOCKING beat.  **The port:**
+  `CS_BEAT_ACTOR_TURN` + house L6's lead beat (`HOUSE_L6_LEAD`, dur 8); `box_hold=8` keeps L5's box up
+  (full text) through the turn then shrink-closes as L6 reopens (quirk #107; slide+dissolve gated to the
+  run-off CAMERA_PAN lead).  Nav presses L5's confirm at retail's tick 1579 (`runoff_leads 15:15`).
+  Removed the now-dead `turn_after_line` field.  **VERIFIED off `port-houseturn.osr` vs `retail.osr`:**
+  turn 158@1579-1582/7@1583-1586/0@1587 == retail; house L0-L7 tick-1:1 (L5 +4t box-overlap); cover-start
+  1669 == retail; arrival run-off unchanged (no regression).  1045 host pass.  `findings/arche-house-turn.md`.
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-houseturn.osr` |
+  `retail.osr`), scrub the house ticks ~1576-1610 — Arche turns to face her father AT retail's tick, with
+  his text bubble still up through the turn.
+- **Prior (ckpt 150): the freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end —
   `PORT-DEBT(char-run-trigger)` RETIRED.**  A USER tap-tap-hold of a direction now makes freeroam Arche
   DASH (the last un-wired freeroam move; walk + jump already worked live, ckpt 144).  The dash PHYSICS was
   already bit-exact (ckpt 118, cap 48000); what was missing was the run FLAG.  RE'd off the decompile (not

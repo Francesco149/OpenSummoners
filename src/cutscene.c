@@ -227,9 +227,36 @@ static const cutscene_beat HOUSE_L0_LEAD[] = {
 };
 #define HOUSE_L0_LEAD_N ((int)(sizeof(HOUSE_L0_LEAD) / sizeof(HOUSE_L0_LEAD[0])))
 
-/* The house room's lead-beat map (THEME 3): line 0 opens with the fade-from-black. */
+/* USER studio notes #3-5: the house Arche TURN — a BLOCKING lead beat before L6.
+ * The script emote 0x401e60(Arche,1) at 0x4d7d80:1170 fires AFTER house L5 ("...I'll
+ * be countin' on you") advances and BEFORE L6 ("I will, I promise!"); 0x401e60 sets
+ * the actor's command kind 2 ("turn to face dir 1", 0x43e5b0 case 2) AND in_ECX[8]=4
+ * (the case-4 actor-WAIT beat), so the beat-runner thunk 0x439680 PUMPS it to
+ * completion before L6's dialogue beat runs — it is BLOCKING, not fire-and-forget.
+ * Off retail.osr res 0x570 (ticks 1579-1587) Arche — static at screen (354,336)
+ * through the house — runs cels 158(4t)→7(4t) then settles to the standing idle
+ * 0/1/2, turning from her arrival-listening idle (152-155) to face her father.
+ * Modeled as L6's lead beat: when L5 advances the box closes, the turn plays (the
+ * caller swaps the room-cast Arche HOUSE_CAST[0] to arche_house_turn_clip on the
+ * CS_ACT_ACTOR_TURN drain), then L6 opens — so the turn fires at retail's tick
+ * (keyed to the L5 confirm, NOT delayed by the nav as the old fire-and-forget was;
+ * see findings/arche-house-turn.md, quirk #109). */
+#define HOUSE_TURN_DUR 8   /* the turn clip 158(4t)→7(4t); the actor-wait completes ~8t */
+static const cutscene_beat HOUSE_L6_LEAD[] = {
+    /* type               fade_mode fade_var pan_x pan_y param(=dir) dur          */
+    { CS_BEAT_ACTOR_TURN, 0, 0, 0, 0, /*dir=*/1, HOUSE_TURN_DUR },
+};
+#define HOUSE_L6_LEAD_N ((int)(sizeof(HOUSE_L6_LEAD) / sizeof(HOUSE_L6_LEAD[0])))
+
+/* The house room's lead-beat map (THEME 3): line 0 opens with the fade-from-black;
+ * line 6 ("I will, I promise!") opens AFTER the blocking Arche turn beat.  The turn
+ * lead's box_hold = HOUSE_TURN_DUR keeps L5's box UP (full text, opaque portrait)
+ * through the turn, exactly as retail (the actor-wait beat does not touch the box),
+ * then L5 closes as L6 reopens — the speaker-change overlap (quirk #107).  box_hold
+ * MUST equal the turn dur so the linger + the beat expire on the same tick. */
 static const cutscene_line_lead HOUSE_LEADS[] = {
     { /*line_idx=*/0, HOUSE_L0_LEAD, HOUSE_L0_LEAD_N, /*box_hold=*/0 },
+    { /*line_idx=*/6, HOUSE_L6_LEAD, HOUSE_L6_LEAD_N, /*box_hold=*/HOUSE_TURN_DUR },
 };
 #define HOUSE_LEADS_N ((int)(sizeof(HOUSE_LEADS) / sizeof(HOUSE_LEADS[0])))
 
@@ -264,18 +291,6 @@ static const cutscene_beat HOUSE_EXIT[] = {
 };
 #define HOUSE_EXIT_N ((int)(sizeof(HOUSE_EXIT) / sizeof(HOUSE_EXIT[0])))
 
-/* USER studio notes #3-5: the house Arche TURN.  The script emote 0x401e60(Arche,1)
- * at 0x4d7d80:1170 fires AFTER house L5 ("...I'll be countin' on you") advances and
- * BEFORE L6 ("I will, I promise!"), setting the actor's command kind 2 ("turn to
- * face dir 1", 0x43e5b0 case 2).  Off retail.osr res 0x570 (ticks 1579-1587)
- * Arche — static at screen (354,336) through the house — runs cels 158(4t)→7(4t)
- * then settles to the standing idle 0/1/2, turning from her arrival-listening idle
- * (152-155) to face her father.  The port plays it as a one-shot clip on the room-
- * cast Arche (HOUSE_CAST[0], bank 0x8b); see main.c (the CS_ACT_ACTOR_TURN drain) +
- * actor_spawn.c (arche_house_turn_clip).  Fire-and-forget like retail's emote: it
- * does NOT block the dialogue — the house cadence already places L6. */
-#define HOUSE_TURN_AFTER_LINE 5
-
 /* The room chain: arrival → house.  Each room carries its committed key (the
  * 0x402030 +0x4024 value) so the caller can drive the backdrop + detect the
  * errands boundary.  The chain ends after the house (its retail `return 2`
@@ -284,11 +299,12 @@ static const cutscene_beat HOUSE_EXIT[] = {
  * house line 0 ENTERs with a fade-from-black reveal.  THEME B (the house→errands
  * transition): the house also EXITs with a fade-to-black COVER (HOUSE_EXIT, edges-in
  * var 1) before the errands key stages; main.c arms the matching errands-entry REVEAL
- * (center-out var 0) on chain-complete. */
+ * (center-out var 0) on chain-complete.  The house Arche TURN is L6's blocking lead
+ * beat (HOUSE_L6_LEAD), not a per-room flag. */
 static const cutscene_room TOWN_CHAIN[] = {
-    /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold  turn_after_line */
-    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0,             -1 },
-    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD, HOUSE_TURN_AFTER_LINE },
+    /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold */
+    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0 },
+    { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))
 
@@ -401,6 +417,9 @@ static void cs_arm_beat(cutscene *cs)
         cs->action.b = b->fade_var;
         cs->action.c = b->param;
         cs->fade_seen = 0;   /* not yet observed the grid active (1-tick arm latency) */
+    } else if (b->type == CS_BEAT_ACTOR_TURN) {
+        cs->action.kind = CS_ACT_ACTOR_TURN;
+        cs->action.a = b->param;   /* the target facing dir (0x401e60's param_2)   */
     }
     /* CS_BEAT_WAIT issues no action — it is a pure hold (the +0x57c timer). */
 }
@@ -664,7 +683,6 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
              * (gap 1t) but closes it ~9t on a speaker change (THEME 1). */
             uint32_t prev_name = cs->rooms[cs->room_idx].script[cs->line_idx].name_va;
             int      prev_room = cs->room_idx;
-            int      prev_line = cs->line_idx;
             const cutscene_room *room = &cs->rooms[cs->room_idx];
             int last_in_room = (cs->line_idx + 1 >= room->n_lines);
 
@@ -701,45 +719,34 @@ int cutscene_step(cutscene *cs, int confirm_pressed)
              * runs ahead" camera pan + wait, note #5) — run the lead beats, then
              * OPEN the next line fresh.  Checked before the same-speaker keep/reopen
              * because the gap interrupts the dialogue regardless of who speaks next.
-             * A CONCURRENT lead (box_hold > 0, the run-off) keeps the just-shown box
-             * UP showing its full text while the camera pan + Arche's run play behind
-             * it — retail fires the run-off on this advance (the beat completion) but
-             * the box holds ~7t more (its full+24 auto-hold) then cuts.  A normal lead
-             * (box_hold 0) closes the box immediately (snapshot -> shrink). */
+             * A CONCURRENT lead (box_hold > 0) keeps the just-shown box UP showing its
+             * full text while the beats play behind it; two close styles share the path:
+             *   - the RUN-OFF (first beat CAMERA_PAN): retail fires the run-off on this
+             *     advance (the beat completion) but "Cool!"'s box holds ~7t more (its
+             *     full+24 auto-hold) then the EMPTY frame SLIDES out, the portrait
+             *     dissolving over the linger (PORT-DEBT dialogue-runoff-box-slide).
+             *   - the TURN (first beat ACTOR_TURN): the actor-wait beat does NOT touch
+             *     the box, so L5's box stays UP (full text, opaque portrait) through the
+             *     turn, then SHRINK-closes as L6 reopens (the speaker-change overlap,
+             *     quirk #107) — no slide, no early portrait dissolve.
+             * A normal lead (box_hold 0, the L0 fade-in) closes the box immediately. */
             if (cs->room_idx < cs->n_rooms) {
                 const cutscene_line_lead *l =
                     cs_find_lead(&cs->rooms[cs->room_idx], cs->line_idx);
                 if (l != NULL && l->n_beats > 0) {
                     if (l->box_hold > 0) {
-                        cs->box_linger = l->box_hold;   /* keep the box up (run-off) */
-                        cs->box_linger_slide = 1;        /* close = the empty-frame SLIDE */
-                        /* The run-off CLOSE begins on THIS advance: retail dissolves
-                         * the portrait (the 0x49c910 reverse ramp idx 18->2->gone over
-                         * ~9t) while the box frame+text stay UP through the linger, THEN
-                         * the empty frame slides out (PORT-DEBT dialogue-runoff-box-slide).
-                         * Arm the dissolve now; cs_step_beats advances it each linger tick
-                         * (the bust is opaque otherwise, USER osr_notes tick 979). */
-                        dialogue_arm_fadeout(cs->box);
+                        int runoff = (l->beats[0].type == CS_BEAT_CAMERA_PAN);
+                        cs->box_linger = l->box_hold;    /* keep the box up           */
+                        cs->box_linger_slide = runoff;   /* run-off slides; turn shrinks */
+                        if (runoff)                      /* dissolve the bust over the  *
+                                                          * run-off linger (turn keeps  *
+                                                          * it opaque, closes at L6)    */
+                            dialogue_arm_fadeout(cs->box);
                     } else
                         cs_close_box_into_closing(cs);  /* normal: snapshot + shrink  */
                     cs_begin_beats(cs, l->beats, l->n_beats, /*exit=*/0);
                     return 0;
                 }
-            }
-
-            /* USER notes #3-5: the house Arche TURN — when we advance PAST the
-             * room's turn_after_line (house L5), fire a one-shot actor-turn the
-             * caller plays on the room-cast Arche (the script emote 0x401e60).  It
-             * is fire-and-forget (it does NOT gate the next line — the cadence
-             * already places L6), so it sets the action and falls through to the
-             * normal speaker-change handling below.  Only within the same room (a
-             * room boundary is a different transition); checked after the lead
-             * gate above (a turn line never also carries lead beats here). */
-            if (cs->room_idx == prev_room && prev_room < cs->n_rooms &&
-                cs->rooms[prev_room].turn_after_line >= 0 &&
-                prev_line == cs->rooms[prev_room].turn_after_line) {
-                cs->action.kind = CS_ACT_ACTOR_TURN;
-                cs->action.a    = 1;   /* dir param (0x401e60's param_2) */
             }
 
             /* Keep the box open only for a same-speaker advance WITHIN a room; a

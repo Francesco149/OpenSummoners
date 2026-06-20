@@ -6,41 +6,40 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 150
+## Where we are — ckpt 151
 
-**The freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end (commit `43a55f1`, 1045 host
-pass, +10).**  Autonomous continuation of the freeroam arc (USER away, verification deferred).  A USER
-tap-tap-hold of a direction now makes freeroam Arche DASH — the last un-wired freeroam move (walk + jump
-already worked on live input, ckpt 144).  Retires `PORT-DEBT(char-run-trigger)`.
+**The house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the ckpt-146 ~7t lag is
+RESOLVED).**  This is the "(B) house-dialogue-cadence phase fix" the ckpt-150 handoff flagged as the
+strongest autonomous chip — but the diagnosis reframed it (see below).  1045 host pass.
 
-- **The dash PHYSICS was already bit-exact** (chip 3b, ckpt 118: cap 48000 + the two-phase accel,
-  `test_character_run_ramp`); what was missing was the run FLAG that feeds `character_step`.  RE'd off the
-  decompile (not curve-fit): the char-AI `0x478ba0` builds the dash command `entity+0x14854` (`5`/`6` =
-  dash L/R) from the discrete press RING — each tick it snapshots the prior command, resets, scans for a
-  direction DOUBLE-TAP (`FUN_00479e70`/`FUN_00479960`: two distinct pressed ring records of the same id
-  within the window, a "used" mask so a single held press is not a double-tap), and self-sustains while
-  held (`local_608[0]==5/6`); release ends it.
-- **The window** `*(*0x8a6e80+0xf8)` is a config field, no static default → **read LIVE from retail = 800 ms**
-  (`runs/dash-window2`, the `*0x8a6e80` chain hooked at the per-Flip `0x5b8fc0` at the title; field spec
-  `tools/flow/dash_window_field.json`), with `run_mode` `*(*0x8a6e80+0x510)==0` ⇒ the double-tap branch is
-  the active path (`run_mode==2` hold-to-run = `keybind-config`, unported/inert).
-- **THE PORT.**  `input_dash_double_tap` (`input.{c,h}`, the `0x479e70`+`0x479960` reduction) +
-  `character_resolve_run` (`character.{c,h}`, the dash-resolution half of `0x478ba0`; new `cmd_lr` field =
-  the dash subset {0,5,6} of `0x14854`) + `freeroam_step` (`main.c`) feeds `run` into `character_step` on
-  the live ring, `GetTickCount` clock to match the ring's timestamps.  `CHAR_DASH_WINDOW_MS=800` w/ provenance.
-- **VERIFIED host end-to-end (10 tests):** the detector (two-in-window hit / single-press miss / `<=` window
-  boundary / flag+dir+future-ts rejects / no-consume) + the resolution + `character_dash_via_double_tap` —
-  a double-tap drives the input-ring→run→**RUN cap 48000** chain through the REAL physics; a single held
-  press caps at the WALK cap 24000.  Off the seed-pinned parity path (the double-tap is wall-clock, retail
-  keys it on `GetTickCount`) — the unit tests pin the logic with controlled timestamps.  Quirk #113.
-- **BINARY-VERIFIED off a port `.osr`** (not just the host test): `port-dash.osr` drove the replay into
-  freeroam (`nav-full-errands` + a tick-keyed RIGHT double-tap) and the `draw_probe --res 0x570` shows the
-  dash engage at tick 1866 — Arche's cel flips WALK 0-3 → RUN 16-19, sprite 28→40px, dst-x step ramps
-  2.4 → ~5 px/tick (the run cap, 2× walk).  So `freeroam_step` → `character_resolve_run` → `character_step`
-  works in the real exe.  Recipe + numbers in `findings/dash-double-tap-trigger.md`; traces in
-  `runs/dash-demo/` (gitignored).  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt`
-  → `port-dash.osr` | `retail.osr`), scrub freeroam ticks ~1840-1887 — Arche walks then dashes (retail idle
-  there = a port-only demo, like the walk/jump demos).
+- **DIAGNOSIS first (off `port-dash.osr`, a fully matched-cadence nav, vs `retail.osr`).**  The house
+  DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` showed L0-L7 within ±1t of retail) — yet the turn was
+  STILL ~7t late.  This **DISPROVED `findings/arche-house-turn.md`'s old "the turn auto-aligns once the
+  house cadence is tick-1:1" claim**: the lag was NOT a cadence-phase debt, it was the missing BLOCKING beat.
+  The cover-start was already aligned too (1669 == retail).  So the only real residual was the turn.
+- **ROOT CAUSE (RE'd, `0x4d7d80:1163-1184`).**  ckpt 146 emitted the turn FIRE-AND-FORGET on the L5→L6
+  advance and let the matched nav place L6 — which dragged the turn ~7t late (the nav delays L5's advance to
+  absorb the missing beat).  But retail's `0x401e60(Arche,1)` sets cmd-2 ("turn to dir 1") AND `in_ECX[8]=4`
+  (the actor-WAIT beat), and the thunk `0x439680` PUMPS it to completion BETWEEN L5 and L6 — it is a
+  BLOCKING beat, exactly like the L7→L8 run-off's case-4 wait.
+- **THE PORT.**  `cutscene.{c,h}`: a `CS_BEAT_ACTOR_TURN` beat type + house **L6's lead beat**
+  `HOUSE_L6_LEAD` (`{CS_BEAT_ACTOR_TURN, dir=1, dur=HOUSE_TURN_DUR=8}`).  The L5→L6 advance arms the turn
+  beat (the existing lead-gate); L6 opens only after it.  `box_hold=8` keeps L5's box UP (full text, opaque
+  portrait) through the turn — retail's actor-wait doesn't touch the box — then L5 shrink-closes as L6
+  reopens (the speaker-change overlap, quirk #107; the box_hold path now gates slide+portrait-dissolve to
+  the run-off CAMERA_PAN lead only, NOT the turn).  Removed the now-dead `cutscene_room.turn_after_line`
+  field.  main.c's `CS_ACT_ACTOR_TURN` drain (the clip swap) is unchanged.
+- **THE NAV.**  `dialogue_timeline.py NAV … "7:10,15:15,17:10"` — the house L5 (global L15) confirm is
+  pressed at its real tick **1579** (the turn onset = advance_tick 1594 − 15) so the turn beat fires there;
+  L17 (house exit) at 1668.  `runs/cutscene-verify/nav-house-turn.jsonl` (regenerable; runs/ is gitignored).
+- **VERIFIED off `port-houseturn.osr` vs `retail.osr`:** the turn `draw_probe --res 0x570` =
+  **158@1579-1582 → 7@1583-1586 → 0@1587** at dst (354,336) == retail (tick-for-tick); house L0-L7
+  `dialogue_timeline` tick-1:1 (L5 adv +4t = the box-overlap close, L6 start +3t); cover-start (res 1112)
+  tick 1669 == retail; the arrival L0-L9 + the L8 run-off (start 1151) unchanged (the run-off shares the
+  box_hold path, gated to CAMERA_PAN — no regression).  `findings/arche-house-turn.md` (rewritten); quirk #109.
+- **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-houseturn.osr` |
+  `retail.osr`), scrub the house ticks ~1576-1610 — Arche turns to face her father AT retail's tick, with
+  his text bubble still up through the turn.
 
 ---
 
@@ -137,12 +136,14 @@ render-gaps.md` §2/§3:
 - (D') the **run/dash double-tap** [char-run-trigger] — **DONE ckpt 150 (`43a55f1`)**: `run` derives from the
   live ring (`input_dash_double_tap` + `character_resolve_run`); host-verified end-to-end.  Walk + jump + dash
   all now work on live input.
-- (B) the **house-dialogue-cadence phase fix** (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
-  cover-start AND the reveal/furniture ticks; the arrival is tick-1:1, the house is not).  Likely couples
-  making the turn a BLOCKING beat + rebuilding the house nav (dialogue_timeline); may want USER nav verify.
-  **The strongest remaining autonomous-ish chip** (RE + harness verifiable; only the final nav may want USER).
+- (B) the **house-dialogue-cadence phase fix** — **DONE ckpt 151**: the diagnosis (off `port-dash.osr`)
+  showed the house DIALOGUE was ALREADY tick-1:1 and the cover-start aligned — the only residual was the
+  ckpt-146 turn (~7t late), which was NOT a cadence-phase debt but the missing BLOCKING beat.  Fixed by
+  re-porting the turn as `CS_BEAT_ACTOR_TURN` (L6's blocking lead) + a matched-confirm nav; turn now
+  158@1579/7@1583/0@1587 == retail.  See "Where we are" above.
 - (C) the **freeroam UI** (door indicator + HUD + the opening dialogue/questline `0x4dc510`) — the res=0
-  subsystem; visual, best with the USER.
+  subsystem; visual, best with the USER.  **Likely the strongest remaining chip, but needs the USER** (the
+  HUD/door layout is visual; the questline 0x4dc510 is a new dialogue-API path 0x4a5ee0).
 - (D) freeroam refinements: the **distance-locked walk-cel cadence** (`char-walk-anim-distance`).
   **ckpt-150 investigation (don't repeat the dead end):** the port's anim advance reduces `0x54f980`'s
   TIME-based `frame_dur<=timer` stepper; the "cel = f(distance)" claim is an UNCONFIRMED observation — the
@@ -154,11 +155,12 @@ render-gaps.md` §2/§3:
   shows the symptom: run cels 16→17→18→19 advance every ~5 ticks regardless of the dash speed.  NOT
   autonomous-clean (the earlier label was optimistic).  Also: camera-follow [needs a freeroam-camera capture,
   USER]; the idle-fidget behaviour subsystem (`0x54f980`, RNG-seeded).
-  - **Better next autonomous chip than (D):** (B) house-cadence — it has a clearer path (the ckpt-134
-    arrival pattern: `dialogue_timeline.py` reads the reveal curve off the `.osr` + emits a matched nav,
-    tick-verified off a port `.osr`).  `port-dash.osr` already plays THROUGH the house (ticks ~1400-1700),
-    so the port-vs-retail house dialogue tick comparison can be done off existing captures to diagnose the
-    ~7-13t lag's pillar (phase vs a missing blocking beat vs nav cadence) before fixing.
+  - **(B) house-cadence is now DONE (ckpt 151).**  The diagnosis there is a reusable lesson: a
+    dialogue-keyed animation can be tick-1:1 in the DIALOGUE yet still off if it's keyed to the wrong beat
+    (the turn was fire-and-forget on the advance, not the blocking actor-wait retail pumps).  When an
+    element "should auto-align with the cadence" but doesn't, suspect a MISSING BEAT, not a phase debt —
+    compare port-vs-retail off an existing matched-nav `.osr` (`dialogue_timeline` + `draw_probe`) BEFORE
+    assuming a cadence problem.
 - (E) a **dash demo `.osr`** for the USER to visually confirm ckpt 150 — **DONE ckpt 150**: `port-dash.osr`
   (probe-verified the run cap engages), `studio-current.txt` updated → the studio shortcut opens it.
 

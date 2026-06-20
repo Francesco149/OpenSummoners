@@ -1,10 +1,23 @@
 # Arche's house TURN — the listen→face-father emote (USER studio notes #3-5)
 
-**Status: PORTED + drawcall-faithful (ckpt 146, commit `cfc6a96`).** During the
-new-house dialogue Arche turns from her arrival-listening idle to face her father
-just before she says "I will, I promise!".  The port's static HOUSE_CAST Arche used
-to hold the arrival-idle (cels 152-155) the whole house scene; she now plays the
-turn.
+**Status: PORTED + drawcall-faithful + TICK-1:1 (ckpt 151).** During the new-house
+dialogue Arche turns from her arrival-listening idle to face her father just before
+she says "I will, I promise!".  The port's static HOUSE_CAST Arche used to hold the
+arrival-idle (cels 152-155) the whole house scene; she now plays the turn — and as
+of ckpt 151 it fires at retail's exact tick (158@1579 / 7@1583 / 0@1587, verified off
+`port-houseturn.osr` vs `retail.osr`).
+
+**ckpt 151 update — the turn is now the BLOCKING beat retail uses, not fire-and-forget.**
+ckpt 146 emitted the turn fire-and-forget on the L5→L6 advance and relied on the matched
+nav to place L6, which left the turn ~7t LATE (the "residual" below).  The ckpt-150
+investigation then DISPROVED this finding's old "auto-aligns once the cadence is tick-1:1"
+claim: a port-vs-retail comparison off `port-dash.osr` (a fully matched-cadence nav) showed
+the house DIALOGUE was already tick-1:1 (`dialogue_timeline` within ±1t) yet the turn was
+STILL 7t late — so the lag was NOT a cadence-phase debt, it was the missing BLOCKING beat.
+ckpt 151 ports it faithfully (see "The port", below): the turn is house L6's blocking lead
+beat (`CS_BEAT_ACTOR_TURN`), keyed to L5's confirm, and the nav presses L5's confirm at
+retail's real confirm tick (1579, the turn onset).  Turn 158@1579 / 7@1583 / 0@1587 ==
+retail; house L0-L7 tick-1:1; cover-start 1669 == retail; no arrival regression.
 
 ## The trigger (RE'd, not measured)
 
@@ -47,51 +60,56 @@ only her cel changes.  `draw_probe.py --res 0x570` over the L5→L6 ticks:
 So the turn is `158(4t) → 7(4t)` then a base-0 standing-idle breathe `0/1/2` — a
 different idle pose set than the arrival idle (base 152).
 
-## The port (commit `cfc6a96`)
+## The port (ckpt 151 — the BLOCKING lead beat)
 
 - `actor_spawn.c`: `ARCHE_HOUSE_TURN_CLIP` (base 158, delta `{0,-151}` = cels
   {158,7}, dur 4, **one-shot**) + `ARCHE_HOUSE_STAND_IDLE_CLIP` (base 0, delta
   `{0,1,2,1}`, dur 14, loop); accessors `arche_house_turn_clip()` /
-  `arche_house_turn_idle_clip()`.
-- `cutscene.{c,h}`: a new `CS_ACT_ACTOR_TURN` action + a `cutscene_room.turn_after_line`
-  field (house = 5, arrival/errands = -1).  `cutscene_step` emits the action on the
-  advance PAST `turn_after_line` (after the lead gate, before the speaker-change
-  box handling).  **Fire-and-forget** — it does NOT gate the next line (the house
-  cadence already places L6), unlike retail's blocking beat (see the offset note).
-- `main.c`: the `CS_ACT_ACTOR_TURN` drain swaps the room-cast Arche (`HOUSE_CAST[0]`,
+  `arche_house_turn_idle_clip()`.  (Unchanged since ckpt 146.)
+- `cutscene.{c,h}`: a `CS_BEAT_ACTOR_TURN` beat type (issues `CS_ACT_ACTOR_TURN(param=dir)`,
+  holds `dur` ticks) + house **L6's lead beat** `HOUSE_L6_LEAD` (`{CS_BEAT_ACTOR_TURN,
+  dir=1, dur=HOUSE_TURN_DUR=8}`).  The L5→L6 advance begins the turn beat (the existing
+  lead-gate in `cutscene_step`): L6 opens only AFTER it completes, so the turn is keyed to
+  L5's confirm — exactly retail's `0x401e60` setting `in_ECX[8]=4` (the actor-WAIT beat the
+  thunk `0x439680` pumps).  The lead's `box_hold = HOUSE_TURN_DUR` keeps L5's box UP (full
+  text, opaque portrait) through the turn — retail's actor-wait beat does not touch the box —
+  then L5 SHRINK-closes as L6 reopens (the speaker-change overlap, quirk #107; the box_hold
+  path gates slide+portrait-dissolve to the run-off CAMERA_PAN lead, NOT the turn).  The old
+  `cutscene_room.turn_after_line` fire-and-forget field is REMOVED (superseded).
+- `main.c`: the `CS_ACT_ACTOR_TURN` drain (unchanged) swaps the room-cast Arche (`HOUSE_CAST[0]`,
   guarded on bank `0x8b`) to the turn clip + sets `g_arche_house_turning`; after
-  `actor_pool_update(&g_room_cast)`, when the one-shot finishes (`rs->done`) it
-  swaps her to the standing idle.  Reset on `reload_room_backdrop`.
+  `actor_pool_update(&g_room_cast)`, when the one-shot finishes (`rs->done`) it swaps her to
+  the standing idle.  Reset on `reload_room_backdrop`.
+- the NAV: `dialogue_timeline.py NAV … "7:10,15:15,17:10"` — the house L5 (global L15) confirm
+  is pressed at its real tick **1579** (the turn onset = advance_tick 1594 − 15), so the turn
+  beat fires there; L17 (house exit) at 1668 (the cover confirm).  `runs/cutscene-verify/nav-house-turn.jsonl`.
 
-## Verified
+## Verified (ckpt 151)
 
-Fresh `port-turn.osr` vs `retail.osr` (`draw_probe --res 0x570`): the port plays
-**158@1586(4t) → 7@1590(4t) → idle 0@1594 → 1@1608** at dst (354,336) — cels,
-durations, and position **identical to retail's turn**.
+Fresh `port-houseturn.osr` vs `retail.osr`:
+- **the turn** (`draw_probe --res 0x570`): **158@1579-1582 → 7@1583-1586 → 0@1587** at dst
+  (354,336) — cels, durations, position, AND absolute tick **identical to retail's turn**
+  (the ~7t lag is GONE).
+- **the house dialogue** (`dialogue_timeline`): L0-L4/L6/L7 tick-1:1 (±1t), L5 adv 1598 (retail
+  1594, +4t — the box-overlap close), L6 start 1608 (retail 1605), L7 start 1644 (==).
+- **the cover-start** (`draw_probe --res 1112`): first fade cells at tick **1669** == retail.
+- **no arrival regression**: the run-off shares the box_hold path (gated to CAMERA_PAN) — the
+  arrival L0-L9 + the L8 run-off (start 1151) are unchanged.
 
-## Residual — the ~7t absolute-tick lag (NOT this chip)
+## Residual (minor) — the L5 box-overlap close
 
-The port's turn starts ~7 ticks LATER than retail (port 158@1586 vs retail 158@1579).
-This is the **documented house-dialogue-cadence phase lag** (FRONT ckpt 145's
-"~13t cover-START phase offset"), not a turn bug:
-
-- Retail front-loads the turn — it's a *blocking* beat, so L5 closes, Arche turns
-  (8t), THEN L6 opens.
-- The port's turn is *concurrent* and the house nav is tuned so L6's box **opens**
-  at retail's tick (dialogue_timeline within ~1t).  Because the port does not model
-  the 8t blocking gap, the nav holds L5 ~6-7t longer to land L6 — so the L5→L6
-  advance (which fires the turn) is ~7t late.
-
-The turn is keyed to the advance, so it **auto-aligns** once the house cadence is
-made tick-1:1 (the separate phase-pillar follow-up).  Making the turn a blocking
-beat now would push L6 + every later house line 8t late unless the nav is rebuilt
-(the cadence work), so the concurrent emit is the correct scope here.
+Retail's L5 box closes at 1594 (when L6 passes half); the port's at 1598 (+4t) and L6's box
+opens at 1608 (retail 1605, +3t) — a box-OPEN-rate detail of `ARM_OPEN` vs retail's overlap,
+the same box-close-animation family as PORT-DEBT(dialogue-runoff-box-slide).  The turn itself
++ the dialogue advances are tick-1:1; this is the closing-box shrink curve, not the turn.
 
 ## Tests
-`tests/test_cutscene.c::test_cutscene_house_turn` (the action fires on L5→L6 and
-nowhere else) + `tests/test_actor_spawn.c::test_arche_house_turn_clip` (the clip
-cels 158→7→done, the base-0 idle).  1030 host pass.
+`tests/test_cutscene.c::test_cutscene_house_turn` (the L5→L6 advance arms the BLOCKING turn
+beat — in_beats, CS_ACT_ACTOR_TURN(1) — and L6 opens only after it; the turn fires nowhere
+else) + `tests/test_actor_spawn.c::test_arche_house_turn_clip` (the clip cels 158→7→done, the
+base-0 idle).  1045 host pass.
 
-USER-VERIFY: `osr_view.exe C:\oss-osr\port-turn.osr C:\oss-osr\retail.osr` (the
-studio shortcut is loaded with this pair) — scrub the house (port ticks ~1586-1607):
-Arche turns to face her father just before "I will, I promise!".
+USER-VERIFY: `osr_view.exe C:\oss-osr\port-houseturn.osr C:\oss-osr\retail.osr` (the studio
+shortcut is loaded with this pair) — scrub the house (ticks ~1579-1610): Arche turns to face
+her father just before "I will, I promise!", now AT retail's tick, with her father's text
+bubble still up through the turn.

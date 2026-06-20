@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-20 (ckpt 151) — the house Arche TURN is the BLOCKING beat (tick-aligned)
+
+**The ckpt-146 ~7t turn lag is RESOLVED; the turn now fires at retail's exact tick.**  1045
+host pass.  This is the "(B) house-dialogue-cadence phase fix" the ckpt-150 handoff flagged —
+but the diagnosis reframed it.
+
+DIAGNOSIS (off `port-dash.osr`, a fully matched-cadence nav, vs `retail.osr`): the house
+DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` L0-L7 within ±1t) and the cover-start was
+already aligned (1669 == retail) — yet the turn was STILL ~7t late.  This **DISPROVED
+`findings/arche-house-turn.md`'s old "the turn auto-aligns once the house cadence is tick-1:1"
+claim**: the lag was the missing BLOCKING beat, not a cadence-phase debt.  Lesson: a
+dialogue-keyed animation can be tick-1:1 in the dialogue yet still off if keyed to the wrong
+beat — suspect a missing beat, not a phase debt, and compare port-vs-retail off an existing
+matched-nav `.osr` before assuming a cadence problem.
+
+ROOT CAUSE (RE'd, `0x4d7d80:1163-1184`): ckpt 146 emitted the turn FIRE-AND-FORGET on the
+L5→L6 advance and let the matched nav place L6, which dragged the turn ~7t late (the nav
+delays L5's advance to absorb the missing beat).  But retail's `0x401e60(Arche,1)` sets cmd-2
+("turn to dir 1") AND `in_ECX[8]=4` (the actor-WAIT beat), and the thunk `0x439680` PUMPS it
+to completion BETWEEN L5 and L6 — a BLOCKING beat, like the L7→L8 run-off's case-4 wait.
+
+THE PORT (`cutscene.{c,h}`): a `CS_BEAT_ACTOR_TURN` beat type + house L6's lead beat
+`HOUSE_L6_LEAD` (`{CS_BEAT_ACTOR_TURN, dir=1, dur=8}`).  The L5→L6 advance arms the turn beat
+(the existing lead-gate); L6 opens only after it.  `box_hold=8` keeps L5's box up (full text,
+opaque portrait) through the turn — retail's actor-wait doesn't touch the box — then L5
+shrink-closes as L6 reopens (the speaker-change overlap, quirk #107; the box_hold path now
+gates slide+portrait-dissolve to the run-off CAMERA_PAN lead only).  Removed the now-dead
+`cutscene_room.turn_after_line` field.  The nav presses the house L5 confirm at retail's tick
+1579 (`dialogue_timeline.py NAV … "7:10,15:15,17:10"`).
+
+VERIFIED off `port-houseturn.osr` vs `retail.osr`: the turn (`draw_probe --res 0x570`) =
+158@1579-1582 / 7@1583-1586 / 0@1587 at (354,336) == retail (tick-for-tick); house L0-L7
+`dialogue_timeline` tick-1:1 (L5 adv +4t = the box-overlap close); cover-start (res 1112)
+1669 == retail; arrival L0-L9 + the L8 run-off (start 1151) unchanged (no regression).
+`findings/arche-house-turn.md` (rewritten); quirk #109.
+
+---
+
 ## 2026-06-20 (ckpt 150) — the freeroam DASH double-tap trigger (char-run-trigger RETIRED)
 
 **The dash TRIGGER is ported + host-verified end-to-end; commit `43a55f1`, 1045 host pass

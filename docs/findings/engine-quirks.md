@@ -3673,8 +3673,15 @@ for the completion gate:
   (the same arm the establishing town reveal uses).  Gate (case 2) = the grid settled
   (`+0x24` cleared when the grid `done` flag sets, `:1125`).
 - **ACTOR RUN-OFF / EMOTE** (`0x402730` arms a type-1 MOVE beat = target x at actor `+0x15b70`,
-  y `+0x15b6c`; `0x401e60` a type-2 emote) into the script's 32-slot actor-beat pool
-  (`+0x2fc + i*0x14`); the actor update `0x46cd70` (`:1099`) steps them.
+  y `+0x15b6c`; `0x401e60` a type-2 emote = cmd-kind-2 "turn to face dir N" at actor `+0x15b64/+0x15b74`)
+  into the script's 32-slot actor-beat pool (`+0x2fc + i*0x14`); the actor update `0x46cd70` (`:1099`)
+  steps them.  **BOTH overwrite the beat type to `in_ECX[8]=4`** (`0x402730:54` / `0x401e60` `*(in_ECX+0x20)=4`),
+  so the following `0x439680` is the case-4 actor-WAIT — the script BLOCKS on the actor command completing.
+  Two instances in the town intro: the arrival L7→L8 run-off (below) and the **house L5→L6 TURN**
+  (`0x4d7d80:1163-1184`): after house L5 ("…I'll be countin' on you") `0x401e60(Arche,1)` arms Arche's
+  turn, the case-4 wait pumps it (off retail.osr res 0x570: cels 158@4t→7@4t→idle 0, ~8t at screen
+  354,336), THEN L6 ("I will, I promise!") opens — so the turn is a BLOCKING beat between the two lines,
+  not concurrent (the port models it as house L6's `CS_BEAT_ACTOR_TURN` lead beat, ckpt 151).
 
 **The arrival→house transition, decoded + MEASURED off `retail.osr` (matched-cadence nav):**
 - **L7 "Cool!" (Arche, adv sim-tick 982) → L8 "Mom, Dad, c'mon!" (start 1149) = a 167-tick
