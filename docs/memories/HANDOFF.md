@@ -143,9 +143,22 @@ render-gaps.md` §2/§3:
   **The strongest remaining autonomous-ish chip** (RE + harness verifiable; only the final nav may want USER).
 - (C) the **freeroam UI** (door indicator + HUD + the opening dialogue/questline `0x4dc510`) — the res=0
   subsystem; visual, best with the USER.
-- (D) freeroam refinements: the **distance-locked walk-cel cadence** (`char-walk-anim-distance` — a dash
-  should advance the run cels faster; RE the cel = f(distance) law, autonomous-clean); camera-follow [needs a
-  freeroam-camera capture, USER]; the idle-fidget behaviour subsystem (`0x54f980`, RNG-seeded).
+- (D) freeroam refinements: the **distance-locked walk-cel cadence** (`char-walk-anim-distance`).
+  **ckpt-150 investigation (don't repeat the dead end):** the port's anim advance reduces `0x54f980`'s
+  TIME-based `frame_dur<=timer` stepper; the "cel = f(distance)" claim is an UNCONFIRMED observation — the
+  retail `runs/freeroam-walk` capture is too SPARSE (samples every 20-60 frames) and its `vel` field reads 0
+  (broken offset).  Real work: (1) a FRESH DENSE retail capture (per-frame `celfr` + `wx` + the correct
+  `vel`/`hvel` off body+0x28, not the broken field), (2) a DECOMPILE HUNT for the character's cel-advance
+  (NOT the generic `0x54f980` time-stepper — find where Arche's walk/run cel is set vs distance; likely a
+  distance accumulator in/near `0x442a70` or the body anim clock).  The dash demo (`port-dash.osr`) already
+  shows the symptom: run cels 16→17→18→19 advance every ~5 ticks regardless of the dash speed.  NOT
+  autonomous-clean (the earlier label was optimistic).  Also: camera-follow [needs a freeroam-camera capture,
+  USER]; the idle-fidget behaviour subsystem (`0x54f980`, RNG-seeded).
+  - **Better next autonomous chip than (D):** (B) house-cadence — it has a clearer path (the ckpt-134
+    arrival pattern: `dialogue_timeline.py` reads the reveal curve off the `.osr` + emits a matched nav,
+    tick-verified off a port `.osr`).  `port-dash.osr` already plays THROUGH the house (ticks ~1400-1700),
+    so the port-vs-retail house dialogue tick comparison can be done off existing captures to diagnose the
+    ~7-13t lag's pillar (phase vs a missing blocking beat vs nav cadence) before fixing.
 - (E) a **dash demo `.osr`** for the USER to visually confirm ckpt 150 — **DONE ckpt 150**: `port-dash.osr`
   (probe-verified the run cap engages), `studio-current.txt` updated → the studio shortcut opens it.
 
