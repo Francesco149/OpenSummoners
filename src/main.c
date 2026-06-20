@@ -422,6 +422,10 @@ static dialogue_box   g_dialogue;        /* the box widget (rendered by game_ren
 static cutscene       g_cutscene;        /* the town-arrival line SEQUENCER, drives g_dialogue */
 static void          *g_dialogue_font;   /* HFONT — Courier New h18 w7 (textout probe) */
 static int            g_cutscene_armed;  /* one-shot arm latch, reset per enter_game */
+static int            g_errands_dlg_pending; /* set at chain-complete; arms the errands  *
+                                            * opening dialogue once the entry reveal      *
+                                            * recedes (deferred so it plays AFTER the     *
+                                            * fade-from-black, like retail). reset/enter   */
 #define DIALOGUE_BOX_BANK_SLOT      50   /* res 0x456 (DAT_008a7708) */
 #define DIALOGUE_TAB_BANK_SLOT      52   /* res 0x44a (DAT_008a7710) */
 #define DIALOGUE_PORTRAIT_BANK_SLOT 663  /* res 0x7ef (Father bust)  */
@@ -3086,6 +3090,23 @@ static void game_render(void *user)
                                  "unresolved — box stays disarmed");
                     g_cutscene_armed = 1;
                 }
+                /* USER (ckpt 152): the errands OPENING DIALOGUE.  The town chain
+                 * completed + handed off to freeroam (g_errands_dlg_pending set);
+                 * once the entry reveal has fully receded (retail plays the dialogue
+                 * AFTER the fade-from-black, not during), re-arm g_cutscene with the
+                 * 3-line errands chain.  It then plays CONCURRENT with freeroam control
+                 * (freeroam_step runs each sim-tick above; this drives the box + the
+                 * confirm-advance below) — retail's beat pump 0x439680 likewise runs the
+                 * game loop while each line waits.  All same-speaker (Arche) so the box
+                 * stays up across the advances. */
+                if (g_errands_dlg_pending && !scene_fade_active(&g_scene_fade)) {
+                    g_errands_dlg_pending = 0;
+                    int n_ev = 0;
+                    const cutscene_room *ev = cutscene_errands_intro(&n_ev);
+                    cutscene_arm(&g_cutscene, ev, n_ev, exe_data_string, &g_dialogue);
+                    log_line("errands: opening dialogue armed (3 Arche lines) "
+                             "@hold=%u — reveal complete", g_game_camera_hold);
+                }
                 /* Confirm (ENTER/X = ring id 0x24): poll+consume one edge from the
                  * ring; cutscene_step SKIPS the typewriter if the line is still
                  * revealing, else ADVANCES the fully-typed line (the 0x43bca0
@@ -3192,9 +3213,11 @@ static void game_render(void *user)
                         /* The chain ends at the errands boundary: load that room's
                          * backdrop (the freeroam scene) and HAND OFF to the
                          * controllable mover (Phase 2b — the +0x200==0 char-AI path).
-                         * Retail plays a short errands opening dialogue (the questline
-                         * 0x4dc510, PORT-DEBT(cutscene-scene-chain)) before freeroam;
-                         * the port hands off directly. */
+                         * Retail then plays a short errands OPENING DIALOGUE (the
+                         * questline 0x4dc510's entry case — 3 Arche lines, the movement
+                         * tutorial) once control is handed off; the port arms it after
+                         * the entry reveal recedes (g_errands_dlg_pending below), played
+                         * concurrent with freeroam by re-arming g_cutscene. */
                         if (g_loaded_room_key != CUTSCENE_ROOM_ERRANDS)
                             reload_room_backdrop(CUTSCENE_ROOM_ERRANDS);
                         /* THEME B: the errands ENTRY reveal (USER studio note #7,
@@ -3220,6 +3243,12 @@ static void game_render(void *user)
                             log_line("chain-complete: errands reveal "
                                      "scene_fade_arm(mode=OUT var=0 speed=1000)");
                             freeroam_begin();
+                            /* USER (ckpt 152): play the errands OPENING DIALOGUE — defer
+                             * the arm until the reveal recedes (retail shows it AFTER the
+                             * fade-from-black, line 1 first-glyph ~tick 1758 vs reveal
+                             * ~1707-1725).  The deferred-arm check (before cutscene_step)
+                             * re-arms g_cutscene with the 3-line errands chain. */
+                            g_errands_dlg_pending = 1;
                         }
                     }
                 }
@@ -3475,6 +3504,7 @@ static void enter_game(void)
         memset(&g_dialogue, 0, sizeof(g_dialogue));
         memset(&g_cutscene, 0, sizeof(g_cutscene));
         g_cutscene_armed = 0;
+        g_errands_dlg_pending = 0;
 
         /* Arm the PARTICLE band (Chip 3+).  Two emitters, both CHARACTER props
          * already in g_actors, both feeding the shared +0x13e0 pool (g_fountain_pp):

@@ -270,6 +270,14 @@ const cutscene_line *cutscene_town_house(int *n);
  * completes at the errands boundary (0x334dc).  Returns the room table + *n. */
 const cutscene_room *cutscene_town_chain(int *n_rooms);
 
+/* The errands OPENING DIALOGUE — the questline 0x4dc510's entry case (decompile
+ * :1086-1116): 3 Arche lines via 0x49d6e0 (the movement-tutorial intro that plays
+ * once the errands scene loads + the player gains control).  A 1-room chain
+ * (CUTSCENE_ROOM_ERRANDS) the caller arms AFTER the town chain completes + the
+ * entry reveal recedes; it plays CONCURRENT with freeroam control.  Returns the
+ * room table + *n_rooms. */
+const cutscene_room *cutscene_errands_intro(int *n_rooms);
+
 /* Arm a cutscene: bind the room chain + resolver + box, reset to room 0 / line
  * 0, and arm the box with room-0 line-0 (resolving its name/text VAs).  Safe
  * no-op if any of rooms/resolve/box is NULL or n_rooms <= 0 (or the first line

@@ -326,6 +326,56 @@ const cutscene_room *cutscene_town_chain(int *n_rooms)
     return TOWN_CHAIN;
 }
 
+/* ── The errands OPENING DIALOGUE — 0x4dc510's entry case (decompile :1086-1116).
+ * USER (ckpt 152): "the opening dialogue for the errands scene — starts once it
+ * switches to the errands scene where you have control."  Three Arche lines via
+ * 0x49d6e0 (the SAME dialogue display the town chain uses), the movement-tutorial
+ * intro.  Each call is FUN_0049d6e0(0, Arche=0x5f5e165, text, 0, 1, 1, 0, FACE, 0,
+ * voice=0) followed by FUN_00439680 (the beat pump that runs the game loop while
+ * the line waits for the player's advance — so the dialogue + freeroam control
+ * coexist).  FACE = param_8 (the script's uVar10): L1/L2 = 0x02, L3 = 0x09 (Arche
+ * expressions, the same face ids the arrival uses).  Voices are 0 (unvoiced).
+ *
+ * Arche stands STATIC at the freeroam spawn (retail.osr res 0x570 @screen (162,336),
+ * idle breathing — the player happens not to move during the recording, though
+ * control is live); the box anchors to her via 0x49c640 and CLAMPS to the left
+ * edge (she is near x=32, so box_x = clamp(.., 0x20, ..) = 32 — the wide bottom box
+ * seen in retail.osr, drawcall-confirmed (32,192)-(440,304) with the tail at ~186
+ * pointing down to her).  spk_wx/wy = the errands spawn world (FREEROAM_ARCHE_SPAWN);
+ * the box projects through the live errands camera each frame.
+ *
+ * Line 3 carries inline button-icon art (the movement/talk key prompts, 17x17 res=0
+ * cels at retail.osr seq 536-538) — NOT yet rendered: PORT-DEBT(dialogue-arrow-art),
+ * the same inline-art debt as the arrival book/item glyphs + the advance arrow.
+ * Retires the DIALOGUE half of PORT-DEBT(cutscene-scene-chain) (the errands script's
+ * fade reveal is already stood-in by main.c; the questline proper stays unported). */
+/* The errands freeroam spawn world (main.c FREEROAM_ARCHE_SPAWN_{WX,WY} = 19200,
+ * 52000 — Arche's hand-off position; the box anchors to its projection). */
+#define ERRANDS_ARCHE_WX 19200
+#define ERRANDS_ARCHE_WY 52000
+static const cutscene_line TOWN_ERRANDS[] = {
+    /*  # decompile  speaker     name       face  voice pvar  wx     wy     gist */
+    /*  1 :1088 */ { NAME_ARCHE, 0x86f414u, 0x02, 0, VB, ERRANDS_ARCHE_WX, ERRANDS_ARCHE_WY }, /* "So the first floor of our house is the store. Cool!" */
+    /*  2 :1102 */ { NAME_ARCHE, 0x86f3e8u, 0x02, 0, VB, ERRANDS_ARCHE_WX, ERRANDS_ARCHE_WY }, /* "Okay, I need to help with the moving-in!" */
+    /*  3 :1116 */ { NAME_ARCHE, 0x86f388u, 0x09, 0, VB, ERRANDS_ARCHE_WX, ERRANDS_ARCHE_WY }, /* "To move around, I press [<>] & [^v], and to talk to people and do stuff, I press [Z/X], right?" */
+};
+#define TOWN_ERRANDS_COUNT ((int)(sizeof(TOWN_ERRANDS) / sizeof(TOWN_ERRANDS[0])))
+
+/* The errands intro = a 1-room chain (the errands room, already loaded).  No leads
+ * or exit beats — three plain Arche lines, all same speaker (the box stays up across
+ * the advances, matching retail). */
+static const cutscene_room ERRANDS_INTRO[] = {
+    /* room_key             script        n_lines             leads n_leads exit n_exit box_hold */
+    { CUTSCENE_ROOM_ERRANDS, TOWN_ERRANDS, TOWN_ERRANDS_COUNT, NULL, 0,     NULL, 0,    0 },
+};
+#define ERRANDS_INTRO_COUNT ((int)(sizeof(ERRANDS_INTRO) / sizeof(ERRANDS_INTRO[0])))
+
+const cutscene_room *cutscene_errands_intro(int *n_rooms)
+{
+    if (n_rooms != NULL) *n_rooms = ERRANDS_INTRO_COUNT;
+    return ERRANDS_INTRO;
+}
+
 /* Resolve rooms[room_idx].script[line_idx]'s name+text VAs and arm the box.
  * Returns 1 on success; 0 if the text VA does not resolve (the caller treats a
  * room-0 line-0 miss as "disarmed" and any later miss as "complete").  A NULL
