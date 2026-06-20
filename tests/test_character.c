@@ -390,3 +390,134 @@ int test_character_jump_held_rise(void)
     T_ASSERT(52000 - c.world_y > 4800);              /* already past the short-hop apex */
     return 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * character_resolve_run — the dash trigger (0x478ba0 double-tap detection,
+ * ckpt 150).  Builds an input_mgr ring, resolves the run flag, and (the
+ * integration tests) drives it straight into character_step to prove a live
+ * double-tap reaches the run cap via the bit-exact physics.
+ * ════════════════════════════════════════════════════════════════════ */
+#include "input.h"
+
+/* A ring with all 64 slots pointing at one "empty" record; tests overwrite the
+ * slots they care about (mirrors tests/test_input.c mgr_init). */
+static void dash_mgr_init(input_mgr *m, input_event *empty)
+{
+    memset(m, 0, sizeof *m);
+    empty->id = 0; empty->ts = 0; empty->flag = 0;
+    for (int i = 0; i < INPUT_RING_LEN; i++) m->ring[i] = empty;
+}
+
+/* A double-tap held -> run flag set + cmd_lr latched; self-sustains while held;
+ * release drops it; a fresh single press after release is a walk, not a dash. */
+int test_character_resolve_run_sustain_release(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 100000;
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = now, .flag = 1 };
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = now, .flag = 1 };
+    m.ring[5] = &a; m.ring[40] = &b;          /* two LEFT presses = a double-tap */
+
+    character c; character_init(&c, 0, 0, CHAR_FACE_LEFT);
+    int axis[CHAR_AXIS_COUNT]; axis_set(axis, -1);            /* hold LEFT */
+
+    /* tick 1: the double-tap is in-window -> dash-left engages. */
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 1);
+    T_ASSERT_EQ_I(c.cmd_lr, 5);
+
+    /* age the ring past the window: dtap now misses, but prev cmd_lr==5 sustains
+     * the dash while LEFT stays held (retail's local_608[0]==5 self-sustain). */
+    now += 2000;
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 1);
+    T_ASSERT_EQ_I(c.cmd_lr, 5);
+
+    /* release LEFT -> the dash ends (the reset-each-tick slot stays 0). */
+    axis_set(axis, 0);
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 0);
+    T_ASSERT_EQ_I(c.cmd_lr, 0);
+
+    /* re-hold LEFT with no fresh double-tap (ring stale) -> walk, NOT a dash. */
+    axis_set(axis, -1);
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 0);
+    T_ASSERT_EQ_I(c.cmd_lr, 0);
+    return 0;
+}
+
+/* RIGHT runs second and wins on both-held: a sustained LEFT dash is overridden
+ * the tick RIGHT is also held (retail writes 0x14854 in the RIGHT block too). */
+int test_character_resolve_run_both_held_right_wins(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 5000;
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = now, .flag = 1 };
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = now, .flag = 1 };
+    m.ring[1] = &a; m.ring[2] = &b;
+
+    character c; character_init(&c, 0, 0, CHAR_FACE_LEFT);
+    int axis[CHAR_AXIS_COUNT]; axis_set(axis, -1);
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 1);
+    T_ASSERT_EQ_I(c.cmd_lr, 5);                       /* dashing LEFT */
+
+    /* now hold BOTH: RIGHT block runs second, prev==6 is false + no RIGHT dtap
+     * -> cmd_lr becomes 0, run drops (matches retail's run-ends-on-both). */
+    axis[CHAR_AXIS_RIGHT] = 1;                        /* LEFT still held too */
+    T_ASSERT_EQ_I(character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS), 0);
+    T_ASSERT_EQ_I(c.cmd_lr, 0);
+    return 0;
+}
+
+/* END-TO-END: a live double-tap-RIGHT-then-hold drives the run flag into the
+ * bit-exact physics and reaches the RUN cap 48000 — the whole input->dash chain.
+ * The contrast (a single held press) caps at the WALK cap 24000. */
+int test_character_dash_via_double_tap(void)
+{
+    int axis[CHAR_AXIS_COUNT]; axis_set(axis, +1);   /* hold RIGHT */
+    uint32_t now = 200000;
+
+    /* (a) double-tap: two RIGHT presses in the ring -> dash -> RUN cap. */
+    {
+        input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+        input_event p1 = { .id = INPUT_RING_DIR_RIGHT, .ts = now, .flag = 1 };
+        input_event p2 = { .id = INPUT_RING_DIR_RIGHT, .ts = now, .flag = 1 };
+        m.ring[10] = &p1; m.ring[20] = &p2;
+
+        character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+        int reached_run = 0;
+        for (int i = 0; i < 80; i++) {
+            int run = character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS);
+            character_step(&c, axis, 0, run);
+            if (run) reached_run = 1;
+        }
+        T_ASSERT_EQ_I(reached_run, 1);
+        T_ASSERT_EQ_I(c.cmd_lr, 6);                  /* dash-right sustained */
+        T_ASSERT_EQ_I(c.vel, CHAR_RUN_CAP);          /* 48000 — only when running */
+    }
+
+    /* (b) single held press (no double-tap) -> walk -> WALK cap, never RUN. */
+    {
+        input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+        input_event p1 = { .id = INPUT_RING_DIR_RIGHT, .ts = now, .flag = 1 };
+        m.ring[10] = &p1;                            /* one press = held, not a tap-tap */
+
+        character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+        for (int i = 0; i < 80; i++) {
+            int run = character_resolve_run(&c, &m, now, axis, CHAR_DASH_WINDOW_MS);
+            T_ASSERT_EQ_I(run, 0);
+            character_step(&c, axis, 0, run);
+        }
+        T_ASSERT_EQ_I(c.cmd_lr, 0);
+        T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);         /* 24000 — walking */
+    }
+    return 0;
+}
+
+/* NULL-safety: no manager / no axis -> no run, no crash. */
+int test_character_resolve_run_guards(void)
+{
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT]; axis_set(axis, +1);
+    T_ASSERT_EQ_I(character_resolve_run(NULL, NULL, 0, axis, CHAR_DASH_WINDOW_MS), 0);
+    T_ASSERT_EQ_I(character_resolve_run(&c, NULL, 0, axis, CHAR_DASH_WINDOW_MS), 0);
+    T_ASSERT_EQ_I(character_resolve_run(&c, NULL, 0, NULL, CHAR_DASH_WINDOW_MS), 0);
+    return 0;
+}

@@ -2762,11 +2762,15 @@ static void freeroam_step(void)
      * (C, +0x124), [5] = attack (X). */
     const int *axis = (const int *)g_game_drive.input.axis_held;
     /* jump = the C button LEVEL (axis_held[4]); character_step detects the rising
-     * edge + runs the bit-exact windup/impulse/variable-height arc.  run = the dash
-     * flag — its double-tap DETECTION (0x479e70 ring scan) is still deferred
-     * (PORT-DEBT(char-run-trigger)), so 0 (a USER double-tap won't dash yet). */
+     * edge + runs the bit-exact windup/impulse/variable-height arc.  run = the DASH
+     * flag, now resolved from the live event ring by character_resolve_run (the
+     * 0x478ba0 double-tap detection 0x479e70, ckpt 150 — retires
+     * PORT-DEBT(char-run-trigger)): a USER tap-tap-hold of a direction dashes.  The
+     * ring records its timestamps in GetTickCount() ms, so the window compare uses
+     * the same clock. */
     int jump = axis[CHAR_AXIS_COUNT];   /* axis_held[4] = the jump button level */
-    int run  = 0;
+    int run  = character_resolve_run(&g_freeroam_char, &g_game_drive.input,
+                                     GetTickCount(), axis, CHAR_DASH_WINDOW_MS);
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;

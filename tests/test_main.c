@@ -384,6 +384,12 @@ struct test_case {
     X(input_any_fresh_press_empty_misses)                      \
     X(input_any_fresh_press_flag_and_age)                      \
     X(input_mgr_reset_flushes)                                 \
+    X(input_dtap_two_presses_hit)                              \
+    X(input_dtap_single_press_misses)                          \
+    X(input_dtap_out_of_window_misses)                         \
+    X(input_dtap_window_boundary_inclusive)                    \
+    X(input_dtap_flag_must_be_pressed)                         \
+    X(input_dtap_other_dir_ignored)                            \
     X(pool_acquire_stamps_and_bumps)                           \
     X(pool_acquire_index_is_16bit_write)                       \
     X(pool_acquire_exhausts_returns_null)                      \
@@ -900,6 +906,10 @@ struct test_case {
     X(character_jump_windup)                                   \
     X(character_jump_edge_and_ground)                          \
     X(character_jump_held_rise)                                \
+    X(character_resolve_run_sustain_release)                   \
+    X(character_resolve_run_both_held_right_wins)              \
+    X(character_dash_via_double_tap)                           \
+    X(character_resolve_run_guards)                            \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
     X(map_decode_1b58d_shape2_blend)                           \

@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **209** (13.2% of engine-proper) — tested 204, ported 5
-- code bytes touched: **14.3%** (242,017 / 1,694,868 B of engine-proper)
-- unported: **1549**
+- touched: **211** (13.3% of engine-proper) — tested 206, ported 5
+- code bytes touched: **14.3%** (242,457 / 1,694,868 B of engine-proper)
+- unported: **1547**
 - orphan refs in src/ not in this table: 4
 
-## tested (204) — ported + host unit suite
+## tested (206) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -61,6 +61,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
 | 0x46a880 | FUN_0046a880 | 8890 | input_live.c, input_live.h |
+| 0x479960 | FUN_00479960 | 165 | input.c, input.h |
+| 0x479e70 | FUN_00479e70 | 275 | character.c, character.h, input.c (+1) |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
 | 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |
 | 0x48d3d0 | FUN_0048d3d0 | 664 | newgame_box.c |

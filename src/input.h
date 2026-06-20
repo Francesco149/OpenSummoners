@@ -163,4 +163,29 @@ int input_any_fresh_press(const input_mgr *m, uint32_t now);
  * the input manager and is the title scene's concern, not this flush's.) */
 void input_mgr_reset(input_mgr *m);
 
+/* ─── direction ring ids ─────────────────────────────────────────────
+ * The discrete press/release events the producer 0x46a880 posts for the
+ * four directions (the dash double-tap 0x479e70 + the menu nav 0x56aea0
+ * both scan these).  The char-AI 0x478ba0 reads id 2 for LEFT (held +0x11c)
+ * and id 4 for RIGHT (held +0x120); UP (held +0x114) is id 1, DOWN (+0x118)
+ * id 3.  Matches src/input_live.c KEYMAP. */
+#define INPUT_RING_DIR_DOWN  1
+#define INPUT_RING_DIR_LEFT  2
+#define INPUT_RING_DIR_UP    3
+#define INPUT_RING_DIR_RIGHT 4
+
+/* Was `dir_id` (a direction ring id) DOUBLE-TAPPED within the last `window`
+ * ms?  The dash trigger: a faithful reduction of FUN_00479e70 as the char-AI
+ * 0x478ba0 invokes it for the L/R dash (param_2=0, param_3=param_4=window,
+ * param_5=param_6=dir, param_7=0 — read-only, no consume).
+ *
+ * Scans the ring (FUN_00479960) for TWO DISTINCT records with .id == dir_id,
+ * .flag == 1 (pressed), and (now - .ts) <= window (unsigned, GetTickCount-wrap
+ * safe).  A "used" bitmap forces the two to be different ring slots, so a
+ * single held press (one record) does NOT read as a double-tap.  Returns 1
+ * iff two such presses exist, else 0.  Does not modify the ring.  `window` is
+ * the config double-tap window *(*0x8a6e80+0xf8) (CHAR_DASH_WINDOW_MS). */
+int input_dash_double_tap(const input_mgr *m, uint32_t now,
+                          int32_t dir_id, uint32_t window);
+
 #endif /* OPENSUMMONERS_INPUT_H */

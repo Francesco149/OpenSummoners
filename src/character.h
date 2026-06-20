@@ -174,7 +174,24 @@ typedef struct {
     int16_t jump_held; /* last tick's jump button (for the launch rising edge)   */
     int16_t jump_sub;  /* body+0x3a — airborne sub-state: 0 = windup, 1 = launched*/
     int16_t jump_ctr;  /* body+0x3c — the windup tick counter (case 3 sub 0)     */
+    int16_t cmd_lr;    /* entity+0x14854 L/R command, the DASH subset: 0 = not    */
+                       /*   dashing, 5 = dash-left, 6 = dash-right (the self-     */
+                       /*   sustain state for character_resolve_run; walk 1/2 is  */
+                       /*   character_step's axis_held domain — see that fn)      */
 } character;
+
+/* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the
+ * char-AI 0x478ba0 passes to FUN_00479e70 as both window params.  Read LIVE
+ * from retail (no static default — it lives in the DInput god-object built at
+ * engine init): runs/dash-window2 = 800, with run_mode *(*0x8a6e80+0x510) == 0
+ * (!= 2 -> the normal double-tap branch is the active path, which this ports).
+ * Two same-direction presses within 800 ms (each within 800 ms of "now") =
+ * a dash. */
+#define CHAR_DASH_WINDOW_MS  800u
+
+/* The L/R direction ring ids the dash scans (input.h INPUT_RING_DIR_*). */
+
+struct input_mgr;  /* fwd — the AI reads the event ring (input.h); keep this header light */
 
 /* Initialise a character at a spawn world position + facing (1 right / 3 left), at
  * rest on the ground (world_y == ground_y, vvel 0). */
@@ -194,5 +211,21 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
  * airborne state at once but stays stationary for a 4-tick WINDUP (CHAR_JUMP_WINDUP_THRESH)
  * before the launch impulse fires (case 3 sub-state 0). */
 int32_t character_step(character *c, const int *axis_held, int jump_held, int run);
+
+/* Resolve the RUN (dash) flag from live input — the dash-trigger half of the
+ * char-AI 0x478ba0 that character_step's `run` arg used to receive pre-resolved
+ * (PORT-DEBT(char-run-trigger), now retired).  Each sim-tick: snapshot the prior
+ * cmd_lr, reset it, detect a LEFT (ring id 2) / RIGHT (ring id 4) double-tap over
+ * the manager's event ring (input_dash_double_tap, window = CHAR_DASH_WINDOW_MS),
+ * and resolve the dash command with retail's self-sustain: a tap-tap STARTS the
+ * dash, holding the direction KEEPS it (prev cmd_lr == 5/6), releasing ENDS it.
+ * `axis_held[0..3]` are the UP/DOWN/LEFT/RIGHT held booleans; `now` is the same
+ * GetTickCount() clock the ring records its timestamps in.  Returns the run flag
+ * (1 while dashing) to pass straight into character_step.  Models the run_mode!=2
+ * branch (the shipped default, runs/dash-window2); run_mode==2 "hold-to-run" is
+ * PORT-DEBT(keybind-config).  The walk command (0x14854 == 1/2) + its press-window
+ * warmup stay character_step's domain (PORT-DEBT(char-input-autorepeat)). */
+int character_resolve_run(character *c, const struct input_mgr *m, uint32_t now,
+                          const int *axis_held, uint32_t window);
 
 #endif /* OSS_CHARACTER_H */

@@ -1,0 +1,13 @@
+{
+  "_doc": "THROWAWAY one-field read (char-run-trigger, ckpt 150): the dash double-tap WINDOW the AI 0x478ba0 reads as *(*0x8a6e80+0xf8) for FUN_00479e70 (both window params).  Config god-object, set at engine init -> valid at the title (no nav needed).  Hooked at the per-Flip 0x5b8fc0 (fires every frame incl. title).  RUN: frida_capture.py --field-spec tools/flow/dash_window_field.json --field-spec-only --max-frames 120 --duration-ms 20000 --run-dir runs/dash-window.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "cfg_probe",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Read the input-config double-tap window.",
+      "fields": [
+        {"name": "dash_window", "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 248, "type": "i32", "reason": "*(*0x8a6e80+0xf8) double-tap window ms (479e70 param_3/param_4)"},
+        {"name": "run_mode",    "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1296, "type": "i32", "reason": "*(*0x8a6e80+0x510) control-scheme mode (!=2 = double-tap)"}
+      ]
+    }
+  }
+}

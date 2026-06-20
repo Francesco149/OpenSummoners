@@ -266,3 +266,95 @@ int test_input_mgr_reset_flushes(void)
     T_ASSERT_EQ_I(recs[0].flag, 1);
     return 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * input_dash_double_tap (the dash trigger, FUN_00479e70/FUN_00479960).
+ * Two DISTINCT pressed records of one dir within the window = a double-tap.
+ * Expectations hand-derived from the decompile (see input.c).
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* Two same-dir presses in distinct slots, both within the window -> 1. */
+int test_input_dtap_two_presses_hit(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = 900,  .flag = 1 };
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = 1000, .flag = 1 };
+    m.ring[5]  = &a;
+    m.ring[40] = &b;
+    /* now=1000: ages 100 and 0, both <= window 800. */
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 1);
+    /* read-only: the records are untouched (no consume). */
+    T_ASSERT_EQ_I(a.id, INPUT_RING_DIR_LEFT);
+    T_ASSERT_EQ_I(b.id, INPUT_RING_DIR_LEFT);
+    return 0;
+}
+
+/* A SINGLE press (one record) is not a double-tap -> 0.  This is the key
+ * property: the "used" mask stops the second find from reusing the slot, so a
+ * held key (one ring event) never reads as a dash. */
+int test_input_dtap_single_press_misses(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_RIGHT, .ts = 1000, .flag = 1 };
+    m.ring[33] = &a;
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_RIGHT, 800), 0);
+    return 0;
+}
+
+/* Two presses but the older one is past the window -> 0 (the second find,
+ * also windowed, cannot pair the in-window one with anything). */
+int test_input_dtap_out_of_window_misses(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = 100,  .flag = 1 }; /* age 900 > 800 */
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = 1000, .flag = 1 }; /* age 0          */
+    m.ring[5]  = &a;
+    m.ring[40] = &b;
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 0);
+    /* widen the window to include the old press -> now a double-tap. */
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 900), 1);
+    return 0;
+}
+
+/* The age boundary is inclusive (FUN_00479960 uses <=): age == window hits. */
+int test_input_dtap_window_boundary_inclusive(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = 200,  .flag = 1 }; /* age exactly 800 */
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = 1000, .flag = 1 };
+    m.ring[5]  = &a;
+    m.ring[40] = &b;
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 1);
+    /* one ms tighter and the old press drops out -> single press -> 0. */
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 799), 0);
+    return 0;
+}
+
+/* Release events (flag 0) are NOT presses -> ignored. */
+int test_input_dtap_flag_must_be_pressed(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_LEFT, .ts = 950,  .flag = 0 }; /* a release */
+    input_event b = { .id = INPUT_RING_DIR_LEFT, .ts = 1000, .flag = 1 }; /* one press */
+    m.ring[5]  = &a;
+    m.ring[40] = &b;
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 0);
+    return 0;
+}
+
+/* Presses of a DIFFERENT direction don't count toward this dir's double-tap. */
+int test_input_dtap_other_dir_ignored(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_RIGHT, .ts = 950,  .flag = 1 };
+    input_event b = { .id = INPUT_RING_DIR_LEFT,  .ts = 1000, .flag = 1 };
+    m.ring[5]  = &a;
+    m.ring[40] = &b;
+    /* scanning LEFT: only one LEFT press -> 0. */
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 0);
+    /* a future-ts stale slot wraps to a huge age and is rejected, too. */
+    input_event c = { .id = INPUT_RING_DIR_LEFT, .ts = 2000, .flag = 1 }; /* ts in the future */
+    m.ring[6] = &c;
+    T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 0);
+    return 0;
+}

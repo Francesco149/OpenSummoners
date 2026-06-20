@@ -6,6 +6,7 @@
  * ground-truth per-tick body (runs/mover-caller, ckpt 114).  Pure C, Win32-free.
  */
 #include "character.h"
+#include "input.h"     /* the event ring + input_dash_double_tap (dash trigger) */
 
 void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
                     int facing)
@@ -25,6 +26,7 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->jump_held = 0;
     c->jump_sub  = 0;
     c->jump_ctr  = 0;
+    c->cmd_lr    = 0;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -170,4 +172,50 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
     }
 
     return dwx;
+}
+
+/* The dash-trigger half of 0x478ba0 (the run_mode != 2 default branch, the only
+ * one runs/dash-window2 exercises).  Retail snapshots the prior command block
+ * into local_608, zeroes 0x14854.., then per direction re-derives the command:
+ *
+ *   LEFT  (478ba0:152-198): iVar9 = FUN_00479e70(now,0,W,W, 2,2, 0)   // dtap id 2
+ *     if (left_held(+0x11c)) {                                        // (run_mode!=2)
+ *         if (local_608[0]==5 || iVar9) 0x14854 = 5;   // dash-left: sustain OR new tap
+ *         else if (local_608[0]==1 || bVar1) 0x14854 = 1; }           // walk-left
+ *   RIGHT (478ba0:200-246): the mirror with id 4, cmd 6 (dash) / 2 (walk).
+ *
+ * RIGHT runs second and writes the same slot, so it wins if both are held.  The
+ * dash self-sustains via local_608[0]==5/6 (the prior frame's command) while the
+ * direction stays held; releasing drops left_held -> the slot keeps its reset 0.
+ * The walk latch (cmd 1/2, gated on bVar1 = the press-window auto-repeat) is
+ * character_step's domain (its axis_held walk + warmup), so cmd_lr tracks only
+ * the dash {0,5,6}; the prev==5/6 self-sustain reads identically either way. */
+int character_resolve_run(character *c, const struct input_mgr *m, uint32_t now,
+                          const int *axis_held, uint32_t window)
+{
+    if (c == NULL) return 0;
+
+    int16_t prev = c->cmd_lr;          /* local_608[0] (the snapshot before reset) */
+    int16_t cmd  = 0;                  /* 0x14854 reset to 0 each tick             */
+
+    int left_held  = (axis_held != NULL) && axis_held[CHAR_AXIS_LEFT]  != 0;
+    int right_held = (axis_held != NULL) && axis_held[CHAR_AXIS_RIGHT] != 0;
+
+    /* Each block WRITES the slot when its direction is held (retail always does:
+     * dash 5/6 on sustain-or-tap, else the walk value — here folded to 0 since
+     * cmd_lr tracks only the dash and the walk is character_step's axis_held).
+     * RIGHT runs second, so it overrides a held LEFT dash when both are held. */
+    if (left_held) {                   /* +0x11c held (the run_mode!=2 gate)       */
+        int dtap = (m != NULL) &&
+                   input_dash_double_tap(m, now, INPUT_RING_DIR_LEFT, window);
+        cmd = (prev == 5 || dtap) ? 5 : 0;         /* dash-left (sustain or new tap)*/
+    }
+    if (right_held) {                  /* +0x120 held; runs second, wins if both   */
+        int dtap = (m != NULL) &&
+                   input_dash_double_tap(m, now, INPUT_RING_DIR_RIGHT, window);
+        cmd = (prev == 6 || dtap) ? 6 : 0;         /* dash-right                    */
+    }
+
+    c->cmd_lr = cmd;
+    return (cmd == 5 || cmd == 6);     /* the run flag for character_step          */
 }

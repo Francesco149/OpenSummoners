@@ -63,6 +63,46 @@ int input_any_fresh_press(const input_mgr *m, uint32_t now)
     return 0;                                          /* ring exhausted, miss */
 }
 
+/* The windowed ring find (FUN_00479960), reduced to the dash invocation
+ * (flag=1 pressed, param_6=param_7=0 so no 5/6 id remap — the dir is 2/4 —
+ * and param_9=0 no consume).  Scans index 0 UPWARD (retail's `piVar4 =
+ * in_ECX+0xc; iVar2 = 0; iVar2++`) and returns the FIRST record with
+ * .id == dir, (now - .ts) in [lo, hi] (unsigned), .flag == 1 that is not
+ * already marked in `used[]`; marks it used; or -1 once all 64 are scanned.
+ * The condition order matches retail (id, age-lo, age-hi, flag). */
+static int ring_find_windowed(const input_mgr *m, uint32_t now,
+                              uint32_t lo, uint32_t hi, int32_t dir,
+                              uint8_t used[INPUT_RING_LEN])
+{
+    for (int i = 0; i < INPUT_RING_LEN; i++) {
+        const input_event *rec = m->ring[i];           /* piVar1 = *piVar4 */
+        uint32_t age = (uint32_t)(now - rec->ts);
+        if (rec->id == dir && lo <= age && age <= hi && rec->flag == 1) {
+            if (used[i] == 0) {                         /* *piVar3 == 0     */
+                used[i] = 1;                            /* param_8[iVar2]=1 */
+                return i;
+            }
+        }
+    }
+    return -1;                                          /* 0x3f < iVar2     */
+}
+
+/* Was `dir_id` double-tapped within `window` ms?  FUN_00479e70 reduced to the
+ * dash call (param_2=0, param_3=param_4=window, param_5=param_6=dir, param_7=0).
+ * Find two DISTINCT pressed records of `dir` within [0, window]; the shared
+ * `used` mask makes the second find skip the first's slot, so one held press
+ * (a single record) is not a double-tap. */
+int input_dash_double_tap(const input_mgr *m, uint32_t now,
+                          int32_t dir_id, uint32_t window)
+{
+    uint8_t used[INPUT_RING_LEN] = {0};                /* local_100 zeroed */
+    if (ring_find_windowed(m, now, 0, window, dir_id, used) < 0)
+        return 0;                                      /* iVar2 < 0 -> ret 0 */
+    if (ring_find_windowed(m, now, 0, window, dir_id, used) < 0)
+        return 0;
+    return 1;                                          /* both found       */
+}
+
 /* Skip-splash field flush (0x56b25e..0x56b29a).  See input.h. */
 void input_mgr_reset(input_mgr *m)
 {
