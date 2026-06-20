@@ -3818,3 +3818,22 @@ butterfly glides down and flaps up to maintain altitude over the terrain — the
 flap cadence (16-38 ticks) is the floor-scan + the every-other-tick AI gate interacting,
 NOT a fixed period.  Verified bit-exact off `runs/butterfly-flutter` (0 vvel mismatches /
 1824 ticks × 4 butterflies); the port reproduces retail's butterfly dst-Y tick-for-tick.
+
+### #113 — the freeroam DASH is a direction DOUBLE-TAP over the discrete press ring, gated by a CONFIG window `*(*0x8a6e80+0xf8)` = 800 ms (run_mode `*(*0x8a6e80+0x510)`==0 = the active branch) (2026-06-20, ckpt 150, read live from retail)
+The char-AI `0x478ba0` resolves the dash command `entity+0x14854` (`5`=dash-left /
+`6`=dash-right, vs `1`/`2` walk) from the EVENT RING, not the held axis.  Each tick it
+snapshots the prior command block into `local_608`, zeroes `0x14854`, then calls the
+double-tap scan `FUN_00479e70(now, 0, W, W, dir, dir, 0)` (dir = ring id **2** LEFT /
+**4** RIGHT) which finds TWO DISTINCT pressed records of that id within `W` ms (via
+`FUN_00479960` + a 64-slot "used" mask, so a single held press — one record — is never a
+double-tap).  The dash STARTS on the tap-tap (`iVar9 != 0`), SELF-SUSTAINS while the
+direction stays held (`local_608[0]==5/6`, the prior frame's command — even after the two
+taps age past the window), and ENDS on release (the reset-each-tick slot stays 0).  The
+window `W` is the config field `*(*0x8a6e80+0xf8)` — **not a static default**; read live
+from retail (`runs/dash-window2`, the `*0x8a6e80` chain hooked at the per-Flip `0x5b8fc0`
+at the title) = **800 ms**, with `run_mode` `*(*0x8a6e80+0x510) == 0` (≠ 2 ⇒ the normal
+double-tap branch is active; `run_mode==2` is a separate hold-a-button-to-run scheme).
+RIGHT runs second and writes the same slot, so it wins when both directions are held.
+The port reduces this to `input_dash_double_tap` + `character_resolve_run` (ckpt 150);
+inherently wall-clock (retail keys it on `GetTickCount`), so it is off the seed-pinned
+parity path — the unit tests pin the logic with controlled timestamps instead.

@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-20 (ckpt 150) — the freeroam DASH double-tap trigger (char-run-trigger RETIRED)
+
+**The dash TRIGGER is ported + host-verified end-to-end; commit `43a55f1`, 1045 host pass
+(+10).**  Autonomous continuation (USER away, verification deferred).  A USER tap-tap-hold
+of a direction now makes freeroam Arche DASH — the last un-wired freeroam move (walk + jump
+already worked on live input, ckpt 144).  The dash PHYSICS was already bit-exact (chip 3b,
+ckpt 118 — cap 48000 + the two-phase accel); what was missing was the run FLAG that feeds
+`character_step`.  Retires `PORT-DEBT(char-run-trigger)`.
+
+RE'd off the decompile (not curve-fit).  The char-AI `0x478ba0` resolves the dash command
+`entity+0x14854` (`5`/`6` = dash L/R) from the discrete press RING, not the held axis: each
+tick it snapshots the prior command, resets, then scans for a direction DOUBLE-TAP via
+`FUN_00479e70`/`FUN_00479960` (two distinct pressed ring records of the same id within the
+window, a "used" mask blocking slot reuse so a single held press is not a double-tap), and
+self-sustains while held (`local_608[0]==5/6`).  The window `*(*0x8a6e80+0xf8)` is a config
+field with no static default → **read LIVE from retail = 800 ms** (`runs/dash-window2`, the
+proven `*0x8a6e80` chain at the title), with `run_mode` `*(*0x8a6e80+0x510)==0` confirming
+the double-tap branch is the active one.
+
+Ported as `input_dash_double_tap` (`input.{c,h}`) + `character_resolve_run` (`character.{c,h}`,
+the dash-resolution half of `0x478ba0`, new `cmd_lr` field) + the `freeroam_step` wire
+(`main.c`, `GetTickCount` clock to match the ring).  `CHAR_DASH_WINDOW_MS=800` with
+provenance.  10 host tests: the detector (two-in-window hit / single-press miss / window
+boundary / flag+dir+stale rejects / no-consume) and the resolution + `character_dash_via_
+double_tap` — the input-ring → run → RUN-cap-48000 chain through the REAL physics (vs a
+single press → WALK cap 24000).  The double-tap is inherently wall-clock (retail keys it on
+`GetTickCount`), so it is off the seed-pinned parity path; the unit tests pin the logic with
+controlled timestamps.  Ledger +2 (`0x479e70`, `0x479960`; `0x478ba0` stays unported —
+only sliced).  Quirk #113; `findings/dash-double-tap-trigger.md`.  **USER-VERIFY (deferred):**
+a live/visual on-screen dash — a port replay reaching freeroam + a double-tap-hold, scrubbed
+in the studio (Arche accelerates to ~2× walk).
+
 ## 2026-06-20 (ckpt 149) — dialogue body-text rows are line-count DISTRIBUTED (USER tick 770)
 
 **The dialogue body-text vertical spacing is RE'd + ported bit-exact; commit `a91696f`, 1035

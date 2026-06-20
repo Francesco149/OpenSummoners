@@ -84,7 +84,7 @@ understates how much actual instruction volume is ported.
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
   **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
-  freeroam refinements (run/dash double-tap [char-run-trigger], camera-follow, distance-locked walk cels).
+  freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146 (`cfc6a96`)**:
   the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2 after house L5;
   ported as a fire-and-forget `CS_ACT_ACTOR_TURN` on the room-cast Arche, drawcall-faithful vs retail.osr (res
@@ -160,8 +160,29 @@ understates how much actual instruction volume is ported.
     palette, pixel-exact) ✓ (148) →
     the dialogue BODY-ROW DISTRIBUTION (line-count-dependent vertical spacing, FUN_0048da70 — fewer
     rows ⇒ larger gap; the 3-line line now renders all 3 rows, was cut at 2) ✓ (149) →
-    **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (run/dash double-tap) = next**.
-- **LATEST (ckpt 149): the dialogue BODY-TEXT ROW SPACING is line-count DISTRIBUTED (RE'd, bit-exact) —
+    the freeroam DASH double-tap TRIGGER (run derives from the live ring — input_dash_double_tap +
+    character_resolve_run, the 0x478ba0/0x479e70 detection; window 800ms read live; char-run-trigger
+    RETIRED) ✓ (150) →
+    **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (distance-locked walk/run cels) = next**.
+- **LATEST (ckpt 150): the freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end —
+  `PORT-DEBT(char-run-trigger)` RETIRED.**  A USER tap-tap-hold of a direction now makes freeroam Arche
+  DASH (the last un-wired freeroam move; walk + jump already worked live, ckpt 144).  The dash PHYSICS was
+  already bit-exact (ckpt 118, cap 48000); what was missing was the run FLAG.  RE'd off the decompile (not
+  curve-fit): the char-AI `0x478ba0` builds the dash command `entity+0x14854` (5/6 = dash L/R) from the
+  discrete press RING — snapshot prev, reset, scan for a direction DOUBLE-TAP (`FUN_00479e70`/`FUN_00479960`:
+  two distinct pressed ring records of the same id within the window, a "used" mask so a single held press
+  is NOT a double-tap), self-sustain while held (`local_608[0]==5/6`), end on release.  The window
+  `*(*0x8a6e80+0xf8)` is a config field with no static default → **read LIVE from retail = 800 ms**
+  (`runs/dash-window2`, the `*0x8a6e80` chain at the title), `run_mode` `*(*0x8a6e80+0x510)==0` = the active
+  double-tap branch.  **The port:** `input_dash_double_tap` (`input.{c,h}`) + `character_resolve_run`
+  (`character.{c,h}`, new `cmd_lr` field) + `freeroam_step` (`main.c`) feeding `character_step` on the live
+  ring (`GetTickCount` clock).  1045 host pass (+10): the detector + `character_dash_via_double_tap` proves
+  the input-ring → run → **RUN cap 48000** chain through the REAL physics (single press → WALK cap 24000).
+  Off the seed-pinned parity path (the double-tap is wall-clock, like retail) — unit tests pin the logic.
+  Commit `43a55f1`; quirk #113; `findings/dash-double-tap-trigger.md`.  **USER-VERIFY (deferred): a live
+  on-screen dash** — a port replay reaching freeroam + a double-tap-hold, scrubbed in the studio (Arche
+  accelerates to ~2× walk); a demo `.osr` is the follow-up artifact (not yet built).
+- **Prior (ckpt 149): the dialogue BODY-TEXT ROW SPACING is line-count DISTRIBUTED (RE'd, bit-exact) —
   the USER's tick-770 bug (a 3-line line "We haven't been here since…" showed only 2 lines + too-tall
   spacing) is FIXED.**  ckpt d16ae1a had set a CONSTANT pitch (LINE_H=36 / TEXT_DY=29) fitted to the
   2-LINE case, which over-spaced every other line and pushed the 3rd row out of the box.  USER: "RE the

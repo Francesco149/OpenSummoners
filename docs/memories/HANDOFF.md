@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 148, 2026-06-19)
+# Session handoff — rolling current state (last updated ckpt 150, 2026-06-20)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,40 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 148
+## Where we are — ckpt 150
+
+**The freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end (commit `43a55f1`, 1045 host
+pass, +10).**  Autonomous continuation of the freeroam arc (USER away, verification deferred).  A USER
+tap-tap-hold of a direction now makes freeroam Arche DASH — the last un-wired freeroam move (walk + jump
+already worked on live input, ckpt 144).  Retires `PORT-DEBT(char-run-trigger)`.
+
+- **The dash PHYSICS was already bit-exact** (chip 3b, ckpt 118: cap 48000 + the two-phase accel,
+  `test_character_run_ramp`); what was missing was the run FLAG that feeds `character_step`.  RE'd off the
+  decompile (not curve-fit): the char-AI `0x478ba0` builds the dash command `entity+0x14854` (`5`/`6` =
+  dash L/R) from the discrete press RING — each tick it snapshots the prior command, resets, scans for a
+  direction DOUBLE-TAP (`FUN_00479e70`/`FUN_00479960`: two distinct pressed ring records of the same id
+  within the window, a "used" mask so a single held press is not a double-tap), and self-sustains while
+  held (`local_608[0]==5/6`); release ends it.
+- **The window** `*(*0x8a6e80+0xf8)` is a config field, no static default → **read LIVE from retail = 800 ms**
+  (`runs/dash-window2`, the `*0x8a6e80` chain hooked at the per-Flip `0x5b8fc0` at the title; field spec
+  `tools/flow/dash_window_field.json`), with `run_mode` `*(*0x8a6e80+0x510)==0` ⇒ the double-tap branch is
+  the active path (`run_mode==2` hold-to-run = `keybind-config`, unported/inert).
+- **THE PORT.**  `input_dash_double_tap` (`input.{c,h}`, the `0x479e70`+`0x479960` reduction) +
+  `character_resolve_run` (`character.{c,h}`, the dash-resolution half of `0x478ba0`; new `cmd_lr` field =
+  the dash subset {0,5,6} of `0x14854`) + `freeroam_step` (`main.c`) feeds `run` into `character_step` on
+  the live ring, `GetTickCount` clock to match the ring's timestamps.  `CHAR_DASH_WINDOW_MS=800` w/ provenance.
+- **VERIFIED host end-to-end (10 tests):** the detector (two-in-window hit / single-press miss / `<=` window
+  boundary / flag+dir+future-ts rejects / no-consume) + the resolution + `character_dash_via_double_tap` —
+  a double-tap drives the input-ring→run→**RUN cap 48000** chain through the REAL physics; a single held
+  press caps at the WALK cap 24000.  Off the seed-pinned parity path (the double-tap is wall-clock, retail
+  keys it on `GetTickCount`) — the unit tests pin the logic with controlled timestamps.  Quirk #113.
+- **USER-VERIFY (deferred — next session):** a live/visual on-screen dash.  A port replay reaching freeroam
+  + a double-tap-hold (`--osr-emit`), scrubbed in the studio — Arche accelerates to ~2× the walk speed.  A
+  demo `.osr` + the studio shortcut is the follow-up artifact (not yet built).  `findings/dash-double-tap-trigger.md`.
+
+---
+
+## Prior — ckpt 148
 
 **The errands WALL-TINT is PORTED + PIXEL-EXACT (commit `05e8742`, 1034 host pass).**  Autonomous continuation
 of the house/errands punch-list (USER away, verification deferred).  The errands floor rendered a WARM BROWN
@@ -96,15 +129,20 @@ render-gaps.md` §2/§3:
 
 **NEXT (priority for the USER's return / next session).**
 - (A) the **wall-tint** res 1897/1898 floor decode — **DONE ckpt 148 (`05e8742`)**: per-room palette swap.
-- (D') the **run/dash double-tap** [char-run-trigger] — clean + deterministic, autonomous-friendly (the only
-  un-wired freeroam move; walk + jump already work on live input).  A good next autonomous chip.
+- (D') the **run/dash double-tap** [char-run-trigger] — **DONE ckpt 150 (`43a55f1`)**: `run` derives from the
+  live ring (`input_dash_double_tap` + `character_resolve_run`); host-verified end-to-end.  Walk + jump + dash
+  all now work on live input.
 - (B) the **house-dialogue-cadence phase fix** (the ~7-13t lag — would tick-align the ckpt-146 turn AND the
   cover-start AND the reveal/furniture ticks; the arrival is tick-1:1, the house is not).  Likely couples
   making the turn a BLOCKING beat + rebuilding the house nav (dialogue_timeline); may want USER nav verify.
+  **The strongest remaining autonomous-ish chip** (RE + harness verifiable; only the final nav may want USER).
 - (C) the **freeroam UI** (door indicator + HUD + the opening dialogue/questline `0x4dc510`) — the res=0
   subsystem; visual, best with the USER.
-- (D) freeroam refinements (run/dash double-tap [char-run-trigger] — clean+deterministic; camera-follow
-  [needs a freeroam-camera capture, USER]; distance-locked walk cels; the idle-fidget behaviour subsystem).
+- (D) freeroam refinements: the **distance-locked walk-cel cadence** (`char-walk-anim-distance` — a dash
+  should advance the run cels faster; RE the cel = f(distance) law, autonomous-clean); camera-follow [needs a
+  freeroam-camera capture, USER]; the idle-fidget behaviour subsystem (`0x54f980`, RNG-seeded).
+- (E) a **dash demo `.osr`** for the USER to visually confirm ckpt 150 (a port replay reaching freeroam +
+  a double-tap-hold nav) + update `studio-current.txt` — a small autonomous follow-up.
 
 ---
 

@@ -81,6 +81,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   (`base_y=20`/`max_rows=3` = `FUN_0040df40` params; `max_gap=20` = `FUN_00410610:19`;
   `pitch=28` by formula consistency), retail.osr-verified bit-exact at every arrival line.
   **Ported (ckpt 149)** — `dialogue_body_row_dy()` replaces the old constant pitch.
+- **[dash-double-tap-trigger.md](dash-double-tap-trigger.md)** — the freeroam DASH
+  trigger (`char-run-trigger` RETIRED, ckpt 150).  The run PHYSICS was bit-exact (ckpt
+  118); the run FLAG now derives from the live event ring: `input_dash_double_tap`
+  (`0x479e70`/`0x479960` reduced — two same-dir presses within the config window
+  `*(*0x8a6e80+0xf8)` = **800 ms**, read live) + `character_resolve_run` (the
+  dash-resolution half of the char-AI `0x478ba0`, with retail's self-sustain), fed into
+  `character_step` by `freeroam_step`.  Host-verified end-to-end (a double-tap → RUN cap
+  48000; a single press → WALK cap 24000).  Quirk #113.
 
 ## Method / cross-cutting
 
