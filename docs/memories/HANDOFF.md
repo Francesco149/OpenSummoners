@@ -35,10 +35,20 @@
   at retail's ticks (L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222)
   color 0xa8b9cc + the line-3 3-row layout == retail EXACTLY; the arm log fires "reveal complete".  Recon
   on the feed; studio shortcut → `port-errdlg.osr | retail.osr`.
-- **RESIDUAL: line-3 inline button-icon art** shows as raw codes (`@@©`/`@@¨`/`@@X`) where retail draws
-  17x17 res=0 sprites = `PORT-DEBT(dialogue-arrow-art)` (the inline-art system; same class as the HUD's
-  res=0 UI sprites + the arrival book/item glyphs — a shared follow-up).  Retires the DIALOGUE half of
-  `PORT-DEBT(cutscene-scene-chain)`.  Commit `dded4c8`.  `findings/errands-opening-dialogue.md`.
+- **USER VERIFIED the dialogue ("looks mostly correct") + FLAGGED the missing inline arrow icons** (studio
+  note tick 1823 "missing special arrow icons").  RE'd (ckpt 152, `port-debt.md` dialogue-arrow-art): L3's
+  `@@<code>` escapes (`0x40 0x40`+code) = **←/→/X KEY-CAP sprites** (`@@\x81\xa9`→← key, `@@\x81\xa8`→→ key,
+  `@@X`→X key; recon-crop confirmed, montage on feed); positions = monospace body layout (icon x =
+  box_x+DIALOGUE_TEXT_DX+char_idx·7, confirmed 168+24·7=336).  **BLOCKED on the res=0 UI key-cap bank
+  SOURCE: faithful+LEGAL = LOAD it from the user's files at runtime (the legal line: never embed captured
+  game-asset pixels); the bank is UNLOCATED = the SAME res=0 UI-sprite subsystem as god+`0xb8c` (the advance
+  arrow) + the HUD.**  USER CHOSE: /clear + resolve it fresh = **task #4 "Resolve the res=0 UI sprite bank"
+  (the NEXT task — unblocks ICONS + HUD + arrow).**  Path: Frida-hook the icon blit `0x5b9b70` at the icon
+  dst (retail seq 536-538) → the bank's res/module → load + a `@@<code>` parser.  Retires the DIALOGUE half
+  of `PORT-DEBT(cutscene-scene-chain)`.  Commit `dded4c8`.  `findings/errands-opening-dialogue.md`.
+- **NEXT after the UI-bank task: task #3 = port + verify ALL freeroam MOVEMENT TYPES** (USER ckpt 152;
+  up-to-stop-faster / slide / crouch / sword / attack — the moveset is engine-quirks #~3311; walk/run-dash/
+  jump done).
 - **The freeroam HUD is SCOPED + COMMITTED but DEFERRED by USER** (ckpt 152, `findings/freeroam-hud.md` +
   `tools/trace_studio2/hud_probe.py`, commit `ce332c5`): the full drawcall ground truth (the seq 462-536
   overlay layer) + render architecture (`FUN_00494e60` + ~15 sub-renderers) + the dependency analysis (res=0

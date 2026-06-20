@@ -57,10 +57,15 @@
   reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
-  **NEXT (USER directive ckpt 152): port + verify ALL freeroam MOVEMENT TYPES (double-tap dash, up-to-stop-
-  faster, the full combo set).  The errands opening DIALOGUE is DONE (ckpt 152, tick-aligned).  Then: the
-  freeroam HUD/clock (res=0 UI, fully SCOPED ckpt 152 in `findings/freeroam-hud.md` — deferred by USER) +
-  the dialogue-arrow-art inline button icons.  Earlier freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
+  **NEXT (USER-chosen ckpt 152, do FRESH after a /clear): RESOLVE THE res=0 UI SPRITE BANK** — the errands
+  dialogue line-3 inline icons (←/→/X key caps for the `@@<code>` escapes, USER-flagged + fully RE'd) are
+  res=0 UI sprites that must be LOADED FROM THE USER'S FILES (legal: never embed captured pixels), and that
+  bank is unlocated = the SAME subsystem as the HUD + the dialogue advance-arrow (god+0xb8c).  Frida-hook
+  the icon blit `0x5b9b70` → name the bank → load + parse `@@<code>` + render; unblocks ICONS + HUD + arrow.
+  Full RE: `port-debt.md` (dialogue-arrow-art).  **THEN (USER directive ckpt 152): port + verify ALL freeroam
+  MOVEMENT TYPES** (double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — see
+  engine-quirks #~3311 + task #3).  The errands opening DIALOGUE is DONE (ckpt 152, tick-aligned).  The
+  freeroam HUD is fully SCOPED (`findings/freeroam-hud.md`) — it shares the res=0 UI-bank resolution.
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
@@ -166,9 +171,15 @@
   `retail.osr` (`dlg_reconstruct.py`, the new tick-aligned `nav-errands-dlg`):** all 3 lines render at
   retail's ticks (L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222)
   color 0xa8b9cc + the 3-row layout on L3 == retail EXACTLY; the arm log fires "reveal complete".  1045
-  host pass.  RESIDUAL: L3's inline button-icon art shows as raw codes (`@@©`/`@@¨`/`@@X`) where retail
-  draws 17x17 sprites = `PORT-DEBT(dialogue-arrow-art)` (the inline-art system, shared with the HUD's res=0
-  UI sprites).  Retires the DIALOGUE half of `PORT-DEBT(cutscene-scene-chain)`.
+  host pass.  **USER VERIFIED (ckpt 152): "looks mostly correct" — flagged the missing inline arrow icons**
+  (studio note tick 1823).  RESIDUAL (now RE'd + the NEXT task): L3's inline button icons show as raw codes
+  (`@@\x81\xa9`/`@@\x81\xa8`/`@@X`) where retail draws **17x17 res=0 KEY-CAP sprites = ←/→/X keys** (the
+  bound move/action keys; recon-crop confirmed).  `@@<code>` escapes (`0x40 0x40`+code); positions = the
+  monospace body layout (x = box_x+TEXT_DX+char_idx·7).  **BLOCKED on the res=0 UI key-cap bank source —
+  faithful+LEGAL = load it from the user's files (never embed captured pixels); bank unlocated = the SAME
+  subsystem as the HUD + advance-arrow.**  USER chose: /clear + resolve it fresh (= the NEXT task, unblocks
+  icons + HUD + arrow).  Full RE: `port-debt.md` (dialogue-arrow-art).  Retires the DIALOGUE half of
+  `PORT-DEBT(cutscene-scene-chain)`.
   **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-errdlg.osr` |
   `retail.osr`), scrub the errands ticks ~1758-1840 — Arche's opening dialogue plays line-for-line with
   retail (the only diff is the L3 button icons render as raw text codes).
