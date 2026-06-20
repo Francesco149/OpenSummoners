@@ -103,6 +103,18 @@ opens at 1608 (retail 1605, +3t) — a box-OPEN-rate detail of `ARM_OPEN` vs ret
 the same box-close-animation family as PORT-DEBT(dialogue-runoff-box-slide).  The turn itself
 + the dialogue advances are tick-1:1; this is the closing-box shrink curve, not the turn.
 
+## Follow-up — the ARRIVAL's Father turn (same mechanism, unmodeled)
+
+The arrival case (`0x4d7d80:181-182`, case `0x334be`) issues the SAME emote
+`0x401e60(Father 0x5f5e1d3, 1)` between arrival L5 ("I wanna see it!") and L6
+("Mm-hmm. It's just down the next street"), so it is also a blocking actor-turn beat.
+The port does NOT model it (the arrival is "tick-1:1" because the nav absorbs the gap,
+same as the house was pre-ckpt-151).  Whether it's visible enough to need modeling is
+UNVERIFIED (the arrival cast is moving/camera-panning, unlike the static house cast) —
+if so, it's a clean consistent follow-up: an arrival L6 lead beat with `CS_BEAT_ACTOR_TURN`
+on the Father (bank 0xe3) + the Father turn clip, plus the matched-nav L5 confirm lead.
+Probe retail.osr for the Father's res cels around the arrival L5→L6 ticks (~890-910) first.
+
 ## Tests
 `tests/test_cutscene.c::test_cutscene_house_turn` (the L5→L6 advance arms the BLOCKING turn
 beat — in_beats, CS_ACT_ACTOR_TURN(1) — and L6 opens only after it; the turn fires nowhere
