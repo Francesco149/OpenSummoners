@@ -81,6 +81,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   (`base_y=20`/`max_rows=3` = `FUN_0040df40` params; `max_gap=20` = `FUN_00410610:19`;
   `pitch=28` by formula consistency), retail.osr-verified bit-exact at every arrival line.
   **Ported (ckpt 149)** — `dialogue_body_row_dy()` replaces the old constant pitch.
+- **[freeroam-hud.md](freeroam-hud.md)** — the `res=0` freeroam status HUD (USER notes #7-9,
+  errands tick 2413).  The full drawcall ground truth (the seq 462-536 overlay layer: top-left
+  leader panel = portrait + HP/MP bars + numbers + level + stars; bottom strips; the 6-slot item
+  bar; the door indicator) + the render architecture (`FUN_00494e60` orchestrator, ×2 from the
+  render driver `0x48c150`, + its ~15 sub-renderers) + the dependencies (res=0 UI source sheets
+  [recoverable from the `.osr`], the unported party context → a captured `PORT-DEBT(hud-party-context)`
+  stand-in) + the incremental port plan.  `tools/trace_studio2/hud_probe.py` dumps the HUD layer at
+  any tick.  **Scoped ckpt 152; port in progress.**
 - **[dash-double-tap-trigger.md](dash-double-tap-trigger.md)** — the freeroam DASH
   trigger (`char-run-trigger` RETIRED, ckpt 150).  The run PHYSICS was bit-exact (ckpt
   118); the run FLAG now derives from the live event ring: `input_dash_double_tap`
