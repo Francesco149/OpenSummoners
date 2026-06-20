@@ -65,6 +65,13 @@ TextOutA y's whose y+1 is also present (main + the y+1 shadow pass).
 All three branches reproduce retail's measured offsets EXACTLY — the formula +
 constants are RE'd from the decompile and the data only confirms them.
 
+**Full-chain verification** (`--lines` layout diff, port == retail byte-identical):
+- ARRIVAL (ticks 650-985): all 14 line-states identical (`port-dlgdist.osr`).
+- HOUSE (ticks 1370-1654): all 15 line-states identical (`port-dlgfull.osr`),
+  INCLUDING two 3-line house lines (@1563 ".../o.../r...", @1654 "A.../m.../h...")
+  the old constant-pitch code would also have cut at row 2.
+29 line-states total across the intro cutscene — every 1/2/3-row case, two rooms.
+
 ## Port
 
 `dialogue.{c,h}`: `DIALOGUE_TEXT_DY` 29→**20**, `DIALOGUE_LINE_H` 36→**28**, new
