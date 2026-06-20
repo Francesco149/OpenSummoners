@@ -107,9 +107,37 @@ seed-pinned replay path, and the unit tests pin the logic with controlled timest
 - The walk-cel cadence is still time-based (`PORT-DEBT(char-walk-anim-distance)`); a
   dash should advance the run cels faster — RE that when the distance-locked cel law lands.
 
-## USER-VERIFY (deferred — next session)
+## Binary verification (a port `.osr` — the dash works in the actual exe)
 
-The dash is host-proven; a live/visual confirm is deferred.  To see it on-screen: a port
-replay that reaches freeroam then double-taps + holds a direction (`--osr-emit`), scrubbed
-in the studio — Arche should accelerate to ~2× the walk speed.  (A demo `.osr` + the
-studio shortcut is the follow-up artifact.)
+Beyond the host tests, a port replay was driven INTO the freeroam and made to dash, then
+Arche's draw stream probed — confirming the whole `freeroam_step` → `character_resolve_run`
+→ `character_step` wiring, not just the three functions in isolation.
+
+Recipe (reproducible):
+- `runs/dash-demo/dash-nav2.jsonl` = the current full errands nav `runs/cutscene-verify/
+  nav-full-errands.jsonl` + a RIGHT double-tap appended AFTER the chain completes:
+  `{"tick":1860,"ids":[4]}` + `{"tick":1866,"ids":[4]}` (two id-4 ring presses).
+- `runs/dash-demo/dash-held2.jsonl` = hold RIGHT across the freeroam (`frame 4300..6000`).
+- Capture: `OPENSUMMONERS_TIMEOUT_MS=150000 tools/run-opensummoners.sh -- --osr-emit
+  'C:\oss-osr\port-dash.osr' --input-trace runs/dash-demo/dash-nav2.jsonl --held-trace
+  runs/dash-demo/dash-held2.jsonl --no-frame-limit --frames 6000` (inside `nix develop`).
+  Reaches freeroam ("freeroam_begin… errands hand-off", `sim_tick` 0→2441).
+  (NB: the OLD `runs/freeroam-walk/trace-nav.jsonl` is stale — it stalls at the new-game
+  config; use `nav-full-errands.jsonl`.)
+
+Probe (`tools/trace_studio2/draw_probe.py port-dash.osr --res 0x570 1840 1925`), Arche's
+res `0x570` dst-x per sim-tick:
+- **Pre-dash (ticks 1840-1865):** WALK cels `0-3`, sprite 28px wide, dst-x `493→553` over
+  25 ticks = **~2.4 px/tick = the WALK cap** (`24000/100/100`).
+- **Dash engages tick 1866** (the second id-4 event): the cel flips to the **RUN clip
+  `16,17,18,19`**, the sprite widens to **40px** (`arche_freeroam_clip(run=1)`), and the
+  per-tick step ramps **+3 → +4 → +5 px/tick** (the two-phase run accel) to **~2× the walk
+  speed = the RUN cap** (`48000/100/100`) before she runs off the right edge ~tick 1887.
+
+So a double-tap in the real binary → `run=1` → the run clip + the run-cap physics, exactly
+as the host test predicts.  **USER-VERIFY (visual):** click the studio shortcut
+(`studio-current.txt` → `port-dash.osr` | `retail.osr`) and scrub freeroam ticks ~1840-1887
+— Arche walks right, then at the double-tap (1866) switches to her run cycle and pulls away
+at ~2× speed.  (Retail is idle there — no input — so this is a port-only behaviour demo,
+like the freeroam walk/jump demos; the run PHYSICS itself was already retail-validated vs
+`runs/runjump-gt/capdash2`, ckpt 118.)

@@ -34,9 +34,15 @@ double_tap` — the input-ring → run → RUN-cap-48000 chain through the REAL 
 single press → WALK cap 24000).  The double-tap is inherently wall-clock (retail keys it on
 `GetTickCount`), so it is off the seed-pinned parity path; the unit tests pin the logic with
 controlled timestamps.  Ledger +2 (`0x479e70`, `0x479960`; `0x478ba0` stays unported —
-only sliced).  Quirk #113; `findings/dash-double-tap-trigger.md`.  **USER-VERIFY (deferred):**
-a live/visual on-screen dash — a port replay reaching freeroam + a double-tap-hold, scrubbed
-in the studio (Arche accelerates to ~2× walk).
+only sliced).  Quirk #113; `findings/dash-double-tap-trigger.md`.
+
+**Also BINARY-verified off a port `.osr`** (`port-dash.osr`): drove the replay into freeroam
+(`nav-full-errands` + a tick-keyed RIGHT double-tap) and probed Arche (`draw_probe --res
+0x570`).  At tick 1866 (the double-tap) her cel flips WALK `0-3` → RUN `16-19`, the sprite
+widens 28→40px, and the dst-x step ramps `2.4 → ~5 px/tick` — the run cap (2× walk), the
+two-phase accel.  So `freeroam_step → character_resolve_run → character_step` works in the
+real exe, not just the unit.  **USER-VERIFY (visual):** click the studio shortcut
+(`studio-current.txt` → `port-dash.osr` | `retail.osr`), scrub freeroam ticks ~1840-1887.
 
 ## 2026-06-20 (ckpt 149) — dialogue body-text rows are line-count DISTRIBUTED (USER tick 770)
 

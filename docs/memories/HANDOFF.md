@@ -33,9 +33,14 @@ already worked on live input, ckpt 144).  Retires `PORT-DEBT(char-run-trigger)`.
   a double-tap drives the input-ring→run→**RUN cap 48000** chain through the REAL physics; a single held
   press caps at the WALK cap 24000.  Off the seed-pinned parity path (the double-tap is wall-clock, retail
   keys it on `GetTickCount`) — the unit tests pin the logic with controlled timestamps.  Quirk #113.
-- **USER-VERIFY (deferred — next session):** a live/visual on-screen dash.  A port replay reaching freeroam
-  + a double-tap-hold (`--osr-emit`), scrubbed in the studio — Arche accelerates to ~2× the walk speed.  A
-  demo `.osr` + the studio shortcut is the follow-up artifact (not yet built).  `findings/dash-double-tap-trigger.md`.
+- **BINARY-VERIFIED off a port `.osr`** (not just the host test): `port-dash.osr` drove the replay into
+  freeroam (`nav-full-errands` + a tick-keyed RIGHT double-tap) and the `draw_probe --res 0x570` shows the
+  dash engage at tick 1866 — Arche's cel flips WALK 0-3 → RUN 16-19, sprite 28→40px, dst-x step ramps
+  2.4 → ~5 px/tick (the run cap, 2× walk).  So `freeroam_step` → `character_resolve_run` → `character_step`
+  works in the real exe.  Recipe + numbers in `findings/dash-double-tap-trigger.md`; traces in
+  `runs/dash-demo/` (gitignored).  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt`
+  → `port-dash.osr` | `retail.osr`), scrub freeroam ticks ~1840-1887 — Arche walks then dashes (retail idle
+  there = a port-only demo, like the walk/jump demos).
 
 ---
 
@@ -141,8 +146,8 @@ render-gaps.md` §2/§3:
 - (D) freeroam refinements: the **distance-locked walk-cel cadence** (`char-walk-anim-distance` — a dash
   should advance the run cels faster; RE the cel = f(distance) law, autonomous-clean); camera-follow [needs a
   freeroam-camera capture, USER]; the idle-fidget behaviour subsystem (`0x54f980`, RNG-seeded).
-- (E) a **dash demo `.osr`** for the USER to visually confirm ckpt 150 (a port replay reaching freeroam +
-  a double-tap-hold nav) + update `studio-current.txt` — a small autonomous follow-up.
+- (E) a **dash demo `.osr`** for the USER to visually confirm ckpt 150 — **DONE ckpt 150**: `port-dash.osr`
+  (probe-verified the run cap engages), `studio-current.txt` updated → the studio shortcut opens it.
 
 ---
 

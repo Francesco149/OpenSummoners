@@ -153,9 +153,12 @@
   ring (`GetTickCount` clock).  1045 host pass (+10): the detector + `character_dash_via_double_tap` proves
   the input-ring → run → **RUN cap 48000** chain through the REAL physics (single press → WALK cap 24000).
   Off the seed-pinned parity path (the double-tap is wall-clock, like retail) — unit tests pin the logic.
-  Commit `43a55f1`; quirk #113; `findings/dash-double-tap-trigger.md`.  **USER-VERIFY (deferred): a live
-  on-screen dash** — a port replay reaching freeroam + a double-tap-hold, scrubbed in the studio (Arche
-  accelerates to ~2× walk); a demo `.osr` is the follow-up artifact (not yet built).
+  Commit `43a55f1`; quirk #113; `findings/dash-double-tap-trigger.md`.  **ALSO binary-verified off a port
+  `.osr`** (`port-dash.osr`, drove the replay into freeroam + a double-tap): at tick 1866 Arche's cel flips
+  WALK 0-3 → RUN 16-19 + the dst-x step ramps 2.4 → ~5 px/tick (= the run cap, 2× walk) — the freeroam_step
+  wiring works in the real exe, not just the unit.  **USER-VERIFY (visual): click the studio shortcut**
+  (`studio-current.txt` → `port-dash.osr` | `retail.osr`), scrub freeroam ticks ~1840-1887 (Arche walks then
+  dashes; retail idle = a port-only demo).
 - **Prior (ckpt 149): the dialogue BODY-TEXT ROW SPACING is line-count DISTRIBUTED (RE'd, bit-exact) —
   the USER's tick-770 bug (a 3-line line "We haven't been here since…" showed only 2 lines + too-tall
   spacing) is FIXED.**  ckpt d16ae1a had set a CONSTANT pitch (LINE_H=36 / TEXT_DY=29) fitted to the
