@@ -330,8 +330,8 @@ const cutscene_room *cutscene_town_chain(int *n_rooms)
  * USER (ckpt 152): "the opening dialogue for the errands scene — starts once it
  * switches to the errands scene where you have control."  Three Arche lines via
  * 0x49d6e0 (the SAME dialogue display the town chain uses), the movement-tutorial
- * intro.  Each call is FUN_0049d6e0(0, Arche=0x5f5e165, text, 0, 1, 1, 0, FACE, 0,
- * voice=0) followed by FUN_00439680 (the beat pump that runs the game loop while
+ * intro.  Each call is 0x49d6e0(0, Arche=0x5f5e165, text, 0, 1, 1, 0, FACE, 0,
+ * voice=0) followed by 0x439680 (the beat pump that runs the game loop while
  * the line waits for the player's advance — so the dialogue + freeroam control
  * coexist).  FACE = param_8 (the script's uVar10): L1/L2 = 0x02, L3 = 0x09 (Arche
  * expressions, the same face ids the arrival uses).  Voices are 0 (unvoiced).

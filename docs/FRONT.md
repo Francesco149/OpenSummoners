@@ -57,8 +57,10 @@
   reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
-  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
-  freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
+  **NEXT (USER directive ckpt 152): port + verify ALL freeroam MOVEMENT TYPES (double-tap dash, up-to-stop-
+  faster, the full combo set).  The errands opening DIALOGUE is DONE (ckpt 152, tick-aligned).  Then: the
+  freeroam HUD/clock (res=0 UI, fully SCOPED ckpt 152 in `findings/freeroam-hud.md` — deferred by USER) +
+  the dialogue-arrow-art inline button icons.  Earlier freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
@@ -142,8 +144,35 @@
     the house Arche TURN as the BLOCKING beat (CS_BEAT_ACTOR_TURN = L6's lead, keyed to L5's confirm;
     0x401e60 sets in_ECX[8]=4 the actor-wait the thunk pumps; turn now 158@1579/7@1583/0@1587 == retail,
     the ckpt-146 ~7t lag GONE) ✓ (151) →
-    **the errands dialogue/HUD (the res=0 freeroam UI + questline 0x4dc510) + freeroam refinements (distance-locked walk/run cels) = next**.
-- **LATEST (ckpt 151): the house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the
+    the errands-scene OPENING DIALOGUE (questline 0x4dc510's 3 Arche lines via 0x49d6e0 — the movement
+    tutorial — through the existing box system, concurrent with freeroam; tick-aligned L1@1770/L2@1800/
+    L3@1830 == retail) ✓ (152) →
+    **port + verify ALL freeroam MOVEMENT TYPES (double-tap dash, up-to-stop-faster, the full combo set —
+    USER directive ckpt 152) = next; then the freeroam HUD (res=0 UI, scoped ckpt 152) + the
+    dialogue-arrow-art inline icons**.
+- **LATEST (ckpt 152): the errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**
+  USER: "we're still missing the opening dialogue for the errands scene (starts once it switches to the
+  errands scene where you have control). port that first."  The questline `0x4dc510`'s entry case
+  (decompile :1086-1116) plays **3 Arche lines** via `0x49d6e0` — RE-confirmed to be the SAME dialogue
+  display the town chain already drives, so this is 3 more lines through the existing
+  box/typewriter/portrait/advance system, played **CONCURRENT with freeroam control**: (1) "So the first
+  floor of our house is the store. Cool!", (2) "Okay, I need to help with the moving-in!", (3) "To move
+  around, I press [<>] & [^v], and to talk to people and do stuff, I press [Z/X], right?" (the movement
+  tutorial).  Faces 0x02/0x02/0x09 (`0x49d6e0` param_8); box anchors to Arche's freeroam spawn (clamped
+  left = the wide bottom box retail shows at (32,192)-(440,304)).  **The port:** `cutscene.c` TOWN_ERRANDS
+  1-room chain + `cutscene_errands_intro()`; `main.c` `g_errands_dlg_pending` arms it once the entry reveal
+  recedes (retail plays it AFTER the fade-from-black), re-arming `g_cutscene` so it renders + advances via
+  the existing path while `freeroam_step` keeps control live.  **VERIFIED off `port-errdlg.osr` vs
+  `retail.osr` (`dlg_reconstruct.py`, the new tick-aligned `nav-errands-dlg`):** all 3 lines render at
+  retail's ticks (L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222)
+  color 0xa8b9cc + the 3-row layout on L3 == retail EXACTLY; the arm log fires "reveal complete".  1045
+  host pass.  RESIDUAL: L3's inline button-icon art shows as raw codes (`@@©`/`@@¨`/`@@X`) where retail
+  draws 17x17 sprites = `PORT-DEBT(dialogue-arrow-art)` (the inline-art system, shared with the HUD's res=0
+  UI sprites).  Retires the DIALOGUE half of `PORT-DEBT(cutscene-scene-chain)`.
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-errdlg.osr` |
+  `retail.osr`), scrub the errands ticks ~1758-1840 — Arche's opening dialogue plays line-for-line with
+  retail (the only diff is the L3 button icons render as raw text codes).
+- **Prior (ckpt 151): the house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the
   ckpt-146 ~7t lag is RESOLVED).**  Diagnosis first (off `port-dash.osr`, a fully matched nav): the house
   DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` ±1t) yet the turn was STILL 7t late — DISPROVING the
   finding's "auto-aligns once the cadence is tick-1:1" claim.  The real cause: ckpt 146 emitted the turn

@@ -6,11 +6,51 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 151
+## Where we are — ckpt 152
+
+**The errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**  1045 host pass.
+
+- **USER directive (ckpt 152):** "we're still missing the opening dialogue for the errands scene (starts
+  once it switches to the errands scene where you have control). port that first, then port and verify all
+  types of movement (should be written down somewhere, all the combinations of double tap, up to stop
+  faster, etc)."  So the HUD (scoped + deferred, below) is parked; this checkpoint did the dialogue, and
+  **task #3 = port + verify ALL freeroam movement types is NEXT** (the combo list is in
+  `plans/controllable-arche-faithful.md` / the input findings — find + verify each bit-exact).
+- **The dialogue (RE'd off `0x4dc510` + retail.osr).**  The questline `0x4dc510`'s entry case (decompile
+  :1086-1116) plays **3 Arche lines** via `FUN_0049d6e0` — RE-confirmed to be the SAME dialogue display
+  the town chain already drives (cutscene.c is built around 0x49d6e0).  So it is 3 more lines through the
+  existing box/typewriter/portrait/advance system, played CONCURRENT with freeroam control (retail's beat
+  pump 0x439680 runs the game loop while each line waits): "So the first floor of our house is the store.
+  Cool!" / "Okay, I need to help with the moving-in!" / "To move around, I press [<>] & [^v], and to talk
+  to people and do stuff, I press [Z/X], right?" (the movement tutorial).  Faces 0x02/0x02/0x09 (0x49d6e0
+  param_8 = uVar10); speaker Arche (0x5f5e165); voices 0.
+- **The port.**  `cutscene.c`: TOWN_ERRANDS line table + ERRANDS_INTRO 1-room chain +
+  `cutscene_errands_intro()`; box anchors to Arche's freeroam spawn (19200,52000), clamped left = the wide
+  bottom box retail.osr shows at (32,192)-(440,304).  `main.c`: `g_errands_dlg_pending` set at chain-
+  complete; once the entry reveal recedes (retail plays it AFTER the fade-from-black, not during), the
+  deferred-arm check re-arms `g_cutscene` with the errands chain — it renders + advances via the existing
+  path while `freeroam_step` keeps control live (same-speaker Arche, so the box stays across advances).
+- **VERIFIED off `port-errdlg.osr` vs `retail.osr`** (the new tick-aligned `runs/cutscene-verify/
+  nav-errands-dlg.jsonl` = nav-house-turn + 6 errands confirms; `dlg_reconstruct.py`): all 3 lines render
+  at retail's ticks (L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222)
+  color 0xa8b9cc + the line-3 3-row layout == retail EXACTLY; the arm log fires "reveal complete".  Recon
+  on the feed; studio shortcut → `port-errdlg.osr | retail.osr`.
+- **RESIDUAL: line-3 inline button-icon art** shows as raw codes (`@@©`/`@@¨`/`@@X`) where retail draws
+  17x17 res=0 sprites = `PORT-DEBT(dialogue-arrow-art)` (the inline-art system; same class as the HUD's
+  res=0 UI sprites + the arrival book/item glyphs — a shared follow-up).  Retires the DIALOGUE half of
+  `PORT-DEBT(cutscene-scene-chain)`.  Commit `dded4c8`.  `findings/errands-opening-dialogue.md`.
+- **The freeroam HUD is SCOPED + COMMITTED but DEFERRED by USER** (ckpt 152, `findings/freeroam-hud.md` +
+  `tools/trace_studio2/hud_probe.py`, commit `ce332c5`): the full drawcall ground truth (the seq 462-536
+  overlay layer) + render architecture (`FUN_00494e60` + ~15 sub-renderers) + the dependency analysis (res=0
+  UI source sheets, recoverable from the `.osr`; the unported party context → a captured
+  `PORT-DEBT(hud-party-context)` stand-in).  Resume after the movement-types task.
+
+---
+
+## Prior — ckpt 151
 
 **The house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the ckpt-146 ~7t lag is
-RESOLVED).**  This is the "(B) house-dialogue-cadence phase fix" the ckpt-150 handoff flagged as the
-strongest autonomous chip — but the diagnosis reframed it (see below).  1045 host pass.
+RESOLVED).**  1045 host pass.
 
 - **DIAGNOSIS first (off `port-dash.osr`, a fully matched-cadence nav, vs `retail.osr`).**  The house
   DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` showed L0-L7 within ±1t of retail) — yet the turn was

@@ -81,6 +81,12 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   (`base_y=20`/`max_rows=3` = `FUN_0040df40` params; `max_gap=20` = `FUN_00410610:19`;
   `pitch=28` by formula consistency), retail.osr-verified bit-exact at every arrival line.
   **Ported (ckpt 149)** — `dialogue_body_row_dy()` replaces the old constant pitch.
+- **[errands-opening-dialogue.md](errands-opening-dialogue.md)** — the errands-scene opening dialogue
+  (USER ckpt 152, the movement tutorial).  The questline `0x4dc510`'s entry case plays 3 Arche lines via
+  `FUN_0049d6e0` — RE-confirmed to be the SAME dialogue display the town chain drives, so it is 3 more
+  lines through the existing box system, played concurrent with freeroam control.  Lines/faces/box
+  ground truth + the port (a 1-room cutscene chain re-armed after the entry reveal) + tick-aligned
+  verification.  **Ported ckpt 152**; residual = the line-3 inline button icons (`PORT-DEBT(dialogue-arrow-art)`).
 - **[freeroam-hud.md](freeroam-hud.md)** — the `res=0` freeroam status HUD (USER notes #7-9,
   errands tick 2413).  The full drawcall ground truth (the seq 462-536 overlay layer: top-left
   leader panel = portrait + HP/MP bars + numbers + level + stars; bottom strips; the 6-slot item

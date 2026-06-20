@@ -6,6 +6,45 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-21 (ckpt 152) — the errands-scene opening dialogue (the movement tutorial), tick-aligned
+
+**USER directive:** "we're still missing the opening dialogue for the errands scene (starts once
+it switches to the errands scene where you have control). port that first, then port and verify
+all types of movement."  So the freeroam HUD (which I had begun scoping) was parked; this
+checkpoint did the dialogue, and the movement-types task is next.  1045 host pass.
+
+The questline `0x4dc510`'s entry case (decompile :1086-1116) plays **3 Arche lines** via
+`FUN_0049d6e0` — **RE-confirmed to be the SAME dialogue display the town chain already drives**
+(cutscene.c is built around 0x49d6e0).  So the errands opening is just 3 more lines through the
+existing box/typewriter/portrait/advance system, played CONCURRENT with freeroam control
+(retail's beat pump 0x439680 runs the game loop while each line waits): "So the first floor of
+our house is the store. Cool!" / "Okay, I need to help with the moving-in!" / "To move around,
+I press [<>] & [^v], and to talk to people and do stuff, I press [Z/X], right?" (the tutorial).
+Faces 0x02/0x02/0x09 (0x49d6e0 param_8); speaker Arche (0x5f5e165); voices 0.
+
+**The port** (`dded4c8`): `cutscene.c` TOWN_ERRANDS 1-room chain + `cutscene_errands_intro()`
+(box anchored to Arche's freeroam spawn 19200,52000, clamped left = the wide bottom box retail
+shows at (32,192)-(440,304)); `main.c` `g_errands_dlg_pending` arms it once the entry reveal
+recedes (retail plays it AFTER the fade-from-black), re-arming `g_cutscene` so it renders +
+advances via the existing path while `freeroam_step` keeps control live.  Retires the DIALOGUE
+half of `PORT-DEBT(cutscene-scene-chain)`.
+
+**VERIFIED** off `port-errdlg.osr` vs `retail.osr` (the tick-aligned `nav-errands-dlg.jsonl` =
+nav-house-turn + 6 errands confirms; `dlg_reconstruct.py`): all 3 lines render at retail's ticks
+(L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222) color
+0xa8b9cc + the line-3 3-row layout == retail EXACTLY.  Recon on the feed; studio →
+`port-errdlg.osr | retail.osr`.  RESIDUAL: line-3 inline button icons render as raw codes
+(`@@©`/`@@¨`/`@@X`) where retail draws 17x17 sprites = `PORT-DEBT(dialogue-arrow-art)`.
+`findings/errands-opening-dialogue.md`.
+
+**ALSO (ckpt 152): the freeroam HUD is fully SCOPED + committed (`ce332c5`) but DEFERRED by USER**
+— `findings/freeroam-hud.md` + `tools/trace_studio2/hud_probe.py`: the full drawcall ground truth
+(seq 462-536 overlay), the render architecture (`FUN_00494e60` + ~15 sub-renderers), and the
+dependency analysis (res=0 UI source sheets + a captured `PORT-DEBT(hud-party-context)` stand-in).
+Resume after the movement-types task.
+
+---
+
 ## 2026-06-20 (ckpt 151) — the house Arche TURN is the BLOCKING beat (tick-aligned)
 
 **The ckpt-146 ~7t turn lag is RESOLVED; the turn now fires at retail's exact tick.**  1045
