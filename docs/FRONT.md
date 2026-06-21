@@ -82,8 +82,15 @@
   DOWN→state 2, UP→state 5, both -800/tick to 0; the state-6/[0x5656/57] slide was a stack-reuse decode trap →
   the player's down is state 2).  VERIFIED bit-exact: host `character_pose_brakes` + a port `.osr`
   (`port-walkup.osr` fr_vel 23200→0 at -800 while right held == retail hvel tick-for-tick, sim-tick axis).
-  1052 host pass.  RESIDUAL: the visible crouch/up SPRITE = PORT-DEBT(char-pose-anim) (this is the MOVEMENT,
-  not yet the cel); the dash-then-down SLIDE, sword(Z)/attack(X), the door-enter = remaining moveset.
+  1052 host pass.  **ALSO (USER ckpt-153 feedback): control is now LOCKED during the errands opening
+  dialogue** — the ckpt-152 "concurrent control" hand-off was WRONG (it RE-inferred "control is live, the
+  player just didn't move in the recording"; the owner says she's NOT controllable until the lines end).
+  `freeroam_step` drives a zeroed axis while `g_errands_dlg_pending || cutscene_active`, so Arche holds
+  idle at the spawn through the 3 lines, then hands off (verified off a port .osr: locked tick 1803-1897
+  while csln 0→1→2, unlocks at completion).  RESIDUAL: the visible crouch/up SPRITE = PORT-DEBT(char-pose-anim)
+  — the MOVEMENT is bit-exact but she renders her walk/idle cel while posing (USER: "slides around in one
+  pose"), so the NEXT step is RE'ing the crouch/up cels off the retail draw stream; then the dash-then-down
+  SLIDE, sword(Z)/attack(X), the door-enter = remaining moveset.
   `findings/freeroam-pose-commands.md`.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
   sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
