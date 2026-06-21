@@ -3844,3 +3844,24 @@ RIGHT runs second and writes the same slot, so it wins when both directions are 
 The port reduces this to `input_dash_double_tap` + `character_resolve_run` (ckpt 150);
 inherently wall-clock (retail keys it on `GetTickCount`), so it is off the seed-pinned
 parity path — the unit tests pin the logic with controlled timestamps instead.
+
+### #114 — the freeroam U/D POSE (cmd[3] @ entity+0x14860): DOWN=10 crouch/slide (body state 2), UP=0xb defensive (state 5); BOTH brake the horizontal velocity to 0 at the WALK brake −800/tick WHILE the move direction is still held (the apply states 2/5 set bVar16=false ⇒ skip the accel ramp) (2026-06-21, ckpt 153, captured live off retail)
+The char-AI `0x478ba0:248-259` resolves the vertical-POSE command `cmd[3]` separately from
+the L/R walk/dash `cmd[0]`: DOWN held (`+0x118`) + a ring id-3 press aged in [10,800] ms (or
+the prev-pose self-sustain, or held >240 ms `array_B`) → `cmd[3]=10`; UP held (`+0x114`) +
+ring id-1 → `cmd[3]=0xb` (UP runs second, overrides).  **Ring ids: UP=1, DOWN=3, LEFT=2,
+RIGHT=4** (the producer arrows + the title nav + this all agree — input.h had UP/DOWN
+swapped, a latent bug fixed here).  The apply `0x442a70` case-0x75 reads `param_1[3]` and
+sets the body FSM (`FUN_00426f50(body,state)`): DOWN→**state 2** (crouch; for the player —
+the decompile's state-6 SLIDE + its `[0x5656/57]`=64000/4000 consts are a NON-player
+`local_4`≠0 path, a stack-slot-reuse decode trap), UP→**state 5**.  Both set `bVar16=false`
+(`:959`) so the accel ramp is SKIPPED and the velocity brakes toward 0 at `[0x565e]`=**−800
+/tick** — even while the walk/dash direction is STILL commanded (`cmd0`=2 stays set).  That
+IS "UP stops you faster" (you decelerate without releasing) and the crouch/SLIDE momentum
+bleed (a slide is just a crouch entered with velocity — same state 2, higher start).
+Captured per-tick off the live entity (`runs/pose-demo/cap-body`): up-pose from a 24000 walk
+→ hvel 23200,22400,…,800,0 (−800/tick, sim-tick axis); crouch-from-rest holds 0.  The gates
+`[0x5675]` (crouch) / `[0x5684]` (up) read 1 for Arche.  Ported `character_resolve_pose` +
+`character_step`'s pose brake (bit-exact, host + a port `.osr`).  The Frida host self-starts
+(`ensure_frida_server`).  RESIDUAL: the crouch/up SPRITE (the body sub-state `+0x3a` drives
+the cel) = PORT-DEBT(char-pose-anim).
