@@ -2874,12 +2874,11 @@ static void freeroam_step(void)
     uint32_t now = GetTickCount();
     int run  = character_resolve_run(&g_freeroam_char, &g_game_drive.input,
                                      now, axis, CHAR_DASH_WINDOW_MS);
-    /* Resolve the U/D POSE command (cmd[3] = 10 DOWN / 0xb UP) off the same ring
-     * each tick — the self-sustain state must advance every tick (0x478ba0:248-259,
-     * ckpt 153).  The APPLY-side physics (crouch/slide/up-stop, apply states 2/5/6)
-     * is the next chip (needs the live const capture), so character_step does not
-     * consume cmd_pose yet; this tracks the command + feeds the OSR_STATE emit so
-     * the command layer is binary-verifiable in the real exe. */
+    /* Resolve the U/D POSE command (cmd[3] = 10 DOWN / 0xb UP) off the same ring each
+     * tick — the self-sustain state must advance every tick (0x478ba0:248-259, ckpt 153);
+     * it stores into g_freeroam_char.cmd_pose, which character_step reads for the apply
+     * states 2/5 brake (crouch / slide / UP-stops-you-faster, ckpt 153 — bit-exact -800
+     * vs runs/pose-demo/cap-body). */
     (void)character_resolve_pose(&g_freeroam_char, &g_game_drive.input, now, axis);
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;

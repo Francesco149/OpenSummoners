@@ -1,0 +1,18 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (Phase-4, ckpt 153 — U/D-POSE physics, per-tick BODY). Lean (6 body fields, no constants — those are in pose_consts_fields.json) so the read overhead is small and the run reaches the late freeroam pose frames. Reads Arche's per-tick body during crouch/up-pose/slide to PIN the apply states 2/5/6 brake law. Chain = leader [room_state 0x2784, leader-slot 0x200c, entity 0x9f4]; body = *(entity+0x40).",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_pose_body",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Per-tick body during the U/D pose.",
+      "fields": [
+        {"name": "code",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468,   "type": "hex", "reason": "entity+0x1d4 == 0xc35a Arche (sanity)"},
+        {"name": "cmd0",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 84052, "type": "i32", "reason": "entity+0x14854 cmd[0] walk/dash (1/2/5/6)"},
+        {"name": "cmd3",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 84064, "type": "i32", "reason": "entity+0x14860 cmd[3] pose (10/0xb)"},
+        {"name": "wx",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,  "type": "i32", "reason": "body+4 worldX"},
+        {"name": "hvel",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 40, "type": "i32", "reason": "body+0x28 horizontal vel — THE pose target"},
+        {"name": "vvel",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 24, "type": "i32", "reason": "body+0x18 vvel (confirm 0)"},
+        {"name": "bstate", "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 56, "type": "i32", "reason": "body+0x38 FSM main|sub<<16 (2 crouch / 5 up / 6 slide)"}
+      ]
+    }
+  }
+}

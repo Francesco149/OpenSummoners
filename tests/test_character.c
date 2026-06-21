@@ -619,3 +619,46 @@ int test_character_resolve_pose_up_overrides_down(void)
     T_ASSERT_EQ_I(character_resolve_pose(&g, &m, now, NULL), 0);
     return 0;
 }
+
+/* The pose PHYSICS (apply states 2/5, ckpt 153): cmd_pose engaged + grounded -> SKIP the
+ * accel ramp -> brake the velocity toward 0 at the WALK brake, even while a direction is
+ * STILL held.  Bit-exact vs retail (runs/pose-demo/cap-body): the UP-pose brakes a 24000
+ * walk to 0 at -800/tick despite RIGHT held ("stops you faster"); a crouch from rest holds
+ * at 0; a "slide" (crouch from dash momentum) bleeds the run cap to 0 at the same -800. */
+int test_character_pose_brakes(void)
+{
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0}; axis[CHAR_AXIS_RIGHT] = 1;
+
+    /* walk RIGHT to the cap 24000 */
+    for (int i = 0; i < 40; i++) character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
+
+    /* engage the UP-pose while RIGHT is STILL held -> brake despite the held direction
+     * (retail: 24000 -> 23200 the first up-pose tick). */
+    c.cmd_pose = CHAR_POSE_UP;
+    character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP - CHAR_WALK_BRAKE);   /* 23200 */
+    character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP - 2 * CHAR_WALK_BRAKE); /* 22400 — -800/tick */
+    for (int i = 0; i < 40; i++) character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, 0);                                 /* fully braked, right still held */
+
+    /* CROUCH (10) from rest holds at 0 (no motion). */
+    character cr; character_init(&cr, 0, 0, CHAR_FACE_RIGHT);
+    cr.cmd_pose = CHAR_POSE_DOWN;
+    int idle[CHAR_AXIS_COUNT] = {0, 0, 0, 0};
+    for (int i = 0; i < 10; i++) character_step(&cr, idle, 0, 0);
+    T_ASSERT_EQ_I(cr.vel, 0);
+
+    /* SLIDE: a crouch entered with run-cap momentum bleeds to 0 at -800 (state 2 from a
+     * dash; same law, higher start). */
+    character sl; character_init(&sl, 0, 0, CHAR_FACE_RIGHT);
+    sl.vel = CHAR_RUN_CAP;                                   /* 48000, as if mid-dash */
+    sl.cmd_pose = CHAR_POSE_DOWN;
+    character_step(&sl, idle, 0, 0);
+    T_ASSERT_EQ_I(sl.vel, CHAR_RUN_CAP - CHAR_WALK_BRAKE);   /* 47200 — -800 from the run cap */
+    for (int i = 0; i < 80; i++) character_step(&sl, idle, 0, 0);
+    T_ASSERT_EQ_I(sl.vel, 0);
+    return 0;
+}

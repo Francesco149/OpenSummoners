@@ -75,7 +75,19 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
     /* ── APPLY reduction (0x442a70 case 0x75): ramp the horizontal velocity, flip
      *    facing at rest, commit worldX += vel/100 (flat reduction of 0x54db10). ─
      * vel is the signed accumulator body+0x28 (+ right, - left). */
-    if (c->cmd_dir != 0) {
+    if (c->cmd_pose != 0 && !c->airborne) {
+        /* CROUCH (cmd_pose 10) / UP-pose (0xb): the apply states 2/5 set bVar16=false
+         * (0x442a70:959) -> SKIP the accel ramp -> brake the velocity toward 0 at the
+         * WALK brake, even while a direction is STILL commanded.  That is "UP stops you
+         * faster" (you decelerate without releasing the dash/walk) AND the crouch/slide
+         * momentum bleed: a SLIDE is just a crouch (state 2) entered with momentum, a
+         * CROUCH from rest just holds at 0.  Bit-exact -800/tick from any entry velocity
+         * to 0 (runs/pose-demo/cap-body: up-pose 24000->0 and crouch-from-walk both
+         * -800/tick; the apparent slide consts [0x5656/57] feed a non-player state-6
+         * path, not the player's down — PORT-DEBT(char-pose-anim) for the visible cel).
+         * Facing holds (the pose does not flip it); the worldX commit below is unchanged. */
+        c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
+    } else if (c->cmd_dir != 0) {
         int want_face = (c->cmd_dir > 0) ? CHAR_FACE_RIGHT : CHAR_FACE_LEFT;
         if (c->facing == want_face) {
             /* facing matches the move dir -> accelerate toward the cap.  RUN (dash)

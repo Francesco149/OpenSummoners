@@ -230,7 +230,10 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
  * the 0x479e70 ring detection is deferred to the live wire, PORT-DEBT(char-run-trigger)).
  * Runs the AI reduction (held axis -> latched walk direction) then the apply reduction:
  * the horizontal velocity ramp (walk OR run cap/accel) + worldX commit + facing flip
- * (0x442a70 case 0x75) AND the vertical jump integrator (case 3 airborne).  Returns the
+ * (0x442a70 case 0x75) AND the vertical jump integrator (case 3 airborne).  Also consumes
+ * `c->cmd_pose` (set by character_resolve_pose): while a U/D pose is engaged + grounded the
+ * apply states 2/5 disable the accel and brake the velocity toward 0 at the WALK brake
+ * (crouch / slide / UP-stops-you-faster — bit-exact -800/tick, ckpt 153).  Returns the
  * worldX delta applied this tick (dwx = vel/100); the jump arc is read from world_y/vvel.
  * The jump triggers on the rising edge of `jump_held` while grounded: the body enters the
  * airborne state at once but stays stationary for a 4-tick WINDUP (CHAR_JUMP_WINDUP_THRESH)

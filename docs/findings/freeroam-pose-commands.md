@@ -49,38 +49,64 @@ The comment above the macros even said UP=1/DOWN=3 — the `#define`s contradict
 - Tests: `character_resolve_pose_{down_up,window,up_overrides_down}` (3) +
   `input_ring_find_recent_{hit,window,rejects}` (3).
 
-## The APPLY physics (RE'd structure; the NEXT chip)
+## The APPLY physics — CAPTURED + PORTED (ckpt 153, bit-exact)
 
-`0x442a70` case 0x75 (the locomotion case `character.c` already ports) reads `cmd[3]`
-(= `param_1[3]`) and drives the body FSM (`body+0x38`, set by `FUN_00426f50(body,state)`):
-- **DOWN (`param_1[3]==10`, :775-785)** → state **2** (CROUCH, if `piVar13`+`[0x5675]`) or
-  state **6** (SLIDE, if `param_2==0`).  State 6 (:907-914) uses distinct accel/cap
-  `[0x5657]/[0x5656]`, runs 8 ticks → back to idle.
-- **UP (`param_1[3]==0xb`, :795)** → state **5** (DEFENSIVE), gated `piVar14`+`[0x5684]`.
-- **states 2 & 5 set `bVar16=false` (:959)** ⇒ SKIP the accel ramp (:974 `if(!bVar16) goto
-  LAB_00444b4b`) ⇒ the body can only BRAKE toward 0 = the "UP stops you faster" (a held
-  dash would otherwise stay at cap) + the crouch's stop.  The ramp primitive is
-  `FUN_00445db0(vel, accel, brake_over_cap, cap)` (separate accel vs over-cap brake).
-- The UP DOOR/LEDGE enter (478ba0:260-285) runs the apply in PROBE mode (cmd=0xb) +
-  `FUN_00440f40` hit-test → also sets cmd[3]=0xb.  Collision-coupled ⇒ PORT-DEBT.
+`0x442a70` case 0x75 (the locomotion case `character.c` ports) reads `cmd[3]` (= `param_1[3]`)
+and drives the body FSM (`body+0x38`, set by `FUN_00426f50(body,state)`).  Pinned by the
+per-tick body capture (`runs/pose-demo/cap-body`, the 3 phases — `bstate`/`hvel` per tick):
+- **DOWN (cmd[3]==10) → state 2 (CROUCH)** for the player (`[0x5675]`=1 gate).  Sub-states
+  0→1→2 drive the crouch anim; the VELOCITY law is the brake below.  A **SLIDE is just a
+  crouch entered with momentum** (state 2 from a dash/walk) — same state, the hvel just
+  starts higher.  (The decompile's state-6 + the `[0x5656/57]`=64000/4000 consts feed a
+  NON-player path `local_4`≠0, not the player's down — a decode trap avoided by the capture.)
+- **UP (cmd[3]==0xb) → state 5 (DEFENSIVE)** (`[0x5684]`=1 gate).
+- **The law (states 2 & 5 set `bVar16=false`, :959 ⇒ skip the accel ramp):** the velocity
+  brakes toward 0 at the WALK brake **−800/tick**, EVEN WHILE A DIRECTION IS STILL HELD.
+  Capture proof: UP-pose from a 24000 walk (cmd0=2 right STILL commanded) → hvel
+  24000,23200,22400,…,800,0 (−800/tick) = "UP stops you faster"; crouch-from-walk identical;
+  crouch-from-rest holds at 0.  Bit-exact, no hidden faster rate.
+- The UP DOOR/LEDGE enter (478ba0:260-285) runs the apply in PROBE mode + `FUN_00440f40`
+  hit-test → also sets cmd[3]=0xb.  Collision-coupled ⇒ PORT-DEBT(char-up-door-probe).
 
-### why the physics needs a CAPTURE (ckpt-117 lesson)
-The case-0x75 horizontal ramp's Ghidra decompile REUSES stack slots for vertical+horizontal
-terms and has control-flow artifacts (e.g. `local_8 = local_2c = 3` can't be the switch's
-real selector).  RE the STRUCTURE (states 2/5/6, the accel-disable), but PIN the per-tick
-velocity + the gate/tuning constants by a LIVE capture — never a line-by-line port.
+**The port (`character.c` `character_step`):** when `c->cmd_pose != 0` (and grounded) skip
+the accel ramp and `ramp_toward(vel, 0, CHAR_WALK_BRAKE)` — overriding the held-direction
+accel.  Host-tested bit-exact (`character_pose_brakes`: 24000→0 while right held; the run
+cap 48000→0 for the slide; crouch-from-rest 0).  No new const needed (the −800 brake is the
+known `[0x565e]`).  RESIDUAL: the crouch/up ANIM cels (the visible pose sprite) =
+PORT-DEBT(char-pose-anim) — this chip is the MOVEMENT (the body stops/slides), not yet the
+crouch sprite.
 
-### the constants the next chip must capture (off Arche's entity, `in_ECX[idx]`)
-Known (capconsts, ckpt 117): `[0x565b]`=24000 cap, `[0x565c]`=1600 accel, `[0x565e]`=-800
-brake, `[0x5667]`=-80000 impulse, `[0x5668]`=2000 / `[0x5669]`=8000 rise-gravs.
-NEEDED (outside that band — extend the field-spec): `[0x5656]`/`[0x5657]` (slide cap/accel),
-`[0x5675]` (crouch gate), `[0x5684]` (up gate), `[0x5689]`, `[0x5666]`, `[0x566a/b/c]`,
-`[0x5663]` (run gate), `[0x5676]` (state-2 transition), `[0x5204]`/`[0x5205]` (buff flags),
-`[0x5659]`.  Then drive retail freeroam (errands), inject DOWN/UP ring + held axis (the
-dash-window harness), capture per-tick `body+0x28` (vel) + `body+0x38` (state) for
-crouch/slide/up-pose; port the apply states 2/5/6; verify `differ`/tick-equal.
+### ckpt-117 lesson — confirmed
+The case-0x75 ramp's decompile reuses stack slots (the apparent state-6 slide path / the
+`[0x5656/57]` consts were a trap).  RE'd the structure (states 2/5, accel-disable) but PINNED
+the law by the per-tick capture — which showed DOWN→state 2 (not 6) for the player and the
+uniform −800 brake.  Never a line-by-line port.
 
-**BLOCKER:** the Frida host (`cutestation.soy:27042`) is DOWN — the capture needs it up.
+### the move-tuning constants — CAPTURED (ckpt 153, off Arche's idle errands entity)
+Read live off Arche's entity (`pose_consts_fields.json`, `runs/pose-demo/cap-consts2`, the
+errands freeroam frame 4554 — wx=19200, idle):
+
+| `in_ECX[idx]` | value | role |
+|---|---|---|
+| `[0x565b]`/`[0x565c]`/`[0x565e]` | 24000 / 1600 / -800 | walk cap / accel / brake (sanity ✓) |
+| **`[0x5675]`** | **1** | CROUCH gate (state-2 entry, 442a70:776) — Arche can crouch |
+| **`[0x5684]`** | **1** | UP-pose gate (state-5 entry, :795) — Arche can up-pose |
+| **`[0x5656]`/`[0x5657]`** | **64000 / 4000** | SLIDE consts (case-6 local_20 / param_3, :908-909) |
+| `[0x5663]`/`[0x5666]` | 1 / 1 | run / dash gates (active) |
+| `[0x566a]`/`[0x566b]`/`[0x566c]` | 48000 / 1600 / 3200 | = run-cap / walk-accel / run-accel (alt target) |
+| `[0x5676]` | 2400 | crouch state-2 transition value (:825) |
+| `[0x5659]`/`[0x5689]`/`[0x5204]`/`[0x5205]` | 0 / 0 / 0 / 0 | terrain / pose / buff gates off (flat ground) |
+
+Both pose gates are 1 (Arche crouches + up-poses).  **The HOST self-starts** —
+`frida_capture.py ensure_frida_server` auto-spawns frida-server via UAC-elevated
+Start-Process (set `OPENSUMMONERS_FRIDA_SERVER_EXE` to the devtools path); the earlier
+"host down, blocked" read was wrong (it just needed a capture to bring it up).
+
+### per-tick body (the brake LAW) — capturing now
+`pose_body_fields.json` (lean 7 fields) + `runs/pose-demo/pose-town-{nav,held}.jsonl` (the
+3 phases: crouch-from-rest / up-from-walk / dash-then-slide) → `body+0x28` (hvel) +
+`body+0x38` (bstate) per tick → pins whether crouch/up/slide brake at -800 (the var-reuse
+decompile's apparent rate) or a faster "stops-you-faster" rate.  Then port + verify.
 
 ## Binary verification (port-side — the command works in the real exe)
 Beyond the 6 host tests, drove the PORT into the errands freeroam (`runs/pose-demo/`,
