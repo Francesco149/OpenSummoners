@@ -103,6 +103,23 @@ int input_dash_double_tap(const input_mgr *m, uint32_t now,
     return 1;                                          /* both found       */
 }
 
+/* The single windowed ring find (FUN_00479960 with param_8 == NULL, param_9 ==
+ * 0): the U/D-pose's "was `dir` pressed in [lo, hi] ms ago" query.  With a NULL
+ * used-map retail's loop returns the first match's index immediately (no mark,
+ * no consume); -1 if all 64 slots miss.  Scans index 0 upward, condition order
+ * id → age-lo → age-hi → flag, exactly as retail (and ring_find_windowed). */
+int input_ring_find_recent(const input_mgr *m, uint32_t now,
+                           int32_t dir_id, uint32_t lo, uint32_t hi)
+{
+    for (int i = 0; i < INPUT_RING_LEN; i++) {
+        const input_event *rec = m->ring[i];
+        uint32_t age = (uint32_t)(now - rec->ts);
+        if (rec->id == dir_id && lo <= age && age <= hi && rec->flag == 1)
+            return i;
+    }
+    return -1;
+}
+
 /* Skip-splash field flush (0x56b25e..0x56b29a).  See input.h. */
 void input_mgr_reset(input_mgr *m)
 {

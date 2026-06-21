@@ -521,3 +521,101 @@ int test_character_resolve_run_guards(void)
     T_ASSERT_EQ_I(character_resolve_run(&c, NULL, 0, NULL, CHAR_DASH_WINDOW_MS), 0);
     return 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * character_resolve_pose — the U/D-pose command (0x478ba0:248-259, ckpt 153).
+ * The sibling of resolve_run: a held direction + a recent ring press (or the
+ * prev-tick self-sustain) latches cmd[3] = 10 (DOWN) / 0xb (UP).
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* DOWN/UP each engage on a held direction + a ring press aged into the window;
+ * they self-sustain while held; a fresh hold with a stale ring does NOT pose
+ * (the input buffer — only the ring/sustain trigger it); release clears it. */
+int test_character_resolve_pose_down_up(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 100000;
+    input_event d = { .id = INPUT_RING_DIR_DOWN, .ts = now - 100, .flag = 1 };
+    input_event u = { .id = INPUT_RING_DIR_UP,   .ts = now - 100, .flag = 1 };
+    m.ring[7] = &d; m.ring[33] = &u;
+
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0};
+
+    /* DOWN held + a DOWN ring press aged 100 ms (in [10,800]) -> crouch (10). */
+    axis[CHAR_AXIS_DOWN] = 1;
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), CHAR_POSE_DOWN);
+    T_ASSERT_EQ_I(c.cmd_pose, CHAR_POSE_DOWN);
+
+    /* age the ring out of the window (>800): prev==10 sustains while DOWN held. */
+    now += 5000;
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), CHAR_POSE_DOWN);
+
+    /* release DOWN -> the pose clears (reset-each-tick slot stays 0). */
+    axis[CHAR_AXIS_DOWN] = 0;
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), 0);
+    T_ASSERT_EQ_I(c.cmd_pose, 0);
+
+    /* re-hold DOWN with the ring stale + no sustain -> the input buffer holds:
+     * no pose (needs a fresh ring press or a sustain). */
+    axis[CHAR_AXIS_DOWN] = 1;
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), 0);
+
+    /* UP held + a UP ring press aged 100 ms -> defensive pose (0xb). */
+    axis[CHAR_AXIS_DOWN] = 0; axis[CHAR_AXIS_UP] = 1;
+    u.ts = now - 100;
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), CHAR_POSE_UP);
+    T_ASSERT_EQ_I(c.cmd_pose, CHAR_POSE_UP);
+    return 0;
+}
+
+/* The window floor (10 ms): a just-now press (age < 10) does NOT pose; once it
+ * ages past the floor it does.  The ceiling (800) drops it again (sans sustain). */
+int test_character_resolve_pose_window(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 50000;
+    input_event d = { .id = INPUT_RING_DIR_DOWN, .ts = now, .flag = 1 };
+    m.ring[12] = &d;
+
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0}; axis[CHAR_AXIS_DOWN] = 1;
+
+    /* age 0 (< the 10 ms floor) -> the one-frame buffer suppresses the pose. */
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), 0);
+    /* age exactly 10 -> inclusive lower bound, poses. */
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now + 10, axis), CHAR_POSE_DOWN);
+    c.cmd_pose = 0;  /* drop the sustain to isolate the ceiling test */
+    /* age exactly 800 -> inclusive upper bound, poses. */
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now + 800, axis), CHAR_POSE_DOWN);
+    c.cmd_pose = 0;
+    /* age 801 (> ceiling) + no sustain -> misses. */
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now + 801, axis), 0);
+    return 0;
+}
+
+/* UP runs second and writes the same slot, so it overrides a held DOWN when both
+ * are held (retail's :254-259 after :248-253), and NULL inputs are safe. */
+int test_character_resolve_pose_up_overrides_down(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 7000;
+    input_event d = { .id = INPUT_RING_DIR_DOWN, .ts = now - 50, .flag = 1 };
+    input_event u = { .id = INPUT_RING_DIR_UP,   .ts = now - 50, .flag = 1 };
+    m.ring[3] = &d; m.ring[4] = &u;
+
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_COUNT] = {0, 0, 0, 0};
+    axis[CHAR_AXIS_DOWN] = 1; axis[CHAR_AXIS_UP] = 1;     /* both held */
+    T_ASSERT_EQ_I(character_resolve_pose(&c, &m, now, axis), CHAR_POSE_UP);
+
+    /* guards (a FRESH character so there is no prev-pose sustain to mask them):
+     * NULL char / NULL mgr / NULL axis all resolve to 0 without a crash.  With a
+     * NULL ring the sustain is the only surviving arm, so a fresh c (cmd_pose 0)
+     * stays 0. */
+    character g; character_init(&g, 0, 0, CHAR_FACE_RIGHT);
+    T_ASSERT_EQ_I(character_resolve_pose(NULL, &m, now, axis), 0);
+    T_ASSERT_EQ_I(character_resolve_pose(&g, NULL, now, axis), 0);
+    T_ASSERT_EQ_I(character_resolve_pose(&g, &m, now, NULL), 0);
+    return 0;
+}

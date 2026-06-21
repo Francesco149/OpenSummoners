@@ -963,6 +963,12 @@ static void drive_present(void *user)
      * as relevant game state is annotated (player px/py, scene id, flags, …). */
     osr_emit_state_field("rng",      OSR_ST_HEX, (int64_t)rng_peek_state(), 0.0);
     osr_emit_state_field("rngcalls", OSR_ST_INT, (int64_t)rng_call_count(), 0.0);
+    /* The freeroam mover's live command + body — proves the input→command chain in
+     * the real exe (cmd_pose flips 0/10/0xb on DOWN/UP; cmd_lr 0/5/6 on a dash). */
+    osr_emit_state_field("fr_pose",  OSR_ST_INT, (int64_t)g_freeroam_char.cmd_pose, 0.0);
+    osr_emit_state_field("fr_lr",    OSR_ST_INT, (int64_t)g_freeroam_char.cmd_lr,   0.0);
+    osr_emit_state_field("fr_wx",    OSR_ST_INT, (int64_t)g_freeroam_char.world_x,  0.0);
+    osr_emit_state_field("fr_vel",   OSR_ST_INT, (int64_t)g_freeroam_char.vel,      0.0);
     /* M5: the .osr frame boundary — PRESENT closes the open frame, FRAMEBEG
      * opens the next (the proxy's present-then-framebeg order; the draws under
      * FRAMEBEG(f) are issued after flip f, presented by flip f+1). */
@@ -2865,8 +2871,16 @@ static void freeroam_step(void)
      * ring records its timestamps in GetTickCount() ms, so the window compare uses
      * the same clock. */
     int jump = axis[CHAR_AXIS_COUNT];   /* axis_held[4] = the jump button level */
+    uint32_t now = GetTickCount();
     int run  = character_resolve_run(&g_freeroam_char, &g_game_drive.input,
-                                     GetTickCount(), axis, CHAR_DASH_WINDOW_MS);
+                                     now, axis, CHAR_DASH_WINDOW_MS);
+    /* Resolve the U/D POSE command (cmd[3] = 10 DOWN / 0xb UP) off the same ring
+     * each tick — the self-sustain state must advance every tick (0x478ba0:248-259,
+     * ckpt 153).  The APPLY-side physics (crouch/slide/up-stop, apply states 2/5/6)
+     * is the next chip (needs the live const capture), so character_step does not
+     * consume cmd_pose yet; this tracks the command + feeds the OSR_STATE emit so
+     * the command layer is binary-verifiable in the real exe. */
+    (void)character_resolve_pose(&g_freeroam_char, &g_game_drive.input, now, axis);
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;

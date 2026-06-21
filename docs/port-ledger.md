@@ -61,7 +61,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
 | 0x46a880 | FUN_0046a880 | 8890 | input_live.c, input_live.h |
-| 0x479960 | FUN_00479960 | 165 | input.c, input.h |
+| 0x479960 | FUN_00479960 | 165 | character.c, character.h, input.c (+1) |
 | 0x479e70 | FUN_00479e70 | 275 | character.c, character.h, input.c (+1) |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
 | 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |

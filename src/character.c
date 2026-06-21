@@ -27,6 +27,7 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->jump_sub  = 0;
     c->jump_ctr  = 0;
     c->cmd_lr    = 0;
+    c->cmd_pose  = 0;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -218,4 +219,48 @@ int character_resolve_run(character *c, const struct input_mgr *m, uint32_t now,
 
     c->cmd_lr = cmd;
     return (cmd == 5 || cmd == 6);     /* the run flag for character_step          */
+}
+
+/* The U/D-pose half of 0x478ba0 (:248-259), sibling to character_resolve_run.
+ * Retail (after the L/R blocks) re-derives cmd[3] @ +0x14860 from the held axis,
+ * the prior-tick snapshot (local_608[3]), and a single windowed ring find:
+ *
+ *   DOWN (478ba0:248-253): iVar10 = FUN_00479960(now,10,800,1, 3, ...)   // ring id 3
+ *     if (down_held(+0x118) && (local_608[3]==10 || -1<iVar10 || held>240ms))
+ *         0x14860 = 10;                              // crouch / slide intent
+ *   UP   (478ba0:254-259): iVar10 = FUN_00479960(now,10,800,1, 1, ...)   // ring id 1
+ *     if (up_held(+0x114)   && (local_608[3]==0xb || -1<iVar10 || held>240ms))
+ *         0x14860 = 0xb;                             // defensive / door-enter intent
+ *
+ * UP runs second and writes the same slot, so it overrides a held DOWN.  The
+ * 240 ms held-time arm (array_B +0x140/+0x144) is PORT-DEBT(char-pose-holdtime)
+ * — for a continuous hold the ring (engages once the press ages past the 10 ms
+ * floor) + the prev-sustain already keep the pose latched, so it is a redundant
+ * backstop here; the door-enter probe (:260-285) is PORT-DEBT(char-up-door-probe). */
+int16_t character_resolve_pose(character *c, const struct input_mgr *m,
+                               uint32_t now, const int *axis_held)
+{
+    if (c == NULL) return 0;
+
+    int16_t prev = c->cmd_pose;        /* local_608[3] (snapshot before reset)     */
+    int16_t cmd  = 0;                  /* 0x14860 reset to 0 each tick             */
+
+    int down_held = (axis_held != NULL) && axis_held[CHAR_AXIS_DOWN] != 0;
+    int up_held   = (axis_held != NULL) && axis_held[CHAR_AXIS_UP]   != 0;
+
+    if (down_held) {                   /* +0x118 held                              */
+        int ring = (m != NULL) &&
+            input_ring_find_recent(m, now, INPUT_RING_DIR_DOWN,
+                                   CHAR_POSE_WINDOW_LO, CHAR_POSE_WINDOW_HI) >= 0;
+        if (prev == CHAR_POSE_DOWN || ring) cmd = CHAR_POSE_DOWN;
+    }
+    if (up_held) {                     /* +0x114 held; runs second, wins if both   */
+        int ring = (m != NULL) &&
+            input_ring_find_recent(m, now, INPUT_RING_DIR_UP,
+                                   CHAR_POSE_WINDOW_LO, CHAR_POSE_WINDOW_HI) >= 0;
+        if (prev == CHAR_POSE_UP || ring) cmd = CHAR_POSE_UP;
+    }
+
+    c->cmd_pose = cmd;
+    return cmd;
 }

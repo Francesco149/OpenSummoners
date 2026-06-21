@@ -358,3 +358,60 @@ int test_input_dtap_other_dir_ignored(void)
     T_ASSERT_EQ_I(input_dash_double_tap(&m, 1000, INPUT_RING_DIR_LEFT, 800), 0);
     return 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * input_ring_find_recent (the U/D-pose ring query, FUN_00479960 w/ NULL used
+ * map): the first pressed record of `dir` aged in [lo, hi] ms, else -1.
+ * One event suffices (unlike the dash double-tap).
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* A single in-window press hits (returns its slot index); the lowest index
+ * wins (the scan walks 0 upward), and the record is NOT consumed. */
+int test_input_ring_find_recent_hit(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_DOWN, .ts = 900, .flag = 1 }; /* age 100 */
+    input_event b = { .id = INPUT_RING_DIR_DOWN, .ts = 950, .flag = 1 }; /* age  50 */
+    m.ring[40] = &a; m.ring[12] = &b;
+    /* now=1000: both in [10,800]; index 12 < 40 wins (upward scan). */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1000, INPUT_RING_DIR_DOWN, 10, 800), 12);
+    T_ASSERT_EQ_I(a.id, INPUT_RING_DIR_DOWN);   /* read-only */
+    /* a single press is enough (no double-tap needed). */
+    m.ring[12] = &empty;
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1000, INPUT_RING_DIR_DOWN, 10, 800), 40);
+    return 0;
+}
+
+/* Window bounds are inclusive on both ends; outside either -> miss; and the
+ * 10 ms floor rejects a just-now (age 0) press (the one-frame pose buffer). */
+int test_input_ring_find_recent_window(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event a = { .id = INPUT_RING_DIR_UP, .ts = 1000, .flag = 1 };
+    m.ring[20] = &a;
+    /* age 0 < lo 10 -> the buffer suppresses it. */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1000, INPUT_RING_DIR_UP, 10, 800), -1);
+    /* age exactly 10 (lo) -> inclusive hit. */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1010, INPUT_RING_DIR_UP, 10, 800), 20);
+    /* age exactly 800 (hi) -> inclusive hit. */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1800, INPUT_RING_DIR_UP, 10, 800), 20);
+    /* age 801 (> hi) -> miss. */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1801, INPUT_RING_DIR_UP, 10, 800), -1);
+    return 0;
+}
+
+/* Wrong id, a release (flag 0), and a future timestamp all miss. */
+int test_input_ring_find_recent_rejects(void)
+{
+    input_mgr m; input_event empty; mgr_init(&m, &empty);
+    input_event other   = { .id = INPUT_RING_DIR_LEFT, .ts = 900,  .flag = 1 };
+    input_event release = { .id = INPUT_RING_DIR_DOWN, .ts = 900,  .flag = 0 };
+    input_event future  = { .id = INPUT_RING_DIR_DOWN, .ts = 2000, .flag = 1 };
+    m.ring[5] = &other; m.ring[6] = &release; m.ring[7] = &future;
+    /* no DOWN press qualifies -> -1 (wrong id, release, future-ts underflow). */
+    T_ASSERT_EQ_I(input_ring_find_recent(&m, 1000, INPUT_RING_DIR_DOWN, 10, 800), -1);
+    /* an empty ring also misses. */
+    input_mgr m2; input_event e2; mgr_init(&m2, &e2);
+    T_ASSERT_EQ_I(input_ring_find_recent(&m2, 1000, INPUT_RING_DIR_DOWN, 10, 800), -1);
+    return 0;
+}

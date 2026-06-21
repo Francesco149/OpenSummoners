@@ -155,6 +155,28 @@ enum {
  * "was-walking" carry in 0x478ba0). */
 #define CHAR_INPUT_REPEAT_DELAY  3
 
+/* ── The UP/DOWN POSE command (0x478ba0:248-259, the cmd[3] @ entity+0x14860) ──
+ * The vertical-direction intent the char-AI resolves alongside the L/R walk/dash:
+ *   DOWN (held +0x118) -> cmd[3] = 10   (0x478ba0:248-253) — crouch in place, or
+ *                                        SLIDE if entered from a dash (apply state 6)
+ *   UP   (held +0x114) -> cmd[3] = 0xb  (0x478ba0:254-259) — a DEFENSIVE pose that
+ *                                        kills the walk/dash accel (apply states 2/5
+ *                                        skip the accel ramp -> brake to a faster stop),
+ *                                        and the door/ledge ENTER (the 0x442a70 probe
+ *                                        block :260-285 — PORT-DEBT(char-up-door-probe)).
+ * Each engages when its direction is HELD *and* one of: the prior tick already posed
+ * this way (self-sustain, local_608[3]); a fresh direction ring press aged in the
+ * [10,800] ms window (the primary trigger, FUN_00479960); or the press has been held
+ * past the 240 ms input buffer (array_B +0x140/+0x144 — PORT-DEBT(char-pose-holdtime),
+ * a redundant backstop the ring + sustain already cover for a continuous hold).
+ * The APPLY-side physics (the velocity effect of states 2/5/6) is the next chip and
+ * needs the live const capture (0x442a70's case-0x75 horizontal ramp has unreliable
+ * decompile var-reuse — RE the structure, pin the values by capture; ckpt-117 lesson). */
+#define CHAR_POSE_DOWN        10    /* cmd[3] = 10  (DOWN: crouch / slide)            */
+#define CHAR_POSE_UP          0xb   /* cmd[3] = 0xb (UP: defensive stop / door-enter) */
+#define CHAR_POSE_WINDOW_LO   10u   /* FUN_00479960 lo window (ms): the 1-frame buffer */
+#define CHAR_POSE_WINDOW_HI   800u  /* FUN_00479960 hi window (ms)                     */
+
 /* body+0x2c facing: 1 = right (+X), 3 = left (-X). */
 #define CHAR_FACE_RIGHT  1
 #define CHAR_FACE_LEFT   3
@@ -178,6 +200,9 @@ typedef struct {
                        /*   dashing, 5 = dash-left, 6 = dash-right (the self-     */
                        /*   sustain state for character_resolve_run; walk 1/2 is  */
                        /*   character_step's axis_held domain — see that fn)      */
+    int16_t cmd_pose;  /* entity+0x14860 cmd[3] U/D pose: 0 none / 10 DOWN (crouch */
+                       /*   /slide) / 0xb UP (defensive) — the self-sustain state  */
+                       /*   for character_resolve_pose (local_608[3] snapshot)     */
 } character;
 
 /* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the
@@ -227,5 +252,22 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
  * warmup stay character_step's domain (PORT-DEBT(char-input-autorepeat)). */
 int character_resolve_run(character *c, const struct input_mgr *m, uint32_t now,
                           const int *axis_held, uint32_t window);
+
+/* Resolve the UP/DOWN POSE command (cmd[3]) from live input — the U/D half of
+ * the char-AI 0x478ba0 (:248-259), sibling to character_resolve_run's L/R dash.
+ * Each sim-tick: snapshot the prior cmd_pose, reset it, then set it from the
+ * held axis + the event ring: DOWN held (axis_held[CHAR_AXIS_DOWN]) -> 10 if the
+ * pose self-sustains (prev == 10) or a DOWN ring press (id 3) is aged in
+ * [CHAR_POSE_WINDOW_LO, _HI]; UP held (CHAR_AXIS_UP) -> 0xb on the same terms
+ * (ring id 1).  The UP block runs second (mirrors retail), so UP wins if both
+ * are somehow held.  `now` is the GetTickCount() ms clock the ring stamps with.
+ * Returns the pose command (0 / 10 / 0xb) and stores it in c->cmd_pose.
+ *
+ * Models the primary trigger (ring window + self-sustain); the 240 ms held-time
+ * backstop (array_B) is PORT-DEBT(char-pose-holdtime) and the door-enter probe
+ * (0x442a70 :260-285) is PORT-DEBT(char-up-door-probe).  The pose's *physics*
+ * (the apply states 2/5/6) is a separate chip — this is the command layer only. */
+int16_t character_resolve_pose(character *c, const struct input_mgr *m,
+                               uint32_t now, const int *axis_held);
 
 #endif /* OSS_CHARACTER_H */

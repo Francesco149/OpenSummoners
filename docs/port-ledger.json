@@ -4621,6 +4621,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/character.c",
+    "src/character.h",
     "src/input.c",
     "src/input.h"
    ]

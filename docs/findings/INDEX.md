@@ -103,6 +103,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   dash-resolution half of the char-AI `0x478ba0`, with retail's self-sustain), fed into
   `character_step` by `freeroam_step`.  Host-verified end-to-end (a double-tap → RUN cap
   48000; a single press → WALK cap 24000).  Quirk #113.
+- **[freeroam-pose-commands.md](freeroam-pose-commands.md)** — the freeroam U/D-POSE
+  commands (CROUCH / SLIDE / UP-defensive, ckpt 153).  The COMMAND layer is ported:
+  `character_resolve_pose` (the `cmd[3]` half of `0x478ba0:248-259` — DOWN→10 / UP→0xb off
+  a held axis + a ring [10,800]ms find + self-sustain) + `input_ring_find_recent`
+  (`0x479960` w/ NULL used-map) + the **ring-id fix** (input.h had DOWN/UP backwards;
+  UP=1/DOWN=3).  The APPLY physics (apply states 2/5/6 — accel-disable for the crouch/
+  up-stop, distinct accel/cap for the slide) is RE'd structurally but needs a live const
+  capture (`char-pose-physics`).  6 host tests; binary-verify via the `fr_pose` OSR_STATE.
 
 ## Method / cross-cutting
 

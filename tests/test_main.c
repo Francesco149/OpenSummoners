@@ -390,6 +390,9 @@ struct test_case {
     X(input_dtap_window_boundary_inclusive)                    \
     X(input_dtap_flag_must_be_pressed)                         \
     X(input_dtap_other_dir_ignored)                            \
+    X(input_ring_find_recent_hit)                              \
+    X(input_ring_find_recent_window)                           \
+    X(input_ring_find_recent_rejects)                          \
     X(pool_acquire_stamps_and_bumps)                           \
     X(pool_acquire_index_is_16bit_write)                       \
     X(pool_acquire_exhausts_returns_null)                      \
@@ -910,6 +913,9 @@ struct test_case {
     X(character_resolve_run_both_held_right_wins)              \
     X(character_dash_via_double_tap)                           \
     X(character_resolve_run_guards)                            \
+    X(character_resolve_pose_down_up)                          \
+    X(character_resolve_pose_window)                           \
+    X(character_resolve_pose_up_overrides_down)                \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
     X(map_decode_1b58d_shape2_blend)                           \

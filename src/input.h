@@ -165,13 +165,18 @@ void input_mgr_reset(input_mgr *m);
 
 /* ─── direction ring ids ─────────────────────────────────────────────
  * The discrete press/release events the producer 0x46a880 posts for the
- * four directions (the dash double-tap 0x479e70 + the menu nav 0x56aea0
- * both scan these).  The char-AI 0x478ba0 reads id 2 for LEFT (held +0x11c)
- * and id 4 for RIGHT (held +0x120); UP (held +0x114) is id 1, DOWN (+0x118)
- * id 3.  Matches src/input_live.c KEYMAP. */
-#define INPUT_RING_DIR_DOWN  1
+ * four directions (the dash double-tap 0x479e70, the U/D-pose ring find
+ * 0x479960, and the menu nav 0x56aea0 all scan these).  Pinned four ways
+ * (all agree): the producer's fixed arrow bindings (0xc8/0xd0/0xcb/0xcd →
+ * 1/3/2/4, input.md), the title-menu nav (id 1 = up, id 3 = down), and the
+ * char-AI 0x478ba0 — the L/R dash reads id 2 for LEFT (held +0x11c) / id 4
+ * for RIGHT (+0x120), and the U/D pose (0x478ba0:248-259) reads id 3 for
+ * DOWN (held +0x118) / id 1 for UP (held +0x114).  Matches input_live.c
+ * KEYMAP (UP→1, DOWN→3).  [Was DOWN=1/UP=3 here — a stale copy-error that
+ * never bit because only the L/R dash consumed these; fixed ckpt 153.] */
+#define INPUT_RING_DIR_UP    1
 #define INPUT_RING_DIR_LEFT  2
-#define INPUT_RING_DIR_UP    3
+#define INPUT_RING_DIR_DOWN  3
 #define INPUT_RING_DIR_RIGHT 4
 
 /* Was `dir_id` (a direction ring id) DOUBLE-TAPPED within the last `window`
@@ -187,5 +192,19 @@ void input_mgr_reset(input_mgr *m);
  * the config double-tap window *(*0x8a6e80+0xf8) (CHAR_DASH_WINDOW_MS). */
 int input_dash_double_tap(const input_mgr *m, uint32_t now,
                           int32_t dir_id, uint32_t window);
+
+/* Is there a recent pressed ring event for `dir_id` aged in [lo, hi] ms?
+ *
+ * FUN_00479960 reduced to the U/D-pose invocation the char-AI 0x478ba0 makes
+ * (param_8 == NULL → no "used" bitmap, param_9 == 0 → no consume): scan the
+ * ring index 0 UPWARD and return the index of the FIRST record with
+ * .id == dir_id, .flag == 1, and (now - .ts) in [lo, hi] (unsigned, so a
+ * GetTickCount wrap / future timestamp underflows past `hi` and is rejected),
+ * else -1.  Unlike the dash double-tap this matches ONE event (a held press
+ * suffices once it has aged past `lo`), and does not modify the ring.  The
+ * pose uses lo = 10, hi = 800 (0x478ba0:248/254) — the 10 ms floor is the
+ * one-frame input buffer that keeps a just-now press from posing instantly. */
+int input_ring_find_recent(const input_mgr *m, uint32_t now,
+                           int32_t dir_id, uint32_t lo, uint32_t hi);
 
 #endif /* OPENSUMMONERS_INPUT_H */
