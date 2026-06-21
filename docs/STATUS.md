@@ -96,7 +96,15 @@ understates how much actual instruction volume is ported.
   errands tutorial line is pixel-identical (`icons_compare.png`).  1045 host pass.
   **NEXT (do FRESH after a /clear): port + verify ALL freeroam MOVEMENT TYPES** (USER directive ckpt 152:
   double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311 + the input
-  findings).  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
+  findings).  **IN PROGRESS (ckpt 153): the U/D-POSE COMMAND half is DONE** — `character_resolve_pose`
+  (the `cmd[3]` of `0x478ba0:248-259`: DOWN→10 crouch/slide, UP→0xb defensive, off a held axis + ring
+  [10,800]ms find + self-sustain) + `input_ring_find_recent` + the **ring-id fix** (input.h had UP/DOWN
+  backwards; UP=1/DOWN=3); 1051 host pass + binary-verified (`fr_pose` flips 10/0xb in the real exe,
+  `findings/freeroam-pose-commands.md`).  **The APPLY PHYSICS half (crouch/slide/up-stop velocity, apply
+  states 2/5/6) is BLOCKED on the Frida host** (`cutestation.soy:27042` is DOWN) — the case-0x75 ramp's
+  decompile reuses stack slots (ckpt-117 trap) so the per-tick body + the slide/gate consts MUST be pinned
+  by a live capture; the field-spec (`tools/flow/pose_consts_fields.json`) + nav (`runs/pose-demo/`) are
+  STAGED so it runs the moment the host is back.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
   sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
   until a line uses them (then verify the slot-55 frame + add to the token map).
@@ -186,9 +194,11 @@ understates how much actual instruction volume is ported.
     the errands-scene OPENING DIALOGUE (questline 0x4dc510's 3 Arche lines via 0x49d6e0 — the movement
     tutorial — through the existing box system, concurrent with freeroam; tick-aligned L1@1770/L2@1800/
     L3@1830 == retail) ✓ (152) →
-    **port + verify ALL freeroam MOVEMENT TYPES (double-tap dash, up-to-stop-faster, the full combo set —
-    USER directive ckpt 152) = next; then the freeroam HUD (res=0 UI, scoped ckpt 152) + the
-    dialogue-arrow-art inline icons**.
+    the freeroam U/D-POSE COMMAND (cmd[3]: DOWN→10 crouch/slide, UP→0xb defensive; character_resolve_pose
+    = 0x478ba0:248-259 + the input.h ring-id fix UP=1/DOWN=3; host-tested + fr_pose binary-verified) ✓
+    (153, command half) →
+    **the U/D-pose APPLY PHYSICS (crouch/slide/up-stop, apply states 2/5/6) = next — BLOCKED on the Frida
+    host (capture staged, pose_consts_fields.json); then the rest of the combo set + the freeroam HUD**.
 - **LATEST (ckpt 152): the errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**
   USER: "we're still missing the opening dialogue for the errands scene (starts once it switches to the
   errands scene where you have control). port that first."  The questline `0x4dc510`'s entry case
