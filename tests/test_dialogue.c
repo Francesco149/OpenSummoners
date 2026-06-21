@@ -18,7 +18,7 @@
 
 int test_dialogue_expand_break(void)
 {
-    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
+    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES];
     int n = dialogue_expand_text("abc%ndef", rows);
     if (n != 2) T_FAIL("rows = %d (want 2)", n);
     if (strcmp(rows[0], "abc") != 0) T_FAIL("row0 = \"%s\"", rows[0]);
@@ -31,7 +31,7 @@ int test_dialogue_expand_wrap(void)
     /* 36-char row limit: a 38-char second segment wraps at the last space,
      * KEEPING it on the wrapped row (retail renders the trailing space — the
      * line-1 shape: 25 + %n -> 25 / "...bbb " (29, with the space) / 9). */
-    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
+    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES];
     const char *src =
         "aaaaaaaaaaaaaaaaaaaaaaaaa%n"          /* 25 a's              */
         "bbbbb bbbbbb bbbb bb bbb bbb "        /* 29 (ends in space)  */
@@ -64,7 +64,7 @@ int test_dialogue_expand_real_line1(void)
     /* .data is mapped at VA = file offset + 0x400000 for this exe (verified
      * in test_exe_strings); read line 1 directly. */
     const char *line1 = (const char *)img + (DIALOGUE_VA_TOWN_LINE1 - 0x400000u);
-    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
+    char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES];
     int rc = dialogue_expand_text(line1, rows);
     if (rc != 3) { free(img); T_FAIL("line1 rows = %d (want 3)", rc); }
     /* row 1 = 25 chars ("Ahh, ... last!"), row 2 = "Look, ... our new " (29 —

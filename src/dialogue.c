@@ -10,11 +10,25 @@
 
 /* ── text expand: %n breaks + word wrap (0x43cf90's subset) ─────────────── */
 
-int dialogue_expand_text(const char *src,
-                         char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1])
+int dialogue_keycap_token(const char *s, int avail, int *byte_len, int *cells)
 {
-    int r = 0, col = 0;
-    memset(rows, 0, (size_t)DIALOGUE_MAX_ROWS * (DIALOGUE_ROW_CHARS + 1));
+    if (avail < 3 || s[0] != '@' || s[1] != '@')
+        return -2;                                  /* not an @@ token */
+    const unsigned char *c = (const unsigned char *)s + 2;
+    int rem = avail - 2;
+    *cells = DIALOGUE_KEYCAP_CELLS;
+    if (rem >= 2 && c[0] == 0x81 && c[1] == 0xa9) { *byte_len = 4; return 3; }  /* ← */
+    if (rem >= 2 && c[0] == 0x81 && c[1] == 0xa8) { *byte_len = 4; return 1; }  /* → */
+    if (rem >= 1 && c[0] == 'X')                  { *byte_len = 3; return 9; }  /* X  */
+    *byte_len = (rem >= 2 && c[0] >= 0x81) ? 4 : 3; /* unknown SJIS/ASCII: consume, no icon */
+    return -1;
+}
+
+int dialogue_expand_text(const char *src,
+                         char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES])
+{
+    int r = 0, col = 0, cells = 0;          /* col = byte write pos; cells = visual width */
+    memset(rows, 0, (size_t)DIALOGUE_MAX_ROWS * DIALOGUE_ROW_BYTES);
     if (src == NULL)
         return 0;
 
@@ -22,41 +36,48 @@ int dialogue_expand_text(const char *src,
         if (src[0] == '%' && src[1] == 'n') {       /* forced break */
             src += 2;
             rows[r][col] = '\0';
-            r++; col = 0;
+            r++; col = 0; cells = 0;
             continue;
         }
-        if (col >= DIALOGUE_ROW_CHARS) {            /* word wrap */
-            /* back up to the last space in this row; the wrap space is
-             * consumed (it becomes the break). */
+        /* The next token: an @@<code> key-cap (KEYCAP_CELLS wide, but 3-4 source
+         * bytes) or a single ASCII char (1 cell / 1 byte).  Counting the icon by
+         * its CELL width (not its byte length) keeps the word-wrap == retail. */
+        int avail = (int)strlen(src);
+        int blen = 1, tcells = 1;
+        int kc = dialogue_keycap_token(src, avail, &blen, &tcells);
+        int tok_bytes = (kc != -2) ? blen   : 1;
+        int tok_cells = (kc != -2) ? tcells : 1;
+
+        if (cells + tok_cells > DIALOGUE_ROW_CHARS) {   /* word wrap */
+            /* back up to the last space in this row; the wrap space is KEPT at the
+             * end of this row (retail renders the trailing space — the body stays
+             * byte-identical; the space's reveal grade is 1, past every skip
+             * point, so the typewriter cadence is unchanged). */
             int brk = col - 1;
             while (brk > 0 && rows[r][brk] != ' ')
                 brk--;
             if (brk > 0) {
-                /* move the partial word down a row, KEEPING the wrap space at the
-                 * end of this row — retail's word-wrap renders the trailing space
-                 * (retail.osr: row "Look, Arche. This is our new " ends in a
-                 * space, then "hometown." starts the next row), so the body is
-                 * byte-identical.  The space's reveal grade is 1 and it sits past
-                 * every line's skip point, so the typewriter cadence is unchanged
-                 * (plans/intro-cutscene-1to1.md THEME 1). */
-                char tail[DIALOGUE_ROW_CHARS + 1];
+                char tail[DIALOGUE_ROW_BYTES];
                 int  tail_len = col - (brk + 1);
                 memcpy(tail, &rows[r][brk + 1], (size_t)tail_len);
                 rows[r][brk + 1] = '\0';   /* keep the space at brk, terminate after it */
-                r++; col = 0;
+                r++; col = 0; cells = 0;
                 if (r >= DIALOGUE_MAX_ROWS)
                     break;
                 memcpy(rows[r], tail, (size_t)tail_len);
-                col = tail_len;
+                col = tail_len; cells = tail_len;  /* the moved tail is plain ASCII */
             } else {
                 rows[r][col] = '\0';
-                r++; col = 0;
+                r++; col = 0; cells = 0;
                 if (r >= DIALOGUE_MAX_ROWS)
                     break;
             }
             continue;                               /* re-test *src */
         }
-        rows[r][col++] = *src++;
+        /* copy the whole token (icon bytes stay together → never split) */
+        for (int k = 0; k < tok_bytes && col < DIALOGUE_ROW_BYTES - 1; k++)
+            rows[r][col++] = *src++;
+        cells += tok_cells;
     }
     if (r < DIALOGUE_MAX_ROWS) {
         rows[r][col] = '\0';

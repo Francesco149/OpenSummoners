@@ -316,6 +316,13 @@ extern ar_sprite_slot *g_ar_sprite_table[AR_SPRITE_SLOT_COUNT];
 #define AR_SPR_FONT_TEX_457  42  /* 32×32 type=2 (DAT_008a76e8) */
 #define AR_SPR_FONT_TEX_455  43  /* 32×48 type=2 (DAT_008a76ec) */
 
+/* res 0x6fa (DAT_008a771c) — the keyboard KEY-CAP / button-prompt sheet
+ * (256×128, 32×32 cells = 8×4 = 32 frames: arrows row 0, Z/X/C row 1, F1-F4
+ * row 2).  The inline dialogue @@<code> escapes blit from here (ckpt 153,
+ * findings/res0-ui-banks.md): ←=frame 3, →=frame 1, X=frame 9.  Registered at
+ * boot by ar_register_main_sprites (slot 55). */
+#define AR_SPR_KEYCAP_6FA    55  /* 32×32 type=2 (DAT_008a771c) */
+
 /* The retail table is at &DAT_008a9274.  Index 0 lives there; index 1
  * is DAT_008a9278; ...; index 13 (FUN_00582d10 max in this batch) is
  * DAT_008a92a8.  We over-allocate to 32 for headroom — the rest of

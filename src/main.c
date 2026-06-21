@@ -2384,6 +2384,61 @@ static void dialogue_text_row(HDC hdc, const char *s, int n, int x, int y,
     }
 }
 
+/* ─── inline @@<code> KEY-CAP icons (res 0x6fa / slot 55, ckpt 153) ──────────
+ *
+ * The dialogue body carries `@@<code>` escapes (0x40 0x40 + a 1-2 byte code) that
+ * retail renders as 17x17 key-cap sprites from res 0x6fa (the keyboard
+ * button-prompt sheet; findings/res0-ui-banks.md, 279/279-px verified): the
+ * errands movement tutorial shows ← → and X.  The `@@<code>` consumes the @@ +
+ * code from the source but advances the monospace body cursor by 3 cells (21px),
+ * blitting the key-cap there.  (The grid renderer 0x48e200 sprite-cell mode; the
+ * frames are bottom-up-sliced like res 0x455.) */
+#define DIALOGUE_KEYCAP_DY     2      /* the 17px cel sits 2px above the text row y  */
+#define DIALOGUE_MAX_ICONS     16
+
+struct dlg_icon { int frame, x, y; };
+
+/* Render one body row's revealed text, turning `@@<code>` escapes into key-cap
+ * icons.  Text glyphs go to `hdc` (the dialogue_text_row 3-pass GDI shape, but at
+ * monospace CELL positions so the layout survives icon insertion); each icon is
+ * SKIPPED in the text and appended to `icons` (blitted by the caller AFTER the DC
+ * is released — DDraw forbids Blt while a GetDC is checked out).  The cell count
+ * (char=1, icon=DIALOGUE_KEYCAP_CELLS) matches dialogue_expand_text's wrap. */
+static void dialogue_body_row_text(HDC hdc, const char *row, int revealed,
+                                   int x0, int y, uint32_t shadow, uint32_t main_color,
+                                   struct dlg_icon *icons, int *n_icons)
+{
+    int len = (int)strlen(row);
+    if (revealed > len) revealed = len;
+    for (int pass = 0; pass < 3; pass++) {            /* shadow@y+1, shadow@x+1, main */
+        uint32_t col = (pass < 2) ? shadow : main_color;
+        int dx = (pass == 1) ? 1 : 0, dy = (pass == 0) ? 1 : 0;
+        SetTextColor(hdc, (COLORREF)col);
+        if (pass != 1) osr_emit_gdi_color(hdc, col);  /* x+1 reuses the shadow colour */
+        int c = 0, i = 0;
+        while (i < revealed) {
+            int blen = 1, tcells = 1;
+            int frame = dialogue_keycap_token(row + i, len - i, &blen, &tcells);
+            if (frame != -2) {                        /* an @@<code> key-cap token */
+                if (pass == 2 && frame >= 0 && *n_icons < DIALOGUE_MAX_ICONS) {
+                    icons[*n_icons].frame = frame;
+                    icons[*n_icons].x     = x0 + c * DIALOGUE_ADVANCE;
+                    icons[*n_icons].y     = y - DIALOGUE_KEYCAP_DY;
+                    (*n_icons)++;
+                }
+                c += tcells;
+                i += blen;
+            } else {
+                char ch = row[i];
+                osr_emit_gdi_text(hdc, x0 + c * DIALOGUE_ADVANCE + dx, y + dy, &ch, 1);
+                TextOutA(hdc, x0 + c * DIALOGUE_ADVANCE + dx, y + dy, &ch, 1);
+                c += 1;
+                i += 1;
+            }
+        }
+    }
+}
+
 /* Render ONE dialogue box `d` (the 9-slice frame at its pop-in/out scale, then —
  * once content-visible — the tail/tab cels, the portrait, and the GDI text).
  * `emit_trace` gates the cross-side CALL_TRACE points (box pos + frame) to the
@@ -2531,7 +2586,12 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
         }
     }
 
-    /* the GDI text pass (0x48c820: GetDC the paint target, TRANSPARENT bk) */
+    /* the GDI text pass (0x48c820: GetDC the paint target, TRANSPARENT bk).  The
+     * body rows may carry @@<code> key-cap escapes — the text renders with them
+     * SKIPPED (their cells reserved) and each icon is collected here, then blitted
+     * AFTER release_dc (DDraw forbids Blt while a GetDC is out). */
+    struct dlg_icon kc_icons[DIALOGUE_MAX_ICONS];
+    int kc_n = 0;
     void *hdc = NULL;
     if (zdd_object_get_dc(g_zdd->primary_obj, &hdc) && hdc != NULL) {
         SetBkMode((HDC)hdc, TRANSPARENT);
@@ -2547,12 +2607,21 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
                           DIALOGUE_NAME_SHADOW, DIALOGUE_NAME_MAIN);
         /* revealed body rows (the [0x1d] grid: 0x3e537d main, 0xa8b9cc shadow) */
         for (int r = 0; r < d->row_count; r++)
-            dialogue_text_row((HDC)hdc, d->rows[r],
-                              dialogue_row_revealed(d, r),
-                              box_x + DIALOGUE_TEXT_DX,
-                              box_y + dialogue_body_row_dy(d, r),
-                              DIALOGUE_BODY_SHADOW, DIALOGUE_BODY_MAIN);
+            dialogue_body_row_text((HDC)hdc, d->rows[r],
+                                   dialogue_row_revealed(d, r),
+                                   box_x + DIALOGUE_TEXT_DX,
+                                   box_y + dialogue_body_row_dy(d, r),
+                                   DIALOGUE_BODY_SHADOW, DIALOGUE_BODY_MAIN,
+                                   kc_icons, &kc_n);
         zdd_object_release_dc(g_zdd->primary_obj, hdc);
+    }
+    /* the collected inline @@ key-cap icons (res 0x6fa / slot 55) */
+    for (int k = 0; k < kc_n; k++) {
+        zdd_object *kc = (zdd_object *)ar_sprite_slot_frame(
+            &g_ar_sprite_slots[AR_SPR_KEYCAP_6FA], (uint16_t)kc_icons[k].frame);
+        if (kc != NULL)
+            zdd_object_blt_keyed(kc, g_zdd->primary_obj,
+                                 kc_icons[k].x, kc_icons[k].y);
     }
 
     /* The advance "next" indicator (0x48d940, drawn after the content loop): the

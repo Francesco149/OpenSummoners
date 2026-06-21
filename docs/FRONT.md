@@ -57,24 +57,23 @@
   reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
-  **ckpt 153: the res=0 UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR is DONE + pixel-verified
-  (`findings/res0-ui-banks.md`).**  Frida-pinned god+`0xb8c` = **PE resource `0x455` (sotesd.dll)** = the
-  port's slot 43 `AR_SPR_FONT_TEX_455` (ALREADY loaded from the user's sotesd.dll — NO legal blocker; the
-  ckpt-149 "likely res 1000 sotesp" guess was WRONG, quirk #92 retracted), a 24-frame atlas whose frames
-  20-23 are the green BOOK "next" icon.  `--res-probe` proved EVERY UI/HUD/dialogue bank is a sotesd.dll DATA
-  resource (res=0 was a capture-side ID gap, not a special module).  Ported the BOOK advance indicator
-  (`render_dialogue_box`: slot 43 frame base 0x14, box+(368,92), gated `dialogue_awaiting_advance`) —
-  **pixel-verified == retail.osr (errands book @(400,284), `book_compare.png`)**.  Retires the ARROW half of
-  `PORT-DEBT(dialogue-arrow-art)`; 1045 host pass.
-  **NEXT (do FRESH after a /clear): (1) the INLINE `@@`-CODE KEY-CAP ICONS** — codes confirmed
-  (`@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`, exe string `0x86f388`); retail draws them as 17×17 square BLUE key-cap
-  buttons (recon confirmed) from a bank DISTINCT from res 0x455 (those are tan chevrons) — still
-  unidentified.  Name it via a live hook on the grid cell's bank res inside `0x48e200`'s sprite-cell branch
-  (or trace the `@@` handler), then register + a `@@<code>` parser in the body render (`port-debt.md`
-  dialogue-arrow-art).  **(2) (USER directive ckpt 152): port + verify ALL freeroam MOVEMENT TYPES**
-  (double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311).  The
-  errands opening DIALOGUE is DONE (ckpt 152).  The freeroam HUD is fully SCOPED (`findings/freeroam-hud.md`)
-  — its banks are also sotesd.dll DATA (loadable).
+  **ckpt 153: the res=0 UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR + the inline `@@` KEY-CAP
+  ICONS are DONE + pixel-verified — `PORT-DEBT(dialogue-arrow-art)` RETIRED (`findings/res0-ui-banks.md`).**
+  Frida-pinned the UI banks (thischain on `0x410560`/`0x411940` + `--res-probe`): god+`0xb8c` = **PE res
+  `0x455` (sotesd.dll)** = port slot 43 (the BOOK advance icon, frames 20-23); the inline key-caps = **PE res
+  `0x6fa` (sotesd.dll)** = port slot 55 (←=f3/→=f1/X=f9, 279/279-px matched).  **Every UI/HUD/dialogue bank
+  is a sotesd.dll DATA resource (res=0 was a capture-side ID gap, NOT a special module — NO legal blocker;
+  the ckpt-149 "res 1000 sotesp" guess was WRONG, quirk #92 retracted).**  Ported: the BOOK advance indicator
+  (`render_dialogue_box`, box+(368,92), gated `dialogue_awaiting_advance`) == retail book @(400,284); the `@@`
+  parser (`dialogue_keycap_token` + `dialogue_expand_text` count icons as 3 cells in the wrap;
+  `dialogue_body_row_text` blits slot-55 frames) == retail icons @(336,210)/(378,210)/(224,266) — the whole
+  errands tutorial line is pixel-identical (`icons_compare.png`).  1045 host pass.
+  **NEXT (do FRESH after a /clear): port + verify ALL freeroam MOVEMENT TYPES** (USER directive ckpt 152:
+  double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311 + the input
+  findings).  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
+  sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
+  (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
+  until a line uses them (then verify the slot-55 frame + add to the token map).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING

@@ -31,11 +31,18 @@ box+(368,92), gated on `dialogue_awaiting_advance(d)`, with a `CALL_TRACE_BEGIN(
 seq 825 tick 1823, recon pixel-identical (`book_compare.png`).**  Retires the ARROW half of
 `PORT-DEBT(dialogue-arrow-art)`.
 
-RESIDUAL (next): the inline `@@`-code key-cap icons (the USER's tick-1823 flag).  Codes confirmed from
-exe string `0x86f388` (`@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`); retail renders them as 17×17 square BLUE
-key-cap buttons (recon `retail_icons_body.png`) from a bank DISTINCT from res 0x455 (those are tan
-chevrons), still unidentified — name it via the grid cell's bank res inside `0x48e200` (or trace the `@@`
-handler), then port a `@@<code>` parser.  Then the freeroam movement types (USER directive ckpt 152).
+**The inline `@@`-code key-cap icons (the USER's tick-1823 flag) are ALSO DONE + pixel-verified** (same
+checkpoint).  The codes (exe string `0x86f388`: `@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`) render as 17×17 square
+blue key-cap buttons; a 279/279-px slide-match of the `.osr` 17×17 cels against the loaded sotesd banks
+found them in **PE res `0x6fa` (sotesd.dll) = port slot 55 `AR_SPR_KEYCAP_6FA`** (the keyboard
+button-prompt sheet, 256×128 / 32×32 cells: ←=frame 3, →=frame 1, X=frame 9).  Ported a `@@<code>` parser:
+`dialogue_keycap_token` + the `dialogue_expand_text` word-wrap count each icon as 3 cells (not its 3-4
+source bytes — the row byte-buffer grew to `DIALOGUE_ROW_BYTES`), and `dialogue_body_row_text` skips the
+`@@<code>` in the GDI text + blits the slot-55 frame at the body cell.  **Verified off `port-icons3.osr` vs
+`retail.osr`: all 3 icons == retail @(336,210)/(378,210)/(224,266); the whole tutorial line is
+pixel-identical (`icons_compare.png`).**  Retires `PORT-DEBT(dialogue-arrow-art)` entirely.  RESIDUAL: only
+←/→/X are mapped; other `@@` codes (↑/↓/Z/C) are unknown-skipped until a line uses them.  NEXT: the freeroam
+movement types (USER directive ckpt 152), then the freeroam HUD.
 
 ## 2026-06-21 (ckpt 152) — the errands-scene opening dialogue (the movement tutorial), tick-aligned
 

@@ -116,6 +116,11 @@
 #define DIALOGUE_ROW_CHARS    0x24    /* 36 — 0x439690:408 (252px = 36*7) = grid  *
                                        * COLS (0x40dee0 param_3); NOT the pitch    */
 #define DIALOGUE_MAX_ROWS     3       /* 0x439690:402 (0x40dee0 param_4)          */
+/* Per-row byte capacity.  Word-wrap is by CELL width (DIALOGUE_ROW_CHARS), but a
+ * row may hold @@<code> key-cap escapes whose source bytes (4) exceed their cell
+ * width (3) — so the byte buffer needs slack over the cell count. */
+#define DIALOGUE_ROW_BYTES    (DIALOGUE_ROW_CHARS + 16)
+#define DIALOGUE_KEYCAP_CELLS 3       /* an @@<code> icon's monospace width (cells) */
 
 /* colors (COLORREF 0x00bbggrr) */
 #define DIALOGUE_NAME_MAIN    0xffffffu /* 0x439690:464                          */
@@ -176,7 +181,7 @@ typedef struct {
     int32_t  arrow_idx;     /* +0x72: 0..3 into the anim table               */
     int32_t  arrow_timer;   /* +0x74: counts to DIALOGUE_ARROW_PERIOD        */
     /* the expanded text (rows split on %n + word wrap at ROW_CHARS) */
-    char     rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1];
+    char     rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES];
     int32_t  row_count;
     int32_t  total;         /* total revealable chars across rows            */
     char     name[32];      /* speaker name (an exe string, copied)          */
@@ -219,7 +224,14 @@ extern const int16_t DIALOGUE_RUNOFF_SLIDE[DIALOGUE_RUNOFF_SLIDE_N][2];
  * dropped — PORT-DEBT(dialogue-textwrap): the retail expander 0x43cf90 also
  * handles escapes/ruby and >3-row paging, unneeded for the town line 1). */
 int dialogue_expand_text(const char *src,
-                         char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_CHARS + 1]);
+                         char rows[DIALOGUE_MAX_ROWS][DIALOGUE_ROW_BYTES]);
+
+/* If `s` (with `avail` bytes left) begins with an `@@<code>` key-cap escape
+ * (0x40 0x40 + a 1-2 byte code), return its res-0x6fa frame and set *byte_len
+ * (the @@+code bytes consumed) + *cells (its monospace width = KEYCAP_CELLS).
+ * -1 = an unknown @@<code> (still a token: byte_len + cells set, no icon).
+ * -2 = NOT an @@ token.  Shared by the wrap (dialogue.c) + the render (main.c). */
+int dialogue_keycap_token(const char *s, int avail, int *byte_len, int *cells);
 
 /* Arm the bubble for one line: expands `text`, copies `name`, zeroes the
  * animation state (scale 0 = pop-in starts on the next update). */

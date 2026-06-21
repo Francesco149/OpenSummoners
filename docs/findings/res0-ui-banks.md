@@ -72,7 +72,7 @@ metric; `0x48d940` blits it only once the body grid leaves typing-state 1.  Posi
 a `CALL_TRACE_BEGIN(0x48d940)` mirror.  Retires the ARROW half of
 `PORT-DEBT(dialogue-arrow-art)`.
 
-## The inline `@@`-code key-cap icons (codes confirmed; bank still TBD)
+## The inline `@@`-code key-cap icons — BANK RESOLVED (res 0x6fa)
 
 The errands tutorial line 3 (exe string **0x86f388**, read verbatim from the user's exe):
 ```
@@ -80,23 +80,45 @@ To move around, I press @@\x81\xa9 & @@\x81\xa8, and to talk to people and do st
 ```
 So the escape is `@@` (0x40 0x40) + a 1-2 byte code: **`\x81\xa9`=← (SJIS), `\x81\xa8`=→
 (SJIS), `X`=action**.  At tick 1823 retail draws exactly 3 icons (`draw_probe` seq 537-539,
-17×17 keyed): **←@(336,210), →@(378,210), X@(224,266)**.
+17×17 keyed): **←@(336,210), →@(378,210), X@(224,266)** — square grey 3D KEY-CAP BUTTONS with
+a blue symbol (`osr_prof` recon `runs/ui-bank/retail_icons_body.png` + the per-cel
+`runs/ui-bank/icons_src.png`).  These are NOT res 0x455 (those are tan chevrons), a DISTINCT
+bank.
 
-**Recon (`osr_prof` frame 3049 → `runs/ui-bank/retail_icons_body.png`, on the feed): the
-icons are square BLUE/grey KEY-CAP BUTTONS** with the ←/→/X symbol on them — NOT the res
-0x455 tan chevrons (wrong colour + shape).  So the inline key-caps come from a **distinct,
-still-unidentified bank** (res 0x457 rendered as 256×320 is garbled box-ornament art, not
-these — its true dims/bpp are unconfirmed).  The grid renderer `0x48e200` (sprite-cell mode,
-`param_1==0`) blits each cell from `cell[0]` (a bank ptr) frame `cell+4` — the bank is set
-when the `@@` handler builds the grid (the text→grid layout pass, upstream of `0x48e200`;
-`0x4051d0` is the raw-SJIS→cell substitution, 50× 7-byte records keyed on the 2 code bytes →
-an output cell code + a `DAT_008544d0/d4` marker).
+**RESOLVED by a PIXEL-EXACT match (279/279 px each):** the `.osr` captured each icon's 17×17
+RGB565 source cel (keyed by dhash; res=0 = unmapped).  Sliding those cels over every
+sotesd.dll bank that loaded in the errands drive found them in **PE resource `0x6fa` (1786,
+sotesd.dll)** — the keyboard KEY-CAP / button-prompt sheet (arrows row 0, Z/X/C row 1, F1-F4
+row 2; render `runs/ui-bank/r6fa_flip1.png`).  Layout: **256×128, 32×32 cells = 8 cols × 4
+rows = 32 frames**, sliced bottom-up like res 0x455 (frame = row·8 + col of the natural
+top-down image).  The 3 errands icons:
+| code | symbol | cell (col,row) | **frame** |
+|------|--------|----------------|-----------|
+| `@@\x81\xa9` | ← | (3,0) | **3** |
+| `@@\x81\xa8` | → | (1,0) | **1** |
+| `@@X` | X | (1,1) | **9** |
+The blit uses a 17×17 sub-window of the 32×32 cell (the cel's own `+0xb8/+0xbc` metric).
 
-**Next step to name the key-cap bank** (the descriptor at the `0x5b9b70` icon blit is the
-CEL, which carries no res): either (a) a live hook reading the grid cell's bank res inside
-`0x48e200`'s sprite-cell branch (`*(cell+0x40)`) at the errands line-3 ticks, or (b) trace
-the `@@` handler to the god+offset it pulls the key-cap bank from.  Then register/decode it
-(from the user's sotesd.dll) + port a `@@<code>` parser into the body render.
+**The `@@` body layout** (derived from retail's exact x): the body is monospace at 7px/cell
+(`DIALOGUE_ADVANCE`), x0 = `box_x + DIALOGUE_TEXT_DX`.  An `@@<code>` consumes the `@@` + the
+1-2 byte code from the source but advances the cursor by **3 cells** (21px), blitting the
+key-cap at `(x0 + cell·7, row_y − 2)`.  Verified: ←@cell 24 → x=168+24·7=336 ✓, →@cell 30
+(←(3) + " & "(3) after), X@cell 8 → x=168+8·7=224 ✓.  (The grid renderer `0x48e200`
+sprite-cell mode blits each cell from `cell[0]` bank + `cell+4` frame; `0x4051d0` is the
+upstream raw-SJIS→cell substitution.)
+
+**PORT — DONE + pixel-verified (ckpt 153).**  res 0x6fa is ALREADY registered (slot 55,
+`asset_register.c` `{55,0x6fa,0x20,0x20,…}` = `AR_SPR_KEYCAP_6FA`).  `dialogue.c`
+`dialogue_keycap_token` + `dialogue_expand_text` count each `@@<code>` as
+`DIALOGUE_KEYCAP_CELLS`=3 cells in the word-wrap (not its 3-4 source bytes — the byte
+buffer grew to `DIALOGUE_ROW_BYTES`); `main.c` `dialogue_body_row_text` lays out the body
+char=1/icon=3 cells, skips the `@@<code>` in the GDI text, and blits the slot-55 frame at
+`(x0 + cell·7, row_y − 2)`.  **Verified off `port-icons3.osr` vs `retail.osr`: all 3 icons
+==** retail (←@(336,210)f3 / →@(378,210)f1 / X@(224,266)f9), `icons_compare.png` shows the
+line pixel-identical.  Retires `PORT-DEBT(dialogue-arrow-art)` entirely (the book indicator +
+the inline key-caps).  RESIDUAL: only ←/→/X are mapped (the codes the errands line uses);
+other `@@` codes (↑/↓ = SJIS 0x81aa/0x81ab → atlas row 0 cells 0/2; Z=frame 8, C=10) are
+unknown-skipped until a line exercises them (then verify the frame + add to the token map).
 
 ## The freeroam HUD banks
 

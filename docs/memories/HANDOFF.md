@@ -29,18 +29,23 @@
   Verified off `port-arrow.osr` vs `retail.osr`: the book draws at the errands box (400,284) == retail.osr
   seq 825 tick 1823, and the recon crop is pixel-identical (`book_compare.png`).  Retires the ARROW half of
   `PORT-DEBT(dialogue-arrow-art)`.
-- **NEXT move #1 — the inline `@@`-code KEY-CAP ICONS (the USER's tick-1823 flag).**  Codes confirmed from
-  exe string `0x86f388`: `@@\x81\xa9`(←)/`@@\x81\xa8`(→)/`@@X`(X) (`0x40 0x40` + a 1-2 byte code).  Retail
-  renders them as **17×17 square BLUE key-cap buttons** (recon `retail_icons_body.png`; retail.osr seq
-  537-539 @ (336,210)/(378,210)/(224,266)) — a bank DISTINCT from res 0x455 (those are tan chevrons), still
-  unidentified.  Name it: a live hook reading the grid cell's bank res (`*(cell+0x40)`) inside `0x48e200`'s
-  sprite-cell branch at the errands line-3 ticks, OR trace the `@@` handler (the text→grid layout sets
-  `cell[0]`; `0x4051d0` is the raw-SJIS→cell substitution).  Then register + a `@@<code>` parser in the body
-  render.  **NEXT move #2 — port + verify ALL freeroam MOVEMENT TYPES** (USER directive ckpt 152;
-  double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set).
-- **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-arrow.osr` |
-  `retail.osr`) — scrub any waiting dialogue line (the book "next" indicator now shows at the box
-  bottom-right, matching retail).
+- **The inline `@@`-code KEY-CAP ICONS (the USER's tick-1823 flag) — DONE + pixel-verified.**  Codes (exe
+  string `0x86f388`): `@@\x81\xa9`(←)/`@@\x81\xa8`(→)/`@@X`(X).  PIXEL-MATCHED (279/279 px each, off the
+  `.osr` 17×17 cels) to **PE res `0x6fa` (sotesd.dll) = port slot 55 `AR_SPR_KEYCAP_6FA`** (the keyboard
+  button-prompt sheet: 256×128, 32×32 cells; ←=frame 3, →=frame 1, X=frame 9).  `dialogue.c`
+  `dialogue_keycap_token` + the `dialogue_expand_text` wrap count each icon as `DIALOGUE_KEYCAP_CELLS`=3
+  cells (NOT its 3-4 source bytes — the byte buffer grew to `DIALOGUE_ROW_BYTES`); `main.c`
+  `dialogue_body_row_text` skips the `@@<code>` in the GDI text + blits the slot-55 frame at `(x0+cell·7,
+  row_y−2)`.  **VERIFIED off `port-icons3.osr` vs `retail.osr`: all 3 icons == retail @(336,210)/(378,210)/
+  (224,266); the whole line is pixel-identical (`icons_compare.png`).**  Retires `PORT-DEBT(dialogue-arrow-art)`.
+  RESIDUAL: only ←/→/X mapped — other `@@` codes (↑/↓ = SJIS 0x81aa/0x81ab → atlas row 0 cells 0/2; Z=8,
+  C=10) are unknown-skipped until a line uses them (verify the frame, add to the token map).
+- **NEXT move — port + verify ALL freeroam MOVEMENT TYPES** (USER directive ckpt 152; double-tap dash ✓,
+  up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311 + the input findings).  THEN
+  the freeroam HUD (scoped, `findings/freeroam-hud.md`; its banks are also sotesd.dll DATA = loadable).
+- **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-icons3.osr` |
+  `retail.osr`) — scrub the errands tutorial line (the ←/→/X key-caps + the book "next" indicator render
+  matching retail).
 
 ## Prior — ckpt 152
 
