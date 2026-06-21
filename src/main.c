@@ -965,6 +965,12 @@ static void drive_present(void *user)
     osr_emit_state_field("rngcalls", OSR_ST_INT, (int64_t)rng_call_count(), 0.0);
     /* The freeroam mover's live command + body — proves the input→command chain in
      * the real exe (cmd_pose flips 0/10/0xb on DOWN/UP; cmd_lr 0/5/6 on a dash). */
+    osr_emit_state_field("fr_locked", OSR_ST_INT,
+        (int64_t)(g_freeroam_active &&
+                  (g_errands_dlg_pending || cutscene_active(&g_cutscene))), 0.0);
+    osr_emit_state_field("fr_csln", OSR_ST_INT,
+        (int64_t)(cutscene_active(&g_cutscene)
+                      ? g_cutscene.room_idx * 10 + g_cutscene.line_idx : -1), 0.0);
     osr_emit_state_field("fr_pose",  OSR_ST_INT, (int64_t)g_freeroam_char.cmd_pose, 0.0);
     osr_emit_state_field("fr_lr",    OSR_ST_INT, (int64_t)g_freeroam_char.cmd_lr,   0.0);
     osr_emit_state_field("fr_wx",    OSR_ST_INT, (int64_t)g_freeroam_char.world_x,  0.0);
@@ -2859,27 +2865,37 @@ static void freeroam_begin(void)
  * world pos/facing into the render-state, and advance the walk/idle clip. */
 static void freeroam_step(void)
 {
-    /* The SAME input_mgr +0x114 array A the retail char-AI reads (held-trace replay
-     * or the live keyboard producer); axis[0..3] = UP/DOWN/LEFT/RIGHT, [4] = jump
-     * (C, +0x124), [5] = attack (X). */
-    const int *axis = (const int *)g_game_drive.input.axis_held;
+    /* Control is LOCKED while the errands OPENING DIALOGUE is pending or playing: retail
+     * keeps Arche STATIONARY through the movement-tutorial lines and hands control off
+     * only when they FINISH (USER ckpt 153 — the ckpt-152 "concurrent" hand-off applied
+     * input too early; she shouldn't be controllable until the dialogue is over).  When
+     * locked, drive the mover with a ZEROED axis (no ring either) so any held key/double
+     * -tap is ignored and she brakes to + holds idle — not the live keyboard.  The gate:
+     * g_errands_dlg_pending covers the fade-in window before the lines arm, then
+     * cutscene_active covers the lines themselves (g_cutscene re-armed = the errands
+     * dialogue during freeroam); both clear when the 3 lines complete. */
+    static const int zero_axis[CHAR_AXIS_COUNT + 2] = {0};
+    int locked = g_errands_dlg_pending || cutscene_active(&g_cutscene);
+    /* axis[0..3] = UP/DOWN/LEFT/RIGHT (input_mgr +0x114 array A), [4] = jump (C, +0x124). */
+    const int *axis = locked ? zero_axis
+                             : (const int *)g_game_drive.input.axis_held;
+    struct input_mgr *ring = locked ? NULL : &g_game_drive.input;
     /* jump = the C button LEVEL (axis_held[4]); character_step detects the rising
      * edge + runs the bit-exact windup/impulse/variable-height arc.  run = the DASH
-     * flag, now resolved from the live event ring by character_resolve_run (the
-     * 0x478ba0 double-tap detection 0x479e70, ckpt 150 — retires
-     * PORT-DEBT(char-run-trigger)): a USER tap-tap-hold of a direction dashes.  The
-     * ring records its timestamps in GetTickCount() ms, so the window compare uses
-     * the same clock. */
+     * flag, resolved from the live event ring by character_resolve_run (the 0x478ba0
+     * double-tap detection 0x479e70, ckpt 150): a USER tap-tap-hold of a direction
+     * dashes.  The ring records its timestamps in GetTickCount() ms, so the window
+     * compare uses the same clock. */
     int jump = axis[CHAR_AXIS_COUNT];   /* axis_held[4] = the jump button level */
     uint32_t now = GetTickCount();
-    int run  = character_resolve_run(&g_freeroam_char, &g_game_drive.input,
+    int run  = character_resolve_run(&g_freeroam_char, ring,
                                      now, axis, CHAR_DASH_WINDOW_MS);
     /* Resolve the U/D POSE command (cmd[3] = 10 DOWN / 0xb UP) off the same ring each
      * tick — the self-sustain state must advance every tick (0x478ba0:248-259, ckpt 153);
      * it stores into g_freeroam_char.cmd_pose, which character_step reads for the apply
      * states 2/5 brake (crouch / slide / UP-stops-you-faster, ckpt 153 — bit-exact -800
      * vs runs/pose-demo/cap-body). */
-    (void)character_resolve_pose(&g_freeroam_char, &g_game_drive.input, now, axis);
+    (void)character_resolve_pose(&g_freeroam_char, ring, now, axis);
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;

@@ -331,14 +331,22 @@ const cutscene_room *cutscene_town_chain(int *n_rooms)
  * switches to the errands scene where you have control."  Three Arche lines via
  * 0x49d6e0 (the SAME dialogue display the town chain uses), the movement-tutorial
  * intro.  Each call is 0x49d6e0(0, Arche=0x5f5e165, text, 0, 1, 1, 0, FACE, 0,
- * voice=0) followed by 0x439680 (the beat pump that runs the game loop while
- * the line waits for the player's advance — so the dialogue + freeroam control
- * coexist).  FACE = param_8 (the script's uVar10): L1/L2 = 0x02, L3 = 0x09 (Arche
- * expressions, the same face ids the arrival uses).  Voices are 0 (unvoiced).
+ * voice=0) followed by 0x439680 (the beat pump that runs the game loop while the
+ * line waits for the player's advance).  FACE = param_8 (the script's uVar10):
+ * L1/L2 = 0x02, L3 = 0x09 (Arche expressions, the same face ids the arrival uses).
+ * Voices are 0 (unvoiced).
+ *
+ * PLAYER CONTROL is LOCKED through the dialogue (USER ckpt 153 — the game owner: she
+ * is NOT controllable until the lines are over).  The earlier read here ("control is
+ * live, the player just happened not to move during the recording") was a WRONG
+ * inference from 0x439680 pumping the loop: the pump animates the scene (idle breathe,
+ * camera) but the char-AI's MOVEMENT is suppressed while a line is up.  main.c
+ * freeroam_step gates control on `g_errands_dlg_pending || cutscene_active` so she
+ * holds idle at the spawn until the 3 lines complete, then hands off.
  *
  * Arche stands STATIC at the freeroam spawn (retail.osr res 0x570 @screen (162,336),
- * idle breathing — the player happens not to move during the recording, though
- * control is live); the box anchors to her via 0x49c640 and CLAMPS to the left
+ * idle breathing — the recording confirms she does not move);
+ * the box anchors to her via 0x49c640 and CLAMPS to the left
  * edge (she is near x=32, so box_x = clamp(.., 0x20, ..) = 32 — the wide bottom box
  * seen in retail.osr, drawcall-confirmed (32,192)-(440,304) with the tail at ~186
  * pointing down to her).  spk_wx/wy = the errands spawn world (FREEROAM_ARCHE_SPAWN);
