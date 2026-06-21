@@ -1,0 +1,65 @@
+{
+ "_doc": "THROWAWAY ground-truth spec (ckpt 152, PORT-DEBT(dialogue-arrow-art) / freeroam-hud.md). Resolves the res=0 UI sprite bank source: god+0xb8c (the dialogue advance-arrow bank, frame base 0x14) + god+0xb88 (the sibling UI bank). The owning object is the __thiscall `this` (ECX) of FUN_00410560 (the arrow-widget init, reads *(ECX+0xb8c)) and FUN_00411940 (the dialogue-box build, reads both *(ECX+0xb88) and *(ECX+0xb8c)). Each bank object stores, per FUN_004184a0 -> bitmap_session::FUN_005b7800(this, hModule@+0x3c, resource_id@+0x40, type, ...): the source HMODULE at +0x3c and the PE resource id (u16) at +0x40. thischain hops=[2956]=0xb8c / [2952]=0xb88 -> the bank object; off=64=0x40 -> res (hex), off=60=0x3c -> HMODULE (hex). Pair with --res-probe (res_loads.jsonl) to resolve the HMODULE -> module name + resource type by cross-ref (id + hmod). Run: nix develop --command python3 tools/frida_capture.py --no-turbo --input-trace runs/cutscene-verify/nav-full-errands.jsonl --field-spec tools/flow/ui_bank_fields.json --field-spec-only --call-trace runs/ui-bank/cap/call_trace.jsonl --res-probe --run-dir runs/ui-bank/cap --duration-ms 240000.",
+ "fields": {
+  "0x410560": {
+   "name": "dlg_arrow_init",
+   "_note": "FUN_00410560 — the dialogue advance-arrow widget init (__thiscall, ECX = the scene/UI object owning the +0xb8c bank). Reads uVar1=*(ECX+0xb8c), stores it as the widget bank (+0x28), sets frame base 0x14 + anim {0,1,2,3}. Fires once a dialogue line finishes typing (the waiting state). The cleanest pin for the arrow bank since the bank is definitely populated here.",
+   "fields": [
+    {
+     "name": "arrow_bank_res",
+     "src": "thischain",
+     "hops": [2956],
+     "off": 64,
+     "type": "hex",
+     "_note": "*(ECX+0xb8c)+0x40 = the arrow/UI bank's PE resource id (u16 in the low bits)."
+    },
+    {
+     "name": "arrow_bank_mod",
+     "src": "thischain",
+     "hops": [2956],
+     "off": 60,
+     "type": "hex",
+     "_note": "*(ECX+0xb8c)+0x3c = the arrow/UI bank's source HMODULE (DLL base); cross-ref --res-probe hmod -> module name."
+    }
+   ]
+  },
+  "0x411940": {
+   "name": "dlg_box_build",
+   "_note": "FUN_00411940 — the dialogue-box widget build (__thiscall, ECX = the same scene/UI object). Reads both *(ECX+0xb88) and *(ECX+0xb8c) as shared UI banks and writes the name color 0x455f7b. Pins the sibling bank +0xb88 too.",
+   "fields": [
+    {
+     "name": "b8c_res",
+     "src": "thischain",
+     "hops": [2956],
+     "off": 64,
+     "type": "hex",
+     "_note": "*(ECX+0xb8c)+0x40 = bank res (should match arrow_bank_res)."
+    },
+    {
+     "name": "b8c_mod",
+     "src": "thischain",
+     "hops": [2956],
+     "off": 60,
+     "type": "hex",
+     "_note": "*(ECX+0xb8c)+0x3c = bank HMODULE."
+    },
+    {
+     "name": "b88_res",
+     "src": "thischain",
+     "hops": [2952],
+     "off": 64,
+     "type": "hex",
+     "_note": "*(ECX+0xb88)+0x40 = the sibling UI bank res."
+    },
+    {
+     "name": "b88_mod",
+     "src": "thischain",
+     "hops": [2952],
+     "off": 60,
+     "type": "hex",
+     "_note": "*(ECX+0xb88)+0x3c = the sibling UI bank HMODULE."
+    }
+   ]
+  }
+ }
+}

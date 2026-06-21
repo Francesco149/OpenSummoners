@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-21 (ckpt 153) — the "res=0" UI sprite bank RESOLVED + the dialogue advance indicator ported
+
+**USER-chosen ckpt-152 task: "resolve the res=0 UI sprite bank" (the dialogue advance indicator + the
+inline `@@`-code key-cap icons + the freeroam HUD; "load it from the user's files; bank unlocated").**
+RESOLVED via Frida ground truth.  1045 host pass.  Full RE: `findings/res0-ui-banks.md`.
+
+A throwaway field spec (`tools/flow/ui_bank_fields.json`) `thischain`-pins the two dialogue widget
+builders `FUN_00410560`/`FUN_00411940` (`this`+`0xb8c`/`+0xb88`, dereffing the bank's `+0x3c` HMODULE
+and `+0x40` resource id — the args `FUN_005b7800` passes to `FindResourceA`), and `--res-probe` (hooks
+`FUN_005b7800`) names the module per load.  **Result: god+`0xb8c` = PE resource `0x455` (sotesd.dll) =
+the port's slot 43 `AR_SPR_FONT_TEX_455`, ALREADY loaded from the user's sotesd.dll; god+`0xb88` = res
+`0x457`.**  `res_loads.jsonl` (83 distinct loads) proved EVERY UI/HUD/dialogue bank is a sotesd.dll DATA
+resource — so `res=0` in the `.osr` is a capture-side identity gap (the proxy only names cels via the
+`0x418470` registry), NOT a special module, and there is no legal blocker for any of them.  The ckpt-149
+"likely res 1000 in sotesp" guess (quirk #92) was WRONG — retracted.
+
+res 0x455 is a 128×288 / 4×6 / 32×48 / 24-frame atlas (rendered: `atlas_0x455_labeled.png`): the gold
+ornament (0-2), tan ◄/► chevrons (4-11), the feather cursor (12-19; 16-19 = the newgame selection
+cursor), and **the green BOOK "next" advance indicator at frames 20-23 (base `0x14`)**.  Ported the
+indicator in `render_dialogue_box` (`src/main.c`): it blits slot 43 frame `dialogue_arrow_frame(d)` at
+box+(368,92), gated on `dialogue_awaiting_advance(d)`, with a `CALL_TRACE_BEGIN(0x48d940)` mirror.
+**Verified off `port-arrow.osr` vs `retail.osr`: the book draws at the errands box (400,284) == retail.osr
+seq 825 tick 1823, recon pixel-identical (`book_compare.png`).**  Retires the ARROW half of
+`PORT-DEBT(dialogue-arrow-art)`.
+
+RESIDUAL (next): the inline `@@`-code key-cap icons (the USER's tick-1823 flag).  Codes confirmed from
+exe string `0x86f388` (`@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`); retail renders them as 17×17 square BLUE
+key-cap buttons (recon `retail_icons_body.png`) from a bank DISTINCT from res 0x455 (those are tan
+chevrons), still unidentified — name it via the grid cell's bank res inside `0x48e200` (or trace the `@@`
+handler), then port a `@@<code>` parser.  Then the freeroam movement types (USER directive ckpt 152).
+
 ## 2026-06-21 (ckpt 152) — the errands-scene opening dialogue (the movement tutorial), tick-aligned
 
 **USER directive:** "we're still missing the opening dialogue for the errands scene (starts once

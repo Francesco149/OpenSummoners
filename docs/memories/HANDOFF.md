@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 150, 2026-06-20)
+# Session handoff — rolling current state (last updated ckpt 153, 2026-06-21)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,43 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 152
+## Where we are — ckpt 153
+
+**The "res=0" UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR is PORTED + pixel-verified.**
+1045 host pass.  Full RE: `findings/res0-ui-banks.md`.
+
+- **The USER-chosen ckpt-152 task ("resolve the res=0 UI sprite bank") is DONE.**  Frida ground truth
+  (`runs/ui-bank/`, `tools/flow/ui_bank_fields.json`): a `thischain` pin on the two widget builders
+  `FUN_00410560`/`FUN_00411940` (`this`+`0xb8c`/`+0xb88`, deref the bank's `+0x3c` HMODULE / `+0x40` res —
+  the fields `FUN_005b7800` passes to `FindResourceA`) + `--res-probe` (hooks `FUN_005b7800`, names the
+  module).  **god+`0xb8c` = PE resource `0x455` (sotesd.dll) = the port's slot 43 `AR_SPR_FONT_TEX_455`
+  (ALREADY loaded from the user's sotesd.dll)**; god+`0xb88` = res `0x457`.  `res_loads.jsonl` (83 loads)
+  proved EVERY UI/HUD/dialogue bank is a sotesd.dll DATA resource — **`res=0` is a capture-side ID gap (the
+  proxy only names cels via the 0x418470 registry), NOT a special module.  No legal blocker for any of them.**
+  The ckpt-149 "likely res 1000 sotesp" hypothesis (quirk #92) was WRONG — retracted.
+- **res 0x455 atlas** (`atlas_0x455_labeled.png`): 128×288 = 4×6 grid of 32×48 cells = 24 frames, sliced
+  bottom-up.  f0-2 ornament, f3 red ◄►, f4-7 tan ◄, f8-11 tan ►, f12-19 feather (16-19 = the newgame
+  cursor), **f20-23 = the green BOOK "next" advance indicator** (base `0x14`).
+- **The advance indicator is PORTED + pixel-verified (`render_dialogue_box`, `src/main.c`):** blits slot 43
+  frame `dialogue_arrow_frame(d)` (base 0x14 + anim {0,1,2,3}) at box+(`DIALOGUE_ARROW_DX`,`DY`)=(368,92),
+  gated on `dialogue_awaiting_advance(d)` (main box only), with a `CALL_TRACE_BEGIN(0x48d940)` mirror.
+  Verified off `port-arrow.osr` vs `retail.osr`: the book draws at the errands box (400,284) == retail.osr
+  seq 825 tick 1823, and the recon crop is pixel-identical (`book_compare.png`).  Retires the ARROW half of
+  `PORT-DEBT(dialogue-arrow-art)`.
+- **NEXT move #1 — the inline `@@`-code KEY-CAP ICONS (the USER's tick-1823 flag).**  Codes confirmed from
+  exe string `0x86f388`: `@@\x81\xa9`(←)/`@@\x81\xa8`(→)/`@@X`(X) (`0x40 0x40` + a 1-2 byte code).  Retail
+  renders them as **17×17 square BLUE key-cap buttons** (recon `retail_icons_body.png`; retail.osr seq
+  537-539 @ (336,210)/(378,210)/(224,266)) — a bank DISTINCT from res 0x455 (those are tan chevrons), still
+  unidentified.  Name it: a live hook reading the grid cell's bank res (`*(cell+0x40)`) inside `0x48e200`'s
+  sprite-cell branch at the errands line-3 ticks, OR trace the `@@` handler (the text→grid layout sets
+  `cell[0]`; `0x4051d0` is the raw-SJIS→cell substitution).  Then register + a `@@<code>` parser in the body
+  render.  **NEXT move #2 — port + verify ALL freeroam MOVEMENT TYPES** (USER directive ckpt 152;
+  double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set).
+- **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-arrow.osr` |
+  `retail.osr`) — scrub any waiting dialogue line (the book "next" indicator now shows at the box
+  bottom-right, matching retail).
+
+## Prior — ckpt 152
 
 **The errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**  1045 host pass.
 

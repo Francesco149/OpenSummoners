@@ -57,15 +57,24 @@
   reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
-  **NEXT (USER-chosen ckpt 152, do FRESH after a /clear): RESOLVE THE res=0 UI SPRITE BANK** — the errands
-  dialogue line-3 inline icons (←/→/X key caps for the `@@<code>` escapes, USER-flagged + fully RE'd) are
-  res=0 UI sprites that must be LOADED FROM THE USER'S FILES (legal: never embed captured pixels), and that
-  bank is unlocated = the SAME subsystem as the HUD + the dialogue advance-arrow (god+0xb8c).  Frida-hook
-  the icon blit `0x5b9b70` → name the bank → load + parse `@@<code>` + render; unblocks ICONS + HUD + arrow.
-  Full RE: `port-debt.md` (dialogue-arrow-art).  **THEN (USER directive ckpt 152): port + verify ALL freeroam
-  MOVEMENT TYPES** (double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — see
-  engine-quirks #~3311 + task #3).  The errands opening DIALOGUE is DONE (ckpt 152, tick-aligned).  The
-  freeroam HUD is fully SCOPED (`findings/freeroam-hud.md`) — it shares the res=0 UI-bank resolution.
+  **ckpt 153: the res=0 UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR is DONE + pixel-verified
+  (`findings/res0-ui-banks.md`).**  Frida-pinned god+`0xb8c` = **PE resource `0x455` (sotesd.dll)** = the
+  port's slot 43 `AR_SPR_FONT_TEX_455` (ALREADY loaded from the user's sotesd.dll — NO legal blocker; the
+  ckpt-149 "likely res 1000 sotesp" guess was WRONG, quirk #92 retracted), a 24-frame atlas whose frames
+  20-23 are the green BOOK "next" icon.  `--res-probe` proved EVERY UI/HUD/dialogue bank is a sotesd.dll DATA
+  resource (res=0 was a capture-side ID gap, not a special module).  Ported the BOOK advance indicator
+  (`render_dialogue_box`: slot 43 frame base 0x14, box+(368,92), gated `dialogue_awaiting_advance`) —
+  **pixel-verified == retail.osr (errands book @(400,284), `book_compare.png`)**.  Retires the ARROW half of
+  `PORT-DEBT(dialogue-arrow-art)`; 1045 host pass.
+  **NEXT (do FRESH after a /clear): (1) the INLINE `@@`-CODE KEY-CAP ICONS** — codes confirmed
+  (`@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`, exe string `0x86f388`); retail draws them as 17×17 square BLUE key-cap
+  buttons (recon confirmed) from a bank DISTINCT from res 0x455 (those are tan chevrons) — still
+  unidentified.  Name it via a live hook on the grid cell's bank res inside `0x48e200`'s sprite-cell branch
+  (or trace the `@@` handler), then register + a `@@<code>` parser in the body render (`port-debt.md`
+  dialogue-arrow-art).  **(2) (USER directive ckpt 152): port + verify ALL freeroam MOVEMENT TYPES**
+  (double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311).  The
+  errands opening DIALOGUE is DONE (ckpt 152).  The freeroam HUD is fully SCOPED (`findings/freeroam-hud.md`)
+  — its banks are also sotesd.dll DATA (loadable).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING

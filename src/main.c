@@ -2555,17 +2555,34 @@ static void render_dialogue_box(dialogue_box *d, int emit_trace)
         zdd_object_release_dc(g_zdd->primary_obj, hdc);
     }
 
-    /* The advance arrow (0x48d940, drawn after the content loop) is HIDDEN
-     * while the typewriter runs (the +0x174[0]==1 early-out; confirmed on the
-     * retail PNGs: no arrow at flips 2800/3100 mid-typing) and appears only
-     * once the line completes, waiting for Z — a state past every current
-     * capture.  PORT-DEBT(dialogue-arrow-art): its bank (god+0xb8c; the
-     * box_cell probe's res_id 1000 collides with sotesd's parallax mountain
-     * sheet — quirk #92 numeric collision, module unresolved) needs a module-
-     * aware re-probe; the config is RE'd (0x410560: frame base 0x14 + table
-     * {0,1,2,3}, step per 10 updates, 1px bob in the cel metrics, pos
-     * box+(368,92)) and dialogue_arrow_frame() tracks it. */
-    (void)dialogue_arrow_frame(d);
+    /* The advance "next" indicator (0x48d940, drawn after the content loop): the
+     * green BOOK icon at the box bottom-right.  HIDDEN while the typewriter runs
+     * (the +0x174[0]==1 early-out) and shown only once the line is fully revealed
+     * and waiting for Z (dialogue_awaiting_advance), on the MAIN box only.
+     *
+     * BANK RESOLVED (ckpt 153, Frida runs/ui-bank): god+0xb8c = PE resource 0x455
+     * (sotesd.dll) = port slot AR_SPR_FONT_TEX_455 (43, the SAME atlas the newgame
+     * cursor uses) — a 24-frame 4x6 32x48 atlas whose frames 20-23 are the book
+     * "next" icon (base 0x14 + anim table {0,1,2,3}, step per 10 updates; the 1px
+     * bob is baked into the per-frame cel placement metrics, applied inside the
+     * keyed blit).  Pos = box+(0x170,0x5c) = (368,92) (0x410560 +0x7c/+0x80) — at
+     * the errands box (32,192) that lands the cel at (400,284), == retail.osr seq
+     * 825 tick 1823 (32x31). */
+    if (emit_trace && dialogue_awaiting_advance(d)) {
+        zdd_object *acel = (zdd_object *)ar_sprite_slot_frame(
+            &g_ar_sprite_slots[AR_SPR_FONT_TEX_455],
+            (uint16_t)dialogue_arrow_frame(d));
+        if (acel != NULL) {
+            CALL_TRACE_BEGIN(0x48d940);          /* the advance-arrow draw */
+            CALL_TRACE_I32("x", box_x + DIALOGUE_ARROW_DX);
+            CALL_TRACE_I32("y", box_y + DIALOGUE_ARROW_DY);
+            CALL_TRACE_I32("frame", dialogue_arrow_frame(d));
+            CALL_TRACE_END();
+            zdd_object_blt_keyed(acel, g_zdd->primary_obj,
+                                 box_x + DIALOGUE_ARROW_DX,
+                                 box_y + DIALOGUE_ARROW_DY);
+        }
+    }
 }
 
 /* Render the dialogue: during a speaker-change transition the OLD box (closing,

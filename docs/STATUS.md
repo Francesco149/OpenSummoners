@@ -83,12 +83,30 @@ understates how much actual instruction volume is ported.
   reach full black aligned (tick ~1699, differ 59k→1379); render matches retail.  Committed `22047fb`, 1028 host
   pass.  RESIDUAL: a ~13t cover-START phase offset = the HOUSE dialogue cadence is not yet tick-1:1 (the arrival
   is, ckpt 134) — a phase-pillar follow-up.**
-  **NEXT: the errands opening DIALOGUE + questline (0x4dc510) + the freeroam HUD/clock (USER notes #13-18) +
-  freeroam refinements (run/dash double-tap [char-run-trigger] DONE ckpt 150; camera-follow, distance-locked walk/run cels).
-  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146 (`cfc6a96`)**:
-  the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2 after house L5;
-  ported as a fire-and-forget `CS_ACT_ACTOR_TURN` on the room-cast Arche, drawcall-faithful vs retail.osr (res
-  0x570; the ~7t absolute lag = the house-cadence phase debt).  (B) 3 missing errands FURNITURE
+  **ckpt 153: the res=0 UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR is DONE + pixel-verified
+  (`findings/res0-ui-banks.md`).**  Frida-pinned god+`0xb8c` = **PE resource `0x455` (sotesd.dll)** = the
+  port's slot 43 `AR_SPR_FONT_TEX_455` (ALREADY loaded from the user's sotesd.dll — NO legal blocker; the
+  ckpt-149 "likely res 1000 sotesp" guess was WRONG, quirk #92 retracted), a 24-frame atlas whose frames
+  20-23 are the green BOOK "next" icon.  `--res-probe` proved EVERY UI/HUD/dialogue bank is a sotesd.dll DATA
+  resource (res=0 was a capture-side ID gap, not a special module).  Ported the BOOK advance indicator
+  (`render_dialogue_box`: slot 43 frame base 0x14, box+(368,92), gated `dialogue_awaiting_advance`) —
+  **pixel-verified == retail.osr (errands book @(400,284), `book_compare.png`)**.  Retires the ARROW half of
+  `PORT-DEBT(dialogue-arrow-art)`; 1045 host pass.
+  **NEXT (do FRESH after a /clear): (1) the INLINE `@@`-CODE KEY-CAP ICONS** — codes confirmed
+  (`@@\x81\xa9`←/`@@\x81\xa8`→/`@@X`, exe string `0x86f388`); retail draws them as 17×17 square BLUE key-cap
+  buttons (recon confirmed) from a bank DISTINCT from res 0x455 (those are tan chevrons) — still
+  unidentified.  Name it via a live hook on the grid cell's bank res inside `0x48e200`'s sprite-cell branch
+  (or trace the `@@` handler), then register + a `@@<code>` parser in the body render (`port-debt.md`
+  dialogue-arrow-art).  **(2) (USER directive ckpt 152): port + verify ALL freeroam MOVEMENT TYPES**
+  (double-tap dash ✓, up-to-stop-faster, slide/crouch, the full combo set — engine-quirks #~3311).  The
+  errands opening DIALOGUE is DONE (ckpt 152).  The freeroam HUD is fully SCOPED (`findings/freeroam-hud.md`)
+  — its banks are also sotesd.dll DATA (loadable).
+  Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
+  ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
+  after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
+  beat retail uses** (`CS_BEAT_ACTOR_TURN` = L6's lead, `in_ECX[8]=4` actor-wait) — now 158@1579/7@1583/0@1587
+  == retail (the ~7t lag GONE; the house dialogue was already tick-1:1, so the lag was the missing block, not a
+  cadence-phase debt).  (B) 3 missing errands FURNITURE
   FURNITURE objects (USER notes #8/#9/#18-21: counter, bookshelf frame, clock) — these are CHARACTER-band
   codes 0x112d1/d2/cf/d9 (70000-range) → bank 0x16f/0x16b (res 1023/1026), frame_base=variant, that the port's
   suppressed-for-non-town character band never rendered.  FIXED ckpt 145 (`01dc162`): captured into ERRANDS_CAST,
@@ -163,8 +181,60 @@ understates how much actual instruction volume is ported.
     the freeroam DASH double-tap TRIGGER (run derives from the live ring — input_dash_double_tap +
     character_resolve_run, the 0x478ba0/0x479e70 detection; window 800ms read live; char-run-trigger
     RETIRED) ✓ (150) →
-    **the house-cadence phase fix + the errands dialogue/HUD (the res=0 freeroam UI) + freeroam refinements (distance-locked walk/run cels) = next**.
-- **LATEST (ckpt 150): the freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end —
+    the house Arche TURN as the BLOCKING beat (CS_BEAT_ACTOR_TURN = L6's lead, keyed to L5's confirm;
+    0x401e60 sets in_ECX[8]=4 the actor-wait the thunk pumps; turn now 158@1579/7@1583/0@1587 == retail,
+    the ckpt-146 ~7t lag GONE) ✓ (151) →
+    the errands-scene OPENING DIALOGUE (questline 0x4dc510's 3 Arche lines via 0x49d6e0 — the movement
+    tutorial — through the existing box system, concurrent with freeroam; tick-aligned L1@1770/L2@1800/
+    L3@1830 == retail) ✓ (152) →
+    **port + verify ALL freeroam MOVEMENT TYPES (double-tap dash, up-to-stop-faster, the full combo set —
+    USER directive ckpt 152) = next; then the freeroam HUD (res=0 UI, scoped ckpt 152) + the
+    dialogue-arrow-art inline icons**.
+- **LATEST (ckpt 152): the errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**
+  USER: "we're still missing the opening dialogue for the errands scene (starts once it switches to the
+  errands scene where you have control). port that first."  The questline `0x4dc510`'s entry case
+  (decompile :1086-1116) plays **3 Arche lines** via `0x49d6e0` — RE-confirmed to be the SAME dialogue
+  display the town chain already drives, so this is 3 more lines through the existing
+  box/typewriter/portrait/advance system, played **CONCURRENT with freeroam control**: (1) "So the first
+  floor of our house is the store. Cool!", (2) "Okay, I need to help with the moving-in!", (3) "To move
+  around, I press [<>] & [^v], and to talk to people and do stuff, I press [Z/X], right?" (the movement
+  tutorial).  Faces 0x02/0x02/0x09 (`0x49d6e0` param_8); box anchors to Arche's freeroam spawn (clamped
+  left = the wide bottom box retail shows at (32,192)-(440,304)).  **The port:** `cutscene.c` TOWN_ERRANDS
+  1-room chain + `cutscene_errands_intro()`; `main.c` `g_errands_dlg_pending` arms it once the entry reveal
+  recedes (retail plays it AFTER the fade-from-black), re-arming `g_cutscene` so it renders + advances via
+  the existing path while `freeroam_step` keeps control live.  **VERIFIED off `port-errdlg.osr` vs
+  `retail.osr` (`dlg_reconstruct.py`, the new tick-aligned `nav-errands-dlg`):** all 3 lines render at
+  retail's ticks (L1@1770 / L2@1800 / L3@1830), name "Arche" @(332,184) color 0x455f7b + body @(168,222)
+  color 0xa8b9cc + the 3-row layout on L3 == retail EXACTLY; the arm log fires "reveal complete".  1045
+  host pass.  **USER VERIFIED (ckpt 152): "looks mostly correct" — flagged the missing inline arrow icons**
+  (studio note tick 1823).  RESIDUAL (now RE'd + the NEXT task): L3's inline button icons show as raw codes
+  (`@@\x81\xa9`/`@@\x81\xa8`/`@@X`) where retail draws **17x17 res=0 KEY-CAP sprites = ←/→/X keys** (the
+  bound move/action keys; recon-crop confirmed).  `@@<code>` escapes (`0x40 0x40`+code); positions = the
+  monospace body layout (x = box_x+TEXT_DX+char_idx·7).  **BLOCKED on the res=0 UI key-cap bank source —
+  faithful+LEGAL = load it from the user's files (never embed captured pixels); bank unlocated = the SAME
+  subsystem as the HUD + advance-arrow.**  USER chose: /clear + resolve it fresh (= the NEXT task, unblocks
+  icons + HUD + arrow).  Full RE: `port-debt.md` (dialogue-arrow-art).  Retires the DIALOGUE half of
+  `PORT-DEBT(cutscene-scene-chain)`.
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-errdlg.osr` |
+  `retail.osr`), scrub the errands ticks ~1758-1840 — Arche's opening dialogue plays line-for-line with
+  retail (the only diff is the L3 button icons render as raw text codes).
+- **Prior (ckpt 151): the house Arche TURN is now the BLOCKING beat retail uses — TICK-ALIGNED (the
+  ckpt-146 ~7t lag is RESOLVED).**  Diagnosis first (off `port-dash.osr`, a fully matched nav): the house
+  DIALOGUE was ALREADY tick-1:1 (`dialogue_timeline` ±1t) yet the turn was STILL 7t late — DISPROVING the
+  finding's "auto-aligns once the cadence is tick-1:1" claim.  The real cause: ckpt 146 emitted the turn
+  FIRE-AND-FORGET on the L5→L6 advance (the nav delayed L5 ~7t to land L6, dragging the turn late).  RE'd
+  the decompile (`0x4d7d80:1163-1184`): `0x401e60(Arche,1)` sets cmd-2 + `in_ECX[8]=4` (the actor-WAIT
+  beat) so the thunk `0x439680` PUMPS it to completion BEFORE L6 — a BLOCKING beat.  **The port:**
+  `CS_BEAT_ACTOR_TURN` + house L6's lead beat (`HOUSE_L6_LEAD`, dur 8); `box_hold=8` keeps L5's box up
+  (full text) through the turn then shrink-closes as L6 reopens (quirk #107; slide+dissolve gated to the
+  run-off CAMERA_PAN lead).  Nav presses L5's confirm at retail's tick 1579 (`runoff_leads 15:15`).
+  Removed the now-dead `turn_after_line` field.  **VERIFIED off `port-houseturn.osr` vs `retail.osr`:**
+  turn 158@1579-1582/7@1583-1586/0@1587 == retail; house L0-L7 tick-1:1 (L5 +4t box-overlap); cover-start
+  1669 == retail; arrival run-off unchanged (no regression).  1045 host pass.  `findings/arche-house-turn.md`.
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-houseturn.osr` |
+  `retail.osr`), scrub the house ticks ~1576-1610 — Arche turns to face her father AT retail's tick, with
+  his text bubble still up through the turn.
+- **Prior (ckpt 150): the freeroam DASH double-tap TRIGGER is PORTED + host-verified end-to-end —
   `PORT-DEBT(char-run-trigger)` RETIRED.**  A USER tap-tap-hold of a direction now makes freeroam Arche
   DASH (the last un-wired freeroam move; walk + jump already worked live, ckpt 144).  The dash PHYSICS was
   already bit-exact (ckpt 118, cap 48000); what was missing was the run FLAG.  RE'd off the decompile (not
