@@ -113,10 +113,13 @@ upstream raw-SJIS→cell substitution.)
 `DIALOGUE_KEYCAP_CELLS`=3 cells in the word-wrap (not its 3-4 source bytes — the byte
 buffer grew to `DIALOGUE_ROW_BYTES`); `main.c` `dialogue_body_row_text` lays out the body
 char=1/icon=3 cells, skips the `@@<code>` in the GDI text, and blits the slot-55 frame at
-`(x0 + cell·7, row_y − 2)`.  **Verified off `port-icons3.osr` vs `retail.osr`: all 3 icons
-==** retail (←@(336,210)f3 / →@(378,210)f1 / X@(224,266)f9), `icons_compare.png` shows the
-line pixel-identical.  Retires `PORT-DEBT(dialogue-arrow-art)` entirely (the book indicator +
-the inline key-caps).  RESIDUAL: only ←/→/X are mapped (the codes the errands line uses);
+`(x0 + cell·7, row_y − 2)`.  **Verified off the port `.osr` vs `retail.osr`: all 3 icons ==**
+retail (←@(336,210)f3 / →@(378,210)f1 / X@(224,266)f9), **differ_px==0 / maxd==0 per icon**
+(`icons_brightness.png`), the line pixel-identical.  (USER-caught follow-up: the icons first
+rendered DIMMER — the port's global 8bpp colour-grade over-darkened the key-cap bank; retail
+does NOT grade plain-getter UI sheets, so slots 55 + 43 joined the grade exclusion in `main.c`,
+same fix class as the fire / dialogue box.)  Retires `PORT-DEBT(dialogue-arrow-art)` entirely
+(the book indicator + the inline key-caps).  RESIDUAL: only ←/→/X are mapped (the codes the errands line uses);
 other `@@` codes (↑/↓ = SJIS 0x81aa/0x81ab → atlas row 0 cells 0/2; Z=frame 8, C=10) are
 unknown-skipped until a line exercises them (then verify the frame + add to the token map).
 

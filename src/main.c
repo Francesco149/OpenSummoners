@@ -1063,7 +1063,13 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[SCENE_FADE_ALPHA_SLOT] &&
         slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT] &&
-        slot != &g_ar_sprite_slots[FIRE_BANK_SLOT])
+        slot != &g_ar_sprite_slots[FIRE_BANK_SLOT] &&
+        /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
+         * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
+         * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
+         * retail", ckpt 153).  Same class as the dialogue box/tab + the fire. */
+        slot != &g_ar_sprite_slots[AR_SPR_FONT_TEX_455] &&
+        slot != &g_ar_sprite_slots[AR_SPR_KEYCAP_6FA])
         color_grade_apply_palette(sheet->palette, 256, g_color_lut);
 
     switch (depth) {
