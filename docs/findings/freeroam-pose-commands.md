@@ -82,6 +82,37 @@ crouch/slide/up-pose; port the apply states 2/5/6; verify `differ`/tick-equal.
 
 **BLOCKER:** the Frida host (`cutestation.soy:27042`) is DOWN — the capture needs it up.
 
+## Binary verification (port-side — the command works in the real exe)
+Beyond the 6 host tests, drove the PORT into the errands freeroam (`runs/pose-demo/`,
+the full-errands nav + DOWN/UP ring + held axis), `--osr-state`, read `fr_pose` per flip:
+- **DOWN held + DOWN ring (id 3) → `fr_pose=10`** (flips 4821-5010 / ticks 1853-1947 —
+  exactly the held-"down" window).
+- **UP held + UP ring (id 1) → `fr_pose=0xb`** (flips 5127-5320 / ticks 2006-2102 — the
+  held-"up" window); DOWN precedes UP, no crossing.
+- The ring-id fix is CONFIRMED live: injecting ids 3/1 produced DOWN/UP (not swapped).
+- `fr_wx` holds at the spawn (19200) the whole time — the pose resolves but does NOT yet
+  move Arche, since `character_step` doesn't consume `cmd_pose` (the apply physics chip).
+So the input→ring→command chain (`freeroam_step` → `character_resolve_pose` → the OSR emit)
+is proven in the actual binary, not just the unit.
+
+## Capture prep (ready for host-up)
+The physics chip's capture is staged so it runs the moment the Frida host is back:
+- **`tools/flow/pose_consts_fields.json`** — the field-spec: the new move-tuning consts
+  (`[0x5656/57/59]`, `[0x5663]`, `[0x5666]`, `[0x566a/b/c]`, `[0x5675/76]`, `[0x5684]`,
+  `[0x5689]`, `[0x5204/05]`) + the known ones (sanity) + the per-tick body
+  (`hvel`=body+0x28, `bstate`=body+0x38, `wx`, `vvel`) + `cmd0`/`cmd3` (confirm the pose
+  engaged).  Same leader chain as `jump_consts_fields.json` (the proven capconsts chain).
+- **`runs/pose-demo/pose-nav.jsonl`** (DOWN ring id 3 + UP ring id 1 after freeroam) +
+  **`pose-held.jsonl`** (hold "down" then "up").  Starting timing; tune the tick↔frame
+  overlap against the first capture (use `--no-turbo --lockstep` so GetTickCount advances
+  deterministically — the pose's [10,800]ms window needs real-clock advance, unlike the
+  dash's [0,800]).
+- **Recipe:** `frida_capture.py --no-turbo --lockstep --seed-pin --input-trace
+  runs/pose-demo/pose-nav.jsonl --held-trace runs/pose-demo/pose-held.jsonl --field-spec
+  tools/flow/pose_consts_fields.json --field-spec-only --call-trace --call-trace-frames
+  <freeroam frames> --run-dir runs/pose-demo/cap` (inside `nix develop`).  Then read
+  `hvel`/`bstate` per tick while DOWN/UP held → pin the apply states 2/5/6 → port → verify.
+
 ## PORT-DEBT
 - `char-pose-holdtime` — the 240ms `array_B` held-time arm (the producer doesn't fill
   `+0x140/+0x144`); the ring [10,800] + self-sustain cover a continuous hold, so it's a
