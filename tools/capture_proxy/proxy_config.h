@@ -31,6 +31,9 @@ typedef struct {
     DWORD snap_flips[64];  /* OSS_OSR_SNAP_FLIPS   (comma list; default empty) */
     int  n_snap_flips;
     int  state_on;         /* OSS_OSR_STATE        (default 0) — emit OSR_STATE (rng) */
+    int  pace_ms;          /* OSS_PACE_MS          (default 0 = off) — real-time flip
+                            * throttle: ms/flip a USER recording needs so the flip-
+                            * paced sim runs at human speed (16 ≈ 62fps).  0 = free-run. */
 } proxy_config;
 
 static proxy_config g_cfg;
@@ -53,6 +56,7 @@ static void proxy_config_load(void)
 {
     g_cfg.turbo            = cfg_env_int("OSS_TURBO", 1);
     g_cfg.lockstep         = cfg_env_int("OSS_LOCKSTEP", 1);
+    g_cfg.pace_ms          = cfg_env_int("OSS_PACE_MS", 0);
     g_cfg.turbo_step_ms    = cfg_env_int("OSS_TURBO_STEP_MS", 17);
     g_cfg.lockstep_step_ms = cfg_env_int("OSS_LOCKSTEP_STEP_MS", 16);
     g_cfg.hide_window      = cfg_env_int("OSS_HIDE_WINDOW", 1);
