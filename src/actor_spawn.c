@@ -6,6 +6,7 @@
  */
 #include "actor_spawn.h"
 #include "butterfly.h"      /* butterfly_register — the per-tick LCG behaviour   */
+#include "character.h"      /* CHAR_POSE_DOWN/UP — the U/D-pose clip selector    */
 #include "party.h"          /* the dramatist resolve (handle -> code/bank)       */
 #include "rng.h"            /* rng_rand — the engine LCG the spawn replays      */
 
@@ -1015,4 +1016,82 @@ const anim_clip *arche_freeroam_clip(int moving, int airborne, int run)
         return &ARCHE_WALK_CLIP;
     (void)airborne;
     return &ARCHE_FREEROAM_IDLE_CLIP;
+}
+
+/* ── The U/D-POSE animation clips (crouch / up-defensive) — RE'd off the retail
+ * draw stream (retail-pose.osr, res 0x570 = bank 0x8b, Arche at the errands
+ * freeroam spawn (162,336) under held-DOWN / held-UP injection; the held-axis
+ * injection added to the capture proxy, ckpt 153b).  Both poses are a 3-phase
+ * FSM keyed on the body sub-state (body+0x3a; engine-quirk #114): a TRANSITION
+ * cel on enter AND exit, holding a steady cel between:
+ *   CROUCH (cmd_pose 10, body main-state 2): enter cel 31 (4 ticks) -> hold cel
+ *          32 -> [release] exit cel 31 (5 ticks) -> idle.  (cel 32 = the low
+ *          crouch, 42x40; cel 31 = the half-crouch transition, 37x53.)
+ *   UP-pose (cmd_pose 0xb, body main-state 5): enter cel 34 (4 ticks) -> hold
+ *          cel 35 -> [release] exit cel 34 (5 ticks) -> idle.
+ * Per-tick durations read straight off the draw stream (the same metadata-only
+ * treatment as ARCHE_RUN_CLIP / WAGON_CLIP — bank 0x8b pixels load from the
+ * user's sotes.exe).  The ENTER clip is a one-shot {transition, hold} that
+ * freezes on the hold cel; the EXIT is the transition cel held for
+ * ARCHE_POSE_EXIT_TICKS, driven by the arche_pose_anim FSM below. */
+/* The enter dur is 5 (not 4): the stepper advances BEFORE the render (freeroam_step
+ * advances then the render reads the frame), so a dur-5 frame-0 renders for 4 sim-ticks
+ * — which is retail's observed enter length (cel 31/34 for 4 ticks, retail-pose.osr). */
+static const anim_clip ARCHE_CROUCH_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 31, 32 },   /* enter 31 (4 rendered ticks) -> hold 32 (freeze) */
+    .frame_count = 2,
+    .frame_dur   = 5,
+    .oneshot     = 1,            /* freeze on cel 32 (the crouch hold)            */
+};
+static const anim_clip ARCHE_UP_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 34, 35 },   /* enter 34 (4 rendered ticks) -> hold 35 (freeze) */
+    .frame_count = 2,
+    .frame_dur   = 5,
+    .oneshot     = 1,            /* freeze on cel 35 (the up-defensive hold)      */
+};
+static const anim_clip ARCHE_CROUCH_EXIT_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 31 },       /* the half-crouch transition, held on release   */
+    .frame_count = 1,
+    .frame_dur   = 1,
+    .oneshot     = 1,
+};
+static const anim_clip ARCHE_UP_EXIT_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 34 },       /* the up transition, held on release            */
+    .frame_count = 1,
+    .frame_dur   = 1,
+    .oneshot     = 1,
+};
+
+const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
+                                 int moving, int airborne, int run)
+{
+    const anim_clip *want;
+    if (cmd_pose == CHAR_POSE_DOWN) {            /* crouch / slide                */
+        want = &ARCHE_CROUCH_CLIP;
+        st->exit_timer = 0;
+    } else if (cmd_pose == CHAR_POSE_UP) {       /* up-defensive                  */
+        want = &ARCHE_UP_CLIP;
+        st->exit_timer = 0;
+    } else {
+        /* Not posing.  If a pose was just released, play its EXIT transition cel
+         * for ARCHE_POSE_EXIT_TICKS before returning to the walk/idle clip (the
+         * draw stream: cel 31/34 holds ~5 ticks on release, then idle). */
+        if (st->prev_pose != 0) {
+            st->exit_kind  = st->prev_pose;
+            st->exit_timer = ARCHE_POSE_EXIT_TICKS;
+        }
+        if (st->exit_timer > 0) {
+            st->exit_timer--;
+            want = (st->exit_kind == CHAR_POSE_DOWN) ? &ARCHE_CROUCH_EXIT_CLIP
+                                                     : &ARCHE_UP_EXIT_CLIP;
+        } else {
+            want = arche_freeroam_clip(moving, airborne, run);
+        }
+    }
+    st->prev_pose = cmd_pose;
+    return want;
 }

@@ -1,7 +1,9 @@
-# Freeroam U/D-POSE commands (crouch / slide / up-defensive) — ckpt 153
+# Freeroam U/D-POSE commands (crouch / slide / up-defensive) — ckpt 153 / 153b
 
-**Status: the COMMAND layer is PORTED + host-tested (1051 pass, +6); the APPLY
-physics is the next chip (needs a live const capture).**  USER directive (ckpt 152):
+**Status: COMMAND + APPLY physics + the visible POSE SPRITE are all PORTED + bit-exact.**
+ckpt 153 = command + physics (below).  **ckpt 153b = the crouch/up ANIM cels (the
+"char-pose-anim" debt) — RE'd off retail + ported + verified (the "## The POSE ANIM"
+section).**  USER directive (ckpt 152):
 "port + verify ALL freeroam MOVEMENT TYPES" — dash ✓ (ckpt 150), now the U/D moves:
 **crouch** (DOWN in place), **slide** (DOWN during a dash), **up-defensive** (UP held
 stops you faster / enters doors).  All three are driven by the AI command `cmd[3]`
@@ -139,10 +141,52 @@ The physics chip's capture is staged so it runs the moment the Frida host is bac
   <freeroam frames> --run-dir runs/pose-demo/cap` (inside `nix develop`).  Then read
   `hvel`/`bstate` per tick while DOWN/UP held → pin the apply states 2/5/6 → port → verify.
 
+## The POSE ANIM (the crouch/up SPRITE) — RE'd + PORTED (ckpt 153b, char-pose-anim)
+
+The MOVEMENT (ckpt 153) was bit-exact but Arche rendered her idle/walk cel while
+posing ("slides around in one pose").  RE'd the cels off the retail DRAW STREAM —
+the established `draw_probe.py --res 0x570` pattern (bank 0x8b = Arche), which
+needed a retail `.osr` of the errands freeroam with DOWN/UP HELD.
+
+**The capture tool (the gap):** the trace-studio proxy only injected the discrete
+RING (one-frame edges); a pose needs a HELD direction.  Added **held-axis
+injection** to the proxy (`tools/capture_proxy/engine_input.h`, committed 2f16a72):
+hook the leaf key-state query `FUN_005ba520(scancode)` and write 0x80 into
+`device+0x18+scancode` for held scancodes → the producer `FUN_0046a880` fills
+`mgr+0x114..` naturally (quirk #41).  `OSS_HELD_TRACE` = `{"frame":N,"keys":[…]}`,
+3rd arg to `run_proxy.sh`.  Capture recipe + a footgun in **## The retail capture**.
+
+**Ground truth (`retail-pose.osr`, res 0x570, Arche at the errands spawn 162,336):**
+a 3-phase FSM keyed on the body sub-state (`body+0x3a`) — a TRANSITION cel on enter
+AND exit, holding a steady cel between:
+
+| pose | cmd_pose | body state | enter (4t) | hold | exit (5t) → idle |
+|------|----------|-----------|-----------|------|------------------|
+| CROUCH / slide | 10 | 2 | cel **31** (37×53) | cel **32** (42×40, the low crouch) | cel **31** → 0 |
+| UP-defensive   | 0xb | 5 | cel **34** (33×60) | cel **35** (37×57) | cel **34** → 0 |
+
+(Cross-checked vs cap-body's `bstate`: crouch engages at cmd3=10/main-state 2,
+sub 0→1; the cel TRANSITION 31→32 tracks the sub-state.)
+
+**The port (`actor_spawn.{c,h}` + `main.c`):** `arche_pose_clip(st, cmd_pose, …)` —
+a pure, host-tested FSM (`test_arche_pose_clip`).  While a pose is engaged it
+returns the enter→hold one-shot (`ARCHE_CROUCH_CLIP` {31,32} dur 4 / `ARCHE_UP_CLIP`
+{34,35}); on release it plays the exit transition cel (`ARCHE_*_EXIT_CLIP`) for
+`ARCHE_POSE_EXIT_TICKS`=5, then falls through to `arche_freeroam_clip` (walk/idle).
+`freeroam_step` calls it once per sim-tick off `g_freeroam_char.cmd_pose` (the pose
+wins over walk/run).  Quirk #114 extended.  **Verified:** a port `.osr` (drive into
+the errands freeroam + held DOWN/UP) renders cels 31/32/34/35 at res 0x570 ==
+retail (`## The POSE ANIM verification`).  Retires `PORT-DEBT(char-pose-anim)`.
+
+RESIDUAL: only the RIGHT-facing pose is verified (the errands spawn faces right);
+a LEFT-facing crouch/up would mirror via `flip_table[0x8b]` and is unverified until
+a left-facing capture (a minor follow-up — the spawn never faces left in the arc).
+
 ## PORT-DEBT
 - `char-pose-holdtime` — the 240ms `array_B` held-time arm (the producer doesn't fill
   `+0x140/+0x144`); the ring [10,800] + self-sustain cover a continuous hold, so it's a
   redundant backstop here.
 - `char-up-door-probe` — the UP door/ledge enter (478ba0:260-285), collision-coupled.
-- `char-pose-physics` — the apply states 2/5/6 velocity effect (crouch/slide/up-stop) +
-  the crouch/slide ANIM cels; pending the live const capture.
+- ~~`char-pose-physics`~~ — RETIRED ckpt 153 (the apply states 2/5 brake law, bit-exact).
+- ~~`char-pose-anim`~~ — RETIRED ckpt 153b (the crouch/up SPRITE, RE'd off retail-pose.osr,
+  cels 31/32/34/35; see "## The POSE ANIM" above).

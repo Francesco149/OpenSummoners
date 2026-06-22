@@ -2901,7 +2901,14 @@ static void freeroam_step(void)
     g_freeroam_rs.world_y = g_freeroam_char.world_y;
     g_freeroam_rs.facing  = g_freeroam_char.facing;
     int moving = (g_freeroam_char.cmd_dir != 0) || (g_freeroam_char.vel != 0);
-    const anim_clip *want = arche_freeroam_clip(moving, g_freeroam_char.airborne, run);
+    /* The U/D-POSE sprite (crouch / up-defensive) takes priority over walk/idle:
+     * arche_pose_clip drives the enter->hold->exit cel FSM off cmd_pose (ckpt
+     * 153b, engine-quirk #114; retires PORT-DEBT(char-pose-anim)), falling
+     * through to arche_freeroam_clip when no pose is engaged or exiting. */
+    static arche_pose_anim g_freeroam_pose_anim;
+    const anim_clip *want = arche_pose_clip(&g_freeroam_pose_anim,
+                                            g_freeroam_char.cmd_pose,
+                                            moving, g_freeroam_char.airborne, run);
     if (g_freeroam_rs.clip != want) {
         g_freeroam_rs.clip  = want;
         g_freeroam_rs.timer = 0;

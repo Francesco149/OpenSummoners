@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 153, 2026-06-21)
+# Session handoff — rolling current state (last updated ckpt 153b, 2026-06-22)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,28 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 153
+## Where we are — ckpt 153b
+
+**LATEST (ckpt 153b): the freeroam U/D-POSE SPRITE (crouch/up-defensive) is PORTED + bit-exact —
+`PORT-DEBT(char-pose-anim)` RETIRED.**  1053 host pass.  The MOVEMENT was bit-exact (ckpt 153) but
+Arche rendered her idle/walk cel while posing (USER: "slides around in one pose").  To RE the cels
+off the retail draw stream I added **held-axis injection to the trace-studio capture proxy**
+(`tools/capture_proxy/engine_input.h`, commit `2f16a72`): hook the leaf key query `FUN_005ba520`,
+write `0x80` into `device+0x18+scancode` for held scancodes → the producer `FUN_0046a880` fills
+`mgr+0x114..` (quirk #41).  `OSS_HELD_TRACE` = `{"frame":N,"keys":[…]}`, 3rd arg to `run_proxy.sh`
+(the ring injection was edge-only; the pose needs a HELD direction).  Captured `retail-pose.osr`
+(errands freeroam + held DOWN/UP), `draw_probe.py --res 0x570`: CROUCH enter cel 31 (4t) → hold 32 →
+exit 31 (5t) → idle; UP enter 34 → hold 35 → exit 34 → idle.  Ported `arche_pose_clip`
+(`actor_spawn.{c,h}`, keyed on `cmd_pose`, host-tested `test_arche_pose_clip`); `freeroam_step` calls
+it once/sim-tick (pose wins over walk/run).  Verified port `.osr` res 0x570 == retail tick-for-tick
+(enter 4t, exit 5t — the enter dur is 5 not 4: the stepper advances before the render).  Writeup:
+`findings/freeroam-pose-commands.md` "## The POSE ANIM"; quirk #114 extended.  RESIDUAL: only
+RIGHT-facing verified (errands spawn faces right; LEFT-facing mirrors via `flip_table[0x8b]`, unverified).
+**USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-pose.osr` |
+`retail-pose.osr`), scrub the errands freeroam — Arche crouches (DOWN) and takes the up-defensive pose
+(UP) instead of sliding in her walk cel.
+
+## Where we are (prior chip) — ckpt 153
 
 **The "res=0" UI SPRITE BANK is RESOLVED + the dialogue ADVANCE INDICATOR is PORTED + pixel-verified.**
 1045 host pass.  Full RE: `findings/res0-ui-banks.md`.

@@ -13,6 +13,7 @@
  */
 #include "actor_spawn.h"
 #include "actor_render.h"
+#include "character.h"
 #include "butterfly.h"
 #include "ambient.h"
 #include "draw_pool.h"
@@ -909,6 +910,70 @@ int test_arche_house_turn_clip(void)
         }
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 0);   /* wrapped back to cel 0 */
     }
+    return 0;
+}
+
+/* ── The U/D-POSE clip FSM (crouch / up-defensive), RE'd off retail-pose.osr (res
+ *    0x570, ckpt 153b; engine-quirk #114): a transition cel on enter AND exit,
+ *    holding a steady cel between.  CROUCH: enter 31 (4t) -> hold 32 -> [release]
+ *    exit 31 (5t) -> idle.  UP: enter 34 (4t) -> hold 35 -> [release] exit 34 ->
+ *    idle.  Drives off cmd_pose (CHAR_POSE_DOWN 10 / _UP 0xb). ── */
+int test_arche_pose_clip(void)
+{
+    arche_pose_anim st;
+    memset(&st, 0, sizeof st);
+
+    /* CROUCH engage: the enter->hold one-shot {31, 32}. */
+    const anim_clip *c = arche_pose_clip(&st, CHAR_POSE_DOWN, 0, 0, 0);
+    T_ASSERT(c != NULL);
+    T_ASSERT_EQ_I(c->frame_delta[0], 31);
+    T_ASSERT_EQ_I(c->frame_delta[1], 32);
+    T_ASSERT_EQ_I(c->frame_count, 2);
+    T_ASSERT_EQ_I(c->frame_dur, 5);   /* dur 5 -> 4 rendered ticks (advance-before-render) */
+    T_ASSERT_EQ_I(c->oneshot, 1);
+    {   /* step it: cel 31 for the enter dur, then freeze on the crouch-hold cel 32 */
+        anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 31);
+        for (int t = 0; t < 5; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 32);
+        for (int t = 0; t < 20; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 32);   /* one-shot freezes on the hold */
+    }
+    /* Sustained crouch keeps returning the crouch clip. */
+    c = arche_pose_clip(&st, CHAR_POSE_DOWN, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 31);
+
+    /* RELEASE: the exit transition cel (31) for exactly ARCHE_POSE_EXIT_TICKS, then
+     * the walk/idle clip resumes. */
+    for (int t = 0; t < ARCHE_POSE_EXIT_TICKS; t++) {
+        c = arche_pose_clip(&st, 0, /*moving=*/0, 0, 0);
+        T_ASSERT_EQ_I(c->frame_delta[0], 31);   /* the crouch-exit cel */
+        T_ASSERT_EQ_I(c->frame_count, 1);
+    }
+    c = arche_pose_clip(&st, 0, /*moving=*/0, 0, 0);
+    T_ASSERT_EQ_I(c == arche_freeroam_clip(0, 0, 0), 1);   /* back to idle */
+
+    /* UP-pose engage: the enter->hold one-shot {34, 35}. */
+    memset(&st, 0, sizeof st);
+    c = arche_pose_clip(&st, CHAR_POSE_UP, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 34);
+    T_ASSERT_EQ_I(c->frame_delta[1], 35);
+    {
+        anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 34);
+        for (int t = 0; t < 5; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 35);
+    }
+    /* RELEASE up: the up-exit cel (34). */
+    c = arche_pose_clip(&st, 0, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 34);
+    T_ASSERT_EQ_I(c->frame_count, 1);
+
+    /* While crouching, the MOVING/run args are ignored (the pose wins over walk). */
+    memset(&st, 0, sizeof st);
+    c = arche_pose_clip(&st, CHAR_POSE_DOWN, /*moving=*/1, 0, /*run=*/1);
+    T_ASSERT_EQ_I(c->frame_delta[0], 31);
+
     return 0;
 }
 

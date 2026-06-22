@@ -87,10 +87,20 @@
   player just didn't move in the recording"; the owner says she's NOT controllable until the lines end).
   `freeroam_step` drives a zeroed axis while `g_errands_dlg_pending || cutscene_active`, so Arche holds
   idle at the spawn through the 3 lines, then hands off (verified off a port .osr: locked tick 1803-1897
-  while csln 0→1→2, unlocks at completion).  RESIDUAL: the visible crouch/up SPRITE = PORT-DEBT(char-pose-anim)
-  — the MOVEMENT is bit-exact but she renders her walk/idle cel while posing (USER: "slides around in one
-  pose"), so the NEXT step is RE'ing the crouch/up cels off the retail draw stream; then the dash-then-down
-  SLIDE, sword(Z)/attack(X), the door-enter = remaining moveset.
+  while csln 0→1→2, unlocks at completion).
+  **ckpt 153b: the crouch/up SPRITE (char-pose-anim) — DONE + bit-exact (the USER "slides around in one
+  pose" fix).**  Added HELD-AXIS injection to the trace-studio PROXY (`engine_input.h`: hook the leaf key
+  query `0x5ba520`, write 0x80 into `device+0x18+sc` for held scancodes → the producer fills `mgr+0x114..`;
+  the ring injection was edge-only) so retail can be captured crouch/up-HELD in the errands freeroam.  RE'd
+  the cels off `retail-pose.osr` (res 0x570 = bank 0x8b, `draw_probe.py --res 0x570`): a 3-phase FSM, a
+  TRANSITION cel on enter AND exit holding a steady cel between — CROUCH enter/exit cel 31 (4t)/hold 32,
+  UP enter/exit 34 (4t)/hold 35.  Ported `arche_pose_clip` (`actor_spawn.{c,h}`, host-tested) keyed on
+  `cmd_pose`; `freeroam_step` calls it once/sim-tick (the pose wins over walk/run).  VERIFIED off a port
+  `.osr` vs `retail-pose.osr`: res 0x570 renders 31/32/34/35 at (162,336) TICK-FOR-TICK == retail (enter
+  4t, exit 5t bit-exact).  1053 host pass (+1).  `PORT-DEBT(char-pose-anim)` RETIRED; quirk #114 extended.
+  RESIDUAL: only RIGHT-facing verified (the spawn faces right; LEFT-facing mirrors via flip_table — a minor
+  follow-up).  Remaining moveset: the dash-then-down SLIDE (= same crouch state, just entered with momentum),
+  sword(Z)/attack(X), the door-enter (= char-up-door-probe, collision-coupled).
   `findings/freeroam-pose-commands.md`.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
   sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
@@ -186,8 +196,11 @@
     (character_step brakes vel→0 at -800/tick while posed+grounded = apply states 2/5; "UP stops you
     faster", crouch, slide; ground-truthed off the self-starting Frida host, bit-exact vs cap-body +
     a port .osr) ✓ (153, quirk #114) →
-    **next: the crouch/up SPRITE (char-pose-anim) + the rest of the moveset (sword Z / attack X / door-enter)
-    + the freeroam HUD (scoped)**.
+    the freeroam U/D-POSE SPRITE (char-pose-anim) — held-axis injection added to the trace-studio proxy,
+    cels RE'd off retail-pose.osr (CROUCH 31→32→31, UP 34→35→34), arche_pose_clip keyed on cmd_pose;
+    port .osr res 0x570 == retail tick-for-tick ✓ (153b, quirk #114) →
+    **next: the rest of the moveset (sword Z / attack X / door-enter = char-up-door-probe) + the freeroam
+    HUD (scoped)**.
 - **LATEST (ckpt 152): the errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**
   USER: "we're still missing the opening dialogue for the errands scene (starts once it switches to the
   errands scene where you have control). port that first."  The questline `0x4dc510`'s entry case

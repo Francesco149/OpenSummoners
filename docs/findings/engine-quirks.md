@@ -3863,5 +3863,13 @@ Captured per-tick off the live entity (`runs/pose-demo/cap-body`): up-pose from 
 → hvel 23200,22400,…,800,0 (−800/tick, sim-tick axis); crouch-from-rest holds 0.  The gates
 `[0x5675]` (crouch) / `[0x5684]` (up) read 1 for Arche.  Ported `character_resolve_pose` +
 `character_step`'s pose brake (bit-exact, host + a port `.osr`).  The Frida host self-starts
-(`ensure_frida_server`).  RESIDUAL: the crouch/up SPRITE (the body sub-state `+0x3a` drives
-the cel) = PORT-DEBT(char-pose-anim).
+(`ensure_frida_server`).
+**The SPRITE (ckpt 153b): the body sub-state `+0x3a` drives the cel — a 3-phase FSM with a
+TRANSITION cel on enter AND exit, holding a steady cel between (RE'd off `retail-pose.osr`,
+res 0x570 = bank 0x8b):  CROUCH (state 2): enter cel 31 (4 ticks) → hold cel 32 (the low
+crouch) → [release] exit cel 31 (5 ticks) → idle.  UP (state 5): enter cel 34 → hold cel 35
+→ exit cel 34 → idle.**  To capture it, HELD-AXIS injection was added to the trace-studio
+proxy (`engine_input.h`: hook the leaf key query `0x5ba520`, write 0x80 into
+`device+0x18+scancode` for held scancodes → the producer fills `mgr+0x114..`).  Ported as
+`arche_pose_clip` (`actor_spawn.c`), keyed on `cmd_pose`; verified port `.osr` res 0x570 ==
+retail.  (PORT-DEBT(char-pose-anim) RETIRED.)

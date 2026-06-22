@@ -234,6 +234,26 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key);
 extern const int16_t ARCHE_FREEROAM_FLIP;
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run);
 
+/* The U/D-POSE animation FSM (crouch / up-defensive) — the visible pose sprite,
+ * RE'd off retail-pose.osr (res 0x570, ckpt 153b; engine-quirk #114).  The pose
+ * is a 3-phase clip keyed on the body sub-state: a transition cel on enter AND
+ * exit, holding a steady cel between (CROUCH enter/exit 31, hold 32; UP enter/
+ * exit 34, hold 35).  arche_pose_clip drives it from c->cmd_pose: while a pose is
+ * engaged it returns the enter->hold one-shot; on release it plays the exit
+ * transition cel for ARCHE_POSE_EXIT_TICKS, then falls through to the normal
+ * walk/idle/run clip (arche_freeroam_clip).  Pure + host-tested; the caller keeps
+ * one arche_pose_anim (zero-initialised) and calls this once per sim-tick. */
+#define ARCHE_POSE_EXIT_TICKS 5   /* the exit transition cel holds this many ticks */
+
+typedef struct arche_pose_anim {
+    int16_t prev_pose;    /* last tick's cmd_pose (detect the release edge)        */
+    int16_t exit_timer;   /* ticks left in the exit transition (0 = not exiting)   */
+    int16_t exit_kind;    /* the pose being exited (CHAR_POSE_DOWN / _UP)          */
+} arche_pose_anim;
+
+const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
+                                 int moving, int airborne, int run);
+
 /* USER studio notes #3-5: the house Arche TURN.  After house L5 advances, the
  * cutscene fires CS_ACT_ACTOR_TURN; main.c plays arche_house_turn_clip() (the
  * one-shot cels 158->7) on the room-cast Arche (HOUSE_CAST[0]), then swaps to
