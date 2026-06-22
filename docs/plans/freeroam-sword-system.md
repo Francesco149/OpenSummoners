@@ -202,3 +202,34 @@ tests); "inputs maybe not going through" (saw retail idle in the PORT traces —
 2. **Play the tutorial** (natural): drive the errands moving-in tasks to advance the quest to 8.  Heavy nav.
 For the PORT: the quest system is unported → the sword-enable (`weapon+0xd4=2`) is a `PORT-DEBT(sword-quest-gate)`
 stand-in (set it at the equivalent errands point), like the cutscene-coords / ERRANDS_CAST precedents.
+
+## ckpt-155 — THE SWORD CONFIRMED + the cel ground truth (USER's real-play recording)
+USER recorded a real-play session under the proxy (visible window, `C:\oss-osr\sword-realplay.osr`,
+540 MB, ticks 0-4290, a FRESH NEW GAME so the quest/tutorial state matches the port).  The sword
+DRAWS — proven.  All cels are res **0x570** (Arche's bank; NO separate sword sprite — the sword is
+baked into the sword-out cels).  Drawcall ground truth (`draw_probe`/the osr.py reader):
+- **UNSHEATHE (draw) — cels 96→97→98→99→100→101→102→103, ticks 2156-2205 (~49 ticks ≈ 1 s).**  dst
+  widths 41/35/54/67/41/33/32/31 (the sword swinging out).  Matches USER's "~1 s draw anim".  Triggered
+  by Z (id 9) once the quest enabled the sword (`weapon+0xd4=2`, errands questline case 8).
+- **sword-OUT IDLE — cels 0,1,2,3** at dst (222,336,~28x63), ~14t each (same base idle cels; the sword
+  is out but the idle reuses the base pose — no distinct idle cels seen).
+- **ATTACK 1 (X, neutral) — cels 120→121→122→123→124→123→122→121→122→123→124→125→126→127→120**, ticks
+  2890-3070 (~12t/cel; a swing out 120-124 then a follow-through 125-127).  dst up to 30x72.
+- **ATTACK 2 (X, a 2nd/combo or directional) — cels 128→129→130→131→132→…→128**, ticks 3820-4000.
+  dst up to 45x54.
+- (NOT yet captured: the sword-OUT WALK cels + directional attacks up/down — the USER mostly stood +
+  attacked neutral.  Capture later by walking + holding ^/v while attacking with the sword out.)
+- The cel 6 blip (ticks 1023-1027) is a sword-IN turn frame (pre-draw), not sword-related.
+
+**WHY my injected captures failed (now fully explained):** the sword needs `weapon+0xd4=2` (errands
+quest case 8); my ring-injected runs never advanced the quest there (the USER's natural play did, after
+the opening dialogue).  Injection + movement were always fine (id-7 jump fired, walk moved her).
+
+**THE PORT (the path is now concrete):**
+1. **Sword toggle** — Z(id9) when `sword_out` is enabled → toggle a `sword_out` state + play the draw
+   clip (cels 96-103, ~49t) / a sheathe clip on toggle-off.  Gate behind a `PORT-DEBT(sword-quest-gate)`
+   stand-in (set "sword available" at the errands point; the quest system is unported).
+2. **Attack** — X(id8) when sword_out → `arche_attack_clip` (cels 120-127 neutral; 128-132 the 2nd) +
+   the attack TRAIL vfx (USER: "there's a trail effect").  Directional variants TBD (capture later).
+3. **Sword-out pose set** — idle reuses 0-3 (verified); walk/crouch/jump sword-out cels TBD (capture).
+4. Verify bit-exact off a port `.osr` vs this recording (draw_probe res 0x570 at the matching cels).
