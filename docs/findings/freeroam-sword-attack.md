@@ -155,7 +155,7 @@ res 0x571 sword-out idle.  STATIONARY (the vel-lock, like NEUTRAL).
 - RESIDUAL: bank-0x8d LEFT mirror = +192 hypothesis (set in flip table), unverified —
   needs a left-facing up-attack capture (the first sword2.osr up-attack is right-facing).
 
-### The TRAIL — res 0x40b sparkles — `PORT-DEBT(sword-attack-trail)` (a particle subsystem)
+### The TRAIL — res 0x40b sparkles — PORTED + verified BIT-EXACT (ckpt 163, `sword_trail.{c,h}`)
 A trail of shrinking sparkles follows the sword tip.  Ground truth (`up_attack_probe`):
 res **0x40b** (a 32x32 sprite, bank 0x1ad, registered `57ca40:2748`
 `0x5748c0(...,0x40b,0x20,0x20,...)`), **frames 24->31** each smaller (24=22x22, 25=20x20,
@@ -179,13 +179,35 @@ RELATIVE to the stationary world-screen anchor) per tick.  The emitter:
   step `FUN_0046e510`, render `FUN_00493480`; res 0x40b config in `55d140` (a 0x186bX case,
   bank 0x1ad).  (The exact decompile path 0xc35b->res-0x40b is partly traced — the captured
   tip-arc is the faithful stand-in for the un-ported retail emitter, like `butterfly-flap-ctrl`.)
-- **PORT = a focused chip** (the captured-emitter `sword_trail` module mirroring `particle.c`:
-  emit 2/tick on TIP_ARC for swing-ticks 9-17, age 24->31, lifetime 16, additive ramp_b via
-  `draw_pool_emit(mode=1)`).  **BLOCKER discovered: res 0x40b is NOT registered in the port**
-  (the slot->res `game_sprites` table has no 0x40b entry; the fountain's 0x1aa is a separate
-  particle-band path) — so the chip must FIRST register res 0x40b (32x32 per `57ca40:2748`,
-  pool `DAT_008a7c9c`) before it can render.  Until built, the body ships bit-exact +
-  user-confirmed and the trail is absent (no fake — a deferred, fully-specified chip).
+- **PORTED (ckpt 163, `sword_trail.{c,h}`):** a captured-emitter pool mirroring `particle.c`.
+  `sword_trail_emit` spawns 2 sparkles/sim-tick on `SWORD_TRAIL_TIP_ARC` (the captured fr24 dst
+  offsets, anchored to Arche's stationary up-pose) for swing-ticks 9-17, co-located with Arche's
+  world pos (she is stationary through the thrust); `sword_trail_step` ages the 24->31 dur-2
+  8-frame one-shot (the cel's own metric_0c origin centres each shrinking frame, so the +1px/tick
+  drift emerges); `sword_trail_render` emits MODE-1 additive nodes.  Wired into `main.c` around
+  `freeroam_step` — STEP-before-emit (the +0x13e0 PARTICLE band steps before the CHARACTER-band
+  emitter, quirk #95, so a fresh sparkle renders unstepped at fr24) — and rendered after the body.
+  - **res 0x40b was ALREADY registered** (sprite slot **407 -> bank 0x1a4**, `game_sprites` 32x32
+    type 2, added in `edbaf19`): the "not registered" BLOCKER was a 3-digit-hex grep miss
+    (`0x40b` vs the table's `0x040b`) — NO registration work was needed.
+  - **The blend is a CONSTANT additive `ramp_A[19]`** (LUT md5 727d856f), NOT the per-age ramp the
+    sky particle uses (sword2.osr shows every sparkle at one descriptor regardless of age; the
+    visual fade is the shrinking frame alone).  Retail's decompile sets `ramp_b[18]` (`DAT_008a9308`);
+    that IS `ramp_a[19]` because retail's ramp tables are one contiguous 0x50-byte block (quirk #117).
+    The port's `g_ramp_a`/`g_ramp_b` are separate arrays, so the trail emits the ramp_A index 19.
+    Pinned by a boot-time dump of the port's ramp LUTs vs the recording's 727d856f.
+- **VERIFIED off `port-trail.osr` vs `sword2.osr`** (`/tmp/final_verify.py`): the fr24 tip-arc
+  RELATIVE to the up-attack body is **byte-identical** (port tick 2151 `(+20,+69)(+26,+68)` == rec
+  tick 3889; the +10 cel-lean at tick 2154 == rec tick 3892, etc.), frames 24->31 present, blend
+  LUT **727d856f matches retail**.  Feed: the port|recording montage (the pink additive sparkle arc
+  sweeps the overhead sword on both sides).  Host: `test_sword_trail.c` (5 cases: emit window,
+  spawn config, left mirror, aging/expire, render).  Capture recipe: `runs/sword-trail/trail-nav.jsonl`
+  (the deterministic errands nav + dense errands-dialogue confirms + a tick-2080 Z draw) +
+  `trail-held.jsonl` (UP+X held wide).
+- **STILL captured (`PORT-DEBT(sword-attack-trail)` retained as a geometry stand-in):** the tip-arc
+  table + the 2/tick cadence replace the un-ported emitter geometry (`FUN_004505c0` + the `45e830`
+  case-0x283f emit gate) — exactly the butterfly-flutter-trigger pattern (ships bit-exact, only the
+  autonomous geometry is captured).  Retire by porting `0x4505c0` so the arc EMERGES from the swing.
 
 ### The slide-attack body 48/49 = `PORT-DEBT(char-slope-slide)` (already scoped, ckpt 154)
 The prone slide cels (res 0x571 **48<->49**, 68x30) are the state-6 momentum slide, which

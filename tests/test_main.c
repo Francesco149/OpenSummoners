@@ -1063,6 +1063,11 @@ struct test_case {
     X(particle_sky_step_physics)                               \
     X(particle_sky_step_expires)                               \
     X(particle_sky_render_ramp_b)                              \
+    X(sword_trail_emit_window)                                 \
+    X(sword_trail_spawn_config)                                \
+    X(sword_trail_left_mirror)                                 \
+    X(sword_trail_ages_and_expires)                            \
+    X(sword_trail_render_emits)                                \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \

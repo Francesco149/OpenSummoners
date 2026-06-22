@@ -84,6 +84,7 @@
 #include "actor_render.h"     /* actor_render_static (the 0x491ae0 default arm) */
 #include "character.h"        /* the freeroam mover (character_step, bit-exact)  */
 #include "particle.h"         /* the fountain spray (0x13e0 band / 0x46e510 / 0x493480) */
+#include "sword_trail.h"      /* the freeroam UP-attack sword-tip trail (res 0x40b) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
@@ -252,6 +253,9 @@ static character          g_freeroam_char;
 static actor              g_freeroam_actor;
 static actor_render_state g_freeroam_rs;
 static int                g_freeroam_active;
+/* The UP-attack sword-tip TRAIL (res 0x40b sparkles) — emitted/stepped around
+ * freeroam_step, rendered after the freeroam body (sword_trail.{c,h}). */
+static sword_trail        g_sword_trail;
 #define FREEROAM_ARCHE_SPAWN_WX  19200   /* errands spawn world_x (freeroam-walk)  */
 #define FREEROAM_ARCHE_SPAWN_WY  52000   /* errands spawn world_y = ground_y       */
 
@@ -2145,10 +2149,15 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
     /* Phase 2b: the FREEROAM controllable Arche (errands) — her body bank 0x8b on
      * the same static-cast path (layer 13); her render-state world pos/clip/facing
      * are driven live by freeroam_step (the bit-exact mover). */
-    if (g_freeroam_active && !room_is_town)
+    if (g_freeroam_active && !room_is_town) {
         effect_emitted += actor_render_static(&g_freeroam_actor, &g_freeroam_rs,
                                               /*flip_table=*/g_actor_flip_table, pool,
                                               game_sprite_resolve, NULL);
+        /* The UP-attack sword-tip trail (res 0x40b sparkles): MODE-1 additive
+         * ramp_b nodes on the +0x13e0 band layer, rendered after the body. */
+        effect_emitted += sword_trail_render(&g_sword_trail, pool,
+                                             game_sprite_resolve, NULL);
+    }
 
     if (g_actors_loaded && room_is_town)
         for (int i = 0; i < g_actors.count; i++) {
@@ -2868,6 +2877,7 @@ static void freeroam_begin(void)
      * sword2.osr up-attack (tick 3880) is RIGHT-facing (cels 0-5, un-mirrored). */
     if ((uint16_t)0x8du < (uint16_t)AR_SPRITE_SLOT_COUNT)
         g_actor_flip_table[0x8du] = ARCHE_SWORD_OUT_FLIP;
+    sword_trail_reset(&g_sword_trail);   /* the UP-attack tip-trail pool */
     g_freeroam_active = 1;
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
@@ -3222,8 +3232,22 @@ static void game_render(void *user)
             /* Phase 2b: the FREEROAM mover — one sim-tick of controllable Arche on
              * the live held axis (the errands hand-off; independent of the room
              * cast above, both run in the errands). */
-            if (is_sim_tick && g_freeroam_active)
+            if (is_sim_tick && g_freeroam_active) {
+                /* The UP-attack sword-tip TRAIL.  Step the live sparkles FIRST
+                 * (the +0x13e0 PARTICLE band steps before the CHARACTER-band
+                 * emitter — engine-quirk #95), then run Arche's tick, then emit
+                 * this swing-tick's pair: character_resolve_attack (inside
+                 * freeroam_step) has advanced attack_timer, and the up-thrust is
+                 * STATIONARY so Arche's world pos is the trail anchor. */
+                sword_trail_step(&g_sword_trail);
                 freeroam_step();
+                if (g_freeroam_char.attacking &&
+                    g_freeroam_char.attack_kind == CHAR_ATTACK_UP)
+                    sword_trail_emit(&g_sword_trail, g_freeroam_char.attack_timer,
+                                     g_freeroam_char.world_x, g_freeroam_char.world_y,
+                                     g_freeroam_rs.dst_base_x, g_freeroam_rs.dst_base_y,
+                                     g_freeroam_char.facing);
+            }
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
              * AFTER the camera easer (0x43d1d0:1123); it advances the REVEAL iris
