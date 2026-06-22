@@ -134,3 +134,21 @@ exact id + fn by capture.
   (the ckpt-117/153 lesson; the cmd[4] body state will reuse stack slots).
 - X=interact (sword-in) may need the NPC-proximity + dialogue-trigger subsystem (overlaps
   `char-up-door-probe` / the questline) — scope separately if so.
+
+## ckpt-155 capture C — waited past the unlock (USER hints), STILL no draw
+USER hints: (1) input eaten right after the dialogue — wait longer; (2) the draw anim takes ~1s,
+give it time before attacking.  Capture C (`sword3-nav.jsonl`): fully dismissed the dialogue,
+settled long, then 7 CLEAN single Z(id9) presses frames 5000-5900 (= **sim-ticks 1772-2216**, i.e.
+5 of them PAST the ~1897 control-unlock) with ~7s gaps + X(id8)-held attacks after each.  RESULT:
+`code` stayed 0xc35a (1801/1801 rows), `wpn_466`=0 throughout, **`body+0x38` only ever walk/idle
+(0x0/0x1/0x10001) — NO draw-animation state for any of the 7 Z presses.**  So even with correct key +
+post-unlock timing + draw-anim time, the sword never draws.
+- CAVEAT: id-9's only field-visible effect (`cmd4=0xf`, 478ba0:302) is itself gated on sword-OUT, so
+  the field capture can't directly CONFIRM the injected Z was consumed.  The definitive test is the
+  `.osr` DRAW STREAM (does Arche's sprite change?) — the proxy capture, USER-inspectable in the studio.
+- Forms 0xc35a/b/c = Arche INSTALL variants (41f200): 0xc35a base, **0xc35b = sword-OUT (registers the
+  attack actions 0x27d9/0x27da + sword-out anim)**, 0xc35c another.  Unsheathe = re-install as 0xc35b.
+- LEADING HYPOTHESIS: the Frida capture boots a FRESH NEW GAME (anchors newgame_enter 750 → game_enter
+  1427) and reaches the moving-in errands as the very FIRST freeroam — most consistent with Arche NOT
+  having her sword equipped/enabled that early in a clean run.  NEXT: USER to confirm whether a
+  brand-new game has the sword at the first errands or only after a beat; OR an `.osr` visual capture.
