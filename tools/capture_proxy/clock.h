@@ -57,25 +57,8 @@ static GetMessageA_t   real_GetMessageA;
 /* Called by the Flip detour each present (lockstep clock advance).  Used by the
  * VA-detour layer (M2b); marked unused so M2a builds clean without it wired. */
 __attribute__((unused))
-static DWORD g_pace_last_flip_real = 0;   /* real GetTickCount at the prior paced flip */
 static void clock_on_flip(void)
 {
-    /* Real-time pacing (OSS_PACE_MS > 0): the sim advances per-FLIP, and with no vsync
-     * the flips free-run (~460 fps) so a lockstep run is ~7x too fast to PLAY.  Sleep
-     * the real remainder of each flip's budget so a USER recording runs at human speed
-     * (e.g. 16 ms/flip ≈ 62 fps).  Uses the REAL Sleep (hook_Sleep yields to 0). */
-    if (g_cfg.pace_ms > 0 && real_GetTickCount && real_Sleep) {
-        if (g_pace_last_flip_real == 0)
-            timeBeginPeriod(1);   /* 1 ms Sleep granularity -> hit the budget, not 2x it */
-        DWORD now = real_GetTickCount();
-        if (g_pace_last_flip_real != 0) {
-            DWORD elapsed = now - g_pace_last_flip_real;
-            if (elapsed < (DWORD)g_cfg.pace_ms)
-                real_Sleep((DWORD)g_cfg.pace_ms - elapsed);
-        }
-        g_pace_last_flip_real = real_GetTickCount();
-    }
-
     if (!g_cfg.lockstep) return;
     if (!g_lock_armed) {
         g_lock_armed = 1;
