@@ -1,11 +1,55 @@
 # Plan — the freeroam SWORD / ATTACK system (Z unsheathe + X attack)
 
-> **Status: SCOPED (ckpt 154), porting NOT started.**  USER (game owner, ckpt 154):
-> "she DOES have a sword available here [the errands] so let's do the sword stuff."
-> So Arche's sword IS exercisable in the errands freeroam — the next moveset chip after
-> the SLIDE (ckpt 154, done).  This doc is the durable scope so the arc survives a `/clear`.
+> **Status: BLOCKED on scene (ckpt 155 capture) — the sword is OFF in the FIRST (moving-in)
+> errands.**  USER (game owner, ckpt 154): "she DOES have a sword available here [the errands]."
+> ckpt-155 GROUND-TRUTH capture DISPROVES this for the first errands: **`weapon+0x466` (the
+> sword-capability gate) reads 0 the whole scene**, and confirmed-firing ring injects of
+> **Z (id 0x24) and X (id 9) change NOTHING** (cmd4 stays 0, body+0x66 stays 0) — only the
+> held-axis walk responds.  So in the moving-in errands the sword is gated OFF and no input
+> can enable it (478ba0:337 forces the stance block off when `weapon+0x466`==0; `+0x466` has
+> NO writer in the decompile = set at weapon equip / story progression, not by a key).
+> **Awaiting USER: which scene has Arche's sword ACTIVE?** (likely a later one — first dungeon /
+> after she draws it.)  Until then the sword arc can't be captured.  See "## ckpt-155 capture" below.
 > Orient: `CLAUDE.md` → `FRONT.md` → here.  Sibling: `findings/freeroam-pose-commands.md`
 > (the U/D-pose + slide), `plans/controllable-arche-faithful.md` (the freeroam base).
+
+## ckpt-155 capture — no reachable SWORD-DRAW path in the moving-in errands
+Two captures (host up, `runs/sword/`).  **Capture A** (`sword_fields.json` + `sword-nav.jsonl`,
+frame-based on the proven `slide-nav2` retail prefix → errands freeroam): injected ids
+`[0x24, 9]` at flips 4567-4867.  **Capture B** (`kb_config_fields.json`): dumped the LIVE keybind
+config `*0x8a6e80` to resolve which ring id each key produces.
+
+**THE KEY→ID MAPPING (corrected off the live config dump — the opposite of the first guess):**
+| key | DIK | cfg slot | ring id | role (478ba0) |
+|-----|-----|----------|---------|---------------|
+| **Z** | 0x2c | cfg+0x590 | **9**    | the discrete ATTACK press → cmd4=0xf (478ba0:302, gated `body+0x66`!=0 = sword OUT) |
+| **X** | 0x2d | cfg+0x558 | **8**    | the HELD auto-attack (+0x128 → 478ba0:296 → 479f90 → cmd4=0xe) |
+| **C** | 0x2e | cfg+0x574 | **7**    | JUMP (478ba0:287) |
+| V/Enter | 0x2f/0x1c | cfg+0x5ac/fixed | **0x24** | confirm / dialogue-advance (a UI subsystem, NOT a freeroam char-AI consumer) |
+(directions fixed in 46a880: 0xc8→1 up / 0xd0→3 down / 0xcb→2 left / 0xcd→4 right.)
+
+**`weapon+0x466` = "sword currently DRAWN" (toggleable STATE, not a static capability).**
+`402a60` (the action-precondition filter) tests it per-action: case `0xf00001` needs `+0x466`==0
+(sword-IN actions, e.g. interact), case `0xf00002`/`0xf00003` needs `+0x466`!=0 (sword-OUT actions,
+e.g. attack).  So `+0x466`!=0 ⇔ sword out.  It has **NO writer in the decompile** (set via the weapon
+template / an aliased path, not a literal `+0x466 =`).
+
+**RESULT — injecting Z (id 9) does NOT draw the sword here:**
+- `code` (entity+0x1d4) stays **0xc35a** the whole freeroam (478ba0:463 implies 0xc35b/0xc35c are the
+  OTHER Arche forms — likely sword-out; it never changes).  `wpn_466`=0, `body_66_68`=0, `cmd4`=0x0
+  through all 3 id-9 presses (flips 4627/4747/4867 — confirmed-firing).  Only the held-RIGHT walks her.
+- **EVERY id-9 consumer is in 478ba0, ALL gated on sword-already-OUT** (`body+0x66`!=0) or in the
+  mode==1 stance block (gated off for Arche: 478ba0:337 forces mode 2 when `weapon+0x466`==0).  So
+  there is **no reachable code path that DRAWS the sword** (flips 0xc35a→sword-out) in this freeroam.
+- `body+0x66` is a CHARGE/windup METER, not sword-out (455d80 case-3 accumulates `+= weapon+0x2d8`
+  toward cap 1000; 442a70:2206 drains -100/tick in body state 5).  The plan's `+0x66=sword-out` was WRONG.
+
+**INTERPRETATION (needs USER in-game verification):** the binary shows the sword un-drawable in the
+moving-in errands — most consistent with Arche NOT having her sword equipped yet this early (the draw
+becomes reachable once `weapon+0x466` can flip, i.e. a later scene / after she equips it).  The USER
+(game owner) maintains the sword works "here"; if so, the exact in-game step that draws it (a specific
+key/precondition) would point to the missing path — OR it's a later scene.  **Re-capture once that's
+known** (inject id 9 / id 8 in the scene where Arche has the sword; watch `code` flip 0xc35a→0xc35b).
 
 ## The USER ground-truth (engine-quirks #3311, the game owner)
 - **Z = unsheathe / sheathe the sword** (a TOGGLE; a ring action).  **Two distinct

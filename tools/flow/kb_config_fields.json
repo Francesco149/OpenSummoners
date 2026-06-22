@@ -1,0 +1,26 @@
+{
+ "_doc": "THROWAWAY (ckpt 155) — dump the live KEYBIND CONFIG to resolve which ring id each key produces. Config base = *(0x8a6e80); the producer 46a880 reads a keybind ARRAY (entry stride 0x1c): {enabled @cfg+E, scancode @cfg+E+0x10} → a hardcoded ring id per slot. Read each slot's scancode (DIK) so we can map scancode->id and find Z (DIK 0x2c) / X (0x2d) / C (0x2e). chain va=0x8a6e80 hops=[0] (deref to cfg base) off=<scancode offset>. Slot->id (from 46a880): 0x558->8(+held128) 0x574->7(jump) 0x590->9(attack/X) 0x5ac->0x24/0x26(confirm) 0x5c8->0x14 0x5e4->0x10 0x600->0x15 0x61c->0xa 0x638->0x16 0x654->0x17 0x670->0xb 0x68c->0x28 0x6a8->0x29 0x6c4->0x2a 0x6e0->0x2b 0x6fc->0x18 0x718->0x19. RUN: frida_capture.py --no-turbo --lockstep --duration-ms 60000 --field-spec tools/flow/kb_config_fields.json --field-spec-only --call-trace --call-trace-frames <a few title frames> --run-dir runs/sword/kbcap.",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "kb_config",
+   "_note": "FUN_005b8fc0 Flip; read the keybind config scancodes (DIK) per slot.",
+   "fields": [
+    {"name": "sc_id8_atkheld", "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1368, "type": "hex", "reason": "cfg+0x558 -> ring id 8 (attack-held, +0x128)"},
+    {"name": "sc_id7_jump",    "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1396, "type": "hex", "reason": "cfg+0x574 -> ring id 7 (jump = expect DIK_C 0x2e)"},
+    {"name": "sc_id9_attack",  "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1424, "type": "hex", "reason": "cfg+0x590 -> ring id 9 (attack = expect DIK_X 0x2d)"},
+    {"name": "sc_id24_confirm","src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1452, "type": "hex", "reason": "cfg+0x5ac -> ring id 0x24/0x26 (confirm/advance = ? DIK_Z 0x2c)"},
+    {"name": "sc_id14",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1480, "type": "hex", "reason": "cfg+0x5c8 -> ring id 0x14 (+0x12c held)"},
+    {"name": "sc_id10",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1508, "type": "hex", "reason": "cfg+0x5e4 -> ring id 0x10"},
+    {"name": "sc_id15",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1536, "type": "hex", "reason": "cfg+0x600 -> ring id 0x15"},
+    {"name": "sc_id0a",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1564, "type": "hex", "reason": "cfg+0x61c -> ring id 0xa"},
+    {"name": "sc_id16",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1592, "type": "hex", "reason": "cfg+0x638 -> ring id 0x16"},
+    {"name": "sc_id17",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1620, "type": "hex", "reason": "cfg+0x654 -> ring id 0x17"},
+    {"name": "sc_id0b",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1648, "type": "hex", "reason": "cfg+0x670 -> ring id 0xb"},
+    {"name": "sc_id28",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1676, "type": "hex", "reason": "cfg+0x68c -> ring id 0x28"},
+    {"name": "sc_id29",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1704, "type": "hex", "reason": "cfg+0x6a8 -> ring id 0x29"},
+    {"name": "en_id24",        "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1436, "type": "i32", "reason": "cfg+0x59c enabled flag for the id-0x24 slot (sanity)"},
+    {"name": "en_id9",         "src": "chain", "va": "0x8a6e80", "hops": [0], "off": 1408, "type": "i32", "reason": "cfg+0x580 enabled flag for the id-9 slot (sanity)"}
+   ]
+  }
+ }
+}

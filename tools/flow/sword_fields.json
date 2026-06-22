@@ -1,0 +1,25 @@
+{
+ "_doc": "THROWAWAY ground-truth spec (Phase-4, ckpt 155 — the freeroam SWORD/ATTACK arc). Resolves the OPEN QUESTIONS in plans/freeroam-sword-system.md: (1) does Z (ring id 0x24=36, the confirm/advance key) toggle the sword in freeroam? watch body+0x66 (sword-out timer/flag) + weapon(+0x750)+0x466 (sword-capable/drawn) + weapon+0x140 (stance mode); (2) X (ring id 9) with sword out → cmd4 (entity+0x14864)=0xf + a new body FSM state (body+0x38). Leader chain to Arche's ENTITY = [room_state 0x2784=10116, leader-slot 0x200c=8204, entity 0x9f4=2548] (same as pose_consts_fields.json); body = *(entity+0x40), weapon = *(entity+0x750), ring head = *(entity+0xc). Hook FUN_005b8fc0 (once/Flip). ring_head reads the most-recent ring record's id (off 0) — see 0x24/9 land when injected. Drive: pose-nav prefix (advances dialogue to tick 1837) then inject Z(36)/X(9) at freeroam ticks 1900-2090; read fields per tick. RUN: frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/sword/sword-nav.jsonl --held-trace runs/sword/sword-held.jsonl --field-spec tools/flow/sword_fields.json --field-spec-only --call-trace --call-trace-frames <freeroam frames> --run-dir runs/sword/cap.",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "arche_sword",
+   "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's ENTITY (code 0xc35a); reads the sword-toggle + attack-command fields off the entity / body / weapon to pin Z's effect and X's attack.",
+   "fields": [
+    {"name": "code",       "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548],      "off": 468,   "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
+    {"name": "ring_head",  "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,12],   "off": 0,     "type": "hex", "reason": "*(entity+0xc) head ring record, +0 = id of the most-recent press (see 0x24 Z / 9 X land)"},
+    {"name": "ring_flag",  "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,12],   "off": 8,     "type": "i32", "reason": "head ring record +8 = flag (1=down-edge)"},
+    {"name": "cmd0",       "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548],      "off": 84052, "type": "i32", "reason": "entity+0x14854 cmd[0] walk/dash (context)"},
+    {"name": "cmd4",       "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548],      "off": 84068, "type": "hex", "reason": "entity+0x14864 cmd[4] ATTACK (0xe auto / 0xf X-press) — THE attack command"},
+    {"name": "atk94",      "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548],      "off": 84116, "type": "i32", "reason": "entity+0x14894 attack/combo gate (478ba0:435/472)"},
+    {"name": "stance98",   "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548],      "off": 84120, "type": "i32", "reason": "entity+0x14898 stance-arm mode (1 enables 0x18-0x1c selects; forced 2 for Arche when weapon+0x466==0)"},
+    {"name": "body_66_68", "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,64],   "off": 102,   "type": "hex", "reason": "body+0x66 (low16) = SWORD-OUT timer/flag (478ba0:301 gate; 442a70:2206 decrements) + body+0x68 (high16) = mid-swing — THE Z-toggle target"},
+    {"name": "body_38",    "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,64],   "off": 56,    "type": "hex", "reason": "body+0x38 FSM main|sub<<16 — the attack body state on X"},
+    {"name": "body_3a3c",  "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,64],   "off": 58,    "type": "hex", "reason": "body+0x3a sub-phase (low16) + body+0x3c timer (high16) — anim FSM"},
+    {"name": "body_2c",    "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,64],   "off": 44,    "type": "i32", "reason": "body+0x2c facing (1 left / 3 right) — context"},
+    {"name": "wpn_140",    "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,1872], "off": 320,   "type": "i32", "reason": "weapon+0x140 stance mode (0479d30 get / 0479da0 set; watch on Z)"},
+    {"name": "wpn_466",    "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,1872], "off": 1126,  "type": "hex", "reason": "weapon+0x466 (low16) sword-capable/drawn gate (478ba0:337 forces stance mode; watch on Z)"},
+    {"name": "wpn_44a",    "src": "chain", "va": "0x8a9b50", "hops": [10116,8204,2548,1872], "off": 1098,  "type": "hex", "reason": "weapon+0x44a (478ba0:69) — entity-clear gate; context"}
+   ]
+  }
+ }
+}
