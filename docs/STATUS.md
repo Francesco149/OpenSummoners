@@ -176,9 +176,20 @@ understates how much actual instruction volume is ported.
   Feed: the port|recording draw montage (different sessions ⇒ ~4t phase + ~44px position offset, not
   a bug).  **NEXT = chip 2: the ATTACK** (X neutral 120-127 + 128-132 + 3-combo + directionals) +
   sword-out WALK + real SHEATHE — needs the CLEAN injected capture (Frida force `weapon+0xd4=2`).
-  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-sword.osr` |
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-sword2.osr` |
   `sword-realplay.osr`) — scrub the errands freeroam ~tick 2150: Arche unsheathes her sword (cels
-  96-103) on the Z press, holds it out, then sheathes.
+  96-103) on the Z press, then **STAYS drawn** through the idle + a left/right walk (no sheathe).
+  **ckpt 157 (chip-2 progress + USER feedback):** (1) the **force-sword proxy tooling is DONE +
+  committed** (`0f07877`, `OSS_FORCE_SWORD=1` writes `weapon+0xd4=2` on Arche — validated, the game
+  enters armed).  (2) **BLOCKER:** a from-scratch injected attack capture reaches the errands but the
+  **cutscene→freeroam HANDOFF never completes** (Arche idles, ignores injected Z/X) — 4 attempts.
+  (3) **USER GUIDANCE:** APPEND attack inputs to the RECORDED TRACE (at tick 2413 the dad-door
+  dialogue is dismissed + sword drawn) instead of fighting the handoff — **OPEN: no recorded
+  input-trace FILE exists** (the `.osr` is the draw stream only), need the USER's trace or a targeted
+  re-record.  (4) the USER's "port snaps back to no sword" = the SHEATHE in the OLD `port-sword.osr`
+  demo (Z@5900), NOT a bug — the sword-out idle cels (res 1392 fr 0/1/2) are **dhash + blit IDENTICAL**
+  to the recording; `port-sword2.osr` (no sheathe) is the clean verify.  `plans/freeroam-sword-system.md`
+  ckpt-157.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

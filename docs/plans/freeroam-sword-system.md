@@ -11,6 +11,33 @@
 > neutral 120-127 + 128-132 + 3-combo + directionals) + sword-out WALK + the real SHEATHE — needs the
 > CLEAN injected capture (force `weapon+0xd4=2`); see "## ckpt-155 — the attack VARIANT set" below.
 >
+> **ckpt 157 — chip-2 capture progress + USER feedback:**
+> - **force-sword TOOLING DONE + committed** (`0f07877`): `tools/capture_proxy/engine_hooks.h`
+>   `eh_force_sword` writes `weapon+0xd4=2` on Arche each flip (chain `*0x8a9b50→+0x2784→+0x200c→
+>   +0x9f4 ent→+0x750 wpn`, off 0xd4; VirtualQuery-guarded; env `OSS_FORCE_SWORD=1`).  VALIDATED:
+>   the hook fires (`[force-sword] wrote weapon+0xd4=2 @flip 1118 code=c35a`) + the game enters
+>   (sim_tick advances).
+> - **BLOCKER (chip-2 inject capture):** a from-scratch injected nav reaches the errands but Arche
+>   stays in the LEFT-IDLE (cels 152-155) and never responds to injected Z/X/walk — the
+>   **cutscene→freeroam HANDOFF doesn't complete** (control never hands to the freeroam char-AI;
+>   ~92% frames carry text).  4 attempts (each fixed a different nav bug: inline-comment pollution,
+>   turbo, dropped boot id-3, extra confirms) — the handoff is the real retail-harness fiddliness.
+> - **USER GUIDANCE (ckpt 157):** "you can just APPEND INPUTS TO THE RECORDED TRACE.  at sim_tick
+>   2413 the dad door dialogue is fully dismissed and the sword still drawn."  → the path is to
+>   append attack inputs to the recording's INPUT TRACE (it already reached controllable sword-out
+>   freeroam), NOT fight the from-scratch handoff.  **OPEN: no recorded input-trace FILE found**
+>   (`sword-realplay.osr` is the draw stream only; the proxy doesn't log real-play input) — need the
+>   USER's input trace OR a targeted re-record.
+> - **USER OBSERVATION:** the port "draws the sword … but snaps back to no sword after the animation."
+>   RESOLVED as the SHEATHE in the `port-sword.osr` DEMO (the demo's Z@frame5900), NOT a render bug:
+>   the port's sword-out idle cels (res 1392 fr 0/1/2) are **dhash + blit IDENTICAL** to the recording
+>   (and the retail force-capture) — same sprite, so the port renders the sword-out idle exactly as
+>   retail.  A no-sheathe demo (`port-sword2.osr`: draw → STAY drawn → walk) is the clean verify.
+>   (CAVEAT: the port idle uses cels 0,1,2 = the SAME as the unarmed idle; if the USER confirms the
+>   sword is NOT visible in the no-sheathe demo, the sword-out body is a distinct form-0xc35b bank the
+>   port doesn't load — RE 0x41f200's 0xc35b install → the sword-out body res — and the dhash match is
+>   a same-sheet coincidence to re-examine.)
+>
 > **Mechanism RESOLVED (ckpt 155) — the sword IS available in the errands, GATED on the
 > tutorial quest reaching case 8 (`4dc510:1167` sets `weapon+0xd4=2`).**  USER (game owner) was RIGHT.
 > My fresh-new-game captures sat at an early quest state so it was never enabled (ring injection +
