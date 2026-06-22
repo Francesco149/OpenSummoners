@@ -913,19 +913,21 @@ int test_arche_house_turn_clip(void)
     return 0;
 }
 
-/* ── The U/D-POSE clip FSM (crouch / up-defensive), RE'd off retail-pose.osr (res
- *    0x570, ckpt 153b; engine-quirk #114): a transition cel on enter AND exit,
- *    holding a steady cel between.  CROUCH: enter 31 (4t) -> hold 32 -> [release]
- *    exit 31 (5t) -> idle.  UP: enter 34 (4t) -> hold 35 -> [release] exit 34 ->
- *    idle.  Drives off cmd_pose (CHAR_POSE_DOWN 10 / _UP 0xb). ── */
+/* ── The U/D-POSE clip FSM (crouch / up-defensive), RE'd off retail-pose.osr /
+ *    retail-poseL.osr (res 0x570, ckpt 153b; engine-quirk #114): a transition cel
+ *    on enter AND exit, holding a steady cel between.  Bank 0x8b is NOT
+ *    engine-mirrored — dedicated left cels (right+152): RIGHT crouch 31/hold 32,
+ *    up 34/hold 35; LEFT crouch 183/hold 184, up 186/hold 187.  arche_pose_clip
+ *    selects the clip by `facing` + sets `posing` (the caller renders facing=1). ── */
 int test_arche_pose_clip(void)
 {
     arche_pose_anim st;
     memset(&st, 0, sizeof st);
 
-    /* CROUCH engage: the enter->hold one-shot {31, 32}. */
-    const anim_clip *c = arche_pose_clip(&st, CHAR_POSE_DOWN, 0, 0, 0);
+    /* CROUCH engage (RIGHT): the enter->hold one-shot {31, 32}. */
+    const anim_clip *c = arche_pose_clip(&st, CHAR_POSE_DOWN, CHAR_FACE_RIGHT, 0, 0, 0);
     T_ASSERT(c != NULL);
+    T_ASSERT_EQ_I(st.posing, 1);
     T_ASSERT_EQ_I(c->frame_delta[0], 31);
     T_ASSERT_EQ_I(c->frame_delta[1], 32);
     T_ASSERT_EQ_I(c->frame_count, 2);
@@ -940,22 +942,24 @@ int test_arche_pose_clip(void)
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 32);   /* one-shot freezes on the hold */
     }
     /* Sustained crouch keeps returning the crouch clip. */
-    c = arche_pose_clip(&st, CHAR_POSE_DOWN, 0, 0, 0);
+    c = arche_pose_clip(&st, CHAR_POSE_DOWN, CHAR_FACE_RIGHT, 0, 0, 0);
     T_ASSERT_EQ_I(c->frame_delta[0], 31);
 
     /* RELEASE: the exit transition cel (31) for exactly ARCHE_POSE_EXIT_TICKS, then
-     * the walk/idle clip resumes. */
+     * the walk/idle clip resumes (posing clears). */
     for (int t = 0; t < ARCHE_POSE_EXIT_TICKS; t++) {
-        c = arche_pose_clip(&st, 0, /*moving=*/0, 0, 0);
+        c = arche_pose_clip(&st, 0, CHAR_FACE_RIGHT, /*moving=*/0, 0, 0);
         T_ASSERT_EQ_I(c->frame_delta[0], 31);   /* the crouch-exit cel */
         T_ASSERT_EQ_I(c->frame_count, 1);
+        T_ASSERT_EQ_I(st.posing, 1);
     }
-    c = arche_pose_clip(&st, 0, /*moving=*/0, 0, 0);
+    c = arche_pose_clip(&st, 0, CHAR_FACE_RIGHT, /*moving=*/0, 0, 0);
     T_ASSERT_EQ_I(c == arche_freeroam_clip(0, 0, 0), 1);   /* back to idle */
+    T_ASSERT_EQ_I(st.posing, 0);
 
-    /* UP-pose engage: the enter->hold one-shot {34, 35}. */
+    /* UP-pose engage (RIGHT): the enter->hold one-shot {34, 35}. */
     memset(&st, 0, sizeof st);
-    c = arche_pose_clip(&st, CHAR_POSE_UP, 0, 0, 0);
+    c = arche_pose_clip(&st, CHAR_POSE_UP, CHAR_FACE_RIGHT, 0, 0, 0);
     T_ASSERT_EQ_I(c->frame_delta[0], 34);
     T_ASSERT_EQ_I(c->frame_delta[1], 35);
     {
@@ -965,13 +969,27 @@ int test_arche_pose_clip(void)
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 35);
     }
     /* RELEASE up: the up-exit cel (34). */
-    c = arche_pose_clip(&st, 0, 0, 0, 0);
+    c = arche_pose_clip(&st, 0, CHAR_FACE_RIGHT, 0, 0, 0);
     T_ASSERT_EQ_I(c->frame_delta[0], 34);
+    T_ASSERT_EQ_I(c->frame_count, 1);
+
+    /* LEFT-facing: dedicated cels (right+152) — crouch 183/184, up 186/187. */
+    memset(&st, 0, sizeof st);
+    c = arche_pose_clip(&st, CHAR_POSE_DOWN, CHAR_FACE_LEFT, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 183);
+    T_ASSERT_EQ_I(c->frame_delta[1], 184);
+    T_ASSERT_EQ_I(st.posing, 1);
+    c = arche_pose_clip(&st, CHAR_POSE_UP, CHAR_FACE_LEFT, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 186);
+    T_ASSERT_EQ_I(c->frame_delta[1], 187);
+    /* RELEASE while facing left: the left-exit cel (186). */
+    c = arche_pose_clip(&st, 0, CHAR_FACE_LEFT, 0, 0, 0);
+    T_ASSERT_EQ_I(c->frame_delta[0], 186);   /* up-LEFT exit, not the right 34 */
     T_ASSERT_EQ_I(c->frame_count, 1);
 
     /* While crouching, the MOVING/run args are ignored (the pose wins over walk). */
     memset(&st, 0, sizeof st);
-    c = arche_pose_clip(&st, CHAR_POSE_DOWN, /*moving=*/1, 0, /*run=*/1);
+    c = arche_pose_clip(&st, CHAR_POSE_DOWN, CHAR_FACE_RIGHT, /*moving=*/1, 0, /*run=*/1);
     T_ASSERT_EQ_I(c->frame_delta[0], 31);
 
     return 0;

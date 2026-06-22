@@ -235,23 +235,30 @@ extern const int16_t ARCHE_FREEROAM_FLIP;
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run);
 
 /* The U/D-POSE animation FSM (crouch / up-defensive) — the visible pose sprite,
- * RE'd off retail-pose.osr (res 0x570, ckpt 153b; engine-quirk #114).  The pose
- * is a 3-phase clip keyed on the body sub-state: a transition cel on enter AND
- * exit, holding a steady cel between (CROUCH enter/exit 31, hold 32; UP enter/
- * exit 34, hold 35).  arche_pose_clip drives it from c->cmd_pose: while a pose is
- * engaged it returns the enter->hold one-shot; on release it plays the exit
- * transition cel for ARCHE_POSE_EXIT_TICKS, then falls through to the normal
- * walk/idle/run clip (arche_freeroam_clip).  Pure + host-tested; the caller keeps
- * one arche_pose_anim (zero-initialised) and calls this once per sim-tick. */
+ * RE'd off retail-pose.osr / retail-poseL.osr (res 0x570, ckpt 153b; quirk #114).
+ * The pose is a 3-phase clip keyed on the body sub-state: a transition cel on
+ * enter AND exit, holding a steady cel between.  Bank 0x8b is NOT engine-mirrored
+ * — it has DEDICATED left-facing cels (left = right + 152: CROUCH enter/exit
+ * 31/hold 32 right, 183/184 left; UP 34/35 right, 186/187 left), so the pose
+ * renders with facing=1 (no +4 flip) and arche_pose_clip selects the left clip by
+ * the CHARACTER `facing` (1 right / 3 left).  While a pose is engaged it returns
+ * the enter->hold one-shot; on release it plays the exit transition cel (in the
+ * release facing) for ARCHE_POSE_EXIT_TICKS, then falls through to the normal
+ * walk/idle/run clip (arche_freeroam_clip).  `st->posing` is set 1 while a pose
+ * clip (incl. the exit) is active — the caller renders facing=1 then (else the
+ * +4 walk-flip would corrupt the dedicated pose cels).  Pure + host-tested; the
+ * caller keeps one arche_pose_anim (zero-initialised), calls this once per sim-tick. */
 #define ARCHE_POSE_EXIT_TICKS 5   /* the exit transition cel holds this many ticks */
 
 typedef struct arche_pose_anim {
     int16_t prev_pose;    /* last tick's cmd_pose (detect the release edge)        */
     int16_t exit_timer;   /* ticks left in the exit transition (0 = not exiting)   */
     int16_t exit_kind;    /* the pose being exited (CHAR_POSE_DOWN / _UP)          */
+    int16_t exit_facing;  /* the facing at release (which left/right exit cel)     */
+    int16_t posing;       /* 1 while a pose clip is active (caller renders facing=1)*/
 } arche_pose_anim;
 
-const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
+const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose, int facing,
                                  int moving, int airborne, int run);
 
 /* USER studio notes #3-5: the house Arche TURN.  After house L5 advances, the

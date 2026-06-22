@@ -178,9 +178,30 @@ wins over walk/run).  Quirk #114 extended.  **Verified:** a port `.osr` (drive i
 the errands freeroam + held DOWN/UP) renders cels 31/32/34/35 at res 0x570 ==
 retail (`## The POSE ANIM verification`).  Retires `PORT-DEBT(char-pose-anim)`.
 
-RESIDUAL: only the RIGHT-facing pose is verified (the errands spawn faces right);
-a LEFT-facing crouch/up would mirror via `flip_table[0x8b]` and is unverified until
-a left-facing capture (a minor follow-up — the spawn never faces left in the arc).
+**LEFT-facing — DONE too (no residual).**  See "## The left-facing freeroam mirror".
+
+## The left-facing freeroam mirror — bank 0x8b is NOT engine-mirrored (ckpt 153b)
+
+Captured a LEFT-facing pose (`retail-poseL.osr`: walk LEFT to turn, then held-DOWN/UP
+facing left).  The left-facing cels are NOT the `+4` walk-flip the port assumed —
+they are **DEDICATED cels at `right + 152`**: left crouch enter/hold **183/184**, left
+up **186/187** (vs right 31/32, 34/35).  The left IDLE is **152-154** and the left WALK
+**159-165** (also dedicated, not `+4`).  So `flip_table[0x8b]=4` (`ARCHE_FREEROAM_FLIP`)
+is a FICTION for bank 0x8b — the engine does not mirror it; it has a full left-facing
+animation set.
+
+**The pose fix (this chip):** `arche_pose_clip` takes the CHARACTER `facing` and returns
+the dedicated left clip (183/184 / 186/187) when facing left; `freeroam_step` renders the
+pose at **facing=1** (no flip — `st->posing`) so the dedicated cels draw as-is (else the
+`+4` flip would turn left-crouch 183 into 187).  VERIFIED off `port-poseL.osr` vs
+`retail-poseL.osr`: left crouch 183→184, left up 186→187 == retail.
+
+**SURFACED (separate debt, NOT this chip): the WALK/IDLE left-facing cels are likely
+wrong** — the port renders them via the `+4` flip (left walk 4-7, left idle 4-5) but
+retail uses the dedicated 159-165 / 152-154.  Registered `PORT-DEBT(char-freeroam-left-cels)`:
+the same dedicated-left-cels treatment (flip=0 + left walk/idle clips) should extend to the
+walk + idle; the ckpt-144 "+4 walk mirror verified 1:1" likely didn't scrutinize the exact
+left cels.  Needs a sustained-left-walk capture to pin the walk-left cycle + the idle-left.
 
 ## PORT-DEBT
 - `char-pose-holdtime` — the 240ms `array_B` held-time arm (the producer doesn't fill
@@ -188,5 +209,10 @@ a left-facing capture (a minor follow-up — the spawn never faces left in the a
   redundant backstop here.
 - `char-up-door-probe` — the UP door/ledge enter (478ba0:260-285), collision-coupled.
 - ~~`char-pose-physics`~~ — RETIRED ckpt 153 (the apply states 2/5 brake law, bit-exact).
-- ~~`char-pose-anim`~~ — RETIRED ckpt 153b (the crouch/up SPRITE, RE'd off retail-pose.osr,
-  cels 31/32/34/35; see "## The POSE ANIM" above).
+- ~~`char-pose-anim`~~ — RETIRED ckpt 153b (the crouch/up SPRITE, BOTH facings: right
+  31/32/34/35 + left 183/184/186/187; see "## The POSE ANIM" + "## The left-facing
+  freeroam mirror" above).
+- `char-freeroam-left-cels` — the WALK/IDLE left-facing cels: the port mirrors via the
+  `+4` flip (left walk 4-7 / idle 4-5) but retail uses the DEDICATED 159-165 / 152-154
+  (bank 0x8b is not engine-mirrored).  Surfaced by the left-pose capture; the pose half is
+  fixed (dedicated left clips + facing=1), the walk/idle half is the open debt.

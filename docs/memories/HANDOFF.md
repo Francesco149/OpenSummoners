@@ -21,11 +21,15 @@ exit 31 (5t) → idle; UP enter 34 → hold 35 → exit 34 → idle.  Ported `ar
 (`actor_spawn.{c,h}`, keyed on `cmd_pose`, host-tested `test_arche_pose_clip`); `freeroam_step` calls
 it once/sim-tick (pose wins over walk/run).  Verified port `.osr` res 0x570 == retail tick-for-tick
 (enter 4t, exit 5t — the enter dur is 5 not 4: the stepper advances before the render).  Writeup:
-`findings/freeroam-pose-commands.md` "## The POSE ANIM"; quirk #114 extended.  RESIDUAL: only
-RIGHT-facing verified (errands spawn faces right; LEFT-facing mirrors via `flip_table[0x8b]`, unverified).
-**USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-pose.osr` |
-`retail-pose.osr`), scrub the errands freeroam — Arche crouches (DOWN) and takes the up-defensive pose
-(UP) instead of sliding in her walk cel.
+`findings/freeroam-pose-commands.md` "## The POSE ANIM"; quirk #114 extended.  **LEFT-facing DONE too
+(USER ckpt-153b directive):** captured a left-facing pose (`retail-poseL.osr`) — bank 0x8b is NOT
+engine-mirrored, it has DEDICATED left cels (right+152: left crouch 183/184, up 186/187), so
+`arche_pose_clip` selects the left clip by the CHARACTER facing + `freeroam_step` renders facing=1 (no
++4 flip — else 31+4=35 collides).  port-poseL.osr renders 183/184/186/187 == retail.  **SURFACED a new
+debt `char-freeroam-left-cels`: the WALK/IDLE left cels are also dedicated (left walk 159-165, idle
+152-154) but the port still mirrors them via +4 (wrong) — the pose half is fixed, the walk/idle half is
+open (needs a sustained-left-walk capture).**  **USER-VERIFY (visual): feed montage** (`pose_montage.png`
+right-facing; a left-facing montage too) + the studio shortcut.
 
 ## Where we are (prior chip) — ckpt 153
 

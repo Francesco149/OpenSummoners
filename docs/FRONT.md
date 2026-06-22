@@ -97,9 +97,14 @@
   UP enter/exit 34 (4t)/hold 35.  Ported `arche_pose_clip` (`actor_spawn.{c,h}`, host-tested) keyed on
   `cmd_pose`; `freeroam_step` calls it once/sim-tick (the pose wins over walk/run).  VERIFIED off a port
   `.osr` vs `retail-pose.osr`: res 0x570 renders 31/32/34/35 at (162,336) TICK-FOR-TICK == retail (enter
-  4t, exit 5t bit-exact).  1053 host pass (+1).  `PORT-DEBT(char-pose-anim)` RETIRED; quirk #114 extended.
-  RESIDUAL: only RIGHT-facing verified (the spawn faces right; LEFT-facing mirrors via flip_table — a minor
-  follow-up).  Remaining moveset: the dash-then-down SLIDE (= same crouch state, just entered with momentum),
+  4t, exit 5t bit-exact).  **LEFT-facing DONE too** (USER ckpt-153b directive): captured a left-facing pose
+  (`retail-poseL.osr`) — bank 0x8b is NOT engine-mirrored, it has DEDICATED left cels (right+152: left crouch
+  183/184, up 186/187), so `arche_pose_clip` selects the left clip by the CHARACTER facing + `freeroam_step`
+  renders facing=1 (no +4 flip).  port-poseL.osr renders 183/184/186/187 == retail.  `PORT-DEBT(char-pose-anim)`
+  RETIRED (both facings); quirk #114 extended; 1053 host pass.  **SURFACED (new debt `char-freeroam-left-cels`):
+  the WALK/IDLE left cels are also dedicated (left walk 159-165, idle 152-154) — the port still mirrors them via
+  +4 (wrong); the pose half is fixed, the walk/idle half is open (needs a sustained-left-walk capture).**
+  Remaining moveset: the dash-then-down SLIDE (= same crouch state, just entered with momentum),
   sword(Z)/attack(X), the door-enter (= char-up-door-probe, collision-coupled).
   `findings/freeroam-pose-commands.md`.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
   sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE

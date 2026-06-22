@@ -3872,4 +3872,8 @@ crouch) → [release] exit cel 31 (5 ticks) → idle.  UP (state 5): enter cel 3
 proxy (`engine_input.h`: hook the leaf key query `0x5ba520`, write 0x80 into
 `device+0x18+scancode` for held scancodes → the producer fills `mgr+0x114..`).  Ported as
 `arche_pose_clip` (`actor_spawn.c`), keyed on `cmd_pose`; verified port `.osr` res 0x570 ==
-retail.  (PORT-DEBT(char-pose-anim) RETIRED.)
+retail.  **LEFT-facing: bank 0x8b is NOT engine-mirrored — it has DEDICATED left cels at
+`right+152` (left crouch 183/184, up 186/187; left idle 152-154, left walk 159-165), NOT the
+`+4` walk-flip; so the pose renders at facing=1 (no flip) + the facing-selected left clip.**
+(PORT-DEBT(char-pose-anim) RETIRED, both facings.  The walk/idle left cels still mirror via
+`+4` = the new `char-freeroam-left-cels` debt.)
