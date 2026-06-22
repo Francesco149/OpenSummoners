@@ -173,6 +173,67 @@ static void eh_snap_backbuffer(uint32_t closing_flip)
     IDirectDrawSurface7_Unlock(s, NULL);
 }
 
+/* ── chip-2: FORCE the sword drawable (weapon+0xd4=2) for the attack capture ──
+ * Retail gates the freeroam sword draw on the errands quest reaching case 8
+ * (4dc510:1167 sets weapon+0xd4=2).  An INJECTED capture never advances the quest
+ * there, so the sword stays un-drawable (the ckpt-155 inject captures all failed on
+ * this).  We write the gate directly on Arche's weapon each flip, so an injected Z
+ * draws + X attacks, letting us capture the full attack set (combo/directional/
+ * sword-out walk) the USER's single real-play recording couldn't disambiguate.
+ *
+ * HARMLESS: freeroam isn't active during the intro (no input control), so an early
+ * write can't draw the sword — it only enables it once control hands off (= retail's
+ * post-tutorial point).  Chain (sword_fields.json): [*0x8a9b50 -> +0x2784 -> +0x200c
+ * -> +0x9f4 = entity -> +0x750 = weapon], off 0xd4; code (entity+0x1d4) sanity-checked
+ * to Arche (0xc35a/b/c).  Each pointer is VirtualQuery-guarded so the menu/title
+ * states (null chain) never fault.  Gated on env OSS_FORCE_SWORD=1. */
+static int g_eh_force_sword = -1;   /* -1 unread, 0 off, 1 on */
+
+static int eh_ptr_ok(DWORD addr, SIZE_T len, int need_write)
+{
+    MEMORY_BASIC_INFORMATION mbi;
+    if (addr < 0x10000u) return 0;
+    if (VirtualQuery((LPCVOID)(uintptr_t)addr, &mbi, sizeof mbi) == 0) return 0;
+    if (mbi.State != MEM_COMMIT) return 0;
+    DWORD prot = mbi.Protect & 0xffu;
+    if (prot == PAGE_NOACCESS || prot == PAGE_GUARD) return 0;
+    if (need_write && !(prot == PAGE_READWRITE || prot == PAGE_WRITECOPY ||
+                        prot == PAGE_EXECUTE_READWRITE || prot == PAGE_EXECUTE_WRITECOPY))
+        return 0;
+    DWORD region_end = (DWORD)(uintptr_t)mbi.BaseAddress + (DWORD)mbi.RegionSize;
+    return (addr + (DWORD)len) <= region_end;
+}
+static DWORD eh_deref(DWORD base, DWORD off)   /* *(base+off), 0 on any fault */
+{
+    DWORD a = base + off;
+    if (!eh_ptr_ok(a, 4, 0)) return 0;
+    return *(volatile DWORD *)(uintptr_t)a;
+}
+static void eh_force_sword(void)
+{
+    if (g_eh_force_sword < 0) {
+        const char *e = getenv("OSS_FORCE_SWORD");
+        g_eh_force_sword = (e && e[0] == '1') ? 1 : 0;
+        proxy_logf("[force-sword] %s", g_eh_force_sword ? "ON (weapon+0xd4=2)" : "off");
+    }
+    if (!g_eh_force_sword) return;
+    DWORD root = eh_deref(0x008a9b50u, 0);
+    DWORD rs   = eh_deref(root, 0x2784u);
+    DWORD ldr  = eh_deref(rs,   0x200cu);
+    DWORD ent  = eh_deref(ldr,  0x9f4u);
+    if (!ent) return;
+    DWORD code = eh_deref(ent, 0x1d4u) & 0xffffu;     /* Arche only */
+    if (code != 0xc35au && code != 0xc35bu && code != 0xc35cu) return;
+    DWORD wpn  = eh_deref(ent, 0x750u);
+    if (!wpn || !eh_ptr_ok(wpn + 0xd4u, 4, 1)) return;
+    volatile DWORD *d4 = (volatile DWORD *)(uintptr_t)(wpn + 0xd4u);
+    if (*d4 != 2u) {
+        *d4 = 2u;
+        proxy_logf("[force-sword] wrote weapon+0xd4=2 @flip %ld (ent=%08lx wpn=%08lx code=%04lx)",
+                   (long)g_eh_flip, (unsigned long)ent, (unsigned long)wpn, (unsigned long)code);
+    }
+}
+
 /* ── flip: frame boundary + the lockstep clock advance ───────────────────── */
 static DWORD g_eh_hb_t0 = 0;   /* real GetTickCount at flip 1 (throughput base) */
 static void eh_flip_cb(PCONTEXT ctx)
@@ -180,6 +241,7 @@ static void eh_flip_cb(PCONTEXT ctx)
     (void)ctx;
     LONG f = InterlockedIncrement(&g_eh_flip);
     clock_on_flip();                       /* arm + step the lockstep clock */
+    eh_force_sword();                      /* chip-2: keep weapon+0xd4=2 (env-gated) */
     /* M3b frame structure: a FRAMEBEG opens a frame, the blit detours stream
      * BLIT records into it, and the NEXT flip closes it with a PRESENT before
      * opening the following frame.  So the draws listed under FRAMEBEG(f) are
