@@ -2862,6 +2862,12 @@ static void freeroam_begin(void)
         g_actor_flip_table[0x8bu] = ARCHE_FREEROAM_FLIP;
     if ((uint16_t)0x8cu < (uint16_t)AR_SPRITE_SLOT_COUNT)
         g_actor_flip_table[0x8cu] = ARCHE_SWORD_OUT_FLIP;
+    /* The UP-attack bank 0x8d (res 0x572): the +192 sword-out mirror is the hypothesis
+     * (consistent with 0x8c, the same sword-out form 0xc35b) — RESIDUAL: verify off a
+     * LEFT-facing up-attack capture (the ckpt-159b pose-left-cels pattern); the first
+     * sword2.osr up-attack (tick 3880) is RIGHT-facing (cels 0-5, un-mirrored). */
+    if ((uint16_t)0x8du < (uint16_t)AR_SPRITE_SLOT_COUNT)
+        g_actor_flip_table[0x8du] = ARCHE_SWORD_OUT_FLIP;
     g_freeroam_active = 1;
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
@@ -2921,9 +2927,15 @@ static void freeroam_step(void)
      * -out, blade baked into every cel).  The draw plays res 0x571 96-103 (she's on
      * 0x8c the instant Z fires; res 0x570 vanishes), the sheathe plays res 0x570
      * 96-103 (back on 0x8b) — both render on the destination bank because the swap
-     * follows sword_out exactly.  The +152/+192 left mirrors are in the flip table. */
-    g_freeroam_actor.sprite_table[0].bank =
-        g_freeroam_char.sword_out ? 0x8cu : 0x8bu;
+     * follows sword_out exactly.  The +152/+192 left mirrors are in the flip table.
+     * The UP attack (chip 2c) is a THIRD swap: the overhead thrust re-installs to bank
+     * 0x8d (res 0x572) for its duration (res 0x571 vanishes too), exactly as retail
+     * draws the 0x283f action from sprite-slot 2 (41f200:901 -> 0x426db0(2,0x8d,...)). */
+    uint16_t body_bank = g_freeroam_char.sword_out ? 0x8cu : 0x8bu;
+    if (g_freeroam_char.attacking &&
+        g_freeroam_char.attack_kind == CHAR_ATTACK_UP)
+        body_bank = 0x8du;                  /* overhead-thrust bank (res 0x572) */
+    g_freeroam_actor.sprite_table[0].bank = body_bank;
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;

@@ -760,12 +760,21 @@ int test_character_attack_directional(void)
       T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_FORWARD); }   /* L held, facing L = toward */
     { MK(CHAR_FACE_LEFT);  PRESS(0,1,0); character_resolve_attack(&c, NULL, now, a);
       T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_BACK); }      /* R held, facing L = away   */
+    /* UP (chip 2c, res 0x572) beats DOWN and any held L/R — UP/DOWN are mutually
+     * exclusive on the dpad, so UP-first is unambiguous. */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,1,0); a[CHAR_AXIS_UP]=1;
+      character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_UP); }        /* UP beats R held           */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,0,1); a[CHAR_AXIS_UP]=1;
+      character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_UP); }        /* UP beats DOWN             */
 
     /* ── per-kind durations (one source of truth) ───────────────────────────── */
     T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_NEUTRAL), 36);
     T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_FORWARD), 42);
     T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_DOWN),    26);
     T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_BACK),    27);
+    T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_UP),      36);
 
     /* ── BACK turns her around at completion (faces right through the swing) ─── */
     { MK(CHAR_FACE_RIGHT); PRESS(1,0,0);
@@ -810,6 +819,23 @@ int test_character_attack_directional(void)
           if (c.attacking) character_step(&c, a, 0, 0);
       }
       T_ASSERT_EQ_I(c.world_x, x0); }
+
+    /* ── UP runs exactly 36t, STATIONARY, no facing flip (the overhead thrust holds) ─ */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,0,0); a[CHAR_AXIS_UP]=1;
+      int32_t x0 = c.world_x;
+      character_resolve_attack(&c, NULL, now, a);   /* trigger (timer 0) */
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_UP);
+      a[CHAR_AXIS_ATTACK] = 0; a[CHAR_AXIS_UP] = 0;
+      character_step(&c, a, 0, 0);                  /* timer-0 step */
+      for (int t = 1; t < CHAR_ATTACK_UP_TICKS; t++) {
+          T_ASSERT_EQ_I(c.attacking, 1);            /* still mid-swing through 36t */
+          character_resolve_attack(&c, NULL, now, a);
+          character_step(&c, a, 0, 0);
+      }
+      character_resolve_attack(&c, NULL, now, a);   /* completing advance */
+      T_ASSERT_EQ_I(c.attacking, 0);                /* ends at exactly 36t */
+      T_ASSERT_EQ_I(c.world_x, x0);                 /* stationary          */
+      T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT); }   /* no turn-around (unlike BACK) */
     #undef MK
     #undef PRESS
     return 0;

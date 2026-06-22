@@ -1198,6 +1198,34 @@ static const anim_clip ARCHE_ATTACK_BACK_CLIP = {
     .frame_dur   = 1,
     .oneshot     = 1,
 };
+/* The UP (overhead) attack — chip 2c.  UNLIKE the neutral/directional swings (all on
+ * the sword-out bank 0x8c, res 0x571), the up-thrust draws on a SEPARATE BANK 0x8d
+ * (res 0x572) — Arche RE-installs from 0x8c to 0x8d the instant it fires (res 0x571
+ * VANISHES, res 0x572 takes over), exactly like the Z draw swaps 0x8b->0x8c.  The
+ * 0x283f action is registered in the same 0xc35b sword-out form (41f200:1193/1202).
+ * freeroam_step does the bank swap (0x8d while attack_kind==UP); THIS clip picks the
+ * cel sequence on whatever bank is active.  Off sword2.osr res 0x572 (the up_attack_probe,
+ * ticks 3880-3915, RIGHT-facing): cels 0->5, durs [4,4,4,8,8,8] = 36t, dst grows to
+ * 36x96 (the thrust extends straight up — the cel's own footprint, off=0), STATIONARY,
+ * then back to the res 0x571 sword-out idle.  All durs are multiples of 4, so encode at
+ * frame_dur 4 (9 entries, fits ANIM_CLIP_MAX_FRAMES 32) rather than 36 dur-1 entries. */
+static const anim_clip ARCHE_ATTACK_UP_CLIP = {
+    .base_sprite = 0,                        /* res 0x572 cels 0->5 (bank 0x8d) */
+    .frame_delta = { 0, 1, 2, 3,3, 4,4, 5,5 },   /* durs [4,4,4,8,8,8] @ dur-4 */
+    .frame_count = 9,
+    .frame_dur   = 4,    /* 9 * 4 = 36t = CHAR_ATTACK_UP_TICKS */
+    /* The overhead thrust draws RAISED + leaning toward facing — a per-frame draw
+     * offset (the renderer's case-0x1872d off_x/off_y, NOT the cel's sheet origin,
+     * which is byte-identical port<->retail).  RE'd off sword2.osr dst deltas vs the
+     * tick-adjacent stationary up-pose at world_screen (270,336), off_x 0 (the walk/
+     * idle/pose baseline): the up-attack renders at y=320 (a uniform -16 RAISE for
+     * the overhead pose) and x 286/296 = +16 (cels 0-2,5) / +26 (cels 3-4, the thrust
+     * extension leans forward).  off_x is reflected about row->mirror_x on facing==3
+     * (the LEFT mirror, residual-unverified with bank 0x8d's +192). */
+    .off_x = { 16, 16, 16, 26, 26, 26, 26, 16, 16 },
+    .off_y = { -16, -16, -16, -16, -16, -16, -16, -16, -16 },
+    .oneshot     = 1,
+};
 
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
                                   int attacking, int16_t attack_kind,
@@ -1241,7 +1269,8 @@ const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
             return &ARCHE_ATTACK_DOWN_CLIP;
         case CHAR_ATTACK_BACK:
             return &ARCHE_ATTACK_BACK_CLIP;
-        case CHAR_ATTACK_UP:        /* chip 2c (0x283f separate sheet); stand-in */
+        case CHAR_ATTACK_UP:        /* overhead thrust, res 0x572 (bank 0x8d swap in freeroam_step) */
+            return &ARCHE_ATTACK_UP_CLIP;
         case CHAR_ATTACK_NEUTRAL:
         default:
             return &ARCHE_ATTACK_NEUTRAL_CLIP;

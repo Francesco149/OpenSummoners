@@ -94,13 +94,15 @@ enum {
  *   BACK     held dir == ~facing  -> 144-148  TURNS AROUND      (0x27d9 var4, the
  *                                            +0x54==4 branch flips facing +0x2c and
  *                                            negates vel +0x28, 45e830:363-365)
- *   UP       UP held             -> a separate multi-sprite sheet (0x283f) = chip 2c. */
+ *   UP       UP held             -> an overhead THRUST on a SEPARATE BANK 0x8d (res
+ *                                            0x572) cels 0-5, STATIONARY, + the sword-
+ *                                            tip TRAIL vfx (res 0x40b) — chip 2c. */
 enum {
     CHAR_ATTACK_NEUTRAL = 0,   /* X, no direction -> cels 104-109                    */
     CHAR_ATTACK_FORWARD,       /* X + dir toward facing -> 120-126 + forward lunge   */
     CHAR_ATTACK_DOWN,          /* X + DOWN -> 112-115 (crouch-attack)                */
     CHAR_ATTACK_BACK,          /* X + dir away from facing -> 144-148 + turn-around  */
-    CHAR_ATTACK_UP,            /* X + UP -> 0x283f separate sheet (chip 2c, reserved)*/
+    CHAR_ATTACK_UP,            /* X + UP -> bank 0x8d (res 0x572) cels 0-5 overhead  */
 };
 /* Per-kind swing duration in sim-ticks (= the matching clip's total cels*durs, kept
  * 1:1 so the movement lock and the anim end together).  RE'd off sword2.osr res 0x571
@@ -108,11 +110,13 @@ enum {
  *   NEUTRAL 6 cels * dur-6 = 36   (3485-3520)
  *   FORWARD 7 cels * dur-6 = 42   (3792-3833)
  *   DOWN    durs [8,6,5,7] = 26   (3957-3982)
- *   BACK    durs [4,4,7,7,5] = 27 (4082-4108) */
+ *   BACK    durs [4,4,7,7,5] = 27 (4082-4108)
+ *   UP      durs [4,4,4,8,8,8] = 36 (res 0x572 cels 0-5, ticks 3880-3915) */
 #define CHAR_ATTACK_NEUTRAL_TICKS  36
 #define CHAR_ATTACK_FORWARD_TICKS  42
 #define CHAR_ATTACK_DOWN_TICKS     26
 #define CHAR_ATTACK_BACK_TICKS     27
+#define CHAR_ATTACK_UP_TICKS       36
 /* The FORWARD lunge: total world-X displacement toward facing over the swing.  RE'd
  * mechanism = a direct world_x step toward facing through the collision mover 0054db10
  * (0x447ed0, sign-flipped on facing==3); the swing locks vel like neutral and the

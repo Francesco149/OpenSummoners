@@ -344,6 +344,7 @@ int character_attack_ticks(int attack_kind)
     case CHAR_ATTACK_FORWARD: return CHAR_ATTACK_FORWARD_TICKS;
     case CHAR_ATTACK_DOWN:    return CHAR_ATTACK_DOWN_TICKS;
     case CHAR_ATTACK_BACK:    return CHAR_ATTACK_BACK_TICKS;
+    case CHAR_ATTACK_UP:      return CHAR_ATTACK_UP_TICKS;
     case CHAR_ATTACK_NEUTRAL:
     default:                  return CHAR_ATTACK_NEUTRAL_TICKS;
     }
@@ -380,18 +381,23 @@ int16_t character_resolve_attack(character *c, const struct input_mgr *m,
     /* Trigger: X held (the +0x128 attack level) + sword drawn + grounded + the 200 ms
      * auto-attack refractory since the last swing.  Pick the swing VARIANT from the
      * held direction vs facing (478ba0 builds cmd[4]=0xf; the sword-out form runs the
-     * matching registered template, 41f200:1181-1201): DOWN beats a held L/R (FORWARD
-     * if toward facing, BACK if away) beats no-direction NEUTRAL.  UP+X is the separate
-     * -sheet up-thrust (0x283f) = chip 2c; until then it falls through to NEUTRAL. */
+     * matching registered template, 41f200:1181-1201): UP beats DOWN beats a held L/R
+     * (FORWARD if toward facing, BACK if away) beats no-direction NEUTRAL.  UP+X is the
+     * 0x283f overhead thrust (registered in the same 0xc35b sword-out form, :1193/1202),
+     * an OVERHEAD swing on bank 0x8d (res 0x572) — stationary like NEUTRAL.  UP and DOWN
+     * are mutually exclusive on the dpad, so UP-first is unambiguous. */
     int x_held = (axis_held != NULL) && (axis_held[CHAR_AXIS_ATTACK] != 0);
     if (x_held && c->sword_out && !c->airborne &&
         (uint32_t)(now - c->attack_last_ms) >= CHAR_ATTACK_REFRACTORY_MS) {
         int kind = CHAR_ATTACK_NEUTRAL;
         if (axis_held != NULL) {
+            int up = axis_held[CHAR_AXIS_UP]    != 0;
             int dn = axis_held[CHAR_AXIS_DOWN]  != 0;
             int l  = axis_held[CHAR_AXIS_LEFT]  != 0;
             int r  = axis_held[CHAR_AXIS_RIGHT] != 0;
-            if (dn) {
+            if (up) {
+                kind = CHAR_ATTACK_UP;
+            } else if (dn) {
                 kind = CHAR_ATTACK_DOWN;
             } else if (l != r) {                  /* exactly one of L/R held          */
                 int dir  = r ? +1 : -1;           /* +1 right / -1 left               */
