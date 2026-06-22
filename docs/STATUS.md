@@ -234,6 +234,25 @@ understates how much actual instruction volume is ported.
   vs `sword2.osr`: camera PINNED until Arche passes screen ~300 then follows (== retail), floor tile dx=32
   both sides (origin matches), no Y jolt; Arche stays on-screen.  quirk #116; `PORT-DEBT(freeroam-camera-config)`
   (the leader-pick/bias/cap are RE'd-off-`0x510100` stand-ins for the unported room-state follow config).
+  **ckpt 160 — chip-2a: the NEUTRAL sword ATTACK — PORTED + verified BIT-EXACT.**  X (`axis_held[5]` =
+  the +0x128 attack level, 478ba0:296-303→:459 cmd[4]=0xf) + sword_out + grounded + a 200 ms refractory
+  starts a swing; `character_resolve_attack` advances it to completion (the +0x68 mid-swing lock — a
+  held/spammed X re-swings each finish), `character_step` brakes vel→0 while `attacking` (NEUTRAL =
+  STATIONARY, the pose-lock pattern), `arche_sword_clip` plays `ARCHE_ATTACK_NEUTRAL_CLIP` (res 0x571
+  cels **104→109 dur-6**, 36t oneshot) winning over pose/walk/idle but NOT the draw transient.  Ground
+  truth `sword2.osr`+`sword2-input.jsonl` (`/tmp/attack_probe.py` = flip→tick + input interleave): NO
+  anim combo (spam = 104-109 back-to-back), the cels' dst widen to 64×52 mid-swing (the cel's own anchor,
+  off_x=0).  **VERIFIED off `port-attack-r.osr` vs `sword2.osr` (`sword_cels.py`):** 3 X taps → 3 clean
+  swings 104→109, every cel dst W×H **byte-identical** (43×62/36×74/64×52/64×52/44×62/31×68), dur-6
+  (±1t entry/exit FSM noise), stationary; a left-facing capture confirmed the +192 mirror (296-301).
+  1057 host pass (+`character_resolve_attack`,+`character_attack_locks_movement`,+the clip case).
+  `findings/freeroam-sword-attack.md`; `plans/freeroam-sword-system.md` chip-2a.  **NEXT = chip 2b: the
+  DIRECTIONALS** (fwd 120-126 / down 112-115 / back 144-148, +192 left) + the forward LUNGE displacement
+  (RE the cmd[4] body state in 0x442a70 that drives world_x); **chip 2c**: the UP attack (separate multi-
+  sprite sheet) + the TRAIL vfx.  `PORT-DEBT(sword-attack-gameplay)` (the +0x66 charge meter + hitbox).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-attack-r.osr` |
+  `sword2.osr 227`) — errands freeroam ~tick 2150: Arche (sword drawn, facing right) swings 104-109 on
+  each Z-then-X, returns to idle, no movement.
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
   inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.

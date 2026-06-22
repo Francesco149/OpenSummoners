@@ -973,6 +973,7 @@ static void drive_present(void *user)
                       ? g_cutscene.room_idx * 10 + g_cutscene.line_idx : -1), 0.0);
     osr_emit_state_field("fr_pose",  OSR_ST_INT, (int64_t)g_freeroam_char.cmd_pose, 0.0);
     osr_emit_state_field("fr_sword", OSR_ST_INT, (int64_t)g_freeroam_char.sword_out, 0.0);
+    osr_emit_state_field("fr_atk",   OSR_ST_INT, (int64_t)g_freeroam_char.attacking, 0.0);
     osr_emit_state_field("fr_lr",    OSR_ST_INT, (int64_t)g_freeroam_char.cmd_lr,   0.0);
     osr_emit_state_field("fr_wx",    OSR_ST_INT, (int64_t)g_freeroam_char.world_x,  0.0);
     osr_emit_state_field("fr_vel",   OSR_ST_INT, (int64_t)g_freeroam_char.vel,      0.0);
@@ -2906,6 +2907,15 @@ static void freeroam_step(void)
      * NULL while locked (the opening dialogue), so Z is dead until control hands off
      * — matching retail's post-tutorial sword enable (PORT-DEBT(sword-quest-gate)). */
     (void)character_resolve_sword(&g_freeroam_char, ring, now);
+    /* Resolve the sword-OUT ATTACK swing off the same held input (478ba0:296-303 +
+     * the 442a70 swing body state, ckpt 160): X held (axis_held[5]) + sword_out +
+     * grounded + the 200 ms refractory starts a swing; a swing in progress advances
+     * to completion (the +0x68 mid-swing lock) before the next can fire.  Sets
+     * g_freeroam_char.attacking/attack_timer/attack_kind; character_step reads
+     * `attacking` for the movement lock (NEUTRAL = stationary) and the clip layer
+     * plays the swing cels (104-109).  axis is the zeroed array while the dialogue
+     * locks input, so X is dead until control hands off (like the sword toggle). */
+    (void)character_resolve_attack(&g_freeroam_char, ring, now, axis);
     /* Swap the body bank to the matching sword sheet (USER ckpt 158): the sword-OUT
      * form is a SEPARATE bank — 0x8b = res 0x570 (sword-in), 0x8c = res 0x571 (sword
      * -out, blade baked into every cel).  The draw plays res 0x571 96-103 (she's on
@@ -2962,6 +2972,8 @@ static void freeroam_step(void)
     static arche_sword_anim g_freeroam_sword_anim;
     const anim_clip *want = arche_sword_clip(&g_freeroam_sword_anim,
                                              g_freeroam_char.sword_out,
+                                             g_freeroam_char.attacking,
+                                             g_freeroam_char.attack_kind,
                                              &g_freeroam_pose_anim,
                                              g_freeroam_char.cmd_pose,
                                              moving, g_freeroam_char.airborne, run);

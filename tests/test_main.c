@@ -917,6 +917,8 @@ struct test_case {
     X(character_resolve_pose_window)                           \
     X(character_resolve_pose_up_overrides_down)                \
     X(character_resolve_sword)                                 \
+    X(character_resolve_attack)                                \
+    X(character_attack_locks_movement)                         \
     X(character_pose_brakes)                                   \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \

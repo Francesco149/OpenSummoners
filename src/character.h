@@ -67,7 +67,25 @@ enum {
     CHAR_AXIS_LEFT  = 2,   /* input-mgr +0x11c */
     CHAR_AXIS_RIGHT = 3,   /* input-mgr +0x120 */
     CHAR_AXIS_COUNT = 4,
+    CHAR_AXIS_JUMP   = CHAR_AXIS_COUNT,      /* axis_held[4] = jump  (C, +0x124) */
+    CHAR_AXIS_ATTACK = CHAR_AXIS_COUNT + 1,  /* axis_held[5] = attack(X, +0x128) */
 };
+
+/* The SWORD-OUT ATTACK (cmd[4]=0xf, 478ba0:296-303 + the swing body state 442a70).
+ * X held (axis_held[5] = the +0x128 attack level) + sword_out + grounded + not
+ * already mid-swing + >= 200 ms since the last swing -> start a swing.  Which swing
+ * is picked from the held direction at trigger time (CHAR_ATTACK_*); chip 2a ports
+ * the NEUTRAL swing (no direction).  Ground-truthed off sword2.osr res 0x571:
+ *   NEUTRAL  cels 104->109, dur-6 each = 36 ticks, STATIONARY (idle resumes at the
+ *            same x).  The 200 ms refractory + the swing duration (36t > 200 ms)
+ *            mean a held/spammed X re-swings right after each completes (the input
+ *            recording's attack-spam plays 104-109 back-to-back). */
+#define CHAR_ATTACK_REFRACTORY_MS  200u  /* 478ba0:297 auto-attack gate (X-held)   */
+enum {
+    CHAR_ATTACK_NEUTRAL = 0,   /* X, no direction -> cels 104-109 (chip 2a)         */
+    /* chip 2b: CHAR_ATTACK_FORWARD/DOWN/BACK (120-126 / 112-115 / 144-148) + UP    */
+};
+#define CHAR_ATTACK_NEUTRAL_TICKS  36    /* 6 cels * dur-6 (sword2.osr 3485-3520)   */
 
 /* The walk velocity law (capture-exact constants; PORT-DEBT(char-walk-tuning) for
  * the real per-entity move-tuning source in_ECX[0x565b/c/e]).  vel is the signed
@@ -210,6 +228,18 @@ typedef struct {
                        /*   available (PORT-DEBT(sword-quest-gate); retail gates on */
                        /*   the unported errands quest reaching case 8 = weapon+0xd4 */
                        /*   = 2, 4dc510:1167).                                       */
+    int16_t attacking;     /* body+0x68 mid-swing: 0 = not / 1 = swinging.  Set by  */
+                           /*   character_resolve_attack on the X trigger; while !=0 */
+                           /*   the apply locks movement (neutral = stationary) and  */
+                           /*   the anim plays the swing clip; cleared when the swing */
+                           /*   completes (attack_timer reaches the kind's duration).*/
+    int16_t attack_timer;  /* sim-ticks elapsed in the current swing (drives the     */
+                           /*   duration; body+0x66 is retail's drain countdown).    */
+    int16_t attack_kind;   /* which swing (CHAR_ATTACK_*): neutral now, directionals */
+                           /*   (fwd/down/back/up) chip 2b.  Picked at trigger time   */
+                           /*   from the held dir; the clip layer keys the cels off it.*/
+    uint32_t attack_last_ms;/* body+0x154: the last swing's fire time — the 200 ms   */
+                           /*   auto-attack refractory (478ba0:297, X-held repeat).  */
 } character;
 
 /* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the
@@ -295,5 +325,24 @@ int16_t character_resolve_pose(character *c, const struct input_mgr *m,
  * discrete sword-OUT attack (cmd4=0xf); that is the attack layer's concern, not
  * this toggle. */
 int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now);
+
+/* Resolve the sword-OUT ATTACK swing from live input — the cmd[4] half of the
+ * char-AI 0x478ba0 (:296-303), sibling to character_resolve_pose/_run/_sword.
+ * Each sim-tick: if a swing is active, advance attack_timer and clear `attacking`
+ * when it reaches the kind's duration (the swing must complete before the next can
+ * start — retail's +0x68 mid-swing lock).  Otherwise, if X is held (axis_held
+ * [CHAR_AXIS_ATTACK] = the +0x128 attack level) AND sword_out AND grounded AND
+ * >= CHAR_ATTACK_REFRACTORY_MS since the last swing, START a swing: set attacking,
+ * reset attack_timer, latch attack_kind (chip 2a = CHAR_ATTACK_NEUTRAL), stamp
+ * attack_last_ms.  `now` is the GetTickCount() ms clock (the 200 ms refractory).
+ * The swing's MOVEMENT (stationary for neutral) is character_step's job (it brakes
+ * vel to 0 while `attacking`); the swing ANIM is the clip layer's (arche_sword_clip
+ * plays the attack clip while `attacking`).  Returns the new `attacking`.
+ *
+ * Models the trigger + the swing-complete lock; the +0x66 charge meter / combo
+ * scaling + the HITBOX/damage are gameplay = PORT-DEBT(sword-attack-gameplay).
+ * Directional swings (held dir at trigger) + their forward lunge = chip 2b. */
+int16_t character_resolve_attack(character *c, const struct input_mgr *m,
+                                 uint32_t now, const int *axis_held);
 
 #endif /* OSS_CHARACTER_H */

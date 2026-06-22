@@ -65,16 +65,24 @@ flip≈2.23×tick).  Z@flip5400=tick1807 draw, Z@flip8186=tick3194 sheathe, Z@fl
 | crouch | DOWN | 0x571 | enter 31, hold 32, exit 31 | enter 4t | left 223/224 |
 | up-pose | UP | 0x571 | enter 34, hold 35, exit 34 | enter 4t | left 226/227 |
 | SLIDE | dash+DOWN | 0x571 | 31 → **48↔49** (68×30 prone) → 32 → 31 | 4t body | left 223→240/241→224 |
-| ATTACK neutral | X | 0x571 | **104→109** | 6t (36t) | widens to 64×52 mid-swing; repeatable (no auto-combo seen) |
-| ATTACK fwd | dir+X | 0x571 | **120→126** | 6t | dst→80×49; left mirror un-probed |
-| ATTACK down | DOWN+X | 0x571 | 31/32 → **112→115** | crouch-attack | left 304-307 (=112+192) |
-| ATTACK back | opp-dir+X | 0x571 | **144→148** | 7t | turns her around (→left idle after) |
-| ATTACK up | UP+X | **other sheet** | NONE on 0x570/0x571 for ~36t (3880-3915) | — | un-probed — a jump/thrust on a 3rd bank? (chip-2 puzzle) |
+| ATTACK neutral | X | 0x571 | **104→109** | **6t each (36t)** | dst 43/36/**64**/**64**/44/31 ×62/74/52/52/62/68; widens to 64×52 mid-swing (cel's own anchor, off_x=0); repeatable (NO anim combo — spam = 104-109 back-to-back) |
+| ATTACK fwd | dir+X | 0x571 | **120→126** | 6t each (42t) | dst→**80×49** (lunge); world_x +54px fwd; left mirror +192 |
+| ATTACK down | DOWN+X | 0x571 | 31/32 → **112→115** | 8,6,5,7 | crouch-attack, lunge +24px, →crouch; left **304-307** (=112+192) |
+| ATTACK back | opp-dir+X | 0x571 | **144→148** | 4,4,7,7,5 | lunge −32px, TURNS her around (→opposite idle after) |
+| ATTACK up | UP+X | **separate sheet** | ~36t (3880-3915) | NONE on 0x570/0x571; ~18 sprites inserted mid-thrust (raises HUD seq) — a multi-sprite thrust effect (chip-2c puzzle) |
 
 CHIP-1 (ckpt 159, DONE): DRAW + SHEATHE + idle/walk/run/crouch/up via the bank swap + the dur-8 idle.
-CHIP-2 (NEXT): the attacks (cmd[4] body state in `character_step` + `arche_attack_clip` keyed on the
-held dir) + the trail VFX + the slide body 48/49 (dash+down → distinct from plain crouch) + the UP+X
-mystery sheet.  The HITBOX/damage is gameplay (defer / PORT-DEBT); the ANIM + state are the port.
+**CHIP-2a (ckpt 160, DONE): the NEUTRAL attack** — `character.attacking/attack_timer/attack_kind` +
+`character_resolve_attack` (X held axis 5 + sword_out + grounded + 200 ms refractory → swing; +0x68
+mid-swing lock = swing completes before re-trigger), `character_step` brakes vel→0 while attacking
+(stationary), `arche_sword_clip` plays `ARCHE_ATTACK_NEUTRAL_CLIP` (104-109 dur-6) winning over
+pose/walk/idle but not the draw transient.  Verified bit-exact off `port-attack-r.osr` vs sword2.osr
+(`sword_cels.py`): 104-109 dur-6, every dst W×H byte-identical.  `findings/freeroam-sword-attack.md`.
+**CHIP-2b (NEXT): the directional attacks** (fwd 120-126 / down 112-115 / back 144-148, +192 left) +
+the forward LUNGE displacement (RE the cmd[4] body state in 0x442a70 that drives world_x) + the held-
+dir variant select.  **CHIP-2c: the UP attack** (the separate multi-sprite sheet) + the TRAIL vfx +
+the slide body 48/49.  The HITBOX/damage + the +0x66 charge meter are gameplay (PORT-DEBT(sword-
+attack-gameplay)); the ANIM + the movement lock are the port.
 
 > **ckpt 157 — chip-2 capture progress + USER feedback:**
 > - **force-sword TOOLING DONE + committed** (`0f07877`): `tools/capture_proxy/engine_hooks.h`

@@ -655,6 +655,86 @@ int test_character_resolve_sword(void)
     return 0;
 }
 
+/* The sword-OUT ATTACK swing (chip 2a, 478ba0:296-303 + the 442a70 swing state):
+ * X held (axis 5) + sword_out + grounded + the 200 ms refractory STARTS a swing;
+ * the swing advances to completion (the +0x68 mid-swing lock) before another can
+ * fire; the gates (sword sheathed / airborne / refractory) suppress it. */
+int test_character_resolve_attack(void)
+{
+    uint32_t now = 100000;
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_ATTACK + 1] = {0};
+
+    /* X held but sword SHEATHED -> no swing (the gate). */
+    axis[CHAR_AXIS_ATTACK] = 1;
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now, axis), 0);
+    T_ASSERT_EQ_I(c.attacking, 0);
+
+    /* draw the sword, then X held -> a NEUTRAL swing starts. */
+    c.sword_out = 1;
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now, axis), 1);
+    T_ASSERT_EQ_I(c.attacking, 1);
+    T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_NEUTRAL);
+    T_ASSERT_EQ_I(c.attack_timer, 0);
+    T_ASSERT_EQ_I(c.attack_last_ms, now);
+
+    /* the swing runs CHAR_ATTACK_NEUTRAL_TICKS (36); it advances one tick per call
+     * and stays locked even if X is released mid-swing (it must complete). */
+    axis[CHAR_AXIS_ATTACK] = 0;
+    for (int t = 1; t < CHAR_ATTACK_NEUTRAL_TICKS; t++) {
+        T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now, axis), 1);
+        T_ASSERT_EQ_I(c.attack_timer, t);
+    }
+    /* the 36th advance reaches the duration -> the swing completes (clears). */
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now, axis), 0);
+    T_ASSERT_EQ_I(c.attacking, 0);
+
+    /* airborne -> no swing (grounded gate). */
+    c.airborne = 1; axis[CHAR_AXIS_ATTACK] = 1;
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now + 1000, axis), 0);
+    c.airborne = 0;
+
+    /* the 200 ms refractory: a swing within 200 ms of the last fire is blocked,
+     * at/after 200 ms it fires.  (last fire was `now`.) */
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now + 199, axis), 0);
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now + 200, axis), 1);
+    /* complete it, then a held X re-swings (spam) once the refractory clears. */
+    for (int t = 1; t <= CHAR_ATTACK_NEUTRAL_TICKS; t++)
+        character_resolve_attack(&c, NULL, now + 200, axis);
+    T_ASSERT_EQ_I(c.attacking, 0);
+    T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now + 600, axis), 1);
+
+    /* guards: NULL char / NULL axis resolve to 0 without a crash. */
+    T_ASSERT_EQ_I(character_resolve_attack(NULL, NULL, now, axis), 0);
+    character g; character_init(&g, 0, 0, CHAR_FACE_RIGHT); g.sword_out = 1;
+    T_ASSERT_EQ_I(character_resolve_attack(&g, NULL, now, NULL), 0);
+    return 0;
+}
+
+/* The ATTACK movement lock (character_step): while `attacking` + grounded the apply
+ * brakes vel to 0 (the NEUTRAL swing is stationary), even with a direction held. */
+int test_character_attack_locks_movement(void)
+{
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    int axis[CHAR_AXIS_ATTACK + 1] = {0}; axis[CHAR_AXIS_RIGHT] = 1;
+
+    /* walk RIGHT to the cap, then start a swing -> vel brakes toward 0 despite RIGHT. */
+    for (int i = 0; i < 40; i++) character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP);
+    c.attacking = 1;
+    int32_t x0 = c.world_x;
+    character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, CHAR_WALK_CAP - CHAR_WALK_BRAKE);   /* braking, not accelerating */
+    /* run it down to a stop: vel reaches 0 and she's stationary. */
+    for (int i = 0; i < 40; i++) character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.vel, 0);
+    int32_t xs = c.world_x;
+    character_step(&c, axis, 0, 0);
+    T_ASSERT_EQ_I(c.world_x, xs);     /* stationary while swinging */
+    (void)x0;
+    return 0;
+}
+
 /* The pose PHYSICS (apply states 2/5, ckpt 153): cmd_pose engaged + grounded -> SKIP the
  * accel ramp -> brake the velocity toward 0 at the WALK brake, even while a direction is
  * STILL held.  Bit-exact vs retail (runs/pose-demo/cap-body): the UP-pose brakes a 24000

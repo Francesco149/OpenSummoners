@@ -1146,7 +1146,28 @@ static const anim_clip ARCHE_SWORD_OUT_IDLE_CLIP = {
     .oneshot     = 0,
 };
 
+/* ── The sword-OUT ATTACK swing clips (chip 2a; RE'd off sword2.osr res 0x571) ──
+ * The X press (the +0x128 attack level) starts a swing while sword_out + grounded;
+ * character_resolve_attack owns the timing (attacking + attack_timer, cleared at the
+ * kind's duration = the +0x68 mid-swing lock), this picks the cel sequence keyed on
+ * c->attack_kind.  All on bank 0x8c (res 0x571, blade baked in) — the freeroam bank
+ * swap already selected it (the swing requires sword_out).  The LEFT-facing swing is
+ * the +192 mirror (ARCHE_SWORD_OUT_FLIP) the renderer applies on facing==3.
+ *   NEUTRAL (no dir): cels 104->109, dur-6 each = 36t, STATIONARY (sword2.osr ticks
+ *   3485-3520: 104@3485 105@3491 106@3497 107@3503 108@3509 109@3515, then idle 0).
+ * The dst widens to 64 mid-swing (cels 106/107) from the cel's own footprint — the
+ * sprite-bank anchor, not a clip offset (off_x stays 0), so it emerges from res 0x571.
+ * chip 2b adds FORWARD (120-126) / DOWN (112-115) / BACK (144-148) + their lunge. */
+static const anim_clip ARCHE_ATTACK_NEUTRAL_CLIP = {
+    .base_sprite = 104,
+    .frame_delta = { 0, 1, 2, 3, 4, 5 },   /* res 0x571 cels 104->109 (a full swing) */
+    .frame_count = 6,
+    .frame_dur   = 6,
+    .oneshot     = 1,    /* freeze on 109; the character clears `attacking` at 36t   */
+};
+
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
+                                  int attacking, int16_t attack_kind,
                                   arche_pose_anim *pst, int16_t cmd_pose,
                                   int moving, int airborne, int run)
 {
@@ -1172,6 +1193,19 @@ const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
             return &ARCHE_SWORD_SHEATHE_CLIP;     /* 96→103: onto the back (0x570) */
         }
         st->phase = ARCHE_SWORD_PHASE_NONE;       /* sheathe done -> sword-IN base */
+    }
+
+    /* The ATTACK swing wins over the pose/walk/idle (the character gates it on
+     * sword_out + grounded + not-mid-draw via the 200 ms refractory, and owns the
+     * duration).  It does NOT override the draw/sheathe transient above — you finish
+     * drawing before you can swing.  Pick the swing's cel sequence by attack_kind;
+     * chip 2a is NEUTRAL (104-109), the directionals are chip 2b. */
+    if (attacking) {
+        switch (attack_kind) {
+        case CHAR_ATTACK_NEUTRAL:
+        default:
+            return &ARCHE_ATTACK_NEUTRAL_CLIP;
+        }
     }
 
     /* No transient: delegate to the normal walk/idle/pose.  The cel INDICES are the

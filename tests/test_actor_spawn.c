@@ -989,7 +989,8 @@ int test_arche_sword_clip(void)
     arche_pose_anim  pst; memset(&pst, 0, sizeof pst);
 
     /* DRAW: the sword_out 0->1 edge plays the FORWARD clip 96→103 (swing out). */
-    const anim_clip *c = arche_sword_clip(&st, /*sword_out=*/1, &pst, 0, 0, 0, 0);
+    const anim_clip *c = arche_sword_clip(&st, /*sword_out=*/1, /*attacking=*/0,
+                                          /*kind=*/0, &pst, 0, 0, 0, 0);
     T_ASSERT(c != NULL);
     T_ASSERT_EQ_I(c->base_sprite, 96);
     T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 first (sword leaving the sheath) */
@@ -1010,7 +1011,8 @@ int test_arche_sword_clip(void)
     memset(&pst, 0, sizeof pst);
     int draw_calls = 0;
     for (int t = 0; t < ARCHE_SWORD_DRAW_TICKS + 4; t++) {
-        c = arche_sword_clip(&st, 1, &pst, /*cmd_pose=*/0, /*moving=*/0, 0, 0);
+        c = arche_sword_clip(&st, 1, /*attacking=*/0, /*kind=*/0, &pst,
+                             /*cmd_pose=*/0, /*moving=*/0, 0, 0);
         if (c->frame_delta[0] == 0 && c->frame_count == 8 && c->frame_dur == 7)
             draw_calls++;
     }
@@ -1023,7 +1025,8 @@ int test_arche_sword_clip(void)
     T_ASSERT_EQ_I(c->frame_dur, 8);
 
     /* SHEATHE: the 1->0 edge plays res 0x570 96→103 (onto the back), 16 frames dur 3. */
-    c = arche_sword_clip(&st, /*sword_out=*/0, &pst, 0, 0, 0, 0);
+    c = arche_sword_clip(&st, /*sword_out=*/0, /*attacking=*/0, /*kind=*/0,
+                         &pst, 0, 0, 0, 0);
     T_ASSERT_EQ_I(c->base_sprite, 96);
     T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 first (forward) */
     T_ASSERT_EQ_I(c->frame_count, 16);
@@ -1034,8 +1037,38 @@ int test_arche_sword_clip(void)
     memset(&st, 0, sizeof st);
     memset(&pst, 0, sizeof pst);
     st.prev_out = 1;   /* already drawn, no transient */
-    c = arche_sword_clip(&st, /*sword_out=*/1, &pst, /*cmd_pose=*/0, /*moving=*/1, 0, 0);
+    c = arche_sword_clip(&st, /*sword_out=*/1, /*attacking=*/0, /*kind=*/0,
+                         &pst, /*cmd_pose=*/0, /*moving=*/1, 0, 0);
     T_ASSERT_EQ_I(c == arche_freeroam_clip(/*moving=*/1, 0, 0), 1);
+
+    /* ── chip 2a: the NEUTRAL ATTACK swing (X, no direction) — res 0x571 cels
+     *    104-109, dur-6, 36t, then back to idle.  attacking=1 + kind NEUTRAL wins
+     *    over the walk/idle (but not the draw/sheathe transient). ── */
+    memset(&st, 0, sizeof st);
+    memset(&pst, 0, sizeof pst);
+    st.prev_out = 1;   /* already drawn, no transient pending */
+    c = arche_sword_clip(&st, /*sword_out=*/1, /*attacking=*/1,
+                         /*kind=*/CHAR_ATTACK_NEUTRAL, &pst, 0, /*moving=*/0, 0, 0);
+    T_ASSERT_EQ_I(c->base_sprite, 104);
+    T_ASSERT_EQ_I(c->frame_delta[0], 0);     /* cel 104 first */
+    T_ASSERT_EQ_I(c->frame_count, 6);        /* 104..109 */
+    T_ASSERT_EQ_I(c->frame_dur, 6);
+    T_ASSERT_EQ_I(c->oneshot, 1);
+    {   /* steps 104 -> ... -> 109, freezing on 109 (one-shot) */
+        anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 104);
+        for (int t = 0; t < 6 * 6 + 8; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 109);
+    }
+    /* the swing wins over a moving body (no walk mid-swing) */
+    c = arche_sword_clip(&st, 1, /*attacking=*/1, /*kind=*/CHAR_ATTACK_NEUTRAL,
+                         &pst, 0, /*moving=*/1, 0, 0);
+    T_ASSERT_EQ_I(c->base_sprite, 104);
+    /* but the DRAW transient still wins over the attack (finish drawing first) */
+    memset(&st, 0, sizeof st);
+    c = arche_sword_clip(&st, /*sword_out=*/1, /*attacking=*/1,
+                         /*kind=*/CHAR_ATTACK_NEUTRAL, &pst, 0, 0, 0, 0);
+    T_ASSERT_EQ_I(c->base_sprite, 96);       /* the draw (96-103), not the swing */
     return 0;
 }
 

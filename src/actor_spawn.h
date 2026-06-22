@@ -292,7 +292,12 @@ typedef struct arche_sword_anim {
     int16_t timer;      /* sim-ticks elapsed in the transient (0 at the edge)       */
 } arche_sword_anim;
 
+/* `attacking` (character.attacking) + `attack_kind` (CHAR_ATTACK_*) layer the
+ * sword-OUT ATTACK swing on top: while attacking the clip returns the swing's cel
+ * sequence (chip 2a NEUTRAL = res 0x571 104-109), winning over pose/walk/idle but
+ * NOT the draw/sheathe transient.  The character owns the swing timing. */
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
+                                  int attacking, int16_t attack_kind,
                                   arche_pose_anim *pst, int16_t cmd_pose,
                                   int moving, int airborne, int run);
 

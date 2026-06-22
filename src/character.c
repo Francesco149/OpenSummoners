@@ -29,6 +29,10 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->cmd_lr    = 0;
     c->cmd_pose  = 0;
     c->sword_out = 0;
+    c->attacking      = 0;
+    c->attack_timer   = 0;
+    c->attack_kind    = 0;
+    c->attack_last_ms = 0;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -76,7 +80,15 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
     /* ── APPLY reduction (0x442a70 case 0x75): ramp the horizontal velocity, flip
      *    facing at rest, commit worldX += vel/100 (flat reduction of 0x54db10). ─
      * vel is the signed accumulator body+0x28 (+ right, - left). */
-    if (c->cmd_pose != 0 && !c->airborne) {
+    if (c->attacking && !c->airborne) {
+        /* SWORD SWING in progress (442a70's cmd[4] body state): movement is locked.
+         * The NEUTRAL swing is STATIONARY (sword2.osr: idle resumes at the same x),
+         * so brake vel to 0 at the WALK brake — the same lock the pose uses, holding
+         * her in place through the 36-tick swing.  The directional swings drive a
+         * forward LUNGE into world_x (fwd +54px / down +24px / back turn) — that is
+         * chip 2b's job, layered on top of this lock by attack_kind. */
+        c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
+    } else if (c->cmd_pose != 0 && !c->airborne) {
         /* CROUCH (cmd_pose 10) / UP-pose (0xb): the apply states 2/5 set bVar16=false
          * (0x442a70:959) -> SKIP the accel ramp -> brake the velocity toward 0 at the
          * WALK brake, even while a direction is STILL commanded.  That is "UP stops you
@@ -297,4 +309,44 @@ int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now)
     if (m != NULL && input_poll_consume(m, now, INPUT_RING_SWORD))
         c->sword_out = (int16_t)(c->sword_out ? 0 : 1);
     return c->sword_out;
+}
+
+/* The sword-OUT ATTACK swing — see character.h.  The cmd[4] half of 0x478ba0:
+ *   :296-299  X held (the +0x128 auto-attack level) + 200 ms since +0x154 -> cmd4=0xe
+ *   :459-460  +0x66 (sword out) || cmd4==0xe -> cmd4=0xf  (the swing)
+ * with the swing-complete lock (+0x68) that 442a70 enforces (a new swing can't start
+ * until the current one finishes).  We read X off the held axis (the producer's
+ * +0x128 level, input_live.c slot 5) rather than a ring, matching 478ba0:296.  The
+ * swing's MOVEMENT is character_step (it brakes vel to 0 while `attacking`); the ANIM
+ * is the clip layer.  `m` is unused for neutral (the held axis is the trigger) but
+ * kept in the signature for the directional/ring paths chip 2b adds. */
+int16_t character_resolve_attack(character *c, const struct input_mgr *m,
+                                 uint32_t now, const int *axis_held)
+{
+    (void)m;
+    if (c == NULL) return 0;
+
+    /* A swing in progress advances to completion first (the +0x68 mid-swing lock):
+     * one tick per call, clearing `attacking` when the kind's duration elapses, so
+     * the next call is free to re-trigger (a held/spammed X re-swings each completion
+     * — sword2.osr plays 104-109 back-to-back through the attack-spam). */
+    if (c->attacking) {
+        c->attack_timer = (int16_t)(c->attack_timer + 1);
+        if (c->attack_timer >= CHAR_ATTACK_NEUTRAL_TICKS)   /* chip 2b: per-kind dur */
+            c->attacking = 0;
+        return c->attacking;
+    }
+
+    /* Trigger: X held (the +0x128 attack level) + sword drawn + grounded + the 200 ms
+     * auto-attack refractory since the last swing.  Latch the kind from the held dir
+     * — chip 2a is NEUTRAL only (no direction); the directionals are chip 2b. */
+    int x_held = (axis_held != NULL) && (axis_held[CHAR_AXIS_ATTACK] != 0);
+    if (x_held && c->sword_out && !c->airborne &&
+        (uint32_t)(now - c->attack_last_ms) >= CHAR_ATTACK_REFRACTORY_MS) {
+        c->attacking      = 1;
+        c->attack_timer   = 0;
+        c->attack_kind    = CHAR_ATTACK_NEUTRAL;
+        c->attack_last_ms = now;
+    }
+    return c->attacking;
 }
