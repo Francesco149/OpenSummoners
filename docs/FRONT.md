@@ -119,10 +119,19 @@
   CROUCH 31→32 gliding dst-x +5,+4,+3,+2,+1,+0 to a stop (dx 275→412) → exit 31 → idle.  The REAL state-6
   momentum slide (maintain dash speed + slope-fall, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
   `PORT-DEBT(char-slope-slide)`.  1053 host pass; quirk #114 extended.  `findings/freeroam-pose-commands.md` "## The SLIDE".
-  Remaining moveset: sword(Z)/attack(X) (likely unavailable this early — Arche has no sword yet; verify in a
-  later scene), the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
-  `findings/freeroam-pose-commands.md`.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
-  sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
+  **ckpt 155: the SWORD/ATTACK arc is BLOCKED on the scene — the sword is OFF in the moving-in errands
+  (HARD EVIDENCE, awaiting USER).**  3 live captures (`runs/sword/`) + RE: (1) CORRECTED the key→ring-id map
+  off the LIVE keybind config (`cfg=*0x8a6e80`) — it was backwards: **Z=id9, X=id8(held auto-atk), C=id7(jump)**,
+  V/Enter=id0x24(confirm).  (2) Injecting Z(id9) does nothing; X(id8) held DOES fire `cmd4=0xe` (auto-attack
+  reached) **yet Arche's form-code stays 0xc35a (sword-IN) + `weapon+0x466` (sword-DRAWN state) stays 0 the
+  whole scene** — both attack inputs are consumed but the sword NEVER draws.  No reachable unsheathe path here
+  (every id-9 consumer in 478ba0 is gated sword-already-OUT; the stance block is gated off).  Most consistent
+  with Arche NOT having her sword equipped this early.  USER (game owner) insists it works "here" → **pinged to
+  verify in-game / name the real sword scene; re-capture there.**  `plans/freeroam-sword-system.md` "## ckpt-155".
+  Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
+  `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
+  (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
+  overlay seq 462-536; banks are sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
   until a line uses them (then verify the slot-55 frame + add to the token map).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
