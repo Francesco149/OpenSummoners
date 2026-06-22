@@ -233,3 +233,26 @@ the opening dialogue).  Injection + movement were always fine (id-7 jump fired, 
    the attack TRAIL vfx (USER: "there's a trail effect").  Directional variants TBD (capture later).
 3. **Sword-out pose set** — idle reuses 0-3 (verified); walk/crouch/jump sword-out cels TBD (capture).
 4. Verify bit-exact off a port `.osr` vs this recording (draw_probe res 0x570 at the matching cels).
+
+## ckpt-155 — the attack VARIANT set (USER, for next session)
+The recording has the draw + 2 attack animations (cels 120-127 + 128-132).  USER's full attack set
+(to capture/port NEXT session):
+- **Neutral X repeated = a 3-ATTACK COMBO** (3 chained swings; the 2 captured here — 120-127, 128-132 —
+  are likely combo hits 1+2; hit 3 not yet captured).
+- **Each DIRECTION + X = its own attack animation** (→+X, ↑+X, ↓+X — distinct cel ranges, not captured).
+- Plus the sword-OUT WALK/crouch/jump pose set (USER's "second anim set"; only the idle 0-3 seen so far).
+
+**NEXT-SESSION capture plan (no user re-record needed — "synth by modifying the trace"):**
+1. **Force the sword-enabled state** so injection can drive it: Frida return-override on
+   `FUN_0041e2f0(0x606aa50)`→8 (runs questline case 8 → `weapon+0xd4=2`), OR a mem-write `weapon+0xd4=2`.
+   A new agent capability (the "improve the tool" step) — `tools/frida/opensummoners-agent.js`.
+2. Then inject input traces: Z (draw) → X×3 (combo) → →+X / ↑+X / ↓+X (directionals) → walk with sword
+   out → capture each variant's cels off the port-side or a fresh retail `.osr` (draw_probe res 0x570).
+3. Extract the cel IMAGES for 96-103 / 120-132 / the new ranges from the user's OWN game files (the
+   faithful asset path, res 0x570) — NOT the recording's pixels.
+4. Port: `arche_sword_clip` (draw/sheathe) + `arche_attack_clip` (combo + directional) + the trail vfx +
+   the sword-out pose set; `PORT-DEBT(sword-quest-gate)` stand-in.
+
+**GROUND-TRUTH recording:** `C:\oss-osr\sword-realplay.osr` (= `/mnt/c/oss-osr/sword-realplay.osr`,
+540 MB, fresh new game, ticks 0-4290; the draw @2156, attacks @2890/@3820).  Keep it for verification;
+re-record if lost (the proxy visible-window command in this session's log).

@@ -119,17 +119,22 @@
   CROUCH 31→32 gliding dst-x +5,+4,+3,+2,+1,+0 to a stop (dx 275→412) → exit 31 → idle.  The REAL state-6
   momentum slide (maintain dash speed + slope-fall, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
   `PORT-DEBT(char-slope-slide)`.  1053 host pass; quirk #114 extended.  `findings/freeroam-pose-commands.md` "## The SLIDE".
-  **ckpt 155: the SWORD/ATTACK arc — RESOLVED the GATE (USER was right; sword IS in the errands).**  6 live
-  captures (`runs/sword/`) + RE.  (1) CORRECTED the key→ring-id map off the LIVE keybind config (`cfg=*0x8a6e80`):
-  **Z=id9, X=id8(held auto-atk), C=id7(jump)**, V/Enter=id0x24(confirm).  (2) PROVEN the injection works: a clean
-  held-RIGHT walk MOVES Arche 16,680 units (wx 19200→35880, hvel→24000 cap); the **id-7 JUMP control fires
-  `cmd2=0x7`** (ring delivery OK).  (3) THE GATE: Z(id9)→draw needs `weapon+0xd4` set, which the errands questline
-  **`0x4dc510` case 8 (`:1167`) sets to 2** — the quest var `0x606aa50` advances 2..7..8 via `FUN_0041d190`
-  (the intro story).  My fresh-new-game captures sat at an EARLY quest state (`wpn_d4=0`) so the sword was never
-  enabled.  **NOT injection, NOT "no sword" — a QUEST-STATE gate.**  NEXT: reach quest state 8 (force via a Frida
-  return-override on `0x41e2f0`/mem-write `weapon+0xd4=2`, OR play the tutorial) → Z draws → capture the sword-out
-  cels + attack + port (`PORT-DEBT(sword-quest-gate)` stand-in for the unported quest system).
-  `plans/freeroam-sword-system.md` "## ckpt-155 capture 6".
+  **ckpt 155: the SWORD/ATTACK arc — CONFIRMED + cel ground truth captured; PORT is next session (USER
+  was right, sword IS in the errands).**  6 injected captures + RE pinned the GATE, then the USER's REAL-PLAY
+  recording PROVED it + handed the cels.  (1) key→ring-id map (live config): **Z=id9, X=id8(held auto-atk),
+  C=id7(jump)**, V/Enter=id0x24.  (2) Injection PROVEN (held walk moves Arche 16,680 u; id-7 jump fires
+  `cmd2=0x7`).  (3) THE GATE: Z→draw needs `weapon+0xd4=2`, set by errands questline `0x4dc510` **case 8**
+  (`:1167`; quest var `0x606aa50` advances 2..8 via `FUN_0041d190` = the intro story).  My fresh-new-game
+  INJECTED captures sat at an early quest state → never enabled → so Z did nothing for me; the USER's natural
+  play reached case 8.  **(4) USER RECORDING (`C:\oss-osr\sword-realplay.osr`, real play, fresh new game) =
+  THE GROUND TRUTH:** the sword DRAWS — res 0x570 cels **UNSHEATHE 96-103 (~1 s)**, sword-out IDLE 0-3,
+  **ATTACK 120-127 + 128-132** (2 of the variants).  No separate sword sprite (baked into the cels).
+  **NEXT SESSION (USER):** the full attack set — neutral X repeated = 3-COMBO, each DIRECTION+X = own anim,
+  + the sword-out walk/pose set.  Capture by FORCING the quest state (Frida override `0x41e2f0`→8 /
+  mem-write `weapon+0xd4=2`) then injecting the attack traces.  Then PORT: `arche_sword_clip` (draw) +
+  `arche_attack_clip` (combo+directional) + trail vfx + sword-out poses, `PORT-DEBT(sword-quest-gate)`.
+  ALSO: dad's tutorial DOOR-BLOCK dialogue (UP at door → dad stops you; in the recording).
+  `plans/freeroam-sword-system.md` (the full cel map + the next-session plan).
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
