@@ -1089,30 +1089,43 @@ const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
     return want;
 }
 
-/* ── The SWORD unsheathe/sheathe clips + FSM (ckpt 155; see actor_spawn.h) ──
- * RE'd off the USER's real-play recording (sword-realplay.osr, res 0x570, ticks
- * 2156-2204 for the draw): the UNSHEATHE plays cels 96..103 over ~48 sim-ticks,
- * then the sword-OUT idle (the base idle cels) resumes.  The per-cel hold the
- * recording shows — 96~7t, 97/98/99/100 = 3t, 101 = 9t, 102 = 9t, 103 = 12t — is
- * 3*{2,1,1,1,1,3,3,4}, so a uniform dur-3 clip with the slow cels repeated models
- * it (the ARCHE_RUN_CLIP "hold a contact frame 2x" idiom).  base_sprite 96, so the
- * frame_delta is the cel - 96. */
-static const anim_clip ARCHE_SWORD_DRAW_CLIP = {
-    .base_sprite = 96,
-    .frame_delta = { 0,0, 1, 2, 3, 4, 5,5,5, 6,6,6, 7,7,7,7 },  /* 96 96 97 98 99 100 101x3 102x3 103x4 */
-    .frame_count = 16,
-    .frame_dur   = 3,
-    .oneshot     = 1,    /* play once, hold on cel 103 until the FSM ends the draw */
-};
-/* SHEATHE — the reverse 103..96, a PORT-DEBT(sword-sheathe-cels) stand-in until the
- * chip-2 clean capture records the real sheathe (the USER stayed drawn the whole
- * recording).  Same dur-3 cadence reversed. */
+/* ── The SWORD unsheathe/sheathe clips + FSM (ckpt 155; corrected ckpt 157) ──
+ * The cel-96..103 animation is the SHEATHE, NOT the draw (USER ckpt-157 + the
+ * isolated-cel montage off sword-realplay.osr res 0x570): cel 96 = sword held out
+ * front, 99 = the horizontal swing, 100 = raised, 103 = hand reaching to her BACK
+ * (putting the blade onto the back sheath) — and the recording's 96→103 at tick
+ * 2156 transitions straight into the UNARMED idle cels 0-3 (which are byte-IDENTICAL,
+ * md5, to the base poses — proving they carry NO drawn sword).  So:
+ *   SHEATHE (sword_out 1→0) = cels 96→103 (forward) — VERIFIED bit-exact vs the
+ *     recording's 2156 sheathe (96 ~7t, 97-100 = 3t, 101/102 = 9t, 103 = 12t =
+ *     3*{2,1,1,1,1,3,3,4}; the ARCHE_RUN_CLIP repeat-a-held-cel idiom).
+ *   DRAW   (sword_out 0→1) = cels 103→96 (the REVERSE — hand-to-back → sword out
+ *     front), ending held on cel 96 = PORT-DEBT(sword-draw-cels): the recording
+ *     never shows a clean draw (she was already armed from the dad-door scene), so
+ *     the reverse is a stand-in pending the chip-2 capture.
+ * base_sprite 96 ⇒ frame_delta = cel - 96. */
 static const anim_clip ARCHE_SWORD_SHEATHE_CLIP = {
     .base_sprite = 96,
-    .frame_delta = { 7,7,7,7, 6,6,6, 5,5,5, 4, 3, 2, 1, 0,0 },  /* 103x4 102x3 101x3 100 99 98 97 96x2 */
+    .frame_delta = { 0,0, 1, 2, 3, 4, 5,5,5, 6,6,6, 7,7,7,7 },  /* 96→103: onto the back */
     .frame_count = 16,
     .frame_dur   = 3,
-    .oneshot     = 1,
+    .oneshot     = 1,    /* hold on cel 103 until the FSM ends -> sword-IN base idle */
+};
+static const anim_clip ARCHE_SWORD_DRAW_CLIP = {
+    .base_sprite = 96,
+    .frame_delta = { 7,7,7,7, 6,6,6, 5,5,5, 4, 3, 2, 1, 0,0 },  /* 103→96: out front (stand-in) */
+    .frame_count = 16,
+    .frame_dur   = 3,
+    .oneshot     = 1,    /* hold on cel 96 = sword out front -> the sword-OUT idle */
+};
+/* The sword-OUT idle/walk: held on cel 96 (sword out front) as a PORT-DEBT(sword-out-
+ * pose-cels) stand-in — the recording sheathes immediately (no sustained sword-out
+ * idle captured) and the unarmed cels 0-3/8-15 carry no sword, so reusing them (the
+ * ckpt-156 bug the USER flagged: "walks with the sword put away") is wrong.  Holding
+ * the sword-out-front cel keeps the blade visible until the chip-2 capture records the
+ * real sword-out idle/walk set. */
+static const anim_clip ARCHE_SWORD_OUT_IDLE_CLIP = {
+    .base_sprite = 96, .frame_delta = { 0 }, .frame_count = 1, .frame_dur = 14, .oneshot = 0,
 };
 
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
@@ -1130,18 +1143,21 @@ const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
     if (st->phase == ARCHE_SWORD_PHASE_DRAW) {
         if (st->timer < ARCHE_SWORD_DRAW_TICKS) {
             st->timer = (int16_t)(st->timer + 1);
-            return &ARCHE_SWORD_DRAW_CLIP;
+            return &ARCHE_SWORD_DRAW_CLIP;        /* 103→96: pull the sword out front */
         }
-        st->phase = ARCHE_SWORD_PHASE_NONE;       /* draw done -> sword-out idle */
+        st->phase = ARCHE_SWORD_PHASE_NONE;       /* draw done -> sword-OUT idle */
     } else if (st->phase == ARCHE_SWORD_PHASE_SHEATHE) {
         if (st->timer < ARCHE_SWORD_SHEATHE_TICKS) {
             st->timer = (int16_t)(st->timer + 1);
-            return &ARCHE_SWORD_SHEATHE_CLIP;
+            return &ARCHE_SWORD_SHEATHE_CLIP;     /* 96→103: onto the back */
         }
-        st->phase = ARCHE_SWORD_PHASE_NONE;
+        st->phase = ARCHE_SWORD_PHASE_NONE;       /* sheathe done -> sword-IN base */
     }
 
-    /* Not drawing/sheathing -> the normal walk/idle/pose (sword-out reuses base
-     * cels; the distinct sword-out walk/attack set is chip 2). */
+    /* No transient: sword OUT holds the sword-out-front cel (the blade stays visible —
+     * PORT-DEBT(sword-out-pose-cels) for the real idle/walk set); sword IN delegates to
+     * the normal walk/idle/pose. */
+    if (sword_out)
+        return &ARCHE_SWORD_OUT_IDLE_CLIP;
     return arche_pose_clip(pst, cmd_pose, moving, airborne, run);
 }

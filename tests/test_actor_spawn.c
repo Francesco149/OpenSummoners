@@ -978,54 +978,62 @@ int test_arche_pose_clip(void)
     return 0;
 }
 
-/* ── The SWORD unsheathe/sheathe clip FSM (ckpt 155), RE'd off sword-realplay.osr
- *    (res 0x570): the DRAW plays cels 96..103 (base 96, dur 3, 16 frames = ~48t),
- *    then the sword-OUT idle (base cels) resumes; SHEATHE is the reverse stand-in
- *    (PORT-DEBT(sword-sheathe-cels)). ── */
+/* ── The SWORD unsheathe/sheathe clip FSM (ckpt 155; corrected ckpt 157 — cels
+ *    96..103 are the SHEATHE, not the draw: 96 sword-out-front → 103 onto the back).
+ *    DRAW = the reverse 103→96 (ends sword-out on cel 96); the sword-OUT idle holds
+ *    cel 96 (PORT-DEBT(sword-out-pose-cels)); SHEATHE = 96→103 (verified vs the
+ *    recording's 2156 sheathe). ── */
 int test_arche_sword_clip(void)
 {
     arche_sword_anim st;  memset(&st, 0, sizeof st);
     arche_pose_anim  pst; memset(&pst, 0, sizeof pst);
 
-    /* DRAW: the sword_out 0->1 edge starts the UNSHEATHE clip (base 96, cels 96-103). */
+    /* DRAW: the sword_out 0->1 edge plays the reverse clip 103→96 (pull out front). */
     const anim_clip *c = arche_sword_clip(&st, /*sword_out=*/1, &pst, 0, 0, 0, 0);
     T_ASSERT(c != NULL);
     T_ASSERT_EQ_I(c->base_sprite, 96);
-    T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 */
+    T_ASSERT_EQ_I(c->frame_delta[0], 7);    /* cel 103 first (reach to the back) */
     T_ASSERT_EQ_I(c->frame_count, 16);
     T_ASSERT_EQ_I(c->frame_dur, 3);
     T_ASSERT_EQ_I(c->oneshot, 1);
-    {   /* the clip steps 96 -> ... -> 103 (the drawn pose), freezing on 103 (one-shot) */
+    {   /* the clip steps 103 -> ... -> 96 (sword out front), freezing on 96 (one-shot) */
         anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
-        T_ASSERT_EQ_I(anim_clip_sprite(&as), 96);
-        for (int t = 0; t < 16 * 3 + 10; t++) anim_clip_advance(&as);
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 103);
+        for (int t = 0; t < 16 * 3 + 10; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 96);
     }
 
-    /* The draw clip is returned for exactly ARCHE_SWORD_DRAW_TICKS calls (sword_out
-     * held 1), then the FSM falls through to the base sword-out idle. */
+    /* The draw clip is returned for ARCHE_SWORD_DRAW_TICKS calls, then the FSM holds
+     * the sword-OUT idle (cel 96), NOT the base idle. */
     memset(&st, 0, sizeof st);
     memset(&pst, 0, sizeof pst);
     int draw_calls = 0;
     for (int t = 0; t < ARCHE_SWORD_DRAW_TICKS + 4; t++) {
         c = arche_sword_clip(&st, 1, &pst, /*cmd_pose=*/0, /*moving=*/0, 0, 0);
-        if (c->frame_delta[0] == 0 && c->frame_count == 16) draw_calls++;
+        if (c->frame_delta[0] == 7 && c->frame_count == 16) draw_calls++;
     }
     T_ASSERT_EQ_I(draw_calls, ARCHE_SWORD_DRAW_TICKS);
-    T_ASSERT_EQ_I(c == arche_freeroam_clip(0, 0, 0), 1);   /* sword-out idle = base idle */
+    /* sword-OUT idle = cel 96 held (NOT the base idle). */
+    T_ASSERT_EQ_I(c->base_sprite, 96);
+    T_ASSERT_EQ_I(c->frame_delta[0], 0);
+    T_ASSERT_EQ_I(c->frame_count, 1);
+    T_ASSERT_EQ_I(c != arche_freeroam_clip(0, 0, 0), 1);
 
-    /* SHEATHE: the 1->0 edge plays the reverse clip (starts on cel 103 = 96+7). */
+    /* SHEATHE: the 1->0 edge plays 96→103 (onto the back), starting on cel 96. */
     c = arche_sword_clip(&st, /*sword_out=*/0, &pst, 0, 0, 0, 0);
     T_ASSERT_EQ_I(c->base_sprite, 96);
-    T_ASSERT_EQ_I(c->frame_delta[0], 7);    /* cel 103 first (reverse) */
+    T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 first (forward) */
     T_ASSERT_EQ_I(c->frame_count, 16);
 
-    /* A moving, non-drawing sword-out Arche walks (base walk cels, chip-1 stand-in). */
+    /* A moving sword-out Arche holds the sword-out cel (NOT the base walk — the blade
+     * stays visible; PORT-DEBT(sword-out-pose-cels) until the real walk set is captured). */
     memset(&st, 0, sizeof st);
     memset(&pst, 0, sizeof pst);
     st.prev_out = 1;   /* already drawn, no transient */
     c = arche_sword_clip(&st, /*sword_out=*/1, &pst, /*cmd_pose=*/0, /*moving=*/1, 0, 0);
-    T_ASSERT_EQ_I(c == arche_freeroam_clip(/*moving=*/1, 0, 0), 1);
+    T_ASSERT_EQ_I(c->base_sprite, 96);
+    T_ASSERT_EQ_I(c->frame_count, 1);
+    T_ASSERT_EQ_I(c != arche_freeroam_clip(/*moving=*/1, 0, 0), 1);
     return 0;
 }
 
