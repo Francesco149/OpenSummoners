@@ -195,8 +195,22 @@
   sheet; slide body 48/49) — cel map in `plans/freeroam-sword-system.md` "ckpt-158/159 cel map";
   ground truth `sword2.osr` already captured (no re-capture, just probe at the input-trace ticks).
   **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-sword-bankswap.osr`
-  | `sword2.osr`) — scrub the errands freeroam ~tick 2030: Arche unsheathes (res 0x571 96-103), STAYS
+  | `sword2.osr 227`) — scrub the errands freeroam ~tick 2030: Arche unsheathes (res 0x571 96-103), STAYS
   drawn through an idle + a R/L walk (blade visible, no snap-back), then sheathes at ~tick 2360.
+  **ckpt 159b — studio TICK-OFFSET + the freeroam CAMERA-FOLLOW (USER studio note tick 2228).**  (1) The
+  studio's tick-join only overlaid identical sim_ticks, so a port REPLAY vs a real-play RECORDING (different
+  freeroam entry) never aligned — added a **tick-offset** to `osr_view` (`<port> <retail> [offset]`, live
+  `[`/`]` nudge, Shift=10, `\` reset; shortcut bakes it as a 3rd token).  (2) **Camera-follow was real PORT
+  DEBT:** the port stepped the easer but never set the freeroam TARGET, so the camera was static + Arche
+  walked off-screen.  RE'd `0x439690:1101-1122` (the leader-follow target) + the config setter `0x510100:64-68`
+  (bias 0, cap 800, follow the leader): `freeroam_step` now sets `tgt = world_x−30000 / world_y−0x6a40`,
+  clamped to `[0, map−vp]`, and the easer eases at +10/tick to cap 800.  VERIFIED off `port-sword-bankswap.osr`
+  vs `sword2.osr`: camera PINNED until Arche passes screen ~300 then follows (== retail), floor tile dx=32
+  both sides (origin matches), no Y jolt; Arche stays on-screen.  quirk #116; `PORT-DEBT(freeroam-camera-config)`
+  (the leader-pick/bias/cap are RE'd-off-`0x510100` stand-ins for the unported room-state follow config).
+  **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
+  each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
+  inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

@@ -2918,6 +2918,32 @@ static void freeroam_step(void)
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;
     g_freeroam_rs.facing  = g_freeroam_char.facing;
+    /* CAMERA-FOLLOW (0x439690:1101-1122, RE'd): set the view TARGET to track Arche
+     * each sim-tick; game_camera_step's easer (camera_follow_step = 0x43d1d0) eases
+     * cur->tgt at +10/tick up to the cap.  tgt = entity_pos - center_const (+ bias),
+     * clamped to [0, map - viewport].  The center constants are VERBATIM from the
+     * decompile (X -30000, Y -0x6a40); bias 0 + cap 800 are the follow-config setter
+     * 0x510100:64-68, corroborated bit-for-bit by sword2.osr: the camera stays PINNED
+     * at the left edge (tgt clamps to 0) until world_x>30000 (= screen 300), then
+     * eases +10/tick (still climbing at 530 when the run ends, cap 800 unsaturated).
+     * Without this the port's camera was static and Arche walked off-screen (USER
+     * studio note tick 2228 "camera isnt following arche").  PORT-DEBT(freeroam-camera
+     * -config): the leader-pick + bias/cap come from the unported room-state follow
+     * config; the values are RE'd off 0x510100 (Arche is the only party member here). */
+    if (g_game_camera_armed) {
+        int32_t tx = g_freeroam_char.world_x - 30000;   /* + bias_x = 0 */
+        int32_t ty = g_freeroam_char.world_y - 0x6a40;  /* + bias_y = 0 */
+        int32_t mx = g_game_camera.map_w - g_game_camera.vp_w;
+        int32_t my = g_game_camera.map_h - g_game_camera.vp_h;
+        if (tx < 0) tx = 0;
+        if (mx >= 0 && tx > mx) tx = mx;
+        if (ty < 0) ty = 0;
+        if (my >= 0 && ty > my) ty = my;
+        g_game_camera.tgt_x = tx;
+        g_game_camera.tgt_y = ty;
+        g_game_camera.cap   = 800;   /* roomstate+0x58 follow cap (0x510100:68) */
+        g_game_camera.flag  = 0;     /* no far-boost */
+    }
     int moving = (g_freeroam_char.cmd_dir != 0) || (g_freeroam_char.vel != 0);
     /* The U/D-POSE sprite (crouch / up-defensive) takes priority over walk/idle:
      * arche_pose_clip drives the enter->hold->exit cel FSM off cmd_pose (ckpt
