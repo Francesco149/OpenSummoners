@@ -2899,21 +2899,19 @@ static void freeroam_step(void)
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;
+    g_freeroam_rs.facing  = g_freeroam_char.facing;
     int moving = (g_freeroam_char.cmd_dir != 0) || (g_freeroam_char.vel != 0);
     /* The U/D-POSE sprite (crouch / up-defensive) takes priority over walk/idle:
      * arche_pose_clip drives the enter->hold->exit cel FSM off cmd_pose (ckpt
      * 153b, engine-quirk #114; retires PORT-DEBT(char-pose-anim)), falling
-     * through to arche_freeroam_clip when no pose is engaged or exiting.  Bank
-     * 0x8b is NOT engine-mirrored — the pose has DEDICATED left cels (selected by
-     * the CHARACTER facing), so while posing we render facing=1 (no +4 flip) else
-     * the flip would corrupt the pose cels (31+4=35 = the up-hold). */
+     * through to arche_freeroam_clip when no pose is engaged or exiting.  The
+     * LEFT-facing pose/walk/idle emerge from the bank-0x8b +152 flip the renderer
+     * applies on facing==3 (ARCHE_FREEROAM_FLIP) — so we render at the character
+     * facing and the flip mirrors all the freeroam cels uniformly. */
     static arche_pose_anim g_freeroam_pose_anim;
     const anim_clip *want = arche_pose_clip(&g_freeroam_pose_anim,
                                             g_freeroam_char.cmd_pose,
-                                            g_freeroam_char.facing,
                                             moving, g_freeroam_char.airborne, run);
-    g_freeroam_rs.facing = g_freeroam_pose_anim.posing ? CHAR_FACE_RIGHT
-                                                       : g_freeroam_char.facing;
     if (g_freeroam_rs.clip != want) {
         g_freeroam_rs.clip  = want;
         g_freeroam_rs.timer = 0;

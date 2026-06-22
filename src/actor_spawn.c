@@ -987,24 +987,35 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
  * cel cadence is time-based (dur 5) here; retail advances it with DISTANCE (the
  * cel speeds up with velocity) — PORT-DEBT(char-walk-anim-distance), refine when
  * the distance-locked cycle is pinned. */
+/* RE'd off retail-walk.osr (res 0x570, held RIGHT then idle; ckpt 153b): the freeroam
+ * WALK is cels 8-15 (an 8-cel cycle, dur 6) and the IDLE is cels 0,1,2 (a 3-cel
+ * breathe, dur 14) — NOT the ckpt-144 stand-ins (walk 0-3 / idle 0-1), which were
+ * wrong.  (The ckpt-144 "+4 walk-flip verified 1:1" did not scrutinise the exact
+ * cels.)  The walk-cel cadence is still time-based (dur 6); retail advances it with
+ * DISTANCE (PORT-DEBT(char-walk-anim-distance)). */
 static const anim_clip ARCHE_WALK_CLIP = {
-    .base_sprite = 0,
-    .frame_delta = { 0, 1, 2, 3 },
-    .frame_count = 4,
-    .frame_dur   = 5,
-    .oneshot     = 0,    /* loops */
+    .base_sprite = 8,
+    .frame_delta = { 0, 1, 2, 3, 4, 5, 6, 7 },   /* cels 8-15 */
+    .frame_count = 8,
+    .frame_dur   = 6,
+    .oneshot     = 0,    /* loops 8->15->8 */
 };
 static const anim_clip ARCHE_FREEROAM_IDLE_CLIP = {
     .base_sprite = 0,
-    .frame_delta = { 0, 1 },
-    .frame_count = 2,
-    .frame_dur   = 30,
+    .frame_delta = { 0, 1, 2 },   /* cels 0,1,2 */
+    .frame_count = 3,
+    .frame_dur   = 14,
     .oneshot     = 0,    /* loops */
 };
 
-/* The flip-table value bank 0x8b needs for the facing==3 (LEFT) walk mirror: the
- * left cels are the right cels + 4 (capture: RIGHT 0-3, LEFT 4-7). */
-const int16_t ARCHE_FREEROAM_FLIP = 4;
+/* The flip-table value bank 0x8b needs for the facing==3 (LEFT) mirror.  Bank 0x8b
+ * is mirrored with a UNIFORM offset of +152 (RE'd off retail-walk.osr / poseL: the
+ * left cels are the right cels + 152 across EVERY freeroam animation — idle 0-2 ->
+ * 152-154, walk 8-15 -> 160-167, run 16-21 -> 168-173, crouch 31/32 -> 183/184, up
+ * 34/35 -> 186/187).  So the renderer's facing==3 mirror adds 152 and the dedicated
+ * left cels emerge — no per-animation left clips needed.  (The ckpt-144 value 4 was
+ * wrong; it rendered left walk 4-7 etc. — engine-quirk #114.) */
+const int16_t ARCHE_FREEROAM_FLIP = 152;
 
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run)
 {
@@ -1024,23 +1035,16 @@ const anim_clip *arche_freeroam_clip(int moving, int airborne, int run)
  * injection added to the capture proxy, ckpt 153b).  Both poses are a 3-phase
  * FSM keyed on the body sub-state (body+0x3a; engine-quirk #114): a TRANSITION
  * cel on enter AND exit, holding a steady cel between:
- *   RIGHT-facing  CROUCH: enter 31 (4t) -> hold 32 -> [release] exit 31 (5t)
- *                 UP:     enter 34 (4t) -> hold 35 -> [release] exit 34 (5t)
- *   LEFT-facing   CROUCH: enter 183     -> hold 184              exit 183
- *                 UP:     enter 186     -> hold 187              exit 186
- * KEY: bank 0x8b is NOT engine-mirrored — it has DEDICATED left-facing cels
- * (left = right + 152: crouch 31->183/32->184, up 34->186/35->187; the left idle
- * is 152-154, the left walk 159-165), NOT the +4 walk-flip the port assumed.  So
- * the pose RENDERS WITH facing=1 (no flip) and selects the left clip by the
- * CHARACTER facing — see freeroam_step + arche_pose_clip.  (The walk/idle left
- * mirror via +4 is a SEPARATE pre-existing bug this capture surfaced — the left
- * walk/idle should be 159-165/152-154, not 4-7/4-5 — logged in
- * findings/freeroam-pose-commands.md "## The left-facing freeroam mirror".)
- * Per-tick durations read straight off the draw stream (metadata-only, like
- * ARCHE_RUN_CLIP).  The ENTER clip is a one-shot {transition, hold} that freezes
- * on the hold cel; the EXIT is the transition cel held for ARCHE_POSE_EXIT_TICKS
- * (the arche_pose_anim FSM below).  The enter dur is 5 (not 4): the stepper
- * advances BEFORE the render, so a dur-5 frame-0 renders for retail's 4-tick enter. */
+ *   CROUCH (cmd_pose 10, body state 2): enter cel 31 (4t) -> hold 32 -> [release] exit 31 (5t) -> idle
+ *   UP     (cmd_pose 0xb, body state 5): enter cel 34 (4t) -> hold 35 -> [release] exit 34 (5t) -> idle
+ * These are the RIGHT-facing cels; the LEFT-facing pose emerges from the bank-0x8b
+ * +152 mirror (ARCHE_FREEROAM_FLIP) the renderer applies on facing==3 — crouch
+ * 31/32 -> 183/184, up 34/35 -> 186/187 — exactly like the walk/idle/run.  So NO
+ * dedicated left clips and NO facing override are needed: the pose renders at the
+ * CHARACTER facing and the flip does the rest (verified bit-exact, both facings).
+ * The enter dur is 5 (not 4): the stepper advances BEFORE the render, so a dur-5
+ * frame-0 renders for retail's 4-tick enter.  The EXIT is the transition cel held
+ * for ARCHE_POSE_EXIT_TICKS (the arche_pose_anim FSM below). */
 static const anim_clip ARCHE_CROUCH_CLIP = {
     .base_sprite = 0, .frame_delta = { 31, 32 }, .frame_count = 2, .frame_dur = 5, .oneshot = 1,
 };
@@ -1053,52 +1057,32 @@ static const anim_clip ARCHE_CROUCH_EXIT_CLIP = {
 static const anim_clip ARCHE_UP_EXIT_CLIP = {
     .base_sprite = 0, .frame_delta = { 34 }, .frame_count = 1, .frame_dur = 1, .oneshot = 1,
 };
-/* LEFT-facing (dedicated cels = right + 152; rendered at facing=1, no flip). */
-static const anim_clip ARCHE_CROUCH_LEFT_CLIP = {
-    .base_sprite = 0, .frame_delta = { 183, 184 }, .frame_count = 2, .frame_dur = 5, .oneshot = 1,
-};
-static const anim_clip ARCHE_UP_LEFT_CLIP = {
-    .base_sprite = 0, .frame_delta = { 186, 187 }, .frame_count = 2, .frame_dur = 5, .oneshot = 1,
-};
-static const anim_clip ARCHE_CROUCH_LEFT_EXIT_CLIP = {
-    .base_sprite = 0, .frame_delta = { 183 }, .frame_count = 1, .frame_dur = 1, .oneshot = 1,
-};
-static const anim_clip ARCHE_UP_LEFT_EXIT_CLIP = {
-    .base_sprite = 0, .frame_delta = { 186 }, .frame_count = 1, .frame_dur = 1, .oneshot = 1,
-};
 
-const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose, int facing,
+const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
                                  int moving, int airborne, int run)
 {
     const anim_clip *want;
-    int left = (facing == CHAR_FACE_LEFT);       /* dedicated left cels (no +4 flip) */
     if (cmd_pose == CHAR_POSE_DOWN) {            /* crouch / slide                */
-        want = left ? &ARCHE_CROUCH_LEFT_CLIP : &ARCHE_CROUCH_CLIP;
+        want = &ARCHE_CROUCH_CLIP;
         st->exit_timer = 0;
-        st->posing = 1;
     } else if (cmd_pose == CHAR_POSE_UP) {       /* up-defensive                  */
-        want = left ? &ARCHE_UP_LEFT_CLIP : &ARCHE_UP_CLIP;
+        want = &ARCHE_UP_CLIP;
         st->exit_timer = 0;
-        st->posing = 1;
     } else {
         /* Not posing.  If a pose was just released, play its EXIT transition cel
-         * (in the facing it was released at) for ARCHE_POSE_EXIT_TICKS, then the
-         * walk/idle clip resumes (draw stream: cel 31/34/183/186 holds ~5t, then idle). */
+         * for ARCHE_POSE_EXIT_TICKS before the walk/idle clip resumes (the draw
+         * stream: cel 31/34 holds ~5 ticks on release, then idle).  The LEFT-facing
+         * exit emerges from the same +152 flip. */
         if (st->prev_pose != 0) {
-            st->exit_kind   = st->prev_pose;
-            st->exit_facing = (int16_t)facing;
-            st->exit_timer  = ARCHE_POSE_EXIT_TICKS;
+            st->exit_kind  = st->prev_pose;
+            st->exit_timer = ARCHE_POSE_EXIT_TICKS;
         }
         if (st->exit_timer > 0) {
             st->exit_timer--;
-            int el = (st->exit_facing == CHAR_FACE_LEFT);
-            want = (st->exit_kind == CHAR_POSE_DOWN)
-                 ? (el ? &ARCHE_CROUCH_LEFT_EXIT_CLIP : &ARCHE_CROUCH_EXIT_CLIP)
-                 : (el ? &ARCHE_UP_LEFT_EXIT_CLIP     : &ARCHE_UP_EXIT_CLIP);
-            st->posing = 1;
+            want = (st->exit_kind == CHAR_POSE_DOWN) ? &ARCHE_CROUCH_EXIT_CLIP
+                                                     : &ARCHE_UP_EXIT_CLIP;
         } else {
             want = arche_freeroam_clip(moving, airborne, run);
-            st->posing = 0;
         }
     }
     st->prev_pose = cmd_pose;

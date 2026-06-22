@@ -178,30 +178,34 @@ wins over walk/run).  Quirk #114 extended.  **Verified:** a port `.osr` (drive i
 the errands freeroam + held DOWN/UP) renders cels 31/32/34/35 at res 0x570 ==
 retail (`## The POSE ANIM verification`).  Retires `PORT-DEBT(char-pose-anim)`.
 
-**LEFT-facing — DONE too (no residual).**  See "## The left-facing freeroam mirror".
+**LEFT-facing — DONE too (via the +152 mirror).**  See "## The freeroam mirror + the walk/idle cels".
 
-## The left-facing freeroam mirror — bank 0x8b is NOT engine-mirrored (ckpt 153b)
+## The freeroam mirror is +152, and the right walk/idle cels were wrong (ckpt 153b)
 
-Captured a LEFT-facing pose (`retail-poseL.osr`: walk LEFT to turn, then held-DOWN/UP
-facing left).  The left-facing cels are NOT the `+4` walk-flip the port assumed —
-they are **DEDICATED cels at `right + 152`**: left crouch enter/hold **183/184**, left
-up **186/187** (vs right 31/32, 34/35).  The left IDLE is **152-154** and the left WALK
-**159-165** (also dedicated, not `+4`).  So `flip_table[0x8b]=4` (`ARCHE_FREEROAM_FLIP`)
-is a FICTION for bank 0x8b — the engine does not mirror it; it has a full left-facing
-animation set.
+Captured the full freeroam walk/idle set (`retail-walk.osr`: held RIGHT→idle→LEFT→idle;
+`retail-poseL.osr`: left pose).  Two findings overturned the ckpt-144 stand-ins:
 
-**The pose fix (this chip):** `arche_pose_clip` takes the CHARACTER `facing` and returns
-the dedicated left clip (183/184 / 186/187) when facing left; `freeroam_step` renders the
-pose at **facing=1** (no flip — `st->posing`) so the dedicated cels draw as-is (else the
-`+4` flip would turn left-crouch 183 into 187).  VERIFIED off `port-poseL.osr` vs
-`retail-poseL.osr`: left crouch 183→184, left up 186→187 == retail.
+1. **The LEFT-facing mirror is a UNIFORM `+152`, not `+4`.**  Every freeroam animation's
+   left cels = its right cels **+ 152**: idle 0-2 → **152-154**, walk 8-15 → **160-167**,
+   run 16-21 → 168-173, crouch 31/32 → **183/184**, up 34/35 → **186/187**.  So bank 0x8b
+   IS engine-mirrored (the renderer's facing==3 flip adds `flip_table[0x8b]`) — the port
+   just had the wrong offset (`ARCHE_FREEROAM_FLIP` 4 → **152**).  One value fixes the
+   left-facing walk, idle, run, AND pose at once — no per-animation left clips.
+2. **The RIGHT walk + idle cels were WRONG.**  Retail's freeroam right WALK is cels
+   **8-15** (8-cel cycle, dur 6) and IDLE is **0,1,2** (dur 14) — not the ckpt-144 stand-ins
+   (walk 0-3 / idle 0-1).  The ckpt-144 "+4 walk verified 1:1" didn't scrutinise the cels.
 
-**SURFACED (separate debt, NOT this chip): the WALK/IDLE left-facing cels are likely
-wrong** — the port renders them via the `+4` flip (left walk 4-7, left idle 4-5) but
-retail uses the dedicated 159-165 / 152-154.  Registered `PORT-DEBT(char-freeroam-left-cels)`:
-the same dedicated-left-cels treatment (flip=0 + left walk/idle clips) should extend to the
-walk + idle; the ckpt-144 "+4 walk mirror verified 1:1" likely didn't scrutinize the exact
-left cels.  Needs a sustained-left-walk capture to pin the walk-left cycle + the idle-left.
+**The fix (unified):** `ARCHE_FREEROAM_FLIP` = 152; `ARCHE_WALK_CLIP` = cels 8-15 (dur 6);
+`ARCHE_FREEROAM_IDLE_CLIP` = cels 0-2 (dur 14).  The pose reverted to the RIGHT clips
+(31/32, 34/35) rendered at the CHARACTER facing — the +152 flip produces the left cels
+(183/184, 186/187), so the dedicated-left-clip workaround (the earlier ckpt-153b approach)
+was removed.  **VERIFIED off `port-walkidle.osr`** (held RIGHT→idle→LEFT→idle→crouch→up):
+right walk 8-15, right idle 0,1,2; left walk 160-167, left idle 152-154 (showed 152,153);
+left crouch 183/184, left up 186/187 — all == retail via the single +152 flip.  This
+RESOLVES `PORT-DEBT(char-freeroam-left-cels)` for walk/idle/pose.
+
+RESIDUAL: the left RUN (16-21 → 168-173) + left JUMP via the +152 flip are consistent with
+the pattern but not directly captured (verify when a dash-left / jump-left is exercised).
 
 ## PORT-DEBT
 - `char-pose-holdtime` — the 240ms `array_B` held-time arm (the producer doesn't fill
@@ -210,9 +214,9 @@ left cels.  Needs a sustained-left-walk capture to pin the walk-left cycle + the
 - `char-up-door-probe` — the UP door/ledge enter (478ba0:260-285), collision-coupled.
 - ~~`char-pose-physics`~~ — RETIRED ckpt 153 (the apply states 2/5 brake law, bit-exact).
 - ~~`char-pose-anim`~~ — RETIRED ckpt 153b (the crouch/up SPRITE, BOTH facings: right
-  31/32/34/35 + left 183/184/186/187; see "## The POSE ANIM" + "## The left-facing
+  31/32/34/35 + left 183/184/186/187 via the +152 flip; see "## The POSE ANIM" + "## The
   freeroam mirror" above).
-- `char-freeroam-left-cels` — the WALK/IDLE left-facing cels: the port mirrors via the
-  `+4` flip (left walk 4-7 / idle 4-5) but retail uses the DEDICATED 159-165 / 152-154
-  (bank 0x8b is not engine-mirrored).  Surfaced by the left-pose capture; the pose half is
-  fixed (dedicated left clips + facing=1), the walk/idle half is the open debt.
+- ~~`char-freeroam-left-cels`~~ — RETIRED ckpt 153b (folded into the +152 mirror fix): the
+  right walk/idle cels were corrected (8-15 / 0-2) and `ARCHE_FREEROAM_FLIP` 4→152, so the
+  left walk (160-167) + idle (152-154) now render correctly via the renderer flip — verified
+  off `port-walkidle.osr`.  (Left run/jump via the same +152 flip = the small residual above.)

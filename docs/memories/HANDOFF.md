@@ -21,15 +21,18 @@ exit 31 (5t) → idle; UP enter 34 → hold 35 → exit 34 → idle.  Ported `ar
 (`actor_spawn.{c,h}`, keyed on `cmd_pose`, host-tested `test_arche_pose_clip`); `freeroam_step` calls
 it once/sim-tick (pose wins over walk/run).  Verified port `.osr` res 0x570 == retail tick-for-tick
 (enter 4t, exit 5t — the enter dur is 5 not 4: the stepper advances before the render).  Writeup:
-`findings/freeroam-pose-commands.md` "## The POSE ANIM"; quirk #114 extended.  **LEFT-facing DONE too
-(USER ckpt-153b directive):** captured a left-facing pose (`retail-poseL.osr`) — bank 0x8b is NOT
-engine-mirrored, it has DEDICATED left cels (right+152: left crouch 183/184, up 186/187), so
-`arche_pose_clip` selects the left clip by the CHARACTER facing + `freeroam_step` renders facing=1 (no
-+4 flip — else 31+4=35 collides).  port-poseL.osr renders 183/184/186/187 == retail.  **SURFACED a new
-debt `char-freeroam-left-cels`: the WALK/IDLE left cels are also dedicated (left walk 159-165, idle
-152-154) but the port still mirrors them via +4 (wrong) — the pose half is fixed, the walk/idle half is
-open (needs a sustained-left-walk capture).**  **USER-VERIFY (visual): feed montage** (`pose_montage.png`
-right-facing; a left-facing montage too) + the studio shortcut.
+`findings/freeroam-pose-commands.md` "## The POSE ANIM"; quirk #114.  **LEFT-facing DONE + the whole
+freeroam mirror UNIFIED (USER ckpt-153b directive).**  Captured the full walk/idle set (`retail-walk.osr`
++ `retail-poseL.osr`): (1) the LEFT mirror is a UNIFORM **+152**, not +4 — left = right+152 for EVERY
+freeroam anim (idle 0-2→152-154, walk 8-15→160-167, run 16-21→168-173, crouch 31/32→183/184, up 34/35→
+186/187); (2) the ckpt-144 RIGHT walk/idle cels were WRONG — retail WALK is **8-15** (dur 6), IDLE **0-2**
+(dur 14), not 0-3 / 0-1.  UNIFIED FIX: `ARCHE_FREEROAM_FLIP` 4→152 + corrected walk/idle clips; the pose
+reverted to the RIGHT clips (the +152 flip yields the left cels — the dedicated-left-clip workaround
+removed).  VERIFIED off `port-walkidle.osr` (RIGHT→idle→LEFT→idle→crouch→up): right walk 8-15 / idle 0-2,
+left walk 160-167 / idle 152-154 / crouch 183-184 / up 186-187 == retail.  `PORT-DEBT(char-pose-anim)` +
+`(char-freeroam-left-cels)` BOTH RETIRED; 1053 host pass.  RESIDUAL: left RUN/JUMP via the same +152 flip
+(consistent, verify when exercised).  **USER-VERIFY (visual): feed montages** (`pose_montage.png` +
+`pose_montage_left.png`) — the pose output is unchanged by the rework (same cels via the flip).
 
 ## Where we are (prior chip) — ckpt 153
 
