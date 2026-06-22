@@ -80,3 +80,50 @@ first capture (`port-attack.osr`, faced LEFT after a left-walk) rendered the +19
 **296-301**, W×H byte-identical to 104-109 — confirming the left mirror too.  Host:
 `test_character_resolve_attack` + `test_character_attack_locks_movement` + the
 `arche_sword_clip` neutral-swing case.
+
+## chip 2b — the DIRECTIONAL swings (FORWARD / DOWN / BACK) + the lunge
+**The variant is picked at trigger from the held direction vs facing** (the RE'd
+structure: the sword-out form 0x41f200 registers a *distinct* action+variant template
+per swing — `FUN_004287d0(0x27d9,var,…)` / `(0x27da,var,…)` `:1181-1201` — each with its
+own scripted displacement const).  `character_resolve_attack` now reads the held axis at
+the trigger: **DOWN** beats a held **L/R** (FORWARD if toward facing, BACK if away) beats
+no-direction **NEUTRAL**; UP+X is the separate-sheet up-thrust (0x283f, chip 2c — falls
+through to NEUTRAL until then).  Per-kind duration via `character_attack_ticks()` (the
+clip's total cels·durs, kept 1:1 with the movement lock).
+
+**The movement mechanism (RE'd, `FUN_00447ed0` @0x447ed0 → the collision mover 0x54db10):**
+the swing moves world_x **directly** by a per-substate displacement, sign-flipped on
+`facing==3` (toward facing) — *not* a velocity.  So:
+- **NEUTRAL / DOWN** — stationary (`D=0`; DOWN returns to crouch while DOWN held).
+- **FORWARD** — a forward LUNGE: `character_step` keeps the vel-lock (brake→0) and adds a
+  direct world_x step toward facing, even-distributing the captured net
+  `CHAR_ATTACK_FORWARD_LUNGE = 5400` (+54px) across the swing with an exact-integer running
+  sum.  (The magnitude is captured ground truth — the per-substate profile of the 0x27da
+  forward template is un-traced through the unreliable 0x45e830 combo path =
+  `PORT-DEBT(sword-attack-gameplay)`.)
+- **BACK** — net 0, but **turns her around**: at swing completion `character_resolve_attack`
+  flips facing 1↔3 + negates vel — the literal `0x45e830:363-365` turn-around (the `+0x54==4`
+  branch flips `+0x2c` at sub-state 4, sets `+0x28 = -+0x28`).  The swing renders the
+  pre-flip facing's cels (144-148), so the post-swing idle lands on the opposite +192 bank.
+
+**Cels (sword2.osr res 0x571, `attack_probe.py`):** FORWARD 120→126 (dur-6, 42t) / DOWN
+112→115 (durs [8,6,5,7], 26t) / BACK 144→148 (durs [4,4,7,7,5], 27t); LEFT = +192
+(`ARCHE_SWORD_OUT_FLIP`, confirmed off the facing-left DOWN at fr 304-307).  Clips
+`ARCHE_ATTACK_FORWARD/DOWN/BACK_CLIP` in `actor_spawn.c` (per-cel durs faked via repeated
+`frame_delta`, frame_dur 1, ≤32 frames).
+
+### Verification (port-attack-dir.osr vs sword2.osr, `sword_cels.py`)
+Drove the port: nav draws the sword @tick 2030, the held-trace does down+X / right+X /
+left+X (scancodes 208/205/203 + 45).  All three fire clean swings, every cel's dst **W×H
+byte-identical** to sword2.osr, durations match within the ±1t entry/exit FSM noise:
+
+| kind | cels | key W×H (port == rec) | movement (verified) |
+|------|------|------------------------|---------------------|
+| FORWARD | 120→126 | 29×61/46×62/36×59/**80×49**/**80×49**/43×58/30×67 | idle dst 162→**216 = +54px** (lunge), camera follows |
+| DOWN | 112→115 | 54×59/**80×47**/**80×47**/52×59 | stationary at dst 162, returns to facing-right idle |
+| BACK | 144→148 | 37×59/44×57/**78×54**/**78×54**/37×58 | stationary, then idle flips to **192-194 (LEFT)** — turned around |
+
+Host: `test_character_attack_directional` (variant select for all 6 face/dir combos +
+per-kind durations + the BACK facing-flip + the exact ±LUNGE over the swing + DOWN
+stationary).  1058 host pass.  **chip 2c (NEXT)** = the UP attack (0x283f separate sheet,
+~18 inserted sprites mid-thrust) + the attack TRAIL vfx + the slide-attack body 48/49.

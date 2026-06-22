@@ -1157,13 +1157,46 @@ static const anim_clip ARCHE_SWORD_OUT_IDLE_CLIP = {
  *   3485-3520: 104@3485 105@3491 106@3497 107@3503 108@3509 109@3515, then idle 0).
  * The dst widens to 64 mid-swing (cels 106/107) from the cel's own footprint — the
  * sprite-bank anchor, not a clip offset (off_x stays 0), so it emerges from res 0x571.
- * chip 2b adds FORWARD (120-126) / DOWN (112-115) / BACK (144-148) + their lunge. */
+ *
+ * chip 2b — the DIRECTIONAL swings (RE'd off sword2.osr res 0x571, tick-aligned to
+ * sword2-input.jsonl; durs from `attack_probe.py`).  All on bank 0x8c (res 0x571); the
+ * LEFT mirror is the +192 (ARCHE_SWORD_OUT_FLIP) the renderer applies on facing==3, so
+ * one right-facing clip serves both — EXCEPT the BACK swing, which renders at the
+ * pre-swing facing (the un-mirrored cels) and only flips facing AT COMPLETION
+ * (character_resolve_attack), so its post-swing idle lands on the opposite bank.  The
+ * uniform frame_dur is 1 where the per-cel durations differ (faked via repeated
+ * frame_delta entries, like the sheathe clip), so the clip's total ticks == the kind's
+ * CHAR_ATTACK_*_TICKS and the lock + anim end together:
+ *   FORWARD 120->126 dur-6 (42t) ticks 3792-3833 — a forward LUNGE (character_step)
+ *   DOWN    112->115 [8,6,5,7]=26t ticks 3957-3982 — stationary, returns to crouch
+ *   BACK    144->148 [4,4,7,7,5]=27t ticks 4082-4108 — turns around at completion */
 static const anim_clip ARCHE_ATTACK_NEUTRAL_CLIP = {
     .base_sprite = 104,
     .frame_delta = { 0, 1, 2, 3, 4, 5 },   /* res 0x571 cels 104->109 (a full swing) */
     .frame_count = 6,
     .frame_dur   = 6,
     .oneshot     = 1,    /* freeze on 109; the character clears `attacking` at 36t   */
+};
+static const anim_clip ARCHE_ATTACK_FORWARD_CLIP = {
+    .base_sprite = 120,
+    .frame_delta = { 0, 1, 2, 3, 4, 5, 6 },  /* res 0x571 cels 120->126 */
+    .frame_count = 7,
+    .frame_dur   = 6,    /* 7 * 6 = 42t = CHAR_ATTACK_FORWARD_TICKS */
+    .oneshot     = 1,
+};
+static const anim_clip ARCHE_ATTACK_DOWN_CLIP = {
+    .base_sprite = 112,                      /* res 0x571 cels 112->115, durs [8,6,5,7] */
+    .frame_delta = { 0,0,0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2, 3,3,3,3,3,3,3 },
+    .frame_count = 26,   /* 8+6+5+7 = 26t = CHAR_ATTACK_DOWN_TICKS */
+    .frame_dur   = 1,
+    .oneshot     = 1,
+};
+static const anim_clip ARCHE_ATTACK_BACK_CLIP = {
+    .base_sprite = 144,                      /* res 0x571 cels 144->148, durs [4,4,7,7,5] */
+    .frame_delta = { 0,0,0,0, 1,1,1,1, 2,2,2,2,2,2,2, 3,3,3,3,3,3,3, 4,4,4,4,4 },
+    .frame_count = 27,   /* 4+4+7+7+5 = 27t = CHAR_ATTACK_BACK_TICKS */
+    .frame_dur   = 1,
+    .oneshot     = 1,
 };
 
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
@@ -1202,6 +1235,13 @@ const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
      * chip 2a is NEUTRAL (104-109), the directionals are chip 2b. */
     if (attacking) {
         switch (attack_kind) {
+        case CHAR_ATTACK_FORWARD:
+            return &ARCHE_ATTACK_FORWARD_CLIP;
+        case CHAR_ATTACK_DOWN:
+            return &ARCHE_ATTACK_DOWN_CLIP;
+        case CHAR_ATTACK_BACK:
+            return &ARCHE_ATTACK_BACK_CLIP;
+        case CHAR_ATTACK_UP:        /* chip 2c (0x283f separate sheet); stand-in */
         case CHAR_ATTACK_NEUTRAL:
         default:
             return &ARCHE_ATTACK_NEUTRAL_CLIP;

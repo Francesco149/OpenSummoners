@@ -78,11 +78,20 @@ mid-swing lock = swing completes before re-trigger), `character_step` brakes vel
 (stationary), `arche_sword_clip` plays `ARCHE_ATTACK_NEUTRAL_CLIP` (104-109 dur-6) winning over
 pose/walk/idle but not the draw transient.  Verified bit-exact off `port-attack-r.osr` vs sword2.osr
 (`sword_cels.py`): 104-109 dur-6, every dst W×H byte-identical.  `findings/freeroam-sword-attack.md`.
-**CHIP-2b (NEXT): the directional attacks** (fwd 120-126 / down 112-115 / back 144-148, +192 left) +
-the forward LUNGE displacement (RE the cmd[4] body state in 0x442a70 that drives world_x) + the held-
-dir variant select.  **CHIP-2c: the UP attack** (the separate multi-sprite sheet) + the TRAIL vfx +
-the slide body 48/49.  The HITBOX/damage + the +0x66 charge meter are gameplay (PORT-DEBT(sword-
-attack-gameplay)); the ANIM + the movement lock are the port.
+**CHIP-2b (ckpt 161, DONE + bit-exact): the directional attacks** (fwd 120-126 / down 112-115 /
+back 144-148, +192 left) + the forward LUNGE + the held-dir variant select.  `character_resolve_attack`
+picks the kind from the held axis vs facing (DOWN > toward-facing FORWARD / away BACK > NEUTRAL; UP =
+chip 2c); `character_attack_ticks` gives the per-kind duration.  Movement RE'd off `0x45e830` (the
+0xc35b-only handler, `442a70:357-369`): the swing moves world_x DIRECTLY toward facing via `0x447ed0`
+→ `0x54db10` (a displacement, not a velocity) — FORWARD even-distributes the captured +5400 (the exact
+0x27da template profile = `PORT-DEBT(sword-attack-gameplay)`), DOWN stationary, BACK flips facing +0x2c
++ negates vel +0x28 at completion (the `45e830:363-365` turn-around).  Clips `ARCHE_ATTACK_FORWARD/DOWN/
+BACK_CLIP`.  VERIFIED off `port-attack-dir.osr` vs `sword2.osr`: every swing cel's dst W×H byte-identical,
+the +54px lunge + the turn-around confirmed; `test_character_attack_directional`, 1058 host pass.
+`findings/freeroam-sword-attack.md` "## chip 2b".  **CHIP-2c (NEXT): the UP attack** (the separate
+multi-sprite sheet 0x283f, ~18 inserted sprites mid-thrust) + the TRAIL vfx + the slide body 48/49.
+The HITBOX/damage + the +0x66 charge meter are gameplay (PORT-DEBT(sword-attack-gameplay)); the ANIM +
+the movement lock are the port.
 
 > **ckpt 157 — chip-2 capture progress + USER feedback:**
 > - **force-sword TOOLING DONE + committed** (`0f07877`): `tools/capture_proxy/engine_hooks.h`

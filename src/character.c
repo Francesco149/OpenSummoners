@@ -82,12 +82,27 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
      * vel is the signed accumulator body+0x28 (+ right, - left). */
     if (c->attacking && !c->airborne) {
         /* SWORD SWING in progress (442a70's cmd[4] body state): movement is locked.
-         * The NEUTRAL swing is STATIONARY (sword2.osr: idle resumes at the same x),
-         * so brake vel to 0 at the WALK brake — the same lock the pose uses, holding
-         * her in place through the 36-tick swing.  The directional swings drive a
-         * forward LUNGE into world_x (fwd +54px / down +24px / back turn) — that is
-         * chip 2b's job, layered on top of this lock by attack_kind. */
+         * Brake vel to 0 at the WALK brake — the same lock the pose uses, holding her
+         * in place through the swing — then the directional kinds layer a scripted
+         * displacement on top (the registered attack templates 41f200:1181-1201):
+         *   NEUTRAL/DOWN : stationary (DOWN ends in crouch; sword2.osr nets 0).
+         *   FORWARD      : a LUNGE toward facing — a direct world_x step (the RE'd
+         *                  movement mechanism 0x447ed0 -> the collision mover
+         *                  0054db10, here the flat reduction), even-distributing the
+         *                  captured net CHAR_ATTACK_FORWARD_LUNGE across the swing.
+         *   BACK         : net 0; the facing flip is at completion (resolve_attack).
+         * c->attack_timer is this tick's swing index (0..N-1 — resolve_attack advanced
+         * it before character_step), so an exact-integer running sum lands the full
+         * lunge over the N swing ticks with no rounding drift. */
         c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
+        if (c->attack_kind == CHAR_ATTACK_FORWARD) {
+            int n    = character_attack_ticks(CHAR_ATTACK_FORWARD);
+            int t    = c->attack_timer;
+            int prev = (CHAR_ATTACK_FORWARD_LUNGE * t) / n;
+            int curr = (CHAR_ATTACK_FORWARD_LUNGE * (t + 1)) / n;
+            int sign = (c->facing == CHAR_FACE_LEFT) ? -1 : +1;
+            c->world_x += sign * (curr - prev);
+        }
     } else if (c->cmd_pose != 0 && !c->airborne) {
         /* CROUCH (cmd_pose 10) / UP-pose (0xb): the apply states 2/5 set bVar16=false
          * (0x442a70:959) -> SKIP the accel ramp -> brake the velocity toward 0 at the
@@ -320,6 +335,20 @@ int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now)
  * swing's MOVEMENT is character_step (it brakes vel to 0 while `attacking`); the ANIM
  * is the clip layer.  `m` is unused for neutral (the held axis is the trigger) but
  * kept in the signature for the directional/ring paths chip 2b adds. */
+/* The swing duration per kind — one source of truth shared by the movement lock
+ * (here) and the clip (actor_spawn.c encodes the same total via its frame_delta).
+ * RE'd off sword2.osr res 0x571 (see character.h). */
+int character_attack_ticks(int attack_kind)
+{
+    switch (attack_kind) {
+    case CHAR_ATTACK_FORWARD: return CHAR_ATTACK_FORWARD_TICKS;
+    case CHAR_ATTACK_DOWN:    return CHAR_ATTACK_DOWN_TICKS;
+    case CHAR_ATTACK_BACK:    return CHAR_ATTACK_BACK_TICKS;
+    case CHAR_ATTACK_NEUTRAL:
+    default:                  return CHAR_ATTACK_NEUTRAL_TICKS;
+    }
+}
+
 int16_t character_resolve_attack(character *c, const struct input_mgr *m,
                                  uint32_t now, const int *axis_held)
 {
@@ -327,25 +356,52 @@ int16_t character_resolve_attack(character *c, const struct input_mgr *m,
     if (c == NULL) return 0;
 
     /* A swing in progress advances to completion first (the +0x68 mid-swing lock):
-     * one tick per call, clearing `attacking` when the kind's duration elapses, so
+     * one tick per call, clearing `attacking` when the KIND's duration elapses, so
      * the next call is free to re-trigger (a held/spammed X re-swings each completion
-     * — sword2.osr plays 104-109 back-to-back through the attack-spam). */
+     * — sword2.osr plays 104-109 back-to-back through the attack-spam).  On a BACK
+     * swing's completion, FLIP facing 1<->3 + negate the horizontal accumulator: the
+     * 45e830:363-365 turn-around (the +0x54==4 branch flips +0x2c at sub-state 4 and
+     * sets +0x28 = -+0x28).  vel is already braked to 0 by the lock, so the negate is
+     * a no-op from rest; the facing flip leaves her facing the swung-toward direction,
+     * matching sword2.osr's post-back idle jumping to the opposite +192 bank. */
     if (c->attacking) {
         c->attack_timer = (int16_t)(c->attack_timer + 1);
-        if (c->attack_timer >= CHAR_ATTACK_NEUTRAL_TICKS)   /* chip 2b: per-kind dur */
+        if (c->attack_timer >= character_attack_ticks(c->attack_kind)) {
             c->attacking = 0;
+            if (c->attack_kind == CHAR_ATTACK_BACK) {
+                c->facing = (int16_t)((c->facing == CHAR_FACE_LEFT)
+                                          ? CHAR_FACE_RIGHT : CHAR_FACE_LEFT);
+                c->vel = -c->vel;
+            }
+        }
         return c->attacking;
     }
 
     /* Trigger: X held (the +0x128 attack level) + sword drawn + grounded + the 200 ms
-     * auto-attack refractory since the last swing.  Latch the kind from the held dir
-     * — chip 2a is NEUTRAL only (no direction); the directionals are chip 2b. */
+     * auto-attack refractory since the last swing.  Pick the swing VARIANT from the
+     * held direction vs facing (478ba0 builds cmd[4]=0xf; the sword-out form runs the
+     * matching registered template, 41f200:1181-1201): DOWN beats a held L/R (FORWARD
+     * if toward facing, BACK if away) beats no-direction NEUTRAL.  UP+X is the separate
+     * -sheet up-thrust (0x283f) = chip 2c; until then it falls through to NEUTRAL. */
     int x_held = (axis_held != NULL) && (axis_held[CHAR_AXIS_ATTACK] != 0);
     if (x_held && c->sword_out && !c->airborne &&
         (uint32_t)(now - c->attack_last_ms) >= CHAR_ATTACK_REFRACTORY_MS) {
+        int kind = CHAR_ATTACK_NEUTRAL;
+        if (axis_held != NULL) {
+            int dn = axis_held[CHAR_AXIS_DOWN]  != 0;
+            int l  = axis_held[CHAR_AXIS_LEFT]  != 0;
+            int r  = axis_held[CHAR_AXIS_RIGHT] != 0;
+            if (dn) {
+                kind = CHAR_ATTACK_DOWN;
+            } else if (l != r) {                  /* exactly one of L/R held          */
+                int dir  = r ? +1 : -1;           /* +1 right / -1 left               */
+                int face = (c->facing == CHAR_FACE_LEFT) ? -1 : +1;
+                kind = (dir == face) ? CHAR_ATTACK_FORWARD : CHAR_ATTACK_BACK;
+            }
+        }
         c->attacking      = 1;
         c->attack_timer   = 0;
-        c->attack_kind    = CHAR_ATTACK_NEUTRAL;
+        c->attack_kind    = (int16_t)kind;
         c->attack_last_ms = now;
     }
     return c->attacking;

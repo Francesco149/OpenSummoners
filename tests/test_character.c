@@ -735,6 +735,86 @@ int test_character_attack_locks_movement(void)
     return 0;
 }
 
+/* The DIRECTIONAL swings (chip 2b): the variant is picked at trigger from the held
+ * direction vs facing (DOWN > toward-facing FORWARD / away-facing BACK > NEUTRAL); each
+ * runs its own duration; FORWARD lunges +CHAR_ATTACK_FORWARD_LUNGE toward facing; BACK
+ * turns her around at completion; DOWN is stationary.  Mirrors sword2.osr res 0x571. */
+int test_character_attack_directional(void)
+{
+    uint32_t now = 100000;
+    int a[CHAR_AXIS_ATTACK + 1];
+
+    /* ── variant select (facing R unless noted) ─────────────────────────────── */
+    #define MK(face) character c; character_init(&c, 0, 0, (face)); c.sword_out = 1
+    #define PRESS(L,R,D) do { for (int i=0;i<=CHAR_AXIS_ATTACK;i++) a[i]=0; \
+        a[CHAR_AXIS_ATTACK]=1; a[CHAR_AXIS_LEFT]=(L); a[CHAR_AXIS_RIGHT]=(R); a[CHAR_AXIS_DOWN]=(D); } while(0)
+    { MK(CHAR_FACE_RIGHT); PRESS(0,1,0); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_FORWARD); }   /* R held, facing R = toward */
+    { MK(CHAR_FACE_RIGHT); PRESS(1,0,0); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_BACK); }      /* L held, facing R = away   */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,1,1); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_DOWN); }      /* DOWN beats R              */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,0,0); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_NEUTRAL); }   /* no direction              */
+    { MK(CHAR_FACE_LEFT);  PRESS(1,0,0); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_FORWARD); }   /* L held, facing L = toward */
+    { MK(CHAR_FACE_LEFT);  PRESS(0,1,0); character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_BACK); }      /* R held, facing L = away   */
+
+    /* ── per-kind durations (one source of truth) ───────────────────────────── */
+    T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_NEUTRAL), 36);
+    T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_FORWARD), 42);
+    T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_DOWN),    26);
+    T_ASSERT_EQ_I(character_attack_ticks(CHAR_ATTACK_BACK),    27);
+
+    /* ── BACK turns her around at completion (faces right through the swing) ─── */
+    { MK(CHAR_FACE_RIGHT); PRESS(1,0,0);
+      character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_BACK);
+      a[CHAR_AXIS_ATTACK] = 0; a[CHAR_AXIS_LEFT] = 0;
+      for (int t = 1; t < CHAR_ATTACK_BACK_TICKS; t++) {
+          character_resolve_attack(&c, NULL, now, a);
+          T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
+      }
+      T_ASSERT_EQ_I(character_resolve_attack(&c, NULL, now, a), 0);  /* completes */
+      T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT); }                     /* flipped   */
+
+    /* ── FORWARD lunge: exactly +LUNGE world over the swing (facing R), -LUNGE (L) ─ */
+    for (int leftward = 0; leftward < 2; leftward++) {
+        MK(leftward ? CHAR_FACE_LEFT : CHAR_FACE_RIGHT);
+        PRESS(leftward, !leftward, 0);
+        int32_t x0 = c.world_x;
+        character_resolve_attack(&c, NULL, now, a);   /* trigger (timer 0) */
+        T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_FORWARD);
+        a[CHAR_AXIS_ATTACK] = 0;
+        character_step(&c, a, 0, 0);                  /* timer 0 lunge step */
+        for (int t = 1; t < CHAR_ATTACK_FORWARD_TICKS; t++) {
+            character_resolve_attack(&c, NULL, now, a);
+            character_step(&c, a, 0, 0);
+        }
+        character_resolve_attack(&c, NULL, now, a);   /* completing advance */
+        T_ASSERT_EQ_I(c.attacking, 0);
+        T_ASSERT_EQ_I(c.world_x - x0,
+                      leftward ? -CHAR_ATTACK_FORWARD_LUNGE : CHAR_ATTACK_FORWARD_LUNGE);
+    }
+
+    /* ── DOWN is stationary (no lunge) ──────────────────────────────────────── */
+    { MK(CHAR_FACE_RIGHT); PRESS(0,0,1);
+      int32_t x0 = c.world_x;
+      character_resolve_attack(&c, NULL, now, a);
+      T_ASSERT_EQ_I(c.attack_kind, CHAR_ATTACK_DOWN);
+      a[CHAR_AXIS_ATTACK] = 0;
+      character_step(&c, a, 0, 0);
+      while (c.attacking) {
+          character_resolve_attack(&c, NULL, now, a);
+          if (c.attacking) character_step(&c, a, 0, 0);
+      }
+      T_ASSERT_EQ_I(c.world_x, x0); }
+    #undef MK
+    #undef PRESS
+    return 0;
+}
+
 /* The pose PHYSICS (apply states 2/5, ckpt 153): cmd_pose engaged + grounded -> SKIP the
  * accel ramp -> brake the velocity toward 0 at the WALK brake, even while a direction is
  * STILL held.  Bit-exact vs retail (runs/pose-demo/cap-body): the UP-pose brakes a 24000

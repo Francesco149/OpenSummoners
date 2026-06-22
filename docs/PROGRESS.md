@@ -6,6 +6,30 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-22 (ckpt 161) — chip-2b: the DIRECTIONAL sword attacks (FORWARD / DOWN / BACK) — bit-exact
+
+The held direction at the X trigger now picks the swing **variant** (`character_resolve_attack`,
+`character.c`): **DOWN** > a held **L/R** (FORWARD if toward facing, BACK if away) > **NEUTRAL**.  RE'd
+off the sword-out form install `0x41f200:1181-1201` — each swing is a distinct registered action+variant
+template (`FUN_004287d0(0x27d9,var,…)` / `(0x27da,var,…)`) with its own scripted displacement; the
+per-frame handler is the 0xc35b-only `0x45e830` (`442a70:357-369`).  The movement mechanism is `0x447ed0`
+→ the collision mover `0x54db10`: a **direct world_x step toward facing** (sign-flipped on `facing==3`),
+not a velocity.
+
+**FORWARD** lunges +5400 world (+54px) — `character_step` keeps the vel-lock (brake→0) and adds the step,
+even-distributed over the 42-tick swing with an exact-integer running sum (magnitude captured;
+the per-substate profile = `PORT-DEBT(sword-attack-gameplay)`).  **DOWN** is stationary and returns to
+crouch.  **BACK** turns her around: at completion `character_resolve_attack` flips facing 1↔3 + negates
+vel — the literal `0x45e830:363-365` (`+0x54==4` branch).  Clips `ARCHE_ATTACK_FORWARD/DOWN/BACK_CLIP`
+(`actor_spawn.c`; FORWARD 120-126 dur-6 / DOWN 112-115 [8,6,5,7] / BACK 144-148 [4,4,7,7,5], +192 left).
+
+**VERIFIED** off `port-attack-dir.osr` vs `sword2.osr` (`tools/trace_studio2/sword_cels.py`): all three
+fire clean, every swing cel's dst W×H **byte-identical** (incl. the 80×49/80×47/78×54 wide cels),
+durations match within the ±1t entry/exit FSM noise; the FORWARD idle moves dst 162→216 (+54px lunge,
+camera follows), the BACK idle flips to the left bank 192-194 (turned around), DOWN stays at 162.
++`test_character_attack_directional`; 1058 host pass.  `findings/freeroam-sword-attack.md` "## chip 2b".
+**NEXT = chip 2c:** the UP attack (the separate sheet 0x283f) + the attack trail vfx + the slide body 48/49.
+
 ## 2026-06-21 (ckpt 153) — the "res=0" UI sprite bank RESOLVED + the dialogue advance indicator ported
 
 **USER-chosen ckpt-152 task: "resolve the res=0 UI sprite bank" (the dialogue advance indicator + the

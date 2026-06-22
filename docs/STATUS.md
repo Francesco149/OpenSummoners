@@ -253,6 +253,25 @@ understates how much actual instruction volume is ported.
   **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-attack-r.osr` |
   `sword2.osr 227`) — errands freeroam ~tick 2150: Arche (sword drawn, facing right) swings 104-109 on
   each Z-then-X, returns to idle, no movement.
+  **ckpt 161 — chip-2b: the DIRECTIONAL sword ATTACKS — PORTED + verified BIT-EXACT.**  The held
+  direction at the X trigger picks the swing VARIANT (`character_resolve_attack`): DOWN > a held L/R
+  (FORWARD toward facing / BACK away) > NEUTRAL — RE'd off the sword-out form install `0x41f200:1181-1201`
+  (each is a registered action+variant template, `0x27d9` var0/4 + `0x27da` var0/1/8, with per-variant
+  scripted displacement).  The movement is a DIRECT world_x step toward facing (`0x447ed0`→`0x54db10`,
+  NOT a velocity): **FORWARD** lunges +5400 (+54px, `character_step` keeps the vel-lock + adds the step,
+  even-distributed over the swing — magnitude captured, profile `PORT-DEBT(sword-attack-gameplay)`);
+  **DOWN** stationary→crouch; **BACK** turns her around (flips facing `+0x2c` + negates vel `+0x28` at
+  completion = the literal `0x45e830:363-365` turn-around).  Clips `ARCHE_ATTACK_FORWARD/DOWN/BACK_CLIP`
+  (FORWARD 120-126 dur-6 42t / DOWN 112-115 [8,6,5,7] 26t / BACK 144-148 [4,4,7,7,5] 27t, +192 left).
+  **VERIFIED off `port-attack-dir.osr` vs `sword2.osr` (`sword_cels.py`):** all 3 fire clean — every
+  swing cel's dst **W×H byte-identical** (incl. 80×49/80×47/78×54 wide cels), durs match (±1t FSM noise),
+  the FORWARD idle moves dst 162→**216 (+54px lunge)** + camera follows, the BACK idle flips to **192-194
+  (LEFT)** = turned around, DOWN stationary at 162.  +`test_character_attack_directional`; 1058 host pass.
+  Feed: the port|recording directional montage.  **NEXT = chip 2c: the UP attack** (0x283f separate sheet)
+  + the TRAIL vfx + the slide-attack body 48/49.  **USER-VERIFY (visual): click the studio shortcut**
+  (`studio-current.txt` → `port-attack-dir.osr` | `sword2.osr 227`) — errands freeroam: with the sword
+  drawn, down+X = a crouch slash (112-115), right+X = a forward lunge (120-126, steps forward ~54px),
+  left+X (while facing right) = a back-swing that TURNS HER AROUND (144-148 → faces left).
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
   inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.

@@ -81,11 +81,50 @@ enum {
  *            mean a held/spammed X re-swings right after each completes (the input
  *            recording's attack-spam plays 104-109 back-to-back). */
 #define CHAR_ATTACK_REFRACTORY_MS  200u  /* 478ba0:297 auto-attack gate (X-held)   */
+/* The swing VARIANT, picked at trigger time from the held direction vs facing
+ * (chip 2b).  Retail registers each as a distinct action+variant template in the
+ * sword-out form install 0x41f200:1181-1201 (0x27d9 var0/4, 0x27da var0/1/8) with
+ * per-variant movement; the per-frame handler is 0x45e830 (the 0xc35b-only
+ * delegate, 442a70:357-369).  We pick the kind from the held axis + facing and
+ * play the captured cels (sword2.osr res 0x571):
+ *   NEUTRAL  no direction       -> 104-109  STATIONARY        (0x27d9 var0, D=0)
+ *   FORWARD  held dir == facing  -> 120-126  LUNGE +54px fwd   (forward step toward
+ *                                            facing via 0054db10, 0x447ed0)
+ *   DOWN     DOWN held           -> 112-115  STATIONARY, ->crouch
+ *   BACK     held dir == ~facing  -> 144-148  TURNS AROUND      (0x27d9 var4, the
+ *                                            +0x54==4 branch flips facing +0x2c and
+ *                                            negates vel +0x28, 45e830:363-365)
+ *   UP       UP held             -> a separate multi-sprite sheet (0x283f) = chip 2c. */
 enum {
-    CHAR_ATTACK_NEUTRAL = 0,   /* X, no direction -> cels 104-109 (chip 2a)         */
-    /* chip 2b: CHAR_ATTACK_FORWARD/DOWN/BACK (120-126 / 112-115 / 144-148) + UP    */
+    CHAR_ATTACK_NEUTRAL = 0,   /* X, no direction -> cels 104-109                    */
+    CHAR_ATTACK_FORWARD,       /* X + dir toward facing -> 120-126 + forward lunge   */
+    CHAR_ATTACK_DOWN,          /* X + DOWN -> 112-115 (crouch-attack)                */
+    CHAR_ATTACK_BACK,          /* X + dir away from facing -> 144-148 + turn-around  */
+    CHAR_ATTACK_UP,            /* X + UP -> 0x283f separate sheet (chip 2c, reserved)*/
 };
-#define CHAR_ATTACK_NEUTRAL_TICKS  36    /* 6 cels * dur-6 (sword2.osr 3485-3520)   */
+/* Per-kind swing duration in sim-ticks (= the matching clip's total cels*durs, kept
+ * 1:1 so the movement lock and the anim end together).  RE'd off sword2.osr res 0x571
+ * tick-aligned to sword2-input.jsonl (durs in actor_spawn.c's clip frame_delta):
+ *   NEUTRAL 6 cels * dur-6 = 36   (3485-3520)
+ *   FORWARD 7 cels * dur-6 = 42   (3792-3833)
+ *   DOWN    durs [8,6,5,7] = 26   (3957-3982)
+ *   BACK    durs [4,4,7,7,5] = 27 (4082-4108) */
+#define CHAR_ATTACK_NEUTRAL_TICKS  36
+#define CHAR_ATTACK_FORWARD_TICKS  42
+#define CHAR_ATTACK_DOWN_TICKS     26
+#define CHAR_ATTACK_BACK_TICKS     27
+/* The FORWARD lunge: total world-X displacement toward facing over the swing.  RE'd
+ * mechanism = a direct world_x step toward facing through the collision mover 0054db10
+ * (0x447ed0, sign-flipped on facing==3); the swing locks vel like neutral and the
+ * step rides on top.  The MAGNITUDE is captured ground truth (sword2.osr: the post-swing
+ * idle cel lands +54px = +5400 world from the pre-swing idle, the camera then easing to
+ * follow) — PORT-DEBT(sword-attack-gameplay): the exact per-substate displacement values
+ * live in the 0x27da forward template (0x4287d0), un-traced through the unreliable
+ * 45e830 combo path; this even-distributes the captured net. */
+#define CHAR_ATTACK_FORWARD_LUNGE  5400
+
+/* The swing duration for a kind (one source of truth for the timer + the clip). */
+int character_attack_ticks(int attack_kind);
 
 /* The walk velocity law (capture-exact constants; PORT-DEBT(char-walk-tuning) for
  * the real per-entity move-tuning source in_ECX[0x565b/c/e]).  vel is the signed
