@@ -190,6 +190,20 @@ understates how much actual instruction volume is ported.
   demo (Z@5900), NOT a bug — the sword-out idle cels (res 1392 fr 0/1/2) are **dhash + blit IDENTICAL**
   to the recording; `port-sword2.osr` (no sheathe) is the clean verify.  `plans/freeroam-sword-system.md`
   ckpt-157.
+  **ckpt 158 — BREAKTHROUGH (USER): everything proxy-derived about the sword was WRONG; chip 1 must be
+  RE-DONE.**  (1) **NO QUEST GATE** — Z draws on a NORMAL retail FRESH NEW GAME before any quest; the
+  ckpt-155 "case 8 / weapon+0xd4=2 gate" was an ARTIFACT of the proxy breaking the Z key in injected
+  captures.  (2) **`OSS_FORCE_SWORD` BROKE Z** (clamping weapon+0xd4=2 jammed the natural draw — only Z
+  failed); recording with `OSS_FORCE_SWORD=0 OSS_TURBO=0 OSS_LOCKSTEP=0` → Z works.  REMOVE the force
+  hook + `PORT-DEBT(sword-quest-gate)`.  (3) **The sword-OUT form is a SEPARATE BANK: 0xc35b → bank 0x8c
+  = res 0x571** (the "registered but unused" bank) — drawing RE-INSTALLS Arche from res 0x570 (sword-in)
+  to res 0x571 (sword-out); res 0x570 VANISHES the instant Z fires.  So the whole ckpt-156/157 chip-1
+  model (draw/idle on res 0x570) was on the WRONG sheet.  REAL: draw = **res 0x571 cels 96-103**,
+  sword-out idle/walk = **res 0x571 0-2 / 8-15** (blade baked in).  **CLEAN GROUND TRUTH (the input
+  recorder WORKS): `sword2.osr` + `sword2-input.jsonl`** — the USER's full moveset (draw, walk, run,
+  slide, up-stop, attack, attack-spam, directional attacks), flip≈2.23×tick, Z@flip5400=tick1807.
+  **NEXT (fresh /clear): extract res-0x571 cels per action + re-do the port on bank 0x8c.**
+  `plans/freeroam-sword-system.md` ckpt-158.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

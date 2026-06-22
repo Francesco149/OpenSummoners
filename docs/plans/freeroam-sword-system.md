@@ -11,6 +11,38 @@
 > neutral 120-127 + 128-132 + 3-combo + directionals) + sword-out WALK + the real SHEATHE — needs the
 > CLEAN injected capture (force `weapon+0xd4=2`); see "## ckpt-155 — the attack VARIANT set" below.
 >
+> **ckpt 158 — BREAKTHROUGH (USER, the game owner): everything proxy-derived about the sword was
+> WRONG, three ways.  RE-DO chip 1 against the clean recording.**
+> 1. **NO QUEST GATE.**  Z draws the sword on a NORMAL retail run, on a FRESH NEW GAME, *before* any
+>    quest progress (USER).  The ckpt-155 "gated on errands quest case 8 / weapon+0xd4=2" was an
+>    ARTIFACT — the proxy was silently breaking the Z key in every injected capture.  `PORT-DEBT(sword
+>    -quest-gate)` is BOGUS; remove it.
+> 2. **OSS_FORCE_SWORD broke Z.**  Clamping `weapon+0xd4=2` every frame (`eh_force_sword`, built on the
+>    bogus gate) JAMMED the natural draw — *only* Z failed, every other input worked.  Recording with
+>    `OSS_FORCE_SWORD=0` + `OSS_TURBO=0 OSS_LOCKSTEP=0` (no clock virtualization) → Z works.  REMOVE the
+>    force hook + its run_proxy plumbing.
+> 3. **The sword-OUT form is a SEPARATE BANK: 0xc35b → bank 0x8c = res 0x571 (the "registered but
+>    unused" bank!).**  Drawing RE-INSTALLS Arche from bank 0x8b (res 0x570 sword-in) to **bank 0x8c
+>    (res 0x571 sword-out)** — res 0x570 VANISHES from the draw stream the instant Z fires (~tick 1807),
+>    she reappears on res 0x571.  So the ENTIRE ckpt-156/157 chip-1 model (draw/sheathe/idle on res
+>    0x570) was on the WRONG sheet.  The res-0x570 cels 96-103 are the sword-IN sheet's sheathe; the REAL
+>    draw is **res 0x571 cels 96→103** (~7t each, ~56t), and the sword-OUT idle/walk are **res 0x571 cels
+>    0-2 / 8-15** (blade baked in).
+> - **CLEAN GROUND TRUTH (USER real-play, the input recorder WORKS): `/mnt/c/oss-osr/sword2.osr` (978 MB)
+>   + `sword2-input.jsonl` (the editable held-trace, scancodes).**  flip≈2.23×tick.  Z-draw @flip 5400
+>   = tick 1807.  **The moveset the USER demonstrated (from the input trace):** unholster (Z), walk R/L,
+>   RUN R/L (dir double-tap), SLIDE R/L (DN+dir), run-stop with UP (×2), single attack (X), attack-SPAM
+>   (repeated single, NO combo), then DIRECTIONAL attacks: facing-dir+X = a HEAVIER attack, immediately
+>   opposite-dir+X = a DIFFERENT attack, UP+X = another; DOWN+X = nothing special.  All on res 0x571.
+> - **NEXT SESSION (fresh /clear): extract the res-0x571 cels per action** (probe `sword2.osr --res 0x571`
+>   at the input-trace ticks: run 16-21?, slide, up-stop, the attack cels + the 3 directional variants),
+>   then **re-do the port**: render Arche from bank 0x8c (res 0x571) while `sword_out`; DRAW = res 0x571
+>   96-103; idle/walk/run = res 0x571 0-2/8-15/16-21; attacks = res 0x571 120+ (+ directionals).  Remove
+>   `eh_force_sword` + `PORT-DEBT(sword-quest-gate)` + `(sword-draw-cels)`/`(sword-out-pose-cels)` (now
+>   capturable).  The chip-1 `arche_sword_clip` swap (ckpt 157, 1353612) is moot — rebuild on res 0x571.
+>   Tools added this arc (keep): `OSS_INPUT_RECORD` (proxy input recorder), `/tmp/celspan2.py`,
+>   `/tmp/flip2tick.py`.
+>
 > **ckpt 157 — chip-2 capture progress + USER feedback:**
 > - **force-sword TOOLING DONE + committed** (`0f07877`): `tools/capture_proxy/engine_hooks.h`
 >   `eh_force_sword` writes `weapon+0xd4=2` on Arche each flip (chain `*0x8a9b50→+0x2784→+0x200c→
