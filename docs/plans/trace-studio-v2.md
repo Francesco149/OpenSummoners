@@ -1,5 +1,16 @@
 # Trace Studio v2 — the native-capture, tick-joined parity studio
 
+> Update (ckpt 159): **TICK-OFFSET phase alignment** added to the dual viewer
+> (`osr_view.exe <port> <retail> [offset]`).  The tick-join matches identical sim_ticks,
+> which only overlays two SEED-PINNED LOCKSTEP captures; two different play sessions (a
+> port replay vs a USER real-play recording — different freeroam entry ⇒ the same action
+> lands on different ticks) never aligned, so a movement/sword diff couldn't be scrubbed
+> 1:1.  Now the join shifts retail by +offset on the port tick axis; live-nudge with
+> `[` / `]` (Shift=10, `\` reset), and the studio-current.txt shortcut can bake an initial
+> offset as a 3rd token.  Local alignment (un-synced runs drift, so nudge per region) —
+> honest, and the right tool for comparing real-play recordings.  `build_join(port,retail,offset)`
+> in `osr_view_imgui.cpp`.
+>
 > Status (2026-06-13, ckpt 129): **M1..M6 COMPLETE + M7 partial** — this ckpt landed
 > the TICK-JOIN STUDIO (M6) AND its drill-in + note hand-off (M7).  M6: both sides'
 > `.osr` paired by the deterministic `sim_tick` (the identity join, openrecet E3 —

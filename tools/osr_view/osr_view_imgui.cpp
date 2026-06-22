@@ -3,8 +3,14 @@
 // .osr frame with the real DDraw blits + GDI text (the C osr_scrub engine), uploads
 // it to a DX11 texture, and presents it in an ImGui UI.
 //
-//   osr_view.exe <file.osr>                 single-panel scrub (one side)
-//   osr_view.exe <port.osr> <retail.osr>    M6 tick-joined port|retail|diff studio
+//   osr_view.exe <file.osr>                        single-panel scrub (one side)
+//   osr_view.exe <port.osr> <retail.osr> [offset]  M6 tick-joined port|retail|diff studio
+//
+// The optional [offset] phase-aligns two UNSYNCHRONIZED sessions (e.g. a port replay
+// vs a USER real-play recording — different freeroam entry ⇒ the same ACTION lands on
+// different sim-ticks, so the raw same-tick join never overlays them).  It shifts the
+// retail trace by +offset on the port tick axis; live-adjust with [ / ] (Shift=10,
+// \ reset).  Nudge until the action overlays, then scrub in lockstep.
 //
 // DUAL MODE (M6): open two scrub sessions, JOIN their frames by the deterministic
 // sim_tick (group each side by tick, take the last flip per tick = the presented
@@ -165,18 +171,30 @@ static std::map<uint32_t,int> tick_index(osr_scrub* s)
     return m;
 }
 
-static std::vector<JoinEntry> build_join(osr_scrub* port, osr_scrub* retail)
+// `offset` PHASE-ALIGNS two unsynchronized sessions: the joined timeline uses the
+// PORT sim-tick axis, and retail is shifted by +offset (retail tick tr shows at
+// timeline tick tr+offset).  offset 0 = the raw same-tick join (two seed-pinned
+// lockstep captures).  For two different play sessions (e.g. a port replay vs a USER
+// real-play recording — different freeroam entry, so the same ACTION lands on
+// different ticks) the user nudges offset ([ / ]) until the action overlays, then
+// scrubs in lockstep.  Local alignment only: the two runs can drift, so an offset
+// that aligns one region may need a nudge for another (honest for un-synced runs).
+static std::vector<JoinEntry> build_join(osr_scrub* port, osr_scrub* retail, int offset)
 {
     std::map<uint32_t,int> p = tick_index(port), r = tick_index(retail);
-    std::set<uint32_t> ticks;
-    for (auto& kv : p) ticks.insert(kv.first);
-    for (auto& kv : r) ticks.insert(kv.first);
+    std::set<long long> ticks;                       // timeline ticks (port axis)
+    for (auto& kv : p) ticks.insert((long long)kv.first);
+    for (auto& kv : r) ticks.insert((long long)kv.first + offset);
     std::vector<JoinEntry> tl;
     tl.reserve(ticks.size());
-    for (uint32_t t : ticks) {
-        JoinEntry e; e.tick = t;
-        auto pi = p.find(t); if (pi != p.end()) e.pidx = pi->second;
-        auto ri = r.find(t); if (ri != r.end()) e.ridx = ri->second;
+    for (long long t : ticks) {
+        if (t < 0 || t > 0xffffffffLL) continue;
+        JoinEntry e; e.tick = (uint32_t)t;
+        auto pi = p.find((uint32_t)t); if (pi != p.end()) e.pidx = pi->second;
+        long long rt = t - offset;                   // retail tick for this timeline tick
+        if (rt >= 0 && rt <= 0xffffffffLL) {
+            auto ri = r.find((uint32_t)rt); if (ri != r.end()) e.ridx = ri->second;
+        }
         tl.push_back(e);
     }
     return tl;
@@ -402,7 +420,8 @@ static int run_single(HWND hwnd, const char* path)
 }
 
 // ── dual port|retail|diff mode (M6) ─────────────────────────────────────────
-static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
+static int run_dual(HWND hwnd, const char* port_path, const char* retail_path,
+                    int tick_offset)
 {
     osr_scrub* port   = osr_scrub_open((void*)hwnd, port_path);
     osr_scrub* retail = osr_scrub_open((void*)hwnd, retail_path);
@@ -434,7 +453,7 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
 
     int w = osr_scrub_width(port), h = osr_scrub_height(port);
     int total_px = w * h;
-    std::vector<JoinEntry> tl = build_join(port, retail);
+    std::vector<JoinEntry> tl = build_join(port, retail, tick_offset);
     int n = (int)tl.size();
 
     int n_paired = 0, n_ponly = 0, n_ronly = 0;
@@ -518,6 +537,29 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
             if (ImGui::IsKeyPressed(ImGuiKey_Home))       cur = 0;
             if (ImGui::IsKeyPressed(ImGuiKey_End))        cur = n - 1;
             if (ImGui::IsKeyPressed(ImGuiKey_Space))      playing = !playing;
+
+            // tick-offset: phase-align two UNSYNCHRONIZED sessions.  [ / ] nudge the
+            // retail shift by 1 tick (Shift = 10), \ resets to 0.  Rebuild the join,
+            // keep the scrubber on the same timeline tick, and invalidate the caches.
+            int step = ImGui::GetIO().KeyShift ? 10 : 1, old_off = tick_offset;
+            if (ImGui::IsKeyPressed(ImGuiKey_RightBracket)) tick_offset += step;
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))  tick_offset -= step;
+            if (ImGui::IsKeyPressed(ImGuiKey_Backslash))    tick_offset = 0;
+            if (tick_offset != old_off) {
+                uint32_t cur_tick = (cur >= 0 && cur < n) ? tl[cur].tick : 0;
+                tl = build_join(port, retail, tick_offset);
+                n = (int)tl.size();
+                n_paired = n_ponly = n_ronly = 0;
+                for (auto& e : tl) {
+                    if (e.kind_paired()) n_paired++;
+                    else if (e.pidx >= 0) n_ponly++;
+                    else n_ronly++;
+                }
+                metric_cursor = 0;                       // re-precompute the diff metrics
+                cur = 0;                                 // re-seek to ~the same timeline tick
+                for (int i = 0; i < n; i++) { if (tl[i].tick >= cur_tick) { cur = i; break; } }
+                shown_idx = -2; draws_idx = -2;          // invalidate panel + draw-list caches
+            }
         }
         if (playing) { cur++; if (cur >= n) { cur = n - 1; playing = false; } }
         if (cur < 0) cur = 0;
@@ -593,6 +635,10 @@ static int run_dual(HWND hwnd, const char* port_path, const char* retail_path)
         ImGui::Text("   joined: %d paired, %d port-only, %d retail-only%s",
                     n_paired, n_ponly, n_ronly,
                     precomputing ? "   [computing diffs…]" : "");
+        ImGui::SameLine();
+        ImGui::TextColored(tick_offset ? ImVec4(1,0.85f,0.3f,1) : ImVec4(0.6f,0.6f,0.6f,1),
+                           "   tick-offset: retail %+d  ([ / ] nudge, Shift=10, \\ reset)",
+                           tick_offset);
 
         // ── the diff heat ribbon (aggregate worst-per-column; click to seek) ─
         {
@@ -909,6 +955,9 @@ int main(int argc, char** argv)
     bool dual = (argc > 2);
     const char* path   = (argc > 1) ? argv[1] : "C:\\oss-osr\\retail.osr";
     const char* path2  = (argc > 2) ? argv[2] : nullptr;
+    // optional 3rd arg = the initial retail tick-offset (phase-align two unsynchronized
+    // sessions up front; also live-adjustable with [ / ] in the dual viewer).
+    int init_offset = (argc > 3) ? atoi(argv[3]) : 0;
 
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr),
                        nullptr, nullptr, nullptr, nullptr, L"osr_view", nullptr };
@@ -937,7 +986,7 @@ int main(int argc, char** argv)
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_dev, g_ctx);
 
-    int rc = dual ? run_dual(hwnd, path, path2) : run_single(hwnd, path);
+    int rc = dual ? run_dual(hwnd, path, path2, init_offset) : run_single(hwnd, path);
 
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
