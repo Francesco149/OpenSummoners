@@ -1,7 +1,11 @@
 # Plan — the freeroam SWORD / ATTACK system (Z unsheathe + X attack)
 
-> **Status: BLOCKED on scene (ckpt 155 capture) — the sword is OFF in the FIRST (moving-in)
-> errands.**  USER (game owner, ckpt 154): "she DOES have a sword available here [the errands]."
+> **Status: RESOLVED mechanism (ckpt 155) — the sword IS available in the errands, GATED on the
+> tutorial quest reaching case 8 (`4dc510:1167` sets `weapon+0xd4=2`).**  USER (game owner) was RIGHT.
+> My fresh-new-game captures sat at an early quest state so it was never enabled (ring injection +
+> movement both PROVEN working via the id-7 jump control + the walk).  NEXT: reach quest state 8
+> (force it / play the tutorial) → Z draws.  See "## ckpt-155 capture 6" below.  Old "BLOCKED/OFF"
+> reads SUPERSEDED.  ORIGINAL USER (ckpt 154):
 > ckpt-155 GROUND-TRUTH capture DISPROVES this for the first errands: **`weapon+0x466` (the
 > sword-capability gate) reads 0 the whole scene**, and confirmed-firing ring injects of
 > **Z (id 0x24) and X (id 9) change NOTHING** (cmd4 stays 0, body+0x66 stays 0) — only the
@@ -176,3 +180,25 @@ tests); "inputs maybe not going through" (saw retail idle in the PORT traces —
   EVENT QUEUE (hook 0x5ba3a0) so the producer processes it naturally — the "improve the tool" fix — OR
   reach the exact in-game state (a save?) where weapon+0xd4 is set.**  The `.osr` visual won't help
   while the same ring injection underdelivers id9.
+
+## ckpt-155 capture 6 — RESOLVED: the sword is gated on the errands QUEST reaching case 8
+**THE ANSWER (USER was right — sword IS available in the errands):**
+- **Capture 6 (id-7 JUMP control):** injecting id 7 → `cmd2=0x7` fired (43 frames) — **ring injection
+  DELIVERS** perfectly (jump + walk both work).  So id-9's no-effect is NOT a delivery problem.
+- **The gate:** `weapon+0xd4` (the `+0x14874` context-action match key) reads **0** because the errands
+  questline `0x4dc510` hasn't reached **case 8** yet.  **`4dc510:1167` (case 8) sets `weapon+0xd4 = 2`**
+  on Arche — THAT enables the sword draw.  The quest var (`FUN_0041e2f0(0x606aa50)`) advances
+  2→3→4→5→6→7→8 via `FUN_0041d190(0x606aa50,N,0)` across `4dc510` (errands) + `4d7d80` (arrival/house)
+  — the MAIN INTRO STORY PROGRESSION.  Case 0 plays the 3 tutorial lines (incl. the "[Z/X]" line); the
+  sword unlocks at case 8, AFTER the tutorial progresses.
+- My fresh-new-game captures sat at an early quest state (just past the opening dialogue) → `wpn_d4=0`
+  → sword never enabled → Z does nothing.  **Not injection, not "no sword" — a QUEST-STATE gate.**
+
+**NEXT (the path is clear):** reach quest state 8, then Z draws.  Two ways:
+1. **Force the state for the capture** (RE): Frida-hook `FUN_0041e2f0(0x606aa50)`→return 8 (or write
+   `weapon+0xd4=2`) so case 8 runs → sword enabled → inject Z(id9) → capture the draw + the sword-out
+   cels + the attack (res 0x570 draw_probe / the proxy `.osr`).  A new agent capability (return-override
+   / mem-write) — the "improve the tool" step.
+2. **Play the tutorial** (natural): drive the errands moving-in tasks to advance the quest to 8.  Heavy nav.
+For the PORT: the quest system is unported → the sword-enable (`weapon+0xd4=2`) is a `PORT-DEBT(sword-quest-gate)`
+stand-in (set it at the equivalent errands point), like the cutscene-coords / ERRANDS_CAST precedents.
