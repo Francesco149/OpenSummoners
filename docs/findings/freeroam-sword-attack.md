@@ -125,5 +125,65 @@ byte-identical** to sword2.osr, durations match within the ±1t entry/exit FSM n
 
 Host: `test_character_attack_directional` (variant select for all 6 face/dir combos +
 per-kind durations + the BACK facing-flip + the exact ±LUNGE over the swing + DOWN
-stationary).  1058 host pass.  **chip 2c (NEXT)** = the UP attack (0x283f separate sheet,
-~18 inserted sprites mid-thrust) + the attack TRAIL vfx + the slide-attack body 48/49.
+stationary).  1058 host pass.
+
+## chip 2c — the UP (overhead) attack: BODY done bit-exact; TRAIL = scoped debt
+**UP+X = an overhead THRUST on a THIRD body bank.** Ground truth = sword2.osr (the
+first up-attack is RIGHT-facing, ticks 3880-3915; `up_attack_probe.py 9440 9760`,
+`sword572_cels.py`).  Two distinct draw layers:
+
+### The BODY — res 0x572 (bank 0x8d) — PORTED + BIT-EXACT
+Arche RE-installs from bank 0x8c (res 0x571) to **bank 0x8d (res 0x572)** for the
+swing — res 0x571 VANISHES, exactly as the Z draw swaps 0x8b->0x8c.  The form install
+registers slot 2 -> bank 0x8d at `41f200:901` (`0x426db0(2,0x8d,...)`); the up action
+is **0x283f**, registered in the same 0xc35b sword-out form (`41f200:1193` via
+`0x427eb0`, `:1202` via `0x427430`).  Cels **0->5, durs [4,4,4,8,8,8] = 36t** (encoded
+dur-4 x `{0,1,2,3,3,4,4,5,5}` to fit `ANIM_CLIP_MAX_FRAMES` 32), then back to the
+res 0x571 sword-out idle.  STATIONARY (the vel-lock, like NEUTRAL).
+- **Per-frame draw OFFSET** (the renderer's case-0x1872d off_x/off_y, NOT the cel's
+  sheet origin — ox/oy/ow/oh are byte-identical port<->retail): off_y = **-16** uniform
+  (a RAISE for the overhead pose; the up-attack renders at screen y=320 vs the 336
+  idle/walk/pose baseline), off_x = **+16** (cels 0-2,5) / **+26** (cels 3-4 lean
+  forward).  RE'd off the dst deltas vs the tick-adjacent stationary up-pose at
+  world_screen (270,336), off_x 0.  Port: `ARCHE_ATTACK_UP_CLIP` (actor_spawn.c) +
+  `character_resolve_attack` picks `CHAR_ATTACK_UP` (UP beats DOWN beats L/R beats
+  NEUTRAL) + `freeroam_step` swaps bank 0x8d while `attack_kind==UP`.
+- **VERIFIED** off `port-attack-up.osr` vs sword2.osr (`sword572_cels.py`): cels 0-5
+  dst W×H byte-identical (38x54/39x52/61x61/36x96/36x96/60x63), durs [3,4,4,8,8,9] (±1t
+  entry/exit FSM boundary, total 36t), y=320 IDENTICAL both sides, the +10 x on cels
+  3-4 reproduced; res 0x571 vanishes during the thrust.  Commit (chip 2c-1).
+- RESIDUAL: bank-0x8d LEFT mirror = +192 hypothesis (set in flip table), unverified —
+  needs a left-facing up-attack capture (the first sword2.osr up-attack is right-facing).
+
+### The TRAIL — res 0x40b sparkles — `PORT-DEBT(sword-attack-trail)` (a particle subsystem)
+A trail of shrinking sparkles follows the sword tip.  Ground truth (`up_attack_probe`):
+res **0x40b** (a 32x32 sprite, bank 0x1ad, registered `57ca40:2748`
+`0x5748c0(...,0x40b,0x20,0x20,...)`), **frames 24->31** each smaller (24=22x22, 25=20x20,
+26=18x18, 27=14x14, 28=12x12, 29=10x10, 30=8x8, 31=6x6), **additive** blend (mode 0xb).
+~1->12 concurrent ramping ticks 3891-3897, aging out by 3912; each sparkle sits at a
+prior sword-tip position (a static after-image arc) and ages frame +1 / ~2t.
+- **Mechanism RE'd (the +0x13e0 DEVICE particle band — same subsystem as the fountain
+  `particle.c`, only partially ported):** the 0x283f handler `45e830` case 2 (the active
+  swing) emits via `FUN_00557370(this, 0x186f2, body, x, y, ...)` (the pool allocator,
+  pool @ `DAT_008a9b50+0x13e0`), geometry from `FUN_004505c0`, then stamps bank+frame
+  (`0x426d70`) + sets lifetime `+0x260=10` / fade-ramp `+0x25c=0xc`; the per-particle
+  step/age/fade is `FUN_0046e510` (the 0x186f2 step ~`:501`), render `FUN_00493480`.
+- **OPEN RE PUZZLE (why it's debt, not a quick port):** the draw stream is unambiguous
+  (res 0x40b frames 24-31, ~2 sparkles/tick over ~7 ticks), but the decompile path
+  doesn't yet reconcile: `45e830` case 2's emit gate is `tick<0x14 && tick%5==0` (only
+  ticks 5/10/15), and `FUN_004505c0`'s branch for form 0xc35b falls to the DEFAULT
+  (`FUN_0044d160`, count 1, the actor's CURRENT body cel = res 0x572, NOT res 0x40b).
+  So either the swing runs under a different form code (one of `004505c0`'s special
+  ranges 0xc753 / 0xc834-5 / >0x18744, whose FIRST branch sets a swing-progress frame +
+  a `DAT_008a9308` fade ramp, or the table-driven SECOND branch for codes 0x18753/4 that
+  fills MULTIPLE records from `*(this+8)` with bank=`[6]`/frame=`[7]`), or the res-0x40b
+  source is a secondary sprite slot.  Resolve with a live Frida read of the form code +
+  the FUN_004505c0 args during an up-attack, OR deeper static RE — then port the trail as
+  a focused extension of `particle.c` (the pool/step/render are ~half there).  Until then
+  the body ships bit-exact and the trail is absent (no fake — a deferred subsystem).
+
+### The slide-attack body 48/49 = `PORT-DEBT(char-slope-slide)` (already scoped, ckpt 154)
+The prone slide cels (res 0x571 **48<->49**, 68x30) are the state-6 momentum slide, which
+needs terrain `[0x5653]` in [1,3] (a SLOPE) — UNREACHED on the flat errands floor (a
+flat-ground dash+DOWN is a state-2 crouch gliding on cels 31/32, already bit-exact, ckpt
+154).  So 48/49 is the existing `PORT-DEBT(char-slope-slide)`, not new chip-2c work.
