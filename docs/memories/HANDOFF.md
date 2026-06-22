@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated ckpt 153b, 2026-06-22)
+# Session handoff — rolling current state (last updated ckpt 155, 2026-06-22)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,33 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 154
+## Where we are — ckpt 155 (the freeroam SWORD/ATTACK arc — RE + cels DONE; PORT next session)
+
+**The sword IS exercisable in the errands (USER, the game owner, was right).** This session: 6 injected
+captures + deep RE pinned WHY my injection never drew it, then the USER's REAL-PLAY recording proved it
+and handed the cel ground truth. All committed; the comprehensive record is `plans/freeroam-sword-system.md`.
+
+- **key→ring-id map (off the LIVE keybind config `*0x8a6e80`): Z=id9, X=id8 (held auto-atk), C=id7 (jump),
+  V/Enter=id0x24 (confirm).** (Corrected a backwards first guess.)
+- **Injection is FINE** — held walk moved Arche 16,680 u (wx 19200→35880, hvel→24000 cap); the id-7 jump
+  control fired `cmd2=0x7`. So Z-doing-nothing was never a delivery/"no sword" problem.
+- **THE GATE: Z(id9)→draw needs `weapon+0xd4=2`**, set by the errands questline `0x4dc510` **case 8**
+  (`:1167`); the quest var `0x606aa50` advances 2..8 via `FUN_0041d190` (the intro story). My fresh-new-game
+  INJECTED runs sat at an early quest state (`wpn_d4=0`) → sword never enabled → Z inert. The USER's natural
+  play reached case 8.
+- **USER RECORDING = GROUND TRUTH** (`C:\oss-osr\sword-realplay.osr`, real play via the proxy visible window,
+  fresh new game, 540 MB, ticks 0-4290): the sword DRAWS. res 0x570 cels — **UNSHEATHE 96→103 (~49t ≈ 1 s)**,
+  sword-out IDLE 0-3, **ATTACK 120-127 + 128-132** (2 variants). No separate sword sprite (baked into cels).
+
+**NEXT SESSION:** (1) the full attack set per USER — **neutral X repeated = a 3-COMBO, each DIRECTION+X =
+its own anim**, + the sword-out walk/pose set. Capture by FORCING the quest state (a new agent capability:
+Frida return-override `FUN_0041e2f0(0x606aa50)`→8, or mem-write `weapon+0xd4=2`) then injecting the attack
+traces ("synth by modifying the trace"). (2) PORT: `arche_sword_clip` (draw/sheathe) + `arche_attack_clip`
+(combo+directional) + the trail vfx + the sword-out pose set; `PORT-DEBT(sword-quest-gate)` stand-in.
+(3) ALSO dad's tutorial DOOR-BLOCK dialogue (UP at the door → dad stops you; in the recording) — task #5.
+Recipe + the full cel map: `plans/freeroam-sword-system.md`.
+
+## Where we are (prior chip) — ckpt 154
 
 **LATEST (ckpt 154): the freeroam SLIDE (dash-then-down) is VERIFIED bit-exact — the open question
 (state-2 crouch vs state-6 slide from a DASH) is RESOLVED; NO code change.**  1053 host pass.
