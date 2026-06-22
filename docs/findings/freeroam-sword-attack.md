@@ -160,27 +160,32 @@ A trail of shrinking sparkles follows the sword tip.  Ground truth (`up_attack_p
 res **0x40b** (a 32x32 sprite, bank 0x1ad, registered `57ca40:2748`
 `0x5748c0(...,0x40b,0x20,0x20,...)`), **frames 24->31** each smaller (24=22x22, 25=20x20,
 26=18x18, 27=14x14, 28=12x12, 29=10x10, 30=8x8, 31=6x6), **additive** blend (mode 0xb).
-~1->12 concurrent ramping ticks 3891-3897, aging out by 3912; each sparkle sits at a
-prior sword-tip position (a static after-image arc) and ages frame +1 / ~2t.
-- **Mechanism RE'd (the +0x13e0 DEVICE particle band — same subsystem as the fountain
-  `particle.c`, only partially ported):** the 0x283f handler `45e830` case 2 (the active
-  swing) emits via `FUN_00557370(this, 0x186f2, body, x, y, ...)` (the pool allocator,
-  pool @ `DAT_008a9b50+0x13e0`), geometry from `FUN_004505c0`, then stamps bank+frame
-  (`0x426d70`) + sets lifetime `+0x260=10` / fade-ramp `+0x25c=0xc`; the per-particle
-  step/age/fade is `FUN_0046e510` (the 0x186f2 step ~`:501`), render `FUN_00493480`.
-- **OPEN RE PUZZLE (why it's debt, not a quick port):** the draw stream is unambiguous
-  (res 0x40b frames 24-31, ~2 sparkles/tick over ~7 ticks), but the decompile path
-  doesn't yet reconcile: `45e830` case 2's emit gate is `tick<0x14 && tick%5==0` (only
-  ticks 5/10/15), and `FUN_004505c0`'s branch for form 0xc35b falls to the DEFAULT
-  (`FUN_0044d160`, count 1, the actor's CURRENT body cel = res 0x572, NOT res 0x40b).
-  So either the swing runs under a different form code (one of `004505c0`'s special
-  ranges 0xc753 / 0xc834-5 / >0x18744, whose FIRST branch sets a swing-progress frame +
-  a `DAT_008a9308` fade ramp, or the table-driven SECOND branch for codes 0x18753/4 that
-  fills MULTIPLE records from `*(this+8)` with bank=`[6]`/frame=`[7]`), or the res-0x40b
-  source is a secondary sprite slot.  Resolve with a live Frida read of the form code +
-  the FUN_004505c0 args during an up-attack, OR deeper static RE — then port the trail as
-  a focused extension of `particle.c` (the pool/step/render are ~half there).  Until then
-  the body ships bit-exact and the trail is absent (no fake — a deferred subsystem).
+**BEHAVIOR FULLY CHARACTERIZED + EXTRACTED (ckpt 162, the user-chosen "resolve the trail"
+pass)** — `tools/trace_studio2/trail_extract.py` dumps every sparkle (frame + position
+RELATIVE to the stationary world-screen anchor) per tick.  The emitter:
+- **2 sparkles/tick** emitted at the sword-tip for **swing-ticks 9-17** (9 ticks, 18 total),
+  then NO more; they age out.  (Up-attack body starts tick 3880; first sparkle 3889.)
+- Each sparkle **ages frame 24->31 at +1 / 2 ticks**, holds 31, **expires at lifetime ~16t**;
+  position ~static (a tiny ~+1px/tick drift) — a STATIC after-image arc.
+- The **sword-tip arc** the pairs spawn on (world-rel to the stationary anchor (270,336),
+  RE'd off `trail_extract`): a clean overhead sweep —
+  T0 (+36,+53)(+42,+52) / T1 (+48,+50)(+53,+48) / T2 (+58,+45)(+63,+42) / T3 (+68,+37)(+71,+33)
+  / T4 (+74,+28)(+77,+22) / T5 (+78,+16)(+78,+10) / T6 (+78,+4)(+76,-2) / T7 (+73,-7)(+70,-12)
+  / T8 (+65,-16)(+60,-18).  Additive blend via **ramp_b** (`DAT_008a9308`, the SAME the sky
+  particle uses — `particle.c` `sky_fade_idx`; `55d140` sets the trail's `+0x24=ramp_b[...]`).
+- **Mechanism (the +0x13e0 DEVICE particle band):** spawned by the 0x283f handler `45e830`
+  case 2 via `FUN_00557370(this, 0x186f2, ...)` (pool @ `DAT_008a9b50+0x13e0`), geometry
+  `FUN_004505c0`, bank/frame stamp `0x426d70`, lifetime `+0x260` / fade-ramp `+0x25c=0xc`,
+  step `FUN_0046e510`, render `FUN_00493480`; res 0x40b config in `55d140` (a 0x186bX case,
+  bank 0x1ad).  (The exact decompile path 0xc35b->res-0x40b is partly traced — the captured
+  tip-arc is the faithful stand-in for the un-ported retail emitter, like `butterfly-flap-ctrl`.)
+- **PORT = a focused chip** (the captured-emitter `sword_trail` module mirroring `particle.c`:
+  emit 2/tick on TIP_ARC for swing-ticks 9-17, age 24->31, lifetime 16, additive ramp_b via
+  `draw_pool_emit(mode=1)`).  **BLOCKER discovered: res 0x40b is NOT registered in the port**
+  (the slot->res `game_sprites` table has no 0x40b entry; the fountain's 0x1aa is a separate
+  particle-band path) — so the chip must FIRST register res 0x40b (32x32 per `57ca40:2748`,
+  pool `DAT_008a7c9c`) before it can render.  Until built, the body ships bit-exact +
+  user-confirmed and the trail is absent (no fake — a deferred, fully-specified chip).
 
 ### The slide-attack body 48/49 = `PORT-DEBT(char-slope-slide)` (already scoped, ckpt 154)
 The prone slide cels (res 0x571 **48<->49**, 68x30) are the state-6 momentum slide, which
