@@ -288,20 +288,29 @@ understates how much actual instruction volume is ported.
   IDENTICAL both sides, the +10 x on cels 3-4 reproduced, res 0x571 vanishes during the thrust.  **USER-CONFIRMED
   visual** ("the attacks look correct", the feed port|retail montage).  1058 host pass (+UP variant-select /
   duration / stationary cases).  Commits `9961d93` (code) + `b6d9ae0` (docs).
-  **chip 2c-2 the TRAIL (res 0x40b sparkles) = `PORT-DEBT(sword-attack-trail)`** — a +0x13e0 particle-band
-  effect (32x32 sprite bank 0x1ad, frames 24→31 shrinking 22x22→6x6, additive mode 0xb, ~12 concurrent, ages
-  out by tick 3912; emit `45e830` case 0x283f → `FUN_00557370(0x186f2)` / `FUN_004505c0` / step `FUN_0046e510`
-  / render `FUN_00493480`).  OPEN RE puzzle: the decompile path (0xc35b → FUN_004505c0 DEFAULT = the body cel,
-  emit ticks 5/10/15) doesn't reconcile with the draw stream (res 0x40b, ~2/tick) — needs a LIVE Frida read of
-  the form code + emitter args during a swing, or deeper static RE.  Body ships bit-exact; trail absent (no
-  fake).  **chip 2c-3 slide 48/49 = `PORT-DEBT(char-slope-slide)`** (the prone state-6 slope slide, unreached
-  on the flat errands floor).  RESIDUAL: bank-0x8d LEFT mirror = +192 hypothesis (set in the flip table),
-  unverified — needs a left-facing up-attack capture (the first sword2.osr up-attack is right-facing).
-  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-attack-up.osr` |
-  `sword2.osr 1728`) — errands freeroam: with the sword drawn, UP+X = an overhead thrust (res 0x572 cels 0-5,
-  the blade extends straight up ~96px), STATIONARY, then back to the sword-out idle.
-  **NEXT (fresh /clear candidate): the freeroam HUD PIVOT** (sword-independent, scoped, `findings/freeroam-hud.md`)
-  — OR resolve the sword TRAIL via a real-play Frida capture (hook `FUN_004505c0`/`FUN_00557370` during an up-attack).
+  **ckpt 163 — chip-2c-2: the UP-attack sword-tip TRAIL (res 0x40b sparkles) — PORTED + verified BIT-EXACT.**
+  `sword_trail.{c,h}` (a captured-emitter pool mirroring `particle.c`): 2 sparkles/sim-tick on the captured
+  `SWORD_TRAIL_TIP_ARC` for up-attack swing-ticks 9-17 (18 total), each aging frames **24→31** (dur-2 8-frame
+  one-shot, ~16t, shrinking 22x22→6x6 about the cel's own metric_0c centre → the +1px/tick drift emerges),
+  **additive ramp_A[19]** (the constant trail blend).  Wired around `freeroam_step` step-before-emit (quirk #95).
+  **The ckpt-162 "res 0x40b NOT registered" BLOCKER was FALSE** — a 3-digit-hex grep miss (`0x40b` vs the
+  `game_sprites` table's `0x040b`): res 0x40b was already slot **407 → bank 0x1a4** (32x32 type 2, `edbaf19`).
+  **The blend** pinned by a boot-time LUT dump: retail's trail (sword2.osr blend_ref 39, LUT **727d856f**, CONSTANT
+  per-sparkle) = the port's **g_ramp_a[19]** — which IS retail's `ramp_b[18]` (the decompile path) because retail's
+  ramp tables are one contiguous 0x50-byte block (`DAT_008a9308 = DAT_008a92b8 + 0x50`, `ramp_b[k]==ramp_a[k+1]`;
+  quirk #117); the port's separate arrays need the ramp_A index.  **VERIFIED off `port-trail.osr` vs `sword2.osr`:**
+  the fr24 tip-arc RELATIVE to the up-attack body is **byte-identical** (port tick 2151 `(+20,+69)(+26,+68)` == rec
+  tick 3889; the +10 cel-lean at tick 2154 == rec tick 3892), frames 24→31, blend LUT 727d856f matches.  1063 host
+  pass (+`test_sword_trail` ×5).  Feed: the port|recording montage (pink additive sparkle arc on both).  Capture:
+  `runs/sword-trail/trail-{nav,held}.jsonl`.  **`PORT-DEBT(sword-attack-trail)` RETAINED as a geometry stand-in**
+  (the tip-arc + cadence are captured for the un-ported emitter `0x4505c0`/`45e830` case-0x283f — butterfly-flutter
+  -trigger pattern: ships bit-exact, only the autonomous geometry is replayed).  **chip 2c-3 slide 48/49 =
+  `PORT-DEBT(char-slope-slide)`** (prone state-6 slope slide, unreached on the flat errands floor).  RESIDUAL:
+  bank-0x8d LEFT mirror = +192 hypothesis, unverified (the first sword2.osr up-attack is right-facing).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-trail.osr` | `sword2.osr 1738`)
+  — errands freeroam ~tick 2150: with the sword drawn, UP+X overhead thrust now trails a PINK additive sparkle
+  arc (res 0x40b cels 24→31, shrinking) along the sword's overhead sweep, then ages out.
+  **NEXT (fresh /clear candidate): the freeroam HUD PIVOT** (sword-independent, scoped, `findings/freeroam-hud.md`).
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
   inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.
