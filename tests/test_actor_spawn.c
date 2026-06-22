@@ -978,62 +978,64 @@ int test_arche_pose_clip(void)
     return 0;
 }
 
-/* ── The SWORD unsheathe/sheathe clip FSM (ckpt 155; corrected ckpt 157 — cels
- *    96..103 are the SHEATHE, not the draw: 96 sword-out-front → 103 onto the back).
- *    DRAW = the reverse 103→96 (ends sword-out on cel 96); the sword-OUT idle holds
- *    cel 96 (PORT-DEBT(sword-out-pose-cels)); SHEATHE = 96→103 (verified vs the
- *    recording's 2156 sheathe). ── */
+/* ── The SWORD unsheathe/sheathe clip FSM (ckpt 155-156; RE-DONE ckpt 159 — the
+ *    sword-OUT form is a SEPARATE bank, USER ckpt 158).  DRAW = res 0x571 cels 96→103
+ *    forward (8 frames dur 7, ends held on 103); SHEATHE = res 0x570 cels 96→103
+ *    (16 frames dur 3); the sword-out idle/walk DELEGATE to the pose/freeroam clip
+ *    (same cel indices, rendered on bank 0x8c by the freeroam bank swap). ── */
 int test_arche_sword_clip(void)
 {
     arche_sword_anim st;  memset(&st, 0, sizeof st);
     arche_pose_anim  pst; memset(&pst, 0, sizeof pst);
 
-    /* DRAW: the sword_out 0->1 edge plays the reverse clip 103→96 (pull out front). */
+    /* DRAW: the sword_out 0->1 edge plays the FORWARD clip 96→103 (swing out). */
     const anim_clip *c = arche_sword_clip(&st, /*sword_out=*/1, &pst, 0, 0, 0, 0);
     T_ASSERT(c != NULL);
     T_ASSERT_EQ_I(c->base_sprite, 96);
-    T_ASSERT_EQ_I(c->frame_delta[0], 7);    /* cel 103 first (reach to the back) */
-    T_ASSERT_EQ_I(c->frame_count, 16);
-    T_ASSERT_EQ_I(c->frame_dur, 3);
+    T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 first (sword leaving the sheath) */
+    T_ASSERT_EQ_I(c->frame_count, 8);
+    T_ASSERT_EQ_I(c->frame_dur, 7);
     T_ASSERT_EQ_I(c->oneshot, 1);
-    {   /* the clip steps 103 -> ... -> 96 (sword out front), freezing on 96 (one-shot) */
+    {   /* the clip steps 96 -> ... -> 103 (sword out front), freezing on 103 (one-shot) */
         anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
-        T_ASSERT_EQ_I(anim_clip_sprite(&as), 103);
-        for (int t = 0; t < 16 * 3 + 10; t++) anim_clip_advance(&as);
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 96);
+        for (int t = 0; t < 8 * 7 + 10; t++) anim_clip_advance(&as);
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 103);
     }
 
-    /* The draw clip is returned for ARCHE_SWORD_DRAW_TICKS calls, then the FSM holds
-     * the sword-OUT idle (cel 96), NOT the base idle. */
+    /* The draw clip is returned for ARCHE_SWORD_DRAW_TICKS calls, then the FSM hands
+     * off to the sword-OUT idle = the normal freeroam idle clip (rendered on res 0x571
+     * via the bank swap — the cel indices are stance-independent). */
     memset(&st, 0, sizeof st);
     memset(&pst, 0, sizeof pst);
     int draw_calls = 0;
     for (int t = 0; t < ARCHE_SWORD_DRAW_TICKS + 4; t++) {
         c = arche_sword_clip(&st, 1, &pst, /*cmd_pose=*/0, /*moving=*/0, 0, 0);
-        if (c->frame_delta[0] == 7 && c->frame_count == 16) draw_calls++;
+        if (c->frame_delta[0] == 0 && c->frame_count == 8 && c->frame_dur == 7)
+            draw_calls++;
     }
     T_ASSERT_EQ_I(draw_calls, ARCHE_SWORD_DRAW_TICKS);
-    /* sword-OUT idle = cel 96 held (NOT the base idle). */
-    T_ASSERT_EQ_I(c->base_sprite, 96);
-    T_ASSERT_EQ_I(c->frame_delta[0], 0);
-    T_ASSERT_EQ_I(c->frame_count, 1);
-    T_ASSERT_EQ_I(c != arche_freeroam_clip(0, 0, 0), 1);
+    /* sword-OUT idle = the dur-8 sword-out idle (cels 0-2, faster than the dur-14
+     * sword-in idle) — a distinct clip, NOT the base freeroam idle. */
+    T_ASSERT_EQ_I(c != arche_freeroam_clip(/*moving=*/0, 0, 0), 1);
+    T_ASSERT_EQ_I(c->base_sprite, 0);
+    T_ASSERT_EQ_I(c->frame_count, 3);
+    T_ASSERT_EQ_I(c->frame_dur, 8);
 
-    /* SHEATHE: the 1->0 edge plays 96→103 (onto the back), starting on cel 96. */
+    /* SHEATHE: the 1->0 edge plays res 0x570 96→103 (onto the back), 16 frames dur 3. */
     c = arche_sword_clip(&st, /*sword_out=*/0, &pst, 0, 0, 0, 0);
     T_ASSERT_EQ_I(c->base_sprite, 96);
     T_ASSERT_EQ_I(c->frame_delta[0], 0);    /* cel 96 first (forward) */
     T_ASSERT_EQ_I(c->frame_count, 16);
+    T_ASSERT_EQ_I(c->frame_dur, 3);
 
-    /* A moving sword-out Arche holds the sword-out cel (NOT the base walk — the blade
-     * stays visible; PORT-DEBT(sword-out-pose-cels) until the real walk set is captured). */
+    /* A moving sword-out Arche (no transient) delegates to the base WALK clip — the
+     * blade comes from the bank swap (res 0x571 cels 8-15), not a distinct clip. */
     memset(&st, 0, sizeof st);
     memset(&pst, 0, sizeof pst);
     st.prev_out = 1;   /* already drawn, no transient */
     c = arche_sword_clip(&st, /*sword_out=*/1, &pst, /*cmd_pose=*/0, /*moving=*/1, 0, 0);
-    T_ASSERT_EQ_I(c->base_sprite, 96);
-    T_ASSERT_EQ_I(c->frame_count, 1);
-    T_ASSERT_EQ_I(c != arche_freeroam_clip(/*moving=*/1, 0, 0), 1);
+    T_ASSERT_EQ_I(c == arche_freeroam_clip(/*moving=*/1, 0, 0), 1);
     return 0;
 }
 

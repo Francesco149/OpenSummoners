@@ -2853,10 +2853,14 @@ static void freeroam_begin(void)
     g_freeroam_rs.dst_base_x = -30;                     /* Arche cast render anchor */
     g_freeroam_rs.dst_base_y = -24;
     g_freeroam_rs.clip       = arche_freeroam_clip(/*moving=*/0, 0, 0);  /* idle */
-    /* The LEFT-facing walk mirror for bank 0x8b (cels +4) — set the persisted
-     * flip table so facing==3 picks the mirrored walk cels. */
+    /* The LEFT-facing mirror offsets so facing==3 picks the mirrored cels: bank 0x8b
+     * (sword-IN, res 0x570) = +152; bank 0x8c (sword-OUT, res 0x571) = +192.  Both are
+     * set up front so the sword draw/sheathe bank swap (freeroam_step) just flips
+     * sprite_table[0].bank — the mirror table is already populated for either sheet. */
     if ((uint16_t)0x8bu < (uint16_t)AR_SPRITE_SLOT_COUNT)
         g_actor_flip_table[0x8bu] = ARCHE_FREEROAM_FLIP;
+    if ((uint16_t)0x8cu < (uint16_t)AR_SPRITE_SLOT_COUNT)
+        g_actor_flip_table[0x8cu] = ARCHE_SWORD_OUT_FLIP;
     g_freeroam_active = 1;
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
@@ -2902,6 +2906,14 @@ static void freeroam_step(void)
      * NULL while locked (the opening dialogue), so Z is dead until control hands off
      * — matching retail's post-tutorial sword enable (PORT-DEBT(sword-quest-gate)). */
     (void)character_resolve_sword(&g_freeroam_char, ring, now);
+    /* Swap the body bank to the matching sword sheet (USER ckpt 158): the sword-OUT
+     * form is a SEPARATE bank — 0x8b = res 0x570 (sword-in), 0x8c = res 0x571 (sword
+     * -out, blade baked into every cel).  The draw plays res 0x571 96-103 (she's on
+     * 0x8c the instant Z fires; res 0x570 vanishes), the sheathe plays res 0x570
+     * 96-103 (back on 0x8b) — both render on the destination bank because the swap
+     * follows sword_out exactly.  The +152/+192 left mirrors are in the flip table. */
+    g_freeroam_actor.sprite_table[0].bank =
+        g_freeroam_char.sword_out ? 0x8cu : 0x8bu;
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;
@@ -2915,10 +2927,11 @@ static void freeroam_step(void)
      * applies on facing==3 (ARCHE_FREEROAM_FLIP) — so we render at the character
      * facing and the flip mirrors all the freeroam cels uniformly. */
     /* The SWORD draw/sheathe transient wins over the pose/walk/idle: arche_sword_clip
-     * plays the UNSHEATHE cels 96-103 (~48t) on the sword_out 0->1 edge / a reverse
-     * SHEATHE on 1->0, then delegates to arche_pose_clip when no transient is active
-     * (the sword-out idle/walk reuse the base cels; ckpt 155, engine-quirk #115).  The
-     * LEFT-facing draw emerges from the bank-0x8b +152 flip like every freeroam cel. */
+     * plays the UNSHEATHE res 0x571 cels 96-103 (~56t) on the sword_out 0->1 edge / the
+     * SHEATHE res 0x570 cels 96-103 on 1->0, then delegates to arche_pose_clip when no
+     * transient is active (ckpt 159, engine-quirk #115).  The cel INDICES are stance
+     * -independent; the bank swap above selects the sword-in (0x8b) vs sword-out (0x8c)
+     * SHEET, and the flip table's +152 (0x8b) / +192 (0x8c) mirrors the LEFT cels. */
     static arche_pose_anim  g_freeroam_pose_anim;
     static arche_sword_anim g_freeroam_sword_anim;
     const anim_clip *want = arche_sword_clip(&g_freeroam_sword_anim,

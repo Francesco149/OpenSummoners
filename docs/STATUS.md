@@ -204,6 +204,25 @@ understates how much actual instruction volume is ported.
   slide, up-stop, attack, attack-spam, directional attacks), flip≈2.23×tick, Z@flip5400=tick1807.
   **NEXT (fresh /clear): extract res-0x571 cels per action + re-do the port on bank 0x8c.**
   `plans/freeroam-sword-system.md` ckpt-158.
+  **ckpt 159 — chip-1 RE-DONE + verified BIT-EXACT on the correct banks.**  Extracted the full
+  sword-out cel map off `sword2.osr` (`tools/trace_studio2/sword_cels.py`, tick-aligned to `sword2-input.jsonl`):
+  the bank handoff is confirmed (res 0x570 VANISHES at tick 1810, res 0x571 takes over).  **The
+  port:** `freeroam_step` swaps the body bank `sword_out ? 0x8c : 0x8b` + the flip table
+  (+192 sword-out / +152 sword-in left mirror); `arche_sword_clip` plays DRAW (res 0x571 96→103,
+  dur-7, 56t) on the 0→1 edge / SHEATHE (res 0x570 96→103, durs 3·{2,1,1,1,1,3,3,4}, 48t) on 1→0
+  — **mirror anims on OPPOSITE banks** (ckpt-156 mistook the res-0x570 sheathe for the draw) — then
+  delegates idle/walk/run/pose (same cel indices, blade from the bank swap); only the IDLE gets a
+  dur-8 sword-out variant (faster than the sword-in 14t).  **VERIFIED off `port-sword-bankswap.osr`
+  vs `sword2.osr`:** draw 96-103 / sheathe 96-103 / idle 0-2@8t / walk 8-15 (right) + 200-207 (LEFT
+  via +192) — every cel's dst W×H **byte-identical**, res 0x570 vanishes sword-out.  Removed the
+  bogus `eh_force_sword` proxy hook + retired `PORT-DEBT(sword-quest-gate)` (NO gate) +
+  `(sword-sheathe-cels)` (real cels).  1055 host pass; quirk #115 rewritten.  **NEXT = chip 2: the
+  ATTACK** (neutral X = res 0x571 104-109; directionals 120-126/112-115/144-148; UP+X on a 3rd
+  sheet; slide body 48/49) — cel map in `plans/freeroam-sword-system.md` "ckpt-158/159 cel map";
+  ground truth `sword2.osr` already captured (no re-capture, just probe at the input-trace ticks).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-sword-bankswap.osr`
+  | `sword2.osr`) — scrub the errands freeroam ~tick 2030: Arche unsheathes (res 0x571 96-103), STAYS
+  drawn through an idle + a R/L walk (blade visible, no snap-back), then sheathes at ~tick 2360.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

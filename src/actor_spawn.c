@@ -1017,6 +1017,13 @@ static const anim_clip ARCHE_FREEROAM_IDLE_CLIP = {
  * wrong; it rendered left walk 4-7 etc. — engine-quirk #114.) */
 const int16_t ARCHE_FREEROAM_FLIP = 152;
 
+/* The flip-table value bank 0x8c (sword-OUT, res 0x571) needs for the facing==3
+ * (LEFT) mirror.  RE'd off sword2.osr (`/tmp/sword_cels.py`): the sword-out left
+ * cels are the right cels + 192 across EVERY action — idle 0-2 -> 192-194, walk
+ * 8-15 -> 200-207, run 16-21 -> 208-213, crouch 31/32 -> 223/224.  (The sword-IN
+ * bank 0x8b uses +152; 0x8c is a separate, wider sprite group, hence +192.) */
+const int16_t ARCHE_SWORD_OUT_FLIP = 192;
+
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run)
 {
     /* Airborne reuses the run/idle pose for now (no RE'd jump-anim cel set yet —
@@ -1089,50 +1096,63 @@ const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
     return want;
 }
 
-/* ── The SWORD unsheathe/sheathe clips + FSM (ckpt 155; corrected ckpt 157) ──
- * The cel-96..103 animation is the SHEATHE, NOT the draw (USER ckpt-157 + the
- * isolated-cel montage off sword-realplay.osr res 0x570): cel 96 = sword held out
- * front, 99 = the horizontal swing, 100 = raised, 103 = hand reaching to her BACK
- * (putting the blade onto the back sheath) — and the recording's 96→103 at tick
- * 2156 transitions straight into the UNARMED idle cels 0-3 (which are byte-IDENTICAL,
- * md5, to the base poses — proving they carry NO drawn sword).  So:
- *   SHEATHE (sword_out 1→0) = cels 96→103 (forward) — VERIFIED bit-exact vs the
- *     recording's 2156 sheathe (96 ~7t, 97-100 = 3t, 101/102 = 9t, 103 = 12t =
- *     3*{2,1,1,1,1,3,3,4}; the ARCHE_RUN_CLIP repeat-a-held-cel idiom).
- *   DRAW   (sword_out 0→1) = cels 103→96 (the REVERSE — hand-to-back → sword out
- *     front), ending held on cel 96 = PORT-DEBT(sword-draw-cels): the recording
- *     never shows a clean draw (she was already armed from the dad-door scene), so
- *     the reverse is a stand-in pending the chip-2 capture.
+/* ── The SWORD unsheathe/sheathe clips + FSM (ckpt 155-156; RE-DONE ckpt 159) ──
+ * BREAKTHROUGH (USER ckpt 158, re-verified off the clean recording sword2.osr):
+ * the sword-OUT form is a SEPARATE BANK.  Drawing RE-installs Arche from bank 0x8b
+ * (res 0x570, sword-IN) to bank 0x8c (res 0x571, sword-OUT) — res 0x570 VANISHES
+ * from the draw stream the instant Z fires (~tick 1810), she reappears on res 0x571
+ * with the blade baked into every cel.  freeroam_step does the bank swap (bank =
+ * sword_out ? 0x8c : 0x8b, + flip_table[0x8c]=192); THIS module only picks the cel
+ * sequence — which therefore renders on whichever sheet the bank swap selected.
+ * Off sword2.osr (`/tmp/sword_cels.py`, tick-aligned to the input recorder):
+ *   DRAW   (sword_out 0→1, bank→0x8c): UNSHEATHE res 0x571 cels 96→103, ~7t each
+ *     (tick 1810-1865, durs 6,8,7,7,7,7,7,7 ≈ uniform dur-7 oneshot, 56t total),
+ *     then falls through to the sword-OUT idle/walk/run/pose (the SAME cel indices
+ *     on 0x571 — 0-2 idle / 8-15 walk / 16-21 run / 31-32 crouch / 34-35 up).
+ *   SHEATHE(sword_out 1→0, bank→0x8b): res 0x570 cels 96→103 (the OTHER bank!),
+ *     durs 96=6t, 97-100=3t, 101/102=9t, 103=12t = 3*{2,1,1,1,1,3,3,4} (tick 3197).
+ *     CONFIRMED bit-exact off sword2.osr — ckpt-156 mistook THIS (the res-0x570
+ *     sheathe) for the draw, which is why that demo "snapped back to no sword".
+ * The LEFT-facing sword-out cels are a UNIFORM +192 mirror on bank 0x8c (idle
+ * 0-2→192-194, walk 8-15→200-207, run 16-21→208-213) — ARCHE_SWORD_OUT_FLIP, set
+ * in the flip table by freeroam_begin/step (vs +152 for the sword-IN bank 0x8b).
  * base_sprite 96 ⇒ frame_delta = cel - 96. */
+static const anim_clip ARCHE_SWORD_DRAW_CLIP = {
+    .base_sprite = 96,
+    .frame_delta = { 0, 1, 2, 3, 4, 5, 6, 7 },   /* res 0x571 cels 96→103 (out front) */
+    .frame_count = 8,
+    .frame_dur   = 7,
+    .oneshot     = 1,    /* hold on cel 103 -> the sword-OUT idle (bank 0x8c) */
+};
 static const anim_clip ARCHE_SWORD_SHEATHE_CLIP = {
     .base_sprite = 96,
-    .frame_delta = { 0,0, 1, 2, 3, 4, 5,5,5, 6,6,6, 7,7,7,7 },  /* 96→103: onto the back */
+    .frame_delta = { 0,0, 1, 2, 3, 4, 5,5,5, 6,6,6, 7,7,7,7 },  /* res 0x570 cels 96→103 */
     .frame_count = 16,
     .frame_dur   = 3,
     .oneshot     = 1,    /* hold on cel 103 until the FSM ends -> sword-IN base idle */
 };
-static const anim_clip ARCHE_SWORD_DRAW_CLIP = {
-    .base_sprite = 96,
-    .frame_delta = { 7,7,7,7, 6,6,6, 5,5,5, 4, 3, 2, 1, 0,0 },  /* 103→96: out front (stand-in) */
-    .frame_count = 16,
-    .frame_dur   = 3,
-    .oneshot     = 1,    /* hold on cel 96 = sword out front -> the sword-OUT idle */
-};
-/* The sword-OUT idle/walk: held on cel 96 (sword out front) as a PORT-DEBT(sword-out-
- * pose-cels) stand-in — the recording sheathes immediately (no sustained sword-out
- * idle captured) and the unarmed cels 0-3/8-15 carry no sword, so reusing them (the
- * ckpt-156 bug the USER flagged: "walks with the sword put away") is wrong.  Holding
- * the sword-out-front cel keeps the blade visible until the chip-2 capture records the
- * real sword-out idle/walk set. */
+/* The sword-OUT IDLE: the same cels 0-2 as the sword-in idle but a FASTER cadence —
+ * dur 8 (RE'd off sword2.osr ticks 2926-3160: a steady 8t per frame) vs the sword-in
+ * idle's dur 14 (a more alert ready-stance with the blade out).  Walk/run/crouch/up
+ * share the sword-in clips (same durations, verified), so ONLY the idle needs a sword
+ * -out variant; arche_sword_clip swaps it in for the idle case.  (The idle FRAME order
+ * — a 0,1,2,1 ping-pong in retail vs this 0,1,2 loop — is the pre-existing
+ * PORT-DEBT(char-idle-fidget) shared with the sword-in idle, not a sword concern.) */
 static const anim_clip ARCHE_SWORD_OUT_IDLE_CLIP = {
-    .base_sprite = 96, .frame_delta = { 0 }, .frame_count = 1, .frame_dur = 14, .oneshot = 0,
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2 },
+    .frame_count = 3,
+    .frame_dur   = 8,
+    .oneshot     = 0,
 };
 
 const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
                                   arche_pose_anim *pst, int16_t cmd_pose,
                                   int moving, int airborne, int run)
 {
-    /* Detect the toggle edge: a change in sword_out starts the matching transient. */
+    /* Detect the toggle edge: a change in sword_out starts the matching transient.
+     * Each transient renders on the DESTINATION bank (the freeroam bank swap follows
+     * sword_out): DRAW plays res 0x571 96-103, SHEATHE plays res 0x570 96-103. */
     if (sword_out != st->prev_out) {
         st->phase = (int16_t)(sword_out ? ARCHE_SWORD_PHASE_DRAW
                                         : ARCHE_SWORD_PHASE_SHEATHE);
@@ -1143,21 +1163,26 @@ const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
     if (st->phase == ARCHE_SWORD_PHASE_DRAW) {
         if (st->timer < ARCHE_SWORD_DRAW_TICKS) {
             st->timer = (int16_t)(st->timer + 1);
-            return &ARCHE_SWORD_DRAW_CLIP;        /* 103→96: pull the sword out front */
+            return &ARCHE_SWORD_DRAW_CLIP;        /* 96→103: swing the sword out (0x571) */
         }
-        st->phase = ARCHE_SWORD_PHASE_NONE;       /* draw done -> sword-OUT idle */
+        st->phase = ARCHE_SWORD_PHASE_NONE;       /* draw done -> sword-OUT idle/walk */
     } else if (st->phase == ARCHE_SWORD_PHASE_SHEATHE) {
         if (st->timer < ARCHE_SWORD_SHEATHE_TICKS) {
             st->timer = (int16_t)(st->timer + 1);
-            return &ARCHE_SWORD_SHEATHE_CLIP;     /* 96→103: onto the back */
+            return &ARCHE_SWORD_SHEATHE_CLIP;     /* 96→103: onto the back (0x570) */
         }
         st->phase = ARCHE_SWORD_PHASE_NONE;       /* sheathe done -> sword-IN base */
     }
 
-    /* No transient: sword OUT holds the sword-out-front cel (the blade stays visible —
-     * PORT-DEBT(sword-out-pose-cels) for the real idle/walk set); sword IN delegates to
-     * the normal walk/idle/pose. */
-    if (sword_out)
+    /* No transient: delegate to the normal walk/idle/pose.  The cel INDICES are the
+     * same for both stances (idle 0-2, walk 8-15, run 16-21, crouch/up 31-35); which
+     * SHEET they resolve on (res 0x570 sword-in vs 0x571 sword-out, blade baked in) is
+     * the freeroam bank swap's job, keyed on the same sword_out.  So sword-out walk
+     * draws res 0x571 8-15 automatically — no separate sword-out clips needed.  The ONE
+     * exception is the IDLE cadence: swap the dur-8 sword-out idle for the dur-14 base
+     * idle (the only clip that differs sword-out; walk/run/pose durations match). */
+    const anim_clip *base = arche_pose_clip(pst, cmd_pose, moving, airborne, run);
+    if (sword_out && base == &ARCHE_FREEROAM_IDLE_CLIP)
         return &ARCHE_SWORD_OUT_IDLE_CLIP;
-    return arche_pose_clip(pst, cmd_pose, moving, airborne, run);
+    return base;
 }

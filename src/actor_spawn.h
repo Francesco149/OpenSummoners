@@ -258,27 +258,31 @@ typedef struct arche_pose_anim {
 const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
                                  int moving, int airborne, int run);
 
-/* ── The SWORD unsheathe/sheathe ANIMATION FSM (ckpt 155) ──  Ground-truthed off
- * the USER's real-play recording (sword-realplay.osr, res 0x570; a FRESH new game
- * so the quest/cel state matches the port).  Z (ring 9) toggles character.sword_out;
- * this FSM watches that field for the 0->1 / 1->0 edge and plays the transient:
- *   DRAW   (sword_out 0->1): UNSHEATHE cels 96..103 — the sword swings out over
- *          ~48 sim-ticks (RE'd per-cel: 96 ~7t, 97-100 fast 3t, 101 9t, 102 9t,
- *          103 12t; modelled as a uniform dur-3 clip with repeated cels, the
- *          ARCHE_RUN_CLIP idiom — the captured durations are 3*{2,1,1,1,1,3,3,4}),
- *          then falls through to the sword-OUT idle.
- *   SHEATHE(sword_out 1->0): the reverse 103..96 as a PORT-DEBT(sword-sheathe-cels)
- *          stand-in (the USER never sheathed in the recording; the real sheathe cels
- *          come from the chip-2 clean capture).
- * The sword-OUT IDLE/WALK reuse the BASE cels (the recording's sword-out idle is the
- * RNG-driven fidget over cels 0-3 @14t = the base idle; sword-out has no distinct
- * idle cels — the deferred 0x54f980 fidget, PORT-DEBT(char-idle-fidget)).  So when
- * not in a draw/sheathe transient this delegates to arche_pose_clip (walk/idle/pose).
- * The LEFT-facing draw emerges from the bank-0x8b +152 flip like every freeroam cel.
+/* ── The SWORD unsheathe/sheathe ANIMATION FSM (ckpt 155-156; RE-DONE ckpt 159) ──
+ * Ground-truthed off the USER's clean recording sword2.osr + its input trace
+ * (sword2-input.jsonl), tick-aligned via `/tmp/sword_cels.py`.  KEY (USER ckpt 158):
+ * the sword-OUT form is a SEPARATE BANK — freeroam_step swaps Arche's body bank
+ * 0x8b (res 0x570 sword-IN) <-> 0x8c (res 0x571 sword-OUT) on sword_out, so each cel
+ * the clips below pick renders on whichever sheet is selected.  Z (ring 9) toggles
+ * character.sword_out; this FSM watches that field for the 0->1 / 1->0 edge:
+ *   DRAW   (sword_out 0->1, bank→0x8c): UNSHEATHE res 0x571 cels 96..103 over ~56
+ *          sim-ticks (8 cels * dur 7, RE'd off tick 1810-1865), then falls through
+ *          to the sword-OUT idle/walk/run/pose (the SAME cel indices, on res 0x571).
+ *   SHEATHE(sword_out 1->0, bank→0x8b): res 0x570 cels 96..103 (the OTHER bank),
+ *          durs 3*{2,1,1,1,1,3,3,4} = 48t (RE'd off tick 3197) — CONFIRMED bit-exact.
+ * The sword-OUT IDLE/WALK/RUN/POSE reuse the BASE cel indices (idle 0-2, walk 8-15,
+ * run 16-21, crouch 31-32, up 34-35); the bank swap makes them resolve on res 0x571
+ * (blade baked in), so when not in a transient this delegates to arche_pose_clip.
+ * The LEFT-facing sword-out cels are a UNIFORM +192 mirror (ARCHE_SWORD_OUT_FLIP),
+ * vs +152 for the sword-IN bank 0x8b — set in the flip table by freeroam_begin/step.
  * Pure + host-tested; the caller keeps one arche_sword_anim (zero-init), calls this
  * once per sim-tick ABOVE the pose layer (the draw/sheathe transient wins). */
-#define ARCHE_SWORD_DRAW_TICKS    48   /* UNSHEATHE clip length (16 frames * dur 3)  */
-#define ARCHE_SWORD_SHEATHE_TICKS 48   /* SHEATHE stand-in length (reverse draw)     */
+#define ARCHE_SWORD_DRAW_TICKS    56   /* UNSHEATHE res 0x571 96..103 (8 frames * dur 7) */
+#define ARCHE_SWORD_SHEATHE_TICKS 48   /* SHEATHE  res 0x570 96..103 (16 frames * dur 3) */
+
+/* The bank-0x8c (sword-OUT, res 0x571) facing==3 mirror offset: left = right + 192
+ * (vs +152 for sword-IN bank 0x8b — a DIFFERENT bank, a different group stride). */
+extern const int16_t ARCHE_SWORD_OUT_FLIP;
 
 enum { ARCHE_SWORD_PHASE_NONE = 0, ARCHE_SWORD_PHASE_DRAW, ARCHE_SWORD_PHASE_SHEATHE };
 

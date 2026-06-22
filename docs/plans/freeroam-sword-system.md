@@ -1,15 +1,21 @@
 # Plan — the freeroam SWORD / ATTACK system (Z unsheathe + X attack)
 
-> **Status: CHIP 1 DONE (ckpt 156) — the DRAW + sword-out STATE are PORTED + verified bit-exact.**
-> Z (ring 9) toggles `sword_out` (`character_resolve_sword`); `arche_sword_clip` plays the UNSHEATHE
-> cels 96-103 (~48t) on the 0→1 edge / a reverse SHEATHE stand-in on 1→0, then delegates to the
-> walk/idle/pose (sword-out reuses base cels).  VERIFIED off `port-sword.osr` vs `sword-realplay.osr`
-> (`draw_probe --res 0x570`): the draw cels' dst W×H byte-identical, durations exact mid-clip (97-102),
-> ±2t at the boundary frames (non-lockstep noise).  `PORT-DEBT(sword-quest-gate)` (Z free in the
-> errands freeroam) + `(sword-sheathe-cels)` (reverse-draw stand-in).  Host-tested
-> (`test_arche_sword_clip` + `test_character_resolve_sword`).  **NEXT = chip 2: the ATTACK** (X,
-> neutral 120-127 + 128-132 + 3-combo + directionals) + sword-out WALK + the real SHEATHE — needs the
-> CLEAN injected capture (force `weapon+0xd4=2`); see "## ckpt-155 — the attack VARIANT set" below.
+> **Status: CHIP 1 RE-DONE (ckpt 159) — DRAW + SHEATHE + sword-out MOVEMENT, on the CORRECT banks,
+> verified bit-exact off the clean recording sword2.osr.**  The sword-OUT form is a SEPARATE bank:
+> freeroam_step swaps Arche's body bank `sword_out ? 0x8c : 0x8b` (res 0x571 sword-out / 0x570
+> sword-in) + the flip table (+192 / +152 left mirror).  `arche_sword_clip` plays DRAW (res 0x571
+> cels 96→103, dur-7, 56t) on the 0→1 edge / SHEATHE (res 0x570 cels 96→103, durs 3·{2,1,1,1,1,3,3,4})
+> on 1→0 — both on the DESTINATION bank — then delegates idle/walk/run/pose (same cel indices, blade
+> from the bank swap; only the idle gets a dur-8 sword-out variant).  VERIFIED off `port-sword-bankswap.osr`
+> vs `sword2.osr` (`tools/trace_studio2/sword_cels.py`): draw 96-103 / sheathe 96-103 / idle 0-2@8t / walk 8-15 (right)
+> + 200-207 (LEFT via +192) — every cel's dst W×H byte-identical; res 0x570 VANISHES sword-out.  Removed
+> the bogus `eh_force_sword` proxy hook + retired `PORT-DEBT(sword-quest-gate)` (NO gate) +
+> `(sword-sheathe-cels)` (real cels).  Host-tested (`test_arche_sword_clip` + `test_character_resolve_sword`),
+> 1055 pass.  **NEXT = chip 2: the ATTACK** — neutral X = res 0x571 **104-109** (dur-6, ~36t); directionals
+> fwd **120-126** / down **112-115** (crouch-attack) / back **144-148**; UP+X draws on yet another sheet
+> for ~36t (un-probed); the slide BODY cels 48/49 (dash+down).  The cel map is in "## ckpt-158/159 — the
+> sword-out cel map" below; the ground truth is `sword2.osr` + `sword2-input.jsonl` (already captured —
+> no new capture needed, just probe at the input-trace ticks via `tools/trace_studio2/sword_cels.py`).
 >
 > **ckpt 158 — BREAKTHROUGH (USER, the game owner): everything proxy-derived about the sword was
 > WRONG, three ways.  RE-DO chip 1 against the clean recording.**
@@ -42,7 +48,34 @@
 >   capturable).  The chip-1 `arche_sword_clip` swap (ckpt 157, 1353612) is moot — rebuild on res 0x571.
 >   Tools added this arc (keep): `OSS_INPUT_RECORD` (proxy input recorder), `/tmp/celspan2.py`,
 >   `/tmp/flip2tick.py`.
->
+
+## ckpt-158/159 — the sword-out cel map (RE'd off `sword2.osr` + `sword2-input.jsonl`)
+All on bank **0x8c = res 0x571** (sword-OUT, blade baked in) unless noted; LEFT = **+192**.
+Probe tool: `tools/trace_studio2/sword_cels.py <osr> <tick_lo> <tick_hi>` (one-pass, collapses res 0x570/0x571
+into cel spans).  Input→tick: `/tmp/flip2tick.py` (the input recorder's "frame" = the proxy flip;
+flip≈2.23×tick).  Z@flip5400=tick1807 draw, Z@flip8186=tick3194 sheathe, Z@flip8539=tick3367 redraw.
+
+| action | input | bank/res | cels | dur | notes |
+|--------|-------|----------|------|-----|-------|
+| DRAW (in→out) | Z | 0x8c/0x571 | 96→103 | ~7t (56t) | dst W 31,36,35,32,51,44,31,30 |
+| SHEATHE (out→in) | Z | **0x8b/0x570** | 96→103 | 6,3,3,3,3,9,9,12 (48t) | the OTHER bank |
+| idle | — | 0x571 | 0,1,2 (ping-pong 0,1,2,1 in retail) | **8t** | faster than sword-in 14t |
+| walk | dir | 0x571 | 8→15 | ~6t | left 200-207 |
+| run | dir 2× | 0x571 | 16→21 | 10,5,5,10,5,5 | left 208-213 |
+| crouch | DOWN | 0x571 | enter 31, hold 32, exit 31 | enter 4t | left 223/224 |
+| up-pose | UP | 0x571 | enter 34, hold 35, exit 34 | enter 4t | left 226/227 |
+| SLIDE | dash+DOWN | 0x571 | 31 → **48↔49** (68×30 prone) → 32 → 31 | 4t body | left 223→240/241→224 |
+| ATTACK neutral | X | 0x571 | **104→109** | 6t (36t) | widens to 64×52 mid-swing; repeatable (no auto-combo seen) |
+| ATTACK fwd | dir+X | 0x571 | **120→126** | 6t | dst→80×49; left mirror un-probed |
+| ATTACK down | DOWN+X | 0x571 | 31/32 → **112→115** | crouch-attack | left 304-307 (=112+192) |
+| ATTACK back | opp-dir+X | 0x571 | **144→148** | 7t | turns her around (→left idle after) |
+| ATTACK up | UP+X | **other sheet** | NONE on 0x570/0x571 for ~36t (3880-3915) | — | un-probed — a jump/thrust on a 3rd bank? (chip-2 puzzle) |
+
+CHIP-1 (ckpt 159, DONE): DRAW + SHEATHE + idle/walk/run/crouch/up via the bank swap + the dur-8 idle.
+CHIP-2 (NEXT): the attacks (cmd[4] body state in `character_step` + `arche_attack_clip` keyed on the
+held dir) + the trail VFX + the slide body 48/49 (dash+down → distinct from plain crouch) + the UP+X
+mystery sheet.  The HITBOX/damage is gameplay (defer / PORT-DEBT); the ANIM + state are the port.
+
 > **ckpt 157 — chip-2 capture progress + USER feedback:**
 > - **force-sword TOOLING DONE + committed** (`0f07877`): `tools/capture_proxy/engine_hooks.h`
 >   `eh_force_sword` writes `weapon+0xd4=2` on Arche each flip (chain `*0x8a9b50→+0x2784→+0x200c→

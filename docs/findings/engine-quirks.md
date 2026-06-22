@@ -3890,23 +3890,32 @@ to a stop == the physics).  The REAL state-6 momentum slide (case 6: MAINTAIN th
 `vvel+=4000` cap 64000, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
 `PORT-DEBT(char-slope-slide)`.
 
-### #115 — the freeroam SWORD is a Z TOGGLE (ring id 9); the UNSHEATHE is res 0x570 cels 96→103 (~48t), GATED on the errands quest reaching case 8 (`weapon+0xd4=2`); the sword baked into the cels (no separate sword sprite); sword-out idle reuses the BASE idle cels (2026-06-22, ckpt 156, RE'd off the USER real-play recording)
-Z (the unsheathe/sheathe key) = ring **id 9** (the live keybind config dump, ckpt 155 — Z was
-unwired in the port).  Pressing Z DRAWS the sword (`sword_out` 0→1), pressing again SHEATHES.
-The DRAW is a context-action (`478ba0:473-481`: id-9 press → if `atk94`(+0x14894)!=0 & the
-`+0x14874` array entry matches **`weapon+0xd4`** → queue cmd[5] type 0xd2) **gated on
-`weapon+0xd4=2`**, which the errands questline `0x4dc510` **case 8** sets (`:1167`); the quest
-var `FUN_0041e2f0(0x606aa50)` advances 2→8 across `4dc510`+`4d7d80` (the intro story).  A
-fresh-new-game capture sits at an early quest state ⇒ `weapon+0xd4=0` ⇒ Z does nothing (why the
-ckpt-155 INJECTED captures all failed); the USER's natural play reached case 8.  **Cels (off
-`sword-realplay.osr`, res 0x570, ALL on Arche's body bank — NO separate sword sprite, the sword
-is baked into the sword-out cels):  UNSHEATHE 96→97→98→99→100→101→102→103 over ~48 sim-ticks
-(96 ~7t, 97-100 fast 3t, 101 9t, 102 9t, 103 12t; widths 41/35/54/67/41/33/32/31 = the blade
-swinging out), then the sword-OUT IDLE = the BASE idle cels 0,1,2(,3) @14t (the RNG fidget;
-no distinct sword-out idle cels), ATTACK (X) cels 120-127 / 128-132 @12t.**  Forms 0xc35a/b/c
-are Arche install variants (`41f200`): 0xc35a base, 0xc35b sword-OUT (registers the attack
-actions); a draw re-installs as 0xc35b.  Ported (ckpt 156 chip 1): the DRAW + the `sword_out`
-toggle (`character_resolve_sword` + `arche_sword_clip`), gated `PORT-DEBT(sword-quest-gate)`;
-verified bit-exact off `port-sword.osr` (the draw cels' dst W×H byte-identical to the recording,
-durations exact mid-clip).  The ATTACK structure (3-combo / directionals) + sword-out walk need
-the chip-2 clean injected capture (force `weapon+0xd4=2`).
+### #115 — the freeroam SWORD is a Z TOGGLE (ring id 9), NO quest gate; the sword-OUT form is a SEPARATE BANK (0x8c = res 0x571), the sword-IN is bank 0x8b (res 0x570) — DRAW = res 0x571 96→103, SHEATHE = res 0x570 96→103 (mirror anims on opposite banks); left mirror +192 (2026-06-22, ckpt 156→159 RE-DONE, off the clean recording sword2.osr)
+Z (unsheathe/sheathe) = ring **id 9** (live keybind dump, ckpt 155).  Z DRAWS (`sword_out` 0→1),
+again SHEATHES.  **No quest gate (USER ckpt 158):** Z draws on a NORMAL fresh new game before any
+quest — the ckpt-155/156 "gated on errands quest case 8 / `weapon+0xd4=2`" was an ARTIFACT of the
+capture proxy silently breaking the Z key in injected captures (and `OSS_FORCE_SWORD` clamping
+`weapon+0xd4=2` JAMMED the natural draw — only Z failed).  **The sword-OUT form is a SEPARATE
+BANK** (form 0xc35b → bank **0x8c = res 0x571**, the "registered but unused" bank): drawing
+RE-installs Arche from bank 0x8b (res 0x570 sword-IN) to bank 0x8c (res 0x571 sword-OUT) — res
+0x570 VANISHES from the draw stream the instant Z fires (~tick 1810), she reappears on res 0x571
+with the blade BAKED into every cel.  So the DRAW and SHEATHE are MIRROR animations on OPPOSITE
+sheets:
+- **DRAW (in→out)** = res **0x571** cels 96→103, ~7t each (56t; durs 6,8,7,7,7,7,7,7).
+- **SHEATHE (out→in)** = res **0x570** cels 96→103, durs 6,3,3,3,3,9,9,12 = 48t.  *(ckpt-156
+  mistook THIS res-0x570 sheathe for the draw — why that demo "snapped back to no sword".)*
+- sword-OUT moveset (res 0x571, SAME cel indices as sword-in): IDLE 0-2 @**8t** (FASTER than the
+  sword-in idle's 14t), WALK 8-15 @6, RUN 16-21, CROUCH enter 31/hold 32, UP enter 34/hold 35,
+  SLIDE (dash+down) enter 31 → body 48↔49 (wide 68×30 prone) → 32, ATTACK (X) neutral 104-109,
+  directional 120-126 (fwd) / 112-115 (down) / 144-148 (back) + an UP+X that draws on yet another
+  sheet for ~36t (chip 2).
+- **LEFT mirror = uniform +192 on bank 0x8c** (idle 0-2→192-194, walk 8-15→200-207, run 16-21→
+  208-213, crouch 31/32→223/224) — vs +152 for the sword-IN bank 0x8b (a different, wider group).
+Forms 0xc35a/b/c are Arche install variants (`41f200`): 0xc35a base (bank 0x8b), 0xc35b sword-OUT
+(bank 0x8c).  **Ported (ckpt 159 chip-1 RE-DO):** freeroam_step swaps the body bank
+(`sword_out ? 0x8c : 0x8b`) + the flip table (+152/+192); `arche_sword_clip` plays DRAW (0x571
+96-103) / SHEATHE (0x570 96-103) on the destination bank, then delegates idle/walk/run/pose
+(same indices, blade from the bank swap) — only the idle gets a dur-8 sword-out variant.  VERIFIED
+bit-exact off `port-sword-bankswap.osr` vs `sword2.osr`: every draw/sheathe/idle/walk cel's dst
+W×H byte-identical, the +192 left walk renders 200-207, res 0x570 vanishes sword-out.  The ATTACK
+set (combo/directionals) is chip 2.
