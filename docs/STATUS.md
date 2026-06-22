@@ -145,15 +145,17 @@ understates how much actual instruction volume is ported.
   CROUCH 31→32 gliding dst-x +5,+4,+3,+2,+1,+0 to a stop (dx 275→412) → exit 31 → idle.  The REAL state-6
   momentum slide (maintain dash speed + slope-fall, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
   `PORT-DEBT(char-slope-slide)`.  1053 host pass; quirk #114 extended.  `findings/freeroam-pose-commands.md` "## The SLIDE".
-  **ckpt 155: the SWORD/ATTACK arc is BLOCKED on the scene — the sword is OFF in the moving-in errands
-  (HARD EVIDENCE, awaiting USER).**  3 live captures (`runs/sword/`) + RE: (1) CORRECTED the key→ring-id map
-  off the LIVE keybind config (`cfg=*0x8a6e80`) — it was backwards: **Z=id9, X=id8(held auto-atk), C=id7(jump)**,
-  V/Enter=id0x24(confirm).  (2) Injecting Z(id9) does nothing; X(id8) held DOES fire `cmd4=0xe` (auto-attack
-  reached) **yet Arche's form-code stays 0xc35a (sword-IN) + `weapon+0x466` (sword-DRAWN state) stays 0 the
-  whole scene** — both attack inputs are consumed but the sword NEVER draws.  No reachable unsheathe path here
-  (every id-9 consumer in 478ba0 is gated sword-already-OUT; the stance block is gated off).  Most consistent
-  with Arche NOT having her sword equipped this early.  USER (game owner) insists it works "here" → **pinged to
-  verify in-game / name the real sword scene; re-capture there.**  `plans/freeroam-sword-system.md` "## ckpt-155".
+  **ckpt 155: the SWORD/ATTACK arc — RESOLVED the GATE (USER was right; sword IS in the errands).**  6 live
+  captures (`runs/sword/`) + RE.  (1) CORRECTED the key→ring-id map off the LIVE keybind config (`cfg=*0x8a6e80`):
+  **Z=id9, X=id8(held auto-atk), C=id7(jump)**, V/Enter=id0x24(confirm).  (2) PROVEN the injection works: a clean
+  held-RIGHT walk MOVES Arche 16,680 units (wx 19200→35880, hvel→24000 cap); the **id-7 JUMP control fires
+  `cmd2=0x7`** (ring delivery OK).  (3) THE GATE: Z(id9)→draw needs `weapon+0xd4` set, which the errands questline
+  **`0x4dc510` case 8 (`:1167`) sets to 2** — the quest var `0x606aa50` advances 2..7..8 via `FUN_0041d190`
+  (the intro story).  My fresh-new-game captures sat at an EARLY quest state (`wpn_d4=0`) so the sword was never
+  enabled.  **NOT injection, NOT "no sword" — a QUEST-STATE gate.**  NEXT: reach quest state 8 (force via a Frida
+  return-override on `0x41e2f0`/mem-write `weapon+0xd4=2`, OR play the tutorial) → Z draws → capture the sword-out
+  cels + attack + port (`PORT-DEBT(sword-quest-gate)` stand-in for the unported quest system).
+  `plans/freeroam-sword-system.md` "## ckpt-155 capture 6".
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
