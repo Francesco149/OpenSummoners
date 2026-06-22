@@ -44,6 +44,12 @@ template / an aliased path, not a literal `+0x466 =`).
 - `body+0x66` is a CHARGE/windup METER, not sword-out (455d80 case-3 accumulates `+= weapon+0x2d8`
   toward cap 1000; 442a70:2206 drains -100/tick in body state 5).  The plan's `+0x66=sword-out` was WRONG.
 
+**Capture B2 (the airtight cross-check — real X=id8 + Z=id9):** held X (scancode 0x2d → id-8
+auto-attack) over 3 windows + Z(id9) presses.  **X-held DID fire `cmd4=0xe`** every window (478ba0:296
+auto-attack reached — input IS processed) **yet `code` stayed 0xc35a and `wpn_466` stayed 0 throughout**
+(distinct code={0xc35a}, wpn_466={0x0}).  So BOTH attack inputs are consumed but produce NO sword draw
+/ NO sword-out form — conclusive that the sword subsystem has nothing to act on here.
+
 **INTERPRETATION (needs USER in-game verification):** the binary shows the sword un-drawable in the
 moving-in errands — most consistent with Arche NOT having her sword equipped yet this early (the draw
 becomes reachable once `weapon+0x466` can flip, i.e. a later scene / after she equips it).  The USER
