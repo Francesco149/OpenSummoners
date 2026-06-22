@@ -176,6 +176,73 @@ static LONG  g_eih_last_flip = -1;             /* last flip the cursor advanced 
 static BYTE  g_eih_managed[256];               /* 1 = scancode appears in the trace */
 static BYTE  g_eih_held[256];                  /* 1 = scancode held this frame (level) */
 
+/* ── INPUT RECORD (OSS_INPUT_RECORD=path): log the REAL per-frame held set of the
+ * gameplay keys to an editable held-trace JSONL ({"frame":N,"keys":[sc,...]}), so a
+ * USER's real-play session yields a replayable + editable input trace (the .osr alone
+ * had no input — ckpt 157 USER ask).  The 0x5ba520 leaf query (ecx=device) is read
+ * (NOT written) for each tracked scancode; on the flip boundary the just-finished
+ * frame's held set is emitted iff it changed.  From the held edges the ring (discrete
+ * presses: Z draw, X attack, the dialogue confirm) is DERIVED on replay by the real
+ * producer 0x46a880, so the held trace captures everything. */
+static FILE *g_rec_file     = NULL;
+static DWORD g_rec_device   = 0;               /* captured DInput device ptr (ecx)   */
+static LONG  g_rec_cur_flip = -1;              /* the frame currently accumulating   */
+static BYTE  g_rec_cur[256];                   /* held set seen this frame           */
+static BYTE  g_rec_prev[256];                  /* last EMITTED held set (dedup)      */
+static int   g_rec_have_prev = 0;
+/* The gameplay scancodes we log (arrows + Z/X/C + Enter); others stay un-tracked. */
+static const BYTE g_rec_tracked[] = {
+    0xc8 /*up*/, 0xd0 /*down*/, 0xcb /*left*/, 0xcd /*right*/,
+    0x2c /*Z*/, 0x2d /*X*/, 0x2e /*C*/, 0x1c /*Enter*/, 0x2f /*V*/,
+};
+#define REC_NTRACKED ((int)(sizeof(g_rec_tracked)/sizeof(g_rec_tracked[0])))
+
+/* Emit the held set for `flip` if it differs from the last emitted one. */
+static void eih_record_emit(LONG flip)
+{
+    if (!g_rec_file) return;
+    int changed = !g_rec_have_prev;
+    for (int i = 0; i < REC_NTRACKED && !changed; i++)
+        if (g_rec_cur[g_rec_tracked[i]] != g_rec_prev[g_rec_tracked[i]]) changed = 1;
+    if (!changed) return;
+    char buf[256]; int n = 0;
+    n += snprintf(buf + n, sizeof(buf) - n, "{\"frame\":%ld,\"keys\":[", (long)flip);
+    int first = 1;
+    for (int i = 0; i < REC_NTRACKED; i++) {
+        BYTE sc = g_rec_tracked[i];
+        if (g_rec_cur[sc]) { n += snprintf(buf + n, sizeof(buf) - n, "%s%u", first ? "" : ",", sc); first = 0; }
+    }
+    n += snprintf(buf + n, sizeof(buf) - n, "]}\n");
+    fputs(buf, g_rec_file);
+    fflush(g_rec_file);                        /* survive an abrupt Stop-Process kill */
+    memcpy(g_rec_prev, g_rec_cur, sizeof g_rec_prev);
+    g_rec_have_prev = 1;
+}
+
+/* On a flip boundary, flush the just-finished frame then start the next. */
+static void eih_record_on_query(DWORD device)
+{
+    if (!g_rec_file) return;
+    g_rec_device = device;
+    if (g_eh_flip != g_rec_cur_flip) {
+        if (g_rec_cur_flip >= 0) eih_record_emit(g_rec_cur_flip);
+        g_rec_cur_flip = g_eh_flip;
+        memset(g_rec_cur, 0, sizeof g_rec_cur);
+    }
+}
+
+static void eih_record_init(void)
+{
+    char path[MAX_PATH];
+    DWORD n = GetEnvironmentVariableA("OSS_INPUT_RECORD", path, sizeof(path));
+    if (n == 0 || n >= sizeof(path)) return;   /* recording off */
+    g_rec_file = fopen(path, "wb");
+    if (!g_rec_file) { proxy_logf("[input] FATAL: record fopen(%s) failed", path); return; }
+    fputs("# OSS_INPUT_RECORD held-trace (real-play): {\"frame\":N,\"keys\":[scancode,...]}\n",
+          g_rec_file);
+    proxy_logf("[input] RECORDING real input -> %s (%d tracked keys)", path, REC_NTRACKED);
+}
+
 /* up/down/left/right -> DIK scancode (else -1); s,len = the bare (unquoted) name. */
 static int eih_name_scancode(const char *s, int len)
 {
@@ -265,27 +332,38 @@ static void eih_advance(LONG flip)
     }
 }
 
-/* thiscall(scancode): ecx = the DInput device; [esp+4] = scancode. */
+/* thiscall(scancode): ecx = the DInput device; [esp+4] = scancode.  Serves BOTH the
+ * held-axis injection (write a fake state for managed keys) and INPUT RECORD (read the
+ * real state of the queried tracked key) — exclusive in practice (record runs with no
+ * injection trace). */
 static void eih_keydown_cb(PCONTEXT ctx)
 {
-    eih_advance(g_eh_flip);
     DWORD sc = *(DWORD *)(ctx->Esp + 4) & 0xff;
-    if (!g_eih_managed[sc]) return;            /* leave un-managed keys real */
-    *(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) = g_eih_held[sc] ? 0x80 : 0x00;
+    if (g_rec_file) {                          /* RECORD: read the real key state */
+        eih_record_on_query(ctx->Ecx);         /* flip-boundary flush + device capture */
+        if (*(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) & 0x80) g_rec_cur[sc] = 1;
+    }
+    if (g_eih_n > 0) {                          /* INJECT: write the trace's held state */
+        eih_advance(g_eh_flip);
+        if (g_eih_managed[sc])
+            *(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) = g_eih_held[sc] ? 0x80 : 0x00;
+    }
 }
 
 static void engine_input_install(void)
 {
     ei_load_trace();
     eih_load_trace();
+    eih_record_init();
     if (g_ei_n > 0) {
         detour_add(EI_INPUT_POLL_VA, ei_poll_cb);
         proxy_logf("[input] ring injection hooked @0x43c110 (%d entries)", g_ei_n);
     }
-    if (g_eih_n > 0) {
+    /* Install the leaf-query detour for held-axis INJECTION or for RECORDING. */
+    if (g_eih_n > 0 || g_rec_file) {
         detour_add(EI_KEYDOWN_VA, eih_keydown_cb);
-        proxy_logf("[input] held-axis injection hooked @0x5ba520 (%d entries)",
-                   g_eih_n);
+        proxy_logf("[input] 0x5ba520 hooked (%s%s)",
+                   g_eih_n > 0 ? "inject " : "", g_rec_file ? "record" : "");
     }
 }
 
