@@ -4,7 +4,7 @@
 > `freeroam-pose-commands.md` (the U/D-pose + slide).  Ground truth: the USER's clean
 > real-play recording `sword2.osr` + its input trace `sword2-input.jsonl` (the
 > OSS_INPUT_RECORD held-trace).  Probe: `tools/trace_studio2/sword_cels.py` +
-> `/tmp/attack_probe.py` (flip→tick + input interleave).
+> `tools/trace_studio2/attack_probe.py` (flip→tick + input interleave).
 
 ## The command (RE'd off 0x478ba0 — the char-AI builder)
 X = `DIK_X` (scancode 0x2d) → `axis_held[5]` (the +0x128 attack LEVEL) + ring 0x24
