@@ -264,3 +264,37 @@ the pattern but not directly captured (verify when a dash-left / jump-left is ex
   right walk/idle cels were corrected (8-15 / 0-2) and `ARCHE_FREEROAM_FLIP` 4→152, so the
   left walk (160-167) + idle (152-154) now render correctly via the renderer flip — verified
   off `port-walkidle.osr`.  (Left run/jump via the same +152 flip = the small residual above.)
+
+## The SWORD — DRAW + sword-out state (ckpt 156, chip 1; quirk #115)
+USER ground truth = the real-play recording `sword-realplay.osr` (FRESH new game, res 0x570).
+Z (the unsheathe key) TOGGLES the sword; X attacks when out (chip 2).  Ported the DRAW + the
+sword-out STATE; the ATTACK (combo/directional) + sword-out walk need the clean injected
+capture (chip 2).
+- **Input:** Z = ring **9** (`INPUT_RING_SWORD`; the live keybind dump, ckpt 155 — was
+  unwired).  `input_live.c` KEYMAP `{DIK_Z,-1,9}`; `character_resolve_sword`
+  (`input_poll_consume` id 9, consume-on-read = one toggle/press) flips `character.sword_out`.
+  Wired in `freeroam_step` (ring is NULL while the opening dialogue locks input → Z dead until
+  control hands off, = retail's post-tutorial enable point).
+- **DRAW cels (RE'd off the recording, ticks 2152-2199):** res 0x570 **96→97→98→99→100→101→
+  102→103** then the sword-out idle resumes.  Per-cel hold 96 ~7t / 97-100 = **3t** (the fast
+  swing) / 101 = 9t / 102 = 9t / 103 = 12t = 3·{2,1,1,1,1,3,3,4} ⇒ a uniform dur-3 clip with
+  the slow cels repeated (`ARCHE_SWORD_DRAW_CLIP`, 16 frames, oneshot ~48t — the ARCHE_RUN_CLIP
+  "repeat a held cel" idiom).  cel WIDTHS 41/35/54/67/41/33/32/31 (the sword swinging out).
+- **sword-out IDLE/WALK = the BASE cels** (the recording's sword-out idle is the RNG fidget over
+  cels 0-3 @14t = the base idle; no distinct sword-out idle cels).  So `arche_sword_clip`
+  delegates to `arche_pose_clip` (walk/idle/pose) when no draw/sheathe transient is active.
+- **SHEATHE = reverse draw (103→96)** = `PORT-DEBT(sword-sheathe-cels)` stand-in (the USER never
+  sheathed in the recording; real cels from the chip-2 capture).
+- **Gate:** retail needs `weapon+0xd4=2` (errands quest case 8, `4dc510:1167`); the quest is
+  unported ⇒ `PORT-DEBT(sword-quest-gate)`: Z toggles freely in the errands freeroam (the
+  same post-tutorial point retail enables it).
+- **VERIFIED** off `port-sword.osr` vs `sword-realplay.osr` (`draw_probe --res 0x570`): the draw
+  plays 96→103, every cel's dst W×H **byte-identical** to the recording, per-cel durations EXACT
+  for 97-102 (3,3,3,3,9,9), ±2t only at the entry/exit boundary frames (the FSM-timer/stepper
+  pre-advance; within the non-lockstep recording's noise; total 48t vs 49t); the toggle sheathes
+  103→96.  `arche_sword_clip`/`character_resolve_sword` host-tested (`test_arche_sword_clip`,
+  `test_character_resolve_sword`).  Plan: `plans/freeroam-sword-system.md`.
+- RESIDUAL (chip 2): the ATTACK (X, neutral 120-127 + 128-132 + the 3-combo/directionals), the
+  attack TRAIL vfx, the sword-out WALK/crouch/jump cels, and the real SHEATHE cels — all need the
+  clean Frida force-quest-state (`weapon+0xd4=2`) injected capture (the recording is a single
+  held-X session → can't disambiguate the attack structure).

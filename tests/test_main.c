@@ -916,6 +916,7 @@ struct test_case {
     X(character_resolve_pose_down_up)                          \
     X(character_resolve_pose_window)                           \
     X(character_resolve_pose_up_overrides_down)                \
+    X(character_resolve_sword)                                 \
     X(character_pose_brakes)                                   \
     X(map_decode_1b58b_shape0)                                 \
     X(map_decode_1b58b_shape2)                                 \
@@ -1039,6 +1040,7 @@ struct test_case {
     X(arche_runoff)                                            \
     X(arche_house_turn_clip)                                   \
     X(arche_pose_clip)                                         \
+    X(arche_sword_clip)                                        \
     X(errands_cast_zorder)                                     \
     X(errands_fire)                                            \
     X(butterfly_pertick)                                       \

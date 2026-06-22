@@ -972,6 +972,7 @@ static void drive_present(void *user)
         (int64_t)(cutscene_active(&g_cutscene)
                       ? g_cutscene.room_idx * 10 + g_cutscene.line_idx : -1), 0.0);
     osr_emit_state_field("fr_pose",  OSR_ST_INT, (int64_t)g_freeroam_char.cmd_pose, 0.0);
+    osr_emit_state_field("fr_sword", OSR_ST_INT, (int64_t)g_freeroam_char.sword_out, 0.0);
     osr_emit_state_field("fr_lr",    OSR_ST_INT, (int64_t)g_freeroam_char.cmd_lr,   0.0);
     osr_emit_state_field("fr_wx",    OSR_ST_INT, (int64_t)g_freeroam_char.world_x,  0.0);
     osr_emit_state_field("fr_vel",   OSR_ST_INT, (int64_t)g_freeroam_char.vel,      0.0);
@@ -2896,6 +2897,11 @@ static void freeroam_step(void)
      * states 2/5 brake (crouch / slide / UP-stops-you-faster, ckpt 153 — bit-exact -800
      * vs runs/pose-demo/cap-body). */
     (void)character_resolve_pose(&g_freeroam_char, ring, now, axis);
+    /* Resolve the SWORD unsheathe/sheathe TOGGLE off the same ring: a Z (ring 9)
+     * press flips g_freeroam_char.sword_out (ckpt 155, USER ground truth).  ring is
+     * NULL while locked (the opening dialogue), so Z is dead until control hands off
+     * — matching retail's post-tutorial sword enable (PORT-DEBT(sword-quest-gate)). */
+    (void)character_resolve_sword(&g_freeroam_char, ring, now);
     character_step(&g_freeroam_char, axis, jump, run);
     g_freeroam_rs.world_x = g_freeroam_char.world_x;
     g_freeroam_rs.world_y = g_freeroam_char.world_y;
@@ -2908,10 +2914,18 @@ static void freeroam_step(void)
      * LEFT-facing pose/walk/idle emerge from the bank-0x8b +152 flip the renderer
      * applies on facing==3 (ARCHE_FREEROAM_FLIP) — so we render at the character
      * facing and the flip mirrors all the freeroam cels uniformly. */
-    static arche_pose_anim g_freeroam_pose_anim;
-    const anim_clip *want = arche_pose_clip(&g_freeroam_pose_anim,
-                                            g_freeroam_char.cmd_pose,
-                                            moving, g_freeroam_char.airborne, run);
+    /* The SWORD draw/sheathe transient wins over the pose/walk/idle: arche_sword_clip
+     * plays the UNSHEATHE cels 96-103 (~48t) on the sword_out 0->1 edge / a reverse
+     * SHEATHE on 1->0, then delegates to arche_pose_clip when no transient is active
+     * (the sword-out idle/walk reuse the base cels; ckpt 155, engine-quirk #115).  The
+     * LEFT-facing draw emerges from the bank-0x8b +152 flip like every freeroam cel. */
+    static arche_pose_anim  g_freeroam_pose_anim;
+    static arche_sword_anim g_freeroam_sword_anim;
+    const anim_clip *want = arche_sword_clip(&g_freeroam_sword_anim,
+                                             g_freeroam_char.sword_out,
+                                             &g_freeroam_pose_anim,
+                                             g_freeroam_char.cmd_pose,
+                                             moving, g_freeroam_char.airborne, run);
     if (g_freeroam_rs.clip != want) {
         g_freeroam_rs.clip  = want;
         g_freeroam_rs.timer = 0;

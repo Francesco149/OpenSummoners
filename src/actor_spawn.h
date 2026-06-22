@@ -258,6 +258,40 @@ typedef struct arche_pose_anim {
 const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
                                  int moving, int airborne, int run);
 
+/* ── The SWORD unsheathe/sheathe ANIMATION FSM (ckpt 155) ──  Ground-truthed off
+ * the USER's real-play recording (sword-realplay.osr, res 0x570; a FRESH new game
+ * so the quest/cel state matches the port).  Z (ring 9) toggles character.sword_out;
+ * this FSM watches that field for the 0->1 / 1->0 edge and plays the transient:
+ *   DRAW   (sword_out 0->1): UNSHEATHE cels 96..103 — the sword swings out over
+ *          ~48 sim-ticks (RE'd per-cel: 96 ~7t, 97-100 fast 3t, 101 9t, 102 9t,
+ *          103 12t; modelled as a uniform dur-3 clip with repeated cels, the
+ *          ARCHE_RUN_CLIP idiom — the captured durations are 3*{2,1,1,1,1,3,3,4}),
+ *          then falls through to the sword-OUT idle.
+ *   SHEATHE(sword_out 1->0): the reverse 103..96 as a PORT-DEBT(sword-sheathe-cels)
+ *          stand-in (the USER never sheathed in the recording; the real sheathe cels
+ *          come from the chip-2 clean capture).
+ * The sword-OUT IDLE/WALK reuse the BASE cels (the recording's sword-out idle is the
+ * RNG-driven fidget over cels 0-3 @14t = the base idle; sword-out has no distinct
+ * idle cels — the deferred 0x54f980 fidget, PORT-DEBT(char-idle-fidget)).  So when
+ * not in a draw/sheathe transient this delegates to arche_pose_clip (walk/idle/pose).
+ * The LEFT-facing draw emerges from the bank-0x8b +152 flip like every freeroam cel.
+ * Pure + host-tested; the caller keeps one arche_sword_anim (zero-init), calls this
+ * once per sim-tick ABOVE the pose layer (the draw/sheathe transient wins). */
+#define ARCHE_SWORD_DRAW_TICKS    48   /* UNSHEATHE clip length (16 frames * dur 3)  */
+#define ARCHE_SWORD_SHEATHE_TICKS 48   /* SHEATHE stand-in length (reverse draw)     */
+
+enum { ARCHE_SWORD_PHASE_NONE = 0, ARCHE_SWORD_PHASE_DRAW, ARCHE_SWORD_PHASE_SHEATHE };
+
+typedef struct arche_sword_anim {
+    int16_t prev_out;   /* last tick's sword_out (detect the draw/sheathe edge)     */
+    int16_t phase;      /* ARCHE_SWORD_PHASE_* — the active transient (0 = none)    */
+    int16_t timer;      /* sim-ticks elapsed in the transient (0 at the edge)       */
+} arche_sword_anim;
+
+const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
+                                  arche_pose_anim *pst, int16_t cmd_pose,
+                                  int moving, int airborne, int run);
+
 /* USER studio notes #3-5: the house Arche TURN.  After house L5 advances, the
  * cutscene fires CS_ACT_ACTOR_TURN; main.c plays arche_house_turn_clip() (the
  * one-shot cels 158->7) on the room-cast Arche (HOUSE_CAST[0]), then swaps to

@@ -28,6 +28,7 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->jump_ctr  = 0;
     c->cmd_lr    = 0;
     c->cmd_pose  = 0;
+    c->sword_out = 0;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -277,4 +278,23 @@ int16_t character_resolve_pose(character *c, const struct input_mgr *m,
 
     c->cmd_pose = cmd;
     return cmd;
+}
+
+/* The SWORD unsheathe/sheathe TOGGLE — the freeroam Z key (ring 9).  Consume a
+ * fresh ring-9 press (input_poll_consume: newest-first scan, .flag==1, age<=100ms,
+ * consume-on-read) so each physical press flips the stance exactly once (the
+ * consume zeroes the matched slot, so the next tick can't re-find the same press).
+ * The draw/sheathe ANIM is arche_sword_clip's job (it watches sword_out's edge).
+ *
+ * PORT-DEBT(sword-quest-gate): retail only lets id 9 reach the draw once the
+ * errands quest set weapon+0xd4=2 (case 8); the quest is unported, so the port
+ * toggles freely in the errands freeroam (the caller already locks input during
+ * the opening dialogue, so Z is dead until control hands off — matching retail's
+ * post-tutorial enable point). */
+int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now)
+{
+    if (c == NULL) return 0;
+    if (m != NULL && input_poll_consume(m, now, INPUT_RING_SWORD))
+        c->sword_out = (int16_t)(c->sword_out ? 0 : 1);
+    return c->sword_out;
 }

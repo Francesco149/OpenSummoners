@@ -3889,3 +3889,24 @@ the port's pose brake (no code change; port `.osr` `port-slide.osr` renders cels
 to a stop == the physics).  The REAL state-6 momentum slide (case 6: MAINTAIN the dash speed +
 `vvel+=4000` cap 64000, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
 `PORT-DEBT(char-slope-slide)`.
+
+### #115 — the freeroam SWORD is a Z TOGGLE (ring id 9); the UNSHEATHE is res 0x570 cels 96→103 (~48t), GATED on the errands quest reaching case 8 (`weapon+0xd4=2`); the sword baked into the cels (no separate sword sprite); sword-out idle reuses the BASE idle cels (2026-06-22, ckpt 156, RE'd off the USER real-play recording)
+Z (the unsheathe/sheathe key) = ring **id 9** (the live keybind config dump, ckpt 155 — Z was
+unwired in the port).  Pressing Z DRAWS the sword (`sword_out` 0→1), pressing again SHEATHES.
+The DRAW is a context-action (`478ba0:473-481`: id-9 press → if `atk94`(+0x14894)!=0 & the
+`+0x14874` array entry matches **`weapon+0xd4`** → queue cmd[5] type 0xd2) **gated on
+`weapon+0xd4=2`**, which the errands questline `0x4dc510` **case 8** sets (`:1167`); the quest
+var `FUN_0041e2f0(0x606aa50)` advances 2→8 across `4dc510`+`4d7d80` (the intro story).  A
+fresh-new-game capture sits at an early quest state ⇒ `weapon+0xd4=0` ⇒ Z does nothing (why the
+ckpt-155 INJECTED captures all failed); the USER's natural play reached case 8.  **Cels (off
+`sword-realplay.osr`, res 0x570, ALL on Arche's body bank — NO separate sword sprite, the sword
+is baked into the sword-out cels):  UNSHEATHE 96→97→98→99→100→101→102→103 over ~48 sim-ticks
+(96 ~7t, 97-100 fast 3t, 101 9t, 102 9t, 103 12t; widths 41/35/54/67/41/33/32/31 = the blade
+swinging out), then the sword-OUT IDLE = the BASE idle cels 0,1,2(,3) @14t (the RNG fidget;
+no distinct sword-out idle cels), ATTACK (X) cels 120-127 / 128-132 @12t.**  Forms 0xc35a/b/c
+are Arche install variants (`41f200`): 0xc35a base, 0xc35b sword-OUT (registers the attack
+actions); a draw re-installs as 0xc35b.  Ported (ckpt 156 chip 1): the DRAW + the `sword_out`
+toggle (`character_resolve_sword` + `arche_sword_clip`), gated `PORT-DEBT(sword-quest-gate)`;
+verified bit-exact off `port-sword.osr` (the draw cels' dst W×H byte-identical to the recording,
+durations exact mid-clip).  The ATTACK structure (3-combo / directionals) + sword-out walk need
+the chip-2 clean injected capture (force `weapon+0xd4=2`).

@@ -161,6 +161,24 @@ understates how much actual instruction volume is ported.
   `arche_attack_clip` (combo+directional) + trail vfx + sword-out poses, `PORT-DEBT(sword-quest-gate)`.
   ALSO: dad's tutorial DOOR-BLOCK dialogue (UP at door → dad stops you; in the recording).
   `plans/freeroam-sword-system.md` (the full cel map + the next-session plan).
+  **ckpt 156: the sword DRAW + sword-out STATE (chip 1) — PORTED + VERIFIED bit-exact.**  Z (ring 9,
+  `INPUT_RING_SWORD`, was unwired) toggles `character.sword_out` (`character_resolve_sword`,
+  `input_poll_consume` = one toggle/press); `arche_sword_clip` plays the UNSHEATHE clip (res 0x570
+  cels 96-103, dur-3 16-frame oneshot ~48t — the `3·{2,1,1,1,1,3,3,4}` durations off the recording)
+  on the 0→1 edge, a reverse SHEATHE stand-in on 1→0, then delegates to walk/idle/pose (sword-out
+  reuses base cels).  Wired in `freeroam_step` (ring NULL while the dialogue locks input → Z dead
+  until control hands off = retail's post-tutorial enable).  **VERIFIED off `port-sword.osr` vs
+  `sword-realplay.osr` (`draw_probe --res 0x570`, ticks 2152-2199):** the draw plays 96→103, every
+  cel's dst W×H **byte-identical** to the recording, per-cel durations EXACT for 97-102 (3,3,3,3,9,9),
+  ±2t only at the entry/exit boundary frames (the FSM/stepper pre-advance; non-lockstep noise; 48t vs
+  49t); the Z toggle sheathes 103→96.  1055 host pass (+`test_arche_sword_clip`,
+  +`test_character_resolve_sword`); quirk #115; `PORT-DEBT(sword-quest-gate)`+`(sword-sheathe-cels)`.
+  Feed: the port|recording draw montage (different sessions ⇒ ~4t phase + ~44px position offset, not
+  a bug).  **NEXT = chip 2: the ATTACK** (X neutral 120-127 + 128-132 + 3-combo + directionals) +
+  sword-out WALK + real SHEATHE — needs the CLEAN injected capture (Frida force `weapon+0xd4=2`).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-sword.osr` |
+  `sword-realplay.osr`) — scrub the errands freeroam ~tick 2150: Arche unsheathes her sword (cels
+  96-103) on the Z press, holds it out, then sheathes.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

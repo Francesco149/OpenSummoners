@@ -203,6 +203,13 @@ typedef struct {
     int16_t cmd_pose;  /* entity+0x14860 cmd[3] U/D pose: 0 none / 10 DOWN (crouch */
                        /*   /slide) / 0xb UP (defensive) — the self-sustain state  */
                        /*   for character_resolve_pose (local_608[3] snapshot)     */
+    int16_t sword_out; /* the SWORD stance: 0 = sheathed (in) / 1 = drawn (out).   */
+                       /*   Toggled by Z (ring 9) via character_resolve_sword; the */
+                       /*   anim FSM (arche_sword_clip) plays the draw/sheathe      */
+                       /*   transient on the edge.  Errands freeroam = sword        */
+                       /*   available (PORT-DEBT(sword-quest-gate); retail gates on */
+                       /*   the unported errands quest reaching case 8 = weapon+0xd4 */
+                       /*   = 2, 4dc510:1167).                                       */
 } character;
 
 /* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the
@@ -272,5 +279,21 @@ int character_resolve_run(character *c, const struct input_mgr *m, uint32_t now,
  * (the apply states 2/5/6) is a separate chip — this is the command layer only. */
 int16_t character_resolve_pose(character *c, const struct input_mgr *m,
                                uint32_t now, const int *axis_held);
+
+/* Resolve the SWORD unsheathe/sheathe TOGGLE from live input — the freeroam Z
+ * key (USER ground truth, ckpt 155: Z draws/sheathes; sword-realplay.osr).  Each
+ * sim-tick, consume a fresh ring-9 (INPUT_RING_SWORD) press via input_poll_consume
+ * (the 100 ms consume-on-read window = exactly one toggle per press, no repeat);
+ * on a press, flip c->sword_out (0 in <-> 1 out).  The draw/sheathe ANIMATION is
+ * the clip layer's job (arche_sword_clip watches sword_out for the edge).  `now`
+ * is the GetTickCount() ms clock the ring stamps with.  Returns the new sword_out.
+ *
+ * Retail gates the draw on the errands quest reaching case 8 (weapon+0xd4 = 2,
+ * 4dc510:1167); the quest system is unported, so the port lets Z toggle freely in
+ * the errands freeroam = PORT-DEBT(sword-quest-gate) (the sword becomes usable at
+ * the same errands point retail enables it).  Retail's id-9 also drives the
+ * discrete sword-OUT attack (cmd4=0xf); that is the attack layer's concern, not
+ * this toggle. */
+int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now);
 
 #endif /* OSS_CHARACTER_H */

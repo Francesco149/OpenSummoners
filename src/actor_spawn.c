@@ -1088,3 +1088,60 @@ const anim_clip *arche_pose_clip(arche_pose_anim *st, int16_t cmd_pose,
     st->prev_pose = cmd_pose;
     return want;
 }
+
+/* ── The SWORD unsheathe/sheathe clips + FSM (ckpt 155; see actor_spawn.h) ──
+ * RE'd off the USER's real-play recording (sword-realplay.osr, res 0x570, ticks
+ * 2156-2204 for the draw): the UNSHEATHE plays cels 96..103 over ~48 sim-ticks,
+ * then the sword-OUT idle (the base idle cels) resumes.  The per-cel hold the
+ * recording shows — 96~7t, 97/98/99/100 = 3t, 101 = 9t, 102 = 9t, 103 = 12t — is
+ * 3*{2,1,1,1,1,3,3,4}, so a uniform dur-3 clip with the slow cels repeated models
+ * it (the ARCHE_RUN_CLIP "hold a contact frame 2x" idiom).  base_sprite 96, so the
+ * frame_delta is the cel - 96. */
+static const anim_clip ARCHE_SWORD_DRAW_CLIP = {
+    .base_sprite = 96,
+    .frame_delta = { 0,0, 1, 2, 3, 4, 5,5,5, 6,6,6, 7,7,7,7 },  /* 96 96 97 98 99 100 101x3 102x3 103x4 */
+    .frame_count = 16,
+    .frame_dur   = 3,
+    .oneshot     = 1,    /* play once, hold on cel 103 until the FSM ends the draw */
+};
+/* SHEATHE — the reverse 103..96, a PORT-DEBT(sword-sheathe-cels) stand-in until the
+ * chip-2 clean capture records the real sheathe (the USER stayed drawn the whole
+ * recording).  Same dur-3 cadence reversed. */
+static const anim_clip ARCHE_SWORD_SHEATHE_CLIP = {
+    .base_sprite = 96,
+    .frame_delta = { 7,7,7,7, 6,6,6, 5,5,5, 4, 3, 2, 1, 0,0 },  /* 103x4 102x3 101x3 100 99 98 97 96x2 */
+    .frame_count = 16,
+    .frame_dur   = 3,
+    .oneshot     = 1,
+};
+
+const anim_clip *arche_sword_clip(arche_sword_anim *st, int16_t sword_out,
+                                  arche_pose_anim *pst, int16_t cmd_pose,
+                                  int moving, int airborne, int run)
+{
+    /* Detect the toggle edge: a change in sword_out starts the matching transient. */
+    if (sword_out != st->prev_out) {
+        st->phase = (int16_t)(sword_out ? ARCHE_SWORD_PHASE_DRAW
+                                        : ARCHE_SWORD_PHASE_SHEATHE);
+        st->timer = 0;
+    }
+    st->prev_out = sword_out;
+
+    if (st->phase == ARCHE_SWORD_PHASE_DRAW) {
+        if (st->timer < ARCHE_SWORD_DRAW_TICKS) {
+            st->timer = (int16_t)(st->timer + 1);
+            return &ARCHE_SWORD_DRAW_CLIP;
+        }
+        st->phase = ARCHE_SWORD_PHASE_NONE;       /* draw done -> sword-out idle */
+    } else if (st->phase == ARCHE_SWORD_PHASE_SHEATHE) {
+        if (st->timer < ARCHE_SWORD_SHEATHE_TICKS) {
+            st->timer = (int16_t)(st->timer + 1);
+            return &ARCHE_SWORD_SHEATHE_CLIP;
+        }
+        st->phase = ARCHE_SWORD_PHASE_NONE;
+    }
+
+    /* Not drawing/sheathing -> the normal walk/idle/pose (sword-out reuses base
+     * cels; the distinct sword-out walk/attack set is chip 2). */
+    return arche_pose_clip(pst, cmd_pose, moving, airborne, run);
+}

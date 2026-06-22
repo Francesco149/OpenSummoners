@@ -20,8 +20,9 @@
  * binding → 0x24 (46a880.c:590-602); X (config +0x558, the attack key) also
  * posts 0x24 (46a880.c:793-808) — so X is attack-held (axis 5) AND confirm.  Z
  * (a config button → ring 9, by elimination) has NO confirm/dialogue role; its
- * gameplay action (sheathe sword) is not in the port's reduced ring set, so it
- * has no row here. */
+ * gameplay action is the freeroam SWORD unsheathe/sheathe TOGGLE (ckpt 155 — the
+ * USER's real-play recording, sword-realplay.osr, proved Z draws the sword), now
+ * wired as ring 9 (INPUT_RING_SWORD); character_resolve_sword consumes it. */
 static const struct { uint8_t dik; int8_t axis; int16_t ring; } KEYMAP[] = {
     { DIK_UP_ARROW,    0, 1    },   /* +0x114, menu/up                       */
     { DIK_DOWN_ARROW,  1, 3    },   /* +0x118, menu/down                     */
@@ -30,6 +31,7 @@ static const struct { uint8_t dik; int8_t axis; int16_t ring; } KEYMAP[] = {
     { DIK_C,           4, 7    },   /* +0x124, jump (config +0x574 → ring 7) */
     { DIK_X,           5, 0x24 },   /* +0x128, attack-held + CONFIRM         *
                                      * (config +0x558 → ring 0x24)           */
+    { DIK_Z,          -1, 9    },   /* sword unsheathe/sheathe (ring 9)      */
     { DIK_RETURN,     -1, 0x24 },   /* CONFIRM (the FIXED 0x1c → ring 0x24)  */
 };
 #define KEYMAP_LEN ((int)(sizeof(KEYMAP) / sizeof(KEYMAP[0])))

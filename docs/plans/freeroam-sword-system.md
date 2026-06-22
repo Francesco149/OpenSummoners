@@ -1,6 +1,17 @@
 # Plan — the freeroam SWORD / ATTACK system (Z unsheathe + X attack)
 
-> **Status: RESOLVED mechanism (ckpt 155) — the sword IS available in the errands, GATED on the
+> **Status: CHIP 1 DONE (ckpt 156) — the DRAW + sword-out STATE are PORTED + verified bit-exact.**
+> Z (ring 9) toggles `sword_out` (`character_resolve_sword`); `arche_sword_clip` plays the UNSHEATHE
+> cels 96-103 (~48t) on the 0→1 edge / a reverse SHEATHE stand-in on 1→0, then delegates to the
+> walk/idle/pose (sword-out reuses base cels).  VERIFIED off `port-sword.osr` vs `sword-realplay.osr`
+> (`draw_probe --res 0x570`): the draw cels' dst W×H byte-identical, durations exact mid-clip (97-102),
+> ±2t at the boundary frames (non-lockstep noise).  `PORT-DEBT(sword-quest-gate)` (Z free in the
+> errands freeroam) + `(sword-sheathe-cels)` (reverse-draw stand-in).  Host-tested
+> (`test_arche_sword_clip` + `test_character_resolve_sword`).  **NEXT = chip 2: the ATTACK** (X,
+> neutral 120-127 + 128-132 + 3-combo + directionals) + sword-out WALK + the real SHEATHE — needs the
+> CLEAN injected capture (force `weapon+0xd4=2`); see "## ckpt-155 — the attack VARIANT set" below.
+>
+> **Mechanism RESOLVED (ckpt 155) — the sword IS available in the errands, GATED on the
 > tutorial quest reaching case 8 (`4dc510:1167` sets `weapon+0xd4=2`).**  USER (game owner) was RIGHT.
 > My fresh-new-game captures sat at an early quest state so it was never enabled (ring injection +
 > movement both PROVEN working via the id-7 jump control + the walk).  NEXT: reach quest state 8

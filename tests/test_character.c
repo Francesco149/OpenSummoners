@@ -620,6 +620,41 @@ int test_character_resolve_pose_up_overrides_down(void)
     return 0;
 }
 
+/* The SWORD unsheathe/sheathe TOGGLE (ckpt 155): a Z (ring 9) press flips sword_out
+ * exactly once (input_poll_consume consumes the press so it doesn't repeat next tick). */
+int test_character_resolve_sword(void)
+{
+    input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
+    uint32_t now = 100000;
+    character c; character_init(&c, 0, 0, CHAR_FACE_RIGHT);
+    T_ASSERT_EQ_I(c.sword_out, 0);
+
+    /* No press -> stays sheathed. */
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
+
+    /* A Z (ring 9) press -> draw (sword_out 1). */
+    input_event z1 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
+    m.ring[9] = &z1;
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);
+    /* The press was consumed (id zeroed) -> the held key does NOT re-toggle. */
+    T_ASSERT_EQ_I(z1.id, 0);
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);
+
+    /* A second, distinct Z press -> sheathe (back to 0). */
+    input_event z2 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
+    m.ring[40] = &z2;
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
+
+    /* A stale (>100 ms old) press is ignored. */
+    input_event z3 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
+    m.ring[20] = &z3;
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now + 500), 0);
+
+    /* NULL manager -> no-op (returns the current stance). */
+    T_ASSERT_EQ_I(character_resolve_sword(&c, NULL, now), 0);
+    return 0;
+}
+
 /* The pose PHYSICS (apply states 2/5, ckpt 153): cmd_pose engaged + grounded -> SKIP the
  * accel ramp -> brake the velocity toward 0 at the WALK brake, even while a direction is
  * STILL held.  Bit-exact vs retail (runs/pose-demo/cap-body): the UP-pose brakes a 24000

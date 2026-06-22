@@ -179,6 +179,14 @@ void input_mgr_reset(input_mgr *m);
 #define INPUT_RING_DIR_DOWN  3
 #define INPUT_RING_DIR_RIGHT 4
 
+/* Z (the unsheathe/sheathe key, config button → ring 9 by elimination, ckpt 155).
+ * A discrete press: the freeroam sword toggle (character_resolve_sword) consumes
+ * it via input_poll_consume (the 100 ms consume-on-read window = one toggle per
+ * press).  Sword-OUT, retail also routes id 9 to the discrete attack (cmd4=0xf,
+ * 478ba0:302); the port's reduced freeroam reads the held X (axis 5) for attacks,
+ * so id 9 is the toggle only. */
+#define INPUT_RING_SWORD     9
+
 /* Was `dir_id` (a direction ring id) DOUBLE-TAPPED within the last `window`
  * ms?  The dash trigger: a faithful reduction of FUN_00479e70 as the char-AI
  * 0x478ba0 invokes it for the L/R dash (param_2=0, param_3=param_4=window,
