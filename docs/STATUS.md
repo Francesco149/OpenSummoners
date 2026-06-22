@@ -272,6 +272,36 @@ understates how much actual instruction volume is ported.
   (`studio-current.txt` → `port-attack-dir.osr` | `sword2.osr 227`) — errands freeroam: with the sword
   drawn, down+X = a crouch slash (112-115), right+X = a forward lunge (120-126, steps forward ~54px),
   left+X (while facing right) = a back-swing that TURNS HER AROUND (144-148 → faces left).
+  **ckpt 162 — chip-2c-1: the UP (overhead) ATTACK BODY — PORTED + verified BIT-EXACT + USER-CONFIRMED.**
+  UP+X (X held + UP) fires an overhead thrust on a THIRD body bank: Arche RE-installs 0x8c (res 0x571) →
+  **0x8d (res 0x572)** for the swing (res 0x571 VANISHES, like the Z draw swaps 0x8b→0x8c; the action 0x283f
+  is registered in the 0xc35b sword-out form, 41f200:1193/1202, drawing slot 2 = bank 0x8d at :901
+  0x426db0(2,0x8d,...)).  `character_resolve_attack` picks CHAR_ATTACK_UP (UP > DOWN > L/R > NEUTRAL; UP/DOWN
+  mutually exclusive on the dpad); STATIONARY (the vel-lock, like NEUTRAL); `ARCHE_ATTACK_UP_CLIP` (res 0x572
+  cels 0→5, durs [4,4,4,8,8,8]=36t, encoded dur-4 ×{0,1,2,3,3,4,4,5,5} to fit ANIM_CLIP_MAX_FRAMES 32);
+  `freeroam_step` swaps bank 0x8d while attack_kind==UP.  The per-frame draw OFFSET (the renderer's
+  case-0x1872d off_x/off_y, NOT the cel's sheet origin — ox/oy/ow/oh are byte-identical port↔retail): off_y
+  **−16** (the overhead RAISE → screen y=320 vs the 336 idle baseline), off_x **+16/+26** (cels 0-2,5 / cels
+  3-4 lean forward), RE'd off the dst deltas vs the tick-adjacent stationary up-pose at world_screen (270,336).
+  **VERIFIED off `port-attack-up.osr` vs `sword2.osr` (`sword572_cels.py`):** cels 0-5 dst W×H byte-identical
+  (38x54/39x52/61x61/36x96/36x96/60x63), durs [3,4,4,8,8,9] (±1t entry/exit FSM boundary, total 36t), y=320
+  IDENTICAL both sides, the +10 x on cels 3-4 reproduced, res 0x571 vanishes during the thrust.  **USER-CONFIRMED
+  visual** ("the attacks look correct", the feed port|retail montage).  1058 host pass (+UP variant-select /
+  duration / stationary cases).  Commits `9961d93` (code) + `b6d9ae0` (docs).
+  **chip 2c-2 the TRAIL (res 0x40b sparkles) = `PORT-DEBT(sword-attack-trail)`** — a +0x13e0 particle-band
+  effect (32x32 sprite bank 0x1ad, frames 24→31 shrinking 22x22→6x6, additive mode 0xb, ~12 concurrent, ages
+  out by tick 3912; emit `45e830` case 0x283f → `FUN_00557370(0x186f2)` / `FUN_004505c0` / step `FUN_0046e510`
+  / render `FUN_00493480`).  OPEN RE puzzle: the decompile path (0xc35b → FUN_004505c0 DEFAULT = the body cel,
+  emit ticks 5/10/15) doesn't reconcile with the draw stream (res 0x40b, ~2/tick) — needs a LIVE Frida read of
+  the form code + emitter args during a swing, or deeper static RE.  Body ships bit-exact; trail absent (no
+  fake).  **chip 2c-3 slide 48/49 = `PORT-DEBT(char-slope-slide)`** (the prone state-6 slope slide, unreached
+  on the flat errands floor).  RESIDUAL: bank-0x8d LEFT mirror = +192 hypothesis (set in the flip table),
+  unverified — needs a left-facing up-attack capture (the first sword2.osr up-attack is right-facing).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-attack-up.osr` |
+  `sword2.osr 1728`) — errands freeroam: with the sword drawn, UP+X = an overhead thrust (res 0x572 cels 0-5,
+  the blade extends straight up ~96px), STATIONARY, then back to the sword-out idle.
+  **NEXT (fresh /clear candidate): the freeroam HUD PIVOT** (sword-independent, scoped, `findings/freeroam-hud.md`)
+  — OR resolve the sword TRAIL via a real-play Frida capture (hook `FUN_004505c0`/`FUN_00557370` during an up-attack).
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
   inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.
