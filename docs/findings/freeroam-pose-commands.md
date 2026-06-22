@@ -84,6 +84,44 @@ The case-0x75 ramp's decompile reuses stack slots (the apparent state-6 slide pa
 the law by the per-tick capture — which showed DOWN→state 2 (not 6) for the player and the
 uniform −800 brake.  Never a line-by-line port.
 
+## The SLIDE (dash-then-down) — PROVEN state-2 CROUCH from 48000 (ckpt 154)
+
+The ckpt-153 dismissal of state-6 ("non-player path") was UNTESTED FROM A DASH — cap-body
+only reached DOWN from a WALK (cmd0=2, 24000; its `ids:[4,4]` came AFTER the held-right so
+the double-tap never fired — the #3395 trap).  Captured a REAL dash-then-down
+(`runs/pose-demo/cap-slide3`: the proven inject `ids:[4,4]`+held right → **cmd0=6, hvel→48000**,
+THEN DOWN ring+held, RIGHT still held): the apply puts Arche in **state 2 (CROUCH)**, hvel
+brakes **48000→0 at −800/tick** (per-sim-tick: 45/47 deltas −800, the 2 outliers = missing
+samples; tick 1581 hvel 48000 → tick 1582 cmd3=10 bstate=2 hvel 47200 = −800), cmd0 stays 6
+through the whole brake.  The discriminators (added to `pose_consts_fields.json`):
+- **`[0x5653]` (entity+0x1594c) = 0** = the FLAT-GROUND terrain/collision mode ⇒ `local_4`
+  stays 0 (442a70:736-740 sets it only for `[0x5653]`∈[1,3]) ⇒ the state-6 branch
+  (442a70:780-783) is UNREACHABLE ⇒ DOWN → state 2 always.
+- **`param_2` (`*(body+0x24)`) = 1** (≠0) ⇒ even with `local_4` set, 442a70:781 `param_2==0`
+  would still gate out state 6.
+
+So on flat ground a SLIDE IS a CROUCH (state 2) entered with the 48000 dash momentum,
+bleeding at −800/tick over ~60 ticks (a ~119px glide) = "hold to keep sliding".  **The port
+already does exactly this** (`character.c:78-89` brakes ANY pose to 0 at −800; the host
+`character_pose_brakes` 48000→0 case == cap-slide3 tick-for-tick).  No code change — the chip
+was a VERIFICATION that resolved the open question (state 2, not 6, from a dash).
+
+**State 6 (the REAL slope-slide) — UNREACHED, `PORT-DEBT(char-slope-slide)`.**  442a70 case 6
+(907-914 + 975-1036): on terrain `[0x5653]`∈[1,3] with `param_2==0`, DOWN enters state 6 which
+(a) does NOT skip the accel ramp (`bVar16` stays true at :959) → for cmd0=6 facing-aligned,
+`iVar5`=+`[0x566c/b]` toward cap `[0x566a]`=48000 → MAINTAINS the dash speed (true momentum
+slide, not a brake); (b) case-6 adds `vvel += [0x5657]`=4000 cap `[0x5656]`=64000 (the
+slope-fall term); (c) exits to idle after 8 ticks (`body+0x3c`).  Needs a SLOPE scene to
+capture + port — every freeroam scene reached so far (errands/town) is flat (`[0x5653]`=0).
+
+### Verified off port-slide.osr (ckpt 154)
+Drove the port into a dash-then-down (`runs/pose-demo/port-slide-{nav,held}.jsonl`,
+`C:\oss-osr\port-slide.osr`).  `draw_probe --res 0x570`: dash cels 16→20 (dst-x +5px/tick =
+the 48000 cap), then on DOWN → CROUCH **enter cel 31** (4t) → **hold 32** while dst-x
+decelerates +5,+4,+3,+2,+1,+0 (the −800/tick brake) over ~60 ticks (dx 275→412 = **119px
+glide**) → on release **exit 31** (5t) → idle.  The slide renders the ckpt-153b-verified
+state-2 crouch cels gliding on the bit-exact brake = the cap-slide3 physics, drawcall-faithful.
+
 ### the move-tuning constants — CAPTURED (ckpt 153, off Arche's idle errands entity)
 Read live off Arche's entity (`pose_consts_fields.json`, `runs/pose-demo/cap-consts2`, the
 errands freeroam frame 4554 — wx=19200, idle):
@@ -212,6 +250,12 @@ the pattern but not directly captured (verify when a dash-left / jump-left is ex
   `+0x140/+0x144`); the ring [10,800] + self-sustain cover a continuous hold, so it's a
   redundant backstop here.
 - `char-up-door-probe` — the UP door/ledge enter (478ba0:260-285), collision-coupled.
+- `char-slope-slide` — the REAL state-6 momentum slide (442a70 case 6: maintain dash speed
+  + slope-fall `vvel+=4000` cap 64000, exit after 8t).  Gated on terrain `[0x5653]`∈[1,3] +
+  `param_2==0` — UNREACHED in any flat freeroam (`[0x5653]`=0; cap-slide3).  Capture + port
+  when a SLOPE scene is reached.  On flat ground DOWN-from-dash is state-2 crouch (done).
+- ~~`char-slide-from-dash`~~ — RETIRED ckpt 154 (PROVEN state-2 crouch / −800 brake from the
+  48000 dash, cap-slide3; the port + host test already bit-exact; see "## The SLIDE").
 - ~~`char-pose-physics`~~ — RETIRED ckpt 153 (the apply states 2/5 brake law, bit-exact).
 - ~~`char-pose-anim`~~ — RETIRED ckpt 153b (the crouch/up SPRITE, BOTH facings: right
   31/32/34/35 + left 183/184/186/187 via the +152 flip; see "## The POSE ANIM" + "## The

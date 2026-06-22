@@ -6,9 +6,43 @@
 > `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
 > the next move, the module layout, and open RE threads.
 
-## Where we are — ckpt 153b
+## Where we are — ckpt 154
 
-**LATEST (ckpt 153b): the freeroam U/D-POSE SPRITE (crouch/up-defensive) is PORTED + bit-exact —
+**LATEST (ckpt 154): the freeroam SLIDE (dash-then-down) is VERIFIED bit-exact — the open question
+(state-2 crouch vs state-6 slide from a DASH) is RESOLVED; NO code change.**  1053 host pass.
+
+- **The chip was a VERIFICATION**, not a port: the SLIDE physics + sprite were already correct (the host
+  test even covered the 48000 case), but the ckpt-153 dismissal of the decompile's state-6 path was UNTESTED
+  from a dash (cap-body only reached DOWN from a 24000 WALK — its `[4,4]` came after the held-right so the
+  double-tap never fired, the #3395 trap).
+- **RE (`0x442a70`):** the state-2 (CROUCH) vs state-6 (SLIDE) split is `local_4` (442a70:736-740), set ONLY
+  for terrain `[0x5653]`∈[1,3]; state 6 also needs `param_2`(`*(body+0x24)`)==0.  State 2 brakes hvel to 0 at
+  −800/tick (skip accel, :959 `bVar16=false`); state 6 MAINTAINS the dash speed + adds a slope-fall term + exits
+  after 8t (the real momentum slide).
+- **Capture (`runs/pose-demo/cap-slide3`, lockstep field capture):** the proven inject `ids:[4,4]`+held right →
+  **cmd0=6, hvel→48000**, THEN DOWN+held → **bstate→2 (CROUCH)**, hvel brakes **48000→0 at −800/tick** (45/47
+  per-sim-tick deltas −800; tick 1581 hvel 48000 → tick 1582 cmd3=10 bstate 2 hvel 47200).  **`[0x5653]`=0** (FLAT
+  ground ⇒ `local_4`=0 ⇒ state-6 unreachable) + **`param_2`=1** ⇒ DOWN is ALWAYS state 2.  Added `c_5653`/`body_24`
+  to `pose_consts_fields.json`.
+- **So a flat-ground SLIDE IS a crouch entered with the 48000 dash momentum, gliding ~119px at −800/tick =
+  "hold to keep sliding"** — exactly what the port does (`character.c:78-89`; host `character_pose_brakes`
+  48000-case == cap-slide3 tick-for-tick).  Only a comment + the docs changed.
+- **VERIFIED off `port-slide.osr`** (drove the port into a dash-then-down, `draw_probe --res 0x570`): dash cels
+  16→20 (dst-x +5px/tick = 48000), then DOWN → CROUCH enter cel 31 (4t) → hold 32 while dst-x decelerates
+  +5,+4,+3,+2,+1,+0 (the −800 brake) to a stop (dx 275→412 = 119px glide) → release exit 31 → idle.
+- **The REAL state-6 momentum slide is a SLOPE mechanic** (`[0x5653]`∈[1,3]) → unreached in any flat freeroam →
+  `PORT-DEBT(char-slope-slide)` (capture + port when a slope scene is reached).  quirk #114 extended.
+  `findings/freeroam-pose-commands.md` "## The SLIDE".  **USER-VERIFY: click the studio shortcut**
+  (`studio-current.txt` → `port-slide.osr` | `retail.osr`) — scrub the errands freeroam ~tick 2157-2260: Arche
+  dashes right then crouch-slides to a stop (retail.osr is idle there — a port-only demo, like the dash).
+  Feed: `slide_montage.png`.
+- **NEXT moveset:** sword Z / attack X (likely needs a LATER scene — Arche has no sword yet in the errands;
+  the tutorial maps Z/X to "talk to people"), the door-enter (`char-up-door-probe`, collision-coupled).  THEN
+  the freeroam HUD (scoped, `findings/freeroam-hud.md`).
+
+## Where we are (prior chip) — ckpt 153b
+
+**The freeroam U/D-POSE SPRITE (crouch/up-defensive) is PORTED + bit-exact —
 `PORT-DEBT(char-pose-anim)` RETIRED.**  1053 host pass.  The MOVEMENT was bit-exact (ckpt 153) but
 Arche rendered her idle/walk cel while posing (USER: "slides around in one pose").  To RE the cels
 off the retail draw stream I added **held-axis injection to the trace-studio capture proxy**

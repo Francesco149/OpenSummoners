@@ -107,8 +107,20 @@
   right walk 8-15 / idle 0-2, left walk 160-167 / idle 152-154 / crouch 183-184 / up 186-187 == retail.
   `PORT-DEBT(char-pose-anim)` + `(char-freeroam-left-cels)` BOTH RETIRED; quirk #114; 1053 host pass.
   RESIDUAL: left RUN/JUMP via the same +152 flip (consistent, verify when exercised).
-  Remaining moveset: the dash-then-down SLIDE (= same crouch state, just entered with momentum),
-  sword(Z)/attack(X), the door-enter (= char-up-door-probe, collision-coupled).
+  **ckpt 154: the dash-then-down SLIDE — VERIFIED bit-exact + the open question RESOLVED (no code change).**
+  RE'd `0x442a70`: the state-2 (crouch) vs state-6 (slide) split is `local_4`, set ONLY for terrain
+  `[0x5653]`∈[1,3].  Captured a REAL dash-then-down (`runs/pose-demo/cap-slide3`: the proven inject `ids:[4,4]`+
+  held right → **cmd0=6, hvel→48000**, THEN DOWN) — the ckpt-153 dismissal of state-6 was UNTESTED from a dash
+  (cap-body only reached DOWN from a 24000 WALK).  Result: **bstate→2 (CROUCH), hvel brakes 48000→0 at −800/tick**
+  (45/47 per-sim-tick deltas −800), `[0x5653]`=0 (FLAT ground ⇒ state-6 unreachable) + `param_2`=1.  So a
+  flat-ground SLIDE IS a crouch entered with the 48000 dash momentum, gliding ~119px at −800/tick = "hold to keep
+  sliding" — **exactly what the port already does** (`character.c:78-89`; host `character_pose_brakes` 48000-case
+  == cap-slide3 tick-for-tick).  VERIFIED off `port-slide.osr` (`draw_probe --res 0x570`): dash cels 16→20 →
+  CROUCH 31→32 gliding dst-x +5,+4,+3,+2,+1,+0 to a stop (dx 275→412) → exit 31 → idle.  The REAL state-6
+  momentum slide (maintain dash speed + slope-fall, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
+  `PORT-DEBT(char-slope-slide)`.  1053 host pass; quirk #114 extended.  `findings/freeroam-pose-commands.md` "## The SLIDE".
+  Remaining moveset: sword(Z)/attack(X) (likely unavailable this early — Arche has no sword yet; verify in a
+  later scene), the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **THEN the freeroam HUD** (fully SCOPED, `findings/freeroam-hud.md`; its banks are also
   sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
@@ -207,8 +219,11 @@
     the freeroam U/D-POSE SPRITE (char-pose-anim) — held-axis injection added to the trace-studio proxy,
     cels RE'd off retail-pose.osr (CROUCH 31→32→31, UP 34→35→34), arche_pose_clip keyed on cmd_pose;
     port .osr res 0x570 == retail tick-for-tick ✓ (153b, quirk #114) →
-    **next: the rest of the moveset (sword Z / attack X / door-enter = char-up-door-probe) + the freeroam
-    HUD (scoped)**.
+    the dash-then-down SLIDE — PROVEN state-2 crouch / −800-brake from the 48000 dash (cap-slide3:
+    `[0x5653]`=0 flat ground ⇒ state-6 unreachable), already bit-exact in the port; verified off port-slide.osr
+    (cels 31→32 gliding ~119px to a stop); the REAL state-6 slope slide = `PORT-DEBT(char-slope-slide)` ✓ (154) →
+    **next: sword Z / attack X (likely needs a later scene — no sword yet) + the door-enter
+    (= char-up-door-probe, collision-coupled) + the freeroam HUD (scoped)**.
 - **LATEST (ckpt 152): the errands-scene OPENING DIALOGUE is PORTED + TICK-ALIGNED (USER directive).**
   USER: "we're still missing the opening dialogue for the errands scene (starts once it switches to the
   errands scene where you have control). port that first."  The questline `0x4dc510`'s entry case

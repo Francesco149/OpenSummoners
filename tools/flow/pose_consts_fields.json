@@ -1,39 +1,380 @@
 {
-  "_doc": "THROWAWAY ground-truth spec (Phase-4, ckpt 153 — the U/D-POSE physics chip). Reads (a) the per-entity MOVE-TUNING constants 0x442a70 case-0x75 uses for the CROUCH/SLIDE/UP-pose off Arche's entity (in_ECX[idx] = entity byte idx*4), and (b) the per-tick BODY state during a crouch/slide/up-pose, so the apply states 2/5/6 can be PINNED by capture (the case-0x75 ramp's decompile reuses stack slots — ckpt-117 lesson). Entity chain = the leader chain [room_state 0x2784, leader-slot 0x200c, entity 0x9f4]; body = *(entity+0x40). Drive: nav to settled errands freeroam, hold DOWN (crouch), DOWN-after-dash (slide), UP (defensive) and read body+0x28 (hvel) + body+0x38 (state) per tick. RUN (when the Frida host is up): frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/pose-demo/pose-nav.jsonl --held-trace runs/pose-demo/pose-held.jsonl --field-spec tools/flow/pose_consts_fields.json --field-spec-only --call-trace --call-trace-frames <freeroam frames> --run-dir runs/pose-demo/cap.",
-  "fields": {
-    "0x5b8fc0": {
-      "name": "arche_pose_tuning",
-      "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's ENTITY (code 0xc35a), reads the 0x442a70 move-tuning consts (in_ECX[idx], byte idx*4) + the per-tick body (body = *(entity+0x40)).",
-      "fields": [
-        {"name": "code",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468,   "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
-
-        {"name": "cmd0",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 84052, "type": "i32", "reason": "entity+0x14854 cmd[0] walk/dash (1/2/5/6) — context"},
-        {"name": "cmd3",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 84064, "type": "i32", "reason": "entity+0x14860 cmd[3] U/D pose (10 DOWN / 0xb UP) — confirms the pose engaged"},
-
-        {"name": "wx",      "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,  "type": "i32", "reason": "body+4 worldX"},
-        {"name": "hvel",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 40, "type": "i32", "reason": "body+0x28 horizontal vel accumulator — THE pose physics target (crouch/up brake-to-0, slide momentum)"},
-        {"name": "vvel",    "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 24, "type": "i32", "reason": "body+0x18 vertical vel (confirm 0 on the ground)"},
-        {"name": "bstate",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 56, "type": "i32", "reason": "body+0x38 FSM main|sub<<16 — 2 crouch / 5 up / 6 slide"},
-
-        {"name": "c_565b",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88428, "type": "i32", "reason": "in_ECX[0x565b] WALK CAP (sanity, expect 24000)"},
-        {"name": "c_565c",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88432, "type": "i32", "reason": "in_ECX[0x565c] WALK ACCEL (sanity, 1600)"},
-        {"name": "c_565e",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88440, "type": "i32", "reason": "in_ECX[0x565e] WALK BRAKE (sanity, -800) — the up/crouch brake rate hypothesis"},
-
-        {"name": "c_5656",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88408, "type": "i32", "reason": "in_ECX[0x5656] SLIDE local_20 (442a70:909 case-6) — cap or brake"},
-        {"name": "c_5657",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88412, "type": "i32", "reason": "in_ECX[0x5657] SLIDE param_3 (442a70:908 case-6) — accel or cap"},
-        {"name": "c_5659",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88420, "type": "i32", "reason": "in_ECX[0x5659] terrain gate (442a70:745)"},
-        {"name": "c_5663",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88460, "type": "i32", "reason": "in_ECX[0x5663] RUN-enable gate (442a70:997 dash accel)"},
-        {"name": "c_5666",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88472, "type": "i32", "reason": "in_ECX[0x5666] dash/target gate (442a70:803/983)"},
-        {"name": "c_566a",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88488, "type": "i32", "reason": "in_ECX[0x566a] alt accel/target (442a70:976)"},
-        {"name": "c_566b",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88492, "type": "i32", "reason": "in_ECX[0x566b] (442a70:989)"},
-        {"name": "c_566c",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88496, "type": "i32", "reason": "in_ECX[0x566c] (442a70:985)"},
-        {"name": "c_5675",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88532, "type": "i32", "reason": "in_ECX[0x5675] CROUCH gate (442a70:776 — state-2 entry)"},
-        {"name": "c_5676",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88536, "type": "i32", "reason": "in_ECX[0x5676] crouch state-2 transition value (442a70:825)"},
-        {"name": "c_5684",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88592, "type": "i32", "reason": "in_ECX[0x5684] UP-pose gate (442a70:795 — state-5 entry)"},
-        {"name": "c_5689",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 88612, "type": "i32", "reason": "in_ECX[0x5689] pose gate (442a70:790/798)"},
-        {"name": "c_5204",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 83984, "type": "i32", "reason": "in_ECX[0x5204] buff flag (442a70:1004 cap+24000)"},
-        {"name": "c_5205",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 83988, "type": "i32", "reason": "in_ECX[0x5205] buff flag (442a70:1007 accel+2000/brake-800)"}
-      ]
+ "_doc": "THROWAWAY ground-truth spec (Phase-4, ckpt 153 \u2014 the U/D-POSE physics chip). Reads (a) the per-entity MOVE-TUNING constants 0x442a70 case-0x75 uses for the CROUCH/SLIDE/UP-pose off Arche's entity (in_ECX[idx] = entity byte idx*4), and (b) the per-tick BODY state during a crouch/slide/up-pose, so the apply states 2/5/6 can be PINNED by capture (the case-0x75 ramp's decompile reuses stack slots \u2014 ckpt-117 lesson). Entity chain = the leader chain [room_state 0x2784, leader-slot 0x200c, entity 0x9f4]; body = *(entity+0x40). Drive: nav to settled errands freeroam, hold DOWN (crouch), DOWN-after-dash (slide), UP (defensive) and read body+0x28 (hvel) + body+0x38 (state) per tick. RUN (when the Frida host is up): frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/pose-demo/pose-nav.jsonl --held-trace runs/pose-demo/pose-held.jsonl --field-spec tools/flow/pose_consts_fields.json --field-spec-only --call-trace --call-trace-frames <freeroam frames> --run-dir runs/pose-demo/cap.",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "arche_pose_tuning",
+   "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's ENTITY (code 0xc35a), reads the 0x442a70 move-tuning consts (in_ECX[idx], byte idx*4) + the per-tick body (body = *(entity+0x40)).",
+   "fields": [
+    {
+     "name": "code",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 468,
+     "type": "hex",
+     "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"
+    },
+    {
+     "name": "cmd0",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 84052,
+     "type": "i32",
+     "reason": "entity+0x14854 cmd[0] walk/dash (1/2/5/6) \u2014 context"
+    },
+    {
+     "name": "cmd3",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 84064,
+     "type": "i32",
+     "reason": "entity+0x14860 cmd[3] U/D pose (10 DOWN / 0xb UP) \u2014 confirms the pose engaged"
+    },
+    {
+     "name": "wx",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "reason": "body+4 worldX"
+    },
+    {
+     "name": "hvel",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 40,
+     "type": "i32",
+     "reason": "body+0x28 horizontal vel accumulator \u2014 THE pose physics target (crouch/up brake-to-0, slide momentum)"
+    },
+    {
+     "name": "vvel",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 24,
+     "type": "i32",
+     "reason": "body+0x18 vertical vel (confirm 0 on the ground)"
+    },
+    {
+     "name": "bstate",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 56,
+     "type": "i32",
+     "reason": "body+0x38 FSM main|sub<<16 \u2014 2 crouch / 5 up / 6 slide"
+    },
+    {
+     "name": "c_565b",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88428,
+     "type": "i32",
+     "reason": "in_ECX[0x565b] WALK CAP (sanity, expect 24000)"
+    },
+    {
+     "name": "c_565c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88432,
+     "type": "i32",
+     "reason": "in_ECX[0x565c] WALK ACCEL (sanity, 1600)"
+    },
+    {
+     "name": "c_565e",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88440,
+     "type": "i32",
+     "reason": "in_ECX[0x565e] WALK BRAKE (sanity, -800) \u2014 the up/crouch brake rate hypothesis"
+    },
+    {
+     "name": "c_5656",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88408,
+     "type": "i32",
+     "reason": "in_ECX[0x5656] SLIDE local_20 (442a70:909 case-6) \u2014 cap or brake"
+    },
+    {
+     "name": "c_5657",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88412,
+     "type": "i32",
+     "reason": "in_ECX[0x5657] SLIDE param_3 (442a70:908 case-6) \u2014 accel or cap"
+    },
+    {
+     "name": "c_5659",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88420,
+     "type": "i32",
+     "reason": "in_ECX[0x5659] terrain gate (442a70:745)"
+    },
+    {
+     "name": "c_5663",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88460,
+     "type": "i32",
+     "reason": "in_ECX[0x5663] RUN-enable gate (442a70:997 dash accel)"
+    },
+    {
+     "name": "c_5666",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88472,
+     "type": "i32",
+     "reason": "in_ECX[0x5666] dash/target gate (442a70:803/983)"
+    },
+    {
+     "name": "c_566a",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88488,
+     "type": "i32",
+     "reason": "in_ECX[0x566a] alt accel/target (442a70:976)"
+    },
+    {
+     "name": "c_566b",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88492,
+     "type": "i32",
+     "reason": "in_ECX[0x566b] (442a70:989)"
+    },
+    {
+     "name": "c_566c",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88496,
+     "type": "i32",
+     "reason": "in_ECX[0x566c] (442a70:985)"
+    },
+    {
+     "name": "c_5675",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88532,
+     "type": "i32",
+     "reason": "in_ECX[0x5675] CROUCH gate (442a70:776 \u2014 state-2 entry)"
+    },
+    {
+     "name": "c_5676",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88536,
+     "type": "i32",
+     "reason": "in_ECX[0x5676] crouch state-2 transition value (442a70:825)"
+    },
+    {
+     "name": "c_5684",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88592,
+     "type": "i32",
+     "reason": "in_ECX[0x5684] UP-pose gate (442a70:795 \u2014 state-5 entry)"
+    },
+    {
+     "name": "c_5689",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88612,
+     "type": "i32",
+     "reason": "in_ECX[0x5689] pose gate (442a70:790/798)"
+    },
+    {
+     "name": "c_5204",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 83984,
+     "type": "i32",
+     "reason": "in_ECX[0x5204] buff flag (442a70:1004 cap+24000)"
+    },
+    {
+     "name": "c_5205",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 83988,
+     "type": "i32",
+     "reason": "in_ECX[0x5205] buff flag (442a70:1007 accel+2000/brake-800)"
+    },
+    {
+     "name": "c_5653",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88396,
+     "type": "i32",
+     "reason": "in_ECX[0x5653] TERRAIN/COLLISION MODE (442a70:706/736/919): 0=flat->local_4=0 (DOWN always state-2 CROUCH); [1,3] enables local_4=1 -> state-6 SLIDE. THE slide discriminator."
+    },
+    {
+     "name": "c_5654",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88400,
+     "type": "i32",
+     "reason": "in_ECX[0x5654] default local_20 (442a70:698) \u2014 context"
+    },
+    {
+     "name": "c_5655",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 88404,
+     "type": "i32",
+     "reason": "in_ECX[0x5655] default param_3 (442a70:699) \u2014 context"
+    },
+    {
+     "name": "body_24",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548,
+      64
+     ],
+     "off": 36,
+     "type": "i32",
+     "reason": "*(body+0x24) = param_2 (442a70:697/707): slide(state6) needs param_2==0 (442a70:781). The ground/platform ptr."
     }
+   ]
   }
+ }
 }

@@ -3879,3 +3879,13 @@ idle 0-2→152-154, walk 8-15→160-167, run 16-21→168-173, crouch 31/32→183
 dedicated left clips.  ALSO corrected the ckpt-144 right cels: the freeroam right WALK is
 8-15 (dur 6) and IDLE 0-2 (dur 14), not 0-3 / 0-1.**  Verified off `port-walkidle.osr`.
 (PORT-DEBT(char-pose-anim) + (char-freeroam-left-cels) BOTH retired.)
+**The SLIDE (dash-then-down, ckpt 154): PROVEN state-2 CROUCH from the 48000 dash, NOT
+state-6.**  cap-slide3 (real dash `cmd0=6` hvel→48000, then DOWN): bstate→**2**, hvel brakes
+**48000→0 at −800/tick** (cmd0 stays 6).  The state-2-vs-6 split is `local_4` (442a70:736-740),
+set only for terrain **`[0x5653]`∈[1,3]**; Arche on flat ground reads **`[0x5653]`=0** (+ the
+slide also needs `param_2`=`*(body+0x24)`==0, but it reads 1) ⇒ DOWN is ALWAYS state 2.  So a
+flat-ground SLIDE is a CROUCH entered with dash momentum, gliding ~119px at −800/tick — exactly
+the port's pose brake (no code change; port `.osr` `port-slide.osr` renders cels 31→32 gliding
+to a stop == the physics).  The REAL state-6 momentum slide (case 6: MAINTAIN the dash speed +
+`vvel+=4000` cap 64000, exit after 8t) is a SLOPE mechanic (`[0x5653]`∈[1,3]) → unreached,
+`PORT-DEBT(char-slope-slide)`.
