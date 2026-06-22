@@ -152,3 +152,27 @@ post-unlock timing + draw-anim time, the sword never draws.
   1427) and reaches the moving-in errands as the very FIRST freeroam — most consistent with Arche NOT
   having her sword equipped/enabled that early in a clean run.  NEXT: USER to confirm whether a
   brand-new game has the sword at the first errands or only after a beat; OR an `.osr` visual capture.
+
+## ckpt-155 captures 4-5c — MOVEMENT works; the Z-draw path's weapon state is empty
+USER (ckpt 155): sword IS wieldable right after the errands dialogue (same spot as the movement
+tests); "inputs maybe not going through" (saw retail idle in the PORT traces — idle there BY DESIGN).
+- **Capture 4 (added `wx`/`hvel`):** during a clean held-RIGHT walk, **Arche MOVED 16,680 units**
+  (wx 19200→35880, hvel ramped to the 24000 walk cap).  So the frida injection DOES reach retail +
+  take effect — the held-axis walk + the X(id8) auto-attack (cmd4=0xe) both fire.  Inputs ARE going
+  through.  The issue is the Z-DRAW specifically.
+- **The draw path (478ba0:473-481):** when sword-IN, Z(id9) → :323 `479960(0,200,1,9)` sets `local_614`
+  (UNGATED) → if `atk94`(+0x14894)!=0 [=2] AND `local_614`, scan the `+0x14874` array (atk94 entries,
+  {match@0,cmd@4}) for `entry == weapon+0xd4`; on match, `479de0` queues cmd → **entity+0x14868 (cmd[5])
+  type 0xd2**.  THE context-action (draw) mechanism.
+- **Capture 5c (DENSE id-9 bursts every 2 frames + the cmd5/wpn_d4 detectors):** `cmd5`=0 the whole
+  time (the queue NEVER fired), `code`=0xc35a, `wpn_466`=0, and **`wpn_d4` (weapon+0xd4) = 0** — the
+  context-action match key is EMPTY, so the `+0x14874` draw can't match.  Dense bursts ruled out the
+  [0,200]ms window-aging hypothesis (or id9 reaches :323 but the match fails on wpn_d4=0).
+- **Where it stands:** movement + the X path work via injection, but Z→draw needs `weapon+0xd4` (+ a
+  matching `+0x14874` entry) populated, and it reads 0 in this fresh-new-game errands.  Either (a) the
+  frida DIRECT-ring-write of id9 doesn't reproduce a NATURAL Z press (the producer 46a880 fills the
+  ring + weapon state from the event queue 0x5ba3a0, which the direct write bypasses), or (b) the
+  weapon/sword state genuinely isn't equipped in this captured state.  **NEXT (fresh): inject Z via the
+  EVENT QUEUE (hook 0x5ba3a0) so the producer processes it naturally — the "improve the tool" fix — OR
+  reach the exact in-game state (a save?) where weapon+0xd4 is set.**  The `.osr` visual won't help
+  while the same ring injection underdelivers id9.
