@@ -27,6 +27,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "proxy_log.h"
 #include "va_detour.h"
@@ -39,6 +40,10 @@
 #define EI_INJECT_POOL_N  32
 #define EI_MAX_ENTRIES    2048
 #define EI_MAX_IDS        8
+
+/* Held-axis (LEVEL) injection — the leaf key-state query + its kbstate buffer. */
+#define EI_KEYDOWN_VA     0x005ba520u  /* FUN_005ba520 __thiscall(scancode), ecx=device */
+#define EI_KBSTATE_OFF    0x18         /* device+0x18 = the 256-byte DInput keyboard state */
 
 typedef struct { DWORD frame; DWORD ids[EI_MAX_IDS]; int nids; } ei_entry;
 
@@ -140,12 +145,148 @@ static void ei_poll_cb(PCONTEXT ctx)
     ei_inject_due(now);
 }
 
+/* ── Held-axis (LEVEL) injection ─────────────────────────────────────────────
+ * The freeroam movement (walk / dash / the U/D POSE) reads the per-frame
+ * HELD-AXIS array (mgr+0x114 UP / +0x118 DOWN / +0x11c LEFT / +0x120 RIGHT /
+ * +0x124 C), which the producer FUN_0046a880 fills by calling the leaf key-state
+ * query FUN_005ba520(scancode) once per tracked key (UP 0xc8 -> +0x114, DOWN 0xd0
+ * -> +0x118, LEFT 0xcb -> +0x11c, RIGHT 0xcd -> +0x120; ~11 calls/frame).  That
+ * leaf returns `device[0x18 + scancode] & 0x80` — the DInput keyboard-state high
+ * bit.  On the hidden, unfocused window DInput writes nothing, so we make a key
+ * report PRESSED by writing 0x80 into the device's kbstate buffer
+ * (device+EI_KBSTATE_OFF+scancode) at the query's ENTRY, just before it reads —
+ * exactly the byte a physical keypress sets, so the producer then fills mgr+0x114
+ * naturally (engine-quirk #41).  This is the LEVEL counterpart to the discrete
+ * RING injection above; the pose/walk need a HELD direction (the ring alone is a
+ * one-frame edge).  Mirrors the Frida agent's installHeldAxisInjection
+ * (opensummoners-agent.js) but writes the buffer instead of replacing the leaf's
+ * return (the proxy's VEH detour is entry-only — no onLeave).
+ *
+ * Trace: OSS_HELD_TRACE, JSONL of {"frame": N, "keys": [scancode|name,...]} —
+ * each entry SETS the held set from Flip frame N on (a LEVEL, persisting until
+ * the next entry; [] releases all).  up/down/left/right map to the DIK direction
+ * scancodes; raw integers (decimal / 0xhex) pass through (the C button etc.).  A
+ * scancode that EVER appears in the trace is "managed": each query writes 0x80
+ * when it is currently held and 0x00 when not (a clean release), leaving
+ * un-managed scancodes at their real (zero) state. */
+static ei_entry g_eih_trace[EI_MAX_ENTRIES];   /* reuse ei_entry: ids[] = scancodes */
+static int   g_eih_n         = 0;
+static int   g_eih_i         = 0;              /* cursor into the held trace */
+static LONG  g_eih_last_flip = -1;             /* last flip the cursor advanced for */
+static BYTE  g_eih_managed[256];               /* 1 = scancode appears in the trace */
+static BYTE  g_eih_held[256];                  /* 1 = scancode held this frame (level) */
+
+/* up/down/left/right -> DIK scancode (else -1); s,len = the bare (unquoted) name. */
+static int eih_name_scancode(const char *s, int len)
+{
+    if (len == 2 && !strncmp(s, "up",    2)) return 0xc8;
+    if (len == 4 && !strncmp(s, "down",  4)) return 0xd0;
+    if (len == 4 && !strncmp(s, "left",  4)) return 0xcb;
+    if (len == 5 && !strncmp(s, "right", 5)) return 0xcd;
+    return -1;
+}
+
+/* Parse one held-trace line in-place; returns 1 if it yielded an entry. */
+static int eih_parse_line(char *s)
+{
+    while (*s == ' ' || *s == '\t') s++;
+    if (*s == '#' || *s == '\0' || *s == '\n' || *s == '\r') return 0;
+
+    char *fp = strstr(s, "frame");
+    if (!fp) return 0;
+    char *colon = strchr(fp, ':');
+    if (!colon) return 0;
+    DWORD frame = (DWORD)strtoul(colon + 1, NULL, 10);
+
+    if (g_eih_n >= EI_MAX_ENTRIES) return 0;
+    ei_entry *e = &g_eih_trace[g_eih_n];
+    e->frame = frame;
+    e->nids = 0;
+
+    char *keys = strstr(s, "keys");
+    if (keys) {
+        char *lb = strchr(keys, '[');
+        if (lb) {
+            char *p = lb + 1;
+            while (e->nids < EI_MAX_IDS) {
+                while (*p == ' ' || *p == ',') p++;
+                if (*p == ']' || *p == '\0') break;
+                int sc = -1;
+                if (*p == '"') {
+                    char *q = p + 1, *end = strchr(q, '"');
+                    if (!end) break;
+                    sc = eih_name_scancode(q, (int)(end - q));
+                    p = end + 1;
+                } else {
+                    char *end = NULL;
+                    long v = strtol(p, &end, 0);   /* base 0: decimal or 0x-hex */
+                    if (end == p) break;
+                    sc = (int)(v & 0xff);
+                    p = end;
+                }
+                if (sc >= 0) {
+                    e->ids[e->nids++] = (DWORD)sc;
+                    g_eih_managed[sc & 0xff] = 1;
+                }
+            }
+        }
+    }
+    g_eih_n++;
+    return 1;
+}
+
+static void eih_load_trace(void)
+{
+    char path[MAX_PATH];
+    DWORD n = GetEnvironmentVariableA("OSS_HELD_TRACE", path, sizeof(path));
+    if (n == 0 || n >= sizeof(path)) {
+        proxy_logf("[input] no OSS_HELD_TRACE — held injection disabled");
+        return;
+    }
+    FILE *f = fopen(path, "rb");
+    if (!f) { proxy_logf("[input] FATAL: fopen(%s) failed", path); return; }
+    char line[512];
+    while (fgets(line, sizeof(line), f)) eih_parse_line(line);
+    fclose(f);
+    proxy_logf("[input] loaded %d held entries from %s", g_eih_n, path);
+}
+
+/* Advance the held cursor to `flip` and set g_eih_held to its key set (a LEVEL,
+ * once per flip — like the agent's heldAdvance). */
+static void eih_advance(LONG flip)
+{
+    if (flip == g_eih_last_flip) return;
+    g_eih_last_flip = flip;
+    while (g_eih_i < g_eih_n && flip >= (LONG)g_eih_trace[g_eih_i].frame) {
+        memset(g_eih_held, 0, sizeof g_eih_held);
+        ei_entry *e = &g_eih_trace[g_eih_i];
+        for (int j = 0; j < e->nids; j++) g_eih_held[e->ids[j] & 0xff] = 1;
+        g_eih_i++;
+    }
+}
+
+/* thiscall(scancode): ecx = the DInput device; [esp+4] = scancode. */
+static void eih_keydown_cb(PCONTEXT ctx)
+{
+    eih_advance(g_eh_flip);
+    DWORD sc = *(DWORD *)(ctx->Esp + 4) & 0xff;
+    if (!g_eih_managed[sc]) return;            /* leave un-managed keys real */
+    *(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) = g_eih_held[sc] ? 0x80 : 0x00;
+}
+
 static void engine_input_install(void)
 {
     ei_load_trace();
-    if (g_ei_n == 0) return;                    /* nothing to inject */
-    detour_add(EI_INPUT_POLL_VA, ei_poll_cb);
-    proxy_logf("[input] ring injection hooked @0x43c110 (%d entries)", g_ei_n);
+    eih_load_trace();
+    if (g_ei_n > 0) {
+        detour_add(EI_INPUT_POLL_VA, ei_poll_cb);
+        proxy_logf("[input] ring injection hooked @0x43c110 (%d entries)", g_ei_n);
+    }
+    if (g_eih_n > 0) {
+        detour_add(EI_KEYDOWN_VA, eih_keydown_cb);
+        proxy_logf("[input] held-axis injection hooked @0x5ba520 (%d entries)",
+                   g_eih_n);
+    }
 }
 
 #endif /* OSS_ENGINE_INPUT_H */
