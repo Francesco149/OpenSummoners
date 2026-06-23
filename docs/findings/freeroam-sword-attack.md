@@ -196,6 +196,15 @@ RELATIVE to the stationary world-screen anchor) per tick.  The emitter:
     that IS `ramp_a[19]` because retail's ramp tables are one contiguous 0x50-byte block (quirk #117).
     The port's `g_ramp_a`/`g_ramp_b` are separate arrays, so the trail emits the ramp_A index 19.
     Pinned by a boot-time dump of the port's ramp LUTs vs the recording's 727d856f.
+  - **The cels decode UNGRADED (ckpt 163b — the USER "missing smooth white layer"):** res 0x40b is
+    an additive EFFECT sheet, so retail does NOT run the in-game 8bpp colour-grade on it — but the
+    port's global grade was, recolouring the white-cyan FRESH sparkles toward pink (so the trail read
+    as pink-only; the white-cyan apex was the "extra smooth layer" the USER saw missing).  Added slot
+    **407** (`SWORD_TRAIL_BANK_SLOT`) to the grade skip-list in `main.c`, exactly like the ckpt-147
+    fireplace (slot 406) — now the cels decode **dhash-identical** to the recording (fr24 `c60bb021`,
+    fr31 `8454dc55`), and the white-cyan-at-the-apex → pink-tail gradient matches retail.  (The white
+    is NOT a separate sprite: a region probe found no non-`0x40b` additive sprite at the arc; it is the
+    dense fresh sparkles overlapping additively → smooth white, then thinning to pink as they age.)
 - **VERIFIED off `port-trail.osr` vs `sword2.osr`** (`/tmp/final_verify.py`): the fr24 tip-arc
   RELATIVE to the up-attack body is **byte-identical** (port tick 2151 `(+20,+69)(+26,+68)` == rec
   tick 3889; the +10 cel-lean at tick 2154 == rec tick 3892, etc.), frames 24->31 present, blend

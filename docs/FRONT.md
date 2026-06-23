@@ -275,15 +275,21 @@
   quirk #117); the port's separate arrays need the ramp_A index.  **VERIFIED off `port-trail.osr` vs `sword2.osr`:**
   the fr24 tip-arc RELATIVE to the up-attack body is **byte-identical** (port tick 2151 `(+20,+69)(+26,+68)` == rec
   tick 3889; the +10 cel-lean at tick 2154 == rec tick 3892), frames 24→31, blend LUT 727d856f matches.  1063 host
-  pass (+`test_sword_trail` ×5).  Feed: the port|recording montage (pink additive sparkle arc on both).  Capture:
-  `runs/sword-trail/trail-{nav,held}.jsonl`.  **`PORT-DEBT(sword-attack-trail)` RETAINED as a geometry stand-in**
+  pass (+`test_sword_trail` ×5).  Capture: `runs/sword-trail/trail-{nav,held}.jsonl`.
+  **ckpt 163b — the cel COLOURS (USER: "missing a smooth white layer on top of the pink").**  The trail read
+  as PINK-only; retail's is white-cyan at the fresh APEX fading to pink.  Diagnosis: res 0x40b is an additive
+  EFFECT sheet retail does NOT colour-grade, but the port's global 8bpp grade WAS — recolouring the white-cyan
+  fresh sparkles toward pink (the white = dense fresh sparkles overlapping additively, NOT a separate sprite; a
+  region probe found none).  FIX: added slot **407** (`SWORD_TRAIL_BANK_SLOT`) to the grade skip-list (exactly the
+  ckpt-147 fireplace slot-406 bug).  Now the cels decode **dhash-identical** to the recording (fr24 `c60bb021` /
+  fr31 `8454dc55`), and the white-cyan→pink gradient matches retail (feed: the fixed montage).  **`PORT-DEBT(sword-attack-trail)` RETAINED as a geometry stand-in**
   (the tip-arc + cadence are captured for the un-ported emitter `0x4505c0`/`45e830` case-0x283f — butterfly-flutter
   -trigger pattern: ships bit-exact, only the autonomous geometry is replayed).  **chip 2c-3 slide 48/49 =
   `PORT-DEBT(char-slope-slide)`** (prone state-6 slope slide, unreached on the flat errands floor).  RESIDUAL:
   bank-0x8d LEFT mirror = +192 hypothesis, unverified (the first sword2.osr up-attack is right-facing).
   **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-trail.osr` | `sword2.osr 1738`)
-  — errands freeroam ~tick 2150: with the sword drawn, UP+X overhead thrust now trails a PINK additive sparkle
-  arc (res 0x40b cels 24→31, shrinking) along the sword's overhead sweep, then ages out.
+  — errands freeroam ~tick 2150: with the sword drawn, UP+X overhead thrust now trails a sparkle arc (res 0x40b
+  cels 24→31, shrinking) — WHITE-CYAN at the fresh apex fading to pink — along the sword's sweep, then ages out.
   **NEXT (fresh /clear candidate): the freeroam HUD PIVOT** (sword-independent, scoped, `findings/freeroam-hud.md`).
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL

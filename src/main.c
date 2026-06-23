@@ -404,6 +404,10 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * (additive EFFECT sheet, bound via the plain getter
                                     * 0x418470(0) like the UI sheets => NOT colour-graded;
                                     * the port's global 8bpp grade over-darkens it). */
+#define SWORD_TRAIL_BANK_SLOT 407  /* 0x8a7c9c — res 0x40b, the UP-attack sword-tip trail
+                                    * sparkles (additive EFFECT sheet, same class as the
+                                    * fire => NOT colour-graded; the grade was recolouring
+                                    * the white-cyan fresh sparkles toward pink, ckpt 163b). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1082,6 +1086,7 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[SCENE_FADE_ALPHA_SLOT] &&
         slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[FIRE_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[SWORD_TRAIL_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
