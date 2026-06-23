@@ -48,20 +48,26 @@ with open(REC_INPUT) as fh:
         o = json.loads(line)
         entries.append((o["frame"], o.get("keys", [])))
 
-held_out = []   # (tick, keys without Z)
-z_ring = []     # ticks of Z onsets
-prev_z = False
+# scancode -> ring id (46a880: 0xc8->1 up / 0xd0->3 down / 0xcb->2 left / 0xcd->4 right;
+# Z 0x2c->9).  The ring records the discrete PRESS EDGES; the dash double-tap (and any
+# other ring-based wall-clock check) reads them.  The held LEVELS go in the held-trace.
+SC_RING = {44: 9, 200: 1, 208: 3, 203: 2, 205: 4}
+
+held_out = []      # (tick, held keys without Z)
+ring_press = []    # (tick, ring id) — Z + direction press edges
+prev_keys = set()
 for frame, keys in entries:
     T = tick_of(frame)
+    kset = set(keys)
     if T is None or T < FR_START:
-        prev_z = (44 in keys)
+        prev_keys = kset
         continue
     Tp = T + OFFSET
-    z_now = 44 in keys
-    if z_now and not prev_z:
-        z_ring.append(Tp)
-    prev_z = z_now
-    hk = [k for k in keys if k != 44]   # Z handled by the ring
+    for sc, rid in SC_RING.items():
+        if sc in kset and sc not in prev_keys:   # press edge
+            ring_press.append((Tp, rid))
+    prev_keys = kset
+    hk = [k for k in keys if k != 44]   # Z handled by the ring, not a held axis
     held_out.append((Tp, hk))
 
 # dedupe held by tick (last wins), keep monotonic
@@ -76,23 +82,37 @@ with open("runs/sword-trail/sync-held.jsonl", "w") as fh:
     for Tp, hk in held_sorted:
         fh.write(json.dumps({"tick": Tp, "keys": hk}) + "\n")
 
-# merge the cutscene nav (drop its synthetic Z draw) + the recording's Z ring presses
-nav_lines = []
+# merge the cutscene nav (frame-axis boot + tick-axis confirms; drop its synthetic Z)
+# with the recording's ring presses (Z + directions), all tick-axis entries sorted.
+frame_entries = []   # (frame, obj) — boot menus, kept in order, first
+tick_confirms = []   # (tick, obj) — the cutscene/dialogue confirms
 with open(NAV) as fh:
     for line in fh:
         s = line.strip()
         if not s or s.startswith("#"):
-            nav_lines.append(line.rstrip("\n")); continue
-        o = json.loads(s)
-        if o.get("ids") == [9]:   # drop the synthetic Z draw
             continue
-        nav_lines.append(line.rstrip("\n"))
-# append the real Z ring presses (tick-axis), sorted into place at the end (the nav is < these ticks)
-z_lines = [json.dumps({"tick": t, "ids": [9]}) for t in sorted(z_ring)]
-with open("runs/sword-trail/sync-nav.jsonl", "w") as fh:
-    fh.write("\n".join(nav_lines) + "\n")
-    fh.write("# real Z draws/sheathes from the recording (id 9, tick-axis)\n")
-    fh.write("\n".join(z_lines) + "\n")
+        o = json.loads(s)
+        if "frame" in o:
+            frame_entries.append((o["frame"], o))
+        elif "tick" in o:
+            if o.get("ids") == [9]:   # drop the synthetic Z draw (replaced by the real ring presses)
+                continue
+            tick_confirms.append((o["tick"], o))
 
-print(f"offset={OFFSET}  held entries={len(held_sorted)}  Z ring presses={len(z_ring)} at ticks {sorted(z_ring)}")
+# all tick-axis entries: the cutscene/dialogue confirms + the recording's ring presses
+tick_all = list(tick_confirms)
+for t, rid in ring_press:
+    tick_all.append((t, {"tick": t, "ids": [rid]}))
+tick_all.sort(key=lambda x: x[0])
+
+with open("runs/sword-trail/sync-nav.jsonl", "w") as fh:
+    fh.write("# cutscene nav (frame-axis boot, then tick-axis confirms) + the recording's\n"
+             f"# ring presses (Z=9, dirs 1-4), all tick-axis sorted; offset={OFFSET}\n")
+    for f, o in sorted(frame_entries, key=lambda x: x[0]):
+        fh.write(json.dumps(o) + "\n")
+    for t, o in tick_all:
+        fh.write(json.dumps(o) + "\n")
+
+print(f"offset={OFFSET}  held entries={len(held_sorted)}  ring presses={len(ring_press)} "
+      f"(Z draws at {[t for t,r in ring_press if r==9]})")
 print("wrote runs/sword-trail/sync-held.jsonl + sync-nav.jsonl")

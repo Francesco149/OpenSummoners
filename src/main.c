@@ -540,6 +540,27 @@ static const char       *g_held_trace_path;
 static struct held_trace g_held_trace;
 static int               g_held_trace_active;
 
+/* DETERMINISTIC INPUT CLOCK (the freeroam replay's wall-clock pin).  Retail's
+ * freeroam input timing is wall-clock (GetTickCount ms): the dash double-tap
+ * window (*0x8a6e80+0xf8 = 800 ms, ckpt 150), the X-attack refractory (200 ms),
+ * the ring-record timestamps + the 100 ms consume window.  A flip-replay of the
+ * recording can't reproduce that — the real clock runs at the host's speed, not
+ * the recording's.  So during a REPLAYED FREEROAM we PIN `now` to the sim-tick:
+ * now = sim_tick * 33 ms (retail's 2-flips-per-sim-tick rate, the recording's
+ * effective ms/tick — its RIGHT double-tap spans ticks 2139..2149 = 10 ticks ~=
+ * 333 ms, well inside the 800 ms window).  Every wall-clock-keyed input check
+ * (dash, attack, sword, consume) then replays deterministically off ONE clock —
+ * the generalized fix vs a per-feature workaround (USER, ckpt 163d).  Scoped to
+ * the replayed freeroam: the title/cutscene navs + interactive play keep the
+ * real clock (the menu auto-repeat needs it). */
+#define OSS_REPLAY_MS_PER_TICK 33u
+static uint32_t input_now(void)
+{
+    if ((g_input_trace_active || g_held_trace_active) && g_freeroam_active)
+        return g_sim_tick_count * OSS_REPLAY_MS_PER_TICK;
+    return GetTickCount();
+}
+
 /* The LIVE keyboard producer (0x46a880; src/input_live.{c,h}).  When NO replay
  * is active and the window is focused, real keys fill the active drive's input
  * manager each frame — the INTERACTIVE path (the replay is the deterministic
@@ -2912,9 +2933,10 @@ static void freeroam_step(void)
      * flag, resolved from the live event ring by character_resolve_run (the 0x478ba0
      * double-tap detection 0x479e70, ckpt 150): a USER tap-tap-hold of a direction
      * dashes.  The ring records its timestamps in GetTickCount() ms, so the window
-     * compare uses the same clock. */
+     * compare uses the same clock — and under a REPLAY input_now() pins that clock
+     * to the sim-tick so the dash/refractory windows replay deterministically. */
     int jump = axis[CHAR_AXIS_COUNT];   /* axis_held[4] = the jump button level */
-    uint32_t now = GetTickCount();
+    uint32_t now = input_now();
     int run  = character_resolve_run(&g_freeroam_char, ring,
                                      now, axis, CHAR_DASH_WINDOW_MS);
     /* Resolve the U/D POSE command (cmd[3] = 10 DOWN / 0xb UP) off the same ring each
@@ -3350,7 +3372,7 @@ static void game_render(void *user)
                  * state-1 skip / 0x43b980 state-2 advance, ~2 confirms/line). */
                 {
                     int confirm = input_poll_consume(&g_game_drive.input,
-                                                     GetTickCount(),
+                                                     input_now(),
                                                      CUTSCENE_ADVANCE_RING_ID);
                     /* THEME 3: feed the live scene_fade grid state so a FADE beat
                      * completes exactly when the grid settles (retail's case-2 gate),
@@ -4042,8 +4064,10 @@ static void main_loop_body(void)
          * presented frame.  The engine is unported, so this renders the faithful
          * black map-load frame + presents (matching retail's black entry window).
          * Inject any due replay input so the trace's in-game Z presses land in
-         * the drive's ring for when the engine (input-driven) is ported. */
-        uint32_t now = GetTickCount();
+         * the drive's ring for when the engine (input-driven) is ported.  Under a
+         * replayed freeroam input_now() pins the clock to the sim-tick so the ring
+         * timestamps (the dash window's basis) are deterministic. */
+        uint32_t now = input_now();
         feed_input(&g_game_drive.input, now);
         (void)game_drive_step(&g_game_drive, now);   /* GAME_RUNNING until ported */
     } else if (g_newgame_active) {
