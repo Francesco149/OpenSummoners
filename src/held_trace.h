@@ -58,14 +58,23 @@
  * diagonal = two directions) is the realistic ceiling; 8 is well past it. */
 #define HELD_TRACE_MAX_KEYS 8
 
+/* Per-entry threshold AXIS (mirrors input_trace): an entry keyed by "frame"
+ * fires off the Flip count, one keyed by "tick" off the deterministic sim-tick
+ * (0x43d1d0).  The recording's held inputs are flip-recorded but must replay on
+ * the SIM-TICK in the port (the port's freeroam flip rate differs from retail's),
+ * so the converter emits a tick-axis held-trace. */
+#define HELD_TRACE_AXIS_FRAME 0
+#define HELD_TRACE_AXIS_TICK  1
+
 /* Sanity ceiling on entries — a corrupt/runaway file fails loudly instead of
  * OOM-ing.  Far past any real scripted walk. */
 #define HELD_TRACE_MAX_ENTRIES (1u << 20)
 
 struct held_trace_entry {
-    uint32_t frame;                        /* Flip frame the held set takes effect */
+    uint32_t frame;                        /* the threshold (Flip count OR sim-tick, per `axis`) */
     int32_t  keys[HELD_TRACE_MAX_KEYS];    /* DIK scancodes held from this frame   */
     uint16_t n_keys;                       /* count of live keys (0 = release all) */
+    uint8_t  axis;                         /* HELD_TRACE_AXIS_FRAME | _TICK        */
 };
 
 struct held_trace {
@@ -99,12 +108,13 @@ int held_trace_parse_buf(const char *buf, size_t len, struct held_trace *out);
 /* Same, reading from `path`.  Returns 0 if the file can't be opened. */
 int held_trace_load(const char *path, struct held_trace *out);
 
-/* Advance the held set to the latest entry whose frame <= `present_frame`, then
- * rebuild mgr->axis_held[0..3] from it (each managed direction slot = 1 if its
- * scancode is in the current held set, else 0).  Call once per frame BEFORE the
- * scene step's axis read.  No-op when the trace is empty or `mgr` is NULL; an
- * all-empty trace still clears the four managed slots (deterministic baseline). */
+/* Advance the held set to the latest entry whose threshold has been reached —
+ * `present_frame` for a FRAME-axis entry, `sim_tick` for a TICK-axis one — then
+ * rebuild mgr->axis_held[0..5] from it (each managed slot = 1 if its scancode is
+ * in the current held set, else 0).  Call once per frame BEFORE the scene step's
+ * axis read.  No-op when the trace is empty or `mgr` is NULL; an all-empty trace
+ * still clears the managed slots (deterministic baseline). */
 void held_trace_replay(struct held_trace *t, uint32_t present_frame,
-                       input_mgr *mgr);
+                       uint32_t sim_tick, input_mgr *mgr);
 
 #endif /* OPENSUMMONERS_HELD_TRACE_H */

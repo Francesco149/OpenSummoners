@@ -3998,7 +3998,8 @@ static void feed_input(input_mgr *m, uint32_t now)
             input_trace_replay(&g_input_trace, g_present_frame,
                                g_sim_tick_count, m, now);
         if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame, m);
+            held_trace_replay(&g_held_trace, g_present_frame,
+                              g_sim_tick_count, m);
         return;
     }
     if (g_app_active_flag == 0)

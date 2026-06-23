@@ -117,32 +117,32 @@ int test_held_trace_replay_levels(void)
     m.axis_held[0] = 7; m.axis_held[1] = 7; m.axis_held[2] = 7; m.axis_held[3] = 7;
 
     /* frame 0: empty held set → all four slots cleared. */
-    held_trace_replay(&t, 0, &m);
+    held_trace_replay(&t, 0, 0, &m);
     T_ASSERT_EQ_I(m.axis_held[0], 0);
     T_ASSERT_EQ_I(m.axis_held[1], 0);
     T_ASSERT_EQ_I(m.axis_held[2], 0);
     T_ASSERT_EQ_I(m.axis_held[3], 0);
 
     /* frame 2: LEFT held → slot 2 only. */
-    held_trace_replay(&t, 2, &m);
+    held_trace_replay(&t, 2, 2, &m);
     T_ASSERT_EQ_I(m.axis_held[2], 1);
     T_ASSERT_EQ_I(m.axis_held[0], 0);
 
     /* frames 3,4: level persists (no new entry) — LEFT still held. */
-    held_trace_replay(&t, 3, &m);
+    held_trace_replay(&t, 3, 3, &m);
     T_ASSERT_EQ_I(m.axis_held[2], 1);
-    held_trace_replay(&t, 4, &m);
+    held_trace_replay(&t, 4, 4, &m);
     T_ASSERT_EQ_I(m.axis_held[2], 1);
 
     /* frame 5: UP+RIGHT → slots 0 and 3; LEFT (slot 2) cleared. */
-    held_trace_replay(&t, 5, &m);
+    held_trace_replay(&t, 5, 5, &m);
     T_ASSERT_EQ_I(m.axis_held[0], 1);
     T_ASSERT_EQ_I(m.axis_held[3], 1);
     T_ASSERT_EQ_I(m.axis_held[2], 0);
     T_ASSERT_EQ_I(m.axis_held[1], 0);
 
     /* frame 8: release-all → every managed slot back to 0. */
-    held_trace_replay(&t, 8, &m);
+    held_trace_replay(&t, 8, 8, &m);
     T_ASSERT_EQ_I(m.axis_held[0], 0);
     T_ASSERT_EQ_I(m.axis_held[1], 0);
     T_ASSERT_EQ_I(m.axis_held[2], 0);
@@ -164,7 +164,7 @@ int test_held_trace_replay_catches_up(void)
 
     input_mgr m; memset(&m, 0, sizeof m);
     /* jump straight to frame 9: only the LAST entry's level (RIGHT) is active. */
-    held_trace_replay(&t, 9, &m);
+    held_trace_replay(&t, 9, 9, &m);
     T_ASSERT_EQ_U(t.cursor, 3);
     T_ASSERT_EQ_I(m.axis_held[3], 1);   /* right */
     T_ASSERT_EQ_I(m.axis_held[2], 0);   /* left  cleared */
@@ -177,11 +177,11 @@ int test_held_trace_replay_catches_up(void)
 int test_held_trace_replay_guards(void)
 {
     struct held_trace t; memset(&t, 0, sizeof t);
-    held_trace_replay(&t, 10, NULL);          /* NULL mgr */
+    held_trace_replay(&t, 10, 10, NULL);          /* NULL mgr */
 
     input_mgr m; memset(&m, 0, sizeof m);
     m.axis_held[2] = 9;
-    held_trace_replay(&t, 10, &m);            /* empty trace still clears slots */
+    held_trace_replay(&t, 10, 10, &m);            /* empty trace still clears slots */
     T_ASSERT_EQ_I(m.axis_held[2], 0);
     T_ASSERT_EQ_U(t.cursor, 0);
     held_trace_free(&t);

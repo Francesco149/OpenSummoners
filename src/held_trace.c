@@ -97,8 +97,8 @@ static int expect(const char **pp, const char *end, char c)
 }
 
 /* Parse a quoted key at *pp and report which one via *kind:
- * 0 = "frame", 1 = "keys", -1 = unknown/error.  Advances past the closing
- * quote.  Returns 1 on a well-formed quoted key, 0 on a malformed token. */
+ * 0 = "frame", 1 = "keys", 2 = "tick", -1 = unknown/error.  Advances past the
+ * closing quote.  Returns 1 on a well-formed quoted key, 0 on a malformed token. */
 static int parse_key(const char **pp, const char *end, int *kind)
 {
     if (!expect(pp, end, '"')) return 0;
@@ -112,6 +112,7 @@ static int parse_key(const char **pp, const char *end, int *kind)
 
     if (klen == 5 && memcmp(start, "frame", 5) == 0)     *kind = 0;
     else if (klen == 4 && memcmp(start, "keys", 4) == 0) *kind = 1;
+    else if (klen == 4 && memcmp(start, "tick", 4) == 0) *kind = 2;
     else                                                 *kind = -1;
     return 1;
 }
@@ -179,10 +180,11 @@ static int parse_entry(const char **pp, const char *end,
         if (!parse_key(pp, end, &kind)) return 0;
         if (!expect(pp, end, ':')) return 0;
 
-        if (kind == 0) {                                    /* frame */
+        if (kind == 0 || kind == 2) {                       /* frame OR tick */
             long v;
             if (!parse_number(pp, end, &v)) return 0;
             out->frame = (uint32_t)v;
+            out->axis  = (kind == 2) ? HELD_TRACE_AXIS_TICK : HELD_TRACE_AXIS_FRAME;
             have_frame = 1;
         } else if (kind == 1) {                             /* keys */
             if (!parse_key_array(pp, end, out)) return 0;
@@ -269,14 +271,18 @@ int held_trace_load(const char *path, struct held_trace *out)
 }
 
 void held_trace_replay(struct held_trace *t, uint32_t present_frame,
-                       input_mgr *mgr)
+                       uint32_t sim_tick, input_mgr *mgr)
 {
     if (t == NULL || mgr == NULL) return;
 
-    /* Advance to the latest entry at-or-before this frame (the current LEVEL).
-     * Multiple entries due this frame: the last one wins. */
-    while (t->cursor < t->count && t->entries[t->cursor].frame <= present_frame) {
+    /* Advance to the latest entry whose threshold has been reached — keyed off
+     * the Flip count (FRAME axis) or the sim-tick (TICK axis) per entry (the
+     * current LEVEL).  Multiple entries due this frame: the last one wins. */
+    while (t->cursor < t->count) {
         const struct held_trace_entry *e = &t->entries[t->cursor];
+        uint32_t counter = (e->axis == HELD_TRACE_AXIS_TICK) ? sim_tick
+                                                             : present_frame;
+        if (e->frame > counter) break;
         t->cur_n = e->n_keys;
         for (uint16_t i = 0; i < e->n_keys; i++) t->cur_keys[i] = e->keys[i];
         t->cursor++;

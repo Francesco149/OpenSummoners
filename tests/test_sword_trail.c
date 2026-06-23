@@ -61,7 +61,7 @@ int test_sword_trail_emit_window(void)
     return 0;
 }
 
-/* ---- spawn config: bank 0x1a4, frame_base 24, clip, layer 11, anchor ------- */
+/* ---- spawn config: bank 0x1a4, frame_base 24, clip, layer 13, anchor ------- */
 
 int test_sword_trail_spawn_config(void)
 {
@@ -75,7 +75,7 @@ int test_sword_trail_spawn_config(void)
     T_ASSERT(r0->active);
     T_ASSERT_EQ_I(a0->sprite_table[0].bank, (int)SWORD_TRAIL_BANK);   /* 0x1a4 */
     T_ASSERT_EQ_I(a0->sprite_table[0].frame_base, 24);
-    T_ASSERT_EQ_I((int)a0->layer, 11);
+    T_ASSERT_EQ_I((int)a0->layer, 13);
     T_ASSERT(r0->clip != NULL);
     T_ASSERT_EQ_I(r0->facing, CHAR_FACE_RIGHT);
     T_ASSERT_EQ_I(r0->world_x, WX);
@@ -138,9 +138,9 @@ int test_sword_trail_render_emits(void)
     int n = sword_trail_render(&g_t, &dp, resolve_pack, NULL);
     T_ASSERT_EQ_I(n, 2);
 
-    /* The nodes land on layer 11, mode 1, param8 = the additive ramp_A index 19
+    /* The nodes land on layer 13, mode 1, param8 = the additive ramp_A index 19
      * (the constant trail blend, LUT 727d856f = g_ramp_a[19]; RAMP_B bit CLEAR). */
-    const draw_layer *L = &dp.layers[11];
+    const draw_layer *L = &dp.layers[13];
     T_ASSERT_EQ_I(L->count, 2);
     T_ASSERT_EQ_I((int)L->nodes[0].mode, 1);
     T_ASSERT((L->nodes[0].param8 & PARTICLE_PARAM8_RAMP_B) == 0);  /* ramp_A */

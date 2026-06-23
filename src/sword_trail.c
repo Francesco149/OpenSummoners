@@ -16,13 +16,14 @@
 /* code 0x186f2 — the 0x45e830-case-2 sword-trail particle (0x557370 tag). */
 #define SWORD_TRAIL_CODE 0x186f2u
 /*
- * The render LAYER.  0x493480's +0x13e0 DEVICE-band cluster draws at layer 11
- * (the "square", == the fountain water; particle.c PARTICLE_LAYER_WATER) — the
- * sword tip rides ABOVE Arche's head through the overhead thrust, so layer 11
- * (behind the layer-13 cast) matches the recording's z (verified off the .osr
- * draw sequence — the sparkles sit behind the body cel, peeking past the blade).
- */
-#define SWORD_TRAIL_LAYER 11u
+ * The render LAYER.  sword2.osr's draw SEQ puts res 0x40b IMMEDIATELY AFTER the
+ * body cel (res 0x572 seq 335, then the sparkles seq 336+) — so the trail draws
+ * IN FRONT of the sword/body, not behind.  The freeroam body is layer 13, so the
+ * trail rides layer 13 too and is emitted right after the body in the render
+ * pass (within a layer, draw order = emit order) => on top.  (ckpt 163c — the
+ * USER caught the port drawing it behind the sword; the ckpt-163 "behind, layer
+ * 11" read was wrong.) */
+#define SWORD_TRAIL_LAYER 13u
 /*
  * The additive ramp descriptor index.  sword2.osr shows EVERY trail sparkle at
  * ONE constant blend descriptor (blend_ref 39, LUT md5 727d856f) — NOT the
