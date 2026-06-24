@@ -72,6 +72,20 @@ dialog — see `tools/frida/opensummoners-agent.js`
 the dialog, ticks "Disable Sound", and PostMessages `BM_CLICK` to the
 Launch button.
 
+> **The NATIVE capture proxy CANNOT auto-dismiss this dialog (ckpt 164).**  The Frida
+> agent dismisses it IN-PROCESS (Frida injects at process start, before the dialog).  The
+> native `ddraw_proxy.dll` is **delay-loaded by the exe AFTER this dialog** (verified: at the
+> launcher stage the process has only ~7 modules and NO `ddraw` loaded — it loads ddraw only
+> once "Launch" is pressed), so the proxy's own dismiss handler can't run yet.  And driving it
+> from a WSL-interop PowerShell fails too: `SetForegroundWindow` returns False (a WSL-launched
+> process can't grab the interactive desktop's foreground), and this dialog ignores a posted
+> `BM_CLICK` / `WM_COMMAND` / `WM_LBUTTONDOWN+UP` to the Launch button from a non-foreground
+> external process — only a REAL foreground click advances it.  ⇒ **a human must physically
+> click "Launch" for every `run_proxy.sh` retail capture**; `run_proxy.sh` detects the `#32770`
+> dialog, prints a "CLICK 'Launch'" prompt, and waits for the dismiss before timing the run.
+> (Open future fix: an interactive-desktop helper or an early-loading shim DLL — e.g. a
+> `winmm`/`dsound` proxy, which ARE statically imported pre-dialog, unlike delay-loaded ddraw.)
+
 The dialog appears even on the Steamless-unpacked exe — it's not part of
 the DRM layer.  It's the engine's own first-run-style config dialog,
 shown every startup, with selections persisted somewhere (TBD which file).

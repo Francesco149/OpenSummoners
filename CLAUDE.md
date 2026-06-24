@@ -191,7 +191,17 @@ changelog. Active multi-session plans: `docs/plans/`.
 - **TRACE STUDIO v2 is THE parity studio — the draw-stream review loop (v1 web studio RETIRED,
   ckpt 128 USER directive).** Capture is the `.osr` draw stream on BOTH sides: retail via the
   native Frida-free proxy `tools/capture_proxy/run_proxy.sh`, the port via
-  `opensummoners.exe --osr-emit <path>` (same codec `src/osr_format.h`).  Review is the NATIVE
+  `opensummoners.exe --osr-emit <path>` (same codec `src/osr_format.h`).
+  **`run_proxy.sh` LAUNCHER FOOTGUN (ckpt 164):** retail pops the `#32770` config dialog
+  ("Launch" btn = ctrl **10003**, quirk #3) BEFORE it delay-loads `ddraw.dll` — so OUR proxy
+  (loaded VIA ddraw, i.e. POST-dialog) can't auto-dismiss it (its EnumChildWindows handler
+  only runs once ddraw is up), and a WSL-interop PowerShell can't grab the interactive
+  desktop's foreground to synth-click it (`SetForegroundWindow` returns False; posted
+  `BM_CLICK`/`WM_COMMAND`/`WM_LBUTTON*` are all ignored by this dialog).  ⇒ a HUMAN must
+  physically click **Launch** for every retail capture (the proxy then loads + engages on
+  ddraw-load).  `run_proxy.sh` DETECTS the `#32770` dialog, prints "CLICK 'Launch'", and
+  WAITS for the dismiss before starting its `$SECS` timer (so the run is game-time).  The old
+  Frida path auto-dismissed in-process; the native proxy can't.  Review is the NATIVE
   viewer **`tools/osr_view`** (ImGui/DX11, Windows): `osr_view.exe <port.osr> <retail.osr>` = the
   tick-joined PORT|RETAIL|DIFF scrub + a diff heat ribbon + the **frame-draw DRILL** (step a frame
   draw-by-draw, pixel→draw pick) + the NOTE/mark hand-off + the **ENGINE STATE panel**; `--osr-replay`

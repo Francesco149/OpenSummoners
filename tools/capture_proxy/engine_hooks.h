@@ -179,6 +179,34 @@ static void eh_snap_backbuffer(uint32_t closing_flip)
  * the natural draw, so only the Z key failed in injected captures.  The clean
  * recording sword2.osr was made with OSS_FORCE_SWORD=0 + OSS_TURBO=0 OSS_LOCKSTEP=0.) */
 
+/* ── M8 (chase #3): the freeroam player BODY state (wx / hvel) ──────────────
+ * Re-drive retail off the RECORDED input with the state pass on, so sync_diff can
+ * compare the port's accel ramps wx-vs-wx / vel-vs-vel — CAMERA-INDEPENDENT.  The
+ * screen-x residual is camera-hidden (frame-lock-1to1.md "Chase #3 diagnosis"):
+ * the walk/dash accel happens at wx>30000 where the follow-camera pins Arche at
+ * screen ~270 on both sides, so a real accel divergence only shows on the wx axis.
+ *
+ * Walk the leader chain to Arche's body (tools/flow/freeroam_mover_fields.json):
+ *   p0 = *(0x8a9b50);  p1 = *(p0+0x2784) room_state;  p2 = *(p1+0x200c) leader-slot;
+ *   entity = *(p2+0x9f4);  body = *(entity+0x40).
+ * Then wx = *(body+4), hvel = *(body+0x28) — the HORIZONTAL accumulator the port's
+ * fr_vel mirrors (NB the field-spec's +0x18 "vel" is the VERTICAL one).  The chain
+ * is null until a freeroam room is live, so guard EVERY deref (VirtualQuery via
+ * bg_readable) — a wild deref inside the flip callback would crash the game. */
+#define EH_PLAYER_ROOT_VA 0x008a9b50u
+static DWORD eh_player_body(void)   /* 0 until a freeroam room is live */
+{
+    DWORD p = EH_PLAYER_ROOT_VA;
+    static const DWORD hops[5] = { 0u, 0x2784u, 0x200cu, 0x9f4u, 0x40u };
+    for (int i = 0; i < 5; i++) {
+        DWORD a = p + hops[i];
+        if (!bg_readable((const void *)(uintptr_t)a, 4)) return 0;
+        p = *(DWORD *)(uintptr_t)a;
+        if (!p) return 0;
+    }
+    return p;                       /* Arche's body struct */
+}
+
 /* ── flip: frame boundary + the lockstep clock advance ───────────────────── */
 static DWORD g_eh_hb_t0 = 0;   /* real GetTickCount at flip 1 (throughput base) */
 static void eh_flip_cb(PCONTEXT ctx)
@@ -208,12 +236,32 @@ static void eh_flip_cb(PCONTEXT ctx)
      * rngcalls-retail).  The port already emits rngcalls; the panel shows it
      * port-side with retail "-" until the proxy counter lands. */
     if (g_cfg.state_on) {
-        osr_state_field sf[1];
+        osr_state_field sf[4];
         memset(sf, 0, sizeof sf);
-        snprintf(sf[0].name, sizeof sf[0].name, "rng");
-        sf[0].kind = OSR_ST_HEX;
-        sf[0].ival = (int64_t)(uint32_t)eh_read_seed();
-        osr_w_state(sf, 1);
+        uint32_t n = 0;
+        snprintf(sf[n].name, sizeof sf[n].name, "rng");
+        sf[n].kind = OSR_ST_HEX;
+        sf[n].ival = (int64_t)(uint32_t)eh_read_seed();
+        n++;
+        /* chase #3: the freeroam player body wx/hvel/facing (0 fields until a
+         * room is live — the chain derefs are null-guarded; emit only when the
+         * body AND its +0x2c are readable so the diff joins wx-vs-wx). */
+        DWORD body = eh_player_body();
+        if (body && bg_readable((const void *)(uintptr_t)(body + 0x2c), 4)) {
+            snprintf(sf[n].name, sizeof sf[n].name, "wx");
+            sf[n].kind = OSR_ST_INT;
+            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 4u);
+            n++;
+            snprintf(sf[n].name, sizeof sf[n].name, "hvel");
+            sf[n].kind = OSR_ST_INT;
+            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x28u);
+            n++;
+            snprintf(sf[n].name, sizeof sf[n].name, "facing");
+            sf[n].kind = OSR_ST_INT;
+            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x2cu);
+            n++;
+        }
+        osr_w_state(sf, n);
     }
     g_eh_frame_open = 1;
     g_eh_blit_seq   = 0;                    /* draws restart at 0 each frame */

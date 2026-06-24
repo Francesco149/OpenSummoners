@@ -92,7 +92,8 @@ PS_ENV+="\$env:OSS_OSR_PATH='$OSR_WIN'; "
 for v in OSS_TURBO OSS_LOCKSTEP OSS_TURBO_STEP_MS OSS_LOCKSTEP_STEP_MS \
          OSS_HIDE_WINDOW OSS_DISMISS_DIALOG OSS_SILENT_AUDIO \
          OSS_SEED_PIN OSS_SEED_VALUE OSS_OSR OSS_SCENARIO \
-         OSS_OSR_SNAP_EVERY OSS_OSR_SNAP_FLIPS OSS_INPUT_RECORD; do
+         OSS_OSR_SNAP_EVERY OSS_OSR_SNAP_FLIPS OSS_INPUT_RECORD \
+         OSS_OSR_STATE; do
     val="${!v:-}"
     [[ -n "$val" ]] && PS_ENV+="\$env:$v='$val'; "
 done
@@ -102,12 +103,72 @@ echo "[run_proxy] cwd:  $WIN_CWD"
 echo "[run_proxy] log:  $LOG_WSL"
 echo "[run_proxy] run for ${SECS}s..."
 
-PS_CMD="${PS_ENV}\$p = Start-Process -FilePath '$WIN_EXE' -WorkingDirectory '$WIN_CWD' -PassThru; \
-Start-Sleep -Seconds $SECS; \
-try { Stop-Process -Id \$p.Id -Force -ErrorAction SilentlyContinue } catch {}; \
-Write-Output (\"pid=\" + \$p.Id)"
+# The launcher config dialog (#32770, "Launch" button = ctrl 10003, engine-quirk #3)
+# pops BEFORE the exe delay-loads ddraw.dll — so OUR proxy (which loads VIA ddraw,
+# i.e. AFTER the dialog) can never dismiss it itself; its EnumChildWindows handler
+# only runs post-ddraw.  The old Frida path dismissed it from the injected agent
+# (installPeriodicWindowScan); the native proxy needs an EXTERNAL dismisser.  Click
+# Launch via PostMessage(BM_CLICK) from this launching PowerShell, then time the run.
+PS1_WSL="$(dirname "$LOG_WSL")/run_proxy.ps1"
+{
+  printf '%s\n' "$PS_ENV"
+  cat <<EOF
+\$ErrorActionPreference = 'SilentlyContinue'
+Add-Type @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public class Launcher {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
+  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  static uint target; static bool present;
+  static bool Cb(IntPtr h, IntPtr l) {
+    uint pid; GetWindowThreadProcessId(h, out pid);
+    if (pid != target) return true;
+    var c = new StringBuilder(64); GetClassName(h, c, 64);
+    if (c.ToString() != "#32770") return true;            // the launcher config dialog (quirk #3)
+    present = true;
+    IntPtr btn = GetDlgItem(h, 10003);                    // best-effort: post BM_CLICK on the "Launch"
+    if (btn != IntPtr.Zero) PostMessage(btn, 0xF5, IntPtr.Zero, IntPtr.Zero);
+    return false;
+  }
+  // True while the #32770 launcher dialog is still up for this pid.  EnumWindows runs
+  // inside C# (a PS delegate can't cast to EnumProc; FindWindowEx("#32770") won't match
+  // the atom-based system dialog class).  The BM_CLICK is a no-op on this dialog from a
+  // background process (it needs a real foreground click), so the USER must click Launch
+  // -- but detecting presence lets us WAIT for the dismiss before timing the run.
+  public static bool Up(uint pid) { target = pid; present = false; EnumWindows(Cb, IntPtr.Zero); return present; }
+}
+"@
+\$p = Start-Process -FilePath '$WIN_EXE' -WorkingDirectory '$WIN_CWD' -PassThru
+Write-Output ("pid=" + \$p.Id)
+# The launcher config dialog (#32770) delay-precedes ddraw.dll, so OUR proxy (loaded VIA
+# ddraw) can't dismiss it, and a WSL-launched PowerShell can't grab the interactive
+# desktop's foreground to synth-click it (SetForegroundWindow fails) — so it needs a
+# physical click.  Wait for it to APPEAR then be DISMISSED before starting the run timer,
+# so \$SECS is game-time not launcher-wait-time.
+\$seen = \$false
+for (\$i = 0; \$i -lt 600; \$i++) {
+  if ([Launcher]::Up([uint32]\$p.Id)) {
+    if (-not \$seen) { Write-Output "[launcher] #32770 config dialog is up - CLICK 'Launch' to start the capture"; \$seen = \$true }
+  } elseif (\$seen) {
+    Write-Output "[launcher] dismissed - proxy engaging, timing ${SECS}s run"; break
+  } elseif (\$i -gt 75) {
+    Write-Output "[launcher] no #32770 seen in 15s - proceeding"; break
+  }
+  Start-Sleep -Milliseconds 200
+}
+Start-Sleep -Seconds $SECS
+try { Stop-Process -Id \$p.Id -Force } catch {}
+EOF
+} > "$PS1_WSL"
+PS1_WIN="$(wslpath -w "$PS1_WSL")"
 
-powershell.exe -NoProfile -Command "$PS_CMD" || true
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_WIN" || true
 
 echo "[run_proxy] ===== proxy log ($LOG_WSL) ====="
 cat "$LOG_WSL" 2>/dev/null || echo "(no log written)"
