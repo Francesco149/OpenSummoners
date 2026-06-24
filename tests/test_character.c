@@ -620,8 +620,10 @@ int test_character_resolve_pose_up_overrides_down(void)
     return 0;
 }
 
-/* The SWORD unsheathe/sheathe TOGGLE (ckpt 155): a Z (ring 9) press flips sword_out
- * exactly once (input_poll_consume consumes the press so it doesn't repeat next tick). */
+/* The SWORD unsheathe/sheathe TOGGLE (ckpt 155/159; startup-deferred ckpt 163f): a Z
+ * (ring 9) press QUEUES the toggle, which engages CHAR_SWORD_DRAW_STARTUP ticks later
+ * (retail's queued context-action -> 45a300 action FSM startup); the press is consumed
+ * so it doesn't repeat.  Both draw (0->1) and sheathe (1->0) go through the startup. */
 int test_character_resolve_sword(void)
 {
     input_mgr m; input_event empty; dash_mgr_init(&m, &empty);
@@ -632,23 +634,36 @@ int test_character_resolve_sword(void)
     /* No press -> stays sheathed. */
     T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
 
-    /* A Z (ring 9) press -> draw (sword_out 1). */
+    /* A Z (ring 9) press QUEUES the draw — sword_out does NOT engage on the press
+     * tick (the startup latency), but the toggle is now pending. */
     input_event z1 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
     m.ring[9] = &z1;
-    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);
-    /* The press was consumed (id zeroed) -> the held key does NOT re-toggle. */
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
+    T_ASSERT_EQ_I(c.sword_pending, 1);
+    /* The press was consumed (id zeroed) -> the held key does NOT re-queue. */
     T_ASSERT_EQ_I(z1.id, 0);
+    /* Sheathed through the startup, then engages to drawn on the STARTUP-th tick. */
+    for (int i = 1; i < CHAR_SWORD_DRAW_STARTUP; i++)
+        T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);   /* startup elapsed   */
+    T_ASSERT_EQ_I(c.sword_pending, 0);
+    /* Stays drawn with no further press. */
     T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);
 
-    /* A second, distinct Z press -> sheathe (back to 0). */
+    /* A second, distinct Z press -> queues the sheathe; drawn through the startup,
+     * then engages back to sheathed. */
     input_event z2 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
     m.ring[40] = &z2;
-    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);   /* queued, still drawn */
+    for (int i = 1; i < CHAR_SWORD_DRAW_STARTUP; i++)
+        T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 1);
+    T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now), 0);   /* sheathed          */
 
-    /* A stale (>100 ms old) press is ignored. */
+    /* A stale (>100 ms old) press is ignored (never queues). */
     input_event z3 = { .id = INPUT_RING_SWORD, .ts = now, .flag = 1 };
     m.ring[20] = &z3;
     T_ASSERT_EQ_I(character_resolve_sword(&c, &m, now + 500), 0);
+    T_ASSERT_EQ_I(c.sword_pending, 0);
 
     /* NULL manager -> no-op (returns the current stance). */
     T_ASSERT_EQ_I(character_resolve_sword(&c, NULL, now), 0);

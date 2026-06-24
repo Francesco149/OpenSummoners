@@ -29,6 +29,9 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->cmd_lr    = 0;
     c->cmd_pose  = 0;
     c->sword_out = 0;
+    c->sword_pending        = 0;
+    c->sword_pending_timer  = 0;
+    c->sword_pending_target = 0;
     c->attacking      = 0;
     c->attack_timer   = 0;
     c->attack_kind    = 0;
@@ -311,18 +314,38 @@ int16_t character_resolve_pose(character *c, const struct input_mgr *m,
  * fresh ring-9 press (input_poll_consume: newest-first scan, .flag==1, age<=100ms,
  * consume-on-read) so each physical press flips the stance exactly once (the
  * consume zeroes the matched slot, so the next tick can't re-find the same press).
- * The draw/sheathe ANIM is arche_sword_clip's job (it watches sword_out's edge).
  *
- * PORT-DEBT(sword-quest-gate): retail only lets id 9 reach the draw once the
- * errands quest set weapon+0xd4=2 (case 8); the quest is unported, so the port
- * toggles freely in the errands freeroam (the caller already locks input during
- * the opening dialogue, so Z is dead until control hands off — matching retail's
- * post-tutorial enable point). */
+ * The toggle is DEFERRED by CHAR_SWORD_DRAW_STARTUP ticks (the queued context-
+ * action startup; see character.h): retail's Z routes through cmd[5]/0xd2 -> the
+ * 442a70/45a300 action FSM, which re-installs the sword-out form only after a
+ * startup, so res 0x571 fr96 first renders ~3-4 ticks post-press while Arche holds
+ * the sword-IN idle.  We model that as a pending timer: a press latches the toggle
+ * TARGET + the startup countdown; sword_out flips when it elapses (the bank swap +
+ * the arche_sword_clip draw/sheathe edge both key off sword_out, so they shift in
+ * lockstep).  No quest gate (ckpt 159).  The draw/sheathe ANIM is arche_sword_clip's
+ * job (it watches sword_out's edge). */
 int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now)
 {
     if (c == NULL) return 0;
-    if (m != NULL && input_poll_consume(m, now, INPUT_RING_SWORD))
-        c->sword_out = (int16_t)(c->sword_out ? 0 : 1);
+
+    /* Advance a queued toggle: engage the form swap when the startup elapses. */
+    if (c->sword_pending) {
+        c->sword_pending_timer = (int16_t)(c->sword_pending_timer - 1);
+        if (c->sword_pending_timer <= 0) {
+            c->sword_out     = c->sword_pending_target;
+            c->sword_pending = 0;
+        }
+    }
+    /* A fresh Z press queues the toggle.  Ignore presses while one is already
+     * pending (retail can't re-queue mid-startup; the recording never double-
+     * presses inside the ~3-4 tick window).  The toggle target is computed off the
+     * CURRENT engaged stance, not any pending one. */
+    if (m != NULL && !c->sword_pending &&
+        input_poll_consume(m, now, INPUT_RING_SWORD)) {
+        c->sword_pending_target = (int16_t)(c->sword_out ? 0 : 1);
+        c->sword_pending_timer  = CHAR_SWORD_DRAW_STARTUP;
+        c->sword_pending        = 1;
+    }
     return c->sword_out;
 }
 

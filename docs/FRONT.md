@@ -313,6 +313,26 @@
   real divergence pushed 1896 → 2082.  1063 host pass (no physics touched).  SURFACED (next chips): the sword
   DRAW startup latency (retail Z-press 1807 → fr96 render 1810 = ~3t; port draws at press+0) + the tick-2082
   body gap.  `plans/frame-lock-1to1.md` (gap table).
+  **ckpt 163f — chase #2: the sword DRAW/SHEATHE STARTUP LATENCY — RE'd + FIXED + bit-aligned (both transients).**
+  The port engaged the sword-out form at press+0; retail engages it ~3t later.  RE: Z (ring 9) does NOT flip the
+  stance on the press — it QUEUES a context-action (`478ba0:477`→`479de0` cmd[5] = action @`+0x14868` / type **0xd2**
+  @`+0x14870`) the per-tick integrator `442a70` dispatches per CURRENT form (case 0xc35a sword-IN → `0045a300(..,
+  &DAT_0062f868,0xd2)`; 0xc35b → `45a300(..,&DAT_00636a58,0xd2)`), and **`0x45a300`** (a 14 KB action-execution SM,
+  UNPORTED) runs the action's STARTUP before re-installing the other form (`41f200`: 0xc35a↔0xc35b = bank 0x8b↔0x8c
+  = res 0x570↔0x571).  So the form swap — hence the visible draw — trails the press by the FSM startup; the port
+  models anims via direct clips (no FSM) so it didn't.  **Fix** (`character_resolve_sword`): a Z press latches the
+  toggle TARGET + a `CHAR_SWORD_DRAW_STARTUP`=4 countdown; `sword_out` flips when it elapses (the bank swap + the
+  `arche_sword_clip` edge both key off it, so Arche holds sword-in idle through the startup = retail).
+  `PORT-DEBT(sword-draw-startup)` (the timer stands in for the unported 45a300; value calibrated to the recording's
+  FRAMEBEG onset).  **VERIFIED off `port-sync3.osr` vs `sword2.osr` (`sword_cels.py`):** DRAW res 0x570 idle through
+  **1809** → res 0x571 fr96 at **1810** (was 1806, == retail); SHEATHE res 0x570 fr96 at **3197** (== retail);
+  every cel dst W×H byte-identical; NO body regression (sword_out doesn't drive `character_step`; draw-window body
+  +0px, first divergence still 1923 walk-aliasing).  1063 host pass (`test_character_resolve_sword` rewritten for
+  the deferred semantics); quirk #118; `findings/sword-draw-startup.md`.  **USER-VERIFY (visual): click the studio
+  shortcut** (`studio-current.txt` → `port-sync3.osr | sword2.osr 0`) — scrub ~tick 1807: Arche now HOLDS the
+  sword-in idle ~3 ticks after the Z press before unsheathing (res 0x571 fr96 at 1810), matching retail, instead
+  of snapping to the draw instantly.  **NEXT frame-lock chases:** the body gaps at ~2085 (brake; likely flip-
+  aliasing) + the DASHES ~2385/~2655 (+35/+58px, the big real movement gaps) + the end-state camera +16 half-tile.
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,

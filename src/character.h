@@ -117,6 +117,25 @@ enum {
 #define CHAR_ATTACK_DOWN_TICKS     26
 #define CHAR_ATTACK_BACK_TICKS     27
 #define CHAR_ATTACK_UP_TICKS       36
+
+/* The SWORD-DRAW STARTUP latency (ckpt 163f) — retail's Z press does NOT engage the
+ * sword-out form on the press tick; it QUEUES a context-action (478ba0:477 ->
+ * 0x479de0 writes the cmd block entity+0x14868 = the action, +0x14870 = type 0xd2)
+ * that the per-tick integrator's action FSM executes after a startup: 442a70 dispatches
+ * per current form (case 0xc35a sword-in -> 0x45a300(.., &DAT_0062f868, 0xd2)), and
+ * 45a300 (a 14 KB action-execution state machine, UNPORTED) runs the draw action's
+ * startup phase before re-installing Arche to the sword-out form 0xc35b (= bank 0x8c,
+ * res 0x571).  So the form swaps — and res 0x571 fr96 first appears — ~3-4 ticks AFTER
+ * the press; through the startup Arche stays in the sword-IN idle (res 0x570 fr0).
+ * GROUND TRUTH (sword2.osr, sword_cels.py, FRAMEBEG axis): res 0x570 idle LAST at tick
+ * 1809, res 0x571 fr96 FIRST at 1810 — vs the port (no delay) swapping at 1806, i.e. 4
+ * FRAMEBEG-ticks early.  We model the startup as a pending timer that defers the
+ * sword_out engagement (the bank swap + the draw/sheathe clip's edge both key off
+ * sword_out, so both shift together).  PORT-DEBT(sword-draw-startup): the value is
+ * calibrated to land the draw at the recording's FRAMEBEG onset (1810) pending a port
+ * of the 45a300 action FSM that would make the latency EMERGE; the same queued-command
+ * pipeline drives the sheathe (1->0), so the model is symmetric. */
+#define CHAR_SWORD_DRAW_STARTUP    4
 /* The FORWARD lunge: total world-X displacement toward facing over the swing.  RE'd
  * mechanism = a direct world_x step toward facing through the collision mover 0054db10
  * (0x447ed0, sign-flipped on facing==3); the swing locks vel like neutral and the
@@ -265,12 +284,17 @@ typedef struct {
                        /*   /slide) / 0xb UP (defensive) — the self-sustain state  */
                        /*   for character_resolve_pose (local_608[3] snapshot)     */
     int16_t sword_out; /* the SWORD stance: 0 = sheathed (in) / 1 = drawn (out).   */
-                       /*   Toggled by Z (ring 9) via character_resolve_sword; the */
-                       /*   anim FSM (arche_sword_clip) plays the draw/sheathe      */
-                       /*   transient on the edge.  Errands freeroam = sword        */
-                       /*   available (PORT-DEBT(sword-quest-gate); retail gates on */
-                       /*   the unported errands quest reaching case 8 = weapon+0xd4 */
-                       /*   = 2, 4dc510:1167).                                       */
+                       /*   Engaged by Z (ring 9) via character_resolve_sword AFTER */
+                       /*   the CHAR_SWORD_DRAW_STARTUP latency (the queued context- */
+                       /*   action pipeline); the anim FSM (arche_sword_clip) plays  */
+                       /*   the draw/sheathe transient on the edge, and freeroam_step */
+                       /*   swaps the body bank (0x8b<->0x8c) off it.  No quest gate  */
+                       /*   (ckpt 159: Z draws on a fresh new game).                  */
+    int16_t sword_pending;       /* 1 while a queued draw/sheathe command is in its   */
+                                 /*   startup (sword_out not yet flipped) — the model  */
+                                 /*   of retail's cmd[5]/0xd2 -> 45a300 action FSM.    */
+    int16_t sword_pending_timer; /* sim-ticks remaining until the queued toggle engages*/
+    int16_t sword_pending_target;/* the sword_out value to apply when the timer elapses*/
     int16_t attacking;     /* body+0x68 mid-swing: 0 = not / 1 = swinging.  Set by  */
                            /*   character_resolve_attack on the X trigger; while !=0 */
                            /*   the apply locks movement (neutral = stationary) and  */
@@ -354,17 +378,22 @@ int16_t character_resolve_pose(character *c, const struct input_mgr *m,
                                uint32_t now, const int *axis_held);
 
 /* Resolve the SWORD unsheathe/sheathe TOGGLE from live input — the freeroam Z
- * key (USER ground truth, ckpt 155: Z draws/sheathes; sword-realplay.osr).  Each
+ * key (USER ground truth, ckpt 155/159: Z draws/sheathes; sword2.osr).  Each
  * sim-tick, consume a fresh ring-9 (INPUT_RING_SWORD) press via input_poll_consume
- * (the 100 ms consume-on-read window = exactly one toggle per press, no repeat);
- * on a press, flip c->sword_out (0 in <-> 1 out).  The draw/sheathe ANIMATION is
- * the clip layer's job (arche_sword_clip watches sword_out for the edge).  `now`
- * is the GetTickCount() ms clock the ring stamps with.  Returns the new sword_out.
+ * (the 100 ms consume-on-read window = exactly one toggle per press, no repeat).
  *
- * Retail gates the draw on the errands quest reaching case 8 (weapon+0xd4 = 2,
- * 4dc510:1167); the quest system is unported, so the port lets Z toggle freely in
- * the errands freeroam = PORT-DEBT(sword-quest-gate) (the sword becomes usable at
- * the same errands point retail enables it).  Retail's id-9 also drives the
+ * A press does NOT flip c->sword_out immediately — it QUEUES the toggle, which
+ * engages CHAR_SWORD_DRAW_STARTUP ticks later (see that constant): retail's Z
+ * routes through a queued context-action (478ba0 -> cmd[5]/0xd2 -> the 442a70/
+ * 45a300 action FSM) that re-installs the sword-out form only after a startup, so
+ * res 0x571 fr96 first renders ~3-4 ticks after the press while Arche holds the
+ * sword-IN idle.  The draw/sheathe ANIMATION is the clip layer's job (arche_sword
+ * _clip watches sword_out for the edge); the bank swap (freeroam_step) also keys
+ * off sword_out, so deferring sword_out shifts both together.  `now` is the
+ * GetTickCount() ms clock the ring stamps with.  Returns the (current) sword_out.
+ *
+ * No quest gate (ckpt 159: Z draws on a fresh new game; the ckpt-155 "weapon+0xd4
+ * case-8 gate" was a proxy artifact, retired).  Retail's id-9 also drives the
  * discrete sword-OUT attack (cmd4=0xf); that is the attack layer's concern, not
  * this toggle. */
 int16_t character_resolve_sword(character *c, struct input_mgr *m, uint32_t now);
