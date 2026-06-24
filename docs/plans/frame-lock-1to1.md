@@ -88,6 +88,39 @@ the brake-stop at ~2085 (−9px) and the dashes at ~2385/2655 (+20/+35/+58px).  
    `character_resolve_run`/`_step` and fix the logic; if they MATCH, the screen_x residual is
    confirmed flip-aliasing and the trace is frame-locked at the physics level (document + close).
 
+Steps 1-2 are DONE + committed (`3ea94e8`: eh_flip_cb emits wx/hvel/facing; run_proxy forwards
+OSS_OSR_STATE).  Step 3 is BLOCKED — see below.
+
+## Chase #3 BLOCKER (ckpt 164) — the native proxy isn't loading into retail this session
+Every `run_proxy.sh` retail capture this session came back with an EMPTY proxy log + no `.osr`,
+EVEN when the launcher was dismissed (`[launcher] dismissed` logged, exe left locked = game ran).
+So the game ran but our `ddraw.dll` proxy never engaged.  Diagnosis (ckpt 164):
+- **Our DLL is FUNCTIONAL.**  A full-path `LoadLibrary(<game-dir>\ddraw.dll)` from a 32-bit test
+  loader runs our `DllMain` → `[proxy] DLL_PROCESS_ATTACH` + `[cfg]` log + IAT/clock hooks (only
+  `engine_hooks_install` fails, expected — the loader isn't sotes.exe at 0x400000).  So `proxy_init`
+  is fine; the DLL isn't broken.
+- **A BARE `LoadLibrary("ddraw.dll")` from the game dir resolves to `C:\WINDOWS\SYSTEM32\ddraw.dll`,
+  NOT our drop** (`GetModuleFileName` confirmed).  So the game appears to load the SYSTEM ddraw and
+  never our proxy.  NOT KnownDLLs (37 entries, ddraw absent).  **DDRAW is a STATIC import** (no Delay
+  Import Tables in the exe), so the loader resolves it at process start — app-dir-first by the
+  documented order, yet System32 wins here.  This is the regression from the WORKING Jun 22 capture
+  (proxy.log Jun 22 has full `[hook]`/`[anchor]`/DETACH = ours loaded then).
+- **CONFOUND / open:** the test loader uses a RUNTIME `LoadLibrary` (modern mingw CRT may restrict the
+  search to System32), while the GAME uses STATIC-import resolution — so the loader probe may not
+  mirror the game.  And 64-bit PowerShell's `Process.Modules` on the 32-bit game is unreliable (showed
+  "7 modules, no ddraw" which is likely a cross-bitness enumeration artifact, since a static ddraw
+  import MUST be loaded at startup).  **Cannot confirm the game's actual ddraw path without observing a
+  live game** (USER clicks Launch → read the game's loaded ddraw / the proxy.log).
+- **Leading hypotheses:** (a) a Windows image-load policy that PREFERS System32 (Exploit Protection /
+  Smart App Control / an ASR rule / a process mitigation) enabled since Jun 22 — would break app-dir
+  shadowing for ALL the exe's imports (ddraw/dsound/winmm/dinput); (b) a DrvFs write-visibility race on
+  the dropped DLL (weak — there's already ~100ms between the cp and the launch).  (a) ≠ fixable by
+  re-targeting to a winmm/dsound proxy (same policy); it needs disabling the mitigation OR an injector
+  (CreateProcess-suspended + remote-thread, i.e. back toward the Frida path the proxy avoided).
+- **NEXT (needs USER):** one live capture where the USER clicks Launch and we read the proxy.log /
+  the game's loaded ddraw module — decisive on whether the game loads ours vs System32.  Ask the USER
+  what changed on Windows since ~Jun 22 (update / Defender / Exploit-Protection / Steam).
+
 ## Strict bar
 A trace is frame-locked when `sync_diff` reports **0px** body divergence at every SETTLED tick AND
 the wx/vel ramps match a STATE-FUL recording through the accel phases (camera-independent).  Screen-x
