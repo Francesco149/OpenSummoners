@@ -45,7 +45,15 @@
 #define EI_KEYDOWN_VA     0x005ba520u  /* FUN_005ba520 __thiscall(scancode), ecx=device */
 #define EI_KBSTATE_OFF    0x18         /* device+0x18 = the 256-byte DInput keyboard state */
 
-typedef struct { DWORD frame; DWORD ids[EI_MAX_IDS]; int nids; } ei_entry;
+/* An entry fires when its axis counter reaches `frame`: the FLIP counter
+ * (g_eh_flip) for a `{"frame":N}` line, or the SIM-TICK counter (g_eh_sim_tick,
+ * easer count since game_enter) for a `{"tick":N}` line.  The boot menu has no
+ * sim-tick (it stays 0 until game_enter) so the title nav is frame-keyed; the
+ * in-game inputs are tick-keyed so a real-play recording replays at the SAME
+ * sim-ticks regardless of the flip:tick ratio (the recording vsyncs ~2.23
+ * flips/tick; this lockstep re-drive runs 1:1) — the deterministic axis the
+ * port also replays on, so retail and the port align offset-0 by construction. */
+typedef struct { DWORD frame; DWORD ids[EI_MAX_IDS]; int nids; int is_tick; } ei_entry;
 
 static ei_entry g_ei_trace[EI_MAX_ENTRIES];
 static int   g_ei_n        = 0;
@@ -61,15 +69,19 @@ static int ei_parse_line(char *s)
     while (*s == ' ' || *s == '\t') s++;
     if (*s == '#' || *s == '\0' || *s == '\n' || *s == '\r') return 0;
 
+    char *tp = strstr(s, "tick");
     char *fp = strstr(s, "frame");
-    if (!fp) return 0;
-    char *colon = strchr(fp, ':');
+    int is_tick = (tp != NULL);
+    char *kp = is_tick ? tp : fp;
+    if (!kp) return 0;
+    char *colon = strchr(kp, ':');
     if (!colon) return 0;
     DWORD frame = (DWORD)strtoul(colon + 1, NULL, 10);
 
     if (g_ei_n >= EI_MAX_ENTRIES) return 0;
     ei_entry *e = &g_ei_trace[g_ei_n];
     e->frame = frame;
+    e->is_tick = is_tick;
     e->nids = 0;
 
     char *ids = strstr(s, "ids");
@@ -119,19 +131,23 @@ static void ei_inject_press(DWORD id, int slotIdx, DWORD ts)
     *(void **)((BYTE *)g_ei_mgr + EI_RING_BASE_OFF + slotIdx * 4) = rec;
 }
 
-/* Inject every trace entry at-or-before the current flip, once each. */
+/* Inject every trace entry whose axis counter is at-or-past its threshold, once
+ * each.  Frame entries key on the flip counter, tick entries on the sim-tick
+ * counter (the entries are time-ordered, so the single cursor stays monotonic). */
 static void ei_inject_due(DWORD now)
 {
     if (!g_ei_mgr) return;
-    LONG flip = g_eh_flip;
-    while (g_ei_i < g_ei_n && flip >= (LONG)g_ei_trace[g_ei_i].frame) {
+    while (g_ei_i < g_ei_n) {
         ei_entry *e = &g_ei_trace[g_ei_i];
+        LONG axis = e->is_tick ? g_eh_sim_tick : g_eh_flip;
+        if (axis < (LONG)e->frame) break;
         for (int j = 0; j < e->nids; j++) {
             ei_inject_press(e->ids[j], EI_RING_SLOTS - 1 - j, now);
             g_ei_injected++;
         }
-        proxy_logf("[input] inject @flip %ld (trace_frame %lu): %d id(s) "
-                   "[%lu...] now=%lu", flip, (unsigned long)e->frame, e->nids,
+        proxy_logf("[input] inject @%s %ld (trace_%s %lu): %d id(s) [%lu...] now=%lu",
+                   e->is_tick ? "tick" : "flip", axis,
+                   e->is_tick ? "tick" : "frame", (unsigned long)e->frame, e->nids,
                    e->nids ? (unsigned long)e->ids[0] : 0UL, (unsigned long)now);
         g_ei_i++;
     }
@@ -172,7 +188,6 @@ static void ei_poll_cb(PCONTEXT ctx)
 static ei_entry g_eih_trace[EI_MAX_ENTRIES];   /* reuse ei_entry: ids[] = scancodes */
 static int   g_eih_n         = 0;
 static int   g_eih_i         = 0;              /* cursor into the held trace */
-static LONG  g_eih_last_flip = -1;             /* last flip the cursor advanced for */
 static BYTE  g_eih_managed[256];               /* 1 = scancode appears in the trace */
 static BYTE  g_eih_held[256];                  /* 1 = scancode held this frame (level) */
 
@@ -259,15 +274,19 @@ static int eih_parse_line(char *s)
     while (*s == ' ' || *s == '\t') s++;
     if (*s == '#' || *s == '\0' || *s == '\n' || *s == '\r') return 0;
 
+    char *tp = strstr(s, "tick");
     char *fp = strstr(s, "frame");
-    if (!fp) return 0;
-    char *colon = strchr(fp, ':');
+    int is_tick = (tp != NULL);
+    char *kp = is_tick ? tp : fp;
+    if (!kp) return 0;
+    char *colon = strchr(kp, ':');
     if (!colon) return 0;
     DWORD frame = (DWORD)strtoul(colon + 1, NULL, 10);
 
     if (g_eih_n >= EI_MAX_ENTRIES) return 0;
     ei_entry *e = &g_eih_trace[g_eih_n];
     e->frame = frame;
+    e->is_tick = is_tick;
     e->nids = 0;
 
     char *keys = strstr(s, "keys");
@@ -318,15 +337,18 @@ static void eih_load_trace(void)
     proxy_logf("[input] loaded %d held entries from %s", g_eih_n, path);
 }
 
-/* Advance the held cursor to `flip` and set g_eih_held to its key set (a LEVEL,
- * once per flip — like the agent's heldAdvance). */
-static void eih_advance(LONG flip)
+/* Advance the held cursor and set g_eih_held to the current LEVEL.  Frame entries
+ * key on the flip counter, tick entries on the sim-tick counter (the trace is
+ * time-ordered so the single cursor stays monotonic).  Cheap when caught up (one
+ * compare); the memset only runs as an entry actually fires, so no flip dedup is
+ * needed — and a tick entry can fire mid-flip-run, which a flip dedup would gate. */
+static void eih_advance(void)
 {
-    if (flip == g_eih_last_flip) return;
-    g_eih_last_flip = flip;
-    while (g_eih_i < g_eih_n && flip >= (LONG)g_eih_trace[g_eih_i].frame) {
-        memset(g_eih_held, 0, sizeof g_eih_held);
+    while (g_eih_i < g_eih_n) {
         ei_entry *e = &g_eih_trace[g_eih_i];
+        LONG axis = e->is_tick ? g_eh_sim_tick : g_eh_flip;
+        if (axis < (LONG)e->frame) break;
+        memset(g_eih_held, 0, sizeof g_eih_held);
         for (int j = 0; j < e->nids; j++) g_eih_held[e->ids[j] & 0xff] = 1;
         g_eih_i++;
     }
@@ -344,7 +366,7 @@ static void eih_keydown_cb(PCONTEXT ctx)
         if (*(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) & 0x80) g_rec_cur[sc] = 1;
     }
     if (g_eih_n > 0) {                          /* INJECT: write the trace's held state */
-        eih_advance(g_eh_flip);
+        eih_advance();
         if (g_eih_managed[sc])
             *(BYTE *)(ctx->Ecx + EI_KBSTATE_OFF + sc) = g_eih_held[sc] ? 0x80 : 0x00;
     }
