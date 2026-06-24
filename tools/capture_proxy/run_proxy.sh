@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # tools/capture_proxy/run_proxy.sh — boot retail under the trace-studio-v2
-# native capture proxy (NO Frida, NO injector).
+# native capture proxy (NO Frida server).
 #
-# Drops build/ddraw_proxy.dll into the game dir as ddraw.dll (the exe imports
-# DirectDrawCreateEx, so it auto-loads — exe dir wins the DLL search order),
-# drops a per-run unpacked-exe copy, launches it via PowerShell Start-Process
-# (WSLInterop, no Steam, no exec bit), waits, kills it, prints the proxy log,
-# and ALWAYS cleans up — especially ddraw.dll, so v1 Frida runs (which use the
-# same game dir) never accidentally load this proxy.
+# Drops a per-run unpacked-exe copy into the game dir (its dir = the app-dir where the
+# game finds its assets), stages the proxy DLL + build/inject.exe on NTFS, and force-loads
+# the proxy via inject.exe: CreateProcess(SUSPENDED) the exe -> remote LoadLibraryA by FULL
+# PATH -> ResumeThread.  This replaces the old "drop ddraw.dll, let the exe auto-load it"
+# scheme, which BROKE: app-dir shadowing of ddraw.dll is unreliable here — the game loads
+# System32\ddraw.dll regardless (ckpt 164).  Injection forces our DLL in regardless of the
+# search order, AND our DLL is live before the main thread, so the harness dismisses the
+# #32770 launcher dialog IN-PROCESS (no manual click).  Times the run, kills it, prints the
+# proxy log, and cleans up the dropped exe.
 #
 # Usage:  nix develop --command tools/capture_proxy/run_proxy.sh [seconds] [input-trace] [held-trace]
 #         input-trace = a WSL-path JSONL nav trace ({"frame":N,"ids":[..]});
@@ -29,10 +32,12 @@ TRACE="${2:-}"
 HELD="${3:-}"
 
 DLL="$ROOT/build/ddraw_proxy.dll"
+INJECT="$ROOT/build/inject.exe"
 UNPACKED="$ROOT/vendor/unpacked/sotes.unpacked.exe"
 GAME_DIR="${OPENSUMMONERS_GAME_DIR:-/mnt/c/Program Files (x86)/Steam/steamapps/common/Fortune Summoners}"
 
 [[ -f "$DLL" ]]      || { echo "error: $DLL missing — run: make -C tools/capture_proxy" >&2; exit 1; }
+[[ -f "$INJECT" ]]   || { echo "error: $INJECT missing — run: make -C tools/capture_proxy" >&2; exit 1; }
 [[ -f "$UNPACKED" ]] || { echo "error: $UNPACKED missing — run ./tools/setup.sh" >&2; exit 1; }
 [[ -d "$GAME_DIR" ]] || { echo "error: game dir not found: $GAME_DIR" >&2; exit 1; }
 
@@ -68,20 +73,32 @@ if [[ -n "$HELD" ]]; then
     echo "[run_proxy] held:  $HELD -> $HELD_WIN ($(grep -c . "$HELD") lines)"
 fi
 
+# Injection vehicle (ckpt 164): drop the unpacked exe in the game dir (its dir is the
+# app-dir = where the game finds its assets), and stage the proxy DLL + the injector on
+# NTFS (full-path injectable).  We do NOT shadow ddraw.dll anymore — app-dir shadowing is
+# unreliable here (the game loads System32\ddraw.dll regardless of an app-dir drop, ckpt
+# 164).  inject.exe force-loads the proxy by full path into the SUSPENDED process, so our
+# hooks install regardless of the DLL search order AND our DLL is live BEFORE the launcher
+# dialog, so the harness dismisses it IN-PROCESS (no external/manual click needed).
 DROP_EXE="$GAME_DIR/sotes-unpacked-proxy-$$.exe"
-DROP_DLL="$GAME_DIR/ddraw.dll"
+STAGE_DIR="$(dirname "$LOG_WSL")"
+STAGE_DLL="$STAGE_DIR/oss_proxy.dll"
+STAGE_INJ="$STAGE_DIR/inject.exe"
 
 cleanup() {
-    rm -f "$DROP_EXE" "$DROP_DLL"
+    rm -f "$DROP_EXE"
     rm -f "$GAME_DIR"/sotes-unpacked-proxy-*.exe 2>/dev/null || true
 }
 trap cleanup EXIT
 
-cp -f "$DLL" "$DROP_DLL"
+cp -f "$DLL"      "$STAGE_DLL"
+cp -f "$INJECT"   "$STAGE_INJ"
 cp -f "$UNPACKED" "$DROP_EXE"
 
 WIN_EXE="$(wslpath -w "$DROP_EXE")"
 WIN_CWD="$(wslpath -w "$GAME_DIR")"
+WIN_DLL="$(wslpath -w "$STAGE_DLL")"
+WIN_INJ="$(wslpath -w "$STAGE_INJ")"
 
 # Pass the OSS_* config + the log path through the PowerShell env to the child.
 PS_ENV=""
@@ -103,67 +120,24 @@ echo "[run_proxy] cwd:  $WIN_CWD"
 echo "[run_proxy] log:  $LOG_WSL"
 echo "[run_proxy] run for ${SECS}s..."
 
-# The launcher config dialog (#32770, "Launch" button = ctrl 10003, engine-quirk #3)
-# pops BEFORE the exe delay-loads ddraw.dll — so OUR proxy (which loads VIA ddraw,
-# i.e. AFTER the dialog) can never dismiss it itself; its EnumChildWindows handler
-# only runs post-ddraw.  The old Frida path dismissed it from the injected agent
-# (installPeriodicWindowScan); the native proxy needs an EXTERNAL dismisser.  Click
-# Launch via PostMessage(BM_CLICK) from this launching PowerShell, then time the run.
-PS1_WSL="$(dirname "$LOG_WSL")/run_proxy.ps1"
+# Force-load the proxy via the injector: CreateProcess(SUSPENDED) -> remote LoadLibraryA by
+# FULL PATH -> ResumeThread.  Our DLL is live before the main thread runs, so the engine-VA
+# hooks install on the mapped sotes code and the harness dismisses the #32770 launcher
+# IN-PROCESS (BM_CLICK works in-process, unlike from an external/WSL PowerShell — ckpt 164).
+# inject.exe prints "pid=NNNN"; we time \$SECS of game-run then kill that pid.
+PS1_WSL="$STAGE_DIR/run_proxy.ps1"
 {
   printf '%s\n' "$PS_ENV"
   cat <<EOF
 \$ErrorActionPreference = 'SilentlyContinue'
-Add-Type @"
-using System;
-using System.Text;
-using System.Runtime.InteropServices;
-public class Launcher {
-  delegate bool EnumProc(IntPtr h, IntPtr l);
-  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
-  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-  [DllImport("user32.dll")] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
-  [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
-  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
-  static uint target; static bool present;
-  static bool Cb(IntPtr h, IntPtr l) {
-    uint pid; GetWindowThreadProcessId(h, out pid);
-    if (pid != target) return true;
-    var c = new StringBuilder(64); GetClassName(h, c, 64);
-    if (c.ToString() != "#32770") return true;            // the launcher config dialog (quirk #3)
-    present = true;
-    IntPtr btn = GetDlgItem(h, 10003);                    // best-effort: post BM_CLICK on the "Launch"
-    if (btn != IntPtr.Zero) PostMessage(btn, 0xF5, IntPtr.Zero, IntPtr.Zero);
-    return false;
-  }
-  // True while the #32770 launcher dialog is still up for this pid.  EnumWindows runs
-  // inside C# (a PS delegate can't cast to EnumProc; FindWindowEx("#32770") won't match
-  // the atom-based system dialog class).  The BM_CLICK is a no-op on this dialog from a
-  // background process (it needs a real foreground click), so the USER must click Launch
-  // -- but detecting presence lets us WAIT for the dismiss before timing the run.
-  public static bool Up(uint pid) { target = pid; present = false; EnumWindows(Cb, IntPtr.Zero); return present; }
-}
-"@
-\$p = Start-Process -FilePath '$WIN_EXE' -WorkingDirectory '$WIN_CWD' -PassThru
-Write-Output ("pid=" + \$p.Id)
-# The launcher config dialog (#32770) delay-precedes ddraw.dll, so OUR proxy (loaded VIA
-# ddraw) can't dismiss it, and a WSL-launched PowerShell can't grab the interactive
-# desktop's foreground to synth-click it (SetForegroundWindow fails) — so it needs a
-# physical click.  Wait for it to APPEAR then be DISMISSED before starting the run timer,
-# so \$SECS is game-time not launcher-wait-time.
-\$seen = \$false
-for (\$i = 0; \$i -lt 600; \$i++) {
-  if ([Launcher]::Up([uint32]\$p.Id)) {
-    if (-not \$seen) { Write-Output "[launcher] #32770 config dialog is up - CLICK 'Launch' to start the capture"; \$seen = \$true }
-  } elseif (\$seen) {
-    Write-Output "[launcher] dismissed - proxy engaging, timing ${SECS}s run"; break
-  } elseif (\$i -gt 75) {
-    Write-Output "[launcher] no #32770 seen in 15s - proceeding"; break
-  }
-  Start-Sleep -Milliseconds 200
-}
+\$out = & '$WIN_INJ' '$WIN_EXE' '$WIN_DLL' '$WIN_CWD' 2>&1
+\$out | ForEach-Object { Write-Output \$_ }
+\$gpid = 0
+foreach (\$line in \$out) { if ("\$line" -match 'pid=(\d+)') { \$gpid = [int]\$matches[1] } }
+if (\$gpid -eq 0) { Write-Output '[inject] FAILED to get game pid'; exit 1 }
+Write-Output ("[inject] game pid=" + \$gpid + " -- timing ${SECS}s run")
 Start-Sleep -Seconds $SECS
-try { Stop-Process -Id \$p.Id -Force } catch {}
+try { Stop-Process -Id \$gpid -Force } catch {}
 EOF
 } > "$PS1_WSL"
 PS1_WIN="$(wslpath -w "$PS1_WSL")"

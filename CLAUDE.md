@@ -192,16 +192,20 @@ changelog. Active multi-session plans: `docs/plans/`.
   ckpt 128 USER directive).** Capture is the `.osr` draw stream on BOTH sides: retail via the
   native Frida-free proxy `tools/capture_proxy/run_proxy.sh`, the port via
   `opensummoners.exe --osr-emit <path>` (same codec `src/osr_format.h`).
-  **`run_proxy.sh` LAUNCHER FOOTGUN (ckpt 164):** retail pops the `#32770` config dialog
-  ("Launch" btn = ctrl **10003**, quirk #3) BEFORE it delay-loads `ddraw.dll` — so OUR proxy
-  (loaded VIA ddraw, i.e. POST-dialog) can't auto-dismiss it (its EnumChildWindows handler
-  only runs once ddraw is up), and a WSL-interop PowerShell can't grab the interactive
-  desktop's foreground to synth-click it (`SetForegroundWindow` returns False; posted
-  `BM_CLICK`/`WM_COMMAND`/`WM_LBUTTON*` are all ignored by this dialog).  ⇒ a HUMAN must
-  physically click **Launch** for every retail capture (the proxy then loads + engages on
-  ddraw-load).  `run_proxy.sh` DETECTS the `#32770` dialog, prints "CLICK 'Launch'", and
-  WAITS for the dismiss before starting its `$SECS` timer (so the run is game-time).  The old
-  Frida path auto-dismissed in-process; the native proxy can't.  Review is the NATIVE
+  **`run_proxy.sh` uses INJECTION, NOT a ddraw.dll drop (ckpt 164 — the foundation fix).**
+  The old scheme (drop `ddraw.dll` in the game dir, let the exe auto-load it) BROKE: a
+  bare/static `ddraw.dll` resolution loads **`System32\ddraw.dll`, NOT the app-dir drop**
+  (verified by `GetModuleFileName`; NOT KnownDLLs, NOT a PE flag — likely System32 ddraw is
+  pre-loaded as a dependency of another import + reused by base name), so OUR proxy never
+  loaded → every capture came back empty.  FIX: **`build/inject.exe`** (`inject.c`) does
+  `CreateProcess(SUSPENDED)` the unpacked exe → remote `LoadLibraryA(<full-path to the proxy
+  DLL>)` → `ResumeThread`.  Our DLL loads regardless of the search order AND is live BEFORE
+  the main thread, so (a) the engine-VA hooks patch the mapped sotes code, and (b) the
+  harness dismisses the `#32770` launcher (`Launch` = ctrl 10003, quirk #3) **IN-PROCESS**
+  (`BM_CLICK` works in-process — it does NOT from an external/WSL PowerShell, where
+  `SetForegroundWindow` fails).  So retail captures are HANDS-FREE again — no ddraw drop, no
+  manual click.  (`run_proxy.sh` stages the DLL + `inject.exe` on NTFS, drops the exe, runs
+  the injector, times `$SECS`, kills.)  Review is the NATIVE
   viewer **`tools/osr_view`** (ImGui/DX11, Windows): `osr_view.exe <port.osr> <retail.osr>` = the
   tick-joined PORT|RETAIL|DIFF scrub + a diff heat ribbon + the **frame-draw DRILL** (step a frame
   draw-by-draw, pixel→draw pick) + the NOTE/mark hand-off + the **ENGINE STATE panel**; `--osr-replay`
