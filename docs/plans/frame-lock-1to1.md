@@ -61,12 +61,32 @@ the brake-stop at ~2085 (−9px) and the dashes at ~2385/2655 (+20/+35/+58px).  
   and the accel phases are camera-hidden, so there is no observable retail trajectory to diff the
   accel against.  Forcing the port's screen_x to match the recording's clamped samples would be
   curve-fitting against the recording's flip-aliasing + an unobservable accel — FORBIDDEN.
-- **Unblock = a STATE-FUL retail recording.**  Re-record the errands freeroam under the proxy with
-  **`OSS_OSR_STATE=1`** (the proxy's `eh_flip_cb` emits retail's player wx/vel per flip, mirroring
-  the port's `--osr-state`); then `sync_diff` (or a wx/vel variant) compares the ACCEL ramps
-  directly — wx vs wx, vel vs vel — independent of the camera.  Any real accel divergence then shows
-  on the wx axis; if the wx ramps match, the screen_x residual is confirmed as the recording's
-  flip-aliasing and the trace is frame-locked at the physics level.
+- **Unblock = RE-DRIVE retail with the recorded input + state (USER-suggested, ckpt 163g; no new
+  play-through needed).**  The proxy ALREADY replays input (`OSS_HELD_TRACE` = the held-scancode
+  trace, `OSS_INPUT_TRACE` = rings; the engine DERIVES the ring edges from the held transitions on
+  replay, `engine_input.h`) and gates a state pass on `g_cfg.state_on` (currently emits only `rng`,
+  `engine_hooks.h eh_flip_cb`).  So: re-drive retail under `run_proxy.sh` with `OSS_HELD_TRACE`=the
+  recorded trace + the state pass on, capturing retail's per-flip wx/hvel — the SAME deterministic
+  RNG-free movement the port runs, now with state.  Then a wx/vel diff (port `--osr-state` vs the
+  retail re-drive) compares the ACCEL ramps directly — wx-vs-wx — independent of the camera.
+
+## Chase #3 execution plan (the re-drive — teed up, ckpt 163g)
+1. **Extend the proxy state pass** (`tools/capture_proxy/engine_hooks.h eh_flip_cb`, after the `rng`
+   field, under `g_cfg.state_on`): emit the player **wx** + **hvel** off the KNOWN leader chain
+   (`tools/flow/freeroam_mover_fields.json`): `room_state = *(0x8a9b50)+0x2784 -> +0x200c leader-slot
+   -> +0x9f4 entity -> +0x40 body`, then **wx = body+4**, **hvel = body+0x28** (NB the field-spec's
+   "+0x18 vel" is the VERTICAL accumulator; the HORIZONTAL one the port's `fr_vel` mirrors is +0x28).
+   VirtualQuery-guard each deref (the chain is null pre-freeroam).  Optionally also `facing` (+0x2c).
+2. **Forward the env in `run_proxy.sh`** (the passthrough list ~line 94): add `OSS_HELD_TRACE`
+   `OSS_INPUT_TRACE` + whatever toggles `g_cfg.state_on` (mirror the port's `--osr-state`).
+3. **Re-drive:** `run_proxy.sh` with `OSS_HELD_TRACE` = the recorded held trace (raw flip-axis
+   `sword2-input.jsonl`, OR the converted held trace) + seed-pin + state on -> `retail-state.osr`
+   carrying retail's wx/hvel per flip (sim_tick on each FRAMEBEG for the join).
+4. **Diff wx-vs-wx:** a `sync_diff` variant (or `osr.py STATES`) aligns port `--osr-state` wx/vel vs
+   the retail re-drive's, per sim-tick, through the walk/dash ACCEL ramps (no camera, no screen_x).
+5. **Root-cause + fix:** if the wx ramps diverge, RE the accel/warmup in `442a70` (the integrator) /
+   `character_resolve_run`/`_step` and fix the logic; if they MATCH, the screen_x residual is
+   confirmed flip-aliasing and the trace is frame-locked at the physics level (document + close).
 
 ## Strict bar
 A trace is frame-locked when `sync_diff` reports **0px** body divergence at every SETTLED tick AND
