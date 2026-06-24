@@ -4016,12 +4016,25 @@ static void live_keyboard_snapshot(uint8_t dik[256])
 static void feed_input(input_mgr *m, uint32_t now)
 {
     if (g_input_trace_active || g_held_trace_active) {
+        /* FRAME-LOCK off-by-one (the foundation fix).  The tick-axis trace entries
+         * are keyed to the RECORDING's sim-tick = the BODY LABEL retail flipped that
+         * frame.  But the port bumps g_sim_tick_count LATER this frame — in
+         * game_camera_step, AFTER freeroam_step — so right here it still holds the
+         * PREVIOUS tick.  The upcoming freeroam_step runs as, and drive_present labels
+         * its body, g_sim_tick_count + 1 on a sim-tick present (the easer cadence =
+         * the even g_game_camera_hold parity, same gate as is_sim_tick).  Anticipate
+         * that pending increment so a recording-tick-T entry drives the port body
+         * LABELLED T — without it every replayed input (walk start, the Z draw, the
+         * dialogue X-advance) lands exactly one sim-tick late (the ckpt-163e walk-accel
+         * "gap" was this: retail's held-edge 1886 -> motion 1888 is 2 idle ticks, which
+         * the port's DELAY=3 warmup reproduces EXACTLY once the edge lands on time). */
+        uint32_t sim = g_sim_tick_count;
+        if (g_game_active && (g_game_camera_hold & 1u) == 0u)
+            sim++;
         if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame,
-                               g_sim_tick_count, m, now);
+            input_trace_replay(&g_input_trace, g_present_frame, sim, m, now);
         if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame,
-                              g_sim_tick_count, m);
+            held_trace_replay(&g_held_trace, g_present_frame, sim, m);
         return;
     }
     if (g_app_active_flag == 0)

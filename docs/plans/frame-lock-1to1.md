@@ -36,9 +36,11 @@
 
 | gap | kind | status |
 |-----|------|--------|
+| **replay applied 1 sim-tick LATE** (the walk "−4px ramp gap") | **tooling — FIXED (ckpt 163e)** | NOT physics.  `feed_input` read `g_sim_tick_count` BEFORE `game_camera_step` bumps it (after `freeroam_step`), so a recording-tick-T trace entry drove the port body LABELLED T+1.  Fix: `feed_input` anticipates the pending increment (`sim = g_sim_tick_count + (g_game_active && even g_game_camera_hold parity)`).  General — also corrects the Z draw / dialogue X-advance timing.  VERIFIED: the walk now starts at tick 1888 == retail (held-edge 1886 + the 2-idle-tick warmup, DELAY=3, which is retail-EXACT), 0px at every settled tick (the residual −2/−3px is the recording's ~2.23-flip/tick aliasing, not a port delta — the port reproduces retail's smooth ramp; the recording stair-steps it). |
 | dialogue advances on X (not just V/Enter id 0x24) | port debt | the port's dialogue/menu must consume the X→0x24 confirm; the USER spams X to advance.  Until then the converter maps X→0x24 (faithful: it IS the confirm). |
 | the title menu CONFIRM isn't recorded | recorder gap (`engine_input.h`) | the `OSS_INPUT_RECORD` held-set misses the menu start confirm (only the arrows show in the title phase); the fixed BOOT nav stands in.  Fix: capture it so the title is input-driven too. |
-| walk-accel ramp — first body divergence (sword2 tick 1898, −4px, re-converges) | port debt (movement physics) | the port lags ~4px during the walk's acceleration. |
+| sword DRAW startup latency (~3-4 ticks) | port debt (sword resolve/clip) | retail: Z-press tick 1807 → res-0x571 fr96 renders at tick 1810 (3 ticks).  The port swaps the sword-out bank + draws fr96 IMMEDIATELY (press+0).  Was masked by the off-by-one (drew at press+1); now the missing retail startup delay shows as port ~3t early.  RE the Z→draw beat (the 0xc35b form install / the resolve→clip latency) and add it. |
+| body divergence at sword2 tick 2082 (−6px) | port debt (movement) | the next real gap after the walk (post-walk, pre-dash) — to root-cause. |
 | dash DISTANCE (~20px after the first dash) | port debt (movement) | the dash now FIRES (deterministic clock) but covers ~20px less — start/decel precision. |
 | errands-dialogue cadence (~13t residual, ckpt 145) | port debt (cutscene timing) | shows up as a small offset between the input-driven cutscene and retail. |
 

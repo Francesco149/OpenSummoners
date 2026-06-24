@@ -6,6 +6,33 @@ specific commits where relevant.
 
 ---
 
+## 2026-06-24 (ckpt 163e) — frame-lock: the walk-accel "−4px gap" was a 1-tick replay off-by-one — FIXED
+
+USER directive (the frame-lock foundation, ckpt 163c-d): drive PORT + RETAIL 1:1 frame-by-frame off the
+real-play recording (`sword2.osr` + `sword2-input.jsonl`); every divergence is **port debt or a tooling
+gap**, never "good enough".  `sync_inputs.py` converts the recording's inputs → tick-axis held-trace + ring
+nav (OFFSET 0 by construction), a DETERMINISTIC INPUT CLOCK pins `GetTickCount`→`sim_tick·33ms` in a
+replayed freeroam, and `sync_diff.py` reports per-tick body screen-x + a camera proxy.
+
+**Chase #1 — the walk-accel divergence (sword2 tick ~1896, −4px) was NOT physics.**  `feed_input` read
+`g_sim_tick_count` BEFORE `game_camera_step` bumps it (which runs AFTER `freeroam_step`), so a
+recording-tick-T trace entry drove the port body **labelled T+1** — every replayed input landed one
+sim-tick late.  Fix (`main.c feed_input`): anticipate the pending increment, `sim = g_sim_tick_count +
+(g_game_active && (g_game_camera_hold & 1)==0)`.  The walk **warmup** (`CHAR_INPUT_REPEAT_DELAY=3` = 2 idle
+ticks) is retail-EXACT — confirmed off the recording (held-edge tick 1886 → motion 1888) + the decompile
+(`0x478ba0:229` walk latches at `now − press_ts ≥ 0xb` = 11 ms, well inside one 33 ms tick) + the ckpt-118
+`capdash2` byte array (`{0,0,1600,…}`).  So no physics change — only the replay timing.
+
+**Verified** off `port-sync2.osr` vs `sword2.osr`: the port walk now starts at tick 1888 == retail (was
+1889), **0px at every settled tick** (the residual −2/−3px is the recording's ~2.23-flip/tick aliasing —
+the port reproduces retail's smooth ramp, the recording stair-steps it); camera-follow now tracks +0px (was
++2/+4); the dash still fires (`fr_lr=6` @2149); the first real divergence moved 1896 → 2082.  1063 host pass
+(no `character.{c,h}` / test change).  **Surfaced** (next chips, `plans/frame-lock-1to1.md` gap table): the
+sword DRAW startup latency (retail Z-press 1807 → fr96 render 1810 ≈ 3t; the port draws at press+0) + the
+tick-2082 body gap.
+
+---
+
 ## 2026-06-22 (ckpt 161) — chip-2b: the DIRECTIONAL sword attacks (FORWARD / DOWN / BACK) — bit-exact
 
 The held direction at the X trigger now picks the swing **variant** (`character_resolve_attack`,

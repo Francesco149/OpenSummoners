@@ -320,6 +320,25 @@ understates how much actual instruction volume is ported.
   **GOAL (USER, multi-session):** iterate this trace to FRAME-LOCK the whole errands sequence start→finish —
   each remaining desync is port debt or a missing determinism anchor (NEXT: replay the recording's ACTUAL
   inputs so the turn-timing matches by construction, then chase residual desyncs one by one).  1055 host pass.
+  **ckpt 163c-d — the FRAME-LOCK 1:1 FOUNDATION (USER directive): drive PORT+RETAIL 1:1 off the real-play
+  recording; any divergence = port debt or a tooling gap, never "good enough".**  `sync_inputs.py` (rec.osr +
+  rec-input.jsonl → tick-axis held-trace + ring nav, OFFSET 0 by construction), the DETERMINISTIC INPUT CLOCK
+  (`input_now` pins GetTickCount→sim_tick·33ms in a replayed freeroam so the dash/attack/consume windows replay
+  deterministically), `sync_diff.py` (per-tick body screen-x + camera-proxy, attributes MOVEMENT vs CAMERA, flags
+  the FIRST divergence).  `plans/frame-lock-1to1.md`.
+  **ckpt 163e — chase #1: the walk-accel "−4px gap" was a 1-tick REPLAY OFF-BY-ONE, not physics — FIXED +
+  verified.**  `feed_input` read `g_sim_tick_count` BEFORE `game_camera_step` bumps it (AFTER `freeroam_step`),
+  so a recording-tick-T trace entry drove the port body LABELLED T+1 — EVERY replayed input (walk, the Z draw,
+  the dialogue X-advance) landed one sim-tick late.  Fix (`main.c feed_input`): anticipate the pending increment
+  (`sim = g_sim_tick_count + (g_game_active && (g_game_camera_hold&1)==0)`).  The walk WARMUP (DELAY=3 = 2 idle
+  ticks) is retail-EXACT — confirmed off the recording: held-edge tick 1886 → motion 1888 (the ckpt-118 capdash2
+  "2 idle ticks" array + 478ba0:229's 11ms threshold both agree).  VERIFIED off `port-sync2.osr` vs `sword2.osr`
+  (`sync_diff`): the walk now starts at tick 1888 == retail (was 1889), 0px at every SETTLED tick (the residual
+  −2/−3px is the recording's ~2.23-flip/tick aliasing — the port reproduces retail's SMOOTH ramp, the recording
+  stair-steps it); the camera-follow now tracks +0px (was +2/+4); the dash still fires (fr_lr=6 @2149); first
+  real divergence pushed 1896 → 2082.  1063 host pass (no physics touched).  SURFACED (next chips): the sword
+  DRAW startup latency (retail Z-press 1807 → fr96 render 1810 = ~3t; port draws at press+0) + the tick-2082
+  body gap.  `plans/frame-lock-1to1.md` (gap table).
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
