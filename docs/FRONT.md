@@ -331,8 +331,21 @@
   the deferred semantics); quirk #118; `findings/sword-draw-startup.md`.  **USER-VERIFY (visual): click the studio
   shortcut** (`studio-current.txt` → `port-sync3.osr | sword2.osr 0`) — scrub ~tick 1807: Arche now HOLDS the
   sword-in idle ~3 ticks after the Z press before unsheathing (res 0x571 fr96 at 1810), matching retail, instead
-  of snapping to the draw instantly.  **NEXT frame-lock chases:** the body gaps at ~2085 (brake; likely flip-
-  aliasing) + the DASHES ~2385/~2655 (+35/+58px, the big real movement gaps) + the end-state camera +16 half-tile.
+  of snapping to the draw instantly.  **USER-CONFIRMED visual ("can confirm it matches").**
+  **ckpt 163g — chase #3 DIAGNOSED: the remaining movement residuals are CAMERA-HIDDEN ACCEL-PHASE offsets, not
+  steady-state physics bugs — needs a STATE-FUL recording to chase further (a tooling gap, not a port bug).**
+  Decisive (input + port `--osr-state` wx/vel + the recording's per-tick body screen-x): at camera-CLAMPED ticks
+  (where screen_x tracks wx, dCAM≈0) the port's dash CAP (`vel=−48000`=−4.8px/tick) AND brake (−800/tick) MATCH
+  the recording tick-for-tick (walk cap −24000 / brake −800 likewise) — the steady-state physics are bit-exact.
+  The residual screen-x gaps (2085 brake −9px, dashes +20/+35/+58px) are a small **wx-offset accumulated during the
+  ACCEL ramp** (walk/dash start), which runs at `wx>30000` where the follow-camera pins Arche at screen ~270 on
+  BOTH sides → HIDES it; the offset only surfaces when `wx<30000` clamps the camera.  sword2.osr has **no OSR_STATE**
+  (no retail wx/vel) + the accel is camera-hidden ⇒ no observable retail accel trajectory to diff ⇒ forcing the
+  port to match the clamped screen-x samples would curve-fit the recording's ~2.23-flip/tick aliasing (FORBIDDEN).
+  **UNBLOCK (USER decision):** re-record the errands freeroam under the proxy with **`OSS_OSR_STATE=1`** (retail wx/vel
+  per flip) so `sync_diff` compares the accel ramps wx-vs-wx / vel-vs-vel, camera-independent — then a real accel
+  divergence shows on the wx axis, or the screen-x residual is confirmed as aliasing and the trace is physics-locked.
+  `plans/frame-lock-1to1.md` "## Chase #3 diagnosis".
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
