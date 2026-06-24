@@ -91,7 +91,25 @@ the brake-stop at ~2085 (−9px) and the dashes at ~2385/2655 (+20/+35/+58px).  
 Steps 1-2 are DONE + committed (`3ea94e8`: eh_flip_cb emits wx/hvel/facing; run_proxy forwards
 OSS_OSR_STATE).  Step 3 is BLOCKED — see below.
 
-## Chase #3 BLOCKER (ckpt 164) — the native proxy isn't loading into retail this session
+## Chase #3 BLOCKER — RESOLVED (ckpt 164) — the proxy now INJECTS instead of shadowing ddraw
+**FIXED.** Root cause: the game loads `System32\ddraw.dll`, not the app-dir `ddraw.dll` drop, so
+the old "drop ddraw.dll, the exe auto-loads it" scheme never loaded our proxy (empty logs all
+session).  FIX = `build/inject.exe` (`inject.c`): `CreateProcess(SUSPENDED)` the unpacked exe →
+remote `LoadLibraryA(<full path to oss_proxy.dll>)` → `ResumeThread`.  Our DLL loads regardless
+of the ddraw search order AND is live before the main thread, so the engine-VA hooks patch the
+mapped sotes code and the harness dismisses the `#32770` launcher IN-PROCESS (hands-free, no
+click).  `run_proxy.sh` rewritten to use it.  Committed `1a31089`.
+VERIFIED: a no-input run captures 2.3GB + emits the M8 STATE fields (wx hvel facing rng); a
+boot-ring-nav run (`nav-full-errands.jsonl` as `OSS_INPUT_TRACE`) reaches **newgame_enter 692 /
+prologue_enter 825 / game_enter 1117** + the RNG re-pin — retail gameplay is driven again.
+**NEXT (the actual chase-#3 re-drive, now unblocked):** drive retail to the ERRANDS freeroam +
+inject MOVEMENT (walk + dash) so wx/hvel exercise the accel ramps, capture with `OSS_OSR_STATE=1`
+→ `retail-state.osr`; drive the PORT the same way (`--osr-state`); then the wx-vs-wx diff (step 4).
+The held trace alone keeps retail at the TITLE (the title-confirm recorder-gap — `sword2-input.jsonl`
+has no title confirm); use the boot ring nav (`runs/sync/sword2-nav.jsonl` boot prefix /
+`nav-full-errands.jsonl`) for boot→game_enter, then a movement trace timed to the errands handoff.
+
+## (historical) Chase #3 BLOCKER (ckpt 164) — the native proxy wasn't loading into retail
 Every `run_proxy.sh` retail capture this session came back with an EMPTY proxy log + no `.osr`,
 EVEN when the launcher was dismissed (`[launcher] dismissed` logged, exe left locked = game ran).
 So the game ran but our `ddraw.dll` proxy never engaged.  Diagnosis (ckpt 164):

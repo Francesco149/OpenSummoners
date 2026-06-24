@@ -346,6 +346,24 @@
   per flip) so `sync_diff` compares the accel ramps wx-vs-wx / vel-vs-vel, camera-independent — then a real accel
   divergence shows on the wx axis, or the screen-x residual is confirmed as aliasing and the trace is physics-locked.
   `plans/frame-lock-1to1.md` "## Chase #3 diagnosis".
+  **ckpt 164 — CAPTURE-PROXY FOUNDATION FIX (the whole retail pipeline was BROKEN; USER: "we can't go
+  forwards until we have a solid foundation of functional tools").**  Every `run_proxy.sh` retail capture
+  this session came back EMPTY.  Root cause: the old scheme dropped `ddraw.dll` in the game dir and relied
+  on the exe loading it, but **the game loads `System32\ddraw.dll`, NOT the app-dir drop** (verified by
+  `GetModuleFileName`; NOT KnownDLLs / a PE flag / a Windows change — our DLL is functional via a full-path
+  `LoadLibrary`).  So our proxy never loaded.  **FIX = INJECTION: `build/inject.exe` (`inject.c`)** —
+  `CreateProcess(SUSPENDED)` the unpacked exe → remote `LoadLibraryA(<full path>)` → `ResumeThread`.  Our DLL
+  loads regardless of the search order AND is live before the main thread, so the engine-VA hooks patch the
+  mapped sotes code AND the harness dismisses the `#32770` launcher IN-PROCESS (`BM_CLICK` works in-process —
+  it does NOT from an external WSL PowerShell, where `SetForegroundWindow` fails + posted `BM_CLICK`/
+  `WM_COMMAND`/`WM_LBUTTON*` are ignored).  `run_proxy.sh` rewritten (stage DLL + inject.exe, drop exe, inject,
+  time, kill — no ddraw drop, no manual click).  **VERIFIED hands-free:** `[proxy] DLL_PROCESS_ATTACH` + 9
+  INT3 + 6 trampoline + GDI hooks, `[harness] clicked launch ('Launch')`, 561fps turbo, 2.3GB `.osr`, the M8
+  STATE pass emits **wx hvel facing rng**; a boot-ring-nav run (`nav-full-errands.jsonl`) reaches newgame 692 /
+  prologue 825 / **game_enter 1117** + RNG re-pin.  Commit `1a31089`; quirk #3 + CLAUDE.md rewritten.  **NEXT
+  (chase-#3, now UNBLOCKED):** drive retail to the ERRANDS freeroam + inject MOVEMENT (walk+dash) → capture
+  retail wx/hvel through the accel ramps; drive the port the same; wx-vs-wx diff (the held trace alone stays at
+  the TITLE — title-confirm recorder-gap; use the boot ring nav for boot→game_enter then a movement trace).
   Other moveset: the door-enter (= char-up-door-probe, collision-coupled — needs the collision mover).
   `findings/freeroam-pose-commands.md`.  **PIVOT (sword-independent, teed up ckpt 155): the freeroam HUD**
   (fully SCOPED, `findings/freeroam-hud.md`; ground-truth probe `hud_probe.py retail.osr 2413` confirmed working,
