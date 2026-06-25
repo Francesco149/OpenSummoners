@@ -70,6 +70,18 @@
 /* ── observable counters (read later by the .osr emitter) ─────────────────── */
 static volatile LONG g_eh_flip     = 0;
 static volatile LONG g_eh_sim_tick = 0;
+/* OSS_EMIT_TICK_BIAS (default 0): added to the sim_tick LABEL on every FRAMEBEG/STATE.
+ * The wx/hvel are read at the FLIP (post-easer-bump), so the velocity emitted with
+ * label T reflects the input the producer read at pre-bump (T-1) — a +1 vs the port's
+ * feed_input-anticipated labeling.  BIAS=-1 relabels the emit to the input-application
+ * frame so the re-drive matches the port's convention.  DIAGNOSTIC for the brake/dash
+ * 1-tick offset (ckpt 165). */
+static int g_emit_tick_bias = 0;
+static LONG eh_emit_tick(void)
+{
+    LONG t = g_eh_sim_tick + g_emit_tick_bias;
+    return t < 0 ? 0 : t;
+}
 
 /* ── frame-stream state (M3b: FRAMEBEG-at-open / draws / PRESENT-at-flip) ──── */
 static int g_eh_frame_open = 0;    /* a FRAMEBEG has opened the current frame   */
@@ -229,7 +241,7 @@ static void eh_flip_cb(PCONTEXT ctx)
             eh_snap_backbuffer(closing);
         osr_w_present(0, 0);
     }
-    osr_w_framebeg((uint32_t)f, (uint32_t)g_eh_sim_tick, 0);
+    osr_w_framebeg((uint32_t)f, (uint32_t)eh_emit_tick(), 0);
     /* M8: the opt-in engine STATE (rng census) right after FRAMEBEG.  rng = the
      * LCG state word read at the flip; retail rngcalls (the per-draw count) is a
      * follow-up — it needs a 0x5bf505 trampoline counter, PORT-DEBT(osr-state-
@@ -525,6 +537,12 @@ static void eh_game_enter_cb(PCONTEXT ctx)
 /* ── install all of M2b's onEnter hooks ──────────────────────────────────── */
 static void engine_hooks_install(void)
 {
+    {
+        char b[16];
+        DWORD n = GetEnvironmentVariableA("OSS_EMIT_TICK_BIAS", b, sizeof(b));
+        if (n > 0 && n < sizeof(b)) g_emit_tick_bias = (int)strtol(b, NULL, 0);
+        if (g_emit_tick_bias) proxy_logf("[hook] OSS_EMIT_TICK_BIAS=%d", g_emit_tick_bias);
+    }
     detour_init();
     detour_add(EH_FLIP_VA,       eh_flip_cb);
     detour_add(EH_SIM_TICK_VA,   eh_sim_tick_cb);

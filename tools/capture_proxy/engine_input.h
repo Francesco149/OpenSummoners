@@ -55,6 +55,15 @@
  * port also replays on, so retail and the port align offset-0 by construction. */
 typedef struct { DWORD frame; DWORD ids[EI_MAX_IDS]; int nids; int is_tick; } ei_entry;
 
+/* OSS_INJECT_LEAD (default 0): anticipate the easer bump for TICK-axis entries —
+ * the proxy injects at the producer query where g_eh_sim_tick is still the PRE-bump
+ * value (the easer 0x43d1d0 runs later in the frame, in the camera step), but the
+ * .osr emits the POST-bump label, so a tick-T entry lands 1 emit-tick late.  LEAD=1
+ * fires it a tick earlier (g_eh_sim_tick + LEAD >= frame) to match the emit label
+ * (and the port's feed_input anticipation, ckpt 163e).  A DIAGNOSTIC for the
+ * brake/dash 1-tick offset (ckpt 165). */
+static int   g_inject_lead = 0;
+
 static ei_entry g_ei_trace[EI_MAX_ENTRIES];
 static int   g_ei_n        = 0;
 static int   g_ei_i        = 0;          /* cursor into the trace */
@@ -139,7 +148,7 @@ static void ei_inject_due(DWORD now)
     if (!g_ei_mgr) return;
     while (g_ei_i < g_ei_n) {
         ei_entry *e = &g_ei_trace[g_ei_i];
-        LONG axis = e->is_tick ? g_eh_sim_tick : g_eh_flip;
+        LONG axis = e->is_tick ? (g_eh_sim_tick + g_inject_lead) : g_eh_flip;
         if (axis < (LONG)e->frame) break;
         for (int j = 0; j < e->nids; j++) {
             ei_inject_press(e->ids[j], EI_RING_SLOTS - 1 - j, now);
@@ -346,7 +355,7 @@ static void eih_advance(void)
 {
     while (g_eih_i < g_eih_n) {
         ei_entry *e = &g_eih_trace[g_eih_i];
-        LONG axis = e->is_tick ? g_eh_sim_tick : g_eh_flip;
+        LONG axis = e->is_tick ? (g_eh_sim_tick + g_inject_lead) : g_eh_flip;
         if (axis < (LONG)e->frame) break;
         memset(g_eih_held, 0, sizeof g_eih_held);
         for (int j = 0; j < e->nids; j++) g_eih_held[e->ids[j] & 0xff] = 1;
@@ -374,6 +383,10 @@ static void eih_keydown_cb(PCONTEXT ctx)
 
 static void engine_input_install(void)
 {
+    char lead[16];
+    DWORD ln = GetEnvironmentVariableA("OSS_INJECT_LEAD", lead, sizeof(lead));
+    if (ln > 0 && ln < sizeof(lead)) g_inject_lead = (int)strtol(lead, NULL, 0);
+    if (g_inject_lead) proxy_logf("[input] OSS_INJECT_LEAD=%d (tick-axis anticipation)", g_inject_lead);
     ei_load_trace();
     eih_load_trace();
     eih_record_init();
