@@ -389,7 +389,7 @@
   warmup, so re-drives are faithful for transition onsets too — a tooling gap, not a port bug), (b) continue the
   frame-lock chase to the NEXT divergence (using the port-vs-recording for transition onsets per the caveat), or
   (c) the freeroam HUD pivot (USER: only after the gaps — chase-#3 is now closed).
-  **ckpt 166 — THE REAL HARNESS FIX (option a) LANDED + verified; it EXPOSES an OPEN port warmup question (USER fork).**
+  **ckpt 166 — THE REAL HARNESS FIX (option a) LANDED + verified; it exposes a PROXY warmup residual (port CONFIRMED correct).**
   Root cause of the +1 nailed off the frame loop `0x439690` (input poll `0x468a20`@866 → velocity `0x46cd70`@1099 →
   easer `0x43d1d0`@1123 `sim_tick++` → present FRAMEBEG labeled POST-bump, all ONCE per logic frame): the injection
   fires at the input poll (PRE-bump `g_eh_sim_tick`), so a tick-T entry's velocity EMITS under label T+1 — the +1.
@@ -399,17 +399,20 @@
   WRONG in kind — it renames the emit without moving retail's real input-read frame; superseded, default 0.)
   **VERIFIED** (`port-move.osr` vs fresh `retail-harnessfix.osr`, new default, `state_diff`): the no-warmup BRAKE
   onset is now **bit-exact — retail brakes 2160 == port** (was 2161); walk accel/steady-state stay bit-exact.
-  **EXPOSED (the now-faithful oracle surfaces it; the old +1 hid it by coincidence):** at the faithful label both
-  sides press at 2050, but the **real `0x478ba0` engine moves at 2051 = 1 idle tick** (the `:182` wall-clock
-  `GetTickCount()-press_ts >= 0xb`=11ms test, crossed in one ≥11ms frame) while the **port `CHAR_INPUT_REPEAT_DELAY=3`
-  models 2 idle ticks** (moves 2052).  The brake anchors the labeling ⇒ this is a pure WARMUP gap, not a label error.
-  **CONFLICT → USER fork:** the port's DELAY=3 is calibrated to `capdash2` (ckpt 118, a FRIDA flip-axis RING dash,
-  `{0,0,1600,…}`=2 idle ticks, embedded "field-exact" in `test_character_run_ramp`); capdash2's frida flip labeling
-  is a DIFFERENT convention than this brake-anchored re-drive (its "2" likely a same-family +1), but asserting that
-  contradicts a verified capture+test.  Port UNCHANGED pending the USER call — resolve via (a) a fresh faithful-proxy
-  ring-dash capture (is the dash warmup 1 or 2 in the anchored convention? separates held-walk vs ring-dash) or (b) a
-  real-play `OSS_OSR_STATE` capture for gold ground truth, then retire `PORT-DEBT(char-input-autorepeat)` to the real
-  11ms logic (≈DELAY 2) if confirmed.  Commit: the proxy fix + docs.  `findings/freeroam-brake-onset.md`.
+  **EXPOSED — a PROXY held-injection warmup residual, NOT a port bug:** at the faithful label both sides press at
+  2050, but the proxy moves at **2051 (1 idle tick)** while the port `CHAR_INPUT_REPEAT_DELAY=3` models **2 idle
+  ticks** (2052).  **The port is CORRECT — capdash2 CONFIRMS it:** `capdash2` (ckpt 118, FRIDA, **turbo OFF** = the
+  SAME lockstep clock) shows a held-right walk warmup of **2 idle ticks** (raw call_trace: held@1550 → hvel@1552),
+  the bytes embedded "field-exact" in `test_character_run_ramp`.  Turbo is RULED OUT (`OSS_TURBO=0` re-drive STILL
+  gives the proxy 1 idle tick).  ROOT = held-injection FIDELITY: same `0x478ba0` + same clock, yet frida flip-axis
+  held = 2 idle but proxy tick-axis held = 1 idle — the wall-clock warmup (`:182` `GetTickCount()-press_ts`, edge ts
+  `device+0x14c` set by the producer `0x46a880`) is harness-sensitive to how each injection presents the 0→1 edge.
+  At lead 0 it was HIDDEN (applied-1-late + warmup-1-short cancel → press matched); the +1 (correct for the brake)
+  un-hides it on the rising edge.  **DO NOT touch the port** (the earlier "port may be 1 long" read predated the
+  turbo-off + capdash2-raw checks — WRONG).  The re-drive is now faithful for STEADY-STATE + no-warmup TRANSITION
+  onsets (the USER's goal); warmup-anchored rising-edge (walk-press) carries a known +1 — use the RECORDING for that
+  timing.  Deeper fix = RE `0x46a880` edge/press_ts (no curve-fit "delay rising edges by 1" until understood) — OPEN.
+  Commits: `539e50c` (proxy fix) + the docs correction.  `findings/freeroam-brake-onset.md`.
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING

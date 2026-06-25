@@ -1,8 +1,10 @@
 # Freeroam walk: accel bit-exact; the brake/run "+1" is a HARNESS artifact, port CORRECT (chase #3 RESOLVED)
 
 > **ckpt 166 UPDATE:** the harness fix is now DONE (the inject-side structural +1) and
-> brake onsets re-drive BIT-EXACT.  It exposes an OPEN walk-press warmup question (real
-> engine 1 idle tick vs the port's modeled 2).  Jump to "## THE HARNESS FIX (ckpt 166)".
+> brake / no-warmup TRANSITION onsets re-drive BIT-EXACT.  It exposes a PROXY held-
+> injection warmup residual (proxy walk-press = 1 idle tick vs real retail's 2) — **NOT a
+> port bug: capdash2 turbo-off CONFIRMS the port's DELAY=3**.  Jump to "## THE HARNESS FIX
+> (ckpt 166)" → "## EXPOSED by the fix".
 
 **ckpt 165.** The frame-lock chase #3 residual (ckpt 163g hypothesised "camera-hidden
 accel-phase aliasing") was chased to the camera-independent wx/hvel axis.  **Outcome
@@ -98,33 +100,51 @@ port and re-drive apply a tick-T entry under the SAME emit label, offset-0.
   renames the emit without moving retail's real input-read frame, so the warmup/physics
   ran un-anticipated.  Superseded; kept default 0 as a residual diagnostic.
 
-## EXPOSED by the fix — the WALK-PRESS warmup (re-drive 1 idle tick vs port/capdash2 2)
-With faithful labeling the re-drive is a true oracle, and it surfaces a REAL
-discrepancy the old +1 was HIDING by coincidence (at lead 0 the warmup absorbed the
-labeling +1, so the press matched).  At the faithful label, both sides apply the press
-at label 2050, yet **retail (the real `0x478ba0` engine) moves at 2051 = 1 idle tick**,
-while the **port `CHAR_INPUT_REPEAT_DELAY=3` models 2 idle ticks** (motion 2052).  The
-brake (zero-warmup) anchors the labeling, so this 1-tick gap is a pure WARMUP
-difference, not a label error.  Retail's warmup is the `0x478ba0:182` wall-clock test
-`GetTickCount() - press_ts >= 0xb` (11 ms); at ≥11 ms/logic-frame it crosses in ONE
-frame → 1 idle tick, clock-robust.
-- **CONFLICT (needs resolution before any port change):** the port's `DELAY=3` is
-  calibrated to `capdash2` (ckpt 118, a FRIDA flip-axis RING double-tap dash) whose
-  `{0,0,1600,…}` reads as 2 idle ticks and is embedded "field-exact" in
-  `test_character_run_ramp`.  capdash2's frida flip-axis labeling is a DIFFERENT
-  convention than this brake-anchored re-drive, so its "2" is likely a +1 of the same
-  family.  But asserting that contradicts a verified capture + test → **USER fork**:
-  (a) a fresh FAITHFUL-proxy ring-dash capture to see if the dash warmup is 1 or 2 in
-  the anchored convention (separates held-walk vs ring-dash), or (b) a real-play
-  `OSS_OSR_STATE` capture for gold ground truth, then retire `PORT-DEBT(char-input-
-  autorepeat)` to the real 11 ms logic (≈DELAY 2) if confirmed.
+## EXPOSED by the fix — a PROXY held-injection warmup residual (NOT a port bug)
+The structural +1 is correct for the no-warmup brake (proven), but it surfaces that the
+proxy's tick-axis HELD-injection produces a walk-press warmup **1 tick shorter** than
+real retail.  At the faithful label both sides press at 2050; the proxy moves at **2051
+(1 idle tick)** while the port `CHAR_INPUT_REPEAT_DELAY=3` models **2 idle ticks** (2052).
+**The port is CORRECT — this is a HARNESS residual, not a port debt.**  Decisive table
+(entry press@2050, release@2160; port == capdash2 ground truth):
+
+| | press(motion) | brake(onset) | warmup | labeling |
+|-|-|-|-|-|
+| **port (== capdash2 GT)** | 2052 | 2160 | 2 idle | correct |
+| proxy lead 0 | 2052 *(coincidence)* | 2161 | 1 idle, applied-1-late cancels | +1 late |
+| proxy **structural +1** | 2051 | **2160** | 1 idle | **correct** |
+| proxy +1, **turbo OFF** | 2051 | 2160 | 1 idle | correct |
+| capdash2 (frida, turbo OFF) | t1552 (+2) | — | 2 idle | — |
+
+- **capdash2 CONFIRMS the port.**  `capdash2` (ckpt 118, FRIDA, **turbo OFF** = the SAME
+  lockstep clock, step 16 ms) shows a HELD-right walk warmup of **2 idle ticks** (raw
+  `call_trace`: held@tick 1550 → hvel 1600 @tick **1552**), the bytes embedded
+  "field-exact" in `test_character_run_ramp`.  So `DELAY=3` is right; **do NOT touch the
+  port.**  (The earlier "port may be 1 long" read was WRONG — it predated the turbo-off +
+  capdash2-raw checks.)
+- **Turbo is RULED OUT.**  Re-driving with `OSS_TURBO=0` (lockstep bypasses turbo once
+  armed anyway) STILL gives the proxy 1 idle tick — so the gap is not the clock.
+- **ROOT = held-injection fidelity (harness-sensitive wall-clock warmup).**  Same
+  `0x478ba0` code, same lockstep clock, yet frida flip-axis held = 2 idle, proxy tick-axis
+  held = 1 idle.  The warmup is the `0x478ba0:182` `GetTickCount()-press_ts >= …` wall-clock
+  test keyed on the edge timestamp `device+0x14c` (set by the producer `0x46a880` on the
+  0→1 edge); the two injection harnesses present that edge/`press_ts` 1 tick apart.  At
+  lead 0 the proxy's intrinsic 1-short warmup was HIDDEN (applied-1-late + warmup-1-short
+  cancel → press matched the port); the +1 (correct for the brake) un-hides it on the
+  rising edge.  **No curve-fit "delay held rising edges by 1"** until `0x46a880`'s edge/
+  `press_ts` capture is RE'd and the frida-vs-proxy 1-tick difference is understood.
 
 ## Status
-- Walk accel: **regression-locked bit-exact** (`parity-ledger`).
-- Brake/run onset: **HARNESS FIX LANDED (ckpt 166) — bit-exact**; the re-drive is now
-  faithful for no-warmup transition onsets (the structural +1, brake-verified).
-- Walk-press warmup: **OPEN** — re-drive 1 idle tick vs port/capdash2 2; conflicting
-  ground truth (see above), port unchanged pending the USER fork.
+- Walk accel + steady-state: **regression-locked bit-exact** (`parity-ledger`).
+- Brake / no-warmup TRANSITION onsets: **HARNESS FIX LANDED (ckpt 166) — bit-exact** (the
+  structural +1; brake-verified).  This is the USER's stated goal for the harness fix.
+- Walk-press (warmup-anchored rising edge): a known **+1 PROXY residual** — the held-
+  injection under-warms by 1 vs real retail.  Port is CORRECT (capdash2-confirmed).  For
+  warmup-anchored onset timing use the RECORDING / the port's `feed_input` replay, not the
+  live held re-drive.  Deeper fix = RE `0x46a880` edge/`press_ts` (OPEN).
+- TRADE-OFF NOTE: the +1 trades the lead-0 coincidental press match for a faithful brake.
+  Kept because it makes the LABELING principled (== port feed_input + recorder) and fixes
+  the transition onsets the USER asked for; the press residual is narrow + documented.
 - Dash: the synth double-tap (held-axis only) capped at the WALK cap (24000) — the real
   dash (cap 48000) needs explicit RING double-tap edges (`ids:[4,4]`, ckpt 154); the
   retail dash accel (two-phase +3200→+1600 to 48000) was captured + is bit-exact vs the
