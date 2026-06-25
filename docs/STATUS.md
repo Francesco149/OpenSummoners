@@ -396,6 +396,25 @@ understates how much actual instruction volume is ported.
   overlay seq 462-536; banks are sotesd.dll DATA = loadable — the layout + party-data is the work).  The errands opening DIALOGUE is DONE
   (ckpt 152).  RESIDUAL on the icons: only ←/→/X are mapped — other `@@` codes (↑/↓/Z/C) are unknown-skipped
   until a line uses them (then verify the slot-55 frame + add to the token map).
+  **ckpt 165 — CHASE #3 LANDED (the frame-lock movement residual): walk accel BIT-EXACT; the brake/run "+1" is a
+  HARNESS artifact, the PORT is CORRECT.**  The ckpt-164 injection foundation is now PROVEN end-to-end: extended
+  the proxy injection to the **SIM-TICK axis** (`{"tick":N}` fires on `g_eh_sim_tick`, `{"frame":N}` on flips —
+  `engine_input.h`), brute-force confirm-spam (`spam-confirm-nav`) clears the ckpt-157 errands HANDOFF, and a
+  synthetic walk+dash (`synth-move{2,3}`) drives retail's wx/hvel through the accel ramps + the dash double-tap
+  (`ids:[4,4]`).  New tool `state_diff.py` (the camera-free wx/hvel diff, chase-plan step 4).  **Result vs the
+  port:** the WALK ACCEL is bit-exact (14 ticks 0-divergence, +1600/tick → cap 24000); the brake + dash-run-detect
+  looked "1 tick early" in the port, but **USER-directed deep RE (decompile + the unpacked-exe ASSEMBLY) proved
+  retail's input→command→velocity is single-frame, ZERO latency** — `0x439690` order input(`468a20`@866)→velocity
+  (`46cd70`@1099)→easer-bump(`43d1d0`@1123)→present; the reduction `0x478ba0` (this=actor) writes `actor+0x14854`
+  and the apply `0x442a70` (this=actor) reads it phase-A→B SAME FRAME (fresh command, no copy/lag).  So real retail
+  brakes on the release tick == the port.  The re-drive's +1 is the proxy injection labeling (pre-bump inject vs
+  post-bump emit/record), warmup-absorbed on the press, exposed on the no-warmup brake/run.  **No port fix (would
+  REGRESS).**  Diagnostics kept default-off: `OSS_INJECT_LEAD` + `OSS_EMIT_TICK_BIAS` (both a uniform shift, why
+  neither reconciles).  Commits `f9424fc`/`f3dc2cd`; `findings/freeroam-brake-onset.md`; `plans/frame-lock-1to1.md`.
+  **NEXT:** either (a) the real HARNESS fix (align the live-injection labeling to the record/emit accounting for the
+  warmup, so re-drives are faithful for transition onsets too — a tooling gap, not a port bug), (b) continue the
+  frame-lock chase to the NEXT divergence (using the port-vs-recording for transition onsets per the caveat), or
+  (c) the freeroam HUD pivot (USER: only after the gaps — chase-#3 is now closed).
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
