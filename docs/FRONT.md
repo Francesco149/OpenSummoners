@@ -389,6 +389,27 @@
   warmup, so re-drives are faithful for transition onsets too — a tooling gap, not a port bug), (b) continue the
   frame-lock chase to the NEXT divergence (using the port-vs-recording for transition onsets per the caveat), or
   (c) the freeroam HUD pivot (USER: only after the gaps — chase-#3 is now closed).
+  **ckpt 166 — THE REAL HARNESS FIX (option a) LANDED + verified; it EXPOSES an OPEN port warmup question (USER fork).**
+  Root cause of the +1 nailed off the frame loop `0x439690` (input poll `0x468a20`@866 → velocity `0x46cd70`@1099 →
+  easer `0x43d1d0`@1123 `sim_tick++` → present FRAMEBEG labeled POST-bump, all ONCE per logic frame): the injection
+  fires at the input poll (PRE-bump `g_eh_sim_tick`), so a tick-T entry's velocity EMITS under label T+1 — the +1.
+  **FIX (inject-side, structural):** fire tick entries at the PENDING emit label `g_eh_sim_tick+1` (`engine_input.h`
+  `EI_TICK_AXIS`), mirroring the port's `feed_input` anticipation + the recorder flip→tick map, so port↔re-drive
+  apply a tick-T entry under the SAME emit label.  (NOT a relabel: `OSS_EMIT_TICK_BIAS=-1` joins the diff too but is
+  WRONG in kind — it renames the emit without moving retail's real input-read frame; superseded, default 0.)
+  **VERIFIED** (`port-move.osr` vs fresh `retail-harnessfix.osr`, new default, `state_diff`): the no-warmup BRAKE
+  onset is now **bit-exact — retail brakes 2160 == port** (was 2161); walk accel/steady-state stay bit-exact.
+  **EXPOSED (the now-faithful oracle surfaces it; the old +1 hid it by coincidence):** at the faithful label both
+  sides press at 2050, but the **real `0x478ba0` engine moves at 2051 = 1 idle tick** (the `:182` wall-clock
+  `GetTickCount()-press_ts >= 0xb`=11ms test, crossed in one ≥11ms frame) while the **port `CHAR_INPUT_REPEAT_DELAY=3`
+  models 2 idle ticks** (moves 2052).  The brake anchors the labeling ⇒ this is a pure WARMUP gap, not a label error.
+  **CONFLICT → USER fork:** the port's DELAY=3 is calibrated to `capdash2` (ckpt 118, a FRIDA flip-axis RING dash,
+  `{0,0,1600,…}`=2 idle ticks, embedded "field-exact" in `test_character_run_ramp`); capdash2's frida flip labeling
+  is a DIFFERENT convention than this brake-anchored re-drive (its "2" likely a same-family +1), but asserting that
+  contradicts a verified capture+test.  Port UNCHANGED pending the USER call — resolve via (a) a fresh faithful-proxy
+  ring-dash capture (is the dash warmup 1 or 2 in the anchored convention? separates held-walk vs ring-dash) or (b) a
+  real-play `OSS_OSR_STATE` capture for gold ground truth, then retire `PORT-DEBT(char-input-autorepeat)` to the real
+  11ms logic (≈DELAY 2) if confirmed.  Commit: the proxy fix + docs.  `findings/freeroam-brake-onset.md`.
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING

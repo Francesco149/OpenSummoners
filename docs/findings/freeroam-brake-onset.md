@@ -1,5 +1,9 @@
 # Freeroam walk: accel bit-exact; the brake/run "+1" is a HARNESS artifact, port CORRECT (chase #3 RESOLVED)
 
+> **ckpt 166 UPDATE:** the harness fix is now DONE (the inject-side structural +1) and
+> brake onsets re-drive BIT-EXACT.  It exposes an OPEN walk-press warmup question (real
+> engine 1 idle tick vs the port's modeled 2).  Jump to "## THE HARNESS FIX (ckpt 166)".
+
 **ckpt 165.** The frame-lock chase #3 residual (ckpt 163g hypothesised "camera-hidden
 accel-phase aliasing") was chased to the camera-independent wx/hvel axis.  **Outcome
 (assembly-confirmed): the WALK ACCEL is bit-exact, and the port's brake/run onset is
@@ -76,15 +80,51 @@ UNIFORM relabel) couldn't reconcile it precisely because the warmup interacts
 non-uniformly — NOT because there is a real engine latency.  **No port fix; that would
 INTRODUCE a regression.**
 
+## THE HARNESS FIX (ckpt 166) — the structural +1; transition onsets now BIT-EXACT
+The TODO below is DONE.  The faithful correction is INJECT-side, not a relabel: a
+tick-T entry must land its input in the frame that EMITS as label T.  Frame loop
+`0x439690` runs, once per logic frame: input poll `0x468a20`(@866) → velocity
+`0x46cd70`(@1099) → easer `0x43d1d0`(@1123, `g_eh_sim_tick++`) → present `0x5b8fc0`
+(FRAMEBEG labeled POST-bump).  So input read at the poll (pre-bump `g_eh_sim_tick`)
+emits under label `g_eh_sim_tick + 1`.  Fire tick entries at the PENDING emit label
+`g_eh_sim_tick + 1` (`engine_input.h` `EI_TICK_AXIS`), NOT at `g_eh_sim_tick` (that
+lands velocity at T+1 — the +1).  This MIRRORS the port's `feed_input` anticipation
+(`main.c sim = g_sim_tick_count + pending-bump`) + the recorder's flip→tick map, so
+port and re-drive apply a tick-T entry under the SAME emit label, offset-0.
+- **VERIFIED** (`port-move.osr` vs `retail-harnessfix.osr`, new default, `state_diff`):
+  the no-warmup BRAKE onset is now **bit-exact** — retail brakes on the release tick
+  **2160 == port** (was 2161, the +1).  Walk accel + steady-state stay bit-exact.
+- A pure relabel (`OSS_EMIT_TICK_BIAS=-1`) ALSO joins the brake but is WRONG in kind: it
+  renames the emit without moving retail's real input-read frame, so the warmup/physics
+  ran un-anticipated.  Superseded; kept default 0 as a residual diagnostic.
+
+## EXPOSED by the fix — the WALK-PRESS warmup (re-drive 1 idle tick vs port/capdash2 2)
+With faithful labeling the re-drive is a true oracle, and it surfaces a REAL
+discrepancy the old +1 was HIDING by coincidence (at lead 0 the warmup absorbed the
+labeling +1, so the press matched).  At the faithful label, both sides apply the press
+at label 2050, yet **retail (the real `0x478ba0` engine) moves at 2051 = 1 idle tick**,
+while the **port `CHAR_INPUT_REPEAT_DELAY=3` models 2 idle ticks** (motion 2052).  The
+brake (zero-warmup) anchors the labeling, so this 1-tick gap is a pure WARMUP
+difference, not a label error.  Retail's warmup is the `0x478ba0:182` wall-clock test
+`GetTickCount() - press_ts >= 0xb` (11 ms); at ≥11 ms/logic-frame it crosses in ONE
+frame → 1 idle tick, clock-robust.
+- **CONFLICT (needs resolution before any port change):** the port's `DELAY=3` is
+  calibrated to `capdash2` (ckpt 118, a FRIDA flip-axis RING double-tap dash) whose
+  `{0,0,1600,…}` reads as 2 idle ticks and is embedded "field-exact" in
+  `test_character_run_ramp`.  capdash2's frida flip-axis labeling is a DIFFERENT
+  convention than this brake-anchored re-drive, so its "2" is likely a +1 of the same
+  family.  But asserting that contradicts a verified capture + test → **USER fork**:
+  (a) a fresh FAITHFUL-proxy ring-dash capture to see if the dash warmup is 1 or 2 in
+  the anchored convention (separates held-walk vs ring-dash), or (b) a real-play
+  `OSS_OSR_STATE` capture for gold ground truth, then retire `PORT-DEBT(char-input-
+  autorepeat)` to the real 11 ms logic (≈DELAY 2) if confirmed.
+
 ## Status
 - Walk accel: **regression-locked bit-exact** (`parity-ledger`).
-- Brake/run onset: **port CORRECT (assembly-confirmed single-frame); the re-drive's +1 is
-  a documented HARNESS artifact** — the proxy re-drive is faithful for steady-state +
-  warmup-anchored onsets but carries a +1 on no-warmup TRANSITION onsets (brake / run
-  detect).  Use the RECORDING or the port's own `feed_input`-anticipated replay for
-  transition-onset timing, not the live-injection re-drive.  Harness fix (align the
-  injection labeling to the record/emit, accounting for the warmup) is a TODO; the
-  `OSS_INJECT_LEAD` / `OSS_EMIT_TICK_BIAS` diagnostics are kept for it.
+- Brake/run onset: **HARNESS FIX LANDED (ckpt 166) — bit-exact**; the re-drive is now
+  faithful for no-warmup transition onsets (the structural +1, brake-verified).
+- Walk-press warmup: **OPEN** — re-drive 1 idle tick vs port/capdash2 2; conflicting
+  ground truth (see above), port unchanged pending the USER fork.
 - Dash: the synth double-tap (held-axis only) capped at the WALK cap (24000) — the real
   dash (cap 48000) needs explicit RING double-tap edges (`ids:[4,4]`, ckpt 154); the
   retail dash accel (two-phase +3200→+1600 to 48000) was captured + is bit-exact vs the

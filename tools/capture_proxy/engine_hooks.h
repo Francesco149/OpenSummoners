@@ -71,11 +71,13 @@
 static volatile LONG g_eh_flip     = 0;
 static volatile LONG g_eh_sim_tick = 0;
 /* OSS_EMIT_TICK_BIAS (default 0): added to the sim_tick LABEL on every FRAMEBEG/STATE.
- * The wx/hvel are read at the FLIP (post-easer-bump), so the velocity emitted with
- * label T reflects the input the producer read at pre-bump (T-1) — a +1 vs the port's
- * feed_input-anticipated labeling.  BIAS=-1 relabels the emit to the input-application
- * frame so the re-drive matches the port's convention.  DIAGNOSTIC for the brake/dash
- * 1-tick offset (ckpt 165). */
+ * SUPERSEDED as the labeling fix by the INJECT-side structural +1 (engine_input.h
+ * EI_TICK_AXIS, ckpt 166): the faithful correction is to land the injected input one
+ * tick earlier (so its velocity emits under the matching label), NOT to relabel the
+ * emit.  A relabel (BIAS=-1) is a PURE RENAME — it does not change retail's real
+ * execution, so the warmup/physics run at the un-anticipated timing and only the join
+ * axis shifts; the inject-side +1 actually moves the input-read frame, matching the
+ * port's feed_input anticipation.  Kept default 0 as a residual diagnostic only. */
 static int g_emit_tick_bias = 0;
 static LONG eh_emit_tick(void)
 {

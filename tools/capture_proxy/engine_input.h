@@ -55,14 +55,25 @@
  * port also replays on, so retail and the port align offset-0 by construction. */
 typedef struct { DWORD frame; DWORD ids[EI_MAX_IDS]; int nids; int is_tick; } ei_entry;
 
-/* OSS_INJECT_LEAD (default 0): anticipate the easer bump for TICK-axis entries —
- * the proxy injects at the producer query where g_eh_sim_tick is still the PRE-bump
- * value (the easer 0x43d1d0 runs later in the frame, in the camera step), but the
- * .osr emits the POST-bump label, so a tick-T entry lands 1 emit-tick late.  LEAD=1
- * fires it a tick earlier (g_eh_sim_tick + LEAD >= frame) to match the emit label
- * (and the port's feed_input anticipation, ckpt 163e).  A DIAGNOSTIC for the
- * brake/dash 1-tick offset (ckpt 165). */
+/* TICK-axis injection labeling — the structural +1 (ckpt 166, "the real harness fix").
+ *
+ * The frame loop 0x439690 runs, ONCE per logic frame and in this order: input poll
+ * 0x468a20 (@866) -> velocity reduce/apply 0x46cd70 (@1099) -> easer 0x43d1d0 (@1123,
+ * g_eh_sim_tick++) -> present 0x5b8fc0 (the .osr FRAMEBEG, labeled with the POST-bump
+ * g_eh_sim_tick).  So the input we inject at the poll is read while g_eh_sim_tick is
+ * still the PRE-bump value, and the velocity it produces is EMITTED one tick later,
+ * under label (g_eh_sim_tick + 1).  A tick-T trace entry must therefore land its input
+ * in the frame that emits as label T — i.e. fire at the poll where the PENDING emit
+ * label (g_eh_sim_tick + 1) reaches T, NOT where g_eh_sim_tick reaches T (that lands
+ * the velocity at label T+1 — the ckpt-165 brake/run "+1").  This MIRRORS the port's
+ * feed_input anticipation EXACTLY (main.c: sim = g_sim_tick_count + pending-bump) and
+ * the recorder's flip->tick map (the FRAMEBEG label = the post-bump tick), so port and
+ * a retail re-drive apply a tick-T entry under the SAME emit label, offset-0.  PROVEN
+ * on the no-warmup brake onset: with the +1, retail brakes on the release tick ==
+ * the port (was +1 late).  EI_TICK_AXIS bakes the +1; OSS_INJECT_LEAD stays as a
+ * residual diagnostic fine-tune (default 0, ADDED to the structural +1). */
 static int   g_inject_lead = 0;
+#define EI_TICK_AXIS  (g_eh_sim_tick + 1 + g_inject_lead)
 
 static ei_entry g_ei_trace[EI_MAX_ENTRIES];
 static int   g_ei_n        = 0;
@@ -148,7 +159,7 @@ static void ei_inject_due(DWORD now)
     if (!g_ei_mgr) return;
     while (g_ei_i < g_ei_n) {
         ei_entry *e = &g_ei_trace[g_ei_i];
-        LONG axis = e->is_tick ? (g_eh_sim_tick + g_inject_lead) : g_eh_flip;
+        LONG axis = e->is_tick ? EI_TICK_AXIS : g_eh_flip;
         if (axis < (LONG)e->frame) break;
         for (int j = 0; j < e->nids; j++) {
             ei_inject_press(e->ids[j], EI_RING_SLOTS - 1 - j, now);
@@ -355,7 +366,7 @@ static void eih_advance(void)
 {
     while (g_eih_i < g_eih_n) {
         ei_entry *e = &g_eih_trace[g_eih_i];
-        LONG axis = e->is_tick ? (g_eh_sim_tick + g_inject_lead) : g_eh_flip;
+        LONG axis = e->is_tick ? EI_TICK_AXIS : g_eh_flip;
         if (axis < (LONG)e->frame) break;
         memset(g_eih_held, 0, sizeof g_eih_held);
         for (int j = 0; j < e->nids; j++) g_eih_held[e->ids[j] & 0xff] = 1;
@@ -386,7 +397,9 @@ static void engine_input_install(void)
     char lead[16];
     DWORD ln = GetEnvironmentVariableA("OSS_INJECT_LEAD", lead, sizeof(lead));
     if (ln > 0 && ln < sizeof(lead)) g_inject_lead = (int)strtol(lead, NULL, 0);
-    if (g_inject_lead) proxy_logf("[input] OSS_INJECT_LEAD=%d (tick-axis anticipation)", g_inject_lead);
+    proxy_logf("[input] tick-axis fires at pending emit-label g_eh_sim_tick+1+%d "
+               "(structural +1 = feed_input anticipation; OSS_INJECT_LEAD=%d residual)",
+               g_inject_lead, g_inject_lead);
     ei_load_trace();
     eih_load_trace();
     eih_record_init();
