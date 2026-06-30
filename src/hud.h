@@ -40,6 +40,11 @@
 #define HUD_HP_TEXT_DY     4      /* HP number y = ybase + 4  (= 5)             */
 #define HUD_MP_TEXT_DY     0x11   /* MP number y = ybase + 0x11 (= 18)          */
 #define HUD_TEXT_FONT      2      /* g_ar_gdi_table[2] (Courier New w7 h16)     */
+/* The ornate panel FRAME (0x494e60:97 = 0x418470(0) on bank DAT_008a7724) =
+ * the retail unified-pool index 70 = res 0x44b (352x96, type 2), drawn keyed
+ * AFTER the bars (seq 481) at (xbase-0x20, ybase) = (-31,1).  ar_pool_get_slot. */
+#define HUD_FRAME_POOL_IDX 70     /* base-0x760c pool index (-> g_ar slot 57)   */
+#define HUD_FRAME_DX       (-0x20)/* frame x = xbase - 0x20 (= -31 when in)     */
 
 /* The panel slide x-base (0x494e60:87): xbase = ((prog*0xb - 11000)*0x20)/1000
  * + 1.  prog 0..1000; == 1 fully slid in (the steady HUD).  ybase is a const 1

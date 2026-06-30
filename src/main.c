@@ -414,6 +414,8 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * deref ((&DAT_008a760c)[0x2f] in 0x498680), NOT the
                                     * 0x417c40 grade getter => NOT colour-graded; the port's
                                     * global 8bpp grade was shifting the bar dhash (slice 1). */
+#define HUD_FRAME_BANK_SLOT  57    /* 0x8a7724 — res 0x44b, the HUD panel frame.  Plain
+                                    * getter (0x418470(0) on DAT_008a7724) => NOT graded. */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1115,6 +1117,7 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[FIRE_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[SWORD_TRAIL_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[HUD_BAR_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[HUD_FRAME_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2805,6 +2808,15 @@ static void game_render_hud(void)
                                  g.src_x, g.src_y, g.src_w, g.src_h);
         }
     }
+
+    /* The ornate panel FRAME (0x494e60:97), drawn keyed AFTER the bars (seq 481;
+     * its colour-keyed centre lets the bars/text show through), at (-31,1). */
+    ar_sprite_slot *frame = ar_pool_get_slot(HUD_FRAME_POOL_IDX);
+    zdd_object *frame_cel = (frame != NULL)
+        ? (zdd_object *)ar_sprite_slot_frame(frame, 0) : NULL;
+    if (frame_cel != NULL)
+        zdd_object_blt_keyed(frame_cel, g_zdd->primary_obj,
+                             xb + HUD_FRAME_DX, yb);
 
     /* HP/MP number text (FUN_0043e250, font 2) — onto the primary via one
      * GetDC pass, like the dialogue text. */
