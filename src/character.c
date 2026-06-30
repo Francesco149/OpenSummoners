@@ -67,8 +67,9 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
 
     /* The press->latch warmup (PORT-DEBT(char-input-autorepeat)).  A fresh press
      * or a change of held direction re-arms the counter; the walk command latches
-     * only after CHAR_INPUT_REPEAT_DELAY consecutive held ticks (reproducing the
-     * capture's 2 idle ticks before motion), then self-sustains while held. */
+     * only after CHAR_INPUT_REPEAT_DELAY consecutive held ticks (= retail's 1 idle
+     * tick: the press tick stamps the edge, the next tick crosses the 11 ms gate +
+     * latches — measured off retail-decomp.osr, character.h), then self-sustains. */
     if (want != c->held_dir) c->warm = 0;
     c->held_dir = (int16_t)want;
 

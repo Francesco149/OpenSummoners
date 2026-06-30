@@ -229,11 +229,20 @@ int character_attack_ticks(int attack_kind);
 #define CHAR_JUMP_WINDUP_THRESH  4   /* impulse fires when the counter exceeds this (5th tick) */
 
 /* The press->latch warmup (PORT-DEBT(char-input-autorepeat)).  A fresh direction
- * press must persist this many ticks before the walk command latches; the capture
- * shows motion start 2 idle ticks after the press, so the third held tick latches
- * and accelerates.  Once latched it self-sustains while held (the local_608[0]
- * "was-walking" carry in 0x478ba0). */
-#define CHAR_INPUT_REPEAT_DELAY  3
+ * press must persist this many ticks before the walk command latches.  Retail is
+ * exactly 1 IDLE TICK: the clean tick-axis proxy re-drive reading the engine's own
+ * input fields (runs retail-decomp.osr, OSS_OSR_STATE cmd0/lvlR/edgeR) shows, for a
+ * right-press at tick T: T-> lvlR 0->1 + the rising-edge ts stamped (0x468a20), cmd0
+ * still 0 (the 0x478ba0:182 `now-edge_ts < 0xb` 11 ms gate not yet crossed); T+1->
+ * cmd0=2 + hvel 1600 + wx moves (now-edge = the ~16 ms lockstep step >= 11 ms).  So
+ * motion latches on the 2nd held tick.  (The old DELAY=3 / "2 idle ticks" was tuned
+ * to the FRIDA flip-axis GT `mover-caller`/`capdash2`, which carried a +1: a held
+ * entry "flip N" only takes effect at frame N+1's input poll because the agent's
+ * flip counter increments at the PRESENT, after the poll — the same +1 class fixed
+ * port-side (feed_input) and proxy-side (EI_TICK_AXIS).  findings/freeroam-brake-onset.md.)
+ * Once latched it self-sustains while held (the local_608[0] "was-walking" carry in
+ * 0x478ba0). */
+#define CHAR_INPUT_REPEAT_DELAY  2
 
 /* ── The UP/DOWN POSE command (0x478ba0:248-259, the cmd[3] @ entity+0x14860) ──
  * The vertical-direction intent the char-AI resolves alongside the L/R walk/dash:

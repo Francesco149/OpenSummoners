@@ -19,16 +19,20 @@ static void axis_set(int a[CHAR_AXIS_COUNT], int dir /* -1 L, +1 R, 0 none */)
     else if (dir > 0) a[CHAR_AXIS_RIGHT] = 1;
 }
 
-/* RIGHT-walk accelerate -> cap: the captured arche_body.wx from the press tick
- * (runs/mover-caller, ticks 1549..1581, spawn worldX 19200, facing 1).  The first
- * two values are the press->latch warmup (motion starts on the 3rd held tick). */
+/* RIGHT-walk accelerate -> cap: retail's captured body.wx from the press tick
+ * (CLEAN tick-axis proxy re-drive `retail-decomp.osr`, OSS_OSR_STATE, ticks
+ * 2050..2082, spawn worldX 19200, facing 1).  EXPECT[0] is the press tick (1 idle
+ * tick: the edge is stamped, the 11 ms gate not yet crossed), motion latches on the
+ * 2nd held tick EXPECT[1] (CHAR_INPUT_REPEAT_DELAY=2).  The earlier frida-GT array
+ * had an extra leading 19200 (a +1 from the flip-axis injection — see character.h /
+ * findings/freeroam-brake-onset.md); this is the measured retail ramp. */
 int test_character_walk_accel(void)
 {
     static const int32_t EXPECT[] = {
-        19200, 19200, 19216, 19248, 19296, 19360, 19440, 19536, 19648, 19776,
-        19920, 20080, 20256, 20448, 20656, 20880, 21120, 21360, 21600, 21840,
-        22080, 22320, 22560, 22800, 23040, 23280, 23520, 23760, 24000, 24240,
-        24480, 24720, 24960,
+        19200, 19216, 19248, 19296, 19360, 19440, 19536, 19648, 19776, 19920,
+        20080, 20256, 20448, 20656, 20880, 21120, 21360, 21600, 21840, 22080,
+        22320, 22560, 22800, 23040, 23280, 23520, 23760, 24000, 24240, 24480,
+        24720, 24960, 25200,
     };
     const int N = (int)(sizeof EXPECT / sizeof EXPECT[0]);
 
@@ -124,24 +128,29 @@ int test_character_walk_left_symmetry(void)
  * the higher cap + two-phase accel (0x442a70 case 0x75, the run branch).  Validated
  * FIELD-EXACT against retail's captured per-tick body (runs/runjump-gt/capdash2, ckpt
  * 118: a seed-pinned RING double-tap RIGHT from the town freeroam).  The capture is
- * RIGHT held from the press: 2 warmup ticks, 2 WALK ticks (cmd0=2: hvel 1600,3200),
+ * RIGHT held from the press: 1 warmup tick, 2 WALK ticks (cmd0=2: hvel 1600,3200),
  * then the double-tap latches cmd0=6 and the run accel kicks in (+3200/tick to 24000,
- * then +1600/tick to the 48000 cap).  The embedded (hvel, worldX) are retail's bytes. */
+ * then +1600/tick to the 48000 cap).  The embedded (hvel, worldX) are retail's bytes
+ * DE-SHIFTED by the proven frida flip-axis +1 (capdash2 had 2 leading idle ticks =
+ * the real 1 idle + the injection +1; the clean tick-axis walk re-drive retail-decomp.osr
+ * measured 1 idle directly, so the run capture — same frida +1, uniform — de-shifts
+ * left by one: drop a leading idle tick, the double-tap latch slides 4->3.  See
+ * character.h / findings/freeroam-brake-onset.md). */
 int test_character_run_ramp(void)
 {
-    /* per-tick from the press tick (capdash2 t1550..t1578); run latches at tick 4. */
+    /* per-tick from the press tick (capdash2 de-shifted); run latches at tick 3. */
     static const int32_t HVEL[] = {
-            0,     0,  1600,  3200,  6400,  9600, 12800, 16000, 19200, 22400,
-        25600, 27200, 28800, 30400, 32000, 33600, 35200, 36800, 38400, 40000,
-        41600, 43200, 44800, 46400, 48000, 48000, 48000, 48000, 48000,
+            0,  1600,  3200,  6400,  9600, 12800, 16000, 19200, 22400, 25600,
+        27200, 28800, 30400, 32000, 33600, 35200, 36800, 38400, 40000, 41600,
+        43200, 44800, 46400, 48000, 48000, 48000, 48000, 48000, 48000,
     };
     static const int32_t WX[] = {
-        19200, 19200, 19216, 19248, 19312, 19408, 19536, 19696, 19888, 20112,
-        20368, 20640, 20928, 21232, 21552, 21888, 22240, 22608, 22992, 23392,
-        23808, 24240, 24688, 25152, 25632, 26112, 26592, 27072, 27552,
+        19200, 19216, 19248, 19312, 19408, 19536, 19696, 19888, 20112, 20368,
+        20640, 20928, 21232, 21552, 21888, 22240, 22608, 22992, 23392, 23808,
+        24240, 24688, 25152, 25632, 26112, 26592, 27072, 27552, 28032,
     };
     const int N = (int)(sizeof HVEL / sizeof HVEL[0]);
-    const int RUN_FROM = 4;                   /* the double-tap latches cmd0=6 here */
+    const int RUN_FROM = 3;                   /* the double-tap latches cmd0=6 here */
 
     character c;
     character_init(&c, 19200, 52000, CHAR_FACE_RIGHT);

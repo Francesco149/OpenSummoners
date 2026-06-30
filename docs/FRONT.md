@@ -491,6 +491,26 @@
   (curve-fitting the aliased confirms is FORBIDDEN).**  PATH (both dialogue + movement): the state-ful SIM-TICK
   RE-DRIVE (chase #3 — drive retail with synthetic sim-tick confirms/movement, compare bit-exact, no aliasing;
   needs the harness warmup fix RE `0x46a880`).  No port code change (would regress).  `plans/frame-lock-1to1.md`.
+  **ckpt 168 — THE WARMUP +1 RE'd, MEASURED + FIXED (the `0x46a880` thread CLOSED): retail's walk warmup is
+  EXACTLY 1 IDLE TICK; the PORT was 1 tick too long — the ckpt-166 "port correct, proxy 1-short" verdict is
+  CORRECTED (the proxy was faithful all along).**  RE'd the input pipeline: `0x46a880:1497` fills the held LEVEL
+  `mgr+0x114..0x120` (leaf `0x5ba520` poll, only when down), `0x468a20` stamps the rising-edge ts `mgr+0x14c`
+  (`now` on old==0→new!=0), `0x478ba0:182` gates the walk command on `now-edge_ts >= 0xb` (11 ms) — all ONE
+  frame (level read by `0x46cd70`→`0x478ba0` is the same object, `actor+0x158a4` = a pointer to the global mgr,
+  no copy-lag).  So a clean edge = 1 idle structurally.  **Settled by MEASUREMENT, not inference:** instrumented
+  the proxy state pass with the engine's OWN fields (`cmd0`=entity+0x14854 / `lvlR`=mgr+0x120 / `edgeR`=mgr+0x14c,
+  `engine_hooks.h`) + a clean tick-axis re-drive (`retail-decomp.osr`, OSS_OSR_STATE): right-press @tick 2050 →
+  lvlR 0→1 + edge stamped + **cmd0 still 0** (gate not crossed), @2051 → cmd0=2 + hvel 1600 + wx moves = **1 idle**.
+  The retail wx ramp `19200,19216,19248,…` = the port's old GT EXPECT `19200,19200,19216,…` with the extra
+  leading idle REMOVED (the smoking-gun +1).  **Root:** the frida flip-axis GT (`capdash2`/`mover-caller`) the
+  port's `DELAY=3` was tuned to carries a +1 — the agent advances the held cursor on `g_flip_frame`, bumped at
+  the PRESENT (after the input poll), so a "flip N" held entry lands at frame N+1's poll (same +1 class fixed
+  port/proxy-side).  **Fix:** `CHAR_INPUT_REPEAT_DELAY` 3→2 + the GT tests re-based on retail-decomp (the run
+  ramp de-shifted by the same proven +1).  **VERIFIED `port-decomp.osr` vs `retail-decomp.osr` BIT-EXACT**
+  (idle through 2050, motion 2051, wx/hvel ramp byte-identical tick-for-tick); brake/no-warmup onsets (ckpt 166,
+  DELAY-independent) unchanged.  1069 host pass.  **This closes the LAST frame-lock re-drive residual — the
+  sim-tick re-drive is now faithful for warmup-anchored onsets, unblocking the chase-#3 dialogue + movement
+  frame-lock (ckpt 167d).**  `findings/freeroam-brake-onset.md`; quirk extended.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

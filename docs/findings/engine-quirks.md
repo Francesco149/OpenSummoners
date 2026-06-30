@@ -3320,6 +3320,16 @@ is a port note in `FRONT.md`/`HANDOFF.md`, not here.
   re-confirms the chip-3a walk port BYTE-FOR-BYTE — `1600, 3200, …, 24000` ramping +1600/tick
   to the 24000 cap (dwx = `hvel/100`), then `-800/tick` on release. `body+0x18` (the VERTICAL
   / jump vel) and `wy` stay 0/52000 the whole flat walk (no vertical motion without a jump).
+- **The fresh-press → walk WARMUP is EXACTLY 1 IDLE TICK** (ckpt 168, MEASURED off the clean
+  tick-axis re-drive `retail-decomp.osr` reading the engine's own input fields cmd0/lvlR/edgeR).
+  On the press tick T the held LEVEL `mgr+0x120` reads 1 and `0x468a20` stamps the rising-edge
+  ts `mgr+0x14c`, but the walk command `entity+0x14854` stays 0 — `0x478ba0:182`'s `now-edge_ts
+  < 0xb` (11 ms) gate is not crossed in-frame.  On T+1 `now-edge` = the ~16 ms tick step ≥ 11 ms
+  ⇒ cmd0=2, hvel 1600, wx moves.  So motion latches on the **2nd** held tick.  (The ckpt-118
+  `capdash2` / ckpt-114 `mover-caller` FRIDA captures showed "2 idle ticks" = this real 1 idle +
+  a frida flip-axis injection +1: a held entry "flip N" lands at frame N+1's input poll because
+  the agent advances on `g_flip_frame`, bumped at the PRESENT after the poll.  Port `CHAR_INPUT_
+  REPEAT_DELAY` corrected 3→2.  `findings/freeroam-brake-onset.md`.)
 
 **The full freeroam MOVESET (USER ground-truth, 2026-06-11 — the game owner; the roadmap
 for the movement arc, each item to be captured + ported + bit-exact-verified in turn):**

@@ -1,10 +1,36 @@
 # Freeroam walk: accel bit-exact; the brake/run "+1" is a HARNESS artifact, port CORRECT (chase #3 RESOLVED)
 
-> **ckpt 166 UPDATE:** the harness fix is now DONE (the inject-side structural +1) and
-> brake / no-warmup TRANSITION onsets re-drive BIT-EXACT.  It exposes a PROXY held-
-> injection warmup residual (proxy walk-press = 1 idle tick vs real retail's 2) — **NOT a
-> port bug: capdash2 turbo-off CONFIRMS the port's DELAY=3**.  Jump to "## THE HARNESS FIX
-> (ckpt 166)" → "## EXPOSED by the fix".
+> **ckpt 168 — RESOLVED + the ckpt-166 conclusion CORRECTED: the warmup +1 was the PORT
+> (DELAY=3), not the proxy.  Retail's press->latch warmup is EXACTLY 1 IDLE TICK; the port
+> is now DELAY=2 and re-drives BIT-EXACT.**  The ckpt-166 "EXPOSED — a PROXY held-injection
+> warmup residual (proxy 1 idle vs real retail's 2), port CORRECT" was a MISDIAGNOSIS: it
+> trusted the FRIDA flip-axis GT (`mover-caller`/`capdash2`) as ground truth, but that GT
+> carries the SAME +1 it had just fixed elsewhere — the agent advances the held cursor on
+> `g_flip_frame`, which increments at the PRESENT (after the input poll), so a held entry
+> "flip N" only takes effect at frame N+1's poll (`opensummoners-agent.js` advanceHeldAxis,
+> proven).  So the GT's "2 idle ticks" = the real 1 idle + the frida injection +1.
+> **MEASURED clean** (the principled settle): a tick-axis proxy re-drive reading the engine's
+> OWN input fields — `cmd0`=entity+0x14854, `lvlR`=mgr+0x120, `edgeR`=mgr+0x14c, added to the
+> proxy state pass (`engine_hooks.h`) — gives, for a right-press at tick T (`retail-decomp.osr`,
+> OSS_OSR_STATE):
+>   - **T=2050:** `lvlR 0->1` + `edgeR` stamped (0x468a20 rising-edge ts), `cmd0=0`, wx 19200,
+>     hvel 0 — the 0x478ba0:182 `now-edge_ts < 0xb` (11 ms) gate not yet crossed → **1 idle tick**;
+>   - **T+1=2051:** `cmd0=2` (walk), hvel 1600, wx 19216 — `now-edge` = the ~16 ms lockstep step
+>     ≥ 11 ms, latches.
+> The retail wx ramp `19200,19216,19248,…` is the port's old GT EXPECT `19200,19200,19216,…`
+> with the extra leading idle REMOVED (the +1, a smoking gun).  **The proxy tick-axis injection
+> was FAITHFUL all along; the port was 1 tick too long.**  Fix: `CHAR_INPUT_REPEAT_DELAY` 3->2 +
+> the GT tests `test_character_walk_accel`/`_run_ramp` re-based on retail-decomp (the run ramp
+> de-shifted by the same proven +1).  VERIFIED `port-decomp.osr` vs `retail-decomp.osr`: idle
+> through 2050, motion 2051, wx/hvel ramp byte-identical tick-for-tick.  The brake / no-warmup
+> onsets (ckpt 166, DELAY-independent) stay bit-exact.  **This closes the last frame-lock
+> re-drive residual — the sim-tick re-drive is now faithful for warmup-anchored onsets too.**
+
+> **ckpt 166 (SUPERSEDED by ckpt 168 above for the warmup verdict):** the harness fix is DONE
+> (the inject-side structural +1) and brake / no-warmup TRANSITION onsets re-drive BIT-EXACT.
+> It read a PROXY held-injection warmup residual (proxy walk-press = 1 idle tick vs the GT's 2)
+> as a proxy bug — WRONG: the proxy was right, the GT (frida) carried the +1.  Jump to "## THE
+> HARNESS FIX (ckpt 166)" → "## EXPOSED by the fix" for the (now-corrected) investigation.
 
 **ckpt 165.** The frame-lock chase #3 residual (ckpt 163g hypothesised "camera-hidden
 accel-phase aliasing") was chased to the camera-independent wx/hvel axis.  **Outcome
