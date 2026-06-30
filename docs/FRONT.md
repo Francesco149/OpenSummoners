@@ -465,10 +465,19 @@
   AFTER the slide unlike actual retail").  Fix: `zdd_object_attach_clipper(s->dest)` (clip list = the stamped
   640x480) so it clips like retail's primary (zdd.c:442); covers osr_prof + the ImGui studio (both link osr_scrub).
   Re-dumped a mid-slide frame: the panel now renders clipped at the left edge (was blank).  Refreshed
-  `C:\oss-osr\osr_view.exe`.  1069 host pass.  **CAVEAT (USER note 2 "port ahead"): the slide ARMS at the port's
-  errands entry, currently ~195t AHEAD of the recording — the house->errands cutscene cadence is NOT tick-1:1
-  (ckpt 145 residual, a separate pre-existing issue), so at studio offset 0 the port's slide plays earlier (over
-  its still-black reveal) than retail's.  The slide ANIMATION matches; the absolute timing inherits that residual.**
+  `C:\oss-osr\osr_view.exe`.  1069 host pass.  (ckpt 167b initially armed the slide at freeroam_begin + dropped
+  the dialogue gate — WRONG arm timing, fixed ckpt 167c below.)
+  **ckpt 167c — the HUD "cadence residual" FIXED (USER: "fix the cadence residual") — it was the ARM TIMING, NOT
+  the cutscene cadence.**  `dialogue_timeline` PROVES the arrival+house+errands dialogue is tick-aligned port-vs-
+  recording (errands L21-L23 = 1581/1628/1671 vs 1587/1628/1671 — the cutscene cadence is FINE).  The ~195t "port
+  ahead" was ckpt-167b arming the slide at freeroam_begin (the errands ENTRY ~1519) + rendering the HUD DURING the
+  errands opening dialogue.  Retail HIDES the HUD then + slides it in at the HAND-OFF — its first HUD tick (1715) is
+  right after L23's end (1714).  **Fix (`8b534bd`):** arm the slide (prog=0) on the control lock->unlock EDGE (the
+  errands dialogue completing), ramp while `!locked`, gate `game_render_hud` on the same lock.  **VERIFIED** off
+  port-hud.osr vs sword2.osr: the bars now first slide at tick **1713** (was 1521; recording 1715 — within ~2t, the
+  small residual house-dialogue wobble, ckpt 145), ramp -234..118 bit-exact, HUD hidden during L21-L23, and the
+  slide plays over the REVEALED errands room (feed: the aligned port|retail montage), not the early black reveal.
+  (USER note 2 "port slightly ahead on camera/movement" @t2287 is the SEPARATE chase-#3 freeroam accel residual.)
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the
