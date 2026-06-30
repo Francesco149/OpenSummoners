@@ -255,6 +255,7 @@ static actor              g_freeroam_actor;
 static actor_render_state g_freeroam_rs;
 static int                g_freeroam_active;
 static int                g_hud_slide_prog;   /* the HUD panel slide-in 0..1000 (hud.h) */
+static int                g_hud_ctrl_was_locked = 1; /* prev control-lock state (arm the slide on hand-off) */
 /* The UP-attack sword-tip TRAIL (res 0x40b sparkles) — emitted/stepped around
  * freeroam_step, rendered after the freeroam body (sword_trail.{c,h}). */
 static sword_trail        g_sword_trail;
@@ -2766,11 +2767,14 @@ static void hud_text_outlined(HDC hdc, const char *s, int x, int y)
 
 static void game_render_hud(void)
 {
-    /* Gate: the errands (non-town) freeroam.  The HUD is up the whole time the
-     * errands leader exists — it SLIDES IN at the hand-off (during the opening
-     * tutorial dialogue, before control), so do NOT gate on the dialogue lock.
+    /* Gate: the errands (non-town) freeroam, once the leader has CONTROL.  Retail
+     * HIDES the HUD during the errands opening dialogue (L21-L23) and SLIDES it in
+     * at the hand-off right after (the recording's first HUD tick 1715 == L23's
+     * end 1714) — so gate on the same control lock the slide arms on.
      * room_is_town = the arrival establishing room. */
     if (!g_freeroam_active || g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
+        return;
+    if (g_errands_dlg_pending || cutscene_active(&g_cutscene))
         return;
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
@@ -3024,7 +3028,8 @@ static void freeroam_begin(void)
         g_actor_flip_table[0x8du] = ARCHE_SWORD_OUT_FLIP;
     sword_trail_reset(&g_sword_trail);   /* the UP-attack tip-trail pool */
     g_freeroam_active = 1;
-    g_hud_slide_prog = 0;                 /* arm the HUD panel slide-in (hud.h) */
+    g_hud_slide_prog = 0;                 /* the HUD slide-in arms at control hand-off, */
+    g_hud_ctrl_was_locked = 1;            /* not here — control is still locked (errands dlg) */
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
 }
@@ -3394,10 +3399,18 @@ static void game_render(void *user)
                                      g_freeroam_char.world_x, g_freeroam_char.world_y,
                                      g_freeroam_rs.dst_base_x, g_freeroam_rs.dst_base_y,
                                      g_freeroam_char.facing);
-                /* The HUD panel slide-in (hud.h): ramp the progress one sim-tick
-                 * (armed at freeroam_begin) so the panel slides in from off-screen
-                 * left, matching retail (xbase -333 -> 1 over ~20 ticks). */
-                g_hud_slide_prog = hud_slide_step(g_hud_slide_prog);
+                /* The HUD panel slide-in (hud.h): retail slides it in at CONTROL
+                 * HAND-OFF — AFTER the errands opening dialogue (L21-L23) ends, the
+                 * recording's first HUD tick is 1715, right after L23's 1714 — NOT
+                 * at the errands entry.  So arm the slide (prog=0) on the lock->
+                 * unlock edge, then ramp once/sim-tick while control is live.  The
+                 * HUD render is gated on the same !locked (hidden during the dialogue). */
+                int hud_locked = g_errands_dlg_pending || cutscene_active(&g_cutscene);
+                if (g_hud_ctrl_was_locked && !hud_locked)
+                    g_hud_slide_prog = 0;          /* hand-off: arm the slide */
+                if (!hud_locked)
+                    g_hud_slide_prog = hud_slide_step(g_hud_slide_prog);
+                g_hud_ctrl_was_locked = hud_locked;
             }
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick
