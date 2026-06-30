@@ -106,3 +106,18 @@ int test_hud_format_gauge(void)
     T_ASSERT(strcmp(buf, "   5 / 30") == 0);
     return 0;
 }
+
+/* ---- the slide-in ramps +50/tick (capped) + hits the exact retail xbase ---- */
+
+int test_hud_slide_step(void)
+{
+    T_ASSERT_EQ_I(hud_slide_step(0), 50);
+    T_ASSERT_EQ_I(hud_slide_step(50), 100);
+    T_ASSERT_EQ_I(hud_slide_step(950), 1000);
+    T_ASSERT_EQ_I(hud_slide_step(1000), 1000);     /* capped at full */
+    /* the +50 ramp reproduces the recording's integer xbase sequence */
+    T_ASSERT_EQ_I(hud_panel_xbase(50), -333);
+    T_ASSERT_EQ_I(hud_panel_xbase(100), -315);
+    T_ASSERT_EQ_I(hud_panel_xbase(150), -298);
+    return 0;
+}

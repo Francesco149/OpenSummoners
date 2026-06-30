@@ -254,6 +254,7 @@ static character          g_freeroam_char;
 static actor              g_freeroam_actor;
 static actor_render_state g_freeroam_rs;
 static int                g_freeroam_active;
+static int                g_hud_slide_prog;   /* the HUD panel slide-in 0..1000 (hud.h) */
 /* The UP-attack sword-tip TRAIL (res 0x40b sparkles) — emitted/stepped around
  * freeroam_step, rendered after the freeroam body (sword_trail.{c,h}). */
 static sword_trail        g_sword_trail;
@@ -2765,22 +2766,22 @@ static void hud_text_outlined(HDC hdc, const char *s, int x, int y)
 
 static void game_render_hud(void)
 {
-    /* Gate: the errands (non-town) freeroam, once the leader has CONTROL — the
-     * HUD is hidden while the opening tutorial dialogue locks input (the same
-     * lock freeroam_step uses).  room_is_town = the arrival establishing room. */
+    /* Gate: the errands (non-town) freeroam.  The HUD is up the whole time the
+     * errands leader exists — it SLIDES IN at the hand-off (during the opening
+     * tutorial dialogue, before control), so do NOT gate on the dialogue lock.
+     * room_is_town = the arrival establishing room. */
     if (!g_freeroam_active || g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
-        return;
-    if (g_errands_dlg_pending || cutscene_active(&g_cutscene))
         return;
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
 
-    /* PORT-DEBT(hud-party-context): the errands leader (Arche) stand-in values
-     * + a fully-slid-in panel (slide progress 1000 -> xbase 1). */
+    /* PORT-DEBT(hud-party-context): the errands leader (Arche) stand-in values.
+     * The panel x-base rides the live slide-in progress (g_hud_slide_prog 0->1000
+     * -> xbase -351..1); negative-x blits clip on the primary's clipper. */
     const int hp_ratio = 1000, mp_ratio = 1000;      /* 0..1000 (full)          */
     const int hp_cur = 100, hp_max = 100;
     const int mp_cur = 20,  mp_max = 20;
-    const int xb = hud_panel_xbase(1000);            /* = 1                     */
+    const int xb = hud_panel_xbase(g_hud_slide_prog);
     const int yb = HUD_PANEL_YBASE;                  /* = 1                     */
 
     /* HP/MP bars — the FILLED rects copy from the pool-0x2f gradient (res 0x777).
@@ -3023,6 +3024,7 @@ static void freeroam_begin(void)
         g_actor_flip_table[0x8du] = ARCHE_SWORD_OUT_FLIP;
     sword_trail_reset(&g_sword_trail);   /* the UP-attack tip-trail pool */
     g_freeroam_active = 1;
+    g_hud_slide_prog = 0;                 /* arm the HUD panel slide-in (hud.h) */
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
 }
@@ -3392,6 +3394,10 @@ static void game_render(void *user)
                                      g_freeroam_char.world_x, g_freeroam_char.world_y,
                                      g_freeroam_rs.dst_base_x, g_freeroam_rs.dst_base_y,
                                      g_freeroam_char.facing);
+                /* The HUD panel slide-in (hud.h): ramp the progress one sim-tick
+                 * (armed at freeroam_begin) so the panel slides in from off-screen
+                 * left, matching retail (xbase -333 -> 1 over ~20 ticks). */
+                g_hud_slide_prog = hud_slide_step(g_hud_slide_prog);
             }
             game_camera_step();
             /* 0x439690:1124 — the scene cinematic step 0x499ab0 runs once/sim-tick

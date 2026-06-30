@@ -52,6 +52,16 @@
 #define HUD_PANEL_YBASE    1
 int hud_panel_xbase(int slide_progress);
 
+/* The panel SLIDE-IN: progress ramps 0 -> 1000 at +50/sim-tick over 20 ticks
+ * (armed at the errands hand-off; the cinematic step 0x499ab0 drives it on
+ * retail).  +50 is EXACT — it reproduces the recording's integer xbase
+ * sequence (-333,-315,-298,... at prog 50,100,150).  hud_slide_step ramps one
+ * sim-tick, capped at 1000.  PORT-DEBT(hud-slide): the trigger + increment
+ * stand in for the unported HUD cinematic-step subsystem. */
+#define HUD_SLIDE_STEP     50
+#define HUD_SLIDE_FULL     1000
+int hud_slide_step(int prog);
+
 /* One HP/MP bar row's blit geometry (FUN_00498680 per-row body).
  *   cur/max : the gauge ratio (cur 0..1000, max 1000);
  *   x,y     : the bar origin (xbase+0x75, ybase+6 [HP] / +0x14 [MP]);

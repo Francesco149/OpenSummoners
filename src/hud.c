@@ -11,6 +11,13 @@ int hud_panel_xbase(int slide_progress)
     return ((slide_progress * 0xb - 11000) * 0x20) / 1000 + 1;
 }
 
+/* One sim-tick of the panel slide-in (prog += 50, capped at 1000). */
+int hud_slide_step(int prog)
+{
+    prog += HUD_SLIDE_STEP;
+    return prog > HUD_SLIDE_FULL ? HUD_SLIDE_FULL : prog;
+}
+
 /* FUN_00498680 per-row geometry.  fill = (cur*width)/max (max clamped >=1);
  * row r: filled dst_x = x - r (param_4 decremented per row), dst_y = y + 2r;
  * the filled rect is a 1:1 copy [dst .. dst+fill] from src (0, src_y); the

@@ -1073,6 +1073,7 @@ struct test_case {
     X(hud_mp_bar_rows_full)                                    \
     X(hud_bar_partial)                                         \
     X(hud_format_gauge)                                        \
+    X(hud_slide_step)                                          \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \
