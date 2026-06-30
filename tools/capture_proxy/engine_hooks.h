@@ -221,6 +221,26 @@ static DWORD eh_player_body(void)   /* 0 until a freeroam room is live */
     return p;                       /* Arche's body struct */
 }
 
+/* The freeroam ENTITY (one hop short of the body) — the actor whose AI reduction
+ * 0x478ba0 writes the command buffer entity+0x14854 and whose input view is
+ * mgr=*(entity+0x158a4).  Used by the WARMUP-DECOMPOSITION state fields (cmd0 /
+ * lvlR / edgeR) so a clean tick-axis re-drive shows, per tick, exactly when the
+ * held LEVEL reads 1, when the rising-edge ts is stamped, and when the walk
+ * command latches — settling the press->latch warmup idle-tick count on the real
+ * engine (frame-lock-1to1.md, the 0x46a880 edge/press_ts OPEN thread). */
+static DWORD eh_player_entity(void)  /* 0 until a freeroam room is live */
+{
+    DWORD p = EH_PLAYER_ROOT_VA;
+    static const DWORD hops[4] = { 0u, 0x2784u, 0x200cu, 0x9f4u };
+    for (int i = 0; i < 4; i++) {
+        DWORD a = p + hops[i];
+        if (!bg_readable((const void *)(uintptr_t)a, 4)) return 0;
+        p = *(DWORD *)(uintptr_t)a;
+        if (!p) return 0;
+    }
+    return p;                       /* Arche's actor entity */
+}
+
 /* ── flip: frame boundary + the lockstep clock advance ───────────────────── */
 static DWORD g_eh_hb_t0 = 0;   /* real GetTickCount at flip 1 (throughput base) */
 static void eh_flip_cb(PCONTEXT ctx)
@@ -250,7 +270,7 @@ static void eh_flip_cb(PCONTEXT ctx)
      * rngcalls-retail).  The port already emits rngcalls; the panel shows it
      * port-side with retail "-" until the proxy counter lands. */
     if (g_cfg.state_on) {
-        osr_state_field sf[4];
+        osr_state_field sf[8];
         memset(sf, 0, sizeof sf);
         uint32_t n = 0;
         snprintf(sf[n].name, sizeof sf[n].name, "rng");
@@ -274,6 +294,35 @@ static void eh_flip_cb(PCONTEXT ctx)
             sf[n].kind = OSR_ST_INT;
             sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x2cu);
             n++;
+        }
+        /* WARMUP DECOMPOSITION (the 0x46a880 edge/press_ts thread): the actor's
+         * command buffer + its input view, read at the flip = this frame's values
+         * (0x478ba0 zeroes cmd0 at its top then sets it; the apply consumes it; no
+         * later zero — so flip-time cmd0 is THIS frame's walk command).  Together
+         * with the framebeg tick these name the press->latch warmup: the tick lvlR
+         * first reads 1 (= the edge, when 0x46a880's leaf first reports the key
+         * down), and the tick cmd0 first latches (=2 walk-right / 1 walk-left) —
+         * their gap is the structural idle-tick count, on the real engine, with a
+         * faithful tick-axis injection. */
+        DWORD ent = eh_player_entity();
+        if (ent && bg_readable((const void *)(uintptr_t)(ent + 0x14854u), 4)) {
+            snprintf(sf[n].name, sizeof sf[n].name, "cmd0");
+            sf[n].kind = OSR_ST_HEX;
+            sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(ent + 0x14854u);
+            n++;
+            DWORD mgr = 0;
+            if (bg_readable((const void *)(uintptr_t)(ent + 0x158a4u), 4))
+                mgr = *(DWORD *)(uintptr_t)(ent + 0x158a4u);
+            if (mgr && bg_readable((const void *)(uintptr_t)(mgr + 0x14cu), 4)) {
+                snprintf(sf[n].name, sizeof sf[n].name, "lvlR");
+                sf[n].kind = OSR_ST_INT;
+                sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(mgr + 0x120u);
+                n++;
+                snprintf(sf[n].name, sizeof sf[n].name, "edgeR");
+                sf[n].kind = OSR_ST_HEX;
+                sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(mgr + 0x14cu);
+                n++;
+            }
         }
         osr_w_state(sf, n);
     }
