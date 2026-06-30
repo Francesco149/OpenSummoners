@@ -504,6 +504,19 @@ understates how much actual instruction volume is ported.
   small residual house-dialogue wobble, ckpt 145), ramp -234..118 bit-exact, HUD hidden during L21-L23, and the
   slide plays over the REVEALED errands room (feed: the aligned port|retail montage), not the early black reveal.
   (USER note 2 "port slightly ahead on camera/movement" @t2287 is the SEPARATE chase-#3 freeroam accel residual.)
+  **ckpt 167d — DIAGNOSED (USER notes "port skipping dialogue faster" @t663 + "port ahead on movement" @t2287):
+  BOTH are the SAME root = the recording is FLIP-axis (~2.23 flips/tick), the port SIM-TICK-axis, so replaying the
+  flip-recording's inputs ALIASES the timing ±1t (the chase-#3 conclusion, now extended to the dialogue).**  The
+  arrival dialogue (`dialogue_timeline`): the typewriter RATE matches (L7 9t both) + retail SKIPS instantly too
+  (L5/L10 reveal 0t) — so the port's typewriter/skip LOGIC is correct.  The over-skip is the confirm TIMING: the
+  USER spams X ~every 9-10t (sword2-input key 0x2d, faithfully converted to ~one ring/press — NOT spurious), so
+  ~3 confirms/line; with the lines ±1t-aliased a confirm lands DURING the port's typewriter (skip) that fell in
+  retail's inter-line gap (no skip).  The seed is a ±1t wobble (L3 full 663 vs 664, adv 681 vs 680) AMPLIFIED by
+  the skip into ~28t over the arrival, then CONVERGING to ~6t by the errands (L21 1581 vs 1587).  **The port's
+  LOGIC is correct; it's the flip-vs-tick input aliasing — bit-exact is NOT achievable against THIS flip-recording
+  (curve-fitting the aliased confirms is FORBIDDEN).**  PATH (both dialogue + movement): the state-ful SIM-TICK
+  RE-DRIVE (chase #3 — drive retail with synthetic sim-tick confirms/movement, compare bit-exact, no aliasing;
+  needs the harness warmup fix RE `0x46a880`).  No port code change (would regress).  `plans/frame-lock-1to1.md`.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the
