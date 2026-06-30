@@ -454,6 +454,21 @@
     errands freeroam ~tick 2200: the top-left status panel renders the ornate FRAME + the HP/MP gradient BARS +
     the "100 / 100" / "20 / 20" NUMBERS (matching retail).  Still MISSING (slice 1c): the face PORTRAIT (black
     window), the level "1", the "Arche" name, the element stars.
+  **ckpt 167b — the panel SLIDE-IN + the studio recon clipper (USER studio notes).**  (1) the SLIDE-IN
+  (`57246fa`): the panel x-base rides `g_hud_slide_prog` 0->1000 at +50/sim-tick (`hud_slide_step`, armed at
+  freeroam_begin, stepped once/sim-tick) so the whole panel slides in from off-screen left; the gate dropped the
+  dialogue exclusion (the HUD is up the whole errands, sliding in DURING the opening dialogue = retail).  +50 is
+  EXACT (hud_panel_xbase 50/100/150 = -333/-315/-298 = the recording's integer xbase).  VERIFIED: the port bar_x
+  ramps -216..118 IDENTICAL to retail's slide.  `PORT-DEBT(hud-slide)` (trigger+step stand in for 0x499ab0).
+  (2) the STUDIO RECON CLIPPER (`303c7d4`): the recon dest (osr_scrub `s->dest`) was a clipper-LESS SYSTEMMEMORY
+  surface, so DDraw DROPPED off-screen-left (negative-x) blits — the panel WHILE sliding in (USER: "the bars pop
+  AFTER the slide unlike actual retail").  Fix: `zdd_object_attach_clipper(s->dest)` (clip list = the stamped
+  640x480) so it clips like retail's primary (zdd.c:442); covers osr_prof + the ImGui studio (both link osr_scrub).
+  Re-dumped a mid-slide frame: the panel now renders clipped at the left edge (was blank).  Refreshed
+  `C:\oss-osr\osr_view.exe`.  1069 host pass.  **CAVEAT (USER note 2 "port ahead"): the slide ARMS at the port's
+  errands entry, currently ~195t AHEAD of the recording — the house->errands cutscene cadence is NOT tick-1:1
+  (ckpt 145 residual, a separate pre-existing issue), so at studio offset 0 the port's slide plays earlier (over
+  its still-black reveal) than retail's.  The slide ANIMATION matches; the absolute timing inherits that residual.**
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the
