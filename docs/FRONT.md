@@ -425,6 +425,35 @@
   counter/bookshelf/clock now render (differ 13236→11233).  RESIDUAL: finer bookshelf shelf-props + the fireplace
   FIRE (animated) + a subtle wall tint.  (I first wrongly dismissed these as the reveal phase; the USER corrected
   with post-reveal notes — they were genuinely missing.)**
+  **ckpt 167 — THE FREEROAM HUD PIVOT (USER-teed post-chase-#3): the leader PANEL slice 1 — bars+numbers+frame
+  BIT-EXACT + committed.**  New `hud.{c,h}` (pure geometry/format, host-tested) + `game_render_hud` (main.c,
+  blits like banner/dialogue), hooked after `game_render_dialogue` (retail 0x48c150:165 = the overlay layer),
+  gated `g_freeroam_active && !town && control-handed-off`.  THE GATING DEPENDENCY (resolve the res=0 UI banks)
+  is mostly FREE: `ar_register_palette_ramps` ALREADY registers them — **bars=res0x777 (pool 0x2f/slot34),
+  panelframe=res0x44b (slot57), icons=res0x44f, item-frame=res0x450, door=res0x451** (idx via `ar_pool_get_slot`).
+  - **(1a) HP/MP bars** (`0x498680`/`0x498820`): rects copy from pool 0x2f — per row dst_x=x-r dst_y=y+2r,
+    fill=cur·168/max, src_y 0 HP / 2 MP; 4 HP + 3 MP rows; depleted (alpha src_y14) = 0-width at full HP (omitted,
+    a no-op, lands with dynamic HP).  **(1a) numbers** (`0x43e250`): the 12-dark(0x202020,x-1..+2×y-1..+1)+2-white
+    grid, font 2, "%s / %d".  **(1b) panel FRAME** (`0x494e60:97`=`0x418470(0)` on DAT_008a7724, bank from the
+    unpacked-exe asm): keyed at (-31,1), seq 481.  **GRADE-SKIP**: slots 34+57 added to the 8bpp grade skip-list
+    (plain-getter UI sheets, NOT the 0x417c40 grade getter — same class as banner/dialogue/fire/trail; the grade
+    was shifting the bar dhash 0x16a91d45→0x9029e685; fixed).  `PORT-DEBT(hud-party-context)`: values (Arche HP
+    100/100, MP 20/20) + fully-slid-in panel stand in for the unported party subsystem (room+0x4030).
+  - **VERIFIED bit-exact** off `port-hud.osr` vs `sword2.osr` (errands freeroam): the 7 bar rects (dst+src+dhash
+    0x16a91d45), the frame (res1099 dst(-31,1,286,90) dhash 0x44a1864a), ALL 28 HUD text records byte-identical.
+    1068 host pass (+5).  Commits `a660f0a` (slice 1a) + `e3616a3` (slice 1b).  Feed: the port|rec|diff montage
+    (the panel core matches; crop differ = the world behind the frame's keyed-transparent areas).
+  - **NEXT = slice 1c (the panel's data-driven elements, all PORT-DEBT party-context + bank-resolve):** the
+    PORTRAIT (`0x494e60`: bank=`pool[*(char+0x50 +4)]`, frame `*(+6/8/10)` by head-state 0x1c8 — dhash 0xbbf24c22,
+    82×89, RE'd off asm); the LEVEL digit (`0x495e40` digit atlas, mgr bank 0x8a6b60+0xab0 — dhash 0x192317ef
+    8×14 @161,25); the NAME "Arche" + element STARS (`0x498620`; render INTERMITTENTLY = the per-member section,
+    494e60 called ×2/frame — needs RE); then the 6-slot ITEM BAR (`0x4962a0`, slots @440-600 step32 y444, frame
+    res0x450+icon+qty), bottom-left glyphs (530-533), DOOR (`0x4969b0` res0x451 @200,415).  `findings/freeroam-hud.md`
+    has the full §1 ground truth; the dhashes for each element are captured (this ckpt).
+  - **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-hud.osr | sword2.osr 0`) —
+    errands freeroam ~tick 2200: the top-left status panel renders the ornate FRAME + the HP/MP gradient BARS +
+    the "100 / 100" / "20 / 20" NUMBERS (matching retail).  Still MISSING (slice 1c): the face PORTRAIT (black
+    window), the level "1", the "Arche" name, the element stars.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the
