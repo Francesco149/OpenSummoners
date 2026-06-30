@@ -1068,6 +1068,11 @@ struct test_case {
     X(sword_trail_left_mirror)                                 \
     X(sword_trail_ages_and_expires)                            \
     X(sword_trail_render_emits)                                \
+    X(hud_panel_xbase)                                         \
+    X(hud_hp_bar_rows_full)                                    \
+    X(hud_mp_bar_rows_full)                                    \
+    X(hud_bar_partial)                                         \
+    X(hud_format_gauge)                                        \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \

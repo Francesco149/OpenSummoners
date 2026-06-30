@@ -89,6 +89,7 @@
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
+#include "hud.h"              /* the freeroam status HUD (0x494e60 leader panel) */
 #include "cutscene.h"         /* the town-arrival dialogue sequence (0x4d7d80 case 0x334be) */
 #include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
 #include "osr_recon.h"        /* --osr-replay: reconstruct frames from a .osr (M4) */
@@ -408,6 +409,11 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * sparkles (additive EFFECT sheet, same class as the
                                     * fire => NOT colour-graded; the grade was recolouring
                                     * the white-cyan fresh sparkles toward pink, ckpt 163b). */
+#define HUD_BAR_BANK_SLOT    34    /* 0x8a76c8 — res 0x777 (pool 0x2f), the HP/MP bar
+                                    * gradient.  The HUD bars bind it via the plain pool
+                                    * deref ((&DAT_008a760c)[0x2f] in 0x498680), NOT the
+                                    * 0x417c40 grade getter => NOT colour-graded; the port's
+                                    * global 8bpp grade was shifting the bar dhash (slice 1). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1108,6 +1114,7 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[LETTERBOX_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[FIRE_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[SWORD_TRAIL_BANK_SLOT] &&
+        slot != &g_ar_sprite_slots[HUD_BAR_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2722,6 +2729,105 @@ static void game_render_dialogue(void)
     render_dialogue_box(&g_dialogue, 1);                 /* new/current (in front)*/
 }
 
+/* ─── the freeroam STATUS HUD (hud.{c,h}, 0x494e60 leader panel) ─────────────
+ *
+ * Rendered AFTER the dialogue (retail 0x48c150:165 calls 0x494e60 after the
+ * world layers + fade grid).  SLICE 1: the top-left leader panel's HP/MP bars
+ * (FUN_00498680/0x498820, rects from pool 0x2f) + the HP/MP number text
+ * (FUN_0043e250, font 2).  The panel frame / portrait / level / item bar /
+ * door are later slices.  PORT-DEBT(hud-party-context): the displayed values
+ * (Arche HP 100/100 / MP 20/20) stand in for the unported party subsystem; the
+ * panel renders fully-slid-in (xbase=1) whenever the errands leader has control. */
+
+/* The 0x43e250 outlined-text grid (param_6=1): a 0x202020 dark ring of
+ * 12 TextOutA (x-1..x+2, y-1..y+1) then the 0xffffff white center at (x,y)
+ * and (x+1,y).  bk/font already set by the caller's GetDC pass. */
+static void hud_text_outlined(HDC hdc, const char *s, int x, int y)
+{
+    int n = (int)strlen(s);
+    SetTextColor(hdc, (COLORREF)0x202020);
+    osr_emit_gdi_color(hdc, 0x202020);
+    for (int dy = -1; dy < 2; dy++)            /* param_1 = -1,0,1 */
+        for (int dx = -1; dx < 3; dx++) {      /* iVar4  = -1,0,1,2 */
+            osr_emit_gdi_text(hdc, x + dx, y + dy, s, n);
+            TextOutA(hdc, x + dx, y + dy, s, n);
+        }
+    SetTextColor(hdc, (COLORREF)0xffffff);
+    osr_emit_gdi_color(hdc, 0xffffff);
+    osr_emit_gdi_text(hdc, x, y, s, n);
+    TextOutA(hdc, x, y, s, n);
+    osr_emit_gdi_text(hdc, x + 1, y, s, n);
+    TextOutA(hdc, x + 1, y, s, n);
+}
+
+static void game_render_hud(void)
+{
+    /* Gate: the errands (non-town) freeroam, once the leader has CONTROL — the
+     * HUD is hidden while the opening tutorial dialogue locks input (the same
+     * lock freeroam_step uses).  room_is_town = the arrival establishing room. */
+    if (!g_freeroam_active || g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL)
+        return;
+    if (g_errands_dlg_pending || cutscene_active(&g_cutscene))
+        return;
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL)
+        return;
+
+    /* PORT-DEBT(hud-party-context): the errands leader (Arche) stand-in values
+     * + a fully-slid-in panel (slide progress 1000 -> xbase 1). */
+    const int hp_ratio = 1000, mp_ratio = 1000;      /* 0..1000 (full)          */
+    const int hp_cur = 100, hp_max = 100;
+    const int mp_cur = 20,  mp_max = 20;
+    const int xb = hud_panel_xbase(1000);            /* = 1                     */
+    const int yb = HUD_PANEL_YBASE;                  /* = 1                     */
+
+    /* HP/MP bars — the FILLED rects copy from the pool-0x2f gradient (res 0x777).
+     * At full ratio the depleted (alpha) companion is 0-width; it is omitted
+     * here (a no-op visual) and lands with dynamic HP in the party-subsystem
+     * slice.  (The bank is type-0: frame 0 is the whole gradient sheet.) */
+    ar_sprite_slot *bars = ar_pool_get_slot(HUD_BAR_POOL_IDX);
+    zdd_object *bar_cel = (bars != NULL)
+        ? (zdd_object *)ar_sprite_slot_frame(bars, 0) : NULL;
+    if (bar_cel != NULL) {
+        for (int r = 0; r < HUD_HP_ROWS; r++) {
+            hud_bar_row g = hud_bar_row_geom(hp_ratio, 1000, xb + HUD_BAR_DX,
+                                             yb + HUD_HP_BAR_DY, HUD_BAR_WIDTH,
+                                             HUD_HP_SRC_Y, r);
+            zdd_object_blt_rects(bar_cel, g_zdd->primary_obj,
+                                 g.dst_x, g.dst_y, g.dst_w, g.dst_h,
+                                 g.src_x, g.src_y, g.src_w, g.src_h);
+        }
+        for (int r = 0; r < HUD_MP_ROWS; r++) {
+            hud_bar_row g = hud_bar_row_geom(mp_ratio, 1000, xb + HUD_BAR_DX,
+                                             yb + HUD_MP_BAR_DY, HUD_BAR_WIDTH,
+                                             HUD_MP_SRC_Y, r);
+            zdd_object_blt_rects(bar_cel, g_zdd->primary_obj,
+                                 g.dst_x, g.dst_y, g.dst_w, g.dst_h,
+                                 g.src_x, g.src_y, g.src_w, g.src_h);
+        }
+    }
+
+    /* HP/MP number text (FUN_0043e250, font 2) — onto the primary via one
+     * GetDC pass, like the dialogue text. */
+    void *hfont = (g_ar_gdi_table[HUD_TEXT_FONT] != NULL &&
+                   g_ar_gdi_table[HUD_TEXT_FONT]->array != NULL)
+                  ? g_ar_gdi_table[HUD_TEXT_FONT]->array[0] : NULL;
+    void *hdc = NULL;
+    if (zdd_object_get_dc(g_zdd->primary_obj, &hdc) && hdc != NULL) {
+        SetBkMode((HDC)hdc, TRANSPARENT);
+        osr_emit_gdi_bkmode(hdc, TRANSPARENT);
+        if (hfont != NULL) {
+            SelectObject((HDC)hdc, (HGDIOBJ)hfont);
+            osr_emit_gdi_select_font(hdc, hfont);
+        }
+        char buf[16];
+        hud_format_gauge(hp_cur, hp_max, buf, sizeof buf);
+        hud_text_outlined((HDC)hdc, buf, xb + HUD_TEXT_DX, yb + HUD_HP_TEXT_DY);
+        hud_format_gauge(mp_cur, mp_max, buf, sizeof buf);
+        hud_text_outlined((HDC)hdc, buf, xb + HUD_TEXT_DX, yb + HUD_MP_TEXT_DY);
+        zdd_object_release_dc(g_zdd->primary_obj, hdc);
+    }
+}
+
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via
  * game_camera_to_mr, which is defined later with the camera-step helpers. */
 static void game_camera_to_mr(const camera_view *v, mr_camera *out);
@@ -3550,6 +3656,9 @@ static void game_render(void *user)
         game_render_banner();
         /* 0x48c150:179 — the widget tree (0x48c820): the dialogue bubble. */
         game_render_dialogue();
+        /* 0x48c150:165 — the freeroam status HUD (0x494e60), the overlay layer
+         * on top of the world + dialogue (the errands leader panel). */
+        game_render_hud();
     }
 }
 

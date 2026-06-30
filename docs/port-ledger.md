@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **211** (13.3% of engine-proper) — tested 206, ported 5
-- code bytes touched: **14.3%** (242,457 / 1,694,868 B of engine-proper)
-- unported: **1547**
+- touched: **214** (13.5% of engine-proper) — tested 209, ported 5
+- code bytes touched: **14.6%** (247,096 / 1,694,868 B of engine-proper)
+- unported: **1544**
 - orphan refs in src/ not in this table: 4
 
-## tested (206) — ported + host unit suite
+## tested (209) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -59,6 +59,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43ce50 | FUN_0043ce50 | 220 | cutscene.c, dialogue.h, menu_list.c (+1) |
 | 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
+| 0x43e250 | FUN_0043e250 | 334 | main.c |
 | 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
 | 0x46a880 | FUN_0046a880 | 8890 | input_live.c, input_live.h |
 | 0x479960 | FUN_00479960 | 165 | character.c, character.h, input.c (+1) |
@@ -79,6 +80,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
+| 0x494e60 | FUN_00494e60 | 3904 | hud.c, hud.h |
+| 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
 | 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
 | 0x49a740 | FUN_0049a740 | 336 | scene_fade.c, scene_fade.h |

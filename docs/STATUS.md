@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  13.3% touched   (13.3% host-tested, 14.3% of code bytes)
+███░░░░░░░░░░░░░░░░░  13.5% touched   (13.5% host-tested, 14.6% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   206 | ported + module covered by the host unit suite       |
+| tested      |   209 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **211** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1547 | exists in engine, never referenced from src/         |
+| **touched** | **214** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1544 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (14.3% of engine-proper bytes) is the truer progress
+Code-byte coverage (14.6% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -415,6 +415,30 @@ understates how much actual instruction volume is ported.
   warmup, so re-drives are faithful for transition onsets too — a tooling gap, not a port bug), (b) continue the
   frame-lock chase to the NEXT divergence (using the port-vs-recording for transition onsets per the caveat), or
   (c) the freeroam HUD pivot (USER: only after the gaps — chase-#3 is now closed).
+  **ckpt 166 — THE REAL HARNESS FIX (option a) LANDED + verified; it exposes a PROXY warmup residual (port CONFIRMED correct).**
+  Root cause of the +1 nailed off the frame loop `0x439690` (input poll `0x468a20`@866 → velocity `0x46cd70`@1099 →
+  easer `0x43d1d0`@1123 `sim_tick++` → present FRAMEBEG labeled POST-bump, all ONCE per logic frame): the injection
+  fires at the input poll (PRE-bump `g_eh_sim_tick`), so a tick-T entry's velocity EMITS under label T+1 — the +1.
+  **FIX (inject-side, structural):** fire tick entries at the PENDING emit label `g_eh_sim_tick+1` (`engine_input.h`
+  `EI_TICK_AXIS`), mirroring the port's `feed_input` anticipation + the recorder flip→tick map, so port↔re-drive
+  apply a tick-T entry under the SAME emit label.  (NOT a relabel: `OSS_EMIT_TICK_BIAS=-1` joins the diff too but is
+  WRONG in kind — it renames the emit without moving retail's real input-read frame; superseded, default 0.)
+  **VERIFIED** (`port-move.osr` vs fresh `retail-harnessfix.osr`, new default, `state_diff`): the no-warmup BRAKE
+  onset is now **bit-exact — retail brakes 2160 == port** (was 2161); walk accel/steady-state stay bit-exact.
+  **EXPOSED — a PROXY held-injection warmup residual, NOT a port bug:** at the faithful label both sides press at
+  2050, but the proxy moves at **2051 (1 idle tick)** while the port `CHAR_INPUT_REPEAT_DELAY=3` models **2 idle
+  ticks** (2052).  **The port is CORRECT — capdash2 CONFIRMS it:** `capdash2` (ckpt 118, FRIDA, **turbo OFF** = the
+  SAME lockstep clock) shows a held-right walk warmup of **2 idle ticks** (raw call_trace: held@1550 → hvel@1552),
+  the bytes embedded "field-exact" in `test_character_run_ramp`.  Turbo is RULED OUT (`OSS_TURBO=0` re-drive STILL
+  gives the proxy 1 idle tick).  ROOT = held-injection FIDELITY: same `0x478ba0` + same clock, yet frida flip-axis
+  held = 2 idle but proxy tick-axis held = 1 idle — the wall-clock warmup (`:182` `GetTickCount()-press_ts`, edge ts
+  `device+0x14c` set by the producer `0x46a880`) is harness-sensitive to how each injection presents the 0→1 edge.
+  At lead 0 it was HIDDEN (applied-1-late + warmup-1-short cancel → press matched); the +1 (correct for the brake)
+  un-hides it on the rising edge.  **DO NOT touch the port** (the earlier "port may be 1 long" read predated the
+  turbo-off + capdash2-raw checks — WRONG).  The re-drive is now faithful for STEADY-STATE + no-warmup TRANSITION
+  onsets (the USER's goal); warmup-anchored rising-edge (walk-press) carries a known +1 — use the RECORDING for that
+  timing.  Deeper fix = RE `0x46a880` edge/press_ts (no curve-fit "delay rising edges by 1" until understood) — OPEN.
+  Commits: `539e50c` (proxy fix) + the docs correction.  `findings/freeroam-brake-onset.md`.
   Plus two SCOPED gaps from this pass: (A) Arche's house TURN (USER notes #3-5) — **DONE ckpt 146, TICK-ALIGNED
   ckpt 151**: the emote `0x401e60(Arche,1)` = actor cmd-2 "turn to face dir 1", cels 158(4t)→7(4t)→idle 0/1/2
   after house L5; ckpt 146 ported it fire-and-forget (left it ~7t late); **ckpt 151 re-ported it as the BLOCKING
