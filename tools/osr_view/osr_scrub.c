@@ -271,6 +271,14 @@ osr_scrub *osr_scrub_open(void *hwnd, const char *osr_path)
                                         0x1ffffff, 0, 0, 0, 640, 480)) {
         osr_scrub_close(s); return NULL;
     }
+    /* Bind a clipper (clip list = the 640x480 surface bounds) so blits with
+     * off-screen / negative dest rects CLIP — like retail's primary clipper
+     * (zdd.c:442) — instead of being dropped by DDraw on this clipper-less
+     * offscreen dest.  Without it the HUD slide-in (the panel blits at
+     * negative x while sliding in) renders nothing until x>=0 (USER note:
+     * "they pop after the animation is done"); create_surface_pair already
+     * stamped metric_b8/bc = 640/480 for the clip rect. */
+    zdd_object_attach_clipper(s->dest);
 
     double ti0 = qpc_now_ms();
     if (!build_index(s, osr_path)) { osr_scrub_close(s); return NULL; }
