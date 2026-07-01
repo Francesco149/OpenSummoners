@@ -62,3 +62,7 @@ runs/
 *.swo
 .DS_Store
 imgui.ini
+
+# game-generated logs (written when running the exe from the repo root)
+/fs_boot.log
+/fs_warning.log
