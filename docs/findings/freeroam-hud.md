@@ -157,40 +157,85 @@ the bound 0x404040 grades back to 0x333333, undoing the bind).  **No regression:
 only ramp drawn (bit-exact).  `PORT-DEBT(hud-ramp-palette)` RETIRED.  Host: `bs_install_palette`
 ×2 (swap + roundtrip-vs-emit).
 
-## 6. Slice 1c-2 remainder — RE'd + scoped (ckpt 170), ready to port
+## 6. Slice 1c-2 remainder (ckpt 170 scoping)
 
-### The EXP gauge (`FUN_00498f10`) — FULLY RE'd; only the blend-desc sourcing + a capture remain
+### The EXP gauge (`FUN_00498f10`) — PORTED + VERIFIED bit-exact (ckpt 171)
 
 Call site `0x494e60:95`: `FUN_00498f10(ctx, xbase+0x8f, ybase+0x29, 1, 4, cur=0, char+0xe8,
 char+0xec /*max*/, 0x68 /*w=104*/, 0x2e /*pool idx → g_ar_sprite_slots[33] = res 0x44e*/, 0, 1)`.
 Position **(144,42)** confirmed.  Two spans (ground truth `sword2.osr` tick 2200):
 - **seq493 FILLED** — `blt_rects` (mode 2) dst `(144,42,0,2)` src `(104,4)` — **width 0** (Arche's
   errands EXP = 0: `cur=0` and `char+0xe8=0`; there's no combat in the errands, so it stays 0).
-  A 0-width no-op → OMIT it, like the HP/MP bars omit their 0-width depleted (ckpt 167).
+  A 0-width no-op → OMITTED, like the HP/MP bars omit their 0-width depleted (ckpt 167).
 - **seq494 DEPLETED** — `blt_alpha` (mode 4, `FUN_005bd550`) dst `(144,42,104,2)` src `(0,14)`
   **blend_ref=9** — the full empty gradient.  `498f10`'s display-mode branch
   (`*DAT_008a6e80+0x94==2` → `0x5bd550` alpha, else `0x5b9ae0` rects) takes the ALPHA path here.
-  The port's `zdd_blit_orchestrate` (0x5bd550) simple path (gdi_ctx=`DAT_008a6ec0`=NULL, quirk #45)
-  → `zdd_alpha_blit(desc, primary, exp_frame, 144,42, 104,2, 0,14, ckey)`.
+  Ported as `zdd_blit_orchestrate(desc, primary, exp_cel, 144,42, 104,2, 0,14, ckey, NULL)`
+  (`main.c game_render_hud`, right after the bars — retail's call order has EXP at :95, frame at :97).
 
-**The blend desc:** retail passes `*(frame+0x28)` (the res 0x44e frame-0 surface's attached blend)
-= **blend_ref 9 = LUT md5 `ed6214bd`** — and the PORT ALREADY REGISTERS THIS EXACT DESCRIPTOR at
-its own blend_ref 9 (port osr ref 1..9 LUTs == retail's; `oe_blend_register` content-dedup order
-matches).  It's a common mid-alpha ramp (the fire/title/fades emit it).  **The only open mechanical
-step:** source it in `game_render_hud` — either (a) match `ed6214bd` against the `g_pd_boot_group_a/b[]`
-descriptors (compute each LUT via `oe_blend_lut_len`; the trail anchor is `g_ramp_a[19]`, the fire
-`g_ramp_a[14]`), or (b) replicate retail's `*(frame+0x28)` (attach the blend to the res 0x44e frame at
-register time).  **Also:** add res 0x44e (`g_ar_sprite_slots[33]`) to the `title_sheet_format` grade-skip
-(plain-getter bar sheet, same class as the HP/MP bars idx 34).  Then verify res 0x44e fr0 dst
-(144,42,104,2) dhash **0x3a65dc81** + the alpha blend.
+**The blend desc — SOURCED (option a, content-match):** retail's `*(frame+0x28)` (the res 0x44e
+frame-0 surface's attached blend) = blend_ref 9 in the `sword2.osr` capture, LUT md5 `ed6214bd`.
+Dumped the raw LUT bytes for all 20 `g_pd_boot_group_a[]` + 20 `g_pd_boot_group_b[]` entries
+(`pd_boot_init_slots(NULL)`, the exact byte layout `oe_blend_register` hashes — mode/shift/mask-derived
+per-channel lengths, concatenated ch0‖ch1‖ch2) via a throwaway harness and `md5sum`'d each: **exactly
+one full match — `g_pd_boot_group_b[8]`** (md5 `ed6214bd...`, matching the known-good sword-trail
+cross-check `g_pd_boot_group_a[19]` → `727d856f` in the SAME sweep).  So `HUD_EXP_RAMP_B_IDX = 8`,
+i.e. `g_ramp_b[8]` (mode 0, the banner/fade-family group — NOT group A like the fire/trail, which are
+mode-1 dst-reading additive blends; the EXP depleted gauge is a mode-0 straight tint instead).
+Added res 0x44e (`HUD_EXP_BANK_SLOT` = `g_ar_sprite_slots[33]`) to the `title_sheet_format` grade-skip
+(plain-getter bar sheet, same class as the HP/MP bars idx 34/frame idx 57/stars idx 36).
 
-### The 82×89 face PORTRAIT (`FUN_00494e60:125-164`) — a bank hunt (Frida)
+**VERIFIED** off a fresh `port-hud-exp.osr` (`runs/sync/sword2-nav.jsonl` + `sword2-held.jsonl`,
+`tools/run-opensummoners.sh --frames 8500 --osr-state`): tick 2200 seq483 `BLIT alpha res=1102 fr=0
+dst=(144,42,104,2) src=(0,14) bmode=1` — dhash **0x3a65dc81 byte-identical** to the retail ground
+truth.  1074 host pass (+`test_hud_exp_gauge_position`).  `PORT-DEBT(hud-party-context)` unchanged
+(EXP pinned at 0, Arche's errands value).
+
+### The 82×89 face PORTRAIT (`FUN_00494e60:125-164`) — mechanism RE'd via STATIC DISASM; an
+### open contradiction blocks the bank id (ckpt 171, not landed — next-session pickup)
 
 A per-member descriptor at `char+0x50`: head-state `hud_ctx+0x1c8` selects the frame (`==2`→`+8`,
 `==3`→`+10`, else→`+6`); main blit at **(1,1)** 82×89, then a sub-blit at **(92,29)** frame `+0x14`
-(= res 0x775, registered idx 56).  Bank = `pool[*(char+0x50 +4)]`.  The main face is **res=0** in the
-capture, **dhash 0xbbf24c22** — a dedicated small-face bank, NOT the res-1000 dialogue bust.  NEEDS
-Frida (host up, ckpt-153 res-probe pattern): drive retail to the errands, hook `0x494e60` (or
-`0x418470` filtered by caller) at the portrait draw, read the bank ECX's `+0x3c` (HMODULE) / `+0x40`
-(PE res id), then register that bank in the port + blit it.  `PORT-DEBT(hud-party-context)`: the
-descriptor (bank + head-state frames) is Arche's leader stand-in until the party subsystem lands.
+(= res 0x775, registered idx 56).  The main face is **res=0** in the capture, **dhash 0xbbf24c22** —
+a dedicated small-face bank, NOT the res-1000 dialogue bust (confirmed again this ckpt: extracted the
+exact 82×89 RGB565 pixels straight off `sword2.osr`'s SHEET stream by dhash — `tools/trace_studio2/
+osr.py`'s `Sheet.pixels`, no live capture needed for this part — and it IS a chibi face crop, a girl
+with orange/brown hair + green eyes, distinct from every dialogue bust).
+
+**Static disasm (`i686-w64-mingw32-objdump -d -M intel --start-address=0x494e60
+--stop-address=0x495e00 vendor/unpacked/sotes.unpacked.exe`) pins the EXACT mechanism** — the
+decompile's "`Bank = pool[*(char+0x50 +4)]`" is confirmed byte-for-byte at **0x495204-0x49520f**:
+`mov cx,[eax+0x4]` (`eax` = the char+0x50 descriptor, from `mov eax,[edi+0x50]` at 0x4951d8, `edi`=
+char, confirmed against the SAME register serving the star-count read `[edi+0xdc]` a few
+instructions earlier) → `mov ecx,[ecx*4+0x8a760c]` (**the SAME unified pool table** `DAT_008a760c`
+every other HUD element resolves through) → `call 0x418470` at **0x49520f** (MAIN blit, frame
+selected by head-state) / **0x49525e** (the cross-FADE variant, `if (in_ECX+0x1d0>0)`) / **0x4952b4**
+(the SUB-BLIT, frame `+0x14` = res 0x775 — this one keyed off a DIFFERENT global, `DAT_008a7720`,
+right next to the frame's own `DAT_008a7724`, i.e. `+0x8a7720`/`+0x8a7724` are ADJACENT unified-pool
+slot pointers).  Cross-check: the FRAME's own call (`0x418470(0)` at decompile :97) sits at
+**0x49504d**, immediately preceded by `mov ecx,DWORD PTR ds:0x8a7724` — an EXACT, independent
+confirmation that `HUD_FRAME_BANK_SLOT`'s "bank from the unpacked-exe asm" note (ckpt 167) was read
+correctly, and that this disasm-reading technique is sound.
+
+**THE OPEN CONTRADICTION:** a live capture-proxy probe (INT3 hook at **0x4951db**, the `test eax,eax`
+immediately after `char+0x50` loads, reading `EAX`/`EDI` via the VEH CONTEXT — byte-verified installed,
+`orig=0x85` matches `test eax,eax` exactly) **never fired once** across two full replays of
+`runs/sync/sword2-nav.jsonl`+`sword2-held.jsonl` (`tools/capture_proxy/run_proxy.sh`, sim_tick reaching
+into the tens of thousands, WAY past the confirmed portrait-render tick 1714+) — yet the SAME replay's
+`.osr` draw stream shows the portrait rendering at that exact tick (dhash 0xbbf24c22, sliding in from
+`dst_x=-333` in lockstep with the frame/bars, i.e. driven by the SAME `xbase` slide formula, so it
+cannot be a coincidental unrelated draw).  So either (a) `char+0x50` really is null for Arche and the
+observed portrait comes from a DIFFERENT, not-yet-identified code path that happens to track the same
+slide-in `xbase` (seems unlikely to be coincidental, but not ruled out), or (b) the "leader-match" party
+loop this code sits in (decompile :74-166, gated on `in_ECX+0x1b4 != 0` and a slot's `+0x9f4 ==
+in_ECX+0x1b4`) never actually reaches this branch for Arche and the bars/frame/EXP/stars renders I
+cross-checked as "confirming this code path executes" were actually misattributed (e.g. the SEPARATE
+per-member-row mini-gauge code at decompile :270-297/:323-349, which ALSO calls `FUN_00498f10`/
+`FUN_00418470` with constant frame args `0xd/0xe/0xf`, is a plausible alternate source for what looked
+like corroborating hits).  **NEEDS (next session):** hook EARLIER still — e.g. at the loop's own
+leader-match compare (decompile :80, `*(int*)(in_ECX+0x1b4) == *(int*)(iVar15+0x9f4)`) or at the
+`in_ECX+0x1b4`/`in_ECX+0x1b0` reads themselves — to see which branch of the 8-slot loop actually fires
+for Arche and reconcile which code literally draws the observed portrait.  A `--osr-state` field dump
+(`osr_emit_state_field`, the port/proxy's opt-in named-field pass) at the render-site VAs would remove
+the ambiguity in one capture.  `PORT-DEBT(hud-party-context)`: the descriptor (bank + head-state
+frames) is Arche's leader stand-in until the party subsystem lands, unchanged either way.

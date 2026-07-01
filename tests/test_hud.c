@@ -158,3 +158,18 @@ int test_hud_star_level_positions(void)
     T_ASSERT_EQ_I(yb + HUD_LEVEL_DY, 25);
     return 0;
 }
+
+/* ---- slice 1c-2: the EXP gauge dst rect (fully slid in) -------------------- */
+
+int test_hud_exp_gauge_position(void)
+{
+    const int xb = hud_panel_xbase(1000);          /* = 1 */
+    const int yb = HUD_PANEL_YBASE;                 /* = 1 */
+    /* the depleted span at (144,42,104,2), src (0,14) (seq493-494). */
+    T_ASSERT_EQ_I(xb + HUD_EXP_DX, 144);
+    T_ASSERT_EQ_I(yb + HUD_EXP_DY, 42);
+    T_ASSERT_EQ_I(HUD_EXP_WIDTH, 104);
+    T_ASSERT_EQ_I(HUD_EXP_HEIGHT, 2);
+    T_ASSERT_EQ_I(HUD_EXP_SRC_Y, 14);
+    return 0;
+}

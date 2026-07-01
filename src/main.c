@@ -423,6 +423,10 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * (FUN_004184a0(0)) => NOT graded (slice 1c-1).  The
                                     * level digit atlas (res 0x413) is ramp slot 0 — a
                                     * palette-ramp bank, also plain-getter, skipped below. */
+#define HUD_EXP_BANK_SLOT    33    /* 0x8a76c4 — res 0x44e (pool 0x2e), the EXP gauge
+                                    * gradient.  FUN_00498f10 binds it via the same plain
+                                    * pool deref as the HP/MP bars => NOT graded (slice 1c-2,
+                                    * findings/freeroam-hud.md §6). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1139,6 +1143,9 @@ static void title_sheet_format(ar_sprite_slot *slot,
          * getter (FUN_004184a0(0) in 0x498620), so retail does NOT grade them
          * (same class as the bars/frame; verified dhash-exact vs sword2.osr). */
         slot != &g_ar_sprite_slots[HUD_STAR_BANK_SLOT] &&
+        /* the EXP gauge gradient (res 0x44e, slice 1c-2) — same plain-pool-deref
+         * class as the HP/MP bars (FUN_00498f10), so retail does NOT grade it. */
+        slot != &g_ar_sprite_slots[HUD_EXP_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2831,6 +2838,25 @@ static void game_render_hud(void)
                                  g.dst_x, g.dst_y, g.dst_w, g.dst_h,
                                  g.src_x, g.src_y, g.src_w, g.src_h);
         }
+    }
+
+    /* EXP gauge (0x494e60:95 → FUN_00498f10), called BEFORE the frame in
+     * retail's orchestrator order.  Arche's errands EXP is always 0 (PORT-
+     * DEBT(hud-party-context)) so the FILLED span is 0-width (omitted, like
+     * the HP/MP bars' 0-width depleted) and only the DEPLETED span — a
+     * mode-4 ALPHA blit through g_ramp_b[8] (LUT-matched to retail's
+     * blend_ref 9, findings/freeroam-hud.md §6), not a plain rects copy —
+     * ever draws. */
+    ar_sprite_slot *exp = ar_pool_get_slot(HUD_EXP_POOL_IDX);
+    zdd_object *exp_cel = (exp != NULL)
+        ? (zdd_object *)ar_sprite_slot_frame(exp, 0) : NULL;
+    if (exp_cel != NULL && HUD_EXP_RAMP_B_IDX < PD_BOOT_GROUP_B_COUNT) {
+        const zdd_blend_desc *exp_desc = g_ramp_b[HUD_EXP_RAMP_B_IDX];
+        if (exp_desc != NULL)
+            zdd_blit_orchestrate(exp_desc, g_zdd->primary_obj, exp_cel,
+                                 xb + HUD_EXP_DX, yb + HUD_EXP_DY,
+                                 HUD_EXP_WIDTH, HUD_EXP_HEIGHT,
+                                 0, HUD_EXP_SRC_Y, exp_cel->colorkey_out, NULL);
     }
 
     /* The ornate panel FRAME (0x494e60:97), drawn keyed AFTER the bars (seq 481;

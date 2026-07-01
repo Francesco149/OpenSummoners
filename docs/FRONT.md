@@ -552,6 +552,37 @@
   **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-hud1c2.osr | sword2.osr 0`) —
   errands freeroam ~tick 2200: the status panel now shows the level "1" digit (left of the element stars, above the
   MP bar) matching retail.  Still MISSING (slice 1c-2): the face portrait (black window), the EXP bar.
+  **ckpt 171 — slice 1c-2: the EXP GAUGE — PORTED + verified BIT-EXACT; the face PORTRAIT bank-hunt
+  STATIC-DISASM'd (3 exact call sites + the pool mechanism pinned) but a live-probe contradiction blocks
+  the final id — carries to next session.**  EXP gauge (`0x494e60:95`→`FUN_00498f10`): position (144,42)
+  w104h2 confirmed; the FILLED span is 0-width (Arche's errands EXP=0) and omitted (like the HP/MP bars'
+  0-width depleted); the DEPLETED span is a mode-4 ALPHA blit src(0,14) through blend_ref 9 (retail LUT
+  md5 `ed6214bd`).  **Sourced the blend by CONTENT MATCH:** dumped the raw LUT bytes for all 20
+  `g_pd_boot_group_a[]` + 20 `g_pd_boot_group_b[]` entries (`pd_boot_init_slots(NULL)`, the exact
+  per-channel lengths `oe_blend_register` hashes) via a throwaway harness + `md5sum` — exactly ONE full
+  match, **`g_pd_boot_group_b[8]`** (the sweep also independently re-derived the KNOWN sword-trail match
+  `g_ramp_a[19]`→`727d856f` as a sanity check).  Added res 0x44e (slot 33) to the grade-skip.  **VERIFIED**
+  off a fresh `port-hud-exp.osr` (`--frames 8500 --osr-state`, `runs/sync/sword2-{nav,held}.jsonl`): tick
+  2200 `BLIT alpha res=1102 fr=0 dst=(144,42,104,2) src=(0,14) bmode=1` dhash **0x3a65dc81 byte-identical**
+  to retail.  1074 host pass (+`test_hud_exp_gauge_position`).
+  **The PORTRAIT (not landed):** static disasm (`objdump -d --start-address=0x494e60
+  --stop-address=0x495e00 vendor/unpacked/sotes.unpacked.exe`) pins the retail mechanism byte-for-byte —
+  `mov cx,[eax+4]` (eax=char+0x50) → `mov ecx,[ecx*4+0x8a760c]` (the SAME unified pool table every HUD
+  element uses) → `call 0x418470` at **0x49520f** (main blit) / **0x49525e** (cross-fade variant) /
+  **0x4952b4** (the sub-blit, res 0x775, off the adjacent global `DAT_008a7720`) — cross-checked against
+  the FRAME's own call (`0x49504d`, preceded by `mov ecx,DAT_008a7724` exactly as ckpt-167 documented),
+  confirming the disasm-reading technique.  **BLOCKER:** a capture-proxy INT3 probe at 0x4951db (`test
+  eax,eax` right after the char+0x50 load, byte-verified installed — `orig=0x85`) never fired across two
+  full replays reaching sim_tick into the tens of thousands — yet the SAME replay's `.osr` shows the
+  portrait rendering (dhash 0xbbf24c22, slid in lockstep with the frame's `xbase`) at tick 1714+.  Either
+  `char+0x50` is genuinely null and an unidentified different code path draws it (matching the SAME slide
+  formula by coincidence — seems unlikely), or the party leader-match loop this sits in never reaches
+  Arche's slot the way assumed and my "confirming" EXP/star hits (ret_va 0x4980d7/0x4981e2) were actually
+  from the SEPARATE per-member-row mini-gauge code (`:270-297`/`:323-349`, same `FUN_00498f10`/
+  `FUN_00418470(0xd/0xe/0xf)` shape).  Reverted the probe hook (not committed).  **NEXT: hook the loop's
+  OWN leader-match compare** (decompile `:80`, `in_ECX+0x1b4 == *(iVar15+0x9f4)`) or an `--osr-state`
+  named-field dump at the render site, to see which branch fires for Arche.  `PORT-DEBT(hud-party-
+  context)` unchanged either way.  `findings/freeroam-hud.md` §6.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

@@ -8,9 +8,8 @@
  *
  * This file is the LEADER PANEL (top-left): the HP/MP bars (slice 1a), the
  * HP/MP number text + panel frame (1b), the element STARS (1c-1), and the
- * LEVEL glyph (1c-2 — now bit-exact once ar_sprite_decode binds the installed
- * ramp palette, findings/freeroam-hud.md §5).  The portrait / item bar / door /
- * EXP gauge land in later slices.
+ * LEVEL glyph + EXP gauge (1c-2 — findings/freeroam-hud.md §5-6).  The
+ * portrait / item bar / door land in later slices.
  *
  * PORT-DEBT(hud-party-context): the displayed values (HP/MP/level/element
  * stars/items) come from the party subsystem (room+0x4030) which is unported
@@ -99,6 +98,28 @@ int hud_slide_step(int prog);
 /* The atlas frame for a printable glyph (0x495e40: ' ' < c < '{' →
  * frame c - 0x21; ' ' and out-of-range → -1 = a gap, no blit). */
 int hud_glyph_frame(char c);
+
+/* EXP gauge (0x494e60:95 → FUN_00498f10): the leader's EXP bar, a single
+ * row below the HP/MP bars.  Source = pool idx 0x2e = g_ar_sprite_slots[33]
+ * = res 0x44e (HUD_EXP_BANK_SLOT in main.c's grade skip-list).  Position
+ * (xbase + 0x8f, ybase + 0x29) = (144,42) when slid in; width 0x68 (104),
+ * height 2.  Ground truth sword2.osr tick 2200 seq493-494: the FILLED span
+ * is 0-width (Arche's errands EXP = 0: cur=0 and char+0xe8=0, no combat in
+ * the errands) — omitted, like the HP/MP bars omit a 0-width depleted
+ * (ckpt 167); the DEPLETED span is the full gauge width, drawn via the
+ * mode-4 ALPHA path (0x498f10's display-mode branch, NOT the plain rects
+ * copy the FILLED span would use), src (0, 14), blend descriptor = the
+ * port's g_ramp_b[8] (LUT md5 ed6214bd, matched by content against all 20
+ * ramp_a + 20 ramp_b entries — exactly one full match; findings/freeroam-
+ * hud.md §6).  PORT-DEBT(hud-party-context): EXP pinned at 0 (Arche's
+ * errands value), so only the depleted span ever draws. */
+#define HUD_EXP_POOL_IDX   0x2e   /* pool[0x2e] = g_ar_sprite_slots[33] = res 0x44e */
+#define HUD_EXP_DX         0x8f   /* exp x = xbase + 0x8f (= 144)            */
+#define HUD_EXP_DY         0x29   /* exp y = ybase + 0x29 (= 42)             */
+#define HUD_EXP_WIDTH      0x68   /* 104 — full gauge width                  */
+#define HUD_EXP_HEIGHT     2
+#define HUD_EXP_SRC_Y      14    /* the depleted gradient row               */
+#define HUD_EXP_RAMP_B_IDX 8     /* g_ramp_b[8] — the alpha blend descriptor */
 
 /* One HP/MP bar row's blit geometry (FUN_00498680 per-row body).
  *   cur/max : the gauge ratio (cur 0..1000, max 1000);

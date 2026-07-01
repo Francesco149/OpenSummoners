@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **215** (13.6% of engine-proper) — tested 210, ported 5
-- code bytes touched: **14.6%** (247,178 / 1,694,868 B of engine-proper)
-- unported: **1543**
+- touched: **216** (13.6% of engine-proper) — tested 211, ported 5
+- code bytes touched: **14.6%** (247,522 / 1,694,868 B of engine-proper)
+- unported: **1542**
 - orphan refs in src/ not in this table: 4
 
-## tested (210) — ported + host unit suite
+## tested (211) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -83,6 +83,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x494e60 | FUN_00494e60 | 3904 | hud.c, hud.h |
 | 0x498620 | FUN_00498620 | 82 | hud.h, main.c |
 | 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
+| 0x498f10 | FUN_00498f10 | 344 | hud.h, main.c |
 | 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
 | 0x49a740 | FUN_0049a740 | 336 | scene_fade.c, scene_fade.h |
