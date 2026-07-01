@@ -783,6 +783,20 @@ void ar_sprite_decode(ar_sprite_slot *slot)
         return;
     }
 
+    /* Installed-palette bind (FUN_004184a0:70-73 → FUN_005b7bd0).  If this slot
+     * had ar_palette_install run (entries[0].b != NULL) AND the decoded sheet is
+     * 8bpp, retail overwrites the session's embedded palette with the INSTALLED
+     * one before the slice.  This is how the palette-ramp banks (res 0x413/0x412,
+     * whose ar_run_palette_ramp built a custom palette — e.g. ramp 0's entry 1 =
+     * 0x404040) slice against their installed colours, not res 0x413's embedded
+     * palette (entry 1 = 0x333333).  Plain 8bpp sprite slots never call
+     * ar_palette_install (entries[0].b == NULL) so this is a no-op for them —
+     * they keep the embedded palette.  findings/freeroam-hud.md §5. */
+    if (slot->entries != NULL && slot->entry_count >= 1 &&
+        slot->entries[0].b != NULL && bs_get_bit_count(&session) == 8) {
+        bs_install_palette(&session, (const uint8_t *)slot->entries[0].b);
+    }
+
     /* NPC colour-variant palette-INDEX remap (THEME 2 #1) — for an 8bpp sheet
      * whose info-entry carries a variant remap pointer (a cloned variant bank,
      * e.g. the townswoman 0xc440 param_11=1, bank 0xa6).  Rewrite each pixel

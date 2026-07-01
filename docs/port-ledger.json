@@ -1570,6 +1570,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
+    "src/bitmap_session.h",
     "src/main.c"
    ]
   },
@@ -11339,6 +11340,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_register.c",
+    "src/bitmap_session.c",
     "src/bitmap_session.h"
    ]
   },

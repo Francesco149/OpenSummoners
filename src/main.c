@@ -1117,6 +1117,15 @@ static void title_sheet_format(ar_sprite_slot *slot,
      * 0x417c40 getter" (the tiles/sky use it, the UI sheets don't); the port's
      * 8bpp grade is global, so the plain-getter sheets are skipped by slot. */
     if (g_color_grade_on && src == 8 &&
+        /* the 12 palette-ramp banks (g_ar_sprite_ramp_slots, res 0x413/0x412 —
+         * the small-font atlases the HUD level / damage numbers / menu text draw
+         * from) are bound via the plain getter (FUN_004184a0(0), NO 0x417c40 grade
+         * descriptor), so retail does NOT grade them.  ar_sprite_decode has already
+         * bound their INSTALLED custom palette (e.g. ramp 0 entry 1 = 0x404040);
+         * grading it here would map 0x404040 -> 0x333333 and undo the bind.  Same
+         * plain-getter class as the bars/frame/stars.  findings/freeroam-hud.md §5. */
+        !(slot >= g_ar_sprite_ramp_slots &&
+          slot <  g_ar_sprite_ramp_slots + AR_SPRITE_RAMP_COUNT) &&
         slot != &g_ar_sprite_slots[BANNER_SCROLL_SLOT] &&
         slot != &g_ar_sprite_slots[DIALOGUE_BOX_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[DIALOGUE_TAB_BANK_SLOT] &&
@@ -2867,15 +2876,27 @@ static void game_render_hud(void)
     }
 
     /* LEVEL digit (0x494e60:123-124 → 0x495e40) — the leader level as
-     * small-font-atlas glyphs from res 0x413 (ramp slot 0), at (161,25) seq
-     * 526.  The geometry is RE'd + host-tested (hud_glyph_frame + HUD_LEVEL_*),
-     * but the render is DEFERRED to slice 1c-2: the port's ramp decode uses res
-     * 0x413's EMBEDDED palette (entry 1 = 0x333333), not the installed custom
-     * ramp palette (0x404040) retail applies via the plain getter, so the glyph
-     * would render one grade-step too dark (dhash 0x14573bd0 vs the ground-truth
-     * 0x192317ef — a real port bug in the ramp custom-palette application, NOT a
-     * grade the title_sheet_format skip can fix).  See findings/freeroam-hud.md
-     * "## The ramp custom-palette gap" + PORT-DEBT(hud-ramp-palette). */
+     * small-font-atlas glyphs from res 0x413 (ramp slot 0 = pool idx 1), keyed
+     * at (161,25) seq 526.  0x495e40 lays the value string out left-to-right:
+     * glyph i of char c is atlas frame hud_glyph_frame(c) (= c - 0x21), keyed
+     * at (base + i*advance, base_y); advance 9 (fixed width).  Now that
+     * ar_sprite_decode binds the installed ramp palette (0x404040, slice 1c-2)
+     * the digit renders bit-exact (dhash 0x192317ef).  PORT-DEBT(hud-party-
+     * context): the value (HUD_LEVEL_VALUE = 1 = Arche's errands level). */
+    ar_sprite_slot *lvl = ar_pool_get_slot(HUD_LEVEL_POOL_IDX);
+    if (lvl != NULL) {
+        char lbuf[16];
+        int n = snprintf(lbuf, sizeof lbuf, "%d", HUD_LEVEL_VALUE);
+        for (int i = 0; i < n; i++) {
+            int fr = hud_glyph_frame(lbuf[i]);
+            if (fr < 0) continue;                    /* ' '/out-of-range = a gap */
+            zdd_object *g = (zdd_object *)ar_sprite_slot_frame(lvl, (uint16_t)fr);
+            if (g != NULL)
+                zdd_object_blt_keyed(g, g_zdd->primary_obj,
+                                     xb + HUD_LEVEL_DX + i * HUD_LEVEL_ADVANCE,
+                                     yb + HUD_LEVEL_DY);
+        }
+    }
 }
 
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via

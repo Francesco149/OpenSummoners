@@ -113,6 +113,30 @@ void bs_emit_palette_bgra(const bitmap_session *s, uint8_t *out_palette)
     }
 }
 
+/* ─── install a palette onto the session (FUN_005b7bd0) ───────────── */
+
+void bs_install_palette(bitmap_session *s, const uint8_t *installed)
+{
+    /* Retail body (in_ECX = session, param_1 = installed):
+     *   puVar1 = session + 0x35;   puVar2 = installed + 2;
+     *   for (256x) {
+     *     puVar1[ 1] = puVar2[-2];   // session[0x36] = installed[0]  (R)
+     *     puVar1[ 0] = puVar2[-1];   // session[0x35] = installed[1]  (G)
+     *     puVar1[-1] = puVar2[ 0];   // session[0x34] = installed[2]  (B)
+     *     puVar1[ 2] = 0;            // session[0x37] = 0
+     *     puVar1 += 4;  puVar2 += 4;
+     *   }
+     * i.e. installed (R,G,B,_) → session RGBQUAD (B,G,R,0) — the exact
+     * inverse channel swap of bs_emit_palette_bgra. */
+    uint8_t *dst = &s->palette[0];
+    for (int i = 0; i < 256; i++) {
+        dst[i * 4 + 0] = installed[i * 4 + 2];   /* B */
+        dst[i * 4 + 1] = installed[i * 4 + 1];   /* G */
+        dst[i * 4 + 2] = installed[i * 4 + 0];   /* R */
+        dst[i * 4 + 3] = 0;
+    }
+}
+
 /* ─── compressed-header parser (free function, FUN_005b7c10) ─────── */
 
 int bs_parse_compressed_header(bs_bitmap_info *out, const void *resource_data,

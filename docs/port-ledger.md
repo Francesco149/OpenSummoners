@@ -46,7 +46,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x417bc0 | FUN_00417bc0 | 123 | asset_register.c, asset_register.h |
 | 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
 | 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
-| 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h, main.c |
+| 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
 | 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
 | 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
@@ -162,7 +162,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b74f0 | FUN_005b74f0 | 293 | bitmap_session.h |
 | 0x5b7800 | FUN_005b7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h |
 | 0x5b7b90 | FUN_005b7b90 | 53 | bitmap_session.h |
-| 0x5b7bd0 | FUN_005b7bd0 | 53 | bitmap_session.h |
+| 0x5b7bd0 | FUN_005b7bd0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h |
 | 0x5b7c10 | FUN_005b7c10 | 186 | bitmap_session.c, bitmap_session.h |
 | 0x5b7ee0 | FUN_005b7ee0 | 153 | main.c, zdd.h |
 | 0x5b7f80 | FUN_005b7f80 | 94 | zdd.c, zdd.h |

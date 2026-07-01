@@ -7,10 +7,10 @@
  * caller's sink (main.c game_render_hud), like banner.{c,h} / scene_fade.c.
  *
  * This file is the LEADER PANEL (top-left): the HP/MP bars (slice 1a), the
- * HP/MP number text + panel frame (1b), and the element STARS (1c-1).  The
- * LEVEL glyph is RE'd + host-tested here but its render is DEFERRED to slice
- * 1c-2 (the ramp custom-palette gap — findings/freeroam-hud.md §5); the
- * portrait / item bar / door / EXP gauge also land in later slices.
+ * HP/MP number text + panel frame (1b), the element STARS (1c-1), and the
+ * LEVEL glyph (1c-2 — now bit-exact once ar_sprite_decode binds the installed
+ * ramp palette, findings/freeroam-hud.md §5).  The portrait / item bar / door /
+ * EXP gauge land in later slices.
  *
  * PORT-DEBT(hud-party-context): the displayed values (HP/MP/level/element
  * stars/items) come from the party subsystem (room+0x4030) which is unported

@@ -123,31 +123,43 @@ getter UI sheet, NOT graded — same class as the bars/frame).  Verified off `po
 vs `sword2.osr` tick 2200: both stars res 1103 fr16 dst (187,30)/(200,30) 12×9 **dhash
 0xaedb8faa — byte-identical** to the recording.  Geometry host-tested (`hud_star_level_positions`).
 
-**LEVEL — RE'd + host-tested, render DEFERRED to slice 1c-2 (the ramp custom-palette gap).**
-The geometry is exact (glyph `c-0x21`, +9px advance, base (161,25) — `hud_glyph_frame` +
-`HUD_LEVEL_*`, host-tested), and the bank (ramp0/res 0x413, frame 16 for '1') is right, but
-the port renders the digit **one grade-step too dark**: dhash 0x14573bd0 vs the GT 0x192317ef
-(60/112 px differ; the '1' outline reads bg 0x3186 = 0x303030 vs retail 0x4208 = 0x404040).
+**LEVEL — PORTED + VERIFIED bit-exact (slice 1c-2, ckpt 170).**  The geometry is exact (glyph
+`c-0x21`, +9px advance, base (161,25) — `hud_glyph_frame` + `HUD_LEVEL_*`, host-tested); the
+bank is ramp0/res 0x413 frame 16 ('1').  `game_render_hud` blits the value string left-to-right
+via `hud_glyph_frame` from `ar_pool_get_slot(HUD_LEVEL_POOL_IDX=1)`.  Verified off
+`port-hud1c2.osr` vs `sword2.osr`: res 1043 fr16 dst (161,25,8,14) **dhash 0x192317ef —
+byte-identical** to the GT (was 0x14573bd0 too-dark); the digit is the ONLY ramp draw across the
+whole title→newgame→cutscene→errands run (3956 draws, all 0x192317ef), so no other ramp consumer
+regressed; bars/frame/stars dhashes unchanged.
 
-### The ramp custom-palette gap (the LEVEL blocker, slice 1c-2)
+### The ramp custom-palette gap — RESOLVED (the LEVEL blocker, slice 1c-2)
 
-Traced (debug print in `title_sheet_format`, a clean tick-axis re-drive): `title_sheet_format`
-IS called for ramp0 with `grade_on=1 src=8`, and the port's grade-skip (`slot !=
-&g_ar_sprite_ramp_slots[0]`) **works** (palette entry 1 = 0x333333 both IN and OUT — the grade
-is skipped).  But the palette **arrives already at 0x333333** (= 0x404040 graded; the town LUT
-maps 0x40→0x33 → 565 0x3186).  Nothing between `bs_decode_resource` and `title_sheet_format`
-grades a ramp slot (the NPC-remap / `ar_apply_slot_palette_swap` block is gated to
-`g_ar_sprite_slots`, excluding the ramp array).  So the session palette used to slice the
-glyph is **res 0x413's raw EMBEDDED palette (0x333333)**, NOT the installed custom ramp
-palette (`entries[0].b` = 0x404040 that `ar_run_palette_ramp` built).  `ar_sprite_decode`
-never copies `entries[0].b` into the session — so the port's ramp decode **ignores the
-installed ramp colours** and slices against the sheet's embedded palette.  Retail's plain-
-getter path applies the ramp's custom palette → 0x404040.
+The digit rendered **one grade-step too dark** (dhash 0x14573bd0 vs GT 0x192317ef; the '1'
+outline read 0x303030 vs retail 0x404040) because the port sliced res 0x413 against its raw
+EMBEDDED palette (entry 1 = 0x333333) instead of the installed custom ramp palette
+(`entries[0].b` = 0x404040 that `ar_run_palette_ramp` built).
 
-**Fix (slice 1c-2):** RE how retail's ramp decode binds the installed palette (the
-`FUN_004178e0`/`FUN_00491770` install → the slice's palette source), then apply
-`slot->entries[0].b` to the session in `ar_sprite_decode` for ramp slots — verify no
-regression across the OTHER ramp consumers (damage numbers, menu text) before enabling the
-level render.  `PORT-DEBT(hud-ramp-palette)`.  EXP gauge (498f10 alpha depleted via the
-`0x5bd550` orchestrator, display-mode gated) + the 82×89 face portrait (dedicated small-face
-bank, res=0 in capture — dhash 0xbbf24c22) also land in 1c-2.
+**Root RE'd (the exact retail bind, not curve-fit):** `FUN_004184a0` (the frame-getter decode =
+the port's `ar_sprite_decode`) does, right after decode and BEFORE the slice (`:70-73`):
+`if (entries[frame].b != 0 && session 8bpp) FUN_005b7bd0(entries[frame].b)`.  **`FUN_005b7bd0`**
+overwrites the session's bmiColors (session+0x34, RGBQUAD B,G,R,0) from the installed
+PALETTEENTRY buffer (R,G,B,_) — the exact inverse channel-swap of `bs_emit_palette_bgra`.  So a
+slot that had `ar_palette_install` run (the 12 ramps + the title seed slot 0) slices against its
+INSTALLED palette.  The port omitted this bind → ramp glyphs used the embedded palette.
+
+**Fix (ckpt 170):** `bs_install_palette` (FUN_005b7bd0, `bitmap_session.c`) + a call in
+`ar_sprite_decode` right after decode-success, gated exactly as retail (`entries[0].b != NULL &&
+8bpp`).  Plain sprite slots never `ar_palette_install` (entries[0].b == NULL) so it's a no-op for
+them.  ALSO: the ramp banks are plain-getter (no 0x417c40 grade descriptor) so retail does NOT
+grade them — added the `g_ar_sprite_ramp_slots` range to the `title_sheet_format` grade-skip (else
+the bound 0x404040 grades back to 0x333333, undoing the bind).  **No regression:** the title seed
+(slot 0) is never drawn as a sprite (verified: res 0x90b absent from the run), and res 0x413 is the
+only ramp drawn (bit-exact).  `PORT-DEBT(hud-ramp-palette)` RETIRED.  Host: `bs_install_palette`
+×2 (swap + roundtrip-vs-emit).
+
+**Still open (slice 1c-2 remainder):** the 82×89 face PORTRAIT (`FUN_00494e60:125-164` — a
+per-member descriptor at `char+0x50`: head-state `+0x1c8` selects frame `+6/+8/+10`, main blit at
+(1,1) + a sub-blit at (92,29) frame `+0x14`; bank = `pool[*(char+0x50 +4)]`; res=0 in capture,
+dhash 0xbbf24c22 — a dedicated small-face bank, NOT the res-1000 dialogue bust) + the EXP gauge
+(`FUN_00498f10` — a bar gauge like HP/MP, the depleted span via `FUN_005b9ae0`/`0x5bd550` gated on
+display-mode `*DAT_008a6e80+0x94==2`, res 0x44e fr0 (144,42) w104 dhash 0x3a65dc81).

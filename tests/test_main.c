@@ -206,6 +206,8 @@ struct test_case {
     X(bs_init_bitmap_stamps_BIH)                               \
     X(bs_init_bitmap_24bpp_size)                               \
     X(bs_emit_palette_bgra_swaps_RGB_to_BGR)                   \
+    X(bs_install_palette_swaps_RGB_to_BGR)                     \
+    X(bs_install_palette_roundtrips_emit)                      \
     X(decode_returns_zero_on_missing_resource)                 \
     X(decode_raw_8bpp_copies_palette_and_pixels)               \
     X(decode_raw_24bpp_skips_palette_copy)                     \

@@ -555,6 +555,29 @@ understates how much actual instruction volume is ported.
   click the studio shortcut** (`studio-current.txt` → `port-hud1c.osr | sword2.osr 0`) — errands freeroam ~tick 2200:
   the status panel now renders the 2 element STARS (right of the HP/MP bars, over the frame) matching retail.  Still
   MISSING (slice 1c-2): the level "1", the face portrait (black window), the EXP bar.
+  **ckpt 170 — the freeroam HUD panel SLICE 1c-2 (the LEVEL digit) — PORTED + verified BIT-EXACT; the ramp custom-
+  palette gap RE'd + FIXED (`PORT-DEBT(hud-ramp-palette)` RETIRED).**  The digit rendered one grade-step too dark
+  (dhash 0x14573bd0 vs GT 0x192317ef; '1' outline 0x303030 vs 0x404040) because the port sliced res 0x413 against
+  its EMBEDDED palette (entry 1 = 0x333333), not the INSTALLED custom ramp palette (0x404040 `ar_run_palette_ramp`
+  built).  **Root RE'd (not curve-fit):** `FUN_004184a0:70-73` (the frame-getter decode = port `ar_sprite_decode`)
+  binds the installed palette right after decode iff `entries[0].b != 0 && 8bpp` via **`FUN_005b7bd0`** — overwrites
+  the session bmiColors (B,G,R,0) from the installed PALETTEENTRY buffer (R,G,B,_), the exact inverse channel-swap
+  of `bs_emit_palette_bgra`.  The port OMITTED this bind → ramp glyphs used the embedded palette.  **Fix:**
+  `bs_install_palette` (FUN_005b7bd0, `bitmap_session.c`) + a call in `ar_sprite_decode` gated exactly as retail
+  (`entries[0].b != NULL && 8bpp`; plain slots never `ar_palette_install` → no-op for them) + the ramp banks added
+  to the `title_sheet_format` grade-skip (plain-getter, no 0x417c40 grade descriptor — else the bound 0x404040
+  grades back to 0x333333).  `game_render_hud` now blits the level string via `hud_glyph_frame` from
+  `ar_pool_get_slot(1)`.  **VERIFIED off `port-hud1c2.osr` vs `sword2.osr`:** res 1043 fr16 dst (161,25,8,14)
+  **dhash 0x192317ef byte-identical**; the digit is the ONLY ramp draw in the whole title→newgame→cutscene→errands
+  run (3956 draws, all bit-exact) ⇒ no other ramp consumer (damage numbers/menu text) regressed, bars/frame/stars
+  dhashes unchanged, the title seed slot 0 (res 0x90b) never drawn.  1073 host pass (+`bs_install_palette` ×2).
+  **NEXT (slice 1c-2 remainder):** the 82×89 face PORTRAIT (`0x494e60:125-164` — per-member descriptor `char+0x50`,
+  head-state `+0x1c8` → frame `+6/+8/+10`, main (1,1) + sub-blit (92,29) frame `+0x14`, bank `pool[*(char+0x50+4)]`,
+  res=0 dhash 0xbbf24c22 dedicated small-face bank) + the EXP gauge (`0x498f10` bar gauge, depleted span via
+  `0x5bd550` gated display-mode `*DAT_008a6e80+0x94==2`, res 0x44e fr0 (144,42) w104 dhash 0x3a65dc81).
+  **USER-VERIFY (visual): click the studio shortcut** (`studio-current.txt` → `port-hud1c2.osr | sword2.osr 0`) —
+  errands freeroam ~tick 2200: the status panel now shows the level "1" digit (left of the element stars, above the
+  MP bar) matching retail.  Still MISSING (slice 1c-2): the face portrait (black window), the EXP bar.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

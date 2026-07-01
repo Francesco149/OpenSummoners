@@ -262,6 +262,54 @@ int test_bs_emit_palette_bgra_swaps_RGB_to_BGR(void)
     return 0;
 }
 
+/* ─── bs_install_palette (FUN_005b7bd0) — the inverse bind ────────── */
+
+int test_bs_install_palette_swaps_RGB_to_BGR(void)
+{
+    bitmap_session s = {0};
+    /* Installed buffer entries laid out (R,G,B,_) — the ar_palette_pack_entry
+     * format: entry 0 = (0x11,0x22,0x33,0xff), entry 1 = (0xaa,0xbb,0xcc,0x77). */
+    uint8_t installed[1024] = {0};
+    installed[0] = 0x11; installed[1] = 0x22; installed[2] = 0x33; installed[3] = 0xff;
+    installed[4] = 0xaa; installed[5] = 0xbb; installed[6] = 0xcc; installed[7] = 0x77;
+
+    bs_install_palette(&s, installed);
+
+    /* session bmiColors[0] = (B=0x33, G=0x22, R=0x11, 0). */
+    T_ASSERT_EQ_U(s.palette[0], 0x33);
+    T_ASSERT_EQ_U(s.palette[1], 0x22);
+    T_ASSERT_EQ_U(s.palette[2], 0x11);
+    T_ASSERT_EQ_U(s.palette[3], 0x00);
+    /* session bmiColors[1] = (B=0xcc, G=0xbb, R=0xaa, 0). */
+    T_ASSERT_EQ_U(s.palette[4], 0xcc);
+    T_ASSERT_EQ_U(s.palette[5], 0xbb);
+    T_ASSERT_EQ_U(s.palette[6], 0xaa);
+    T_ASSERT_EQ_U(s.palette[7], 0x00);
+    /* Reserved byte forced 0 across all entries. */
+    for (int i = 0; i < 256 * 4; i += 4)
+        T_ASSERT_EQ_U(s.palette[i + 3], 0);
+    return 0;
+}
+
+/* install is the exact inverse of emit: emit(session)->buf, install(buf)->session
+ * round-trips the RGB triplet (reserved byte lost, which both zero anyway). */
+int test_bs_install_palette_roundtrips_emit(void)
+{
+    bitmap_session s = {0};
+    for (int i = 0; i < 256 * 4; i++) s.palette[i] = (uint8_t)(i * 7 + 3);
+    for (int i = 0; i < 256; i++) s.palette[i * 4 + 3] = 0;   /* reserved 0 */
+
+    uint8_t emitted[1024];
+    bs_emit_palette_bgra(&s, emitted);
+
+    bitmap_session t = {0};
+    bs_install_palette(&t, emitted);
+
+    for (int i = 0; i < 256 * 4; i++)
+        T_ASSERT_EQ_U(t.palette[i], s.palette[i]);
+    return 0;
+}
+
 /* ─── bs_decode_resource raw path ────────────────────────────────── */
 
 int test_decode_returns_zero_on_missing_resource(void)

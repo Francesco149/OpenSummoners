@@ -211,6 +211,21 @@ int bs_decode_resource(bitmap_session *s, void *hModule, uint16_t resource_id,
  * bs_decode_resource's 8bpp branch. */
 void bs_emit_palette_bgra(const bitmap_session *s, uint8_t *out_palette);
 
+/* FUN_005b7bd0 — the INVERSE of bs_emit_palette_bgra: install a caller's
+ * 256-entry PALETTEENTRY buffer (`installed`, laid out R,G,B,_ per entry —
+ * the format ar_palette_pack_entry / ar_palette_install produce) onto the
+ * session's bmiColors (session+0x34, RGBQUAD B,G,R,0).  Retail's body reads
+ * `installed+2` as (R,G,B) and writes session as (B,G,R,0) — the same
+ * per-entry channel swap, run the other direction.
+ *
+ * This is the "installed custom palette overrides the sheet's embedded
+ * palette" bind: the frame-getter decode (FUN_004184a0:70-73) calls it
+ * right after decode iff `slot->entries[0].b != NULL` AND the session is
+ * 8bpp, so a slot that had ar_palette_install run (the palette-ramp banks —
+ * res 0x413/0x412 — and the title seed slot) slices against its INSTALLED
+ * palette, not res 0x413's embedded one.  `installed` must be ≥ 1024 bytes. */
+void bs_install_palette(bitmap_session *s, const uint8_t *installed);
+
 /* ─── compressed-resource header parser (free function) ──────────── */
 
 /* The caller-supplied BITMAPINFO that FUN_005b7c10 populates.  Layout
