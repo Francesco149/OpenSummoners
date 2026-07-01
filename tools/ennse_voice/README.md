@@ -4,6 +4,13 @@ Adds the **Japanese dialogue voice** to the retail **English special edition**
 (the Steam `sotes` build) — English text, Japanese voice acting — which the
 official English release never shipped. Drop-in DLL; **the game exe is not modified.**
 
+## Download
+
+**➡ [Download `ennse-voice-patch.zip`](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/ennse-voice-patch.zip)** — always the latest build.
+
+Unzip it anywhere and run **`Install.bat`**. You also need `sotesx_s.dll` from your own
+Japanese copy — the installer finds it automatically (see [Install](#install) below).
+
 ## How it works (short version)
 
 The English engine (`sotes_en.exe`) still contains the *entire* voice subsystem —
