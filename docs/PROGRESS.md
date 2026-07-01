@@ -6,6 +6,74 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-01 (ckpt 164–174) — frame-lock re-drive foundation closed + freeroam HUD panel slices 1–3
+
+*(Migrated from FRONT.md, which had grown to 2700+ lines; deep detail lives in
+`findings/freeroam-hud.md §1-9`, `findings/freeroam-brake-onset.md`, `plans/frame-lock-1to1.md`.)*
+
+- **Capture-proxy foundation fix (164).** Every `run_proxy.sh` retail capture came back
+  empty: a bare app-dir `ddraw.dll` drop resolves to `System32\ddraw.dll`, never ours
+  (verified via `GetModuleFileName`). Replaced with **injection** — `build/inject.exe`
+  (`CreateProcess(SUSPENDED)` → remote `LoadLibraryA(<full path>)` → `ResumeThread`); our
+  DLL loads regardless of search order and is live before the main thread, so the engine-VA
+  hooks patch the mapped sotes code AND the `#32770` launcher is dismissed in-process
+  (`BM_CLICK`). Retail captures are hands-free again. Commit `1a31089`; quirk #3 + CLAUDE.md.
+
+- **Frame-lock warmup "+1" RE'd & fixed (165/166/168).** The walk-accel/brake ±1-tick
+  wobble was chased through the input pipeline (`0x46a880` rising-edge ts → `0x478ba0:182`
+  11 ms gate, all one frame) and settled by **measurement** — the proxy state pass read the
+  engine's own fields (`cmd0`/`lvlR`/`edgeR`) on a clean sim-tick re-drive: retail's walk
+  warmup is **exactly 1 idle tick**. The port's `CHAR_INPUT_REPEAT_DELAY` was one too long
+  → 3→2, GT tests re-based on `retail-decomp.osr`. This closes the last frame-lock re-drive
+  residual; the sim-tick re-drive is now faithful for steady-state, brake, and warmup-
+  anchored onsets. (The `sword2.osr` recording is flip-axis ~2.23 flips/tick, so replaying
+  *it* aliases ±1t — bit-exact needs the sim-tick re-drive, not the recording; ckpt 167d.)
+
+- **Freeroam HUD — leader panel, slice 1 (167).** New `hud.{c,h}` (pure geometry/format,
+  host-tested) + `game_render_hud` (main.c), hooked after the dialogue layer, gated on
+  freeroam + control-handed-off. Bit-exact: HP/MP **bars** (res 0x777), **numbers**
+  (12-dark + 2-white grid), panel **frame** (res 0x44b). Slide-in (167b/c) armed on the
+  control lock→unlock edge, ramps while unlocked (retail hides the HUD during the errands
+  opening dialogue, slides it in at the hand-off). `PORT-DEBT(hud-party-context)` +
+  `(hud-slide)` stand-ins.
+
+- **HUD data glyphs (169/170/171).** Element **stars** (res 0x44f); **level** digit
+  (res 0x413) — which forced RE'ing the ramp custom-palette bind: `FUN_005b7bd0` overwrites
+  the session bmiColors from the installed PALETTEENTRY buffer iff `entries[0].b && 8bpp`;
+  ported as `bs_install_palette` + a gated call in `ar_sprite_decode`, retiring
+  `PORT-DEBT(hud-ramp-palette)`. **EXP** gauge (res 0x44e) — a mode-4 alpha blit whose
+  blend LUT was sourced by **content-match** (dumped all 40 boot LUTs + md5 → exactly one
+  hit, `g_pd_boot_group_b[8]`). All dhash byte-identical.
+
+- **HUD item bar — slice 2 (173).** `FUN_004962a0` ×6 (the "wrapper" is `0x494e60` inlining
+  it), each slot a BG (res 0x450 **frame 12** — the `0` arg is a lazy-decode entry_idx, not a
+  frame select) + ICON + LABEL triad off already-registered banks. Frames found by a boot-
+  time dhash sweep (`{44,48,40,36,59,80}` icons, `{4..9}` key-cap labels), verified 18/18
+  blits identical on a full errands playthrough. Slide rides `room+0x3c8` (+20/tick,
+  `PORT-DEBT(hud-item-hslide)`).
+
+- **HUD door indicator — slice 3 (174).** `FUN_004969b0` compass fully RE'd via objdump
+  (4 ECX-hiding traps Ghidra all hides): scan the 32-slot `+0x1160` EFFECT band → validity/
+  zone gate → 72000×56000 world-reach pre-filter → **off-screen-only** exclude → project +
+  clamp-to-edge (TOP/RIGHT/BOTTOM/LEFT) → dedup-stack (20 buckets, <5px cluster, 5-deep,
+  12px perpendicular spread) → highlight `+4` → alpha-fade (`g_ramp_b`). Ported pure
+  (`hud_door_process`, 5 branch tests); uses already-ported `g_ramp_b` + pool 0x3a (res
+  0x451). **`PORT-DEBT(hud-door-actors)`:** the `+0x1160` actor spawn is a whole unported
+  subsystem; the errands' 2 map-data EFFECT objects stay on-screen so the port renders 0
+  door blits, matching 0 `res=0x451` in `sword2.osr`.
+
+- **Open blocker — the portrait (171/172).** Its bank is read live off `char+0x50` at the
+  party leader-match branch (3 exact call sites static-disasm'd), but `hud_ctx+0x1b4`
+  (leader_uid) reads **0x0 on every call across every scripted ring-injection replay** —
+  Frida INT3, Frida field-spec, and a native proxy probe all agree. The `.osr` from the SAME
+  replay shows the portrait rendering, so it's a genuine **replay-fidelity gap** (the
+  scripted replay doesn't reproduce what the original human-played session armed), not a
+  probe-placement bug. NEXT: find the `+0x1b4` setter (start from `FUN_0048c150`'s init
+  path), or drive a live/manual errands play and probe there. `findings/freeroam-hud.md §6-9`.
+
+- **Tooling (172):** `frida_capture.py` + `opensummoners-agent.js` now accept `{"tick":N}`
+  trace entries (previously coerced to `frame:0`, firing every tick-keyed press at boot).
+
 ## 2026-06-24 (ckpt 163e) — frame-lock: the walk-accel "−4px gap" was a 1-tick replay off-by-one — FIXED
 
 USER directive (the frame-lock foundation, ckpt 163c-d): drive PORT + RETAIL 1:1 frame-by-frame off the
