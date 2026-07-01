@@ -83,17 +83,21 @@ jobs:
           git tag -f nightly "${GITHUB_SHA}"
           git push -f origin "refs/tags/nightly"
 
+      # Publish via the pre-installed GitHub CLI (no third-party action → no
+      # Node-runtime churn / undici "other side closed" flakiness), with a small
+      # retry on transient API errors. Idempotent: create the release the first
+      # time, edit it thereafter, then clobber its assets.
       - name: Publish to rolling 'nightly' pre-release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: nightly
-          target_commitish: ${{ github.sha }}
-          name: Nightly
-          prerelease: true
-          make_latest: false
-          body_path: release-notes.md
-          files: |
-            build/opensummoners.exe
-            build/voice_view.exe
-            build/ennse-voice-patch.zip
-          fail_on_unmatched_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          retry() { local n; for n in 1 2 3; do "$@" && return 0; echo "  (attempt $n failed — retry in 10s)"; sleep 10; done; return 1; }
+          if gh release view nightly >/dev/null 2>&1; then
+            retry gh release edit nightly --prerelease --latest=false \
+              --title Nightly --notes-file release-notes.md --target "$GITHUB_SHA"
+          else
+            retry gh release create nightly --prerelease --latest=false \
+              --title Nightly --notes-file release-notes.md --target "$GITHUB_SHA"
+          fi
+          retry gh release upload nightly --clobber \
+            build/opensummoners.exe build/voice_view.exe build/ennse-voice-patch.zip

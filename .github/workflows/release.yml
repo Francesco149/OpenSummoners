@@ -49,13 +49,16 @@ jobs:
             echo "See the README for install details."
           } > release-notes.md
 
+      # Publish via the pre-installed GitHub CLI (robust, no third-party action).
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ github.ref_name }}
-          body_path: release-notes.md
-          files: |
-            build/opensummoners.exe
-            build/voice_view.exe
-            build/ennse-voice-patch.zip
-          fail_on_unmatched_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          retry() { local n; for n in 1 2 3; do "$@" && return 0; echo "  (attempt $n failed — retry in 10s)"; sleep 10; done; return 1; }
+          files="build/opensummoners.exe build/voice_view.exe build/ennse-voice-patch.zip"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            retry gh release upload "$GITHUB_REF_NAME" --clobber $files
+          else
+            retry gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md $files
+          fi
