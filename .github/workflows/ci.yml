@@ -1,0 +1,37 @@
+# CI — build all deliverables, gate on no-embedded-assets, run the unit suite.
+# Runs on every push to master + PRs. Lean `.#ci` shell (mingw + native gcc +
+# make + python), so no game assets and no heavy RE tooling are pulled.
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request: {}
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build — port + resource explorer + voice patch
+        run: |
+          nix develop .#ci --command make -C src
+          nix develop .#ci --command make -C tools/voice_view
+          nix develop .#ci --command make -C tools/ennse_voice
+
+      - name: Gate — no embedded game assets
+        run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
+             build/opensummoners.exe build/voice_view.exe build/version.dll
+
+      - name: Host unit suite (ASan/UBSan)
+        run: nix develop .#ci --command make -C tests run

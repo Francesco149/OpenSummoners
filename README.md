@@ -13,8 +13,25 @@ content of any kind.  You supply your own copy of the game (Steam).
 
 ## Status
 
-Bootstrap phase — see [`docs/PLAN.md`](docs/PLAN.md) for the roadmap and
+Active development — see [`docs/STATUS.md`](docs/STATUS.md) for the current front,
+[`docs/PLAN.md`](docs/PLAN.md) for the roadmap, and
 [`docs/PROGRESS.md`](docs/PROGRESS.md) for the changelog.
+
+## Downloads
+
+Every build is produced by CI and published to **[Releases](../../releases)** — each
+ships **no game assets** (everything reads your own legitimately-owned files at runtime):
+
+- **`opensummoners.exe`** — the port. Drop it beside your Fortune Summoners install.
+- **`voice_view.exe`** — a SotES **resource explorer**: open a game DLL, list its
+  `WAVE`/`DATA`/… resources, and play/export the audio.
+- **`ennse-voice-patch.zip`** — restores **Japanese dialogue voice** to the English
+  special edition (English text + JP audio), which the official English release never
+  shipped. Run `Install.bat`; you supply `sotesx_s.dll` from your own Japanese copy.
+  Details: [`tools/ennse_voice/README.md`](tools/ennse_voice/README.md).
+
+The rolling **`nightly`** pre-release always carries the latest build; tagged `vX.Y`
+releases are cut at milestones.
 
 ## Getting started (NixOS / WSL2)
 

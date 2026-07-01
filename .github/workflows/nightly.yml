@@ -1,0 +1,99 @@
+# Nightly build → single rolling 'nightly' pre-release.
+#
+# Cross-compiles all three shippable deliverables with mingw via the lean
+# `.#ci` Nix shell (NO game assets needed — the port/patch/tools read the
+# user's own files at runtime), gates on the no-embedded-assets scan, then
+# clobbers ONE long-lived pre-release tagged `nightly`.
+#
+# Deliverables:
+#   opensummoners.exe        — the port (drop-in sotes.exe reimplementation)
+#   voice_view.exe           — the SotES resource explorer
+#   ennse-voice-patch.zip    — the EN-SE Japanese-voice patch (+ installer)
+#
+# Why one rolling release: GitHub notifies watchers when a *new* release is
+# published, but NOT when an existing release's assets are updated. So we keep
+# `nightly` stable and clobber its assets each run — watchers are pinged at
+# most once. It's prerelease + make_latest:false so it never becomes "latest".
+# Milestone tags (vX.Y) are cut separately (see release.yml) and DO notify.
+
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 6 * * *'        # daily, 06:00 UTC
+  workflow_dispatch: {}         # manual "Run workflow" button
+
+permissions:
+  contents: write               # create/update the 'nightly' release + tag
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history for the release-notes git log
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build — port (opensummoners.exe)
+        run: nix develop .#ci --command make -C src
+
+      - name: Build — resource explorer (voice_view.exe)
+        run: nix develop .#ci --command make -C tools/voice_view
+
+      - name: Build — EN-SE voice patch (version.dll)
+        run: nix develop .#ci --command make -C tools/ennse_voice
+
+      - name: Gate — no embedded game assets
+        run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
+             build/opensummoners.exe build/voice_view.exe build/version.dll
+
+      - name: Package — voice patch zip
+        run: nix develop .#ci --command bash tools/ci/package_patch.sh
+
+      - name: Compose release notes
+        run: |
+          {
+            echo "Automated nightly build — unsigned, **bring your own game**."
+            echo
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo "Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "Ships **no game assets**. Everything reads your own"
+            echo "legitimately-owned files at runtime:"
+            echo "- **opensummoners.exe** — the port; drop in beside your Fortune Summoners install."
+            echo "- **voice_view.exe** — browse/play resources in your own game DLLs."
+            echo "- **ennse-voice-patch.zip** — adds Japanese voice to the English special"
+            echo "  edition; run Install.bat (needs \`sotesx_s.dll\` from your own JP copy)."
+            echo
+            echo "### Recent changes"
+            git log -15 --pretty='- %s (%h)'
+          } > release-notes.md
+
+      # Repoint 'nightly' onto the built commit so the release links to fresh
+      # source (softprops attaches to an existing tag but never repoints it).
+      - name: Repoint 'nightly' tag to the built commit
+        run: |
+          git tag -f nightly "${GITHUB_SHA}"
+          git push -f origin "refs/tags/nightly"
+
+      - name: Publish to rolling 'nightly' pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          target_commitish: ${{ github.sha }}
+          name: Nightly
+          prerelease: true
+          make_latest: false
+          body_path: release-notes.md
+          files: |
+            build/opensummoners.exe
+            build/voice_view.exe
+            build/ennse-voice-patch.zip
+          fail_on_unmatched_files: true

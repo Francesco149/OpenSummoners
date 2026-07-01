@@ -1,0 +1,61 @@
+# Tagged release — cut a proper (non-prerelease) release from a vX.Y tag.
+# These DO notify watchers (unlike the rolling nightly). Push a tag to fire:
+#   git tag v0.1 && git push origin v0.1
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build — port + resource explorer + voice patch
+        run: |
+          nix develop .#ci --command make -C src
+          nix develop .#ci --command make -C tools/voice_view
+          nix develop .#ci --command make -C tools/ennse_voice
+
+      - name: Gate — no embedded game assets
+        run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
+             build/opensummoners.exe build/voice_view.exe build/version.dll
+
+      - name: Package — voice patch zip
+        run: nix develop .#ci --command bash tools/ci/package_patch.sh
+
+      - name: Compose release notes
+        run: |
+          {
+            echo "OpenSummoners ${GITHUB_REF_NAME} — unsigned, **bring your own game**."
+            echo
+            echo "Ships **no game assets**; everything reads your own files at runtime."
+            echo "- **opensummoners.exe** — the port."
+            echo "- **voice_view.exe** — the resource explorer."
+            echo "- **ennse-voice-patch.zip** — EN-SE Japanese-voice patch (run Install.bat;"
+            echo "  needs \`sotesx_s.dll\` from your own JP copy)."
+            echo
+            echo "See the README for install details."
+          } > release-notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: |
+            build/opensummoners.exe
+            build/voice_view.exe
+            build/ennse-voice-patch.zip
+          fail_on_unmatched_files: true
