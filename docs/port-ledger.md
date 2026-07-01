@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **216** (13.6% of engine-proper) — tested 211, ported 5
-- code bytes touched: **14.6%** (247,522 / 1,694,868 B of engine-proper)
-- unported: **1542**
+- touched: **217** (13.7% of engine-proper) — tested 212, ported 5
+- code bytes touched: **14.6%** (247,764 / 1,694,868 B of engine-proper)
+- unported: **1541**
 - orphan refs in src/ not in this table: 4
 
-## tested (211) — ported + host unit suite
+## tested (212) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -81,6 +81,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
 | 0x494e60 | FUN_00494e60 | 3904 | hud.c, hud.h |
+| 0x4962a0 | FUN_004962a0 | 242 | hud.c, hud.h, main.c |
 | 0x498620 | FUN_00498620 | 82 | hud.h, main.c |
 | 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
 | 0x498f10 | FUN_00498f10 | 344 | hud.h, main.c |

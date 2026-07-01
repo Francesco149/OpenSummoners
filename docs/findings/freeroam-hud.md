@@ -358,3 +358,93 @@ for Arche and reconcile which code literally draws the observed portrait.  A `--
 (`osr_emit_state_field`, the port/proxy's opt-in named-field pass) at the render-site VAs would remove
 the ambiguity in one capture.  `PORT-DEBT(hud-party-context)`: the descriptor (bank + head-state
 frames) is Arche's leader stand-in until the party subsystem lands, unchanged either way.
+
+## 8. The ITEM BAR (`0x4962a0` x6) — PORTED + verified bit-exact (ckpt 173)
+
+Picked up from the ckpt-172 scoping note ("start with `0x4962a0`'s wrapper... since it's the
+smallest surface area").
+
+**The wrapper question, answered:** there is no `×6` loop anywhere — `FUN_00494e60` (the SAME HUD
+orchestrator as every other slice) calls `FUN_004962a0` **six times inline**, once per slot
+(`:377-449`), each with a different literal slot index and a per-slot frame-selector expression.
+
+**The mechanism (static disasm — Ghidra's decompile hides all three thiscall/pool reads here, same
+trap as the ckpt-171/172 portrait hunt: `objdump -d -M intel --start-address=0x4962a0
+--stop-address=0x496392 vendor/unpacked/sotes.unpacked.exe`):** `FUN_004962a0(dst, slot, frame,
+vslide, hslide)` issues **three keyed blits at the SAME (x,y)**:
+1. **BG (ALWAYS):** bank `DAT_008a76f0` = pool idx **0x39** (retail addr = `0x8a760c+4*57`) = **res
+   0x450**.  NOT frame 0 — `FUN_004184a0(P,0)`'s literal `0` is the lazy-decode **entry_idx** (it's
+   the SAME function as `ar_sprite_decode`/`FUN_00418470`'s sibling, confirmed by reading
+   `FUN_004184a0`'s own decompile: `piVar1 = *in_ECX + (param_1&0xffff)*8` — an `entries[]` index, not
+   a frame select).  The ACTUAL drawn frame is a **hardcoded `info+0x30` cache slot = `frames[0x30/4]
+   = frames[12]`**, baked into the call site itself (both `FUN_004962a0` and the SEPARATE multi-party
+   portrait-row renderer `FUN_00496560`/`FUN_00498960` share this exact bank+offset — a common "slot
+   background" asset).  Ground-truthed empirically (a brute-force dhash sweep, see below) after a
+   naive `ar_sprite_slot_frame(bg,0)` produced a WRONG, differently-shaped cel (see the "wrong asset"
+   pitfall below) — reading the asm's `[edx+0x30]` correctly predicts frame 12.
+2. **ICON (`if (param_3 != 0)`):** bank `DAT_008a76d0` = pool idx **0x31** — **the SAME bank
+   `HUD_STAR_POOL_IDX` already decodes** (res 0x44f, confirmed via `FUN_0057a330`'s registration
+   table: `{36, 0x44f, 0x20, 0x20, 0, 0, 2}` = `g_ar_sprite_slots[36]`, pool_idx 49 = idx 36 after the
+   13-slot ramp-count offset `ar_pool_get_slot` applies).  Frame = `param_3` directly (array-indexed:
+   `array[param_3]`, `array = *(*P)`).
+3. **LABEL (ALWAYS):** the SAME bank, frame = **`slot_index + 4`** (`array[(slot+4)&0xffff]`) — an
+   F1..F6 key-cap glyph, confirmed by dhash-extracting the sheet: literal "F1"/"F2".../"F6" bitmaps at
+   frames 4-9.  Independent of any game/party state — no PORT-DEBT needed for this draw.
+
+Position (`0x4962a0`'s own math): `x = slot*0x20 - (hslide*200)/1000 + 0x1b8`, `y = (1000-vslide)*
+0x80/1000 + 0x1bc`.  `vslide`/`hslide` are the caller's `room+0x3c8`/`room+0x388` — traced into
+`FUN_0049af40` (`hud_party_anim_update`, already annotated in `retail_fields.json` but with no
+`fields` yet — ckpt 90/95 left it "for the eventual HUD port"):
+- **`room+0x3c8` (`in_ECX[0xf2]`)** is a plain **room-active ramp**: `+20/tick` toward 1000 while
+  `*room != 0` (HUD context active), `-20/tick` toward 0 otherwise.  A slower sibling of the panel's
+  own `+0x1b0` progress (`+50/tick`) — SEPARATE counter, not reused.  Ported as `hud_item_slide_step`
+  (`hud.c`), armed at the SAME control hand-off as the panel (`main.c`, `g_hud_item_slide_prog`).
+- **`room+0x388` (`in_ECX[0xe2]`)** is the **door-proximity GLOW ramp**: `+40/tick` while a tracked
+  door actor (`room+0x398` = `in_ECX[0xe6]`) is within a screen-space distance bound, `-10/tick`
+  otherwise (`-20/tick` if the room itself is inactive).  This is the SAME subsystem backing the
+  (deferred, ckpt 172) door indicator — `PORT-DEBT(hud-item-hslide)`, pinned at its observed floor
+  (0 — Arche is not near a door in the errands ground truth: the captured item-bar x's are exactly
+  `slot*32+440`, zero offset).
+
+**Ground-truthing the 6 per-slot data sources** (all via `room+0x4030`'s 8-slot party array or plain
+room fields, decompiled `FUN_004961a0`/`FUN_00496240`/`FUN_004961e0`/`FUN_00496170`):
+- slot0 = `0x2c + (FUN_004961a0()!=0)` (an 8-slot party scan bool)
+- slot1 = `0x30`/`0x31` keyed on `room+4->+0x4070` (the SAME "quick item bound" flag `FUN_00497c20`
+  reads — ckpt 172's scoping note)
+- slot2 = `0x28 + clamp(room+0x4050, 0, 2)`
+- slot3 = `0x21 + (room+0x4054, switch 0..4)`
+- slot4 = `0x38 + (leader char+0x750+0x140, mapped 1/2/3->0/1/2, else 3)`, gated on `FUN_00496170()
+  == 1` (itself `room+0x14898` unless `room+0x1d4==0xc35a && *(leader+0x750+0x466)==0`)
+- slot5 = `0x50 + clamp(room+0x4058, 0, 2)`
+
+**Brute-force dhash sweep (the verification method — no live/replay capture needed, sidestepping the
+§7 replay-fidelity trap entirely):** since all the frame-selector logic funnels through TWO already-
+registered, already-loadable pool banks, a temporary debug pass (`--hud-item-probe`, reverted after
+use) blitted pool 0x39 frames 0-29 and pool 0x31 frames 0-89 in an on-screen grid at BOOT (before the
+title scene — `ar_register_group3_sprites` registers both banks unconditionally in `init_sprite_banks`,
+so no errands navigation is needed), captured via `--osr-emit`, then dhash-matched every grid cell
+against the 13 target dhashes extracted from `sword2.osr` tick 2200 (`osr.py`'s `Sheet.pixels`, same
+technique as the ckpt-172 portrait pixel pull).  **Exact 1:1 match, first sweep:** icons `{44, 48, 40,
+36, 59, 80}`, labels `{4,5,6,7,8,9}`, BG **12** — confirming both the mechanism reading AND the
+retail-side default field values (a fresh new-game errands: `room+0x4054==3` was the one surprise,
+the rest defaulted to their 0 floor) in one shot.
+
+**Pitfall avoided — the grade-skip trap (ckpt 147/171's class of bug, hit again):** the FIRST full
+in-game verification (a real errands playthrough via `sword2-nav/held.jsonl`, not the boot-time
+probe) showed the ICON+LABEL draws dhash-exact but the BG draw WRONG (`0x34adc1b6` vs retail
+`0xc6faa77e`) — the boot-time probe decoded the bank BEFORE the port's global 8bpp colour-grade ever
+touched it, but the real in-game path grades it (plain-`info+0x30`-cache sheets are NOT graded by
+retail, same class as the frame/stars/EXP — `title_sheet_format`'s grade-skip list, `main.c`).  Fixed
+by adding `HUD_ITEM_BG_BANK_SLOT` (44) to the skip list.  Lesson restated: a bank passing ONE
+verification context (boot-time synthetic blit) can still fail the REAL render path — the full
+errands capture is the only trustworthy verification, the boot probe is for frame-ID discovery only.
+
+**VERIFIED end-to-end:** a fresh `port-hud-item.osr` (`tools/run-opensummoners.sh --frames 8500
+--osr-state --osr-emit ... --input-trace runs/sync/sword2-nav.jsonl --held-trace
+runs/sync/sword2-held.jsonl`, `OPENSUMMONERS_TIMEOUT_MS=220000` to let the real-time sim reach the
+errands hand-off) vs `sword2.osr` at tick 2200: **all 18 blits** (BG+icon+label x 6 slots) match
+retail on dst position, size, AND dhash — **0 mismatches**.  A manual RGB565 composite of both sides'
+item-bar region is visually identical (pushed to the feed).  1077 host pass (+3:
+`hud_item_slot_position`, `hud_item_slide_step`, `hud_item_icon_frames`).  `PORT-DEBT(hud-party-
+context)` extended (the 6 icon frames); NEW `PORT-DEBT(hud-item-hslide)` (the door-glow floor) +
+`PORT-DEBT(hud-slide)` registered properly in `port-debt.md` (previously code-commented only).

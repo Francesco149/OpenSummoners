@@ -142,4 +142,74 @@ hud_bar_row hud_bar_row_geom(int cur, int max, int x, int y, int width,
  * (20,20) -> "  20 / 20".  Writes a NUL-terminated string into buf. */
 void hud_format_gauge(int cur, int max, char *buf, int buflen);
 
+/* ── slice 2: the ITEM BAR (FUN_004962a0 ×6, bottom-right cluster) ───────
+ *
+ * Static disasm (ckpt 173; Ghidra's decompile hides all three thiscall/
+ * pool reads here, same trap as the ckpt-171/172 portrait hunt) pins THREE
+ * keyed blits per slot, all at the SAME (x,y):
+ *   1. BG frame (ALWAYS): pool 0x39 (res 0x450), a fixed frame — NOT frame 0
+ *      (0x4184a0(this,0)'s "0" is the entry_idx/lazy-decode-once arg, not a
+ *      frame index; the actual draw reads the bank's cached info+0x30 =
+ *      frames[12] literally).  Ground-truthed by brute-force dhash sweep
+ *      (0x494e60's own asm has no frame-select call to read here at all).
+ *   2. ICON frame (if param_3 != 0): pool 0x31 == HUD_STAR_POOL_IDX (res
+ *      0x44f, the SAME sheet the element stars use) at frame = param_3, a
+ *      per-slot game-state-selected mode icon.
+ *   3. LABEL frame (ALWAYS): the SAME pool 0x31 bank, frame = slot_index+4
+ *      — an F1..F6 key-cap glyph (dhash-confirmed against sword2.osr: 'F1'
+ *      .. 'F6' bitmaps at frames 4..9), independent of party/game state.
+ * Position: x = slot*0x20 - (hslide*200)/1000 + 0x1b8; y = (1000-vslide)*
+ * 0x80/1000 + 0x1bc (FUN_004962a0's own math, param_4=vslide/param_5=hslide).
+ *
+ * vslide == room+0x3c8 (0x49af40 "hud_party_anim_update": +20/tick
+ * toward 1000 while the HUD's room context is active, -20/tick toward 0
+ * otherwise — a SEPARATE, slower-paced sibling of the panel's own +0x1b0/
+ * hud_slide_step, not the same counter).  Ported as hud_item_slide_step,
+ * armed at the SAME control hand-off as the panel (main.c).
+ * hslide == room+0x388, the DOOR-PROXIMITY glow ramp (same 0x49af40:
+ * +40/tick within range of a tracked exit actor, else -10/-20/tick) — an
+ * entirely separate, unported subsystem (the door indicator itself is
+ * deferred, findings/freeroam-hud.md "Scoping correction ckpt 172").
+ * PORT-DEBT(hud-item-hslide): pinned at 0 (Arche is not near a door in the
+ * errands ground truth — sword2.osr tick 2200's item-bar x's are exactly
+ * slot*32+440, zero offset), retired when the door subsystem lands.
+ *
+ * PORT-DEBT(hud-party-context): the 6 ICON frames are the errands leader's
+ * captured mode/status values (party subsystem unported), ground-truthed
+ * bit-exact off sword2.osr tick 2200 by brute-force dhash sweep of pool
+ * 0x31's frames 0..89 (findings/freeroam-hud.md §8):
+ *   slot0 <- 0x4961a0() party-scan bool (0/1)       -> observed 0 -> fr 44
+ *   slot1 <- room+4->+0x4070 quick-item-bound flag  -> observed 0 -> fr 48
+ *   slot2 <- room+0x4050 clamped [0,2]              -> observed 0 -> fr 40
+ *   slot3 <- room+0x4054 (switch 0..4)              -> observed 3 -> fr 36
+ *   slot4 <- leader char+0x750+0x140 (gated)         -> gate false -> fr 59
+ *   slot5 <- room+0x4058 clamped [0,2]              -> observed 0 -> fr 80
+ * The LABEL frames need no stand-in (slot_index+4 has no game-state input). */
+#define HUD_ITEM_BG_POOL_IDX    0x39    /* pool[0x39] = res 0x450 (48x48 cell) */
+#define HUD_ITEM_BG_FRAME       12      /* the bank's one cached frame (+0x30) */
+#define HUD_ITEM_ICON_POOL_IDX  HUD_STAR_POOL_IDX /* pool 0x31 = res 0x44f, shared */
+#define HUD_ITEM_SLOT_COUNT     6
+#define HUD_ITEM_SLOT_DX0       0x1b8   /* slot 0 x at hslide=0 (= 440)        */
+#define HUD_ITEM_SLOT_STEP      0x20    /* +32 px per slot                    */
+#define HUD_ITEM_SLOT_DY_BASE   0x1bc   /* y at vslide=1000 (= 444)            */
+#define HUD_ITEM_LABEL_BASE     4       /* label frame = slot_index + 4        */
+#define HUD_ITEM_HSLIDE         0       /* PORT-DEBT(hud-item-hslide): door-glow floor */
+
+/* PORT-DEBT(hud-party-context): the 6 slots' ground-truthed ICON frames
+ * (0 would mean "no icon" and skip the draw — never observed in the
+ * errands).  Indexed by slot 0..5. */
+extern const int HUD_ITEM_ICON_FRAME[HUD_ITEM_SLOT_COUNT];
+
+/* FUN_004962a0's position math, split per axis (both PURE int formulas). */
+int hud_item_slot_x(int slot, int hslide);
+int hud_item_slot_y(int vslide);
+
+/* The item-bar's OWN slide-in ramp (room+0x3c8): +20/tick toward 1000,
+ * capped — the slower sibling of hud_slide_step (+50/tick).  PORT-DEBT
+ * (hud-slide): models only the arm-and-rise transient, like hud_slide_step;
+ * the retail -20/tick fall-off (room context going inactive) is unexercised
+ * in a stable freeroam session. */
+#define HUD_ITEM_SLIDE_STEP 20
+int hud_item_slide_step(int prog);
+
 #endif /* OPENSUMMONERS_HUD_H */

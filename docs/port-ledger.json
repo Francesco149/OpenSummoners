@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 211,
+  "tested": 212,
   "ported": 5,
-  "unported": 1542,
+  "unported": 1541,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 216,
-  "pct_touched": 13.6,
-  "pct_tested": 13.6,
-  "engine_proper_touched": 203,
+  "touched": 217,
+  "pct_touched": 13.7,
+  "pct_tested": 13.7,
+  "engine_proper_touched": 204,
   "bytes_total": 1694868,
-  "bytes_touched": 247522,
+  "bytes_touched": 247764,
   "pct_bytes_touched": 14.6
  },
  "orphan_refs": [
@@ -5961,8 +5961,12 @@
    "name": "FUN_004962a0",
    "size": 242,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/hud.c",
+    "src/hud.h",
+    "src/main.c"
+   ]
   },
   {
    "va": "0x4963a0",

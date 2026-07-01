@@ -255,6 +255,7 @@ static actor              g_freeroam_actor;
 static actor_render_state g_freeroam_rs;
 static int                g_freeroam_active;
 static int                g_hud_slide_prog;   /* the HUD panel slide-in 0..1000 (hud.h) */
+static int                g_hud_item_slide_prog; /* the item-bar's OWN slide-in 0..1000 (hud.h) */
 static int                g_hud_ctrl_was_locked = 1; /* prev control-lock state (arm the slide on hand-off) */
 /* The UP-attack sword-tip TRAIL (res 0x40b sparkles) — emitted/stepped around
  * freeroam_step, rendered after the freeroam body (sword_trail.{c,h}). */
@@ -427,6 +428,11 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * gradient.  FUN_00498f10 binds it via the same plain
                                     * pool deref as the HP/MP bars => NOT graded (slice 1c-2,
                                     * findings/freeroam-hud.md §6). */
+#define HUD_ITEM_BG_BANK_SLOT 44   /* 0x8a76f0 — res 0x450 (pool 0x39), the item-bar slot
+                                    * BG frame.  FUN_004962a0 binds it via the same plain
+                                    * info+0x30 cache as the frame/stars => NOT graded
+                                    * (slice 2, findings/freeroam-hud.md §8: port dhash
+                                    * mismatched retail's 0xc6faa77e until excluded). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1146,6 +1152,9 @@ static void title_sheet_format(ar_sprite_slot *slot,
         /* the EXP gauge gradient (res 0x44e, slice 1c-2) — same plain-pool-deref
          * class as the HP/MP bars (FUN_00498f10), so retail does NOT grade it. */
         slot != &g_ar_sprite_slots[HUD_EXP_BANK_SLOT] &&
+        /* the item-bar slot BG (res 0x450, slice 2) — plain info+0x30 cache,
+         * same class as the frame/stars/EXP => NOT graded. */
+        slot != &g_ar_sprite_slots[HUD_ITEM_BG_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2923,6 +2932,35 @@ static void game_render_hud(void)
                                      yb + HUD_LEVEL_DY);
         }
     }
+
+    /* The ITEM BAR (FUN_004962a0 x6, bottom-right cluster): a BG frame (always) +
+     * a per-slot mode ICON (game-state keyed) + an F1..F6 LABEL (always),
+     * all three keyed blits at the same (x,y).  Independent of xb/yb — rides
+     * its own slide-in (g_hud_item_slide_prog) and the (unported) door-glow
+     * hslide, PORT-DEBT'd at its observed floor.  hud.h "slice 2". */
+    ar_sprite_slot *item_bg = ar_pool_get_slot(HUD_ITEM_BG_POOL_IDX);
+    zdd_object *item_bg_cel = (item_bg != NULL)
+        ? (zdd_object *)ar_sprite_slot_frame(item_bg, HUD_ITEM_BG_FRAME) : NULL;
+    ar_sprite_slot *item_icon = ar_pool_get_slot(HUD_ITEM_ICON_POOL_IDX);
+    for (int s = 0; s < HUD_ITEM_SLOT_COUNT; s++) {
+        int ix = hud_item_slot_x(s, HUD_ITEM_HSLIDE);
+        int iy = hud_item_slot_y(g_hud_item_slide_prog);
+        if (item_bg_cel != NULL)
+            zdd_object_blt_keyed(item_bg_cel, g_zdd->primary_obj, ix, iy);
+        if (item_icon != NULL) {
+            int icon_fr = HUD_ITEM_ICON_FRAME[s];
+            if (icon_fr != 0) {
+                zdd_object *icon_cel =
+                    (zdd_object *)ar_sprite_slot_frame(item_icon, (uint16_t)icon_fr);
+                if (icon_cel != NULL)
+                    zdd_object_blt_keyed(icon_cel, g_zdd->primary_obj, ix, iy);
+            }
+            zdd_object *label_cel = (zdd_object *)ar_sprite_slot_frame(
+                item_icon, (uint16_t)(s + HUD_ITEM_LABEL_BASE));
+            if (label_cel != NULL)
+                zdd_object_blt_keyed(label_cel, g_zdd->primary_obj, ix, iy);
+        }
+    }
 }
 
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via
@@ -3109,6 +3147,7 @@ static void freeroam_begin(void)
     sword_trail_reset(&g_sword_trail);   /* the UP-attack tip-trail pool */
     g_freeroam_active = 1;
     g_hud_slide_prog = 0;                 /* the HUD slide-in arms at control hand-off, */
+    g_hud_item_slide_prog = 0;            /* the item-bar's own (slower) slide-in, same arm */
     g_hud_ctrl_was_locked = 1;            /* not here — control is still locked (errands dlg) */
     log_line("freeroam_begin: controllable Arche at world (%d,%d) — errands hand-off",
              FREEROAM_ARCHE_SPAWN_WX, FREEROAM_ARCHE_SPAWN_WY);
@@ -3486,10 +3525,14 @@ static void game_render(void *user)
                  * unlock edge, then ramp once/sim-tick while control is live.  The
                  * HUD render is gated on the same !locked (hidden during the dialogue). */
                 int hud_locked = g_errands_dlg_pending || cutscene_active(&g_cutscene);
-                if (g_hud_ctrl_was_locked && !hud_locked)
+                if (g_hud_ctrl_was_locked && !hud_locked) {
                     g_hud_slide_prog = 0;          /* hand-off: arm the slide */
-                if (!hud_locked)
+                    g_hud_item_slide_prog = 0;      /* the item-bar's own slide arms too */
+                }
+                if (!hud_locked) {
                     g_hud_slide_prog = hud_slide_step(g_hud_slide_prog);
+                    g_hud_item_slide_prog = hud_item_slide_step(g_hud_item_slide_prog);
+                }
                 g_hud_ctrl_was_locked = hud_locked;
             }
             game_camera_step();

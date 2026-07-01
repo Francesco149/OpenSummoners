@@ -173,3 +173,50 @@ int test_hud_exp_gauge_position(void)
     T_ASSERT_EQ_I(HUD_EXP_SRC_Y, 14);
     return 0;
 }
+
+/* ---- slice 2: the item bar (0x4962a0 x6) position math -------------------- */
+
+int test_hud_item_slot_position(void)
+{
+    /* fully slid in (hslide=0, vslide=1000): x = slot*32+440, y = 444 —
+     * ground truth sword2.osr tick 2200 seq 535-552 (findings/freeroam-
+     * hud.md sec8). */
+    const int slot_x[HUD_ITEM_SLOT_COUNT] = {440, 472, 504, 536, 568, 600};
+    for (int s = 0; s < HUD_ITEM_SLOT_COUNT; s++) {
+        T_ASSERT_EQ_I(hud_item_slot_x(s, 0), slot_x[s]);
+        T_ASSERT_EQ_I(hud_item_slot_y(1000), 444);
+    }
+    /* hslide shifts every slot left together (the door-glow x term). */
+    T_ASSERT_EQ_I(hud_item_slot_x(0, 1000), 240);
+    /* vslide=0 (not yet slid in) sits 128px below the resting y. */
+    T_ASSERT_EQ_I(hud_item_slot_y(0), 572);
+    return 0;
+}
+
+/* ---- slice 2: the item bar's own (slower) slide-in ramp ------------------- */
+
+int test_hud_item_slide_step(void)
+{
+    T_ASSERT_EQ_I(hud_item_slide_step(0), 20);
+    T_ASSERT_EQ_I(hud_item_slide_step(980), 1000);
+    T_ASSERT_EQ_I(hud_item_slide_step(1000), 1000);    /* capped at full */
+    return 0;
+}
+
+/* ---- slice 2: the 6 ground-truthed mode-icon frames ----------------------- */
+
+int test_hud_item_icon_frames(void)
+{
+    /* dhash-matched against sword2.osr tick 2200 by a brute-force sweep of
+     * pool 0x31's frames 0..89 (findings/freeroam-hud.md sec8) — none are 0
+     * (the "no icon" skip is never observed in the errands). */
+    const int expect[HUD_ITEM_SLOT_COUNT] = {44, 48, 40, 36, 59, 80};
+    for (int s = 0; s < HUD_ITEM_SLOT_COUNT; s++) {
+        T_ASSERT_EQ_I(HUD_ITEM_ICON_FRAME[s], expect[s]);
+        T_ASSERT(HUD_ITEM_ICON_FRAME[s] != 0);
+    }
+    /* the label frame is slot+4 (F1..F6), independent of party state. */
+    for (int s = 0; s < HUD_ITEM_SLOT_COUNT; s++)
+        T_ASSERT_EQ_I(s + HUD_ITEM_LABEL_BASE, s + 4);
+    return 0;
+}

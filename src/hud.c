@@ -63,3 +63,26 @@ void hud_format_gauge(int cur, int max, char *buf, int buflen)
     snprintf(cur_s, sizeof cur_s, "%4d", cur);
     snprintf(buf, (size_t)buflen, "%s / %d", cur_s, max);
 }
+
+/* PORT-DEBT(hud-party-context) — see hud.h; ground-truthed off sword2.osr
+ * tick 2200 by brute-force dhash sweep (findings/freeroam-hud.md §8). */
+const int HUD_ITEM_ICON_FRAME[HUD_ITEM_SLOT_COUNT] = { 44, 48, 40, 36, 59, 80 };
+
+/* FUN_004962a0: x = slot*0x20 - (hslide*200)/1000 + 0x1b8. */
+int hud_item_slot_x(int slot, int hslide)
+{
+    return slot * HUD_ITEM_SLOT_STEP - (hslide * 200) / 1000 + HUD_ITEM_SLOT_DX0;
+}
+
+/* FUN_004962a0: y = (1000-vslide)*0x80/1000 + 0x1bc. */
+int hud_item_slot_y(int vslide)
+{
+    return (1000 - vslide) * 0x80 / 1000 + HUD_ITEM_SLOT_DY_BASE;
+}
+
+/* One sim-tick of the item-bar's own slide-in (prog += 20, capped at 1000). */
+int hud_item_slide_step(int prog)
+{
+    prog += HUD_ITEM_SLIDE_STEP;
+    return prog > HUD_SLIDE_FULL ? HUD_SLIDE_FULL : prog;
+}

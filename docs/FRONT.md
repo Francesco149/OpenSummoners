@@ -617,6 +617,34 @@
   before `newgame_enter` — an unmapped `btn=0x22` poll the ring-injection never satisfies; the native
   proxy has no such issue (used for this ckpt's captures instead). `PORT-DEBT(hud-party-context)`
   unchanged.
+  **ckpt 173 — the ITEM BAR (`0x4962a0` x6, HUD slice 2) — PORTED + verified bit-exact (autonomous,
+  USER away).** Picked up ckpt-172's own pointer ("start with `0x4962a0`'s wrapper — smallest surface").
+  RE (static disasm, same ECX-hiding trap as the portrait): the "×6 wrapper" is just `FUN_00494e60`
+  calling `FUN_004962a0` inline 6×, each slot a 3-blit BG+ICON+LABEL keyed triad off TWO already-
+  registered banks — BG = pool 0x39/res 0x450 frame **12** (NOT 0 — `FUN_004184a0`'s "0" arg is the
+  lazy-decode entry_idx, not a frame select; the real frame is a hardcoded `info+0x30` cache), ICON+
+  LABEL = pool 0x31/res 0x44f (the SAME bank `HUD_STAR_POOL_IDX` already decodes) at frame=`param_3`
+  (game-state keyed) / frame=`slot+4` (F1-F6 key-caps, always). Position rides `room+0x3c8` (a room-
+  active ramp, +20/tick — ported as `hud_item_slide_step`, ANOTHER PORT-DEBT(hud-slide) sibling of the
+  panel's own +50/tick) and `room+0x388` (the door-glow ramp — the SAME unported subsystem behind the
+  ckpt-172-deferred door indicator; `PORT-DEBT(hud-item-hslide)`, pinned at its observed 0 floor).
+  **Verification method: a brute-force dhash sweep** (a temporary `--hud-item-probe` boot-time blit
+  grid over both banks' full frame range, reverted after use) matched the exact retail frame numbers
+  in ONE shot — icons `{44,48,40,36,59,80}`, labels `{4,5,6,7,8,9}`, BG **12** — sidestepping the §7
+  replay-fidelity blocker entirely (no errands navigation needed; both banks register at boot).
+  **Hit the SAME grade-skip class of bug as ckpt 147/171:** the boot-probe's BG dhash matched, but a
+  REAL in-game capture showed it WRONG — the port's global 8bpp grade touches it in the real render
+  path but not the synthetic boot blit; fixed via `HUD_ITEM_BG_BANK_SLOT` added to `title_sheet_format`'s
+  skip list (lesson: the boot probe finds frame IDs, only a real playthrough capture proves the render).
+  **VERIFIED:** fresh `port-hud-item.osr` (full errands playthrough, `sword2-{nav,held}.jsonl`,
+  `OPENSUMMONERS_TIMEOUT_MS=220000`) vs `sword2.osr` tick 2200 — **all 18 blits dhash-identical**, 0
+  mismatches; a manual RGB565 composite confirmed visually identical (pushed to feed). 1077 host pass
+  (+3). `findings/freeroam-hud.md` §8; `port-debt.md` gained `hud-item-hslide` + (finally) a proper
+  `hud-slide` row (previously code-comment-only). Studio shortcut updated:
+  `port-hud-item.osr` vs `sword2.osr`.
+  **NEXT (still deferred, ckpt 172's own scoping): the door indicator (`0x4969b0`, full multi-exit
+  compass system) → the bottom-left "quick item" strip (`0x497c20`) → the bottom-right combat cluster
+  (`0x4975e0`) → THEN retire `PORT-DEBT(hud-party-context)` when the party subsystem lands.**
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

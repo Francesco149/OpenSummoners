@@ -1079,6 +1079,9 @@ struct test_case {
     X(hud_glyph_frame)                                         \
     X(hud_star_level_positions)                                \
     X(hud_exp_gauge_position)                                  \
+    X(hud_item_slot_position)                                  \
+    X(hud_item_slide_step)                                     \
+    X(hud_item_icon_frames)                                    \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \
