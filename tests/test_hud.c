@@ -121,3 +121,40 @@ int test_hud_slide_step(void)
     T_ASSERT_EQ_I(hud_panel_xbase(150), -298);
     return 0;
 }
+
+/* ---- slice 1c-1: the level-digit atlas glyph select (FUN_00495e40) ------- */
+
+int test_hud_glyph_frame(void)
+{
+    /* printable c -> frame c - 0x21; the level '1' -> frame 16 (ground truth
+     * sword2.osr seq 526).  '0'..'9' map to 15..24. */
+    T_ASSERT_EQ_I(hud_glyph_frame('1'), 16);
+    T_ASSERT_EQ_I(hud_glyph_frame('0'), 15);
+    T_ASSERT_EQ_I(hud_glyph_frame('9'), 24);
+    T_ASSERT_EQ_I(hud_glyph_frame('!'), 0);        /* 0x21 - 0x21 */
+    T_ASSERT_EQ_I(hud_glyph_frame('z'), 'z' - 0x21);
+    /* space + out-of-range -> -1 (a gap, no cel). */
+    T_ASSERT_EQ_I(hud_glyph_frame(' '), -1);
+    T_ASSERT_EQ_I(hud_glyph_frame('{'), -1);       /* == 0x7b, excluded */
+    T_ASSERT_EQ_I(hud_glyph_frame('\0'), -1);
+    return 0;
+}
+
+/* ---- slice 1c-1: the star + level dst positions (fully slid in) ----------- */
+
+int test_hud_star_level_positions(void)
+{
+    const int xb = hud_panel_xbase(1000);          /* = 1 */
+    const int yb = HUD_PANEL_YBASE;                 /* = 1 */
+    /* the 2 element stars at (187,30),(200,30) — +13 px steps (seq 496-497). */
+    T_ASSERT_EQ_I(HUD_STAR_COUNT, 2);
+    const int star_x[2] = {187, 200};
+    for (int k = 0; k < HUD_STAR_COUNT; k++) {
+        T_ASSERT_EQ_I(xb + HUD_STAR_DX + k * HUD_STAR_STEP, star_x[k]);
+        T_ASSERT_EQ_I(yb + HUD_STAR_DY, 30);
+    }
+    /* the level digit base at (161,25) (seq 526). */
+    T_ASSERT_EQ_I(xb + HUD_LEVEL_DX, 161);
+    T_ASSERT_EQ_I(yb + HUD_LEVEL_DY, 25);
+    return 0;
+}

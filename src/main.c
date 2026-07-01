@@ -418,6 +418,11 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * global 8bpp grade was shifting the bar dhash (slice 1). */
 #define HUD_FRAME_BANK_SLOT  57    /* 0x8a7724 — res 0x44b, the HUD panel frame.  Plain
                                     * getter (0x418470(0) on DAT_008a7724) => NOT graded. */
+#define HUD_STAR_BANK_SLOT   36    /* 0x8a76d0 — res 0x44f (pool 0x31), the element-star
+                                    * icons.  FUN_00498620 binds it via the plain getter
+                                    * (FUN_004184a0(0)) => NOT graded (slice 1c-1).  The
+                                    * level digit atlas (res 0x413) is ramp slot 0 — a
+                                    * palette-ramp bank, also plain-getter, skipped below. */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1090,6 +1095,7 @@ static void title_sheet_format(ar_sprite_slot *slot,
     int src   = (int)bs_get_bit_count(sheet);
     uint32_t key_color = (colorkey == 0x1ffffffu) ? 0u : 0xff00ffu;
 
+
     /* In-game palette color-grade (retail FUN_00417c40 / FUN_00490f30): remap
      * every palette channel through the tone-curve LUT BEFORE the 8bpp sheet is
      * packed to the display depth — matching retail's order (LUT the palette,
@@ -1120,6 +1126,10 @@ static void title_sheet_format(ar_sprite_slot *slot,
         slot != &g_ar_sprite_slots[SWORD_TRAIL_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[HUD_BAR_BANK_SLOT] &&
         slot != &g_ar_sprite_slots[HUD_FRAME_BANK_SLOT] &&
+        /* the element-star icons (res 0x44f, slice 1c-1) — bound via the plain
+         * getter (FUN_004184a0(0) in 0x498620), so retail does NOT grade them
+         * (same class as the bars/frame; verified dhash-exact vs sword2.osr). */
+        slot != &g_ar_sprite_slots[HUD_STAR_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2823,6 +2833,18 @@ static void game_render_hud(void)
         zdd_object_blt_keyed(frame_cel, g_zdd->primary_obj,
                              xb + HUD_FRAME_DX, yb);
 
+    /* Element STARS (0x494e60:100-108) — keyed over the frame's transparent
+     * area (seq 496-497), one cel per affinity star.  Same frame (Arche's
+     * element) at +13 px steps.  PORT-DEBT(hud-party-context): count 2. */
+    ar_sprite_slot *stars = ar_pool_get_slot(HUD_STAR_POOL_IDX);
+    zdd_object *star_cel = (stars != NULL)
+        ? (zdd_object *)ar_sprite_slot_frame(stars, HUD_STAR_FRAME) : NULL;
+    if (star_cel != NULL)
+        for (int k = 0; k < HUD_STAR_COUNT; k++)
+            zdd_object_blt_keyed(star_cel, g_zdd->primary_obj,
+                                 xb + HUD_STAR_DX + k * HUD_STAR_STEP,
+                                 yb + HUD_STAR_DY);
+
     /* HP/MP number text (FUN_0043e250, font 2) — onto the primary via one
      * GetDC pass, like the dialogue text. */
     void *hfont = (g_ar_gdi_table[HUD_TEXT_FONT] != NULL &&
@@ -2843,6 +2865,17 @@ static void game_render_hud(void)
         hud_text_outlined((HDC)hdc, buf, xb + HUD_TEXT_DX, yb + HUD_MP_TEXT_DY);
         zdd_object_release_dc(g_zdd->primary_obj, hdc);
     }
+
+    /* LEVEL digit (0x494e60:123-124 → 0x495e40) — the leader level as
+     * small-font-atlas glyphs from res 0x413 (ramp slot 0), at (161,25) seq
+     * 526.  The geometry is RE'd + host-tested (hud_glyph_frame + HUD_LEVEL_*),
+     * but the render is DEFERRED to slice 1c-2: the port's ramp decode uses res
+     * 0x413's EMBEDDED palette (entry 1 = 0x333333), not the installed custom
+     * ramp palette (0x404040) retail applies via the plain getter, so the glyph
+     * would render one grade-step too dark (dhash 0x14573bd0 vs the ground-truth
+     * 0x192317ef — a real port bug in the ramp custom-palette application, NOT a
+     * grade the title_sheet_format skip can fix).  See findings/freeroam-hud.md
+     * "## The ramp custom-palette gap" + PORT-DEBT(hud-ramp-palette). */
 }
 
 /* Forward decl: reload_room_backdrop (below) re-derives the projection cam via

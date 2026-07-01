@@ -97,3 +97,57 @@ each slot = a 32×32 frame + an item icon (~24-30²) + a 14×10 quantity glyph (
 Verify: `draw_probe`/`hud_probe` (the rects/keyed positions), the TEXT records (the numbers),
 `osr_prof` recon (`differ_px==0` per region).  `tools/trace_studio2/hud_probe.py` is the ground-truth
 probe (dumps the HUD layer at any tick).
+
+## 5. Slice 1c-1 (ckpt 169) — element STARS bit-exact; LEVEL blocked on the ramp-palette gap
+
+Ground truth re-probed off `sword2.osr` tick 2200 (`hud_probe` + a dhash→SHEET resolve),
+the top-left leader panel's data glyphs (seq after the frame at 495):
+
+| seq | element | res | frame | dst | dhash |
+|----|----|----|----|----|----|
+| 493-494 | EXP gauge | 1102 (0x44e) | 0 | (144,42) w104 | 0x3a65dc81 |
+| 496-497 | element stars ×2 | 1103 (0x44f) | 16 | (187,30),(200,30) 12×9 | 0xaedb8faa |
+| 526 | level '1' | res0 (ramp0=0x413) | 16 | (161,25,8,14) | 0x192317ef |
+| 527 | portrait | res0 | — | (1,1,82,89) | 0xbbf24c22 |
+| 528 | portrait sub-blit | 1909 (0x775) | 0 | (92,29,38,16) | 0x72a588ef |
+
+Bank resolution (all "free" — registered by `ar_register_palette_ramps`): stars =
+`ar_pool_get_slot(0x31)` = `g_ar_sprite_slots[36]` = res 0x44f (the icon sheet, plain
+getter `FUN_004184a0(0)` in `0x498620`); level = `ar_pool_get_slot(1)` =
+`g_ar_sprite_ramp_slots[0]` = res 0x413 (the small-font ramp, plain getter in `0x495e40`).
+
+**STARS — PORTED + VERIFIED bit-exact.**  `game_render_hud` blits res 0x44f frame 16 keyed
+at `(xbase+0xba+k·0xd, ybase+0x1d)` for `k=0..1` (Arche's 2 affinity stars, PORT-DEBT(hud-
+party-context) stand-in count/element).  Added slot 36 to the 8bpp grade skip-list (plain-
+getter UI sheet, NOT graded — same class as the bars/frame).  Verified off `port-hud1c.osr`
+vs `sword2.osr` tick 2200: both stars res 1103 fr16 dst (187,30)/(200,30) 12×9 **dhash
+0xaedb8faa — byte-identical** to the recording.  Geometry host-tested (`hud_star_level_positions`).
+
+**LEVEL — RE'd + host-tested, render DEFERRED to slice 1c-2 (the ramp custom-palette gap).**
+The geometry is exact (glyph `c-0x21`, +9px advance, base (161,25) — `hud_glyph_frame` +
+`HUD_LEVEL_*`, host-tested), and the bank (ramp0/res 0x413, frame 16 for '1') is right, but
+the port renders the digit **one grade-step too dark**: dhash 0x14573bd0 vs the GT 0x192317ef
+(60/112 px differ; the '1' outline reads bg 0x3186 = 0x303030 vs retail 0x4208 = 0x404040).
+
+### The ramp custom-palette gap (the LEVEL blocker, slice 1c-2)
+
+Traced (debug print in `title_sheet_format`, a clean tick-axis re-drive): `title_sheet_format`
+IS called for ramp0 with `grade_on=1 src=8`, and the port's grade-skip (`slot !=
+&g_ar_sprite_ramp_slots[0]`) **works** (palette entry 1 = 0x333333 both IN and OUT — the grade
+is skipped).  But the palette **arrives already at 0x333333** (= 0x404040 graded; the town LUT
+maps 0x40→0x33 → 565 0x3186).  Nothing between `bs_decode_resource` and `title_sheet_format`
+grades a ramp slot (the NPC-remap / `ar_apply_slot_palette_swap` block is gated to
+`g_ar_sprite_slots`, excluding the ramp array).  So the session palette used to slice the
+glyph is **res 0x413's raw EMBEDDED palette (0x333333)**, NOT the installed custom ramp
+palette (`entries[0].b` = 0x404040 that `ar_run_palette_ramp` built).  `ar_sprite_decode`
+never copies `entries[0].b` into the session — so the port's ramp decode **ignores the
+installed ramp colours** and slices against the sheet's embedded palette.  Retail's plain-
+getter path applies the ramp's custom palette → 0x404040.
+
+**Fix (slice 1c-2):** RE how retail's ramp decode binds the installed palette (the
+`FUN_004178e0`/`FUN_00491770` install → the slice's palette source), then apply
+`slot->entries[0].b` to the session in `ar_sprite_decode` for ramp slots — verify no
+regression across the OTHER ramp consumers (damage numbers, menu text) before enabling the
+level render.  `PORT-DEBT(hud-ramp-palette)`.  EXP gauge (498f10 alpha depleted via the
+`0x5bd550` orchestrator, display-mode gated) + the 82×89 face portrait (dedicated small-face
+bank, res=0 in capture — dhash 0xbbf24c22) also land in 1c-2.

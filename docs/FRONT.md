@@ -511,6 +511,24 @@
   DELAY-independent) unchanged.  1069 host pass.  **This closes the LAST frame-lock re-drive residual — the
   sim-tick re-drive is now faithful for warmup-anchored onsets, unblocking the chase-#3 dialogue + movement
   frame-lock (ckpt 167d).**  `findings/freeroam-brake-onset.md`; quirk extended.
+  **ckpt 169 — the freeroam HUD panel SLICE 1c-1: the element STARS — PORTED + verified BIT-EXACT.**  Re-probed
+  the leader panel's data glyphs off sword2.osr tick 2200 (`hud_probe` + a dhash→SHEET resolve): stars = res 0x44f
+  (pool 0x31) fr16 ×2 @(187,30)/(200,30); level = res 0x413 (ramp0/pool 1) fr16 @(161,25); portrait = res=0 82×89
+  @(1,1) dhash 0xbbf24c22 (a dedicated small-face bank).  **STARS DONE:** `game_render_hud` blits res 0x44f fr16
+  keyed at `xbase+0xba+k·0xd, ybase+0x1d` (the 2 affinity stars, `PORT-DEBT(hud-party-context)` count/element),
+  slot 36 added to the 8bpp grade-skip (plain-getter, like bars/frame).  VERIFIED off `port-hud1c.osr` vs `sword2.osr`:
+  both stars dst (187,30)/(200,30) 12×9 **dhash 0xaedb8faa byte-identical**; frame + bars unchanged.  1071 host pass
+  (+`hud_glyph_frame`, +`hud_star_level_positions`).  **LEVEL DEFERRED to 1c-2 — the RAMP CUSTOM-PALETTE gap:** the
+  port's ramp decode (`ar_sprite_decode`) slices res 0x413 against its EMBEDDED palette (entry1 0x333333), NOT the
+  installed custom ramp palette (0x404040) `ar_run_palette_ramp` builds → the digit renders one grade-step too dark
+  (dhash 0x14573bd0 vs GT 0x192317ef; the `title_sheet_format` grade-skip WORKS — the palette arrives graded from the
+  wrong SOURCE, traced via a debug re-drive).  Geometry/glyph RE'd + host-tested (ready once the ramp fix lands).
+  `PORT-DEBT(hud-ramp-palette)`; `findings/freeroam-hud.md` §5.  **NEXT (slice 1c-2):** the ramp-palette fix → the
+  LEVEL; the 82×89 face PORTRAIT bank hunt (res=0, dhash 0xbbf24c22 — a dedicated small-face bank, not the res-1000
+  dialogue bust); the EXP gauge (`498f10` alpha-depleted via `0x5bd550`, display-mode gated).  **USER-VERIFY (visual):
+  click the studio shortcut** (`studio-current.txt` → `port-hud1c.osr | sword2.osr 0`) — errands freeroam ~tick 2200:
+  the status panel now renders the 2 element STARS (right of the HP/MP bars, over the frame) matching retail.  Still
+  MISSING (slice 1c-2): the level "1", the face portrait (black window), the EXP bar.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

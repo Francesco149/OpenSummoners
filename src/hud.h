@@ -6,9 +6,11 @@
  * + number formatting live here (host-testable); the cel/GDI blits are the
  * caller's sink (main.c game_render_hud), like banner.{c,h} / scene_fade.c.
  *
- * This file is the LEADER PANEL (top-left): the HP/MP bars + the HP/MP
- * number text.  The panel frame / portrait / level glyph / item bar / door
- * land in later slices.
+ * This file is the LEADER PANEL (top-left): the HP/MP bars (slice 1a), the
+ * HP/MP number text + panel frame (1b), and the element STARS (1c-1).  The
+ * LEVEL glyph is RE'd + host-tested here but its render is DEFERRED to slice
+ * 1c-2 (the ramp custom-palette gap — findings/freeroam-hud.md §5); the
+ * portrait / item bar / door / EXP gauge also land in later slices.
  *
  * PORT-DEBT(hud-party-context): the displayed values (HP/MP/level/element
  * stars/items) come from the party subsystem (room+0x4030) which is unported
@@ -61,6 +63,42 @@ int hud_panel_xbase(int slide_progress);
 #define HUD_SLIDE_STEP     50
 #define HUD_SLIDE_FULL     1000
 int hud_slide_step(int prog);
+
+/* ── slice 1c-1: element STARS + LEVEL digit (both keyed blits) ──────────
+ *
+ * Element STARS (0x494e60:100-108): a loop of *(char+0xdc) keyed blits of
+ * the icon bank, one per element-affinity star, at
+ *   (xbase + 0xba + k*0xd, ybase + 0x1d)   k = 0 .. count-1.
+ * The star bank = FUN_00498620's DAT_008a76d0 = unified pool idx 0x31 =
+ * res 0x44f (the 32×32 icon sheet); the per-star cel is frame 16 (12×9)
+ * — Arche's element.  Both stars are the SAME frame in the errands
+ * (ground truth sword2.osr tick 2200 seq 496-497: res 1103 fr 16 at
+ * (187,30),(200,30)).  PORT-DEBT(hud-party-context): the count (2) + the
+ * element frame (16) stand in for the party member's real affinity. */
+#define HUD_STAR_POOL_IDX  0x31   /* DAT_008a76d0 = res 0x44f icon sheet    */
+#define HUD_STAR_FRAME     16     /* Arche's element-star cel (12×9)        */
+#define HUD_STAR_COUNT     2      /* PORT-DEBT: her 2 affinity stars        */
+#define HUD_STAR_DX        0xba   /* first star x = xbase + 0xba (= 187)    */
+#define HUD_STAR_STEP      0xd    /* +13 px per star                       */
+#define HUD_STAR_DY        0x1d   /* star y = ybase + 0x1d (= 30)           */
+
+/* LEVEL digit (0x494e60:123-124 → 0x495e40): the leader level, drawn
+ * as UI-bank glyphs (NOT GDI text) from the small-font atlas = the mgr
+ * digit bank *(0x8a6b60+0xaac + 1*4) = unified pool idx 1 = ramp slot 0 =
+ * res 0x413.  0x495e40 lays the string out left-to-right: glyph i of
+ * char c is atlas frame (c - 0x21), keyed-blit at (base_x + i*advance,
+ * base_y); advance = param_4 = 9 (param_7=0 → fixed width).  base =
+ * (xbase + 0xa0, ybase + 0x18) = (161,25).  The value = char+0xe0 +
+ * char+0xd8 (level base+bonus).  Ground truth seq 526: res0 fr 16 (='1')
+ * at (161,25,8,14).  PORT-DEBT(hud-party-context): the value (1). */
+#define HUD_LEVEL_POOL_IDX 1      /* pool[1] = ramp 0 = res 0x413 font atlas */
+#define HUD_LEVEL_VALUE    1      /* PORT-DEBT: Arche's errands level        */
+#define HUD_LEVEL_DX       0xa0   /* level base x = xbase + 0xa0 (= 161)     */
+#define HUD_LEVEL_DY       0x18   /* level y      = ybase + 0x18 (= 25)      */
+#define HUD_LEVEL_ADVANCE  9      /* per-glyph x step (param_4, param_7=0)   */
+/* The atlas frame for a printable glyph (0x495e40: ' ' < c < '{' →
+ * frame c - 0x21; ' ' and out-of-range → -1 = a gap, no blit). */
+int hud_glyph_frame(char c);
 
 /* One HP/MP bar row's blit geometry (FUN_00498680 per-row body).
  *   cur/max : the gauge ratio (cur 0..1000, max 1000);

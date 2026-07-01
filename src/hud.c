@@ -47,6 +47,15 @@ hud_bar_row hud_bar_row_geom(int cur, int max, int x, int y, int width,
     return r;
 }
 
+/* 0x495e40 glyph select: a printable glyph (' ' < c < '{') maps to
+ * atlas frame c - 0x21; space and out-of-range render no cel (a -1 gap). */
+int hud_glyph_frame(char c)
+{
+    if (c > ' ' && c < '{')
+        return (int)(unsigned char)c - 0x21;
+    return -1;
+}
+
 /* "%s / %d", cur right-justified width 4 (0x495dc0 width=4), then max. */
 void hud_format_gauge(int cur, int max, char *buf, int buflen)
 {

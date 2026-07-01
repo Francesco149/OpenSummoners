@@ -1074,6 +1074,8 @@ struct test_case {
     X(hud_bar_partial)                                         \
     X(hud_format_gauge)                                        \
     X(hud_slide_step)                                          \
+    X(hud_glyph_frame)                                         \
+    X(hud_star_level_positions)                                \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \
