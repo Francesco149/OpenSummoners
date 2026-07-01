@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **217** (13.7% of engine-proper) — tested 212, ported 5
-- code bytes touched: **14.6%** (247,764 / 1,694,868 B of engine-proper)
-- unported: **1541**
+- touched: **221** (14.0% of engine-proper) — tested 216, ported 5
+- code bytes touched: **14.7%** (249,250 / 1,694,868 B of engine-proper)
+- unported: **1537**
 - orphan refs in src/ not in this table: 4
 
-## tested (212) — ported + host unit suite
+## tested (216) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -61,7 +61,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
 | 0x43e250 | FUN_0043e250 | 334 | main.c |
 | 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
+| 0x44e640 | FUN_0044e640 | 49 | hud.c, hud.h |
+| 0x44e680 | FUN_0044e680 | 59 | hud.c, hud.h |
 | 0x46a880 | FUN_0046a880 | 8890 | input_live.c, input_live.h |
+| 0x4766a0 | FUN_004766a0 | 106 | hud.c, hud.h |
 | 0x479960 | FUN_00479960 | 165 | character.c, character.h, input.c (+1) |
 | 0x479e70 | FUN_00479e70 | 275 | character.c, character.h, input.c (+1) |
 | 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
@@ -82,6 +85,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
 | 0x494e60 | FUN_00494e60 | 3904 | hud.c, hud.h |
 | 0x4962a0 | FUN_004962a0 | 242 | hud.c, hud.h, main.c |
+| 0x4969b0 | FUN_004969b0 | 1272 | hud.c, hud.h, main.c |
 | 0x498620 | FUN_00498620 | 82 | hud.h, main.c |
 | 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
 | 0x498f10 | FUN_00498f10 | 344 | hud.h, main.c |
@@ -210,7 +214,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
 | 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |
-| 0x5b9b70 | FUN_005b9b70 | 122 | main.c, map_present.c, map_present.h (+3) |
+| 0x5b9b70 | FUN_005b9b70 | 122 | hud.h, main.c, map_present.c (+4) |
 | 0x5b9bf0 | FUN_005b9bf0 | 256 | main.c, map_present.c, map_present.h (+3) |
 | 0x5ba290 | FUN_005ba290 | 30 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5bad20 | FUN_005bad20 | 26 | wnd_proc.h |
@@ -225,7 +229,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd550 | FUN_005bd550 | 302 | main.c, map_present.c, map_present.h (+6) |
+| 0x5bd550 | FUN_005bd550 | 302 | hud.h, main.c, map_present.c (+7) |
 | 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
 | 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |

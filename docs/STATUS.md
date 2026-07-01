@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  13.7% touched   (13.7% host-tested, 14.6% of code bytes)
+███░░░░░░░░░░░░░░░░░  14.0% touched   (14.0% host-tested, 14.7% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   212 | ported + module covered by the host unit suite       |
+| tested      |   216 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **217** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1541 | exists in engine, never referenced from src/         |
+| **touched** | **221** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1537 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (14.6% of engine-proper bytes) is the truer progress
+Code-byte coverage (14.7% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -671,6 +671,43 @@ understates how much actual instruction volume is ported.
   **NEXT (still deferred, ckpt 172's own scoping): the door indicator (`0x4969b0`, full multi-exit
   compass system) → the bottom-left "quick item" strip (`0x497c20`) → the bottom-right combat cluster
   (`0x4975e0`) → THEN retire `PORT-DEBT(hud-party-context)` when the party subsystem lands.**
+  **ckpt 174 — the DOOR INDICATOR (`0x4969b0`, HUD slice 3) — ALGORITHM ported bit-exact; actor SOURCE
+  is a NEW PORT-DEBT (autonomous, USER away).** RE'd via objdump — **4 ECX-hiding traps, more than any
+  prior HUD slice, Ghidra hides ALL of them:** `FUN_0044e640`/`_e680` (center x/y) run `this=iVar7`
+  (the loop candidate); the SECOND `FUN_0044e680` call (reference center-y) runs `this=param_2` —
+  textually IDENTICAL `FUN_0044e680(0)` in the decompile, `mov ecx,edi` vs `mov ecx,ebx` between them
+  in the asm; `FUN_004766a0` (on-screen test) runs `this=param_3` (camera); the final blit's blend
+  desc is `mov ecx,esi` (the ramp lookup) right before `call 0x5bd550` — **NOT** `frame+0x28` as
+  position would suggest (that's the *colorkey* arg, `param_9`). **Mechanism (fully RE'd):** scan the
+  32-slot `DAT_008a9b50+0x1160` EFFECT band → validity+zone gate → 72000x56000 world reach pre-filter
+  → on-screen EXCLUDE (arrows are OFF-screen-only) → project+clamp→edge (TOP/RIGHT/BOTTOM/LEFT, 3
+  sequential overriding ifs) → dedup/stack (20 buckets, `<5px` cluster radius, 5-deep stack cap,
+  12px PERPENDICULAR-into-screen spread per stack level) → highlight `+4` → alpha-fade
+  (`depth*20/1000` → `g_ramp_b[idx]` or opaque). **Zero new asset work:** `DAT_008a9308` =
+  **already-ported** `g_ramp_b`/`g_pd_boot_group_b` (the EXP-gauge/sword-trail/particle-sky-fade
+  family); `DAT_008a76f4` = pool idx `0x3a` = **already-registered** `g_ar_sprite_slots[45]` = res
+  `0x451` 64×64 (`asset_register.c:1727`, boots unconditionally like every sibling bank). Ported
+  `hud_door_process` (`hud.c`/`.h`, pure, PORT-DEBT-free) + wired `main.c game_render_hud`.
+  **`PORT-DEBT(hud-door-actors)`:** the `+0x1160` actor SPAWN itself (a whole subsystem, not a
+  constant) is unported; stand-in = the errands' 2 REAL map-data EFFECT objects (code 50240 @ world
+  62400,28800 / 50140 @ 48000,48000 — a throwaway `g_town.map.layers` recon dump, reverted). Both
+  stay ON-SCREEN at every reachable camera position in this room (Python-cross-checked across the
+  full `sword2-nav.jsonl` trajectory) → the port renders **zero** door blits, matching **zero**
+  `res=0x451` across a full `sword2.osr` scan (real human play) — ckpt-167's original single
+  "(200,415,24,42)" observation's source capture no longer exists; these 2 EFFECT objects aren't
+  proven to be it (may be an unrelated trigger, or the real exit position derives from
+  `game_world.c`'s room-registry reciprocal-exit table instead — `{key,target_room_id,return_field}`
+  slots give CONNECTIVITY only, no world position; unresolved). **VERIFIED:** fresh
+  `port-hud-door.osr` (full errands replay) — 0 `res=0x451` draws + item-bar/star dhashes UNCHANGED
+  from ckpt 173 (`0xc6faa77e`/`0xaedb8faa` — the new `HUD_DOOR_BANK_SLOT` grade-skip entry caused no
+  regression). 5 new host tests (`test_hud_door_edges/_filters/_dedup_stack/_highlight/
+  _dedup_exhaustion`, every branch), fixtures independently cross-checked in fresh Python before
+  baking into C assertions. 1082 host pass (+5). `findings/freeroam-hud.md` §9.
+  **NEXT: (a)** find the `+0x1160` EFFECT-actor spawn's real position source (activator `0x41f200`,
+  or cross-ref `game_world.c`'s exit-table `key` against a map object) — retires
+  `hud-door-actors`; **(b)** THEN the bottom-left "quick item" strip (`0x497c20`) → bottom-right
+  combat cluster (`0x4975e0`) → retire `hud-party-context` when the party subsystem lands (ckpt 172's
+  original ordering, unchanged).
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

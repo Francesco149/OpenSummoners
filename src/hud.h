@@ -212,4 +212,148 @@ int hud_item_slot_y(int vslide);
 #define HUD_ITEM_SLIDE_STEP 20
 int hud_item_slide_step(int prog);
 
+/* ── slice 3: the DOOR INDICATOR (FUN_004969b0) ──────────────────────────
+ *
+ * A full off-screen multi-exit compass-arrow system, NOT a fixed icon
+ * (findings/freeroam-hud.md "Scoping correction ckpt 172" + the ckpt-174
+ * static-disasm RE): scans a 32-slot EFFECT actor band (DAT_008a9b50+0x1160)
+ * for candidates matching a room/zone relation to the reference actor
+ * (the errands leader), pre-filters by a 72000x56000 world-space "reach"
+ * box, EXCLUDES any candidate already on-screen (only off-screen exits get
+ * an arrow), projects the survivor through the camera + clamps to the
+ * viewport edge (picking one of 4 EDGE directions), DEDUPES/stacks arrows
+ * landing within 5px of each other (up to 20 distinct clusters, 5 stacked
+ * per cluster, offset 12px per stack level INTO the screen), bumps to a
+ * HIGHLIGHTED frame set when the candidate is the door the leader is
+ * standing at, and alpha-fades near the reach-box edge via a 20-entry
+ * blend-LUT ramp (g_ramp_b, the SAME table the EXP gauge/sword-trail/
+ * particle sky-fade already use — DAT_008a9308, ckpt-163/171 family).
+ *
+ * Every ECX (thiscall `this`) at the ACTUAL asm call sites was verified by
+ * objdump (Ghidra's decompile hides them all, same trap as the ckpt-171/172
+ * portrait hunt + the ckpt-173 item-bar wrapper): FUN_0044e640/_e680
+ * (candidate center x/y) run with `this` = the CANDIDATE actor; the second
+ * FUN_0044e680 call (reference center y) runs with `this` = the REFERENCE
+ * (param_2); FUN_004766a0 (on-screen test) runs with `this` = the CAMERA
+ * (param_3); the final blit's blend descriptor is `this` = esi (the ramp
+ * lookup), NOT the frame's own +0x28 field (that is the *colorkey* arg).
+ *
+ * Call-site pin (0x494e60:455): FUN_004969b0(dst, hud_ctx+0x24 [reference],
+ * DAT_008a9b50+0x104c [[the SAME camera_view/mr_camera room+0x104c object
+ * camera_follow/map_render already model]], hud_ctx+0x398 [the highlighted/
+ * tracked-door pointer — the SAME field ckpt-173's item-bar hslide reads]).
+ *
+ * PORT-DEBT(hud-door-actors): the +0x1160 EFFECT-band actor SPAWN is a new,
+ * unported subsystem — the errands room's map data (DATA scene, dumped via
+ * a throwaway recon pass) has exactly TWO EFFECT-band (50000..59999) object
+ * placements (code 50240 @ world (62400,28800) and code 50140 @ world
+ * (48000,48000)); across the full errands map (108800x64000, viewport
+ * 64000x48000, horizontal-only scroll [0,44800]) BOTH stay inside the
+ * viewport at every reachable camera position, so this port's candidate
+ * list — built from those two real, data-sourced positions — faithfully
+ * produces ZERO visible indicators in the errands, matching sword2.osr's
+ * ground truth (a full-session scan found zero res=0x451 blits).  The
+ * ALGORITHM below is statically RE-verified bit-exact (disasm-traced, not
+ * measured/curve-fit); only the room's FULL exit roster + each door's
+ * active/valid/status/zone fields (retail's +0x1d0/body[0]/body[0x7e]/
+ * char+0x750+0x44a/+0x1dc, sourced from the still-unread EFFECT activator
+ * 0x41f200 + the room-registry reciprocal-exit table in game_world.c's
+ * gw_cross_reference) remain to derive — retire when either lands, or when
+ * a real-play capture exercises an actual off-screen exit to verify the
+ * highlighted/stacked/alpha-fade branches end-to-end (none are reachable
+ * in any currently-captured session). */
+#define HUD_DOOR_POOL_IDX        0x3a   /* pool[0x3a] = 0x8a76f4 = g_ar_sprite_slots[45] = res 0x451, 64x64 */
+#define HUD_DOOR_REACH_X         72000  /* world-space pre-filter half-extent x   */
+#define HUD_DOOR_REACH_Y         56000  /* world-space pre-filter half-extent y   */
+#define HUD_DOOR_FADE_X_DENOM    32000  /* fade-ratio denominator x               */
+#define HUD_DOOR_FADE_Y_DENOM    24000  /* fade-ratio denominator y               */
+#define HUD_DOOR_CLUSTER_RADIUS 5       /* dedup bucket match: abs(dx)<5&&abs(dy)<5*/
+#define HUD_DOOR_STACK_OFFSET   12      /* px per stacked duplicate, into-screen  */
+#define HUD_DOOR_MAX_BUCKETS    20      /* the dedup table's capacity (aiStack_f0)*/
+#define HUD_DOOR_RAMP_COUNT     20      /* g_ramp_b / PD_BOOT_GROUP_B_COUNT       */
+#define HUD_DOOR_BLIT_OFFSET    0x20    /* the anchor->blit-corner offset (-32)   */
+
+#define HUD_DOOR_EDGE_TOP       0
+#define HUD_DOOR_EDGE_RIGHT     1
+#define HUD_DOOR_EDGE_BOTTOM    2
+#define HUD_DOOR_EDGE_LEFT      3
+
+/* A world-space actor body — the render-state rect FUN_004969b0 reads off
+ * `actor+0x40` (retail offsets in comments; x/y are the top-left world pos,
+ * *100 fixed point, matching actor_render_state.world_x/y). */
+typedef struct {
+    int32_t x, y;         /* +0x04 / +0x08 */
+    int32_t w, h;          /* +0x0c / +0x10 */
+    int32_t baseline;      /* +0x14 — the "feet" reference the Y-center uses */
+} hud_door_body;
+
+/* One candidate EFFECT-band actor (iVar7 in the retail loop). */
+typedef struct {
+    hud_door_body body;
+    int32_t     zone;        /* +0x1dc — room/zone relation tag              */
+    int         active;      /* +0x1d0 == 1                                  */
+    int         body_valid;  /* body[0] == 1                                 */
+    int         suppressed;  /* body[0x7e] != 0 => filtered out              */
+    int         status;      /* *(char+0x750)+0x44a; must == 0               */
+    const void *id;          /* identity for the highlight-pointer compare   */
+} hud_door_candidate;
+
+/* The reference actor (param_2 — hud_ctx+0x24, the errands leader). */
+typedef struct {
+    hud_door_body body;
+    int32_t       zone;      /* +0x1dc */
+} hud_door_ref;
+
+/* The camera/view (param_3 — DAT_008a9b50+0x104c; maps 1:1 onto the port's
+ * existing mr_camera off34/off4c/off5c/off60/off64/off68/off74 fields). */
+typedef struct {
+    int32_t cam34, cam4c, cam5c, cam60, cam64, cam68, cam74;
+} hud_door_camera;
+
+/* One dedup/stack bucket (the retail stack pair {aiStack_f0[], auStack_e8[]},
+ * modelled as one struct — same 12-byte stride, only logically split by
+ * Ghidra since mixed int/short accesses hit the SAME stack slots). */
+typedef struct {
+    int32_t x, y;
+    int16_t count;
+} hud_door_bucket;
+
+/* The scan-wide dedup state — reset once per HUD render pass, threaded
+ * through every hud_door_process call for that frame (bucket assignment is
+ * ORDER-SENSITIVE, exactly as retail's single-pass 32-actor loop). */
+typedef struct {
+    hud_door_bucket buckets[HUD_DOOR_MAX_BUCKETS];
+    int             n;
+} hud_door_dedup;
+
+void hud_door_dedup_reset(hud_door_dedup *d);
+
+/* One computed draw.  visible==0 => no draw for this candidate (filtered,
+ * on-screen, or a 6th+ stacked duplicate at the same cluster).
+ * frame_index (4..11) indexes the door bank's frame: dir 0-3 (TOP/RIGHT/
+ * BOTTOM/LEFT) + 4 when highlighted, + 4 again (retail's unconditional
+ * "+4" — the low 4 frames of the bank are unused by this renderer).
+ * ramp_idx: -1 => draw OPAQUE (plain keyed blit); 0..19 => alpha-blit
+ * through g_ramp_b[ramp_idx] (NULL-checked by the caller, like the EXP
+ * gauge). cx/cy is the stacked/clamped anchor — the blit corner is
+ * (cx - HUD_DOOR_BLIT_OFFSET, cy - HUD_DOOR_BLIT_OFFSET) (+ the frame cel's
+ * own metric_0c/_10 for the alpha path only — FUN_005b9b70 adds it
+ * internally, FUN_005bd550/zdd_blit_orchestrate does not; main.c #1706's
+ * existing keyed-vs-orchestrate offset split). */
+typedef struct {
+    int     visible;
+    int     frame_index;
+    int32_t cx, cy;
+    int     ramp_idx;
+} hud_door_draw;
+
+/* Port of FUN_004969b0's per-actor body (one candidate against the current
+ * dedup state).  Returns 0 normally (check out->visible), or -1 when the
+ * dedup table is exhausted mid-scan — retail's bare `return;` ABORTS THE
+ * WHOLE 32-actor loop, so the caller must stop processing further
+ * candidates for this frame too (not just skip this one). */
+int hud_door_process(hud_door_dedup *dedup, const hud_door_ref *ref,
+                     const hud_door_camera *cam, const hud_door_candidate *cand,
+                     const void *highlight_id, hud_door_draw *out);
+
 #endif /* OPENSUMMONERS_HUD_H */

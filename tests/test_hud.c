@@ -220,3 +220,211 @@ int test_hud_item_icon_frames(void)
         T_ASSERT_EQ_I(s + HUD_ITEM_LABEL_BASE, s + 4);
     return 0;
 }
+
+/* ---- slice 3: the DOOR INDICATOR (FUN_004969b0) --------------------------- *
+ * Ground truth: hand-derived from the ckpt-174 disasm RE (docs/decompiled/
+ * by-address/4969b0.c + the ECX-hiding fixes in hud.h's doc comment),
+ * cross-checked independently in Python (tdiv/center helpers reimplemented
+ * fresh, not by calling this C code) before being baked in here — see the
+ * ckpt-174 session log.  No real off-screen exit is reachable in any
+ * currently-captured session (PORT-DEBT(hud-door-actors), hud.h), so these
+ * are synthetic fixtures exercising every branch the errands' 2 real
+ * candidates never reach. */
+
+static const hud_door_camera door_test_cam = { 0, 0, 0, 0, 64000, 48000, 0 };
+static const hud_door_ref    door_test_ref = { { 32000, 24000, 0, 0, 0 }, 3 };
+
+static hud_door_candidate door_cand(int32_t x, int32_t y, int32_t zone, const void *id)
+{
+    hud_door_candidate c;
+    c.body.x = x; c.body.y = y; c.body.w = 0; c.body.h = 0; c.body.baseline = 0;
+    c.zone = zone;
+    c.active = 1; c.body_valid = 1; c.suppressed = 0; c.status = 0;
+    c.id = id;
+    return c;
+}
+
+int test_hud_door_edges(void)
+{
+    hud_door_dedup dd;
+    hud_door_draw out;
+
+    /* TOP: straight above the reference, well outside the viewport. */
+    hud_door_dedup_reset(&dd);
+    hud_door_candidate c = door_cand(32000, -20000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 320); T_ASSERT_EQ_I(out.cy, 0);
+    T_ASSERT_EQ_I(out.frame_index, 4);      /* edge TOP(0) + 4 */
+    T_ASSERT_EQ_I(out.ramp_idx, 10);
+
+    /* RIGHT: past the right edge, within reach. */
+    hud_door_dedup_reset(&dd);
+    c = door_cand(90000, 24000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 640); T_ASSERT_EQ_I(out.cy, 240);
+    T_ASSERT_EQ_I(out.frame_index, 5);      /* edge RIGHT(1) + 4 */
+    T_ASSERT_EQ_I(out.ramp_idx, 8);
+
+    /* BOTTOM: straight below. */
+    hud_door_dedup_reset(&dd);
+    c = door_cand(32000, 70000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 320); T_ASSERT_EQ_I(out.cy, 480);
+    T_ASSERT_EQ_I(out.frame_index, 6);      /* edge BOTTOM(2) + 4 */
+    T_ASSERT_EQ_I(out.ramp_idx, 8);
+
+    /* LEFT: past the left edge, within reach (72000 is an exclusive bound —
+     * x=-40000 gives dx=72000 exactly and must be REJECTED; -30000 (62000)
+     * passes). */
+    hud_door_dedup_reset(&dd);
+    c = door_cand(-40000, 24000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 0);
+    c = door_cand(-30000, 24000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 0); T_ASSERT_EQ_I(out.cy, 240);
+    T_ASSERT_EQ_I(out.frame_index, 7);      /* edge LEFT(3) + 4 */
+    T_ASSERT_EQ_I(out.ramp_idx, 6);
+    return 0;
+}
+
+int test_hud_door_filters(void)
+{
+    hud_door_dedup dd;
+    hud_door_draw out;
+    hud_door_candidate c;
+
+    /* the base TOP candidate passes every gate (baseline, from test_hud_door_edges). */
+    hud_door_dedup_reset(&dd);
+    c = door_cand(32000, -20000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+
+    /* inactive / invalid body / suppressed / bad status each filter it out. */
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 3, NULL); c.active = 0;
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 3, NULL); c.body_valid = 0;
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 3, NULL); c.suppressed = 1;
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 3, NULL); c.status = 1;
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);
+
+    /* zone gate: both non-wildcard and EQUAL -> reject; equal-but-3 (either
+     * side) or non-3-and-different -> pass. */
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 1, NULL);
+    hud_door_ref ref1 = door_test_ref; ref1.zone = 1;
+    hud_door_process(&dd, &ref1, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);          /* 1 == 1, neither is 3 -> reject */
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 2, NULL);
+    hud_door_process(&dd, &ref1, &door_test_cam, &c, NULL, &out);   /* ref zone 1, cand zone 2 */
+    T_ASSERT_EQ_I(out.visible, 1);          /* differ, neither is 3 -> pass */
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 1, NULL);
+    hud_door_process(&dd, &door_test_ref /* zone 3 */, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 1);          /* ref is wildcard 3 -> pass despite equal-looking */
+
+    hud_door_dedup_reset(&dd); c = door_cand(32000, -20000, 0, NULL);
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);          /* cand zone 0 -> reject unconditionally */
+
+    /* on-screen candidates never get an indicator (co-located with the ref,
+     * comfortably inside the viewport). */
+    hud_door_dedup_reset(&dd); c = door_cand(32000, 24000, 3, NULL);
+    hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+    T_ASSERT_EQ_I(out.visible, 0);
+    return 0;
+}
+
+int test_hud_door_dedup_stack(void)
+{
+    hud_door_dedup dd;
+    hud_door_draw out;
+    hud_door_dedup_reset(&dd);
+
+    /* A and B clamp to TOP positions 3px apart (< 5) -> same cluster; B is
+     * the SECOND arrival, so it carries the +12 perpendicular (into-screen,
+     * i.e. +Y for a TOP edge) stack offset; A (first) gets none. */
+    hud_door_candidate a = door_cand(32000, -20000, 3, NULL);
+    hud_door_candidate b = door_cand(32300, -20000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &a, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 320); T_ASSERT_EQ_I(out.cy, 0);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &b, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cx, 323); T_ASSERT_EQ_I(out.cy, 12);
+    T_ASSERT_EQ_I(dd.n, 1);                 /* still ONE bucket — B joined A's */
+
+    /* a 3rd, FAR-away TOP candidate (>=5px away) opens its own bucket. */
+    hud_door_candidate far = door_cand(40000, -20000, 3, NULL);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &far, NULL, &out), 0);
+    T_ASSERT_EQ_I(out.visible, 1);
+    T_ASSERT_EQ_I(out.cy, 0);                /* first arrival at its own bucket -> no offset */
+    T_ASSERT_EQ_I(dd.n, 2);
+
+    /* stacking caps at 5 drawn (stack 0..4); the 6th duplicate at the SAME
+     * cluster updates the bucket but does not draw. */
+    hud_door_dedup_reset(&dd);
+    int expect_visible[6] = {1,1,1,1,1,0};
+    for (int i = 0; i < 6; i++) {
+        hud_door_candidate d = door_cand(32000, -20000, 3, NULL);
+        T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &d, NULL, &out), 0);
+        T_ASSERT_EQ_I(out.visible, expect_visible[i]);
+    }
+    T_ASSERT_EQ_I(dd.n, 1);
+    return 0;
+}
+
+int test_hud_door_highlight(void)
+{
+    hud_door_dedup dd;
+    hud_door_draw out;
+    hud_door_dedup_reset(&dd);
+
+    int tag_a, tag_b;
+    hud_door_candidate a = door_cand(32000, -20000, 3, &tag_a);
+    hud_door_candidate b = door_cand(40000, -20000, 3, &tag_b);   /* a distinct bucket */
+
+    /* highlighting b must not affect a's frame (still edge TOP, no +4). */
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &a, &tag_b, &out), 0);
+    T_ASSERT_EQ_I(out.frame_index, 4);
+    T_ASSERT_EQ_I(hud_door_process(&dd, &door_test_ref, &door_test_cam, &b, &tag_b, &out), 0);
+    T_ASSERT_EQ_I(out.frame_index, 8);      /* edge TOP(0) + hi-lite(4) + 4 */
+    return 0;
+}
+
+int test_hud_door_dedup_exhaustion(void)
+{
+    hud_door_dedup dd;
+    hud_door_draw out;
+    hud_door_dedup_reset(&dd);
+
+    /* 20 distinct TOP-edge clusters (world x spaced 1000 apart -> 10px on
+     * screen, comfortably >5px) fill the table exactly; the 21st must abort
+     * the whole scan (-1), matching retail's bare `return;` on table
+     * exhaustion. */
+    int rc = 0;
+    for (int i = 0; i < 21; i++) {
+        hud_door_candidate c = door_cand(32000 + i * 1000, -20000, 3, NULL);
+        rc = hud_door_process(&dd, &door_test_ref, &door_test_cam, &c, NULL, &out);
+        if (i < 20) {
+            T_ASSERT_EQ_I(rc, 0);
+            T_ASSERT_EQ_I(out.visible, 1);
+        }
+    }
+    T_ASSERT_EQ_I(rc, -1);                  /* the 21st candidate aborted the scan */
+    T_ASSERT_EQ_I(dd.n, 20);
+    return 0;
+}

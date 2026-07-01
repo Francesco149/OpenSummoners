@@ -1082,6 +1082,11 @@ struct test_case {
     X(hud_item_slot_position)                                  \
     X(hud_item_slide_step)                                     \
     X(hud_item_icon_frames)                                    \
+    X(hud_door_edges)                                          \
+    X(hud_door_filters)                                        \
+    X(hud_door_dedup_stack)                                    \
+    X(hud_door_highlight)                                      \
+    X(hud_door_dedup_exhaustion)                                \
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \

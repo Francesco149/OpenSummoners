@@ -448,3 +448,98 @@ item-bar region is visually identical (pushed to the feed).  1077 host pass (+3:
 `hud_item_slot_position`, `hud_item_slide_step`, `hud_item_icon_frames`).  `PORT-DEBT(hud-party-
 context)` extended (the 6 icon frames); NEW `PORT-DEBT(hud-item-hslide)` (the door-glow floor) +
 `PORT-DEBT(hud-slide)` registered properly in `port-debt.md` (previously code-commented only).
+
+## 9. The DOOR INDICATOR (`0x4969b0`) — ALGORITHM ported bit-exact; actor SOURCE is new PORT-DEBT (ckpt 174)
+
+Picked up ckpt-172's own scoping note (§4): "`0x4969b0` (door indicator) is a FULL off-screen
+multi-exit compass-arrow system, not a fixed (200,415) icon."  Confirmed and RE'd completely via
+`objdump -d -M intel --start-address=0x4969b0 --stop-address=0x496ec0
+vendor/unpacked/sotes.unpacked.exe` (Ghidra's decompile hides FOUR separate ECX-hiding traps here —
+more than any prior HUD slice — so static disasm was load-bearing, not optional).
+
+### The mechanism (fully RE'd)
+
+`FUN_004969b0(dst, ref, cam, highlight)` scans `DAT_008a9b50+0x1160` (a 32-slot actor-pointer band —
+the SAME EFFECT-type band `actor_spawn.h` documents for the town's townsfolk, engine-quirk #84,
+though whether errands "doors" and town "townsfolk" are the SAME kind of EFFECT actor is unconfirmed).
+Per candidate `iVar7`:
+
+1. **Validity filter:** `iVar7[+0x1d0]==1` (active) AND `body[0]==1` (body-valid, `body=*(iVar7+0x40)`)
+   AND `body[0x7e]==0` (not suppressed) AND `*(char+0x750)+0x44a==0` (status clear) — else skip.
+2. **Zone gate:** both `ref[+0x1dc]` and `cand[+0x1dc]` non-zero, AND (either is the wildcard `3`, or
+   they differ) — else skip.  (`ref` = param_2 = `hud_ctx+0x24`, a per-member field NOT yet identified
+   elsewhere; likely the leader's actor pointer, cached at the SAME leader-match block ckpt 171/172
+   found never fires under scripted replay — moot here since sword2.osr is a real human capture.)
+3. **Reach pre-filter:** `abs(ref_cx - cand_cx) < 72000 && abs(ref_cy - cand_cy) < 56000` (world units;
+   `cx = x + w/2`, `cy = y + (h-baseline)/2 + baseline` — a baseline-relative Y, not a plain center).
+4. **On-screen exclusion:** `FUN_004766a0(cand.x, cand.y, cand.w, cand.h, margin=0)` against the
+   camera (`this=param_3=DAT_008a9b50+0x104c`, the SAME `camera_view`/`mr_camera` object
+   `camera_follow.h`/`map_render.h` already model) — if the candidate's world rect intersects the
+   viewport, skip (the indicator is OFF-screen-only, by design).
+5. **Fade depth:** `depth = min((72000-adx)*1000/32000, (56000-ady)*1000/24000)` — small near the
+   reach-box edge (far away), large near the viewport (about to come on-screen).
+6. **Project + clamp:** `(cand_cx,cand_cy)` through the camera (`/100` each term BEFORE subtracting —
+   matters under truncating division), clamp to `[0,vp_w/100] x [0,vp_h/100]`.  Which axis clamped
+   picks an EDGE direction (0=TOP default, 2=BOTTOM, 1=RIGHT, 3=LEFT — three sequential overriding
+   `if`s, not else-if, so LEFT beats RIGHT beats BOTTOM beats TOP).
+7. **Dedup/stack:** up to 20 buckets, matched within `<5px` on both axes; a match increments the
+   bucket's count (0..4 draw, 5+ silently drop the draw but still update the bucket); a bucket miss
+   with the table already full **aborts the entire 32-actor scan** (retail's bare `return;`, not a
+   per-candidate skip).  A match's draw position is nudged `stack*12px` PERPENDICULAR to its edge,
+   INTO the screen (TOP: +Y, BOTTOM: -Y, RIGHT: -X, LEFT: +X) — spreading stacked arrows toward the
+   interior rather than along the edge (avoids corner overflow).
+8. **Highlight:** if `highlight==iVar7` (pointer identity — param_4 = `hud_ctx+0x398`, the SAME
+   tracked-door field `hud-item-hslide`'s glow ramp reads), the edge index +4 (8 total dir+hilite
+   frames).  Final `frame_index = dir + 4` (retail's own unconditional `+4` on top — frames 0-3 of the
+   bank are unused by this renderer).
+9. **Draw:** `ramp_idx = depth*20/1000` (unreachable-negative case omitted, proven unreachable by step
+   3's gate); `ramp_idx>=20` → **OPAQUE** keyed blit (`FUN_005b9b70`, this=frame, offset internal);
+   else → **ALPHA** blit through `g_ramp_b[ramp_idx]` (`FUN_005bd550`/`zdd_blit_orchestrate`, desc=ECX
+   NOT `frame+0x28` — that's the *colorkey* arg; the offset (`frame.metric_0c/_10`) must be added by
+   the CALLER for this path, unlike the keyed path).  `DAT_008a9308` = **`g_ramp_b`**
+   (`g_pd_boot_group_b`, already ported/used by the EXP gauge/sword-trail/particle sky-fade —
+   `pixel_drawer.h`), so NO new asset work was needed.  `DAT_008a76f4` = pool idx **0x3a** (58) = the
+   ALREADY-REGISTERED `g_ar_sprite_slots[45]` = **res 0x451, 64x64** (`asset_register.c:1727` — no new
+   registration needed either; it registers unconditionally at boot, same as every sibling HUD bank).
+
+**The 4 ECX-hiding traps** (verified byte-for-byte in the disasm, none visible in Ghidra's pseudocode):
+`FUN_0044e640`/`FUN_0044e680` (candidate center x / y) run `this=iVar7` (the loop actor); the SECOND
+`FUN_0044e680` call (reference center y) runs `this=param_2` — textually identical
+`FUN_0044e680(0)` calls in the decompile, but `mov ecx,edi` vs `mov ecx,ebx` between them; `FUN_004766a0`
+(on-screen test) runs `this=param_3` (the camera); the final blit's blend descriptor is `mov ecx,esi`
+(`esi` = the ramp-table lookup) immediately before `call 0x5bd550` — NOT `frame+0x28` as the
+positional-arg reading would suggest (that's `param_9`/colorkey).
+
+### PORT-DEBT(hud-door-actors) — the algorithm is ported; the actor source is not
+
+Ported `hud_door_process` (`hud.c`/`.h`) as a pure, host-tested function taking one candidate + the
+scan-wide dedup state; `main.c game_render_hud` loops it.  **What's NOT portable yet:** the `+0x1160`
+EFFECT-band actor SPAWN itself — a whole unported subsystem, not a missing constant.  Recon (a
+throwaway `g_town.map.layers` dump, reverted after use) found the errands room's map data has exactly
+**2** EFFECT-band (50000-59999) objects: code 50240 @ world (62400,28800), code 50140 @ world
+(48000,48000) — real, data-sourced positions, not guesses.  But **both stay on-screen at every
+reachable camera position** in the errands (108800x64000 map, `[0,44800]` horizontal-only scroll,
+64000x48000 viewport) — verified independently in Python across the full `sword2-nav.jsonl` camera
+trajectory (screen-x never leaves `[0,640]` for either).  So this port-debt's OBSERVABLE effect is
+"zero door-indicator draws in the errands," which matches ground truth exactly: a full-session scan of
+`sword2.osr` (real human play, the SAME session ckpt 167-173 ground-truth everything else against)
+finds **zero** `res=0x451` blits too.  ckpt-167's original single "(200,415,24,42)" observation (§1)
+must have come from a session this project no longer has a capture for; the two data-sourced EFFECT
+objects found this ckpt are not proven to be THAT observation's source (may be something else
+entirely — a shop trigger, not an exit — or the real exit position derives from the room-registry's
+reciprocal-exit table (`game_world.c gw_cross_reference`, `{key,target_room_id,return_field}` slots)
+rather than a plain map object; that table gives CONNECTIVITY, not a world position, so if it IS the
+source, the position must come from cross-referencing its `key` against a map object some other way —
+unresolved, next-session territory).
+
+**VERIFIED (the strongest check available without a positive-case capture):** a fresh
+`port-hud-door.osr` (same recipe as §8, `--osr-state`) over the full errands replay: **0** `res=0x451`
+blits (matches `sword2.osr`'s 0), and the item-bar (`res=0x450`)/star (`res=0x44f`) dhashes are
+UNCHANGED from §8's ground truth (`0xc6faa77e` / `0xaedb8faa`) — the new `title_sheet_format` grade-skip
+entry (`HUD_DOOR_BANK_SLOT`, added proactively since the door bank binds via the SAME
+`FUN_004184a0(0)` plain-getter dispatch as the item-bar BG, `0x496e0e`) caused no regression.  The
+ALGORITHM is host-tested (`test_hud_door_edges/_filters/_dedup_stack/_highlight/_dedup_exhaustion`, 5
+tests covering every branch — all 4 edges, every filter/gate, dedup clustering + the 5-stack cap +
+12px perpendicular offset, the highlight bump, and the 20-bucket exhaustion abort) against fixtures
+independently cross-checked in Python (fresh reimplementation of the tdiv/center-x/center-y formulas,
+not calls into the C code under test) before being baked into the C assertions.  1082 host pass (+5).

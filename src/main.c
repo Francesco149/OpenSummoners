@@ -433,6 +433,12 @@ static int            g_banner_armed; /* one-shot arm latch, reset per enter_gam
                                     * info+0x30 cache as the frame/stars => NOT graded
                                     * (slice 2, findings/freeroam-hud.md §8: port dhash
                                     * mismatched retail's 0xc6faa77e until excluded). */
+#define HUD_DOOR_BANK_SLOT    45   /* 0x8a76f4 — res 0x451 (pool 0x3a), the door indicator.
+                                    * FUN_004969b0 binds it via the SAME FUN_004184a0(0)
+                                    * plain-getter call (0x496e0e: `if (*(int*)*DAT_008a76f4
+                                    * ==0) FUN_004184a0(0);`) as the item-bar BG => NOT
+                                    * graded, by the same reasoning (unverified against a
+                                    * real capture — no res=0x451 draw is reachable yet). */
 /* The banner's first alpha step lands at sim tick 42 on retail — TICK-AXIS
  * calibrated on trace-studio intro-1 per-present luminance: the alpha VALUE
  * sequence is bit-exact both sides; at +78 the port's first step landed t40
@@ -1155,6 +1161,10 @@ static void title_sheet_format(ar_sprite_slot *slot,
         /* the item-bar slot BG (res 0x450, slice 2) — plain info+0x30 cache,
          * same class as the frame/stars/EXP => NOT graded. */
         slot != &g_ar_sprite_slots[HUD_ITEM_BG_BANK_SLOT] &&
+        /* the door indicator (res 0x451, slice 3) — the SAME FUN_004184a0(0)
+         * plain-getter dispatch as the item-bar BG => NOT graded (unverified
+         * against a real capture, see HUD_DOOR_BANK_SLOT's own comment). */
+        slot != &g_ar_sprite_slots[HUD_DOOR_BANK_SLOT] &&
         /* the font-texture / button-prompt UI banks (res 0x455 book+cursor, res
          * 0x6fa key-caps) — plain-getter sheets retail does NOT grade; the port's
          * global 8bpp grade was over-darkening the key-caps (USER: "dimmer than
@@ -2960,6 +2970,71 @@ static void game_render_hud(void)
             if (label_cel != NULL)
                 zdd_object_blt_keyed(label_cel, g_zdd->primary_obj, ix, iy);
         }
+    }
+
+    /* The DOOR INDICATOR (FUN_004969b0, HUD "slice 3" — an off-screen exit
+     * compass arrow; hud.h has the full algorithm doc + the ECX-hiding
+     * fixes this needed).  PORT-DEBT(hud-door-actors): the +0x1160 EFFECT-
+     * band actor scan itself is unported — stand in with the errands
+     * room's only 2 real, map-data-sourced EFFECT objects (a throwaway
+     * recon dump of g_town.map's layers), Arche's LIVE position as the
+     * reference (character has no collision-rect fields, so body w/h/
+     * baseline are 0 — the same "point position" the port already tracks
+     * her by), g_game_camera_mr as the camera (1:1 field match), and no
+     * tracked highlight (hud_ctx+0x398's sibling — unwired, like the item
+     * bar's door-glow hslide).  Both stand-in candidates stay on-screen at
+     * EVERY reachable camera position in the errands (108800x64000 map,
+     * [0,44800] scroll range) so this renders NOTHING observable today —
+     * matching sword2.osr's ground truth (a full-session scan found zero
+     * res=0x451 blits).  The algorithm is bit-exact (static-disasm RE'd,
+     * host-tested against synthetic off-screen fixtures no real capture
+     * reaches yet). */
+    static const hud_door_candidate door_candidates[] = {
+        /* map object code 50240 @ tile (624,288) -> world (62400,28800) */
+        { { 62400, 28800, 0, 0, 0 }, 3, 1, 1, 0, 0, NULL },
+        /* map object code 50140 @ tile (480,480) -> world (48000,48000) */
+        { { 48000, 48000, 0, 0, 0 }, 3, 1, 1, 0, 0, NULL },
+    };
+    hud_door_ref door_ref;
+    door_ref.body.x = g_freeroam_char.world_x;
+    door_ref.body.y = g_freeroam_char.world_y;
+    door_ref.body.w = 0; door_ref.body.h = 0; door_ref.body.baseline = 0;
+    door_ref.zone = 3;
+    hud_door_camera door_cam;
+    door_cam.cam34 = g_game_camera_mr.off34;
+    door_cam.cam4c = g_game_camera_mr.off4c;
+    door_cam.cam5c = g_game_camera_mr.off5c;
+    door_cam.cam60 = g_game_camera_mr.off60;
+    door_cam.cam64 = g_game_camera_mr.off64;
+    door_cam.cam68 = g_game_camera_mr.off68;
+    door_cam.cam74 = g_game_camera_mr.off74;
+
+    ar_sprite_slot *door_bank = ar_pool_get_slot(HUD_DOOR_POOL_IDX);
+    hud_door_dedup door_dd;
+    hud_door_dedup_reset(&door_dd);
+    for (size_t di = 0; di < sizeof door_candidates / sizeof door_candidates[0]; di++) {
+        hud_door_draw dr;
+        int rc = hud_door_process(&door_dd, &door_ref, &door_cam,
+                                  &door_candidates[di], NULL, &dr);
+        if (dr.visible && door_bank != NULL) {
+            zdd_object *fc = (zdd_object *)ar_sprite_slot_frame(
+                door_bank, (uint16_t)dr.frame_index);
+            if (fc != NULL) {
+                int32_t bx = dr.cx - HUD_DOOR_BLIT_OFFSET;
+                int32_t by = dr.cy - HUD_DOOR_BLIT_OFFSET;
+                if (dr.ramp_idx < 0) {
+                    zdd_object_blt_keyed(fc, g_zdd->primary_obj, bx, by);
+                } else if (dr.ramp_idx < PD_BOOT_GROUP_B_COUNT &&
+                          g_ramp_b[dr.ramp_idx] != NULL) {
+                    zdd_blit_orchestrate(g_ramp_b[dr.ramp_idx], g_zdd->primary_obj, fc,
+                                         fc->metric_0c + bx, fc->metric_10 + by,
+                                         fc->metric_14, fc->metric_18,
+                                         0, 0, fc->colorkey_out, NULL);
+                }
+            }
+        }
+        if (rc != 0)
+            break;      /* dedup table exhausted -> retail aborts the whole scan */
     }
 }
 
