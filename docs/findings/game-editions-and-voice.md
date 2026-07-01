@@ -40,9 +40,10 @@ The engine's asset layer is uniform: `FindResource(<type>, <numeric-id>)` over a
 Audio splits across **three** schemes:
 
 - **Voice** = `sotesx_s.dll`, custom resource type **`WAVE`**: **1,448 leaves**, numeric
-  IDs from **1003**, lang **1041 (0x411 = Japanese)**, each a `RIFF….WAVE` clip (~250 KB
-  avg; 200k+ `FF FB` frame-syncs ⇒ almost certainly **MP3-in-WAV**, not PCM). Plus one
-  `DATA` leaf id **1002**, 64 B = manifest/index. → confirm codec + clip↔line map later.
+  IDs from **1003**, lang **1041 (0x411 = Japanese)**, each a `RIFF….WAVE` clip —
+  **PCM, mono, 22050 Hz, 16-bit** (confirmed via `tools/voice_view`; sizes ~47 KB–400 KB
+  = ~1–9 s of dialogue; the census's `FF FB` "MP3" hits were coincidental PCM sample
+  bytes, NOT MPEG frames). Plus one `DATA` leaf id **1002**, 64 B = manifest/index.
 - **BGM** = `sotesw.dll`, type `DATA`: 47 leaves, each an ASF/WMA GUID stream `3026b275…`.
 - **SE** = `sotesp.dll`, type `WAVE` (31 small RIFF clips in JP) + a `DATA` index.
 
@@ -94,8 +95,9 @@ options are inert. Even the bundled JP `sotes.exe` couldn't voice it: the file i
 ## Open threads (dig deeper later)
 
 - Empirically verify Q3 (drop `sotesx_s.dll` → `sotes.exe`; Frida `FindResource` proof).
-- Decode voice clip 1003: `fmt ` tag (PCM vs MP3-in-WAV) + duration; then map clip-ID →
-  dialogue line via the `sotesd.dll` script/scenario table = the basis for port voice.
+- Codec is settled (PCM / mono / 22050 Hz / 16-bit, via `tools/voice_view`). Next: map
+  clip-ID → dialogue line via the `sotesd.dll` script/scenario table = the basis for
+  port voice, and confirm Q3 by ear (drop `sotesx_s.dll`, run `sotes.exe`).
 - JP-retail `sotes.exe` is **lzsotes/SPL-packed** — needs the Lizsoft unpacker for the
   authentic 2009 engine; EN-SE's `sotes.exe` is the same generation already unpacked.
 - `sotesx_d` (JP CD) vs `sotesx_d2/d3` (Steam) — extra-CG repackaging; compare when relevant.
@@ -106,4 +108,8 @@ Measured 2026-07-01. Tools (scratchpad, read-only): `dllprobe.py` (PE sections +
 magic census), `rsrc.py` (PE resource-tree walker, mmap). `sha256sum` for identity.
 Steamless v3.1 unpacked both EN-SE exes (`sotes.exe`→JP build, `sotes_en.exe`→EN build).
 DLL-name/voice references via `grep -a` of the unpacked exes + the EN-old
-`vendor/unpacked/sotes.unpacked.exe`.
+`vendor/unpacked/sotes.unpacked.exe`. **`tools/voice_view/`** (`build/voice_view.exe`,
+32-bit Win32 GUI + `--list`/`--dump` CLI) browses/plays/extracts these banks through the
+OS loader — the SAME `LoadLibraryEx`/`FindResource` path the engine uses; `--list`
+confirmed the 1,448 PCM voice clips, `--dump` extracts byte-perfect WAVs (clip 1003 =
+334,360 B, verified).
