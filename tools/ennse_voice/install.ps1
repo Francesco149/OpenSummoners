@@ -1,17 +1,23 @@
-# Fortune Summoners EN-SE — Japanese Voice Patch installer.
-# Auto-detects the Steam game folder + your JP sotesx_s.dll; folder-picker fallback.
+# Fortune Summoners (English SE) - Japanese Voice Patch : offline installer.
+# (Bundled in ennse-voice-patch.zip; uses the version.dll sitting next to it.)
+# The paste-and-run one-liner (web-install.ps1) is the easy path - see README.
+#
+# ASCII-ONLY on purpose: Windows PowerShell 5.1 reads scripts as the system ANSI
+# codepage, so any non-ASCII byte (em-dash, ellipsis) corrupts parsing.
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Info($m){ Write-Host $m -ForegroundColor Cyan }
-function Ok($m){ Write-Host $m -ForegroundColor Green }
-function Warn($m){ Write-Host $m -ForegroundColor Yellow }
-function Err($m){ Write-Host $m -ForegroundColor Red }
+function Step($m){ Write-Host "[*] $m" -ForegroundColor Cyan }
+function Good($m){ Write-Host "[+] $m" -ForegroundColor Green }
+function Note($m){ Write-Host "    $m" -ForegroundColor DarkGray }
+function Warn($m){ Write-Host "[!] $m" -ForegroundColor Yellow }
+function Bad ($m){ Write-Host "[x] $m" -ForegroundColor Red }
 
-Info "=== Fortune Summoners (English SE) — Japanese Voice Patch ==="
+Write-Host ""
+Write-Host "  Fortune Summoners (English SE) - Japanese Voice Patch" -ForegroundColor Magenta
+Write-Host "  =====================================================" -ForegroundColor Magenta
 Write-Host ""
 
-# --- locate Steam libraries -------------------------------------------------
 function Get-SteamLibraries {
   $libs = @()
   $sp = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -EA SilentlyContinue).SteamPath
@@ -21,14 +27,13 @@ function Get-SteamLibraries {
     $libs += $sp
     $vdf = Join-Path $sp 'steamapps\libraryfolders.vdf'
     if (Test-Path $vdf) {
-      foreach ($m in [regex]::Matches((Get-Content -Raw $vdf), '"path"\s*"([^"]+)"')) {
-        $libs += ($m.Groups[1].Value -replace '\\\\','\')
+      Get-Content $vdf | Select-String '"path"\s+"(.+?)"' | ForEach-Object {
+        $libs += ($_.Matches[0].Groups[1].Value -replace '\\\\','\')
       }
     }
   }
   $libs | Where-Object { $_ } | Select-Object -Unique
 }
-
 function Pick-Folder($desc) {
   Add-Type -AssemblyName System.Windows.Forms | Out-Null
   $d = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -36,61 +41,72 @@ function Pick-Folder($desc) {
   if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $d.SelectedPath }
   return $null
 }
+function Pick-File($title) {
+  Add-Type -AssemblyName System.Windows.Forms | Out-Null
+  $d = New-Object System.Windows.Forms.OpenFileDialog
+  $d.Title  = $title
+  $d.Filter = 'sotesx_s.dll|sotesx_s.dll|All files (*.*)|*.*'
+  if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $d.FileName }
+  return $null
+}
 
-# --- 1. English SE game folder (has sotes_en.exe) ---------------------------
+# 1. English SE game folder (has sotes_en.exe)
+Step "Locating the English special edition (sotes_en.exe)"
 $game = $null
 foreach ($lib in Get-SteamLibraries) {
   $g = Join-Path $lib 'steamapps\common\sotes'
   if (Test-Path (Join-Path $g 'sotes_en.exe')) { $game = $g; break }
 }
 if (-not $game) {
-  Warn "Could not auto-find the English special edition."
-  Warn "Pick your game folder (the one containing sotes_en.exe)."
-  $game = Pick-Folder "Select the Fortune Summoners 'sotes' folder (contains sotes_en.exe)"
+  Warn "Could not auto-detect it - please pick the folder with sotes_en.exe."
+  $game = Pick-Folder 'Select the Fortune Summoners sotes folder (contains sotes_en.exe)'
 }
 if (-not $game -or -not (Test-Path (Join-Path $game 'sotes_en.exe'))) {
-  Err "sotes_en.exe not found — aborting."; Read-Host "Press Enter to exit"; exit 1
+  Bad "sotes_en.exe not found. Aborting."; Read-Host "Press Enter to exit"; exit 1
 }
-Ok "English SE game folder: $game"
+Good "Game folder: $game"
 
-# --- 2. JP voice bank (sotesx_s.dll) ----------------------------------------
+# 2. JP voice bank (sotesx_s.dll)
+Step "Locating the Japanese voice bank (sotesx_s.dll)"
 $jp = $null
 $cands = @(
+  (Join-Path $here 'sotesx_s.dll'),
+  (Join-Path $game 'sotesx_s.dll'),
   "${env:ProgramFiles(x86)}\lizsoft\FortuneSummoners\sotesx_s.dll",
   "${env:ProgramFiles}\lizsoft\FortuneSummoners\sotesx_s.dll"
 )
-foreach ($lib in Get-SteamLibraries) { $cands += (Join-Path $lib 'steamapps\common\Fortune Summoners SE\sotesx_s.dll') }
-foreach ($c in $cands) { if (Test-Path $c) { $jp = $c; break } }
+foreach ($lib in Get-SteamLibraries) {
+  $cands += (Join-Path $lib 'steamapps\common\Fortune Summoners SE\sotesx_s.dll')
+  $cands += (Join-Path $lib 'steamapps\common\FortuneSummoners\sotesx_s.dll')
+}
+foreach ($c in $cands) { if ($c -and (Test-Path $c)) { $jp = $c; break } }
 if (-not $jp) {
-  Warn "Could not auto-find sotesx_s.dll (the Japanese voice bank)."
-  Warn "Pick your JAPANESE version's folder (the one containing sotesx_s.dll)."
-  $f = Pick-Folder "Select your Japanese Fortune Summoners folder (contains sotesx_s.dll)"
-  if ($f) { $jp = Join-Path $f 'sotesx_s.dll' }
+  Warn "Could not auto-detect it - please pick sotesx_s.dll from your Japanese copy."
+  $jp = Pick-File 'Select sotesx_s.dll from your Japanese Fortune Summoners'
 }
 if (-not $jp -or -not (Test-Path $jp)) {
-  Err "sotesx_s.dll not found. You need the Japanese version to supply it — aborting."
+  Bad "sotesx_s.dll not found. You need the Japanese version to supply it. Aborting."
   Read-Host "Press Enter to exit"; exit 1
 }
-Ok "Japanese voice bank: $jp"
+Good "found: $jp"
 Write-Host ""
 
-# --- 3. install -------------------------------------------------------------
+# 3. install
 $realver = Join-Path $env:WINDIR 'SysWOW64\version.dll'
 if (-not (Test-Path $realver)) { $realver = Join-Path $env:WINDIR 'System32\version.dll' }
-
-Info "Installing…"
-Copy-Item $realver               (Join-Path $game 'realver.dll') -Force; Ok "  realver.dll  (proxy target = your system version.dll)"
-Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Ok "  version.dll  (the patch)"
-$dstVoice = Join-Path $game 'sotesx_s.dll'
-if ((Resolve-Path $jp).Path -ieq $dstVoice) {
-  Ok "  sotesx_s.dll (already in place)"
+Step "Installing"
+Copy-Item $realver (Join-Path $game 'realver.dll') -Force; Good "realver.dll  (forwards the real version.dll)"
+Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Good "version.dll  (the patch)"
+$dst = Join-Path $game 'sotesx_s.dll'
+$sameFile = (Test-Path $dst) -and ((Resolve-Path $jp).Path -ieq (Resolve-Path $dst).Path)
+if ($sameFile) {
+  Good "sotesx_s.dll (already in place)"
 } else {
-  Info "  Copying sotesx_s.dll (~253 MB, one moment)…"
-  Copy-Item $jp $dstVoice -Force; Ok "  sotesx_s.dll (the voice bank)"
+  Step "Copying sotesx_s.dll (~253 MB, a few seconds)"
+  Copy-Item $jp $dst -Force; Good "sotesx_s.dll (the voice bank)"
 }
 
 Write-Host ""
-Ok "Done!  Launch the game normally."
-Info "The first line of the game (Arche's dad) should now be spoken in Japanese."
-Info "If anything's off, check oss_voice.log in the game folder, or run Uninstall.bat."
+Good "Done. Launch the game normally."
+Note "The first line (Arche's dad) is now spoken in Japanese. Run Uninstall.bat to remove."
 Read-Host "Press Enter to exit"

@@ -1,11 +1,13 @@
-# Fortune Summoners EN-SE — Japanese Voice Patch uninstaller.
-# Removes the patch files; leaves the game otherwise untouched.
+# Fortune Summoners (English SE) - Japanese Voice Patch : uninstaller.
+# Removes the patch files; leaves the game otherwise untouched. ASCII-only.
 $ErrorActionPreference = 'SilentlyContinue'
-function Info($m){ Write-Host $m -ForegroundColor Cyan }
-function Ok($m){ Write-Host $m -ForegroundColor Green }
-function Warn($m){ Write-Host $m -ForegroundColor Yellow }
+function Step($m){ Write-Host "[*] $m" -ForegroundColor Cyan }
+function Good($m){ Write-Host "[+] $m" -ForegroundColor Green }
+function Warn($m){ Write-Host "[!] $m" -ForegroundColor Yellow }
 
-Info "=== Uninstall: Fortune Summoners EN-SE Japanese Voice Patch ==="
+Write-Host ""
+Write-Host "  Uninstall: Fortune Summoners EN-SE Japanese Voice Patch" -ForegroundColor Magenta
+Write-Host ""
 
 function Get-SteamLibraries {
   $libs = @()
@@ -15,8 +17,8 @@ function Get-SteamLibraries {
     $sp = $sp -replace '/','\'; $libs += $sp
     $vdf = Join-Path $sp 'steamapps\libraryfolders.vdf'
     if (Test-Path $vdf) {
-      foreach ($m in [regex]::Matches((Get-Content -Raw $vdf), '"path"\s*"([^"]+)"')) {
-        $libs += ($m.Groups[1].Value -replace '\\\\','\')
+      Get-Content $vdf | Select-String '"path"\s+"(.+?)"' | ForEach-Object {
+        $libs += ($_.Matches[0].Groups[1].Value -replace '\\\\','\')
       }
     }
   }
@@ -29,17 +31,19 @@ foreach ($lib in Get-SteamLibraries) {
   if (Test-Path (Join-Path $g 'sotes_en.exe')) { $game = $g; break }
 }
 if (-not $game) {
-  Warn "Couldn't auto-find the game folder."
+  Warn "Could not auto-detect the game folder - please pick it."
   Add-Type -AssemblyName System.Windows.Forms | Out-Null
   $d = New-Object System.Windows.Forms.FolderBrowserDialog
-  $d.Description = "Select the Fortune Summoners 'sotes' folder"
+  $d.Description = "Select the Fortune Summoners sotes folder"
   if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $game = $d.SelectedPath }
 }
-if (-not $game) { Warn "No folder selected — nothing removed."; Read-Host "Press Enter to exit"; exit }
+if (-not $game) { Warn "No folder selected - nothing removed."; Read-Host "Press Enter to exit"; exit }
 
+Step "Removing patch files from: $game"
 foreach ($f in 'version.dll','realver.dll','sotesx_s.dll','oss_voice.log') {
   $p = Join-Path $game $f
-  if (Test-Path $p) { Remove-Item $p -Force; Ok "  removed $f" }
+  if (Test-Path $p) { Remove-Item $p -Force; Good "removed $f" }
 }
-Ok "Uninstalled. The game is back to vanilla (English text, no voice)."
+Write-Host ""
+Good "Uninstalled - the game is back to vanilla (English text, no voice)."
 Read-Host "Press Enter to exit"

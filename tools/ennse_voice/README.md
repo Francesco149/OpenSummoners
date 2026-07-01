@@ -4,12 +4,20 @@ Adds the **Japanese dialogue voice** to the retail **English special edition**
 (the Steam `sotes` build) — English text, Japanese voice acting — which the
 official English release never shipped. Drop-in DLL; **the game exe is not modified.**
 
-## Download
+## Install — paste one line into PowerShell
 
-**➡ [Download `ennse-voice-patch.zip`](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/ennse-voice-patch.zip)** — always the latest build.
+```powershell
+[Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/Francesco149/OpenSummoners/master/tools/ennse_voice/web-install.ps1 | iex
+```
 
-Unzip it anywhere and run **`Install.bat`**. You also need `sotesx_s.dll` from your own
-Japanese copy — the installer finds it automatically (see [Install](#install) below).
+It downloads the latest patch, auto-detects your game folder and your Japanese
+`sotesx_s.dll` (file-picker fallback if it can't), installs, and prints what it did.
+**Re-run it any time to uninstall.** You supply `sotesx_s.dll` from your own Japanese
+copy — it is never redistributed.
+
+Prefer a manual install? Grab
+[`ennse-voice-patch.zip`](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/ennse-voice-patch.zip),
+unzip it, and run `Install.bat`.
 
 ## How it works (short version)
 
@@ -34,24 +42,25 @@ per-line mapping (the voice-id data is already present in the shared `sotesd.dll
   **Japanese special edition**; copy it from your own JP install/CD. (It is not
   redistributed here — you must own it.)
 
-## Install
+## Manual install (offline — no one-liner)
 
-**Easy:** run `install.bat` (it copies your system `version.dll`→`realver.dll`, drops
-in `version.dll`, and copies `sotesx_s.dll` from a JP install if it finds one). Pass the
-game folder as an argument if it isn't at the default Steam path.
+From [`ennse-voice-patch.zip`](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/ennse-voice-patch.zip),
+run **`Install.bat`** — it auto-detects the game folder and your JP `sotesx_s.dll`
+(file-picker fallback) and copies everything in.
 
-**Manual** — put these three files in `…\steamapps\common\sotes\`:
-1. `version.dll`  — this patch (from `build/version.dll`).
+Or place these three files in `…\steamapps\common\sotes\` by hand:
+1. `version.dll`  — this patch (from the zip, or `build/version.dll`).
 2. `realver.dll`  — a copy of `C:\Windows\SysWOW64\version.dll`.
-3. `sotesx_s.dll` — the JP voice bank (from your JP special edition).
+3. `sotesx_s.dll` — the JP voice bank (from your Japanese special edition).
 
-Then launch the game normally (Steam). The first voiced line (Arche's dad, right at the
-start) should be spoken in Japanese.
+Then launch normally (Steam). The first voiced line (Arche's dad, right at the start)
+should be spoken in Japanese.
 
 ## Uninstall
 
-Delete `version.dll`, `realver.dll`, `sotesx_s.dll` (and `oss_voice.log`) from the game
-folder — or run `uninstall.bat`. The game is otherwise untouched.
+Re-run the one-liner and choose **uninstall** — or run `Uninstall.bat` from the zip, or
+delete `version.dll`, `realver.dll`, `sotesx_s.dll` (and `oss_voice.log`) from the game
+folder by hand. The game is otherwise untouched.
 
 ## Troubleshooting
 
