@@ -157,9 +157,40 @@ the bound 0x404040 grades back to 0x333333, undoing the bind).  **No regression:
 only ramp drawn (bit-exact).  `PORT-DEBT(hud-ramp-palette)` RETIRED.  Host: `bs_install_palette`
 ×2 (swap + roundtrip-vs-emit).
 
-**Still open (slice 1c-2 remainder):** the 82×89 face PORTRAIT (`FUN_00494e60:125-164` — a
-per-member descriptor at `char+0x50`: head-state `+0x1c8` selects frame `+6/+8/+10`, main blit at
-(1,1) + a sub-blit at (92,29) frame `+0x14`; bank = `pool[*(char+0x50 +4)]`; res=0 in capture,
-dhash 0xbbf24c22 — a dedicated small-face bank, NOT the res-1000 dialogue bust) + the EXP gauge
-(`FUN_00498f10` — a bar gauge like HP/MP, the depleted span via `FUN_005b9ae0`/`0x5bd550` gated on
-display-mode `*DAT_008a6e80+0x94==2`, res 0x44e fr0 (144,42) w104 dhash 0x3a65dc81).
+## 6. Slice 1c-2 remainder — RE'd + scoped (ckpt 170), ready to port
+
+### The EXP gauge (`FUN_00498f10`) — FULLY RE'd; only the blend-desc sourcing + a capture remain
+
+Call site `0x494e60:95`: `FUN_00498f10(ctx, xbase+0x8f, ybase+0x29, 1, 4, cur=0, char+0xe8,
+char+0xec /*max*/, 0x68 /*w=104*/, 0x2e /*pool idx → g_ar_sprite_slots[33] = res 0x44e*/, 0, 1)`.
+Position **(144,42)** confirmed.  Two spans (ground truth `sword2.osr` tick 2200):
+- **seq493 FILLED** — `blt_rects` (mode 2) dst `(144,42,0,2)` src `(104,4)` — **width 0** (Arche's
+  errands EXP = 0: `cur=0` and `char+0xe8=0`; there's no combat in the errands, so it stays 0).
+  A 0-width no-op → OMIT it, like the HP/MP bars omit their 0-width depleted (ckpt 167).
+- **seq494 DEPLETED** — `blt_alpha` (mode 4, `FUN_005bd550`) dst `(144,42,104,2)` src `(0,14)`
+  **blend_ref=9** — the full empty gradient.  `498f10`'s display-mode branch
+  (`*DAT_008a6e80+0x94==2` → `0x5bd550` alpha, else `0x5b9ae0` rects) takes the ALPHA path here.
+  The port's `zdd_blit_orchestrate` (0x5bd550) simple path (gdi_ctx=`DAT_008a6ec0`=NULL, quirk #45)
+  → `zdd_alpha_blit(desc, primary, exp_frame, 144,42, 104,2, 0,14, ckey)`.
+
+**The blend desc:** retail passes `*(frame+0x28)` (the res 0x44e frame-0 surface's attached blend)
+= **blend_ref 9 = LUT md5 `ed6214bd`** — and the PORT ALREADY REGISTERS THIS EXACT DESCRIPTOR at
+its own blend_ref 9 (port osr ref 1..9 LUTs == retail's; `oe_blend_register` content-dedup order
+matches).  It's a common mid-alpha ramp (the fire/title/fades emit it).  **The only open mechanical
+step:** source it in `game_render_hud` — either (a) match `ed6214bd` against the `g_pd_boot_group_a/b[]`
+descriptors (compute each LUT via `oe_blend_lut_len`; the trail anchor is `g_ramp_a[19]`, the fire
+`g_ramp_a[14]`), or (b) replicate retail's `*(frame+0x28)` (attach the blend to the res 0x44e frame at
+register time).  **Also:** add res 0x44e (`g_ar_sprite_slots[33]`) to the `title_sheet_format` grade-skip
+(plain-getter bar sheet, same class as the HP/MP bars idx 34).  Then verify res 0x44e fr0 dst
+(144,42,104,2) dhash **0x3a65dc81** + the alpha blend.
+
+### The 82×89 face PORTRAIT (`FUN_00494e60:125-164`) — a bank hunt (Frida)
+
+A per-member descriptor at `char+0x50`: head-state `hud_ctx+0x1c8` selects the frame (`==2`→`+8`,
+`==3`→`+10`, else→`+6`); main blit at **(1,1)** 82×89, then a sub-blit at **(92,29)** frame `+0x14`
+(= res 0x775, registered idx 56).  Bank = `pool[*(char+0x50 +4)]`.  The main face is **res=0** in the
+capture, **dhash 0xbbf24c22** — a dedicated small-face bank, NOT the res-1000 dialogue bust.  NEEDS
+Frida (host up, ckpt-153 res-probe pattern): drive retail to the errands, hook `0x494e60` (or
+`0x418470` filtered by caller) at the portrait draw, read the bank ECX's `+0x3c` (HMODULE) / `+0x40`
+(PE res id), then register that bank in the port + blit it.  `PORT-DEBT(hud-party-context)`: the
+descriptor (bank + head-state frames) is Arche's leader stand-in until the party subsystem lands.
