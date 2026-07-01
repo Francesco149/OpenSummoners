@@ -22,6 +22,13 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
 - **[audio-init.md](audio-init.md)** — DSound + DInput init from the
   post-launch driver. (Audio playback paths still unported.)
 
+## Editions & versions
+
+- **[game-editions-and-voice.md](game-editions-and-voice.md)** — the JP-SE / EN-SE /
+  EN-old build matrix: file inventory, shared-vs-different asset DLLs (with hashes), the
+  voice-line architecture (`sotesx_s.dll` = 1,448 `WAVE` clips, **JP-only**), which engine
+  loads which DLL, and why the English builds are silent. Grows as we compare more.
+
 ## Rendering / assets
 
 - **[palette-session.md](palette-session.md)** — palette-ramp leaf helpers +
