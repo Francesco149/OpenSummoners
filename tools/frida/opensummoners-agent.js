@@ -340,7 +340,7 @@ const REC_SIZE            = 0x0c;
 const INJECT_POOL_N       = 32;         // reusable record structs
 
 let g_inject_enabled  = false;
-let g_inject_trace    = [];     // [{frame, ids:[...]}] sorted by frame
+let g_inject_trace    = [];     // [{frame|tick, ids:[...]}] in authored (temporal) order
 let g_inject_i        = 0;      // cursor into g_inject_trace
 let g_input_mgr       = null;   // resolved at first poll
 let g_inject_pool     = null;   // Memory.alloc(INJECT_POOL_N * REC_SIZE)
@@ -376,7 +376,7 @@ let g_gdi = {};                 // resolved GDI/user32 NativeFunctions
 const KEYDOWN_VA          = 0x5ba520;   // FUN_005ba520: keyboard_state[sc] & 0x80
 const INPUT_PRODUCER_VA   = 0x46a880;   // FUN_0046a880: fills axis-held from DInput
 let   g_held_inject_enabled = false;
-let   g_held_trace          = [];       // [{frame, keys:[scancode,...]}] by frame
+let   g_held_trace          = [];       // [{frame|tick, keys:[scancode,...]}] in authored order
 let   g_held_i              = 0;        // cursor into g_held_trace
 let   g_held_scancodes      = new Set();// current held scancodes (the level)
 let   g_held_last_flip      = -1;       // last flip the cursor was advanced for
@@ -1684,13 +1684,22 @@ function injectPress(id, slotIdx, ts) {
     slotAddr.writePointer(rec);
 }
 
-// Inject every trace entry whose frame is at-or-before the current Flip
-// frame, one record per id.  Fires each entry exactly once.  `engineNow`
-// is the poll's cached tick (used verbatim as the record timestamp).
+// An entry is due once ITS OWN clock (Flip for `.frame`, sim-tick for
+// `.tick` — the proxy's engine_input.h EI_TICK_AXIS counterpart, needed for
+// tick-precise dialogue-advance timing) reaches its threshold.  Entries with
+// neither key are never due (malformed; skip rather than fire at frame 0).
+function entryDue(e) {
+    if (e.frame !== undefined) return g_flip_frame >= e.frame;
+    if (e.tick  !== undefined) return g_sim_tick  >= e.tick;
+    return false;
+}
+
+// Inject every trace entry whose clock is at-or-before the current position,
+// one record per id.  Fires each entry exactly once.  `engineNow` is the
+// poll's cached tick (used verbatim as the record timestamp).
 function injectDueEntries(engineNow) {
     if (!g_inject_enabled || g_input_mgr === null) return;
-    while (g_inject_i < g_inject_trace.length &&
-           g_flip_frame >= g_inject_trace[g_inject_i].frame) {
+    while (g_inject_i < g_inject_trace.length && entryDue(g_inject_trace[g_inject_i])) {
         const e = g_inject_trace[g_inject_i];
         const ids = e.ids || [];
         for (let j = 0; j < ids.length; j++) {
@@ -1698,8 +1707,8 @@ function injectDueEntries(engineNow) {
             injectPress(ids[j], RING_SLOTS - 1 - j, engineNow);
             g_inject_n++;
         }
-        send({ kind: 'inject', frame: g_flip_frame, trace_frame: e.frame,
-               ids: ids, now: engineNow });
+        send({ kind: 'inject', frame: g_flip_frame, sim_tick: g_sim_tick,
+               trace_frame: e.frame, trace_tick: e.tick, ids: ids, now: engineNow });
         g_inject_i++;
     }
 }
@@ -1776,8 +1785,7 @@ function heldAdvance() {
     if (g_flip_frame === g_held_last_flip) return;
     g_held_last_flip = g_flip_frame;
     let changed = false;
-    while (g_held_i < g_held_trace.length &&
-           g_flip_frame >= g_held_trace[g_held_i].frame) {
+    while (g_held_i < g_held_trace.length && entryDue(g_held_trace[g_held_i])) {
         g_held_scancodes = new Set(g_held_trace[g_held_i].keys);
         g_held_i++;
         changed = true;
@@ -3069,25 +3077,39 @@ rpc.exports = {
         }
         if (opts.input_inject_enabled && Array.isArray(opts.input_trace)) {
             g_inject_enabled = true;
-            g_inject_trace = opts.input_trace
-                .map(function (e) { return { frame: e.frame | 0, ids: e.ids || [] }; })
-                .sort(function (a, b) { return a.frame - b.frame; });
-            // Opt-in poll/latch debug window around the LAST scripted press
-            // (so probes of a deep sub-menu are covered, not just the first).
+            // Preserve the authored (temporal) file order — do NOT sort by
+            // `.frame`: entries may be `.tick`-keyed (no `.frame` at all), and
+            // frame/tick aren't comparable on one numeric axis (Flip vs
+            // sim-tick tick at a different rate). The Python-side parser
+            // already emits entries in file order; trust it.
+            g_inject_trace = opts.input_trace.map(function (e) {
+                const out = { ids: e.ids || [] };
+                if (e.frame !== undefined && e.frame !== null) out.frame = e.frame | 0;
+                if (e.tick  !== undefined && e.tick  !== null) out.tick  = e.tick  | 0;
+                return out;
+            });
+            // Opt-in poll/latch debug window spanning the FIRST-to-LAST
+            // `.frame`-keyed press (so the whole scripted boot sequence is
+            // observable in one capture, not just the tail). Flip-only —
+            // `.tick`-keyed entries (in-game) don't participate; probe those
+            // separately once the boot handoff is understood.
             if (opts.inject_debug && g_inject_trace.length > 0) {
-                const last = g_inject_trace[g_inject_trace.length - 1].frame;
-                g_poll_dbg_lo = last - 1;
-                g_poll_dbg_hi = last + 3;
+                const framed = g_inject_trace.filter(function (e) { return e.frame !== undefined; });
+                if (framed.length > 0) {
+                    g_poll_dbg_lo = framed[0].frame - 1;
+                    g_poll_dbg_hi = framed[framed.length - 1].frame + 3;
+                }
             }
         }
         if (opts.held_inject_enabled && Array.isArray(opts.held_trace)) {
             g_held_inject_enabled = true;
-            g_held_trace = opts.held_trace
-                .map(function (e) {
-                    return { frame: e.frame | 0,
-                             keys: (e.keys || []).map(function (k) { return k & 0xff; }) };
-                })
-                .sort(function (a, b) { return a.frame - b.frame; });
+            // Same authored-order rule as g_inject_trace above.
+            g_held_trace = opts.held_trace.map(function (e) {
+                const out = { keys: (e.keys || []).map(function (k) { return k & 0xff; }) };
+                if (e.frame !== undefined && e.frame !== null) out.frame = e.frame | 0;
+                if (e.tick  !== undefined && e.tick  !== null) out.tick  = e.tick  | 0;
+                return out;
+            });
         }
 
         withModule(function (mod) {

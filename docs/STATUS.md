@@ -609,6 +609,40 @@ understates how much actual instruction volume is ported.
   OWN leader-match compare** (decompile `:80`, `in_ECX+0x1b4 == *(iVar15+0x9f4)`) or an `--osr-state`
   named-field dump at the render site, to see which branch fires for Arche.  `PORT-DEBT(hud-party-
   context)` unchanged either way.  `findings/freeroam-hud.md` §6.
+  **ckpt 172 — the portrait bank-hunt: the ×2/frame call SOLVED, the ckpt-171 "open contradiction"
+  REPLACED by a deeper, exhaustively-proven finding (not landed — carries to next session).**
+  (1) **×2/frame solved** (static disasm `0x48c500-48c560`): `FUN_0048c150` calls `0x494e60` from a
+  2-iter loop, ECX = `(0x48c150's this)+0x128` then `+0x128+0x3ec` (array of 2 per-member HUD-panel
+  contexts, stride 0x3ec) — Ghidra's decompile hid this (shows the same stack arg both calls; ECX is
+  thiscall-implicit). array[0] = Arche's real populated panel; array[1] = always-empty (no 2nd member
+  in the errands). (2) **Tooling fix (real, committed): `frida_capture.py` + `opensummoners-agent.js`
+  now support `{"tick":N}` trace entries** (previously silently coerced to `frame:0`, firing every
+  tick-keyed press at boot instead of its real tick — `parse_input_trace`/`parse_held_trace` accept
+  either key, the agent's inject/held cursors check whichever the entry carries). (3) **THE DEEPER
+  FINDING:** a native capture-proxy detour on `0x494e60` (throwaway, reverted after use) read
+  `in_ECX+0x1b4` ("leader_uid") on EVERY call, BOTH array slots, across the ENTIRE `sword2-{nav,held}`
+  replay (`game_enter`@flip=1117 matches the known-good value; array[0]'s room+slot0 populated from
+  there on; all 219 nav injects landed through the trace's end, tick 8014) — **leader_uid read
+  EXACTLY 0x0 on every single call, flip 1117→49478.** Not a sampling bug (the first pass DID have
+  one — a `calls%60==0` throttle parity-locks onto ONE alternating array slot forever, canceling
+  itself out here since it locked onto the dead array[1]; a state-CHANGE-triggered rewrite closed
+  that blind spot and STILL shows 0x0 everywhere). Bars/EXP/frame/stars don't need this (the port
+  ships them as a hardcoded `PORT-DEBT(hud-party-context)` stand-in — ckpt 167-171's "verified"
+  checks were port-vs-CACHED-sword2.osr, never a live/replayed retail run); the portrait's bank is
+  read live off `char+0x50` at the exact leader-match branch, so no stand-in is possible — needs the
+  match to actually fire, and it never has in ANY replay attempt (Frida INT3, Frida field-spec, native
+  field probe — 3 independent tools agree). **Conclusion: the scripted ring-injection replay of the
+  recorded session does not reproduce whatever arms `hud_ctx+0x1b4` in the original human-played
+  session — a genuine replay-fidelity gap, not a probe-placement bug.** `findings/freeroam-hud.md` §7.
+  **NEXT (fresh session, either path resolves it):** (a) find the actual `+0x1b4` setter (not in any
+  locally-decompiled function; start from `FUN_0048c150`'s callers/init path) — RE it, then check
+  whether replay simply never reaches that write-site, vs a value the replay CAN produce; (b) skip
+  replay entirely — drive a live/manual play session to the errands and probe `array[0]+0x1b4` there
+  (a human session is what produced sword2.osr's portrait render in the first place). SEPARATELY
+  (not this blocker, keep for later): `frida_capture.py` replays of `sword2-nav.jsonl` still dead-end
+  before `newgame_enter` — an unmapped `btn=0x22` poll the ring-injection never satisfies; the native
+  proxy has no such issue (used for this ckpt's captures instead). `PORT-DEBT(hud-party-context)`
+  unchanged.
   **ckpt 146 the house Arche TURN (scoped gap A) — DONE + drawcall-faithful (`cfc6a96`, 1030 host pass):** the
   script emote `0x401e60(Arche,1)` at `0x4d7d80:1170` (after house L5) = actor cmd-2 "turn to face dir 1"
   (`0x43e5b0` case 2); off retail.osr res 0x570 (static at screen 354,336) Arche runs cels 158(4t)→7(4t)→the

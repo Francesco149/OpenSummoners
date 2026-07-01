@@ -184,10 +184,18 @@ def write_png_from_dib24(path: Path, w: int, h: int, stride: int,
 
 
 def parse_input_trace(path: Path) -> list[dict]:
-    """Parse a JSONL input trace: one {"frame": N, "ids": [..]} per line.
+    """Parse a JSONL input trace: one {"frame"|"tick": N, "ids": [..]} per line.
 
-    Tolerates blank lines and `# ...` comments.  `ids` entries may be decimal
-    or `0x`-hex (as JSON numbers or strings).  Returns a list sorted by frame.
+    `frame` entries fire once the agent's Flip counter reaches N; `tick`
+    entries fire once its sim-tick counter does (the proxy's engine_input.h
+    EI_TICK_AXIS counterpart — needed for tick-precise dialogue-advance
+    timing, since Flip and sim-tick don't advance 1:1). A file may mix both
+    (e.g. frame-keyed boot nav + tick-keyed in-game dialogue advances).
+    Tolerates blank lines and `# ...` comments. `ids` entries may be decimal
+    or `0x`-hex (as JSON numbers or strings). Returns entries in FILE ORDER —
+    frame and tick aren't comparable on one numeric axis, so (unlike the
+    old frame-only behaviour) this does NOT sort; author entries in the
+    temporal order you want them consumed.
     """
     out: list[dict] = []
     for ln in path.read_text(encoding="utf-8").splitlines():
@@ -195,12 +203,17 @@ def parse_input_trace(path: Path) -> list[dict]:
         if not s or s.startswith("#"):
             continue
         obj = json.loads(s)
-        frame = int(obj["frame"])
+        if "frame" not in obj and "tick" not in obj:
+            raise ValueError(f"{path}: entry missing both frame and tick: {s!r}")
         ids = []
         for v in (obj.get("ids") or []):
             ids.append(int(v, 0) if isinstance(v, str) else int(v))
-        out.append({"frame": frame, "ids": ids})
-    out.sort(key=lambda e: e["frame"])
+        entry: dict = {"ids": ids}
+        if "frame" in obj:
+            entry["frame"] = int(obj["frame"])
+        if "tick" in obj:
+            entry["tick"] = int(obj["tick"])
+        out.append(entry)
     return out
 
 
@@ -211,14 +224,17 @@ _HELD_DIK = {"up": 0xc8, "down": 0xd0, "left": 0xcb, "right": 0xcd}
 
 
 def parse_held_trace(path: Path) -> list[dict]:
-    """Parse a JSONL HELD-AXIS trace: one {"frame": N, "keys": [..]} per line.
+    """Parse a JSONL HELD-AXIS trace: one {"frame"|"tick": N, "keys": [..]} per line.
 
-    Each entry SETS the held key-set from that Flip frame on (a LEVEL, persisting
-    until the next entry — the counterpart of the discrete ring trace).  `keys`
-    are DIK scancodes (decimal or `0x`-hex, as JSON numbers or strings) or the
-    names up/down/left/right.  The agent forces FUN_005ba520 to report those
+    Each entry SETS the held key-set from that clock position on (a LEVEL,
+    persisting until the next entry — the counterpart of the discrete ring
+    trace). `frame` fires on the agent's Flip counter, `tick` on its sim-tick
+    counter (see parse_input_trace); a file may mix both.  `keys` are DIK
+    scancodes (decimal or `0x`-hex, as JSON numbers or strings) or the names
+    up/down/left/right.  The agent forces FUN_005ba520 to report those
     scancodes pressed so the real producer fills mgr+0x114 (engine-quirk #41).
-    Tolerates blank lines and `# ...` comments.  Returns a list sorted by frame.
+    Tolerates blank lines and `# ...` comments. Returns entries in FILE ORDER
+    (see parse_input_trace — frame/tick aren't jointly sortable).
     """
     out: list[dict] = []
     for lineno, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -226,7 +242,8 @@ def parse_held_trace(path: Path) -> list[dict]:
         if not s or s.startswith("#"):
             continue
         obj = json.loads(s)
-        frame = int(obj["frame"])
+        if "frame" not in obj and "tick" not in obj:
+            raise ValueError(f"{path}:{lineno}: entry missing both frame and tick: {s!r}")
         keys = []
         for v in (obj.get("keys") or []):
             if isinstance(v, str) and v.lower() in _HELD_DIK:
@@ -235,8 +252,12 @@ def parse_held_trace(path: Path) -> list[dict]:
                 keys.append(int(v, 0) & 0xff)
             else:
                 keys.append(int(v) & 0xff)
-        out.append({"frame": frame, "keys": keys})
-    out.sort(key=lambda e: e["frame"])
+        entry: dict = {"keys": keys}
+        if "frame" in obj:
+            entry["frame"] = int(obj["frame"])
+        if "tick" in obj:
+            entry["tick"] = int(obj["tick"])
+        out.append(entry)
     return out
 
 

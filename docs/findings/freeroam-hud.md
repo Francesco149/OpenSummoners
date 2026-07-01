@@ -191,6 +191,94 @@ dst=(144,42,104,2) src=(0,14) bmode=1` — dhash **0x3a65dc81 byte-identical** t
 truth.  1074 host pass (+`test_hud_exp_gauge_position`).  `PORT-DEBT(hud-party-context)` unchanged
 (EXP pinned at 0, Arche's errands value).
 
+## 7. The portrait bank-hunt (ckpt 172) — the ×2/frame call resolved; the ckpt-171
+## "open contradiction" replaced by a DEEPER, better-evidenced finding: the leader
+## slot-match never arms across a FULL scripted replay of the recorded session
+
+**The ×2/frame call SOLVED (static disasm, `objdump -d --start-address=0x48c500
+--stop-address=0x48c560`):** `FUN_0048c150` (the per-frame render driver) calls
+`0x494e60` from a 2-iteration loop —
+```
+lea esi,[ebx+0x128]      ; esi = (0x48c150's own this) + 0x128 — array BASE
+mov edi,0x2               ; 2 iterations
+mov ecx, esi              ; ECX (0x494e60's thiscall this) = esi
+call 0x494e60
+add esi, 0x3ec            ; stride to the NEXT element
+dec edi; jnz ...
+```
+So `0x494e60` renders a **2-element array of per-member HUD-panel contexts**
+(`outer_this+0x128` and `+0x128+0x3ec`), not two unrelated calls — matches the
+Ghidra decompile's misleading "`FUN_00494e60(*(...+0x16c))`" (same arg both
+iterations; that's `param_1`, the *stack* arg used for blit calls, NOT the
+`__thiscall this` Ghidra can't show without thiscall-tagging `0x494e60`).
+`array[0]` is the real, populated panel (in the errands: room valid, `mode10=1`,
+slot0 active — this is Arche's panel); `array[1]` stays all-zero (no 2nd party
+member in the errands). Confirmed live: the two alternating ECX values a naive
+per-N-calls throttle was sampling (`0xe51b0d8`/`0xe51b4c4`) differ by EXACTLY
+`0x3ec`.
+
+**THE DEEPER FINDING (supersedes the ckpt-171 "open contradiction" — same root
+cause, but now proven EXHAUSTIVELY instead of via one placement-sensitive INT3):**
+a native capture-proxy detour (`detour_add(0x494e60, ...)`, THROWAWAY — added,
+used, then reverted; not in the committed tree) read `in_ECX+0x1b4` ("leader_uid",
+the value each slot's `+0x9f4` must equal to match) **at *every single call*, both
+array slots, for the ENTIRE replayed session** — `runs/sync/sword2-{nav,held}.jsonl`
+replayed start-to-finish under `tools/capture_proxy/run_proxy.sh` (`OSS_TURBO=1`
+default, ~840 fps): `game_enter` fired at **flip=1117** (exactly the value
+CLAUDE.md's earlier verification cites), `array[0]`'s `room` and `slot0`
+(`active=1`, a real `member` pointer) were populated from that flip onward, and
+**all 219 nav-trace input injections landed (through the trace's last entry, tick
+8014)** — yet `leader_uid` (`in_ECX+0x1b4`) read **exactly `0x0` on every single
+call, both array slots, flip 1117 through flip 49478** (well past the entire
+recorded session — the replay just idles once the trace is exhausted). This is
+not a sampling artifact: the first probe pass DID have a real bug (a `calls%60==0`
+throttle has a 50% chance of parity-locking onto ONE of the two alternating array
+slots forever — here it locked onto the always-empty `array[1]` after call 20,
+which is why the top-level line looked stuck at all-zero) — but the FIX (log on
+any `ecx`/`room`/`leader_uid`/`mode10` state CHANGE instead of a call-count
+modulus) removed that blind spot and the exhaustive re-run still shows `leader_uid`
+never leaving `0x0`, for the panel that unambiguously carries the real character
+(active slot0 in `array[0]`).
+
+**Why this specifically blocks the portrait (and NOT the already-ported bars/EXP/
+frame/stars):** the leader-match test (`:74-165`) is the single gate around the
+*entire* leader-panel block, but bars/EXP/frame/stars are UNCONDITIONAL inside it
+once the block runs at all — the port ships them as a **hardcoded `PORT-DEBT
+(hud-party-context)` stand-in** (Arche's fixed HP/MP/EXP=0/level values), so
+ckpt 167-171's "verified bit-exact" checks only ever confirmed the port's
+hardcoded geometry against the CACHED `sword2.osr` (a real human session,
+captured long before this ckpt) — none of them exercised a live/replayed RETAIL
+run. The **portrait** is different: its bank/frame values are read from
+`char+0x50` at the MOMENT the leader-match branch (`:125`) executes, so a stand-in
+isn't possible — we need retail's REAL `char+0x50` value, which requires the
+match to actually fire in a live capture. It never has, in any replay attempt.
+
+**Conclusion:** the scripted ring-injection replay of the recorded `sword2` inputs
+does not reproduce whatever internal event arms `hud_ctx+0x1b4` in the original
+human-played session — a genuine **replay-fidelity gap**, not a probe-placement
+bug (the ckpt-171 INT3 and the ckpt-172 field probe are two independently-built,
+independently-blind-spot-free tools that agree). This is worth remembering for
+*any* future investigation leaning on `sword2-{nav,held}.jsonl` for something
+that depends on party/leader state specifically (movement/sword/attack chip work
+never needed this — only the HUD's per-member data does).
+
+**NEXT (a fresh session, two independent paths — either resolves this):**
+(a) **find the actual setter of `+0x1b4`** — grep/decompile whatever writes it
+(no direct assignment matched a repo-wide `grep "0x1b4) ="` over
+`docs/decompiled/by-address/*.c`, so it's in a not-yet-decompiled function;
+start from `FUN_0048c150`'s OWN callers/init path, or search for what else reads/
+writes the `outer_this+0x128` 2-element array before the render call); (b) **stop
+replaying — drive a REAL, live, human/manual play session** to the errands (no
+scripted ring-injection) and probe `array[0]+0x1b4` then, since a human session is
+what originally produced the sword2.osr renders in the first place. Either
+resolves the bank id in one capture. `PORT-DEBT(hud-party-context)` unchanged;
+`tools/flow/hud_portrait_fields.json` (a Frida field-spec attempt, superseded by
+the native-proxy probe above because a *separate*, still-unresolved Frida-only
+issue — an unmapped `btn=0x22` poll the ring-injection can't satisfy — blocks
+`sword2-nav.jsonl` from even reaching `newgame_enter` under `frida_capture.py`,
+independent of this session's tick/frame-axis fix below) keeps its field chains
+for whoever revisits via Frida once that separate boot-nav issue is understood.
+
 ### The 82×89 face PORTRAIT (`FUN_00494e60:125-164`) — mechanism RE'd via STATIC DISASM; an
 ### open contradiction blocks the bank id (ckpt 171, not landed — next-session pickup)
 
