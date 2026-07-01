@@ -94,6 +94,37 @@ each slot = a 32×32 frame + an item icon (~24-30²) + a 14×10 quantity glyph (
 3. **Door indicator** (`0x4969b0`).
 4. Retire `PORT-DEBT(hud-party-context)` when the party subsystem is ported.
 
+**Scoping correction (ckpt 172, after actually reading these decompiles — bump the estimate):**
+none of slices 2-3 are simple static icons; each is its own multi-checkpoint RE, same class as the
+portrait, not a quick add-on:
+- **`0x4969b0` (door indicator) is a FULL off-screen multi-exit compass-arrow system**, not a fixed
+  (200,415) icon: scans a 32-actor band for "exit" types matching a room/param relation, world→screen
+  projects each against a 72000×56000 view bound, DEDUPES/stacks actors landing within 5px of each
+  other (offsetting ±12px by which screen edge), picks 1-of-8 frames (4 directions × normal/
+  highlighted — highlighted when `param_4==`the actor, i.e. "the door you're standing at"), and
+  alpha-fades near the bound via the `DAT_008a9308` ramp table (the ckpt-163/171 blend-LUT family).
+  ckpt-167's single observed draw (200,415) is just this scene's ONE passing actor — the general
+  mechanism needs the full multi-door case understood before it's faithfully portable.
+- **`0x497c20` (bottom-left strip) is a "quick item" HUD slot**: a mode selector at `param_2+0x4070`
+  (0=nothing / 1="Quick heal" text / 2=an inventory item name+count via `param_2+0x4078/0x407c`) drives
+  an optional TEXT row, ALWAYS drawing a 3-segment animated bar (`FUN_005b9ae0`×3) + frame + icon
+  underneath regardless of mode. In solo-Arche errands mode is presumably 0 (no quick item bound) —
+  but "the base bar always renders" means this is NOT the omit-when-0 pattern the EXP gauge used;
+  needs the `param_2+0x40xx` quick-item struct RE'd even for the always-on part.
+- **`0x4975e0` (bottom-right cluster) looks like COMBAT UI** (a small gauge via the shared
+  `FUN_00498f10`, a weapon-range/hitbox visualization via `FUN_004505c0` + a clipped blit, and a
+  cooldown-percent icon via `FUN_00497a00` keyed off `in_ECX+0x3c4`) — likely inert in the peaceful
+  errands but its OWN unconditional tail draw (`FUN_005b9b70` at the end) still needs the exact
+  position math traced, not assumed.
+- **`0x4962a0` (item slot, ×6) is the simplest of the four (242 B)** — a slide-in-positioned keyed
+  blit (frame) + a conditional 2nd blit (icon present) from two DIFFERENT pool slots
+  (`DAT_008a76d0`/`DAT_008a76f0`) — but its caller/loop (`0x496ec0`? unread this ckpt) still needs
+  confirming for the per-slot item-icon/qty source.
+None of these are "next chip" material for a quick add-on pass; each wants its own dedicated
+checkpoint (RE the data struct, ground-truth the OFF state in `sword2.osr`/`retail.osr`, port, verify)
+the same way the portrait does. Picking back up here: start with `0x4962a0`'s wrapper (find what loops
+it ×6 and what per-slot icon/qty data it reads) since it's the smallest surface area.
+
 Verify: `draw_probe`/`hud_probe` (the rects/keyed positions), the TEXT records (the numbers),
 `osr_prof` recon (`differ_px==0` per region).  `tools/trace_studio2/hud_probe.py` is the ground-truth
 probe (dumps the HUD layer at any tick).
