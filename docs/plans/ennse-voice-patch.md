@@ -4,6 +4,17 @@
 JP dialogue voice (from `sotesx_s.dll`), with the **exe left unmodified** (still packed;
 Steam-launchable). No port integration (that's a separate future track).
 
+## Status (2026-07-01)
+
+**DONE — voice plays (user-confirmed: JP voice on the EN SE, English text + JP audio).**
+`tools/ennse_voice/` builds a proxy `version.dll` (all 17 exports forwarded to
+`realver.dll`) that, once the sound device is up, calls the engine's own
+`bank_load("sotesx_s.dll")` → sets `0x92af80`, and `operator_new`+`manager_init` →
+sets `0x92b76c`. The engine then plays voice with its own per-line mapping.
+Redistributable: `version.dll` + `Install.bat`/`install.ps1` (auto-detect game +
+JP `sotesx_s.dll`) + `Uninstall.bat` + `README.md`. `oss_voice.log` traces each step.
+**Next:** ship via CI nightly release (see repo `.github/workflows/`).
+
 ## The key finding (why this is easy)
 
 `sotes_en.exe` (EN-SE engine) **retains the ENTIRE voice subsystem code** — the localizer
