@@ -46,19 +46,29 @@ understates how much actual instruction volume is ported.
 - **HUD blocker (parked) — the PORTRAIT.** `hud_ctx+0x1b4` (leader_uid) reads 0x0 on
   every scripted replay (a replay-fidelity gap, not a port bug); resolve via the
   `+0x1b4` setter or a live/manual play. `findings/freeroam-hud.md §6-9`.
-- **Next move (USER marks, port-stairs|retail-stairs `osr_notes.jsonl`, ckpt 175):**
-  (a) **dialogue ADVANCE-GATE — the port runs EARLY** (mark t1197: retail box shows the
-  Mother's "wait up for your poor, old, slow parents" line, the port box is already
-  empty under the SAME confirm injections → the whole chain + the house REVEAL plays
-  early).  Suspect: retail gates the confirm on text-reveal completion / a per-line
-  min-hold the port lacks — RE `0x48cf80`-family box FSM's accept gate; compare
-  line-advance ticks port vs retail in the stairs pair.
+- **Landed ckpt 176 — dialogue mark t1197 FIXED + char-turn RE corrected.** (a1) The
+  "port skips dialogue early" mark is NOT an advance-gate bug — the advance PRESSES
+  already match retail (port DLGT + dialogue_timeline off the stairs pair).  It was a
+  box RENDER linger: retail keeps the arrival L9 box up through tick 1200, the port
+  cleared it at 1192 → `ARRIVAL_EXIT_BOX_HOLD=8` (== the house-exit box-hold pattern),
+  drawcall-verified L9 adv 1192→1200 == retail.  `findings/dialogue-advance-early.md`.
+  (c) char-turn RE CORRECTED: the ckpt-175 "case-2" pointer was WRONG (that's the
+  DOWN/crouch, already ported); the real reversal turn is the STATE-1 horizontal FSM
+  `0x442a70:1011-1090`.  See `port-debt.md`.
+- **Next move (the residual dialogue drift + the 2nd USER mark):**
+  (a2) **the chain still plays EARLY (OPEN)** — a BEAT-duration gap, NOT the dialogue
+  gate: under the dense-confirm re-drive the house starts ~−10t, errands ~−26t (the
+  advances match, but the room-transition FADE beats settle short).  Suspects: the
+  scene_fade grid settle-rate + the exit/entry WAITs (measured stand-ins off the OLD
+  retail.osr).  RE the fade PERFORMER's per-tick step off retail-stairs before
+  adjusting — do NOT curve-fit.  `findings/dialogue-advance-early.md` "Component 2/3".
   (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
-  kitchen HUTCH with dishes, upstairs) — the unported object-spawn pass `0x58c8c0`
-  (the res_explorer PLACEHOLDER objects; mom's pose in-crop differs too — check her
-  clip once the props land).
-  (c) `char-turn-state` — the 4-tick standing turn-around (`0x426f50(body,2)` case-2
-  sub-FSM, `0x442a70:810-830`), the last freeroam-walk residual.
+  kitchen HUTCH with dishes, upstairs) — the unported object-spawn PLACEHOLDER pass
+  (`0x58c8c0` is a 4-B getter; the real spawn family is `0x58c8d0`/`0x58cb30`; the
+  res_explorer already renders these host-side).  Mom's pose in-crop differs too —
+  check her clip once the props land.  (Visual-verify: deferred.)
+  (c) `char-turn-state` — the STATE-1 reversal turn FSM `0x442a70:1011-1090` (deep,
+  entangled with the bit-exact walk; verify via `state_diff` synth-stairs, no regress).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
   collidable actors matter.
 - **Open PORT-DEBT (this front):** `char-turn-state`, `mover-actor-scan`,

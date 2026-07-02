@@ -6,6 +6,32 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 (ckpt 176) — dialogue "runs early" decomposed: L9 box-linger FIXED; char-turn RE corrected
+
+- **The USER studio mark t1197 ("port skipping dialogue early") is FIXED — and it was
+  NOT the advance-gate the FRONT hypothesised.**  Decomposed off `port-stairs.osr` |
+  `retail-stairs.osr` (the spam-confirm re-drive, one 0x24/14t) + a new per-tick port
+  `OSS_DLG_TRACE` dump: every arrival advance PRESS is tick-1:1 (L0-L8) and L9 advances
+  on the SAME confirm (sim-tick 1192) as retail — the accept gate (`0x43ce50`/`0x43bca0`/
+  `0x43b980`, state-1 skip / state-2 advance) is faithful.  The mark is a box RENDER
+  linger: retail draws L9's body through tick 1200; the port (`ARRIVAL exit_box_hold=0`)
+  cleared it at 1192.  **Fix: `ARRIVAL_EXIT_BOX_HOLD=8`** (the SAME box-linger the house
+  exit uses); drawcall-verified L9 adv 1192→1200, hold 23t == retail.  Chain timing
+  unchanged (exit beats still fire at the 1192 advance).  `findings/dialogue-advance-early.md`;
+  `test_cutscene_transition_fades` updated; 1088/0/6.
+- **OPEN (deferred): the chain still plays early** — a BEAT-duration gap (house ~−10t /
+  errands ~−26t at the room-transition fades), NOT the dialogue gate.  Needs the
+  scene_fade grid settle-rate RE'd off `retail-stairs.osr` (don't curve-fit).  Measured
+  tables + suspects documented in the finding.
+- **char-turn-state RE CORRECTED:** the ckpt-175 "`0x426f50(body,2)` case-2 sub-FSM"
+  pointer was WRONG — `body+0x38==2` is the DOWN/CROUCH (`param_1[3]==10`, already ported
+  as the pose).  The real reversal turn is the STATE-1 horizontal command/facing FSM
+  `0x442a70:1011-1090` (`local_24` reversal → `body+0x3a`/`+0x3c` timing → the facing
+  toggle :1085 / `FUN_0040a540`; ramp `0x445db0` already ported).  Port DEFERRED (deep,
+  entangled with the bit-exact walk).  Corrected in `port-debt.md` + `freeroam-collision.md`.
+
+---
+
 ## 2026-07-02 (ckpt 175) — COLLISION lands: Arche stops, climbs, and descends the stairs 1:1
 
 - **The freeroam collision movers are ported + wired** (retires the USER-confirmed
