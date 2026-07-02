@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 — res_explorer: the full resource explorer (voice_view retired) + README hero refresh
+
+- **`tools/res_explorer/` — every resource type, engine-accurate.** ImGui/DX11 32-bit
+  (osr_view build pattern; `-Wl,--large-address-aware` — the DLLs map ~560 MB), reusing
+  the PORT's own decoders: `bs_decode_resource`/`bs_parse_compressed_header`
+  (sprites; tool supplies `bs_*` primitives w/ 1041-lang fallback, bitmap_session_win32
+  NOT linked) + `map_data_parse` (maps). Kinds: Sprite/Image/Bitmap/Map/Audio/Music/
+  Strings/Version/Data; unified sortable-filterable table (clipper), per-kind preview
+  (sprite: palette+colorkey+grid+px readout, nearest-sampler zoom via draw-callback;
+  map: tile-id schematic + object overlay 5xxxx/6xxxx/7xxxx/8xxxx + parses-exactly badge;
+  audio: waveform + seekable waveOut, WMA/non-PCM via MCI; hex+info always), export
+  PNG/frames/WAV/WMA/JSON/TXT/BIN + bulk w/ manifest. CLI: --list/--dump (voice_view
+  compat) + --export (kind-appropriate) + --shot (self-screenshot, used for README pic).
+  Threaded install auto-load (fixes the blank-frozen-window sync load; exact-name exe
+  glob — stray sotes-unpacked-*.exe had exhausted 32-bit VA ⇒ bad_alloc).
+- **Format facts (verified live):** 756/759 sotesd DATA blobs (incl. sibling magics
+  0xe225/0x361f/0x3e49 + chunked 1000-1004 = four 640x352 24bpp sheets) decode via
+  the ONE compressed path — dims ARE in the self-rebasing header (lizsoft-sprite.md
+  corrected). sotes.exe .rsrc maps all classify + parse exactly. Voice bank 1448 PCM.
+  8bpp sheets memory-top-down, 24bpp bottom-up (viewer defaults match).
+- **CI/release:** workflows + flake `.#ci` (IMGUI_DIR) ship `res_explorer.exe`;
+  `tools/voice_view/` REMOVED. Gate clean (ASF check = 8-byte prefix, not the GUID).
+- **README refresh (USER):** early/non-playable status up front; hero pics
+  (`docs/media/res-explorer.png`, `ennse-voice-install.png`); support-the-author Steam
+  links (SE 1381770 rec + 2012 original 203510); JP voiced-release hunt metadata
+  (Deluxe boxed 2009-06-18 Jungle ASIN B0026EQRVE / JP-SE CD; sotesx_s.dll sha256 +
+  size); patch target pinned (sotes_en.exe sha256 668f7e1a…, 72,529,416 B, app 1381770
+  buildid 23890965, seed VAs) in ennse_voice/README.
+
+---
+
 ## 2026-07-01 (ckpt 164–174) — frame-lock re-drive foundation closed + freeroam HUD panel slices 1–3
 
 *(Migrated from FRONT.md, which had grown to 2700+ lines; deep detail lives in

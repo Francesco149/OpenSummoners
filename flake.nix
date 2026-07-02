@@ -151,7 +151,7 @@
         devShells.ci = pkgs.mkShell {
           name = "opensummoners-ci";
           packages = [
-            mingw32.gcc       # i686-w64-mingw32-gcc — port + patch + tools
+            mingw32.gcc       # i686-w64-mingw32-gcc/g++ — port + patch + tools
             mingw32.binutils
             pkgs.gcc          # native host gcc — the ASan unit suite (tests/)
             pkgs.gnumake
@@ -159,6 +159,10 @@
             pkgs.coreutils
             pkgs.zip          # package the voice-patch release zip
           ];
+          # res_explorer (ImGui/DX11) compiles the flake-provided ImGui sources
+          shellHook = ''
+            export IMGUI_DIR=${imguiSrc}
+          '';
         };
 
         # Package output: the opensummoners.exe binary cross-compiled with

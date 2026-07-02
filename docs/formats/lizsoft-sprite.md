@@ -1,5 +1,17 @@
 # Lizsoft sprite format (`0x425f` family) — partial spec
 
+> **2026-07-02 CORRECTION (supersedes "width/height are not in the file" below):**
+> the engine's own decoder DOES read the dims out of the blob — the sub-table at
+> `+0x420` is a **self-rebasing pointer table** (sig `slots[0x438]-slots[0x448]
+> == 0x2711`) from which `FUN_005b7c10` (ported: `bs_parse_compressed_header`,
+> `src/bitmap_session.c`) derives width, height, bit depth, palette and the pixel
+> offset (`+0x458+off`). Verified in bulk by `tools/res_explorer`: **756/759**
+> `sotesd.dll` DATA blobs (including the "sibling" outer magics `0xe225`/`0x361f`/
+> `0x3e49` below, and 24bpp variants) parse + decode + render through that one
+> path with pixel payloads that exactly fit the blob. The outer-magic "families"
+> distinguish something else (palette layout?), not the decode path. The
+> byte-inspection notes below remain useful for the fixed-header fields.
+
 Format used by ~28% of the DATA entries in `sotesd.dll` (213/759 blobs
 parse cleanly as this variant; the rest belong to sibling families
 documented in TODO).  Pure file-shape reverse from byte inspection

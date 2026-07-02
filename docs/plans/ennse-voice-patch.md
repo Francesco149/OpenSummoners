@@ -102,6 +102,7 @@ if (voice_bank != 0) {                       // 0x580bed
 
 - **This track:** `tools/ennse_voice/` → a proxy/inject DLL + a small installer/readme; drop
   into `…\steamapps\common\sotes\`, launch, hear JP voice over EN text.
-- **QUEUED (future session, user request):** grow `tools/voice_view` into a full **SotES
-  resource explorer** covering every format we've RE'd/ported, packaged as a **self-contained
-  redistributable exe**. (Not this track.)
+- **DONE (2026-07-02):** `tools/voice_view` grew into **`tools/res_explorer`** — the full
+  SotES resource explorer (ImGui/DX11; sprites/maps/audio/BGM/strings, preview + export,
+  self-contained `res_explorer.exe` in every release). voice_view is retired; its
+  `--list`/`--dump` CLI carried over.

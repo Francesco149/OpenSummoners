@@ -7,7 +7,7 @@
 #
 # Deliverables:
 #   opensummoners.exe        — the port (drop-in sotes.exe reimplementation)
-#   voice_view.exe           — the SotES resource explorer
+#   res_explorer.exe           — the SotES resource explorer
 #   ennse-voice-patch.zip    — the EN-SE Japanese-voice patch (+ installer)
 #
 # Why one rolling release: GitHub notifies watchers when a *new* release is
@@ -44,15 +44,15 @@ jobs:
       - name: Build — port (opensummoners.exe)
         run: nix develop .#ci --command make -C src
 
-      - name: Build — resource explorer (voice_view.exe)
-        run: nix develop .#ci --command make -C tools/voice_view
+      - name: Build — resource explorer (res_explorer.exe)
+        run: nix develop .#ci --command make -C tools/res_explorer
 
       - name: Build — EN-SE voice patch (version.dll)
         run: nix develop .#ci --command make -C tools/ennse_voice
 
       - name: Gate — no embedded game assets
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
-             build/opensummoners.exe build/voice_view.exe build/version.dll
+             build/opensummoners.exe build/res_explorer.exe build/version.dll
 
       - name: Package — voice patch zip
         run: nix develop .#ci --command bash tools/ci/package_patch.sh
@@ -68,7 +68,8 @@ jobs:
             echo "Ships **no game assets**. Everything reads your own"
             echo "legitimately-owned files at runtime:"
             echo "- **opensummoners.exe** — the port; drop in beside your Fortune Summoners install."
-            echo "- **voice_view.exe** — browse/play resources in your own game DLLs."
+            echo "- **res_explorer.exe** — resource explorer: view + export every sprite"
+            echo "  sheet, map, SFX/voice clip and BGM stream in your own game files."
             echo "- **ennse-voice-patch.zip** — adds Japanese voice to the English special"
             echo "  edition; run Install.bat (needs \`sotesx_s.dll\` from your own JP copy)."
             echo
@@ -100,4 +101,4 @@ jobs:
               --title Nightly --notes-file release-notes.md --target "$GITHUB_SHA"
           fi
           retry gh release upload nightly --clobber \
-            build/opensummoners.exe build/voice_view.exe build/version.dll build/ennse-voice-patch.zip
+            build/opensummoners.exe build/res_explorer.exe build/version.dll build/ennse-voice-patch.zip

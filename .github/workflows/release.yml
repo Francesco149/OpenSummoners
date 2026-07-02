@@ -25,12 +25,12 @@ jobs:
       - name: Build — port + resource explorer + voice patch
         run: |
           nix develop .#ci --command make -C src
-          nix develop .#ci --command make -C tools/voice_view
+          nix develop .#ci --command make -C tools/res_explorer
           nix develop .#ci --command make -C tools/ennse_voice
 
       - name: Gate — no embedded game assets
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
-             build/opensummoners.exe build/voice_view.exe build/version.dll
+             build/opensummoners.exe build/res_explorer.exe build/version.dll
 
       - name: Package — voice patch zip
         run: nix develop .#ci --command bash tools/ci/package_patch.sh
@@ -42,7 +42,7 @@ jobs:
             echo
             echo "Ships **no game assets**; everything reads your own files at runtime."
             echo "- **opensummoners.exe** — the port."
-            echo "- **voice_view.exe** — the resource explorer."
+            echo "- **res_explorer.exe** — the resource explorer."
             echo "- **ennse-voice-patch.zip** — EN-SE Japanese-voice patch (run Install.bat;"
             echo "  needs \`sotesx_s.dll\` from your own JP copy)."
             echo
@@ -55,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           retry() { local n; for n in 1 2 3; do "$@" && return 0; echo "  (attempt $n failed — retry in 10s)"; sleep 10; done; return 1; }
-          files="build/opensummoners.exe build/voice_view.exe build/version.dll build/ennse-voice-patch.zip"
+          files="build/opensummoners.exe build/res_explorer.exe build/version.dll build/ennse-voice-patch.zip"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             retry gh release upload "$GITHUB_REF_NAME" --clobber $files
           else

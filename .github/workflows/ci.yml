@@ -26,12 +26,12 @@ jobs:
       - name: Build — port + resource explorer + voice patch
         run: |
           nix develop .#ci --command make -C src
-          nix develop .#ci --command make -C tools/voice_view
+          nix develop .#ci --command make -C tools/res_explorer
           nix develop .#ci --command make -C tools/ennse_voice
 
       - name: Gate — no embedded game assets
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
-             build/opensummoners.exe build/voice_view.exe build/version.dll
+             build/opensummoners.exe build/res_explorer.exe build/version.dll
 
       - name: Host unit suite (ASan/UBSan)
         run: nix develop .#ci --command make -C tests run

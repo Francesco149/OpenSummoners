@@ -5,7 +5,7 @@ game data.
 
 OpenSummoners must redistribute no Fortune Summoners bytes: the port
 (opensummoners.exe), the voice patch (version.dll) and the resource explorer
-(voice_view.exe) are all pure code — they read the user's own game files at
+(res_explorer.exe) are all pure code — they read the user's own game files at
 runtime, never linking assets in. This is the automated backstop: if audio
 ever gets embedded, its signature reappears and CI fails before publishing.
 
@@ -14,7 +14,7 @@ It scans each file for:
   - the ASF/WMA GUID (30 26 B2 75 8E 66 CF 11 …)   — the BGM streams.
 
 The full "RIFF…WAVE…fmt " signature (not a bare "RIFF") is required on purpose:
-voice_view.c legitimately contains the ASCII literals "RIFF"/"WAVE"/"fmt " as
+res_core.cpp legitimately contains the ASCII literals "RIFF"/"WAVE"/"fmt " as
 WAV-header parsing constants, which must NOT trip the gate. Only an actual
 embedded WAV lays those tokens out at +0/+8/+12.
 
