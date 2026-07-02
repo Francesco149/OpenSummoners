@@ -104,9 +104,15 @@ understates how much actual instruction volume is ported.
   Mom's head").  FIXED as **6** ERRANDS_CAST entries (cabinet/hutch/pot + 3 upstairs props, DATA-1025
   CHARACTER codes 0x112d1/0x112da/0x11279/0x112d3/0x1124c; banks via slot+13; world = map ×100) —
   VERIFIED at the clamp t2500: all 6 render at retail's EXACT pos+dims (feed `pot_crop_cmp.png`).
-  Remaining: res1900 fr0 (unregistered bank) + Mom's pose (res1127 fr0 vs fr2).  `errands-render-gaps.md`
-  §6.  ⇒ the recurring gap motivates the PROPER fix (CHARACTER def-table spawn from the map).  **USER:
-  studio `port-cabinet | retail-stairs`, scrub to the camera CLAMP (~t2400+, both pinned).**
+  **ROOM PROPS NOW VERIFIED COMPLETE** — a map↔retail cross-ref confirms ERRANDS_CAST covers ALL 20 of
+  the map's visible CHARACTER objects; a port↔retail draw diff at t1800 AND the t2500 clamp shows NO
+  missing prop either side.  Also PORTED (ckpt 180b): the **pot STEAMS** (POT_CLIP 57→60 dur6) + the
+  **clock pendulum SWINGS** (CLOCK_CLIP 43↔45 dur25), both == retail.  Remaining (NOT props): the HUD
+  (res1900 = the bottom-left HUD strip, NOT a room object; + the blank portrait blocker + strips), Mom's
+  pose (res1127 fr0 vs fr2), the clock/pot anim start-phase seed.  The runtime map-driven spawn (retiring
+  the ERRANDS_CAST capture) is now pure cleanup, blocked on the char-band z-order (no draw_pool Y-sort);
+  the code→bank table + variant model are proven + ready.  `errands-render-gaps.md` §6.  **USER: studio
+  `port-cabinet | retail-stairs`, scrub the CLAMP (~t2400+) — the pot should steam, the clock swing.**
 - **Next move (the errands −6t residual + the 2nd USER mark):**
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
