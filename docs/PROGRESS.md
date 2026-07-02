@@ -48,8 +48,9 @@ specific commits where relevant.
   offset = descriptor off + RENDER-STATE dst_base (the EFFECT band's per-code anchor,
   both axes; 0 for STRUCTURE/CHARACTER — why only the villagers drifted). The
   inspector's node build now adds it; townsfolk stand on the walkway.
-- Default map tab stays Preview (schematic); Inspector becomes default once proven
-  (USER). `--shot` gained [MODULE:]TYPE:ID spec + auto-focuses Inspector for maps.
+- Inspector is the DEFAULT tab for maps (USER-approved after the actor/colorkey/
+  anchor fixes); the schematic stays under Preview. `--shot` gained [MODULE:]TYPE:ID
+  spec. res_explorer.exe ships in nightly + tagged releases (wired earlier same day).
 
 ---
 

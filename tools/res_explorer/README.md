@@ -48,7 +48,7 @@ The tool supplies its own `bs_load_pe_resource` with the 1041-language fallback
   - Maps: golden-ratio tile-id coloring, per-plane toggles, object markers colored
     by type range (50k EFFECT / 60k STRUCTURE / 70k CHARACTER / 80k DEVICE),
     hover = cell/object detail. Badge shows `consumed == size` (parses exactly).
-  - **Map Inspector tab** — renders the map the way the ENGINE does, by running
+  - **Map Inspector tab (the DEFAULT tab for maps)** — renders the map the way the ENGINE does, by running
     the port's own pipeline host-side (`map_decode` FUN_00587e00 dispatch →
     runtime render grid → `map_render_tile` FUN_00490f30 geometry → composite
     with the `ar_register_*`-registered sprite banks, layer-sorted) — **including

@@ -2190,6 +2190,12 @@ static void draw_ui(HWND hwnd)
         ImGui::TextDisabled("- %s", e->info);
         ImGui::Separator();
         if (ImGui::BeginTabBar("##tabs")) {
+            // maps default to the Inspector (the engine-true render); the
+            // schematic stays available under Preview.
+            if (e->kind == RK_MAP && ImGui::BeginTabItem("Inspector")) {
+                mi_draw_tab(hwnd);
+                ImGui::EndTabItem();
+            }
             if (ImGui::BeginTabItem("Preview")) {
                 ImVec2 pa = ImGui::GetContentRegionAvail();
                 ImGui::BeginChild("##prev", ImVec2(pa.x, pa.y - 34), false);
@@ -2206,13 +2212,6 @@ static void draw_ui(HWND hwnd)
                 }
                 ImGui::EndChild();
                 export_bar(hwnd, e);
-                ImGui::EndTabItem();
-            }
-            extern bool g_shot_inspector;
-            if (e->kind == RK_MAP &&
-                ImGui::BeginTabItem("Inspector", nullptr,
-                    g_shot_inspector ? ImGuiTabItemFlags_SetSelected : 0)) {
-                mi_draw_tab(hwnd);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Hex")) { panel_hex(); ImGui::EndTabItem(); }
@@ -2296,8 +2295,6 @@ static int capture_backbuffer(const wchar_t* out_png)
     return ok;
 }
 
-bool g_shot_inspector = false;   // --shot on a map: focus the Inspector tab
-
 // pick a good default selection for the screenshot: prefer [MODULE:]TYPE:ID if
 // given, else the biggest decodable sprite sheet.
 static void shot_select(const wchar_t* spec)
@@ -2321,7 +2318,6 @@ static void shot_select(const wchar_t* spec)
                 if (modq && lstrcmpiA(g_world.modules[e.module_idx].label, modq))
                     continue;
                 select_entry(i);
-                if (e.kind == RK_MAP) g_shot_inspector = true;
                 return;
             }
         }
