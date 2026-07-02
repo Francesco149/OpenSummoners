@@ -50,11 +50,19 @@
  *                                   opposite direction while moving): decompile
  *                                   says -accel, port uses the brake — untested
  *                                   (the captures idle before reversing).
- *   PORT-DEBT(char-turn-state)      the STANDING TURN-AROUND: retail holds ~4
- *                                   ticks in a turn state (0x426f50 state 2?)
- *                                   before the reversed walk accelerates
- *                                   (stairs-sweep 2952-2955, retail hvel 0);
- *                                   the port flips facing in 1 tick.
+ *   char-turn-state  PORTED (ckpt 177): the STANDING TURN-AROUND.  A from-rest
+ *                                   REVERSAL no longer snaps — it plays retail's
+ *                                   8-tick pivot: HOLD stationary facing-held for
+ *                                   CHAR_TURN_HOLD ticks (the fr-6 windup), then
+ *                                   flip facing + begin the walk ramp (the fr-7 ->
+ *                                   +152 fr-159 cel lingers CHAR_TURN_HOLD more
+ *                                   render ticks).  GROUND TRUTH = retail-stairs
+ *                                   res 0x570 draw stream: fr 6 x4 (2951-4, hvel 0)
+ *                                   -> 159 x4 (2955-8) -> walk 160 (2959); the
+ *                                   walk onset delayed exactly 4 ticks = the -960
+ *                                   wx the old instant flip caused.  turn_ctr drives
+ *                                   the sim hold + flip, turn_frame the render cel
+ *                                   (character_turn_frame -> ARCHE_TURN_CLIP).
  *
  * Win32-free + pure (advances only its own body state); host-tested field-exact
  * vs the capture (tests/test_character.c).  See docs/plans/movement-system.md
@@ -184,6 +192,27 @@ int character_attack_ticks(int attack_kind);
  * character_step is the resolved cmd[0]==5/6 (PORT-DEBT(char-run-trigger)). */
 #define CHAR_RUN_CAP    48000    /* in_ECX[0x5664]  |vel| cap when running -> dwx +-480 */
 #define CHAR_RUN_ACCEL   3200    /* in_ECX[0x565d]  accel while |vel| < CHAR_WALK_CAP    */
+
+/* ── The STANDING TURN-AROUND (char-turn-state, ckpt 177) ─────────────────────
+ * On a from-rest reversal retail plays an 8-tick pivot (the 0x442a70 STATE-1 FSM
+ * -> the FUN_0040a540 turn action; the cels are res 0x570 fr 6/7 on bank 0x8b):
+ *   ticks 1..CHAR_TURN_HOLD  = the WINDUP: stationary (vel held at 0), facing
+ *                              UNCHANGED, render cel fr 6 (turn_frame 0).
+ *   tick  CHAR_TURN_HOLD+1    = FLIP facing to the commanded dir + begin the walk
+ *                              ramp (vel accelerates from 0 as normal).
+ *   ticks CHAR_TURN_HOLD+1..CHAR_TURN_TOTAL = the walk ramp runs, but the render
+ *                              still shows the flipped turn cel fr 7 (-> +152 =
+ *                              fr 159 when facing left; turn_frame 1) — a render
+ *                              linger over the accelerating walk.
+ *   tick  CHAR_TURN_TOTAL+1   = the pivot is complete: the normal walk clip (fr
+ *                              160) takes over.
+ * MEASURED off the retail-stairs draw stream (fr 6 held 4 ticks, fr 159 held 4)
+ * — the clip's exact frame_dur (the un-ported 0x45e830 turn form) stands in as
+ * these two constants, the same measured-clip pattern as ARCHE_WALK_CLIP
+ * (char-walk-anim-distance).  The 4-tick windup reproduces the -960 wx reversal
+ * offset bit-exact (see character.c). */
+#define CHAR_TURN_HOLD    4      /* stationary windup ticks before the facing flip   */
+#define CHAR_TURN_TOTAL   8      /* total pivot ticks (windup + the fr-159 linger)   */
 
 /* ── The JUMP law (0x442a70 case 3 = the body+0x38==3 airborne sub-FSM, chip 3b) ──
  * vvel is the signed VERTICAL accumulator body+0x18; worldY advances by vvel/100
@@ -347,6 +376,13 @@ typedef struct {
                                   (442a70:104-118, a delta=+1 vertical probe;
                                   blocked == standing on ground).  Drives the
                                   ledge walk-off -> FALL transition (:937). */
+    int16_t        turn_ctr;   /* the STANDING TURN-AROUND pivot tick index: 0 =
+                                  not turning; 1..CHAR_TURN_TOTAL = mid-pivot (a
+                                  from-rest reversal, char-turn-state).           */
+    int16_t        turn_frame; /* the render cel for THIS tick: -1 = not turning
+                                  (walk/idle clip), 0 = the fr-6 windup cel, 1 =
+                                  the fr-7 (-> +152 fr-159) flipped cel.  main.c
+                                  reads it via character_turn_frame().            */
 } character;
 
 /* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the
@@ -383,6 +419,12 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
  * airborne state at once but stays stationary for a 4-tick WINDUP (CHAR_JUMP_WINDUP_THRESH)
  * before the launch impulse fires (case 3 sub-state 0). */
 int32_t character_step(character *c, const int *axis_held, int jump_held, int run);
+
+/* The STANDING TURN-AROUND render cel for the current tick (set by character_step):
+ * -1 = not turning (use the walk/idle clip), 0 = the fr-6 windup cel, 1 = the fr-7
+ * flipped cel (-> +152 fr-159 when facing left).  main.c's freeroam render forces
+ * ARCHE_TURN_CLIP's frame to this while it is >= 0.  See CHAR_TURN_* / character.c. */
+int character_turn_frame(const character *c);
 
 /* Resolve the RUN (dash) flag from live input — the dash-trigger half of the
  * char-AI 0x478ba0 that character_step's `run` arg used to receive pre-resolved

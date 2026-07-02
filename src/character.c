@@ -40,6 +40,8 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->coll_slope     = NULL;
     c->coll_slope_ctx = NULL;
     c->supported      = 1;
+    c->turn_ctr       = 0;
+    c->turn_frame     = -1;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -52,6 +54,26 @@ static int32_t ramp_toward(int32_t cur, int32_t target, int32_t rate)
 }
 
 static int32_t iabs32(int32_t v) { return v < 0 ? -v : v; }
+
+/* The held-direction accel ramp (0x442a70 case-0x75, facing matches the move dir):
+ * accelerate toward the cap.  RUN (dash) raises the cap to 48000 and accelerates
+ * +3200/tick while |vel| < the walk cap 24000, then the walk accel 1600 up to 48000
+ * (the captured two-phase ramp).  Releasing the dash while still holding the dir
+ * leaves |vel| over the now-walk cap -> the 0x445db0 over-cap path decelerates at the
+ * BRAKE rate toward the cap, then walks.  Shared by the normal walk + the post-pivot
+ * resume (the standing turn-around's second half). */
+static void walk_accel(character *c, int run)
+{
+    int32_t cap    = run ? CHAR_RUN_CAP : CHAR_WALK_CAP;
+    int32_t target = (int32_t)c->cmd_dir * cap;
+    if (iabs32(c->vel) > cap) {
+        c->vel = ramp_toward(c->vel, target, CHAR_WALK_BRAKE);
+    } else {
+        int32_t accel = (run && iabs32(c->vel) < CHAR_WALK_CAP)
+                            ? CHAR_RUN_ACCEL : CHAR_WALK_ACCEL;
+        c->vel = ramp_toward(c->vel, target, accel);
+    }
+}
 
 int32_t character_step(character *c, const int *axis_held, int jump_held, int run)
 {
@@ -189,7 +211,9 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
 
     /* ── APPLY reduction (0x442a70 case 0x75): ramp the horizontal velocity, flip
      *    facing at rest, commit worldX += vel/100 (flat reduction of 0x54db10). ─
-     * vel is the signed accumulator body+0x28 (+ right, - left). */
+     * vel is the signed accumulator body+0x28 (+ right, - left).  turn_frame
+     * defaults to "not turning"; only the standing turn-around sets it (0/1). */
+    c->turn_frame = -1;
     if (c->attacking && !c->airborne) {
         /* SWORD SWING in progress (442a70's cmd[4] body state): movement is locked.
          * Brake vel to 0 at the WALK brake — the same lock the pose uses, holding her
@@ -213,6 +237,7 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
             int sign = (c->facing == CHAR_FACE_LEFT) ? -1 : +1;
             c->world_x += sign * (curr - prev);
         }
+        c->turn_ctr = 0;
     } else if (c->cmd_pose != 0 && !c->airborne) {
         /* CROUCH (cmd_pose 10) / UP-pose (0xb): the apply states 2/5 set bVar16=false
          * (0x442a70:959) -> SKIP the accel ramp -> brake the velocity toward 0 at the
@@ -227,37 +252,46 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
          * unreached -> PORT-DEBT(char-slope-slide).  ckpt 154.
          * Facing holds (the pose does not flip it); the worldX commit below is unchanged. */
         c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
+        c->turn_ctr = 0;
     } else if (c->cmd_dir != 0) {
         int want_face = (c->cmd_dir > 0) ? CHAR_FACE_RIGHT : CHAR_FACE_LEFT;
-        if (c->facing == want_face) {
-            /* facing matches the move dir -> accelerate toward the cap.  RUN (dash)
-             * raises the cap to 48000 and accelerates +3200/tick while |vel| < the
-             * walk cap 24000, then the walk accel 1600 up to 48000 (the captured
-             * two-phase ramp).  Releasing the dash while still holding the dir leaves
-             * |vel| over the now-walk cap -> the 0x445db0 over-cap path decelerates at
-             * the BRAKE rate toward the cap, then walks. */
-            int32_t cap    = run ? CHAR_RUN_CAP : CHAR_WALK_CAP;
-            int32_t target = (int32_t)c->cmd_dir * cap;
-            if (iabs32(c->vel) > cap) {
-                c->vel = ramp_toward(c->vel, target, CHAR_WALK_BRAKE);
+
+        /* STANDING TURN-AROUND (char-turn-state, ckpt 177): a from-rest reversal
+         * does NOT snap facing.  It begins an 8-tick pivot (CHAR_TURN_*): while
+         * turn_ctr <= CHAR_TURN_HOLD hold stationary facing-unchanged (retail fr 6,
+         * hvel 0); at CHAR_TURN_HOLD+1 flip facing + let the walk ramp begin; the
+         * flipped turn cel (fr 7 -> +152 fr 159) lingers CHAR_TURN_HOLD more render
+         * ticks over the accelerating walk, then the walk clip takes over.  The
+         * 4-tick windup reproduces the -960 wx reversal offset the old instant flip
+         * caused (GROUND TRUTH retail-stairs res 0x570, character.h). */
+        if (c->facing != want_face && c->vel == 0 && c->turn_ctr == 0)
+            c->turn_ctr = 1;                       /* begin the pivot windup       */
+
+        if (c->turn_ctr != 0) {
+            if (c->turn_ctr <= CHAR_TURN_HOLD) {
+                c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);  /* windup hold   */
+                c->turn_frame = 0;                                 /* the fr-6 cel  */
             } else {
-                int32_t accel = (run && iabs32(c->vel) < CHAR_WALK_CAP)
-                                    ? CHAR_RUN_ACCEL : CHAR_WALK_ACCEL;
-                c->vel = ramp_toward(c->vel, target, accel);
+                if (c->turn_ctr == CHAR_TURN_HOLD + 1)
+                    c->facing = (int16_t)want_face;    /* flip at the windup end    */
+                walk_accel(c, run);                    /* the walk ramp begins      */
+                c->turn_frame = 1;                     /* the flipped fr-7/159 cel  */
             }
-        } else if (c->vel == 0) {
-            /* at rest, commanded the other way -> flip facing now (accel next tick,
-             * the integrator's local_14 v==0 facing flip) */
-            c->facing = (int16_t)want_face;
+            c->turn_ctr = (int16_t)(c->turn_ctr + 1);
+            if (c->turn_ctr > CHAR_TURN_TOTAL)
+                c->turn_ctr = 0;                       /* pivot complete            */
+        } else if (c->facing == want_face) {
+            walk_accel(c, run);                        /* normal held-dir walk      */
         } else {
-            /* still moving the wrong way -> decelerate toward 0 first.  The
-             * decompile uses -accel here; the capture has an idle gap (no direct
-             * reverse) so the rate is PORT-DEBT(char-reverse-decel). */
+            /* still moving the wrong way -> decelerate toward 0 first, then the
+             * pivot begins from rest next tick.  -accel vs brake untested ->
+             * PORT-DEBT(char-reverse-decel). */
             c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
         }
     } else {
         /* idle / released / warming -> brake toward 0; facing holds */
         c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
+        c->turn_ctr = 0;
     }
 
     /* ── the WORLD-X COMMIT (0x442a70:1091-1112 -> 0x54db10): the collision-
@@ -286,6 +320,12 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
     }
 
     return dwx;
+}
+
+/* The standing turn-around render cel for the tick just stepped (character.h). */
+int character_turn_frame(const character *c)
+{
+    return (c == NULL) ? -1 : c->turn_frame;
 }
 
 /* The dash-trigger half of 0x478ba0 (the run_mode != 2 default branch, the only

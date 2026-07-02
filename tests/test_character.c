@@ -91,36 +91,59 @@ int test_character_walk_brake(void)
     return 0;
 }
 
-/* LEFT walk from a facing-right rest: the symmetric law (the integrator flips
- * facing 1->3 at v==0, then accelerates -16/tick to the -240 cap). */
-int test_character_walk_left_symmetry(void)
+/* LEFT walk from a facing-right rest: the STANDING TURN-AROUND (char-turn-state,
+ * ckpt 177).  A from-rest reversal does NOT snap facing — it plays retail's 8-tick
+ * pivot: CHAR_TURN_HOLD stationary windup ticks (facing HELD, turn cel fr 6), then a
+ * FACING FLIP + the walk ramp (turn cel fr 7 lingers CHAR_TURN_HOLD more render ticks),
+ * then the walk clip resumes.  The ramp after the flip is the exact mirror of the right
+ * walk (-16/tick to the -240 cap) — the pivot only DELAYS its onset by CHAR_TURN_HOLD
+ * ticks, reproducing the -960 wx reversal offset (retail-stairs res 0x570: fr 6 x4 ->
+ * 159 x4 -> walk 160; character.h). */
+int test_character_turn_around(void)
 {
     character c;
     character_init(&c, 50000, 52000, CHAR_FACE_RIGHT);
+    T_ASSERT_EQ_I(character_turn_frame(&c), -1);   /* idle: not turning */
     int axis[CHAR_AXIS_COUNT];
-    axis_set(axis, -1);                        /* hold LEFT */
+    axis_set(axis, -1);                        /* hold LEFT (reversal) */
 
-    /* warmup (CHAR_INPUT_REPEAT_DELAY ticks: cmd not latched -> no motion) */
+    /* warmup (CHAR_INPUT_REPEAT_DELAY-1 ticks: cmd not latched -> no motion, no turn) */
     for (int i = 0; i < CHAR_INPUT_REPEAT_DELAY - 1; i++) {
         T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);
+        T_ASSERT_EQ_I(character_turn_frame(&c), -1);
     }
-    /* latch tick: facing != want -> flip to LEFT at rest, still 0 motion */
-    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);
-    T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT);
+    /* the WINDUP: CHAR_TURN_HOLD stationary ticks, facing UNCHANGED, the fr-6 turn cel
+     * (the first windup tick is the cmd-latch tick — retail-stairs fr 6 x4, hvel 0). */
+    for (int i = 0; i < CHAR_TURN_HOLD; i++) {
+        T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), 0);   /* stationary */
+        T_ASSERT_EQ_I(c.facing, CHAR_FACE_RIGHT);           /* facing held */
+        T_ASSERT_EQ_I(character_turn_frame(&c), 0);         /* fr-6 windup cel */
+    }
 
-    /* now accelerate left: dwx -16,-32,..,-240 (mirror of the right walk) */
+    /* the FLIP tick: facing flips LEFT + the walk ramp begins (dwx -16); the render
+     * shows the flipped turn cel fr 7 (-> +152 fr 159) for CHAR_TURN_HOLD more ticks. */
     int32_t wx = c.world_x;
-    for (int k = 1; k <= 15; k++) {
+    T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), -16);
+    T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT);
+    T_ASSERT_EQ_I(character_turn_frame(&c), 1);
+    wx += -16;
+    T_ASSERT_EQ_I(c.world_x, wx);
+
+    /* the walk ramp continues (mirror of the right walk): -32,-48,..,-240; the turn cel
+     * lingers (turn_frame 1) through k == CHAR_TURN_HOLD, then drops to -1 (walk clip). */
+    for (int k = 2; k <= 15; k++) {
         int32_t dwx = character_step(&c, axis, 0, 0);
         T_ASSERT_EQ_I(dwx, -16 * k);
         wx += dwx;
         T_ASSERT_EQ_I(c.world_x, wx);
         T_ASSERT_EQ_I(c.facing, CHAR_FACE_LEFT);
+        T_ASSERT_EQ_I(character_turn_frame(&c), (k <= CHAR_TURN_HOLD) ? 1 : -1);
     }
     T_ASSERT_EQ_I(c.vel, -CHAR_WALK_CAP);
-    /* capped at -240 */
+    /* capped at -240, no longer turning */
     T_ASSERT_EQ_I(character_step(&c, axis, 0, 0), -240);
+    T_ASSERT_EQ_I(character_turn_frame(&c), -1);
     return 0;
 }
 

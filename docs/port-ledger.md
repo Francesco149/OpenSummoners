@@ -14,18 +14,19 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **224** (14.2% of engine-proper) — tested 219, ported 5
-- code bytes touched: **14.9%** (251,777 / 1,694,868 B of engine-proper)
-- unported: **1534**
+- touched: **225** (14.2% of engine-proper) — tested 220, ported 5
+- code bytes touched: **14.9%** (251,910 / 1,694,868 B of engine-proper)
+- unported: **1533**
 - orphan refs in src/ not in this table: 4
 
-## tested (219) — ported + host unit suite
+## tested (220) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x4031c0 | FUN_004031c0 | 815 | glyph_wrap.h |
 | 0x406440 | FUN_00406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | FUN_00408b90 | 419 | wnd_proc.h |
+| 0x40a540 | FUN_0040a540 | 133 | character.h |
 | 0x40dee0 | FUN_0040dee0 | 85 | main.c |
 | 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
 | 0x40e360 | FUN_0040e360 | 636 | main.c |

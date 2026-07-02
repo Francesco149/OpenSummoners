@@ -16,8 +16,8 @@
   collision WALLS (map_decode fix). **Arche stops/climbs/descends the errands stairs
   tick-exact** (dwx==dwy==0 through the whole climb; both walls flush) — retires the
   studio-note-2441 divergence + debts `char-collision-mover`/`collision-slopes`/
-  `decode-occlusion-mark`. Sole residual: the 4-tick standing TURN-AROUND
-  (`char-turn-state`). RE: `findings/freeroam-collision.md`.
+  `decode-occlusion-mark`. The 4-tick standing TURN-AROUND (`char-turn-state`) is
+  now PORTED (ckpt 177 below). RE: `findings/freeroam-collision.md`.
 - **HUD blocker (parked) — the PORTRAIT.** `hud_ctx+0x1b4` (leader_uid) reads 0x0 on
   every scripted replay (a replay-fidelity gap, not a port bug); resolve via the
   `+0x1b4` setter or a live/manual play. `findings/freeroam-hud.md §6-9`.
@@ -30,6 +30,18 @@
   (c) char-turn RE CORRECTED: the ckpt-175 "case-2" pointer was WRONG (that's the
   DOWN/crouch, already ported); the real reversal turn is the STATE-1 horizontal FSM
   `0x442a70:1011-1090`.  See `port-debt.md`.
+- **Landed ckpt 177 — `char-turn-state` PORTED (retires the collision residual).**
+  The from-rest REVERSAL now plays retail's 8-tick pivot: `CHAR_TURN_HOLD=4`
+  STATIONARY windup ticks (facing HELD, the fr-6 turn cel) → flip facing + walk ramp
+  (fr-7 → +152 fr-159 lingers 4 render ticks) → walk (fr 160).  `character.c`
+  `turn_ctr`/`turn_frame` + `ARCHE_TURN_CLIP` {6,7} (both dirs via the +152 mirror,
+  == the house turn 158→7).  GROUND TRUTH retail-stairs res 0x570 (fr 6×4 → 159×4 →
+  160); `draw_probe port-stairs2` == retail, `state_diff` RIGHT 0-div/301t (no regress)
+  + LEFT ramp-shape bit-exact (the −960 gap GONE).  RESIDUAL: a constant 1-tick
+  reversal-ONSET phase (−240) — the port latches the reverse press 1t before retail's
+  warmup gate (→ `char-input-autorepeat`, not the turn), within retail's ±1-2t
+  coalescing slop.  RE: `findings/freeroam-turn-around.md`.  **USER: verify the pivot
+  animation — studio shortcut = `port-stairs2 | retail-stairs` @ tick ~2950.**
 - **Next move (the residual dialogue drift + the 2nd USER mark):**
   (a2) **the chain still plays EARLY (OPEN)** — a BEAT-duration gap, NOT the dialogue
   gate: under the dense-confirm re-drive the house starts ~−10t, errands ~−26t (the
@@ -41,17 +53,18 @@
   kitchen HUTCH with dishes, upstairs) — the unported object-spawn PLACEHOLDER pass
   (`0x58c8c0` is a 4-B getter; the real spawn family is `0x58c8d0`/`0x58cb30`; the
   res_explorer already renders these host-side).  **CAVEAT (ckpt 176): the t2278 raw
-  differ (22498) is CONFOUNDED by the char-turn (c) offset — the port is ~960 wx ahead
-  on the LEFT walk, so the whole crop is shifted; the port DOES render most of the scene
-  (res 1071/1072/1082/1722/1026 all present at t2278).  Assess (b) AFTER (c), or at a
-  PRE-reversal tick, to isolate the truly-missing placeholder objects.**  Mom's pose
-  in-crop differs too — check her clip once the props land.  (Visual-verify: deferred.)
-  (c) `char-turn-state` — the STATE-1 reversal turn FSM `0x442a70:1011-1090` (deep,
-  entangled with the bit-exact walk; verify via `state_diff` synth-stairs, no regress).
+  differ (22498) was CONFOUNDED by the char-turn (c) offset — NOW LARGELY RESOLVED
+  (ckpt 177): (c) is ported, so the LEFT-walk shift drops from ~960 to ~240 wx (1 tick);
+  the port DOES render most of the scene (res 1071/1072/1082/1722/1026 all present at
+  t2278).  Re-capture + assess (b) at t2278 (or a PRE-reversal tick) to isolate the
+  truly-missing placeholder objects.**  Mom's pose in-crop differs too — check her clip
+  once the props land.  (Visual-verify: deferred.)
+  (c) `char-turn-state` — **DONE ckpt 177** (`findings/freeroam-turn-around.md`).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
   collidable actors matter.
-- **Open PORT-DEBT (this front):** `char-turn-state`, `mover-actor-scan`,
-  `char-drop-through`, `char-reverse-decel`; HUD: `hud-party-context`,
+- **Open PORT-DEBT (this front):** `mover-actor-scan`,
+  `char-drop-through`, `char-reverse-decel`, `char-input-autorepeat` (the residual
+  1-tick reversal onset); HUD: `hud-party-context`,
   `hud-door-actors`, `hud-slide`/`hud-item-hslide`. See `port-debt.md`.
 - **Standing bar:** every divergence is `differ_px==0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic (`parity-model.md`);

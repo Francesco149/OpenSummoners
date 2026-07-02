@@ -3367,13 +3367,20 @@ static void freeroam_step(void)
      * SHEET, and the flip table's +152 (0x8b) / +192 (0x8c) mirrors the LEFT cels. */
     static arche_pose_anim  g_freeroam_pose_anim;
     static arche_sword_anim g_freeroam_sword_anim;
-    const anim_clip *want = arche_sword_clip(&g_freeroam_sword_anim,
+    const anim_clip *sword_want = arche_sword_clip(&g_freeroam_sword_anim,
                                              g_freeroam_char.sword_out,
                                              g_freeroam_char.attacking,
                                              g_freeroam_char.attack_kind,
                                              &g_freeroam_pose_anim,
                                              g_freeroam_char.cmd_pose,
                                              moving, g_freeroam_char.airborne, run);
+    /* STANDING TURN-AROUND (char-turn-state, ckpt 177): while character_step reports a
+     * pivot (turn_frame >= 0) the freeroam cel is ARCHE_TURN_CLIP (fr 6/7), its FRAME
+     * forced from the sim windup so the facing flip (character.c) and the rendered cel
+     * stay locked (the walk/idle/sword clip resumes when the pivot completes).  We still
+     * call arche_sword_clip above so its sword/pose FSMs keep stepping under the turn. */
+    int turn_frame = character_turn_frame(&g_freeroam_char);
+    const anim_clip *want = (turn_frame >= 0) ? &ARCHE_TURN_CLIP : sword_want;
     if (g_freeroam_rs.clip != want) {
         g_freeroam_rs.clip  = want;
         g_freeroam_rs.timer = 0;
@@ -3381,6 +3388,8 @@ static void freeroam_step(void)
         g_freeroam_rs.done  = 0;
     }
     actor_anim_advance(&g_freeroam_rs);   /* advance the clip one sim-tick */
+    if (turn_frame >= 0)
+        g_freeroam_rs.frame = turn_frame;   /* force the pivot cel (0 = fr 6 / 1 = fr 7) */
 }
 
 /* The in-game frame render (game_drive cfg.render).  Clears to black (the

@@ -92,7 +92,9 @@ OSR state adds `fr_wy`/`fr_sup` (port) + `wy` (retail proxy) for the y-axis diff
 ## Open threads
 - `mover-actor-scan` (actor pre-scan + platform actors + `body+0x284`).
 - `char-drop-through` (`body+0x20` timer + cmd[2]==9).
-- `char-turn-state` (the 4-tick reversal turn).  **CORRECTED ckpt 176: NOT the
+- `char-turn-state` — **PORTED ckpt 177 (`findings/freeroam-turn-around.md`).**  The 4-tick
+  reversal turn is now real logic; residual = a 1-tick reversal-onset phase (char-input-
+  autorepeat), not the turn.  **CORRECTED ckpt 176: NOT the
   `0x426f50(body,2)` case-2 sub-FSM — that is the DOWN/CROUCH (`param_1[3]==10`,
   already ported).  The turn is the STATE-1 horizontal command/facing FSM
   `0x442a70:1011-1090` (`local_24` reversal → `body+0x3a`/`+0x3c` timing → facing

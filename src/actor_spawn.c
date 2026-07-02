@@ -1008,6 +1008,24 @@ static const anim_clip ARCHE_FREEROAM_IDLE_CLIP = {
     .oneshot     = 0,    /* loops */
 };
 
+/* The STANDING TURN-AROUND clip (char-turn-state, ckpt 177): the freeroam pivot
+ * cels fr 6/7 on bank 0x8b — the SAME turn poses the house cutscene turn plays
+ * (ARCHE_HOUSE_TURN_CLIP renders their mirrors 158 -> 7).  frame 0 = fr 6 (the
+ * windup, held facing the OLD dir), frame 1 = fr 7 (held facing the NEW dir); the
+ * renderer's +152 facing mirror makes BOTH reversal directions emerge — R->L
+ * renders 6 -> 159 (7+152), L->R renders 158 (6+152) -> 7 — matching retail
+ * (retail-stairs res 0x570: fr 6 x4 -> 159 x4).  The FRAME is forced each tick from
+ * character_turn_frame() (main.c freeroam_step), NOT the clip timer, so the sim
+ * windup/flip and the rendered cel stay locked; frame_dur/oneshot are for
+ * completeness (the walk clip resumes when turn_frame drops to -1). */
+const anim_clip ARCHE_TURN_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 6, 7 },
+    .frame_count = 2,
+    .frame_dur   = CHAR_TURN_HOLD,
+    .oneshot     = 1,
+};
+
 /* The flip-table value bank 0x8b needs for the facing==3 (LEFT) mirror.  Bank 0x8b
  * is mirrored with a UNIFORM offset of +152 (RE'd off retail-walk.osr / poseL: the
  * left cels are the right cels + 152 across EVERY freeroam animation — idle 0-2 ->

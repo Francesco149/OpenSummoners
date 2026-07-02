@@ -234,6 +234,11 @@ int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key);
 extern const int16_t ARCHE_FREEROAM_FLIP;
 const anim_clip *arche_freeroam_clip(int moving, int airborne, int run);
 
+/* The STANDING TURN-AROUND clip (char-turn-state): the freeroam pivot cels fr 6/7.
+ * freeroam_step selects it while character_turn_frame() >= 0 and forces the frame
+ * from that (0 = windup fr 6, 1 = flipped fr 7 -> +152 fr 159).  See actor_spawn.c. */
+extern const anim_clip ARCHE_TURN_CLIP;
+
 /* The U/D-POSE animation FSM (crouch / up-defensive) — the visible pose sprite,
  * RE'd off retail-pose.osr / retail-poseL.osr (res 0x570, ckpt 153b; quirk #114).
  * The pose is a 3-phase clip keyed on the body sub-state: a transition cel on

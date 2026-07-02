@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 (ckpt 177) — `char-turn-state` PORTED: the standing TURN-AROUND
+
+- **The from-rest REVERSAL now plays retail's 8-tick pivot** (the ckpt-175 collision
+  residual, ex-PORT-DEBT `char-turn-state`).  GROUND TRUTH off `retail-stairs.osr` res
+  0x570 (`draw_probe`): the LEFT reversal @ 2950 holds fr 6 (right turn cel) STATIONARY
+  4 ticks, then FLIPs facing + walks (fr 7 → +152 fr 159, 4 ticks), then the walk cel
+  160 — the walk onset delayed exactly 4 ticks = the −960 wx the old INSTANT flip caused.
+  The RE: `0x442a70`'s STATE-1 FSM (`:1011-1090`) requests the turn action
+  `FUN_0040a540(body,2,200)` (gated on Arche's `in_ECX[0x5661]=1`/`[0x5662]=0`), which the
+  ANIM form-FSM `0x45e830` plays + flips facing at its keyframe; the 8-tick/dur-4 clip
+  length is MEASURED off the draw stream (the un-ported turn form), the same measured-clip
+  stand-in as `ARCHE_WALK_CLIP`.
+
+- **Port** (`character.c`/`character.h` `turn_ctr`+`turn_frame`+`walk_accel`;
+  `actor_spawn.c` `ARCHE_TURN_CLIP` {6,7}; `main.c` freeroam render): the reversal holds
+  `CHAR_TURN_HOLD`=4 windup ticks (vel 0, facing held, fr 6), flips + ramps at tick 5, the
+  fr-7 cel lingers to tick 8, then the walk clip resumes.  The +152 facing mirror renders
+  BOTH directions from the one clip (R→L 6→159, L→R 158→7 == the house cutscene turn).
+
+- **Verified**: host `test_character_turn_around` (SIM law tick-exact, 1088/1088 pass) +
+  `draw_probe port-stairs2.osr` (fr 6×4 → 159×4 → 160 == retail) + `state_diff` vs
+  retail-stairs (RIGHT walk 0-div/301 ticks — NO regression; LEFT walk ramp SHAPE
+  bit-exact, the −960 gap GONE).  RESIDUAL: a constant **1-tick reversal-ONSET phase**
+  (−240) — the port latches the reverse press 1 tick before retail's warmup gate (folds
+  into `char-input-autorepeat`, NOT the turn windup; within retail's ±1-2 tick coalescing
+  slop).  `findings/freeroam-turn-around.md`.  **USER visual-verify: the pivot animation
+  (studio `port-stairs2 | retail-stairs` @ ~2950).**
+
+---
+
 ## 2026-07-02 (ckpt 176) — dialogue "runs early" decomposed: L9 box-linger FIXED; char-turn RE corrected
 
 - **The USER studio mark t1197 ("port skipping dialogue early") is FIXED — and it was

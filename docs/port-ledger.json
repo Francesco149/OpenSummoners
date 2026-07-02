@@ -6,16 +6,16 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 219,
+  "tested": 220,
   "ported": 5,
-  "unported": 1534,
+  "unported": 1533,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 224,
+  "touched": 225,
   "pct_touched": 14.2,
   "pct_tested": 14.2,
-  "engine_proper_touched": 211,
+  "engine_proper_touched": 212,
   "bytes_total": 1694868,
-  "bytes_touched": 251777,
+  "bytes_touched": 251910,
   "pct_bytes_touched": 14.9
  },
  "orphan_refs": [
@@ -598,8 +598,10 @@
    "name": "FUN_0040a540",
    "size": 133,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/character.h"
+   ]
   },
   {
    "va": "0x40a5d0",
