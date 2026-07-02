@@ -270,6 +270,28 @@ DISPLACED (the pot's neighbour, the STOVE res1074, is one such — it renders, j
 pair is walk/phase-aligned — or use the camera CLAMP (both pinned → identical view regardless of phase) —
 before attributing a crop diff to a missing spawn.  Attribute to the PHASE pillar first (`parity-model.md`).
 
+## 7. OPEN BUG — the upstairs BED tiles render empty until fully in frame (USER, ckpt 180c)
+
+USER marks (`osr_notes`): t2158 crop[459,0,128,49] "bed missing on port"; t2325 crop[129,0,141,86]
+"bed becomes visible on port".  The upstairs bedroom BED (white bedding + pink pillows) is NOT a
+sprite/actor — it is drawn as the interior **tile** sheet **res=1071 frame=6** (128×160, `clipped`
+primitive, st=0x8000 colorkey 0xf81f), read as 32×32 sub-rects.  When the bed is at the top edge
+(only its bottom peeking in) the tiles read **src y=128..160** (the sheet's bottom 32 rows) → the
+port renders them **EMPTY** (bare wall); when the bed drops fully into frame the tiles read src
+y=0..96 → they render fine (hence "until fully in frame").
+
+**Localized, NOT yet root-caused:** the port↔retail draw stream is IDENTICAL at t2159 (same res/
+frame/dst/src/blend, cameras aligned to ≤3px — verified), AND the decoded-sheet **dhash MATCHES**
+(both res=1071 fr6 = 0x3ad4b5df, 128×160, all frames match).  Yet the recon (`osr_prof`, which
+renders retail's src-y=128 blit correctly) shows the port's bed empty.  ⇒ the port's res=1071 fr6
+**rows 128-160 hold different pixels than retail's** (the 64-bit dhash collides on a 32-row / 20%
+difference), i.e. a DECODE bug in the bottom strip of the 128×160 interior-tile sheets — NOT a
+missing spawn, cull, z-order, or blit-src bug (`zdd_object_copy_cell_pixels` reads the bottom-up
+DIB row 128 correctly).  **Next:** extract res=1071 fr6's raw pixels from both `.osr` (no osr.py
+sheet-export yet — add one, or parse `osr_format.h` SHEET records) and diff rows 128-160 to confirm;
+then trace the res=1071 (bank 0x… / the 0x42f interior-tile) decode for a height/last-strip
+truncation.  Separate from the (completed) room-completeness + z-order work.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`.  Map a
