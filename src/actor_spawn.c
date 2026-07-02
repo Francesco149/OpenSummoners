@@ -112,8 +112,18 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
  * switch (each case ends 0x426db0/0x426d70/(via LAB_00439490)
  * 0x426d70(0, BANK, variant)).  This IS the def table (not a capture), so it
  * is not PORT-DEBT.  DATA-1022 uses only 0xec55/0xec60/0xec6a; the rest are the
- * other town-scenery structure codes for any room.  (0xeead's bank is a runtime
- * value *(0x8a9b50+0x27a4) — omitted; 0xec59..0xec5e have no case.) */
+ * other town-scenery structure codes for any room.  (0xec59..0xec5e have no
+ * case.)  0xeead's bank is the runtime u16 *(0x8a9b50+0x27a4), written by the
+ * 587e00 prologue per room[0x43]: 0x88/0x89/0x8a for param_4 5/6/8
+ * (587e00.c:215-236) — mirrored here by actor_spawn_struct_set_runtime_bank
+ * (0 = unset -> the code resolves to no sprite, like an off-table code). */
+static uint16_t g_struct_eead_bank = 0;
+
+void actor_spawn_struct_set_runtime_bank(uint16_t bank)
+{
+    g_struct_eead_bank = bank;
+}
+
 static const struct { uint32_t code; uint16_t bank; } STRUCT_BANK_DEFS[] = {
     {0xec55u, 0x15fu},  /* the foreground TREE          (via 0x426db0)        */
     {0xec56u, 0x160u},  /*                              (via 0x426db0)        */
@@ -132,10 +142,17 @@ static const struct { uint32_t code; uint16_t bank; } STRUCT_BANK_DEFS[] = {
     {0xec6fu, 0x170u},
     {0xec70u, 0x196u},
     {0xec7cu, 0x18du},
+    {0xf295u, 0x77u},   /* 438a60.c:24-27 (via LAB_00439490)                   */
 };
 
 int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank)
 {
+    if (code == 0xeeadu) {              /* 438a60.c:19-22 — the runtime bank */
+        if (g_struct_eead_bank == 0)
+            return 0;
+        if (bank) *bank = g_struct_eead_bank;
+        return 1;
+    }
     for (size_t i = 0; i < sizeof STRUCT_BANK_DEFS / sizeof STRUCT_BANK_DEFS[0]; i++) {
         if (STRUCT_BANK_DEFS[i].code == code) {
             if (bank) *bank = STRUCT_BANK_DEFS[i].bank;

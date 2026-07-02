@@ -137,6 +137,12 @@ int actor_spawn_struct_from_map(actor_spawn_pool *pool, const map_data *md);
  */
 int actor_spawn_struct_bank_for_code(uint32_t code, uint16_t *bank);
 
+/* Mirror of the engine's runtime STRUCTURE bank *(0x8a9b50+0x27a4) consumed by
+ * code 0xeead (438a60.c:19-22).  The 587e00 prologue writes it per room[0x43]:
+ * 0x88 / 0x89 / 0x8a for param_4 5 / 6 / 8 (587e00.c:215-236); 0 = unset (the
+ * code then resolves to no sprite). */
+void actor_spawn_struct_set_runtime_bank(uint16_t bank);
+
 /*
  * Populate `pool` with the EFFECT townsfolk of the parsed map `md`:  for each
  * object-placement layer whose type code is in 50000..59999 AND is one of the

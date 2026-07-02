@@ -1408,6 +1408,11 @@ static void mi_build()
 
     g_mi.grid = map_grid_alloc();
     if (!g_mi.grid) return;
+    // mirror the 587e00 prologue's runtime STRUCTURE-bank write for 0xeead
+    actor_spawn_struct_set_runtime_bank(
+        g_mi.cfg_param4 == 5 ? 0x88 :
+        g_mi.cfg_param4 == 6 ? 0x89 :
+        g_mi.cfg_param4 == 8 ? 0x8a : 0);
     map_decode_cfg cfg;
     map_decode_cfg_init(&cfg, MAP_DECODE_SCENE_PARAM3, g_mi.cfg_param4);
     map_decode(&g_mi.md, g_mi.grid, &cfg, mi_bank_dims_cb, nullptr);
@@ -1755,9 +1760,16 @@ static void mi_draw_tab(HWND hwnd)
     ImGui::Checkbox("Unported", &g_mi.ov_unknown);
     ImGui::SameLine(0, 12);
     ImGui::SetNextItemWidth(120);
-    int cfg_idx = (g_mi.cfg_param4 == 4) ? 1 : 0;
-    if (ImGui::Combo("##micfg", &cfg_idx, "town/house\0errands\0")) {
-        g_mi.cfg_param4 = cfg_idx ? 4 : 1;
+    // room[0x43] tileset cfg (587e00.c:197-252): 1 town/house, 2/3 alt
+    // interiors, 4 errands, 5-8 the palette-remap areas (also select the
+    // 0xeead runtime STRUCTURE bank 0x88/0x89/0x8a).
+    static const int CFG_P4[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    int cfg_idx = 0;
+    for (int i = 0; i < 8; i++) if (CFG_P4[i] == g_mi.cfg_param4) cfg_idx = i;
+    if (ImGui::Combo("##micfg", &cfg_idx,
+                     "p4=1 town/house\0p4=2\0p4=3\0p4=4 errands\0"
+                     "p4=5\0p4=6\0p4=7\0p4=8\0")) {
+        g_mi.cfg_param4 = CFG_P4[cfg_idx];
         mi_build();
     }
     ImGui::SameLine();
