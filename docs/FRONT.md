@@ -21,10 +21,21 @@
 - **HUD blocker (parked) — the PORTRAIT.** `hud_ctx+0x1b4` (leader_uid) reads 0x0 on
   every scripted replay (a replay-fidelity gap, not a port bug); resolve via the
   `+0x1b4` setter or a live/manual play. `findings/freeroam-hud.md §6-9`.
-- **Next move:** (a) `char-turn-state` — the 4-tick standing turn-around
-  (`0x426f50(body,2)` case-2 sub-FSM, `0x442a70:810-830`), the last freeroam-walk
-  residual; (b) HUD: door-indicator spawn source / bottom strips (`0x497c20`/`0x4975e0`);
-  (c) `mover-actor-scan` when collidable actors matter (combat/platforms).
+- **Next move (USER marks, port-stairs|retail-stairs `osr_notes.jsonl`, ckpt 175):**
+  (a) **dialogue ADVANCE-GATE — the port runs EARLY** (mark t1197: retail box shows the
+  Mother's "wait up for your poor, old, slow parents" line, the port box is already
+  empty under the SAME confirm injections → the whole chain + the house REVEAL plays
+  early).  Suspect: retail gates the confirm on text-reveal completion / a per-line
+  min-hold the port lacks — RE `0x48cf80`-family box FSM's accept gate; compare
+  line-advance ticks port vs retail in the stairs pair.
+  (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
+  kitchen HUTCH with dishes, upstairs) — the unported object-spawn pass `0x58c8c0`
+  (the res_explorer PLACEHOLDER objects; mom's pose in-crop differs too — check her
+  clip once the props land).
+  (c) `char-turn-state` — the 4-tick standing turn-around (`0x426f50(body,2)` case-2
+  sub-FSM, `0x442a70:810-830`), the last freeroam-walk residual.
+  (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
+  collidable actors matter.
 - **Open PORT-DEBT (this front):** `char-turn-state`, `mover-actor-scan`,
   `char-drop-through`, `char-reverse-decel`; HUD: `hud-party-context`,
   `hud-door-actors`, `hud-slide`/`hud-item-hslide`. See `port-debt.md`.
