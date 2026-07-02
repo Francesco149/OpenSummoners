@@ -3744,6 +3744,20 @@ static void game_render(void *user)
                     cutscene_set_fade_active(&g_cutscene,
                                              scene_fade_active(&g_scene_fade));
                     int done = cutscene_step(&g_cutscene, confirm);
+                    /* OSS_DLG_TRACE: per-sim-tick dialogue-FSM ground truth for the
+                     * dialogue-timing arc (findings/dialogue-advance-early.md) — the
+                     * confirm disposition (skip/advance/eaten), box scale/reveal, beat
+                     * state.  Gated; needs WSLENV="$WSLENV:OSS_DLG_TRACE" to reach the
+                     * WSL-launched exe without clobbering OPENSUMMONERS_GAME_DIR. */
+                    if (getenv("OSS_DLG_TRACE"))
+                        fprintf(stderr,
+                            "DLGT t=%u cf=%d act=%d sc=%d rev=%d/%d ib=%d cl=%d "
+                            "lg=%d rd=%d r=%d L=%d done=%d\n",
+                            g_sim_tick_count, confirm, g_dialogue.active,
+                            g_dialogue.scale, g_dialogue.reveal, g_dialogue.total,
+                            g_cutscene.in_beats, g_cutscene.closing.active,
+                            g_cutscene.box_linger, g_cutscene.reopen_delay,
+                            g_cutscene.room_idx, g_cutscene.line_idx, done);
                     /* The room-key swap drives the BACKDROP: when cutscene_step
                      * advances to a new room (arrival 0x334be -> house 0x334c8),
                      * reload that room's scene + snap its camera — the port's

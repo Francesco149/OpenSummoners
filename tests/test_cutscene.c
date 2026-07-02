@@ -484,11 +484,13 @@ int test_cutscene_transition_fades(void)
     T_ASSERT_EQ_I(cs.line_idx, 9);
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_ARRIVAL);
 
-    /* advance L9 → the arrival EXIT beats open: box closed, still IN the arrival room
-     * (the house key is NOT staged until the exit beats complete). */
+    /* advance L9 → the arrival EXIT beats open.  The box LINGERS showing its full text
+     * (ARRIVAL_EXIT_BOX_HOLD) instead of closing immediately — retail keeps L9 up over
+     * the exit wait (USER studio mark t1197); still IN the arrival room (the house key
+     * is NOT staged until the exit beats complete). */
     cutscene_step(&cs, 1);
     T_ASSERT_EQ_I(cutscene_in_beats(&cs), 1);
-    T_ASSERT_EQ_I(dialogue_active(&box), 0);
+    T_ASSERT_EQ_I(dialogue_active(&box), 1);   /* box LINGERS over the exit (box_hold) */
     T_ASSERT_EQ_U(cutscene_room_key(&cs), CUTSCENE_ROOM_ARRIVAL);
 
     /* drive the whole transition, simulating the scene_fade grid; capture the two

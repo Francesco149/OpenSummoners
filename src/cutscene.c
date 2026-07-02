@@ -301,9 +301,24 @@ static const cutscene_beat HOUSE_EXIT[] = {
  * var 1) before the errands key stages; main.c arms the matching errands-entry REVEAL
  * (center-out var 0) on chain-complete.  The house Arche TURN is L6's blocking lead
  * beat (HOUSE_L6_LEAD), not a per-room flag. */
+/* The LAST arrival line (L9, Mother "wait up for your poor, old, slow parents")
+ * LINGERS showing its full text this many sim-ticks after its advance PRESS before the
+ * box closes — retail keeps it up over the exit WAIT, the SAME box-hold the house exit
+ * uses (HOUSE_EXIT_BOX_HOLD).  RE'd off retail-stairs.osr vs the port DLGT dump (the
+ * spam-confirm re-drive, one confirm/14t): BOTH sides advance L9 on the confirm at
+ * sim-tick 1192 (the whole L0-L8 chain is already tick-1:1, dialogue_timeline), but
+ * retail draws L9's body through tick 1200 while the port (exit_box_hold=0) cleared it
+ * at 1192 — the USER studio mark t1197 ("port skipping dialogue early": the port box is
+ * empty while retail still shows the Mother's line).  8 = 1200-1192.  This changes only
+ * the box RENDER linger (the exit beats still fire on the 1192 advance, so the chain
+ * timing is unchanged); the residual house/errands EARLY-start is a separate beat-
+ * duration gap (findings/errands-opening-dialogue.md "## The advance-early divergence").
+ * NOTE: this is the box render-linger only, NOT the advance gate the FRONT hypothesised
+ * (the advances already match) — same measured-box-hold category as HOUSE_EXIT_BOX_HOLD. */
+#define ARRIVAL_EXIT_BOX_HOLD 8
 static const cutscene_room TOWN_CHAIN[] = {
     /* room_key            script        n_lines            leads          n_leads          exit          n_exit        exit_box_hold */
-    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, 0 },
+    { CUTSCENE_ROOM_ARRIVAL, TOWN_ARRIVAL, TOWN_ARRIVAL_COUNT, ARRIVAL_LEADS, ARRIVAL_LEADS_N, ARRIVAL_EXIT, ARRIVAL_EXIT_N, ARRIVAL_EXIT_BOX_HOLD },
     { CUTSCENE_ROOM_HOUSE,   TOWN_HOUSE,   TOWN_HOUSE_COUNT,   HOUSE_LEADS,   HOUSE_LEADS_N,   HOUSE_EXIT,   HOUSE_EXIT_N,   HOUSE_EXIT_BOX_HOLD },
 };
 #define TOWN_CHAIN_COUNT ((int)(sizeof(TOWN_CHAIN) / sizeof(TOWN_CHAIN[0])))

@@ -94,6 +94,11 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   lines through the existing box system, played concurrent with freeroam control.  Lines/faces/box
   ground truth + the port (a 1-room cutscene chain re-armed after the entry reveal) + tick-aligned
   verification.  **Ported ckpt 152**; residual = the line-3 inline button icons (`PORT-DEBT(dialogue-arrow-art)`).
+- **[dialogue-advance-early.md](dialogue-advance-early.md)** — the "port skips dialogue early" divergence
+  (USER studio mark t1197, ckpt 176).  DISPROVES the advance-gate hypothesis: the advance PRESSES already
+  match retail (port DLGT + dialogue_timeline off port-stairs|retail-stairs).  The mark = a box RENDER
+  linger (arrival L9 box cleared 8t early); **fixed** `ARRIVAL_EXIT_BOX_HOLD=8` (== retail 1200).  OPEN:
+  the residual house/errands EARLY-start is a separate beat-DURATION gap (−10t/−8t at the room fades).
 - **[freeroam-collision.md](freeroam-collision.md)** — the 442a70 tick GEOMETRY (ckpt 175):
   the support probe (a delta=+1 `0x54e5c0` call → `body+0x24`), the vertical mover + ledge
   walk-off → FALL, the horizontal mover `0x54db10`/`0x54ded0` (step-up stair climb + step-down
