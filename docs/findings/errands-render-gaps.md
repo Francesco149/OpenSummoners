@@ -227,9 +227,29 @@ seq 223/224; the rest at the default foreground layer 13 per seq 282-288).  **VE
 walk-driven `port-cabinet.osr` at the clamp: all 6 render at retail's EXACT screen pos + dims.  Still
 PORT-DEBT(errands-cast) — a captured stand-in; the recurring gap (cabinet, then pot+3) shows the
 tick-2200-capture approach is fragile, so the proper fix (the CHARACTER def-table fill spawning from the
-MAP, so ALL objects come regardless of camera) is now the priority retire.  Known remaining: **res=1900
-fr0 @(8,444)** (bottom-left) — not in `asset_register` (no sprite slot), so it needs its bank resolved
-first; and Mom's POSE (retail res1127 fr0 vs port fr2 — a frame/facing diff, not a missing spawn).
+MAP, so ALL objects come regardless of camera) is now the priority retire.
+
+**ROOM PROPS NOW VERIFIED COMPLETE (both camera positions).**  A cross-ref of the DATA-1025 map CHARACTER
+objects vs the retail draws (`tools/…/xref.py`, staged in the scratchpad) resolves EVERY furniture/prop
+code to a bank (res 1023→0x16f, 1026→0x16b, 1027→0x16c, 1022→0x156; most at d=0 exact-position match) and
+confirms ERRANDS_CAST now covers ALL 20 of the map's VISIBLE CHARACTER objects (6×res1023 + 3×res1026 +
+10×res1027 + 1×res1022 == the 10 shop-prop `res1027` frames + the 6+3+1 furniture already listed).  A
+port-vs-retail draw diff at BOTH t1800 (left/centre) AND the t2500 clamp (right) shows **no missing
+prop** on either side.  The map's other CHARACTER codes (0x111d6/d9/f2, 0x11365/6f, 0x112e4 — variant 0,
+downstairs / off-screen far-right x≥1056) are INVISIBLE VOLUMES (as in the town, where only 3 of 32
+CHARACTER codes draw).  The frame_base=VARIANT (+0x18) model is proven (bookshelf var3 / cabinet var4 /
+hutch var2 / counter var6 / upfurn var13 / prop1022 var4 all == the retail frame); the 2 apparent
+mismatches (clock var43 vs seen fr44, pot var56 vs fr58) are the ANIMATED objects at a mid-anim frame.
+
+**Remaining (NOT missing props):** (1) the freeroam HUD — **res=1900 fr0 @(8,444)** is the bottom-left
+HUD strip (registered slot 39, SCREEN-anchored seq 431 among the res1103/1104 HUD draws — NOT a room
+object; there is no map object at its world pos), plus the blank portrait (`leader_uid` blocker) + the
+lower strips (§2).  (2) the clock PENDULUM + pot STEAM ANIMATION — both render at a static frame (the
+`effect-anim-phase` pattern; the clip + start phase are un-ported).  (3) Mom's POSE (retail res1127 fr0
+vs port fr2 — a facing/frame diff).  The runtime map-driven CHARACTER spawn (retiring the ERRANDS_CAST
+capture) is now pure cleanup — blocked only on the character-band z-order (the port's `draw_pool`
+draws by layer+emission with NO Y-sort, unlike retail's depth-sorted band), with the code→bank table +
+variant model ready.
 
 LESSON: a studio mark on a PHASE-desynced capture pair reads a real prop as "missing" when it is merely
 DISPLACED (the pot's neighbour, the STOVE res1074, is one such — it renders, just off-crop).  Confirm the
