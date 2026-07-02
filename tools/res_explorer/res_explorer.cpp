@@ -1244,6 +1244,24 @@ static MiSheet *mi_sheet(uint16_t bank)
     sh.cols = sh.cw ? sh.W / sh.cw : 0;
     sh.rows = sh.ch ? sh.H / sh.ch : 0;
     sh.key = slot->colorkey ? (slot->colorkey & 0xffffff) : 0x00ff00ffu;
+    // 8bpp keying is by PALETTE INDEX: the display-depth conversion
+    // (bs_convert_*, driven by the slicer's format hook) substitutes pixels
+    // whose index == slot->colorkey with magenta, and the cel builder keys
+    // magenta (quirk #47).  Reproduce the substitution here so the blit's
+    // magenta test keys them (group3 scenery/tile banks use index 0; the
+    // 0x1ffffff sentinel and out-of-range values match nothing — faithful
+    // to bs_convert's exact `idx == colorkey` compare).
+    if (sh.img.bpp == 8 && slot->colorkey != 0x1ffffffu) {
+        uint32_t ck = slot->colorkey;
+        for (int y = 0; y < sh.H; y++) {
+            const uint8_t *idx = sh.img.raw.data() +
+                (size_t)(sh.img.default_flip ? (sh.H - 1 - y) : y) * sh.W;
+            uint32_t *row = sh.up.data() + (size_t)y * sh.W;
+            for (int x = 0; x < sh.W; x++)
+                if ((uint32_t)idx[x] == ck) row[x] = 0xffff00ffu;
+        }
+        sh.key = 0x00ff00ffu;
+    }
     if (slot->f_08 && sh.img.bpp == 24) {
         const uint8_t *lut = (const uint8_t *)(uintptr_t)slot->f_18;
         for (uint32_t &c : sh.up) {

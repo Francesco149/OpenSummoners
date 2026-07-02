@@ -37,6 +37,13 @@ specific commits where relevant.
   Object inspect now resolves the REAL sprite (bank/res/frame/layer + cel preview);
   invisible volumes / off-def-table codes say so explicitly. Actors toggle added;
   marker overlay now defaults off.
+- **8bpp colorkey is by PALETTE INDEX (same day, USER: black boxes + a "blank" tile
+  row):** the engine's display conversion (bs_convert_*, slicer format hook) substitutes
+  pixels whose index == slot->colorkey with magenta BEFORE the magenta-keyed blit
+  (group3 scenery/tile banks: index 0; sentinel 0x1ffffff = none; bs_convert's exact
+  `idx == colorkey` compare — 0xff00ff-valued keys match no index, faithful). The
+  inspector now applies the substitution at sheet build; both symptoms were this one
+  bug (the "blank" ground-floor row = index-0 pixels rendering black on black).
 - Default map tab stays Preview (schematic); Inspector becomes default once proven
   (USER). `--shot` gained [MODULE:]TYPE:ID spec + auto-focuses Inspector for maps.
 
