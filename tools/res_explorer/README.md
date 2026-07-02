@@ -31,6 +31,13 @@ and support Lizsoft.
 | Strings   | `RT_STRING`                       | UTF-16 tables                             | decoded text                                    | TXT    |
 | anything  | any                               | —                                         | hex + info tabs always available                | BIN    |
 
+Kinds nothing in the game uses (verified 2026-07-02, not a bug): **Strings** —
+no game PE carries an `RT_STRING` table (text lives in DATA blobs / exe data);
+**Image** — the engine's raw (non-compressed) decode branch exists but every
+shipped image blob uses the `0x2711` container (the lone raw-looking candidate,
+`sotesd DATA 1986`, is a data table: bpp field 0, stride/count dwords). Both
+kinds stay for arbitrary PEs. The exe's `RT_ICON` DIBs show as hex (app icon).
+
 Decoders are the **engine's own ported code** (`src/bitmap_session.c` — raw +
 self-rebasing compressed header, embedded palettes; `src/map_data.c` — the
 FUN_00587970 parse), so what you see is what the engine decodes, byte for byte.
