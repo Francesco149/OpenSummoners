@@ -13,26 +13,65 @@ content of any kind.  You supply your own copy of the game (Steam).
 
 ## Status
 
-Active development — see [`docs/STATUS.md`](docs/STATUS.md) for the current front,
-[`docs/PLAN.md`](docs/PLAN.md) for the roadmap, and
-[`docs/PROGRESS.md`](docs/PROGRESS.md) for the changelog.
+**Early development — the port is not yet playable.** The engine core boots and the
+opening arc (title → town intro → arrival cutscenes) already renders 1:1 against the
+retail exe, but a playable game is still a long way off. In the meantime the project
+ships two **finished, usable tools** — the resource explorer and the Japanese voice
+patch below.
+
+Development detail: [`docs/STATUS.md`](docs/STATUS.md) (current front),
+[`docs/PLAN.md`](docs/PLAN.md) (roadmap), [`docs/PROGRESS.md`](docs/PROGRESS.md)
+(changelog).
+
+## Get the game (support the author)
+
+Fortune Summoners is still on sale — if this project interests you, please buy the
+game and support Lizsoft:
+
+- **[Fortune Summoners Special Edition](https://store.steampowered.com/app/1381770/Fortune_Summoners_Special_Edition/)**
+  (Steam, 2020) — published by Lizsoft directly; Japanese + English, Windows 10
+  fixes. **Recommended**, and the edition the voice patch targets.
+- [Fortune Summoners: Secret of the Elemental Stone](https://store.steampowered.com/app/203510/Fortune_Summoners/)
+  (Steam, 2012) — the original Carpe Fulgur localization; the engine this port
+  reimplements.
+- The **voiced Japanese release** (the one that shipped the `sotesx_s.dll` voice
+  bank) is **out of print** — see
+  [`tools/ennse_voice/README.md`](tools/ennse_voice/README.md#where-the-voice-bank-comes-from)
+  for the exact edition metadata if you want to hunt down a second-hand copy.
 
 ## Downloads
 
 Every build is produced by CI and published to **[Releases](../../releases)** — each
-ships **no game assets** (everything reads your own legitimately-owned files at runtime):
+ships **no game assets** (everything reads your own legitimately-owned files at
+runtime). The rolling **`nightly`** pre-release always carries the latest build;
+tagged `vX.Y` releases are cut at milestones.
 
-- **`opensummoners.exe`** — the port. Drop it beside your Fortune Summoners install.
-- **`voice_view.exe`** — a SotES **resource explorer**: open a game DLL, list its
-  `WAVE`/`DATA`/… resources, and play/export the audio.
-- **Japanese voice patch** — restores **Japanese dialogue voice** to the English special
-  edition (English text + JP audio), which the official English release never shipped.
-  Install by pasting **one line into PowerShell** — it auto-detects your game + your JP
-  `sotesx_s.dll` and installs (re-run to uninstall). The one-liner + a manual zip option
-  are in [`tools/ennse_voice/README.md`](tools/ennse_voice/README.md).
+### Resource explorer — `res_explorer.exe`
 
-The rolling **`nightly`** pre-release always carries the latest build; tagged `vX.Y`
-releases are cut at milestones.
+[![the resource explorer](docs/media/res-explorer.png)](docs/media/res-explorer.png)
+
+A native viewer/exporter for **every resource type** in the game's files, decoding
+with the engine's own reverse-engineered code: sprite sheets (palette, colorkey,
+frame grid), maps (tile schematic + object layer), sound effects and the 1,448-clip
+Japanese voice bank (waveform, seekable playback), BGM streams, string tables — plus
+hex/info views and PNG/WAV/WMA/JSON/TXT export, per resource or in bulk.
+Drop-in run: it auto-detects your install. Docs:
+[`tools/res_explorer/README.md`](tools/res_explorer/README.md).
+
+### Japanese voice patch (EN Special Edition)
+
+[![one-line install](docs/media/ennse-voice-install.png)](docs/media/ennse-voice-install.png)
+
+Restores **Japanese dialogue voice** to the English Special Edition (English text +
+JP audio) — something no official English release ever shipped. Install by pasting
+**one line into PowerShell** — it auto-detects your game + your JP `sotesx_s.dll`
+and installs; re-run to uninstall. The exe is not modified. One-liner + manual zip:
+[`tools/ennse_voice/README.md`](tools/ennse_voice/README.md).
+
+### The port — `opensummoners.exe`
+
+Drop it beside your Fortune Summoners install. Early development (see Status);
+today it is a developer artifact, not a way to play the game.
 
 ## Getting started (NixOS / WSL2)
 

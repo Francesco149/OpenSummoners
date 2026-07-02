@@ -37,10 +37,50 @@ per-line mapping (the voice-id data is already present in the shared `sotesd.dll
 ## What you need
 
 - The **English special edition** on Steam (`…\steamapps\common\sotes\`, has
-  `sotes_en.exe`).
+  `sotes_en.exe`) —
+  **[buy it here and support Lizsoft](https://store.steampowered.com/app/1381770/Fortune_Summoners_Special_Edition/)**.
 - **`sotesx_s.dll`** — the Japanese voice bank (~253 MB). It ships only with the
-  **Japanese special edition**; copy it from your own JP install/CD. (It is not
+  voiced Japanese release (below); copy it from your own JP install/CD. (It is not
   redistributed here — you must own it.)
+
+## Where the voice bank comes from
+
+No Steam edition ships the dialogue voice bank — not even the Japanese language of
+the Special Edition. The only sources are the **out-of-print voiced Japanese
+releases** by Lizsoft; metadata to hunt one down second-hand:
+
+- **フォーチュンサモナーズ ～アルチェの精霊石～ Deluxe** — the 2009-06-18 boxed
+  retail release (publisher ジャングル / Jungle, distr. Access Media International;
+  Amazon JP ASIN `B0026EQRVE`). Added professional voice acting for the main story
+  scenes: 田村ゆかり (Arche), 植田佳奈 (Sana), 藤村歩 (Stella).
+- The Lizsoft **JP retail-CD special edition** (disc dated 2008–2009; installs to
+  `C:\Program Files (x86)\lizsoft\FortuneSummoners`) — the build matrix in
+  `docs/findings/game-editions-and-voice.md`. Vector's download listing now reads
+  取扱い終了 (discontinued), and lizsoft.jp only points at Steam.
+
+Identify the right file: `sotesx_s.dll`, **253,206,528 bytes**, 1,448 `WAVE`
+resources (PCM 22050 Hz 16-bit mono), SHA-256
+`ad15512c6810caeb877de5c6237439e53df3b72c04898d5115d7a6e73762b0a6`.
+(Browse/play it with the repo's [resource explorer](../res_explorer/README.md).)
+
+## Exact patch target (for future game updates)
+
+The patch seeds engine globals by address, so it is built against ONE exe build.
+Verified against:
+
+| field | value |
+|---|---|
+| game | Fortune Summoners Special Edition (Steam app `1381770`) |
+| Steam buildid | `23890965` |
+| file | `sotes_en.exe`, 72,529,416 bytes |
+| SHA-256 | `668f7e1a12e70b36acf60859c3ee34385daa826839cdde3d93f2929a5c51232e` |
+| ImageBase | `0x400000` (unpacked; runtime-relocated, ASLR-safe) |
+
+Seed addresses (`version_proxy.c`): `bank_load 0x5d8b10`, `asset_mgr 0x92ac68`,
+`operator_new 0x5ef121`, `manager_init 0x584a70`, `bank_global 0x92af80`,
+`mgr_global 0x92b76c`, `sounddev 0x92d5b8`. If Steam ships a new build (different
+buildid/hash), re-derive these per `docs/plans/ennse-voice-patch.md` before
+trusting the patch.
 
 ## Manual install (offline — no one-liner)
 
