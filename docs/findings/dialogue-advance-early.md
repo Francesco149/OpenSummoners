@@ -40,6 +40,17 @@ still fire on the 1192 advance; only the box render lingers.  Same measured-box-
 as `HOUSE_EXIT_BOX_HOLD` (a render-linger stand-in, not a curve-fit of logic).  Host:
 `test_cutscene_transition_fades` updated (box now LINGERS, not closes, after the L9 advance).
 
+VISUAL (notes.py render, fixed port | retail-stairs @ t1197): the box + name plate + full text
+now render == retail; the t1197 crop differ dropped **46480 → 8553**.  DRAW-VERIFIED the 8553
+is a RECON ARTIFACT, NOT a game gap: `draw_probe` @t1197 shows the port and retail draw the
+SAME frame — **730 vs 729 draws**, and the portrait region (res 1153 fr1 (8,64,320x320) + res
+1004 fr0/1) is BYTE-identical (same res/cel/dst/blend) on both sides.  The one extra port draw
+is a capture-side res-ID naming gap (port res=1110 vs retail res=0 on one clipped 32×32 tile at
+(64,148) — the known "res=0" proxy ID gap, `res0-ui-banks.md`).  The note1.png tint (port
+warmer/tan vs retail pinker, whole-frame) is the RECON decoding the two `.osr` with different
+session palettes (a notes.py recon-fidelity limit), not a divergence in the game output.  So
+after the fix **t1197 is draw-exact**; no portrait-tint follow-up is warranted.
+
 ## Component 2/3 — the chain EARLY-start (OPEN: beat durations)
 
 The advances match, yet the house + errands still play early — a BEAT-duration gap, not the
