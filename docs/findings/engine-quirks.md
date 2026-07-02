@@ -3952,3 +3952,32 @@ Each blend descriptor (`PdBlend`, the per-channel shift/mask + the additive/alph
 
 ### #118 — the freeroam SWORD draw/sheathe has a ~3-tick STARTUP LATENCY: the Z press does NOT engage the sword-out form on the press tick — it QUEUES a context-action (cmd[5] type 0xd2) the per-form action FSM executes after a startup, so res 0x571 fr96 first appears ~3t later while Arche holds the current-stance idle (2026-06-24, ckpt 163f, RE'd + bit-aligned off sword2.osr)
 Ground truth (sword2.osr, `sword_cels.py`, FRAMEBEG axis): DRAW Z@nav-tick 1807 → res 0x570 sword-IN idle (fr0) holds through **1809**, res 0x571 sword-OUT **fr96 first renders at 1810** (+3t); SHEATHE Z@3194 → res 0x571 idle through 3196, res 0x570 **fr96 at 3197** (same +3t — symmetric).  **Mechanism:** Z (ring 9) routes through `478ba0:477`→`FUN_00479de0(entity+0x14854, action, 0xd2)` (the queued-command record: `+0x14868` action / `+0x14870` type 0xd2 / `+0x1486a`/`+0x1486c` timer+phase = 0); the per-tick integrator `442a70` dispatches on the current form `entity+0x1d4` (case 0xc35a sword-IN → `FUN_0045a300(.., &DAT_0062f868, 0xd2)`; case 0xc35b sword-OUT → `45a300(.., &DAT_00636a58, 0xd2)`), and **`0x45a300`** (a 14 KB action-execution state machine: +0x48 state / +0x58 phase / +0x56 type / +0x5c timer) runs the action's STARTUP before re-installing the other form (`41f200`: 0xc35a↔0xc35b = bank 0x8b↔0x8c = res 0x570↔0x571).  So the form swap — hence the visible draw/sheathe — trails the press by the FSM startup.  **Port:** the unported FSM means the latency doesn't emerge; modelled as a deferred-toggle timer (`CHAR_SWORD_DRAW_STARTUP`, `character_resolve_sword`) calibrated to land fr96 at the recording's onset = `PORT-DEBT(sword-draw-startup)`.
+
+### #119 — the map-object band names are the ENGINE's own: Effect / Structure / Character / Device "Object" (exe strings 0x4a2e2c..0x4a2e64), a 5th type "Treasure" exists (0x4a0af8, dispatcher 0x556990) — and NO shipped map places a DEVICE (80000-89999) object (2026-07-02, ckpt 178, all-maps sweep)
+The 0x58d460 placement dispatch bands purely by code RANGE (50k/60k/70k/80k), and its overflow
+aborts name the bands: `Effect/Structure/Device/Character Object Count Over.` plus
+`Attach/Create Character Object`.  The CHARACTER band is NOT people-only — the town fountain
+(0x112e5) and barrels (0x1129e/9f) are static props/emitter fixtures spawned through it (the
+band name is dispatch plumbing, not semantics).  `Unknown Object Type Treasure.` (0x4a0af8, in
+0x556990) names a separate script-side object type.  The all-maps sweep (tools/extract/
+map_sweep.py, 376 maps): EFFECT 87 distinct codes, STRUCTURE 18+0xeead, CHARACTER 90, DEVICE **0**
+— the DEVICE band (+0x13e0, spawner 0x557550) is script/spawn-only, never map-placed.
+
+### #120 — map object codes 90010/90011 (0x15f9a/0x15f9b) are NOT spawns: the map decoder's own trailing pass (587e00.c:3185-3204 -> FUN_0058cb30) consumes them as region-E LINK ANCHORS (2026-07-02, ckpt 178, RE'd off 587e00/58cb30 + ported)
+After the per-cell tile dispatch, 587e00 walks the object layers (0x58c8c0 count / 0x58c8d0
+accessor = the map object's layer array +0x38 / sub-pointer blocks +0x3c) and for code 0x15f9a
+(link ALL sub-D entries) / 0x15f9b (only entries whose first dword == 1) calls FUN_0058cb30:
+the anchor cell (hdr.x/32, hdr.y/32) gets a 0x30-byte region-E record at grid+0x1d1030+idx*0x30 —
++0x00 u16 link count (>4 links = fatal "The maximum number exceeded by t..."), +0x04 flag
+(sub-A[0]==1), +0x08 four {i32 tile-x, i32 tile-y} pairs (each sub-D (flag, instance-id) entry
+resolved by searching the layer list for hdr+0x00 == id), +0x28/+0x2c anchor world x/y (hdr*100).
+Consumers read the anchor world pos (0x442710/0x4848a0/0x484bc0 — waypoint/path logic).  2049
+placements across 217 maps.  Ported into map_decode() (ckpt 178); the per-cell loop's region-E
+memset only zeroes the +0x00 count word (587e00.c:3175), so the pass runs after it.
+
+### #121 — STRUCTURE code 0xeead's sprite bank is the runtime u16 *(0x8a9b50+0x27a4), written by the 587e00 PROLOGUE per room[0x43]: 0x88 / 0x89 / 0x8a for param_4 5 / 6 / 8 (587e00.c:215-236; 438a60.c:19-22) (2026-07-02, ckpt 178)
+The 0x438a60 STRUCTURE activator's 0xeead arm reads its bank from DAT_008a9b50+0x27a4 instead of
+a per-case constant; the writer is the map decoder's prologue param_4 switch (the same cases that
+install the palette-remap tables &DAT_00675708/910/d20 and swap local_14 0x83->0x84/85/86).  So
+0xeead scenery reskins per area family.  0xf295's bank is a plain constant 0x77 (438a60.c:24-27).
+Both now in the port's STRUCT_BANK_DEFS path — every STRUCTURE code any map places resolves.

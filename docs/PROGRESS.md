@@ -7502,3 +7502,57 @@ trace `tests/scenarios/in-game-intro/`).  751 host tests still pass; ledger
 175/1490 unchanged.
 
 ---
+
+## ckpt 178 — 2026-07-02 — ALL-MAPS resource sweep: 587e00 tile dispatch COMPLETE (100% cell coverage) + the region-E placeholder pass + STRUCTURE table done + viewer band naming
+
+**USER ask:** sweep every game resource (esp. maps) with the res_explorer infra;
+port unported tile types + whatever the viewer stubs; check the "particle
+emitters named character" label.
+
+**Sweep tool `tools/extract/map_sweep.py`:** enumerates all 376
+MSD_SOTES_MAPDATA DATA resources in the exe, histograms tile ids + object
+codes vs the PORT's own sources (case labels + MD_SIMPLE_ARMS + the def tables,
+parsed live so the report can't go stale).  Pre: 23/87 tile ids, **5.0%** of
+342,757 populated cells.  Post: **87/87, 100.0%**.
+
+**map_decode.c — the full FUN_00587e00 dispatch** (faithful transcriptions,
+emit-for-emit in retail order; digest-assisted read of the 3,282-line decompile
+with the parser VALIDATED against the already-ported arms): all interior
+families (10xxx/11xxx banks 0x5c-0x6a, 112xxx 0x189-0x18c, 121xxx 0x68/0x69,
+131xxx 0x79-0x7e + bank_14, 141xxx/142xxx 0x71-0x76, 151xxx/161xxx/162xxx,
+114xxx autotiles 0x193-0x195 incl. the 0x1bd82 staircase collision clusters,
+dir6 additions 0x29c16/0x2a008, 999xxx class-1 markers).  Key RE corrections:
+emit_tile (58c910) params **9/10 are the explicit spans** (7/8 the unused
+pair) — 0x1d8ab/0x22b16 shape-3 use a 1x2 span; 0x1ffc3/c5 = caseD_2724 twin
+(d4=2, bank 0x7a); 0x1ffeb = 0x272e twin; 0x1b995 = 0x1b990 w/ bank_20.
+
+**The trailing placeholder pass (587e00.c:3185-3204 -> FUN_0058cb30) PORTED:**
+map codes 90010/90011 are not spawns — they fill region-E link-anchor records
+(quirk #120).  This is the FRONT-flagged "object-spawn PLACEHOLDER pass" input
+for the missing house props (mark t2278) — the spawn CONSUMER is the next link.
+
+**STRUCTURE def table COMPLETE:** 0xf295 -> 0x77; 0xeead -> the runtime bank
+*(0x8a9b50+0x27a4) = 0x88/0x89/0x8a per param_4 5/6/8 written by the 587e00
+prologue (quirk #121) — the old "runtime value, omitted" mystery resolved.
+Every STRUCTURE code any map places now resolves.
+
+**res_explorer:** 9001x band named PLACEHOLDER (was "?") with a live region-E
+record decode in the inspect panel; CHARACTER label clarified (the ENGINE's own
+band name per the 0x4a2e64 strings — holds props/emitter fixtures too, which
+answers the USER's naming question: keep, but explain); param_4 cfg dropdown
+grown to 1-8 (mirrors the 0xeead runtime-bank write); marker legend + violet
+placeholder swatch.  Verified visually: map 1057 (castle ruins) and 1047 (cave
+tunnel, the 13-shape 0x1ffc3 autotile edge) render fully with 0 unported
+hatching; town 1022 regression unchanged (1268 tiles + 59 actors) — pushed to
+the llm-feed.
+
+Quirks #119-#121.  7 new host tests (region-E fill, spans, stairs, markers);
+**1095 pass / 0 fail**.  Ledger 227/1490 touched.
+
+**Still stubbed (unchanged PORT-DEBT):** EFFECT sprite table (75/87 codes off
+the captured town set — the 27 KB 0x41f200 switch), CHARACTER sprite table
+(87/90 — the lazy 0x40afe0/0x41e600 fill), the decode-prologue header words +
+palette-remap installs (PORT-DEBT decode-prologue-header), the region-E spawn
+CONSUMER.
+
+---

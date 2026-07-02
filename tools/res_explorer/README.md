@@ -60,8 +60,10 @@ The tool supplies its own `bs_load_pe_resource` with the 1041-language fallback
     compressed header DOES carry sheet dims), hovered-pixel readout, palette panel.
   - Audio: peak waveform, click-to-seek, space = play/pause, loop, volume.
   - Maps: golden-ratio tile-id coloring, per-plane toggles, object markers colored
-    by type range (50k EFFECT / 60k STRUCTURE / 70k CHARACTER / 80k DEVICE),
-    hover = cell/object detail. Badge shows `consumed == size` (parses exactly).
+    by type range (50k EFFECT / 60k STRUCTURE / 70k CHARACTER / 80k DEVICE / 9001x
+    PLACEHOLDER link anchors — the band names are the ENGINE's own, and CHARACTER
+    holds props/emitter fixtures alongside NPCs), hover = cell/object detail.
+    Badge shows `consumed == size` (parses exactly).
   - **Map Inspector tab (the DEFAULT tab for maps)** — renders the map the way the ENGINE does, by running
     the port's own pipeline host-side (`map_decode` FUN_00587e00 dispatch →
     runtime render grid → `map_render_tile` FUN_00490f30 geometry → composite
@@ -73,11 +75,14 @@ The tool supplies its own `bs_load_pe_resource` with the 1041-language fallback
     (bank/res/frame/layer) with the actual source cels, collision
     class/slope/wall, region-C blend record; click an object marker → full layer
     record plus the RESOLVED sprite (bank/res/frame/layer + cel preview);
-    invisible volumes and off-def-table codes say so. Overlays: actors toggle,
+    invisible volumes and off-def-table codes say so; 9001x placeholder
+    anchors decode their live region-E link record. Overlays: actors toggle,
     object markers, collision, wall flags, blend
-    cells, grid, unported-tile hatching; tileset cfg toggle (town/house vs
-    errands). Coverage is honest — cells whose tile-id arm isn't RE'd yet hatch
-    red and are listed with counts. Sky/parallax backdrop is a separate engine
+    cells, grid, unported-tile hatching; tileset cfg dropdown (room[0x43]
+    param_4 1-8, driving the interior banks + the 0xeead runtime bank).
+    Coverage is honest — cells whose tile-id arm isn't RE'd yet hatch
+    red and are listed with counts (the tile dispatch is COMPLETE as of
+    ckpt 178: 100% of populated cells across all 376 maps decode). Sky/parallax backdrop is a separate engine
     pass (not the tile grid), so it stays dark here.
 - **Fonts** — Segoe UI merged with MS Gothic (Japanese glyphs) when present.
 

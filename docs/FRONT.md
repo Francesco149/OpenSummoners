@@ -42,6 +42,19 @@
   warmup gate (→ `char-input-autorepeat`, not the turn), within retail's ±1-2t
   coalescing slop.  RE: `findings/freeroam-turn-around.md`.  **USER: verify the pivot
   animation — studio shortcut = `port-stairs2 | retail-stairs` @ tick ~2950.**
+- **Landed ckpt 178 — ALL-MAPS SWEEP: the 587e00 tile dispatch is COMPLETE.**
+  `tools/extract/map_sweep.py` (all 376 map resources vs the port's own sources):
+  tile-id cell coverage 5.0% → **100.0%** (87/87 ids; every family transcribed
+  emit-for-emit; quirks #119-#121).  The trailing `FUN_0058cb30` placeholder pass
+  is PORTED (map codes 90010/90011 → region-E link anchors — NOT spawns).
+  STRUCTURE def table complete (0xf295→0x77; 0xeead→the runtime bank 0x88/89/8a
+  per param_4 5/6/8, RE'd off the 587e00 prologue).  res_explorer: PLACEHOLDER
+  band named + region-E inspect; CHARACTER label kept (the ENGINE's own band
+  name — holds props/emitters too, answers the USER naming question); param_4
+  cfg 1-8.  Maps 1057/1047 render fully (feed); town regression clean.  1095
+  host tests.  Still stubbed: EFFECT/CHARACTER sprite tables beyond the town
+  captures, the decode-prologue header/palette installs, the region-E spawn
+  CONSUMER (next link for (b) below).
 - **Next move (the residual dialogue drift + the 2nd USER mark):**
   (a2) **the chain still plays EARLY (OPEN)** — a BEAT-duration gap, NOT the dialogue
   gate: under the dense-confirm re-drive the house starts ~−10t, errands ~−26t (the
@@ -50,15 +63,14 @@
   retail.osr).  RE the fade PERFORMER's per-tick step off retail-stairs before
   adjusting — do NOT curve-fit.  `findings/dialogue-advance-early.md` "Component 2/3".
   (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
-  kitchen HUTCH with dishes, upstairs) — the unported object-spawn PLACEHOLDER pass
-  (`0x58c8c0` is a 4-B getter; the real spawn family is `0x58c8d0`/`0x58cb30`; the
-  res_explorer already renders these host-side).  **CAVEAT (ckpt 176): the t2278 raw
-  differ (22498) was CONFOUNDED by the char-turn (c) offset — NOW LARGELY RESOLVED
-  (ckpt 177): (c) is ported, so the LEFT-walk shift drops from ~960 to ~240 wx (1 tick);
-  the port DOES render most of the scene (res 1071/1072/1082/1722/1026 all present at
-  t2278).  Re-capture + assess (b) at t2278 (or a PRE-reversal tick) to isolate the
-  truly-missing placeholder objects.**  Mom's pose in-crop differs too — check her clip
-  once the props land.  (Visual-verify: deferred.)
+  kitchen HUTCH with dishes, upstairs) — the placeholder PASS is now ported (ckpt
+  178); the remaining gap is the region-E/prop spawn CONSUMER (readers:
+  `0x442710`/`0x4848a0`/`0x484bc0` look like waypoint logic — the prop spawner may
+  be elsewhere; re-capture + assess at t2278 or a PRE-reversal tick).  **CAVEAT
+  (ckpt 176): the t2278 raw differ (22498) was CONFOUNDED by the char-turn (c)
+  offset — LARGELY RESOLVED (ckpt 177): the LEFT-walk shift drops to ~240 wx (1
+  tick); the port DOES render most of the scene at t2278.**  Mom's pose in-crop
+  differs too — check her clip once the props land.  (Visual-verify: deferred.)
   (c) `char-turn-state` — **DONE ckpt 177** (`findings/freeroam-turn-around.md`).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
   collidable actors matter.
