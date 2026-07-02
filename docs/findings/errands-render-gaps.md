@@ -248,6 +248,14 @@ VERIFIED off `port-cabinet.osr` (pot 58→59→60→57 dur6; clock 45→44→43�
 per-object start PHASE is un-seeded (the `effect-anim-phase` pattern — the loops run, but not tick-locked
 to retail's phase).
 
+**Family Z-ORDER fixed (ckpt 180b, USER mark).**  A chair (res1027 fr5 @184,232, the 0x112a2 shop prop)
+drew OVER Mom because the family (Father/counter/Mother) were spawned BEFORE the 10 res1027 shop props
+in ERRANDS_CAST — both layer 13, so draw order = array order.  Retail's t2500 seq proves the PEOPLE are
+frontmost (all props 252-286, THEN Mom 289), so the family block moved to AFTER the shop props (the
+counter kept right after Father = drawn in front of him).  VERIFIED: chairs now at seq 280/281, Mom at
+287.  (This is the same class as the §4 layer-7 shelf-frame fix — a "missing" element is often
+EMITTED-but-mis-Z'd; the port's `draw_pool` has no Y-sort, so intra-layer order = spawn order.)
+
 **Remaining (NOT missing props):** (1) the freeroam HUD — **res=1900 fr0 @(8,444)** is the bottom-left
 HUD strip (registered slot 39, SCREEN-anchored seq 431 among the res1103/1104 HUD draws — NOT a room
 object; there is no map object at its world pos), plus the blank portrait (`leader_uid` blocker) + the
