@@ -29,7 +29,9 @@ LIBS    := -ld3d11 -ldxgi -ld3dcompiler -lgdi32 -luser32 -lkernel32 -lwinmm \
 CSRC   := ../../src/bitmap_session.c ../../src/map_data.c \
           ../../src/map_grid.c ../../src/map_decode.c ../../src/map_render.c \
           ../../src/draw_pool.c ../../src/asset_register.c ../../src/render_id.c \
-          ../../src/asset_register_win32.c
+          ../../src/asset_register_win32.c \
+          ../../src/actor_spawn.c ../../src/actor_render.c ../../src/butterfly.c \
+          ../../src/party.c ../../src/rng.c ../../src/anim_clip.c
 CXXSRC := res_explorer.cpp res_core.cpp \
           $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp \
           $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp \

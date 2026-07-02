@@ -35,6 +35,8 @@ extern "C" {
 #include "map_decode.h"
 #include "map_render.h"
 #include "asset_register.h"
+#include "actor_spawn.h"
+#include "actor_render.h"
 }
 
 #include <map>
@@ -1084,6 +1086,14 @@ struct MiNode {                 // one draw node + provenance for inspection
     int     slot;
 };
 
+struct MiActorNode {            // one object-layer actor draw (describe result)
+    uint16_t bank;
+    int16_t  frame;
+    int32_t  px, py;            // canvas px (world/100 + descriptor offset)
+    uint32_t layer;
+    uint8_t  band;              // 0 STRUCTURE, 1 EFFECT, 2 CHARACTER
+};
+
 static struct {
     bool built = false, ok = false;
     int  built_for = -1;                 // g_sel the build belongs to
@@ -1091,9 +1101,21 @@ static struct {
     bool md_ok = false;
     uint8_t *grid = nullptr;
     std::vector<MiNode> nodes;           // layer-sorted (stable walk order)
+    std::vector<MiActorNode> anodes;     // object-layer actors, layer-sorted
+    actor_spawn_pool *pool_struct = nullptr;   // kept for the inspect panel
+    actor_spawn_pool *pool_effect = nullptr;
+    actor_spawn_pool *pool_char = nullptr;
+    int16_t flip_table[1024] = {0};
     Tex tex;
     int px_w = 0, px_h = 0;
-    int drawn = 0, unresolved = 0;
+    int drawn = 0, unresolved = 0, actors_drawn = 0;
+    bool ov_actors = true;
+    Tex selobj_tex;                      // resolved object sprite preview
+    int selobj_w = 0, selobj_h = 0;
+    int selobj_for = -1;                 // which sel_obj the resolve belongs to
+    bool selobj_ok = false;
+    MiActorNode selobj_node {};
+    char selobj_msg[160] = "";
     std::map<uint32_t, int> unknown_ids; // tile_id -> cell count (unported arms)
     int cfg_param4 = 1;                  // room[0x43]: 1=town/house, 4=errands
     // registry
@@ -1101,7 +1123,7 @@ static struct {
     bool reg_done = false;
     // view state
     float zoom = 0.0f; ImVec2 pan = ImVec2(0, 0);
-    bool ov_obj = true, ov_col = false, ov_wall = false, ov_grid = false,
+    bool ov_obj = false, ov_col = false, ov_wall = false, ov_grid = false,
          ov_blend = false, ov_unknown = true;
     int  sel_cx = -1, sel_cy = -1, sel_obj = -1;
     Tex  sel_tex;                        // 4-slot source-cel strip for the panel
@@ -1114,13 +1136,18 @@ static void mi_clear()
     if (g_mi.md_ok) { map_data_free(&g_mi.md); g_mi.md_ok = false; }
     if (g_mi.grid) { map_grid_free(g_mi.grid); g_mi.grid = nullptr; }
     g_mi.nodes.clear();
+    g_mi.anodes.clear();
+    delete g_mi.pool_struct; g_mi.pool_struct = nullptr;
+    delete g_mi.pool_effect; g_mi.pool_effect = nullptr;
+    delete g_mi.pool_char;   g_mi.pool_char = nullptr;
     g_mi.sheets.clear();
     g_mi.unknown_ids.clear();
     g_mi.tex.release();
     g_mi.sel_tex.release();
+    g_mi.selobj_tex.release();
     g_mi.built = g_mi.ok = false;
     g_mi.built_for = -1;
-    g_mi.drawn = g_mi.unresolved = 0;
+    g_mi.drawn = g_mi.unresolved = g_mi.actors_drawn = 0;
     g_mi.sel_cx = g_mi.sel_cy = -1; g_mi.sel_obj = -1;
     g_mi.zoom = 0.0f; g_mi.pan = ImVec2(0, 0);
 }
@@ -1241,22 +1268,15 @@ static MiSheet *mi_sheet(uint16_t bank)
 // (The first cut mirrored the row order; single-row roof banks hid it, the
 // multi-row ground/house atlases mangled — USER-caught.)  The node's src
 // rect offsets are cel-surface coords = upright top-left, too.
-static void mi_blit_node(std::vector<uint32_t> &cv, const mr_tile &t)
+static void mi_blit_rect(std::vector<uint32_t> &cv, const MiSheet *sh,
+                         int sx, int sy, int w, int h, int dx, int dy)
 {
-    MiSheet *sh = mi_sheet(t.bank);
-    if (!sh->ok) { g_mi.unresolved++; return; }
-    int f = t.frame;
-    if (f >= sh->cols * sh->rows) { g_mi.unresolved++; return; }
-    int vrow = f / sh->cols, vcol = f % sh->cols;
-    int sx = vcol * sh->cw + t.src_x;
-    int sy = vrow * sh->ch + t.src_y;
-    int dx = t.dst_x / 100, dy = t.dst_y / 100;
-    for (int y = 0; y < t.h; y++) {
+    for (int y = 0; y < h; y++) {
         int yy = sy + y, dyy = dy + y;
         if (yy < 0 || yy >= sh->H || dyy < 0 || dyy >= g_mi.px_h) continue;
         const uint32_t *src = sh->up.data() + (size_t)yy * sh->W;
         uint32_t *dst = cv.data() + (size_t)dyy * g_mi.px_w;
-        for (int x = 0; x < t.w; x++) {
+        for (int x = 0; x < w; x++) {
             int xx = sx + x, dxx = dx + x;
             if (xx < 0 || xx >= sh->W || dxx < 0 || dxx >= g_mi.px_w) continue;
             uint32_t c = src[xx];
@@ -1266,7 +1286,72 @@ static void mi_blit_node(std::vector<uint32_t> &cv, const mr_tile &t)
             dst[dxx] = c;
         }
     }
+}
+
+static void mi_blit_node(std::vector<uint32_t> &cv, const mr_tile &t)
+{
+    MiSheet *sh = mi_sheet(t.bank);
+    if (!sh->ok) { g_mi.unresolved++; return; }
+    int f = t.frame;
+    if (f >= sh->cols * sh->rows) { g_mi.unresolved++; return; }
+    int vrow = f / sh->cols, vcol = f % sh->cols;
+    mi_blit_rect(cv, sh, vcol * sh->cw + t.src_x, vrow * sh->ch + t.src_y,
+                 t.w, t.h, t.dst_x / 100, t.dst_y / 100);
     g_mi.drawn++;
+}
+
+// one object-layer actor: a full cel at world/100 + descriptor offset (the
+// map_present mode-0 projection with the camera at the canvas origin).
+static void mi_blit_actor(std::vector<uint32_t> &cv, const MiActorNode &an)
+{
+    MiSheet *sh = mi_sheet(an.bank);
+    if (!sh->ok) { g_mi.unresolved++; return; }
+    int f = an.frame;
+    if (f < 0 || f >= sh->cols * sh->rows) { g_mi.unresolved++; return; }
+    int vrow = f / sh->cols, vcol = f % sh->cols;
+    mi_blit_rect(cv, sh, vcol * sh->cw, vrow * sh->ch, sh->cw, sh->ch,
+                 an.px, an.py);
+    g_mi.actors_drawn++;
+}
+
+// spawn the map's object-layer bands through the port's own spawn pass
+// (0x58d460 dispatch: STRUCTURE fully map-driven, EFFECT/CHARACTER via the
+// captured def tables) and describe each visible actor into an MiActorNode.
+static void mi_spawn_actors()
+{
+    g_mi.pool_struct = new actor_spawn_pool();
+    g_mi.pool_effect = new actor_spawn_pool();
+    g_mi.pool_char   = new actor_spawn_pool();
+    actor_spawn_effect_fill_flip_table(g_mi.flip_table,
+                                       sizeof g_mi.flip_table / sizeof *g_mi.flip_table);
+    actor_spawn_struct_from_map(g_mi.pool_struct, &g_mi.md);
+    actor_spawn_effect_from_map(g_mi.pool_effect, &g_mi.md, NULL);
+    actor_spawn_from_map(g_mi.pool_char, &g_mi.md);
+
+    const actor_spawn_pool *pools[3] =
+        { g_mi.pool_struct, g_mi.pool_effect, g_mi.pool_char };
+    for (int b = 0; b < 3; b++) {
+        const actor_spawn_pool *p = pools[b];
+        if (!p) continue;
+        for (int i = 0; i < p->count; i++) {
+            if (p->actors[i].skip) continue;
+            actor_desc d;
+            if (!actor_render_describe(&p->actors[i], &p->states[i],
+                                       g_mi.flip_table, &d))
+                continue;                       // invisible volume / bank 0
+            MiActorNode an;
+            an.bank = d.bank;
+            an.frame = d.frame;
+            an.px = p->states[i].world_x / 100 + d.off_x;
+            an.py = p->states[i].world_y / 100 + d.off_y;
+            an.layer = p->actors[i].layer;
+            an.band = (uint8_t)b;
+            g_mi.anodes.push_back(an);
+        }
+    }
+    std::stable_sort(g_mi.anodes.begin(), g_mi.anodes.end(),
+                     [](const MiActorNode &a, const MiActorNode &b)
+                     { return a.layer < b.layer; });
 }
 
 static void mi_bank_dims_cb(void *, uint16_t bank, int32_t *w, int32_t *h)
@@ -1342,10 +1427,26 @@ static void mi_build()
             }
         }
 
+    // object-layer actors (props/structures/townsfolk) — the engine's frame
+    // draws them interleaved with the tiles by draw_pool LAYER, so merge the
+    // two layer-sorted lists (ties: tiles first, matching the walk-then-bands
+    // emit order of the per-frame draw driver).
+    if (g_mi.ov_actors) mi_spawn_actors();
+
     // composite
     g_mi.px_w = d0 * 32; g_mi.px_h = d1 * 32;
     std::vector<uint32_t> cv((size_t)g_mi.px_w * g_mi.px_h, 0xff101014u);
-    for (const MiNode &n : g_mi.nodes) mi_blit_node(cv, n.t);
+    {
+        size_t ti = 0, ai = 0;
+        while (ti < g_mi.nodes.size() || ai < g_mi.anodes.size()) {
+            bool take_tile;
+            if (ti >= g_mi.nodes.size()) take_tile = false;
+            else if (ai >= g_mi.anodes.size()) take_tile = true;
+            else take_tile = g_mi.nodes[ti].t.layer <= g_mi.anodes[ai].layer;
+            if (take_tile) mi_blit_node(cv, g_mi.nodes[ti++].t);
+            else           mi_blit_actor(cv, g_mi.anodes[ai++]);
+        }
+    }
     // hatch unported cells
     if (!g_mi.unknown_ids.empty())
         for (int y = 0; y < d1; y++)
@@ -1371,8 +1472,9 @@ static void mi_build()
     if (g_mi.tex.ensure(g_mi.px_w, g_mi.px_h)) g_mi.tex.upload(cv.data());
     g_mi.ok = true;
     _snprintf(g_mi.status, sizeof g_mi.status,
-              "%d nodes drawn, %d unresolved bank/frame, %d unported tile id(s)",
-              g_mi.drawn, g_mi.unresolved, (int)g_mi.unknown_ids.size());
+              "%d tiles + %d actors drawn, %d unresolved, %d unported tile id(s)",
+              g_mi.drawn, g_mi.actors_drawn, g_mi.unresolved,
+              (int)g_mi.unknown_ids.size());
 }
 
 // build the selected cell's 4-slot source-cel strip (128x32, shown zoomed)
@@ -1489,14 +1591,96 @@ static void mi_inspect_obj_panel()
     }
     ImGui::PopFont();
     ImGui::Separator();
-    // renderer placeholder — the object SPAWN pass (FUN_00587e00's layer tail,
-    // 0x58c8c0 family) is engine-side and unported. When it lands, this panel
-    // resolves the spawned actor/particle's sprite bank and previews its cel.
-    ImGui::TextWrapped("Renderer: not ported yet. %s objects spawn through the "
-                       "engine's layer pass (0x58c8c0 family, PORT-DEBT) - once "
-                       "that lands this panel will preview the actual %s sprite.",
-                       rx_map_object_category(o.type),
-                       o.type >= 50000 && o.type <= 59999 ? "particle" : "actor");
+
+    // resolve the object through the port's spawn pass: match the spawned
+    // actor whose logical map position equals this record's (x, y).  EFFECT
+    // world pos is (map - dst_anchor)*100 with dst_base = the anchor, so
+    // map == world/100 + dst_base uniformly across the bands.
+    if (g_mi.selobj_for != g_mi.sel_obj) {
+        g_mi.selobj_for = g_mi.sel_obj;
+        g_mi.selobj_ok = false;
+        g_mi.selobj_msg[0] = 0;
+        const actor_spawn_pool *pools[3] =
+            { g_mi.pool_struct, g_mi.pool_effect, g_mi.pool_char };
+        int found_band = -1, found_i = -1;
+        for (int b = 0; b < 3 && found_band < 0; b++) {
+            const actor_spawn_pool *p = pools[b];
+            if (!p) continue;
+            for (int i = 0; i < p->count; i++) {
+                if (p->states[i].world_x / 100 + p->states[i].dst_base_x == (int)o.x &&
+                    p->states[i].world_y / 100 + p->states[i].dst_base_y == (int)o.y) {
+                    found_band = b; found_i = i;
+                    break;
+                }
+            }
+        }
+        if (found_band >= 0) {
+            const actor_spawn_pool *p = pools[found_band];
+            actor_desc d;
+            if (!p->actors[found_i].skip &&
+                actor_render_describe(&p->actors[found_i], &p->states[found_i],
+                                      g_mi.flip_table, &d)) {
+                g_mi.selobj_ok = true;
+                g_mi.selobj_node.bank = d.bank;
+                g_mi.selobj_node.frame = d.frame;
+                g_mi.selobj_node.layer = p->actors[found_i].layer;
+                g_mi.selobj_node.band = (uint8_t)found_band;
+                MiSheet *sh = mi_sheet(d.bank);
+                if (sh->ok && d.frame >= 0 && d.frame < sh->cols * sh->rows) {
+                    // single-cel preview texture
+                    std::vector<uint32_t> cel((size_t)sh->cw * sh->ch, 0xff17181cu);
+                    int vrow = d.frame / sh->cols, vcol = d.frame % sh->cols;
+                    for (int y = 0; y < sh->ch; y++) {
+                        const uint32_t *src = sh->up.data() +
+                            (size_t)(vrow * sh->ch + y) * sh->W + vcol * sh->cw;
+                        for (int x = 0; x < sh->cw; x++) {
+                            uint32_t c = src[x];
+                            if ((c & 0x00ffffffu) != 0x00ff00ffu)
+                                cel[(size_t)y * sh->cw + x] = c;
+                        }
+                    }
+                    g_mi.selobj_w = sh->cw; g_mi.selobj_h = sh->ch;
+                    if (g_mi.selobj_tex.ensure(sh->cw, sh->ch))
+                        g_mi.selobj_tex.upload(cel.data());
+                }
+            } else {
+                lstrcpynA(g_mi.selobj_msg, "spawns as an INVISIBLE volume - "
+                          "collision / trigger / spawn marker (zero sprite bank, "
+                          "exactly retail's end state)", sizeof g_mi.selobj_msg);
+            }
+        } else if (o.type >= 50000 && o.type <= 59999) {
+            lstrcpynA(g_mi.selobj_msg, "not in the captured EFFECT def table "
+                      "(wandering/animated - PORT-DEBT effect-sprite-table)",
+                      sizeof g_mi.selobj_msg);
+        } else if (o.type >= 60000 && o.type <= 69999) {
+            lstrcpynA(g_mi.selobj_msg, "code not in the 0x438a60 STRUCTURE def "
+                      "switch (retail's default: draws nothing)", sizeof g_mi.selobj_msg);
+        } else if (o.type >= 80000) {
+            lstrcpynA(g_mi.selobj_msg, "DEVICE band - spawn/renderer not ported "
+                      "yet (PORT-DEBT)", sizeof g_mi.selobj_msg);
+        } else {
+            lstrcpynA(g_mi.selobj_msg, "no spawned actor matched this record",
+                      sizeof g_mi.selobj_msg);
+        }
+    }
+
+    if (g_mi.selobj_ok) {
+        ar_sprite_slot *slot = ar_pool_get_slot(g_mi.selobj_node.bank);
+        ImGui::Text("renders: bank 0x%x (res %u) frame %d, layer %u",
+                    g_mi.selobj_node.bank, slot ? slot->resource_id : 0,
+                    g_mi.selobj_node.frame, g_mi.selobj_node.layer);
+        if (g_mi.selobj_tex.srv) {
+            float sc = std::min(3.0f, 220.0f / std::max(1, g_mi.selobj_w));
+            draw_nearest_begin(ImGui::GetWindowDrawList());
+            ImGui::Image((ImTextureID)g_mi.selobj_tex.srv,
+                         ImVec2(g_mi.selobj_w * sc, g_mi.selobj_h * sc));
+            draw_nearest_end(ImGui::GetWindowDrawList());
+        }
+        ImGui::TextDisabled("(spawned by the port's 0x58d460 dispatch port,"
+                            " described by FUN_0044d160)");
+    } else {
+        ImGui::TextWrapped("Renders: %s", g_mi.selobj_msg);
+    }
 }
 
 static void mi_draw_tab(HWND hwnd)
@@ -1514,6 +1698,8 @@ static void mi_draw_tab(HWND hwnd)
     ImGui::SameLine();
     if (ImGui::Button("1:1")) { g_mi.zoom = 1; g_mi.pan = ImVec2(0, 0); }
     ImGui::SameLine(0, 12);
+    if (ImGui::Checkbox("Actors", &g_mi.ov_actors)) { mi_build(); return; }
+    ImGui::SameLine();
     ImGui::Checkbox("Objects", &g_mi.ov_obj); ImGui::SameLine();
     ImGui::Checkbox("Collision", &g_mi.ov_col); ImGui::SameLine();
     ImGui::Checkbox("Walls", &g_mi.ov_wall); ImGui::SameLine();

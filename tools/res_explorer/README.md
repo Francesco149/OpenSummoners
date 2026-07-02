@@ -51,11 +51,16 @@ The tool supplies its own `bs_load_pe_resource` with the 1041-language fallback
   - **Map Inspector tab** — renders the map the way the ENGINE does, by running
     the port's own pipeline host-side (`map_decode` FUN_00587e00 dispatch →
     runtime render grid → `map_render_tile` FUN_00490f30 geometry → composite
-    with the `ar_register_*`-registered sprite banks, layer-sorted). Click a
-    cell → per-plane raw record, region-A sub-slots (bank/res/frame/layer) with
-    the actual source cels, collision class/slope/wall, region-C blend record;
-    click an object marker → full layer record (renderer is a placeholder until
-    the engine's spawn pass is ported). Overlays: collision, wall flags, blend
+    with the `ar_register_*`-registered sprite banks, layer-sorted) — **including
+    the object-layer actors**: STRUCTURE scenery (trees/hedges/decor, fully
+    map-driven), EFFECT townsfolk and CHARACTER props (fountain/barrels) spawn
+    through the port's `actor_spawn_*` pass and composite draw_pool-layer-merged
+    with the tiles. Click a cell → per-plane raw record, region-A sub-slots
+    (bank/res/frame/layer) with the actual source cels, collision
+    class/slope/wall, region-C blend record; click an object marker → full layer
+    record plus the RESOLVED sprite (bank/res/frame/layer + cel preview);
+    invisible volumes and off-def-table codes say so. Overlays: actors toggle,
+    object markers, collision, wall flags, blend
     cells, grid, unported-tile hatching; tileset cfg toggle (town/house vs
     errands). Coverage is honest — cells whose tile-id arm isn't RE'd yet hatch
     red and are listed with counts. Sky/parallax backdrop is a separate engine

@@ -27,6 +27,16 @@ specific commits where relevant.
 - **Not ported (stated in-UI):** ramp banks (ar_register_palette_ramps decodes at
   registration, engine-coupled — skipped; unresolved counter catches any use), region-C
   blend DRAW, palette tint 0x4182d0, sky/parallax backdrop, object spawn/render.
+- **Object-layer ACTORS render too (same day, USER request):** the spawn pass is the
+  port's own — `actor_spawn_struct_from_map` (STRUCTURE, fully map-driven quirk #84),
+  `actor_spawn_effect_from_map` (townsfolk def table), `actor_spawn_from_map`
+  (CHARACTER props: fountain/barrels) — described per actor by
+  `actor_render_describe` (FUN_0044d160) and composited draw_pool-layer-merged with
+  the tiles (map_present mode-0 projection, canvas-origin camera). Town 1022 gains
+  trees/flower boxes/doors/signs/villagers; 1023 the tree/scarecrow/shutters.
+  Object inspect now resolves the REAL sprite (bank/res/frame/layer + cel preview);
+  invisible volumes / off-def-table codes say so explicitly. Actors toggle added;
+  marker overlay now defaults off.
 - Default map tab stays Preview (schematic); Inspector becomes default once proven
   (USER). `--shot` gained [MODULE:]TYPE:ID spec + auto-focuses Inspector for maps.
 
