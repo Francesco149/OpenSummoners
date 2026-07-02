@@ -399,10 +399,11 @@ static void session_to_image(const bitmap_session *s, RxImage *out)
     out->h = (int)s->biHeight;
     out->bpp = s->biBitCount;
     out->has_palette = (s->biBitCount == 8);
-    out->default_flip = (s->biBitCount != 8);   // 8bpp sheets read top-down
-                                                // (lizsoft-sprite.md); 24bpp
-                                                // blobs are bottom-up DIBs
-                                                // (quirk #98)
+    out->default_flip = 1;   // decoded sheets are bottom-up DIBs at every depth
+                             // (matches the engine's own trim math, FUN_005b6f80;
+                             // 24bpp portraits = quirk #98; USER-confirmed for
+                             // 8bpp sheets 2026-07-02 — the old "top-down" note
+                             // in lizsoft-sprite.md was against flipped output)
     for (int i = 0; i < 256; i++) {
         // session palette is RGBQUAD (B,G,R,_)
         uint8_t b = s->palette[i * 4 + 0], g = s->palette[i * 4 + 1],

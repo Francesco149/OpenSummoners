@@ -11,6 +11,11 @@
 > path with pixel payloads that exactly fit the blob. The outer-magic "families"
 > distinguish something else (palette layout?), not the decode path. The
 > byte-inspection notes below remain useful for the fixed-header fields.
+> **Orientation is also corrected:** pixel rows are **bottom-up** (standard DIB),
+> consistent with the engine's own trim scan (`FUN_005b6f80` addresses the sheet
+> bottom-up) — USER-confirmed visually across sheets 2026-07-02. The "top-down,
+> verified visually" claim in §Pixel data was made against already-flipped
+> extractor output.
 
 Format used by ~28% of the DATA entries in `sotesd.dll` (213/759 blobs
 parse cleanly as this variant; the rest belong to sibling families

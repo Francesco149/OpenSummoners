@@ -40,7 +40,8 @@ The tool supplies its own `bs_load_pe_resource` with the 1041-language fallback
   (100k+ rows stay 60 fps). `↑/↓` moves selection.
 - **Right** — `Preview | Hex | Info` tabs + a per-kind export bar.
   - Images: wheel zoom (fit/1:1..16x), pan, colorkey toggle (magenta, quirk #47),
-    V-flip (8bpp sheets are stored top-down, 24bpp bottom-up), frame-grid overlay
+    V-flip (sheets are bottom-up DIBs at every depth — flipped upright by
+    default, toggle shows raw memory order), frame-grid overlay
     with cell W/H (dims aren't in the 8bpp container — quirk of the format; the
     compressed header DOES carry sheet dims), hovered-pixel readout, palette panel.
   - Audio: peak waveform, click-to-seek, space = play/pause, loop, volume.
