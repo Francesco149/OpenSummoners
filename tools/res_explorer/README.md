@@ -1,9 +1,16 @@
 # res_explorer — the SotES resource explorer
 
+[![the map inspector rendering the opening town](../../docs/media/res-explorer.png)](../../docs/media/res-explorer.png)
+
+[![browsing a sprite sheet](../../docs/media/res-explorer-sheets.png)](../../docs/media/res-explorer-sheets.png)
+
 Native Windows viewer/exporter for **every resource type** in Fortune Summoners'
 game files (Dear ImGui + DX11, mingw-cross, 32-bit to match the game DLLs).
 Successor of the old `tools/voice_view` audio lister — same OS resource path the
 engine itself uses (`LoadLibraryEx` + `FindResource`), now with real decoders.
+
+**[Download the latest nightly build](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/res_explorer.exe)**
+(built by CI from master — no install, just run it), or build it yourself:
 
     nix develop --command make -C tools/res_explorer    # -> build/res_explorer.exe
     (run on Windows)  build\res_explorer.exe             # auto-loads the game install

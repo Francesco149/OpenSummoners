@@ -48,15 +48,19 @@ tagged `vX.Y` releases are cut at milestones.
 
 ### Resource explorer — `res_explorer.exe`
 
-[![the resource explorer](docs/media/res-explorer.png)](docs/media/res-explorer.png)
+[![the map inspector rendering the opening town](docs/media/res-explorer.png)](docs/media/res-explorer.png)
+
+[![browsing a sprite sheet](docs/media/res-explorer-sheets.png)](docs/media/res-explorer-sheets.png)
 
 A native viewer/exporter for **every resource type** in the game's files, decoding
-with the engine's own reverse-engineered code: sprite sheets (palette, colorkey,
-frame grid), maps (tile schematic + object layer), sound effects and the 1,448-clip
-Japanese voice bank (waveform, seekable playback), BGM streams, string tables — plus
-hex/info views and PNG/WAV/WMA/JSON/TXT export, per resource or in bulk.
-Drop-in run: it auto-detects your install. Docs:
-[`tools/res_explorer/README.md`](tools/res_explorer/README.md).
+with the engine's own reverse-engineered code: **maps render exactly as in-game**
+(tiles + scenery + props + townsfolk, with per-cell/per-object inspection and debug
+overlays), sprite sheets (palette, colorkey, frame grid), sound effects and the
+1,448-clip Japanese voice bank (waveform, seekable playback), BGM streams, string
+tables — plus hex/info views and PNG/WAV/WMA/JSON/TXT export, per resource or in
+bulk. Drop-in run: it auto-detects your install.
+**[Download the nightly build](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/res_explorer.exe)**
+· docs: [`tools/res_explorer/README.md`](tools/res_explorer/README.md).
 
 ### Japanese voice patch (EN Special Edition)
 
