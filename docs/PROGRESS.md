@@ -6,6 +6,36 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 (ckpt 175) — COLLISION lands: Arche stops, climbs, and descends the stairs 1:1
+
+- **The freeroam collision movers are ported + wired** (retires the USER-confirmed
+  walk-through-stairs divergence, studio note tick 2441 / `PORT-DEBT(char-collision-mover)`).
+  `collision_sweep_horizontal` = `FUN_0054ded0` verbatim (≤100-unit steps; STEP-UP stair
+  climb; STEP-DOWN floor hug; leading-edge column scan; partial-commit write-through) +
+  the `FUN_0054db10` tile-half wrapper; `character_step` restructured to the retail
+  `0x442a70` tick order (support probe = a delta=+1 vertical-mover call → `body+0x24`;
+  vertical mover landing/ceiling; ledge walk-off → FALL; the worldX commit with
+  step_down=1/step_up=1 pinned off the raw call site + live probes).  Slope profiles
+  (`0x5cc410/0x5cc430` 32-byte ramps) read live off the user's exe `.rdata`
+  (`exe_data_bytes`) — retires `PORT-DEBT(collision-slopes)`.  Full RE:
+  `findings/freeroam-collision.md`.  Ghidra's arg numbering is WRONG on both movers —
+  raw push order is the ground truth (now annotated in `retail_fields.json`).
+- **The `LAB_00589520` "occlusion marks" are invisible COLLISION WALLS** — the
+  `0x1b972/77/7c` shape-1/2 blocks write region-B class-10 wall columns (shape 1 =
+  1×5 at (x,y..y+4)); proven against retail's live errands grid (probe
+  `runs/arche-box/gridcells`).  Ported; retires `PORT-DEBT(decode-occlusion-mark)`
+  (the errands LEFT WALL — "walks through the house" — now stops at wx 6400 = retail).
+- **Verified bit-exact** (stairs sweep `synth-stairs.jsonl`, seed-pinned, sim-tick axis,
+  `state_diff.py` + new wy axis): the whole RIGHT walk incl. the staircase CLIMB
+  (wy 52000→36000, the emergent 200/300-unit step-up cadence) has dwx==dwy==0 every
+  tick; both sides stop flush at the col-28 wall (wx 87600); descent + left-wall stop
+  match.  Sole residual: retail's 4-tick standing TURN-AROUND on reversal →
+  `PORT-DEBT(char-turn-state)` (+ narrowed rows `mover-actor-scan`, `char-drop-through`,
+  `char-reverse-decel`).  Arche's live-probed body box: w=2000 h=5600 margin=0.
+  Tests 1088/0/6.
+
+---
+
 ## 2026-07-02 — res_explorer MAP INSPECTOR: engine-true map rendering host-side
 
 - **New Inspector tab for Map resources** (`tools/res_explorer`): runs the PORT'S OWN

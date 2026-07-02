@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 216,
+  "tested": 219,
   "ported": 5,
-  "unported": 1537,
+  "unported": 1534,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 221,
-  "pct_touched": 14.0,
-  "pct_tested": 14.0,
-  "engine_proper_touched": 208,
+  "touched": 224,
+  "pct_touched": 14.2,
+  "pct_tested": 14.2,
+  "engine_proper_touched": 211,
   "bytes_total": 1694868,
-  "bytes_touched": 249250,
-  "pct_bytes_touched": 14.7
+  "bytes_touched": 251777,
+  "pct_bytes_touched": 14.9
  },
  "orphan_refs": [
   "0x56c470",
@@ -2209,8 +2209,10 @@
    "name": "FUN_00426f50",
    "size": 26,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/character.c"
+   ]
   },
   {
    "va": "0x426f70",
@@ -7718,16 +7720,22 @@
    "name": "FUN_0054db10",
    "size": 946,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/collision.c",
+    "src/collision.h"
+   ]
   },
   {
    "va": "0x54ded0",
    "name": "FUN_0054ded0",
    "size": 1555,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/collision.c",
+    "src/collision.h"
+   ]
   },
   {
    "va": "0x54e4f0",

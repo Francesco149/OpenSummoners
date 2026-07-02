@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  14.0% touched   (14.0% host-tested, 14.7% of code bytes)
+███░░░░░░░░░░░░░░░░░  14.2% touched   (14.2% host-tested, 14.9% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   216 | ported + module covered by the host unit suite       |
+| tested      |   219 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **221** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1537 | exists in engine, never referenced from src/         |
+| **touched** | **224** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1534 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1490** below
@@ -26,33 +26,33 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1758** non-thunk
 functions (of 1768 incl. thunks).
 
-Code-byte coverage (14.7% of engine-proper bytes) is the truer progress
+Code-byte coverage (14.9% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **Phase — the freeroam HUD panel**, built slice-by-slice bit-exact vs the errands
-  freeroam real-play (`sword2.osr`). The prior arc (town intro → arrival/house/errands
-  cutscene) renders 1:1; the frame-lock **sim-tick re-drive** foundation is closed
-  (ckpt 168 — retail walk warmup = 1 idle tick, `CHAR_INPUT_REPEAT_DELAY` 3→2).
-- **Landed (ckpt 167–174, all dhash byte-identical):** leader panel — HP/MP bars +
-  numbers + frame + slide-in; element **stars**; **level** digit (+ the ramp custom-
-  palette bind `bs_install_palette`/`FUN_005b7bd0`); **EXP** gauge; the 6-slot **item
-  bar** (slice 2); the **door-indicator** compass algorithm (slice 3). `hud.{c,h}` +
-  `game_render_hud`. Detail: `findings/freeroam-hud.md §1-9`.
-- **Open blocker — the PORTRAIT.** Its bank is read live off `char+0x50` at the party
-  leader-match branch, but `hud_ctx+0x1b4` (leader_uid) reads **0x0 on every call across
-  every scripted replay** (Frida INT3 / field-spec / native probe all agree) — a
-  **replay-fidelity gap** (the ring-injection replay doesn't arm what a live human
-  session does), NOT a port bug. Resolve by finding the `+0x1b4` setter, or by probing a
-  **live/manual** errands play. `findings/freeroam-hud.md §6-9`.
-- **Next move:** (a) the door-indicator's `+0x1160` EFFECT-actor **spawn position source**
-  (activator `0x41f200` / `game_world.c` exit-table) → retires `PORT-DEBT(hud-door-actors)`;
-  (b) bottom-left "quick item" strip (`0x497c20`) → bottom-right combat cluster
-  (`0x4975e0`); (c) retire `PORT-DEBT(hud-party-context)` when the party subsystem lands.
-- **Open HUD PORT-DEBT:** `hud-party-context` (values + portrait), `hud-door-actors`
-  (exit spawn), `hud-slide` / `hud-item-hslide` (slide ramps). See `port-debt.md`.
+- **Phase — the freeroam sim**, built bit-exact vs errands re-drives. The prior arcs
+  (town intro → arrival/house/errands cutscene; the HUD panel ckpt 167–174) render 1:1.
+- **Landed ckpt 175 — COLLISION:** the movers `0x54ded0`/`0x54db10` tile halves ported
+  (`collision.c`) + `character_step` restructured to the retail `0x442a70` tick order
+  (support probe → vertical mover/ledge-fall → ramp → worldX commit); slope ramps
+  read live off the user's exe; the `LAB_00589520` "occlusion marks" = invisible
+  collision WALLS (map_decode fix). **Arche stops/climbs/descends the errands stairs
+  tick-exact** (dwx==dwy==0 through the whole climb; both walls flush) — retires the
+  studio-note-2441 divergence + debts `char-collision-mover`/`collision-slopes`/
+  `decode-occlusion-mark`. Sole residual: the 4-tick standing TURN-AROUND
+  (`char-turn-state`). RE: `findings/freeroam-collision.md`.
+- **HUD blocker (parked) — the PORTRAIT.** `hud_ctx+0x1b4` (leader_uid) reads 0x0 on
+  every scripted replay (a replay-fidelity gap, not a port bug); resolve via the
+  `+0x1b4` setter or a live/manual play. `findings/freeroam-hud.md §6-9`.
+- **Next move:** (a) `char-turn-state` — the 4-tick standing turn-around
+  (`0x426f50(body,2)` case-2 sub-FSM, `0x442a70:810-830`), the last freeroam-walk
+  residual; (b) HUD: door-indicator spawn source / bottom strips (`0x497c20`/`0x4975e0`);
+  (c) `mover-actor-scan` when collidable actors matter (combat/platforms).
+- **Open PORT-DEBT (this front):** `char-turn-state`, `mover-actor-scan`,
+  `char-drop-through`, `char-reverse-decel`; HUD: `hud-party-context`,
+  `hud-door-actors`, `hud-slide`/`hud-item-hslide`. See `port-debt.md`.
 - **Standing bar:** every divergence is `differ_px==0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic (`parity-model.md`);
   seed-pinned both sides, compared by anchor/tick — never the flip axis.

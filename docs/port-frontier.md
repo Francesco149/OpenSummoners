@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **242**
-- of those, zero-dependency **leaves: 141** (recommended order below)
+- frontier functions: **244**
+- of those, zero-dependency **leaves: 143** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -132,11 +132,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x43c9b0 | 130 | 1 | 0 | ✓ |
 | 0x43c650 | 696 | 1 | 1 |  |
 
-### entity per-frame FSM + action handlers + dialog + skills (2)
+### entity per-frame FSM + action handlers + dialog + skills (3)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x448c80 | 47 | 1 | 0 | ✓ |
+| 0x4416c0 | 52 | 1 | 0 | ✓ |
 | 0x4467d0 | 289 | 1 | 2 |  |
 
 ### master dialogue runner + action/frame dispatch + sprite batch (1)
@@ -222,11 +223,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x52fd80 | 767 | 1 | 0 | ✓ |
 | 0x4e59a0 | 1676 | 1 | 18 |  |
 
-### cutscene dispatcher + sprite copy + tilemap collision + camera (4)
+### cutscene dispatcher + sprite copy + tilemap collision + camera (5)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x55f550 | 199 | 1 | 0 | ✓ |
+| 0x54e4f0 | 207 | 1 | 0 | ✓ |
 | 0x54bfb0 | 801 | 1 | 3 |  |
 | 0x54c640 | 812 | 1 | 1 |  |
 | 0x55f790 | 1558 | 1 | 0 | ✓ |

@@ -94,6 +94,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   lines through the existing box system, played concurrent with freeroam control.  Lines/faces/box
   ground truth + the port (a 1-room cutscene chain re-armed after the entry reveal) + tick-aligned
   verification.  **Ported ckpt 152**; residual = the line-3 inline button icons (`PORT-DEBT(dialogue-arrow-art)`).
+- **[freeroam-collision.md](freeroam-collision.md)** — the 442a70 tick GEOMETRY (ckpt 175):
+  the support probe (a delta=+1 `0x54e5c0` call → `body+0x24`), the vertical mover + ledge
+  walk-off → FALL, the horizontal mover `0x54db10`/`0x54ded0` (step-up stair climb + step-down
+  floor hug, raw-disasm arg truth — Ghidra numbering wrong on both movers), `body+0x20` = the
+  drop-through timer, the slope-profile ramps read live off the user's exe, and the
+  `LAB_00589520` "occlusion marks" that are really INVISIBLE COLLISION WALLS (the errands left
+  wall).  Retired `char-collision-mover`/`collision-slopes`/`decode-occlusion-mark`; the
+  stairs-sweep wx verify is bit-exact through the climb both sides.
 - **[freeroam-hud.md](freeroam-hud.md)** — the `res=0` freeroam status HUD (USER notes #7-9,
   errands tick 2413).  The full drawcall ground truth (the seq 462-536 overlay layer: top-left
   leader panel = portrait + HP/MP bars + numbers + level + stars; bottom strips; the 6-slot item
