@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **225** (14.2% of engine-proper) — tested 220, ported 5
-- code bytes touched: **14.9%** (251,910 / 1,694,868 B of engine-proper)
-- unported: **1533**
+- touched: **227** (14.4% of engine-proper) — tested 222, ported 5
+- code bytes touched: **14.9%** (253,081 / 1,694,868 B of engine-proper)
+- unported: **1531**
 - orphan refs in src/ not in this table: 4
 
-## tested (220) — ported + host unit suite
+## tested (222) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -41,6 +41,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x412160 | FUN_00412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
 | 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
 | 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |
+| 0x417870 | FUN_00417870 | 106 | map_decode.h |
 | 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
@@ -149,6 +150,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, collision.h, game_world.h (+6) |
 | 0x58c910 | FUN_0058c910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | FUN_0058ca80 | 167 | map_decode.c, map_grid.c, map_grid.h |
+| 0x58cb30 | FUN_0058cb30 | 1065 | map_decode.c, map_decode.h |
 | 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | FUN_0059f2c0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
 | 0x5a00c0 | FUN_005a00c0 | 13690 | map_data.h |

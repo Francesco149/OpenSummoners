@@ -443,3 +443,159 @@ int test_map_decode_empty_cell_noop(void)
     map_grid_free(g); fx_free(&f);
     return 0;
 }
+
+/* ---- ckpt-178 full-dispatch arms (the all-maps sweep coverage) ---- */
+
+/* a simple-table arm: 0x2af8 -> slot 1, bank 0x64, flag default (slot 1 = 2) */
+int test_map_decode_simple_arm_2af8(void)
+{
+    fixture f; fx_init(&f, 12, 12, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 12, 12);
+
+    fx_set(&f, 4, 5, 0, 0x2af8, 0, 0x7);
+    map_decode_cell(&f.m, g, 4, 5, 0, NULL, dims_1x1, NULL);
+    if (chk_tile(g, 4, 5, 1, 0x64, 0x7, 2, 0, 0)) return 1;
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* 0x2b2a: slot 2, bank 0x69; flag 3 only for shape 0 (else slot default 0x14) */
+int test_map_decode_2b2a_shape_flag(void)
+{
+    fixture f; fx_init(&f, 12, 12, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 12, 12);
+
+    fx_set(&f, 2, 2, 0, 0x2b2a, 0, 0x1);
+    map_decode_cell(&f.m, g, 2, 2, 0, NULL, dims_1x1, NULL);
+    if (chk_tile(g, 2, 2, 2, 0x69, 0x1, 3, 0, 0)) return 1;
+
+    fx_set(&f, 5, 5, 0, 0x2b2a, 2, 0x1);
+    map_decode_cell(&f.m, g, 5, 5, 0, NULL, dims_1x1, NULL);
+    if (chk_tile(g, 5, 5, 2, 0x69, 0x1, 0x14, 0, 0)) return 1;
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* 0x1d8aa shape 4: 1x1 blended obj (5cc430, region D 2, d4 2) + base slot 3
+ * bank 0x68 */
+int test_map_decode_1d8aa_blend_pair(void)
+{
+    fixture f; fx_init(&f, 12, 12, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 12, 12);
+
+    fx_set(&f, 3, 4, 0, 0x1d8aa, 4, 0x2);
+    map_decode_cell(&f.m, g, 3, 4, 0, NULL, dims_1x1, NULL);
+    if (chk_obj(g, 3, 4, 10, 2, MD_BLEND_5cc430, 0, 2)) return 1;
+    if (chk_tile(g, 3, 4, 3, 0x68, 0x2, 0x15, 0, 0)) return 1;
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* 0x22b16 shape 3: 1x1 obj (d4 5) + base slot 3 bank 0x74 with the EXPLICIT
+ * 1x2 span (retail uVar22=1/uVar24=2) — the dy=1 sub-tile must be written */
+int test_map_decode_22b16_shape3_span(void)
+{
+    fixture f; fx_init(&f, 12, 12, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 12, 12);
+
+    fx_set(&f, 6, 6, 0, 0x22b16, 3, 0x9);
+    map_decode_cell(&f.m, g, 6, 6, 0, NULL, dims_1x1, NULL);
+    if (chk_obj(g, 6, 6, 10, 5, 0, 0, 1)) return 1;
+    if (chk_tile(g, 6, 6, 3, 0x74, 0x9, 0x15, 0, 0)) return 1;
+    if (chk_tile(g, 6, 7, 3, 0x74, 0x9, 0x15, 0, 1)) return 1;   /* span col 2 */
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* 0x1bd82 shape 0 spot checks: the slot-3 bank-0x195 footprint tile, a blended
+ * stair wall, and the class-1 region-D-4 slope marker at (x+3, y+2) */
+int test_map_decode_1bd82_stair(void)
+{
+    fixture f; fx_init(&f, 16, 16, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 16, 16);
+
+    fx_set(&f, 2, 3, 0, 0x1bd82, 0, 0x0);
+    map_decode_cell(&f.m, g, 2, 3, 0, NULL, dims_1x1, NULL);
+    if (chk_tile(g, 2, 3, 3, 0x195, 0x0, 0x14, 0, 0)) return 1;
+    if (chk_obj(g, 2 + 1, 3 + 6, 10, 6, MD_BLEND_5cc430, 0, 2)) return 1;
+    if (chk_obj(g, 2 + 3, 3 + 2, 1, 6, 0, 0, 4)) return 1;
+    /* the 1x4 top wall span (x+5, y+3..y+6) */
+    for (int32_t cc = 3 + 3; cc <= 3 + 6; cc++)
+        if (chk_obj(g, 2 + 5, cc, 10, 6, 0, 0, 1)) return 1;
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* 0xf3e62 / 0xf3e6c: marker-only arms (no region-A write) */
+int test_map_decode_999xxx_markers(void)
+{
+    fixture f; fx_init(&f, 12, 12, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+    map_grid_set_dims(g, 12, 12);
+
+    fx_set(&f, 1, 1, 0, 0xf3e62, 0, 0);
+    map_decode_cell(&f.m, g, 1, 1, 0, NULL, dims_1x1, NULL);
+    if (chk_obj(g, 1, 1, 1, 3, 0, 0, 4)) return 1;
+    for (int s = 0; s < 4; s++)
+        T_ASSERT_EQ_U(rd_u16(g, recA(1, 1, s) + 0x0), 0);
+
+    fx_set(&f, 2, 2, 0, 0xf3e6c, 0, 0);
+    map_decode_cell(&f.m, g, 2, 2, 0, NULL, dims_1x1, NULL);
+    if (chk_obj(g, 2, 2, 1, 5, 0, 0, 4)) return 1;
+
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}
+
+/* the trailing 0x15f9a/0x15f9b placeholder pass fills region E (58cb30) */
+int test_map_decode_placeholder_pass(void)
+{
+    fixture f; fx_init(&f, 16, 16, 1);
+    uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
+
+    /* three layers: [0] target id 0x55, [1] a 0x15f9a anchor at tile px
+     * (64,96) = cell (2,3) linking id 0x55 with sub-D flag 0 (all-links mode
+     * still takes it), [2] a non-placeholder layer that must be ignored. */
+    static map_layer layers[3];
+    static uint8_t subA[4] = { 1, 0, 0, 0 };            /* flag dword == 1 */
+    static uint8_t subD[8] = { 0,0,0,0, 0x55,0,0,0 };   /* (flag 0, id 0x55) */
+    memset(layers, 0, sizeof layers);
+    uint32_t v;
+    v = 0x55;    memcpy(layers[0].hdr + 0x00, &v, 4);   /* instance id */
+    v = 160;     memcpy(layers[0].hdr + 0x04, &v, 4);   /* -> cell x 5 */
+    v = 224;     memcpy(layers[0].hdr + 0x08, &v, 4);   /* -> cell y 7 */
+    v = 0x11111; memcpy(layers[0].hdr + 0x10, &v, 4);
+    v = 0x9;     memcpy(layers[1].hdr + 0x00, &v, 4);
+    v = 64;      memcpy(layers[1].hdr + 0x04, &v, 4);   /* -> cell x 2 */
+    v = 96;      memcpy(layers[1].hdr + 0x08, &v, 4);   /* -> cell y 3 */
+    v = 0x15f9a; memcpy(layers[1].hdr + 0x10, &v, 4);
+    v = 1;       memcpy(layers[1].hdr + 0x28, &v, 4);   /* n_d hdr mirror */
+    layers[1].n_a = 1; layers[1].a = subA;
+    layers[1].n_d = 1; layers[1].d = subD;
+    v = 0x11112; memcpy(layers[2].hdr + 0x10, &v, 4);
+    f.m.layers = layers; f.m.count = 3;
+
+    map_decode(&f.m, g, NULL, dims_1x1, NULL);
+
+    size_t rec = MG_REGION_E + (size_t)(2 * MG_ROW_PITCH + 3) * MG_REGION_E_STRIDE;
+    T_ASSERT_EQ_U(rd_u16(g, rec + 0x00), 1);          /* one link */
+    T_ASSERT_EQ_U(rd_u32(g, rec + 0x04), 1);          /* sub-A flag */
+    T_ASSERT_EQ_I(rd_i32(g, rec + 0x08), 5);          /* link tile x */
+    T_ASSERT_EQ_I(rd_i32(g, rec + 0x0c), 7);          /* link tile y */
+    T_ASSERT_EQ_I(rd_i32(g, rec + 0x28), 6400);       /* anchor world x */
+    T_ASSERT_EQ_I(rd_i32(g, rec + 0x2c), 9600);       /* anchor world y */
+
+    f.m.layers = NULL; f.m.count = 0;   /* fixture doesn't own them */
+    map_grid_free(g); fx_free(&f);
+    return 0;
+}

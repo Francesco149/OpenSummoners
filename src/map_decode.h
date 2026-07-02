@@ -8,37 +8,30 @@
  * runtime render grid the in-game render dispatch (0x5a00c0) later blits.  This
  * module ports that per-cell dispatch.
  *
- * SCOPE — the opening town (DATA 1022) only.  Ground truth from
- * tools/extract/map_data.py --cells: the town map uses exactly NINE tile ids,
- * all pure compositions of the ported map_grid primitives:
+ * SCOPE — the FULL per-cell tile-id dispatch (every arm of the FUN_00587e00
+ * switch/if tree, 587e00.c:585-3183) plus the trailing 0x15f9a/0x15f9b
+ * placeholder-link pass (:3185-3204).  Coverage proven by the all-maps sweep
+ * (tools/extract/map_sweep.py over the 376 MSD_SOTES_MAPDATA resources): every
+ * tile id that occurs in ANY map has a ported arm.  The cutscene-room arms
+ * (town/house/errands) are additionally ground-truthed against a retail
+ * emit-sequence capture (runs/room-render-gt, ckpt 130); the remaining arms are
+ * faithful transcriptions of the decompile (same emit calls, same order) and
+ * get behaviorally validated when their areas come into the parity loop.
  *
- *   id        shapes used        what it places (587e00.c arm)
- *   0x1b58b   0, 2               an obj block + a base tile (bank 0x62)
- *   0x1b58c   0, 2               same arm as 0x1b58b
- *   0x1b58d   2                  a 6-call obj cluster + base tile (bank 0x63)
- *   0x1b58f   0,10,11,12,15      optional fg tile (bank 0x17a) + base (0x176)
- *   0x1b5a0   0                  one base tile (bank 0x17b, flag 0xa)
- *   0x1b5a9   0                  one base tile (bank 0x172)
- *   0x1b5aa   0                  one base tile (bank 0x173, z-dependent slot)
- *   0x1b5ab   0                  a tile (bank 0x174) + a 2x9 obj block
- *   0x29ff4   0, 14              optional fg tile (bank 0x17a) + base (0x177)
+ * A cell with an id outside the dispatch is a no-op (only its region-E co-id
+ * slot is cleared, matching the retail fall-through to
+ * switchD_005887cc_caseD_271d).
  *
- * Every OTHER tile id in FUN_00587e00 (the 0x1bd82 autotile block, the
- * 0x1d8ab/0x1ffbc decoration switches, the HUD/border families, the inline
- * grid-write arms that read engine globals DAT_008a76xx/DAT_008a7bfc) is DEAD
- * CODE for this map and is NOT ported here (ckpt-57 scoping win).  A cell with
- * an unhandled id is a no-op (only its region-E co-id slot is cleared, matching
- * the retail fall-through to switchD_005887cc_caseD_271d).
- *
- * NOT ported (the engine-coupled body of the rock, deferred per the
- * ckpt-53/56/57 discipline):
- *   - the 0x587e00 PROLOGUE (587e00.c:34-571): the front-header flag writes, the
- *     HUD/border sprite-bank selection over the DAT_008a76xx pool, and the
- *     0x1bd82 autotile pre-pass.  map_decode performs only the prologue's four
- *     dim-header writes (via map_grid_set_dims) so the primitives' bounds checks
- *     behave; the rest of the front header stays zero.
- *   - the trailing LAYER pass (587e00.c:3185-3204): the 0x58c8c0 / 0x58c8d0 /
- *     0x58cb30 helpers over the 0x15f9a/0x15f9b object entries.
+ * NOT ported (deferred per the ckpt-53/56/57 discipline):
+ *   - the 0x587e00 PROLOGUE (587e00.c:34-571) beyond the cfg banks: the
+ *     grid front-header sky/backdrop words (in_ECX[0..0x16], keyed on the room
+ *     TYPE param_2), the param_4 5-8 palette-remap table installs
+ *     (&DAT_00675708.. + the *(0x8a9b50+0x27a4) runtime STRUCTURE bank) and the
+ *     param_4 9-13 ramp tables, and the bank-registry invalidation sweeps
+ *     (FUN_00417870 loops).  map_decode performs only the prologue's four
+ *     dim-header writes (via map_grid_set_dims) so the primitives' bounds
+ *     checks behave; the rest of the front header stays zero.
+ *     PORT-DEBT(decode-prologue-header).
  *
  * PORT NOTES / fidelity boundaries:
  *   - The two emit_obj arms of 0x1b58d store an engine .rdata pointer
@@ -83,15 +76,18 @@ typedef struct map_decode_cfg {
     uint16_t bank_1c;     /* local_1c — 0x1b972 (dir-1 wall span) bank          */
     uint16_t bank_18;     /* local_18 — 0x1b977 (dir-2 wall span) bank          */
     uint16_t bank_24;     /* local_24 — 0x1b986 / 0x1b990 bank                  */
-    uint16_t bank_20;     /* local_20 — 0x1b98b bank                            */
+    uint16_t bank_20;     /* local_20 — 0x1b98b / 0x1b995 bank                  */
+    uint16_t bank_14;     /* local_14 — 0x1ffcd bank (0x83; param_4 5/6/8 remap)*/
     int16_t  scene_frame; /* normalized param_3 (the 113xxx direct-write frame) */
 } map_decode_cfg;
 
 /* Build the prologue config from the decode's param_3 (the scene field;
  * MAP_DECODE_SCENE_PARAM3 for the town-area rooms) and param_4 (= room[0x43]).
  * Town/house (param_4=1) get the :49-52 defaults; errands (param_4=4) the case-4
- * banks.  cases 5-8 (the pointer-based local_28 areas) are not modeled (no
- * town-area room uses them).  A "town default" cfg = (MAP_DECODE_SCENE_PARAM3, 1). */
+ * banks.  Cases 5-13 keep the default tile banks; 5/6/8 swap bank_14
+ * (0x84/0x85/0x86, 587e00.c:215-236) — their palette-remap table installs and
+ * the runtime STRUCTURE bank write are PORT-DEBT(decode-prologue-header).
+ * A "town default" cfg = (MAP_DECODE_SCENE_PARAM3, 1). */
 void map_decode_cfg_init(map_decode_cfg *cfg, int param_3, int param_4);
 
 /* Dispatch one cell at (x,y,z): read its record from `m` and issue the
@@ -106,12 +102,26 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
                      mg_bank_dims_fn dims, void *ctx);
 
 /* Decode a whole parsed map into a runtime render grid (FUN_00587e00's body
- * minus the deferred prologue HUD/layer pass): write the dim header, pre-clear
- * region C over dim0 x dim1, then for every cell (z-major) run map_decode_cell
- * and zero the cell's region-E co-id slot.  `grid` must be MG_GRID_BYTES (e.g.
- * from map_grid_alloc) and is assumed zeroed.  `cfg` per the room (NULL → town
+ * minus the deferred prologue header): write the dim header, pre-clear region C
+ * over dim0 x dim1, for every cell (z-major) run map_decode_cell and zero the
+ * cell's region-E link count, then run the trailing PLACEHOLDER pass
+ * (587e00.c:3185-3204 -> FUN_0058cb30): for each object layer whose type code
+ * is 0x15f9a (90010, all-links) / 0x15f9b (90011, flagged-links only), fill the
+ * anchor cell's region-E record — flag + world x/y + up to 4 linked-layer tile
+ * positions resolved by instance id.  `grid` must be MG_GRID_BYTES (e.g. from
+ * map_grid_alloc) and is assumed zeroed.  `cfg` per the room (NULL → town
  * default). */
 void map_decode(const map_data *m, uint8_t *grid, const map_decode_cfg *cfg,
                 mg_bank_dims_fn dims, void *ctx);
+
+/* Region-E placeholder record layout (the 0x30-byte per-cell record at
+ * MG_REGION_E, filled by the FUN_0058cb30 pass; the per-cell decode loop zeroes
+ * only the +0x00 count):
+ *   +0x00 u16  link count (retail fatals past 4 links: "The maximum number
+ *              exceeded by t..."; the port stops linking instead)
+ *   +0x04 u32  1 if the layer's sub-array A first dword == 1, else 0
+ *   +0x08 4 x {i32 tile-x, i32 tile-y}   linked layers' cell coords
+ *   +0x28 i32  anchor world x (hdr.x * 100)
+ *   +0x2c i32  anchor world y (hdr.y * 100) */
 
 #endif /* OSS_MAP_DECODE_H */

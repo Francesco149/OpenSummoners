@@ -943,6 +943,13 @@ struct test_case {
     X(map_decode_errands_arms)                                 \
     X(map_decode_full_small)                                   \
     X(map_decode_empty_cell_noop)                              \
+    X(map_decode_simple_arm_2af8)                              \
+    X(map_decode_2b2a_shape_flag)                              \
+    X(map_decode_1d8aa_blend_pair)                             \
+    X(map_decode_22b16_shape3_span)                            \
+    X(map_decode_1bd82_stair)                                  \
+    X(map_decode_999xxx_markers)                               \
+    X(map_decode_placeholder_pass)                             \
     X(map_render_camera_init)                                  \
     X(map_render_camera_town_first_frame)                      \
     X(map_render_window_basic)                                 \

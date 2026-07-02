@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **244**
-- of those, zero-dependency **leaves: 143** (recommended order below)
+- frontier functions: **242**
+- of those, zero-dependency **leaves: 142** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -19,7 +19,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bbc90 | 55 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x412db0 | 57 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5bbc20 | 57 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x417870 | 106 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x412d30 | 117 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x4124d0 | 146 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x4182d0 | 408 | 3 | menu/dialog controller + char init + shop/NPC + save path |
@@ -54,6 +53,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x587d30 | 28 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x5b6580 | 28 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x40bb70 | 30 | 1 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
+| 0x5bb8c0 | 31 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 
 ## Full frontier by address band
 
@@ -82,13 +82,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4017d0 | 1175 | 1 | 1 |  |
 | 0x40c380 | 5077 | 1 | 99 |  |
 
-### menu/dialog controller + char init + shop/NPC + save path (26)
+### menu/dialog controller + char init + shop/NPC + save path (25)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41bbe0 | 312 | 4 | 0 | ✓ |
 | 0x412db0 | 57 | 3 | 0 | ✓ |
-| 0x417870 | 106 | 3 | 0 | ✓ |
 | 0x412d30 | 117 | 3 | 0 | ✓ |
 | 0x4124d0 | 146 | 3 | 0 | ✓ |
 | 0x4182d0 | 408 | 3 | 0 | ✓ |
@@ -189,7 +188,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4963a0 | 446 | 1 | 1 |  |
 | 0x49a470 | 622 | 1 | 1 |  |
 | 0x49a060 | 651 | 1 | 3 |  |
-| 0x49ac80 | 664 | 1 | 1 |  |
+| 0x49ac80 | 664 | 1 | 0 | ✓ |
 | 0x491820 | 696 | 1 | 0 | ✓ |
 | 0x497c20 | 788 | 1 | 1 |  |
 | 0x49c2f0 | 808 | 1 | 6 |  |
@@ -267,7 +266,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56cc10 | 267 | 1 | 0 | ✓ |
 | 0x56daa0 | 267 | 1 | 0 | ✓ |
 | 0x56dfe0 | 417 | 1 | 0 | ✓ |
-| 0x562ba0 | 432 | 1 | 5 |  |
+| 0x562ba0 | 432 | 1 | 4 |  |
 | 0x5642e0 | 440 | 1 | 7 |  |
 | 0x5644a0 | 483 | 1 | 6 |  |
 | 0x565b00 | 528 | 1 | 7 |  |
@@ -279,9 +278,9 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x568de0 | 998 | 1 | 14 |  |
 | 0x56a670 | 1011 | 1 | 18 |  |
 | 0x561d20 | 1259 | 1 | 12 |  |
-| 0x5624c0 | 1355 | 1 | 12 |  |
+| 0x5624c0 | 1355 | 1 | 11 |  |
 
-### master sprite-group register + audio/music init + anim pump (26)
+### master sprite-group register + audio/music init + anim pump (25)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -306,7 +305,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x58e330 | 873 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 13 |  |
-| 0x58cb30 | 1065 | 1 | 0 | ✓ |
 | 0x58e780 | 1823 | 1 | 7 |  |
 | 0x58f360 | 3030 | 1 | 43 |  |
 | 0x58d460 | 3341 | 1 | 5 |  |
@@ -376,7 +374,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5a3e20 | 455 | 1 | 0 | ✓ |
 | 0x5b6bc0 | 491 | 1 | 8 |  |
 | 0x5a3670 | 499 | 1 | 1 |  |
-| 0x5a3ff0 | 516 | 1 | 8 |  |
+| 0x5a3ff0 | 516 | 1 | 7 |  |
 | 0x5b10d0 | 520 | 1 | 3 |  |
 | 0x5bbeb0 | 527 | 1 | 1 |  |
 | 0x5a3870 | 828 | 1 | 0 | ✓ |
