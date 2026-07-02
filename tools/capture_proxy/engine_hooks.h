@@ -286,6 +286,10 @@ static void eh_flip_cb(PCONTEXT ctx)
             sf[n].kind = OSR_ST_INT;
             sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 4u);
             n++;
+            snprintf(sf[n].name, sizeof sf[n].name, "wy");
+            sf[n].kind = OSR_ST_INT;
+            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 8u);
+            n++;
             snprintf(sf[n].name, sizeof sf[n].name, "hvel");
             sf[n].kind = OSR_ST_INT;
             sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x28u);

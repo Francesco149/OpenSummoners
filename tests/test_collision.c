@@ -104,8 +104,8 @@ int test_collision_zero_delta_noop(void)
 }
 
 /* slope branch: a cell with a nonzero region-B +0x8 slope ref invokes the
- * resolver callback (proves the slope path is wired; the live profile resolver
- * is PORT-DEBT(collision-slopes)). */
+ * resolver callback (proves the slope path is wired; the live resolver reads
+ * the real ramps off the user's exe — main.c game_slope_resolve). */
 static int g_slope_calls;
 static uint32_t g_slope_ref_seen;
 static int slope_cb(void *ctx, uint32_t slope_ref, int subtile_x)

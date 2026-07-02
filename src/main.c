@@ -1036,7 +1036,9 @@ static void drive_present(void *user)
     osr_emit_state_field("fr_atk",   OSR_ST_INT, (int64_t)g_freeroam_char.attacking, 0.0);
     osr_emit_state_field("fr_lr",    OSR_ST_INT, (int64_t)g_freeroam_char.cmd_lr,   0.0);
     osr_emit_state_field("fr_wx",    OSR_ST_INT, (int64_t)g_freeroam_char.world_x,  0.0);
+    osr_emit_state_field("fr_wy",    OSR_ST_INT, (int64_t)g_freeroam_char.world_y,  0.0);
     osr_emit_state_field("fr_vel",   OSR_ST_INT, (int64_t)g_freeroam_char.vel,      0.0);
+    osr_emit_state_field("fr_sup",   OSR_ST_INT, (int64_t)g_freeroam_char.supported, 0.0);
     /* M5: the .osr frame boundary — PRESENT closes the open frame, FRAMEBEG
      * opens the next (the proxy's present-then-framebeg order; the draws under
      * FRAMEBEG(f) are issued after flip f, presented by flip f+1). */
@@ -3082,16 +3084,35 @@ static int load_town_scene(uint16_t scene, int parallax_p2, int parallax_p3)
         log_line("load_town_scene: town_render_load(DATA %u, %lu B) failed "
                  "(malformed resource?) — backdrop stays black", scene, len);
         town_render_free(&g_town);
+        if (g_freeroam_char.coll_grid != NULL)
+            g_freeroam_char.coll_grid = NULL;   /* the old grid is freed */
         return 0;
     }
 
     g_town_loaded = 1;
+    /* A room reload reallocates the runtime grid — re-point the freeroam
+     * mover's collision wiring at the fresh one (stale = use-after-free). */
+    if (g_freeroam_char.coll_grid != NULL)
+        g_freeroam_char.coll_grid = g_town.grid;
     char nm[0x21];
     log_line("load_town_scene: DATA %u loaded (%lu B): \"%s\" %ux%ux%u, %u layers "
              "— town backdrop scene up", scene, len,
              map_data_name(&g_town.map, nm),
              g_town.map.dim0, g_town.map.dim1, g_town.map.dim2, g_town.map.count);
     return 1;
+}
+
+/* The LIVE slope-profile resolver (collision.h coll_slope_fn): region-B +0x8
+ * slope refs are engine .rdata VAs (map_decode writes 0x5cc410/0x5cc430
+ * verbatim); retail's movers read the per-sub-column height byte straight off
+ * that VA (54ded0.c:119 etc.).  The port reads the IDENTICAL byte off the
+ * user's installed sotes.exe (.rdata is untouched by the Steam DRM — verified
+ * byte-equal packed/unpacked).  Retires PORT-DEBT(collision-slopes). */
+static int game_slope_resolve(void *ctx, uint32_t slope_ref, int subtile_x)
+{
+    (void)ctx;
+    const uint8_t *p = exe_data_bytes(slope_ref + (uint32_t)subtile_x, 1);
+    return (p != NULL) ? (int)*p : 0;
 }
 
 /* Resolve a room KEY (room_state+0x4024, e.g. 0x334be town / 0x334c8 house /
@@ -3193,6 +3214,14 @@ static void freeroam_begin(void)
 {
     character_init(&g_freeroam_char, FREEROAM_ARCHE_SPAWN_WX,
                    FREEROAM_ARCHE_SPAWN_WY, CHAR_FACE_RIGHT);
+    /* Wire the live COLLISION grid (ckpt 175 — the 442a70 tick geometry):
+     * the movers run against the current room's runtime grid, so walls /
+     * stairs / ceilings block-clamp-climb exactly as retail (retires the
+     * walk-through-stairs divergence, studio note tick 2441).  The slope
+     * resolver reads the 0x5cc410/0x5cc430 height ramps off the user's own
+     * sotes.exe .rdata — the same bytes retail dereferences. */
+    g_freeroam_char.coll_grid  = g_town.loaded ? g_town.grid : NULL;
+    g_freeroam_char.coll_slope = game_slope_resolve;
     memset(&g_freeroam_actor, 0, sizeof g_freeroam_actor);
     memset(&g_freeroam_rs, 0, sizeof g_freeroam_rs);
     g_freeroam_actor.layer = 13u;                       /* the cast layer */

@@ -2701,26 +2701,220 @@
    "name": "actor_ai",
    "_note": "FUN_0047b990 (7461 B) the per-actor EFFECT-band AI; the 4 town BUTTERFLIES (code 0xe29a) take the 0xe29a case (47b990.c:769-801): wander range 0xc890, decrement flip-cooldown 0x14248, the 10% flag, then FLIP heading 0x14244 (1<->3) toward the far patrol bound when cooldown==0 AND (|worldX-bound|<0xc81 OR the 10% roll), then 0x43f880 writes the move command; the band's 2nd EFFECT pass 0x485fc0->0x442a70 integrates worldX EVERY tick. Port mirror: src/main.c game_actor_update emits CALL_TRACE_BEGIN(0x47b990) per butterfly (the open-air reduction src/butterfly.c). Chip-1 validated field-exact vs runs/butterfly-fsm: heading 0 mismatches (every flip tick), worldX exact between reversals (movement-system.md). Throwaway dense spec: tools/flow/butterfly_capture_fields.json.",
    "fields": [
-    { "name": "code", "src": "thisderef", "off": 468, "type": "hex", "_note": "this+0x1d4 actor code; 0xe29a == butterfly (filter)" },
-    { "name": "wx", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "_note": "body+4 worldX (the patrol drift)" },
-    { "name": "facing", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "_note": "body+0x2c facing 1/3 (travel dir)" },
-    { "name": "heading", "src": "thisderef", "off": 82500, "type": "i32", "_note": "this+0x14244 heading intent (0 init / 1 right / 3 left)" },
-    { "name": "cooldown", "src": "thisderef", "off": 82504, "type": "u32", "_note": "this+0x14248 flip cooldown (mask&0xffff); set 0x3c on flip" }
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "_note": "this+0x1d4 actor code; 0xe29a == butterfly (filter)"
+    },
+    {
+     "name": "wx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "_note": "body+4 worldX (the patrol drift)"
+    },
+    {
+     "name": "facing",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 44,
+     "type": "i32",
+     "_note": "body+0x2c facing 1/3 (travel dir)"
+    },
+    {
+     "name": "heading",
+     "src": "thisderef",
+     "off": 82500,
+     "type": "i32",
+     "_note": "this+0x14244 heading intent (0 init / 1 right / 3 left)"
+    },
+    {
+     "name": "cooldown",
+     "src": "thisderef",
+     "off": 82504,
+     "type": "u32",
+     "_note": "this+0x14248 flip cooldown (mask&0xffff); set 0x3c on flip"
+    }
    ]
   },
   "0x478ba0": {
    "name": "char_ai",
    "_note": "FUN_00478ba0 (3514 B) the RNG-free CHARACTER AI — the held-axis -> command-block builder townsfolk AND the controllable party leader (Arche 0xc35a) share (engine-quirk #101; counterpart of the EFFECT-band AI 0x47b990). Dispatched by 0x46cd70 pass 1 when entity+0x200==0. Saves+clears then rebuilds the command block this+0x14854 from the input manager *(this+0x158a4): LEFT(+0x11c)->[0]=1 walk/5 run, RIGHT(+0x120)->2/6, DOWN(+0x118)->[3](+0x14860)=10, UP(+0x114)->0xb; walk-vs-run via speed-mode this+0x158a0 (<2 thr 10, ==2 thr 0x50) + run modifier *(*0x8a6e80+0x510)==2. press->latch = GetTickCount auto-repeat. APPLY 0x485fc0+0x96e -> 0x442a70 case 0x75 integrates EVERY tick (ramp 0x445db0 accel 1600/cap 24000/brake 800 -> worldX += vel/100; facing flips at v==0). Port: the open-air flat WALK reduction src/character.c (character_step), host-tested field-exact vs runs/mover-caller (ckpt 114). No live port CALL_TRACE mirror yet (awaits the freeroam hand-off, chip 4).",
    "fields": [
-    { "name": "code", "src": "thisderef", "off": 468, "type": "hex", "_note": "this+0x1d4 actor code; 0xc35a == Arche (filter)" },
-    { "name": "held_up", "src": "thischain", "hops": [88228], "off": 276, "type": "i32", "_note": "*(this+0x158a4 input-mgr)+0x114 UP held" },
-    { "name": "held_down", "src": "thischain", "hops": [88228], "off": 280, "type": "i32", "_note": "input-mgr+0x118 DOWN held" },
-    { "name": "held_left", "src": "thischain", "hops": [88228], "off": 284, "type": "i32", "_note": "input-mgr+0x11c LEFT held" },
-    { "name": "held_right", "src": "thischain", "hops": [88228], "off": 288, "type": "i32", "_note": "input-mgr+0x120 RIGHT held" },
-    { "name": "speed_mode", "src": "thisderef", "off": 88224, "type": "i32", "_note": "this+0x158a0 speed-mode (<2 walk thr 10, ==2 run thr 0x50)" },
-    { "name": "cmd0", "src": "thisderef", "off": 84052, "type": "i32", "_note": "this+0x14854 command block [0]: 1/2 walk L/R, 5/6 run L/R" },
-    { "name": "wx", "src": "thischain", "hops": [64], "off": 4, "type": "i32", "_note": "body+4 worldX" },
-    { "name": "facing", "src": "thischain", "hops": [64], "off": 44, "type": "i32", "_note": "body+0x2c facing 1/3" }
+    {
+     "name": "code",
+     "src": "thisderef",
+     "off": 468,
+     "type": "hex",
+     "_note": "this+0x1d4 actor code; 0xc35a == Arche (filter)"
+    },
+    {
+     "name": "held_up",
+     "src": "thischain",
+     "hops": [
+      88228
+     ],
+     "off": 276,
+     "type": "i32",
+     "_note": "*(this+0x158a4 input-mgr)+0x114 UP held"
+    },
+    {
+     "name": "held_down",
+     "src": "thischain",
+     "hops": [
+      88228
+     ],
+     "off": 280,
+     "type": "i32",
+     "_note": "input-mgr+0x118 DOWN held"
+    },
+    {
+     "name": "held_left",
+     "src": "thischain",
+     "hops": [
+      88228
+     ],
+     "off": 284,
+     "type": "i32",
+     "_note": "input-mgr+0x11c LEFT held"
+    },
+    {
+     "name": "held_right",
+     "src": "thischain",
+     "hops": [
+      88228
+     ],
+     "off": 288,
+     "type": "i32",
+     "_note": "input-mgr+0x120 RIGHT held"
+    },
+    {
+     "name": "speed_mode",
+     "src": "thisderef",
+     "off": 88224,
+     "type": "i32",
+     "_note": "this+0x158a0 speed-mode (<2 walk thr 10, ==2 run thr 0x50)"
+    },
+    {
+     "name": "cmd0",
+     "src": "thisderef",
+     "off": 84052,
+     "type": "i32",
+     "_note": "this+0x14854 command block [0]: 1/2 walk L/R, 5/6 run L/R"
+    },
+    {
+     "name": "wx",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 4,
+     "type": "i32",
+     "_note": "body+4 worldX"
+    },
+    {
+     "name": "facing",
+     "src": "thischain",
+     "hops": [
+      64
+     ],
+     "off": 44,
+     "type": "i32",
+     "_note": "body+0x2c facing 1/3"
+    }
+   ]
+  },
+  "0x54db10": {
+   "name": "mover_horizontal",
+   "_note": "FUN_0054db10 (946 B) — the collision-aware HORIZONTAL body mover: actor-vs-actor pre-scan (world 0x8a9b50+0x278c list; gates actor+0x104 mode / +0x108 kind / 0x4416c0 faction) then the tile sweep FUN_0054ded0. __thiscall ECX=the actor entity; args (raw, 0x4441ec push order): [0]=body, [1]=signed delta (vel/100 via 0x445f50 facing-negate), [2]=step_down (the 442a70 gate (param_4==0)||(ent+0x200==0) — 1 on the real-body walk apply, runs/arche-box), [3]=step_up (literal 1), [4]=pass-slopes = body+0x20 the DROP-THROUGH timer byte (cmd[2]==9 arms 8, decrements — 0 normally), [5]=the 442a70 param_5 box-array selector (actor scan only), [6]=probe flag (0 = commit through &body.x/&body.y). Blocked => the caller zeroes body+0x28. NB Ghidra's caller/callee arg numbering disagrees here — the raw push order above is ground truth. PORT: collision_move_horizontal (collision.c); the sweep = collision_sweep_horizontal = FUN_0054ded0 verbatim (step-up stair climb + step-down floor hug, <=100-unit steps, leading-edge column scan; slope profiles 0x5cc410/0x5cc430 = 32-byte .rdata height ramps resolved live off the user's exe, exe_data_bytes).",
+   "fields": [
+    {
+     "name": "body",
+     "src": "arg",
+     "index": 0,
+     "type": "hex",
+     "reason": "the body record (x/y/w/h/margin at +4/+8/+0xc/+0x10/+0x14)"
+    },
+    {
+     "name": "delta",
+     "src": "arg",
+     "index": 1,
+     "type": "i32",
+     "reason": "signed world-X delta (vel/100, facing-negated by 0x445f50)"
+    },
+    {
+     "name": "step_down",
+     "src": "arg",
+     "index": 2,
+     "type": "i32",
+     "reason": "floor-hug enable (1 on the grounded walk)"
+    },
+    {
+     "name": "pass",
+     "src": "arg",
+     "index": 4,
+     "type": "i32",
+     "reason": "drop-through-slopes = body+0x20 timer byte"
+    },
+    {
+     "name": "wx",
+     "src": "argfield",
+     "index": 0,
+     "off": 4,
+     "type": "i32",
+     "reason": "body+4 worldX at onEnter (the pre-move x)"
+    },
+    {
+     "name": "wy",
+     "src": "argfield",
+     "index": 0,
+     "off": 8,
+     "type": "i32",
+     "reason": "body+8 worldY at onEnter (step-up/down commits shift it)"
+    }
+   ]
+  },
+  "0x54e5c0": {
+   "name": "mover_vertical",
+   "_note": "FUN_0054e5c0 (945 B) — the collision-aware VERTICAL body mover: actor-vs-actor pre-scan (platform-actor landing; writes the hit actor to arg[5] out) then the tile mover FUN_0054e990 (ported: collision_move_vertical). __thiscall ECX=the actor entity; args (raw, 0x443eab push order): [0]=body, [1]=signed delta (vvel/100; +1 = the every-tick SUPPORT PROBE, 442a70:104-118 writing body+0x24 = supported), [2]=pass-slopes = body+0x20 drop-through timer (also 54e990's param_7 — down through platforms), [3]=the 442a70 param_5 box selector (actor scan only), [4]=out worldY ptr (&body.y on the commit; a local on the probe), [5]=out hit-actor ptr (&body+0x284). Blocked falling => landing (vvel=0, next tick's probe reports supported); blocked rising => the ceiling apex clamp (vvel=0). PORT: character.c airborne branch + the support probe (c->supported).",
+   "fields": [
+    {
+     "name": "body",
+     "src": "arg",
+     "index": 0,
+     "type": "hex",
+     "reason": "the body record"
+    },
+    {
+     "name": "delta",
+     "src": "arg",
+     "index": 1,
+     "type": "i32",
+     "reason": "signed world-Y delta (vvel/100; +1 = the support probe)"
+    },
+    {
+     "name": "wy",
+     "src": "argfield",
+     "index": 0,
+     "off": 8,
+     "type": "i32",
+     "reason": "body+8 worldY at onEnter"
+    },
+    {
+     "name": "vvel",
+     "src": "argfield",
+     "index": 0,
+     "off": 24,
+     "type": "i32",
+     "reason": "body+0x18 vertical velocity at onEnter"
+    }
    ]
   }
  }

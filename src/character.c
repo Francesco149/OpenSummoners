@@ -36,6 +36,10 @@ void character_init(character *c, int32_t spawn_world_x, int32_t spawn_world_y,
     c->attack_timer   = 0;
     c->attack_kind    = 0;
     c->attack_last_ms = 0;
+    c->coll_grid      = NULL;
+    c->coll_slope     = NULL;
+    c->coll_slope_ctx = NULL;
+    c->supported      = 1;
 }
 
 /* Ramp cur toward target by at most |rate| (the open-air reduction of the
@@ -79,6 +83,108 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
         if (c->warm < CHAR_INPUT_REPEAT_DELAY)
             c->warm = (int16_t)(c->warm + 1);
         c->cmd_dir = (c->warm >= CHAR_INPUT_REPEAT_DELAY) ? (int16_t)want : 0;
+    }
+
+    /* ── JUMP TRIGGER (the command phase: cmd[2]==7 -> 0x426f50(body,3)) — runs
+     * before the apply pass, so the windup starts THIS tick. ──────────────── */
+    int jump_edge = (jump_held != 0) && (c->jump_held == 0);
+    c->jump_held = (int16_t)(jump_held != 0);
+    if (!c->airborne && jump_edge) {
+        c->airborne = 1;
+        c->jump_sub = 0;
+        c->jump_ctr = 0;
+    }
+
+    /* ── SUPPORT PROBE (the 0x442a70 prologue :104-118): a delta=+1 vertical
+     * mover probe every tick — blocked == standing on ground (body+0x24).
+     * The out-Y is NOT committed for tile ground (only for an actor support,
+     * PORT-DEBT(mover-actor-scan)); pass = the drop-through timer (0 here —
+     * PORT-DEBT(char-drop-through): body+0x20, cmd[2]==9 arms 8 ticks). ───── */
+    if (c->coll_grid != NULL) {
+        phys_box b = { c->world_x, c->world_y,
+                       CHAR_BOX_W, CHAR_BOX_H, CHAR_BOX_MARGIN };
+        int32_t scratch = c->world_y;
+        c->supported = (int16_t)!collision_move_vertical(
+            c->coll_grid, &b, 1, 0, c->coll_slope, c->coll_slope_ctx, &scratch);
+    }
+
+    /* ── VERTICAL (0x442a70 case 3 sub-FSM + the :917-945 mover block): windup
+     * -> impulse -> mover step + asymmetric gravity; landing = the mover
+     * blocking a downward step.  Runs BEFORE the horizontal commit (retail
+     * tick order — the horizontal scan reads the post-vertical Y). ────────── */
+    if (c->airborne) {
+        if (c->jump_sub == 0) {
+            /* WINDUP (case 3 sub 0, :834-841): count up each tick; on the tick the
+             * counter exceeds CHAR_JUMP_WINDUP_THRESH (the 5th), apply the impulse +
+             * one FALL grav step (the grav was selected from the pre-impulse vvel==0
+             * = fall branch -> first sampled -76000) and advance to sub-state 1.  The
+             * body is STATIONARY (no worldY change) through the 4 windup ticks. */
+            c->jump_ctr = (int16_t)(c->jump_ctr + 1);
+            if (c->jump_ctr > CHAR_JUMP_WINDUP_THRESH) {
+                c->jump_sub = 1;
+                c->jump_ctr = 0;
+                c->vvel = CHAR_JUMP_IMPULSE;
+                c->world_y += c->vvel / 100;
+                c->vvel += CHAR_JUMP_FALL_GRAV;
+            }
+        } else if (c->coll_grid != NULL) {
+            /* the REAL vertical mover (0x54e5c0 tile half): move by vvel/100
+             * against the grid; a blocked DOWN step = landing (snap + exit),
+             * a blocked UP step = the ceiling bonk (vvel zeroed, the apex
+             * clamp — the 442a70:926-931 block). */
+            int32_t step = c->vvel / 100;
+            phys_box b = { c->world_x, c->world_y,
+                           CHAR_BOX_W, CHAR_BOX_H, CHAR_BOX_MARGIN };
+            int32_t ny = c->world_y;
+            int clear = collision_move_vertical(c->coll_grid, &b, step, 0,
+                                                c->coll_slope,
+                                                c->coll_slope_ctx, &ny);
+            c->world_y = ny;
+            if (!clear) {
+                int was_falling = c->vvel > 0;
+                c->vvel = 0;
+                if (was_falling) {               /* landed on terrain */
+                    c->airborne = 0;
+                    c->jump_sub = 0;
+                }
+            } else if (c->vvel < 0) {
+                /* RISING: variable-height decel (held floats, released cuts) */
+                c->vvel += jump_held ? CHAR_JUMP_RISE_GRAV_HELD
+                                     : CHAR_JUMP_RISE_GRAV_FREE;
+            } else {
+                /* FALLING: the fall accel, capped at terminal. */
+                c->vvel += CHAR_JUMP_FALL_GRAV;
+                if (c->vvel > CHAR_JUMP_FALL_TERMINAL)
+                    c->vvel = CHAR_JUMP_FALL_TERMINAL;
+            }
+        } else {
+            /* open-air flat reduction (host tests): ground clamp at ground_y —
+             * bit-exact to the captured arc (runs/runjump-gt, ckpt 116/119). */
+            int32_t step = c->vvel / 100;
+            if (c->vvel > 0 && c->world_y + step > c->ground_y) {
+                c->world_y = c->ground_y;
+                c->vvel = 0;
+                c->airborne = 0;
+                c->jump_sub = 0;
+            } else if (c->vvel < 0) {
+                c->world_y += step;
+                c->vvel += jump_held ? CHAR_JUMP_RISE_GRAV_HELD
+                                     : CHAR_JUMP_RISE_GRAV_FREE;
+            } else {
+                c->world_y += step;
+                c->vvel += CHAR_JUMP_FALL_GRAV;
+                if (c->vvel > CHAR_JUMP_FALL_TERMINAL)
+                    c->vvel = CHAR_JUMP_FALL_TERMINAL;
+            }
+        }
+    } else if (c->coll_grid != NULL && !c->supported) {
+        /* LEDGE WALK-OFF (442a70:937-939): grounded but the support probe
+         * found no ground -> FUN_00426f50(body,4) enters the FALL state; the
+         * same-tick mover is a no-op (vvel==0) and the gravity add (:941)
+         * starts the drop — position moves from the next tick. */
+        c->airborne = 1;
+        c->jump_sub = 1;
+        c->vvel = CHAR_JUMP_FALL_GRAV;
     }
 
     /* ── APPLY reduction (0x442a70 case 0x75): ramp the horizontal velocity, flip
@@ -146,7 +252,7 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
         } else {
             /* still moving the wrong way -> decelerate toward 0 first.  The
              * decompile uses -accel here; the capture has an idle gap (no direct
-             * reverse) so the rate is PORT-DEBT(char-collision-mover). */
+             * reverse) so the rate is PORT-DEBT(char-reverse-decel). */
             c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
         }
     } else {
@@ -154,68 +260,29 @@ int32_t character_step(character *c, const int *axis_held, int jump_held, int ru
         c->vel = ramp_toward(c->vel, 0, CHAR_WALK_BRAKE);
     }
 
-    int32_t dwx = c->vel / 100;               /* the 0x54db10 step (flat) */
-    c->world_x += dwx;
-
-    /* ── VERTICAL jump integrator (0x442a70 case 3, the body+0x38==3 airborne
-     *    sub-FSM): a 4-tick launch WINDUP -> impulse -> asymmetric gravity ->
-     *    ground clamp. ───────────────────────────────────────────────────────────
-     * worldY += vvel/100 each airborne tick (the 0x54e5c0 collision mover, here
-     * reduced to a flat ground clamp at ground_y — PORT-DEBT(char-collision-mover)
-     * for the real terrain surface).  Bit-exact to the captured arc + windup
-     * (runs/runjump-gt/capjump-ring2, ckpt 116/119; tests/test_character.c). */
-    int jump_edge = (jump_held != 0) && (c->jump_held == 0);
-    c->jump_held = (int16_t)(jump_held != 0);
-
-    if (!c->airborne) {
-        if (jump_edge) {
-            /* Jump execute (cmd[2]==7 -> 0x426f50(body,3)): enter the airborne
-             * state with sub-state 0 (windup) + a fresh counter.  The windup block
-             * below runs THIS tick (the entry tick is windup tick 1). */
-            c->airborne = 1;
-            c->jump_sub = 0;
-            c->jump_ctr = 0;
-        }
-        /* else grounded: world_y holds at ground_y, vvel 0. */
-    }
-
-    if (c->airborne) {
-        if (c->jump_sub == 0) {
-            /* WINDUP (case 3 sub 0, :834-841): count up each tick; on the tick the
-             * counter exceeds CHAR_JUMP_WINDUP_THRESH (the 5th), apply the impulse +
-             * one FALL grav step (the grav was selected from the pre-impulse vvel==0
-             * = fall branch -> first sampled -76000) and advance to sub-state 1.  The
-             * body is STATIONARY (no worldY change) through the 4 windup ticks. */
-            c->jump_ctr = (int16_t)(c->jump_ctr + 1);
-            if (c->jump_ctr > CHAR_JUMP_WINDUP_THRESH) {
-                c->jump_sub = 1;
-                c->jump_ctr = 0;
-                c->vvel = CHAR_JUMP_IMPULSE;
-                c->world_y += c->vvel / 100;
-                c->vvel += CHAR_JUMP_FALL_GRAV;
-            }
-        } else {
-            int32_t step = c->vvel / 100;
-            if (c->vvel > 0 && c->world_y + step > c->ground_y) {
-                /* a downward step that would penetrate the ground -> the collision
-                 * mover returns blocked: clamp to the surface and zero vvel (line
-                 * 926-931 -> 0x426f50 grounded). */
-                c->world_y = c->ground_y;
-                c->vvel = 0;
-                c->airborne = 0;
-                c->jump_sub = 0;
-            } else if (c->vvel < 0) {
-                /* RISING: variable-height decel — jump HELD floats up slowly (2000),
-                 * RELEASED cuts the rise short (8000); release mid-rise to shorten it. */
-                c->world_y += step;
-                c->vvel += jump_held ? CHAR_JUMP_RISE_GRAV_HELD : CHAR_JUMP_RISE_GRAV_FREE;
-            } else {
-                /* FALLING: the (button-independent) fall accel, capped at terminal. */
-                c->world_y += step;
-                c->vvel += CHAR_JUMP_FALL_GRAV;
-                if (c->vvel > CHAR_JUMP_FALL_TERMINAL) c->vvel = CHAR_JUMP_FALL_TERMINAL;
-            }
-        }
+    /* ── the WORLD-X COMMIT (0x442a70:1091-1112 -> 0x54db10): the collision-
+     * aware horizontal mover.  Flags pinned live (runs/arche-box + the raw
+     * call site 0x4441ec): step_down = 1 (param_4==2 and entity+0x200==0 on
+     * the real-body apply — the gate (param_4==0)||(ent200==0)), step_up = 1
+     * (the literal push 1), pass = body+0x20 drop-through timer (0 —
+     * PORT-DEBT(char-drop-through)), probe = 0 (commit mode).  A blocked
+     * sweep zeroes the velocity (:1109-1111); the step-up/down shifts commit
+     * into world_y (stair climb/descend EMERGES from the grid). */
+    int32_t dwx = c->vel / 100;               /* the 0x54db10 step (via 445f50) */
+    if (c->coll_grid != NULL) {
+        phys_box b = { c->world_x, c->world_y,
+                       CHAR_BOX_W, CHAR_BOX_H, CHAR_BOX_MARGIN };
+        int32_t nx = c->world_x, ny = c->world_y;
+        int clear = collision_move_horizontal(c->coll_grid, &b, dwx,
+                                              /*step_down*/ 1, /*step_up*/ 1,
+                                              /*pass*/ 0, c->coll_slope,
+                                              c->coll_slope_ctx, &nx, &ny);
+        c->world_x = nx;
+        c->world_y = ny;
+        if (!clear)
+            c->vel = 0;
+    } else {
+        c->world_x += dwx;                    /* open-air flat reduction (tests) */
     }
 
     return dwx;

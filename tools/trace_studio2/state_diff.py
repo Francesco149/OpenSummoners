@@ -40,6 +40,11 @@ def norm(d):
     return wx, hv
 
 
+def norm_wy(d):
+    """worldY (absolute — both sides share world coords); None if absent."""
+    return d.get("wy", d.get("fr_wy"))
+
+
 def first_moving_tick(states, lo, hi):
     for t in range(lo, hi + 1):
         if t in states:
@@ -79,28 +84,38 @@ def main(argv):
     print(f"# port walk-start tick={pstart} wx0={pbase} | "
           f"retail walk-start tick={rstart} wx0={rbase}")
     print(f"# {'tick':>6} {'p_hvel':>7} {'r_hvel':>7} {'dhvel':>6}  "
-          f"{'p_relwx':>8} {'r_relwx':>8} {'drelwx':>7}  flag")
+          f"{'p_relwx':>8} {'r_relwx':>8} {'drelwx':>7}  "
+          f"{'p_wy':>7} {'r_wy':>7} {'dwy':>6}  flag")
 
     first_div = None
     nmiss = 0
+    prev_wy = None
     for t in common:
         pwx, phv = norm(port[t])
         rwx, rhv = norm(retail[t])
         if None in (pwx, phv, rwx, rhv):
             continue
+        pwy, rwy = norm_wy(port[t]), norm_wy(retail[t])
+        have_wy = pwy is not None and rwy is not None
+        dy = (pwy - rwy) if have_wy else 0
         prel, rrel = pwx - pbase, rwx - rbase
         dh, dw = (phv or 0) - (rhv or 0), prel - rrel
-        bad = abs(dh) > tol or abs(dw) > tol
+        bad = abs(dh) > tol or abs(dw) > tol or abs(dy) > tol
         flag = ""
         if bad:
             nmiss += 1
             flag = "<-- DIVERGE"
             if first_div is None:
                 first_div = t
+        wy_moved = have_wy and prev_wy is not None and (pwy, rwy) != prev_wy
+        prev_wy = (pwy, rwy) if have_wy else prev_wy
         # print every moving tick or any divergence (skip long idle stretches)
-        if bad or phv or rhv:
+        if bad or phv or rhv or wy_moved:
+            pys = str(pwy) if pwy is not None else "-"
+            rys = str(rwy) if rwy is not None else "-"
             print(f"  {t:>6} {phv:>7} {rhv:>7} {dh:>6}  "
-                  f"{prel:>8} {rrel:>8} {dw:>7}  {flag}")
+                  f"{prel:>8} {rrel:>8} {dw:>7}  "
+                  f"{pys:>7} {rys:>7} {dy:>6}  {flag}")
 
     print(f"\n# divergences (tol={tol}): {nmiss}; first at tick {first_div}"
           if first_div is not None else

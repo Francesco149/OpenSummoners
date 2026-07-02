@@ -46,9 +46,15 @@
  *   PORT-DEBT(char-walk-tuning)     accel/cap/brake are the captured constants;
  *                                   the real source is the per-entity move-tuning
  *                                   in_ECX[0x565b/0x565c/0x565e] (un-captured VAs).
- *   PORT-DEBT(char-collision-mover) the flat worldX commit; the collision-aware
- *                                   0x54db10 (+ the reverse-decel rate, untested —
- *                                   the capture has an idle gap, no direct reverse).
+ *   PORT-DEBT(char-reverse-decel)   the reverse-decel rate (commanding the
+ *                                   opposite direction while moving): decompile
+ *                                   says -accel, port uses the brake — untested
+ *                                   (the captures idle before reversing).
+ *   PORT-DEBT(char-turn-state)      the STANDING TURN-AROUND: retail holds ~4
+ *                                   ticks in a turn state (0x426f50 state 2?)
+ *                                   before the reversed walk accelerates
+ *                                   (stairs-sweep 2952-2955, retail hvel 0);
+ *                                   the port flips facing in 1 tick.
  *
  * Win32-free + pure (advances only its own body state); host-tested field-exact
  * vs the capture (tests/test_character.c).  See docs/plans/movement-system.md
@@ -59,6 +65,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+#include "collision.h"   /* the tile movers + coll_slope_fn (the live wiring) */
 
 /* The held-axis slots the character AI reads (held_trace.h / quirk #41 order). */
 enum {
@@ -202,8 +210,9 @@ int character_attack_ticks(int attack_kind);
  * the launch applies one FALL grav step (the grav was selected from the pre-impulse
  * vvel==0 = the fall branch): -80000 + 4000 = -76000.  The captured 27-tick arc
  * (the SHORT HOP) is reproduced bit-exact (tests/test_character.c); the HELD high
- * jump uses the captured 2000 const + the RE'd branch but is not yet bit-exact
- * validated against a held-button capture -> PORT-DEBT(char-jump-variable-height). */
+ * jump's 2000 branch is bit-exact validated too (ckpt 117, runs/runjump-gt/capheld,
+ * test_character_jump_held_rise).  The held apex's town-CEILING clamp now EMERGES
+ * from the vertical collision mover against the room grid (ckpt 175). */
 #define CHAR_JUMP_IMPULSE        (-80000)  /* in_ECX[0x5667]  vvel at launch        */
 #define CHAR_JUMP_RISE_GRAV_HELD    2000   /* in_ECX[0x5668]  rising, jump HELD      */
 #define CHAR_JUMP_RISE_GRAV_FREE    8000   /* in_ECX[0x5669]  rising, jump RELEASED  */
@@ -270,6 +279,14 @@ int character_attack_ticks(int attack_kind);
 #define CHAR_FACE_RIGHT  1
 #define CHAR_FACE_LEFT   3
 
+/* Arche's physics-body BOX (body+0xc/+0x10/+0x14) — live-probed off retail
+ * during the errands freeroam (runs/arche-box, tools/flow/arche_box_fields.json;
+ * refreshed each tick from the entity config in_ECX[10]/[0xb], 442a70:119-120 —
+ * constant for Arche).  world_x/world_y are the box TOP-LEFT (body+4/+8). */
+#define CHAR_BOX_W       2000
+#define CHAR_BOX_H       5600
+#define CHAR_BOX_MARGIN  0
+
 typedef struct {
     int32_t world_x;   /* body+4    — world X (the rendered position)            */
     int32_t world_y;   /* body+8    — world Y (grows DOWNWARD; jump arc)         */
@@ -316,6 +333,20 @@ typedef struct {
                            /*   from the held dir; the clip layer keys the cels off it.*/
     uint32_t attack_last_ms;/* body+0x154: the last swing's fire time — the 200 ms   */
                            /*   auto-attack refractory (478ba0:297, X-held repeat).  */
+
+    /* ── the LIVE COLLISION wiring (the 442a70 tick geometry, ckpt 175) ──────
+     * coll_grid = the current room's runtime grid (town_render.grid); the
+     * movers then make terrain (stairs/walls/ceilings) EMERGE.  NULL = the
+     * open-air flat reduction (host tests; never NULL in the live build).
+     * coll_slope/_ctx resolve region-B slope refs (main.c: exe_data_bytes off
+     * the user's exe .rdata — retail reads the same bytes off its own image). */
+    const uint8_t *coll_grid;
+    coll_slope_fn  coll_slope;
+    void          *coll_slope_ctx;
+    int16_t        supported;  /* body+0x24 — the tick-start SUPPORT probe result
+                                  (442a70:104-118, a delta=+1 vertical probe;
+                                  blocked == standing on ground).  Drives the
+                                  ledge walk-off -> FALL transition (:937). */
 } character;
 
 /* The dash double-tap WINDOW (ms): the config field *(*0x8a6e80 + 0xf8) the

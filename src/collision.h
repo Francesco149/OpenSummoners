@@ -16,10 +16,11 @@
  * decompiled `in_ECX` is the grid base, not the actor).
  *
  * SLOPES: a sloped cell's region-B +0x8 holds an engine .rdata VA (the
- * 0x5cc410 / 0x5cc430 height profiles); the mover reads a per-sub-column height
- * byte from it.  The town street is FLAT (every collision cell has slope ref 0),
- * so the resolver is not needed here and is taken as a caller callback — the
- * live resolver for the real profiles is PORT-DEBT(collision-slopes).
+ * 0x5cc410 / 0x5cc430 height profiles, two 32-byte ramps: 32..1 descending /
+ * 1..32 ascending); the mover reads a per-sub-column height byte from it via
+ * the caller callback.  The LIVE resolver (main.c game_slope_resolve) reads
+ * the identical bytes off the user's installed sotes.exe (exe_data_bytes) —
+ * retired PORT-DEBT(collision-slopes), ckpt 175.
  */
 #ifndef OSS_COLLISION_H
 #define OSS_COLLISION_H

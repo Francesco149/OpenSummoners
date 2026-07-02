@@ -1,0 +1,255 @@
+{
+ "_doc": "THROWAWAY: dump retail's live errands-room collision grid region-B classes for cols 0-2 rows 12-18 (the left-wall gap: retail blocks at wx 6400, the port grid is empty at cols 0-1).",
+ "fields": {
+  "0x5b8fc0": {
+   "name": "gridcells",
+   "_note": "once per frame",
+   "fields": [
+    {
+     "name": "code",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      10116,
+      8204,
+      2548
+     ],
+     "off": 468,
+     "type": "hex",
+     "reason": "0xc35a sanity"
+    },
+    {
+     "name": "c0r12",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1310960,
+     "type": "i32",
+     "reason": "region-B class cell col0 row12 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r13",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1310976,
+     "type": "i32",
+     "reason": "region-B class cell col0 row13 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r14",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1310992,
+     "type": "i32",
+     "reason": "region-B class cell col0 row14 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r15",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1311008,
+     "type": "i32",
+     "reason": "region-B class cell col0 row15 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r16",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1311024,
+     "type": "i32",
+     "reason": "region-B class cell col0 row16 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r17",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1311040,
+     "type": "i32",
+     "reason": "region-B class cell col0 row17 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c0r18",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1311056,
+     "type": "i32",
+     "reason": "region-B class cell col0 row18 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r12",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313008,
+     "type": "i32",
+     "reason": "region-B class cell col1 row12 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r13",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313024,
+     "type": "i32",
+     "reason": "region-B class cell col1 row13 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r14",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313040,
+     "type": "i32",
+     "reason": "region-B class cell col1 row14 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r15",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313056,
+     "type": "i32",
+     "reason": "region-B class cell col1 row15 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r16",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313072,
+     "type": "i32",
+     "reason": "region-B class cell col1 row16 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r17",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313088,
+     "type": "i32",
+     "reason": "region-B class cell col1 row17 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c1r18",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1313104,
+     "type": "i32",
+     "reason": "region-B class cell col1 row18 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r12",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315056,
+     "type": "i32",
+     "reason": "region-B class cell col2 row12 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r13",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315072,
+     "type": "i32",
+     "reason": "region-B class cell col2 row13 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r14",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315088,
+     "type": "i32",
+     "reason": "region-B class cell col2 row14 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r15",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315104,
+     "type": "i32",
+     "reason": "region-B class cell col2 row15 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r16",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315120,
+     "type": "i32",
+     "reason": "region-B class cell col2 row16 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r17",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315136,
+     "type": "i32",
+     "reason": "region-B class cell col2 row17 (grid=[[0x8a9b50]+0x1048])"
+    },
+    {
+     "name": "c2r18",
+     "src": "chain",
+     "va": "0x8a9b50",
+     "hops": [
+      4168
+     ],
+     "off": 1315152,
+     "type": "i32",
+     "reason": "region-B class cell col2 row18 (grid=[[0x8a9b50]+0x1048])"
+    }
+   ]
+  }
+ }
+}
