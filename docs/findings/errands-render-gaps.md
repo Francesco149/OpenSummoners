@@ -187,6 +187,40 @@ errands; everything the port draws in the town + errands decodes bit-for-bit lik
   HUD (notes #7-9) + door indicator (#5), and the idle-fidget Arche cels (res 1392, note #6,
   the RNG behaviour subsystem 0x54f980) — best with the USER / a subsystem port.
 
+## 6. The t2278 mark "missing pot and kitchen cabinet" — the POT RENDERS (stale-trace artifact); the CABINET was the real gap (FIXED, ckpt 180)
+
+USER mark (`osr_notes` t2278, on the `port-waitfix | retail-stairs` pair; crop [218,83,209,159],
+differ 22498).  RE'd off `draw_probe` on `retail-stairs.osr` / `port-waitfix.osr` / `port-stairs2.osr`.
+
+**The POT is NOT missing — it is a `port-waitfix` STALE-TRACE artifact.**  At t2278 every prop in the
+port-waitfix crop sits **+176px right** of retail (measured on 4 props: pot res1074 fr2 552 vs 376;
+wall-shelf res1023 fr0 284 vs 108; counter res1023 fr6 208 vs 32; res1139 232 vs 56) while Arche
+(res1392 fr14) is screen-CENTRED both sides (272 vs 270) — an X-follow camera holding Arche centred
+while her WORLD position lags retail's by 176px (17600 wx).  So the pot (res1074 fr2) DOES render — it
+is shoved off the crop's right edge.  **Proof:** `port-stairs2.osr` (ckpt-177, pre-waitfix, walk
+0-div/301t) at t2278 matches retail-stairs BIT-FOR-BIT — wall-shelf 108/108, counter 32/32, Arche
+(270,296)/(270,296), **pot res1074 fr2 376/376**.  The walk sim is bit-exact; port-waitfix's freeroam
+walk is DESYNCED because the ckpt-179 dialogue fix (`ARRIVAL_EXIT_WAIT` 10→20) shifted the scene phase
+but the tick-keyed held-trace (`synth-stairs`: hold RIGHT @2050) was NOT re-timed → the RIGHT hold
+lands at a different scene phase → Arche walks 176px less by t2278.  **⇒ the studio pair for FREEROAM
+verification must be `port-stairs2 | retail-stairs`, NOT port-waitfix** (waitfix is valid only for the
+DIALOGUE window, ≲tick 2000).
+
+**The KITCHEN CABINET was the real gap — FIXED.**  Retail (and the aligned port-stairs2) draw two
+res1023 furniture frames the port never spawned: **fr4** @ref(704,96) [78×120] + **fr2** @ref(704,−96)
+[82×115, mostly off the TOP edge = the "upstairs hutch with dishes"].  Both are errands-map (DATA 1025)
+CHARACTER objects code **0x112d1** — the SAME code as the bookshelf — at layer[18] (x=704,y=256) +
+layer[31] (x=704,y=64), frame_base = the layer VARIANT.  `ERRANDS_CAST` was captured from the STATIC
+tick-2200 view (cam 0/16000) where these RIGHT-side pieces are off-screen, so they were missed.  **Fix
+(`actor_spawn.c`):** two ERRANDS_CAST entries at world (70400,25600)/(70400,6400) [= map (704,256)/(704,64)×100,
+cross-validated by the retail back-projection: t2278 cam pan +424px, consistent on wall-shelf+counter],
+bank 0x16f, fr 4/2, **LAYER 7** (retail seq 223/224 = drawn PRE the structure props).  Still
+PORT-DEBT(errands-cast) — a captured stand-in; the proper fix is the CHARACTER def-table fill.
+
+LESSON: a studio mark on a PHASE-desynced capture pair reads a real prop as "missing" when it is merely
+DISPLACED.  Confirm the pair is walk/phase-aligned (Arche AND props at matching WORLD positions) before
+attributing a crop diff to a missing spawn — attribute to the PHASE pillar first (`parity-model.md`).
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`.  Map a

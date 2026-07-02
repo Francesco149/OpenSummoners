@@ -92,6 +92,18 @@ understates how much actual instruction volume is ported.
   errands −20t→−6t.  `findings/dialogue-advance-early.md` "Component 2/3 RESOLVED"; quirk
   #122; 1095 host pass.  **USER: verify the transition — studio `port-waitfix | retail-stairs`
   @ ~1200-1350 (the arrival→house cover/reveal); feed `waitfix_cmp.png`.**
+- **Landed ckpt 180 — the errands t2278 mark DIAGNOSED + the kitchen CABINET FIXED.**  The
+  "missing POT" is a `port-waitfix` STALE-TRACE artifact: the pot (res1074) renders BIT-EXACT
+  in the walk-aligned `port-stairs2` vs retail-stairs @t2278 (proof: port-stairs2==retail
+  bit-for-bit — pot 376/376, wall-shelf 108/108, Arche 270,296).  The ckpt-179 waitfix
+  desynced port-waitfix's tick-keyed freeroam walk (+176px camera lag, 4 props measured) — so
+  **the freeroam studio pair is `port-stairs2 | retail-stairs`, NOT port-waitfix** (waitfix is
+  valid only for the dialogue window ≲tick 2000).  The real gap = the kitchen CABINET (res1023
+  fr4 + fr2 upstairs hutch, DATA-1025 CHARACTER code 0x112d1 map layer[18]/[31]) — FIXED as 2
+  ERRANDS_CAST entries (world 70400,25600 / 70400,6400; verified in `port-cabinet.osr`: dims
+  78×120/82×115 == retail, 172px offset == map, z pre-structure).  `findings/errands-render-gaps.md`
+  §6.  **USER: verify the cabinet — studio `port-cabinet | retail-stairs`, scrub to the camera
+  CLAMP (~t2400+, both pinned at the right edge; the cabinet at screen ~256).**
 - **Next move (the errands −6t residual + the 2nd USER mark):**
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
@@ -99,15 +111,16 @@ understates how much actual instruction volume is ported.
   reveal arming ~6t early (main.c arms on chain-complete, no errands room-load latency →
   `PORT-DEBT(cutscene-errands-entry-latency)`).  Measure the house→errands cover/reveal
   envelope off retail-stairs before adjusting — do NOT curve-fit.
-  (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
-  kitchen HUTCH with dishes, upstairs) — the placeholder PASS is now ported (ckpt
-  178); the remaining gap is the region-E/prop spawn CONSUMER (readers:
-  `0x442710`/`0x4848a0`/`0x484bc0` look like waypoint logic — the prop spawner may
-  be elsewhere; re-capture + assess at t2278 or a PRE-reversal tick).  **CAVEAT
-  (ckpt 176): the t2278 raw differ (22498) was CONFOUNDED by the char-turn (c)
-  offset — LARGELY RESOLVED (ckpt 177): the LEFT-walk shift drops to ~240 wx (1
-  tick); the port DOES render most of the scene at t2278.**  Mom's pose in-crop
-  differs too — check her clip once the props land.  (Visual-verify: deferred.)
+  (b) **house props (mark t2278) — DIAGNOSED + the cabinet FIXED (ckpt 180).**  The POT
+  (res1074) is NOT missing: it renders BIT-EXACT in the walk-aligned `port-stairs2` vs
+  retail-stairs @t2278 — the "missing" was a `port-waitfix` STALE-TRACE artifact (the
+  ckpt-179 waitfix desynced the tick-keyed `synth-stairs` held-walk → +176px camera phase
+  lag).  The real gap = the KITCHEN CABINET (res1023 fr4 @280,96 + fr2 upstairs hutch),
+  errands-map (DATA 1025) CHARACTER code 0x112d1 map layer[18]/[31] — FIXED as 2 ERRANDS_CAST
+  entries (world 70400,25600 / 70400,6400; verified 172px offset == map).  (region-E is
+  WAYPOINTS, not props — the old "prop spawn consumer" framing was wrong.)  **⇒ freeroam
+  studio pair = `port-stairs2 | retail-stairs`, NOT port-waitfix (stale past ~tick 2000).**
+  `findings/errands-render-gaps.md` §6.  Still open at t2278: Mom's pose clip.
   (c) `char-turn-state` — **DONE ckpt 177** (`findings/freeroam-turn-around.md`).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
   collidable actors matter.

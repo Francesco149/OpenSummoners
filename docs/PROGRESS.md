@@ -6,6 +6,38 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 (ckpt 180) — the errands t2278 "missing pot/cabinet": the POT RENDERS (stale-trace artifact); the CABINET was the real gap (FIXED)
+
+- **The USER mark t2278 (`port-waitfix | retail-stairs`, "missing pot and kitchen cabinet")
+  decomposed** off `draw_probe` on retail-stairs / port-waitfix / port-stairs2.  **The POT
+  (res1074) is NOT missing — port-waitfix's freeroam walk is STALE-TRACE.**  At t2278 every prop
+  sits **+176px right** of retail (4 props measured: pot 552/376, wall-shelf 284/108, counter
+  208/32, res1139 232/56) while Arche is screen-CENTRED both sides (272/270) — an X-follow camera
+  holding Arche centred while her WORLD pos lags 176px.  The pot renders, shoved off the crop's
+  right edge.  **PROOF:** `port-stairs2.osr` (ckpt-177, pre-waitfix, walk 0-div/301t) at t2278
+  matches retail-stairs **BIT-FOR-BIT** (pot res1074 fr2 376/376, wall-shelf 108/108, Arche
+  270,296).  The ckpt-179 waitfix (`ARRIVAL_EXIT_WAIT` 10→20) shifted the scene phase but the
+  tick-keyed held-trace (`synth-stairs`: RIGHT@2050) wasn't re-timed → the walk desyncs ~65-72t
+  past the handoff.  **⇒ FREEROAM studio verification must use `port-stairs2 | retail-stairs`, NOT
+  port-waitfix (valid only for the DIALOGUE window ≲tick 2000).**
+
+- **The KITCHEN CABINET was the real gap — FIXED (`actor_spawn.c`).**  Retail + port-stairs2 draw
+  two res1023 furniture frames the port never spawned: **fr4** @ref(704,96) [78×120] + **fr2**
+  @ref(704,−96) [82×115, mostly off the top = the upstairs hutch].  Both = errands-map (DATA 1025)
+  CHARACTER code **0x112d1** (the same as the bookshelf), map **layer[18]**(704,256) +
+  **layer[31]**(704,64), frame_base=variant.  ERRANDS_CAST was captured from the STATIC tick-2200
+  view where these RIGHT-side pieces are off-screen → missed.  Added 2 ERRANDS_CAST entries at
+  world (70400,25600)/(70400,6400) [map-validated AND retail-back-projection-validated: t2278 cam
+  pan +424px], bank 0x16f, fr 4/2, LAYER 7.  **VERIFIED** off a rebuilt walk-driven `port-cabinet.osr`:
+  res1023 fr4/fr2 spawn (cast 17→19) at dims 78×120 / 82×115 (== retail) and screen offset **172px**
+  right of the wall-shelf (== the map world offset 704−532), z pre-structure (== retail seq 223/224).
+  1095 host pass.  Still PORT-DEBT(errands-cast).  `findings/errands-render-gaps.md` §6.
+
+- **LESSON:** a studio mark on a PHASE-desynced capture pair reads a real prop as "missing" when it
+  is merely DISPLACED — attribute to the PHASE pillar first (`parity-model.md`).
+
+---
+
 ## 2026-07-02 (ckpt 179) — the arrival→house dialogue DRIFT FIXED: `ARRIVAL_EXIT_WAIT` 10→20
 
 - **The town-intro cutscene chain played −11t early because ONE constant was curve-fit**

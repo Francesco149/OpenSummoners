@@ -912,7 +912,7 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * clock / 0x112d1 bookshelf / 0x112d2 counter, in the 0x111xx-0x112xx / 70000
      * range, NOT structure codes) that resolve to bank 0x16f (res 1023, the
      * house/shop furniture sheet) with frame_base = the layer's VARIANT (+0x18) —
-     * confirmed off retail.osr: res 1023 fr 0/3/6 at the projected positions.  The
+     * confirmed off retail.osr: res 1023 fr 0/2/3/4/6 at the projected positions.  The
      * port's CHARACTER band (g_actors) is SUPPRESSED for non-town rooms, so these
      * never spawn (they'd be invisible volumes even if spawned — the codes aren't in
      * TOWN_SPRITE_DEFS).  Captured here as static room-cast members (the same stand-in
@@ -922,6 +922,8 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * with frame_base = variant + the visible-furniture code->bank table. */
     /* bank   fb  world_x  world_y  dbx dby fac clip  phase lyr alpha (map code @screen) */
     { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0, 7, 0 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 — LAYER 7 (behind its layer-8 props) */
+    { 0x16fu,  4,   70400,  25600,    0,  0, 1, NULL,  0, 7, 0 }, /* kitchen CABINET 0x112d1 (map layer[18] 704,256) res1023 fr4 @ref 704,96 — the RIGHT-side furniture the static tick-2200 capture missed (USER mark t2278); LAYER 7 (behind its props, retail seq 223 pre-structure) */
+    { 0x16fu,  2,   70400,   6400,    0,  0, 1, NULL,  0, 7, 0 }, /* upstairs HUTCH  0x112d1 (map layer[31] 704,64)  res1023 fr2 @ref 704,-96 (mostly off the top edge — the "with dishes, upstairs" piece); LAYER 7 */
     { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
     { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
