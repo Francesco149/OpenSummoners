@@ -13,9 +13,10 @@ specific commits where relevant.
   → runtime render grid → `map_render_tile` (FUN_00490f30 geometry) → layer-sorted
   composite against the real sprite banks (`ar_register_main/group3/game_sprites`
   driven with zdd=NULL, settings=<sotesd HMODULE>; `ar_state_init` REQUIRED first —
-  the pointer tables start NULL, was the one crash). Frame→cel math: sheets slice in
-  MEMORY row order (bottom-up visually) ⇒ upright cel y = (rows-1-mrow)*ch; node src
-  rect is upright-top-left; dst px = world/100. Town 1022 = 1268 nodes, 1023 = 669,
+  the pointer tables start NULL, was the one crash). Frame→cel math (corrected same
+  day, USER-caught mangled multi-row banks): ar_sprite_slice's base_y walks from the
+  DIB's LAST memory row = the VISUAL TOP ⇒ frame 0 = upright top-left, cel y =
+  (f/cols)*ch; node src rect is upright-top-left; dst px = world/100. Town 1022 = 1268 nodes, 1023 = 669,
   both 0 unresolved banks / 0 unported ids — houses/gate/terraces render exactly.
 - **Inspection:** click cell → per-plane raw map_cell + region-A sub-slots
   (bank/res/frame/layer + source-cel strip) + region-B/D collision (class/slope VA/

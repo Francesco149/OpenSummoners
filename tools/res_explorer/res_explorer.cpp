@@ -1233,19 +1233,23 @@ static MiSheet *mi_sheet(uint16_t bank)
     return &sh;
 }
 
-// blit one draw node's 32x32 source rect out of its bank sheet.  Frame f is
-// the f-th (cw x ch) cell in sheet MEMORY order (slice fills rows in memory
-// order; memory is bottom-up, so upright-y = (rows-1-mrow)*ch); the node's
-// src rect offsets are surface coords = upright top-left.
+// blit one draw node's 32x32 source rect out of its bank sheet.  Frame index
+// order comes from ar_sprite_slice's trim/build loop: base_y walks
+// `bottom_ptr - (base_y+row)*stride` with bottom_ptr = the LAST memory row =
+// the VISUAL TOP of the bottom-up DIB — so frame 0 is the visual TOP-LEFT
+// cell and frames run left-to-right, top-to-bottom in the UPRIGHT image.
+// (The first cut mirrored the row order; single-row roof banks hid it, the
+// multi-row ground/house atlases mangled — USER-caught.)  The node's src
+// rect offsets are cel-surface coords = upright top-left, too.
 static void mi_blit_node(std::vector<uint32_t> &cv, const mr_tile &t)
 {
     MiSheet *sh = mi_sheet(t.bank);
     if (!sh->ok) { g_mi.unresolved++; return; }
     int f = t.frame;
     if (f >= sh->cols * sh->rows) { g_mi.unresolved++; return; }
-    int mrow = f / sh->cols, mcol = f % sh->cols;
-    int sx = mcol * sh->cw + t.src_x;
-    int sy = (sh->rows - 1 - mrow) * sh->ch + t.src_y;
+    int vrow = f / sh->cols, vcol = f % sh->cols;
+    int sx = vcol * sh->cw + t.src_x;
+    int sy = vrow * sh->ch + t.src_y;
     int dx = t.dst_x / 100, dy = t.dst_y / 100;
     for (int y = 0; y < t.h; y++) {
         int yy = sy + y, dyy = dy + y;
