@@ -21,9 +21,10 @@
  * map_grid_emit_tile already does (span 0/0 -> dims footprint, writing dx/dy per
  * sub-tile), so the port emits them as one emit_tile each (verified equivalent
  * by the region-A byte offsets: 0x1b97c writes sub-slot 2 at 0x30+2*0x10).
- * PORT-DEBT(decode-occlusion-mark): their shape-1/2 occlusion loops (LAB_00589520
- * / 0x1b97c case 1 — region B class-10 + region D=1, a culling mark, no visible
- * tile) are deferred, like PORT-DEBT(actor-occlusion).
+ * Their shape-1/2 blocks (LAB_00589520 / 0x1b97c case 1 — region B class-10 +
+ * region D=1, no visible tile) are ported: they are invisible COLLISION WALLS
+ * (the errands left wall; ckpt 175 retired PORT-DEBT(decode-occlusion-mark),
+ * which had misread them as culling marks).
  */
 #include "map_decode.h"
 
@@ -367,7 +368,12 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
         map_grid_emit_tile(grid, ix, iy, 2, 0x17c, (uint16_t)c.arg_0c,
                            0x14, 0, 0, dims, ctx);
         switch (c.shape) {
-        case 1:  /* PORT-DEBT(decode-occlusion-mark): the 5-row occlusion loop */ break;
+        /* shape 1 (587e00.c:2072-2100): a 1x1 inline region-B class-10 +
+         * region-D=1 write at (ix,iy) — the same record the FUN_0058ca80 arms
+         * deposit (a=10, b=1, d4=6).  Previously misread as an occlusion mark
+         * (ckpt 175: it is COLLISION — retail's live grid probe,
+         * runs/arche-box/gridcells). */
+        case 1:  map_grid_emit_obj(grid, ix, iy, 1, 1, 10, 1, 0, 6, 0); break;
         case 2:  map_grid_emit_obj(grid, ix + 1, iy, 1, 1, 10, 1, 0, 6, 0); break;
         case 3:  map_grid_emit_obj(grid, ix, iy, 2, 1, 1, 4, 0, 6, 0); break;
         case 4:  break;
@@ -381,7 +387,14 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
     case 0x1b972:
         map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_1c, (uint16_t)c.arg_0c,
                            2, 0, 0, dims, ctx);
-        /* PORT-DEBT(decode-occlusion-mark): LAB_00589520 shape-1/2 culling mark */
+        /* LAB_00589520 (587e00.c:1602-1660): shape 1 = a 1-col x 5-row
+         * region-B class-10 + region-D=1 WALL COLUMN at (ix, iy..iy+4);
+         * shape 2 = the same column one cell right.  Previously deferred as
+         * an "occlusion mark" — it is COLLISION (the errands left wall,
+         * ckpt 175: retail grid probe runs/arche-box/gridcells col 1 rows
+         * 13-17 = class 10, emitted by the 113015 cell at (1,13,shape 1)). */
+        if (c.shape == 1)      map_grid_emit_obj(grid, ix,     iy, 1, 5, 10, 1, 0, 6, 0);
+        else if (c.shape == 2) map_grid_emit_obj(grid, ix + 1, iy, 1, 5, 10, 1, 0, 6, 0);
         break;
 
     /* 0x1b977 (587e00.c:1557-1601): auto-footprint wall span, bank local_18,
@@ -391,7 +404,9 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
     case 0x1b977:
         map_grid_emit_tile(grid, ix, iy, 1, cfg->bank_18, (uint16_t)c.arg_0c,
                            2, 0, 0, dims, ctx);
-        /* PORT-DEBT(decode-occlusion-mark): LAB_00589520 shape-1/2 culling mark */
+        /* LAB_00589520 shape-1/2 wall column — same block as 0x1b972 above. */
+        if (c.shape == 1)      map_grid_emit_obj(grid, ix,     iy, 1, 5, 10, 1, 0, 6, 0);
+        else if (c.shape == 2) map_grid_emit_obj(grid, ix + 1, iy, 1, 5, 10, 1, 0, 6, 0);
         break;
 
     default:
