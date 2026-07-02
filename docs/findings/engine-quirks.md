@@ -3981,3 +3981,17 @@ a per-case constant; the writer is the map decoder's prologue param_4 switch (th
 install the palette-remap tables &DAT_00675708/910/d20 and swap local_14 0x83->0x84/85/86).  So
 0xeead scenery reskins per area family.  0xf295's bank is a plain constant 0x77 (438a60.c:24-27).
 Both now in the port's STRUCT_BANK_DEFS path — every STRUCTURE code any map places resolves.
+
+### #122 — the intro-cutscene beat WAITs are 1:1 on the sim-tick clock (no per-context 2×); retail's arrival→house COVER fade grows TOP-DOWN; scene_fade cells capture as res=0 subtract-blend (2026-07-02, ckpt 179, ground-truthed off retail-stairs.osr)
+The 0x4d7d80 script's WAIT beats (`in_ECX[0x15f]=<n>`, beat type 6, the +0x57c timer decremented
+1/beat-runner call 0x439690:1083) elapse ~1:1 in sim-ticks: the arrival-exit `0x14=20` wait's
+COVER arms at L9-advance+21 (first 64×4 fade cell tick 1213, L9-adv 1192), and the house/L8
+`0x32=50` waits likewise map to ~50t (house L1/L2/L3 tick-exact).  There is NO "2×" exit-context
+rate — the ckpt-137 "cover arms +10" read mis-measured the "first CENTER alpha", but the arrival
+cover grows **TOP-DOWN** (a downward sweep — the black fills from the top row down, family covered
+last), so the center is marked LATE.  The iris VARIANT is RNG-chosen ((rand*3)>>15) and DRIFTS
+across captures (OLD retail.osr rolled center-out; retail-stairs.osr rolls the top-down sweep) —
+the unported cast consumes the LCG between arms (`PORT-DEBT(cutscene-fade-variant)`).  RENDER: the
+grid draws EVERY cell as a res=0 (proxy ID gap) SUBTRACT-blend (bmode=1) gray-mask composite at
+all levels incl. full-black — so an .osr has no opaque-vs-alpha res split for retail fades; only
+64×4-cell COVERAGE (interior band dy∈[64,416)) + the res-1110 box are cross-side comparable.

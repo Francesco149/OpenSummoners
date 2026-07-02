@@ -6,6 +6,39 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 (ckpt 179) — the arrival→house dialogue DRIFT FIXED: `ARRIVAL_EXIT_WAIT` 10→20
+
+- **The town-intro cutscene chain played −11t early because ONE constant was curve-fit**
+  (the FRONT's open (a2)).  `ARRIVAL_EXIT_WAIT` was 10 (a bogus "2× anomaly / beat-runner
+  pumps the exit wait 2×/sim-tick"); it is the script's literal `in_ECX[0x15f]=0x14=20`
+  (`0x4d7d80:268`) mapped **1:1**, like the house/L8 `0x32=50` waits.  Fix: 10→20 in
+  `cutscene.c`.  1095 host pass.
+
+- **The scene_fade PERFORMER is BIT-EXACT — the FRONT's "settle-rate" hypothesis is
+  DISPROVEN.**  Ground-truthed off `retail-stairs.osr` (the `spam-confirm-nav` re-drive):
+  the cover ramp (+80 cells/tick) and reveal recession rate match retail tick-for-tick.
+  The earlier "−7t room-load black-hold" read was a CONFOUND of the −11t global WAIT shift
+  (the cover armed 11t early ⇒ the whole cover+hold+reveal looked short in absolute ticks);
+  with the WAIT 1:1 the house transition is tick-exact with NO room-load modelling.
+
+- **The "2× anomaly" was a MEASUREMENT ERROR.**  ckpt-137 read the cover onset as "first
+  CENTER alpha" — but retail's arrival cover grows **TOP-DOWN** (a downward sweep, variant 2,
+  NOT the center-out var-0 the port forces as the LCG stand-in), so the center is marked
+  LATE.  The true arm = the FIRST 64×4 cell = tick 1213 = L9-adv(1192)+21 ≈ 20.  Also pinned:
+  retail's fade cells all capture as **res=0 subtract-blend** (the proxy ID gap) — no
+  opaque-vs-alpha split retail-side, so only 64×4 COVERAGE + the res-1110 box are
+  cross-side comparable (the old "pin the settle-rate off res-1112" plan could never work).
+
+- **Verified** (res-1110 box open/close, `port-waitfix.osr` vs `retail-stairs.osr`):
+  house L0 box open −11t→**−1t** (port 1330 / retail 1331); **house box close tick-EXACT
+  (1650==1650)**; errands box open −20t→**−6t**.  `findings/dialogue-advance-early.md`
+  "Component 2/3 — RESOLVED"; quirk #122.  RESIDUAL: the errands entry −6t (the house→errands
+  transition; the errands ENTRY reveal arms ~6t early with no errands room-load latency →
+  `PORT-DEBT(cutscene-errands-entry-latency)`).  **USER visual-verify: studio
+  `port-waitfix | retail-stairs` @ ~1200-1350; feed `waitfix_cmp.png`.**
+
+---
+
 ## 2026-07-02 (ckpt 177) — `char-turn-state` PORTED: the standing TURN-AROUND
 
 - **The from-rest REVERSAL now plays retail's 8-tick pivot** (the ckpt-175 collision

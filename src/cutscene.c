@@ -175,19 +175,25 @@ static const cutscene_line_lead ARRIVAL_LEADS[] = {
  * (draw_probe: BOX>fade through retail.osr tick 1245, the box gone ~1246 while the
  * cover runs to full black ~1259).
  *
- * The pre-cover WAIT is 10 sim-ticks, NOT the script's literal 0x14=20: MEASURED off
- * retail.osr the cover arms ~10t after L9 advances (the box's name tab — its dialogue-
- * mode marker — vanishes tick 1224/1225 = the advance; the cover's first center alpha
- * is tick 1234).  The script's 0x14 wait-timer (the +0x57c beat decremented 1/beat-
- * runner call, 0x439690:1083) thus elapses in ~10 sim-ticks in this exit context — the
- * beat-runner evidently pumps the exit wait ~2×/sim-tick (a flip-vs-tick rate detail,
- * quirk #99 family; not yet fully pinned, calibrated from the draw stream).  At 20 the
- * port armed the cover at advance+20, after the closing box had already shrunk away
- * (no box over the cover) AND landed house L0 ~+8t late (the chain shifted; L1+ stay
- * matched, they are nav-anchored) — both the ckpt-137 residual.  The reveal/house
- * WAIT 0x32=50 maps 1:1 (50t, verified: house L1/L2/L3 tick-exact), so only the exit
- * wait is the 2× anomaly. */
-#define ARRIVAL_EXIT_WAIT 10     /* 0x14 elapses ~10 sim-ticks here (retail.osr) */
+ * The pre-cover WAIT is the script's literal 0x14=20 mapped 1:1 (ckpt 179 CORRECTION
+ * — the old "2× anomaly / 10 sim-ticks" was a MEASUREMENT ERROR).  GROUND TRUTH off
+ * retail-stairs.osr (the res=0 subtract-blend fade cells, 64x4, interior band): the
+ * cover's FIRST cell appears tick 1213 = L9-advance(1192) + 21 sim-ticks ≈ the script
+ * 0x14=20 (the +1 is the beat-runner arm latency), NOT +10.  The ckpt-137 "cover arms
+ * +10" reading measured the "first CENTER alpha" (tick 1234 on the OLD retail.osr) —
+ * but retail's arrival cover grows TOP-DOWN (a downward sweep, not center-out), so the
+ * center is marked LATE; that lag ≠ the arm.  With the true arm the wait is 1:1, exactly
+ * like ARRIVAL_L8_WAIT / the house WAIT (both 0x32=50 ported 1:1) — there was never a
+ * per-context 2× rate.  Ground-truthed: at WAIT=10 the port armed the cover at 1202 and
+ * landed house L0 (res-1110 box open) at 1320 vs retail's 1331 (−11t, the whole chain
+ * shifted early); WAIT=20 arms the cover at 1212 (retail 1213) and lands house L0 at
+ * ~1330 (retail 1331, within the ±1-2t coalescing slop).  RE: findings/dialogue-advance-early.md
+ * "Component 2/3 — RESOLVED".
+ *
+ * The COVER overlaps the box CLOSE independently of this WAIT: the L9 box lingers
+ * ARRIVAL_EXIT_BOX_HOLD=8 then shrinks ~21t (closes ~1221, retail 1222 res-1110), so it
+ * rides over the darkening cover on both sides regardless of the WAIT value. */
+#define ARRIVAL_EXIT_WAIT 20     /* in_ECX[0x15f]=0x14, mapped 1:1 (retail-stairs.osr) */
 static const cutscene_beat ARRIVAL_EXIT[] = {
     /* type           fade_mode      fade_var pan_x pan_y param        dur */
     { CS_BEAT_WAIT,   0,             0, 0, 0, 0,            ARRIVAL_EXIT_WAIT },

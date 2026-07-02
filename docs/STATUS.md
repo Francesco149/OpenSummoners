@@ -80,13 +80,25 @@ understates how much actual instruction volume is ported.
   host tests.  Still stubbed: EFFECT/CHARACTER sprite tables beyond the town
   captures, the decode-prologue header/palette installs, the region-E spawn
   CONSUMER (next link for (b) below).
-- **Next move (the residual dialogue drift + the 2nd USER mark):**
-  (a2) **the chain still plays EARLY (OPEN)** — a BEAT-duration gap, NOT the dialogue
-  gate: under the dense-confirm re-drive the house starts ~−10t, errands ~−26t (the
-  advances match, but the room-transition FADE beats settle short).  Suspects: the
-  scene_fade grid settle-rate + the exit/entry WAITs (measured stand-ins off the OLD
-  retail.osr).  RE the fade PERFORMER's per-tick step off retail-stairs before
-  adjusting — do NOT curve-fit.  `findings/dialogue-advance-early.md` "Component 2/3".
+- **Landed ckpt 179 — the arrival→house dialogue DRIFT FIXED (`ARRIVAL_EXIT_WAIT` 10→20).**
+  The chain played −11t early because the arrival-exit WAIT was curve-fit to 10 (a bogus
+  "2× anomaly") when it's the script's `0x14=20` mapped **1:1**.  The scene_fade PERFORMER
+  is bit-exact (settle rates match) — the "settle-rate" hypothesis is DISPROVEN; the old
+  "room-load black-hold" read was a CONFOUND of the −11t global shift.  The "2×" was a
+  measurement error: ckpt-137 timed "first CENTER alpha" but retail's cover grows TOP-DOWN
+  (sweep, not center-out), so the center lags the arm.  GROUND TRUTH off `retail-stairs.osr`
+  (res-1110 box + 64×4 fade coverage; retail fades capture as res=0 subtract-blend, no
+  alpha split): house L0 box open −11t→**−1t**, **house box close now tick-EXACT (1650)**,
+  errands −20t→−6t.  `findings/dialogue-advance-early.md` "Component 2/3 RESOLVED"; quirk
+  #122; 1095 host pass.  **USER: verify the transition — studio `port-waitfix | retail-stairs`
+  @ ~1200-1350 (the arrival→house cover/reveal); feed `waitfix_cmp.png`.**
+- **Next move (the errands −6t residual + the 2nd USER mark):**
+  (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
+  the residual is entirely the house→errands transition (house-close 1650 → errands-open
+  port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY
+  reveal arming ~6t early (main.c arms on chain-complete, no errands room-load latency →
+  `PORT-DEBT(cutscene-errands-entry-latency)`).  Measure the house→errands cover/reveal
+  envelope off retail-stairs before adjusting — do NOT curve-fit.
   (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
   kitchen HUTCH with dishes, upstairs) — the placeholder PASS is now ported (ckpt
   178); the remaining gap is the region-E/prop spawn CONSUMER (readers:

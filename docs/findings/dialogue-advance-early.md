@@ -51,26 +51,49 @@ warmer/tan vs retail pinker, whole-frame) is the RECON decoding the two `.osr` w
 session palettes (a notes.py recon-fidelity limit), not a divergence in the game output.  So
 after the fix **t1197 is draw-exact**; no portrait-tint follow-up is warranted.
 
-## Component 2/3 — the chain EARLY-start (OPEN: beat durations)
+## Component 2/3 — the chain EARLY-start (RESOLVED, ckpt 179 — it was `ARRIVAL_EXIT_WAIT`)
 
-The advances match, yet the house + errands still play early — a BEAT-duration gap, not the
-dialogue gate:
+The advances match, yet the house + errands played early.  **ROOT CAUSE (ground-truthed off
+`retail-stairs.osr`): the arrival-exit WAIT was curve-fit to 10 (the "2× anomaly") when it is
+the script's literal `0x14=20` mapped 1:1.**  The whole arrival→house→errands chain was shifted
+−11t early by that one wrong constant.  **NOT a fade-performer bug** (the FRONT's "settle-rate"
+hypothesis is DISPROVEN — see below).  Fix: `ARRIVAL_EXIT_WAIT 10 → 20` (`cutscene.c`).
 
-| boundary | port gap | retail gap | Δ | effect |
+**How the fade GRID is actually captured** (the linchpin that broke the old analysis): retail's
+`scene_fade` cells are ALL `res=0 bmode=1` (the subtract-blend gray mask, res unnamed by the
+proxy 0x418470 registry — the "res=0" ID gap, `res0-ui-banks.md`), so there is NO res-1112 vs
+opaque split retail-side.  Only COVERAGE (64×4 cells, interior band dy∈[64,416)) is cross-side
+comparable — the old plan to "pin the settle-rate off res-1112" could never work.  The clean
+signal is the res-1110 dialogue-box open/close + the fade-cell coverage envelope.
+
+**The scene_fade PERFORMER is bit-exact** — cover ramp +80 cells/tick BOTH sides; reveal
+recession rate equal.  The finding's earlier "−7t black hold / room-load latency" read was a
+CONFOUND of the −11t global WAIT shift (the cover armed 11t early, so the whole cover+hold+reveal
+looked short in absolute ticks).  Once the WAIT is 1:1 the house transition is tick-exact with NO
+room-load modelling — proving there was no significant house room-load gap; it was ALL the WAIT.
+
+**The "2× anomaly" was a MEASUREMENT ERROR:** ckpt-137 read the cover onset as "first CENTER
+alpha" (tick 1234, OLD `retail.osr`).  But retail's arrival cover grows **TOP-DOWN** (a downward
+sweep — variant 2, NOT the center-out var-0 stand-in the port forces), so the center is marked
+LATE; that lag ≠ the arm.  The true arm = the FIRST cell = tick 1213 = L9-adv(1192)+21 ≈ the
+script 20.  The house/L8 WAITs (`0x32=50`) always mapped 1:1 — there was never a per-context 2×.
+
+**Ground-truth ledger** (res-1110 box open/close; `retail-stairs.osr` vs port `spam-confirm-nav`
++ `synth-move2` re-drive):
+
+| boundary | port OLD (WAIT 10) | port FIX (WAIT 20) | retail | Δ fixed |
 |---|---|---|---|---|
-| L9-adv(1192) → house L0 start | 145t | 155t | **−10t** | house starts ~10t early |
-| house L7-adv → errands L0 start | 73t | 81t | **−8t** | errands starts ~8t early |
+| arrival cover ARM (first 64×4 cell) | 1202 | 1212 | 1213 | −1t |
+| **house L0 box open** | 1320 | 1330 | 1331 | **−1t** |
+| **house box close (L7)** | 1636 | 1650 | 1650 | **0t** |
+| errands box open | 1679 | 1693 | 1699 | **−6t** |
 
-Downstream advance offsets (dialogue_timeline): house L0-L7 uniformly ~**−12t** (the −8 L9
-carry + minor drift); errands L0-L2 drift to ~**−26t**.  Suspects (all MEASURED stand-ins
-calibrated off the OLD `retail.osr`, now ~8-10t short vs `retail-stairs.osr`):
-`ARRIVAL_EXIT_WAIT`(10), the two `scene_fade` grid-settle durations
-(arrival-exit cover + house-entry reveal), `HOUSE_EXIT` cover settle + the errands-entry
-reveal (main.c arms it on chain-complete), and the errands same-speaker advance rate.  These
-gate on the fade GRID settling (the real `case-2` gate) — pin the grid settle-rate off
-`retail-stairs.osr` res-1112 (probe was inconclusive; needs the right fade res / a per-tick
-brightness curve, quirk #99 family) before adjusting.  **NOT curve-fit blind** — RE the fade
-performer's per-tick step first.  Deferred to the next dialogue-timing arc.
+**RESIDUAL (errands −6t, a separate smaller issue):** the house dialogue closes tick-EXACT, so
+the remaining −6t is entirely in the house→errands transition (house-close 1650 → errands-open:
+port 1693 / retail 1699).  `HOUSE_EXIT` has NO preceding WAIT (decompile), so this is the errands
+ENTRY reveal arming ~6t early — main.c arms it on chain-complete with no errands room-load
+latency (`PORT-DEBT(cutscene-errands-entry-latency)`, the errands counterpart of the room load).
+Deferred; measure the house→errands cover/reveal envelope before adjusting.
 
 ## Tools added
 - `OSS_DLG_TRACE=1` — per-tick `DLGT t= cf= act= sc= rev=/  ib= cl= lg= rd= r= L=` dump at the
