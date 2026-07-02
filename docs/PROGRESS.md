@@ -6,6 +6,31 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-02 — res_explorer MAP INSPECTOR: engine-true map rendering host-side
+
+- **New Inspector tab for Map resources** (`tools/res_explorer`): runs the PORT'S OWN
+  pipeline outside the engine — `map_data_parse` → `map_decode` (FUN_00587e00 dispatch)
+  → runtime render grid → `map_render_tile` (FUN_00490f30 geometry) → layer-sorted
+  composite against the real sprite banks (`ar_register_main/group3/game_sprites`
+  driven with zdd=NULL, settings=<sotesd HMODULE>; `ar_state_init` REQUIRED first —
+  the pointer tables start NULL, was the one crash). Frame→cel math: sheets slice in
+  MEMORY row order (bottom-up visually) ⇒ upright cel y = (rows-1-mrow)*ch; node src
+  rect is upright-top-left; dst px = world/100. Town 1022 = 1268 nodes, 1023 = 669,
+  both 0 unresolved banks / 0 unported ids — houses/gate/terraces render exactly.
+- **Inspection:** click cell → per-plane raw map_cell + region-A sub-slots
+  (bank/res/frame/layer + source-cel strip) + region-B/D collision (class/slope VA/
+  wall) + region-C blend (MD_BLEND_* named); click object → layer record + PLACEHOLDER
+  renderer note (spawn pass 0x58c8c0 unported). Overlays: collision/walls/blend/grid/
+  unported-hatch; town-house vs errands cfg combo. Unknown tile ids hatch red + listed
+  w/ cell counts (honest coverage for non-town maps).
+- **Not ported (stated in-UI):** ramp banks (ar_register_palette_ramps decodes at
+  registration, engine-coupled — skipped; unresolved counter catches any use), region-C
+  blend DRAW, palette tint 0x4182d0, sky/parallax backdrop, object spawn/render.
+- Default map tab stays Preview (schematic); Inspector becomes default once proven
+  (USER). `--shot` gained [MODULE:]TYPE:ID spec + auto-focuses Inspector for maps.
+
+---
+
 ## 2026-07-02 — res_explorer: the full resource explorer (voice_view retired) + README hero refresh
 
 - **`tools/res_explorer/` — every resource type, engine-accurate.** ImGui/DX11 32-bit

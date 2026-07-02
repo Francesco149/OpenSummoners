@@ -24,7 +24,12 @@ LDFLAGS := -mwindows -static -static-libgcc -static-libstdc++ -Wl,--large-addres
 LIBS    := -ld3d11 -ldxgi -ld3dcompiler -lgdi32 -luser32 -lkernel32 -lwinmm \
            -lcomdlg32 -lshell32 -lole32 -ldwmapi
 
-CSRC   := ../../src/bitmap_session.c ../../src/map_data.c
+# map inspector runs the port's own pipeline host-side: decode dispatch +
+# render grid + walk geometry + the engine's sprite-bank registration tables.
+CSRC   := ../../src/bitmap_session.c ../../src/map_data.c \
+          ../../src/map_grid.c ../../src/map_decode.c ../../src/map_render.c \
+          ../../src/draw_pool.c ../../src/asset_register.c ../../src/render_id.c \
+          ../../src/asset_register_win32.c
 CXXSRC := res_explorer.cpp res_core.cpp \
           $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp \
           $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp \
