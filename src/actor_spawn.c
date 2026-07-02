@@ -905,6 +905,28 @@ static const anim_clip FIRE_CLIP = {
     .oneshot     = 0,    /* loops */
 };
 
+/* The steaming COOKING POT (res1026, variant base 56) — the steam wisps loop the
+ * 4 cels 57..60 at 6 sim-ticks/frame (RE'd off retail-stairs res1026 near the pot
+ * @clamp: fr 57(6t)->58->59->60->57, a forward loop; cel = frame_base(56)+delta). */
+static const anim_clip POT_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 1, 2, 3, 4 },
+    .frame_count = 4,
+    .frame_dur   = 6,
+    .oneshot     = 0,    /* loops */
+};
+
+/* The pendulum CLOCK (res1026, variant base 43) — a slow SWING 43<->45 through the
+ * centre 44, 25 sim-ticks/frame (RE'd off retail-stairs res1026 @clock: 45(25t)->44
+ * ->43->44->45, the swing delta {0,1,2,1}; cel = frame_base(43)+delta). */
+static const anim_clip CLOCK_CLIP = {
+    .base_sprite = 0,
+    .frame_delta = { 0, 1, 2, 1 },
+    .frame_count = 4,
+    .frame_dur   = 25,
+    .oneshot     = 0,    /* loops */
+};
+
 static const struct room_cast_member ERRANDS_CAST[] = {
     /* The shop FURNITURE — the bookshelf frame, the counter in front of Dad, the
      * wall clock (USER studio notes #8/#9/#18/#19/#20/#21: "still missing" post-
@@ -926,7 +948,7 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     { 0x16fu,  4,   70400,  25600,    0,  0, 1, NULL,  0, 7, 0 }, /* kitchen CABINET 0x112d1 (map layer[18] 704,256) res1023 fr4 @ref 704,96 — the RIGHT-side furniture the static tick-2200 capture missed (USER mark t2278); LAYER 7 (behind its props, retail seq 223 pre-structure) */
     { 0x16fu,  2,   70400,   6400,    0,  0, 1, NULL,  0, 7, 0 }, /* upstairs HUTCH  0x112d1 (map layer[31] 704,64)  res1023 fr2 @ref 704,-96 (mostly off the top edge — the "with dishes, upstairs" piece); LAYER 7 */
     { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
-    { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
+    { 0x16bu, 43,   52800,  24800,    0,  0, 1, &CLOCK_CLIP, 0, 0, 0 }, /* pendulum clock 0x112d9 res1026 var43 @528,88 — SWINGS 43<->45 (CLOCK_CLIP) */
     /* More RIGHT-side / upstairs props ERRANDS_CAST originally missed — off-screen in the
      * static tick-2200 capture, revealed once the camera pans right (USER: "the pot is
      * missing, right next to mom's head, to the right of her").  All DATA-1025 CHARACTER
@@ -934,7 +956,7 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * vs retail at the camera clamp t2500: screen == retail exactly).  frame_base = the
      * retail draw's frame (the layer variant).  LAYER 13 (default) = the foreground prop
      * band (retail seq 282-288, over the structure + the layer-7 cabinet). */
-    { 0x16bu, 58,   67600,  29600,    0,  0, 1, NULL,  0, 0, 0 }, /* the POT 0x112da (map L27 676,296) res1026 fr58 @228,208 — right of Mom's head (USER mark) */
+    { 0x16bu, 56,   67600,  29600,    0,  0, 1, &POT_CLIP, 0, 0, 0 }, /* the POT 0x112da (map L27 676,296) res1026 var56 @228,208 — right of Mom's head (USER mark); STEAMS 57..60 (POT_CLIP) */
     { 0x16bu, 38,   56000,   8800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x11279 (map L34 560,88) res1026 fr38 @112,0 */
     { 0x16fu, 13,   60000,   6400,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs furniture 0x112d3 (map L36 600,64) res1023 fr13 @152,-24 */
     { 0x156u,  4,   83200,  12800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x1124c (map L97 832,128) res1022 fr4 @384,40 */

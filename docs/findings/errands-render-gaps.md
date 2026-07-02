@@ -241,12 +241,18 @@ CHARACTER codes draw).  The frame_base=VARIANT (+0x18) model is proven (bookshel
 hutch var2 / counter var6 / upfurn var13 / prop1022 var4 all == the retail frame); the 2 apparent
 mismatches (clock var43 vs seen fr44, pot var56 vs fr58) are the ANIMATED objects at a mid-anim frame.
 
+**The clock + pot ANIMATE (ckpt 180b).**  Both render static no longer — RE'd off the retail res1026
+frame sequences: the **pot STEAMS** (var56 + `POT_CLIP` delta {1,2,3,4} = cels 57→58→59→60, dur 6, loop)
+and the **clock pendulum SWINGS** (var43 + `CLOCK_CLIP` delta {0,1,2,1} = 43→44→45→44, dur 25, loop) —
+VERIFIED off `port-cabinet.osr` (pot 58→59→60→57 dur6; clock 45→44→43→44 dur25 == retail).  Only the
+per-object start PHASE is un-seeded (the `effect-anim-phase` pattern — the loops run, but not tick-locked
+to retail's phase).
+
 **Remaining (NOT missing props):** (1) the freeroam HUD — **res=1900 fr0 @(8,444)** is the bottom-left
 HUD strip (registered slot 39, SCREEN-anchored seq 431 among the res1103/1104 HUD draws — NOT a room
 object; there is no map object at its world pos), plus the blank portrait (`leader_uid` blocker) + the
-lower strips (§2).  (2) the clock PENDULUM + pot STEAM ANIMATION — both render at a static frame (the
-`effect-anim-phase` pattern; the clip + start phase are un-ported).  (3) Mom's POSE (retail res1127 fr0
-vs port fr2 — a facing/frame diff).  The runtime map-driven CHARACTER spawn (retiring the ERRANDS_CAST
+lower strips (§2).  (2) Mom's POSE (retail res1127 fr0 vs port fr2 — a facing/frame diff) + the clock/pot
+anim start-phase seed.  The runtime map-driven CHARACTER spawn (retiring the ERRANDS_CAST
 capture) is now pure cleanup — blocked only on the character-band z-order (the port's `draw_pool`
 draws by layer+emission with NO Y-sort, unlike retail's depth-sorted band), with the code→bank table +
 variant model ready.
