@@ -65,8 +65,12 @@ understates how much actual instruction volume is ported.
   (b) **missing house props** (mark t2278: the stove's steaming COOKING POT + the
   kitchen HUTCH with dishes, upstairs) — the unported object-spawn PLACEHOLDER pass
   (`0x58c8c0` is a 4-B getter; the real spawn family is `0x58c8d0`/`0x58cb30`; the
-  res_explorer already renders these host-side).  Mom's pose in-crop differs too —
-  check her clip once the props land.  (Visual-verify: deferred.)
+  res_explorer already renders these host-side).  **CAVEAT (ckpt 176): the t2278 raw
+  differ (22498) is CONFOUNDED by the char-turn (c) offset — the port is ~960 wx ahead
+  on the LEFT walk, so the whole crop is shifted; the port DOES render most of the scene
+  (res 1071/1072/1082/1722/1026 all present at t2278).  Assess (b) AFTER (c), or at a
+  PRE-reversal tick, to isolate the truly-missing placeholder objects.**  Mom's pose
+  in-crop differs too — check her clip once the props land.  (Visual-verify: deferred.)
   (c) `char-turn-state` — the STATE-1 reversal turn FSM `0x442a70:1011-1090` (deep,
   entangled with the bit-exact walk; verify via `state_diff` synth-stairs, no regress).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
