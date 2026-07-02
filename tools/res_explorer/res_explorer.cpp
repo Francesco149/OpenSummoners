@@ -1360,8 +1360,11 @@ static void mi_spawn_actors()
             MiActorNode an;
             an.bank = d.bank;
             an.frame = d.frame;
-            an.px = p->states[i].world_x / 100 + d.off_x;
-            an.py = p->states[i].world_y / 100 + d.off_y;
+            // actor_emit_part: node offset = descriptor off + render-state
+            // dst_base (the EFFECT band's per-code anchor; 0 for the others —
+            // omitting it shifted the townsfolk by exactly the anchor).
+            an.px = p->states[i].world_x / 100 + d.off_x + p->states[i].dst_base_x;
+            an.py = p->states[i].world_y / 100 + d.off_y + p->states[i].dst_base_y;
             an.layer = p->actors[i].layer;
             an.band = (uint8_t)b;
             g_mi.anodes.push_back(an);

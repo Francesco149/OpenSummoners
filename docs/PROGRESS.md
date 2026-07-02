@@ -44,6 +44,10 @@ specific commits where relevant.
   `idx == colorkey` compare — 0xff00ff-valued keys match no index, faithful). The
   inspector now applies the substitution at sheet build; both symptoms were this one
   bug (the "blank" ground-floor row = index-0 pixels rendering black on black).
+- **NPC anchor fix (USER: townsfolk one tile low + x off):** actor_emit_part's node
+  offset = descriptor off + RENDER-STATE dst_base (the EFFECT band's per-code anchor,
+  both axes; 0 for STRUCTURE/CHARACTER — why only the villagers drifted). The
+  inspector's node build now adds it; townsfolk stand on the walkway.
 - Default map tab stays Preview (schematic); Inspector becomes default once proven
   (USER). `--shot` gained [MODULE:]TYPE:ID spec + auto-focuses Inspector for maps.
 
