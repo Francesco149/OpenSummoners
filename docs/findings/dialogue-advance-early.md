@@ -88,12 +88,21 @@ script 20.  The house/L8 WAITs (`0x32=50`) always mapped 1:1 — there was never
 | **house box close (L7)** | 1636 | 1650 | 1650 | **0t** |
 | errands box open | 1679 | 1693 | 1699 | **−6t** |
 
-**RESIDUAL (errands −6t, a separate smaller issue):** the house dialogue closes tick-EXACT, so
-the remaining −6t is entirely in the house→errands transition (house-close 1650 → errands-open:
-port 1693 / retail 1699).  `HOUSE_EXIT` has NO preceding WAIT (decompile), so this is the errands
-ENTRY reveal arming ~6t early — main.c arms it on chain-complete with no errands room-load
-latency (`PORT-DEBT(cutscene-errands-entry-latency)`, the errands counterpart of the room load).
-Deferred; measure the house→errands cover/reveal envelope before adjusting.
+**RESIDUAL (errands −6t, a separate smaller issue — blocked on the room-load subsystem):** the
+house dialogue closes tick-EXACT (1650), so the remaining −6t is entirely in the house→errands
+transition.  Measured (interior fade envelope, retail-stairs vs port-waitfix): retail's house
+cover is full-black through 1667 then the errands reveal recedes 1668→1689 — a **~20-tick black
+HOLD** (the errands room-LOAD under black); the port arms the errands reveal on chain-complete with
+NO hold (recedes 1651→1681, −17t at the recede start).  That −17t nets to only −6t at the res-1110
+box open because the errands DIALOGUE is deferred to the reveal-recede + the box-open latency.
+`HOUSE_EXIT` has NO preceding WAIT (decompile), so this is NOT a WAIT fix like the arrival — it is
+the unmodelled errands room-load latency (`PORT-DEBT(cutscene-errands-entry-latency)`).  Adding a
+~17-20t black-hold stand-in would match the reveal-recede but OVER-shoot the box open by ~+11t
+(the same reveal/box-latency delta that self-compensated in the arrival), so it needs the real
+room-load, NOT a curve-fit.  Also: retail-stairs' errands reveal is **edges-in (var 1)** and its
+arrival cover is **top-down (var 2)**, but the port forces center-out (var 0) for both — the LCG
+variant DRIFTS per capture (`PORT-DEBT(cutscene-fade-variant)`; the OLD retail.osr rolled
+center-out, retail-stairs rolls different variants).  Deferred.
 
 ## Tools added
 - `OSS_DLG_TRACE=1` — per-tick `DLGT t= cf= act= sc= rev=/  ib= cl= lg= rd= r= L=` dump at the
