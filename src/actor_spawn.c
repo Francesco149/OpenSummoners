@@ -962,10 +962,6 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     { 0x156u,  4,   83200,  12800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x1124c (map L97 832,128) res1022 fr4 @384,40 */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
     { 0x1a3u,  0,   32900,  33800,   -9,-18, 1, &FIRE_CLIP, 0, 0, 14 }, /* fireplace FIRE res1034, additive ramp_a[14] @329,178 (dst_base -9,-18 = the 64x64 cel's pivot, fitted; see FIRE_CLIP) */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip        phase lyr alpha member */
-    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
-    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
-    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */
     /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
      * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
      * the port's struct band doesn't (the codes aren't in the struct-bank table —
@@ -984,6 +980,15 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @344,256 */
     { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @560,64  */
     { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0, 0 }, /* fr64 @256,352 */
+    /* The FAMILY (people) are spawned LAST so they render IN FRONT of the shop props
+     * (both are layer 13 -> draw order = array order).  RE'd off retail seq at t2500:
+     * every res1027/1026 prop draws (252-286) THEN Mom (289) — she is frontmost.  The
+     * old order (family BEFORE the shop props) drew a chair (res1027 fr5 @184,232, the
+     * 0x112a2 shop prop) OVER Mom (USER mark).  The counter stays AFTER Father (drawn IN
+     * FRONT of him).  bank fb world_x world_y dbx dby fac clip phase lyr alpha */
+    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
+    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
+    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */
 };
 
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)
