@@ -34,6 +34,9 @@ typedef struct {
     int32_t y;       /* body+8   world Y */
     int32_t width;   /* body+0xc */
     int32_t height;  /* body+0x10 */
+    int32_t margin;  /* body+0x14 top margin — the horizontal mover scans rows
+                        [y+margin, y+height-1] (54db10.c:27-29).  Arche: 0
+                        (live-probed, runs/arche-box; box 2000x5600). */
 } phys_box;
 
 /* Slope-profile resolver.  `slope_ref` is the raw region-B +0x8 u32 (0 = flat,
@@ -55,5 +58,34 @@ int collision_move_vertical(const uint8_t *grid, const phys_box *box,
                             int32_t delta, int pass_slopes,
                             coll_slope_fn slope, void *ctx,
                             int32_t *out_y);
+
+/* FUN_0054ded0 — sweep the X-window [x, x+width) with Y-extent [y_top, y_bot]
+ * by `delta` (>0 right, <0 left) in <=100-unit steps, testing the LEADING
+ * EDGE's column each step.  `step_up` != 0 climbs a 100-unit riser when the
+ * leading bottom corner is blocked but the cell above it is clear (stairs);
+ * `step_down` != 0 hugs the floor (drops 100 units when ground exists within
+ * 2 sub-rows below and the row directly below is clear).  Writes the running
+ * (clamped) X to *out_x on every CLEAR step — a mid-sweep block returns 0
+ * with the partial movement already written, exactly like retail's
+ * write-through to &body.x — and adds the net step-up/down shift to *inout_y
+ * only on a fully-clear sweep.  Returns 1 clear / 0 blocked-or-out-of-bounds. */
+int collision_sweep_horizontal(const uint8_t *grid,
+                               int32_t x, int32_t width,
+                               int32_t y_top, int32_t y_bot,
+                               int32_t delta, int step_down, int step_up,
+                               int pass_slopes,
+                               coll_slope_fn slope, void *ctx,
+                               int32_t *out_x, int32_t *inout_y);
+
+/* FUN_0054db10 (tile half) — the walk-commit wrapper: derives the sweep
+ * Y-extent from the body box ([y+margin, y+height-1]) and dispatches to
+ * collision_sweep_horizontal.  *inout_x is always defined (init to box->x).
+ * The 54db10 actor-vs-actor pre-scan is PORT-DEBT(mover-actor-scan).  Pass
+ * &body.x/&body.y for the commit mode (param_7==0); scratch locals for the
+ * probe mode. */
+int collision_move_horizontal(const uint8_t *grid, const phys_box *box,
+                              int32_t delta, int step_down, int step_up,
+                              int pass_slopes, coll_slope_fn slope, void *ctx,
+                              int32_t *inout_x, int32_t *inout_y);
 
 #endif /* OSS_COLLISION_H */

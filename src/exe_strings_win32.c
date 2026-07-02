@@ -55,3 +55,11 @@ const char *exe_data_string(uint32_t va)
         return NULL;
     return pe_string_at(g_exe_image, g_exe_len, va);
 }
+
+const uint8_t *exe_data_bytes(uint32_t va, size_t n)
+{
+    map_exe_once();
+    if (g_exe_image == NULL)
+        return NULL;
+    return pe_bytes_at(g_exe_image, g_exe_len, va, n);
+}

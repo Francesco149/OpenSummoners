@@ -1,0 +1,18 @@
+{
+  "_doc": "THROWAWAY ground-truth spec (collision-mover wiring): read Arche's body BOX dims once per frame during the freeroam walk — body+0xc width / +0x10 height / +0x14 top-margin (the horizontal mover scans rows [y+0x14, y+h-1]) / +0x20 box idx byte.  Chain identical to freeroam_mover_fields.json arche_body.  RUN: nix develop --command python3 tools/frida_capture.py --no-turbo --lockstep --seed-pin --input-trace runs/freeroam-walk/trace-nav.jsonl --held-trace runs/freeroam-walk/walk-held.jsonl --field-spec tools/flow/arche_box_fields.json --field-spec-only --call-trace --call-trace-frames 4540,4560 --run-dir runs/arche-box/cap.",
+  "fields": {
+    "0x5b8fc0": {
+      "name": "arche_body",
+      "_note": "FUN_005b8fc0 Flip (once/frame). Leader-chain to Arche's body (room_state 0x8a9b50+0x2784 -> +0x200c -> +0x9f4 entity -> +0x40 body).",
+      "fields": [
+        {"name": "code",   "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548], "off": 468, "type": "hex", "reason": "entity+0x1d4 actor code; 0xc35a == Arche (sanity)"},
+        {"name": "wx",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 4,  "type": "i32", "reason": "body+4 worldX"},
+        {"name": "wy",     "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 8,  "type": "i32", "reason": "body+8 worldY"},
+        {"name": "box_w",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 12, "type": "i32", "reason": "body+0xc box width (54db10/54e5c0 X extent)"},
+        {"name": "box_h",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 16, "type": "i32", "reason": "body+0x10 box height (bottom edge = y+h-1)"},
+        {"name": "box_m",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 20, "type": "i32", "reason": "body+0x14 top margin (horizontal scan starts at y+0x14)"},
+        {"name": "box_i",  "src": "chain", "va": "0x8a9b50", "hops": [10116, 8204, 2548, 64], "off": 32, "type": "i32", "reason": "body+0x20 current box idx (byte, read as i32)"}
+      ]
+    }
+  }
+}

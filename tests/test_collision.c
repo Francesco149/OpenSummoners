@@ -29,7 +29,7 @@ static void wall(uint8_t *g, int32_t col, int32_t row, int32_t ncol, int32_t nro
 }
 
 /* A body in col 1 (x=4800, w=1000); the X-extent stays within col 1. */
-static phys_box body_col1(int32_t y) { return (phys_box){ 4800, y, 1000, 1000 }; }
+static phys_box body_col1(int32_t y) { return (phys_box){ 4800, y, 1000, 1000, 0 }; }
 
 /* drop onto a floor at row 5 (worldY 16000): bottom edge clamps so the body top
  * rests at 16000-1000 = 15000. */
@@ -127,6 +127,122 @@ int test_collision_slope_callback_invoked(void)
     (void)collision_move_vertical(g, &b, +12000, 0, slope_cb, NULL, &out);
     T_ASSERT(g_slope_calls > 0);
     T_ASSERT_EQ_U(g_slope_ref_seen, 0x005cc410u);
+    map_grid_free(g);
+    return 0;
+}
+
+/* ══ the HORIZONTAL mover (FUN_0054ded0 sweep + the 54db10 tile-half) ═══════
+ * The ramp resolver mirrors the retail .rdata profiles byte-for-byte in SHAPE
+ * (0x5cc430 = h(subx) = subx+1 ascending; 0x5cc410 = 32-subx descending) —
+ * the live build reads the actual bytes off the user's exe (exe_data_bytes). */
+static int ramp_cb(void *ctx, uint32_t slope_ref, int subtile_x)
+{
+    (void)ctx;
+    if (slope_ref == 0x005cc430u) return subtile_x + 1;    /* rises rightward */
+    if (slope_ref == 0x005cc410u) return 32 - subtile_x;   /* rises leftward  */
+    return 0;
+}
+
+/* walking right into a solid col-2 wall: the sweep commits the cleared steps
+ * (write-through to &body.x) and stops flush — right edge 6399 against the
+ * wall at 6400 — returning blocked. */
+int test_collision_hwalk_wall_stops_flush(void)
+{
+    uint8_t *g = grid10();
+    wall(g, /*col*/ 2, /*row*/ 2, 1, 1);
+    phys_box b = { 4800, 8000, 1000, 1000, 0 };
+    int32_t x = -1, y = b.y;
+    int r = collision_move_horizontal(g, &b, +2000, 0, 1, 0, NULL, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 0);
+    T_ASSERT_EQ_I(x, 5400);          /* last clear step; 5400+999 == 6399     */
+    T_ASSERT_EQ_I(y, 8000);          /* no y shift on a blocked sweep         */
+    map_grid_free(g);
+    return 0;
+}
+
+/* open ground, no flags: the full delta clears. */
+int test_collision_hwalk_open_clears(void)
+{
+    uint8_t *g = grid10();
+    phys_box b = { 4800, 8000, 1000, 1000, 0 };
+    int32_t x = -1, y = b.y;
+    int r = collision_move_horizontal(g, &b, +2000, 0, 0, 0, NULL, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 1);
+    T_ASSERT_EQ_I(x, 6800);
+    map_grid_free(g);
+    return 0;
+}
+
+/* delta 0 short-circuits (54db10.c:32-34) with *inout_x defined. */
+int test_collision_hwalk_zero_delta_noop(void)
+{
+    uint8_t *g = grid10();
+    wall(g, 2, 2, 1, 1);
+    phys_box b = { 4800, 8000, 1000, 1000, 0 };
+    int32_t x = -1, y = b.y;
+    int r = collision_move_horizontal(g, &b, 0, 1, 1, 0, NULL, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 1);
+    T_ASSERT_EQ_I(x, 4800);
+    map_grid_free(g);
+    return 0;
+}
+
+/* CLIMB a 45-degree ramp (the stairs): floor across row 5, an ascending ramp
+ * cell (class 10 + slope ref 0x5cc430) at col 2 row 4.  Walking right +800
+ * from x=5300 (resting on the floor, bottom edge 15999): 2 flat steps, then 6
+ * step-ups — one 100-unit rise per 100-unit run (hand-derived from the
+ * per-sub-column solid predicate suby > 0x20 - h). */
+int test_collision_hwalk_climbs_ramp(void)
+{
+    uint8_t *g = grid10();
+    wall(g, 0, 5, 10, 1);                                     /* the floor    */
+    map_grid_emit_obj(g, 2, 4, 1, 1, 10, 1, 0x005cc430u, 0, 0);  /* the ramp  */
+    phys_box b = { 5300, 15000, 1000, 1000, 0 };
+    int32_t x = -1, y = b.y;
+    int r = collision_move_horizontal(g, &b, +800, 1, 1, 0, ramp_cb, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 1);
+    T_ASSERT_EQ_I(x, 6100);
+    T_ASSERT_EQ_I(y, 14400);         /* 6 x 100-unit risers climbed           */
+    map_grid_free(g);
+    return 0;
+}
+
+/* DESCEND the same ramp walking left (the H3 end state reversed): the floor
+ * hug steps down 100 units per step while ground stays within 2 sub-rows,
+ * landing back on the row-5 floor — the exact inverse of the climb. */
+int test_collision_hwalk_descends_ramp(void)
+{
+    uint8_t *g = grid10();
+    wall(g, 0, 5, 10, 1);
+    map_grid_emit_obj(g, 2, 4, 1, 1, 10, 1, 0x005cc430u, 0, 0);
+    phys_box b = { 6100, 14400, 1000, 1000, 0 };
+    int32_t x = -1, y = b.y;
+    int r = collision_move_horizontal(g, &b, -800, 1, 1, 0, ramp_cb, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 1);
+    T_ASSERT_EQ_I(x, 5300);
+    T_ASSERT_EQ_I(y, 15000);         /* hugged back down onto the floor       */
+    map_grid_free(g);
+    return 0;
+}
+
+/* the +0x14 top margin: a head-height wall (row 4) does not block a body
+ * whose margin starts the scan below it (54db10.c:27 iVar14 = y+0x14), but
+ * blocks the same body with margin 0. */
+int test_collision_hwalk_margin_skips_head_row(void)
+{
+    uint8_t *g = grid10();
+    wall(g, 2, 4, 1, 1);                 /* rows 12800..15999 (head height)   */
+    phys_box tall = { 4800, 15000, 1000, 3000, 1300 };   /* scan 16300..17999 */
+    int32_t x = -1, y = tall.y;
+    int r = collision_move_horizontal(g, &tall, +2000, 0, 0, 0, NULL, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 1);
+    T_ASSERT_EQ_I(x, 6800);
+
+    phys_box nomargin = { 4800, 15000, 1000, 3000, 0 };  /* scan 15000..17999 */
+    x = -1; y = nomargin.y;
+    r = collision_move_horizontal(g, &nomargin, +2000, 0, 0, 0, NULL, NULL, &x, &y);
+    T_ASSERT_EQ_I(r, 0);
+    T_ASSERT_EQ_I(x, 5400);
     map_grid_free(g);
     return 0;
 }

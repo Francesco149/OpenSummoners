@@ -867,6 +867,12 @@ struct test_case {
     X(collision_ceiling_blocks_upward)                         \
     X(collision_zero_delta_noop)                               \
     X(collision_slope_callback_invoked)                        \
+    X(collision_hwalk_wall_stops_flush)                        \
+    X(collision_hwalk_open_clears)                             \
+    X(collision_hwalk_zero_delta_noop)                         \
+    X(collision_hwalk_climbs_ramp)                             \
+    X(collision_hwalk_descends_ramp)                           \
+    X(collision_hwalk_margin_skips_head_row)                   \
     X(held_scancode_slot)                                      \
     X(held_trace_parse_basic)                                  \
     X(held_trace_parse_names)                                  \
