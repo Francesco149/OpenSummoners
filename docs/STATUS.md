@@ -98,12 +98,15 @@ understates how much actual instruction volume is ported.
   bit-for-bit — pot 376/376, wall-shelf 108/108, Arche 270,296).  The ckpt-179 waitfix
   desynced port-waitfix's tick-keyed freeroam walk (+176px camera lag, 4 props measured) — so
   **the freeroam studio pair is `port-stairs2 | retail-stairs`, NOT port-waitfix** (waitfix is
-  valid only for the dialogue window ≲tick 2000).  The real gap = the kitchen CABINET (res1023
-  fr4 + fr2 upstairs hutch, DATA-1025 CHARACTER code 0x112d1 map layer[18]/[31]) — FIXED as 2
-  ERRANDS_CAST entries (world 70400,25600 / 70400,6400; verified in `port-cabinet.osr`: dims
-  78×120/82×115 == retail, 172px offset == map, z pre-structure).  `findings/errands-render-gaps.md`
-  §6.  **USER: verify the cabinet — studio `port-cabinet | retail-stairs`, scrub to the camera
-  CLAMP (~t2400+, both pinned at the right edge; the cabinet at screen ~256).**
+  valid only for the dialogue window ≲tick 2000).  The real gap = the RIGHT-side/upstairs props
+  ERRANDS_CAST systematically missed (captured from the static tick-2200 LEFT/centre view): the USER
+  flagged the kitchen CABINET (res1023 fr4 + hutch fr2) AND the POT (res1026 fr58 @228,208, "right of
+  Mom's head").  FIXED as **6** ERRANDS_CAST entries (cabinet/hutch/pot + 3 upstairs props, DATA-1025
+  CHARACTER codes 0x112d1/0x112da/0x11279/0x112d3/0x1124c; banks via slot+13; world = map ×100) —
+  VERIFIED at the clamp t2500: all 6 render at retail's EXACT pos+dims (feed `pot_crop_cmp.png`).
+  Remaining: res1900 fr0 (unregistered bank) + Mom's pose (res1127 fr0 vs fr2).  `errands-render-gaps.md`
+  §6.  ⇒ the recurring gap motivates the PROPER fix (CHARACTER def-table spawn from the map).  **USER:
+  studio `port-cabinet | retail-stairs`, scrub to the camera CLAMP (~t2400+, both pinned).**
 - **Next move (the errands −6t residual + the 2nd USER mark):**
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open

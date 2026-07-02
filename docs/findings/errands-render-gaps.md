@@ -206,20 +206,35 @@ lands at a different scene phase → Arche walks 176px less by t2278.  **⇒ the
 verification must be `port-stairs2 | retail-stairs`, NOT port-waitfix** (waitfix is valid only for the
 DIALOGUE window, ≲tick 2000).
 
-**The KITCHEN CABINET was the real gap — FIXED.**  Retail (and the aligned port-stairs2) draw two
-res1023 furniture frames the port never spawned: **fr4** @ref(704,96) [78×120] + **fr2** @ref(704,−96)
-[82×115, mostly off the TOP edge = the "upstairs hutch with dishes"].  Both are errands-map (DATA 1025)
-CHARACTER objects code **0x112d1** — the SAME code as the bookshelf — at layer[18] (x=704,y=256) +
-layer[31] (x=704,y=64), frame_base = the layer VARIANT.  `ERRANDS_CAST` was captured from the STATIC
-tick-2200 view (cam 0/16000) where these RIGHT-side pieces are off-screen, so they were missed.  **Fix
-(`actor_spawn.c`):** two ERRANDS_CAST entries at world (70400,25600)/(70400,6400) [= map (704,256)/(704,64)×100,
-cross-validated by the retail back-projection: t2278 cam pan +424px, consistent on wall-shelf+counter],
-bank 0x16f, fr 4/2, **LAYER 7** (retail seq 223/224 = drawn PRE the structure props).  Still
-PORT-DEBT(errands-cast) — a captured stand-in; the proper fix is the CHARACTER def-table fill.
+**The real gap = the RIGHT-side / upstairs props ERRANDS_CAST SYSTEMATICALLY missed — 6 objects, FIXED.**
+`ERRANDS_CAST` was captured from the STATIC tick-2200 view (cam 0/16000), which shows only the LEFT/centre
+of the room — so EVERY object on the right (world_x ≳ 55000) was dropped.  A full port-vs-retail draw diff
+at the **camera clamp (t2500, both cameras pinned at the map's right edge → phase-independent alignment)**
+surfaces them all.  Each is a DATA-1025 CHARACTER object; res→bank = `asset_register` slot + 13; world =
+map layer pos ×100 (validated: the map position AND the retail clamp screen pos agree exactly):
+
+| USER mark | res / fr | bank | map code (layer) | world | screen @clamp |
+|-----------|----------|------|------------------|-------|---------------|
+| kitchen cabinet | 1023 / 4 | 0x16f | 0x112d1 (L18) | (70400,25600) | (256,168) |
+| upstairs hutch  | 1023 / 2 | 0x16f | 0x112d1 (L31) | (70400,6400)  | (256,−24) |
+| **the POT** (2nd USER mark, "right of Mom's head") | 1026 / 58 | 0x16b | 0x112da (L27) | (67600,29600) | (228,208) |
+| upstairs prop   | 1026 / 38 | 0x16b | 0x11279 (L34) | (56000,8800)  | (112,0) |
+| upstairs furniture | 1023 / 13 | 0x16f | 0x112d3 (L36) | (60000,6400) | (152,−24) |
+| upstairs prop   | 1022 / 4 | 0x156 | 0x1124c (L97) | (83200,12800) | (384,40) |
+
+**Fix (`actor_spawn.c`):** 6 ERRANDS_CAST entries (the cabinet/hutch at LAYER 7 = pre-structure per retail
+seq 223/224; the rest at the default foreground layer 13 per seq 282-288).  **VERIFIED** off the rebuilt
+walk-driven `port-cabinet.osr` at the clamp: all 6 render at retail's EXACT screen pos + dims.  Still
+PORT-DEBT(errands-cast) — a captured stand-in; the recurring gap (cabinet, then pot+3) shows the
+tick-2200-capture approach is fragile, so the proper fix (the CHARACTER def-table fill spawning from the
+MAP, so ALL objects come regardless of camera) is now the priority retire.  Known remaining: **res=1900
+fr0 @(8,444)** (bottom-left) — not in `asset_register` (no sprite slot), so it needs its bank resolved
+first; and Mom's POSE (retail res1127 fr0 vs port fr2 — a frame/facing diff, not a missing spawn).
 
 LESSON: a studio mark on a PHASE-desynced capture pair reads a real prop as "missing" when it is merely
-DISPLACED.  Confirm the pair is walk/phase-aligned (Arche AND props at matching WORLD positions) before
-attributing a crop diff to a missing spawn — attribute to the PHASE pillar first (`parity-model.md`).
+DISPLACED (the pot's neighbour, the STOVE res1074, is one such — it renders, just off-crop).  Confirm the
+pair is walk/phase-aligned — or use the camera CLAMP (both pinned → identical view regardless of phase) —
+before attributing a crop diff to a missing spawn.  Attribute to the PHASE pillar first (`parity-model.md`).
 
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs

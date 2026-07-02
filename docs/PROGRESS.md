@@ -21,17 +21,21 @@ specific commits where relevant.
   past the handoff.  **⇒ FREEROAM studio verification must use `port-stairs2 | retail-stairs`, NOT
   port-waitfix (valid only for the DIALOGUE window ≲tick 2000).**
 
-- **The KITCHEN CABINET was the real gap — FIXED (`actor_spawn.c`).**  Retail + port-stairs2 draw
-  two res1023 furniture frames the port never spawned: **fr4** @ref(704,96) [78×120] + **fr2**
-  @ref(704,−96) [82×115, mostly off the top = the upstairs hutch].  Both = errands-map (DATA 1025)
-  CHARACTER code **0x112d1** (the same as the bookshelf), map **layer[18]**(704,256) +
-  **layer[31]**(704,64), frame_base=variant.  ERRANDS_CAST was captured from the STATIC tick-2200
-  view where these RIGHT-side pieces are off-screen → missed.  Added 2 ERRANDS_CAST entries at
-  world (70400,25600)/(70400,6400) [map-validated AND retail-back-projection-validated: t2278 cam
-  pan +424px], bank 0x16f, fr 4/2, LAYER 7.  **VERIFIED** off a rebuilt walk-driven `port-cabinet.osr`:
-  res1023 fr4/fr2 spawn (cast 17→19) at dims 78×120 / 82×115 (== retail) and screen offset **172px**
-  right of the wall-shelf (== the map world offset 704−532), z pre-structure (== retail seq 223/224).
-  1095 host pass.  Still PORT-DEBT(errands-cast).  `findings/errands-render-gaps.md` §6.
+- **The real gap = the RIGHT-side / upstairs props ERRANDS_CAST SYSTEMATICALLY missed (`actor_spawn.c`).**
+  It was captured from the STATIC tick-2200 view (only the room's left/centre), so EVERY object with
+  world_x ≳ 55000 was dropped.  A full port-vs-retail draw diff at the **camera CLAMP (t2500, both cameras
+  pinned at the map's right edge = phase-independent alignment)** surfaces them.  The USER flagged two:
+  the **kitchen CABINET** (res1023 fr4 + upstairs hutch fr2) and — on re-check — **the POT** ("right of
+  Mom's head": res1026 **fr58** @228,208).  Added **6** ERRANDS_CAST entries (all DATA-1025 CHARACTER
+  objects; res→bank = `asset_register` slot+13; world = map layer ×100, validated the map pos AND the
+  retail clamp screen agree exactly): cabinet 0x112d1(L18), hutch 0x112d1(L31), POT 0x112da(L27), + 3
+  upstairs props 0x11279/0x112d3/0x1124c (banks 0x16f/0x16b/0x156, fr 4/2/58/38/13/4).  Cabinet/hutch
+  LAYER 7 (pre-structure, retail seq 223/224); the rest layer 13 (foreground, seq 282-288).  **VERIFIED**
+  off a rebuilt walk-driven `port-cabinet.osr` at the clamp: all 6 render at retail's EXACT screen pos +
+  dims; feed `pot_crop_cmp.png` (port|retail crop) matches.  1095 host pass.  Still PORT-DEBT(errands-cast)
+  — the recurring gap shows the tick-2200-capture approach is fragile ⇒ the proper CHARACTER def-table
+  fill (spawn from the MAP, camera-independent) is the priority retire.  Remaining: res1900 fr0 @(8,444)
+  (unregistered bank) + Mom's POSE (res1127 fr0 vs fr2).  `findings/errands-render-gaps.md` §6.
 
 - **LESSON:** a studio mark on a PHASE-desynced capture pair reads a real prop as "missing" when it
   is merely DISPLACED — attribute to the PHASE pillar first (`parity-model.md`).

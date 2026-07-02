@@ -912,7 +912,8 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      * clock / 0x112d1 bookshelf / 0x112d2 counter, in the 0x111xx-0x112xx / 70000
      * range, NOT structure codes) that resolve to bank 0x16f (res 1023, the
      * house/shop furniture sheet) with frame_base = the layer's VARIANT (+0x18) —
-     * confirmed off retail.osr: res 1023 fr 0/2/3/4/6 at the projected positions.  The
+     * confirmed off retail.osr: res 1023 fr 0/2/3/4/6/13 (+ res 1026/1022 props) at the
+     * projected positions.  The
      * port's CHARACTER band (g_actors) is SUPPRESSED for non-town rooms, so these
      * never spawn (they'd be invisible volumes even if spawned — the codes aren't in
      * TOWN_SPRITE_DEFS).  Captured here as static room-cast members (the same stand-in
@@ -926,6 +927,17 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     { 0x16fu,  2,   70400,   6400,    0,  0, 1, NULL,  0, 7, 0 }, /* upstairs HUTCH  0x112d1 (map layer[31] 704,64)  res1023 fr2 @ref 704,-96 (mostly off the top edge — the "with dishes, upstairs" piece); LAYER 7 */
     { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
     { 0x16bu, 44,   52800,  24800,    0,  0, 1, NULL,  0, 0, 0 }, /* pendulum clock 0x112d9 res1026 fr44 @528,88 */
+    /* More RIGHT-side / upstairs props ERRANDS_CAST originally missed — off-screen in the
+     * static tick-2200 capture, revealed once the camera pans right (USER: "the pot is
+     * missing, right next to mom's head, to the right of her").  All DATA-1025 CHARACTER
+     * objects; res->bank = asset_register slot + 13; world = map layer pos x100 (validated
+     * vs retail at the camera clamp t2500: screen == retail exactly).  frame_base = the
+     * retail draw's frame (the layer variant).  LAYER 13 (default) = the foreground prop
+     * band (retail seq 282-288, over the structure + the layer-7 cabinet). */
+    { 0x16bu, 58,   67600,  29600,    0,  0, 1, NULL,  0, 0, 0 }, /* the POT 0x112da (map L27 676,296) res1026 fr58 @228,208 — right of Mom's head (USER mark) */
+    { 0x16bu, 38,   56000,   8800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x11279 (map L34 560,88) res1026 fr38 @112,0 */
+    { 0x16fu, 13,   60000,   6400,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs furniture 0x112d3 (map L36 600,64) res1023 fr13 @152,-24 */
+    { 0x156u,  4,   83200,  12800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x1124c (map L97 832,128) res1022 fr4 @384,40 */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
     { 0x1a3u,  0,   32900,  33800,   -9,-18, 1, &FIRE_CLIP, 0, 0, 14 }, /* fireplace FIRE res1034, additive ramp_a[14] @329,178 (dst_base -9,-18 = the 64x64 cel's pivot, fitted; see FIRE_CLIP) */
     /* bank   fb  world_x  world_y  dbx  dby fac clip        phase lyr alpha member */
