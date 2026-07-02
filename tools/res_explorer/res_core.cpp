@@ -534,12 +534,19 @@ RxMapObject rx_map_object(const map_layer *l)
     return o;
 }
 
+// Band names are the ENGINE's own (retail exe strings: "Effect Object Count
+// Over." / "Structure ..." / "Character ..." / "Device ..." at 0x4a2e2c..;
+// note CHARACTER includes static props and particle-emitter fixtures, not just
+// people — the 0x58d460 dispatch bands by code range only).  90010/90011 are
+// not spawn codes at all: the map decoder's trailing pass (FUN_0058cb30)
+// consumes them as region-E link anchors (map_decode.h).
 const char *rx_map_object_category(uint32_t type)
 {
     if (type >= 50000 && type <= 59999) return "EFFECT";
     if (type >= 60000 && type <= 69999) return "STRUCTURE";
     if (type >= 70000 && type <= 79999) return "CHARACTER";
     if (type >= 80000 && type <= 89999) return "DEVICE";
+    if (type >= 90000 && type <= 99999) return "PLACEHOLDER";
     return "?";
 }
 

@@ -1004,6 +1004,8 @@ static void panel_map()
     ImGui::SameLine(); ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1), "o");
     ImGui::SameLine(0, 10); ImGui::TextDisabled("DEVICE");
     ImGui::SameLine(); ImGui::TextColored(ImVec4(0.95f, 0.4f, 0.4f, 1), "o");
+    ImGui::SameLine(0, 10); ImGui::TextDisabled("PLACEHOLDER");
+    ImGui::SameLine(); ImGui::TextColored(ImVec4(0.75f, 0.5f, 0.95f, 1), "o");
 
     if (g_map_opts_dirty) { build_map_texture(); g_map_opts_dirty = false; }
 
@@ -1026,7 +1028,8 @@ static void panel_map()
         ImDrawList* dl = ImGui::GetWindowDrawList();
         for (uint32_t i = 0; i < g_map.count; i++) {
             RxMapObject o = rx_map_object(&g_map.layers[i]);
-            ImU32 col = o.type >= 80000 ? IM_COL32(242, 102, 102, 230) :
+            ImU32 col = o.type >= 90000 ? IM_COL32(191, 128, 242, 230) :
+                        o.type >= 80000 ? IM_COL32(242, 102, 102, 230) :
                         o.type >= 70000 ? IM_COL32(102, 230, 128, 230) :
                         o.type >= 60000 ? IM_COL32(102, 153, 255, 230) :
                                           IM_COL32(242, 191, 77, 230);
@@ -1597,6 +1600,9 @@ static void mi_inspect_obj_panel()
     RxMapObject o = rx_map_object(l);
     ImGui::Text("object #%d  id %u", g_mi.sel_obj, o.id);
     ImGui::Text("type %u  (%s)", o.type, rx_map_object_category(o.type));
+    if (o.type >= 70000 && o.type <= 79999)
+        ImGui::TextDisabled("(the engine's own band name — \"Character Object\";"
+                            " it holds NPCs AND static props / emitter fixtures)");
     ImGui::Text("subtype %u   at (%u, %u) px", o.subtype, o.x, o.y);
     ImGui::TextDisabled("sub-array counts a/b/c/d: %u / %u / %u / %u",
                         l->n_a, l->n_b, l->n_c, l->n_d);
@@ -1676,9 +1682,29 @@ static void mi_inspect_obj_panel()
         } else if (o.type >= 60000 && o.type <= 69999) {
             lstrcpynA(g_mi.selobj_msg, "code not in the 0x438a60 STRUCTURE def "
                       "switch (retail's default: draws nothing)", sizeof g_mi.selobj_msg);
-        } else if (o.type >= 80000) {
+        } else if (o.type == 0x15f9a || o.type == 0x15f9b) {
+            // not a spawn: the map decoder's trailing FUN_0058cb30 pass turned
+            // this into a region-E link-anchor record — show it.
+            if (g_mi.grid) {
+                int cx = (int)o.x / 32, cy = (int)o.y / 32;
+                const uint8_t *rec = g_mi.grid + MG_REGION_E +
+                    (size_t)(cx * (int)MG_ROW_PITCH + cy) * MG_REGION_E_STRIDE;
+                uint16_t n;   memcpy(&n, rec + 0x00, 2);
+                uint32_t fl;  memcpy(&fl, rec + 0x04, 4);
+                int32_t lx = 0, ly = 0;
+                if (n) { memcpy(&lx, rec + 0x08, 4); memcpy(&ly, rec + 0x0c, 4); }
+                _snprintf(g_mi.selobj_msg, sizeof g_mi.selobj_msg,
+                          "region-E link anchor (map-decode 0x58cb30 pass, not a "
+                          "spawn): flag %u, %u link(s)%s%s cell (%d,%d)",
+                          fl, n, n ? ", first ->" : "", n ? "" : ";", lx, ly);
+            } else {
+                lstrcpynA(g_mi.selobj_msg, "region-E link anchor (map-decode "
+                          "0x58cb30 pass, not a spawn)", sizeof g_mi.selobj_msg);
+            }
+        } else if (o.type >= 80000 && o.type <= 89999) {
             lstrcpynA(g_mi.selobj_msg, "DEVICE band - spawn/renderer not ported "
-                      "yet (PORT-DEBT)", sizeof g_mi.selobj_msg);
+                      "yet (PORT-DEBT; no shipped map places DEVICE objects)",
+                      sizeof g_mi.selobj_msg);
         } else {
             lstrcpynA(g_mi.selobj_msg, "no spawned actor matched this record",
                       sizeof g_mi.selobj_msg);
@@ -1810,7 +1836,8 @@ static void mi_draw_tab(HWND hwnd)
             for (uint32_t i = 0; i < g_mi.md.count; i++) {
                 RxMapObject o = rx_map_object(&g_mi.md.layers[i]);
                 float fx = img0.x + o.x * zoom, fy = img0.y + o.y * zoom;
-                ImU32 col = o.type >= 80000 ? IM_COL32(242, 102, 102, 240) :
+                ImU32 col = o.type >= 90000 ? IM_COL32(191, 128, 242, 240) :
+                            o.type >= 80000 ? IM_COL32(242, 102, 102, 240) :
                             o.type >= 70000 ? IM_COL32(102, 230, 128, 240) :
                             o.type >= 60000 ? IM_COL32(102, 153, 255, 240) :
                                               IM_COL32(242, 191, 77, 240);
@@ -1961,8 +1988,10 @@ static void panel_info(const RxEntry* e)
         ImGui::Separator();
         ImGui::TextWrapped("MSD_SOTES_MAPDATA: tilemap cells (0x1c B each) + object layers "
                            "(0x3c B header + 4 sub-arrays). Parsed by the ported "
-                           "map_data_parse (FUN_00587970). Object types: 5xxxx EFFECT, "
-                           "6xxxx STRUCTURE, 7xxxx CHARACTER, 8xxxx DEVICE.");
+                           "map_data_parse (FUN_00587970). Object types (the ENGINE's own band "
+                           "names): 5xxxx EFFECT, 6xxxx STRUCTURE, 7xxxx CHARACTER (NPCs "
+                           "AND props/emitter fixtures), 8xxxx DEVICE, 9001x placeholder "
+                           "link anchors (consumed by the map decoder, not spawned).");
         break;
     case RK_WMA:
         ImGui::Separator();
