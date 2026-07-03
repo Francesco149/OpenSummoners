@@ -225,6 +225,25 @@
   `freeroam-hud.md §7`).  `docs/plans/party-band-phase2-hud-data.md`.  **USER: optional studio check —
   the errands HUD panel (HP/MP bars, "100 / 100", "20 / 20", Lv 1, 2 stars) should be pixel-identical
   to before; the values are now real-sourced.**
+- **Landed ckpt 190 — the element-star COUNT setter RE'd (doc correction).** The last leader-panel
+  stand-in (`stats+0xdc`=2) is set by the UNPORTED equip/element-affinity recompute, NOT
+  "`FUN_004f19e0`" (that's the Weathervane Tower story script): BOTH char-init paths CLEAR +0xdc
+  (`426fd0:105`, `4c5e00:85`), the element-def table `DAT_00682660` feeds `stats+0x50` (portrait) not
+  +0xdc, every non-zero +0xdc writer is a scene-beat index on `*in_ECX`.  All 3 remaining
+  `hud-party-context` items (star count / item-bar icons / portrait) are subsystem- or replay-blocked,
+  not quick chips.  `freeroam-hud.md §10`.
+- **Landed ckpt 191 — the errands family anim-phase DIAGNOSED (RNG census, USER-picked arc); blocked on a
+  per-SIM-TICK census tool.** New `tools/trace_studio2/rng_seq_diff.py` + port/retail `--osr-state`
+  captures (seed-pin 0x4f5347, same nav): RNG matches port==retail EXACT at every boot anchor +
+  through tick 40; the port draws RNG only in the town then **FLATLINES** (1271 distinct states,
+  house/errands RNG-FREE), while retail draws **CONTINUOUSLY** (2602 states through t3000, no gaps) —
+  the port's `actor_spawn_from_map` (errands char band) never calls `rng_rand`, and the family use a
+  hardcoded `ERRANDS_CAST.clip_phase`, so the port SKIPS the whole `0x431e30`→`0x426ec0` per-actor
+  spawn burst (`431e30:745`) + the house/errands per-tick draws.  **CONFOUND:** the retail capture ran
+  lockstep (per-FLIP emit batches sim-ticks) — the census must emit per SIM-TICK (hook the easer
+  `0x43d1d0` in the proxy) to cleanly localize; this is the unblock.  Fix path = model the errands
+  spawn RNG order (the errands analogue of quirk #86), then the family phase DERIVES.
+  `findings/errands-rng-census.md`.
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
