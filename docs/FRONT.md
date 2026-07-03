@@ -152,12 +152,32 @@
   LOW = layer 6, not the ex-L13's ~518); osr_prof recon @t2040 **PIXEL-IDENTICAL** to retail (fire glows
   behind the grate+mantel; feed `ckpt185 fire PORT | RETAIL`).  ERRANDS_CAST → 3 (family+counter). 1097
   host pass.  `errands-render-gaps.md §11`.  **USER: feed `ckpt185 fire PORT | RETAIL` — proper fireplace.**
-- **Next move (finish the errands un-MVP, session by session):** (1) DONE ckpt 184 (clock/pot).  (2) DONE
-  ckpt 185 (fire, L6 additive).  (3) the FAMILY (Father/Mother) + counter (0x112d2) via the party band
-  0x4997b0 (`cutscene-party-chars`) — the LAST ERRANDS_CAST members + a Phase-3 subsystem (leader path +
-  multi-part body + the 0x402730/0x402330 movers), bigger than the prop chips; (4) the −6t entry latency
-  (`cutscene-errands-entry-latency` — measure the house→errands cover/reveal envelope, do NOT curve-fit);
-  (5) the HUD party-context (blocked on the party subsystem).  THEN the older items below:
+- **Landed ckpt 186 — the errands PARENTS are CHARACTER-band NPCs (NOT party-band); Father's Z-ORDER FIXED.**
+  The retail-stairs CLAMP seq (t2420) DISPROVES the "family blocked on the party band 0x4997b0" model: the
+  PARENTS (Father 0xe3 res1139 / Mother 0xb5 res1127) render in the CHARACTER band (0x1160 pool,
+  `0x48c150:89-96` → `0x493ba0` param_3=0, interleaved with the shop props by SLOT-INDEX) — retail draws
+  FATHER EARLY (#257, BEHIND the L8-structure floor items res1026 fr48/fr51 + the counter he overlaps),
+  counter #287, Mother #289; only ARCHE (leader, +0x200c) is party-band (#290, `0x4997b0` param_2=1).  The
+  port had the whole family at L13/frontmost (the ckpt-180b over-correction) → Father drew his legs OVER the
+  floor items.  FIX: Father's ERRANDS_CAST layer 13→**7** (below the L8-structure floor-items he overlaps;
+  L8 didn't clear them — g_room_cast emits after g_structs — which PROVES they're L8).  VERIFIED off
+  `port-fatherz.osr`: Father seq #263 now BEFORE res1026 fr48/fr51 (#279/#282) + the counter (#315) == retail's
+  Father-behind order; clean placement (#258-261 L5 shelf-backs → #262 L6 fire → #263 Father L7 → #265+ L8/L9).
+  counter + Arche already bit-exact; Mother/Father anim-PHASE (fr0 vs fr2 / fr5 vs fr6) stays RNG-blocked
+  (`effect-anim-phase`/0x426ec0).  1097 host pass; town/house use no ERRANDS_CAST (no regress).  Provenance:
+  the parents are persistent handles 0x5f5e1d3/1d4 placed by the errands script (0x4dc510 case-7/8 → 0x41ec20),
+  so the retire path is that SCENE-SCRIPT spawn, NOT the party band.  `errands-render-gaps.md §13`.  **USER:
+  studio the clamp (`port-fatherz | retail-stairs`, walk NOT cam-aligned — z-order is): Father's legs now sit
+  BEHIND the little floor items + the counter.**
+- **Next move (finish the errands un-MVP, session by session):** (1)(2) DONE ckpt 184/185 (clock/pot, fire).
+  (3) **RESCOPED by ckpt 186** — the errands PARENTS are character-band NPCs (z-order now fixed); the LAST
+  errands stand-ins are the parents' anim-PHASE (RNG-blocked, `effect-anim-phase`/0x426ec0 — needs the scene
+  RNG census, Phase 2) + their POSITION provenance (the `0x41ec20` scene-script spawn stand-in).  Only
+  ARCHE-as-leader + her multi-part body still need the party band `0x4997b0` (`cutscene-party-chars`; leader
+  path + `0x402730/0x402330` movers) — Arche is already the freeroam char, so this is provenance, not a
+  visible gap.  (4) the −6t entry latency (`cutscene-errands-entry-latency` — measure the house→errands
+  cover/reveal envelope, do NOT curve-fit); (5) the HUD party-context (blocked on the party subsystem).
+  THEN the older items below:
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
   port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY

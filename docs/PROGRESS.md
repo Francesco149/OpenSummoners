@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 186) — the errands PARENTS are CHARACTER-band NPCs (not party-band); Father's Z-ORDER fixed
+
+- **Model correction, off the retail-stairs CLAMP draw seq (t2420).**  The FRONT + §12 had the
+  errands FAMILY "blocked on the party band 0x4997b0 (a Phase-3 subsystem)".  The retail draw
+  ORDER disproves it: the PARENTS render in the CHARACTER band (the 0x1160 pool, `0x48c150:89-96`
+  → `0x493ba0(0,slot,0)` param_3=0 — the SAME band as the shop props), interleaved by SLOT index.
+  Retail seq: **Father #257** (EARLY, among the props), counter #287, Mother #289.  Only **ARCHE**
+  (the leader, room_state+0x200c) is party-band (#290, `0x4997b0` param_2=1, rendered after the
+  character band).  Decompile confirms: the parents are persistent handles 0x5f5e1d3/1d4 placed by
+  the errands script `0x4dc510` case-7/8 via `0x41ec20(handle,0x65,worldX,0,facing)`; the `+0x4030`
+  party-slot loop is Arche/leader bookkeeping (checks `!= 0x5f5e168`), not parent placement.
+
+- **Father's Z-ORDER FIXED (1 field: ERRANDS_CAST layer 13→7).**  Retail draws Father EARLY, so the
+  floor items **res1026 fr48 @(24,400)** / **fr51 @(28,444)** (his own res1026 clutter) + the counter
+  occlude him; the port had the whole family at L13/frontmost (the ckpt-180b over-correction, which
+  fixed Mom-over-the-chair but wrongly pulled Father to the front) → Father's legs drew OVER the
+  floor items.  The floor items are modeled in the port's STRUCTURE band at **L8** (interleaved with
+  the L8 pile) — a first fix at L8 did NOT clear them (g_room_cast emits after g_structs), which
+  proved they're L8; **L7** puts Father below.  VERIFIED off `port-fatherz.osr`: Father seq **#263**
+  now BEFORE res1026 fr48/fr51 (#279/#282) + the counter (#315) == retail's Father-behind order;
+  clean placement (#258-261 L5 shelf-backs → #262 L6 fire → #263 Father L7 → #265+ L8/L9/L13).
+
+- counter + Arche were already bit-exact @ the clamp; the parents' anim-PHASE (Father fr5 vs retail
+  fr6, Mother fr0 vs fr2) stays RNG-blocked (`effect-anim-phase` / 0x426ec0's `rs+0x72 =
+  (rand()*count)>>15` idle start-frame — needs the scene RNG census, Phase 2).  **The parents are
+  NOT blocked on the party band** — their retire path is the errands scene-script spawn (0x41ec20);
+  only ARCHE-as-leader + her multi-part body need 0x4997b0.  1097 host pass; town/house use no
+  ERRANDS_CAST (no regression).  `findings/errands-render-gaps.md §13`.
+
 ## 2026-07-03 (ckpt 185) — the additive fireplace FIRE is MAP-DRIVEN at LAYER 6: retire its ERRANDS_CAST capture
 
 - **Continuing the errands un-MVP.**  The fireplace FIRE (0x112e4, res1034) was the last ANIMATED

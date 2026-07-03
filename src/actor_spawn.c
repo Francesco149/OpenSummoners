@@ -1001,13 +1001,31 @@ static const struct room_cast_member ERRANDS_CAST[] = {
      *     counter's z rides WITH the family (in front of Father), so it stays here.
      * The map band spawns 0x112d2 as an INVISIBLE volume (not in CHAR_BANK_DEFS), so
      * there is no double-draw.  World = the map layer pos (X*100, Y*100). */
-    /* The persistent FAMILY (people) + counter, spawned LAST (layer 13 -> draw order =
-     * array order): every prop draws THEN the family (Mom frontmost, retail seq t2500).
-     * The counter stays AFTER Father (drawn IN FRONT of him). */
+    /* The persistent FAMILY (people) + counter.  CORRECTED z-order model (ckpt 186,
+     * off the retail-stairs clamp t2420 draw seq): the family are CHARACTER-band NPCs
+     * (0x1160 pool, 0x493ba0 param_3=0 — NOT the party band 0x4997b0; only ARCHE the
+     * leader is party-band, seq #290).  Rendered by SLOT-INDEX order, so retail draws
+     *   FATHER  #257  (EARLY, interleaved among the shop props — BEHIND everything he
+     *                  overlaps: the L9 floor items res1026 fr48/fr51 @24,400/28,444 sit
+     *                  IN FRONT of his legs, and the L13 counter in front of his torso),
+     *   counter #287  (in FRONT of Father),  MOTHER #289  (frontmost, over the chair).
+     * So Father is NOT a frontmost L13 member (the ckpt-180b "family block at L13" over-
+     * corrected him — it fixed Mom-over-chair but wrongly pulled Father to the front).
+     * Father -> layer 7 (the props he OVERLAPS are the floor items res1026 fr48/fr51 —
+     * the port models them in the STRUCTURE band at L8, interleaved with the L8 pile —
+     * plus the L13 counter; so Father must sit BELOW L8: L7 draws before the L8 structs
+     * (room_cast emits AFTER structs, so L8 wouldn't clear them) and before the L9/L13
+     * character band + counter.  He is in front of the L5/L6 shelf-backs/fire he does NOT
+     * overlap.  Verified off port-fatherz.osr @t2420: Father #<seq> now BEFORE res1026
+     * fr48/fr51 + the counter.  Mother/counter keep L13 (Mom over the chair res1027 fr5;
+     * counter over Father).
+     * PORT-DEBT(cutscene-party-chars): positions are still the captured stand-in for the
+     * errands scene-script spawn (0x4dc510 case-7/8, 0x41ec20 placing the persistent
+     * handles 0x5f5e1d3/1d4) — but the family are character-band, NOT party-band. */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
-    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
-    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
-    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */
+    { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 7, 0 }, /* Father res 0x473 @480,320 — L7, behind the L8 structure floor-items he overlaps */
+    { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (L13, IN FRONT of Father) */
+    { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 (L13, frontmost over the chair) */
 };
 
 int actor_spawn_room_cast(actor_spawn_pool *pool, uint32_t room_key)

@@ -529,6 +529,64 @@ the frames match (both fr3 @t2423).  So it is NOT a wrong pose/clip; it is an an
 same class as the −6t errands-entry latency (`cutscene-errands-entry-latency`) + the family clip_phase
 seed.  It will resolve when the family's phase is driven by the party band, not by fixing a frame here.
 
+## 13. The family are CHARACTER-band NPCs, NOT party-band — Father's z-order FIXED (ckpt 186)
+
+**Corrects the ckpt-180b/183/185/§12 model.**  The FRONT + §12 said the errands FAMILY
+(Father 0xe3 / Mother 0xb5 / Dad's counter 0x112d2) are "party-band entities blocked on
+0x4997b0".  The **retail-stairs CLAMP draw seq (t2420)** DISPROVES that: the parents render
+in the CHARACTER band (the 0x1160 pool, `0x48c150:89-96` → `0x493ba0(0,slot,0)` param_3=0 —
+the SAME band as the shop props), interleaved with the props by SLOT-INDEX order.  Only
+ARCHE (the leader, room_state+0x200c) is party-band (`0x48c150:99-106` → `0x4997b0` param_2=1,
+rendered AFTER the character band).
+
+**Ground truth — retail-stairs.osr @ t2420 (both cameras pinned at the right-edge clamp):**
+
+| entity            | retail seq | port (pre-fix) | dst          | frame (R/port) | status |
+|-------------------|-----------:|---------------:|--------------|----------------|--------|
+| Father  res1139   | **#257**   | #288           | (32,392)     | fr6 / fr5      | pos exact; **Z-ORDER wrong** + anim-phase |
+| counter res1023f6 | #287       | #289           | (8,360)      | fr6 / fr6      | **bit-exact** |
+| Mother  res1127   | #289       | #290           | (176,200)    | fr2 / fr0      | pos exact; anim-phase |
+| Arche   res1392   | #290       | #291           | (398,248)    | fr13 / fr13    | **bit-exact** (leader) |
+
+Retail draws **Father EARLY (#257)** — right after the shelf-backs/cabinets (#250-256) and
+BEFORE the res1026 floor items — so everything he overlaps sits IN FRONT of him: the two
+floor items **res1026 fr48 @(24,400)** (retail #269) and **fr51 @(28,444)** (#270) occlude
+his legs, and the counter (#287) his torso.  The port put the whole family at L13/frontmost
+(the ckpt-180b "family block after the props" over-correction — it fixed Mom-over-the-chair
+but wrongly pulled FATHER to the front), so the port drew Father's legs OVER the two floor
+items.
+
+**FIX (1 field): Father's ERRANDS_CAST layer 0 (→13) → 7.**  The two floor items he overlaps
+are modeled in the port's STRUCTURE band at **L8** (interleaved with the L8 upstairs pile, §8)
+— NOT L9 — so Father must sit BELOW L8.  A first attempt at L8 did NOT clear them (g_room_cast
+emits AFTER g_structs, so an L8 Father still draws over the L8 structs — which *confirms* the
+floor items are L8-structure); **L7** draws before the L8 structs and before the L9 character
+band + the L13 counter, and after the L5/L6 shelf-backs/fire he does NOT overlap.  Mother +
+counter keep L13 (Mom over the chair res1027 fr5 @184,232; counter over Father).
+
+**VERIFIED off `port-fatherz.osr` (Father-visible tick, camera-independent z-order):** Father
+now emits at **seq #263 — BEFORE** res1026 fr48 (#279) / fr51 (#282) / the counter (#315) —
+so the floor items + counter draw over him, matching retail's Father-behind ordering (#257 <
+#269/#270/#287).  Placement is clean: #258-261 L5 shelf-backs → #262 L6 fire → **#263 Father
+(L7)** → #265+ L8 structure → L9 characters → L13 counter.  1097 host pass; town/house use no
+ERRANDS_CAST (no regression by construction).
+
+**Spawn provenance (decompile, `0x4dc510` case-7/8):** the parents are PERSISTENT handle
+entities `0x5f5e1d3` (Father) / `0x5f5e1d4` (Mother), created in the arrival cutscene and
+positioned by the errands script via `0x41ec20(handle, 0x65, worldX, 0, facing)` (Father
+worldX -4000/fac1, Mother +4000/fac3, relative to anchor 0x65).  The `+0x4030` party-slot loop
+at `0x4dc510:1390` iterates 8 slots checking `!= 0x5f5e168` (Arche/leader) — LEADER bookkeeping,
+NOT parent placement.  So the retire path for PORT-DEBT(cutscene-party-chars) (parents) is the
+errands SCENE-SCRIPT spawn (0x41ec20 handle placement); **the parents are NOT blocked on the
+party band 0x4997b0** — only ARCHE-as-leader + her multi-part body are.
+
+**Remaining residuals (unchanged, RNG-blocked):** the anim-PHASE — Father fr5 vs retail fr6,
+Mother fr0 vs fr2 (the idle-breathe clips 0x62a8c8 loop, but the per-actor START frame is
+`0x426ec0`'s RNG draw `rs+0x72 = (rand()*frame_count)>>15`, the `effect-anim-phase` pattern —
+needs the scene RNG census, Phase 2).  The character-band SLOT-order interleave is modeled by
+port LAYERS (not reproduced slot-for-slot); it is visually exact wherever draws overlap and
+invisible where they don't.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
