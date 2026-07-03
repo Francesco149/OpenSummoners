@@ -4,6 +4,7 @@
  * render its own sheet instead of the archetype's generic townsperson default).
  */
 #include "party.h"
+#include "base_stat_table.h"
 
 #include <stddef.h>
 
@@ -137,4 +138,139 @@ int party_resolve_spawn(uint32_t handle, uint32_t code_in, int facing_sel,
     if (code_out) *code_out = code;
     if (bank_out) *bank_out = bank;
     return (bank != 0);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Party band Phase 2 — the party-member stat accessors (see party.h).
+ * Ported bit-for-bit from FUN_00494e60 (the reads) + FUN_00497b40/00497bb0 (the
+ * displayed-number path).  NB retail's number helper uses the RAW 3-term sum for
+ * the interpolation but max(1,sum) for the ratio comparison — both preserved.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* 494e60:109 — the displayed MAX HP = *(+0x9c)+*(+0x84)+*(+0x58) (raw sum, no
+ * clamp: what "%s / %d" prints as the max). */
+int party_stat_hp_max(const party_stats *s)
+{
+    return s->hp_base + s->hp_equip + s->hp_buff;
+}
+
+/* 494e60:116 — MAX MP = *(+0xa0)+*(+0x88)+*(+0x60). */
+int party_stat_mp_max(const party_stats *s)
+{
+    return s->mp_base + s->mp_equip + s->mp_buff;
+}
+
+/* cur*1000/max(1,sum), clamped [0,1000] — the animator's (0x49af40) target ratio
+ * (e.g. 49af40:42 `(*(+0x54)*1000)/max(1,sum)`). */
+static int party_ratio(int cur, int sum)
+{
+    int denom = sum < 1 ? 1 : sum;
+    int r = (cur * 1000) / denom;
+    if (r < 0) r = 0;
+    if (r > 1000) r = 1000;
+    return r;
+}
+
+int party_stat_hp_ratio(const party_stats *s)
+{
+    return party_ratio(s->hp_cur, party_stat_hp_max(s));
+}
+
+int party_stat_mp_ratio(const party_stats *s)
+{
+    return party_ratio(s->mp_cur, party_stat_mp_max(s));
+}
+
+/* FUN_00497b40 — displayed CURRENT HP: exact cur when `ratio` matches the true
+ * cur ratio, else the interpolated (raw_sum*ratio)/1000. */
+int party_stat_hp_display(const party_stats *s, int ratio)
+{
+    int sum = party_stat_hp_max(s);          /* iVar1 (raw) */
+    int denom = sum < 1 ? 1 : sum;           /* iVar2 */
+    if (ratio == (s->hp_cur * 1000) / denom)
+        return s->hp_cur;
+    return (sum * ratio) / 1000;
+}
+
+/* FUN_00497bb0 — displayed CURRENT MP (the MP-field mirror of 497b40). */
+int party_stat_mp_display(const party_stats *s, int ratio)
+{
+    int sum = party_stat_mp_max(s);
+    int denom = sum < 1 ? 1 : sum;
+    if (ratio == (s->mp_cur * 1000) / denom)
+        return s->mp_cur;
+    return (sum * ratio) / 1000;
+}
+
+/* 494e60:123 — level = *(+0xe0) + *(+0xd8). */
+int party_stat_level(const party_stats *s)
+{
+    return s->level_base + s->level_bonus;
+}
+
+/* The leader member (room+0x200c), or NULL when there is no active leader —
+ * matching retail's slot gate (active==1 && handle != the empty sentinel). */
+const party_member *party_leader(const party *p)
+{
+    if (p->leader < 0 || p->leader >= PARTY_SLOT_COUNT)
+        return NULL;
+    const party_member *m = &p->slots[p->leader];
+    if (!m->active || m->handle == 0 || m->handle == PARTY_HANDLE_EMPTY)
+        return NULL;
+    return m;
+}
+
+/* FUN_00426fd0's (code,level) row select (426fd0:20-34): the first row whose
+ * code matches and (level matches OR level==0), else the fallback row 0. */
+const base_stat_row *base_stat_find(uint32_t code, int level)
+{
+    for (size_t i = 0; i < BASE_STAT_TABLE_COUNT; i++)
+        if (BASE_STAT_TABLE[i].code == code &&
+            (BASE_STAT_TABLE[i].level == level || level == 0))
+            return &BASE_STAT_TABLE[i];
+    return &BASE_STAT_TABLE[0];       /* retail: puVar8 = &DAT_0067ac58 (row 0) */
+}
+
+/* FUN_00426fd0 — the +0x750 field writes the HUD leader panel reads (the RPG
+ * combat fields +0x64..+0x70 and the growth/RNG fields are not modelled here;
+ * this is the HUD-read subset). */
+void party_stats_init(party_stats *s, uint32_t code, int level)
+{
+    const base_stat_row *r = base_stat_find(code, level);
+    /* 426fd0:167-172 — HP/MP base(+0x58/+0x60) = cur(+0x54/+0x5c) = the table max;
+     * :119-166 clear the equip(+0x84/+0x88) and mod(+0x9c/+0xa0) terms. */
+    s->hp_cur  = s->hp_base = r->hp;
+    s->hp_equip = s->hp_buff = 0;
+    s->mp_cur  = s->mp_base = r->mp;
+    s->mp_equip = s->mp_buff = 0;
+    /* 426fd0:109 level_base(+0xe0) = row.level; :101-108 clear +0xd8/+0xdc
+     * (level_bonus + element/star_count). */
+    s->level_base  = r->level;
+    s->level_bonus = 0;
+    s->star_count  = 0;
+    /* 426fd0:96-100 EXP cur(+0xe8) = 0, max(+0xec) = row.exp_max. */
+    s->exp_cur = 0;
+    s->exp_max = r->exp_max;
+}
+
+void party_init_errands(party *p)
+{
+    for (int i = 0; i < PARTY_SLOT_COUNT; i++)
+        p->slots[i] = (party_member){0};
+    p->leader = -1;
+
+    /* slot 0 = Arche, the lone errands party member + leader.  Retail
+     * FUN_004cc820(slot 0, code 0, level 1, handle 0x5f5e165, element 2, active 1)
+     * resolves code 0 from the handle (0x5f5e165 -> dramatist code 0xc35a). */
+    const party_dramatist_row *arche = party_dramatist_find(0x5f5e165u);
+    uint32_t code = (arche != NULL) ? arche->code : 0xc35au;
+    p->slots[0].handle = 0x5f5e165u;
+    p->slots[0].active = 1;
+    party_stats_init(&p->slots[0].stats, code, 1);
+    /* PORT-DEBT(hud-party-context): the element-star COUNT (+0xdc) is set by the
+     * equip subsystem (FUN_004f19e0), NOT the base table (426fd0 clears it) — so
+     * Arche's 2 errands stars (her starting elemental stone) stay a stand-in
+     * until that subsystem lands.  HP/MP/level/EXP are now real. */
+    p->slots[0].stats.star_count = 2;
+    p->leader = 0;
 }

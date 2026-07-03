@@ -211,6 +211,20 @@
   == retail t1224; top darkens first), the reveal is edges-in (center last).  1097 host pass;
   `errands-render-gaps.md §14d.2`.  **USER: feed `ahfix_cmp.png` (port|retail cover+reveal) — the
   arrival darkens top-down, the house opens edges-in == retail.**
+- **Landed ckpt 189 — the freeroam HUD leader panel is REAL PARTY DATA (party band Phase 2, slice A).**
+  A real `party` (`room+0x4030` 8 slots + leader, `src/party.{c,h}`) now holds Arche (slot 0, handle
+  0x5f5e165); her HP 100/100, MP 20/20, Lv 1, EXP 0/250 DERIVE from the retail base-stat table
+  `DAT_0067ac58` — `FUN_00426fd0` ported (`party_stats_init`) + the generated `base_stat_table.c`
+  (`tools/dump_stat_table.py`, Arche's lvl-1 row BYTE-PROVEN: HP 100/MP 20/EXP 250/name "Arche").
+  `game_render_hud` reads `party_leader(&g_party)` (+ `party_stat_hp_max/mp_max/hp_display/level` =
+  the 497b40/497bb0/494e60 formulas) instead of the hardcoded HP/MP/level/EXP — RETIRES those
+  `hud-party-context` stand-ins (render bit-IDENTICAL by construction: same values, blits untouched;
+  +7 host tests, 1104 pass).  STILL stand-ins (narrowed, not retired): element-star COUNT (2 — the
+  equip subsystem `FUN_004f19e0` sets `stats+0xdc`, NOT the base table which clears it), the item-bar
+  6 ICON frames (room fields), the PORTRAIT (leader-match `hud_ctx+0x1b4`=0 in scripted replay,
+  `freeroam-hud.md §7`).  `docs/plans/party-band-phase2-hud-data.md`.  **USER: optional studio check —
+  the errands HUD panel (HP/MP bars, "100 / 100", "20 / 20", Lv 1, 2 stars) should be pixel-identical
+  to before; the values are now real-sourced.**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
@@ -242,7 +256,9 @@
   visible gap.  (4) **DONE ckpt 188 — the errands entry reveal is EDGES-IN, not center-out;
   `cutscene-errands-entry-latency` RETIRED (the "−6t = a skipped ~9t hold" was a MISDIAGNOSIS — no
   such hold; the real bug was the reveal SHAPE, see the ckpt-188 bullet above).**  (5) the HUD
-  party-context (blocked on the party subsystem).
+  party-context — **slice A DONE ckpt 189** (HP/MP/level/EXP now real party data via the base-stat
+  table; `party.c`).  Remaining: the element-star COUNT (equip subsystem `FUN_004f19e0`), the item-bar
+  6 ICON frames (`room+0x4050..` fields), the PORTRAIT (leader-match `+0x1b4`, replay-blocked).
   THEN the older items below:
   (a2') **errands entry — RESOLVED ckpt 188 (the "−6t 9t-hold" was a misdiagnosis).**  A fresh
   retail-stairs pixel measurement DISPROVES the ckpt-187 "insert a ~9t black-hold" plan: retail's

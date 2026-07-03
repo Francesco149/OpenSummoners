@@ -95,4 +95,85 @@ uint16_t party_archetype_default_bank(uint32_t code, int facing_sel);
 int party_resolve_spawn(uint32_t handle, uint32_t code_in, int facing_sel,
                         uint32_t *code_out, uint16_t *bank_out);
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * Party band Phase 2 — the party-member STAT record + the room+0x4030 slots.
+ *
+ * The freeroam HUD (FUN_00494e60; src/hud.c + main.c game_render_hud) reads the
+ * leader's HP/MP/level/element-stars/EXP from the member's stat block at
+ * member+0x750.  `party_stats` models the SUBSET of that block the HUD reads
+ * (RE'd off 494e60 + the number helpers 497b40/497bb0/496970 + the star drawer
+ * 498620; full contract in docs/plans/party-band-phase2-hud-data.md).  Field
+ * comments are byte offsets relative to member+0x750.  Retires the leader-panel
+ * half of PORT-DEBT(hud-party-context): the values come from a real member
+ * record populated from the character's level def, not the hardcoded 100/20/1
+ * HUD_*_VALUE stand-ins.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+typedef struct party_stats {
+    int32_t hp_cur;                       /* +0x54 — current HP                 */
+    int32_t hp_base, hp_equip, hp_buff;   /* +0x58 / +0x84 / +0x9c (max = sum)  */
+    int32_t mp_cur;                       /* +0x5c — current MP                 */
+    int32_t mp_base, mp_equip, mp_buff;   /* +0x60 / +0x88 / +0xa0 (max = sum)  */
+    int32_t level_base;                   /* +0xe0                              */
+    int32_t level_bonus;                  /* +0xd8 (level = base + bonus)        */
+    int32_t star_count;                   /* +0xdc — element-affinity star count */
+    int32_t exp_cur, exp_max;             /* +0xe8 / +0xec                      */
+} party_stats;
+
+/* max HP/MP = the 3 summed terms (494e60:109/116; 497b40/497bb0); clamped >= 0. */
+int party_stat_hp_max(const party_stats *s);
+int party_stat_mp_max(const party_stats *s);
+
+/* The settled HP/MP ratio = cur*1000/max(1,max), clamped [0,1000] — the value
+ * retail's animator (0x49af40) lerps toward.  At full HP (the errands, no
+ * combat) it IS this value with no transient, so the port computes it directly. */
+int party_stat_hp_ratio(const party_stats *s);
+int party_stat_mp_ratio(const party_stats *s);
+
+/* The displayed CURRENT HP/MP number (port of 0x497b40 / 0x497bb0): when `ratio`
+ * equals the true cur ratio return the exact cur, else the interpolated
+ * max*ratio/1000 (the mid-lerp readout).  Faithful to retail's number path. */
+int party_stat_hp_display(const party_stats *s, int ratio);
+int party_stat_mp_display(const party_stats *s, int ratio);
+
+/* level = level_base + level_bonus (494e60:123). */
+int party_stat_level(const party_stats *s);
+
+/* ── the room+0x4030 party (8 slots + leader) ──────────────────────────────
+ * The retail slot (operator_new(0xeec)) carries active +0x9c4, handle +0x9f0,
+ * and a member ptr +0x9f4 -> the member entity (whose +0x750 is the stats).
+ * The port collapses that slot->member indirection into an inline member (the
+ * slot IS the container here); active==0 / handle==0 marks an empty slot
+ * (retail's gate: active==1 && handle != the empty sentinel 0x5f5e168). */
+#define PARTY_SLOT_COUNT     8
+#define PARTY_HANDLE_EMPTY   0x5f5e168u   /* the "no member" sentinel (4961a0)   */
+
+typedef struct party_member {
+    uint32_t    handle;    /* slot +0x9f0 — the dramatist handle (0 = empty)    */
+    int         active;    /* slot +0x9c4 == 1                                  */
+    party_stats stats;     /* member+0x750 (the HUD-read subset)                */
+} party_member;
+
+typedef struct party {
+    party_member slots[PARTY_SLOT_COUNT]; /* room+0x4030..+0x404c              */
+    int          leader;   /* index of room+0x200c's member; -1 = none          */
+} party;
+
+/* The leader member, or NULL when there is no active leader. */
+const party_member *party_leader(const party *p);
+
+/* Port of FUN_00426fd0 — fill a member's stats from the (code, level) base-stat
+ * table row (base_stat_find, base_stat_table.h).  Sets HP/MP base = cur = row
+ * HP/MP (equip/buff terms 0), level_base = row.level (bonus 0), exp_cur = 0,
+ * exp_max = row.exp_max, and CLEARS element/star_count (retail 426fd0:101-108
+ * zeroes +0xd8/+0xdc — those are set later by the equip subsystem, NOT the base
+ * table). */
+void party_stats_init(party_stats *s, uint32_t code, int level);
+
+/* Populate `p` for the errands freeroam: Arche (dramatist handle 0x5f5e165 ->
+ * code 0xc35a) as the lone level-1 leader in slot 0, her stats from the base-stat
+ * table.  Mirrors retail's persistent-party create (FUN_004cc820(0, code 0, lvl 1,
+ * handle 0x5f5e165, element 2, active 1) in the FUN_004e59a0 story dispatch). */
+void party_init_errands(party *p);
+
 #endif /* OSS_PARTY_H */

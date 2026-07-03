@@ -6,17 +6,17 @@
   "non_thunk_functions": 1758,
   "engine_proper_functions": 1490,
   "library_tail_functions": 268,
-  "tested": 222,
+  "tested": 228,
   "ported": 5,
-  "unported": 1531,
+  "unported": 1525,
   "orphan_refs_not_in_function_table": 4,
-  "touched": 227,
-  "pct_touched": 14.4,
-  "pct_tested": 14.4,
-  "engine_proper_touched": 214,
+  "touched": 233,
+  "pct_touched": 14.8,
+  "pct_tested": 14.8,
+  "engine_proper_touched": 220,
   "bytes_total": 1694868,
-  "bytes_touched": 253081,
-  "pct_bytes_touched": 14.9
+  "bytes_touched": 276679,
+  "pct_bytes_touched": 16.3
  },
  "orphan_refs": [
   "0x56c470",
@@ -2239,8 +2239,13 @@
    "name": "FUN_00426fd0",
    "size": 781,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/base_stat_table.c",
+    "src/base_stat_table.h",
+    "src/party.c",
+    "src/party.h"
+   ]
   },
   {
    "va": "0x4272e0",
@@ -5911,8 +5916,11 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/base_stat_table.h",
     "src/hud.c",
-    "src/hud.h"
+    "src/hud.h",
+    "src/party.c",
+    "src/party.h"
    ]
   },
   {
@@ -6056,16 +6064,20 @@
    "name": "FUN_00497b40",
    "size": 98,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/party.c"
+   ]
   },
   {
    "va": "0x497bb0",
    "name": "FUN_00497bb0",
    "size": 98,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/party.c"
+   ]
   },
   {
    "va": "0x497c20",
@@ -7065,8 +7077,11 @@
    "name": "FUN_004cc820",
    "size": 508,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/party.c",
+    "src/party.h"
+   ]
   },
   {
    "va": "0x4cca20",
@@ -7201,8 +7216,10 @@
    "name": "FUN_004e59a0",
    "size": 1676,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/party.h"
+   ]
   },
   {
    "va": "0x4e6030",
@@ -7321,8 +7338,10 @@
    "name": "FUN_004f19e0",
    "size": 20437,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/party.c"
+   ]
   },
   {
    "va": "0x4f69c0",

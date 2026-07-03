@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
 - library tail (MSVC CRT, linked not ported): 268
 - non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **227** (14.4% of engine-proper) — tested 222, ported 5
-- code bytes touched: **14.9%** (253,081 / 1,694,868 B of engine-proper)
-- unported: **1531**
+- touched: **233** (14.8% of engine-proper) — tested 228, ported 5
+- code bytes touched: **16.3%** (276,679 / 1,694,868 B of engine-proper)
+- unported: **1525**
 - orphan refs in src/ not in this table: 4
 
-## tested (222) — ported + host unit suite
+## tested (228) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -54,6 +54,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x426f50 | FUN_00426f50 | 26 | character.c |
+| 0x426fd0 | FUN_00426fd0 | 781 | base_stat_table.c, base_stat_table.h, party.c (+1) |
 | 0x43b980 | FUN_0043b980 | 783 | cutscene.c, dialogue.h |
 | 0x43bca0 | FUN_0043bca0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
 | 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h (+1) |
@@ -86,9 +87,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
 | 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
-| 0x494e60 | FUN_00494e60 | 3904 | hud.c, hud.h |
+| 0x494e60 | FUN_00494e60 | 3904 | base_stat_table.h, hud.c, hud.h (+2) |
 | 0x4962a0 | FUN_004962a0 | 242 | hud.c, hud.h, main.c |
 | 0x4969b0 | FUN_004969b0 | 1272 | hud.c, hud.h, main.c |
+| 0x497b40 | FUN_00497b40 | 98 | party.c |
+| 0x497bb0 | FUN_00497bb0 | 98 | party.c |
 | 0x498620 | FUN_00498620 | 82 | hud.h, main.c |
 | 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
 | 0x498f10 | FUN_00498f10 | 344 | hud.h, main.c |
@@ -100,6 +103,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49aae0 | FUN_0049aae0 | 234 | scene_fade.c, scene_fade.h |
 | 0x49c640 | FUN_0049c640 | 720 | dialogue.c |
 | 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
+| 0x4cc820 | FUN_004cc820 | 508 | party.c, party.h |
+| 0x4e59a0 | FUN_004e59a0 | 1676 | party.h |
+| 0x4f19e0 | FUN_004f19e0 | 20437 | party.c |
 | 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
 | 0x54db10 | FUN_0054db10 | 946 | collision.c, collision.h |
 | 0x54ded0 | FUN_0054ded0 | 1555 | collision.c, collision.h |

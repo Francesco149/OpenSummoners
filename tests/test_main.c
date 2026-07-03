@@ -1105,6 +1105,13 @@ struct test_case {
     X(party_dramatist_find)                                    \
     X(party_archetype_default_bank)                            \
     X(party_resolve_arrival_cast)                              \
+    X(party_stat_maxes)                                        \
+    X(party_stat_ratio_and_display)                            \
+    X(party_stat_level)                                        \
+    X(party_leader_gate)                                       \
+    X(party_base_stat_find)                                    \
+    X(party_stats_init_arche)                                  \
+    X(party_init_errands)                                      \
     X(banner_arm)                                              \
     X(banner_fade_in)                                          \
     X(banner_hold_then_fade)                                   \

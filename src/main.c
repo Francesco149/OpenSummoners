@@ -90,6 +90,7 @@
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
 #include "hud.h"              /* the freeroam status HUD (0x494e60 leader panel) */
+#include "party.h"            /* the party band (room+0x4030 slots -> HUD stats) */
 #include "cutscene.h"         /* the town-arrival dialogue sequence (0x4d7d80 case 0x334be) */
 #include "exe_strings.h"      /* story text read from the user's sotes.exe by VA */
 #include "osr_recon.h"        /* --osr-replay: reconstruct frames from a .osr (M4) */
@@ -254,6 +255,10 @@ static character          g_freeroam_char;
 static actor              g_freeroam_actor;
 static actor_render_state g_freeroam_rs;
 static int                g_freeroam_active;
+/* The freeroam party (room+0x4030 8 slots + leader): Arche in slot 0, her stats
+ * from the real base-stat table.  The HUD leader panel reads its values instead
+ * of the ex-hud-party-context constants.  Inited at freeroam_begin. */
+static party              g_party;
 static int                g_hud_slide_prog;   /* the HUD panel slide-in 0..1000 (hud.h) */
 static int                g_hud_item_slide_prog; /* the item-bar's OWN slide-in 0..1000 (hud.h) */
 static int                g_hud_ctrl_was_locked = 1; /* prev control-lock state (arm the slide on hand-off) */
@@ -2838,12 +2843,24 @@ static void game_render_hud(void)
     if (g_zdd == NULL || g_zdd->primary_obj == NULL)
         return;
 
-    /* PORT-DEBT(hud-party-context): the errands leader (Arche) stand-in values.
+    /* The leader (Arche) = the room+0x4030 party's leader slot.  HP / MP / level /
+     * element / EXP now derive from her real base-stat record (party.c, the
+     * DAT_0067ac58 table) — retiring the hud-party-context stand-in for those
+     * VALUES; only the element-star COUNT + the item-bar/portrait/door stay
+     * debted.  Retail gates the whole panel on hud_ctx+0x1b4 (a present leader);
+     * the port's freeroam leader is always Arche, so party_leader is non-NULL.
      * The panel x-base rides the live slide-in progress (g_hud_slide_prog 0->1000
      * -> xbase -351..1); negative-x blits clip on the primary's clipper. */
-    const int hp_ratio = 1000, mp_ratio = 1000;      /* 0..1000 (full)          */
-    const int hp_cur = 100, hp_max = 100;
-    const int mp_cur = 20,  mp_max = 20;
+    const party_member *leader = party_leader(&g_party);
+    if (leader == NULL)
+        return;
+    const party_stats *st = &leader->stats;
+    const int hp_max   = party_stat_hp_max(st);
+    const int mp_max   = party_stat_mp_max(st);
+    const int hp_ratio = party_stat_hp_ratio(st);    /* settled = cur*1000/max   */
+    const int mp_ratio = party_stat_mp_ratio(st);
+    const int hp_cur   = party_stat_hp_display(st, hp_ratio);   /* 0x497b40      */
+    const int mp_cur   = party_stat_mp_display(st, mp_ratio);   /* 0x497bb0      */
     const int xb = hud_panel_xbase(g_hud_slide_prog);
     const int yb = HUD_PANEL_YBASE;                  /* = 1                     */
 
@@ -2874,12 +2891,12 @@ static void game_render_hud(void)
     }
 
     /* EXP gauge (0x494e60:95 → FUN_00498f10), called BEFORE the frame in
-     * retail's orchestrator order.  Arche's errands EXP is always 0 (PORT-
-     * DEBT(hud-party-context)) so the FILLED span is 0-width (omitted, like
-     * the HP/MP bars' 0-width depleted) and only the DEPLETED span — a
-     * mode-4 ALPHA blit through g_ramp_b[8] (LUT-matched to retail's
-     * blend_ref 9, findings/freeroam-hud.md §6), not a plain rects copy —
-     * ever draws. */
+     * retail's orchestrator order.  Arche's errands EXP is 0 (st->exp_cur, the
+     * real base-table value — no combat in the errands), so the FILLED span is
+     * 0-width (omitted, like the HP/MP bars' 0-width depleted) and only the
+     * DEPLETED span — a mode-4 ALPHA blit through g_ramp_b[8] (LUT-matched to
+     * retail's blend_ref 9, findings/freeroam-hud.md §6), not a plain rects
+     * copy — ever draws.  (The filled span lands when EXP>0 is first reached.) */
     ar_sprite_slot *exp = ar_pool_get_slot(HUD_EXP_POOL_IDX);
     zdd_object *exp_cel = (exp != NULL)
         ? (zdd_object *)ar_sprite_slot_frame(exp, 0) : NULL;
@@ -2902,13 +2919,15 @@ static void game_render_hud(void)
                              xb + HUD_FRAME_DX, yb);
 
     /* Element STARS (0x494e60:100-108) — keyed over the frame's transparent
-     * area (seq 496-497), one cel per affinity star.  Same frame (Arche's
-     * element) at +13 px steps.  PORT-DEBT(hud-party-context): count 2. */
+     * area (seq 496-497), one cel per affinity star (`stats+0xdc` count).  Same
+     * frame (fixed cel, 498620) at +13 px steps.  PORT-DEBT(hud-party-context):
+     * the COUNT is still a stand-in (2) — retail sets +0xdc from the equip
+     * subsystem (Arche's starting stone), NOT the base table (426fd0 clears it). */
     ar_sprite_slot *stars = ar_pool_get_slot(HUD_STAR_POOL_IDX);
     zdd_object *star_cel = (stars != NULL)
         ? (zdd_object *)ar_sprite_slot_frame(stars, HUD_STAR_FRAME) : NULL;
     if (star_cel != NULL)
-        for (int k = 0; k < HUD_STAR_COUNT; k++)
+        for (int k = 0; k < st->star_count; k++)
             zdd_object_blt_keyed(star_cel, g_zdd->primary_obj,
                                  xb + HUD_STAR_DX + k * HUD_STAR_STEP,
                                  yb + HUD_STAR_DY);
@@ -2940,12 +2959,13 @@ static void game_render_hud(void)
      * glyph i of char c is atlas frame hud_glyph_frame(c) (= c - 0x21), keyed
      * at (base + i*advance, base_y); advance 9 (fixed width).  Now that
      * ar_sprite_decode binds the installed ramp palette (0x404040, slice 1c-2)
-     * the digit renders bit-exact (dhash 0x192317ef).  PORT-DEBT(hud-party-
-     * context): the value (HUD_LEVEL_VALUE = 1 = Arche's errands level). */
+     * the digit renders bit-exact (dhash 0x192317ef).  The value now comes from
+     * the leader's real stats (party_stat_level = level_base+bonus = 1 for Arche
+     * lvl 1) instead of the ex-HUD_LEVEL_VALUE stand-in. */
     ar_sprite_slot *lvl = ar_pool_get_slot(HUD_LEVEL_POOL_IDX);
     if (lvl != NULL) {
         char lbuf[16];
-        int n = snprintf(lbuf, sizeof lbuf, "%d", HUD_LEVEL_VALUE);
+        int n = snprintf(lbuf, sizeof lbuf, "%d", party_stat_level(st));
         for (int i = 0; i < n; i++) {
             int fr = hud_glyph_frame(lbuf[i]);
             if (fr < 0) continue;                    /* ' '/out-of-range = a gap */
@@ -3273,6 +3293,8 @@ static void freeroam_begin(void)
     if ((uint16_t)0x8du < (uint16_t)AR_SPRITE_SLOT_COUNT)
         g_actor_flip_table[0x8du] = ARCHE_SWORD_OUT_FLIP;
     sword_trail_reset(&g_sword_trail);   /* the UP-attack tip-trail pool */
+    party_init_errands(&g_party);        /* Arche = the lvl-1 leader (room+0x4030 slot 0),
+                                          * stats from the base-stat table -> the HUD panel */
     g_freeroam_active = 1;
     g_hud_slide_prog = 0;                 /* the HUD slide-in arms at control hand-off, */
     g_hud_item_slide_prog = 0;            /* the item-bar's own (slower) slide-in, same arm */
