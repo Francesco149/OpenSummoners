@@ -1028,6 +1028,12 @@ static void drive_present(void *user)
      * as relevant game state is annotated (player px/py, scene id, flags, …). */
     osr_emit_state_field("rng",      OSR_ST_HEX, (int64_t)rng_peek_state(), 0.0);
     osr_emit_state_field("rngcalls", OSR_ST_INT, (int64_t)rng_call_count(), 0.0);
+    /* The sim-tick + flip this STATE belongs to, carried IN the record so the RNG
+     * census (rng_seq_diff.py) keys on the deterministic tick axis directly — the
+     * retail side now emits one STATE per sim-tick at the easer (ckpt 192), so a
+     * bare FRAMEBEG-association would mis-key its multiple-ticks-per-flip records. */
+    osr_emit_state_field("tick",     OSR_ST_INT, (int64_t)g_sim_tick_count, 0.0);
+    osr_emit_state_field("flip",     OSR_ST_INT, (int64_t)g_present_frame, 0.0);
     /* The freeroam mover's live command + body — proves the input→command chain in
      * the real exe (cmd_pose flips 0/10/0xb on DOWN/UP; cmd_lr 0/5/6 on a dash). */
     osr_emit_state_field("fr_locked", OSR_ST_INT,

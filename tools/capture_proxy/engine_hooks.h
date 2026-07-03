@@ -264,72 +264,14 @@ static void eh_flip_cb(PCONTEXT ctx)
         osr_w_present(0, 0);
     }
     osr_w_framebeg((uint32_t)f, (uint32_t)eh_emit_tick(), 0);
-    /* M8: the opt-in engine STATE (rng census) right after FRAMEBEG.  rng = the
-     * LCG state word read at the flip; retail rngcalls (the per-draw count) is a
-     * follow-up — it needs a 0x5bf505 trampoline counter, PORT-DEBT(osr-state-
-     * rngcalls-retail).  The port already emits rngcalls; the panel shows it
-     * port-side with retail "-" until the proxy counter lands. */
-    if (g_cfg.state_on) {
-        osr_state_field sf[8];
-        memset(sf, 0, sizeof sf);
-        uint32_t n = 0;
-        snprintf(sf[n].name, sizeof sf[n].name, "rng");
-        sf[n].kind = OSR_ST_HEX;
-        sf[n].ival = (int64_t)(uint32_t)eh_read_seed();
-        n++;
-        /* chase #3: the freeroam player body wx/hvel/facing (0 fields until a
-         * room is live — the chain derefs are null-guarded; emit only when the
-         * body AND its +0x2c are readable so the diff joins wx-vs-wx). */
-        DWORD body = eh_player_body();
-        if (body && bg_readable((const void *)(uintptr_t)(body + 0x2c), 4)) {
-            snprintf(sf[n].name, sizeof sf[n].name, "wx");
-            sf[n].kind = OSR_ST_INT;
-            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 4u);
-            n++;
-            snprintf(sf[n].name, sizeof sf[n].name, "wy");
-            sf[n].kind = OSR_ST_INT;
-            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 8u);
-            n++;
-            snprintf(sf[n].name, sizeof sf[n].name, "hvel");
-            sf[n].kind = OSR_ST_INT;
-            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x28u);
-            n++;
-            snprintf(sf[n].name, sizeof sf[n].name, "facing");
-            sf[n].kind = OSR_ST_INT;
-            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x2cu);
-            n++;
-        }
-        /* WARMUP DECOMPOSITION (the 0x46a880 edge/press_ts thread): the actor's
-         * command buffer + its input view, read at the flip = this frame's values
-         * (0x478ba0 zeroes cmd0 at its top then sets it; the apply consumes it; no
-         * later zero — so flip-time cmd0 is THIS frame's walk command).  Together
-         * with the framebeg tick these name the press->latch warmup: the tick lvlR
-         * first reads 1 (= the edge, when 0x46a880's leaf first reports the key
-         * down), and the tick cmd0 first latches (=2 walk-right / 1 walk-left) —
-         * their gap is the structural idle-tick count, on the real engine, with a
-         * faithful tick-axis injection. */
-        DWORD ent = eh_player_entity();
-        if (ent && bg_readable((const void *)(uintptr_t)(ent + 0x14854u), 4)) {
-            snprintf(sf[n].name, sizeof sf[n].name, "cmd0");
-            sf[n].kind = OSR_ST_HEX;
-            sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(ent + 0x14854u);
-            n++;
-            DWORD mgr = 0;
-            if (bg_readable((const void *)(uintptr_t)(ent + 0x158a4u), 4))
-                mgr = *(DWORD *)(uintptr_t)(ent + 0x158a4u);
-            if (mgr && bg_readable((const void *)(uintptr_t)(mgr + 0x14cu), 4)) {
-                snprintf(sf[n].name, sizeof sf[n].name, "lvlR");
-                sf[n].kind = OSR_ST_INT;
-                sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(mgr + 0x120u);
-                n++;
-                snprintf(sf[n].name, sizeof sf[n].name, "edgeR");
-                sf[n].kind = OSR_ST_HEX;
-                sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(mgr + 0x14cu);
-                n++;
-            }
-        }
-        osr_w_state(sf, n);
-    }
+    /* M8: the opt-in engine STATE (rng census) is emitted per SIM-TICK at the
+     * easer (eh_sim_tick_cb), NOT here per flip (ckpt 192).  Under lockstep one
+     * flip advances >1 sim-tick, so a per-flip emit SKIPS ticks — retail's stream
+     * becomes a SUBSEQUENCE of the true per-tick rng (errands-rng-census.md "the
+     * confound").  The easer fires during the sim update, AFTER this FRAMEBEG and
+     * BEFORE the frame's blits, so a frame's STATE still lands right after its
+     * FRAMEBEG (osr_scrub_frame_state, the osr_view panel, reads the first STATE
+     * before any draw — unchanged). */
     g_eh_frame_open = 1;
     g_eh_blit_seq   = 0;                    /* draws restart at 0 each frame */
     if (f <= 3)
@@ -343,11 +285,90 @@ static void eh_flip_cb(PCONTEXT ctx)
     }
 }
 
-/* ── sim-tick: the deterministic frame-of-reference index ────────────────── */
+/* ── sim-tick: the deterministic frame-of-reference index ──────────────────
+ * The easer 0x43d1d0 IS the sim-tick (quirk #75), so this fires exactly once per
+ * sim-tick — the right axis to sample engine STATE on (CLAUDE.md ckpt 105).  M8:
+ * emit the opt-in STATE (rng census + freeroam body) HERE, once per tick, instead
+ * of per flip: under lockstep a flip advances >1 tick, so a per-flip emit skips
+ * ticks and retail's rng stream degrades to a subsequence of the true per-tick
+ * stream (errands-rng-census.md "the confound").  Each STATE carries its own
+ * `tick` (+`flip`) so the reader keys on the sim-tick axis regardless of where the
+ * record sits relative to FRAMEBEG.  rng = the LCG state word; retail rngcalls
+ * (the per-draw count) is a follow-up — it needs a 0x5bf505 trampoline counter,
+ * PORT-DEBT(osr-state-rngcalls-retail); the port already emits rngcalls, the panel
+ * shows it port-side with retail "-" until the proxy counter lands. */
 static void eh_sim_tick_cb(PCONTEXT ctx)
 {
     (void)ctx;
-    InterlockedIncrement(&g_eh_sim_tick);
+    LONG tick = InterlockedIncrement(&g_eh_sim_tick);
+    if (!g_cfg.state_on) return;
+    tick += g_emit_tick_bias;                    /* match the FRAMEBEG label axis */
+    if (tick < 0) tick = 0;
+    osr_state_field sf[12];
+    memset(sf, 0, sizeof sf);
+    uint32_t n = 0;
+    snprintf(sf[n].name, sizeof sf[n].name, "tick");
+    sf[n].kind = OSR_ST_INT;
+    sf[n].ival = (int64_t)tick;
+    n++;
+    snprintf(sf[n].name, sizeof sf[n].name, "flip");
+    sf[n].kind = OSR_ST_INT;
+    sf[n].ival = (int64_t)g_eh_flip;
+    n++;
+    snprintf(sf[n].name, sizeof sf[n].name, "rng");
+    sf[n].kind = OSR_ST_HEX;
+    sf[n].ival = (int64_t)(uint32_t)eh_read_seed();
+    n++;
+    /* chase #3: the freeroam player body wx/hvel/facing (0 fields until a room is
+     * live — the chain derefs are null-guarded; emit only when the body AND its
+     * +0x2c are readable so the diff joins wx-vs-wx). */
+    DWORD body = eh_player_body();
+    if (body && bg_readable((const void *)(uintptr_t)(body + 0x2c), 4)) {
+        snprintf(sf[n].name, sizeof sf[n].name, "wx");
+        sf[n].kind = OSR_ST_INT;
+        sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 4u);
+        n++;
+        snprintf(sf[n].name, sizeof sf[n].name, "wy");
+        sf[n].kind = OSR_ST_INT;
+        sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 8u);
+        n++;
+        snprintf(sf[n].name, sizeof sf[n].name, "hvel");
+        sf[n].kind = OSR_ST_INT;
+        sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x28u);
+        n++;
+        snprintf(sf[n].name, sizeof sf[n].name, "facing");
+        sf[n].kind = OSR_ST_INT;
+        sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(body + 0x2cu);
+        n++;
+    }
+    /* WARMUP DECOMPOSITION (the 0x46a880 edge/press_ts thread): the actor's command
+     * buffer + its input view (0x478ba0 zeroes cmd0 at its top then sets it; the
+     * apply consumes it; no later zero).  With the framebeg tick these name the
+     * press->latch warmup: the tick lvlR first reads 1 (the edge, when 0x46a880's
+     * leaf first reports the key down) and the tick cmd0 first latches (=2 walk-
+     * right / 1 walk-left) — their gap is the structural idle-tick count on the real
+     * engine, now on the deterministic per-tick axis. */
+    DWORD ent = eh_player_entity();
+    if (ent && bg_readable((const void *)(uintptr_t)(ent + 0x14854u), 4)) {
+        snprintf(sf[n].name, sizeof sf[n].name, "cmd0");
+        sf[n].kind = OSR_ST_HEX;
+        sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(ent + 0x14854u);
+        n++;
+        DWORD mgr = 0;
+        if (bg_readable((const void *)(uintptr_t)(ent + 0x158a4u), 4))
+            mgr = *(DWORD *)(uintptr_t)(ent + 0x158a4u);
+        if (mgr && bg_readable((const void *)(uintptr_t)(mgr + 0x14cu), 4)) {
+            snprintf(sf[n].name, sizeof sf[n].name, "lvlR");
+            sf[n].kind = OSR_ST_INT;
+            sf[n].ival = (int64_t)*(int32_t *)(uintptr_t)(mgr + 0x120u);
+            n++;
+            snprintf(sf[n].name, sizeof sf[n].name, "edgeR");
+            sf[n].kind = OSR_ST_HEX;
+            sf[n].ival = (int64_t)(uint32_t)*(uint32_t *)(uintptr_t)(mgr + 0x14cu);
+            n++;
+        }
+    }
+    osr_w_state(sf, n);
 }
 
 /* ── seed pin: one-shot write at the first title sparkle ─────────────────── */

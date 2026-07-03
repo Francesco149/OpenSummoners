@@ -53,12 +53,21 @@ divergence" from "retail's flip-emission batched a tick".  This is exactly CLAUD
 **sim-tick-axis** rule (ckpt 105): chase divergences on the easer/sim-tick count, never the
 non-deterministic Flip index (quirk #75).
 
-**TOOLING NEXT (the unblock):** emit OSR_STATE once per SIM-TICK, not per flip — hook the
-easer `0x43d1d0` in the proxy (`engine_hooks.h`) and emit `rng` there (mirror the port's
-`g_sim_tick_count` site).  Then every tick's `rng` is captured on both sides, lockstep
-batching is invisible, and `rng_seq_diff.py` gives a clean first-divergence tick.  A
-real-time `turbo=0 lockstep=0` capture (the sword2.osr mode) is the alternative but is slow
-to reach the errands (the town intro plays in real time).
+**TOOLING NEXT (the unblock) — LANDED ckpt 192.** OSR_STATE now emits once per SIM-TICK,
+not per flip: the proxy moved the whole state block from `eh_flip_cb` to `eh_sim_tick_cb`
+(the easer `0x43d1d0`, quirk #75) and each STATE carries its own `tick` (+`flip`) field; the
+port added the matching `tick`/`flip` fields at its `drive_present` emit.  `rng_seq_diff.py`
+`load_seq` keys each STATE by its own `tick` (falling back to the enclosing FRAMEBEG for
+legacy per-flip captures — backward compatible), so under lockstep the K per-tick STATEs
+under one flip are recovered instead of collapsing to the flip-time tick.  The easer fires
+during the sim update — after FRAMEBEG, before the frame's blits — so `osr_scrub_frame_state`
+(the osr_view engine-state panel) still resolves each frame's state unchanged.  Verified:
+port+proxy build clean, 1104 host pass, and a synthetic lockstep stream (one FRAMEBEG over 3
+easer ticks) round-trips through `load_seq` as 3 distinct ticks.  **NEXT: re-capture both
+sides per-sim-tick** (retail `run_proxy.sh` with `OSS_OSR_STATE=1`, port `--osr-state`; same
+`nav-errands-spam` + `hold-right-clamp`) and run `rng_seq_diff.py` for the clean
+first-divergence tick.  A real-time `turbo=0 lockstep=0` capture (the sword2.osr mode) is the
+alternative but is slow to reach the errands (the town intro plays in real time).
 
 ## The fix path (once the census is clean)
 

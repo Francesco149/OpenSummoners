@@ -19,10 +19,15 @@ from osr import stream_records, FRAMEBEG, STATE
 
 
 def load_seq(path, max_tick=None):
-    """Ordered [(tick, rng, rngcalls)], one per tick (last state wins), then
+    """Ordered [(tick, rng, rngcalls)], one per SIM-TICK (last state wins), then
     dedup CONSECUTIVE identical rng (idle/no-draw ticks + multi-flip repeats).
-    Stops once a FRAMEBEG tick exceeds max_tick (ticks are game_enter-relative and
-    monotonic, so this skips the long post-nav idle tail of a turbo capture)."""
+
+    Each STATE is keyed by its OWN `tick` field when present (ckpt 192: the retail
+    proxy emits one STATE per sim-tick at the easer, so N>1 STATEs can sit under one
+    FRAMEBEG under lockstep — a FRAMEBEG-association would collapse them all to the
+    flip's tick).  Falls back to the enclosing FRAMEBEG tick for legacy per-flip
+    captures with no `tick` field.  Stops once a tick exceeds max_tick (ticks are
+    game_enter-relative + monotonic, so this skips a turbo capture's idle tail)."""
     per_tick = {}          # tick -> (rng, rngcalls)
     order = []
     cur = None
@@ -32,15 +37,18 @@ def load_seq(path, max_tick=None):
             if max_tick is not None and tick > max_tick and per_tick:
                 break
             cur = tick
-        elif r.type == STATE and cur is not None:
+        elif r.type == STATE:
             fields = {f.name: f for f in r.state()}
             rng = fields["rng"].ival & 0xffffffff if "rng" in fields else None
             rc = fields["rngcalls"].ival if "rngcalls" in fields else -1
-            if rng is None:
+            tick = int(fields["tick"].ival) if "tick" in fields else cur
+            if rng is None or tick is None:
                 continue
-            if cur not in per_tick:
-                order.append(cur)
-            per_tick[cur] = (rng, rc)
+            if max_tick is not None and tick > max_tick and per_tick:
+                break
+            if tick not in per_tick:
+                order.append(tick)
+            per_tick[tick] = (rng, rc)
     seq = []
     prev = None
     for t in order:
