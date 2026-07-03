@@ -3896,28 +3896,38 @@ static void game_render(void *user)
                          * concurrent with freeroam by re-arming g_cutscene. */
                         if (g_loaded_room_key != CUTSCENE_ROOM_ERRANDS)
                             reload_room_backdrop(CUTSCENE_ROOM_ERRANDS);
-                        /* THEME B: the errands ENTRY reveal (USER studio note #7,
-                         * retail.osr tick ~1707).  The house EXIT (cutscene.c
-                         * HOUSE_EXIT) just covered the screen to full black with the
-                         * errands key staged under it; the room reload above loaded
-                         * the errands backdrop UNDER that black.  Now recede the black
-                         * with a fade-FROM-black REVEAL — CENTER-OUT (variant 0):
-                         * retail.osr shows the errands opening from the middle band
-                         * outward (full-frame dump ticks 1707-1725).  scene_fade_arm
-                         * re-fills the grid all-opaque (state 0) so the first rendered
-                         * tick stays fully black, then scene_fade_step recedes it
-                         * (~25 sim-ticks).  This stands in for the errands script's
-                         * (0x4dc510) own reveal arm — that script + its opening
-                         * dialogue are unported (PORT-DEBT(cutscene-scene-chain)), so
-                         * the port arms the reveal directly on the hand-off.  Same
-                         * forced-variant + per-arm rng_rand() draw as the cutscene
-                         * fades (PORT-DEBT(cutscene-fade-variant)). */
+                        /* THEME B: the errands ENTRY reveal.  The house EXIT
+                         * (cutscene.c HOUSE_EXIT) just covered the screen to full
+                         * black with the errands key staged under it; the room reload
+                         * above loaded the errands backdrop UNDER that black.  Now
+                         * recede the black with a fade-FROM-black REVEAL — EDGES-IN
+                         * (variant 1): the top+bottom edges light FIRST and converge,
+                         * the vertical CENTER band clears LAST.  scene_fade_arm re-fills
+                         * the grid all-opaque so the first rendered tick stays fully
+                         * black, then scene_fade_step recedes it (~40 sim-ticks).  This
+                         * stands in for the errands script's (0x4dc510) own reveal arm —
+                         * that script + its opening dialogue are unported (PORT-DEBT(
+                         * cutscene-scene-chain)), so the port arms the reveal directly
+                         * on the hand-off.  Forced-variant + per-arm rng_rand() draw
+                         * (PORT-DEBT(cutscene-fade-variant)).
+                         *
+                         * VARIANT 1 (edges-in) is GROUND TRUTH off retail-stairs.osr
+                         * (ckpt 188): the errands reveal lights top(t1652)+bottom(t1655)
+                         * edges first, both grow inward, and the CENTER (rows ~168-336)
+                         * fills LAST (~t1685-1691) — an EDGES-IN iris, matching the
+                         * HOUSE_EXIT cover's own edges-in shape (its mirror).  The old
+                         * variant 0 (center-out) came from the now-DELETED retail.osr
+                         * (ckpt 179) and was the wrong shape (opened the center FIRST).
+                         * Retail's full-black between cover + reveal is only ~2t, so no
+                         * room-load HOLD is inserted (the earlier -6t "9t hold" was a
+                         * misread of this slow edges-in reveal; findings/errands-render-
+                         * gaps.md §14d). */
                         if (!g_freeroam_active) {
                             (void)rng_rand();   /* per-arm LCG draw (retail draws var) */
                             scene_fade_arm(&g_scene_fade, SCENE_FADE_MODE_OUT,
-                                           /*variant=*/0, 1000);
+                                           /*variant=*/1, 1000);
                             log_line("chain-complete: errands reveal "
-                                     "scene_fade_arm(mode=OUT var=0 speed=1000)");
+                                     "scene_fade_arm(mode=OUT var=1 edges-in speed=1000)");
                             freeroam_begin();
                             /* USER (ckpt 152): play the errands OPENING DIALOGUE — defer
                              * the arm until the reveal recedes (retail shows it AFTER the

@@ -178,12 +178,29 @@
   EXTERIOR, not an interior — the debt's "plays over TOWN backdrop / multi-floor interior" both false).  Feed
   `house dialogue backdrop renders 1:1`.  (b) the ckpt-186 OPEN "port drifts behind" = a STALE-NAV artifact:
   `nav-full-errands`'s confirms were keyed to `retail.osr` (**deleted** — only retail-stairs/retail-decomp remain),
-  whose schedule differed from retail-stairs by ~8-90t.  (c) retail's transition ENVELOPE measured (the −6t
-  `cutscene-errands-entry-latency` = the ~9t black-HOLD retail spends on the errands room-load, which the port
-  skips — FIX READY as a tagged load-latency stand-in).  A re-keyed nav still won't lockstep (port ~8t
+  whose schedule differed from retail-stairs by ~8-90t.  (c) retail's transition ENVELOPE measured (read as a
+  ~9t black-HOLD → **SUPERSEDED ckpt 188: that was a MISREAD of the slow EDGES-IN reveal, not a room-load hold;
+  the real fix was the reveal SHAPE, see the ckpt-188 bullet**).  A re-keyed nav still won't lockstep (port ~8t
   speaker-change reopen + L7/L9/L17 beat gaps → needs beat-aware placement); Z-spam stays the clamp recipe.
   `errands-render-gaps.md §14`; `cutscene-room-render` RETIRED.  New: `osr_prof dump` headless frame recon +
   `dialogue_timeline` re-keying.
+- **Landed ckpt 188 — the errands ENTRY reveal is EDGES-IN, not center-out (the "−6t hold" was a
+  MISDIAGNOSIS; retires `cutscene-errands-entry-latency`).**  A fresh `retail-stairs.osr` pixel
+  measurement (whole-screen mean + row-band per sim-tick, `osr_prof` recon) DISPROVES the ckpt-187
+  "insert a ~9t room-load black-HOLD" plan: retail's full-black CORE is only **~2t** (t1650-1651);
+  the long "black period" §14c read as a 9t hold is the SLOW **EDGES-IN reveal** keeping the vertical
+  CENTER dark while the edges clear (top+bottom light first ~t1652-1655, center fills **LAST**
+  ~t1685-91 — NOT top-down, NOT center-out).  The port's REAL bug = the reveal SHAPE: it armed
+  **CENTER-OUT (variant 0)**, sourced from the now-DELETED `retail.osr` (ckpt 179).  FIX = one line,
+  `main.c` `scene_fade_arm(…, /*variant=*/1)` (EDGES-IN, == the port's own `HOUSE_EXIT` cover, its
+  mirror): the port reveal now matches retail BAND-FOR-BAND at aligned phase (port t1770
+  `[70,125,42,86,79]` ≈ retail t1690 `[70,125,66,86,79]`; center-band last to clear both).  A 9t
+  hold was TRIED (188a) + REVERTED — it made the port full-black 13t vs retail's 2t (wrong
+  mechanism).  Reveal DURATIONS already matched (~40t) ⇒ the fabled "−6t" was ~measurement noise off
+  the old fuzzy anchors, not a missing load latency.  Folds into `cutscene-fade-variant` (**⚠ re-
+  verify the arrival→house cover/reveal variants vs retail-stairs — same dead-capture era**).  1097
+  host pass; `errands-render-gaps.md §14d`.  **USER: feed `edgesin_cmp.png` (port|retail edges-in,
+  phase-aligned) — the errands now opens edges-first / center-LAST == retail.**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
@@ -212,16 +229,17 @@
   RNG census, Phase 2) + their POSITION provenance (the `0x41ec20` scene-script spawn stand-in).  Only
   ARCHE-as-leader + her multi-part body still need the party band `0x4997b0` (`cutscene-party-chars`; leader
   path + `0x402730/0x402330` movers) — Arche is already the freeroam char, so this is provenance, not a
-  visible gap.  (4) the −6t entry latency (`cutscene-errands-entry-latency` — **envelope MEASURED ckpt 187**,
-  fix ready); (5) the HUD party-context (blocked on the party subsystem).
+  visible gap.  (4) **DONE ckpt 188 — the errands entry reveal is EDGES-IN, not center-out;
+  `cutscene-errands-entry-latency` RETIRED (the "−6t = a skipped ~9t hold" was a MISDIAGNOSIS — no
+  such hold; the real bug was the reveal SHAPE, see the ckpt-188 bullet above).**  (5) the HUD
+  party-context (blocked on the party subsystem).
   THEN the older items below:
-  (a2') **errands entry −6t (envelope MEASURED, ckpt 187)** — the house dialogue is tick-exact, so
-  the residual is entirely the house→errands transition (house-close 1650 → errands-open
-  port 1693/retail 1699).  Retail HOLDS full-black ~9t (t1646-1655, the errands room-load) before
-  the top-down reveal; the port skips it (arms on chain-complete, instant load) = the −6t.  FIX
-  READY (`errands-render-gaps.md §14`): insert the ~9t black-hold before the errands reveal arm,
-  PORT-DEBT-tagged as a load-latency stand-in for the unported `0x586010` map-load (pin the exact
-  hold off the port's own cover→reveal delta on a beat-aware nav — do NOT curve-fit a bare 6t).
+  (a2') **errands entry — RESOLVED ckpt 188 (the "−6t 9t-hold" was a misdiagnosis).**  A fresh
+  retail-stairs pixel measurement DISPROVES the ckpt-187 "insert a ~9t black-hold" plan: retail's
+  full-black core is only ~2t; the "9t black period" was the SLOW EDGES-IN reveal (center clears
+  LAST).  The port armed CENTER-OUT (variant 0, from the deleted retail.osr) — FIXED to variant 1
+  (edges-in), matching retail band-for-band.  Reveal durations already matched (~40t) ⇒ the "−6t"
+  was ~noise.  `errands-render-gaps.md §14d`; folds into `cutscene-fade-variant`.
   (b) **house props (mark t2278) — DIAGNOSED + the cabinet FIXED (ckpt 180).**  The POT
   (res1074) is NOT missing: it renders BIT-EXACT in the walk-aligned `port-stairs2` vs
   retail-stairs @t2278 — the "missing" was a `port-waitfix` STALE-TRACE artifact (the

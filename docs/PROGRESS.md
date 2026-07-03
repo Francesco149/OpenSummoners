@@ -6,6 +6,34 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 188) — the errands entry reveal is EDGES-IN, not center-out; the "−6t 9t-hold" was a MISDIAGNOSIS
+
+- **The documented "fix ready" (insert a ~9t room-load black-HOLD) was WRONG.**  Chasing the
+  ckpt-187 −6t errands-entry residual, a fresh `retail-stairs.osr` pixel measurement (whole-screen
+  mean brightness + a 5-band row profile per sim-tick, `osr_prof` headless recon; independently
+  re-measured) DISPROVES the "retail HOLDS full-black ~9t" reading.  Retail's house→errands
+  full-black CORE is only **~2t** (t1650-1651); the long "black period" §14c read as a 9t hold is
+  actually a SLOW **EDGES-IN reveal** — the top edge lights first (t1652), the bottom follows
+  (t1655), both grow INWARD, and the vertical CENTER band clears **LAST** (~t1685-1691).  Row-band
+  evidence: retail t1670 `[69,22,0,6,77]`, t1690 `[70,125,66,86,79]` (top→bot; center = last to
+  leave 0).  §14c's "top-down" saw the top lead but missed the bottom + center-last.
+
+- **The real bug was the reveal SHAPE (1-line fix).**  The port armed the errands reveal
+  **CENTER-OUT (variant 0)** — the center opened FIRST — sourced from the now-DELETED `retail.osr`
+  (ckpt 179).  Fixed `main.c`'s `scene_fade_arm(…, /*variant=*/0 → 1)` = **EDGES-IN**, the same shape
+  as the port's own `HOUSE_EXIT_COVER_VAR=1` cover (its mirror).  VERIFIED off `port-edgesin.osr`:
+  the reveal now lights the edges first + fills the center LAST, matching retail BAND-FOR-BAND at
+  aligned phase — port t1770 `[70,125,42,86,79]` ≈ retail t1690 `[70,125,66,86,79]`.  A 9t hold WAS
+  tried (188a) + REVERTED (it made the port full-black 13t vs retail's 2t — the wrong mechanism).
+
+- **The "−6t" was ~measurement noise.**  The reveal DURATIONS already matched (~40t both), so the
+  errands "opens" (reveal-complete → dialogue arm) at the right relative offset once the shape is
+  right; the old −6t came off fuzzy anchors.  RETIRES `cutscene-errands-entry-latency`; folds into
+  `cutscene-fade-variant` (⚠ the arrival→house cover/reveal variants came from the SAME dead
+  `retail.osr` era — flagged to re-verify vs retail-stairs).  Residual: port full-black ~4t vs
+  retail ~2t (the MODE_OUT cell onset-sharpness, ±1-2t slop).  1097 host pass; only `main.c` changed.
+  `findings/errands-render-gaps.md §14d`; feed `edgesin_cmp.png` (port|retail edges-in, phase-aligned).
+
 ## 2026-07-03 (ckpt 186) — the errands PARENTS are CHARACTER-band NPCs (not party-band); Father's Z-ORDER fixed
 
 - **Model correction, off the retail-stairs CLAMP draw seq (t2420).**  The FRONT + §12 had the

@@ -642,6 +642,44 @@ transition-window drift is irrelevant there).  retail-stairs's 21-line advance s
 recorded above (envelope) + in `dialogue_timeline.py <retail-stairs> 600 1900` for a future
 beat-aware rebuild.
 
+**(d) LANDED ckpt 188 — the errands entry reveal is EDGES-IN, not center-out; the "9t
+room-load HOLD" hypothesis is DISPROVEN (`main.c` `scene_fade_arm` variant 0 → 1).**
+
+The FRONT/§14c "fix ready = insert the ~9t black-hold" was WRONG — a MISREAD of a slow
+edges-in reveal as a discrete full-black hold.  A fresh `retail-stairs.osr` pixel measurement
+(whole-screen mean brightness + 5-band row profile per sim-tick, `osr_prof` recon; independently
+re-measured, not one probe) shows the real house→errands envelope:
+- cover (`HOUSE_EXIT`, edges-in) → the central band is lit LAST, snapping to full black **t1650**;
+- **full-black core only ~2t** (t1650-1651 mean 0.0; NOT ~9t — §14c's "1646-1655/9t" over-counted
+  by starting at t1646 where a central strip is still lit, mean 7.9, and by folding the slow
+  reveal's dark early ticks into the "hold");
+- **reveal = EDGES-IN** (NOT top-down, NOT center-out): the top edge lights first (t1652), the
+  bottom follows (t1655), both grow INWARD, and the vertical CENTER band (rows ~168-336) fills
+  **LAST** (~t1685-1691).  Row-band evidence (top→bot, 96px bands): t1670 `[69,22,0,6,77]`,
+  t1680 `[70,116,5,74,79]`, t1690 `[70,125,66,86,79]` — center (band 2) is the last to leave 0.
+  (§14c's "top-down" saw the top LEAD but missed the bottom joining + center-last.)
+
+So retail has NO ~9t full-black room-load hold; the long "black period" §14c saw is the SLOW
+edges-in reveal keeping the CENTER dark while the edges clear.  The port's real bug was the
+reveal SHAPE: it armed **CENTER-OUT (variant 0)** — the center opened FIRST — sourced from the
+now-DELETED `retail.osr` (ckpt 179).  FIX: force the errands reveal to **variant 1 (edges-in)**
+in `main.c` (the same shape as the port's own `HOUSE_EXIT_COVER_VAR=1` cover, its mirror); no
+hold inserted (a hold was tried ckpt-188a as `ERRANDS_LOAD_HOLD_TICKS=9` and REVERTED — it made
+the port's full-black 13t vs retail's 2t, the wrong mechanism).  Still `PORT-DEBT(cutscene-fade-
+variant)`: a forced-variant stand-in (the real variant is an RNG draw `(rand*3)>>15`), now pinned
+to retail-stairs' 1 instead of the dead retail.osr's 0.
+
+*VERIFIED off `port-edgesin.osr`* (nav-errands-spam Z-spam): the port reveal now lights the
+top+bottom edges first + fills the center LAST, matching retail BAND-FOR-BAND at aligned reveal
+phase (absolute ticks differ ~84t via the Z-spam nav):
+port t1756 `[70,31,0,11,79]` ≈ retail t1670 `[69,22,0,6,77]`;
+port t1770 `[70,125,42,86,79]` ≈ retail t1690 `[70,125,66,86,79]`.
+Port full-black is now ~4t (t1735-1739) vs retail ~2t — the residual ~2t is the reveal ONSET
+sharpness (the port's freshly-marked MODE_OUT cells age from alpha 31 over ~2-4t; a finer fade-
+rate residual within the ±1-2t coalescing slop, folded into `cutscene-fade-variant`).  The reveal
+DURATIONS already matched (~40t both), so the fabled "−6t" was ~measurement noise off the old
+fuzzy anchors, not a missing hold.  Feed `edgesin_cmp.png` (port|retail edges-in, phase-aligned).
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
