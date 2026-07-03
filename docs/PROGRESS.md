@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 192) — the RNG census is UNBLOCKED (per-sim-tick emit) + it moves the first divergence to TOWN tick 974
+
+- **Tooling unblock.**  The errands family anim-phase census (ckpt 191) was confounded by
+  retail's lockstep flip-batching: OSR_STATE emitted per FLIP, so under lockstep one flip
+  (advancing >1 sim-tick) SKIPPED ticks and retail's rng stream degraded to a subsequence of
+  the true per-tick stream.  Fixed by emitting STATE on the deterministic sim-tick axis: the
+  proxy moved the whole state block from `eh_flip_cb` to `eh_sim_tick_cb` (the easer 0x43d1d0),
+  each STATE carrying its own `tick`+`flip`; the port added the matching fields at
+  `drive_present`.  The easer fires during the sim update (after FRAMEBEG, before the frame's
+  blits), so `osr_scrub_frame_state` (the osr_view panel) still resolves each frame unchanged.
+  Commit 75cb2e4; 1104 host pass.
+
+- **`rng_seq_diff.py` upgraded to a TICK-FOR-TICK bubble diff.**  With the lockstep confound
+  gone both sides' tick axes align 1:1, so a tick-keyed compare is exact and reveals structure
+  the subsequence match hid (it broke at the first bubble and called it total).  The new mode
+  reports every divergence BUBBLE + whether it self-heals (LCG re-converges = a draw-TIMING
+  wobble) or is PERMANENT; the subsequence match is retained as a legacy per-flip fallback.
+
+- **RESULT — the first divergence is TOWN tick 974, not the errands.**  Re-captured both sides
+  per-sim-tick (`port-rngcensus2.osr` / `retail-rngcensus2.osr`, same nav, seed-pin).
+  Port==retail RNG **tick-for-tick through the town (ticks 1..973)**; **two self-healing bubbles**
+  (584-588, 972 — same total draws redistributed) then the **first PERMANENT split at tick 974**
+  (port still DRAWING there, rc climbing — a count/timing split, not the port going static).  So
+  the ckpt-191 "gap = errands spawn burst" read was a subsequence-match artifact: the TOWN RNG
+  splits ~300t earlier and must align first.  Locus: tick 972 = the 162-tick periodic +20-draw
+  event (162×6; k=1..5 matched), tick 973 = a +21 draw ⇒ the periodic butterfly/effect consumer
+  at k=6.  `findings/errands-rng-census.md` "Census RESULT".  Next: add the retail `rngcalls`
+  counter (proxy trampoline 0x5bf505) to read count-vs-timing, then RE the tick-974 consumer.
+
 ## 2026-07-03 (ckpt 188) — the errands entry reveal is EDGES-IN, not center-out; the "−6t 9t-hold" was a MISDIAGNOSIS
 
 - **The documented "fix ready" (insert a ~9t room-load black-HOLD) was WRONG.**  Chasing the

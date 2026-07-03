@@ -69,10 +69,43 @@ sides per-sim-tick** (retail `run_proxy.sh` with `OSS_OSR_STATE=1`, port `--osr-
 first-divergence tick.  A real-time `turbo=0 lockstep=0` capture (the sword2.osr mode) is the
 alternative but is slow to reach the errands (the town intro plays in real time).
 
+## Census RESULT (ckpt 192 — per-sim-tick, tick-for-tick)
+
+Re-captured both sides per-sim-tick (port `port-rngcensus2.osr` 8498 frames; retail
+`retail-rngcensus2.osr` turbo=0 lockstep=1, both `nav-errands-spam` + `hold-right-clamp`,
+seed-pin 0x4f5347) and ran the upgraded `rng_seq_diff.py`.  With the lockstep confound gone
+the two tick axes align **1:1 (offset 0)**, so the tool now does a TICK-FOR-TICK diff and the
+picture is sharp — and it MOVES the first divergence:
+
+- **Port == retail RNG tick-for-tick through the TOWN, ticks 1..973** (match 967/973 town
+  ticks) — the town RNG model is essentially bit-exact.
+- **Two self-healing bubbles precede the split:** ticks **584..588** (5t) and **972** (1t).
+  Each DIVERGES then RE-CONVERGES to the same LCG state — the *same total draws redistributed
+  across ticks* (a draw-TIMING wobble, not a count error).  rc across 584-588 = +58 total on
+  both sides.  The old subsequence match BROKE at the first bubble (584) and mislabeled it a
+  total divergence; the tick-for-tick diff shows it heals one tick later.
+- **First PERMANENT divergence: tick 974** (last matching tick 973) — and the port is STILL
+  DRAWING there (rc keeps climbing 11498→…), so it is a draw-COUNT / scene-timing split, NOT
+  the port going static.  This is in the TOWN, ~300 ticks BEFORE the house/errands — so the
+  ckpt-191 "the gap is the errands spawn burst" framing was imprecise (a subsequence-match
+  artifact): the town RNG itself splits first and must align before the errands can.
+- **Locus:** tick **972** is exactly the **162-tick periodic +20-draw event** (162×6=972; the
+  earlier k=1..5 events at 162/324/486/648/810 matched), and tick 973 carries a **+21** draw.
+  So the split sits right at that periodic town RNG event (butterfly/fountain/effect band).
+  The k=6 event diverges where k=1..5 matched ⇒ a cumulative/phase effect at that consumer.
+
+**Next (to fully classify the 974 split):** the proxy still can't count retail draws
+(`PORT-DEBT(osr-state-rngcalls-retail)` — the STATE `rngcalls` is port-only).  Add the retail
+per-draw counter (trampoline `0x5bf505` in the proxy, mirror to an `rngcalls` STATE field) so
+the tick-974 divergence reads as COUNT-vs-TIMING directly; then RE the periodic-+20 / butterfly
+consumer the port models differently at k=6.  THEN the town is bit-exact into the errands.
+
 ## The fix path (once the census is clean)
 
-1. Confirm the RNG is aligned coming INTO the errands (or find + fix the first real
-   divergence — a town/house per-tick consumer the port draws differently).
+1. **IDENTIFIED (ckpt 192):** the first real divergence is TOWN tick 974 (the periodic
+   +20 / butterfly consumer), preceded by two self-healing timing bubbles.  FIX it first —
+   the town LCG must reach the house/errands with retail's exact state or nothing downstream
+   can align.  (Add the retail `rngcalls` counter first to read count-vs-timing.)
 2. Model the errands room-load RNG burst — `0x431e30`'s per-case draws for each animated
    CHARACTER-band actor (the `0x426ec0` pair + any prefix), IN MAP ORDER, the way
    `actor_spawn_effect_from_map` already replays the town's `0x41f200` burst (quirk #86).

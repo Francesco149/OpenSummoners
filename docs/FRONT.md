@@ -244,6 +244,21 @@
   `0x43d1d0` in the proxy) to cleanly localize; this is the unblock.  Fix path = model the errands
   spawn RNG order (the errands analogue of quirk #86), then the family phase DERIVES.
   `findings/errands-rng-census.md`.
+- **Landed ckpt 192 — the RNG census is UNBLOCKED (per-SIM-TICK emit) + it MOVES the first
+  divergence to TOWN tick 974.** OSR_STATE now emits once per sim-tick at the easer `0x43d1d0`
+  (proxy `eh_sim_tick_cb`), each STATE carrying its own `tick` (+`flip`); the port added the
+  matching fields at `drive_present`; `rng_seq_diff.py` keys per-tick + upgraded to a
+  TICK-FOR-TICK bubble diff (the subsequence match is now a legacy-capture fallback).  With the
+  lockstep confound gone the two tick axes align 1:1 and the picture is sharp: port==retail RNG
+  **tick-for-tick through the town (ticks 1..973)**, with **two SELF-HEALING bubbles** (584-588,
+  972 — same total draws redistributed = a draw-TIMING wobble) then the **first PERMANENT split
+  at tick 974** (port still DRAWING there, rc climbing — a count/timing split, NOT the port going
+  static).  So the ckpt-191 "gap = errands spawn burst" was a subsequence-match artifact — the
+  TOWN RNG splits ~300t earlier + must align first.  Locus: tick 972 = the 162-tick periodic
+  +20-draw event (162×6; k=1..5 matched), tick 973 = a +21 draw ⇒ the periodic butterfly/effect
+  consumer at k=6.  1104 host pass.  `errands-rng-census.md` "Census RESULT".  **NEXT: add the
+  retail `rngcalls` counter (proxy trampoline `0x5bf505`) → read count-vs-timing → RE the tick-974
+  consumer; the town must be bit-exact into the errands before the family phase can derive.**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
