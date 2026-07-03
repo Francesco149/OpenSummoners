@@ -319,6 +319,56 @@ hand-wave stand in for extracting the bytes.  Also: `game_cel_dims`'s "b8/bc == 
 was a KNOWN-shaky shortcut (it said "for these frame cels those equal the source dims") — the bed's
 non-zero vertical pivot is the trimmed cel that finally broke that assumption.
 
+## 8. FIXED — the upstairs shelf PILE hidden behind its shelf-back = a band/layer z-order bug (ckpt 182)
+
+USER note (`osr_notes` t2148, crop[288,0,65,40]): "props missing on shelf on port".  The upstairs
+shelf PILE — colored books + a cream book-stack + a green box — rendered as bare dark wood in the
+port; retail shows the full pile.  NOT the §7 cull bug (the objects ARE emitted).
+
+**What each object is (proven via `map_data.py` on DATA-1025 + `osr_prof pick`):**
+- The PILE = two **STRUCTURE**-band objects, code `0xec69` (bank 0x16b = res1026), layer 8:
+  idx 43 var13 @map(408,128) → res1026 **fr13** (the books), idx 42 var34 @map(404,148) → res1026
+  **fr34** (the stack/box).  (All errands STRUCTURE objects are fg=0 → layer 8.)
+- The shelf-BACK it sits in = three **CHARACTER**-band objects @map y128: code `0x112dc` var8 →
+  res1027 **fr8**, code `0x112db` var14/var11 → res1027 **fr14/fr11**.  These resolve to bank 0x16c
+  (res1027) with frame = the variant.
+
+**ROOT CAUSE (a BAND/LAYER mismatch, not a cull, not a decode):**  The port has no map-driven
+CHARACTER band for non-town rooms (PORT-DEBT(errands-cast)); those three shelf-backs are stood in by
+`ERRANDS_CAST` (`g_room_cast`) entries at the DEFAULT layer 13.  `g_structs` (the STRUCTURE band,
+holding the L8 pile) renders BEFORE `g_room_cast` in `game_actor_walk` (main.c) — but the draw pool
+presents by LAYER, so layer 8 (pile) presents before layer 13 (shelf-backs): **the shelf-backs drew
+OVER the pile → pile hidden.**  In RETAIL the shelf-backs are real CHARACTER objects: the CHARACTER
+band (`0x431e30`, pool 0x11e0) is walked BEFORE the STRUCTURE band (`0x493230`, pool 0x2560) in the
+present builder `0x48c150` (lines 48 vs 81), and BOTH emit into layer 8, so the character shelf-backs
+land at a LOWER seq than the structure pile — behind it (retail flip 3250: res1027 fr14/fr8 seq
+282/283, res1026 fr34/fr13 seq 304/305).  The dispatcher `0x58d460` inserts each band in MAP-OBJECT
+ORDER with NO depth sort; the layer (8 vs 15) is the object's +0x30 flag (`puVar14[0xc]`: 0→8, 1→15).
+
+**FIX (`ERRANDS_CAST`):** the 3 upstairs shelf-backs res1027 fr8/fr11/fr14 → **layer 7** (== the
+downstairs shelf units fr9 already at 7, "behind its layer-8 props").  Since the port renders
+`g_room_cast` AFTER `g_structs`, layer 7 (one below the L8 pile) is the correct PORT classification —
+layer 8 would still draw them over the pile (opposite band order to retail).  Same class as the §6
+family z-order fix.  **VERIFIED** off `port-shelffix.osr` at the camera-aligned flip 5412 (res1071
+fr9 dst_x=276 == retail; note: tick 2148 coalesces flips 5411@281/5412@276 — compare on the 276
+sub-frame): res1027 fr8/fr14 now seq #282/#286 BEFORE res1026 fr34 #300; the pile reconstructs
+**`differ_px==0`** vs retail over x[290,360] y[0,80]; full-frame excl-HUD diff 1531→904 (exactly the
+627 pile px removed, nothing added — the 904 residual = the pre-existing family-pose + Arche
+walk-phase gaps).  1096 host pass.
+
+**OPEN follow-up:** res1027 **fr64** (ERRANDS_CAST, retail seq 289 — also behind the res1026 block,
+i.e. another shelf-back) is left at layer 13.  No res1026 prop overlaps it at t2148 so it produces
+NO pixel diff there (unverifiable by the frame diff); it is a drawcall-ORDER-only faithfulness item.
+The real retirement is the map-driven CHARACTER-band spawn (codes 0x112db/0x112dc/… → bank + variant
++ the 0x431e30 layer), which subsumes all of these ERRANDS_CAST shelf stand-ins — still PORT-DEBT.
+
+LESSON: a "missing prop on a shelf" whose object IS in the draw stream (frame_diff shows it present
+both sides at matching res/frame/dst) is a Z-ORDER bug — and when the two objects come from DIFFERENT
+port bands (here STRUCTURE vs the ERRANDS_CAST stand-in), the fix is the LAYER, because the port's
+fixed band-render order can't reproduce retail's character-before-structure emission.  Confirm the
+compare frame is CAMERA-aligned (a tick can coalesce two flips at different camera-x) before reading
+a pixel diff, else a 5px camera phase paints the whole frame as "differ".
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw

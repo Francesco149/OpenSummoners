@@ -6,6 +6,40 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 182) — the upstairs shelf PILE "props missing" (USER note t2148) = a band/layer z-order bug (FIXED)
+
+- **USER note** (`osr_notes` t2148, crop[288,0,65,40] "props missing on shelf on port"): the upstairs
+  shelf PILE — colored books + a cream book-stack + a green box — rendered as bare dark wood; retail
+  shows the full pile.  NOT the ckpt-181 §7 cull bug (the objects ARE emitted; `frame_diff` shows every
+  res1026/res1027 present both sides at matching res/frame/dst — a pure Z-ORDER divergence).
+
+- **ROOT (via `map_data.py` on DATA-1025 + `osr_prof pick`):** the PILE is two STRUCTURE-band objects
+  (code `0xec69`→res1026, layer 8: fr13 books @map(408,128), fr34 stack/box @(404,148)); the shelf-BACK
+  it sits in is three CHARACTER objects (`0x112dc` var8→res1027 fr8, `0x112db` var14/11→fr14/fr11 @map
+  y128).  The port has no map-driven CHARACTER band for non-town rooms, so those shelf-backs are stood
+  in by `ERRANDS_CAST` (`g_room_cast`) at the DEFAULT layer 13.  `g_structs` (the L8 pile) renders
+  BEFORE `g_room_cast` in `game_actor_walk`, but the pool presents by LAYER → L8 pile presents before
+  L13 shelf-back → pile hidden.  Retail: the CHARACTER band (`0x431e30`, pool 0x11e0) is walked BEFORE
+  the STRUCTURE band (`0x493230`, pool 0x2560) in the present builder `0x48c150`, both into layer 8, so
+  the character shelf-backs land at a LOWER seq (behind); the dispatcher `0x58d460` inserts each band in
+  map-object order with NO depth sort (layer = the object's +0x30 flag).
+
+- **FIX** ([`7076054`], `src/actor_spawn.c`): the 3 upstairs shelf-backs res1027 fr8/fr11/fr14 →
+  **layer 7** (== the downstairs shelf units fr9 already at 7).  Since the port renders `g_room_cast`
+  AFTER `g_structs`, layer 7 (below the L8 pile) is the correct port classification (L8 would still
+  draw them over the pile — opposite band order to retail).  Same class as the ckpt-180b family
+  z-order fix.  **VERIFIED** off `port-shelffix.osr` at the camera-aligned flip 5412 (res1071 fr9
+  dst_x=276 == retail; tick 2148 coalesces flips 5411@281/5412@276 — compare the 276 sub-frame):
+  res1027 fr8/fr14 now seq #282/#286 BEFORE res1026 fr34 #300; the pile reconstructs **`differ_px==0`**
+  vs retail over x[290,360] y[0,80]; full-frame excl-HUD diff 1531→904 (exactly the 627 pile px
+  removed, nothing added — the 904 residual is the pre-existing family-pose + Arche walk-phase gaps).
+  1096 host pass.  `findings/errands-render-gaps.md §8`.
+
+- **Open:** res1027 fr64 (a downstairs shelf-back, retail seq 289) left at layer 13 — no prop overlaps
+  it at t2148 (no pixel diff), a drawcall-ORDER-only faithfulness item; the map-driven CHARACTER-band
+  spawn (still PORT-DEBT(errands-cast)) retires all these ERRANDS_CAST shelf stand-ins.  (Follows the
+  ckpt-181 bed cull fix [`3f7af00`], §7 — the sibling upstairs-render fix that landed the same day.)
+
 ## 2026-07-02 (ckpt 180) — the errands t2278 "missing pot/cabinet": the POT RENDERS (stale-trace artifact); the CABINET was the real gap (FIXED)
 
 - **The USER mark t2278 (`port-waitfix | retail-stairs`, "missing pot and kitchen cabinet")

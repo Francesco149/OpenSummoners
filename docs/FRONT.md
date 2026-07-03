@@ -102,6 +102,19 @@
   `sheet_export.py`, `blits_at/region_draws/frame_diff.py`, `osr_prof pick`.  1096 host pass.
   `findings/errands-render-gaps.md §7`.  **USER: studio `port-bedfix | retail-stairs` @ ~t2158 — the
   upstairs bed (top-right, white) should now be there; scrub up to t2325 as Arche climbs.**
+- **Landed ckpt 182 — the upstairs shelf PILE "props missing" (USER note t2148) = a BAND/LAYER z-order
+  bug (FIXED).**  The pile (books res1026 fr13 + stack/box fr34) is a STRUCTURE-band object (layer 8);
+  the shelf-BACK it sits in (res1027 fr8/fr11/fr14) is a CHARACTER object stood in by ERRANDS_CAST at
+  the DEFAULT layer 13.  `g_structs` renders before `g_room_cast`, so the L8 pile presented BEHIND the
+  L13 shelf-back → hidden.  Retail draws the shelf-back behind (CHARACTER band walked before STRUCTURE
+  in `0x48c150`, both layer 8; retail seq 282-284 < the pile 304).  FIX: the 3 upstairs shelf-backs →
+  **layer 7** (== the downstairs fr9 shelf units already at 7).  VERIFIED off `port-shelffix.osr`
+  (camera-aligned flip 5412): res1027 fr8/fr14 now seq #282/#286 BEFORE res1026 fr34 #300; pile
+  reconstructs **`differ_px==0`** vs retail (x[290,360]); full-frame excl-HUD 1531→904 (only the 627
+  pile px removed).  1096 host pass.  Open: fr64 (a downstairs shelf-back, seq 289) is drawcall-order-
+  only (no overlap at t2148); the map-driven CHARACTER band retires all these.  `errands-render-gaps.md
+  §8`.  **USER: click the studio shortcut (`port-shelffix | retail-stairs`) @ t2148 — the shelf pile
+  (books/stack/box, upper-left, right of the HUD) should now be there.**
 - **Next move (the errands −6t residual + the 2nd USER mark):**
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
