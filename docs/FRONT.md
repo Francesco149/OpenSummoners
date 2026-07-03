@@ -173,7 +173,10 @@
   entries (world 70400,25600 / 70400,6400; verified 172px offset == map).  (region-E is
   WAYPOINTS, not props — the old "prop spawn consumer" framing was wrong.)  **⇒ freeroam
   studio pair = `port-stairs2 | retail-stairs`, NOT port-waitfix (stale past ~tick 2000).**
-  `findings/errands-render-gaps.md` §6.  Still open at t2278: Mom's pose clip.
+  `findings/errands-render-gaps.md` §6.  Mom's pose (§12): NOT a wrong clip — retail Mom breathes
+  res1127 fr2→fr3, the port animates the SAME clip at a ~1-frame PHASE offset (dst identical when
+  frames match), a phase residual tied to the −6t entry latency + the family clip_phase, resolved by
+  the party band, not a frame fix.
   (c) `char-turn-state` — **DONE ckpt 177** (`findings/freeroam-turn-around.md`).
   (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
   collidable actors matter.

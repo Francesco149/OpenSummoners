@@ -511,6 +511,24 @@ proxy couldn't ID DO reconstruct — the ambiguity was a capture-side ID gap onl
 REMAINING in ERRANDS_CAST: only the FAMILY (Father 0xe3 / Mother 0xb5) + Dad's counter 0x112d2 — the
 party band 0x4997b0 (`cutscene-party-chars`), a Phase-3 subsystem.
 
+## 12. Status after the prop/anim/fire migrations — the family is the LAST stand-in (ckpt 185)
+
+After ckpt 183-185 the errands scene's STRUCTURE + CHARACTER props, the anim props (clock/pot), and the
+additive fire are ALL map-driven + bit-exact.  The only remaining ERRANDS_CAST stand-in is the FAMILY
+(Father 0xe3, Mother 0xb5, Dad's counter 0x112d2), which is NOT map-driven-able: Father/Mother are NOT
+map objects (their codes 0xe3/0xb5 are outside the 70000-79999 CHARACTER band — they are party-band
+entities), and the counter's z "rides with the family" (drawn in front of Father, who stands behind the
+counter), so it can't be map-driven independently while the family sits at the port's L13 stand-in.  So
+the family is genuinely blocked on the **party band 0x4997b0** (`PORT-DEBT(cutscene-party-chars)`, Phase 3
+— the persistent-leader path + multi-part body + the 0x402730/0x402330 actor movers).
+
+**Mom's-pose note (corrects the FRONT §180 "res1127 fr0 vs fr2" read):** at the clamp, retail's Mother
+ANIMATES an idle breathe (res1127 fr2→fr3, `draw_probe --res 1127` t2420-25) and the port's Mother
+animates the SAME clip (IDLE_CLIP) at a **~1-frame phase offset** — the dst is IDENTICAL (176,200) when
+the frames match (both fr3 @t2423).  So it is NOT a wrong pose/clip; it is an anim-PHASE residual, the
+same class as the −6t errands-entry latency (`cutscene-errands-entry-latency`) + the family clip_phase
+seed.  It will resolve when the family's phase is driven by the party band, not by fixing a frame here.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
