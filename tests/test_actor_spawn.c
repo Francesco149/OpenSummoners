@@ -53,10 +53,13 @@ int test_actor_spawn_census(void)
      * non-character (STRUCTURE) object that must be skipped. */
     map_layer layers[5];
     layer_set(&layers[0], 0x1129eu,  864, 448);   /* prop A -> bank 0x16c f1 */
+    hdr_set(layers[0].hdr, 0x18, 1);              /* variant 1 -> frame_base 1 */
     layer_set(&layers[1], 0x00ec55u, 100, 100);   /* 60501 STRUCTURE -> skipped  */
     layer_set(&layers[2], 0x112e5u, 1760, 416);   /* prop C -> bank 0x16c f36, layer 10 */
+    hdr_set(layers[2].hdr, 0x18, 36);             /* variant 36 -> frame_base 36 */
     layer_set(&layers[3], 0x112e6u,  624, 288);   /* invisible CHARACTER volume  */
     layer_set(&layers[4], 0x1129fu, 1184, 448);   /* prop B -> bank 0x16c f2 */
+    hdr_set(layers[4].hdr, 0x18, 2);              /* variant 2 -> frame_base 2 (frame_base now = map variant, ckpt 183) */
 
     map_data md;
     memset(&md, 0, sizeof md);
@@ -102,14 +105,22 @@ int test_actor_spawn_census(void)
 
 int test_actor_spawn_sprite_lookup(void)
 {
-    uint16_t bank; int16_t fb; uint32_t layer;
-    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x1129eu, &bank, &fb, &layer), 1);
-    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_I(fb, 1); T_ASSERT_EQ_U(layer, 9u);
-    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e5u, &bank, &fb, &layer), 1);
-    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_I(fb, 36); T_ASSERT_EQ_U(layer, 10u);
-    /* an invisible CHARACTER code + a non-character code both miss. */
-    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e6u, &bank, &fb, &layer), 0);
-    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x00ec55u, &bank, &fb, &layer), 0);
+    uint16_t bank; uint32_t layer;
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x1129eu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_U(layer, 9u);
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e5u, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_U(layer, 10u);
+    /* errands map-driven CHARACTER furniture (ckpt 183): bank + layer RE'd from 0x431e30. */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112dcu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_U(layer, 5u);   /* shelf-back unit res1027 -> L5 */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112cfu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16fu); T_ASSERT_EQ_U(layer, 9u);   /* wall shelf res1023 -> L9 */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x1124cu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x156u); T_ASSERT_EQ_U(layer, 9u);   /* res1022 prop -> L9 */
+    /* an invisible volume, a DEFERRED code (fire 0x112e4), + a non-character all miss. */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e6u, &bank, &layer), 0);
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e4u, &bank, &layer), 0);
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x00ec55u, &bank, &layer), 0);
     return 0;
 }
 
@@ -139,6 +150,7 @@ int test_actor_spawn_prop_renders(void)
 {
     map_layer L;
     layer_set(&L, 0x1129eu, 864, 448);   /* prop A */
+    hdr_set(L.hdr, 0x18, 1);             /* variant 1 -> frame_base 1 (ckpt 183) */
     map_data md; memset(&md, 0, sizeof md); md.count = 1; md.layers = &L;
 
     actor_spawn_pool pool;
@@ -1072,32 +1084,40 @@ int test_arche_sword_clip(void)
     return 0;
 }
 
-/* ── USER notes "bookshelf missing props" / "missing props in shelves": the errands
- *    shelf props (structure band, layer 8) were OCCLUDED by the ERRANDS_CAST
- *    BACKGROUND furniture (the bookshelf frame + the shelf units), which the cast
- *    spawned at the cast layer 13 — drawn OVER the layer-8 props.  Retail draws the
- *    frame/units FIRST (lower seq).  Guard that the background furniture gets a layer
- *    BELOW 8, while the family/foreground stay at the default cast layer 13. ── */
+/* ── USER "props missing on shelf" (ckpt 182/183): the errands shelf PILE (structure
+ *    band, layer 8) was OCCLUDED by the shelf-BACK units, which ERRANDS_CAST spawned at
+ *    the cast layer 13 (over the L8 pile).  ckpt 183 made the shop furniture/shelf/props
+ *    MAP-DRIVEN (the CHARACTER band via CHAR_BANK_DEFS, RE'd from 0x431e30) — the shelf-
+ *    backs now resolve to LAYER 5 (behind the pile), matching retail.  Guard that (a)
+ *    the migrated furniture is GONE from ERRANDS_CAST, and (b) the def table gives the
+ *    shelf-backs / bookshelf layer 5. ── */
 int test_errands_cast_zorder(void)
 {
     actor_spawn_pool pool;
     int n = actor_spawn_room_cast(&pool, 0x334dcu);   /* CUTSCENE_ROOM_ERRANDS */
     T_ASSERT(n > 0);
-    int saw_bookshelf = 0, saw_shelfunit = 0, saw_family = 0;
+    int saw_family = 0, saw_bookshelf = 0, saw_shelfunit = 0;
     for (int i = 0; i < pool.count; i++) {
-        uint16_t bank  = pool.actors[i].sprite_table[0].bank;
-        int16_t  fb    = pool.actors[i].sprite_table[0].frame_base;
-        uint32_t layer = pool.actors[i].layer;
-        if (bank == 0x16fu && fb == 3) { saw_bookshelf = 1; T_ASSERT_EQ_I(layer, 7); }  /* bookshelf frame */
-        if (bank == 0x16cu && fb == 9) { saw_shelfunit = 1; T_ASSERT_EQ_I(layer, 7); }  /* shelf units */
-        if (bank == 0xe3u)             { saw_family = 1;    T_ASSERT_EQ_I(layer, 13); } /* Father (default) */
-        /* every background-furniture layer that is non-default must be < 8 (behind
-         * the structure-band props) — never the cast 13 or the foreground 15. */
-        if (layer != 13u) T_ASSERT(layer < 8u);
+        uint16_t bank = pool.actors[i].sprite_table[0].bank;
+        int16_t  fb   = pool.actors[i].sprite_table[0].frame_base;
+        if (bank == 0xe3u)             saw_family = 1;      /* Father still cast    */
+        if (bank == 0x16fu && fb == 3) saw_bookshelf = 1;  /* migrated -> must be GONE */
+        if (bank == 0x16cu && fb == 9) saw_shelfunit = 1;  /* migrated -> must be GONE */
     }
-    T_ASSERT_EQ_I(saw_bookshelf, 1);
-    T_ASSERT_EQ_I(saw_shelfunit, 1);
     T_ASSERT_EQ_I(saw_family, 1);
+    T_ASSERT_EQ_I(saw_bookshelf, 0);   /* now map-driven (CHARACTER band) */
+    T_ASSERT_EQ_I(saw_shelfunit, 0);   /* now map-driven (CHARACTER band) */
+
+    /* the shelf-BACK / bookshelf z (the "props missing on shelf" fix) now lives in the
+     * CHARACTER def table: res1027 shelf-backs + res1023 bookshelf -> LAYER 5 (behind
+     * the L8 structure pile). */
+    uint16_t bank; uint32_t layer;
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112dcu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_U(layer, 5u);   /* shelf-back var8/9/64 */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112dbu, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16cu); T_ASSERT_EQ_U(layer, 5u);   /* shelf-back var14/11 */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112d1u, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16fu); T_ASSERT_EQ_U(layer, 5u);   /* bookshelf/cabinet/hutch */
 
     /* the HOUSE cast stays at the default cast layer 13 (no z-order overrides). */
     int hn = actor_spawn_room_cast(&pool, 0x334c8u);   /* CUTSCENE_ROOM_HOUSE */

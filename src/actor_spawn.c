@@ -32,33 +32,51 @@ static uint16_t hdr_u16(const uint8_t *h, int off)
     return (uint16_t)((uint16_t)h[off] | ((uint16_t)h[off + 1] << 8));
 }
 
-/* PORT-DEBT(actor-sprite-table): the captured visible-code sprite map (retail
- * town hold, flip 1500 — live +0x48 capture via 0x491ae0).  Stands in for the
- * lazy def-table fill keyed by type+state.  Only codes that DRAW appear here;
- * any other CHARACTER code is an invisible volume (bank 0). */
+/* CHARACTER code -> (sprite bank, draw layer), RE'd from the activator 0x431e30's
+ * per-case switch: each VISIBLE case installs one sprite row via 0x426d70(0,
+ * BANK, variant); the draw layer (actor+0xfc) is 0x438610(N) when the case
+ * calls it, else the default 9 (0x426ec0 = the clock/pot anim-phase init).
+ * frame_base is the map record's VARIANT (+0x18) — read in actor_spawn_from_map,
+ * NOT stored here (== 0x426d70's param_6; the SAME source the STRUCTURE band
+ * uses).  Codes NOT listed install no sprite (bank 0 = an invisible volume, e.g.
+ * the town's 29/32 and the errands' 0x111d6/d9/f2 / 0x11365 / 0x1136f collision/
+ * trigger volumes).  This IS the def table (RE'd from 0x431e30), so the errands
+ * rows are NOT PORT-DEBT; the 3 town rows carry the ex-TOWN_SPRITE_DEFS provenance
+ * (their banks were live-captured, their layers/variants now cross-checked vs
+ * 0x431e30: 0x112e5 => 0x438610(10), 0x1129e/f default 9). */
 static const struct {
     uint32_t code;
     uint16_t bank;
-    int16_t  frame_base;
     uint32_t layer;
-} TOWN_SPRITE_DEFS[] = {
-    /* bank 0x16c (res 0x403) is the town-OBJECTS sheet — these are static PROPS
-     * (e.g. a barrel, a fountain), NOT people-NPCs (USER-confirmed on the feed:
-     * the fountain @0x112e5/176000 + a barrel @0x1129e).  The only person in the
-     * CHARACTER band is the animated protagonist 0x1872d (bank 0x175, separate). */
-    {0x1129eu, 0x16cu,  1u, 9u},   /* prop, frame 1  (x3 in DATA 1022)   */
-    {0x1129fu, 0x16cu,  2u, 9u},   /* prop, frame 2  (x1)                */
-    {0x112e5u, 0x16cu, 36u, 10u},  /* prop (the fountain), frame 36, layer 10 (x1) */
+} CHAR_BANK_DEFS[] = {
+    /* --- town (DATA 1022), bank 0x16c = res 0x403 (the town-OBJECTS sheet) --- */
+    {0x1129eu, 0x16cu,  9u},   /* barrel prop  (x3; var1)  */
+    {0x1129fu, 0x16cu,  9u},   /* prop         (x1; var2)  */
+    {0x112e5u, 0x16cu, 10u},   /* the FOUNTAIN (x1; var36; 0x431e30 0x438610(10)) */
+    /* --- errands (DATA 1025) shop furniture/props, map-driven (ckpt 183) --- */
+    {0x112cfu, 0x16fu,  9u},   /* wall shelf              res1023 (var0)  */
+    {0x112d1u, 0x16fu,  5u},   /* bookshelf/cabinet/hutch res1023 (var3/4/2) — LAYER 5 (0x438610(5), behind its L9 props) */
+    {0x112d3u, 0x16fu,  9u},   /* upstairs furniture      res1023 (var13) */
+    {0x11279u, 0x16bu,  9u},   /* upstairs prop           res1026 (var38) */
+    {0x112dbu, 0x16cu,  5u},   /* shelf-BACK unit         res1027 (var14/11) — LAYER 5 (behind the L8 pile / its L9 props) */
+    {0x112dcu, 0x16cu,  5u},   /* shelf-BACK unit         res1027 (var8/9/64) — LAYER 5 (fr64 too) */
+    {0x112a1u, 0x16cu,  9u},   /* shop prop               res1027 (var4)  */
+    {0x112a2u, 0x16cu,  9u},   /* shop prop (chair)       res1027 (var5)  */
+    {0x11274u, 0x16cu,  9u},   /* shop prop               res1027 (var44 x2) */
+    {0x1124cu, 0x156u,  9u},   /* upstairs prop           res1022 (var4)  */
+    /* DEFERRED to the family/anim session (still drawn by ERRANDS_CAST; the map band
+     * spawns them as invisible volumes here so there is no double-draw):
+     *   0x112d9 clock / 0x112da pot (res1026 — need the anim clip + per-tick update),
+     *   0x112e4 fire (res1034 — additive mode-1), 0x112d2 counter (res1023 — the
+     *   family z-order, folds in with the party band). */
 };
 
-int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
-                                int16_t *frame_base, uint32_t *layer)
+int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank, uint32_t *layer)
 {
-    for (size_t i = 0; i < sizeof TOWN_SPRITE_DEFS / sizeof TOWN_SPRITE_DEFS[0]; i++) {
-        if (TOWN_SPRITE_DEFS[i].code == code) {
-            if (bank)       *bank       = TOWN_SPRITE_DEFS[i].bank;
-            if (frame_base) *frame_base = TOWN_SPRITE_DEFS[i].frame_base;
-            if (layer)      *layer      = TOWN_SPRITE_DEFS[i].layer;
+    for (size_t i = 0; i < sizeof CHAR_BANK_DEFS / sizeof CHAR_BANK_DEFS[0]; i++) {
+        if (CHAR_BANK_DEFS[i].code == code) {
+            if (bank)  *bank  = CHAR_BANK_DEFS[i].bank;
+            if (layer) *layer = CHAR_BANK_DEFS[i].layer;
             return 1;
         }
     }
@@ -85,24 +103,27 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
         actor_render_state *rs = &pool->states[slot];
 
         /* 0x431e30 defaults: active, behaviour code, draw layer 9, dir 0,
-         * the +0x48 table zeroed (already, via memset).  World = (x,y)*100. */
+         * the +0x48 table zeroed (already, via memset).  World = (x,y)*100.
+         * frame_base = the map record's VARIANT (+0x18) = 0x426d70's param_6
+         * (the SAME source the STRUCTURE band uses; == the town's ex-captured
+         * frame_base — 0x1129e var1 / 0x1129f var2 / 0x112e5 var36). */
         a->code  = code;
         a->dir   = 0;
-        a->layer = 9;        /* actor+0xfc */
+        a->layer = 9;        /* actor+0xfc — the 0x431e30 default (overridden below) */
+        a->sprite_table[0].frame_base = (int16_t)hdr_u16(h, HDR_OFF_VARIANT);
 
         rs->active  = 1;     /* render-state +0x00 (the *param_1!='\0' gate) */
         rs->world_x = hdr_i32(h, HDR_OFF_X) * 100;   /* +0x04 */
         rs->world_y = hdr_i32(h, HDR_OFF_Y) * 100;   /* +0x08 */
-        rs->clip    = NULL;  /* +0x6c — static (32/32 char actors, clip 0)  */
+        rs->clip    = NULL;  /* +0x6c — static (the migrated errands props; clock/pot anim deferred) */
 
-        /* The visible codes get their dir-0 sprite row (+ the draw layer the
-         * lazy fill set); every other code stays an invisible volume (bank 0,
-         * FUN_0044d160 returns 0). */
-        uint16_t bank; int16_t frame_base; uint32_t layer;
-        if (actor_spawn_sprite_for_code(code, &bank, &frame_base, &layer)) {
-            a->sprite_table[0].bank       = bank;
-            a->sprite_table[0].frame_base = frame_base;
-            a->layer                      = layer;
+        /* The visible codes get their sprite bank + the case's draw layer (0x431e30
+         * 0x438610, or the default 9 left above); every other code stays an
+         * invisible volume (bank 0, FUN_0044d160 returns 0) — a collision/trigger. */
+        uint16_t bank; uint32_t layer;
+        if (actor_spawn_sprite_for_code(code, &bank, &layer)) {
+            a->sprite_table[0].bank = bank;
+            a->layer                = layer;
         }
     }
     return pool->count;
@@ -928,64 +949,27 @@ static const anim_clip CLOCK_CLIP = {
 };
 
 static const struct room_cast_member ERRANDS_CAST[] = {
-    /* The shop FURNITURE — the bookshelf frame, the counter in front of Dad, the
-     * wall clock (USER studio notes #8/#9/#18/#19/#20/#21: "still missing" post-
-     * reveal).  These are CHARACTER-band objects (DATA 1025 layer codes 0x112cf
-     * clock / 0x112d1 bookshelf / 0x112d2 counter, in the 0x111xx-0x112xx / 70000
-     * range, NOT structure codes) that resolve to bank 0x16f (res 1023, the
-     * house/shop furniture sheet) with frame_base = the layer's VARIANT (+0x18) —
-     * confirmed off retail.osr: res 1023 fr 0/2/3/4/6/13 (+ res 1026/1022 props) at the
-     * projected positions.  The
-     * port's CHARACTER band (g_actors) is SUPPRESSED for non-town rooms, so these
-     * never spawn (they'd be invisible volumes even if spawned — the codes aren't in
-     * TOWN_SPRITE_DEFS).  Captured here as static room-cast members (the same stand-in
-     * as the shop props below).  World = the map layer pos (X*100, Y*100); the room-
-     * cast projection (cam 0/16000) lands them at retail's screen positions.
-     * PORT-DEBT(errands-cast): the proper fix is to spawn the errands CHARACTER band
-     * with frame_base = variant + the visible-furniture code->bank table. */
-    /* bank   fb  world_x  world_y  dbx dby fac clip  phase lyr alpha (map code @screen) */
-    { 0x16fu,  3,    8000,  44800,    0,  0, 1, NULL,  0, 7, 0 }, /* bookshelf 0x112d1 res1023 fr3 @80,288 — LAYER 7 (behind its layer-8 props) */
-    { 0x16fu,  4,   70400,  25600,    0,  0, 1, NULL,  0, 7, 0 }, /* kitchen CABINET 0x112d1 (map layer[18] 704,256) res1023 fr4 @ref 704,96 — the RIGHT-side furniture the static tick-2200 capture missed (USER mark t2278); LAYER 7 (behind its props, retail seq 223 pre-structure) */
-    { 0x16fu,  2,   70400,   6400,    0,  0, 1, NULL,  0, 7, 0 }, /* upstairs HUTCH  0x112d1 (map layer[31] 704,64)  res1023 fr2 @ref 704,-96 (mostly off the top edge — the "with dishes, upstairs" piece); LAYER 7 */
-    { 0x16fu,  0,   53200,  25600,    0,  0, 1, NULL,  0, 0, 0 }, /* wall shelf 0x112cf res1023 fr0 @532,96 (above the clock) */
-    { 0x16bu, 43,   52800,  24800,    0,  0, 1, &CLOCK_CLIP, 0, 0, 0 }, /* pendulum clock 0x112d9 res1026 var43 @528,88 — SWINGS 43<->45 (CLOCK_CLIP) */
-    /* More RIGHT-side / upstairs props ERRANDS_CAST originally missed — off-screen in the
-     * static tick-2200 capture, revealed once the camera pans right (USER: "the pot is
-     * missing, right next to mom's head, to the right of her").  All DATA-1025 CHARACTER
-     * objects; res->bank = asset_register slot + 13; world = map layer pos x100 (validated
-     * vs retail at the camera clamp t2500: screen == retail exactly).  frame_base = the
-     * retail draw's frame (the layer variant).  LAYER 13 (default) = the foreground prop
-     * band (retail seq 282-288, over the structure + the layer-7 cabinet). */
-    { 0x16bu, 56,   67600,  29600,    0,  0, 1, &POT_CLIP, 0, 0, 0 }, /* the POT 0x112da (map L27 676,296) res1026 var56 @228,208 — right of Mom's head (USER mark); STEAMS 57..60 (POT_CLIP) */
-    { 0x16bu, 38,   56000,   8800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x11279 (map L34 560,88) res1026 fr38 @112,0 */
-    { 0x16fu, 13,   60000,   6400,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs furniture 0x112d3 (map L36 600,64) res1023 fr13 @152,-24 */
-    { 0x156u,  4,   83200,  12800,    0,  0, 1, NULL,  0, 0, 0 }, /* upstairs prop 0x1124c (map L97 832,128) res1022 fr4 @384,40 */
+    /* The errands room's DEFERRED cast — the parts NOT YET map-driven.  ckpt 183 moved
+     * the STATIC shop furniture/shelf/props to the map-driven CHARACTER band (g_actors
+     * via actor_spawn_from_map + CHAR_BANK_DEFS, RE'd from 0x431e30; errands-render-
+     * gaps.md §8).  What remains here, each a stand-in until its own subsystem lands:
+     *   - the ANIM props clock 0x112d9 / pot 0x112da (res1026) — need the per-tick clip
+     *     update wired for the non-town g_actors (still layer 13 here; their real L9
+     *     doesn't matter unless a prop overlaps them);
+     *   - the fireplace FIRE 0x112e4 (res1034) — ADDITIVE mode-1, needs the map band to
+     *     carry node_alpha;
+     *   - the persistent FAMILY (Father 0xe3 / Mother 0xb5) + Dad's COUNTER 0x112d2
+     *     (res1023) — the party band 0x4997b0 (PORT-DEBT(cutscene-party-chars)); the
+     *     counter's z rides WITH the family (in front of Father), so it stays here.
+     * The map band spawns 0x112d9/da/e4/d2 as INVISIBLE volumes (not in CHAR_BANK_DEFS),
+     * so there is no double-draw.  World = the map layer pos (X*100, Y*100). */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
-    { 0x1a3u,  0,   32900,  33800,   -9,-18, 1, &FIRE_CLIP, 0, 0, 14 }, /* fireplace FIRE res1034, additive ramp_a[14] @329,178 (dst_base -9,-18 = the 64x64 cel's pivot, fitted; see FIRE_CLIP) */
-    /* The shop PROPS/NPCs — bank 0x16c (res 0x403=1027, the prop sheet, 80 frames),
-     * STATIC (clip NULL, identical across ticks): the 10 instances retail draws that
-     * the port's struct band doesn't (the codes aren't in the struct-bank table —
-     * PORT-DEBT(errands-cast)/actor-sprite-table; captured here as static room-cast
-     * members instead, the same approach as TOWN_EFFECT_DEFS).  World = the captured
-     * retail screen (tick 2200) back through the errands projection (cam 0/16000,
-     * 1 px = 100 world); facing 1 + the cel pivot folded into dst_base (fitted). */
-    /* bank   fb  world_x  world_y  dbx  dby fac clip  phase   res-1027 frame @screen */
-    { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr4  @500,160 */
-    { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr5  @632,160 */
-    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr8  @384,-32 — LAYER 7 (upstairs shelf UNIT, behind its layer-8 res1026 props: the books res1026 fr13 + stack/box fr34 sit IN FRONT).  These 3 shelf-backs are CHARACTER objects in DATA-1025 (codes 0x112dc var8 / 0x112db var14/11 @ map y128) that retail's CHARACTER band (0x431e30, rendered BEFORE the STRUCTURE band in 0x48c150) draws BEHIND the layer-8 structure props (retail seq 282-284 < the res1026 block 292+).  Captured here as room-cast (layer 13 default) they drew OVER the pile → USER "props missing on shelf" (osr_notes t2148).  Layer 7 (as fr9 below) restores retail's z. */
-    { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @320,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
-    { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @384,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
-    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr11 @528,-32 — LAYER 7 (upstairs shelf UNIT, behind its props — see fr8 above) */
-    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr14 @452,-32 — LAYER 7 (upstairs shelf UNIT, behind its props — see fr8 above) */
-    { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @344,256 */
-    { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @560,64  */
-    { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0, 0 }, /* fr64 @256,352 */
-    /* The FAMILY (people) are spawned LAST so they render IN FRONT of the shop props
-     * (both are layer 13 -> draw order = array order).  RE'd off retail seq at t2500:
-     * every res1027/1026 prop draws (252-286) THEN Mom (289) — she is frontmost.  The
-     * old order (family BEFORE the shop props) drew a chair (res1027 fr5 @184,232, the
-     * 0x112a2 shop prop) OVER Mom (USER mark).  The counter stays AFTER Father (drawn IN
-     * FRONT of him).  bank fb world_x world_y dbx dby fac clip phase lyr alpha */
+    { 0x16bu, 43,  52800,  24800,    0,   0, 1, &CLOCK_CLIP, 0, 0, 0 }, /* pendulum clock 0x112d9 res1026 var43 — SWINGS 43<->45 (CLOCK_CLIP) */
+    { 0x16bu, 56,  67600,  29600,    0,   0, 1, &POT_CLIP,   0, 0, 0 }, /* the POT 0x112da res1026 var56 — STEAMS 57..60 (POT_CLIP) */
+    { 0x1a3u,  0,  32900,  33800,   -9, -18, 1, &FIRE_CLIP,  0, 0, 14 }, /* fireplace FIRE 0x112e4 res1034, additive ramp_a[14] @329,178 (dst_base fitted; see FIRE_CLIP) */
+    /* The persistent FAMILY (people) + counter, spawned LAST (layer 13 -> draw order =
+     * array order): every prop draws THEN the family (Mom frontmost, retail seq t2500).
+     * The counter stays AFTER Father (drawn IN FRONT of him). */
     { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
     { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
     { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */

@@ -104,12 +104,12 @@ typedef struct actor_spawn_pool {
 int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md);
 
 /*
- * The PORT-DEBT visible-code sprite map (exposed for the host test / a future
- * def-table cross-check).  Returns 1 and fills bank / frame_base / layer for a
- * code that draws, or 0 for an invisible code (caller leaves the row zeroed).
+ * The CHARACTER code -> (bank, layer) def table (RE'd from 0x431e30; exposed for
+ * the host test).  Returns 1 and fills bank / layer for a code that DRAWS, or 0
+ * for an invisible-volume code (caller leaves the row zeroed = bank 0).  frame_base
+ * is NOT returned — it is the map record's variant (+0x18), read by the caller.
  */
-int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank,
-                                int16_t *frame_base, uint32_t *layer);
+int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank, uint32_t *layer);
 
 /*
  * Populate `pool` with the STRUCTURE objects of the parsed map `md`:  for each

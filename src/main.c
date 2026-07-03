@@ -2253,7 +2253,10 @@ static void game_actor_walk(draw_pool *pool, const mr_camera *cam, void *ud)
                                              game_sprite_resolve, NULL);
     }
 
-    if (g_actors_loaded && room_is_town)
+    /* The CHARACTER band renders for EVERY room (ckpt 183): the town villagers/props +
+     * protagonist wagon, and now the map-driven errands/house shop furniture (z is by
+     * layer, so its position in this walk doesn't affect the char-vs-struct order). */
+    if (g_actors_loaded)
         for (int i = 0; i < g_actors.count; i++) {
             const actor *a = &g_actors.actors[i];
             if (a->code == ACTOR_CODE_PROTAGONIST)
@@ -3200,6 +3203,18 @@ static int reload_room_backdrop(uint32_t room_key)
         g_structs_loaded = (sn > 0);
         log_line("reload_room_backdrop: actor_spawn_struct_from_map -> %d "
                  "STRUCTURE objects for room 0x%05x", sn, room_key);
+
+        /* ckpt 183: the CHARACTER band (shop furniture/shelf/props) is now MAP-DRIVEN
+         * for the non-town rooms too (actor_spawn_from_map + CHAR_BANK_DEFS, RE'd from
+         * 0x431e30) — retiring the ERRANDS_CAST prop capture.  game_actor_walk renders
+         * it for every room (z is by layer: char L5/9/10 vs struct L8/15).  The still-
+         * captured cast (anim clock/pot, additive fire, family+counter) stays in
+         * g_room_cast; the map band spawns those codes as invisible volumes (no
+         * double-draw). */
+        int an = actor_spawn_from_map(&g_actors, &g_town.map);
+        g_actors_loaded = (an > 0);
+        log_line("reload_room_backdrop: actor_spawn_from_map -> %d CHARACTER actors "
+                 "for room 0x%05x", an, room_key);
 
         /* Phase 2b: the room CAST (the family).  In the house/errands the town
          * cast band is suppressed, so spawn this room's cast (Arche + parents)
