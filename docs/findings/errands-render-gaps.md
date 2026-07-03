@@ -595,6 +595,53 @@ needs the scene RNG census, Phase 2).  The character-band SLOT-order interleave 
 port LAYERS (not reproduced slot-for-slot); it is visually exact wherever draws overlap and
 invisible where they don't.
 
+## 14. The house→errands TRANSITION: backdrop renders 1:1, the "drift" is a STALE NAV (ckpt 187)
+
+Resolves the ckpt-186 OPEN flag ("the port cutscene drifts BEHIND retail through the
+transition") + retires the `cutscene-room-render` debt.  Three findings, all frame/data-verified.
+
+**(a) `cutscene-room-render` is DONE — the house + errands BACKDROPS load + render (debt was
+STALE + WRONG).**  The debt claimed "the house lines play over the TOWN-ARRIVAL backdrop
+(retail's house is a multi-floor interior)".  BOTH claims false.  The port swaps the backdrop
+on the cutscene room-key advance (`main.c:3806` `reload_room_backdrop(cutscene_room_key)`):
+capture log — `load_room: room 0x334c8 -> DATA scene 1023` (house) on entering the house room,
+`room 0x334dc -> scene 1025` (errands) at chain-complete.  **Frame-verified (`osr_prof dump`):**
+port house-dialogue @t1600 (Father's line) vs retail-stairs @t1445 (Mother's line) render the
+**IDENTICAL house-EXTERIOR backdrop** — the "Liens" new-house building + the family stood in
+front + the portrait bust + the box.  0x334c8 is the house EXTERIOR (approaching the new house),
+NOT an interior; the port matches retail.  Feed `house dialogue backdrop renders 1:1`.
+
+**(b) The port-fatherz "drift" = a STALE-NAV artifact, NOT a port-timing bug.**  `nav-full-
+errands`'s confirm ticks were extracted from **`retail.osr`** [600,1900] — a capture that **no
+longer exists** (only `retail-stairs.osr` + `retail-decomp.osr` remain).  retail.osr's advance
+schedule differed from the current reference retail-stairs by ~8-90t, so the port dialogue
+advanced at the WRONG ticks → apparent drift.  Proof (`dlg_reconstruct` port-fatherz vs the
+retail-stairs `dialogue_timeline`): the port's "I will, I promise!" @t1630 vs retail @1590,
+"…moving us in…" @t1699 vs retail @1620 — the port lags by the stale confirm ticks.  The clean
+ckpt-179 measurement (matching presses) already found the house dialogue tick-1:1.
+
+**(c) Retail's house→errands ENVELOPE (retail-stairs ground truth, for the −6t entry latency):**
+house-close (L17 adv=1634) → HOUSE_EXIT cover to FULL BLACK by ~t1646 (the errands box stages
+empty underneath) → **black HOLD ~1646-1655 (~9t = the errands room-load latency)** → reveal
+TOP-DOWN t1655-1691 → errands box + L18 "…the store. Cool!" ~t1710-1725.  The **−6t is the
+black-HOLD the port skips** (it arms the reveal immediately on chain-complete, no room-load
+wait).  A faithful fix = insert the ~9t hold before the errands reveal arm, PORT-DEBT-tagged as
+a load-latency stand-in for the unported `0x586010` map-load (a measured stand-in for an
+unported subsystem — the allowed exception) — see `cutscene-errands-entry-latency`.
+
+**Nav rebuild attempt (`nav-errands-stairs.jsonl`, re-keyed to retail-stairs skip@full/adv@adv):
+FAILED to lockstep — a retail-tick-keyed nav is fundamentally insufficient.**  Captured
+`port-navstairs.osr`: L0-L6 tracked with an accumulating +8t drift (the port's speaker-change box
+REOPEN adds ~8t vs retail — the old nav's `[spkr-change -8]` compensation), then the L7→L8
+RUN-OFF beat + the L9→L10 / L17→L18 FADE beats BLOCK advancement, so confirms placed at retail's
+dialogue-ticks fire DURING the beats + are wasted → by L13 the port is 250t+ behind + never
+reaches errands.  A faithful transition nav needs BEAT-AWARE placement (the port's beat durations
+≠ retail's) — genuinely iterative, low-value for a −6t residual.  **The Z-spam recipe (FRONT
+tooling note) stays THE working recipe for the CLAMP verify** (both sides settle by t2420, so the
+transition-window drift is irrelevant there).  retail-stairs's 21-line advance schedule is
+recorded above (envelope) + in `dialogue_timeline.py <retail-stairs> 600 1900` for a future
+beat-aware rebuild.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw

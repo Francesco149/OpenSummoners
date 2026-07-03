@@ -196,6 +196,19 @@ understates how much actual instruction volume is ported.
   Z-spam recipe below): Father the shopkeeper renders BEHIND the counter/register/vase == retail.  Feed
   `ckpt186: Father z-order VERIFIED camera-aligned` — the port|retail DIFF is ONLY the known residuals (Father's
   breathe anim-PHASE fr5-vs-fr6, RNG-blocked + the HUD item-bar stand-in), NO z-order artifact.**
+- **Landed ckpt 187 — the house→errands TRANSITION diagnosed: backdrop renders 1:1, the "drift" is a STALE NAV
+  (retires `cutscene-room-render`).**  (a) `cutscene-room-render` was STALE + WRONG — the house (DATA scene 1023)
+  + errands (1025) BACKDROPS DO load/render (`main.c:3806` room-key swap): frame-verified port house-dialogue
+  @t1600 == retail-stairs @t1445 (IDENTICAL house-EXTERIOR "Liens" backdrop + family + portrait; 0x334c8 is the
+  EXTERIOR, not an interior — the debt's "plays over TOWN backdrop / multi-floor interior" both false).  Feed
+  `house dialogue backdrop renders 1:1`.  (b) the ckpt-186 OPEN "port drifts behind" = a STALE-NAV artifact:
+  `nav-full-errands`'s confirms were keyed to `retail.osr` (**deleted** — only retail-stairs/retail-decomp remain),
+  whose schedule differed from retail-stairs by ~8-90t.  (c) retail's transition ENVELOPE measured (the −6t
+  `cutscene-errands-entry-latency` = the ~9t black-HOLD retail spends on the errands room-load, which the port
+  skips — FIX READY as a tagged load-latency stand-in).  A re-keyed nav still won't lockstep (port ~8t
+  speaker-change reopen + L7/L9/L17 beat gaps → needs beat-aware placement); Z-spam stays the clamp recipe.
+  `errands-render-gaps.md §14`; `cutscene-room-render` RETIRED.  New: `osr_prof dump` headless frame recon +
+  `dialogue_timeline` re-keying.
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
@@ -210,28 +223,30 @@ understates how much actual instruction volume is ported.
   `{"tick":T,"ids":[36]}` spam every 10 ticks over 1700-1900 (the dialogue window; keep spam ticks MONOTONIC after
   the last kept ≤1668 tick, else the whole trace fails to parse).  Drive with `--held-trace runs/sync/hold-right-
   clamp.jsonl` (`{"tick":1650,"keys":[205]}` = hold RIGHT).  (2 spam captures were externally KILLED mid-write ~t2000
-  — re-run if the clamp frame isn't reached.)  SEPARATE observed gap (OPEN): with this (stale) nav the port's
-  cutscene TIMELINE drifts BEHIND retail through the transition — at t1710 the port is STILL on a HOUSE dialogue
-  line (`Arche's Mother` "…help with moving us in…", over the town backdrop, reconstructed) while retail is already
-  in the item-shop.  The errands room-swap DOES fire at chain-complete (`reload_room_backdrop`→`load_room` loads the
-  shop), just LATER than retail.  Whether this is the stale-nav artifact (retail-tick-keyed confirms not landing on
-  the port's drifted lines) or a real port-timing gap (`cutscene-room-render` / the −6t `cutscene-errands-entry-
-  latency` / `dialogue-advance-early`) is unresolved — the ckpt-186 CLAMP verify (t2420, both settled) is unaffected.
+  — re-run if the clamp frame isn't reached.)  SEPARATE observed gap **RESOLVED (ckpt 187): the drift is a
+  STALE-NAV artifact, NOT a port bug.**  `nav-full-errands`'s confirm ticks were extracted from **`retail.osr`**
+  — a capture that **no longer exists** (only retail-stairs + retail-decomp remain); its advance schedule differed
+  from retail-stairs by ~8-90t, so the port dialogue advanced at the WRONG ticks → apparent drift.  The house
+  BACKDROP is FINE: frame-verified port @t1600 == retail-stairs @t1445 (identical house-EXTERIOR backdrop — retires
+  `cutscene-room-render`, §14).  A re-keyed `nav-errands-stairs.jsonl` (skip@full/adv@adv from retail-stairs)
+  still won't lockstep — the port's ~8t speaker-change reopen + the L7/L9/L17 BEAT gaps need beat-aware confirm
+  placement; the Z-spam stays THE clamp recipe.  `findings/errands-render-gaps.md §14`.
 - **Next move (finish the errands un-MVP, session by session):** (1)(2) DONE ckpt 184/185 (clock/pot, fire).
   (3) **RESCOPED by ckpt 186** — the errands PARENTS are character-band NPCs (z-order now fixed); the LAST
   errands stand-ins are the parents' anim-PHASE (RNG-blocked, `effect-anim-phase`/0x426ec0 — needs the scene
   RNG census, Phase 2) + their POSITION provenance (the `0x41ec20` scene-script spawn stand-in).  Only
   ARCHE-as-leader + her multi-part body still need the party band `0x4997b0` (`cutscene-party-chars`; leader
   path + `0x402730/0x402330` movers) — Arche is already the freeroam char, so this is provenance, not a
-  visible gap.  (4) the −6t entry latency (`cutscene-errands-entry-latency` — measure the house→errands
-  cover/reveal envelope, do NOT curve-fit); (5) the HUD party-context (blocked on the party subsystem).
+  visible gap.  (4) the −6t entry latency (`cutscene-errands-entry-latency` — **envelope MEASURED ckpt 187**,
+  fix ready); (5) the HUD party-context (blocked on the party subsystem).
   THEN the older items below:
-  (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
+  (a2') **errands entry −6t (envelope MEASURED, ckpt 187)** — the house dialogue is tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
-  port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY
-  reveal arming ~6t early (main.c arms on chain-complete, no errands room-load latency →
-  `PORT-DEBT(cutscene-errands-entry-latency)`).  Measure the house→errands cover/reveal
-  envelope off retail-stairs before adjusting — do NOT curve-fit.
+  port 1693/retail 1699).  Retail HOLDS full-black ~9t (t1646-1655, the errands room-load) before
+  the top-down reveal; the port skips it (arms on chain-complete, instant load) = the −6t.  FIX
+  READY (`errands-render-gaps.md §14`): insert the ~9t black-hold before the errands reveal arm,
+  PORT-DEBT-tagged as a load-latency stand-in for the unported `0x586010` map-load (pin the exact
+  hold off the port's own cover→reveal delta on a beat-aware nav — do NOT curve-fit a bare 6t).
   (b) **house props (mark t2278) — DIAGNOSED + the cabinet FIXED (ckpt 180).**  The POT
   (res1074) is NOT missing: it renders BIT-EXACT in the walk-aligned `port-stairs2` vs
   retail-stairs @t2278 — the "missing" was a `port-waitfix` STALE-TRACE artifact (the
