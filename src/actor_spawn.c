@@ -972,11 +972,11 @@ static const struct room_cast_member ERRANDS_CAST[] = {
     /* bank   fb  world_x  world_y  dbx  dby fac clip  phase   res-1027 frame @screen */
     { 0x16cu,  4,  50000,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr4  @500,160 */
     { 0x16cu,  5,  63200,  32000,    0,   0, 1, NULL,  0, 0, 0 }, /* fr5  @632,160 */
-    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr8  @384,-32 */
+    { 0x16cu,  8,  38400,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr8  @384,-32 — LAYER 7 (upstairs shelf UNIT, behind its layer-8 res1026 props: the books res1026 fr13 + stack/box fr34 sit IN FRONT).  These 3 shelf-backs are CHARACTER objects in DATA-1025 (codes 0x112dc var8 / 0x112db var14/11 @ map y128) that retail's CHARACTER band (0x431e30, rendered BEFORE the STRUCTURE band in 0x48c150) draws BEHIND the layer-8 structure props (retail seq 282-284 < the res1026 block 292+).  Captured here as room-cast (layer 13 default) they drew OVER the pile → USER "props missing on shelf" (osr_notes t2148).  Layer 7 (as fr9 below) restores retail's z. */
     { 0x16cu,  9,  32000,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @320,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
     { 0x16cu,  9,  38400,  51200,    0,   0, 1, NULL,  0, 7, 0 }, /* fr9  @384,352 — LAYER 7 (shelf unit, behind its layer-8 props) */
-    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr11 @528,-32 */
-    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 0, 0 }, /* fr14 @452,-32 */
+    { 0x16cu, 11,  52800,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr11 @528,-32 — LAYER 7 (upstairs shelf UNIT, behind its props — see fr8 above) */
+    { 0x16cu, 14,  45200,  12800,    0,   0, 1, NULL,  0, 7, 0 }, /* fr14 @452,-32 — LAYER 7 (upstairs shelf UNIT, behind its props — see fr8 above) */
     { 0x16cu, 44,  34400,  41600,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @344,256 */
     { 0x16cu, 44,  56000,  22400,    0,   0, 1, NULL,  0, 0, 0 }, /* fr44 @560,64  */
     { 0x16cu, 64,  25600,  51200,    0,   0, 1, NULL,  0, 0, 0 }, /* fr64 @256,352 */
