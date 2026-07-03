@@ -89,10 +89,19 @@ picture is sharp — and it MOVES the first divergence:
   the port going static.  This is in the TOWN, ~300 ticks BEFORE the house/errands — so the
   ckpt-191 "the gap is the errands spawn burst" framing was imprecise (a subsequence-match
   artifact): the town RNG itself splits first and must align before the errands can.
-- **Locus:** tick **972** is exactly the **162-tick periodic +20-draw event** (162×6=972; the
-  earlier k=1..5 events at 162/324/486/648/810 matched), and tick 973 carries a **+21** draw.
-  So the split sits right at that periodic town RNG event (butterfly/fountain/effect band).
-  The k=6 event diverges where k=1..5 matched ⇒ a cumulative/phase effect at that consumer.
+- **Locus — the periodic +20 event, RE target pinned.**  The port's town `rngcalls` deltas
+  show a periodic burst at **tick 163 + 162·k** (163, 325, 487, 649, 811, **973** — spacing
+  EXACTLY 162, each **+20/+21** draws), after the tick-1 **+237** game_enter spawn burst
+  (quirk #86).  All of k=0..5 (through tick 973) MATCH retail tick-for-tick; **the split opens
+  at tick 974, the tick immediately after the k=5 event (973 = the last matching tick).**  Then
+  the port fires an **ANOMALOUS +18 burst at tick 984** — 11 ticks after 973, OFF the 162 grid
+  (the 7th on-grid event is at 973+162=1135, which is also present) — the prime suspect for the
+  extra/misordered draw.  A post-974 re-alignment scan finds NO single offset recovering the
+  match (975-1100 = 1/126; a partial 79/169 at offset −10 by 1100-1268) ⇒ a real COMPOUNDING
+  divergence, not a redistributable tick-shift.  So the consumer to RE is the **162-tick periodic
+  event + whatever fires the tick-984 burst** (the EFFECT-band event timer `0x467380` / the
+  butterfly-slot band, `game_actor_update` in `main.c`), tracing why the port draws at 974/984
+  what retail does not.
 
 **Next (to fully classify the 974 split):** the proxy still can't count retail draws
 (`PORT-DEBT(osr-state-rngcalls-retail)` — the STATE `rngcalls` is port-only).  Add the retail
