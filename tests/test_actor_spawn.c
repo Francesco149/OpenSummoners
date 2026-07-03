@@ -117,6 +117,11 @@ int test_actor_spawn_sprite_lookup(void)
     T_ASSERT_EQ_U(bank, 0x16fu); T_ASSERT_EQ_U(layer, 9u);   /* wall shelf res1023 -> L9 */
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x1124cu, &bank, &layer), 1);
     T_ASSERT_EQ_U(bank, 0x156u); T_ASSERT_EQ_U(layer, 9u);   /* res1022 prop -> L9 */
+    /* the ANIM props clock/pot (ckpt 184): res1026 bank 0x16b -> L9 (clip added separately). */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112d9u, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16bu); T_ASSERT_EQ_U(layer, 9u);   /* pendulum clock */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112dau, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x16bu); T_ASSERT_EQ_U(layer, 9u);   /* cooking pot     */
     /* an invisible volume, a DEFERRED code (fire 0x112e4), + a non-character all miss. */
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e6u, &bank, &layer), 0);
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e4u, &bank, &layer), 0);
@@ -1167,5 +1172,88 @@ int test_errands_fire(void)
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 0);   /* wrapped back to cel 0 */
     }
     T_ASSERT_EQ_I(saw_fire, 1);
+    return 0;
+}
+
+/* ── ckpt 184: the errands ANIM props (pendulum clock 0x112d9, cooking pot 0x112da)
+ *    are now MAP-DRIVEN — the CHARACTER band (g_actors) spawns them with their anim
+ *    clip via actor_spawn_clip_for_code, retiring their ERRANDS_CAST capture.  Guard
+ *    (a) the map-spawn assigns bank 0x16b + the variant frame_base + the swing/steam
+ *    clip, and (b) they are GONE from ERRANDS_CAST (no bank-0x16b room-cast member ->
+ *    no double-draw).  Map positions are ground truth off DATA-1025 (clock 528,248
+ *    var43 -> 52800,24800; pot 676,296 var56 -> 67600,29600). ── */
+int test_errands_clock_pot_mapdriven(void)
+{
+    map_layer layers[2];
+    layer_set(&layers[0], 0x112d9u, 528, 248);   /* pendulum clock */
+    hdr_set(layers[0].hdr, 0x18, 43);            /* variant 43 -> frame_base 43 */
+    layer_set(&layers[1], 0x112dau, 676, 296);   /* cooking pot */
+    hdr_set(layers[1].hdr, 0x18, 56);            /* variant 56 -> frame_base 56 */
+    map_data md; memset(&md, 0, sizeof md); md.count = 2; md.layers = layers;
+
+    actor_spawn_pool pool;
+    T_ASSERT_EQ_I(actor_spawn_from_map(&pool, &md), 2);
+
+    /* slot 0 = the CLOCK: bank 0x16b, frame_base 43, layer 9, world *100, the SWING
+     * clip (delta {0,1,2,1}, dur 25) -> rendered cels 43,44,45,44. */
+    T_ASSERT_EQ_U(pool.actors[0].code, 0x112d9u);
+    T_ASSERT_EQ_U(pool.actors[0].sprite_table[0].bank, 0x16bu);
+    T_ASSERT_EQ_I(pool.actors[0].sprite_table[0].frame_base, 43);
+    T_ASSERT_EQ_U(pool.actors[0].layer, 9u);
+    T_ASSERT_EQ_I(pool.states[0].world_x, 52800);
+    T_ASSERT_EQ_I(pool.states[0].world_y, 24800);
+    const anim_clip *cl = pool.states[0].clip;
+    T_ASSERT(cl != NULL);
+    T_ASSERT_EQ_I(cl->frame_count, 4);
+    T_ASSERT_EQ_I(cl->frame_dur, 25);
+    T_ASSERT_EQ_I(cl->oneshot, 0);
+    {   /* the clip sprite delta = base_sprite + frame_delta[f] = {0,1,2,1} (frame_base
+         * 43 is added at render time -> cels 43,44,45,44), looping. */
+        int want[4] = { 0, 1, 2, 1 };
+        anim_state as = { .clip = cl, .timer = 0, .frame = 0, .done = 0 };
+        for (int f = 0; f < 4; f++) {
+            T_ASSERT_EQ_I(anim_clip_sprite(&as), want[f]);
+            for (int t = 0; t < cl->frame_dur; t++) anim_clip_advance(&as);
+        }
+        T_ASSERT_EQ_I(anim_clip_sprite(&as), 0);   /* wraps back to delta 0 */
+    }
+
+    /* slot 1 = the POT: bank 0x16b, frame_base 56, layer 9, the STEAM clip (delta
+     * {1,2,3,4}, dur 6) -> rendered cels 57,58,59,60. */
+    T_ASSERT_EQ_U(pool.actors[1].code, 0x112dau);
+    T_ASSERT_EQ_U(pool.actors[1].sprite_table[0].bank, 0x16bu);
+    T_ASSERT_EQ_I(pool.actors[1].sprite_table[0].frame_base, 56);
+    T_ASSERT_EQ_U(pool.actors[1].layer, 9u);
+    T_ASSERT_EQ_I(pool.states[1].world_x, 67600);
+    T_ASSERT_EQ_I(pool.states[1].world_y, 29600);
+    const anim_clip *cp = pool.states[1].clip;
+    T_ASSERT(cp != NULL);
+    T_ASSERT_EQ_I(cp->frame_count, 4);
+    T_ASSERT_EQ_I(cp->frame_dur, 6);
+    {
+        int want[4] = { 1, 2, 3, 4 };
+        anim_state as = { .clip = cp, .timer = 0, .frame = 0, .done = 0 };
+        for (int f = 0; f < 4; f++) {
+            T_ASSERT_EQ_I(anim_clip_sprite(&as), want[f]);
+            for (int t = 0; t < cp->frame_dur; t++) anim_clip_advance(&as);
+        }
+    }
+
+    /* a NON-anim CHARACTER code gets no clip (static prop) — the wall shelf 0x112cf. */
+    {
+        map_layer s; layer_set(&s, 0x112cfu, 532, 256);
+        map_data smd; memset(&smd, 0, sizeof smd); smd.count = 1; smd.layers = &s;
+        actor_spawn_pool sp;
+        T_ASSERT_EQ_I(actor_spawn_from_map(&sp, &smd), 1);
+        T_ASSERT_EQ_P(sp.states[0].clip, NULL);
+    }
+
+    /* GONE from ERRANDS_CAST: no room-cast member carries bank 0x16b now (the clock/pot
+     * were the only 0x16b entries; keeping them here too would double-draw). */
+    actor_spawn_pool rc;
+    int n = actor_spawn_room_cast(&rc, 0x334dcu);   /* CUTSCENE_ROOM_ERRANDS */
+    T_ASSERT(n > 0);
+    for (int i = 0; i < rc.count; i++)
+        T_ASSERT(rc.actors[i].sprite_table[0].bank != 0x16bu);
     return 0;
 }

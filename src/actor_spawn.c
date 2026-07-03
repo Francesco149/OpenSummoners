@@ -64,12 +64,25 @@ static const struct {
     {0x112a2u, 0x16cu,  9u},   /* shop prop (chair)       res1027 (var5)  */
     {0x11274u, 0x16cu,  9u},   /* shop prop               res1027 (var44 x2) */
     {0x1124cu, 0x156u,  9u},   /* upstairs prop           res1022 (var4)  */
-    /* DEFERRED to the family/anim session (still drawn by ERRANDS_CAST; the map band
-     * spawns them as invisible volumes here so there is no double-draw):
-     *   0x112d9 clock / 0x112da pot (res1026 — need the anim clip + per-tick update),
-     *   0x112e4 fire (res1034 — additive mode-1), 0x112d2 counter (res1023 — the
-     *   family z-order, folds in with the party band). */
+    /* The ANIMATED shop props (ckpt 184): visible + clip-driven off the map, the same
+     * as the town wagon.  The bank/layer come from here; the frame_base (variant 43/56)
+     * from the map; the CLIP from actor_spawn_clip_for_code (below).  Verified the map
+     * pos == the ex-ERRANDS_CAST fit (clock 528,248→52800,24800; pot 676,296→67600,29600). */
+    {0x112d9u, 0x16bu,  9u},   /* pendulum CLOCK          res1026 (var43) — SWINGS 43<->45 (CLOCK_CLIP) */
+    {0x112dau, 0x16bu,  9u},   /* cooking POT             res1026 (var56) — STEAMS 57..60 (POT_CLIP)   */
+    /* DEFERRED to the family session (still drawn by ERRANDS_CAST; the map band spawns
+     * them as invisible volumes here so there is no double-draw):
+     *   0x112e4 fire (res1034 — additive mode-1, needs node_alpha in the map-spawn),
+     *   0x112d2 counter (res1023 — the family z-order, folds in with the party band). */
 };
+
+/* The animated errands CHARACTER props (ckpt 184): the pendulum clock SWINGS, the
+ * cooking pot STEAMS.  Both ride the SAME per-tick actor_pool_update(&g_actors)
+ * stepper as the town wagon — the frame_base (the map variant 43/56) comes from the
+ * map record, the delta from the clip (rendered cel = frame_base + base_sprite +
+ * frame_delta[f], actor_render_describe).  A code NOT listed installs no clip (static
+ * prop).  Forward-declared above actor_spawn_from_map; defined after CLOCK/POT_CLIP. */
+static const anim_clip *actor_spawn_clip_for_code(uint32_t code);
 
 int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank, uint32_t *layer)
 {
@@ -115,7 +128,7 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->active  = 1;     /* render-state +0x00 (the *param_1!='\0' gate) */
         rs->world_x = hdr_i32(h, HDR_OFF_X) * 100;   /* +0x04 */
         rs->world_y = hdr_i32(h, HDR_OFF_Y) * 100;   /* +0x08 */
-        rs->clip    = NULL;  /* +0x6c — static (the migrated errands props; clock/pot anim deferred) */
+        rs->clip    = actor_spawn_clip_for_code(code); /* +0x6c — NULL=static; clock/pot get their anim clip (ckpt 184) */
 
         /* The visible codes get their sprite bank + the case's draw layer (0x431e30
          * 0x438610, or the default 9 left above); every other code stays an
@@ -948,24 +961,32 @@ static const anim_clip CLOCK_CLIP = {
     .oneshot     = 0,    /* loops */
 };
 
+/* code -> anim clip for the map-driven CHARACTER band (ckpt 184).  Only the errands
+ * ANIM props have one; every other CHARACTER code is a static prop (NULL).  Forward-
+ * declared next to CHAR_BANK_DEFS; called from actor_spawn_from_map. */
+static const anim_clip *actor_spawn_clip_for_code(uint32_t code)
+{
+    switch (code) {
+    case 0x112d9u: return &CLOCK_CLIP;  /* pendulum clock (var43) — swings 43<->45 */
+    case 0x112dau: return &POT_CLIP;    /* cooking pot    (var56) — steams 57..60  */
+    default:       return NULL;         /* static prop (no clip)                   */
+    }
+}
+
 static const struct room_cast_member ERRANDS_CAST[] = {
     /* The errands room's DEFERRED cast — the parts NOT YET map-driven.  ckpt 183 moved
-     * the STATIC shop furniture/shelf/props to the map-driven CHARACTER band (g_actors
-     * via actor_spawn_from_map + CHAR_BANK_DEFS, RE'd from 0x431e30; errands-render-
-     * gaps.md §8).  What remains here, each a stand-in until its own subsystem lands:
-     *   - the ANIM props clock 0x112d9 / pot 0x112da (res1026) — need the per-tick clip
-     *     update wired for the non-town g_actors (still layer 13 here; their real L9
-     *     doesn't matter unless a prop overlaps them);
+     * the STATIC shop furniture/shelf/props to the map-driven CHARACTER band; ckpt 184
+     * moved the ANIM props (clock 0x112d9 / pot 0x112da) there too (g_actors via
+     * actor_spawn_from_map + CHAR_BANK_DEFS + actor_spawn_clip_for_code; errands-render-
+     * gaps.md §8-9).  What remains here, each a stand-in until its own subsystem lands:
      *   - the fireplace FIRE 0x112e4 (res1034) — ADDITIVE mode-1, needs the map band to
-     *     carry node_alpha;
+     *     carry node_alpha (+ its map pos 32000,32000 vs the fitted dst_base reconciled);
      *   - the persistent FAMILY (Father 0xe3 / Mother 0xb5) + Dad's COUNTER 0x112d2
      *     (res1023) — the party band 0x4997b0 (PORT-DEBT(cutscene-party-chars)); the
      *     counter's z rides WITH the family (in front of Father), so it stays here.
-     * The map band spawns 0x112d9/da/e4/d2 as INVISIBLE volumes (not in CHAR_BANK_DEFS),
-     * so there is no double-draw.  World = the map layer pos (X*100, Y*100). */
+     * The map band spawns 0x112e4/d2 as INVISIBLE volumes (not in CHAR_BANK_DEFS), so
+     * there is no double-draw.  World = the map layer pos (X*100, Y*100). */
     /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
-    { 0x16bu, 43,  52800,  24800,    0,   0, 1, &CLOCK_CLIP, 0, 0, 0 }, /* pendulum clock 0x112d9 res1026 var43 — SWINGS 43<->45 (CLOCK_CLIP) */
-    { 0x16bu, 56,  67600,  29600,    0,   0, 1, &POT_CLIP,   0, 0, 0 }, /* the POT 0x112da res1026 var56 — STEAMS 57..60 (POT_CLIP) */
     { 0x1a3u,  0,  32900,  33800,   -9, -18, 1, &FIRE_CLIP,  0, 0, 14 }, /* fireplace FIRE 0x112e4 res1034, additive ramp_a[14] @329,178 (dst_base fitted; see FIRE_CLIP) */
     /* The persistent FAMILY (people) + counter, spawned LAST (layer 13 -> draw order =
      * array order): every prop draws THEN the family (Mom frontmost, retail seq t2500).

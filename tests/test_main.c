@@ -1062,6 +1062,7 @@ struct test_case {
     X(arche_sword_clip)                                        \
     X(errands_cast_zorder)                                     \
     X(errands_fire)                                            \
+    X(errands_clock_pot_mapdriven)                             \
     X(butterfly_pertick)                                       \
     X(butterfly_motion)                                        \
     X(butterfly_flutter)                                       \

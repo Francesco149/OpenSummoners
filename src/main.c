@@ -3619,22 +3619,28 @@ static void game_render(void *user)
             int room_is_town = (g_loaded_room_key == CUTSCENE_ROOM_ARRIVAL);
             if (g_actors_loaded && is_sim_tick && room_is_town)
                 game_actor_update();
-            else if (is_sim_tick && g_room_cast_loaded) {
-                /* Phase 2b: animate the house/errands room cast (the family's
-                 * idle breathing) — the town's full game_actor_update doesn't
-                 * run in non-town rooms, so step just the room cast's clips. */
-                actor_pool_update(&g_room_cast);
-                /* USER notes #3-5: when Arche's one-shot house TURN clip finishes
-                 * (cel 7 held, rs->done), settle her to the post-turn standing idle
-                 * (base-0 breathe) — RE'd off retail.osr res 0x570: 158(4t)→7(4t)
-                 * →idle 0/1/2 (14t).  HOUSE_CAST[0] = Arche (bank 0x8b). */
-                if (g_arche_house_turning && g_room_cast.count > 0 &&
-                    g_room_cast.states[0].done) {
-                    g_room_cast.states[0].clip  = arche_house_turn_idle_clip();
-                    g_room_cast.states[0].frame = 0;
-                    g_room_cast.states[0].timer = 0;
-                    g_room_cast.states[0].done  = 0;
-                    g_arche_house_turning = 0;
+            else if (is_sim_tick) {
+                /* Non-town rooms: the town's full game_actor_update doesn't run
+                 * here, so step the two animated bands directly.  (1) the map-driven
+                 * CHARACTER band's ANIM props — the errands clock SWING + pot STEAM
+                 * (ckpt 184; the static props no-op on clip==NULL).  (2) the room
+                 * cast's idle breathing (the family). */
+                if (g_actors_loaded)
+                    actor_pool_update(&g_actors);
+                if (g_room_cast_loaded) {
+                    actor_pool_update(&g_room_cast);
+                    /* USER notes #3-5: when Arche's one-shot house TURN clip finishes
+                     * (cel 7 held, rs->done), settle her to the post-turn standing idle
+                     * (base-0 breathe) — RE'd off retail.osr res 0x570: 158(4t)→7(4t)
+                     * →idle 0/1/2 (14t).  HOUSE_CAST[0] = Arche (bank 0x8b). */
+                    if (g_arche_house_turning && g_room_cast.count > 0 &&
+                        g_room_cast.states[0].done) {
+                        g_room_cast.states[0].clip  = arche_house_turn_idle_clip();
+                        g_room_cast.states[0].frame = 0;
+                        g_room_cast.states[0].timer = 0;
+                        g_room_cast.states[0].done  = 0;
+                        g_arche_house_turning = 0;
+                    }
                 }
             }
             /* Phase 2b: the FREEROAM mover — one sim-tick of controllable Arche on
