@@ -122,9 +122,11 @@ int test_actor_spawn_sprite_lookup(void)
     T_ASSERT_EQ_U(bank, 0x16bu); T_ASSERT_EQ_U(layer, 9u);   /* pendulum clock */
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112dau, &bank, &layer), 1);
     T_ASSERT_EQ_U(bank, 0x16bu); T_ASSERT_EQ_U(layer, 9u);   /* cooking pot     */
-    /* an invisible volume, a DEFERRED code (fire 0x112e4), + a non-character all miss. */
+    /* the additive fireplace FIRE (ckpt 185): res1034 bank 0x1a3 -> LAYER 6 (0x438610(6)). */
+    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e4u, &bank, &layer), 1);
+    T_ASSERT_EQ_U(bank, 0x1a3u); T_ASSERT_EQ_U(layer, 6u);   /* fire (additive, node_alpha 14) */
+    /* an invisible volume + a non-character both miss. */
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e6u, &bank, &layer), 0);
-    T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x112e4u, &bank, &layer), 0);
     T_ASSERT_EQ_I(actor_spawn_sprite_for_code(0x00ec55u, &bank, &layer), 0);
     return 0;
 }
@@ -1132,38 +1134,39 @@ int test_errands_cast_zorder(void)
     return 0;
 }
 
-/* ── USER osr_notes #3 "missing fire in fireplace" (tick 1726): the errands
- *    fireplace FIRE (res 1034) is ported as an ADDITIVE-alpha room-cast member.
- *    Guard its spawn params: bank 0x1a3 (the ar_pool_get_slot POOL index for
- *    res 0x40a's group3 slot 406 + RAMP_COUNT+1), the 6-frame / dur-6 / looping
- *    FIRE_CLIP, node_alpha 14 (= ramp_a[14], the additive blend byte-identical to
- *    retail blend_ref 36), and the fitted world/dst_base that land it at the
- *    constant screen dst (329,178) 48x39.  All drawcall-verified off port-fire.osr
- *    vs retail.osr (findings/errands-render-gaps.md §1). ── */
+/* ── ckpt 185: the errands fireplace FIRE (0x112e4, res 1034) is now MAP-DRIVEN — the
+ *    CHARACTER band spawns it ADDITIVE, retiring its ERRANDS_CAST capture.  RE'd off the
+ *    0x431e30 fire case: install bank 0x1a3 (0x426d70), the FIRE_CLIP (0x407b80 clip
+ *    DAT_00647e58), the additive blend ramp_a[14] (0x4385c0 DAT_008a92f0), and LAYER 6
+ *    (0x438610(6) — NOT the ex-capture's default L13, and the additive z genuinely
+ *    matters since the blit ADDS to what's behind).  The map world (32000,32000) +
+ *    dst_base 0 nets to the SAME screen pos as the ex-fit (32900,33800)+dst(-9,-18) =
+ *    (320,160)+pivot.  Guard the map-spawn params + GONE from ERRANDS_CAST. ── */
 int test_errands_fire(void)
 {
+    map_layer L;
+    layer_set(&L, 0x112e4u, 320, 320);   /* fireplace fire @map(320,320) var 0 */
+    /* variant 0 (fire), left at 0 by layer_set */
+    map_data md; memset(&md, 0, sizeof md); md.count = 1; md.layers = &L;
+
     actor_spawn_pool pool;
-    int n = actor_spawn_room_cast(&pool, 0x334dcu);   /* CUTSCENE_ROOM_ERRANDS */
-    T_ASSERT(n > 0);
-    int saw_fire = 0;
-    for (int i = 0; i < pool.count; i++) {
-        if (pool.actors[i].sprite_table[0].bank != 0x1a3u) continue;
-        saw_fire = 1;
-        const actor              *a  = &pool.actors[i];
-        const actor_render_state *rs = &pool.states[i];
-        T_ASSERT_EQ_I(a->sprite_table[0].frame_base, 0);
-        T_ASSERT_EQ_I(a->node_alpha, 14);     /* ramp_a[14] additive (bmode 1) */
-        T_ASSERT_EQ_I(a->layer, 13);          /* the default cast layer (effect glow) */
-        T_ASSERT_EQ_I(rs->world_x, 32900);
-        T_ASSERT_EQ_I(rs->world_y, 33800);
-        T_ASSERT_EQ_I(rs->dst_base_x, -9);
-        T_ASSERT_EQ_I(rs->dst_base_y, -18);
-        /* the FIRE_CLIP — 6 frames, uniform dur 6, LOOPING (cel f held 6 ticks). */
-        const anim_clip *c = rs->clip;
-        T_ASSERT(c != NULL);
-        T_ASSERT_EQ_I(c->frame_count, 6);
-        T_ASSERT_EQ_I(c->frame_dur, 6);
-        T_ASSERT_EQ_I(c->oneshot, 0);
+    T_ASSERT_EQ_I(actor_spawn_from_map(&pool, &md), 1);
+    const actor              *a  = &pool.actors[0];
+    const actor_render_state *rs = &pool.states[0];
+    T_ASSERT_EQ_U(a->code, 0x112e4u);
+    T_ASSERT_EQ_U(a->sprite_table[0].bank, 0x1a3u);
+    T_ASSERT_EQ_I(a->sprite_table[0].frame_base, 0);   /* variant 0 */
+    T_ASSERT_EQ_I(a->node_alpha, 14);     /* ramp_a[14] additive (bmode 1) */
+    T_ASSERT_EQ_I(a->layer, 6);           /* 0x438610(6) — behind the furniture (additive) */
+    T_ASSERT_EQ_I(rs->world_x, 32000);    /* map 320*100 */
+    T_ASSERT_EQ_I(rs->world_y, 32000);    /* map 320*100 */
+    /* the FIRE_CLIP — 6 frames, uniform dur 6, LOOPING (cel f held 6 ticks). */
+    const anim_clip *c = rs->clip;
+    T_ASSERT(c != NULL);
+    T_ASSERT_EQ_I(c->frame_count, 6);
+    T_ASSERT_EQ_I(c->frame_dur, 6);
+    T_ASSERT_EQ_I(c->oneshot, 0);
+    {
         anim_state as = { .clip = c, .timer = 0, .frame = 0, .done = 0 };
         for (int f = 0; f < 6; f++) {
             T_ASSERT_EQ_I(anim_clip_sprite(&as), f);
@@ -1171,7 +1174,13 @@ int test_errands_fire(void)
         }
         T_ASSERT_EQ_I(anim_clip_sprite(&as), 0);   /* wrapped back to cel 0 */
     }
-    T_ASSERT_EQ_I(saw_fire, 1);
+
+    /* GONE from ERRANDS_CAST: no room-cast member carries bank 0x1a3 now. */
+    actor_spawn_pool rc;
+    int n = actor_spawn_room_cast(&rc, 0x334dcu);   /* CUTSCENE_ROOM_ERRANDS */
+    T_ASSERT(n > 0);
+    for (int i = 0; i < rc.count; i++)
+        T_ASSERT(rc.actors[i].sprite_table[0].bank != 0x1a3u);
     return 0;
 }
 

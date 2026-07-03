@@ -70,9 +70,13 @@ static const struct {
      * pos == the ex-ERRANDS_CAST fit (clock 528,248→52800,24800; pot 676,296→67600,29600). */
     {0x112d9u, 0x16bu,  9u},   /* pendulum CLOCK          res1026 (var43) — SWINGS 43<->45 (CLOCK_CLIP) */
     {0x112dau, 0x16bu,  9u},   /* cooking POT             res1026 (var56) — STEAMS 57..60 (POT_CLIP)   */
+    /* The fireplace FIRE (ckpt 185): bank 0x1a3 (res1034 resolve-pool idx), layer **6**
+     * (0x431e30:747 0x438610(6), NOT the ex-capture's default L13), additive blend
+     * ramp_a[14] via actor_spawn_alpha_for_code + FIRE_CLIP via actor_spawn_clip_for_code
+     * (0x431e30:741/744/746: install 0x1a3, clip DAT_00647e58, blend DAT_008a92f0). */
+    {0x112e4u, 0x1a3u,  6u},   /* fireplace FIRE          res1034 (var0)  — ADDITIVE ramp_a[14] (FIRE_CLIP) */
     /* DEFERRED to the family session (still drawn by ERRANDS_CAST; the map band spawns
-     * them as invisible volumes here so there is no double-draw):
-     *   0x112e4 fire (res1034 — additive mode-1, needs node_alpha in the map-spawn),
+     * it as an invisible volume here so there is no double-draw):
      *   0x112d2 counter (res1023 — the family z-order, folds in with the party band). */
 };
 
@@ -83,6 +87,7 @@ static const struct {
  * frame_delta[f], actor_render_describe).  A code NOT listed installs no clip (static
  * prop).  Forward-declared above actor_spawn_from_map; defined after CLOCK/POT_CLIP. */
 static const anim_clip *actor_spawn_clip_for_code(uint32_t code);
+static int32_t          actor_spawn_alpha_for_code(uint32_t code);  /* +0xf4 (fire=14) */
 
 int actor_spawn_sprite_for_code(uint32_t code, uint16_t *bank, uint32_t *layer)
 {
@@ -129,6 +134,7 @@ int actor_spawn_from_map(actor_spawn_pool *pool, const map_data *md)
         rs->world_x = hdr_i32(h, HDR_OFF_X) * 100;   /* +0x04 */
         rs->world_y = hdr_i32(h, HDR_OFF_Y) * 100;   /* +0x08 */
         rs->clip    = actor_spawn_clip_for_code(code); /* +0x6c — NULL=static; clock/pot get their anim clip (ckpt 184) */
+        a->node_alpha = actor_spawn_alpha_for_code(code); /* +0xf4 — 0=opaque; the fire=14 additive (ckpt 185) */
 
         /* The visible codes get their sprite bank + the case's draw layer (0x431e30
          * 0x438610, or the default 9 left above); every other code stays an
@@ -969,28 +975,36 @@ static const anim_clip *actor_spawn_clip_for_code(uint32_t code)
     switch (code) {
     case 0x112d9u: return &CLOCK_CLIP;  /* pendulum clock (var43) — swings 43<->45 */
     case 0x112dau: return &POT_CLIP;    /* cooking pot    (var56) — steams 57..60  */
+    case 0x112e4u: return &FIRE_CLIP;   /* fireplace fire (var0)  — loops 0..5     */
     default:       return NULL;         /* static prop (no clip)                   */
     }
+}
+
+/* code -> node_alpha (actor+0xf4) for the map-driven CHARACTER band (ckpt 185).  Only
+ * the additive fireplace FIRE has a non-zero alpha; every opaque prop stays 0 (colorkey
+ * blit).  14 = ramp_a[14] (the weight-750 additive glow, byte-identical to retail's
+ * blend descriptor DAT_008a92f0 the 0x431e30 fire case installs via 0x4385c0). */
+static int32_t actor_spawn_alpha_for_code(uint32_t code)
+{
+    return (code == 0x112e4u) ? 14 : 0;
 }
 
 static const struct room_cast_member ERRANDS_CAST[] = {
     /* The errands room's DEFERRED cast — the parts NOT YET map-driven.  ckpt 183 moved
      * the STATIC shop furniture/shelf/props to the map-driven CHARACTER band; ckpt 184
-     * moved the ANIM props (clock 0x112d9 / pot 0x112da) there too (g_actors via
-     * actor_spawn_from_map + CHAR_BANK_DEFS + actor_spawn_clip_for_code; errands-render-
-     * gaps.md §8-9).  What remains here, each a stand-in until its own subsystem lands:
-     *   - the fireplace FIRE 0x112e4 (res1034) — ADDITIVE mode-1, needs the map band to
-     *     carry node_alpha (+ its map pos 32000,32000 vs the fitted dst_base reconciled);
+     * the ANIM props (clock 0x112d9 / pot 0x112da); ckpt 185 the additive fireplace FIRE
+     * (0x112e4 — g_actors via CHAR_BANK_DEFS bank 0x1a3 L6 + actor_spawn_clip/alpha_for_
+     * code carrying FIRE_CLIP + node_alpha 14; errands-render-gaps.md §8-10).  What
+     * remains here, until its own subsystem lands:
      *   - the persistent FAMILY (Father 0xe3 / Mother 0xb5) + Dad's COUNTER 0x112d2
      *     (res1023) — the party band 0x4997b0 (PORT-DEBT(cutscene-party-chars)); the
      *     counter's z rides WITH the family (in front of Father), so it stays here.
-     * The map band spawns 0x112e4/d2 as INVISIBLE volumes (not in CHAR_BANK_DEFS), so
+     * The map band spawns 0x112d2 as an INVISIBLE volume (not in CHAR_BANK_DEFS), so
      * there is no double-draw.  World = the map layer pos (X*100, Y*100). */
-    /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
-    { 0x1a3u,  0,  32900,  33800,   -9, -18, 1, &FIRE_CLIP,  0, 0, 14 }, /* fireplace FIRE 0x112e4 res1034, additive ramp_a[14] @329,178 (dst_base fitted; see FIRE_CLIP) */
     /* The persistent FAMILY (people) + counter, spawned LAST (layer 13 -> draw order =
      * array order): every prop draws THEN the family (Mom frontmost, retail seq t2500).
      * The counter stays AFTER Father (drawn IN FRONT of him). */
+    /* bank   fb  world_x  world_y  dbx dby fac clip        phase lyr alpha */
     { 0xe3u,  4,   51000,  50000,  -30, -20, 1, &IDLE_CLIP,   1, 0, 0 }, /* Father res 0x473 @480,320 */
     { 0x16fu,  6,   45600,  44800,    0,   0, 1, NULL,        0, 0, 0 }, /* counter 0x112d2 res1023 fr6 @456,288 (IN FRONT of Father) */
     { 0xb5u,  0,   65400,  30800,  -30, -20, 1, &IDLE_CLIP,   2, 0, 0 }, /* Mother res 0x467 @624,128 */
