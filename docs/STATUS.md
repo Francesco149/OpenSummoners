@@ -192,16 +192,19 @@ understates how much actual instruction volume is ported.
   (`effect-anim-phase`/0x426ec0).  1097 host pass; town/house use no ERRANDS_CAST (no regress).  Provenance:
   the parents are persistent handles 0x5f5e1d3/1d4 placed by the errands script (0x4dc510 case-7/8 → 0x41ec20),
   so the retire path is that SCENE-SCRIPT spawn, NOT the party band.  `errands-render-gaps.md §13`.  **USER:
-  see the FEED image `ckpt186: errands Father z-order FIXED` — Father's legs now sit BEHIND the floor items +
-  the counter (verified by the draw seq, camera-independent — NOT a clean studio pair: my `nav-full-errands +
-  hold-right` capture left Arche at spawn / the errands backdrop loads late = `cutscene-room-render`, so a
-  tick-aligned clamp pair needs port-fire's matched-walk recipe, TODO next session).**
+  click the studio shortcut (`port-fatherz | retail-stairs` @ the CLAMP t2420, now CAMERA-ALIGNED via the fixed
+  Z-spam recipe below): Father the shopkeeper renders BEHIND the counter/register/vase == retail.  Feed
+  `ckpt186: Father z-order VERIFIED camera-aligned` — the port|retail DIFF is ONLY the known residuals (Father's
+  breathe anim-PHASE fr5-vs-fr6, RNG-blocked + the HUD item-bar stand-in), NO z-order artifact.**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
   L18-L20 confirms (@t1763-1837, retail-tick-keyed, authored Jun 19) are STALE for the current build — the dialogue
   never completes, so `cutscene_active` stays true and `freeroam_step`'s control gate (`g_errands_dlg_pending ||
-  cutscene_active`) never releases → Arche is locked.  **FIX (verified — Arche walks, fr8 @t2000, camera scrolls
+  cutscene_active`) never releases → Arche is locked.  **FIX (VERIFIED end-to-end — Arche walks to the right-edge
+  CLAMP, camera pins == retail: `port-fatherz.osr` @t2420 has Father @(32,392) #257 / counter (8,360) / Mother
+  (176,200) / Arche (398,248) all == retail-stairs, and the excl-HUD pixel-diff is just the anim-phase; scene
+  reconstructs camera-aligned):**  Arche walks, fr8 @t2000, camera scrolls
   right):** a MONOTONIC errands Z-spam.  Regenerate `runs/cutscene-verify/nav-errands-spam.jsonl` (gitignored, so
   it must be regenerated) = `nav-full-errands`'s boot frame-lines + its tick-lines ≤1668 (arrival+house) + a dense
   `{"tick":T,"ids":[36]}` spam every 10 ticks over 1700-1900 (the dialogue window; keep spam ticks MONOTONIC after

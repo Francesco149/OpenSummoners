@@ -571,6 +571,14 @@ so the floor items + counter draw over him, matching retail's Father-behind orde
 (L7)** → #265+ L8 structure → L9 characters → L13 counter.  1097 host pass; town/house use no
 ERRANDS_CAST (no regression by construction).
 
+**CAMERA-ALIGNED confirm (the fixed Z-spam capture recipe reaches the right-edge clamp — see the FRONT
+tooling note):** `port-fatherz.osr` @t2420 with both cameras pinned == retail-stairs: Father **#257**
+fr5 @(32,392) (retail #257 fr6 — SAME seq + dst), BEFORE res1026 fr48 (#270) / fr51 (#271); counter
+@(8,360), Mother @(176,200), Arche @(398,248) all == retail's positions.  The excl-HUD pixel-diff at
+the clamp is ONLY the parents' breathe anim-PHASE (Father fr5-vs-fr6 silhouette) + the HUD item-bar
+stand-in — **NO z-order artifact** (the register/vase render over Father in BOTH).  Feed image
+`ckpt186: Father z-order VERIFIED camera-aligned`.
+
 **Spawn provenance (decompile, `0x4dc510` case-7/8):** the parents are PERSISTENT handle
 entities `0x5f5e1d3` (Father) / `0x5f5e1d4` (Mother), created in the arrival cutscene and
 positioned by the errands script via `0x41ec20(handle, 0x65, worldX, 0, facing)` (Father
