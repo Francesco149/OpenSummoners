@@ -259,6 +259,26 @@
   consumer at k=6.  1104 host pass.  `errands-rng-census.md` "Census RESULT".  **NEXT: add the
   retail `rngcalls` counter (proxy trampoline `0x5bf505`) → read count-vs-timing → RE the tick-974
   consumer; the town must be bit-exact into the errands before the family phase can derive.**
+- **Landed ckpt 193 — the tick-974 split DIAGNOSED: the port omits a WALKING town NPC's
+  per-tick RNG roll (`FUN_0043f880:415`).**  Added the retail `rngcalls` counter (proxy
+  `eh_rand_cb`, E9-trampoline @ `0x5bf505`, head `a1 94 4f 8a 00`) — the split reads as a
+  COUNT split: retail draws **+1 rand()/tick from census tick 972** (port 6/14-alternating
+  → retail 7/15), TRIPLE-confirmed (the rngcalls delta == the new `lcg_walk.py`
+  LCG-walk-from-states == the `[esp]` ret_va attribution `randtrace_attrib.py`).  The omitted
+  draw = `FUN_0043f880` line 415 (VA `0x440301`), the SOLE rand in the actor MOVE-COMMAND
+  builder — a "push command 3" roll `(rand*1000)>>15 < wander_freq`, 0.000→1.000 draws/tick
+  at 972.  The actor = a grounded town NPC (body `0xe8767d8` @ world 41600,45600) that goes
+  idle→WALK (st 0→1) exactly at census 972 then walks right; the port's town RNG model
+  (butterflies `0x47b990` + the `0x54f980` ambient actor) has NO such NPC.  The ckpt-192
+  "974 / periodic-+20 butterfly consumer at k=6" framing is SUPERSEDED — the +20 tick is the
+  butterflies' own flit-pick (already modeled); the 972-vs-974 gap is the missing `0x43f880`
+  draw perturbing a state-dependent butterfly conditional (`butterfly.c:92`) that self-heals
+  at 973 then splits for good at 974 (ONE root cause).  1104 host pass (proxy + py tools only,
+  no src C).  New: proxy `OSS_RAND_TRACE_LO/HI` + `[esp]` ret_va + `[mvtrace]` `0x43f880` entry
+  log; `lcg_walk.py`, `randtrace_attrib.py`; `rng_seq_diff.py` count-vs-timing verdict.
+  `errands-rng-census.md` "Count-vs-timing RESOLVED".  **NEXT: model the NPC's walk AI (spawn
+  + the idle→walk trigger at census 972 + the `0x43f880` line-415 roll) so the town LCG reaches
+  the errands bit-exact; then the secondary `0x489280` ±3 spikes (census 979/999).**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s

@@ -103,18 +103,62 @@ picture is sharp — and it MOVES the first divergence:
   butterfly-slot band, `game_actor_update` in `main.c`), tracing why the port draws at 974/984
   what retail does not.
 
-**Next (to fully classify the 974 split):** the proxy still can't count retail draws
-(`PORT-DEBT(osr-state-rngcalls-retail)` — the STATE `rngcalls` is port-only).  Add the retail
-per-draw counter (trampoline `0x5bf505` in the proxy, mirror to an `rngcalls` STATE field) so
-the tick-974 divergence reads as COUNT-vs-TIMING directly; then RE the periodic-+20 / butterfly
-consumer the port models differently at k=6.  THEN the town is bit-exact into the errands.
+## Count-vs-timing RESOLVED — the omitted consumer is FUN_0043f880:415 (ckpt 193)
+
+Landed the retail `rngcalls` counter: proxy `eh_rand_cb`, an E9-trampoline @ `0x5bf505`
+(head `a1 94 4f 8a 00` = `mov eax,[8a4f94]`, a clean 5-byte PIC prologue) that counts
+every rand + mirrors to an `rngcalls` STATE field.  Re-captured `retail-rngcensus3.osr`.
+Two new count-readers:
+- `tools/trace_studio2/lcg_walk.py` — derives retail's per-tick DRAW COUNT purely from the
+  `rng` state seq (walk the LCG `s'=s*0x343fd+0x269ec3` between adjacent per-tick states),
+  so it read the count off the OLD rngcensus2 (no counter needed).  Port walk == port rc
+  EXACTLY ⇒ method validated.
+- proxy `OSS_RAND_TRACE_LO/HI` (windowed `[esp]` ret_va log in `eh_rand_cb`) +
+  `tools/trace_studio2/randtrace_attrib.py` — maps each rand consumer site → fn via
+  `functions.csv`.  Plus a windowed `0x43f880` entry hook (`[mvtrace]`) to ID the actor.
+
+**VERDICT: a COUNT split — retail draws +1 rand()/tick from census tick 972** (NOT 974 —
+see below).  port 6/14-alternating (the every-other-tick gate phase) → retail 7/15.
+`rng_seq_diff.py` now prints the verdict + dp/dr (draws/tick, port/retail); `dr` (the
+rngcalls delta) == the LCG-walk == the ret_va count — triple-confirmed.
+
+**The omitted consumer = `FUN_0043f880` line 415 (VA `0x440301`, +0xa81)** — the SOLE rand
+in that fn (the actor MOVE-COMMAND builder): a probabilistic "push command 3" roll
+`(rand*1000)>>15 < in_ECX[0x3212]` (a per-actor wander-freq, halved when HP<300‰), gated
+`local_b8[6]!=0 && param_5==0`.  0.000 draws/tick before tick 972, exactly **1.000/tick**
+after ⇒ the whole +1/tick.
+
+**The actor = a grounded town NPC** (body `0xe8767d8` @ world 41600,45600).  The `[mvtrace]`
+window shows 4 EVEN-tick bodies (the gated butterflies, st=3) + THIS one every tick from
+971, with state `0→1` (idle→WALK) exactly at census 972, then walking right accelerating
+(wx 41632→43024).  So a town pedestrian starts a walk at census 972 and its walk move-cmd
+rolls line 415 per tick; the port's town RNG model (butterflies `0x47b990` + the `0x54f980`
+ambient actor) has NO such walking NPC → omits the draw.
+
+**Why census 972 not 974** (the ckpt-192 bubble_diff mislabeled 972 self-healing / 974
+permanent): the draw STARTS at 972; the butterfly flit-pick at 973 (`butterfly.c:92
+if r<wander_freq`) is a STATE-dependent conditional draw that draws 1 FEWER on retail's
++1-perturbed state, coincidentally re-converging at 973 (same 35-draw total over 972-973),
+then diverging for good from 974.  ONE root cause (the missing `0x43f880` per-tick draw),
+not two.  The ckpt-191/192 "periodic +20 / butterfly consumer at k=6" framing is SUPERSEDED
+— the +20 tick is just the butterflies' periodic flit-pick (which the port already models);
+the real gap is the unmodeled NPC.
+
+**Secondary (defer):** the ±3 spikes (census 979/999) = `FUN_00489280+0x21/+0x77` @
+~0.077/tick (≈1 per 13t) — a lower-freq consumer; chase after the primary NPC lands.
 
 ## The fix path (once the census is clean)
 
-1. **IDENTIFIED (ckpt 192):** the first real divergence is TOWN tick 974 (the periodic
-   +20 / butterfly consumer), preceded by two self-healing timing bubbles.  FIX it first —
-   the town LCG must reach the house/errands with retail's exact state or nothing downstream
-   can align.  (Add the retail `rngcalls` counter first to read count-vs-timing.)
+1. **IDENTIFIED (ckpt 193):** the first real divergence is TOWN census tick 972 = the port
+   OMITTING `FUN_0043f880:415` (a walking town NPC's per-tick move-cmd "push command 3"
+   roll; body `0xe8767d8` @ 41600,45600 goes idle→walk there).  FIX = model that NPC's walk
+   AI in the port (the town analogue of `butterfly.c`/`ambient.c`): spawn/track it, run the
+   idle→walk transition at census tick 972, and reproduce the line-415 roll (1 draw/tick
+   while walking, `(rand*1000)>>15 < wander_freq`).  Open sub-steps: (a) identify the NPC's
+   resource id + spawn provenance (draw stream / town scene script); (b) find what triggers
+   the walk at tick 972; (c) port the `0x43f880` state-1 command-set incl. line 415.  The
+   town LCG must reach the house/errands with retail's exact state or nothing downstream can
+   align.  (Then chase the secondary `0x489280` ±3 spikes.)
 2. Model the errands room-load RNG burst — `0x431e30`'s per-case draws for each animated
    CHARACTER-band actor (the `0x426ec0` pair + any prefix), IN MAP ORDER, the way
    `actor_spawn_effect_from_map` already replays the town's `0x41f200` burst (quirk #86).
