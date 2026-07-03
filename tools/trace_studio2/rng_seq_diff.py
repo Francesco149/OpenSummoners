@@ -112,6 +112,21 @@ def best_offset(pd, rd, lo=1, hi=600):
     return best_o
 
 
+def draws_on(d, t):
+    """Draws made ON tick t = rngcalls[t] - rngcalls[<previous present tick>].
+    Offset-independent (a per-tick delta), so it is directly comparable between the
+    two captures whose ABSOLUTE rngcalls differ (retail draws through boot/title/menus
+    the port never runs).  None if rc is unavailable (legacy capture) or no prior tick."""
+    if t not in d or d[t][1] < 0:
+        return None
+    pt = t - 1
+    while pt >= 0 and pt not in d:
+        pt -= 1
+    if pt < 0 or d[pt][1] < 0:
+        return None
+    return d[t][1] - d[pt][1]
+
+
 def bubble_diff(pd, rd, ctx):
     """Tick-for-tick RNG diff: report divergence BUBBLES (contiguous diverging
     ticks) + whether each self-heals, and the PERMANENT-divergence onset (the last
@@ -157,16 +172,43 @@ def bubble_diff(pd, rd, ctx):
     # total from here — or a scene-timing split that breaks the tick correspondence).
     if perm:
         onset = perm[0][0]
-        print(f"\n  PERMANENT divergence onset ~tick {onset} "
-              f"(the LCG streams split — a draw-COUNT difference or a scene-timing "
-              f"split; watch rc to tell which).  Context around it:")
+        # COUNT-vs-TIMING verdict at the onset, now that retail emits rngcalls too:
+        # dp/dr = draws made ON the onset tick each side (offset-independent deltas).
+        # An LCG is deterministic — same start state + same draw count ⇒ same end
+        # state — so if the PRIOR tick matched and the states now differ:
+        #   dp != dr            → a draw-COUNT split (the port models the consumer
+        #                         with the wrong number of rand() calls);
+        #   dp == dr (and >=0)  → SAME count yet a different state ⇒ NOT a pure-LCG
+        #                         divergence: a non-rand seed write (srand/reseed) or
+        #                         the prior-tick state only *looked* equal (a join
+        #                         artifact) — inspect the reseed sites, not the count.
+        dp, dr = draws_on(pd, onset), draws_on(rd, onset + o)
+        if dp is not None and dr is not None:
+            if dp != dr:
+                verdict = (f"COUNT split — port draws {dp} rand() on tick {onset}, "
+                           f"retail draws {dr} (Δ={dp - dr}); the port models the "
+                           f"tick-{onset} consumer with the wrong draw count.")
+            else:
+                verdict = (f"SAME count ({dp}) but the state still splits ⇒ a "
+                           f"non-rand seed write (srand/reseed) or a prior-tick "
+                           f"join artifact — not a draw-count error.")
+        else:
+            verdict = ("retail rngcalls unavailable (legacy capture) — re-capture "
+                       "with the rngcalls proxy to read count-vs-timing.")
+        print(f"\n  PERMANENT divergence onset ~tick {onset}.  VERDICT: {verdict}")
+        print(f"  Context (dp/dr = rand() draws made ON that tick, port/retail):")
         lo = max(common[0], onset - ctx)
         for t in [x for x in common if lo <= x <= onset + ctx]:
             pr, prc = pd[t]
-            rr = rd[t + o][0]
+            rr, rrc = rd[t + o]
+            dpp, drr = draws_on(pd, t), draws_on(rd, t + o)
+            dps = "?" if dpp is None else str(dpp)
+            drs = "?" if drr is None else str(drr)
+            cnt = "  COUNTΔ" if (dpp is not None and drr is not None and dpp != drr) \
+                  else ""
             mark = "  <-- differ" if pr != rr else ""
-            print(f"    tick {t:<5} port=0x{pr:08x} rc={prc:<6} "
-                  f"retail=0x{rr:08x}{mark}")
+            print(f"    tick {t:<5} port=0x{pr:08x} rc={prc:<7} dp={dps:<4} "
+                  f"retail=0x{rr:08x} rc={rrc:<7} dr={drs:<4}{mark}{cnt}")
     return 0
 
 

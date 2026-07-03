@@ -46,6 +46,12 @@
 #define EH_PROLOGUE_VA    0x0056cd20u
 #define EH_GAME_ENTER_VA  0x0059f2c0u
 #define EH_RNG_ANCHOR_VA  0x0041f200u
+#define EH_RAND_VA        0x005bf505u   /* FUN_005bf505 (MSVC rand) — LCG draw;
+                                         * trampolined per-draw counter → rngcalls */
+#define EH_MVCMD_VA       0x0043f880u   /* FUN_0043f880 — actor move-command builder;
+                                         * its line-415 (+0xa81) rand roll is the
+                                         * tick-972 omitted per-tick draw.  Windowed
+                                         * entry log (OSS_RAND_TRACE) IDs the actor. */
 
 /* ── M3b: the render-id resolver + the 5 source-bearing blit primitives ───── */
 #define EH_RESOLVER_VA    0x00418470u   /* ar_sprite_slot_frame (cel registry)  */
@@ -70,6 +76,14 @@
 /* ── observable counters (read later by the .osr emitter) ─────────────────── */
 static volatile LONG g_eh_flip     = 0;
 static volatile LONG g_eh_sim_tick = 0;
+/* Cumulative FUN_005bf505 (rand) draws since inject — retail's mirror of the port
+ * `rngcalls`.  Trampolined (eh_rand_cb) so the census reads the tick-974 divergence
+ * as COUNT-vs-TIMING: same per-tick delta as the port ⇒ the port draws the right
+ * NUMBER (a state/order split, or a non-rand seed write); different delta ⇒ the port
+ * models the consumer with the wrong draw count.  Incremented + read on the game's
+ * one thread (rand + the easer both run in the sim update), so the Interlocked is for
+ * consistency, not a real cross-thread race. */
+static volatile LONG g_eh_rng_calls = 0;
 /* OSS_EMIT_TICK_BIAS (default 0): added to the sim_tick LABEL on every FRAMEBEG/STATE.
  * SUPERSEDED as the labeling fix by the INJECT-side structural +1 (engine_input.h
  * EI_TICK_AXIS, ckpt 166): the faithful correction is to land the injected input one
@@ -79,6 +93,13 @@ static volatile LONG g_eh_sim_tick = 0;
  * axis shifts; the inject-side +1 actually moves the input-read frame, matching the
  * port's feed_input anticipation.  Kept default 0 as a residual diagnostic only. */
 static int g_emit_tick_bias = 0;
+/* OSS_RAND_TRACE_LO/HI (default -1 = off): when a rand (FUN_005bf505) draw fires
+ * with g_eh_sim_tick in [lo,hi], log its ret_va (the CONSUMER call site = [esp] at
+ * fn entry) so the census can ATTRIBUTE the extra per-tick draw to a function
+ * (map the ret_va via docs/decompiled/functions.csv).  Windowed so the hot rand
+ * path only logs over the ~tens of divergence ticks under investigation. */
+static LONG g_rand_trace_lo = -1;
+static LONG g_rand_trace_hi = -1;
 static LONG eh_emit_tick(void)
 {
     LONG t = g_eh_sim_tick + g_emit_tick_bias;
@@ -293,10 +314,9 @@ static void eh_flip_cb(PCONTEXT ctx)
  * ticks and retail's rng stream degrades to a subsequence of the true per-tick
  * stream (errands-rng-census.md "the confound").  Each STATE carries its own
  * `tick` (+`flip`) so the reader keys on the sim-tick axis regardless of where the
- * record sits relative to FRAMEBEG.  rng = the LCG state word; retail rngcalls
- * (the per-draw count) is a follow-up — it needs a 0x5bf505 trampoline counter,
- * PORT-DEBT(osr-state-rngcalls-retail); the port already emits rngcalls, the panel
- * shows it port-side with retail "-" until the proxy counter lands. */
+ * record sits relative to FRAMEBEG.  rng = the LCG state word; rngcalls = the
+ * cumulative FUN_005bf505 draw count (eh_rand_cb trampoline), so the census reads
+ * the tick-974 divergence as COUNT-vs-TIMING (per-tick delta port-vs-retail). */
 static void eh_sim_tick_cb(PCONTEXT ctx)
 {
     (void)ctx;
@@ -304,7 +324,7 @@ static void eh_sim_tick_cb(PCONTEXT ctx)
     if (!g_cfg.state_on) return;
     tick += g_emit_tick_bias;                    /* match the FRAMEBEG label axis */
     if (tick < 0) tick = 0;
-    osr_state_field sf[12];
+    osr_state_field sf[16];
     memset(sf, 0, sizeof sf);
     uint32_t n = 0;
     snprintf(sf[n].name, sizeof sf[n].name, "tick");
@@ -318,6 +338,10 @@ static void eh_sim_tick_cb(PCONTEXT ctx)
     snprintf(sf[n].name, sizeof sf[n].name, "rng");
     sf[n].kind = OSR_ST_HEX;
     sf[n].ival = (int64_t)(uint32_t)eh_read_seed();
+    n++;
+    snprintf(sf[n].name, sizeof sf[n].name, "rngcalls");
+    sf[n].kind = OSR_ST_INT;
+    sf[n].ival = (int64_t)(uint32_t)g_eh_rng_calls;   /* per-tick delta = draws made */
     n++;
     /* chase #3: the freeroam player body wx/hvel/facing (0 fields until a room is
      * live — the chain derefs are null-guarded; emit only when the body AND its
@@ -402,6 +426,59 @@ static void eh_rng_anchor_cb(PCONTEXT ctx)
                    "0x%lx -> 0x%lx", g_eh_flip, (unsigned long)before,
                    (unsigned long)g_cfg.seed_value);
     }
+}
+
+/* ── rand (FUN_005bf505) per-draw counter → the retail `rngcalls` census field ──
+ * E9-TRAMPOLINED (light `(ecx, esp)` signature), not INT3'd — rand fires many times
+ * a frame (the town per-tick butterfly/fountain draws, the 162-tick +20 burst), so
+ * the 2-exceptions/hit INT3 would be a real cost here.  The head is the single 5-byte
+ * `mov eax,[DAT_008a4f94]` prologue instruction — position-independent (absolute
+ * addr, base fixed 0x400000, relocations stripped), no rel jmp/call, so it copies to
+ * the relay verbatim.  We only COUNT; the state word DAT_008a4f94 is read separately
+ * (eh_read_seed) for the `rng` field.  Absolute counts differ port-vs-retail (retail
+ * draws through boot/title/menus the port never runs), so the census compares the
+ * per-tick DELTA, which is offset-independent. */
+static void eh_rand_cb(DWORD ecx, DWORD esp)
+{
+    (void)ecx;
+    LONG rc = InterlockedIncrement(&g_eh_rng_calls);
+    if (g_rand_trace_lo >= 0) {
+        LONG t = g_eh_sim_tick;
+        if (t >= g_rand_trace_lo && t <= g_rand_trace_hi) {
+            /* [esp] at fn entry (we hook before the prologue) = the return address =
+             * the consumer call site.  Log it + the current tick + the cumulative rc
+             * so the per-tick consumer histogram names the omitted per-tick draw. */
+            DWORD retva = *(DWORD *)(uintptr_t)esp;
+            proxy_logf("[randtrace] t=%ld rc=%ld retva=0x%lx",
+                       (long)t, (long)rc, (unsigned long)retva);
+        }
+    }
+}
+
+/* ── FUN_0043f880 (actor move-command builder) entry log → ID the tick-972 actor ──
+ * The line-415 (+0xa81) rand roll fires 1/tick from census tick 972 = a town NPC
+ * that begins its move-command phase there (the port omits it).  This windowed
+ * entry hook (same OSS_RAND_TRACE window) logs the actor body param_3=[esp+0xc] +
+ * its state(+0x38)/worldX(+4)/worldY(+8) + param_5=[esp+0x14] + ecx (room mgr), so
+ * the body ptr that FIRST APPEARS at tick 972 (absent before) names the actor.
+ * Trampolined (light sig) — 0x43f880 fires per-actor per-tick.  All derefs guarded. */
+static void eh_mvcmd_cb(DWORD ecx, DWORD esp)
+{
+    if (g_rand_trace_lo < 0) return;
+    LONG t = g_eh_sim_tick;
+    if (t < g_rand_trace_lo || t > g_rand_trace_hi) return;
+    DWORD p3 = *(DWORD *)(uintptr_t)(esp + 0xcu);
+    DWORD p5 = *(DWORD *)(uintptr_t)(esp + 0x14u);
+    int st = -1, wx = 0, wy = 0;
+    if (p3 && bg_readable((const void *)(uintptr_t)(p3 + 0x38u), 2))
+        st = *(int16_t *)(uintptr_t)(p3 + 0x38u);
+    if (p3 && bg_readable((const void *)(uintptr_t)(p3 + 8u), 4)) {
+        wx = *(int32_t *)(uintptr_t)(p3 + 4u);
+        wy = *(int32_t *)(uintptr_t)(p3 + 8u);
+    }
+    proxy_logf("[mvtrace] t=%ld p3=0x%lx st=%d wx=%d wy=%d p5=%ld ecx=0x%lx",
+               (long)t, (unsigned long)p3, st, wx, wy, (long)p5,
+               (unsigned long)ecx);
 }
 
 /* ── M3b: the render-id resolver hook ─────────────────────────────────────
@@ -619,6 +696,16 @@ static void engine_hooks_install(void)
         if (n > 0 && n < sizeof(b)) g_emit_tick_bias = (int)strtol(b, NULL, 0);
         if (g_emit_tick_bias) proxy_logf("[hook] OSS_EMIT_TICK_BIAS=%d", g_emit_tick_bias);
     }
+    {
+        char b[16];
+        DWORD n = GetEnvironmentVariableA("OSS_RAND_TRACE_LO", b, sizeof(b));
+        if (n > 0 && n < sizeof(b)) g_rand_trace_lo = strtol(b, NULL, 0);
+        n = GetEnvironmentVariableA("OSS_RAND_TRACE_HI", b, sizeof(b));
+        if (n > 0 && n < sizeof(b)) g_rand_trace_hi = strtol(b, NULL, 0);
+        if (g_rand_trace_lo >= 0)
+            proxy_logf("[hook] OSS_RAND_TRACE window ticks [%ld,%ld]",
+                       (long)g_rand_trace_lo, (long)g_rand_trace_hi);
+    }
     detour_init();
     detour_add(EH_FLIP_VA,       eh_flip_cb);
     detour_add(EH_SIM_TICK_VA,   eh_sim_tick_cb);
@@ -640,14 +727,21 @@ static void engine_hooks_install(void)
     static const uint8_t HEAD_RECTS[6] = { 0x8b, 0x51, 0x2c, 0x83, 0xec, 0x20 };
     static const uint8_t HEAD_CLIP[6]  = { 0x83, 0xec, 0x24, 0x8b, 0x41, 0x2c };
     static const uint8_t HEAD_ALPHA[8] = { 0x83, 0xec, 0x08, 0x56, 0x8b, 0x74, 0x24, 0x34 };
+    /* rand's head = the single 5-byte `mov eax,[0x8a4f94]` (a1 94 4f 8a 00). */
+    static const uint8_t HEAD_RAND[5]  = { 0xa1, 0x94, 0x4f, 0x8a, 0x00 };
+    /* 0x43f880 head = `sub esp,0x10c` (81 ec 0c 01 00 00) — 6-byte, PIC. */
+    static const uint8_t HEAD_MVCMD[6] = { 0x81, 0xec, 0x0c, 0x01, 0x00, 0x00 };
     trampoline_add(EH_RESOLVER_VA,  eh_resolver_cb,  HEAD_RESOLVER, 5);
     trampoline_add(EH_BLT_ONTO_VA,  eh_blt_onto_cb,  HEAD_ONTO,  6);
     trampoline_add(EH_BLT_KEYED_VA, eh_blt_keyed_cb, HEAD_KEYED, 6);
     trampoline_add(EH_BLT_RECTS_VA, eh_blt_rects_cb, HEAD_RECTS, 6);
     trampoline_add(EH_BLT_CLIP_VA,  eh_blt_clip_cb,  HEAD_CLIP,  6);
     trampoline_add(EH_BLT_ALPHA_VA, eh_blt_alpha_cb, HEAD_ALPHA, 8);
+    trampoline_add(EH_RAND_VA,      eh_rand_cb,      HEAD_RAND,  5);  /* rngcalls */
+    if (g_rand_trace_lo >= 0)         /* only install the ID hook when tracing */
+        trampoline_add(EH_MVCMD_VA, eh_mvcmd_cb,     HEAD_MVCMD, 6);
     proxy_logf("[hook] engine-VA detour+trampoline layer installed "
-               "(%d INT3 + 6 E9)", g_detour_n);
+               "(%d INT3 + %d E9)", g_detour_n, g_rand_trace_lo >= 0 ? 8 : 7);
 }
 
 #endif /* OSS_ENGINE_HOOKS_H */
