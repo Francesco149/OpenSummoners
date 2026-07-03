@@ -175,8 +175,51 @@ TWO rands unconditionally at entry (`+0x21`/`+0x77`, decompile 489280.c:24-25; c
 apply pass `0x485fc0`); fires at census **979, 999, 1019, 1039, 1056, 1066, 1135, …** (gaps
 `20,20,20,17,10,69` — NOT a clean period), each +2.  It self-heals at 979-998 (re-converges at
 999) then splits PERMANENTLY at 1019, and CONTINUES past the NPC walk (a lone +2 at 1135).
-Model it (cadence + intra-tick position) to push the first divergence to the town→house
-transition (census 1268: retail +34 spawn burst + per-tick +8 — steps 2-4 below).
+It is the NPC's own movement-effect (called from the apply pass on the walking actor) —
+**coupled to the NPC's MOTION**, so it EMERGES from a faithful motion port rather than a
+clean stand-in.
+
+## Faithful NPC motion + render — the arc (USER-chosen ckpt 194)
+
+The USER chose the FAITHFUL path over RNG stand-ins: port the NPC's walk MOTION + RENDER it
+(so `0x489280` emerges + the visible townsperson is drawn), retiring `town-wander-npc`.
+
+**Strategic: the errands does NOT re-pin the LCG.**  Checked the retail census state across
+the town→house transition: at census 1269 `rng=0x365e8ccf`, `rngcalls` MONOTONIC (14961→14995
+= the +34 errands spawn burst, then +8/6t) — NOT a reset to the seed (unlike game_enter's
+quirk-#86 re-pin at the first `0x41f200`).  So the errands CONTINUES the town's LCG stream ⇒
+the WHOLE town must be bit-exact for the family anim-phase to derive; the town RNG residual is
+on the critical path (no shortcut via a re-pin).
+
+**Census scenario has ONE walking NPC** (not the 5 in the ckpt-193 `[mvtrace]` — that was a
+DIFFERENT, ~90-draws/tick capture; the seed-pinned census is a modest 6/14-draws/tick town
+with just this one pedestrian + the 4 butterflies).
+
+**The NPC's full MOTION** (`rt-npc.log` mvtrace, census = randtrace tick + 1): idle at
+wx **41600** through census 972, then a "walk to a FIXED target" — accelerate (dwx +32/tick
+`32,64,…,256` then +16/tick `272,288,…`), cruise ~**480**/tick, decelerate, stop at wx
+**73128** at census 1071, then idle (st 0) 1072-1077 (a −16 settle at 1077).  So it walks
+41600→73128 (~31.5k world = ~9.85 tiles), wy CONSTANT 45600 — from Arche's arrival spot to the
+RIGHT screen edge ⇒ **on-screen the whole time** (a clearly visible townsperson the port omits).
+The straight-line walk to a fixed target looks scripted/wander-target-picked, not free wander.
+
+**The arc's open sub-steps:**
+- (a) PROVENANCE — **partly RESOLVED: the NPC is CUTSCENE/SCRIPT-spawned, NOT a map object.**
+  Dumped all 32 town-map (DATA 1022) CHARACTER objects (codes 70000-79999) via a temp
+  `actor_spawn_from_map` probe — NONE at world 41600,45600 (closest: `0x111d9` @ 41600,**48000**,
+  an invisible volume; `0x11365`/`0x11367` @ 44800).  So the walking NPC is spawned by the
+  town-intro cutscene (`0x4d7d80` / the dramatist `0x41f0e0`→`0x41f200`) at the arrival ANCHOR
+  (41600,45600) — the same spawn class as the arriving FAMILY.  ⇒ it is one of the arrival cast
+  (candidate: the wagon driver / Dr. Barnard `0xc3f0` walking OFF after the drop-off, or a
+  parent) that WALKS to a fixed target at census 972.  STILL open: WHICH one + its sprite bank
+  (a live spawn hook on `0x41f200` logging code/bank for the actor at 41600,45600, or the
+  `0x4d7d80` script RE).
+- (b) TRIGGER — what sets the walk command at census 972/973 (mem_watch the state field / trace
+  the AI command source); + the walk TARGET 73128's provenance.
+- (c) MOTION port — the accel/cruise/decel profile above, via the ported char mover
+  (`character.c`/`0x442a70`) with a "walk to 73128" command, so the profile EMERGES.
+- (d) RENDER — draw the NPC's walking sprite at its computed position (a CHARACTER-band actor).
+- (e) `0x489280` footstep EMERGES from (c)'s apply pass; then the town is bit-exact to 1268.
 
 ## The fix path (once the census is clean)
 

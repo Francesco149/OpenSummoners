@@ -288,11 +288,24 @@
   `retail-rngcensus3.osr` (`rng_seq_diff`): first PERMANENT divergence **974 → 1019** (+45t),
   ticks 972-978 now bit-exact + the 972-973 butterfly self-heal fires.  The 1019 residual is
   the SECONDARY `0x489280` ±2 consumer (census 979/999/1019… gaps `20,20,20,17,10,69`; draws 2
-  rands at entry, `489280.c:24-25`) — **NEXT chip.**  `PORT-DEBT(town-wander-npc)`: the window
-  is MEASURED (not yet derived from spawn+idle-timer); the NPC's motion/collision + its RENDER
-  (path 41600→43024 near Arche's arrival point ⇒ **likely on-screen — USER: worth a visual
-  check for a missing townsperson walking right near the wagon ~census 972-1077**) are deferred.
-  1105 host pass.  `errands-rng-census.md` "The NPC walk PORTED".
+  rands at entry, `489280.c:24-25`).  `PORT-DEBT(town-wander-npc)`.  1105 host pass.
+  `errands-rng-census.md` "The NPC walk PORTED".
+- **ckpt 194 — the faithful NPC motion+render arc SCOPED (USER-chosen over RNG stand-ins).**
+  Key findings: (1) the errands does NOT re-pin the LCG (census 1269 `rng=0x365e8ccf`, rngcalls
+  MONOTONIC 14961→14995 = the +34 errands burst) — so the WHOLE town must be bit-exact for the
+  family anim-phase (no re-pin shortcut).  (2) The census town has ONE walking NPC + 4 butterflies
+  (the ckpt-193 "5 NPCs" was a different ~90-draws/tick capture).  (3) Its FULL MOTION (`rt-npc.log`):
+  idle→walk to a FIXED target — accel (+32/tick then +16) → cruise ~480/tick → decel → STOP at wx
+  **73128** (census 1071), wy const 45600; walks 41600→73128 (~9.85 tiles, Arche's spot → RIGHT edge
+  ⇒ **on-screen the whole time**).  (4) PROVENANCE: **NOT a map object** (all 32 town-map CHARACTERs
+  dumped — none @ 41600,45600) ⇒ CUTSCENE-spawned at the arrival anchor (`0x4d7d80`/`0x41f0e0`), same
+  class as the family — candidate = the wagon driver/Dr. Barnard walking off (or a parent).  The
+  `0x489280` +2 spikes are its MOVEMENT-effect (coupled to the motion → emerges from the port).
+  **NEXT (faithful arc):** live-hook `0x41f200` to ID which arrival-cast actor + its sprite bank, +
+  the walk trigger; then port the motion (via the char mover) + render + the footstep RNG emerges.
+  **USER: click the studio shortcut (now `port-npcfix | retail-rngcensus3`), scrub census ~972-1077
+  — retail should show a townsperson walking right from the wagon/arrival point to the screen edge
+  that the port is missing (the render gap this arc fills).**  `errands-rng-census.md` "Faithful NPC".
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
