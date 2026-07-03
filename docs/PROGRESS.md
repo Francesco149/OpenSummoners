@@ -6,6 +6,41 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 184) — the errands ANIM props (clock + pot) are MAP-DRIVEN: retire their ERRANDS_CAST capture
+
+- **Continuing the errands un-MVP (USER "session by session").**  §9/ckpt-183 map-drove the STATIC
+  shop furniture; this session retires the two ANIMATED props — the pendulum CLOCK (0x112d9) and the
+  cooking POT (0x112da) — from the `ERRANDS_CAST` capture.  They now spawn from DATA-1025 into the
+  CHARACTER band (`g_actors`) with their anim clip, driven by the SAME per-tick stepper as the town
+  wagon.  Commit c234c73.
+
+- **Three edits (`actor_spawn.c` + `main.c`):** (1) `CHAR_BANK_DEFS` +2 rows 0x112d9/0x112da → (bank
+  0x16b, layer **9**) — L9 is retail's default-9 for these codes (0x431e30 routes them via `0x426ec0`
+  = the clock/pot ANIM-PHASE init, not `0x438610(N)` = a custom layer; the ex-capture used default
+  L13).  (2) `actor_spawn_clip_for_code(code)`: a code→clip lookup (clock→CLOCK_CLIP swing {0,1,2,1}
+  dur25 → cels 43,44,45,44; pot→POT_CLIP steam {1,2,3,4} dur6 → cels 57..60; else NULL=static), wired
+  into `actor_spawn_from_map`.  (3) the non-town per-tick loop now calls `actor_pool_update(&g_actors)`
+  (it only ran `actor_pool_update(&g_room_cast)` before — the town's `game_actor_update` doesn't run
+  for non-town rooms; the static map props no-op on clip==NULL).  Removed clock/pot from ERRANDS_CAST
+  (else double-draw); `actor_spawn_room_cast` 6→4.
+
+- **Map pos is ground truth** (`map_data.py` DATA-1025, the +0x18 variant): clock @map(528,248) var43 →
+  world (52800,24800); pot @map(676,296) var56 → (67600,29600) — EXACTLY the ex-ERRANDS_CAST fit, so
+  the migration moves nothing.
+
+- **VERIFIED bit-exact vs `retail-stairs.osr` at the CLAMP** (tick 2419-21, both cameras pinned at the
+  map's right edge → phase-independent).  `draw_probe --res 1026`: retail pot seq282 fr57 @(228,208
+  28×35) + clock seq283 fr45 @(80,160 29×40); the port's `port-clockpot.osr` emits the SAME draw /
+  frame / dst AND **seq (z-order 282/283)** — the map band lands them at retail's exact draw-sequence
+  slot.  The anim PHASE aligns at tick-equal (both pot=57 clock=45 @t2420, deterministic).  Over ticks
+  2420-2470 the port clock swings 45→44→43 (dur25) + pot steams 57→58→59→60 (dur6); an overlap scan
+  reports **"nothing over" the pot or clock at every clamp tick** — so the L13→L9 layer change is NO
+  regression.  1097 host pass (+`test_errands_clock_pot_mapdriven`).  `findings/errands-render-gaps.md
+  §10`; `port-debt.md` errands-cast SHRUNK to fire+family.  Studio pair now `port-clockpot |
+  retail-stairs` (`studio-current.txt` updated).
+
+---
+
 ## 2026-07-03 (ckpt 183) — the errands CHARACTER band is MAP-DRIVEN: retire the ERRANDS_CAST prop capture (un-MVP)
 
 - **USER: "un-mvp whatever is mvp'd about this scene, session by session, until it's fully

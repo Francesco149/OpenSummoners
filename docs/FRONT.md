@@ -129,11 +129,23 @@
   errands-cast SHRUNK.  Still ERRANDS_CAST (next sessions): anim clock/pot (clip-update), additive
   fire, family+counter (party band).  **USER: click the studio shortcut (`port-charband |
   retail-stairs`) @ t2148 — the whole errands shelf/furniture is now map-derived, pixel-identical.**
-- **Next move (finish the errands un-MVP, session by session):** (1) the ANIM props (clock 0x112d9
-  / pot 0x112da) map-driven — wire the g_actors per-tick clip update for non-town + a code→clip
-  table; (2) the additive FIRE 0x112e4 (res1034) via a mode-1 map-spawn (node_alpha); (3) the FAMILY
-  (Father/Mother) + counter via the party band 0x4997b0 (`cutscene-party-chars`); (4) the −6t entry
-  latency; (5) the HUD party-context.  THEN the older items below:
+- **Landed ckpt 184 — the errands ANIM props (clock + pot) are MAP-DRIVEN (retires their ERRANDS_CAST
+  capture).**  The pendulum clock 0x112d9 / cooking pot 0x112da now spawn from DATA-1025 into the
+  CHARACTER band (`g_actors`) with their clip: `CHAR_BANK_DEFS` +2 rows (bank 0x16b, **L9** = retail's
+  default-9 via the `0x426ec0` anim-phase init, NOT `0x438610`), `actor_spawn_clip_for_code` (clock
+  SWING {0,1,2,1} dur25 → 43,44,45,44 / pot STEAM {1,2,3,4} dur6 → 57..60), and the non-town per-tick
+  loop now runs `actor_pool_update(&g_actors)` (was room_cast only).  Map pos == the ex-fit (clock
+  52800,24800 / pot 67600,29600), nothing moves.  **VERIFIED bit-exact vs retail-stairs @ the CLAMP
+  t2419-21** (both cameras pinned): pot seq282 fr57 @(228,208 28×35) + clock seq283 fr45 @(80,160
+  29×40) == retail on draw/frame/dst AND z-order seq; anim phase aligns tick-equal; overlap scan
+  "nothing over" either @ every clamp tick (L13→L9 no regress).  `actor_spawn_room_cast` 6→4.  1097
+  host pass.  `errands-render-gaps.md §10`.  **USER: click the studio shortcut (`port-clockpot |
+  retail-stairs`) @ the CLAMP (~t2420+) — the clock swings, the pot steams, both now map-derived.**
+- **Next move (finish the errands un-MVP, session by session):** (1) DONE ckpt 184 (clock/pot anim
+  props map-driven).  (2) the additive FIRE 0x112e4 (res1034) via a mode-1 map-spawn (node_alpha — its
+  map pos 32000,32000 vs the fitted dst_base to reconcile); (3) the FAMILY (Father/Mother) + counter
+  via the party band 0x4997b0 (`cutscene-party-chars`); (4) the −6t entry latency; (5) the HUD
+  party-context.  THEN the older items below:
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
   port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY

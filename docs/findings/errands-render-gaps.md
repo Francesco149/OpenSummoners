@@ -414,6 +414,51 @@ TOWN t800 + HOUSE t1450 are **0px** vs the pre-session build (no regression — 
 the town; the house map has no in-table CHARACTER furniture at t1450).  1096 host pass.  `port-debt.md`
 errands-cast SHRUNK to the deferred cast.
 
+## 10. The errands ANIM props (clock + pot) are MAP-DRIVEN — bit-exact vs retail (ckpt 184)
+
+USER: "un-mvp whatever is mvp'd about this scene, session by session."  §9 map-drove the STATIC shop
+furniture; this session retires the two ANIMATED props — the pendulum CLOCK (code 0x112d9) and the
+cooking POT (0x112da) — from the ERRANDS_CAST capture.  They now spawn from the map (DATA-1025) into
+the CHARACTER band (`g_actors`) with their anim clip, driven by the SAME per-tick stepper as the town
+wagon.
+
+**The map positions are ground truth** (`map_data.py` DATA-1025, the +0x18 variant): clock @map(528,248)
+var43 → world (52800,24800); pot @map(676,296) var56 → world (67600,29600) — EXACTLY the ex-ERRANDS_CAST
+fitted world (which ckpt-180 had already set to map×100).  So the migration moves nothing.
+
+**Wiring (three edits):**
+1. `CHAR_BANK_DEFS` (actor_spawn.c): +2 rows — 0x112d9/0x112da → (bank 0x16b, layer **9**).  L9 is
+   retail's default-9 for these codes (0x431e30 routes them through `0x426ec0` = the clock/pot
+   ANIM-PHASE init, NOT `0x438610(N)` = a custom layer), superseding the ex-capture's default L13.
+2. `actor_spawn_clip_for_code(code)` (actor_spawn.c): a code→clip lookup — 0x112d9→CLOCK_CLIP (swing
+   {0,1,2,1} dur25 → cels 43,44,45,44), 0x112da→POT_CLIP (steam {1,2,3,4} dur6 → cels 57..60); every
+   other CHARACTER code → NULL (static).  Wired in `actor_spawn_from_map` (rs->clip = lookup(code)).
+3. `main.c` game-loop: the non-town per-tick branch now calls `actor_pool_update(&g_actors)` (it only
+   ran `actor_pool_update(&g_room_cast)` before — the town's `game_actor_update` doesn't run for
+   non-town rooms).  The static map props no-op on clip==NULL; only the clock/pot advance.
+Removed clock/pot from ERRANDS_CAST (else double-draw); the map band spawned them as invisible volumes
+before, now visible + animated.
+
+**VERIFIED bit-exact vs retail-stairs at the CLAMP (tick 2419-2421, both cameras pinned at the map's
+right edge → phase-independent).**  `draw_probe --res 1026`, port-clockpot.osr vs retail-stairs.osr:
+
+    RETAIL  seq=282 keyed res=1026 fr=57 dst=(228,208 28x35)   # the POT
+            seq=283 keyed res=1026 fr=45 dst=(80,160 29x40)    # the CLOCK
+    PORT    seq=282 keyed res=1026 fr=57 dst=(228,208 28x35)   # == retail (pot @228,208 = ckpt-180 GT)
+            seq=283 keyed res=1026 fr=45 dst=(80,160 29x40)    # == retail
+
+Identical draw / frame / dst AND **seq (z-order 282/283)** — the map band emits them at retail's exact
+draw-sequence slot; and the anim PHASE aligns at tick-equal (both pot=57 clock=45 @t2420, deterministic,
+no RNG).  Over ticks 2420-2470 the port clock swings 45→44→43 (dur25) + pot steams 57→58→59→60 (dur6),
+and the z-order overlap scan reports **"nothing over" the pot or clock at every tick** — so the L13→L9
+layer change is NO regression (nothing occludes them at the clamp).  `actor_spawn_room_cast` now returns
+**4** members (fire + family + counter, was 6).  1097 host pass (+`test_errands_clock_pot_mapdriven`:
+the map-spawn assigns bank 0x16b + the variant frame_base + the swing/steam clip, and no bank-0x16b
+room-cast member remains).
+
+REMAINING in ERRANDS_CAST (next sessions): the additive FIRE 0x112e4 (mode-1 node_alpha map-spawn),
+the FAMILY (Father/Mother) + counter (the party band 0x4997b0, `cutscene-party-chars`).
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
