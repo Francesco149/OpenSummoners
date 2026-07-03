@@ -270,30 +270,58 @@ DISPLACED (the pot's neighbour, the STOVE res1074, is one such — it renders, j
 pair is walk/phase-aligned — or use the camera CLAMP (both pinned → identical view regardless of phase) —
 before attributing a crop diff to a missing spawn.  Attribute to the PHASE pillar first (`parity-model.md`).
 
-## 7. OPEN BUG — the upstairs BED tiles render empty until fully in frame (USER, ckpt 180c)
+## 7. FIXED — the upstairs BED culled "until fully in frame" = a mode-0 CANVAS-vs-CONTENT cull bug (ckpt 181)
 
 USER marks (`osr_notes`): t2158 crop[459,0,128,49] "bed missing on port"; t2325 crop[129,0,141,86]
-"bed becomes visible on port".  The upstairs bedroom BED (white bedding + pink pillows) is NOT a
-sprite/actor — it is drawn as the interior **tile** sheet **res=1071 frame=6** (128×160, `clipped`
-primitive, st=0x8000 colorkey 0xf81f), read as 32×32 sub-rects.  When the bed is at the top edge
-(only its bottom peeking in) the tiles read **src y=128..160** (the sheet's bottom 32 rows) → the
-port renders them **EMPTY** (bare wall); when the bed drops fully into frame the tiles read src
-y=0..96 → they render fine (hence "until fully in frame").
+"bed becomes visible on port".  **The ckpt-180c "decode bug in res=1071 fr6" hypothesis was WRONG on
+every count** — recorded here as the trap.  What it got wrong, proven step-by-step:
 
-**Localized, NOT yet root-caused:** the port↔retail draw stream is IDENTICAL at t2159 (same res/
-frame/dst/src/blend, cameras aligned to ≤3px — verified), AND the decoded-sheet **dhash MATCHES**
-(both res=1071 fr6 = 0x3ad4b5df, 128×160, all frames match).  Yet the recon (`osr_prof`, which
-renders retail's src-y=128 blit correctly) shows the port's bed empty.  ⇒ the port's res=1071 fr6
-**rows 128-160 hold different pixels than retail's** (the 64-bit dhash collides on a 32-row / 20%
-difference), i.e. a DECODE bug in the bottom strip of the 128×160 interior-tile sheets — NOT a
-missing spawn, cull, z-order, or blit-src bug (`zdd_object_copy_cell_pixels` reads the bottom-up
-DIB row 128 correctly).  **Next:** extract res=1071 fr6's raw pixels from both `.osr` (no osr.py
-sheet-export yet — add one, or parse `osr_format.h` SHEET records) and diff rows 128-160 to confirm;
-then trace the res=1071 (bank 0x… / the 0x42f interior-tile) decode for a height/last-strip
-truncation.  Separate from the (completed) room-completeness + z-order work.
+1. **The bed is NOT res=1071 fr6.**  res=1071 fr6 is the upstairs WALL-WITH-WINDOW tile (128×160,
+   magenta 0xf81f = the colorkeyed window panes at rows ~96-128; rows 128-160 are plain dark wood).
+   Its sheet is **byte-IDENTICAL** port↔retail (`sheet_export.py DIFF … 1071 … 6`: all 160 rows equal,
+   both dhash 0x3ad4b5df) — so NOT a decode bug, and the "64-bit dhash collides on a 32-row diff"
+   reasoning was spurious (the SHEET dhash is a full FNV-1a of the bytes; a real collision is ~1/4e9).
+2. **The BED is a keyed ACTOR — `res=1023 fr13`** (bank 0x16f, the furniture sheet; dhash 0x37f2156f),
+   already in `ERRANDS_CAST` at world (60000,6400).  `osr_prof pick` (added: `osr_prof … pick <idx>
+   <px> <py>`) names it: the white pixel (530,8) is painted by retail draw `#341 keyed res=1023 f=13
+   @(464,-96)`.  A `keyed` blit ignores reqw/reqh and draws the cel's FULL cel via the pivot — the .osr
+   "108×60" is the trimmed content; the pivot (metric_0c/10 = 5,68) drops the content to dest top =
+   68-96 = -28..+32, poking on-screen.
+3. **The port SPAWNS it (drew it fine at t2325, dst_y=-60) but CULLED it at t2158 (dst_y=-96).**  So a
+   CULL bug, not a missing spawn — `frame_diff.py` confirms the port stream simply lacks the fr13 draw
+   (+ 8 more upstairs objects) at t2158.
+
+**ROOT CAUSE:** `map_present` mode-0 cull box (retail `FUN_0048eac0` case-0, line 51) tests
+`-1 < cel[0x20] + sy` reading the cel's **CANVAS dims +0x1c/+0x20** (`metric_1c/20` = the untrimmed
+frame size).  The port's `game_cel_dims` fed the **CONTENT dims +0xb8/+0xbc** (`metric_b8/bc` = the
+trimmed source rect) instead.  For an untrimmed cel (pivot 0) the two coincide, so it passed until
+now; the bed (canvas h 128, content h 60, pivot y 68) at projected sy=-96 is CULLED by content-h
+(-96+60 = -36 < 0) but DRAWN by canvas-h (-96+128 = +32 ≥ 0), and the keyed blit's pivot lands the
+content at -28..+32, visibly poking in.  (op.w/op.h from `game_cel_dims` feed ONLY the cull — the
+keyed blit reads the cel's own metric_b8/bc for the Blt + trace, so the fix doesn't touch reqw/reqh.)
+
+**FIX (`main.c` `game_cel_dims`):** return `metric_1c`/`metric_20` (canvas) — bit-exact with retail's
+`0x48eac0` case-0/1 cull (both read cel +0x1c/+0x20).  The decode already stamps them: `zdd.c` sprite
+decode → `stamp_metrics(self, metric_w, metric_h, trim.x_left, trim.y_top, w, h)` puts canvas → 1c/20,
+pivot → 0c/10, content → b8/bc.  **VERIFIED** off `port-bedfix.osr` (rebuilt `spam-confirm-nav` +
+`synth-stairs`): at t2158 the port now emits `res=1023 fr13 @(464,-96)` == retail (same frame/dhash/
+dst/o); the bed reconstructs **`differ_px==0`** vs retail over [460-575 × 0-33]; the 3-way OLD|FIXED|
+retail feed montage shows it appear.  `frame_diff` port-OLD vs port-NEW: 0 removed, +9 added (the bed
++ 2 upstairs chests + 6 props — exactly the objects retail draws that were wrongly culled).  +host
+test `map_present_walk_mode0_canvas_cull_bed`; 1096 host pass.  New tools: `tools/trace_studio2/
+sheet_export.py` (SHEET raw-pixel dump + row diff), `blits_at.py`/`region_draws.py`/`frame_diff.py`
+(streaming per-tick blit dumps), `osr_prof pick` (which draw painted a pixel).
+
+LESSON: a "renders empty / until fully in frame" symptom on a colorkeyed background tile invites a
+decode/blit-src theory, but the missing thing was a foreground ACTOR wrongly CULLED — attribute via
+`osr_prof pick` (what actually painted the pixel) before theorising, and never let a "dhash collides"
+hand-wave stand in for extracting the bytes.  Also: `game_cel_dims`'s "b8/bc == the cull dims" comment
+was a KNOWN-shaky shortcut (it said "for these frame cels those equal the source dims") — the bed's
+non-zero vertical pivot is the trimmed cel that finally broke that assumption.
 
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
-any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`.  Map a
+any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
+that painted a pixel: `osr_prof.exe <file.win> pick <frame_idx> <px> <py>`.  Map a
 sim_tick → frame index with `osr.stream_frames(path)` (enumerate; the Nth FRAMEBEG = index
-N).  This is the "LOOK at it yourself" path used to locate the fire above.
+N).  This is the "LOOK at it yourself" path used to locate the fire above + the bed cull here.

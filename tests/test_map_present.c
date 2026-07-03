@@ -319,6 +319,50 @@ int test_map_present_walk_mode0_deferred_without_dims(void)
     return 0;
 }
 
+/* §7 the upstairs BED — a mode-0 actor whose CANVAS (cel +0x1c/+0x20) is much
+ * taller than its trimmed content: its projected top sits ABOVE the screen but
+ * the canvas height reaches y>=0, so retail's cull (0x48eac0 case-0 reads cel
+ * +0x1c/+0x20, the CANVAS dims) presents it — and the keyed blit's pivot-shifted
+ * content still pokes on-screen.  game_cel_dims must feed the CANVAS dims
+ * (metric_1c/20), NOT the trimmed CONTENT (metric_b8/bc): the bed (res 1023
+ * fr13, canvas h 128, content h 60, pivot y 68) at projected sy=-96 is CULLED by
+ * content-h (-96+60=-36 < 0) but DRAWN by canvas-h (-96+128=32 >= 0).  The old
+ * game_cel_dims read b8/bc and wrongly culled it "until fully in frame".
+ * errands-render-gaps.md §7. */
+static void dims_bed_canvas(uint32_t cel, int32_t *w, int32_t *h, void *ud)
+{ (void)cel; (void)ud; *w = 108; *h = 128; }   /* the bed CANVAS (cel +0x1c/+0x20) */
+static void dims_bed_content(uint32_t cel, int32_t *w, int32_t *h, void *ud)
+{ (void)cel; (void)ud; *w = 108; *h = 60; }    /* its trimmed CONTENT (cel +0xb8/+0xbc) */
+
+int test_map_present_walk_mode0_canvas_cull_bed(void)
+{
+    mr_camera c = cam_zero();
+    /* project to sy=-96 (above the top edge): world_y/100 + 0 = -96. */
+    /* CANVAS dims: -96+128=32 >= 0 -> PRESENTED (matches retail). */
+    {
+        draw_pool p;
+        T_ASSERT_EQ_I(draw_pool_init(&p), 0);
+        draw_pool_emit_actor(&p, 9, 0xBED, 464 * 100, -96 * 100, 0, 0, 0);
+        rec r = { 0 };
+        int presented = map_present(&p, &c, rec_blit, &r, dims_bed_canvas, NULL, NULL);
+        T_ASSERT_EQ_I(presented, 1);
+        T_ASSERT_EQ_I(r.ops[0].dst_y, -96);
+        draw_pool_free(&p);
+    }
+    /* CONTENT dims (the OLD, wrong game_cel_dims): -96+60=-36 < 0 -> CULLED
+     * (the §7 bug — bed missing until fully in frame). */
+    {
+        draw_pool p;
+        T_ASSERT_EQ_I(draw_pool_init(&p), 0);
+        draw_pool_emit_actor(&p, 9, 0xBED, 464 * 100, -96 * 100, 0, 0, 0);
+        rec r = { 0 };
+        int presented = map_present(&p, &c, rec_blit, &r, dims_bed_content, NULL, NULL);
+        T_ASSERT_EQ_I(presented, 0);
+        draw_pool_free(&p);
+    }
+    return 0;
+}
+
 int test_map_present_walk_dry_count(void)
 {
     draw_pool p;

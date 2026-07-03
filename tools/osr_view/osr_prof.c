@@ -55,6 +55,28 @@ int main(int argc, char **argv)
         printf("dumped frame idx %d (flip=%u tick=%u) -> %s\n", idx, fl, tk, argv[4]);
         free(b); osr_scrub_close(s); return 0;
     }
+    /* pick mode: osr_prof <osr> pick <frame_index> <px> <py> — which draw last
+     * painted (px,py), plus the ±2 neighbours in the ordered draw list. */
+    if (argc >= 6 && !strcmp(argv[2], "pick")) {
+        WNDCLASSA wc; memset(&wc,0,sizeof wc); wc.lpfnWndProc=DefWindowProcA;
+        wc.hInstance=GetModuleHandle(NULL); wc.lpszClassName="osr_prof";
+        RegisterClassA(&wc);
+        HWND hw = CreateWindowA("osr_prof","p",0,0,0,16,16,HWND_MESSAGE,NULL,wc.hInstance,NULL);
+        osr_scrub *s = osr_scrub_open((void*)hw, path);
+        if (!s) { printf("open failed\n"); return 1; }
+        int idx = atoi(argv[3]), px = atoi(argv[4]), py = atoi(argv[5]);
+        int d = osr_scrub_pick_draw(s, idx, px, py);
+        int nd = osr_scrub_frame_ndraws(s, idx);
+        osr_draw_info *info = (osr_draw_info*)calloc(nd > 0 ? nd : 1, sizeof *info);
+        osr_scrub_frame_draws(s, idx, info, nd);
+        uint32_t fl=0,tk=0; osr_scrub_frame_info(s, idx, &fl, &tk);
+        printf("frame idx %d (flip=%u tick=%u) ndraws=%d\n", idx, fl, tk, nd);
+        printf("pixel (%d,%d) last changed by draw #%d\n", px, py, d);
+        for (int k = (d>2?d-2:0); k <= d+2 && k < nd; k++)
+            printf("  %c#%-3d %s\n", k==d?'*':' ', k, info[k].label);
+        free(info); osr_scrub_close(s); return 0;
+    }
+
     int nsamp = argc > 2 ? atoi(argv[2]) : 300;
 
     /* a message-only window for the ddraw cooperative level */

@@ -2160,20 +2160,29 @@ static void game_present_blit(const present_op *op, void *ud)
      * PORT-DEBT present-actor-modes). */
 }
 
-/* present_dims_fn — a cel's pixel size for map_present's mode-0 cull box.  The
- * cel is a zdd_object (frame); its source w/h are metric_b8/metric_bc (the same
- * dims zdd_object_blt_keyed uses for the Blt, and the render_id blit trace's
- * reqw/reqh).  (Retail's 0x48eac0 mode-0 cull reads cel +0x1c/+0x20; for these
- * frame cels those equal the source dims — using b8/bc keeps the cull box and
- * the actual blit size in lockstep, so an on-screen actor is never wrongly
- * culled.) */
+/* present_dims_fn — a cel's cull-box size for map_present's mode-0/1 cull.
+ * Retail's 0x48eac0 case-0 cull reads cel +0x1c/+0x20 (metric_1c/metric_20) —
+ * the frame's FULL CANVAS dims — NOT the trimmed source rect +0xb8/+0xbc
+ * (metric_b8/bc).  For an UNtrimmed cel the two coincide (pivot 0), so the
+ * earlier b8/bc read matched retail there; but a TRIMMED cel places its content
+ * inside the canvas via the pivot (metric_0c/10 = trim x_left/y_top), and the
+ * keyed blit draws it at (pivot + dst).  The cull box must be the canvas (origin
+ * at the projected pos), which is what retail reads — otherwise a cel whose
+ * pivot shifts its content into view from above/left is wrongly culled while its
+ * pixels still poke on-screen.  The upstairs BED (res 1023 fr13, pivot y=68,
+ * content h=60, canvas h=128) was the case that exposed it: at dst_y=-96 the
+ * old b8/bc cull gave sy+60=-36 (<0 → culled), but retail's canvas cull gives
+ * sy+128=+32 (≥0 → drawn), and the blit's content lands at top=68-96=-28..+32,
+ * visibly poking in.  errands-render-gaps.md §7.  (metric_b8/bc stay the Blt +
+ * trace reqw/reqh — the keyed primitive reads them itself; op.w/op.h from here
+ * feed ONLY the cull.) */
 static void game_cel_dims(uint32_t cel, int32_t *w, int32_t *h, void *ud)
 {
     (void)ud;
     zdd_object *obj = (zdd_object *)(uintptr_t)cel;
     if (obj == NULL) { *w = 0; *h = 0; return; }
-    *w = obj->metric_b8;
-    *h = obj->metric_bc;
+    *w = obj->metric_1c;   /* cel +0x1c — canvas width  (0x48eac0 case-0 cull) */
+    *h = obj->metric_20;   /* cel +0x20 — canvas height (0x48eac0 case-0 cull) */
 }
 
 /* town_actor_walk_fn — emit the room's CHARACTER-band actors into the town

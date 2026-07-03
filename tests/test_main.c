@@ -983,6 +983,7 @@ struct test_case {
     X(map_present_walk_defers_other_modes)                     \
     X(map_present_walk_mode0_keyed)                            \
     X(map_present_walk_mode0_cull)                             \
+    X(map_present_walk_mode0_canvas_cull_bed)                  \
     X(map_present_walk_mode0_deferred_without_dims)            \
     X(map_present_walk_dry_count)                              \
     X(parallax_select_town)                                    \

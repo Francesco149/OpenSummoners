@@ -88,6 +88,20 @@
   the ERRANDS_CAST capture) is now pure cleanup, blocked on the char-band z-order (no draw_pool Y-sort);
   the code→bank table + variant model are proven + ready.  `errands-render-gaps.md` §6.  **USER: studio
   `port-cabinet | retail-stairs`, scrub the CLAMP (~t2400+) — the pot should steam, the clock swing.**
+- **Landed ckpt 181 — the upstairs-BED "renders empty until fully in frame" = a mode-0 CULL bug (FIXED).**
+  The ckpt-180c "res=1071 fr6 bottom-strip DECODE bug" hypothesis was WRONG: res=1071 fr6 is the
+  window-WALL (sheet byte-IDENTICAL port↔retail); the BED is a keyed ACTOR **res=1023 fr13** (in
+  ERRANDS_CAST at world 60000,6400) that the port SPAWNS but CULLED at t2158 (drew fine at t2325).
+  ROOT: `map_present` mode-0 cull box read the cel's CONTENT dims (`metric_b8/bc`) not retail's CANVAS
+  dims (`+0x1c/+0x20` = `metric_1c/20`, `FUN_0048eac0` case-0).  For a trimmed cel with a vertical
+  pivot (bed: pivot y=68, content h=60, canvas h=128) at dst_y=-96, content-h culls (-36<0) but
+  canvas-h keeps it (+32) and the keyed blit's pivot pokes the content on-screen.  FIX: `game_cel_dims`
+  → `metric_1c/20` (bit-exact w/ retail's cull).  VERIFIED off `port-bedfix.osr`: bed now emits
+  `res=1023 fr13 @(464,-96)` == retail, reconstructs **`differ_px==0`**; `frame_diff` old-vs-new = 0
+  removed / +9 added (the bed + 2 upstairs chests + 6 props, all wrongly-culled).  New tools:
+  `sheet_export.py`, `blits_at/region_draws/frame_diff.py`, `osr_prof pick`.  1096 host pass.
+  `findings/errands-render-gaps.md §7`.  **USER: studio `port-bedfix | retail-stairs` @ ~t2158 — the
+  upstairs bed (top-right, white) should now be there; scrub up to t2325 as Arche climbs.**
 - **Next move (the errands −6t residual + the 2nd USER mark):**
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
