@@ -680,6 +680,25 @@ rate residual within the ±1-2t coalescing slop, folded into `cutscene-fade-vari
 DURATIONS already matched (~40t both), so the fabled "−6t" was ~measurement noise off the old
 fuzzy anchors, not a missing hold.  Feed `edgesin_cmp.png` (port|retail edges-in, phase-aligned).
 
+**(d.2) The arrival→house COVER + house-entry REVEAL had the SAME bug (ckpt 188b, `cutscene.c`).**
+Re-measuring ALL FOUR town-intro fade shapes vs `retail-stairs.osr` (osr_prof row-band recon) found
+each fade's variant is an INDEPENDENT RNG roll and **3 of the 4 were forced to the wrong center-out
+(variant 0)** from the dead `retail.osr`:
+- (1) arrival→house COVER = **TOP-DOWN** (`ARRIVAL_EXIT_COVER_VAR` 0→2: the sky/roof darkens first,
+  sweeping to the ground LAST; scene_fade variant 2 + MODE_IN = `sf_pattern_sweep_down`);
+- (2) house-entry REVEAL = **EDGES-IN** (`HOUSE_ENTRY_REVEAL_VAR` 0→1);
+- (3) house→errands COVER (`HOUSE_EXIT_COVER_VAR`=1, edges-in) — already right;
+- (4) errands entry REVEAL 0→1 (edges-in, §14d above).
+
+VERIFIED off `port-ahfix.osr` (osr_prof row-band): the arrival COVER matches retail **BAND-FOR-BAND**
+— port t1258 `[0,0,0,0,0,2,9,23,35,0]` == retail t1224 exactly (top darkens first, bottom last); the
+house REVEAL is edges-in (port t1288 `[107,106,40,0,0,0,0,25,118,96]` top+bottom first, center fills
+last, matching retail t1250 `[107,47,2,0,0,0,0,0,45,95]`).  Feed `ahfix_cmp.png` (port|retail, cover +
+reveal).  The cover's 8-tick full-black core + the reveal's edges-in center-last both reproduce retail
+(the earlier `dialogue-advance-early.md` "top-down cover" note for the ARRIVAL was RIGHT in spirit but
+the port forced center-out; now corrected).  `cutscene-fade-variant` retire condition unchanged (the
+forced shapes await the cast so the live LCG rolls them).
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw

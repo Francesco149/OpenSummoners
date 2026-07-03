@@ -3857,10 +3857,10 @@ static void game_render(void *user)
                              * lands.  KEEP the rng_rand() draw to preserve retail's
                              * per-arm LCG consumption COUNT (one draw per fade arm). */
                             (void)rng_rand();         /* consume (retail draws per arm) */
-                            int sf_var = act.b;       /* center-out stand-in, see above */
+                            int sf_var = act.b;       /* forced-variant stand-in, see above */
                             scene_fade_arm(&g_scene_fade, act.a, sf_var, act.c);
                             log_line("cutscene beat: scene_fade_arm(mode=%d var=%d "
-                                     "speed=%d) @hold=%u [center-out stand-in]",
+                                     "speed=%d) @hold=%u [forced-variant stand-in]",
                                      act.a, sf_var, act.c, g_game_camera_hold);
                         } else if (act.kind == CS_ACT_ACTOR_TURN) {
                             /* USER notes #3-5: the house emote 0x401e60(Arche,1) —

@@ -226,6 +226,16 @@ understates how much actual instruction volume is ported.
   verify the arrival→house cover/reveal variants vs retail-stairs — same dead-capture era**).  1097
   host pass; `errands-render-gaps.md §14d`.  **USER: feed `edgesin_cmp.png` (port|retail edges-in,
   phase-aligned) — the errands now opens edges-first / center-LAST == retail.**
+- **Landed ckpt 188b — the arrival→house COVER + house-entry REVEAL had the SAME bug (that ⚠ flag,
+  now CLEARED).**  Re-measured ALL FOUR town-intro fades vs retail-stairs: each variant is an
+  INDEPENDENT RNG roll, and 3 of 4 were forced to the wrong center-out (variant 0) from the dead
+  `retail.osr`.  Corrected in `cutscene.c`: (1) arrival→house COVER = **TOP-DOWN** (`ARRIVAL_EXIT_
+  COVER_VAR` 0→2), (2) house-entry REVEAL = **EDGES-IN** (`HOUSE_ENTRY_REVEAL_VAR` 0→1); (3) the
+  house-exit cover (var 1 edges-in) was already right; (4) the errands reveal (0→1) = ckpt 188.
+  VERIFIED off `port-ahfix.osr` BAND-FOR-BAND — the cover is EXACT (port t1258 `[0,0,0,0,0,2,9,23,35,0]`
+  == retail t1224; top darkens first), the reveal is edges-in (center last).  1097 host pass;
+  `errands-render-gaps.md §14d.2`.  **USER: feed `ahfix_cmp.png` (port|retail cover+reveal) — the
+  arrival darkens top-down, the house opens edges-in == retail.**
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s

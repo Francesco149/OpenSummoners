@@ -34,6 +34,16 @@ specific commits where relevant.
   retail ~2t (the MODE_OUT cell onset-sharpness, ±1-2t slop).  1097 host pass; only `main.c` changed.
   `findings/errands-render-gaps.md §14d`; feed `edgesin_cmp.png` (port|retail edges-in, phase-aligned).
 
+- **ckpt 188b — the arrival→house COVER + house-entry REVEAL had the SAME bug.**  Re-measuring ALL
+  FOUR town-intro fades vs retail-stairs found each variant is an INDEPENDENT RNG roll, and 3 of 4
+  were forced to the wrong center-out (variant 0) from the dead `retail.osr`.  Corrected in
+  `cutscene.c`: the arrival→house COVER is **TOP-DOWN** (`ARRIVAL_EXIT_COVER_VAR` 0→2 — the sky/roof
+  darkens first, ground last) and the house-entry REVEAL is **EDGES-IN** (`HOUSE_ENTRY_REVEAL_VAR`
+  0→1); the house-exit cover (var 1) was already right.  VERIFIED off `port-ahfix.osr` BAND-FOR-BAND:
+  the cover is EXACT (port t1258 `[0,0,0,0,0,2,9,23,35,0]` == retail t1224), the reveal edges-in
+  (center last).  Clears the ckpt-188 ⚠ flag; `cutscene-fade-variant` now lists all 4 fades pinned to
+  retail-stairs.  1097 host pass; `errands-render-gaps.md §14d.2`; feed `ahfix_cmp.png`.
+
 ## 2026-07-03 (ckpt 186) — the errands PARENTS are CHARACTER-band NPCs (not party-band); Father's Z-ORDER fixed
 
 - **Model correction, off the retail-stairs CLAMP draw seq (t2420).**  The FRONT + §12 had the

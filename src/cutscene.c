@@ -194,10 +194,15 @@ static const cutscene_line_lead ARRIVAL_LEADS[] = {
  * ARRIVAL_EXIT_BOX_HOLD=8 then shrinks ~21t (closes ~1221, retail 1222 res-1110), so it
  * rides over the darkening cover on both sides regardless of the WAIT value. */
 #define ARRIVAL_EXIT_WAIT 20     /* in_ECX[0x15f]=0x14, mapped 1:1 (retail-stairs.osr) */
+/* fade iris VARIANT (PORT-DEBT(cutscene-fade-variant) forced stand-in): retail-stairs
+ * ground truth (ckpt 188, osr_prof row-band recon) — the arrival→house COVER is TOP-DOWN
+ * (the sky/roof darkens first, sweeping down to the ground last; NOT the ckpt-179 dead-
+ * retail.osr's center-out).  variant 2 + MODE_IN = sf_pattern_sweep_down = top-down. */
+#define ARRIVAL_EXIT_COVER_VAR 2
 static const cutscene_beat ARRIVAL_EXIT[] = {
     /* type           fade_mode      fade_var pan_x pan_y param        dur */
     { CS_BEAT_WAIT,   0,             0, 0, 0, 0,            ARRIVAL_EXIT_WAIT },
-    { CS_BEAT_FADE,   CS_FADE_COVER, 0, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
+    { CS_BEAT_FADE,   CS_FADE_COVER, ARRIVAL_EXIT_COVER_VAR, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
 };
 #define ARRIVAL_EXIT_N ((int)(sizeof(ARRIVAL_EXIT) / sizeof(ARRIVAL_EXIT[0])))
 
@@ -226,9 +231,15 @@ static const cutscene_line TOWN_HOUSE[] = {
  * reveal, in_ECX[10]=1) then a WAIT 0x32=50, before house L0.  Modeled as line 0's
  * lead beats.  MEASURED off retail.osr: the reveal recedes the black ~1261→1291, the
  * room is house from there. */
+/* fade iris VARIANT (PORT-DEBT(cutscene-fade-variant) forced stand-in): retail-stairs
+ * ground truth (ckpt 188) — the house-entry REVEAL is EDGES-IN (the top+bottom edges
+ * light first + converge, the vertical CENTER fills LAST; NOT center-out).  variant 1 +
+ * MODE_OUT = sf_pattern_edges_in.  (Same edges-in shape as the errands entry reveal +
+ * the house-exit cover; each fade's variant is an independent RNG roll in retail.) */
+#define HOUSE_ENTRY_REVEAL_VAR 1
 static const cutscene_beat HOUSE_L0_LEAD[] = {
     /* type           fade_mode       fade_var pan_x pan_y param         dur */
-    { CS_BEAT_FADE,   CS_FADE_REVEAL, 0, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
+    { CS_BEAT_FADE,   CS_FADE_REVEAL, HOUSE_ENTRY_REVEAL_VAR, 0, 0, CS_FADE_SPEED, CS_FADE_CAP },
     { CS_BEAT_WAIT,   0,              0, 0, 0, 0,             50 },
 };
 #define HOUSE_L0_LEAD_N ((int)(sizeof(HOUSE_L0_LEAD) / sizeof(HOUSE_L0_LEAD[0])))
