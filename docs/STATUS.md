@@ -210,10 +210,13 @@ understates how much actual instruction volume is ported.
   `{"tick":T,"ids":[36]}` spam every 10 ticks over 1700-1900 (the dialogue window; keep spam ticks MONOTONIC after
   the last kept ≤1668 tick, else the whole trace fails to parse).  Drive with `--held-trace runs/sync/hold-right-
   clamp.jsonl` (`{"tick":1650,"keys":[205]}` = hold RIGHT).  (2 spam captures were externally KILLED mid-write ~t2000
-  — re-run if the clamp frame isn't reached.)  SEPARATE observed gap: the port shows the ARRIVAL backdrop at t1710
-  while retail is in the item-shop — the errands backdrop renders ~the freeroam handoff, not the house-exit room-swap
-  ~1668 (a VISIBLE `cutscene-room-render` timing gap: `reload_room_backdrop`→`load_room` DOES load it, so it's a
-  room-key STAGING/fade-timing issue in `cutscene_room_key`, not a load gap).
+  — re-run if the clamp frame isn't reached.)  SEPARATE observed gap (OPEN): with this (stale) nav the port's
+  cutscene TIMELINE drifts BEHIND retail through the transition — at t1710 the port is STILL on a HOUSE dialogue
+  line (`Arche's Mother` "…help with moving us in…", over the town backdrop, reconstructed) while retail is already
+  in the item-shop.  The errands room-swap DOES fire at chain-complete (`reload_room_backdrop`→`load_room` loads the
+  shop), just LATER than retail.  Whether this is the stale-nav artifact (retail-tick-keyed confirms not landing on
+  the port's drifted lines) or a real port-timing gap (`cutscene-room-render` / the −6t `cutscene-errands-entry-
+  latency` / `dialogue-advance-early`) is unresolved — the ckpt-186 CLAMP verify (t2420, both settled) is unaffected.
 - **Next move (finish the errands un-MVP, session by session):** (1)(2) DONE ckpt 184/185 (clock/pot, fire).
   (3) **RESCOPED by ckpt 186** — the errands PARENTS are character-band NPCs (z-order now fixed); the LAST
   errands stand-ins are the parents' anim-PHASE (RNG-blocked, `effect-anim-phase`/0x426ec0 — needs the scene
