@@ -16,6 +16,7 @@
 #include "character.h"
 #include "butterfly.h"
 #include "ambient.h"
+#include "town_npc.h"
 #include "draw_pool.h"
 #include "rng.h"
 #include "t.h"
@@ -797,6 +798,43 @@ int test_ambient_pertick(void)
     ambient_reset(NULL);
     T_ASSERT_EQ_I(ambient_effect_step(NULL), 0);
     T_ASSERT_EQ_I(ambient_character_step(NULL), 0);
+    return 0;
+}
+
+/* The settled-town wander NPC's per-tick LCG draw (0x43f880:415, ckpt 194): it
+ * draws exactly ONE rand per census tick over the seed-pinned walk window
+ * [972,1077], and nothing outside it — the +1/tick the port omitted. */
+int test_town_npc_pertick(void)
+{
+    town_npc_pool p;
+    town_npc_reset(&p);
+    T_ASSERT_EQ_I(p.walk_start, 972);
+    T_ASSERT_EQ_I(p.walk_end,  1077);
+
+    /* Outside the window (before): no draw, LCG untouched. */
+    uint64_t c0 = rng_call_count();
+    for (int t = 0; t < 972; t++)
+        T_ASSERT_EQ_I(town_npc_step(&p, t), 0);
+    T_ASSERT_EQ_I((int)(rng_call_count() - c0), 0);
+
+    /* Inside the window: exactly 1 draw per tick, 972..1077 inclusive (106 ticks). */
+    uint64_t c1 = rng_call_count();
+    int total = 0;
+    for (int t = 972; t <= 1077; t++)
+        total += town_npc_step(&p, t);
+    T_ASSERT_EQ_I(total, 106);
+    T_ASSERT_EQ_I((int)(rng_call_count() - c1), 106);
+
+    /* Boundaries: the first tick (972) draws, the tick after the last (1078) does not. */
+    town_npc_reset(&p);
+    T_ASSERT_EQ_I(town_npc_step(&p, 971), 0);
+    T_ASSERT_EQ_I(town_npc_step(&p, 972), 1);
+    T_ASSERT_EQ_I(town_npc_step(&p, 1077), 1);
+    T_ASSERT_EQ_I(town_npc_step(&p, 1078), 0);
+
+    /* NULL guard. */
+    town_npc_reset(NULL);
+    T_ASSERT_EQ_I(town_npc_step(NULL, 1000), 0);
     return 0;
 }
 

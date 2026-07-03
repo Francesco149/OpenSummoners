@@ -147,18 +147,45 @@ the real gap is the unmodeled NPC.
 **Secondary (defer):** the ±3 spikes (census 979/999) = `FUN_00489280+0x21/+0x77` @
 ~0.077/tick (≈1 per 13t) — a lower-freq consumer; chase after the primary NPC lands.
 
+## The NPC walk PORTED — first permanent divergence 974 → 1019 (ckpt 194)
+
+**DONE.** New module `src/town_npc.c` (the town analogue of `ambient.c`): the wander NPC
+draws the LCG once per sim-tick over the seed-pinned walk window **[972,1077]** (106 ticks),
+consume-to-advance — the roll RESULT drives wander motion the port doesn't render, the DRAW
+aligns the stream.  Wired FIRST in `game_actor_update`'s RNG section (before `butterfly_step`),
+gated `census_tick = g_sim_tick_count + 1` (the actor update runs before the camera easer
+increments the counter).  `town_npc_pertick` host test (1105 pass).
+
+**Position + window PROVEN off a fresh census randtrace** (`OSS_RAND_TRACE 968-1080`,
+`rt-npc.log`): the NPC's `0x440301` draw is at **index 0 in ALL 106 walking ticks** — it leads
+the per-tick stream, BEFORE the EFFECT-band butterflies.  (Note: the randtrace's own
+`g_eh_sim_tick` axis = census − 1, since the actor update precedes the easer; align by the
+NPC-onset draw, not the tick number.)  Walk envelope read straight off the two OSR_STATE
+captures (`draw_envelope.py`): retail = port **+1/tick contiguous 972..1077**, then 0 through
+the transition (the NPC goes idle for the rest of the town).
+
+**VERIFIED** off `port-npcfix.osr` vs `retail-rngcensus3.osr` (`rng_seq_diff.py`): the first
+PERMANENT town divergence moved **974 → 1019** (+45t); ticks 972-978 now bit-exact + the
+972-973 butterfly self-heal fired (the +1 at 972 perturbs the state so the port's 973
+conditional draws retail's 20, not the old 21).  The residual at 1019 is the SECONDARY
+`0x489280` consumer (below), NOT the NPC.
+
+**Remaining town RNG (next chip): the secondary `0x489280` ±2 consumer.**  `0x489280` draws
+TWO rands unconditionally at entry (`+0x21`/`+0x77`, decompile 489280.c:24-25; called from the
+apply pass `0x485fc0`); fires at census **979, 999, 1019, 1039, 1056, 1066, 1135, …** (gaps
+`20,20,20,17,10,69` — NOT a clean period), each +2.  It self-heals at 979-998 (re-converges at
+999) then splits PERMANENTLY at 1019, and CONTINUES past the NPC walk (a lone +2 at 1135).
+Model it (cadence + intra-tick position) to push the first divergence to the town→house
+transition (census 1268: retail +34 spawn burst + per-tick +8 — steps 2-4 below).
+
 ## The fix path (once the census is clean)
 
-1. **IDENTIFIED (ckpt 193):** the first real divergence is TOWN census tick 972 = the port
-   OMITTING `FUN_0043f880:415` (a walking town NPC's per-tick move-cmd "push command 3"
-   roll; body `0xe8767d8` @ 41600,45600 goes idle→walk there).  FIX = model that NPC's walk
-   AI in the port (the town analogue of `butterfly.c`/`ambient.c`): spawn/track it, run the
-   idle→walk transition at census tick 972, and reproduce the line-415 roll (1 draw/tick
-   while walking, `(rand*1000)>>15 < wander_freq`).  Open sub-steps: (a) identify the NPC's
-   resource id + spawn provenance (draw stream / town scene script); (b) find what triggers
-   the walk at tick 972; (c) port the `0x43f880` state-1 command-set incl. line 415.  The
-   town LCG must reach the house/errands with retail's exact state or nothing downstream can
-   align.  (Then chase the secondary `0x489280` ±3 spikes.)
+1. **DONE ckpt 194** (above): the town wander NPC's `0x43f880:415` +1/tick is modelled
+   (`town_npc.c`), first permanent divergence 974 → 1019.  Sub-steps (a) resource/spawn
+   provenance + (b) the exact walk trigger + (c) the full `0x442a70`/`0x43f880` AI are
+   deferred to `PORT-DEBT(town-wander-npc)` — the window [972,1077] is measured, not yet
+   derived from the spawn+idle-timer.  Also open: the NPC's RENDER (if on-screen).
+1b. **NEXT:** the secondary `0x489280` ±2 consumer (cadence 979/999/1019/…).
 2. Model the errands room-load RNG burst — `0x431e30`'s per-case draws for each animated
    CHARACTER-band actor (the `0x426ec0` pair + any prefix), IN MAP ORDER, the way
    `actor_spawn_effect_from_map` already replays the town's `0x41f200` burst (quirk #86).

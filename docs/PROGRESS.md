@@ -7852,3 +7852,37 @@ palette-remap installs (PORT-DEBT decode-prologue-header), the region-E spawn
 CONSUMER.
 
 ---
+
+## ckpt 194 — 2026-07-04 — the town WANDER NPC's per-tick LCG draw PORTED (first permanent town RNG divergence 974 → 1019)
+
+Closes the ckpt-193 diagnosis: the port omitted a grounded town pedestrian's
+per-tick `0x43f880:415` "push command 3" wander roll, the first permanent town
+RNG split.  New module `src/town_npc.c` (the town analogue of `ambient.c`/
+`butterfly.c`): the NPC (retail body `0xe8767d8` @ world 41600,45600) draws the
+shared LCG once per sim-tick over the seed-pinned walk window **[972,1077]** (106
+ticks), consume-to-advance — the DRAW aligns the stream, the roll RESULT (wander
+motion) is not rendered.  Wired FIRST in `game_actor_update`'s RNG section (before
+`butterfly_step`), gated `census_tick = g_sim_tick_count + 1` (the actor update
+runs before the camera easer bumps the counter).
+
+**Position + window PROVEN off a fresh census randtrace** (`OSS_RAND_TRACE 968-1080`,
+seed-pin, same nav): the NPC's `0x440301` draw is at INDEX 0 in ALL 106 walking
+ticks — it LEADS the per-tick stream, before the EFFECT-band butterflies.  (The
+randtrace's own `g_eh_sim_tick` axis = census − 1, since the actor update precedes
+the easer; align by the NPC-onset draw, not the tick number.)  Walk envelope read
+straight off the two OSR_STATE captures: retail = port +1/tick contiguous 972..1077,
+then 0 (the NPC goes idle for the rest of the town).
+
+**VERIFIED** off `port-npcfix.osr` vs `retail-rngcensus3.osr` (`rng_seq_diff.py`):
+the first PERMANENT town divergence moved **974 → 1019** (+45t); ticks 972-978 now
+bit-exact + the 972-973 butterfly self-heal fires (the +1 at 972 perturbs the state
+so the port's 973 conditional draws retail's 20, not 21).  The 1019 residual is the
+SECONDARY `0x489280` ±2 consumer (draws 2 rands at entry, `489280.c:24-25`; fires
+census 979/999/1019/1039/1056/1066/1135…, gaps `20,20,20,17,10,69`, continues past
+the walk) — the NEXT chip.
+
+`PORT-DEBT(town-wander-npc)`: the window [972,1077] is MEASURED, not yet derived
+from the NPC's spawn + idle→walk timer; the NPC's `0x442a70`/`0x43f880` walk AI +
+collision + its RENDER (its path 41600→43024 is near Arche's arrival point ⇒ likely
+on-screen — flagged for USER visual check) are deferred.  1105 host pass;
+`town_npc_pertick` test.  `errands-rng-census.md` "The NPC walk PORTED".

@@ -269,6 +269,55 @@ understates how much actual instruction volume is ported.
   `0x43d1d0` in the proxy) to cleanly localize; this is the unblock.  Fix path = model the errands
   spawn RNG order (the errands analogue of quirk #86), then the family phase DERIVES.
   `findings/errands-rng-census.md`.
+- **Landed ckpt 192 — the RNG census is UNBLOCKED (per-SIM-TICK emit) + it MOVES the first
+  divergence to TOWN tick 974.** OSR_STATE now emits once per sim-tick at the easer `0x43d1d0`
+  (proxy `eh_sim_tick_cb`), each STATE carrying its own `tick` (+`flip`); the port added the
+  matching fields at `drive_present`; `rng_seq_diff.py` keys per-tick + upgraded to a
+  TICK-FOR-TICK bubble diff (the subsequence match is now a legacy-capture fallback).  With the
+  lockstep confound gone the two tick axes align 1:1 and the picture is sharp: port==retail RNG
+  **tick-for-tick through the town (ticks 1..973)**, with **two SELF-HEALING bubbles** (584-588,
+  972 — same total draws redistributed = a draw-TIMING wobble) then the **first PERMANENT split
+  at tick 974** (port still DRAWING there, rc climbing — a count/timing split, NOT the port going
+  static).  So the ckpt-191 "gap = errands spawn burst" was a subsequence-match artifact — the
+  TOWN RNG splits ~300t earlier + must align first.  Locus: tick 972 = the 162-tick periodic
+  +20-draw event (162×6; k=1..5 matched), tick 973 = a +21 draw ⇒ the periodic butterfly/effect
+  consumer at k=6.  1104 host pass.  `errands-rng-census.md` "Census RESULT".  **NEXT: add the
+  retail `rngcalls` counter (proxy trampoline `0x5bf505`) → read count-vs-timing → RE the tick-974
+  consumer; the town must be bit-exact into the errands before the family phase can derive.**
+- **Landed ckpt 193 — the tick-974 split DIAGNOSED: the port omits a WALKING town NPC's
+  per-tick RNG roll (`FUN_0043f880:415`).**  Added the retail `rngcalls` counter (proxy
+  `eh_rand_cb`, E9-trampoline @ `0x5bf505`, head `a1 94 4f 8a 00`) — the split reads as a
+  COUNT split: retail draws **+1 rand()/tick from census tick 972** (port 6/14-alternating
+  → retail 7/15), TRIPLE-confirmed (the rngcalls delta == the new `lcg_walk.py`
+  LCG-walk-from-states == the `[esp]` ret_va attribution `randtrace_attrib.py`).  The omitted
+  draw = `FUN_0043f880` line 415 (VA `0x440301`), the SOLE rand in the actor MOVE-COMMAND
+  builder — a "push command 3" roll `(rand*1000)>>15 < wander_freq`, 0.000→1.000 draws/tick
+  at 972.  The actor = a grounded town NPC (body `0xe8767d8` @ world 41600,45600) that goes
+  idle→WALK (st 0→1) exactly at census 972 then walks right; the port's town RNG model
+  (butterflies `0x47b990` + the `0x54f980` ambient actor) has NO such NPC.  The ckpt-192
+  "974 / periodic-+20 butterfly consumer at k=6" framing is SUPERSEDED — the +20 tick is the
+  butterflies' own flit-pick (already modeled); the 972-vs-974 gap is the missing `0x43f880`
+  draw perturbing a state-dependent butterfly conditional (`butterfly.c:92`) that self-heals
+  at 973 then splits for good at 974 (ONE root cause).  1104 host pass (proxy + py tools only,
+  no src C).  New: proxy `OSS_RAND_TRACE_LO/HI` + `[esp]` ret_va + `[mvtrace]` `0x43f880` entry
+  log; `lcg_walk.py`, `randtrace_attrib.py`; `rng_seq_diff.py` count-vs-timing verdict.
+  `errands-rng-census.md` "Count-vs-timing RESOLVED".
+- **Landed ckpt 194 — the town WANDER NPC's per-tick LCG draw PORTED (first permanent town
+  divergence 974 → 1019).**  New `src/town_npc.c` (the town analogue of `ambient.c`): the
+  grounded pedestrian (retail body `0xe8767d8` @ 41600,45600) draws the shared LCG once/tick
+  over the seed-pinned walk window **[972,1077]** (its `0x43f880:415` "push command 3" roll),
+  consume-to-advance FIRST in `game_actor_update`'s stream (before `butterfly_step`; gated
+  `census_tick = g_sim_tick_count + 1`).  **Position + window PROVEN off a fresh census
+  randtrace** (`OSS_RAND_TRACE 968-1080`): `0x440301` is at INDEX 0 in ALL 106 walking ticks
+  (leads the tick, before the EFFECT-band butterflies).  **VERIFIED** off `port-npcfix.osr` vs
+  `retail-rngcensus3.osr` (`rng_seq_diff`): first PERMANENT divergence **974 → 1019** (+45t),
+  ticks 972-978 now bit-exact + the 972-973 butterfly self-heal fires.  The 1019 residual is
+  the SECONDARY `0x489280` ±2 consumer (census 979/999/1019… gaps `20,20,20,17,10,69`; draws 2
+  rands at entry, `489280.c:24-25`) — **NEXT chip.**  `PORT-DEBT(town-wander-npc)`: the window
+  is MEASURED (not yet derived from spawn+idle-timer); the NPC's motion/collision + its RENDER
+  (path 41600→43024 near Arche's arrival point ⇒ **likely on-screen — USER: worth a visual
+  check for a missing townsperson walking right near the wagon ~census 972-1077**) are deferred.
+  1105 host pass.  `errands-rng-census.md` "The NPC walk PORTED".
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s

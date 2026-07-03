@@ -87,6 +87,7 @@
 #include "sword_trail.h"      /* the freeroam UP-attack sword-tip trail (res 0x40b) */
 #include "butterfly.h"        /* the town butterflies' per-tick LCG (0x47b990 0xe29a) */
 #include "ambient.h"          /* the town's irregular ambient/event RNG timers      */
+#include "town_npc.h"         /* the settled-town wander NPC's per-tick LCG (0x43f880:415) */
 #include "banner.h"           /* the area-title banner ("Town of Tonkiness", 0x494a60) */
 #include "dialogue.h"         /* the in-game dialogue box (0x439690 widget / 0x48c820) */
 #include "hud.h"              /* the freeroam status HUD (0x494e60 leader panel) */
@@ -295,6 +296,12 @@ static butterfly_pool   g_butterflies;
  * (ticks 189/33/134/183), consuming the LCG so the fountain/sky stay aligned past
  * the REVEAL.  Stepped in band order around the emitters in game_actor_update. */
 static ambient_pool     g_ambient;
+
+/* The settled-town wandering NPC's per-tick LCG draw (0x43f880:415).  A grounded
+ * pedestrian (retail body 0xe8767d8 @ 41600,45600) walks census ticks 972-1077,
+ * drawing the shared LCG once/tick — the first permanent town RNG divergence the
+ * port omitted (ckpt 194).  Consume-to-advance like g_ambient; PORT-DEBT(town-wander-npc). */
+static town_npc_pool    g_town_npc;
 
 /* The particle band (0x13e0 DEVICE pool / 0x493480 render) — the FOUNTAIN SPRAY.
  * The fountain prop 0x112e5 (a CHARACTER in g_actors) emits one 0x18708 water
@@ -3534,7 +3541,15 @@ static void game_actor_update(void)
 
     /* The per-tick LCG stream, in 0x46cd70's band order (engine-quirk #95):
      *
-     * (1) EFFECT band (0x47b990): the 4 BUTTERFLIES, the band's only per-tick RNG
+     * (0) The settled-town WANDER NPC (0x43f880:415): a grounded pedestrian walks
+     *     census ticks 972-1077, its move-command builder drawing the LCG once/tick.
+     *     Retail draws it FIRST in the tick (census randtrace: 0x440301 at index 0
+     *     in all 106 walking ticks), BEFORE the EFFECT-band butterflies — so it
+     *     leads the stream here.  census_tick = g_sim_tick_count + 1 (game_actor_update
+     *     runs before game_camera_step increments the counter).  ckpt 194. */
+    town_npc_step(&g_town_npc, (int32_t)g_sim_tick_count + 1);
+
+    /* (1) EFFECT band (0x47b990): the 4 BUTTERFLIES, the band's only per-tick RNG
      *     consumer (the townsfolk take the RNG-free arm).  Stepped FIRST so their
      *     draws precede the emitters' — keeping the shared stream aligned.
      *     Then the EFFECT-band event timer 0x467380 (the 0xe2a5 object, via
@@ -4156,6 +4171,7 @@ static void enter_game(void)
          * 0xe29a + the non-map party townsfolk are deferred (RNG / Phase 2). */
         butterfly_pool_reset(&g_butterflies);
         ambient_reset(&g_ambient);   /* the irregular ambient/event RNG timers */
+        town_npc_reset(&g_town_npc); /* the wander NPC's walk-window LCG draw   */
         int en = actor_spawn_effect_from_map(&g_effects, &g_town.map, &g_butterflies);
         g_effects_loaded = (en > 0);
         /* Fill the mirror/flip table so the facing==3 townsfolk pick the mirrored

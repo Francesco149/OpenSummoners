@@ -1067,6 +1067,7 @@ struct test_case {
     X(butterfly_motion)                                        \
     X(butterfly_flutter)                                       \
     X(ambient_pertick)                                         \
+    X(town_npc_pertick)                                        \
     X(particle_spawn_config)                                   \
     X(particle_fountain_draw_count)                            \
     X(particle_fountain_velocity_cycle)                        \

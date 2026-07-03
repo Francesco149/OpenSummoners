@@ -276,9 +276,23 @@
   at 973 then splits for good at 974 (ONE root cause).  1104 host pass (proxy + py tools only,
   no src C).  New: proxy `OSS_RAND_TRACE_LO/HI` + `[esp]` ret_va + `[mvtrace]` `0x43f880` entry
   log; `lcg_walk.py`, `randtrace_attrib.py`; `rng_seq_diff.py` count-vs-timing verdict.
-  `errands-rng-census.md` "Count-vs-timing RESOLVED".  **NEXT: model the NPC's walk AI (spawn
-  + the idle→walk trigger at census 972 + the `0x43f880` line-415 roll) so the town LCG reaches
-  the errands bit-exact; then the secondary `0x489280` ±3 spikes (census 979/999).**
+  `errands-rng-census.md` "Count-vs-timing RESOLVED".
+- **Landed ckpt 194 — the town WANDER NPC's per-tick LCG draw PORTED (first permanent town
+  divergence 974 → 1019).**  New `src/town_npc.c` (the town analogue of `ambient.c`): the
+  grounded pedestrian (retail body `0xe8767d8` @ 41600,45600) draws the shared LCG once/tick
+  over the seed-pinned walk window **[972,1077]** (its `0x43f880:415` "push command 3" roll),
+  consume-to-advance FIRST in `game_actor_update`'s stream (before `butterfly_step`; gated
+  `census_tick = g_sim_tick_count + 1`).  **Position + window PROVEN off a fresh census
+  randtrace** (`OSS_RAND_TRACE 968-1080`): `0x440301` is at INDEX 0 in ALL 106 walking ticks
+  (leads the tick, before the EFFECT-band butterflies).  **VERIFIED** off `port-npcfix.osr` vs
+  `retail-rngcensus3.osr` (`rng_seq_diff`): first PERMANENT divergence **974 → 1019** (+45t),
+  ticks 972-978 now bit-exact + the 972-973 butterfly self-heal fires.  The 1019 residual is
+  the SECONDARY `0x489280` ±2 consumer (census 979/999/1019… gaps `20,20,20,17,10,69`; draws 2
+  rands at entry, `489280.c:24-25`) — **NEXT chip.**  `PORT-DEBT(town-wander-npc)`: the window
+  is MEASURED (not yet derived from spawn+idle-timer); the NPC's motion/collision + its RENDER
+  (path 41600→43024 near Arche's arrival point ⇒ **likely on-screen — USER: worth a visual
+  check for a missing townsperson walking right near the wagon ~census 972-1077**) are deferred.
+  1105 host pass.  `errands-rng-census.md` "The NPC walk PORTED".
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s

@@ -49,7 +49,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/actor_spawn.c ../src/particle.c \
                 ../src/party.c ../src/base_stat_table.c \
                 ../src/scene_fade.c ../src/butterfly.c \
-                ../src/ambient.c ../src/banner.c \
+                ../src/ambient.c ../src/town_npc.c ../src/banner.c \
                 ../src/exe_strings.c ../src/dialogue.c \
                 ../src/collision.c ../src/held_trace.c \
                 ../src/character.c ../src/input_live.c ../src/cutscene.c \
