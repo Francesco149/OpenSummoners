@@ -459,6 +459,58 @@ room-cast member remains).
 REMAINING in ERRANDS_CAST (next sessions): the additive FIRE 0x112e4 (mode-1 node_alpha map-spawn),
 the FAMILY (Father/Mother) + counter (the party band 0x4997b0, `cutscene-party-chars`).
 
+## 11. The fireplace FIRE (0x112e4) is MAP-DRIVEN + ADDITIVE at LAYER 6 — vs the ex-capture's L13 (ckpt 185)
+
+Continuing the un-MVP: the additive fireplace FIRE (res1034) was the last animated ERRANDS_CAST member.
+Now map-driven from DATA-1025 into the CHARACTER band, carrying its additive blend.
+
+**RE'd off the 0x431e30 fire case (`docs/decompiled/by-address/431e30.c:739`):**
+
+    case 0x112e4:
+      FUN_00426620(2,param_4,0,param_1,param_2,0x1900,0x1900,...);  // spawn box 6400x6400 @ (param_1,param_2)=map*100
+      FUN_00426d70(0,0x1a3,0);            // install sprite row: bank 0x1a3, frame_base 0
+      FUN_00407b80(iVar2,&DAT_00647e58);  // the FIRE clip (6 frames)
+      FUN_00426ec0(iVar2);                // anim-phase init (the clock/pot default-9 path)
+      FUN_004385c0(DAT_008a92f0);         // the ADDITIVE blend descriptor = ramp_a[14]
+      FUN_00438610(6);                    // draw LAYER 6  <-- NOT the ex-capture's default L13
+
+So retail draws the fire at **layer 6** — BEHIND the layer-8 structure furniture (the fireplace grate +
+mantel).  Because the blit is ADDITIVE, the layer genuinely matters (it adds to whatever is behind it),
+unlike the opaque props.  The ex-ERRANDS_CAST fire was at the default cast L13 (drawn OVER everything) —
+a stand-in that looked OK only because nothing distinguished it at the tested tick.
+
+**Wiring:** `CHAR_BANK_DEFS` +1 row 0x112e4 → (bank 0x1a3, layer 6); `actor_spawn_clip_for_code` +fire
+→ FIRE_CLIP; new `actor_spawn_alpha_for_code(code)` → 14 for the fire (else 0), wired into
+`actor_spawn_from_map` (`a->node_alpha`).  Removed the fire from ERRANDS_CAST (now 3 members: family +
+counter).  The map band already spawns 0x112e4 (was an invisible volume); now it's visible + additive.
+
+**Position is exact by construction:** the map world (32000,32000) + dst_base 0 projects to
+(320,160)+pivot — the SAME net screen pos as the ex-fit world (32900,33800)+dst(-9,-18) = (320,160)+pivot
+(the fit just split the placement between world and dst_base).  So the fire lands at the ckpt-163 verified
+screen dst (329,178) 48×39, unchanged.
+
+**VERIFIED off `port-fire.osr` vs `retail-stairs.osr`** at the errands ENTRY (camera at the left; the fire
+x=32000 is off-screen at the right-edge CLAMP, so the entry is the compare window).  `draw_probe --res
+1034`:
+
+    RETAIL @t1710  seq=264  alpha res=1034 fr=3 dst=(329,178 48x39) bmode=1
+    PORT   @t1710  seq=262  alpha res=1034 fr=4 dst=(329,178 48x39) bmode=1
+
+Identical primitive (alpha/additive), res, dst, and bmode=1.  The seq (262 vs 264) is in the LOW
+CHARACTER-band range in BOTH — confirming layer 6 (the ex-L13 fire would sit at seq ~518, AFTER the
+mantel res1098 @seq517).  The fire's z is behind the later structure draws in both streams.  The ±1 anim
+frame (port fr4 vs retail fr3 at tick-equal) is the known −6t errands-entry latency
+(PORT-DEBT(cutscene-errands-entry-latency)), not a fire gap.  **VISUALLY PIXEL-IDENTICAL** (osr_prof recon
+of BOTH port-fire + retail-stairs @t2040, dialogue clear; feed `ckpt185 fire PORT | RETAIL`): the fire
+glows in the hearth BEHIND the metal grate + wooden mantel — the two fireplaces are indistinguishable, so
+the layer-6 additive z is faithful and the fire is fully visible (the res=0 grate/mantel that the retail
+proxy couldn't ID DO reconstruct — the ambiguity was a capture-side ID gap only).  1097 host pass
+(`test_errands_fire` rewritten for the map spawn: bank 0x1a3 / L6 / node_alpha 14 / FIRE_CLIP / world
+32000,32000, GONE from ERRANDS_CAST).
+
+REMAINING in ERRANDS_CAST: only the FAMILY (Father 0xe3 / Mother 0xb5) + Dad's counter 0x112d2 — the
+party band 0x4997b0 (`cutscene-party-chars`), a Phase-3 subsystem.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw

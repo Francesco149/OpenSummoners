@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 185) — the additive fireplace FIRE is MAP-DRIVEN at LAYER 6: retire its ERRANDS_CAST capture
+
+- **Continuing the errands un-MVP.**  The fireplace FIRE (0x112e4, res1034) was the last ANIMATED
+  ERRANDS_CAST member — an additive glow.  Now map-driven from DATA-1025 into the CHARACTER band,
+  carrying its additive blend.  Commit 07b2cd2.
+
+- **RE'd off the 0x431e30 fire case** (`docs/decompiled/by-address/431e30.c:739`): install bank 0x1a3
+  (0x426d70), the FIRE clip (0x407b80 DAT_00647e58), the additive blend descriptor ramp_a[14] (0x4385c0
+  DAT_008a92f0), and **LAYER 6** (0x438610(6)) — NOT the ex-capture's default L13.  The fire is ADDITIVE,
+  so the layer genuinely matters (the blit ADDS to what's behind it): retail draws it at L6, BEHIND the
+  layer-8 structure grate + mantel.  The ex-ERRANDS_CAST L13 was a stand-in that only looked OK because
+  nothing distinguished it at the tested tick.
+
+- **Wiring:** `CHAR_BANK_DEFS` +1 row 0x112e4 → (bank 0x1a3, L6); `actor_spawn_clip_for_code` +fire →
+  FIRE_CLIP; new `actor_spawn_alpha_for_code(code)` → 14 for the fire (else 0), wired into
+  `actor_spawn_from_map` (`a->node_alpha`).  Removed the fire from ERRANDS_CAST (now 3 members: family +
+  counter).  Position is exact by construction: the map world (32000,32000) + dst_base 0 projects to
+  (320,160)+pivot = the SAME net screen pos as the ex-fit (32900,33800)+dst(-9,-18) → the fire lands at
+  the ckpt-163 dst (329,178) 48×39 unchanged (the fit just split the placement between world and dst).
+
+- **VERIFIED off `port-fire.osr` vs `retail-stairs.osr` at the errands ENTRY** (the fire x=32000 is
+  off-screen at the right-edge clamp, so the entry — cam at the left — is the compare window).  `draw_probe
+  --res 1034` @t1710: retail seq264 alpha res1034 fr3 @(329,178 48×39) bmode1; port seq262 alpha res1034
+  fr4 @(329,178 48×39) bmode1 — identical primitive/res/dst/bmode.  The seq (262 vs 264) is LOW in BOTH =
+  layer 6 confirmed (the ex-L13 fire would sit at seq ~518, after the mantel res1098 @517).  The ±1 anim
+  frame is the known −6t entry latency.  **osr_prof recon @t2040 (dialogue clear) is PIXEL-IDENTICAL** to
+  retail — the fire glows in the hearth behind the grate + mantel (feed `ckpt185 fire PORT | RETAIL`).
+  1097 host pass (`test_errands_fire` rewritten for the map spawn).  `findings/errands-render-gaps.md §11`.
+
+---
+
 ## 2026-07-03 (ckpt 184) — the errands ANIM props (clock + pot) are MAP-DRIVEN: retire their ERRANDS_CAST capture
 
 - **Continuing the errands un-MVP (USER "session by session").**  §9/ckpt-183 map-drove the STATIC

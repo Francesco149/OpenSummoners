@@ -141,11 +141,23 @@
   "nothing over" either @ every clamp tick (L13→L9 no regress).  `actor_spawn_room_cast` 6→4.  1097
   host pass.  `errands-render-gaps.md §10`.  **USER: click the studio shortcut (`port-clockpot |
   retail-stairs`) @ the CLAMP (~t2420+) — the clock swings, the pot steams, both now map-derived.**
-- **Next move (finish the errands un-MVP, session by session):** (1) DONE ckpt 184 (clock/pot anim
-  props map-driven).  (2) the additive FIRE 0x112e4 (res1034) via a mode-1 map-spawn (node_alpha — its
-  map pos 32000,32000 vs the fitted dst_base to reconcile); (3) the FAMILY (Father/Mother) + counter
-  via the party band 0x4997b0 (`cutscene-party-chars`); (4) the −6t entry latency; (5) the HUD
-  party-context.  THEN the older items below:
+- **Landed ckpt 185 — the additive fireplace FIRE (0x112e4) is MAP-DRIVEN at LAYER 6 (retires the last
+  ANIM ERRANDS_CAST member).**  RE'd off the 0x431e30 fire case (431e30.c:739): bank 0x1a3, FIRE_CLIP
+  (0x407b80), additive ramp_a[14] (0x4385c0 DAT_008a92f0), **LAYER 6** (0x438610(6) — NOT the ex-capture's
+  default L13; the ADDITIVE z genuinely matters, the fire must sit BEHIND the L8 grate/mantel).  Wired:
+  `CHAR_BANK_DEFS` +1 row, `actor_spawn_clip_for_code` +fire, new `actor_spawn_alpha_for_code`
+  (fire→14).  Pos exact by construction: map (32000,32000)+dst0 = the ex-fit's net (329,178).  The fire
+  x=32000 is off-screen at the right-edge CLAMP → verify at the errands ENTRY (cam left).  **VERIFIED off
+  `port-fire.osr` vs retail-stairs @t1710:** alpha res1034 @(329,178) bmode1, seq 262 vs retail 264 (both
+  LOW = layer 6, not the ex-L13's ~518); osr_prof recon @t2040 **PIXEL-IDENTICAL** to retail (fire glows
+  behind the grate+mantel; feed `ckpt185 fire PORT | RETAIL`).  ERRANDS_CAST → 3 (family+counter). 1097
+  host pass.  `errands-render-gaps.md §11`.  **USER: feed `ckpt185 fire PORT | RETAIL` — proper fireplace.**
+- **Next move (finish the errands un-MVP, session by session):** (1) DONE ckpt 184 (clock/pot).  (2) DONE
+  ckpt 185 (fire, L6 additive).  (3) the FAMILY (Father/Mother) + counter (0x112d2) via the party band
+  0x4997b0 (`cutscene-party-chars`) — the LAST ERRANDS_CAST members + a Phase-3 subsystem (leader path +
+  multi-part body + the 0x402730/0x402330 movers), bigger than the prop chips; (4) the −6t entry latency
+  (`cutscene-errands-entry-latency` — measure the house→errands cover/reveal envelope, do NOT curve-fit);
+  (5) the HUD party-context (blocked on the party subsystem).  THEN the older items below:
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
   port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY
