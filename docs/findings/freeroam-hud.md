@@ -543,3 +543,38 @@ tests covering every branch — all 4 edges, every filter/gate, dedup clustering
 12px perpendicular offset, the highlight bump, and the 20-bucket exhaustion abort) against fixtures
 independently cross-checked in Python (fresh reimplementation of the tdiv/center-x/center-y formulas,
 not calls into the C code under test) before being baked into the C assertions.  1082 host pass (+5).
+
+## 10. The element-star COUNT setter — RE'd BLOCKED (post-ckpt-189); the plan's "FUN_004f19e0" is WRONG
+
+Slice A (ckpt 189) retired the leader-panel HP/MP/level/EXP to REAL party data (`party.c`); the
+element-star **COUNT** (`stats+0xdc`, 494e60:100, Arche=2) stayed a `hud-party-context` stand-in,
+attributed by `docs/plans/party-band-phase2-hud-data.md` to "the equip subsystem `FUN_004f19e0`".
+**That attribution is WRONG** and the setter is a genuinely unported subsystem, so the count cannot be
+un-MVP'd as a quick chip.  Proven statically (no live capture needed):
+
+- The HUD reads the count at `494e60:100` as `*(iVar6+0xdc)`, `iVar6` = the leader stats block
+  (`*(slot+0x9f4)+0x750`).  The star drawer `0x498620` (82 B) is a plain keyed blit (fixed frame 16);
+  its 4th/5th call args (star index, `stats+0xd8`) are IGNORED — the count alone drives the loop.
+- **BOTH** char-init paths CLEAR `+0xdc`: `FUN_00426fd0:105` (`param_1[0xdc]='\0'`, the ported
+  `party_stats_init`) and its sibling `FUN_004c5e00:85` (`in_ECX[699]=0`, the inlined-stats create
+  used by `FUN_004cc820`).  So after either create, star_count == 0.
+- The per-character **element-def table `DAT_00682660`** (3 rows = the leads: Arche 0xc35a, 0xc35b,
+  0xc35c; 6 dwords/row) is the ONLY table 426fd0/4c5e00 consult for the character, and it feeds
+  `stats+0x50` (the PORTRAIT descriptor: 494e60:125 reads `+0x50`→`+8/+0xa` per head-state), NOT
+  `+0xdc`.  Its only readers are `426fd0` + the getter `4c6110` (caller `4c5e00`).  Row0 (Arche) has
+  no field == 2 in an obvious slot (`[1]=0x48 [2]=0x20001 [3]=0x36a [4]=0x4b [5]=0`).
+- A corpus sweep of every NON-zero `+0xdc` write finds ONLY scene/story dispatchers
+  (`4f19e0`, `4d64f0`, `530080`, `4ea7b0`, `4ef4e0`, `507e70`, `536480`, `4f6a10`, `4dc510`, `4e1d10`…)
+  writing a `u16` **scene-beat index** (`0xe/0x10/0x11/0x13/0x16/0x29`…) on the SCENE object
+  (`iVar3 = *in_ECX`), NOT the stats block.  `4f19e0` itself is the 20 KB Weathervane Tower story
+  script (dialogue), not an equip subsystem — the plan's VA is simply a mis-citation.
+
+**Conclusion:** the 2 stars are set by the (unported) equipment/element-affinity recompute — most
+likely the starting-gear equip applied during new-game setup.  It is NOT statically greppable by
+`+0xdc` (the write is probably `(u16*)(stats+0xdc) = <computed count>` behind an item-affinity sum).
+The tractable next step to identify it is a **live `mem_watch` on the leader `stats+0xdc`** through the
+errands new-game (per CLAUDE.md "trace the code, don't guess"): find the writing VA, read it, then
+decide portability.  Until then the `star_count = 2` stand-in is correct (bit-exact render).  Same
+class of block as the item-bar 6 ICON frames (the inventory/quick-item `room+0x40xx` fields, §8) and
+the portrait (§7 replay fidelity): **all three remaining `hud-party-context` items need a deeper
+subsystem or a live/human play, not a constant.**

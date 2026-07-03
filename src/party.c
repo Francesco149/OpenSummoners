@@ -268,9 +268,13 @@ void party_init_errands(party *p)
     p->slots[0].active = 1;
     party_stats_init(&p->slots[0].stats, code, 1);
     /* PORT-DEBT(hud-party-context): the element-star COUNT (+0xdc) is set by the
-     * equip subsystem (FUN_004f19e0), NOT the base table (426fd0 clears it) — so
-     * Arche's 2 errands stars (her starting elemental stone) stay a stand-in
-     * until that subsystem lands.  HP/MP/level/EXP are now real. */
+     * UNPORTED equip/element-affinity recompute — NOT the base table, and NOT any
+     * scene dispatcher.  BOTH char-init paths CLEAR it (426fd0:105 + 4c5e00:85),
+     * and every non-zero +0xdc write in the corpus is a scene-beat index on the
+     * scene object (*in_ECX), not the stats block.  The setter VA is unidentified
+     * (the plan's "FUN_004f19e0" was WRONG — 4f19e0 is the Weathervane Tower story
+     * script); find it via a live mem_watch on the leader stats+0xdc.  Arche's 2
+     * errands stars stay a stand-in until that lands.  HP/MP/level/EXP are real. */
     p->slots[0].stats.star_count = 2;
     p->leader = 0;
 }
