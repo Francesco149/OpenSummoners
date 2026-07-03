@@ -140,7 +140,25 @@ understates how much actual instruction volume is ported.
   only (no overlap at t2148); the map-driven CHARACTER band retires all these.  `errands-render-gaps.md
   §8`.  **USER: click the studio shortcut (`port-shelffix | retail-stairs`) @ t2148 — the shelf pile
   (books/stack/box, upper-left, right of the HUD) should now be there.**
-- **Next move (the errands −6t residual + the 2nd USER mark):**
+- **Landed ckpt 183 — the errands CHARACTER band is MAP-DRIVEN (retires the ERRANDS_CAST prop
+  capture; USER "un-mvp the scene, session by session").**  The shop furniture/shelf/props now
+  spawn from DATA-1025 via `actor_spawn_from_map` + `CHAR_BANK_DEFS` (code→(bank,layer) RE'd from
+  the activator 0x431e30: install 0x426d70(0,BANK,variant); layer 0x438610(N) else default 9),
+  with frame_base = the map variant (+0x18) — the SAME source the STRUCTURE band uses.  Shelf-BACK
+  units 0x112db/dc + bookshelf 0x112d1 → **L5** (behind the L8 pile), rest L9 — SUBSUMES the
+  ckpt-182 L7 fix (now exactly retail's L5) AND auto-fixes fr64.  Wired: `reload_room_backdrop`
+  spawns g_actors for non-town; `game_actor_walk` renders the CHARACTER band every room.  VERIFIED
+  off `port-charband.osr`: pile **differ_px==0**, full-frame excl-HUD 899px (5px BETTER than the L7
+  build) = the known family-pose + Arche-phase residuals; TOWN t800 + HOUSE t1450 **0px** vs the
+  pre-session build (no regression).  1096 host pass.  `errands-render-gaps.md §9`; `port-debt.md`
+  errands-cast SHRUNK.  Still ERRANDS_CAST (next sessions): anim clock/pot (clip-update), additive
+  fire, family+counter (party band).  **USER: click the studio shortcut (`port-charband |
+  retail-stairs`) @ t2148 — the whole errands shelf/furniture is now map-derived, pixel-identical.**
+- **Next move (finish the errands un-MVP, session by session):** (1) the ANIM props (clock 0x112d9
+  / pot 0x112da) map-driven — wire the g_actors per-tick clip update for non-town + a code→clip
+  table; (2) the additive FIRE 0x112e4 (res1034) via a mode-1 map-spawn (node_alpha); (3) the FAMILY
+  (Father/Mother) + counter via the party band 0x4997b0 (`cutscene-party-chars`); (4) the −6t entry
+  latency; (5) the HUD party-context.  THEN the older items below:
   (a2') **errands entry −6t (OPEN, smaller)** — the house dialogue is now tick-exact, so
   the residual is entirely the house→errands transition (house-close 1650 → errands-open
   port 1693/retail 1699).  `HOUSE_EXIT` has no preceding WAIT, so it's the errands ENTRY

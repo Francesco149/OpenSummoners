@@ -6,6 +6,37 @@ specific commits where relevant.
 
 ---
 
+## 2026-07-03 (ckpt 183) — the errands CHARACTER band is MAP-DRIVEN: retire the ERRANDS_CAST prop capture (un-MVP)
+
+- **USER: "un-mvp whatever is mvp'd about this scene, session by session, until it's fully
+  un-mvp'd."**  The errands shop furniture/shelf/props were a hardcoded `ERRANDS_CAST` capture
+  (PORT-DEBT(errands-cast)); the STRUCTURE band was already map-driven.  This session makes the
+  CHARACTER band map-driven too — every static prop now derives from DATA-1025.
+
+- **RE (`0x431e30`, the CHARACTER activator's per-case switch → `CHAR_BANK_DEFS` in actor_spawn.c):**
+  each visible case installs one sprite row via `0x426d70(0, BANK, variant)`; the draw layer
+  (actor+0xfc) is `0x438610(N)` else the default 9 (`0x426ec0` = clock/pot anim-phase init).
+  `frame_base = the map variant (+0x18)` — the SAME source the STRUCTURE band uses, and == the town's
+  ex-captured frame_base (0x1129e var1 / 0x1129f var2 / 0x112e5 var36, verified), so `TOWN_SPRITE_DEFS`
+  folds into the RE'd `CHAR_BANK_DEFS`.  code→(bank,layer): 0x112cf/d3→0x16f L9, **0x112d1→0x16f L5**,
+  0x11279→0x16b L9, **0x112db/dc→0x16c L5** (shelf-backs; fr64 = 0x112dc var64 → L5), 0x112a1/a2/
+  11274→0x16c L9, 0x1124c→0x156 L9; codes with no install = invisible volumes.  z is purely by layer
+  (char L5/9/10 vs struct L8/15 — no shared layer), so no band reorder; this SUBSUMES the ckpt-182 L7
+  shelf-back fix (now retail's true L5) AND auto-fixes the deferred fr64.
+
+- **WIRING** ([`f2435c4`], `main.c`): `reload_room_backdrop` spawns `g_actors` from the room map for
+  the non-town rooms; `game_actor_walk` renders the CHARACTER band for EVERY room.  `ERRANDS_CAST`
+  shrinks to the DEFERRED cast (anim clock/pot, additive fire, family+counter); the map band spawns
+  those 4 codes as invisible volumes → no double-draw.
+
+- **VERIFIED** off `port-charband.osr` (camera-aligned flip 5412 vs retail-stairs t2148): the shelf
+  pile reconstructs **`differ_px==0`**; full-frame excl-HUD diff 899px (5px BETTER than the ckpt-182
+  build — fr64 now correct) = the pre-existing family-pose + Arche walk-phase residuals only.  TOWN
+  t800 + HOUSE t1450 are **0px** vs the pre-session build (no regression).  1096 host pass.
+  `findings/errands-render-gaps.md §9`; `port-debt.md` errands-cast SHRUNK.  Remaining (next sessions,
+  per the USER's "session by session"): the anim props' clip-update, the additive fire map-spawn, the
+  family via the party band 0x4997b0.
+
 ## 2026-07-03 (ckpt 182) — the upstairs shelf PILE "props missing" (USER note t2148) = a band/layer z-order bug (FIXED)
 
 - **USER note** (`osr_notes` t2148, crop[288,0,65,40] "props missing on shelf on port"): the upstairs

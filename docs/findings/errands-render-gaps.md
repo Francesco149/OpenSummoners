@@ -369,6 +369,51 @@ fixed band-render order can't reproduce retail's character-before-structure emis
 compare frame is CAMERA-aligned (a tick can coalesce two flips at different camera-x) before reading
 a pixel diff, else a 5px camera phase paints the whole frame as "differ".
 
+## 9. The errands CHARACTER band is MAP-DRIVEN — ERRANDS_CAST prop capture retired (ckpt 183)
+
+USER: "un-mvp whatever is mvp'd about this scene, session by session."  §8 fixed the shelf pile via
+an ERRANDS_CAST layer tweak (a capture stand-in); this session retires the capture itself: the shop
+furniture/shelf/props now spawn from the MAP (DATA-1025), like the STRUCTURE band already did.
+
+**The two bands (both are map objects; dispatcher 0x58d460 routes by code range):**
+- STRUCTURE (60000-69999 → 0x438a60 → pool 0x2560, layer 8/15): already map-driven (`g_structs`).
+- CHARACTER (70000-79999 → 0x431e30 → pool 0x11e0): was the ERRANDS_CAST capture; now map-driven.
+
+**The def table (RE'd from 0x431e30's per-case switch), `CHAR_BANK_DEFS` in actor_spawn.c:** each
+VISIBLE case installs one sprite row via `0x426d70(0, BANK, variant)`; the draw layer (actor+0xfc) is
+`0x438610(N)` when the case calls it, else the DEFAULT 9 (`0x426ec0` = the clock/pot anim-phase init).
+`frame_base = the map record's VARIANT (+0x18)` = `0x426d70`'s param_6 — the SAME source STRUCTURE
+uses, and == the town's ex-captured frame_base (0x1129e var1 / 0x1129f var2 / 0x112e5 var36, verified).
+Codes with no sprite install = invisible volumes (bank 0): the town's 29/32 + the errands' 0x111d6/
+d9/f2 / 0x11365 / 0x1136f (var-0 collision/trigger zones).
+
+errands CHARACTER code → (bank, layer, frame=variant):
+  0x112cf→0x16f L9 (wall shelf) | 0x112d1→0x16f **L5** (bookshelf/cabinet/hutch) | 0x112d3→0x16f L9 |
+  0x11279→0x16b L9 | 0x112db/dc→0x16c **L5** (shelf-BACK units; fr64 IS 0x112dc var64 → L5) |
+  0x112a1/a2→0x16c L9 | 0x11274→0x16c L9 | 0x1124c→0x156 L9.
+The L5 shelf-backs draw BEHIND the L8 structure pile — SUBSUMES §8's L7 stand-in (retail's true L5)
+AND auto-fixes fr64.  z is PURELY by layer number (char L5/9/10 vs struct L8/15 — no shared layer),
+so the present (0x48eac0, layer-ordered) needs no band reorder; the CHARACTER band renders where it
+sits in game_actor_walk.
+
+**Wiring (main.c):** `reload_room_backdrop` now spawns `g_actors` from the room map for the non-town
+rooms too (mirroring the g_structs spawn); `game_actor_walk` renders the CHARACTER band for EVERY
+room (gate `room_is_town` dropped).  `actor_spawn_sprite_for_code` returns (bank, layer); the caller
+reads the variant for frame_base.  `TOWN_SPRITE_DEFS` folded into `CHAR_BANK_DEFS`.
+
+**DEFERRED to later un-MVP sessions (still ERRANDS_CAST; the map band spawns these 4 codes as
+invisible volumes → no double-draw):** clock 0x112d9 / pot 0x112da (need the g_actors per-tick clip
+update wired for non-town), fire 0x112e4 (res1034, ADDITIVE mode-1 — needs node_alpha in the
+map-spawn), and the FAMILY Father 0xe3 / Mother 0xb5 + Dad's COUNTER 0x112d2 (the party band
+0x4997b0, PORT-DEBT(cutscene-party-chars); the counter's z rides with the family).
+
+**VERIFIED** off `port-charband.osr` (camera-aligned flip 5412 vs retail-stairs t2148): the shelf pile
+reconstructs **`differ_px==0`**; full-frame excl-HUD diff **899px** (5px BETTER than the ckpt-182 L7
+build's 904 — fr64 now correct) = the pre-existing family-pose + Arche walk-phase residuals only.
+TOWN t800 + HOUSE t1450 are **0px** vs the pre-session build (no regression — frame_base==variant for
+the town; the house map has no in-table CHARACTER furniture at t1450).  1096 host pass.  `port-debt.md`
+errands-cast SHRUNK to the deferred cast.
+
 ## Tooling note
 `osr_prof.exe` (built `make -C tools/osr_view prof` → `build/osr_prof.exe`) reconstructs
 any `.osr` frame headless: `osr_prof.exe <file.win> dump <frame_idx> <out.bmp>`, and names the draw
