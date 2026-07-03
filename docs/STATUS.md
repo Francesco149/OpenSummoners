@@ -192,8 +192,20 @@ understates how much actual instruction volume is ported.
   (`effect-anim-phase`/0x426ec0).  1097 host pass; town/house use no ERRANDS_CAST (no regress).  Provenance:
   the parents are persistent handles 0x5f5e1d3/1d4 placed by the errands script (0x4dc510 case-7/8 → 0x41ec20),
   so the retire path is that SCENE-SCRIPT spawn, NOT the party band.  `errands-render-gaps.md §13`.  **USER:
-  studio the clamp (`port-fatherz | retail-stairs`, walk NOT cam-aligned — z-order is): Father's legs now sit
-  BEHIND the little floor items + the counter.**
+  see the FEED image `ckpt186: errands Father z-order FIXED` — Father's legs now sit BEHIND the floor items +
+  the counter (verified by the draw seq, camera-independent — NOT a clean studio pair: my `nav-full-errands +
+  hold-right` capture left Arche at spawn / the errands backdrop loads late = `cutscene-room-render`, so a
+  tick-aligned clamp pair needs port-fire's matched-walk recipe, TODO next session).**
+- **⚠ NEXT-SESSION TOOLING (found ckpt 186): the freeroam CLAMP capture recipe is UNRESOLVED.**  The ckpt-180-185
+  clamp verifications reached the right-edge clamp (Arche walked there, both cameras pinned), but `nav-full-errands
+  + runs/sync/hold-right-clamp.jsonl` (or `synth-stairs`) leaves Arche IDLE at spawn (@162,336) — she never walks,
+  so the camera stays world-left (NOT the clamp).  Likely the errands opening dialogue (`g_errands_dlg_pending`,
+  cutscene.c:365 gate) isn't clearing (nav advances L18-L20 @t1763-1837 but the port may be off), OR the held-axis
+  isn't applying post-handoff.  Also observed: the port shows the ARRIVAL backdrop at t1710 while retail is already
+  in the item-shop (the errands backdrop renders only ~the freeroam handoff, not the house-exit room-swap ~1668 —
+  a VISIBLE `cutscene-room-render` gap, though `reload_room_backdrop`→`load_room` DOES load it, so it's a room-key
+  STAGING-timing issue in `cutscene_room_key`/the fade, not a load gap).  Resolve the recipe first so freeroam
+  changes stay verifiable.
 - **Next move (finish the errands un-MVP, session by session):** (1)(2) DONE ckpt 184/185 (clock/pot, fire).
   (3) **RESCOPED by ckpt 186** — the errands PARENTS are character-band NPCs (z-order now fixed); the LAST
   errands stand-ins are the parents' anim-PHASE (RNG-blocked, `effect-anim-phase`/0x426ec0 — needs the scene
