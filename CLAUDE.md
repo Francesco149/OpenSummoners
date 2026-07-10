@@ -259,6 +259,13 @@ changelog. Active multi-session plans: `docs/plans/`.
 - **Frida host:** `cutestation.soy:27042` (Windows LAN name — **not** `127.0.0.1`; WSL2
   NAT doesn't loop back). Override via env `OPENSUMMONERS_FRIDA_REMOTE` → falls back to
   `OPENRECET_FRIDA_REMOTE` → `127.0.0.1:27042`.
+- **Live-probe kills are TARGETED (USER hard rule, 2026-07-10).** Siblings (openrecet/
+  OpenMare) run identically-named `probe_daemon.py` on the SAME frida-server; parity
+  captures run the same `sotes.unpacked.exe`. NEVER `pkill -f probe_daemon`, NEVER kill
+  the shared frida-server, NEVER kill retail by exe NAME on the device. Stop the probe
+  via the MCP `quit` / `{"cmd":"quit"}`; if the socket is dead, kill the exact
+  `daemon_pid` from `runs/probe/daemon.json` (cmdline-verify first). Orphaned game →
+  reaped by exact pid (`runs/probe/last_game.json`) on next launch.
 - **Sibling RE projects** (read-only references, hard-earned conventions):
   `/opt/src/openrecet` (Recettear — the reorg this project's rigor is modeled on),
   `/opt/src/OpenMare` (Patrician III — closest workflow shape).

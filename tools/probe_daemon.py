@@ -24,11 +24,24 @@ adapted to SotES's scancode/button-ring input model + the EN-old engine VAs
 
 CAUTION: the game runs from the real install via vendor/original. No save
 sandbox — avoid overwriting save slots you care about.
+
+HARD RULE (USER, 2026-07-10) — kills must target THIS probe SPECIFICALLY.
+Parallel projects (openrecet, OpenMare) run identically-named probe_daemon.py
+against the SAME shared frida-server, and parity captures run the same
+sotes.unpacked.exe. Therefore:
+  - NEVER `pkill -f probe_daemon` (kills the siblings' probes).
+  - NEVER kill/restart the shared frida-server.
+  - NEVER kill retail by exe NAME on the frida device (kills a parallel
+    capture's game). The stray-reap below kills ONLY the exact PID recorded
+    by the PREVIOUS daemon of THIS project (runs/probe/last_game.json).
+  - To stop this probe: send {"cmd":"quit"} (or the MCP quit tool); if the
+    socket is dead, kill the exact `daemon_pid` from runs/probe/daemon.json.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import socket
 import threading
 import time
@@ -41,6 +54,10 @@ import frida_capture as fc  # noqa: E402
 
 ROOT = fc.ROOT
 CONTROL_JSON = ROOT / "runs" / "probe" / "daemon.json"
+# The game PID this project's daemon last spawned — survives an unclean daemon
+# death (CONTROL_JSON is unlinked by the next launch) so the reap can target
+# exactly that process and nothing else.
+LAST_GAME_JSON = ROOT / "runs" / "probe" / "last_game.json"
 
 # DirectInput (DIK_*) scancodes — the index into the engine's keyboard_state
 # buffer that FUN_005ba520 reads (& 0x80). Movement is arrow keys; action
@@ -142,21 +159,45 @@ class ProbeDaemon:
         win_exe = fc.wslpath_w(exe)
         win_cwd = fc.wslpath_w(cwd)
         self.device = frida.get_device_manager().add_remote_device(a.remote)
-        # Reap any stray retail from a prior daemon that died without kill.
+        # Reap a stray retail from a prior daemon that died without kill —
+        # HARD RULE: target OUR probe's game ONLY (the exact PID recorded in
+        # LAST_GAME_JSON, name-checked against pid reuse). NEVER sweep by exe
+        # name: a parallel capture (frida_capture / run_proxy) runs the same
+        # sotes.unpacked.exe and must not be killed. Same-name strays we did
+        # not spawn are logged and LEFT ALONE.
         try:
+            prev_pid = None
+            if LAST_GAME_JSON.exists():
+                try:
+                    prev_pid = int(json.loads(LAST_GAME_JSON.read_text())["pid"])
+                except Exception:
+                    pass
+            reaped = False
             for pr in self.device.enumerate_processes():
-                if pr.name.lower() == exe.name.lower():
-                    self._logline(f"[reap] killing stray {pr.name} pid={pr.pid}")
+                if pr.name.lower() != exe.name.lower():
+                    continue
+                if prev_pid is not None and pr.pid == prev_pid:
+                    self._logline(f"[reap] killing OUR stray {pr.name} pid={pr.pid}")
                     try:
                         self.device.kill(pr.pid)
+                        reaped = True
                     except Exception:
                         pass
-            time.sleep(0.5)
+                else:
+                    self._logline(f"[reap] leaving foreign {pr.name} pid={pr.pid} "
+                                  "(not ours — a parallel capture/probe?)")
+            if reaped:
+                time.sleep(0.5)
         except Exception as e:
             self._logline(f"[reap] enumerate failed: {e!r}")
 
         self._logline(f"[spawn] {win_exe} cwd={win_cwd}")
         self.pid = self.device.spawn([win_exe], cwd=win_cwd)
+        # Record OUR game pid so a later daemon (after an unclean death) can
+        # reap exactly this process and nothing else (hard rule above).
+        LAST_GAME_JSON.parent.mkdir(parents=True, exist_ok=True)
+        LAST_GAME_JSON.write_text(json.dumps(
+            {"pid": self.pid, "exe": exe.name, "daemon_pid": os.getpid()}))
         self.session = self.device.attach(self.pid)
         self.script = self.session.create_script(fc.AGENT_JS.read_text(encoding="utf-8"))
         self.script.on("message", self._on_message)
@@ -199,7 +240,12 @@ class ProbeDaemon:
         self._stop.set()
         try:
             if self.pid is not None:
+                # Targeted: OUR spawned game pid only (hard rule above).
                 self.device.kill(self.pid)
+        except Exception:
+            pass
+        try:
+            LAST_GAME_JSON.unlink()  # clean shutdown — nothing left to reap
         except Exception:
             pass
 
@@ -342,7 +388,8 @@ class ProbeDaemon:
         port = srv.getsockname()[1]
         CONTROL_JSON.parent.mkdir(parents=True, exist_ok=True)
         CONTROL_JSON.write_text(json.dumps(
-            {"port": port, "pid": self.pid, "run_dir": str(self.run_dir)}))
+            {"port": port, "pid": self.pid, "daemon_pid": os.getpid(),
+             "run_dir": str(self.run_dir)}))
         self._logline(f"[serve] listening on 127.0.0.1:{port}")
         print(f"[probe_daemon] ready on 127.0.0.1:{port} (pid={self.pid}); "
               f"run_dir={self.run_dir}", flush=True)

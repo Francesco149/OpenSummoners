@@ -227,10 +227,43 @@ def tool_wait(args):
 
 
 def tool_quit(_):
-    if not _daemon_alive():
+    """Shut down THIS project's probe only (hard rule: parallel projects run
+    identically-named probe daemons on the same frida-server — never broad-kill
+    by name, never touch the shared frida-server)."""
+    if _daemon_alive():
+        dsend({"cmd": "quit"})
+        return [_text("Game + daemon shut down.")]
+    # Daemon socket dead but a control file lingers → targeted fallback: kill
+    # the exact daemon_pid, and ONLY after verifying its cmdline is OUR
+    # probe_daemon.py (guards pid reuse + sibling projects' daemons).
+    if not CTRL.exists():
         return [_text("No game running.")]
-    dsend({"cmd": "quit"})
-    return [_text("Game + daemon shut down.")]
+    try:
+        dpid = int(json.loads(CTRL.read_text()).get("daemon_pid", 0))
+    except Exception:
+        dpid = 0
+    msg = "Daemon socket dead."
+    if dpid:
+        try:
+            cmdline = Path(f"/proc/{dpid}/cmdline").read_bytes().decode(
+                errors="replace")
+            if str(DAEMON) in cmdline:
+                os.kill(dpid, 15)
+                msg += f" Killed stale daemon pid {dpid} (cmdline verified ours)."
+            else:
+                msg += (f" pid {dpid} is NOT our probe_daemon (cmdline "
+                        f"mismatch) — left alone.")
+        except FileNotFoundError:
+            msg += f" Stale daemon pid {dpid} already gone."
+        except Exception as e:
+            msg += f" daemon-pid check failed: {e!r}."
+    try:
+        CTRL.unlink()
+    except Exception:
+        pass
+    msg += (" Any orphaned game process is recorded in runs/probe/"
+            "last_game.json and will be reaped (by exact pid) on next launch.")
+    return [_text(msg)]
 
 
 KEY_DESC = ("DIK scancode name(s) or int: up down left right, z x c a s d, space "
@@ -309,7 +342,9 @@ TOOLS = [
     ("wait", "Let the game run for ms (so animation/loads advance before a "
      "screenshot).", {"type": "object", "properties": {"ms": {"type": "integer"}}},
      tool_wait),
-    ("quit", "Shut down the game + daemon.", {"type": "object", "properties": {}}, tool_quit),
+    ("quit", "Shut down the game + daemon — targets THIS project's probe "
+     "specifically (never sibling projects' probes or the shared frida-server).",
+     {"type": "object", "properties": {}}, tool_quit),
 ]
 HANDLERS = {name: fn for name, _d, _s, fn in TOOLS}
 
