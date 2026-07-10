@@ -476,9 +476,20 @@ static void eh_mvcmd_cb(DWORD ecx, DWORD esp)
         wx = *(int32_t *)(uintptr_t)(p3 + 4u);
         wy = *(int32_t *)(uintptr_t)(p3 + 8u);
     }
-    proxy_logf("[mvtrace] t=%ld p3=0x%lx st=%d wx=%d wy=%d p5=%ld ecx=0x%lx",
+    /* ecx = the ACTOR (0x47b990's switch loads its code from *(ecx+0x1d4);
+     * quirk #91: +0x1d4 = effective archetype code, +0x1d8 = dramatist
+     * HANDLE) — log both so the walking body's IDENTITY reads off the
+     * dramatist table row, no join needed. */
+    DWORD code = 0, handle = 0;
+    if (ecx && bg_readable((const void *)(uintptr_t)(ecx + 0x1d4u), 8)) {
+        code = *(DWORD *)(uintptr_t)(ecx + 0x1d4u);
+        handle = *(DWORD *)(uintptr_t)(ecx + 0x1d8u);
+    }
+    proxy_logf("[mvtrace] t=%ld p3=0x%lx st=%d wx=%d wy=%d p5=%ld ecx=0x%lx "
+               "code=0x%lx handle=0x%lx",
                (long)t, (unsigned long)p3, st, wx, wy, (long)p5,
-               (unsigned long)ecx);
+               (unsigned long)ecx, (unsigned long)code,
+               (unsigned long)handle);
 }
 
 /* ── M3b: the render-id resolver hook ─────────────────────────────────────

@@ -204,22 +204,40 @@ RIGHT screen edge ⇒ **on-screen the whole time** (a clearly visible townsperso
 The straight-line walk to a fixed target looks scripted/wander-target-picked, not free wander.
 
 **The arc's open sub-steps:**
-- (a) PROVENANCE — **partly RESOLVED: the NPC is CUTSCENE/SCRIPT-spawned, NOT a map object.**
-  Dumped all 32 town-map (DATA 1022) CHARACTER objects (codes 70000-79999) via a temp
-  `actor_spawn_from_map` probe — NONE at world 41600,45600 (closest: `0x111d9` @ 41600,**48000**,
-  an invisible volume; `0x11365`/`0x11367` @ 44800).  So the walking NPC is spawned by the
-  town-intro cutscene (`0x4d7d80` / the dramatist `0x41f0e0`→`0x41f200`) at the arrival ANCHOR
-  (41600,45600) — the same spawn class as the arriving FAMILY.  ⇒ it is one of the arrival cast
-  (candidate: the wagon driver / Dr. Barnard `0xc3f0` walking OFF after the drop-off, or a
-  parent) that WALKS to a fixed target at census 972.  STILL open: WHICH one + its sprite bank
-  (a live spawn hook on `0x41f200` logging code/bank for the actor at 41600,45600, or the
-  `0x4d7d80` script RE).
-- (b) TRIGGER — what sets the walk command at census 972/973 (mem_watch the state field / trace
-  the AI command source); + the walk TARGET 73128's provenance.
-- (c) MOTION port — the accel/cruise/decel profile above, via the ported char mover
-  (`character.c`/`0x442a70`) with a "walk to 73128" command, so the profile EMERGES.
-- (d) RENDER — draw the NPC's walking sprite at its computed position (a CHARACTER-band actor).
-- (e) `0x489280` footstep EMERGES from (c)'s apply pass; then the town is bit-exact to 1268.
+- (a) PROVENANCE — **RESOLVED (2026-07-10): the walker IS CUTSCENE-ARCHE — the ALREADY-PORTED
+  L7→L8 RUN-OFF.**  Extended the proxy `[mvtrace]` with identity (`code=*(actor+0x1d4)`,
+  `handle=*(actor+0x1d8)` — the 43f880 `in_ECX` IS the actor; its `0x47b990` sibling loads the
+  case switch from `*(ecx+0x1d4)`), re-captured the census nav: the walking body =
+  **code `0xc35a` handle `0x5f5e165` = Arche** (dramatist row 0), 106 mvtrace ticks == the walk
+  window.  The other 4 mvtrace actors are the `0xe29a` butterflies (handle 0).  The prior
+  "map CHARACTER dump found none" reasoning stands — but the candidate list (Barnard/parent)
+  was wrong; it's the leader.  NOT a render gap: the port renders this run-off since ckpt 140.
+- (b) TRIGGER — **RESOLVED (static): `0x4d7d80` case `0x334be`, after L7 "Cool." (`0x3f2`):
+  `0x402730(arche_actor, +32000, 0, /*cmd=*/3, 0, 0)`** → writes actor `+0x15b6c
+  target_x = wx+32000 = 73600`, `+0x15b74 cmd=3`, `+0x15b64 active=1`, beat type → 4
+  (actor-wait; the ckpt-137 overwrite).  The camera pan (`in_ECX[0x14]=28000` spd 400) is armed
+  alongside — matches the ported concurrent run-off (ckpt 141).
+  **EXECUTOR = `0x43e5b0`** (per-tick scripted-command runner, thiscall on the actor):
+  case `+0x15b64==1` → sub-state `+0x15b68` 0→1 (grounded gate) → **pathfind `0x43ef20`**
+  (waypoints → `+0x142a0`, rows 0x14; dst `+0x147a4/8`) → waypoint march: per tick
+  `0x43f880(waypoint_cell*0xc80, 0x640, body, grounded, 0,0,0, +0x15b78, 0)`, waypoint
+  arrival = `0x441f00`; final leg `0x43f880(target, /*slack*/800, …)` + `0x442600(body,cmd)`
+  + `body+0x28 < 10000` → command COMPLETE (`0x411530(+0x14854)` notifies; releases the
+  case-4 wait).  **param_5=0 on every call ⇒ the `:415` roll gate (`local_b8[6] && !param_5`)
+  fires 1/tick for the command's WHOLE lifetime — the census window [972,1077] IS the command
+  lifetime** (incl. the 5 post-stop ticks 1071-1076: completion lags arrival by the settle).
+- (c) MOTION port — the profile decodes against the executor: accel +32/tick (`vel+=3200`
+  while `<24000`) then +16 (`+=1600`) to cap 48000 == the ported char-run law EXACTLY; cruise
+  480/tick t993-1027; DECEL ramp into the LAST WAYPOINT (cell 22: arrives 71040 =
+  22×0xc80+0x640, the waypoint slack); then a WALK-speed final leg (dwx cycling 104/120/136 ≈
+  120/tick avg) to the 800-slack stop at **73128 = 73600−472** (t1069; st→0 at 1071; a −16
+  settle at 1076).  Ground truth table: the 2026-07-10 mvtrace (`arche_walk.txt`).  STILL to
+  RE (not measure): the decel ramp law (−8,−8,−16…,−32 steps) + the 104/120/136 walk-leg
+  mechanism + the −16 settle, off `0x43f880`'s speed-control code.
+- (d) RENDER — already ported (ckpt 140/141, run/decel/arrival cels + camera).  The remaining
+  render residuals stay `cutscene-party-chars` (lean cels, multi-part banks).
+- (e) `0x489280` footstep (fires ~every 20t while she runs: 979/999/1019…) EMERGES once (c)
+  is command-driven; then the town is bit-exact to 1268.
 
 ## The fix path (once the census is clean)
 

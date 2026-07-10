@@ -328,9 +328,30 @@ understates how much actual instruction volume is ported.
   `0x489280` +2 spikes are its MOVEMENT-effect (coupled to the motion → emerges from the port).
   **NEXT (faithful arc):** live-hook `0x41f200` to ID which arrival-cast actor + its sprite bank, +
   the walk trigger; then port the motion (via the char mover) + render + the footstep RNG emerges.
-  **USER: click the studio shortcut (now `port-npcfix | retail-rngcensus3`), scrub census ~972-1077
-  — retail should show a townsperson walking right from the wagon/arrival point to the screen edge
-  that the port is missing (the render gap this arc fills).**  `errands-rng-census.md` "Faithful NPC".
+  (The ckpt-194 USER-verify note "a townsperson the port is missing" is WITHDRAWN — see the next
+  bullet: the walker is Arche's already-rendered run-off, no render gap.)
+- **Landed 2026-07-10 — the census walker IDENTIFIED: it IS cutscene-ARCHE (the L7→L8 run-off);
+  trigger + executor RE'd.**  Proxy `[mvtrace]` grew identity fields (`code=*(actor+0x1d4)`,
+  `handle=*(actor+0x1d8)`; `0x47b990` loads its case switch from `*(ecx+0x1d4)` — the 43f880
+  ECX IS the actor): fresh census capture → the walking body = **code `0xc35a` handle
+  `0x5f5e165` = Arche** (dramatist row 0), 106 ticks == the window; the other movers = the 4
+  butterflies.  TRIGGER (static): `0x4d7d80:334be` after L7 "Cool." pushes
+  **`0x402730(Arche,+32000,0,cmd 3,0,0)`** → actor `+0x15b6c` target = 41600+32000 = **73600**,
+  beat→4 actor-wait.  EXECUTOR: **`0x43e5b0`** per-tick — pathfind `0x43ef20` → waypoint march
+  (`0x43f880(cell*0xc80, 0x640, …)`, arrival `0x441f00`) → final `0x43f880(73600, 800, …)` +
+  `0x442600` + vel-settle → complete (`0x411530`, releases the wait).  param_5=0 ⇒ the `:415`
+  roll fires 1/tick over the command LIFETIME = the census window EXACTLY (incl. the post-stop
+  settle ticks 1071-1076; stop 73128 = 73600−472, within the final 800 slack; the decel lands
+  71040 = cell 22×0xc80+0x640, the waypoint slack).  Motion profile decoded: run accel/cruise ==
+  the ported char-run law; the DECEL ramp + the walk-speed final leg (dwx 104/120/136 cycle)
+  still to RE off `0x43f880` (NOT curve-fit).  ⇒ NO render gap (the run-off renders since ckpt
+  140); the deliverable = drive the run-off by the TRACED command so target/stop/dur/RNG-window
+  all DERIVE (retiring `ARRIVAL_L8_RUNOFF` dur=108 + town_npc.c's [972,1077]) + the `0x489280`
+  footstep pair (979/999/1019… = her run) emerges.  `errands-rng-census.md` (a)/(b) RESOLVED;
+  `port-debt.md` `town-wander-npc` rescoped.  Also landed: **live-probe kill HARD RULE** (USER):
+  every probe kill targets OUR probe specifically — exact-PID reap via `runs/probe/last_game.json`,
+  `daemon_pid` in `daemon.json`, cmdline-verified MCP quit fallback; NEVER `pkill -f probe_daemon`
+  (siblings) / never touch the shared frida-server (CLAUDE.md bullet).
 - **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
   alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
   confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
