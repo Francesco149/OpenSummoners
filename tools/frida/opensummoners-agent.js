@@ -3239,3 +3239,185 @@ rpc.exports = {
         });
     },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE-PROBE LAYER — the interactive surface behind tools/probe_daemon.py +
+// the `opensummoners` MCP. INERT unless the daemon calls probe_begin(): the
+// capture/parity path above is untouched. Mirrors OpenMare's agent live-probe
+// layer — on-demand screenshot, typed memory read/poke, engine-thread function
+// calls, and interactive input (held scancodes for walking + button-ring
+// presses for actions) reusing the existing injection machinery.
+// ═══════════════════════════════════════════════════════════════════════════
+let g_probe_begun        = false;
+let g_probe_active       = false;
+let g_probe_shot_pending = 0;
+let g_probe_press_queue  = [];   // [{id}] injected into the ring at next poll
+let g_probe_call_queue   = [];   // [{id,va,args,argt,ret,abi}] run at next poll
+let g_probe_call_seq     = 0;
+
+function probeTypedRead(va, type) {
+    const p = rva(va);
+    switch (type) {
+        case 'u8':  return p.readU8();   case 'i8':  return p.readS8();
+        case 'u16': return p.readU16();  case 'i16': return p.readS16();
+        case 'u32': return p.readU32();  case 'i32': return p.readS32();
+        case 'f32': return p.readFloat();case 'f64': return p.readDouble();
+        case 'ptr': return p.readPointer().toUInt32();
+        default:    return p.readS32();
+    }
+}
+function probeTypedWrite(va, type, val) {
+    const p = rva(va);
+    switch (type) {
+        case 'u8': case 'i8':   p.writeU8(val & 0xff); break;
+        case 'u16': case 'i16': p.writeU16(val & 0xffff); break;
+        case 'f32': p.writeFloat(val); break;
+        case 'f64': p.writeDouble(val); break;
+        default:    p.writeU32(val >>> 0); break;   // u32/i32/ptr
+    }
+}
+function runProbeCall(job) {
+    let ret = null, errMsg = null;
+    try {
+        const argt = (job.argt && job.argt.length) ? job.argt
+                     : job.args.map(function () { return 'pointer'; });
+        const fn = new NativeFunction(rva(job.va), job.ret || 'int32', argt,
+                                      job.abi || 'mscdecl');
+        const a = job.args.map(function (v, i) {
+            const t = argt[i];
+            if (t === 'pointer') return ptr(v >>> 0);
+            if (t === 'float' || t === 'double') return v;
+            return v | 0;
+        });
+        const r = fn.apply(null, a);
+        ret = (r && r.toUInt32) ? r.toUInt32() : r;
+    } catch (e) { errMsg = '' + e; }
+    send({ kind: 'call_result', id: job.id, ret: ret, err: errMsg,
+           frame: g_flip_frame });
+}
+// Drain queued presses + engine-thread calls at the input poll (per sim tick,
+// on the engine thread — the safe execution point). A separate attach so the
+// capture path's own hook is untouched.
+function installProbeInputPoll() {
+    Interceptor.attach(rva(INPUT_POLL_VA), {
+        onEnter: function () {
+            const mgr = this.context.ecx;
+            if (g_input_mgr === null || !g_input_mgr.equals(mgr)) g_input_mgr = mgr;
+            let engineNow = 0;
+            try { engineNow = this.context.esp.add(4).readU32(); } catch (e) {}
+            if (engineNow === 0) engineNow = ensureTickFn() ? g_GetTickCount() : 0;
+            if (g_probe_press_queue.length && g_input_mgr !== null) {
+                const q = g_probe_press_queue; g_probe_press_queue = [];
+                for (let j = 0; j < q.length; j++) {
+                    try { injectPress(q[j].id, RING_SLOTS - 1 - (j % RING_SLOTS),
+                                      engineNow); }
+                    catch (e) { err('probe_press', '' + e); }
+                }
+            }
+            if (g_probe_call_queue.length) {
+                const q = g_probe_call_queue; g_probe_call_queue = [];
+                for (let j = 0; j < q.length; j++) runProbeCall(q[j]);
+            }
+        },
+    });
+}
+// Service on-demand screenshots at the Flip (freshly-drawn surface).
+function installProbeShotHook() {
+    Interceptor.attach(rva(FLIP_VA), {
+        onEnter: function () {
+            if (g_probe_shot_pending > 0) {
+                g_probe_shot_pending--;
+                try { captureFrame(g_flip_frame); }
+                catch (e) { err('probe_shot', '' + e); }
+            }
+        },
+    });
+}
+function probeBegin() {
+    if (g_probe_begun) return true;
+    try { installFlipFrameHook(); } catch (e) { err('probe/flip', '' + e); }
+    try { installInputInjection(); } catch (e) { err('probe/inject', '' + e); }
+    try { installHeldAxisInjection(); } catch (e) { err('probe/held', '' + e); }
+    try { installProbeInputPoll(); } catch (e) { err('probe/poll', '' + e); }
+    try { installProbeShotHook(); } catch (e) { err('probe/shot', '' + e); }
+    try { Interceptor.flush(); } catch (e) {}
+    g_probe_begun = true;
+    logmsg('live-probe layer armed');
+    return true;
+}
+
+Object.assign(rpc.exports, {
+    probeBegin:  function () { return probeBegin(); },
+    probeStatus: function () {
+        return { begun: g_probe_begun, active: g_probe_active,
+                 flip: g_flip_frame, sim_tick: g_sim_tick,
+                 input_mgr: g_input_mgr ? g_input_mgr.toString() : null,
+                 held: Array.from(g_held_scancodes),
+                 base: g_base ? g_base.toString() : null };
+    },
+    probeState: function () {
+        const out = { flip: g_flip_frame, sim_tick: g_sim_tick };
+        try { out.seed = rva(SEED_VA).readU32(); } catch (e) {}
+        try { out.room_root = rva(GOD_OBJ_VA).readPointer().toUInt32(); } catch (e) {}
+        try { out.screen = rva(GOD_SCREEN_VA).readPointer().toUInt32(); } catch (e) {}
+        return out;
+    },
+    probeRead:  function (va, type) { return probeTypedRead(va, type || 'i32'); },
+    probeReads: function (specs) {
+        const out = {};
+        for (let i = 0; i < specs.length; i++) {
+            const s = specs[i];
+            try { out[s.name] = probeTypedRead(s.va, s.type || 'i32'); }
+            catch (e) { out[s.name] = null; }
+        }
+        return out;
+    },
+    probeReadBytes: function (va, len) { return rva(va).readByteArray(len | 0); },
+    probeReadChain: function (va, offsets, type, len) {
+        let p = rva(va);
+        for (let i = 0; i < (offsets || []).length; i++)
+            p = p.add(offsets[i] | 0).readPointer();
+        if (len && len > 0) return p.readByteArray(len | 0);
+        switch (type || 'i32') {
+            case 'u8':  return p.readU8();  case 'u16': return p.readU16();
+            case 'u32': case 'ptr': return p.readU32(); case 'f32': return p.readFloat();
+            default:    return p.readS32();
+        }
+    },
+    probePoke: function (va, type, val) {
+        probeTypedWrite(va, type || 'i32', val); return true;
+    },
+    probePokeBytes: function (va, bytes) {
+        rva(va).writeByteArray(bytes); return bytes.length;
+    },
+    probeEnqueueCall: function (va, args, argt, ret, abi) {
+        const id = ++g_probe_call_seq;
+        g_probe_call_queue.push({ id: id, va: va, args: args || [],
+                                  argt: argt || [], ret: ret || 'int32',
+                                  abi: abi || 'mscdecl' });
+        return id;
+    },
+    // Interactive input. hold(scancodes[]) = held keys (walking; the held-axis
+    // hook forces keyboard_state=0x80 for these). press(ids[]) = button-ring
+    // taps (confirm/attack/jump/skill — the same ids the trace replay uses).
+    probeHold: function (scancodes) {
+        g_held_scancodes = new Set((scancodes || []).map(function (s) { return s | 0; }));
+        return Array.from(g_held_scancodes);
+    },
+    probePress: function (ids) {
+        const a = Array.isArray(ids) ? ids : [ids];
+        for (let i = 0; i < a.length; i++) g_probe_press_queue.push({ id: a[i] | 0 });
+        return a.length;
+    },
+    probeRelease: function () {
+        const n = g_held_scancodes.size + g_probe_press_queue.length;
+        g_held_scancodes = new Set(); g_probe_press_queue = [];
+        return n;
+    },
+    probeShot: function () {
+        g_probe_shot_pending = Math.min(g_probe_shot_pending + 1, 4);
+        return g_flip_frame;
+    },
+    probeSetTurbo: function (on) { g_turbo_enabled = !!on; return g_turbo_enabled; },
+    probeActivate:  function (on) { g_probe_active = !!on; return g_probe_active; },
+});
