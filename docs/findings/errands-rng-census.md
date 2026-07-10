@@ -231,9 +231,48 @@ The straight-line walk to a fixed target looks scripted/wander-target-picked, no
   480/tick t993-1027; DECEL ramp into the LAST WAYPOINT (cell 22: arrives 71040 =
   22×0xc80+0x640, the waypoint slack); then a WALK-speed final leg (dwx cycling 104/120/136 ≈
   120/tick avg) to the 800-slack stop at **73128 = 73600−472** (t1069; st→0 at 1071; a −16
-  settle at 1076).  Ground truth table: the 2026-07-10 mvtrace (`arche_walk.txt`).  STILL to
+  settle at 1076).  Ground truth table: the 2026-07-10 mvtrace (`runs/arche-walk/arche_walk.txt`, gitignored; regen = the identity-mvtrace capture recipe above: `OSS_TURBO=0 OSS_LOCKSTEP=1 OSS_RAND_TRACE_LO=968 OSS_RAND_TRACE_HI=1080 run_proxy.sh 100 nav-errands-spam hold-right-clamp`).  STILL to
   RE (not measure): the decel ramp law (−8,−8,−16…,−32 steps) + the 104/120/136 walk-leg
   mechanism + the −16 settle, off `0x43f880`'s speed-control code.
+  **Speed-law RE state (2026-07-10, partial — the 442a70 velocity cases are the open read):**
+  `0x43f880` does NOT integrate motion — it builds a per-tick COMMAND QUEUE (`local_80`,
+  candidate gait+dir list `local_b8[0..4]`) and pushes commands into the char FSM via
+  `0x4412d0(local_f8, 0x20, …)` (`f8[0]`=dir/gait code 1/2=walk 5/6=run, `f8[2]`=jump 7/8,
+  `f8[3]`=action 10/0xb); `0x442a70` is a PURE STEP fn `(cmd, prev_state, out_state, mode,
+  step)` — 43f880 even runs a 0x20-deep 442a70 SIMULATION for reachability (`:522-575`).
+  PROVEN gait law (`:344-378`): **RUN while `|wx−target| > 0x2580` (9600), WALK within** —
+  matches the trace EXACTLY (decel onset t1028 = first tick past 73600−9600=64000).
+  Decel gate (`:362`): vel proxy `body+0x28` vs per-actor cap `in_ECX[0x565b]` (+ the
+  `0xc80`-dist + lookahead-probe `local_c4` terms); lookahead probe distance = `0xc80`
+  (1 cell) or `0x1900` (2 cells) when `+0x28 > cap` (`:158-159`).
+  **The `0x442a70` case-0x75 VELOCITY LAW (read 2026-07-10, `442a70.c:940-1112`):** per-actor
+  config: CAP=`in_ECX[0x565b]` (walk 24000), RUN CAP=`[0x5664]` (48000, installed for cmd 5/6
+  when `[0x5663]`), walk ACCEL=`[0x565c]` (1600), run ACCEL=`[0x565d]` (3200, used only while
+  `vel < walk cap` — the ported two-phase knee ✓), BRAKE=`[0x565e]`; default
+  `iVar5 = local_18 = brake`.  Command dir (`f8[0]` 1/5=facing-3, 2/6=facing-1) vs state
+  `+0x2c`: MATCH → `iVar5=+accel`; MISMATCH w/ `vel≠0` → **`iVar5 = −accel` — REVERSE-DECEL AT
+  THE ACCEL RATE (banded 3200 below walk cap / 1600 above), CONFIRMS `char-reverse-decel`'s
+  "decompile says −accel"**; `vel==0` mismatch → turn (`local_14`).  Integration:
+  `vel = 0x445db0(vel, iVar5, local_18, cap)` — 445db0 = ramp-with-cap: `vel<cap`:
+  `vel+=iVar5` clamp cap; `vel>cap`: `vel+=local_18` clamp ≥0 (the OVER-CAP rate is a
+  PARAMETER, default brake) — then `world += 0x445f50(state, vel/100)` → the ported mover
+  `0x54db10`.  Modifiers: `+0x288` → `local_20/3` (slow); `[0x5204]` cap+24000;
+  `[0x5205]` accel+2000/over-cap−800; sub-state 10/0x14 nudge `+0x40` ±2 (bob).
+  OBSERVED bands vs the law: the −16 (1600) band over vels 44000..23200 + the −32 (3200) band
+  below = the reverse-decel bands ✓; the −800×3 head (47200..45600) + the walk-leg bang-bang
+  (+1600,+1600,−3200 around ~12800) come from the COMMAND stream 43f880 pushes each tick
+  (brake cmd `local_80` case-2/`f8[3]=10` from the lookahead probe, then alternating
+  walk/brake near the target) — disambiguate in implementation against `runs/arche-walk/arche_walk.txt`
+  (the laws are all decompile-sourced; the host test replaying the profile is the proof).
+  Final approach: the −1600 ramp from ~10400 → stop 73128; −16 settle t1076; completion
+  `body+0x28 < 10000` t1077.
+  **BONUS (task-4 lead): the RUN FOOTSTEP RNG pair found — `442a70.c:629-643` (case-0x75
+  sub-state 1):** when `(*(u16*)(actor+0x206) & 0x1f) == 0` → **2 draws**
+  (`(rand*800>>15)−0x640`, `(rand*0x640>>15)−800` = jitter x/y) → `0x557370(actor, 0x1870f,
+  state, jx, jy, 99, 3, …)` = the dust-puff spawn.  A 20-tick cadence at cruise 480 ⇒ the
+  counter advances ~1.6/tick (32/20) — likely distance-driven; relate to the census
+  `0x489280` ±2 attribution (489280 may be the spawn path's drawer or a second pair — read
+  `0x489280` + its caller `0x485fc0` next).
 - (d) RENDER — already ported (ckpt 140/141, run/decel/arrival cels + camera).  The remaining
   render residuals stay `cutscene-party-chars` (lean cels, multi-part banks).
 - (e) `0x489280` footstep (fires ~every 20t while she runs: 979/999/1019…) EMERGES once (c)
