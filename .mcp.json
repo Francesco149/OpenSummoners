@@ -1,15 +1,16 @@
 {
-  "_note": "ghidra runs as a shared HTTP daemon (systemd --user ghidra-opensummoners.service on :8202) so concurrent Claude sessions don't fight over the single-writer .gpr lock. See slopstudio docs/INFRA.md. Start/status: systemctl --user status ghidra-opensummoners. The live-probe game MCP (opensummoners) is added once tools/opensummoners_mcp.py is built + tested.",
+  "_note": "ghidra MCP daemon DECOMMISSIONED 2026-07-10 (native decompiler runaways ballooned to ~25GB and OOM'd the box). Use the static decompiled export docs/decompiled/all.c for pseudo-C, or open the .gpr in the Ghidra GUI. No daemon, no systemd service. The live-probe game MCP below is unaffected.",
   "mcpServers": {
-    "ghidra": {
-      "type": "http",
-      "url": "http://127.0.0.1:8202/mcp"
-    },
     "opensummoners": {
       "type": "stdio",
       "command": "nix",
-      "args": ["shell", "nixpkgs#python3", "--command", "python3",
-               "/opt/src/OpenSummoners/tools/opensummoners_mcp.py"],
+      "args": [
+        "shell",
+        "nixpkgs#python3",
+        "--command",
+        "python3",
+        "/opt/src/OpenSummoners/tools/opensummoners_mcp.py"
+      ],
       "env": {}
     }
   }
