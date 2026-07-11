@@ -40,6 +40,16 @@ static const char *StrStrIA_(const char *hay, const char *needle);  // defined b
 #define VA_MGR_GLOBAL  0x92b76cu   // void*  voice manager      (seed target #2)
 #define VA_SOUNDDEV    0x92d5b8u   // void*  sound device (non-null once sound-init ran)
 
+// ── Fix A: monster combat-SE drop (docs/findings/ense-voice-monster-se-drop.md) ──
+// Once the voice bank (0x92af80) is set, the SFX registrar 0x59cc8c takes its voice
+// branch and SKIPS every sound-def with voice_id==0 — all MONSTER sound sets (unvoiced
+// by design) — with no SE fallback, silencing them (Ghost Warlock/Black Harpy/Babymage…).
+// Retarget its two `voice_id==0 / 0x7fff -> skip` jumps to the SE branch 0x59cd08 so those
+// defs fall back to their SE clip (byte-identical to stock bank-null behaviour).
+#define VA_SFX_JE1     0x59ccceu   // rel32 LSB of `je 0x59cd55` @0x59cccc : 0x83 -> 0x36
+#define VA_SFX_JE2     0x59ccd8u   // rel8       of `je 0x59cd55` @0x59ccd7 : 0x7c -> 0x2f
+#define VA_GATE_OBJ    0x92af98u   // combat-voice gate = (*(*0x92af98))[0x238]  (log only)
+
 static uintptr_t g_delta;
 static char      g_logpath[MAX_PATH];
 
@@ -53,6 +63,38 @@ static void vlog(const char *fmt, ...) {
     FILE *f = fopen(g_logpath, "a"); if (!f) return;
     va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
     fputc('\n', f); fclose(f);
+}
+
+// Patch one code byte, GUARDED on its expected current value, so a different Steam build
+// (different addresses → different bytes) is never corrupted.  Returns 1 on success.
+static int patch_code_byte(uintptr_t va, unsigned char expect, unsigned char to) {
+    unsigned char *p = (unsigned char *)AP(va);
+    DWORD old;
+    if (*p != expect) { vlog("[sfxfix] SKIP @%p: have 0x%02x want 0x%02x (build drift?)", (void *)p, *p, expect); return 0; }
+    if (!VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) { vlog("[sfxfix] VirtualProtect failed @%p", (void *)p); return 0; }
+    *p = to;
+    VirtualProtect(p, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return 1;
+}
+
+// Retarget the SFX registrar's two voice_id==0 skips to the SE branch (0x59cd08), so
+// unvoiced (monster) sound-defs register their SE clip instead of being dropped.
+static void patch_sfx_se_fallback(void) {
+    int a = patch_code_byte(VA_SFX_JE1, 0x83, 0x36);
+    int b = patch_code_byte(VA_SFX_JE2, 0x7c, 0x2f);
+    vlog("[sfxfix] SE-fallback %s (je1=%d je2=%d) — monster combat SE %s",
+         (a && b) ? "APPLIED" : "PARTIAL/SKIPPED", a, b, (a && b) ? "restored" : "may stay silent");
+}
+
+// Informational: log the combat-voice gate (*(*0x92af98))[0x238] at title.  Fix A is
+// robust to any value; this just confirms the routing (0 = voice mode).  It may read
+// differently at battle time if the gate turns out to be dynamic.
+static void log_combat_voice_gate(void) {
+    char *P = *(char **)AP(VA_GATE_OBJ);          // value in global 0x92af98
+    char *Q = P ? *(char **)P : 0;                // Q = P[0]
+    if (!Q) { vlog("[gate] combat-voice gate unavailable (sound not up yet)"); return; }
+    vlog("[gate] combat-voice Q[0x238]=%d at title (0 = voice mode)", *(int *)(Q + 0x238));
 }
 
 // Seed the two dead globals so the engine's own (intact) voice code comes alive.
@@ -87,7 +129,9 @@ static DWORD WINAPI seed_thread(void *unused) {
     } else if (*mgrg) {
         vlog("[seed] manager already set: %p", *mgrg);
     }
-    vlog("[seed] DONE bank=%p mgr=%p  (voice should now play on voiced lines)", *bankg, *mgrg);
+    patch_sfx_se_fallback();     // restore SE for unvoiced (monster) defs the bank load would drop
+    log_combat_voice_gate();     // informational — confirm the voice/SE routing
+    vlog("[seed] DONE bank=%p mgr=%p  (dialogue+party voice on voiced lines; monster SE via sfxfix)", *bankg, *mgrg);
     return 0;
 }
 

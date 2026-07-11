@@ -34,6 +34,12 @@ engine's *own* functions to load `sotesx_s.dll` and create the voice manager, se
 those two globals. From there the engine plays the voice on its own, using its own
 per-line mapping (the voice-id data is already present in the shared `sotesd.dll`).
 
+It also applies a tiny (2-byte) code fix so **monster combat sounds keep playing**:
+loading the voice bank makes the engine route combat sounds through the voice path,
+which drops any sound that has no Japanese voice recording (all the monsters — they were
+never voiced). The fix makes those fall back to their normal sound effect, so nothing
+goes silent. Dialogue and party combat voices are unaffected.
+
 ## What you need
 
 - The **English special edition** on Steam (`…\steamapps\common\sotes\`, has
@@ -78,7 +84,11 @@ Verified against:
 
 Seed addresses (`version_proxy.c`): `bank_load 0x5d8b10`, `asset_mgr 0x92ac68`,
 `operator_new 0x5ef121`, `manager_init 0x584a70`, `bank_global 0x92af80`,
-`mgr_global 0x92b76c`, `sounddev 0x92d5b8`. If Steam ships a new build (different
+`mgr_global 0x92b76c`, `sounddev 0x92d5b8`. SFX-fallback code patch (restores
+unvoiced monster combat SE the bank load would otherwise drop — see
+`docs/findings/ense-voice-monster-se-drop.md`): byte `0x59ccce` `0x83→0x36` and
+byte `0x59ccd8` `0x7c→0x2f` (both guarded on the current value, so a mismatched
+build is skipped, not corrupted). If Steam ships a new build (different
 buildid/hash), re-derive these per `docs/plans/ennse-voice-patch.md` before
 trusting the patch.
 
