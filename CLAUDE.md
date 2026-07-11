@@ -135,6 +135,13 @@ changelog. Active multi-session plans: `docs/plans/`.
   the sheet lacks, publish a human-verifiable proof under `docs/proofs/`.
 - **Single-TU compile, full rebuild every time** — one `gcc` per output binary, all `.c`
   passed directly, no `.o`/`.d`. C compiles sub-second here; the simplicity is free.
+- **Build EVERYTHING before you push — `bash tools/ci/build_all.sh` (MANDATORY; not just
+  `make -C src`).** `res_explorer` AND `osr_view` LINK the port's own `src/*.c`, so a new
+  `src/` dependency silently DRIFTS them — `party.c` gaining a `base_stat_table.c` dep broke
+  the `res_explorer` link *after* a push (undefined `BASE_STAT_TABLE`; CI red on master).
+  `build_all.sh` is the one-command local gate: it supersets `ci.yml` (port + res_explorer +
+  ennse_voice + host suite + asset scan) by also building the dev tools (osr_view /
+  capture_proxy / launcher). All mingw, no game assets, no Windows. Green there ⇒ green in CI.
 - **Commits: commit in logical units as you go, without waiting to be asked.** Direct to
   `master` (no per-feature branches — they fight the linear checkpoint workflow); one
   chip/feature per commit; build + test first. There are **no git hooks** here, so add

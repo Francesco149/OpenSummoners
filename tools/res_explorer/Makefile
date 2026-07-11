@@ -31,7 +31,7 @@ CSRC   := ../../src/bitmap_session.c ../../src/map_data.c \
           ../../src/draw_pool.c ../../src/asset_register.c ../../src/render_id.c \
           ../../src/asset_register_win32.c \
           ../../src/actor_spawn.c ../../src/actor_render.c ../../src/butterfly.c \
-          ../../src/party.c ../../src/rng.c ../../src/anim_clip.c
+          ../../src/party.c ../../src/base_stat_table.c ../../src/rng.c ../../src/anim_clip.c
 CXXSRC := res_explorer.cpp res_core.cpp \
           $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp \
           $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp \
