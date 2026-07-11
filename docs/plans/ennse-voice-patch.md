@@ -15,6 +15,15 @@ Redistributable: `version.dll` + `Install.bat`/`install.ps1` (auto-detect game +
 JP `sotesx_s.dll`) + `Uninstall.bat` + `README.md`. `oss_voice.log` traces each step.
 **Next:** ship via CI nightly release (see repo `.github/workflows/`).
 
+### KNOWN BUG (2026-07-11) — monster combat SE go SILENT under the patch
+
+Setting the voice bank flips the SFX registrar `0x59cc8c` into its voice branch; defs with
+`voice_id==0` (all MONSTER sound sets — they were never voiced, even in JP) hit a `je` that SKIPS
+them with NO SE fallback ⇒ their SE clip is never registered ⇒ silent (Ghost Warlock/Black Harpy/
+Babymage etc.). Full RE + evidence + the 2-byte fix (retarget the two skip `je`s @ `0x59ccce`/
+`0x59ccd8` to the SE branch `0x59cd08`) in **`docs/findings/ense-voice-monster-se-drop.md`**. Not yet
+applied/live-validated (awaiting an endgame save to repro).
+
 ## The key finding (why this is easy)
 
 `sotes_en.exe` (EN-SE engine) **retains the ENTIRE voice subsystem code** — the localizer

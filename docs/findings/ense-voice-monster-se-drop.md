@@ -1,0 +1,109 @@
+# EN-SE JP-voice patch — monster combat SE go SILENT (root cause + fix)
+
+**Symptom (USER, 2026-07-11):** with the `tools/ennse_voice` JP-voice patch installed, some
+MONSTER combat sounds stop playing — Ghost Warlock evasion/death, Black Harpy
+damage/singing/death, Babymage (Baby Aquamage/Blazemage) damage/spellcast — tested vs
+Abyssal Ruins mobs. Dialogue voice + party combat voices are fine. "probably other monsters too."
+
+## Root cause — the SFX registrar drops SE-only defs once the voice bank is set
+
+The engine has a static **sound-def table** in `.rdata` @ **VA `0x65b0e8`** (294 records, stride
+**`0x24`**; `sotes-ense-en.exe`, SHA in `game-editions-and-voice.md`). Per-record fields:
+
+| off | field | note |
+|----|----|----|
+| +0x00 | `key` (u32) | monster/char id (== `base_stat_table` id); 0 terminates the table |
+| +0x04 | slot idx (u16) | active-sound slot |
+| +0x08 | `mgr_idx` (u16) | index into the manager table `0x92afe0[]` |
+| +0x0a | **SE clip id** (u16) | WAVE id in the SE bank (`sotesp.dll`); 0 ⇒ record skipped |
+| +0x18 | bank sel (s32) | −1 ⇒ SE bank `0x92af78`; 1 ⇒ null; 0 ⇒ default bank `edi` |
+| +0x1c | **voice id** (u16) | dialogue-voice clip in `sotesx_s.dll`; **0 / 0x7fff ⇒ no voice** |
+| +0x20 | voice param (s32) | pan/vol for the voice |
+
+Two fns consume the table: the **trigger** `0x4238xx` (play-by-key; on voice_id==0 sets the
+voice-param to 0 and STILL plays — harmless) and the **registrar** **`0x59cc8c`** (registers each
+def's clip into its manager at scene/battle init — the buggy one). Registrar per-def branch:
+
+```
+59cc9d  cmp [eax+0x65b0f2],0     ; SE id==0? -> skip (nothing to play)   je 0x59cd55
+59ccaa  cmp ds:0x92af80,0        ; VOICE BANK loaded?
+59ccb0  je  0x59cd08             ;   no  -> SE branch (register SE clip)
+59ccb2  mov ecx,ds:0x92af98      ; sound ctrl obj
+59ccba  cmp [[ecx]+0x238],0      ; voice-mode gate
+59ccc0  jne 0x59cd08             ;   gate!=0 -> SE branch
+59ccc2  mov cx,[eax+0x65b104]    ; voice id
+59cccc  je  0x59cd55  <-- BUG    ; voice_id==0   -> SKIP (NO SE fallback)
+59ccd7  je  0x59cd55  <-- BUG    ; voice_id==0x7fff -> SKIP
+        ...register VOICE clip from 0x92af80 via mgr_table[mgr_idx]...
+59cd08  SE branch: register SE clip (field_0a) from sel-bank via mgr_table[mgr_idx]
+59cd55  loop tail (i++)
+```
+
+Stock EN-SE: voice bank `0x92af80`==null ⇒ `0x59ccb0` always jumps to the SE branch ⇒ every def
+registers its SE clip ⇒ all monster SE play. **The patch sets `0x92af80` (to voice dialogue) ⇒ the
+registrar now takes the voice branch, and any def with `voice_id==0` hits `je 0x59cd55` and is
+SKIPPED — its SE clip is never registered ⇒ that sound is silent for the session.** Its manager slot
+stays empty, so the later trigger `0x4238xx` plays nothing.
+
+## Why only monsters — they are UNVOICED by design (voice_id==0)
+
+Table dump: **58 of 294 records are SE-only (`voice_id==0`, `SE-id!=0`)** and they are the MONSTER
+sound sets; party/NPC sets (`0xc35a`=Arche, `0xc35b`=Sana, `0xc35c`, `0xc35d`) carry real voice ids
+(2228–2456) and keep playing. SE-only keys (== `base_stat_table` ids):
+
+`0xc756` Kobold · `0xc760` Merkid · `0xc77f` Cocorat · `0xc789` **Ghost** · `0xc792` **Young Harpy**
+· `0xc79c` Org Swordmaster · `0xc80b` Sabercat · `0xc829` **Baby Aquamage** · `0xc83d` Dragon Pup ·
+`0xc4ae` · `0xc754` · `0xe2a4-8` · `0x1875b` · `0x1875f` (+ 4 special `22001-4` clips under `0xc35b`).
+
+The USER's monsters are variant palette-swaps that share a base family's sound set (the trigger keys
+the base): **Ghost Warlock `0xc78b` / Ghost Mage `0xc78a` → Ghost `0xc789`**; **Black Harpy `0xc794`
+/ Harpy `0xc793` → Young Harpy `0xc792`**; **Baby Blazemage `0xc82a` → Baby Aquamage `0xc829`**. All
+three base sets are voice_id==0 ⇒ silent under the patch. Matches the report exactly.
+
+## JP == EN — data & code identical; JP's fix is a runtime gate
+
+`sotes-ense-jp.exe` has the **byte-identical** def table (base VA `0x6590e8`, same 294 recs, monster
+keys voice_id==0) AND a **byte-identical registrar** (same forward `je` skip: JP `0x59b2e9`→`0x59b375`
+== EN `0x59ccc9`→`0x59cd55`, +0x19e0 shift). So JP does NOT differ in data or code; it must rely on
+the runtime **voice-mode gate `[[*0x92af98]+0x238]`** (or voice-bank load TIMING) to route combat SFX
+through the SE branch. The patch reproduces neither ⇒ EN takes the voice branch and drops monster SE.
+(Gate identity = OPEN; likely the EN Voice-Manager "Deluxe/Original Voices" or "Combat Voice" toggle.)
+
+## FIX A (recommended) — restore the SE fallback (2 bytes, runtime code patch)
+
+Retarget the two `voice_id==0/0x7fff → skip` jumps to the **SE branch `0x59cd08`** (identical to
+stock bank-null behavior; register state at the jumps is unchanged — eax/edi/esi intact). SE branch
+uses default bank `edi` (proven = the always-present SE/effects bank: it is written as `[mgr+0x10]`
+for boot/UI clips `0x4ed`… that play before any voice bank exists), or SE bank `0x92af78` for sel==−1.
+
+| VA | file off | before | after | effect |
+|----|----|----|----|----|
+| `0x59ccce` | `0x19ccce` | `83` | `36` | `je 0x59cd55` → `je 0x59cd08` (voice_id==0) |
+| `0x59ccd8` | `0x19ccd8` | `7c` | `2f` | `je 0x59cd55` → `je 0x59cd08` (voice_id==0x7fff) |
+
+Voiced defs (voice_id!=0) are untouched ⇒ dialogue + party combat voice still play; monster SE-only
+defs now register SE ⇒ restored. Apply in `version_proxy.c` seed_thread BEFORE (or with) the bank
+seed; **guard on the current bytes (0x83 / 0x7c) so a different Steam build is not corrupted** — the
+patch is build-locked (see the README's "Exact patch target"; add these 2 VAs to that list).
+
+```c
+static void patch_sfx_se_fallback(void){           // je 0x59cd55 -> je 0x59cd08 (x2)
+    unsigned char *p1=(unsigned char*)AP(0x59ccce), *p2=(unsigned char*)AP(0x59ccd8); DWORD o;
+    if(*p1==0x83){ VirtualProtect(p1,1,PAGE_EXECUTE_READWRITE,&o); *p1=0x36; VirtualProtect(p1,1,o,&o);}
+    if(*p2==0x7c){ VirtualProtect(p2,1,PAGE_EXECUTE_READWRITE,&o); *p2=0x2f; VirtualProtect(p2,1,o,&o);}
+}
+```
+
+**FIX B (alt, no code patch):** force the gate `[[*0x92af98]+0x238]` nonzero so the registrar always
+takes the SE branch — simpler, but ALL table defs lose voice, so party COMBAT voices become SE too
+(dialogue is a separate path `0x437077`/mgr `0x92b76c`, unaffected). Inferior fidelity; Fix A is
+better. Needs the gate offset confirmed live either way.
+
+## Open / validate
+- Live-repro the silence + Fix A on retail EN-SE in Abyssal Ruins (USER setting up an endgame save).
+- ID the gate `[[*0x92af98]+0x238]` (the JP mechanism) — resolves Fix B and the timing story.
+- Confirm the variant→base key mapping in the combat trigger (`0x4238xx` caller / key calc).
+- PORT note: when OpenSummoners adds EN-text+JP-voice (ROADMAP), its voice path MUST fall back to the
+  SE clip on voice_id==0 — do not replicate this drop.
+
+Provenance: static RE of `vendor/unpacked/editions/sotes-ense-{en,jp}.exe` (objdump/py); no live run yet.

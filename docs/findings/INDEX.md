@@ -28,6 +28,10 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   EN-old build matrix: file inventory, shared-vs-different asset DLLs (with hashes), the
   voice-line architecture (`sotesx_s.dll` = 1,448 `WAVE` clips, **JP-only**), which engine
   loads which DLL, and why the English builds are silent. Grows as we compare more.
+- **[ense-voice-monster-se-drop.md](ense-voice-monster-se-drop.md)** — why the JP-voice patch
+  SILENCES monster combat SE (Ghost Warlock/Black Harpy/Babymage…): the SFX registrar
+  `0x59cc8c` skips `voice_id==0` defs (all unvoiced-by-design monster sets) once the voice
+  bank is set, with no SE fallback. Static-proven vs JP (identical data+code); 2-byte fix.
 
 ## Rendering / assets
 
