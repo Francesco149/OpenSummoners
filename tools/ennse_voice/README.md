@@ -126,3 +126,114 @@ ImageBase `0x400000`; resolved at runtime against the module base, so ASLR/rebas
 If Steam updates the game, re-verify the addresses in `docs/plans/ennse-voice-patch.md`.
 
 Build: `nix develop --command make -C tools/ennse_voice` → `build/version.dll`.
+
+## Appendix — the SE-vs-voice path, and the monster-sound fix
+
+This explains, in full, the bug the small (2-byte) code fix under **Exact patch target** works
+around: why simply loading the Japanese voice bank makes some **monster combat sounds go silent**,
+and why the fix is safe. Addresses are for the verified `sotes_en.exe` build (unpacked ImageBase
+`0x400000`); the complete reverse-engineering writeup is in
+[`docs/findings/ense-voice-monster-se-drop.md`](../../docs/findings/ense-voice-monster-se-drop.md).
+
+### Two ways to make a combat sound
+
+The engine ships two separate sound banks:
+
+- **SE** — `sotesp.dll`, the ordinary sound-effect bank (present in every edition).
+- **Voice** — `sotesx_s.dll`, the Japanese voice bank (1,448 clips, ids 1003–2459 — the file this
+  patch adds).
+
+Every character/monster combat *vocalization* — an attack grunt, a hurt cry, a death cry, a spell
+shout, a dodge/evasion voice — is described by an entry in a static **sound-definition table** baked
+into the exe (at address `0x65b0e8`, 294 entries). Each entry carries **both**:
+
+- an **SE clip id** — the plain sound effect, in `sotesp.dll`; and
+- an optional **voice id** — the Japanese voice clip, in `sotesx_s.dll`. A voice id of `0` (or the
+  sentinel `0x7fff`) means *"this sound has no Japanese voice recording."*
+
+So an entry really means: *play this sound — as the Japanese voice if we have one, otherwise as the
+plain SE.*
+
+### How the engine chooses (the dispatcher)
+
+When a scene or battle loads, the engine's sound registrar walks that table and, for each entry,
+decides which clip to load into its sound channel. Simplified:
+
+```
+if (voice bank is loaded) and (voice mode is on):
+        if the entry has a voice id:   load the Japanese VOICE clip
+        else:                          « bug: SKIP the entry entirely »
+else:
+        load the plain SE clip
+```
+
+Without this patch the voice bank is never loaded, so the engine always takes the bottom branch:
+every entry loads its SE clip, and every combat sound plays.
+
+### The bug
+
+When this patch loads `sotesx_s.dll`, the engine flips to the top branch. Entries that *have* a voice
+id now play the Japanese voice — that is the whole point, and it works. But entries whose voice id is
+**`0`** hit the `else` and are **skipped, with no fallback to their SE clip.** Their sound channel is
+left empty, so when the game later triggers that sound, nothing plays.
+
+### Why only monsters
+
+In this game **only the party is voiced.** Arche, Sana, Stella and Chiffon have real voice ids on
+their combat sounds (and, notably, so does the **Ancient Wyvern** boss). **Every ordinary monster is
+unvoiced by design** — voice id `0` on every combat sound. So loading the voice bank restores the
+party's (and the Wyvern's) Japanese combat voices, but silences the monsters' grunts, cries and death
+sounds, because those take the skipped branch. That is exactly the reported symptom — Ghost Warlock,
+Black Harpy, Babymages and the like go quiet.
+
+### Why the Japanese game doesn't have this problem
+
+The sound table and the dispatcher code are **byte-for-byte identical** between the English
+(`sotes_en.exe`) and Japanese (`sotes.exe`) special-edition engines — same 294 entries, monsters
+unvoiced in both, same skipping branch. The Japanese game avoids the silence with a runtime
+"voice mode" flag (an internal setting) that routes combat sounds through the SE path in the right
+contexts. This patch only re-seeds the two dead voice globals; it does not reproduce that flag, so on
+the English build the dispatcher takes the voice branch and drops the unvoiced sounds. Rather than
+try to mirror the flag — which is fiddly, and in its SE-forcing state would also strip the party's
+newly-restored combat voices — the fix goes straight at the missing fallback.
+
+### The fix
+
+The registrar's *"voice id is 0 → skip"* is a pair of conditional jumps; the fix retargets them to the
+**SE branch** instead of the skip, so an unvoiced entry loads its SE clip — precisely what happens
+when no voice bank is present at all:
+
+| address    | before | after | effect                                        |
+|------------|:------:|:-----:|-----------------------------------------------|
+| `0x59ccce` |  `83`  | `36`  | `voice id == 0` → SE branch (was: skip)       |
+| `0x59ccd8` |  `7c`  | `2f`  | `voice id == 0x7fff` → SE branch (was: skip)  |
+
+The patch writes these two bytes at startup, **guarded on their current value**: if the bytes don't
+match (i.e. a different game build), it logs a skip and leaves the code untouched, so it can never
+corrupt an unexpected build. Look for `[sfxfix] SE-fallback APPLIED (je1=1 je2=1)` in `oss_voice.log`.
+
+### Why the fix is safe
+
+- **Voiced entries are untouched** — dialogue voice and the party's (and the Wyvern's) combat voices
+  still play.
+- **Unvoiced entries do exactly what the stock game does** when no voice bank is present (load the SE
+  clip) — a well-worn code path, not new behaviour.
+- It **does not depend on the voice-mode flag**, so it is correct whatever that flag's value.
+- **Nothing else is dropped:** every voice id the table references really exists in `sotesx_s.dll`
+  (checked: all 213 referenced ids fall within 1003–2459), so no voiced sound fails a lookup either.
+
+Net result with the patch installed: **dialogue is voiced, party combat is voiced (a bonus the base
+patch already gave), and monster combat sound effects still play.**
+
+### Affected enemies
+
+The monster combat vocalizations are grouped into **17 shared sound-sets** — variant/palette-swap
+enemies reuse a base family's set — all unvoiced, and so all restored by the fix:
+
+> Merkid · Cocorat · Kobold · Ghost (incl. Ghost Mage, Ghost Warlock) · Young Harpy (incl. Harpy,
+> Black Harpy) · Org (all Org variants) · Sabercat & Panthers · Babymages (Aqua/Blaze) · Dragon Pups
+> (incl. Ice) · Cerberus · the Skeleton family · four story bosses · one late-game boss.
+
+The earliest you meet — **Merkid, Cocorat, Kobold** — are ordinary first-dungeon enemies, so the fix
+is easy to verify early rather than needing an endgame save. The full id→family table is in the
+finding linked above.
