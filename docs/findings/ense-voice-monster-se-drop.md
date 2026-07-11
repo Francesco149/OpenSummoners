@@ -60,6 +60,39 @@ the base): **Ghost Warlock `0xc78b` / Ghost Mage `0xc78a` → Ghost `0xc789`**; 
 / Harpy `0xc793` → Young Harpy `0xc792`**; **Baby Blazemage `0xc82a` → Baby Aquamage `0xc829`**. All
 three base sets are voice_id==0 ⇒ silent under the patch. Matches the report exactly.
 
+## The affected roster — 17 enemy sound-sets (the sound-set is per COMBAT CLASS)
+
+The combat callers HARDCODE the sound-set key as an immediate `push 0x…; …; call 0x423850` — so a
+sound-set is per combat-CLASS, and variant monsters that reuse a class share its key (that IS the
+inheritance).  **22 sound-sets are trigger-hardcoded** (all callers of `0x423850`); of them **5 are
+VOICED (unaffected)** — `0xc35a` Arche, `0xc35b` Sana, `0xc35c` Stella, `0xc35d` Chiffon, and notably
+**`0x18754` Ancient Wyvern** (28 voiced records, a boss that DOES speak) — and **17 are UNVOICED ⇒
+AFFECTED**:
+
+| key | class / family (members share the class → all affected) |
+|---|---|
+| `0xc760` | **Merkid** — Merkid, Merkid Mage `0xc761`, Lead Merkid `0xc762`/`0x18749` |
+| `0xc77f` | **Cocorat** — Cocorat, Vicious Cocorat `0xc780` |
+| `0xc756` | **Kobold** — Kobold, Kobold Ace `0xc757`/`0x1874b` |
+| `0xc789` | **Ghost** — Ghost, Ghost Mage `0xc78a`, Ghost Warlock `0xc78b`, Master Ghost `0x18759` |
+| `0xc792` | **Young Harpy** — Young Harpy, Harpy `0xc793`, Black Harpy `0xc794` |
+| `0xc79c` | **Org** — Org `0xc7b0`, Org Archer/Bowman `0xc7a6/7`, Org Swordmaster, Org Centurion `0xc7b2`, Boss Org `0x1874c`, Org Lackey `0x1874d` |
+| `0xc80b` | **feline** — Sabercat, Saber-Panther `0xc80c`, Black Panther `0xc80d` |
+| `0xc829` | **Babymage** — Baby Aquamage `0xc829`/`0x1874a`, Baby Blazemage `0xc82a` |
+| `0xc83d` | **Dragon Pup** — Dragon Pup `0xc83d`/`0x1875c`, Ice Dragon Pup `0xc83e`/`0x1875d` |
+| `0x1875b` | **Cerberus** |
+| `0xc754` | class-id (not a roster stat id) — **likely the Skeleton class** (adjacent to Skeletal Soldier `0xc753`; Skeletal Corpora/Sergeant/Vile/Hopeful) |
+| `0xc4ae` | class-id — UNIDENTIFIED (isolated `0xc4xx`; possibly early trash or a specific creature) |
+| `0xe2a4` `0xe2a5` `0xe2a6` `0xe2a8` | class-ids in `0xe2xx` — **likely story bosses** (`0xe2a7` is defined but NOT hardcode-triggered) |
+| `0x1875f` | class-id in `0x187xx` — **likely a late/postgame boss** |
+
+Monster→class dispatch NOT yet RE'd, so the 7 class-ids (`0xc4ae`/`0xc754`/`0xe2a4-8`/`0x1875f`) are
+mapped by id-adjacency + game knowledge, not proven.  Slimes/bats/snakes (`0xc742-4`, `0xc74e/f`…)
+have their OWN stat ids but no triggered sound-set here ⇒ they appear to have no vocalization (generic
+impact SE only, unaffected) — unconfirmed pending the dispatch RE.  **Earliest confirmed-affected:
+Merkid / Cocorat / Kobold (early-game staples, ~100-150 HP)** — a first-dungeon repro, not the
+postgame Abyssal Ruins.
+
 ## JP == EN — data & code identical; JP's fix is a runtime gate
 
 `sotes-ense-jp.exe` has the **byte-identical** def table (base VA `0x6590e8`, same 294 recs, monster
