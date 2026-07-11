@@ -67,7 +67,34 @@ keys voice_id==0) AND a **byte-identical registrar** (same forward `je` skip: JP
 == EN `0x59ccc9`→`0x59cd55`, +0x19e0 shift). So JP does NOT differ in data or code; it must rely on
 the runtime **voice-mode gate `[[*0x92af98]+0x238]`** (or voice-bank load TIMING) to route combat SFX
 through the SE branch. The patch reproduces neither ⇒ EN takes the voice branch and drops monster SE.
-(Gate identity = OPEN; likely the EN Voice-Manager "Deluxe/Original Voices" or "Combat Voice" toggle.)
+
+## The gate `Q[0x238]` — fully bounded; does NOT need mirroring (safety analysis)
+
+`Q = *(*0x92af98)` = the **voice-subsystem settings/state object** (confirmed: sibling fields
+`Q[0x28c]` read by sound-init `0x5821fa` + the Voice-Manager UI `0x588161`; `Q[0x2c4]` gates a voice
+call in dialogue `0x435708`). `Q[0x238]` is the combat-SFX voice toggle. **Every reader of the gate,
+whole engine:** exactly TWO — the registrar `0x59ccb2` and the trigger `0x423982` (verified by scanning
+all `0x92af98` double-derefs; the many `0x46xxxx/0x47xxxx/[esp]+0x238` hits are a different
+"sound-descriptor" struct type, same offset, not `Q`).
+
+- **EN's effective gate value is 0** (voice mode) — PROVEN by the symptom itself: the registrar only
+  skips monsters when `bank!=0 AND gate==0`, and the USER observes the skip, so `gate==0`.
+- **The trigger `0x4238xx` never SKIPS** on the gate/voice-id — it only sets the voice-param (`ebp`) to
+  0 and still enqueues. So the only silence-causing consumer is the registrar, fully covered by Fix A.
+- **No missing-clip silence:** the voiced records reference voice_ids **2228–2456 (213 distinct)**, and
+  `sotesx_s.dll` holds **1448 WAVE clips, ids 1003–2459 — ALL 213 present** (PE parsed flat: the
+  Lizsoft asset DLLs are obfuscated `raddr=0` flat-mapped PEs, so file-off==RVA). So voiced defs never
+  hit an absent clip; nothing else goes silent under voice mode.
+
+⇒ **Fix A is robust to ANY gate value.** gate==0: voiced→voice, unvoiced→SE(Fix A). gate!=0: all→SE.
+Either way every def registers a playable clip. Mirroring the gate is unnecessary AND undesirable: the
+gate only picks voice-vs-SE for VOICED (party) defs — both audible — so forcing it (Fix B) would only
+LOSE the party's JP combat voice. Not touching it keeps EN in voice mode, so the patch also restores
+**party combat voices** (a bonus) alongside dialogue voice, while Fix A restores the unvoiced monster SE.
+
+(Still OPEN, non-blocking: the gate's SETTER / why EN defaults to 0 — a `Q[0x238]` write via the
+`0x92af98` double-deref wasn't located; likely the config/Voice-Manager load. Confirm live if desired
+by logging `*(int*)((*(char**)(*(char**)AP(0x92af98)))+0x238)` during the Abyssal Ruins battle.)
 
 ## FIX A (recommended) — restore the SE fallback (2 bytes, runtime code patch)
 
@@ -99,9 +126,19 @@ takes the SE branch — simpler, but ALL table defs lose voice, so party COMBAT 
 (dialogue is a separate path `0x437077`/mgr `0x92b76c`, unaffected). Inferior fidelity; Fix A is
 better. Needs the gate offset confirmed live either way.
 
-## Open / validate
-- Live-repro the silence + Fix A on retail EN-SE in Abyssal Ruins (USER setting up an endgame save).
-- ID the gate `[[*0x92af98]+0x238]` (the JP mechanism) — resolves Fix B and the timing story.
+## Safety verdict (answers "does Fix A break anything / are other sounds dropped?")
+- **No other skips.** The registrar's only skips are SE-id==0 (nothing to play) and voice_id==0/0x7fff
+  (both covered by Fix A). The gate is read at only 2 sites (registrar + trigger); the trigger never
+  skips. So the gate mismatch causes NO silence beyond the monster registrar skip.
+- **No missing-clip silence.** All 213 referenced voiced ids are in `sotesx_s.dll` (proven above).
+- **Fix A can't regress.** For the affected records it reproduces the byte-exact stock SE-branch path
+  (`edi` bank identical stock-vs-patched — set at registrar entry, independent of the bank globals).
+- Net after Fix A: dialogue voice ✓, party combat voice ✓ (bonus restore), monster SE ✓ — nothing mute.
+
+## Open / validate (non-blocking)
+- Live-repro the silence + Fix A on retail EN-SE in Abyssal Ruins (USER setting up an endgame save);
+  optionally log `Q[0x238]` live to confirm gate==0 empirically.
+- The gate SETTER / why EN defaults to 0 (config vs Voice-Manager load) — effect already bounded.
 - Confirm the variant→base key mapping in the combat trigger (`0x4238xx` caller / key calc).
 - PORT note: when OpenSummoners adds EN-text+JP-voice (ROADMAP), its voice path MUST fall back to the
   SE clip on voice_id==0 — do not replicate this drop.
