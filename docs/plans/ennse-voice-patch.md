@@ -15,14 +15,16 @@ Redistributable: `version.dll` + `Install.bat`/`install.ps1` (auto-detect game +
 JP `sotesx_s.dll`) + `Uninstall.bat` + `README.md`. `oss_voice.log` traces each step.
 **Next:** ship via CI nightly release (see repo `.github/workflows/`).
 
-### KNOWN BUG (2026-07-11) — monster combat SE go SILENT under the patch
+### KNOWN BUG (open, 2026-07-12) — MONSTER sounds silenced in MYSTERY DUNGEON only
 
-Setting the voice bank flips the SFX registrar `0x59cc8c` into its voice branch; defs with
-`voice_id==0` (all MONSTER sound sets — they were never voiced, even in JP) hit a `je` that SKIPS
-them with NO SE fallback ⇒ their SE clip is never registered ⇒ silent (Ghost Warlock/Black Harpy/
-Babymage etc.). Full RE + evidence + the 2-byte fix (retarget the two skip `je`s @ `0x59ccce`/
-`0x59ccd8` to the SE branch `0x59cd08`) in **`docs/findings/ense-voice-monster-se-drop.md`**. Not yet
-applied/live-validated (awaiting an endgame save to repro).
+With the patch installed, monster combat sounds go silent — but **ONLY in Mystery Dungeon** (the SE
+roguelike / Abyssal Ruins). Base-game monsters are UNAFFECTED (confirmed: user played most of the game
+on the patch, zero issues; base Ghosts play death/evasion fine). The MD sounds come from
+**`sotesx_d2.dll`** (bank global `0x92af7c`), which sits **adjacent to the voice bank `0x92af80`**; a
+sound-resource setup (`~0x586af1`) allocates slots with counts that CHANGE when the voice bank is
+present (`0x5880e8` count 4→7), so installing the voice bank perturbs the MD sound-slot allocation.
+Full RE + the drive-MD-and-trace plan in **`docs/findings/ense-voice-monster-se-drop.md`**.
+⚠ An earlier base-game "registrar 2-byte fix" was a MISDIAGNOSIS — **reverted** (base was never broken).
 
 ## The key finding (why this is easy)
 

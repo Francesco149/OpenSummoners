@@ -28,10 +28,11 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   EN-old build matrix: file inventory, shared-vs-different asset DLLs (with hashes), the
   voice-line architecture (`sotesx_s.dll` = 1,448 `WAVE` clips, **JP-only**), which engine
   loads which DLL, and why the English builds are silent. Grows as we compare more.
-- **[ense-voice-monster-se-drop.md](ense-voice-monster-se-drop.md)** — why the JP-voice patch
-  SILENCES monster combat SE (Ghost Warlock/Black Harpy/Babymage…): the SFX registrar
-  `0x59cc8c` skips `voice_id==0` defs (all unvoiced-by-design monster sets) once the voice
-  bank is set, with no SE fallback. Static-proven vs JP (identical data+code); 2-byte fix.
+- **[ense-voice-monster-se-drop.md](ense-voice-monster-se-drop.md)** — the JP-voice patch silences
+  monster combat sounds **only in Mystery Dungeon** (SE roguelike); base-game monsters are fine. MD
+  sounds use the `sotesx_d2.dll` bank (`0x92af7c`) adjacent to the voice bank `0x92af80`; installing
+  the voice bank perturbs the MD sound-slot allocation (`~0x586af1`). OPEN — plan = drive MD + trace.
+  (An earlier base-game "registrar 2-byte fix" was a misdiagnosis, reverted.)
 
 ## Rendering / assets
 
