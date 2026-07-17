@@ -36,6 +36,15 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   ask reporter for logs+depth. Durable trainer built (`tools/ennse_trainer/`) for fast scenario setup.
   (An earlier base-game "registrar 2-byte fix" was a misdiagnosis, reverted.)
 
+## Save / persistence
+
+- **[sdt-save-format.md](sdt-save-format.md)** — the `savedataNN.sdt` container: the
+  subtract-key + inverse-permutation cipher (keystr @0x5fd290; `FUN_005dee40`/`0x5df030`),
+  header layout, the decoded record stream, metadata validation (magic 0x2711 / handle
+  0x2738 "Main Quest"), and the party-roster summary. Reference impl `tools/sotes_save/`
+  (dep-free; drives the trainer's `saves`/`saveinfo` + reusable by a save editor / the
+  port). Codec verified 8/8 real saves.
+
 ## Rendering / assets
 
 - **[palette-session.md](palette-session.md)** — palette-ramp leaf helpers +
