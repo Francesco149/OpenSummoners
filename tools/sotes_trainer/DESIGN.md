@@ -328,6 +328,39 @@ Two robustness fixes were needed and made (both live-verified):
   stays up), launcher dismiss (click `#32770` in-process).  Without keep-active the game froze
   while its window was backgrounded; without attract-off it cycled to the demo mid-drive.
 
+## New game + dialogue-skip — session 5 (2026-07-17)
+
+### `newgame` — VERIFIED
+From the title, rotate to the "New Game"/Start item then confirm (the title's own menu).  The
+default title selection is Continue; New Game is one rotate UP: `newgame {btn:2, to:1}` starts a
+fresh game (VERIFIED: fresh Lv1 Arche, HP100/MP30, exp 0/250 at the intro spawn 41600,51199).
+`btn` = the title rotate id (2=up / 4=down), `to` = rotations from Continue.  Drive: poll_title_cb
+injects `to` rotates (one every `g_ng_gap` polls) then re-injects confirm until the scene leaves
+the title; the command returns when `find_player` sees the fresh actor.
+
+### Dialogue-skip — the button model (partly solved; fast-reveal is WIP)
+The retail dialogue is a state machine: the ADVANCE-poll (base `FUN_0043b980`) matches ring ids
+**0x24/0x27** and moves to the next box; the TYPEWRITER step (base `FUN_0043bca0`) matches 2/4.
+Ground truth from live testing:
+- **0x24/0x27 are dialogue-only** (inert in gameplay + menus).  Injecting them every gameplay poll
+  AUTO-ADVANCES each box hands-free with NO re-trigger — this is `dlgskip`'s shipped default.
+- **The reveal fast-forward** (what "pressing Enter" does — instantly finish the typewriter) is NOT
+  0x24/0x27; it's a button that ALSO maps to a WORLD input.  Injecting it fast-skips the reveal but
+  re-fires world interactions — e.g. it walked Arche into the house-exit door, re-triggering the
+  "Dad needs your help" story gate in a loop (that gate triggers on UP-into-the-door, per the USER).
+- A **consumption-gate** (watch whether the injected 0x24 probe gets cleared → a dialogue is up)
+  was built to fire the reveal-skip only during dialogue, but 0x24 is consumed in the WAITING state
+  (not while typing) and has a 1-poll lag, so it both mistimes the skip AND leaks one world-input on
+  close.  So button injection can't cleanly fast-forward the reveal.
+
+**The clean fix (next):** skip the typewriter by writing the dialogue box's reveal-progress field
+directly (base: box `+0x54` <1000 while typing, ==1000 done) — NO button, so no world re-trigger.
+Needs the SE dialogue-box object: find it via a live Frida watchpoint on the injected probe record
+(whoever clears record[+0] is the dialogue advance-poll; its `this`/args = the box).  Then dlgskip
+forces `+0x54=done` each poll while a box is active → instant reveal, and 0x24/0x27 auto-advance.
+Commands added for this arc: `newgame`, `dlgskip`, `dlgbtns` (tune reveal ids), `press` (id probe),
+`state` (boot/hook diag), `keepactive`.
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).

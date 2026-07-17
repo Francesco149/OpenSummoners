@@ -341,6 +341,24 @@ static volatile uint32_t g_pk_esp, g_pk_mgr;   // picker-poll (0x4378d0) capture
 static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 2 want picker-confirm
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
 static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
+static volatile int      g_dlgskip = 1;        // auto-skip dialogue (DEFAULT ON)
+// dlgskip injects 0x24/0x27 (dialogue-advance; safe — no gameplay/menu meaning) EVERY poll,
+// and watches whether the dialogue advance-poll CONSUMES the 0x24 probe (clears record[+0]).
+// A cleared probe => a dialogue is up, so the reveal-skip buttons below (which double as the
+// gameplay INTERACT key, hence must be gated) are injected only then — fast reveal, no re-trigger.
+// The gated reveal-skip ids default EMPTY: the only button that fast-forwards the typewriter is
+// the gameplay INTERACT key, which re-fires world interactions (e.g. the "Dad needs help" story
+// gate) — even a 1-poll consumption-gate leak loops it.  So by default dlgskip only AUTO-ADVANCES
+// (0x24/0x27, inert in the world).  Instant reveal without a button (writing the dialogue box's
+// reveal-progress field) is the clean fix — pending the SE dialogue-box RE.  `dlgbtns` can still
+// set reveal-skip ids for experimentation (with the re-trigger caveat).
+static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // gated reveal-skip ids (0=unused)
+static uint8_t          *g_probe_rec;   // last 0x24 probe record (watch [+0]==0 => consumed)
+static volatile int      g_dlg_seen = 999;  // polls since the probe was last consumed (0 = active now)
+static volatile int      g_ng_state;            // new-game drive: 0 idle, 1 rotate-to-Start, 2 confirm
+static volatile int      g_ng_rotates;          // title rotations to reach the New Game item
+static volatile int      g_ng_btn = 0x04;       // title rotate button (2=up / 4=down)
+static volatile int      g_ng_gap, g_ng_cool;   // rotate cadence: 1 rotate every g_ng_gap polls
 
 // Save-slot picker selection (getters FUN_005e8e80/FUN_005e8ea0): the save-list MANAGER
 // holds the slot list at *(mgr+0x17c) — 0x10-byte entries { handle@+0, slot@+4 } (slot =
@@ -387,14 +405,15 @@ static volatile unsigned g_inpool_idx;
 // Write one input record {+0=id,+4=ts,+8=1} into a trainer-owned pool and publish its
 // pointer into the manager ring at mgr[0x0c + slot*4] (slot 63 = first polled).  The
 // game's poll (0x437c70/0x4378d0) matches +0==polled_id && +8==1 && now-ts<=0x64.
-static void inject_record(uint32_t mgr, uint32_t id, uint32_t now, int ordinal) {
-    if (!mgr || !mem_writable((void *)(uintptr_t)mgr, 0x10c)) return;
+static uint8_t *inject_record(uint32_t mgr, uint32_t id, uint32_t now, int ordinal) {
+    if (!mgr || !mem_writable((void *)(uintptr_t)mgr, 0x10c)) return NULL;
     uint8_t *rec = g_inpool + (g_inpool_idx++ % IN_POOL) * 12;
     *(volatile uint32_t *)(rec + 0) = id;
     *(volatile uint32_t *)(rec + 4) = now;
     *(volatile uint32_t *)(rec + 8) = 1;
     int slot = 63 - (ordinal & 63);
     *(volatile uint32_t *)(uintptr_t)(mgr + 0x0c + slot * 4) = (uint32_t)(uintptr_t)rec;
+    return rec;   // caller may watch rec[+0]: a poll clears it to 0 on consume (dialogue-active probe)
 }
 
 // Runs on the ENGINE thread (from the inputPoll safepoint).  Reproduces the retail
@@ -448,15 +467,41 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
         g_in_safepoint = 1; int slot = g_load_slot; g_load_pending = 0;
         do_load_at_safepoint(slot); g_in_safepoint = 0;
     }
+    uint32_t now = 0, e = g_ti_esp;
+    if (e) rd32((void *)(uintptr_t)(e + 4), &now);        // 0x437c70 arg1 = now
     if (g_md_state == 1 && g_ti_mgr) {                // menu-drive step 1: confirm at the title
         // Re-inject the title confirm EVERY poll until the save-slot picker opens (its poll
         // 0x4378d0 sets g_pk_mgr; the title only polls 0x437c70, so g_pk_mgr==0 until then).
         // A single title confirm is sometimes dropped before the title menu settles — the
         // old one-shot advance-to-2 then hung with the picker never open.
         if (g_pk_mgr) { g_md_state = 2; return; }     // picker up -> picker-confirm step
-        uint32_t now = 0, e = g_ti_esp;
-        if (e) rd32((void *)(uintptr_t)(e + 4), &now);    // 0x437c70 arg1 = now
         inject_record(g_ti_mgr, BTN_CONFIRM, now, 0);
+    }
+    if (g_ng_state && g_ti_mgr) {                     // new-game drive: rotate to Start, then confirm
+        if (g_ng_state == 1) {
+            if (g_ng_rotates > 0) {                   // one rotate every g_ng_gap polls (menu settle)
+                if (g_ng_cool > 0) g_ng_cool--;
+                else { inject_record(g_ti_mgr, (uint32_t)g_ng_btn, now, 3); g_ng_rotates--; g_ng_cool = g_ng_gap; }
+            } else g_ng_state = 2;
+        } else {                                      // step 2: confirm (re-inject until scene leaves title)
+            inject_record(g_ti_mgr, BTN_CONFIRM, now, 3);
+        }
+    }
+    // Auto-skip dialogue (suppressed while WE drive a menu).  Every poll: (1) note whether the
+    // dialogue advance-poll consumed last poll's 0x24 probe (record[+0] cleared) — that is our
+    // dialogue-active signal; (2) inject 0x24 (fresh probe) + 0x27 (both are dialogue-advance,
+    // inert in gameplay/menus, so no re-trigger); (3) ONLY while a dialogue is up, inject the
+    // reveal-skip ids (they double as the gameplay INTERACT key, so they must be gated) — fast.
+    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state) {
+        if (g_probe_rec && *(volatile uint32_t *)g_probe_rec == 0) g_dlg_seen = 0;   // probe consumed
+        else if (g_dlg_seen < 999) g_dlg_seen++;
+        g_probe_rec = inject_record(g_ti_mgr, 0x24, now, 4);        // probe + advance
+        inject_record(g_ti_mgr, 0x27, now, 5);                     // advance
+        if (g_dlg_seen == 0)                                        // dialogue up this poll -> reveal-skip
+            for (int i = 0; i < 6; ++i)
+                if (g_dlg_btns[i]) inject_record(g_ti_mgr, (uint32_t)g_dlg_btns[i], now, 6 + i);
+    } else {
+        g_probe_rec = NULL; g_dlg_seen = 999;
     }
 }
 
@@ -687,11 +732,12 @@ static void handle_line(const char *line, char *out, int cap) {
         // poll (0x4378d0) is firing.
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
-            "\"attract_frozen\":%s,\"keepactive\":%s,\"md_state\":%d,\"md_slot\":%d,"
-            "\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
+            "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"md_state\":%d,\"md_slot\":%d,"
+            "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
-            g_md_state, g_md_slot, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
+            g_dlgskip ? "true" : "false", g_md_state, g_md_slot,
+            g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
         return;
     }
     if (!strcmp(cmd, "read")) {
@@ -847,6 +893,26 @@ static void handle_line(const char *line, char *out, int cap) {
                  loaded ? "true" : "false", loaded ? "true" : "false", g_pk_diag, pj);
         return;
     }
+    if (!strcmp(cmd, "newgame")) {
+        // {"cmd":"newgame"[,"to":N]} — from the TITLE, rotate N times to the "New Game"/Start
+        // item then confirm (the game's own menu).  "to" = title rotations from the default
+        // (Continue) to Start (default 1).  With dlgskip on, the intro cutscene skips itself.
+        long long tmp;
+        ensure_hooks();
+        attract_freeze(1);
+        g_ng_rotates = json_num(line, "to",  &tmp) ? (int)tmp : 1;   // rotations to New Game
+        g_ng_btn     = json_num(line, "btn", &tmp) ? (int)tmp : 0x04; // 2=up / 4=down
+        g_ng_gap     = json_num(line, "gap", &tmp) ? (int)tmp : 6;    // polls between rotates
+        g_ng_cool    = 4;                                            // small settle before the 1st rotate
+        g_ng_state = 1;                                  // arm: rotate-to-Start -> confirm
+        int started = 0;                                 // done when the fresh player actor appears
+        for (int i = 0; i < 3000; ++i) { if (find_player()) { started = 1; break; } Sleep(10); }
+        g_ng_state = 0;
+        char pj[512]; player_json(pj, sizeof pj);
+        snprintf(out, cap, "{\"ok\":%s,\"started\":%s,\"player\":%s}",
+                 started ? "true" : "false", started ? "true" : "false", pj);
+        return;
+    }
     if (!strcmp(cmd, "loadraw")) {
         // {"cmd":"loadraw","slot":N[,"enter":true]} — EXPERIMENTAL direct chain: alloc S ->
         // 416550 load -> 586c60 apply -> (enter) 0x5cb460 transition, on the safepoint.
@@ -874,6 +940,42 @@ static void handle_line(const char *line, char *out, int cap) {
         // keeps rendering/updating while unfocused, without stealing focus.  Default ON.
         g_keepactive = json_bool(line, "on", 1);
         snprintf(out, cap, "{\"ok\":true,\"keepactive\":%s}", g_keepactive ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "dlgskip")) {
+        // {"cmd":"dlgskip","on":true|false} — auto-skip dialogue: inject the dialogue advance
+        // buttons (0x24/0x27) every gameplay poll, so any dialogue advances the instant it opens.
+        // Default ON.  Harmless outside dialogue (those ids are dialogue-only).
+        g_dlgskip = json_bool(line, "on", 1);
+        snprintf(out, cap, "{\"ok\":true,\"dlgskip\":%s}", g_dlgskip ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "dlgbtns")) {
+        // {"cmd":"dlgbtns","b0":..,"b1":..,...} — set which button ids dlgskip injects each poll
+        // (0/absent = clear that slot).  For tuning the reveal-skip button set live.
+        long long tmp; char key[4];
+        for (int i = 0; i < 6; ++i) {
+            snprintf(key, sizeof key, "b%d", i);
+            g_dlg_btns[i] = json_num(line, key, &tmp) ? (int)tmp : 0;
+        }
+        int n = snprintf(out, cap, "{\"ok\":true,\"dlgbtns\":[");
+        for (int i = 0; i < 6; ++i) if (g_dlg_btns[i]) n += snprintf(out+n, cap-n, "%s%d", n && out[n-1]!='[' ? "," : "", g_dlg_btns[i]);
+        snprintf(out+n, cap-n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "press")) {
+        // {"cmd":"press","btn":N[,"n":count]} — inject button N into the active input mgr `count`
+        // times over the next polls (probe: find which button does what in the current context).
+        long long btn, cnt = 1;
+        if (!json_num(line, "btn", &btn)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no btn\"}"); return; }
+        json_num(line, "n", &cnt);
+        uint32_t mgr = g_ti_mgr;
+        for (int i = 0; i < (int)cnt && mgr; ++i) {
+            uint32_t nowv = 0, e = g_ti_esp; if (e) rd32((void *)(uintptr_t)(e + 4), &nowv);
+            inject_record(mgr, (uint32_t)btn, nowv, 8);
+            Sleep(16);
+        }
+        snprintf(out, cap, "{\"ok\":true,\"pressed\":%d,\"n\":%d,\"mgr\":\"0x%08x\"}", (int)btn, (int)cnt, (unsigned)mgr);
         return;
     }
     if (!strcmp(cmd, "attract")) {
