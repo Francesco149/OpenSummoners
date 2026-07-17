@@ -477,6 +477,23 @@ for.  Results (all live-verified on the SE exe):
   advance (gate the advance on the grid, not the widget).  Alternatives surveyed: PolyHook2 (C++11,
   heavier), subhook/funchook (lighter C, BSD-2).
 
+### LANDED — MinHook grid capture VERIFIED + the reveal fields (NOT +0x8)
+- `dlghook` MinHooks the ctor 0x5e59c0 (__thiscall detour, 7 args, `ret 0x1c`) → `g_dlg_grid` at
+  BUILD time.  **VERIFIED live:** dlghook-ON + newgame (dlgskip-OFF) survives the WHOLE intro with
+  `captures`=4→13 ctor hits, game alive — exactly where install_detour + the VEH both crashed.
+  Retires the dlggrid scan for capture (it also catches waiting/instant boxes the scan missed).
+- **The reveal counter is NOT +0x8** — the DESIGN's old (unverified) guess is DISPROVEN: +0x8 stays
+  1 (or 6) while a line types.  `dlgtrace` (engine-speed grid[0..0xC0] snapshots) on a hook-captured
+  TYPING grid shows THREE climbing fields: **+0x0c 0→190, +0x10 0→192, +0x54 0→1000**.  +0x4c is NOT
+  a stable text length (reads 512 / 65538 / 458762 across grids = capacity/uninit junk).  Working
+  model: +0x0c = revealed char count, +0x10 = total chars (leads +0x0c by ~2), +0x54 = reveal
+  progress 0..1000 (same range as the widget box-scale).
+- **NEXT (fast-skip, un-blocked):** determine the DRIVER field (force each on a CONTROLLED typing box
+  — a non-voiced NPC/Dad box, not the auto-advancing voiced intro — and verify via a window
+  screenshot or field-stability re-read: the driver stays forced, a derived field gets recomputed).
+  Then fast-skip = force the driver; wire auto-advance gated on the GRID being active (not the
+  input-mgr widget).  Keep dlgskip OFF across the title→scene transition (the pre-existing race).
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
