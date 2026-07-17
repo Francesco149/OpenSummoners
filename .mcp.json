@@ -12,6 +12,19 @@
         "/opt/src/OpenSummoners/tools/opensummoners_mcp.py"
       ],
       "env": {}
+    },
+    "sotes_trainer": {
+      "_note": "DURABLE LLM interface to the injected EN-SE trainer DLL (tools/sotes_trainer/trainer.c) over its :7777 JSON socket — the LLM counterpart to the human's ImGui UI. stdlib-only, clean python (no devshell banner). Endpoint via env OSS_TRAINER_REMOTE, else cutestation.soy:7777.",
+      "type": "stdio",
+      "command": "nix",
+      "args": [
+        "shell",
+        "nixpkgs#python3",
+        "--command",
+        "python3",
+        "/opt/src/OpenSummoners/tools/sotes_trainer/trainer_mcp.py"
+      ],
+      "env": {}
     }
   }
 }

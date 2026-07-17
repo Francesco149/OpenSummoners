@@ -57,8 +57,22 @@ via `keepactive`/`attract`. (Live-verified via `build/inject.exe` into `sotes-en
 
 Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 (`cutestation.soy:7777`) — loopback won't cross the WSL2 NAT (the DLL binds
-`INADDR_ANY` for this; a shipped build should default to loopback). Helper:
-`scratchpad/sock.py '{"cmd":"player"}'`.
+`INADDR_ANY` for this; a shipped build should default to loopback).
+
+**The durable LLM interface is `trainer_mcp.py`** (committed; the LLM counterpart to the
+human's ImGui UI, which talks to the same socket). Registered as the `sotes_trainer` MCP in
+`.mcp.json` → an agent gets `mcp__sotes_trainer__*` tools (typed `player`/`teleport`/`load`/…
+plus a `raw` passthrough for any command, incl. ones added later). Also a CLI for immediate use:
+
+```
+python3 tools/sotes_trainer/trainer_mcp.py player
+python3 tools/sotes_trainer/trainer_mcp.py teleport x=50000 y=40000
+python3 tools/sotes_trainer/trainer_mcp.py raw cmd=state      # arbitrary passthrough
+python3 tools/sotes_trainer/trainer_mcp.py --selftest         # ping/state/player
+```
+
+Endpoint override: env `OSS_TRAINER_REMOTE=host:port` (a same-host ImGui UI uses
+`127.0.0.1:7777`). For raw one-offs, any line-JSON client works (`nc`, a socket snippet).
 
 | cmd | args | effect |
 |---|---|---|
