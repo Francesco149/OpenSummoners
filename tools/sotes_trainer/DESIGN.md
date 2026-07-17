@@ -516,6 +516,35 @@ then scan the SE binary for the same function").  Base-game (sotes.exe) model fr
   MainWindowHandle → GetClientRect+ClientToScreen → `Graphics.CopyFromScreen` (captures the displayed
   DDraw pixels; PrintWindow / FindWindow-by-class both failed).  `scratchpad/shot.ps1`.
 
+### Reveal counter FOUND — byte-scan RESOLVED (session 8, 2026-07-17)
+The base grade-table fingerprint = the **{×2,×3,×5}-of-one-register lea triple** (base 43a720:
+`lea [c+c*1]`/`[c+c*2]`/`[c+c*4]` → 2i/3i/5i pause grades).  UNIQUE in SE .text (`find_grade2.py`
+over the full objdump; VA=fileoff+0x400000 both exes) → the SE typewriter grade-setter **0x5e84f0**.
+Chased the object graph statically → the reveal offset the port needs:
+- **The reveal counter is TM+0x14 (== base), TWO pointer-hops BELOW the captured grid:**
+  `grid(g_dlg_grid) --+0x48[i]--> widget(0x1b0 B) --+0x170--> TM(0x2c B) --+0x14 reveal`.
+  **TM+0x10 = total; SKIP = write TM+0x14 = TM+0x10** (== port `dialogue_skip_reveal` reveal=total,
+  dialogue.c:199).  The old DESIGN probes failed b/c they poked grid+0x8 / widget fields directly —
+  the reveal lives on the TM sub-object, not the grid or the widget.
+- **g_dlg_grid IS the container** (ctor 0x5e59c0 PROVEN: `[+0x4c]=cap` word, `alloc cap*4`→`[+0x48]`=
+  widget-ptr array, each widget `alloc 0x1b0` B [== DESIGN's "cell"], `[+0x4e]`=count word init 0).
+  ⇒ active widget = `(*(u32*)(grid+0x48))[ *(u16*)(grid+0x4e) - 1 ]` (last-allocated line) — reachable
+  from the EXISTING ctor hook, **NO new hook**.
+- **TM sub-struct (0x2c B, alloc'd in start-line 0x5e6cd0 @ `widget+0x170`):** +0x00 glyph buf(0x200),
+  +0xc step/mode(=1), **+0x10 total**, **+0x14 reveal cursor**, +0x1c pacing timer(GetTickCount+300/
+  +100), +0x20/24/28 pause grades 2i/3i/5i.  Init by TM_init **0x5e84f0**(a1→+0xc, a2=i→+0x10, a3→
+  +0x14 cursor-init, a4→+0x18).
+- **FAITHFUL skip = call 0x5e7ad0(ecx=box, cmd=9)** — the SE analog of base `FUN_0043ca40` (PROVEN:
+  same GetTickCount now+300/+100 timers @TM+0x1c, same case-4..7 switch, 11-entry command jump table;
+  reads TM via `box+0x174`).  Cmd 9 = snap reveal→end.  ⚠ NOTE `box+0x174` (skip) vs `widget+0x170`
+  (typewriter) — the SAME ±4 as base; verify live which the widget exposes (likely box==widget with
+  the TM ptr cached at both, or box=widget's parent).
+- **Key SE VAs:** grid-ctor 0x5e59c0; add-line 0x5e6530 → get-widget 0x5e62c0 → start-line 0x5e6cd0;
+  TM_init 0x5e84f0; skip/step 0x5e7ad0.  Tools: `scratchpad/find_grade2.py`, `se_text.asm` (full objdump).
+- **NEXT: verify live** (dlghook + read/write, NO rebuild): walk grid→widget→TM, confirm +0x14 climbs
+  while +0x10 stays = total, force +0x14=+0x10 + screenshot; then rewrite `fastskip`/`grid` to the
+  chain + wire a faithful `call 0x5e7ad0(cmd=9)`.  Retires `PORT-DEBT(dlgskip-reveal-ui)`.
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
