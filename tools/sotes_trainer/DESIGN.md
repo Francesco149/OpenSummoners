@@ -103,6 +103,27 @@ probing scaffolding** used only to discover the mechanics recorded below.
 - **P4 combat**: `onehit` (freeze enemy HP≈0), robust `god`.
 - **P5 UI**: native/web panel over the JSON server showing all tracked stats + toggles.
 
+## Live findings — real tower save (Arche Lv17, HP 276/301), 2026-07-17
+
+Probing a REAL loaded save (not the demo) surfaced bugs the demo hid:
+- **TELEPORT (position write) gets RESET.** Writing `world_x 0xc76c` reverts within a
+  few frames to the authoritative value (wrote 109724 → snapped back to 169640).
+  `0xc76c`/`0xc770` are a per-frame **derived snapshot**; the game re-integrates
+  position from an authoritative source (sub-pixel accumulator / physics field) NOT
+  yet pinned (`+0xc790`=168120 is a near-miss candidate; region `+0xc764..+0xc7c0`
+  dumped). A 50ms freeze can't beat the ~16ms reset. FIX = RE the position-commit path
+  (the EN-SE analogue of the port's `0x442a70` worldX-commit — cross-ref `src/character.c`
+  / freeroam-collision findings) and write THAT, or hook the commit. Blocks teleport/warp.
+- **`level` offset WRONG.** `stat_block+0xe0` reads 5 but the HUD shows Lv17, and 17 is
+  absent from `+0x40..+0x110` → 0xe0 is not level; real level field TBD. (hp/mp/hp_max
+  are correct: hp_max=301 is the 3-term sum, confirmed — not a single field.)
+- **Anchor is correct** (only ONE live `0xc35a` actor; other hunt hits are garbage).
+  hp/mp read + stat writes (god/setstat) work (stat block is not physics-reset).
+- **Mob scan WORKS** (`scratchpad/mob_scan.py`): monster-code actors (`0xc742..0xc83e`)
+  filtered by validated same-map world coords, excluding the near-Arche **elemental**
+  (code 51090 @ ~56px) and stale `(0,0)` demo actors — found the real mob (51052 @ 574px).
+  Port this into the DLL as `tpnearest`/`listmobs` once teleport's position field is fixed.
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
