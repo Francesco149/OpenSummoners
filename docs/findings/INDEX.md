@@ -28,10 +28,12 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   EN-old build matrix: file inventory, shared-vs-different asset DLLs (with hashes), the
   voice-line architecture (`sotesx_s.dll` = 1,448 `WAVE` clips, **JP-only**), which engine
   loads which DLL, and why the English builds are silent. Grows as we compare more.
-- **[ense-voice-monster-se-drop.md](ense-voice-monster-se-drop.md)** — the JP-voice patch silences
-  monster combat sounds **only in Mystery Dungeon** (SE roguelike); base-game monsters are fine. MD
-  sounds use the `sotesx_d2.dll` bank (`0x92af7c`) adjacent to the voice bank `0x92af80`; installing
-  the voice bank perturbs the MD sound-slot allocation (`~0x586af1`). OPEN — plan = drive MD + trace.
+- **[ense-voice-monster-se-drop.md](ense-voice-monster-se-drop.md)** — reported JP-voice-patch monster
+  silence (Ghost Warlock/Black Harpy/Babymage in Mystery Dungeon). **NOT REPRODUCED** across 6 live
+  contexts incl. USER listening to the forced reported trio in MD floor 1 (all sounds play). Dispatch
+  chain proven healthy under the patch; `origin/master` never shipped the reverted Fix A, so the
+  reporter ran the same clean logic. Surviving hypotheses = deep-floor scale / reporter env; NEXT =
+  ask reporter for logs+depth. Durable trainer built (`tools/ennse_trainer/`) for fast scenario setup.
   (An earlier base-game "registrar 2-byte fix" was a misdiagnosis, reverted.)
 
 ## Rendering / assets

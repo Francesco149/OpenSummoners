@@ -1,81 +1,70 @@
-# EN-SE JP-voice patch — MONSTER sounds silenced in MYSTERY DUNGEON (open)
+# EN-SE JP-voice patch — reported monster-sound silence (Mystery Dungeon) — NOT REPRODUCED
 
-**Symptom (USER):** with the `tools/ennse_voice` JP-voice patch installed, monster combat sounds
-(Ghost Warlock evasion + death, Black Harpy damage/singing/death, Babymage damage/spellcast) go
-SILENT — **but ONLY in Mystery Dungeon / Abyssal Ruins**, the Special-Edition roguelike gamemode
-(new SE content). Dialogue voice works. **Base-game monsters are UNAFFECTED** — the user played most
-of the game on the (old) patch with zero issues; base Ghosts in Chartreux Catacombs play their
-death/evasion sounds correctly WITH the patch.
+**Report:** with the `tools/ennse_voice` JP-voice patch: Ghost Warlock evasion+death, Black Harpy
+damage/singing/death, Babymage damage/spellcast SILENT, "tested with monsters in Mystery Dungeon's
+Abyssal Ruins, there are probably other monsters with the same issue."
 
-## STATUS: base-game path was a DETOUR — the real bug is Mystery-Dungeon-specific
+## STATUS 2026-07-17: extensive live campaign — NO repro in 6 contexts. Dispatch chain proven healthy under the patch.
 
-An earlier pass mis-diagnosed this as a base-game def-table bug and shipped a 2-byte registrar patch
-(retarget `0x59ccce`/`0x59ccd8`). **That was WRONG and is REVERTED** (`version_proxy.c` is back to the
-clean bank+manager seed). Proof it was wrong: base-game monster sounds were never broken — same with
-or without the patch, and same before/after that "fix". Do NOT re-add it.
+Instrumented retail EN-SE (probe `tools/ennse_voice/repro_probe.py` + repro_agent.js; side tracer
+scratchpad `se_trace.py` hooking `bufferStart 0x5e3e10` + `soundPlay 0x4075a0` w/ caller VAs,
+DirectSound `GetStatus`/`Play` verified). All PATCHED (voice bank live, gate 0):
 
-## Background — the base-game sound system (works fine WITH the patch; here for reference)
-
-- Static sound-def table @ VA **`0x65b0e8`** (294 recs, stride `0x24`). Per-record: `+0x00` key
-  (monster/char id), `+0x04` action code, `+0x08` mgr_idx, `+0x0a` SE clip id, `+0x1c` voice id.
-- Consumed by the registrar `0x59cc8c` (preload) + trigger `0x423850` (enqueue by key; 22 callers,
-  each hardcodes a monster sound-set key). Per-monster sound object at `monster+0x15b78`; play method
-  `0x4075a0`.
-- Monster action codes (confirmed by USER listening in res_explorer): **a73/a74/a9 = attack/hit
-  (work), a12 = death, a7 = evasion/backstep**. All monster records are `voice_id==0` (unvoiced by
-  design; only Arche/Sana/Stella/Chiffon + the Ancient Wyvern boss `0x18754` are voiced). Base monster
-  clips live in **`sotesd.dll`** (the default bank; e.g. Ghost death=1936-1941, Merkid=1643-1645).
-- Records for working vs "reported-broken" base sounds are BYTE-IDENTICAL, and all clips are present —
-  which is *why* nothing base-game reproduced the bug. It never was a base-game bug.
-
-## THE REAL BUG — Mystery Dungeon uses the `sotesx_d2` sound bank, adjacent to the voice bank
-
-The bank block (engine globals; loader `0x5d79c0`+ via `bank_load 0x5d8b10`):
-
-| global | DLL | role |
+| context | method | result |
 |---|---|---|
-| `0x92af78` | `sotesp.dll` | base SE bank |
-| **`0x92af7c`** | **`sotesx_d2.dll`** | **SE / Mystery Dungeon content bank** (88 MB) |
-| `0x92af80` | `sotesx_s.dll` | VOICE bank — **what the patch installs** |
-| `0x92af84` | `sotesx_d3.dll` | tiny SE patch |
+| title synthetic | construct+play all 7 reported (keys 0xC789/0xC792/0xC829) | ALL play, DS hresult 0 (also stock — identical; codex 2026-07-16) |
+| Arche's Arena (bonus menu) natural | force-spawn `0x419b00` arg6 → real fights, ~312 kills | attack a73 + Babymage cast a10 play; **real Ghost Warlock death a12 dispatched+played** (caller `0x4498d8`) |
+| story field (Archmage's Tower save) | live Babymages | cast a10 plays |
+| **MD floor 1, forced reported trio** | force-spawn 4×0xC78B/4×0xC794/4×0xC829, USER LISTENING (visible window, HP frozen) | **USER: "sounds are all playing correctly — harpy singing and screaming"** |
+| MD synthetic (in-mode) | all 7 reported | ALL play, DS-verified |
+| pool pressure | 72 retained synthetic sound sets (~300 buffers) | zero degradation |
 
-MD sounds come through the `sotesx_d2` (`0x92af7c`) bank, which sits **immediately before** the voice
-bank `0x92af80`. A large sound-resource setup routine (entry ~**`0x586af1`**) registers sounds with
-**slot counts that change based on which banks are loaded**:
-- `0x587f87`: `count 6→8` when the **MD bank** `0x92af7c` is present.
-- `0x5880e8`: `count 4→7` when the **voice bank** `0x92af80` is present.
+USER also confirms EARLY MD mobs sound fine on the patch (own playthrough of MD dungeon 1), and
+base-game monsters were always fine (whole-game playthrough on the patch).
 
-⇒ **Installing the voice bank measurably alters the MD sound-resource/slot allocation.** Leading
-hypothesis: the extra voice slots **shift the slot/channel indices** the MD sounds were registered
-into, so the MD play reads the wrong/empty slot → silent. (Mechanism CLASS confirmed statically; the
-exact slot/routing step is runtime allocation — needs live observation to pin.) Heavy MD-bank consumer
-to inspect: the `0x594xxx` cluster (`0x5943e5`+, ~15 reads of `0x92af7c`). Dual-bank consumers
-(read BOTH `0x92af7c` and `0x92af80`): the `0x582xxx` and `0x588xxx` (the `0x586af1`) functions.
+## Key mechanics learned (durable)
 
-## PLAN (next session) — drive the EN-SE game into Mystery Dungeon + trace
+- Monster damage/death/evasion sounds DO go through per-owner `soundPlay 0x4075a0`
+  (death a12 caller `0x4498d8`; party damage a9 caller `0x4530e3`, evade a7 `0x459fa9`). Most arena
+  trash has NO death-scream rows — 1 death dispatch in 300 kills is normal, not a bug signal.
+- Sound-def table `0x65b0e8` (294×0x24): the reported trio = the TAIL rows (274-278, 282-284,
+  286-292). Babymage rows have `bank_selector=-1` (multi-bank); ghost/harpy `0`; only 4 rows use
+  bank 1; NONE reference the MD bank statically.
+- Loader state machine `0x586a63..0x588xxx` (state entry `0x586af1`): sound-channel pool counts —
+  `0x587f87` 6→8 if MD bank `0x92af7c`, `0x5880e8` 4→7 if voice bank `0x92af80` (+3 slots when
+  patched). Still the best mechanistic lever for a scale/depth-dependent drop (tail rows lose
+  first) — but 72-set spam did NOT exhaust anything.
+- MD mode ("Arche's Mystery Dungeon ver2.0") = title → Start → Scenario Select (its prologue reuses
+  the story opening w/ Challenge tutorial panels; runs on the MAIN-GAME input loop — `0x5b66bd` is
+  NOT MD-exclusive).
+- Title drive (headless): title routine classic `0x584ac0` / SE-variant `0x582c40` chosen by
+  `(0x92af7c==0 || opt+0x158!=0)` in dispatcher `FUN_00581ba0`; menu polls ONLY {2,4,34,37}
+  (4=rotate+1, 37=confirm, 34=abort; first accepted press = wake, eats the rotate). Dispatcher
+  switch on title return: 0x1a=Start (→`FUN_005a4a40` scenario select when MD bank present),
+  0x1c=Continue (`0x585cf0`), 0x1d=Special/bonus (`0x58b1f0`), 0x1e=Option, 6/8/9=exit. Story
+  demos poll gameplay ids and EAT queued ring presses — self-sync `press_when` is unreliable at
+  the title; forcing the title's return code (hook onLeave, inject 34) is the robust bypass.
+- God mode: cur HP is NOT in the actor (0x15b90 obj); heap-hunt value→winnow after damage → single
+  addr; freeze @0.25s. (Actor+0xB638 was the WALLET in one run — verify before freezing.)
+- 2× crash at the MD town weapon-shop NPC (codex 2026-07-16 + USER 2026-07-17 first visit;
+  second visit clean) — patched+instrumented both times, nondeterministic, no crash log. OPEN.
 
-1. **Repro:** launch the retail EN-SE `sotes_en.exe` WITH the patch installed (`version.dll` +
-   `realver.dll` + `sotesx_s.dll` in `…\steamapps\common\sotes\`), **new game → select Mystery
-   Dungeon** (a roguelike; immediately available on a new game — no endgame save needed). Reach a MD
-   monster; the death/evasion/etc. sound is silent.
-2. **Trace (audio can't be "heard" — detect via the call path):** Frida-hook the sound-resource setup
-   (`0x586af1`), the play method (`0x4075a0`) / low-level DSound play, and the bank reads, and watch a
-   MD monster sound: does the play call fire? does it resolve a valid slot/clip? which bank? Compare
-   WITH vs WITHOUT the voice bank loaded (`0x92af80`).
-3. **Bisection (localizes bank-vs-manager):** a diagnostic `version.dll` that loads the bank but SKIPS
-   the manager creation — if MD still breaks, it's the bank presence (`0x92af80`) perturbing the
-   sound-resource setup (the `0x586af1` finding); if MD works, it's the manager.
-4. **Fix** goes at the patch level once the exact step is known (e.g. avoid perturbing the MD slot
-   allocation, or correct the routing) — NOT a base-game def-table change.
+## Where this leaves the bug
 
-## Driving-setup notes (for next session)
-- Game exe: `C:\Program Files (x86)\Steam\steamapps\common\sotes\sotes_en.exe` (EN-SE). Unpacked copy
-  for RE: `vendor/unpacked/editions/sotes-ense-en.exe`. Full disasm is regenerable via objdump.
-- The live-probe MCP (`mcp__opensummoners__*`) targets the PORT exe (`sotes.unpacked.exe`), NOT
-  `sotes_en.exe` — **verify/adapt** it (or use `build/inject.exe` + a Frida agent) to launch + drive +
-  observe the EN-SE game. Menu nav = keyboard; screenshots to see the menu; the roguelike likely can't
-  be saved mid-run.
-- USER will watch the run (they've not played the gamemode). Push visuals to the llm-feed as you go.
+Not reproducible on a fresh MD run with the exact reported monsters. Surviving hypotheses:
+1. **Depth/scale**: Abyssal Ruins deep floors (bigger rosters / long sessions) + the +3 voice-slot
+   shift → tail-row sound sets lose slots. Needs either a deep save or the constrained pool
+   identified statically (the `0x40ce80` allocation cluster `0x587f00-0x588300`).
+2. **Reporter-side environment**: NOT a bad interim build — `origin/master` never included Fix A
+   (2874247/717cfb2 are local-only), so the reporter ran the initial clean seed, i.e. the SAME
+   logic we failed to repro against. Remaining reporter variables: their JP `sotesx_s.dll`
+   variant, sound device/config, MD progress. **NEXT: ask the reporter** for `oss_voice.log`,
+   how deep in Abyssal Ruins, session length (fresh boot vs hours in), mob density on screen,
+   and whether party/attack sounds stayed fine while ONLY those monsters were silent.
+3. Plain SE channel-stealing under mob crowds (would repro stock too — not a patch bug).
 
-Provenance: static RE of `vendor/unpacked/editions/sotes-ense-en.exe`; base-game repro confirmed live
-by USER; MD path not yet live-traced.
+Do NOT re-add the registrar retarget (`0x59ccce/0x59ccd8`) — see revert 717cfb2; base game + MD
+floor 1 provably fine without it.
+
+Provenance: live Frida campaign 2026-07-17 (runs/ennse-voice-repro/startup-*-2026071{6,7}-*),
+static decompile of `vendor/unpacked/editions/sotes-ense-en.exe` via DecompileAt.java.
