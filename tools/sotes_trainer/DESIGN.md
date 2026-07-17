@@ -435,6 +435,48 @@ safely; or (2) a memory-SCAN command (like find_player) to locate the active gri
 cell-color signature + walk to grid+0x8/+0x4c; then force reveal=total.  The two shipped fixes
 (passive gate, settle debounce) are unaffected; the fast-skip is DEFERRED pending that infra.
 
+## Session 7 (2026-07-17) — debug-infra: scanner works, VEH is a dead end, MinHook is the path
+
+Built the "scan for the grid, then debug the game to find the accessor code" infra the USER asked
+for.  Results (all live-verified on the SE exe):
+
+- **install_detour's REAL bug (RE'd — it is NOT "SEH unwind").**  install_detour copies a FIXED
+  5 bytes; 0x5e59c0's first insn is the **6-byte** `mov eax,fs:0x0` (`64 a1 00 00 00 00`).  Saving
+  5 SPLITS it: the trampoline runs a truncated `mov` that eats the jmp-back opcode as its disp32 →
+  corrupted control flow (the "SEH crash" — WER put the fault mid-instruction).  The title/picker
+  hooks work only because their first 5 bytes are whole insns (`53 8b 5c 24 0c`).  ⇒ the fix is a
+  **length-disassembler** hook, not "avoid SEH-scope functions".
+- **VEH / HW-breakpoint engine = DEAD END here.**  A registered vectored exception handler CRASHES
+  the newgame intro even doing nothing (returns `CONTINUE_SEARCH`) — the intro scene build is
+  C++/SEH-exception-heavy and a process-wide VEH perturbs it.  PROVEN by bisection: newgame crashes
+  with the VEH registered + NO bp armed; the committed build's newgame is fine.  The engine code is
+  kept but gated behind `OSS_TRAINER_ENABLE_VEH` (default OFF) — do NOT rely on it / on HW watch.
+- **The newgame crash under dlgskip-ON is a PRE-EXISTING race, not the new code.**  A larger DLL
+  perturbs the settle-debounce timing so the pre-existing dlgskip/intro-transition race fires.
+  dlgskip-OFF newgame survives (both builds — bisected).  Work around: keep dlgskip OFF across the
+  title→scene transition; the robust fix is to not touch the widget until the scene fully settles.
+  (Also: the intro's early **voiced** lines auto-advance themselves — dlgskip was never skipping
+  those; the real target is WAITING dialogue, e.g. Dad / the "new house" cutscene box.)
+- **Scanner (`scan`/`dlggrid`/`grid`) — shipped, WORKS on a TYPING grid** (active==1): found the
+  intro grid (rev=6/512).  MISSES a WAITING/instant box (active!=1 when done typing).  Two caveats
+  that make raw scanning fragile: (1) the **DirectDraw framebuffer** is a big volatile RW private
+  region whose pixels are rewritten every frame → a value-scan matches framebuffer NOISE (e.g.
+  0x06fac744 matched every value probed); verify hits by re-reading for stability.  (2) **+0x4c
+  (512) is the cell-array CAPACITY, NOT the per-line text length** — `reveal` (+0x8) climbs to a
+  per-line textlen field (TBD), so fast-skip must force `reveal = <textlen field>`, NOT +0x4c.
+  `fastskip` is therefore WIP (default OFF) pending that field + a robust capture.
+- **Cell layout (RE'd live):** a cell = `[glyph coverage bitmap (ascending alpha bytes)][color
+  palette: +0x00 body 0x3e537d, +0x04 shadow 0xa8b9cc, +0x08.. more]`, ~0x1b0 B; the grid holds the
+  cell array at +0x48.
+- **THE PATH FORWARD = MinHook** (USER suggestion; `TsudaKageyu/minhook`, BSD-2, MinGW-buildable,
+  uses the HDE length disassembler → copies WHOLE instructions, fixing the 6-byte-prologue bug for
+  good).  Plan: vendor it, `MH_CreateHook(0x5e59c0, detour, &orig)` with a **naked-jmp** detour
+  (`mov ecx→g_dlg_grid; jmp *orig` — convention-agnostic, no thiscall double-`ret N` cleanup),
+  `MH_EnableHook`.  Captures EVERY grid at build time (typing OR waiting) → retires the scanner
+  signature.  Then RE the reveal-target field off a KNOWN captured grid, wire fast-skip + auto-
+  advance (gate the advance on the grid, not the widget).  Alternatives surveyed: PolyHook2 (C++11,
+  heavier), subhook/funchook (lighter C, BSD-2).
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).

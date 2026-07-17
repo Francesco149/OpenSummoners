@@ -184,8 +184,83 @@ static int stat_max(uintptr_t sb, int base_off, int equip_off, int buff_off) {
     return m < 0 ? 0 : m;
 }
 
+// ─── generic memory scanner + dialogue-grid locator (hook-free "find the object") ──
+// Walk committed MEM_PRIVATE RW regions (the game heap; MEM_IMAGE like sotesd.dll is
+// skipped) collecting dword-aligned matches.  scan_u32 = the general value scan; the
+// grid signature below locates the SE story/cutscene dialogue text-grid with NO hook
+// (the input-mgr widget box_open is false for story dialogue — that box lives on a
+// separate object built by the ctor 0x5e59c0).  Grid layout (RE'd, DESIGN §6c): +0x4
+// active(=1), +0x8 reveal counter (0..total), +0x48 cell array, +0x4c char total; cells
+// carry the body-text color 0x3e537d / 0xa8b9cc — the signature that rejects the many
+// heap objects with a coincidental +0x4==1.
+static int scan_u32(uint32_t needle, uintptr_t *out, int cap) {
+    int n = 0;
+    uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
+    while (n < cap && VirtualQuery(addr, &mbi, sizeof mbi)) {
+        uint8_t *next = (uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
+            (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) &&
+            mbi.RegionSize <= 0x8000000) {
+            uint32_t *p = (uint32_t *)mbi.BaseAddress, *e = (uint32_t *)(next - 4);
+            for (; p <= e && n < cap; ++p)
+                if (*p == needle) out[n++] = (uintptr_t)p;
+        }
+        if (next <= addr) break;
+        addr = next;
+    }
+    return n;
+}
+#define DLG_BODY_COLOR_A 0x3e537d
+#define DLG_BODY_COLOR_B 0xa8b9cc
+static int cell_has_body_color(uint32_t cells) {
+    if (!mem_readable((void *)(uintptr_t)cells, 0x1b0)) return 0;
+    for (uint32_t o = 0; o < 0x1b0; o += 4) {                 // (a) cells = INLINE cell array
+        uint32_t v = 0;
+        if (rd32((void *)(uintptr_t)(cells + o), &v) && (v == DLG_BODY_COLOR_A || v == DLG_BODY_COLOR_B)) return 1;
+    }
+    uint32_t c0 = 0;                                          // (b) cells = POINTER array -> cell[0]
+    if (rd32((void *)(uintptr_t)cells, &c0) && mem_readable((void *)(uintptr_t)c0, 0x1b0)) {
+        for (uint32_t o = 0; o < 0x1b0; o += 4) {
+            uint32_t v = 0;
+            if (rd32((void *)(uintptr_t)(c0 + o), &v) && (v == DLG_BODY_COLOR_A || v == DLG_BODY_COLOR_B)) return 1;
+        }
+    }
+    return 0;
+}
+static int grid_looks_valid(uintptr_t p) {
+    uint32_t active = 0, reveal = 0, total = 0, cells = 0;
+    if (!rd32((void *)(p + 0x4),  &active) || active != 1)               return 0;
+    if (!rd32((void *)(p + 0x4c), &total)  || total < 1 || total > 4096) return 0;
+    if (!rd32((void *)(p + 0x8),  &reveal) || reveal > total)            return 0;
+    if (!rd32((void *)(p + 0x48), &cells)  || cells <= 0x10000)          return 0;
+    return cell_has_body_color(cells);
+}
+static int find_dlg_grids(uintptr_t *out, int cap) {
+    int n = 0;
+    uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
+    while (n < cap && VirtualQuery(addr, &mbi, sizeof mbi)) {
+        uint8_t *next = (uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
+            (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) &&
+            mbi.RegionSize <= 0x8000000) {
+            uint32_t *p = (uint32_t *)mbi.BaseAddress, *e = (uint32_t *)(next - 0x50);
+            for (; p <= e && n < cap; ++p) {
+                if (*p != 1) continue;                        // cheap prefilter on +0x4==1
+                uintptr_t base = (uintptr_t)p - 0x4;
+                if (grid_looks_valid(base)) out[n++] = base;
+            }
+        }
+        if (next <= addr) break;
+        addr = next;
+    }
+    return n;
+}
+
 // ─── freeze table (applied every tick) ──────────────────────────────────────
 static volatile int g_god;                 // freeze hp+mp at max
+static volatile int g_fastskip;            // fast-skip: force the dialogue typewriter reveal to total
+static volatile uint32_t g_dlg_grid;       // story/cutscene text-grid `this` (also declared below near
+                                           // the dlgtrace; a tentative def — set by dlggrid/fastskip scan)
 #define MAX_LOCKS 16
 static struct { int used; uintptr_t addr; uint32_t val; } g_locks[MAX_LOCKS];
 static CRITICAL_SECTION g_lock_cs;
@@ -227,6 +302,30 @@ static DWORD WINAPI tick_thread(void *unused) {
             if (g_locks[i].used && mem_writable((void *)g_locks[i].addr, 4))
                 *(uint32_t *)g_locks[i].addr = g_locks[i].val;
         LeaveCriticalSection(&g_lock_cs);
+        // Fast-skip (WIP, default OFF): force the story grid's reveal high while typing — a pure
+        // UI-STATE write (no button ⇒ no world input ⇒ can't trip the door).  SELF-LOCATING via the
+        // signature scan (no hook): rescan (throttled ~150ms) when the cached grid isn't live.
+        // ⚠ KNOWN-INCOMPLETE: +0x4c (=512 live) is the cell-array CAPACITY, NOT the per-line text
+        // length; reveal (+0x8) climbs to a per-line textlen field (TBD).  Forcing reveal=+0x4c
+        // over-reveals — this is a PLACEHOLDER until the ctor hook (MinHook) captures the grid and
+        // the real reveal-target field is RE'd.  Also only catches a TYPING box (active==1); a
+        // waiting/instant box (active!=1) is missed — another reason the hook supersedes the scan.
+        if (g_fastskip) {
+            uint32_t g = g_dlg_grid, active = 0, reveal = 0, total = 0;
+            int live = g && rd32((void *)(uintptr_t)(g + 0x4), &active) && active == 1;
+            if (!live) {
+                static int rescan_div = 0;
+                if (++rescan_div >= 3) {                       // ~150ms: locate a live grid by scan
+                    rescan_div = 0;
+                    uintptr_t hit[1];
+                    if (find_dlg_grids(hit, 1) == 1) { g = (uint32_t)hit[0]; g_dlg_grid = g; live = 1; }
+                }
+            }
+            if (live && rd32((void *)(uintptr_t)(g + 0x4c), &total)  && total >= 1 && total <= 4096 &&
+                        rd32((void *)(uintptr_t)(g + 0x8),  &reveal) && reveal < total &&
+                        mem_writable((void *)(uintptr_t)(g + 0x8), 4))
+                *(volatile uint32_t *)(uintptr_t)(g + 0x8) = total;
+        }
     }
     return 0;
 }
@@ -1089,6 +1188,61 @@ static void handle_line(const char *line, char *out, int cap) {
         int freeze = json_bool(line, "freeze", 1);
         attract_freeze(freeze);
         snprintf(out, cap, "{\"ok\":true,\"attract_frozen\":%s}", freeze ? "true" : "false");
+        return;
+    }
+
+    // ── scanner + fast-skip (hook-free; the ctor hook will move to MinHook) ──
+    if (!strcmp(cmd, "scan")) {
+        // {"cmd":"scan","value":N[,"max":M]} — find every dword == value in the game heap.
+        long long v, m = 32;
+        if (!json_num(line, "value", &v)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no value\"}"); return; }
+        json_num(line, "max", &m);
+        if (m < 1) m = 1;
+        if (m > 256) m = 256;
+        uintptr_t hits[256];
+        int nh = scan_u32((uint32_t)v, hits, (int)m);
+        int n = snprintf(out, cap, "{\"ok\":true,\"value\":\"0x%08x\",\"count\":%d,\"addrs\":[",
+                         (unsigned)(uint32_t)v, nh);
+        for (int i = 0; i < nh && n < cap - 16; ++i)
+            n += snprintf(out + n, cap - n, "%s\"0x%08x\"", i ? "," : "", (unsigned)hits[i]);
+        snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "dlggrid") || !strcmp(cmd, "dlggrab")) {
+        // {"cmd":"dlggrid"} — locate the live story/cutscene dialogue text-grid(s) by the structural
+        // + body-color signature (works on an ALREADY-open box, no hook).  Sets g_dlg_grid to the
+        // first hit for grid/fastskip.  (dlggrab is an alias — the old exec-BP capture is retired.)
+        uintptr_t g[16];
+        int ng = find_dlg_grids(g, 16);
+        if (ng > 0) g_dlg_grid = (uint32_t)g[0];
+        int n = snprintf(out, cap, "{\"ok\":true,\"count\":%d,\"grids\":[", ng);
+        for (int i = 0; i < ng && n < cap - 96; ++i) {
+            uint32_t active = 0, reveal = 0, total = 0, cells = 0;
+            rd32((void *)(g[i] + 0x4), &active); rd32((void *)(g[i] + 0x8), &reveal);
+            rd32((void *)(g[i] + 0x4c), &total); rd32((void *)(g[i] + 0x48), &cells);
+            n += snprintf(out + n, cap - n,
+                "%s{\"grid\":\"0x%08x\",\"active\":%u,\"reveal\":%u,\"total\":%u,\"cells\":\"0x%08x\"}",
+                i ? "," : "", (unsigned)g[i], active, reveal, total, (unsigned)cells);
+        }
+        snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "grid")) {
+        // {"cmd":"grid"} — inspect the captured story dialogue grid (g_dlg_grid).
+        uint32_t g = g_dlg_grid, active = 0, reveal = 0, total = 0, cells = 0;
+        if (g) { rd32((void *)(uintptr_t)(g + 0x4), &active); rd32((void *)(uintptr_t)(g + 0x8), &reveal);
+                 rd32((void *)(uintptr_t)(g + 0x4c), &total); rd32((void *)(uintptr_t)(g + 0x48), &cells); }
+        snprintf(out, cap,
+            "{\"ok\":true,\"grid\":\"0x%08x\",\"active\":%u,\"reveal\":%u,\"total\":%u,\"cells\":\"0x%08x\"}",
+            (unsigned)g, active, reveal, total, (unsigned)cells);
+        return;
+    }
+    if (!strcmp(cmd, "fastskip")) {
+        // {"cmd":"fastskip","on":true|false} — force the story grid's typewriter reveal to total each
+        // tick (instant text), self-locating via the scan.  Pure UI-state write (DESIGN reveal-ui debt).
+        g_fastskip = json_bool(line, "on", 1);
+        snprintf(out, cap, "{\"ok\":true,\"fastskip\":%s,\"grid\":\"0x%08x\"}",
+                 g_fastskip ? "true" : "false", (unsigned)g_dlg_grid);
         return;
     }
 
