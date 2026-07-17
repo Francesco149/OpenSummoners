@@ -36,6 +36,11 @@ probing scaffolding** used only to discover the mechanics recorded below.
 
 ## Discovered mechanics (EN-SE, VA = fileoff + 0x400000)
 
+> **The durable SE VA registry + base-game equivalence is `SE_CODE_MAP.md`** — read it before
+> re-deriving any offset. Key rule proven there: base (old Steam `sotes.exe`) and SE are
+> INDEPENDENT RECOMPILES — VAs do NOT transfer (bytes differ at every VA), only the MODEL
+> (struct offsets, algorithm, constants) carries; find SE analogs by fingerprint, verify live.
+
 ### Player anchor + stats — VERIFIED live vs HUD (Lv3 / HP140 / MP34)
 - ctor `0x419b00` (14-arg): entity code = arg6 @ `esp+0x18`; final code @ `actor+0x1d4`,
   handle @ `actor+0x1d8`. **Player = code `0xc35a`** (Arche, dramatist row 0).
