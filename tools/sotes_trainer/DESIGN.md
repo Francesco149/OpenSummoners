@@ -103,6 +103,36 @@ probing scaffolding** used only to discover the mechanics recorded below.
 - **P4 combat**: `onehit` (freeze enemy HP≈0), robust `god`.
 - **P5 UI**: native/web panel over the JSON server showing all tracked stats + toggles.
 
+## Next session — map introspection + fast travel (planned; USER-set 2026-07-18)
+The goal arc, in order (each step: RE → verify live → trainer cmd):
+1. **Query the CURRENT map + its contents.**  Which map/scene we're in (id/name) + every object.  **The
+   map STRUCTURE/props/portals are LARGELY DONE in the port** (USER — reuse, don't re-RE): `res_explorer`
+   renders any map + its props, the port renders town/house/errands, `map_decode` + the 587e00 tile dispatch
+   (100% cell coverage, quirks #119-121) + the region-E link anchors give the format.  So the map-DATA query
+   = parse that (statically from the SE map resource, or live off the loaded scene) — cross-ref.  **The GAP
+   (new RE): MOBS / NPCS + maps beyond the house.**  The port's CHARACTER band is only captured for town/
+   house/errands (`ERRANDS_CAST`, `CHAR_BANK_DEFS`); mob/NPC spawn tables elsewhere are stubbed and no map
+   past the house is rendered.  So live-read the SE actor pool for mobs/NPCs (monster codes `0xc742..`/
+   `0x18744..` + NPC codes; anchor = the actor ctor `0x419b00`, already hooked) and RE the per-map spawn.
+2. **Enumerate every PORTAL** (map-transition triggers / region links — the port's region-E link anchors,
+   map codes 90010/90011, `FUN_0058cb30`, already RE'd → cross-ref).  Each portal → position + DESTINATION
+   map (+ entry point).
+3. **Query the maps reachable from here** (the portal destination set) → build a map GRAPH.
+4. **Test a DIRECT map-change FIRST (USER — before building any pathfinding).**  Try triggering the
+   transition STRAIGHT to a destination map (call the map/scene-transition fn with a target map id — the SE
+   analog of the load-transition `0x5cb460`, or the map-change a portal itself invokes) and check it is
+   WELL-BEHAVED enough for testing: does the destination load with party + state intact, correct spawn, no
+   softlock / missing-flag break?  If a direct jump is clean, **fast-travel = just call it** and the portal
+   graph + pathfind (5-6) become UNNECESSARY (or a fallback only for maps the direct jump can't reach cleanly).
+5. **Pathfind map→map** (only if the direct jump breaks state portals set up): given a save's starting map +
+   a target (searched by "what needs testing"), BFS the portal graph → the sequence of maps/portals to walk.
+6. **Auto fast-travel:** drive it — teleport Arche to each portal (the phys-box teleport, already working)
+   + auto-ENTER it (the transition trigger — UP-into-portal per the door model, or call the transition fn)
+   → hop map-to-map to the destination.
+Foundation in hand: teleport (`*(actor+0x40)` phys-box), the player anchor, **autoskip** (blast through any
+dialogue en route), load/newgame (pick the start save).  Prereq RE: the map/scene singleton + object-pool
+layout (SE offsets) and the portal record format.
+
 ## Live findings — real tower save (Arche Lv17), 2026-07-17 (SESSION 2 — RESOLVED)
 
 Probing the REAL loaded save (Archmage Tower) resolved the two bugs the demo hid.
@@ -570,8 +600,9 @@ DEBUGGER (Interceptor + Backtracer + a code-patch toggle — the reusable rig be
 - **FIX = patch the je: `0x437740` `74 10` → `90 90` (nop nop)** → the stepper advances EVERY frame → ALL
   story dialogue skips itself, hands-free.  **VERIFIED LIVE** (frida patch, USER-confirmed): skips Mom's +
   Dad's + every new box, NO stray world input, repeats on each dialogue.  SHIPPED as **`autoskip`**
-  (`dlg_autoskip` + `patch_bytes`; `VA_DLGADV_JE`).  Pure 2-byte code patch, no input injection.  Default
-  OFF (also auto-advances CHOICE boxes — toggle off to read/pick).  Builds clean.
+  (`dlg_autoskip` + `patch_bytes`; `VA_DLGADV_JE`).  Pure 2-byte code patch, no input injection.  **Default
+  ON** (USER; applied at attach in `keepalive_thread`, alongside attract-freeze — a boot code-patch, so no
+  scene-settle debounce needed).  Also auto-advances CHOICE boxes → `autoskip off` to read/pick.  Builds clean.
 - **The frida DEBUGGER rig is reusable** (the USER-requested "actual debugger"): `scratchpad/dbg.py`
   (Interceptor onEnter hooks + `Thread.backtrace` on ANY VA — absolute addr, delta=0; logs ecx/args/bt),
   `patch_test.py` (`Memory.patchCode` je→nop toggle + wrap-call counter), `monitor_tab.py` (input-ring

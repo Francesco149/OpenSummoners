@@ -1005,6 +1005,7 @@ static void ensure_hooks(void);
 static DWORD WINAPI keepalive_thread(void *unused) {
     (void)unused;
     attract_freeze(1);                                    // attract OFF by default
+    dlg_autoskip(1);                                      // story-dialogue auto-skip ON by default (USER)
     ensure_hooks();                                       // install title/picker hooks early
     for (;;) { EnumWindows(keepalive_top_cb, 0); Sleep(50); }
     return 0;
@@ -1383,8 +1384,8 @@ static void handle_line(const char *line, char *out, int cap) {
         // {"cmd":"autoskip","on":true|false} — auto-advance ALL story/cutscene/NPC dialogue hands-free
         // (the "hold TAB" skip): NOPs the advance-gate je@0x437740 so the story stepper advances every
         // frame.  The STRONGEST skip — no keypress, no per-line poking, skips whole conversations.
-        // Pure code patch, no world input (verified: no stray triggers).  Default OFF: it also auto-
-        // advances CHOICE boxes, so toggle off when you need to read or pick.
+        // Pure code patch, no world input (verified: no stray triggers).  **Default ON** (USER); it also
+        // auto-advances CHOICE boxes, so `autoskip off` when you need to read or pick one.
         dlg_autoskip(json_bool(line, "on", 1));
         snprintf(out, cap, "{\"ok\":true,\"autoskip\":%s}", g_autoskip ? "true" : "false");
         return;
