@@ -342,29 +342,42 @@ static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
 static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
 
-// The save-slot picker manager exposes its list + selection (RE'd off the getters
-// FUN_005e8e80/FUN_005e8ea0): selected index = *( *(mgr+0x174) + 0x14 ); slot list base
-// = *(mgr+0x17c), 0x10-byte entries { handle@+0, slot@+4 }.  Selecting an arbitrary slot
-// = find the entry whose slot==target, write its index into the selection model.
-#define PK_SEL_MODEL  0x174   // mgr -> selection-model ptr (+0x14 = selected index)
-#define PK_LIST_BASE  0x17c   // mgr -> slot-list base ptr  (entries {handle@0, slot@4})
-// Point the picker at savedataNN==`target`.  Returns the chosen list index, or -1 if the
-// mgr layout / list can't be validated (caller then loads the default highlight).  Only
-// writes after a matching, in-bounds entry is found, so a wrong mgr is a safe no-op.
-static int picker_select_slot(uint32_t mgr, int target) {
-    uint32_t selmodel = 0, listbase = 0;
-    if (!rd32((void *)(uintptr_t)(mgr + PK_SEL_MODEL), &selmodel) || !selmodel) return -1;
-    if (!rd32((void *)(uintptr_t)(mgr + PK_LIST_BASE), &listbase) || !listbase) return -1;
-    if (!mem_writable((void *)(uintptr_t)(selmodel + 0x14), 4)) return -1;
-    for (int i = 0; i < 32; ++i) {
-        void *ep = (void *)(uintptr_t)(listbase + (uint32_t)i * 0x10 + 4);
-        uint32_t slotfield = 0;
-        if (!rd32(ep, &slotfield)) break;                // list end (unreadable)
-        if ((int)slotfield == target) {
-            *(volatile uint32_t *)(uintptr_t)(selmodel + 0x14) = (uint32_t)i;
-            return i;
+// Save-slot picker selection (getters FUN_005e8e80/FUN_005e8ea0): the save-list MANAGER
+// holds the slot list at *(mgr+0x17c) — 0x10-byte entries { handle@+0, slot@+4 } (slot =
+// the savedataNN index) — and the selected index at *( *(mgr+0x174) + 0x14 ).  The MANAGER
+// is NOT the 0x4378d0 controller ecx; it is the controller's arg1 (VERIFIED live: poll
+// esp+4).  We probe ecx + stack args 1..5 for the object whose +0x17c list's first entry
+// has a small savedata slot id (garbage candidates are skipped), then write the index of
+// the entry with slot==target.
+#define PK_SEL_MODEL  0x174   // manager -> selection-model ptr (+0x14 = selected index)
+#define PK_LIST_BASE  0x17c   // manager -> slot-list base ptr  (entries {handle@0, slot@4})
+static char         g_pk_diag[128];   // concise pick result, surfaced in the `load` response
+static volatile int g_pk_diag_done;
+// Point the picker at savedataNN==`target`; returns the chosen list index, or -1 (no write)
+// if not found — the caller then loads the default (newest) highlight.  Only writes after a
+// matching in-bounds entry in a validated list, so a wrong candidate is a safe no-op.
+static int picker_select_slot(uint32_t mgr, uint32_t esp, int target) {
+    uint32_t cand[8]; int nc = 0;
+    cand[nc++] = mgr;                                              // the controller ecx
+    if (esp) for (int a = 1; a <= 5; ++a) { uint32_t v = 0;       // + its stack args 1..5
+        if (rd32((void *)(uintptr_t)(esp + (uint32_t)a * 4), &v)) cand[nc++] = v; }
+    for (int c = 0; c < nc; ++c) {
+        uint32_t sm = 0, lb = 0, s0 = 0;
+        if (!rd32((void *)(uintptr_t)(cand[c] + PK_SEL_MODEL), &sm) || !sm) continue;
+        if (!rd32((void *)(uintptr_t)(cand[c] + PK_LIST_BASE), &lb) || !lb) continue;
+        if (!rd32((void *)(uintptr_t)(lb + 4), &s0) || s0 > 15) continue;   // not the manager
+        for (int i = 0; i < 16; ++i) {                            // validated list: find target
+            uint32_t sf = 0;
+            if (!rd32((void *)(uintptr_t)(lb + (uint32_t)i * 0x10 + 4), &sf)) break;
+            if ((int)sf == target) {
+                if (mem_writable((void *)(uintptr_t)(sm + 0x14), 4))
+                    *(volatile uint32_t *)(uintptr_t)(sm + 0x14) = (uint32_t)i;
+                if (!g_pk_diag_done) { snprintf(g_pk_diag, sizeof g_pk_diag, "slot %d -> list index %d", target, i); g_pk_diag_done = 1; }
+                return i;
+            }
         }
     }
+    if (!g_pk_diag_done) { snprintf(g_pk_diag, sizeof g_pk_diag, "slot %d not found in picker (loaded default)", target); g_pk_diag_done = 1; }
     return -1;
 }
 
@@ -436,10 +449,14 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
         do_load_at_safepoint(slot); g_in_safepoint = 0;
     }
     if (g_md_state == 1 && g_ti_mgr) {                // menu-drive step 1: confirm at the title
+        // Re-inject the title confirm EVERY poll until the save-slot picker opens (its poll
+        // 0x4378d0 sets g_pk_mgr; the title only polls 0x437c70, so g_pk_mgr==0 until then).
+        // A single title confirm is sometimes dropped before the title menu settles — the
+        // old one-shot advance-to-2 then hung with the picker never open.
+        if (g_pk_mgr) { g_md_state = 2; return; }     // picker up -> picker-confirm step
         uint32_t now = 0, e = g_ti_esp;
         if (e) rd32((void *)(uintptr_t)(e + 4), &now);    // 0x437c70 arg1 = now
         inject_record(g_ti_mgr, BTN_CONFIRM, now, 0);
-        g_md_state = 2;
     }
 }
 
@@ -452,7 +469,7 @@ static void __attribute__((cdecl)) poll_picker_cb(void) {
     if (g_md_state != 2 || !g_pk_mgr) return;         // menu-drive step 2: navigate + confirm
     uint32_t now = 0, e = g_pk_esp;
     if (e) rd32((void *)(uintptr_t)(e + 8), &now);        // 0x4378d0 arg2 = now
-    if (g_md_slot >= 0) picker_select_slot(g_pk_mgr, g_md_slot);   // target a specific slot
+    if (g_md_slot >= 0) picker_select_slot(g_pk_mgr, g_pk_esp, g_md_slot);   // target a specific slot
     else if (g_md_downs > 0) { inject_record(g_pk_mgr, BTN_ROTATE, now, 0); g_md_downs--; return; }
     inject_record(g_pk_mgr, BTN_CONFIRM, now, 0);
 }
@@ -592,6 +609,63 @@ static void save_json_one(int slot, char *out, int cap) {
     if (n < cap) snprintf(out + n, cap - n, "]}");
 }
 
+// ─── keep-active (no focus steal) + launcher dismiss + attract-off ───────────
+// Three DEFAULT-ON boot behaviors so the trainer works while its own window is in the
+// background (the normal case when an agent/UI drives it from another machine):
+//   1. KEEP-ACTIVE — DirectDraw pauses the game loop on focus loss (retail halts input +
+//      render on WM_ACTIVATEAPP deactivate, src wnd_proc).  We re-post WM_ACTIVATEAPP(TRUE)
+//      to the main window (class CLASS_LIZSOFT_SOTES) each tick, so the game keeps running
+//      UNFOCUSED — WITHOUT stealing focus (no SetForegroundWindow).  Toggle: `keepactive`.
+//   2. LAUNCHER DISMISS — click through the #32770 launcher (Full/Safe/Wind/DB/Zoom) IN-
+//      PROCESS (BM_CLICK works in-process, unlike an external click — quirk #3), so the
+//      inject.exe ship path is hands-free.
+//   3. ATTRACT OFF — freeze the title idle->demo trigger so the title never cycles to the
+//      attract demo (which would break the menu-drive load).  Toggle: `attract`.
+#define OSS_MAIN_WND_CLASS "CLASS_LIZSOFT_SOTES"
+#define WM_ACTIVATEAPP_    0x001C
+static volatile int g_launch_clicked;
+static volatile int g_keepactive = 1;
+static volatile int g_main_wnd_seen;   // the CLASS_LIZSOFT_SOTES window has appeared
+
+static BOOL CALLBACK dismiss_child_cb(HWND hwnd, LPARAM lp) {
+    (void)lp;
+    char cls[64] = {0}, txt[128] = {0};
+    GetClassNameA(hwnd, cls, sizeof cls);
+    if (lstrcmpiA(cls, "Button") != 0) return TRUE;
+    GetWindowTextA(hwnd, txt, sizeof txt);
+    char t[128]; int i = 0;
+    for (; txt[i] && i < (int)sizeof t - 1; ++i)
+        t[i] = (char)((txt[i] >= 'A' && txt[i] <= 'Z') ? txt[i] + 32 : txt[i]);
+    t[i] = 0;
+    if (!g_launch_clicked && (strstr(t, "launch") || strstr(t, "start") ||
+                              strstr(t, "play") || !strcmp(t, "ok") || !strcmp(t, "&ok"))) {
+        PostMessageA(hwnd, BM_CLICK, 0, 0);
+        g_launch_clicked = 1;
+        vlog("[launcher] clicked '%s'", txt);
+    }
+    return TRUE;
+}
+static BOOL CALLBACK keepalive_top_cb(HWND hwnd, LPARAM lp) {
+    (void)lp;
+    DWORD pid = 0; GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != GetCurrentProcessId()) return TRUE;
+    if (!g_launch_clicked) EnumChildWindows(hwnd, dismiss_child_cb, 0);   // launcher buttons
+    char cls[64] = {0}; GetClassNameA(hwnd, cls, sizeof cls);
+    if (lstrcmpiA(cls, OSS_MAIN_WND_CLASS) == 0) {
+        g_main_wnd_seen = 1;
+        if (g_keepactive) PostMessageA(hwnd, WM_ACTIVATEAPP_, 1, 0);   // keep active, no focus steal
+    }
+    return TRUE;
+}
+static void ensure_hooks(void);
+static DWORD WINAPI keepalive_thread(void *unused) {
+    (void)unused;
+    attract_freeze(1);                                    // attract OFF by default
+    ensure_hooks();                                       // install title/picker hooks early
+    for (;;) { EnumWindows(keepalive_top_cb, 0); Sleep(50); }
+    return 0;
+}
+
 // ─── command dispatch ───────────────────────────────────────────────────────
 static void handle_line(const char *line, char *out, int cap) {
     char cmd[32] = {0};
@@ -605,6 +679,19 @@ static void handle_line(const char *line, char *out, int cap) {
     if (!strcmp(cmd, "player")) {
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
+        return;
+    }
+    if (!strcmp(cmd, "state")) {
+        // diagnostic: boot/hook/menu-drive state.  ti_mgr!=0 => the TITLE input poll
+        // (0x437c70) is firing (game is at the title); pk_mgr!=0 => the save-slot picker
+        // poll (0x4378d0) is firing.
+        snprintf(out, cap,
+            "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
+            "\"attract_frozen\":%s,\"keepactive\":%s,\"md_state\":%d,\"md_slot\":%d,"
+            "\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
+            (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
+            g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
+            g_md_state, g_md_slot, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
         return;
     }
     if (!strcmp(cmd, "read")) {
@@ -749,13 +836,15 @@ static void handle_line(const char *line, char *out, int cap) {
         attract_freeze(1);                               // hold the title (no demo mid-drive)
         g_md_slot  = json_num(line, "slot",  &tmp) ? (int)tmp : -1;
         g_md_downs = json_num(line, "downs", &tmp) ? (int)tmp : 0;
+        g_pk_diag[0] = 0; g_pk_diag_done = 0;            // reset the one-shot picker dump
+        g_pk_mgr = 0;                                    // clear so poll_title_cb sees the picker OPEN
         g_md_state = 1;                                  // arm: title-confirm -> picker-confirm
         int loaded = 0;                                  // done when the loaded actor appears
         for (int i = 0; i < 1200; ++i) { if (find_player()) { loaded = 1; break; } Sleep(10); }
         g_md_state = 0; g_md_slot = -1;                  // end the drive
         char pj[512]; player_json(pj, sizeof pj);
-        snprintf(out, cap, "{\"ok\":%s,\"loaded\":%s,\"player\":%s}",
-                 loaded ? "true" : "false", loaded ? "true" : "false", pj);
+        snprintf(out, cap, "{\"ok\":%s,\"loaded\":%s,\"picker\":\"%s\",\"player\":%s}",
+                 loaded ? "true" : "false", loaded ? "true" : "false", g_pk_diag, pj);
         return;
     }
     if (!strcmp(cmd, "loadraw")) {
@@ -778,6 +867,13 @@ static void handle_line(const char *line, char *out, int cap) {
             "{\"ok\":%s,\"ran\":%s,\"ret\":%u,\"dispatch_this\":\"0x%08x\",\"log\":\"%s\",\"player\":%s}",
             ran ? "true" : "false", ran ? "true" : "false", g_load_ret,
             (unsigned)g_dispatch_this, g_load_log, pj);
+        return;
+    }
+    if (!strcmp(cmd, "keepactive")) {
+        // {"cmd":"keepactive","on":true|false} — re-post WM_ACTIVATEAPP(TRUE) so the game
+        // keeps rendering/updating while unfocused, without stealing focus.  Default ON.
+        g_keepactive = json_bool(line, "on", 1);
+        snprintf(out, cap, "{\"ok\":true,\"keepactive\":%s}", g_keepactive ? "true" : "false");
         return;
     }
     if (!strcmp(cmd, "attract")) {
@@ -849,6 +945,7 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) {
              GetModuleHandleA(NULL), (void *)g_delta, TRAINER_PORT);
         CreateThread(NULL, 0, tick_thread, NULL, 0, NULL);
         CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
+        CreateThread(NULL, 0, keepalive_thread, NULL, 0, NULL);  // launcher + keep-active + attract-off
     }
     return TRUE;
 }

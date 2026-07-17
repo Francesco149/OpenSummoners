@@ -34,10 +34,17 @@ Both build in the mandatory gate `bash tools/ci/build_all.sh`.
   `scratchpad/trainerctl.py` — it `LoadLibrary`s the DLL in-target after resume.
   Or one-shot: Frida `Module.getGlobalExportByName('LoadLibraryA')` with the DLL's
   **Windows** path (`scratchpad/inject_test.py`).
-- **Ship**: `build/inject.exe` (CreateProcess-SUSPENDED → remote LoadLibrary → Resume)
-  or a `version.dll` proxy (the ennse_voice pattern).
+- **Ship**: `build/inject.exe <unpacked-exe> <full-path sotes_trainer.dll> <cwd>`
+  (CreateProcess-SUSPENDED → remote LoadLibrary → Resume) or a `version.dll` proxy (the
+  ennse_voice pattern). Hands-free — see the default boot behaviors below.
 
-On attach it logs to `oss_trainer.log` beside the exe and binds `:7777`.
+On attach it logs to `oss_trainer.log` beside the exe and binds `:7777`, and — so it works
+while its window is backgrounded (an agent/UI drives it from elsewhere) — spawns a keepalive
+thread with three DEFAULT-ON behaviors: (1) **launcher dismiss** — click through the `#32770`
+launcher in-process (no manual click); (2) **keep-active** — re-post `WM_ACTIVATEAPP(TRUE)` to
+the game window so it keeps rendering/updating unfocused, without stealing focus; (3) **attract
+off** — freeze the title→demo trigger so the title stays up for the menu-drive load. Toggle 2/3
+via `keepactive`/`attract`. (Live-verified via `build/inject.exe` into `sotes-ense-en.exe`.)
 
 ## Drive (the LLM / UI interface)
 
@@ -50,16 +57,18 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 |---|---|---|
 | `ping` | — | `{pong,delta,base}` — liveness + ASLR delta |
 | `player` | — | `{actor,world_x,world_y,stat_block,hp,hp_max,mp,mp_max,level_base,exp_cur,exp_max}` or null |
+| `state` | — | boot/hook diagnostic: `{hooks,main_wnd,launch_clicked,attract_frozen,keepactive,md_state,ti_mgr,pk_mgr}`. `ti_mgr`≠0 ⇒ the game is at the title (title poll firing). |
 | `read` | `addr`,`type`(u8/u16/u32),`va`(bool) | read; `va:true` = AP()-relocate a 0x400000 VA |
 | `write` | `addr`,`value`,`type`,`va` | write |
 | `setstat` | `which`(hp/hp_max/mp/mp_max/level),`value`,`lock`(bool) | set a player stat |
 | `god` | `on`(bool) | freeze hp+mp at max every 50 ms |
 | `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles |
 | `box` | — | debug: the player's collision AABB `{box,tag,x,top,w,h,world_y}` |
-| `load` | `slot`(opt),`downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm via the game's own menu code (freezes attract first). No `slot` = the default-highlighted newest save (= Archmage's Tower, VERIFIED Lv17). `slot`:N = point the picker at savedataNN via the RE'd selection model, then confirm (any slot; slot-targeting RE'd, default path VERIFIED). `downs`=N = manual rotate-N fallback. |
-| `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,level_base}],file_size,header_grid}`. Use it to pick a slot to `load`. |
+| `load` | `slot`(opt),`downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm via the game's own menu code. No `slot` = the default-highlighted newest save (= Archmage's Tower Lv17). `slot`:N = select savedataNN via the RE'd picker selection model, then confirm. **VERIFIED live** (slot 1 → HP134/Lv-base3/exp117-1000; slot 6 → HP235/293/exp18406-37000; slot 7/default → HP301/Lv-base5/exp20720-50000 — each == the file). `downs`=N = manual rotate-N fallback. |
+| `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,level_base}],file_size,header_grid}`. Use it to pick a slot to `load`. **VERIFIED live.** |
 | `saveinfo` | `slot` | full summary of one slot (same shape as a `saves` entry) |
-| `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up |
+| `keepactive` | `on`(bool) | keep the game rendering/updating while its window is unfocused (re-posts WM_ACTIVATEAPP, no focus steal). **Default ON.** |
+| `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up. **Frozen by default on attach** (so the menu-drive load always has a title). |
 | `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL (socket thread — unsafe for engine fns) |
 | `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |
 | `unlock_all` | — | drop god + all locks |

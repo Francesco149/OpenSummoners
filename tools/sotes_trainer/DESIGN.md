@@ -303,22 +303,37 @@ engine load needed to identify a save):
   header_grid}`.  The agent/UI picks a slot from this, then `load`s it.
 - `saveinfo {slot}` → one slot, same shape.
 
-### `load {slot:N}` — arbitrary-slot load (picker selection RE'd)
-The save-slot picker manager exposes its selection model (getters `FUN_005e8e80`/`0x5e8ea0`):
-**selected index = `*( *(mgr+0x174) + 0x14 )`**; slot-list base = `*(mgr+0x17c)`, 0x10-byte
-entries `{handle@0, slot@4}`.  `load {slot:N}` menu-drives to the picker as before, then each
-picker poll scans the list for the entry with `slot==N` and writes its index into the selection
-model before injecting confirm (`picker_select_slot`).  Defensive: only writes after a matching,
-in-bounds entry is found, so a wrong-mgr layout is a safe no-op that falls back to the default
-(newest) highlight — the VERIFIED path.  **Live-verify pending** for the non-default slot path
-(no game session this session); the default `load` (no slot) stays end-to-end VERIFIED (session 3b).
+### `load {slot:N}` — arbitrary-slot load (VERIFIED live)
+Picker selection getters `FUN_005e8e80`/`0x5e8ea0`: the save-list MANAGER holds the slot list
+at `*(mgr+0x17c)` (0x10-byte entries `{handle@0, slot@4}`, slot = the savedataNN index) and the
+selected index at `*( *(mgr+0x174) + 0x14 )`.  **CORRECTION (was wrong): the MANAGER is NOT the
+0x4378d0 controller `ecx` — it is the controller's arg1 (poll `esp+4`).**  The controller `ecx`'s
+`+0x17c` is garbage (found live: `s0`=huge).  `picker_select_slot` probes `ecx` + stack args 1..5
+for the object whose `+0x17c` list's first entry has a small slot id, then writes the index of the
+entry with `slot==N`; no match ⇒ safe no-op ⇒ the default (newest) highlight loads.
+
+**VERIFIED live** (inject.exe → `sotes-ense-en.exe`): `slot:1` → the loaded actor is HP134 / Lv-
+base3 / exp 117-1000; `slot:6` → HP235/293 / exp 18406-37000; `slot:7`/default → HP301 / Lv-base5
+/ exp 20720-50000 — **each == the value `sotes_save` decodes from that file** (double proof: the
+right slot loads AND the decoder's exp/level offsets are correct: exp_cur=body[code−0x10],
+exp_max=[code−0xc], level_base=[code+4]).
+
+Two robustness fixes were needed and made (both live-verified):
+- **Robust title-confirm.**  The single-shot title confirm (state 1→2 after ONE inject) was
+  sometimes dropped before the title menu settled ⇒ the picker never opened ⇒ hang.  Now
+  `poll_title_cb` RE-injects the confirm every poll until the picker opens (its poll 0x4378d0
+  sets `g_pk_mgr`; the title only polls 0x437c70, so `g_pk_mgr`==0 until then), then advances.
+- **Default boot behaviors** (keepalive thread): keep-active (`WM_ACTIVATEAPP(TRUE)`, no focus
+  steal — the game pauses unfocused otherwise), attract-off (freeze the demo trigger so the title
+  stays up), launcher dismiss (click `#32770` in-process).  Without keep-active the game froze
+  while its window was backgrounded; without attract-off it cycled to the demo mid-drive.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
 - `tools/ennse_trainer/` Frida trainer_agent has the verified offsets above.
-- **Live-verify recipe for the session-4 commands** (when a game session is up): inject the
-  DLL (`build/inject.exe <unpacked-exe> <full-path sotes_trainer.dll> <cwd>`), connect :7777,
-  `{"cmd":"saves"}` (verifies the file-read path derivation) then `{"cmd":"load","slot":6}`
-  (verifies `picker_select_slot`; confirm `player` = savedata06's stats).  `OSS_NO_REPRO=1`
+- **Live-run recipe** (proven this session): `build/inject.exe <unpacked-exe> <full-path
+  sotes_trainer.dll> <cwd>` (drop the unpacked exe into the SE game dir so its cwd finds the SE
+  assets + `user/`), then connect `cutestation.soy:7777` and drive `state`/`saves`/`load`.  The
+  DLL is hands-free (launcher dismiss + keep-active + attract-off on attach).  `OSS_NO_REPRO=1`
   if repro_agent is also up (its 0x437c70/0x4378d0 hooks collide — DESIGN session 3b).
