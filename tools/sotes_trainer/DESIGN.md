@@ -189,6 +189,20 @@ blind.  Fastest reliable route next session:
 4. The tower save's SLOT: `user/savedataNN.sdt` — pick by newest mtime (the loaded one), or read
    it from the load-menu object at confirm time (`0x5e8ea0` returns slot).
 
+PREREQS VERIFIED (session 2, ready to execute):
+- Unpacked SE exe: `vendor/unpacked/editions/sotes-ense-en.exe` (72 MB) — repro_probe spawns it.
+- Saves: `/mnt/c/Program Files (x86)/Steam/steamapps/common/sotes/user/savedataNN.sdt` (00-04+
+  present; newest = savedata04.sdt @ 2026-07-13; repro `prepare_sandbox --copy-saves` copies them).
+- `repro_probe.py` is SAFE (`device.kill(pid)` on its OWN spawned pid — never sweeps by name, so
+  the live game pid is untouched) and already has the needed cmds: `menu_confirm`/`menu_press`/
+  `gameplay_confirm`/`hold`/`tap`/`sequence`/`read`/`write`/`wait`/`shot` (PNG→`run_dir/shot-*.png`,
+  DIB24)/`events`/`status`/`quit`. Drive over stdin line-JSON; screenshots are viewable to confirm nav.
+- Frida-17 gotchas already solved here: `Memory.readU32` removed → use `ptr.readU32()`; HW
+  watchpoints are per-thread INSTANCE methods (`thread.setHardwareWatchpoint(0,addr,sz,'w')`, arm
+  ALL threads). Attach helper: validate the right `sotes_en.exe` pid by `*(actor+0xc76c)==world_x`
+  (multiple/stale instances exist). Live probes this session: `scratchpad/{sock,posfind,reveng,
+  hookpoll,cleanrec}.py` (uncommitted throwaway).
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
