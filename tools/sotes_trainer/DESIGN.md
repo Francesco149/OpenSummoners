@@ -494,6 +494,28 @@ for.  Results (all live-verified on the SE exe):
   Then fast-skip = force the driver; wire auto-advance gated on the GRID being active (not the
   input-mgr widget).  Keep dlgskip OFF across the title→scene transition (the pre-existing race).
 
+### Reveal-offset RE — the base-game MODEL + why the SE offsets differ (byte-scan next)
+Cross-ref'd the PORTED dialogue (USER: "we already ported this — get the offset from the decompile,
+then scan the SE binary for the same function").  Base-game (sotes.exe) model from the decompile:
+- dialogue obj: **scale +0x54** (CONFIRMED shared with SE = 1000 done), text-machine ptr at +0x174.
+- TM = *(dialogue+0x174) (43ca40's `piVar1`, int*): mode +0x00 (0/2), cols/divisor +0x0c (`[3]`),
+  **total +0x10 (`[4]`)**, **cursor/reveal +0x14 (`[5]`)**, +0x18 (`[6]`).  Case 9 snaps +0x14 to the
+  end (== the port's `dialogue_skip_reveal` reveal=total).  `dialogue.c` provenance: typewriter
+  **0x439690** (writes the pause-grade table {i, i*2, i*3, i*5} to grid +0x10/+0x20/+0x24/+0x28,
+  i = `*(*DAT_008a6e80+0x248)`), skip **0x43ca40**, text-expand 0x43cf90.
+- LIVE-ELIMINATED on the SE box (hooked grid 0x5e59c0, Dad's dialogue): reveal is NOT +0x8 (stays 1),
+  NOT +0x0c (forced 149→60, render UNCHANGED — screenshot-verified), NOT +0x10/+0x4c, and +0x54 =
+  scale.  The SE grid's sub-object ptrs DON'T match base (+0x74=0x20, +0x170/+0x174 = garbage) — so
+  the **SE dialogue struct differs from base at the sub-object level** (only +0x54 scale is shared);
+  the ported base offsets can't be applied blind.
+- **NEXT (the USER's plan):** disasm the base-game typewriter 0x439690 (distinctive: the grade-table
+  {i, i*2, i*3, i*5} stores + the `*(*DAT+0x248)` interval load), scan `sotes-ense-en.exe` for the
+  same function (structurally similar bytes/immediates), then RE which object+offset the SE typewriter
+  reveals — that's the SE reveal counter to force (or call the SE analog of 43ca40 case 9 via `call`).
+- **Screenshot verifier (works):** the game window is capturable — Get-Process(sotes-trainer).
+  MainWindowHandle → GetClientRect+ClientToScreen → `Graphics.CopyFromScreen` (captures the displayed
+  DDraw pixels; PrintWindow / FindWindow-by-class both failed).  `scratchpad/shot.ps1`.
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
