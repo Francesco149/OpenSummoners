@@ -57,7 +57,7 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 |---|---|---|
 | `ping` | — | `{pong,delta,base}` — liveness + ASLR delta |
 | `player` | — | `{actor,world_x,world_y,stat_block,hp,hp_max,mp,mp_max,level_base,exp_cur,exp_max}` or null |
-| `state` | — | boot/hook diagnostic: `{hooks,main_wnd,launch_clicked,attract_frozen,keepactive,md_state,ti_mgr,pk_mgr}`. `ti_mgr`≠0 ⇒ the game is at the title (title poll firing). |
+| `state` | — | boot/hook diagnostic: `{hooks,main_wnd,launch_clicked,attract_frozen,keepactive,dlgskip,box_open,box_scale,md_state,ti_mgr,pk_mgr}`. `ti_mgr`≠0 ⇒ input poll firing; `box_open` ⇒ a dialogue box is on screen (what dlgskip gates on); `box_scale` = its pop-in 0..1000. |
 | `read` | `addr`,`type`(u8/u16/u32),`va`(bool) | read; `va:true` = AP()-relocate a 0x400000 VA |
 | `write` | `addr`,`value`,`type`,`va` | write |
 | `setstat` | `which`(hp/hp_max/mp/mp_max/level),`value`,`lock`(bool) | set a player stat |
@@ -70,8 +70,8 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 | `newgame` | `to`(opt),`btn`(opt) | **from the TITLE**: rotate to the New Game item then confirm — starts a fresh game. **VERIFIED** (`btn`:2 `to`:1 → fresh Lv1 Arche, HP100/exp0-250). `btn`=title rotate id (2=up/4=down), `to`=rotations from the default Continue. |
 | `keepactive` | `on`(bool) | keep the game rendering/updating while its window is unfocused (re-posts WM_ACTIVATEAPP, no focus steal). **Default ON.** |
 | `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up. **Frozen by default on attach** (so the menu-drive load always has a title). |
-| `dlgskip` | `on`(bool) | auto-advance dialogue: inject the dialogue-advance ids (`0x24`/`0x27`, inert in the world) every gameplay poll so each box advances hands-free. **Default ON.** (Instant reveal / typewriter fast-forward is WIP — the only reveal-skip button doubles as world input; the clean fix writes the dialogue box's reveal field — see DESIGN.) |
-| `dlgbtns` | `b0..b5` | set extra reveal-skip ids dlgskip injects while a dialogue is up (consumption-gated). Experimental — these ids double as world input and can re-trigger (e.g. walk into a door). |
+| `dlgskip` | `on`(bool) | auto-advance an OPEN dialogue hands-free. PASSIVELY reads the SE dialogue widget (`*(input_mgr+0x374)!=0` ⇒ a box is on screen) and injects the advance ids (`0x24`/`0x27`) **only while a box is up** — in freeroam it injects NOTHING, so it can't auto-trigger a world interaction (the door). **Default ON.** (Instant reveal + a pure UI-state advance are WIP — PORT-DEBT(dlgskip-reveal-ui), see DESIGN.) |
+| `dlgbtns` | `b0..b5` | set extra reveal-skip ids dlgskip injects while a box is up (now gated on the passive box-open read, no close-leak). **Default EMPTY** — these ids double as world input; leave off until the reveal is done via a UI-state write (DESIGN). |
 | `press` | `btn`,`n`(opt) | inject button `btn` into the active input mgr `n` times — a probe to map what each id does in the current context. |
 | `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL (socket thread — unsafe for engine fns) |
 | `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |

@@ -342,19 +342,26 @@ static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
 static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
 static volatile int      g_dlgskip = 1;        // auto-skip dialogue (DEFAULT ON)
-// dlgskip injects 0x24/0x27 (dialogue-advance; safe — no gameplay/menu meaning) EVERY poll,
-// and watches whether the dialogue advance-poll CONSUMES the 0x24 probe (clears record[+0]).
-// A cleared probe => a dialogue is up, so the reveal-skip buttons below (which double as the
-// gameplay INTERACT key, hence must be gated) are injected only then — fast reveal, no re-trigger.
-// The gated reveal-skip ids default EMPTY: the only button that fast-forwards the typewriter is
-// the gameplay INTERACT key, which re-fires world interactions (e.g. the "Dad needs help" story
-// gate) — even a 1-poll consumption-gate leak loops it.  So by default dlgskip only AUTO-ADVANCES
-// (0x24/0x27, inert in the world).  Instant reveal without a button (writing the dialogue box's
-// reveal-progress field) is the clean fix — pending the SE dialogue-box RE.  `dlgbtns` can still
-// set reveal-skip ids for experimentation (with the re-trigger caveat).
-static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // gated reveal-skip ids (0=unused)
-static uint8_t          *g_probe_rec;   // last 0x24 probe record (watch [+0]==0 => consumed)
-static volatile int      g_dlg_seen = 999;  // polls since the probe was last consumed (0 = active now)
+// dlgskip auto-advances an OPEN dialogue box hands-free.  It gates on a PASSIVE read of the SE
+// dialogue widget (dialogue_box_open below) — NOT the old active 0x24-probe consumption gate.
+// WHY the rewrite (session 6): the old gate injected 0x24/0x27 EVERY gameplay poll to *detect*
+// a dialogue (watch the probe get consumed).  That active probing ran in freeroam too and — with
+// a 1-poll detection lag — leaked a world input on close, AUTO-TRIGGERING the house-exit door
+// (the "Dad needs help" gate fires on UP-into-the-door; it does not normally auto-open).  The fix
+// per USER: DISTINGUISH an already-open box by READING the widget, and only inject while it is up.
+// So in freeroam we now inject NOTHING (no probe) → the door is never auto-triggered.
+// The widget lives on the input manager (g_ti_mgr): DLG_BOX_CELL0 (+0x374) = the first content-cell
+// ptr (0 ⇒ no box on screen), DLG_BOX_SCALE (+0x3a4) = the pop-in scale (0..1000, 1000 = fully
+// open).  The box object itself = *(mgr+0x374) with the layout +0x4 active / +0x54 scale.  RE'd
+// live (session 6): freeroam↔dialogue differential off *(0x92dd4c)/the input mgr; box-frame /
+// body-text color constants (0x3e537d/0xa8b9cc) located the SE dialogue code in
+// vendor/unpacked/editions/sotes-ense-en.exe.  See DESIGN.md "Dialogue-skip — passive gate".
+#define DLG_BOX_CELL0   0x374   // input-mgr -> dialogue widget: first content-cell ptr (0 = closed)
+#define DLG_BOX_SCALE   0x3a4   // input-mgr -> dialogue widget: pop-in scale (0..1000)
+static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // extra reveal-skip ids (0=unused;
+                                 // default EMPTY — the reveal-skip id doubles as world UP, so it
+                                 // must stay off until the reveal is done via a UI-STATE write,
+                                 // per USER "force UI state, not input").  PORT-DEBT(dlgskip-reveal-ui).
 static volatile int      g_ng_state;            // new-game drive: 0 idle, 1 rotate-to-Start, 2 confirm
 static volatile int      g_ng_rotates;          // title rotations to reach the New Game item
 static volatile int      g_ng_btn = 0x04;       // title rotate button (2=up / 4=down)
@@ -414,6 +421,17 @@ static uint8_t *inject_record(uint32_t mgr, uint32_t id, uint32_t now, int ordin
     int slot = 63 - (ordinal & 63);
     *(volatile uint32_t *)(uintptr_t)(mgr + 0x0c + slot * 4) = (uint32_t)(uintptr_t)rec;
     return rec;   // caller may watch rec[+0]: a poll clears it to 0 on consume (dialogue-active probe)
+}
+
+// PASSIVE dialogue-open test: read the SE dialogue widget (embedded in the input mgr) and report
+// whether a box is on screen.  No injection — this is the non-lagged replacement for the old
+// 0x24-probe consumption gate (see the g_dlgskip comment).  cell0 (+0x374) is 0 in freeroam and
+// holds the widget's first content-cell ptr while a box exists (opening / open / popping-out).
+static int dialogue_box_open(uint32_t mgr) {
+    uint32_t cell0 = 0;
+    if (!mgr) return 0;
+    if (!rd32((void *)(uintptr_t)(mgr + DLG_BOX_CELL0), &cell0)) return 0;
+    return cell0 != 0;
 }
 
 // Runs on the ENGINE thread (from the inputPoll safepoint).  Reproduces the retail
@@ -487,21 +505,17 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
             inject_record(g_ti_mgr, BTN_CONFIRM, now, 3);
         }
     }
-    // Auto-skip dialogue (suppressed while WE drive a menu).  Every poll: (1) note whether the
-    // dialogue advance-poll consumed last poll's 0x24 probe (record[+0] cleared) — that is our
-    // dialogue-active signal; (2) inject 0x24 (fresh probe) + 0x27 (both are dialogue-advance,
-    // inert in gameplay/menus, so no re-trigger); (3) ONLY while a dialogue is up, inject the
-    // reveal-skip ids (they double as the gameplay INTERACT key, so they must be gated) — fast.
-    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state) {
-        if (g_probe_rec && *(volatile uint32_t *)g_probe_rec == 0) g_dlg_seen = 0;   // probe consumed
-        else if (g_dlg_seen < 999) g_dlg_seen++;
-        g_probe_rec = inject_record(g_ti_mgr, 0x24, now, 4);        // probe + advance
-        inject_record(g_ti_mgr, 0x27, now, 5);                     // advance
-        if (g_dlg_seen == 0)                                        // dialogue up this poll -> reveal-skip
-            for (int i = 0; i < 6; ++i)
-                if (g_dlg_btns[i]) inject_record(g_ti_mgr, (uint32_t)g_dlg_btns[i], now, 6 + i);
-    } else {
-        g_probe_rec = NULL; g_dlg_seen = 999;
+    // Auto-skip dialogue (suppressed while WE drive a menu).  GATE: only when a box is actually on
+    // screen (dialogue_box_open, a passive read of the widget) — so in freeroam we inject NOTHING
+    // and can't trigger a world interaction (the door).  When a box IS up, inject the advance ids
+    // 0x24/0x27 (dialogue-only, inert in the world) so each box steps hands-free; the reveal-skip
+    // ids (g_dlg_btns, default EMPTY) also fire — but ONLY while the box is up, and because the read
+    // is non-lagged they stop the instant it closes (no leak on close).
+    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state && dialogue_box_open(g_ti_mgr)) {
+        inject_record(g_ti_mgr, 0x24, now, 4);                     // advance (dialogue-only)
+        inject_record(g_ti_mgr, 0x27, now, 5);                     // advance (dialogue-only)
+        for (int i = 0; i < 6; ++i)
+            if (g_dlg_btns[i]) inject_record(g_ti_mgr, (uint32_t)g_dlg_btns[i], now, 6 + i);
     }
 }
 
@@ -729,14 +743,19 @@ static void handle_line(const char *line, char *out, int cap) {
     if (!strcmp(cmd, "state")) {
         // diagnostic: boot/hook/menu-drive state.  ti_mgr!=0 => the TITLE input poll
         // (0x437c70) is firing (game is at the title); pk_mgr!=0 => the save-slot picker
-        // poll (0x4378d0) is firing.
+        // poll (0x4378d0) is firing.  box_open/box_scale = the live dialogue-widget read
+        // dlgskip gates on (box_open true ⇒ a dialogue box is on screen).
+        uint32_t bc0 = 0, bsc = 0;
+        if (g_ti_mgr) { rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_CELL0), &bc0);
+                        rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_SCALE), &bsc); }
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
-            "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"md_state\":%d,\"md_slot\":%d,"
+            "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"box_open\":%s,\"box_scale\":%u,"
+            "\"md_state\":%d,\"md_slot\":%d,"
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
-            g_dlgskip ? "true" : "false", g_md_state, g_md_slot,
+            g_dlgskip ? "true" : "false", bc0 ? "true" : "false", (unsigned)bsc, g_md_state, g_md_slot,
             g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
         return;
     }

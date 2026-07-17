@@ -353,13 +353,34 @@ Ground truth from live testing:
   (not while typing) and has a 1-poll lag, so it both mistimes the skip AND leaks one world-input on
   close.  So button injection can't cleanly fast-forward the reveal.
 
-**The clean fix (next):** skip the typewriter by writing the dialogue box's reveal-progress field
-directly (base: box `+0x54` <1000 while typing, ==1000 done) — NO button, so no world re-trigger.
-Needs the SE dialogue-box object: find it via a live Frida watchpoint on the injected probe record
-(whoever clears record[+0] is the dialogue advance-poll; its `this`/args = the box).  Then dlgskip
-forces `+0x54=done` each poll while a box is active → instant reveal, and 0x24/0x27 auto-advance.
-Commands added for this arc: `newgame`, `dlgskip`, `dlgbtns` (tune reveal ids), `press` (id probe),
-`state` (boot/hook diag), `keepactive`.
+### Dialogue-skip — PASSIVE GATE (session 6; the SE dialogue-box object FOUND)
+The consumption-gate above is SUPERSEDED.  It INJECTED to *detect* (a 0x24 probe every poll) and
+lagged 1 poll — so it ran in freeroam and leaked a world input on close, AUTO-TRIGGERING the door.
+Now dlgskip PASSIVELY reads the dialogue widget and injects ONLY while a box is on screen: freeroam
+⇒ nothing injected ⇒ the door can't be auto-triggered (the USER fix: distinguish an already-open
+box by READING it, act only if open).
+
+SE dialogue widget = embedded in the input manager (`g_ti_mgr` = `*(*(actor+0xc7a4))`):
+- **+0x374** = first content-cell ptr — **0 = no box**, 8 cell ptrs when a box exists (open/opening/
+  popping-out).  This is `dialogue_box_open()`'s test.
+- **+0x3a4** = pop-in scale (0..1000; 1000 = fully open), **+0x3a8** = scale step 50.
+- box object = `*(mgr+0x374)`, parity layout `+0x4` active / `+0x54` scale.
+
+RE'd LIVE (`scratchpad/diffdump.py`: a freeroam↔dialogue differential off the input mgr) + the
+build-independent body-text color constants **0x3e537d/0xa8b9cc**, which located the SE dialogue
+text code at **0x5e6668** in `vendor/unpacked/editions/sotes-ense-en.exe`.  NOTE the SE binary has
+its OWN layout — parity VAs (0x439690 etc.) do NOT map; only shared CONTENT constants + struct
+offsets carry over (function VAs coincide by luck, e.g. 0x43b980 is collision code here).
+`state` now reports `box_open`/`box_scale`.
+
+**Still WIP — PORT-DEBT(dlgskip-reveal-ui):** advance is still the 0x24/0x27 ring inject (dialogue-
+only, now gated).  Per USER "forcing UI state to advance the dialogue is better than forcing input
+state", the reveal-skip + advance should be a UI-STATE write on the box, not a button.  Two facts
+to build on: (1) the DOOR prompt does NOT respond to 0x24/0x27 (a special choice on the same
+widget) — verified live; (2) pinning the reveal/advance FIELD needs a NORMAL-dialogue TYPING-state
+capture (reveal < total), which the waiting-state capture can't show.
+Commands for this arc: `newgame`, `dlgskip` (now passive-gated), `dlgbtns`, `press` (id probe),
+`state` (+box_open/box_scale), `keepactive`.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
