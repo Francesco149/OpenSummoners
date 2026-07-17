@@ -19,13 +19,20 @@ nix develop --command make -C tools/sotes_trainer      # -> build/sotes_trainer.
 
 ```
 nix develop --command i686-w64-mingw32-gcc -shared -O2 -s -Wall -static -static-libgcc \
-  -Itools/sotes_save -o build/sotes_trainer.dll \
-  tools/sotes_trainer/trainer.c tools/sotes_save/sotes_save.c -lws2_32
+  -Itools/sotes_save -Itools/sotes_trainer/minhook/include -o build/sotes_trainer.dll \
+  tools/sotes_trainer/trainer.c tools/sotes_save/sotes_save.c \
+  tools/sotes_trainer/minhook/src/{hook,buffer,trampoline}.c \
+  tools/sotes_trainer/minhook/src/hde/{hde32,hde64}.c -lws2_32 -luser32
 ```
 
 `-static -static-libgcc` is REQUIRED — a default mingw build imports
 `libgcc_s_sjlj-1.dll`, absent in the game's DLL search path, so `LoadLibrary` fails.
 Both build in the mandatory gate `bash tools/ci/build_all.sh`.
+
+**MinHook** (`tools/sotes_trainer/minhook/`, BSD-2, vendored) is the robust inline-hook lib:
+its HDE length disassembler copies WHOLE instructions, so it hooks the SEH-scope dialogue-grid
+ctor `0x5e59c0` (6-byte `mov eax,fs:0x0` prologue) that the old fixed-5-byte `install_detour`
+corrupted. Used by `dlghook` to capture the story/cutscene text-grid `this` at build time.
 
 ## Inject
 
@@ -72,6 +79,11 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 | `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up. **Frozen by default on attach** (so the menu-drive load always has a title). |
 | `dlgskip` | `on`(bool) | auto-advance an OPEN dialogue hands-free. PASSIVELY reads the SE dialogue widget (`*(input_mgr+0x374)!=0` ⇒ a box is on screen) and injects the advance ids (`0x24`/`0x27`) **only while a box is up** — in freeroam it injects NOTHING, so it can't auto-trigger a world interaction (the door). **Default ON.** (Instant reveal + a pure UI-state advance are WIP — PORT-DEBT(dlgskip-reveal-ui), see DESIGN.) |
 | `dlgbtns` | `b0..b5` | set extra reveal-skip ids dlgskip injects while a box is up (now gated on the passive box-open read, no close-leak). **Default EMPTY** — these ids double as world input; leave off until the reveal is done via a UI-state write (DESIGN). |
+| `scan` | `value`,`max`(opt) | find every u32 == value in the game heap (RW private regions) — general "find the object". ⚠ the DirectDraw framebuffer is a volatile RW region that matches any value; verify hits by re-reading. |
+| `dlggrid` | — | locate the live story/cutscene dialogue text-grid(s) by the `{active,total,reveal}`+body-color `0x3e537d` signature; sets `g_dlg_grid` to the first hit. Works on a TYPING grid; `dlghook` is more robust. |
+| `grid` | — | inspect the captured text-grid: `{grid,active,reveal,total,cells}`. |
+| `dlghook` | `on`(bool) | **MinHook** the grid ctor `0x5e59c0` to capture `g_dlg_grid` at BUILD time (robust — catches waiting/instant boxes the scan misses). VERIFIED through the intro (no crash), where the old byte-patch hook + a VEH both crashed. |
+| `fastskip` | `on`(bool) | **WIP** — force the story grid's typewriter reveal high (instant text; pure UI-state write, no button). Default OFF; the real per-line reveal-target field is still being RE'd (`+0x4c` is cell capacity, not text length). |
 | `press` | `btn`,`n`(opt) | inject button `btn` into the active input mgr `n` times — a probe to map what each id does in the current context. |
 | `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL (socket thread — unsafe for engine fns) |
 | `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |

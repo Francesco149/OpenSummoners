@@ -28,6 +28,7 @@
 #include <stdarg.h>
 
 #include "sotes_save.h"      // standalone .sdt reader (tools/sotes_save/)
+#include "MinHook.h"         // vendored inline-hook lib (tools/sotes_trainer/minhook, BSD-2)
 
 // ─── EN-SE addresses (unpacked ImageBase 0x400000) ──────────────────────────
 #define ORIG_BASE     0x400000u
@@ -745,6 +746,44 @@ static void suspend_others(int suspend) {
     CloseHandle(snap);
 }
 
+// ─── MinHook inline hook on the dialogue grid ctor (robust grid capture) ─────
+// The SEH-safe way to grab the story/cutscene grid `this` at BUILD time (every box, typing or
+// waiting — retires the fragile dlggrid scan).  MinHook's HDE length disassembler copies the WHOLE
+// 6-byte `mov eax,fs:0x0` prologue (the fixed-5-byte install_detour truncated it → corruption).
+// The ctor 0x5e59c0 is __thiscall(ecx=grid, 7 stack args, ret 0x1c); the detour captures ecx →
+// g_dlg_grid then calls the original (trampoline) with the same 7 args (each arg-set cleaned once —
+// no double-ret).  A pure inline hook, no VEH, so it does NOT perturb the intro's C++/SEH exceptions
+// (unlike the dropped HW-breakpoint engine).
+typedef void (__attribute__((__thiscall__)) *dlg_ctor_fn)(void *self, uint32_t, uint32_t, uint32_t,
+                                                          uint32_t, uint32_t, uint32_t, uint32_t);
+static dlg_ctor_fn      g_dlg_ctor_orig;
+static volatile int     g_dlg_ctor_captures;
+static void __attribute__((__thiscall__))
+dlg_ctor_detour(void *self, uint32_t a1, uint32_t a2, uint32_t a3,
+                uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7) {
+    g_dlg_grid = (uint32_t)(uintptr_t)self;
+    g_dlg_ctor_captures++;
+    g_dlg_ctor_orig(self, a1, a2, a3, a4, a5, a6, a7);
+}
+static volatile int g_minhook_inited, g_dlg_hook_on;
+static const char *dlg_hook_enable(int on) {
+    if (on) {
+        if (!g_minhook_inited) {
+            if (MH_Initialize() != MH_OK) return "MH_Initialize failed";
+            g_minhook_inited = 1;
+        }
+        if (g_dlg_hook_on) return "already-on";
+        MH_STATUS s = MH_CreateHook((LPVOID)AP(VA_DLGGRID), (LPVOID)&dlg_ctor_detour,
+                                    (LPVOID *)&g_dlg_ctor_orig);
+        if (s != MH_OK && s != MH_ERROR_ALREADY_CREATED) return "MH_CreateHook failed";
+        if (MH_EnableHook((LPVOID)AP(VA_DLGGRID)) != MH_OK) return "MH_EnableHook failed";
+        g_dlg_hook_on = 1;
+        return "enabled";
+    }
+    if (g_dlg_hook_on) { MH_DisableHook((LPVOID)AP(VA_DLGGRID)); g_dlg_hook_on = 0; }
+    return "disabled";
+}
+
 static volatile LONG g_hooks_done;
 static void ensure_hooks(void) {
     if (InterlockedCompareExchange(&g_hooks_done, 1, 0) != 0) return;   // install once
@@ -1243,6 +1282,15 @@ static void handle_line(const char *line, char *out, int cap) {
         g_fastskip = json_bool(line, "on", 1);
         snprintf(out, cap, "{\"ok\":true,\"fastskip\":%s,\"grid\":\"0x%08x\"}",
                  g_fastskip ? "true" : "false", (unsigned)g_dlg_grid);
+        return;
+    }
+    if (!strcmp(cmd, "dlghook")) {
+        // {"cmd":"dlghook","on":true|false} — MinHook the grid ctor 0x5e59c0 to capture g_dlg_grid at
+        // BUILD time (robust; supersedes the dlggrid scan — catches waiting/instant boxes too).
+        // Trigger a dialogue after enabling; `captures` counts ctor hits.
+        const char *r = dlg_hook_enable(json_bool(line, "on", 1));
+        snprintf(out, cap, "{\"ok\":true,\"result\":\"%s\",\"on\":%s,\"captures\":%d,\"grid\":\"0x%08x\"}",
+                 r, g_dlg_hook_on ? "true" : "false", g_dlg_ctor_captures, (unsigned)g_dlg_grid);
         return;
     }
 
