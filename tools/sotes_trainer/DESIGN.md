@@ -541,9 +541,17 @@ Chased the object graph statically → the reveal offset the port needs:
   the TM ptr cached at both, or box=widget's parent).
 - **Key SE VAs:** grid-ctor 0x5e59c0; add-line 0x5e6530 → get-widget 0x5e62c0 → start-line 0x5e6cd0;
   TM_init 0x5e84f0; skip/step 0x5e7ad0.  Tools: `scratchpad/find_grade2.py`, `se_text.asm` (full objdump).
-- **NEXT: verify live** (dlghook + read/write, NO rebuild): walk grid→widget→TM, confirm +0x14 climbs
-  while +0x10 stays = total, force +0x14=+0x10 + screenshot; then rewrite `fastskip`/`grid` to the
-  chain + wire a faithful `call 0x5e7ad0(cmd=9)`.  Retires `PORT-DEBT(dlgskip-reveal-ui)`.
+- **VERIFIED LIVE + IMPLEMENTED (session 8).**  Walked the chain on a live SE (dlghook-captured
+  container 0x3021a468): **cap=10 / count=7**; widgets [0-5] = DONE lines (+0x170=0, finalized TM at
+  +0x174), the **ACTIVE line = widget[6] +0x170 → TM total=4 reveal=1** (mid-type).  Writing
+  **TM+0x14 = total STICKS** (the typewriter stops at reveal>=total); writing 0 gets re-driven to 1
+  (PROVES +0x14 IS the live reveal counter, not a derived field).  `fastskip`/`grid`/`dlggrid`
+  REWRITTEN to walk `grid → widget[+0x48][count-1] → TM(+0x170) → +0x14=+0x10` (`dlg_active_tm` /
+  `dlg_force_reveal`, trainer.c); pure UI-state, no input → door-safe; builds clean.  ⚠ PENDING: the
+  on-screen VISUAL confirm — the BACKGROUNDED game's sim pauses (the typewriter ticks once per socket
+  wake, then stalls; a foregrounded/focused run is needed to watch text flow) + a re-inject smoke test
+  of the new build.  Optional follow-up: wire the faithful `call 0x5e7ad0(cmd=9)` as an alternative to
+  the direct write.  Retires `PORT-DEBT(dlgskip-reveal-ui)` at the memory level.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,

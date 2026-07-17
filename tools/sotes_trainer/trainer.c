@@ -194,6 +194,21 @@ static int stat_max(uintptr_t sb, int base_off, int equip_off, int buff_off) {
 // active(=1), +0x8 reveal counter (0..total), +0x48 cell array, +0x4c char total; cells
 // carry the body-text color 0x3e537d / 0xa8b9cc — the signature that rejects the many
 // heap objects with a coincidental +0x4==1.
+// ── SE dialogue reveal chain (RE'd session 8; DESIGN "Reveal counter FOUND") ──────
+// g_dlg_grid (ctor-captured) is a text CONTAINER = a pool of line-widgets:
+//   grid+0x48 = widget-ptr array; grid+0x4c = pool { cap:u16 = &0xffff, count:u16 = >>16 }.
+//   widget (0x1b0 B) +0x170 -> the ACTIVE line's text-machine (0 once the line finishes;
+//   the finalized TM then lives at widget+0x174).  TM (0x2c B): +0x10 total chars, +0x14
+//   reveal cursor.  FAST-SKIP = write TM+0x14 = TM+0x10 (== port dialogue_skip_reveal; a
+//   pure UI-STATE write, no input ⇒ can't trip a world interaction).  VERIFIED live: the
+//   walk resolves (cap=10/count=7; active widget[6]+0x170->TM total=4 reveal=1) and forcing
+//   +0x14=total sticks (the typewriter stops at reveal>=total).
+#define GRID_WIDGET_ARR 0x48
+#define GRID_POOL_CC    0x4c
+#define WIDGET_TM       0x170
+#define TM_TOTAL        0x10
+#define TM_REVEAL       0x14
+
 static int scan_u32(uint32_t needle, uintptr_t *out, int cap) {
     int n = 0;
     uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
@@ -228,13 +243,21 @@ static int cell_has_body_color(uint32_t cells) {
     }
     return 0;
 }
+// A dialogue CONTAINER: +0x4 active(=1), +0x4c pool{cap,count}, +0x48 widget-ptr array with
+// >=1 allocated line-widget carrying the body-text color (rejects unrelated heap pools).
 static int grid_looks_valid(uintptr_t p) {
-    uint32_t active = 0, reveal = 0, total = 0, cells = 0;
-    if (!rd32((void *)(p + 0x4),  &active) || active != 1)               return 0;
-    if (!rd32((void *)(p + 0x4c), &total)  || total < 1 || total > 4096) return 0;
-    if (!rd32((void *)(p + 0x8),  &reveal) || reveal > total)            return 0;
-    if (!rd32((void *)(p + 0x48), &cells)  || cells <= 0x10000)          return 0;
-    return cell_has_body_color(cells);
+    uint32_t active = 0, cc = 0, arr = 0;
+    if (!rd32((void *)(p + 0x4),  &active) || active != 1)                    return 0;
+    if (!rd32((void *)(p + GRID_POOL_CC), &cc))                              return 0;
+    uint32_t cap = cc & 0xffff, count = cc >> 16;
+    if (cap < 1 || cap > 256 || count < 1 || count > cap)                    return 0;
+    if (!rd32((void *)(p + GRID_WIDGET_ARR), &arr) || arr <= 0x10000)        return 0;
+    for (uint32_t i = 0; i < count && i < 64; ++i) {
+        uint32_t w = 0;
+        if (rd32((void *)(uintptr_t)(arr + 4 * i), &w) && w > 0x10000 && cell_has_body_color(w))
+            return 1;
+    }
+    return 0;
 }
 static int find_dlg_grids(uintptr_t *out, int cap) {
     int n = 0;
@@ -255,6 +278,55 @@ static int find_dlg_grids(uintptr_t *out, int cap) {
         addr = next;
     }
     return n;
+}
+
+// Find the ACTIVE typing line's text-machine under container `grid` (walk the widget pool
+// from the last-allocated line back; the current line is the one whose +0x170 TM is live).
+// Returns the TM addr (0 if none), filling *total/*reveal/*widx.  DESIGN "Reveal counter FOUND".
+static uint32_t dlg_active_tm(uint32_t grid, uint32_t *total, uint32_t *reveal, int *widx) {
+    if (total)  *total  = 0;
+    if (reveal) *reveal = 0;
+    if (widx)   *widx   = -1;
+    if (!grid) return 0;
+    uint32_t cc = 0, arr = 0;
+    if (!rd32((void *)(uintptr_t)(grid + GRID_POOL_CC), &cc))                    return 0;
+    if (!rd32((void *)(uintptr_t)(grid + GRID_WIDGET_ARR), &arr) || arr <= 0x10000) return 0;
+    uint32_t count = cc >> 16, cap = cc & 0xffff;
+    if (cap < 1 || cap > 256 || count > cap)                                     return 0;
+    for (int i = (int)count - 1; i >= 0; --i) {
+        uint32_t w = 0, tm = 0, tot = 0, rev = 0;
+        if (!rd32((void *)(uintptr_t)(arr + 4 * i), &w) || w <= 0x10000)         continue;
+        if (!rd32((void *)(uintptr_t)(w + WIDGET_TM), &tm) || tm <= 0x10000)     continue;
+        if (!rd32((void *)(uintptr_t)(tm + TM_TOTAL), &tot) || tot < 1 || tot > 8192) continue;
+        if (!rd32((void *)(uintptr_t)(tm + TM_REVEAL), &rev))                    continue;
+        if (total)  *total  = tot;
+        if (reveal) *reveal = rev;
+        if (widx)   *widx   = i;
+        return tm;
+    }
+    return 0;
+}
+// Force every live typing line's reveal to total (pure UI-state skip).  Returns # skipped.
+static int dlg_force_reveal(uint32_t grid) {
+    if (!grid) return 0;
+    uint32_t cc = 0, arr = 0;
+    if (!rd32((void *)(uintptr_t)(grid + GRID_POOL_CC), &cc)) return 0;
+    if (!rd32((void *)(uintptr_t)(grid + GRID_WIDGET_ARR), &arr) || arr <= 0x10000) return 0;
+    uint32_t count = cc >> 16, cap = cc & 0xffff;
+    if (cap < 1 || cap > 256 || count > cap) return 0;
+    int forced = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t w = 0, tm = 0, tot = 0, rev = 0;
+        if (!rd32((void *)(uintptr_t)(arr + 4 * i), &w) || w <= 0x10000)         continue;
+        if (!rd32((void *)(uintptr_t)(w + WIDGET_TM), &tm) || tm <= 0x10000)     continue;
+        if (!rd32((void *)(uintptr_t)(tm + TM_TOTAL), &tot) || tot < 1 || tot > 8192) continue;
+        if (!rd32((void *)(uintptr_t)(tm + TM_REVEAL), &rev))                    continue;
+        if (rev < tot && mem_writable((void *)(uintptr_t)(tm + TM_REVEAL), 4)) {
+            *(volatile uint32_t *)(uintptr_t)(tm + TM_REVEAL) = tot;
+            ++forced;
+        }
+    }
+    return forced;
 }
 
 // ─── freeze table (applied every tick) ──────────────────────────────────────
@@ -303,29 +375,22 @@ static DWORD WINAPI tick_thread(void *unused) {
             if (g_locks[i].used && mem_writable((void *)g_locks[i].addr, 4))
                 *(uint32_t *)g_locks[i].addr = g_locks[i].val;
         LeaveCriticalSection(&g_lock_cs);
-        // Fast-skip (WIP, default OFF): force the story grid's reveal high while typing — a pure
-        // UI-STATE write (no button ⇒ no world input ⇒ can't trip the door).  SELF-LOCATING via the
-        // signature scan (no hook): rescan (throttled ~150ms) when the cached grid isn't live.
-        // ⚠ KNOWN-INCOMPLETE: +0x4c (=512 live) is the cell-array CAPACITY, NOT the per-line text
-        // length; reveal (+0x8) climbs to a per-line textlen field (TBD).  Forcing reveal=+0x4c
-        // over-reveals — this is a PLACEHOLDER until the ctor hook (MinHook) captures the grid and
-        // the real reveal-target field is RE'd.  Also only catches a TYPING box (active==1); a
-        // waiting/instant box (active!=1) is missed — another reason the hook supersedes the scan.
+        // Fast-skip (default OFF): force the active dialogue line's reveal to total each tick — a
+        // pure UI-STATE write (no button ⇒ no world input ⇒ can't trip the door).  Walk the
+        // ctor-captured container g_dlg_grid -> widget pool -> the typing line's text-machine ->
+        // TM+0x14=TM+0x10 (`dlg_force_reveal`, RE'd session 8).  The typewriter re-drives reveal
+        // while reveal<total, so re-force each tick.  If the hook hasn't captured a grid yet
+        // (g_dlg_grid==0), self-locate by the signature scan (throttled ~150ms).
         if (g_fastskip) {
-            uint32_t g = g_dlg_grid, active = 0, reveal = 0, total = 0;
-            int live = g && rd32((void *)(uintptr_t)(g + 0x4), &active) && active == 1;
-            if (!live) {
+            if (!g_dlg_grid) {
                 static int rescan_div = 0;
-                if (++rescan_div >= 3) {                       // ~150ms: locate a live grid by scan
+                if (++rescan_div >= 3) {
                     rescan_div = 0;
                     uintptr_t hit[1];
-                    if (find_dlg_grids(hit, 1) == 1) { g = (uint32_t)hit[0]; g_dlg_grid = g; live = 1; }
+                    if (find_dlg_grids(hit, 1) == 1) g_dlg_grid = (uint32_t)hit[0];
                 }
             }
-            if (live && rd32((void *)(uintptr_t)(g + 0x4c), &total)  && total >= 1 && total <= 4096 &&
-                        rd32((void *)(uintptr_t)(g + 0x8),  &reveal) && reveal < total &&
-                        mem_writable((void *)(uintptr_t)(g + 0x8), 4))
-                *(volatile uint32_t *)(uintptr_t)(g + 0x8) = total;
+            dlg_force_reveal(g_dlg_grid);
         }
     }
     return 0;
@@ -468,10 +533,11 @@ static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // extra reveal-
                                  // default EMPTY — the reveal-skip id doubles as world UP, so it
                                  // must stay off until the reveal is done via a UI-STATE write,
                                  // per USER "force UI state, not input").  PORT-DEBT(dlgskip-reveal-ui).
-// The dialogue body TEXT-GRID `this`, captured at the 0x5e59c0 ctor entry (hook precb = mov
+// The dialogue text CONTAINER `this`, captured at the 0x5e59c0 ctor entry (hook precb = mov
 // [g_dlg_grid],ecx).  Shared by intro + in-game dialogue, so this is THE handle to the reveal
-// state for ANY box: grid+0x8 = reveal counter, grid+0x4c = char total, grid+0x4 = active,
-// grid+0x48 = cell array.  0 until the first dialogue line builds a grid.
+// state for ANY box: a pool of line-widgets at grid+0x48 (count @ +0x4e), each line's typewriter
+// text-machine at widget+0x170 (total @ TM+0x10, reveal @ TM+0x14).  Walk via dlg_active_tm /
+// force via dlg_force_reveal.  0 until the first dialogue line builds a container.
 static volatile uint32_t g_dlg_grid;
 // ── dialogue-field TRACE (temporary RE aid) ── while g_dlg_grid is active, snapshot grid[0..0xC0]
 // every poll from the moment a NEW grid is built (engine thread ⇒ catches every typewriter frame
@@ -1255,33 +1321,39 @@ static void handle_line(const char *line, char *out, int cap) {
         int ng = find_dlg_grids(g, 16);
         if (ng > 0) g_dlg_grid = (uint32_t)g[0];
         int n = snprintf(out, cap, "{\"ok\":true,\"count\":%d,\"grids\":[", ng);
-        for (int i = 0; i < ng && n < cap - 96; ++i) {
-            uint32_t active = 0, reveal = 0, total = 0, cells = 0;
-            rd32((void *)(g[i] + 0x4), &active); rd32((void *)(g[i] + 0x8), &reveal);
-            rd32((void *)(g[i] + 0x4c), &total); rd32((void *)(g[i] + 0x48), &cells);
+        for (int i = 0; i < ng && n < cap - 128; ++i) {
+            uint32_t cc = 0, total = 0, reveal = 0; int widx = -1;
+            uint32_t tm = dlg_active_tm((uint32_t)g[i], &total, &reveal, &widx);
+            rd32((void *)(g[i] + GRID_POOL_CC), &cc);
             n += snprintf(out + n, cap - n,
-                "%s{\"grid\":\"0x%08x\",\"active\":%u,\"reveal\":%u,\"total\":%u,\"cells\":\"0x%08x\"}",
-                i ? "," : "", (unsigned)g[i], active, reveal, total, (unsigned)cells);
+                "%s{\"grid\":\"0x%08x\",\"count\":%u,\"line\":%d,\"tm\":\"0x%08x\",\"total\":%u,\"reveal\":%u}",
+                i ? "," : "", (unsigned)g[i], cc >> 16, widx, (unsigned)tm, total, reveal);
         }
         snprintf(out + n, cap - n, "]}");
         return;
     }
     if (!strcmp(cmd, "grid")) {
-        // {"cmd":"grid"} — inspect the captured story dialogue grid (g_dlg_grid).
-        uint32_t g = g_dlg_grid, active = 0, reveal = 0, total = 0, cells = 0;
-        if (g) { rd32((void *)(uintptr_t)(g + 0x4), &active); rd32((void *)(uintptr_t)(g + 0x8), &reveal);
-                 rd32((void *)(uintptr_t)(g + 0x4c), &total); rd32((void *)(uintptr_t)(g + 0x48), &cells); }
+        // {"cmd":"grid"} — inspect the captured container (g_dlg_grid): walk to the active typing
+        // line's text-machine and report its total + reveal (the REAL typewriter reveal state).
+        uint32_t g = g_dlg_grid, cc = 0, arr = 0, total = 0, reveal = 0; int widx = -1;
+        uint32_t tm = dlg_active_tm(g, &total, &reveal, &widx);
+        if (g) { rd32((void *)(uintptr_t)(g + GRID_POOL_CC), &cc);
+                 rd32((void *)(uintptr_t)(g + GRID_WIDGET_ARR), &arr); }
         snprintf(out, cap,
-            "{\"ok\":true,\"grid\":\"0x%08x\",\"active\":%u,\"reveal\":%u,\"total\":%u,\"cells\":\"0x%08x\"}",
-            (unsigned)g, active, reveal, total, (unsigned)cells);
+            "{\"ok\":true,\"grid\":\"0x%08x\",\"cap\":%u,\"count\":%u,\"widgets\":\"0x%08x\","
+            "\"line\":%d,\"tm\":\"0x%08x\",\"total\":%u,\"reveal\":%u}",
+            (unsigned)g, cc & 0xffff, cc >> 16, (unsigned)arr, widx, (unsigned)tm, total, reveal);
         return;
     }
     if (!strcmp(cmd, "fastskip")) {
-        // {"cmd":"fastskip","on":true|false} — force the story grid's typewriter reveal to total each
-        // tick (instant text), self-locating via the scan.  Pure UI-state write (DESIGN reveal-ui debt).
+        // {"cmd":"fastskip","on":true|false} — instant text: each tick force the active dialogue
+        // line's reveal to total (walk g_dlg_grid -> widget -> TM+0x14=TM+0x10).  Pure UI-state
+        // write (no input ⇒ door-safe).  Pair with dlgskip to fully fast-forward.  Default OFF.
         g_fastskip = json_bool(line, "on", 1);
-        snprintf(out, cap, "{\"ok\":true,\"fastskip\":%s,\"grid\":\"0x%08x\"}",
-                 g_fastskip ? "true" : "false", (unsigned)g_dlg_grid);
+        uint32_t total = 0, reveal = 0;
+        uint32_t tm = dlg_active_tm(g_dlg_grid, &total, &reveal, NULL);
+        snprintf(out, cap, "{\"ok\":true,\"fastskip\":%s,\"grid\":\"0x%08x\",\"tm\":\"0x%08x\",\"total\":%u,\"reveal\":%u}",
+                 g_fastskip ? "true" : "false", (unsigned)g_dlg_grid, (unsigned)tm, total, reveal);
         return;
     }
     if (!strcmp(cmd, "dlghook")) {
