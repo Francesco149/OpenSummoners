@@ -553,6 +553,32 @@ Chased the object graph statically → the reveal offset the port needs:
   of the new build.  Optional follow-up: wire the faithful `call 0x5e7ad0(cmd=9)` as an alternative to
   the direct write.  Retires `PORT-DEBT(dlgskip-reveal-ui)` at the memory level.
 
+### The "hold TAB" fast-skip = the auto-advance flag [mgr+0x12c] (session 9, 2026-07-18) — DONE
+USER: holding TAB skips dialogue even faster than fastskip; find the code + use it.  RE'd with a frida
+DEBUGGER (Interceptor + Backtracer + a code-patch toggle — the reusable rig below):
+- WHY fastskip alone wasn't enough: fastskip (reveal=total) only INSTANTS the text, it does not ADVANCE
+  the box; dlgskip (inject 0x24/0x27 into g_ti_mgr) only advances the DOOR-prompt widget
+  (`g_ti_mgr+0x374`).  Story/cutscene/NPC dialogue is a SEPARATE object (the `g_dlg_grid` container) on a
+  SEPARATE input path, so dlgskip never advances it — THAT is the gap TAB fills.
+- Hooked the SE skip/advance fns while the USER held TAB: **wrap 0x5e7fe0(cmd=8) fired 73x**, and
+  **NOTHING** appeared in the g_ti_mgr input ring (`monitor_tab.py`) — so TAB drives the story stepper's
+  AUTO-ADVANCE, not a button.  cmd 8 = base `FUN_0043ca40(8)` auto-advance.  Backtrace:
+  `0x437752 <- 0x43719b <- 0x434ff8 <- cutscene script 0x4dd290`.
+- THE GATE (SE analog of base `FUN_0043b980:75`): `0x437738 mov eax,[ebx+0x12c]` (ebx = the story
+  dialogue mgr; **+0x12c = the auto-advance flag**) → `0x437740 je 0x437752` skips the advance when the
+  flag==0; else `0x43774d call wrap(cmd=8)`.  Holding TAB sets `[mgr+0x12c]!=0`.
+- **FIX = patch the je: `0x437740` `74 10` → `90 90` (nop nop)** → the stepper advances EVERY frame → ALL
+  story dialogue skips itself, hands-free.  **VERIFIED LIVE** (frida patch, USER-confirmed): skips Mom's +
+  Dad's + every new box, NO stray world input, repeats on each dialogue.  SHIPPED as **`autoskip`**
+  (`dlg_autoskip` + `patch_bytes`; `VA_DLGADV_JE`).  Pure 2-byte code patch, no input injection.  Default
+  OFF (also auto-advances CHOICE boxes — toggle off to read/pick).  Builds clean.
+- **The frida DEBUGGER rig is reusable** (the USER-requested "actual debugger"): `scratchpad/dbg.py`
+  (Interceptor onEnter hooks + `Thread.backtrace` on ANY VA — absolute addr, delta=0; logs ecx/args/bt),
+  `patch_test.py` (`Memory.patchCode` je→nop toggle + wrap-call counter), `monitor_tab.py` (input-ring
+  dump over the socket `read`).  Attach: frida remote `cutestation.soy:27042` → PID (sotes-trainer-oss.exe).
+  For a future path-diff RE, frida **Stalker** can block-trace with/without an input and diff — not needed
+  here (the gate fell straight out of the Interceptor backtraces).
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).

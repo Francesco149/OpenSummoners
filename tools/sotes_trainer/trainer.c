@@ -86,6 +86,11 @@
                                      // `this`): the caller 0x58113e does `mov [0x92dd4c], ecx`
                                      // right before `call 0x581ba0` — read it, no hook needed.
 #define VA_DEMO_JL     0x583866      // attract idle->demo trigger: jl 0x5832e1 -> patch to jmp
+#define VA_DLGADV_JE   0x437740      // story-dialogue advance GATE: je 0x437752 (74 10) skips the
+                                     // per-frame auto-advance when the flag [mgr+0x12c]==0.  NOP it
+                                     // (90 90) -> the story stepper advances EVERY frame -> story/
+                                     // cutscene/NPC dialogue skips itself (the "hold TAB" mechanism,
+                                     // RE'd via a frida debugger: 73x wrap(cmd=8) all gated here).
 #define VA_DLGGRID     0x5e59c0      // dialogue body TEXT-GRID ctor (thiscall, ecx=grid): allocs the
                                      // per-char cells (each 0x1b0 B, colored via 0x5e6630 w/ the body
                                      // colors 0x3e537d/0xa8b9cc) — shared by intro + in-game dialogue.
@@ -900,6 +905,22 @@ static void attract_freeze(int on) {
     }
 }
 
+static volatile int g_autoskip;
+// Story/cutscene/NPC dialogue AUTO-ADVANCE ("hold TAB" equivalent).  The story stepper (analog of
+// base FUN_0043b980) gates its per-frame advance on the auto-advance flag [mgr+0x12c] read at
+// 0x437738; the je@0x437740 skips the advance when that flag is 0.  NOP the je -> the advance
+// (wrap cmd=8 -> reveal-to-end + step) fires EVERY frame -> the dialogue skips itself.  RE'd via a
+// frida debugger (73x wrap(cmd=8), all gated here) + VERIFIED live (skips Mom's/Dad's/every box,
+// hands-free, no stray world input).  Pure 2-byte code patch, no input injection.
+static void dlg_autoskip(int on) {
+    uint8_t *p = (uint8_t *)AP(VA_DLGADV_JE);
+    if (!mem_readable(p, 2)) return;
+    uint8_t nop2[2] = { 0x90, 0x90 };            // je 0x437752 -> nop nop : always advance
+    uint8_t je2 [2] = { 0x74, 0x10 };            // restore (rel8 0x10 is base-invariant)
+    patch_bytes(p, on ? nop2 : je2, 2);
+    g_autoskip = on ? 1 : 0;
+}
+
 // ─── save-file inspection (reads savedataNN.sdt via the standalone sotes_save lib) ──
 // The game keeps saves beside the exe in user\savedataNN.sdt.  Reading the FILE (not
 // engine memory) means the trainer can enumerate/identify EVERY save without loading
@@ -1013,12 +1034,14 @@ static void handle_line(const char *line, char *out, int cap) {
         if (g_ti_mgr) rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_SCALE), &bsc);
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
-            "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"box_open\":%s,\"box_scale\":%u,"
+            "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"autoskip\":%s,\"fastskip\":%s,"
+            "\"box_open\":%s,\"box_scale\":%u,"
             "\"md_state\":%d,\"md_slot\":%d,"
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
-            g_dlgskip ? "true" : "false", dialogue_box_open(g_ti_mgr) ? "true" : "false",
+            g_dlgskip ? "true" : "false", g_autoskip ? "true" : "false", g_fastskip ? "true" : "false",
+            dialogue_box_open(g_ti_mgr) ? "true" : "false",
             (unsigned)bsc, g_md_state, g_md_slot,
             g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
         return;
@@ -1354,6 +1377,16 @@ static void handle_line(const char *line, char *out, int cap) {
         uint32_t tm = dlg_active_tm(g_dlg_grid, &total, &reveal, NULL);
         snprintf(out, cap, "{\"ok\":true,\"fastskip\":%s,\"grid\":\"0x%08x\",\"tm\":\"0x%08x\",\"total\":%u,\"reveal\":%u}",
                  g_fastskip ? "true" : "false", (unsigned)g_dlg_grid, (unsigned)tm, total, reveal);
+        return;
+    }
+    if (!strcmp(cmd, "autoskip")) {
+        // {"cmd":"autoskip","on":true|false} — auto-advance ALL story/cutscene/NPC dialogue hands-free
+        // (the "hold TAB" skip): NOPs the advance-gate je@0x437740 so the story stepper advances every
+        // frame.  The STRONGEST skip — no keypress, no per-line poking, skips whole conversations.
+        // Pure code patch, no world input (verified: no stray triggers).  Default OFF: it also auto-
+        // advances CHOICE boxes, so toggle off when you need to read or pick.
+        dlg_autoskip(json_bool(line, "on", 1));
+        snprintf(out, cap, "{\"ok\":true,\"autoskip\":%s}", g_autoskip ? "true" : "false");
         return;
     }
     if (!strcmp(cmd, "dlghook")) {
