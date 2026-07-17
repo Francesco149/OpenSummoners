@@ -416,6 +416,25 @@ global); or (c) in-game-only via the box cells (`g_ti_mgr+0x374` → the text-gr
 ready: the `dlgtrace` cmd + the `g_dlg_grid` tracer (idle until a safe hook/chain sets `g_dlg_grid`).
 `PORT-DEBT(dlgskip-reveal-ui)`.
 
+**Update (session 6c, cont.) — the walls, mapped.**  Pursuing the in-game path surfaced that the
+dialogue system has (at least) TWO renderers:
+- **Input-mgr widget** `*(input_mgr+0x374)` (scale +0x3a4) — this is the **special DOOR PROMPT**
+  (the box the USER first triggered; it does NOT advance on 0x24/0x27).  The passive gate + the
+  `box_open`/`box_scale` diagnostics key on THIS.  It is what makes freeroam inject-free (door fix),
+  but it is NOT where normal story dialogue lives — so dlgskip does not auto-advance those.
+- **Cutscene / story dialogue** (the intro AND "Dad" NPC dialogue, initiated by interact) — a
+  SEPARATE object, NOT on `input_mgr+0x374` (verified live: box_open=false, +0x374 holds unrelated
+  "options" ASCII while Dad's box is up).  Its text grid (built by the shared 0x5e59c0, body color
+  0x3e537d) was NOT reachable by scanning `scene_this`(*0x92dd4c) / `game_opts`(*0x92af98) within 2
+  pointer levels, nor by the cell body-color signature.
+Both 0x5e59c0 AND its caller 0x5e5890 are **SEH-scope functions** (`mov %esp,%fs:0x0` prologues) —
+the trainer's prologue-relocating `install_detour` breaks their unwind → newgame crash.  So the
+clean-fix needs NEW trainer infra before it can proceed: (1) a NON-prologue-relocating hook (a
+mid-function/trampoline-free detour, or a VEH / HW-breakpoint capture) to grab the grid `this`
+safely; or (2) a memory-SCAN command (like find_player) to locate the active grid by the 0x3e537d
+cell-color signature + walk to grid+0x8/+0x4c; then force reveal=total.  The two shipped fixes
+(passive gate, settle debounce) are unaffected; the fast-skip is DEFERRED pending that infra.
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
