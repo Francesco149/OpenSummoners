@@ -242,6 +242,35 @@ static void write_typed(uintptr_t a, uint32_t v, const char *ty) {
     if (mem_writable((void *)a, 4)) *(uint32_t *)a = v;
 }
 
+// ─── engine-function caller ─────────────────────────────────────────────────
+// Call fn(args[0..n-1]) with ecx=ecx_this (harmless for cdecl/stdcall — ecx is
+// caller-saved; only thiscall reads it).  esp is saved before and restored after
+// the call, so ANY calling convention (cdecl/stdcall/thiscall) is safe — a
+// stdcall/thiscall `ret N` self-cleanup and a cdecl caller-cleanup both reduce to
+// "esp := saved".  O0 keeps ebp a frame pointer so the ebp-relative "m" operands
+// stay valid across the arg pushes.  Power primitive: unblocks the load chain.
+static uint32_t __attribute__((noinline, optimize("O0")))
+call_va(void *fn, uint32_t ecx_this, const uint32_t *args, int n) {
+    volatile uint32_t ret = 0;
+    __asm__ __volatile__(
+        "movl %%esp, %%ebx        \n\t"   // save esp
+        "movl %[n], %%edx         \n\t"   // edx = n (index, counts down)
+        "1: testl %%edx, %%edx    \n\t"
+        "   jz 2f                 \n\t"
+        "   decl %%edx            \n\t"
+        "   movl %[args], %%eax   \n\t"   // reload args base (ebp-relative, safe)
+        "   pushl (%%eax,%%edx,4) \n\t"   // push args[edx]  (right-to-left)
+        "   jmp 1b                \n\t"
+        "2: movl %[ecx], %%ecx    \n\t"   // ecx = this
+        "   call *%[fn]           \n\t"
+        "   movl %%ebx, %%esp     \n\t"   // restore esp (convention-agnostic cleanup)
+        "   movl %%eax, %[ret]    \n\t"
+        : [ret] "=m" (ret)
+        : [fn] "m" (fn), [ecx] "m" (ecx_this), [args] "m" (args), [n] "m" (n)
+        : "eax", "ebx", "ecx", "edx", "cc", "memory");
+    return ret;
+}
+
 // Build the player JSON into out. Returns 0 if no player.
 static int player_json(char *out, int cap) {
     uintptr_t base = find_player();
@@ -366,6 +395,27 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
+    if (!strcmp(cmd, "call")) {
+        // {"cmd":"call","va":"0x585cf0","a0":..,"a1":..,...,"ecx":"0x..","reloc":true}
+        // Calls the engine fn; args a0..a7 (contiguous), ecx=this (thiscall).  EXPERIMENTAL:
+        // use for the direct-load chain etc. once the caller state is right (DESIGN).
+        long long va, tmp;
+        if (!json_num(line, "va", &va)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no va\"}"); return; }
+        int reloc = json_bool(line, "reloc", 1);        // module VA -> AP()-relocate by default
+        uintptr_t fn = reloc ? (uintptr_t)AP(va) : (uintptr_t)va;
+        if (!mem_readable((void *)fn, 1)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"fn unreadable\"}"); return; }
+        uint32_t args[8]; int n = 0; char key[4];
+        for (int i = 0; i < 8; ++i) {
+            snprintf(key, sizeof key, "a%d", i);
+            if (!json_num(line, key, &tmp)) break;
+            args[n++] = (uint32_t)tmp;
+        }
+        uint32_t ecx = 0; if (json_num(line, "ecx", &tmp)) ecx = (uint32_t)tmp;
+        uint32_t r = call_va((void *)fn, ecx, args, n);
+        snprintf(out, cap, "{\"ok\":true,\"ret\":%u,\"ret_hex\":\"0x%08x\",\"fn\":\"0x%08x\",\"argc\":%d}",
+                 r, r, (unsigned)fn, n);
+        return;
+    }
 
     snprintf(out, cap, "{\"ok\":false,\"error\":\"unknown cmd\"}");
 }

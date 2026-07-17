@@ -156,14 +156,38 @@ Live disasm (SE VAs; some funcs carry `jmp 0x6b1xxxx` = pre-existing Frida hooks
   `this->[0x17c]` array of 16-byte entries (handle@+0, slot@+4). So `FUN_00585cf0`'s
   terminal load (`0x416550` load + `0x586c60` apply + `0x5cb460` transition) can't be called
   from arbitrary state without reconstructing the title/menu object. ⇒ prefer INPUT injection.
-- **Input model (the reliable path).** The active input-manager `this` holds **64 button
-  records** as pointers at `this[0xc + i*4]` (i=0..63; the poll scans i=0x3f→0). Each record
-  = `{id @+0, timestamp @+4, state @+8}`. Poll `FUN_00437c70`/`FUN_004378d0` consume a record
-  whose `id` matches and `state==1` within a **100ms** window (`now - ts <= 0x64`), then
-  zero it. ⇒ **INJECT = pick the record with the wanted id, set `state=1` + `ts=GetTickCount`.**
-  Menu button ids (DESIGN above): {2,4,34,37} (4=rotate+1, 37=confirm, 34=abort). TODO:
-  locate the active input-manager `this` (a singleton / the mode object), then a `press <id>`
-  cmd drives menus; `player` polling detects load success (Arche actor appears in-scene).
+- **Input model (the reliable path — RE'd, not yet drive-tested).**
+  - **Find the active mgr:** IN-SCENE it is `mgr = *(*(actor+0xc7a4))` (proven — one of the 4
+    process-wide refs to the live mgr is `*(actor+0xc7a4)`; the actor's input sub-object holds
+    it).  AT THE MENU there is no player actor ⇒ the mgr must be found another way (a heap-scan
+    for the 64-ptr signature, or a poll hook) — the OPEN piece, needs the menu state to nail.
+  - **Layout:** `mgr[0xc + i*4]` = 64 button-record pointers (i=0..63; poll scans i=0x3f→0).
+    Record (clean atomic snapshot, gameplay): `+0` = **type/category** (=2 for every gameplay
+    record — NOT the button id), `+4` = timestamp, `+8` = **state** (0/1), `+0xc..` = aux.
+  - **Poll `FUN_00437c70`/`FUN_004378d0`:** consume a record whose `+0` matches the poller's
+    category (`437c70` wants `+0==0`, `4378d0` wants `+0==2`) AND `+8==1` AND `now-ts <= 0x64`
+    (100ms), then clear `+0` and **dispatch via `FUN_005e7fe0`** (its arg = an `[esp]` value /
+    `mgr->0x11c` fallback → push 6/7).  ⇒ the button→action map is the DISPATCHER, not a record
+    id.  INJECT = set a record's `+8=1`, `+4=GetTickCount`, correct `+0` category — but which
+    record-index→which menu action needs live menu observation (RE `0x5e7fe0` at the menu).
+  - Menu button ids (DESIGN §"Mode signal"): {2,4,34,37} are the polled CATEGORIES at a menu
+    (title + slot-picker); 4=rotate, 37=confirm, 34=abort.
+
+## Recipe PLAN — "load this save" (next session; needs menu access + screen feedback)
+The direct-load chain is stateful and the menu input needs live observation, so DON'T drive it
+blind.  Fastest reliable route next session:
+1. Spawn a FRESH instance for menu RE with SCREENSHOTS + input — reuse `tools/ennse_voice/
+   repro_probe.py` (sandbox unpacked exe, DirectDraw capture, 64-slot input ring).  Leaves the
+   user's live game untouched (separate pid).  Screens give the visual feedback this needs.
+2. At the title, find the active input-mgr (heap-scan the 64-ptr signature or hook the poll),
+   dump its records, then map slot→action by injecting `+8=1`/`+4=tick`/`+0=category` and
+   watching the screen (Continue → slot-picker → confirm).  Detect load success HEADLESSLY via
+   the trainer `player` cmd (a valid `0xc35a` actor appears in-scene).
+3. Encode the working sequence into the DLL as `press <slot>` (writes the mgr record) + a `load
+   <slot>` convenience (either the input drive, or the direct chain `0x585cf0` via the new
+   `call` cmd once the title object is the `ecx`).  Then the trainer's `load` reloads this save.
+4. The tower save's SLOT: `user/savedataNN.sdt` — pick by newest mtime (the loaded one), or read
+   it from the load-menu object at confirm time (`0x5e8ea0` returns slot).
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
