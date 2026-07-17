@@ -379,8 +379,17 @@ state", the reveal-skip + advance should be a UI-STATE write on the box, not a b
 to build on: (1) the DOOR prompt does NOT respond to 0x24/0x27 (a special choice on the same
 widget) — verified live; (2) pinning the reveal/advance FIELD needs a NORMAL-dialogue TYPING-state
 capture (reveal < total), which the waiting-state capture can't show.
-Commands for this arc: `newgame`, `dlgskip` (now passive-gated), `dlgbtns`, `press` (id probe),
-`state` (+box_open/box_scale), `keepactive`.
+**Scene-settle debounce (session 6b) — fixes a PRE-EXISTING newgame crash.**  dlgskip-ON through
+`newgame` crashed the game DURING the title→scene transition.  PROVEN pre-existing (not the passive
+gate): rebuilt commit e92abf9 (the old probe-consumption dlgskip) and it crashes IDENTICALLY;
+dlgskip-OFF newgame survives in both.  Cause: dlgskip resumes the instant the menu-drive
+(`g_ng_state`) clears and touches the freshly-loaded scene's dialogue widget before it settles →
+fault.  FIX: `DLG_SETTLE_POLLS`=120 (~2s) — hold dlgskip off for a beat after ANY drive
+(`g_md_state`/`g_ng_state`).  VERIFIED: newgame + dlgskip-ON now SURVIVES (fresh Arche 41600,51199,
+box_open stays false, no loop, game alive through the whole test).  (The USER reached the door with
+the old build in their env — this crash is timing/env-sensitive, but the debounce removes it.)
+Commands for this arc: `newgame`, `dlgskip` (now passive-gated + settle-debounced), `dlgbtns`,
+`press` (id probe), `state` (+box_open/box_scale), `keepactive`.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,

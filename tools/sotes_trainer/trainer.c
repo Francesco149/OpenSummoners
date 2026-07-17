@@ -358,6 +358,7 @@ static volatile int      g_dlgskip = 1;        // auto-skip dialogue (DEFAULT ON
 // vendor/unpacked/editions/sotes-ense-en.exe.  See DESIGN.md "Dialogue-skip — passive gate".
 #define DLG_BOX_CELL0   0x374   // input-mgr -> dialogue widget: first content-cell ptr (0 = closed)
 #define DLG_BOX_SCALE   0x3a4   // input-mgr -> dialogue widget: pop-in scale (0..1000)
+#define DLG_SETTLE_POLLS 120    // hold dlgskip off ~2s after a menu-drive (scene-settle debounce)
 static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // extra reveal-skip ids (0=unused;
                                  // default EMPTY — the reveal-skip id doubles as world UP, so it
                                  // must stay off until the reveal is done via a UI-STATE write,
@@ -424,14 +425,21 @@ static uint8_t *inject_record(uint32_t mgr, uint32_t id, uint32_t now, int ordin
 }
 
 // PASSIVE dialogue-open test: read the SE dialogue widget (embedded in the input mgr) and report
-// whether a box is on screen.  No injection — this is the non-lagged replacement for the old
-// 0x24-probe consumption gate (see the g_dlgskip comment).  cell0 (+0x374) is 0 in freeroam and
-// holds the widget's first content-cell ptr while a box exists (opening / open / popping-out).
+// whether an IN-GAME dialogue box is on screen.  No injection — the non-lagged replacement for the
+// old 0x24-probe consumption gate (see the g_dlgskip comment).  Two conditions:
+//   (1) cell0 (+0x374) != 0 — the widget's first content-cell ptr (0 in freeroam);
+//   (2) scale (+0x3a4) in [1,1000] — the pop-in scale of a real box.
+// (2) is what rejects the TITLE: there g_ti_mgr is a DIFFERENT object (the title/menu manager,
+// not the in-game input mgr that owns the dialogue widget), where +0x374 holds a menu ptr and
+// +0x3a4 aliases a heap pointer (huge, ≫1000).  Freeroam has +0x374==0 && scale==0; only an
+// actual dialogue box has both cell0!=0 AND a sane 1..1000 scale.  (Verified live: title
+// +0x3a4=0x49600c0, freeroam=0, open=1000.)
 static int dialogue_box_open(uint32_t mgr) {
-    uint32_t cell0 = 0;
+    uint32_t cell0 = 0, scale = 0;
     if (!mgr) return 0;
-    if (!rd32((void *)(uintptr_t)(mgr + DLG_BOX_CELL0), &cell0)) return 0;
-    return cell0 != 0;
+    if (!rd32((void *)(uintptr_t)(mgr + DLG_BOX_CELL0), &cell0) || !cell0) return 0;
+    if (!rd32((void *)(uintptr_t)(mgr + DLG_BOX_SCALE), &scale)) return 0;
+    return scale >= 1 && scale <= 1000;
 }
 
 // Runs on the ENGINE thread (from the inputPoll safepoint).  Reproduces the retail
@@ -505,13 +513,22 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
             inject_record(g_ti_mgr, BTN_CONFIRM, now, 3);
         }
     }
-    // Auto-skip dialogue (suppressed while WE drive a menu).  GATE: only when a box is actually on
-    // screen (dialogue_box_open, a passive read of the widget) — so in freeroam we inject NOTHING
-    // and can't trigger a world interaction (the door).  When a box IS up, inject the advance ids
-    // 0x24/0x27 (dialogue-only, inert in the world) so each box steps hands-free; the reveal-skip
-    // ids (g_dlg_btns, default EMPTY) also fire — but ONLY while the box is up, and because the read
-    // is non-lagged they stop the instant it closes (no leak on close).
-    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state && dialogue_box_open(g_ti_mgr)) {
+    // Scene-settle debounce: a freshly-loaded scene (right after a newgame/load menu-drive) is
+    // briefly UNSTABLE — touching the dialogue widget the instant the drive ends faults the game.
+    // (PRE-EXISTING: dlgskip-on through `newgame` crashed BOTH this build and the pre-passive-gate
+    // one — the transition window, not the gate logic; proven by rebuilding e92abf9.)  Hold dlgskip
+    // off for a beat after any drive so the scene settles first.
+    static int g_dlg_settle = 0;
+    if (g_md_state || g_ng_state) g_dlg_settle = 0;
+    else if (g_dlg_settle < 100000)  g_dlg_settle++;
+    // Auto-skip dialogue (suppressed while WE drive a menu / until the scene settles).  GATE: only
+    // when a box is actually on screen (dialogue_box_open, a passive read of the widget) — so in
+    // freeroam we inject NOTHING and can't trigger a world interaction (the door).  When a box IS up,
+    // inject the advance ids 0x24/0x27 (dialogue-only, inert in the world) so each box steps hands-
+    // free; the reveal-skip ids (g_dlg_btns, default EMPTY) also fire — but ONLY while the box is up,
+    // and because the read is non-lagged they stop the instant it closes (no leak on close).
+    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state && g_dlg_settle > DLG_SETTLE_POLLS
+        && dialogue_box_open(g_ti_mgr)) {
         inject_record(g_ti_mgr, 0x24, now, 4);                     // advance (dialogue-only)
         inject_record(g_ti_mgr, 0x27, now, 5);                     // advance (dialogue-only)
         for (int i = 0; i < 6; ++i)
@@ -745,9 +762,8 @@ static void handle_line(const char *line, char *out, int cap) {
         // (0x437c70) is firing (game is at the title); pk_mgr!=0 => the save-slot picker
         // poll (0x4378d0) is firing.  box_open/box_scale = the live dialogue-widget read
         // dlgskip gates on (box_open true ⇒ a dialogue box is on screen).
-        uint32_t bc0 = 0, bsc = 0;
-        if (g_ti_mgr) { rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_CELL0), &bc0);
-                        rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_SCALE), &bsc); }
+        uint32_t bsc = 0;
+        if (g_ti_mgr) rd32((void *)(uintptr_t)(g_ti_mgr + DLG_BOX_SCALE), &bsc);
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
             "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"box_open\":%s,\"box_scale\":%u,"
@@ -755,7 +771,8 @@ static void handle_line(const char *line, char *out, int cap) {
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
-            g_dlgskip ? "true" : "false", bc0 ? "true" : "false", (unsigned)bsc, g_md_state, g_md_slot,
+            g_dlgskip ? "true" : "false", dialogue_box_open(g_ti_mgr) ? "true" : "false",
+            (unsigned)bsc, g_md_state, g_md_slot,
             g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
         return;
     }
