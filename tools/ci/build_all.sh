@@ -22,6 +22,8 @@ step "EN-SE voice patch (version.dll)";    dev make -C tools/ennse_voice
 step "osr_view (trace studio)";            dev make -C tools/osr_view
 step "capture_proxy (inject.exe)";         dev make -C tools/capture_proxy
 step "launcher";                           dev make -C tools/launcher
+step "save inspector (sotes_save_dump)";   dev make -C tools/sotes_save
+step "EN-SE trainer (sotes_trainer.dll)";  dev make -C tools/sotes_trainer
 step "asset gate (no embedded game bytes)"
 dev python3 tools/ci/no_proprietary_bytes.py \
     build/opensummoners.exe build/res_explorer.exe build/version.dll

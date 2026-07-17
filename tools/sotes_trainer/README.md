@@ -12,12 +12,20 @@ next (roadmap in DESIGN.md).
 ## Build
 
 ```
+nix develop --command make -C tools/sotes_trainer      # -> build/sotes_trainer.dll
+```
+
+(or the raw line, which links the standalone `.sdt` reader `tools/sotes_save/`:)
+
+```
 nix develop --command i686-w64-mingw32-gcc -shared -O2 -s -Wall -static -static-libgcc \
-  -o build/sotes_trainer.dll tools/sotes_trainer/trainer.c -lws2_32
+  -Itools/sotes_save -o build/sotes_trainer.dll \
+  tools/sotes_trainer/trainer.c tools/sotes_save/sotes_save.c -lws2_32
 ```
 
 `-static -static-libgcc` is REQUIRED — a default mingw build imports
 `libgcc_s_sjlj-1.dll`, absent in the game's DLL search path, so `LoadLibrary` fails.
+Both build in the mandatory gate `bash tools/ci/build_all.sh`.
 
 ## Inject
 
@@ -48,7 +56,9 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 | `god` | `on`(bool) | freeze hp+mp at max every 50 ms |
 | `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles |
 | `box` | — | debug: the player's collision AABB `{box,tag,x,top,w,h,world_y}` |
-| `load` | `downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm to reload the default (newest) save = the Archmage's Tower save. Menu-drive (the game's own code); freezes attract first. `downs`=N rotates the picker first (other slots). VERIFIED loads Lv17. |
+| `load` | `slot`(opt),`downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm via the game's own menu code (freezes attract first). No `slot` = the default-highlighted newest save (= Archmage's Tower, VERIFIED Lv17). `slot`:N = point the picker at savedataNN via the RE'd selection model, then confirm (any slot; slot-targeting RE'd, default path VERIFIED). `downs`=N = manual rotate-N fallback. |
+| `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,level_base}],file_size,header_grid}`. Use it to pick a slot to `load`. |
+| `saveinfo` | `slot` | full summary of one slot (same shape as a `saves` entry) |
 | `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up |
 | `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL (socket thread — unsafe for engine fns) |
 | `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |

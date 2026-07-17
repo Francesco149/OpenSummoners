@@ -6,8 +6,8 @@
 // that is BOTH the optional LLM interface and the stats-UI backend.  See DESIGN.md
 // for the discovered mechanics + roadmap.
 //
-// Build: i686-w64-mingw32-gcc -shared -O2 -s -o build/sotes_trainer.dll
-//        tools/sotes_trainer/trainer.c -lws2_32   (run inside nix develop)
+// Build: nix develop --command make -C tools/sotes_trainer  (-> build/sotes_trainer.dll;
+//        links the standalone .sdt reader tools/sotes_save/).  See README.md.
 //
 // Protocol: one JSON object per line in, one per line out.  Examples:
 //   {"cmd":"ping"}                          -> {"ok":true,"pong":true,"delta":...}
@@ -26,6 +26,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
+
+#include "sotes_save.h"      // standalone .sdt reader (tools/sotes_save/)
 
 // ─── EN-SE addresses (unpacked ImageBase 0x400000) ──────────────────────────
 #define ORIG_BASE     0x400000u
@@ -338,6 +340,33 @@ static volatile uint32_t g_ti_esp, g_ti_mgr;   // title-poll  (0x437c70) capture
 static volatile uint32_t g_pk_esp, g_pk_mgr;   // picker-poll (0x4378d0) captured esp / manager
 static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 2 want picker-confirm
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
+static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
+
+// The save-slot picker manager exposes its list + selection (RE'd off the getters
+// FUN_005e8e80/FUN_005e8ea0): selected index = *( *(mgr+0x174) + 0x14 ); slot list base
+// = *(mgr+0x17c), 0x10-byte entries { handle@+0, slot@+4 }.  Selecting an arbitrary slot
+// = find the entry whose slot==target, write its index into the selection model.
+#define PK_SEL_MODEL  0x174   // mgr -> selection-model ptr (+0x14 = selected index)
+#define PK_LIST_BASE  0x17c   // mgr -> slot-list base ptr  (entries {handle@0, slot@4})
+// Point the picker at savedataNN==`target`.  Returns the chosen list index, or -1 if the
+// mgr layout / list can't be validated (caller then loads the default highlight).  Only
+// writes after a matching, in-bounds entry is found, so a wrong mgr is a safe no-op.
+static int picker_select_slot(uint32_t mgr, int target) {
+    uint32_t selmodel = 0, listbase = 0;
+    if (!rd32((void *)(uintptr_t)(mgr + PK_SEL_MODEL), &selmodel) || !selmodel) return -1;
+    if (!rd32((void *)(uintptr_t)(mgr + PK_LIST_BASE), &listbase) || !listbase) return -1;
+    if (!mem_writable((void *)(uintptr_t)(selmodel + 0x14), 4)) return -1;
+    for (int i = 0; i < 32; ++i) {
+        void *ep = (void *)(uintptr_t)(listbase + (uint32_t)i * 0x10 + 4);
+        uint32_t slotfield = 0;
+        if (!rd32(ep, &slotfield)) break;                // list end (unreadable)
+        if ((int)slotfield == target) {
+            *(volatile uint32_t *)(uintptr_t)(selmodel + 0x14) = (uint32_t)i;
+            return i;
+        }
+    }
+    return -1;
+}
 
 #define IN_POOL 64
 static uint8_t           g_inpool[IN_POOL * 12];
@@ -414,15 +443,17 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
     }
 }
 
-// Picker-poll (0x4378d0) callback — fires only while the save-slot picker is up.  Inject
-// the rotations (if any) first, then keep re-injecting confirm every poll until the load
-// fires and the picker goes away (a single early confirm is dropped before the cursor
-// settles; the load command ends the drive once find_player() succeeds).
+// Picker-poll (0x4378d0) callback — fires only while the save-slot picker is up.  If a
+// target slot is set, point the picker's selection at it each poll (idempotent) BEFORE
+// confirming; else apply any manual rotations first.  Then keep re-injecting confirm
+// every poll until the load fires and the picker goes away (a single early confirm is
+// dropped before the cursor settles; the load command ends the drive once find_player()).
 static void __attribute__((cdecl)) poll_picker_cb(void) {
     if (g_md_state != 2 || !g_pk_mgr) return;         // menu-drive step 2: navigate + confirm
     uint32_t now = 0, e = g_pk_esp;
     if (e) rd32((void *)(uintptr_t)(e + 8), &now);        // 0x4378d0 arg2 = now
-    if (g_md_downs > 0) { inject_record(g_pk_mgr, BTN_ROTATE, now, 0); g_md_downs--; return; }
+    if (g_md_slot >= 0) picker_select_slot(g_pk_mgr, g_md_slot);   // target a specific slot
+    else if (g_md_downs > 0) { inject_record(g_pk_mgr, BTN_ROTATE, now, 0); g_md_downs--; return; }
     inject_record(g_pk_mgr, BTN_CONFIRM, now, 0);
 }
 
@@ -527,6 +558,38 @@ static void attract_freeze(int on) {
     } else if (g_demo_saved) {
         patch_bytes(p, g_demo_orig, 6);
     }
+}
+
+// ─── save-file inspection (reads savedataNN.sdt via the standalone sotes_save lib) ──
+// The game keeps saves beside the exe in user\savedataNN.sdt.  Reading the FILE (not
+// engine memory) means the trainer can enumerate/identify EVERY save without loading
+// it — so it can pick an appropriate slot to `load`.  sotes_save is dependency-free
+// (compiled into the DLL) and reusable outside the trainer (editor / the port).
+static void trainer_save_path(int slot, char *out, int cap) {
+    char mod[MAX_PATH]; mod[0] = 0;
+    GetModuleFileNameA(NULL, mod, MAX_PATH); mod[MAX_PATH - 1] = 0;
+    char *slash = strrchr(mod, '\\'); if (slash) *slash = 0;
+    snprintf(out, cap, "%s\\user\\savedata%02d.sdt", mod, slot);
+}
+// Emit one slot's summary as JSON into out (always well-formed, even if absent/invalid).
+static void save_json_one(int slot, char *out, int cap) {
+    char path[512]; trainer_save_path(slot, path, sizeof path);
+    sotes_save_info s;
+    int rc = sotes_save_read(path, &s);
+    if (rc == -2) { snprintf(out, cap, "{\"slot\":%d,\"present\":false}", slot); return; }
+    if (!s.ok)    { snprintf(out, cap, "{\"slot\":%d,\"present\":true,\"valid\":false,\"error\":\"decode\"}", slot); return; }
+    int n = snprintf(out, cap,
+        "{\"slot\":%d,\"present\":true,\"valid\":%s,\"handle\":%u,\"file_size\":%u,"
+        "\"key\":%u,\"checksum\":%u,\"party_count\":%d,\"party\":[",
+        slot, s.valid ? "true" : "false", s.handle, (unsigned)s.file_size,
+        s.hdr.key, s.checksum, s.party_count);
+    for (int i = 0; i < s.party_count && n < cap; ++i)
+        n += snprintf(out + n, cap - n, "%s{\"name\":\"%s\",\"code\":%u,\"level_base\":%d}",
+                      i ? "," : "", s.party[i].name, s.party[i].code, s.party[i].level_base);
+    if (n < cap) n += snprintf(out + n, cap - n, "],\"header_grid\":[");
+    for (int k = 0; k < 16 && s.ph_present && n < cap; ++k)
+        n += snprintf(out + n, cap - n, "%s%u", k ? "," : "", s.ph[k]);
+    if (n < cap) snprintf(out + n, cap - n, "]}");
 }
 
 // ─── command dispatch ───────────────────────────────────────────────────────
@@ -649,20 +712,47 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
 
+    if (!strcmp(cmd, "saves")) {
+        // {"cmd":"saves"} — enumerate + identify EVERY on-disk save (no engine load).
+        // Reads user\savedataNN.sdt directly (the standalone sotes_save decoder), so the
+        // agent/UI can see what each slot is and pick one to `load`.
+        int n = snprintf(out, cap, "{\"ok\":true,\"saves\":[");
+        int first = 1;
+        for (int slot = 0; slot < 16 && n < cap; ++slot) {
+            char path[512]; trainer_save_path(slot, path, sizeof path);
+            FILE *f = fopen(path, "rb"); if (!f) continue; fclose(f);
+            char sj[640]; save_json_one(slot, sj, sizeof sj);
+            n += snprintf(out + n, cap - n, "%s%s", first ? "" : ",", sj); first = 0;
+        }
+        if (n < cap) snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "saveinfo")) {
+        // {"cmd":"saveinfo","slot":N} — full summary of one slot.
+        long long slot;
+        if (!json_num(line, "slot", &slot)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no slot\"}"); return; }
+        char sj[640]; save_json_one((int)slot, sj, sizeof sj);
+        snprintf(out, cap, "{\"ok\":true,\"save\":%s}", sj);
+        return;
+    }
+
     if (!strcmp(cmd, "load")) {
-        // {"cmd":"load"[,"downs":N]} — MENU-DRIVE (the VERIFIED path): inject confirm at the
-        // TITLE (0x437c70) -> the default selection Continue -> the save-slot picker; then
-        // confirm at the PICKER (0x4378d0) to load the default-highlighted (newest) save =
-        // the Archmage's Tower save.  "downs":N rotates the picker N times first (other
-        // slots).  Uses the game's own load path — no risky direct engine calls.
+        // {"cmd":"load"[,"slot":N][,"downs":N]} — MENU-DRIVE (the game's own load path, no
+        // risky direct engine calls): inject confirm at the TITLE (0x437c70) -> Continue ->
+        // the save-slot picker; then at the PICKER (0x4378d0) load the target save.
+        //   "slot":N  -> select savedataNN via the RE'd picker selection model, then confirm
+        //               (any slot; VERIFIED default path, slot-targeting RE'd — see DESIGN).
+        //   no slot   -> load the default-highlighted (newest) save (the VERIFIED tower path).
+        //   "downs":N -> manual: rotate the picker N times before confirm (fallback nav).
         long long tmp;
         ensure_hooks();
         attract_freeze(1);                               // hold the title (no demo mid-drive)
+        g_md_slot  = json_num(line, "slot",  &tmp) ? (int)tmp : -1;
         g_md_downs = json_num(line, "downs", &tmp) ? (int)tmp : 0;
         g_md_state = 1;                                  // arm: title-confirm -> picker-confirm
         int loaded = 0;                                  // done when the loaded actor appears
         for (int i = 0; i < 1200; ++i) { if (find_player()) { loaded = 1; break; } Sleep(10); }
-        g_md_state = 0;                                  // end the drive
+        g_md_state = 0; g_md_slot = -1;                  // end the drive
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":%s,\"loaded\":%s,\"player\":%s}",
                  loaded ? "true" : "false", loaded ? "true" : "false", pj);
@@ -732,7 +822,7 @@ static DWORD WINAPI server_thread(void *unused) {
             char *nl;
             while ((nl = memchr(buf, '\n', used)) != NULL) {
                 *nl = 0;
-                char resp[1024];
+                char resp[8192];   // large enough for `saves` (all slots) + summaries
                 handle_line(buf, resp, sizeof resp);
                 int rl = (int)strlen(resp); resp[rl++] = '\n';
                 send(cs, resp, rl, 0);

@@ -277,7 +277,48 @@ PREREQS (still current):
 - Frida-17: `ptr.readU32()` (not `Memory.readU32`); HW watchpoints are per-thread INSTANCE
   methods, arm ALL threads.
 
+## Save-file format + know-what-each-save-is + any-slot load — session 4 (2026-07-17)
+
+### The `.sdt` container — FULLY RE'd + shipped as a standalone lib (`tools/sotes_save/`)
+The whole savedataNN.sdt codec is cracked (full byte-level RE in
+`docs/findings/sdt-save-format.md`; verified 8/8 real saves).  Header = plaintext
+`[u32 len=0x10][magic=0x2711][u32 bodysize][u32 val3][u32 seed]`; body = obfuscated by a
+**subtract-key + inverse-permutation substitution** (loader `FUN_00416550` → archive
+`FUN_005dee40` @0x5def06): `key=(seed>>8)&0xff`, `plain[i]=INV_KEYSTR[(cipher[i]-key)&0xff]`,
+where INV_KEYSTR inverts the 256-byte permutation @**0x5fd290** (built by `FUN_005df030`).
+Decoded body = a record stream (record 0 = 604-byte metadata; magic@meta+0x22c, category
+handle@+0x230 == 0x2738 Main Quest).  Party roster = scan for codes 0xc35a/b/c (Arche/Sana/
+Stella); `level_base` @code+4.  A fixed-604 metadata block ⇒ a 16-u32 party-header grid always
+at body 0x260 (fields grow over a playthrough — gold/playtime/progress candidates, exposed RAW,
+UNLABELED: not pinned, and we don't ship guessed names).
+
+**`tools/sotes_save/`** — dep-free (libc-only) `sotes_save.{h,c}` + `sotes_save_dump` CLI
+(headless: dumps every real save; my verification tool).  REUSABLE outside the trainer — a
+save editor, the port's save subsystem.  Both build in `tools/ci/build_all.sh`.
+
+### Trainer commands (know what each save is)
+The trainer compiles `sotes_save` in and reads `<exedir>\user\savedataNN.sdt` directly (no
+engine load needed to identify a save):
+- `saves` → every present slot's `{valid,handle,party:[{name,code,level_base}],file_size,
+  header_grid}`.  The agent/UI picks a slot from this, then `load`s it.
+- `saveinfo {slot}` → one slot, same shape.
+
+### `load {slot:N}` — arbitrary-slot load (picker selection RE'd)
+The save-slot picker manager exposes its selection model (getters `FUN_005e8e80`/`0x5e8ea0`):
+**selected index = `*( *(mgr+0x174) + 0x14 )`**; slot-list base = `*(mgr+0x17c)`, 0x10-byte
+entries `{handle@0, slot@4}`.  `load {slot:N}` menu-drives to the picker as before, then each
+picker poll scans the list for the entry with `slot==N` and writes its index into the selection
+model before injecting confirm (`picker_select_slot`).  Defensive: only writes after a matching,
+in-bounds entry is found, so a wrong-mgr layout is a safe no-op that falls back to the default
+(newest) highlight — the VERIFIED path.  **Live-verify pending** for the non-default slot path
+(no game session this session); the default `load` (no slot) stays end-to-end VERIFIED (session 3b).
+
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
   poll-file queue), `scratchpad/navto.py` (mode-aware nav), `scratchpad/tctl.py` (sender).
 - `tools/ennse_trainer/` Frida trainer_agent has the verified offsets above.
+- **Live-verify recipe for the session-4 commands** (when a game session is up): inject the
+  DLL (`build/inject.exe <unpacked-exe> <full-path sotes_trainer.dll> <cwd>`), connect :7777,
+  `{"cmd":"saves"}` (verifies the file-read path derivation) then `{"cmd":"load","slot":6}`
+  (verifies `picker_select_slot`; confirm `player` = savedata06's stats).  `OSS_NO_REPRO=1`
+  if repro_agent is also up (its 0x437c70/0x4378d0 hooks collide — DESIGN session 3b).
