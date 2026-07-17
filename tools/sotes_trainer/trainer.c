@@ -20,6 +20,7 @@
 
 #include <winsock2.h>
 #include <windows.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,29 @@
 #define OFF_EXP_MAX   0xf0           // EXP to next    (cross-ref: 50000 = Arche Lv17)
 
 #define TRAINER_PORT  7777
+
+// ─── save-load chain + safepoint (EN-SE VAs, RE'd — see DESIGN.md session 3) ──
+// The 3 load calls touch file IO / the game-state singleton / DirectDraw scene
+// teardown, so they MUST run on the ENGINE thread at a per-frame safepoint, NOT the
+// socket thread.  We hook the inputPoll (0x437c70, called constantly at the title) and
+// drain a queued load there; and hook the title dispatcher (0x581ba0) to capture its
+// `this` (= the scene-transition `this` the dispatcher passes to 0x5cb460).
+#define VA_INPUTPOLL   0x437c70      // title/gameplay input poll = per-frame safepoint (5 bytes)
+#define VA_MENUCTRL    0x4378d0      // generic-menu controller (the save-slot PICKER); 5 bytes
+#define VA_DISPATCH    0x581ba0      // title dispatcher (ref only; not hooked)
+#define BTN_CONFIRM    0x25          // confirm button id (37)
+#define BTN_ROTATE     0x04          // menu rotate/next button id
+#define VA_ALLOC       0x5ef121      // cdecl  alloc(size)              -> raw buffer
+#define VA_SAVE_LOAD   0x416550      // thiscall(this=S, handle, slot, 0, 0) reads savedataNN.sdt
+#define VA_SAVE_APPLY  0x586c60      // thiscall(this=singleton, handle, sel) apply into game state
+#define VA_SCENE_TRANS 0x5cb460      // thiscall(this=dispatch, tgt, x, y) deferred scene transition
+#define VA_GS_SINGLE   0x92ac68      // game-state singleton (apply's `this`, a static object)
+#define VA_SCENE_THIS  0x92dd4c      // global holding the title scene handler `this` (0x5cb460's
+                                     // `this`): the caller 0x58113e does `mov [0x92dd4c], ecx`
+                                     // right before `call 0x581ba0` — read it, no hook needed.
+#define VA_DEMO_JL     0x583866      // attract idle->demo trigger: jl 0x5832e1 -> patch to jmp
+#define SAVE_HANDLE_MAIN 0x2738      // Main-Quest save category (loader .sdt branch + apply gate)
+#define SAVE_STRUCT_SZ   0xea94      // FUN_00585cf0 allocs this for the transient save struct
 
 static uintptr_t g_delta;            // actual base - ORIG_BASE (ASLR-safe)
 static char      g_logpath[MAX_PATH];
@@ -297,6 +321,214 @@ static int player_json(char *out, int cap) {
     return 1;
 }
 
+// ─── engine-thread safepoint + save-load chain ──────────────────────────────
+// The load calls run from a hook on the inputPoll (a per-frame engine-thread
+// safepoint), never the socket thread.  0x581ba0's `this` (the scene object the
+// dispatcher hands 0x5cb460) is captured by a second hook.
+static volatile uint32_t g_dispatch_this;   // scene `this` read from 0x92dd4c at load time
+static volatile int      g_load_pending, g_load_slot, g_load_enter, g_in_safepoint;
+static volatile uint32_t g_load_ret;
+static char              g_load_log[192];
+
+// ─── menu-drive (the VERIFIED load path): inject input records into the game's own
+// menu managers.  Title polls 0x437c70, the save-slot picker polls 0x4378d0; each
+// trampoline captures its poll esp+ecx(=manager) so the callback can time the record
+// to the poll's own `now` (match window 0x64) and target the live ring.  See DESIGN.md.
+static volatile uint32_t g_ti_esp, g_ti_mgr;   // title-poll  (0x437c70) captured esp / manager
+static volatile uint32_t g_pk_esp, g_pk_mgr;   // picker-poll (0x4378d0) captured esp / manager
+static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 2 want picker-confirm
+static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
+
+#define IN_POOL 64
+static uint8_t           g_inpool[IN_POOL * 12];
+static volatile unsigned g_inpool_idx;
+// Write one input record {+0=id,+4=ts,+8=1} into a trainer-owned pool and publish its
+// pointer into the manager ring at mgr[0x0c + slot*4] (slot 63 = first polled).  The
+// game's poll (0x437c70/0x4378d0) matches +0==polled_id && +8==1 && now-ts<=0x64.
+static void inject_record(uint32_t mgr, uint32_t id, uint32_t now, int ordinal) {
+    if (!mgr || !mem_writable((void *)(uintptr_t)mgr, 0x10c)) return;
+    uint8_t *rec = g_inpool + (g_inpool_idx++ % IN_POOL) * 12;
+    *(volatile uint32_t *)(rec + 0) = id;
+    *(volatile uint32_t *)(rec + 4) = now;
+    *(volatile uint32_t *)(rec + 8) = 1;
+    int slot = 63 - (ordinal & 63);
+    *(volatile uint32_t *)(uintptr_t)(mgr + 0x0c + slot * 4) = (uint32_t)(uintptr_t)rec;
+}
+
+// Runs on the ENGINE thread (from the inputPoll safepoint).  Reproduces the retail
+// Continue-confirm terminal: alloc a save struct -> load savedataNN.sdt -> apply into
+// the game-state singleton -> deferred scene transition.  Every step is logged so a
+// failing step is identifiable from the `load` response.
+static void do_load_at_safepoint(int slot) {
+    void *fn_alloc = AP(VA_ALLOC), *fn_load = AP(VA_SAVE_LOAD),
+         *fn_apply = AP(VA_SAVE_APPLY), *fn_trans = AP(VA_SCENE_TRANS);
+    if (!mem_readable(fn_alloc, 1) || !mem_readable(fn_load, 1)) {
+        snprintf(g_load_log, sizeof g_load_log, "engine fns unreadable"); return; }
+    uint32_t sz = SAVE_STRUCT_SZ;
+    uint32_t S = call_va(fn_alloc, 0, &sz, 1);                 // cdecl alloc(0xea94)
+    if (!S || !mem_writable((void *)(uintptr_t)S, SAVE_STRUCT_SZ)) {
+        snprintf(g_load_log, sizeof g_load_log, "alloc(0x%x) failed S=0x%x", SAVE_STRUCT_SZ, S); return; }
+    memset((void *)(uintptr_t)S, 0, SAVE_STRUCT_SZ);
+    uint32_t la[4] = { SAVE_HANDLE_MAIN, (uint32_t)slot, 0, 0 };
+    uint32_t r = call_va(fn_load, S, la, 4);                   // thiscall load -> savedataNN.sdt
+    g_load_ret = r;
+    if (!r) { snprintf(g_load_log, sizeof g_load_log,
+        "416550 ret 0 (savedata%02d.sdt missing/invalid); S=0x%x", slot, S); return; }
+    uint32_t aa[2] = { SAVE_HANDLE_MAIN, (uint32_t)slot };
+    call_va(fn_apply, (uint32_t)(uintptr_t)AP(VA_GS_SINGLE), aa, 2);   // apply into the singleton
+    uint32_t dt = 0; rd32(AP(VA_SCENE_THIS), &dt); g_dispatch_this = dt;
+    if (!g_load_enter) {
+        snprintf(g_load_log, sizeof g_load_log,
+            "slot=%d loaded+applied ret=%u S=0x%x this=0x%x (enter=0: transition skipped)",
+            slot, r, S, dt);
+        return;
+    }
+    // EXPERIMENTAL: the raw 0x5cb460 transition still crashes — likely missing the
+    // pre-transition setup 0x585cf0 does (validate 0x57f020 / target scene build) or a
+    // wrong apply `sel`.  Args match the Start path 5cb460(this,0x2724,0,0); needs the
+    // observed real Continue-load args to finish.  See DESIGN.md session 3.
+    if (dt && mem_readable((void *)(uintptr_t)dt, 4) && mem_readable(fn_trans, 1)) {
+        uint32_t ta[3] = { SAVE_HANDLE_MAIN, 0, 0 };
+        call_va(fn_trans, dt, ta, 3);                         // deferred scene transition
+        snprintf(g_load_log, sizeof g_load_log,
+            "OK slot=%d ret=%u S=0x%x this=0x%x -> transition attempted (EXPERIMENTAL)", slot, r, S, dt);
+    } else {
+        snprintf(g_load_log, sizeof g_load_log,
+            "slot=%d loaded+applied ret=%u S=0x%x but dispatch_this=0x%x invalid - no transition",
+            slot, r, S, dt);
+    }
+}
+
+// Title-poll (0x437c70) callback — runs on the engine thread each poll.  Drains the
+// experimental direct-call load, and injects the title confirm for the menu-drive.
+static void __attribute__((cdecl)) poll_title_cb(void) {
+    if (g_load_pending && !g_in_safepoint) {          // experimental direct chain (loadraw)
+        g_in_safepoint = 1; int slot = g_load_slot; g_load_pending = 0;
+        do_load_at_safepoint(slot); g_in_safepoint = 0;
+    }
+    if (g_md_state == 1 && g_ti_mgr) {                // menu-drive step 1: confirm at the title
+        uint32_t now = 0, e = g_ti_esp;
+        if (e) rd32((void *)(uintptr_t)(e + 4), &now);    // 0x437c70 arg1 = now
+        inject_record(g_ti_mgr, BTN_CONFIRM, now, 0);
+        g_md_state = 2;
+    }
+}
+
+// Picker-poll (0x4378d0) callback — fires only while the save-slot picker is up.  Inject
+// the rotations (if any) first, then keep re-injecting confirm every poll until the load
+// fires and the picker goes away (a single early confirm is dropped before the cursor
+// settles; the load command ends the drive once find_player() succeeds).
+static void __attribute__((cdecl)) poll_picker_cb(void) {
+    if (g_md_state != 2 || !g_pk_mgr) return;         // menu-drive step 2: navigate + confirm
+    uint32_t now = 0, e = g_pk_esp;
+    if (e) rd32((void *)(uintptr_t)(e + 8), &now);        // 0x4378d0 arg2 = now
+    if (g_md_downs > 0) { inject_record(g_pk_mgr, BTN_ROTATE, now, 0); g_md_downs--; return; }
+    inject_record(g_pk_mgr, BTN_CONFIRM, now, 0);
+}
+
+// ─── minimal inline hooks (runtime-codegen trampolines) ──────────────────────
+static uint8_t *g_tramp_p;
+
+static void patch_bytes(void *dst, const void *src, size_t n) {
+    DWORD old = 0;
+    if (!VirtualProtect(dst, n, PAGE_EXECUTE_READWRITE, &old)) return;
+    memcpy(dst, src, n);
+    VirtualProtect(dst, n, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), dst, n);
+}
+
+// Detour `target` (overwriting `savelen` whole-instruction bytes, >=5) to a trampoline
+// that: [if cb] pushad/pushfd, 16-align esp, call cb, restore; [if precode] emit it;
+// run the saved original bytes; jmp back to target+savelen.  The saved bytes must be
+// position-independent (verified: 0x437c70/0x581ba0 prologues are).
+static void install_detour(uintptr_t target, int savelen, void *cb,
+                           const uint8_t *precb, int precblen) {
+    uint8_t *t = g_tramp_p;
+    if (precb && precblen) { memcpy(g_tramp_p, precb, (size_t)precblen); g_tramp_p += precblen; }
+    if (cb) {
+        *g_tramp_p++ = 0x60;                                   // pushad
+        *g_tramp_p++ = 0x9c;                                   // pushfd
+        *g_tramp_p++ = 0x89; *g_tramp_p++ = 0xe5;              // mov ebp,esp
+        *g_tramp_p++ = 0x83; *g_tramp_p++ = 0xe4; *g_tramp_p++ = 0xf0;  // and esp,-16
+        *g_tramp_p++ = 0xe8;                                   // call rel32 -> cb
+        int32_t rel = (int32_t)((uintptr_t)cb - ((uintptr_t)g_tramp_p + 4));
+        memcpy(g_tramp_p, &rel, 4); g_tramp_p += 4;
+        *g_tramp_p++ = 0x89; *g_tramp_p++ = 0xec;              // mov esp,ebp
+        *g_tramp_p++ = 0x9d;                                   // popfd
+        *g_tramp_p++ = 0x61;                                   // popad
+    }
+    memcpy(g_tramp_p, (void *)target, (size_t)savelen); g_tramp_p += savelen;   // saved prologue
+    *g_tramp_p++ = 0xe9;                                       // jmp rel32 -> target+savelen
+    int32_t rb = (int32_t)((target + savelen) - ((uintptr_t)g_tramp_p + 4));
+    memcpy(g_tramp_p, &rb, 4); g_tramp_p += 4;
+    FlushInstructionCache(GetCurrentProcess(), t, (SIZE_T)(g_tramp_p - t));
+    uint8_t patch[16];
+    patch[0] = 0xe9;                                           // jmp rel32 -> trampoline
+    int32_t rt = (int32_t)((uintptr_t)t - (target + 5));
+    memcpy(patch + 1, &rt, 4);
+    for (int i = 5; i < savelen; ++i) patch[i] = 0x90;        // nop tail
+    patch_bytes((void *)target, patch, (size_t)savelen);
+}
+
+// Suspend/resume every OTHER thread of this process — closes the race where the engine
+// executes a half-written 5-byte detour during install.
+static void suspend_others(int suspend) {
+    DWORD me = GetCurrentThreadId(), pid = GetCurrentProcessId();
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snap == INVALID_HANDLE_VALUE) return;
+    THREADENTRY32 te; te.dwSize = sizeof te;
+    if (Thread32First(snap, &te)) {
+        do {
+            if (te.th32OwnerProcessID == pid && te.th32ThreadID != me) {
+                HANDLE h = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
+                if (h) { if (suspend) SuspendThread(h); else ResumeThread(h); CloseHandle(h); }
+            }
+        } while (Thread32Next(snap, &te));
+    }
+    CloseHandle(snap);
+}
+
+static volatile LONG g_hooks_done;
+static void ensure_hooks(void) {
+    if (InterlockedCompareExchange(&g_hooks_done, 1, 0) != 0) return;   // install once
+    void *base = VirtualAlloc(NULL, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!base) { vlog("[hooks] tramp alloc failed"); g_hooks_done = 0; return; }
+    g_tramp_p = (uint8_t *)base;
+    // Each poll hook's precb saves the poll esp+ecx(manager) into globals BEFORE pushad, so
+    // the cb can read the poll's own `now` and inject into the live ring.  `mov [imm32],esp`
+    // = 89 25 <addr>; `mov [imm32],ecx` = 89 0d <addr>.
+    uint8_t pt[12] = { 0x89, 0x25, 0,0,0,0, 0x89, 0x0d, 0,0,0,0 };
+    uint8_t pp[12] = { 0x89, 0x25, 0,0,0,0, 0x89, 0x0d, 0,0,0,0 };
+    uint32_t a;
+    a = (uint32_t)(uintptr_t)&g_ti_esp; memcpy(pt + 2, &a, 4);
+    a = (uint32_t)(uintptr_t)&g_ti_mgr; memcpy(pt + 8, &a, 4);
+    a = (uint32_t)(uintptr_t)&g_pk_esp; memcpy(pp + 2, &a, 4);
+    a = (uint32_t)(uintptr_t)&g_pk_mgr; memcpy(pp + 8, &a, 4);
+    suspend_others(1);
+    // The scene `this` for the (experimental) direct transition is read from 0x92dd4c, not a
+    // hook — 0x581ba0 loops internally so its entry hook would not re-fire post-injection.
+    install_detour((uintptr_t)AP(VA_INPUTPOLL), 5, (void *)poll_title_cb,  pt, 12);  // 53 8b 5c 24 0c
+    install_detour((uintptr_t)AP(VA_MENUCTRL),  5, (void *)poll_picker_cb, pp, 12);  // 51 53 55 8b e9
+    suspend_others(0);
+    vlog("[hooks] installed: title 0x437c70, picker 0x4378d0, tramp=%p", base);
+}
+
+// ─── attract (title idle->demo) freeze ───────────────────────────────────────
+static uint8_t     g_demo_orig[6];
+static volatile int g_demo_saved;
+static void attract_freeze(int on) {
+    uint8_t *p = (uint8_t *)AP(VA_DEMO_JL);
+    if (!mem_readable(p, 6)) return;
+    // 0x583866  jl 0x5832e1  (0f 8c 75 fa ff ff)  ->  jmp 0x5832e1 + nop (rel is base-invariant)
+    if (on) {
+        if (!g_demo_saved) { memcpy(g_demo_orig, p, 6); g_demo_saved = 1; }
+        uint8_t patch[6] = { 0xe9, 0x76, 0xfa, 0xff, 0xff, 0x90 };
+        patch_bytes(p, patch, 6);
+    } else if (g_demo_saved) {
+        patch_bytes(p, g_demo_orig, 6);
+    }
+}
+
 // ─── command dispatch ───────────────────────────────────────────────────────
 static void handle_line(const char *line, char *out, int cap) {
     char cmd[32] = {0};
@@ -414,6 +646,56 @@ static void handle_line(const char *line, char *out, int cap) {
         uint32_t r = call_va((void *)fn, ecx, args, n);
         snprintf(out, cap, "{\"ok\":true,\"ret\":%u,\"ret_hex\":\"0x%08x\",\"fn\":\"0x%08x\",\"argc\":%d}",
                  r, r, (unsigned)fn, n);
+        return;
+    }
+
+    if (!strcmp(cmd, "load")) {
+        // {"cmd":"load"[,"downs":N]} — MENU-DRIVE (the VERIFIED path): inject confirm at the
+        // TITLE (0x437c70) -> the default selection Continue -> the save-slot picker; then
+        // confirm at the PICKER (0x4378d0) to load the default-highlighted (newest) save =
+        // the Archmage's Tower save.  "downs":N rotates the picker N times first (other
+        // slots).  Uses the game's own load path — no risky direct engine calls.
+        long long tmp;
+        ensure_hooks();
+        attract_freeze(1);                               // hold the title (no demo mid-drive)
+        g_md_downs = json_num(line, "downs", &tmp) ? (int)tmp : 0;
+        g_md_state = 1;                                  // arm: title-confirm -> picker-confirm
+        int loaded = 0;                                  // done when the loaded actor appears
+        for (int i = 0; i < 1200; ++i) { if (find_player()) { loaded = 1; break; } Sleep(10); }
+        g_md_state = 0;                                  // end the drive
+        char pj[512]; player_json(pj, sizeof pj);
+        snprintf(out, cap, "{\"ok\":%s,\"loaded\":%s,\"player\":%s}",
+                 loaded ? "true" : "false", loaded ? "true" : "false", pj);
+        return;
+    }
+    if (!strcmp(cmd, "loadraw")) {
+        // {"cmd":"loadraw","slot":N[,"enter":true]} — EXPERIMENTAL direct chain: alloc S ->
+        // 416550 load -> 586c60 apply -> (enter) 0x5cb460 transition, on the safepoint.
+        // load+apply are verified; the standalone transition CRASHES (needs the picker
+        // dispatcher `this` + slot-index arg) — prefer `load`.  See DESIGN.md session 3b.
+        long long slot;
+        if (!json_num(line, "slot", &slot)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no slot\"}"); return; }
+        ensure_hooks();
+        g_load_log[0] = 0; g_load_ret = 0;
+        g_load_slot = (int)slot;
+        g_load_enter = json_bool(line, "enter", 0);   // default: load+apply only (crash-safe)
+        g_load_pending = 1;
+        for (int i = 0; i < 300 && g_load_pending; ++i) Sleep(10);   // await the safepoint (<100ms at title)
+        int ran = !g_load_pending;
+        if (!ran) { g_load_pending = 0; snprintf(g_load_log, sizeof g_load_log, "safepoint never fired (game not presenting / not at a scene?)"); }
+        char pj[512]; player_json(pj, sizeof pj);
+        snprintf(out, cap,
+            "{\"ok\":%s,\"ran\":%s,\"ret\":%u,\"dispatch_this\":\"0x%08x\",\"log\":\"%s\",\"player\":%s}",
+            ran ? "true" : "false", ran ? "true" : "false", g_load_ret,
+            (unsigned)g_dispatch_this, g_load_log, pj);
+        return;
+    }
+    if (!strcmp(cmd, "attract")) {
+        // {"cmd":"attract","freeze":true|false} — patch/unpatch the title idle->demo
+        // trigger so the title stays up indefinitely (no engine hooks needed).
+        int freeze = json_bool(line, "freeze", 1);
+        attract_freeze(freeze);
+        snprintf(out, cap, "{\"ok\":true,\"attract_frozen\":%s}", freeze ? "true" : "false");
         return;
     }
 

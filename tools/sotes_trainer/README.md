@@ -48,7 +48,10 @@ Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
 | `god` | `on`(bool) | freeze hp+mp at max every 50 ms |
 | `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles |
 | `box` | — | debug: the player's collision AABB `{box,tag,x,top,w,h,world_y}` |
-| `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL |
+| `load` | `downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm to reload the default (newest) save = the Archmage's Tower save. Menu-drive (the game's own code); freezes attract first. `downs`=N rotates the picker first (other slots). VERIFIED loads Lv17. |
+| `attract` | `freeze`(bool) | patch/unpatch the title idle→demo trigger so the title stays up |
+| `call` | `va`,`a0..a7`,`ecx`,`reloc`(bool) | call an engine fn (thiscall via `ecx`); returns `ret`. EXPERIMENTAL (socket thread — unsafe for engine fns) |
+| `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |
 | `unlock_all` | — | drop god + all locks |
 
 Note: `player.level_base` (stat `0xe0`) is NOT the display level — the SE derives the

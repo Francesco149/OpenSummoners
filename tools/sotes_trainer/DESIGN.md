@@ -146,6 +146,50 @@ per-thread — arm ALL threads) on `world_x`, then disasm the committing instruc
   `tpnearest`/`listmobs` DEFERRED — needs a scene with live near-player mobs + the mob
   box/pos model. The DESIGN's earlier "51052 @574px" was last session's (now-changed) state.
 
+## LOAD VERIFIED END-TO-END — menu-drive loads the tower save (2026-07-17 session 3b)
+
+Proven LIVE (trainer DLL injected via `scratchpad/trainer_test.py`): the Archmage's Tower
+save (slot 8, Arche/Sana/Stella **Lv17**) LOADS and the game enters it — HUD "Arche Lvl 17
+301/301 HP 62/62 MP", party+gold, tower interior on screen; trainer `player` = hp301/mp62/
+**exp_max 50000** (= Arche Lv17).  The winning path is **MENU-DRIVE**, not the direct call.
+
+**IMPLEMENTED + VERIFIED in the trainer:** `{"cmd":"load"}` now drives it autonomously — one
+command freezes the attract, injects confirm at the title (0x437c70 ring) → Continue → the
+picker, then re-injects confirm at the picker (0x4378d0 ring) until the load fires; returns
+`{loaded:true, player:{…Lv17…}}`.  Two inline hooks (0x437c70 + 0x4378d0), each capturing its
+poll esp+manager so the record is timed to the poll's own `now`; `inject_record` writes
+{+0=id,+4=now,+8=1} into `mgr[0xc+slot*4]` (63=first-polled), exactly the 0x437c70 contract.
+**TEST CAVEAT:** `repro_agent.js` ALSO frida-hooks 0x437c70 AND 0x4378d0 (its press/menu_press),
+which COLLIDES with the trainer's inline hooks (reads frida's patched prologue → crash).  Test
+the trainer's menu-drive with `OSS_NO_REPRO=1` (no repro_agent; verify headlessly via `player`).
+A shipped trainer won't have frida on those VAs, so no collision.  The picker confirm is
+re-injected every poll (a single early confirm is dropped before the cursor settles).
+
+### The working recipe (input injection through the game's own menus)
+1. At the TITLE (polls `0x437c70`): inject **confirm=37** → the DEFAULT selection is
+   **Continue** → opens the save-slot picker.  (title input = repro `seq`/`presswhen` /
+   trainer 0x437c70 ring — WORKS; the earlier "title won't respond" was the demo, not a bug.)
+2. The slot PICKER (polls `0x4378d0`, the GENERIC controller — NOT 0x437c70): inject
+   **confirm=37** via the 0x4378d0 path (repro `menu_confirm`).  The picker DEFAULT-highlights
+   the **newest** save = slot 8 = Archmage's Tower ⇒ tower load = **confirm + menu_confirm**,
+   no navigation.  (Arbitrary slot N needs picker rotate injection — TODO.)
+3. Detect success headlessly: trainer `player` returns a valid 0xc35a actor with the save's
+   stats (or `game_state` shows a scene).  The transition is deferred (~a few frames).
+
+### Ground-truth terminal chain (frida-observed on the real Continue-load)
+- enumeration (building the list): `416550(tmp, 0x2738, id=0x46..0x4f, 0x1428c4, 1)` per row.
+- TERMINAL load of the chosen row (list index **7** = slot 8): `416550(S, 0x2738, **7**, 0, 0)`
+  → `586c60(0x92ac68, 0x2738, **7**)` → `5cb460(this=**picker dispatcher** 0x6b0181f, 0x2738,
+  **7**, 0)`.  So the "slot" is the **0-based picker list index**, and 586c60/5cb460's extra
+  arg is that same index.
+- **Why the direct call crashed (`enter=1`):** the load(416550) + apply(586c60) args were
+  RIGHT (matched ground truth), but the transition `5cb460` needs the **PICKER's** dispatcher
+  `this` + arg2=list-index — NOT the title's `*0x92dd4c` + 0 that the trainer passed.  The
+  picker `this` only exists after navigating to the picker ⇒ the direct call from the title is
+  impractical.  `load` (direct) is kept EXPERIMENTAL (`enter=1`); the real `load` is the
+  menu-drive.  Verified: attract-freeze, the 0x437c70 safepoint, engine-thread calls, load
+  (416550 ret=1) and apply all work standalone; only the standalone transition is unreachable.
+
 ## Menu / load / input — FULLY RE'd + attract freeze (2026-07-17 session 3)
 
 Session-2's "load chain is STATEFUL / can't call it / active-mgr is the OPEN piece / +0 is a
