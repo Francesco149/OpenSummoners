@@ -146,62 +146,92 @@ per-thread — arm ALL threads) on `world_x`, then disasm the committing instruc
   `tpnearest`/`listmobs` DEFERRED — needs a scene with live near-player mobs + the mob
   box/pos model. The DESIGN's earlier "51052 @574px" was last session's (now-changed) state.
 
-## Menu / load / input — RE for the "load this save" recipe (2026-07-17 session 2)
+## Menu / load / input — FULLY RE'd + attract freeze (2026-07-17 session 3)
 
-Goal (USER): drive the title menu reliably + a repeatable recipe to (re)load this save.
-Live disasm (SE VAs; some funcs carry `jmp 0x6b1xxxx` = pre-existing Frida hooks, benign):
+Session-2's "load chain is STATEFUL / can't call it / active-mgr is the OPEN piece / +0 is a
+category" is **SUPERSEDED** — the whole chain + input contract + attract trigger are now RE'd
+off the EN-SE exe (offline `objdump -M intel`; live `repro_probe.py` for mode/screens).
+Uniform mapping: **VA = fileoff + 0x400000** for .text/.rdata/.data alike (verified vs section
+headers), so any VA disassembles/reads straight from the file at `off = VA-0x400000`.
 
-- **Direct-load chain is STATEFUL — needs the menu UI object as `ecx`.** `FUN_005e8e80`
-  (get handle) / `FUN_005e8ea0` (get slot) read `this->[0x174]→+0x14` (selected index) into
-  `this->[0x17c]` array of 16-byte entries (handle@+0, slot@+4). So `FUN_00585cf0`'s
-  terminal load (`0x416550` load + `0x586c60` apply + `0x5cb460` transition) can't be called
-  from arbitrary state without reconstructing the title/menu object. ⇒ prefer INPUT injection.
-- **Input model (the reliable path — RE'd, not yet drive-tested).**
-  - **Find the active mgr:** IN-SCENE it is `mgr = *(*(actor+0xc7a4))` (proven — one of the 4
-    process-wide refs to the live mgr is `*(actor+0xc7a4)`; the actor's input sub-object holds
-    it).  AT THE MENU there is no player actor ⇒ the mgr must be found another way (a heap-scan
-    for the 64-ptr signature, or a poll hook) — the OPEN piece, needs the menu state to nail.
-  - **Layout:** `mgr[0xc + i*4]` = 64 button-record pointers (i=0..63; poll scans i=0x3f→0).
-    Record (clean atomic snapshot, gameplay): `+0` = **type/category** (=2 for every gameplay
-    record — NOT the button id), `+4` = timestamp, `+8` = **state** (0/1), `+0xc..` = aux.
-  - **Poll `FUN_00437c70`/`FUN_004378d0`:** consume a record whose `+0` matches the poller's
-    category (`437c70` wants `+0==0`, `4378d0` wants `+0==2`) AND `+8==1` AND `now-ts <= 0x64`
-    (100ms), then clear `+0` and **dispatch via `FUN_005e7fe0`** (its arg = an `[esp]` value /
-    `mgr->0x11c` fallback → push 6/7).  ⇒ the button→action map is the DISPATCHER, not a record
-    id.  INJECT = set a record's `+8=1`, `+4=GetTickCount`, correct `+0` category — but which
-    record-index→which menu action needs live menu observation (RE `0x5e7fe0` at the menu).
-  - Menu button ids (DESIGN §"Mode signal"): {2,4,34,37} are the polled CATEGORIES at a menu
-    (title + slot-picker); 4=rotate, 37=confirm, 34=abort.
+### Direct-load chain — THE RECIPE (bypasses the menu AND the attract entirely)
+Reproduces the Continue-confirm terminal (`FUN_00585cf0`, the code-`0xc` branch @0x585f16). To
+load main-quest save slot N:
+1. `S = FUN_005ef121(0xea94)` — engine-alloc the ~60 KB save struct; zero it (585cf0 memsets
+   +0x804.. via `rep stos`; a zeroed VirtualAlloc buffer is equivalent for the read path).
+2. `FUN_00416550(this=S, handle=0x2738, slot=N, 0, 0)` — reads `user\savedataNN.sdt` into S;
+   returns nonzero on success (thiscall, `ret 0xc`).
+3. `FUN_00586c60(this=DAT_0092ac68, handle=0x2738)` — applies S into the game-state singleton
+   (thiscall, `ret 8`).
+4. dispatcher `FUN_00581ba0` then calls `FUN_005cb460(tgt=0x2738, x=0, y=0)` — scene transition
+   into the loaded game.  (585cf0 writes `*out_tgt=handle`, `*out_x=0`, returns `0xc`; the
+   caller does the 5cb460.)  S is transient (freed @58615a `FUN_00580e40(S,1)`); the loaded
+   state lives in the singleton after apply.
 
-## Recipe PLAN — "load this save" (next session; needs menu access + screen feedback)
-The direct-load chain is stateful and the menu input needs live observation, so DON'T drive it
-blind.  Fastest reliable route next session:
-1. Spawn a FRESH instance for menu RE with SCREENSHOTS + input — reuse `tools/ennse_voice/
-   repro_probe.py` (sandbox unpacked exe, DirectDraw capture, 64-slot input ring).  Leaves the
-   user's live game untouched (separate pid).  Screens give the visual feedback this needs.
-2. At the title, find the active input-mgr (heap-scan the 64-ptr signature or hook the poll),
-   dump its records, then map slot→action by injecting `+8=1`/`+4=tick`/`+0=category` and
-   watching the screen (Continue → slot-picker → confirm).  Detect load success HEADLESSLY via
-   the trainer `player` cmd (a valid `0xc35a` actor appears in-scene).
-3. Encode the working sequence into the DLL as `press <slot>` (writes the mgr record) + a `load
-   <slot>` convenience (either the input drive, or the direct chain `0x585cf0` via the new
-   `call` cmd once the title object is the `ecx`).  Then the trainer's `load` reloads this save.
-4. The tower save's SLOT: `user/savedataNN.sdt` — pick by newest mtime (the loaded one), or read
-   it from the load-menu object at confirm time (`0x5e8ea0` returns slot).
+**`handle` is a save-CATEGORY enum, not a per-save id — PROVEN by the code (not guessed):**
+416550 switches arg1(handle) → filename FORMAT: `1`→`savedata%02d.bak`(0x8c66d0),
+**default→`savedata%02d.sdt`(0x8c66e4)**, `0x2724`/`0x272e`→special (no sprintf, ebx=0/1).
+586c60 acts ONLY if handle==`0x2738` (`cmp eax,0x2738; jne ret`).  The UNIQUE value that both
+reads `.sdt` (=default branch, not 1/0x2724/0x272e) AND applies (==0x2738) is **`0x2738` = Main
+Quest** (cf. strings "Main Quest" @0x9225fc / "Bonus Quest" @0x9225d4; 0x2724/0x272e = the
+bonus/"Disk" saves).  `slot` = the numeric savedataNN index formatted into the filename.
 
-PREREQS VERIFIED (session 2, ready to execute):
-- Unpacked SE exe: `vendor/unpacked/editions/sotes-ense-en.exe` (72 MB) — repro_probe spawns it.
-- Saves: `/mnt/c/Program Files (x86)/Steam/steamapps/common/sotes/user/savedataNN.sdt` (00-04+
-  present; newest = savedata04.sdt @ 2026-07-13; repro `prepare_sandbox --copy-saves` copies them).
-- `repro_probe.py` is SAFE (`device.kill(pid)` on its OWN spawned pid — never sweeps by name, so
-  the live game pid is untouched) and already has the needed cmds: `menu_confirm`/`menu_press`/
-  `gameplay_confirm`/`hold`/`tap`/`sequence`/`read`/`write`/`wait`/`shot` (PNG→`run_dir/shot-*.png`,
-  DIB24)/`events`/`status`/`quit`. Drive over stdin line-JSON; screenshots are viewable to confirm nav.
-- Frida-17 gotchas already solved here: `Memory.readU32` removed → use `ptr.readU32()`; HW
-  watchpoints are per-thread INSTANCE methods (`thread.setHardwareWatchpoint(0,addr,sz,'w')`, arm
-  ALL threads). Attach helper: validate the right `sotes_en.exe` pid by `*(actor+0xc76c)==world_x`
-  (multiple/stale instances exist). Live probes this session: `scratchpad/{sock,posfind,reveng,
-  hookpoll,cleanrec}.py` (uncommitted throwaway).
+getters (menu path, ref): `FUN_005e8e80(mgr)`=handle=`*( *(mgr+0x17c) + (*(*(mgr+0x174)+0x14))*0x10 + 0 )`;
+`FUN_005e8ea0`= same `+4` = slot.  Menu slot-list = 16-byte entries `{handle@0, slot@4}` at
+`mgr+0x17c`; selected idx = `*(mgr+0x174)+0x14`.  `FUN_005e8ec0(i)` = handle for an arbitrary i.
+
+**ENGINE-THREAD SAFETY (mandatory):** 416550/586c60/5cb460 do file IO + singleton mutation +
+DirectDraw scene teardown → they MUST run on the ENGINE thread at a per-frame safepoint, NOT the
+trainer's socket thread.  Encode `load` as: queue the request → a safepoint hook (hook 0x437c70
+inputPoll, the trainer analogue of repro's inputPoll-drained soundtest/spawn) drains + runs the
+3 calls.  The bare off-thread `call` primitive is UNSAFE for these (fine for pure getters).
+
+### Input-record contract — `FUN_00437c70` (the reliable menu-drive), FULLY RE'd
+`FUN_00437c70(ecx=mgr, arg1=now, arg2=button_id)` scans a 64-slot ring, returns 1 (+clears
+record[+0]) on hit:
+- ring = `mgr[0x0c .. 0x108]` = 64 record-POINTERS; polled i=0x3f→0 (mgr+0x108 down to mgr+0xc).
+- MATCH: `record[+0]==arg2(button_id) && record[+8]==1 && (now - record[+4]) <= 0x64` (100-unit
+  window).  record layout: **`+0`=button id, `+4`=timestamp, `+8`=state(=1)**.  (Session-2's
+  "+0 = category 0/2" was WRONG — +0 IS the polled button id.)
+- INJECT = write a record `{+0=id, +4=now, +8=1}` then `mgr[0x0c + slot*4] = &record` (slot 63 =
+  first polled).  This is EXACTLY what repro's `injectInputRecord` / `press` / `sequence`
+  (presswhen) do — the contract is satisfied; the mechanism is correct.
+
+**Active-mgr discovery — SOLVED** (was session-2's OPEN piece): the active mgr = the `ecx` of
+every 0x437c70 call.  Live: `status.input_manager` (repro captures it).  Trainer: hook 0x437c70
+(or read the global 0x582c40 loads it from) — no player actor needed at the menu.
+
+**Which primitive where:** the TITLE (`FUN_00582c40`) polls its buttons via **0x437c70
+DIRECTLY** → drive with inputPoll-injection (`press`/`sequence`), **NOT `menu_press`**.
+`menu_press` hooks `0x4378d0` (the GENERIC controller) → that's for other menus (in-game /
+likely the save-slot picker).  Title poll set = **{2,4,34,37}** (34 polled 2×/frame),
+4/2=rotate, 37=confirm, 34=abort; demo/attract poll = **{19}** ("hit any key").
+
+### Attract (demo) — FREEZE it (idle→demo trigger LOCATED)
+`FUN_00582c40` idle counter = stack local `[esp+0x4c]`; inc'd each frame @0x5839d9 (`inc eax`,
+capped 0x1194).  Trigger @0x583866: `jl 0x5832e1` (counter<0x1194 → keep looping); ELSE falls
+through to `FUN_00408150(DAT_0092ac68,0,0,0,0,1)` @0x58387b = **LAUNCH DEMO**.  (DESIGN's
+"0x1193" was off-by-one — it is **0x1194** = 4500 frames ≈ 75 s.)
+**FREEZE** = patch @0x583866 `0f 8c 75 fa ff ff`(jl) → `e9 76 fa ff ff 90`(jmp+nop): the demo
+call is unreachable, title stays up forever.  (Needs a `.text` write with `Memory.protect` RWX
+first — repro's `write`/`typedWrite` does NOT protect; the trainer would `VirtualProtect` then
+patch.)  Live-proven: repro `press[19]` DOES exit the demo (flaky only under the backlog below).
+
+### Live-drive tooling note (repro_probe.py --interactive)
+Safe rig (sandbox EN-SE, exact-pid kill), but a single-threaded stdin loop: slow commands
+(`sequence`/`shot` with multi-second timeouts) **BACKLOG** it → responses lag commands by whole
+batches (the misalignment that ate session-3's live turns).  Clean protocol next time: short
+timeouts, ONE action per batch, FULLY drain resp before reading (or spawn per-experiment).  The
+real live LOAD verification wants the **trainer DLL** (mem + a safepoint call), not the
+sound-probe.  Driver used this session: `scratchpad/mdrive.py` (file-queue over repro stdin).
+
+PREREQS (still current):
+- Unpacked SE exe `vendor/unpacked/editions/sotes-ense-en.exe`; saves
+  `…/steamapps/common/sotes/user/savedataNN.sdt` (00-07 present; newest savedata07 @2026-07-16;
+  repro `--copy-saves` copies them into the sandbox).  Offline disasm helper: slice the exe at
+  `off=VA-0x400000` → `i686-w64-mingw32-objdump -D -b binary -m i386 -M intel --adjust-vma=VA`.
+- Frida-17: `ptr.readU32()` (not `Memory.readU32`); HW watchpoints are per-thread INSTANCE
+  methods, arm ALL threads.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,
