@@ -103,26 +103,67 @@ probing scaffolding** used only to discover the mechanics recorded below.
 - **P4 combat**: `onehit` (freeze enemy HP≈0), robust `god`.
 - **P5 UI**: native/web panel over the JSON server showing all tracked stats + toggles.
 
-## Live findings — real tower save (Arche Lv17, HP 276/301), 2026-07-17
+## Live findings — real tower save (Arche Lv17), 2026-07-17 (SESSION 2 — RESOLVED)
 
-Probing a REAL loaded save (not the demo) surfaced bugs the demo hid:
-- **TELEPORT (position write) gets RESET.** Writing `world_x 0xc76c` reverts within a
-  few frames to the authoritative value (wrote 109724 → snapped back to 169640).
-  `0xc76c`/`0xc770` are a per-frame **derived snapshot**; the game re-integrates
-  position from an authoritative source (sub-pixel accumulator / physics field) NOT
-  yet pinned (`+0xc790`=168120 is a near-miss candidate; region `+0xc764..+0xc7c0`
-  dumped). A 50ms freeze can't beat the ~16ms reset. FIX = RE the position-commit path
-  (the EN-SE analogue of the port's `0x442a70` worldX-commit — cross-ref `src/character.c`
-  / freeroam-collision findings) and write THAT, or hook the commit. Blocks teleport/warp.
-- **`level` offset WRONG.** `stat_block+0xe0` reads 5 but the HUD shows Lv17, and 17 is
-  absent from `+0x40..+0x110` → 0xe0 is not level; real level field TBD. (hp/mp/hp_max
-  are correct: hp_max=301 is the 3-term sum, confirmed — not a single field.)
-- **Anchor is correct** (only ONE live `0xc35a` actor; other hunt hits are garbage).
-  hp/mp read + stat writes (god/setstat) work (stat block is not physics-reset).
-- **Mob scan WORKS** (`scratchpad/mob_scan.py`): monster-code actors (`0xc742..0xc83e`)
-  filtered by validated same-map world coords, excluding the near-Arche **elemental**
-  (code 51090 @ ~56px) and stale `(0,0)` demo actors — found the real mob (51052 @ 574px).
-  Port this into the DLL as `tpnearest`/`listmobs` once teleport's position field is fixed.
+Probing the REAL loaded save (Archmage Tower) resolved the two bugs the demo hid.
+Method: HW write-watchpoint (frida-17 `thread.setHardwareWatchpoint`, instance method,
+per-thread — arm ALL threads) on `world_x`, then disasm the committing instruction.
+
+- **TELEPORT — SOLVED (write the phys-box, not the snapshot).** `world_x 0xc76c` /
+  `world_y 0xc770` are a per-frame **DERIVED snapshot**, re-committed every frame (even
+  idle) from the actor's collision AABB. The commit is at **VA 0x484554** (`__thiscall`,
+  `ret 4`; ecx=actor, ebx=box):
+  ```
+  0x484554  mov eax,[ebx+4]           ; world_x = box[+4]            (direct copy)
+  0x484557  mov [ecx+0xc76c],eax
+  0x48455d  mov eax,[ebx+8]           ; world_y = box[+8]+box[+0x10]-1
+  0x484560  mov edx,[ebx+0x10]        ;         = top + height - 1   (= bottom edge)
+  0x484563  lea eax,[eax+edx-1]
+  0x484567  mov [ecx+0xc770],eax
+  ```
+  The AABB: `box+0` tag, `box+4`=left X (=world_x), `box+8`=top Y, `box+0xc`=width,
+  `box+0x10`=height. **The box ptr is `*(actor+0x40)`** (the sole process-wide reference;
+  stable while idle). PROVEN LIVE: writing `box[+4] += 30000` moved Arche +300px and it
+  **STUCK** (world_x followed next frame, no snap-back). `box[+8]` (top Y) is authoritative
+  too but **gravity-settled** — writing it up made her rise then fall back with an accel
+  curve (physics, not a reset bug), so Y teleport lands on the ground below the target.
+  IMPLEMENTED: `teleport` now does `box=*(actor+0x40)`, `box[+4]=x`, `box[+8]=y-h+1`.
+- **`level` — RESOLVED (display level is EXP-DERIVED, not a stored int).** `stat_block+0xe0`
+  (=5) is `level_base`, NOT the display level; the demo's "Lv3" match was a coincidence.
+  17 is absent as a u32/u16/u8 anywhere in the stat block, the actor, or near the player
+  handle (58 handle refs scanned). But `sb+0xf0 = 50000` == **exactly Arche's level-17
+  `exp_max`** in the base-stat table (`{0xc35a,17,290,52,{68,60,38,44},50000}`), and
+  `sb+0xec = 23167` = exp progress ⇒ the char IS Lv17, derived from EXP. TRAINER: expose
+  `exp_cur (0xec)` + `exp_max (0xf0)` + `level_base (0xe0)`; the true display level needs a
+  table lookup (SE exp table not yet dumped) or RE of the HUD level-drawer's read. (Two
+  fields sum to 17 — `+0xdc`=3 + `+0xe4`=14 — but that's unconfirmed; NOT shipped.)
+- **Anchor + stats correct.** ONE live `0xc35a` actor. hp/mp read + god/setstat write work.
+  hp_max=301 = `+0x58`(286)+`+0x84`(0)+`+0x9c`(15) — the 3-term sum, confirmed.
+- **Mob scan** (loose scanner `scratchpad/posfind.py scanmobs`): monster-code actors
+  (`0xc742..0xc83e` / `0x18744..0x1875d`) do exist in memory (e.g. code 0xc746 @ wx=34024,
+  0xc829 @ wx=25600) but NONE near Arche in the current idle scene, and their box-link
+  (`box[+4]==world_x`) does NOT validate like the player's (mob box relationship TBD).
+  `tpnearest`/`listmobs` DEFERRED — needs a scene with live near-player mobs + the mob
+  box/pos model. The DESIGN's earlier "51052 @574px" was last session's (now-changed) state.
+
+## Menu / load / input — RE for the "load this save" recipe (2026-07-17 session 2)
+
+Goal (USER): drive the title menu reliably + a repeatable recipe to (re)load this save.
+Live disasm (SE VAs; some funcs carry `jmp 0x6b1xxxx` = pre-existing Frida hooks, benign):
+
+- **Direct-load chain is STATEFUL — needs the menu UI object as `ecx`.** `FUN_005e8e80`
+  (get handle) / `FUN_005e8ea0` (get slot) read `this->[0x174]→+0x14` (selected index) into
+  `this->[0x17c]` array of 16-byte entries (handle@+0, slot@+4). So `FUN_00585cf0`'s
+  terminal load (`0x416550` load + `0x586c60` apply + `0x5cb460` transition) can't be called
+  from arbitrary state without reconstructing the title/menu object. ⇒ prefer INPUT injection.
+- **Input model (the reliable path).** The active input-manager `this` holds **64 button
+  records** as pointers at `this[0xc + i*4]` (i=0..63; the poll scans i=0x3f→0). Each record
+  = `{id @+0, timestamp @+4, state @+8}`. Poll `FUN_00437c70`/`FUN_004378d0` consume a record
+  whose `id` matches and `state==1` within a **100ms** window (`now - ts <= 0x64`), then
+  zero it. ⇒ **INJECT = pick the record with the wanted id, set `state=1` + `ts=GetTickCount`.**
+  Menu button ids (DESIGN above): {2,4,34,37} (4=rotate+1, 37=confirm, 34=abort). TODO:
+  locate the active input-manager `this` (a singleton / the mode object), then a `press <id>`
+  cmd drives menus; `player` polling detects load success (Arche actor appears in-scene).
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,

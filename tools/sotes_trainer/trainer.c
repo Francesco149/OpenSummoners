@@ -32,8 +32,19 @@
 // actor-base offsets
 #define OFF_CODE      0x1d4
 #define OFF_HANDLE    0x1d8
-#define OFF_WORLD_X   0xc76c         // centi-px (px*100)
-#define OFF_WORLD_Y   0xc770
+// world_x/world_y are a DERIVED per-frame SNAPSHOT (re-committed from the phys-box
+// every frame, so writing them is stomped in ~1 frame — the old teleport bug).  The
+// AUTHORITATIVE position lives in the collision AABB the actor points to at +0x40.
+// RE'd live off the position-commit at VA 0x484554 (HW write-watch on world_x):
+//   world_x = box[+0x04]              (direct copy)   -> writing box[+4] STICKS
+//   world_y = box[+0x08] + box[+0x10] - 1             (top + height - 1 = bottom)
+#define OFF_WORLD_X   0xc76c         // centi-px (px*100) — DERIVED snapshot, read-only
+#define OFF_WORLD_Y   0xc770         //                     DERIVED snapshot, read-only
+#define OFF_BOX       0x40           // actor -> collision AABB ptr (authoritative pos)
+#define BOX_X         0x04           // left  X  (= world_x)                 centi-px
+#define BOX_TOP       0x08           // top   Y                              centi-px
+#define BOX_W         0x0c           // width                               centi-px
+#define BOX_H         0x10           // height (world_y = top + height - 1)  centi-px
 #define OFF_STATBLOCK 0x760          // actor -> stat_block ptr
 // stat_block offsets
 #define OFF_HP_CUR    0x54
@@ -44,7 +55,10 @@
 #define OFF_MP_BASE   0x60
 #define OFF_MP_EQUIP  0x88
 #define OFF_MP_BUFF   0xa0
-#define OFF_LEVEL     0xe0
+#define OFF_LEVEL     0xe0           // level_base (NOT the display level — see DESIGN
+                                     // "Live findings": display Lv is EXP-derived)
+#define OFF_EXP_CUR   0xec           // EXP progress   (SE offset; base-game +0xe8)
+#define OFF_EXP_MAX   0xf0           // EXP to next    (cross-ref: 50000 = Arche Lv17)
 
 #define TRAINER_PORT  7777
 
@@ -232,20 +246,25 @@ static void write_typed(uintptr_t a, uint32_t v, const char *ty) {
 static int player_json(char *out, int cap) {
     uintptr_t base = find_player();
     if (!base) { snprintf(out, cap, "null"); return 0; }
-    uint32_t wx=0, wy=0, sb=0, hp=0, mp=0, lvl=0;
+    uint32_t wx=0, wy=0, sb=0, hp=0, mp=0, lvl=0, ec=0, em=0;
     rd32((void *)(base + OFF_WORLD_X), &wx);
     rd32((void *)(base + OFF_WORLD_Y), &wy);
     rd32((void *)(base + OFF_STATBLOCK), &sb);
     rd32((void *)(sb + OFF_HP_CUR), &hp);
     rd32((void *)(sb + OFF_MP_CUR), &mp);
     rd32((void *)(sb + OFF_LEVEL), &lvl);
+    rd32((void *)(sb + OFF_EXP_CUR), &ec);
+    rd32((void *)(sb + OFF_EXP_MAX), &em);
     int hpmax = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
     int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
+    // level_base (0xe0) is NOT the display level (that is EXP-derived — DESIGN);
+    // exp_cur/exp_max are exposed so the true level can be looked up from a table.
     snprintf(out, cap,
         "{\"actor\":\"0x%08x\",\"world_x\":%d,\"world_y\":%d,\"stat_block\":\"0x%08x\","
-        "\"hp\":%d,\"hp_max\":%d,\"mp\":%d,\"mp_max\":%d,\"level\":%d}",
+        "\"hp\":%d,\"hp_max\":%d,\"mp\":%d,\"mp_max\":%d,\"level_base\":%d,"
+        "\"exp_cur\":%d,\"exp_max\":%d}",
         (unsigned)base, (int)wx, (int)wy, (unsigned)sb,
-        (int)hp, hpmax, (int)mp, mpmax, (int)lvl);
+        (int)hp, hpmax, (int)mp, mpmax, (int)lvl, (int)ec, (int)em);
     return 1;
 }
 
@@ -306,19 +325,44 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "teleport")) {
+        // Write the AUTHORITATIVE phys-box (actor+0x40 -> box), not the derived
+        // world_x/y snapshot.  box[+4]=X sticks; box[+8]=top settles via gravity.
         long long x, y; int rel = json_bool(line, "relative", 0);
         uintptr_t base = find_player();
         if (!base) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
+        uint32_t box = 0;
+        if (!rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000 ||
+            !mem_readable((void *)(uintptr_t)box, 0x14)) {
+            snprintf(out, cap, "{\"ok\":false,\"error\":\"no phys-box\"}"); return; }
         if (json_num(line, "x", &x)) {
-            uint32_t cur = 0; rd32((void *)(base + OFF_WORLD_X), &cur);
-            write_typed(base + OFF_WORLD_X, rel ? cur + (uint32_t)(x*100) : (uint32_t)x, "u32");
+            uint32_t cur = 0; rd32((void *)((uintptr_t)box + BOX_X), &cur);
+            write_typed((uintptr_t)box + BOX_X, rel ? cur + (uint32_t)(x*100) : (uint32_t)x, "u32");
         }
         if (json_num(line, "y", &y)) {
-            uint32_t cur = 0; rd32((void *)(base + OFF_WORLD_Y), &cur);
-            write_typed(base + OFF_WORLD_Y, rel ? cur + (uint32_t)(y*100) : (uint32_t)y, "u32");
+            uint32_t h = 0, curtop = 0;
+            rd32((void *)((uintptr_t)box + BOX_H),   &h);
+            rd32((void *)((uintptr_t)box + BOX_TOP), &curtop);
+            // absolute y is a world_y target (bottom) -> top = y - height + 1;
+            // relative y nudges the top (px), world_y follows.
+            uint32_t newtop = rel ? curtop + (uint32_t)(y*100)
+                                  : (uint32_t)((int)y - (int)h + 1);
+            write_typed((uintptr_t)box + BOX_TOP, newtop, "u32");
         }
         char pj[512]; player_json(pj, sizeof pj);
-        snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
+        snprintf(out, cap, "{\"ok\":true,\"box\":\"0x%08x\",\"player\":%s}", box, pj);
+        return;
+    }
+    if (!strcmp(cmd, "box")) {                    // debug: read the player's phys-box
+        uintptr_t base = find_player(); uint32_t box = 0;
+        if (!base || !rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000) {
+            snprintf(out, cap, "{\"ok\":false,\"error\":\"no box\"}"); return; }
+        uint32_t bx=0,top=0,w=0,h=0,tag=0;
+        rd32((void*)((uintptr_t)box+0),&tag);   rd32((void*)((uintptr_t)box+BOX_X),&bx);
+        rd32((void*)((uintptr_t)box+BOX_TOP),&top); rd32((void*)((uintptr_t)box+BOX_W),&w);
+        rd32((void*)((uintptr_t)box+BOX_H),&h);
+        snprintf(out, cap, "{\"ok\":true,\"box\":\"0x%08x\",\"tag\":\"0x%08x\",\"x\":%d,"
+                 "\"top\":%d,\"w\":%d,\"h\":%d,\"world_y\":%d}",
+                 box, tag, (int)bx, (int)top, (int)w, (int)h, (int)top+(int)h-1);
         return;
     }
     if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
