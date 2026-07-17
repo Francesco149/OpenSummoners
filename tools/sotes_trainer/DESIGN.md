@@ -389,7 +389,32 @@ fault.  FIX: `DLG_SETTLE_POLLS`=120 (~2s) — hold dlgskip off for a beat after 
 box_open stays false, no loop, game alive through the whole test).  (The USER reached the door with
 the old build in their env — this crash is timing/env-sensitive, but the debounce removes it.)
 Commands for this arc: `newgame`, `dlgskip` (now passive-gated + settle-debounced), `dlgbtns`,
-`press` (id probe), `state` (+box_open/box_scale), `keepactive`.
+`press` (id probe), `state` (+box_open/box_scale), `keepactive`, `dlgtrace` (RE aid).
+
+### Fast-skip (skip the TYPEWRITER) — RE'd; blocked on a SAFE grid capture (session 6c)
+"dlgskip isn't fast": it ADVANCES boxes (0x24/0x27) but does not skip the typewriter (that is the
+INTERACT key = the port's `dialogue_skip_reveal`, i.e. `reveal = total`).  Clean fix = force
+reveal=total via a UI-STATE write (no keypress → can't trip the door; the USER's door=UP, skip=
+INTERACT are different keys, but a UI write avoids ALL world input).
+FOUND — the SE dialogue body TEXT-GRID ctor **`0x5e59c0`** (thiscall, `ecx`=grid; reached from the
+body colors `0x3e537d`/`0xa8b9cc` @`0x5e6668`, ctor call @`0x5e5982`).  Grid layout: **+0x4c** =
+char total, **+0x48** = per-char cell array, **+0x4** = active, **+0x8** = REVEAL counter (init 0,
+climbs to +0x4c).  Shared by intro + in-game dialogue.  ⇒ fast-skip = while a grid is active +
+`+0x8 < +0x4c`, write `grid+0x8 = grid+0x4c`.
+BLOCKER — capturing the grid `this` safely.  Hooking `0x5e59c0` **CRASHES newgame**: it is an
+SEH-scope function (prologue installs an exception frame, handler `0x5fcc0b`); the prologue-
+relocating detour breaks its unwind and the intro (which throws/catches during scene build) faults.
+PROVEN: adding the ctor hook crashes newgame even with dlgskip OFF; removing it restores newgame.
+TWO DIALOGUE PATHS — in-game (door/NPC) dialogue is on the input-mgr widget (`g_ti_mgr+0x374`,
+mapped + passive-gated); the INTRO/cutscene dialogue is on a DIFFERENT object (the tracer saw 0
+frames + scans found no box on `g_ti_mgr` during the intro — that is also why dlgskip stalls in the
+intro).  A shared grid capture would cover both.
+NEXT (safe grid capture, no SEH detour): (a) hook the per-tick typewriter STEPPER that increments
+`grid+0x8` (likely a small non-SEH fn) instead of the ctor; (b) reach the grid via a pointer chain —
+the ctor caller `0x5e5982` has `grid = *(edi + *(esi))`, `esi` = the grid manager (find esi's
+global); or (c) in-game-only via the box cells (`g_ti_mgr+0x374` → the text-grid cell).  Infra
+ready: the `dlgtrace` cmd + the `g_dlg_grid` tracer (idle until a safe hook/chain sets `g_dlg_grid`).
+`PORT-DEBT(dlgskip-reveal-ui)`.
 
 ## Probe rig (temporary, delete when done)
 - `scratchpad/trainerctl.py` (spawn + repro_agent input/shot + trainer_agent memory,

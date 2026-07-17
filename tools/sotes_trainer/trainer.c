@@ -85,6 +85,11 @@
                                      // `this`): the caller 0x58113e does `mov [0x92dd4c], ecx`
                                      // right before `call 0x581ba0` — read it, no hook needed.
 #define VA_DEMO_JL     0x583866      // attract idle->demo trigger: jl 0x5832e1 -> patch to jmp
+#define VA_DLGGRID     0x5e59c0      // dialogue body TEXT-GRID ctor (thiscall, ecx=grid): allocs the
+                                     // per-char cells (each 0x1b0 B, colored via 0x5e6630 w/ the body
+                                     // colors 0x3e537d/0xa8b9cc) — shared by intro + in-game dialogue.
+                                     // grid+0x4c=char total, +0x48=cell array, +0x4=active, +0x8=reveal
+                                     // counter (init 0). 1st insn = 6-byte `mov %fs:0x0,%eax`.
 #define SAVE_HANDLE_MAIN 0x2738      // Main-Quest save category (loader .sdt branch + apply gate)
 #define SAVE_STRUCT_SZ   0xea94      // FUN_00585cf0 allocs this for the transient save struct
 
@@ -363,6 +368,20 @@ static volatile int      g_dlg_btns[6] = { 0, 0, 0, 0, 0, 0 };  // extra reveal-
                                  // default EMPTY — the reveal-skip id doubles as world UP, so it
                                  // must stay off until the reveal is done via a UI-STATE write,
                                  // per USER "force UI state, not input").  PORT-DEBT(dlgskip-reveal-ui).
+// The dialogue body TEXT-GRID `this`, captured at the 0x5e59c0 ctor entry (hook precb = mov
+// [g_dlg_grid],ecx).  Shared by intro + in-game dialogue, so this is THE handle to the reveal
+// state for ANY box: grid+0x8 = reveal counter, grid+0x4c = char total, grid+0x4 = active,
+// grid+0x48 = cell array.  0 until the first dialogue line builds a grid.
+static volatile uint32_t g_dlg_grid;
+// ── dialogue-field TRACE (temporary RE aid) ── while g_dlg_grid is active, snapshot grid[0..0xC0]
+// every poll from the moment a NEW grid is built (engine thread ⇒ catches every typewriter frame
+// the socket is too slow to poll).  Read via `dlgtrace` — the column that climbs first→last is the
+// reveal counter, a sibling holds the total.  Covers ALL dialogue (the grid ctor is shared).
+#define DLGT_W     48       // grid u32s (0x000..0x0C0)
+#define DLGT_N     80       // frames
+static uint32_t          g_dlgt[DLGT_N][DLGT_W];
+static volatile int      g_dlgt_n;      // frames captured this grid
+static uint32_t          g_dlgt_lastgrid;
 static volatile int      g_ng_state;            // new-game drive: 0 idle, 1 rotate-to-Start, 2 confirm
 static volatile int      g_ng_rotates;          // title rotations to reach the New Game item
 static volatile int      g_ng_btn = 0x04;       // title rotate button (2=up / 4=down)
@@ -513,6 +532,21 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
             inject_record(g_ti_mgr, BTN_CONFIRM, now, 3);
         }
     }
+    // Dialogue-field TRACE (RE aid): while the hooked text-grid (g_dlg_grid, from the 0x5e59c0
+    // ctor) is active, snapshot grid[0..0xC0] every poll from the moment a NEW grid is built.
+    // Independent of g_dlgskip so a naturally-typing box is caught (intro or in-game).
+    {
+        uint32_t g = g_dlg_grid, act = 0;
+        if (g && rd32((void *)(uintptr_t)(g + 4), &act) && act) {
+            if (g != g_dlgt_lastgrid) { g_dlgt_n = 0; g_dlgt_lastgrid = g; }   // new grid -> fresh trace
+            if (g_dlgt_n < DLGT_N && mem_readable((void *)(uintptr_t)g, DLGT_W * 4)) {
+                uint32_t *row = g_dlgt[g_dlgt_n];
+                for (int i = 0; i < DLGT_W; i++)
+                    row[i] = *(volatile uint32_t *)(uintptr_t)(g + i * 4);
+                g_dlgt_n++;
+            }
+        }
+    }
     // Scene-settle debounce: a freshly-loaded scene (right after a newgame/load menu-drive) is
     // briefly UNSTABLE — touching the dialogue widget the instant the drive ends faults the game.
     // (PRE-EXISTING: dlgskip-on through `newgame` crashed BOTH this build and the pre-passive-gate
@@ -628,11 +662,20 @@ static void ensure_hooks(void) {
     a = (uint32_t)(uintptr_t)&g_ti_mgr; memcpy(pt + 8, &a, 4);
     a = (uint32_t)(uintptr_t)&g_pk_esp; memcpy(pp + 2, &a, 4);
     a = (uint32_t)(uintptr_t)&g_pk_mgr; memcpy(pp + 8, &a, 4);
+    // dialogue text-grid ctor (0x5e59c0, thiscall): precb saves ecx (the grid `this`) so we can
+    // read/force the reveal state for ANY dialogue.  `mov [imm32],ecx` = 89 0d <addr>.
+    uint8_t pg[6] = { 0x89, 0x0d, 0,0,0,0 };
+    a = (uint32_t)(uintptr_t)&g_dlg_grid; memcpy(pg + 2, &a, 4);
     suspend_others(1);
     // The scene `this` for the (experimental) direct transition is read from 0x92dd4c, not a
     // hook — 0x581ba0 loops internally so its entry hook would not re-fire post-injection.
     install_detour((uintptr_t)AP(VA_INPUTPOLL), 5, (void *)poll_title_cb,  pt, 12);  // 53 8b 5c 24 0c
     install_detour((uintptr_t)AP(VA_MENUCTRL),  5, (void *)poll_picker_cb, pp, 12);  // 51 53 55 8b e9
+    // NOTE: do NOT detour 0x5e59c0 (the grid ctor) — it is an SEH-scope function (installs an
+    // exception frame in its prologue); the prologue-relocating detour breaks its unwind and the
+    // newgame intro (which builds text grids + throws/catches internally) crashes.  g_dlg_grid
+    // capture needs a non-SEH target (the per-tick stepper) or a pointer-chain instead. (void)pg;
+    (void)pg;
     suspend_others(0);
     vlog("[hooks] installed: title 0x437c70, picker 0x4378d0, tramp=%p", base);
 }
@@ -976,6 +1019,32 @@ static void handle_line(const char *line, char *out, int cap) {
         // keeps rendering/updating while unfocused, without stealing focus.  Default ON.
         g_keepactive = json_bool(line, "on", 1);
         snprintf(out, cap, "{\"ok\":true,\"keepactive\":%s}", g_keepactive ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "dlgtrace")) {
+        // {"cmd":"dlgtrace"} — dump the text-grid trace: for each grid+off column that CHANGED over
+        // the captured frames, report off + first/last/min/max.  The typewriter REVEAL counter = a
+        // column that climbs first->last (min=first, max=last); its total is a sibling (const == the
+        // char count).  Capture: dlgskip OFF, trigger a dialogue, let it type, advance with Enter.
+        int n = g_dlgt_n; if (n > DLGT_N) n = DLGT_N;
+        int used = snprintf(out, cap, "{\"ok\":true,\"grid\":\"0x%08x\",\"frames\":%d,\"changed\":[",
+                            (unsigned)g_dlg_grid, n), first = 1;
+        for (int c = 0; c < DLGT_W && used < (int)cap - 96; c++) {
+            uint32_t f = g_dlgt[0][c], l = n ? g_dlgt[n - 1][c] : f, mn = f, mx = f;
+            int chg = 0;
+            for (int r = 0; r < n; r++) {
+                uint32_t v = g_dlgt[r][c];
+                if (v != f) chg = 1;
+                if (v < mn) mn = v;
+                if (v > mx) mx = v;
+            }
+            if (!chg) continue;
+            used += snprintf(out + used, cap - used,
+                "%s{\"off\":\"0x%x\",\"first\":%u,\"last\":%u,\"min\":%u,\"max\":%u}",
+                first ? "" : ",", c * 4, f, l, mn, mx);
+            first = 0;
+        }
+        snprintf(out + used, cap - used, "]}");
         return;
     }
     if (!strcmp(cmd, "dlgskip")) {
