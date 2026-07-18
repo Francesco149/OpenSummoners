@@ -120,7 +120,11 @@
 #define RR_EXIT0        0x1c         // room_record[7] = first exit slot (stride 0xc, 20 slots)
 #define RR_EXIT_STRIDE  0xc          // per-exit stride: {exit_key, target_room, return_key}
 #define RR_EXIT_TARGET  0x4          // exit slot +4 = TARGET room key (what a portal warps to)
-#define RR_SIZE         0x150        // one room record = 0x150 B (the room table's stride)
+#define RR_SIZE         0x150        // one room record = 0x150 B of payload
+#define RR_STRIDE       0x158        // the MASTER room table's per-record stride (0x150 payload +
+                                     // 8-B alloc header/pad).  VERIFIED live: records 440205/440210/
+                                     // 440220 sit exactly 0x158 apart; the global table is one
+                                     // contiguous 0x158-strided run (427 rooms, all areas, this save).
 
 // ── camera / mouse-fly (client cursor -> world) ──────────────────────────────
 // The CAMERA/VIEW OBJECT = *(render_root + g_cam_off) (g_cam_off = base analog +0x104c, a POINTER
@@ -1365,30 +1369,71 @@ static void engine_hotkeys(void) {
     prev_f7 = f7;
 }
 
-// ── the room-record TABLE walk (SE_CODE_MAP thread #3): the current room record is one entry
-// in a contiguous 0x150-B table of every room.  Seed from it, walk back to the table base, then
-// forward — the (room_key,area,scene) signature bounds each valid record.  Feeds the portal
-// destination fuzzy-search (valid target room keys).
-static int room_rec_valid(uintptr_t rr) {
-    if (!mem_readable((void *)rr, RR_SIZE)) return 0;
-    uint32_t key = 0, area = 0, scene = 0;
-    rd32((void *)(rr + RR_ROOM_KEY), &key);
-    rd32((void *)(rr + RR_AREA),     &area);
-    rd32((void *)(rr + RR_SCENE),    &scene);
-    if (key < 0x1000 || key > 0x7fffffff) return 0;
-    if (area < 1 || area > 4095)          return 0;
-    if (scene < 1 || scene > 19999)       return 0;
-    return 1;
+// ── the MASTER room-record TABLE (SE_CODE_MAP thread #3): every room (all areas) lives in ONE
+// contiguous 0x158-strided run in a heap block.  The live current-room record (*(root+0x1038)) is a
+// COPY in a small per-area run, NOT the master — so the old "walk out from the live record" returned
+// only the current room.  Instead we FIND the master: it is by far the LONGEST contiguous stride-
+// 0x158 run of valid records anywhere in RW memory (427 rooms this save, vs ~11 for a per-area copy).
+// Heap addresses vary per launch and NO fixed global points at it, so we SCAN (the tc_get_chars
+// pattern) + cache.  Feeds the portal destination picker + the cross-region map graph.
+static int rec_ok(const uint32_t *p) {                 // a plausible room record at p (RAW read)
+    uint32_t k = p[0], a = p[1], s = p[3];
+    return k >= 0x1000 && k <= 0x7fffffff && a >= 1 && a <= 4095 && s >= 1 && s <= 19999;
+}
+// Scan committed RW-private regions for the longest stride-0x158 run of records; set *out_base to its
+// start + return its length.  0 if nothing is long enough to be the table.
+static int room_table_scan(uintptr_t *out_base) {
+    uintptr_t best = 0; int best_len = 0;
+    uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
+    while (VirtualQuery(addr, &mbi, sizeof mbi)) {
+        uint8_t *next = (uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
+            (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) &&
+            mbi.RegionSize <= 0x8000000) {
+            uint8_t *b = (uint8_t *)mbi.BaseAddress, *lim = next - RR_STRIDE;
+            for (uint8_t *p = b; p <= lim; p += 4) {
+                if (!rec_ok((const uint32_t *)p)) continue;
+                if (p - RR_STRIDE >= b && rec_ok((const uint32_t *)(p - RR_STRIDE))) continue; // interior
+                int len = 0; uint8_t *q = p;                      // run start: walk it
+                while (q <= lim && rec_ok((const uint32_t *)q)) { ++len; q += RR_STRIDE; }
+                if (len > best_len) { best_len = len; best = (uintptr_t)p; }
+                if (len > 1) p = q - RR_STRIDE;                    // skip the run's interior
+            }
+        }
+        if (next <= addr) break;
+        addr = next;
+    }
+    if (best_len < 32) return 0;                          // reject noise; the real table is ~400
+    if (out_base) *out_base = best;
+    return best_len;
+}
+// Cached master-table lookup.  Revalidate the cached base cheaply (base + base+stride both still
+// valid records); else re-scan (the table is reallocated only on save-load, not on area change).
+static uintptr_t g_rtbl_base; static int g_rtbl_len;
+static int room_table_get(uintptr_t *out_base) {
+    if (g_rtbl_base && mem_readable((void *)g_rtbl_base, RR_STRIDE + 0x10) &&
+        rec_ok((const uint32_t *)g_rtbl_base) &&
+        rec_ok((const uint32_t *)(g_rtbl_base + RR_STRIDE))) {
+        if (out_base) *out_base = g_rtbl_base;
+        return g_rtbl_len;
+    }
+    uintptr_t b = 0; int n = room_table_scan(&b);
+    g_rtbl_base = b; g_rtbl_len = n;
+    if (out_base) *out_base = b;
+    return n;
+}
+// The i-th master-table record address (0 if out of range); for the room list + the exit graph.
+static uintptr_t room_table_rec(uintptr_t base, int len, int i) {
+    if (i < 0 || i >= len) return 0;
+    return base + (uintptr_t)i * RR_STRIDE;
 }
 int tc_get_rooms(tc_room *out, int cap) {
     if (!out || cap <= 0) return 0;
-    uint32_t rr0 = cur_room_record(NULL);
-    if (!rr0 || !room_rec_valid(rr0)) return 0;
-    uintptr_t base = rr0;
-    for (int i = 0; i < 8192; ++i) { uintptr_t p = base - RR_SIZE; if (!room_rec_valid(p)) break; base = p; }
+    uintptr_t base = 0; int len = room_table_get(&base);
+    if (!base) return 0;
     int n = 0;
-    for (uintptr_t p = base; n < cap; p += RR_SIZE) {
-        if (!room_rec_valid(p)) break;
+    for (int i = 0; i < len && n < cap; ++i) {
+        uintptr_t p = room_table_rec(base, len, i);
         uint32_t key = 0, area = 0, scene = 0;
         rd32((void *)(p + RR_ROOM_KEY), &key);
         rd32((void *)(p + RR_AREA),     &area);
@@ -1802,17 +1847,34 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "rooms")) {
-        // {"cmd":"rooms"[,"max":M]} — enumerate the room-record table (valid warp destinations):
-        // per room {key, area, scene}.  Walks the contiguous 0x150-B table seeded from the current room.
-        long long m = 512; json_num(line, "max", &m);
-        if (m < 1) m = 1;
-        if (m > 1024) m = 1024;
-        static tc_room rooms[1024];
-        int nr = tc_get_rooms(rooms, (int)m);
-        int n = snprintf(out, cap, "{\"ok\":true,\"count\":%d,\"rooms\":[", nr);
-        for (int i = 0; i < nr && n < cap - 48; ++i)
-            n += snprintf(out + n, cap - n, "%s{\"key\":%u,\"area\":%u,\"scene\":%u}",
-                          i ? "," : "", rooms[i].key, rooms[i].area, rooms[i].scene);
+        // {"cmd":"rooms"[,"area":A]} — enumerate the MASTER room table (ALL rooms, every area) + each
+        // room's portal graph: per room {key, area, scene, exits:[target_room,...]}.  The exits are
+        // the cross-region map GRAPH (BFS destination routing).  Optional `area` filters to one area.
+        long long af = 0; int have_af = json_num(line, "area", &af);
+        uintptr_t base = 0; int len = room_table_get(&base);
+        int n = snprintf(out, cap, "{\"ok\":%s,\"count\":%d,\"rooms\":[",
+                         base ? "true" : "false", len);
+        int first = 1;
+        for (int i = 0; i < len && n < cap - 256; ++i) {
+            uintptr_t p = room_table_rec(base, len, i);
+            uint32_t key = 0, area = 0, scene = 0;
+            rd32((void *)(p + RR_ROOM_KEY), &key);
+            rd32((void *)(p + RR_AREA),     &area);
+            rd32((void *)(p + RR_SCENE),    &scene);
+            if (have_af && (uint32_t)af != area) continue;
+            n += snprintf(out + n, cap - n, "%s{\"key\":%u,\"area\":%u,\"scene\":%u,\"exits\":[",
+                          first ? "" : ",", key, area, scene);
+            first = 0;
+            int ef = 1;
+            for (int k = 0; k < 20 && n < cap - 48; ++k) {
+                uintptr_t b = p + RR_EXIT0 + (uint32_t)k * RR_EXIT_STRIDE;
+                uint32_t ek = 0, tr = 0; rd32((void *)b, &ek); rd32((void *)(b + 4), &tr);
+                if (ek == 0 && tr == 0) continue;
+                n += snprintf(out + n, cap - n, "%s%u", ef ? "" : ",", tr);
+                ef = 0;
+            }
+            n += snprintf(out + n, cap - n, "]}");
+        }
         snprintf(out + n, cap - n, "]}");
         return;
     }
@@ -2140,10 +2202,16 @@ static DWORD WINAPI server_thread(void *unused) {
             char *nl;
             while ((nl = memchr(buf, '\n', used)) != NULL) {
                 *nl = 0;
-                char resp[8192];   // large enough for `saves` (all slots) + summaries
+                // one client is processed at a time (sequential accept loop) so a big STATIC buffer
+                // is safe + avoids a 128 KB stack frame; sized to fit `rooms` (all ~430 rooms + graph).
+                static char resp[131072];
                 handle_line(buf, resp, sizeof resp);
                 int rl = (int)strlen(resp); resp[rl++] = '\n';
-                send(cs, resp, rl, 0);
+                for (int off = 0; off < rl; ) {   // send-all: a large payload may need >1 send
+                    int s = send(cs, resp + off, rl - off, 0);
+                    if (s <= 0) break;
+                    off += s;
+                }
                 int rest = used - (int)(nl + 1 - buf);
                 memmove(buf, nl + 1, rest); used = rest; buf[used] = 0;
             }

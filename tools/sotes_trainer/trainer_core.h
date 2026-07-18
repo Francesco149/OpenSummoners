@@ -64,7 +64,7 @@ int tc_get_player(tc_player *out);
 int tc_get_map(tc_map *out);
 int tc_get_status(tc_status *out);
 int tc_get_saves(tc_save *out, int cap);   // returns count (reads user\savedataNN.sdt, no engine load)
-int tc_get_rooms(tc_room *out, int cap);    // returns count (walks the live room-record table)
+int tc_get_rooms(tc_room *out, int cap);    // returns count (scans for the MASTER room table = all rooms)
 int tc_get_chars(tc_char *out, int cap);    // returns count of present party members (marks active/target)
 
 // which member teleport / mouse-fly / god / the reads operate on: 0 = the ACTIVE (controlled)

@@ -120,8 +120,9 @@ The base room-record layout (room_key[0]/area[1]/scene[3]/exits@dw7-stride3) CAR
 not the map object. Render-root also: `+0x1048` (used @0x5ad4a2), room_record `+0x148/+0x14c`.
 Map DATA loader path: universal resource opener `0x5de520` (FindResource wrapper; maps AND sprites)
 ← map parser `0x54cxxx` (@0x54cae9); map DECODER `0x5b2xxx` (region-E @0x5b348b) ← builder `0x5ad4xx`
-(reads render_root+0x1038, @0x5ad443) ← 0x4b5c8d ← 0x526144. Room table (all records) in the heap
-(0x1f39xxxx block; each record 0x150 B). **OPEN**: the SE transition fn to force a room change (roadmap #4).
+(reads render_root+0x1038, @0x5ad443) ← 0x4b5c8d ← 0x526144. The MASTER room table (ALL records) is a
+contiguous heap block, **0x158 B stride** (record 0x150 + 8-B header), found by the longest-valid-run
+scan (thread #3 ✅; 427 rooms this save). **OPEN**: the SE transition fn to force a room change (roadmap #4).
 
 ### ✅ THE CAMERA / VIEW OBJECT — RESOLVED live (mouse-fly; base camera_follow.h layout carries)
 The view/camera object = **`*(render_root + 0x104c)`** (base analog: `src/camera_follow.h` +
@@ -248,14 +249,20 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
    NOT the button ring (injecting ring ids 1..20 moved Arche 0px and one opened the PAUSE MENU);
    (ii) reverse the door-use handler + call its transition branch (harder). NEXT: find the DINPUT UP
    field (path i) — the cleanest auto-fast-travel.
-3. **Room-record TABLE walk → the full map list/graph (NEXT SESSION, USER-set).** The trainer's
-   `rooms` command (`tc_get_rooms`) currently seeds from the CURRENT room record
-   (`*(*0x92dd38+0x1038)`) and walks ±0x150 while `room_rec_valid` — but that returns ONLY the
-   current room (live symptom: in room **440220** the portal-destination picker offers just 440220,
-   so both doors loop back to the same map). So the live/current room record is NOT contiguous with
-   the static table (likely a live COPY), or the neighbours fail the (key/area/scene) predicate.
-   FIX next session: find the REAL room table (the `0x1f39xxxx` heap block, 0x150 B/record) — e.g.
-   scan for the run of valid records, or trace who fills it — and enumerate ALL rooms → the fuzzy
-   warp-destination list + the map GRAPH for BFS. Pair with #2 (cross-region warp: chain within-area
-   hijack-warps through real boundary portals; "Cross-region PLAN" above) — the two are the session's
-   agenda ("querying the available maps in general" + cross-region).
+3. ✅ **DONE — the MASTER room table walk (all rooms + the map GRAPH).** The old 1-room symptom had
+   TWO causes: (a) the walk used the wrong STRIDE — records are **0x158** apart (0x150 payload + an
+   8-B alloc header/pad), not 0x150 (VERIFIED live: 440205/440210/440220 sit exactly 0x158 apart);
+   (b) the LIVE record `*(*0x92dd38+0x1038)` is a per-area COPY (a short ~11-room contiguous run),
+   NOT the master.  The MASTER is a SEPARATE contiguous 0x158-strided block = **by far the LONGEST
+   such run in RW memory** (this save: **427 rooms**, base ≈`0x14a868`, all 39 areas, sorted, no
+   dupes, an 8-B zeroed header before base bounds it).  No fixed global points at it (heap addr
+   varies per launch), so `tc_get_rooms` FINDs it via `room_table_scan` = the longest-run scan (the
+   `tc_get_chars` pattern) + a cached, cheaply-revalidated base.  The `rooms` cmd now emits
+   `{key,area,scene,exits:[target_room,...]}` for all 427 = the cross-region GRAPH (`area:A` filters).
+   **Graph facts** (this save): 946 edges, 64 cross-area; the ONLY dangling target is **999999** = the
+   OVERWORLD/world-map sentinel (47 edges — filter it, it is NOT a room); BFS over real edges reaches
+   **324/427 rooms (26 areas)** from the tower 440220, the rest (110/120/130/200/450/980-990) being
+   separate components reached via the 999999 overworld, not a room portal.  So within-a-component
+   cross-region routing = BFS the graph; crossing components needs the overworld transition (#2).
+   Code: `trainer.c` `rec_ok`/`room_table_scan`/`room_table_get`/`room_table_rec`.  **REMAINS = #2**
+   (the warp EXECUTION: auto door-enter along a route).

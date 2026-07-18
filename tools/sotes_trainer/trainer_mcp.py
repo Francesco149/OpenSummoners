@@ -160,7 +160,7 @@ def h_revert(a):
 
 
 def h_rooms(a):
-    return _reply(tsend(_cmd("rooms", a, keys=("max",))))
+    return _reply(tsend(_cmd("rooms", a, keys=("area",))))
 
 
 def h_view(a):
@@ -290,9 +290,10 @@ TOOLS = [
     ("revert", "Restore exit-slot N's original target_room.",
      {"type": "object", "properties": {"slot": {"type": "integer"}},
       "required": ["slot"]}, h_revert),
-    ("rooms", "Enumerate the room-record table (valid warp destinations): per room "
-     "{key,area,scene} — the fuzzy-search source for hijack. max caps the count.",
-     {"type": "object", "properties": {"max": {"type": "integer"}}}, h_rooms),
+    ("rooms", "Enumerate the MASTER room table (ALL rooms, every area) + each room's portal "
+     "GRAPH: per room {key,area,scene,exits:[target_room,...]} — the cross-region routing graph + "
+     "the hijack destination list. Optional `area` filters to one area (999999 exits = overworld).",
+     {"type": "object", "properties": {"area": {"type": "integer"}}}, h_rooms),
     ("view", "Mouse-fly camera diagnostic: the resolved view rect (left/top from "
      "cur_x/cur_y + span) + the player box + a camera-object field dump. off tunes the "
      "render_root->camera pointer offset.",

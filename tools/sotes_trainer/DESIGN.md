@@ -109,6 +109,14 @@ probing scaffolding** used only to discover the mechanics recorded below.
 - **P5 UI**: native/web panel over the JSON server showing all tracked stats + toggles.
 
 ## Next session — map introspection + fast travel (planned; USER-set 2026-07-18)
+**LANDED 2026-07-18 — steps 2+3 (portal enumeration + the map GRAPH).** The `rooms` cmd now
+enumerates the MASTER room table = ALL rooms (427 this save) + each room's exits
+(`{key,area,scene,exits:[target,...]}`), i.e. the full cross-region portal GRAPH; the old bug
+(returned only the current room) was the wrong table + stride — see SE_CODE_MAP thread #3 (✅):
+the table stride is **0x158** and the master is a separate block found by a longest-valid-run scan.
+BFS reaches 324/427 rooms (26 areas) from the tower via real portals; the rest cross via the
+overworld (the `999999` exit sentinel).  Still open: step 1's MOBS/NPCs, and steps 4-6 (the warp
+EXECUTION — direct-jump test / auto door-enter along a route).
 The goal arc, in order (each step: RE → verify live → trainer cmd):
 1. **Query the CURRENT map + its contents.**  Which map/scene we're in (id/name) + every object.  **The
    map STRUCTURE/props/portals are LARGELY DONE in the port** (USER — reuse, don't re-RE): `res_explorer`
