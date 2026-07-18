@@ -9,8 +9,9 @@ newline-delimited JSON-RPC 2.0, no SDK) that is a thin, typed skin over that
 socket — the LLM counterpart to the human's ImGui UI (which talks to the same
 socket directly).
 
-  observe   status · player · read · scan
-  cheats    write · setstat · god · teleport · box · unlock
+  observe   status · player · read · scan · map · rooms · view
+  cheats    write · setstat · god · teleport · box · mousefly · flyto · unlock
+  warp      hijack · revert   (change a door's destination + restore it)
   scene     saves · saveinfo · load · newgame
   dialogue  autoskip · fastskip · dlgskip
   advanced  press · call · raw   (raw = passthrough for ANY cmd, incl. new ones)
@@ -134,6 +135,30 @@ def h_teleport(a):
     return _reply(tsend(_cmd("teleport", a, keys=("x", "y"), bools=("relative",))))
 
 
+def h_mousefly(a):
+    return _reply(tsend(_cmd("mousefly", a, bools=("on",))))
+
+
+def h_flyto(a):
+    return _reply(tsend(_cmd("flyto", a, keys=("mx", "my"))))
+
+
+def h_hijack(a):
+    return _reply(tsend(_cmd("hijack", a, keys=("slot", "target"))))
+
+
+def h_revert(a):
+    return _reply(tsend(_cmd("revert", a, keys=("slot",))))
+
+
+def h_rooms(a):
+    return _reply(tsend(_cmd("rooms", a, keys=("max",))))
+
+
+def h_view(a):
+    return _reply(tsend(_cmd("view", a, keys=("off",))))
+
+
 def h_box(a):
     return _reply(tsend({"cmd": "box"}))
 
@@ -220,19 +245,43 @@ TOOLS = [
      {"type": "object", "properties": {
          "which": {"type": "string"}, "value": {"type": "integer"},
          "lock": {"type": "boolean"}}, "required": ["which", "value"]}, h_setstat),
-    ("god", "Freeze HP+MP at max every 50ms.",
+    ("god", "Freeze HP+MP at 9999 each frame (invincibility + free casting). Default ON.",
      {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_god),
     ("teleport", "Move the player via the authoritative phys-box (*(actor+0x40)): "
-     "x sticks, y gravity-settles. Centi-px; relative=true to nudge.",
+     "x sticks, y gravity-settles. Absolute=world centi-px, relative=true nudges in px.",
      {"type": "object", "properties": {
          "x": {"type": "integer"}, "y": {"type": "integer"},
          "relative": {"type": "boolean"}}}, h_teleport),
+    ("mousefly", "Continuously teleport the player to the cursor over the game window "
+     "(also F7). Freezes the view + edge-scrolls so she stays under the cursor yet can "
+     "traverse the map.",
+     {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_mousefly),
+    ("flyto", "Map a GIVEN game-window client point (mx,my) to world + teleport there "
+     "(the mouse-fly mapping for one point — deterministic calibration).",
+     {"type": "object", "properties": {
+         "mx": {"type": "integer"}, "my": {"type": "integer"}},
+      "required": ["mx", "my"]}, h_flyto),
     ("box", "Debug: the player's collision AABB {box,tag,x,top,w,h,world_y}.",
      {"type": "object", "properties": {}}, h_box),
     ("map", "The CURRENT map/room via the render-root chain: {room_key, area, scene "
      "(DATA resource id), tileset, parallax, exits:[{exit_key,target_room,return_key}]}. "
      "exits = the portal graph (each portal's destination room). null if not in a scene.",
      {"type": "object", "properties": {}}, h_map),
+    ("hijack", "Overwrite exit-slot N's target_room in the live room record so that door "
+     "warps to `target` (WARP PRIMITIVE; within-area). Original stashed for revert.",
+     {"type": "object", "properties": {
+         "slot": {"type": "integer"}, "target": {"type": "integer"}},
+      "required": ["slot", "target"]}, h_hijack),
+    ("revert", "Restore exit-slot N's original target_room.",
+     {"type": "object", "properties": {"slot": {"type": "integer"}},
+      "required": ["slot"]}, h_revert),
+    ("rooms", "Enumerate the room-record table (valid warp destinations): per room "
+     "{key,area,scene} — the fuzzy-search source for hijack. max caps the count.",
+     {"type": "object", "properties": {"max": {"type": "integer"}}}, h_rooms),
+    ("view", "Mouse-fly camera diagnostic: the resolved view rect (left/top from "
+     "cur_x/cur_y + span) + the player box + a camera-object field dump. off tunes the "
+     "render_root->camera pointer offset.",
+     {"type": "object", "properties": {"off": {"type": "integer"}}}, h_view),
     ("unlock", "Drop god + all stat locks.",
      {"type": "object", "properties": {}}, h_unlock),
     ("saves", "Enumerate + identify EVERY on-disk save (reads user\\savedataNN.sdt "

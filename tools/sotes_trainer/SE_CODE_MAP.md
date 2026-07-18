@@ -120,6 +120,26 @@ Map DATA loader path: universal resource opener `0x5de520` (FindResource wrapper
 (reads render_root+0x1038, @0x5ad443) ← 0x4b5c8d ← 0x526144. Room table (all records) in the heap
 (0x1f39xxxx block; each record 0x150 B). **OPEN**: the SE transition fn to force a room change (roadmap #4).
 
+### ✅ THE CAMERA / VIEW OBJECT — RESOLVED live (mouse-fly; base camera_follow.h layout carries)
+The view/camera object = **`*(render_root + 0x104c)`** (base analog: `src/camera_follow.h` +
+`FUN_0043d1d0` the easer). Field offsets carry from base, VERIFIED live by two-point teleport
+tracking + a cal dump (the trainer's mouse-fly maps the cursor through these):
+```
+cam = *(*(0x92dd38) + 0x104c)
+  cam+0x00 = map_w (cpx)        cam+0x04 = map_h (cpx)      // map pixel size, for scroll clamping
+  cam+0x5c = cur_y              cam+0x60 = cur_x            // EASED scroll ORIGIN = the view TOP-LEFT
+  cam+0x64 = vp_w (64000=640px) cam+0x68 = vp_h (48000=480px)  // viewport span (world cpx)
+  cam+0x6c = tgt_x             cam+0x70 = tgt_y            // the follow TARGET the easer chases
+  cam+0x14 = a vertical LOOK-AT mirror (= player box_top; tracks the player INSTANTLY — do NOT use
+             it as the view top: it creates a mouse-fly feedback runaway.  cur_y is the real top.)
+```
+So world↔screen: `screen_px = world_px − cam_top_px` (dialogue.c:312); a cursor at client fraction
+f maps to `world = (cur_x, cur_y) + f·(vp_w, vp_h)`.  The camera EASES cur toward tgt (`0x43d1d0`),
+clamped to `[0, map − viewport]`.  Freezing the view = pin cur+tgt; the trainer mouse-fly does this
+(+ edge-scroll the frozen latch) so the player stays under the cursor yet can traverse the map.
+The resolution enum (`*0x92af98+0x24`: 0→640×480 / 2→1280×960 / 3→1920×1440) only ZOOMS the window;
+the world span (vp_w/vp_h) is constant, so read it live (zoom-safe).
+
 ### Scene-load STEPS + failure strings (found by the "map data not found" message-box)
 The rebuild fn `0x5ac830` logs each load step via a label pushed to a debug/step fn (labels @0x924xxx):
 `Start StartArea`(0x92480c @`0x5ac869`) → `Load Map Data`(0x9247b4 @`0x5ad4ed`) → `InitAreaGate`(0x924754)

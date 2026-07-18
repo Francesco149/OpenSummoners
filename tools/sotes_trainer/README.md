@@ -1,13 +1,17 @@
 # sotes_trainer — standalone EN-SE trainer (WIP)
 
 A **standalone, injected DLL** trainer for the retail EN Special Edition
-(`sotes_en.exe`, unpacked ImageBase `0x400000`). In-process, **no Frida** — hosts a
-localhost line-JSON socket that is BOTH the optional LLM/agent interface and the
-future stats-UI backend. Architecture + discovered mechanics: **`DESIGN.md`**.
+(`sotes_en.exe`, unpacked ImageBase `0x400000`). In-process, **no Frida**. Two front-ends onto
+one core: a **Dear ImGui window** (`trainer_ui.cpp`, opens when the DLL loads) for the human, and
+a localhost line-JSON socket (`:7777`) for the LLM/agent (`trainer_mcp.py`). Architecture +
+discovered mechanics: **`DESIGN.md`**; SE addresses: **`SE_CODE_MAP.md`**.
 
-Status: **P0+P1 core proven end-to-end** (inject → socket → player anchor →
-read/write/setstat/god/teleport). Menu/load/attract + traversal/combat features are
-next (roadmap in DESIGN.md).
+Status: **working end-to-end.** Cheats (god = hp+mp 9999, auto-skip, mouse-fly, …), teleport,
+player/map/stat reads, **portal-hijack warp** (change a door's destination via fuzzy room-key
+search + revert), the room-table walk, save enumeration + menu-drive load/newgame — all in the UI
+and the socket. Runs via the generic **mod loader** (drop `mods\sotes_trainer.dll` + launch).
+All pokes + engine-fn calls execute engine-side via a thread-safe queue drained at the inputPoll
+safepoint. NEXT: force a cross-room/area transition (roadmap #4) + BFS fast-travel.
 
 ## Build
 
@@ -34,16 +38,24 @@ its HDE length disassembler copies WHOLE instructions, so it hooks the SEH-scope
 ctor `0x5e59c0` (6-byte `mov eax,fs:0x0` prologue) that the old fixed-5-byte `install_detour`
 corrupted. Used by `dlghook` to capture the story/cutscene text-grid `this` at build time.
 
-## Inject
+## Install / run
 
-- **Dev loop** (composes with the throwaway Frida probe rig): set
-  `TRAINERCTL_INJECT_DLL='C:\...\sotes_trainer.dll'` before launching
-  `scratchpad/trainerctl.py` — it `LoadLibrary`s the DLL in-target after resume.
-  Or one-shot: Frida `Module.getGlobalExportByName('LoadLibraryA')` with the DLL's
-  **Windows** path (`scratchpad/inject_test.py`).
-- **Ship**: `build/inject.exe <unpacked-exe> <full-path sotes_trainer.dll> <cwd>`
-  (CreateProcess-SUSPENDED → remote LoadLibrary → Resume) or a `version.dll` proxy (the
-  ennse_voice pattern). Hands-free — see the default boot behaviors below.
+**The convention: the [mod loader](../mod_loader/).** Drop the DLL into a `mods\` folder beside
+the game exe and just launch — no injector, the game is not modified:
+
+```
+<game>\version.dll             <- the mod loader (build/version.dll)
+<game>\realver.dll             <- copy of C:\Windows\SysWOW64\version.dll
+<game>\mods\sotes_trainer.dll  <- this trainer (build/sotes_trainer.dll)
+```
+
+Then run the exe normally. On load the trainer opens its ImGui window + binds `:7777`, dismisses
+the `#32770` launcher, and keeps the game running unfocused (default boot behaviors below). It
+coexists with the JP voice patch (`mods\ennse_voice.dll`).
+
+- **Quick dev loop** (one-shot, no staging): `build/inject.exe <unpacked-exe> <full-path
+  sotes_trainer.dll> <cwd>` — CreateProcess-SUSPENDED → remote LoadLibrary → Resume (runs via
+  WSLInterop).
 
 On attach it logs to `oss_trainer.log` beside the exe and binds `:7777`, and — so it works
 while its window is backgrounded (an agent/UI drives it from elsewhere) — spawns a keepalive
@@ -56,22 +68,24 @@ via `keepactive`/`attract`. (Live-verified via `build/inject.exe` into `sotes-en
 ### Relaunch recipe (agent-operable, this env)
 
 The game (as **`sotes-trainer-oss.exe`**) is staged in `C:\oss-ennse-voice-repro\stock\` (the
-unpacked SE exe + all `sotes*.dll` assets + `user\` saves). To rebuild + relaunch end-to-end
-(runnable from WSL — `inject.exe` executes via WSLInterop, no wine):
+unpacked SE exe + all `sotes*.dll` assets + `user\` saves), with the mod loader already in place
+(`version.dll` + `realver.dll`). To rebuild + relaunch via the mod loader (runnable from WSL —
+`cmd.exe` launches via WSLInterop, no wine):
 
 ```
-nix develop --command make -C tools/sotes_trainer          # rebuild the DLL
+nix develop --command make -C tools/sotes_trainer                 # rebuild the DLL
 S=/mnt/c/oss-ennse-voice-repro/stock
-cp build/sotes_trainer.dll "$S/sotes_trainer.dll"          # stage the FRESH DLL (else stale)
-[ -f "$S/sotes-trainer-oss.exe" ] || cp "$S/sotes_en.exe" "$S/sotes-trainer-oss.exe"
-./build/inject.exe 'C:\oss-ennse-voice-repro\stock\sotes-trainer-oss.exe' \
-                   'C:\oss-ennse-voice-repro\stock\sotes_trainer.dll' \
-                   'C:\oss-ennse-voice-repro\stock'
+cp build/sotes_trainer.dll "$S/mods/sotes_trainer.dll"            # stage the FRESH DLL (else stale)
+# kill any prior instance by EXACT pid, then launch (cwd = game dir so it finds sotesd.dll etc.):
+PID=$(tasklist.exe /FI "IMAGENAME eq sotes-trainer-oss.exe" | grep -i sotes | awk '{print $2}')
+[ -n "$PID" ] && taskkill.exe /PID "$PID" /F
+cmd.exe /c start "" /D 'C:\oss-ennse-voice-repro\stock' 'C:\oss-ennse-voice-repro\stock\sotes-trainer-oss.exe'
 ```
 
 It boots to the TITLE (`player`==null); `load`/`newgame` to enter a scene. The exe name
 `sotes-trainer-oss.exe` is deliberate — it's the frida attach target and keeps kills targeted
 (never `pkill -f`, which self-matches; kill by exact pid; never touch the shared frida-server).
+(Or, for a one-shot without staging into `mods\`, `build/inject.exe <exe> <dll> <cwd>`.)
 
 ### RE / probing (throwaway frida)
 
@@ -111,8 +125,14 @@ Endpoint override: env `OSS_TRAINER_REMOTE=host:port` (a same-host ImGui UI uses
 | `read` | `addr`,`type`(u8/u16/u32),`va`(bool) | read; `va:true` = AP()-relocate a 0x400000 VA |
 | `write` | `addr`,`value`,`type`,`va` | write |
 | `setstat` | `which`(hp/hp_max/mp/mp_max/level),`value`,`lock`(bool) | set a player stat |
-| `god` | `on`(bool) | freeze hp+mp at max every 50 ms |
-| `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles |
+| `god` | `on`(bool) | freeze hp+mp at **9999** each frame (invincibility + free casting). **Default ON.** (Absorbs the old `invincible`.) |
+| `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles. Absolute = world centi-px; relative = px |
+| `mousefly` | `on`(bool) | continuously teleport the player to the cursor over the game window (also **F7**). Freezes the view (RE'd camera `*(root+0x104c)`, top-left cur_x/cur_y) so she stays under the cursor; edge-scrolls to traverse the map |
+| `flyto` | `mx`,`my` | map a GIVEN game-window client point → world + teleport there (the mouse-fly mapping for one point — deterministic calibration) |
+| `hijack` | `slot`,`target` | overwrite exit-slot N's `target_room` in the live room record → that door warps to `target` (**WARP PRIMITIVE**; within-area). Original stashed for `revert` |
+| `revert` | `slot` | restore exit-slot N's original `target_room` |
+| `rooms` | `max`(opt) | enumerate the room-record table (valid warp destinations): per room `{key,area,scene}` — the fuzzy-search source for `hijack` |
+| `view` | `off`(opt) | mouse-fly camera diagnostic: the resolved view rect (left/top from cur_x/cur_y + span) + the player box + a camera-object field dump |
 | `box` | — | debug: the player's collision AABB `{box,tag,x,top,w,h,world_y}` |
 | `load` | `slot`(opt),`downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm via the game's own menu code. No `slot` = the default-highlighted newest save (= Archmage's Tower Lv17). `slot`:N = select savedataNN via the RE'd picker selection model, then confirm. **VERIFIED live** (slot 1 → HP134/Lv-base3/exp117-1000; slot 6 → HP235/293/exp18406-37000; slot 7/default → HP301/Lv-base5/exp20720-50000 — each == the file). `downs`=N = manual rotate-N fallback. |
 | `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,level_base}],file_size,header_grid}`. Use it to pick a slot to `load`. **VERIFIED live.** |
