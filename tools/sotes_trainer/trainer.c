@@ -863,11 +863,24 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
             }
         }
     }
-    // Scene-settle debounce: a freshly-loaded scene (right after a newgame/load menu-drive) is
-    // briefly UNSTABLE — touching the dialogue widget the instant the drive ends faults the game.
-    // (PRE-EXISTING: dlgskip-on through `newgame` crashed BOTH this build and the pre-passive-gate
-    // one — the transition window, not the gate logic; proven by rebuilding e92abf9.)  Hold dlgskip
-    // off for a beat after any drive so the scene settles first.
+    // Scene-settle debounce: a freshly-loaded / just-transitioned scene is briefly UNSTABLE — touching
+    // the dialogue widget OR a party actor the instant it appears faults the game.  Reset the settle on
+    // (a) any menu-drive AND (b) ANY render-root CHANGE — i.e. every scene transition, incl. a
+    // door/portal swap (render-root goes old->new, often WITHOUT passing through 0, so scene_present
+    // alone doesn't catch a scene->scene swap).  This is the fix for the return-to-title AND the
+    // walk-through-a-door CRASH: god was writing a FREED old-scene actor's statblock during the rebuild
+    // window (USER 2026-07-18).  After a change the auto-features (god/warpgate) + dlgskip hold off for
+    // WG_SETTLE_POLLS so the new scene fully builds; the stale actor caches are cleared so nothing reads
+    // a freed pointer during the settle.
+    {
+        static uint32_t last_root = 0;
+        uint32_t cur_root = 0; rd32(AP(VA_RENDER_ROOT), &cur_root);
+        if (cur_root != last_root) {                     // scene transition (or teardown/load)
+            last_root = cur_root;
+            g_scene_settle = 0;
+            g_player = g_active = g_bycode = 0;           // drop caches that may point at freed actors
+        }
+    }
     if (g_md_state || g_ng_state) g_scene_settle = 0;   // reset the debounce during any drive
     else if (g_scene_settle < 100000)  g_scene_settle++;
     // Auto-skip dialogue (suppressed while WE drive a menu / until the scene settles).  GATE: only
@@ -1284,12 +1297,21 @@ static void warpgate(int on) {         // the toggle just sets the DESIRED state
 // Apply the patch only when it's SAFE (in a settled scene, not mid menu-drive).  THROTTLED to ~5x/sec:
 // the safe-state only changes on scene transitions, and find_player() is a heap scan (a VirtualQuery
 // per read) — running it every frame is needless per-frame cost.
+// A gameplay scene is loaded IFF the render-root global is a live object.  Teardown / return-to-
+// title ZEROES it (SE_CODE_MAP: teardown 0x581a30 sets *0x92dd38=0; VERIFIED live: it reads 0 at the
+// title).  The auto-features gate on this so they NEVER touch a party actor / door while a scene is
+// being torn down — god writing a FREEING actor's statblock on return-to-title crashed the game
+// (USER 2026-07-18).  It's also the cheap primary gate (one read) before any heap scan.
+static int scene_present(void) {
+    uint32_t root = 0;
+    return rd32(AP(VA_RENDER_ROOT), &root) && root > 0x10000;
+}
 static void warpgate_sync(void) {
     static DWORD last;
     DWORD now = GetTickCount();
     if (last && (now - last) < 200) return;
     last = now;
-    int safe = g_warpgate && g_ti_mgr && !g_md_state && !g_ng_state
+    int safe = g_warpgate && scene_present() && g_ti_mgr && !g_md_state && !g_ng_state
                && g_scene_settle > WG_SETTLE_POLLS && find_player();
     warpgate_set(safe ? 1 : 0);
 }
@@ -1591,9 +1613,12 @@ static void drain_engine_queue(void) {
 // ONLY when a member is missing (≤1x/sec), so a normal scene with all 3 resident does NONE (the god
 // freeze was the USER-reported lag: an unconditional 4x/sec full scan + 3x full actor_valid/frame).
 static void god_freeze_party(void) {
-    // Never touch actors during the title / menu-drive / unsettled scene (a scene rebuild is unstable —
-    // a stale write there crashes the game).  Same gate as warpgate.
-    if (g_md_state || g_ng_state || g_scene_settle < WG_SETTLE_POLLS) return;
+    // Never touch actors during the title / menu-drive / unsettled OR TEARING-DOWN scene.  The
+    // scene_present() (render-root != 0) gate is the KEY fix for the return-to-title CRASH: on the way
+    // back to the title the scene tears down + frees the party actors, but g_scene_settle only reset on
+    // a menu-drive (not a scene EXIT), so god used to keep freezing a freed actor's statblock -> fault
+    // (USER 2026-07-18).  render-root zeroes on teardown, so this stops god the instant the scene goes.
+    if (!scene_present() || g_md_state || g_ng_state || g_scene_settle < WG_SETTLE_POLLS) return;
     static uintptr_t pc[3];        // Arche 0xc35a / Sana 0xc35b / Stella 0xc35c
     static DWORD last;
     int missing = 0;
