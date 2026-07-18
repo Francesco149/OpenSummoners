@@ -53,6 +53,35 @@ the game window so it keeps rendering/updating unfocused, without stealing focus
 off** — freeze the title→demo trigger so the title stays up for the menu-drive load. Toggle 2/3
 via `keepactive`/`attract`. (Live-verified via `build/inject.exe` into `sotes-ense-en.exe`.)
 
+### Relaunch recipe (agent-operable, this env)
+
+The game (as **`sotes-trainer-oss.exe`**) is staged in `C:\oss-ennse-voice-repro\stock\` (the
+unpacked SE exe + all `sotes*.dll` assets + `user\` saves). To rebuild + relaunch end-to-end
+(runnable from WSL — `inject.exe` executes via WSLInterop, no wine):
+
+```
+nix develop --command make -C tools/sotes_trainer          # rebuild the DLL
+S=/mnt/c/oss-ennse-voice-repro/stock
+cp build/sotes_trainer.dll "$S/sotes_trainer.dll"          # stage the FRESH DLL (else stale)
+[ -f "$S/sotes-trainer-oss.exe" ] || cp "$S/sotes_en.exe" "$S/sotes-trainer-oss.exe"
+./build/inject.exe 'C:\oss-ennse-voice-repro\stock\sotes-trainer-oss.exe' \
+                   'C:\oss-ennse-voice-repro\stock\sotes_trainer.dll' \
+                   'C:\oss-ennse-voice-repro\stock'
+```
+
+It boots to the TITLE (`player`==null); `load`/`newgame` to enter a scene. The exe name
+`sotes-trainer-oss.exe` is deliberate — it's the frida attach target and keeps kills targeted
+(never `pkill -f`, which self-matches; kill by exact pid; never touch the shared frida-server).
+
+### RE / probing (throwaway frida)
+
+The mechanics were discovered by **frida** on the live game, then baked into `trainer.c`. Attach
+to `sotes-trainer-oss.exe` at `cutestation.soy:27042`; **VA = fileoff + 0x400000** (delta 0 live).
+Fingerprint SE code by objdumping the unpacked exe (`vendor/unpacked/editions/sotes-ense-en.exe`)
+— SE VAs do NOT match the old Steam base game (see `SE_CODE_MAP.md`). ⚠ Do NOT frida-hook the
+scene-rebuild path — it fires mid-teardown and crashes the game; force things via the trainer's
+engine-thread safepoint call instead.
+
 ## Drive (the LLM / UI interface)
 
 Line-delimited JSON over TCP. From WSL, connect to the Windows host over the LAN
