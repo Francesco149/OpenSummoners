@@ -29,6 +29,7 @@
 
 #include "sotes_save.h"      // standalone .sdt reader (tools/sotes_save/)
 #include "MinHook.h"         // vendored inline-hook lib (tools/sotes_trainer/minhook, BSD-2)
+#include "trainer_core.h"    // the typed C API the ImGui UI (trainer_ui.cpp) calls into
 
 // ─── EN-SE addresses (unpacked ImageBase 0x400000) ──────────────────────────
 #define ORIG_BASE     0x400000u
@@ -116,6 +117,23 @@
 #define RR_TILESET      (0x43*4)     // room_record[0x43]
 #define RR_PARALLAX     (0x44*4)     // room_record[0x44]
 #define RR_EXIT0        0x1c         // room_record[7] = first exit slot (stride 0xc, 20 slots)
+#define RR_EXIT_STRIDE  0xc          // per-exit stride: {exit_key, target_room, return_key}
+#define RR_EXIT_TARGET  0x4          // exit slot +4 = TARGET room key (what a portal warps to)
+#define RR_SIZE         0x150        // one room record = 0x150 B (the room table's stride)
+
+// ── camera / mouse-fly (client cursor -> world) ──────────────────────────────
+// The engine renders a FIXED 640x480-world-px view (the resolution enum *0x92af98+0x24 only
+// ZOOMS the window: 0->640x480, 2->1280x960, 3->1920x1440 — the world SPAN is constant).  So a
+// cursor at client fraction f over the game window maps to world = camera_topleft + f*view_span.
+// The camera top-left lives at render_root + g_cam_off (base analog +0x104c); OFFSET+UNITS are
+// calibrated live via the `view` command (g_cam_off is runtime-settable so no rebuild to tune).
+#define VIEW_W_PX       640          // world-px spanned horizontally by the view (constant)
+#define VIEW_H_PX       480          // world-px spanned vertically
+#define INVINCIBLE_HP   9999         // hp_cur pin value for invincibility (USER spec)
+static volatile uint32_t g_cam_off   = 0x104c;   // render_root + this = camera top-left (centi-px)
+static volatile int      g_invincible = 1;       // freeze hp at INVINCIBLE_HP (DEFAULT ON, USER)
+static volatile int      g_mousefly;             // continuous teleport-to-cursor (F7 / UI toggle)
+static volatile HWND     g_game_hwnd;            // the CLASS_LIZSOFT_SOTES window (client-rect map)
 
 static uintptr_t g_delta;            // actual base - ORIG_BASE (ASLR-safe)
 static char      g_logpath[MAX_PATH];
@@ -169,8 +187,10 @@ static int actor_valid(uintptr_t base) {
     int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
     if (hpmax < 1 || hpmax > 99999) return 0;
     if (mpmax < 0 || mpmax > 9999) return 0;
-    if (!rd32((void *)(sb + OFF_HP_CUR), &hpc) || (int)hpc < 0 || (int)hpc > hpmax) return 0;
-    if (!rd32((void *)(sb + OFF_MP_CUR), &mpc) || (int)mpc < 0 || (int)mpc > mpmax) return 0;
+    // hp/mp_cur are NOT bounded by max: invincibility pins hp above max on purpose, so accept a
+    // wide trainer range (the code/level/max/coord checks still reject false positives).
+    if (!rd32((void *)(sb + OFF_HP_CUR), &hpc) || (int)hpc < 0 || (int)hpc > 999999) return 0;
+    if (!rd32((void *)(sb + OFF_MP_CUR), &mpc) || (int)mpc < 0 || (int)mpc > 999999) return 0;
     if (!rd32((void *)(base + OFF_WORLD_X), &wx) || !rd32((void *)(base + OFF_WORLD_Y), &wy)) return 0;
     if (abs((int)wx) > 50000000 || abs((int)wy) > 50000000) return 0;   // centi-px sanity
     return 1;
@@ -377,47 +397,17 @@ static void lock_clear_all(void) {
     LeaveCriticalSection(&g_lock_cs);
 }
 
-static DWORD WINAPI tick_thread(void *unused) {
-    (void)unused;
-    for (;;) {
-        Sleep(50);
-        if (g_god) {
-            uintptr_t base = find_player();
-            if (base) {
-                uint32_t sb = 0;
-                if (rd32((void *)(base + OFF_STATBLOCK), &sb)) {
-                    int hpmax = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
-                    int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
-                    if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = hpmax;
-                    if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = mpmax;
-                }
-            }
-        }
-        EnterCriticalSection(&g_lock_cs);
-        for (int i = 0; i < MAX_LOCKS; ++i)
-            if (g_locks[i].used && mem_writable((void *)g_locks[i].addr, 4))
-                *(uint32_t *)g_locks[i].addr = g_locks[i].val;
-        LeaveCriticalSection(&g_lock_cs);
-        // Fast-skip (default OFF): force the active dialogue line's reveal to total each tick — a
-        // pure UI-STATE write (no button ⇒ no world input ⇒ can't trip the door).  Walk the
-        // ctor-captured container g_dlg_grid -> widget pool -> the typing line's text-machine ->
-        // TM+0x14=TM+0x10 (`dlg_force_reveal`, RE'd session 8).  The typewriter re-drives reveal
-        // while reveal<total, so re-force each tick.  If the hook hasn't captured a grid yet
-        // (g_dlg_grid==0), self-locate by the signature scan (throttled ~150ms).
-        if (g_fastskip) {
-            if (!g_dlg_grid) {
-                static int rescan_div = 0;
-                if (++rescan_div >= 3) {
-                    rescan_div = 0;
-                    uintptr_t hit[1];
-                    if (find_dlg_grids(hit, 1) == 1) g_dlg_grid = (uint32_t)hit[0];
-                }
-            }
-            dlg_force_reveal(g_dlg_grid);
-        }
-    }
-    return 0;
-}
+// NOTE: the periodic freezes (invincibility / god / setstat locks / fastskip) used to run on a
+// standalone 50ms tick_thread that POKED engine memory off-thread.  They now run ENGINE-SIDE in
+// the inputPoll safepoint (engine_freezes, called from poll_title_cb) — see the engine-thread
+// execution queue below.  No worker thread pokes engine memory anymore.
+
+// The engine-thread safepoint work (defined with the execution queue, below) — forward-declared
+// so poll_title_cb can drain the queue + run the per-frame freezes/mouse-fly/hotkeys.
+static void drain_engine_queue(void);
+static void engine_freezes(void);
+static void engine_mousefly(void);
+static void engine_hotkeys(void);
 
 // ─── tiny JSON helpers (line protocol) ──────────────────────────────────────
 // Extract a string value for "key". Returns len (0 if absent). Not a full parser.
@@ -697,6 +687,12 @@ static void do_load_at_safepoint(int slot) {
 // Title-poll (0x437c70) callback — runs on the engine thread each poll.  Drains the
 // experimental direct-call load, and injects the title confirm for the menu-drive.
 static void __attribute__((cdecl)) poll_title_cb(void) {
+    // Engine-thread safepoint: run the queued pokes/calls + the per-frame freezes/mouse-fly/hotkeys
+    // HERE (in the game loop), so no worker thread ever touches engine state (USER).
+    engine_hotkeys();
+    drain_engine_queue();
+    engine_freezes();
+    engine_mousefly();
     if (g_load_pending && !g_in_safepoint) {          // experimental direct chain (loadraw)
         g_in_safepoint = 1; int slot = g_load_slot; g_load_pending = 0;
         do_load_at_safepoint(slot); g_in_safepoint = 0;
@@ -1015,6 +1011,7 @@ static BOOL CALLBACK keepalive_top_cb(HWND hwnd, LPARAM lp) {
     char cls[64] = {0}; GetClassNameA(hwnd, cls, sizeof cls);
     if (lstrcmpiA(cls, OSS_MAIN_WND_CLASS) == 0) {
         g_main_wnd_seen = 1;
+        g_game_hwnd = hwnd;                                            // for mouse-fly client->world
         if (g_keepactive) PostMessageA(hwnd, WM_ACTIVATEAPP_, 1, 0);   // keep active, no focus steal
     }
     return TRUE;
@@ -1028,6 +1025,431 @@ static DWORD WINAPI keepalive_thread(void *unused) {
     for (;;) { EnumWindows(keepalive_top_cb, 0); Sleep(50); }
     return 0;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Trainer core — the shared mechanics behind BOTH the socket commands and the
+// ImGui UI (trainer_core.h).  Reads fill typed structs; actions mutate engine
+// state.  Blocking drives (menu_load/newgame) are meant to run off the UI thread.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Write the player's authoritative phys-box (actor+0x40): box[+4]=X sticks, box[+8]=top
+// gravity-settles.  Absolute y is a world_y (bottom) target -> top = y - height + 1.  Shared
+// by the `teleport` command, tc_teleport, and mouse-fly.
+static int teleport_box(int x_cpx, int y_cpx, int set_x, int set_y, int relative) {
+    uintptr_t base = find_player();
+    if (!base) return 0;
+    uint32_t box = 0;
+    if (!rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000 ||
+        !mem_readable((void *)(uintptr_t)box, 0x14)) return 0;
+    if (set_x) {
+        uint32_t cur = 0; rd32((void *)((uintptr_t)box + BOX_X), &cur);
+        write_typed((uintptr_t)box + BOX_X, relative ? cur + (uint32_t)x_cpx : (uint32_t)x_cpx, "u32");
+    }
+    if (set_y) {
+        uint32_t h = 0, curtop = 0;
+        rd32((void *)((uintptr_t)box + BOX_H),   &h);
+        rd32((void *)((uintptr_t)box + BOX_TOP), &curtop);
+        uint32_t newtop = relative ? curtop + (uint32_t)y_cpx : (uint32_t)(y_cpx - (int)h + 1);
+        write_typed((uintptr_t)box + BOX_TOP, newtop, "u32");
+    }
+    return 1;
+}
+
+// Camera top-left in world centi-px (render_root + g_cam_off).  Calibrated live (`view`).
+static int read_camera(int *cx, int *cy) {
+    uint32_t root = 0;
+    if (!rd32(AP(VA_RENDER_ROOT), &root) || root <= 0x10000) return 0;
+    uint32_t x = 0, y = 0;
+    if (!rd32((void *)(uintptr_t)(root + g_cam_off),     &x)) return 0;
+    if (!rd32((void *)(uintptr_t)(root + g_cam_off + 4), &y)) return 0;
+    *cx = (int)x; *cy = (int)y; return 1;
+}
+// Map a cursor at client (mx,my) over a cw x ch game window to world centi-px.
+static int client_to_world(int mx, int my, int cw, int ch, int *wx_cpx, int *wy_cpx) {
+    int camx = 0, camy = 0;
+    if (cw <= 0 || ch <= 0 || !read_camera(&camx, &camy)) return 0;
+    *wx_cpx = camx + (int)((double)mx / cw * VIEW_W_PX * 100.0);
+    *wy_cpx = camy + (int)((double)my / ch * VIEW_H_PX * 100.0);
+    return 1;
+}
+
+// ── portal hijack: overwrite a door's target_room in the LIVE room record (SE_CODE_MAP "WARP
+// PRIMITIVE") so using that door warps to the chosen room.  Stash the original per (room_key,
+// slot) so revert restores it even after the room-record ptr moves.  Within-area only (a
+// cross-AREA target crashes at 0x5ad656 until its W-map is resident — SE_CODE_MAP).
+#define MAX_HIJACK 32
+static struct { int used; uint32_t room_key; int slot; uint32_t orig; } g_hijacks[MAX_HIJACK];
+static CRITICAL_SECTION g_hj_cs;
+static uint32_t cur_room_record(uint32_t *room_key) {
+    uint32_t root = 0, rr = 0, key = 0;
+    if (!rd32(AP(VA_RENDER_ROOT), &root) || root <= 0x10000) return 0;
+    if (!rd32((void *)(uintptr_t)(root + ROOT_ROOM_REC), &rr) || rr <= 0x10000 ||
+        !mem_readable((void *)(uintptr_t)rr, RR_SIZE)) return 0;
+    rd32((void *)(uintptr_t)(rr + RR_ROOM_KEY), &key);
+    if (room_key) *room_key = key;
+    return rr;
+}
+static uint32_t exit_target_addr(uint32_t rr, int slot) {
+    return rr + RR_EXIT0 + (uint32_t)slot * RR_EXIT_STRIDE + RR_EXIT_TARGET;
+}
+static void hijack_exit_engine(int slot, uint32_t target) {
+    if (slot < 0 || slot >= 20) return;
+    uint32_t key = 0, rr = cur_room_record(&key);
+    if (!rr) return;
+    uint32_t addr = exit_target_addr(rr, slot);
+    if (!mem_writable((void *)(uintptr_t)addr, 4)) return;
+    uint32_t orig = 0; rd32((void *)(uintptr_t)addr, &orig);
+    EnterCriticalSection(&g_hj_cs);
+    int freei = -1, found = 0;
+    for (int i = 0; i < MAX_HIJACK; ++i) {
+        if (g_hijacks[i].used && g_hijacks[i].room_key == key && g_hijacks[i].slot == slot) { found = 1; break; }
+        if (!g_hijacks[i].used && freei < 0) freei = i;
+    }
+    if (!found && freei >= 0) {   // first hijack of this slot -> remember the original target
+        g_hijacks[freei].used = 1; g_hijacks[freei].room_key = key;
+        g_hijacks[freei].slot = slot; g_hijacks[freei].orig = orig;
+    }
+    LeaveCriticalSection(&g_hj_cs);
+    *(volatile uint32_t *)(uintptr_t)addr = target;
+}
+static void revert_exit_engine(int slot) {
+    if (slot < 0 || slot >= 20) return;
+    uint32_t key = 0, rr = cur_room_record(&key);
+    if (!rr) return;
+    EnterCriticalSection(&g_hj_cs);
+    for (int i = 0; i < MAX_HIJACK; ++i)
+        if (g_hijacks[i].used && g_hijacks[i].room_key == key && g_hijacks[i].slot == slot) {
+            uint32_t addr = exit_target_addr(rr, slot);
+            if (mem_writable((void *)(uintptr_t)addr, 4)) *(volatile uint32_t *)(uintptr_t)addr = g_hijacks[i].orig;
+            g_hijacks[i].used = 0;
+            break;
+        }
+    LeaveCriticalSection(&g_hj_cs);
+}
+static int exit_hijacked(uint32_t room_key, int slot, uint32_t *orig) {
+    int r = 0;
+    EnterCriticalSection(&g_hj_cs);
+    for (int i = 0; i < MAX_HIJACK; ++i)
+        if (g_hijacks[i].used && g_hijacks[i].room_key == room_key && g_hijacks[i].slot == slot) {
+            if (orig) *orig = g_hijacks[i].orig;
+            r = 1; break;
+        }
+    LeaveCriticalSection(&g_hj_cs);
+    return r;
+}
+// Engine-side stat write (statblock resolved on the engine thread; optional freeze lock).
+static void setstat_engine(int off, uint32_t val, int lock) {
+    uintptr_t base = find_player(); uint32_t sb = 0;
+    if (off < 0 || !base || !rd32((void *)(base + OFF_STATBLOCK), &sb)) return;
+    write_typed(sb + off, val, "u32");
+    if (lock) lock_set(sb + off, val);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Engine-thread execution queue (USER: poke/call safely on the game's own thread).
+// Pokes + engine-fn CALLS are unsafe from a worker thread — the engine may be
+// mid-realloc/teardown (a call into non-reentrant engine code, or a write to
+// just-freed memory, crashes).  So worker threads (socket/UI) ENQUEUE jobs and the
+// inputPoll safepoint (poll_title_cb — engine thread, fires every frame at the title
+// AND in freeroam) DRAINS + runs them in-context.  Reads stay off-thread (guarded,
+// non-mutating).  The per-frame freezes + mouse-fly ALSO run in the drain, so NO
+// worker thread ever writes engine memory or calls engine code.
+// ═══════════════════════════════════════════════════════════════════════════
+enum { EQ_CALL = 1, EQ_WRITE, EQ_TELEPORT, EQ_SETSTAT, EQ_HIJACK, EQ_REVERT };
+// state: 0 free, 1 pending, 3 running, 2 done.  Payload is COPIED into the slot, so a timed-out
+// waiter can never leave the engine thread dereferencing a dead caller stack.
+// u[]: EQ_CALL {0=fn,1=ecx,2=argc,3..10=args}; EQ_WRITE {0=addr,1=val,2=width}; EQ_TELEPORT
+// {0=x,1=y,2=set_x,3=set_y,4=rel}; EQ_SETSTAT {0=off,1=val,2=lock}; EQ_HIJACK {0=slot,1=target};
+// EQ_REVERT {0=slot}.
+typedef struct { volatile int state; int kind; uint32_t u[12]; uint32_t ret; } eq_job;
+#define EQ_N 32
+static eq_job g_eq[EQ_N];
+static CRITICAL_SECTION g_eq_cs;
+static eq_job *eq_alloc(int kind) {
+    EnterCriticalSection(&g_eq_cs);
+    for (int i = 0; i < EQ_N; ++i)
+        if (g_eq[i].state == 0) {
+            memset(&g_eq[i], 0, sizeof g_eq[i]);
+            g_eq[i].kind = kind; g_eq[i].state = 1;
+            LeaveCriticalSection(&g_eq_cs);
+            return &g_eq[i];
+        }
+    LeaveCriticalSection(&g_eq_cs);
+    return NULL;   // queue full (worker will just drop the action)
+}
+// Block up to wait_ms for the engine thread to run j; return j->ret (0 on cancel/timeout).  Frees j.
+static uint32_t engine_wait(eq_job *j, int wait_ms) {
+    if (!j) return 0;
+    for (int t = 0; ; ++t) {
+        if (j->state == 2) { uint32_t r = j->ret; j->state = 0; return r; }
+        if (wait_ms > 0 && t >= wait_ms) {
+            EnterCriticalSection(&g_eq_cs);
+            if (j->state == 1) { j->state = 0; LeaveCriticalSection(&g_eq_cs); return 0; }  // cancel before run
+            LeaveCriticalSection(&g_eq_cs);   // else running(3): keep waiting (payload is queue-owned)
+        }
+        Sleep(1);
+    }
+}
+// Execute one job in-context (engine thread) — the ONLY place engine memory is poked / engine
+// code is called from the trainer.
+static void eq_exec(eq_job *j) {
+    switch (j->kind) {
+    case EQ_CALL:     j->ret = call_va((void *)(uintptr_t)j->u[0], j->u[1], &j->u[3], (int)j->u[2]); break;
+    case EQ_WRITE:    write_typed((uintptr_t)j->u[0], j->u[1], j->u[2] == 1 ? "u8" : j->u[2] == 2 ? "u16" : "u32"); break;
+    case EQ_TELEPORT: j->ret = (uint32_t)teleport_box((int)j->u[0], (int)j->u[1], (int)j->u[2], (int)j->u[3], (int)j->u[4]); break;
+    case EQ_SETSTAT:  setstat_engine((int)j->u[0], j->u[1], (int)j->u[2]); break;
+    case EQ_HIJACK:   hijack_exit_engine((int)j->u[0], j->u[1]); break;
+    case EQ_REVERT:   revert_exit_engine((int)j->u[0]); break;
+    default: break;
+    }
+}
+static void drain_engine_queue(void) {
+    for (int i = 0; i < EQ_N; ++i) {
+        int run = 0;
+        EnterCriticalSection(&g_eq_cs);
+        if (g_eq[i].state == 1) { g_eq[i].state = 3; run = 1; }
+        LeaveCriticalSection(&g_eq_cs);
+        if (run) { eq_exec(&g_eq[i]); g_eq[i].state = 2; }
+    }
+}
+
+// Per-frame engine-side work (run by the drain, so it happens IN the game loop, engine-side):
+//   freezes  — invincibility (hp=9999) / god (hp+mp=max) / setstat locks / fastskip reveal.
+//   mousefly — teleport the player to the cursor over the game window.
+//   hotkeys  — F7 toggles mouse-fly.
+static void engine_freezes(void) {
+    if (g_god || g_invincible) {
+        uintptr_t base = find_player(); uint32_t sb = 0;
+        if (base && rd32((void *)(base + OFF_STATBLOCK), &sb)) {
+            int hp_pin = g_invincible ? INVINCIBLE_HP : stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
+            if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = hp_pin;
+            if (g_god) {
+                int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
+                if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = mpmax;
+            }
+        }
+    }
+    EnterCriticalSection(&g_lock_cs);
+    for (int i = 0; i < MAX_LOCKS; ++i)
+        if (g_locks[i].used && mem_writable((void *)g_locks[i].addr, 4)) *(uint32_t *)g_locks[i].addr = g_locks[i].val;
+    LeaveCriticalSection(&g_lock_cs);
+    if (g_fastskip) {
+        if (!g_dlg_grid) {
+            static int rescan_div = 0;
+            if (++rescan_div >= 8) { rescan_div = 0; uintptr_t hit[1]; if (find_dlg_grids(hit, 1) == 1) g_dlg_grid = (uint32_t)hit[0]; }
+        }
+        dlg_force_reveal(g_dlg_grid);
+    }
+}
+static void engine_mousefly(void) {
+    if (!g_mousefly || !g_game_hwnd) return;
+    POINT p; RECT rc;
+    if (GetCursorPos(&p) && GetClientRect(g_game_hwnd, &rc) && ScreenToClient(g_game_hwnd, &p)) {
+        int cw = rc.right - rc.left, ch = rc.bottom - rc.top;
+        if (p.x >= 0 && p.y >= 0 && p.x < cw && p.y < ch) {
+            int wx = 0, wy = 0;
+            if (client_to_world(p.x, p.y, cw, ch, &wx, &wy)) teleport_box(wx, wy, 1, 1, 0);
+        }
+    }
+}
+static void engine_hotkeys(void) {
+    static int prev_f7 = 0;
+    int f7 = (GetAsyncKeyState(VK_F7) & 0x8000) ? 1 : 0;
+    if (f7 && !prev_f7) g_mousefly = !g_mousefly;
+    prev_f7 = f7;
+}
+
+// ── the room-record TABLE walk (SE_CODE_MAP thread #3): the current room record is one entry
+// in a contiguous 0x150-B table of every room.  Seed from it, walk back to the table base, then
+// forward — the (room_key,area,scene) signature bounds each valid record.  Feeds the portal
+// destination fuzzy-search (valid target room keys).
+static int room_rec_valid(uintptr_t rr) {
+    if (!mem_readable((void *)rr, RR_SIZE)) return 0;
+    uint32_t key = 0, area = 0, scene = 0;
+    rd32((void *)(rr + RR_ROOM_KEY), &key);
+    rd32((void *)(rr + RR_AREA),     &area);
+    rd32((void *)(rr + RR_SCENE),    &scene);
+    if (key < 0x1000 || key > 0x7fffffff) return 0;
+    if (area < 1 || area > 4095)          return 0;
+    if (scene < 1 || scene > 19999)       return 0;
+    return 1;
+}
+int tc_get_rooms(tc_room *out, int cap) {
+    if (!out || cap <= 0) return 0;
+    uint32_t rr0 = cur_room_record(NULL);
+    if (!rr0 || !room_rec_valid(rr0)) return 0;
+    uintptr_t base = rr0;
+    for (int i = 0; i < 8192; ++i) { uintptr_t p = base - RR_SIZE; if (!room_rec_valid(p)) break; base = p; }
+    int n = 0;
+    for (uintptr_t p = base; n < cap; p += RR_SIZE) {
+        if (!room_rec_valid(p)) break;
+        uint32_t key = 0, area = 0, scene = 0;
+        rd32((void *)(p + RR_ROOM_KEY), &key);
+        rd32((void *)(p + RR_AREA),     &area);
+        rd32((void *)(p + RR_SCENE),    &scene);
+        out[n].key = key; out[n].area = area; out[n].scene = scene; ++n;
+    }
+    return n;
+}
+
+// ── typed reads for the UI (trainer_core.h) ──
+int tc_get_player(tc_player *o) {
+    if (!o) return 0;
+    memset(o, 0, sizeof *o);
+    uintptr_t base = find_player();
+    if (!base) return 0;
+    uint32_t wx = 0, wy = 0, sb = 0, hp = 0, mp = 0, lvl = 0, ec = 0, em = 0;
+    rd32((void *)(base + OFF_WORLD_X), &wx);   rd32((void *)(base + OFF_WORLD_Y), &wy);
+    rd32((void *)(base + OFF_STATBLOCK), &sb);
+    rd32((void *)(sb + OFF_HP_CUR), &hp);      rd32((void *)(sb + OFF_MP_CUR), &mp);
+    rd32((void *)(sb + OFF_LEVEL), &lvl);      rd32((void *)(sb + OFF_EXP_CUR), &ec);
+    rd32((void *)(sb + OFF_EXP_MAX), &em);
+    o->ok = 1; o->actor = (uint32_t)base; o->stat_block = sb;
+    o->world_x = (int)wx; o->world_y = (int)wy;
+    o->hp = (int)hp; o->hp_max = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
+    o->mp = (int)mp; o->mp_max = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
+    o->level_base = (int)lvl; o->exp_cur = (int)ec; o->exp_max = (int)em;
+    return 1;
+}
+int tc_get_map(tc_map *o) {
+    if (!o) return 0;
+    memset(o, 0, sizeof *o);
+    uint32_t key = 0, rr = cur_room_record(&key);
+    if (!rr) return 0;
+    uint32_t root = 0; rd32(AP(VA_RENDER_ROOT), &root);
+    o->ok = 1; o->render_root = root; o->room_record = rr; o->room_key = key;
+    rd32((void *)(uintptr_t)(rr + RR_AREA),     &o->area);
+    rd32((void *)(uintptr_t)(rr + RR_SCENE),    &o->scene);
+    rd32((void *)(uintptr_t)(rr + RR_TILESET),  &o->tileset);
+    rd32((void *)(uintptr_t)(rr + RR_PARALLAX), &o->parallax);
+    int n = 0;
+    for (int k = 0; k < 20; ++k) {
+        uintptr_t b = rr + RR_EXIT0 + (uint32_t)k * RR_EXIT_STRIDE;
+        uint32_t ek = 0, tr = 0, ret = 0;
+        rd32((void *)b, &ek); rd32((void *)(b + 4), &tr); rd32((void *)(b + 8), &ret);
+        if (ek == 0 && tr == 0) continue;
+        tc_exit *e = &o->exits[n++];
+        e->exit_key = ek; e->target_room = tr; e->return_key = ret; e->slot = k;
+        e->hijacked = exit_hijacked(key, k, &e->orig_target);
+    }
+    o->n_exits = n;
+    return 1;
+}
+int tc_get_saves(tc_save *o, int cap) {
+    if (!o || cap <= 0) return 0;
+    int n = 0;
+    for (int slot = 0; slot < 16 && n < cap; ++slot) {
+        char path[512]; trainer_save_path(slot, path, sizeof path);
+        sotes_save_info s;
+        if (sotes_save_read(path, &s) == -2) continue;   // absent
+        tc_save *d = &o[n++];
+        memset(d, 0, sizeof *d);
+        d->slot = slot; d->present = 1; d->valid = s.ok && s.valid;
+        if (s.ok) {
+            d->handle = s.handle; d->file_size = s.file_size; d->party_count = s.party_count;
+            if (s.party_count > 0) {
+                snprintf(d->party0, sizeof d->party0, "%s", s.party[0].name);
+                d->level0 = s.party[0].level_base;
+            }
+        }
+    }
+    return n;
+}
+int tc_get_status(tc_status *o) {
+    if (!o) return 0;
+    memset(o, 0, sizeof *o);
+    o->hooks = (int)g_hooks_done;
+    o->player_present = find_player() ? 1 : 0;
+    o->at_title = (g_ti_mgr && !o->player_present) ? 1 : 0;
+    o->invincible = g_invincible; o->autoskip = g_autoskip; o->mousefly = g_mousefly;
+    o->dlgskip = g_dlgskip; o->god = g_god; o->keepactive = g_keepactive;
+    o->attract = g_demo_saved; o->fastskip = g_fastskip;
+    o->delta = (uint32_t)g_delta; o->base = (uint32_t)(ORIG_BASE + g_delta);
+    o->ti_mgr = g_ti_mgr; o->pk_mgr = g_pk_mgr; o->game_hwnd = (uint32_t)(uintptr_t)g_game_hwnd;
+    o->cam_ok = read_camera(&o->cam_x, &o->cam_y);
+    return 1;
+}
+
+// ── actions for the UI (all mutation is ENQUEUED onto the engine thread) ──
+void tc_teleport(int x, int y, int set_x, int set_y, int relative) {
+    eq_job *j = eq_alloc(EQ_TELEPORT); if (!j) return;
+    j->u[0] = (uint32_t)x; j->u[1] = (uint32_t)y;
+    j->u[2] = (uint32_t)set_x; j->u[3] = (uint32_t)set_y; j->u[4] = (uint32_t)relative;
+    engine_wait(j, 200);
+}
+void tc_set_toggle(const char *name, int on) {
+    if (!name) return;
+    if      (!strcmp(name, "invincible")) g_invincible = on ? 1 : 0;
+    else if (!strcmp(name, "autoskip"))   dlg_autoskip(on);
+    else if (!strcmp(name, "mousefly"))   g_mousefly = on ? 1 : 0;
+    else if (!strcmp(name, "dlgskip"))    g_dlgskip = on ? 1 : 0;
+    else if (!strcmp(name, "god"))        g_god = on ? 1 : 0;
+    else if (!strcmp(name, "keepactive")) g_keepactive = on ? 1 : 0;
+    else if (!strcmp(name, "attract"))    attract_freeze(on);
+    else if (!strcmp(name, "fastskip"))   g_fastskip = on ? 1 : 0;
+}
+int tc_get_toggle(const char *name) {
+    if (!name) return 0;
+    if      (!strcmp(name, "invincible")) return g_invincible;
+    else if (!strcmp(name, "autoskip"))   return g_autoskip;
+    else if (!strcmp(name, "mousefly"))   return g_mousefly;
+    else if (!strcmp(name, "dlgskip"))    return g_dlgskip;
+    else if (!strcmp(name, "god"))        return g_god;
+    else if (!strcmp(name, "keepactive")) return g_keepactive;
+    else if (!strcmp(name, "attract"))    return g_demo_saved;
+    else if (!strcmp(name, "fastskip"))   return g_fastskip;
+    return 0;
+}
+void tc_setstat(const char *which, int value, int lock) {
+    int off = -1;
+    if      (which && !strcmp(which, "hp"))     off = OFF_HP_CUR;
+    else if (which && !strcmp(which, "hp_max")) off = OFF_HP_BASE;
+    else if (which && !strcmp(which, "mp"))     off = OFF_MP_CUR;
+    else if (which && !strcmp(which, "mp_max")) off = OFF_MP_BASE;
+    else if (which && !strcmp(which, "level"))  off = OFF_LEVEL;
+    if (off < 0) return;
+    eq_job *j = eq_alloc(EQ_SETSTAT); if (!j) return;
+    j->u[0] = (uint32_t)off; j->u[1] = (uint32_t)value; j->u[2] = (uint32_t)lock;
+    engine_wait(j, 200);
+}
+void tc_hijack_exit(int slot, uint32_t target) {
+    eq_job *j = eq_alloc(EQ_HIJACK); if (!j) return;
+    j->u[0] = (uint32_t)slot; j->u[1] = target;
+    engine_wait(j, 200);
+}
+void tc_revert_exit(int slot) {
+    eq_job *j = eq_alloc(EQ_REVERT); if (!j) return;
+    j->u[0] = (uint32_t)slot;
+    engine_wait(j, 200);
+}
+void tc_set_cam_off(uint32_t off) { g_cam_off = off; }
+uint32_t tc_get_cam_off(void)     { return g_cam_off; }
+
+// The VERIFIED menu-drive load/newgame (see the `load`/`newgame` commands).  Canonical impls;
+// both the socket commands and the UI call these.  BLOCKING — run off the UI render thread.
+static int menu_load(int slot, int downs, char *msg, int cap) {
+    ensure_hooks(); attract_freeze(1);                   // hold the title (no demo mid-drive)
+    g_md_slot = slot; g_md_downs = downs;
+    g_pk_diag[0] = 0; g_pk_diag_done = 0;
+    g_pk_mgr = 0;                                         // clear so poll_title_cb sees the picker OPEN
+    g_md_state = 1;                                       // arm: title-confirm -> picker-confirm
+    int loaded = 0;
+    for (int i = 0; i < 1200; ++i) { if (find_player()) { loaded = 1; break; } Sleep(10); }
+    g_md_state = 0; g_md_slot = -1;
+    if (msg) snprintf(msg, cap, "%s", g_pk_diag);
+    return loaded;
+}
+static int menu_newgame(int to, int btn, int gap) {
+    ensure_hooks(); attract_freeze(1);
+    g_ng_rotates = to; g_ng_btn = btn; g_ng_gap = gap; g_ng_cool = 4;
+    g_ng_state = 1;
+    int started = 0;
+    for (int i = 0; i < 3000; ++i) { if (find_player()) { started = 1; break; } Sleep(10); }
+    g_ng_state = 0;
+    return started;
+}
+int tc_load(int slot, char *msg, int cap) { return menu_load(slot, 0, msg, cap); }
+int tc_newgame(void)                       { return menu_newgame(1, 0x04, 6); }
 
 // ─── command dispatch ───────────────────────────────────────────────────────
 static void handle_line(const char *line, char *out, int cap) {
@@ -1054,12 +1476,13 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
             "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"autoskip\":%s,\"fastskip\":%s,"
-            "\"box_open\":%s,\"box_scale\":%u,"
+            "\"invincible\":%s,\"mousefly\":%s,\"box_open\":%s,\"box_scale\":%u,"
             "\"md_state\":%d,\"md_slot\":%d,"
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
             g_dlgskip ? "true" : "false", g_autoskip ? "true" : "false", g_fastskip ? "true" : "false",
+            g_invincible ? "true" : "false", g_mousefly ? "true" : "false",
             dialogue_box_open(g_ti_mgr) ? "true" : "false",
             (unsigned)bsc, g_md_state, g_md_slot,
             g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
@@ -1081,8 +1504,10 @@ static void handle_line(const char *line, char *out, int cap) {
         json_str(line, "type", ty, sizeof ty);
         int reloc = json_bool(line, "va", 0);
         uintptr_t addr = reloc ? (uintptr_t)AP(a) : (uintptr_t)a;
-        write_typed(addr, (uint32_t)v, ty);
-        snprintf(out, cap, "{\"ok\":true,\"wrote\":%u,\"addr\":\"0x%08x\"}", (uint32_t)v, (unsigned)addr);
+        int width = !strcmp(ty, "u8") ? 1 : !strcmp(ty, "u16") ? 2 : 4;
+        eq_job *j = eq_alloc(EQ_WRITE);                  // poke on the engine thread (safepoint)
+        if (j) { j->u[0] = (uint32_t)addr; j->u[1] = (uint32_t)v; j->u[2] = (uint32_t)width; engine_wait(j, 200); }
+        snprintf(out, cap, "{\"ok\":%s,\"wrote\":%u,\"addr\":\"0x%08x\"}", j ? "true" : "false", (uint32_t)v, (unsigned)addr);
         return;
     }
     if (!strcmp(cmd, "god")) {
@@ -1090,48 +1515,40 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap, "{\"ok\":true,\"god\":%s}", g_god ? "true" : "false");
         return;
     }
+    if (!strcmp(cmd, "invincible")) {
+        // {"cmd":"invincible","on":true|false} — freeze hp at 9999 each tick (DEFAULT ON).
+        g_invincible = json_bool(line, "on", 1);
+        snprintf(out, cap, "{\"ok\":true,\"invincible\":%s}", g_invincible ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "mousefly")) {
+        // {"cmd":"mousefly","on":true|false} — continuously teleport the player to the cursor over
+        // the game window (also toggled by F7).  Uses the camera + a 640x480 view to map client->world.
+        g_mousefly = json_bool(line, "on", 1);
+        snprintf(out, cap, "{\"ok\":true,\"mousefly\":%s}", g_mousefly ? "true" : "false");
+        return;
+    }
     if (!strcmp(cmd, "setstat")) {
         char which[8] = {0}; long long v;
         if (!json_str(line, "which", which, sizeof which) || !json_num(line, "value", &v)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"which/value\"}"); return; }
-        uintptr_t base = find_player(); uint32_t sb = 0;
-        if (!base || !rd32((void *)(base + OFF_STATBLOCK), &sb)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
-        int off = -1;
-        if (!strcmp(which, "hp")) off = OFF_HP_CUR; else if (!strcmp(which, "hp_max")) off = OFF_HP_BASE;
-        else if (!strcmp(which, "mp")) off = OFF_MP_CUR; else if (!strcmp(which, "mp_max")) off = OFF_MP_BASE;
-        else if (!strcmp(which, "level")) off = OFF_LEVEL;
-        if (off < 0) { snprintf(out, cap, "{\"ok\":false,\"error\":\"bad which\"}"); return; }
-        write_typed(sb + off, (uint32_t)v, "u32");
-        if (json_bool(line, "lock", 0)) lock_set(sb + off, (uint32_t)v);
+        if (!find_player()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
+        tc_setstat(which, (int)v, json_bool(line, "lock", 0));   // resolves+writes on the engine thread
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
         return;
     }
     if (!strcmp(cmd, "teleport")) {
-        // Write the AUTHORITATIVE phys-box (actor+0x40 -> box), not the derived
-        // world_x/y snapshot.  box[+4]=X sticks; box[+8]=top settles via gravity.
+        // Write the AUTHORITATIVE phys-box (actor+0x40 -> box), engine-side (enqueued).  box[+4]=X
+        // sticks; box[+8]=top settles via gravity.  Absolute x/y = world centi-px; relative = px.
         long long x, y; int rel = json_bool(line, "relative", 0);
-        uintptr_t base = find_player();
-        if (!base) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
-        uint32_t box = 0;
-        if (!rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000 ||
-            !mem_readable((void *)(uintptr_t)box, 0x14)) {
-            snprintf(out, cap, "{\"ok\":false,\"error\":\"no phys-box\"}"); return; }
-        if (json_num(line, "x", &x)) {
-            uint32_t cur = 0; rd32((void *)((uintptr_t)box + BOX_X), &cur);
-            write_typed((uintptr_t)box + BOX_X, rel ? cur + (uint32_t)(x*100) : (uint32_t)x, "u32");
-        }
-        if (json_num(line, "y", &y)) {
-            uint32_t h = 0, curtop = 0;
-            rd32((void *)((uintptr_t)box + BOX_H),   &h);
-            rd32((void *)((uintptr_t)box + BOX_TOP), &curtop);
-            // absolute y is a world_y target (bottom) -> top = y - height + 1;
-            // relative y nudges the top (px), world_y follows.
-            uint32_t newtop = rel ? curtop + (uint32_t)(y*100)
-                                  : (uint32_t)((int)y - (int)h + 1);
-            write_typed((uintptr_t)box + BOX_TOP, newtop, "u32");
-        }
+        int hasx = json_num(line, "x", &x), hasy = json_num(line, "y", &y);
+        if (!hasx && !hasy) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no x/y\"}"); return; }
+        if (!find_player()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
+        int xc = rel ? (int)(x * 100) : (int)x;
+        int yc = rel ? (int)(y * 100) : (int)y;
+        tc_teleport(xc, yc, hasx, hasy, rel);
         char pj[512]; player_json(pj, sizeof pj);
-        snprintf(out, cap, "{\"ok\":true,\"box\":\"0x%08x\",\"player\":%s}", box, pj);
+        snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
         return;
     }
     if (!strcmp(cmd, "box")) {                    // debug: read the player's phys-box
@@ -1179,24 +1596,91 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out + n, cap - n, "]}");
         return;
     }
-    if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
+    if (!strcmp(cmd, "hijack")) {
+        // {"cmd":"hijack","slot":N,"target":ROOMKEY} — overwrite exit-slot N's target_room in the
+        // live room record so that door warps to ROOMKEY (SE_CODE_MAP WARP PRIMITIVE).  Within-area.
+        long long slot, tgt;
+        if (!json_num(line, "slot", &slot) || !json_num(line, "target", &tgt)) {
+            snprintf(out, cap, "{\"ok\":false,\"error\":\"slot/target\"}"); return; }
+        tc_hijack_exit((int)slot, (uint32_t)tgt);
+        uint32_t key = 0, rr = cur_room_record(&key), cur = 0;
+        if (rr) rd32((void *)(uintptr_t)exit_target_addr(rr, (int)slot), &cur);
+        snprintf(out, cap, "{\"ok\":%s,\"slot\":%d,\"target_room\":%u,\"room_key\":%u}",
+                 rr ? "true" : "false", (int)slot, (unsigned)cur, key);
+        return;
+    }
+    if (!strcmp(cmd, "revert")) {
+        // {"cmd":"revert","slot":N} — restore exit-slot N's original target_room.
+        long long slot;
+        if (!json_num(line, "slot", &slot)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no slot\"}"); return; }
+        tc_revert_exit((int)slot);
+        uint32_t key = 0, rr = cur_room_record(&key), cur = 0;
+        if (rr) rd32((void *)(uintptr_t)exit_target_addr(rr, (int)slot), &cur);
+        snprintf(out, cap, "{\"ok\":%s,\"slot\":%d,\"target_room\":%u}", rr ? "true" : "false", (int)slot, (unsigned)cur);
+        return;
+    }
+    if (!strcmp(cmd, "rooms")) {
+        // {"cmd":"rooms"[,"max":M]} — enumerate the room-record table (valid warp destinations):
+        // per room {key, area, scene}.  Walks the contiguous 0x150-B table seeded from the current room.
+        long long m = 512; json_num(line, "max", &m);
+        if (m < 1) m = 1;
+        if (m > 1024) m = 1024;
+        static tc_room rooms[1024];
+        int nr = tc_get_rooms(rooms, (int)m);
+        int n = snprintf(out, cap, "{\"ok\":true,\"count\":%d,\"rooms\":[", nr);
+        for (int i = 0; i < nr && n < cap - 48; ++i)
+            n += snprintf(out + n, cap - n, "%s{\"key\":%u,\"area\":%u,\"scene\":%u}",
+                          i ? "," : "", rooms[i].key, rooms[i].area, rooms[i].scene);
+        snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "view")) {
+        // {"cmd":"view"[,"off":0x104c]} — camera / mouse-fly calibration: dump render_root candidate
+        // fields (+0x1030..0x1060) with (box_x - val), so the camera-x offset is the one where that
+        // delta ~= 32000 (centi-px, half of the 640-px view).  Optionally set g_cam_off live.
+        long long off;
+        if (json_num(line, "off", &off)) g_cam_off = (uint32_t)off;
+        uint32_t root = 0; rd32(AP(VA_RENDER_ROOT), &root);
+        uintptr_t base = find_player(); uint32_t box = 0, bx = 0, btop = 0;
+        if (base && rd32((void *)(base + OFF_BOX), &box) && box > 0x10000) {
+            rd32((void *)((uintptr_t)box + BOX_X), &bx);
+            rd32((void *)((uintptr_t)box + BOX_TOP), &btop);
+        }
+        int camx = 0, camy = 0, cok = read_camera(&camx, &camy);
+        int n = snprintf(out, cap, "{\"ok\":true,\"render_root\":\"0x%08x\",\"cam_off\":\"0x%x\","
+                         "\"cam_ok\":%s,\"cam_x\":%d,\"cam_y\":%d,\"box_x\":%d,\"box_top\":%d,\"cands\":[",
+                         root, g_cam_off, cok ? "true" : "false", camx, camy, (int)bx, (int)btop);
+        for (uint32_t o = 0x1030; root && o <= 0x1060 && n < cap - 80; o += 4) {
+            uint32_t v = 0; rd32((void *)(uintptr_t)(root + o), &v);
+            n += snprintf(out + n, cap - n, "%s{\"off\":\"0x%x\",\"val\":%d,\"bx_minus\":%d}",
+                          o == 0x1030 ? "" : ",", o, (int)v, (int)bx - (int)v);
+        }
+        snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; g_invincible = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
     if (!strcmp(cmd, "call")) {
         // {"cmd":"call","va":"0x585cf0","a0":..,"a1":..,...,"ecx":"0x..","reloc":true}
-        // Calls the engine fn; args a0..a7 (contiguous), ecx=this (thiscall).  EXPERIMENTAL:
-        // use for the direct-load chain etc. once the caller state is right (DESIGN).
+        // Calls the engine fn; args a0..a7 (contiguous), ecx=this (thiscall).  Now runs on the
+        // ENGINE thread (enqueued + drained at the inputPoll safepoint), so calling non-reentrant
+        // engine code is safe — no longer the socket-thread hazard.
         long long va, tmp;
         if (!json_num(line, "va", &va)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no va\"}"); return; }
         int reloc = json_bool(line, "reloc", 1);        // module VA -> AP()-relocate by default
         uintptr_t fn = reloc ? (uintptr_t)AP(va) : (uintptr_t)va;
         if (!mem_readable((void *)fn, 1)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"fn unreadable\"}"); return; }
-        uint32_t args[8]; int n = 0; char key[4];
-        for (int i = 0; i < 8; ++i) {
+        eq_job *j = eq_alloc(EQ_CALL);
+        if (!j) { snprintf(out, cap, "{\"ok\":false,\"error\":\"queue full\"}"); return; }
+        int n = 0; char key[4];
+        for (int i = 0; i < 8; ++i) {                   // a0..a7 -> u[3..10]
             snprintf(key, sizeof key, "a%d", i);
             if (!json_num(line, key, &tmp)) break;
-            args[n++] = (uint32_t)tmp;
+            j->u[3 + n++] = (uint32_t)tmp;
         }
-        uint32_t ecx = 0; if (json_num(line, "ecx", &tmp)) ecx = (uint32_t)tmp;
-        uint32_t r = call_va((void *)fn, ecx, args, n);
+        j->u[0] = (uint32_t)fn;
+        j->u[1] = json_num(line, "ecx", &tmp) ? (uint32_t)tmp : 0;
+        j->u[2] = (uint32_t)n;
+        uint32_t r = engine_wait(j, 2000);              // engine calls can be slow; generous timeout
         snprintf(out, cap, "{\"ok\":true,\"ret\":%u,\"ret_hex\":\"0x%08x\",\"fn\":\"0x%08x\",\"argc\":%d}",
                  r, r, (unsigned)fn, n);
         return;
@@ -1235,16 +1719,9 @@ static void handle_line(const char *line, char *out, int cap) {
         //   no slot   -> load the default-highlighted (newest) save (the VERIFIED tower path).
         //   "downs":N -> manual: rotate the picker N times before confirm (fallback nav).
         long long tmp;
-        ensure_hooks();
-        attract_freeze(1);                               // hold the title (no demo mid-drive)
-        g_md_slot  = json_num(line, "slot",  &tmp) ? (int)tmp : -1;
-        g_md_downs = json_num(line, "downs", &tmp) ? (int)tmp : 0;
-        g_pk_diag[0] = 0; g_pk_diag_done = 0;            // reset the one-shot picker dump
-        g_pk_mgr = 0;                                    // clear so poll_title_cb sees the picker OPEN
-        g_md_state = 1;                                  // arm: title-confirm -> picker-confirm
-        int loaded = 0;                                  // done when the loaded actor appears
-        for (int i = 0; i < 1200; ++i) { if (find_player()) { loaded = 1; break; } Sleep(10); }
-        g_md_state = 0; g_md_slot = -1;                  // end the drive
+        int slot  = json_num(line, "slot",  &tmp) ? (int)tmp : -1;
+        int downs = json_num(line, "downs", &tmp) ? (int)tmp : 0;
+        int loaded = menu_load(slot, downs, NULL, 0);    // canonical drive (shared with the UI)
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":%s,\"loaded\":%s,\"picker\":\"%s\",\"player\":%s}",
                  loaded ? "true" : "false", loaded ? "true" : "false", g_pk_diag, pj);
@@ -1255,16 +1732,10 @@ static void handle_line(const char *line, char *out, int cap) {
         // item then confirm (the game's own menu).  "to" = title rotations from the default
         // (Continue) to Start (default 1).  With dlgskip on, the intro cutscene skips itself.
         long long tmp;
-        ensure_hooks();
-        attract_freeze(1);
-        g_ng_rotates = json_num(line, "to",  &tmp) ? (int)tmp : 1;   // rotations to New Game
-        g_ng_btn     = json_num(line, "btn", &tmp) ? (int)tmp : 0x04; // 2=up / 4=down
-        g_ng_gap     = json_num(line, "gap", &tmp) ? (int)tmp : 6;    // polls between rotates
-        g_ng_cool    = 4;                                            // small settle before the 1st rotate
-        g_ng_state = 1;                                  // arm: rotate-to-Start -> confirm
-        int started = 0;                                 // done when the fresh player actor appears
-        for (int i = 0; i < 3000; ++i) { if (find_player()) { started = 1; break; } Sleep(10); }
-        g_ng_state = 0;
+        int to  = json_num(line, "to",  &tmp) ? (int)tmp : 1;    // rotations to New Game
+        int btn = json_num(line, "btn", &tmp) ? (int)tmp : 0x04; // 2=up / 4=down
+        int gap = json_num(line, "gap", &tmp) ? (int)tmp : 6;    // polls between rotates
+        int started = menu_newgame(to, btn, gap);               // canonical drive (shared with the UI)
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":%s,\"started\":%s,\"player\":%s}",
                  started ? "true" : "false", started ? "true" : "false", pj);
@@ -1506,11 +1977,15 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) {
         char *slash = strrchr(g_logpath, '\\');
         strcpy(slash ? slash + 1 : g_logpath, "oss_trainer.log");
         InitializeCriticalSection(&g_lock_cs);
+        InitializeCriticalSection(&g_hj_cs);
+        InitializeCriticalSection(&g_eq_cs);                     // engine-thread execution queue
         vlog("[trainer] attach: base=%p delta=%p port=%d",
              GetModuleHandleA(NULL), (void *)g_delta, TRAINER_PORT);
-        CreateThread(NULL, 0, tick_thread, NULL, 0, NULL);
+        // NB: pokes/calls + freezes/mouse-fly run engine-side in the inputPoll safepoint
+        // (poll_title_cb), NOT on a worker thread — see the engine-thread execution queue.
         CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
-        CreateThread(NULL, 0, keepalive_thread, NULL, 0, NULL);  // launcher + keep-active + attract-off
+        CreateThread(NULL, 0, keepalive_thread, NULL, 0, NULL);  // launcher + keep-active + attract-off + hooks
+        trainer_ui_start();                                      // the Dear ImGui window (own thread)
     }
     return TRUE;
 }
