@@ -186,7 +186,7 @@ static void panel_cheats() {
     toggle_row("mousefly",   "Mouse-fly (F7)",                 "Continuously teleport the player to the cursor over the game window (view frozen while flying). Also toggled by F7.");
     ImGui::Spacing();
     toggle_row("fastskip",   "Instant text",                   "Snap the current dialogue line's typewriter reveal to the end (door-safe UI-state write).");
-    toggle_row("dlgskip",    "Auto-advance open dialogue",     "Inject the advance buttons while a dialogue box is on screen.");
+    toggle_row("dlgskip",    "Auto-advance open dialogue",     "Injects the advance buttons while a box is up. WARNING: those ids double as world action input, so it AUTO-CONFIRMS world prompts (bed/door) you land on with mouse-fly. Off by default; auto-skip is the world-safe one.");
     ImGui::Spacing();
     toggle_row("keepactive", "Keep running unfocused",         "Re-post WM_ACTIVATEAPP so the game keeps updating while its window is in the background. On by default.");
     toggle_row("attract",    "Freeze title (no attract demo)", "Hold the title screen so it never cycles to the attract demo. On by default.");

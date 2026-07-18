@@ -308,8 +308,9 @@ TOOLS = [
     ("fastskip", "Instant text: force the active dialogue line's typewriter reveal "
      "to total each tick (pure UI-state, door-safe). Default OFF.",
      {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_fastskip),
-    ("dlgskip", "Auto-advance an OPEN door-prompt dialogue box (passive-gated "
-     "input inject). Default ON.",
+    ("dlgskip", "Auto-advance an OPEN prompt box by injecting the advance ids (passive-"
+     "gated). WARNING: those ids double as world action input, so it auto-CONFIRMS world "
+     "prompts (bed/door). Default OFF — the world-safe skip is autoskip.",
      {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_dlgskip),
     ("press", "Inject button id `btn` into the active input mgr `n` times — a "
      "probe to map what an id does in the current context.",

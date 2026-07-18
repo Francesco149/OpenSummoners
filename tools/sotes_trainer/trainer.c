@@ -545,7 +545,12 @@ static volatile uint32_t g_pk_esp, g_pk_mgr;   // picker-poll (0x4378d0) capture
 static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 2 want picker-confirm
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
 static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
-static volatile int      g_dlgskip = 1;        // auto-skip dialogue (DEFAULT ON)
+static volatile int      g_dlgskip = 0;        // auto-advance an OPEN box by INJECTING 0x24/0x27
+                                               // (those ids double as world ACTION input, so it
+                                               // auto-CONFIRMS world prompts like the bed/door once
+                                               // mouse-fly lands you on one).  DEFAULT OFF — the
+                                               // requested "tab" auto-skip is g_autoskip (world-safe
+                                               // code patch); dlgskip is the opt-in risky one.
 // dlgskip auto-advances an OPEN dialogue box hands-free.  It gates on a PASSIVE read of the SE
 // dialogue widget (dialogue_box_open below) — NOT the old active 0x24-probe consumption gate.
 // WHY the rewrite (session 6): the old gate injected 0x24/0x27 EVERY gameplay poll to *detect*
