@@ -94,11 +94,31 @@ The SE map decoder is NOT at base `0x587e00`. Located by the region-E anchor con
 | `0x5b3a70` | region-E link-anchor handler (base `FUN_0058cb30` analog) |
 | `0x5b39c0`, `0x5b3850` | map object/tile emitters |
 - **map object CODE @ object+0x10** (90010/90011 = region-E link anchors).
-- struct offsets that carry (verified live): a map/room object holds **room_key @ +0x4024**,
-  **spawn_a @ +0x4028**, **spawn_b @ +0x402c** (matched base exactly: town key `0x334be`=210110,
-  spawn 0x65/1 == `FUN_004c5350` map 0x3f2). BUT base `+0x4104` map_id and `+0x4030` actor slots do
-  NOT match (SE map object restructured). **OPEN**: the LIVE render-root global (base `DAT_008a9b50`
-  analog) + the authoritative current-`map_obj`; the SE current-map-id offset; the SE transition fn.
+- `0x4c1ca0` SE map_id→room_key setter (base `FUN_004c5350`, thiscall ecx=controller; map_obj=`[ecx+4]`;
+  reads `map_obj+0x4104`=map_id; switches 1 / 0x3f2(town) / 0x3fc; writes room_key `+0x4024`, spawn
+  `+0x4028/+0x402c`). **Intro-map only** — normal door transitions do NOT hit it. Callers: 0x5a6418,
+  0x5abeb2, 0x5cac2f, 0x5cb0a3. map_id write sites incl. `0x4e1d72 mov [eax+0x4104],0x3f2`.
+
+### ✅ THE CURRENT-MAP CHAIN (render-root) — RESOLVED live (this session)
+Found in the map-decode caller (`0x5ad443: mov ecx,ds:0x92dd38; mov eax,[ecx+0x1038]`):
+```
+render_root = *(u32*)0x92dd38                    // SE render-root global (base DAT_008a9b50 analog)
+room_record = *(u32*)(render_root + 0x1038)      // base +0x1038 CARRIES
+  room_record[0]  = ROOM KEY   (+0x00)   e.g. 0x334dd=210141 storage room
+  room_record[1]  = AREA KEY   (+0x04)   e.g. 0xd2=210
+  room_record[3]  = DATA/SCENE (+0x0c)   e.g. 1026  ← the FindResource("DATA") map id
+  room_record[0x43]=tileset, [0x44]=parallax
+  EXITS (portals): dword 7 stride 3 (+0x1c, +0x28, …), 20 slots:
+     dw(7+3k)=exit_key, dw(8+3k)=TARGET ROOM key, dw(9+3k)=return/entry key
+```
+VERIFIED live: storage room (0x334dd/DATA 1026) → 2 exits both target 0x334dc (the shop), keys 2/3.
+The base room-record layout (room_key[0]/area[1]/scene[3]/exits@dw7-stride3) CARRIES to SE. NOTE
+`render_root+0x1044` (base map_obj) does NOT carry (reads junk) — use the ROOM RECORD for identity,
+not the map object. Render-root also: `+0x1048` (used @0x5ad4a2), room_record `+0x148/+0x14c`.
+Map DATA loader path: universal resource opener `0x5de520` (FindResource wrapper; maps AND sprites)
+← map parser `0x54cxxx` (@0x54cae9); map DECODER `0x5b2xxx` (region-E @0x5b348b) ← builder `0x5ad4xx`
+(reads render_root+0x1038, @0x5ad443) ← 0x4b5c8d ← 0x526144. Room table (all records) in the heap
+(0x1f39xxxx block; each record 0x150 B). **OPEN**: the SE transition fn to force a room change (roadmap #4).
 
 ## Base-game MODEL (the reference to find SE analogs against)
 From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE addresses):
@@ -125,9 +145,13 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
 - Decimal ref: 0x3f2=1010, 0x334be=210110, 0x334c8=210120, 0x334dc=210140, 0x2738=10040, 0x15f9a=90010.
 
 ## Open threads (next)
-1. SE render-root global (base `DAT_008a9b50` analog) → live authoritative `map_obj`/`room_record`
-   → the current map id/room_key/DATA the trainer's `map` query reads. Method: hook the SE decoder
-   (`0x54c8c0`/`0x5b3840`) or a per-frame room read, trigger a real map load, capture ecx/backtrace.
-2. SE transition fn (base `FUN_0059ec30`/`FUN_0059f2c0` analog) — fingerprint (map_id→room_key jump
-   table `FUN_004c5350`; the world ctor's alloc sequence) → call directly = force-transition (roadmap #4).
-3. Triggering a real map load in-game (no title): drive the player to a room exit, or call #2 once found.
+1. ✅ DONE — SE render-root chain `*0x92dd38 → +0x1038 room_record` (room_key/area/scene/exits). The
+   trainer `map` query reads this. (Found via the decode-caller `0x5ad443`, verified live vs a real
+   door entry into the storage room = 0x334dd / DATA 1026.)
+2. **SE transition fn to FORCE a room change** (roadmap #4) — the door/portal handler that takes a
+   TARGET ROOM key (from the exit slot) and loads it. Leads: the room BUILDER `0x5ad4xx` rebuilds
+   whatever `render_root+0x1038` points at, so setting the room record + retriggering, OR the
+   higher-level "enter room" fn (up the builder's caller chain 0x4b5c8d/0x526144/0x5e84aa). Also the
+   intro path `0x4c1ca0`/callers 0x5cac2f/0x5cb0a3 (near the known transition 0x5cb460).
+3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
+   BFS pathfinding (roadmap #5).

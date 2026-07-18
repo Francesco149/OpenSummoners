@@ -138,6 +138,10 @@ def h_box(a):
     return _reply(tsend({"cmd": "box"}))
 
 
+def h_map(a):
+    return _reply(tsend({"cmd": "map"}))
+
+
 def h_unlock(a):
     return _reply(tsend({"cmd": "unlock_all"}))
 
@@ -225,6 +229,10 @@ TOOLS = [
          "relative": {"type": "boolean"}}}, h_teleport),
     ("box", "Debug: the player's collision AABB {box,tag,x,top,w,h,world_y}.",
      {"type": "object", "properties": {}}, h_box),
+    ("map", "The CURRENT map/room via the render-root chain: {room_key, area, scene "
+     "(DATA resource id), tileset, parallax, exits:[{exit_key,target_room,return_key}]}. "
+     "exits = the portal graph (each portal's destination room). null if not in a scene.",
+     {"type": "object", "properties": {}}, h_map),
     ("unlock", "Drop god + all stat locks.",
      {"type": "object", "properties": {}}, h_unlock),
     ("saves", "Enumerate + identify EVERY on-disk save (reads user\\savedataNN.sdt "

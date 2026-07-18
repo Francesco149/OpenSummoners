@@ -99,6 +99,24 @@
 #define SAVE_HANDLE_MAIN 0x2738      // Main-Quest save category (loader .sdt branch + apply gate)
 #define SAVE_STRUCT_SZ   0xea94      // FUN_00585cf0 allocs this for the transient save struct
 
+// ─── current-map / room chain (EN-SE, RE'd — see SE_CODE_MAP.md "CURRENT-MAP CHAIN") ──
+// Found in the map-decode caller (0x5ad443: mov ecx,ds:0x92dd38; mov eax,[ecx+0x1038]):
+//   render_root = *(0x92dd38); room_record = *(render_root + 0x1038)   (base +0x1038 carries)
+// The room record (0x150 B) holds the CURRENT-room identity + its portal graph:
+//   [0]=room_key, [1]=area, [3]=DATA/scene resource id (== the FindResource("DATA") map id),
+//   [0x43]=tileset, [0x44]=parallax, and the EXITS (portals) at dword 7 stride 3 (20 slots):
+//   dw(7+3k)=exit_key, dw(8+3k)=TARGET room key, dw(9+3k)=return/entry key.
+// VERIFIED live: storage room 0x334dd/DATA 1026 -> 2 exits, both target 0x334dc (the shop).
+// NOTE render_root+0x1044 (base map_obj) does NOT carry in SE — use the room record for identity.
+#define VA_RENDER_ROOT  0x92dd38     // *(this) = render-root (room-state) object
+#define ROOT_ROOM_REC   0x1038       // render_root + 0x1038 = current room record ptr
+#define RR_ROOM_KEY     0x00         // room_record[0]
+#define RR_AREA         0x04         // room_record[1]
+#define RR_SCENE        0x0c         // room_record[3] = DATA/scene resource id
+#define RR_TILESET      (0x43*4)     // room_record[0x43]
+#define RR_PARALLAX     (0x44*4)     // room_record[0x44]
+#define RR_EXIT0        0x1c         // room_record[7] = first exit slot (stride 0xc, 20 slots)
+
 static uintptr_t g_delta;            // actual base - ORIG_BASE (ASLR-safe)
 static char      g_logpath[MAX_PATH];
 #define AP(x) ((void *)((uintptr_t)(x) + g_delta))
@@ -1127,6 +1145,38 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap, "{\"ok\":true,\"box\":\"0x%08x\",\"tag\":\"0x%08x\",\"x\":%d,"
                  "\"top\":%d,\"w\":%d,\"h\":%d,\"world_y\":%d}",
                  box, tag, (int)bx, (int)top, (int)w, (int)h, (int)top+(int)h-1);
+        return;
+    }
+    if (!strcmp(cmd, "map")) {
+        // {"cmd":"map"} — the CURRENT map/room: read the render-root chain (*0x92dd38 ->
+        // +0x1038 room record) and report room_key / area / DATA-scene id / tileset / parallax
+        // + the EXIT GRAPH (portals -> target rooms).  Pure read; RE'd this session (SE_CODE_MAP).
+        uint32_t root = 0, rr = 0;
+        if (!rd32(AP(VA_RENDER_ROOT), &root) || root <= 0x10000 ||
+            !rd32((void *)(uintptr_t)(root + ROOT_ROOM_REC), &rr) || rr <= 0x10000 ||
+            !mem_readable((void *)(uintptr_t)rr, 0x150)) {
+            snprintf(out, cap, "{\"ok\":false,\"error\":\"no room record (not in a scene?)\"}"); return; }
+        uint32_t key=0, area=0, scene=0, tset=0, plx=0;
+        rd32((void *)(uintptr_t)(rr + RR_ROOM_KEY), &key);
+        rd32((void *)(uintptr_t)(rr + RR_AREA),     &area);
+        rd32((void *)(uintptr_t)(rr + RR_SCENE),    &scene);
+        rd32((void *)(uintptr_t)(rr + RR_TILESET),  &tset);
+        rd32((void *)(uintptr_t)(rr + RR_PARALLAX), &plx);
+        int n = snprintf(out, cap,
+            "{\"ok\":true,\"render_root\":\"0x%08x\",\"room_record\":\"0x%08x\",\"room_key\":%u,"
+            "\"area\":%u,\"scene\":%u,\"tileset\":%u,\"parallax\":%u,\"exits\":[",
+            root, rr, key, area, scene, tset, plx);
+        int first = 1;
+        for (int k = 0; k < 20 && n < cap - 96; ++k) {
+            uintptr_t b = rr + RR_EXIT0 + (uint32_t)k * 12;
+            uint32_t ek=0, tr=0, ret=0;
+            rd32((void *)b, &ek); rd32((void *)(b + 4), &tr); rd32((void *)(b + 8), &ret);
+            if (ek == 0 && tr == 0) continue;
+            n += snprintf(out + n, cap - n,
+                "%s{\"exit_key\":%u,\"target_room\":%u,\"return_key\":%u}", first ? "" : ",", ek, tr, ret);
+            first = 0;
+        }
+        snprintf(out + n, cap - n, "]}");
         return;
     }
     if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
