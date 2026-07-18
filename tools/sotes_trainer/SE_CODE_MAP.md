@@ -120,6 +120,22 @@ Map DATA loader path: universal resource opener `0x5de520` (FindResource wrapper
 (reads render_root+0x1038, @0x5ad443) ← 0x4b5c8d ← 0x526144. Room table (all records) in the heap
 (0x1f39xxxx block; each record 0x150 B). **OPEN**: the SE transition fn to force a room change (roadmap #4).
 
+### Scene-load STEPS + failure strings (found by the "map data not found" message-box)
+The rebuild fn `0x5ac830` logs each load step via a label pushed to a debug/step fn (labels @0x924xxx):
+`Start StartArea`(0x92480c @`0x5ac869`) → `Load Map Data`(0x9247b4 @`0x5ad4ed`) → `InitAreaGate`(0x924754)
+→ `Setup View Manager`(0x92477c) → `Init Objects`(0x9247ec) → `Start Area Loop`(0x9246cc @`0x5ae047`) →
+`Start Event`. **FAILURE strings** (fatal message-box → then a CRASH): `The map data is not found.`
+(0x924790 @**`0x5ad656`**), `The gate is not found.`(0x924764 @`0x5adcc4`/`0x5adeeb`), `It failed in
+reading the W-map file.`(0x9247c4 @`0x5ad433`), `Structure/Device/Effect/Character Object Count Over.`
+The "Load Map Data" step (`0x5ad4ed`..`0x5ad656`) reads globals `0x92c828` (load-mode obj: switches on
+`[+4]/[+8]/[+0xc]`, case `3` → `0x5ad8b2`), `0x92b9b4`, `0x92ac68` (config/game-dir); it builds a path
+(`0x411930`/`0x411c10`) and loads a **W-map file** — i.e. maps come from a per-AREA W-map file, not just
+a room key. **⇒ cross-AREA door-hijack FAILS at 0x5ad656** ("map data not found" → crash): PROVEN live —
+hijacking a tower door's `target_room` to 110110 (Tonkiness, area 110) IS read + acted on (the door tried
+to load it), but area 110's W-map data isn't resident from the tower save → fatal. So the door-hijack
+warp PRIMITIVE works, but cross-REGION needs the target area's W-map loaded first (the 0x92c828 load-mode
+/ W-map path is the lead). SAME-area hijack should load fine (assets resident).
+
 ## Base-game MODEL (the reference to find SE analogs against)
 From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE addresses):
 - **3 ids on 2 objects**: `map_obj+0x4104` MAP ID (town 0x3f2=1010) · `map_obj+0x4024` ROOM KEY
