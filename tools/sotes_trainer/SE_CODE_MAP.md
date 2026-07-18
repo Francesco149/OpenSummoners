@@ -57,20 +57,41 @@ analog where known; **the base VA is the MODEL, not necessarily the SE VA**.
   `+0xd8` level_bonus per `494e60:123`, NOT `+0xe0` alone); `+0xd8` level_bonus, `+0xdc` star_count;
   `+0xec` exp_cur `+0xf0` exp_max.
 
-### Input mgr / held-keys (freeroam movement + door-enter — RE'd 2026-07-18)
-The controllable char's input mgr = `*(*(actor+0xc7a4))` (`OFF_INPUT_CHAIN`; live: Arche's =
-`0x085fc4f4`, distinct from the title poll's `g_ti_mgr`). The char AI (`0x478ba0` analog) reads the
-HELD-AXIS array — the **base layout CARRIES to SE** (verified live, all idle=0):
-`mgr+0x114` UP · `+0x118` DOWN · `+0x11c` LEFT · `+0x120` RIGHT · `+0x124` JUMP · `+0x128` ATTACK
-(each a held-tick counter; UP builds the door-enter command `[3]=0xb`, port `character.h`).
-⚠ **The held-axis is REGENERATED EVERY FRAME from raw DINPUT** — PROVEN live: writing `+0x120`=50
-reads back 0 the next frame AND Arche does NOT move (whereas god's hp/mp=9999 freeze at the same
-safepoint DOES hold — so per-frame safepoint writes work; the axis is specifically overwritten by the
-poll). ⇒ auto-movement/door-enter must inject the **RAW DINPUT held-keys buffer** that the poll
-`0x437c70` READS (poll_title_cb runs BEFORE the original poll, so a raw-buffer write there is picked
-up), NOT the processed held-axis (which the poll WRITES). **NEXT (thread #2 path i):** find the raw
-DINPUT key buffer (the `IDirectInputDevice::GetDeviceState` sink) + the UP index → the auto door-enter
-primitive; then teleport-to-door + inject-UP drives a full route (the SE_CODE_MAP "VALIDATED PRIMITIVE").
+### ✅ Input / keyboard subsystem — RESOLVED live (movement-inject PROVEN; door-enter foreground-gated)
+Char input mgr = `*(*(actor+0xc7a4))` (`OFF_INPUT_CHAIN`; live Arche `0x085fc4f4`). HELD-AXIS (base
+layout carries; idle=0): `mgr+0x114` UP · `+0x118` DOWN · `+0x11c` LEFT · `+0x120` RIGHT · `+0x124`
+JUMP · `+0x128` ATTACK (held-tick counters; UP → door-enter cmd `[3]=0xb`).
+
+**THE KEYBOARD OBJECT:** global `0x92d5bc` → keyboard device obj (`kb_this`; live `0x85235b8`).
+`+0x4`=`IDirectInputDevice8*`, `+0x10`=buffered event count, `+0x14`=`DIDEVICEOBJECTDATA[]` event
+array (0x10 B/entry: dwOfs,dwData,dwTS,dwSeq), **`+0x18`=256-B IMMEDIATE DIK buffer** (`buf[dik]&0x80`).
+
+| SE VA | role |
+|---|---|
+| `0x5e2a10` | `kb_poll(this)`: `Poll()`(vt+0x64) → `GetDeviceState(0x100,this+0x18)`(vt+0x24) = the immediate buffer |
+| `0x5e2a70` | `keydown(this,dik)` = `this[0x18+dik]&0x80` |
+| `0x5e2820` | `buffered_read(this)`: `GetDeviceData(0x10,this+0x14,&this[0x10],0)`(vt+0x28) = the EVENT queue |
+| ~`0x468e00` | HELD-AXIS builder: `keydown` the 4 HARDCODED arrows **UP=0xC8 DOWN=0xD0 LEFT=0xCB RIGHT=0xCD** → `mgr+0x114/118/11c/120`; jump/attack/menu keys CONFIGURABLE via options `0x92af98[0]+0x6a8/0x6c4/0x718` |
+| `0x497050` | per-frame input refresh: `kb_poll`+`buffered_read` on `0x92d5bc`, then event consumers `0x5e2ba0`/`0x497180` |
+
+**✅ MOVEMENT INJECTION PRIMITIVE — PROVEN.** Write `kb_this[0x18+DIK]=0x80` every frame (hook
+`kb_poll 0x5e2a10` onLeave) → builder reads it → real movement. VERIFIED: RIGHT (0xCD) walked Arche
++300px; LEFT/UP likewise. **MUST maintain the FULL movement set each frame** (held DIKs→0x80, rest→0):
+a key left at 0x80 STICKS (`GetDeviceState` only clears the buffer when FOREGROUND — see below), and
+stuck UP+RIGHT = parry-lock that freezes her. Holding UP overrides horizontal walk (UP=defensive pose).
+
+**⚠ THE FOREGROUND GATE — why the auto DOOR-ENTER fails.** MOVEMENT uses the IMMEDIATE buffer
+(`keydown`), so continuous injection drives it regardless of focus. But DOOR-ENTER is a discrete ACTION
+off the BUFFERED press-EVENT path (`GetDeviceData 0x5e2820` → ring). DirectInput is FOREGROUND-
+cooperative: window NOT foreground ⇒ `GetDeviceState`/`GetDeviceData` return `DIERR_INPUTLOST
+0x8007001e`, the immediate buffer FREEZES (last-injected values stick — PROVEN: `buf[UP]=0x80` written,
+never cleared) AND no real buffered events flow ⇒ door-enter never fires. PROVEN: a full-floor sweep
+(teleport + clean UP tap ∀ x∈[4000,150000]) with a `0x5a6010` transition hook NEVER fired — via
+immediate-buffer UP, ring-press, OR injected buffered events. The USER's teleport-to-door+UP worked
+because their window was FOCUSED. ⇒ raw-DINPUT DOOR-DRIVER needs the game FOREGROUND (or an injected
+buffered-event bypassing the acquire gate — unsolved). The FOREGROUND-INDEPENDENT warp path = the
+DIRECT transition call (thread #2, runs at the engine safepoint). Tools: `scratchpad/kbinject.py`
+(hook kb_poll → inject DIK), `sweep3.py`/`bufsweep.py` (door sweeps).
 
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |
