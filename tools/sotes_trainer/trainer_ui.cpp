@@ -150,6 +150,7 @@ static void refresh_chars() {
 }
 static int  g_save_sel   = -1;    // selected save slot
 static int  g_edit_slot  = -1;    // exit slot whose destination is being changed
+static bool g_open_portal_popup = false;   // request to open the change-portal popup (deferred past the loop)
 static char g_room_query[64] = "";
 
 static void refresh_rooms() {
@@ -293,25 +294,7 @@ static void panel_portals(const tc_map& mp, bool hasm) {
                 ImGui::SameLine(); ImGui::TextDisabled("%d,%d", e.door_x / 100, e.door_y / 100);
             } else ImGui::TextDisabled("--");
             ImGui::TableSetColumnIndex(3);
-            if (ImGui::SmallButton("change")) { g_edit_slot = e.slot; g_room_query[0] = 0; if (g_rooms.empty()) refresh_rooms(); ImGui::OpenPopup("change_portal"); }
-            // per-row popup (opened above; content rendered once, keyed by g_edit_slot)
-            if (ImGui::BeginPopup("change_portal")) {
-                ImGui::TextColored(COL_ACCENT, "warp door #%d to room:", g_edit_slot);
-                ImGui::SetNextItemWidth(300);
-                ImGui::InputTextWithHint("##q", "search room key / area / scene", g_room_query, sizeof g_room_query);
-                ImGui::SameLine(); if (ImGui::SmallButton("refresh")) refresh_rooms();
-                ImGui::TextDisabled("%d rooms resident", (int)g_rooms.size());
-                ImGui::BeginChild("roomlist", ImVec2(320, 260), true);
-                for (const tc_room& r : g_rooms) {
-                    char label[96];
-                    snprintf(label, sizeof label, "%u    area %u   scene %u", r.key, r.area, r.scene);
-                    if (!ci_contains(label, g_room_query)) continue;
-                    if (ImGui::Selectable(label)) { tc_hijack_exit(g_edit_slot, r.key); g_edit_slot = -1; ImGui::CloseCurrentPopup(); }
-                }
-                ImGui::EndChild();
-                if (ImGui::Button("cancel")) { g_edit_slot = -1; ImGui::CloseCurrentPopup(); }
-                ImGui::EndPopup();
-            }
+            if (ImGui::SmallButton("change")) { g_edit_slot = e.slot; g_room_query[0] = 0; if (g_rooms.empty()) refresh_rooms(); g_open_portal_popup = true; }
             ImGui::TableSetColumnIndex(4);
             ImGui::BeginDisabled(!e.hijacked);
             if (ImGui::SmallButton("revert")) tc_revert_exit(e.slot);
@@ -319,6 +302,28 @@ static void panel_portals(const tc_map& mp, bool hasm) {
             ImGui::PopID();
         }
         ImGui::EndTable();
+    }
+    // ONE change-portal popup, opened + rendered at WINDOW scope AFTER the loop (keyed by g_edit_slot).
+    // The residual "conflicting ID" was the per-row BeginPopup("change_portal") inside PushID(i): each
+    // row re-declared the popup, so the FIRST row's OpenPopup fired but later rows' BeginPopup collided.
+    // Hoisting it out = a single, unambiguous popup ID.
+    if (g_open_portal_popup) { ImGui::OpenPopup("change_portal"); g_open_portal_popup = false; }
+    if (ImGui::BeginPopup("change_portal")) {
+        ImGui::TextColored(COL_ACCENT, "warp door #%d to room:", g_edit_slot);
+        ImGui::SetNextItemWidth(300);
+        ImGui::InputTextWithHint("##q", "search room key / area / scene", g_room_query, sizeof g_room_query);
+        ImGui::SameLine(); if (ImGui::SmallButton("refresh")) refresh_rooms();
+        ImGui::TextDisabled("%d rooms resident", (int)g_rooms.size());
+        ImGui::BeginChild("roomlist", ImVec2(320, 260), true);
+        for (const tc_room& r : g_rooms) {
+            char label[96];
+            snprintf(label, sizeof label, "%u    area %u   scene %u", r.key, r.area, r.scene);
+            if (!ci_contains(label, g_room_query)) continue;
+            if (ImGui::Selectable(label)) { tc_hijack_exit(g_edit_slot, r.key); g_edit_slot = -1; ImGui::CloseCurrentPopup(); }
+        }
+        ImGui::EndChild();
+        if (ImGui::Button("cancel")) { g_edit_slot = -1; ImGui::CloseCurrentPopup(); }
+        ImGui::EndPopup();
     }
 }
 
