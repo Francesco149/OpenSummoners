@@ -122,17 +122,30 @@
 #define RR_SIZE         0x150        // one room record = 0x150 B (the room table's stride)
 
 // ── camera / mouse-fly (client cursor -> world) ──────────────────────────────
-// The engine renders a FIXED 640x480-world-px view (the resolution enum *0x92af98+0x24 only
-// ZOOMS the window: 0->640x480, 2->1280x960, 3->1920x1440 — the world SPAN is constant).  So a
-// cursor at client fraction f over the game window maps to world = camera_topleft + f*view_span.
-// The camera top-left lives at render_root + g_cam_off (base analog +0x104c); OFFSET+UNITS are
-// calibrated live via the `view` command (g_cam_off is runtime-settable so no rebuild to tune).
-#define VIEW_W_PX       640          // world-px spanned horizontally by the view (constant)
-#define VIEW_H_PX       480          // world-px spanned vertically
-#define INVINCIBLE_HP   9999         // hp_cur pin value for invincibility (USER spec)
-static volatile uint32_t g_cam_off   = 0x104c;   // render_root + this = camera top-left (centi-px)
-static volatile int      g_invincible = 1;       // freeze hp at INVINCIBLE_HP (DEFAULT ON, USER)
+// The CAMERA/VIEW OBJECT = *(render_root + g_cam_off) (g_cam_off = base analog +0x104c, a POINTER
+// in SE).  Its fields carry from base camera_follow.h (src/) — VERIFIED live (cal probes + the
+// two-point teleport track): the view stores its own EASED scroll ORIGIN (top-left), not the
+// player position, so the cursor mapping is stable:
+//   cam+0x5c = cur_y (eased scroll top),  cam+0x60 = cur_x (eased scroll left)  [world cpx]
+//   cam+0x64 = vp_w (64000 = 640px),      cam+0x68 = vp_h (48000 = 480px)
+//   cam+0x6c = tgt_x,                     cam+0x70 = tgt_y  (the follow TARGET the easer chases)
+// So the view spans a fixed 640x480 world-px window; a cursor at client fraction f maps to
+// world = (cur_x, cur_y) + f*(vp_w, vp_h).  Using the EASED cur (not the instant player mirror
+// at +0x14) is what stops the mouse-fly feedback runaway; the fly ALSO FREEZES the camera
+// (pins cur/tgt to a latch) so the view can't scroll-follow her out from under the cursor.
+#define CAM_MAP_W       0x00         // camera obj -> map pixel width  (cpx; for scroll clamping)
+#define CAM_MAP_H       0x04         // camera obj -> map pixel height (cpx)
+#define CAM_CUR_Y       0x5c         // camera obj -> eased scroll top  (world cpx) = view top
+#define CAM_CUR_X       0x60         // camera obj -> eased scroll left (world cpx) = view left
+#define CAM_VP_W        0x64         // camera obj -> viewport width  (cpx; 64000 = 640px)
+#define CAM_VP_H        0x68         // camera obj -> viewport height (cpx; 48000 = 480px)
+#define CAM_TGT_X       0x6c         // camera obj -> follow target x
+#define CAM_TGT_Y       0x70         // camera obj -> follow target y
+#define GOD_VAL         9999         // hp/mp pin value for god mode (USER spec: hp+mp 9999)
+static volatile uint32_t g_cam_off   = 0x104c;   // render_root + this = camera/view-object POINTER
 static volatile int      g_mousefly;             // continuous teleport-to-cursor (F7 / UI toggle)
+static volatile int      g_fly_latched;          // camera-freeze latch valid this fly session
+static volatile int      g_fly_fx, g_fly_fy;     // latched view top-left (frozen while flying)
 static volatile HWND     g_game_hwnd;            // the CLASS_LIZSOFT_SOTES window (client-rect map)
 
 static uintptr_t g_delta;            // actual base - ORIG_BASE (ASLR-safe)
@@ -196,8 +209,16 @@ static int actor_valid(uintptr_t base) {
     return 1;
 }
 static uintptr_t find_player(void) {
-    if (g_player && actor_valid(g_player)) return g_player;
+    if (g_player && actor_valid(g_player)) return g_player;   // cache hit = cheap (no scan)
     g_player = 0;
+    // THROTTLE the cold full-address-space scan: callers poll this every frame (UI reads + the
+    // engine-side freezes), and at a menu (no player) an every-frame full scan starves the game
+    // loop AND raises the TOCTOU fault odds during a scene teardown.  When nothing is cached,
+    // scan at most ~8x/sec; a freshly-spawned player is still picked up within ~120ms.
+    static DWORD last_scan;
+    DWORD now = GetTickCount();
+    if (last_scan && (now - last_scan) < 120) return 0;
+    last_scan = now;
     uint8_t *addr = 0;
     MEMORY_BASIC_INFORMATION mbi;
     while (VirtualQuery(addr, &mbi, sizeof mbi)) {
@@ -373,7 +394,7 @@ static int dlg_force_reveal(uint32_t grid) {
 }
 
 // ─── freeze table (applied every tick) ──────────────────────────────────────
-static volatile int g_god;                 // freeze hp+mp at max
+static volatile int g_god = 1;             // freeze hp+mp at GOD_VAL (9999); DEFAULT ON (USER)
 static volatile int g_fastskip;            // fast-skip: force the dialogue typewriter reveal to total
 static volatile uint32_t g_dlg_grid;       // story/cutscene text-grid `this` (also declared below near
                                            // the dlgtrace; a tentative def — set by dlggrid/fastskip scan)
@@ -1055,21 +1076,34 @@ static int teleport_box(int x_cpx, int y_cpx, int set_x, int set_y, int relative
     return 1;
 }
 
-// Camera top-left in world centi-px (render_root + g_cam_off).  Calibrated live (`view`).
-static int read_camera(int *cx, int *cy) {
-    uint32_t root = 0;
+// Resolve the camera object ptr *(render_root + g_cam_off).
+static uint32_t read_cam(void) {
+    uint32_t root = 0, cam = 0;
     if (!rd32(AP(VA_RENDER_ROOT), &root) || root <= 0x10000) return 0;
-    uint32_t x = 0, y = 0;
-    if (!rd32((void *)(uintptr_t)(root + g_cam_off),     &x)) return 0;
-    if (!rd32((void *)(uintptr_t)(root + g_cam_off + 4), &y)) return 0;
-    *cx = (int)x; *cy = (int)y; return 1;
+    if (!rd32((void *)(uintptr_t)(root + g_cam_off), &cam) || cam <= 0x10000) return 0;
+    return cam;
+}
+// Resolve the world-view rect (top-left corner + span, all centi-px) from the camera object:
+// left = cur_x (cam+0x60), top = cur_y (cam+0x5c) — the EASED scroll origin (NOT the instant
+// player mirror); span from cam+0x64/+0x68 (so the resolution-enum zoom is handled).
+static int read_view(int *left, int *top, int *vw, int *vh) {
+    uint32_t cam = read_cam(), l = 0, t = 0, w = 0, h = 0;
+    if (!cam) return 0;
+    if (!rd32((void *)(uintptr_t)(cam + CAM_CUR_X), &l)) return 0;
+    if (!rd32((void *)(uintptr_t)(cam + CAM_CUR_Y), &t)) return 0;
+    rd32((void *)(uintptr_t)(cam + CAM_VP_W), &w);
+    rd32((void *)(uintptr_t)(cam + CAM_VP_H), &h);
+    if (w < 1000 || w > 4000000) w = 64000;   // fallback: 640px
+    if (h < 1000 || h > 4000000) h = 48000;    // fallback: 480px
+    *left = (int)l; *top = (int)t; *vw = (int)w; *vh = (int)h;
+    return 1;
 }
 // Map a cursor at client (mx,my) over a cw x ch game window to world centi-px.
 static int client_to_world(int mx, int my, int cw, int ch, int *wx_cpx, int *wy_cpx) {
-    int camx = 0, camy = 0;
-    if (cw <= 0 || ch <= 0 || !read_camera(&camx, &camy)) return 0;
-    *wx_cpx = camx + (int)((double)mx / cw * VIEW_W_PX * 100.0);
-    *wy_cpx = camy + (int)((double)my / ch * VIEW_H_PX * 100.0);
+    int left = 0, top = 0, vw = 0, vh = 0;
+    if (cw <= 0 || ch <= 0 || !read_view(&left, &top, &vw, &vh)) return 0;
+    *wx_cpx = left + (int)((double)mx / cw * vw);
+    *wy_cpx = top  + (int)((double)my / ch * vh);
     return 1;
 }
 
@@ -1214,19 +1248,15 @@ static void drain_engine_queue(void) {
 }
 
 // Per-frame engine-side work (run by the drain, so it happens IN the game loop, engine-side):
-//   freezes  — invincibility (hp=9999) / god (hp+mp=max) / setstat locks / fastskip reveal.
-//   mousefly — teleport the player to the cursor over the game window.
+//   freezes  — god (hp+mp = GOD_VAL 9999) / setstat locks / fastskip reveal.
+//   mousefly — teleport the player to the cursor over the game window (camera frozen).
 //   hotkeys  — F7 toggles mouse-fly.
 static void engine_freezes(void) {
-    if (g_god || g_invincible) {
+    if (g_god) {   // god = invincibility: pin hp+mp above max so nothing kills + free casting
         uintptr_t base = find_player(); uint32_t sb = 0;
         if (base && rd32((void *)(base + OFF_STATBLOCK), &sb)) {
-            int hp_pin = g_invincible ? INVINCIBLE_HP : stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
-            if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = hp_pin;
-            if (g_god) {
-                int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
-                if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = mpmax;
-            }
+            if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
+            if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
         }
     }
     EnterCriticalSection(&g_lock_cs);
@@ -1241,15 +1271,58 @@ static void engine_freezes(void) {
         dlg_force_reveal(g_dlg_grid);
     }
 }
+// Continuously teleport the player to the cursor over the game window.  The camera-follow would
+// otherwise scroll the view out from under the cursor (positive feedback -> runaway to the map
+// edge), so while flying we FREEZE the view: latch cur_x/cur_y at fly-start, pin cur+tgt to the
+// latch each frame, and map the cursor against the LATCH (a stable world rect) — she goes exactly
+// under the cursor and stays.  To still fly ACROSS the map, EDGE-SCROLL: when the cursor nears a
+// screen edge, pan the frozen latch that way (clamped to [0, map - viewport]), so the view follows
+// her toward the edges.  The view resumes normal follow when fly is turned off.
 static void engine_mousefly(void) {
-    if (!g_mousefly || !g_game_hwnd) return;
+    if (!g_mousefly || !g_game_hwnd) { g_fly_latched = 0; return; }
     POINT p; RECT rc;
-    if (GetCursorPos(&p) && GetClientRect(g_game_hwnd, &rc) && ScreenToClient(g_game_hwnd, &p)) {
-        int cw = rc.right - rc.left, ch = rc.bottom - rc.top;
-        if (p.x >= 0 && p.y >= 0 && p.x < cw && p.y < ch) {
-            int wx = 0, wy = 0;
-            if (client_to_world(p.x, p.y, cw, ch, &wx, &wy)) teleport_box(wx, wy, 1, 1, 0);
+    if (!(GetCursorPos(&p) && GetClientRect(g_game_hwnd, &rc) && ScreenToClient(g_game_hwnd, &p))) return;
+    int cw = rc.right - rc.left, ch = rc.bottom - rc.top;
+    if (cw <= 0 || ch <= 0) return;
+    uint32_t cam = read_cam(), t = 0;
+    int vw = 64000, vh = 48000, mw = 0, mh = 0;
+    if (cam) {
+        if (rd32((void *)(uintptr_t)(cam + CAM_VP_W), &t) && t > 1000 && t < 4000000) vw = (int)t;
+        if (rd32((void *)(uintptr_t)(cam + CAM_VP_H), &t) && t > 1000 && t < 4000000) vh = (int)t;
+        rd32((void *)(uintptr_t)(cam + CAM_MAP_W), &t); mw = (int)t;
+        rd32((void *)(uintptr_t)(cam + CAM_MAP_H), &t); mh = (int)t;
+        if (!g_fly_latched) {   // rising edge: latch the current eased scroll origin (view top-left)
+            uint32_t l = 0, tt = 0;
+            rd32((void *)(uintptr_t)(cam + CAM_CUR_X), &l);
+            rd32((void *)(uintptr_t)(cam + CAM_CUR_Y), &tt);
+            g_fly_fx = (int)l; g_fly_fy = (int)tt; g_fly_latched = 1;
         }
+    }
+    if (!g_fly_latched) return;
+    // edge-scroll the frozen latch when the cursor nears an edge, RAMPED by how deep into the zone
+    // the cursor is (0 at the zone boundary -> panmax at the very edge), clamped to the scroll range
+    int emx = cw / 5, emy = ch / 5, panmax = 360;   // outer 20% is the pan zone; ~3.6px/frame max
+    if      (p.x < emx)      g_fly_fx -= panmax * (emx - p.x) / (emx ? emx : 1);
+    else if (p.x > cw - emx) g_fly_fx += panmax * (p.x - (cw - emx)) / (emx ? emx : 1);
+    if      (p.y < emy)      g_fly_fy -= panmax * (emy - p.y) / (emy ? emy : 1);
+    else if (p.y > ch - emy) g_fly_fy += panmax * (p.y - (ch - emy)) / (emy ? emy : 1);
+    if (mw > 0 && mh > 0) {   // clamp to [0, map - viewport] (only when the map dims read sane)
+        int maxx = mw > vw ? mw - vw : 0, maxy = mh > vh ? mh - vh : 0;
+        if (g_fly_fx < 0) g_fly_fx = 0; else if (g_fly_fx > maxx) g_fly_fx = maxx;
+        if (g_fly_fy < 0) g_fly_fy = 0; else if (g_fly_fy > maxy) g_fly_fy = maxy;
+    }
+    // freeze the view at the (possibly panned) latch: pin cur + tgt so the easer parks it there
+    if (cam) {
+        if (mem_writable((void *)(uintptr_t)(cam + CAM_CUR_X), 4)) *(uint32_t *)(uintptr_t)(cam + CAM_CUR_X) = (uint32_t)g_fly_fx;
+        if (mem_writable((void *)(uintptr_t)(cam + CAM_CUR_Y), 4)) *(uint32_t *)(uintptr_t)(cam + CAM_CUR_Y) = (uint32_t)g_fly_fy;
+        if (mem_writable((void *)(uintptr_t)(cam + CAM_TGT_X), 4)) *(uint32_t *)(uintptr_t)(cam + CAM_TGT_X) = (uint32_t)g_fly_fx;
+        if (mem_writable((void *)(uintptr_t)(cam + CAM_TGT_Y), 4)) *(uint32_t *)(uintptr_t)(cam + CAM_TGT_Y) = (uint32_t)g_fly_fy;
+    }
+    // map the cursor against the frozen latch and place her there
+    if (p.x >= 0 && p.y >= 0 && p.x < cw && p.y < ch) {
+        int wx = g_fly_fx + (int)((double)p.x / cw * vw);
+        int wy = g_fly_fy + (int)((double)p.y / ch * vh);
+        teleport_box(wx, wy, 1, 1, 0);
     }
 }
 static void engine_hotkeys(void) {
@@ -1361,12 +1434,13 @@ int tc_get_status(tc_status *o) {
     o->hooks = (int)g_hooks_done;
     o->player_present = find_player() ? 1 : 0;
     o->at_title = (g_ti_mgr && !o->player_present) ? 1 : 0;
-    o->invincible = g_invincible; o->autoskip = g_autoskip; o->mousefly = g_mousefly;
+    o->autoskip = g_autoskip; o->mousefly = g_mousefly;
     o->dlgskip = g_dlgskip; o->god = g_god; o->keepactive = g_keepactive;
     o->attract = g_demo_saved; o->fastskip = g_fastskip;
     o->delta = (uint32_t)g_delta; o->base = (uint32_t)(ORIG_BASE + g_delta);
     o->ti_mgr = g_ti_mgr; o->pk_mgr = g_pk_mgr; o->game_hwnd = (uint32_t)(uintptr_t)g_game_hwnd;
-    o->cam_ok = read_camera(&o->cam_x, &o->cam_y);
+    int vw = 0, vh = 0;
+    o->cam_ok = read_view(&o->cam_x, &o->cam_y, &vw, &vh);   // cam_x/y = the view top-left corner
     return 1;
 }
 
@@ -1379,8 +1453,7 @@ void tc_teleport(int x, int y, int set_x, int set_y, int relative) {
 }
 void tc_set_toggle(const char *name, int on) {
     if (!name) return;
-    if      (!strcmp(name, "invincible")) g_invincible = on ? 1 : 0;
-    else if (!strcmp(name, "autoskip"))   dlg_autoskip(on);
+    if      (!strcmp(name, "autoskip"))   dlg_autoskip(on);
     else if (!strcmp(name, "mousefly"))   g_mousefly = on ? 1 : 0;
     else if (!strcmp(name, "dlgskip"))    g_dlgskip = on ? 1 : 0;
     else if (!strcmp(name, "god"))        g_god = on ? 1 : 0;
@@ -1390,8 +1463,7 @@ void tc_set_toggle(const char *name, int on) {
 }
 int tc_get_toggle(const char *name) {
     if (!name) return 0;
-    if      (!strcmp(name, "invincible")) return g_invincible;
-    else if (!strcmp(name, "autoskip"))   return g_autoskip;
+    if      (!strcmp(name, "autoskip"))   return g_autoskip;
     else if (!strcmp(name, "mousefly"))   return g_mousefly;
     else if (!strcmp(name, "dlgskip"))    return g_dlgskip;
     else if (!strcmp(name, "god"))        return g_god;
@@ -1476,13 +1548,13 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
             "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"autoskip\":%s,\"fastskip\":%s,"
-            "\"invincible\":%s,\"mousefly\":%s,\"box_open\":%s,\"box_scale\":%u,"
+            "\"god\":%s,\"mousefly\":%s,\"box_open\":%s,\"box_scale\":%u,"
             "\"md_state\":%d,\"md_slot\":%d,"
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
             g_dlgskip ? "true" : "false", g_autoskip ? "true" : "false", g_fastskip ? "true" : "false",
-            g_invincible ? "true" : "false", g_mousefly ? "true" : "false",
+            g_god ? "true" : "false", g_mousefly ? "true" : "false",
             dialogue_box_open(g_ti_mgr) ? "true" : "false",
             (unsigned)bsc, g_md_state, g_md_slot,
             g_ng_state, (unsigned)g_ti_mgr, (unsigned)g_pk_mgr);
@@ -1511,14 +1583,10 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "god")) {
+        // {"cmd":"god","on":true|false} — freeze hp+mp at 9999 each frame (invincible + free casting).
+        // DEFAULT ON.
         g_god = json_bool(line, "on", 1);
         snprintf(out, cap, "{\"ok\":true,\"god\":%s}", g_god ? "true" : "false");
-        return;
-    }
-    if (!strcmp(cmd, "invincible")) {
-        // {"cmd":"invincible","on":true|false} — freeze hp at 9999 each tick (DEFAULT ON).
-        g_invincible = json_bool(line, "on", 1);
-        snprintf(out, cap, "{\"ok\":true,\"invincible\":%s}", g_invincible ? "true" : "false");
         return;
     }
     if (!strcmp(cmd, "mousefly")) {
@@ -1526,6 +1594,21 @@ static void handle_line(const char *line, char *out, int cap) {
         // the game window (also toggled by F7).  Uses the camera + a 640x480 view to map client->world.
         g_mousefly = json_bool(line, "on", 1);
         snprintf(out, cap, "{\"ok\":true,\"mousefly\":%s}", g_mousefly ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "flyto")) {
+        // {"cmd":"flyto","mx":X,"my":Y} — map a GIVEN game-window client point to world + teleport
+        // there (the mouse-fly mapping, but for a specified point — validates the calibration without
+        // the live cursor).  Reports the client rect + the resolved world target.
+        long long mx, my;
+        if (!json_num(line, "mx", &mx) || !json_num(line, "my", &my)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"mx/my\"}"); return; }
+        RECT rc; int cw = 0, ch = 0;
+        if (g_game_hwnd && GetClientRect(g_game_hwnd, &rc)) { cw = rc.right - rc.left; ch = rc.bottom - rc.top; }
+        int wx = 0, wy = 0, ok = client_to_world((int)mx, (int)my, cw, ch, &wx, &wy);
+        if (ok) tc_teleport(wx, wy, 1, 1, 0);
+        char pj[512]; player_json(pj, sizeof pj);
+        snprintf(out, cap, "{\"ok\":%s,\"client_w\":%d,\"client_h\":%d,\"world_x\":%d,\"world_y\":%d,\"player\":%s}",
+                 ok ? "true" : "false", cw, ch, wx, wy, pj);
         return;
     }
     if (!strcmp(cmd, "setstat")) {
@@ -1635,30 +1718,34 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "view")) {
-        // {"cmd":"view"[,"off":0x104c]} — camera / mouse-fly calibration: dump render_root candidate
-        // fields (+0x1030..0x1060) with (box_x - val), so the camera-x offset is the one where that
-        // delta ~= 32000 (centi-px, half of the 640-px view).  Optionally set g_cam_off live.
+        // {"cmd":"view"[,"off":0x104c]} — mouse-fly camera diagnostic.  Reports the resolved world-view
+        // rect (left/top from cur_x/cur_y + span) from the camera object *(render_root+off), plus the
+        // player box for a sanity check (box_x should sit inside [left, left+vw]).  `off` tunes the
+        // render_root->camera pointer offset, live.
         long long off;
         if (json_num(line, "off", &off)) g_cam_off = (uint32_t)off;
-        uint32_t root = 0; rd32(AP(VA_RENDER_ROOT), &root);
+        uint32_t root = 0, cam = 0; rd32(AP(VA_RENDER_ROOT), &root);
+        if (root) rd32((void *)(uintptr_t)(root + g_cam_off), &cam);
         uintptr_t base = find_player(); uint32_t box = 0, bx = 0, btop = 0;
         if (base && rd32((void *)(base + OFF_BOX), &box) && box > 0x10000) {
             rd32((void *)((uintptr_t)box + BOX_X), &bx);
             rd32((void *)((uintptr_t)box + BOX_TOP), &btop);
         }
-        int camx = 0, camy = 0, cok = read_camera(&camx, &camy);
-        int n = snprintf(out, cap, "{\"ok\":true,\"render_root\":\"0x%08x\",\"cam_off\":\"0x%x\","
-                         "\"cam_ok\":%s,\"cam_x\":%d,\"cam_y\":%d,\"box_x\":%d,\"box_top\":%d,\"cands\":[",
-                         root, g_cam_off, cok ? "true" : "false", camx, camy, (int)bx, (int)btop);
-        for (uint32_t o = 0x1030; root && o <= 0x1060 && n < cap - 80; o += 4) {
-            uint32_t v = 0; rd32((void *)(uintptr_t)(root + o), &v);
-            n += snprintf(out + n, cap - n, "%s{\"off\":\"0x%x\",\"val\":%d,\"bx_minus\":%d}",
-                          o == 0x1030 ? "" : ",", o, (int)v, (int)bx - (int)v);
+        int left = 0, top = 0, vw = 0, vh = 0, cok = read_view(&left, &top, &vw, &vh);
+        int n = snprintf(out, cap, "{\"ok\":true,\"render_root\":\"0x%08x\",\"cam_obj\":\"0x%08x\","
+                         "\"cam_off\":\"0x%x\",\"cam_ok\":%s,"
+                         "\"view_left\":%d,\"view_top\":%d,\"view_w\":%d,\"view_h\":%d,"
+                         "\"box_x\":%d,\"box_top\":%d,\"cam_fields\":[",
+                         root, cam, g_cam_off, cok ? "true" : "false",
+                         left, top, vw, vh, (int)bx, (int)btop);
+        for (uint32_t o = 0x10; cam && o <= 0x70 && n < cap - 64; o += 4) {   // dump the camera object
+            uint32_t v = 0; rd32((void *)(uintptr_t)(cam + o), &v);
+            n += snprintf(out + n, cap - n, "%s{\"off\":\"0x%x\",\"val\":%d}", o == 0x10 ? "" : ",", o, (int)v);
         }
         snprintf(out + n, cap - n, "]}");
         return;
     }
-    if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; g_invincible = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
+    if (!strcmp(cmd, "unlock_all")) { lock_clear_all(); g_god = 0; snprintf(out, cap, "{\"ok\":true}"); return; }
     if (!strcmp(cmd, "call")) {
         // {"cmd":"call","va":"0x585cf0","a0":..,"a1":..,...,"ecx":"0x..","reloc":true}
         // Calls the engine fn; args a0..a7 (contiguous), ecx=this (thiscall).  Now runs on the

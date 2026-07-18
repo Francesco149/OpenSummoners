@@ -46,7 +46,7 @@ typedef struct {
 
 typedef struct {
     int      hooks, at_title, player_present;
-    int      invincible, autoskip, mousefly, dlgskip, god, keepactive, attract, fastskip;
+    int      autoskip, mousefly, dlgskip, god, keepactive, attract, fastskip;
     uint32_t delta, base, ti_mgr, pk_mgr, game_hwnd;
     int      cam_ok, cam_x, cam_y;    // camera top-left (centi-px) — the mouse-fly origin
 } tc_status;
@@ -66,7 +66,7 @@ int  tc_newgame(void);                           // BLOCKING; 1 = started
 void tc_hijack_exit(int slot, uint32_t target);  // change portal `slot`'s destination room
 void tc_revert_exit(int slot);                   // restore portal `slot`'s original destination
 void tc_setstat(const char *which, int value, int lock);   // hp/hp_max/mp/mp_max/level
-void     tc_set_cam_off(uint32_t off);           // live-tune the camera offset (mouse-fly calibration)
+void     tc_set_cam_off(uint32_t off);           // live-tune the render_root->camera pointer offset
 uint32_t tc_get_cam_off(void);
 
 // ── UI thread entry (trainer_ui.cpp; spawned from DllMain) ───────────────────

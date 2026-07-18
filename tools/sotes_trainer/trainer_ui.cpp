@@ -181,11 +181,10 @@ static void kv(const char* k, const char* fmt, ...) {
 // ── panels ───────────────────────────────────────────────────────────────────
 static void panel_cheats() {
     if (!ImGui::CollapsingHeader("Cheats", ImGuiTreeNodeFlags_DefaultOpen)) return;
-    toggle_row("invincible", "Invincibility (freeze HP 9999)", "Pin HP to 9999 every frame so nothing kills you. On by default.");
+    toggle_row("god",        "God (freeze HP + MP at 9999)",   "Pin HP and MP to 9999 every frame so nothing kills you and casting is free. On by default.");
     toggle_row("autoskip",   "Auto-skip dialogue (TAB)",       "Auto-advance ALL story/cutscene/NPC dialogue, hands-free. On by default; turn off to read or pick a choice.");
-    toggle_row("mousefly",   "Mouse-fly (F7)",                 "Continuously teleport the player to the cursor over the game window. Also toggled by F7.");
+    toggle_row("mousefly",   "Mouse-fly (F7)",                 "Continuously teleport the player to the cursor over the game window (view frozen while flying). Also toggled by F7.");
     ImGui::Spacing();
-    toggle_row("god",        "God (freeze HP + MP at max)",    "Pin HP and MP to their real maximums each frame.");
     toggle_row("fastskip",   "Instant text",                   "Snap the current dialogue line's typewriter reveal to the end (door-safe UI-state write).");
     toggle_row("dlgskip",    "Auto-advance open dialogue",     "Inject the advance buttons while a dialogue box is on screen.");
     ImGui::Spacing();
@@ -300,15 +299,16 @@ static void panel_saves(const tc_status& st) {
     ImGui::SameLine(); ImGui::TextDisabled("%d on disk", (int)g_saves.size());
     if (!st.at_title)
         ImGui::TextColored(COL_WARN, "loading is only available from the TITLE screen");
+    ImGui::TextDisabled("baseLv = the base stat level (the game shows an EXP-derived level).");
 
     ImGui::BeginChild("savelist", ImVec2(0, 190), true);
     for (const tc_save& sv : g_saves) {
         char label[160];
         if (sv.valid)
-            snprintf(label, sizeof label, "slot %-2d  %-14s  Lv%-3d  (%u B)", sv.slot,
-                     sv.party0[0] ? sv.party0 : "(party)", sv.level0, sv.file_size);
+            snprintf(label, sizeof label, "slot %-2d   %-12s   baseLv %-2d   %u KB", sv.slot,
+                     sv.party0[0] ? sv.party0 : "(party)", sv.level0, (unsigned)(sv.file_size / 1024));
         else
-            snprintf(label, sizeof label, "slot %-2d  <invalid>", sv.slot);
+            snprintf(label, sizeof label, "slot %-2d   <invalid>", sv.slot);
         if (ImGui::Selectable(label, g_save_sel == sv.slot)) g_save_sel = sv.slot;
     }
     ImGui::EndChild();
@@ -330,20 +330,20 @@ static void panel_saves(const tc_status& st) {
 
 static void panel_camera(const tc_status& st, const tc_player& pl, bool hasp) {
     if (!ImGui::CollapsingHeader("Mouse-fly / camera (advanced)")) return;
-    ImGui::TextWrapped("Mouse-fly maps the cursor over the game window to world coords using the "
-                       "camera top-left (render_root + offset) and a fixed 640x480 view. If the fly "
-                       "lands off-target, nudge the camera offset until 'world_x - cam_x' is about 32000.");
+    ImGui::TextWrapped("Mouse-fly maps the cursor over the game window to world coords via the view "
+                       "object *(render_root + offset): view top-left = the eased scroll origin "
+                       "(cur_x/cur_y), span 640x480. The view is frozen while flying so she stays under "
+                       "the cursor. The pointer offset is exposed only for a future game update.");
     if (st.cam_ok) {
-        kv("camera", "X %d  Y %d", st.cam_x, st.cam_y);
-        if (hasp) kv("world_x - cam_x", "%d  (aim ~32000)", pl.world_x - st.cam_x);
+        kv("view left/top", "%d , %d", st.cam_x, st.cam_y);
+        if (hasp) kv("world_x - left", "%d", pl.world_x - st.cam_x);
     } else {
         ImGui::TextColored(COL_WARN, "camera unreadable at offset 0x%x", (unsigned)tc_get_cam_off());
     }
     static int off = 0; if (off == 0) off = (int)tc_get_cam_off();
     ImGui::SetNextItemWidth(140);
-    ImGui::InputInt("cam offset (hex)##camoff", &off, 4, 16, ImGuiInputTextFlags_CharsHexadecimal);
-    ImGui::SameLine();
-    if (ImGui::Button("set offset")) tc_set_cam_off((uint32_t)off);
+    ImGui::InputInt("cam ptr offset (hex)##camoff", &off, 4, 16, ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::SameLine(); if (ImGui::Button("set##off")) tc_set_cam_off((uint32_t)off);
     kv("game window", "0x%08x", st.game_hwnd);
 }
 
