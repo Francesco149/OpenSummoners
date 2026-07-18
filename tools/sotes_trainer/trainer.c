@@ -126,6 +126,28 @@
                                      // 440220 sit exactly 0x158 apart; the global table is one
                                      // contiguous 0x158-strided run (427 rooms, all areas, this save).
 
+// ── raw-DINPUT injection (freeroam movement + the auto door-enter — RE'd + PROVEN 2026-07-18) ──
+// The keyboard device object = *(VA_KBD_OBJ).  kb_poll(0x5e2a10) fills the 256-byte IMMEDIATE DIK
+// buffer at kb_this+0x18 (GetDeviceState); the movement builder reads it via keydown, so writing
+// buf[0x18+DIK]=0x80 each frame AFTER kb_poll drives real movement (foreground-independent).  The
+// auto DOOR-ENTER is a discrete action off the BUFFERED press-EVENT path: buffered_read(0x5e2820)
+// fills a DIDEVICEOBJECTDATA[] event array at kb_this+0x14 (count at +0x10) via GetDeviceData, but
+// when the window is NOT foreground it returns 0 (INPUTLOST) so the consumer skips events.  FIX
+// (PROVEN): hook 0x5e2820, on return inject one UP press-event then (a few frames later) a release
+// into the event array + FORCE the return value to 1 -> the door-enter fires with no foreground.
+// See SE_CODE_MAP.md "Input / keyboard subsystem".  We hook both via MinHook (post/around detours).
+#define VA_KBPOLL       0x5e2a10     // __thiscall kb_poll(this): GetDeviceState -> this+0x18 imm buf
+#define VA_BUFRD        0x5e2820     // __thiscall buffered_read(this): GetDeviceData -> this+0x14 evts
+#define VA_KBD_OBJ      0x92d5bc     // global -> the keyboard device object (kb_this)
+#define KBD_IMM_BUF     0x18         // kb_this + 0x18 = 256-byte immediate DIK buffer (buf[dik]&0x80)
+#define KBD_EVT_ARR     0x14         // kb_this + 0x14 = DIDEVICEOBJECTDATA[] (0x10 B: ofs,data,ts,seq)
+#define KBD_EVT_CNT     0x10         // kb_this + 0x10 = buffered event count (in/out for GetDeviceData)
+#define DIK_UP    0xC8               // the 4 arrows are HARDCODED in the held-axis builder (~0x468e00)
+#define DIK_DOWN  0xD0
+#define DIK_LEFT  0xCB
+#define DIK_RIGHT 0xCD
+#define DOOR_TAP_HOLD_FRAMES 16      // frames between the injected UP press-event and its release
+
 // ── camera / mouse-fly (client cursor -> world) ──────────────────────────────
 // The CAMERA/VIEW OBJECT = *(render_root + g_cam_off) (g_cam_off = base analog +0x104c, a POINTER
 // in SE).  Its fields carry from base camera_follow.h (src/) — VERIFIED live (cal probes + the
@@ -927,6 +949,73 @@ static const char *dlg_hook_enable(int on) {
     return "disabled";
 }
 
+// ── raw-DINPUT injection detours (MinHook post/around; PROVEN — see the VA_KBPOLL block) ──
+// Movement: after kb_poll fills the immediate buffer, set the held DIKs to 0x80 + CLEAR the rest of
+// the movement keys (a stuck key parry-locks her).  Door-enter: after buffered_read, inject an UP
+// press-event then (a few frames later) a release into the keyboard event array + FORCE the return
+// to 1 so the consumer processes it with no foreground.  Both run on the engine thread (the input
+// refresh); the socket thread only flips g_move_hold / triggers g_door_state.
+typedef int (__attribute__((__thiscall__)) *kbpoll_fn)(void *self);
+typedef int (__attribute__((__thiscall__)) *bufrd_fn)(void *self);
+static kbpoll_fn g_kbpoll_orig;
+static bufrd_fn  g_bufrd_orig;
+static volatile int      g_move_hold;      // bitmask: 1=UP 2=DOWN 4=LEFT 8=RIGHT (held this frame)
+static volatile int      g_door_state;     // door-enter FSM: 0 idle, 1 press, 2 wait, 3 release
+static volatile int      g_door_wait;      // frames left in the wait phase
+static volatile uint32_t g_door_seq;       // dwSequence counter for injected events
+static const int G_MOVE_DIK[4] = { DIK_UP, DIK_DOWN, DIK_LEFT, DIK_RIGHT };
+
+static int __attribute__((__thiscall__)) kbpoll_detour(void *self) {
+    int ret = g_kbpoll_orig(self);          // GetDeviceState fills self+0x18
+    if (g_move_hold && self && self == *(void **)AP(VA_KBD_OBJ) &&
+        mem_writable((char *)self + KBD_IMM_BUF, 0x100)) {
+        uint8_t *buf = (uint8_t *)self + KBD_IMM_BUF;
+        for (int i = 0; i < 4; ++i) buf[G_MOVE_DIK[i]] = (g_move_hold & (1 << i)) ? 0x80 : 0x00;
+    }
+    return ret;
+}
+// Write one DIDEVICEOBJECTDATA event {ofs=DIK_UP, data} into the keyboard event array + count=1.
+static void kbd_inject_evt(void *self, uint32_t data) {
+    uint8_t *arr = *(uint8_t **)((char *)self + KBD_EVT_ARR);
+    if (!arr || !mem_writable(arr, 0x10)) { g_door_state = 0; return; }
+    *(uint32_t *)(arr + 0x0) = DIK_UP;
+    *(uint32_t *)(arr + 0x4) = data;                 // 0x80 press / 0x00 release
+    *(uint32_t *)(arr + 0x8) = GetTickCount();
+    *(uint32_t *)(arr + 0xc) = ++g_door_seq;
+    *(uint32_t *)((char *)self + KBD_EVT_CNT) = 1;   // one event this read
+}
+static int __attribute__((__thiscall__)) bufrd_detour(void *self) {
+    int ret = g_bufrd_orig(self);           // GetDeviceData (returns 0 when not-foreground)
+    if (g_door_state && self && self == *(void **)AP(VA_KBD_OBJ)) {
+        if (g_door_state == 1) {                       // inject the press-event
+            kbd_inject_evt(self, 0x80);
+            if (g_door_state) { ret = 1; g_door_state = 2; g_door_wait = DOOR_TAP_HOLD_FRAMES; }
+        } else if (g_door_state == 2) {                // hold (no event) until the release
+            if (--g_door_wait <= 0) g_door_state = 3;
+        } else if (g_door_state == 3) {                // inject the release-event
+            kbd_inject_evt(self, 0x00);
+            if (g_door_state) { ret = 1; g_door_state = 0; }
+        }
+    }
+    return ret;
+}
+static volatile int g_kbd_hooks_on;
+static const char *kbd_hooks_enable(void) {   // lazy + idempotent; self-inits MinHook (call from a cmd)
+    if (g_kbd_hooks_on) return "already-on";
+    if (!g_minhook_inited) {
+        MH_STATUS s = MH_Initialize();
+        if (s != MH_OK && s != MH_ERROR_ALREADY_INITIALIZED) return "MH_Initialize failed";
+        g_minhook_inited = 1;
+    }
+    if (MH_CreateHook((LPVOID)AP(VA_KBPOLL), (LPVOID)&kbpoll_detour, (LPVOID *)&g_kbpoll_orig) != MH_OK
+        || MH_CreateHook((LPVOID)AP(VA_BUFRD), (LPVOID)&bufrd_detour, (LPVOID *)&g_bufrd_orig) != MH_OK)
+        return "MH_CreateHook(kbd) failed";
+    if (MH_EnableHook((LPVOID)AP(VA_KBPOLL)) != MH_OK || MH_EnableHook((LPVOID)AP(VA_BUFRD)) != MH_OK)
+        return "MH_EnableHook(kbd) failed";
+    g_kbd_hooks_on = 1;
+    return "enabled";
+}
+
 static volatile LONG g_hooks_done;
 static void ensure_hooks(void) {
     if (InterlockedCompareExchange(&g_hooks_done, 1, 0) != 0) return;   // install once
@@ -958,6 +1047,9 @@ static void ensure_hooks(void) {
     // capture needs a non-SEH target (the per-tick stepper) or a pointer-chain instead. (void)pg;
     (void)pg;
     suspend_others(0);
+    // The raw-DINPUT kbd hooks (movement + door-enter) are installed LAZILY on first use
+    // (doorenter/hold), NOT here — installing/using them during the game's boot-time input-device
+    // activation crashed it.  See kbd_hooks_enable + the doorenter/hold handlers.
     vlog("[hooks] installed: title 0x437c70, picker 0x4378d0, tramp=%p", base);
 }
 
@@ -2080,6 +2172,32 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap, "{\"ok\":true,\"pressed\":%d,\"n\":%d,\"mgr\":\"0x%08x\"}", (int)btn, (int)cnt, (unsigned)mgr);
         return;
     }
+    if (!strcmp(cmd, "doorenter")) {
+        // {"cmd":"doorenter"} — fire the game's OWN door-enter: inject an UP press-event (then a
+        // release ~16 frames later) into the buffered keyboard event queue + FORCE the read to
+        // succeed, so the door handler transitions.  She must be standing ON a door zone (teleport
+        // there first).  Foreground-INDEPENDENT.  Returns immediately — poll `map` for the change.
+        if (!g_kbd_hooks_on) { const char *e = kbd_hooks_enable();   // lazy install (after boot)
+            if (!g_kbd_hooks_on) { snprintf(out, cap, "{\"ok\":false,\"error\":\"kbd hook: %s\"}", e); return; } }
+        if (g_door_state) { snprintf(out, cap, "{\"ok\":false,\"error\":\"door-enter in progress\"}"); return; }
+        g_door_state = 1;                                  // engine thread runs press->wait->release
+        snprintf(out, cap, "{\"ok\":true,\"doorenter\":\"armed\"}");
+        return;
+    }
+    if (!strcmp(cmd, "hold")) {
+        // {"cmd":"hold","mask":N} — hold freeroam movement keys each frame (bitmask 1=UP 2=DOWN
+        // 4=LEFT 8=RIGHT); mask 0 clears.  Maintained until changed; unheld movement keys are
+        // cleared each frame so nothing sticks (a stuck key parry-locks her).  Foreground-independent
+        // (writes the immediate DIK buffer after the poll).  Walk: teleport is usually simpler.
+        long long m;
+        if (!json_num(line, "mask", &m)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no mask\"}"); return; }
+        if (!g_kbd_hooks_on) { const char *e = kbd_hooks_enable();   // lazy install (after boot)
+            if (!g_kbd_hooks_on) { snprintf(out, cap, "{\"ok\":false,\"error\":\"kbd hook: %s\"}", e); return; } }
+        g_move_hold = (int)m;
+        snprintf(out, cap, "{\"ok\":true,\"hold_mask\":%d}", (int)m);
+        return;
+    }
+    if (!strcmp(cmd, "release")) { g_move_hold = 0; snprintf(out, cap, "{\"ok\":true,\"hold_mask\":0}"); return; }
     if (!strcmp(cmd, "attract")) {
         // {"cmd":"attract","freeze":true|false} — patch/unpatch the title idle->demo
         // trigger so the title stays up indefinitely (no engine hooks needed).
