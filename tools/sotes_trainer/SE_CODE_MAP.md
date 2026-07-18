@@ -169,5 +169,26 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
    safepoint (highest crash risk). VERIFIED live (crash-free, USER-driven): tower 440220→440210→…
    is a clean chain (each room's exits link neighbors); `map` re-reads `*0x92dd38` so it's always the
    current room. LIGHT hooks on the dispatcher are safe; only the rebuild/commit hook crashes.
+
+   **UPDATE — the transition is MULTI-PATH (caching), so there is no single "the transition fn":**
+   render-root global `0x92dd38` has 6 writers — TEARDOWN `0x581a30` (frees old root, sets global 0);
+   the full REBUILD `0x5ac6f2/0x5ac93e/0x5ac98d` (inside `0x5ac830`); and `0x5c84e1/0x5c89e4` (inside
+   the transition fn `0x5c83c0`, whose 5 callers = 0x5c7a5d/0x5ca2db/0x5ca6b5/0x5caca4/0x5cb124). The
+   rebuild `0x5ac830` has 2 direct callers: `0x5a6e12` (in `0x5a6010`, called by the deferred
+   transition `0x5cb460`) and `0x5c861e` (in `0x5c83c0`). BUT hopping between ALREADY-LOADED adjacent
+   rooms (tower 440210<->440220) takes a lightweight CACHED/POOLED fast-path that reuses a pooled
+   render-root and hits NONE of {0x5a6010, 0x5cb460, 0x5c83c0, rebuild} — only the FIRST uncached load
+   of a room hits the rebuild (proven: storage-room entry hit `0x5ac9ce`; the tower hops fired no
+   hook). So a single direct-call "go to room X" is hard — the door-use handler dispatches
+   cached-vs-rebuild and reads UP internally.
+
+   **VALIDATED fast-travel PRIMITIVE (USER-driven, crash-free): teleport onto a door spot + press UP =
+   correct transition** (tested 440210->440220 from a TELEPORTED position). So the robust auto path =
+   teleport to the target door, then make the game's OWN door handler fire. Two ways without reversing
+   the multi-path transition: (i) force the freeroam UP INPUT STATE briefly at the door (the handler
+   then dispatches everything) — needs the DINPUT held-keys field; NOTE freeroam movement is DINPUT,
+   NOT the button ring (injecting ring ids 1..20 moved Arche 0px and one opened the PAUSE MENU);
+   (ii) reverse the door-use handler + call its transition branch (harder). NEXT: find the DINPUT UP
+   field (path i) — the cleanest auto-fast-travel.
 3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
    BFS pathfinding (roadmap #5).
