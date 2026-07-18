@@ -148,19 +148,26 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
 1. ✅ DONE — SE render-root chain `*0x92dd38 → +0x1038 room_record` (room_key/area/scene/exits). The
    trainer `map` query reads this. (Found via the decode-caller `0x5ad443`, verified live vs a real
    door entry into the storage room = 0x334dd / DATA 1026.)
-2. **SE transition fn to FORCE a room change** (roadmap #4). CAPTURED live (storage room 0x334dd →
-   committed room **210140/DATA 1025**, the shop — validates the exit graph): the room-record COMMIT
-   is `0x5ac9ce` (`mov [render_root+0x1038],ecx`) inside the render-root REBUILD fn (`alloc(0x37c4)`
-   new root; `+0x1044`=map_obj, `+0x1038`=room_record; entry ~0x5ac8xx, SEH-scoped). Only reliable
-   caller frame (ACCURATE bt; deeper frames were FPO garbage): rebuild ← **`0x4a1c60`** (call @
-   `0x52613f`, ret 0x526144). **`0x4a1c60` is a GENERIC COMMAND DISPATCHER** (thiscall ecx=obj,
-   variadic; called all over as `push <hash 0x35a4e902…>; push <name-ptr 0x905ce8…>; …; call
-   0x4a1c60`) — i.e. a ROOM LOAD is a *command* sent through it (the base game's event/command
-   system, same shape as the `0x402730` actor "push command" moves). ⚠ DO NOT frida-hook the
-   rebuild/commit — mid-scene-teardown (free+realloc) + a trampoline/stack-walk there CRASHES the
-   game (observed). Force path (crash-free): RE the room-load COMMAND args to `0x4a1c60` (the
-   command id/name/hash + the target room key), then send it via the trainer's engine-thread
-   safepoint `call` (like `load`), OR reverse the `0x4c1ca0` intro setter's own commit+trigger.
-   Test bed: the Archmage's Tower save (room 440220 → exits 440210/440230); relaunch on any crash.
+2. **SE transition fn to FORCE a room change** (roadmap #4) — MECHANISM TRACED, no clean call yet.
+   The render-root REBUILD fn is **`0x5ac830`** (`__thiscall`, SEH-scoped, 0x1bd20 stack frame;
+   `alloc(0x37c4)` new root → `*0x92dd38`; commits room_record @`+0x1038` via `0x5ac9ce`, map_obj
+   @`+0x1044`). Its ONLY two callers (found by `grep 'call 0x5ac830'` — reliable, unlike the FPO
+   backtrace that falsely fingered `0x4a1c60`):
+   - **`0x5a6e12`** (fn ~0x5a6xxx) = the DOOR/portal path. Setup reads `[ebp+0x4104]` (the MAP
+     OBJECT's map_id) + `esi+0x10/+0x14`, builds ~13 args, `this`=eax (a transition context from
+     `0x5ac6b0`), pushes ebp(map_obj) last. So the transition is KEYED OFF THE MAP OBJECT'S STATE,
+     not a plain room key.
+   - **`0x5c861e`** (fn ~0x5c8xxx, near the load transition `0x5cb460`) = the save-LOAD path.
+   ⚒ NO simple "enter room(key)" exists — a direct call would need the whole context reconstructed
+   (the base `0x5cb460` direct-call crashed for exactly this reason, DESIGN session 3). ⚠ Also DO NOT
+   frida-hook the rebuild/commit (mid-teardown free+realloc → CRASH). **Three realistic force paths
+   (next session):** (a) set the MAP OBJECT's target (`map_obj+0x4104` map_id / `+0x4024` room_key,
+   both writable) + find & set the pending-transition TRIGGER the door handler flips, then let the
+   game rebuild itself (cleanest, needs the trigger flag); (b) SIMULATE the door input — teleport
+   onto a door tile + inject UP (needs DINPUT-level injection, the door handler then does everything
+   right); (c) reverse the full `0x5a6xxx` arg setup + `0x5ac6b0` context and call `0x5ac830` on the
+   safepoint (highest crash risk). VERIFIED live (crash-free, USER-driven): tower 440220→440210→…
+   is a clean chain (each room's exits link neighbors); `map` re-reads `*0x92dd38` so it's always the
+   current room. LIGHT hooks on the dispatcher are safe; only the rebuild/commit hook crashes.
 3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
    BFS pathfinding (roadmap #5).
