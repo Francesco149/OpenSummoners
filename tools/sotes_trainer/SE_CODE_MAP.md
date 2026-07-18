@@ -109,10 +109,21 @@ reach) — a full WITHIN-AREA warp to any resident room. The door ZONE is a rang
 coarse teleport sweep (step ≤1500) reliably lands on it; a single teleport can miss the edge. Each
 transition does a fresh REBUILD (render_root changes) and fires **`0x5ac6b0`** (the door/scene entry;
 observed args `[0,0x2738,0,ptr,0x2,TARGET_ROOM_RECORD,ptr,1]` — a5 = the target room record), NOT
-`0x5a6010`/`0x5c83c0`. Cross-AREA still needs the target area's W-map (chain via real boundary portals,
-the USER plan). **NEXT: bake the forced-retval buffered inject + the movement inject into the trainer
-(a `warp room=K` cmd = BFS the graph → per hop hijack + teleport-to-door-sweep + door-tap).** Tools:
-`scratchpad/kbinject.py` (movement), `bufsweep2.py` (the SOLVED door-driver + sweep), `watch_transition.py`.
+`0x5a6010`/`0x5c83c0`.
+
+### ✅✅✅ BAKED + CROSS-REGION WARP WORKS (2026-07-18) — the deliverable
+BAKED into the trainer (`trainer.c`, MinHook post/around detours on `kb_poll 0x5e2a10` +
+`buffered_read 0x5e2820`, installed LAZILY on first use — hooking during the game's boot-time
+input-device activation CRASHES it, so NOT at boot): commands **`doorenter`** (fire the door-enter),
+**`hold mask=N`** (1=UP 2=DOWN 4=LEFT 8=RIGHT movement) / **`release`**.  Driver **`warp.py <room>`**
+= the CROSS-REGION router: BFS the live `rooms` graph, per hop — same-AREA hop = hijack ALL exits →
+next + teleport-sweep + `doorenter` (direct, resident); cross-AREA hop = sweep WITHOUT hijack + take
+the door into the next area (a wrong same-area door → warp back + resume; the REAL boundary portal
+loads the next area's W-map, so NO crash).  Re-plans from the actual room each hop.  **VERIFIED live
+end-to-end:** Archmage's Tower 440230 → 440210 → 440110 (within-area) → the real 440110→**420240**
+boundary portal = a DIFFERENT AREA (420), no crash.  Cross-region fast-travel to any graph-reachable
+room.  (Slow: each hop is a teleport-sweep; a future speedup = read exit door POSITIONS from the scene
+to skip the sweep.)
 
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |
