@@ -248,5 +248,14 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
    NOT the button ring (injecting ring ids 1..20 moved Arche 0px and one opened the PAUSE MENU);
    (ii) reverse the door-use handler + call its transition branch (harder). NEXT: find the DINPUT UP
    field (path i) — the cleanest auto-fast-travel.
-3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
-   BFS pathfinding (roadmap #5).
+3. **Room-record TABLE walk → the full map list/graph (NEXT SESSION, USER-set).** The trainer's
+   `rooms` command (`tc_get_rooms`) currently seeds from the CURRENT room record
+   (`*(*0x92dd38+0x1038)`) and walks ±0x150 while `room_rec_valid` — but that returns ONLY the
+   current room (live symptom: in room **440220** the portal-destination picker offers just 440220,
+   so both doors loop back to the same map). So the live/current room record is NOT contiguous with
+   the static table (likely a live COPY), or the neighbours fail the (key/area/scene) predicate.
+   FIX next session: find the REAL room table (the `0x1f39xxxx` heap block, 0x150 B/record) — e.g.
+   scan for the run of valid records, or trace who fills it — and enumerate ALL rooms → the fuzzy
+   warp-destination list + the map GRAPH for BFS. Pair with #2 (cross-region warp: chain within-area
+   hijack-warps through real boundary portals; "Cross-region PLAN" above) — the two are the session's
+   agenda ("querying the available maps in general" + cross-region).
