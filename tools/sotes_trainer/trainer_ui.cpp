@@ -205,7 +205,7 @@ static void panel_character() {
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Auto-follow whichever party member you currently control.");
     for (const tc_char& c : g_chars) {
         char lbl[64];
-        snprintf(lbl, sizeof lbl, "%s%s   cLv %d", c.name, c.active ? "  [active]" : "", c.combat_level_max);
+        snprintf(lbl, sizeof lbl, "%s%s   cLvMax %d", c.name, c.active ? "  [active]" : "", c.combat_level_max);
         if (ImGui::RadioButton(lbl, tgt == c.code)) tc_set_target(c.code);
     }
     if (g_chars.empty()) ImGui::TextDisabled("(no party members — load a game)");
@@ -322,13 +322,13 @@ static void panel_saves(const tc_status& st) {
     ImGui::SameLine(); ImGui::TextDisabled("%d on disk", (int)g_saves.size());
     if (!st.at_title)
         ImGui::TextColored(COL_WARN, "loading is only available from the TITLE screen");
-    ImGui::TextDisabled("cLv = max combat level (stat +0xe0 / HUD stars), not the display level.");
+    ImGui::TextDisabled("cLvMax = max combat level (stat +0xe0 / HUD stars), not the display level.");
 
     ImGui::BeginChild("savelist", ImVec2(0, 190), true);
     for (const tc_save& sv : g_saves) {
         char label[160];
         if (sv.valid)
-            snprintf(label, sizeof label, "slot %-2d   %-12s   cLv %-2d   %u KB", sv.slot,
+            snprintf(label, sizeof label, "slot %-2d   %-12s   cLvMax %-2d   %u KB", sv.slot,
                      sv.party0[0] ? sv.party0 : "(party)", sv.level0, (unsigned)(sv.file_size / 1024));
         else
             snprintf(label, sizeof label, "slot %-2d   <invalid>", sv.slot);
