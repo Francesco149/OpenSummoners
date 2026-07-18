@@ -1,16 +1,17 @@
-# tools/ennse_voice/Makefile — EN-SE JP-voice patch (proxy version.dll).
+# tools/ennse_voice/Makefile — EN-SE JP-voice patch (a mod_loader mod).
 #
-# Builds the drop-in version.dll that adds Japanese dialogue voice to the retail
-# English special edition (sotes_en.exe).  See README.md for install/how-it-works.
+# Builds the mod DLL that adds Japanese dialogue voice to the retail English special
+# edition (sotes_en.exe).  Loaded by ../mod_loader (the generic proxy version.dll) from
+# the game's mods\ folder.  See README.md for install/how-it-works.
 #
-#   nix develop --command make -C tools/ennse_voice     # -> build/version.dll
+#   nix develop --command make -C tools/ennse_voice     # -> build/ennse_voice.dll
 
 CC    := i686-w64-mingw32-gcc
 BUILD := ../../build
-OUT   := $(BUILD)/version.dll
+OUT   := $(BUILD)/ennse_voice.dll
 
-$(OUT): version_proxy.c version.def | $(BUILD)
-	$(CC) -shared -O2 -s -o $@ version_proxy.c version.def
+$(OUT): ennse_voice.c | $(BUILD)
+	$(CC) -shared -O2 -s -o $@ ennse_voice.c
 
 $(BUILD):
 	mkdir -p $(BUILD)

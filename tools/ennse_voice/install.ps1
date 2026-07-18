@@ -1,6 +1,7 @@
 # Fortune Summoners (English SE) - Japanese Voice Patch : offline installer.
-# (Bundled in ennse-voice-patch.zip; uses the version.dll sitting next to it.)
-# The paste-and-run one-liner (web-install.ps1) is the easy path - see README.
+# (Bundled in ennse-voice-patch.zip.)  Installs the generic mod loader (version.dll)
+# plus the voice mod (mods\ennse_voice.dll).  The paste-and-run one-liner
+# (web-install.ps1) is the easy path - see README.
 #
 # ASCII-ONLY on purpose: Windows PowerShell 5.1 reads scripts as the system ANSI
 # codepage, so any non-ASCII byte (em-dash, ellipsis) corrupts parsing.
@@ -91,12 +92,15 @@ if (-not $jp -or -not (Test-Path $jp)) {
 Good "found: $jp"
 Write-Host ""
 
-# 3. install
+# 3. install : mod loader (version.dll) + realver.dll + mods\ennse_voice.dll + sotesx_s.dll
 $realver = Join-Path $env:WINDIR 'SysWOW64\version.dll'
 if (-not (Test-Path $realver)) { $realver = Join-Path $env:WINDIR 'System32\version.dll' }
+$mods = Join-Path $game 'mods'
 Step "Installing"
 Copy-Item $realver (Join-Path $game 'realver.dll') -Force; Good "realver.dll  (forwards the real version.dll)"
-Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Good "version.dll  (the patch)"
+Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Good "version.dll  (the mod loader)"
+if (-not (Test-Path $mods)) { New-Item -ItemType Directory -Path $mods | Out-Null }
+Copy-Item (Join-Path $here 'ennse_voice.dll') (Join-Path $mods 'ennse_voice.dll') -Force; Good "mods\ennse_voice.dll  (the voice patch)"
 $dst = Join-Path $game 'sotesx_s.dll'
 $sameFile = (Test-Path $dst) -and ((Resolve-Path $jp).Path -ieq (Resolve-Path $dst).Path)
 if ($sameFile) {

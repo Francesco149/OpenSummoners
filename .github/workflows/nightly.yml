@@ -47,12 +47,15 @@ jobs:
       - name: Build — resource explorer (res_explorer.exe)
         run: nix develop .#ci --command make -C tools/res_explorer
 
-      - name: Build — EN-SE voice patch (version.dll)
+      - name: Build — mod loader (version.dll)
+        run: nix develop .#ci --command make -C tools/mod_loader
+
+      - name: Build — EN-SE voice patch (mods/ennse_voice.dll)
         run: nix develop .#ci --command make -C tools/ennse_voice
 
       - name: Gate — no embedded game assets
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
-             build/opensummoners.exe build/res_explorer.exe build/version.dll
+             build/opensummoners.exe build/res_explorer.exe build/version.dll build/ennse_voice.dll
 
       - name: Package — voice patch zip
         run: nix develop .#ci --command bash tools/ci/package_patch.sh
@@ -101,4 +104,5 @@ jobs:
               --title Nightly --notes-file release-notes.md --target "$GITHUB_SHA"
           fi
           retry gh release upload nightly --clobber \
-            build/opensummoners.exe build/res_explorer.exe build/version.dll build/ennse-voice-patch.zip
+            build/opensummoners.exe build/res_explorer.exe \
+            build/version.dll build/ennse_voice.dll build/ennse-voice-patch.zip

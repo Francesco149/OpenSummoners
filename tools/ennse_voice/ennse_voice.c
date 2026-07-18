@@ -1,4 +1,4 @@
-// tools/ennse_voice/version_proxy.c — EN-SE JP-voice patch (proxy version.dll).
+// tools/ennse_voice/ennse_voice.c — EN-SE JP-voice patch (a mod_loader mod).
 //
 // The EN special edition (sotes_en.exe) still contains the ENTIRE voice subsystem
 // (trigger + play, byte-identical to the JP engine); the localizer only removed the
@@ -6,19 +6,19 @@
 // but dead — gated on two globals that are never set:
 //     voice-bank handle  DAT_0092af80   (never written -> null)
 //     voice-manager      DAT_0092b76c   (created only if the bank is non-null)
-// So this DLL just RE-SEEDS those two globals with the engine's OWN functions, then
+// So this mod just RE-SEEDS those two globals with the engine's OWN functions, then
 // the engine plays voice using its own per-line mapping (read from the byte-identical
 // sotesd.dll). See docs/plans/ennse-voice-patch.md.
 //
-// Deploys as a proxy version.dll. sotes_en.exe imports version.dll (and queries some
-// exports dynamically), so ALL 17 exports are forwarded to realver.dll (a renamed copy
-// of the user's own SysWOW64\version.dll) via version.def; this .c only runs the seed.
+// Ships as a plain mod DLL loaded by ../mod_loader (the generic proxy version.dll).  The
+// loader forwards the real version.dll and LoadLibrarys every mods\*.dll — this mod is
+// mods\ennse_voice.dll; it only runs the seed (no export forwarding of its own anymore).
 //
-// INSTALL (…\steamapps\common\sotes\): version.dll (this) + realver.dll (copy of
-// SysWOW64\version.dll) + sotesx_s.dll (the JP voice bank). Then launch normally.
+// INSTALL (…\steamapps\common\sotes\): version.dll (mod_loader) + realver.dll (copy of
+// SysWOW64\version.dll) + mods\ennse_voice.dll (this) + sotesx_s.dll (the JP voice bank).
+// The patch's one-liner installs all of it.  Then launch normally.
 //
-//   nix develop --command i686-w64-mingw32-gcc -shared -O2 -s \
-//     -o build/version.dll tools/ennse_voice/version_proxy.c tools/ennse_voice/version.def
+//   nix develop --command make -C tools/ennse_voice     # -> build/ennse_voice.dll
 
 #include <windows.h>
 #include <stdio.h>

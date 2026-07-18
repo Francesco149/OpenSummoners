@@ -27,12 +27,14 @@ Japanese engine. The English localizer only removed the **loader** (the one call
 loads `sotesx_s.dll` and remembers its handle). So the play path is all there, just
 switched off because two globals are never set.
 
-This patch is a proxy `version.dll`: the game already loads `version.dll`, so ours gets
-loaded too, forwards the real version-info functions to a renamed copy of your own
-system `version.dll` (`realver.dll`), and — once the audio system is up — calls the
-engine's *own* functions to load `sotesx_s.dll` and create the voice manager, setting
-those two globals. From there the engine plays the voice on its own, using its own
-per-line mapping (the voice-id data is already present in the shared `sotesd.dll`).
+This patch ships as a **mod** for the generic [mod loader](../mod_loader/) (the drop-in
+`version.dll` — the game already loads `version.dll`, so the loader gets loaded too,
+forwards the real version-info functions to a renamed copy of your own system
+`version.dll`/`realver.dll`, and loads every `mods\*.dll`). Our mod
+(`mods\ennse_voice.dll`) — once the audio system is up — calls the engine's *own*
+functions to load `sotesx_s.dll` and create the voice manager, setting those two globals.
+From there the engine plays the voice on its own, using its own per-line mapping (the
+voice-id data is already present in the shared `sotesd.dll`).
 
 ## What you need
 
@@ -88,10 +90,11 @@ From [`ennse-voice-patch.zip`](https://github.com/Francesco149/OpenSummoners/rel
 run **`Install.bat`** — it auto-detects the game folder and your JP `sotesx_s.dll`
 (file-picker fallback) and copies everything in.
 
-Or place these three files in `…\steamapps\common\sotes\` by hand:
-1. `version.dll`  — this patch (from the zip, or `build/version.dll`).
-2. `realver.dll`  — a copy of `C:\Windows\SysWOW64\version.dll`.
-3. `sotesx_s.dll` — the JP voice bank (from your Japanese special edition).
+Or place these files in `…\steamapps\common\sotes\` by hand:
+1. `version.dll`          — the mod loader (from the zip, or `build/version.dll`).
+2. `realver.dll`          — a copy of `C:\Windows\SysWOW64\version.dll`.
+3. `mods\ennse_voice.dll` — this patch (from the zip, or `build/ennse_voice.dll`).
+4. `sotesx_s.dll`         — the JP voice bank (from your Japanese special edition).
 
 Then launch normally (Steam). The first voiced line (Arche's dad, right at the start)
 should be spoken in Japanese.
@@ -99,8 +102,9 @@ should be spoken in Japanese.
 ## Uninstall
 
 Re-run the one-liner and choose **uninstall** — or run `Uninstall.bat` from the zip, or
-delete `version.dll`, `realver.dll`, `sotesx_s.dll` (and `oss_voice.log`) from the game
-folder by hand. The game is otherwise untouched.
+delete `mods\ennse_voice.dll`, `sotesx_s.dll` (and `oss_voice.log`) by hand. It leaves the
+mod loader (`version.dll`/`realver.dll`) in place if you have other mods in `mods\`; delete
+those too for a full revert to vanilla. The game is otherwise untouched.
 
 ## Troubleshooting
 
@@ -115,4 +119,5 @@ folder by hand. The game is otherwise untouched.
 ImageBase `0x400000`; resolved at runtime against the module base, so ASLR/rebase is fine).
 If Steam updates the game, re-verify the addresses in `docs/plans/ennse-voice-patch.md`.
 
-Build: `nix develop --command make -C tools/ennse_voice` → `build/version.dll`.
+Build: `nix develop --command make -C tools/ennse_voice` → `build/ennse_voice.dll` (the mod).
+The generic loader is separate: `nix develop --command make -C tools/mod_loader` → `build/version.dll`.

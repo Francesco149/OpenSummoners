@@ -1,5 +1,5 @@
 # Fortune Summoners (English SE) - Japanese Voice Patch : uninstaller.
-# Removes the patch files; leaves the game otherwise untouched. ASCII-only.
+# Removes the voice mod; keeps the mod loader if other mods remain. ASCII-only.
 $ErrorActionPreference = 'SilentlyContinue'
 function Step($m){ Write-Host "[*] $m" -ForegroundColor Cyan }
 function Good($m){ Write-Host "[+] $m" -ForegroundColor Green }
@@ -39,11 +39,20 @@ if (-not $game) {
 }
 if (-not $game) { Warn "No folder selected - nothing removed."; Read-Host "Press Enter to exit"; exit }
 
-Step "Removing patch files from: $game"
-foreach ($f in 'version.dll','realver.dll','sotesx_s.dll','oss_voice.log') {
-  $p = Join-Path $game $f
-  if (Test-Path $p) { Remove-Item $p -Force; Good "removed $f" }
+$modsDir = Join-Path $game 'mods'
+Step "Removing the voice patch from: $game"
+foreach ($f in (Join-Path $modsDir 'ennse_voice.dll'),(Join-Path $game 'sotesx_s.dll'),(Join-Path $game 'oss_voice.log')) {
+  if (Test-Path $f) { Remove-Item $f -Force; Good ("removed " + (Split-Path $f -Leaf)) }
 }
-Write-Host ""
-Good "Uninstalled - the game is back to vanilla (English text, no voice)."
+# Remove the loader too, but ONLY if no other mods remain (keeps it for the trainer etc.)
+$others = @(Get-ChildItem $modsDir -Filter *.dll -EA SilentlyContinue)
+if ($others.Count -eq 0) {
+  foreach ($f in (Join-Path $game 'version.dll'),(Join-Path $game 'realver.dll'),(Join-Path $game 'oss_modloader.log')) {
+    if (Test-Path $f) { Remove-Item $f -Force; Good ("removed " + (Split-Path $f -Leaf)) }
+  }
+  if (Test-Path $modsDir) { Remove-Item $modsDir -Recurse -Force -EA SilentlyContinue }
+  Write-Host ""; Good "Uninstalled - the game is back to vanilla (English text, no voice)."
+} else {
+  Write-Host ""; Good "Voice patch removed. Kept the mod loader (other mods present in mods\)."
+}
 Read-Host "Press Enter to exit"
