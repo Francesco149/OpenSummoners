@@ -88,7 +88,8 @@ int hud_slide_step(int prog);
  * char c is atlas frame (c - 0x21), keyed-blit at (base_x + i*advance,
  * base_y); advance = param_4 = 9 (param_7=0 → fixed width).  base =
  * (xbase + 0xa0, ybase + 0x18) = (161,25).  The value = char+0xe0 +
- * char+0xd8 (level base+bonus).  Ground truth seq 526: res0 fr 16 (='1')
+ * char+0xd8 (combat_level_max + level_bonus = the display Lv; +0xe0 alone is
+ * the star max, not the level).  Ground truth seq 526: res0 fr 16 (='1')
  * at (161,25,8,14).  PORT-DEBT(hud-party-context): the value (1). */
 #define HUD_LEVEL_POOL_IDX 1      /* pool[1] = ramp 0 = res 0x413 font atlas */
 #define HUD_LEVEL_VALUE    1      /* PORT-DEBT: Arche's errands level        */

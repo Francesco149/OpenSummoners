@@ -72,12 +72,12 @@ known character codes — each appears exactly once:
 
 ```
 0xc35a Arche   0xc35b Sana   0xc35c Stella     (base_stat_table.c)
-body[code_off + 4]  = level_base  (== in-memory stat +0xe0; NOT the display level —
-                                    the SE derives the shown level from EXP)
+body[code_off + 4]  = combat_level_max  (== in-memory stat +0xe0: the MAX COMBAT LEVEL /
+                                    HUD stars; NOT the display level — that = +0xe0 + +0xd8)
 ```
 
 VERIFIED: magic+handle 8/8 saves; roster matches party growth (slot1 = Arche+Sana only, no
-Stella; the earliest/smallest save); `level_base` 3 (early) → 5 (Lv17 tower) matches the
+Stella; the earliest/smallest save); `combat_level_max` 3 (early) → 5 (Lv17 tower) matches the
 live stat-block read.
 
 ## Open / next (not blocking the summary)

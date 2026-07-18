@@ -168,9 +168,9 @@ int test_party_stat_ratio_and_display(void)
 int test_party_stat_level(void)
 {
     party_stats s = {0};
-    s.level_base = 1; s.level_bonus = 0;                 /* 494e60:123 */
+    s.combat_level_max = 1; s.level_bonus = 0;                 /* 494e60:123 */
     T_ASSERT_EQ_I(party_stat_level(&s), 1);
-    s.level_base = 5; s.level_bonus = 2;
+    s.combat_level_max = 5; s.level_bonus = 2;
     T_ASSERT_EQ_I(party_stat_level(&s), 7);
     return 0;
 }

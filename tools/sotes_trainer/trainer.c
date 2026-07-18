@@ -60,8 +60,9 @@
 #define OFF_MP_BASE   0x60
 #define OFF_MP_EQUIP  0x88
 #define OFF_MP_BUFF   0xa0
-#define OFF_LEVEL     0xe0           // level_base (NOT the display level — see DESIGN
-                                     // "Live findings": display Lv is EXP-derived)
+#define OFF_COMBAT_LV_MAX  0xe0        // MAX COMBAT LEVEL (USER, live SE): the "N" in the stat
+                                       // window's "combat level M/N", rendered as the HUD stars.
+                                       // NOT the character's display level (that is EXP-derived).
 #define OFF_EXP_CUR   0xec           // EXP progress   (SE offset; base-game +0xe8)
 #define OFF_EXP_MAX   0xf0           // EXP to next    (cross-ref: 50000 = Arche Lv17)
 
@@ -195,7 +196,7 @@ static int actor_valid(uintptr_t base) {
     uint32_t code, sb, lvl, hpc, mpc, wx, wy;
     if (!rd32((void *)(base + OFF_CODE), &code) || code != PLAYER_CODE) return 0;
     if (!rd32((void *)(base + OFF_STATBLOCK), &sb) || !mem_readable((void *)sb, 0x200)) return 0;
-    if (!rd32((void *)(sb + OFF_LEVEL), &lvl) || lvl < 1 || lvl > 99) return 0;
+    if (!rd32((void *)(sb + OFF_COMBAT_LV_MAX), &lvl) || lvl < 1 || lvl > 99) return 0;
     int hpmax = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
     int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
     if (hpmax < 1 || hpmax > 99999) return 0;
@@ -511,16 +512,16 @@ static int player_json(char *out, int cap) {
     rd32((void *)(base + OFF_STATBLOCK), &sb);
     rd32((void *)(sb + OFF_HP_CUR), &hp);
     rd32((void *)(sb + OFF_MP_CUR), &mp);
-    rd32((void *)(sb + OFF_LEVEL), &lvl);
+    rd32((void *)(sb + OFF_COMBAT_LV_MAX), &lvl);
     rd32((void *)(sb + OFF_EXP_CUR), &ec);
     rd32((void *)(sb + OFF_EXP_MAX), &em);
     int hpmax = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
     int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
-    // level_base (0xe0) is NOT the display level (that is EXP-derived — DESIGN);
-    // exp_cur/exp_max are exposed so the true level can be looked up from a table.
+    // combat_level_max (0xe0) is the MAX COMBAT LEVEL (the stat window's "combat level M/N" N +
+    // the HUD stars), NOT the character's display level (that is EXP-derived from exp_cur/exp_max).
     snprintf(out, cap,
         "{\"actor\":\"0x%08x\",\"world_x\":%d,\"world_y\":%d,\"stat_block\":\"0x%08x\","
-        "\"hp\":%d,\"hp_max\":%d,\"mp\":%d,\"mp_max\":%d,\"level_base\":%d,"
+        "\"hp\":%d,\"hp_max\":%d,\"mp\":%d,\"mp_max\":%d,\"combat_level_max\":%d,"
         "\"exp_cur\":%d,\"exp_max\":%d}",
         (unsigned)base, (int)wx, (int)wy, (unsigned)sb,
         (int)hp, hpmax, (int)mp, mpmax, (int)lvl, (int)ec, (int)em);
@@ -985,8 +986,8 @@ static void save_json_one(int slot, char *out, int cap) {
         slot, s.valid ? "true" : "false", s.handle, (unsigned)s.file_size,
         s.hdr.key, s.checksum, s.party_count);
     for (int i = 0; i < s.party_count && n < cap; ++i)
-        n += snprintf(out + n, cap - n, "%s{\"name\":\"%s\",\"code\":%u,\"level_base\":%d}",
-                      i ? "," : "", s.party[i].name, s.party[i].code, s.party[i].level_base);
+        n += snprintf(out + n, cap - n, "%s{\"name\":\"%s\",\"code\":%u,\"combat_level_max\":%d}",
+                      i ? "," : "", s.party[i].name, s.party[i].code, s.party[i].combat_level_max);
     if (n < cap) n += snprintf(out + n, cap - n, "],\"header_grid\":[");
     for (int k = 0; k < 16 && s.ph_present && n < cap; ++k)
         n += snprintf(out + n, cap - n, "%s%u", k ? "," : "", s.ph[k]);
@@ -1380,13 +1381,13 @@ int tc_get_player(tc_player *o) {
     rd32((void *)(base + OFF_WORLD_X), &wx);   rd32((void *)(base + OFF_WORLD_Y), &wy);
     rd32((void *)(base + OFF_STATBLOCK), &sb);
     rd32((void *)(sb + OFF_HP_CUR), &hp);      rd32((void *)(sb + OFF_MP_CUR), &mp);
-    rd32((void *)(sb + OFF_LEVEL), &lvl);      rd32((void *)(sb + OFF_EXP_CUR), &ec);
+    rd32((void *)(sb + OFF_COMBAT_LV_MAX), &lvl);      rd32((void *)(sb + OFF_EXP_CUR), &ec);
     rd32((void *)(sb + OFF_EXP_MAX), &em);
     o->ok = 1; o->actor = (uint32_t)base; o->stat_block = sb;
     o->world_x = (int)wx; o->world_y = (int)wy;
     o->hp = (int)hp; o->hp_max = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
     o->mp = (int)mp; o->mp_max = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
-    o->level_base = (int)lvl; o->exp_cur = (int)ec; o->exp_max = (int)em;
+    o->combat_level_max = (int)lvl; o->exp_cur = (int)ec; o->exp_max = (int)em;
     return 1;
 }
 int tc_get_map(tc_map *o) {
@@ -1427,7 +1428,7 @@ int tc_get_saves(tc_save *o, int cap) {
             d->handle = s.handle; d->file_size = s.file_size; d->party_count = s.party_count;
             if (s.party_count > 0) {
                 snprintf(d->party0, sizeof d->party0, "%s", s.party[0].name);
-                d->level0 = s.party[0].level_base;
+                d->level0 = s.party[0].combat_level_max;
             }
         }
     }
@@ -1483,7 +1484,7 @@ void tc_setstat(const char *which, int value, int lock) {
     else if (which && !strcmp(which, "hp_max")) off = OFF_HP_BASE;
     else if (which && !strcmp(which, "mp"))     off = OFF_MP_CUR;
     else if (which && !strcmp(which, "mp_max")) off = OFF_MP_BASE;
-    else if (which && !strcmp(which, "level"))  off = OFF_LEVEL;
+    else if (which && (!strcmp(which, "combat_level_max") || !strcmp(which, "level"))) off = OFF_COMBAT_LV_MAX;
     if (off < 0) return;
     eq_job *j = eq_alloc(EQ_SETSTAT); if (!j) return;
     j->u[0] = (uint32_t)off; j->u[1] = (uint32_t)value; j->u[2] = (uint32_t)lock;

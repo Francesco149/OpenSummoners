@@ -114,8 +114,10 @@ typedef struct party_stats {
     int32_t hp_base, hp_equip, hp_buff;   /* +0x58 / +0x84 / +0x9c (max = sum)  */
     int32_t mp_cur;                       /* +0x5c — current MP                 */
     int32_t mp_base, mp_equip, mp_buff;   /* +0x60 / +0x88 / +0xa0 (max = sum)  */
-    int32_t level_base;                   /* +0xe0                              */
-    int32_t level_bonus;                  /* +0xd8 (level = base + bonus)        */
+    int32_t combat_level_max;             /* +0xe0 — MAX COMBAT LEVEL (USER, live SE): the "N"
+                                           *   in the stat window's "combat level M/N" + the HUD
+                                           *   stars.  NOT the char's display level (see below).  */
+    int32_t level_bonus;                  /* +0xd8 (display level = combat_level_max + bonus)    */
     int32_t star_count;                   /* +0xdc — element-affinity star count */
     int32_t exp_cur, exp_max;             /* +0xe8 / +0xec                      */
 } party_stats;
@@ -136,7 +138,8 @@ int party_stat_mp_ratio(const party_stats *s);
 int party_stat_hp_display(const party_stats *s, int ratio);
 int party_stat_mp_display(const party_stats *s, int ratio);
 
-/* level = level_base + level_bonus (494e60:123). */
+/* The displayed character level = combat_level_max + level_bonus (494e60:123) — i.e. the
+ * leader-panel "Lv" number (NOT combat_level_max alone; that is the star max). */
 int party_stat_level(const party_stats *s);
 
 /* ── the room+0x4030 party (8 slots + leader) ──────────────────────────────
@@ -164,7 +167,7 @@ const party_member *party_leader(const party *p);
 
 /* Port of FUN_00426fd0 — fill a member's stats from the (code, level) base-stat
  * table row (base_stat_find, base_stat_table.h).  Sets HP/MP base = cur = row
- * HP/MP (equip/buff terms 0), level_base = row.level (bonus 0), exp_cur = 0,
+ * HP/MP (equip/buff terms 0), combat_level_max = row.level (bonus 0), exp_cur = 0,
  * exp_max = row.exp_max, and CLEARS element/star_count (retail 426fd0:101-108
  * zeroes +0xd8/+0xdc — those are set later by the equip subsystem, NOT the base
  * table). */

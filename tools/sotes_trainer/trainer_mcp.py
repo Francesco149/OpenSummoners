@@ -221,7 +221,7 @@ TOOLS = [
      "ti_mgr!=0 ⇒ an input poll is firing (game is in a scene or the title).",
      {"type": "object", "properties": {}}, h_status),
     ("player", "The player actor snapshot: {actor,world_x,world_y,stat_block,hp,"
-     "hp_max,mp,mp_max,level_base,exp_cur,exp_max} or null if no scene loaded. "
+     "hp_max,mp,mp_max,combat_level_max,exp_cur,exp_max} or null if no scene loaded. "
      "world_x/y are centi-px (px*100).",
      {"type": "object", "properties": {}}, h_player),
     ("read", "Read a game memory address. type=u8/u16/u32 (default u32); va=true "
@@ -286,7 +286,7 @@ TOOLS = [
      {"type": "object", "properties": {}}, h_unlock),
     ("saves", "Enumerate + identify EVERY on-disk save (reads user\\savedataNN.sdt "
      "directly, no engine load): per slot {valid,handle,party:[{name,code,"
-     "level_base}],file_size}. Use to pick a slot to load.",
+     "combat_level_max}],file_size}. Use to pick a slot to load.",
      {"type": "object", "properties": {}}, h_saves),
     ("saveinfo", "Full summary of one save slot.",
      {"type": "object", "properties": {"slot": {"type": "integer"}},

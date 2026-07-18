@@ -22,7 +22,7 @@ ptr `+0x9f4`, slot idx `+0xa0c`. member entity (`0xc788`+): **stats block at `+0
 | mp_base/equip/buff | +0x60 / +0x88 / +0xa0 | **max MP = sum** (`0x497bb0`/`0x496970`) |
 | star_count | +0xdc | element-star COUNT (loop bound, `494e60:100`) — Arche=2 |
 | level_bonus | +0xd8 | added to level; the star renderer's 5th arg but **IGNORED** by `0x498620` |
-| level_base | +0xe0 | **level = +0xe0 + +0xd8** (`494e60:123`) — Arche=1 |
+| combat_level_max | +0xe0 | **level = +0xe0 + +0xd8** (`494e60:123`) — Arche=1 |
 | exp_cur | +0xe8 | `494e60:96` EXP gauge cur — Arche=0 |
 | exp_max | +0xec | EXP gauge max (next-level threshold) |
 | item_mode | +0x140 | item-bar slot4 (gated) + animator `+0x140` change-detect |
@@ -34,7 +34,7 @@ ptr `+0x9f4`, slot idx `+0xa0c`. member entity (`0xc788`+): **stats block at `+0
   (`0x497b40(stats, ratio)`): `ratio == cur*1000/hp_max ? cur : hp_max*ratio/1000`. Errands is
   steady (cur==max, ratio settles 1000) ⇒ shows cur==max. Text "%4d / %d" = "100 / 100".
 - MP identical over the +0x60/+0x88/+0xa0 / +0x5c fields → "20 / 20".
-- level text = `level_base + level_bonus`. element = draw the fixed star cel `star_count`×.
+- level text = `combat_level_max + level_bonus`. element = draw the fixed star cel `star_count`×.
   EXP gauge: filled span 0-width when cur==0 (omitted, only depleted draws) — already ported.
 
 **The animator `0x49af40`** lerps HP/MP ratios into the HUD ctx (`+0x1b8`/`+0x1bc` for the

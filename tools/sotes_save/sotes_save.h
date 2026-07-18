@@ -41,8 +41,9 @@ typedef struct sotes_sdt_header {
 typedef struct sotes_member {
     uint32_t code;         /* character code (0xc35a Arche / 0xc35b Sana / 0xc35c Stella) */
     char     name[16];     /* resolved display name, "" if code unknown                   */
-    int32_t  level_base;   /* body[code_off+4] = stat +0xe0 level_base (NOT display Lv;    */
-                           /*   the SE derives the shown level from EXP — see trainer)     */
+    int32_t  combat_level_max;   /* body[code_off+4] = stat +0xe0: the MAX COMBAT LEVEL (HUD  */
+                           /*   stars / "combat level M/N" N).  NOT the display Lv — that =   */
+                           /*   combat_level_max + level_bonus(+0xd8).  See the trainer.      */
     size_t   body_off;     /* offset of the code word in the decoded body                 */
 } sotes_member;
 

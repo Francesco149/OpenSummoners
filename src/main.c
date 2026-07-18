@@ -2973,8 +2973,8 @@ static void game_render_hud(void)
      * at (base + i*advance, base_y); advance 9 (fixed width).  Now that
      * ar_sprite_decode binds the installed ramp palette (0x404040, slice 1c-2)
      * the digit renders bit-exact (dhash 0x192317ef).  The value now comes from
-     * the leader's real stats (party_stat_level = level_base+bonus = 1 for Arche
-     * lvl 1) instead of the ex-HUD_LEVEL_VALUE stand-in. */
+     * the leader's real stats (party_stat_level = combat_level_max+bonus = 1 for
+     * Arche lvl 1) instead of the ex-HUD_LEVEL_VALUE stand-in. */
     ar_sprite_slot *lvl = ar_pool_get_slot(HUD_LEVEL_POOL_IDX);
     if (lvl != NULL) {
         char lbuf[16];

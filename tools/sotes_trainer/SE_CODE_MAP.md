@@ -52,7 +52,10 @@ analog where known; **the base VA is the MODEL, not necessarily the SE VA**.
 - actor offsets: `+0x40` phys-box (AABB: +4 X, +8 topY, +0xc W, +0x10 H), `+0x760` stat_block,
   `+0xc76c/0xc770` world_x/y (derived snapshot), `+0xc7a4` → input-mgr chain (`g_ti_mgr = *(*(actor+0xc7a4))`).
 - stat_block: `+0x54` hp_cur `+0x58` hp_base `+0x84` hp_equip `+0x9c` hp_buff (max=+0x58+0x84+0x9c);
-  mp `+0x5c/0x60/0x88/0xa0`; `+0xe0` level_base (≠ display Lv, EXP-derived); `+0xec` exp_cur `+0xf0` exp_max.
+  mp `+0x5c/0x60/0x88/0xa0`; `+0xe0` **combat_level_max** (MAX COMBAT LEVEL — the "N" in the stat
+  window's "combat level M/N" + the HUD stars, USER live SE; the displayed char level = `+0xe0` +
+  `+0xd8` level_bonus per `494e60:123`, NOT `+0xe0` alone); `+0xd8` level_bonus, `+0xdc` star_count;
+  `+0xec` exp_cur `+0xf0` exp_max.
 
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |

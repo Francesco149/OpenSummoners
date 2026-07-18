@@ -202,10 +202,11 @@ int party_stat_mp_display(const party_stats *s, int ratio)
     return (sum * ratio) / 1000;
 }
 
-/* 494e60:123 — level = *(+0xe0) + *(+0xd8). */
+/* 494e60:123 — the displayed char level = *(+0xe0) + *(+0xd8) = combat_level_max + level_bonus.
+ * (+0xe0 alone is the MAX COMBAT LEVEL / star max — USER live SE — not the display level.) */
 int party_stat_level(const party_stats *s)
 {
-    return s->level_base + s->level_bonus;
+    return s->combat_level_max + s->level_bonus;
 }
 
 /* The leader member (room+0x200c), or NULL when there is no active leader —
@@ -243,9 +244,9 @@ void party_stats_init(party_stats *s, uint32_t code, int level)
     s->hp_equip = s->hp_buff = 0;
     s->mp_cur  = s->mp_base = r->mp;
     s->mp_equip = s->mp_buff = 0;
-    /* 426fd0:109 level_base(+0xe0) = row.level; :101-108 clear +0xd8/+0xdc
+    /* 426fd0:109 combat_level_max(+0xe0) = row.level; :101-108 clear +0xd8/+0xdc
      * (level_bonus + element/star_count). */
-    s->level_base  = r->level;
+    s->combat_level_max  = r->level;
     s->level_bonus = 0;
     s->star_count  = 0;
     /* 426fd0:96-100 EXP cur(+0xe8) = 0, max(+0xec) = row.exp_max. */

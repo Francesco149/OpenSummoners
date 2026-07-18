@@ -120,11 +120,11 @@ Endpoint override: env `OSS_TRAINER_REMOTE=host:port` (a same-host ImGui UI uses
 | cmd | args | effect |
 |---|---|---|
 | `ping` | — | `{pong,delta,base}` — liveness + ASLR delta |
-| `player` | — | `{actor,world_x,world_y,stat_block,hp,hp_max,mp,mp_max,level_base,exp_cur,exp_max}` or null |
+| `player` | — | `{actor,world_x,world_y,stat_block,hp,hp_max,mp,mp_max,combat_level_max,exp_cur,exp_max}` or null |
 | `state` | — | boot/hook diagnostic: `{hooks,main_wnd,launch_clicked,attract_frozen,keepactive,dlgskip,box_open,box_scale,md_state,ti_mgr,pk_mgr}`. `ti_mgr`≠0 ⇒ input poll firing; `box_open` ⇒ a dialogue box is on screen (what dlgskip gates on); `box_scale` = its pop-in 0..1000. |
 | `read` | `addr`,`type`(u8/u16/u32),`va`(bool) | read; `va:true` = AP()-relocate a 0x400000 VA |
 | `write` | `addr`,`value`,`type`,`va` | write |
-| `setstat` | `which`(hp/hp_max/mp/mp_max/level),`value`,`lock`(bool) | set a player stat |
+| `setstat` | `which`(hp/hp_max/mp/mp_max/combat_level_max),`value`,`lock`(bool) | set a player stat (`level` is an alias for `combat_level_max`) |
 | `god` | `on`(bool) | freeze hp+mp at **9999** each frame (invincibility + free casting). **Default ON.** (Absorbs the old `invincible`.) |
 | `teleport` | `x`,`y`(centi-px),`relative`(bool) | move the player via the **phys-box** (`*(actor+0x40)`): X sticks, Y gravity-settles. Absolute = world centi-px; relative = px |
 | `mousefly` | `on`(bool) | continuously teleport the player to the cursor over the game window (also **F7**). Freezes the view (RE'd camera `*(root+0x104c)`, top-left cur_x/cur_y) so she stays under the cursor; edge-scrolls to traverse the map |
@@ -135,7 +135,7 @@ Endpoint override: env `OSS_TRAINER_REMOTE=host:port` (a same-host ImGui UI uses
 | `view` | `off`(opt) | mouse-fly camera diagnostic: the resolved view rect (left/top from cur_x/cur_y + span) + the player box + a camera-object field dump |
 | `box` | — | debug: the player's collision AABB `{box,tag,x,top,w,h,world_y}` |
 | `load` | `slot`(opt),`downs`(opt) | **from the TITLE**: drive Continue→slot-picker→confirm via the game's own menu code. No `slot` = the default-highlighted newest save (= Archmage's Tower Lv17). `slot`:N = select savedataNN via the RE'd picker selection model, then confirm. **VERIFIED live** (slot 1 → HP134/Lv-base3/exp117-1000; slot 6 → HP235/293/exp18406-37000; slot 7/default → HP301/Lv-base5/exp20720-50000 — each == the file). `downs`=N = manual rotate-N fallback. |
-| `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,level_base}],file_size,header_grid}`. Use it to pick a slot to `load`. **VERIFIED live.** |
+| `saves` | — | enumerate + identify EVERY on-disk save (reads `user\savedataNN.sdt` directly, no engine load): per slot `{valid,handle,party:[{name,code,combat_level_max}],file_size,header_grid}`. Use it to pick a slot to `load`. **VERIFIED live.** |
 | `saveinfo` | `slot` | full summary of one slot (same shape as a `saves` entry) |
 | `newgame` | `to`(opt),`btn`(opt) | **from the TITLE**: rotate to the New Game item then confirm — starts a fresh game. **VERIFIED** (`btn`:2 `to`:1 → fresh Lv1 Arche, HP100/exp0-250). `btn`=title rotate id (2=up/4=down), `to`=rotations from the default Continue. |
 | `keepactive` | `on`(bool) | keep the game rendering/updating while its window is unfocused (re-posts WM_ACTIVATEAPP, no focus steal). **Default ON.** |
@@ -153,8 +153,10 @@ Endpoint override: env `OSS_TRAINER_REMOTE=host:port` (a same-host ImGui UI uses
 | `loadraw` | `slot`,`enter`(bool) | EXPERIMENTAL direct chain (safepoint): 416550 load + 586c60 apply verified; the `enter` transition CRASHES (needs the picker dispatcher `this`) — prefer `load` |
 | `unlock_all` | — | drop god + all locks |
 
-Note: `player.level_base` (stat `0xe0`) is NOT the display level — the SE derives the
-displayed level from EXP; `exp_cur`/`exp_max` are exposed for a table lookup (DESIGN).
+Note: `player.combat_level_max` (stat `0xe0`) is the **max combat level** — the "N" in the stat
+window's "combat level M/N", shown as the HUD element stars. It is NOT the character's display
+level: the port RE'd that as `+0xe0 + +0xd8` (combat_level_max + level_bonus, `494e60:123`); the
+trainer exposes `exp_cur`/`exp_max` too (DESIGN).
 
 ## Verified mechanics (EN-SE, VA = fileoff + 0x400000)
 
@@ -164,6 +166,6 @@ cross-validation of stat block + world coords. Offsets: `world_x 0xc76c`,
 position AABB: `+4`=X, `+8`=top, `+0xc`=w, `+0x10`=h; `world_x=box[+4]`,
 `world_y=box[+8]+box[+0x10]-1`, RE'd at commit VA `0x484554`), `stat_block 0x760`;
 stat block `hp_cur 0x54`, `hp_base 0x58`, `hp_equip 0x84`, `hp_buff 0x9c` (**max = sum**),
-`mp_cur 0x5c`/`0x60`/`0x88`/`0xa0`, `level_base 0xe0` (≠ display level), `exp_cur 0xec`,
+`mp_cur 0x5c`/`0x60`/`0x88`/`0xa0`, `combat_level_max 0xe0` (≠ display level), `exp_cur 0xec`,
 `exp_max 0xf0`. HP/MP verified live vs HUD; teleport proven (box write sticks). Full
 mechanics + teleport/level RE + menu/load/input RE + the load-recipe plan: `DESIGN.md`.

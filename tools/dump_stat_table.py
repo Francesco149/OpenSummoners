@@ -10,7 +10,7 @@ leader panel's HP / MP / level / EXP — so these are pure table lookups, NOT co
 
 Row layout (0xdc bytes = 0x37 dwords), the columns FUN_00426fd0 consumes:
   +0x00  u32  character code (key; the list is code==0 terminated; row 0 = fallback)
-  +0x04  u32  level          (row[1]  -> stats +0xe0 level_base)
+  +0x04  u32  level          (row[1]  -> stats +0xe0 combat_level_max)
   +0x08  i32  HP             (row[2]  -> stats +0x58 max & +0x54 cur)
   +0x0c  i32  MP             (row[3]  -> stats +0x60 max & +0x5c cur)
   +0x10  i32  stat0..3       (row[4..7] -> stats +0x64/+0x68/+0x6c/+0x70; ATK/DEF/…)

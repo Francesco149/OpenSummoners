@@ -26,7 +26,7 @@ static void print_text(const char *label, const sotes_save_info *s) {
     if (s->party_count == 0) printf(" (none found)");
     for (int i = 0; i < s->party_count; ++i)
         printf(" %s(Lv.base %d)", s->party[i].name[0] ? s->party[i].name : "?",
-               s->party[i].level_base);
+               s->party[i].combat_level_max);
     printf("\n");
     if (s->ph_present) {
         printf("                header grid:");
@@ -41,8 +41,8 @@ static void print_json(const char *label, const sotes_save_info *s) {
            label, s->ok ? "true" : "false", s->valid ? "true" : "false",
            s->handle, s->file_size, s->body_size, s->hdr.key, s->checksum);
     for (int i = 0; i < s->party_count; ++i)
-        printf("%s{\"name\":\"%s\",\"code\":%u,\"level_base\":%d}",
-               i ? "," : "", s->party[i].name, s->party[i].code, s->party[i].level_base);
+        printf("%s{\"name\":\"%s\",\"code\":%u,\"combat_level_max\":%d}",
+               i ? "," : "", s->party[i].name, s->party[i].code, s->party[i].combat_level_max);
     printf("],\"header_grid\":[");
     for (int k = 0; k < 16 && s->ph_present; ++k) printf("%s%u", k ? "," : "", s->ph[k]);
     printf("]}\n");

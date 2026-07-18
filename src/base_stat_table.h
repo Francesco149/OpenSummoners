@@ -17,7 +17,9 @@
  * 0xdc bytes; only the fields the init reads are kept). */
 typedef struct base_stat_row {
     uint32_t code;      /* +0x00 — character code (key)                       */
-    int32_t  level;     /* +0x04 — row[1]  -> stats +0xe0 level_base          */
+    int32_t  level;     /* +0x04 — row[1] (the row-selector key) -> stats +0xe0
+                         *   combat_level_max (the MAX COMBAT LEVEL / star max — not
+                         *   the display Lv, which is +0xe0 + level_bonus)          */
     int32_t  hp;        /* +0x08 — row[2]  -> stats +0x58 max & +0x54 cur     */
     int32_t  mp;        /* +0x0c — row[3]  -> stats +0x60 max & +0x5c cur     */
     int32_t  stat[4];   /* +0x10..+0x1c — row[4..7] -> stats +0x64/68/6c/70   */

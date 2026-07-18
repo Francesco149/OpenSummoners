@@ -217,15 +217,18 @@ static void panel_player(const tc_player& pl, bool hasp) {
     if (!hasp) { ImGui::TextColored(COL_WARN, "no player (load a game first)"); return; }
     kv("HP",         "%d / %d", pl.hp, pl.hp_max);
     kv("MP",         "%d / %d", pl.mp, pl.mp_max);
-    kv("Level (base)", "%d", pl.level_base);
+    kv("Combat lv max", "%d", pl.combat_level_max);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("The max combat level (stat +0xe0): the 'N' in the "
+                                                  "stat window's 'combat level M/N', shown as the HUD "
+                                                  "stars. NOT the character's EXP-derived display level.");
     kv("EXP",        "%d / %d", pl.exp_cur, pl.exp_max);
     kv("actor",      "0x%08x", pl.actor);
     kv("stat block", "0x%08x", pl.stat_block);
     ImGui::Spacing();
     ImGui::SeparatorText("set");
-    static int sv_level = 1, sv_hpmax = 100, sv_mpmax = 20;
+    static int sv_level = 5, sv_hpmax = 100, sv_mpmax = 20;
     ImGui::SetNextItemWidth(110); ImGui::InputInt("##lvl", &sv_level); ImGui::SameLine();
-    if (ImGui::Button("set level")) tc_setstat("level", sv_level, 0);
+    if (ImGui::Button("set combat lv max")) tc_setstat("combat_level_max", sv_level, 0);
     ImGui::SetNextItemWidth(110); ImGui::InputInt("##hpm", &sv_hpmax); ImGui::SameLine();
     if (ImGui::Button("set HP max")) tc_setstat("hp_max", sv_hpmax, 0);
     ImGui::SetNextItemWidth(110); ImGui::InputInt("##mpm", &sv_mpmax); ImGui::SameLine();
@@ -299,13 +302,13 @@ static void panel_saves(const tc_status& st) {
     ImGui::SameLine(); ImGui::TextDisabled("%d on disk", (int)g_saves.size());
     if (!st.at_title)
         ImGui::TextColored(COL_WARN, "loading is only available from the TITLE screen");
-    ImGui::TextDisabled("baseLv = the base stat level (the game shows an EXP-derived level).");
+    ImGui::TextDisabled("cLv = max combat level (stat +0xe0 / HUD stars), not the display level.");
 
     ImGui::BeginChild("savelist", ImVec2(0, 190), true);
     for (const tc_save& sv : g_saves) {
         char label[160];
         if (sv.valid)
-            snprintf(label, sizeof label, "slot %-2d   %-12s   baseLv %-2d   %u KB", sv.slot,
+            snprintf(label, sizeof label, "slot %-2d   %-12s   cLv %-2d   %u KB", sv.slot,
                      sv.party0[0] ? sv.party0 : "(party)", sv.level0, (unsigned)(sv.file_size / 1024));
         else
             snprintf(label, sizeof label, "slot %-2d   <invalid>", sv.slot);

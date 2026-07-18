@@ -163,13 +163,16 @@ per-thread — arm ALL threads) on `world_x`, then disasm the committing instruc
   too but **gravity-settled** — writing it up made her rise then fall back with an accel
   curve (physics, not a reset bug), so Y teleport lands on the ground below the target.
   IMPLEMENTED: `teleport` now does `box=*(actor+0x40)`, `box[+4]=x`, `box[+8]=y-h+1`.
-- **`level` — RESOLVED (display level is EXP-DERIVED, not a stored int).** `stat_block+0xe0`
-  (=5) is `level_base`, NOT the display level; the demo's "Lv3" match was a coincidence.
+- **`level` — `stat_block+0xe0` is the MAX COMBAT LEVEL (USER, live SE), NOT the display level.**
+  Poking `+0xe0` moves the "N" in the stat window's "combat level M/N" and the HUD element STARS
+  (3 lit of 5 → 3 of 21 when poked to 21); the demo's "Lv3" match was a coincidence.  The port RE'd
+  the displayed char level as `party_stat_level = +0xe0 + +0xd8` (combat_level_max + level_bonus,
+  `494e60:123`; = 1 for Arche Lv1) — the strongest lead for the true display level (below).
   17 is absent as a u32/u16/u8 anywhere in the stat block, the actor, or near the player
   handle (58 handle refs scanned). But `sb+0xf0 = 50000` == **exactly Arche's level-17
   `exp_max`** in the base-stat table (`{0xc35a,17,290,52,{68,60,38,44},50000}`), and
   `sb+0xec = 23167` = exp progress ⇒ the char IS Lv17, derived from EXP. TRAINER: expose
-  `exp_cur (0xec)` + `exp_max (0xf0)` + `level_base (0xe0)`; the true display level needs a
+  `exp_cur (0xec)` + `exp_max (0xf0)` + `combat_level_max (0xe0)`; the true display level needs a
   table lookup (SE exp table not yet dumped) or RE of the HUD level-drawer's read. (Two
   fields sum to 17 — `+0xdc`=3 + `+0xe4`=14 — but that's unconfirmed; NOT shipped.)
 - **Anchor + stats correct.** ONE live `0xc35a` actor. hp/mp read + god/setstat write work.
@@ -323,7 +326,7 @@ The whole savedataNN.sdt codec is cracked (full byte-level RE in
 where INV_KEYSTR inverts the 256-byte permutation @**0x5fd290** (built by `FUN_005df030`).
 Decoded body = a record stream (record 0 = 604-byte metadata; magic@meta+0x22c, category
 handle@+0x230 == 0x2738 Main Quest).  Party roster = scan for codes 0xc35a/b/c (Arche/Sana/
-Stella); `level_base` @code+4.  A fixed-604 metadata block ⇒ a 16-u32 party-header grid always
+Stella); `combat_level_max` @code+4.  A fixed-604 metadata block ⇒ a 16-u32 party-header grid always
 at body 0x260 (fields grow over a playthrough — gold/playtime/progress candidates, exposed RAW,
 UNLABELED: not pinned, and we don't ship guessed names).
 
@@ -334,7 +337,7 @@ save editor, the port's save subsystem.  Both build in `tools/ci/build_all.sh`.
 ### Trainer commands (know what each save is)
 The trainer compiles `sotes_save` in and reads `<exedir>\user\savedataNN.sdt` directly (no
 engine load needed to identify a save):
-- `saves` → every present slot's `{valid,handle,party:[{name,code,level_base}],file_size,
+- `saves` → every present slot's `{valid,handle,party:[{name,code,combat_level_max}],file_size,
   header_grid}`.  The agent/UI picks a slot from this, then `load`s it.
 - `saveinfo {slot}` → one slot, same shape.
 
@@ -351,7 +354,7 @@ entry with `slot==N`; no match ⇒ safe no-op ⇒ the default (newest) highlight
 base3 / exp 117-1000; `slot:6` → HP235/293 / exp 18406-37000; `slot:7`/default → HP301 / Lv-base5
 / exp 20720-50000 — **each == the value `sotes_save` decodes from that file** (double proof: the
 right slot loads AND the decoder's exp/level offsets are correct: exp_cur=body[code−0x10],
-exp_max=[code−0xc], level_base=[code+4]).
+exp_max=[code−0xc], combat_level_max=[code+4]).
 
 Two robustness fixes were needed and made (both live-verified):
 - **Robust title-confirm.**  The single-shot title confirm (state 1→2 after ONE inject) was

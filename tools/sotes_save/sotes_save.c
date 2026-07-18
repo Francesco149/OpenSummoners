@@ -99,7 +99,7 @@ uint8_t *sotes_sdt_decode(const uint8_t *file, size_t file_len,
  *   metadata+0x228 checksum, +0x22c magic (SOTES_SDT_MAGIC), +0x230 category handle.
  * The metadata block is a fixed 604 bytes, so the PARTY-HEADER GRID (16 u32) always
  * begins right after it (body 0x260).  The playable roster is found by scanning for
- * the known character codes (each appears exactly once); level_base is the u32 right
+ * the known character codes (each appears exactly once); combat_level_max is the u32 right
  * after the code word (== the in-memory stat +0xe0, verified live). */
 int sotes_save_parse(const uint8_t *body, size_t body_len, size_t file_size,
                      const sotes_sdt_header *hdr, sotes_save_info *out) {
@@ -127,7 +127,7 @@ int sotes_save_parse(const uint8_t *body, size_t body_len, size_t file_size,
     }
 
     /* roster: scan (post-metadata) for each known code; take the first hit whose
-     * following level_base is sane (1..99). */
+     * following combat_level_max is sane (1..99). */
     for (size_t ci = 0; ci < sizeof CHAR_NAMES / sizeof CHAR_NAMES[0]; ++ci) {
         uint32_t code = CHAR_NAMES[ci].code;
         for (size_t o = ph_off; o + 8 <= body_len; o += 4) {
@@ -136,7 +136,7 @@ int sotes_save_parse(const uint8_t *body, size_t body_len, size_t file_size,
             if (lv < 1 || lv > 99) continue;
             if (out->party_count >= SOTES_MAX_PARTY) break;
             sotes_member *m = &out->party[out->party_count++];
-            m->code = code; m->level_base = lv; m->body_off = o;
+            m->code = code; m->combat_level_max = lv; m->body_off = o;
             snprintf(m->name, sizeof m->name, "%s", CHAR_NAMES[ci].name);
             break;
         }

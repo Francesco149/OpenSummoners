@@ -18,7 +18,7 @@ typedef struct {
     uint32_t actor, stat_block;
     int      world_x, world_y;        // centi-px (px*100)
     int      hp, hp_max, mp, mp_max;
-    int      level_base, exp_cur, exp_max;
+    int      combat_level_max, exp_cur, exp_max;
 } tc_player;
 
 typedef struct {
