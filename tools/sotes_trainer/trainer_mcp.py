@@ -211,6 +211,18 @@ def h_press(a):
     return _reply(tsend(_cmd("press", a, keys=("btn", "n"))))
 
 
+def h_doorenter(a):
+    return _reply(tsend({"cmd": "doorenter"}))
+
+
+def h_hold(a):
+    return _reply(tsend(_cmd("hold", a, keys=("mask",))))
+
+
+def h_release(a):
+    return _reply(tsend({"cmd": "release"}))
+
+
 def h_call(a):
     return _reply(tsend(_cmd("call", a, keys=("va", "a0", "a1", "a2", "a3", "a4",
                                               "a5", "a6", "a7", "ecx"), bools=("reloc",))))
@@ -332,6 +344,17 @@ TOOLS = [
      "probe to map what an id does in the current context.",
      {"type": "object", "properties": {
          "btn": {"type": "integer"}, "n": {"type": "integer"}}, "required": ["btn"]}, h_press),
+    ("doorenter", "Fire the game's OWN door-enter (raw-DINPUT buffered UP-press event inject + "
+     "forced read) so she transitions through the door she is STANDING ON — teleport onto a door "
+     "zone first.  Foreground-independent (works even unfocused).  Returns immediately; poll `map` "
+     "for the room change.  Compose with `hijack` to warp to any resident room.",
+     {"type": "object", "properties": {}}, h_doorenter),
+    ("hold", "Hold freeroam movement keys each frame via the raw-DINPUT immediate buffer (bitmask "
+     "1=UP 2=DOWN 4=LEFT 8=RIGHT; mask 0 clears).  Real walking; `teleport` is usually simpler. "
+     "Held until changed — call `release` to stop.",
+     {"type": "object", "properties": {"mask": {"type": "integer"}}, "required": ["mask"]}, h_hold),
+    ("release", "Stop all injected movement (equivalent to hold mask 0).",
+     {"type": "object", "properties": {}}, h_release),
     ("call", "Call an engine fn on the socket thread (thiscall via ecx). "
      "EXPERIMENTAL — unsafe for engine fns that touch the scene; prefer commands "
      "that drain at the input-poll safepoint. va + a0..a7 + ecx + reloc(bool).",
