@@ -134,7 +134,18 @@ a room key. **⇒ cross-AREA door-hijack FAILS at 0x5ad656** ("map data not foun
 hijacking a tower door's `target_room` to 110110 (Tonkiness, area 110) IS read + acted on (the door tried
 to load it), but area 110's W-map data isn't resident from the tower save → fatal. So the door-hijack
 warp PRIMITIVE works, but cross-REGION needs the target area's W-map loaded first (the 0x92c828 load-mode
-/ W-map path is the lead). SAME-area hijack should load fine (assets resident).
+/ W-map path is the lead).
+
+### ✅ WARP PRIMITIVE — PROVEN live (USER-driven)
+**Overwrite a door's `target_room` in the current room record's exit slot(s) → use the door → it warps
+to the chosen room.** VERIFIED: hijacked room 440220's exits (normally 440210/440230) to **440150**;
+walking through a door loaded room 440150 / scene 1324 (a room that door doesn't normally reach). The
+hijack is written to the LIVE room record `*(*0x92dd38 + 0x1038)`, exit slots @ `rr+0x1c+k*0xc`
+(`target` @ +4). **⇒ full auto-warp recipe (within a loaded area): hijack the door's target_room →
+teleport Arche to the door → trigger UP → wait for `map` room_key to change.** LIMIT: target must be in
+a resident area (cross-AREA crashes at `0x5ad656`, "map data not found" — needs the area's W-map loaded;
+that's the next RE for cross-region). Tools: `scratchpad/hijack.py` (hijack exits), `find_rooms.py`
+(enumerate the 730-room table by area — the fast-travel destination list).
 
 ## Base-game MODEL (the reference to find SE analogs against)
 From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE addresses):
