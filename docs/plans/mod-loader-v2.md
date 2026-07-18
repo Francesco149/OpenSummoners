@@ -1,5 +1,24 @@
 # Universal Mod Loader + Mod API — design scope (v2)
 
+> **MOVED + REFINED (2026-07-18, USER).** Build split out of this repo into standalone
+> siblings: the **loader + launcher** live in **`../sotes-mod-loader`** (authoritative
+> design now `sotes-mod-loader/docs/DESIGN.md` + `MOD-FORMAT.md` + `REGISTRY.md`); the
+> author's **mods (trainer + voice) + the default registry** live in **`../sotes-mods`**.
+> This file stays as the design ORIGIN / rationale. Refinements folded in:
+> - **In-game UI = a MIRROR of the loader's main ImGui window**, hotkey-toggled (same
+>   in-process draw callbacks, second render target — the plan's UI path (2) mirrors (1)).
+> - **A LAUNCHER** (package manager): add **git-repo mod sources** (trust = per-repo);
+>   each repo ships a `registry.json` of mods → versions → files with pinned `sha256`;
+>   browse/search, install/update with release notes, then **Launch**. Same repo as the
+>   core (`launcher/`), built AFTER the core (new phase **P8**).
+> - **Name LOCKED:** *SotES Mod Loader*; Lua namespace `mod.*`; DLL `version.dll`; log
+>   `oss_modloader.log`. Each sibling repo is self-contained (own `flake.nix`).
+> - **The current shipping voice patch STAYS here** (`tools/ennse_voice`), live +
+>   unchanged, until the new mod-loader-based one is proven — then the release swaps.
+> - **P0 landed:** core builds (proxy `version.dll` + dual native/Lua `mods\` scan +
+>   LuaJIT host, JIT compiled out / FFI on, **proven to run on the Windows target**);
+>   game-injection test is the remaining P0 item (Windows-side).
+
 **North star: MAX STABILITY.** A buggy or careless mod must not be able to crash the game; two mods
 hooking the same function must not clobber each other; nothing touches engine state off the main
 thread.  Everything below is subordinate to that.
