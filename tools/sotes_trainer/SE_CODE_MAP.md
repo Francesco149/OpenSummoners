@@ -151,13 +151,16 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
 2. **SE transition fn to FORCE a room change** (roadmap #4). CAPTURED live (storage room 0x334dd →
    committed room **210140/DATA 1025**, the shop — validates the exit graph): the room-record COMMIT
    is `0x5ac9ce` (`mov [render_root+0x1038],ecx`) inside the render-root REBUILD fn (`alloc(0x37c4)`
-   new root; `+0x1044`=map_obj, `+0x1038`=room_record). Call chain: rebuild ← `0x526144` (scene
-   resource-load driver, this=ebx) ← `0x5e84aa`/`0x4b5c8d` (room-load orchestrator loop) ← `0x4163ba`
-   ← `0x5982c9` ← `0x499a9a` (game/scene state machine — where the TARGET room key is chosen from
-   the exit slot). ⚠ DO NOT frida-hook the rebuild/commit — it fires mid-scene-teardown (free+realloc)
-   and a trampoline+stack-walk there CRASHES the game (observed). Force it the SAFE way: find the
-   high-level "enter room(key)" entry (up at 0x5982c9/0x499a9a) or the pending-target write, then
-   CALL it on the trainer's engine-thread safepoint (like `load`), not via a hook. Also the intro
-   path `0x4c1ca0` (callers 0x5cac2f/0x5cb0a3, near 0x5cb460).
+   new root; `+0x1044`=map_obj, `+0x1038`=room_record; entry ~0x5ac8xx, SEH-scoped). Only reliable
+   caller frame (ACCURATE bt; deeper frames were FPO garbage): rebuild ← **`0x4a1c60`** (call @
+   `0x52613f`, ret 0x526144). **`0x4a1c60` is a GENERIC COMMAND DISPATCHER** (thiscall ecx=obj,
+   variadic; called all over as `push <hash 0x35a4e902…>; push <name-ptr 0x905ce8…>; …; call
+   0x4a1c60`) — i.e. a ROOM LOAD is a *command* sent through it (the base game's event/command
+   system, same shape as the `0x402730` actor "push command" moves). ⚠ DO NOT frida-hook the
+   rebuild/commit — mid-scene-teardown (free+realloc) + a trampoline/stack-walk there CRASHES the
+   game (observed). Force path (crash-free): RE the room-load COMMAND args to `0x4a1c60` (the
+   command id/name/hash + the target room key), then send it via the trainer's engine-thread
+   safepoint `call` (like `load`), OR reverse the `0x4c1ca0` intro setter's own commit+trigger.
+   Test bed: the Archmage's Tower save (room 440220 → exits 440210/440230); relaunch on any crash.
 3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
    BFS pathfinding (roadmap #5).
