@@ -168,18 +168,37 @@ known global**, not a scan — e.g. the leader controller's party slots (base do
 party global.  RE it (next session, with the tracing harness below), cache the chain, revalidate cheap.
 Reserve the scan for first-boot discovery + version-porting.
 
-## Next session (planned) — an SE LIVE TRACING HARNESS (USER-requested 2026-07-18)
-Build the SE analogue of the port's retail call-trace harness (`tools/frida_capture.py` +
-`bisect_call_trace_vas.py` — which bisects "safe" hookable VAs by re-launching until the game boots
-crash-free, then records a `call_trace.jsonl`), but **live-toggleable** from the trainer so the USER
-can flip tracing on/off mid-play.  Goals the USER named: (1) record HIMSELF doing the door-hold (capture
-the exact code path + which fields ramp), (2) DIFF the code path of a CROSS-REGION door vs a normal
-same-area door (to see where the W-map load diverges), (3) crack the DIRECT WARP (the stage/commit
-`0x401d40`/`0x402030` + the edge-trigger — see the warp findings below).  Design sketch: a curated
-safe-VA set (bisected like the port's), a trainer command `trace on|off [va,…]` that installs/removes
-MinHook trampolines that append `{va,ecx,args,ret}` to a ring buffer the socket streams; reuse the
-existing MinHook infra (`kbd_hooks`).  This is general RE infra — it will speed up ALL future SE probing
-AND feeds the eventual SE→port map (`SE_CODE_MAP` grows from every traced call).
+## ✅ LANDED 2026-07-18 — the SE LIVE TRACING HARNESS (USER-requested; VERIFIED live)
+The SE analogue of the port's retail call-trace, BAKED + live-toggleable from the trainer socket.
+Command (`raw` passthrough or `scratchpad/tr.py`): **`{"cmd":"trace","op":"on|off|dump|clear|pause|
+resume|status","vas":[…],"max":N}`**.  `op:on` with `vas` (hex strings `"0x5c2af0"` or decimals)
+MinHooks each VA with a **generic ENTRY thunk** + starts recording; `dump` drains the ring since the
+last dump (`{s,t,va,ecx,edx,ret,a:[6 args]}` per call); `off` stops + unhooks; `clear` resets the read
+cursor; `pause`/`resume` toggle recording without unhooking.
+- **Mechanism (`trainer.c` "LIVE CALL-TRACE HARNESS"):** per-hooked-VA a raw-bytes thunk `pushad;
+  pushfd; push esp; push va; call trace_entry_c; add esp,8; popfd; popad; jmp [tramp]`.  ENTRY-ONLY,
+  so it's convention-agnostic + stack-safe: the thunk tail-JMPs to the MinHook trampoline, so the
+  original runs its own `ret N` back to ITS caller (no return-addr juggling → cdecl/stdcall/thiscall
+  all work without knowing the arg count).  The logger only reads the thunk's own stack frame (regs +
+  raw arg values — no ptr deref), so a bad game pointer can't fault our hook.  Records → an 8192-slot
+  ring the socket drains (atomic write index; a torn body is acceptable for a diagnostic).  MinHook's
+  HDE copies WHOLE prologue instructions, so SEH-scope fns hook cleanly (the 6-byte `mov eax,fs:0x0`
+  that broke the fixed-5-byte install_detour — VERIFIED: hooked `0x581ba0` crash-free).
+- **VERIFIED live (title screen):** hooking the per-frame title-loop leaf **`0x5e57e0`** (called 2×/
+  frame from `0x582c40`'s loop @ `0x5839ef`/`0x583a10`) captured ~133 rec/s with the two call-sites
+  cleanly split by `ret` (`0x5839f4` vs `0x583a16`), ecx = the title obj, args stable.  Hooks install
+  AND remove clean; game stays smooth.  (Per-frame title leaves for a liveness check: `0x5e57e0`/
+  `0x5e57f0`.  Title fns that are ONE-SHOT loop-bodies — entry fires once — incl. `0x581ba0`,
+  `0x582c40`; the gameplay input refresh `0x497050` is TITLE-COLD.)
+- **v2 (not yet built):** return-value capture (needs a per-thread shadow-stack of the caller retaddr)
+  + guarded per-VA FIELD snapshots (the `retail_fields.json` analog — for "which fields RAMP", e.g. the
+  door hold-ramp `in_ECX[6]`).  Entry inputs already answer "which fn fired, order, ecx/args".
+- **Next USER goals for the harness** (now UNBLOCKED): (1) trace the door-hold code path (`0x5c2af0`
+  the door-USE handler + its callees `0x4393d0`/`0x4495b0`/`0x4495f0`; see SE_CODE_MAP "GATES"); (2)
+  DIFF a cross-region vs a same-area door (where the W-map load diverges); (3) crack the DIRECT WARP
+  (stage/commit `0x401d40`/`0x402030` + the edge-trigger).  Also feeds the RE-over-scan cleanup (find
+  the party roster by a traced pointer-chain, not a scan) + the regression triage (load→newgame,
+  instant-doors) noted 2026-07-18.  This is general RE infra — every traced call grows `SE_CODE_MAP`.
 
 ## Live findings — real tower save (Arche Lv17), 2026-07-17 (SESSION 2 — RESOLVED)
 

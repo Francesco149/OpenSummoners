@@ -20,6 +20,14 @@ this whenever an SE VA/offset is verified.
   `i686-w64-mingw32-objdump -D -b binary -m i386 -M intel --adjust-vma=0x401000`.
 - Live probe: **frida** to `sotes-trainer-oss.exe` @ `cutestation.soy:27042` (dump/disasm/hook —
   throwaway); the **trainer socket** (`trainer_mcp.py`) for read/write/scan/call.
+- **BAKED live call-trace (`trace` cmd, ✅ 2026-07-18):** `{"cmd":"trace","op":"on","vas":["0x…"]}`
+  MinHooks each VA with a generic ENTRY thunk → an 8192-rec ring; `op:dump` drains `{s,t,va,ecx,edx,
+  ret,a:[6]}` per call; `off` unhooks.  Entry-only ⇒ any calling convention, stack-safe, SEH-scope-safe
+  (MinHook HDE).  Drive via `raw` or `scratchpad/tr.py`.  Full mechanism + goals: `DESIGN.md` "SE LIVE
+  TRACING HARNESS".  Per-frame **title** liveness leaves: `0x5e57e0`/`0x5e57f0` (2×/frame from the
+  `0x582c40` loop).  ⚠ title fns `0x581ba0`/`0x582c40` are one-shot loop-bodies (entry fires once);
+  `0x497050` (gameplay input refresh) is title-COLD.  ⚠ do NOT trace the render-root REBUILD/commit
+  (`0x5ac830` etc. — mid-teardown free+realloc crashes, per thread #2).
 
 ## ⚠ THE base↔SE EQUIVALENCE RULE (read this first)
 **Base and SE are INDEPENDENT RECOMPILES of ~the same source. VAs do NOT transfer, and the bytes

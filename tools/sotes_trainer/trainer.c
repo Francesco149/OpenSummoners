@@ -546,6 +546,24 @@ static int json_bool(const char *s, const char *key, int dflt) {
     ++p; while (*p == ' ' || *p == '\t') ++p;
     return strncmp(p, "true", 4) == 0 || *p == '1';
 }
+// Parse "key":[a,b,c] (each dec or 0x hex) into out[]; returns the count (0 if absent/empty).
+static int json_u32_array(const char *s, const char *key, uint32_t *out, int cap) {
+    char pat[64]; snprintf(pat, sizeof pat, "\"%s\"", key);
+    const char *p = strstr(s, pat); if (!p) return 0;
+    p = strchr(p + strlen(pat), '['); if (!p) return 0;
+    ++p; int n = 0;
+    while (*p && *p != ']' && n < cap) {
+        while (*p == ' ' || *p == '\t' || *p == ',' || *p == '"') ++p;
+        if (*p == ']' || !*p) break;
+        int base = (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) ? 16 : 10;
+        char *end = NULL;
+        unsigned long v = strtoul(p, &end, base);
+        if (end == p) break;                        // no digits parsed -> stop
+        out[n++] = (uint32_t)v;
+        p = end;
+    }
+    return n;
+}
 
 static uint32_t read_typed(uintptr_t a, const char *ty) {
     if (!strcmp(ty, "u8"))  { uint32_t v = 0; if (mem_readable((void*)a,1)) v = *(uint8_t*)a;  return v; }
@@ -1046,6 +1064,116 @@ static const char *kbd_hooks_enable(void) {   // lazy + idempotent; self-inits M
         return "MH_EnableHook(kbd) failed";
     g_kbd_hooks_on = 1;
     return "enabled";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// LIVE CALL-TRACE HARNESS (USER-requested SE tracing rig; DESIGN.md "an SE LIVE TRACING HARNESS")
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The SE analogue of the port's frida call-trace (tools/frida_capture.py), but BAKED + live-
+// toggleable: `trace on {vas:[…]}` MinHooks each VA with a GENERIC entry thunk that appends
+// {seq,tick,va,ecx,edx,args,ret_va} to a ring the socket drains (`trace dump`).  ENTRY-ONLY, which
+// makes it convention-agnostic AND stack-safe: the thunk pushad/logs/popad then JMPs to the MinHook
+// trampoline (a tail call), so the original runs + returns straight to ITS caller — no return-addr
+// juggling, so cdecl/stdcall/thiscall (any `ret N`) all work without knowing the arg count.  Reading
+// the return value would need a per-thread shadow-stack (a v2); the entry inputs already answer
+// "which fn fired, in what order, with what ecx/args" (the door-hold path + the cross-region diff).
+// Goals (USER, DESIGN): trace the door-hold code path; diff a cross-region vs a same-area door; crack
+// the direct warp.  Reuses the MinHook infra (kbd/dlg hooks).  MinHook's HDE copies whole prologue
+// instructions, so SEH-scope fns (which broke the fixed-5-byte install_detour) hook cleanly.
+#define TRACE_MAX_HOOKS    48
+#define TRACE_RING_BITS    13
+#define TRACE_RING_SZ      (1u << TRACE_RING_BITS)   // 8192 records (~2 min of a per-frame hook)
+#define TRACE_RING_MASK    (TRACE_RING_SZ - 1)
+#define TRACE_NARGS        6                         // stack args captured per call
+#define TRACE_THUNK_STRIDE 0x40                      // per-hook code slot in the exec buffer
+
+typedef struct { uint32_t seq, tick, va, ecx, edx, retaddr, args[TRACE_NARGS]; } trace_rec;
+// The frame the thunk hands the logger: pushfd then pushad (edi last = lowest), then the hooked
+// fn's own [retaddr, stack args…].  push esp (after pushfd) = &frame, so it points at eflags.
+typedef struct {
+    uint32_t eflags;                                   // pushfd
+    uint32_t edi, esi, ebp, esp0, ebx, edx, ecx, eax;  // pushad order (edi pushed last -> lowest addr)
+    uint32_t retaddr;                                  // the hooked fn's caller return address
+    uint32_t args[TRACE_NARGS + 2];                    // the hooked fn's stack args (after retaddr)
+} trace_frame;
+
+static trace_rec       g_trace_ring[TRACE_RING_SZ];
+static volatile LONG   g_trace_widx;                     // monotonic write cursor (masked into the ring)
+static uint32_t        g_trace_ridx;                     // last-dumped index (socket read cursor)
+static volatile int    g_trace_on;                       // records appended only while set
+static uint32_t        g_trace_vas[TRACE_MAX_HOOKS];     // the hooked VAs (status / unhook)
+static int             g_trace_nhooks;
+static void           *g_trace_tramp[TRACE_MAX_HOOKS];   // MinHook trampolines (per hook)
+static uint8_t        *g_trace_thunks;                   // exec buffer holding the per-hook thunks
+
+// The logger the thunk `call`s on ENTRY (cdecl).  MUST be minimal + non-faulting: it reads ONLY the
+// thunk's own stack frame (regs + the raw arg VALUES) — it never derefs ecx/args, so a bad game
+// pointer can't fault inside our hook.  Index allocation is atomic (fns may fire off the engine
+// thread); a torn record body is acceptable for a diagnostic.
+static void __attribute__((cdecl)) trace_entry_c(uint32_t va, trace_frame *f) {
+    if (!g_trace_on) return;
+    LONG i = InterlockedIncrement(&g_trace_widx) - 1;
+    trace_rec *r = &g_trace_ring[(uint32_t)i & TRACE_RING_MASK];
+    r->seq = (uint32_t)i; r->tick = GetTickCount(); r->va = va;
+    r->ecx = f->ecx; r->edx = f->edx; r->retaddr = f->retaddr;
+    for (int a = 0; a < TRACE_NARGS; ++a) r->args[a] = f->args[a];
+}
+
+// Emit a per-hook entry-trace thunk at `dst` (exec mem).  Ends in `jmp [slot]`; `slot` (a dword in
+// the same stride) is wired to the MinHook trampoline after MH_CreateHook.  See trace_frame for the
+// stack layout this produces.
+static void trace_build_thunk(uint8_t *dst, uint32_t va, void **slot_out) {
+    uint8_t *p = dst;
+    *p++ = 0x60;                                                    // pushad
+    *p++ = 0x9c;                                                    // pushfd
+    *p++ = 0x54;                                                    // push esp            ; arg2 = &frame
+    *p++ = 0x68; memcpy(p, &va, 4); p += 4;                         // push imm32 va       ; arg1
+    *p++ = 0xe8;                                                    // call rel32 trace_entry_c
+    { int32_t rel = (int32_t)((uintptr_t)&trace_entry_c - ((uintptr_t)p + 4)); memcpy(p, &rel, 4); p += 4; }
+    *p++ = 0x83; *p++ = 0xc4; *p++ = 0x08;                          // add esp,8           ; cdecl cleanup
+    *p++ = 0x9d;                                                    // popfd
+    *p++ = 0x61;                                                    // popad
+    uint8_t *slot = dst + 0x38;                                     // trampoline-ptr slot (within stride)
+    *p++ = 0xff; *p++ = 0x25;                                       // jmp dword ptr [slot]
+    { uint32_t s = (uint32_t)(uintptr_t)slot; memcpy(p, &s, 4); p += 4; }
+    *(void **)slot = 0;                                             // filled after MH_CreateHook
+    *slot_out = slot;
+}
+
+static const char *trace_hook_va(uint32_t va) {
+    if (g_trace_nhooks >= TRACE_MAX_HOOKS) return "hook table full";
+    for (int i = 0; i < g_trace_nhooks; ++i) if (g_trace_vas[i] == va) return NULL;   // already hooked
+    void *target = AP(va);
+    if (!mem_readable(target, 8)) return "va not readable";
+    if (!g_trace_thunks) {
+        g_trace_thunks = (uint8_t *)VirtualAlloc(NULL, TRACE_MAX_HOOKS * TRACE_THUNK_STRIDE,
+                                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (!g_trace_thunks) return "thunk buffer alloc failed";
+    }
+    if (!g_minhook_inited) {
+        MH_STATUS s = MH_Initialize();
+        if (s != MH_OK && s != MH_ERROR_ALREADY_INITIALIZED) return "MH_Initialize failed";
+        g_minhook_inited = 1;
+    }
+    uint8_t *thunk = g_trace_thunks + g_trace_nhooks * TRACE_THUNK_STRIDE;
+    void *slot = NULL, *tramp = NULL;
+    trace_build_thunk(thunk, va, &slot);
+    MH_STATUS s = MH_CreateHook(target, (LPVOID)thunk, (LPVOID *)&tramp);
+    if (s == MH_ERROR_ALREADY_CREATED) return "va already hooked (another feature)";
+    if (s != MH_OK) return "MH_CreateHook failed";
+    *(void **)slot = tramp;                                         // wire the thunk's tail-jmp
+    g_trace_tramp[g_trace_nhooks] = tramp;
+    if (MH_EnableHook(target) != MH_OK) return "MH_EnableHook failed";
+    g_trace_vas[g_trace_nhooks++] = va;
+    FlushInstructionCache(GetCurrentProcess(), thunk, TRACE_THUNK_STRIDE);
+    return NULL;
+}
+static void trace_unhook_all(void) {
+    for (int i = 0; i < g_trace_nhooks; ++i) {
+        MH_DisableHook((LPVOID)AP(g_trace_vas[i]));
+        MH_RemoveHook((LPVOID)AP(g_trace_vas[i]));
+    }
+    g_trace_nhooks = 0;
 }
 
 static volatile LONG g_hooks_done;
@@ -2389,6 +2517,59 @@ static void handle_line(const char *line, char *out, int cap) {
         int on = json_bool(line, "on", 1);
         warpgate(on);
         snprintf(out, cap, "{\"ok\":true,\"warpgate\":%s}", g_warpgate ? "true" : "false");
+        return;
+    }
+    if (!strcmp(cmd, "trace")) {
+        // {"cmd":"trace","op":"on|off|pause|resume|dump|clear|status","vas":[…],"max":N} — the SE
+        // live call-trace (see the trace-harness block).  `op:on` with `vas` MinHooks each VA with a
+        // generic entry thunk (added to any already hooked) + starts recording; `dump` drains the
+        // ring since the last dump; `off` stops + unhooks.  Use via the MCP `raw` passthrough.
+        char op[16] = {0}; json_str(line, "op", op, sizeof op);
+        if (!op[0]) snprintf(op, sizeof op, "status");
+        if (!strcmp(op, "on")) {
+            uint32_t vas[TRACE_MAX_HOOKS];
+            int nv = json_u32_array(line, "vas", vas, TRACE_MAX_HOOKS);
+            int hooked = 0; char err[96] = {0};
+            for (int i = 0; i < nv; ++i) {
+                const char *e = trace_hook_va(vas[i]);
+                if (e) snprintf(err, sizeof err, "0x%x: %s", (unsigned)vas[i], e); else hooked++;
+            }
+            g_trace_on = 1;
+            snprintf(out, cap, "{\"ok\":%s,\"trace\":true,\"hooked\":%d,\"total_hooks\":%d%s%s%s}",
+                     err[0] ? "false" : "true", hooked, g_trace_nhooks,
+                     err[0] ? ",\"error\":\"" : "", err[0] ? err : "", err[0] ? "\"" : "");
+            return;
+        }
+        if (!strcmp(op, "off"))    { g_trace_on = 0; trace_unhook_all(); snprintf(out, cap, "{\"ok\":true,\"trace\":false,\"total_hooks\":0}"); return; }
+        if (!strcmp(op, "pause"))  { g_trace_on = 0; snprintf(out, cap, "{\"ok\":true,\"trace\":false,\"total_hooks\":%d}", g_trace_nhooks); return; }
+        if (!strcmp(op, "resume")) { g_trace_on = 1; snprintf(out, cap, "{\"ok\":true,\"trace\":true,\"total_hooks\":%d}", g_trace_nhooks); return; }
+        if (!strcmp(op, "clear"))  { g_trace_ridx = (uint32_t)g_trace_widx; snprintf(out, cap, "{\"ok\":true,\"cleared\":true}"); return; }
+        if (!strcmp(op, "dump")) {
+            long long mx = 400; json_num(line, "max", &mx);
+            if (mx < 1) mx = 1;
+            if (mx > 800) mx = 800;
+            uint32_t w = (uint32_t)g_trace_widx, start = g_trace_ridx, dropped = 0, avail = w - start;
+            if (avail > TRACE_RING_SZ) { dropped = avail - TRACE_RING_SZ; start = w - TRACE_RING_SZ; avail = TRACE_RING_SZ; }
+            uint32_t take = avail > (uint32_t)mx ? (uint32_t)mx : avail;
+            int n = snprintf(out, cap, "{\"ok\":true,\"dropped\":%u,\"pending\":%u,\"recs\":[", dropped, avail - take);
+            for (uint32_t k = 0; k < take && n < cap - 220; ++k) {
+                trace_rec *r = &g_trace_ring[(start + k) & TRACE_RING_MASK];
+                n += snprintf(out + n, cap - n,
+                    "%s{\"s\":%u,\"t\":%u,\"va\":\"0x%x\",\"ecx\":\"0x%x\",\"edx\":\"0x%x\",\"ret\":\"0x%x\","
+                    "\"a\":[\"0x%x\",\"0x%x\",\"0x%x\",\"0x%x\",\"0x%x\",\"0x%x\"]}",
+                    k ? "," : "", r->seq, r->tick, (unsigned)r->va, (unsigned)r->ecx, (unsigned)r->edx,
+                    (unsigned)r->retaddr, (unsigned)r->args[0], (unsigned)r->args[1], (unsigned)r->args[2],
+                    (unsigned)r->args[3], (unsigned)r->args[4], (unsigned)r->args[5]);
+                g_trace_ridx = start + k + 1;
+            }
+            snprintf(out + n, cap - n, "]}");
+            return;
+        }
+        // status (default)
+        int n = snprintf(out, cap, "{\"ok\":true,\"trace\":%s,\"total_hooks\":%d,\"pending\":%u,\"vas\":[",
+                         g_trace_on ? "true" : "false", g_trace_nhooks, (unsigned)((uint32_t)g_trace_widx - g_trace_ridx));
+        for (int i = 0; i < g_trace_nhooks; ++i) n += snprintf(out + n, cap - n, "%s\"0x%x\"", i ? "," : "", (unsigned)g_trace_vas[i]);
+        snprintf(out + n, cap - n, "]}");
         return;
     }
     if (!strcmp(cmd, "attract")) {
