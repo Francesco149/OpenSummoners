@@ -205,8 +205,8 @@ static void panel_character() {
     if (ImGui::RadioButton("Active (the one you're controlling)", tgt == 0)) tc_set_target(0);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Auto-follow whichever party member you currently control.");
     for (const tc_char& c : g_chars) {
-        char lbl[64];
-        snprintf(lbl, sizeof lbl, "%s%s   cLvMax %d", c.name, c.active ? "  [active]" : "", c.combat_level_max);
+        char lbl[64];   // ##%u by entity code -> a unique ImGui ID even if two members share a name/level
+        snprintf(lbl, sizeof lbl, "%s%s   cLvMax %d##%u", c.name, c.active ? "  [active]" : "", c.combat_level_max, c.code);
         if (ImGui::RadioButton(lbl, tgt == c.code)) tc_set_target(c.code);
     }
     if (g_chars.empty()) ImGui::TextDisabled("(no party members — load a game)");
@@ -229,7 +229,7 @@ static void panel_teleport(const tc_player& pl, bool hasp) {
     ImGui::SetNextItemWidth(140); ImGui::InputInt("world Y##tp", &ty, 100, 1000);
     ImGui::TextDisabled("world units = centi-px (px x 100)");
     ImGui::BeginDisabled(!hasp);
-    if (ImGui::Button("Teleport")) tc_teleport(tx, ty, 1, 1, 0);
+    if (ImGui::Button("Teleport##do")) tc_teleport(tx, ty, 1, 1, 0);   // ##do: unique ID vs the "Teleport" header
     ImGui::EndDisabled();
 }
 
@@ -286,7 +286,7 @@ static void panel_portals(const tc_map& mp, bool hasm) {
             ImGui::TableSetColumnIndex(1);
             if (e.hijacked) { ImGui::TextColored(COL_ACCENT, "%u", e.target_room); ImGui::SameLine(); ImGui::TextDisabled("(was %u)", e.orig_target); }
             else            ImGui::Text("%u", e.target_room);
-            ImGui::PushID(e.slot);
+            ImGui::PushID(i);                // per-row scope by LOOP INDEX (unique even if two exits share a slot)
             ImGui::TableSetColumnIndex(2);   // door: teleport onto its live anchor
             if (e.has_door) {
                 if (ImGui::SmallButton("go")) tc_teleport_to_door(e.slot);
