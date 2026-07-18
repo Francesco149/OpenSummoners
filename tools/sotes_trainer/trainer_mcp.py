@@ -9,8 +9,8 @@ newline-delimited JSON-RPC 2.0, no SDK) that is a thin, typed skin over that
 socket — the LLM counterpart to the human's ImGui UI (which talks to the same
 socket directly).
 
-  observe   status · player · read · scan · map · rooms · view
-  cheats    write · setstat · god · teleport · box · mousefly · flyto · unlock
+  observe   status · player · chars · read · scan · map · rooms · view
+  cheats    write · setstat · god · teleport · box · mousefly · flyto · target · unlock
   warp      hijack · revert   (change a door's destination + restore it)
   scene     saves · saveinfo · load · newgame
   dialogue  autoskip · fastskip · dlgskip
@@ -109,6 +109,14 @@ def h_status(a):
 
 def h_player(a):
     return _reply(tsend({"cmd": "player"}))
+
+
+def h_chars(a):
+    return _reply(tsend({"cmd": "chars"}))
+
+
+def h_target(a):
+    return _reply(tsend(_cmd("target", a, keys=("code",), bools=("active",))))
 
 
 def h_read(a):
@@ -224,6 +232,13 @@ TOOLS = [
      "hp_max,mp,mp_max,combat_level_max,exp_cur,exp_max} or null if no scene loaded. "
      "world_x/y are centi-px (px*100).",
      {"type": "object", "properties": {}}, h_player),
+    ("chars", "The present party members + who is ACTIVE (controlled) and which is the "
+     "trainer's target: [{name,code,active,is_target,combat_level_max,world_x,world_y}].",
+     {"type": "object", "properties": {}}, h_chars),
+    ("target", "Pick which member teleport/mouse-fly/god/reads operate on: active=true for the "
+     "controlled member, or code=<party code> (0xc35a Arche / 0xc35b Sana / 0xc35c Stella).",
+     {"type": "object", "properties": {
+         "active": {"type": "boolean"}, "code": {"type": "integer"}}}, h_target),
     ("read", "Read a game memory address. type=u8/u16/u32 (default u32); va=true "
      "relocates a 0x400000 ImageBase VA by the ASLR delta (delta is 0 live).",
      {"type": "object", "properties": {

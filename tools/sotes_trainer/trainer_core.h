@@ -51,11 +51,26 @@ typedef struct {
     int      cam_ok, cam_x, cam_y;    // camera top-left (centi-px) — the mouse-fly origin
 } tc_status;
 
+// a party member (for the character picker that chooses who teleport/mouse-fly/god operate on)
+typedef struct {
+    uint32_t code;                    // 0xc35a Arche / 0xc35b Sana / 0xc35c Stella
+    char     name[12];
+    int      active;                  // the CONTROLLED member (input chain -> live input mgr)
+    int      is_target;               // the member the trainer currently operates on
+    int      combat_level_max, world_x, world_y;
+} tc_char;
+
 int tc_get_player(tc_player *out);
 int tc_get_map(tc_map *out);
 int tc_get_status(tc_status *out);
 int tc_get_saves(tc_save *out, int cap);   // returns count (reads user\savedataNN.sdt, no engine load)
 int tc_get_rooms(tc_room *out, int cap);    // returns count (walks the live room-record table)
+int tc_get_chars(tc_char *out, int cap);    // returns count of present party members (marks active/target)
+
+// which member teleport / mouse-fly / god / the reads operate on: 0 = the ACTIVE (controlled)
+// member; else a specific party code.
+void     tc_set_target(uint32_t code);
+uint32_t tc_get_target(void);
 
 // ── actions ──────────────────────────────────────────────────────────────────
 void tc_teleport(int x_cpx, int y_cpx, int set_x, int set_y, int relative);

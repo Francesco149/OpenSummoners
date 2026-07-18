@@ -142,6 +142,12 @@ static void start_load(int slot, int newgame) {
 // ── data caches (refreshed on demand — the room table + save files are heavier reads) ──
 static std::vector<tc_room> g_rooms;
 static std::vector<tc_save> g_saves;
+static std::vector<tc_char> g_chars;
+static void refresh_chars() {
+    g_chars.assign(3, tc_char{});
+    int n = tc_get_chars(g_chars.data(), 3);
+    g_chars.resize(n < 0 ? 0 : n);
+}
 static int  g_save_sel   = -1;    // selected save slot
 static int  g_edit_slot  = -1;    // exit slot whose destination is being changed
 static char g_room_query[64] = "";
@@ -190,6 +196,20 @@ static void panel_cheats() {
     ImGui::Spacing();
     toggle_row("keepactive", "Keep running unfocused",         "Re-post WM_ACTIVATEAPP so the game keeps updating while its window is in the background. On by default.");
     toggle_row("attract",    "Freeze title (no attract demo)", "Hold the title screen so it never cycles to the attract demo. On by default.");
+}
+
+static void panel_character() {
+    if (!ImGui::CollapsingHeader("Character (who to move)", ImGuiTreeNodeFlags_DefaultOpen)) return;
+    uint32_t tgt = tc_get_target();
+    if (ImGui::RadioButton("Active (the one you're controlling)", tgt == 0)) tc_set_target(0);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Auto-follow whichever party member you currently control.");
+    for (const tc_char& c : g_chars) {
+        char lbl[64];
+        snprintf(lbl, sizeof lbl, "%s%s   cLv %d", c.name, c.active ? "  [active]" : "", c.combat_level_max);
+        if (ImGui::RadioButton(lbl, tgt == c.code)) tc_set_target(c.code);
+    }
+    if (g_chars.empty()) ImGui::TextDisabled("(no party members — load a game)");
+    ImGui::TextDisabled("teleport / mouse-fly / god / stats act on this member.");
 }
 
 static void panel_teleport(const tc_player& pl, bool hasp) {
@@ -371,7 +391,12 @@ static void draw_ui() {
     ImGui::TextColored(dot, "%s", "\xe2\x97\x8f"); ImGui::SameLine(); ImGui::TextUnformatted(state);
     ImGui::Separator();
 
+    // refresh the party list a few times a second (tc_get_chars is a heap scan; not per-frame)
+    static int cdiv = 0;
+    if (++cdiv >= 30) { cdiv = 0; refresh_chars(); }
+
     panel_cheats();
+    panel_character();
     panel_teleport(pl, hasp);
     panel_player(pl, hasp);
     panel_map(mp, hasm);

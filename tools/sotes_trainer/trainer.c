@@ -185,37 +185,53 @@ static int rd32(const void *p, uint32_t *out) {
     return 1;
 }
 
-// ─── player-actor anchor (scan for the 0xc35a actor; cache + revalidate) ─────
-static uintptr_t g_player;   // cached actor base (0 = unknown)
+// ─── party-actor anchors (scan for a party-member actor; cache + revalidate) ─────
+// The 3 party members are found by their entity code: Arche 0xc35a, Sana 0xc35b, Stella 0xc35c.
+// The CONTROLLED (active) member is the one whose input chain resolves to the live input mgr:
+// *(*(actor+0xc7a4)) == g_ti_mgr (RE'd live — the AI-followed / benched members do NOT match).
+#define OFF_INPUT_CHAIN 0xc7a4
+static volatile uint32_t g_ti_mgr;   // fwd (the title/gameplay input mgr; defined with the poll hooks)
+static uintptr_t g_player;   // Arche cache (0xc35a) = the "is a scene loaded" anchor / load-detection
+static uintptr_t g_active;   // controlled-member cache
+static uintptr_t g_bycode;   // explicit-member cache (a specific target code)
 
 static int stat_max(uintptr_t sb, int base_off, int equip_off, int buff_off);
-// Strong validation: code 0xc35a is common enough to collide, so cross-check that
-// the whole stat block + world coords are mutually player-sane (rejects garbage
-// false positives).  TODO(anchor): a ctor hook on 0x419b00 would be collision-proof.
-static int actor_valid(uintptr_t base) {
+static int is_party_code(uint32_t c) { return c == 0xc35a || c == 0xc35b || c == 0xc35c; }
+
+// Validate a party-member actor: code == `want` (or ANY party code if want==0) + a mutually-sane
+// stat block + world coords (the code word appears in many non-actor places, so cross-check).
+static int actor_valid(uintptr_t base, uint32_t want) {
     uint32_t code, sb, lvl, hpc, mpc, wx, wy;
-    if (!rd32((void *)(base + OFF_CODE), &code) || code != PLAYER_CODE) return 0;
+    if (!rd32((void *)(base + OFF_CODE), &code)) return 0;
+    if (want ? (code != want) : !is_party_code(code)) return 0;
     if (!rd32((void *)(base + OFF_STATBLOCK), &sb) || !mem_readable((void *)sb, 0x200)) return 0;
     if (!rd32((void *)(sb + OFF_COMBAT_LV_MAX), &lvl) || lvl < 1 || lvl > 99) return 0;
     int hpmax = stat_max(sb, OFF_HP_BASE, OFF_HP_EQUIP, OFF_HP_BUFF);
     int mpmax = stat_max(sb, OFF_MP_BASE, OFF_MP_EQUIP, OFF_MP_BUFF);
     if (hpmax < 1 || hpmax > 99999) return 0;
     if (mpmax < 0 || mpmax > 9999) return 0;
-    // hp/mp_cur are NOT bounded by max: invincibility pins hp above max on purpose, so accept a
-    // wide trainer range (the code/level/max/coord checks still reject false positives).
+    // hp/mp_cur are NOT bounded by max: god pins them above max on purpose, so accept a wide
+    // trainer range (the code/level/max/coord checks still reject false positives).
     if (!rd32((void *)(sb + OFF_HP_CUR), &hpc) || (int)hpc < 0 || (int)hpc > 999999) return 0;
     if (!rd32((void *)(sb + OFF_MP_CUR), &mpc) || (int)mpc < 0 || (int)mpc > 999999) return 0;
     if (!rd32((void *)(base + OFF_WORLD_X), &wx) || !rd32((void *)(base + OFF_WORLD_Y), &wy)) return 0;
     if (abs((int)wx) > 50000000 || abs((int)wy) > 50000000) return 0;   // centi-px sanity
     return 1;
 }
-static uintptr_t find_player(void) {
-    if (g_player && actor_valid(g_player)) return g_player;   // cache hit = cheap (no scan)
-    g_player = 0;
-    // THROTTLE the cold full-address-space scan: callers poll this every frame (UI reads + the
-    // engine-side freezes), and at a menu (no player) an every-frame full scan starves the game
-    // loop AND raises the TOCTOU fault odds during a scene teardown.  When nothing is cached,
-    // scan at most ~8x/sec; a freshly-spawned player is still picked up within ~120ms.
+// Is `actor` the CONTROLLED member? (its input chain resolves to the live input mgr.)
+static int actor_is_active(uintptr_t actor) {
+    uint32_t p = 0, mgr = 0, tm = g_ti_mgr;
+    if (!tm) return 0;
+    if (!rd32((void *)(actor + OFF_INPUT_CHAIN), &p) || p <= 0x10000) return 0;
+    if (!rd32((void *)(uintptr_t)p, &mgr)) return 0;
+    return mgr == tm;
+}
+// Scan for a party-member actor matching (want / any) [+ the active predicate]; cache + revalidate,
+// with a throttled cold scan (callers poll every frame — an every-frame full scan at a menu starves
+// the game loop / raises TOCTOU-fault odds; cap ~8x/sec, a fresh actor is picked up within ~120ms).
+static uintptr_t scan_actor(uint32_t want, int active, uintptr_t *cache) {
+    if (*cache && actor_valid(*cache, want) && (!active || actor_is_active(*cache))) return *cache;
+    *cache = 0;
     static DWORD last_scan;
     DWORD now = GetTickCount();
     if (last_scan && (now - last_scan) < 120) return 0;
@@ -227,18 +243,29 @@ static uintptr_t find_player(void) {
         if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
             (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) &&
             mbi.RegionSize <= 0x4000000) {
-            uint32_t *p = (uint32_t *)mbi.BaseAddress;
-            uint32_t *e = (uint32_t *)(next - 4);
+            uint32_t *p = (uint32_t *)mbi.BaseAddress, *e = (uint32_t *)(next - 4);
             for (; p <= e; ++p) {
-                if (*p != PLAYER_CODE) continue;
+                uint32_t c = *p;
+                if (want ? (c != want) : !is_party_code(c)) continue;
                 uintptr_t base = (uintptr_t)p - OFF_CODE;
-                if (actor_valid(base)) { g_player = base; return base; }
+                if (actor_valid(base, want) && (!active || actor_is_active(base))) { *cache = base; return base; }
             }
         }
         if (next <= addr) break;
         addr = next;
     }
     return 0;
+}
+static uintptr_t find_player(void)           { return scan_actor(PLAYER_CODE, 0, &g_player); }  // Arche = scene-loaded
+static uintptr_t find_by_code(uint32_t code) { return scan_actor(code, 0, &g_bycode); }
+static uintptr_t find_active(void)           { return scan_actor(0, 1, &g_active); }
+// The member that teleport / mouse-fly / god / the reads operate on: the SELECTED member
+// (g_target_code), else the ACTIVE (controlled) member, else Arche.
+static volatile uint32_t g_target_code;   // 0 = active/controlled; else a specific party code
+static uintptr_t find_target(void) {
+    if (g_target_code) { uintptr_t a = find_by_code(g_target_code); if (a) return a; }
+    uintptr_t act = find_active();
+    return act ? act : find_player();
 }
 
 static int stat_max(uintptr_t sb, int base_off, int equip_off, int buff_off) {
@@ -504,7 +531,7 @@ call_va(void *fn, uint32_t ecx_this, const uint32_t *args, int n) {
 
 // Build the player JSON into out. Returns 0 if no player.
 static int player_json(char *out, int cap) {
-    uintptr_t base = find_player();
+    uintptr_t base = find_target();
     if (!base) { snprintf(out, cap, "null"); return 0; }
     uint32_t wx=0, wy=0, sb=0, hp=0, mp=0, lvl=0, ec=0, em=0;
     rd32((void *)(base + OFF_WORLD_X), &wx);
@@ -1063,7 +1090,7 @@ static DWORD WINAPI keepalive_thread(void *unused) {
 // gravity-settles.  Absolute y is a world_y (bottom) target -> top = y - height + 1.  Shared
 // by the `teleport` command, tc_teleport, and mouse-fly.
 static int teleport_box(int x_cpx, int y_cpx, int set_x, int set_y, int relative) {
-    uintptr_t base = find_player();
+    uintptr_t base = find_target();
     if (!base) return 0;
     uint32_t box = 0;
     if (!rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000 ||
@@ -1179,7 +1206,7 @@ static int exit_hijacked(uint32_t room_key, int slot, uint32_t *orig) {
 }
 // Engine-side stat write (statblock resolved on the engine thread; optional freeze lock).
 static void setstat_engine(int off, uint32_t val, int lock) {
-    uintptr_t base = find_player(); uint32_t sb = 0;
+    uintptr_t base = find_target(); uint32_t sb = 0;
     if (off < 0 || !base || !rd32((void *)(base + OFF_STATBLOCK), &sb)) return;
     write_typed(sb + off, val, "u32");
     if (lock) lock_set(sb + off, val);
@@ -1259,7 +1286,7 @@ static void drain_engine_queue(void) {
 //   hotkeys  — F7 toggles mouse-fly.
 static void engine_freezes(void) {
     if (g_god) {   // god = invincibility: pin hp+mp above max so nothing kills + free casting
-        uintptr_t base = find_player(); uint32_t sb = 0;
+        uintptr_t base = find_target(); uint32_t sb = 0;
         if (base && rd32((void *)(base + OFF_STATBLOCK), &sb)) {
             if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
             if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
@@ -1371,11 +1398,56 @@ int tc_get_rooms(tc_room *out, int cap) {
     return n;
 }
 
+// ── character targeting: which member teleport/mouse-fly/god/reads operate on ──
+void     tc_set_target(uint32_t code) { g_target_code = code; }
+uint32_t tc_get_target(void)          { return g_target_code; }
+// Enumerate the present party members (one heap scan; the first valid actor per code) + mark the
+// active/target one.  On-demand (the UI throttles); not per-frame.
+int tc_get_chars(tc_char *out, int cap) {
+    if (!out || cap <= 0) return 0;
+    uintptr_t found[3] = { 0, 0, 0 };
+    int remaining = 3;
+    uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
+    while (remaining > 0 && VirtualQuery(addr, &mbi, sizeof mbi)) {
+        uint8_t *next = (uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
+            (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) && mbi.RegionSize <= 0x4000000) {
+            uint32_t *p = (uint32_t *)mbi.BaseAddress, *e = (uint32_t *)(next - 4);
+            for (; p <= e && remaining > 0; ++p) {
+                uint32_t c = *p;
+                if (!is_party_code(c)) continue;
+                int idx = (int)(c - 0xc35a);
+                if (idx < 0 || idx > 2 || found[idx]) continue;
+                uintptr_t base = (uintptr_t)p - OFF_CODE;
+                if (actor_valid(base, c)) { found[idx] = base; --remaining; }
+            }
+        }
+        if (next <= addr) break;
+        addr = next;
+    }
+    static const char *NM[3] = { "Arche", "Sana", "Stella" };
+    int n = 0;
+    for (int i = 0; i < 3 && n < cap; ++i) {
+        if (!found[i]) continue;
+        tc_char *d = &out[n++];
+        memset(d, 0, sizeof *d);
+        d->code = 0xc35a + (uint32_t)i;
+        snprintf(d->name, sizeof d->name, "%s", NM[i]);
+        d->active = actor_is_active(found[i]);
+        uint32_t sb = 0, clm = 0, wx = 0, wy = 0;
+        rd32((void *)(found[i] + OFF_STATBLOCK), &sb); rd32((void *)(sb + OFF_COMBAT_LV_MAX), &clm);
+        rd32((void *)(found[i] + OFF_WORLD_X), &wx);   rd32((void *)(found[i] + OFF_WORLD_Y), &wy);
+        d->combat_level_max = (int)clm; d->world_x = (int)wx; d->world_y = (int)wy;
+        d->is_target = g_target_code ? (g_target_code == d->code) : d->active;
+    }
+    return n;
+}
+
 // ── typed reads for the UI (trainer_core.h) ──
 int tc_get_player(tc_player *o) {
     if (!o) return 0;
     memset(o, 0, sizeof *o);
-    uintptr_t base = find_player();
+    uintptr_t base = find_target();
     if (!base) return 0;
     uint32_t wx = 0, wy = 0, sb = 0, hp = 0, mp = 0, lvl = 0, ec = 0, em = 0;
     rd32((void *)(base + OFF_WORLD_X), &wx);   rd32((void *)(base + OFF_WORLD_Y), &wy);
@@ -1544,6 +1616,27 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
         return;
     }
+    if (!strcmp(cmd, "chars")) {
+        // {"cmd":"chars"} — the present party members + who is active (controlled) / the target.
+        tc_char cs[3]; int nc = tc_get_chars(cs, 3);
+        int n = snprintf(out, cap, "{\"ok\":true,\"target\":%u,\"chars\":[", (unsigned)g_target_code);
+        for (int i = 0; i < nc && n < cap - 96; ++i)
+            n += snprintf(out + n, cap - n,
+                "%s{\"name\":\"%s\",\"code\":%u,\"active\":%s,\"is_target\":%s,\"combat_level_max\":%d,\"world_x\":%d,\"world_y\":%d}",
+                i ? "," : "", cs[i].name, cs[i].code, cs[i].active ? "true" : "false",
+                cs[i].is_target ? "true" : "false", cs[i].combat_level_max, cs[i].world_x, cs[i].world_y);
+        snprintf(out + n, cap - n, "]}");
+        return;
+    }
+    if (!strcmp(cmd, "target")) {
+        // {"cmd":"target","active":true} or {"cmd":"target","code":50522} — pick who teleport /
+        // mouse-fly / god / the reads operate on (0/active = the controlled member).
+        long long code;
+        if (json_bool(line, "active", 0))        tc_set_target(0);
+        else if (json_num(line, "code", &code))  tc_set_target((uint32_t)code);
+        snprintf(out, cap, "{\"ok\":true,\"target\":%u}", (unsigned)g_target_code);
+        return;
+    }
     if (!strcmp(cmd, "state")) {
         // diagnostic: boot/hook/menu-drive state.  ti_mgr!=0 => the TITLE input poll
         // (0x437c70) is firing (game is at the title); pk_mgr!=0 => the save-slot picker
@@ -1620,7 +1713,7 @@ static void handle_line(const char *line, char *out, int cap) {
     if (!strcmp(cmd, "setstat")) {
         char which[8] = {0}; long long v;
         if (!json_str(line, "which", which, sizeof which) || !json_num(line, "value", &v)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"which/value\"}"); return; }
-        if (!find_player()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
+        if (!find_target()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
         tc_setstat(which, (int)v, json_bool(line, "lock", 0));   // resolves+writes on the engine thread
         char pj[512]; player_json(pj, sizeof pj);
         snprintf(out, cap, "{\"ok\":true,\"player\":%s}", pj);
@@ -1632,7 +1725,7 @@ static void handle_line(const char *line, char *out, int cap) {
         long long x, y; int rel = json_bool(line, "relative", 0);
         int hasx = json_num(line, "x", &x), hasy = json_num(line, "y", &y);
         if (!hasx && !hasy) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no x/y\"}"); return; }
-        if (!find_player()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
+        if (!find_target()) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no player\"}"); return; }
         int xc = rel ? (int)(x * 100) : (int)x;
         int yc = rel ? (int)(y * 100) : (int)y;
         tc_teleport(xc, yc, hasx, hasy, rel);
@@ -1641,7 +1734,7 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "box")) {                    // debug: read the player's phys-box
-        uintptr_t base = find_player(); uint32_t box = 0;
+        uintptr_t base = find_target(); uint32_t box = 0;
         if (!base || !rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000) {
             snprintf(out, cap, "{\"ok\":false,\"error\":\"no box\"}"); return; }
         uint32_t bx=0,top=0,w=0,h=0,tag=0;
@@ -1732,7 +1825,7 @@ static void handle_line(const char *line, char *out, int cap) {
         if (json_num(line, "off", &off)) g_cam_off = (uint32_t)off;
         uint32_t root = 0, cam = 0; rd32(AP(VA_RENDER_ROOT), &root);
         if (root) rd32((void *)(uintptr_t)(root + g_cam_off), &cam);
-        uintptr_t base = find_player(); uint32_t box = 0, bx = 0, btop = 0;
+        uintptr_t base = find_target(); uint32_t box = 0, bx = 0, btop = 0;
         if (base && rd32((void *)(base + OFF_BOX), &box) && box > 0x10000) {
             rd32((void *)((uintptr_t)box + BOX_X), &bx);
             rd32((void *)((uintptr_t)box + BOX_TOP), &btop);
