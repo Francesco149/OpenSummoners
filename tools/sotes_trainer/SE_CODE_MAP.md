@@ -87,11 +87,32 @@ cooperative: window NOT foreground ⇒ `GetDeviceState`/`GetDeviceData` return `
 0x8007001e`, the immediate buffer FREEZES (last-injected values stick — PROVEN: `buf[UP]=0x80` written,
 never cleared) AND no real buffered events flow ⇒ door-enter never fires. PROVEN: a full-floor sweep
 (teleport + clean UP tap ∀ x∈[4000,150000]) with a `0x5a6010` transition hook NEVER fired — via
-immediate-buffer UP, ring-press, OR injected buffered events. The USER's teleport-to-door+UP worked
-because their window was FOCUSED. ⇒ raw-DINPUT DOOR-DRIVER needs the game FOREGROUND (or an injected
-buffered-event bypassing the acquire gate — unsolved). The FOREGROUND-INDEPENDENT warp path = the
-DIRECT transition call (thread #2, runs at the engine safepoint). Tools: `scratchpad/kbinject.py`
-(hook kb_poll → inject DIK), `sweep3.py`/`bufsweep.py` (door sweeps).
+immediate-buffer UP, ring-press, OR a plain injected buffered event. The USER's teleport-to-door+UP
+worked because their window was FOCUSED.
+
+### ✅✅ DOOR-DRIVER SOLVED (foreground-independent) + WITHIN-AREA HIJACK-WARP PROVEN (2026-07-18)
+The plain buffered-event inject failed because — NOT foreground — `buffered_read 0x5e2820` returns
+**0 (failure)** on INPUTLOST, so the consumer (`0x497050`) SKIPS the events. **FIX: hook
+`0x5e2820` onLeave and FORCE the return value to 1** (`retval.replace(1)`) while injecting the event,
+so the consumer processes it regardless of focus. The auto DOOR-ENTER then fires with NO foreground.
+Recipe (per frame while "pressing UP"), inject into the keyboard obj `*(0x92d5bc)` only:
+```
+kb_this[0x14] (event array)[0] = { dwOfs=0xC8(DIK_UP), dwData=0x80(press)/0x00(release),
+                                   dwTimeStamp=GetTickCount(), dwSequence=++seq }
+kb_this[0x10] (count) = 1 ;  buffered_read RETVAL := 1
+```
+Do one 'P' (press) event then one 'R' (release) ~0.3 s later = a clean tap. Immediate-buffer keys
+(movement) kept CLEARED meanwhile.  **PROVEN reproducible + hijack-composed:** teleport to the door
+zone + this tap → real transition: 440220→440210 (door x≈110000-112000), 440210→440220 (x≈158500);
+and with `hijack slot=0 target=440230` the SAME door warped to **440230** (a room it doesn't naturally
+reach) — a full WITHIN-AREA warp to any resident room. The door ZONE is a range (~2000 cpx wide), so a
+coarse teleport sweep (step ≤1500) reliably lands on it; a single teleport can miss the edge. Each
+transition does a fresh REBUILD (render_root changes) and fires **`0x5ac6b0`** (the door/scene entry;
+observed args `[0,0x2738,0,ptr,0x2,TARGET_ROOM_RECORD,ptr,1]` — a5 = the target room record), NOT
+`0x5a6010`/`0x5c83c0`. Cross-AREA still needs the target area's W-map (chain via real boundary portals,
+the USER plan). **NEXT: bake the forced-retval buffered inject + the movement inject into the trainer
+(a `warp room=K` cmd = BFS the graph → per hop hijack + teleport-to-door-sweep + door-tap).** Tools:
+`scratchpad/kbinject.py` (movement), `bufsweep2.py` (the SOLVED door-driver + sweep), `watch_transition.py`.
 
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |
