@@ -15,7 +15,10 @@
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$BASE = 'https://github.com/Francesco149/OpenSummoners/releases/download/nightly'
+# Release tag to install from — defaults to the rolling `nightly`.  Override to test an
+# unmerged build, e.g.  $env:OSS_ENNSE_TAG='fullscreen-test'  before running the one-liner.
+$TAG  = if ($env:OSS_ENNSE_TAG) { $env:OSS_ENNSE_TAG } else { 'nightly' }
+$BASE = "https://github.com/Francesco149/OpenSummoners/releases/download/$TAG"
 
 # ---- pretty output --------------------------------------------------------
 function Step($m){ Write-Host "[*] $m" -ForegroundColor Cyan }
