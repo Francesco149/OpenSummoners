@@ -250,17 +250,27 @@ static int actor_valid(uintptr_t base, uint32_t want) {
     if (!rd32((void *)(sb + OFF_MP_CUR), &mpc) || (int)mpc < 0 || (int)mpc > 999999) return 0;
     if (!rd32((void *)(base + OFF_WORLD_X), &wx) || !rd32((void *)(base + OFF_WORLD_Y), &wy)) return 0;
     if (abs((int)wx) > 50000000 || abs((int)wy) > 50000000) return 0;   // centi-px sanity
-    // Reject a STALE/roster DUPLICATE (e.g. a leftover after a cross-region warp, or the
-    // title-screen roster copy): the LIVE in-scene actor's phys-box tracks world_x every frame
-    // (box[+4] == +0xc76c, the 0x484554 commit), so box[+4] != world_x ⇒ not the live actor.
-    // A not-yet-boxed fresh actor (null/unreadable box) is still accepted, so load-detection is
-    // not delayed.  This is what makes teleport/find_target hit the on-screen Arche, not the ghost.
+    // Reject a stale roster GHOST (leftover after a cross-region warp): its phys-box is garbage, so
+    // box[+4] reads a POINTER (magnitude >> any world coord).  The LIVE actor's box[+4] is its left-X,
+    // always a coordinate < 50M — STABLE even while moving/teleporting, so this does NOT tear/thrash
+    // the cache the way an exact box[+4]==world_x check did (the mouse-fly/party-list lag regression).
     uint32_t box = 0, bx4 = 0;
-    if (rd32((void *)(base + OFF_BOX), &box) && box > 0x10000 &&
-        mem_readable((void *)(uintptr_t)box, 0x14)) {
-        if (rd32((void *)((uintptr_t)box + BOX_X), &bx4) && bx4 != wx) return 0;
-    }
+    if (rd32((void *)(base + OFF_BOX), &box) && box > 0x10000 && mem_readable((void *)(uintptr_t)box, 0x14)
+        && rd32((void *)((uintptr_t)box + BOX_X), &bx4) && abs((int)bx4) > 50000000) return 0;
     return 1;
+}
+// The LIVE in-scene actor's phys-box mirrors world_x every frame (box[+4] == +0xc76c, the 0x484554
+// commit); a stale/roster DUPLICATE (e.g. a leftover after a cross-region warp) keeps a garbage/frozen
+// box, so box[+4] != world_x.  Used ONLY as a cold-scan PREFERENCE to pick the live actor over the
+// ghost — NOT in actor_valid, because a per-frame boxOK check TEARS while the actor moves (box[+4] and
+// world_x commit a frame apart on the async socket thread) → invalidates a good cache → full-heap
+// re-scans → choppy mouse-fly / dropped party members / lag (USER-reported regression).
+static int actor_box_tracks(uintptr_t base) {
+    uint32_t box = 0, bx4 = 0, wx = 0;
+    if (!rd32((void *)(base + OFF_BOX), &box) || box <= 0x10000 ||
+        !mem_readable((void *)(uintptr_t)box, 0x14)) return 0;
+    return rd32((void *)((uintptr_t)box + BOX_X), &bx4) &&
+           rd32((void *)(base + OFF_WORLD_X), &wx) && bx4 == wx;
 }
 // Is `actor` the CONTROLLED member? (its input chain resolves to the live input mgr.)
 static int actor_is_active(uintptr_t actor) {
@@ -280,6 +290,7 @@ static uintptr_t scan_actor(uint32_t want, int active, uintptr_t *cache) {
     DWORD now = GetTickCount();
     if (last_scan && (now - last_scan) < 120) return 0;
     last_scan = now;
+    uintptr_t fallback = 0;   // first valid candidate; used iff no box-tracking (live) one is found
     uint8_t *addr = 0;
     MEMORY_BASIC_INFORMATION mbi;
     while (VirtualQuery(addr, &mbi, sizeof mbi)) {
@@ -292,12 +303,15 @@ static uintptr_t scan_actor(uint32_t want, int active, uintptr_t *cache) {
                 uint32_t c = *p;
                 if (want ? (c != want) : !is_party_code(c)) continue;
                 uintptr_t base = (uintptr_t)p - OFF_CODE;
-                if (actor_valid(base, want) && (!active || actor_is_active(base))) { *cache = base; return base; }
+                if (!actor_valid(base, want) || (active && !actor_is_active(base))) continue;
+                if (actor_box_tracks(base)) { *cache = base; return base; }   // the LIVE actor -> take it
+                if (!fallback) fallback = base;                               // a candidate (maybe a ghost)
             }
         }
         if (next <= addr) break;
         addr = next;
     }
+    if (fallback) { *cache = fallback; return fallback; }
     return 0;
 }
 static uintptr_t find_player(void)           { return scan_actor(PLAYER_CODE, 0, &g_player); }  // Arche = scene-loaded
@@ -1139,8 +1153,14 @@ static void warpgate(int on) {         // the toggle just sets the DESIRED state
     g_warpgate = on ? 1 : 0;
     if (!on) warpgate_set(0);          // remove immediately when turned off
 }
-// Per-frame (safepoint): apply the patch only when it's SAFE (in a settled scene, not mid menu-drive).
+// Apply the patch only when it's SAFE (in a settled scene, not mid menu-drive).  THROTTLED to ~5x/sec:
+// the safe-state only changes on scene transitions, and find_player() is a heap scan (a VirtualQuery
+// per read) — running it every frame is needless per-frame cost.
 static void warpgate_sync(void) {
+    static DWORD last;
+    DWORD now = GetTickCount();
+    if (last && (now - last) < 200) return;
+    last = now;
     int safe = g_warpgate && g_ti_mgr && !g_md_state && !g_ng_state
                && g_scene_settle > WG_SETTLE_POLLS && find_player();
     warpgate_set(safe ? 1 : 0);
@@ -1437,23 +1457,61 @@ static void drain_engine_queue(void) {
     }
 }
 
+// Party-wide god: pin HP+MP for EVERY present member — OPTIMIZED (rd32/mem_* each do a VirtualQuery
+// SYSCALL, so the freeze must minimise them).  Per frame (all cached): 2 VirtualQuery/member — one
+// code-read revalidate + one span-writable check — then two direct writes.  A full-heap SCAN runs
+// ONLY when a member is missing (≤1x/sec), so a normal scene with all 3 resident does NONE (the god
+// freeze was the USER-reported lag: an unconditional 4x/sec full scan + 3x full actor_valid/frame).
+static void god_freeze_party(void) {
+    // Never touch actors during the title / menu-drive / unsettled scene (a scene rebuild is unstable —
+    // a stale write there crashes the game).  Same gate as warpgate.
+    if (g_md_state || g_ng_state || g_scene_settle < WG_SETTLE_POLLS) return;
+    static uintptr_t pc[3];        // Arche 0xc35a / Sana 0xc35b / Stella 0xc35c
+    static DWORD last;
+    int missing = 0;
+    for (int i = 0; i < 3; ++i) {                          // ROBUST revalidate (rejects a freed/reused ptr)
+        if (pc[i] && !actor_valid(pc[i], 0xc35a + (uint32_t)i)) pc[i] = 0;
+        if (!pc[i]) missing = 1;
+    }
+    DWORD now = GetTickCount();
+    if (missing && (!last || (now - last) >= 500)) {       // scan ONLY to (re)find a missing member, <=2x/sec
+        last = now;
+        uint8_t *addr = 0; MEMORY_BASIC_INFORMATION mbi;
+        while (VirtualQuery(addr, &mbi, sizeof mbi)) {
+            uint8_t *next = (uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+            if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE &&
+                (mbi.Protect & PAGE_READWRITE) && !(mbi.Protect & PAGE_GUARD) && mbi.RegionSize <= 0x4000000) {
+                uint32_t *p = (uint32_t *)mbi.BaseAddress, *e = (uint32_t *)(next - 4);
+                for (; p <= e; ++p) {
+                    uint32_t c = *p;
+                    if (!is_party_code(c)) continue;
+                    int idx = (int)(c - 0xc35a);
+                    if (idx < 0 || idx > 2 || pc[idx]) continue;   // already have this member
+                    uintptr_t base = (uintptr_t)p - OFF_CODE;
+                    if (actor_valid(base, c)) pc[idx] = base;
+                }
+            }
+            if (next <= addr) break;
+            addr = next;
+        }
+    }
+    for (int i = 0; i < 3; ++i) {                          // freeze: fresh statblock read (safe) + guarded write
+        uint32_t sb = 0;
+        if (pc[i] && rd32((void *)(pc[i] + OFF_STATBLOCK), &sb)
+            && mem_writable((void *)(sb + OFF_HP_CUR), (OFF_MP_CUR - OFF_HP_CUR) + 4)) {
+            *(volatile uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
+            *(volatile uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
+        }
+    }
+}
+
 // Per-frame engine-side work (run by the drain, so it happens IN the game loop, engine-side):
 //   freezes  — god (hp+mp = GOD_VAL 9999) / setstat locks / fastskip reveal.
 //   mousefly — teleport the player to the cursor over the game window (camera frozen).
 //   hotkeys  — F7 toggles mouse-fly.
 static void engine_freezes(void) {
     warpgate_sync();   // apply/remove the door-gate patch per the safe-scene gate (crash-safe)
-    if (g_god) {   // god = PARTY-WIDE invincibility: pin hp+mp above max for EVERY present member
-        static uintptr_t party_cache[3];                  // Arche 0xc35a / Sana 0xc35b / Stella 0xc35c
-        for (int i = 0; i < 3; ++i) {
-            uintptr_t a = scan_actor(0xc35a + (uint32_t)i, 0, &party_cache[i]);   // cached; revalidated
-            uint32_t sb = 0;
-            if (a && rd32((void *)(a + OFF_STATBLOCK), &sb)) {
-                if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
-                if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
-            }
-        }
-    }
+    if (g_god) god_freeze_party();   // PARTY-WIDE invincibility (hp+mp = GOD_VAL for every member)
     EnterCriticalSection(&g_lock_cs);
     for (int i = 0; i < MAX_LOCKS; ++i)
         if (g_locks[i].used && mem_writable((void *)g_locks[i].addr, 4)) *(uint32_t *)g_locks[i].addr = g_locks[i].val;

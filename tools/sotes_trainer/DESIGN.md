@@ -156,6 +156,18 @@ Foundation in hand: teleport (`*(actor+0x40)` phys-box), the player anchor, **au
 dialogue en route), load/newgame (pick the start save).  Prereq RE: the map/scene singleton + object-pool
 layout (SE offsets) and the portal record format.
 
+## Standing PHILOSOPHY — proper RE over fragile SCANS (USER, 2026-07-18)
+**Scanning the heap is a PROBING-stage tool only** (RE + finding addresses across versions later), NOT
+a runtime mechanism.  The trainer currently full-heap-SCANS to find the player/party (`find_player`,
+`scan_actor`, `tc_get_chars`, `god_freeze_party`) — every rd32 is a `VirtualQuery` syscall, so a
+per-frame scan LAGS the game (the party-god freeze regression, 2026-07-18: an unconditional 4x/sec
+scan + 3x `actor_valid`/frame; mitigated to scan-only-when-a-member-is-missing + a cached statblock,
+but still a scan).  **Going forward: reach the player + party roster by a POINTER CHAIN / HOOK from a
+known global**, not a scan — e.g. the leader controller's party slots (base door handler reads
+`*(param_2+0x4030 + i*4)`, i<8 = the 8 party actor slots), or the render-root CHARACTER band, or a
+party global.  RE it (next session, with the tracing harness below), cache the chain, revalidate cheap.
+Reserve the scan for first-boot discovery + version-porting.
+
 ## Next session (planned) — an SE LIVE TRACING HARNESS (USER-requested 2026-07-18)
 Build the SE analogue of the port's retail call-trace harness (`tools/frida_capture.py` +
 `bisect_call_trace_vas.py` — which bisects "safe" hookable VAs by re-launching until the game boots
