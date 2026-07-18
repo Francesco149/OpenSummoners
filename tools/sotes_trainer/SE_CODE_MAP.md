@@ -57,6 +57,21 @@ analog where known; **the base VA is the MODEL, not necessarily the SE VA**.
   `+0xd8` level_bonus per `494e60:123`, NOT `+0xe0` alone); `+0xd8` level_bonus, `+0xdc` star_count;
   `+0xec` exp_cur `+0xf0` exp_max.
 
+### Input mgr / held-keys (freeroam movement + door-enter — RE'd 2026-07-18)
+The controllable char's input mgr = `*(*(actor+0xc7a4))` (`OFF_INPUT_CHAIN`; live: Arche's =
+`0x085fc4f4`, distinct from the title poll's `g_ti_mgr`). The char AI (`0x478ba0` analog) reads the
+HELD-AXIS array — the **base layout CARRIES to SE** (verified live, all idle=0):
+`mgr+0x114` UP · `+0x118` DOWN · `+0x11c` LEFT · `+0x120` RIGHT · `+0x124` JUMP · `+0x128` ATTACK
+(each a held-tick counter; UP builds the door-enter command `[3]=0xb`, port `character.h`).
+⚠ **The held-axis is REGENERATED EVERY FRAME from raw DINPUT** — PROVEN live: writing `+0x120`=50
+reads back 0 the next frame AND Arche does NOT move (whereas god's hp/mp=9999 freeze at the same
+safepoint DOES hold — so per-frame safepoint writes work; the axis is specifically overwritten by the
+poll). ⇒ auto-movement/door-enter must inject the **RAW DINPUT held-keys buffer** that the poll
+`0x437c70` READS (poll_title_cb runs BEFORE the original poll, so a raw-buffer write there is picked
+up), NOT the processed held-axis (which the poll WRITES). **NEXT (thread #2 path i):** find the raw
+DINPUT key buffer (the `IDirectInputDevice::GetDeviceState` sink) + the UP index → the auto door-enter
+primitive; then teleport-to-door + inject-UP drives a full route (the SE_CODE_MAP "VALIDATED PRIMITIVE").
+
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |
 |---|---|
