@@ -91,4 +91,37 @@ safe interventions (all gated by the game's own UP-held check, so STANDING never
    loaded (the `0x5ad656` "map data not found" crash), which is the warp-router's job, not this gate.
 
 All three applied/removed together by `warpgate_set`, AUTO-GATED to a settled in-scene state
-(`scene_present() + g_scene_settle`), same as before.
+(`scene_present() + g_scene_settle`), same as before.  USER-VERIFIED live: instant enter with mobs
+(hold-prompt flashes then skips); warped a whole dungeon of unseen maps; unseen+combat works.
+
+## SHELVED (2026-07-18) — warpgate breaks SCRIPTED sequences → GAME-side crash (NOT a trainer bug)
+Re-entering the "mystery dungeon" entrance (target map **999999** / `0xf423f`) after clearing the
+dungeon **without the boss** (warpgate skipped the scripted sequence) CRASHES — reproducible, and
+autoskip-OFF still crashes (autoskip exonerated).  The **crash-resilient trace TAIL is decisive**
+(`f0000001` heartbeat = settle+scene_present, `f0000010` = god write, `f0000020` = warpgate set):
+```
+god-write (settle=0x4118, old scene)   ← god writing the VALID old leader
+heartbeat (settle=0x411a)  [78ms stall]← the transition begins
+heartbeat (settle=0x0001)              ← render-root CHANGED -> settle reset -> god GATED OFF
+heartbeat×4 (settle 2..5)              ← NO god-writes (correctly off through the cutscene)
+warpgate set apply=0 (remove)          ← last trainer action, COMPLETED
+[crash]                                ← a few frames into the game's own cutscene/entrance script
+```
+⇒ the scene-state gating WORKED (god off + warpgate removed the instant the cutscene loaded; the
+trainer is NOT writing during it).  `scene_present` stayed **1** the whole time (render-root went
+old→new WITHOUT passing through 0), which is exactly why the **settle-on-root-CHANGE** gate catches
+it and `scene_present` alone would not.  ROOT CAUSE: warpgate CREATED an inconsistent story state
+(cleared without the boss / skipped the entrance script); the game faults on it later.  The tool is
+correct; the *consequence* of the bypass is the problem.  Deferred robustness (USER: shelf): a
+guard so warpgate won't bypass a **scripted/special** door (999999 is one signal; the boss/area-lock
+`+0x3770`/`+0x3764` another) + RE what **999999** actually is (locked/scripted/mystery-dungeon
+placeholder — NOT "overworld", USER-corrected: a weapon-shop door shows target 999999).
+
+## OPEN (next session) — cross-region SINGLE-portal warp to ANY map (USER-set direction)
+Goal: one portal jump to any map, not the current chained boundary-portal BFS (`warp.py`).  This is
+the DIRECT WARP thread: SE_CODE_MAP "FORCED WARP" — stage `0x401d40`(target,return,exit) / commit
+`0x402030` (→ map_obj `+0x4024/+0x4028/+0x402c`), the cross-area W-map load request `*0x92c828`
+(`[req+4]` case-3 @`0x5ad586`), and a non-door TRIGGER, WITHOUT hitting the `0x5ad656` "map data not
+found" fault (needs the target area's W-map resident first).  Cross-ref the base model
+`FUN_0059ec30`/`FUN_0059f2c0`/`FUN_004c5350`.  Use the live trace harness (this session) to trace a
+real cross-area boundary transition + diff it vs a same-area hop to see where the W-map load fires.

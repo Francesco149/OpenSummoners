@@ -200,6 +200,42 @@ cursor; `pause`/`resume` toggle recording without unhooking.
   the party roster by a traced pointer-chain, not a scan) + the regression triage (load→newgame,
   instant-doors) noted 2026-07-18.  This is general RE infra — every traced call grows `SE_CODE_MAP`.
 
+## ✅ SESSION 2026-07-18 (B) — trace harness + robustness + warpgate v2 (landmarks)
+A big stabilization + tooling session (USER: "same rigor as the port work, specialized for the
+trainer").  Commits `c1e4ef4`..`da04f59`+:
+- **Live call-trace harness** (above) — MinHook generic entry thunks → ring → socket dump; VERIFIED.
+- **Crash-resilient trace** — `trace flush {on}` streams the ring to `<exedir>/oss_trace.log` every
+  30ms (survives a crash) + `trace_mark` INTERNAL marks (`f0000001` safepoint heartbeat = settle+
+  scene_present · `f0000010` god write · `f0000020` warpgate set).  ⚠ do NOT `trace on` a GAME VA
+  (MinHook install) while the game is MID-TRANSITION — it races the rebuild + crashes; arm with
+  marks-only (no game hooks) or when settled.  This is what DIAGNOSED the 999999 crash as game-side.
+- **Scene-state crash GATING** (the session's stability win) — god/warpgate now gate on
+  `scene_present()` (`*0x92dd38`!=0) AND re-settle on ANY render-root CHANGE (poll_title_cb), dropping
+  the actor caches.  Fixes the return-to-title AND walk-through-a-door crashes (god was writing FREED
+  actors during teardown/rebuild; `g_scene_settle` only reset on menu-drives before).  USER-confirmed.
+- **warpgate v2** — instant doors bypass the combat/hold/unseen gates (3 self-fire-safe patches);
+  full RE in `findings/door-gate.md`.  USER-VERIFIED (mobs + unseen).
+- **autoskip DEFAULT-OFF** — its blanket `0x437740` je→nop force-advances the shared dialogue/menu
+  state machine on non-dialogue objects → crashes the load menu / transitions.  PROPER FIX OWED: gate
+  on a REAL story dialogue (the dlgskip passive-read approach) before re-enabling default-on.
+- **ImGui ID fixes** — the Teleport header/button + the per-row portals popup (hoisted out of the
+  loop) + char radios (`##code`).
+- **Boot-failure finding** — the trainer BOOTS CLEAN every time the exe runs (log: attach→srv→hooks→
+  launcher); the "boot crashes" are the exe FAILING TO START on relaunch, i.e. relaunching before the
+  crashed process's Windows cleanup (WerFault/handle release) finishes.  RECIPE: verify a CLEAN state
+  (no game, no WerFault) before relaunching; the real fix is fewer CRASHES.
+- **SHELVED** (USER): the 999999 mystery-dungeon crash = game-side invalid-state (warpgate skipped the
+  boss/entrance script), NOT a trainer bug (trace-proven); `findings/door-gate.md` "SHELVED".
+
+## ⇒ NEXT SESSION (USER-set) — cross-region SINGLE-portal warp to ANY map
+One portal jump to any map (not the chained boundary-portal BFS `warp.py` does now) = the DIRECT WARP.
+Leads: SE_CODE_MAP "FORCED WARP" (stage `0x401d40` / commit `0x402030` → map_obj `+0x4024/8/c`, the
+W-map load request `*0x92c828` `[req+4]` case-3 @`0x5ad586`, a non-door trigger, avoid the `0x5ad656`
+fault) + the base model `FUN_0059ec30`/`FUN_0059f2c0`/`FUN_004c5350`.  Method: use the trace harness
+to record a REAL cross-area boundary transition + DIFF vs a same-area hop → see where the W-map load
+fires, then reproduce it standalone.  Also open: RE what **999999** truly is (USER-corrected: NOT
+overworld).  Full plan: `findings/door-gate.md` "OPEN (next session)".
+
 ## Live findings — real tower save (Arche Lv17), 2026-07-17 (SESSION 2 — RESOLVED)
 
 Probing the REAL loaded save (Archmage Tower) resolved the two bugs the demo hid.
