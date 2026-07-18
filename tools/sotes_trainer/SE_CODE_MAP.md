@@ -148,10 +148,16 @@ From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE ad
 1. ✅ DONE — SE render-root chain `*0x92dd38 → +0x1038 room_record` (room_key/area/scene/exits). The
    trainer `map` query reads this. (Found via the decode-caller `0x5ad443`, verified live vs a real
    door entry into the storage room = 0x334dd / DATA 1026.)
-2. **SE transition fn to FORCE a room change** (roadmap #4) — the door/portal handler that takes a
-   TARGET ROOM key (from the exit slot) and loads it. Leads: the room BUILDER `0x5ad4xx` rebuilds
-   whatever `render_root+0x1038` points at, so setting the room record + retriggering, OR the
-   higher-level "enter room" fn (up the builder's caller chain 0x4b5c8d/0x526144/0x5e84aa). Also the
-   intro path `0x4c1ca0`/callers 0x5cac2f/0x5cb0a3 (near the known transition 0x5cb460).
+2. **SE transition fn to FORCE a room change** (roadmap #4). CAPTURED live (storage room 0x334dd →
+   committed room **210140/DATA 1025**, the shop — validates the exit graph): the room-record COMMIT
+   is `0x5ac9ce` (`mov [render_root+0x1038],ecx`) inside the render-root REBUILD fn (`alloc(0x37c4)`
+   new root; `+0x1044`=map_obj, `+0x1038`=room_record). Call chain: rebuild ← `0x526144` (scene
+   resource-load driver, this=ebx) ← `0x5e84aa`/`0x4b5c8d` (room-load orchestrator loop) ← `0x4163ba`
+   ← `0x5982c9` ← `0x499a9a` (game/scene state machine — where the TARGET room key is chosen from
+   the exit slot). ⚠ DO NOT frida-hook the rebuild/commit — it fires mid-scene-teardown (free+realloc)
+   and a trampoline+stack-walk there CRASHES the game (observed). Force it the SAFE way: find the
+   high-level "enter room(key)" entry (up at 0x5982c9/0x499a9a) or the pending-target write, then
+   CALL it on the trainer's engine-thread safepoint (like `load`), not via a hook. Also the intro
+   path `0x4c1ca0` (callers 0x5cac2f/0x5cb0a3, near 0x5cb460).
 3. Room-record TABLE walk (all rooms, 0x150 B each, 0x1f39xxxx heap block) → the full map GRAPH for
    BFS pathfinding (roadmap #5).
