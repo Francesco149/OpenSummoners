@@ -1,8 +1,69 @@
-# EN-SE JP-voice patch — reported monster-sound silence (Mystery Dungeon) — NOT REPRODUCED
+# EN-SE JP-voice patch — monster-SFX silence in FULLSCREEN — ✅ ROOT-CAUSED + FIXED (2026-07-18)
 
-**Report:** with the `tools/ennse_voice` JP-voice patch: Ghost Warlock evasion+death, Black Harpy
-damage/singing/death, Babymage damage/spellcast SILENT, "tested with monsters in Mystery Dungeon's
-Abyssal Ruins, there are probably other monsters with the same issue."
+**Symptom (USER-refined 2026-07-18):** with `tools/ennse_voice`, monster REACTION sounds (harpy
+hit/scream/damage, ghost evade/death, babymage cast…) go SILENT — but **only in FULLSCREEN** (with OR
+without a ddraw wrapper), NOT windowed; gone if the patch is removed; fine in the native JP release.
+Music/BGM/JP-voice/player-SFX all keep playing. Live repro: Weathervane Tower harpies — **base game,
+NOT MD-specific** (the original "Mystery Dungeon only" framing was incomplete). USER was FULLSCREEN;
+main-thread-seed build restored the harpy hit sound (+ JP voice for dad plays simultaneously).
+
+## ✅ ROOT CAUSE — a worker-thread SEED RACE (USER's original hypothesis, PROVEN by the fix)
+`ennse_voice`'s `seed_thread` did `bank_load` + `operator_new`×2 (voice mgr `0xc` + slot array
+`count*0x18`) + `manager_init` from a WORKER thread ~1.2 s into boot — CONCURRENT with the engine's own
+sound init on the MAIN thread. The engine is an old single-threaded MSVC build (non-thread-safe CRT
+heap), so the worker-thread allocations race the engine's main-thread allocator and corrupt a nearby
+monster-SFX resource → it plays silence. **FULLSCREEN-specific because it is a TIMING race:** fullscreen
+(esp. + a ddraw wrapper) runs a high, STABLE frame rate whose pacing lands the race on the SFX resource;
+windowed's slower/variable loop dodges it. The seed is a one-shot at boot, so the damage is done before
+you reach any monster (which is why the earlier windowed-only campaign never saw it, and why nulling the
+voice globals LIVE does not undo it — see below).
+
+## The FIX (shipped in `ennse_voice.c`) — seed on the ENGINE MAIN thread
+The worker thread now finds the game HWND, subclasses its `WndProc`, and `PostMessage(WM_OSS_SEED)`; the
+WndProc — which runs on the window-owning (= MAIN/engine) thread — does `do_seed()` then un-subclasses
+(one-shot). So `bank_load`/`manager_init` serialize with the engine's sound work and cannot race. Compile
+toggle `OSS_SEED_MAIN_THREAD` (default 1; 0 = old worker-thread seed, for A/B); falls back to the
+worker-thread seed if no window is found. **VERIFIED live (USER, fullscreen):** harpy hit sounds AUDIBLE
++ JP voice plays, simultaneously; `oss_voice.log` shows `[seed] running on MAIN thread (WndProc, tid=…)`
+on a *different* tid than the worker that armed it. A/B-clean: worker seed → silent, main-thread seed →
+audible, everything else equal.
+
+## Why every EARLIER theory was wrong (all live-DISPROVEN 2026-07-18)
+- **DirectSound focus-mute** (the `0xe2` SFX buffers lack `DSBCAPS_GLOBALFOCUS`): RED HERRING. The game
+  IS foreground during play; forcing GLOBALFOCUS onto the SFX buffers live did NOT restore them; and the
+  JP-VOICE buffers are ALSO `0xe2` (no GLOBALFOCUS, confirmed live: a 22050 Hz 334 KB voice buffer) yet
+  play fine — focus-mute would kill both.
+- **The MD sound-channel pool** (`0x587f87`/`0x5880e8` counts 4→7 when a bank loads): those are
+  OPTIONS-MENU row counts, NOT a channel pool (`scratchpad/se-sound-pool-static.md`). No shared pool, no
+  concurrent-buffer cap on modern Windows.
+- **The per-frame voice service `0x437cd0`** (dispatched when mgr `0x92b76c` is set): nulling `0x92b76c`
+  live did NOT restore the harpy → not the ongoing service.
+- **The voice globals' presence:** nulling both `0x92b76c` + `0x92af80` live did NOT restore it — the SFX
+  path never reads them; the patch's effect is INDIRECT (a boot-time heap-race corruption).
+
+## The instrument that cracked it (`scratchpad/`, throwaway)
+`detector.js` (Frida) + `attach.py` (loop-reattaches across the user's windowed→fullscreen relaunch):
+hooks `soundPlay 0x4075a0` + `bufferStart 0x5e3e10` and, **per distinct IDirectSoundBuffer vtable**,
+`Play`(12)/`GetStatus`(9)/`GetVolume`(6); logs each `CreateSoundBuffer` DSBUFFERDESC flags + a DDraw-coop
+(`0x5e0d30`) fullscreen marker. THE KEY OBSERVATION: the harpy `Play` FIRES in fullscreen (`cls:OK`, vol
+−200…−500, playing, not-lost) yet is silent — **API-transparent**, which is why every status-only probe
+before saw a "healthy dispatch." `poke.py` = live u32 read/write (the null tests). ⚠ the single-Play-hook
+first read of "Play skipped in fullscreen" was a MEASUREMENT ARTIFACT — fullscreen buffers use a
+DIFFERENT DSOUND buffer-impl vtable (`0x73ec3890`) than windowed (`0x73ec3990`), so you must hook EVERY
+class's Play, not just the first buffer's.
+
+## Open (minor): exact corrupted structure not byte-pinned
+The fix proves the *race* (serialize the seed → sounds return); the precise heap block the race clobbers
+(which SFX resource / which of `bank_load` vs the two `operator_new`s) is not byte-RE'd — unnecessary
+for the fix, a possible follow-up. Strong candidate = the non-thread-safe CRT `operator_new` (`0x5ef121`)
+contended between the worker seed and the engine's concurrent sound-resource allocs.
+
+---
+## HISTORICAL — 2026-07-17 WINDOWED campaign (SUPERSEDED by the root cause above; kept for provenance)
+The original report named Mystery Dungeon (Abyssal Ruins) monsters (Ghost Warlock evade/death, Black
+Harpy damage/singing/death, Babymage damage/cast). The 2026-07-17 campaign below could not reproduce it
+in 6 contexts — **all WINDOWED**, where the race does not trigger. That is the whole reason it looked
+un-reproducible; the fullscreen variable was the missing key.
 
 ## STATUS 2026-07-17: extensive live campaign — NO repro in 6 contexts. Dispatch chain proven healthy under the patch.
 

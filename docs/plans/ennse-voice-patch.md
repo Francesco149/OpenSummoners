@@ -15,15 +15,17 @@ Redistributable: `version.dll` + `Install.bat`/`install.ps1` (auto-detect game +
 JP `sotesx_s.dll`) + `Uninstall.bat` + `README.md`. `oss_voice.log` traces each step.
 **Next:** ship via CI nightly release (see repo `.github/workflows/`).
 
-### KNOWN BUG (open, 2026-07-12) — MONSTER sounds silenced in MYSTERY DUNGEON only
-
-With the patch installed, monster combat sounds go silent — but **ONLY in Mystery Dungeon** (the SE
-roguelike / Abyssal Ruins). Base-game monsters are UNAFFECTED (confirmed: user played most of the game
-on the patch, zero issues; base Ghosts play death/evasion fine). The MD sounds come from
-**`sotesx_d2.dll`** (bank global `0x92af7c`), which sits **adjacent to the voice bank `0x92af80`**; a
-sound-resource setup (`~0x586af1`) allocates slots with counts that CHANGE when the voice bank is
-present (`0x5880e8` count 4→7), so installing the voice bank perturbs the MD sound-slot allocation.
-Full RE + the drive-MD-and-trace plan in **`docs/findings/ense-voice-monster-se-drop.md`**.
+### ✅ RESOLVED (2026-07-18) — monster SFX silenced in FULLSCREEN (a worker-thread SEED RACE)
+The silence was **fullscreen-specific, not MD-specific**: the patch seeded (`bank_load` + `operator_new`×2
++ `manager_init`) from a WORKER thread ~1.2 s into boot, racing the engine's single-threaded sound init on
+the main thread and corrupting a monster-SFX resource. Fullscreen's high, stable FPS lands the race;
+windowed's slower loop dodges it (which is why the whole 2026-07-17 windowed campaign never repro'd).
+**FIX: seed on the engine MAIN thread** (the worker subclasses the game window's WndProc + posts a message;
+the WndProc runs on the main/engine thread → serialized, no race). Compile toggle `OSS_SEED_MAIN_THREAD`
+(default 1). USER-verified live in fullscreen: harpy hit sounds + JP voice both play. The old MD-pool
+(`0x5880e8` = an Options-MENU row count, not a channel pool) and focus-mute (voice buffers are also `0xe2`
+no-GLOBALFOCUS yet play) theories were live-DISPROVEN. Full root cause + disproven theories + the Frida
+instrument (`scratchpad/detector.js`): **`docs/findings/ense-voice-monster-se-drop.md`**.
 ⚠ An earlier base-game "registrar 2-byte fix" was a MISDIAGNOSIS — **reverted** (base was never broken).
 
 ## The key finding (why this is easy)
