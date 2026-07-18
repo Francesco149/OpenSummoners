@@ -1131,6 +1131,19 @@ static void __attribute__((cdecl)) trace_entry_c(uint32_t va, trace_frame *f) {
     r->ecx = f->ecx; r->edx = f->edx; r->retaddr = f->retaddr;
     for (int a = 0; a < TRACE_NARGS; ++a) r->args[a] = f->args[a];
 }
+// Internal MARK: log a TRAINER-side event into the same ring (synthetic va tag 0xF00000xx) so the
+// crash-resilient file flush interleaves the trainer's OWN safepoint actions with the hooked game
+// calls — a crash's last records then reveal whether the fault was a trainer action or game code.
+// Tags: 0xF0000001 safepoint heartbeat (a=g_scene_settle,b=scene_present) · 0xF0000010 god write
+// (a=actor,b=statblock) · 0xF0000020 warpgate set (a=apply).
+static void trace_mark(uint32_t tag, uint32_t a, uint32_t b) {
+    if (!g_trace_on) return;
+    LONG i = InterlockedIncrement(&g_trace_widx) - 1;
+    trace_rec *r = &g_trace_ring[(uint32_t)i & TRACE_RING_MASK];
+    r->seq = (uint32_t)i; r->tick = GetTickCount(); r->va = tag;
+    r->ecx = a; r->edx = b; r->retaddr = 0;
+    for (int k = 0; k < TRACE_NARGS; ++k) r->args[k] = 0;
+}
 
 // Emit a per-hook entry-trace thunk at `dst` (exec mem).  Ends in `jmp [slot]`; `slot` (a dword in
 // the same stride) is wired to the MinHook trampoline after MH_CreateHook.  See trace_frame for the
@@ -1187,6 +1200,41 @@ static void trace_unhook_all(void) {
         MH_RemoveHook((LPVOID)AP(g_trace_vas[i]));
     }
     g_trace_nhooks = 0;
+}
+
+// ── crash-resilient FILE flush ──────────────────────────────────────────────────────────────────
+// A low-rate background thread appends NEW ring records to a file, so an INTERMITTENT crash (which
+// loses the in-process ring) still leaves the trace up to ~the last flush on disk.  Enable:
+// `trace flush {on:true[,path:"C:\\..."]}`.  fclose() per batch flushes to the OS file cache, which
+// survives a process fault (only the crashing process's own stdio buffer is lost).  Reader side: the
+// last lines of the file name the last call/mark before the crash.
+static volatile int  g_trace_flush_on;
+static char          g_trace_flush_path[MAX_PATH];
+static uint32_t      g_trace_flush_ridx;         // file read cursor (separate from the socket dump cursor)
+static volatile LONG g_trace_flush_started;
+static void trace_flush_batch(void) {
+    uint32_t w = (uint32_t)g_trace_widx, start = g_trace_flush_ridx;
+    if (w == start || !g_trace_flush_path[0]) return;
+    if ((w - start) > TRACE_RING_SZ) start = w - TRACE_RING_SZ;   // overran -> keep the newest ring's worth
+    FILE *f = fopen(g_trace_flush_path, "a");
+    if (!f) return;
+    for (uint32_t k = start; k != w; ++k) {
+        trace_rec *r = &g_trace_ring[k & TRACE_RING_MASK];
+        fprintf(f, "%u %u va=%08x ecx=%08x edx=%08x ret=%08x a=%08x,%08x,%08x\n",
+                r->seq, r->tick, (unsigned)r->va, (unsigned)r->ecx, (unsigned)r->edx,
+                (unsigned)r->retaddr, (unsigned)r->args[0], (unsigned)r->args[1], (unsigned)r->args[2]);
+    }
+    fclose(f);                                    // flush to the OS -> the tail survives a crash
+    g_trace_flush_ridx = w;
+}
+static DWORD WINAPI trace_flush_thread(void *unused) {
+    (void)unused;
+    for (;;) { Sleep(30); if (g_trace_flush_on) trace_flush_batch(); }
+    return 0;                                     // never returns; one per process
+}
+static void trace_flush_start(void) {             // lazy, once
+    if (InterlockedCompareExchange(&g_trace_flush_started, 1, 0) == 0)
+        CreateThread(NULL, 0, trace_flush_thread, NULL, 0, NULL);
 }
 
 static volatile LONG g_hooks_done;
@@ -1298,6 +1346,7 @@ static void warpgate_set(int apply) {  // patch/unpatch ALL sites together (only
         patch_bytes(p, apply ? g_wg_patches[i].patch : g_wg_patches[i].expect, g_wg_patches[i].len);
     }
     g_wg_applied = apply;
+    trace_mark(0xF0000020, (uint32_t)apply, 0);   // warpgate apply/remove (crash-trace)
 }
 static void warpgate(int on) {         // the toggle just sets the DESIRED state; sync applies it
     g_warpgate = on ? 1 : 0;
@@ -1664,6 +1713,7 @@ static void god_freeze_party(void) {
         uint32_t sb = 0;
         if (pc[i] && rd32((void *)(pc[i] + OFF_STATBLOCK), &sb)
             && mem_writable((void *)(sb + OFF_HP_CUR), (OFF_MP_CUR - OFF_HP_CUR) + 4)) {
+            trace_mark(0xF0000010, (uint32_t)pc[i], sb);   // god write (crash-trace: was this the last thing?)
             *(volatile uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
             *(volatile uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
         }
@@ -1675,6 +1725,7 @@ static void god_freeze_party(void) {
 //   mousefly — teleport the player to the cursor over the game window (camera frozen).
 //   hotkeys  — F7 toggles mouse-fly.
 static void engine_freezes(void) {
+    trace_mark(0xF0000001, (uint32_t)g_scene_settle, (uint32_t)scene_present());   // safepoint heartbeat
     warpgate_sync();   // apply/remove the door-gate patch per the safe-scene gate (crash-safe)
     if (g_god) god_freeze_party();   // PARTY-WIDE invincibility (hp+mp = GOD_VAL for every member)
     EnterCriticalSection(&g_lock_cs);
@@ -2581,6 +2632,22 @@ static void handle_line(const char *line, char *out, int cap) {
         if (!strcmp(op, "pause"))  { g_trace_on = 0; snprintf(out, cap, "{\"ok\":true,\"trace\":false,\"total_hooks\":%d}", g_trace_nhooks); return; }
         if (!strcmp(op, "resume")) { g_trace_on = 1; snprintf(out, cap, "{\"ok\":true,\"trace\":true,\"total_hooks\":%d}", g_trace_nhooks); return; }
         if (!strcmp(op, "clear"))  { g_trace_ridx = (uint32_t)g_trace_widx; snprintf(out, cap, "{\"ok\":true,\"cleared\":true}"); return; }
+        if (!strcmp(op, "flush")) {   // crash-resilient: stream new records to a file (survives a crash)
+            int on = json_bool(line, "on", 1);
+            char path[MAX_PATH] = {0};
+            if (json_str(line, "path", path, sizeof path) && path[0])
+                snprintf(g_trace_flush_path, sizeof g_trace_flush_path, "%s", path);
+            else if (!g_trace_flush_path[0]) {   // default: <exedir>/oss_trace.log
+                char mod[MAX_PATH]; mod[0] = 0; GetModuleFileNameA(NULL, mod, MAX_PATH);
+                char *slash = strrchr(mod, '\\'); if (slash) *slash = 0;
+                snprintf(g_trace_flush_path, sizeof g_trace_flush_path, "%s/oss_trace.log", mod);
+            }
+            for (char *c = g_trace_flush_path; *c; ++c) if (*c == '\\') *c = '/';   // fopen-ok + JSON-safe
+            if (on) { g_trace_flush_ridx = (uint32_t)g_trace_widx; trace_flush_start(); }   // start from NOW
+            g_trace_flush_on = on ? 1 : 0;
+            snprintf(out, cap, "{\"ok\":true,\"flush\":%s,\"path\":\"%s\"}", on ? "true" : "false", g_trace_flush_path);
+            return;
+        }
         if (!strcmp(op, "dump")) {
             long long mx = 400; json_num(line, "max", &mx);
             if (mx < 1) mx = 1;
