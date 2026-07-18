@@ -1258,35 +1258,44 @@ static void dlg_autoskip(int on) {
     g_autoskip = on ? 1 : 0;
 }
 
-// ── warpgate: skip the door-transition GATES (combat / never-seen / hold) — DEFAULT ON ──
-// The SE door-USE handler is 0x5c2af0 (base FUN_0059a1f0; RE'd byte-for-byte, SE_CODE_MAP "GATES").
-// A door won't fire in combat unless (a) it's a SEEN portal AND you HOLD UP a few secs (the ramp
-// in_ECX[6]->10000), or it's a NEVER-USED portal, which is HARD-blocked until you leave combat.
-// ONE patch (0x5c2f64: the door-CHANGED instant-path preamble `mov eax,[esp+0x1c]` 8b 44 24 1c ..
-// -> `jmp 0x5c301f` e9 b6 00 00 00) redirects a CHANGED door (you just walked/teleported onto it)
-// straight to the commit, SKIPPING the combat-proximity scan (render_root+0x33e0) + the two area
-// combat flags (+0x3770/+0x3764) + the hold-ramp.  The changed-guard je@0x5c2f5e is PRESERVED, so
-// STANDING on a door does NOT auto-fire — that fixes the "randomly entered portals while standing"
-// self-warp (the dropped 0x5c314c ramp-nop made held UP fire every frame; gone).
-// GATED: applied ONLY in a stable in-scene state (a player is present, no menu-drive is running, and
-// the scene has settled) — a fresh load is briefly unstable and an auto-fire there CRASHED the game
-// (USER), so warpgate_sync() removes the patch across the title / menu-drive / settle window.
-#define VA_WG_INSTANT  0x5c2f64
+// ── warpgate v2: instant doors — bypass the combat / hold-ramp / never-seen GATES — DEFAULT ON ──
+// The SE door-USE handler 0x5c2af0 (base FUN_0059a1f0) fires a transition only after gates: with mobs
+// nearby a SEEN portal makes you HOLD UP a few secs (the ramp O+0x20 -> 10000 @0x5c30b6), and a
+// NEVER-USED portal HARD-BLOCKS (0x5c317d).  FULL RE + the exact patch rationale: findings/door-gate.md.
+// THREE .text patches make a DELIBERATE door-enter (leader holding UP at a door) fire INSTANTLY,
+// WITHOUT self-firing when merely standing — each sits AFTER the game's own UP-held gate 0x5c30f5:
+//   [0] 0x5c2f64 -> jmp 0x5c301f     : GATE-1, the no-combat CHANGED-door instant path (skip the
+//                                       combat-zone scan + area flags).  [the original warpgate patch]
+//   [1] 0x5c30ff -> jmp 0x5c314e     : the combat HOLD-RAMP path — once UP is held, FIRE immediately
+//                                       instead of ramping to 10000.  Strictly safer than the dropped
+//                                       0x5c314c->nop (which sat AFTER the decrement merge -> self-fire).
+//   [2] 0x5c30cf jne 0x5c317d -> nop : let an UNSEEN door take the ramp (-> instant via [1]) instead of
+//                                       hard-block.  Same-area only (cross-area unseen still needs its
+//                                       W-map loaded, the 0x5ad656 crash — that's the warp-router's job).
+// Each row carries the EXPECTED original bytes; warpgate_set REFUSES to apply if the live bytes differ,
+// so a wrong VA can't corrupt code.  All applied/removed together, AUTO-GATED to a settled in-scene
+// state (scene_present + no menu-drive + g_scene_settle) — a fresh/rebuilding scene is unstable and an
+// auto-fire there CRASHED the game (USER), so warpgate_sync() removes them across title/menu/settle.
+typedef struct { uint32_t va; uint8_t len; uint8_t patch[6]; uint8_t expect[6]; } wg_patch;
+static wg_patch g_wg_patches[] = {
+    { 0x5c2f64, 5, { 0xe9,0xb6,0x00,0x00,0x00 },      { 0x8b,0x44,0x24,0x1c,0x66 } },        // jmp 0x5c301f
+    { 0x5c30ff, 5, { 0xe9,0x4a,0x00,0x00,0x00 },      { 0xa1,0x38,0xdd,0x92,0x00 } },        // jmp 0x5c314e
+    { 0x5c30cf, 6, { 0x90,0x90,0x90,0x90,0x90,0x90 }, { 0x0f,0x85,0xa8,0x00,0x00,0x00 } },   // nop unseen-block jne
+};
+#define WG_NPATCH ((int)(sizeof g_wg_patches / sizeof g_wg_patches[0]))
 static volatile int g_warpgate = 1;    // DESIRED state (USER toggle); DEFAULT ON
-static volatile int g_wg_applied;      // is the patch currently written to .text?
-static uint8_t g_wg_orig_i[5];
-static int g_wg_saved;
-#define WG_SETTLE_POLLS 120            // ~2 s after a drive before warpgate re-applies (scene stable)
-static void warpgate_set(int apply) {  // patch/unpatch (only on a state change)
+static volatile int g_wg_applied;      // are the patches currently written to .text?
+#define WG_SETTLE_POLLS 120            // ~2 s after a scene change before warpgate re-applies (stable)
+static void warpgate_set(int apply) {  // patch/unpatch ALL sites together (only on a state change)
     if (apply == g_wg_applied) return;
-    uint8_t *pi = (uint8_t *)AP(VA_WG_INSTANT);
-    if (!mem_readable(pi, 5)) return;
-    if (apply) {
-        if (!g_wg_saved) { memcpy(g_wg_orig_i, pi, 5); g_wg_saved = 1; }
-        uint8_t jmp5[5] = { 0xe9, 0xb6, 0x00, 0x00, 0x00 };   // jmp 0x5c301f -> the commit (skip gates)
-        patch_bytes(pi, jmp5, 5);
-    } else if (g_wg_saved) {
-        patch_bytes(pi, g_wg_orig_i, 5);
+    for (int i = 0; i < WG_NPATCH; ++i) {   // all-or-nothing precheck: readable + (on apply) matches expect
+        uint8_t *p = (uint8_t *)AP(g_wg_patches[i].va);
+        if (!mem_readable(p, g_wg_patches[i].len)) return;
+        if (apply && memcmp(p, g_wg_patches[i].expect, g_wg_patches[i].len) != 0) return;
+    }
+    for (int i = 0; i < WG_NPATCH; ++i) {
+        uint8_t *p = (uint8_t *)AP(g_wg_patches[i].va);
+        patch_bytes(p, apply ? g_wg_patches[i].patch : g_wg_patches[i].expect, g_wg_patches[i].len);
     }
     g_wg_applied = apply;
 }
@@ -1401,7 +1410,10 @@ static void ensure_hooks(void);
 static DWORD WINAPI keepalive_thread(void *unused) {
     (void)unused;
     attract_freeze(1);                                    // attract OFF by default
-    dlg_autoskip(1);                                      // story-dialogue auto-skip ON by default (USER)
+    // autoskip DEFAULT-OFF: the blanket 0x437740 je->nop force-advances the SHARED dialogue/menu
+    // state machine on NON-dialogue objects, crashing the load menu + other menu/transition screens
+    // (USER 2026-07-18).  It stays a toggle (`autoskip on`); the proper fix = gate it on a REAL story
+    // dialogue being open (the dlgskip passive-read approach) before re-enabling default-on.
     ensure_hooks();                                       // install title/picker hooks early
     for (;;) { EnumWindows(keepalive_top_cb, 0); Sleep(50); }
     return 0;
