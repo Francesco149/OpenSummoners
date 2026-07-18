@@ -187,10 +187,10 @@ static void kv(const char* k, const char* fmt, ...) {
 // ── panels ───────────────────────────────────────────────────────────────────
 static void panel_cheats() {
     if (!ImGui::CollapsingHeader("Cheats", ImGuiTreeNodeFlags_DefaultOpen)) return;
-    toggle_row("god",        "God (freeze HP + MP at 9999)",   "Pin HP and MP to 9999 every frame so nothing kills you and casting is free. On by default.");
+    toggle_row("god",        "God (whole party HP + MP 9999)",  "Pin HP and MP to 9999 every frame for the WHOLE PARTY (Arche/Sana/Stella) so nobody dies and casting is free. On by default.");
     toggle_row("autoskip",   "Auto-skip dialogue (TAB)",       "Auto-advance ALL story/cutscene/NPC dialogue, hands-free. On by default; turn off to read or pick a choice.");
     toggle_row("mousefly",   "Mouse-fly (F7)",                 "Continuously teleport the player to the cursor over the game window (view frozen while flying). Also toggled by F7.");
-    toggle_row("warpgate",   "Instant doors (skip combat/hold)", "Code-patch the door handler so any door transitions INSTANTLY, ignoring the combat block, the never-used-portal block, and the hold-UP-a-few-secs ramp. Off by default; the warp router turns it on.");
+    toggle_row("warpgate",   "Instant doors (skip combat/hold)", "Walk or teleport ONTO a door and it transitions INSTANTLY, ignoring the combat block, the never-used-portal block, and the hold-UP-a-few-secs ramp (it won't self-fire while you just stand on a door). On by default; auto-gated off during the title/menu/load so it can't fire mid-transition.");
     ImGui::Spacing();
     toggle_row("fastskip",   "Instant text",                   "Snap the current dialogue line's typewriter reveal to the end (door-safe UI-state write).");
     toggle_row("dlgskip",    "Auto-advance open dialogue",     "Injects the advance buttons while a box is up. WARNING: those ids double as world action input, so it AUTO-CONFIRMS world prompts (bed/door) you land on with mouse-fly. Off by default; auto-skip is the world-safe one.");

@@ -614,6 +614,7 @@ static char              g_load_log[192];
 // to the poll's own `now` (match window 0x64) and target the live ring.  See DESIGN.md.
 static volatile uint32_t g_ti_esp, g_ti_mgr;   // title-poll  (0x437c70) captured esp / manager
 static volatile uint32_t g_pk_esp, g_pk_mgr;   // picker-poll (0x4378d0) captured esp / manager
+static volatile int      g_scene_settle;       // polls since the last menu/newgame drive (scene-settle debounce; shared by dlgskip + warpgate)
 static volatile int      g_md_state;           // 0 idle, 1 want title-confirm, 2 want picker-confirm
 static volatile int      g_md_downs;           // picker rotations before confirm (0 = default slot)
 static volatile int      g_md_slot = -1;       // target save slot (-1 = default/newest highlight)
@@ -835,16 +836,15 @@ static void __attribute__((cdecl)) poll_title_cb(void) {
     // (PRE-EXISTING: dlgskip-on through `newgame` crashed BOTH this build and the pre-passive-gate
     // one — the transition window, not the gate logic; proven by rebuilding e92abf9.)  Hold dlgskip
     // off for a beat after any drive so the scene settles first.
-    static int g_dlg_settle = 0;
-    if (g_md_state || g_ng_state) g_dlg_settle = 0;
-    else if (g_dlg_settle < 100000)  g_dlg_settle++;
+    if (g_md_state || g_ng_state) g_scene_settle = 0;   // reset the debounce during any drive
+    else if (g_scene_settle < 100000)  g_scene_settle++;
     // Auto-skip dialogue (suppressed while WE drive a menu / until the scene settles).  GATE: only
     // when a box is actually on screen (dialogue_box_open, a passive read of the widget) — so in
     // freeroam we inject NOTHING and can't trigger a world interaction (the door).  When a box IS up,
     // inject the advance ids 0x24/0x27 (dialogue-only, inert in the world) so each box steps hands-
     // free; the reveal-skip ids (g_dlg_btns, default EMPTY) also fire — but ONLY while the box is up,
     // and because the read is non-lagged they stop the instant it closes (no leak on close).
-    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state && g_dlg_settle > DLG_SETTLE_POLLS
+    if (g_dlgskip && g_ti_mgr && !g_md_state && !g_ng_state && g_scene_settle > DLG_SETTLE_POLLS
         && dialogue_box_open(g_ti_mgr)) {
         inject_record(g_ti_mgr, 0x24, now, 4);                     // advance (dialogue-only)
         inject_record(g_ti_mgr, 0x27, now, 5);                     // advance (dialogue-only)
@@ -1103,37 +1103,47 @@ static void dlg_autoskip(int on) {
     g_autoskip = on ? 1 : 0;
 }
 
-// ── warpgate: skip the door-transition GATES (combat / never-seen / hold-ramp) ──
+// ── warpgate: skip the door-transition GATES (combat / never-seen / hold) — DEFAULT ON ──
 // The SE door-USE handler is 0x5c2af0 (base FUN_0059a1f0; RE'd byte-for-byte, SE_CODE_MAP "GATES").
 // A door won't fire in combat unless (a) it's a SEEN portal AND you HOLD UP a few secs (the ramp
 // in_ECX[6]->10000), or it's a NEVER-USED portal, which is HARD-blocked until you leave combat.
-// Two code patches force an instant transition on any door-change, ignoring all three gates:
-//   0x5c2f64  the door-CHANGED instant-path preamble (`mov eax,[esp+0x1c]`, 8b 44 24 1c ..) -> a
-//             `jmp 0x5c301f` (e9 b6 00 00 00) that SKIPS the combat-proximity scan (render_root+0x33e0
-//             pool) + the two area combat flags (+0x3770/+0x3764) and lands on the commit.  The
-//             changed-guard je@0x5c2f5e is PRESERVED (won't re-warp a door you're already standing on).
-//   0x5c314c  the ramp-complete `jl 0x5c3183` (7c 35) -> nop nop, so a held (not-changed) door also
-//             transitions on frame 1 (skip the hold).  Pose-gated like retail (needs the door-enter
-//             UP intent), so it does NOT auto-warp on arrival.  Default OFF; warp.py enables it.
+// ONE patch (0x5c2f64: the door-CHANGED instant-path preamble `mov eax,[esp+0x1c]` 8b 44 24 1c ..
+// -> `jmp 0x5c301f` e9 b6 00 00 00) redirects a CHANGED door (you just walked/teleported onto it)
+// straight to the commit, SKIPPING the combat-proximity scan (render_root+0x33e0) + the two area
+// combat flags (+0x3770/+0x3764) + the hold-ramp.  The changed-guard je@0x5c2f5e is PRESERVED, so
+// STANDING on a door does NOT auto-fire — that fixes the "randomly entered portals while standing"
+// self-warp (the dropped 0x5c314c ramp-nop made held UP fire every frame; gone).
+// GATED: applied ONLY in a stable in-scene state (a player is present, no menu-drive is running, and
+// the scene has settled) — a fresh load is briefly unstable and an auto-fire there CRASHED the game
+// (USER), so warpgate_sync() removes the patch across the title / menu-drive / settle window.
 #define VA_WG_INSTANT  0x5c2f64
-#define VA_WG_RAMP     0x5c314c
-static volatile int g_warpgate;
-static uint8_t g_wg_orig_i[5], g_wg_orig_r[2];
+static volatile int g_warpgate = 1;    // DESIRED state (USER toggle); DEFAULT ON
+static volatile int g_wg_applied;      // is the patch currently written to .text?
+static uint8_t g_wg_orig_i[5];
 static int g_wg_saved;
-static void warpgate(int on) {
-    uint8_t *pi = (uint8_t *)AP(VA_WG_INSTANT), *pr = (uint8_t *)AP(VA_WG_RAMP);
-    if (!mem_readable(pi, 5) || !mem_readable(pr, 2)) return;
-    if (on) {
-        if (!g_wg_saved) { memcpy(g_wg_orig_i, pi, 5); memcpy(g_wg_orig_r, pr, 2); g_wg_saved = 1; }
+#define WG_SETTLE_POLLS 120            // ~2 s after a drive before warpgate re-applies (scene stable)
+static void warpgate_set(int apply) {  // patch/unpatch (only on a state change)
+    if (apply == g_wg_applied) return;
+    uint8_t *pi = (uint8_t *)AP(VA_WG_INSTANT);
+    if (!mem_readable(pi, 5)) return;
+    if (apply) {
+        if (!g_wg_saved) { memcpy(g_wg_orig_i, pi, 5); g_wg_saved = 1; }
         uint8_t jmp5[5] = { 0xe9, 0xb6, 0x00, 0x00, 0x00 };   // jmp 0x5c301f -> the commit (skip gates)
-        uint8_t nop2[2] = { 0x90, 0x90 };                     // NOP the ramp-complete jl (skip the hold)
         patch_bytes(pi, jmp5, 5);
-        patch_bytes(pr, nop2, 2);
     } else if (g_wg_saved) {
         patch_bytes(pi, g_wg_orig_i, 5);
-        patch_bytes(pr, g_wg_orig_r, 2);
     }
+    g_wg_applied = apply;
+}
+static void warpgate(int on) {         // the toggle just sets the DESIRED state; sync applies it
     g_warpgate = on ? 1 : 0;
+    if (!on) warpgate_set(0);          // remove immediately when turned off
+}
+// Per-frame (safepoint): apply the patch only when it's SAFE (in a settled scene, not mid menu-drive).
+static void warpgate_sync(void) {
+    int safe = g_warpgate && g_ti_mgr && !g_md_state && !g_ng_state
+               && g_scene_settle > WG_SETTLE_POLLS && find_player();
+    warpgate_set(safe ? 1 : 0);
 }
 
 // ─── save-file inspection (reads savedataNN.sdt via the standalone sotes_save lib) ──
@@ -1432,11 +1442,16 @@ static void drain_engine_queue(void) {
 //   mousefly — teleport the player to the cursor over the game window (camera frozen).
 //   hotkeys  — F7 toggles mouse-fly.
 static void engine_freezes(void) {
-    if (g_god) {   // god = invincibility: pin hp+mp above max so nothing kills + free casting
-        uintptr_t base = find_target(); uint32_t sb = 0;
-        if (base && rd32((void *)(base + OFF_STATBLOCK), &sb)) {
-            if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
-            if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
+    warpgate_sync();   // apply/remove the door-gate patch per the safe-scene gate (crash-safe)
+    if (g_god) {   // god = PARTY-WIDE invincibility: pin hp+mp above max for EVERY present member
+        static uintptr_t party_cache[3];                  // Arche 0xc35a / Sana 0xc35b / Stella 0xc35c
+        for (int i = 0; i < 3; ++i) {
+            uintptr_t a = scan_actor(0xc35a + (uint32_t)i, 0, &party_cache[i]);   // cached; revalidated
+            uint32_t sb = 0;
+            if (a && rd32((void *)(a + OFF_STATBLOCK), &sb)) {
+                if (mem_writable((void *)(sb + OFF_HP_CUR), 4)) *(uint32_t *)(sb + OFF_HP_CUR) = GOD_VAL;
+                if (mem_writable((void *)(sb + OFF_MP_CUR), 4)) *(uint32_t *)(sb + OFF_MP_CUR) = GOD_VAL;
+            }
         }
     }
     EnterCriticalSection(&g_lock_cs);
@@ -2311,8 +2326,8 @@ static void handle_line(const char *line, char *out, int cap) {
     if (!strcmp(cmd, "release")) { g_move_hold = 0; snprintf(out, cap, "{\"ok\":true,\"hold_mask\":0}"); return; }
     if (!strcmp(cmd, "warpgate")) {
         // {"cmd":"warpgate","on":true|false} — code-patch the SE door handler (0x5c2af0) to transition
-        // INSTANTLY on any door-change, skipping the combat-proximity + never-seen + hold-ramp gates.
-        // Lets `door`/`doorenter`/`warp` fire a portal in a mob room or a never-used portal.  Default OFF.
+        // INSTANTLY on a door-CHANGE (walk/teleport onto a door), skipping the combat + never-seen +
+        // hold gates.  Default ON, auto-gated off during the title/menu/load (crash-safe).
         int on = json_bool(line, "on", 1);
         warpgate(on);
         snprintf(out, cap, "{\"ok\":true,\"warpgate\":%s}", g_warpgate ? "true" : "false");

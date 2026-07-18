@@ -158,10 +158,18 @@ projectile/combat pool `+0x23e0` within 32000x/16000y of the leader) AND area fl
   10000, transitions at **`>9999` (0x270f)** ⇒ "hold UP a few secs".
 - **Portal NEVER used** → `bVar3` false → the ramp path is SKIPPED (59a1f0:241) → `return 0`; only the
   combat-free instant path can pass ⇒ "can't enter until out of combat".
-VERIFIED behaviorally: holding UP 10 s at a door in a mob room did NOT transition (hard block).  The
-trainer FIX (next: a `warpgate` toggle, a code patch like `autoskip`) forces the instant transition
-on any door-change, ignoring combat/seen/hold.  SE analogs (objdump): ramp `cmp eax,0x270f` @`0x5a646b`
-(door region, near the door path `0x5a6e12`); door-code test @ `0x5c31a3`/`0x5c3801`/`0x5b4013`.
+VERIFIED behaviorally: holding UP 10 s at a door in a mob room did NOT transition (hard block).
+**SHIPPED FIX = the `warpgate` toggle** (DEFAULT ON): ONE code patch at **`0x5c2f64`** (`8b 44 24 1c`,
+the door-CHANGED instant-path preamble) → **`e9 b6 00 00 00` = `jmp 0x5c301f`** (the commit), skipping
+the combat scan + area flags + hold.  The changed-guard `je@0x5c2f5e` is PRESERVED so a CHANGED door
+(walk/teleport ONTO it) fires instantly but STANDING on one does not (dropping the earlier 2nd patch
+`0x5c314c`→nop, the ramp-skip, which made held UP self-fire every frame — USER-reported).  **AUTO-GATED**
+(`warpgate_sync`, engine safepoint): applied ONLY when a player is present + no menu-drive + the scene
+has settled (`g_scene_settle>120`) — a fresh load is briefly unstable and an auto-fire there CRASHED
+the game (USER), so the patch is removed across the title / menu / load window.  VERIFIED live:
+unpatched at the title, patched in-scene, a `door` fires 440220→440210 with it, and party-god now pins
+HP+MP=9999 for ALL of Arche/Sana/Stella (`engine_freezes` party loop).  SE door handler = **`0x5c2af0`**
+(base FUN_0059a1f0); overlap test `0x5c3190`; combat pool = `render_root+0x33e0` (base +0x23e0).
 
 ### ✅ FORCED WARP (no door handler) — the mechanism, for the DIRECT-warp (RE'd, not yet baked)
 The room-load is **EDGE-triggered on StartArea's RETURN, not a passive poll** of `map+0x4024`.  Recipe

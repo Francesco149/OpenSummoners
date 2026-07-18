@@ -280,7 +280,8 @@ TOOLS = [
      {"type": "object", "properties": {
          "which": {"type": "string"}, "value": {"type": "integer"},
          "lock": {"type": "boolean"}}, "required": ["which", "value"]}, h_setstat),
-    ("god", "Freeze HP+MP at 9999 each frame (invincibility + free casting). Default ON.",
+    ("god", "Freeze HP+MP at 9999 each frame for the WHOLE PARTY (Arche/Sana/Stella) — "
+     "invincibility + free casting for everyone present. Default ON.",
      {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_god),
     ("teleport", "Move the player via the authoritative phys-box (*(actor+0x40)): "
      "x sticks, y gravity-settles. Absolute=world centi-px, relative=true nudges in px.",
@@ -355,7 +356,9 @@ TOOLS = [
          "btn": {"type": "integer"}, "n": {"type": "integer"}}, "required": ["btn"]}, h_press),
     ("warpgate", "Code-patch the SE door handler so any door transitions INSTANTLY, skipping the "
      "combat-proximity block, the never-used-portal block, and the hold-UP ramp — lets `door`/warp "
-     "fire a portal in a mob room or a never-visited portal. Default OFF; warp.py enables it.",
+     "fire a portal in a mob room or a never-visited portal (walk/teleport ONTO a door — it won't "
+     "self-fire while you just stand on one). Default ON; auto-gated off during the title/menu/load "
+     "so it can't fire mid-transition (crash-safe).",
      {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_warpgate),
     ("door", "Teleport straight ONTO exit-slot `slot`'s door (its live position from `map`), "
      "optionally firing doorenter (enter=true) so she transitions — the warp SPEEDUP (no floor "
