@@ -147,6 +147,14 @@ a resident area (cross-AREA crashes at `0x5ad656`, "map data not found" — need
 that's the next RE for cross-region). Tools: `scratchpad/hijack.py` (hijack exits), `find_rooms.py`
 (enumerate the 730-room table by area — the fast-travel destination list).
 
+**Cross-region PLAN (USER):** don't need direct cross-area warp — warp WITHIN-area to the room that
+holds the real AREA-BOUNDARY portal, then use that real portal to cross (it loads the next area's
+W-map correctly). So pathfinding = within-area hijack-warps chained through real boundary portals.
+**Direct cross-area LEAD (still worth solving):** the load-request is `*(u32*)0x92c828` (read 5×; the
+Load Map Data step `0x5ad586` reads `[req+4]`(switch, case 3 @0x5ad8b2)/`[req+8]`/`[req+0xc]`); the
+`0x5a1bba` reader (fn ~0x5a1xxx) is the likely SETTER. Cross-area needs this request pointed at the
+target area's W-map (loaded like a real boundary transition does) BEFORE the rebuild — else `0x5ad656`.
+
 ## Base-game MODEL (the reference to find SE analogs against)
 From the port + `docs/decompiled` (base VAs — the algorithm/structs, NOT SE addresses):
 - **3 ids on 2 objects**: `map_obj+0x4104` MAP ID (town 0x3f2=1010) · `map_obj+0x4024` ROOM KEY
