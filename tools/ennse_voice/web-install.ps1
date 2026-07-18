@@ -111,16 +111,32 @@ $modsDir  = Join-Path $game 'mods'
 $voiceMod = Join-Path $modsDir 'ennse_voice.dll'
 $voiceDll = Join-Path $game 'sotesx_s.dll'
 
-# ---- 2. idempotency: already installed? offer uninstall -------------------
+# Pre-download the loader + voice mod to a temp dir so we can compare what's installed
+# against the latest BEFORE touching anything.
+$dl = Join-Path $env:TEMP 'ennse-voice-dl'
+if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
+New-Item -ItemType Directory -Path $dl | Out-Null
+$newVer = Join-Path $dl 'version.dll'; $newVoice = Join-Path $dl 'ennse_voice.dll'
+Step "Downloading the mod loader + voice mod ($TAG)"
+Get-ReleaseFile 'version.dll'     $newVer
+Get-ReleaseFile 'ennse_voice.dll' $newVoice
+function Same($a,$b){ (Test-Path $a) -and (Test-Path $b) -and ((Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash) }
+
+# ---- 2. already installed? compare versions, offer update / uninstall -----
 if (Test-Path $realDll) {   # realver.dll is unique to a mod-loader install
+  $verOk = Same $verDll $newVer; $voiceOk = Same $voiceMod $newVoice
   Write-Host ""
-  Warn "The mod loader is ALREADY INSTALLED here:"
-  Note ("version.dll         : " + $(if (Test-Path $verDll)   {'present (mod loader)'} else {'MISSING'}))
+  if ($verOk -and $voiceOk) {
+    Good "The voice patch is already installed and UP TO DATE ($TAG)."
+  } else {
+    Warn "The voice patch is already installed but OLD or MISMATCHED vs $TAG :"
+  }
+  Note ("version.dll         : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
+  Note ("mods\ennse_voice.dll: " + $(if (-not (Test-Path $voiceMod)) {'MISSING'} elseif ($voiceOk) {'up to date'} else {'DIFFERS - would be replaced'}))
   Note ("realver.dll         : " + $(if (Test-Path $realDll)  {'present'} else {'MISSING'}))
-  Note ("mods\ennse_voice.dll: " + $(if (Test-Path $voiceMod) {'present'} else {'MISSING'}))
-  Note ("sotesx_s.dll        : " + $(if (Test-Path $voiceDll) {'present'} else {'MISSING'}))
+  Note ("sotesx_s.dll        : " + $(if (Test-Path $voiceDll) {'present (kept)'} else {'MISSING'}))
   Write-Host ""
-  $ans = Read-Host "Type U to uninstall the voice patch, R to reinstall/repair, anything else to cancel"
+  $ans = Read-Host "Type R to reinstall/update, U to uninstall, anything else to cancel"
   if ($ans -match '^[Uu]') {
     Write-Host ""; Step "Uninstalling the voice patch"
     foreach ($f in $voiceMod,$voiceDll,(Join-Path $game 'oss_voice.log')) {
@@ -142,7 +158,16 @@ if (Test-Path $realDll) {   # realver.dll is unique to a mod-loader install
   elseif ($ans -notmatch '^[Rr]') {
     Note "Cancelled - nothing changed."; Read-Host "Press Enter to exit"; return
   }
-  Write-Host ""; Step "Reinstalling / repairing"
+  # R = reinstall: spell out exactly what gets replaced, then confirm.
+  Write-Host ""
+  Warn "Reinstall will REPLACE these files in:  $game"
+  Note "  version.dll            (the mod loader)"
+  Note "  realver.dll            (re-copied from your Windows version.dll)"
+  Note "  mods\ennse_voice.dll   (the voice patch)"
+  Note "It will NOT touch:  sotesx_s.dll (your voice bank), sotes_en.exe, or any other mods."
+  $c = Read-Host "Type Y to replace those files, anything else to cancel"
+  if ($c -notmatch '^[Yy]') { Note "Cancelled - nothing changed."; Read-Host "Press Enter to exit"; return }
+  Write-Host ""; Step "Reinstalling / updating"
 }
 
 # ---- 3. install -----------------------------------------------------------
@@ -153,11 +178,11 @@ if (-not (Test-Path $sys)) { $sys = Join-Path $env:WINDIR 'System32\version.dll'
 Copy-Item $sys $realDll -Force
 Good "realver.dll  (forwards the real version.dll)"
 
-Step "Downloading the mod loader + voice mod from the nightly release"
-Get-ReleaseFile 'version.dll' $verDll
+Step "Installing the mod loader + voice mod"
+Copy-Item $newVer $verDll -Force
 Good ("version.dll  (" + [math]::Round((Get-Item $verDll).Length/1KB) + " KB, the mod loader)")
 if (-not (Test-Path $modsDir)) { New-Item -ItemType Directory -Path $modsDir | Out-Null }
-Get-ReleaseFile 'ennse_voice.dll' $voiceMod
+Copy-Item $newVoice $voiceMod -Force
 Good ("mods\ennse_voice.dll  (" + [math]::Round((Get-Item $voiceMod).Length/1KB) + " KB, the voice patch)")
 
 if (Test-Path $voiceDll) {

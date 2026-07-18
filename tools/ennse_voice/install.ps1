@@ -67,6 +67,28 @@ if (-not $game -or -not (Test-Path (Join-Path $game 'sotes_en.exe'))) {
 }
 Good "Game folder: $game"
 
+# 1b. already installed? compare against THIS package + confirm a replace.
+$verDll   = Join-Path $game 'version.dll'
+$realDll  = Join-Path $game 'realver.dll'
+$mods     = Join-Path $game 'mods'
+$voiceMod = Join-Path $mods 'ennse_voice.dll'
+$srcVer   = Join-Path $here 'version.dll'
+$srcVoice = Join-Path $here 'ennse_voice.dll'
+function Same($a,$b){ (Test-Path $a) -and (Test-Path $b) -and ((Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash) }
+if (Test-Path $realDll) {
+  $verOk = Same $verDll $srcVer; $voiceOk = Same $voiceMod $srcVoice
+  Write-Host ""
+  if ($verOk -and $voiceOk) { Good "Already installed and UP TO DATE (matches this package)." }
+  else { Warn "Already installed but OLD or MISMATCHED vs this package:" }
+  Note ("version.dll         : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
+  Note ("mods\ennse_voice.dll: " + $(if (-not (Test-Path $voiceMod)) {'MISSING'} elseif ($voiceOk) {'up to date'} else {'DIFFERS - would be replaced'}))
+  Write-Host ""
+  Warn "Reinstall will REPLACE:  version.dll, realver.dll, mods\ennse_voice.dll   (in $game)"
+  Note "It will NOT touch:  sotesx_s.dll (your voice bank), sotes_en.exe, or any other mods."
+  $c = Read-Host "Type Y to replace those files, anything else to cancel"
+  if ($c -notmatch '^[Yy]') { Note "Cancelled - nothing changed."; Read-Host "Press Enter to exit"; exit 0 }
+}
+
 # 2. JP voice bank (sotesx_s.dll)
 Step "Locating the Japanese voice bank (sotesx_s.dll)"
 $jp = $null
