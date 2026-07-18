@@ -211,6 +211,14 @@ def h_press(a):
     return _reply(tsend(_cmd("press", a, keys=("btn", "n"))))
 
 
+def h_warpgate(a):
+    return _reply(tsend(_cmd("warpgate", a, bools=("on",))))
+
+
+def h_door(a):
+    return _reply(tsend(_cmd("door", a, keys=("slot",), bools=("enter",))))
+
+
 def h_doorenter(a):
     return _reply(tsend({"cmd": "doorenter"}))
 
@@ -291,8 +299,9 @@ TOOLS = [
     ("box", "Debug: the player's collision AABB {box,tag,x,top,w,h,world_y}.",
      {"type": "object", "properties": {}}, h_box),
     ("map", "The CURRENT map/room via the render-root chain: {room_key, area, scene "
-     "(DATA resource id), tileset, parallax, exits:[{exit_key,target_room,return_key}]}. "
-     "exits = the portal graph (each portal's destination room). null if not in a scene.",
+     "(DATA resource id), tileset, parallax, exits:[{slot,exit_key,target_room,return_key,"
+     "door_x,door_y}]}. exits = the portal graph; door_x/door_y = the live world position to "
+     "teleport onto so `door`/doorenter fires it (-1 = no loaded anchor). null if not in a scene.",
      {"type": "object", "properties": {}}, h_map),
     ("hijack", "Overwrite exit-slot N's target_room in the live room record so that door "
      "warps to `target` (WARP PRIMITIVE; within-area). Original stashed for revert.",
@@ -344,6 +353,15 @@ TOOLS = [
      "probe to map what an id does in the current context.",
      {"type": "object", "properties": {
          "btn": {"type": "integer"}, "n": {"type": "integer"}}, "required": ["btn"]}, h_press),
+    ("warpgate", "Code-patch the SE door handler so any door transitions INSTANTLY, skipping the "
+     "combat-proximity block, the never-used-portal block, and the hold-UP ramp — lets `door`/warp "
+     "fire a portal in a mob room or a never-visited portal. Default OFF; warp.py enables it.",
+     {"type": "object", "properties": {"on": {"type": "boolean"}}}, h_warpgate),
+    ("door", "Teleport straight ONTO exit-slot `slot`'s door (its live position from `map`), "
+     "optionally firing doorenter (enter=true) so she transitions — the warp SPEEDUP (no floor "
+     "sweep). Returns {door_x,door_y,target_room,entered}. Poll `map` for the room change.",
+     {"type": "object", "properties": {
+         "slot": {"type": "integer"}, "enter": {"type": "boolean"}}, "required": ["slot"]}, h_door),
     ("doorenter", "Fire the game's OWN door-enter (raw-DINPUT buffered UP-press event inject + "
      "forced read) so she transitions through the door she is STANDING ON — teleport onto a door "
      "zone first.  Foreground-independent (works even unfocused).  Returns immediately; poll `map` "

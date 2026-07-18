@@ -125,6 +125,55 @@ boundary portal = a DIFFERENT AREA (420), no crash.  Cross-region fast-travel to
 room.  (Slow: each hop is a teleport-sweep; a future speedup = read exit door POSITIONS from the scene
 to skip the sweep.)
 
+### ✅ DOOR ANCHORS — the portal POSITIONS (2026-07-18) — warp SPEEDUP, live-PROVEN
+The room-transition DOORS are invisible-volume **CHARACTER-band actors** in the pool at
+**`*(render_root)+0x11e0`** (128 pointer slots; base+SE both — the base pool offsets CARRY: EFFECT
+`+0x1160`/32, CHARACTER `+0x11e0`/128, DEVICE `+0x13e0`/1024, STRUCTURE `+0x2560`/128).  A door
+anchor = a slot that is **active `+0x1d0`==1** with **exit_key at `+0x274`** (== a room-record exit
+slot's key; `+0x278`=valid) and a live phys-box; its world AABB is `*(anchor+0x40)` → **`+0x04`=x
+`+0x08`=y(top) `+0x0c`=w `+0x10`=h `+0x14`=baseline** (the SAME AABB as the player box).  Door
+CENTER x = `box[+4]+box[+0xc]/2`; FEET (world_y) = `box[+8]+box[+0x10]`.  Door type-codes (`+0x1d4`):
+70101-3 (0x111d5/6/7), 70440 (0x11328), 70610/1 (0x113d2/3), 70620 (0x113dc).  **Link to the exit:**
+`anchor+0x274` == the room-record exit slot's key → its `target_room` (`rr+0x1c+slot*0xc +4`).  So the
+portal position for an exit = the CHARACTER-band anchor whose `+0x274` == that exit's `exit_key`.
+**VERIFIED live** (room 420240): slot-0 code 70101 gkey=1 @center(1600,113600) → exit 1 → 420230;
+slot-2 code 70102 gkey=2 @center(166400,94400) → exit 2 → 440110.  Teleport onto the center-x/feet +
+`doorenter` fires THAT portal (proven — went 420240→420230/440110 by picking the anchor).  Baked:
+`tc_get_map` fills each exit's `door_x`(center)/`door_y`(feet); the **`door` cmd** (`{slot,enter}`)
+teleports straight onto it + optionally fires; the UI Portals "go" button; `warp.py` uses it (no more
+sweep).  Base model: door-USE handler `FUN_0059a1f0`, overlap+code test `FUN_0059a7c0`, gate-anchor
+key tag `FUN_00438670` (`+0x274`/`+0x278`).  Trainer code: `find_exit_anchor` (`trainer.c`).
+**⚠ STALE-DUP fix (same session):** after a cross-region warp two code-0xc35a actors coexist — the
+LIVE in-scene Arche (box tracks world_x: `box[+4]==+0xc76c`) + a stale/roster ghost (garbage box).
+`find_player`/teleport was grabbing the ghost.  `actor_valid` now REJECTS an actor whose
+`*(actor+0x40)[+4] != world_x` (the 0x484554 commit invariant), so teleport hits the on-screen Arche.
+
+### ⚠ THE TRANSITION GATES — why a door won't fire in combat / when unseen (base `FUN_0059a1f0`)
+The door-USE handler only fires INSTANTLY when the leader stands on a door AND **no combat is near**:
+the instant-exit branch (base 59a1f0:177-186) needs `FUN_0059a880()==0` (no active entry in the
+projectile/combat pool `+0x23e0` within 32000x/16000y of the leader) AND area flags `+0x2770==0 &&
++0x2764!=1`.  Two gates otherwise (USER-confirmed, matches the decompile):
+- **In combat + portal SEEN before** → a HOLD-RAMP: `bVar3` (the seen-list scan `ctrl+8` stride 8 vs
+  `target_room`, count `ctrl+0x2008`) true → `in_ECX[6] += 30`/frame (only +200 out of combat), cap
+  10000, transitions at **`>9999` (0x270f)** ⇒ "hold UP a few secs".
+- **Portal NEVER used** → `bVar3` false → the ramp path is SKIPPED (59a1f0:241) → `return 0`; only the
+  combat-free instant path can pass ⇒ "can't enter until out of combat".
+VERIFIED behaviorally: holding UP 10 s at a door in a mob room did NOT transition (hard block).  The
+trainer FIX (next: a `warpgate` toggle, a code patch like `autoskip`) forces the instant transition
+on any door-change, ignoring combat/seen/hold.  SE analogs (objdump): ramp `cmp eax,0x270f` @`0x5a646b`
+(door region, near the door path `0x5a6e12`); door-code test @ `0x5c31a3`/`0x5c3801`/`0x5b4013`.
+
+### ✅ FORCED WARP (no door handler) — the mechanism, for the DIRECT-warp (RE'd, not yet baked)
+The room-load is **EDGE-triggered on StartArea's RETURN, not a passive poll** of `map+0x4024`.  Recipe
+(base): stage the next key via `FUN_00401d40(target,return_key,exit_key)` (→ `ctrl+0x900/4/8`) then
+commit `FUN_00402030` (→ `map+0x4024/+0x4028/+0x402c`; == `FUN_004e61a0` SetNextArea), also set the
+restore copy `map+0x40d0/+0x40d4/+0x40d8`, THEN make `FUN_0058f360` return a transition code (the only
+"kick" — the door handler / a menu / the cutscene fade).  Loads ANY room cross-area (StartArea loads
+the target's own W-map by its scene index; `FUN_00561c90` linear-scans the whole room table, no area
+filter).  Map object (holds `+0x4024`) = base `*(render_root+0x2784)` (SE `*(render_root+0x1044)` is
+one indirection off — verify live).  Cutscene town→house→errands uses exactly this stage/commit-under-
+fade (`0x4d7d80` dispatch).  ⇒ the direct warp needs the SE stage/commit analogs + a non-door trigger.
+
 ### Menu / title / load / save  (role-verified on SE; base VAs NOT in the exported decompile)
 | SE VA | role |
 |---|---|

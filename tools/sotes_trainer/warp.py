@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""warp.py <target_room> — CROSS-REGION fast-travel via the baked door-driver + the room graph.
+"""warp.py <target_room> — CROSS-REGION fast-travel via the room graph + direct door positions.
 
-Adaptive router: each step, BFS the live `rooms` graph from the current room to the target and
-take the next hop.
-  - Same-AREA hop  A->B: hijack ALL of A's exit slots -> B (any door then leads there), then sweep
-    (teleport + `doorenter` across the floor) until she lands in B.  B is resident (same area
-    W-map), so this is direct.
-  - Cross-AREA hop A->B (a real boundary portal): can NOT hijack (B's W-map isn't resident until the
-    real portal loads it), so sweep A WITHOUT hijacking and take the door that lands in B's area; a
-    wrong (same-area) door -> warp back to A and resume past it.
-Re-plans from the actual room after every hop (robust to imprecise landings).  Socket only, no frida.
+Each hop: BFS the live `rooms` graph from the current room to the target, take the next hop `nxt`
+(always a REAL exit of the current room), then teleport STRAIGHT onto that exit's door anchor and
+fire it — `door slot=N enter=true`, the door position read from the loaded scene, NO floor sweep.
+Re-plans from the actual room after every hop.  Falls back to the old hijack-all + teleport-sweep
+for any exit whose door anchor isn't loaded / didn't fire.  Socket only, no frida.
 
-Env OSS_TRAINER_REMOTE (host:port), else cutestation.soy:7777.
+⚠ COMBAT/SEEN GATES: a room with mobs (or a portal you've never used) blocks the door unless the
+`warpgate` patch is ON (skips the combat-proximity + never-seen + hold-ramp gates).  This script
+enables it at start (harmless if the trainer predates the patch — the error is ignored) and leaves
+it on.  Env OSS_TRAINER_REMOTE (host:port), else cutestation.soy:7777.
 """
 import os, sys, time, json, socket
 from collections import deque
 TRAINER = os.environ.get("OSS_TRAINER_REMOTE", "cutestation.soy:7777")
 XLO, XHI, STEP = 4000, 205000, 1800
 SETTLE, TAP_WAIT = 0.16, 0.55
+HOP_TIMEOUT = 8.0
 
 
 def ts(o, t=20.0):
@@ -61,6 +61,32 @@ def y_now():
     return ts({"cmd": "player"}).get("player", {}).get("world_y", 38399)
 
 
+def wait_room(r0, timeout=HOP_TIMEOUT):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        time.sleep(0.4)
+        rk = room_now()[0]
+        if rk and rk != r0:
+            return rk
+    return None
+
+
+def direct_door(nxt, m, r0):
+    """Try EVERY loaded exit targeting `nxt` (a room may have several doors to it, on different
+    levels): teleport onto each door + fire it, nudging away between tries so the next door reads
+    as 'changed' to the handler.  Returns the new room or None if none fired."""
+    cands = [e for e in m.get("exits", []) if e.get("target_room") == nxt and e.get("door_x", -1) >= 0]
+    for e in cands:
+        ts({"cmd": "door", "slot": e["slot"], "enter": True})
+        got = wait_room(r0, timeout=5.0)
+        if got is not None:
+            return got
+        ts({"cmd": "teleport", "x": 100000, "y": y_now()})   # nudge off the door -> next reads 'changed'
+        time.sleep(0.3)
+    return None
+
+
+# ── the old sweep fallback (used only when no door anchor is loaded for the hop) ──
 def _tap(x, y):
     ts({"cmd": "teleport", "x": x, "y": y}); time.sleep(SETTLE)
     ts({"cmd": "doorenter"}); time.sleep(TAP_WAIT)
@@ -68,7 +94,6 @@ def _tap(x, y):
 
 
 def within_warp(target):
-    """Hijack all exits -> target, sweep+doorenter until we land in target (same-area only)."""
     r0, m = room_now()
     for slot in range(max(len(m.get("exits", [])), 2)):
         ts({"cmd": "hijack", "slot": slot, "target": target})
@@ -82,15 +107,14 @@ def within_warp(target):
 
 
 def boundary_cross(target_area):
-    """Sweep current room WITHOUT hijack; take the door into target_area; wrong door -> back+resume."""
     r0, _ = room_now(); y = y_now(); x = XLO
     while x <= XHI:
         rk = _tap(x, y)
         if rk != r0:
             if area_of(rk) == target_area:
-                return rk                          # crossed
-            within_warp(r0)                        # wrong same-area door -> go back
-            y = y_now(); x += STEP                 # resume past it
+                return rk
+            within_warp(r0)
+            y = y_now(); x += STEP
         else:
             x += STEP
     return None
@@ -100,11 +124,15 @@ def main():
     if len(sys.argv) < 2:
         print("usage: warp.py <target_room>"); return 2
     target = int(sys.argv[1], 0)
+    try:
+        ts({"cmd": "warpgate", "on": True})          # skip combat/seen/hold gates (ignore if absent)
+    except Exception:
+        pass
     g = graph()
     if target not in g:
         print(f"target {target} not in the room table"); return 1
     for _ in range(40):
-        cur, _ = room_now()
+        cur, m = room_now()
         if cur == target:
             print(f"ARRIVED at {target}"); return 0
         path = bfs(g, cur, target)
@@ -113,7 +141,10 @@ def main():
         nxt = path[1]
         kind = "same-area" if area_of(nxt) == area_of(cur) else "BOUNDARY"
         print(f"at {cur}; hop -> {nxt} ({kind}); {len(path)-1} hops left", flush=True)
-        got = within_warp(nxt) if area_of(nxt) == area_of(cur) else boundary_cross(area_of(nxt))
+        got = direct_door(nxt, m, cur)              # fast: straight to the door
+        if got is None:                             # anchor not loaded -> old sweep
+            print("  (no loaded door anchor; sweeping)", flush=True)
+            got = within_warp(nxt) if area_of(nxt) == area_of(cur) else boundary_cross(area_of(nxt))
         if got is None:
             print(f"  stuck: no door out of {cur} toward {nxt}"); return 1
         print(f"  -> {got}", flush=True)

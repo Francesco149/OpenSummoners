@@ -37,6 +37,14 @@
 // actor-base offsets
 #define OFF_CODE      0x1d4
 #define OFF_HANDLE    0x1d8
+#define OFF_ACTIVE    0x1d0          // actor active flag (1 = live in the scene)
+#define OFF_GATE_KEY  0x274          // door/gate anchor: exit_key (0 = not a door), +0x278 valid
+// The room-transition DOORS are invisible-volume CHARACTER-band actors (render_root+0x11e0, 128
+// slots): a door = active(+0x1d0) with exit_key at +0x274 (== a room-record exit slot's key), its
+// world AABB at *(actor+0x40).  RE'd live (SE_CODE_MAP "door anchors") + confirmed vs the base
+// door-use handler FUN_0059a1f0 / overlap+exit-slot-scan FUN_0059a7c0 (door codes 70101-3/440/610/…).
+#define BAND_CHAR     0x11e0         // render_root + this = CHARACTER actor band (128 ptr slots)
+#define BAND_CHAR_N   128
 // world_x/world_y are a DERIVED per-frame SNAPSHOT (re-committed from the phys-box
 // every frame, so writing them is stomped in ~1 frame — the old teleport bug).  The
 // AUTHORITATIVE position lives in the collision AABB the actor points to at +0x40.
@@ -242,6 +250,16 @@ static int actor_valid(uintptr_t base, uint32_t want) {
     if (!rd32((void *)(sb + OFF_MP_CUR), &mpc) || (int)mpc < 0 || (int)mpc > 999999) return 0;
     if (!rd32((void *)(base + OFF_WORLD_X), &wx) || !rd32((void *)(base + OFF_WORLD_Y), &wy)) return 0;
     if (abs((int)wx) > 50000000 || abs((int)wy) > 50000000) return 0;   // centi-px sanity
+    // Reject a STALE/roster DUPLICATE (e.g. a leftover after a cross-region warp, or the
+    // title-screen roster copy): the LIVE in-scene actor's phys-box tracks world_x every frame
+    // (box[+4] == +0xc76c, the 0x484554 commit), so box[+4] != world_x ⇒ not the live actor.
+    // A not-yet-boxed fresh actor (null/unreadable box) is still accepted, so load-detection is
+    // not delayed.  This is what makes teleport/find_target hit the on-screen Arche, not the ghost.
+    uint32_t box = 0, bx4 = 0;
+    if (rd32((void *)(base + OFF_BOX), &box) && box > 0x10000 &&
+        mem_readable((void *)(uintptr_t)box, 0x14)) {
+        if (rd32((void *)((uintptr_t)box + BOX_X), &bx4) && bx4 != wx) return 0;
+    }
     return 1;
 }
 // Is `actor` the CONTROLLED member? (its input chain resolves to the live input mgr.)
@@ -1085,6 +1103,39 @@ static void dlg_autoskip(int on) {
     g_autoskip = on ? 1 : 0;
 }
 
+// ── warpgate: skip the door-transition GATES (combat / never-seen / hold-ramp) ──
+// The SE door-USE handler is 0x5c2af0 (base FUN_0059a1f0; RE'd byte-for-byte, SE_CODE_MAP "GATES").
+// A door won't fire in combat unless (a) it's a SEEN portal AND you HOLD UP a few secs (the ramp
+// in_ECX[6]->10000), or it's a NEVER-USED portal, which is HARD-blocked until you leave combat.
+// Two code patches force an instant transition on any door-change, ignoring all three gates:
+//   0x5c2f64  the door-CHANGED instant-path preamble (`mov eax,[esp+0x1c]`, 8b 44 24 1c ..) -> a
+//             `jmp 0x5c301f` (e9 b6 00 00 00) that SKIPS the combat-proximity scan (render_root+0x33e0
+//             pool) + the two area combat flags (+0x3770/+0x3764) and lands on the commit.  The
+//             changed-guard je@0x5c2f5e is PRESERVED (won't re-warp a door you're already standing on).
+//   0x5c314c  the ramp-complete `jl 0x5c3183` (7c 35) -> nop nop, so a held (not-changed) door also
+//             transitions on frame 1 (skip the hold).  Pose-gated like retail (needs the door-enter
+//             UP intent), so it does NOT auto-warp on arrival.  Default OFF; warp.py enables it.
+#define VA_WG_INSTANT  0x5c2f64
+#define VA_WG_RAMP     0x5c314c
+static volatile int g_warpgate;
+static uint8_t g_wg_orig_i[5], g_wg_orig_r[2];
+static int g_wg_saved;
+static void warpgate(int on) {
+    uint8_t *pi = (uint8_t *)AP(VA_WG_INSTANT), *pr = (uint8_t *)AP(VA_WG_RAMP);
+    if (!mem_readable(pi, 5) || !mem_readable(pr, 2)) return;
+    if (on) {
+        if (!g_wg_saved) { memcpy(g_wg_orig_i, pi, 5); memcpy(g_wg_orig_r, pr, 2); g_wg_saved = 1; }
+        uint8_t jmp5[5] = { 0xe9, 0xb6, 0x00, 0x00, 0x00 };   // jmp 0x5c301f -> the commit (skip gates)
+        uint8_t nop2[2] = { 0x90, 0x90 };                     // NOP the ramp-complete jl (skip the hold)
+        patch_bytes(pi, jmp5, 5);
+        patch_bytes(pr, nop2, 2);
+    } else if (g_wg_saved) {
+        patch_bytes(pi, g_wg_orig_i, 5);
+        patch_bytes(pr, g_wg_orig_r, 2);
+    }
+    g_warpgate = on ? 1 : 0;
+}
+
 // ─── save-file inspection (reads savedataNN.sdt via the standalone sotes_save lib) ──
 // The game keeps saves beside the exe in user\savedataNN.sdt.  Reading the FILE (not
 // engine memory) means the trainer can enumerate/identify EVERY save without loading
@@ -1599,6 +1650,31 @@ int tc_get_player(tc_player *o) {
     o->combat_level_max = (int)lvl; o->exp_cur = (int)ec; o->exp_max = (int)em;
     return 1;
 }
+// Locate the CHARACTER-band gate ANCHOR (the physical door) for exit_key `ek` in the loaded
+// scene: scan render_root+0x11e0 (128 slots) for an ACTIVE actor whose +0x274 == ek with a live
+// phys-box.  On a hit fills *cx (door CENTER x) + *feet (world_y = box top + height) — the spot
+// teleport() lands the player onto so `doorenter` fires that portal.  Returns 1 on a hit.
+static int find_exit_anchor(uint32_t root, uint32_t ek, int *cx, int *feet) {
+    if (!root || ek == 0) return 0;
+    for (int i = 0; i < BAND_CHAR_N; ++i) {
+        uint32_t p = 0;
+        if (!rd32((void *)(uintptr_t)(root + BAND_CHAR + i * 4), &p) || p <= 0x10000) continue;
+        uint32_t act = 0, gk = 0, box = 0;
+        if (!rd32((void *)(uintptr_t)(p + OFF_ACTIVE),   &act) || act != 1)  continue;
+        if (!rd32((void *)(uintptr_t)(p + OFF_GATE_KEY), &gk)  || gk != ek)   continue;
+        if (!rd32((void *)(uintptr_t)(p + OFF_BOX), &box) || box <= 0x10000 ||
+            !mem_readable((void *)(uintptr_t)box, 0x14)) continue;
+        uint32_t bx = 0, bt = 0, bw = 0, bh = 0;
+        rd32((void *)(uintptr_t)(box + BOX_X),   &bx); rd32((void *)(uintptr_t)(box + BOX_TOP), &bt);
+        rd32((void *)(uintptr_t)(box + 0xc),     &bw); rd32((void *)(uintptr_t)(box + BOX_H),   &bh);
+        if (bw == 0 || bw > 300000 || bh == 0 || bh > 300000) continue;   // sane AABB (door footprint)
+        if (cx)   *cx   = (int)bx + (int)bw / 2;
+        if (feet) *feet = (int)bt + (int)bh;
+        return 1;
+    }
+    return 0;
+}
+
 int tc_get_map(tc_map *o) {
     if (!o) return 0;
     memset(o, 0, sizeof *o);
@@ -1619,6 +1695,8 @@ int tc_get_map(tc_map *o) {
         tc_exit *e = &o->exits[n++];
         e->exit_key = ek; e->target_room = tr; e->return_key = ret; e->slot = k;
         e->hijacked = exit_hijacked(key, k, &e->orig_target);
+        int cx = 0, feet = 0;
+        if (find_exit_anchor(root, ek, &cx, &feet)) { e->has_door = 1; e->door_x = cx; e->door_y = feet; }
     }
     o->n_exits = n;
     return 1;
@@ -1651,7 +1729,7 @@ int tc_get_status(tc_status *o) {
     o->at_title = (g_ti_mgr && !o->player_present) ? 1 : 0;
     o->autoskip = g_autoskip; o->mousefly = g_mousefly;
     o->dlgskip = g_dlgskip; o->god = g_god; o->keepactive = g_keepactive;
-    o->attract = g_demo_saved; o->fastskip = g_fastskip;
+    o->attract = g_demo_saved; o->fastskip = g_fastskip; o->warpgate = g_warpgate;
     o->delta = (uint32_t)g_delta; o->base = (uint32_t)(ORIG_BASE + g_delta);
     o->ti_mgr = g_ti_mgr; o->pk_mgr = g_pk_mgr; o->game_hwnd = (uint32_t)(uintptr_t)g_game_hwnd;
     int vw = 0, vh = 0;
@@ -1675,6 +1753,7 @@ void tc_set_toggle(const char *name, int on) {
     else if (!strcmp(name, "keepactive")) g_keepactive = on ? 1 : 0;
     else if (!strcmp(name, "attract"))    attract_freeze(on);
     else if (!strcmp(name, "fastskip"))   g_fastskip = on ? 1 : 0;
+    else if (!strcmp(name, "warpgate"))   warpgate(on);
 }
 int tc_get_toggle(const char *name) {
     if (!name) return 0;
@@ -1685,6 +1764,7 @@ int tc_get_toggle(const char *name) {
     else if (!strcmp(name, "keepactive")) return g_keepactive;
     else if (!strcmp(name, "attract"))    return g_demo_saved;
     else if (!strcmp(name, "fastskip"))   return g_fastskip;
+    else if (!strcmp(name, "warpgate"))   return g_warpgate;
     return 0;
 }
 void tc_setstat(const char *which, int value, int lock) {
@@ -1708,6 +1788,20 @@ void tc_revert_exit(int slot) {
     eq_job *j = eq_alloc(EQ_REVERT); if (!j) return;
     j->u[0] = (uint32_t)slot;
     engine_wait(j, 200);
+}
+// Teleport the player ONTO exit-slot `slot`'s door anchor (the UI "go to door" button + warp
+// speedup): reads the live door position via tc_get_map, then the phys-box teleport.  Returns 1
+// if the door had a resolved position + the teleport ran (0 if no anchor is loaded for it).
+int tc_teleport_to_door(int slot) {
+    tc_map m;
+    if (!tc_get_map(&m)) return 0;
+    for (int i = 0; i < m.n_exits; ++i) {
+        if (m.exits[i].slot != slot) continue;
+        if (!m.exits[i].has_door) return 0;
+        tc_teleport(m.exits[i].door_x, m.exits[i].door_y, 1, 1, 0);
+        return 1;
+    }
+    return 0;
 }
 void tc_set_cam_off(uint32_t off) { g_cam_off = off; }
 uint32_t tc_get_cam_off(void)     { return g_cam_off; }
@@ -1784,12 +1878,13 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap,
             "{\"ok\":true,\"hooks\":%d,\"main_wnd\":%s,\"launch_clicked\":%d,"
             "\"attract_frozen\":%s,\"keepactive\":%s,\"dlgskip\":%s,\"autoskip\":%s,\"fastskip\":%s,"
-            "\"god\":%s,\"mousefly\":%s,\"box_open\":%s,\"box_scale\":%u,"
+            "\"warpgate\":%s,\"god\":%s,\"mousefly\":%s,\"box_open\":%s,\"box_scale\":%u,"
             "\"md_state\":%d,\"md_slot\":%d,"
             "\"ng_state\":%d,\"ti_mgr\":\"0x%08x\",\"pk_mgr\":\"0x%08x\"}",
             (int)g_hooks_done, g_main_wnd_seen ? "true" : "false", g_launch_clicked,
             g_demo_saved ? "true" : "false", g_keepactive ? "true" : "false",
             g_dlgskip ? "true" : "false", g_autoskip ? "true" : "false", g_fastskip ? "true" : "false",
+            g_warpgate ? "true" : "false",
             g_god ? "true" : "false", g_mousefly ? "true" : "false",
             dialogue_box_open(g_ti_mgr) ? "true" : "false",
             (unsigned)bsc, g_md_state, g_md_slot,
@@ -1884,33 +1979,22 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "map")) {
-        // {"cmd":"map"} — the CURRENT map/room: read the render-root chain (*0x92dd38 ->
-        // +0x1038 room record) and report room_key / area / DATA-scene id / tileset / parallax
-        // + the EXIT GRAPH (portals -> target rooms).  Pure read; RE'd this session (SE_CODE_MAP).
-        uint32_t root = 0, rr = 0;
-        if (!rd32(AP(VA_RENDER_ROOT), &root) || root <= 0x10000 ||
-            !rd32((void *)(uintptr_t)(root + ROOT_ROOM_REC), &rr) || rr <= 0x10000 ||
-            !mem_readable((void *)(uintptr_t)rr, 0x150)) {
-            snprintf(out, cap, "{\"ok\":false,\"error\":\"no room record (not in a scene?)\"}"); return; }
-        uint32_t key=0, area=0, scene=0, tset=0, plx=0;
-        rd32((void *)(uintptr_t)(rr + RR_ROOM_KEY), &key);
-        rd32((void *)(uintptr_t)(rr + RR_AREA),     &area);
-        rd32((void *)(uintptr_t)(rr + RR_SCENE),    &scene);
-        rd32((void *)(uintptr_t)(rr + RR_TILESET),  &tset);
-        rd32((void *)(uintptr_t)(rr + RR_PARALLAX), &plx);
+        // {"cmd":"map"} — the CURRENT map/room via the render-root chain (*0x92dd38 -> +0x1038 room
+        // record): room_key / area / DATA-scene / tileset / parallax + the EXIT GRAPH.  Each exit
+        // carries the live DOOR POSITION when its gate anchor is loaded ("door_x"/"door_y" = the
+        // spot to teleport onto so `doorenter` fires it; door_x=-1 ⇒ no anchor found).  Pure read.
+        tc_map m;
+        if (!tc_get_map(&m)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no room record (not in a scene?)\"}"); return; }
         int n = snprintf(out, cap,
             "{\"ok\":true,\"render_root\":\"0x%08x\",\"room_record\":\"0x%08x\",\"room_key\":%u,"
             "\"area\":%u,\"scene\":%u,\"tileset\":%u,\"parallax\":%u,\"exits\":[",
-            root, rr, key, area, scene, tset, plx);
-        int first = 1;
-        for (int k = 0; k < 20 && n < cap - 96; ++k) {
-            uintptr_t b = rr + RR_EXIT0 + (uint32_t)k * 12;
-            uint32_t ek=0, tr=0, ret=0;
-            rd32((void *)b, &ek); rd32((void *)(b + 4), &tr); rd32((void *)(b + 8), &ret);
-            if (ek == 0 && tr == 0) continue;
+            m.render_root, m.room_record, m.room_key, m.area, m.scene, m.tileset, m.parallax);
+        for (int k = 0; k < m.n_exits && n < cap - 128; ++k) {
+            tc_exit *e = &m.exits[k];
             n += snprintf(out + n, cap - n,
-                "%s{\"exit_key\":%u,\"target_room\":%u,\"return_key\":%u}", first ? "" : ",", ek, tr, ret);
-            first = 0;
+                "%s{\"slot\":%d,\"exit_key\":%u,\"target_room\":%u,\"return_key\":%u,\"door_x\":%d,\"door_y\":%d}",
+                k ? "," : "", e->slot, e->exit_key, e->target_room, e->return_key,
+                e->has_door ? e->door_x : -1, e->has_door ? e->door_y : -1);
         }
         snprintf(out + n, cap - n, "]}");
         return;
@@ -2172,6 +2256,33 @@ static void handle_line(const char *line, char *out, int cap) {
         snprintf(out, cap, "{\"ok\":true,\"pressed\":%d,\"n\":%d,\"mgr\":\"0x%08x\"}", (int)btn, (int)cnt, (unsigned)mgr);
         return;
     }
+    if (!strcmp(cmd, "door")) {
+        // {"cmd":"door","slot":N[,"enter":true]} — teleport the player ONTO exit-slot N's door
+        // anchor (its live position, read from the scene), optionally firing doorenter so she
+        // transitions.  The warp SPEEDUP: no floor-sweep — go straight to the portal.  Returns the
+        // resolved door position; enter+doorenter is async (poll `map` for the room change).
+        long long slot;
+        if (!json_num(line, "slot", &slot)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no slot\"}"); return; }
+        int enter = json_bool(line, "enter", 0);
+        tc_map m;
+        if (!tc_get_map(&m)) { snprintf(out, cap, "{\"ok\":false,\"error\":\"not in a scene\"}"); return; }
+        tc_exit *e = NULL;
+        for (int i = 0; i < m.n_exits; ++i) if (m.exits[i].slot == (int)slot) { e = &m.exits[i]; break; }
+        if (!e) { snprintf(out, cap, "{\"ok\":false,\"error\":\"no such exit slot\"}"); return; }
+        if (!e->has_door) { snprintf(out, cap,
+            "{\"ok\":false,\"slot\":%d,\"exit_key\":%u,\"target_room\":%u,\"has_door\":false,"
+            "\"error\":\"no loaded door anchor for this exit\"}", (int)slot, e->exit_key, e->target_room); return; }
+        tc_teleport(e->door_x, e->door_y, 1, 1, 0);          // straight onto the portal
+        int entered = 0;
+        if (enter) {
+            if (!g_kbd_hooks_on) kbd_hooks_enable();
+            if (g_kbd_hooks_on && !g_door_state) { g_door_state = 1; entered = 1; }
+        }
+        snprintf(out, cap, "{\"ok\":true,\"slot\":%d,\"exit_key\":%u,\"target_room\":%u,"
+            "\"door_x\":%d,\"door_y\":%d,\"entered\":%s}", (int)slot, e->exit_key, e->target_room,
+            e->door_x, e->door_y, entered ? "true" : "false");
+        return;
+    }
     if (!strcmp(cmd, "doorenter")) {
         // {"cmd":"doorenter"} — fire the game's OWN door-enter: inject an UP press-event (then a
         // release ~16 frames later) into the buffered keyboard event queue + FORCE the read to
@@ -2198,6 +2309,15 @@ static void handle_line(const char *line, char *out, int cap) {
         return;
     }
     if (!strcmp(cmd, "release")) { g_move_hold = 0; snprintf(out, cap, "{\"ok\":true,\"hold_mask\":0}"); return; }
+    if (!strcmp(cmd, "warpgate")) {
+        // {"cmd":"warpgate","on":true|false} — code-patch the SE door handler (0x5c2af0) to transition
+        // INSTANTLY on any door-change, skipping the combat-proximity + never-seen + hold-ramp gates.
+        // Lets `door`/`doorenter`/`warp` fire a portal in a mob room or a never-used portal.  Default OFF.
+        int on = json_bool(line, "on", 1);
+        warpgate(on);
+        snprintf(out, cap, "{\"ok\":true,\"warpgate\":%s}", g_warpgate ? "true" : "false");
+        return;
+    }
     if (!strcmp(cmd, "attract")) {
         // {"cmd":"attract","freeze":true|false} — patch/unpatch the title idle->demo
         // trigger so the title stays up indefinitely (no engine hooks needed).

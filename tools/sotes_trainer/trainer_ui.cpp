@@ -190,6 +190,7 @@ static void panel_cheats() {
     toggle_row("god",        "God (freeze HP + MP at 9999)",   "Pin HP and MP to 9999 every frame so nothing kills you and casting is free. On by default.");
     toggle_row("autoskip",   "Auto-skip dialogue (TAB)",       "Auto-advance ALL story/cutscene/NPC dialogue, hands-free. On by default; turn off to read or pick a choice.");
     toggle_row("mousefly",   "Mouse-fly (F7)",                 "Continuously teleport the player to the cursor over the game window (view frozen while flying). Also toggled by F7.");
+    toggle_row("warpgate",   "Instant doors (skip combat/hold)", "Code-patch the door handler so any door transitions INSTANTLY, ignoring the combat block, the never-used-portal block, and the hold-UP-a-few-secs ramp. Off by default; the warp router turns it on.");
     ImGui::Spacing();
     toggle_row("fastskip",   "Instant text",                   "Snap the current dialogue line's typewriter reveal to the end (door-safe UI-state write).");
     toggle_row("dlgskip",    "Auto-advance open dialogue",     "Injects the advance buttons while a box is up. WARNING: those ids double as world action input, so it AUTO-CONFIRMS world prompts (bed/door) you land on with mouse-fly. Off by default; auto-skip is the world-safe one.");
@@ -270,10 +271,11 @@ static void panel_portals(const tc_map& mp, bool hasm) {
     if (!ImGui::CollapsingHeader("Portals", ImGuiTreeNodeFlags_DefaultOpen)) return;
     if (!hasm) { ImGui::TextColored(COL_WARN, "not in a scene"); return; }
     if (mp.n_exits == 0) { ImGui::TextDisabled("no exits in this room"); return; }
-    ImGui::TextDisabled("change a door's destination to warp somewhere else (within-area).");
-    if (ImGui::BeginTable("portals", 4, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
+    ImGui::TextDisabled("go = teleport onto the door; change = warp it elsewhere (within-area).");
+    if (ImGui::BeginTable("portals", 5, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("exit");
         ImGui::TableSetupColumn("-> target");
+        ImGui::TableSetupColumn("door");
         ImGui::TableSetupColumn("change");
         ImGui::TableSetupColumn("revert");
         ImGui::TableHeadersRow();
@@ -284,8 +286,13 @@ static void panel_portals(const tc_map& mp, bool hasm) {
             ImGui::TableSetColumnIndex(1);
             if (e.hijacked) { ImGui::TextColored(COL_ACCENT, "%u", e.target_room); ImGui::SameLine(); ImGui::TextDisabled("(was %u)", e.orig_target); }
             else            ImGui::Text("%u", e.target_room);
-            ImGui::TableSetColumnIndex(2);
             ImGui::PushID(e.slot);
+            ImGui::TableSetColumnIndex(2);   // door: teleport onto its live anchor
+            if (e.has_door) {
+                if (ImGui::SmallButton("go")) tc_teleport_to_door(e.slot);
+                ImGui::SameLine(); ImGui::TextDisabled("%d,%d", e.door_x / 100, e.door_y / 100);
+            } else ImGui::TextDisabled("--");
+            ImGui::TableSetColumnIndex(3);
             if (ImGui::SmallButton("change")) { g_edit_slot = e.slot; g_room_query[0] = 0; if (g_rooms.empty()) refresh_rooms(); ImGui::OpenPopup("change_portal"); }
             // per-row popup (opened above; content rendered once, keyed by g_edit_slot)
             if (ImGui::BeginPopup("change_portal")) {
@@ -305,7 +312,7 @@ static void panel_portals(const tc_map& mp, bool hasm) {
                 if (ImGui::Button("cancel")) { g_edit_slot = -1; ImGui::CloseCurrentPopup(); }
                 ImGui::EndPopup();
             }
-            ImGui::TableSetColumnIndex(3);
+            ImGui::TableSetColumnIndex(4);
             ImGui::BeginDisabled(!e.hijacked);
             if (ImGui::SmallButton("revert")) tc_revert_exit(e.slot);
             ImGui::EndDisabled();

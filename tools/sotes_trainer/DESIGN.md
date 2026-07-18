@@ -156,6 +156,19 @@ Foundation in hand: teleport (`*(actor+0x40)` phys-box), the player anchor, **au
 dialogue en route), load/newgame (pick the start save).  Prereq RE: the map/scene singleton + object-pool
 layout (SE offsets) and the portal record format.
 
+## Next session (planned) — an SE LIVE TRACING HARNESS (USER-requested 2026-07-18)
+Build the SE analogue of the port's retail call-trace harness (`tools/frida_capture.py` +
+`bisect_call_trace_vas.py` — which bisects "safe" hookable VAs by re-launching until the game boots
+crash-free, then records a `call_trace.jsonl`), but **live-toggleable** from the trainer so the USER
+can flip tracing on/off mid-play.  Goals the USER named: (1) record HIMSELF doing the door-hold (capture
+the exact code path + which fields ramp), (2) DIFF the code path of a CROSS-REGION door vs a normal
+same-area door (to see where the W-map load diverges), (3) crack the DIRECT WARP (the stage/commit
+`0x401d40`/`0x402030` + the edge-trigger — see the warp findings below).  Design sketch: a curated
+safe-VA set (bisected like the port's), a trainer command `trace on|off [va,…]` that installs/removes
+MinHook trampolines that append `{va,ecx,args,ret}` to a ring buffer the socket streams; reuse the
+existing MinHook infra (`kbd_hooks`).  This is general RE infra — it will speed up ALL future SE probing
+AND feeds the eventual SE→port map (`SE_CODE_MAP` grows from every traced call).
+
 ## Live findings — real tower save (Arche Lv17), 2026-07-17 (SESSION 2 — RESOLVED)
 
 Probing the REAL loaded save (Archmage Tower) resolved the two bugs the demo hid.

@@ -26,6 +26,8 @@ typedef struct {
     int      hijacked;                // 1 = we changed this portal's destination
     uint32_t orig_target;             // its original destination (valid iff hijacked)
     int      slot;                    // exit-slot index (0..19) for hijack/revert
+    int      has_door;                // 1 = a live door anchor was located for this exit
+    int      door_x, door_y;          // world centi-px: door_x = anchor center X, door_y = feet
 } tc_exit;
 
 typedef struct {
@@ -46,7 +48,7 @@ typedef struct {
 
 typedef struct {
     int      hooks, at_title, player_present;
-    int      autoskip, mousefly, dlgskip, god, keepactive, attract, fastskip;
+    int      autoskip, mousefly, dlgskip, god, keepactive, attract, fastskip, warpgate;
     uint32_t delta, base, ti_mgr, pk_mgr, game_hwnd;
     int      cam_ok, cam_x, cam_y;    // camera top-left (centi-px) — the mouse-fly origin
 } tc_status;
@@ -80,6 +82,7 @@ int  tc_load(int slot, char *msg, int msgcap);   // BLOCKING menu-drive (slot<0 
 int  tc_newgame(void);                           // BLOCKING; 1 = started
 void tc_hijack_exit(int slot, uint32_t target);  // change portal `slot`'s destination room
 void tc_revert_exit(int slot);                   // restore portal `slot`'s original destination
+int  tc_teleport_to_door(int slot);              // teleport onto portal `slot`'s door anchor (1 = ok)
 void tc_setstat(const char *which, int value, int lock);   // hp/hp_max/mp/mp_max/level
 void     tc_set_cam_off(uint32_t off);           // live-tune the render_root->camera pointer offset
 uint32_t tc_get_cam_off(void);
