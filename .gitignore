@@ -66,3 +66,8 @@ imgui.ini
 # game-generated logs (written when running the exe from the repo root)
 /fs_boot.log
 /fs_warning.log
+
+# vamap: cross-edition VA map — derived from the user's binaries, regenerate via
+# tools/vamap/gen_vamap.sh.  Tool + README are tracked; the data is not.
+docs/vamap/*.jsonl
+docs/vamap/*.csv
