@@ -7,13 +7,25 @@ Steam-launchable). No port integration (that's a separate future track).
 ## Status (2026-07-01)
 
 **DONE — voice plays (user-confirmed: JP voice on the EN SE, English text + JP audio).**
-`tools/ennse_voice/` builds a proxy `version.dll` (all 17 exports forwarded to
-`realver.dll`) that, once the sound device is up, calls the engine's own
-`bank_load("sotesx_s.dll")` → sets `0x92af80`, and `operator_new`+`manager_init` →
-sets `0x92b76c`. The engine then plays voice with its own per-line mapping.
-Redistributable: `version.dll` + `Install.bat`/`install.ps1` (auto-detect game +
-JP `sotesx_s.dll`) + `Uninstall.bat` + `README.md`. `oss_voice.log` traces each step.
+`tools/ennse_voice/` is a mod-loader mod that seeds the voice bank so the engine plays voice
+with its own per-line mapping. `oss_voice.log` traces each step.
 **Next:** ship via CI nightly release (see repo `.github/workflows/`).
+
+### ✅ ROOT-CAUSED + fix implemented (2026-07-19) — COMBAT voice was silent (seed too LATE)
+Combat voice (Arche's attack grunts = `sotesx_s.dll` clips **2235/2236**) is NOT the dialogue
+path — it's baked per-actor: the action-table builder `FUN_00423850` writes each attack's
+voice id into the actor **only if the voice bank `0x92af80` is set AT ACTOR-CREATION**; else
+0 = permanently silent. The old seed set the bank LATE (worker→WndProc, after the party
+actors were built) → dialogue worked, combat baked-silent. **Fix:** an early main-thread hook
+that restores the ONE line the localizer removed at the JP-equivalent point — redirect the
+`CALL FUN_00581ba0` at **`0x58113e`** (inside app-init, after banks load, before the boot's
+manager gate + first actor) through a thunk that runs `0x92af80 = bank_load("sotesx_s.dll")`.
+The engine's own retained gate then builds the manager (dialogue) AND actors bake combat
+voice — identical to JP. No manual manager creation; process memory only. Legacy late seed
+kept behind `OSS_ENNSE_LATE_SEED=1`. Full RE + the cross-edition VA map:
+**`docs/findings/ense-voice-combat-init.md`** + **`docs/vamap/`** (a BinDiff-style edition
+matcher: jpse↔ense 99.6%, the localizer-edited audio-init trio auto-recovered). USER to
+confirm live.
 
 ### ✅ RESOLVED (2026-07-18) — monster SFX silenced in FULLSCREEN (a worker-thread SEED RACE)
 The silence was **fullscreen-specific, not MD-specific**: the patch seeded (`bank_load` + `operator_new`×2

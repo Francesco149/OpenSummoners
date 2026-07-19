@@ -391,6 +391,13 @@
 - **Standing bar:** every divergence is `differ_px==0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic (`parity-model.md`);
   seed-pinned both sides, compared by anchor/tick — never the flip axis.
+- **Side-track (2026-07-19) — ennse JP-voice patch: COMBAT voice fixed + a cross-edition VA
+  map.** Root-caused the silent combat grunts: they bake per-actor at actor-creation gated on
+  the voice bank, so the old late seed missed them; fix = an early main-thread hook restoring
+  the localizer-cut load at the JP-equivalent point (`findings/ense-voice-combat-init.md`,
+  USER to confirm live). New reusable RE asset **`docs/vamap/`** — a BinDiff-style matcher
+  mapping every VA across JP-SE/EN-SE/EN-old (jpse↔ense 99.6%, EN-old↔EN-SE ~80%), with a
+  similarity score per function; `nix develop --command bash tools/vamap/gen_vamap.sh`.
 - **Read next:** changelog → `PROGRESS.md`; deep RE → `findings/` (esp. `freeroam-hud.md`,
   `freeroam-brake-onset.md`); module layout + open threads → `memories/HANDOFF.md`
   (last rewritten ckpt 155 — stale on the HUD arc).

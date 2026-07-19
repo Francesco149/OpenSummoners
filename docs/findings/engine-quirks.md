@@ -3995,3 +3995,17 @@ the unported cast consumes the LCG between arms (`PORT-DEBT(cutscene-fade-varian
 grid draws EVERY cell as a res=0 (proxy ID gap) SUBTRACT-blend (bmode=1) gray-mask composite at
 all levels incl. full-black — so an .osr has no opaque-vs-alpha res split for retail fades; only
 64×4-cell COVERAGE (interior band dy∈[64,416)) + the res-1110 box are cross-side comparable.
+
+## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
+The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
+NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
+/ EN-SE `FUN_00423850`) copies each attack action's voice id into the actor's action slot
+**at actor-creation time**, and only `if (voice_bank_global != 0)` (JP `0x926170` / EN
+`0x92af80`) — else it writes 0.  So the voice id is snapshotted once per actor: if the voice
+bank isn't loaded when the actor is built, that actor is **permanently silent in combat** even
+if the bank loads a moment later (the check is not re-run until the actor is rebuilt).  The
+dialogue path, by contrast, reads the bank live at each line.  Consequence for anything that
+loads the bank dynamically (the JP-voice patch on the EN build): the bank MUST be non-null
+before the first party actor is created, or combat voice never plays.  A second gate in the
+same test, `*(config+0x238) != 0`, also forces the id to 0 (a combat-voice-disable flag; 0 in
+normal play).
