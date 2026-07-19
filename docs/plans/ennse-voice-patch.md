@@ -11,21 +11,21 @@ Steam-launchable). No port integration (that's a separate future track).
 with its own per-line mapping. `oss_voice.log` traces each step.
 **Next:** ship via CI nightly release (see repo `.github/workflows/`).
 
-### ✅ ROOT-CAUSED + fix implemented (2026-07-19) — COMBAT voice was silent (seed too LATE)
-Combat voice (Arche's attack grunts = `sotesx_s.dll` clips **2235/2236**) is NOT the dialogue
-path — it's baked per-actor: the action-table builder `FUN_00423850` writes each attack's
-voice id into the actor **only if the voice bank `0x92af80` is set AT ACTOR-CREATION**; else
-0 = permanently silent. The old seed set the bank LATE (worker→WndProc, after the party
-actors were built) → dialogue worked, combat baked-silent. **Fix:** an early main-thread hook
-that restores the ONE line the localizer removed at the JP-equivalent point — redirect the
-`CALL FUN_00581ba0` at **`0x58113e`** (inside app-init, after banks load, before the boot's
-manager gate + first actor) through a thunk that runs `0x92af80 = bank_load("sotesx_s.dll")`.
-The engine's own retained gate then builds the manager (dialogue) AND actors bake combat
-voice — identical to JP. No manual manager creation; process memory only. Legacy late seed
-kept behind `OSS_ENNSE_LATE_SEED=1`. Full RE + the cross-edition VA map:
-**`docs/findings/ense-voice-combat-init.md`** + **`docs/vamap/`** (a BinDiff-style edition
-matcher: jpse↔ense 99.6%, the localizer-edited audio-init trio auto-recovered). USER to
-confirm live.
+### ✅ FIXED (2026-07-19, USER-verified windowed) — COMBAT + DIALOGUE voice both work now
+Combat voice (Arche's grunts = `sotesx_s.dll` clips **2235/2236**) is NOT the dialogue path —
+it's baked per-actor: the action-table builder `FUN_00423850` writes each attack's voice id
+into the actor **only if the voice bank `0x92af80` is set AT ACTOR-CREATION**; else 0 =
+permanently silent. The old seed set the bank LATE (after the party actors were built) →
+dialogue worked, combat baked-silent. **Fix:** seed on the engine's OWN message pump — IAT-hook
+`USER32!PeekMessageA` (slot **`0x5fd20c`**) so `do_seed` (bank + our proven manager) runs on the
+first pump frame: main thread (no worker heap race), post-decryption, post-sound, **post-gate**
+(so the engine's boot gate skipped on a null bank and our manager — not its non-voicing one — is
+used), pre-actor. Combat is bulletproofed by also inline-hooking the actor builder `0x423850`.
+IAT-hook = a pointer swap → Win10/11-safe (no hot-patch-prologue dependency). USER-verified:
+combat + dialogue + mob SFX all correct (windowed); fullscreen pending. Full RE + cross-edition
+VA map: **`docs/findings/ense-voice-combat-init.md`** + **`docs/vamap/`** (BinDiff-style matcher,
+jpse↔ense 99.6%). (An earlier `0x58113e` boot-CALL redirect fixed combat but the engine gate's
+manager didn't voice dialogue — superseded.)
 
 ### ✅ RESOLVED (2026-07-18) — monster SFX silenced in FULLSCREEN (a worker-thread SEED RACE)
 The silence was **fullscreen-specific, not MD-specific**: the patch seeded (`bank_load` + `operator_new`×2

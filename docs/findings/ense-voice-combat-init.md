@@ -29,18 +29,27 @@ null. The old patch re-seeded it, but LATE (worker thread → main-thread WndPro
 boot) — **after the party actors are built** → dialogue worked, combat baked-silent. Neither
 thread nor manager was the issue; only *when* the bank global becomes non-null.
 
-## The fix — restore the removed load EARLY, JP-faithful (implemented in `ennse_voice.c`)
-EN app-init `FUN_00580ec0` runs: clear the bank cluster (`DAT_0092af80=0`) → `CALL FUN_005cb880`
-(0x580fde, loads the other banks) → `CALL FUN_00581ba0` (0x58113e, boot/main-loop). The boot
-still holds the retained voice gate: `if (DAT_0092af80!=0){ mgr=new; manager_init(sounddev,0x10);} `.
-So the patch **redirects the CALL at `0x58113e`** through a tiny thunk that runs
-`DAT_0092af80 = bank_load("sotesx_s.dll")` and jumps into the real boot. Net: the bank is live
-**after all banks load, before the manager gate and before the first actor** — the engine then
-builds the manager (dialogue) AND actors bake combat-voice ids, all through its OWN retained
-code, exactly like the JP engine. Process memory only; exe on disk untouched. The `0x58113e`
-byte signature (`E8 5d 0a 00 00`) positively IDs this EN-SE build, so the bundled JP `sotes.exe`
-and unknown builds are never mis-patched (legacy late seed still available via
-`OSS_ENNSE_LATE_SEED=1`).
+## The fix — seed from the engine's own message pump (shipped in `ennse_voice.c`; USER-verified windowed)
+`do_seed()` revives the two globals with the engine's OWN functions: `0x92af80 =
+bank_load("sotesx_s.dll")`, then `0x92b76c = new; manager_init(sounddev,0x10)`. It must run
+(a) on the MAIN thread (so operator_new serializes with the engine — the old worker seed
+raced it, dropping monster SFX in fullscreen), (b) AFTER SteamStub decrypts `.text` and sound
+init, (c) BEFORE the first party actor, and (d) **AFTER the engine's boot gate** — because
+seeding the bank BEFORE that gate (`if (0x92af80!=0){ mgr=new; manager_init… }` in
+`FUN_00581ba0`) makes the gate build a manager that (observed) does NOT voice dialogue; letting
+the gate see a null bank + skip leaves OUR proven manager as the one used.
+
+The trigger that satisfies all four: **IAT-hook the engine's own pump `USER32!PeekMessageA`**
+(import slot **`0x5fd20c`**). A tiny waiter swaps the slot to our `my_peek` once the loader/
+SteamStub resolves it (resolves at the OEP, the first pump is ~260 MB-of-bank-loads later — a
+wide margin); the seed then fires deterministically on the engine's first pump frame — main
+thread, post-decryption, post-sound, post-gate, pre-actor. IAT-hooking is a pointer swap, so
+it is prologue-independent (Win10/11 dropped the `mov edi,edi` hot-patch prologue that inline
+USER32 hooks relied on). Combat is bulletproofed twice: the frame-0 seed sets the bank before
+any party actor, AND we inline-hook the actor builder `0x423850` (known prologue
+`83 ec 08 53 55`) so `do_seed` runs before every actor's voice-id bake. Process memory only;
+exe on disk untouched. (An earlier attempt redirected the `0x58113e` boot CALL to seed before
+the gate — it fixed combat but the gate's manager didn't voice dialogue; superseded.)
 
 ## Cross-edition VAs (voice subsystem) — see docs/vamap/
 | role | JP-SE | EN-SE (patch target) | EN-old |
@@ -49,8 +58,8 @@ and unknown builds are never mis-patched (legacy late seed still available via
 | bank INIT (clears cluster) | `0x57f180` | `0x580ec0` | `0x562210` |
 | bank LOADER (voice load cut in EN) | `0x5c94f0` | `0x5cb880` | `0x5a4770` |
 | boot / main-loop (voice-MGR gate) | `0x57fe50` | `0x581ba0` | — |
-| **boot CALL site (the hook)** | — | **`0x58113e`** | — |
-| actor builder (COMBAT bake) | `0x423890` | `0x423850` | `0x4289f0` |
+| **pump IAT slot (the trigger)** | — | **`0x5fd20c`** (PeekMessageA) | — |
+| **actor builder (COMBAT bake + 2nd hook)** | `0x423890` | **`0x423850`** | `0x4289f0` |
 | dialogue voice trigger | `0x435050` | `0x435000` | `0x439690` |
 | voice PLAY (clip→mgr slot) | `0x437db0` | `0x437dc0` | `0x43c1b0` |
 | dialogue-voice config gate | `0x5e3f50` | `0x5e6320` | — |
@@ -62,22 +71,21 @@ and unknown builds are never mis-patched (legacy late seed still available via
 EN bank cluster (4-byte HMODULE slots): `0x92af78` sotesp, `0x92af7c` MD, **`0x92af80` voice**,
 `0x92af84` extra, `0x92af88` sotesd (== JP `0x926168+4k`).
 
-## OPEN / verify live
-- Confirm combat voice plays on the fix build (USER boot). If still silent with the bank set,
-  suspect the config gate `*(config+0x238)` (a combat-voice-disable; must be 0 — it is in JP,
-  same code) — read `*(*0x92af98+0x238)` live.
-- The mod must attach before `0x58113e` executes. It does: the shipped `tools/mod_loader`
-  `LoadLibraryEx`'s us on a worker thread spawned from its DllMain (pre-entry), and `0x58113e`
-  is after the engine maps ~260 MB of bank DLLs — we win the race by a wide margin. Guards:
-  a callsite-signature mismatch (wrong build) applies no patch; sound-device-already-up (loaded
-  late) falls back to the legacy seed. If a future build shifts addresses the signature fails
-  safe — regen `docs/vamap/`.
-- **Loader v2 migration:** the sibling `../sotes-mod-loader` (v2) SKIPS DllMain-only mods (it
-  requires an `OssModInit` export) — it explicitly names "the voice patch". This fix targets
-  the shipped in-repo `tools/mod_loader` (loads every `mods\*.dll`). To run under v2, export
-  `OssModInit` and do the seed at the first safepoint (`0x437c70`, main thread, before party
-  actors) via `do_seed` (build the manager manually — the boot gate already ran); the inline
-  hook is unnecessary there. Keep both paths if shipping for both loaders.
+## Status / open
+- **USER-verified (2026-07-19, windowed):** combat grunts, dialogue voice, AND mob/monster SFX
+  all correct. Fullscreen re-test pending (expected fine — the seed is main-thread via the pump,
+  so the old worker-thread heap race that dropped fullscreen monster SFX cannot occur).
+- Config gate `*(config+0x238)` (a combat-voice-disable) is 0 in normal play (it is in JP, same
+  byte-identical code) — combat voice confirmed live, so no action needed.
+- **Timing is deterministic, not raced:** the seed fires on the engine's own first `PeekMessageA`
+  frame. Only the IAT-slot waiter thread races, and with a wide margin (slot resolves at the OEP;
+  first pump is after the ~260 MB bank load). If a future build shifts addresses, the actor-sig /
+  IAT checks fail safe (no patch) — regen `docs/vamap/`.
+- **Loader v2 migration:** the sibling `../sotes-mod-loader` (v2) SKIPS DllMain-only mods (needs an
+  `OssModInit` export) — it explicitly names "the voice patch". This targets the shipped in-repo
+  `tools/mod_loader` (loads every `mods\*.dll`). Under v2, export `OssModInit` and run `do_seed` +
+  the actor hook from the first safepoint (`0x437c70`, main thread) instead of the pump IAT hook.
 
-Supersedes the fullscreen worker-thread-race theory of `ense-voice-monster-se-drop.md` for the
-COMBAT-voice symptom (that doc's monster-SFX drop is a separate, already-fixed issue).
+Supersedes the `0x58113e` boot-CALL-redirect attempt (fixed combat but the engine gate's manager
+did not voice dialogue). The fullscreen monster-SFX drop of `ense-voice-monster-se-drop.md` is the
+same root cause (worker-thread seed) — this main-thread pump seed resolves it too.
