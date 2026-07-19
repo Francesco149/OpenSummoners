@@ -72,9 +72,19 @@ ense↔enold 79.7%, jpse↔enold 77.9% (lower: EN-old is a separate, older linea
 | dialogue trigger | 0x435050 | 0x435000 | 0x439690 |
 | voice PLAY | 0x437db0 | 0x437dc0 | 0x43c1b0 |
 
-## Adding the JP disc exe (`jpdisc`)
-Not yet mapped: the JP retail-CD `sotes.exe` is **lzsotes/SPL-packed** (NOT SteamStub — Steamless
-won't touch it), so it needs the Lizsoft/SPL unpacker first. Once unpacked and imported into
-the Ghidra project, add `[jpdisc]=<name>.exe` to the `PROG` map in `gen_vamap.sh` and extend
-`combine.py`; the matcher handles it unchanged. Expected to match `jpse` at very high rate
-(same JP engine generation, possibly one revision older).
+## Adding the JP disc exe (`jpdisc`) — blocked: THEMIDA-protected, low marginal value
+The JP retail-CD `sotes.exe` (`C:\Program Files (x86)\lizsoft\FortuneSummoners\`) is not merely
+packed — it is **Themida/WinLicense-protected** (the "lzsotes"/SPL wrapper is Themida-based:
+the binary carries the `Themida` string + an `lzsotes` code section, OEP relocated to
+`0x04159014`). Themida does anti-debug, anti-dump, IAT obfuscation, and VM'd code, and it
+detects Frida — so a memory dump does NOT yield a clean, analyzable image. Unpacking it is a
+dedicated sub-project (a Themida-aware OEP finder + Scylla-style IAT reconstruction under
+anti-anti-debug), not a quick step.
+
+**Marginal value is low:** the JP disc *assets* are identical to the Steam JP build
+(`sotesx_s.dll` both 253,206,528 B; `sotesp.dll` both 1,155,072 B), and we already have that JP
+engine unpacked as **`jpse`** (`sotes-ense-jp.exe`, the EN-SE's bundled JP `sotes.exe`, same
+generation). So `jpse` already represents the JP engine for RE; `jpdisc` would only reveal a
+disc-vs-Steam-JP delta. Pursue only if that delta specifically matters. If unpacked later, add
+`[jpdisc]=<name>.exe` to `gen_vamap.sh`'s `PROG` map + extend `combine.py`; the matcher is
+unchanged and should hit `jpse` at very high rate.
