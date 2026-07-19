@@ -276,6 +276,16 @@ changelog. Active multi-session plans: `docs/plans/`.
 - **Sibling RE projects** (read-only references, hard-earned conventions):
   `/opt/src/openrecet` (Recettear — the reorg this project's rigor is modeled on),
   `/opt/src/OpenMare` (Patrician III — closest workflow shape).
+- **SotES mod tooling — SAME `sotes.exe`, a cross-reference for port RE.** The author's
+  standalone **mod loader** (proxy `version.dll` + LuaJIT + native-mod C ABI) lives in
+  `../sotes-mod-loader` (orient from ITS `docs/HANDOFF.md`; sessions on it START there), with
+  the author's mods + registry in `../sotes-mods`; the older injected **trainer** is
+  `tools/sotes_trainer` (RE map `SE_CODE_MAP.md`). All RE the SAME unpacked EN-SE binary, so
+  findings transfer BOTH ways — cite them when a VA/struct is already reversed: safepoint
+  `0x437c70`, kb_poll `0x5e2a10` (kbd dev `*(0x92d5bc)`), main-window class
+  `CLASS_LIZSOFT_SOTES`, launcher `#32770` (Launch 10003), roster/coordinates structs, base-stat
+  table (`FUN_00426fd0`). The loader's `mod.mem`/`mod.game` + hook registry = a live RE probe on
+  the real game (Lua or native), complementary to the Frida harness.
 
 ## Where to read next (by need)
 - **Is FUN_x ported / coverage:** `docs/STATUS.md` + `docs/port-ledger.{md,json}` (derived).
