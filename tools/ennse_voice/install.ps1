@@ -1,6 +1,6 @@
 # Fortune Summoners (English SE) - Japanese Voice Patch : offline installer.
-# (Bundled in ennse-voice-patch.zip.)  Installs the generic mod loader (version.dll)
-# plus the voice mod (mods\ennse_voice.dll).  The paste-and-run one-liner
+# (Bundled in ennse-voice-patch.zip.)  Installs the voice patch (version.dll) - a
+# standalone drop-in DLL; nothing else to load.  The paste-and-run one-liner
 # (web-install.ps1) is the easy path - see README.
 #
 # ASCII-ONLY on purpose: Windows PowerShell 5.1 reads scripts as the system ANSI
@@ -68,23 +68,19 @@ if (-not $game -or -not (Test-Path (Join-Path $game 'sotes_en.exe'))) {
 Good "Game folder: $game"
 
 # 1b. already installed? compare against THIS package + confirm a replace.
-$verDll   = Join-Path $game 'version.dll'
-$realDll  = Join-Path $game 'realver.dll'
-$mods     = Join-Path $game 'mods'
-$voiceMod = Join-Path $mods 'ennse_voice.dll'
-$srcVer   = Join-Path $here 'version.dll'
-$srcVoice = Join-Path $here 'ennse_voice.dll'
+$verDll  = Join-Path $game 'version.dll'
+$realDll = Join-Path $game 'realver.dll'
+$srcVer  = Join-Path $here 'version.dll'
 function Same($a,$b){ (Test-Path $a) -and (Test-Path $b) -and ((Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash) }
 if (Test-Path $realDll) {
-  $verOk = Same $verDll $srcVer; $voiceOk = Same $voiceMod $srcVoice
+  $verOk = Same $verDll $srcVer
   Write-Host ""
-  if ($verOk -and $voiceOk) { Good "Already installed and UP TO DATE (matches this package)." }
+  if ($verOk) { Good "Already installed and UP TO DATE (matches this package)." }
   else { Warn "Already installed but OLD or MISMATCHED vs this package:" }
-  Note ("version.dll         : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
-  Note ("mods\ennse_voice.dll: " + $(if (-not (Test-Path $voiceMod)) {'MISSING'} elseif ($voiceOk) {'up to date'} else {'DIFFERS - would be replaced'}))
+  Note ("version.dll : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
   Write-Host ""
-  Warn "Reinstall will REPLACE:  version.dll, realver.dll, mods\ennse_voice.dll   (in $game)"
-  Note "It will NOT touch:  sotesx_s.dll (your voice bank), sotes_en.exe, or any other mods."
+  Warn "Reinstall will REPLACE:  version.dll, realver.dll   (in $game)"
+  Note "It will NOT touch:  sotesx_s.dll (your voice bank) or sotes_en.exe."
   $c = Read-Host "Type Y to replace those files, anything else to cancel"
   if ($c -notmatch '^[Yy]') { Note "Cancelled - nothing changed."; Read-Host "Press Enter to exit"; exit 0 }
 }
@@ -114,15 +110,12 @@ if (-not $jp -or -not (Test-Path $jp)) {
 Good "found: $jp"
 Write-Host ""
 
-# 3. install : mod loader (version.dll) + realver.dll + mods\ennse_voice.dll + sotesx_s.dll
+# 3. install : voice patch (version.dll) + realver.dll + sotesx_s.dll
 $realver = Join-Path $env:WINDIR 'SysWOW64\version.dll'
 if (-not (Test-Path $realver)) { $realver = Join-Path $env:WINDIR 'System32\version.dll' }
-$mods = Join-Path $game 'mods'
 Step "Installing"
 Copy-Item $realver (Join-Path $game 'realver.dll') -Force; Good "realver.dll  (forwards the real version.dll)"
-Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Good "version.dll  (the mod loader)"
-if (-not (Test-Path $mods)) { New-Item -ItemType Directory -Path $mods | Out-Null }
-Copy-Item (Join-Path $here 'ennse_voice.dll') (Join-Path $mods 'ennse_voice.dll') -Force; Good "mods\ennse_voice.dll  (the voice patch)"
+Copy-Item (Join-Path $here 'version.dll') (Join-Path $game 'version.dll') -Force; Good "version.dll  (the voice patch)"
 $dst = Join-Path $game 'sotesx_s.dll'
 $sameFile = (Test-Path $dst) -and ((Resolve-Path $jp).Path -ieq (Resolve-Path $dst).Path)
 if ($sameFile) {

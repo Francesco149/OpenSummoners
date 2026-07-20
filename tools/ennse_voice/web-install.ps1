@@ -4,10 +4,10 @@
 #
 #   [Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/Francesco149/OpenSummoners/master/tools/ennse_voice/web-install.ps1 | iex
 #
-# Installs the generic mod loader (version.dll) + the voice mod (mods\ennse_voice.dll).
-# Idempotent: if the patch is already installed it offers to uninstall.  Auto-detects the
-# Steam game folder + your Japanese sotesx_s.dll (file-picker fallback).  Ships no game
-# assets: you supply sotesx_s.dll from your own JP copy.
+# Installs the voice patch (version.dll) - a standalone drop-in DLL; nothing else to
+# load.  Idempotent: if the patch is already installed it offers to uninstall.
+# Auto-detects the Steam game folder + your Japanese sotesx_s.dll (file-picker fallback).
+# Ships no game assets: you supply sotesx_s.dll from your own JP copy.
 #
 # ASCII-ONLY on purpose: Windows PowerShell 5.1 reads scripts as the system
 # ANSI codepage, so any non-ASCII byte (em-dash, ellipsis) corrupts parsing.
@@ -15,7 +15,7 @@
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-# Release tag to install from — defaults to the rolling `nightly`.  Override to test an
+# Release tag to install from - defaults to the rolling `nightly`.  Override to test an
 # unmerged build, e.g.  $env:OSS_ENNSE_TAG='fullscreen-test'  before running the one-liner.
 $TAG  = if ($env:OSS_ENNSE_TAG) { $env:OSS_ENNSE_TAG } else { 'nightly' }
 $BASE = "https://github.com/Francesco149/OpenSummoners/releases/download/$TAG"
@@ -68,8 +68,8 @@ function Pick-File($title) {
   return $null
 }
 
-# Fetch a named release asset (version.dll / ennse_voice.dll); prefer the loose asset, fall
-# back to extracting it from the zip (older releases only shipped the zip).
+# Fetch a named release asset (version.dll); prefer the loose asset, fall back to
+# extracting it from the zip (older releases only shipped the zip).
 $script:zipCache = $null
 function Get-ReleaseFile($name, $dest) {
   try {
@@ -107,52 +107,38 @@ Good "Game folder: $game"
 
 $verDll   = Join-Path $game 'version.dll'
 $realDll  = Join-Path $game 'realver.dll'
-$modsDir  = Join-Path $game 'mods'
-$voiceMod = Join-Path $modsDir 'ennse_voice.dll'
 $voiceDll = Join-Path $game 'sotesx_s.dll'
 
-# Pre-download the loader + voice mod to a temp dir so we can compare what's installed
-# against the latest BEFORE touching anything.
+# Pre-download the patch to a temp dir so we can compare what's installed against the
+# latest BEFORE touching anything.
 $dl = Join-Path $env:TEMP 'ennse-voice-dl'
 if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
 New-Item -ItemType Directory -Path $dl | Out-Null
-$newVer = Join-Path $dl 'version.dll'; $newVoice = Join-Path $dl 'ennse_voice.dll'
-Step "Downloading the mod loader + voice mod ($TAG)"
-Get-ReleaseFile 'version.dll'     $newVer
-Get-ReleaseFile 'ennse_voice.dll' $newVoice
+$newVer = Join-Path $dl 'version.dll'
+Step "Downloading the voice patch ($TAG)"
+Get-ReleaseFile 'version.dll' $newVer
 function Same($a,$b){ (Test-Path $a) -and (Test-Path $b) -and ((Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash) }
 
 # ---- 2. already installed? compare versions, offer update / uninstall -----
-if (Test-Path $realDll) {   # realver.dll is unique to a mod-loader install
-  $verOk = Same $verDll $newVer; $voiceOk = Same $voiceMod $newVoice
+if (Test-Path $realDll) {   # realver.dll is unique to a voice-patch install
+  $verOk = Same $verDll $newVer
   Write-Host ""
-  if ($verOk -and $voiceOk) {
+  if ($verOk) {
     Good "The voice patch is already installed and UP TO DATE ($TAG)."
   } else {
     Warn "The voice patch is already installed but OLD or MISMATCHED vs $TAG :"
   }
-  Note ("version.dll         : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
-  Note ("mods\ennse_voice.dll: " + $(if (-not (Test-Path $voiceMod)) {'MISSING'} elseif ($voiceOk) {'up to date'} else {'DIFFERS - would be replaced'}))
-  Note ("realver.dll         : " + $(if (Test-Path $realDll)  {'present'} else {'MISSING'}))
-  Note ("sotesx_s.dll        : " + $(if (Test-Path $voiceDll) {'present (kept)'} else {'MISSING'}))
+  Note ("version.dll  : " + $(if (-not (Test-Path $verDll))   {'MISSING'} elseif ($verOk)   {'up to date'} else {'DIFFERS - would be replaced'}))
+  Note ("realver.dll  : " + $(if (Test-Path $realDll)  {'present'} else {'MISSING'}))
+  Note ("sotesx_s.dll : " + $(if (Test-Path $voiceDll) {'present (kept)'} else {'MISSING'}))
   Write-Host ""
   $ans = Read-Host "Type R to reinstall/update, U to uninstall, anything else to cancel"
   if ($ans -match '^[Uu]') {
     Write-Host ""; Step "Uninstalling the voice patch"
-    foreach ($f in $voiceMod,$voiceDll,(Join-Path $game 'oss_voice.log')) {
+    foreach ($f in $verDll,$realDll,$voiceDll,(Join-Path $game 'oss_voice.log')) {
       if (Test-Path $f) { Remove-Item $f -Force; Good ("removed " + (Split-Path $f -Leaf)) }
     }
-    # Remove the loader too, but ONLY if no other mods remain (keeps it for the trainer etc.)
-    $others = @(Get-ChildItem $modsDir -Filter *.dll -EA SilentlyContinue)
-    if ($others.Count -eq 0) {
-      foreach ($f in $verDll,$realDll,(Join-Path $game 'oss_modloader.log')) {
-        if (Test-Path $f) { Remove-Item $f -Force; Good ("removed " + (Split-Path $f -Leaf)) }
-      }
-      if (Test-Path $modsDir) { Remove-Item $modsDir -Recurse -Force -EA SilentlyContinue }
-      Write-Host ""; Good "Uninstalled - the game is back to vanilla (English text, no voice)."
-    } else {
-      Write-Host ""; Good "Voice patch removed. Kept the mod loader (other mods present in mods\)."
-    }
+    Write-Host ""; Good "Uninstalled - the game is back to vanilla (English text, no voice)."
     Read-Host "Press Enter to exit"; return
   }
   elseif ($ans -notmatch '^[Rr]') {
@@ -161,10 +147,9 @@ if (Test-Path $realDll) {   # realver.dll is unique to a mod-loader install
   # R = reinstall: spell out exactly what gets replaced, then confirm.
   Write-Host ""
   Warn "Reinstall will REPLACE these files in:  $game"
-  Note "  version.dll            (the mod loader)"
-  Note "  realver.dll            (re-copied from your Windows version.dll)"
-  Note "  mods\ennse_voice.dll   (the voice patch)"
-  Note "It will NOT touch:  sotesx_s.dll (your voice bank), sotes_en.exe, or any other mods."
+  Note "  version.dll   (the voice patch)"
+  Note "  realver.dll   (re-copied from your Windows version.dll)"
+  Note "It will NOT touch:  sotesx_s.dll (your voice bank) or sotes_en.exe."
   $c = Read-Host "Type Y to replace those files, anything else to cancel"
   if ($c -notmatch '^[Yy]') { Note "Cancelled - nothing changed."; Read-Host "Press Enter to exit"; return }
   Write-Host ""; Step "Reinstalling / updating"
@@ -178,12 +163,9 @@ if (-not (Test-Path $sys)) { $sys = Join-Path $env:WINDIR 'System32\version.dll'
 Copy-Item $sys $realDll -Force
 Good "realver.dll  (forwards the real version.dll)"
 
-Step "Installing the mod loader + voice mod"
+Step "Installing the voice patch"
 Copy-Item $newVer $verDll -Force
-Good ("version.dll  (" + [math]::Round((Get-Item $verDll).Length/1KB) + " KB, the mod loader)")
-if (-not (Test-Path $modsDir)) { New-Item -ItemType Directory -Path $modsDir | Out-Null }
-Copy-Item $newVoice $voiceMod -Force
-Good ("mods\ennse_voice.dll  (" + [math]::Round((Get-Item $voiceMod).Length/1KB) + " KB, the voice patch)")
+Good ("version.dll  (" + [math]::Round((Get-Item $verDll).Length/1KB) + " KB, the voice patch)")
 
 if (Test-Path $voiceDll) {
   Good "sotesx_s.dll (already present)"
@@ -205,7 +187,7 @@ if (Test-Path $voiceDll) {
   }
   if (-not $jp -or -not (Test-Path $jp)) {
     Bad "No sotesx_s.dll - the patch needs it. Rolling back."
-    Remove-Item $verDll,$realDll,$voiceMod -Force -EA SilentlyContinue
+    Remove-Item $verDll,$realDll -Force -EA SilentlyContinue
     Read-Host "Press Enter to exit"; return
   }
   Good ("found: " + $jp)
@@ -217,7 +199,7 @@ if (Test-Path $voiceDll) {
 # ---- done -----------------------------------------------------------------
 Write-Host ""
 Good "Installed to: $game"
-Note "version.dll (mod loader) + realver.dll + mods\ennse_voice.dll + sotesx_s.dll"
+Note "version.dll (the voice patch) + realver.dll + sotesx_s.dll"
 Write-Host ""
 Write-Host "  Launch the game normally - the first line (Arche's dad) is now" -ForegroundColor Green
 Write-Host "  spoken in Japanese. Re-run this one-liner to uninstall." -ForegroundColor Green
