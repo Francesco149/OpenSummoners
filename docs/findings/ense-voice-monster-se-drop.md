@@ -1,5 +1,22 @@
 # EN-SE JP-voice patch — monster-SFX silence in FULLSCREEN — ✅ ROOT-CAUSED + FIXED (2026-07-18)
 
+> **UPDATE 2026-07-20 — the "heap race" root cause below was a MISDIAGNOSIS. Real cause: a boot
+> registrar deluxe-SKIP.** Deeper RE (decode of the `0x65b0e8` action table + disasm of
+> `FUN_0059b520`) proved the mob silence is deterministic, not a race: the boot sound-def registrar
+> `FUN_0059b520`, when the voice bank is set at the moment it runs, takes its DELUXE branch and does
+> `goto skip` for every row lacking a deluxe id (`DAT_0065b104==0`) — which is exactly the 64 MONSTER
+> rows (harpy key `0xc789` ids `0x790-0x795`, etc.), so their sound-defs never register → silent.
+> Bank NULL at that instant → non-deluxe branch registers them → mob plays. This is an SE regression
+> present in the JP-SE exe too (byte-identical), and it is gated on WHEN the bank is set relative to
+> `FUN_0059b520`, NOT on which thread sets it. The 2026-07-18 "worker→silent / main-thread→audible"
+> A/B was really "seed landed before vs after `FUN_0059b520`" (frame-pace-dependent in fullscreen).
+> **Fix:** party combat ALSO comes from this registrar (not the actor bake), so retiming alone trades
+> mob for combat. The working fix seeds the bank BEFORE the registrar (party → deluxe) AND flips one
+> byte at `0x59ccce` so the registrar's `deluxe_id==0` skip (`je 0x59cd55`) becomes `je 0x59cd08` (the
+> non-deluxe path) → monster rows register from `sotesd`. Full account + table data:
+> `ense-voice-combat-init.md` (§DEFINITIVE root cause, §THE FIX, quirk #78). The heap-race analysis
+> below is retained for provenance but is SUPERSEDED.
+
 **Symptom (USER-refined 2026-07-18):** with `tools/ennse_voice`, monster REACTION sounds (harpy
 hit/scream/damage, ghost evade/death, babymage cast…) go SILENT — but **only in FULLSCREEN** (with OR
 without a ddraw wrapper), NOT windowed; gone if the patch is removed; fine in the native JP release.

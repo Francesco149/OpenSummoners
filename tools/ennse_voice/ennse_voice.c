@@ -1,40 +1,37 @@
-// tools/ennse_voice/ennse_voice.c — EN-SE JP-voice patch (a tools/mod_loader mod).
+// tools/ennse_voice/ennse_voice.c — EN-SE JP-voice patch (standalone proxy version.dll).
 //
-// The EN special edition (sotes_en.exe) still contains the ENTIRE voice subsystem
-// (dialogue trigger + play + the per-actor COMBAT-voice bake, byte-identical to the JP
-// engine); the localizer removed exactly ONE line — the voice-bank load — so the voice-bank
-// global `DAT_0092af80` stays null forever and the whole subsystem is intact but dead.  We
-// revive it with the engine's OWN functions:
-//     0x92af80 = bank_load("sotesx_s.dll")           // the DLL HMODULE (the "gate")
-//     0x92b76c = new; manager_init(sounddev, 0x10)    // the voice manager (dialogue)
+// Adds the Japanese DIALOGUE + DELUXE COMBAT voices (sotesx_s.dll) to the retail English
+// special edition (sotes_en.exe), exe untouched, memory-only.  The EN localizer removed the
+// voice-bank load from the audio-bank loader, leaving the voice-bank global DAT_0092af80 null.
 //
-// Two consumers, two needs (docs/findings/ense-voice-combat-init.md):
-//   • dialogue voice — the trigger reads the bank+manager LIVE per line.  The manager must
-//     be OUR do_seed manager: seeding the bank before the engine's boot gate makes the gate
-//     build a manager that (observed) does NOT voice dialogue, so we seed the bank AFTER that
-//     gate (the game loop) => the gate saw a null bank + skipped, and our proven manager wins.
-//   • COMBAT voice (Arche's grunts = sotesx_s clips 2235/2236) — the per-actor action-table
-//     builder `FUN_00423850` bakes each attack's voice id ONLY `if (0x92af80 != 0)` AT
-//     ACTOR-CREATION; else 0 => permanently silent.  We set the bank before the first party
-//     actor (frame 0 of the game loop) AND hook the builder itself, so every actor bakes.
+// TWO memory patches, both armed by a DllMain waiter once SteamStub decrypts .text:
 //
-// TRIGGER — proxy the engine's own message pump by IAT-hooking its import PeekMessageA
-// (IAT slot 0x5fd20c): once the loader/SteamStub has resolved that slot we overwrite it with
-// our my_peek.  When the engine pumps its first frame (main/engine thread, AFTER SteamStub
-// decrypts .text, AFTER sound init, BEFORE any party actor) my_peek runs do_seed + installs
-// the actor-builder hook, then tail-calls the real PeekMessageA.  An IAT hook is just a
-// pointer swap — prologue-independent, so it works on Win10/11 where system DLLs no longer
-// carry the `mov edi,edi` hot-patch prologue.  The slot resolves at the SteamStub OEP, long
-// before the first pump (which is after the ~260 MB bank load + window + sound init), so the
-// tiny thread that waits for the slot to resolve has a wide margin; the actual seed is driven
-// deterministically by the engine's own pump.
+// (1) SEED — set DAT_0092af80 = LoadLibraryA("sotesx_s.dll") EARLY, before the boot sound-def
+//     registrar FUN_0059b520 runs, so party-combat rows take its DELUXE branch (voice grunts)
+//     and the manager gate `if(0x92af80!=0){build voice mgr}` builds the dialogue manager.  We
+//     inline-hook the bank_load wrapper FUN_005d8b10 (0x5d8b10, called directly by the loader on
+//     the main thread) and seed on its first call.  Allocates nothing (engine builds the mgr).
 //
-// Both seed paths run on the MAIN (engine) thread => do_seed's operator_new serializes with
-// the engine's allocator (never the old worker-thread heap race that dropped monster SFX).
-// Process memory only; the exe on disk is untouched.  Loaded as mods\ennse_voice.dll by
-// tools/mod_loader (proxy version.dll).  Log: oss_voice.log beside the exe.
+// (2) DELUXE-SKIP PATCH — fix the SE registrar bug (findings/ense-voice-combat-init.md, quirk
+//     #78): FUN_0059b520's DELUXE branch does `id = DAT_0065b104[row]; if (id==0||id==0x7fff)
+//     goto 0x59cd55 (skip)` — so the 64 rows with a non-deluxe sound but NO deluxe variant (every
+//     MONSTER row: harpy key 0xc789 ids 0x790-0x795, ghosts, babymage…) register NOTHING once the
+//     bank is set → mob SFX silent.  The party rows are fine (they have a deluxe id); only the
+//     deluxe_id==0 rows wrongly skip.  We flip ONE byte at 0x59ccce so that `je 0x59cd55` (skip)
+//     becomes `je 0x59cd08` (the NON-deluxe path) — those rows then register from sotesd with
+//     their non-deluxe id (correct DLL), exactly like the bank-null case.  Register state at the
+//     patched je (eax=row off, edi=sotesd, ebx=0) equals the non-deluxe path's real predecessors,
+//     verified by disasm.  The 0x7fff sentinel still skips (intentional deluxe suppression).
 //
-//   nix develop --command make -C tools/ennse_voice     # -> build/ennse_voice.dll
+// Result: deluxe combat (party deluxe branch) + JP dialogue (manager gate) + mob SFX (monster
+// rows routed to the non-deluxe/sotesd path).  Setting a deluxe_id on the monster rows instead
+// would send them to the voice DLL (bank=sotesx_s), which lacks monster sounds — hence the
+// path-redirect, not an id fill.  Both patches are prologue/opcode-signature gated → fail safe.
+//
+// 17 version.dll exports forwarded to realver.dll via version.def.  INSTALL
+// (…\steamapps\common\sotes\): version.dll + realver.dll + sotesx_s.dll.  Log: oss_voice.log.
+//   nix develop --command make -C tools/ennse_voice     # -> build/version.dll
+//   (-DOSS_VOICE_DIAG re-enables the clip-loader (bank,id) log to verify the fix.)
 
 #include <windows.h>
 #include <stdio.h>
@@ -43,32 +40,19 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-static const char *StrStrIA_(const char *hay, const char *needle);  // defined below
+static const char *StrStrIA_(const char *hay, const char *needle);
 
-// ─── EN engine (sotes_en.exe / sotes-ense-en) addresses — unpacked ImageBase 0x400000 ──
-#define ORIG_BASE       0x400000u
-#define VA_BANK_LOAD    0x5d8b10u   // thiscall bank_load(assetmgr, name, a, b) -> bank HMODULE
-#define VA_ASSET_MGR    0x92ac68u   // asset-manager object (direct `this`)
-#define VA_OPNEW        0x5ef121u   // cdecl  operator_new(size)
-#define VA_MGR_INIT     0x584a70u   // thiscall manager_init(mgr, sounddev, count)
-#define VA_BANK_GLOBAL  0x92af80u   // void*  voice bank handle   (== JP 0x926170)
-#define VA_MGR_GLOBAL   0x92b76cu   // void*  voice manager       (== JP 0x926958)
-#define VA_SOUNDDEV     0x92d5b8u   // void*  sound device (non-null once sound-init ran)
-#define VA_ACTOR_BUILD  0x423850u   // FUN_00423850 — per-actor action-table builder (combat bake)
-#define VA_IAT_PEEK     0x5fd20cu   // IAT slot for USER32!PeekMessageA (the engine's pump)
-// decrypted prologue of the actor builder: sub esp,8 ; push ebx ; push ebp   (5 bytes)
-static const unsigned char ACTOR_SIG[5] = { 0x83, 0xec, 0x08, 0x53, 0x55 };
+#define ORIG_BASE      0x400000u
+#define VA_SEED_HOOK   0x5d8b10u   // bank_load wrapper — seed BEFORE FUN_0059b520 (party->deluxe)
+#define VA_SEED_RESUME 0x5d8b16u   // 0x5d8b10 + 6 (after the stolen `sub esp,0x710`)
+#define VA_REG_JE      0x59ccccu   // FUN_0059b520 `je 0x59cd55` (skip deluxe_id==0): 0f 84 83 00 00 00
+#define VA_BANK_GLOBAL 0x92af80u   // voice bank HMODULE — null in EN = the removed load line
+#define VA_CLIP_LOADER 0x5e37a0u   // clip loader (bank,id)->DSound — diagnostic only
 
-typedef BOOL(WINAPI *peek_t)(LPMSG, HWND, UINT, UINT, UINT);
-static peek_t g_real_peek;
+// Bank cluster: 0x92af78 sotesp · af7c MD · af80 VOICE(target) · af84 extra · af88 sotesd · af94 sotesd_en.
 
 static uintptr_t g_delta;
 static char      g_logpath[MAX_PATH];
-
-typedef void *(__attribute__((thiscall)) *bankload_t)(void *, const char *, int, int);
-typedef void *(__cdecl                    *opnew_t)(size_t);
-typedef void  (__attribute__((thiscall)) *mgrinit_t)(void *, void *, int);
-
 #define AP(x) ((void *)((uintptr_t)(x) + g_delta))
 
 static void vlog(const char *fmt, ...) {
@@ -77,105 +61,124 @@ static void vlog(const char *fmt, ...) {
     fputc('\n', f); fclose(f);
 }
 
-// ─── the seed: revive the two dead globals with the engine's OWN functions.  Idempotent;
-// bank FIRST (combat only needs the bank) then the manager once the sound device is up
-// (dialogue).  MUST run on the engine MAIN thread (the pump hook + the actor hook are both
-// main-thread) so operator_new serializes with the engine's allocator.
-static void do_seed(void) {
-    void **sounddev = (void **)AP(VA_SOUNDDEV);
-    void **bankg    = (void **)AP(VA_BANK_GLOBAL);
-    void **mgrg     = (void **)AP(VA_MGR_GLOBAL);
-
-    if (*bankg == 0) {
-        bankload_t bank_load = (bankload_t)AP(VA_BANK_LOAD);
-        *bankg = bank_load(AP(VA_ASSET_MGR), "sotesx_s.dll", 1, 1);
-        vlog("[seed] bank_load(\"sotesx_s.dll\") -> %p  (tid=%lu)", *bankg, GetCurrentThreadId());
-    }
-    if (*bankg != 0 && *sounddev != 0 && *mgrg == 0) {
-        opnew_t   opnew    = (opnew_t)AP(VA_OPNEW);
-        mgrinit_t mgr_init = (mgrinit_t)AP(VA_MGR_INIT);
-        void *mgr = opnew(0xc);
-        if (mgr) { *(int *)mgr = 0; mgr_init(mgr, *sounddev, 0x10); *mgrg = mgr;
-                   vlog("[seed] manager -> %p  (dialogue live)", mgr); }
-    }
+// ─── seed: set ONLY the voice bank pointer, on the main thread, when the loader calls the
+// bank_load wrapper (before FUN_0059b520).  Guarded on the pointer being null → seeds once.
+static void __cdecl seed_once(void) {
+    void **bankg = (void **)AP(VA_BANK_GLOBAL);
+    if (*bankg != 0) return;
+    char path[MAX_PATH]; GetModuleFileNameA(NULL, path, MAX_PATH);
+    char *bs = strrchr(path, '\\'); if (bs) bs[1] = 0; else path[0] = 0;
+    strncat(path, "sotesx_s.dll", MAX_PATH - strlen(path) - 1);
+    *bankg = LoadLibraryA(path);                      // == the one line the EN localizer removed
+    vlog("[seed] voice bank -> %p  [%s]  (before FUN_0059b520 → party deluxe + dialogue mgr)", *bankg, path);
 }
 
-// ─── generic inline "run cb() before target" hook.  Steals `steal` prologue bytes (caller
-// verifies they are whole instructions), redirects target -> a self-contained RWX stub that
-// preserves all registers, calls cb(), replays the stolen bytes, and jumps back.
-static BOOL hook_before(void *target, void (*cb)(void), int steal) {
-    unsigned char *t = (unsigned char *)target;
-    unsigned char *stub = (unsigned char *)VirtualAlloc(NULL, 96, MEM_COMMIT | MEM_RESERVE,
-                                                        PAGE_EXECUTE_READWRITE);
-    if (!stub) return FALSE;
+// Inline-hook 0x5d8b10: steal the 6-byte prologue `sub esp,0x710` (81 EC 10 07 00 00, position-
+// independent), trampoline pushad/pushfd → seed_once → stolen insn → jmp 0x5d8b16.
+static void install_seed_hook(void) {
+    unsigned char *fn = (unsigned char *)AP(VA_SEED_HOOK);
+    unsigned char *stub = (unsigned char *)VirtualAlloc(NULL, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!stub) { vlog("[hook] VirtualAlloc failed — no seed"); return; }
     unsigned char *p = stub;
-    *p++ = 0x60; *p++ = 0x9c;                                   // pushad; pushfd
-    *p++ = 0xb8; *(void **)p = (void *)cb; p += 4;              // mov eax, cb
-    *p++ = 0xff; *p++ = 0xd0;                                   // call eax
-    *p++ = 0x9d; *p++ = 0x61;                                   // popfd; popad
-    memcpy(p, t, steal); p += steal;                           // stolen prologue
-    unsigned char *jmp = p;
-    *p++ = 0xff; *p++ = 0x25; *(void **)p = (void *)(jmp + 6); p += 4;  // jmp [jmp+6]
-    *(void **)p = (void *)(t + steal);                         // resume slot = target+steal
-
+    #define B(x) (*p++ = (unsigned char)(x))
+    #define D(x) (*(void **)p = (void *)(x), p += 4)
+    B(0x60); B(0x9c);                          // pushad; pushfd
+    B(0xb8); D(&seed_once); B(0xff); B(0xd0);  // mov eax,seed_once; call eax
+    B(0x9d); B(0x61);                          // popfd; popad
+    memcpy(p, fn, 6); p += 6;                  // stolen: sub esp,0x710 (live copy)
+    B(0xff); B(0x25);                          // jmp dword ptr [slot]
+    { void *slot = p + 4; D(slot); D(AP(VA_SEED_RESUME)); }
+    #undef B
+    #undef D
     DWORD old;
-    if (!VirtualProtect(t, steal, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
-    t[0] = 0xE9; *(int32_t *)(t + 1) = (int32_t)((uintptr_t)stub - ((uintptr_t)t + 5));
-    for (int i = 5; i < steal; i++) t[i] = 0x90;               // NOP any spare stolen bytes
-    VirtualProtect(t, steal, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), t, steal);
-    return TRUE;
+    if (!VirtualProtect(fn, 6, PAGE_EXECUTE_READWRITE, &old)) { vlog("[hook] VirtualProtect failed"); return; }
+    fn[0] = 0xE9; *(int32_t *)(fn + 1) = (int32_t)((uintptr_t)stub - ((uintptr_t)fn + 5));
+    fn[5] = 0x90;
+    VirtualProtect(fn, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), fn, 6);
+    vlog("[hook] seed hook @ 0x%x installed (stub=%p)", VA_SEED_HOOK, stub);
 }
 
-// install the actor-builder hook once .text is decrypted; do_seed runs at each actor build,
-// setting the bank before that actor's voice-id bake (bulletproofs combat).
-static int g_actor_hooked;
-static void install_actor_hook(void) {
-    if (g_actor_hooked) return;
-    unsigned char *fn = (unsigned char *)AP(VA_ACTOR_BUILD);
-    if (memcmp(fn, ACTOR_SIG, sizeof ACTOR_SIG) != 0) return;  // .text not decrypted yet
-    g_actor_hooked = 1;
-    if (hook_before(fn, do_seed, 5))
-        vlog("[hook] actor-builder hook @ 0x%x installed", VA_ACTOR_BUILD);
-    else
-        vlog("[hook] actor-builder hook @ 0x%x FAILED", VA_ACTOR_BUILD);
-}
-
-// ─── the pump proxy: runs on the engine main thread every frame.  First time we are past
-// .text decryption + sound init, seed (bank+manager) and arm the actor hook; thereafter a
-// couple of cheap null-checks.
-static void pump_cb(void) {
-    static int in_pump;                    // main-thread reentrancy guard (do_seed loads a DLL)
-    if (in_pump) return;
-    in_pump = 1;
-    do_seed();             // idempotent: bank now, manager once the sound device is up
-    install_actor_hook();  // idempotent: once .text is decrypted
-    in_pump = 0;
-}
-
-// our replacement for USER32!PeekMessageA in the engine's IAT — runs the seed on the engine
-// thread, then tail-calls the real PeekMessageA (fetched directly, not via the hooked slot).
-static BOOL WINAPI my_peek(LPMSG msg, HWND hwnd, UINT lo, UINT hi, UINT rm) {
-    pump_cb();
-    return g_real_peek(msg, hwnd, lo, hi, rm);
-}
-
-// wait for the loader/SteamStub to resolve the PeekMessageA IAT slot, then swap in my_peek.
-// Wide margin: the slot resolves at the OEP, the first pump is much later (post bank load).
-static DWORD WINAPI iat_thread(void *unused) {
-    (void)unused;
-    void **slot = (void **)AP(VA_IAT_PEEK);
-    int i = 0;
-    while (*slot != (void *)g_real_peek) {
-        if (++i > 6000) { vlog("[proxy] TIMEOUT: PeekMessageA IAT slot never resolved (*slot=%p)", *slot); return 0; }
-        Sleep(5);
+// ─── deluxe-skip patch: FUN_0059b520 `je 0x59cd55` (skip if deluxe_id==0) -> `je 0x59cd08`
+// (non-deluxe path).  Redirect target = 0x59cd08 - (0x59cccc + 6) = 0x36; only the low rel32
+// byte at 0x59ccce changes (0x83 -> 0x36).  Opcode-signature gated (0f 84 83 00 00 00).
+static void install_registrar_patch(void) {
+    unsigned char *je = (unsigned char *)AP(VA_REG_JE);
+    if (!(je[0] == 0x0f && je[1] == 0x84 && je[2] == 0x83 && je[3] == 0x00 && je[4] == 0x00 && je[5] == 0x00)) {
+        vlog("[reg] je sig mismatch (%02x %02x %02x %02x %02x %02x) — no patch",
+             je[0], je[1], je[2], je[3], je[4], je[5]);
+        return;
     }
     DWORD old;
-    if (VirtualProtect(slot, sizeof(void *), PAGE_READWRITE, &old)) {
-        *slot = (void *)&my_peek;
-        VirtualProtect(slot, sizeof(void *), old, &old);
-        vlog("[proxy] IAT pump hook: 0x%x PeekMessageA -> my_peek (after %d ms)", VA_IAT_PEEK, i * 5);
-    } else vlog("[proxy] VirtualProtect on IAT slot 0x%x failed", VA_IAT_PEEK);
+    if (!VirtualProtect(je + 2, 1, PAGE_EXECUTE_READWRITE, &old)) { vlog("[reg] VirtualProtect failed"); return; }
+    je[2] = 0x36;                              // je 0x59cd55 (skip) -> je 0x59cd08 (non-deluxe path)
+    VirtualProtect(je + 2, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), je, 6);
+    vlog("[reg] deluxe-skip patched @ 0x%x: deluxe_id==0 rows -> non-deluxe path (mob SFX from sotesd)", VA_REG_JE);
+}
+
+#ifdef OSS_VOICE_DIAG
+// ─── clip-loader diagnostic (verify the fix): distinct (bank,id) plays.  Expect deluxe combat
+// 2235/2236 [VOICE_x_s] AND monster ids (harpy 0x790-0x795) [SOTESD] both present.
+static volatile uint32_t g_c_ret, g_c_s8, g_c_sc;
+static void *g_clip_resume;
+static void __cdecl clip_log(void) {
+    static uint32_t seen[800]; static int nseen;
+    uint32_t bank = g_c_s8, id = g_c_sc, key = bank ^ (id * 2654435761u);
+    for (int i = 0; i < nseen; i++) if (seen[i] == key) return;
+    if (nseen < 800) seen[nseen++] = key;
+    uint32_t voice  = (uint32_t)(uintptr_t)*(void **)AP(VA_BANK_GLOBAL);
+    uint32_t sotesp = (uint32_t)(uintptr_t)*(void **)AP(0x92af78u);
+    uint32_t sotesd = (uint32_t)(uintptr_t)*(void **)AP(0x92af88u);
+    const char *t = bank == voice ? "VOICE_x_s" : bank == sotesp ? "SOTESP" :
+                    bank == sotesd ? "SOTESD" : "other";
+    vlog("[clip] id=%u(0x%x) bank=%x[%s] ret=%x", id, id, bank, t, g_c_ret);
+}
+static void install_clip_hook(void) {
+    unsigned char *fn = (unsigned char *)AP(VA_CLIP_LOADER);
+    if (fn[0] != 0x6a || fn[1] != 0xff || fn[2] != 0x68) { vlog("[clip] loader sig mismatch — no diag"); return; }
+    g_clip_resume = AP(VA_CLIP_LOADER + 7);
+    unsigned char *stub = (unsigned char *)VirtualAlloc(NULL, 96, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!stub) return;
+    unsigned char *p = stub;
+    #define B(x) (*p++ = (unsigned char)(x))
+    #define D(x) (*(void **)p = (void *)(x), p += 4)
+    B(0x8b); B(0x04); B(0x24); B(0xa3); D(&g_c_ret);
+    B(0x8b); B(0x44); B(0x24); B(0x08); B(0xa3); D(&g_c_s8);
+    B(0x8b); B(0x44); B(0x24); B(0x0c); B(0xa3); D(&g_c_sc);
+    B(0x60); B(0x9c); B(0xb8); D(&clip_log); B(0xff); B(0xd0); B(0x9d); B(0x61);
+    memcpy(p, fn, 7); p += 7;
+    B(0xff); B(0x25); D(&g_clip_resume);
+    #undef B
+    #undef D
+    DWORD old;
+    if (!VirtualProtect(fn, 7, PAGE_EXECUTE_READWRITE, &old)) return;
+    fn[0] = 0xE9; *(int32_t *)(fn + 1) = (int32_t)((uintptr_t)stub - ((uintptr_t)fn + 5));
+    fn[5] = 0x90; fn[6] = 0x90;
+    VirtualProtect(fn, 7, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), fn, 7);
+    vlog("[clip] diagnostic hook @ 0x%x installed", VA_CLIP_LOADER);
+}
+#endif // OSS_VOICE_DIAG
+
+// Waiter: wait for SteamStub to decrypt .text (seed-hook prologue == 81 EC 10 07 00 00), then
+// arm BOTH patches (whole .text decrypts at once) — well before the loader's first wrapper call
+// and long before FUN_0059b520.  version.dll runs before the exe entry.
+static DWORD WINAPI waiter_thread(void *unused) {
+    (void)unused;
+    unsigned char *fn = (unsigned char *)AP(VA_SEED_HOOK);
+    int i = 0;
+    while (!(fn[0] == 0x81 && fn[1] == 0xec && fn[2] == 0x10 &&
+             fn[3] == 0x07 && fn[4] == 0x00 && fn[5] == 0x00)) {
+        if (++i > 120000) { vlog("[waiter] TIMEOUT: .text never decrypted — no patch"); return 0; }
+        Sleep(1);
+    }
+    vlog("[waiter] .text decrypted after ~%d ms — arming seed + deluxe-skip patch", i);
+    install_registrar_patch();     // fix the mob-skip (before FUN_0059b520 runs)
+    install_seed_hook();           // set the bank (before FUN_0059b520 runs)
+#ifdef OSS_VOICE_DIAG
+    install_clip_hook();
+#endif
     return 0;
 }
 
@@ -186,35 +189,16 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID x) {
         char dir[MAX_PATH]; GetModuleFileNameA(h, dir, MAX_PATH);
         char *bs = strrchr(dir, '\\'); if (bs) bs[1] = 0; else dir[0] = 0;
         _snprintf(g_logpath, MAX_PATH, "%soss_voice.log", dir);
-
         char host[MAX_PATH] = ""; GetModuleFileNameA(NULL, host, MAX_PATH);
         char *slash = strrchr(host, '\\'); const char *hn = slash ? slash + 1 : host;
-        if (!StrStrIA_(hn, "sotes")) { vlog("[proxy] host '%s' has no 'sotes' — skip", hn); return TRUE; }
-
+        if (!StrStrIA_(hn, "sotes")) { vlog("[proxy] host '%s' has no 'sotes' — idle", hn); return TRUE; }
         g_delta = (uintptr_t)GetModuleHandleA(NULL) - ORIG_BASE;
-        vlog("[proxy] attach host=%s delta=%p", host, (void *)g_delta);
-
-        // Proxy the engine's message pump via its PeekMessageA IAT slot.
-        HMODULE u32 = GetModuleHandleA("user32.dll");
-        g_real_peek = u32 ? (peek_t)GetProcAddress(u32, "PeekMessageA") : NULL;
-        if (!g_real_peek) { vlog("[proxy] PeekMessageA not resolvable — no patch"); return TRUE; }
-        void **slot = (void **)AP(VA_IAT_PEEK);
-        if (*slot == (void *)g_real_peek) {          // already resolved (loader) — hook now
-            DWORD old;
-            if (VirtualProtect(slot, sizeof(void *), PAGE_READWRITE, &old)) {
-                *slot = (void *)&my_peek;
-                VirtualProtect(slot, sizeof(void *), old, &old);
-                vlog("[proxy] IAT pump hook: 0x%x PeekMessageA -> my_peek (immediate)", VA_IAT_PEEK);
-            }
-        } else {                                     // SteamStub resolves it later — wait for it
-            vlog("[proxy] PeekMessageA IAT slot not yet resolved (*slot=%p) — arming waiter", *slot);
-            CreateThread(NULL, 0, iat_thread, NULL, 0, NULL);
-        }
+        vlog("[proxy] attach host=%s delta=%p (early seed + deluxe-skip patch)", host, (void *)g_delta);
+        CreateThread(NULL, 0, waiter_thread, NULL, 0, NULL);
     }
     return TRUE;
 }
 
-// tiny case-insensitive substring (avoid linking shlwapi for StrStrIA)
 static const char *StrStrIA_(const char *hay, const char *needle) {
     if (!hay || !needle) return NULL;
     for (; *hay; hay++) {

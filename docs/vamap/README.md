@@ -67,7 +67,12 @@ ense↔enold 79.7%, jpse↔enold 77.9% (lower: EN-old is a separate, older linea
 | bank INIT (clears cluster) | 0x57f180 | 0x580ec0 | 0x562210 |
 | bank LOADER (voice load cut in EN) | 0x5c94f0 | 0x5cb880 | 0x5a4770 |
 | boot / main-loop (voice-MGR gate) | 0x57fe50 | 0x581ba0 | — |
-| boot CALL site (ennse_voice hook) | — | **0x58113e** | — |
+| bank INIT (clears cluster) | 0x57f180 | 0x580ec0 | 0x562210 |
+| bank LOADER (voice load CUT in EN) | 0x5c94f0 | 0x5cb880 | 0x5a4770 |
+| **bank_load wrapper (ennse_voice INLINE-HOOK point)** | 0x5d6880 | **0x5d8b10** | 0x5b0890 |
+| voice bank GLOBAL (the gate) | 0x926170 | **0x92af80** | (none) |
+| boot registrar (deluxe choice) | 0x599b40 | 0x59b520 | — |
+| boot CALL site (old 0x58113e-redirect attempt) | — | 0x58113e | — |
 | actor builder (COMBAT-voice bake) | 0x423890 | 0x423850 | 0x4289f0 |
 | dialogue trigger | 0x435050 | 0x435000 | 0x439690 |
 | voice PLAY | 0x437db0 | 0x437dc0 | 0x43c1b0 |

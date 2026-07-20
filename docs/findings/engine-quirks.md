@@ -4008,4 +4008,38 @@ dialogue path, by contrast, reads the bank live at each line.  Consequence for a
 loads the bank dynamically (the JP-voice patch on the EN build): the bank MUST be non-null
 before the first party actor is created, or combat voice never plays.  A second gate in the
 same test, `*(config+0x238) != 0`, also forces the id to 0 (a combat-voice-disable flag; 0 in
-normal play).
+normal play).  There are actually **TWO boot-time bakers with the identical gate**: the
+per-actor builder above, AND the earlier **boot sound-def registrar** (EN `FUN_0059b520` / JP
+`FUN_00599b40`) which walks the action table once and REGISTERS each voiced action's sound-def
+with `bank = (gate) ? sotesd/sotesp id DAT_0065b0f2[act] : sotesx_s(0x92af80) id DAT_0065b104[act]`
+— the definitive **DELUXE-vs-non-deluxe** choice (deluxe grunts `sotesx_s` ids 2235/2236, the
+same bank as dialogue; non-deluxe `sotesd` id 1342).  Both read `0x92af80` ONCE at boot; whichever
+runs first with a null bank bakes non-deluxe permanently.  Full RE: `findings/ense-voice-combat-init.md`.
+
+## 77. The EN localizer made TWO edits to the audio-bank loader, not one; JP loads the voice bank mid-sequence
+The audio-bank loader (JP `FUN_005c94f0` / EN `FUN_005cb880`) loads five banks in order.  JP:
+`sotesd`(inline)→`sotesx_d2`(inline)→**`sotesx_s`/voice**(wrapper `FUN_005d6880`)→`extra`(wrapper)
+→`sotesp`(wrapper).  The EN localizer (a) **removed the voice-bank load** entirely (so `0x92af80`
+stays null — quirk #76) AND (b) **swapped the 2nd inline bank** from `sotesx_d2.dll`(→`0x92616c`) to
+the English data bank **`sotesd_en.dll`**(→a new global `0x92af94`).  Re-adding the load is easy; the
+trap is quirk #78 (WHEN).
+
+## 78. The SE boot sound-def registrar SKIPS every non-deluxe-only row when the voice bank is loaded early — the mob-silence bug
+`FUN_0059b520` (EN; JP `FUN_00599b40`) walks the 294-row action table `0x65b0e8` and, in its DELUXE
+branch (taken when `0x92af80!=0 && *(*0x92af98+0x238)==0`), does `id = DAT_0065b104[row] (deluxe id);
+if (id==0 || id==0x7fff) goto skip;` — **a row with no deluxe variant registers NO sound-def at all**.
+64 rows have a non-deluxe sound but `deluxe_id==0`, and (decoded from the table) they are exactly the
+MONSTER rows: harpy key `0xc789` ids `0x790-0x795`, ghosts, babymage `0xc792`, `0xc829`, rows 240-289.
+So if the voice bank is present WHEN this registrar runs at boot, those monster SFX are permanently
+silenced (defs never register); if absent, the non-deluxe branch registers them from `sotesd` and they
+play. This is an **SE regression** — byte-identical in the JP-SE build (so the native JP-SE exe ALSO
+loses mob SFX when `sotesx_s` is loaded early), but a v1.4 build that natively loads `sotesx_s` plays
+everything, so its registrar lacks the skip. **Party combat ALSO comes from THIS registrar's deluxe def**
+(not the per-actor bake `FUN_00423850` as first assumed — proven when seeding after the registrar gave
+mob+dialogue but NON-deluxe combat). So a single bank state at registration can't give both deluxe party
+rows and registered monster rows; the JP-voice patch must seed the bank BEFORE this registrar (party →
+deluxe) AND redirect the `deluxe_id==0` skip `je 0x59cd55 → je 0x59cd08` (one byte at `0x59ccce`,
+`0x83→0x36`) so monster rows register from `sotesd` via the non-deluxe path. Note filling a `deluxe_id`
+instead would send them to bank=`sotesx_s` (the deluxe branch's hardcoded bank), which lacks monster
+sounds → still silent. `findings/ense-voice-combat-init.md`. (Corrects an earlier "worker-thread heap
+race" misdiagnosis: the mob silence is this deterministic deluxe-skip, not a heap race.)
