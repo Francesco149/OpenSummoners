@@ -77,6 +77,14 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   view (FUN_004192b0), the cursor-nav engine (FUN_0043ca40, jump table
   recovered) and the input-action latch (FUN_0043ce50). Completes the
   poll → latch → nav input chain. **Ported, checkpoint 4.**
+- **[title-menu-state.md](title-menu-state.md)** — the SE title runner
+  (`0x582c40`) + dispatcher (`0x581ba0`) live: the input-record ring
+  (`mgr+0x0c`, slot 63 first-polled; record `{id,now,state}` + `now`-freshness),
+  button ids (`0x25` confirm proven), the phase jump table `0x5842f8`, and the
+  button-INJECTION mechanism the mod-loader's `mod.game.input.press` exposes.
+  Open problem recorded: the selection **cursor is not in the input manager**
+  (it's static across nav) — it's in the title scene object; needed for the
+  "auto-load defaults to Start → new game" fix.
 - **[butterfly-direction-sprite.md](butterfly-direction-sprite.md)** — the town
   butterflies' 8-way flight render (THEME 2 notes #0+#2). The frame model
   `cel = d*4 + flap` (d = an 8-way wander heading, not the velocity) is PROVEN off
