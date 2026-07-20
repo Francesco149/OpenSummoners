@@ -18,8 +18,7 @@ dev()  { nix develop --command "$@"; }
 
 step "port (opensummoners.exe)";          dev make -C src
 step "resource explorer (res_explorer)";  dev make -C tools/res_explorer
-step "mod loader (version.dll)";           dev make -C tools/mod_loader
-step "EN-SE voice patch (ennse_voice.dll)"; dev make -C tools/ennse_voice
+step "EN-SE voice patch (version.dll)";    dev make -C tools/ennse_voice
 step "osr_view (trace studio)";            dev make -C tools/osr_view
 step "capture_proxy (inject.exe)";         dev make -C tools/capture_proxy
 step "launcher";                           dev make -C tools/launcher
@@ -27,7 +26,7 @@ step "save inspector (sotes_save_dump)";   dev make -C tools/sotes_save
 step "EN-SE trainer (sotes_trainer.dll + UI)"; dev make -C tools/sotes_trainer
 step "asset gate (no embedded game bytes)"
 dev python3 tools/ci/no_proprietary_bytes.py \
-    build/opensummoners.exe build/res_explorer.exe build/version.dll build/ennse_voice.dll
+    build/opensummoners.exe build/res_explorer.exe build/version.dll
 step "host unit suite (ASan/UBSan)";       dev make -C tests run
 
 printf '\n\033[32m✓ ALL BUILDS + TESTS GREEN\033[0m\n'

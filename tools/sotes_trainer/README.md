@@ -51,7 +51,7 @@ the game exe and just launch — no injector, the game is not modified:
 
 Then run the exe normally. On load the trainer opens its ImGui window + binds `:7777`, dismisses
 the `#32770` launcher, and keeps the game running unfocused (default boot behaviors below). It
-coexists with the JP voice patch (`mods\ennse_voice.dll`).
+coexists with the JP voice patch (the standalone `version.dll`).
 
 - **Quick dev loop** (one-shot, no staging): `build/inject.exe <unpacked-exe> <full-path
   sotes_trainer.dll> <cwd>` — CreateProcess-SUSPENDED → remote LoadLibrary → Resume (runs via
