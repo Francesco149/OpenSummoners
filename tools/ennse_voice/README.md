@@ -47,6 +47,11 @@ nothing else:
 
 The exe on disk is never touched; both changes live only in the running process's memory.
 
+The same DLL also fixes the **Japanese special edition** (`sotes.exe`): it already loads the
+voice bank itself, so there the DLL applies only the one-byte registrar fix — restoring the
+monster SFX that the same engine bug silences even on the native JP build. The edition is
+auto-detected by exe name (`sotes_en.exe` → seed + fix; `sotes.exe` → fix only).
+
 ## What you need
 
 - The **English special edition** on Steam (`…\steamapps\common\sotes\`, has

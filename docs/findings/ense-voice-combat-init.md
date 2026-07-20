@@ -158,6 +158,16 @@ path-redirect keeps them on `sotesd`. Both patches are opcode-signature-gated �
 safe. **Not the IAT:** `KERNEL32!LoadLibraryA` slot `0x5fd14c` hook doesn't stick on this SteamStub build
 (attempt #8) — a direct `.text` inline hook is immune.
 
+**Both editions, one DLL (USER-verified 2026-07-20).** The JP-SE `sotes.exe` (jpse) loads sotesx_s
+natively, so dialogue + deluxe combat already work — but its registrar `FUN_00599b40` is byte-identical
+to EN's, so the mob-silence deluxe-skip is there too. `FUN_00599b40` starts at `0x599b40`, so the skip
+`je` sits at the SAME offset into the function: **EN `0x59cccc` → JP `0x59b2ec`**; both are
+`0f 84 83 00 00 00` (`je <skip>`) and both take the identical byte patch `[je+2] 0x83→0x36` (redirect
+delta `0x36`, → JP non-deluxe path `0x59b328`). So the DLL detects the edition by exe name — `sotes_en`
+→ seed (`0x5d8b10`) + deluxe-skip (`0x59cccc`); `sotes` → deluxe-skip only (`0x59b2ec`), no seed —
+every hook signature-gated so a wrong guess no-ops. JP mirrors for the diag: bank `0x926170`, clip
+loader `0x5e13d0`, sotesp `0x926168`, sotesd `0x926178`.
+
 ## Attempt history (why each failed; keep to avoid re-treading) — ONE mechanism explains it all
 Both party combat AND mob SFX come from `FUN_0059b520`; its deluxe branch gives party rows deluxe voice
 but SKIPS `deluxe_id==0` rows (monsters). Deciding variables: is `0x92af80` set when the registrar runs
