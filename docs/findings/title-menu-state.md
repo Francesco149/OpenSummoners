@@ -43,12 +43,19 @@ object (`title_this`) or a menu-list controller it owns**, not the input device 
 
 Leads to pin it (a follow-up):
 - Locate `title_this` (the object with `*(title_this+4) == mgr`) and diff IT across a rotate injection.
-- OR trace `0x582c40` past `0x583200` (the menu-build + the phase handlers off `0x5842f8`) to the
-  field that holds the selected row — the base-game analog is the menu-list controller cursor at
-  `ctrl+0x174 → header+0x14` (`docs/findings/menu-list.md`); confirm whether the SE title reuses it.
+  **NB (tried 2026-07-20): scanning ALL committed memory — heap AND image/.data — for a pointer whose
+  value == the captured input mgr returned ZERO hits.** So `title_this` is not a findable global: the
+  title routine appears to hold it in a stack local / register and pass `*(local+4)` as `ecx` each
+  poll. => live pointer-chasing from the mgr is a dead end; the cursor field must come from **static
+  analysis** (Ghidra-decompile `0x582c40` past `0x583200`: the menu-build + the phase handlers off the
+  `0x5842f8` jump table) — find where the selected-row index is stored, then read it live at that VA.
+- The base-game analog is the menu-list controller cursor at `ctrl+0x174 → header+0x14`
+  (`docs/findings/menu-list.md`); confirm whether the SE title reuses it.
 - Probing must happen in the **fresh interactive phase** (right at boot, while the menu polls nav) —
-  an idle title with the attract/demo frozen appears to sit in a non-nav phase (nav injections there
-  produced no state change at all, while confirm at boot does advance).
+  an idle title with the attract/demo frozen sits in a non-nav phase (rotate injections there produced
+  NO state change anywhere in the input mgr `[0..0x400]`, across button ids 1/2/3/4, while confirm at
+  boot does advance). So nav-injection's menu effect at the idle title is unconfirmed; confirm is the
+  only injection proven to drive the title.
 
 ## The auto-load "defaults to Start" bug
 
