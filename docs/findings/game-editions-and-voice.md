@@ -16,6 +16,26 @@ EN-SE & JP-SE are the **same engine generation** (share byte-identical `sotesd.d
 `sotesw.dll`, both carry `sotesx_*` + `sinmode`). EN-old is a **separate, older lineage**
 (different `sotesd/w/p`, no `sotesx_*`, no `sinmode`).
 
+## Unpacked exe identity (sha256) — which binary to RE for WHAT
+
+`vendor/unpacked/` holds the unpacked exes. **The mod loader and the port target DIFFERENT editions —
+a code VA from one does NOT transfer to the other.** Learned via a crash (2026-07-20): the
+sotes-mod-loader hooked menu VAs (`menu_list_latch 0x43ce50`, `input_poll_consume 0x43c110`) that were
+RE'd on **EN-old**, but in **EN-SE** those addresses are a *different* function — MinHook byte-patched
+mid-instruction and combat later crashed (`[crash]` fault `0x43ce4b`).
+
+| edition | unpacked exe | sha256(12) | size | used by |
+|---|---|---|---|---|
+| **EN-SE** (Steam SE, English) | `editions/sotes-ense-en.exe` (== the game's `sotes_en.exe`) | `bed4e129fd1f` | 72,339,456 | **MOD LOADER — PRIMARY target** |
+| **JP-SE** (Steam SE, Japanese) | `editions/sotes-ense-jp.exe` (== the bundled `sotes.exe`) | `badb7b2d4f68` | 72,318,976 | mod-loader secondary (JP support later) |
+| **EN-old** (Steam 2012, Carpe Fulgur) | `vendor/unpacked/sotes.unpacked.exe` | `9e032483b998` | 64,004,096 | **OpenSummoners PORT — primary RE target** |
+| **JP deluxe** (retail CD, Lizsoft) | *not unpacked* — Themida/lzsotes-packed | — | — | — |
+
+**Rule of thumb:** loader RE → disassemble **`editions/sotes-ense-en.exe`** and byte-verify a VA before
+the loader hooks it; port RE → `sotes.unpacked.exe`. Safepoint (`0x437c70`), picker (`0x4378d0`),
+attract (`0x583866`), and the stat-block layout coincide across EN-old/EN-SE (they work), but the
+menu-input path does **not** — treat any menu VA from the port's EN-old RE as invalid for the loader.
+
 ## File inventory (asset DLLs = resource-only PE: tiny code, one giant `.rsrc`)
 
 Naming decoded from resource contents (`d`=data/gfx, `w`=wave/BGM, `p`=SE, `x_*`=SE-edition
