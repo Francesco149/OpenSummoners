@@ -27,46 +27,52 @@ The engine polls buttons through a **64-slot record ring on the input manager**:
   `mgr+0x108` downward for 0x3f entries, `0x583125`+).
 - each slot points at a record **`{ id@+0, now@+4, state@+8 }`**; the poll matches `id` + `state==1` +
   **`(poll_now − record_now) <= 0x64`** (freshness).  `poll_now` = the poll's `now` arg (`exec_sp_now`).
-- **button ids** (SotES title): **`0x25` confirm** (PROVEN — the loader's `save.load` injects it and
-  reaches the save picker), `0x22` back/abort. Rotate up/down is `2`/`4` or `1`/`3` (the two RE notes
-  disagree; unresolved — see below).
+- **button ids** (SotES title — disasm-verified at the poll→latch sequence `0x56b80f..0x56b8e3`,
+  2026-07-20): **`0x24` confirm/commit** (`input_poll_consume(0x24)` @ `0x56b8cc` → `menu_list_latch`
+  dir 9 → nav returns 3 → commit `rows[cursor]`), `0x22` back/abort, **`1` up / `3` down** (`2`/`4` are
+  page-up/down = no-ops on the single-page title). **`0x25` is NEVER polled by the title** (byte-scanned
+  the whole title fn — zero `push 0x25`); the earlier "`0x25` confirm" note was wrong — the loader's old
+  `save.load` injected `0x25` at the title, which `input_poll_consume`'s exact-id match ignored.
 
 `mod.game.input.press(id[,mgr])` writes one such record; `save.load` uses the same path for confirm.
 
-## The selection CURSOR — NOT located yet (the open problem)
+## The selection CURSOR — RESOLVED (2026-07-20)
 
-Driving the title needs to know / set which item is highlighted (so confirm picks Continue, not
-Start). **The cursor is NOT in the input manager**: injecting every rotate id (1/2/3/4) at the title
-and diffing `mgr[0..0x400]` every frame showed **the input manager is completely static** — only our
-own ring writes at `+0x108` change. So the menu cursor / selected-row lives in the **title scene
-object (`title_this`) or a menu-list controller it owns**, not the input device wrapper.
+The cursor is **NOT in the input manager** (injecting rotate ids and diffing `mgr[0..0x400]` showed it
+static).  It lives in the title's **`menu_ctrl`** — the generic selection controller of
+`findings/menu-list.md` — which the SE title **does reuse** (the base-game analog was the right lead):
+the title drives it via `menu_list_latch` (`0x43ce50`) / `menu_list_nav` (`0x43ca40`).
 
-Leads to pin it (a follow-up):
-- Locate `title_this` (the object with `*(title_this+4) == mgr`) and diff IT across a rotate injection.
-  **NB (tried 2026-07-20): scanning ALL committed memory — heap AND image/.data — for a pointer whose
-  value == the captured input mgr returned ZERO hits.** So `title_this` is not a findable global: the
-  title routine appears to hold it in a stack local / register and pass `*(local+4)` as `ecx` each
-  poll. => live pointer-chasing from the mgr is a dead end; the cursor field must come from **static
-  analysis** (Ghidra-decompile `0x582c40` past `0x583200`: the menu-build + the phase handlers off the
-  `0x5842f8` jump table) — find where the selected-row index is stored, then read it live at that VA.
-- The base-game analog is the menu-list controller cursor at `ctrl+0x174 → header+0x14`
-  (`docs/findings/menu-list.md`); confirm whether the SE title reuses it.
-- Probing must happen in the **fresh interactive phase** (right at boot, while the menu polls nav) —
-  an idle title with the attract/demo frozen sits in a non-nav phase (rotate injections there produced
-  NO state change anywhere in the input mgr `[0..0x400]`, across button ids 1/2/3/4, while confirm at
-  boot does advance). So nav-injection's menu effect at the idle title is unconfirmed; confirm is the
-  only injection proven to drive the title.
+- **cursor** = `*(*(menu_ctrl+0x174)+0x14)` (list header `+0x14`); `count` = `list+0x10`; `stride` =
+  `list+0x0c`; `sel2` (page-top) = `list+0x18`.  **rows** = `*(menu_ctrl+0x17c)` (each `menu_row`
+  `0x10` B, `action` @ `+0x04`).  The title's rows are `0x1a,0x1c,0x1e,0x1d,8`
+  (Start/**Continue**/Option/Special/Exit), so **Continue = the row whose `action == 0x1c`** (index 1).
+- **getting `menu_ctrl` live:** it is the `ecx` of `menu_list_latch` (`0x43ce50`).  Entry proven by
+  disasm: `mov esi,[ecx]; cmp [esi+0x54],0x3e8` (the `sub->ready==1000` gate), then branch on `[ecx+8]`
+  (mode) and load `[ecx+0x170]` (list2) — exactly the `menu_ctrl` layout.
+- **Caveat (why the hook, not pointer-chasing):** `menu_ctrl` is not a findable global (the all-memory
+  scan for a pointer == the input mgr returned zero hits), AND `menu_list_latch` runs **only when a
+  button is consumed** (`input_poll_consume` @ `0x43c110` returns non-zero) — so at an idle title
+  nothing calls it.  The live recipe: **inject a nav (id `3`) to provoke one latch call, capture the
+  `ecx`, then write the cursor directly and commit with `0x24`.**  (This also explains the old note that
+  "nav-injection at the idle title did nothing": nav only moves once `sub->ready==0x3e8`, and its effect
+  is on the `menu_ctrl` — never on the static input mgr that was being diffed.)
 
-## The auto-load "defaults to Start" bug
+## The auto-load "defaults to Start" bug — FIXED (2026-07-20)
 
-`mod.game.save.load` freezes the attract/demo then injects `0x25` confirm at the title every frame
-until the save picker opens (`0x4378d0` hook) — which works **only because the title defaults to
-Continue** in the common case. If the last boot started a NEW game, the title defaults to **Start**,
-so the injected confirm commits Start → a new game, and the drive then sees a scene load and wrongly
-reports success.
+`mod.game.save.load` freezes the attract/demo then drives the title into a save.  The old code injected
+`0x25` at the title (a no-op — see button ids above) with no cursor control, so it could only warn.
+**Now** (`sotes-mod-loader core/sotes_bindings.c`) it:
 
-**Fix path (needs the cursor):** before confirming, set the cursor to the Continue row (or inject
-rotate until the selected action is `0x1c`). The building block — button injection — is in place
-(`mod.game.input.press`); the missing piece is reading/writing the cursor (above). Until then the
-drive should at least DISTINGUISH "reached the picker" (real load) from "scene loaded without the
-picker" (new game) and warn — a cheap safety net.
+1. hooks `menu_list_latch` (`0x43ce50`) to capture the live title `menu_ctrl`, validated (mode 1 + a
+   Start `0x1a` row present) so it never grabs an unrelated menu that happens to be latching;
+2. injects nav id `3` until that capture lands (the latch only runs on a consumed button);
+3. writes the cursor (`*(list+0x14)`) to the **Continue** row (`action == 0x1c`), keeping `sel2`
+   (`list+0x18`) = `floor(cursor/stride)*stride`;
+4. once `sub->ready == 0x3e8`, injects **`0x24`** (the real commit) → commits Continue → the save-data
+   list, regardless of what the title defaulted to.
+
+If the title has a Start row but **no** Continue row (no save exists), it refuses to commit (which would
+start a NEW game) and stops with a clear log line.  The picker step (`0x4378d0`, a separate input path)
+is unchanged.  **Remaining:** end-to-end in-game confirmation of the full drive (capture → cursor →
+commit → picker → load).
