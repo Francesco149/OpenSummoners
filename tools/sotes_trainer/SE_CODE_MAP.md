@@ -59,11 +59,18 @@ analog where known; **the base VA is the MODEL, not necessarily the SE VA**.
 | `0x484554` | world_x/y position-commit | writes `actor+0xc76c/0xc770` from phys-box `*(actor+0x40)`: x=box[+4], y=box[+8]+box[+0x10]−1 |
 - actor offsets: `+0x40` phys-box (AABB: +4 X, +8 topY, +0xc W, +0x10 H), `+0x760` stat_block,
   `+0xc76c/0xc770` world_x/y (derived snapshot), `+0xc7a4` → input-mgr chain (`g_ti_mgr = *(*(actor+0xc7a4))`).
-- stat_block: `+0x54` hp_cur `+0x58` hp_base `+0x84` hp_equip `+0x9c` hp_buff (max=+0x58+0x84+0x9c);
-  mp `+0x5c/0x60/0x88/0xa0`; `+0xe0` **combat_level_max** (MAX COMBAT LEVEL — the "N" in the stat
-  window's "combat level M/N" + the HUD stars, USER live SE; the displayed char level = `+0xe0` +
-  `+0xd8` level_bonus per `494e60:123`, NOT `+0xe0` alone); `+0xd8` level_bonus, `+0xdc` star_count;
-  `+0xec` exp_cur `+0xf0` exp_max.
+- stat_block: `+0x00` **name** (char[8], NUL-term — "Arche"/"Sana"/"Stella", live-verified);
+  `+0x54` hp_cur `+0x58` hp_base `+0x84` hp_equip `+0x9c` hp_buff (max=+0x58+0x84+0x9c);
+  mp `+0x5c/0x60/0x88/0xa0`; **the 4 combat stats (raw base): `+0x64` Attack `+0x68` Defense
+  `+0x6c` Spirit `+0x70` Resist** — the status screen's "second number" (shown base) = this field +
+  armor/passive so it can read a touch higher than the raw value; the "first number" adds the weapon.
+  Verified live save-15: Sana/Stella `+0x64` == their shown Attack base (57/77) exactly; each of
+  Def/Spi/Res matches at least one member exactly. `+0xe0` **combat_level_max** ("Combat Level M/N" +
+  HUD stars); `+0xe4` **adventurer_level** ("Adventurer Level", live 18); the big "Level" =
+  combat_level(`+0xe0`) + adventurer_level(`+0xe4`) — live save-15 5+18=23 for all three (the SUM
+  matches; the split is a hypothesis, all three identical so unverified); `+0xd8` level_bonus, `+0xdc`
+  star_count; `+0xec` exp_cur `+0xf0` exp_max (live: Arche/Sana/Stella exp_max = 144000/145000/146000).
+  **Full table + the adventure-stats & per-character save-record structs: [`docs/findings/save15-live-stats.md`](../../docs/findings/save15-live-stats.md).**
 
 ### ✅ Input / keyboard subsystem — RESOLVED live (movement-inject PROVEN; door-enter foreground-gated)
 Char input mgr = `*(*(actor+0xc7a4))` (`OFF_INPUT_CHAIN`; live Arche `0x085fc4f4`). HELD-AXIS (base

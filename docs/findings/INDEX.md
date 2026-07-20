@@ -44,6 +44,13 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   0x2738 "Main Quest"), and the party-roster summary. Reference impl `tools/sotes_save/`
   (dep-free; drives the trainer's `saves`/`saveinfo` + reusable by a save editor / the
   port). Codec verified 8/8 real saves.
+- **[save15-live-stats.md](save15-live-stats.md)** — the LIVE (in-memory) counterparts,
+  RE'd against save 15 to the pixel: the derived character **stat block** (`*(actor+0x760)` —
+  name `+0x00`, HP/MP + the 4 combat stats `+0x64..+0x70`, combat/adventurer levels `+0xe0/+0xe4`,
+  exp `+0xec/+0xf0`); the shared **adventure-stats** struct (Monsters/EXP-gained/Money/Marks/
+  Deaths/Combo/Max-dmg + dealer handles); the per-character 284-byte **save record**; and the
+  negative result that SE has **no fixed-index party array** (band-scan is correct). Extends
+  `tools/sotes_trainer/SE_CODE_MAP.md` "Player / actor / stats".
 
 ## Rendering / assets
 
