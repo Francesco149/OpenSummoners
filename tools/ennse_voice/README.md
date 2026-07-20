@@ -1,8 +1,9 @@
 # Fortune Summoners EN-SE — Japanese voice patch
 
-Adds the **Japanese dialogue voice** to the retail **English special edition**
-(the Steam `sotes` build) — English text, Japanese voice acting — which the
-official English release never shipped. Drop-in DLL; **the game exe is not modified.**
+Adds the **Japanese dialogue + deluxe combat voices** to the retail **English special
+edition** (the Steam `sotes` build) — English text, Japanese voice acting (both the story
+dialogue lines *and* the characters' battle grunts) — which the official English release
+never shipped. Drop-in DLL; **the game exe is not modified.**
 
 ## Install — paste one line into PowerShell
 
@@ -21,19 +22,30 @@ unzip it, and run `Install.bat`.
 
 ## How it works (short version)
 
-The English engine (`sotes_en.exe`) still contains the *entire* voice subsystem —
-the code that plays a voice clip per dialogue line is byte-for-byte identical to the
-Japanese engine. The English localizer only removed the **loader** (the one call that
-loads `sotesx_s.dll` and remembers its handle). So the play path is all there, just
-switched off because two globals are never set.
+The English engine (`sotes_en.exe`) still contains the *entire* voice subsystem — the
+code that plays a voice clip is byte-for-byte identical to the Japanese engine. The
+English localizer removed exactly one line: the call that loads `sotesx_s.dll` and
+remembers its handle. With that handle left null the engine can't play any voice, so
+dialogue is silent and the characters' battle grunts drop to the plain (non-"deluxe") set.
 
-This patch ships as a **standalone drop-in `version.dll`** — nothing else to install.
-The game already loads `version.dll` as a normal import, so our proxy DLL loads
-before the exe entry point, forwards the real version-info functions to a renamed copy
-of your own system `version.dll` (`realver.dll`), and — once the audio system is up —
-calls the engine's *own* functions to load `sotesx_s.dll` and create the voice manager,
-setting those two globals. From there the engine plays the voice on its own, using its
-own per-line mapping (the voice-id data is already present in the shared `sotesd.dll`).
+Just re-loading the bank isn't enough, though. The special edition introduced a bug in the
+boot code that registers every sound effect: when the voice bank *is* present, it registers
+the **deluxe** version of each sound — but enemies have no deluxe variant, so it registers
+**nothing** for them and their hit / scream / death SFX go silent. (This is a real engine
+bug — even the native Japanese special-edition exe loses monster sounds if the bank is
+loaded early. It's why simply dropping the voice DLL in doesn't just work.)
+
+So this patch — a **standalone drop-in `version.dll`**, loaded before the exe's entry point
+because the game imports `version.dll` normally, forwarding the real version-info calls to a
+renamed copy of your own system DLL (`realver.dll`) — makes two tiny in-memory changes and
+nothing else:
+
+1. **Loads `sotesx_s.dll` early**, right before that boot registrar runs, so the characters
+   get their deluxe voices back and the engine builds its own voice manager for the dialogue.
+2. **Flips one byte** in the registrar so enemies with no deluxe voice keep their normal
+   sound instead of being dropped — restoring the monster SFX.
+
+The exe on disk is never touched; both changes live only in the running process's memory.
 
 ## What you need
 
@@ -77,11 +89,11 @@ Verified against:
 | SHA-256 | `668f7e1a12e70b36acf60859c3ee34385daa826839cdde3d93f2929a5c51232e` |
 | ImageBase | `0x400000` (unpacked; runtime-relocated, ASLR-safe) |
 
-Seed addresses (`version_proxy.c`): `bank_load 0x5d8b10`, `asset_mgr 0x92ac68`,
-`operator_new 0x5ef121`, `manager_init 0x584a70`, `bank_global 0x92af80`,
-`mgr_global 0x92b76c`, `sounddev 0x92d5b8`. If Steam ships a new build (different
-buildid/hash), re-derive these per `docs/plans/ennse-voice-patch.md` before
-trusting the patch.
+Patched addresses (`ennse_voice.c`): the seed inline-hooks the bank-load wrapper
+`0x5d8b10` to set the voice-bank global `0x92af80` early (before the boot registrar), and
+flips one byte at `0x59ccce` — the registrar's deluxe-skip branch — so enemy sounds still
+register. If Steam ships a new build (different buildid/hash), re-derive these per
+`docs/findings/ense-voice-combat-init.md` before trusting the patch.
 
 ## Manual install (offline — no one-liner)
 
@@ -105,15 +117,17 @@ a full revert to vanilla. The game is otherwise untouched.
 
 ## Troubleshooting
 
-- `oss_voice.log` (written next to the DLL) logs each step — a healthy run ends with
-  `[seed] DONE bank=… mgr=…` (both non-zero).
+- `oss_voice.log` (written next to the DLL) logs each step — a healthy run shows
+  `[reg] deluxe-skip patched…` then `[seed] voice bank -> <non-zero address>`.
 - No voice but no crash → make sure `sotesx_s.dll` is present in the game folder.
 - Crash on launch about a missing `version.dll` function → `realver.dll` is missing.
 
 ## Note for maintainers
 
-`version_proxy.c` hard-codes addresses for the **current** `sotes_en.exe` build (unpacked
+`ennse_voice.c` hard-codes addresses for the **current** `sotes_en.exe` build (unpacked
 ImageBase `0x400000`; resolved at runtime against the module base, so ASLR/rebase is fine).
-If Steam updates the game, re-verify the addresses in `docs/plans/ennse-voice-patch.md`.
+The hooks are signature-gated, so a mismatched build fails safe (no patch) rather than
+corrupting the game. If Steam updates it, re-verify the addresses in
+`docs/findings/ense-voice-combat-init.md`.
 
 Build: `nix develop --command make -C tools/ennse_voice` → `build/version.dll` (the patch).
