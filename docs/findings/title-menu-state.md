@@ -5,6 +5,29 @@ the button-injection mechanism the sotes-mod-loader `mod.game.input.press` / the
 use. Motivation: drive the title menu programmatically (auto-load a save; arbitrary UI navigation) and
 fix the "auto-load starts a NEW game when the title defaults to Start" bug.
 
+> ## ⚠️ CORRECTION (2026-07-20 pm) — parts of the ORIGINAL text below are BASE-GAME addresses, WRONG for EN-SE
+> The "generic `menu_ctrl` controller" section cross-referenced `menu-list.md`, which was RE'd on the
+> BASE-GAME unpack (`sotes.unpacked.exe`, `9e0324..`) — a DIFFERENT lineage from the EN-SE shipping exe
+> (`sotes_en.exe` == `sotes-trainer-oss.exe`, `bed4e1..`).  Those function VAs do NOT match EN-SE and
+> **crashed the loader** when hooked (`0x43ce50` is a mid-instruction *struct-init* in EN-SE; MinHook's
+> 5-byte patch corrupted `mov %edx,0x14878(%esi)` @ `0x43ce4b` → wild `WRITE @ 0x15F3B468`, the logged
+> fault).  Disasm-verified CORRECTIONS (all in `bed4e1..`), used by the WORKING loader auto-load:
+>
+> | claim below | ❌ base-game | ✅ EN-SE (verified) |
+> |---|---|---|
+> | menu nav/action fn (capture menu_ctrl here) | `menu_list_latch 0x43ce50` / `menu_list_nav 0x43ca40` | **`0x5e7fe0`** (thiscall; ecx=menu_ctrl, arg=action 0/1 nav, **9 confirm**) → mode-1 handler `0x5e7ad0` |
+> | title input-poll (button consume) | `input_poll_consume 0x43c110` / `0x56b8cc` | **`0x437c70`** (== the loader safepoint; `poll(mgr, button, now)`, scans `mgr+0x108` down) |
+> | **title COMMIT button** | `0x24` | **`0x25`** (`push 0x25;call 0x437c70` @ `0x583714` → action 9). The title does NOT poll `0x24`. It polls `0x22` back, `0x02`/`0x04` nav, `0x25` confirm. |
+> | save-DATA list confirm poll | (assumed `~0x436xxx`) | **`0x4378d0`** called from `0x586a13` (ret `0x586a18`) — the save-list scene handler |
+>
+> WHAT IS STILL CORRECT for EN-SE: the input-record **ring** mechanism (`mgr+0x0c`, slot 63 first, `{id,
+> now,state}` + `(poll_now−rec_now)<=0x64` freshness); the menu_ctrl **layout** (cursor=`*(*(ctrl+0x174)+
+> 0x14)`, rows@`ctrl+0x17c` ×0x10 action@+0x04, count@`list+0x10`) — base-game and EN-SE SHARE the layout,
+> only the FUNCTION VAs differ; and the title **rows** `1a/1c/1e/1d/8` (Start/**Continue**/Option/Special/
+> Exit, built via `0x5e88c0`), Continue = row 1.  The title-scene runner VAs (`0x582c40`, `0x581ba0`,
+> phase table `0x5842f8`) ARE EN-SE (found live).  See sotes-mod-loader `core/sotes_bindings.c` (the
+> working injection-only drive) + the loader's memory `sotes-live-re-approach.md`.
+
 ## The routines
 
 | SE VA | role |
