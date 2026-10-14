@@ -186,6 +186,10 @@ static uint8_t g_shx_dead[SHX_DEAD];
  * outer one's static snapshot buffers */
 static int g_shadow_depth;
 int rh_in_shadow(void) { return g_shadow_depth != 0; }
+static int g_port_phase;
+static const char *g_abort_what;
+int rh_shadow_port_phase(void) { return g_port_phase; }
+void rh_shadow_abort(const char *what) { if (!g_abort_what) g_abort_what = what; }
 int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn)
 {
     static uint32_t r[MAXR][2], r2[MAXR][2];
@@ -222,9 +226,23 @@ int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *),
     rh_clock_restore(clk0);
     __asm__ volatile("fldcw %0" : : "m"(cw));
     g_shadow_depth++;
+    g_port_phase = 1; g_abort_what = NULL;
     port(ctx);
+    g_port_phase = 0;
     g_shadow_depth--;
     memcpy((void *)(uintptr_t)(sp - SHX_DEAD), g_shx_dead, SHX_DEAD);
+    if (g_abort_what) {   /* the port reached an external effect retail already performed: keep retail's result */
+        snprintf(why, whyn, "%s: port phase reached %s; not compared", name, g_abort_what);
+        g_abort_what = NULL;
+        COPY_IN(g_ret);
+        rh_media_restore(media1);
+        rh_media_snap_free(media0); rh_media_snap_free(media1);
+        rh_heap_meta_restore(meta_ret);
+        rh_clock_restore(clk1);
+        __asm__ volatile("fldcw %0" : : "m"(cw));
+        rh_heap_meta_free(meta); rh_heap_meta_free(meta_ret);
+        return -1;
+    }
     long diff = 0; int k = 0;
     int w = snprintf(why, whyn, "%s:", name);
     size_t o = 0;

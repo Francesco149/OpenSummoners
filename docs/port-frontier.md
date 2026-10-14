@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **399**
-- of those, zero-dependency **leaves: 220** (recommended order below)
+- frontier functions: **398**
+- of those, zero-dependency **leaves: 218** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -62,14 +62,14 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x40a5d0 | 568 | 5 | 5 |  |
+| 0x40fe00 | 596 | 4 | 5 |  |
 | 0x409090 | 67 | 3 | 0 | ✓ |
-| 0x40fe00 | 596 | 3 | 5 |  |
+| 0x40ac90 | 834 | 3 | 5 |  |
 | 0x40bb70 | 30 | 2 | 0 | ✓ |
 | 0x4071f0 | 196 | 2 | 0 | ✓ |
 | 0x407f30 | 453 | 2 | 0 | ✓ |
 | 0x40f800 | 511 | 2 | 0 | ✓ |
 | 0x408dc0 | 714 | 2 | 5 |  |
-| 0x40ac90 | 834 | 2 | 5 |  |
 | 0x4051d0 | 3244 | 2 | 0 | ✓ |
 | 0x40c380 | 5077 | 2 | 89 |  |
 | 0x4034f0 | 7330 | 2 | 0 | ✓ |
@@ -92,7 +92,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x408730 | 1114 | 1 | 17 |  |
 | 0x4017d0 | 1175 | 1 | 2 |  |
 
-### menu/dialog controller + char init + shop/NPC + save path (36)
+### menu/dialog controller + char init + shop/NPC + save path (35)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -112,7 +112,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x412330 | 98 | 1 | 0 | ✓ |
 | 0x419c00 | 110 | 1 | 0 | ✓ |
 | 0x416420 | 115 | 1 | 0 | ✓ |
-| 0x411560 | 117 | 1 | 0 | ✓ |
 | 0x41e440 | 125 | 1 | 1 |  |
 | 0x41a7f0 | 152 | 1 | 0 | ✓ |
 | 0x413760 | 173 | 1 | 0 | ✓ |
@@ -198,13 +197,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x45a300 | 14079 | 1 | 17 |  |
 | 0x461790 | 19423 | 1 | 30 |  |
 
-### battle phase controller + NPC AI + particle fx + damage UI (18)
+### battle phase controller + NPC AI + particle fx + damage UI (17)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x479e40 | 41 | 2 | 0 | ✓ |
 | 0x47adb0 | 79 | 2 | 1 |  |
-| 0x47b7c0 | 163 | 2 | 0 | ✓ |
 | 0x479e10 | 38 | 1 | 0 | ✓ |
 | 0x47a300 | 278 | 1 | 0 | ✓ |
 | 0x47da60 | 329 | 1 | 0 | ✓ |
@@ -243,13 +241,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x482ac0 | 844 | 1 | 3 |  |
 | 0x48cb90 | 1005 | 1 | 0 | ✓ |
 | 0x484ea0 | 1029 | 1 | 1 |  |
-| 0x4834f0 | 1062 | 1 | 3 |  |
+| 0x4834f0 | 1062 | 1 | 2 |  |
 | 0x481310 | 1144 | 1 | 4 |  |
 | 0x4878b0 | 1289 | 1 | 5 |  |
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
 | 0x481ac0 | 1874 | 1 | 7 |  |
 | 0x48ef40 | 4389 | 1 | 7 |  |
-| 0x487dc0 | 5082 | 1 | 11 |  |
+| 0x487dc0 | 5082 | 1 | 10 |  |
 | 0x4895c0 | 8605 | 1 | 13 |  |
 
 ### tile/sprite grid render + spell fx + battle UI + palette (32)
@@ -336,7 +334,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4e61d0 | 817 | 1 | 3 |  |
 | 0x4e6520 | 817 | 1 | 3 |  |
 
-### cutscene dispatcher + sprite copy + tilemap collision + camera (15)
+### cutscene dispatcher + sprite copy + tilemap collision + camera (16)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -347,6 +345,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x55f550 | 199 | 1 | 0 | ✓ |
 | 0x54e4f0 | 207 | 1 | 0 | ✓ |
 | 0x552f60 | 590 | 1 | 4 |  |
+| 0x54ed80 | 592 | 1 | 4 |  |
 | 0x552c70 | 748 | 1 | 4 |  |
 | 0x54bfb0 | 801 | 1 | 3 |  |
 | 0x55f790 | 1558 | 1 | 0 | ✓ |
@@ -433,7 +432,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x58e330 | 873 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 13 |  |
 | 0x58e780 | 1823 | 1 | 6 |  |
-| 0x58f360 | 3030 | 1 | 38 |  |
+| 0x58f360 | 3030 | 1 | 37 |  |
 | 0x58d460 | 3341 | 1 | 3 |  |
 
 ### inventory/menu + audio cue mgr + render dispatch + scene load (6)

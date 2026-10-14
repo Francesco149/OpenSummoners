@@ -122,6 +122,12 @@ int  rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, siz
 int  rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn);
 void rh_clock_save(uint32_t s[3]);
 int  rh_in_shadow(void);                   /* inside an rh_shadow_ex call (nested hooks pass through) */
+/* the PORT phase of a shadow must not repeat an external effect retail already performed (free a
+ * DirectDraw surface, release a DirectSound buffer, DeleteObject, re-poll DirectInput): the guarded
+ * engine-call stubs ask rh_shadow_port_phase(), skip the call and rh_shadow_abort() — the shadow then
+ * keeps retail's result and reports the call as skipped (not compared) */
+int  rh_shadow_port_phase(void);
+void rh_shadow_abort(const char *what);
 void *rh_media_save(void);                 /* the fake DirectSound pool (rh_media.c) */
 void rh_media_restore(const void *m);
 long rh_media_diff(const void *m);

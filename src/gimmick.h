@@ -23,6 +23,20 @@
  *   FUN_0040ac10  actor_shot          FUN_0054ecf0  warp_request
  *   FUN_0054efd0  party_gather
  * (+ actor_switch_off: the switch-off 0x59b170 and the actor update inline.)
+ *
+ * The TOUCH pass 0x59bdd0 runs when the player presses up / talk (key 37; key 38 =
+ * `pressed`): not with a hostile character within 20000 x 16000, not mid-action, not
+ * faster than 24000, only on the ground (and not on a kind-2 platform with +0x2f8).  Two
+ * probe rects ahead of the body (4000 wide 800 ahead, 3200 wide from 800 inside, from
+ * 1600 above the top to the feet): the nearest entity of the +0x2790 list whose box
+ * meets its rect (+0x1e4: 1 the inner, 2 the outer) runs its script (mode 2) — 0 tries
+ * the next nearest, anything else (24 = a room change) flushes the input and returns.
+ * With none, the first actor touched whose 0x59c240 acts: 70216 (on, off again
+ * unless +0x28c is 1..2), 70217 (locked: 0x54ed80 uses a key), 70220 / 70353.. (on).
+ *
+ *   FUN_0059bdd0  touch_pass          FUN_0059c240  touch_actor
+ *   FUN_00411560  room_input_flush    FUN_004812c0  body_probe_rect
+ *   FUN_0047b7c0  entity_near
  */
 #ifndef OSS_GIMMICK_H
 #define OSS_GIMMICK_H
@@ -64,5 +78,16 @@ int actor_shot(wl_actor *a, wl_body *b, int32_t a3, int32_t power);
 void warp_request(wl_actor *a, int32_t kind);
 /* 0x54efd0: put every other live party member on the ground at body `at`, reset */
 void party_gather(const wl_body *at);
+
+/* 0x59bdd0 (thiscall room loop): the player's touch; a script's result (6 wins) or 0 */
+int touch_pass(wl_roomloop *rl, wl_char *player, int32_t pressed);
+/* 0x59c240: actor `a` touched; *acted = 1 when it switched (the caller flushes input) */
+int touch_actor(wl_actor *a, int32_t *acted);
+/* 0x411560 (thiscall room): drop the held input of every active party slot (not 100000104) */
+void room_input_flush(wl_room *r);
+/* 0x4812c0: the probe rect `p` {ahead, width, dy, height} in front of body `b` -> out {x,y,w,h} */
+void body_probe_rect(const wl_body *b, const int32_t *p, int32_t *out, int32_t facing);
+/* 0x47b7c0: are the centres of `self` and `o` (part 0) within rx / ry (+dy) of each other? */
+int entity_near(const wl_entity *self, int32_t rx, int32_t ry, const wl_entity *o, int32_t dy);
 
 #endif /* OSS_GIMMICK_H */

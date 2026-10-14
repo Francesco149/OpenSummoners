@@ -18,6 +18,7 @@
 #include "char_state.h"
 #include "engine_calls.h"
 #include "entity_life.h"
+#include "entity_move.h"
 #include "event.h"
 #include "input.h"
 #include "npc_ai.h"
@@ -29,6 +30,7 @@
 
 static int32_t rnd(void) { return (int32_t)rng_rand(); }
 static int32_t mul(int32_t a, int32_t b) { return (int32_t)((uint32_t)a * (uint32_t)b); }
+static int32_t iabs(int32_t v) { return v < 0 ? (int32_t)(0u - (uint32_t)v) : v; }
 static int32_t sfx_volume(void) { return (**g_eng.keycfg)->sfx_volume; }
 static void *sysp(uint32_t off) { void *p; memcpy(&p, (const uint8_t *)g_eng.sys + off, sizeof p); return p; }
 static void put32(uint8_t *p, uint32_t off, int32_t v) { memcpy(p + off, &v, 4); }
@@ -531,11 +533,153 @@ int gimmick_pass(wl_roomloop *rl, wl_char *player)
             g_eng.h5ba650(joy);
             g_eng.h49bf90(joy, mul((**g_eng.keycfg)->joy_f53c, 1000) / 1000);
         }
-        for (uint16_t j = 0; j < rl->nrooms; j++)
-            for (int k = 0; k < 8; k++) {
-                const wl_pslot *s = rl->rooms[j].slot[k];
-                if (s->active == 1 && s->id != 100000104 && s->in != NULL) input_mgr_reset(s->in);
+        for (uint16_t j = 0; j < rl->nrooms; j++) room_input_flush(&rl->rooms[j]);   /* inlined */
+    }
+    return 0;
+}
+
+/* ── the touch pass ────────────────────────────────────────────────────────── */
+
+void room_input_flush(wl_room *r)
+{
+    for (int k = 0; k < 8; k++) {
+        const wl_pslot *s = r->slot[k];
+        if (s->active == 1 && s->id != 100000104 && s->in != NULL) input_mgr_reset(s->in);
+    }
+}
+
+void body_probe_rect(const wl_body *b, const int32_t *p, int32_t *out, int32_t facing)
+{
+    out[0] = facing == 1 ? b->w + b->x + p[0] : b->x - p[1] - p[0];
+    out[1] = b->y + p[2];
+    out[2] = p[1];
+    out[3] = p[3];
+}
+
+int entity_near(const wl_entity *self, int32_t rx, int32_t ry, const wl_entity *o, int32_t dy)
+{
+    const wl_body *b = self->body, *p = o->body;
+    if (iabs(b->w / 2 - p->w / 2 - p->x + b->x) >= rx) return 0;
+    int32_t d = (b->h - b->margin) / 2 - (p->h - p->margin) / 2 - p->y + b->y - p->margin + b->margin + dy;
+    return iabs(d) < ry;
+}
+
+int touch_actor(wl_actor *a, int32_t *acted)
+{
+    int32_t did = 0, ret = 0;
+    switch (a->base.code) {
+    case 70216:
+        if (a->base.f00c == 0) goto on;
+        if (a->base.f00c != 1 || (a->kind > 0 && a->kind <= 2)) break;
+        ret = switch_set(a, 0, 0);
+        did = 1;
+        break;
+    case 70217:   /* locked: a key opens it (0x54ed80 reports, and breaks a worn key) */
+        if (a->base.f00c != 0) {
+            if (a->base.f00c == 1 && a->kind == 1 && g_world->room != NULL && g_eng.h54ed80(a) != 0) {
+                ret = switch_set(a, 0, 0);
+                did = 1;
             }
+            break;
+        }
+        if (g_world->room == NULL || g_eng.h54ed80(a) == 0) break;
+        {
+            /* 0x40afe0(a, 1, 0) inlined: its per-code effect is dead code for 70217 */
+            wl_body *b = a->base.body;
+            int32_t got = 0;
+            if (a->base.f00c == 1) { *acted = 1; return 0; }
+            apply_step(a, b, 1);
+            if (a->base.handle != 0) {
+                int r = run_script(a, 3);
+                if (r == 6) { *acted = 1; return 6; }
+                if (r != 0) got = r;
+            }
+            int r = switch_link(a, 1, 0);
+            *acted = 1;
+            if (r == 0) return got;
+            return r;
+        }
+    case 70220:
+        if (a->base.f00c == 0) goto on;
+        break;
+    case 70353: case 70357: case 70358: case 70363: case 70364: case 70365: case 70366:
+        if (a->base.f00c != 0) break;
+    on:
+        ret = switch_set(a, 1, 0);
+        did = 1;
+        break;
+    default: break;
+    }
+    *acted = did;
+    return ret;
+}
+
+int touch_pass(wl_roomloop *rl, wl_char *pl, int32_t pressed)
+{
+    int32_t best = 0;
+    uint8_t seen[128];
+    if (pl == NULL) return 0;
+    for (uint16_t i = 0; i < 32; i++) {
+        const wl_char *c = g_world->chars[i];
+        if (char_targetable(c, 0, 0) && faction_relation(pl->base.faction, c->base.faction) == 1 &&
+            entity_near(&pl->base, 20000, 16000, &c->base, 0))
+            return 0;
+    }
+    wl_body *b = pl->base.body;
+    memset(seen, 0, sizeof seen);
+    int ground = entity_ground_probe(&pl->base, b, 0);
+    if (pressed == 0 && pl->f15a80 == 0) return 0;
+    if (b->pose != 0 && b->act_len / 100 > 1) return 0;
+    if (iabs(b->vel_x) > 24000) return 0;
+    if (!ground) return 0;
+    const wl_entity *at = pl->base.body->attach;
+    if (at != NULL && at->rider_kind == 2 && ((const wl_actor *)at)->f2f8 != 0) return 0;
+    int32_t p[4] = { 800, 4000, -1600, b->h + 1600 }, ra[4], rb[4];
+    body_probe_rect(b, p, ra, b->facing);       /* the outer rect (+0x1e4 == 2) */
+    p[0] = -800;
+    p[1] = 3200;
+    body_probe_rect(b, p, rb, b->facing);       /* the inner rect (+0x1e4 == 1) */
+    for (;;) {
+        int32_t pick = -1;
+        wl_list *l = g_world->list_2790;
+        for (uint16_t k = 0; k < l->count; k++, l = g_world->list_2790) {
+            if (seen[k] != 0) continue;
+            const wl_entity *e = l->items[k];
+            const int32_t *q;
+            if (e->f1e4 == 1) q = rb;
+            else if (e->f1e4 == 2) q = ra;
+            else continue;
+            if (part_left(e, 0) > q[2] + q[0]) continue;
+            if (part_right(e, 0) <= q[0]) continue;
+            if (char_part_top((const wl_char *)e, 0) > q[3] + q[1]) continue;
+            if (part_bottom(e, 0) <= q[1]) continue;
+            int32_t d = iabs(part_center_y(e, 0) - rb[3] / 2 - rb[1]);
+            d += iabs(part_center_x(e, 0) - rb[2] / 2 - rb[0]);
+            if (best > d || pick == -1) {
+                best = d;
+                pick = k;
+            }
+        }
+        if (pick < 0) break;
+        seen[pick] = 1;
+        int r = event_run(g_world->event, rl, g_world->room, (wl_actor *)l->items[pick], 0, 0, 2);
+        if (r == 0) continue;
+        if (r == 6) return 6;
+        g_eng.h40fe00(g_eng.sys);
+        for (uint16_t j = 0; j < rl->nrooms; j++) room_input_flush(&rl->rooms[j]);
+        return r;
+    }
+    for (uint16_t i = 0; i < 0x80; i++) {
+        wl_actor *a = (wl_actor *)g_world->actors[i];
+        if (a->base.alive == 0) continue;
+        if (!entity_rect_hit(&a->base, a->base.f1e4 == 2 ? ra : rb, 0)) continue;
+        int32_t acted;
+        int r = touch_actor(a, &acted);
+        if (acted != 0) {
+            g_eng.h40fe00(g_eng.sys);
+            for (uint16_t j = 0; j < rl->nrooms; j++) room_input_flush(&rl->rooms[j]);
+        }
+        if (r != 0) return r == 6 ? 6 : r;
     }
     return 0;
 }

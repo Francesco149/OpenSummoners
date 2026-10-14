@@ -18,6 +18,7 @@
 #include "char_state.h"
 #include "engine_calls.h"
 #include "entity_move.h"
+#include "gimmick.h"
 #include "npc_ai.h"
 #include "rng.h"
 
@@ -522,7 +523,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
     {
         wl_char *ls = self->leash;
         if (ls != NULL && self->fall_warp != 0 && ls->base.alive != 0 && char_targetable(ls, 0, 1) != 0) {
-            if (g_eng.h47b7c0(self, 48000, 24000, IP(ls), 0) != 0) {
+            if (entity_near(&self->base, 48000, 24000, &ls->base, 0) != 0) {
                 self->leash_lost = 0;
             } else if (++self->leash_lost > 20) {
                 cmd_set_skill_kind(&self->cmd, (int16_t)self->fall_warp, 800, 0, 0);

@@ -62,7 +62,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PINIT, H_ESETUP, H_RIDE, H_RIDE_PART, H_POLAR_DIV, H_POLAR_MILLI, H_FADE_A, H_FADE_B, H_TRACK_ON, H_SND_ALLOC, H_JITTER,
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
-       H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_N };
+       H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -561,7 +561,7 @@ static int full_shadow(hook_t *h, const char *name, void (*r)(void *), void (*p)
 {
     char why[512];
     int d = rh_shadow_ex(name, r, p, ctx, why, sizeof why);
-    if (d < 0) { h->skipped++; return 0; }
+    if (d < 0) { h->skipped++; return -1; }   /* not compared: the caller must not compare returns */
     h->compared++;
     if (d) diverged(h, "f%u %s %s", g_frame, what, why);
     return d;
@@ -1908,24 +1908,57 @@ static int sw_hook(int link, wl_actor *a, int32_t v, int32_t q)
 static int __attribute__((thiscall)) w_swset(wl_actor *a, int32_t v, int32_t q) { return sw_hook(0, a, v, q); }
 static int __attribute__((thiscall)) w_swlink(wl_actor *a, int32_t v, int32_t q) { return sw_hook(1, a, v, q); }
 
-/* the event runner and the unload release retail's DirectDraw / DirectSound / GDI objects:
- * running both sides would free them twice — REPLACE only (verified by the corpus hash) */
+/* the event runner and the unload release retail's DirectDraw / DirectSound / GDI objects: a
+ * shadow whose port phase reaches one of those releases is aborted (guarded engine calls below)
+ * and not compared — the room-change calls are proven by REPLACE (the corpus hash) */
 typedef int (__attribute__((thiscall)) *evrun_t)(wl_event *, void *, wl_room *, wl_actor *, int32_t, int32_t, int32_t);
+typedef struct { wl_event *ev; void *f00; wl_room *room; wl_actor *a; int32_t a5, f10, mode; int rr, rp; } evrun_ctx;
+static void evrun_retail(void *c) { evrun_ctx *x = c; x->rr = ((evrun_t)(uintptr_t)H[H_EVRUN].va)(x->ev, x->f00, x->room, x->a, x->a5, x->f10, x->mode); }
+static void evrun_port(void *c) { evrun_ctx *x = c; port_world(); x->rp = event_run(x->ev, x->f00, x->room, x->a, x->a5, x->f10, x->mode); }
 static int __attribute__((thiscall)) w_evrun(wl_event *ev, void *f00, wl_room *room, wl_actor *a, int32_t a5, int32_t f10, int32_t mode)
 {
     hook_t *h = &H[H_EVRUN];
-    h->calls++;
-    if (h->mode == 2) { port_world(); return event_run(ev, f00, room, a, a5, f10, mode); }
-    return ((evrun_t)(uintptr_t)h->va)(ev, f00, room, a, a5, f10, mode);
+    evrun_ctx x = { ev, f00, room, a, a5, f10, mode, 0, 0 };
+    if (h->mode == 2) { h->calls++; evrun_port(&x); return x.rp; }
+    if (!sample(h)) { evrun_retail(&x); return x.rr; }
+    char what[96]; snprintf(what, sizeof what, "actor %p code %d mode %d", (void *)a, a ? a->base.code : 0, mode);
+    if (!full_shadow(h, "event_run", evrun_retail, evrun_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
 }
 typedef void (__attribute__((thiscall)) *unload_t)(void *, uint32_t);
+typedef struct { void *sys; uint32_t group; } unload_ctx;
+static void unload_retail(void *c) { unload_ctx *x = c; ((unload_t)(uintptr_t)H[H_UNLOAD].va)(x->sys, x->group); }
+static void unload_port(void *c) { unload_ctx *x = c; sys_unload(x->sys, (uint16_t)x->group); }
 static void __attribute__((thiscall)) w_unload(void *sys, uint32_t group)
 {
     hook_t *h = &H[H_UNLOAD];
-    h->calls++;
-    if (h->mode == 2) { sys_unload(sys, (uint16_t)group); return; }
-    ((unload_t)(uintptr_t)h->va)(sys, group);
+    unload_ctx x = { sys, group };
+    if (h->mode == 2) { h->calls++; unload_port(&x); return; }
+    if (!sample(h)) { unload_retail(&x); return; }
+    full_shadow(h, "sys_unload", unload_retail, unload_port, &x, "unload");
 }
+
+/* engine calls with an external effect: in a shadow's port phase they abort the comparison */
+#define GUARD(what) if (rh_shadow_port_phase()) { rh_shadow_abort(what); return 0; }
+static int __attribute__((thiscall)) gd_5b9390(void *f) { GUARD("the surface free 0x5b9390") return ((eng_tc0)(uintptr_t)0x5b9390u)(f); }
+static int __attribute__((thiscall)) gd_5bb3a0(void *b) { GUARD("the buffer release 0x5bb3a0") return ((eng_tc0)(uintptr_t)0x5bb3a0u)(b); }
+static int (__stdcall *r_DeleteObject)(void *);
+static int __stdcall gd_delobj(void *o) { GUARD("DeleteObject") return r_DeleteObject(o); }
+static int __attribute__((thiscall)) gd_40fe00(void *s) { GUARD("the input re-poll 0x40fe00") return ((eng_tc0)(uintptr_t)0x40fe00u)(s); }
+static int __attribute__((thiscall)) gd_5ba4c0(void *d) { GUARD("DirectInput 0x5ba4c0") return ((eng_tc0)(uintptr_t)0x5ba4c0u)(d); }
+static int __attribute__((thiscall)) gd_5ba2d0(void *d) { GUARD("DirectInput 0x5ba2d0") return ((eng_tc0)(uintptr_t)0x5ba2d0u)(d); }
+static int __attribute__((thiscall)) gd_5ba650(void *d) { GUARD("DirectInput 0x5ba650") return ((eng_tc0)(uintptr_t)0x5ba650u)(d); }
+static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the joystick read 0x49bf90") return ((eng_tc1)(uintptr_t)0x49bf90u)(d, v); }
+/* the script engine: the room-start (mode 0) and touch (mode 2) scripts drive DirectShow /
+ * DirectDraw (BGM, room changes) — running them a second time perturbs the run; the switch /
+ * hit scripts (3 / 4) are state-only in the corpus (shadowed both sides, corpus hash unchanged) */
+static int __attribute__((thiscall)) gd_40c380(wl_event *ev)
+{
+    if (ev->mode != 3 && ev->mode != 4) { GUARD("the script engine 0x40c380 (mode != 3/4)") }
+    return ((eng_tc0)(uintptr_t)0x40c380u)(ev);
+}
+#undef GUARD
 
 typedef void (__attribute__((thiscall)) *unlall_t)(wl_actor *);
 static void unlall_retail(void *c) { ((unlall_t)(uintptr_t)H[H_UNLIST_ALL].va)(c); }
@@ -2072,6 +2105,73 @@ static void __stdcall w_gather(const wl_body *b)
     full_shadow(h, "party_gather", gather_retail, gather_port, (void *)b, "gather");
 }
 
+/* ---- the touch pass (src/gimmick.c) ---- */
+typedef int (__attribute__((thiscall)) *tpass_t)(wl_roomloop *, wl_char *, int32_t);
+typedef struct { wl_roomloop *rl; wl_char *pl; int32_t pressed; int rr, rp; } tpass_ctx;
+static void tpass_retail(void *c) { tpass_ctx *x = c; x->rr = ((tpass_t)(uintptr_t)H[H_TPASS].va)(x->rl, x->pl, x->pressed); }
+static void tpass_port(void *c) { tpass_ctx *x = c; port_world(); x->rp = touch_pass(x->rl, x->pl, x->pressed); }
+static int __attribute__((thiscall)) w_tpass(wl_roomloop *rl, wl_char *pl, int32_t pressed)
+{
+    hook_t *h = &H[H_TPASS];
+    tpass_ctx x = { rl, pl, pressed, 0, 0 };
+    if (h->mode == 2) { h->calls++; tpass_port(&x); return x.rp; }
+    if (!sample(h)) { tpass_retail(&x); return x.rr; }
+    char what[64]; snprintf(what, sizeof what, "player %p pressed %d", (void *)pl, pressed);
+    if (!full_shadow(h, "touch_pass", tpass_retail, tpass_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+typedef int (__attribute__((thiscall)) *tact_t)(wl_actor *, int32_t *);
+typedef struct { wl_actor *a; int32_t *acted; int32_t fr, fp; int rr, rp; } tact_ctx;
+static void tact_retail(void *c) { tact_ctx *x = c; x->rr = ((tact_t)(uintptr_t)H[H_TACTOR].va)(x->a, x->acted); x->fr = *x->acted; }
+static void tact_port(void *c) { tact_ctx *x = c; port_world(); x->rp = touch_actor(x->a, x->acted); x->fp = *x->acted; }
+static int __attribute__((thiscall)) w_tact(wl_actor *a, int32_t *acted)
+{
+    hook_t *h = &H[H_TACTOR];
+    tact_ctx x = { a, acted, 0, 0, 0, 0 };
+    if (h->mode == 2) { h->calls++; tact_port(&x); return x.rp; }
+    if (!sample(h)) { tact_retail(&x); return x.rr; }
+    char what[64];
+    if (!full_shadow(h, "touch_actor", tact_retail, tact_port, &x, WHAT(&a->base)) && (x.rr != x.rp || x.fr != x.fp))
+        diverged(h, "f%u %s ret %d/%d acted %d/%d", g_frame, what, x.rr, x.rp, x.fr, x.fp);
+    return x.rr;
+}
+typedef void (__attribute__((thiscall)) *rflush_t)(wl_room *);
+static void rflush_retail(void *c) { ((rflush_t)(uintptr_t)H[H_RFLUSH].va)(c); }
+static void rflush_port(void *c) { port_world(); room_input_flush(c); }
+static void __attribute__((thiscall)) w_rflush(wl_room *r)
+{
+    hook_t *h = &H[H_RFLUSH];
+    if (h->mode == 2) { h->calls++; rflush_port(r); return; }
+    if (!sample(h)) { rflush_retail(r); return; }
+    full_shadow(h, "room_input_flush", rflush_retail, rflush_port, r, "room");
+}
+/* pure: compare the 4 output words */
+typedef void (__stdcall *prect_t)(const wl_body *, const int32_t *, int32_t *, int32_t);
+static void __stdcall w_prect(const wl_body *b, const int32_t *p, int32_t *out, int32_t facing)
+{
+    hook_t *h = &H[H_PROBE_RECT];
+    if (h->mode == 2) { h->calls++; body_probe_rect(b, p, out, facing); return; }
+    ((prect_t)(uintptr_t)h->va)(b, p, out, facing);
+    if (!sample(h)) return;
+    int32_t o[4];
+    body_probe_rect(b, p, o, facing);
+    h->compared++;
+    if (memcmp(o, out, sizeof o)) diverged(h, "f%u body %p: retail %d,%d port %d,%d", g_frame, (void *)b, out[0], out[1], o[0], o[1]);
+}
+typedef int (__attribute__((thiscall)) *near_t)(const wl_entity *, int32_t, int32_t, const wl_entity *, int32_t);
+static int __attribute__((thiscall)) w_near(const wl_entity *e, int32_t rx, int32_t ry, const wl_entity *o, int32_t dy)
+{
+    hook_t *h = &H[H_NEAR];
+    if (h->mode == 2) { h->calls++; return entity_near(e, rx, ry, o, dy); }
+    int r = ((near_t)(uintptr_t)h->va)(e, rx, ry, o, dy);
+    if (!sample(h)) return r;
+    int p = entity_near(e, rx, ry, o, dy);
+    h->compared++;
+    if (p != r) diverged(h, "f%u %p vs %p (%d x %d): retail %d port %d", g_frame, (void *)e, (void *)o, rx, ry, r, p);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2187,6 +2287,11 @@ static hook_t H[H_N] = {
     [H_SHOT]       = { "actor_shot",     0x40ac10u, (void *)w_shot,   0, 1, 0, 0, 0, 0, "" },
     [H_WARP]       = { "warp_request",   0x54ecf0u, (void *)w_warp,   0, 1, 0, 0, 0, 0, "" },
     [H_GATHER]     = { "party_gather",   0x54efd0u, (void *)w_gather, 0, 1, 0, 0, 0, 0, "" },
+    [H_TPASS]      = { "touch_pass",     0x59bdd0u, (void *)w_tpass,  0, 1, 0, 0, 0, 0, "" },
+    [H_TACTOR]     = { "touch_actor",    0x59c240u, (void *)w_tact,   0, 1, 0, 0, 0, 0, "" },
+    [H_RFLUSH]     = { "room_input_flush", 0x411560u, (void *)w_rflush, 0, 1, 0, 0, 0, 0, "" },
+    [H_PROBE_RECT] = { "probe_rect",     0x4812c0u, (void *)w_prect,  0, 1, 0, 0, 0, 0, "" },
+    [H_NEAR]       = { "entity_near",    0x47b7c0u, (void *)w_near,   0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2212,9 +2317,10 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.dsb_create_5bb250   = (void *)(uintptr_t)0x5bb250u;
     *(void **)&g_eng.dsb_dup_5bb2f0      = (void *)(uintptr_t)0x5bb2f0u;
     *(void **)&g_eng.log_fail_406440     = (void *)(uintptr_t)0x406440u;
-    *(void **)&g_eng.dsb_release_5bb3a0  = (void *)(uintptr_t)0x5bb3a0u;
+    *(void **)&g_eng.dsb_release_5bb3a0  = (void *)gd_5bb3a0;
     *(void **)&g_eng.dbg_out             = iat_lookup("OutputDebugStringA");
-    *(void **)&g_eng.gdi_delete          = iat_lookup("DeleteObject");
+    *(void **)&r_DeleteObject            = iat_lookup("DeleteObject");
+    *(void **)&g_eng.gdi_delete          = (void *)gd_delobj;
     g_eng.data = rh_data_identity;
     *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
@@ -2231,14 +2337,21 @@ static void bind_engine_calls(void)
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
-    B(5ba4c0); B(5ba2d0); B(5ba650); B(49bf90); B(40c380); B(40ac90); B(55cfc0);
+    B(40ac90); B(55cfc0); B(54ed80);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
-    B(5b9390);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
     B(481ac0); B(482e10); B(4834f0); B(484ea0); B(4854e0); B(485990); B(47d790); B(481310); B(482880);
-    B(47b7c0); B(47e010); B(47eae0); B(483fb0); B(483de0); B(485350); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0); B(441f50); B(407f30);
+    B(47e010); B(47eae0); B(483fb0); B(483de0); B(485350); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0); B(441f50); B(407f30);
 #undef B
+    /* the external-effect calls go through the shadow guards */
+    *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;
+    *(void **)&g_eng.h40c380 = (void *)gd_40c380;
+    *(void **)&g_eng.h40fe00 = (void *)gd_40fe00;
+    *(void **)&g_eng.h5ba4c0 = (void *)gd_5ba4c0;
+    *(void **)&g_eng.h5ba2d0 = (void *)gd_5ba2d0;
+    *(void **)&g_eng.h5ba650 = (void *)gd_5ba650;
+    *(void **)&g_eng.h49bf90 = (void *)gd_49bf90;
 }
 
 void rh_hooks_install(void)
@@ -2267,7 +2380,8 @@ void rh_hooks_install(void)
         H[H_SKILL_AVAIL].va = H[H_PARTY_FIND].va = H[H_FLOOR_BELOW].va =
         H[H_GPASS].va = H[H_GSTEP].va = H[H_SWSET].va = H[H_SWLINK].va = H[H_EVRUN].va = H[H_UNLOAD].va = H[H_UNLIST_ALL].va =
         H[H_GLOW].va = H[H_RECT_HIT].va = H[H_CHARS_COUNT].va = H[H_CHAR_IN].va = H[H_RIDING].va = H[H_PART_FIND].va =
-        H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va = 0;
+        H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va =
+        H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -2281,8 +2395,6 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
-        if ((h == &H[H_EVRUN] || h == &H[H_UNLOAD]) && h->mode == 1)
-            rh_fatal("%s: replace only (it releases retail's DirectDraw / DirectSound / GDI objects)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
             rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));

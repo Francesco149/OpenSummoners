@@ -86,6 +86,15 @@ function may write (`input_poll`: every ring record id). `replace:` runs the por
 (hybrid mode). A port function never calls its own retail VA. Add one = a wrapper + a table row,
 then add it to `VERIFY_HOOKS` in rhost.py.
 
+**Shadow guard:** a full-state shadow runs retail, restores the pre-state, then runs the port —
+anything EXTERNAL the call does (outside the arena snapshot) would happen twice. The engine-call slots
+with such effects are bound to guard stubs (`gd_*` in rh_hooks.c: the surface free 0x5b9390, the
+DirectSound buffer release 0x5bb3a0, DeleteObject, the DirectInput calls, the input re-poll 0x40fe00,
+and the script engine 0x40c380 for modes other than 3/4 — room-start / touch scripts drive DirectShow /
+DirectDraw): in the PORT phase they skip the call and `rh_shadow_abort()`; the shadow keeps retail's
+result and counts the call `skipped`. Those calls are proven by `replace:` + `corpus --check`. Check
+that a set of shadows does not perturb the run with `corpus --check --hook shadow:…`.
+
 **Hybrid proof (2026-10-14):** with `rand` + `input_poll` either SHADOWED or REPLACED, all 6 scenarios
 (EN-old + EN-SE) end byte-identical (semantic) to pure retail (`corpus --check --hook …` PASS); verify:
 rand 69,420 calls / 0 diverge, input_poll 42,125 / 0. This needs retail's uninitialized stack reads

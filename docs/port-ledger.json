@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 149,
-  "unported": 1425,
+  "ported": 154,
+  "unported": 1420,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 399,
-  "pct_touched": 25.2,
+  "touched": 404,
+  "pct_touched": 25.5,
   "pct_tested": 15.8,
-  "engine_proper_touched": 386,
+  "engine_proper_touched": 391,
   "bytes_total": 1776526,
-  "bytes_touched": 426423,
-  "pct_bytes_touched": 24.0
+  "bytes_touched": 428840,
+  "pct_bytes_touched": 24.1
  },
  "orphan_refs": [],
  "functions": [
@@ -1180,8 +1180,10 @@
    "name": "sub_411560",
    "size": 117,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x4115e0",
@@ -5177,8 +5179,10 @@
    "name": "sub_47B7C0",
    "size": 163,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x47b870",
@@ -5378,8 +5382,10 @@
    "name": "sub_4812C0",
    "size": 79,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x481310",
@@ -10726,16 +10732,20 @@
    "name": "sub_59BDD0",
    "size": 1129,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x59c240",
    "name": "sub_59C240",
    "size": 929,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x59c750",

@@ -99,6 +99,8 @@ typedef struct engine_calls {
     /* the gimmick pass's callees: the event-script engine 0x40c380, the shot emitter 0x40ac90,
      * the shot spawner 0x55cfc0 */
     eng_tc0 h40c380; eng_tc6 h40ac90; eng_tc19 h55cfc0;
+    /* the touch pass's: the input re-poll 0x40fe00 (`this` = sys), the key use 0x54ed80 */
+    eng_tc0 h40fe00; eng_tc0 h54ed80;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
@@ -130,7 +132,7 @@ typedef struct engine_calls {
     eng_tc2 h47de50; eng_tc2 h47f670; eng_tc2 h47f9d0; eng_tc2 h481ac0; eng_tc2 h482e10; eng_tc2 h4834f0;
     eng_tc2 h484ea0; eng_tc2 h4854e0; eng_tc2 h485990; eng_tc2 h441f50;
     eng_tc3 h47d790; eng_tc3 h481310; eng_tc3 h482880; eng_tc3 h407f30;
-    eng_tc4 h47b7c0; eng_tc4 h47e010; eng_tc4 h47eae0; eng_tc4 h483fb0;
+    eng_tc4 h47e010; eng_tc4 h47eae0; eng_tc4 h483fb0;
     eng_tc5 h483de0; eng_tc5 h485350;
     eng_tc6 h483b50;
     eng_tc7 h482380; eng_tc7 h484530;

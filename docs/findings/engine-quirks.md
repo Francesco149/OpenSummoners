@@ -4205,6 +4205,19 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   `0x59bdd0` → `0x59c240` → `0x40b8f0` (3 of its 8 calls); the gimmick pass's scripts (5 hit-tail, 7 via `0x40afe0`)
   all return 0. A step result other than 0/1/2/6 makes `0x59afd0` re-poll DirectInput and flush the input manager of
   every active party slot (except id 100000104), then continue.
+- **Touch pass `0x59bdd0`** (the room loop calls it when ring id 37 or 38 is pressed; 38 = `pressed`, else char
+  `+0x15a80` must be set): refused with a hostile (`0x4416c0` == 1) targetable character within 20000 x 16000 of the
+  player (`0x47b7c0`, body centres; the y centre is the box below the margin), mid-action (pose != 0 and u16 `+0x56` / 100
+  > 1), faster than 24000, airborne, or standing on a kind-2 (`+0x1b8`) platform with `+0x2f8`. Two probe rects
+  (`0x4812c0`, by facing): OUTER 4000 wide starting 800 ahead of the box, INNER 3200 wide starting 800 inside its
+  front edge, both from 1600 above the body's top, `h + 1600` tall. Entities of the +0x2790 list are matched by
+  `+0x1e4` (1 inner, 2 outer); the NEAREST to the inner rect's centre (|dx| + |dy| of part centres) runs its script
+  with mode 2 and `f00` = the room-loop object (not world+0x1044); result 0 → the next nearest (a 128-byte seen
+  mask); 6 → returned; anything else (24 = a room change) → input re-poll `0x40fe00` + every room's flush `0x411560`,
+  returned. With no candidate the first actor whose box meets its rect and whose `0x59c240` acts: 70216 on, off
+  again unless `+0x28c` is 1..2; 70217 locked (`0x54ed80` uses a key item: "You used %s." / breaks a worn one, else
+  "You have no key…" + sound): opens with `0x40afe0(…,1,0)` inlined; 70220 / 70353 / 70357 / 70358 / 70363..70366 on.
+  The room loop returns a touch result only when it is 1 / 2 / 6 — a 24 is dropped there (the unload already ran).
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

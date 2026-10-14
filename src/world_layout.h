@@ -445,7 +445,8 @@ typedef struct wl_actor {
     uint8_t    _p2d8[0x2e0 - 0x2d8];
     const int32_t *f2e0;       /* +0x2e0  [1] = the shot power (70220: 93 / 94)          */
     int32_t    f2e4;           /* +0x2e4  70251..: 1 => particle 100135 (else 100134)     */
-    uint8_t    _p2e8[0x2fc - 0x2e8];
+    uint8_t    _p2e8[0x2f8 - 0x2e8];
+    int32_t    f2f8;           /* +0x2f8  != 0 (on a kind-2 platform) => no touch (0x59bdd0) */
 } wl_actor;
 
 #include "input.h"
@@ -940,6 +941,7 @@ _Static_assert(offsetof(wl_actor, hold)      == 0x2a0, "actor +0x2a0");
 _Static_assert(offsetof(wl_actor, f2d0)      == 0x2d0, "actor +0x2d0");
 _Static_assert(offsetof(wl_actor, f2e0)      == 0x2e0, "actor +0x2e0");
 _Static_assert(offsetof(wl_actor, f2e4)      == 0x2e4, "actor +0x2e4");
+_Static_assert(offsetof(wl_actor, f2f8)      == 0x2f8, "actor +0x2f8");
 _Static_assert(offsetof(wl_vpool, group)     == 0x14,  "pool group");
 _Static_assert(offsetof(wl_world, event)     == 0x1054, "world +0x1054");
 _Static_assert(offsetof(wl_world, f2768)     == 0x2768, "world +0x2768");

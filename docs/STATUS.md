@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-█████░░░░░░░░░░░░░░░  25.2% touched   (15.8% host-tested, 24.0% of code bytes)
+█████░░░░░░░░░░░░░░░  25.5% touched   (15.8% host-tested, 24.1% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   149 | reimplemented in src/, no host test for that module  |
-| **touched** | **399** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1425 | exists in engine, never referenced from src/         |
+| ported      |   154 | reimplemented in src/, no host test for that module  |
+| **touched** | **404** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1420 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (24.0% of engine-proper bytes) is the truer progress
+Code-byte coverage (24.1% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -68,8 +68,15 @@ understates how much actual instruction volume is ported.
   | grid refresh (growing pillars + cached-frame flush) | `0x54c640` / `0x54c9d0` | 16 | 0 |
   | particle INIT (per-code setup, 96 codes) + entity setup / tracks / tints / ride / x87 polar | `0x557550` `0x426620` `0x426d70` `0x448c80` `0x476710` `0x55cd50` `0x476c70` `0x460e40` `0x55cdb0` … | 8.6k (1.1k compared, 7 codes) / 9.5k / 9k / 22k / 465 / – / – / 36 / – | 0 |
   | skill availability, party lookup, floor-below scan | `0x402a60` `0x5b5990` `0x4060d0` | 157k / 8.8k / 13 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (96 hooks) (the whole character tick, driver → tile
-  movers, runs as port code), every corpus scenario ends byte-identical.
+  | GIMMICK pass (plates / levers / followers / timed plates, hits) + switching + links | `0x59afd0` / `0x59b170` / `0x40afe0` / `0x40be30` | 7.7k (240) / 227k (1,710 full-state, 16 switching) / 9 / 7 | 0 |
+  | rect queries, riders, glow, serial, shot, warp, party gather, unlist | `0x4804b0` `0x556610` `0x5567a0` `0x5568e0` `0x556de0` `0x408100` `0x40be00` `0x40ac10` `0x54ecf0` `0x54efd0` `0x40c300` | 175 / – (unreached) | 0 |
+  | event runner + resource unload | `0x40b8f0` / `0x43e3a0` | 38 (18 room-start / touch scripts skipped) / 33 (1 compared) | 0 |
+  | TOUCH pass (doors / talk: probe rects, nearest script, door actors) + room input flush, probe rect, range check | `0x59bdd0` / `0x59c240` / `0x411560` / `0x4812c0` / `0x47b7c0` | 40 (32 compared, 8 skipped: the door / script calls) / 8 / 138 / 22 / – | 0 |
+  Hybrid gate: with all of the above REPLACING retail (118 hooks) (the whole character tick, driver → tile
+  movers, + the gimmick and touch passes, runs as port code), every corpus scenario ends byte-identical.
+  Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
+  buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
+  calls are proven by REPLACE. `corpus --check` with the shadows on stays PASS (no perturbation).
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
   `src/engine_calls.h` (slots → retail VAs for unported callees, PORT-DEBT(engine-call-slots)),
   `rh_shadow_ex` (full-state shadow; port code may call retail), `rng_bind`, heap zero-on-alloc
@@ -81,10 +88,10 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  00. the room loop's GIMMICK pass (verifiable: 10 door / exit uses in rh-my-play): `0x59afd0` → `0x59b170`
-     (2.6 KB per-code: doors, switches, levers) + `0x40afe0` / `0x40be30` / `0x40b8f0` / `0x4804b0` / `0x556eb0`,
-     the touch pass `0x59bdd0` → `0x59c240`, events `0x59a1f0`; the event-script engine `0x40c380` (5 KB)
-     stays a slot.
+  00. the event ZONES `0x59a1f0` (+ `0x59a7c0` / `0x59a880`; the room loop's trigger areas → scene start
+     `0x59cfc0`). The gimmick + touch passes are DONE (`src/gimmick.c`, quirk #137); slots left there: the
+     script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input re-poll `0x40fe00`, the shot emitters
+     `0x40ac90` / `0x55cfc0`.
   0. the Arche handlers `0x457ff0` (4.6 KB),
      `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).

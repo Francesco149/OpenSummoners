@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **399** (25.2% of engine-proper) — tested 250, ported 149
-- code bytes touched: **24.0%** (426,423 / 1,776,526 B of engine-proper)
-- unported: **1425**
+- touched: **404** (25.5% of engine-proper) — tested 250, ported 154
+- code bytes touched: **24.1%** (428,840 / 1,776,526 B of engine-proper)
+- unported: **1420**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (149) — reimplemented, no host test yet
+## ported (154) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -300,6 +300,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40c300 | sub_40C300 | 120 | gimmick.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
+| 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
@@ -366,6 +367,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x476c70 | sub_476C70 | 144 | particle_init.h |
 | 0x476d00 | sub_476D00 | 45 | particle_init.h |
 | 0x47b770 | sub_47B770 | 77 | behave_ops.h |
+| 0x47b7c0 | sub_47B7C0 | 163 | gimmick.h |
 | 0x47b990 | actor_ai_47B990 | 7461 | behave_ops.h, char_behave.c, char_behave.h |
 | 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
 | 0x47d760 | sub_47D760 | 47 | behave_ops.h |
@@ -373,6 +375,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x47e330 | sub_47E330 | 1120 | behave_ops.h |
 | 0x47e790 | sub_47E790 | 37 | npc_ai.h |
 | 0x4804b0 | sub_4804B0 | 207 | gimmick.h |
+| 0x4812c0 | sub_4812C0 | 79 | gimmick.h |
 | 0x484bf0 | sub_484BF0 | 31 | behave_ops.h |
 | 0x484c10 | sub_484C10 | 322 | behave_ops.h |
 | 0x4852c0 | sub_4852C0 | 37 | behave_ops.h |
@@ -419,6 +422,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
 | 0x59afd0 | sub_59AFD0 | 374 | gimmick.c, gimmick.h |
 | 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
+| 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |
+| 0x59c240 | sub_59C240 | 929 | gimmick.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
