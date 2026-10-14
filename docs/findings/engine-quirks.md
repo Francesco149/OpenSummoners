@@ -4003,7 +4003,10 @@ each dword; `0x491770` / `0x418216` then `rep movsd` all 1 KB into a fresh heap 
 whatever an earlier call left on the stack (in a normal run: DirectDraw/GDI/kernel internals ⇒ differs
 run to run; under rhost it is retail's own deterministic data — the external-call system stack,
 `tools/rhost/rh_scrub.c`). The byte is not part of the colour; a port may store 0. Found by the rhost
-det gate + `--watch-write` (2026-10-14).
+det gate + `--watch-write` (2026-10-14). Same class: the actor move-command builder `0x43f880`
+assembles a 32-byte command at `[esp+0x24]` and copies it to `actor+0x14854` (`0x440dd1..0x440de4`),
+but its last field `[esp+0x40]` is only ever written as a WORD (9 sites) — the high half is stack
+garbage; and a third palette copy (heap `+…835c` per room) not yet located.
 
 ### #124 — map data lives in the EXE's own `.rsrc`: `FindResourceA(module-or-NULL, id, "DATA")`
 The map loader (`0x587970` → `0x5b62a0`) reads map `id` (`*(a5+0xc)`, "NO:%d") with

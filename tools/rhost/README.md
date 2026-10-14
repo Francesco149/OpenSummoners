@@ -78,6 +78,17 @@ function may write (`input_poll`: every ring record id). `replace:` runs the por
 (hybrid mode). A port function never calls its own retail VA. Add one = a wrapper + a table row,
 then add it to `VERIFY_HOOKS` in rhost.py.
 
+**Hybrid proof (2026-10-14):** `corpus --check --hook replace:rand,replace:input_poll` → all 5
+scenarios end byte-identical (semantic) to pure retail. Shadow runs compare per call (0 divergences)
+but their END state may drift from pure retail: the wrapper + port code run on the retail stack and
+retail has uninitialized stack reads (quirk #123 class) that copy such garbage into the heap.
+Known sites are neutralized (`uninit-fix`, rhost.c: palette byte 3 at 0x586f79 + 0x4181df, move
+command pad at 0x440dd1; `--no-uninit-fix` = raw retail); a third palette copy remains (heap
+0x20bc835c… in rh-intro-errands under shadow). Next step: a transparent shadow hook (return-address
+hijack: retail runs at its exact stack position, the port runs on the system stack afterwards).
+Census recipe: `run X --dump-at end` pure vs hooked → `rhs.py A B` → `--watch-write VA@0` on a
+differing address (logs every value change + writer EIP) → read the writer in all_ida.asm.
+
 ## Editions (`--edition`, or `{"meta":{"edition":…}}` in the trace)
 
 `enold` (EN Steam 2012, the port's target) and `ense-en` (EN Steam SE build 24635888,

@@ -35,6 +35,18 @@ static void diverged(hook_t *h, const char *fmt, ...)
 }
 static int sample(hook_t *h) { h->calls++; return h->every <= 1 || h->calls % h->every == 0; }
 
+/* A shadow call runs retail AND the port on the retail stack: the port leaves its own garbage
+ * below ESP, which retail's uninitialized reads (quirk #123) would then see — a pure-retail run
+ * never would. Save the dead stack right after the retail call and put it back after the port
+ * ran, so the stack is exactly what retail left. */
+#define DEAD_BYTES 16384
+static uint8_t g_dead[DEAD_BYTES];
+static void __attribute__((noinline)) dead_save(uint32_t below)
+{ memcpy(g_dead, (void *)(uintptr_t)(below - DEAD_BYTES), DEAD_BYTES); }
+static void __attribute__((noinline)) dead_restore(uint32_t below)
+{ memcpy((void *)(uintptr_t)(below - DEAD_BYTES), g_dead, DEAD_BYTES); }
+#define SP() ({ uint32_t _s; __asm__ volatile("mov %%esp, %0" : "=r"(_s)); _s; })
+
 /* ---- rand (MSVC LCG, FUN_005bf505) vs src/rng.c ---- */
 typedef uint32_t (__cdecl *rand_t)(void);
 static uint32_t __cdecl w_rand(void)
@@ -44,8 +56,10 @@ static uint32_t __cdecl w_rand(void)
     if (h->mode == 2) { h->calls++; rng_srand(s0); uint32_t r = rng_rand(); G32(seed) = rng_peek_state(); return r; }
     uint32_t r = ((rand_t)(uintptr_t)h->va)();
     if (sample(h)) {
-        uint32_t s1 = G32(seed);
+        uint32_t s1 = G32(seed), sp = SP() - 256;
+        dead_save(sp);
         rng_srand(s0); uint32_t p = rng_rand(), ps = rng_peek_state();
+        dead_restore(sp);
         h->compared++;
         if (p != r || ps != s1) diverged(h, "seed %08x: retail %u/%08x port %u/%08x", s0, r, s1, p, ps);
     }
@@ -64,8 +78,11 @@ static int __attribute__((thiscall)) w_poll(void *mgr, uint32_t now, int32_t id)
     int32_t pre[INPUT_RING_LEN], post_r[INPUT_RING_LEN];
     for (int i = 0; i < INPUT_RING_LEN; i++) pre[i] = m->ring[i] ? m->ring[i]->id : 0;
     int r = ((poll_t)(uintptr_t)h->va)(mgr, now, id);
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
     for (int i = 0; i < INPUT_RING_LEN; i++) { post_r[i] = m->ring[i] ? m->ring[i]->id : 0; if (m->ring[i]) m->ring[i]->id = pre[i]; }
     int p = input_poll_consume(m, now, id);
+    dead_restore(sp);
     int bad = -1;
     for (int i = 0; i < INPUT_RING_LEN; i++) {
         int32_t pv = m->ring[i] ? m->ring[i]->id : 0;

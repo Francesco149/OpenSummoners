@@ -387,7 +387,7 @@ static void cov_dump(void)
  * Armed at the flip ending frame FRAME through a VEH (the context of a deliberate
  * breakpoint exception gets Dr0-3/Dr7), so every later write to VA logs the writing
  * instruction (EIP after the write), the new value and the retail return-address chain. */
-static uint32_t g_wva[4], g_wfr[4]; static int g_nw, g_warmed; static long g_whits[4];
+static uint32_t g_wva[4], g_wfr[4], g_wlast[4]; static int g_nw, g_warmed; static long g_whits[4];
 #define WATCH_ARM_CODE 0xE0551001u
 static void stack_chain(char *b, size_t n, uint32_t esp)
 {
@@ -415,7 +415,9 @@ static LONG CALLBACK watch_veh(EXCEPTION_POINTERS *e)
     for (int i = 0; i < g_nw; i++) if (dr6 & (1u << i)) {
         hit = 1;
         if (c->Eip >= 0x5f010000u && c->Eip < 0x5f050000u) continue;   /* the scrubber zeroing it */
-        if (g_whits[i]++ < 400) {
+        uint32_t nv = G32(g_wva[i]);
+        int changed = nv != g_wlast[i]; g_wlast[i] = nv;
+        if (g_whits[i]++ < 40 || (changed && g_whits[i] < 1000000)) {   /* first 40, then every value change */
             char st[128]; stack_chain(st, sizeof st, c->Esp);
             rh_log("watch %08x f%u eip=%08x val=%08x [%s]\n", g_wva[i], g_frame, c->Eip, G32(g_wva[i]), st);
         }
@@ -454,6 +456,67 @@ static void watch_arm_due(void)
     int arm = 0;
     for (int i = 0; i < g_nw; i++) if (!(g_warmed & (1 << i)) && g_wfr[i] == g_frame) { g_warmed |= 1 << i; arm = 1; }
     if (arm) { RaiseException(WATCH_ARM_CODE, 0, 0, NULL); rh_log("watch: armed at frame %u\n", g_frame); }
+}
+
+/* ---- uninitialized-read fixes (quirk #123) ----
+ * Two gamma-palette builders write bytes 0..2 of 256 stack dwords and copy all 1 KB to the heap,
+ * so byte 3 = whatever the stack held. With the system stack that is retail's own (deterministic)
+ * data — but it still differs between a pure-retail run and one where a hook's port code ran on
+ * the retail stack, which made hybrid/shadow end states incomparable. Byte 3 is not colour: zero
+ * it at both sites (identical in every mode). --no-uninit-fix keeps raw retail behaviour. EN-old. */
+typedef void (__attribute__((thiscall)) *palcopy_t)(void *, uint8_t *);
+static void __attribute__((thiscall)) w_pal_copy(void *self, uint8_t *src)
+{
+    for (int i = 0; i < 256; i++) src[4 * i + 3] = 0;
+    ((palcopy_t)(uintptr_t)0x491770u)(self, src);
+}
+static int uninit_fix_install(void)
+{
+    if (strcmp(g_ed->tag, "enold")) return 0;
+    int n = 0;
+    /* site A: 0x586010 → `call 0x491770` at 0x586f79 (src = [esp+0x524] palette) */
+    uint8_t *p = (uint8_t *)0x586f79u;
+    if (p[0] == 0xE8 && (uint32_t)(uintptr_t)p + 5 + *(int32_t *)(p + 1) == 0x491770u) {
+        *(int32_t *)(p + 1) = (int32_t)((uint32_t)(uintptr_t)w_pal_copy - ((uint32_t)(uintptr_t)p + 5)); n++;
+    }
+    /* site B: 0x417c40 inline `lea esi,[esp+0x418]` at 0x4181df, then rep movsd at 0x418216 */
+    static const uint8_t want[7] = { 0x8D, 0xB4, 0x24, 0x18, 0x04, 0x00, 0x00 };
+    uint8_t *q = (uint8_t *)0x4181dfu;
+    if (!memcmp(q, want, 7)) {
+        uint8_t *s0 = make_stub(NULL, NULL, 0) /* reserve the stub page */, *c = g_stub_top;
+        (void)s0;
+        uint8_t *o = c;
+        *o++ = 0x60; *o++ = 0x9C;                                    /* pushad; pushfd */
+        *o++ = 0x8D; *o++ = 0xBC; *o++ = 0x24; *(uint32_t *)o = 36 + 0x418 + 3; o += 4;   /* lea edi,[esp+36+0x418+3] */
+        *o++ = 0xB9; *(uint32_t *)o = 256; o += 4;                   /* mov ecx,256 */
+        uint8_t *loop = o;
+        *o++ = 0xC6; *o++ = 0x07; *o++ = 0x00;                       /* mov byte [edi],0 */
+        *o++ = 0x83; *o++ = 0xC7; *o++ = 0x04;                       /* add edi,4 */
+        *o++ = 0x49;                                                 /* dec ecx */
+        *o++ = 0x75; *o = (uint8_t)(loop - (o + 1)); o++;            /* jnz loop */
+        *o++ = 0x9D; *o++ = 0x61;                                    /* popfd; popad */
+        memcpy(o, want, 7); o += 7;                                  /* lea esi,[esp+0x418] */
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(0x4181e6u - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
+        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (0x4181dfu + 5)); q[5] = 0x90; q[6] = 0x90;
+        n++;
+    }
+    /* site C: actor move-command builder 0x43f880 assembles a 32-byte command at [esp+0x24] and
+     * copies it to actor+0x14854 (rep movsd, 0x440dd1..0x440de4); its last field ([esp+0x40]) is
+     * only ever written as a WORD (9 sites), so the high half [esp+0x42] is stack garbage. Clear it
+     * right before the copy: `lea edi,[esi+0x14854]` → jmp stub { mov word [esp+0x42],0; lea; jmp }. */
+    static const uint8_t wantc[6] = { 0x8D, 0xBE, 0x54, 0x48, 0x01, 0x00 };
+    uint8_t *r = (uint8_t *)0x440dd1u;
+    if (!memcmp(r, wantc, 6)) {
+        uint8_t *c = g_stub_top, *o = c;
+        *o++ = 0x66; *o++ = 0xC7; *o++ = 0x44; *o++ = 0x24; *o++ = 0x42; *o++ = 0x00; *o++ = 0x00;   /* mov word [esp+0x42],0 */
+        memcpy(o, wantc, 6); o += 6;                                                                 /* lea edi,[esi+0x14854] */
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(0x440dd7u - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
+        r[0] = 0xE9; *(int32_t *)(r + 1) = (int32_t)((uint32_t)(uintptr_t)c - (0x440dd1u + 5)); r[5] = 0x90;
+        n++;
+    }
+    return n;
 }
 
 /* ---- engine hooks ---- */
@@ -586,6 +649,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--show")) O.quiet = 0;
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--no-arena")) O.no_arena = 1;
+        else if (!strcmp(a, "--no-uninit-fix")) O.no_uninit_fix = 1;
         else if (!strcmp(a, "--no-overlay")) O.no_overlay = 1;
         else if (!strcmp(a, "--log-files")) O.log_files = 1;
         else if (!strcmp(a, "--log-heap")) O.log_heap = 1;
@@ -731,6 +795,7 @@ int main(int argc, char **argv)
     int ns = redirect_calls(g_ed->srand, my_srand);
     if (!nf || !ne || ns != 1) rh_fatal("engine call sites flip=%d easer=%d srand=%d (want >0/>0/1)", nf, ne, ns);
     rh_log("hooks: flip %d sites, easer %d, srand %d\n", nf, ne, ns);
+    if (!O.no_uninit_fix) rh_log("uninit-fix: %d site(s) patched (quirk #123)\n", uninit_fix_install());
     load_volatile();
     rh_trace_init();
     rh_hooks_install();
