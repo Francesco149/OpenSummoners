@@ -222,6 +222,9 @@ static uint32_t __attribute__((noinline)) call_on_stack(void *fn, void *arg, uin
 /* ---- virtual time ---- */
 static uint32_t g_vclock = 1000000u, g_calls_since_flip, g_creep_total;
 uint32_t rh_vnow(void) { return g_vclock; }
+/* the virtual clock's state (a shadowed port run must not perturb the creep counter) */
+void rh_clock_save(uint32_t s[3]) { s[0] = g_vclock; s[1] = g_calls_since_flip; s[2] = g_creep_total; }
+void rh_clock_restore(const uint32_t s[3]) { g_vclock = s[0]; g_calls_since_flip = s[1]; g_creep_total = s[2]; }
 static DWORD WINAPI my_GetTickCount(void)
 {
     if (++g_calls_since_flip > O.creep_after) { g_vclock++; g_creep_total++; }

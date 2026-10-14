@@ -116,6 +116,12 @@ int  rh_state_dump(const char *path);
 void rh_state_volatile_add(uint32_t va);
 void rh_state_ext_report(void);
 int  rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, size_t whyn);
+/* closure form: retail(ctx), then port(ctx) on the identical pre-state (retail .data + heap arena +
+ * allocator metadata + virtual clock + the dead stack below SP); every state dword compared, retail's
+ * post-state kept. 0 same, 1 differ (`why` = count + the first differing dwords), -1 not compared. */
+int  rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn);
+void rh_clock_save(uint32_t s[3]);
+void rh_clock_restore(const uint32_t s[3]);
 
 /* rh_trace.c — input script / recorder (DIK scancode levels per flip) */
 void rh_trace_init(void);

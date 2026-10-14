@@ -177,3 +177,68 @@ int rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, size
     #undef COPY_OUT
     #undef COPY_IN
 }
+
+/* ---- closure-form shadow (port functions that call retail, write anywhere) ---- */
+#define SHX_DEAD 16384
+static uint8_t g_shx_dead[SHX_DEAD];
+int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn)
+{
+    static uint32_t r[MAXR][2], r2[MAXR][2];
+    int n = state_ranges(r);
+    size_t tot = 0;
+    for (int i = 0; i < n; i++) tot += r[i][1] - r[i][0];
+    if (tot > g_cap) { free(g_pre); free(g_ret); g_cap = tot + (16u << 20); g_pre = malloc(g_cap); g_ret = malloc(g_cap); }
+    #define COPY_OUT(buf) { size_t o = 0; for (int i = 0; i < n; i++) { size_t l = r[i][1] - r[i][0]; memcpy((buf) + o, (void *)(uintptr_t)r[i][0], l); o += l; } }
+    #define COPY_IN(buf)  { size_t o = 0; for (int i = 0; i < n; i++) { size_t l = r[i][1] - r[i][0]; memcpy((void *)(uintptr_t)r[i][0], (buf) + o, l); o += l; } }
+    uint16_t cw; __asm__ volatile("fnstcw %0" : "=m"(cw));
+    uint32_t clk0[3], clk1[3]; rh_clock_save(clk0);
+    void *meta = rh_heap_meta_save();
+    COPY_OUT(g_pre);
+    retail(ctx);
+    int n2 = state_ranges(r2);
+    if (n2 != n || memcmp(r, r2, n * 8)) {
+        snprintf(why, whyn, "%s: arena commit changed during call (ranges %d->%d); not compared", name, n, n2);
+        rh_heap_meta_free(meta);
+        return -1;
+    }
+    uint32_t sp; __asm__ volatile("mov %%esp, %0" : "=r"(sp));
+    sp -= 256;
+    memcpy(g_shx_dead, (void *)(uintptr_t)(sp - SHX_DEAD), SHX_DEAD);   /* what retail left below SP */
+    COPY_OUT(g_ret);
+    void *meta_ret = rh_heap_meta_save();
+    rh_clock_save(clk1);
+    COPY_IN(g_pre);
+    rh_heap_meta_restore(meta);
+    rh_clock_restore(clk0);
+    __asm__ volatile("fldcw %0" : : "m"(cw));
+    port(ctx);
+    memcpy((void *)(uintptr_t)(sp - SHX_DEAD), g_shx_dead, SHX_DEAD);
+    long diff = 0; int k = 0;
+    int w = snprintf(why, whyn, "%s:", name);
+    size_t o = 0;
+    for (int i = 0; i < n; i++) {
+        size_t l = r[i][1] - r[i][0];
+        const uint32_t *a = (const uint32_t *)(g_ret + o), *b = (const uint32_t *)(uintptr_t)r[i][0];
+        if (memcmp(a, b, l))
+            for (size_t q = 0; q < l / 4; q++)
+                if (a[q] != b[q]) {
+                    if (k++ < 6 && w < (int)whyn - 48)
+                        w += snprintf(why + w, whyn - w, " %08x r%08x/p%08x", r[i][0] + (uint32_t)q * 4, a[q], b[q]);
+                    diff++;
+                }
+        o += l;
+    }
+    uint32_t clk2[3]; rh_clock_save(clk2);
+    if (clk2[0] != clk1[0] || clk2[1] != clk1[1]) {
+        if (w < (int)whyn - 48) w += snprintf(why + w, whyn - w, " clock r%u/%u p%u/%u", clk1[0], clk1[1], clk2[0], clk2[1]);
+        diff++;
+    }
+    if (diff) { COPY_IN(g_ret); if (w < (int)whyn - 24) snprintf(why + w, whyn - w, " (%ld differ)", diff); }
+    rh_heap_meta_restore(meta_ret);
+    rh_clock_restore(clk1);
+    __asm__ volatile("fldcw %0" : : "m"(cw));
+    rh_heap_meta_free(meta); rh_heap_meta_free(meta_ret);
+    return diff ? 1 : 0;
+    #undef COPY_OUT
+    #undef COPY_IN
+}
