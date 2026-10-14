@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **243** (15.0% of engine-proper) — tested 238, ported 5
-- code bytes touched: **16.7%** (296,836 / 1,776,526 B of engine-proper)
-- unported: **1581**
+- touched: **250** (15.5% of engine-proper) — tested 245, ported 5
+- code bytes touched: **17.0%** (301,361 / 1,776,526 B of engine-proper)
+- unported: **1574**
 - orphan refs in src/ not in this table: 0
 
-## tested (238) — ported + host unit suite
+## tested (245) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -36,6 +36,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40f5c0 | menu_ctrl_build_40F5C0 | 563 | menu_list.c, menu_list.h |
 | 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+3) |
 | 0x40fd20 | glyph_token_search_40FD20 | 143 | glyph_text.c, glyph_text.h |
+| 0x411530 | sub_411530 | 38 | char_ai.h |
 | 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
 | 0x411f40 | sub_411F40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
 | 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
@@ -70,8 +71,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x44e680 | sub_44E680 | 59 | hud.c, hud.h |
 | 0x46a880 | sub_46A880 | 8890 | input_live.c, input_live.h |
 | 0x4766a0 | hud_door_on_screen_4766A0 | 106 | hud.c, hud.h |
+| 0x478ba0 | char_ai_478BA0 | 3514 | char_ai.c, char_ai.h |
 | 0x479960 | sub_479960 | 165 | character.c, character.h, input.c (+1) |
-| 0x479e70 | sub_479E70 | 275 | character.c, character.h, input.c (+1) |
+| 0x479a10 | sub_479A10 | 644 | input.h |
+| 0x479ca0 | sub_479CA0 | 134 | input.h |
+| 0x479d30 | sub_479D30 | 99 | char_ai.h |
+| 0x479da0 | sub_479DA0 | 62 | char_ai.h |
+| 0x479de0 | sub_479DE0 | 34 | char_ai.h |
+| 0x479e70 | sub_479E70 | 275 | char_ai.h, character.c, character.h (+2) |
 | 0x48c820 | sub_48C820 | 873 | newgame_cursor.h |
 | 0x48cf80 | widget_box_frame_48CF80 | 1095 | main.c, newgame_box.c, newgame_box.h |
 | 0x48d3d0 | sub_48D3D0 | 664 | newgame_box.c |

@@ -861,6 +861,10 @@ struct test_case {
     X(map_grid_emit_obj_clamps_dims)                           \
     X(map_grid_emit_tile_explicit_span)                        \
     X(map_grid_emit_tile_bank_span)                            \
+    X(char_ai_ring_find_window_flag_consume)                   \
+    X(char_ai_ring_double_needs_two_records)                   \
+    X(char_ai_combo_chain)                                     \
+    X(char_ai_cmd_and_slots)                                   \
     X(entity_move_h_blocked_by_solid)                          \
     X(entity_move_h_platform_passes)                           \
     X(entity_move_h_probe_writes_nothing)                      \

@@ -29,6 +29,9 @@
  * retail consumes the higher-indexed one.
  */
 #include "input.h"
+#include "world_layout.h"
+
+#include <string.h>
 
 int input_poll_consume(input_mgr *m, uint32_t now, int32_t button_id)
 {
@@ -140,4 +143,94 @@ void input_mgr_reset(input_mgr *m)
 
     m->field_10c = 0;                                  /* mov [ecx+0x10c],ebx */
     m->field_110 = 0;                                  /* mov [ecx+0x110],ebx */
+}
+
+/* ── ring queries ─────────────────────────────────────────────────────────── */
+
+int input_ring_find(input_mgr *m, uint32_t now, uint32_t lo, uint32_t hi, int32_t flag,
+                    int32_t id, int32_t fwd, int32_t back, int32_t *mask, int32_t consume)
+{
+    int32_t want = id == 5 ? fwd : id == 6 ? back : id;
+    int i;
+    for (i = 0; ; i++) {
+        if (i >= INPUT_RING_LEN) return -1;
+        const input_event *e = m->ring[i];
+        if (e->id == want) {
+            uint32_t age = now - e->ts;
+            if (lo <= age && hi >= age && e->flag == flag && (mask == NULL || mask[i] == 0))
+                break;
+        }
+    }
+    if (mask != NULL) mask[i] = 1;
+    if (consume != 0) m->ring[i]->id = 0;
+    return i;
+}
+
+int input_ring_hit(input_mgr *m, uint32_t now, uint32_t lo, uint32_t hi, int32_t flag,
+                   int32_t id, int32_t consume)
+{
+    int32_t want = (id == 5 || id == 6) ? 0 : id;
+    for (int i = 0; i < INPUT_RING_LEN; i++) {
+        input_event *e = m->ring[i];
+        if (e->id == want) {
+            uint32_t age = now - e->ts;
+            if (lo <= age && hi >= age && e->flag == flag) {
+                if (consume != 0) e->id = 0;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+int input_combo_match(input_mgr *m, const struct wl_combo *c, uint32_t now,
+                      int32_t fwd, int32_t back, int32_t consume, int32_t skip_release)
+{
+    uint32_t lo = c->lo, hi = c->hi, t = now;
+    int chain;
+    switch (c->ts_mode) {
+    case 0: case 2: chain = 0; break;
+    case 1:         chain = 1; break;
+    default:        return 0;
+    }
+    int32_t mask[INPUT_RING_LEN];
+    memset(mask, 0, sizeof mask);
+#define COMBO_ID(x) ((x) == 5 ? fwd : (x) == 6 ? back : (x))
+    if (c->need_release != 0 && skip_release == 0) {
+        int32_t want = COMBO_ID(c->ids[0]);
+        int i;
+        for (i = 0; ; i++) {
+            if (i >= INPUT_RING_LEN) return 0;
+            const input_event *e = m->ring[i];
+            if (e->id == want) {
+                uint32_t age = now - e->ts;
+                if (lo <= age && hi >= age && e->flag == 0) break;
+            }
+        }
+        t = chain ? m->ring[i]->ts - 1 : now;
+    }
+    uint16_t n = c->nids;
+    for (uint16_t k = 0; k < n; k++) {
+        int32_t want = COMBO_ID(c->ids[k]);
+        int i;
+        for (i = 0; ; i++) {
+            if (i >= INPUT_RING_LEN) return 0;
+            const input_event *e = m->ring[i];
+            if (e->id == want) {
+                uint32_t age = t - e->ts;
+                if (lo <= age && hi >= age && e->flag == 1 && mask[i] == 0) break;
+            }
+        }
+        mask[i] = 1;
+        if (chain) t = m->ring[i]->ts - 1;
+        lo = c->lo2; hi = c->hi2;
+    }
+    if (consume != 0)
+        for (uint16_t k = 0; k < c->nids; k++) {
+            int32_t want = COMBO_ID(c->ids[k]);
+            for (int i = 0; i < INPUT_RING_LEN; i++)
+                if (m->ring[i]->id == want) m->ring[i]->id = 0;
+        }
+#undef COMBO_ID
+    return 1;
 }

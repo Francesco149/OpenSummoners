@@ -215,4 +215,29 @@ int input_dash_double_tap(const input_mgr *m, uint32_t now,
 int input_ring_find_recent(const input_mgr *m, uint32_t now,
                            int32_t dir_id, uint32_t lo, uint32_t hi);
 
+/* ── The ring QUERIES (faithful; rhost-verified inside the character AI) ──────
+ * The event ring's ids are the producer's (0x46a880): 1 up, 2 left, 3 down,
+ * 4 right, 7 jump, 9 the attack/confirm button, 10..15 / 24..33 skill keys.
+ * Two pseudo ids resolve by facing: 5 = forward, 6 = back. */
+
+/* FUN_00479960 — the first ring record (in slot order) with id `id` (5 -> `fwd`,
+ * 6 -> `back` passed through as given), flag `flag`, and age now - ts in
+ * [lo, hi] (unsigned); with `mask` (64 ints) a slot already set is skipped and
+ * the hit's slot is set.  `consume` zeroes the hit's id.  Returns the slot or -1. */
+int input_ring_find(input_mgr *m, uint32_t now, uint32_t lo, uint32_t hi, int32_t flag,
+                    int32_t id, int32_t fwd, int32_t back, int32_t *mask, int32_t consume);
+
+/* FUN_00479ca0 — any record with id `id` (5/6 -> 0), `flag`, age in [lo, hi];
+ * `consume` zeroes it.  1/0. */
+int input_ring_hit(input_mgr *m, uint32_t now, uint32_t lo, uint32_t hi, int32_t flag,
+                   int32_t id, int32_t consume);
+
+struct wl_combo;
+/* FUN_00479a10 — match a key COMBO (world_layout.h wl_combo): an optional leading
+ * release, then each of its `nids` presses inside the windows (the first key's
+ * [lo, hi], later keys [lo2, hi2]; ts_mode 1 re-bases the clock on each matched
+ * press).  `consume` clears every combo id from the ring.  1/0. */
+int input_combo_match(input_mgr *m, const struct wl_combo *c, uint32_t now,
+                      int32_t fwd, int32_t back, int32_t consume, int32_t skip_release);
+
 #endif /* OPENSUMMONERS_INPUT_H */

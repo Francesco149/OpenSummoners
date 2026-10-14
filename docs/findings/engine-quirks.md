@@ -4094,6 +4094,21 @@ room's values persist. Room type = `param_2` (room[0x44]); the backdrop variant 
 scene value (`param_3`: 10/40 → 1, 50 → 2, 60 → 4, 61 → 5, else 0; 2 → 3 for the flag-0x1c types).
 Verified byte-exact over 13 loads (rhost `shadow:map_decode`).
 
+### #132 — the character AI `0x478ba0`: config is `**(*(0x8a6e80))`; `0x479d30` indexes by its own pointer
+The keybind/game config the AI reads (dash double-tap window `+0xf8`, run-key mode `+0x510`, skill-key layout
+`+0x104`, up-assist `+0x78`) is reached as `mov eax,[0x8a6e80]; mov eax,[eax]` then the field — the global
+holds a pointer to a pointer. The quick-skill getter `0x479d30(party)` returns `party+0x138 + 2*i` with i = 0/1/2
+for `party+0x140` = 1/2/3, but for any other mode `i = party & 0xffff` — the low word of the OBJECT POINTER
+(`mov eax,[esp+arg_0]; and eax,0FFFFh`), i.e. an arbitrary read up to +0x20136 past the object (reached only
+through the skill-slot keys 24..28 when `char+0x14898 == 1`). Walk/run (quirk #101): LEFT held → lr 1, RIGHT → 2;
+lr 5/6 (run) on the double-tap inside `[0, cfg+0xf8]` ms or while the previous tick ran; with the run key held
+(`+0x130`/`+0x134` alt axes) and `cfg+0x510 == 2` the run toggles off `+0x138`/`+0x13c`. Walk starts once the
+hold is older than 10 ms (difficulty 0/1) / 80 ms (2) — compared UNSIGNED — on the facing side, or > 10 ms on the
+other. DOWN/UP (10/11) need a fresh press inside [10, 800] ms, the previous tick's command, or a hold > 240 ms.
+The "up assist" (`cfg+0x78 == 1`, `char+0x15a10`): up to 4 integrator probes (`0x442a70` mode 2 with an UP
+command on two scratch bodies) judged by `0x440f40` (thiscall; IDA types it fastcall — `edx` is dead).
+Verified: rhost shadow:char_ai (full state), 8,750 calls.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

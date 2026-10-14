@@ -6,17 +6,17 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 238,
+  "tested": 245,
   "ported": 5,
-  "unported": 1581,
+  "unported": 1574,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 243,
-  "pct_touched": 15.0,
-  "pct_tested": 15.0,
-  "engine_proper_touched": 230,
+  "touched": 250,
+  "pct_touched": 15.5,
+  "pct_tested": 15.5,
+  "engine_proper_touched": 237,
   "bytes_total": 1776526,
-  "bytes_touched": 296836,
-  "pct_bytes_touched": 16.7
+  "bytes_touched": 301361,
+  "pct_bytes_touched": 17.0
  },
  "orphan_refs": [],
  "functions": [
@@ -1122,8 +1122,10 @@
    "name": "sub_411530",
    "size": 38,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x411560",
@@ -4792,8 +4794,11 @@
    "name": "char_ai_478BA0",
    "size": 3514,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.c",
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x479960",
@@ -4813,40 +4818,50 @@
    "name": "sub_479A10",
    "size": 644,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/input.h"
+   ]
   },
   {
    "va": "0x479ca0",
    "name": "sub_479CA0",
    "size": 134,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/input.h"
+   ]
   },
   {
    "va": "0x479d30",
    "name": "sub_479D30",
    "size": 99,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x479da0",
    "name": "sub_479DA0",
    "size": 62,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x479de0",
    "name": "sub_479DE0",
    "size": 34,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x479e10",
@@ -4871,6 +4886,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/char_ai.h",
     "src/character.c",
     "src/character.h",
     "src/input.c",

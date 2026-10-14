@@ -19,6 +19,8 @@
 #include "map_data.h"
 #include "map_decode.h"
 #include "camera_follow.h"
+#include "char_ai.h"
+#include "engine_calls.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -28,7 +30,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -326,6 +328,38 @@ static int32_t __stdcall w_cam_shake(cam_shake *b, int32_t cur, int32_t max)
     return r;
 }
 
+/* ---- character AI (FUN_00478ba0, thiscall(entity, a2, a3)) — FULL-STATE shadow (rh_shadow_ex): the
+ * AI writes the command block, the input ring, sounds and calls the integrator 0x442a70 ---- */
+typedef int (__attribute__((thiscall)) *char_ai_t)(void *, int32_t, int32_t);
+typedef struct { void *self; int32_t a2, a3; int r_ret, r_port; } ai_ctx;
+static void ai_retail(void *c) { ai_ctx *x = c; x->r_ret = ((char_ai_t)(uintptr_t)H[H_CHAR_AI].va)(x->self, x->a2, x->a3); }
+static void ai_port(void *c)   { ai_ctx *x = c; port_world(); x->r_port = char_ai(x->self, (wl_body *)(uintptr_t)x->a2, x->a3); }
+static int __attribute__((thiscall)) w_char_ai(void *self, int32_t a2, int32_t a3)
+{
+    hook_t *h = &H[H_CHAR_AI];
+    if (h->mode == 2) { h->calls++; port_world(); return char_ai(self, (wl_body *)(uintptr_t)a2, a3); }
+    if (!sample(h)) return ((char_ai_t)(uintptr_t)h->va)(self, a2, a3);
+    ai_ctx x = { self, a2, a3, 0, 0 };
+    char why[512], pre[1600]; int pn = 0;
+    {   /* the inputs, for the divergence report */
+        wl_char *c = self; input_mgr *m = c->input; wl_keycfg *k = **(wl_keycfg ***)(uintptr_t)0x8a6e80u;
+        pn += snprintf(pre + pn, sizeof pre - pn, "prev lr%d ud%d jump%d run_mode=%d win=%d diff=%d held", 
+                       c->cmd.lr, c->cmd.ud, c->cmd.jump, k->run_mode, k->dash_window, c->difficulty);
+        for (int i = 0; i < 11; i++) pn += snprintf(pre + pn, sizeof pre - pn, " %d/%u", m->axis_held[i], (uint32_t)m->axis_held_b[i]);
+        pn += snprintf(pre + pn, sizeof pre - pn, " ring");
+        for (int i = 0; i < INPUT_RING_LEN && pn < (int)sizeof pre - 40; i++)
+            if (m->ring[i]->id) pn += snprintf(pre + pn, sizeof pre - pn, " [%d]%d@%u/%d", i, m->ring[i]->id, m->ring[i]->ts, m->ring[i]->flag);
+    }
+    int d = rh_shadow_ex("char_ai", ai_retail, ai_port, &x, why, sizeof why);
+    if (d < 0) { h->skipped++; return x.r_ret; }
+    h->compared++;
+    if (d || x.r_ret != x.r_port) {
+        diverged(h, "f%u ret %d/%d %s", g_frame, x.r_ret, x.r_port, d ? why : "");
+        if (h->diverge <= 3) rh_log("char_ai divergence f%u vnow=%u: %s\n", g_frame, rh_vnow(), pre);
+    }
+    return x.r_ret;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -336,16 +370,36 @@ static hook_t H[H_N] = {
     [H_MAP_DECODE] = { "map_decode", 0x587e00u, (void *)w_map_decode, 0, 1, 0, 0, 0, 0, "" },
     [H_CAM_FOLLOW] = { "cam_follow", 0x43d1d0u, (void *)w_cam_follow, 0, 1, 0, 0, 0, 0, "" },
     [H_CAM_SHAKE]  = { "cam_shake",  0x43d340u, (void *)w_cam_shake,  0, 1, 0, 0, 0, 0, "" },
+    [H_CHAR_AI]    = { "char_ai",    0x478ba0u, (void *)w_char_ai,    0, 1, 0, 0, 0, 0, "" },
 };
+
+/* engine_calls.h slots -> retail (EN-old VAs; the roots are retail's globals) */
+static void bind_engine_calls(void)
+{
+    g_eng.tick   = iat_lookup("GetTickCount");          /* rhost's virtual clock override */
+    g_eng.sys    = (void *)(uintptr_t)0x8a6b60u;
+    g_eng.keycfg = (wl_keycfg ***)(uintptr_t)0x8a6e80u;
+    *(void **)&g_eng.sound_411390        = (void *)(uintptr_t)0x411390u;
+    *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
+    *(void **)&g_eng.probe_440f40        = (void *)(uintptr_t)0x440f40u;
+    *(void **)&g_eng.skill_ok_402a60     = (void *)(uintptr_t)0x402a60u;
+    *(void **)&g_eng.party_slot_ok_4071f0 = (void *)(uintptr_t)0x4071f0u;
+    *(void **)&g_eng.skill_479f90        = (void *)(uintptr_t)0x479f90u;
+    *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;
+    *(void **)&g_eng.skill_47a420        = (void *)(uintptr_t)0x47a420u;
+    *(void **)&g_eng.skill_47a7f0        = (void *)(uintptr_t)0x47a7f0u;
+    *(void **)&g_eng.target_ok_47adb0    = (void *)(uintptr_t)0x47adb0u;
+}
 
 void rh_hooks_install(void)
 {
+    if (!strcmp(g_ed->tag, "enold")) bind_engine_calls();
     H[H_RAND].va = g_ed->rand;
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
