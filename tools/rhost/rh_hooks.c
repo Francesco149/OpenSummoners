@@ -62,7 +62,8 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PINIT, H_ESETUP, H_RIDE, H_RIDE_PART, H_POLAR_DIV, H_POLAR_MILLI, H_FADE_A, H_FADE_B, H_TRACK_ON, H_SND_ALLOC, H_JITTER,
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
-       H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR, H_N };
+       H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2172,6 +2173,62 @@ static int __attribute__((thiscall)) w_near(const wl_entity *e, int32_t rx, int3
     return r;
 }
 
+/* ---- the event zones (src/gimmick.c): a tick with a zone under the leader is shadowed every call ---- */
+typedef int (__attribute__((thiscall)) *zpass_t)(wl_zonestate *, uint32_t, wl_room *, int32_t *, int32_t *, int32_t *, int32_t);
+typedef struct { wl_zonestate *zs; uint32_t now; wl_room *room; int32_t *sc, *arg, *zone; int32_t lock; int rr, rp; } zpass_ctx;
+static void zpass_retail(void *c) { zpass_ctx *x = c; x->rr = ((zpass_t)(uintptr_t)H[H_ZPASS].va)(x->zs, x->now, x->room, x->sc, x->arg, x->zone, x->lock); }
+static void zpass_port(void *c) { zpass_ctx *x = c; port_world(); x->rp = zone_pass(x->zs, x->now, x->room, x->sc, x->arg, x->zone, x->lock); }
+static long g_zone_live;
+static int zone_live(const wl_room *room)
+{
+    const wl_pslot *ld = room->leader;
+    if (ld == NULL || ld->ch == NULL) return 0;
+    port_world();
+    for (uint16_t i = 0; i < 0x80; i++) {
+        const wl_actor *a = (const wl_actor *)g_world->actors[i];
+        if (a->base.alive != 0 && zone_hit(a, ld->ch)) return 1;
+    }
+    return 0;
+}
+static int __attribute__((thiscall)) w_zpass(wl_zonestate *zs, uint32_t now, wl_room *room, int32_t *sc, int32_t *arg, int32_t *zone, int32_t lock)
+{
+    hook_t *h = &H[H_ZPASS];
+    zpass_ctx x = { zs, now, room, sc, arg, zone, lock, 0, 0 };
+    if (h->mode == 2) { h->calls++; zpass_port(&x); return x.rp; }
+    int live = !rh_in_shadow() && zone_live(room);
+    if (!sample_rare(h, live)) { zpass_retail(&x); return x.rr; }
+    if (live) g_zone_live++;
+    char what[64]; snprintf(what, sizeof what, "zone %p lock %d", (void *)zs->under, lock);
+    if (!full_shadow(h, "zone_pass", zpass_retail, zpass_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+typedef int (__attribute__((thiscall)) *zhit_t)(const wl_actor *, const wl_char *);
+static int __attribute__((thiscall)) w_zhit(const wl_actor *z, const wl_char *pl)
+{
+    hook_t *h = &H[H_ZHIT];
+    if (h->mode == 2) { h->calls++; return zone_hit(z, pl); }
+    int r = ((zhit_t)(uintptr_t)h->va)(z, pl);
+    if (!sample(h)) return r;
+    int p = zone_hit(z, pl);
+    h->compared++;
+    if (p != r) diverged(h, "f%u zone %p code %d: retail %d port %d", g_frame, (void *)z, z->base.code, r, p);
+    return r;
+}
+typedef int (__stdcall *b96_t)(int32_t, int32_t);
+static int __stdcall w_b96(int32_t x, int32_t y)
+{
+    hook_t *h = &H[H_B96_NEAR];
+    if (h->mode == 2) { h->calls++; port_world(); return band96_near(x, y); }
+    int r = ((b96_t)(uintptr_t)h->va)(x, y);
+    if (!sample(h)) return r;
+    port_world();
+    int p = band96_near(x, y);
+    h->compared++;
+    if (p != r) diverged(h, "f%u (%d,%d): retail %d port %d", g_frame, x, y, r, p);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2292,6 +2349,9 @@ static hook_t H[H_N] = {
     [H_RFLUSH]     = { "room_input_flush", 0x411560u, (void *)w_rflush, 0, 1, 0, 0, 0, 0, "" },
     [H_PROBE_RECT] = { "probe_rect",     0x4812c0u, (void *)w_prect,  0, 1, 0, 0, 0, 0, "" },
     [H_NEAR]       = { "entity_near",    0x47b7c0u, (void *)w_near,   0, 1, 0, 0, 0, 0, "" },
+    [H_ZPASS]      = { "zone_pass",      0x59a1f0u, (void *)w_zpass,  0, 1, 0, 0, 0, 0, "" },
+    [H_ZHIT]       = { "zone_hit",       0x59a7c0u, (void *)w_zhit,   0, 1, 0, 0, 0, 0, "" },
+    [H_B96_NEAR]   = { "band96_near",    0x59a880u, (void *)w_b96,    0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2381,7 +2441,8 @@ void rh_hooks_install(void)
         H[H_GPASS].va = H[H_GSTEP].va = H[H_SWSET].va = H[H_SWLINK].va = H[H_EVRUN].va = H[H_UNLOAD].va = H[H_UNLIST_ALL].va =
         H[H_GLOW].va = H[H_RECT_HIT].va = H[H_CHARS_COUNT].va = H[H_CHAR_IN].va = H[H_RIDING].va = H[H_PART_FIND].va =
         H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va =
-        H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va = 0;
+        H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va =
+        H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -2423,6 +2484,7 @@ void rh_hooks_report(void)
     if (H[H_PINIT].mode == 1)
         for (int k = 0; k < g_npinit_codes; k++) rh_log("particle_init coverage: code %d compared %ld\n", g_pinit_code_id[k], g_pinit_codes[k]);
     if (H[H_GSTEP].mode == 1) rh_log("gimmick_step: %ld live (switching) calls shadowed\n", g_gstep_live);
+    if (H[H_ZPASS].mode == 1) rh_log("zone_pass: %ld calls with a zone under the leader shadowed\n", g_zone_live);
     if (H[H_PARTICLE].mode == 1)
         for (int k = 0; k < g_nprt_codes; k++) rh_log("particle_tick coverage: code %d compared %ld\n", g_prt_code_id[k], g_prt_codes[k]);
     if (H[H_ACTOR].mode == 1)

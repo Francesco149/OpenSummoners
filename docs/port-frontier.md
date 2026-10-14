@@ -432,7 +432,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x58e330 | 873 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 13 |  |
 | 0x58e780 | 1823 | 1 | 6 |  |
-| 0x58f360 | 3030 | 1 | 37 |  |
+| 0x58f360 | 3030 | 1 | 36 |  |
 | 0x58d460 | 3341 | 1 | 3 |  |
 
 ### inventory/menu + audio cue mgr + render dispatch + scene load (6)

@@ -340,7 +340,8 @@ typedef struct wl_world {
     uint8_t    _p0000[0x1030];
     int32_t    scene_kind;   /* +0x1030  2 => no fall damage / no yawn                 */
     int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
-    uint8_t    _p1038[0x1040 - 0x1038];
+    uint8_t   *zones;        /* +0x1038  the zone table: 20 records of 12 B at +0x1c (0x59a1f0) */
+    uint8_t    _p103c[0x1040 - 0x103c];
     uint8_t   *f1040;        /* +0x1040  +0x28 = the effects volume (per mille)        */
     uint8_t   *f1044;        /* +0x1044  +0xce u16 = the particle slot cursor (0x557370) */
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
@@ -371,7 +372,8 @@ typedef struct wl_world {
     int32_t    action_serial; /* +0x27a0  bumped (mod 0xffffff) per action start         */
     uint8_t    _p27a4[0x27a8 - 0x27a4];
     int32_t    busy;         /* +0x27a8  != 0 => the ambient emitters hold (scene lock)  */
-    uint8_t    _p27ac[0x27b8 - 0x27ac];
+    uint8_t   *f27ac;        /* +0x27ac  +0x68 = a zone id that may fire unpressed (0x59a1f0) */
+    uint8_t    _p27b0[0x27b8 - 0x27b0];
 } wl_world;
 
 /* A world PARTICLE (world+0x13e0, 1024 slots; 0x284 bytes): the entity base + the per-code
@@ -415,7 +417,8 @@ typedef struct wl_actor {
     uint8_t    _p26a[0x26c - 0x26a];
     int32_t    grow_max;       /* +0x26c  code 70120: the height it grows to while off   */
     int32_t    grow_min;       /* +0x270  ... shrinks to while on                        */
-    uint8_t    _p274[0x27c - 0x274];
+    int32_t    zone;           /* +0x274  != 0 => an event zone: its id in the zone table   */
+    int32_t    zone_kind;      /* +0x278  1 walk in, 2..3 press up / hold, else immediate   */
     int32_t    goal_x;         /* +0x27c  code 100142 pose 146: where it flies to         */
     int32_t    goal_y;         /* +0x280 */
     int32_t    f284;           /* +0x284 */
@@ -467,7 +470,10 @@ typedef struct wl_pslot {
 /* A ROOM (operator_new(0x4120); world+0x2784 points at the current one): the map object
  * that owns the party slots. */
 typedef struct wl_room {
-    uint8_t    _p0000[0x200c];
+    uint8_t    _p0000[0x8];
+    struct { int32_t id, state; } flags[1024]; /* +0x0008  event flags (state 1 = done)    */
+    uint16_t   nflags;         /* +0x2008 */
+    uint16_t   _p200a;
     wl_pslot  *leader;         /* +0x200c */
     uint8_t    _p2010[0x4030 - 0x2010];
     wl_pslot  *slot[8];        /* +0x4030 */
@@ -477,6 +483,23 @@ typedef struct wl_room {
     int32_t    f40d0;          /* +0x40d0  == 0 => no warp request (0x54ecf0)             */
     uint8_t    _p40d4[0x4120 - 0x40d4];
 } wl_room;
+
+/* The room loop's EVENT-ZONE state (room loop +0xec; 0x59a1f0's `this`). */
+typedef struct wl_zonestate {
+    struct wl_actor *cur;      /* +0x00  the zone last entered                           */
+    int32_t    f04;            /* +0x04 */
+    struct wl_actor *under;    /* +0x08  the zone under the leader this tick             */
+    struct wl_actor *f0c;      /* +0x0c */
+    uint16_t   phase;          /* +0x10  1 = holding up in a done zone, 2 = blocked       */
+    uint16_t   _p12;
+    int32_t    rest;           /* +0x14  ticks before a zone fires (30 while a foe is near) */
+    int32_t    hold;           /* +0x18  the up-hold meter, fires at 10000               */
+    int32_t    able;           /* +0x1c  the leader stands on the ground, idle, slow      */
+    int32_t    tick;           /* +0x20  +1 mod 256 per pass                              */
+    uint16_t   wait;           /* +0x24  ticks a world+0x27ac zone waits unpressed (40)   */
+    uint16_t   _p26;
+    int32_t    fired;          /* +0x28  a press zone was armed this tick                 */
+} wl_zonestate;
 
 /* The head of the ROOM LOOP object (0x58f360's `this`): its rooms, contiguous. */
 typedef struct wl_roomloop {
@@ -950,6 +973,11 @@ _Static_assert(offsetof(wl_pslot, active)    == 0x9c4, "slot active");
 _Static_assert(offsetof(wl_pslot, room)      == 0x9ec, "slot room");
 _Static_assert(offsetof(wl_pslot, ch)        == 0x9f4, "slot character");
 _Static_assert(offsetof(wl_room, leader)     == 0x200c, "room leader");
+_Static_assert(offsetof(wl_room, nflags)     == 0x2008, "room flag count");
+_Static_assert(offsetof(wl_zonestate, fired) == 0x28,  "zone state +0x28");
+_Static_assert(offsetof(wl_actor, zone_kind) == 0x278, "actor +0x278");
+_Static_assert(offsetof(wl_world, zones)     == 0x1038, "world +0x1038");
+_Static_assert(offsetof(wl_world, f27ac)     == 0x27ac, "world +0x27ac");
 _Static_assert(offsetof(wl_room, slot)       == 0x4030, "room slots");
 _Static_assert(offsetof(wl_room, f40d0)      == 0x40d0, "room +0x40d0");
 _Static_assert(sizeof(wl_room)               == 0x4120, "room is 0x4120 bytes");

@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **404** (25.5% of engine-proper) — tested 250, ported 154
-- code bytes touched: **24.1%** (428,840 / 1,776,526 B of engine-proper)
-- unported: **1420**
+- touched: **407** (25.7% of engine-proper) — tested 250, ported 157
+- code bytes touched: **24.2%** (430,644 / 1,776,526 B of engine-proper)
+- unported: **1417**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (154) — reimplemented, no host test yet
+## ported (157) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -420,6 +420,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
+| 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
+| 0x59a880 | sub_59A880 | 138 | gimmick.h |
 | 0x59afd0 | sub_59AFD0 | 374 | gimmick.c, gimmick.h |
 | 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
 | 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |

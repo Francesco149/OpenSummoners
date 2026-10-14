@@ -4218,6 +4218,18 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   again unless `+0x28c` is 1..2; 70217 locked (`0x54ed80` uses a key item: "You used %s." / breaks a worn one, else
   "You have no key…" + sound): opens with `0x40afe0(…,1,0)` inlined; 70220 / 70353 / 70357 / 70358 / 70363..70366 on.
   The room loop returns a touch result only when it is 1 / 2 / 6 — a 24 is dropped there (the unload already ran).
+- **Event zones `0x59a1f0`** (room loop +0xec state, every pass): the leader is "able" = pose 0, |vel_x| <= 24000,
+  grounded (the entity mover probe). The FIRST live actor with `+0x274` (zone id) whose box meets the leader's
+  (`0x59a7c0`: codes 70101..70103 not in state 2, 70440 / 70610 / 70620 not in state 1) is the zone; its record =
+  the world+0x1038 table entry (20 x 12 B at +0x1c: u16 id, the event id +4, u16 arg +8); DONE = the room's flag
+  (+0x8 records {id, state}, u16 count +0x2008) for that event has state 1. A hostile near the leader (48000 x 20000;
+  56000 for a not-done zone, which also checks every active party member at 48000) sets a 30-tick rest. Not done,
+  rested: `+0x278` kind 1 fires on entering a NEW zone (cur != under) unless a live band-96 entity is within
+  32000 x 16000 of its centre or a scene runs (world +0x2770 / +0x2764); kinds 2..3 (and kind 1 once inside) fire
+  on the up press (ring id 35 consumed) while able — or, for the zone world+0x27ac+0x68 names, after waiting 40
+  ticks; kind < 1 / > 3 fire at once. Done zones fire when holding UP fills a meter (+200 per tick, +30 during a
+  scene, -40 when released, fires at 10000). `world+0x2768` locks: no zone fires. A fire returns 1 with (event,
+  arg, zone id) for the scene start. rh-my-play: 8 fires.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

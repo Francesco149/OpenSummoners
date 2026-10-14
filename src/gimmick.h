@@ -37,6 +37,20 @@
  *   FUN_0059bdd0  touch_pass          FUN_0059c240  touch_actor
  *   FUN_00411560  room_input_flush    FUN_004812c0  body_probe_rect
  *   FUN_0047b7c0  entity_near
+ *
+ * The EVENT ZONES 0x59a1f0 (every tick, after the gimmick pass): the first live actor with a
+ * zone id (+0x274) whose box meets the leader's (0x59a7c0; a few codes only while not
+ * on) names a zone-table record (world+0x1038); its event is done when the room's flag of
+ * that id has state 1.  A hostile near the leader (48000 x 20000; 56000 for a fresh zone,
+ * or near any party member) holds zones 30 ticks.  Fresh zones fire by kind (+0x278): 1 on
+ * walking in (once per zone, unless a band-96 entity is near it or a scene runs), 2..3 on
+ * the up press (ring id 35) while idle on the ground (or after 40 ticks for the zone
+ * world+0x27ac names), others at once; a done zone fires after holding up to a 10000 meter.
+ * Firing returns 1 with the record's scene / argument and the zone id (the room loop then
+ * starts the scene 0x59cfc0).
+ *
+ *   FUN_0059a1f0  zone_pass           FUN_0059a7c0  zone_hit
+ *   FUN_0059a880  band96_near
  */
 #ifndef OSS_GIMMICK_H
 #define OSS_GIMMICK_H
@@ -89,5 +103,13 @@ void room_input_flush(wl_room *r);
 void body_probe_rect(const wl_body *b, const int32_t *p, int32_t *out, int32_t facing);
 /* 0x47b7c0: are the centres of `self` and `o` (part 0) within rx / ry (+dy) of each other? */
 int entity_near(const wl_entity *self, int32_t rx, int32_t ry, const wl_entity *o, int32_t dy);
+
+/* 0x59a1f0 (thiscall zone state): 1 = a zone fired (*scene, *arg, *zone set); `lock` =
+ * world+0x2768 (no zone fires; the state parks on phase 2) */
+int zone_pass(wl_zonestate *zs, uint32_t now, wl_room *room, int32_t *scene, int32_t *arg, int32_t *zone, int32_t lock);
+/* 0x59a7c0: does zone actor `z` (live, not switched off by code) meet the box of `pl`? */
+int zone_hit(const wl_actor *z, const wl_char *pl);
+/* 0x59a880: a live band-96 entity whose centre is within 32000 x 16000 of (x, y)? */
+int band96_near(int32_t x, int32_t y);
 
 #endif /* OSS_GIMMICK_H */

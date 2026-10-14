@@ -683,3 +683,177 @@ int touch_pass(wl_roomloop *rl, wl_char *pl, int32_t pressed)
     }
     return 0;
 }
+
+/* ── the event zones ───────────────────────────────────────────────────────── */
+
+/* a zone-table record (world+0x1038 + 0x1c, 20 of them) */
+typedef struct zone_rec {
+    uint16_t zone;    /* +0x0 */
+    uint16_t _p2;
+    int32_t  scene;   /* +0x4  the room flag id / the scene it starts */
+    uint16_t arg;     /* +0x8 */
+    uint16_t _pa;
+} zone_rec;
+#if UINTPTR_MAX == 0xFFFFFFFFu
+_Static_assert(sizeof(zone_rec) == 12, "zone record");
+#endif
+
+int zone_hit(const wl_actor *z, const wl_char *pl)
+{
+    if (z->zone == 0) return 0;
+    uint32_t c = (uint32_t)z->base.code;
+    int32_t st = z->base.f00c;
+    if (c > 70610) {
+        if (c == 70620 && st == 1) return 0;
+    } else if (c == 70610) {
+        if (st == 1) return 0;
+    } else if (c >= 70101) {
+        if (c <= 70103) {
+            if (st == 2) return 0;
+        } else if (c == 70440 && st == 1) return 0;
+    }
+    const wl_body *a = z->base.body, *p = pl->base.body;
+    if (a->x > p->w + p->x) return 0;
+    if (a->w + a->x <= p->x) return 0;
+    if (a->margin + a->y > p->h + p->y - 1) return 0;
+    return a->h + a->y - 1 > p->margin + p->y;
+}
+
+int band96_near(int32_t x, int32_t y)
+{
+    for (uint16_t i = 0; i < 0x60; i++) {
+        const wl_entity *e = g_world->band96[i];
+        if (e->alive == 0) continue;
+        const wl_body *b = e->body;
+        if (iabs(b->x + b->w / 2 - x) >= 32000) continue;
+        if (iabs(b->margin + b->y + (b->h - b->margin) / 2 - y) < 16000) return 1;
+    }
+    return 0;
+}
+
+/* a targetable hostile of `c` within rx x 20000 */
+static int foe_near(const wl_char *c, int32_t rx)
+{
+    for (uint16_t i = 0; i < 32; i++) {
+        const wl_char *o = g_world->chars[i];
+        if (char_targetable(o, 0, 0) && faction_relation(c->base.faction, o->base.faction) == 1 &&
+            entity_near(&c->base, rx, 20000, &o->base, 0))
+            return 1;
+    }
+    return 0;
+}
+
+int zone_pass(wl_zonestate *zs, uint32_t now, wl_room *room, int32_t *scene, int32_t *arg, int32_t *zone, int32_t lock)
+{
+    zs->tick = (zs->tick + 1) % 256;
+    zs->fired = 0;
+    if (zs->rest > 0) zs->rest--;
+    const wl_pslot *ld = room->leader;
+    wl_char *pl = ld != NULL ? ld->ch : NULL;
+    if (pl == NULL) goto none;
+    input_mgr *in = ld->in;
+    {
+        wl_body *b = pl->base.body;
+        int32_t y;
+        int ground = entity_move_vertical(&pl->base, b, 1, b->drop, 0, &y, NULL) == 0;
+        zs->able = b->pose == 0 && iabs(b->vel_x) <= 24000 && ground;
+    }
+    wl_actor *z = NULL;
+    for (uint16_t i = 0; i < 0x80; i++) {
+        wl_actor *a = (wl_actor *)g_world->actors[i];
+        if (a->base.alive != 0 && zone_hit(a, pl)) { z = a; break; }
+    }
+    zs->under = z;
+    if (z == NULL) goto none;
+    int32_t kind = z->zone_kind, id = z->zone;
+    const zone_rec *rec = NULL;
+    for (uint16_t k = 0; k < 20; k++) {
+        const zone_rec *r = (const zone_rec *)(g_world->zones + 0x1c) + k;
+        if (r->zone == (uint32_t)id) { rec = r; break; }
+    }
+    if (rec == NULL) return 0;
+    int done = 0;
+    for (uint16_t k = 0; k < room->nflags; k++)
+        if (room->flags[k].id == rec->scene) { done = room->flags[k].state == 1; break; }
+    zs->f0c = z;
+    int threat;
+    if (done) threat = foe_near(pl, 48000);
+    else {
+        threat = foe_near(pl, 56000);
+        for (int k = 0; !threat && k < 8; k++) {
+            const wl_pslot *s = room->slot[k];
+            if (s->active != 1 || s->id == 100000104) continue;
+            const wl_char *m = s->ch;
+            if (m == NULL || m->base.alive != 1) continue;
+            const wl_body *mb = m->base.body;
+            if (mb->active != 1 || mb->f7e != 0 || m->party->busy != 0) continue;
+            threat = foe_near(m, 48000);
+        }
+    }
+    if (lock != 0) {
+        zs->f04 = 1;
+        zs->cur = zs->under;
+        zs->phase = 2;
+        return 0;
+    }
+    if (threat) zs->rest = 30;
+    else if (zs->rest <= 0) {
+        zs->phase = 0;
+        if (kind == 1) {
+            if (!entity_ground_probe(&pl->base, pl->base.body, 0)) return 0;
+            if (zs->cur != zs->under) {
+                const wl_body *zb = z->base.body;
+                if (band96_near(zb->w / 2 + zb->x, (zb->h - zb->margin) / 2 + zb->y + zb->margin) == 0 &&
+                    g_world->f2770 == 0 && g_world->f2764 != 1) {
+                    zs->f04 = 0;
+                    zs->cur = zs->under;
+                    goto fire;
+                }
+            }
+            zs->f04 = 1;
+            zs->cur = zs->under;
+        } else if (kind < 1 || kind > 3) goto fire;
+        zs->fired = 1;
+        if (zs->able == 0) return 0;
+        if (in != NULL && input_poll_consume(in, now, 35) != 0) goto fire;
+        const uint8_t *q = g_world->f27ac;
+        int32_t qid;
+        if (q == NULL) return 0;
+        memcpy(&qid, q + 0x68, 4);
+        if (id != qid) return 0;
+        if (zs->wait >= 40) goto fire;
+        zs->wait++;
+        return 0;
+    }
+    zs->cur = zs->under;
+    zs->f04 = 1;
+    if (done != 1) {
+        zs->phase = 2;
+        return 0;
+    }
+    if (zs->phase != 1) {
+        zs->phase = 1;
+        zs->hold = 0;
+    }
+    int32_t h;
+    if (in != NULL && zs->able != 0 && in->axis_held[0] != 0) {
+        h = zs->hold + (g_world->f2770 != 0 || g_world->f2764 == 1 ? 30 : 200);
+        if (h > 10000) h = 10000;
+    } else {
+        h = zs->hold - 40;
+        if (h < 0) h = 0;
+    }
+    zs->hold = h;
+    if (h < 10000) return 0;
+fire:
+    *scene = rec->scene;
+    *arg = rec->arg;
+    *zone = id;
+    return 1;
+none:
+    zs->able = 0;
+    zs->phase = 0;
+    zs->hold = 0;
+    zs->cur = NULL;
+    return 0;
+}

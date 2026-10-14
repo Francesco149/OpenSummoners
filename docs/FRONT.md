@@ -47,8 +47,9 @@
   | rect queries, riders, glow, serial, shot, warp, party gather, unlist | `0x4804b0` `0x556610` `0x5567a0` `0x5568e0` `0x556de0` `0x408100` `0x40be00` `0x40ac10` `0x54ecf0` `0x54efd0` `0x40c300` | 175 / – (unreached) | 0 |
   | event runner + resource unload | `0x40b8f0` / `0x43e3a0` | 38 (18 room-start / touch scripts skipped) / 33 (1 compared) | 0 |
   | TOUCH pass (doors / talk: probe rects, nearest script, door actors) + room input flush, probe rect, range check | `0x59bdd0` / `0x59c240` / `0x411560` / `0x4812c0` / `0x47b7c0` | 40 (32 compared, 8 skipped: the door / script calls) / 8 / 138 / 22 / – | 0 |
-  Hybrid gate: with all of the above REPLACING retail (118 hooks) (the whole character tick, driver → tile
-  movers, + the gimmick and touch passes, runs as port code), every corpus scenario ends byte-identical.
+  | EVENT ZONES (leader in a zone → scene start: walk-in / press-up / hold-up, foe holds) + zone test, band-96 near | `0x59a1f0` / `0x59a7c0` / `0x59a880` | 8.7k (4,474 full-state; 3,868 with a zone under the leader, incl. 8 fires) / 8k / 1 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (121 hooks) (the whole character tick, driver → tile
+  movers, + the gimmick / touch / zone passes, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
   calls are proven by REPLACE. `corpus --check` with the shadows on stays PASS (no perturbation).
@@ -63,10 +64,12 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  00. the event ZONES `0x59a1f0` (+ `0x59a7c0` / `0x59a880`; the room loop's trigger areas → scene start
-     `0x59cfc0`). The gimmick + touch passes are DONE (`src/gimmick.c`, quirk #137); slots left there: the
-     script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input re-poll `0x40fe00`, the shot emitters
-     `0x40ac90` / `0x55cfc0`.
+  00. the ROOM LOOP `0x58f360` itself (3 KB; its passes — gimmick `0x59afd0`, touch `0x59bdd0`, zones
+     `0x59a1f0` — are DONE in `src/gimmick.c`, quirk #137): port it with its unported callees as slots,
+     verify in REPLACE (corpus hash), then its small callees (`0x58ffd0` actors, `0x58ff50` grid anim,
+     `0x590410` support probe, `0x590230` shots, `0x59ca10` / `0x59ca90` / `0x59c750` / `0x59d3f0` …).
+     Slots left in the passes: the script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input
+     re-poll `0x40fe00`, the shot emitters `0x40ac90` / `0x55cfc0`.
   0. the Arche handlers `0x457ff0` (4.6 KB),
      `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).
