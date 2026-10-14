@@ -36,6 +36,25 @@ the loader hooks it; port RE → `sotes.unpacked.exe`. Safepoint (`0x437c70`), p
 attract (`0x583866`), and the stat-block layout coincide across EN-old/EN-SE (they work), but the
 menu-input path does **not** — treat any menu VA from the port's EN-old RE as invalid for the loader.
 
+### 2026-10-14 — the SE was UPDATED (Steam buildid 24635888, exes dated 2026-08-10)
+
+The table above is the July build. Steamless-unpacking the current install gives NEW hashes (same
+sizes): **EN-SE `sotes_en.exe` → `36a0294df405`**, **JP-SE `sotes.exe` → `c46353a5b82e`**
+(packed: `57d8382efaff` / `8825344fa850`). EN-old is unchanged (`9e032483b998`, buildid 29910).
+Copies: `C:\oss-ida\{enold,ense-en,ense-jp}\` (IDA DBs) and `/mnt/ephemeral/opensummoners/editions/`.
+
+**How far apart are they?** (`tools/ida/crosswalk.py`, IDA 9.4 fingerprints; quirk #128)
+
+| pair | fns matched | bytes identical / operand-only | minor ≤5% insn Δ | moderate | major | only-in-B |
+|---|---|---|---|---|---|---|
+| EN-old → EN-SE | 1715/1824 (94%) | 16% | 55% | 18% | 2.5% | 312 fns / 246 KB |
+| EN-SE → JP-SE | 2014/2027 (99%) | 42% (1849 fns) | — | — | — | 14 fns |
+
+Of the 234 functions the port already touches: 162 are identical/operand-only in EN-SE, but they are
+the small ones (14.5% of the bytes); 79% of the ported bytes sit in functions with minor/moderate
+changes. Globals: 642 EN-old globals mapped by xref votes (`crosswalk_data_enold_ense-en.tsv`).
+rhost runs both (`--edition enold|ense-en`); its SE profile is the crosswalk + 2 hand-read VAs.
+
 ## File inventory (asset DLLs = resource-only PE: tiny code, one giant `.rsrc`)
 
 Naming decoded from resource contents (`d`=data/gfx, `w`=wave/BGM, `p`=SE, `x_*`=SE-edition

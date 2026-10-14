@@ -3996,6 +3996,58 @@ grid draws EVERY cell as a res=0 (proxy ID gap) SUBTRACT-blend (bmode=1) gray-ma
 all levels incl. full-black — so an .osr has no opaque-vs-alpha res split for retail fades; only
 64×4-cell COVERAGE (interior band dy∈[64,416)) + the res-1110 box are cross-side comparable.
 
+### #123 — retail READS UNINITIALIZED STACK when it builds the gamma palettes: byte 3 of all 256 entries is leftover stack
+`0x586010` (room load, loop `0x586f32`) and `0x417c40` (loop `0x4181a7`) build a 256-dword palette in a
+stack local (`[esp+0x524]` / `[esp+0x418]`) through the gamma LUT `0x8a9410`, writing only bytes 0..2 of
+each dword; `0x491770` / `0x418216` then `rep movsd` all 1 KB into a fresh heap block. Byte 3 is
+whatever an earlier call left on the stack (in a normal run: DirectDraw/GDI/kernel internals ⇒ differs
+run to run; under rhost it is retail's own deterministic data — the external-call system stack,
+`tools/rhost/rh_scrub.c`). The byte is not part of the colour; a port may store 0. Found by the rhost
+det gate + `--watch-write` (2026-10-14).
+
+### #124 — map data lives in the EXE's own `.rsrc`: `FindResourceA(module-or-NULL, id, "DATA")`
+The map loader (`0x587970` → `0x5b62a0`) reads map `id` (`*(a5+0xc)`, "NO:%d") with
+`FindResourceA(hModule, id, "DATA")` where `hModule = DAT_008a6e7c` (0 ⇒ the exe itself) or a per-map
+override module (`*(*(0x8a9b50+0x103c*4)+0x54008)`). Not found ⇒ `"The map data is not found."` +
+`exit(0)` (logged after `"[00000006] The handle is invalid."`). The 59 MB `.rsrc` of `sotes.exe` is
+real game data, not just icons.
+
+### #125 — the pump's WM_TIMER contract (`0x5b1030`): a 10 ms timer CLEARS the wait flag; the flag is SET when the clock has not advanced
+`SetTimer(hWnd, 1, 10)` (scene driver, windowed/v-mode 1..2). WndProc `WM_TIMER` → `state+0x1c = 0`
+(`state = *0x8a9b64`; **SE: `+0x20`**). The pump returns once `active (0x8a952c) && state+0x1c == 0`,
+else `WaitMessage()`; on return it sets `state+0x1c = 1` when `state+0x10 - GetTickCount() < 5`
+(the tick has not advanced since the last pump) and stores `state+0x10 = now` — a CPU-yield gate, not
+a frame limiter. `WM_ACTIVATEAPP` stores `wParam` in `0x8a952c`; once `state+8` (window set) is 1 it
+also re-acquires the DInput devices and pauses/resumes BGM (`0x5bbd20`). The game window is shown by
+the window-mode switch's `SetWindowPos(..., SWP_SHOWWINDOW)` (windowed = mode 2) — not ShowWindow; a
+`CLASS_LIZSOFT_WAIT` splash window is created first.
+
+### #126 — keyboard → ring ids is a fixed DIK table in the producer `0x46a880`; ring timestamps are the DInput event's `dwTimeStamp`
+Buffered `GetDeviceData` records (BUFFERSIZE 32) are walked in order: `0x5ba3a0` = dwOfs (DIK),
+`0x5ba3d0` = `dwData & 0x80`, `0x5ba3f0` = **dwTimeStamp** (stored as the ring record's `+4` ts — so
+the poll's 100 ms window compares GetTickCount against DInput's own clock). Map: arrows
+`0xc8/0xd0/0xcb/0xcd` → ids `1/3/2/4` (alt mode `12..15` when `cfg+0x104 && cfg+0x580 && key(cfg+0x590)`
+held); **Enter `0x1c` → ids 20 AND 0x24 (confirm)**; Esc `0x01` / Backspace `0x0e` → 39; F1..F6
+`0x3b..0x40` → 16,21,22,23,10,11; digits `0x02..0x0b` → 24..33; Up also → 35; `0xc5` → 18; F11 → 19;
+F8 → 34; action keys from config.dat (`cfg+0x548` …). The held axis (`mgr+0x114`) comes from
+`GetDeviceState(256)` via `0x5ba520`.
+
+### #127 — BGM loops by POLLING the DirectShow position: music state is a wall-clock read
+BGM = DirectShow `CLSID_FilterGraph` (`0x5bab10`: RenderFile of the temp-extracted `.wma`;
+`IMediaControl` +8, `IMediaSeeking` +0xc, `IBasicAudio` +0x10 of the track object). The music tick
+`0x5bb9b0` reads `IMediaSeeking::GetPositions` (`0x5bae70`) every call: `pos >= loop_end` → Stop,
+`SetPositions(loop_start)`, Run; a non-looping track with `pos >= duration` (`0x5bae90` GetDuration,
+cached) → `0x5bbdb0` (fade/next). In a real run the loop point is hit at a wall-clock moment;
+deterministic harnesses must virtualize the playback clock (rhost: `rh_media.c`).
+
+### #128 — EN Steam SE (build 24635888, 2026-08-10) is the same engine RECOMPILED with changes, not a patch
+Function crosswalk EN-old ↔ EN-SE (`tools/ida/crosswalk.py`): 94% of EN-old functions match, but only
+16% of EN-old code bytes are identical or differ only in operands; 55% sit in functions with a ≤5%
+instruction-count change, 18% in 5..25%, 2.5% in >25%; 312 SE-only functions (246 KB: voice manager,
+new title animation, …). Struct layouts mostly hold (zdd present-mode `+0x164`, back buffer
+`+0x16c` — Flip `0x5e14e0`), but not all (app-state pump flag `+0x1c` → `+0x20`). A VA from one
+edition never transfers blindly (cf. `game-editions-and-voice.md`).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

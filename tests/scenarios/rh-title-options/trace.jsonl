@@ -1,0 +1,27 @@
+# rhost scenario (EN-old): title → Down x3 → Options → browse (Graphics … Keyboard Setup) → Esc (id 39) leaves Options and the title sequence restarts from the Lizsoft logo; Up+Enter land during the logo.
+{"meta": {"edition": "enold"}}
+{"frame":620,"keys":[208]}
+{"frame":624,"keys":[]}
+{"frame":640,"keys":[208]}
+{"frame":644,"keys":[]}
+{"frame":660,"keys":[208]}
+{"frame":664,"keys":[]}
+{"frame":690,"keys":[28]}
+{"frame":694,"keys":[]}
+{"frame":760,"keys":[208]}
+{"frame":764,"keys":[]}
+{"frame":790,"keys":[208]}
+{"frame":794,"keys":[]}
+{"frame":820,"keys":[208]}
+{"frame":824,"keys":[]}
+{"frame":850,"keys":[208]}
+{"frame":854,"keys":[]}
+{"frame":900,"keys":[1]}
+{"frame":904,"keys":[]}
+{"frame":980,"keys":[200]}
+{"frame":984,"keys":[]}
+{"frame":1010,"keys":[28]}
+{"frame":1014,"keys":[]}
+{"frame":1100,"keys":[1]}
+{"frame":1104,"keys":[]}
+{"frame":1250,"keys":[]}

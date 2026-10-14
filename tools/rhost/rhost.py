@@ -7,7 +7,7 @@
   rhost.py run SCEN|TRACE.jsonl [..]      replay scenario(s) (tests/scenarios/<SCEN>/trace.jsonl)
   rhost.py boot [--frames N]              no input: boot → title → attract (smoke test)
   rhost.py det SCEN [-n N] [--calibrate]  N runs, dump at end, diff (determinism gate)
-  rhost.py corpus [--only RE]             every scenario; summary.tsv
+  rhost.py corpus [--only RE] [--check|--bless]  every scenario; summary.tsv; expected.json gate
   rhost.py verify [--only RE]             every scenario × every shadow hook → evidence table
   rhost.py diff A.rhs B.rhs               classify the differences between two dumps
   rhost.py record NAME [--save DIR|TGZ]   HUMAN PLAY on the Windows desktop (realtime) → trace
@@ -21,6 +21,7 @@ projects can run batches at the same time. Results: /mnt/ephemeral/opensummoners
 """
 import argparse
 import datetime
+import json
 import os
 import re
 import shlex
@@ -320,6 +321,23 @@ def cmd_corpus(a):
     print_results(res, names)
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
     print(f"CORPUS: {done}/{len(names)} complete; results in {bdir}")
+    keys = ("frame", "tick", "rng", "state_sem")
+    bad = 0
+    for n in names:
+        ep = os.path.join(SCEN, n, "expected.json")
+        got = {k: res.get(n, {}).get(k) for k in keys}
+        if a.bless and res.get(n, {}).get("status") == "ok":
+            json.dump(got, open(ep, "w"), indent=1); continue
+        if a.check and os.path.exists(ep):
+            exp = json.load(open(ep))
+            diff = {k: (exp.get(k), got[k]) for k in keys if exp.get(k) != got[k]}
+            if diff:
+                bad += 1; print(f"  REGRESSION {n}: " + ", ".join(f"{k} {e}→{g}" for k, (e, g) in diff.items()))
+    if a.bless:
+        print("blessed expected.json for every ok scenario (volatile.<edition>.txt changes state_sem: re-bless after --calibrate)")
+    if a.check:
+        print(f"CHECK: {'PASS' if not bad else 'FAIL'} ({bad} scenario(s) differ from expected.json)")
+        return 1 if bad else 0
     with open(os.path.join(bdir, "summary.tsv"), "w") as f:
         f.write("scenario\tstatus\treason\tframe\ttick\tcomplete\trng\tstate_sem\tfps\n")
         for n in names:
@@ -445,7 +463,8 @@ def main():
     p = sub.add_parser("boot"); common(p); p.set_defaults(fn=cmd_boot)
     p = sub.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=3)
     p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
-    p = sub.add_parser("corpus"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_corpus)
+    p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true")
+    p.add_argument("--check", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sub.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); common(p); p.set_defaults(fn=cmd_coverage)
     p = sub.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)

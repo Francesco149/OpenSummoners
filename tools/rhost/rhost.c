@@ -582,6 +582,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--stall-wall")) O.stall_wall_ms = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--scrub-kb")) O.scrub_kb = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--audible")) O.audible = 1;
+        else if (!strcmp(a, "--silent")) O.silent = 1;
         else if (!strcmp(a, "--show")) O.quiet = 0;
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--no-arena")) O.no_arena = 1;
@@ -610,9 +611,11 @@ static void parse(int argc, char **argv)
         #undef ARG
     }
     if (!O.exe || !O.gamedir || !O.rundir) usage();
+    if (O.silent) O.audible = 0;
     static char rec_abs[MAX_PATH];
     if (O.record && !strchr(O.record, ':') && O.record[0] != '\\') { snprintf(rec_abs, sizeof rec_abs, "%s\\%s", O.rundir, O.record); O.record = rec_abs; }
     if (!O.frames) O.frames = O.record ? 0xfffffff0u : O.trace ? 0 : 3000u;
+    else if (O.record) { /* explicit --frames with --record: a bounded recording (tests) */ }
 }
 
 static void load_volatile(void)

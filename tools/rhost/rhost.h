@@ -56,6 +56,7 @@ typedef struct {
     int realtime;               /* pace flips at 60 Hz wall clock (human play) */
     int quiet;                  /* window off-screen, never activated, no taskbar button */
     int audible;                /* real BGM/SE output (default: only in --record) */
+    int silent;                 /* force audible off (also in --record) */
     int no_arena, no_overlay;
     int log_files, log_heap, log_ext, log_media, log_input;
     const char *coverage;
