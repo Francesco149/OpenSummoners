@@ -10,6 +10,7 @@
 
 #include "char_integrate.h"
 #include "engine_calls.h"
+#include "entity_fx.h"
 #include "map_grid.h"
 #include "rng.h"
 
@@ -260,12 +261,12 @@ void char_apply(wl_char *self)
             if (was_c == 0 && s->c_flag != 0 && s->vvel > 5000) {
                 int32_t mat = g_eng.h4872d0(1, IP(s));
                 int32_t y = s->h + s->y + 1000;
-                g_eng.h448cb0(self, mat == 3 ? 100149 : 100147, 1, 12, 0, y, 0, 0);
+                entity_fx_add(&self->base, mat == 3 ? 100149 : 100147, 1, 12, 0, y, 0, 0);
             }
         } else if (g_eng.h4872d0(1, IP(s)) == 3) {
-            g_eng.h448cb0(self, 100148, 1, 12, 0, s->y + 3000, 0, 0);
+            entity_fx_add(&self->base, 100148, 1, 12, 0, s->y + 3000, 0, 0);
         } else {
-            g_eng.h448cb0(self, 100146, 1, 12, 0, s->y + 3000, 0, 0);
+            entity_fx_add(&self->base, 100146, 1, 12, 0, s->y + 3000, 0, 0);
         }
     }
     if ((uint32_t)bb->slow >= 2u && (self->flags204 & 0x30000u) == 0 && 10 * (int32_t)rng_rand() / 0x8000 == 0) {
@@ -277,7 +278,7 @@ void char_apply(wl_char *self)
         bb->state != 1) {
         int32_t v = bb->vel_x;
         if ((v < 0 ? -v : v) > 20000) {
-            g_eng.h448cb0(self, 100158, 0, 4, 0, 0, 0, 1);
+            entity_fx_add(&self->base, 100158, 0, 4, 0, 0, 0, 1);
             if (bb->state < 3u || bb->state > 4u)
                 g_eng.h476880(self, 4, 0, 0x88, 800 * (bb->vel_x - 25000) / 15000 - 1200, 0, 0, 0, 10);
         }
@@ -335,8 +336,8 @@ tail:
                 if (self->f264 < 5000) self->f264 += 50 * (int32_t)rng_rand() / 0x8000;
             }
         }
-        g_eng.h46d180(self);
-        g_eng.h54d090(self, IP(bb), 0);
+        entity_snd_update_all(&self->base);
+        entity_fx_tick(&self->base, bb, 0);
         for (int j = 0; j < 2; j++)
             if (self->fc824[j] != 0 && self->fc82c[j] == 0) {
                 int32_t one = 1;

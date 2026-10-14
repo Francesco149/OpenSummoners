@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 33,
-  "unported": 1541,
+  "ported": 41,
+  "unported": 1533,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 283,
-  "pct_touched": 17.6,
+  "touched": 291,
+  "pct_touched": 18.1,
   "pct_tested": 15.8,
-  "engine_proper_touched": 270,
+  "engine_proper_touched": 278,
   "bytes_total": 1776526,
-  "bytes_touched": 335196,
-  "pct_bytes_touched": 18.9
+  "bytes_touched": 340681,
+  "pct_bytes_touched": 19.2
  },
  "orphan_refs": [],
  "functions": [
@@ -3789,8 +3789,11 @@
    "name": "sub_448CB0",
    "size": 264,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x448dc0",
@@ -3861,8 +3864,11 @@
    "name": "sub_44BBC0",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x44bc10",
@@ -4050,8 +4056,11 @@
    "name": "sub_451200",
    "size": 79,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x451250",
@@ -4100,8 +4109,11 @@
    "name": "sub_4537D0",
    "size": 283,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x4538f0",
@@ -4578,24 +4590,33 @@
    "name": "sub_46D180",
    "size": 798,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x46d4a0",
    "name": "sub_46D4A0",
    "size": 838,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x46d7f0",
    "name": "sub_46D7F0",
    "size": 521,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x46da00",
@@ -8019,8 +8040,11 @@
    "name": "sub_54D090",
    "size": 2636,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.c",
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x54db10",

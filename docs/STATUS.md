@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-████░░░░░░░░░░░░░░░░  17.6% touched   (15.8% host-tested, 18.9% of code bytes)
+████░░░░░░░░░░░░░░░░  18.1% touched   (15.8% host-tested, 19.2% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |    33 | reimplemented in src/, no host test for that module  |
-| **touched** | **283** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1541 | exists in engine, never referenced from src/         |
+| ported      |    41 | reimplemented in src/, no host test for that module  |
+| **touched** | **291** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1533 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (18.9% of engine-proper bytes) is the truer progress
+Code-byte coverage (19.2% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -52,6 +52,8 @@ understates how much actual instruction volume is ported.
   | NPC navigation AI (+ cluster) | `0x43f880` | 11,491 (all full-state) | 0 |
   | character apply pass | `0x485fc0` | 69,968 (17,492 full-state) | 0 |
   | entity tick driver | `0x46cd70` | 6,877 (3,438 full-state) | 0 |
+  | entity effect records (tick / add / splash) | `0x54d090` / `0x448cb0` / `0x46d7f0` | 649k / 218 / 186k (16k full-state) | 0 |
+  | looping-sound channels (all / one / release) | `0x46d180` / `0x46d4a0` / `0x4537d0` | 256k / 227k / 36 (11.5k full-state) | 0 |
   Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
   movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
@@ -65,8 +67,10 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): NPC behaviours `0x47b990`
-     (7.5 KB), actors `0x54f980` (11.6 KB), particles `0x46e510` (10.7 KB), shots `0x4710c0` (20 KB);
+  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): actors `0x54f980` (11.6 KB,
+     498k calls in rh-my-play), particles `0x46e510` (10.7 KB, 167k), NPC behaviours `0x47b990` (7.5 KB,
+     55k); shots `0x4710c0` (20 KB) + the 96-band `0x46da00` never run in the corpus (no combat yet);
+     `src/entity_fx.c` arms never reached yet: the water splashes + records 100150..100157;
      the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with

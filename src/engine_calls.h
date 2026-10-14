@@ -53,6 +53,7 @@ typedef struct engine_calls {
     /* roots */
     uint32_t (ENG_STDCALL *tick)(void);   /* GetTickCount — the engine's only clock          */
     void       *sys;                      /* &0x8a6b60, the system singleton (sound `this`)  */
+    void       *log;                      /* &0x8a9530, the error log (0x406440 `this`)      */
     wl_keycfg ***keycfg;                  /* &0x8a6e80: the config is **(*keycfg) (asm: load
                                            * the global, then two derefs)                     */
     /* unported callees */
@@ -76,6 +77,9 @@ typedef struct engine_calls {
     int (ENG_THISCALL *dsb_pan_5bb880)(void *buf, int32_t v);
     int (ENG_THISCALL *dsb_freq_5bb890)(void *buf, int32_t v);
     int (ENG_THISCALL *dsb_play_5bb8c0)(void *buf);
+    int (ENG_THISCALL *dsb_stop_5bb8e0)(void *buf);
+    int (ENG_THISCALL *wave_load_409e90)(wl_vpool *pool);   /* loads a pool's buffers on first use */
+    int (ENG_THISCALL *log_fail_406440)(void *log, const char *msg, const char *tail);
     int (ENG_THISCALL *particle_557370)(wl_char *self, wl_char *owner, int32_t id, wl_body *b, int32_t dx, int32_t dy,
                                         int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12,
                                         int32_t a13, int32_t a14);
@@ -92,11 +96,11 @@ typedef struct engine_calls {
     eng_tc3 h5b54d0; eng_tc3 h5b5580; eng_tc2 h487730; eng_tc3 h5b4d00; eng_tc5 h407ba0; eng_tc1 h41e180;
     eng_tc2 h4874b0; eng_tc1 h487570; eng_tc6 h4099a0; eng_tc3 h40a010; eng_tc1 h446400; eng_tc7 h47e330;
     eng_tc1 h44e640; eng_tc1 h44e680; eng_tc2 h5b5600; eng_tc2 h40d960; eng_tc0 h487530; eng_tc1 h487dc0;
-    eng_tc0 h4878b0; eng_tc0 h46d180; eng_tc2 h54d090; eng_tc7 h448cb0; eng_tc8 h476880; eng_tc0 h485f70;
+    eng_tc0 h4878b0; eng_tc8 h476880; eng_tc0 h485f70;
     eng_tc6 h489280; eng_tc2 h487250; eng_tc0 h4895c0; eng_tc6 h41ef80;
     /* the tick driver 0x46cd70's band updaters */
-    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc1 h46d4a0; eng_tc0 h46e510; eng_tc0 h46da00; eng_tc4 h54f980;
-    eng_tc3 h46d7f0; eng_tc1 h54c640;
+    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc0 h46e510; eng_tc0 h46da00; eng_tc4 h54f980;
+    eng_tc1 h54c640;
     int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
     int (ENG_STDCALL *h4593c0)(intptr_t body);
     int (ENG_STDCALL *h4872d0)(intptr_t a1, intptr_t body);

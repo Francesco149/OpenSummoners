@@ -60,7 +60,9 @@ typedef struct camera_view {
     int32_t  map_h;     /* +0x04 — map pixel height (dim1*0xc80)               */
     int32_t  vel_x;     /* +0x08 — X follow velocity (accumulates +10/frame)   */
     int32_t  vel_y;     /* +0x0c — Y follow velocity                           */
-    uint8_t  _p10[0x1c - 0x10];
+    int32_t  ear_x;     /* +0x10 — the sound LISTENER (0x451200): ear_rel != 0 =>  */
+    int32_t  ear_y;     /* +0x14   the viewport centre + (ear_x, ear_y), else the  */
+    int32_t  ear_rel;   /* +0x18   fixed point (ear_x, ear_y)                      */
     int32_t  flag;      /* +0x1c — far-boost enable (0 for the town pan)       */
     int32_t  cap;       /* +0x20 — velocity cap = pan SPEED (300 for the town) */
     cam_shake shake_x;  /* +0x24 — its .out (+0x34) = the projector x offset   */

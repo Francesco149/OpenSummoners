@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **283** (17.6% of engine-proper) — tested 250, ported 33
-- code bytes touched: **18.9%** (335,196 / 1,776,526 B of engine-proper)
-- unported: **1541**
+- touched: **291** (18.1% of engine-proper) — tested 250, ported 41
+- code bytes touched: **19.2%** (340,681 / 1,776,526 B of engine-proper)
+- unported: **1533**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (33) — reimplemented, no host test yet
+## ported (41) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -302,10 +302,18 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x445f50 | sub_445F50 | 21 | char_integrate.h |
 | 0x445f70 | sub_445F70 | 91 | char_integrate.h |
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
+| 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
+| 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
+| 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
+| 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
+| 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
+| 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
+| 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
 | 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
+| 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

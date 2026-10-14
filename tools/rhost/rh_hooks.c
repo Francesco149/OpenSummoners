@@ -25,6 +25,7 @@
 #include "npc_ai.h"
 #include "char_apply.h"
 #include "world_tick.h"
+#include "entity_fx.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -35,7 +36,8 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK,
+       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -528,6 +530,123 @@ static int __attribute__((thiscall)) w_world_tick(void *ctl, int32_t cut)
     return x.r;
 }
 
+/* ---- effect records + looping-sound channels (src/entity_fx.c) — full state (particles, the sound
+ * pools, the LCG). u16 arguments arrive as raw stack dwords. ---- */
+static int full_shadow(hook_t *h, const char *name, void (*r)(void *), void (*p)(void *), void *ctx, const char *what)
+{
+    char why[512];
+    int d = rh_shadow_ex(name, r, p, ctx, why, sizeof why);
+    if (d < 0) { h->skipped++; return 0; }
+    h->compared++;
+    if (d) diverged(h, "f%u %s %s", g_frame, what, why);
+    return d;
+}
+#define WHAT(e) (snprintf(what, sizeof what, "ent %p code %x", (void *)(e), (unsigned)(e)->code), what)
+/* the rare paths (a live effect record, a fading channel) are shadowed on EVERY call; @N samples
+ * only the idle calls */
+static int sample_rare(hook_t *h, int rare)
+{
+    if (!rare) return sample(h);
+    h->calls++;
+    return !rh_in_shadow();
+}
+static int fx_busy(const wl_entity *e)
+{
+    for (uint16_t i = 0; i < e->nfx; i++) if (e->fx[i].id != 0) return 1;
+    return 0;
+}
+static int snd_busy(const wl_entity *e, int i)
+{
+    if (e->snd == NULL) return 0;
+    for (int k = i < 0 ? 0 : i; k < (i < 0 ? e->nsnd : i + 1); k++)
+        if (e->snd[k].voice != NULL && (e->snd[k].live == 0 || e->snd[k].fading != 0)) return 1;
+    return 0;
+}
+
+typedef void *(__attribute__((thiscall)) *fx_add_t)(wl_entity *, int32_t, int32_t, uint32_t, int32_t, int32_t, int32_t, int32_t);
+typedef struct { wl_entity *e; int32_t id, rep; uint32_t dur; int32_t f0c, y, a7, uniq; void *rr, *rp; } fxa_ctx;
+static void fxa_retail(void *c) { fxa_ctx *x = c; x->rr = ((fx_add_t)(uintptr_t)H[H_FX_ADD].va)(x->e, x->id, x->rep, x->dur, x->f0c, x->y, x->a7, x->uniq); }
+static void fxa_port(void *c) { fxa_ctx *x = c; port_world(); x->rp = entity_fx_add(x->e, x->id, x->rep, (int16_t)x->dur, x->f0c, x->y, x->a7, x->uniq); }
+static void *__attribute__((thiscall)) w_fx_add(wl_entity *e, int32_t id, int32_t rep, uint32_t dur, int32_t f0c, int32_t y, int32_t a7, int32_t uniq)
+{
+    hook_t *h = &H[H_FX_ADD];
+    if (h->mode == 2) { h->calls++; port_world(); return entity_fx_add(e, id, rep, (int16_t)dur, f0c, y, a7, uniq); }
+    if (!sample(h)) return ((fx_add_t)(uintptr_t)h->va)(e, id, rep, dur, f0c, y, a7, uniq);
+    fxa_ctx x = { e, id, rep, dur, f0c, y, a7, uniq, 0, 0 };
+    char what[96]; snprintf(what, sizeof what, "ent %p id %d rep %d uniq %d", (void *)e, id, rep, uniq);
+    if (!full_shadow(h, "fx_add", fxa_retail, fxa_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %p/%p", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+typedef void (__attribute__((thiscall)) *fx_tick_t)(wl_entity *, wl_body *, uint32_t);
+typedef struct { wl_entity *e; wl_body *b; uint32_t part; } fxt_ctx;
+static void fxt_retail(void *c) { fxt_ctx *x = c; ((fx_tick_t)(uintptr_t)H[H_FX_TICK].va)(x->e, x->b, x->part); }
+static void fxt_port(void *c) { fxt_ctx *x = c; port_world(); entity_fx_tick(x->e, x->b, (uint16_t)x->part); }
+static void __attribute__((thiscall)) w_fx_tick(wl_entity *e, wl_body *b, uint32_t part)
+{
+    hook_t *h = &H[H_FX_TICK];
+    if (h->mode == 2) { h->calls++; port_world(); entity_fx_tick(e, b, (uint16_t)part); return; }
+    if (!sample_rare(h, fx_busy(e))) { ((fx_tick_t)(uintptr_t)h->va)(e, b, part); return; }
+    fxt_ctx x = { e, b, part };
+    char what[64];
+    full_shadow(h, "fx_tick", fxt_retail, fxt_port, &x, WHAT(e));
+}
+
+typedef void (__attribute__((thiscall)) *splash_t)(wl_entity *, wl_body *, int32_t, int32_t);
+typedef struct { wl_entity *e; wl_body *b; int32_t ws, wc; } spl_ctx;
+static void spl_retail(void *c) { spl_ctx *x = c; ((splash_t)(uintptr_t)H[H_SPLASH].va)(x->e, x->b, x->ws, x->wc); }
+static void spl_port(void *c) { spl_ctx *x = c; port_world(); entity_splash(x->e, x->b, x->ws, x->wc); }
+static void __attribute__((thiscall)) w_splash(wl_entity *e, wl_body *b, int32_t ws, int32_t wc)
+{
+    hook_t *h = &H[H_SPLASH];
+    if (h->mode == 2) { h->calls++; port_world(); entity_splash(e, b, ws, wc); return; }
+    if (!sample(h)) { ((splash_t)(uintptr_t)h->va)(e, b, ws, wc); return; }
+    spl_ctx x = { e, b, ws, wc };
+    char what[64];
+    full_shadow(h, "splash", spl_retail, spl_port, &x, WHAT(e));
+}
+
+typedef void (__attribute__((thiscall)) *snd_rel_t)(wl_entity *, uint32_t, intptr_t, int32_t);
+typedef struct { wl_entity *e; uint32_t i; intptr_t a3; int32_t stop; } srel_ctx;
+static void srel_retail(void *c) { srel_ctx *x = c; ((snd_rel_t)(uintptr_t)H[H_SND_RELEASE].va)(x->e, x->i, x->a3, x->stop); }
+static void srel_port(void *c) { srel_ctx *x = c; port_world(); entity_snd_release(x->e, (uint16_t)x->i, x->a3, x->stop); }
+static void __attribute__((thiscall)) w_snd_release(wl_entity *e, uint32_t i, intptr_t a3, int32_t stop)
+{
+    hook_t *h = &H[H_SND_RELEASE];
+    if (h->mode == 2) { h->calls++; port_world(); entity_snd_release(e, (uint16_t)i, a3, stop); return; }
+    if (!sample(h)) { ((snd_rel_t)(uintptr_t)h->va)(e, i, a3, stop); return; }
+    srel_ctx x = { e, i, a3, stop };
+    char what[64];
+    full_shadow(h, "snd_release", srel_retail, srel_port, &x, WHAT(e));
+}
+
+typedef void (__attribute__((thiscall)) *snd_all_t)(wl_entity *);
+static void sall_retail(void *c) { ((snd_all_t)(uintptr_t)H[H_SND_ALL].va)(c); }
+static void sall_port(void *c) { port_world(); entity_snd_update_all(c); }
+static void __attribute__((thiscall)) w_snd_all(wl_entity *e)
+{
+    hook_t *h = &H[H_SND_ALL];
+    if (h->mode == 2) { h->calls++; port_world(); entity_snd_update_all(e); return; }
+    if (!sample_rare(h, snd_busy(e, -1))) { ((snd_all_t)(uintptr_t)h->va)(e); return; }
+    char what[64];
+    full_shadow(h, "snd_all", sall_retail, sall_port, e, WHAT(e));
+}
+
+typedef void (__attribute__((thiscall)) *snd_one_t)(wl_entity *, uint32_t);
+typedef struct { wl_entity *e; uint32_t i; } sone_ctx;
+static void sone_retail(void *c) { sone_ctx *x = c; ((snd_one_t)(uintptr_t)H[H_SND_ONE].va)(x->e, x->i); }
+static void sone_port(void *c) { sone_ctx *x = c; port_world(); entity_snd_update(x->e, (uint16_t)x->i); }
+static void __attribute__((thiscall)) w_snd_one(wl_entity *e, uint32_t i)
+{
+    hook_t *h = &H[H_SND_ONE];
+    if (h->mode == 2) { h->calls++; port_world(); entity_snd_update(e, (uint16_t)i); return; }
+    if (!sample_rare(h, snd_busy(e, (uint16_t)i))) { ((snd_one_t)(uintptr_t)h->va)(e, i); return; }
+    sone_ctx x = { e, i };
+    char what[64];
+    full_shadow(h, "snd_one", sone_retail, sone_port, &x, WHAT(e));
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -546,6 +665,12 @@ static hook_t H[H_N] = {
     [H_NPC_AI]     = { "npc_ai", 0x43f880u, (void *)w_npc_ai, 0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_APPLY] = { "char_apply", 0x485fc0u, (void *)w_char_apply, 0, 1, 0, 0, 0, 0, "" },
     [H_WORLD_TICK] = { "world_tick", 0x46cd70u, (void *)w_world_tick, 0, 1, 0, 0, 0, 0, "" },
+    [H_FX_ADD]     = { "fx_add",      0x448cb0u, (void *)w_fx_add,      0, 1, 0, 0, 0, 0, "" },
+    [H_FX_TICK]    = { "fx_tick",     0x54d090u, (void *)w_fx_tick,     0, 1, 0, 0, 0, 0, "" },
+    [H_SPLASH]     = { "splash",      0x46d7f0u, (void *)w_splash,      0, 1, 0, 0, 0, 0, "" },
+    [H_SND_RELEASE] = { "snd_release", 0x4537d0u, (void *)w_snd_release, 0, 1, 0, 0, 0, 0, "" },
+    [H_SND_ALL]    = { "snd_all",     0x46d180u, (void *)w_snd_all,     0, 1, 0, 0, 0, 0, "" },
+    [H_SND_ONE]    = { "snd_one",     0x46d4a0u, (void *)w_snd_one,     0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -555,6 +680,7 @@ static void bind_engine_calls(void)
     g_eng.tick   = iat_lookup("GetTickCount");          /* rhost's virtual clock override */
     g_eng.sys    = (void *)(uintptr_t)0x8a6b60u;
     g_eng.keycfg = (wl_keycfg ***)(uintptr_t)0x8a6e80u;
+    g_eng.log    = (void *)(uintptr_t)0x8a9530u;
     *(void **)&g_eng.sound_411390        = (void *)(uintptr_t)0x411390u;
     *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
     *(void **)&g_eng.probe_440f40        = (void *)(uintptr_t)0x440f40u;
@@ -572,6 +698,9 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.dsb_freq_5bb890     = (void *)(uintptr_t)0x5bb890u;
     *(void **)&g_eng.dsb_play_5bb8c0     = (void *)(uintptr_t)0x5bb8c0u;
     *(void **)&g_eng.particle_557370     = (void *)(uintptr_t)0x557370u;
+    *(void **)&g_eng.dsb_stop_5bb8e0     = (void *)(uintptr_t)0x5bb8e0u;
+    *(void **)&g_eng.wave_load_409e90    = (void *)(uintptr_t)0x409e90u;
+    *(void **)&g_eng.log_fail_406440     = (void *)(uintptr_t)0x406440u;
     g_eng.data = rh_data_identity;
     *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
@@ -585,9 +714,9 @@ static void bind_engine_calls(void)
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(5b54d0); B(5b5580); B(487730); B(5b4d00); B(407ba0); B(41e180); B(4874b0); B(487570); B(4099a0);
     B(40a010); B(446400); B(47e330); B(44e640); B(44e680); B(5b5600); B(40d960); B(487530); B(487dc0);
-    B(4878b0); B(46d180); B(54d090); B(448cb0); B(476880); B(485f70); B(489280); B(487250); B(4895c0);
+    B(4878b0); B(476880); B(485f70); B(489280); B(487250); B(4895c0);
     B(41ef80); B(4593c0); B(4872d0);
-    B(47b990); B(4710c0); B(46d4a0); B(46e510); B(46da00); B(54f980); B(46d7f0); B(54c640); B(5567a0);
+    B(47b990); B(4710c0); B(46e510); B(46da00); B(54f980); B(54c640); B(5567a0);
 #undef B
 }
 
@@ -600,7 +729,8 @@ void rh_hooks_install(void)
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = H[H_CHAR_APPLY].va = H[H_WORLD_TICK].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = H[H_CHAR_APPLY].va = H[H_WORLD_TICK].va =
+        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

@@ -7,6 +7,7 @@
 #include "char_ai.h"
 #include "char_apply.h"
 #include "engine_calls.h"
+#include "entity_fx.h"
 #include "entity_move.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -54,8 +55,8 @@ int world_tick(void *ctl, int32_t cut)
         g_eng.h4710c0(e, IP(e->body), IP(e->body), 0, 0);
         for (uint16_t k = 1; k < e->nbody; k++)
             g_eng.h4710c0(e, IP(&e->body[k - 1]), IP(&e->body[k]), 1, k);
-        if (rd32(e, 0x1b0) != 0)
-            for (uint16_t m = 0; m < rd16(e, 0x1b4); m++) g_eng.h46d4a0(e, m);
+        if (e->snd != NULL)
+            for (uint16_t m = 0; m < e->nsnd; m++) entity_snd_update(e, m);
     }
     for (int i = 0; i < 1024; i++)
         if (g_world->particles[i]->alive != 0) g_eng.h46e510(g_world->particles[i]);
@@ -85,12 +86,12 @@ int world_tick(void *ctl, int32_t cut)
         }
         int32_t slow = b->slow, cf = b->c_flag;
         g_eng.h54f980(a, IP(a->body), IP(a->body), 0, 0);
-        g_eng.h46d7f0(a, IP(b), slow, cf);
-        g_eng.h54d090(a, IP(b), 0);
+        entity_splash(a, b, slow, cf);
+        entity_fx_tick(a, b, 0);
         if (rd32(a, 0x2ac) != 0)
             for (uint16_t k = 1; k < a->nbody; k++)
                 g_eng.h54f980(a, IP(&a->body[k - 1]), IP(&a->body[k]), 1, k);
-        g_eng.h46d180(a);
+        entity_snd_update_all(a);
     }
 
     /* ── the map's tile-animation phase ── */

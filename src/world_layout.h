@@ -24,6 +24,47 @@
 #include "collision.h"   /* coll_slope_fn */
 
 struct wl_entity;
+struct camera_view;
+
+/* One EFFECT RECORD (entity+0x10c, 8 of them, count +0x1ac): 0x448cb0 adds one, 0x54d090
+ * runs them each tick (splash / dust / spark particles, one-shot sounds). */
+typedef struct wl_fx {
+    int32_t  id;              /* +0x00  100146..100158 (0 = free)                         */
+    uint16_t dur;             /* +0x04  ticks to live (0 = until removed)                 */
+    uint16_t t;               /* +0x06  ticks run                                         */
+    uint16_t f08, f0a;        /* +0x08 */
+    int32_t  f0c;             /* +0x0c */
+    int32_t  y;               /* +0x10  the splash particles' y                           */
+} wl_fx;
+
+/* One sound-pool entry: the buffer wrapper (0x5bb870.. take it) + an in-use word. */
+typedef struct wl_voice {
+    void    *buf;             /* +0x00 */
+    int32_t  owner;           /* +0x04  != 0 => taken                                     */
+} wl_voice;
+
+/* A sound pool: *(sys + 0x364 + 4*slot) (0x40b710 takes a voice round-robin). */
+typedef struct wl_vpool {
+    uint16_t  n;              /* +0x00 */
+    uint16_t  next;           /* +0x02  where the next search starts                      */
+    wl_voice *v;              /* +0x04  0 until loaded (0x409e90)                         */
+    void     *dev;            /* +0x08  0 => no sound                                     */
+} wl_vpool;
+
+/* One LOOPING-SOUND channel (entity+0x1b0 -> an array of entity+0x1b4): its owner sets
+ * `live` each tick it keeps it; 0x46d180 / 0x46d4a0 place it relative to the listener
+ * and fade it out (-100 per tick to -5000, then release) once it is no longer live. */
+typedef struct wl_sndch {
+    wl_voice *voice;          /* +0x00  0 = free                                          */
+    int32_t  f04;             /* +0x04 */
+    int32_t  vol;             /* +0x08  volume offset                                     */
+    int32_t  freq;            /* +0x0c */
+    int32_t  falloff;         /* +0x10  0 = -5000, 1 = not positional, -16000 = near only */
+    int32_t  live;            /* +0x14 */
+    int32_t  fading;          /* +0x18 */
+    int32_t  fade;            /* +0x1c  0 .. -5000                                        */
+    int32_t  f20;             /* +0x20 */
+} wl_sndch;
 
 typedef struct wl_body {
     uint8_t  active;          /* +0x000  0 => part absent (the movers' gate)            */
@@ -88,7 +129,8 @@ typedef struct wl_entity {
     uint16_t nrects;         /* +0x004 */
     uint8_t  _p006[0x8 - 0x6];
     void    *f08;            /* +0x008  the multi-part frame table (0x445e50)           */
-    uint8_t  _p00c[0x28 - 0xc];
+    uint8_t  _p00c[0x24 - 0xc];
+    int32_t  f24;            /* +0x024  added to the body y for the listener distance    */
     int32_t  width;          /* +0x028  the body box the integrator stamps each tick    */
     int32_t  height;         /* +0x02c */
     int32_t  dst_x;          /* +0x030  -> body +0x40 */
@@ -102,11 +144,17 @@ typedef struct wl_entity {
     uint8_t  _p0ec[0xf4 - 0xec];
     int32_t  tint_f4;        /* +0x0f4 */
     int32_t  tint_f8;        /* +0x0f8 */
-    uint8_t  _p0fc[0x104 - 0xfc];
+    int32_t  f0fc;           /* +0x0fc */
+    int32_t  f100;           /* +0x100 */
     int32_t  coll_mode;      /* +0x104  0 none, 1 solid to non-nocollide bodies,       */
                              /*         2 + the faction/state gate (0x4416c0)          */
     int32_t  coll_kind;      /* +0x108  1 side wall, 2 one-way platform, 3 solid block */
-    uint8_t  _p10c[0x1c0 - 0x10c];
+    wl_fx    fx[8];          /* +0x10c  effect records                                  */
+    uint16_t nfx;            /* +0x1ac */
+    uint8_t  _p1ae[0x1b0 - 0x1ae];
+    wl_sndch *snd;           /* +0x1b0  looping-sound channels (0 = none)               */
+    uint16_t nsnd;           /* +0x1b4 */
+    uint8_t  _p1b6[0x1c0 - 0x1b6];
     int32_t  ride_mode;      /* +0x1c0  as a platform: 0/1 only its rider, 3 anyone     */
     uint8_t  _p1c4[0x1d0 - 0x1c4];
     int32_t  alive;          /* +0x1d0  != 0 => targetable (the AI's target cycling)    */
@@ -221,9 +269,12 @@ typedef struct wl_world {
     uint8_t    _p0000[0x1030];
     int32_t    scene_kind;   /* +0x1030  2 => no fall damage / no yawn                 */
     int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
-    uint8_t    _p1038[0x1048 - 0x1038];
+    uint8_t    _p1038[0x1040 - 0x1038];
+    uint8_t   *f1040;        /* +0x1040  +0x28 = the effects volume (per mille)        */
+    uint8_t    _p1044[0x1048 - 0x1044];
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
-    uint8_t    _p104c[0x1060 - 0x104c];
+    struct camera_view *view; /* +0x104c  the camera/view (camera_follow.h)           */
+    uint8_t    _p1050[0x1060 - 0x1050];
     wl_entity *band64[64];   /* +0x1060  0x258-byte entities (shots / projectiles)      */
     struct wl_char *chars[32]; /* +0x1160  the full characters (0x15bb0 B each)        */
     wl_entity *actors[128];  /* +0x11e0  0x2fc-byte actors (townsfolk props, NPC cast)  */
@@ -555,6 +606,17 @@ _Static_assert(offsetof(wl_entity, nbody)    == 0x044, "entity nbody");
 _Static_assert(offsetof(wl_entity, coll_mode) == 0x104, "entity coll_mode");
 _Static_assert(offsetof(wl_entity, coll_kind) == 0x108, "entity coll_kind");
 _Static_assert(offsetof(wl_entity, faction)  == 0x1dc, "entity faction");
+_Static_assert(offsetof(wl_entity, f24)      == 0x024, "entity +0x24");
+_Static_assert(offsetof(wl_entity, f100)     == 0x100, "entity +0x100");
+_Static_assert(offsetof(wl_entity, fx)       == 0x10c, "entity fx records");
+_Static_assert(offsetof(wl_entity, nfx)      == 0x1ac, "entity fx count");
+_Static_assert(offsetof(wl_entity, snd)      == 0x1b0, "entity sound channels");
+_Static_assert(offsetof(wl_entity, nsnd)     == 0x1b4, "entity sound count");
+_Static_assert(sizeof(wl_fx)                 == 0x14,  "fx record");
+_Static_assert(sizeof(wl_sndch)              == 0x24,  "sound channel");
+_Static_assert(offsetof(wl_vpool, dev)       == 0x8,   "pool device");
+_Static_assert(offsetof(wl_world, f1040)     == 0x1040, "world +0x1040");
+_Static_assert(offsetof(wl_world, view)      == 0x104c, "world view");
 _Static_assert(offsetof(wl_entity, coll_off) == 0x1f0, "entity coll_off");
 _Static_assert(sizeof(wl_entity)             == 0x1f8, "entity base is 0x1f8 bytes");
 _Static_assert(offsetof(wl_list, count)      == 0x8,   "list count");
