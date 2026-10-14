@@ -4139,6 +4139,20 @@ interpreter `0x439690` drives `0x46cd70` (the same per-band order, `cut = 1`) in
 code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop returns it. Events: `0x59a1f0`
 (trigger zones) → `0x59cfc0` scene start, return 1.
 
+### #135 — the tick bands' RNG / width facts (ports of `0x54f980`, `0x46e510`, `0x47b990`, 2026-10-14)
+- **Retail's min()/max() macro draws `rand()` TWICE** in the particle tick `0x46e510`: `v = E(rand); v = v > cap ?
+  cap : E(rand)` re-evaluates the rand expression when under the cap — codes 100080/100081 (`1000*r/0x8000 + vvel +
+  1500`, cap 20000) and 100050/100053 (`vel_x - 4000*r/0x8000 - 6000`, floor 0; the 2nd draw may be negative and is
+  stored). LCG consumption per tick therefore depends on the branch.
+- `rand()/0x8000` selectors are always 0 (rand < 0x8000): the ambient one-shots 70501/70502/70503 in `0x54f980`
+  always pick their first sound.
+- char `+0x14288` is u16 in every retail access (`+0x1428a` is a separate u16 countdown).
+- `0x47b990`'s think countdown returns `eax = (mode - 11) & 0xffff0000 | (think - 1)` (register reuse); callers of
+  the tick ignore it.
+- Shared tails: every actor body ends in the region-C flag pass `0x426be0` (its eax is the return); every particle
+  ends lifetime (u16 `+0x258`/`+0x26c`, kill + return) → `0x46d180` inlined (when `+0x270`) → clip step →
+  `0x54d090` → parent offsets.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
