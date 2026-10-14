@@ -6,6 +6,23 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 — the room loop's passes: gimmicks, touch (doors), event zones, per-tick calls
+
+- Ported on retail layout + verified inside retail: the GIMMICK pass 0x59afd0 / 0x59b170 (switch
+  plates, levers, followers, timed plates, hits) + switching 0x40afe0 / links 0x40be30 + the event
+  runner 0x40b8f0 / resource unload 0x43e3a0 (`src/gimmick.c`, `src/event.c`); the TOUCH pass
+  0x59bdd0 / 0x59c240 (probe rects, nearest script, door actors — the room changes); the EVENT ZONES
+  0x59a1f0 (walk-in / press / hold, foe rest; 8 fires in rh-my-play); the room loop's per-tick calls
+  (`src/room_loop.c`: input update, character / actor steps, tile anim, party check, camera lead,
+  timed sounds). quirk #137 (+ a correction of #134: doors are the touch pass).
+- rhost SHADOW GUARD: engine-call slots with external effects (surface free, buffer release,
+  DeleteObject, DirectInput, the input re-poll, room-start / touch scripts) abort a shadow's port
+  phase (keep retail's result, counted skipped) instead of doing them twice; `full_shadow` returns
+  -1 when skipped. Shadow sets are checked not to perturb the run with `corpus --check --hook shadow:…`.
+- Hybrid gate: 128 hooks replacing retail, all 7 scenarios byte-identical. Next: the rest under the
+  room loop (pickups 0x59ca90 + the message log, warp 0x59c750, 0x59aa40, 0x58e780, scene start),
+  then the loop itself.
+
 ## 2026-10-15 (night) — the layer under the tick bands: sound / voices, entity lifecycle, particles
 
 - Ported on retail layout + verified per call inside retail (full-state shadow), each retiring
