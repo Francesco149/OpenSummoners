@@ -28,6 +28,7 @@
 #include "entity_fx.h"
 #include "actor_update.h"
 #include "particle_tick.h"
+#include "char_behave.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -39,7 +40,7 @@ typedef struct {
 
 static hook_t H[];
 enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK,
-       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_ACTOR, H_PARTICLE, H_N };
+       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_ACTOR, H_PARTICLE, H_BEHAVE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -693,6 +694,30 @@ static void __attribute__((thiscall)) w_particle(wl_particle *p)
     full_shadow(h, "particle_tick", prt_retail, prt_port, p, what);
 }
 
+/* ---- the behaviour AI (FUN_0047b990, thiscall(char, cut, body, grounded)) — full state ---- */
+typedef int (__attribute__((thiscall)) *behave_t)(wl_char *, int32_t, wl_body *, int32_t);
+typedef struct { wl_char *c; int32_t cut; wl_body *b; int32_t gr; int rr, rp; } bh_ctx;
+static void bh_retail(void *x_) { bh_ctx *x = x_; x->rr = ((behave_t)(uintptr_t)H[H_BEHAVE].va)(x->c, x->cut, x->b, x->gr); }
+static void bh_port(void *x_) { bh_ctx *x = x_; port_world(); x->rp = char_behave(x->c, x->cut, x->b, x->gr); }
+static long g_bh_codes[64]; static int32_t g_bh_code_id[64]; static int g_nbh_codes;
+static int __attribute__((thiscall)) w_behave(wl_char *c, int32_t cut, wl_body *b, int32_t gr)
+{
+    hook_t *h = &H[H_BEHAVE];
+    if (h->mode == 2) { h->calls++; port_world(); return char_behave(c, cut, b, gr); }
+    int32_t code = c->base.code;
+    int k = 0;
+    while (k < g_nbh_codes && g_bh_code_id[k] != code) k++;
+    if (k == g_nbh_codes && k < 64) { g_bh_code_id[k] = code; g_nbh_codes++; }
+    int rare = k < 64 && g_bh_codes[k] < 64;
+    if (!sample_rare(h, rare)) return ((behave_t)(uintptr_t)h->va)(c, cut, b, gr);
+    if (k < 64) g_bh_codes[k]++;
+    bh_ctx x = { c, cut, b, gr, 0, 0 };
+    char what[128]; snprintf(what, sizeof what, "char %p code %d cut %d state %u f14288 %u think %u", (void *)c, code, cut, c->ai_state, c->f14288, c->think_t);
+    if (!full_shadow(h, "char_behave", bh_retail, bh_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -719,6 +744,7 @@ static hook_t H[H_N] = {
     [H_SND_ONE]    = { "snd_one",     0x46d4a0u, (void *)w_snd_one,     0, 1, 0, 0, 0, 0, "" },
     [H_ACTOR]      = { "actor_update", 0x54f980u, (void *)w_actor,      0, 1, 0, 0, 0, 0, "" },
     [H_PARTICLE]   = { "particle_tick", 0x46e510u, (void *)w_particle,  0, 1, 0, 0, 0, 0, "" },
+    [H_BEHAVE]     = { "char_behave", 0x47b990u, (void *)w_behave,      0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -764,11 +790,14 @@ static void bind_engine_calls(void)
     B(40a010); B(446400); B(47e330); B(44e640); B(44e680); B(5b5600); B(40d960); B(487530); B(487dc0);
     B(4878b0); B(476880); B(485f70); B(489280); B(487250); B(4895c0);
     B(41ef80); B(4593c0); B(4872d0);
-    B(47b990); B(4710c0); B(46da00); B(54c640); B(5567a0);
+    B(4710c0); B(46da00); B(54c640); B(5567a0);
     B(408100); B(408b90); B(40bd90); B(40be00); B(41ea70); B(41ee60); B(450ef0); B(453960); B(54f140);
     B(552c70); B(552f60); B(5531b0); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(555790); B(555e90); B(555fc0); B(556180); B(556380); B(5563d0); B(556e50);
     B(426db0);
+    B(47d760); B(485f30); B(47da60); B(482240); B(482460); B(482ac0); B(484bf0); B(4852f0); B(4060d0); B(47de50); B(47f670); B(47f9d0);
+    B(481ac0); B(482e10); B(4834f0); B(484c10); B(484ea0); B(4854e0); B(4856d0); B(485990); B(47d790); B(481310); B(482880); B(485670);
+    B(485740); B(47b7c0); B(47e010); B(47eae0); B(483fb0); B(4857f0); B(483de0); B(485350); B(47dbb0); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0);
 #undef B
 }
 
@@ -782,7 +811,7 @@ void rh_hooks_install(void)
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
         H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = H[H_CHAR_APPLY].va = H[H_WORLD_TICK].va =
-        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = H[H_ACTOR].va = H[H_PARTICLE].va = 0;
+        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = H[H_ACTOR].va = H[H_PARTICLE].va = H[H_BEHAVE].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -819,6 +848,8 @@ void rh_hooks_report(void)
     if (H[H_CHAR_INT].mode == 1)
         rh_log("char_integrate: %ld calls delegated (special input pose), %ld entered an unported pose mid-call\n",
                g_int_special, g_integrate_unported);
+    if (H[H_BEHAVE].mode == 1)
+        for (int k = 0; k < g_nbh_codes; k++) rh_log("char_behave coverage: code %d compared %ld\n", g_bh_code_id[k], g_bh_codes[k]);
     if (H[H_PARTICLE].mode == 1)
         for (int k = 0; k < g_nprt_codes; k++) rh_log("particle_tick coverage: code %d compared %ld\n", g_prt_code_id[k], g_prt_codes[k]);
     if (H[H_ACTOR].mode == 1)

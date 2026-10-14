@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 49,
-  "unported": 1525,
+  "ported": 50,
+  "unported": 1524,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 299,
+  "touched": 300,
   "pct_touched": 18.7,
   "pct_tested": 15.8,
-  "engine_proper_touched": 286,
+  "engine_proper_touched": 287,
   "bytes_total": 1776526,
-  "bytes_touched": 363552,
-  "pct_bytes_touched": 20.5
+  "bytes_touched": 371013,
+  "pct_bytes_touched": 20.9
  },
  "orphan_refs": [],
  "functions": [
@@ -5088,8 +5088,11 @@
    "name": "actor_ai_47B990",
    "size": 7461,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_behave.c",
+    "src/char_behave.h"
+   ]
   },
   {
    "va": "0x47d740",

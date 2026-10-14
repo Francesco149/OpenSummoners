@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-████░░░░░░░░░░░░░░░░  18.7% touched   (15.8% host-tested, 20.5% of code bytes)
+████░░░░░░░░░░░░░░░░  18.7% touched   (15.8% host-tested, 20.9% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |    49 | reimplemented in src/, no host test for that module  |
-| **touched** | **299** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1525 | exists in engine, never referenced from src/         |
+| ported      |    50 | reimplemented in src/, no host test for that module  |
+| **touched** | **300** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1524 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (20.5% of engine-proper bytes) is the truer progress
+Code-byte coverage (20.9% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -56,6 +56,7 @@ understates how much actual instruction volume is ported.
   | looping-sound channels (all / one / release) | `0x46d180` / `0x46d4a0` / `0x4537d0` | 256k / 227k / 36 (11.5k full-state) | 0 |
   | ACTOR update (per-code behaviours) | `0x54f980` | 706k (43.8k full-state) | 0 |
   | PARTICLE tick (96 codes + tail) | `0x46e510` | 438k (28k full-state) | 0 |
+  | BEHAVIOUR AI (townsfolk / party / monsters) | `0x47b990` | 122k (32.5k full-state) | 0 |
   Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
   movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
@@ -69,14 +70,15 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): NPC behaviours `0x47b990`
-     (7.5 KB, 55k calls in rh-my-play, 18 townsfolk codes); shots `0x4710c0` (20 KB)
+  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): ALL ported except shots `0x4710c0` (20 KB)
      + the 96-band `0x46da00` never run in the corpus (no combat yet). Arms ported but NOT yet exercised by
      the corpus (need recordings that reach them): `src/entity_fx.c` water splashes + records
      100150..100157; `src/actor_update.c` codes 70100/70120/70216/70230/70240/70360/70375/70390/70480/
      70520/70521/70840/70850/100138/100142..100145 (+ the slot-only codes); `src/particle_tick.c` every
      code but 100077/100078/100080/100081/100082/100100/100104 (incl. the x87 orbit 100131, which needs
-     the port binary on MSVC's 53-bit FPU precision). The actor behaviours behind
+     the port binary on MSVC's 53-bit FPU precision); `src/char_behave.c` the cutscene random walk
+     (+0x15ba8) and the monster / party modes. The ~40 behaviour helpers behind `0x47b990`'s slots
+     (`0x482ac0`..`0x485990`, `0x47ecd0`, `0x47e330`) are the next layer down. The actor behaviours behind
      slots: `0x555790` (doors), `0x554c40`, `0x553ec0`, `0x553520`, `0x552c70`, `0x552f60`, `0x554570`,
      `0x54f140`, `0x5556d0`, `0x5531b0` (ambient timers), the channel start `0x450ef0`;
      the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).

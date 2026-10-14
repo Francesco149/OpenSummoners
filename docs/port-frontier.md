@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **422**
-- of those, zero-dependency **leaves: 231** (recommended order below)
+- frontier functions: **457**
+- of those, zero-dependency **leaves: 251** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -41,19 +41,19 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5aff00 | 26 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x4e61a0 | 33 | 2 | narrative scene FSM + dungeon/encounter driver (sparse) |
 | 0x491740 | 38 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x479e40 | 41 | 2 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x448c80 | 47 | 2 | entity per-frame FSM + action handlers + dialog + skills |
 | 0x494e10 | 66 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x485f70 | 68 | 2 | char anim + hit-test/knockback + GDI glyph + sfx trigger |
+| 0x40d960 | 69 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x41bb80 | 95 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x411ec0 | 118 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x562a70 | 127 | 2 | title + gameplay scene runners + engine init + options + input init |
 | 0x579860 | 131 | 2 | master sprite-group register + audio/music init + anim pump |
 | 0x4118b0 | 134 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x43c920 | 143 | 2 | battle scenario init + turn engine + input poll + save mgr |
+| 0x47b7c0 | 163 | 2 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x579680 | 191 | 2 | master sprite-group register + audio/music init + anim pump |
-| 0x4071f0 | 196 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
-| 0x56df10 | 203 | 2 | title + gameplay scene runners + engine init + options + input init |
-| 0x412c40 | 227 | 2 | menu/dialog controller + char init + shop/NPC + save path |
-| 0x562d50 | 239 | 2 | title + gameplay scene runners + engine init + options + input init |
 
 ## Full frontier by address band
 
@@ -67,7 +67,9 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x40b710 | 480 | 3 | 2 |  |
 | 0x40fe00 | 596 | 3 | 5 |  |
 | 0x407ba0 | 907 | 3 | 7 |  |
+| 0x40d960 | 69 | 2 | 0 | ✓ |
 | 0x4071f0 | 196 | 2 | 0 | ✓ |
+| 0x4060d0 | 241 | 2 | 0 | ✓ |
 | 0x409e90 | 375 | 2 | 2 |  |
 | 0x402a60 | 435 | 2 | 1 |  |
 | 0x40f800 | 511 | 2 | 0 | ✓ |
@@ -81,7 +83,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x40bb70 | 30 | 1 | 0 | ✓ |
 | 0x40be00 | 36 | 1 | 0 | ✓ |
 | 0x402060 | 62 | 1 | 1 |  |
-| 0x40d960 | 69 | 1 | 0 | ✓ |
 | 0x40fdb0 | 70 | 1 | 0 | ✓ |
 | 0x4022d0 | 88 | 1 | 0 | ✓ |
 | 0x40e2f0 | 100 | 1 | 0 | ✓ |
@@ -89,7 +90,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x408d40 | 124 | 1 | 0 | ✓ |
 | 0x408100 | 205 | 1 | 3 |  |
 | 0x401e60 | 232 | 1 | 0 | ✓ |
-| 0x4060d0 | 241 | 1 | 0 | ✓ |
 | 0x40df40 | 374 | 1 | 0 | ✓ |
 | 0x402330 | 431 | 1 | 0 | ✓ |
 | 0x40d9b0 | 437 | 1 | 0 | ✓ |
@@ -224,41 +224,76 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x45a300 | 14079 | 1 | 27 |  |
 | 0x461790 | 19423 | 1 | 39 |  |
 
-### battle phase controller + NPC AI + particle fx + damage UI (12)
+### battle phase controller + NPC AI + particle fx + damage UI (22)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
+| 0x479e40 | 41 | 2 | 0 | ✓ |
+| 0x47adb0 | 79 | 2 | 1 |  |
+| 0x47b7c0 | 163 | 2 | 0 | ✓ |
 | 0x476880 | 509 | 2 | 4 |  |
+| 0x47e330 | 1120 | 2 | 4 |  |
 | 0x479e10 | 38 | 1 | 0 | ✓ |
-| 0x479e40 | 41 | 1 | 0 | ✓ |
-| 0x47adb0 | 79 | 1 | 1 |  |
-| 0x47b7c0 | 163 | 1 | 0 | ✓ |
+| 0x47d760 | 47 | 1 | 0 | ✓ |
 | 0x47a300 | 278 | 1 | 0 | ✓ |
+| 0x47da60 | 329 | 1 | 0 | ✓ |
 | 0x47a7f0 | 376 | 1 | 0 | ✓ |
+| 0x47de50 | 446 | 1 | 0 | ✓ |
+| 0x47eae0 | 469 | 1 | 0 | ✓ |
+| 0x47e010 | 504 | 1 | 1 |  |
+| 0x47dbb0 | 655 | 1 | 0 | ✓ |
 | 0x47a420 | 685 | 1 | 1 |  |
+| 0x47d790 | 710 | 1 | 0 | ✓ |
+| 0x47e7c0 | 799 | 1 | 0 | ✓ |
+| 0x47f670 | 861 | 1 | 0 | ✓ |
+| 0x47f9d0 | 874 | 1 | 0 | ✓ |
 | 0x479f90 | 875 | 1 | 1 |  |
-| 0x47e330 | 1120 | 1 | 4 |  |
-| 0x47b990 | 7461 | 1 | 43 |  |
+| 0x47ecd0 | 2303 | 1 | 8 |  |
 | 0x4710c0 | 20681 | 1 | 49 |  |
 
-### char anim + hit-test/knockback + GDI glyph + sfx trigger (17)
+### char anim + hit-test/knockback + GDI glyph + sfx trigger (42)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
+| 0x485f70 | 68 | 2 | 0 | ✓ |
+| 0x484bf0 | 31 | 1 | 0 | ✓ |
 | 0x487530 | 54 | 1 | 0 | ✓ |
-| 0x485f70 | 68 | 1 | 0 | ✓ |
+| 0x4852f0 | 55 | 1 | 0 | ✓ |
+| 0x485f30 | 55 | 1 | 0 | ✓ |
+| 0x4856d0 | 83 | 1 | 0 | ✓ |
+| 0x485670 | 90 | 1 | 0 | ✓ |
 | 0x487250 | 114 | 1 | 0 | ✓ |
 | 0x4874b0 | 115 | 1 | 0 | ✓ |
+| 0x485740 | 166 | 1 | 0 | ✓ |
+| 0x482380 | 217 | 1 | 0 | ✓ |
 | 0x48e100 | 246 | 1 | 0 | ✓ |
+| 0x482240 | 310 | 1 | 0 | ✓ |
+| 0x484c10 | 322 | 1 | 3 |  |
 | 0x48c6b0 | 359 | 1 | 0 | ✓ |
 | 0x487730 | 366 | 1 | 0 | ✓ |
+| 0x4854e0 | 388 | 1 | 0 | ✓ |
+| 0x485350 | 391 | 1 | 0 | ✓ |
+| 0x4857f0 | 404 | 1 | 0 | ✓ |
 | 0x487570 | 437 | 1 | 0 | ✓ |
+| 0x483de0 | 446 | 1 | 2 |  |
 | 0x4872d0 | 474 | 1 | 0 | ✓ |
+| 0x482e10 | 501 | 1 | 8 |  |
+| 0x482880 | 532 | 1 | 7 |  |
+| 0x482460 | 536 | 1 | 7 |  |
 | 0x48d710 | 550 | 1 | 0 | ✓ |
+| 0x483b50 | 600 | 1 | 1 |  |
+| 0x484530 | 740 | 1 | 3 |  |
+| 0x483fb0 | 784 | 1 | 8 |  |
+| 0x485990 | 793 | 1 | 8 |  |
 | 0x489280 | 818 | 1 | 5 |  |
+| 0x482ac0 | 844 | 1 | 4 |  |
 | 0x48cb90 | 1005 | 1 | 0 | ✓ |
+| 0x484ea0 | 1029 | 1 | 1 |  |
+| 0x4834f0 | 1062 | 1 | 3 |  |
+| 0x481310 | 1144 | 1 | 4 |  |
 | 0x4878b0 | 1289 | 1 | 9 |  |
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
+| 0x481ac0 | 1874 | 1 | 9 |  |
 | 0x48ef40 | 4389 | 1 | 7 |  |
 | 0x487dc0 | 5082 | 1 | 15 |  |
 | 0x4895c0 | 8605 | 1 | 20 |  |

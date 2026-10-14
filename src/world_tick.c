@@ -6,6 +6,7 @@
 
 #include "actor_update.h"
 #include "char_ai.h"
+#include "char_behave.h"
 #include "char_apply.h"
 #include "engine_calls.h"
 #include "entity_fx.h"
@@ -40,7 +41,7 @@ int world_tick(void *ctl, int32_t cut)
         int32_t n = c->f200;
         if (cut == 0 && c->base.coll_off != 0) n = 1;
         if (n != 0) {
-            if (--n == 0) g_eng.h47b990(c, cut, IP(b), grounded);
+            if (--n == 0) char_behave(c, cut, b, grounded);
         } else if (cut == 0) {
             char_ai(c, b, grounded);
         }

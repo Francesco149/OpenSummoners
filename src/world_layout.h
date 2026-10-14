@@ -411,11 +411,13 @@ typedef struct wl_char {
     uint8_t    _pc7f0[0xc824 - 0xc7f0];
     int32_t    fc824[2];       /* +0x0c824  linked effects (released when fc82c is 0)    */
     int32_t    fc82c[2];       /* +0x0c82c  (cleared each tick)                          */
-    uint8_t    _pc834[0xc848 - 0xc834];
+    int32_t    reach;          /* +0x0c834  the AI's engage distance (0x47e330 arg)        */
+    int32_t    fc838;          /* +0x0c838 */
+    uint8_t    _pc83c[0xc848 - 0xc83c];
     /* ── the NPC navigation tuning (0x43f880) ── */
     int32_t    nav_jump_chance;/* +0x0c848  per-mille chance of a spontaneous look-up/jump */
     int32_t    nav_sim_off;    /* +0x0c84c  != 0 => commands are not simulated first     */
-    uint8_t    _pc850[0xc854 - 0xc850];
+    int32_t    fc850;          /* +0x0c850  != 0 => the behaviour AI also runs in cutscenes */
     int32_t    nav_skill;      /* +0x0c854  the chase skill (action 5)                   */
     int32_t    nav_skill_arg;  /* +0x0c858 */
     int32_t    nav_skill2;     /* +0x0c85c  the ranged skill (action 6)                  */
@@ -424,22 +426,72 @@ typedef struct wl_char {
     int32_t    nav_range_hi;   /* +0x0c868 */
     int32_t    nav_chase;      /* +0x0c86c  1 => turn to chase when the target is behind  */
     int32_t    nav_c870;       /* +0x0c870 */
-    uint8_t    _pc874[0xc890 - 0xc874];
+    uint16_t   wait_chance;    /* +0x0c874  per-mille chance of a re-think pause            */
+    uint8_t    _pc876[0xc87a - 0xc876];
+    uint16_t   pause_chance;   /* +0x0c87a  per-mille chance of a pause when the target moved */
+    uint16_t   pause_len;      /* +0x0c87c  the pause length scale                         */
+    uint8_t    _pc87e[0xc890 - 0xc87e];
     int32_t    nav_drop;       /* +0x0c890  the floor drop it will jump down / bridge     */
     int32_t    nav_fall;       /* +0x0c894  the drop it will jump over                    */
     int32_t    nav_rise;       /* +0x0c898  the target height difference it climbs to     */
-    uint8_t    _pc89c[0x14234 - 0xc89c];
-    uint16_t   f14234;         /* +0x14234  != 0 => immune to the hazard probe          */
-    uint8_t    _p14236[0x14238 - 0x14236];
+    uint8_t    _pc89c[0xc89e - 0xc89c];
+    uint16_t   retarget;       /* +0x0c89e  ticks between target re-picks                 */
+    uint8_t    _pc8a0[0xcb40 - 0xc8a0];
+    uint16_t   cd0;            /* +0x0cb40  the first of the per-record cooldowns (stride
+                                *           0x140, count +0x14228; 0x47b990 counts them down) */
+    uint8_t    _pcb42[0x14228 - 0xcb42];
+    uint16_t   ncd;            /* +0x14228 */
+    uint8_t    _p1422a[0x1422c - 0x1422a];
+    uint16_t   ai_state;       /* +0x1422c  0 idle .. 6 (0x47b990's behaviour switch)        */
+    uint16_t   ai_sub;         /* +0x1422e */
+    uint16_t   ai_t;           /* +0x14230 */
+    uint16_t   think_t;        /* +0x14232  != 0 => this tick only counts down              */
+    uint16_t   f14234;         /* +0x14234  != 0 => immune to the hazard probe / AI pause   */
+    uint16_t   f14236;         /* +0x14236 */
     void      *platform;       /* +0x14238  the entity it rides (nav: stay on it)        */
-    uint8_t    _p1423c[0x1427c - 0x1423c];
+    int32_t    f1423c;         /* +0x1423c */
+    int32_t    ai_mode;        /* +0x14240  the default behaviour (1..14; 9 when coll_off)   */
+    int32_t    side;           /* +0x14244  1 / 3: the side of the leader it keeps to        */
+    uint16_t   side_t;         /* +0x14248 */
+    uint8_t    _p1424a[0x1424c - 0x1424a];
+    struct wl_char *leader;    /* +0x1424c */
+    uint8_t    _p14250[0x14258 - 0x14250];
+    int32_t    f14258;         /* +0x14258 */
+    int32_t    f1425c;         /* +0x1425c */
+    int32_t    f14260;         /* +0x14260 */
+    int32_t    f14264;         /* +0x14264  58010: the two posts it paces between            */
+    int32_t    f14268;         /* +0x14268 */
+    uint8_t    _p1426c[0x14270 - 0x1426c];
+    int32_t    f14270;         /* +0x14270 */
+    int32_t    f14274;         /* +0x14274 */
+    uint16_t   target_t;       /* +0x14278 */
+    uint8_t    _p1427a[0x1427c - 0x1427a];
     struct wl_char *target;    /* +0x1427c */
-    uint8_t    _p14280[0x14288 - 0x14280];
-    int32_t    f14288;         /* +0x14288  != 0 => simulate even with nav_sim_off       */
-    uint8_t    _p1428c[0x14810 - 0x1428c];
+    int32_t    target_x;       /* +0x14280  where the target was                          */
+    int32_t    target_y;       /* +0x14284 */
+    uint16_t   f14288;         /* +0x14288  0 calm / 1 engaged / 2 casting; != 0 => simulate
+                                *           even with nav_sim_off (u16 in every retail access) */
+    uint16_t   engage_t;       /* +0x1428a */
+    struct wl_char *pal;       /* +0x1428c  the ally it watches                           */
+    uint16_t   calm_t;         /* +0x14290 */
+    uint8_t    _p14292[0x14294 - 0x14292];
+    int32_t    f14294;         /* +0x14294 */
+    void      *f14298;         /* +0x14298 */
+    uint8_t    _p1429c[0x14804 - 0x1429c];
+    uint16_t   f14804;         /* +0x14804 */
+    uint8_t    _p14806[0x14808 - 0x14806];
+    int32_t    f14808;         /* +0x14808 */
+    int32_t    f1480c;         /* +0x1480c */
     int32_t    boost_speed;    /* +0x14810  != 0 => walk max + 6000                     */
     int32_t    boost_accel;    /* +0x14814  != 0 => accel + 2000, brake - 800            */
-    uint8_t    _p14818[0x14854 - 0x14818];
+    int32_t    f14818;         /* +0x14818 */
+    int32_t    f1481c;         /* +0x1481c */
+    int32_t    f14820;         /* +0x14820 */
+    uint8_t    _p14824[0x1482e - 0x14824];
+    uint16_t   f1482e;         /* +0x1482e */
+    uint16_t   f14830;         /* +0x14830 */
+    uint16_t   f14832;         /* +0x14832 */
+    uint8_t    _p14834[0x14854 - 0x14834];
     wl_cmd     cmd;            /* +0x14854 */
     struct { int32_t key, val; } member_skill[4]; /* +0x14874  (count +0x14894)        */
     int32_t    n_member_skill; /* +0x14894 */
@@ -457,7 +509,8 @@ typedef struct wl_char {
     uint16_t   f158c2;         /* +0x158c2  counts down; clears f158c4 at 0              */
     int32_t    f158c4;         /* +0x158c4 */
     int32_t    leash_t;        /* +0x158c8  ticks bound to f15b60 (saturates 0xffffff)   */
-    uint8_t    _p158cc[0x158fc - 0x158cc];
+    int32_t    leash_lost;     /* +0x158cc  ticks the leash target was out of reach       */
+    uint8_t    _p158d0[0x158fc - 0x158d0];
     int32_t    f158fc;         /* +0x158fc  (the hit-reaction helper 0x467260 arg)      */
     uint8_t    _p15900[0x15904 - 0x15900];
     int32_t    f15904;         /* +0x15904  != 0 => pose 0x20 ends by removing itself   */
@@ -559,7 +612,9 @@ typedef struct wl_char {
     uint8_t    _p15b58[0x15b5c - 0x15b58];
     int32_t    f15b5c;         /* +0x15b5c */
     struct wl_char *leash;     /* +0x15b60 */
-    uint8_t    _p15b64[0x15bb0 - 0x15b64];
+    uint8_t    _p15b64[0x15ba8 - 0x15b64];
+    int32_t    cut_walk;       /* +0x15ba8  1 => in cutscenes it random-walks (0x47b990)   */
+    int32_t    f15bac;         /* +0x15bac */
 } wl_char;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
@@ -614,6 +669,20 @@ _Static_assert(offsetof(wl_char, nav_jump_chance) == 0x0c848, "char +0xc848");
 _Static_assert(offsetof(wl_char, nav_rise)    == 0x0c898, "char +0xc898");
 _Static_assert(offsetof(wl_char, platform)    == 0x14238, "char +0x14238");
 _Static_assert(offsetof(wl_char, f14288)      == 0x14288, "char +0x14288");
+_Static_assert(offsetof(wl_char, engage_t)    == 0x1428a, "char +0x1428a");
+_Static_assert(offsetof(wl_char, reach)       == 0x0c834, "char +0xc834");
+_Static_assert(offsetof(wl_char, fc850)       == 0x0c850, "char +0xc850");
+_Static_assert(offsetof(wl_char, pause_len)   == 0x0c87c, "char +0xc87c");
+_Static_assert(offsetof(wl_char, retarget)    == 0x0c89e, "char +0xc89e");
+_Static_assert(offsetof(wl_char, cd0)         == 0x0cb40, "char +0xcb40");
+_Static_assert(offsetof(wl_char, ncd)         == 0x14228, "char +0x14228");
+_Static_assert(offsetof(wl_char, leader)      == 0x1424c, "char +0x1424c");
+_Static_assert(offsetof(wl_char, target_t)    == 0x14278, "char +0x14278");
+_Static_assert(offsetof(wl_char, f14298)      == 0x14298, "char +0x14298");
+_Static_assert(offsetof(wl_char, f1480c)      == 0x1480c, "char +0x1480c");
+_Static_assert(offsetof(wl_char, f14832)      == 0x14832, "char +0x14832");
+_Static_assert(offsetof(wl_char, leash_lost)  == 0x158cc, "char +0x158cc");
+_Static_assert(offsetof(wl_char, cut_walk)    == 0x15ba8, "char +0x15ba8");
 _Static_assert(offsetof(wl_char, no_sim)      == 0x15908, "char +0x15908");
 _Static_assert(offsetof(wl_char, nav_low_bridge) == 0x15960, "char +0x15960");
 _Static_assert(offsetof(wl_char, nav_c_check) == 0x15a90, "char +0x15a90");
