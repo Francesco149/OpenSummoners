@@ -498,11 +498,25 @@ static void __attribute__((thiscall)) w_pal_copy(void *self, uint8_t *src)
 /* per edition: A = `call palcopy` sites (palette at the pushed src), B = inline `lea esi,[esp+0x418]`
  * before a 1 KB rep movsd (+ resume VA), C = move-command copy `lea edi,[esi+OFF]` (+ the
  * stack offset of the WORD-written last field's high half, + resume VA) */
-typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; } uninit_t;
+typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; uint32_t sbh_alloc; } uninit_t;
 static const uninit_t UNINIT[] = {
-    { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u },
-    { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u },
+    { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u, 0x5c73fdu },
+    { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u, 0x5f7afau },
 };
+/* site D (quirk #130): retail reads UNINITIALIZED HEAP — a reused CRT small block keeps the previous
+ * owner's bytes, e.g. the 0x54-byte node `new`ed at 0x4158a4 only fills its word array up to its
+ * count, so +0x44 can hold the low half of a DirectDraw lpSurface left by a freed DDSURFACEDESC (a
+ * system-DLL pointer ⇒ different every run). Zero every block the MSVC6 small-block heap hands out
+ * (___sbh_alloc_block: malloc/new + realloc moves; calloc zeroes anyway); rh_heap zeroes the
+ * HeapAlloc path (> the SBH threshold) under the same switch. */
+typedef void *(__cdecl *sbh_alloc_t)(size_t);
+static uint32_t g_sbh_alloc_va;
+static void *__cdecl w_sbh_alloc(size_t n)
+{
+    void *p = ((sbh_alloc_t)(uintptr_t)g_sbh_alloc_va)(n);
+    if (p) memset(p, 0, n);
+    return p;
+}
 static int uninit_fix_install(void)
 {
     const uninit_t *u = NULL;
@@ -514,6 +528,9 @@ static int uninit_fix_install(void)
      * 3-bytes-per-entry LUT loop, so byte 3 can never carry meaning in retail) */
     (void)u->a;
     n += redirect_calls(u->palcopy, w_pal_copy);
+    g_sbh_alloc_va = u->sbh_alloc;
+    n += redirect_calls(u->sbh_alloc, w_sbh_alloc);
+    rh_heap_zero_alloc = 1;
     static const uint8_t want_b[7] = { 0x8D, 0xB4, 0x24, 0x18, 0x04, 0x00, 0x00 };   /* lea esi,[esp+0x418] */
     uint8_t *q = (uint8_t *)(uintptr_t)u->b;
     if (!memcmp(q, want_b, 7)) {                            /* site B: inline palette before rep movsd */

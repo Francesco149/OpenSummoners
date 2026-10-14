@@ -4069,6 +4069,17 @@ port without these frames ran its title ~47 flips ahead; with them (`--boot-load
 the title intro are pixel-identical at the SAME flip (2026-10-14). SE has its own loader (~60 steps,
 f10 = "Now Loading 18%").
 
+### #130 — retail reads UNINITIALIZED HEAP: reused CRT small blocks keep the previous owner's bytes
+The 0x54-byte node `new`ed at `0x4158a4` (`0x415860`: `+0` dword, `+4` word, `+6..` word array of
+`count` entries, `+0x46` count (WORD from a dword arg — `mov [eax+46h],cx`), `+0x48..+0x53` zeroed)
+fills its word array only up to `count`, so `+0x6+2*count .. +0x45` is whatever the MSVC6 small-block
+heap (`___sbh_alloc_block` `0x5c73fd`; EN-SE `0x5f7afa`) last held there. In `rh-my-play` (f2592,
+caller `0x43a857`) that was the low half of a DirectDraw `lpSurface` that `0x5b9490` (surface Lock)
+had written into a since-freed DDSURFACEDESC — a system-DLL pointer, so the stored word differed run
+to run (`edb0`/`12a0`/`eab0`). Not colour/logic-bearing as far as observed; a port may zero-init the
+node. rhost neutralizes the class (uninit-fix site D: every SBH block + every HeapAlloc arena block
+is zeroed on allocation; `--no-uninit-fix` = raw retail). Found by `det rh-my-play` + `--watch-write`.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

@@ -55,6 +55,7 @@ static uint32_t g_nheaps;
 static int g_active;
 static uint64_t g_nalloc, g_nfree, g_inuse, g_inuse_max;
 static uint32_t g_host_lo, g_host_hi;
+int rh_heap_zero_alloc;
 
 static void lock(void)   { EnterCriticalSection(&g_lk); }
 static void unlock(void) { LeaveCriticalSection(&g_lk); }
@@ -152,7 +153,7 @@ static void *arena_alloc(uint32_t n, int zero)
         h->cap = chunk - sizeof(hdr_t); h->cls = CLS_LARGE;
     }
     h->req = n; h->magic = MAGIC_LIVE;
-    if (zero) memset(h + 1, 0, h->cap);
+    if (zero || rh_heap_zero_alloc) memset(h + 1, 0, h->cap);   /* uninit-fix site D (rhost.c) */
     g_nalloc++; g_inuse += h->cap; if (g_inuse > g_inuse_max) g_inuse_max = g_inuse;
     return h + 1;
 }

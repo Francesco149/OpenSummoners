@@ -40,6 +40,7 @@ LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/opensummoners/rhost-ru
 IDA_DIR = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
 WIN = os.environ.get("RHOST_WIN", "win")
 WROOT = "C:\\oss-rhost"
+WEXE = "oss-rhost.exe"   # Windows-side binary name (distinct from openrecet's rhost.exe)
 def volatile_file(ed):
     return os.path.join(HERE, f"volatile.{ed}.txt")
 EXES = {"enold": "sotes.unpacked.exe", "ense-en": "sotes_en.unpacked.exe", "ense-jp": "sotes.unpacked.exe"}
@@ -88,7 +89,9 @@ def cmd_build(a=None):
 
 def cmd_stage(a=None):
     ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\bin,{WROOT}\\runs,{WROOT}\\queue,{WROOT}\\game | Out-Null; exit 0")
-    scp(os.path.join(BUILD, "rhost.exe"), f"{WIN}:C:/oss-rhost/bin/rhost.exe")
+    # deployed as oss-rhost.exe: openrecet's stage does `Get-Process rhost | Stop-Process` (by
+    # NAME) — a shared `rhost.exe` name let a sibling restage kill our in-flight batch mid-run
+    scp(os.path.join(BUILD, "rhost.exe"), f"{WIN}:C:/oss-rhost/bin/{WEXE}")
     for f in ("runner.ps1", "install-runner.ps1", "stage-game.ps1"):
         scp(os.path.join(HERE, "win", f), f"{WIN}:C:/oss-rhost/{f}")
     print("staged", BUILD, "->", WROOT)
@@ -199,7 +202,7 @@ def make_batch(a, runs, tag):
         open(os.path.join(rdir, "argv.json"), "w").write(json.dumps(args))
         ps_args = ",".join("'" + x.replace("'", "''") + "'" for x in args)
         lines.append(f"while (@($procs | Where-Object {{ !$_.HasExited }}).Count -ge $J) {{ Start-Sleep -Milliseconds 50 }}")
-        lines.append(f"$procs += Start-Process -FilePath '{WROOT}\\bin\\rhost.exe' -ArgumentList @({ps_args}) -PassThru "
+        lines.append(f"$procs += Start-Process -FilePath '{WROOT}\\bin\\{WEXE}' -ArgumentList @({ps_args}) -PassThru "
                      f"-WindowStyle Hidden -RedirectStandardOutput '{run_win}\\stdout.txt' -RedirectStandardError '{run_win}\\stderr.txt'")
         names.append(name)
     lines.append("$procs | ForEach-Object { $_.WaitForExit() }")

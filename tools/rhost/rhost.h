@@ -88,6 +88,7 @@ void *rh_fixed_alloc(size_t n);   /* host objects retail may point at: fixed VA 
 /* rh_heap.c */
 int  rh_heap_init(void);
 void rh_heap_install(void);
+extern int rh_heap_zero_alloc;   /* uninit-fix site D: zero every arena block handed out */
 int  rh_heap_ranges(uint32_t (*out)[2], int max);
 void rh_heap_stats(char *buf, size_t n);
 int  rh_is_det_addr(uint32_t v);   /* image / host / arena: deterministic address space */

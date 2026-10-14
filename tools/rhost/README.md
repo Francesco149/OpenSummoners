@@ -89,7 +89,10 @@ rand 69,420 calls / 0 diverge, input_poll 42,125 / 0. This needs retail's uninit
 (quirk #123 class) neutralized, otherwise any port code on the retail stack changes what they copy
 into the heap: `uninit-fix` (rhost.c `UNINIT[]`, per edition) zeroes byte 3 at every call of the
 palette copy (EN-old 0x491770 / SE 0x48c300, 15–16 callers), the inline palette before the 1 KB copy
-(0x4181df / 0x41233f) and the move-command pad (0x440dd1 / 0x43bccc). `--no-uninit-fix` = raw retail.
+(0x4181df / 0x41233f) and the move-command pad (0x440dd1 / 0x43bccc); site D (quirk #130) zeroes every
+heap block on allocation (MSVC6 `___sbh_alloc_block` 0x5c73fd / 0x5f7afa + the rh_heap arena) — reused
+blocks otherwise leak stale DirectDraw pointers into partially-initialized nodes. `--no-uninit-fix` = raw retail.
+**Windows binary = `oss-rhost.exe`** (openrecet's restage kills processes named `rhost` by name).
 Census recipe for the next site: `run X --dump-at end` pure vs hooked → `rhs.py A B` →
 `--watch-write VA@0` on a differing address (every value change + writer EIP) → read it in all_ida.asm.
 
