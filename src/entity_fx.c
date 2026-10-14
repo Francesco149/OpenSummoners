@@ -275,7 +275,7 @@ void entity_snd_release(wl_entity *e, uint16_t i, intptr_t a3, int32_t stop)
     if (stop != 0) g_eng.dsb_stop_5bb8e0(ch->voice->buf);
     ch->voice->owner = 0;
     ch->voice = NULL;
-    ch->f04 = 0;
+    ch->pool = NULL;
     ch->f20 = 0;
 }
 

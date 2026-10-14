@@ -104,7 +104,7 @@ typedef struct engine_calls {
     eng_tc0 h4878b0; eng_tc8 h476880; eng_tc0 h485f70;
     eng_tc6 h489280; eng_tc2 h487250; eng_tc0 h4895c0; eng_tc6 h41ef80;
     /* the tick driver 0x46cd70's band updaters */
-    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc0 h46e510; eng_tc0 h46da00;
+    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc0 h46da00;
     eng_tc1 h54c640;
     int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
     int (ENG_STDCALL *h4593c0)(intptr_t body);
@@ -116,6 +116,8 @@ typedef struct engine_calls {
     eng_tc3 h5534d0; eng_tc6 h553520; eng_tc7 h553ec0; eng_tc5 h554570; eng_tc6 h554c40; eng_tc3 h5556d0;
     eng_tc12 h555790; eng_tc2 h555e90; eng_tc0 h555fc0; eng_tc1 h556180; eng_tc2 h556380; eng_tc3 h5563d0;
     int (ENG_STDCALL *h556e50)(intptr_t owner, intptr_t id, intptr_t probe);
+    /* the particle tick 0x46e510's callees */
+    eng_tc7 h426db0;
 } engine_calls;
 
 extern engine_calls g_eng;

@@ -10,6 +10,7 @@
 #include "engine_calls.h"
 #include "entity_fx.h"
 #include "entity_move.h"
+#include "particle_tick.h"
 
 #define IP(p) ((intptr_t)(p))
 
@@ -60,7 +61,7 @@ int world_tick(void *ctl, int32_t cut)
             for (uint16_t m = 0; m < e->nsnd; m++) entity_snd_update(e, m);
     }
     for (int i = 0; i < 1024; i++)
-        if (g_world->particles[i]->alive != 0) g_eng.h46e510(g_world->particles[i]);
+        if (g_world->particles[i]->alive != 0) particle_tick((wl_particle *)g_world->particles[i]);
     for (int i = 0; i < 96; i++)
         if (g_world->band96[i]->alive != 0) g_eng.h46da00(g_world->band96[i]);
 

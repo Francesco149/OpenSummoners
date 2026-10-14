@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 47,
-  "unported": 1527,
+  "ported": 49,
+  "unported": 1525,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 297,
-  "pct_touched": 18.5,
+  "touched": 299,
+  "pct_touched": 18.7,
   "pct_tested": 15.8,
-  "engine_proper_touched": 284,
+  "engine_proper_touched": 286,
   "bytes_total": 1776526,
-  "bytes_touched": 352791,
-  "pct_bytes_touched": 19.9
+  "bytes_touched": 363552,
+  "pct_bytes_touched": 20.5
  },
  "orphan_refs": [],
  "functions": [
@@ -4663,16 +4663,22 @@
    "name": "sub_46E510",
    "size": 10712,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_tick.c",
+    "src/particle_tick.h"
+   ]
   },
   {
    "va": "0x471080",
    "name": "sub_471080",
    "size": 49,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_tick.c",
+    "src/particle_tick.h"
+   ]
   },
   {
    "va": "0x4710c0",

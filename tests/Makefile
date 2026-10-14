@@ -56,7 +56,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/portrait.c ../src/portrait_face_data.c \
                 ../src/osr_replay.c ../src/osr_emit.c \
                 ../src/sword_trail.c ../src/hud.c \
-                ../src/entity_move.c ../src/char_ai.c ../src/engine_calls.c ../src/char_physics.c ../src/char_integrate.c ../src/npc_ai.c ../src/char_apply.c ../src/world_tick.c ../src/entity_fx.c ../src/actor_update.c
+                ../src/entity_move.c ../src/char_ai.c ../src/engine_calls.c ../src/char_physics.c ../src/char_integrate.c ../src/npc_ai.c ../src/char_apply.c ../src/world_tick.c ../src/entity_fx.c ../src/actor_update.c ../src/particle_tick.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \

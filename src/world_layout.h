@@ -56,7 +56,7 @@ typedef struct wl_vpool {
  * and fade it out (-100 per tick to -5000, then release) once it is no longer live. */
 typedef struct wl_sndch {
     wl_voice *voice;          /* +0x00  0 = free                                          */
-    int32_t  f04;             /* +0x04 */
+    void    *pool;            /* +0x04  the wl_vpool the voice came from                  */
     int32_t  vol;             /* +0x08  volume offset                                     */
     int32_t  freq;            /* +0x0c */
     int32_t  falloff;         /* +0x10  0 = -5000, 1 = not positional, -16000 = near only */
@@ -130,7 +130,10 @@ typedef struct wl_entity {
     uint8_t  _p006[0x8 - 0x6];
     void    *f08;            /* +0x008  the multi-part frame table (0x445e50)           */
     int32_t  f00c;           /* +0x00c  actors: the switch state (0 off, 1 on, 2..)       */
-    uint8_t  _p010[0x24 - 0x10];
+    struct wl_entity *parent; /* +0x010 particles: the entity they ride (0x46e510)       */
+    int32_t  par_dx;         /* +0x014  ... at this offset from its body's top centre    */
+    int32_t  par_dy;         /* +0x018 */
+    uint8_t  _p01c[0x24 - 0x1c];
     int32_t  f24;            /* +0x024  added to the body y for the listener distance    */
     int32_t  width;          /* +0x028  the body box the integrator stamps each tick    */
     int32_t  height;         /* +0x02c */
@@ -300,6 +303,26 @@ typedef struct wl_world {
     int32_t    busy;         /* +0x27a8  != 0 => the ambient emitters hold (scene lock)  */
     uint8_t    _p27ac[0x27b8 - 0x27ac];
 } wl_world;
+
+/* A world PARTICLE (world+0x13e0, 1024 slots; 0x284 bytes): the entity base + the per-code
+ * motion state 0x46e510 runs. */
+typedef struct wl_particle {
+    wl_entity  base;
+    uint8_t    _p1f8[0x258 - 0x1f8];
+    uint16_t   life;           /* +0x258  ticks to live (0 = until killed)               */
+    uint8_t    _p25a[0x25c - 0x25a];
+    int32_t    f25c;           /* +0x25c  per-code parameter                             */
+    int32_t    f260;           /* +0x260 */
+    int32_t    f264;           /* +0x264 */
+    uint8_t    _p268[0x26c - 0x268];
+    uint16_t   age;            /* +0x26c */
+    uint8_t    _p26e[0x270 - 0x26e];
+    int32_t    snd_on;         /* +0x270  != 0 => its looping channels are placed       */
+    wl_entity *owner;          /* +0x274 */
+    int32_t    dir_x;          /* +0x278  the motion direction for vel_x (x100000)      */
+    int32_t    dir_y;          /* +0x27c */
+    uint8_t    _p280[0x284 - 0x280];
+} wl_particle;
 
 /* A world ACTOR (world+0x11e0, 128 slots; 0x2fc bytes): the entity base extended with
  * the per-code behaviour state 0x54f980 runs (props, emitters, lifts, doors, birds). */
@@ -679,6 +702,11 @@ _Static_assert(offsetof(wl_actor, link)      == 0x298, "actor +0x298");
 _Static_assert(offsetof(wl_actor, area_x0)   == 0x2b4, "actor +0x2b4");
 _Static_assert(offsetof(wl_actor, step)      == 0x2cc, "actor +0x2cc");
 _Static_assert(sizeof(wl_actor)              == 0x2fc, "actor is 0x2fc bytes");
+_Static_assert(offsetof(wl_entity, par_dy)   == 0x018, "entity +0x18");
+_Static_assert(offsetof(wl_particle, life)   == 0x258, "particle life");
+_Static_assert(offsetof(wl_particle, age)    == 0x26c, "particle age");
+_Static_assert(offsetof(wl_particle, dir_y)  == 0x27c, "particle +0x27c");
+_Static_assert(sizeof(wl_particle)           == 0x284, "particle is 0x284 bytes");
 _Static_assert(offsetof(wl_entity, coll_off) == 0x1f0, "entity coll_off");
 _Static_assert(sizeof(wl_entity)             == 0x1f8, "entity base is 0x1f8 bytes");
 _Static_assert(offsetof(wl_list, count)      == 0x8,   "list count");

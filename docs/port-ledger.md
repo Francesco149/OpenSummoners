@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **297** (18.5% of engine-proper) — tested 250, ported 47
-- code bytes touched: **19.9%** (352,791 / 1,776,526 B of engine-proper)
-- unported: **1527**
+- touched: **299** (18.7% of engine-proper) — tested 250, ported 49
+- code bytes touched: **20.5%** (363,552 / 1,776,526 B of engine-proper)
+- unported: **1525**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (47) — reimplemented, no host test yet
+## ported (49) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -315,6 +315,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
 | 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
 | 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
+| 0x46e510 | sub_46E510 | 10712 | particle_tick.c, particle_tick.h |
+| 0x471080 | sub_471080 | 49 | particle_tick.c, particle_tick.h |
 | 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
 | 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
