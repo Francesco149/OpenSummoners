@@ -71,3 +71,7 @@ imgui.ini
 # tools/vamap/gen_vamap.sh.  Tool + README are tracked; the data is not.
 docs/vamap/*.jsonl
 docs/vamap/*.csv
+
+# rhost / IDA derived outputs (scenario saves = user data)
+tools/rhost/__pycache__/
+tests/scenarios/**/_saves/
