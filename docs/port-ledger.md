@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **252** (15.6% of engine-proper) — tested 247, ported 5
-- code bytes touched: **17.2%** (304,770 / 1,776,526 B of engine-proper)
-- unported: **1572**
+- touched: **253** (15.7% of engine-proper) — tested 248, ported 5
+- code bytes touched: **17.2%** (306,085 / 1,776,526 B of engine-proper)
+- unported: **1571**
 - orphan refs in src/ not in this table: 0
 
-## tested (247) — ported + host unit suite
+## tested (248) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -70,6 +70,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
 | 0x44e640 | sub_44E640 | 49 | hud.c, hud.h |
 | 0x44e680 | sub_44E680 | 59 | hud.c, hud.h |
+| 0x466930 | sub_466930 | 1315 | char_physics.c, char_physics.h |
 | 0x467bb0 | sub_467BB0 | 3364 | char_physics.c, char_physics.h |
 | 0x46a880 | sub_46A880 | 8890 | input_live.c, input_live.h |
 | 0x4766a0 | hud_door_on_screen_4766A0 | 106 | hud.c, hud.h |

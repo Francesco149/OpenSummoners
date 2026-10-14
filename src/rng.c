@@ -9,10 +9,14 @@
 
 #include "rng.h"
 
+#include <stddef.h>
+
 /* DAT_008a4f94.  MSVC's documented default before any srand() is 1; we keep
  * that so an un-seeded run still matches the CRT, but the port pins a fixed
  * seed at boot (see rng.h / main.c). */
-static uint32_t g_rng_seed = 1u;
+static uint32_t g_rng_seed_own = 1u;
+static uint32_t *g_rng_state = &g_rng_seed_own;   /* rng_bind: rhost points it at retail's word */
+#define g_rng_seed (*g_rng_state)
 
 /* Cumulative LCG draw count (the `rngcalls` consumption signal — the trace
  * studio's RNG state panel / census).  Counts every rng_rand() since boot,
@@ -35,6 +39,11 @@ uint32_t rng_rand(void)
 uint32_t rng_peek_state(void)
 {
     return g_rng_seed;
+}
+
+void rng_bind(uint32_t *state)
+{
+    g_rng_state = state != NULL ? state : &g_rng_seed_own;
 }
 
 uint64_t rng_call_count(void)

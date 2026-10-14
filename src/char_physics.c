@@ -10,7 +10,9 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "engine_calls.h"
 #include "entity_move.h"
+#include "rng.h"
 #include "map_grid.h"
 
 #define BODY(k) (&self->base.body[(uint16_t)(k) < self->base.nbody ? (uint16_t)(k) : 0])
@@ -357,4 +359,132 @@ move_done:
     if (r - rb->w - rb->x >= 0) { r = r - rb->w - rb->x + b->x; b->x = r; }
     else { r = b->x; b->x = r; }
     return r;
+}
+
+/* ── FUN_00466930 ─────────────────────────────────────────────────────────── */
+
+static void set_clip(wl_body *b, const void *clip)
+{
+    if (b->clip == clip) return;
+    b->clip = clip;
+    b->clip_done = 0; b->clip_frame = 0; b->clip_timer = 0;
+}
+
+/* a voice of sound slot `slot` placed at the character + played (0x40b710 / 0x40bb90 /
+ * the DirectSound buffer setters); `freq` < 0 = leave the frequency word unset */
+static void jump_sound(wl_char *self, int32_t slot, int32_t vol, int32_t pan, int32_t freq)
+{
+    void *s = *(void **)((uint8_t *)g_eng.sys + 0x364 + 4u * (uint32_t)slot);
+    void **v = g_eng.sfx_voice_40b710(s, 0);
+    if (v == NULL) return;
+    void *buf = *v;
+    int32_t ov, op;
+    if (g_eng.sfx_place_40bb90(self, vol, pan, 0, self->base.body, &ov, &op) != 0) {
+        g_eng.dsb_volume_5bb870(buf, ov);
+        g_eng.dsb_pan_5bb880(buf, op);
+        g_eng.dsb_freq_5bb890(buf, freq);
+        g_eng.dsb_play_5bb8c0(buf);
+    }
+}
+
+void char_anim_select(wl_char *self, wl_body *b, int32_t probe, int32_t grounded)
+{
+    int splash = 0;
+    switch (b->state) {
+    case 1:
+        if (b->vel_x <= 0 && b->sub != 0) goto fallback;
+        if (b->vel_x > self->walk_max && self->can_run != 0) set_clip(b, self->clip_run);
+        else set_clip(b, self->clip_walk);
+        return;
+    case 2:
+        if (self->can_crouch == 0) goto fallback;
+        if (b->sub == 0) set_clip(b, self->clip_crouch0);
+        else if (b->sub == 1) {
+            if (self->clip_crawl != NULL && b->vel_x > 20000) {
+                if (b->clip != self->clip_crawl) { b->clip = self->clip_crawl; b->clip_done = 0; b->clip_frame = 0; b->clip_timer = 0; }
+            } else {
+                set_clip(b, self->clip_crouch1);
+            }
+        } else if (b->sub == 2) set_clip(b, self->clip_crouch2);
+        return;
+    case 3: {
+        int32_t sfx = self->jump_sfx;
+        if (sfx != 0 && probe == 0 && self->f15944 == 1) splash = (uint32_t)b->slow >= 2u;
+        if (self->can_jump == 0) goto fallback;
+        switch (b->sub) {
+        case 0:
+            set_clip(b, self->clip_jump0);
+            return;
+        case 1:
+            if (splash) goto water;
+            if (probe != 0 || self->max_air_jumps == 0 || grounded != 0) {
+                if (sfx != 0) {
+                    int32_t pan = self->jump_sfx_pan;
+                    int32_t jit = self->jump_sfx_jit * (int32_t)rng_rand();
+                    int32_t vol = self->jump_sfx_vol;
+                    int32_t freq = self->jump_sfx_freq + jit / 0x8000;
+                    if (probe == 0) jump_sound(self, sfx, vol + (**g_eng.keycfg)->sfx_volume, pan, freq);
+                }
+            } else {
+                void *s = *(void **)((uint8_t *)g_eng.sys + 0x508);
+                void **v = g_eng.sfx_voice_40b710(s, 0);
+                if (v != NULL) {
+                    void *buf = *v;
+                    int32_t ov, op;
+                    if (g_eng.sfx_place_40bb90(self, (**g_eng.keycfg)->sfx_volume, 0, 0, self->base.body, &ov, &op) != 0) {
+                        g_eng.dsb_volume_5bb870(buf, ov);
+                        g_eng.dsb_pan_5bb880(buf, op);
+                        g_eng.dsb_freq_5bb890(buf, 0);
+                        g_eng.dsb_play_5bb8c0(buf);
+                    }
+                }
+                g_eng.particle_557370(self, self, 100121, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
+                g_eng.particle_557370(self, self, 100122, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
+            }
+            set_clip(b, self->clip_jump1);
+            return;
+        case 2:
+            if (splash) {
+water:
+                if ((self->flags204 & 0x30000u) == 0) {
+                    int32_t dy = 800 * (int32_t)rng_rand() / 0x8000 - 800;
+                    int32_t r = (int32_t)rng_rand();
+                    g_eng.particle_557370(self, self, 100105, b, 1600 * r / 0x8000 - 800, dy, 99, 1, probe, 0, 2, 0, 0, 0);
+                    int32_t f = 2000 * (int32_t)rng_rand();
+                    if (probe == 0) jump_sound(self, 28, (**g_eng.keycfg)->sfx_volume - 500, 0, f / 0x8000 - 2000);
+                }
+            }
+            set_clip(b, self->clip_jump1);
+            return;
+        case 3:
+            set_clip(b, self->clip_jump2);
+            return;
+        default:
+            return;
+        }
+    }
+    case 4: case 6:
+        if (b->sub != 0) {
+            if (b->sub > 2u) return;
+            set_clip(b, self->clip_air1);
+        } else {
+            set_clip(b, self->clip_air0);
+        }
+        return;
+    case 5:
+        if (self->up_assist == 0) goto fallback;
+        if (b->sub != 0) { if (b->sub != 1) return; set_clip(b, self->clip_up1); }
+        else set_clip(b, self->clip_up0);
+        return;
+    default:
+fallback:
+        if (self->clip_fast != NULL && (b->vel_x < 0 ? -b->vel_x : b->vel_x) > 20000) {
+            if (b->clip == self->clip_fast) return;
+            b->clip = self->clip_fast;
+            b->clip_done = 0; b->clip_frame = 0; b->clip_timer = 0;
+        } else {
+            set_clip(b, self->clip_stand);
+        }
+        return;
+    }
 }

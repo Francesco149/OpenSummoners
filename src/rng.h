@@ -48,5 +48,8 @@ uint32_t rng_peek_state(void);
 /* Cumulative rng_rand() draw count since boot (the `rngcalls` consumption signal
  * for the trace studio's RNG state panel; not reset by srand). */
 uint64_t rng_call_count(void);
+/* Point the generator at an external state word (rhost: retail's DAT_008a4f94, so ported code
+ * inside retail draws from — and advances — retail's stream); NULL = the port's own word. */
+void rng_bind(uint32_t *state);
 
 #endif /* OPENSUMMONERS_RNG_H */

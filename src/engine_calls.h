@@ -48,6 +48,17 @@ typedef struct engine_calls {
     int (ENG_THISCALL *skill_47a7f0)(wl_char *self, int32_t id, uint32_t now, int32_t slot);
     int (ENG_THISCALL *target_ok_47adb0)(wl_char *cand, wl_char *self, int32_t spell, int32_t a4,
                                          int32_t a5, int32_t a6, int32_t a7, int32_t a8);
+    /* sound + particles (0x466930) */
+    void **(ENG_THISCALL *sfx_voice_40b710)(void *slot, int32_t a2);
+    int (ENG_THISCALL *sfx_place_40bb90)(wl_char *self, int32_t vol, int32_t pan, int32_t a4, wl_body *bodies,
+                                         int32_t *out_vol, int32_t *out_pan);
+    int (ENG_THISCALL *dsb_volume_5bb870)(void *buf, int32_t v);
+    int (ENG_THISCALL *dsb_pan_5bb880)(void *buf, int32_t v);
+    int (ENG_THISCALL *dsb_freq_5bb890)(void *buf, int32_t v);
+    int (ENG_THISCALL *dsb_play_5bb8c0)(void *buf);
+    int (ENG_THISCALL *particle_557370)(wl_char *self, wl_char *owner, int32_t id, wl_body *b, int32_t dx, int32_t dy,
+                                        int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12,
+                                        int32_t a13, int32_t a14);
 } engine_calls;
 
 extern engine_calls g_eng;

@@ -31,7 +31,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -397,6 +397,27 @@ static int __attribute__((thiscall)) w_char_phys(wl_char *self, wl_cmd *cmd, wl_
     return r;
 }
 
+/* ---- per-state clip + jump effects (FUN_00466930, thiscall(char, body, probe, grounded)) — full state:
+ * sounds, particles and the LCG ---- */
+typedef int (__attribute__((thiscall)) *char_anim_t)(wl_char *, wl_body *, int32_t, int32_t);
+typedef struct { wl_char *self; wl_body *b; int32_t probe, gr; int r; } anim_ctx;
+static void anim_retail(void *c) { anim_ctx *x = c; x->r = ((char_anim_t)(uintptr_t)H[H_CHAR_ANIM].va)(x->self, x->b, x->probe, x->gr); }
+static void anim_port(void *c)   { anim_ctx *x = c; port_world(); char_anim_select(x->self, x->b, x->probe, x->gr); }
+static int __attribute__((thiscall)) w_char_anim(wl_char *self, wl_body *b, int32_t probe, int32_t gr)
+{
+    hook_t *h = &H[H_CHAR_ANIM];
+    if (h->mode == 2) { h->calls++; port_world(); char_anim_select(self, b, probe, gr); return 0; }
+    if (!sample(h)) return ((char_anim_t)(uintptr_t)h->va)(self, b, probe, gr);
+    anim_ctx x = { self, b, probe, gr, 0 };
+    uint16_t st = b->state, sub = b->sub;
+    char why[512];
+    int d = rh_shadow_ex("char_anim", anim_retail, anim_port, &x, why, sizeof why);
+    if (d < 0) { h->skipped++; return x.r; }
+    h->compared++;
+    if (d) diverged(h, "f%u char %p code %x state %u/%u probe %d gr %d: %s", g_frame, (void *)self, self->base.code, st, sub, probe, gr, why);
+    return x.r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -409,6 +430,7 @@ static hook_t H[H_N] = {
     [H_CAM_SHAKE]  = { "cam_shake",  0x43d340u, (void *)w_cam_shake,  0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_AI]    = { "char_ai",    0x478ba0u, (void *)w_char_ai,    0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_PHYS]  = { "char_physics", 0x467bb0u, (void *)w_char_phys, 0, 1, 0, 0, 0, 0, "" },
+    [H_CHAR_ANIM]  = { "char_anim",  0x466930u, (void *)w_char_anim,  0, 1, 0, 0, 0, 0, "" },
 };
 
 /* engine_calls.h slots -> retail (EN-old VAs; the roots are retail's globals) */
@@ -427,17 +449,25 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.skill_47a420        = (void *)(uintptr_t)0x47a420u;
     *(void **)&g_eng.skill_47a7f0        = (void *)(uintptr_t)0x47a7f0u;
     *(void **)&g_eng.target_ok_47adb0    = (void *)(uintptr_t)0x47adb0u;
+    *(void **)&g_eng.sfx_voice_40b710    = (void *)(uintptr_t)0x40b710u;
+    *(void **)&g_eng.sfx_place_40bb90    = (void *)(uintptr_t)0x40bb90u;
+    *(void **)&g_eng.dsb_volume_5bb870   = (void *)(uintptr_t)0x5bb870u;
+    *(void **)&g_eng.dsb_pan_5bb880      = (void *)(uintptr_t)0x5bb880u;
+    *(void **)&g_eng.dsb_freq_5bb890     = (void *)(uintptr_t)0x5bb890u;
+    *(void **)&g_eng.dsb_play_5bb8c0     = (void *)(uintptr_t)0x5bb8c0u;
+    *(void **)&g_eng.particle_557370     = (void *)(uintptr_t)0x557370u;
 }
 
 void rh_hooks_install(void)
 {
     if (!strcmp(g_ed->tag, "enold")) bind_engine_calls();
+    rng_bind((uint32_t *)(uintptr_t)g_ed->rng_seed);   /* ported code draws from retail's LCG word */
     H[H_RAND].va = g_ed->rand;
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

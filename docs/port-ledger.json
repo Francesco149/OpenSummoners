@@ -6,16 +6,16 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 247,
+  "tested": 248,
   "ported": 5,
-  "unported": 1572,
+  "unported": 1571,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 252,
-  "pct_touched": 15.6,
-  "pct_tested": 15.6,
-  "engine_proper_touched": 239,
+  "touched": 253,
+  "pct_touched": 15.7,
+  "pct_tested": 15.7,
+  "engine_proper_touched": 240,
   "bytes_total": 1776526,
-  "bytes_touched": 304770,
+  "bytes_touched": 306085,
   "pct_bytes_touched": 17.2
  },
  "orphan_refs": [],
@@ -4351,8 +4351,11 @@
    "name": "sub_466930",
    "size": 1315,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_physics.c",
+    "src/char_physics.h"
+   ]
   },
   {
    "va": "0x466e80",

@@ -59,7 +59,12 @@ typedef struct wl_body {
     uint16_t act_64;          /* +0x064 */
     uint16_t f66;             /* +0x066  != 0 (with f68 == 0) => the use key is live     */
     uint8_t  f68;             /* +0x068 */
-    uint8_t  _p069[0x78 - 0x69];
+    uint8_t  _p069[0x6c - 0x69];
+    const void *clip;         /* +0x06c  the animation clip (anim_clip.h)               */
+    uint16_t clip_timer;      /* +0x070 */
+    uint16_t clip_frame;      /* +0x072 */
+    uint8_t  clip_done;       /* +0x074 */
+    uint8_t  _p075[0x78 - 0x75];
     int32_t  act_78;          /* +0x078 */
     uint8_t  nocollide;       /* +0x07c  != 0 => ignores / is ignored by entity checks  */
     uint8_t  _p07d;
@@ -128,7 +133,9 @@ typedef struct wl_keycfg {
     int32_t  dash_window;     /* +0x0f8  double-tap window (ms) for the run             */
     uint8_t  _p0fc[0x104 - 0xfc];
     int32_t  skill_keys;      /* +0x104  0/1/2 skill-key layout                         */
-    uint8_t  _p108[0x510 - 0x108];
+    uint8_t  _p108[0x168 - 0x108];
+    int32_t  sfx_volume;      /* +0x168  the sound-effect volume base                   */
+    uint8_t  _p16c[0x510 - 0x16c];
     int32_t  run_mode;        /* +0x510  2 => the run key toggles                       */
 } wl_keycfg;
 
@@ -173,7 +180,8 @@ typedef struct wl_char {
     wl_entity  base;
     uint8_t    _p1f8[0x200 - 0x1f8];
     int32_t    f200;           /* +0x00200 */
-    uint8_t    _p204[0x750 - 0x204];
+    uint32_t   flags204;       /* +0x00204  0x30000 / 0x1f0000: no dust particles        */
+    uint8_t    _p208[0x750 - 0x208];
     wl_party  *party;          /* +0x00750 */
     uint8_t    _p754[0xc788 - 0x754];
     int32_t    fc788;          /* +0x0c788  targeting enabled                           */
@@ -195,7 +203,15 @@ typedef struct wl_char {
     input_mgr *input;          /* +0x158a4 */
     uint8_t    _p158a8[0x158bc - 0x158a8];
     int32_t    air_jumps;      /* +0x158bc  jumps used since landing                    */
-    uint8_t    _p158c0[0x1594c - 0x158c0];
+    uint8_t    _p158c0[0x15914 - 0x158c0];
+    /* ── the per-state clips + effects (0x466930) ── */
+    const void *clip_stand;    /* +0x15914 */
+    const void *clip_air0;     /* +0x15918 */
+    const void *clip_air1;     /* +0x1591c */
+    const void *clip_fast;     /* +0x15920  |speed| > 20000 outside the move state      */
+    uint8_t    _p15924[0x15944 - 0x15924];
+    int32_t    f15944;         /* +0x15944  1 => the water jump splash                   */
+    uint8_t    _p15948[0x1594c - 0x15948];
     /* ── the movement tuning (0x467bb0) ── */
     int32_t    move_mode;      /* +0x1594c  0 ground, 1..2 the alternate probe, 3 bounded */
     int32_t    fall_cap;       /* +0x15950 */
@@ -209,12 +225,13 @@ typedef struct wl_char {
     int32_t    walk_accel;     /* +0x15970 */
     int32_t    run_accel;      /* +0x15974 */
     int32_t    brake;          /* +0x15978  (negative) */
-    uint8_t    _p1597c[0x15984 - 0x1597c];
+    uint8_t    _p1597c[0x15980 - 0x1597c];
+    const void *clip_walk;     /* +0x15980 */
     int32_t    turn_anim;      /* +0x15984  != 0 => a reversal plays the turn action     */
     int32_t    turn_anim_air;  /* +0x15988 */
     int32_t    can_run;        /* +0x1598c */
     int32_t    max_speed;      /* +0x15990  the run max */
-    uint8_t    _p15994[0x15998 - 0x15994];
+    const void *clip_run;      /* +0x15994 */
     int32_t    can_jump;       /* +0x15998 */
     int32_t    jump_impulse;   /* +0x1599c */
     int32_t    rise_grav_held; /* +0x159a0 */
@@ -222,12 +239,26 @@ typedef struct wl_char {
     int32_t    air_max;        /* +0x159a8  != 0 => air control */
     int32_t    air_accel_fast; /* +0x159ac */
     int32_t    air_accel_slow; /* +0x159b0 */
-    uint8_t    _p159b4[0x159d4 - 0x159b4];
+    const void *clip_jump0;    /* +0x159b4  windup */
+    const void *clip_jump1;    /* +0x159b8  rise */
+    const void *clip_jump2;    /* +0x159bc  apex */
+    int32_t    jump_sfx;       /* +0x159c0  sound slot (0 = none) */
+    int32_t    jump_sfx_vol;   /* +0x159c4 */
+    int32_t    jump_sfx_freq;  /* +0x159c8 */
+    int32_t    jump_sfx_jit;   /* +0x159cc  frequency jitter (x rand / 0x8000) */
+    int32_t    jump_sfx_pan;   /* +0x159d0 */
     int32_t    can_crouch;     /* +0x159d4 */
     int32_t    crouch_margin;  /* +0x159d8 */
-    uint8_t    _p159dc[0x15a10 - 0x159dc];
+    const void *clip_crouch0;  /* +0x159dc */
+    const void *clip_crouch1;  /* +0x159e0 */
+    const void *clip_crouch2;  /* +0x159e4 */
+    const void *clip_crawl;    /* +0x159e8  crouch at speed > 20000 */
+    uint8_t    _p159ec[0x15a10 - 0x159ec];
     int32_t    up_assist;      /* +0x15a10  != 0 => look-up / the jump-probe up assist    */
-    uint8_t    _p15a14[0x15a24 - 0x15a14];
+    uint8_t    _p15a14[0x15a18 - 0x15a14];
+    const void *clip_up0;      /* +0x15a18 */
+    const void *clip_up1;      /* +0x15a1c */
+    uint8_t    _p15a20[0x15a24 - 0x15a20];
     int32_t    f15a24;         /* +0x15a24 */
     uint8_t    _p15a28[0x15a98 - 0x15a28];
     int32_t    bound_top;      /* +0x15a98  mode 3: -top limit */
@@ -264,6 +295,16 @@ _Static_assert(offsetof(wl_body, grounded)    == 0x024, "body grounded");
 _Static_assert(offsetof(wl_body, state)       == 0x038, "body state");
 _Static_assert(offsetof(wl_body, act_78)      == 0x078, "body +0x78");
 _Static_assert(offsetof(wl_body, slow)        == 0x288, "body +0x288");
+_Static_assert(offsetof(wl_body, clip)        == 0x06c, "body clip");
+_Static_assert(offsetof(wl_body, clip_done)   == 0x074, "body clip done");
+_Static_assert(offsetof(wl_char, flags204)    == 0x00204, "char +0x204");
+_Static_assert(offsetof(wl_char, clip_stand)  == 0x15914, "char clip_stand");
+_Static_assert(offsetof(wl_char, f15944)      == 0x15944, "char +0x15944");
+_Static_assert(offsetof(wl_char, clip_walk)   == 0x15980, "char clip_walk");
+_Static_assert(offsetof(wl_char, clip_run)    == 0x15994, "char clip_run");
+_Static_assert(offsetof(wl_char, clip_jump0)  == 0x159b4, "char clip_jump0");
+_Static_assert(offsetof(wl_char, clip_crawl)  == 0x159e8, "char clip_crawl");
+_Static_assert(offsetof(wl_char, clip_up1)    == 0x15a1c, "char clip_up1");
 _Static_assert(offsetof(wl_char, up_assist)   == 0x15a10, "char +0x15a10");
 _Static_assert(sizeof(wl_char)                == 0x15bb0, "character is 0x15bb0 bytes");
 _Static_assert(sizeof(wl_cmd)                 == 0x20,  "command block");

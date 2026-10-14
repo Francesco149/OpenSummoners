@@ -425,7 +425,7 @@ def cmd_corpus(a):
     return 0 if done == len(names) else 1
 
 
-VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai", "char_physics"]
+VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai", "char_physics", "char_anim"]
 
 
 def cmd_verify(a):

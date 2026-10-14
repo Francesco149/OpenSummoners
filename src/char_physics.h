@@ -17,6 +17,7 @@
  *     entity mover 0x54db10 (step-down unless probing a non-player).
  *
  *   FUN_00467bb0  char_physics_step
+ *   FUN_00466930  char_anim_select   (the per-state clip + the jump effects)
  *   FUN_004385e0  char_part_top
  */
 #ifndef OSS_CHAR_PHYSICS_H
@@ -33,6 +34,12 @@
  * Returns retail's eax (the horizontal mover's result in modes 0..2). */
 int char_physics_step(wl_char *self, const wl_cmd *cmd, wl_body *b, int32_t probe,
                       int32_t ctl, int32_t part, int32_t grounded);
+
+/* FUN_00466930 (thiscall self): pick `b`'s animation clip from its body state (the
+ * character's per-state clip words; a change resets the clip timer/frame/done) and
+ * play the jump effects (the jump sound, the double-jump sound + 2 particles, the
+ * water splash).  `probe` != 0 (the integrator simulating ahead) suppresses sounds. */
+void char_anim_select(wl_char *self, wl_body *b, int32_t probe, int32_t grounded);
 
 /* FUN_004385e0: part `part`'s collision top (y + margin), part 0 when out of range. */
 int32_t char_part_top(const wl_char *self, uint16_t part);
