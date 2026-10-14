@@ -1944,7 +1944,6 @@ static void bind_engine_calls(void)
     g_eng.keycfg = (wl_keycfg ***)(uintptr_t)0x8a6e80u;
     g_eng.log    = (void *)(uintptr_t)0x8a9530u;
     *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
-    *(void **)&g_eng.probe_440f40        = (void *)(uintptr_t)0x440f40u;
     *(void **)&g_eng.party_slot_ok_4071f0 = (void *)(uintptr_t)0x4071f0u;
     *(void **)&g_eng.skill_479f90        = (void *)(uintptr_t)0x479f90u;
     *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;

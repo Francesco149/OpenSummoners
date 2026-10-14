@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "char_state.h"
+#include "char_integrate.h"
 #include "engine_calls.h"
 #include "input.h"
 #include "sound_fx.h"
@@ -226,8 +227,8 @@ right_done:;
             wl_cmd c;
             cmd_clear(&c);
             c.ud = 11;
-            g_eng.integrate_442a70(self, &c, in_b, out_b, 2, n);
-            if (g_eng.probe_440f40(self, (uint32_t)n, out_b, &flag) != 0) break;
+            char_integrate(self, &c, in_b, out_b, 2, n);
+            if (char_hazard_probe(self, (uint16_t)n, out_b, &flag) != 0) break;
             ++n;
             in_b = out_b;
             if ((uint16_t)n >= 5) {

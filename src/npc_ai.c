@@ -12,6 +12,7 @@
 
 #include "char_ai.h"
 #include "char_state.h"
+#include "char_integrate.h"
 #include "engine_calls.h"
 #include "entity_move.h"
 #include "map_grid.h"
@@ -211,7 +212,7 @@ static void simulate(wl_char *self, wl_cmd *cmd, wl_body *blk, int32_t steps, in
     wl_body *prev = self->base.body;
     for (int32_t i = 1; (uint16_t)i < steps; i++) {
         if (switch_at != 0 && switch_at == (int16_t)(uint16_t)i) cmd->lr = switch_lr;
-        g_eng.integrate_442a70(self, cmd, prev, &blk[(uint16_t)i], 2, i);
+        char_integrate(self, cmd, prev, &blk[(uint16_t)i], 2, i);
         prev = &blk[(uint16_t)i];
     }
 }

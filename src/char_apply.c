@@ -235,14 +235,14 @@ void char_apply(wl_char *self)
         if (lo > 1000u) lo = (uint16_t)(lo - 1000);
         self->flags204 = (self->flags204 & 0xffff0000u) | lo;
     }
-    g_eng.integrate_442a70(self, &self->cmd, self->base.body, self->base.body, 0, 0);
+    char_integrate(self, &self->cmd, self->base.body, self->base.body, 0, 0);
     if (self->base.alive == 0) return;
 
     if (self->no_sim != 0) {
         for (uint16_t k = 1; k < self->base.nbody; k++) self->base.body[k].active = 0;
     } else if (self->nav_sim_off == 0 || self->f14288 != 0) {
         for (uint16_t k = 1; k < self->base.nbody; k++)
-            g_eng.integrate_442a70(self, &self->cmd, &self->base.body[k - 1], &self->base.body[k], 1, k);
+            char_integrate(self, &self->cmd, &self->base.body[k - 1], &self->base.body[k], 1, k);
     } else if (((self->flags204 >> 16) & 7u) == 1u) {
         for (uint16_t k = 1; k < self->base.nbody; k++) {
             wl_body *d = &self->base.body[k], *s0 = self->base.body;

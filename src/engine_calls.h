@@ -68,7 +68,6 @@ typedef struct engine_calls {
     /* unported callees */
     int (ENG_THISCALL *integrate_442a70)(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out,
                                          int32_t mode, int32_t n);
-    int (ENG_THISCALL *probe_440f40)(wl_char *self, uint32_t n, wl_body *b, int32_t *out);
     int (ENG_STDCALL  *party_slot_ok_4071f0)(wl_party *p, int32_t mode, int32_t slot);
     int (ENG_THISCALL *skill_479f90)(wl_char *self, wl_body *b, int32_t a3);
     int (ENG_THISCALL *skill_47a300)(wl_char *self, int32_t a2, int32_t a3);
