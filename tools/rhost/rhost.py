@@ -196,6 +196,7 @@ def make_batch(a, runs, tag):
         if getattr(a, "coverage_file", None):
             shutil.copy(a.coverage_file, os.path.join(rdir, "coverage_in.txt"))
         args = rhost_args(a, run_win, trace_win, ed)
+        open(os.path.join(rdir, "argv.json"), "w").write(json.dumps(args))
         ps_args = ",".join("'" + x.replace("'", "''") + "'" for x in args)
         lines.append(f"while (@($procs | Where-Object {{ !$_.HasExited }}).Count -ge $J) {{ Start-Sleep -Milliseconds 50 }}")
         lines.append(f"$procs += Start-Process -FilePath '{WROOT}\\bin\\rhost.exe' -ArgumentList @({ps_args}) -PassThru "
@@ -211,7 +212,72 @@ def make_batch(a, runs, tag):
     return batch, bdir
 
 
+# ---------------------------------------------------------------- wine target (maximus, headless)
+# A prefix whose drive_c/oss-rhost → WINE_ROOT, so retail sees the SAME Windows paths
+# (C:\oss-rhost\game\<ed>, …\runs\<batch>\<run>) as on the Windows host. Game data: WINE_GAMES.
+# Wine is a valid LOGIC oracle (RNG/state match Windows: SE boot f900 rng 9d661dcf both); pixels and
+# speed are Windows truth (wined3d/llvmpipe).
+WINE_ROOT = os.environ.get("RHOST_WINE_ROOT", "/mnt/ephemeral/opensummoners/wine/root")
+WINE_PREFIX = os.environ.get("RHOST_WINEPREFIX", "/mnt/ephemeral/opensummoners/wine/prefix")
+WINE_GAMES = {"enold": os.environ.get("RHOST_WINE_GAME_ENOLD", "/mnt/ephemeral/opensummoners/game/enold"),
+              "ense": os.environ.get("RHOST_WINE_GAME_ENSE", "/mnt/ephemeral/opensummoners/game/ense")}
+
+
+def wine_stage():
+    for d in ("bin", "game", "runs"):
+        os.makedirs(os.path.join(WINE_ROOT, d), exist_ok=True)
+    src, dst = os.path.join(BUILD, "rhost.exe"), os.path.join(WINE_ROOT, "bin", "rhost.exe")
+    if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+        shutil.copy2(src, dst)
+    for ed, path in WINE_GAMES.items():
+        link = os.path.join(WINE_ROOT, "game", ed)
+        if os.path.isdir(path) and not os.path.islink(link):
+            os.symlink(path, link)
+    if not os.path.isdir(os.path.join(WINE_PREFIX, "drive_c")):
+        subprocess.run(["wineboot", "-i"], env=dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all"), capture_output=True)
+    link = os.path.join(WINE_PREFIX, "drive_c", "oss-rhost")
+    if not os.path.islink(link):
+        os.symlink(WINE_ROOT, link)
+
+
+def run_batch_wine(a, runs, tag, fetch):
+    import concurrent.futures
+    if rhost_stale():
+        cmd_build()
+    wine_stage()
+    global LOCAL_RUNS
+    saved, LOCAL_RUNS = LOCAL_RUNS, os.path.join(WINE_ROOT, "runs")
+    try:
+        batch, bdir = make_batch(a, runs, tag)
+    finally:
+        LOCAL_RUNS = saved
+    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+
+    def one(r):
+        name = r[0]
+        argv = json.load(open(os.path.join(bdir, name, "argv.json")))
+        subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x16", "wine", f"{WROOT}\\bin\\rhost.exe"] + argv,
+                       capture_output=True, text=True, env=env, timeout=a.wine_timeout)
+        log = os.path.join(bdir, name, "rhost.log")
+        return name, open(log, errors="replace").read() if os.path.exists(log) else ""
+    t0 = time.time()
+    results, out_lines = {}, []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        for name, log in ex.map(one, runs):
+            out_lines.append(f"=== {name}")
+            for line in log.splitlines():
+                if line.startswith("RESULT"):
+                    results[name] = dict(kv.split("=", 1) for kv in line.split()[1:] if "=" in kv)
+                elif re.search(r"FATAL|DIVERGE|hook-result|MessageBox", line):
+                    results.setdefault(name + "#notes", []).append(line.strip())
+            out_lines.append(log)
+    print(f"[wine batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s (-j{a.jobs}) → {bdir}]")
+    return batch, bdir, results, "\n".join(out_lines)
+
+
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
+    if getattr(a, "target", "win") == "wine":
+        return run_batch_wine(a, runs, tag, fetch)
     ensure_staged()
     batch, bdir = make_batch(a, runs, tag)
     scp(bdir, f"{WIN}:C:/oss-rhost/runs/", recursive=True)
@@ -325,7 +391,7 @@ def cmd_corpus(a):
     keys = ("frame", "tick", "rng", "state_sem")
     bad = 0
     for n in names:
-        ep = os.path.join(SCEN, n, "expected.json")
+        ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
         got = {k: res.get(n, {}).get(k) for k in keys}
         if a.bless and res.get(n, {}).get("status") == "ok":
             json.dump(got, open(ep, "w"), indent=1); continue
@@ -335,7 +401,7 @@ def cmd_corpus(a):
             if diff:
                 bad += 1; print(f"  REGRESSION {n}: " + ", ".join(f"{k} {e}→{g}" for k, (e, g) in diff.items()))
     if a.bless:
-        print("blessed expected.json for every ok scenario (volatile.<edition>.txt changes state_sem: re-bless after --calibrate)")
+        print(f"blessed expected{'' if a.target == 'win' else '.' + a.target}.json for every ok scenario (volatile.<edition>.txt changes state_sem: re-bless after --calibrate)")
     if a.check:
         print(f"CHECK: {'PASS' if not bad else 'FAIL'} ({bad} scenario(s) differ from expected.json)")
         return 1 if bad else 0
@@ -552,6 +618,9 @@ def main():
         p.add_argument("--show", action="store_true")
         p.add_argument("-j", "--jobs", type=int, default=8)
         p.add_argument("--extra")
+        p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"),
+                       help="win = the Windows box (pixel + speed truth); wine = local headless (logic oracle)")
+        p.add_argument("--wine-timeout", type=int, default=1800)
     sub.add_parser("build").set_defaults(fn=cmd_build)
     sub.add_parser("stage").set_defaults(fn=cmd_stage)
     sub.add_parser("setup").set_defaults(fn=cmd_setup)

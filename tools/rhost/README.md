@@ -104,8 +104,19 @@ from `tools/ida/crosswalk.py`. Game data: `C:\oss-rhost\game\{enold,ense}\` (pri
   windows; each rhost process is hermetic (unnamed mutex, off-screen non-activating window).
 - `C:\oss-rhost\{bin,game,runs,queue}`.
 
+## Wine target (maximus, headless) — `--target wine` (or `RHOST_TARGET=wine`)
+
+Same batches, run locally in parallel under `xvfb-run` (16-bit screen) + wine 11: a prefix whose
+`drive_c/oss-rhost` → `/mnt/ephemeral/opensummoners/wine/root` (bin/, runs/, game/<ed> → local game
+data: `game/ense` = links into the Linux-Steam SE install + the unpacked exes; `game/enold` needs a
+copy of `C:\oss-rhost\game\enold`). **A valid LOGIC oracle:** frame/tick/RNG identical to Windows
+(SE boot f900 rng 9d661dcf; rh-se-newgame rng 7ba076a4 / tick 1663 both), deterministic run-to-run;
+state hashes differ from Windows only environmentally, so wine keeps its own `expected.wine.json`.
+Pixels + speed are Windows truth (wined3d on llvmpipe: ~190–260 fps). Use it when the Windows box is
+unavailable or for wide parallel sweeps.
+
 ## Not yet
 
 port-side DIK input path + determinism knobs (port↔retail by frame number), the in-game cadence
 check (port pins 33 ms/sim tick, rhost runs 16 ms/flip), JP-SE profile, D3D-free `.osr` capture
-from rhost (load `capture_proxy` in-process), joystick recording, wine target.
+from rhost (load `capture_proxy` in-process), joystick recording, EN-old game data on maximus for wine.

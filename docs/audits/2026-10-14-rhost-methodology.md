@@ -27,7 +27,10 @@ reset (`../openrecet/docs/audits/2026-10-13-methodology-reset.md`). Evidence:
    methods on EN-old) — which also restores `this` arguments Hex-Rays otherwise drops.
 7. **Editions recommendation:** keep porting **EN-old**; treat SE as a measured delta layer later
    (rhost + crosswalk already make it cheap to start). §3.
-8. **Coexists with openrecet:** separate runner task/queue/dirs; verified by running 3 openrecet
+8. **Wine target:** the same scenarios run headless on maximus (`--target wine`) with identical
+   frame/tick/RNG to Windows — a logic oracle when the Windows box is unavailable (it went offline at
+   ~10:17 tonight).
+9. **Coexists with openrecet:** separate runner task/queue/dirs; verified by running 3 openrecet
    rhost runs and our 5 at the same moment — both sides' hashes unchanged.
 
 ## 1. What was built
