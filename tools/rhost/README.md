@@ -78,16 +78,15 @@ function may write (`input_poll`: every ring record id). `replace:` runs the por
 (hybrid mode). A port function never calls its own retail VA. Add one = a wrapper + a table row,
 then add it to `VERIFY_HOOKS` in rhost.py.
 
-**Hybrid proof (2026-10-14):** `corpus --check --hook replace:rand,replace:input_poll` → all 5
-scenarios end byte-identical (semantic) to pure retail. Shadow runs compare per call (0 divergences)
-but their END state may drift from pure retail: the wrapper + port code run on the retail stack and
-retail has uninitialized stack reads (quirk #123 class) that copy such garbage into the heap.
-Known sites are neutralized (`uninit-fix`, rhost.c: palette byte 3 at 0x586f79 + 0x4181df, move
-command pad at 0x440dd1; `--no-uninit-fix` = raw retail); a third palette copy remains (heap
-0x20bc835c… in rh-intro-errands under shadow). Next step: a transparent shadow hook (return-address
-hijack: retail runs at its exact stack position, the port runs on the system stack afterwards).
-Census recipe: `run X --dump-at end` pure vs hooked → `rhs.py A B` → `--watch-write VA@0` on a
-differing address (logs every value change + writer EIP) → read the writer in all_ida.asm.
+**Hybrid proof (2026-10-14):** with `rand` + `input_poll` either SHADOWED or REPLACED, all 6 scenarios
+(EN-old + EN-SE) end byte-identical (semantic) to pure retail (`corpus --check --hook …` PASS); verify:
+rand 69,420 calls / 0 diverge, input_poll 42,125 / 0. This needs retail's uninitialized stack reads
+(quirk #123 class) neutralized, otherwise any port code on the retail stack changes what they copy
+into the heap: `uninit-fix` (rhost.c `UNINIT[]`, per edition) zeroes byte 3 at every call of the
+palette copy (EN-old 0x491770 / SE 0x48c300, 15–16 callers), the inline palette before the 1 KB copy
+(0x4181df / 0x41233f) and the move-command pad (0x440dd1 / 0x43bccc). `--no-uninit-fix` = raw retail.
+Census recipe for the next site: `run X --dump-at end` pure vs hooked → `rhs.py A B` →
+`--watch-write VA@0` on a differing address (every value change + writer EIP) → read it in all_ida.asm.
 
 ## Editions (`--edition`, or `{"meta":{"edition":…}}` in the trace)
 

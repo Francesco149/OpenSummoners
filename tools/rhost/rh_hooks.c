@@ -102,7 +102,8 @@ static hook_t H[H_N] = {
 void rh_hooks_install(void)
 {
     H[H_RAND].va = g_ed->rand;
-    if (strcmp(g_ed->tag, "enold")) H[H_POLL].va = 0;       /* EN-old VAs only (until the SE crosswalk) */
+    /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
+    H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

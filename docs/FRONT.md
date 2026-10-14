@@ -9,9 +9,9 @@
 <!-- FRONT:BEGIN -->
 - **2026-10-14 METHODOLOGY RESET (overnight) — rhost is the verification foundation.** Retail runs
   in-process, deterministic, ~1000 fps (`tools/rhost/`, `docs/audits/2026-10-14-rhost-methodology.md`):
-  5 EN-old scenarios (boot → errands freeroam, options) + EN-SE boot all det PASS; corpus gate
-  `rhost.py corpus --check`; shadow rand 22,966/0 + input_poll 19,511/0; hybrid replace → identical end
-  states. IDA 9.4 export of EN-old / EN-SE (2026-08-10 build) / JP-SE + crosswalk + C++ class recovery.
+  5 EN-old scenarios (boot → errands freeroam, options) + 1 EN-SE (new game → Tilelia) all det PASS;
+  corpus gate `rhost.py corpus --check`; shadow rand 69,420/0 + input_poll 42,125/0; shadow AND hybrid
+  replace → end states identical to pure retail (both editions). IDA 9.4 export of EN-old / EN-SE (2026-08-10 build) / JP-SE + crosswalk + C++ class recovery.
   **USER decisions (audit §7):** (1) deterministic cadence for parity (rhost 1 update/flip vs the port's
   33 ms/tick pin), (2) editions: EN-old first + SE delta later?, (3) retire the Frida retail drive.
   **Next (port side, Phase 0):** DIK-level input path (producer `0x46a880`) → port consumes the same

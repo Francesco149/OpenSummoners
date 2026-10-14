@@ -465,27 +465,35 @@ static void watch_arm_due(void)
  * the retail stack, which made hybrid/shadow end states incomparable. Byte 3 is not colour: zero
  * it at both sites (identical in every mode). --no-uninit-fix keeps raw retail behaviour. EN-old. */
 typedef void (__attribute__((thiscall)) *palcopy_t)(void *, uint8_t *);
+static uint32_t g_palcopy_va;
 static void __attribute__((thiscall)) w_pal_copy(void *self, uint8_t *src)
 {
     for (int i = 0; i < 256; i++) src[4 * i + 3] = 0;
-    ((palcopy_t)(uintptr_t)0x491770u)(self, src);
+    ((palcopy_t)(uintptr_t)g_palcopy_va)(self, src);
 }
+/* per edition: A = `call palcopy` sites (palette at the pushed src), B = inline `lea esi,[esp+0x418]`
+ * before a 1 KB rep movsd (+ resume VA), C = move-command copy `lea edi,[esi+OFF]` (+ the
+ * stack offset of the WORD-written last field's high half, + resume VA) */
+typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; } uninit_t;
+static const uninit_t UNINIT[] = {
+    { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u },
+    { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u },
+};
 static int uninit_fix_install(void)
 {
-    if (strcmp(g_ed->tag, "enold")) return 0;
+    const uninit_t *u = NULL;
+    for (size_t i = 0; i < sizeof UNINIT / sizeof *UNINIT; i++) if (!strcmp(UNINIT[i].tag, g_ed->tag)) u = &UNINIT[i];
+    if (!u) return 0;
     int n = 0;
-    /* site A: 0x586010 → `call 0x491770` at 0x586f79 (src = [esp+0x524] palette) */
-    uint8_t *p = (uint8_t *)0x586f79u;
-    if (p[0] == 0xE8 && (uint32_t)(uintptr_t)p + 5 + *(int32_t *)(p + 1) == 0x491770u) {
-        *(int32_t *)(p + 1) = (int32_t)((uint32_t)(uintptr_t)w_pal_copy - ((uint32_t)(uintptr_t)p + 5)); n++;
-    }
-    /* site B: 0x417c40 inline `lea esi,[esp+0x418]` at 0x4181df, then rep movsd at 0x418216 */
-    static const uint8_t want[7] = { 0x8D, 0xB4, 0x24, 0x18, 0x04, 0x00, 0x00 };
-    uint8_t *q = (uint8_t *)0x4181dfu;
-    if (!memcmp(q, want, 7)) {
-        uint8_t *s0 = make_stub(NULL, NULL, 0) /* reserve the stub page */, *c = g_stub_top;
-        (void)s0;
-        uint8_t *o = c;
+    g_palcopy_va = u->palcopy;
+    /* site A: EVERY call of the palette copy (15/16 callers; most build the palette with the same
+     * 3-bytes-per-entry LUT loop, so byte 3 can never carry meaning in retail) */
+    (void)u->a;
+    n += redirect_calls(u->palcopy, w_pal_copy);
+    static const uint8_t want_b[7] = { 0x8D, 0xB4, 0x24, 0x18, 0x04, 0x00, 0x00 };   /* lea esi,[esp+0x418] */
+    uint8_t *q = (uint8_t *)(uintptr_t)u->b;
+    if (!memcmp(q, want_b, 7)) {                            /* site B: inline palette before rep movsd */
+        uint8_t *c = g_stub_top, *o = c;
         *o++ = 0x60; *o++ = 0x9C;                                    /* pushad; pushfd */
         *o++ = 0x8D; *o++ = 0xBC; *o++ = 0x24; *(uint32_t *)o = 36 + 0x418 + 3; o += 4;   /* lea edi,[esp+36+0x418+3] */
         *o++ = 0xB9; *(uint32_t *)o = 256; o += 4;                   /* mov ecx,256 */
@@ -495,25 +503,22 @@ static int uninit_fix_install(void)
         *o++ = 0x49;                                                 /* dec ecx */
         *o++ = 0x75; *o = (uint8_t)(loop - (o + 1)); o++;            /* jnz loop */
         *o++ = 0x9D; *o++ = 0x61;                                    /* popfd; popad */
-        memcpy(o, want, 7); o += 7;                                  /* lea esi,[esp+0x418] */
-        *o++ = 0xE9; *(int32_t *)o = (int32_t)(0x4181e6u - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        memcpy(o, want_b, 7); o += 7;
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->b_resume - ((uint32_t)(uintptr_t)o + 4)); o += 4;
         g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
-        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (0x4181dfu + 5)); q[5] = 0x90; q[6] = 0x90;
+        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->b + 5)); q[5] = 0x90; q[6] = 0x90;
         n++;
     }
-    /* site C: actor move-command builder 0x43f880 assembles a 32-byte command at [esp+0x24] and
-     * copies it to actor+0x14854 (rep movsd, 0x440dd1..0x440de4); its last field ([esp+0x40]) is
-     * only ever written as a WORD (9 sites), so the high half [esp+0x42] is stack garbage. Clear it
-     * right before the copy: `lea edi,[esi+0x14854]` → jmp stub { mov word [esp+0x42],0; lea; jmp }. */
-    static const uint8_t wantc[6] = { 0x8D, 0xBE, 0x54, 0x48, 0x01, 0x00 };
-    uint8_t *r = (uint8_t *)0x440dd1u;
-    if (!memcmp(r, wantc, 6)) {
+    uint8_t want_c[6] = { 0x8D, 0xBE };                     /* lea edi,[esi+OFF] */
+    *(uint32_t *)(want_c + 2) = u->c_off;
+    uint8_t *r = (uint8_t *)(uintptr_t)u->c;
+    if (!memcmp(r, want_c, 6)) {                            /* site C: move-command pad before the copy */
         uint8_t *c = g_stub_top, *o = c;
-        *o++ = 0x66; *o++ = 0xC7; *o++ = 0x44; *o++ = 0x24; *o++ = 0x42; *o++ = 0x00; *o++ = 0x00;   /* mov word [esp+0x42],0 */
-        memcpy(o, wantc, 6); o += 6;                                                                 /* lea edi,[esi+0x14854] */
-        *o++ = 0xE9; *(int32_t *)o = (int32_t)(0x440dd7u - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        *o++ = 0x66; *o++ = 0xC7; *o++ = 0x44; *o++ = 0x24; *o++ = (uint8_t)u->c_pad; *o++ = 0x00; *o++ = 0x00;   /* mov word [esp+pad],0 */
+        memcpy(o, want_c, 6); o += 6;
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->c_resume - ((uint32_t)(uintptr_t)o + 4)); o += 4;
         g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
-        r[0] = 0xE9; *(int32_t *)(r + 1) = (int32_t)((uint32_t)(uintptr_t)c - (0x440dd1u + 5)); r[5] = 0x90;
+        r[0] = 0xE9; *(int32_t *)(r + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->c + 5)); r[5] = 0x90;
         n++;
     }
     return n;

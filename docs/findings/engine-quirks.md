@@ -4006,7 +4006,10 @@ run to run; under rhost it is retail's own deterministic data — the external-c
 det gate + `--watch-write` (2026-10-14). Same class: the actor move-command builder `0x43f880`
 assembles a 32-byte command at `[esp+0x24]` and copies it to `actor+0x14854` (`0x440dd1..0x440de4`),
 but its last field `[esp+0x40]` is only ever written as a WORD (9 sites) — the high half is stack
-garbage; and a third palette copy (heap `+…835c` per room) not yet located.
+garbage. The palette copy `0x491770` (EN-SE `0x48c300`) has 15 (16) callers, most building the
+palette with the same 3-bytes-per-entry LUT loop (e.g. 0x57a330's 12 ramps) — so byte 3 of a stored
+palette is never meaningful. EN-SE equivalents: inline 0x41233f, move-command pad 0x43bccc
+(`[esp+0x46]`).
 
 ### #124 — map data lives in the EXE's own `.rsrc`: `FindResourceA(module-or-NULL, id, "DATA")`
 The map loader (`0x587970` → `0x5b62a0`) reads map `id` (`*(a5+0xc)`, "NO:%d") with

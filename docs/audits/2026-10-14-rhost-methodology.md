@@ -12,13 +12,13 @@ reset (`../openrecet/docs/audits/2026-10-13-methodology-reset.md`). Evidence:
    errands freeroam in ~5 s). No Frida, no pins, no lockstep injection, no wall clock.
 2. **Determinism gate PASS** on every scenario (5 EN-old + EN-SE boot): 3 independent runs →
    identical state hash over all retail .data + heap. Record ≡ replay (a human recording replays to
-   the same hash).
+   the same hash). EN-SE: boot + new game → Scenario Select → Main Quest → Tilelia (rh-se-newgame).
 3. **Both editions:** EN-old (port target) and the **updated EN Steam SE** (buildid 24635888,
    2026-08-10 — newer than the July table) run under rhost; SE VAs come from an automatic IDA
    crosswalk.
-4. **Port-vs-retail on identical state works.** Shadow: port `rand` 22,966 calls / 0 divergences,
-   `input_poll_consume` 19,511 / 0. **Hybrid:** with both port functions *replacing* retail's, all 5
-   scenarios end byte-identical to pure retail.
+4. **Port-vs-retail on identical state works.** Shadow: port `rand` 69,420 calls / 0 divergences,
+   `input_poll_consume` 42,125 / 0 (6 scenarios, both editions). **Hybrid:** with both port functions
+   *replacing* (or shadowing) retail's, all 6 scenarios end byte-identical to pure retail.
 5. **Coverage map:** the intro executes 729 game functions (48.7% of game code bytes); only 27% of
    those bytes are port-touched — the port reproduces the intro mostly through stand-ins (cast
    tables etc.), not retail's scene code.
@@ -55,7 +55,7 @@ reset (`../openrecet/docs/audits/2026-10-13-methodology-reset.md`). Evidence:
   pad at 0x43f880) — system-DLL garbage reached the heap; BGM loops by polling DirectShow positions.
 - **Coexistence:** openrecet ×3 + ours ×5 simultaneously → openrecet 3/3 identical, ours 5/5 =
   expected.json.
-- **Oracle:** shadow rand 22,966/0, input_poll 19,511/0; replace both → 5/5 end states = pure.
+- **Oracle:** shadow rand 69,420/0, input_poll 42,125/0; shadow or replace both → 6/6 end states = pure.
 - **Coverage:** 861/1824 fns hit; game 729/1550 = 48.7% of bytes; 513 hit fns (630 KB) unported.
 
 ## 3. Editions — both at once, or base first?
@@ -117,7 +117,7 @@ Phase-0 items for the port side (not done tonight):
   diffs deterministic retail streams.
 - Re-verify `docs/parity-ledger.md` "confirmed 1:1" claims under rhost (openrecet found several
   earlier claims did not hold).
-- Transparent shadow hook (exact end-state equality in shadow mode too).
+- Keep the uninitialized-read census going as more port code runs in hybrid (README recipe).
 
 ## 6. Risks / caveats
 
