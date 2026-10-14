@@ -4663,6 +4663,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/input_dik.c",
+    "src/input_dik.h",
     "src/input_live.c",
     "src/input_live.h"
    ]

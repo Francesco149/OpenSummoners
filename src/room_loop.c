@@ -18,6 +18,7 @@
 #include "gimmick.h"
 #include "grid_refresh.h"
 #include "input.h"
+#include "input_dik.h"
 
 #define IP(p) ((intptr_t)(p))
 
@@ -33,7 +34,7 @@ void room_input_update(wl_room *r)
             old[k] = m->axis_held[k];
             m->axis_held[k] = 0;
         }
-        if (m->src_kb != 0) g_eng.h46a880(m, IP(sysp(0x2878)));
+        if (m->src_kb != 0) input_dik_produce(m, sysp(0x2878));
         for (uint32_t k = 0; k < 2; k++) {
             void *joy = sysp(0x287c + 4 * k);
             if (m->src_joy[k] != 0 && joy != NULL) g_eng.h468b10(m, IP(joy), 0);

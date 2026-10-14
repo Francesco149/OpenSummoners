@@ -49,7 +49,8 @@
   | TOUCH pass (doors / talk: probe rects, nearest script, door actors) + room input flush, probe rect, range check | `0x59bdd0` / `0x59c240` / `0x411560` / `0x4812c0` / `0x47b7c0` | 40 (32 compared, 8 skipped: the door / script calls) / 8 / 138 / 22 / – | 0 |
   | EVENT ZONES (leader in a zone → scene start: walk-in / press-up / hold-up, foe holds) + zone test, band-96 near | `0x59a1f0` / `0x59a7c0` / `0x59a880` | 8.7k (4,474 full-state; 3,868 with a zone under the leader, incl. 8 fires) / 8k / 1 | 0 |
   | ROOM LOOP per-tick calls: input update, character step (probe + AI), actor step, tile-anim phase, party check, camera lead, timed sounds | `0x468a20` `0x590410` `0x58ffd0` `0x58ff50` `0x59ca10` `0x59d3f0` `0x43e140` | 1.4k / 832 / 4.1k / 545 / 8.8k / 545 / 1.5k compared | 0 |
-  Hybrid gate: with all of the above REPLACING retail (128 hooks) (the whole character tick, driver → tile
+  | KEYBOARD input producer (DIK events → ring records in retail's test order, held axes) | `0x46a880` | 1,694 compared (every call with events: 1,164 events, title / menus / free roam) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (129 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -98,7 +99,8 @@
      `0x59afd0` → `0x59b170` (gimmicks), events `0x59a1f0`; `load_room 0x586010` + the scene loop
      `0x59f2c0` switch. The map decode is already byte-exact. A loop function is verified in REPLACE
      mode (corpus/hash), not per-call shadow.
-  4. port-side DIK input (`--rh-trace` via the producer `0x46a880`, which is itself a shadow target).
+  4. port-side DIK input: the producer `0x46a880` is PORTED (`src/input_dik.c`, retail layout); wire the port
+     binary's keyboard path through it (`--rh-trace` = the same DIK traces rhost replays).
 - **Loop (per function):** read `decompiled-ida/enold/all_ida.c` (+ asm for conventions/widths) →
   port on world_layout types → wrapper in `tools/rhost/rh_hooks.c` → `rhost.py verify` + `corpus
   --check --hook replace:…` → commit with the evidence line. Coverage of a path: `--trap VA` counts.

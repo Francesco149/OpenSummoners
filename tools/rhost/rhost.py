@@ -443,7 +443,7 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "party_gather", "touch_pass", "touch_actor", "room_input_flush", "probe_rect", "entity_near@4", "event_run",
                 "sys_unload", "zone_pass@8", "zone_hit@16", "band96_near",
                 "room_input_update@16", "room_char_step@32", "room_actor_step@64", "room_grid_anim@16", "room_party_down",
-                "room_lead@16", "timed_sounds_tick@16"]
+                "room_lead@16", "timed_sounds_tick@16", "input_dik_produce@16"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

@@ -40,6 +40,7 @@
 #include "gimmick.h"
 #include "event.h"
 #include "room_loop.h"
+#include "input_dik.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -64,7 +65,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
-       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_N };
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2322,6 +2323,24 @@ static void __attribute__((thiscall)) w_tsnd(void *sys)
     full_shadow(h, "timed_sounds_tick", tsnd_retail, tsnd_port, sys, "sys");
 }
 
+/* ---- the keyboard input producer (src/input_dik.c) — full state (ring records + held axes) ---- */
+typedef void (__attribute__((thiscall)) *dik_t)(input_mgr *, const void *);
+typedef struct { input_mgr *m; const void *kb; } dik_ctx;
+static void dik_retail(void *c) { dik_ctx *x = c; ((dik_t)(uintptr_t)H[H_DIK].va)(x->m, x->kb); }
+static void dik_port(void *c) { dik_ctx *x = c; port_world(); input_dik_produce(x->m, x->kb); }
+static long g_dik_events;
+static void __attribute__((thiscall)) w_dik(input_mgr *m, const void *kb)
+{
+    hook_t *h = &H[H_DIK];
+    dik_ctx x = { m, kb };
+    if (h->mode == 2) { h->calls++; dik_port(&x); return; }
+    uint32_t n; memcpy(&n, (const uint8_t *)kb + 0x10, 4);
+    if (!sample_rare(h, !rh_in_shadow() && n != 0)) { dik_retail(&x); return; }
+    g_dik_events += n;
+    char what[64]; snprintf(what, sizeof what, "events %u", n);
+    full_shadow(h, "input_dik_produce", dik_retail, dik_port, &x, what);
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2452,6 +2471,7 @@ static hook_t H[H_N] = {
     [H_RDOWN]      = { "room_party_down", 0x59ca10u, (void *)w_rdown, 0, 1, 0, 0, 0, 0, "" },
     [H_RLEAD]      = { "room_lead",      0x59d3f0u, (void *)w_rlead,  0, 1, 0, 0, 0, 0, "" },
     [H_TSOUNDS]    = { "timed_sounds_tick", 0x43e140u, (void *)w_tsnd, 0, 1, 0, 0, 0, 0, "" },
+    [H_DIK]        = { "input_dik_produce", 0x46a880u, (void *)w_dik, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2497,7 +2517,7 @@ static void bind_engine_calls(void)
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
-    B(40ac90); B(55cfc0); B(54ed80); B(46a880); B(468b10); B(5bc0c0);
+    B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
@@ -2543,7 +2563,7 @@ void rh_hooks_install(void)
         H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va =
         H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va =
         H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va =
-        H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = 0;
+        H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = H[H_DIK].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -2585,6 +2605,7 @@ void rh_hooks_report(void)
     if (H[H_PINIT].mode == 1)
         for (int k = 0; k < g_npinit_codes; k++) rh_log("particle_init coverage: code %d compared %ld\n", g_pinit_code_id[k], g_pinit_codes[k]);
     if (H[H_GSTEP].mode == 1) rh_log("gimmick_step: %ld live (switching) calls shadowed\n", g_gstep_live);
+    if (H[H_DIK].mode == 1) rh_log("input_dik_produce: %ld keyboard events shadowed\n", g_dik_events);
     if (H[H_ZPASS].mode == 1) rh_log("zone_pass: %ld calls with a zone under the leader shadowed\n", g_zone_live);
     if (H[H_PARTICLE].mode == 1)
         for (int k = 0; k < g_nprt_codes; k++) rh_log("particle_tick coverage: code %d compared %ld\n", g_prt_code_id[k], g_prt_codes[k]);

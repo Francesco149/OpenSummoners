@@ -74,7 +74,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x44e680 | sub_44E680 | 59 | hud.c, hud.h, npc_ai.h |
 | 0x466930 | sub_466930 | 1315 | char_physics.c, char_physics.h |
 | 0x467bb0 | sub_467BB0 | 3364 | char_physics.c, char_physics.h |
-| 0x46a880 | sub_46A880 | 8890 | input_live.c, input_live.h |
+| 0x46a880 | sub_46A880 | 8890 | input_dik.c, input_dik.h, input_live.c (+1) |
 | 0x4766a0 | hud_door_on_screen_4766A0 | 106 | hud.c, hud.h |
 | 0x478ba0 | char_ai_478BA0 | 3514 | char_ai.c, char_ai.h |
 | 0x479960 | sub_479960 | 165 | character.c, character.h, input.c (+1) |
