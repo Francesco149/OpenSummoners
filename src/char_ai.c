@@ -345,3 +345,75 @@ member_done:;
     }
     return result;
 }
+
+/* ── FUN_00440f40 / FUN_004411e0 ──────────────────────────────────────────── */
+
+int32_t body_frame_box(uint16_t r, const wl_body *b, int32_t box[4])
+{
+    const int32_t *f = (const int32_t *)b->frames + 5u * r;
+    int32_t dx = f[0];
+    if (b->facing == 3) dx = -dx;
+    box[0] = dx + b->x + b->w / 2 - f[2] / 2;
+    box[2] = f[2];
+    box[3] = f[3];
+    box[1] = f[1] + (b->y + b->h / 2 - f[3] / 2);
+    return f[1];
+}
+
+int char_hazard_probe(wl_char *self, uint16_t n, const wl_body *b, int32_t *out)
+{
+    if (self->party->busy != 0 || self->f14234 != 0 || b->f7d != 0) return 0;
+    int looking_up = b->state == 5 && self->up_assist != 0;
+    const wl_list *L = g_world->list_2788;
+    if (L->count == 0) return 0;
+    for (uint16_t i = 0; i < L->count; L = g_world->list_2788, i++) {
+        const wl_entity *e = L->items[i];
+        if (e == &self->base) continue;
+        int32_t fs = self->base.faction, fe = e->faction;
+        if (!((fs != 0 && fe != 0 && (fs == 3 || fe == 3 || fs != fe)) || e->coll_off == 1)) continue;
+        uint16_t nr = self->base.nrects;
+        const uint8_t *rects = self->base.rects;
+        if (e->nbody <= n) continue;
+        const wl_body *eb = &e->body[n];
+        if (!eb->active || eb->nhit == 0) continue;
+        const int32_t *hb = NULL;
+        for (uint16_t k = 0; k < e->body[n].nhit; k++) {
+            const int32_t *h = e->body[n].hit[k];
+            if (rects != NULL) {
+                for (uint16_t r = 0; r < nr; r++) {
+                    int32_t box[4];
+                    body_frame_box(r, b, box);
+                    if (h[5] <= box[0] + box[2] && h[5] + h[7] > box[0] &&
+                        h[6] <= box[1] + box[3] && h[6] + h[8] > box[1]) { hb = h; break; }
+                }
+                if (hb) break;
+            } else if (h[5] <= b->x + b->w && h[5] + h[7] > b->x &&
+                       h[6] <= b->y + b->h && h[6] + h[8] > b->y + b->margin) {
+                hb = h;
+                break;
+            }
+        }
+        if (hb == NULL) continue;
+        if (hb[15] != 0) {
+            int j;
+            for (j = 0; j < 8; j++)
+                if (self->recent_hit[j].id == hb[15] && self->recent_hit[j].t > n + 30) break;
+            if (j < 8) continue;            /* already taken: next entity */
+        }
+        int32_t kind = hb[4];
+        if (hb[3] != 0) {
+            switch (self->hazard_mode) {
+            case 1: if (kind != 0) return 1; break;
+            case 2: if (kind != 1) return 1; break;
+            case 3: break;
+            default: return 1;
+            }
+        }
+        if (looking_up) {
+            if (out != NULL) *out = 1;
+            continue;
+        }
+        return 1;
+    }
+    return 0;
+}

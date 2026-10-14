@@ -121,6 +121,10 @@ int  rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, siz
  * post-state kept. 0 same, 1 differ (`why` = count + the first differing dwords), -1 not compared. */
 int  rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn);
 void rh_clock_save(uint32_t s[3]);
+void *rh_media_save(void);                 /* the fake DirectSound pool (rh_media.c) */
+void rh_media_restore(const void *m);
+long rh_media_diff(const void *m);
+void rh_media_snap_free(void *m);
 void rh_clock_restore(const uint32_t s[3]);
 
 /* rh_trace.c — input script / recorder (DIK scancode levels per flip) */

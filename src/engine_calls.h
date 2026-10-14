@@ -29,7 +29,25 @@
 #define ENG_STDCALL
 #endif
 
+/* thiscall slots typed by stack-arg count (the integrator's per-type handlers take
+ * pointers and ints; the slot passes them as intptr_t words, as retail pushes them) */
+typedef int (ENG_THISCALL *eng_tc0)(void *self);
+typedef int (ENG_THISCALL *eng_tc3)(void *self, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc4)(void *self, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc5)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc6)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc7)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc8)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                    intptr_t);
+
 typedef struct engine_calls {
+    /* a retail .data address the ported code passes on (tables handed to unported
+     * callees, clip records): rhost = identity; the port maps its own copies */
+    const void *(*data)(uint32_t va);
+    /* the CRT heap (operator new 0x5bf00d / delete 0x5bef0e): scratch buffers retail
+     * allocates and frees must come from the same allocator to keep its heap identical */
+    void *(*op_new)(uint32_t n);
+    void  (*op_delete)(void *p);
     /* roots */
     uint32_t (ENG_STDCALL *tick)(void);   /* GetTickCount — the engine's only clock          */
     void       *sys;                      /* &0x8a6b60, the system singleton (sound `this`)  */
@@ -59,6 +77,15 @@ typedef struct engine_calls {
     int (ENG_THISCALL *particle_557370)(wl_char *self, wl_char *owner, int32_t id, wl_body *b, int32_t dx, int32_t dy,
                                         int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12,
                                         int32_t a13, int32_t a14);
+    /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
+    eng_tc5 h445fd0; eng_tc3 h467260; eng_tc0 h4467d0; eng_tc6 h44a740; eng_tc8 h45a300;
+    eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
+    eng_tc7 h449810; eng_tc6 h4539b0; eng_tc7 h44d8f0; eng_tc7 h448dc0; eng_tc5 h452730;
+    eng_tc4 h467380; eng_tc4 h457ff0; eng_tc5 h45e830; eng_tc7 h455d80; eng_tc6 h44b160;
+    eng_tc7 h4516e0; eng_tc7 h4484b0; eng_tc6 h4512d0; eng_tc6 h44a200; eng_tc6 h44e8d0;
+    eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
+    eng_tc3 h426440; eng_tc4 h445e50;
+    int (ENG_THISCALL *skill_cond_5b5990)(wl_char *self, int32_t code, int32_t a3, void *a4, int32_t a5);
 } engine_calls;
 
 extern engine_calls g_eng;

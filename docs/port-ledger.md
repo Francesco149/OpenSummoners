@@ -14,19 +14,19 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **253** (15.7% of engine-proper) — tested 248, ported 5
-- code bytes touched: **17.2%** (306,085 / 1,776,526 B of engine-proper)
-- unported: **1571**
+- touched: **268** (16.6% of engine-proper) — tested 250, ported 18
+- code bytes touched: **18.0%** (320,404 / 1,776,526 B of engine-proper)
+- unported: **1556**
 - orphan refs in src/ not in this table: 0
 
-## tested (248) — ported + host unit suite
+## tested (250) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x4031c0 | sub_4031C0 | 815 | glyph_wrap.h |
 | 0x406440 | cs_fail_406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
-| 0x40a540 | sub_40A540 | 133 | character.h |
+| 0x40a540 | sub_40A540 | 133 | char_integrate.h, character.h |
 | 0x40dee0 | sub_40DEE0 | 85 | main.c |
 | 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h |
 | 0x40e360 | sub_40E360 | 636 | main.c |
@@ -54,7 +54,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
 | 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x426f50 | sub_426F50 | 26 | character.c |
+| 0x426f50 | sub_426F50 | 26 | char_integrate.h, character.c |
 | 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, party.c (+1) |
 | 0x4385e0 | sub_4385E0 | 45 | char_physics.c, char_physics.h |
 | 0x43b980 | sub_43B980 | 783 | cutscene.c, dialogue.h |
@@ -66,6 +66,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43d1d0 | camera_follow_step_43D1D0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | camera_shake_apply_43D340 | 299 | camera_follow.c, camera_follow.h |
 | 0x43e250 | sub_43E250 | 334 | main.c |
+| 0x440f40 | sub_440F40 | 670 | char_ai.c, char_ai.h |
+| 0x4411e0 | sub_4411E0 | 131 | char_ai.c, char_ai.h |
 | 0x4416c0 | sub_4416C0 | 52 | entity_move.c, entity_move.h |
 | 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
 | 0x44e640 | sub_44E640 | 49 | hud.c, hud.h |
@@ -272,10 +274,23 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (5) — reimplemented, no host test yet
+## ported (18) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
+| 0x407320 | sub_407320 | 190 | char_integrate.h |
+| 0x407b80 | sub_407B80 | 32 | char_integrate.h |
+| 0x426be0 | sub_426BE0 | 395 | char_integrate.h |
+| 0x426f20 | sub_426F20 | 47 | char_integrate.h |
+| 0x442890 | sub_442890 | 54 | char_integrate.h |
+| 0x442920 | sub_442920 | 149 | char_integrate.h |
+| 0x442a70 | sub_442A70 | 12026 | char_integrate.c, char_integrate.h |
+| 0x445d30 | sub_445D30 | 124 | char_integrate.h |
+| 0x445f50 | sub_445F50 | 21 | char_integrate.h |
+| 0x445f70 | sub_445F70 | 91 | char_integrate.h |
+| 0x446640 | sub_446640 | 112 | char_integrate.h |
+| 0x451250 | sub_451250 | 119 | char_integrate.h |
+| 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

@@ -193,14 +193,17 @@ int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *),
     uint16_t cw; __asm__ volatile("fnstcw %0" : "=m"(cw));
     uint32_t clk0[3], clk1[3]; rh_clock_save(clk0);
     void *meta = rh_heap_meta_save();
+    void *media0 = rh_media_save();
     COPY_OUT(g_pre);
     retail(ctx);
     int n2 = state_ranges(r2);
     if (n2 != n || memcmp(r, r2, n * 8)) {
         snprintf(why, whyn, "%s: arena commit changed during call (ranges %d->%d); not compared", name, n, n2);
-        rh_heap_meta_free(meta);
+        rh_heap_meta_free(meta); rh_media_snap_free(media0);
         return -1;
     }
+    void *media1 = rh_media_save();
+    rh_media_restore(media0);
     uint32_t sp; __asm__ volatile("mov %%esp, %0" : "=r"(sp));
     sp -= 256;
     memcpy(g_shx_dead, (void *)(uintptr_t)(sp - SHX_DEAD), SHX_DEAD);   /* what retail left below SP */
@@ -233,6 +236,10 @@ int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *),
         if (w < (int)whyn - 48) w += snprintf(why + w, whyn - w, " clock r%u/%u p%u/%u", clk1[0], clk1[1], clk2[0], clk2[1]);
         diff++;
     }
+    long md = rh_media_diff(media1);
+    if (md) { if (w < (int)whyn - 40) w += snprintf(why + w, whyn - w, " sound-pool %ld", md); diff += md; }
+    rh_media_restore(media1);
+    rh_media_snap_free(media0); rh_media_snap_free(media1);
     if (diff) { COPY_IN(g_ret); if (w < (int)whyn - 24) snprintf(why + w, whyn - w, " (%ld differ)", diff); }
     rh_heap_meta_restore(meta_ret);
     rh_clock_restore(clk1);

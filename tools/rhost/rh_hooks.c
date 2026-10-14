@@ -21,6 +21,7 @@
 #include "camera_follow.h"
 #include "char_ai.h"
 #include "char_physics.h"
+#include "char_integrate.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -31,7 +32,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -418,6 +419,50 @@ static int __attribute__((thiscall)) w_char_anim(wl_char *self, wl_body *b, int3
     return x.r;
 }
 
+/* ---- the integrator (FUN_00442a70, thiscall(char, cmd, in, out, probe, part)) — full state ---- */
+typedef int (__attribute__((thiscall)) *char_int_t)(wl_char *, wl_cmd *, wl_body *, wl_body *, int32_t, int32_t);
+typedef struct { wl_char *self; wl_cmd *cmd; wl_body *in, *out; int32_t probe, part; int r_ret, r_port; } int_ctx;
+static void int_retail(void *c) { int_ctx *x = c; x->r_ret = ((char_int_t)(uintptr_t)H[H_CHAR_INT].va)(x->self, x->cmd, x->in, x->out, x->probe, x->part); }
+static void int_port(void *c)   { int_ctx *x = c; port_world(); x->r_port = char_integrate(x->self, x->cmd, x->in, x->out, x->probe, x->part); }
+static long g_int_special;
+static int __attribute__((thiscall)) w_char_int(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out, int32_t probe, int32_t part)
+{
+    hook_t *h = &H[H_CHAR_INT];
+    if (h->mode == 2) { h->calls++; port_world(); return char_integrate(self, cmd, in, out, probe, part); }
+    if (!sample(h)) return ((char_int_t)(uintptr_t)h->va)(self, cmd, in, out, probe, part);
+    if ((in->pose >= 0x75 && in->pose <= 0x7a) || in->pose == 0x81) g_int_special++;
+    int_ctx x = { self, cmd, in, out, probe, part, 0, 0 };
+    uint16_t pose = in->pose, st = in->state; uint32_t code = (uint32_t)self->base.code; long unp = g_integrate_unported;
+    char why[512];
+    int d = rh_shadow_ex("char_integrate", int_retail, int_port, &x, why, sizeof why);
+    if (d < 0) { h->skipped++; return x.r_ret; }
+    h->compared++;
+    if (d || x.r_ret != x.r_port)
+        diverged(h, "f%u char %p code %x pose %x state %u probe %d part %d unported+%ld ret %d/%d %s", g_frame, (void *)self, code,
+                 pose, st, probe, part, g_integrate_unported - unp, x.r_ret, x.r_port, d ? why : "");
+    return x.r_ret;
+}
+
+/* ---- hazard probe (FUN_00440f40, thiscall(char, n, body, int *out)) — reads only; writes *out ---- */
+typedef int (__attribute__((thiscall)) *hazard_t)(wl_char *, uint32_t, wl_body *, int32_t *);
+static int __attribute__((thiscall)) w_hazard(wl_char *self, uint32_t n, wl_body *b, int32_t *out)
+{
+    hook_t *h = &H[H_HAZARD];
+    if (h->mode == 2) { h->calls++; port_world(); return char_hazard_probe(self, (uint16_t)n, b, out); }
+    if (!sample(h)) return ((hazard_t)(uintptr_t)h->va)(self, n, b, out);
+    int32_t o0 = out ? *out : 0;
+    int r = ((hazard_t)(uintptr_t)h->va)(self, n, b, out);
+    int32_t ro = out ? *out : 0;
+    if (out) *out = o0;
+    port_world();
+    int p = char_hazard_probe(self, (uint16_t)n, b, out);
+    int32_t po = out ? *out : 0;
+    if (out) *out = ro;
+    h->compared++;
+    if (p != r || po != ro) diverged(h, "f%u char %p n %u: retail %d/out %d port %d/out %d", g_frame, (void *)self, (uint16_t)n, r, ro, p, po);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -431,8 +476,11 @@ static hook_t H[H_N] = {
     [H_CHAR_AI]    = { "char_ai",    0x478ba0u, (void *)w_char_ai,    0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_PHYS]  = { "char_physics", 0x467bb0u, (void *)w_char_phys, 0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_ANIM]  = { "char_anim",  0x466930u, (void *)w_char_anim,  0, 1, 0, 0, 0, 0, "" },
+    [H_CHAR_INT]   = { "char_integrate", 0x442a70u, (void *)w_char_int, 0, 1, 0, 0, 0, 0, "" },
+    [H_HAZARD]     = { "hazard_probe", 0x440f40u, (void *)w_hazard, 0, 1, 0, 0, 0, 0, "" },
 };
 
+static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
 /* engine_calls.h slots -> retail (EN-old VAs; the roots are retail's globals) */
 static void bind_engine_calls(void)
 {
@@ -456,6 +504,14 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.dsb_freq_5bb890     = (void *)(uintptr_t)0x5bb890u;
     *(void **)&g_eng.dsb_play_5bb8c0     = (void *)(uintptr_t)0x5bb8c0u;
     *(void **)&g_eng.particle_557370     = (void *)(uintptr_t)0x557370u;
+    g_eng.data = rh_data_identity;
+#define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
+    B(445fd0); B(467260); B(4467d0); B(44a740); B(45a300); B(44bc10); B(44c250); B(44bf60); B(446900);
+    B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730); B(467380); B(457ff0); B(45e830);
+    B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
+    B(44d2e0); B(456d30); B(461790); B(426440); B(445e50);
+#undef B
+    *(void **)&g_eng.skill_cond_5b5990   = (void *)(uintptr_t)0x5b5990u;
 }
 
 void rh_hooks_install(void)
@@ -467,7 +523,7 @@ void rh_hooks_install(void)
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -501,6 +557,9 @@ void rh_hooks_report(void)
                    h->skipped, h->compared, h->diverge ? " first: " : "", h->diverge ? h->first : "");
         else rh_log("hook-result replace %s calls=%ld\n", h->name, h->calls);
     }
+    if (H[H_CHAR_INT].mode == 1)
+        rh_log("char_integrate: %ld calls delegated (special input pose), %ld entered an unported pose mid-call\n",
+               g_int_special, g_integrate_unported);
     if (H[H_CHAR_PHYS].mode == 1)
         rh_log("char_physics coverage: state0..6+ %ld %ld %ld %ld %ld %ld %ld %ld | ctl0..3+ %ld %ld %ld %ld %ld | mode0..3+ %ld %ld %ld %ld %ld | probe %ld\n",
                g_phys_cov[0], g_phys_cov[1], g_phys_cov[2], g_phys_cov[3], g_phys_cov[4], g_phys_cov[5], g_phys_cov[6], g_phys_cov[7],

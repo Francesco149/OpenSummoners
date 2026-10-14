@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-14 (day) — the movement stack ported + verified INSIDE retail (rhost shadow/hybrid)
+
+- USER decisions applied: rhost 1:1 cadence, EN-old first, Frida retail drive retired; port boot
+  loading frames default ON. New scenario `rh-my-play` (USER's play: intro → errands → town → shop).
+  rhost: heap zero-on-alloc (quirk #130), `oss-rhost.exe`, `rh_shadow_ex` (full-state shadow),
+  hooks chain behind rhost's own stubs, ledger generators read the IDA function table.
+- Ported faithfully on retail-layout types (`world_layout.h`) and verified per call: tile movers
+  (one real fix: 0x54e990 never writes out-Y on a zero delta), entity movers 0x54db10/0x54e5c0
+  (actor-vs-actor scan), the map decode prologue (whole grid byte-exact on all room loads; quirk
+  #131), camera_view in retail layout (+ signed shake scale), the character AI 0x478ba0 (quirk
+  #132), the movement step 0x467bb0 (quirk #133), the clip/effects step 0x466930. With all of
+  them replacing retail, every corpus scenario ends byte-identical to pure retail.
+- In flight: the integrator 0x442a70 (`char_integrate.c`). Old FRONT archived to
+  `docs/memories/front-archive-ckpt175-194.md`.
+
 ## 2026-10-14 (overnight) — methodology reset: rhost (retail in-process) + IDA for both editions
 
 - **rhost** (`tools/rhost/`, ported from openrecet): retail `sotes.exe` runs inside our process on

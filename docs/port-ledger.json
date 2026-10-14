@@ -6,17 +6,17 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 248,
-  "ported": 5,
-  "unported": 1571,
+  "tested": 250,
+  "ported": 18,
+  "unported": 1556,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 253,
-  "pct_touched": 15.7,
-  "pct_tested": 15.7,
-  "engine_proper_touched": 240,
+  "touched": 268,
+  "pct_touched": 16.6,
+  "pct_tested": 15.8,
+  "engine_proper_touched": 255,
   "bytes_total": 1776526,
-  "bytes_touched": 306085,
-  "pct_bytes_touched": 17.2
+  "bytes_touched": 320404,
+  "pct_bytes_touched": 18.0
  },
  "orphan_refs": [],
  "functions": [
@@ -527,8 +527,10 @@
    "name": "sub_407320",
    "size": 190,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x407500",
@@ -575,8 +577,10 @@
    "name": "sub_407B80",
    "size": 32,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x407ba0",
@@ -747,6 +751,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/char_integrate.h",
     "src/character.h"
    ]
   },
@@ -2322,8 +2327,10 @@
    "name": "sub_426BE0",
    "size": 395,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x426d70",
@@ -2362,8 +2369,10 @@
    "name": "sub_426F20",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x426f50",
@@ -2372,6 +2381,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/char_integrate.h",
     "src/character.c"
    ]
   },
@@ -3351,16 +3361,22 @@
    "name": "sub_440F40",
    "size": 670,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.c",
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x4411e0",
    "name": "sub_4411E0",
    "size": 131,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_ai.c",
+    "src/char_ai.h"
+   ]
   },
   {
    "va": "0x441270",
@@ -3482,8 +3498,10 @@
    "name": "sub_442890",
    "size": 54,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x4428f0",
@@ -3498,8 +3516,10 @@
    "name": "sub_442920",
    "size": 149,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x4429c0",
@@ -3522,8 +3542,11 @@
    "name": "sub_442A70",
    "size": 12026,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.c",
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x445ce0",
@@ -3538,8 +3561,10 @@
    "name": "sub_445D30",
    "size": 124,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x445db0",
@@ -3562,16 +3587,20 @@
    "name": "sub_445F50",
    "size": 21,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x445f70",
    "name": "sub_445F70",
    "size": 91,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x445fd0",
@@ -3618,8 +3647,10 @@
    "name": "sub_446640",
    "size": 112,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x4466b0",
@@ -3999,8 +4030,10 @@
    "name": "sub_451250",
    "size": 119,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x4512d0",
@@ -4370,8 +4403,10 @@
    "name": "sub_4671C0",
    "size": 158,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_integrate.h"
+   ]
   },
   {
    "va": "0x467260",

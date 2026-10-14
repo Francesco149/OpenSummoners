@@ -1,0 +1,414 @@
+# FRONT archive — the pre-rhost front (ckpt 175–194 + the 2026-10-14 reset note)
+
+Moved verbatim out of `docs/FRONT.md` on 2026-10-14 when the front became the rhost porting loop.
+History only; PROGRESS.md has the dated narrative.
+
+- **2026-10-14 METHODOLOGY RESET (overnight) — rhost is the verification foundation.** Retail runs
+  in-process, deterministic, ~1000 fps (`tools/rhost/`, `docs/audits/2026-10-14-rhost-methodology.md`):
+  5 EN-old scenarios (boot → errands freeroam, options) + 1 EN-SE (new game → Tilelia) all det PASS;
+  corpus gate `rhost.py corpus --check`; shadow rand 69,420/0 + input_poll 42,125/0; shadow AND hybrid
+  replace → end states identical to pure retail (both editions). IDA 9.4 export of EN-old / EN-SE (2026-08-10 build) / JP-SE + crosswalk + C++ class recovery.
+  **USER decisions (audit §7):** (1) deterministic cadence for parity (rhost 1 update/flip vs the port's
+  33 ms/tick pin), (2) editions: EN-old first + SE delta later?, (3) retire the Frida retail drive.
+  **Port↔retail phase map** (`rhost.py portshots rh-newgame-prologue --search 40`, port `--det-clock`):
+  title intro port +31 flips ahead at f300 (exact match), +12..+20 later; prologue −3 flips and
+  pixel-identical once aligned. Title offset FIXED: retail's 47 boot "Now Loading NN%" presents (quirk
+  #129) ported behind `--boot-loading` → flips 1–48 + the title intro pixel-identical at the SAME flip.
+  **Next (port side, Phase 0):** make `--boot-loading` default (re-key port-only traces +47); menu quill
+  (f800 273 px); prologue 2 flips late (f1100 ≡ retail f1098);
+  DIK-level input path (producer `0x46a880`) so the port consumes `rh-*` traces natively; re-verify parity-ledger claims under rhost;
+  ledger generator → IDA function list (`docs/decompiled/functions.csv` is not on maximus).
+- **Phase — the freeroam sim**, built bit-exact vs errands re-drives. The prior arcs
+  (town intro → arrival/house/errands cutscene; the HUD panel ckpt 167–174) render 1:1.
+- **Landed ckpt 175 — COLLISION:** the movers `0x54ded0`/`0x54db10` tile halves ported
+  (`collision.c`) + `character_step` restructured to the retail `0x442a70` tick order
+  (support probe → vertical mover/ledge-fall → ramp → worldX commit); slope ramps
+  read live off the user's exe; the `LAB_00589520` "occlusion marks" = invisible
+  collision WALLS (map_decode fix). **Arche stops/climbs/descends the errands stairs
+  tick-exact** (dwx==dwy==0 through the whole climb; both walls flush) — retires the
+  studio-note-2441 divergence + debts `char-collision-mover`/`collision-slopes`/
+  `decode-occlusion-mark`. The 4-tick standing TURN-AROUND (`char-turn-state`) is
+  now PORTED (ckpt 177 below). RE: `findings/freeroam-collision.md`.
+- **HUD blocker (parked) — the PORTRAIT.** `hud_ctx+0x1b4` (leader_uid) reads 0x0 on
+  every scripted replay (a replay-fidelity gap, not a port bug); resolve via the
+  `+0x1b4` setter or a live/manual play. `findings/freeroam-hud.md §6-9`.
+- **Landed ckpt 176 — dialogue mark t1197 FIXED + char-turn RE corrected.** (a1) The
+  "port skips dialogue early" mark is NOT an advance-gate bug — the advance PRESSES
+  already match retail (port DLGT + dialogue_timeline off the stairs pair).  It was a
+  box RENDER linger: retail keeps the arrival L9 box up through tick 1200, the port
+  cleared it at 1192 → `ARRIVAL_EXIT_BOX_HOLD=8` (== the house-exit box-hold pattern),
+  drawcall-verified L9 adv 1192→1200 == retail.  `findings/dialogue-advance-early.md`.
+  (c) char-turn RE CORRECTED: the ckpt-175 "case-2" pointer was WRONG (that's the
+  DOWN/crouch, already ported); the real reversal turn is the STATE-1 horizontal FSM
+  `0x442a70:1011-1090`.  See `port-debt.md`.
+- **Landed ckpt 177 — `char-turn-state` PORTED (retires the collision residual).**
+  The from-rest REVERSAL now plays retail's 8-tick pivot: `CHAR_TURN_HOLD=4`
+  STATIONARY windup ticks (facing HELD, the fr-6 turn cel) → flip facing + walk ramp
+  (fr-7 → +152 fr-159 lingers 4 render ticks) → walk (fr 160).  `character.c`
+  `turn_ctr`/`turn_frame` + `ARCHE_TURN_CLIP` {6,7} (both dirs via the +152 mirror,
+  == the house turn 158→7).  GROUND TRUTH retail-stairs res 0x570 (fr 6×4 → 159×4 →
+  160); `draw_probe port-stairs2` == retail, `state_diff` RIGHT 0-div/301t (no regress)
+  + LEFT ramp-shape bit-exact (the −960 gap GONE).  RESIDUAL: a constant 1-tick
+  reversal-ONSET phase (−240) — the port latches the reverse press 1t before retail's
+  warmup gate (→ `char-input-autorepeat`, not the turn), within retail's ±1-2t
+  coalescing slop.  RE: `findings/freeroam-turn-around.md`.  **USER: verify the pivot
+  animation — studio shortcut = `port-stairs2 | retail-stairs` @ tick ~2950.**
+- **Landed ckpt 178 — ALL-MAPS SWEEP: the 587e00 tile dispatch is COMPLETE.**
+  `tools/extract/map_sweep.py` (all 376 map resources vs the port's own sources):
+  tile-id cell coverage 5.0% → **100.0%** (87/87 ids; every family transcribed
+  emit-for-emit; quirks #119-#121).  The trailing `FUN_0058cb30` placeholder pass
+  is PORTED (map codes 90010/90011 → region-E link anchors — NOT spawns).
+  STRUCTURE def table complete (0xf295→0x77; 0xeead→the runtime bank 0x88/89/8a
+  per param_4 5/6/8, RE'd off the 587e00 prologue).  res_explorer: PLACEHOLDER
+  band named + region-E inspect; CHARACTER label kept (the ENGINE's own band
+  name — holds props/emitters too, answers the USER naming question); param_4
+  cfg 1-8.  Maps 1057/1047 render fully (feed); town regression clean.  1095
+  host tests.  Still stubbed: EFFECT/CHARACTER sprite tables beyond the town
+  captures, the decode-prologue header/palette installs, the region-E spawn
+  CONSUMER (next link for (b) below).
+- **Landed ckpt 179 — the arrival→house dialogue DRIFT FIXED (`ARRIVAL_EXIT_WAIT` 10→20).**
+  The chain played −11t early because the arrival-exit WAIT was curve-fit to 10 (a bogus
+  "2× anomaly") when it's the script's `0x14=20` mapped **1:1**.  The scene_fade PERFORMER
+  is bit-exact (settle rates match) — the "settle-rate" hypothesis is DISPROVEN; the old
+  "room-load black-hold" read was a CONFOUND of the −11t global shift.  The "2×" was a
+  measurement error: ckpt-137 timed "first CENTER alpha" but retail's cover grows TOP-DOWN
+  (sweep, not center-out), so the center lags the arm.  GROUND TRUTH off `retail-stairs.osr`
+  (res-1110 box + 64×4 fade coverage; retail fades capture as res=0 subtract-blend, no
+  alpha split): house L0 box open −11t→**−1t**, **house box close now tick-EXACT (1650)**,
+  errands −20t→−6t.  `findings/dialogue-advance-early.md` "Component 2/3 RESOLVED"; quirk
+  #122; 1095 host pass.  **USER: verify the transition — studio `port-waitfix | retail-stairs`
+  @ ~1200-1350 (the arrival→house cover/reveal); feed `waitfix_cmp.png`.**
+- **Landed ckpt 180 — the errands t2278 mark DIAGNOSED + the kitchen CABINET FIXED.**  The
+  "missing POT" is a `port-waitfix` STALE-TRACE artifact: the pot (res1074) renders BIT-EXACT
+  in the walk-aligned `port-stairs2` vs retail-stairs @t2278 (proof: port-stairs2==retail
+  bit-for-bit — pot 376/376, wall-shelf 108/108, Arche 270,296).  The ckpt-179 waitfix
+  desynced port-waitfix's tick-keyed freeroam walk (+176px camera lag, 4 props measured) — so
+  **the freeroam studio pair is `port-stairs2 | retail-stairs`, NOT port-waitfix** (waitfix is
+  valid only for the dialogue window ≲tick 2000).  The real gap = the RIGHT-side/upstairs props
+  ERRANDS_CAST systematically missed (captured from the static tick-2200 LEFT/centre view): the USER
+  flagged the kitchen CABINET (res1023 fr4 + hutch fr2) AND the POT (res1026 fr58 @228,208, "right of
+  Mom's head").  FIXED as **6** ERRANDS_CAST entries (cabinet/hutch/pot + 3 upstairs props, DATA-1025
+  CHARACTER codes 0x112d1/0x112da/0x11279/0x112d3/0x1124c; banks via slot+13; world = map ×100) —
+  VERIFIED at the clamp t2500: all 6 render at retail's EXACT pos+dims (feed `pot_crop_cmp.png`).
+  **ROOM PROPS NOW VERIFIED COMPLETE** — a map↔retail cross-ref confirms ERRANDS_CAST covers ALL 20 of
+  the map's visible CHARACTER objects; a port↔retail draw diff at t1800 AND the t2500 clamp shows NO
+  missing prop either side.  Also PORTED (ckpt 180b): the **pot STEAMS** (POT_CLIP 57→60 dur6) + the
+  **clock pendulum SWINGS** (CLOCK_CLIP 43↔45 dur25), both == retail.  Remaining (NOT props): the HUD
+  (res1900 = the bottom-left HUD strip, NOT a room object; + the blank portrait blocker + strips), Mom's
+  pose (res1127 fr0 vs fr2), the clock/pot anim start-phase seed.  The runtime map-driven spawn (retiring
+  the ERRANDS_CAST capture) is now pure cleanup, blocked on the char-band z-order (no draw_pool Y-sort);
+  the code→bank table + variant model are proven + ready.  `errands-render-gaps.md` §6.  **USER: studio
+  `port-cabinet | retail-stairs`, scrub the CLAMP (~t2400+) — the pot should steam, the clock swing.**
+- **Landed ckpt 181 — the upstairs-BED "renders empty until fully in frame" = a mode-0 CULL bug (FIXED).**
+  The ckpt-180c "res=1071 fr6 bottom-strip DECODE bug" hypothesis was WRONG: res=1071 fr6 is the
+  window-WALL (sheet byte-IDENTICAL port↔retail); the BED is a keyed ACTOR **res=1023 fr13** (in
+  ERRANDS_CAST at world 60000,6400) that the port SPAWNS but CULLED at t2158 (drew fine at t2325).
+  ROOT: `map_present` mode-0 cull box read the cel's CONTENT dims (`metric_b8/bc`) not retail's CANVAS
+  dims (`+0x1c/+0x20` = `metric_1c/20`, `FUN_0048eac0` case-0).  For a trimmed cel with a vertical
+  pivot (bed: pivot y=68, content h=60, canvas h=128) at dst_y=-96, content-h culls (-36<0) but
+  canvas-h keeps it (+32) and the keyed blit's pivot pokes the content on-screen.  FIX: `game_cel_dims`
+  → `metric_1c/20` (bit-exact w/ retail's cull).  VERIFIED off `port-bedfix.osr`: bed now emits
+  `res=1023 fr13 @(464,-96)` == retail, reconstructs **`differ_px==0`**; `frame_diff` old-vs-new = 0
+  removed / +9 added (the bed + 2 upstairs chests + 6 props, all wrongly-culled).  New tools:
+  `sheet_export.py`, `blits_at/region_draws/frame_diff.py`, `osr_prof pick`.  1096 host pass.
+  `findings/errands-render-gaps.md §7`.  **USER: studio `port-bedfix | retail-stairs` @ ~t2158 — the
+  upstairs bed (top-right, white) should now be there; scrub up to t2325 as Arche climbs.**
+- **Landed ckpt 182 — the upstairs shelf PILE "props missing" (USER note t2148) = a BAND/LAYER z-order
+  bug (FIXED).**  The pile (books res1026 fr13 + stack/box fr34) is a STRUCTURE-band object (layer 8);
+  the shelf-BACK it sits in (res1027 fr8/fr11/fr14) is a CHARACTER object stood in by ERRANDS_CAST at
+  the DEFAULT layer 13.  `g_structs` renders before `g_room_cast`, so the L8 pile presented BEHIND the
+  L13 shelf-back → hidden.  Retail draws the shelf-back behind (CHARACTER band walked before STRUCTURE
+  in `0x48c150`, both layer 8; retail seq 282-284 < the pile 304).  FIX: the 3 upstairs shelf-backs →
+  **layer 7** (== the downstairs fr9 shelf units already at 7).  VERIFIED off `port-shelffix.osr`
+  (camera-aligned flip 5412): res1027 fr8/fr14 now seq #282/#286 BEFORE res1026 fr34 #300; pile
+  reconstructs **`differ_px==0`** vs retail (x[290,360]); full-frame excl-HUD 1531→904 (only the 627
+  pile px removed).  1096 host pass.  Open: fr64 (a downstairs shelf-back, seq 289) is drawcall-order-
+  only (no overlap at t2148); the map-driven CHARACTER band retires all these.  `errands-render-gaps.md
+  §8`.  **USER: click the studio shortcut (`port-shelffix | retail-stairs`) @ t2148 — the shelf pile
+  (books/stack/box, upper-left, right of the HUD) should now be there.**
+- **Landed ckpt 183 — the errands CHARACTER band is MAP-DRIVEN (retires the ERRANDS_CAST prop
+  capture; USER "un-mvp the scene, session by session").**  The shop furniture/shelf/props now
+  spawn from DATA-1025 via `actor_spawn_from_map` + `CHAR_BANK_DEFS` (code→(bank,layer) RE'd from
+  the activator 0x431e30: install 0x426d70(0,BANK,variant); layer 0x438610(N) else default 9),
+  with frame_base = the map variant (+0x18) — the SAME source the STRUCTURE band uses.  Shelf-BACK
+  units 0x112db/dc + bookshelf 0x112d1 → **L5** (behind the L8 pile), rest L9 — SUBSUMES the
+  ckpt-182 L7 fix (now exactly retail's L5) AND auto-fixes fr64.  Wired: `reload_room_backdrop`
+  spawns g_actors for non-town; `game_actor_walk` renders the CHARACTER band every room.  VERIFIED
+  off `port-charband.osr`: pile **differ_px==0**, full-frame excl-HUD 899px (5px BETTER than the L7
+  build) = the known family-pose + Arche-phase residuals; TOWN t800 + HOUSE t1450 **0px** vs the
+  pre-session build (no regression).  1096 host pass.  `errands-render-gaps.md §9`; `port-debt.md`
+  errands-cast SHRUNK.  Still ERRANDS_CAST (next sessions): anim clock/pot (clip-update), additive
+  fire, family+counter (party band).  **USER: click the studio shortcut (`port-charband |
+  retail-stairs`) @ t2148 — the whole errands shelf/furniture is now map-derived, pixel-identical.**
+- **Landed ckpt 184 — the errands ANIM props (clock + pot) are MAP-DRIVEN (retires their ERRANDS_CAST
+  capture).**  The pendulum clock 0x112d9 / cooking pot 0x112da now spawn from DATA-1025 into the
+  CHARACTER band (`g_actors`) with their clip: `CHAR_BANK_DEFS` +2 rows (bank 0x16b, **L9** = retail's
+  default-9 via the `0x426ec0` anim-phase init, NOT `0x438610`), `actor_spawn_clip_for_code` (clock
+  SWING {0,1,2,1} dur25 → 43,44,45,44 / pot STEAM {1,2,3,4} dur6 → 57..60), and the non-town per-tick
+  loop now runs `actor_pool_update(&g_actors)` (was room_cast only).  Map pos == the ex-fit (clock
+  52800,24800 / pot 67600,29600), nothing moves.  **VERIFIED bit-exact vs retail-stairs @ the CLAMP
+  t2419-21** (both cameras pinned): pot seq282 fr57 @(228,208 28×35) + clock seq283 fr45 @(80,160
+  29×40) == retail on draw/frame/dst AND z-order seq; anim phase aligns tick-equal; overlap scan
+  "nothing over" either @ every clamp tick (L13→L9 no regress).  `actor_spawn_room_cast` 6→4.  1097
+  host pass.  `errands-render-gaps.md §10`.  **USER: click the studio shortcut (`port-clockpot |
+  retail-stairs`) @ the CLAMP (~t2420+) — the clock swings, the pot steams, both now map-derived.**
+- **Landed ckpt 185 — the additive fireplace FIRE (0x112e4) is MAP-DRIVEN at LAYER 6 (retires the last
+  ANIM ERRANDS_CAST member).**  RE'd off the 0x431e30 fire case (431e30.c:739): bank 0x1a3, FIRE_CLIP
+  (0x407b80), additive ramp_a[14] (0x4385c0 DAT_008a92f0), **LAYER 6** (0x438610(6) — NOT the ex-capture's
+  default L13; the ADDITIVE z genuinely matters, the fire must sit BEHIND the L8 grate/mantel).  Wired:
+  `CHAR_BANK_DEFS` +1 row, `actor_spawn_clip_for_code` +fire, new `actor_spawn_alpha_for_code`
+  (fire→14).  Pos exact by construction: map (32000,32000)+dst0 = the ex-fit's net (329,178).  The fire
+  x=32000 is off-screen at the right-edge CLAMP → verify at the errands ENTRY (cam left).  **VERIFIED off
+  `port-fire.osr` vs retail-stairs @t1710:** alpha res1034 @(329,178) bmode1, seq 262 vs retail 264 (both
+  LOW = layer 6, not the ex-L13's ~518); osr_prof recon @t2040 **PIXEL-IDENTICAL** to retail (fire glows
+  behind the grate+mantel; feed `ckpt185 fire PORT | RETAIL`).  ERRANDS_CAST → 3 (family+counter). 1097
+  host pass.  `errands-render-gaps.md §11`.  **USER: feed `ckpt185 fire PORT | RETAIL` — proper fireplace.**
+- **Landed ckpt 186 — the errands PARENTS are CHARACTER-band NPCs (NOT party-band); Father's Z-ORDER FIXED.**
+  The retail-stairs CLAMP seq (t2420) DISPROVES the "family blocked on the party band 0x4997b0" model: the
+  PARENTS (Father 0xe3 res1139 / Mother 0xb5 res1127) render in the CHARACTER band (0x1160 pool,
+  `0x48c150:89-96` → `0x493ba0` param_3=0, interleaved with the shop props by SLOT-INDEX) — retail draws
+  FATHER EARLY (#257, BEHIND the L8-structure floor items res1026 fr48/fr51 + the counter he overlaps),
+  counter #287, Mother #289; only ARCHE (leader, +0x200c) is party-band (#290, `0x4997b0` param_2=1).  The
+  port had the whole family at L13/frontmost (the ckpt-180b over-correction) → Father drew his legs OVER the
+  floor items.  FIX: Father's ERRANDS_CAST layer 13→**7** (below the L8-structure floor-items he overlaps;
+  L8 didn't clear them — g_room_cast emits after g_structs — which PROVES they're L8).  VERIFIED off
+  `port-fatherz.osr`: Father seq #263 now BEFORE res1026 fr48/fr51 (#279/#282) + the counter (#315) == retail's
+  Father-behind order; clean placement (#258-261 L5 shelf-backs → #262 L6 fire → #263 Father L7 → #265+ L8/L9).
+  counter + Arche already bit-exact; Mother/Father anim-PHASE (fr0 vs fr2 / fr5 vs fr6) stays RNG-blocked
+  (`effect-anim-phase`/0x426ec0).  1097 host pass; town/house use no ERRANDS_CAST (no regress).  Provenance:
+  the parents are persistent handles 0x5f5e1d3/1d4 placed by the errands script (0x4dc510 case-7/8 → 0x41ec20),
+  so the retire path is that SCENE-SCRIPT spawn, NOT the party band.  `errands-render-gaps.md §13`.  **USER:
+  click the studio shortcut (`port-fatherz | retail-stairs` @ the CLAMP t2420, now CAMERA-ALIGNED via the fixed
+  Z-spam recipe below): Father the shopkeeper renders BEHIND the counter/register/vase == retail.  Feed
+  `ckpt186: Father z-order VERIFIED camera-aligned` — the port|retail DIFF is ONLY the known residuals (Father's
+  breathe anim-PHASE fr5-vs-fr6, RNG-blocked + the HUD item-bar stand-in), NO z-order artifact.**
+- **Landed ckpt 187 — the house→errands TRANSITION diagnosed: backdrop renders 1:1, the "drift" is a STALE NAV
+  (retires `cutscene-room-render`).**  (a) `cutscene-room-render` was STALE + WRONG — the house (DATA scene 1023)
+  + errands (1025) BACKDROPS DO load/render (`main.c:3806` room-key swap): frame-verified port house-dialogue
+  @t1600 == retail-stairs @t1445 (IDENTICAL house-EXTERIOR "Liens" backdrop + family + portrait; 0x334c8 is the
+  EXTERIOR, not an interior — the debt's "plays over TOWN backdrop / multi-floor interior" both false).  Feed
+  `house dialogue backdrop renders 1:1`.  (b) the ckpt-186 OPEN "port drifts behind" = a STALE-NAV artifact:
+  `nav-full-errands`'s confirms were keyed to `retail.osr` (**deleted** — only retail-stairs/retail-decomp remain),
+  whose schedule differed from retail-stairs by ~8-90t.  (c) retail's transition ENVELOPE measured (read as a
+  ~9t black-HOLD → **SUPERSEDED ckpt 188: that was a MISREAD of the slow EDGES-IN reveal, not a room-load hold;
+  the real fix was the reveal SHAPE, see the ckpt-188 bullet**).  A re-keyed nav still won't lockstep (port ~8t
+  speaker-change reopen + L7/L9/L17 beat gaps → needs beat-aware placement); Z-spam stays the clamp recipe.
+  `errands-render-gaps.md §14`; `cutscene-room-render` RETIRED.  New: `osr_prof dump` headless frame recon +
+  `dialogue_timeline` re-keying.
+- **Landed ckpt 188 — the errands ENTRY reveal is EDGES-IN, not center-out (the "−6t hold" was a
+  MISDIAGNOSIS; retires `cutscene-errands-entry-latency`).**  A fresh `retail-stairs.osr` pixel
+  measurement (whole-screen mean + row-band per sim-tick, `osr_prof` recon) DISPROVES the ckpt-187
+  "insert a ~9t room-load black-HOLD" plan: retail's full-black CORE is only **~2t** (t1650-1651);
+  the long "black period" §14c read as a 9t hold is the SLOW **EDGES-IN reveal** keeping the vertical
+  CENTER dark while the edges clear (top+bottom light first ~t1652-1655, center fills **LAST**
+  ~t1685-91 — NOT top-down, NOT center-out).  The port's REAL bug = the reveal SHAPE: it armed
+  **CENTER-OUT (variant 0)**, sourced from the now-DELETED `retail.osr` (ckpt 179).  FIX = one line,
+  `main.c` `scene_fade_arm(…, /*variant=*/1)` (EDGES-IN, == the port's own `HOUSE_EXIT` cover, its
+  mirror): the port reveal now matches retail BAND-FOR-BAND at aligned phase (port t1770
+  `[70,125,42,86,79]` ≈ retail t1690 `[70,125,66,86,79]`; center-band last to clear both).  A 9t
+  hold was TRIED (188a) + REVERTED — it made the port full-black 13t vs retail's 2t (wrong
+  mechanism).  Reveal DURATIONS already matched (~40t) ⇒ the fabled "−6t" was ~measurement noise off
+  the old fuzzy anchors, not a missing load latency.  Folds into `cutscene-fade-variant` (**⚠ re-
+  verify the arrival→house cover/reveal variants vs retail-stairs — same dead-capture era**).  1097
+  host pass; `errands-render-gaps.md §14d`.  **USER: feed `edgesin_cmp.png` (port|retail edges-in,
+  phase-aligned) — the errands now opens edges-first / center-LAST == retail.**
+- **Landed ckpt 188b — the arrival→house COVER + house-entry REVEAL had the SAME bug (that ⚠ flag,
+  now CLEARED).**  Re-measured ALL FOUR town-intro fades vs retail-stairs: each variant is an
+  INDEPENDENT RNG roll, and 3 of 4 were forced to the wrong center-out (variant 0) from the dead
+  `retail.osr`.  Corrected in `cutscene.c`: (1) arrival→house COVER = **TOP-DOWN** (`ARRIVAL_EXIT_
+  COVER_VAR` 0→2), (2) house-entry REVEAL = **EDGES-IN** (`HOUSE_ENTRY_REVEAL_VAR` 0→1); (3) the
+  house-exit cover (var 1 edges-in) was already right; (4) the errands reveal (0→1) = ckpt 188.
+  VERIFIED off `port-ahfix.osr` BAND-FOR-BAND — the cover is EXACT (port t1258 `[0,0,0,0,0,2,9,23,35,0]`
+  == retail t1224; top darkens first), the reveal is edges-in (center last).  1097 host pass;
+  `errands-render-gaps.md §14d.2`.  **USER: feed `ahfix_cmp.png` (port|retail cover+reveal) — the
+  arrival darkens top-down, the house opens edges-in == retail.**
+- **Landed ckpt 189 — the freeroam HUD leader panel is REAL PARTY DATA (party band Phase 2, slice A).**
+  A real `party` (`room+0x4030` 8 slots + leader, `src/party.{c,h}`) now holds Arche (slot 0, handle
+  0x5f5e165); her HP 100/100, MP 20/20, Lv 1, EXP 0/250 DERIVE from the retail base-stat table
+  `DAT_0067ac58` — `FUN_00426fd0` ported (`party_stats_init`) + the generated `base_stat_table.c`
+  (`tools/dump_stat_table.py`, Arche's lvl-1 row BYTE-PROVEN: HP 100/MP 20/EXP 250/name "Arche").
+  `game_render_hud` reads `party_leader(&g_party)` (+ `party_stat_hp_max/mp_max/hp_display/level` =
+  the 497b40/497bb0/494e60 formulas) instead of the hardcoded HP/MP/level/EXP — RETIRES those
+  `hud-party-context` stand-ins (render bit-IDENTICAL by construction: same values, blits untouched;
+  +7 host tests, 1104 pass).  STILL stand-ins (narrowed, not retired): element-star COUNT (2 — the
+  equip subsystem `FUN_004f19e0` sets `stats+0xdc`, NOT the base table which clears it), the item-bar
+  6 ICON frames (room fields), the PORTRAIT (leader-match `hud_ctx+0x1b4`=0 in scripted replay,
+  `freeroam-hud.md §7`).  `docs/plans/party-band-phase2-hud-data.md`.  **USER: optional studio check —
+  the errands HUD panel (HP/MP bars, "100 / 100", "20 / 20", Lv 1, 2 stars) should be pixel-identical
+  to before; the values are now real-sourced.**
+- **Landed ckpt 190 — the element-star COUNT setter RE'd (doc correction).** The last leader-panel
+  stand-in (`stats+0xdc`=2) is set by the UNPORTED equip/element-affinity recompute, NOT
+  "`FUN_004f19e0`" (that's the Weathervane Tower story script): BOTH char-init paths CLEAR +0xdc
+  (`426fd0:105`, `4c5e00:85`), the element-def table `DAT_00682660` feeds `stats+0x50` (portrait) not
+  +0xdc, every non-zero +0xdc writer is a scene-beat index on `*in_ECX`.  All 3 remaining
+  `hud-party-context` items (star count / item-bar icons / portrait) are subsystem- or replay-blocked,
+  not quick chips.  `freeroam-hud.md §10`.
+- **Landed ckpt 191 — the errands family anim-phase DIAGNOSED (RNG census, USER-picked arc); blocked on a
+  per-SIM-TICK census tool.** New `tools/trace_studio2/rng_seq_diff.py` + port/retail `--osr-state`
+  captures (seed-pin 0x4f5347, same nav): RNG matches port==retail EXACT at every boot anchor +
+  through tick 40; the port draws RNG only in the town then **FLATLINES** (1271 distinct states,
+  house/errands RNG-FREE), while retail draws **CONTINUOUSLY** (2602 states through t3000, no gaps) —
+  the port's `actor_spawn_from_map` (errands char band) never calls `rng_rand`, and the family use a
+  hardcoded `ERRANDS_CAST.clip_phase`, so the port SKIPS the whole `0x431e30`→`0x426ec0` per-actor
+  spawn burst (`431e30:745`) + the house/errands per-tick draws.  **CONFOUND:** the retail capture ran
+  lockstep (per-FLIP emit batches sim-ticks) — the census must emit per SIM-TICK (hook the easer
+  `0x43d1d0` in the proxy) to cleanly localize; this is the unblock.  Fix path = model the errands
+  spawn RNG order (the errands analogue of quirk #86), then the family phase DERIVES.
+  `findings/errands-rng-census.md`.
+- **Landed ckpt 192 — the RNG census is UNBLOCKED (per-SIM-TICK emit) + it MOVES the first
+  divergence to TOWN tick 974.** OSR_STATE now emits once per sim-tick at the easer `0x43d1d0`
+  (proxy `eh_sim_tick_cb`), each STATE carrying its own `tick` (+`flip`); the port added the
+  matching fields at `drive_present`; `rng_seq_diff.py` keys per-tick + upgraded to a
+  TICK-FOR-TICK bubble diff (the subsequence match is now a legacy-capture fallback).  With the
+  lockstep confound gone the two tick axes align 1:1 and the picture is sharp: port==retail RNG
+  **tick-for-tick through the town (ticks 1..973)**, with **two SELF-HEALING bubbles** (584-588,
+  972 — same total draws redistributed = a draw-TIMING wobble) then the **first PERMANENT split
+  at tick 974** (port still DRAWING there, rc climbing — a count/timing split, NOT the port going
+  static).  So the ckpt-191 "gap = errands spawn burst" was a subsequence-match artifact — the
+  TOWN RNG splits ~300t earlier + must align first.  Locus: tick 972 = the 162-tick periodic
+  +20-draw event (162×6; k=1..5 matched), tick 973 = a +21 draw ⇒ the periodic butterfly/effect
+  consumer at k=6.  1104 host pass.  `errands-rng-census.md` "Census RESULT".  **NEXT: add the
+  retail `rngcalls` counter (proxy trampoline `0x5bf505`) → read count-vs-timing → RE the tick-974
+  consumer; the town must be bit-exact into the errands before the family phase can derive.**
+- **Landed ckpt 193 — the tick-974 split DIAGNOSED: the port omits a WALKING town NPC's
+  per-tick RNG roll (`FUN_0043f880:415`).**  Added the retail `rngcalls` counter (proxy
+  `eh_rand_cb`, E9-trampoline @ `0x5bf505`, head `a1 94 4f 8a 00`) — the split reads as a
+  COUNT split: retail draws **+1 rand()/tick from census tick 972** (port 6/14-alternating
+  → retail 7/15), TRIPLE-confirmed (the rngcalls delta == the new `lcg_walk.py`
+  LCG-walk-from-states == the `[esp]` ret_va attribution `randtrace_attrib.py`).  The omitted
+  draw = `FUN_0043f880` line 415 (VA `0x440301`), the SOLE rand in the actor MOVE-COMMAND
+  builder — a "push command 3" roll `(rand*1000)>>15 < wander_freq`, 0.000→1.000 draws/tick
+  at 972.  The actor = a grounded town NPC (body `0xe8767d8` @ world 41600,45600) that goes
+  idle→WALK (st 0→1) exactly at census 972 then walks right; the port's town RNG model
+  (butterflies `0x47b990` + the `0x54f980` ambient actor) has NO such NPC.  The ckpt-192
+  "974 / periodic-+20 butterfly consumer at k=6" framing is SUPERSEDED — the +20 tick is the
+  butterflies' own flit-pick (already modeled); the 972-vs-974 gap is the missing `0x43f880`
+  draw perturbing a state-dependent butterfly conditional (`butterfly.c:92`) that self-heals
+  at 973 then splits for good at 974 (ONE root cause).  1104 host pass (proxy + py tools only,
+  no src C).  New: proxy `OSS_RAND_TRACE_LO/HI` + `[esp]` ret_va + `[mvtrace]` `0x43f880` entry
+  log; `lcg_walk.py`, `randtrace_attrib.py`; `rng_seq_diff.py` count-vs-timing verdict.
+  `errands-rng-census.md` "Count-vs-timing RESOLVED".
+- **Landed ckpt 194 — the town WANDER NPC's per-tick LCG draw PORTED (first permanent town
+  divergence 974 → 1019).**  New `src/town_npc.c` (the town analogue of `ambient.c`): the
+  grounded pedestrian (retail body `0xe8767d8` @ 41600,45600) draws the shared LCG once/tick
+  over the seed-pinned walk window **[972,1077]** (its `0x43f880:415` "push command 3" roll),
+  consume-to-advance FIRST in `game_actor_update`'s stream (before `butterfly_step`; gated
+  `census_tick = g_sim_tick_count + 1`).  **Position + window PROVEN off a fresh census
+  randtrace** (`OSS_RAND_TRACE 968-1080`): `0x440301` is at INDEX 0 in ALL 106 walking ticks
+  (leads the tick, before the EFFECT-band butterflies).  **VERIFIED** off `port-npcfix.osr` vs
+  `retail-rngcensus3.osr` (`rng_seq_diff`): first PERMANENT divergence **974 → 1019** (+45t),
+  ticks 972-978 now bit-exact + the 972-973 butterfly self-heal fires.  The 1019 residual is
+  the SECONDARY `0x489280` ±2 consumer (census 979/999/1019… gaps `20,20,20,17,10,69`; draws 2
+  rands at entry, `489280.c:24-25`).  `PORT-DEBT(town-wander-npc)`.  1105 host pass.
+  `errands-rng-census.md` "The NPC walk PORTED".
+- **ckpt 194 — the faithful NPC motion+render arc SCOPED (USER-chosen over RNG stand-ins).**
+  Key findings: (1) the errands does NOT re-pin the LCG (census 1269 `rng=0x365e8ccf`, rngcalls
+  MONOTONIC 14961→14995 = the +34 errands burst) — so the WHOLE town must be bit-exact for the
+  family anim-phase (no re-pin shortcut).  (2) The census town has ONE walking NPC + 4 butterflies
+  (the ckpt-193 "5 NPCs" was a different ~90-draws/tick capture).  (3) Its FULL MOTION (`rt-npc.log`):
+  idle→walk to a FIXED target — accel (+32/tick then +16) → cruise ~480/tick → decel → STOP at wx
+  **73128** (census 1071), wy const 45600; walks 41600→73128 (~9.85 tiles, Arche's spot → RIGHT edge
+  ⇒ **on-screen the whole time**).  (4) PROVENANCE: **NOT a map object** (all 32 town-map CHARACTERs
+  dumped — none @ 41600,45600) ⇒ CUTSCENE-spawned at the arrival anchor (`0x4d7d80`/`0x41f0e0`), same
+  class as the family — candidate = the wagon driver/Dr. Barnard walking off (or a parent).  The
+  `0x489280` +2 spikes are its MOVEMENT-effect (coupled to the motion → emerges from the port).
+  **NEXT (faithful arc):** live-hook `0x41f200` to ID which arrival-cast actor + its sprite bank, +
+  the walk trigger; then port the motion (via the char mover) + render + the footstep RNG emerges.
+  (The ckpt-194 USER-verify note "a townsperson the port is missing" is WITHDRAWN — see the next
+  bullet: the walker is Arche's already-rendered run-off, no render gap.)
+- **Landed 2026-07-10 — the census walker IDENTIFIED: it IS cutscene-ARCHE (the L7→L8 run-off);
+  trigger + executor RE'd.**  Proxy `[mvtrace]` grew identity fields (`code=*(actor+0x1d4)`,
+  `handle=*(actor+0x1d8)`; `0x47b990` loads its case switch from `*(ecx+0x1d4)` — the 43f880
+  ECX IS the actor): fresh census capture → the walking body = **code `0xc35a` handle
+  `0x5f5e165` = Arche** (dramatist row 0), 106 ticks == the window; the other movers = the 4
+  butterflies.  TRIGGER (static): `0x4d7d80:334be` after L7 "Cool." pushes
+  **`0x402730(Arche,+32000,0,cmd 3,0,0)`** → actor `+0x15b6c` target = 41600+32000 = **73600**,
+  beat→4 actor-wait.  EXECUTOR: **`0x43e5b0`** per-tick — pathfind `0x43ef20` → waypoint march
+  (`0x43f880(cell*0xc80, 0x640, …)`, arrival `0x441f00`) → final `0x43f880(73600, 800, …)` +
+  `0x442600` + vel-settle → complete (`0x411530`, releases the wait).  param_5=0 ⇒ the `:415`
+  roll fires 1/tick over the command LIFETIME = the census window EXACTLY (incl. the post-stop
+  settle ticks 1071-1076; stop 73128 = 73600−472, within the final 800 slack; the decel lands
+  71040 = cell 22×0xc80+0x640, the waypoint slack).  Motion profile decoded: run accel/cruise ==
+  the ported char-run law; the DECEL ramp + the walk-speed final leg (dwx 104/120/136 cycle)
+  still to RE off `0x43f880` (NOT curve-fit).  ⇒ NO render gap (the run-off renders since ckpt
+  140); the deliverable = drive the run-off by the TRACED command so target/stop/dur/RNG-window
+  all DERIVE (retiring `ARRIVAL_L8_RUNOFF` dur=108 + town_npc.c's [972,1077]) + the `0x489280`
+  footstep pair (979/999/1019… = her run) emerges.  `errands-rng-census.md` (a)/(b) RESOLVED;
+  `port-debt.md` `town-wander-npc` rescoped.  Also landed: **live-probe kill HARD RULE** (USER):
+  every probe kill targets OUR probe specifically — exact-PID reap via `runs/probe/last_game.json`,
+  `daemon_pid` in `daemon.json`, cmdline-verified MCP quit fallback; NEVER `pkill -f probe_daemon`
+  (siblings) / never touch the shared frida-server (CLAUDE.md bullet).
+- **⚠ TOOLING (ckpt 186): the freeroam CLAMP capture recipe — DIAGNOSED + a WORKING recipe.**  `nav-full-errands`
+  alone leaves Arche IDLE at spawn (never walks → camera stays world-left, NOT the clamp).  ROOT CAUSE (logged +
+  confirmed): `freeroam_begin` DOES fire and the 3-line errands opening dialogue DOES arm, but `nav-full-errands`'s
+  L18-L20 confirms (@t1763-1837, retail-tick-keyed, authored Jun 19) are STALE for the current build — the dialogue
+  never completes, so `cutscene_active` stays true and `freeroam_step`'s control gate (`g_errands_dlg_pending ||
+  cutscene_active`) never releases → Arche is locked.  **FIX (VERIFIED end-to-end — Arche walks to the right-edge
+  CLAMP, camera pins == retail: `port-fatherz.osr` @t2420 has Father @(32,392) #257 / counter (8,360) / Mother
+  (176,200) / Arche (398,248) all == retail-stairs, and the excl-HUD pixel-diff is just the anim-phase; scene
+  reconstructs camera-aligned):**  Arche walks, fr8 @t2000, camera scrolls
+  right):** a MONOTONIC errands Z-spam.  Regenerate `runs/cutscene-verify/nav-errands-spam.jsonl` (gitignored, so
+  it must be regenerated) = `nav-full-errands`'s boot frame-lines + its tick-lines ≤1668 (arrival+house) + a dense
+  `{"tick":T,"ids":[36]}` spam every 10 ticks over 1700-1900 (the dialogue window; keep spam ticks MONOTONIC after
+  the last kept ≤1668 tick, else the whole trace fails to parse).  Drive with `--held-trace runs/sync/hold-right-
+  clamp.jsonl` (`{"tick":1650,"keys":[205]}` = hold RIGHT).  (2 spam captures were externally KILLED mid-write ~t2000
+  — re-run if the clamp frame isn't reached.)  SEPARATE observed gap **RESOLVED (ckpt 187): the drift is a
+  STALE-NAV artifact, NOT a port bug.**  `nav-full-errands`'s confirm ticks were extracted from **`retail.osr`**
+  — a capture that **no longer exists** (only retail-stairs + retail-decomp remain); its advance schedule differed
+  from retail-stairs by ~8-90t, so the port dialogue advanced at the WRONG ticks → apparent drift.  The house
+  BACKDROP is FINE: frame-verified port @t1600 == retail-stairs @t1445 (identical house-EXTERIOR backdrop — retires
+  `cutscene-room-render`, §14).  A re-keyed `nav-errands-stairs.jsonl` (skip@full/adv@adv from retail-stairs)
+  still won't lockstep — the port's ~8t speaker-change reopen + the L7/L9/L17 BEAT gaps need beat-aware confirm
+  placement; the Z-spam stays THE clamp recipe.  `findings/errands-render-gaps.md §14`.
+- **Next move (finish the errands un-MVP, session by session):** (1)(2) DONE ckpt 184/185 (clock/pot, fire).
+  (3) **RESCOPED by ckpt 186** — the errands PARENTS are character-band NPCs (z-order now fixed); the LAST
+  errands stand-ins are the parents' anim-PHASE (RNG-blocked, `effect-anim-phase`/0x426ec0 — needs the scene
+  RNG census, Phase 2) + their POSITION provenance (the `0x41ec20` scene-script spawn stand-in).  Only
+  ARCHE-as-leader + her multi-part body still need the party band `0x4997b0` (`cutscene-party-chars`; leader
+  path + `0x402730/0x402330` movers) — Arche is already the freeroam char, so this is provenance, not a
+  visible gap.  (4) **DONE ckpt 188 — the errands entry reveal is EDGES-IN, not center-out;
+  `cutscene-errands-entry-latency` RETIRED (the "−6t = a skipped ~9t hold" was a MISDIAGNOSIS — no
+  such hold; the real bug was the reveal SHAPE, see the ckpt-188 bullet above).**  (5) the HUD
+  party-context — **slice A DONE ckpt 189** (HP/MP/level/EXP now real party data via the base-stat
+  table; `party.c`).  Remaining: the element-star COUNT (equip subsystem `FUN_004f19e0`), the item-bar
+  6 ICON frames (`room+0x4050..` fields), the PORTRAIT (leader-match `+0x1b4`, replay-blocked).
+  THEN the older items below:
+  (a2') **errands entry — RESOLVED ckpt 188 (the "−6t 9t-hold" was a misdiagnosis).**  A fresh
+  retail-stairs pixel measurement DISPROVES the ckpt-187 "insert a ~9t black-hold" plan: retail's
+  full-black core is only ~2t; the "9t black period" was the SLOW EDGES-IN reveal (center clears
+  LAST).  The port armed CENTER-OUT (variant 0, from the deleted retail.osr) — FIXED to variant 1
+  (edges-in), matching retail band-for-band.  Reveal durations already matched (~40t) ⇒ the "−6t"
+  was ~noise.  `errands-render-gaps.md §14d`; folds into `cutscene-fade-variant`.
+  (b) **house props (mark t2278) — DIAGNOSED + the cabinet FIXED (ckpt 180).**  The POT
+  (res1074) is NOT missing: it renders BIT-EXACT in the walk-aligned `port-stairs2` vs
+  retail-stairs @t2278 — the "missing" was a `port-waitfix` STALE-TRACE artifact (the
+  ckpt-179 waitfix desynced the tick-keyed `synth-stairs` held-walk → +176px camera phase
+  lag).  The real gap = the KITCHEN CABINET (res1023 fr4 @280,96 + fr2 upstairs hutch),
+  errands-map (DATA 1025) CHARACTER code 0x112d1 map layer[18]/[31] — FIXED as 2 ERRANDS_CAST
+  entries (world 70400,25600 / 70400,6400; verified 172px offset == map).  (region-E is
+  WAYPOINTS, not props — the old "prop spawn consumer" framing was wrong.)  **⇒ freeroam
+  studio pair = `port-stairs2 | retail-stairs`, NOT port-waitfix (stale past ~tick 2000).**
+  `findings/errands-render-gaps.md` §6.  Mom's pose (§12): NOT a wrong clip — retail Mom breathes
+  res1127 fr2→fr3, the port animates the SAME clip at a ~1-frame PHASE offset (dst identical when
+  frames match), a phase residual tied to the −6t entry latency + the family clip_phase, resolved by
+  the party band, not a frame fix.
+  (c) `char-turn-state` — **DONE ckpt 177** (`findings/freeroam-turn-around.md`).
+  (d) HUD: door-indicator spawn source / bottom strips; `mover-actor-scan` when
+  collidable actors matter.
+- **Open PORT-DEBT (this front):** `mover-actor-scan`,
+  `char-drop-through`, `char-reverse-decel`, `char-input-autorepeat` (the residual
+  1-tick reversal onset); HUD: `hud-party-context`,
+  `hud-door-actors`, `hud-slide`/`hud-item-hslide`. See `port-debt.md`.
+- **Standing bar:** every divergence is `differ_px==0` or a named/understood residual
+  (`parity-ledger.md`); attribute to a pillar before suspecting logic (`parity-model.md`);
+  seed-pinned both sides, compared by anchor/tick — never the flip axis.
+- **Side-track (2026-07-19) — ennse JP-voice patch: COMBAT voice fixed + a cross-edition VA
+  map.** Root-caused the silent combat grunts: they bake per-actor at actor-creation gated on
+  the voice bank, so the old late seed missed them; fix = an early main-thread hook restoring
+  the localizer-cut load at the JP-equivalent point (`findings/ense-voice-combat-init.md`,
+  USER to confirm live). New reusable RE asset **`docs/vamap/`** — a BinDiff-style matcher
+  mapping every VA across JP-SE/EN-SE/EN-old (jpse↔ense 99.6%, EN-old↔EN-SE ~80%), with a
+  similarity score per function; `nix develop --command bash tools/vamap/gen_vamap.sh`.
+- **Read next:** changelog → `PROGRESS.md`; deep RE → `findings/` (esp. `freeroam-hud.md`,
+  `freeroam-brake-onset.md`); module layout + open threads → `memories/HANDOFF.md`
+  (last rewritten ckpt 155 — stale on the HUD arc).

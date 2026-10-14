@@ -51,6 +51,42 @@ static void pool_free(void *q)
     *(uint32_t *)(uintptr_t)(p + 4) = g_pool_free[c]; g_pool_free[c] = p;
 }
 
+/* shadow support: the pool is host memory retail keeps pointers into (buffer objects + their
+ * play state), outside the arena snapshot — rh_shadow_ex saves / compares / restores it here */
+typedef struct { uint32_t top, freel[32]; uint32_t n, cap; uint8_t *bytes; } media_snap_t;
+static media_snap_t *g_snap_cache[8]; static int g_nsnap_cache;   /* reused: a shadow saves 2 per call */
+void *rh_media_save(void)
+{
+    media_snap_t *m = g_nsnap_cache ? g_snap_cache[--g_nsnap_cache] : calloc(1, sizeof *m);
+    m->top = g_pool_top; memcpy(m->freel, g_pool_free, sizeof m->freel);
+    m->n = g_pool_top ? g_pool_top - POOL_LO : 0;
+    if (m->n > m->cap) { free(m->bytes); m->cap = m->n + (1u << 20); m->bytes = malloc(m->cap); }
+    if (m->n) memcpy(m->bytes, (void *)(uintptr_t)POOL_LO, m->n);
+    return m;
+}
+void rh_media_restore(const void *p)
+{
+    const media_snap_t *m = p;
+    g_pool_top = m->top; memcpy(g_pool_free, m->freel, sizeof g_pool_free);
+    if (m->n) memcpy((void *)(uintptr_t)POOL_LO, m->bytes, m->n);
+}
+long rh_media_diff(const void *p)        /* differing dwords between the live pool and a snapshot */
+{
+    const media_snap_t *m = p;
+    long d = (g_pool_top != m->top) + (memcmp(g_pool_free, m->freel, sizeof g_pool_free) != 0);
+    uint32_t n = m->n < (g_pool_top ? g_pool_top - POOL_LO : 0) ? m->n : (g_pool_top ? g_pool_top - POOL_LO : 0);
+    const uint32_t *a = (const uint32_t *)m->bytes, *b = (const uint32_t *)(uintptr_t)POOL_LO;
+    for (uint32_t i = 0; i < n / 4; i++) d += a[i] != b[i];
+    return d;
+}
+void rh_media_snap_free(void *p)
+{
+    media_snap_t *m = p;
+    if (!m) return;
+    if (g_nsnap_cache < 8) g_snap_cache[g_nsnap_cache++] = m;
+    else { free(m->bytes); free(m); }
+}
+
 /* ---------------------------------------------------------------- fake DirectSound */
 typedef struct { void **vtbl; LONG refs; uint8_t *data; uint32_t bytes; int primary; LONG vol, pan; DWORD freq, playing, flags; void *shared; } dsb_t;
 typedef struct { void **vtbl; LONG refs; } ds_t;

@@ -425,7 +425,8 @@ def cmd_corpus(a):
     return 0 if done == len(names) else 1
 
 
-VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai", "char_physics", "char_anim"]
+VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai@4", "char_physics", "char_anim@32", "char_integrate@64", "hazard_probe"]
+# name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 
 def cmd_verify(a):
@@ -447,10 +448,11 @@ def cmd_verify(a):
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
     print(f"\nVERIFY ({done}/{len(names)} scenarios complete)")
     print(f"{'function':22s} {'compared':>9s} {'diverge':>8s} {'skipped':>8s} scenarios")
-    for h in VERIFY_HOOKS:
+    for hs in VERIFY_HOOKS:
+        h = hs.split("@")[0]
         c, d, k, sc, first = tot.get(h, [0, 0, 0, set(), ""])
-        print(f"{h:22s} {c:9d} {d:8d} {k:8d} {len(sc)}" + (f"  FIRST: {first}" if d else ""))
-    return 0 if all(tot.get(h, [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
+        print(f"{hs:22s} {c:9d} {d:8d} {k:8d} {len(sc)}" + (f"  FIRST: {first}" if d else ""))
+    return 0 if all(tot.get(h.split("@")[0], [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
 
 
 def cmd_coverage(a):
