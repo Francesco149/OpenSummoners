@@ -435,9 +435,9 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
     uint32_t a = (uint32_t)(uintptr_t)e->ExceptionRecord->ExceptionAddress;
     if (e->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT) {
         for (int i = 0; i < g_ntrap; i++) if (g_tva[i] == a) {
-            if (g_thits[i]++ < 50)
-                rh_log("trap %08x f%u eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n", a, g_frame,
-                       c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
+            if (g_thits[i]++ < O.trap_max)
+                rh_log("trap %08x f%u ret=%08x eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n", a, g_frame,
+                       *(uint32_t *)(uintptr_t)c->Esp, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
             *(volatile uint8_t *)(uintptr_t)a = g_torig[i];
             c->Eip = a; c->EFlags |= 0x100; g_trearm = i;     /* single-step, then re-arm */
             return EXCEPTION_CONTINUE_EXECUTION;
@@ -622,7 +622,7 @@ static void parse_list(const char *s, uint32_t *out, int *n, int max)
 static void parse(int argc, char **argv)
 {
     O.seed = 0x4f5347; O.has_seed = 1; O.tail = 120; O.log_every = 600; O.frames = 0; O.quiet = 1;
-    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000; O.scrub_kb = 32;
+    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000; O.scrub_kb = 32; O.trap_max = 50;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         #define ARG() (i + 1 < argc ? argv[++i] : (usage(), (char *)0))
@@ -668,6 +668,7 @@ static void parse(int argc, char **argv)
                 g_wva[g_nw++] = strtoul(t, 0, 16) & ~3u;
             }
         }
+        else if (!strcmp(a, "--trap-max")) O.trap_max = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--trap")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_ntrap < 8; t = strtok(NULL, ",")) g_tva[g_ntrap++] = strtoul(t, 0, 16);

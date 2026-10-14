@@ -66,6 +66,7 @@ typedef struct {
     uint32_t step_ms;           /* virtual ms per flip (16 = the engines' 0x10 update slice) */
     uint32_t creep_after;       /* GetTickCount calls without a flip before the clock creeps */
     uint32_t stall_wall_ms;     /* watchdog: no Flip for this long (wall) → RESULT status=stalled */
+    uint32_t trap_max;          /* --trap: log the first N hits (default 50) */
     uint32_t scrub_kb;          /* zero this much dead stack after each external call (0 = off) */
 } rh_opts_t;
 
