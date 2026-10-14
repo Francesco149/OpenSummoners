@@ -109,8 +109,10 @@ First port ↔ retail probe (`rhost.py portshots rh-newgame-prologue --at … --
 runs the new opt-in `--det-clock` = rhost's clock model, identical frames to its real-time run):
 **f100, f640, f900 pixel-identical**; title intro: port **+31 flips ahead at f300** (≡ retail f331,
 0 px), +12 / +20 / +18 later (2.4k / 3k / 5 px residuals); **prologue: port 3 flips behind and
-pixel-identical once aligned** (f1100 ≡ retail f1097, f1300 ≡ f1297, 0 px). Phase pillar with exact
-numbers — the next session can chase each title-intro phase length against retail.
+pixel-identical once aligned** (f1100 ≡ retail f1097, f1300 ≡ f1297, 0 px). **Root cause of the
+title offset found (quirk #129):** retail presents ~47 "Now Loading NN%" frames during boot (BGM
+extraction stage `0x5752e0`, 29 Flip sites) that the port doesn't; the title phases themselves are
+update-exact once offset. Porting those boot presents should align the title flip-for-flip.
 
 Phase-0 items for the port side (not done tonight):
 - **DIK-level input path** in the port (the producer `0x46a880`: DIK → ring ids + held axis, ring

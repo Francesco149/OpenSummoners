@@ -4054,6 +4054,17 @@ new title animation, …). Struct layouts mostly hold (zdd present-mode `+0x164`
 `+0x16c` — Flip `0x5e14e0`), but not all (app-state pump flag `+0x1c` → `+0x20`). A VA from one
 edition never transfers blindly (cf. `game-editions-and-voice.md`).
 
+### #129 — boot presents ~47 "Now Loading NN%" frames before the title — they count in the Flip index
+The scene driver's "Music was set" stage `0x5752e0` (17 KB) extracts every BGM track from `sotesw.dll`
+to a temp `.wma`, registers it with the music manager (`0x5bc7c0`), then per track: clear the back
+buffer (`0x5b9410`), GDI `TextOutA("Now Loading % 3d%%")` in gray `0x808080`, transparent, centred
+at y=456, and **Flip** (`0x5b8fc0`) — 29 call sites, each gated on the music manager `*0x8a93e4`.
+Under rhost (deterministic) the title scene starts at flip **47**; the port presents none of these, so
+its title intro runs ~44–46 flips AHEAD of retail at the same flip (`rhost.py portshots … --search`:
+port f120 ≡ retail ~f166 in the logo fade-out). Retail's title phases themselves are update-exact with
+the port's curve once offset (logo hold ends retail f149 = port curve 102 + 47). Seen in SE too
+(boot f10 = "Now Loading 18%"). A faithful port presents the same loading frames.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
