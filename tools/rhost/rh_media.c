@@ -129,13 +129,13 @@ static HRESULT WINAPI ds_ok0(ds_t *s) { (void)s; return S_OK_; }
 static HRESULT WINAPI ds_GetSpeakerConfig(ds_t *s, DWORD *c) { (void)s; *c = 4; return S_OK_; }
 static void *g_ds_vtbl[11] = { u_QI, u_AddRef, u_AddRef /* Release: keep alive */, ds_CreateSoundBuffer, ds_GetCaps,
     ds_DuplicateSoundBuffer, ds_ok2, ds_ok0, ds_GetSpeakerConfig, ds_ok1, ds_ok1 };
-static ds_t g_ds = { g_ds_vtbl, 1 };
+static ds_t *g_ds;      /* rh_fixed_alloc'd: retail keeps the pointer */
 static HRESULT WINAPI my_DirectSoundCreate(const GUID *g, ds_t **out, void *outer)
 {
     (void)g; (void)outer;
     static int wrapped;
-    if (!wrapped) { wrapped = 1; rh_scrub_wrap_vtbl(&g_ds, 11, "fake IDirectSound"); dsb_t tmp = { g_dsb_vtbl, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; rh_scrub_wrap_vtbl(&tmp, 21, "fake IDirectSoundBuffer"); }
-    *out = &g_ds; g_ds.refs++;
+    if (!wrapped) { wrapped = 1; rh_scrub_wrap_vtbl(g_ds, 11, "fake IDirectSound"); dsb_t tmp = { g_dsb_vtbl, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; rh_scrub_wrap_vtbl(&tmp, 21, "fake IDirectSoundBuffer"); }
+    *out = g_ds; g_ds->refs++;
     rh_log("dsound: DirectSoundCreate = silent fake\n");
     return S_OK_;
 }
@@ -288,6 +288,7 @@ static HRESULT WINAPI my_CoCreateInstance(REFCLSID c, LPUNKNOWN outer, DWORD ctx
 void rh_media_install(void)
 {
     pool_free(pool_alloc(16));     /* reserve the fixed pool NOW, before retail loads its DLLs */
+    g_ds = rh_fixed_alloc(sizeof *g_ds); g_ds->vtbl = g_ds_vtbl; g_ds->refs = 1;
     r_CoCreateInstance = (cci_t)iat_lookup("CoCreateInstance");
     if (r_CoCreateInstance) iat_override("CoCreateInstance", my_CoCreateInstance);
     if (!O.audible) {

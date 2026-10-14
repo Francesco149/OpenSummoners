@@ -151,6 +151,25 @@ static void *make_stub(volatile uint32_t *counter, void (*pre)(void), uint32_t o
     return s;
 }
 
+/* ---- fixed-address host objects ----
+ * Anything retail may keep a POINTER to (fake COM objects, the command-line / environment buffers
+ * the CRT stores in _acmdln/_aenvptr) lives on a fixed page, so its address — and therefore the
+ * state hash — does not move when rhost itself is rebuilt (host .data layout shifts with code). */
+#define FIXED_LO 0x5f080000u
+#define FIXED_SZ 0x10000u
+static uint8_t *g_fixed_top;
+void *rh_fixed_alloc(size_t n)
+{
+    if (!g_fixed_top) {
+        g_fixed_top = VirtualAlloc((void *)(uintptr_t)FIXED_LO, FIXED_SZ, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        if (g_fixed_top != (uint8_t *)(uintptr_t)FIXED_LO) rh_fatal("cannot map the fixed object page at %08x", FIXED_LO);
+    }
+    uint8_t *p = g_fixed_top;
+    g_fixed_top += (n + 15) & ~(size_t)15;
+    if (g_fixed_top > (uint8_t *)(uintptr_t)(FIXED_LO + FIXED_SZ)) rh_fatal("fixed object page exhausted");
+    return memset(p, 0, n);
+}
+
 /* ---- fixed-address main stack ----
  * Retail stores stack addresses in globals (CRT), and the OS places the main stack
  * differently per run, so retail runs on a stack at a fixed VA. TEB bounds are set
@@ -203,10 +222,9 @@ static DWORD WINAPI my_GetTimeZoneInformation(TIME_ZONE_INFORMATION *z) { memset
 static void WINAPI my_Sleep(DWORD ms) { if (O.record && ms) Sleep(ms > 20 ? 20 : ms); }
 
 /* ---- process identity the CRT copies into retail memory at startup ---- */
-static char g_cmdline[MAX_PATH + 8];
+static char *g_cmdline, *g_envA;
+static WCHAR *g_envW;
 static LPSTR WINAPI my_GetCommandLineA(void) { return g_cmdline; }
-static char g_envA[] = "SystemRoot=C:\\Windows\0\0";
-static WCHAR g_envW[] = L"SystemRoot=C:\\Windows\0\0";
 static LPCH WINAPI my_GetEnvironmentStrings(void) { return g_envA; }
 static LPWCH WINAPI my_GetEnvironmentStringsW(void) { return g_envW; }
 static BOOL WINAPI my_FreeEnvironmentStringsA(LPCH p) { (void)p; return TRUE; }
@@ -219,6 +237,12 @@ static DWORD WINAPI my_GetModuleFileNameA(HMODULE h, LPSTR buf, DWORD n)
     if (!h || h == (HMODULE)0x400000) { snprintf(buf, n, "%s\\sotes.exe", g_gamedir_abs); return (DWORD)strlen(buf); }
     return GetModuleFileNameA(h, buf, n);
 }
+/* The CRT keeps the PREVIOUS top-level exception filter (0x5c7c05 → DAT_008a9ef8 "lpfn"), which is
+ * rhost's own (mingw) filter — a host code address that moves with every rhost rebuild. Retail gets
+ * NULL as "previous" (it only chains to it); its own filter is still installed. */
+static LPTOP_LEVEL_EXCEPTION_FILTER WINAPI my_SetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER f)
+{ SetUnhandledExceptionFilter(f); return NULL; }
+
 /* resources of "the exe" (hModule NULL: the map loader 0x5b62a0 FindResourceA(NULL, id, "DATA"),
  * 59 MB of .rsrc) live in the hand-mapped image at 0x400000, not in rhost.exe */
 #define RMOD(h) ((h) ? (h) : (HMODULE)0x400000)
@@ -655,6 +679,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--no-arena")) O.no_arena = 1;
         else if (!strcmp(a, "--no-uninit-fix")) O.no_uninit_fix = 1;
+        else if (!strcmp(a, "--perturb-dlls")) O.perturb_dlls = 1;
         else if (!strcmp(a, "--no-overlay")) O.no_overlay = 1;
         else if (!strcmp(a, "--log-files")) O.log_files = 1;
         else if (!strcmp(a, "--log-heap")) O.log_heap = 1;
@@ -754,6 +779,23 @@ int main(int argc, char **argv)
     for (size_t l = strlen(g_gamedir_abs); l && g_gamedir_abs[l - 1] == '\\'; ) g_gamedir_abs[--l] = 0;
     char exe_abs[MAX_PATH]; GetFullPathNameA(O.exe, sizeof exe_abs, exe_abs, NULL);
     if (!SetCurrentDirectoryA(g_gamedir_abs)) rh_fatal("cannot cd to %s", g_gamedir_abs);
+    if (O.perturb_dlls) {
+        /* force the DLLs retail's imports pull in to load at DIFFERENT bases than this boot's ASLR
+         * slot (probe-load, note the base, free, reserve the range): simulates a reboot for the
+         * portable-hash check. Only DLLs not already in the process can move. */
+        static const char *dl[] = { "ddraw.dll", "dinput.dll", "dsound.dll", "version.dll", "ole32.dll", "quartz.dll", "winmm.dll", NULL };
+        for (int i = 0; dl[i]; i++) {
+            if (GetModuleHandleA(dl[i])) { rh_log("perturb: %s already loaded, cannot move\n", dl[i]); continue; }
+            HMODULE m = LoadLibraryExA(dl[i], NULL, DONT_RESOLVE_DLL_REFERENCES);
+            if (!m) continue;
+            MEMORY_BASIC_INFORMATION mi; VirtualQuery(m, &mi, sizeof mi);
+            IMAGE_NT_HEADERS32 *nt = (void *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
+            uint32_t base = (uint32_t)(uintptr_t)m, size = nt->OptionalHeader.SizeOfImage;
+            FreeLibrary(m);
+            void *r = VirtualAlloc((void *)(uintptr_t)base, size, MEM_RESERVE, PAGE_NOACCESS);
+            rh_log("perturb: %s base %08x+%x %s\n", dl[i], base, size, r ? "reserved (will relocate)" : "not reservable");
+        }
+    }
     retail_image_t img;
     if (retail_map(exe_abs, &img, 1)) rh_fatal("map %s failed", exe_abs);
     layout_from_pe();
@@ -762,10 +804,16 @@ int main(int argc, char **argv)
     iat_override("GetModuleHandleA", my_GetModuleHandleA);
     iat_override("GetModuleFileNameA", my_GetModuleFileNameA);
     iat_override("FindResourceA", my_FindResourceA);
+    iat_try("SetUnhandledExceptionFilter", my_SetUnhandledExceptionFilter);
     iat_override("LoadResource", my_LoadResource);
     iat_override("SizeofResource", my_SizeofResource);
     iat_override("ExitProcess", my_ExitProcess);
-    snprintf(g_cmdline, sizeof g_cmdline, "\"%s\\sotes.exe\"", g_gamedir_abs);
+    g_cmdline = rh_fixed_alloc(MAX_PATH + 8);
+    snprintf(g_cmdline, MAX_PATH + 8, "\"%s\\sotes.exe\"", g_gamedir_abs);
+    static const char envA[] = "SystemRoot=C:\\Windows\0\0";
+    static const WCHAR envW[] = L"SystemRoot=C:\\Windows\0\0";
+    g_envA = rh_fixed_alloc(sizeof envA); memcpy(g_envA, envA, sizeof envA);
+    g_envW = rh_fixed_alloc(sizeof envW); memcpy(g_envW, envW, sizeof envW);
     iat_override("GetCommandLineA", my_GetCommandLineA);
     iat_try("GetEnvironmentStrings", my_GetEnvironmentStrings);
     iat_try("GetEnvironmentStringsA", my_GetEnvironmentStrings);

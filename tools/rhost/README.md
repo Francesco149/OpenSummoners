@@ -69,6 +69,11 @@ Residual run-to-run differences: only slots holding system-DLL/COM pointers + th
 ADDRESS; `state_full` hashes every byte). `det` fails on any other class of difference.
 **Record ≡ replay:** `--record` feeds the game through the same fake keyboard (sampled once per
 flip), so the recorded trace replays to the identical semantic hash (verified 2026-10-14).
+**Stable across rhost rebuilds:** everything retail may point at that rhost owns lives at a fixed VA
+(fake COM objects, command line / environment buffers: `rh_fixed_alloc`, 0x5f080000), and
+`SetUnhandledExceptionFilter` hands retail NULL as the previous filter (the CRT keeps it at
+0x8a9ef8). Verified: a deliberate host layout shift leaves every state hash unchanged. (Per-boot
+ASLR of ddraw/dinput/dsound/ole32/quartz does not move the hash either: `--perturb-dlls`.)
 
 ## Hooks — port functions vs retail on identical state (`--hook shadow:NAME[@N],replace:NAME`)
 
@@ -112,8 +117,11 @@ data: `game/ense` = links into the Linux-Steam SE install + the unpacked exes; `
 copy of `C:\oss-rhost\game\enold`). **A valid LOGIC oracle:** frame/tick/RNG identical to Windows
 (SE boot f900 rng 9d661dcf; rh-se-newgame rng 7ba076a4 / tick 1663 both), deterministic run-to-run;
 state hashes differ from Windows only environmentally, so wine keeps its own `expected.wine.json`.
-Pixels + speed are Windows truth (wined3d on llvmpipe: ~190–260 fps). Use it when the Windows box is
-unavailable or for wide parallel sweeps.
+Pixels + speed are Windows truth (wined3d on llvmpipe: ~190–260 fps). One Xvfb per batch is shared by
+all workers (one wineserver per prefix; per-run displays die with BadWindow). Known flake: under
+6-way parallel load one rh-errands-walk wine run in ~5 ended with a different state hash (frame/tick/
+rng equal) — not reproduced by `det --target wine`. Use it when the Windows box is unavailable or
+for wide parallel sweeps.
 
 ## Not yet
 

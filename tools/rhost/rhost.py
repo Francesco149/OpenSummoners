@@ -251,19 +251,27 @@ def run_batch_wine(a, runs, tag, fetch):
         batch, bdir = make_batch(a, runs, tag)
     finally:
         LOCAL_RUNS = saved
-    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+    # ONE Xvfb per batch shared by every worker: the runs share the prefix (one wineserver), and
+    # wine processes of one wineserver on different X displays die with BadWindow
+    disp = 400 + os.getpid() % 500
+    xvfb = subprocess.Popen(["Xvfb", f":{disp}", "-screen", "0", "1280x1024x16", "-nolisten", "tcp"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1.0)
+    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", DISPLAY=f":{disp}")
 
-    def one(r):
+    def one(ir):
+        i, r = ir
         name = r[0]
         argv = json.load(open(os.path.join(bdir, name, "argv.json")))
-        subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x16", "wine", f"{WROOT}\\bin\\rhost.exe"] + argv,
-                       capture_output=True, text=True, env=env, timeout=a.wine_timeout)
+        out = subprocess.run(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv,
+                             capture_output=True, text=True, env=env, timeout=a.wine_timeout)
+        open(os.path.join(bdir, name, "wine.out"), "w").write(out.stdout[-4000:] + out.stderr[-4000:])
         log = os.path.join(bdir, name, "rhost.log")
         return name, open(log, errors="replace").read() if os.path.exists(log) else ""
     t0 = time.time()
     results, out_lines = {}, []
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
-        for name, log in ex.map(one, runs):
+        for name, log in ex.map(one, list(enumerate(runs))):
             out_lines.append(f"=== {name}")
             for line in log.splitlines():
                 if line.startswith("RESULT"):
@@ -271,6 +279,7 @@ def run_batch_wine(a, runs, tag, fetch):
                 elif re.search(r"FATAL|DIVERGE|hook-result|MessageBox", line):
                     results.setdefault(name + "#notes", []).append(line.strip())
             out_lines.append(log)
+    xvfb.terminate()
     print(f"[wine batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s (-j{a.jobs}) → {bdir}]")
     return batch, bdir, results, "\n".join(out_lines)
 

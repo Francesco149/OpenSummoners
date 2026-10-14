@@ -132,7 +132,7 @@ static void *g_kbd_vt[29] = {
     f_ni4,               /* 27 EnumEffectsInFile */
     f_ni4,               /* 28 WriteEffectToFile */
 };
-static fake_t g_kbd = { g_kbd_vt, 1 };
+static fake_t *g_kbd;   /* rh_fixed_alloc'd: retail keeps the pointer */
 
 /* ---- IDirectInput7A ---- */
 static HRESULT WINAPI di_EnumDevices(fake_t *s, DWORD type, void *cb, void *ref, DWORD fl)
@@ -141,7 +141,7 @@ static HRESULT WINAPI di_CreateDeviceEx(fake_t *s, REFGUID g, REFIID iid, void *
 {
     (void)s; (void)iid; (void)outer;
     if (g && !memcmp(g, &kGUID_SysKeyboard, sizeof(GUID))) {
-        *out = &g_kbd; g_kbd.refs++;
+        *out = g_kbd; g_kbd->refs++;
         g_kbd_created = 1;
         rh_log("dinput: keyboard device = fake (%s)\n", O.record ? "fed by the real keyboard, recorded" : "fed by the trace");
         return S_OK_;
@@ -160,18 +160,20 @@ static void *g_di_vt[10] = {
     f_ni3,               /* 8 FindDevice */
     di_CreateDeviceEx,   /* 9 */
 };
-static fake_t g_di = { g_di_vt, 1 };
+static fake_t *g_di;
 
 static HRESULT WINAPI my_DirectInputCreateEx(HINSTANCE h, DWORD ver, REFIID iid, void **out, void *outer)
 {
     (void)h; (void)iid; (void)outer;
-    *out = &g_di; g_di.refs++;
+    *out = g_di; g_di->refs++;
     rh_log("dinput: DirectInputCreateEx(ver %lx) = fake\n", (unsigned long)ver);
     return S_OK_;
 }
 
 void rh_dinput_install(void)
 {
+    g_kbd = rh_fixed_alloc(sizeof *g_kbd); g_kbd->vtbl = g_kbd_vt; g_kbd->refs = 1;
+    g_di = rh_fixed_alloc(sizeof *g_di); g_di->vtbl = g_di_vt; g_di->refs = 1;
     iat_override("DirectInputCreateEx", my_DirectInputCreateEx);
     if (O.record)
         for (int sc = 1; sc < 256; sc++) {
