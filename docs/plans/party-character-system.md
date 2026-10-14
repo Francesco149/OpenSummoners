@@ -184,8 +184,8 @@ and needs its own RE pass → a separate plan (the Phase-C / trace-studio gatewa
   mapped to an actor/band/bank).
 - **Phase 1–2:** `render_diff` (port vs a seed-pinned retail capture at a matched sim-tick)
   shows the woman = res `0x477` **woman** + the girl present, both `[rect]`/`[decode]`-clean;
-  a settled-town frame diff vs `runs/video60-retail` golden → the cast matches. Push port
-  vs retail crops to the llm-feed for USER confirmation.
+  a settled-town frame diff vs `runs/video60-retail` golden → the cast matches. Show port
+  vs retail crops (PNG atlas / Trace Studio) for USER confirmation.
 - **Phase 3:** the full arrival plays 1:1 in an anchor-aligned side-by-side video
   (walk-in + dialogue + portrait), extending the ckpt-89 intro video.
 - Throughout: `nix develop --command make -C tests run` stays green for new pure logic;

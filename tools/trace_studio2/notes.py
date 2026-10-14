@@ -8,12 +8,10 @@ The USER drags a crop region + types a note in osr_view's dual mode; it persists
 with --render — reconstructs the port + retail frames at that tick (through
 `build/osr_prof.exe`, the headless osr_scrub dump), crops to the noted region, and
 writes a port|retail|diff montage so the agent sees EXACTLY what the USER flagged.
---feed also pushes each montage to the llm-feed.
 
 Usage (host tools need the nix prefix):
   nix develop --command python3 tools/trace_studio2/notes.py PORT.osr RETAIL.osr            # list notes
   nix develop --command python3 tools/trace_studio2/notes.py PORT.osr RETAIL.osr --render   # + crop montages
-  nix develop --command python3 tools/trace_studio2/notes.py PORT.osr RETAIL.osr --render --feed
   (optional 3rd positional = the notes.jsonl path; default = beside PORT.osr)
 """
 from __future__ import annotations
@@ -76,7 +74,7 @@ def dump_frame(osr_path: str, idx: int, out_win: str) -> bool:
 
 
 def render_note(nt: dict, port_osr: str, retail_osr: str, pidx: int, ridx: int,
-                outdir_win: str, idx: int, *, feed: bool) -> str | None:
+                outdir_win: str, idx: int) -> str | None:
     from PIL import Image, ImageDraw
     pbmp = f"{outdir_win}\\note{idx}_p.bmp"
     rbmp = f"{outdir_win}\\note{idx}_r.bmp"
@@ -109,7 +107,7 @@ def render_note(nt: dict, port_osr: str, retail_osr: str, pidx: int, ridx: int,
                 lum = (a[0]*30 + a[1]*59 + a[2]*11)//100
                 s = lum*40//255
                 dd[i, j] = (s, s, s)
-    # upscale small crops so they're legible on the feed
+    # upscale small crops so they're legible
     zoom = max(1, min(4, 480 // max(1, chei), 640 // max(1, cwid)))
     if zoom > 1:
         pc = pc.resize((cwid*zoom, chei*zoom), Image.NEAREST)
@@ -121,13 +119,6 @@ def render_note(nt: dict, port_osr: str, retail_osr: str, pidx: int, ridx: int,
     out = str(Path(to_wsl(outdir_win)) / f"note{idx}.png")
     m.save(out)
     print(f"    crop differ_px={differ} maxd={mx}  zoom×{zoom}  -> {out}")
-    if feed:
-        title = f"osr note @tick {nt['tick']}: {nt.get('text','')[:60]}"
-        note = (f"crop ({x},{y}) {cw}x{ch}  port#{pidx}/flip{nt.get('port_flip')} "
-                f"vs retail#{ridx}/flip{nt.get('retail_flip')}  crop differ_px={differ} maxd={mx}. "
-                f"left=PORT mid=RETAIL right=DIFF.")
-        feedpy = "/opt/src/llm-feed/feed.py"
-        subprocess.run(["python3", feedpy, "image", out, "--title", title, "--note", note])
     return out
 
 
@@ -137,7 +128,6 @@ def main(argv) -> int:
     ap.add_argument("retail")
     ap.add_argument("notes", nargs="?", help="notes.jsonl (default: beside PORT.osr)")
     ap.add_argument("--render", action="store_true", help="render cropped port|retail|diff per note")
-    ap.add_argument("--feed", action="store_true", help="push each montage to the llm-feed")
     args = ap.parse_args(argv[1:])
 
     notes_path = args.notes or default_notes_path(args.port)
@@ -165,7 +155,7 @@ def main(argv) -> int:
               f"port#{pidx} retail#{ridx}  :: {nt.get('text','')}")
         if args.render:
             if pe and re_:
-                render_note(nt, args.port, args.retail, pidx, ridx, outdir_win, i, feed=args.feed)
+                render_note(nt, args.port, args.retail, pidx, ridx, outdir_win, i)
             else:
                 print(f"    (not paired — no cross-side render)")
     return 0

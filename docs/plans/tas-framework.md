@@ -15,11 +15,11 @@ by a **deterministic input trace** so every run is reproducible and diffable.
 | port replay | `--input-trace-replay` binds the mask into the engine slot pre-sim | deterministic port run |
 | retail capture | Frida agent: hook Present → readback surface → BMP; **inject** the trace into the input poll | deterministic retail run |
 | driver | `scenario-test.py --target {port,retail,both}` | runs, captures, diffs, side-by-sides |
-| visual | `tools/push_comparison.py` → llm-feed | port\|retail atlas + amplified diff |
+| visual | `tools/push_comparison.py --out` | port\|retail atlas + amplified diff (PNG) |
 
 Bit-exact diff *within* a target (deterministic input + pinned RNG + virtual
 clock). Cross-target (retail vs port) is **not** bit-exact — that is the
-side-by-side + amplified-diff review surface on llm-feed.
+side-by-side + amplified-diff atlas (llm-feed unwired 2026-10-14).
 
 ## OpenSummoners adaptation
 
@@ -101,7 +101,7 @@ OPENSUMMONERS_DURATION_MS=20000 tools/run-retail.sh --no-turbo \
     --capture-frames "..." --run-dir runs/new-game-through --exact-run-dir
 ```
 
-Push results to llm-feed (`$P montage`/`$P comparison`) for visual review;
+Write atlases (`tools/push_comparison.py --out`) for visual review;
 zoom ≥4× for pixel-level diffs.
 
 ## Status

@@ -18,7 +18,7 @@
 - Studio: `osr_view.exe C:\oss-osr\port-skip.osr C:\oss-osr\retail.osr`.
 - The marks: `nix develop --command python3 tools/trace_studio2/notes.py
   /mnt/c/oss-osr/port-skip.osr /mnt/c/oss-osr/retail.osr /mnt/c/oss-osr/osr_notes.jsonl
-  --render --feed`.
+  --render`.
 
 ## ✅ DONE (ckpt 134) — the MATCHED-CADENCE nav (the prerequisite)
 Built `tools/trace_studio2/dialogue_timeline.py NAV`: it reads retail's per-line SKIP tick

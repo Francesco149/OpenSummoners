@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-tools/push_comparison.py — push a port|retail click-to-reveal amplified-diff
-"comparison" item to the llm-feed (so the user sees the visual pixel diff, not
-just a side-by-side montage).
+tools/push_comparison.py — build a port|retail amplified-diff atlas PNG.
 
-Builds one atlas image: row 0 = [ PORT | RETAIL ] side-by-side (always shown),
-row 1 = the amplified pixel-diff (revealed on click; BLACK = bit-identical,
-brighter = larger delta).  The diff math is reused from the sibling project's
-pixel_diff.amplified_diff (PIL + numpy).
+(Formerly pushed a click-to-reveal "comparison" item to the llm-feed; the feed is
+UNWIRED since 2026-10-14 — the atlas is written to --out and its stats printed.)
 
-Run inside `nix develop` (needs numpy/PIL).  Best-effort: silent if the feed is
-down.
+One atlas image: row 0 = [ PORT | RETAIL ] side-by-side, row 1 = the amplified
+pixel-diff (BLACK = bit-identical, brighter = larger delta).  The diff math is
+reused from the sibling project's pixel_diff.amplified_diff (PIL + numpy).
+
+Run inside `nix develop` (needs numpy/PIL).
 
 Usage:
-    push_comparison.py --port PORT.png --retail RETAIL.png \
-        --title "title menu" --note "Flip 200 vs golden 1900" [--amp 6]
+    push_comparison.py --port PORT.png --retail RETAIL.png --out ATLAS.png \
+        [--label "title menu"] [--amp 6]
 
 Frames are compared at native resolution (cropped to the common region).  Pass
 PNGs (convert port BMP captures with PIL first).
@@ -23,11 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
-import tempfile
-import urllib.request
 from pathlib import Path
 
 # Reuse the sibling's diff math (no hyphen → importable). Kept external so the
@@ -39,19 +34,7 @@ from pixel_diff import amplified_diff  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 import numpy as np  # noqa: E402
 
-FEED_PY = Path(os.environ.get("LLM_FEED_PY", "/opt/src/llm-feed/feed.py"))
-FEED_PORT = int(os.environ.get("LLM_FEED_PORT", "8777"))
-
 PANEL_W, PANEL_H, LABEL_H = 460, 345, 18
-
-
-def _feed_up() -> bool:
-    try:
-        with urllib.request.urlopen(
-                f"http://localhost:{FEED_PORT}/healthz", timeout=2) as r:
-            return r.status == 200
-    except Exception:
-        return False
 
 
 def _font(size: int):
@@ -114,29 +97,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", required=True, type=Path)
     ap.add_argument("--retail", required=True, type=Path)
-    ap.add_argument("--title", default="port | retail")
-    ap.add_argument("--note", default="")
+    ap.add_argument("--out", required=True, type=Path, help="atlas PNG path")
     ap.add_argument("--label", default="frame")
     ap.add_argument("--amp", type=float, default=6.0)
     args = ap.parse_args()
 
-    if not _feed_up():
-        print("push_comparison: feed down — skipping", file=sys.stderr)
-        return 0
-
-    dest = Path(tempfile.mkdtemp(prefix="oss_cmp_"))
-    panel = build_atlas(args.port, args.retail, dest / "atlas.png",
-                        args.label, args.amp)
-    spec = {
-        "title": args.title, "note": args.note,
-        "left_label": "port", "right_label": "retail",
-        "panels": [panel],
-    }
-    spec_path = dest / "spec.json"
-    spec_path.write_text(json.dumps(spec))
-    return subprocess.run(
-        [sys.executable, str(FEED_PY), "comparison", "--spec", str(spec_path),
-         "--title", args.title, "--note", args.note]).returncode
+    panel = build_atlas(args.port, args.retail, args.out, args.label, args.amp)
+    print(json.dumps(panel))
+    return 0
 
 
 if __name__ == "__main__":

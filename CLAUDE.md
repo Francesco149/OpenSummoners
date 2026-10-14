@@ -142,13 +142,11 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
   to tracing): add `(addr, class, prototype)` rows to
   `tools/ghidra-scripts/TagThiscallFunctions.java` + struct shapes to `src/*.h`, re-applied
   by `tools/ghidra-tag-and-export.sh` so `docs/decompiled/*.c` read with typed `this->field`.
-- **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, :8777;
-  `curl -s localhost:8777/healthz` → `ok`, start it if down). Push as you go, then keep
-  working — fire-and-forget, not a checkpoint:
-  `python3 /opt/src/llm-feed/feed.py image PATH --title T --note N`, or the
-  **`comparison`** subcommand for port|retail amplified diffs (montage also available).
-  Never eog/explorer. Port frames: `--capture-frames "60,200,…"` → BMPs in the game dir
-  → convert BMP→PNG (PIL, in `nix develop`) → push.
+- **Visuals: llm-feed UNWIRED (USER, 2026-10-14 — `/opt/src/llm-feed` gone).** Don't push
+  anywhere; write PNGs under `runs/` (or the scratchpad), cite the path, LOOK at them yourself
+  (Read tool). Port|retail amplified diff atlas: `tools/push_comparison.py --out X.png`. Port
+  frames: `--capture-frames "60,200,…"` → BMPs in the game dir → PNG (PIL, `nix develop`).
+  Never eog/explorer. USER visual review = Trace Studio (`osr_view`, below).
 - **Cross-reference, but verify at the byte level.** The Fortune Summoners Fan Discord's
   *SotES Data Formats & Values* spreadsheet (`docs/ods-crossref.md`) + the 2026-05-29
   subsystem survey (`docs/audit/subsystem-survey-2026-05-29.json`, quirks distilled in

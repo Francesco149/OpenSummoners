@@ -20,7 +20,7 @@ after changes that touch the relevant render path.
   `<gamedir>/port_frame_NNNNN.bmp` (Flip-indexed). Convert BMP→PNG (PIL).
 - Retail goldens: `runs/title-idle/frames/frame_*.png` etc. (also Flip-indexed,
   captured by the Frida harness — see `docs/parity-harness.md`).
-- Diff + push: `tools/push_comparison.py --port P.png --retail R.png …`.
+- Diff: `tools/push_comparison.py --port P.png --retail R.png --out A.png`.
 - NB the port and retail **Flip indices differ by a constant render-rate
   factor** (~2.2×), NOT a timeline rush — see R3 below (ckpt 29): the port's
   *wall-clock* pacing matches retail (~9.2 s to the menu), but retail renders
