@@ -139,8 +139,14 @@ static int       g_no_frame_limit;   /* --no-frame-limit: uncap the 60 FPS gate 
  * presented frame, deterministically and as fast as the CPU allows — the same flip axis rhost
  * gives retail, so `rhost.py portshots` compares port and retail frame by frame.  Off by default. */
 static int       g_det_clock;
-/* --boot-loading: present retail's 47 boot "Now Loading NN%" frames before the title (quirk #129). */
-static int       g_boot_loading;
+/* Boot loading frames: present retail's 47 boot "Now Loading NN%" frames before the title
+ * (quirk #129).  DEFAULT ON (2026-10-14): port flip N == retail (rhost) flip N, so rh-* traces,
+ * rhost shots and the port's --capture-frames share one axis.  --no-boot-loading = the legacy
+ * port axis.  g_boot_frames = how many were presented: legacy port-timed --input-trace /
+ * --held-trace files were keyed on the legacy axis, so their flip keys compare against
+ * g_present_frame - g_boot_frames (no re-keying of old traces). */
+static int       g_boot_loading = 1;
+static uint32_t  g_boot_frames;
 static uint32_t  g_det_vclock = 1000000u, g_det_reads, g_det_creep;
 static uint32_t clock_now(void)
 {
@@ -1140,7 +1146,8 @@ static void boot_loading_frames(void)
         boot_loading_frame(buf);
     }
     boot_loading_frame("Ready");                        /* FUN_0056dc20(1, 1, 1) */
-    log_line("boot-loading: presented 47 boot frames (quirk #129)");
+    g_boot_frames = g_present_frame;
+    log_line("boot-loading: presented %u boot frames (quirk #129)", g_boot_frames);
 }
 
 /* TITLE_DRAW_LOG_FLIPPING → the engine's "Title Menu - Flipping" marker. */
@@ -4571,10 +4578,11 @@ static void feed_input(input_mgr *m, uint32_t now)
         uint32_t sim = g_sim_tick_count;
         if (g_game_active && (g_game_camera_hold & 1u) == 0u)
             sim++;
+        uint32_t legacy_flip = g_present_frame - g_boot_frames;   /* legacy port axis */
         if (g_input_trace_active)
-            input_trace_replay(&g_input_trace, g_present_frame, sim, m, now);
+            input_trace_replay(&g_input_trace, legacy_flip, sim, m, now);
         if (g_held_trace_active)
-            held_trace_replay(&g_held_trace, g_present_frame, sim, m);
+            held_trace_replay(&g_held_trace, legacy_flip, sim, m);
         return;
     }
     if (g_app_active_flag == 0)
@@ -4779,7 +4787,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
         if      (!strcmp(tok, "--hide-window"))  g_hide_window = 1;
         else if (!strcmp(tok, "--no-frame-limit")) g_no_frame_limit = 1;
         else if (!strcmp(tok, "--det-clock"))      g_det_clock = 1;
-        else if (!strcmp(tok, "--boot-loading"))   g_boot_loading = 1;
+        else if (!strcmp(tok, "--boot-loading"))   g_boot_loading = 1;   /* default; kept for old command lines */
+        else if (!strcmp(tok, "--no-boot-loading")) g_boot_loading = 0;
         else if (!strcmp(tok, "--show-msgbox"))  g_show_msgbox = 1;
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;
