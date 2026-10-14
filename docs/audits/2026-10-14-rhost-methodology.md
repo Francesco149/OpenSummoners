@@ -160,12 +160,14 @@ Phase-0 items for the port side (not done tonight):
 6. SE intro looks right? `python3 tools/rhost/rhost.py boot --edition ense-en --frames 1500 --shot-every 100`
    (PNGs in the run dir).
 
-## 8. Pending (the Windows box went offline at ~10:17 local, mid-run)
+## 8. Afternoon follow-up (after the Windows Update reboots)
 
-- Re-run the SE IDA exports with class recovery + the crosswalk-translated knowledge pack:
-  `python3 tools/ida/ida.py export ense-en ense-jp --kb` (EN-old's enhanced export is done).
-- Copy `C:\oss-rhost\game\enold` to `/mnt/ephemeral/opensummoners/game/enold` so the wine
-  target covers EN-old too (`--target wine`).
+- SE IDA exports redone with class recovery + crosswalk-translated knowledge (EN-SE 619 classes /
+  100 names / 21 protos; JP-SE 628 / 99 / 21; 0 failures).
+- EN-old game data copied to maximus: the wine target now runs the whole corpus (6/6 in 26 s).
+- State hashes were found to depend on rhost's OWN build layout (retail keeps pointers to rhost's
+  fake COM objects, the CRT's command-line buffer and the previous exception filter) — fixed; a
+  deliberate host layout shift now leaves every hash unchanged. Per-boot DLL ASLR does not move them.
 - Decide whether `--boot-loading` becomes the port default (it shifts every port-only flip-keyed
   trace by +47; the rh-* traces then drive port and retail identically).
 
