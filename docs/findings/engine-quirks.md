@@ -4153,6 +4153,32 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   ends lifetime (u16 `+0x258`/`+0x26c`, kill + return) → `0x46d180` inlined (when `+0x270`) → clip step →
   `0x54d090` → parent offsets.
 
+### #136 — the sound / voice layer + the per-character state helpers (ports 2026-10-14)
+- **Sound pool record** (`*(sys+0x364+4 id)`): u16 n +0, u16 next +2, voices +4 (8 B each: buffer wrapper,
+  owner), device +8, u16 wave resource +0xc, module +0x10 (IDA's decompile mistypes it). Loaded lazily on first
+  use (one DirectSound buffer created, the rest duplicated); voices taken round-robin from `next`; owner 0 =
+  one-shot, 1 = held (looping channel / voice line).
+- **Placement** (`0x40bb90` and its inlines in `0x407ba0` / `0x40a010` / `0x450ef0` / `0x489280`): listener
+  (`0x451200`) vs the body span (dx 0 inside, else the nearer edge, a tie takes the right); volume = base + 3000 *
+  (effects per mille - 1000) / 1000 + falloff * max(0,|dx|-8000) / 120000 + falloff * max(0,|dy|-16000) / 48000,
+  clamped [-10000, 0]; pan = 10000 dx / 128000; falloff 0 = -5000, 1 = unplaced, -16000 also culls past
+  19200 x 11200; past 128000 x 64000 culled. The one-shot players take the voice BEFORE the cull (`next`
+  advances even when nothing plays).
+- **Voice sets** (char +0x15b54): groups of 0x510 B (u16 priority +2, u16 chance per mille +4, u16 n +6, 32 lines
+  of 40 B, cooldown reset +0x508 / remaining +0x50c ms); each cue (`0x4099a0` / `0x445fd0`) first runs the set's
+  clock (mode 0 only, GetTickCount deltas: cooldowns, fades, line ends), then cooldown, chance, then a line
+  already sounding: same group -> yield; lower priority (or equal with `force`) -> cut (mode 0/1) or fade (mode 2,
+  -fade_step per cue); then a random line not used since the group last cycled. `0x445fd0` with a delay QUEUES the
+  cue at +0xc76c (delay) / +0xc770 (u16 group) / +0xc774 / +0xc778; a lower-priority cue does not replace a queued one.
+- **Pit timer** `0x487730`: over a region-C 1/3 cell (nav_c_check on, not +0xc7ec, status[11] clear, body
+  +0x288 not 0/1) the u16 +0x158be counts; past 20 ticks it fires once (the fall-warp path in `0x485fc0`).
+- **u16 halves**: char +0xc7e8 (max air jumps) and +0x158bc (air jumps used) are u16 in every access; +0xc7ea and
+  +0x158be (the pit timer) are separate. `0x4874b0` stores the action length u16 (the decompile shows a dword).
+- `0x5b54d0` (HP add) writes `*out = 0` WITHOUT a NULL check when party status[1] is set; `0x485fc0` passes NULL
+  there (never reached with status[1] set in the corpus).
+- Party `+0x448` = 18 u16 status timers; table `0x628764` (0x8c B records): +0 "stuck" flag (`0x485f70`), +0x2c
+  the threat weight (`0x485f30` / `0x47e330`).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

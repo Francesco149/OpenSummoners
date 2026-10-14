@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 64,
-  "unported": 1510,
+  "ported": 113,
+  "unported": 1461,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 314,
-  "pct_touched": 19.6,
+  "touched": 363,
+  "pct_touched": 22.8,
   "pct_tested": 15.8,
-  "engine_proper_touched": 301,
+  "engine_proper_touched": 350,
   "bytes_total": 1776526,
-  "bytes_touched": 374192,
-  "pct_bytes_touched": 21.1
+  "bytes_touched": 392060,
+  "pct_bytes_touched": 22.1
  },
  "orphan_refs": [],
  "functions": [
@@ -589,8 +589,10 @@
    "name": "sub_407BA0",
    "size": 907,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x407f30",
@@ -703,24 +705,30 @@
    "name": "sub_4099A0",
    "size": 1251,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x409e90",
    "name": "sub_409E90",
    "size": 375,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x40a010",
    "name": "sub_40A010",
    "size": 645,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x40a2a0",
@@ -778,8 +786,10 @@
    "name": "sub_40AB80",
    "size": 136,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x40ac10",
@@ -810,8 +820,10 @@
    "name": "sub_40B710",
    "size": 480,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x40b8f0",
@@ -834,16 +846,20 @@
    "name": "sub_40BB90",
    "size": 502,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x40bd90",
    "name": "sub_40BD90",
    "size": 110,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x40be00",
@@ -882,8 +898,10 @@
    "name": "sub_40D960",
    "size": 69,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x40d9b0",
@@ -1121,8 +1139,10 @@
    "name": "sub_411390",
    "size": 413,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x411530",
@@ -2093,8 +2113,10 @@
    "name": "sub_41E180",
    "size": 244,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x41e280",
@@ -2165,8 +2187,10 @@
    "name": "sub_41EA70",
    "size": 187,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x41eb30",
@@ -2197,16 +2221,20 @@
    "name": "sub_41EE60",
    "size": 252,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x41ef80",
    "name": "sub_41EF80",
    "size": 83,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x41efe0",
@@ -2289,8 +2317,10 @@
    "name": "sub_426440",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x426480",
@@ -2347,8 +2377,10 @@
    "name": "sub_426DB0",
    "size": 72,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x426e00",
@@ -3641,40 +3673,50 @@
    "name": "sub_445FD0",
    "size": 1015,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x4463d0",
    "name": "sub_4463D0",
    "size": 48,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x446400",
    "name": "sub_446400",
    "size": 225,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x4464f0",
    "name": "sub_4464F0",
    "size": 138,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x446580",
    "name": "sub_446580",
    "size": 185,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x446640",
@@ -3699,8 +3741,10 @@
    "name": "sub_4467D0",
    "size": 289,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x446900",
@@ -4058,8 +4102,10 @@
    "name": "sub_450EF0",
    "size": 776,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x451200",
@@ -4138,8 +4184,10 @@
    "name": "velocity_scatter_453960",
    "size": 70,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4539b0",
@@ -4234,8 +4282,10 @@
    "name": "sub_4593C0",
    "size": 32,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4593e0",
@@ -4479,8 +4529,10 @@
    "name": "ambient_event_timer_467380",
    "size": 376,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x467500",
@@ -4738,8 +4790,10 @@
    "name": "sub_476880",
    "size": 509,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x476a80",
@@ -5637,8 +5691,10 @@
    "name": "sub_485F70",
    "size": 68,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x485fc0",
@@ -5656,48 +5712,60 @@
    "name": "sub_487250",
    "size": 114,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4872d0",
    "name": "sub_4872D0",
    "size": 474,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4874b0",
    "name": "sub_4874B0",
    "size": 115,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x487530",
    "name": "sub_487530",
    "size": 54,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x487570",
    "name": "sub_487570",
    "size": 437,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x487730",
    "name": "sub_487730",
    "size": 366,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4878b0",
@@ -5728,8 +5796,10 @@
    "name": "sub_489280",
    "size": 818,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x4895c0",
@@ -8032,8 +8102,11 @@
    "name": "sub_54C640",
    "size": 812,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/grid_refresh.c",
+    "src/grid_refresh.h"
+   ]
   },
   {
    "va": "0x54c970",
@@ -8051,8 +8124,11 @@
    "name": "sub_54C9D0",
    "size": 214,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/grid_refresh.c",
+    "src/grid_refresh.h"
+   ]
   },
   {
    "va": "0x54cab0",
@@ -8215,8 +8291,10 @@
    "name": "ambient_sound_timer_5531B0",
    "size": 756,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sound_fx.h"
+   ]
   },
   {
    "va": "0x5534d0",
@@ -8279,24 +8357,30 @@
    "name": "sub_555790",
    "size": 1082,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x555bd0",
    "name": "sub_555BD0",
    "size": 694,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x555e90",
    "name": "sub_555E90",
    "size": 109,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x555f00",
@@ -8311,40 +8395,50 @@
    "name": "sub_555FC0",
    "size": 433,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x556180",
    "name": "sub_556180",
    "size": 509,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x556380",
    "name": "sub_556380",
    "size": 74,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x5563d0",
    "name": "sub_5563D0",
    "size": 266,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x5564e0",
    "name": "sub_5564E0",
    "size": 298,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x556610",
@@ -8426,8 +8520,11 @@
    "name": "particle_spawn_557370",
    "size": 452,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_spawn.c",
+    "src/particle_spawn.h"
+   ]
   },
   {
    "va": "0x557550",
@@ -11255,16 +11352,20 @@
    "name": "sub_5B54D0",
    "size": 166,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x5b5580",
    "name": "sub_5B5580",
    "size": 121,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x5b5600",

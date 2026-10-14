@@ -11,6 +11,7 @@
 
 #include "engine_calls.h"
 #include "input.h"
+#include "sound_fx.h"
 
 #define KEYCFG() (**g_eng.keycfg)
 
@@ -111,7 +112,7 @@ static void target_cycle(wl_char *self, wl_body *b, int32_t spell, int32_t cur, 
         if (++tries >= 32) { b->target = 0; return; }
     }
     b->target = (int32_t)(uintptr_t)c;
-    g_eng.sound_411390(g_eng.sys, 1, 0, 0);
+    sfx_play(g_eng.sys, 1, 0, 0);
 }
 
 int char_ai(wl_char *self, wl_body *b, int32_t a3)
@@ -320,7 +321,7 @@ cast_if_used:
 cast:
         if (any_key) input_ring_hit(self->input, now, 0, 500, 1, 9, 1);
         if (b->f66 != 0 || self->cmd.act == 14) self->cmd.act = 15;
-        g_eng.sound_411390(g_eng.sys, 0, 0, 0);
+        sfx_play(g_eng.sys, 0, 0, 0);
         if (self->base.code >= 0xc35b && self->base.code <= 0xc35c) {
             if (b->pose == 10) b->f58 = 2;
             else cmd_set_skill_kind(&self->cmd, 10, 100, 0, 0);

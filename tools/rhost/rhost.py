@@ -427,7 +427,14 @@ def cmd_corpus(a):
 
 VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai@4", "char_physics", "char_anim@32", "char_integrate@64", "hazard_probe", "npc_ai@4", "char_apply@16", "world_tick@8",
                 "fx_add@4", "fx_tick@64", "splash@32", "snd_release@4", "snd_all@64", "snd_one@32", "actor_update@16", "particle_tick@16", "char_behave@4",
-                "step_ok@4", "pick_char", "walk_to@4", "pace@4", "part_cx@16", "part_cy@16"]
+                "step_ok@4", "pick_char", "walk_to@4", "pace@4", "part_cx@16", "part_cy@16",
+                "vpool_load", "vpool_take@4", "sfx_place@4", "sfx_play", "sfx_play_at@4", "voice_place", "voice_play", "snd_start@4",
+                "voice_cue", "voiceset_tick@64", "vline_stop@4", "voiceset_sounding",
+                "entity_unlist", "entity_release", "actor_release", "char_release", "set_collide", "carry_riders", "list_remove",
+                "status_stuck@4", "grid_b_word@4", "pit_check@16", "respawn_mark@16", "mods_reset@16", "ai_reset", "body_slowed@4",
+                "set_look_up", "targetable@4", "snd_loop@4", "sfx_play_jit", "force_action", "grid_c_at_feet@4", "add_hp", "add_mp",
+                "ambient_timer@16", "idle_voice@16", "entity_scatter", "sys_by_mode",
+                "actor_crate@4", "actor_break", "actor_slide_v@4", "count_riders@4", "entity_dust", "entity_anchor", "particle_spawn@4", "set_track", "grid_refresh", "grid_mark"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

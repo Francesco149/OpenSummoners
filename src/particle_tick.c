@@ -13,11 +13,15 @@
 #include <string.h>
 
 #include "char_integrate.h"
+#include "char_state.h"
 #include "engine_calls.h"
+#include "particle_spawn.h"
+#include "entity_life.h"
 #include "entity_fx.h"
 #include "entity_move.h"
 #include "npc_ai.h"
 #include "rng.h"
+#include "sound_fx.h"
 
 #define IP(p) ((intptr_t)(p))
 #define KEYCFG() (**g_eng.keycfg)
@@ -25,14 +29,13 @@
 static int32_t rnd(void) { return (int32_t)rng_rand(); }
 static int32_t mul(int32_t a, int32_t b) { return (int32_t)((uint32_t)a * (uint32_t)b); }
 static int32_t sys32(uint32_t off) { int32_t v; memcpy(&v, (const uint8_t *)g_eng.sys + off, 4); return v; }
-static void *sound_pool(uint32_t slot) { return *(void **)((uint8_t *)g_eng.sys + 0x364 + 4u * slot); }
 static int32_t grid32(uint32_t off) { int32_t v; memcpy(&v, g_world->grid + off, 4); return v; }
 
-static void kill(wl_particle *p) { g_eng.h556180(p, 1); }
+static void kill(wl_particle *p) { entity_release(&p->base, 1); }
 static wl_entity *spawn(wl_particle *p, wl_entity *owner, int32_t id, wl_body *b, int32_t dx, int32_t dy, int32_t a7,
                         int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14)
 {
-    return (wl_entity *)(intptr_t)g_eng.particle_557370((wl_char *)p, (wl_char *)owner, id, b, dx, dy, a7, a8, a9, a10,
+    return particle_spawn(&p->base, owner, id, b, dx, dy, a7, a8, a9, a10,
                                                        a11, a12, a13, a14);
 }
 
@@ -172,11 +175,11 @@ static void orbit(wl_particle *p, wl_body *b)
 static void place_sound(wl_particle *p, uint32_t slot, int32_t vol, int32_t pan, int32_t freq)
 {
     wl_body *b0 = p->base.body;
-    void **v = g_eng.sfx_voice_40b710(sound_pool(slot), 0);
+    wl_voice *v = vpool_take(sound_pool(slot), 0);
     if (v == NULL) return;
-    void *buf = *v;
+    void *buf = v->buf;
     int32_t ov, op;
-    if (g_eng.sfx_place_40bb90((wl_char *)p, vol, pan, 0, b0, &ov, &op) == 0) return;
+    if (sfx_place(&p->base, vol, pan, 0, b0, &ov, &op) == 0) return;
     g_eng.dsb_volume_5bb870(buf, ov);
     g_eng.dsb_pan_5bb880(buf, op);
     g_eng.dsb_freq_5bb890(buf, freq);
@@ -190,7 +193,7 @@ static void rock_rumble(wl_particle *p)
     wl_sndch *ch = p->base.snd;
     if (ch == NULL) return;
     if (p->base.nsnd == 0) { entity_snd_overrun(); return; }
-    if (g_eng.sfx_place_40bb90((wl_char *)p, 500, -3000, 0, p->base.body, NULL, NULL) == 0) return;
+    if (sfx_place(&p->base, 500, -3000, 0, p->base.body, NULL, NULL) == 0) return;
     ch = p->base.snd;
     void *pool = sound_pool(233);
     if (ch->voice != NULL && ch != NULL) {
@@ -203,18 +206,18 @@ static void rock_rumble(wl_particle *p)
             ch->f20 = 0;
         }
     }
-    void **v = g_eng.sfx_voice_40b710(pool, 1);
+    wl_voice *v = vpool_take(pool, 1);
     if (v == NULL) return;
     ch->pool = pool;
-    ch->voice = (wl_voice *)v;
+    ch->voice = v;
     ch->vol = 500;
     ch->freq = freq;
     ch->falloff = -3000;
     ch->live = 1;
     ch->fading = 0;
     ch->fade = 0;
-    g_eng.dsb_volume_5bb870(*v, -10000);
-    g_eng.dsb_play_5bb8c0(*v);
+    g_eng.dsb_volume_5bb870(v->buf, -10000);
+    g_eng.dsb_play_5bb8c0(v->buf);
 }
 
 /* 100121 / 100122's tail: face the way the parent faces */
@@ -703,7 +706,7 @@ void particle_tick(wl_particle *p)
         wl_sndch *s = p->base.snd;
         if (s == NULL) break;
         if (p->base.nsnd == 0) { entity_snd_overrun(); break; }
-        if (s->f20 == 0) g_eng.h450ef0(p, 0, 0, 0xe3, vol, freq, -16000, 0);
+        if (s->f20 == 0) entity_snd_start(&p->base, 0, 0, 0xe3, vol, freq, -16000, 0);
         entity_snd_keep(&p->base, 0, 0);
         if (++s->f20 >= 40) s->f20 = 0;
         break;
@@ -739,13 +742,13 @@ void particle_tick(wl_particle *p)
         case 0: {
             int32_t id = p->f25c;
             if (id > 0 && id <= 3) {
-                g_eng.h426db0(p, 0, 437, 0x42, 1, 0, 0, 0);
+                entity_set_track(&p->base, 0, 437, 0x42, 1, 0, 0, 0);
             } else {
                 const uint8_t *rec = skill_rec(id);
                 if (rec == NULL) { kill(p); break; }
                 uint16_t sfx;
                 memcpy(&sfx, rec + 0x54, 2);
-                g_eng.h426db0(p, 0, 437, (int16_t)sfx, 1, 0, 0, 0);
+                entity_set_track(&p->base, 0, 437, (int16_t)sfx, 1, 0, 0, 0);
             }
             b->f58++;
             break;

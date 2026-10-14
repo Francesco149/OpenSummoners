@@ -12,12 +12,17 @@
 
 #include "camera_follow.h"
 #include "char_integrate.h"
+#include "actor_ops.h"
+#include "char_state.h"
 #include "char_physics.h"
 #include "engine_calls.h"
+#include "particle_spawn.h"
+#include "entity_life.h"
 #include "entity_fx.h"
 #include "entity_move.h"
 #include "npc_ai.h"
 #include "rng.h"
+#include "sound_fx.h"
 
 #define IP(p) ((intptr_t)(p))
 #define KEYCFG() (**g_eng.keycfg)
@@ -32,7 +37,7 @@ static int32_t time_phase(void) { return sys32(0x289c); }
 static wl_entity *particle(wl_actor *a, int32_t id, wl_body *b, int32_t dx, int32_t dy, int32_t a7, int32_t a8,
                            int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14)
 {
-    return (wl_entity *)(intptr_t)g_eng.particle_557370((wl_char *)a, (wl_char *)a, id, b, dx, dy, a7, a8, a9, a10,
+    return particle_spawn(&a->base, &a->base, id, b, dx, dy, a7, a8, a9, a10,
                                                        a11, a12, a13, a14);
 }
 
@@ -86,7 +91,7 @@ static void snd_loop(wl_actor *a, int32_t id, int32_t vol, int32_t freq, int32_t
     wl_sndch *s = a->base.snd;
     if (s == NULL) return;
     if (a->base.nsnd == 0) { entity_snd_overrun(); return; }
-    if (s->f20 == 0) g_eng.h450ef0(a, 0, 0, (uint16_t)id, vol, freq, falloff, a7);
+    if (s->f20 == 0) entity_snd_start(&a->base, 0, 0, (uint16_t)id, vol, freq, falloff, a7);
     entity_snd_keep(&a->base, 0, 0);
     if (++s->f20 >= period) s->f20 = 0;
 }
@@ -100,7 +105,7 @@ static void switch_off(wl_actor *a)
     if (on == 0) return;
     int32_t code = a->base.code;
     if (code > 0x11300) {
-        if (code == 70820) g_eng.h556380(a, 3, 3);
+        if (code == 70820) entity_set_collide(&a->base, 3, 3);
     } else if (code != 70400) {
         switch (code) {
         case 70230: if (a->kind == 1 && on == 1) return; break;
@@ -113,7 +118,7 @@ static void switch_off(wl_actor *a)
     for (uint16_t i = 0; i < n; i++) {
         if (a->steps[i].done != 0) continue;
         if (a->steps[i].clip != NULL) body_set_clip(b, a->steps[i].clip);
-        if (a->steps[i].sfx != 0) g_eng.h407ba0(a, 0, a->steps[i].sfx, 0, 0, 0);
+        if (a->steps[i].sfx != 0) sfx_play_at(&a->base, 0, a->steps[i].sfx, 0, 0, 0);
         return;
     }
 }
@@ -136,7 +141,6 @@ static void fade_tint(wl_actor *a, int32_t k)
 }
 
 /* the sound pool slots (sys+0x364 + 4*slot) */
-static void *sound_pool(uint32_t slot) { return *(void **)((uint8_t *)g_eng.sys + 0x364 + 4u * slot); }
 
 int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t part)
 {
@@ -239,15 +243,15 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         break;
     }
     case 70201: case 70202:
-        if (g_eng.h555790(a, IP(out), probe, part, x0, y0, gr, 0, 200, 20000, a->base.f00c != 1, 1, 228) != 0)
-            g_eng.h476880(a, 0, probe, 0xdf, -1000, 0, 0, 0, 8);
+        if (actor_crate(a, out, probe, part, x0, y0, gr, 0, 200, 20000, a->base.f00c != 1, 1, 228) != 0)
+            entity_snd_loop(&a->base, 0, probe, 0xdf, -1000, 0, 0, 0, 8);
         break;
     case 70205:
-        g_eng.h555790(a, IP(out), probe, part, x0, y0, gr, 1, 200, 20000, 1, 0, 228);
+        actor_crate(a, out, probe, part, x0, y0, gr, 1, 200, 20000, 1, 0, 228);
         break;
     case 70210:
-        if (g_eng.h555790(a, IP(out), probe, part, x0, y0, gr, 1, 200, 0, a->base.f00c != 1, 0, 236) != 0)
-            g_eng.h476880(a, 0, probe, 0xec, -1000, 0, 0, 0, 16);
+        if (actor_crate(a, out, probe, part, x0, y0, gr, 1, 200, 0, a->base.f00c != 1, 0, 236) != 0)
+            entity_snd_loop(&a->base, 0, probe, 0xec, -1000, 0, 0, 0, 16);
         break;
     case 70216: {
         if (a->kind != 2 || probe != 0) break;
@@ -274,7 +278,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         out->dst_y = (out->h - a->base.height) / 100;
         break;
     case 70240:
-        if (a->area_y0 != a->area_y1) g_eng.h555e90(a, IP(out), 100);
+        if (a->area_y0 != a->area_y1) actor_slide_v(a, out, 100);
         if (++out->act_ctr > 100) {
             out->act_ctr = 0;
             g_eng.h40be00(g_world);
@@ -289,7 +293,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
     case 70361:
         if ((out->clip_frame == 0 || out->clip_frame == 2) && out->clip_timer == 0 && g_world->busy == 0) {
             int32_t r = rnd();
-            g_eng.h407ba0(a, probe, 226, -1500, mul(r, -500) / 0x8000, -16000);
+            sfx_play_at(&a->base, probe, 226, -1500, mul(r, -500) / 0x8000, -16000);
         }
         body_clip_step(out);
         break;
@@ -332,7 +336,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         wl_sndch *s = a->base.snd;
         if (s != NULL) {
             if (a->base.nsnd != 0) {
-                if (s->f20 == 0) g_eng.h450ef0(a, 0, 0, 0x1b, vol, freq, 0, 0);
+                if (s->f20 == 0) entity_snd_start(&a->base, 0, 0, 0x1b, vol, freq, 0, 0);
                 entity_snd_keep(&a->base, 0, 0);
                 if (++s->f20 >= 30) s->f20 = 0;
             } else {
@@ -347,8 +351,8 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
             pb->vel_x = mul(rnd(), 10000) / 0x8000 - 30000;
             break;
         }
-        case 1: g_eng.h453960(p, 20000, 10000, -80000, -10000); break;
-        case 2: g_eng.h453960(p, -10000, 10000, -80000, -10000); break;
+        case 1: entity_scatter(p, 20000, 10000, -80000, -10000); break;
+        case 2: entity_scatter(p, -10000, 10000, -80000, -10000); break;
         default: break;
         }
         break;
@@ -388,7 +392,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         break;
     }
     case 70410: case 70411: case 70910:
-        g_eng.h555790(a, IP(out), probe, part, x0, y0, gr, 1, 200, 0, 1, 0, 236);
+        actor_crate(a, out, probe, part, x0, y0, gr, 1, 200, 0, 1, 0, 236);
         break;
     case 70420: case 70460: case 70470:
         g_eng.h554c40(a, IP(out), probe, part, x0, y0, gr);
@@ -403,8 +407,8 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         int32_t v = a->base.f03c;
         if (v != 0) body_set_clip(out, v <= 0 ? g_eng.data(0x6722a8u) : g_eng.data(0x672110u));
         else body_set_clip(out, NULL);
-        if (g_eng.h5534d0(a, probe, 60, 50) != 0) g_eng.h407ba0(a, probe, 228, 0, 0, 0);
-        g_eng.h5563d0(a, out->x - x0, out->y - y0, part);
+        if (g_eng.h5534d0(a, probe, 60, 50) != 0) sfx_play_at(&a->base, probe, 228, 0, 0, 0);
+        entity_carry_riders(&a->base, out->x - x0, out->y - y0, part);
         body_clip_step(out);
         break;
     }
@@ -475,34 +479,34 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
             default: id = probe; if ((uint16_t)id == 0) goto tail; break;
             }
             rnd();   /* drawn and dropped */
-            g_eng.h450ef0(a, 0, 0, (uint16_t)id, vol, 0, 0, 1);
+            entity_snd_start(&a->base, 0, 0, (uint16_t)id, vol, 0, 0, 1);
             goto tail;
         }
         {
             int32_t r = rnd();
-            g_eng.h450ef0(a, 0, 0, (uint16_t)id, vol, mul(r, 1000) / 0x8000 - 500, 0, 1);
+            entity_snd_start(&a->base, 0, 0, (uint16_t)id, vol, mul(r, 1000) / 0x8000 - 500, 0, 1);
         }
         break;
     }
     /* ── ambient sound timers (0x5531b0) ── */
     case 70511:
-        g_eng.h5531b0(a, IP(out), probe, 300, 300, 0x2e, 0x2f, 0, 0, 2, 1, 0, 0, -200, -500, 1000, 1);
-        g_eng.h5531b0(a, IP(out), probe, 600, 300, 0x2b, 0, 0, 0, 1, 0, 1, 0, -400, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 300, 300, 0x2e, 0x2f, 0, 0, 2, 1, 0, 0, -200, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 600, 300, 0x2b, 0, 0, 0, 1, 0, 1, 0, -400, -500, 1000, 1);
         break;
     case 70512:
-        g_eng.h5531b0(a, IP(out), probe, 300, 300, 0x30, 0x31, 0, 0, 2, 1, 0, 0, -200, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 300, 300, 0x30, 0x31, 0, 0, 2, 1, 0, 0, -200, -500, 1000, 1);
         break;
     case 70513:
-        g_eng.h5531b0(a, IP(out), probe, 300, 300, 0x38, 0x39, 0x3a, 0, 3, 1, 0, 0, -200, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 300, 300, 0x38, 0x39, 0x3a, 0, 3, 1, 0, 0, -200, -500, 1000, 1);
         break;
     case 70514:
-        g_eng.h5531b0(a, IP(out), probe, 600, 300, 0x36, 0x37, 0, 0, 2, 1, 1, 0, -200, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 600, 300, 0x36, 0x37, 0, 0, 2, 1, 1, 0, -200, -500, 1000, 1);
         break;
     case 70515:
-        g_eng.h5531b0(a, IP(out), probe, 600, 300, 0x3c, 0x3d, 0, 0, 2, 1, 0, 0, 200, -200, 400, 1);
+        ambient_sound_timer(&a->base, out, probe, 600, 300, 0x3c, 0x3d, 0, 0, 2, 1, 0, 0, 200, -200, 400, 1);
         break;
     case 70516:
-        g_eng.h5531b0(a, IP(out), probe, 300, 300, 0x3e, 0x3f, 0, 0, 2, 0, 0, 1, -400, -500, 1000, 1);
+        ambient_sound_timer(&a->base, out, probe, 300, 300, 0x3e, 0x3f, 0, 0, 2, 0, 0, 1, -400, -500, 1000, 1);
         break;
     case 70600:
         g_eng.h553520(a, IP(out), probe, part, x0, y0, gr);
@@ -572,11 +576,11 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         if (pose == 141) {
             wl_body *b0 = a->base.body;
             if (probe == 0) {
-                void **vo = g_eng.sfx_voice_40b710(sound_pool(110), 0);
+                wl_voice *vo = vpool_take(sound_pool(110), 0);
                 if (vo != NULL) {
-                    void *buf = *vo;
+                    void *buf = vo->buf;
                     int32_t ov, op;
-                    if (g_eng.sfx_place_40bb90((wl_char *)a, KEYCFG()->sfx_volume, 0, 0, b0, &ov, &op) != 0) {
+                    if (sfx_place(&a->base, KEYCFG()->sfx_volume, 0, 0, b0, &ov, &op) != 0) {
                         g_eng.dsb_volume_5bb870(buf, ov);
                         g_eng.dsb_pan_5bb880(buf, op);
                         g_eng.dsb_freq_5bb890(buf, 0);
@@ -639,12 +643,12 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
             int32_t c = out->act_ctr;
             if (c >= 45) {
                 if (a->f1f8 != NULL) {
-                    g_eng.h41ea70(a->f1f8);
+                    actor_release(a->f1f8);
                     a->f1f8 = NULL;
                 }
-                g_eng.h40bd90(g_world->list_2798, IP(a));
-                g_eng.h555fc0(a);
-                g_eng.h556180(a, 1);
+                wl_list_remove(g_world->list_2798, &a->base);
+                entity_unlist(&a->base);
+                entity_release(&a->base, 1);
                 if (a->f2a8 != NULL) {
                     g_eng.op_delete(a->f2a8);
                     a->f2a8 = NULL;
@@ -680,7 +684,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         }
         if (a->link != 0) {
             wl_entity *t = actor_by_handle(a->link);
-            if (t != NULL) g_eng.h41ee60(t, cx, cy, 2, IP(&t->body->x), IP(&t->body->y));
+            if (t != NULL) entity_anchor(t, cx, cy, 2, &t->body->x, &t->body->y);
         }
         snd_loop(a, 0x68, 0, 0, 0, 0, 30);
     clip_tail:
@@ -713,7 +717,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
             out->x = a->follow_dx + part_left(t, (uint16_t)part);
             int32_t ty = char_part_top((const wl_char *)t, (uint16_t)part);
             out->y = a->follow_dy + ty;
-            g_eng.h5563d0(a, out->x - x0, out->y - y0, part);
+            entity_carry_riders(&a->base, out->x - x0, out->y - y0, part);
         }
         break;
     }

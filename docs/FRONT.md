@@ -33,7 +33,15 @@
   | PARTICLE tick (96 codes + tail) | `0x46e510` | 438k (28k full-state) | 0 |
   | BEHAVIOUR AI (townsfolk / party / monsters) | `0x47b990` | 122k (32.5k full-state) | 0 |
   | behaviour helpers: step-ahead / target pick / walk-to / pace | `0x47dbb0` / `0x47e330` / `0x484c10` / `0x4857f0` | 3.3k / 2.7k / 8.4k / 224 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
+  | SOUND layer: pool load / take, place, one-shots, voice lines, channel start | `0x409e90` `0x40b710` `0x40bb90` `0x411390` `0x407ba0` `0x40a010` `0x4099a0` `0x450ef0` | 35 / 335 / 27k / 43 / 831 / 299 / 312 / 772 | 0 |
+  | voice cue + voice-set clock / find / line stop | `0x445fd0` `0x446400` `0x4464f0` `0x4463d0` (`0x446580`) | 283 / 10.3k / 21 / 829 | 0 |
+  | entity lists + release (entity / actor / character), collide-list add, rider carry | `0x555fc0` `0x556180` `0x41ea70` `0x4467d0` `0x556380` `0x5563d0` `0x40bd90` | 5.8k / 27k / 1.7k / 416 / 273 / 87k | 0 |
+  | per-character state (HP/MP, status gates, modifier reset, AI reset, respawn mark, pit timer, look-up, grid reads) | `0x5b54d0` `0x5b5580` `0x485f70` `0x40d960` `0x487530` `0x41e180` `0x487570` `0x487730` `0x41ef80` `0x4874b0` `0x4593c0` `0x487250` `0x4872d0` `0x426db0` `0x41ee60` `0x453960` `0x426440` | 143k mods / 122k pit / 88k targetable … | 0 |
+  | ambient sound / idle voice timers, jittered one-shot, channel loop | `0x5531b0` `0x467380` `0x489280` `0x476880` | 40k / 5.3k / 216 / 116 | 0 |
+  | CRATE (fall / break / push / slide), rider count, dust | `0x555790` `0x555bd0` `0x555e90` `0x5564e0` `0x40ab80` | 86k / 5 / – / – / – | 0 |
+  | particle SPAWNER (slot pick + anchor; init `0x557550` still a slot) | `0x557370` | 8.7k | 0 |
+  | grid refresh (growing pillars + cached-frame flush) | `0x54c640` / `0x54c9d0` | 16 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (79 hooks) (the whole character tick, driver → tile
   movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
   `src/engine_calls.h` (slots → retail VAs for unported callees, PORT-DEBT(engine-call-slots)),
@@ -46,6 +54,10 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  0. the particle INIT `0x557550` (21.7 KB per-code setup + `0x426620` / `0x426d70` / `0x476710` / `0x4385c0` /
+     `0x407b80` …) — every spawned particle goes through it; then the Arche handlers `0x457ff0` (4.6 KB),
+     `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
+     calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).
   1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): ALL ported except shots `0x4710c0` (20 KB)
      + the 96-band `0x46da00` never run in the corpus (no combat yet). Arms ported but NOT yet exercised by
      the corpus (need recordings that reach them): `src/entity_fx.c` water splashes + records

@@ -43,6 +43,8 @@ typedef int (ENG_THISCALL *eng_tc8)(void *self, intptr_t, intptr_t, intptr_t, in
                                     intptr_t);
 typedef int (ENG_THISCALL *eng_tc9)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                     intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc10)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc12)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc16)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
@@ -64,7 +66,6 @@ typedef struct engine_calls {
     wl_keycfg ***keycfg;                  /* &0x8a6e80: the config is **(*keycfg) (asm: load
                                            * the global, then two derefs)                     */
     /* unported callees */
-    int (ENG_THISCALL *sound_411390)(void *sys, uint32_t id, int32_t a3, int32_t a4);
     int (ENG_THISCALL *integrate_442a70)(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out,
                                          int32_t mode, int32_t n);
     int (ENG_THISCALL *probe_440f40)(wl_char *self, uint32_t n, wl_body *b, int32_t *out);
@@ -76,50 +77,45 @@ typedef struct engine_calls {
     int (ENG_THISCALL *skill_47a7f0)(wl_char *self, int32_t id, uint32_t now, int32_t slot);
     int (ENG_THISCALL *target_ok_47adb0)(wl_char *cand, wl_char *self, int32_t spell, int32_t a4,
                                          int32_t a5, int32_t a6, int32_t a7, int32_t a8);
-    /* sound + particles (0x466930) */
-    void **(ENG_THISCALL *sfx_voice_40b710)(void *slot, int32_t a2);
-    int (ENG_THISCALL *sfx_place_40bb90)(wl_char *self, int32_t vol, int32_t pan, int32_t a4, wl_body *bodies,
-                                         int32_t *out_vol, int32_t *out_pan);
+    /* the DirectSound boundary (0x5bb870.. take a buffer wrapper; create / duplicate take the device) */
+    int (ENG_THISCALL *dsb_create_5bb250)(void *dev, intptr_t voices, intptr_t module, intptr_t res, intptr_t a5,
+                                         intptr_t a6);
+    int (ENG_THISCALL *dsb_dup_5bb2f0)(void *dev, intptr_t dst, intptr_t src);
     int (ENG_THISCALL *dsb_volume_5bb870)(void *buf, int32_t v);
     int (ENG_THISCALL *dsb_pan_5bb880)(void *buf, int32_t v);
     int (ENG_THISCALL *dsb_freq_5bb890)(void *buf, int32_t v);
     int (ENG_THISCALL *dsb_play_5bb8c0)(void *buf);
     int (ENG_THISCALL *dsb_stop_5bb8e0)(void *buf);
-    int (ENG_THISCALL *wave_load_409e90)(wl_vpool *pool);   /* loads a pool's buffers on first use */
     int (ENG_THISCALL *log_fail_406440)(void *log, const char *msg, const char *tail);
-    int (ENG_THISCALL *particle_557370)(wl_char *self, wl_char *owner, int32_t id, wl_body *b, int32_t dx, int32_t dy,
-                                        int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12,
-                                        int32_t a13, int32_t a14);
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
-    eng_tc5 h445fd0; eng_tc3 h467260; eng_tc0 h4467d0; eng_tc6 h44a740; eng_tc8 h45a300;
+    eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
     eng_tc7 h449810; eng_tc6 h4539b0; eng_tc7 h44d8f0; eng_tc7 h448dc0; eng_tc5 h452730;
-    eng_tc4 h467380; eng_tc4 h457ff0; eng_tc5 h45e830; eng_tc7 h455d80; eng_tc6 h44b160;
+    eng_tc4 h457ff0; eng_tc5 h45e830; eng_tc7 h455d80; eng_tc6 h44b160;
     eng_tc7 h4516e0; eng_tc7 h4484b0; eng_tc6 h4512d0; eng_tc6 h44a200; eng_tc6 h44e8d0;
     eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
-    eng_tc3 h426440; eng_tc4 h445e50;
+    eng_tc4 h445e50;
     int (ENG_THISCALL *skill_cond_5b5990)(wl_char *self, int32_t code, int32_t a3, void *a4, int32_t a5);
     /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
-    eng_tc3 h5b54d0; eng_tc3 h5b5580; eng_tc2 h487730; eng_tc3 h5b4d00; eng_tc5 h407ba0; eng_tc1 h41e180;
-    eng_tc2 h4874b0; eng_tc1 h487570; eng_tc6 h4099a0; eng_tc3 h40a010; eng_tc1 h446400; eng_tc2 h5b5600;
-    eng_tc2 h40d960; eng_tc0 h487530; eng_tc1 h487dc0;
-    eng_tc0 h4878b0; eng_tc8 h476880; eng_tc0 h485f70;
-    eng_tc6 h489280; eng_tc2 h487250; eng_tc0 h4895c0; eng_tc6 h41ef80;
+    eng_tc3 h5b4d00; 
+    eng_tc2 h5b5600;
+    eng_tc1 h487dc0;
+    eng_tc0 h4878b0; 
+    eng_tc0 h4895c0; 
     /* the tick driver 0x46cd70's band updaters */
     eng_tc4 h4710c0; eng_tc0 h46da00;
-    eng_tc1 h54c640;
-    int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
-    int (ENG_STDCALL *h4593c0)(intptr_t body);
-    int (ENG_STDCALL *h4872d0)(intptr_t a1, intptr_t body);
+        int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
     /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,
      * list removal, the second error logger */
-    eng_tc2 h408100; eng_tc3 h408b90; eng_tc1 h40bd90; eng_tc0 h40be00; eng_tc0 h41ea70; eng_tc5 h41ee60;
-    eng_tc7 h450ef0; eng_tc4 h453960; eng_tc5 h54f140; eng_tc3 h552c70; eng_tc5 h552f60; eng_tc16 h5531b0;
+    eng_tc2 h408100; eng_tc3 h408b90; eng_tc0 h40be00; 
+    eng_tc5 h54f140; eng_tc3 h552c70; eng_tc5 h552f60; 
     eng_tc3 h5534d0; eng_tc6 h553520; eng_tc7 h553ec0; eng_tc5 h554570; eng_tc6 h554c40; eng_tc3 h5556d0;
-    eng_tc12 h555790; eng_tc2 h555e90; eng_tc0 h555fc0; eng_tc1 h556180; eng_tc2 h556380; eng_tc3 h5563d0;
+    
     int (ENG_STDCALL *h556e50)(intptr_t owner, intptr_t id, intptr_t probe);
-    /* the particle tick 0x46e510's callees */
-    eng_tc7 h426db0;
+    /* the cached-frame release 0x5b9390 (DirectDraw boundary; under the grid refresh 0x54c640) */
+    eng_tc0 h5b9390;
+    /* the particle init 0x557550 (per-code setup, under the spawner 0x557370) */
+    eng_tc10 h557550;
     /* the behaviour AI 0x47b990's callees (+ the path follower 0x441f50 under 0x484c10, the error
      * logger 0x407f30 under 0x47e330) */
     eng_tc1 h47da60; eng_tc1 h482240; eng_tc1 h482460; eng_tc1 h482ac0;

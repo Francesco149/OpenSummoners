@@ -9,10 +9,14 @@
 #include <string.h>
 
 #include "char_physics.h"
+#include "char_state.h"
 #include "engine_calls.h"
+#include "particle_spawn.h"
+#include "entity_life.h"
 #include "entity_move.h"
 #include "map_grid.h"
 #include "rng.h"
+#include "sound_fx.h"
 
 long g_integrate_unported;
 
@@ -304,7 +308,7 @@ actions:
             int32_t c = out->act_ctr;
             if (c >= 79) {
                 body_action_reset(out);
-                if (self->f15904 != 0) g_eng.h4467d0(self);
+                if (self->f15904 != 0) char_release(self);
                 else { body_action_reset(out); body_action_start(out, 122, 800); }
             } else {
                 int32_t n = c + 1;
@@ -318,7 +322,7 @@ actions:
         int32_t c = out->act_ctr;
         ctl = 3;
         if (c == 0) {
-            g_eng.h445fd0(self, probe, 9, 0, 0, 0);
+            voice_cue(self, probe, 9, 0, 0, 0);
             g_eng.h467260(self, IP(out), probe, self->f158fc);
         }
         body_set_clip(out, out->pose == 106 ? self->clip_hit2 : self->clip_hit);
@@ -334,7 +338,7 @@ actions:
         if (out->f58 != 0) {
             if (out->f58 != 1) goto hit_tail;
         } else {
-            g_eng.h445fd0(self, probe, 9, 0, 0, 0);
+            voice_cue(self, probe, 9, 0, 0, 0);
             body_set_clip(out, self->clip_hit);
             out->f58++;
             g_eng.h467260(self, IP(out), probe, self->f158fc);
@@ -384,7 +388,7 @@ dispatch:
                         if ((**g_eng.keycfg)->effects != 0) {
                             int32_t dy = 1600 * (int32_t)rng_rand() / 0x8000;
                             int32_t rx = (int32_t)rng_rand();
-                            g_eng.particle_557370(self, self, 100060, out, 4000 - 8000 * rx / 0x8000, dy, 99, 1, probe, 0, 2, 0, 0, 0);
+                            particle_spawn(&self->base, &self->base, 100060, out, 4000 - 8000 * rx / 0x8000, dy, 99, 1, probe, 0, 2, 0, 0, 0);
                         }
                     }
                     g_eng.h448dc0(self, IP(out), probe, IP(&ctl), out->grounded, IP(cmd), part, IP(&dt));
@@ -407,7 +411,7 @@ dispatch:
                             PHYS();
                             goto tail;
                         }
-                        if (code == 58020) { g_eng.h467380(self, probe, 73, 100, 100); goto t834; }
+                        if (code == 58020) { char_idle_voice(self, probe, 73, 100, 100); goto t834; }
                         if (code != 58021) goto t834;
                     }
                     goto t860;
@@ -416,7 +420,7 @@ dispatch:
                     if (code == 59993) goto t861;
                     if (code - 58023 > 1) goto t834;
 t860:
-                    g_eng.h467380(self, probe, 73, 400, 100);
+                    char_idle_voice(self, probe, 73, 400, 100);
                     goto t834;
                 }
                 if (code == 100164) goto t890;
@@ -511,7 +515,7 @@ t814:
             goto t795;
         }
         if (code == 50350) {
-            if (g_eng.h426440(g_eng.sys, 1, 1, 1) != 0) goto t834;
+            if (sys_by_mode(g_eng.sys, 1, 1, 1) != 0) goto t834;
             goto t860;
         }
         if (code > 0xc741 && code <= 0xc747) goto t890;
@@ -543,7 +547,7 @@ t874:
             if (g == 0) out->nocollide = 1;
             if (g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), g, IP(&dt), IP(g_eng.data(0x66d398)), 220) != 0 &&
                 probe == 0 && out->f58 == 1)
-                g_eng.h445fd0(self, 0, 10, 1, 0, 0);
+                voice_cue(self, 0, 10, 1, 0, 0);
             g_eng.h44bc10(self, IP(out), probe, IP(&ctl), out->grounded);
             g_eng.h44c250(self, IP(out), probe, IP(&ctl), out->grounded);
             g_eng.h44bf60(self, IP(out), probe, IP(&ctl), out->grounded);

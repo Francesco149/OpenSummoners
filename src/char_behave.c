@@ -15,6 +15,7 @@
 #include "behave_ops.h"
 #include "char_ai.h"
 #include "char_integrate.h"
+#include "char_state.h"
 #include "engine_calls.h"
 #include "entity_move.h"
 #include "npc_ai.h"
@@ -238,7 +239,7 @@ static int pick_side(wl_char *self)
     int32_t right = 0, left = 0;
     for (int i = 0; i < 32; i++) {
         wl_char *c = g_world->chars[i];
-        if (g_eng.h40d960(c, 0, 0) == 0 || faction_relation(self->base.faction, c->base.faction) != 1) continue;
+        if (char_targetable(c, 0, 0) == 0 || faction_relation(self->base.faction, c->base.faction) != 1) continue;
         int32_t lx = part_center_x(&lead->base, 0);
         int32_t d = part_center_x(&c->base, 0) - lx, ad = iabs(d);
         if (ad >= 40000) continue;
@@ -252,7 +253,7 @@ static int pick_side(wl_char *self)
             memcpy(&c2, (const uint8_t *)c->party + 0xd8, 4);
             sum = a + b2 + c2;
         }
-        if (g_eng.h485f70(c) != 0) w = 100 * sum;
+        if (char_status_stuck(c) != 0) w = 100 * sum;
         else if (ad > 24000) w = 500 * sum;
         else if (ad > 16000) w = 750 * sum;
         else w = 1000 * sum;
@@ -339,9 +340,9 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
     } else {
         if (self->f14288 == 1) {
             if (self->target != NULL && char_status_threat(self->target) > 0) { self->target = NULL; self->target_t = 0; }
-            if (self->target != NULL && g_eng.h40d960(self->target, 0, 0) == 0) { self->target = NULL; self->target_t = 0; }
+            if (self->target != NULL && char_targetable(self->target, 0, 0) == 0) { self->target = NULL; self->target_t = 0; }
         }
-        if (self->pal != NULL && g_eng.h40d960(self->pal, 0, 0) == 0) { self->pal = NULL; self->target_t = 0; }
+        if (self->pal != NULL && char_targetable(self->pal, 0, 0) == 0) { self->pal = NULL; self->target_t = 0; }
         int skip_pick = 0;
         if (self->target_t != 0) {
             self->target_t--;
@@ -355,7 +356,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         }
         if (skip_pick || self->f14288 == 2) {
             int32_t need = 0, have = 0;
-            if (self->base.coll_off != 0 || self->target == NULL || g_eng.h40d960(self->target, 1, 1) == 0 ||
+            if (self->base.coll_off != 0 || self->target == NULL || char_targetable(self->target, 1, 1) == 0 ||
                 g_eng.h47eae0(self, IP(self->f14298), IP(&need), 0, 1) == 0 ||
                 g_eng.target_ok_47adb0(self->target, self, *(int32_t *)self->f14298, IP(&have), 0, 0, 1, 0) == 0 ||
                 need > have) {
@@ -405,7 +406,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                 self->engage_t = self->retarget;
             } else {
                 hold = 1;
-                if (self->pal != NULL && g_eng.h485f70(self->pal) != 0) {
+                if (self->pal != NULL && char_status_stuck(self->pal) != 0) {
                     int32_t ex = 0, ey = 0;
                     g_eng.h47e7c0(self, IP(self->pal), 0, IP(b), 0, 0, 0, IP(&ex), IP(&ey));
                     if (iabs(ex) < 9600 && iabs(ey) < 9600) {
@@ -476,7 +477,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         int leash_chk = 0;
         if (code >= 51081 && code <= 51083) {
             wl_char *ls = self->leash;
-            if (ls != NULL && (ls->base.alive == 0 || g_eng.h40d960(ls, 0, 1) == 0)) {
+            if (ls != NULL && (ls->base.alive == 0 || char_targetable(ls, 0, 1) == 0)) {
                 cmd_set_skill_kind(&self->cmd, 45, 800, 0, 0);
                 goto done;
             }
@@ -520,7 +521,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
     /* ── the leash ── */
     {
         wl_char *ls = self->leash;
-        if (ls != NULL && self->fall_warp != 0 && ls->base.alive != 0 && g_eng.h40d960(ls, 0, 1) != 0) {
+        if (ls != NULL && self->fall_warp != 0 && ls->base.alive != 0 && char_targetable(ls, 0, 1) != 0) {
             if (g_eng.h47b7c0(self, 48000, 24000, IP(ls), 0) != 0) {
                 self->leash_lost = 0;
             } else if (++self->leash_lost > 20) {

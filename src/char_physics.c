@@ -11,8 +11,10 @@
 #include <string.h>
 
 #include "engine_calls.h"
+#include "particle_spawn.h"
 #include "entity_move.h"
 #include "rng.h"
+#include "sound_fx.h"
 #include "map_grid.h"
 
 #define BODY(k) (&self->base.body[(uint16_t)(k) < self->base.nbody ? (uint16_t)(k) : 0])
@@ -375,11 +377,11 @@ static void set_clip(wl_body *b, const void *clip)
 static void jump_sound(wl_char *self, int32_t slot, int32_t vol, int32_t pan, int32_t freq)
 {
     void *s = *(void **)((uint8_t *)g_eng.sys + 0x364 + 4u * (uint32_t)slot);
-    void **v = g_eng.sfx_voice_40b710(s, 0);
+    wl_voice *v = vpool_take(s, 0);
     if (v == NULL) return;
-    void *buf = *v;
+    void *buf = v->buf;
     int32_t ov, op;
-    if (g_eng.sfx_place_40bb90(self, vol, pan, 0, self->base.body, &ov, &op) != 0) {
+    if (sfx_place(&self->base, vol, pan, 0, self->base.body, &ov, &op) != 0) {
         g_eng.dsb_volume_5bb870(buf, ov);
         g_eng.dsb_pan_5bb880(buf, op);
         g_eng.dsb_freq_5bb890(buf, freq);
@@ -427,19 +429,19 @@ void char_anim_select(wl_char *self, wl_body *b, int32_t probe, int32_t grounded
                 }
             } else {
                 void *s = *(void **)((uint8_t *)g_eng.sys + 0x508);
-                void **v = g_eng.sfx_voice_40b710(s, 0);
+                wl_voice *v = vpool_take(s, 0);
                 if (v != NULL) {
-                    void *buf = *v;
+                    void *buf = v->buf;
                     int32_t ov, op;
-                    if (g_eng.sfx_place_40bb90(self, (**g_eng.keycfg)->sfx_volume, 0, 0, self->base.body, &ov, &op) != 0) {
+                    if (sfx_place(&self->base, (**g_eng.keycfg)->sfx_volume, 0, 0, self->base.body, &ov, &op) != 0) {
                         g_eng.dsb_volume_5bb870(buf, ov);
                         g_eng.dsb_pan_5bb880(buf, op);
                         g_eng.dsb_freq_5bb890(buf, 0);
                         g_eng.dsb_play_5bb8c0(buf);
                     }
                 }
-                g_eng.particle_557370(self, self, 100121, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
-                g_eng.particle_557370(self, self, 100122, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
+                particle_spawn(&self->base, &self->base, 100121, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
+                particle_spawn(&self->base, &self->base, 100122, b, 0, -1200, b->facing, 1, 0, 0, 2, 1, 0, 0);
             }
             set_clip(b, self->clip_jump1);
             return;
@@ -449,7 +451,7 @@ water:
                 if ((self->flags204 & 0x30000u) == 0) {
                     int32_t dy = 800 * (int32_t)rng_rand() / 0x8000 - 800;
                     int32_t r = (int32_t)rng_rand();
-                    g_eng.particle_557370(self, self, 100105, b, 1600 * r / 0x8000 - 800, dy, 99, 1, probe, 0, 2, 0, 0, 0);
+                    particle_spawn(&self->base, &self->base, 100105, b, 1600 * r / 0x8000 - 800, dy, 99, 1, probe, 0, 2, 0, 0, 0);
                     int32_t f = 2000 * (int32_t)rng_rand();
                     if (probe == 0) jump_sound(self, 28, (**g_eng.keycfg)->sfx_volume - 500, 0, f / 0x8000 - 2000);
                 }

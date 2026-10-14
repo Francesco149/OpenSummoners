@@ -12,8 +12,10 @@
 #include <string.h>
 
 #include "engine_calls.h"
+#include "particle_spawn.h"
 #include "npc_ai.h"
 #include "rng.h"
+#include "sound_fx.h"
 
 #define KEYCFG() (**g_eng.keycfg)
 
@@ -21,7 +23,6 @@ static int32_t iabs(int32_t v) { return v < 0 ? (int32_t)(0u - (uint32_t)v) : v;
 static int32_t mul(int32_t a, int32_t b) { return (int32_t)((uint32_t)a * (uint32_t)b); }
 static int32_t rnd(void) { return (int32_t)rng_rand(); }
 static int32_t sys32(uint32_t off) { int32_t v; memcpy(&v, (const uint8_t *)g_eng.sys + off, 4); return v; }
-static wl_vpool *sound_pool(uint32_t slot) { return *(wl_vpool **)((uint8_t *)g_eng.sys + 0x364 + 4u * slot); }
 
 /* the effects-volume term every placed sound adds: (world+0x1040)+0x28, per mille */
 static int32_t effects_gain(void)
@@ -41,22 +42,11 @@ static int32_t span_dx(const wl_body *b, int32_t lx)
 }
 
 /* the round-robin voice pick (0x40b710 with owner 0, inlined at 0x54d090's two sounds):
- * NULL when the pool has no device, will not load, or every voice is owned */
+ * the buffer, NULL when the pool has no device, will not load, or every voice is owned */
 static void *pool_take(wl_vpool *p)
 {
-    if (p->dev == NULL) return NULL;
-    if (p->v == NULL && g_eng.wave_load_409e90(p) == 0) return NULL;
-    if (p->n == 0) return NULL;
-    wl_voice *arr = p->v;
-    for (uint16_t k = 0;;) {
-        uint16_t idx = (uint16_t)(((int32_t)k + (int32_t)p->next) % (int32_t)p->n);
-        if (arr[idx].owner == 0) {
-            p->next = (uint16_t)(idx + 1);
-            arr[idx].owner = 0;
-            return p->v[idx].buf;
-        }
-        if (++k >= p->n) return NULL;
-    }
+    wl_voice *v = vpool_take(p, 0);
+    return v != NULL ? v->buf : NULL;
 }
 
 void view_listener(const camera_view *v, int32_t *x, int32_t *y)
@@ -135,7 +125,7 @@ static void fx_splash(wl_entity *e, wl_body *b, const wl_fx *r, int32_t pid)
     for (uint16_t k = 0; k < n; k++) {
         int32_t y = r->y;
         int32_t x = mul(rnd(), 4000) / 0x8000 + b->w / 2 + b->x - 2000;
-        g_eng.particle_557370((wl_char *)e, (wl_char *)e, pid, b, x, y, 99, 0, 0, 0, 2, 0, 0, 0);
+        particle_spawn(e, e, pid, b, x, y, 99, 0, 0, 0, 2, 0, 0, 0);
     }
 }
 
@@ -155,29 +145,29 @@ void entity_fx_tick(wl_entity *e, wl_body *b, uint16_t part)
         case 100149: if (b->c_flag != 0) fx_splash(e, b, r, 100084); break;
         case 100150:
             for (uint16_t k = 0; k < fx_effects_n(); k++)
-                g_eng.particle_557370(self, self, 100085, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100085, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
             break;
         case 100151:
             for (uint16_t k = 0; k < fx_effects_n(); k++)
-                g_eng.particle_557370(self, self, 100086, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100086, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
             break;
         case 100152:
-            if (r->t == 0) g_eng.particle_557370(self, self, 100088, b, 0, -1600, 99, 1, 0, 0, 2, 0, 0, 20);
+            if (r->t == 0) particle_spawn(&self->base, &self->base, 100088, b, 0, -1600, 99, 1, 0, 0, 2, 0, 0, 20);
             for (uint16_t k = 0; k < fx_effects_n(); k++)
-                g_eng.particle_557370(self, self, 100087, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100087, b, 0, 0, 99, 1, 0, 0, 2, 0, 0, 0);
             break;
         case 100153:
             for (uint16_t k = 0; k < fx_effects_n(); k++) {
                 int32_t dy = b->h - mul(rnd(), 1600) / 0x8000 - 1600;
                 int32_t dx = mul(rnd(), 4000) / 0x8000 - 2000;
-                g_eng.particle_557370(self, self, 100089, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100089, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
             }
             break;
         case 100154:
             for (uint16_t k = 0; k < (KEYCFG()->effects != 0 ? 6 : 3); k++) {
                 int32_t dy = mul(rnd(), 1600) / 0x8000 - 800;
                 int32_t dx = mul(rnd(), 1600) / 0x8000 - 800;
-                g_eng.particle_557370(self, self, 100091, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100091, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
             }
             break;
         case 100155: {
@@ -186,7 +176,7 @@ void entity_fx_tick(wl_entity *e, wl_body *b, uint16_t part)
             wl_body *b0 = e->body;
             void *buf = pool_take(sound_pool(126));
             int32_t ov, op;
-            if (buf != NULL && g_eng.sfx_place_40bb90(self, KEYCFG()->sfx_volume, 0, 0, b0, &ov, &op) != 0) {
+            if (buf != NULL && sfx_place(&self->base, KEYCFG()->sfx_volume, 0, 0, b0, &ov, &op) != 0) {
                 g_eng.dsb_volume_5bb870(buf, ov);
                 g_eng.dsb_pan_5bb880(buf, op);
                 g_eng.dsb_freq_5bb890(buf, freq);
@@ -195,7 +185,7 @@ void entity_fx_tick(wl_entity *e, wl_body *b, uint16_t part)
             int32_t h = b->h, wd = b->w;
             int32_t dy = h / 2 - mul(rnd(), h) / 0x8000;
             int32_t dx = wd / 2 - mul(rnd(), wd) / 0x8000;
-            g_eng.particle_557370(self, self, 100090, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 20);
+            particle_spawn(&self->base, &self->base, 100090, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 20);
             break;
         }
         case 100156:
@@ -210,7 +200,7 @@ void entity_fx_tick(wl_entity *e, wl_body *b, uint16_t part)
                 int32_t hh = pb->h - pb->margin;
                 int32_t dy = mul(rnd(), hh / 2) / 0x8000;
                 int32_t dx = w / 2 - mul(rnd(), w) / 0x8000;
-                g_eng.particle_557370(self, self, 100059, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
+                particle_spawn(&self->base, &self->base, 100059, b, dx, dy, 99, 1, 0, 0, 2, 0, 0, 0);
             }
             e->tint_f4 = sys32((g_world->tick15 & 1) != 0 ? 0x2860 : 0x285c);
             break;
@@ -219,7 +209,7 @@ void entity_fx_tick(wl_entity *e, wl_body *b, uint16_t part)
                 int32_t wd = b->w;
                 int32_t dx = wd / 2 - mul(rnd(), wd) / 0x8000;
                 wl_entity *p = (wl_entity *)(intptr_t)
-                    g_eng.particle_557370(self, self, 100081, b, dx, 0, 99, 4, 0, 0, 2, 0, 0, 10);
+                    particle_spawn(&self->base, &self->base, 100081, b, dx, 0, 99, 4, 0, 0, 2, 0, 0, 10);
                 if (p != NULL && b->attach != NULL && b->attach->f100 < 13) {
                     p->f0fc = 6;
                     p->f100 = 6;

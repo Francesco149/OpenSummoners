@@ -7,6 +7,7 @@
 #include "actor_update.h"
 #include "char_ai.h"
 #include "char_behave.h"
+#include "grid_refresh.h"
 #include "char_apply.h"
 #include "engine_calls.h"
 #include "entity_fx.h"
@@ -102,7 +103,7 @@ int world_tick(void *ctl, int32_t cut)
     uint32_t hi = 0;
     if (rd32(g, 0x28) != 0) {
         wr32(g, 0x28, 0);
-        hi = (uint32_t)g_eng.h54c640(g, 0) & 0xffff0000u;
+        hi = (uint32_t)grid_refresh(g, 0) & 0xffff0000u;
     }
     uint16_t ph = rd16(g, 0x26);
     if (ph >= 6u) {

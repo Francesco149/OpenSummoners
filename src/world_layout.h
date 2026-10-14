@@ -49,7 +49,47 @@ typedef struct wl_vpool {
     uint16_t  next;           /* +0x02  where the next search starts                      */
     wl_voice *v;              /* +0x04  0 until loaded (0x409e90)                         */
     void     *dev;            /* +0x08  0 => no sound                                     */
+    uint16_t  res;            /* +0x0c  the wave resource id                              */
+    uint16_t  _p0e;
+    void     *module;         /* +0x10  the module holding it                             */
 } wl_vpool;
+
+/* One VOICE LINE of a voice group (40 bytes; 0x4099a0 plays one at random). */
+typedef struct wl_vline {
+    int32_t   f00;            /* +0x00 */
+    int32_t   len;            /* +0x04  ms it plays (copied to `remain` at the start)     */
+    int32_t   vol_base;       /* +0x08 */
+    uint8_t   used;           /* +0x0c  played since the group last cycled                */
+    uint8_t   _p0d[3];
+    wl_vpool *pool;           /* +0x10 */
+    wl_voice *voice;          /* +0x14  playing (0 = idle)                                */
+    int32_t   vol;            /* +0x18 */
+    int32_t   remain;         /* +0x1c  ms left                                           */
+    int32_t   fading;         /* +0x20  preempted: fades out by the set's fade step       */
+    int32_t   fixed;          /* +0x24  != 0 => not placed by the owner's position (0x485fc0) */
+} wl_vline;
+
+/* A VOICE GROUP (0x510 bytes): the lines one cue picks from. */
+typedef struct wl_vgroup {
+    uint16_t  f00;
+    uint16_t  prio;           /* +0x02  a playing line of a higher group is not cut       */
+    uint16_t  chance;         /* +0x04  per mille                                          */
+    uint16_t  n;              /* +0x06 */
+    wl_vline  line[32];       /* +0x08 */
+    int32_t   cd_reset;       /* +0x508 ms the group rests after a line                   */
+    int32_t   cd;             /* +0x50c */
+} wl_vgroup;
+
+/* A character's VOICE SET (char+0x15b54). */
+typedef struct wl_voiceset {
+    wl_vgroup *grp;           /* +0x00 */
+    uint16_t   n;             /* +0x04 */
+    uint8_t    _p06[0x8 - 0x6];
+    int32_t    f08;           /* +0x08  (0x446400's argument)                               */
+    uint32_t   last;          /* +0x0c  GetTickCount at the last cue                       */
+    int32_t    fade_step;     /* +0x10  volume a fading line loses per cue                */
+    int32_t    mode;          /* +0x14  0 tick + cut, 1 cut, 2 fade the preempted line     */
+} wl_voiceset;
 
 /* One LOOPING-SOUND channel (entity+0x1b0 -> an array of entity+0x1b4): its owner sets
  * `live` each tick it keeps it; 0x46d180 / 0x46d4a0 place it relative to the listener
@@ -81,7 +121,8 @@ typedef struct wl_body {
     int32_t  grounded;        /* +0x024  the support probe's result                     */
     int32_t  vel_x;           /* +0x028  horizontal speed (x100 per tick, >= 0)          */
     int32_t  facing;          /* +0x02c  1 right, 3 left                                 */
-    uint8_t  _p030[0x38 - 0x30];
+    int32_t  vdir;            /* +0x030  vertical slide direction (2 down; 0x555e90)     */
+    uint8_t  _p034[0x38 - 0x34];
     uint16_t state;           /* +0x038  0 stand, 1 move, 2 crouch, 3 jump, 4 air,
                                *          5 look up, 6 slide                              */
     uint16_t sub;             /* +0x03a  the state's sub-phase                          */
@@ -143,7 +184,13 @@ typedef struct wl_entity {
     int32_t  f03c;           /* +0x03c */
     wl_body *body;           /* +0x040  body array                                     */
     uint16_t nbody;          /* +0x044  parts in it                                    */
-    uint8_t  _p046[0xe8 - 0x46];
+    uint8_t  _p046[0x48 - 0x46];
+    struct {
+        uint16_t a, b;       /* +0x0 */
+        uint8_t  on;         /* +0x4 */
+        uint8_t  _p5[3];
+        int32_t  f08, f0c, f10;
+    } trk[8];                /* +0x048  20-byte records (0x426db0 sets one)                */
     int32_t  fe8;            /* +0x0e8 */
     uint8_t  _p0ec[0xf4 - 0xec];
     int32_t  tint_f4;        /* +0x0f4 */
@@ -158,16 +205,21 @@ typedef struct wl_entity {
     uint8_t  _p1ae[0x1b0 - 0x1ae];
     wl_sndch *snd;           /* +0x1b0  looping-sound channels (0 = none)               */
     uint16_t nsnd;           /* +0x1b4 */
-    uint8_t  _p1b6[0x1c0 - 0x1b6];
+    uint8_t  _p1b6[0x1b8 - 0x1b6];
+    int32_t  rider_kind;     /* +0x1b8  (0x5564e0's filter)                              */
+    int32_t  rider_heavy;    /* +0x1bc  != 0 => counts as a weight on a switch            */
     int32_t  ride_mode;      /* +0x1c0  as a platform: 0/1 only its rider, 3 anyone     */
-    uint8_t  _p1c4[0x1d0 - 0x1c4];
+    int32_t  f1c4;           /* +0x1c4  (a crate's push resistance: 100 once it fell)     */
+    uint8_t  _p1c8[0x1d0 - 0x1c8];
     int32_t  alive;          /* +0x1d0  != 0 => targetable (the AI's target cycling)    */
     int32_t  code;           /* +0x1d4  behaviour code (0xc35b/0xc35c: Arche forms)     */
     int32_t  handle;         /* +0x1d8  the id 0x556eb0 resolves (world list +0x2790)   */
     int32_t  faction;        /* +0x1dc  0x4416c0 operand                               */
-    uint8_t  _p1e0[0x1f0 - 0x1e0];
+    uint8_t  _p1e0[0x1ec - 0x1e0];
+    uint16_t weight;         /* +0x1ec  (0x5564e0 sums it over the riders)               */
+    uint8_t  _p1ee[0x1f0 - 0x1ee];
     int32_t  coll_off;       /* +0x1f0  != 0 => no mode-2 collision                    */
-    uint8_t  _p1f4[0x1f8 - 0x1f4];
+    int32_t  foot;           /* +0x1f4  the feet anchors' extra lift (0x41ee60 3 / 5)     */
 } wl_entity;
 
 /* One skill record (character+0x754 + 0x300*i, 64 of them; count at +0xc754). */
@@ -205,7 +257,7 @@ typedef struct wl_party {
     uint8_t  _p000[0x54];
     int32_t  hp;              /* +0x054 */
     int32_t  hp_max;          /* +0x058 */
-    uint8_t  _p05c[0x60 - 0x5c];
+    int32_t  mp;              /* +0x05c */
     int32_t  mp_max;          /* +0x060 */
     uint8_t  _p064[0x84 - 0x64];
     int32_t  hp_bonus1;       /* +0x084 */
@@ -265,7 +317,8 @@ typedef struct wl_combo {
 } wl_combo;
 
 typedef struct wl_list {
-    uint32_t    _p0;
+    uint16_t    cap;         /* +0x0  slots in items                                  */
+    uint16_t    _p2;
     wl_entity **items;       /* +0x4 */
     uint16_t    count;       /* +0x8 */
 } wl_list;
@@ -277,7 +330,7 @@ typedef struct wl_world {
     int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
     uint8_t    _p1038[0x1040 - 0x1038];
     uint8_t   *f1040;        /* +0x1040  +0x28 = the effects volume (per mille)        */
-    uint8_t    _p1044[0x1048 - 0x1044];
+    uint8_t   *f1044;        /* +0x1044  +0xce u16 = the particle slot cursor (0x557370) */
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
     struct camera_view *view; /* +0x104c  the camera/view (camera_follow.h)           */
     uint8_t    _p1050[0x1060 - 0x1050];
@@ -323,7 +376,7 @@ typedef struct wl_particle {
     wl_entity *owner;          /* +0x274 */
     int32_t    dir_x;          /* +0x278  the motion direction for vel_x (x100000)      */
     int32_t    dir_y;          /* +0x27c */
-    uint8_t    _p280[0x284 - 0x280];
+    int32_t    prio;           /* +0x280  a full pool evicts the lowest under the cap      */
 } wl_particle;
 
 /* A world ACTOR (world+0x11e0, 128 slots; 0x2fc bytes): the entity base extended with
@@ -349,8 +402,9 @@ typedef struct wl_actor {
     int32_t    goal_y;         /* +0x280 */
     int32_t    f284;           /* +0x284 */
     uint8_t    _p288[0x28c - 0x288];
-    int32_t    kind;           /* +0x28c */
-    uint8_t    _p290[0x298 - 0x290];
+    int32_t    kind;           /* +0x28c  crates: 1 resting, 2 fell (pushable), 4 falling */
+    int32_t    material;       /* +0x290  1 / 2: the break sound (0x555bd0)               */
+    uint8_t    _p294[0x298 - 0x294];
     int32_t    link;           /* +0x298  an actor handle (0x556eb0)                     */
     uint8_t    _p29c[0x2a8 - 0x29c];
     void      *f2a8;           /* +0x2a8  a heap buffer it owns                          */
@@ -377,7 +431,9 @@ typedef struct wl_char {
     int32_t    f200;           /* +0x00200  0 player AI, 1 NPC behaviour, >1 idle        */
     uint32_t   flags204;       /* +0x00204  lo16 = the +0x66 timer phase, hi16 = a tick
                                 *           counter; 0x30000 / 0x1f0000: no dust          */
-    uint8_t    _p208[0x264 - 0x208];
+    int32_t    idle_voice_on;  /* +0x00208  != 0 => the idle voice timer runs (0x467380)      */
+    uint16_t   idle_voice_t;   /* +0x0020c  its countdown: the cue fires at 1                 */
+    uint8_t    _p20e[0x264 - 0x20e];
     int32_t    f264;           /* +0x00264  the idle-yawn accumulator                   */
     int32_t    f268;           /* +0x00268  != 0 => intangible (bodies get nocollide)   */
     uint16_t   invuln_a;       /* +0x0026c */
@@ -393,7 +449,8 @@ typedef struct wl_char {
     int32_t    fc764;          /* +0x0c764 */
     uint8_t    _pc768[0xc76c - 0xc768];
     int32_t    voice_delay;    /* +0x0c76c  ticks until the queued voice line */
-    int32_t    voice_id;       /* +0x0c770 */
+    uint16_t   voice_id;       /* +0x0c770  the queued voice group (u16 in every access)  */
+    uint16_t   _pc772;
     int32_t    voice_arg;      /* +0x0c774 */
     int32_t    voice_vol;      /* +0x0c778 */
     int32_t    fc77c;          /* +0x0c77c  the facing at the last 1600-unit step        */
@@ -407,10 +464,13 @@ typedef struct wl_char {
     struct wl_char *carrier;   /* +0x0c798  (0x442920 releases its hold)                */
     uint8_t    _pc79c[0xc7a4 - 0xc79c];
     struct wl_char *held;      /* +0x0c7a4  the character this one carries              */
-    uint8_t    _pc7a8[0xc7e8 - 0xc7a8];
-    int32_t    max_air_jumps;  /* +0x0c7e8 */
+    int32_t    mods[12];       /* +0x0c7a8  per-mille stat modifiers (0x487530: 1000 each tick) */
+    int32_t    fc7d8, fc7dc, fc7e0, fc7e4; /* +0x0c7d8  (0x487530 zeroes them each tick)      */
+    uint16_t   max_air_jumps;  /* +0x0c7e8  (u16 in every retail access)                    */
+    uint16_t   _pc7ea;
     int32_t    fc7ec;          /* +0x0c7ec */
-    uint8_t    _pc7f0[0xc824 - 0xc7f0];
+    uint8_t    _pc7f0[0xc7fc - 0xc7f0];
+    struct wl_entity *linked[10]; /* +0x0c7fc  entities it owns (0x4467d0 releases them)     */
     int32_t    fc824[2];       /* +0x0c824  linked effects (released when fc82c is 0)    */
     int32_t    fc82c[2];       /* +0x0c82c  (cleared each tick)                          */
     int32_t    reach;          /* +0x0c834  the AI's engage distance (0x47e330 arg)        */
@@ -480,7 +540,15 @@ typedef struct wl_char {
     uint8_t    _p14292[0x14294 - 0x14292];
     int32_t    f14294;         /* +0x14294 */
     void      *f14298;         /* +0x14298 */
-    uint8_t    _p1429c[0x14804 - 0x1429c];
+    uint16_t   f1429c;         /* +0x1429c  (0x41e180 clears the u16s below with the AI)  */
+    uint8_t    _p1429e[0x147a0 - 0x1429e];
+    uint16_t   f147a0;         /* +0x147a0 */
+    uint8_t    _p147a2[0x147ac - 0x147a2];
+    uint16_t   f147ac;         /* +0x147ac */
+    uint8_t    _p147ae[0x147f4 - 0x147ae];
+    uint16_t   f147f4;         /* +0x147f4 */
+    uint8_t    _p147f6[0x14802 - 0x147f6];
+    uint16_t   f14802;         /* +0x14802 */
     uint16_t   f14804;         /* +0x14804 */
     uint8_t    _p14806[0x14808 - 0x14806];
     int32_t    f14808;         /* +0x14808 */
@@ -508,7 +576,8 @@ typedef struct wl_char {
     int32_t    stun_t;         /* +0x158ac */
     int32_t    stun_len;       /* +0x158b0 */
     uint8_t    _p158b4[0x158bc - 0x158b4];
-    int32_t    air_jumps;      /* +0x158bc  jumps used since landing                    */
+    uint16_t   air_jumps;      /* +0x158bc  jumps used since landing (u16 in every access)  */
+    uint16_t   pit_t;          /* +0x158be  ticks over a pit cell (0x487730: falls at 20) */
     uint16_t   regen_t;        /* +0x158c0  regen tick (fires at 1600)                  */
     uint16_t   f158c2;         /* +0x158c2  counts down; clears f158c4 at 0              */
     int32_t    f158c4;         /* +0x158c4 */
@@ -579,10 +648,12 @@ typedef struct wl_char {
     uint16_t   member_pose;    /* +0x15a0a  the pose that keeps party+0xd4 */
     uint8_t    _p15a0c[0x15a10 - 0x15a0c];
     int32_t    up_assist;      /* +0x15a10  != 0 => look-up / the jump-probe up assist    */
-    uint8_t    _p15a14[0x15a18 - 0x15a14];
+    uint16_t   up_pose;        /* +0x15a14  (0x41ef80) */
+    uint8_t    _p15a16[0x15a18 - 0x15a16];
     const void *clip_up0;      /* +0x15a18 */
     const void *clip_up1;      /* +0x15a1c */
-    uint8_t    _p15a20[0x15a24 - 0x15a20];
+    uint16_t   up_len;         /* +0x15a20  (0x41ef80) */
+    uint8_t    _p15a22[0x15a24 - 0x15a22];
     int32_t    f15a24;         /* +0x15a24 */
     int32_t    hazard_mode;    /* +0x15a28  1/2/3: which hitbox kinds count (0x440f40)  */
     uint8_t    _p15a2c[0x15a70 - 0x15a2c];
@@ -612,7 +683,7 @@ typedef struct wl_char {
     int32_t    idle_jitter;    /* +0x15b48 */
     int32_t    idle_i;         /* +0x15b4c */
     int32_t    idle_t;         /* +0x15b50 */
-    void      *voice;          /* +0x15b54  the character's voice object (0x4099a0)      */
+    wl_voiceset *voice;        /* +0x15b54  the character's voice set (0x4099a0)          */
     uint8_t    _p15b58[0x15b5c - 0x15b58];
     int32_t    f15b5c;         /* +0x15b5c */
     struct wl_char *leash;     /* +0x15b60 */
@@ -623,6 +694,7 @@ typedef struct wl_char {
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
 _Static_assert(offsetof(wl_char, f200)        == 0x00200, "char +0x200");
+_Static_assert(offsetof(wl_char, idle_voice_t) == 0x0020c, "char +0x20c");
 _Static_assert(offsetof(wl_char, party)       == 0x00750, "char party");
 _Static_assert(offsetof(wl_char, fc788)       == 0x0c788, "char +0xc788");
 _Static_assert(offsetof(wl_char, target)      == 0x1427c, "char target");
@@ -703,6 +775,11 @@ _Static_assert(offsetof(wl_char, respawn_y)   == 0x0c760, "char +0xc760");
 _Static_assert(offsetof(wl_char, voice_vol)   == 0x0c778, "char +0xc778");
 _Static_assert(offsetof(wl_char, fc794)       == 0x0c794, "char +0xc794");
 _Static_assert(offsetof(wl_char, fc82c)       == 0x0c82c, "char +0xc82c");
+_Static_assert(offsetof(wl_char, linked)      == 0x0c7fc, "char +0xc7fc");
+_Static_assert(offsetof(wl_char, fc7e4)       == 0x0c7e4, "char +0xc7e4");
+_Static_assert(offsetof(wl_char, f14802)      == 0x14802, "char +0x14802");
+_Static_assert(offsetof(wl_char, up_len)      == 0x15a20, "char +0x15a20");
+_Static_assert(offsetof(wl_char, pit_t)       == 0x158be, "char +0x158be");
 _Static_assert(offsetof(wl_char, stun_len)    == 0x158b0, "char +0x158b0");
 _Static_assert(offsetof(wl_char, leash_t)     == 0x158c8, "char +0x158c8");
 _Static_assert(offsetof(wl_char, no_splash)   == 0x1590c, "char +0x1590c");
@@ -763,6 +840,11 @@ _Static_assert(offsetof(wl_entity, nsnd)     == 0x1b4, "entity sound count");
 _Static_assert(sizeof(wl_fx)                 == 0x14,  "fx record");
 _Static_assert(sizeof(wl_sndch)              == 0x24,  "sound channel");
 _Static_assert(offsetof(wl_vpool, dev)       == 0x8,   "pool device");
+_Static_assert(offsetof(wl_vpool, module)    == 0x10,  "pool module");
+_Static_assert(sizeof(wl_vline)              == 0x28,  "voice line");
+_Static_assert(offsetof(wl_vgroup, cd)       == 0x50c, "voice group cooldown");
+_Static_assert(sizeof(wl_vgroup)             == 0x510, "voice group");
+_Static_assert(offsetof(wl_voiceset, mode)   == 0x14,  "voice set mode");
 _Static_assert(offsetof(wl_world, f1040)     == 0x1040, "world +0x1040");
 _Static_assert(offsetof(wl_world, view)      == 0x104c, "world view");
 _Static_assert(offsetof(wl_world, f2770)     == 0x2770, "world +0x2770");
@@ -785,6 +867,12 @@ _Static_assert(offsetof(wl_particle, age)    == 0x26c, "particle age");
 _Static_assert(offsetof(wl_particle, dir_y)  == 0x27c, "particle +0x27c");
 _Static_assert(sizeof(wl_particle)           == 0x284, "particle is 0x284 bytes");
 _Static_assert(offsetof(wl_entity, coll_off) == 0x1f0, "entity coll_off");
+_Static_assert(offsetof(wl_entity, weight)   == 0x1ec, "entity +0x1ec");
+_Static_assert(offsetof(wl_entity, fe8)      == 0x0e8, "entity +0xe8");
+_Static_assert(offsetof(wl_entity, f1c4)     == 0x1c4, "entity +0x1c4");
+_Static_assert(offsetof(wl_entity, rider_heavy) == 0x1bc, "entity +0x1bc");
+_Static_assert(offsetof(wl_body, vdir)       == 0x030, "body +0x30");
+_Static_assert(offsetof(wl_actor, material)  == 0x290, "actor +0x290");
 _Static_assert(sizeof(wl_entity)             == 0x1f8, "entity base is 0x1f8 bytes");
 _Static_assert(offsetof(wl_list, count)      == 0x8,   "list count");
 _Static_assert(offsetof(wl_world, grid)      == 0x1048, "world grid");
