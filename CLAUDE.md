@@ -21,6 +21,28 @@ so status can never drift. `docs/memories/HANDOFF.md` is the rolling current-che
 detail (module layout + open RE threads); `docs/PROGRESS.md` is the append-only
 changelog. Active multi-session plans: `docs/plans/`.
 
+## Methodology (2026-10-14 rhost reset — `docs/audits/2026-10-14-rhost-methodology.md`)
+**Verification foundation = rhost** (`tools/rhost/`, README): the user's retail `sotes.exe` runs
+INSIDE our process on the Windows box, deterministically (flip-locked virtual clock, fake pump/
+DInput/BGM clock, fixed heap/handles/stack, external calls on a system stack). Same trace ⇒ same
+state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) + `ense-en`.
+- **Porting loop (per function):** read `/mnt/ephemeral/opensummoners/decompiled-ida/enold/all_ida.c`
+  (+ `all_ida.asm`, `functions_ida.tsv`, `data_xrefs.tsv`, `classes_ida.tsv`) → write the C port →
+  wrapper + row in `tools/rhost/rh_hooks.c` → `rhost.py verify` (shadow, per call) + `rhost.py corpus
+  --check --hook replace:NAME` (hybrid end state) → commit with the evidence line
+  (`rhost shadow: N calls / K scenarios, 0 divergences; replace: corpus --check PASS`).
+- **Gates:** `rhost.py det SCEN -n 3` (only `volatile.<edition>.txt` pointer slots may differ);
+  `rhost.py corpus --check` (expected.json per `tests/scenarios/rh-*`; re-`--bless` only for an
+  intended rhost change). Scenarios: DIK-level traces; humans record with `rhost.py record NAME`.
+- **Probes:** `--watch-write VA@FRAME` (who writes an address), `--trap VA` (registers),
+  `coverage` (first-hit over all IDA functions), `--dump-at` + `rhs.py` (state diffs).
+- **Windows:** `ssh win` + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's
+  `orc-rhost-runner`/`C:\orc-rhost\` (verified running simultaneously). IDA 9.4 headless:
+  `python3 tools/ida/ida.py export [--kb] [--fresh]` (`C:\oss-ida\`).
+- **Legacy (keep for reference, don't extend):** the Frida retail drive (`frida_capture.py
+  --lockstep --seed-pin`, pins, `run-retail.sh`) and the Ghidra export (`docs/decompiled/`, gone from
+  this host). Trace Studio v2 stays for visual review.
+
 ## How we work here (conventions)
 - **Output-efficiency (TERSE MODE — added 2026-06-21; REVERTIBLE: `git revert` the commit or
   delete this bullet). Lever = DIRECT max-thinking, never CUT it.** Max-thinking stays ON
@@ -166,10 +188,11 @@ changelog. Active multi-session plans: `docs/plans/`.
   runs so `fprintf` log lines surface). **Tests:** `nix develop --command make -C tests run`
   (host unit suite, ASan/UBSan; currently **806 pass / 0 fail / 6 skip** — run before
   committing C).
-- **Disassembly:** read `docs/decompiled/by-address/<addr>.c` (cite by address — names
-  rename, addresses are stable). Index: `docs/decompiled/functions.csv`. Regenerate via
-  `tools/ghidra-headless.sh` (re-runs in ~seconds if the project already exists).
-  Decompiled C is gitignored (derived from the user's binary).
+- **Disassembly:** PRIMARY = the IDA 9.4 export `/mnt/ephemeral/opensummoners/decompiled-ida/
+  <edition>/all_ida.c` (knowledge pack + C++ class recovery applied; `plain/` = untouched IDA),
+  regenerate with `python3 tools/ida/ida.py export --kb`. Cite by address (IDA names keep the VA
+  suffix). Edition VA mapping: `tools/ida/crosswalk.py`. Legacy Ghidra:
+  `docs/decompiled/by-address/<addr>.c` via `tools/ghidra-headless.sh`. Never commit decompiled C.
 - **TAS / parity harness (THE divergence loop):** for every divergence — **pinpoint →
   attribute to a pillar → fix the logic (RE it, don't curve-fit) → re-verify to
   `differ_px==0` → log the quirk + ledger row.** Three diff lenses, all over one

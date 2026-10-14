@@ -51,10 +51,28 @@ def _is_thiscall(ea):
         return False
 
 
+def _cc_thiscall(tif):
+    try:
+        if tif.is_ptr():
+            tif = tif.get_pointed_object()
+        return (tif.get_cc() & ida_typeinf.CM_CC_MASK) == ida_typeinf.CM_CC_THISCALL
+    except Exception:
+        return False
+
+
 def recover(log, skip_typed=()):
-    methods = [ea for ea in idautils.Functions()
-               if not (ida_funcs.get_func(ea).flags & (ida_funcs.FUNC_LIB | ida_funcs.FUNC_THUNK)) and _is_thiscall(ea)]
+    # the calling convention is only reliable AFTER Hex-Rays has looked at a function (IDA's
+    # stored types said thiscall for 57 functions; the decompiler infers it for ~1150)
+    cands = [ea for ea in idautils.Functions() if not (ida_funcs.get_func(ea).flags & (ida_funcs.FUNC_LIB | ida_funcs.FUNC_THUNK))]
+    methods = []
+    for ea in cands:
+        try:
+            if _cc_thiscall(hr.decompile(ea).type):
+                methods.append(ea)
+        except Exception:
+            pass
     mset = set(methods)
+    methods_set = set(methods)
     uf = _UF()
     fields = collections.defaultdict(collections.Counter)   # method -> Counter((off, size))
     inst_at = collections.defaultdict(set)                  # method -> {global VA (object at)}
@@ -62,15 +80,18 @@ def recover(log, skip_typed=()):
     newsz = collections.defaultdict(int)                    # method -> operator new size
     new_names = ("??2@YAPAXI@Z", "operator new")
     nfail = 0
-    for ea in methods:
-        uf.f(ea)
+    for ea in cands:                       # every function: call sites in non-methods bind instances too
         try:
             cf = hr.decompile(ea)
         except Exception:
+            cf = None
+        if cf is None:
             nfail += 1
             continue
-        this_idx = cf.argidx[0] if len(cf.argidx) else -1
-        lv = cf.get_lvars()
+        is_m = ea in methods_set
+        if is_m:
+            uf.f(ea)
+        this_idx = cf.argidx[0] if (is_m and len(cf.argidx)) else -1
         newvar = {}
 
         class V(hr.ctree_visitor_t):
@@ -117,10 +138,12 @@ def recover(log, skip_typed=()):
                             newvar[_strip(e.x).v.idx] = _strip(y.a[0]).numval()
                 elif e.op == hr.cot_call:
                     c = _strip(e.x)
-                    if c.op == hr.cot_obj and c.obj_ea in mset and e.a.size() > 0:
+                    if c.op == hr.cot_obj and (c.obj_ea in mset or (_cc_thiscall(e.x.type) and ida_funcs.get_func(c.obj_ea))) and e.a.size() > 0:
+                        mset.add(c.obj_ea)
                         g = c.obj_ea
                         a0 = _strip(e.a[0])
-                        if a0.op == hr.cot_var and a0.v.idx == this_idx:
+                        uf.f(g)
+                        if a0.op == hr.cot_var and a0.v.idx == this_idx and this_idx >= 0:
                             uf.u(ea, g)
                         elif a0.op == hr.cot_var and a0.v.idx in newvar:
                             newsz[g] = max(newsz[g], newvar[a0.v.idx])
@@ -144,9 +167,9 @@ def recover(log, skip_typed=()):
         for m in ms[1:]:
             uf.u(ms[0], m)
     classes = collections.defaultdict(list)
-    for m in methods:
+    for m in sorted(mset):
         classes[uf.f(m)].append(m)
-    log("classes: %d thiscall methods → %d classes (%d decompile failures)" % (len(methods), len(classes), nfail))
+    log("classes: %d thiscall methods -> %d classes (%d decompile failures)" % (len(mset), len(classes), nfail))
     return classes, fields, inst_at, inst_ptr, newsz
 
 
@@ -217,5 +240,5 @@ def build_and_apply(log, out_tsv, keep_typed):
         for name, size, ms, gat, gpt, fl in rows:
             f.write("%s\t%d\t%d\t%s\t%s\t%s\t%s\n" % (name, size, len(ms), ",".join("%x" % m for m in ms),
                     ",".join("%x" % g for g in gat), ",".join("%x" % g for g in gpt), ",".join("%x:%d" % (o, s) for o, s in fl)))
-    log("classes: %d structs, %d method this-types applied, %d pointer instances typed → %s" % (n_struct, n_applied, n_inst, out_tsv))
+    log("classes: %d structs, %d method this-types applied, %d pointer instances typed -> %s" % (n_struct, n_applied, n_inst, out_tsv))
     return n_struct

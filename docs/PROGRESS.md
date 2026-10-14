@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-14 (overnight) — methodology reset: rhost (retail in-process) + IDA for both editions
+
+- **rhost** (`tools/rhost/`, ported from openrecet): retail `sotes.exe` runs inside our process on
+  the Windows box, deterministically — flip-locked virtual GetTickCount, fake SetTimer/WaitMessage,
+  filtered WndProc, launcher emulation, fixed heap/handles/GDI handles/stack, external calls on a
+  system stack, fake DInput7 keyboard (DIK-level traces), virtual BGM clock. 5 EN-old scenarios
+  (boot → prologue → Tilelia → errands freeroam; options) + EN-SE boot: det PASS, ~830–1000 fps;
+  record ≡ replay; corpus gate (`corpus --check`); coexists with openrecet's runner (verified).
+- **Oracle:** shadow rand 22,966/0, input_poll 19,511/0; with both REPLACING retail, all 5 end states
+  identical to pure retail (after neutralizing retail's uninitialized stack reads, quirk #123).
+- **IDA 9.4** exports for EN-old / EN-SE (new 2026-08-10 build) / JP-SE, crosswalk (EN-SE =
+  recompiled engine, quirk #128), knowledge pack, C++ class recovery (595 classes). Coverage: the
+  intro runs 48.7% of game code bytes; 73% of those bytes are not port-touched.
+- Decisions for the user + next steps: `docs/audits/2026-10-14-rhost-methodology.md` §5/§7.
+
 ## 2026-07-03 (ckpt 192) — the RNG census is UNBLOCKED (per-sim-tick emit) + it moves the first divergence to TOWN tick 974
 
 - **Tooling unblock.**  The errands family anim-phase census (ckpt 191) was confounded by
