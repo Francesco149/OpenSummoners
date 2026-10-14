@@ -15,6 +15,7 @@
 #include "rng.h"
 #include "input.h"
 #include "collision.h"
+#include "entity_move.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -24,7 +25,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -142,11 +143,68 @@ static int __attribute__((thiscall)) w_sweep_h(void *grid, int32_t x, int32_t w,
     return r;
 }
 
+/* ---- entity movers (FUN_0054db10 / FUN_0054e5c0, thiscall on the moving entity) vs src/entity_move.c ----
+ * they read the world singleton *(0x8a9b50) (collide list +0x278c, grid +0x1048): the port's g_world is
+ * pointed at retail's before each port call. Written state: body x/y (horizontal; probe mode writes only
+ * locals), *out_y + *support (vertical). */
+#define WORLD_PTR_VA 0x8a9b50u
+static void port_world(void) { g_world = *(wl_world **)(uintptr_t)WORLD_PTR_VA; g_world_slope = rh_slope; g_world_slope_ctx = NULL; }
+
+typedef int (__attribute__((thiscall)) *ent_h_t)(void *, wl_body *, int32_t, int32_t, int32_t, uint32_t, uint32_t, int32_t);
+static int __attribute__((thiscall)) w_ent_h(void *self, wl_body *b, int32_t delta, int32_t sdown, int32_t sup, uint32_t pass, uint32_t part, int32_t probe)
+{
+    hook_t *h = &H[H_ENT_MOVE_H];
+    if (h->mode == 2) { h->calls++; port_world(); return entity_move_horizontal(self, b, delta, sdown, sup, (int16_t)pass, (uint16_t)part, probe); }
+    if (!sample(h)) return ((ent_h_t)(uintptr_t)h->va)(self, b, delta, sdown, sup, pass, part, probe);
+    int32_t x0 = b->x, y0 = b->y;
+    int r = ((ent_h_t)(uintptr_t)h->va)(self, b, delta, sdown, sup, pass, part, probe);
+    int32_t rx = b->x, ry = b->y;
+    b->x = x0; b->y = y0;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    port_world();
+    int p = entity_move_horizontal(self, b, delta, sdown, sup, (int16_t)pass, (uint16_t)part, probe);
+    dead_restore(sp);
+    int32_t px = b->x, py = b->y;
+    b->x = rx; b->y = ry;
+    h->compared++;
+    if (p != r || px != rx || py != ry)
+        diverged(h, "ent %p part %u d=%d down=%d up=%d pass=%d probe=%d pre=(%d,%d): retail %d/(%d,%d) port %d/(%d,%d)",
+                 self, (uint16_t)part, delta, sdown, sup, (int16_t)pass, probe, x0, y0, r, rx, ry, p, px, py);
+    return r;
+}
+
+typedef int (__attribute__((thiscall)) *ent_v_t)(void *, wl_body *, int32_t, int32_t, uint32_t, int32_t *, wl_entity **);
+static int __attribute__((thiscall)) w_ent_v(void *self, wl_body *b, int32_t delta, int32_t pass, uint32_t part, int32_t *out_y, wl_entity **support)
+{
+    hook_t *h = &H[H_ENT_MOVE_V];
+    if (h->mode == 2) { h->calls++; port_world(); return entity_move_vertical(self, b, delta, pass, (uint16_t)part, out_y, support); }
+    if (!sample(h)) return ((ent_v_t)(uintptr_t)h->va)(self, b, delta, pass, part, out_y, support);
+    int32_t oy0 = *out_y; wl_entity *s0 = support ? *support : NULL;
+    int r = ((ent_v_t)(uintptr_t)h->va)(self, b, delta, pass, part, out_y, support);
+    int32_t ry = *out_y; wl_entity *rs = support ? *support : NULL;
+    *out_y = oy0; if (support) *support = s0;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    port_world();
+    int p = entity_move_vertical(self, b, delta, pass, (uint16_t)part, out_y, support);
+    dead_restore(sp);
+    int32_t py = *out_y; wl_entity *ps = support ? *support : NULL;
+    *out_y = ry; if (support) *support = rs;
+    h->compared++;
+    if (p != r || py != ry || ps != rs)
+        diverged(h, "ent %p part %u d=%d pass=%d box (%d,%d %dx%d m%d) pre_y=%d: retail %d/y=%d/sup=%p port %d/y=%d/sup=%p",
+                 self, (uint16_t)part, delta, pass, b->x, b->y, b->w, b->h, b->margin, oy0, r, ry, (void *)rs, p, py, (void *)ps);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
     [H_MOVER_V] = { "mover_v", 0x54e990u, (void *)w_mover_v, 0, 1, 0, 0, 0, 0, "" },
     [H_SWEEP_H] = { "sweep_h", 0x54ded0u, (void *)w_sweep_h, 0, 1, 0, 0, 0, 0, "" },
+    [H_ENT_MOVE_H] = { "ent_move_h", 0x54db10u, (void *)w_ent_h, 0, 1, 0, 0, 0, 0, "" },
+    [H_ENT_MOVE_V] = { "ent_move_v", 0x54e5c0u, (void *)w_ent_v, 0, 1, 0, 0, 0, 0, "" },
 };
 
 void rh_hooks_install(void)
@@ -154,7 +212,8 @@ void rh_hooks_install(void)
     H[H_RAND].va = g_ed->rand;
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
-    if (strcmp(g_ed->tag, "enold")) H[H_MOVER_V].va = H[H_SWEEP_H].va = 0;   /* EN-old VAs only (SE: crosswalk TODO) */
+    if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
+        H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

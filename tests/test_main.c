@@ -861,6 +861,13 @@ struct test_case {
     X(map_grid_emit_obj_clamps_dims)                           \
     X(map_grid_emit_tile_explicit_span)                        \
     X(map_grid_emit_tile_bank_span)                            \
+    X(entity_move_h_blocked_by_solid)                          \
+    X(entity_move_h_platform_passes)                           \
+    X(entity_move_h_probe_writes_nothing)                      \
+    X(entity_move_v_lands_on_platform)                         \
+    X(entity_move_v_pass_skips_platform)                       \
+    X(entity_move_v_head_bonk)                                 \
+    X(entity_move_faction_relation)                            \
     X(collision_drop_clamps_on_floor)                          \
     X(collision_open_air_clears)                               \
     X(collision_wall_off_axis_no_block)                        \

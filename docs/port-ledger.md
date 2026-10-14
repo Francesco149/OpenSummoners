@@ -11,260 +11,264 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 
 ## Summary
 
-- engine-proper functions (below `0x5bdab0`): **1490** — the real port universe
-- library tail (MSVC CRT, linked not ported): 268
-- non-thunk engine functions total: 1758 (of 1768 incl. thunks)
-- touched: **233** (14.8% of engine-proper) — tested 228, ported 5
-- code bytes touched: **16.3%** (276,679 / 1,694,868 B of engine-proper)
-- unported: **1525**
-- orphan refs in src/ not in this table: 4
+- engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
+- library tail (MSVC CRT, linked not ported): 292
+- non-thunk engine functions total: 1824 (of 1824 incl. thunks)
+- touched: **243** (15.0% of engine-proper) — tested 238, ported 5
+- code bytes touched: **16.7%** (296,836 / 1,776,526 B of engine-proper)
+- unported: **1581**
+- orphan refs in src/ not in this table: 0
 
-## tested (228) — ported + host unit suite
+## tested (238) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
-| 0x4031c0 | FUN_004031c0 | 815 | glyph_wrap.h |
-| 0x406440 | FUN_00406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x408b90 | FUN_00408b90 | 419 | wnd_proc.h |
-| 0x40a540 | FUN_0040a540 | 133 | character.h |
-| 0x40dee0 | FUN_0040dee0 | 85 | main.c |
-| 0x40e0c0 | FUN_0040e0c0 | 555 | menu_list.c, menu_list.h |
-| 0x40e360 | FUN_0040e360 | 636 | main.c |
-| 0x40e5e0 | FUN_0040e5e0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c |
-| 0x40f040 | FUN_0040f040 | 379 | glyph_wrap.c, glyph_wrap.h |
-| 0x40f3e0 | FUN_0040f3e0 | 434 | menu_list.c, menu_list.h, newgame_menu.c |
-| 0x40f5c0 | FUN_0040f5c0 | 563 | menu_list.c, menu_list.h |
-| 0x40fa00 | FUN_0040fa00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+3) |
-| 0x40fd20 | FUN_0040fd20 | 143 | glyph_text.c, glyph_text.h |
-| 0x411940 | FUN_00411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
-| 0x411f40 | FUN_00411f40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
-| 0x412160 | FUN_00412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
-| 0x412c10 | FUN_00412c10 | 46 | obj_container.c, obj_container.h |
-| 0x414080 | FUN_00414080 | 63 | obj_container.c, obj_container.h |
-| 0x417870 | FUN_00417870 | 106 | map_decode.h |
-| 0x4178e0 | FUN_004178e0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
-| 0x4179b0 | FUN_004179b0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
-| 0x417b50 | FUN_00417b50 | 109 | asset_register.c, asset_register.h |
-| 0x417bc0 | FUN_00417bc0 | 123 | asset_register.c, asset_register.h |
-| 0x417c40 | FUN_00417c40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
-| 0x418470 | FUN_00418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
-| 0x4184a0 | FUN_004184a0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
-| 0x4188b0 | FUN_004188b0 | 891 | asset_register.c, asset_register.h |
-| 0x4192b0 | FUN_004192b0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
-| 0x419900 | FUN_00419900 | 128 | newgame_picker.c, newgame_picker.h |
-| 0x426110 | FUN_00426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x426f50 | FUN_00426f50 | 26 | character.c |
-| 0x426fd0 | FUN_00426fd0 | 781 | base_stat_table.c, base_stat_table.h, party.c (+1) |
-| 0x43b980 | FUN_0043b980 | 783 | cutscene.c, dialogue.h |
-| 0x43bca0 | FUN_0043bca0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
-| 0x43c110 | FUN_0043c110 | 84 | input.c, input.h, newgame_scene.h (+1) |
-| 0x43c2e0 | FUN_0043c2e0 | 795 | main.c |
-| 0x43ca40 | FUN_0043ca40 | 970 | cutscene.c, dialogue.c, dialogue.h (+2) |
-| 0x43ce50 | FUN_0043ce50 | 220 | cutscene.c, dialogue.h, menu_list.c (+1) |
-| 0x43d1d0 | FUN_0043d1d0 | 366 | camera_follow.c, camera_follow.h, main.c |
-| 0x43d340 | FUN_0043d340 | 299 | camera_follow.c, camera_follow.h |
-| 0x43e250 | FUN_0043e250 | 334 | main.c |
-| 0x44d160 | FUN_0044d160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
-| 0x44e640 | FUN_0044e640 | 49 | hud.c, hud.h |
-| 0x44e680 | FUN_0044e680 | 59 | hud.c, hud.h |
-| 0x46a880 | FUN_0046a880 | 8890 | input_live.c, input_live.h |
-| 0x4766a0 | FUN_004766a0 | 106 | hud.c, hud.h |
-| 0x479960 | FUN_00479960 | 165 | character.c, character.h, input.c (+1) |
-| 0x479e70 | FUN_00479e70 | 275 | character.c, character.h, input.c (+1) |
-| 0x48c820 | FUN_0048c820 | 873 | newgame_cursor.h |
-| 0x48cf80 | FUN_0048cf80 | 1095 | main.c, newgame_box.c, newgame_box.h |
-| 0x48d3d0 | FUN_0048d3d0 | 664 | newgame_box.c |
-| 0x48d670 | FUN_0048d670 | 154 | newgame_box.c |
-| 0x48d940 | FUN_0048d940 | 300 | main.c, newgame_cursor.c, newgame_cursor.h |
-| 0x48e200 | FUN_0048e200 | 1221 | glyph_render.c, glyph_render.h, main.c |
-| 0x48e6d0 | FUN_0048e6d0 | 389 | glyph_render.c, glyph_render.h |
-| 0x48e860 | FUN_0048e860 | 181 | glyph_render.c, glyph_render.h, main.c |
-| 0x48e920 | FUN_0048e920 | 403 | main.c, scene_fade.c, scene_fade.h |
-| 0x48eac0 | FUN_0048eac0 | 1131 | main.c, map_present.c, map_present.h (+2) |
-| 0x490b90 | FUN_00490b90 | 307 | dialogue.c, map_present.c, map_present.h (+1) |
-| 0x490cd0 | FUN_00490cd0 | 603 | color_grade.h, main.c, parallax.c (+3) |
-| 0x490f30 | FUN_00490f30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
-| 0x491770 | FUN_00491770 | 52 | asset_register.c, asset_register.h |
-| 0x4917b0 | FUN_004917b0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
-| 0x492670 | FUN_00492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
-| 0x494e60 | FUN_00494e60 | 3904 | base_stat_table.h, hud.c, hud.h (+2) |
-| 0x4962a0 | FUN_004962a0 | 242 | hud.c, hud.h, main.c |
-| 0x4969b0 | FUN_004969b0 | 1272 | hud.c, hud.h, main.c |
-| 0x497b40 | FUN_00497b40 | 98 | party.c |
-| 0x497bb0 | FUN_00497bb0 | 98 | party.c |
-| 0x498620 | FUN_00498620 | 82 | hud.h, main.c |
-| 0x498680 | FUN_00498680 | 401 | hud.c, hud.h, main.c |
-| 0x498f10 | FUN_00498f10 | 344 | hud.h, main.c |
-| 0x499560 | FUN_00499560 | 271 | color_grade.h, parallax.c, parallax.h |
-| 0x499ab0 | FUN_00499ab0 | 1356 | camera_follow.h |
-| 0x49a740 | FUN_0049a740 | 336 | scene_fade.c, scene_fade.h |
-| 0x49a890 | FUN_0049a890 | 361 | scene_fade.c, scene_fade.h |
-| 0x49aa00 | FUN_0049aa00 | 216 | scene_fade.c, scene_fade.h |
-| 0x49aae0 | FUN_0049aae0 | 234 | scene_fade.c, scene_fade.h |
-| 0x49c640 | FUN_0049c640 | 720 | dialogue.c |
-| 0x4c5350 | FUN_004c5350 | 1169 | game_map.c, game_map.h |
-| 0x4cc820 | FUN_004cc820 | 508 | party.c, party.h |
-| 0x4e59a0 | FUN_004e59a0 | 1676 | party.h |
-| 0x4f19e0 | FUN_004f19e0 | 20437 | party.c |
-| 0x54c970 | FUN_0054c970 | 84 | map_grid.c, map_grid.h |
-| 0x54db10 | FUN_0054db10 | 946 | collision.c, collision.h |
-| 0x54ded0 | FUN_0054ded0 | 1555 | collision.c, collision.h |
-| 0x54e990 | FUN_0054e990 | 861 | collision.c, collision.h |
-| 0x560900 | FUN_00560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x560e60 | FUN_00560e60 | 42 | game_map.c, game_map.h |
-| 0x561c90 | FUN_00561c90 | 94 | game_map.h, game_world.h |
-| 0x562210 | FUN_00562210 | 688 | app_pump.h, rng.h |
-| 0x562a10 | FUN_00562a10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | FUN_00562ea0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+10) |
-| 0x563ef0 | FUN_00563ef0 | 445 | asset_register.c, asset_register.h |
-| 0x564160 | FUN_00564160 | 376 | newgame_drive.c, newgame_drive.h |
-| 0x564780 | FUN_00564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
-| 0x5657f0 | FUN_005657f0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
-| 0x565d10 | FUN_00565d10 | 1228 | main.c, newgame_drive.c, newgame_drive.h |
-| 0x566570 | FUN_00566570 | 485 | newgame_menu.c, newgame_menu.h, newgame_picker.h |
-| 0x566850 | FUN_00566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
-| 0x566a80 | FUN_00566a80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+2) |
-| 0x567ba0 | FUN_00567ba0 | 1647 | main.c, newgame_drive.c, newgame_drive.h (+2) |
-| 0x568320 | FUN_00568320 | 964 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
-| 0x56aea0 | FUN_0056aea0 | 3441 | app_flow.h, input.h, main.c (+11) |
-| 0x56c030 | FUN_0056c030 | 62 | title_particles.c |
-| 0x56c070 | FUN_0056c070 | 265 | main.c, rng.h, title_particles.c (+1) |
-| 0x56c180 | FUN_0056c180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
-| 0x56c2b0 | FUN_0056c2b0 | 373 | main.c, title_particles.c, title_particles.h |
-| 0x56c930 | FUN_0056c930 | 607 | menu_list.c, menu_list.h |
-| 0x56cd20 | FUN_0056cd20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+2) |
-| 0x56e190 | FUN_0056e190 | 26411 | asset_register.c, asset_register.h |
-| 0x5748c0 | FUN_005748c0 | 237 | asset_register.c, asset_register.h |
-| 0x5749b0 | FUN_005749b0 | 2342 | asset_register.c, asset_register.h, main.c |
-| 0x579a00 | FUN_00579a00 | 451 | asset_register.c, asset_register.h |
-| 0x579bd0 | FUN_00579bd0 | 741 | asset_register.c, asset_register.h |
-| 0x579ec0 | FUN_00579ec0 | 126 | asset_register.c, asset_register.h |
-| 0x579f40 | FUN_00579f40 | 214 | asset_register.c, asset_register.h |
-| 0x57a030 | FUN_0057a030 | 340 | asset_register.c, asset_register.h |
-| 0x57a1a0 | FUN_0057a1a0 | 189 | asset_register.c, asset_register.h |
-| 0x57a260 | FUN_0057a260 | 195 | asset_register.c, asset_register.h |
-| 0x57a330 | FUN_0057a330 | 3919 | asset_register.c, asset_register.h |
-| 0x57b280 | FUN_0057b280 | 6073 | asset_register.c, asset_register.h |
-| 0x57ca40 | FUN_0057ca40 | 24884 | asset_register.c, asset_register.h |
-| 0x582b80 | FUN_00582b80 | 384 | asset_register.c, asset_register.h |
-| 0x582d00 | FUN_00582d00 | 15 | asset_register.c, asset_register.h |
-| 0x582d10 | FUN_00582d10 | 379 | asset_register.c, asset_register.h |
-| 0x582e90 | FUN_00582e90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
-| 0x585000 | FUN_00585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
-| 0x586010 | FUN_00586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+3) |
-| 0x587970 | FUN_00587970 | 866 | main.c, map_data.c, map_data.h (+4) |
-| 0x587e00 | FUN_00587e00 | 18055 | asset_register.h, collision.h, game_world.h (+6) |
-| 0x58c910 | FUN_0058c910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
-| 0x58ca80 | FUN_0058ca80 | 167 | map_decode.c, map_grid.c, map_grid.h |
-| 0x58cb30 | FUN_0058cb30 | 1065 | map_decode.c, map_decode.h |
-| 0x58ffa0 | FUN_0058ffa0 | 23 | wnd_proc.h, wnd_proc_win32.c |
-| 0x59f2c0 | FUN_0059f2c0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
-| 0x5a00c0 | FUN_005a00c0 | 13690 | map_data.h |
-| 0x5a4770 | FUN_005a4770 | 45963 | app_pump.h, main.c |
-| 0x5b1030 | FUN_005b1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
-| 0x5b12e0 | FUN_005b12e0 | 441 | wnd_proc.c, wnd_proc.h |
-| 0x5b14c0 | FUN_005b14c0 | 287 | wnd_proc.h, wnd_proc_win32.c |
-| 0x5b5ac0 | FUN_005b5ac0 | 39 | zdd.h, zdd_win32.c |
-| 0x5b5d90 | FUN_005b5d90 | 33 | asset_register.c, asset_register.h |
-| 0x5b5f50 | FUN_005b5f50 | 71 | asset_register.c, asset_register.h |
-| 0x5b62a0 | FUN_005b62a0 | 94 | map_data.h |
-| 0x5b6340 | FUN_005b6340 | 198 | map_data.c, map_data.h |
-| 0x5b6e70 | FUN_005b6e70 | 9 | bitmap_session.h |
-| 0x5b6e90 | FUN_005b6e90 | 24 | bitmap_session.h |
-| 0x5b6f00 | FUN_005b6f00 | 7 | bitmap_session.c, bitmap_session.h |
-| 0x5b6f10 | FUN_005b6f10 | 26 | bitmap_session.h |
-| 0x5b6f80 | FUN_005b6f80 | 623 | bitmap_session.c, bitmap_session.h |
-| 0x5b71f0 | FUN_005b71f0 | 117 | bitmap_session.c, bitmap_session.h, bitmap_session_win32.c |
-| 0x5b7270 | FUN_005b7270 | 158 | bitmap_session.h |
-| 0x5b7310 | FUN_005b7310 | 469 | bitmap_session.c, bitmap_session.h |
-| 0x5b74f0 | FUN_005b74f0 | 293 | bitmap_session.h |
-| 0x5b7800 | FUN_005b7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h |
-| 0x5b7b90 | FUN_005b7b90 | 53 | bitmap_session.h |
-| 0x5b7bd0 | FUN_005b7bd0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h |
-| 0x5b7c10 | FUN_005b7c10 | 186 | bitmap_session.c, bitmap_session.h |
-| 0x5b7ee0 | FUN_005b7ee0 | 153 | main.c, zdd.h |
-| 0x5b7f80 | FUN_005b7f80 | 94 | zdd.c, zdd.h |
-| 0x5b7fe0 | FUN_005b7fe0 | 90 | zdd.h |
-| 0x5b8040 | FUN_005b8040 | 139 | zdd.h |
-| 0x5b80d0 | FUN_005b80d0 | 826 | zdd.c, zdd.h |
-| 0x5b8480 | FUN_005b8480 | 1088 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b88c0 | FUN_005b88c0 | 57 | zdd.h, zdd_win32.c |
-| 0x5b8900 | FUN_005b8900 | 74 | cs_dispatch.c, zdd.h, zdd_win32.c |
-| 0x5b8950 | FUN_005b8950 | 126 | zdd.h, zdd_win32.c |
-| 0x5b89d0 | FUN_005b89d0 | 71 | main.c, zdd.h, zdd_win32.c |
-| 0x5b8a20 | FUN_005b8a20 | 181 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b8ae0 | FUN_005b8ae0 | 30 | pixel_drawer.c, pixel_drawer.h |
-| 0x5b8b00 | FUN_005b8b00 | 59 | zdd.c, zdd.h |
-| 0x5b8b40 | FUN_005b8b40 | 184 | cs_dispatch.c, zdd.c, zdd.h |
-| 0x5b8c00 | FUN_005b8c00 | 372 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b8da0 | FUN_005b8da0 | 33 | zdd.h |
-| 0x5b8dd0 | FUN_005b8dd0 | 33 | cs_dispatch.c, zdd.h |
-| 0x5b8e00 | FUN_005b8e00 | 157 | zdd.h, zdd_win32.c |
-| 0x5b8ea0 | FUN_005b8ea0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | FUN_005b8fc0 | 335 | call_trace.h, game_drive.h, main.c (+8) |
-| 0x5b9130 | FUN_005b9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
-| 0x5b91d0 | FUN_005b91d0 | 109 | zdd.h |
-| 0x5b9240 | FUN_005b9240 | 60 | zdd.h |
-| 0x5b9280 | FUN_005b9280 | 203 | zdd.c, zdd.h |
-| 0x5b9350 | FUN_005b9350 | 50 | zdd.c, zdd.h |
-| 0x5b9390 | FUN_005b9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
-| 0x5b93e0 | FUN_005b93e0 | 42 | zdd.h, zdd_win32.c |
-| 0x5b9410 | FUN_005b9410 | 49 | osr_format.h, zdd.c, zdd.h |
-| 0x5b9490 | FUN_005b9490 | 63 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b94d0 | FUN_005b94d0 | 15 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b94e0 | FUN_005b94e0 | 29 | wnd_proc.h, zdd.c, zdd.h (+1) |
-| 0x5b9500 | FUN_005b9500 | 17 | wnd_proc.h, zdd.c, zdd.h (+1) |
-| 0x5b9520 | FUN_005b9520 | 157 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b95c0 | FUN_005b95c0 | 110 | zdd.c, zdd.h |
-| 0x5b9630 | FUN_005b9630 | 268 | zdd.c, zdd.h |
-| 0x5b9740 | FUN_005b9740 | 153 | zdd.h, zdd_win32.c |
-| 0x5b97e0 | FUN_005b97e0 | 66 | zdd.c, zdd.h |
-| 0x5b9830 | FUN_005b9830 | 138 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b98c0 | FUN_005b98c0 | 73 | zdd.c, zdd.h |
-| 0x5b9910 | FUN_005b9910 | 291 | zdd.c, zdd.h |
-| 0x5b9a40 | FUN_005b9a40 | 112 | main.c, parallax.h, town_render.h (+2) |
-| 0x5b9ab0 | FUN_005b9ab0 | 10 | zdd.h |
-| 0x5b9ac0 | FUN_005b9ac0 | 22 | zdd.c, zdd.h |
-| 0x5b9ae0 | FUN_005b9ae0 | 140 | zdd.c, zdd.h |
-| 0x5b9b70 | FUN_005b9b70 | 122 | hud.h, main.c, map_present.c (+4) |
-| 0x5b9bf0 | FUN_005b9bf0 | 256 | main.c, map_present.c, map_present.h (+3) |
-| 0x5ba290 | FUN_005ba290 | 30 | wnd_proc.h, wnd_proc_win32.c |
-| 0x5bad20 | FUN_005bad20 | 26 | wnd_proc.h |
-| 0x5bad40 | FUN_005bad40 | 26 | wnd_proc.h |
-| 0x5bae30 | FUN_005bae30 | 60 | wnd_proc.h |
-| 0x5bae70 | FUN_005bae70 | 30 | wnd_proc.h |
-| 0x5bbd20 | FUN_005bbd20 | 140 | wnd_proc.h, wnd_proc_win32.c |
-| 0x5bcff0 | FUN_005bcff0 | 42 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd020 | FUN_005bd020 | 26 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd040 | FUN_005bd040 | 801 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd380 | FUN_005bd380 | 39 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd3b0 | FUN_005bd3b0 | 30 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd3d0 | FUN_005bd3d0 | 241 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd4d0 | FUN_005bd4d0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd550 | FUN_005bd550 | 302 | hud.h, main.c, map_present.c (+7) |
-| 0x5bd680 | FUN_005bd680 | 1072 | zdd.c, zdd.h |
-| 0x5bef0e | FUN_005bef0e | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
-| 0x5bf4e8 | FUN_005bf4e8 | 19 | cs_dispatch_win32.c, wnd_proc.h |
-| 0x5bf505 | FUN_005bf505 | 30 | cutscene.c, main.c, rng.c (+1) |
-| 0x5bf5db | FUN_005bf5db | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
-| 0x5bf5fd | FUN_005bf5fd | 153 | wnd_proc.h |
-| 0x5c0907 | FUN_005c0907 | 45 | zdd.c, zdd.h |
-| 0x5c0934 | FUN_005c0934 | 92 | zdd.c |
-| 0x5c123f | FUN_005c123f | 47 | asset_register.c |
+| 0x4031c0 | sub_4031C0 | 815 | glyph_wrap.h |
+| 0x406440 | cs_fail_406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
+| 0x40a540 | sub_40A540 | 133 | character.h |
+| 0x40dee0 | sub_40DEE0 | 85 | main.c |
+| 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h |
+| 0x40e360 | sub_40E360 | 636 | main.c |
+| 0x40e5e0 | wrap_class_40E5E0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c |
+| 0x40f040 | wrap_parse_40F040 | 379 | glyph_wrap.c, glyph_wrap.h |
+| 0x40f3e0 | sub_40F3E0 | 434 | menu_list.c, menu_list.h, newgame_menu.c |
+| 0x40f5c0 | menu_ctrl_build_40F5C0 | 563 | menu_list.c, menu_list.h |
+| 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+3) |
+| 0x40fd20 | glyph_token_search_40FD20 | 143 | glyph_text.c, glyph_text.h |
+| 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
+| 0x411f40 | sub_411F40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
+| 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
+| 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h |
+| 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h |
+| 0x417870 | sub_417870 | 106 | map_decode.h |
+| 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
+| 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
+| 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h |
+| 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h |
+| 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
+| 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
+| 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
+| 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h |
+| 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
+| 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h |
+| 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x426f50 | sub_426F50 | 26 | character.c |
+| 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, party.c (+1) |
+| 0x43b980 | sub_43B980 | 783 | cutscene.c, dialogue.h |
+| 0x43bca0 | sub_43BCA0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
+| 0x43c110 | sub_43C110 | 84 | input.c, input.h, newgame_scene.h (+1) |
+| 0x43c2e0 | sub_43C2E0 | 795 | main.c |
+| 0x43ca40 | menu_list_nav_43CA40 | 970 | cutscene.c, dialogue.c, dialogue.h (+2) |
+| 0x43ce50 | menu_list_latch_43CE50 | 220 | cutscene.c, dialogue.h, menu_list.c (+1) |
+| 0x43d1d0 | camera_follow_step_43D1D0 | 366 | camera_follow.c, camera_follow.h, main.c |
+| 0x43d340 | camera_shake_apply_43D340 | 299 | camera_follow.c, camera_follow.h |
+| 0x43e250 | sub_43E250 | 334 | main.c |
+| 0x4416c0 | sub_4416C0 | 52 | entity_move.c, entity_move.h |
+| 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
+| 0x44e640 | sub_44E640 | 49 | hud.c, hud.h |
+| 0x44e680 | sub_44E680 | 59 | hud.c, hud.h |
+| 0x46a880 | sub_46A880 | 8890 | input_live.c, input_live.h |
+| 0x4766a0 | hud_door_on_screen_4766A0 | 106 | hud.c, hud.h |
+| 0x479960 | sub_479960 | 165 | character.c, character.h, input.c (+1) |
+| 0x479e70 | sub_479E70 | 275 | character.c, character.h, input.c (+1) |
+| 0x48c820 | sub_48C820 | 873 | newgame_cursor.h |
+| 0x48cf80 | widget_box_frame_48CF80 | 1095 | main.c, newgame_box.c, newgame_box.h |
+| 0x48d3d0 | sub_48D3D0 | 664 | newgame_box.c |
+| 0x48d670 | sub_48D670 | 154 | newgame_box.c |
+| 0x48d940 | sub_48D940 | 300 | main.c, newgame_cursor.c, newgame_cursor.h |
+| 0x48e200 | sub_48E200 | 1221 | glyph_render.c, glyph_render.h, main.c |
+| 0x48e6d0 | glyph_ruby_draw_48E6D0 | 389 | glyph_render.c, glyph_render.h |
+| 0x48e860 | sub_48E860 | 181 | glyph_render.c, glyph_render.h, main.c |
+| 0x48e920 | scene_fade_grid_render_48E920 | 403 | main.c, scene_fade.c, scene_fade.h |
+| 0x48eac0 | sub_48EAC0 | 1131 | main.c, map_present.c, map_present.h (+2) |
+| 0x490b90 | sub_490B90 | 307 | dialogue.c, map_present.c, map_present.h (+1) |
+| 0x490cd0 | sub_490CD0 | 603 | color_grade.h, main.c, parallax.c (+3) |
+| 0x490f30 | sub_490F30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
+| 0x491770 | sub_491770 | 52 | asset_register.c, asset_register.h |
+| 0x4917b0 | draw_pool_emit_layered_4917B0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
+| 0x492670 | draw_pool_emit_actor_492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
+| 0x494e60 | sub_494E60 | 3904 | base_stat_table.h, hud.c, hud.h (+2) |
+| 0x4962a0 | sub_4962A0 | 242 | hud.c, hud.h, main.c |
+| 0x4969b0 | sub_4969B0 | 1272 | hud.c, hud.h, main.c |
+| 0x497b40 | party_stat_hp_display_497B40 | 98 | party.c |
+| 0x497bb0 | party_stat_mp_display_497BB0 | 98 | party.c |
+| 0x498620 | sub_498620 | 82 | hud.h, main.c |
+| 0x498680 | hud_bar_row_geom_498680 | 401 | hud.c, hud.h, main.c |
+| 0x498f10 | sub_498F10 | 344 | hud.h, main.c |
+| 0x499560 | parallax_strip_499560 | 271 | color_grade.h, parallax.c, parallax.h |
+| 0x499ab0 | scene_cinematic_step_499AB0 | 1356 | camera_follow.h |
+| 0x49a740 | sf_pattern_edges_in_49A740 | 336 | scene_fade.c, scene_fade.h |
+| 0x49a890 | sf_pattern_center_out_49A890 | 361 | scene_fade.c, scene_fade.h |
+| 0x49aa00 | sf_pattern_sweep_down_49AA00 | 216 | scene_fade.c, scene_fade.h |
+| 0x49aae0 | sf_pattern_sweep_up_49AAE0 | 234 | scene_fade.c, scene_fade.h |
+| 0x49c640 | sub_49C640 | 720 | dialogue.c |
+| 0x4c5350 | map_resolve_room_key_4C5350 | 1169 | game_map.c, game_map.h |
+| 0x4cc820 | sub_4CC820 | 508 | party.c, party.h |
+| 0x4e59a0 | sub_4E59A0 | 1676 | party.h |
+| 0x4f19e0 | sub_4F19E0 | 20437 | party.c |
+| 0x54c970 | map_grid_clear_cell_54C970 | 84 | map_grid.c, map_grid.h |
+| 0x54db10 | mover_horizontal_54DB10 | 946 | collision.c, collision.h, entity_move.c (+1) |
+| 0x54ded0 | sub_54DED0 | 1555 | collision.c, collision.h |
+| 0x54e5c0 | mover_vertical_54E5C0 | 945 | entity_move.c, entity_move.h |
+| 0x54e990 | sub_54E990 | 861 | collision.c, collision.h |
+| 0x560900 | sub_560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x560e60 | actor_slot_reset_560E60 | 42 | game_map.c, game_map.h |
+| 0x561c90 | sub_561C90 | 94 | game_map.h, game_world.h |
+| 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h |
+| 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h |
+| 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+10) |
+| 0x563ef0 | sub_563EF0 | 445 | asset_register.c, asset_register.h |
+| 0x564160 | sub_564160 | 376 | newgame_drive.c, newgame_drive.h |
+| 0x564780 | sub_564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
+| 0x5657f0 | newgame_picker_dispatch_5657F0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
+| 0x565d10 | sub_565D10 | 1228 | main.c, newgame_drive.c, newgame_drive.h |
+| 0x566570 | newgame_option_label_566570 | 485 | newgame_menu.c, newgame_menu.h, newgame_picker.h |
+| 0x566850 | sub_566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
+| 0x566a80 | newgame_option_value_566A80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+2) |
+| 0x567ba0 | sub_567BA0 | 1647 | main.c, newgame_drive.c, newgame_drive.h (+2) |
+| 0x568320 | sub_568320 | 964 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
+| 0x56aea0 | sub_56AEA0 | 4294 | app_flow.h, input.h, main.c (+11) |
+| 0x56c030 | sub_56C030 | 62 | title_particles.c |
+| 0x56c070 | drive_spawn_sparkle_56C070 | 265 | main.c, rng.h, title_particles.c (+1) |
+| 0x56c180 | title_compositor_resolve_56C180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
+| 0x56c2b0 | sub_56C2B0 | 373 | main.c, title_particles.c, title_particles.h |
+| 0x56c470 | sub_56C470 | 107 | title_render.c, title_render.h, title_sink.c |
+| 0x56c4e0 | sub_56C4E0 | 155 | title_render.c, title_render.h |
+| 0x56c580 | title_render_sparkle_56C580 | 133 | title_render.c, title_render.h, title_scene.c |
+| 0x56c610 | title_draw_sprite_56C610 | 35 | title_render.c, title_render.h |
+| 0x56c930 | menu_owner_transition_step_56C930 | 607 | menu_list.c, menu_list.h |
+| 0x56cd20 | sub_56CD20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+2) |
+| 0x56dc20 | sub_56DC20 | 344 | main.c |
+| 0x56e190 | sub_56E190 | 26411 | asset_register.c, asset_register.h |
+| 0x5748c0 | sub_5748C0 | 237 | asset_register.c, asset_register.h |
+| 0x5749b0 | sub_5749B0 | 2342 | asset_register.c, asset_register.h, main.c |
+| 0x5752e0 | sub_5752E0 | 17310 | main.c |
+| 0x579a00 | sub_579A00 | 451 | asset_register.c, asset_register.h |
+| 0x579bd0 | sub_579BD0 | 741 | asset_register.c, asset_register.h |
+| 0x579ec0 | sub_579EC0 | 126 | asset_register.c, asset_register.h |
+| 0x579f40 | sub_579F40 | 214 | asset_register.c, asset_register.h |
+| 0x57a030 | sub_57A030 | 340 | asset_register.c, asset_register.h |
+| 0x57a1a0 | sub_57A1A0 | 189 | asset_register.c, asset_register.h |
+| 0x57a260 | sub_57A260 | 195 | asset_register.c, asset_register.h |
+| 0x57a330 | ar_run_palette_ramp_57A330 | 3919 | asset_register.c, asset_register.h |
+| 0x57b280 | sub_57B280 | 6073 | asset_register.c, asset_register.h |
+| 0x57ca40 | sub_57CA40 | 24884 | asset_register.c, asset_register.h |
+| 0x582b80 | sub_582B80 | 384 | asset_register.c, asset_register.h |
+| 0x582d00 | sub_582D00 | 15 | asset_register.c, asset_register.h |
+| 0x582d10 | sub_582D10 | 379 | asset_register.c, asset_register.h |
+| 0x582e90 | sub_582E90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
+| 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
+| 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+3) |
+| 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+4) |
+| 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+6) |
+| 0x58c910 | game_bank_dims_58C910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
+| 0x58ca80 | sub_58CA80 | 167 | map_decode.c, map_grid.c, map_grid.h |
+| 0x58cb30 | layer_hdr_u32_58CB30 | 1065 | map_decode.c, map_decode.h |
+| 0x58ffa0 | sub_58FFA0 | 23 | wnd_proc.h, wnd_proc_win32.c |
+| 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
+| 0x5a00c0 | sub_5A00C0 | 13690 | map_data.h |
+| 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c |
+| 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
+| 0x5b12e0 | sub_5B12E0 | 441 | wnd_proc.c, wnd_proc.h |
+| 0x5b14c0 | sub_5B14C0 | 287 | wnd_proc.h, wnd_proc_win32.c |
+| 0x5b5ac0 | zdd_busy_wait_ms_5B5AC0 | 39 | zdd.h, zdd_win32.c |
+| 0x5b5d90 | sub_5B5D90 | 33 | asset_register.c, asset_register.h |
+| 0x5b5dc0 | sub_5B5DC0 | 214 | main.c |
+| 0x5b5f50 | sub_5B5F50 | 71 | asset_register.c, asset_register.h |
+| 0x5b62a0 | sub_5B62A0 | 94 | map_data.h |
+| 0x5b6340 | sub_5B6340 | 198 | map_data.c, map_data.h |
+| 0x5b6e70 | unknown_libname_2 | 9 | bitmap_session.h |
+| 0x5b6e80 | sub_5B6E80 | 5 | bitmap_session.h |
+| 0x5b6e90 | sub_5B6E90 | 24 | bitmap_session.h |
+| 0x5b6f00 | sub_5B6F00 | 7 | bitmap_session.c, bitmap_session.h |
+| 0x5b6f10 | sub_5B6F10 | 26 | bitmap_session.h |
+| 0x5b6f80 | sub_5B6F80 | 623 | bitmap_session.c, bitmap_session.h |
+| 0x5b71f0 | sub_5B71F0 | 117 | bitmap_session.c, bitmap_session.h, bitmap_session_win32.c |
+| 0x5b7270 | sub_5B7270 | 158 | bitmap_session.h |
+| 0x5b7310 | sub_5B7310 | 469 | bitmap_session.c, bitmap_session.h |
+| 0x5b74f0 | sub_5B74F0 | 293 | bitmap_session.h |
+| 0x5b7800 | sub_5B7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h |
+| 0x5b7b90 | sub_5B7B90 | 53 | bitmap_session.h |
+| 0x5b7bd0 | sub_5B7BD0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h |
+| 0x5b7c10 | sub_5B7C10 | 186 | bitmap_session.c, bitmap_session.h |
+| 0x5b7ee0 | sub_5B7EE0 | 153 | main.c, zdd.h |
+| 0x5b7f80 | zdd_ctor_5B7F80 | 94 | zdd.c, zdd.h |
+| 0x5b7fe0 | sub_5B7FE0 | 90 | zdd.h |
+| 0x5b8040 | sub_5B8040 | 139 | zdd.h |
+| 0x5b80d0 | sub_5B80D0 | 826 | zdd.c, zdd.h |
+| 0x5b8480 | zdd_create_primary_surface_5B8480 | 1088 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b88c0 | zdd_directdraw_create_ex_5B88C0 | 57 | zdd.h, zdd_win32.c |
+| 0x5b8900 | zdd_set_display_mode_5B8900 | 74 | cs_dispatch.c, zdd.h, zdd_win32.c |
+| 0x5b8950 | zdd_get_display_mode_5B8950 | 126 | zdd.h, zdd_win32.c |
+| 0x5b89d0 | zdd_set_coop_level_5B89D0 | 71 | main.c, zdd.h, zdd_win32.c |
+| 0x5b8a20 | sub_5B8A20 | 181 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b8ae0 | pd_format_get_masks_5B8AE0 | 30 | pixel_drawer.c, pixel_drawer.h |
+| 0x5b8b00 | zdd_color_convert_5B8B00 | 59 | zdd.c, zdd.h |
+| 0x5b8b40 | sub_5B8B40 | 184 | cs_dispatch.c, zdd.c, zdd.h |
+| 0x5b8c00 | zdd_create_surface_5B8C00 | 372 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b8da0 | sub_5B8DA0 | 33 | zdd.h |
+| 0x5b8dd0 | sub_5B8DD0 | 33 | cs_dispatch.c, zdd.h |
+| 0x5b8e00 | sub_5B8E00 | 157 | zdd.h, zdd_win32.c |
+| 0x5b8ea0 | zdd_object_upscale_16bpp_5B8EA0 | 285 | zdd.c, zdd.h |
+| 0x5b8fc0 | flip_5B8FC0 | 335 | call_trace.h, game_drive.h, main.c (+8) |
+| 0x5b9130 | sub_5B9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
+| 0x5b91d0 | sub_5B91D0 | 109 | zdd.h |
+| 0x5b9240 | sub_5B9240 | 60 | zdd.h |
+| 0x5b9280 | sub_5B9280 | 203 | zdd.c, zdd.h |
+| 0x5b9350 | sub_5B9350 | 50 | zdd.c, zdd.h |
+| 0x5b9390 | title_frame_free_5B9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
+| 0x5b93e0 | zdd_object_local_free_5B93E0 | 42 | zdd.h, zdd_win32.c |
+| 0x5b9410 | zdd_object_clear_5B9410 | 49 | main.c, osr_format.h, zdd.c (+1) |
+| 0x5b9490 | sub_5B9490 | 63 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b94d0 | sub_5B94D0 | 15 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b94e0 | sub_5B94E0 | 29 | wnd_proc.h, zdd.c, zdd.h (+1) |
+| 0x5b9500 | sub_5B9500 | 17 | wnd_proc.h, zdd.c, zdd.h (+1) |
+| 0x5b9520 | sub_5B9520 | 157 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b95c0 | sub_5B95C0 | 110 | zdd.c, zdd.h |
+| 0x5b9630 | sub_5B9630 | 268 | zdd.c, zdd.h |
+| 0x5b9740 | zdd_get_attached_surface_5B9740 | 153 | zdd.h, zdd_win32.c |
+| 0x5b97e0 | sub_5B97E0 | 66 | zdd.c, zdd.h |
+| 0x5b9830 | zdd_surface_set_color_key_5B9830 | 138 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b98c0 | sub_5B98C0 | 73 | zdd.c, zdd.h |
+| 0x5b9910 | sub_5B9910 | 291 | zdd.c, zdd.h |
+| 0x5b9a40 | blt_onto_5B9A40 | 112 | main.c, parallax.h, town_render.h (+2) |
+| 0x5b9ab0 | sub_5B9AB0 | 10 | zdd.h |
+| 0x5b9ac0 | sub_5B9AC0 | 22 | zdd.c, zdd.h |
+| 0x5b9ae0 | blt_rects_5B9AE0 | 140 | zdd.c, zdd.h |
+| 0x5b9b70 | blt_keyed_5B9B70 | 122 | hud.h, main.c, map_present.c (+4) |
+| 0x5b9bf0 | blt_clipped_5B9BF0 | 256 | main.c, map_present.c, map_present.h (+3) |
+| 0x5ba290 | sub_5BA290 | 30 | wnd_proc.h, wnd_proc_win32.c |
+| 0x5bad20 | sub_5BAD20 | 26 | wnd_proc.h |
+| 0x5bad40 | sub_5BAD40 | 26 | wnd_proc.h |
+| 0x5bae30 | sub_5BAE30 | 60 | wnd_proc.h |
+| 0x5bae70 | sub_5BAE70 | 30 | wnd_proc.h |
+| 0x5bbd20 | sub_5BBD20 | 140 | wnd_proc.h, wnd_proc_win32.c |
+| 0x5bcff0 | sub_5BCFF0 | 42 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd020 | pd_channel_init_5BD020 | 26 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd040 | build_lut_small_5BD040 | 801 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd380 | pd_channel_mask_to_shift_5BD380 | 39 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd3b0 | pd_blend_set_color_5BD3B0 | 30 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd3d0 | pd_blend_commit_5BD3D0 | 241 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd4d0 | pd_blend_init_5BD4D0 | 71 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bd550 | blt_alpha_5BD550 | 302 | hud.h, main.c, map_present.c (+7) |
+| 0x5bd680 | sub_5BD680 | 1072 | zdd.c, zdd.h |
+| 0x5bef0e | ??3@YAXPAX@Z | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
+| 0x5bf4e8 | _fopen | 19 | cs_dispatch_win32.c, wnd_proc.h |
+| 0x5bf505 | rand_draw_5BF505 | 30 | cutscene.c, main.c, rng.c (+1) |
+| 0x5bf5db | _exit | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
+| 0x5bf5fd | _doexit | 153 | wnd_proc.h |
+| 0x5c0907 | hex32_lower_5C0907 | 45 | zdd.c, zdd.h |
+| 0x5c0934 | _xtoa | 92 | zdd.c |
+| 0x5c123f | _free | 47 | asset_register.c |
 
 ## ported (5) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
-| 0x5bf3ee | FUN_005bf3ee | 82 | cs_dispatch_win32.c |
-| 0x5bf440 | FUN_005bf440 | 86 | cs_dispatch_win32.c |
-| 0x5bf496 | FUN_005bf496 | 50 | cs_dispatch_win32.c |
-| 0x5bf4fb | FUN_005bf4fb | 10 | rng.c, rng.h |
-| 0x5bf6df | FUN_005bf6df | 220 | rng.h |
-
-## orphan refs (4) — FUN_ in src/ not in function table
-
-Sub-helper labels (Ghidra splits a few functions) or typos. Listed so they read as known, not as silent drift.
-
-`0x56c470 0x56c4e0 0x56c580 0x56c610`
+| 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
+| 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
+| 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |
+| 0x5bf4fb | sub_5BF4FB | 10 | rng.c, rng.h |
+| 0x5bf6df | _time | 220 | rng.h |
 

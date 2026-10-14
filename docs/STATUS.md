@@ -7,31 +7,46 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███░░░░░░░░░░░░░░░░░  14.8% touched   (14.8% host-tested, 16.3% of code bytes)
+███░░░░░░░░░░░░░░░░░  15.0% touched   (15.0% host-tested, 16.7% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   228 | ported + module covered by the host unit suite       |
+| tested      |   238 | ported + module covered by the host unit suite       |
 | ported      |     5 | reimplemented in src/, no host test for that module  |
-| **touched** | **233** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1525 | exists in engine, never referenced from src/         |
+| **touched** | **243** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1581 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
-**engine-proper** functions — the **1490** below
-`0x5bdab0`. The other **268** non-thunk functions are the
+**engine-proper** functions — the **1532** below
+`0x5bdab0`. The other **292** non-thunk functions are the
 statically-linked MSVC CRT tail (operator_new, _malloc, _strcmp, __ftol, the
 `entry` startup, RtlUnwind, …); OpenSummoners is a **drop-in** that *links*
 those like retail rather than porting them (PLAN.md §2-3), so counting them
-would bury real progress. Full table is **1758** non-thunk
-functions (of 1768 incl. thunks).
+would bury real progress. Full table is **1824** non-thunk
+functions (of 1824 incl. thunks).
 
-Code-byte coverage (16.3% of engine-proper bytes) is the truer progress
+Code-byte coverage (16.7% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
 ## Current front
 
+- **2026-10-14 METHODOLOGY RESET (overnight) — rhost is the verification foundation.** Retail runs
+  in-process, deterministic, ~1000 fps (`tools/rhost/`, `docs/audits/2026-10-14-rhost-methodology.md`):
+  5 EN-old scenarios (boot → errands freeroam, options) + 1 EN-SE (new game → Tilelia) all det PASS;
+  corpus gate `rhost.py corpus --check`; shadow rand 69,420/0 + input_poll 42,125/0; shadow AND hybrid
+  replace → end states identical to pure retail (both editions). IDA 9.4 export of EN-old / EN-SE (2026-08-10 build) / JP-SE + crosswalk + C++ class recovery.
+  **USER decisions (audit §7):** (1) deterministic cadence for parity (rhost 1 update/flip vs the port's
+  33 ms/tick pin), (2) editions: EN-old first + SE delta later?, (3) retire the Frida retail drive.
+  **Port↔retail phase map** (`rhost.py portshots rh-newgame-prologue --search 40`, port `--det-clock`):
+  title intro port +31 flips ahead at f300 (exact match), +12..+20 later; prologue −3 flips and
+  pixel-identical once aligned. Title offset FIXED: retail's 47 boot "Now Loading NN%" presents (quirk
+  #129) ported behind `--boot-loading` → flips 1–48 + the title intro pixel-identical at the SAME flip.
+  **Next (port side, Phase 0):** make `--boot-loading` default (re-key port-only traces +47); menu quill
+  (f800 273 px); prologue 2 flips late (f1100 ≡ retail f1098);
+  DIK-level input path (producer `0x46a880`) so the port consumes `rh-*` traces natively; re-verify parity-ledger claims under rhost;
+  ledger generator → IDA function list (`docs/decompiled/functions.csv` is not on maximus).
 - **Phase — the freeroam sim**, built bit-exact vs errands re-drives. The prior arcs
   (town intro → arrival/house/errands cutscene; the HUD panel ckpt 167–174) render 1:1.
 - **Landed ckpt 175 — COLLISION:** the movers `0x54ded0`/`0x54db10` tile halves ported
@@ -416,6 +431,13 @@ understates how much actual instruction volume is ported.
 - **Standing bar:** every divergence is `differ_px==0` or a named/understood residual
   (`parity-ledger.md`); attribute to a pillar before suspecting logic (`parity-model.md`);
   seed-pinned both sides, compared by anchor/tick — never the flip axis.
+- **Side-track (2026-07-19) — ennse JP-voice patch: COMBAT voice fixed + a cross-edition VA
+  map.** Root-caused the silent combat grunts: they bake per-actor at actor-creation gated on
+  the voice bank, so the old late seed missed them; fix = an early main-thread hook restoring
+  the localizer-cut load at the JP-equivalent point (`findings/ense-voice-combat-init.md`,
+  USER to confirm live). New reusable RE asset **`docs/vamap/`** — a BinDiff-style matcher
+  mapping every VA across JP-SE/EN-SE/EN-old (jpse↔ense 99.6%, EN-old↔EN-SE ~80%), with a
+  similarity score per function; `nix develop --command bash tools/vamap/gen_vamap.sh`.
 - **Read next:** changelog → `PROGRESS.md`; deep RE → `findings/` (esp. `freeroam-hud.md`,
   `freeroam-brake-onset.md`); module layout + open threads → `memories/HANDOFF.md`
   (last rewritten ckpt 155 — stale on the HUD arc).
