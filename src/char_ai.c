@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "char_state.h"
 #include "engine_calls.h"
 #include "input.h"
 #include "sound_fx.h"
@@ -254,7 +255,7 @@ right_done:;
         wl_combo *cb;
         for (int i = 0; ; ) {
             cb = &self->combo[i];
-            if ((cb->cond == 0 || g_eng.skill_ok_402a60(self, cb->cond, b, a3, 0) != 0) &&
+            if ((cb->cond == 0 || char_skill_avail(self, (const wl_skill *)(intptr_t)cb->cond, b, a3, 0) != 0) &&
                 input_combo_match(self->input, cb, now, fwd, back, 1, 0) != 0)
                 break;
             if (++i >= self->n_combo) goto combos_done;

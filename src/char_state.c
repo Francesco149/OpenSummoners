@@ -242,3 +242,84 @@ int32_t entity_set_track(wl_entity *e, uint16_t i, int16_t a, int16_t b, uint8_t
     e->trk[i].f10 = f10;
     return f10;
 }
+
+int char_skill_avail(wl_char *c, const wl_skill *k, const wl_body *b, int32_t grounded, int32_t probing)
+{
+    if (k == NULL) return 0;
+    switch (k->cls) {
+    case 0xf00000:
+        break;
+    case 0xf00001:
+        if (c->party->f466 != 0 || party_find(c, 50013, 0, NULL, 0) == NULL) return 0;
+        break;
+    case 0xf00003:
+        if (c->party->member != 1) return 0;
+        /* fall through */
+    case 0xf00002:
+        if (c->party->f466 == 0) return 0;
+        break;
+    default:
+        if (k->cls != c->party->member) return 0;
+        break;
+    }
+    switch (k->mode) {
+    case 1: case 2: break;
+    case 3: if (probing != 0) return 0; break;
+    case 0xff: if (c->base.coll_off == 0) return 0; break;
+    default: return 0;
+    }
+    int32_t req = k->pose_req;
+    if (req == 0) {
+        if (b->pose != 0 && b->act_len > 200) return 0;
+    } else {
+        if (b->act_64 < k->pose_lo || b->act_64 > k->pose_hi) return 0;
+        if (b->pose != (uint32_t)req) {
+            if (req != 10101) return 0;
+            if (b->pose == 10115) {
+                if (b->act_arg != 0) return 0;
+            } else if (b->pose != 10122) {
+                return 0;
+            }
+        }
+    }
+    switch (k->ground) {
+    case 1: if (grounded == 0) return 0; break;
+    case 2: if (grounded != 0) return 0; break;
+    case 3:
+        if (grounded == 0) return 0;
+        if (b->vel_x < mul(c->max_speed, 900) / 1000) return 0;
+        break;
+    default: break;
+    }
+    return 1;
+}
+
+wl_char *party_find(const wl_char *c, int32_t code, int16_t pose, uint16_t *f58, uint16_t status)
+{
+    if (c->fc794 == 0) return NULL;
+    for (uint16_t i = 0; i < 8; i++) {
+        const uint8_t *reg; memcpy(&reg, (const uint8_t *)(intptr_t)c->fc794 + 0x9ec, sizeof reg);
+        const uint8_t *ent; memcpy(&ent, reg + 0x4030 + 4u * i, sizeof ent);
+        int32_t on; memcpy(&on, ent + 0x9c4, 4);
+        if (on != 1) continue;
+        wl_char *o; memcpy(&o, ent + 0x9f4, sizeof o);
+        if (o == NULL) continue;
+        if (code != 0 && o->base.code == code) return o;
+        if (pose != 0) {
+            if (f58 != NULL) *f58 = o->base.body->f58;
+            if (o->base.body->pose == (uint16_t)pose) return o;
+        }
+        if (status != 0 && wl_party_status(o->party, status) != 0) return o;
+    }
+    return NULL;
+}
+
+int32_t grid_floor_below(const wl_body *b, int32_t *row_out)
+{
+    int32_t cols = gi32(MG_DIM0), x = b->x;
+    int32_t c0 = clampi(x / 3200, cols - 1), c1 = clampi((b->w + x - 1) / 3200, cols - 1);
+    int32_t row = (b->h + b->y - 1) / 3200 + 1;
+    while (row < gi32(MG_DIM1) && region_d(c0, row) == 0 && region_d(c1, row) == 0) row++;
+    if (row_out != NULL) *row_out = row;
+    return 3200 * row - b->h - b->y;
+}

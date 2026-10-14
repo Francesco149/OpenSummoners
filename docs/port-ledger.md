@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **363** (22.8% of engine-proper) — tested 250, ported 113
-- code bytes touched: **22.1%** (392,060 / 1,776,526 B of engine-proper)
-- unported: **1461**
+- touched: **382** (24.1% of engine-proper) — tested 250, ported 132
+- code bytes touched: **23.5%** (417,465 / 1,776,526 B of engine-proper)
+- unported: **1442**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,11 +274,13 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (113) — reimplemented, no host test yet
+## ported (132) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
+| 0x402a60 | sub_402A60 | 435 | char_state.h |
+| 0x4060d0 | sub_4060D0 | 241 | char_state.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
@@ -296,11 +298,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
 | 0x41ef80 | sub_41EF80 | 83 | char_state.h |
 | 0x426440 | sub_426440 | 47 | char_state.h |
+| 0x4265e0 | sub_4265E0 | 53 | particle_init.h |
+| 0x426620 | sub_426620 | 1437 | particle_init.c, particle_init.h |
 | 0x426be0 | sub_426BE0 | 395 | char_integrate.h |
+| 0x426d70 | sub_426D70 | 57 | particle_init.h |
 | 0x426db0 | sub_426DB0 | 72 | char_state.h |
+| 0x426ec0 | sub_426EC0 | 82 | particle_init.h |
 | 0x426f20 | sub_426F20 | 47 | char_integrate.h |
 | 0x426f70 | sub_426F70 | 37 | npc_ai.h |
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
+| 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
+| 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
 | 0x43f880 | sub_43F880 | 5491 | npc_ai.c, npc_ai.h |
 | 0x440e40 | sub_440E40 | 239 | npc_ai.h |
@@ -326,6 +334,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x446580 | sub_446580 | 185 | sound_fx.h |
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
 | 0x4467d0 | sub_4467D0 | 289 | entity_life.h |
+| 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
@@ -335,6 +344,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
 | 0x4593c0 | sub_4593C0 | 32 | char_state.h |
+| 0x460e40 | sub_460E40 | 143 | particle_init.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
 | 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
@@ -343,7 +353,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
 | 0x46e510 | sub_46E510 | 10712 | particle_tick.c, particle_tick.h |
 | 0x471080 | sub_471080 | 49 | particle_tick.c, particle_tick.h |
+| 0x476710 | sub_476710 | 44 | particle_init.h |
 | 0x476880 | sub_476880 | 509 | sound_fx.h |
+| 0x476c70 | sub_476C70 | 144 | particle_init.h |
+| 0x476d00 | sub_476D00 | 45 | particle_init.h |
 | 0x47b770 | sub_47B770 | 77 | behave_ops.h |
 | 0x47b990 | actor_ai_47B990 | 7461 | behave_ops.h, char_behave.c, char_behave.h |
 | 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
@@ -384,8 +397,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5564e0 | sub_5564E0 | 298 | actor_ops.h |
 | 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
 | 0x557370 | particle_spawn_557370 | 452 | particle_spawn.c, particle_spawn.h |
+| 0x557550 | sub_557550 | 21735 | particle_init.c, particle_init.h |
+| 0x55cbc0 | sub_55CBC0 | 394 | particle_init.h |
+| 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
+| 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
+| 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
+| 0x5b5990 | sub_5B5990 | 202 | char_state.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

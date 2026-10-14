@@ -125,7 +125,7 @@ int char_skill_ok(wl_char *self, const wl_skill *k, int32_t probe)
         break;
     case 0xf00001:
         if (self->party->f466 != 0) return 0;
-        if (g_eng.skill_cond_5b5990(self, 50013, 0, NULL, 0) == 0) return 0;
+        if (party_find(self, 50013, 0, NULL, 0) == NULL) return 0;
         break;
     case 0xf00003:
         if (self->party->member != 1) return 0;

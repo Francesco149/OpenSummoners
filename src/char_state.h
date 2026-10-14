@@ -13,7 +13,8 @@
  *   FUN_004593c0  body_slowed            FUN_00487250  grid_b_word
  *   FUN_004872d0  grid_c_at_feet         FUN_00453960  entity_scatter
  *   FUN_00426440  sys_by_mode            FUN_0041ee60  entity_anchor
- *   FUN_00426db0  entity_set_track
+ *   FUN_00426db0  entity_set_track       FUN_00402a60  char_skill_avail
+ *   FUN_005b5990  party_find             FUN_004060d0  grid_floor_below
  */
 #ifndef OSS_CHAR_STATE_H
 #define OSS_CHAR_STATE_H
@@ -57,5 +58,13 @@ int32_t sys_by_mode(const void *sys, int32_t a, int32_t b, int32_t c);
 void entity_anchor(const wl_entity *e, int32_t x, int32_t y, int32_t anchor, int32_t *ox, int32_t *oy);
 /* fill the 20-byte record i at entity +0x48 (no bounds check, as retail) */
 int32_t entity_set_track(wl_entity *e, uint16_t i, int16_t a, int16_t b, uint8_t on, int32_t f0c, int32_t f08, int32_t f10);
+/* A skill record's availability (party class gate, mode, the pose it chains from, the
+ * ground requirement; `probing` refuses mode 3). */
+int char_skill_avail(wl_char *c, const wl_skill *k, const wl_body *b, int32_t grounded, int32_t probing);
+/* The party registry (char +0xc794): the first live member with `code`, or (pose != 0) in
+ * that pose (*f58 = its phase), or (status != 0) with that status timer running. */
+wl_char *party_find(const wl_char *c, int32_t code, int16_t pose, uint16_t *f58, uint16_t status);
+/* the first floor row under body `b` (both edge columns, region D); the drop to it */
+int32_t grid_floor_below(const wl_body *b, int32_t *row_out);
 
 #endif /* OSS_CHAR_STATE_H */

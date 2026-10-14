@@ -36,6 +36,7 @@
 #include "actor_ops.h"
 #include "particle_spawn.h"
 #include "grid_refresh.h"
+#include "particle_init.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -55,7 +56,9 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_ST_STUCK, H_GRID_B, H_PIT, H_RESPAWN, H_MODS, H_AI_RESET, H_SLOWED, H_LOOKUP, H_TARGETABLE, H_SND_LOOP, H_SFX_JIT,
        H_FORCE_ACT, H_GRID_C, H_ADD_HP, H_ADD_MP,
        H_AMBIENT, H_IDLE_VOICE, H_SCATTER, H_SYS_MODE,
-       H_CRATE, H_BREAK, H_SLIDE_V, H_RIDERS, H_DUST, H_ANCHOR, H_SPAWN, H_TRACK, H_GRID_REFRESH, H_GRID_MARK, H_N };
+       H_CRATE, H_BREAK, H_SLIDE_V, H_RIDERS, H_DUST, H_ANCHOR, H_SPAWN, H_TRACK, H_GRID_REFRESH, H_GRID_MARK,
+       H_PINIT, H_ESETUP, H_RIDE, H_RIDE_PART, H_POLAR_DIV, H_POLAR_MILLI, H_FADE_A, H_FADE_B, H_TRACK_ON, H_SND_ALLOC, H_JITTER,
+       H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -1571,6 +1574,267 @@ static void __attribute__((thiscall)) w_gmark(uint8_t *g, int32_t x0, int32_t y0
     full_shadow(h, "grid_mark", gmark_retail, gmark_port, &x, what);
 }
 
+/* ---- the particle init (src/particle_init.c) ---- */
+typedef int32_t (__attribute__((thiscall)) *pinit_t)(wl_particle *, int32_t, int32_t, int32_t, int32_t, uint32_t, int32_t, wl_entity *,
+                                                     int32_t, int32_t, int32_t);
+typedef struct { wl_particle *p; int32_t code, x, y, facing; uint32_t delay; int32_t anchor; wl_entity *owner; int32_t angle, prio, fac; int32_t rr, rp; } pinit_ctx;
+static void pinit_retail(void *c_)
+{
+    pinit_ctx *x = c_;
+    x->rr = ((pinit_t)(uintptr_t)H[H_PINIT].va)(x->p, x->code, x->x, x->y, x->facing, x->delay, x->anchor, x->owner, x->angle, x->prio, x->fac);
+}
+static void pinit_port(void *c_)
+{
+    pinit_ctx *x = c_;
+    port_world();
+    particle_init(x->p, x->code, x->x, x->y, x->facing, x->delay, x->anchor, x->owner, x->angle, x->prio, x->fac);
+}
+static long g_pinit_codes[160]; static int32_t g_pinit_code_id[160]; static int g_npinit_codes;
+static int32_t __attribute__((thiscall)) w_pinit(wl_particle *p, int32_t code, int32_t x0, int32_t y0, int32_t facing, uint32_t delay,
+                                                 int32_t anchor, wl_entity *owner, int32_t angle, int32_t prio, int32_t fac)
+{
+    hook_t *h = &H[H_PINIT];
+    pinit_ctx x = { p, code, x0, y0, facing, delay, anchor, owner, angle, prio, fac, 0, 0 };
+    if (h->mode == 2) { h->calls++; pinit_port(&x); return 0; }
+    int k = 0;
+    while (k < g_npinit_codes && g_pinit_code_id[k] != code) k++;
+    if (k == g_npinit_codes && k < 160) { g_pinit_code_id[k] = code; g_npinit_codes++; }
+    int rare = k < 160 && g_pinit_codes[k] < 64;
+    if (!sample_rare(h, rare)) { pinit_retail(&x); return x.rr; }
+    if (k < 160) g_pinit_codes[k]++;
+    char what[96]; snprintf(what, sizeof what, "particle %p code %d delay %u anchor %d", (void *)p, code, delay & 0xffffu, anchor);
+    full_shadow(h, "particle_init", pinit_retail, pinit_port, &x, what);   /* eax: a register nobody reads */
+    return x.rr;
+}
+
+typedef void (__attribute__((thiscall)) *esetup_t)(wl_entity *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t,
+                                                   uint32_t, int32_t, int32_t, int32_t, int32_t, uint32_t);
+typedef struct { wl_entity *e; int32_t a[8]; uint32_t on; int32_t dx, dy, anchor, tint; uint32_t nfx; } esetup_ctx;
+static void esetup_retail(void *c_)
+{
+    esetup_ctx *x = c_;
+    ((esetup_t)(uintptr_t)H[H_ESETUP].va)(x->e, x->a[0], x->a[1], x->a[2], x->a[3], x->a[4], x->a[5], x->a[6], x->a[7], x->on, x->dx, x->dy,
+                                          x->anchor, x->tint, x->nfx);
+}
+static void esetup_port(void *c_)
+{
+    esetup_ctx *x = c_;
+    port_world();
+    entity_setup(x->e, x->a[0], x->a[1], x->a[2], x->a[3], x->a[4], x->a[5], x->a[6], x->a[7], (uint8_t)x->on, x->dx, x->dy, x->anchor,
+                 x->tint, (int16_t)x->nfx);
+}
+static void __attribute__((thiscall)) w_esetup(wl_entity *e, int32_t kind, int32_t code, int32_t fac, int32_t x0, int32_t y0, int32_t w,
+                                               int32_t hh, int32_t facing, uint32_t on, int32_t dx, int32_t dy, int32_t anchor, int32_t tint,
+                                               uint32_t nfx)
+{
+    hook_t *h = &H[H_ESETUP];
+    esetup_ctx x = { e, { kind, code, fac, x0, y0, w, hh, facing }, on, dx, dy, anchor, tint, nfx };
+    if (h->mode == 2) { h->calls++; esetup_port(&x); return; }
+    if (!sample(h)) { esetup_retail(&x); return; }
+    char what[96]; snprintf(what, sizeof what, "ent %p code %d anchor %d", (void *)e, code, anchor);
+    full_shadow(h, "entity_setup", esetup_retail, esetup_port, &x, what);
+}
+
+typedef void (__attribute__((thiscall)) *ride_t)(wl_entity *, wl_entity *);
+typedef struct { wl_entity *e, *par; } ride_ctx;
+static void ride_retail(void *c_) { ride_ctx *x = c_; ((ride_t)(uintptr_t)H[H_RIDE].va)(x->e, x->par); }
+static void ride_port(void *c_) { ride_ctx *x = c_; entity_ride(x->e, x->par); }
+static void __attribute__((thiscall)) w_ride(wl_entity *e, wl_entity *par)
+{
+    hook_t *h = &H[H_RIDE];
+    ride_ctx x = { e, par };
+    if (h->mode == 2) { h->calls++; ride_port(&x); return; }
+    if (!sample(h)) { ride_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "ent %p", (void *)e);
+    full_shadow(h, "entity_ride", ride_retail, ride_port, &x, what);
+}
+typedef void (__attribute__((thiscall)) *ridep_t)(wl_entity *, const wl_body *, uint32_t);
+typedef struct { wl_entity *e; const wl_body *b; uint32_t part; } ridep_ctx;
+static void ridep_retail(void *c_) { ridep_ctx *x = c_; ((ridep_t)(uintptr_t)H[H_RIDE_PART].va)(x->e, x->b, x->part); }
+static void ridep_port(void *c_) { ridep_ctx *x = c_; entity_ride_part(x->e, x->b, (uint16_t)x->part); }
+static void __attribute__((thiscall)) w_ridep(wl_entity *e, const wl_body *b, uint32_t part)
+{
+    hook_t *h = &H[H_RIDE_PART];
+    ridep_ctx x = { e, b, part };
+    if (h->mode == 2) { h->calls++; ridep_port(&x); return; }
+    if (!sample(h)) { ridep_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "ent %p part %u", (void *)e, part & 0xffffu);
+    full_shadow(h, "entity_ride_part", ridep_retail, ridep_port, &x, what);
+}
+
+/* the x87 polar steps: pure, compare both outputs */
+typedef int32_t (__stdcall *pdiv_t)(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t *, int32_t *);
+static int32_t __stdcall w_pdiv(int32_t r, int32_t ang, int32_t n, int32_t cx, int32_t cy, int32_t *ox, int32_t *oy)
+{
+    hook_t *h = &H[H_POLAR_DIV];
+    if (h->mode == 2) { h->calls++; polar_div(r, ang, n, cx, cy, ox, oy); return 0; }
+    int32_t rv = ((pdiv_t)(uintptr_t)h->va)(r, ang, n, cx, cy, ox, oy);
+    if (!sample(h)) return rv;
+    int32_t px, py;
+    polar_div(r, ang, n, cx, cy, &px, &py);
+    h->compared++;
+    if (px != *ox || py != *oy) diverged(h, "f%u r %d ang %d n %d: retail %d,%d port %d,%d", g_frame, r, ang, n, *ox, *oy, px, py);
+    return rv;
+}
+typedef int32_t (__stdcall *pmil_t)(int32_t, int32_t, int32_t, int32_t, int32_t *, int32_t *);
+static int32_t __stdcall w_pmil(int32_t cx, int32_t cy, int32_t r, int32_t ang, int32_t *ox, int32_t *oy)
+{
+    hook_t *h = &H[H_POLAR_MILLI];
+    if (h->mode == 2) { h->calls++; polar_milli(cx, cy, r, ang, ox, oy); return 0; }
+    int32_t rv = ((pmil_t)(uintptr_t)h->va)(cx, cy, r, ang, ox, oy);
+    if (!sample(h)) return rv;
+    int32_t px, py;
+    polar_milli(cx, cy, r, ang, &px, &py);
+    h->compared++;
+    if (px != *ox || py != *oy) diverged(h, "f%u r %d ang %d: retail %d,%d port %d,%d", g_frame, r, ang, *ox, *oy, px, py);
+    return rv;
+}
+typedef int32_t (__stdcall *fade_t)(int32_t, int32_t);
+static int32_t fade_shadow(hook_t *h, int32_t (*port)(int32_t, int32_t), int32_t k, int32_t n)
+{
+    if (h->mode == 2) { h->calls++; return port(k, n); }
+    int32_t r = ((fade_t)(uintptr_t)h->va)(k, n);
+    if (!sample(h)) return r;
+    int32_t p = port(k, n);
+    h->compared++;
+    if (p != r) diverged(h, "f%u %d/%d: retail %d port %d", g_frame, k, n, r, p);
+    return r;
+}
+static int32_t __stdcall w_fade_a(int32_t k, int32_t n) { return fade_shadow(&H[H_FADE_A], tint_fade_a, k, n); }
+static int32_t __stdcall w_fade_b(int32_t k, int32_t n) { return fade_shadow(&H[H_FADE_B], tint_fade_b, k, n); }
+
+typedef int32_t (__attribute__((thiscall)) *trkon_t)(wl_entity *, uint32_t, uint32_t, uint32_t);
+typedef struct { wl_entity *e; uint32_t i, a, b; int32_t rr, rp; } trkon_ctx;
+static void trkon_retail(void *c_) { trkon_ctx *x = c_; x->rr = ((trkon_t)(uintptr_t)H[H_TRACK_ON].va)(x->e, x->i, x->a, x->b); }
+static void trkon_port(void *c_) { trkon_ctx *x = c_; x->rp = entity_track_on(x->e, (uint16_t)x->i, (int16_t)x->a, (int16_t)x->b); }
+static int32_t __attribute__((thiscall)) w_trkon(wl_entity *e, uint32_t i, uint32_t a, uint32_t b)
+{
+    hook_t *h = &H[H_TRACK_ON];
+    trkon_ctx x = { e, i, a, b, 0, 0 };
+    if (h->mode == 2) { h->calls++; trkon_port(&x); return x.rp; }
+    if (!sample(h)) { trkon_retail(&x); return x.rr; }
+    char what[64]; snprintf(what, sizeof what, "ent %p i %u", (void *)e, i & 0xffffu);
+    if (!full_shadow(h, "track_on", trkon_retail, trkon_port, &x, what) && x.rr != x.rp) diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+typedef int (__attribute__((thiscall)) *salloc_t)(wl_entity *, uint32_t);
+typedef struct { wl_entity *e; uint32_t n; int rr, rp; } salloc_ctx;
+static void salloc_retail(void *c_) { salloc_ctx *x = c_; x->rr = ((salloc_t)(uintptr_t)H[H_SND_ALLOC].va)(x->e, x->n); }
+static void salloc_port(void *c_) { salloc_ctx *x = c_; port_world(); x->rp = entity_snd_alloc(x->e, (uint16_t)x->n); }
+static int __attribute__((thiscall)) w_salloc(wl_entity *e, uint32_t n)
+{
+    hook_t *h = &H[H_SND_ALLOC];
+    salloc_ctx x = { e, n, 0, 0 };
+    if (h->mode == 2) { h->calls++; salloc_port(&x); return x.rp; }
+    if (!sample(h)) { salloc_retail(&x); return x.rr; }
+    char what[64]; snprintf(what, sizeof what, "ent %p n %u", (void *)e, n & 0xffffu);
+    full_shadow(h, "snd_alloc", salloc_retail, salloc_port, &x, what);
+    return x.rr;
+}
+
+typedef void (__stdcall *jit_t)(wl_body *);
+static void jit_retail(void *c_) { ((jit_t)(uintptr_t)H[H_JITTER].va)(c_); }
+static void jit_port(void *c_) { body_clip_jitter(c_); }
+static void __stdcall w_jit(wl_body *b)
+{
+    hook_t *h = &H[H_JITTER];
+    if (h->mode == 2) { h->calls++; body_clip_jitter(b); return; }
+    if (!sample(h)) { jit_retail(b); return; }
+    char what[64]; snprintf(what, sizeof what, "body %p", (void *)b);
+    full_shadow(h, "clip_jitter", jit_retail, jit_port, b, what);
+}
+
+typedef void *(__attribute__((thiscall)) *pfree_t)(void *, uint32_t);
+typedef struct { void *t; uint32_t del; } pfree_ctx;
+static void pfree_retail(void *c_) { pfree_ctx *x = c_; ((pfree_t)(uintptr_t)H[H_PARTS_FREE].va)(x->t, x->del); }
+static void pfree_port(void *c_) { pfree_ctx *x = c_; parts_free(x->t, (int32_t)(x->del & 0xff)); }
+static void *__attribute__((thiscall)) w_pfree(void *t, uint32_t del)
+{
+    hook_t *h = &H[H_PARTS_FREE];
+    pfree_ctx x = { t, del };
+    if (h->mode == 2) { h->calls++; pfree_port(&x); return t; }
+    if (!sample(h)) { pfree_retail(&x); return t; }
+    char what[64]; snprintf(what, sizeof what, "parts %p del %u", t, del & 0xffu);
+    full_shadow(h, "parts_free", pfree_retail, pfree_port, &x, what);
+    return t;
+}
+
+typedef wl_body *(__stdcall *sang_t)(wl_body *, int32_t, int32_t);
+static wl_body *__stdcall w_sang(wl_body *b, int32_t a, int32_t m)
+{
+    hook_t *h = &H[H_SET_ANGLE];
+    if (h->mode == 2) { h->calls++; body_set_angle(b, a, m); return b; }
+    int32_t pre = b->angle;
+    ((sang_t)(uintptr_t)h->va)(b, a, m);
+    if (!sample(h)) return b;
+    int32_t post = b->angle;
+    b->angle = pre;
+    body_set_angle(b, a, m);
+    h->compared++;
+    if (b->angle != post) diverged(h, "f%u a %d m %d facing %d: retail %d port %d", g_frame, a, m, b->facing, post, b->angle);
+    b->angle = post;
+    return b;
+}
+
+typedef int (__attribute__((thiscall)) *fxr_t)(wl_entity *, uint32_t);
+typedef struct { wl_entity *e; uint32_t n; } fxr_ctx;
+static void fxr_retail(void *c_) { fxr_ctx *x = c_; ((fxr_t)(uintptr_t)H[H_FX_RESET].va)(x->e, x->n); }
+static void fxr_port(void *c_) { fxr_ctx *x = c_; entity_fx_reset(x->e, (int16_t)x->n); }
+static int __attribute__((thiscall)) w_fxr(wl_entity *e, uint32_t n)
+{
+    hook_t *h = &H[H_FX_RESET];
+    fxr_ctx x = { e, n };
+    if (h->mode == 2) { h->calls++; fxr_port(&x); return 0; }
+    if (!sample(h)) { fxr_retail(&x); return 0; }
+    char what[64]; snprintf(what, sizeof what, "ent %p n %u", (void *)e, n & 0xffffu);
+    full_shadow(h, "fx_reset", fxr_retail, fxr_port, &x, what);
+    return 0;
+}
+
+/* ---- skill availability / party lookup / floor below: pure, return compared ---- */
+typedef int (__attribute__((thiscall)) *savail_t)(wl_char *, const wl_skill *, const wl_body *, int32_t, int32_t);
+static int __attribute__((thiscall)) w_savail(wl_char *c, const wl_skill *k, const wl_body *b, int32_t gr, int32_t probing)
+{
+    hook_t *h = &H[H_SKILL_AVAIL];
+    if (h->mode == 2) { h->calls++; return char_skill_avail(c, k, b, gr, probing); }
+    int r = ((savail_t)(uintptr_t)h->va)(c, k, b, gr, probing);
+    if (!sample(h)) return r;
+    int p = char_skill_avail(c, k, b, gr, probing);
+    h->compared++;
+    if (p != r) diverged(h, "f%u char %p skill %d: retail %d port %d", g_frame, (void *)c, k ? k->id : 0, r, p);
+    return r;
+}
+typedef wl_char *(__attribute__((thiscall)) *pfind_t)(const wl_char *, int32_t, uint32_t, uint16_t *, uint32_t);
+static wl_char *__attribute__((thiscall)) w_pfind(const wl_char *c, int32_t code, uint32_t pose, uint16_t *f58, uint32_t st)
+{
+    hook_t *h = &H[H_PARTY_FIND];
+    if (h->mode == 2) { h->calls++; return party_find(c, code, (int16_t)pose, f58, (uint16_t)st); }
+    uint16_t pre = f58 ? *f58 : 0;
+    wl_char *r = ((pfind_t)(uintptr_t)h->va)(c, code, pose, f58, st);
+    if (!sample(h)) return r;
+    uint16_t rf = f58 ? *f58 : 0, pf = pre;
+    wl_char *p = party_find(c, code, (int16_t)pose, f58 ? &pf : NULL, (uint16_t)st);
+    h->compared++;
+    if (p != r || pf != rf) diverged(h, "f%u code %d pose %u: retail %p/%u port %p/%u", g_frame, code, pose & 0xffffu, (void *)r, rf, (void *)p, pf);
+    return r;
+}
+typedef int32_t (__stdcall *fbelow_t)(const wl_body *, int32_t *);
+static int32_t __stdcall w_fbelow(const wl_body *b, int32_t *row)
+{
+    hook_t *h = &H[H_FLOOR_BELOW];
+    if (h->mode == 2) { h->calls++; port_world(); return grid_floor_below(b, row); }
+    int32_t pre = row ? *row : 0;
+    int32_t r = ((fbelow_t)(uintptr_t)h->va)(b, row);
+    if (!sample(h)) return r;
+    int32_t rr = row ? *row : 0, pr = pre;
+    port_world();
+    int32_t p = grid_floor_below(b, row ? &pr : NULL);
+    h->compared++;
+    if (p != r || pr != rr) diverged(h, "f%u body %p: retail %d/%d port %d/%d", g_frame, (void *)b, r, rr, p, pr);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -1652,6 +1916,23 @@ static hook_t H[H_N] = {
     [H_TRACK]      = { "set_track",      0x426db0u, (void *)w_track,  0, 1, 0, 0, 0, 0, "" },
     [H_GRID_REFRESH] = { "grid_refresh", 0x54c640u, (void *)w_grefresh, 0, 1, 0, 0, 0, 0, "" },
     [H_GRID_MARK]  = { "grid_mark",      0x54c9d0u, (void *)w_gmark,  0, 1, 0, 0, 0, 0, "" },
+    [H_PINIT]      = { "particle_init",  0x557550u, (void *)w_pinit,  0, 1, 0, 0, 0, 0, "" },
+    [H_ESETUP]     = { "entity_setup",   0x426620u, (void *)w_esetup, 0, 1, 0, 0, 0, 0, "" },
+    [H_RIDE]       = { "entity_ride",    0x55cd50u, (void *)w_ride,   0, 1, 0, 0, 0, 0, "" },
+    [H_RIDE_PART]  = { "entity_ride_part", 0x476c70u, (void *)w_ridep, 0, 1, 0, 0, 0, 0, "" },
+    [H_POLAR_DIV]  = { "polar_div",      0x460e40u, (void *)w_pdiv,   0, 1, 0, 0, 0, 0, "" },
+    [H_POLAR_MILLI] = { "polar_milli",   0x55cdb0u, (void *)w_pmil,   0, 1, 0, 0, 0, 0, "" },
+    [H_FADE_A]     = { "tint_fade_a",    0x448c80u, (void *)w_fade_a, 0, 1, 0, 0, 0, 0, "" },
+    [H_FADE_B]     = { "tint_fade_b",    0x476710u, (void *)w_fade_b, 0, 1, 0, 0, 0, 0, "" },
+    [H_TRACK_ON]   = { "track_on",       0x426d70u, (void *)w_trkon,  0, 1, 0, 0, 0, 0, "" },
+    [H_SND_ALLOC]  = { "snd_alloc",      0x55cbc0u, (void *)w_salloc, 0, 1, 0, 0, 0, 0, "" },
+    [H_JITTER]     = { "clip_jitter",    0x426ec0u, (void *)w_jit,    0, 1, 0, 0, 0, 0, "" },
+    [H_PARTS_FREE] = { "parts_free",     0x4272e0u, (void *)w_pfree,  0, 1, 0, 0, 0, 0, "" },
+    [H_SET_ANGLE]  = { "set_angle",      0x476d00u, (void *)w_sang,   0, 1, 0, 0, 0, 0, "" },
+    [H_FX_RESET]   = { "fx_reset",       0x4265e0u, (void *)w_fxr,    0, 1, 0, 0, 0, 0, "" },
+    [H_SKILL_AVAIL] = { "skill_avail",   0x402a60u, (void *)w_savail, 0, 1, 0, 0, 0, 0, "" },
+    [H_PARTY_FIND] = { "party_find",     0x5b5990u, (void *)w_pfind,  0, 1, 0, 0, 0, 0, "" },
+    [H_FLOOR_BELOW] = { "floor_below",   0x4060d0u, (void *)w_fbelow, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -1664,7 +1945,6 @@ static void bind_engine_calls(void)
     g_eng.log    = (void *)(uintptr_t)0x8a9530u;
     *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
     *(void **)&g_eng.probe_440f40        = (void *)(uintptr_t)0x440f40u;
-    *(void **)&g_eng.skill_ok_402a60     = (void *)(uintptr_t)0x402a60u;
     *(void **)&g_eng.party_slot_ok_4071f0 = (void *)(uintptr_t)0x4071f0u;
     *(void **)&g_eng.skill_479f90        = (void *)(uintptr_t)0x479f90u;
     *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;
@@ -1688,7 +1968,6 @@ static void bind_engine_calls(void)
     B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
     B(44d2e0); B(456d30); B(461790); B(445e50);
 #undef B
-    *(void **)&g_eng.skill_cond_5b5990   = (void *)(uintptr_t)0x5b5990u;
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(5b4d00);
     B(5b5600); B(487dc0);
@@ -1698,8 +1977,8 @@ static void bind_engine_calls(void)
     B(408100); B(408b90); B(40be00); B(54f140);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
-    B(557550); B(5b9390);
-    B(47da60); B(482240); B(482460); B(482ac0); B(4060d0); B(47de50); B(47f670); B(47f9d0);
+    B(5b9390);
+    B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
     B(481ac0); B(482e10); B(4834f0); B(484ea0); B(4854e0); B(485990); B(47d790); B(481310); B(482880);
     B(47b7c0); B(47e010); B(47eae0); B(483fb0); B(483de0); B(485350); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0); B(441f50); B(407f30);
 #undef B
@@ -1725,7 +2004,10 @@ void rh_hooks_install(void)
         H[H_LOOKUP].va = H[H_TARGETABLE].va = H[H_SND_LOOP].va = H[H_SFX_JIT].va = H[H_FORCE_ACT].va = H[H_GRID_C].va =
         H[H_ADD_HP].va = H[H_ADD_MP].va =
         H[H_AMBIENT].va = H[H_IDLE_VOICE].va = H[H_SCATTER].va = H[H_SYS_MODE].va =
-        H[H_CRATE].va = H[H_BREAK].va = H[H_SLIDE_V].va = H[H_RIDERS].va = H[H_DUST].va = H[H_ANCHOR].va = H[H_SPAWN].va = H[H_TRACK].va = H[H_GRID_REFRESH].va = H[H_GRID_MARK].va = 0;
+        H[H_CRATE].va = H[H_BREAK].va = H[H_SLIDE_V].va = H[H_RIDERS].va = H[H_DUST].va = H[H_ANCHOR].va = H[H_SPAWN].va = H[H_TRACK].va = H[H_GRID_REFRESH].va = H[H_GRID_MARK].va =
+        H[H_PINIT].va = H[H_ESETUP].va = H[H_RIDE].va = H[H_RIDE_PART].va = H[H_POLAR_DIV].va = H[H_POLAR_MILLI].va = H[H_FADE_A].va =
+        H[H_FADE_B].va = H[H_TRACK_ON].va = H[H_SND_ALLOC].va = H[H_JITTER].va = H[H_PARTS_FREE].va = H[H_SET_ANGLE].va = H[H_FX_RESET].va =
+        H[H_SKILL_AVAIL].va = H[H_PARTY_FIND].va = H[H_FLOOR_BELOW].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -1764,6 +2046,8 @@ void rh_hooks_report(void)
                g_int_special, g_integrate_unported);
     if (H[H_BEHAVE].mode == 1)
         for (int k = 0; k < g_nbh_codes; k++) rh_log("char_behave coverage: code %d compared %ld\n", g_bh_code_id[k], g_bh_codes[k]);
+    if (H[H_PINIT].mode == 1)
+        for (int k = 0; k < g_npinit_codes; k++) rh_log("particle_init coverage: code %d compared %ld\n", g_pinit_code_id[k], g_pinit_codes[k]);
     if (H[H_PARTICLE].mode == 1)
         for (int k = 0; k < g_nprt_codes; k++) rh_log("particle_tick coverage: code %d compared %ld\n", g_prt_code_id[k], g_prt_codes[k]);
     if (H[H_ACTOR].mode == 1)

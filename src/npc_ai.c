@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "char_ai.h"
+#include "char_state.h"
 #include "engine_calls.h"
 #include "entity_move.h"
 #include "map_grid.h"
@@ -539,7 +540,7 @@ jump_done:
                 if (act[ai] == 5 ? back == 0 : (fwd == 0 || run == 0)) break;
                 for (int32_t k = 0; k < self->n_skills; k++)
                     if (self->skills[k].id == (int32_t)(uint16_t)sk) {
-                        if (g_eng.skill_ok_402a60(self, (int32_t)(intptr_t)&self->skills[k], b, grounded, 1) == 0) goto rejected;
+                        if (char_skill_avail(self, &self->skills[k], b, grounded, 1) == 0) goto rejected;
                         break;
                     }
                 cmd.skill = (uint16_t)sk; cmd.skill_arg = (uint16_t)arg; cmd.skill_kind = 210;

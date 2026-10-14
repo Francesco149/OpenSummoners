@@ -434,7 +434,10 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "status_stuck@4", "grid_b_word@4", "pit_check@16", "respawn_mark@16", "mods_reset@16", "ai_reset", "body_slowed@4",
                 "set_look_up", "targetable@4", "snd_loop@4", "sfx_play_jit", "force_action", "grid_c_at_feet@4", "add_hp", "add_mp",
                 "ambient_timer@16", "idle_voice@16", "entity_scatter", "sys_by_mode",
-                "actor_crate@4", "actor_break", "actor_slide_v@4", "count_riders@4", "entity_dust", "entity_anchor", "particle_spawn@4", "set_track", "grid_refresh", "grid_mark"]
+                "actor_crate@4", "actor_break", "actor_slide_v@4", "count_riders@4", "entity_dust", "entity_anchor", "particle_spawn@4", "set_track", "grid_refresh", "grid_mark",
+                "particle_init@16", "entity_setup@16", "entity_ride@4", "entity_ride_part@4", "polar_div", "polar_milli", "tint_fade_a@4",
+                "tint_fade_b@4", "track_on@16", "snd_alloc", "clip_jitter", "parts_free", "set_angle@16", "fx_reset@16",
+                "skill_avail@4", "party_find@4", "floor_below@4"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

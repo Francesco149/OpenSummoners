@@ -122,7 +122,7 @@ typedef struct wl_body {
     int32_t  vel_x;           /* +0x028  horizontal speed (x100 per tick, >= 0)          */
     int32_t  facing;          /* +0x02c  1 right, 3 left                                 */
     int32_t  vdir;            /* +0x030  vertical slide direction (2 down; 0x555e90)     */
-    uint8_t  _p034[0x38 - 0x34];
+    int32_t  angle;           /* +0x034  (orbits: milli-degrees; 0x476d00)               */
     uint16_t state;           /* +0x038  0 stand, 1 move, 2 crouch, 3 jump, 4 air,
                                *          5 look up, 6 slide                              */
     uint16_t sub;             /* +0x03a  the state's sub-phase                          */
@@ -174,7 +174,8 @@ typedef struct wl_entity {
     struct wl_entity *parent; /* +0x010 particles: the entity they ride (0x46e510)       */
     int32_t  par_dx;         /* +0x014  ... at this offset from its body's top centre    */
     int32_t  par_dy;         /* +0x018 */
-    uint8_t  _p01c[0x24 - 0x1c];
+    int32_t  f1c;            /* +0x01c */
+    int32_t  f20;            /* +0x020  (32 after setup) */
     int32_t  f24;            /* +0x024  added to the body y for the listener distance    */
     int32_t  width;          /* +0x028  the body box the integrator stamps each tick    */
     int32_t  height;         /* +0x02c */
@@ -191,8 +192,11 @@ typedef struct wl_entity {
         uint8_t  _p5[3];
         int32_t  f08, f0c, f10;
     } trk[8];                /* +0x048  20-byte records (0x426db0 sets one)                */
-    int32_t  fe8;            /* +0x0e8 */
-    uint8_t  _p0ec[0xf4 - 0xec];
+    uint16_t fe8;            /* +0x0e8  (u16 in every entity access) */
+    uint16_t _pea;
+    int32_t  fec;            /* +0x0ec */
+    uint16_t ff0;            /* +0x0f0 */
+    uint16_t _pf2;
     int32_t  tint_f4;        /* +0x0f4 */
     int32_t  tint_f8;        /* +0x0f8 */
     int32_t  f0fc;           /* +0x0fc */
@@ -210,12 +214,16 @@ typedef struct wl_entity {
     int32_t  rider_heavy;    /* +0x1bc  != 0 => counts as a weight on a switch            */
     int32_t  ride_mode;      /* +0x1c0  as a platform: 0/1 only its rider, 3 anyone     */
     int32_t  f1c4;           /* +0x1c4  (a crate's push resistance: 100 once it fell)     */
-    uint8_t  _p1c8[0x1d0 - 0x1c8];
+    int32_t  f1c8;           /* +0x1c8 */
+    int32_t  f1cc;           /* +0x1cc */
     int32_t  alive;          /* +0x1d0  != 0 => targetable (the AI's target cycling)    */
     int32_t  code;           /* +0x1d4  behaviour code (0xc35b/0xc35c: Arche forms)     */
     int32_t  handle;         /* +0x1d8  the id 0x556eb0 resolves (world list +0x2790)   */
     int32_t  faction;        /* +0x1dc  0x4416c0 operand                               */
-    uint8_t  _p1e0[0x1ec - 0x1e0];
+    int32_t  f1e0;           /* +0x1e0 */
+    uint16_t f1e4;           /* +0x1e4 */
+    uint16_t _p1e6;
+    int32_t  f1e8;           /* +0x1e8 */
     uint16_t weight;         /* +0x1ec  (0x5564e0 sums it over the riders)               */
     uint8_t  _p1ee[0x1f0 - 0x1ee];
     int32_t  coll_off;       /* +0x1f0  != 0 => no mode-2 collision                    */
@@ -363,13 +371,16 @@ typedef struct wl_world {
  * motion state 0x46e510 runs. */
 typedef struct wl_particle {
     wl_entity  base;
-    uint8_t    _p1f8[0x258 - 0x1f8];
+    uint8_t    _p1f8[0x250 - 0x1f8];
+    uint16_t   f250;           /* +0x250 */
+    uint8_t    _p252[0x254 - 0x252];
+    int32_t    f254;           /* +0x254  the body y at the init                          */
     uint16_t   life;           /* +0x258  ticks to live (0 = until killed)               */
     uint8_t    _p25a[0x25c - 0x25a];
     int32_t    f25c;           /* +0x25c  per-code parameter                             */
     int32_t    f260;           /* +0x260 */
     int32_t    f264;           /* +0x264 */
-    uint8_t    _p268[0x26c - 0x268];
+    int32_t    f268;           /* +0x268 */
     uint16_t   age;            /* +0x26c */
     uint8_t    _p26e[0x270 - 0x26e];
     int32_t    snd_on;         /* +0x270  != 0 => its looping channels are placed       */
@@ -863,6 +874,12 @@ _Static_assert(offsetof(wl_actor, step)      == 0x2cc, "actor +0x2cc");
 _Static_assert(sizeof(wl_actor)              == 0x2fc, "actor is 0x2fc bytes");
 _Static_assert(offsetof(wl_entity, par_dy)   == 0x018, "entity +0x18");
 _Static_assert(offsetof(wl_particle, life)   == 0x258, "particle life");
+_Static_assert(offsetof(wl_particle, f250)   == 0x250, "particle +0x250");
+_Static_assert(offsetof(wl_particle, f268)   == 0x268, "particle +0x268");
+_Static_assert(offsetof(wl_entity, f1e8)     == 0x1e8, "entity +0x1e8");
+_Static_assert(offsetof(wl_entity, ff0)      == 0x0f0, "entity +0xf0");
+_Static_assert(offsetof(wl_entity, f20)      == 0x020, "entity +0x20");
+_Static_assert(offsetof(wl_body, angle)      == 0x034, "body +0x34");
 _Static_assert(offsetof(wl_particle, age)    == 0x26c, "particle age");
 _Static_assert(offsetof(wl_particle, dir_y)  == 0x27c, "particle +0x27c");
 _Static_assert(sizeof(wl_particle)           == 0x284, "particle is 0x284 bytes");

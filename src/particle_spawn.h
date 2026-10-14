@@ -7,7 +7,7 @@
  * +0x280 priority below `prio` (released first), or gives up.  The position is
  * (dx, dy) from an anchor on body `b` (1 centre, 2 top-left, 3 top centre, 4 bottom
  * centre, else absolute), dx mirrored when `mirror` and the body faces left; the
- * per-code setup is the particle init 0x557550 (an engine_calls slot).
+ * per-code setup is the particle init 0x557550 (particle_init.c).
  *
  *   FUN_00557370  particle_spawn
  */

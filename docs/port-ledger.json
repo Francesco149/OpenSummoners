@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 113,
-  "unported": 1461,
+  "ported": 132,
+  "unported": 1442,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 363,
-  "pct_touched": 22.8,
+  "touched": 382,
+  "pct_touched": 24.1,
   "pct_tested": 15.8,
-  "engine_proper_touched": 350,
+  "engine_proper_touched": 369,
   "bytes_total": 1776526,
-  "bytes_touched": 392060,
-  "pct_bytes_touched": 22.1
+  "bytes_touched": 417465,
+  "pct_bytes_touched": 23.5
  },
  "orphan_refs": [],
  "functions": [
@@ -355,8 +355,10 @@
    "name": "sub_402A60",
    "size": 435,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x402d40",
@@ -437,8 +439,10 @@
    "name": "sub_4060D0",
    "size": 241,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x4061d0",
@@ -2343,16 +2347,21 @@
    "name": "sub_4265E0",
    "size": 53,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x426620",
    "name": "sub_426620",
    "size": 1437,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.c",
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x426be0",
@@ -2369,8 +2378,10 @@
    "name": "sub_426D70",
    "size": 57,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x426db0",
@@ -2395,8 +2406,10 @@
    "name": "sub_426EC0",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x426f20",
@@ -2457,8 +2470,10 @@
    "name": "sub_4272E0",
    "size": 79,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x427330",
@@ -2985,8 +3000,10 @@
    "name": "sub_4385C0",
    "size": 19,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x4385e0",
@@ -3831,8 +3848,10 @@
    "name": "sub_448C80",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x448cb0",
@@ -4396,8 +4415,10 @@
    "name": "sub_460E40",
    "size": 143,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x460ed0",
@@ -4774,8 +4795,10 @@
    "name": "sub_476710",
    "size": 44,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x476740",
@@ -4824,16 +4847,20 @@
    "name": "sub_476C70",
    "size": 144,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x476d00",
    "name": "sub_476D00",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x476d30",
@@ -8531,40 +8558,51 @@
    "name": "sub_557550",
    "size": 21735,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.c",
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x55cbc0",
    "name": "sub_55CBC0",
    "size": 394,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x55cd50",
    "name": "sub_55CD50",
    "size": 85,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x55cdb0",
    "name": "sub_55CDB0",
    "size": 145,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x55ce50",
    "name": "sub_55CE50",
    "size": 18,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x55ce70",
@@ -11388,8 +11426,10 @@
    "name": "sub_5B5990",
    "size": 202,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_state.h"
+   ]
   },
   {
    "va": "0x5b5a60",

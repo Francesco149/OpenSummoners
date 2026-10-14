@@ -6,8 +6,7 @@
 
 #include "engine_calls.h"
 #include "entity_life.h"
-
-#define IP(p) ((intptr_t)(p))
+#include "particle_init.h"
 
 static uint16_t *cursor(void) { return (uint16_t *)(g_world->f1044 + 0xce); }
 
@@ -47,6 +46,6 @@ wl_entity *particle_spawn(wl_entity *self, wl_entity *owner, int32_t code, const
     case 4: x = b->x + b->w / 2 + dx; y = b->h + b->y + dy; break;
     default: x = dx; y = dy; break;
     }
-    g_eng.h557550(p, code, x, y, a7, a10, a11, IP(owner), a13, prio, self->faction);
+    particle_init((wl_particle *)p, code, x, y, a7, (uint32_t)a10, a11, owner, a13, prio, self->faction);
     return p;
 }

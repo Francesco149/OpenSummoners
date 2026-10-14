@@ -69,7 +69,6 @@ typedef struct engine_calls {
     int (ENG_THISCALL *integrate_442a70)(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out,
                                          int32_t mode, int32_t n);
     int (ENG_THISCALL *probe_440f40)(wl_char *self, uint32_t n, wl_body *b, int32_t *out);
-    int (ENG_THISCALL *skill_ok_402a60)(wl_char *self, int32_t cond, wl_body *b, int32_t a3, int32_t a4);
     int (ENG_STDCALL  *party_slot_ok_4071f0)(wl_party *p, int32_t mode, int32_t slot);
     int (ENG_THISCALL *skill_479f90)(wl_char *self, wl_body *b, int32_t a3);
     int (ENG_THISCALL *skill_47a300)(wl_char *self, int32_t a2, int32_t a3);
@@ -95,7 +94,6 @@ typedef struct engine_calls {
     eng_tc7 h4516e0; eng_tc7 h4484b0; eng_tc6 h4512d0; eng_tc6 h44a200; eng_tc6 h44e8d0;
     eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
     eng_tc4 h445e50;
-    int (ENG_THISCALL *skill_cond_5b5990)(wl_char *self, int32_t code, int32_t a3, void *a4, int32_t a5);
     /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
     eng_tc3 h5b4d00; 
     eng_tc2 h5b5600;
@@ -114,12 +112,10 @@ typedef struct engine_calls {
     int (ENG_STDCALL *h556e50)(intptr_t owner, intptr_t id, intptr_t probe);
     /* the cached-frame release 0x5b9390 (DirectDraw boundary; under the grid refresh 0x54c640) */
     eng_tc0 h5b9390;
-    /* the particle init 0x557550 (per-code setup, under the spawner 0x557370) */
-    eng_tc10 h557550;
     /* the behaviour AI 0x47b990's callees (+ the path follower 0x441f50 under 0x484c10, the error
      * logger 0x407f30 under 0x47e330) */
     eng_tc1 h47da60; eng_tc1 h482240; eng_tc1 h482460; eng_tc1 h482ac0;
-    eng_tc2 h4060d0; eng_tc2 h47de50; eng_tc2 h47f670; eng_tc2 h47f9d0; eng_tc2 h481ac0; eng_tc2 h482e10; eng_tc2 h4834f0;
+    eng_tc2 h47de50; eng_tc2 h47f670; eng_tc2 h47f9d0; eng_tc2 h481ac0; eng_tc2 h482e10; eng_tc2 h4834f0;
     eng_tc2 h484ea0; eng_tc2 h4854e0; eng_tc2 h485990; eng_tc2 h441f50;
     eng_tc3 h47d790; eng_tc3 h481310; eng_tc3 h482880; eng_tc3 h407f30;
     eng_tc4 h47b7c0; eng_tc4 h47e010; eng_tc4 h47eae0; eng_tc4 h483fb0;

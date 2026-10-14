@@ -57,7 +57,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
             walkable = open_r;
             crouch = 0;   /* retail leaves this local uninitialized here (unreachable: modes 0..3) */
         } else {
-            int32_t h = g_eng.h4060d0(self, IP(b), 0);
+            int32_t h = grid_floor_below(b, NULL);
             walkable = 1;
             slide = 1;
             jumpable = can;
