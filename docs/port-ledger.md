@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **300** (18.7% of engine-proper) — tested 250, ported 50
-- code bytes touched: **20.9%** (371,013 / 1,776,526 B of engine-proper)
-- unported: **1524**
+- touched: **314** (19.6% of engine-proper) — tested 250, ported 64
+- code bytes touched: **21.1%** (374,192 / 1,776,526 B of engine-proper)
+- unported: **1510**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -70,8 +70,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4411e0 | sub_4411E0 | 131 | char_ai.c, char_ai.h |
 | 0x4416c0 | sub_4416C0 | 52 | entity_move.c, entity_move.h |
 | 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
-| 0x44e640 | sub_44E640 | 49 | hud.c, hud.h |
-| 0x44e680 | sub_44E680 | 59 | hud.c, hud.h |
+| 0x44e640 | sub_44E640 | 49 | hud.c, hud.h, npc_ai.h |
+| 0x44e680 | sub_44E680 | 59 | hud.c, hud.h, npc_ai.h |
 | 0x466930 | sub_466930 | 1315 | char_physics.c, char_physics.h |
 | 0x467bb0 | sub_467BB0 | 3364 | char_physics.c, char_physics.h |
 | 0x46a880 | sub_46A880 | 8890 | input_live.c, input_live.h |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (50) — reimplemented, no host test yet
+## ported (64) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -317,8 +317,22 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
 | 0x46e510 | sub_46E510 | 10712 | particle_tick.c, particle_tick.h |
 | 0x471080 | sub_471080 | 49 | particle_tick.c, particle_tick.h |
-| 0x47b990 | actor_ai_47B990 | 7461 | char_behave.c, char_behave.h |
+| 0x47b770 | sub_47B770 | 77 | behave_ops.h |
+| 0x47b990 | actor_ai_47B990 | 7461 | behave_ops.h, char_behave.c, char_behave.h |
 | 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
+| 0x47d760 | sub_47D760 | 47 | behave_ops.h |
+| 0x47dbb0 | sub_47DBB0 | 655 | behave_ops.h |
+| 0x47e330 | sub_47E330 | 1120 | behave_ops.h |
+| 0x47e790 | sub_47E790 | 37 | npc_ai.h |
+| 0x484bf0 | sub_484BF0 | 31 | behave_ops.h |
+| 0x484c10 | sub_484C10 | 322 | behave_ops.h |
+| 0x4852c0 | sub_4852C0 | 37 | behave_ops.h |
+| 0x4852f0 | sub_4852F0 | 55 | behave_ops.h |
+| 0x485670 | sub_485670 | 90 | behave_ops.h |
+| 0x4856d0 | sub_4856D0 | 83 | behave_ops.h |
+| 0x485740 | sub_485740 | 166 | behave_ops.h |
+| 0x4857f0 | sub_4857F0 | 404 | behave_ops.h |
+| 0x485f30 | sub_485F30 | 55 | behave_ops.h |
 | 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
 | 0x54f980 | actor_update_54F980 | 11597 | actor_update.c, actor_update.h |

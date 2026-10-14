@@ -17,7 +17,8 @@
  *   FUN_004429c0  char_hit_fresh       FUN_00442a20  char_hit_kind_ok
  *   FUN_004418e0  npc_blocked          FUN_00440e40  entity_blocks
  *   FUN_004022a0  part_bottom          FUN_00426f70  part_left
- *   FUN_00426fa0  part_right
+ *   FUN_00426fa0  part_right           FUN_0044e640  part_center_x
+ *   FUN_0044e680  part_center_y        FUN_0047e790  part_width
  */
 #ifndef OSS_NPC_AI_H
 #define OSS_NPC_AI_H
@@ -41,5 +42,8 @@ int entity_blocks(const wl_entity *e, const wl_entity *other, uint16_t part, int
 int32_t part_bottom(const wl_entity *e, uint16_t part);
 int32_t part_left(const wl_entity *e, uint16_t part);
 int32_t part_right(const wl_entity *e, uint16_t part);
+int32_t part_center_x(const wl_entity *e, uint16_t part);
+int32_t part_center_y(const wl_entity *e, uint16_t part);   /* the middle of the box below the margin */
+int32_t part_width(const wl_entity *e, uint16_t part);
 
 #endif /* OSS_NPC_AI_H */

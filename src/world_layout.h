@@ -219,7 +219,9 @@ typedef struct wl_party {
     uint16_t slot[3];         /* +0x138  quick-skill slots (0x479d30 / 0x479da0)        */
     uint8_t  _p13e[0x140 - 0x13e];
     int32_t  slot_mode;       /* +0x140                                                 */
-    uint8_t  _p144[0x44a - 0x144];
+    uint8_t  _p144[0x448 - 0x144];
+    uint16_t f448;            /* +0x448  the 18 u16 STATUS timers start here (wl_party_status:
+                               *         busy = [1], f45e = [11], f466 = [15])              */
     uint16_t busy;            /* +0x44a  != 0 => a target is dropped                    */
     uint8_t  _p44c[0x45e - 0x44c];
     uint16_t f45e;            /* +0x45e */
@@ -455,15 +457,16 @@ typedef struct wl_char {
     uint16_t   side_t;         /* +0x14248 */
     uint8_t    _p1424a[0x1424c - 0x1424a];
     struct wl_char *leader;    /* +0x1424c */
-    uint8_t    _p14250[0x14258 - 0x14250];
+    int32_t    side_dist;      /* +0x14250  how far to the leader's side it stands (0x47e330) */
+    int32_t    follow_dist;    /* +0x14254  inside it, the leader-follow only turns (0x485740) */
     int32_t    f14258;         /* +0x14258 */
     int32_t    f1425c;         /* +0x1425c */
     int32_t    f14260;         /* +0x14260 */
     int32_t    f14264;         /* +0x14264  58010: the two posts it paces between            */
-    int32_t    f14268;         /* +0x14268 */
-    uint8_t    _p1426c[0x14270 - 0x1426c];
-    int32_t    f14270;         /* +0x14270 */
-    int32_t    f14274;         /* +0x14274 */
+    int32_t    f14268;         /* +0x14268  (also the home post x, 0x4856d0)                   */
+    int32_t    f1426c;         /* +0x1426c  the home post y                                     */
+    int32_t    f14270;         /* +0x14270  1 => the hold (0x485670) ran out                     */
+    int32_t    f14274;         /* +0x14274  the hold's budget (0x485670 counts it down)          */
     uint16_t   target_t;       /* +0x14278 */
     uint8_t    _p1427a[0x1427c - 0x1427a];
     struct wl_char *target;    /* +0x1427c */
@@ -487,7 +490,8 @@ typedef struct wl_char {
     int32_t    f14818;         /* +0x14818 */
     int32_t    f1481c;         /* +0x1481c */
     int32_t    f14820;         /* +0x14820 */
-    uint8_t    _p14824[0x1482e - 0x14824];
+    int32_t    walk_x;         /* +0x14824  ai_state 7: the x it walks to (0x484c10)           */
+    uint8_t    _p14828[0x1482e - 0x14828];
     uint16_t   f1482e;         /* +0x1482e */
     uint16_t   f14830;         /* +0x14830 */
     uint16_t   f14832;         /* +0x14832 */
@@ -677,6 +681,10 @@ _Static_assert(offsetof(wl_char, retarget)    == 0x0c89e, "char +0xc89e");
 _Static_assert(offsetof(wl_char, cd0)         == 0x0cb40, "char +0xcb40");
 _Static_assert(offsetof(wl_char, ncd)         == 0x14228, "char +0x14228");
 _Static_assert(offsetof(wl_char, leader)      == 0x1424c, "char +0x1424c");
+_Static_assert(offsetof(wl_char, follow_dist) == 0x14254, "char +0x14254");
+_Static_assert(offsetof(wl_char, f1426c)      == 0x1426c, "char +0x1426c");
+_Static_assert(offsetof(wl_char, walk_x)      == 0x14824, "char +0x14824");
+_Static_assert(offsetof(wl_party, f448)       == 0x448, "party +0x448");
 _Static_assert(offsetof(wl_char, target_t)    == 0x14278, "char +0x14278");
 _Static_assert(offsetof(wl_char, f14298)      == 0x14298, "char +0x14298");
 _Static_assert(offsetof(wl_char, f1480c)      == 0x1480c, "char +0x1480c");
@@ -783,6 +791,10 @@ _Static_assert(offsetof(wl_world, grid)      == 0x1048, "world grid");
 _Static_assert(offsetof(wl_world, collide)   == 0x278c, "world collide list");
 _Static_assert(sizeof(wl_world)              == 0x27b8, "world is 0x27b8 bytes");
 #endif
+
+/* status timer k (0..17) of a party object: u16 at +0x448 + 2k (no pointers precede it, so the
+ * offset is the same on the 64-bit host build) */
+static inline uint16_t wl_party_status(const wl_party *p, int k) { return (&p->f448)[k]; }
 
 /* The port's *(0x8a9b50) + the slope-profile resolver the tile movers use (a sloped
  * region-B cell's +0x8 is a retail .rdata VA; the port reads it off the user's exe,

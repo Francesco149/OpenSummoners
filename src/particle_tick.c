@@ -263,7 +263,7 @@ void particle_tick(wl_particle *p)
     if (p->base.parent != NULL) {
         const wl_body *pb = p->base.parent->body;
         b->x = pb->w / 2 + pb->x + p->base.par_dx;
-        b->y = g_eng.h44e680(p->base.parent, 0) + p->base.par_dy;
+        b->y = part_center_y(p->base.parent, 0) + p->base.par_dy;
     }
 
     switch (p->base.code) {

@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "actor_update.h"
+#include "behave_ops.h"
 #include "char_ai.h"
 #include "char_integrate.h"
 #include "engine_calls.h"
@@ -42,12 +43,12 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
     int32_t slide = self->can_jump != 0 ? g_eng.h47da60(self, IP(b)) : 0;   /* v114 */
     int32_t moved = iabs(b->x - x0);
     if ((can != 0 || b->state == 5) && self->up_assist != 0) look = 1;
-    int32_t open_l = g_eng.h47dbb0(self, IP(b), 1600, 3, 0, 1, 0);   /* v124 */
-    int32_t open_r = g_eng.h47dbb0(self, IP(b), 1600, 1, 0, 1, 0);   /* v122 */
+    int32_t open_l = behave_step_ok(self, b, 1600, 3, 0, 1, 0);   /* v124 */
+    int32_t open_r = behave_step_ok(self, b, 1600, 1, 0, 1, 0);   /* v122 */
     int32_t wm = self->walk_max, vx = b->vel_x;
     if (wm / 2 < vx) {
         int32_t d = wm >= vx ? 3200 : 6400;
-        run_blocked = g_eng.h47dbb0(self, IP(b), d, b->facing == 1 ? 1 : 3, 0, 1, 0) == 0;
+        run_blocked = behave_step_ok(self, b, d, b->facing == 1 ? 1 : 3, 0, 1, 0) == 0;
     }
     int32_t mm = self->move_mode, walkable;
     if (mm != 0) {
@@ -63,7 +64,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
             if (h < top + 3200 || (h < top + 800 && b->vvel > -10000)) rise = 1;
             if (h > top - 3200 || (h > top - 800 && b->vvel < 10000)) fall = 1;
             if (self->float_h > 0 && self->float_h <= h) slide = 0;
-            if (g_eng.h47d760(self) != 0 && g_eng.h47de50(self, IP(b), self->nav_drop) == 0) {
+            if (behave_c_check(self) != 0 && g_eng.h47de50(self, IP(b), self->nav_drop) == 0) {
                 crouch = 0;
                 fall = 0;
                 rise = 1;
@@ -238,11 +239,11 @@ static int pick_side(wl_char *self)
     for (int i = 0; i < 32; i++) {
         wl_char *c = g_world->chars[i];
         if (g_eng.h40d960(c, 0, 0) == 0 || faction_relation(self->base.faction, c->base.faction) != 1) continue;
-        int32_t lx = g_eng.h44e640(lead, 0);
-        int32_t d = g_eng.h44e640(c, 0) - lx, ad = iabs(d);
+        int32_t lx = part_center_x(&lead->base, 0);
+        int32_t d = part_center_x(&c->base, 0) - lx, ad = iabs(d);
         if (ad >= 40000) continue;
-        int32_t ly = g_eng.h44e680(lead, 0);
-        if (iabs(g_eng.h44e680(c, 0) - ly) >= 20000) continue;
+        int32_t ly = part_center_y(&lead->base, 0);
+        if (iabs(part_center_y(&c->base, 0) - ly) >= 20000) continue;
         int32_t sum, w;
         {
             int32_t a, b2, c2;
@@ -337,7 +338,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         self->f14288 = 0;
     } else {
         if (self->f14288 == 1) {
-            if (self->target != NULL && g_eng.h485f30(self->target) > 0) { self->target = NULL; self->target_t = 0; }
+            if (self->target != NULL && char_status_threat(self->target) > 0) { self->target = NULL; self->target_t = 0; }
             if (self->target != NULL && g_eng.h40d960(self->target, 0, 0) == 0) { self->target = NULL; self->target_t = 0; }
         }
         if (self->pal != NULL && g_eng.h40d960(self->pal, 0, 0) == 0) { self->pal = NULL; self->target_t = 0; }
@@ -347,9 +348,9 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         } else {
             self->target_t = 16;
             if (fac != 0) {
-                self->pal = (wl_char *)(intptr_t)g_eng.h47e330(self, fac, 1, 0, 0, 0, 0, 1);
+                self->pal = behave_pick_char(self, fac, 1, 0, 0, 0, 0, 1);
                 if (self->f14288 == 2) skip_pick = 1;
-                else g_eng.h4852f0(self, g_eng.h47e330(self, fac, 1, 24, self->reach, 1, flag == 0, 1));
+                else behave_set_target(self, behave_pick_char(self, fac, 1, 24, self->reach, 1, flag == 0, 1));
             }
         }
         if (skip_pick || self->f14288 == 2) {
@@ -360,7 +361,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                 need > have) {
                 self->target = NULL;
                 self->f14288 = 0;
-                g_eng.h484bf0(self, 0);
+                behave_set_state(self, 0);
             }
         } else if (self->engage_t == 0 && self->base.coll_off == 0 && fac != 0) {
             g_eng.h484ea0(self, IP(b), gr);
@@ -369,9 +370,9 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             if (self->fc794 != 0 && (world_scene_running() || world32(0x2774) != 0)) {
                 self->f14288 = 1;
             } else if (self->pal != NULL) {
-                int32_t px = g_eng.h44e640(self->pal, 0);
-                int32_t dx = iabs(g_eng.h44e640(self, 0) - px);
-                int32_t sy = g_eng.h44e680(self, 0), py = g_eng.h44e680(self->pal, 0);
+                int32_t px = part_center_x(&self->pal->base, 0);
+                int32_t dx = iabs(part_center_x(&self->base, 0) - px);
+                int32_t sy = part_center_y(&self->base, 0), py = part_center_y(&self->pal->base, 0);
                 int32_t dy = iabs(sy - py);
                 if (self->f14288 != 0) {
                     if (self->f14288 == 1 && dx > 88000) self->f14288 = 0;
@@ -428,12 +429,12 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             goto done;
         }
         if (rec[3] == 3) {
-            g_eng.h484bf0(self, 6);
+            behave_set_state(self, 6);
             self->f14818 = (int32_t)(intptr_t)rec;
             self->f1481c = v119;
             self->f14820 = v116;
         } else {
-            g_eng.h484bf0(self, 3);
+            behave_set_state(self, 3);
             self->f14818 = (int32_t)(intptr_t)rec;
             self->f1481c = v119;
         }
@@ -457,14 +458,14 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             if (self->side == 1) {
                 post = self->f14264;
                 if (self->side_t == 0 &&
-                    !(iabs(b->x - post) > 3200 && g_eng.h47dbb0(self, IP(b), 1600, 1, 1, 0, 0) != 0 && !coin)) {
+                    !(iabs(b->x - post) > 3200 && behave_step_ok(self, b, 1600, 1, 1, 0, 0) != 0 && !coin)) {
                     self->side = 3;
                     self->side_t = 60;
                 }
             } else {
                 post = self->f14268;
                 if (self->side_t == 0 &&
-                    !(iabs(b->x - post) > 3200 && g_eng.h47dbb0(self, IP(b), 1600, 3, 1, 0, 0) != 0 && !coin)) {
+                    !(iabs(b->x - post) > 3200 && behave_step_ok(self, b, 1600, 3, 1, 0, 0) != 0 && !coin)) {
                     self->side = 1;
                     self->side_t = 60;
                 }
@@ -531,7 +532,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
     }
 
     /* ── the behaviour state machine ── */
-    if (g_eng.h484c10(self, IP(b), g65) == 0) {
+    if (behave_walk_to(self, b, g65) == 0) {
         if (self->f14270 != 0 && self->ai_state != 0) {
             self->f14274 = 1000;
             self->f14270 = 0;
@@ -549,11 +550,11 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             break;
         case 3:
             cmd_clear(&self->cmd);
-            if (self->target == NULL) { g_eng.h484bf0(self, 0); break; }
+            if (self->target == NULL) { behave_set_state(self, 0); break; }
             if (g_eng.h482380(self, IP(self->target), 0, IP(self->base.body), IP(&self->cmd), self->f14818,
                               IP(&self->ai_sub), self->f1481c) != 0) {
                 g_eng.h482240(self, self->f14818);
-                if (g_eng.h482460(self, 1) == 0) g_eng.h484bf0(self, 0);
+                if (g_eng.h482460(self, 1) == 0) behave_set_state(self, 0);
             }
             break;
         case 4:
@@ -562,11 +563,11 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             break;
         case 5:
             cmd_clear(&self->cmd);
-            if (self->target == NULL) { g_eng.h484bf0(self, 0); break; }
+            if (self->target == NULL) { behave_set_state(self, 0); break; }
             if (g_eng.h483b50(self, IP(self->target), 0, IP(self->base.body), IP(&self->cmd), IP(&self->ai_sub),
                               self->f14808) != 0 &&
                 g_eng.h482460(self, 1) == 0)
-                g_eng.h484bf0(self, 0);
+                behave_set_state(self, 0);
             if (self->f1480c == 0 && self->ai_sub >= 3u && g_eng.h481310(self, IP(b), gr, 1) != 0) self->f1480c = 1;
             break;
         case 6:
@@ -608,25 +609,25 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                 break;
             case 5: case 6:
                 if (self->base.faction == 0) { cmd_clear(&self->cmd); break; }
-                if (g_eng.h485990(self, IP(b), g65) == 0 && g_eng.h485670(self, IP(b), g65, 20) == 0)
-                    g_eng.h4857f0(self, IP(b), g65, 20, 0);
+                if (g_eng.h485990(self, IP(b), g65) == 0 && behave_hold(self, b, g65, 20) == 0)
+                    behave_pace(self, b, g65, 20, 0);
                 break;
             case 8:
-                if (g_eng.h485990(self, IP(b), g65) == 0 && g_eng.h485670(self, IP(b), g65, 10) == 0)
-                    g_eng.h4856d0(self, IP(b), g65);
+                if (g_eng.h485990(self, IP(b), g65) == 0 && behave_hold(self, b, g65, 10) == 0)
+                    behave_go_home(self, b, g65);
                 break;
             case 9:
                 if (g_eng.h485990(self, IP(b), g65) == 0) npc_navigate(self, b->x, 800, b, g65, 0, 0, 0, 0, 0);
                 break;
             case 10:
                 if ((self->party->member != 1 || g_eng.h485990(self, IP(b), g65) == 0) &&
-                    g_eng.h485670(self, IP(b), g65, 10) == 0)
-                    g_eng.h4856d0(self, IP(b), g65);
+                    behave_hold(self, b, g65, 10) == 0)
+                    behave_go_home(self, b, g65);
                 break;
             case 12:
                 if (self->ai_sub != 0) {
                     if (self->ai_sub != 1) {
-                        if (g_eng.h4857f0(self, IP(b), g65, 20, 10) != 0) {
+                        if (behave_pace(self, b, g65, 20, 10) != 0) {
                             int32_t r = rnd();
                             self->ai_sub = 1;
                             self->ai_t = (uint16_t)(mul(r, 100) / 0x8000 + 50);
@@ -647,7 +648,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                 break;
             case 14:
                 cmd_clear(&self->cmd);
-                g_eng.h485740(self, IP(b), g65, 10);
+                behave_follow(self, b, g65, 10);
                 break;
             default:
                 break;

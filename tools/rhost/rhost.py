@@ -426,7 +426,8 @@ def cmd_corpus(a):
 
 
 VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode", "cam_follow", "cam_shake", "char_ai@4", "char_physics", "char_anim@32", "char_integrate@64", "hazard_probe", "npc_ai@4", "char_apply@16", "world_tick@8",
-                "fx_add@4", "fx_tick@64", "splash@32", "snd_release@4", "snd_all@64", "snd_one@32", "actor_update@16", "particle_tick@16", "char_behave@4"]
+                "fx_add@4", "fx_tick@64", "splash@32", "snd_release@4", "snd_all@64", "snd_one@32", "actor_update@16", "particle_tick@16", "char_behave@4",
+                "step_ok@4", "pick_char", "walk_to@4", "pace@4", "part_cx@16", "part_cy@16"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

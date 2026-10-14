@@ -30,6 +30,10 @@ static const wl_body *part_of(const wl_entity *e, uint16_t part) { return &e->bo
 int32_t part_bottom(const wl_entity *e, uint16_t part) { const wl_body *p = part_of(e, part); return p->h + p->y - 1; }
 int32_t part_left(const wl_entity *e, uint16_t part) { return part_of(e, part)->x; }
 int32_t part_right(const wl_entity *e, uint16_t part) { const wl_body *p = part_of(e, part); return p->x + p->w; }
+int32_t part_center_x(const wl_entity *e, uint16_t part) { const wl_body *p = part_of(e, part); return p->x + p->w / 2; }
+int32_t part_center_y(const wl_entity *e, uint16_t part)
+{ const wl_body *p = part_of(e, part); return p->margin + p->y + (p->h - p->margin) / 2; }
+int32_t part_width(const wl_entity *e, uint16_t part) { return part_of(e, part)->w; }
 static int32_t part_top(const wl_entity *e, uint16_t part) { const wl_body *p = part_of(e, part); return p->y + p->margin; }
 
 int grid_c_query(const uint8_t *grid, int32_t x, int32_t y, int32_t *out)

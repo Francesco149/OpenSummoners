@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 50,
-  "unported": 1524,
+  "ported": 64,
+  "unported": 1510,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 300,
-  "pct_touched": 18.7,
+  "touched": 314,
+  "pct_touched": 19.6,
   "pct_tested": 15.8,
-  "engine_proper_touched": 287,
+  "engine_proper_touched": 301,
   "bytes_total": 1776526,
-  "bytes_touched": 371013,
-  "pct_bytes_touched": 20.9
+  "bytes_touched": 374192,
+  "pct_bytes_touched": 21.1
  },
  "orphan_refs": [],
  "functions": [
@@ -3963,7 +3963,8 @@
    "status": "tested",
    "src": [
     "src/hud.c",
-    "src/hud.h"
+    "src/hud.h",
+    "src/npc_ai.h"
    ]
   },
   {
@@ -3974,7 +3975,8 @@
    "status": "tested",
    "src": [
     "src/hud.c",
-    "src/hud.h"
+    "src/hud.h",
+    "src/npc_ai.h"
    ]
   },
   {
@@ -5064,8 +5066,10 @@
    "name": "sub_47B770",
    "size": 77,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x47b7c0",
@@ -5090,6 +5094,7 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
+    "src/behave_ops.h",
     "src/char_behave.c",
     "src/char_behave.h"
    ]
@@ -5110,8 +5115,10 @@
    "name": "sub_47D760",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x47d790",
@@ -5134,8 +5141,10 @@
    "name": "sub_47DBB0",
    "size": 655,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x47de50",
@@ -5158,16 +5167,20 @@
    "name": "sub_47E330",
    "size": 1120,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x47e790",
    "name": "sub_47E790",
    "size": 37,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x47e7c0",
@@ -5478,16 +5491,20 @@
    "name": "sub_484BF0",
    "size": 31,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x484c10",
    "name": "sub_484C10",
    "size": 322,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x484d60",
@@ -5510,16 +5527,20 @@
    "name": "sub_4852C0",
    "size": 37,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x4852f0",
    "name": "sub_4852F0",
    "size": 55,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x485330",
@@ -5550,32 +5571,40 @@
    "name": "sub_485670",
    "size": 90,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x4856d0",
    "name": "sub_4856D0",
    "size": 83,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x485740",
    "name": "sub_485740",
    "size": 166,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x4857f0",
    "name": "sub_4857F0",
    "size": 404,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x485990",
@@ -5598,8 +5627,10 @@
    "name": "sub_485F30",
    "size": 55,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_ops.h"
+   ]
   },
   {
    "va": "0x485f70",

@@ -29,6 +29,7 @@
 #include "actor_update.h"
 #include "particle_tick.h"
 #include "char_behave.h"
+#include "behave_ops.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -40,7 +41,8 @@ typedef struct {
 
 static hook_t H[];
 enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK,
-       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_ACTOR, H_PARTICLE, H_BEHAVE, H_N };
+       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_ACTOR, H_PARTICLE, H_BEHAVE,
+       H_STEP_OK, H_PICK_CHAR, H_WALK_TO, H_PACE, H_PART_CX, H_PART_CY, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -718,6 +720,91 @@ static int __attribute__((thiscall)) w_behave(wl_char *c, int32_t cut, wl_body *
     return x.rr;
 }
 
+/* ---- the behaviour helpers (src/behave_ops.c) ----
+ * step_ok (FUN_0047dbb0) only reads: return.  pick_char (FUN_0047e330: the LCG) / walk_to
+ * (FUN_00484c10) / pace (FUN_004857f0): full state + return. u16 arguments arrive as raw dwords. */
+typedef int (__attribute__((thiscall)) *step_ok_t)(wl_char *, wl_body *, int32_t, int32_t, int32_t, int32_t, int32_t);
+static int __attribute__((thiscall)) w_step_ok(wl_char *c, wl_body *b, int32_t d, int32_t dir, int32_t strict, int32_t deep, int32_t nf)
+{
+    hook_t *h = &H[H_STEP_OK];
+    if (h->mode == 2) { h->calls++; port_world(); return behave_step_ok(c, b, d, dir, strict, deep, nf); }
+    int r = ((step_ok_t)(uintptr_t)h->va)(c, b, d, dir, strict, deep, nf);
+    if (!sample(h)) return r;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    port_world();
+    int p = behave_step_ok(c, b, d, dir, strict, deep, nf);
+    dead_restore(sp);
+    h->compared++;
+    if (p != r) diverged(h, "f%u char %p code %d x %d y %d d %d dir %d %d %d %d mode %d: retail %d port %d", g_frame, (void *)c,
+                         c->base.code, b->x, b->y, d, dir, strict, deep, nf, c->move_mode, r, p);
+    return r;
+}
+
+typedef wl_char *(__attribute__((thiscall)) *pick_t)(wl_char *, int32_t, int32_t, uint32_t, int32_t, int32_t, int32_t, int32_t);
+typedef struct { wl_char *c; int32_t fac, rel; uint32_t part; int32_t reach, crowd, lead, threat; wl_char *rr, *rp; } pick_ctx;
+static void pick_retail(void *x_) { pick_ctx *x = x_; x->rr = ((pick_t)(uintptr_t)H[H_PICK_CHAR].va)(x->c, x->fac, x->rel, x->part, x->reach, x->crowd, x->lead, x->threat); }
+static void pick_port(void *x_) { pick_ctx *x = x_; port_world(); x->rp = behave_pick_char(x->c, x->fac, x->rel, x->part, x->reach, x->crowd, x->lead, x->threat); }
+static wl_char *__attribute__((thiscall)) w_pick(wl_char *c, int32_t fac, int32_t rel, uint32_t part, int32_t reach, int32_t crowd, int32_t lead, int32_t threat)
+{
+    hook_t *h = &H[H_PICK_CHAR];
+    if (h->mode == 2) { h->calls++; port_world(); return behave_pick_char(c, fac, rel, part, reach, crowd, lead, threat); }
+    if (!sample(h)) return ((pick_t)(uintptr_t)h->va)(c, fac, rel, part, reach, crowd, lead, threat);
+    pick_ctx x = { c, fac, rel, part, reach, crowd, lead, threat, 0, 0 };
+    char what[128]; snprintf(what, sizeof what, "char %p code %d fac %d rel %d part %u reach %d crowd %d lead %d threat %d", (void *)c,
+                             c->base.code, fac, rel, part, reach, crowd, lead, threat);
+    if (!full_shadow(h, "pick_char", pick_retail, pick_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %p/%p", g_frame, what, (void *)x.rr, (void *)x.rp);
+    return x.rr;
+}
+
+typedef int (__attribute__((thiscall)) *walk_to_t)(wl_char *, wl_body *, int32_t);
+typedef struct { wl_char *c; wl_body *b; int32_t gr; int rr, rp; } wt_ctx;
+static void wt_retail(void *x_) { wt_ctx *x = x_; x->rr = ((walk_to_t)(uintptr_t)H[H_WALK_TO].va)(x->c, x->b, x->gr); }
+static void wt_port(void *x_) { wt_ctx *x = x_; port_world(); x->rp = behave_walk_to(x->c, x->b, x->gr); }
+static int __attribute__((thiscall)) w_walk_to(wl_char *c, wl_body *b, int32_t gr)
+{
+    hook_t *h = &H[H_WALK_TO];
+    if (h->mode == 2) { h->calls++; port_world(); return behave_walk_to(c, b, gr); }
+    if (!sample_rare(h, c->ai_state == 1 || c->ai_state == 7)) return ((walk_to_t)(uintptr_t)h->va)(c, b, gr);
+    wt_ctx x = { c, b, gr, 0, 0 };
+    char what[96]; snprintf(what, sizeof what, "char %p code %d state %u x %d to %d", (void *)c, c->base.code, c->ai_state, b->x, c->walk_x);
+    if (!full_shadow(h, "walk_to", wt_retail, wt_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+typedef int (__attribute__((thiscall)) *pace_t)(wl_char *, wl_body *, int32_t, uint32_t, int32_t);
+typedef struct { wl_char *c; wl_body *b; int32_t gr; uint32_t hold; int32_t chance; int rr, rp; } pace_ctx;
+static void pace_retail(void *x_) { pace_ctx *x = x_; x->rr = ((pace_t)(uintptr_t)H[H_PACE].va)(x->c, x->b, x->gr, x->hold, x->chance); }
+static void pace_port(void *x_) { pace_ctx *x = x_; port_world(); x->rp = behave_pace(x->c, x->b, x->gr, (int16_t)x->hold, x->chance); }
+static int __attribute__((thiscall)) w_pace(wl_char *c, wl_body *b, int32_t gr, uint32_t hold, int32_t chance)
+{
+    hook_t *h = &H[H_PACE];
+    if (h->mode == 2) { h->calls++; port_world(); return behave_pace(c, b, gr, (int16_t)hold, chance); }
+    if (!sample_rare(h, c->side_t <= 1)) return ((pace_t)(uintptr_t)h->va)(c, b, gr, hold, chance);
+    pace_ctx x = { c, b, gr, hold, chance, 0, 0 };
+    char what[96]; snprintf(what, sizeof what, "char %p code %d side %d t %u x %d", (void *)c, c->base.code, c->side, c->side_t, b->x);
+    if (!full_shadow(h, "pace", pace_retail, pace_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+/* part centre x / y (FUN_0044e640 / FUN_0044e680): pure, return only */
+typedef int32_t (__attribute__((thiscall)) *part_t)(wl_entity *, uint32_t);
+static int32_t part_shadow(hook_t *h, int32_t (*port)(const wl_entity *, uint16_t), wl_entity *e, uint32_t i)
+{
+    if (h->mode == 2) { h->calls++; return port(e, (uint16_t)i); }
+    int32_t r = ((part_t)(uintptr_t)h->va)(e, i);
+    if (!sample(h)) return r;
+    int32_t p = port(e, (uint16_t)i);
+    h->compared++;
+    if (p != r) diverged(h, "f%u ent %p code %d part %u: retail %d port %d", g_frame, (void *)e, e->code, i, r, p);
+    return r;
+}
+static int32_t __attribute__((thiscall)) w_part_cx(wl_entity *e, uint32_t i) { return part_shadow(&H[H_PART_CX], part_center_x, e, i); }
+static int32_t __attribute__((thiscall)) w_part_cy(wl_entity *e, uint32_t i) { return part_shadow(&H[H_PART_CY], part_center_y, e, i); }
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -745,6 +832,12 @@ static hook_t H[H_N] = {
     [H_ACTOR]      = { "actor_update", 0x54f980u, (void *)w_actor,      0, 1, 0, 0, 0, 0, "" },
     [H_PARTICLE]   = { "particle_tick", 0x46e510u, (void *)w_particle,  0, 1, 0, 0, 0, 0, "" },
     [H_BEHAVE]     = { "char_behave", 0x47b990u, (void *)w_behave,      0, 1, 0, 0, 0, 0, "" },
+    [H_STEP_OK]    = { "step_ok",     0x47dbb0u, (void *)w_step_ok,     0, 1, 0, 0, 0, 0, "" },
+    [H_PICK_CHAR]  = { "pick_char",   0x47e330u, (void *)w_pick,        0, 1, 0, 0, 0, 0, "" },
+    [H_WALK_TO]    = { "walk_to",     0x484c10u, (void *)w_walk_to,     0, 1, 0, 0, 0, 0, "" },
+    [H_PACE]       = { "pace",        0x4857f0u, (void *)w_pace,        0, 1, 0, 0, 0, 0, "" },
+    [H_PART_CX]    = { "part_cx",     0x44e640u, (void *)w_part_cx,     0, 1, 0, 0, 0, 0, "" },
+    [H_PART_CY]    = { "part_cy",     0x44e680u, (void *)w_part_cy,     0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -787,7 +880,7 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.skill_cond_5b5990   = (void *)(uintptr_t)0x5b5990u;
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(5b54d0); B(5b5580); B(487730); B(5b4d00); B(407ba0); B(41e180); B(4874b0); B(487570); B(4099a0);
-    B(40a010); B(446400); B(47e330); B(44e640); B(44e680); B(5b5600); B(40d960); B(487530); B(487dc0);
+    B(40a010); B(446400); B(5b5600); B(40d960); B(487530); B(487dc0);
     B(4878b0); B(476880); B(485f70); B(489280); B(487250); B(4895c0);
     B(41ef80); B(4593c0); B(4872d0);
     B(4710c0); B(46da00); B(54c640); B(5567a0);
@@ -795,9 +888,9 @@ static void bind_engine_calls(void)
     B(552c70); B(552f60); B(5531b0); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(555790); B(555e90); B(555fc0); B(556180); B(556380); B(5563d0); B(556e50);
     B(426db0);
-    B(47d760); B(485f30); B(47da60); B(482240); B(482460); B(482ac0); B(484bf0); B(4852f0); B(4060d0); B(47de50); B(47f670); B(47f9d0);
-    B(481ac0); B(482e10); B(4834f0); B(484c10); B(484ea0); B(4854e0); B(4856d0); B(485990); B(47d790); B(481310); B(482880); B(485670);
-    B(485740); B(47b7c0); B(47e010); B(47eae0); B(483fb0); B(4857f0); B(483de0); B(485350); B(47dbb0); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0);
+    B(47da60); B(482240); B(482460); B(482ac0); B(4060d0); B(47de50); B(47f670); B(47f9d0);
+    B(481ac0); B(482e10); B(4834f0); B(484ea0); B(4854e0); B(485990); B(47d790); B(481310); B(482880);
+    B(47b7c0); B(47e010); B(47eae0); B(483fb0); B(483de0); B(485350); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0); B(441f50); B(407f30);
 #undef B
 }
 
@@ -811,9 +904,10 @@ void rh_hooks_install(void)
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
         H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = H[H_CHAR_APPLY].va = H[H_WORLD_TICK].va =
-        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = H[H_ACTOR].va = H[H_PARTICLE].va = H[H_BEHAVE].va = 0;
+        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = H[H_ACTOR].va = H[H_PARTICLE].va = H[H_BEHAVE].va =
+        H[H_STEP_OK].va = H[H_PICK_CHAR].va = H[H_WALK_TO].va = H[H_PACE].va = H[H_PART_CX].va = H[H_PART_CY].va = 0;
     if (!O.hooks) return;
-    char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
+    char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
         char *c = strchr(t, ':'); if (!c) rh_fatal("bad hook spec %s", t);
         *c = 0; const char *mode = t; char *name = c + 1;

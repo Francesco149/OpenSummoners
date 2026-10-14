@@ -32,6 +32,7 @@
   | ACTOR update (per-code behaviours) | `0x54f980` | 706k (43.8k full-state) | 0 |
   | PARTICLE tick (96 codes + tail) | `0x46e510` | 438k (28k full-state) | 0 |
   | BEHAVIOUR AI (townsfolk / party / monsters) | `0x47b990` | 122k (32.5k full-state) | 0 |
+  | behaviour helpers: step-ahead / target pick / walk-to / pace | `0x47dbb0` / `0x47e330` / `0x484c10` / `0x4857f0` | 3.3k / 2.7k / 8.4k / 224 | 0 |
   Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
   movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
@@ -52,8 +53,10 @@
      70520/70521/70840/70850/100138/100142..100145 (+ the slot-only codes); `src/particle_tick.c` every
      code but 100077/100078/100080/100081/100082/100100/100104 (incl. the x87 orbit 100131, which needs
      the port binary on MSVC's 53-bit FPU precision); `src/char_behave.c` the cutscene random walk
-     (+0x15ba8) and the monster / party modes. The ~40 behaviour helpers behind `0x47b990`'s slots
-     (`0x482ac0`..`0x485990`, `0x47ecd0`, `0x47e330`) are the next layer down. The actor behaviours behind
+     (+0x15ba8) and the monster / party modes. The behaviour helpers behind `0x47b990`'s slots: `src/behave_ops.c` has
+     the step-ahead check, the target pick, walk-to / pace / hold / go-home / follow + the small ones;
+     the rest (`0x482ac0`..`0x485990`, `0x47ecd0`, the path follower `0x441f50`) are the next layer down —
+     the corpus reaches only these four (+ `0x484c10`'s early return, `0x47e330`'s self-centred pick). The actor behaviours behind
      slots: `0x555790` (doors), `0x554c40`, `0x553ec0`, `0x553520`, `0x552c70`, `0x552f60`, `0x554570`,
      `0x54f140`, `0x5556d0`, `0x5531b0` (ambient timers), the channel start `0x450ef0`;
      the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).

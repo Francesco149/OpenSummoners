@@ -8,10 +8,12 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "behave_ops.h"
 #include "char_integrate.h"
 #include "engine_calls.h"
 #include "entity_fx.h"
 #include "map_grid.h"
+#include "npc_ai.h"
 #include "rng.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -202,11 +204,11 @@ void char_apply(wl_char *self)
 
     /* ── ally proximity (every 8th tick) ── */
     if (self->fc794 != 0 && ((self->flags204 >> 16) & 7u) == 4u) {
-        wl_char *o = (wl_char *)(intptr_t)g_eng.h47e330(self, self->base.faction, 1, 0, 0, 0, 0, 0);
+        wl_char *o = behave_pick_char(self, self->base.faction, 1, 0, 0, 0, 0, 0);
         if (o != NULL) {
-            int32_t dx = g_eng.h44e640(self, 0) - g_eng.h44e640(o, 0);
+            int32_t dx = part_center_x(&self->base, 0) - part_center_x(&o->base, 0);
             if (dx < 0) dx = -dx;
-            int32_t dy = g_eng.h44e680(self, 0) - g_eng.h44e680(o, 0);
+            int32_t dy = part_center_y(&self->base, 0) - part_center_y(&o->base, 0);
             if (dy < 0) dy = -dy;
             if (dx < 24000 && dy < 12000) g_eng.h5b5600(self, IP(o), 1);
         }
