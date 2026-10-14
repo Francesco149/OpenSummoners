@@ -21,6 +21,8 @@ python3 tools/rhost/rhost.py boot --edition ense-en                     # the EN
 python3 tools/rhost/rhost.py run X --extra="--watch-write 2005cb90@0"   # who writes this address?
 python3 tools/rhost/rhost.py run X --extra="--trap 4181df"              # registers at an instruction
 #   (+ `trap-count VA hits=N` per trap at exit; --trap-max 0 = counts only: path coverage)
+python3 tools/rhost/rhost.py run X --extra="--trap-census 46e510:1d4"   # histogram of [ecx+0x1d4] at each hit
+#   (which particle codes reach 0x46e510; one VA:OFF per flag, shares the 8 trap slots)
 ```
 Results land in `/mnt/ephemeral/opensummoners/rhost-runs/<batch>/<run>/` (`rhost.log`, last line
 `RESULT key=value…`; shots `shot_fNNNNNN.png`; dumps `state_*.rhs`). The driver rebuilds +

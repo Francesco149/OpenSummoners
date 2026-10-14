@@ -473,12 +473,39 @@ static LONG CALLBACK watch_veh(EXCEPTION_POINTERS *e)
 /* --trap VA[,VA]: INT3 at an instruction; every hit logs the registers (first 50), re-arms by
  * single-stepping over the restored byte */
 static uint32_t g_tva[8]; static int g_ntrap; static uint8_t g_torig[8]; static long g_thits[8]; static int g_trearm = -1;
+/* --trap-census VA:OFF — a trap that also histograms the dword at [ecx+OFF] per hit (a thiscall's
+ * dispatch field: which codes / types reach VA); reported at exit, most frequent first */
+#define CENSUS_N 256
+static int32_t g_cen_off[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+static uint32_t g_cen_val[8][CENSUS_N]; static long g_cen_cnt[8][CENSUS_N]; static int g_cen_n[8]; static long g_cen_over[8];
+static void census_add(int t, uint32_t v)
+{
+    for (int k = 0; k < g_cen_n[t]; k++) if (g_cen_val[t][k] == v) { g_cen_cnt[t][k]++; return; }
+    if (g_cen_n[t] < CENSUS_N) { g_cen_val[t][g_cen_n[t]] = v; g_cen_cnt[t][g_cen_n[t]++] = 1; } else g_cen_over[t]++;
+}
+static void census_report(void)
+{
+    for (int t = 0; t < g_ntrap; t++) {
+        if (g_cen_off[t] < 0) continue;
+        for (int a = 0; a < g_cen_n[t]; a++)          /* sort by count, descending */
+            for (int b = a + 1; b < g_cen_n[t]; b++)
+                if (g_cen_cnt[t][b] > g_cen_cnt[t][a]) {
+                    uint32_t v = g_cen_val[t][a]; long c = g_cen_cnt[t][a];
+                    g_cen_val[t][a] = g_cen_val[t][b]; g_cen_cnt[t][a] = g_cen_cnt[t][b];
+                    g_cen_val[t][b] = v; g_cen_cnt[t][b] = c;
+                }
+        for (int k = 0; k < g_cen_n[t]; k++)
+            rh_log("trap-census %08x +%x value %u (0x%x) hits=%ld\n", g_tva[t], g_cen_off[t], g_cen_val[t][k], g_cen_val[t][k], g_cen_cnt[t][k]);
+        if (g_cen_over[t]) rh_log("trap-census %08x +%x overflow hits=%ld\n", g_tva[t], g_cen_off[t], g_cen_over[t]);
+    }
+}
 static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
 {
     CONTEXT *c = e->ContextRecord;
     uint32_t a = (uint32_t)(uintptr_t)e->ExceptionRecord->ExceptionAddress;
     if (e->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT) {
         for (int i = 0; i < g_ntrap; i++) if (g_tva[i] == a) {
+            if (g_cen_off[i] >= 0) census_add(i, *(uint32_t *)(uintptr_t)(c->Ecx + (uint32_t)g_cen_off[i]));
             if (g_thits[i]++ < O.trap_max)
                 rh_log("trap %08x f%u ret=%08x eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n", a, g_frame,
                        *(uint32_t *)(uintptr_t)c->Esp, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
@@ -646,6 +673,7 @@ static void finish(const char *why)
     cov_dump();
     rh_hooks_report();
     for (int i = 0; i < g_ntrap; i++) rh_log("trap-count %08x hits=%ld\n", g_tva[i], g_thits[i]);
+    census_report();
     rh_media_report();
     rh_log("scrub: %ld thunks, %llu dirty pages zeroed\n", rh_scrub_thunks(), (unsigned long long)rh_scrub_pages());
     if (is_dump_frame(0xffffffffu)) dump_now("end");
@@ -732,6 +760,13 @@ static void parse(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--trap-max")) O.trap_max = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--trap-census")) {     /* VA:OFF (hex), one per flag; no register log */
+            char *t = ARG(), *c = strchr(t, ':');
+            if (!c || g_ntrap >= 8) rh_fatal("--trap-census VA:OFF");
+            g_cen_off[g_ntrap] = (int32_t)strtoul(c + 1, 0, 16);
+            g_tva[g_ntrap++] = strtoul(t, 0, 16);
+            O.trap_max = 0;
+        }
         else if (!strcmp(a, "--trap")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_ntrap < 8; t = strtok(NULL, ",")) g_tva[g_ntrap++] = strtoul(t, 0, 16);
