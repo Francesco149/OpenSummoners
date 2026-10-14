@@ -181,6 +181,11 @@ int rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, size
 /* ---- closure-form shadow (port functions that call retail, write anywhere) ---- */
 #define SHX_DEAD 16384
 static uint8_t g_shx_dead[SHX_DEAD];
+/* depth of an in-progress shadow: hooks reached from inside one (retail's own calls during the
+ * retail phase) must pass straight through — a nested full-state shadow would overwrite the
+ * outer one's static snapshot buffers */
+static int g_shadow_depth;
+int rh_in_shadow(void) { return g_shadow_depth != 0; }
 int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn)
 {
     static uint32_t r[MAXR][2], r2[MAXR][2];
@@ -195,7 +200,9 @@ int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *),
     void *meta = rh_heap_meta_save();
     void *media0 = rh_media_save();
     COPY_OUT(g_pre);
+    g_shadow_depth++;
     retail(ctx);
+    g_shadow_depth--;
     int n2 = state_ranges(r2);
     if (n2 != n || memcmp(r, r2, n * 8)) {
         snprintf(why, whyn, "%s: arena commit changed during call (ranges %d->%d); not compared", name, n, n2);
@@ -214,7 +221,9 @@ int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *),
     rh_heap_meta_restore(meta);
     rh_clock_restore(clk0);
     __asm__ volatile("fldcw %0" : : "m"(cw));
+    g_shadow_depth++;
     port(ctx);
+    g_shadow_depth--;
     memcpy((void *)(uintptr_t)(sp - SHX_DEAD), g_shx_dead, SHX_DEAD);
     long diff = 0; int k = 0;
     int w = snprintf(why, whyn, "%s:", name);

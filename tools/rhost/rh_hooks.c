@@ -45,7 +45,12 @@ static void diverged(hook_t *h, const char *fmt, ...)
         rh_log("DIVERGE %s frame %u: %s\n", h->name, g_frame, h->first);
     }
 }
-static int sample(hook_t *h) { h->calls++; return h->every <= 1 || h->calls % h->every == 0; }
+static int sample(hook_t *h)
+{
+    h->calls++;
+    if (rh_in_shadow()) return 0;      /* reached from inside a full-state shadow: pass through */
+    return h->every <= 1 || h->calls % h->every == 0;
+}
 
 /* A shadow call runs retail AND the port on the retail stack: the port leaves its own garbage
  * below ESP, which retail's uninitialized reads (quirk #123) would then see — a pure-retail run
