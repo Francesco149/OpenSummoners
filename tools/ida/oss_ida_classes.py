@@ -15,7 +15,8 @@
 # Classes already typed by the knowledge pack (TagThiscallFunctions: ar_sprite_slot, …) keep
 # their hand-made struct. Output: classes_ida.tsv (class, size, methods, instances, fields).
 import collections
-import ida_funcs, ida_hexrays as hr, ida_name, ida_nalt, ida_typeinf, idautils
+import ida_funcs, ida_hexrays as hr, ida_name, ida_nalt, ida_typeinf, idautils, idaapi
+IMG_LO, IMG_HI = idaapi.inf_get_min_ea(), idaapi.inf_get_max_ea()
 
 
 def _strip(e):
@@ -77,6 +78,7 @@ def recover(log, skip_typed=()):
     fields = collections.defaultdict(collections.Counter)   # method -> Counter((off, size))
     inst_at = collections.defaultdict(set)                  # method -> {global VA (object at)}
     inst_ptr = collections.defaultdict(set)                 # method -> {global VA (holds pointer)}
+    ptr_hits = collections.Counter()                        # (class root, global) binding count, filtered later
     newsz = collections.defaultdict(int)                    # method -> operator new size
     new_names = ("??2@YAPAXI@Z", "operator new")
     nfail = 0
@@ -150,8 +152,8 @@ def recover(log, skip_typed=()):
                         elif a0.op == hr.cot_ref and _strip(a0.x).op == hr.cot_obj:
                             inst_at[g].add(_strip(a0.x).obj_ea)
                         elif a0.op == hr.cot_obj:
-                            inst_ptr[g].add(a0.obj_ea)
-                        elif a0.op == hr.cot_num and a0.numval() > 0x400000:
+                            inst_ptr[g].add(a0.obj_ea); ptr_hits[(g, a0.obj_ea)] += 1
+                        elif a0.op == hr.cot_num and IMG_LO <= a0.numval() < IMG_HI:
                             inst_at[g].add(a0.numval())
                 return 0
         V().apply_to(cf.body, None)
@@ -170,6 +172,10 @@ def recover(log, skip_typed=()):
     for m in sorted(mset):
         classes[uf.f(m)].append(m)
     log("classes: %d thiscall methods -> %d classes (%d decompile failures)" % (len(mset), len(classes), nfail))
+    # a global holds a class pointer only if >= 2 call sites bind it (a single site may be a
+    # mis-detected `this`, e.g. Flip(hWnd) printed without its ECX)
+    for m in list(inst_ptr):
+        inst_ptr[m] = {g for g in inst_ptr[m] if sum(n for (mm, gg), n in ptr_hits.items() if gg == g and uf.f(mm) == uf.f(m)) >= 2}
     return classes, fields, inst_at, inst_ptr, newsz
 
 
