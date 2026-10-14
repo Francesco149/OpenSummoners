@@ -102,8 +102,8 @@ int test_camera_follow_step_both_axes(void)
     T_ASSERT_EQ_I(v.vel_x, 10);
     T_ASSERT_EQ_I(v.cur_y, 12800);
     /* shakes inactive -> projector accumulators 0 (matches the cam_x34/x4c probe) */
-    T_ASSERT_EQ_I(v.accum_x, 0);
-    T_ASSERT_EQ_I(v.accum_y, 0);
+    T_ASSERT_EQ_I(v.shake_x.out, 0);
+    T_ASSERT_EQ_I(v.shake_y.out, 0);
     return 0;
 }
 

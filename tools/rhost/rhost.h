@@ -83,6 +83,7 @@ int  iat_try(const char *name, void *fn);
 void *iat_lookup(const char *name);
 void *iat_override_ord(const char *dll, int ord, void *fn);
 int  redirect_calls(uint32_t va, void *hook);
+int  redirect_calls_chain(uint32_t va, void *hook);   /* + tails of rhost's own stubs (port hooks) */
 void *rh_fixed_alloc(size_t n);   /* host objects retail may point at: fixed VA (0x5f080000..) */
 
 /* rh_heap.c */

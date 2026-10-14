@@ -115,6 +115,8 @@ void *iat_override_ord(const char *dll, int ord, void *fn)
     }
     return NULL;
 }
+static uint8_t *g_stub_top;
+#define STUB_LO 0x5f000000u
 int redirect_calls(uint32_t va, void *hook)
 {
     int n = 0;
@@ -127,12 +129,27 @@ int redirect_calls(uint32_t va, void *hook)
     }
     return n;
 }
+/* redirect_calls + the call sites already rewritten to one of rhost's own stubs (the easer tick
+ * counter, the flip hook): those reach `va` through the stub's tail `jmp va` — chain the hook
+ * there. For port hooks only: a stub installer must use redirect_calls (its own fresh stub's
+ * tail would otherwise be pointed back at itself). */
+int redirect_calls_chain(uint32_t va, void *hook)
+{
+    int n = redirect_calls(va, hook);
+    if (g_stub_top)
+        for (uint8_t *p = (uint8_t *)(uintptr_t)STUB_LO; p + 5 <= g_stub_top; p++) {
+            if (*p != 0xE9) continue;
+            uint32_t tgt = (uint32_t)(uintptr_t)p + 5 + *(int32_t *)(p + 1);
+            if (tgt != va) continue;
+            *(int32_t *)(p + 1) = (int32_t)((uint32_t)(uintptr_t)hook - ((uint32_t)(uintptr_t)p + 5));
+            n++;
+        }
+    return n;
+}
 
 /* ---- call stubs: any calling convention, args untouched ----
  * [inc dword [counter]] [pushad; pushfd; call pre; popfd; popad] jmp orig
  * Lives at a fixed VA (deterministic: retail .text holds rel32s to it). */
-#define STUB_LO 0x5f000000u
-static uint8_t *g_stub_top;
 static void *make_stub(volatile uint32_t *counter, void (*pre)(void), uint32_t orig)
 {
     if (!g_stub_top) {

@@ -3544,8 +3544,8 @@ static void freeroam_step(void)
  * +0x64/+0x68 viewport; +0x74 vertical shear is 0 across the town pan). */
 static void game_camera_to_mr(const camera_view *v, mr_camera *out)
 {
-    out->off34 = v->accum_x;   /* +0x34 */
-    out->off4c = v->accum_y;   /* +0x4c */
+    out->off34 = v->shake_x.out;   /* +0x34 */
+    out->off4c = v->shake_y.out;   /* +0x4c */
     out->off5c = v->cur_y;     /* +0x5c */
     out->off60 = v->cur_x;     /* +0x60 */
     out->off64 = v->vp_w;      /* +0x64 */

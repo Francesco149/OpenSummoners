@@ -9,7 +9,7 @@ LDF=(-Wl,--image-base,0x200000 -Wl,--large-address-aware -Wl,--disable-dynamicba
 PORT_STD=${PORT_STD:-$(sed -n 's/^CFLAGS *?= *\(-std=[a-z0-9]*\).*/\1/p' "$S/Makefile")}
 mkdir -p "$B"
 PORT_OBJS=()
-for f in rng input collision map_grid entity_move map_data map_decode; do
+for f in rng input collision map_grid entity_move map_data map_decode camera_follow; do
     $CC $PORT_STD -O2 -I"$S" -c -o "$B/$f.o" "$S/$f.c"
     PORT_OBJS+=("$B/$f.o")
 done

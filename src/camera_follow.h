@@ -60,19 +60,29 @@ typedef struct camera_view {
     int32_t  map_h;     /* +0x04 — map pixel height (dim1*0xc80)               */
     int32_t  vel_x;     /* +0x08 — X follow velocity (accumulates +10/frame)   */
     int32_t  vel_y;     /* +0x0c — Y follow velocity                           */
+    uint8_t  _p10[0x1c - 0x10];
     int32_t  flag;      /* +0x1c — far-boost enable (0 for the town pan)       */
     int32_t  cap;       /* +0x20 — velocity cap = pan SPEED (300 for the town) */
+    cam_shake shake_x;  /* +0x24 — its .out (+0x34) = the projector x offset   */
+    cam_shake shake_y;  /* +0x3c — its .out (+0x4c) = the projector y offset   */
+    uint8_t  _p54[0x5c - 0x54];
     int32_t  cur_y;     /* +0x5c — CURRENT scroll-y origin                     */
     int32_t  cur_x;     /* +0x60 — CURRENT scroll-x origin                     */
     int32_t  vp_w;      /* +0x64 — viewport width  (64000)                     */
     int32_t  vp_h;      /* +0x68 — viewport height (48000)                     */
     int32_t  tgt_x;     /* +0x6c — TARGET scroll-x origin                      */
     int32_t  tgt_y;     /* +0x70 — TARGET scroll-y origin                      */
-    int32_t  accum_x;   /* +0x34 — projector sub-accumulator x (shake out)     */
-    int32_t  accum_y;   /* +0x4c — projector sub-accumulator y (shake out)     */
-    cam_shake shake_x;  /* +0x24 */
-    cam_shake shake_y;  /* +0x3c */
-} camera_view;
+    uint8_t  _p74[0x78 - 0x74];
+} camera_view;           /* retail layout: the 0x78-byte object at world+0x104c */
+
+#include <stddef.h>
+_Static_assert(sizeof(cam_shake)                == 0x18, "shake block 0x18");
+_Static_assert(offsetof(camera_view, flag)      == 0x1c, "view flag");
+_Static_assert(offsetof(camera_view, shake_x)   == 0x24, "view shake_x");
+_Static_assert(offsetof(camera_view, shake_y)   == 0x3c, "view shake_y");
+_Static_assert(offsetof(camera_view, cur_y)     == 0x5c, "view cur_y");
+_Static_assert(offsetof(camera_view, tgt_y)     == 0x70, "view tgt_y");
+_Static_assert(sizeof(camera_view)              == 0x78, "view is 0x78 bytes");
 
 /*
  * One axis of FUN_0043d1d0: ease *cur toward tgt, integrating *vel (accel +10

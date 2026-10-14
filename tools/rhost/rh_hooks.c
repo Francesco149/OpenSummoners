@@ -18,6 +18,7 @@
 #include "entity_move.h"
 #include "map_data.h"
 #include "map_decode.h"
+#include "camera_follow.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -27,7 +28,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -275,6 +276,56 @@ static uint32_t __attribute__((thiscall)) w_map_decode(void *grid, void *mapobj,
     return r;
 }
 
+/* ---- camera (FUN_0043d1d0 follow step, thiscall on the 0x78-byte view at world+0x104c; FUN_0043d340
+ * shake applier, stdcall(block, cur, max)) vs src/camera_follow.c — camera_view is retail layout ---- */
+typedef int (__attribute__((thiscall)) *cam_follow_t)(camera_view *);
+static int __attribute__((thiscall)) w_cam_follow(camera_view *v)
+{
+    hook_t *h = &H[H_CAM_FOLLOW];
+    if (h->mode == 2) { h->calls++; camera_follow_step(v); return v->shake_y.out; }
+    if (!sample(h)) return ((cam_follow_t)(uintptr_t)h->va)(v);
+    camera_view pre = *v;
+    int r = ((cam_follow_t)(uintptr_t)h->va)(v);
+    camera_view ret = *v;
+    *v = pre;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    camera_follow_step(v);
+    dead_restore(sp);
+    camera_view prt = *v;
+    *v = ret;
+    h->compared++;
+    if (memcmp(&prt, &ret, sizeof ret)) {
+        int k = 0; while (((uint8_t *)&prt)[k] == ((uint8_t *)&ret)[k]) k++;
+        diverged(h, "view +%02x: retail %08x port %08x (cur %d,%d tgt %d,%d vel %d,%d cap %d flag %d)", k & ~3,
+                 *(uint32_t *)((uint8_t *)&ret + (k & ~3)), *(uint32_t *)((uint8_t *)&prt + (k & ~3)),
+                 pre.cur_x, pre.cur_y, pre.tgt_x, pre.tgt_y, pre.vel_x, pre.vel_y, pre.cap, pre.flag);
+    }
+    return r;
+}
+typedef int32_t (__stdcall *cam_shake_t)(cam_shake *, int32_t, int32_t);
+static int32_t __stdcall w_cam_shake(cam_shake *b, int32_t cur, int32_t max)
+{
+    hook_t *h = &H[H_CAM_SHAKE];
+    if (h->mode == 2) { h->calls++; return camera_shake_apply(b, cur, max); }
+    if (!sample(h)) return ((cam_shake_t)(uintptr_t)h->va)(b, cur, max);
+    cam_shake pre = *b;
+    int32_t r = ((cam_shake_t)(uintptr_t)h->va)(b, cur, max);
+    cam_shake ret = *b;
+    *b = pre;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    int32_t p = camera_shake_apply(b, cur, max);
+    dead_restore(sp);
+    cam_shake prt = *b;
+    *b = ret;
+    h->compared++;
+    if (p != r || memcmp(&prt, &ret, sizeof ret))
+        diverged(h, "act %d dur %d ctr %d ph %d env %u amp %d cur %d max %d: retail %d/out %d port %d/out %d",
+                 pre.active, pre.duration, pre.counter, pre.phase, pre.envelope, pre.amp, cur, max, r, ret.out, p, prt.out);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -283,6 +334,8 @@ static hook_t H[H_N] = {
     [H_ENT_MOVE_H] = { "ent_move_h", 0x54db10u, (void *)w_ent_h, 0, 1, 0, 0, 0, 0, "" },
     [H_ENT_MOVE_V] = { "ent_move_v", 0x54e5c0u, (void *)w_ent_v, 0, 1, 0, 0, 0, 0, "" },
     [H_MAP_DECODE] = { "map_decode", 0x587e00u, (void *)w_map_decode, 0, 1, 0, 0, 0, 0, "" },
+    [H_CAM_FOLLOW] = { "cam_follow", 0x43d1d0u, (void *)w_cam_follow, 0, 1, 0, 0, 0, 0, "" },
+    [H_CAM_SHAKE]  = { "cam_shake",  0x43d340u, (void *)w_cam_shake,  0, 1, 0, 0, 0, 0, "" },
 };
 
 void rh_hooks_install(void)
@@ -291,7 +344,8 @@ void rh_hooks_install(void)
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
-        H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va = 0;
+        H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -309,7 +363,7 @@ void rh_hooks_install(void)
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
             rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));
         }
-        int n = redirect_calls(h->va, h->wrapper);
+        int n = redirect_calls_chain(h->va, h->wrapper);
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n) rh_fatal("hook %s: no direct call sites", name);
     }

@@ -40,10 +40,10 @@ int32_t camera_shake_apply(cam_shake *s, int32_t cur, int32_t max_scroll)
     }
     if (s->duration > 0) {
         s->counter += 1;
-        if (s->duration <= s->counter) {        /* expired */
+        if (s->duration <= s->counter) {        /* expired (returns the duration) */
             s->active = 0;
             s->out = 0;
-            return 0;
+            return s->duration;
         }
         if (s->duration - s->counter < 0x14)    /* fade out over the last 20 */
             amp = ((s->duration - s->counter) * amp) / 0x14;
@@ -76,8 +76,13 @@ int32_t camera_shake_apply(cam_shake *s, int32_t cur, int32_t max_scroll)
         s->envelope = (uint16_t)e;
     }
 
-    s->out = (int32_t)(((uint32_t)s->envelope * (uint32_t)(upper - lower)) / 1000) + lower;
-    return s->out;
+    /* SIGNED (the span is negative when the map is narrower than the viewport);
+     * retail's return value is the sign word of the scaled product (eax after
+     * the /1000 magic multiply) — unused by its caller. */
+    int32_t span = upper - lower;
+    s->out = span * (int32_t)s->envelope / 1000 + lower;
+    int32_t prod = span * (int32_t)s->envelope;
+    return (int32_t)((uint32_t)((uint64_t)((int64_t)prod * 274877907LL) >> 32) >> 31);
 }
 
 /* FUN_0043d1d0 — the once-per-frame follow over both axes + the shake appliers. */
@@ -85,8 +90,8 @@ void camera_follow_step(camera_view *v)
 {
     camera_follow_axis(&v->cur_x, &v->vel_x, v->tgt_x, v->flag, v->cap);
     camera_follow_axis(&v->cur_y, &v->vel_y, v->tgt_y, v->flag, v->cap);
-    v->accum_x = camera_shake_apply(&v->shake_x, v->cur_x, v->map_w - v->vp_w);
-    v->accum_y = camera_shake_apply(&v->shake_y, v->cur_y, v->map_h - v->vp_h);
+    (void)camera_shake_apply(&v->shake_x, v->cur_x, v->map_w - v->vp_w);
+    (void)camera_shake_apply(&v->shake_y, v->cur_y, v->map_h - v->vp_h);
 }
 
 /* 439690's target clamp: max(tgt, 0) then min(that, map_ext - viewport).
