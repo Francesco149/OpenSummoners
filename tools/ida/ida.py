@@ -78,16 +78,17 @@ def main():
         return
     if a.cmd == "export":
         stage()
-        kb_win = None
+        kb_win = {}
         if a.kb:
-            kbl = os.path.join(LOCAL, "knowledge.json")
-            subprocess.run([sys.executable, os.path.join(ROOT, "tools/ida/gen_knowledge.py"), "-o", kbl], check=True)
-            kb_win = WIN + r"\knowledge.json"; scp_to(kbl, kb_win)
+            for e in eds:
+                kbl = os.path.join(LOCAL, f"knowledge.{e}.json")
+                subprocess.run([sys.executable, os.path.join(ROOT, "tools/ida/gen_knowledge.py"), "-o", kbl, "--edition", e], check=True)
+                kb_win[e] = WIN + f"\\knowledge.{e}.json"; scp_to(kbl, kb_win[e])
         with cf.ThreadPoolExecutor(len(eds)) as ex:
             if a.fresh:
                 for e in eds:
                     ssh("Remove-Item -ErrorAction SilentlyContinue '%s\\%s.i64'; exit 0" % (WIN, EDITIONS[e][0]))
-            for ed, out in ex.map(lambda e: export_one(e, kb_win if e == "enold" else None, a.noasm, not a.no_classes), eds):
+            for ed, out in ex.map(lambda e: export_one(e, kb_win.get(e), a.noasm, not a.no_classes), eds):
                 print("[%s] %s" % (ed, out))
     for ed in eds:
         print("[%s] %s" % (ed, fetch(ed)))

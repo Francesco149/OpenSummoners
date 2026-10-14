@@ -160,9 +160,50 @@ def thiscall_protos(names):
     return protos
 
 
+def translate(kb, edition):
+    """EN-old VAs → another edition via tools/ida/crosswalk.py outputs: names/comments for every
+    matched function or global; prototypes only where the code is byte- or mnemonic-identical
+    (a moved struct offset would make an applied prototype lie)."""
+    D = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
+    base = os.path.join(D, "plain") if os.path.isdir(os.path.join(D, "plain")) else D
+    fn = {}; strict = set()
+    for l in open(os.path.join(base, f"crosswalk_enold_{edition}.tsv")).readlines()[1:]:
+        a, b, how = l.split("\t")[:3]
+        fn[int(a, 16)] = int(b, 16)
+        if how in ("bytes", "mnem"):
+            strict.add(int(a, 16))
+    dv = {}
+    p = os.path.join(base, f"crosswalk_data_enold_{edition}.tsv")
+    if os.path.exists(p):
+        for l in open(p).readlines()[1:]:
+            a, b = l.split("\t")[:2]
+            dv[int(a, 16)] = int(b, 16)
+    out = {"names": {}, "protos": {}, "gtypes": {}, "cmts": {}, "decls": kb["decls"]}
+    def tr(va, allow_strict=False):
+        v = int(va, 16)
+        if v in fn and (not allow_strict or v in strict):
+            return fn[v]
+        return dv.get(v)
+    for k in ("names", "cmts"):
+        for va, x in kb[k].items():
+            t = tr(va)
+            if t:
+                out[k]["%x" % t] = re.sub(r"_[0-9A-F]{6}$", "_%X" % t, x) if k == "names" else x + f" (EN-old {va})"
+    for va, x in kb["protos"].items():
+        t = tr(va, allow_strict=True)
+        if t:
+            out["protos"]["%x" % t] = x
+    for va, x in kb["gtypes"].items():
+        t = dv.get(int(va, 16))
+        if t:
+            out["gtypes"]["%x" % t] = x
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-o", "--out", required=True)
+    ap.add_argument("--edition", default="enold", help="enold (native) or ense-en / ense-jp (translated through the crosswalk)")
     a = ap.parse_args()
     pn = port_names()
     rn, rg = retail_fields()
@@ -182,9 +223,12 @@ def main():
             kb["gtypes"]["%x" % va] = ty
     for va, nm in rg.items():
         kb["names"].setdefault("%x" % va, f"g_{nm}")
+    if a.edition != "enold":
+        kb = translate(kb, a.edition)
     json.dump(kb, open(a.out, "w"), indent=0)
     print(f"knowledge: {len(pn)} port names, {len(rn)} retail_fields names, {len(protos)} thiscall protos, "
-          f"{len(GLOBALS) + len(rg)} globals, {len(decls)} type decls → {a.out}")
+          f"{len(GLOBALS) + len(rg)} globals, {len(decls)} type decls → {a.out}"
+          + (f" (translated to {a.edition}: {len(kb['names'])} names, {len(kb['protos'])} protos)" if a.edition != "enold" else ""))
 
 
 if __name__ == "__main__":
