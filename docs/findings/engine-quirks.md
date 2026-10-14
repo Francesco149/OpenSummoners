@@ -4124,6 +4124,21 @@ max/accel +0x1596c/+0x15970, run (lr 5/6, +0x1598c) +0x15990/+0x15974, brake +0x
 movers (step-down unless probing a non-player, step-up always, pass = the drop timer). Move mode +0x1594c: 0
 ground, 1..2 alternate, 3 bounded box (+0x15a98..). Verified: rhost shadow:char_physics 1,582,325 calls.
 
+### #134 — free roam runs INSIDE `load_room 0x586010`: the room loop `0x58f360`, its pacing machine, and exits as actor gimmicks
+`0x59f2c0` (scene loop) → `load_room 0x586010` (setup) → the room loop `0x58f360`, which only returns when the
+room ends; `load_room` hands its 1..10 exit code to `0x59f2c0`'s jump table (next room, menus, …). Every pass of
+`0x58f360` runs a GetTickCount PACING machine (locals: state 0 = pump once then 2; 2 = wait — when `now - last`
+exceeds the budget (16 ms, 17 initial) switch to 1; 1 = render `0x48c150` + Flip, carry `budget + now - last`
+(capped 100) and go back to 2 once it drops below 16) — the update (input poll `0x43c110`, hitstop
+`this+0x34/+0x38`, world tick `+0x276c`, per character `0x590410` support probe + player AI `0x478ba0` / NPC
+behaviour `0x47b990`, then `0x485fc0` apply, then shots `0x590230` / particles `0x46e510` / `0x46da00` /
+actors `0x58ffd0`, grid anim `0x58ff50`, the camera `0x43d1d0`, `0x499ab0`) runs in the state-2 pass. With a
+16 ms-per-Flip clock (rhost) that is exactly 1 update per presented frame. In the intro/cutscenes the event
+interpreter `0x439690` drives `0x46cd70` (the same per-band order, `cut = 1`) instead. Exits: `0x59afd0` walks the
+128 actors (world+0x11e0) through `0x59b170`, the per-actor GIMMICK update (doors / switches / plates by actor
+code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop returns it. Events: `0x59a1f0`
+(trigger zones) → `0x59cfc0` scene start, return 1.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

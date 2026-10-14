@@ -46,8 +46,11 @@
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with
      `--det-clock` portshots/portstate vs rhost on `rh-my-play`.
-  3. room transitions: the scene loop `0x59f2c0` (all 10 loads go through `0x59fe69`) +
-     `load_room 0x586010`; the decode is already byte-exact.
+  3. room transitions (quirk #134): the room loop `0x58f360` (its pacing machine IS the cadence
+     model — port it and `--det-clock` gives rhost's 1:1 for free), exits = door actors via
+     `0x59afd0` → `0x59b170` (gimmicks), events `0x59a1f0`; `load_room 0x586010` + the scene loop
+     `0x59f2c0` switch. The map decode is already byte-exact. A loop function is verified in REPLACE
+     mode (corpus/hash), not per-call shadow.
   4. port-side DIK input (`--rh-trace` via the producer `0x46a880`, which is itself a shadow target).
 - **Loop (per function):** read `decompiled-ida/enold/all_ida.c` (+ asm for conventions/widths) →
   port on world_layout types → wrapper in `tools/rhost/rh_hooks.c` → `rhost.py verify` + `corpus
