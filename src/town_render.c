@@ -40,20 +40,12 @@ int town_render_load(town_render *tr, const uint8_t *map_bytes, size_t len,
      * cfg, so the town decodes identically; the house/errands interior tiles
      * read it. */
     map_decode_cfg dcfg;
-    map_decode_cfg_init(&dcfg, MAP_DECODE_SCENE_PARAM3, parallax_p3);
+    map_decode_cfg_init(&dcfg, parallax_p2, MAP_DECODE_SCENE_PARAM3, parallax_p3);
     map_decode(&tr->map, tr->grid, &dcfg, dims, dims_ctx);
 
-    /* The 0x587e00 prologue's parallax-bank selection for this room (the
-     * front-header slice map_decode otherwise defers).  param_2 = room[0x44],
-     * param_3 = room[0x43] — now passed in from the active room's registry
-     * record (game_world_room_render_cfg) rather than hardcoded to the town's
-     * (4,1).  The town/house resolve to (4,1) (identical to the old constant),
-     * the errands room to (9,4).  (PORT-DEBT ingame-nontile-layers narrows: the
-     * real param_3 is the scene field local_918, not room[0x43] — but room[0x43]
-     * normalizes the same for the town/house/errands; revisit with the capture.)
-     * Write the descriptor into the grid front-header so its bytes match retail. */
-    parallax_select(parallax_p2, parallax_p3, &tr->parallax);
-    parallax_to_grid(tr->grid, &tr->parallax);
+    /* The parallax descriptor = the front header map_decode just wrote (the
+     * 0x587e00 prologue switch on param_2 = room[0x44]; rhost-verified). */
+    parallax_from_grid(tr->grid, &tr->parallax);
 
     tr->loaded = 1;
     return 0;

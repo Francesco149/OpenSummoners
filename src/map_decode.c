@@ -33,7 +33,7 @@
 
 #include <string.h>
 
-void map_decode_cfg_init(map_decode_cfg *cfg, int param_3, int param_4)
+void map_decode_cfg_init(map_decode_cfg *cfg, int param_2, int param_3, int param_4)
 {
     /* 587e00.c:64-80 param_3 normalization -> the 113xxx tile frame (0 for the
      * town-area rooms; MAP_DECODE_SCENE_PARAM3=0x14 normalizes to 0). */
@@ -46,6 +46,23 @@ void map_decode_cfg_init(map_decode_cfg *cfg, int param_3, int param_4)
     default:            sf = 0; break;
     }
     cfg->scene_frame = (int16_t)sf;
+
+    /* local v474 (0x587ecb..0x588032 + the param_4 case 9 store): the header
+     * switch promotes 2 -> 3 for the flag-0x1c room types and zeroes it for
+     * the no-parallax arms. */
+    cfg->room_type = param_2;
+    int v = sf;
+    switch (param_2) {
+    case 6: case 8: case 9: case 12: case 13: case 16: if (v == 2) v = 3; break;
+    default: break;
+    }
+    switch (param_2) {
+    case 1: case 5: case 6: case 8: case 10: case 13: case 14: case 18:
+    case 17: case 11: case 12: case 15: case 16: case 4: case 9: break;
+    default: v = 0; break;                 /* 3, 19, 2, 7, out of 1..19 */
+    }
+    if (param_4 == 9) v = 5;
+    cfg->scene_norm = v;
 
     /* 587e00.c:49-55 defaults (param_4 not in the switch, e.g. 1 = town/house). */
     cfg->bank_24 = 0x17e;
@@ -418,7 +435,7 @@ void map_decode_cell(const map_data *m, uint8_t *grid,
      * arms need the per-room banks + scene frame). */
     map_decode_cfg def;
     if (cfg == NULL) {
-        map_decode_cfg_init(&def, MAP_DECODE_SCENE_PARAM3, 1);
+        map_decode_cfg_init(&def, 4, MAP_DECODE_SCENE_PARAM3, 1);
         cfg = &def;
     }
 
@@ -842,19 +859,88 @@ static void decode_placeholder_layer(const map_data *m, uint8_t *grid,
     }
 }
 
+static void put16(uint8_t *p, uint16_t v) { memcpy(p, &v, 2); }
+static void put32(uint8_t *p, uint32_t v) { memcpy(p, &v, 4); }
+
+/* The front header (0x587e7f..0x588036).  +0x06/+0x08/+0x12/+0x14 are written
+ * ONLY by the arms that use them — otherwise they keep the previous room's
+ * values (retail never clears them). */
+static void decode_header(uint8_t *g, const map_decode_cfg *cfg)
+{
+    put32(g + 0x2cb040, 0);
+    put16(g + 0x24, 0); put16(g + 0x26, 0); put32(g + 0x28, 0); put16(g + 0x2c, 0x0c);
+    int v10 = cfg->scene_frame;               /* the param_3 normalization */
+    put32(g + 0x1c, 0); put32(g + 0x20, 0);
+    switch (cfg->room_type) {
+    case 6: case 8: case 9: case 12: case 13: case 16:
+        put32(g + 0x1c, 1);
+        if (v10 == 2) v10 = 3;
+        break;
+    default: break;
+    }
+    put16(g + 0x04, 0); put32(g + 0x0c, 0); put16(g + 0x10, 0); put32(g + 0x18, 0);
+    switch (cfg->room_type) {
+    case 1: case 5: case 6: case 8: case 10: case 13: case 14: case 18:
+        put16(g, v10 < 2 ? 0x4e : v10 <= 4 ? 0x4f : v10 == 5 ? 0x50 : 0x4e);
+        put16(g + 0x04, 0x57); put16(g + 0x08, 8); put16(g + 0x06, 0xa0);
+        break;
+    case 17:
+        put16(g, v10 >= 2 && v10 <= 4 ? 0x52 : 0x51);
+        break;
+    case 19:
+        put16(g, 0x53); put16(g + 0x04, 0x54); put16(g + 0x08, 8); put16(g + 0x06, 0xa0);
+        put32(g + 0x1c, 1);
+        break;
+    case 11: case 12: case 15: case 16:
+        put16(g, v10 >= 2 && v10 <= 4 ? 0x56 : 0x55);
+        put16(g + 0x04, 0x5a); put16(g + 0x08, 8); put16(g + 0x06, 0xc8);
+        put32(g + 0x0c, 0xfa); put16(g + 0x10, 0x5b); put16(g + 0x14, 8); put16(g + 0x12, 0xd0);
+        break;
+    case 4: case 9:
+        put16(g, v10 >= 2 && v10 <= 4 ? 0x56 : 0x55);
+        put16(g + 0x04, 0x58); put16(g + 0x08, 8); put16(g + 0x06, 0xf8);
+        put32(g + 0x0c, 0xfa); put16(g + 0x10, 0x59); put16(g + 0x14, 8); put16(g + 0x12, 0xe0);
+        break;
+    case 3:
+        put16(g + 0x2c, 0x0a);
+        /* fall through */
+    default:                                  /* 2, 7, out of 1..19 */
+        put32(g + 0x1c, 1); put32(g + 0x20, 1); put16(g, 0);
+        break;
+    }
+}
+
 void map_decode(const map_data *m, uint8_t *grid, const map_decode_cfg *cfg,
                 mg_bank_dims_fn dims, void *ctx)
 {
     map_decode_cfg def;
     if (cfg == NULL) {
-        map_decode_cfg_init(&def, MAP_DECODE_SCENE_PARAM3, 1);
+        map_decode_cfg_init(&def, 4, MAP_DECODE_SCENE_PARAM3, 1);
         cfg = &def;
     }
 
-    /* 587e00.c:34-56 (the four dim-header writes only). */
+    /* The prologue's grid writes: front header + dims (0x587e00..0x588036). */
     map_grid_set_dims(grid, (int32_t)m->dim0, (int32_t)m->dim1);
+    decode_header(grid, cfg);
 
-    /* 587e00.c:572-584 — pre-clear region C over dim0 x dim1. */
+    /* The per-cell clear (the 0x58c910 / 0x58ca80 inlines + 0x54c970): every
+     * cell inside the new dims gets its 4 region-A sub-slots reset to bank 0
+     * with the per-slot default flag, its region-B record (+0 u16, +4, +8, +0xc)
+     * and region-D flag zeroed; then region C.  Row-major, like retail. */
+    for (uint32_t y = 0; y < m->dim1; y++) {
+        for (uint32_t x = 0; x < m->dim0; x++) {
+            size_t idx = (size_t)x * MG_ROW_PITCH + y;
+            for (int sl = 0; sl < 4; sl++) {
+                uint8_t *a = grid + MG_REGION_A + idx * 0x40 + (size_t)sl * 0x10;
+                put16(a + 0x0, 0); put16(a + 0x2, 0);
+                put16(a + 0x4, sl < 2 ? 2 : sl == 2 ? 20 : 21);
+                put32(a + 0x8, 0); put32(a + 0xc, 0);
+            }
+            uint8_t *b = grid + MG_REGION_B + idx * 0x10;
+            put16(b + 0x0, 0); put32(b + 0x4, 0); put32(b + 0x8, 0); put32(b + 0xc, 0);
+            put16(grid + MG_REGION_D + idx * 2, 0);
+        }
+    }
     for (uint32_t y = 0; y < m->dim1; y++)
         for (uint32_t x = 0; x < m->dim0; x++)
             map_grid_clear_cell(grid, (int32_t)x, (int32_t)y, 0, 0, 0);

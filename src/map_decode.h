@@ -22,15 +22,19 @@
  * slot is cleared, matching the retail fall-through to
  * switchD_005887cc_caseD_271d).
  *
+ * The PROLOGUE's GRID writes are ported (2026-10-14, rhost-verified: the whole
+ * 0x2cb044-byte grid == retail on every room load of rh-my-play): the front
+ * header (0x587e00..0x588036 — parallax/backdrop words keyed on the room type,
+ * the +0x1c/+0x20 flags, +0x24..+0x2c, the dims, 0x2cb040) and the per-cell
+ * clear of regions A (bank 0 + the per-slot default flag 2/20/21) / B / D / C
+ * over dim0 x dim1.  Retail reuses ONE grid buffer, so bytes outside the new
+ * dims and the header words an arm does not write keep the previous room's
+ * values — the port must decode into its persistent grid to match.
  * NOT ported (deferred per the ckpt-53/56/57 discipline):
- *   - the 0x587e00 PROLOGUE (587e00.c:34-571) beyond the cfg banks: the
- *     grid front-header sky/backdrop words (in_ECX[0..0x16], keyed on the room
- *     TYPE param_2), the param_4 5-8 palette-remap table installs
- *     (&DAT_00675708.. + the *(0x8a9b50+0x27a4) runtime STRUCTURE bank) and the
- *     param_4 9-13 ramp tables, and the bank-registry invalidation sweeps
- *     (FUN_00417870 loops).  map_decode performs only the prologue's four
- *     dim-header writes (via map_grid_set_dims) so the primitives' bounds
- *     checks behave; the rest of the front header stays zero.
+ *   - the prologue's NON-grid effects: the param_4 5-8 palette-remap table
+ *     installs (&DAT_00675708.. + the *(0x8a9b50+0x27a4) runtime STRUCTURE
+ *     bank) and the param_4 9-13 ramp tables, the bank-registry invalidation
+ *     sweeps (FUN_00417870 loops), the 0x8a93fc time-of-day store.
  *     PORT-DEBT(decode-prologue-header).
  *
  * PORT NOTES / fidelity boundaries:
@@ -79,16 +83,22 @@ typedef struct map_decode_cfg {
     uint16_t bank_20;     /* local_20 — 0x1b98b / 0x1b995 bank                  */
     uint16_t bank_14;     /* local_14 — 0x1ffcd bank (0x83; param_4 5/6/8 remap)*/
     int16_t  scene_frame; /* normalized param_3 (the 113xxx direct-write frame) */
+    int32_t  room_type;   /* param_2 = room[0x44]: the front-header switch key    */
+    int32_t  scene_norm;  /* local v474 after the prologue: param_3 normalized,
+                           * 2 -> 3 for room types 6/8/9/12/13/16, 0 for the
+                           * no-parallax arms (3/19/other), 5 for param_4 9 —
+                           * the time-of-day value 0x587e00 stores at 0x8a93fc */
 } map_decode_cfg;
 
-/* Build the prologue config from the decode's param_3 (the scene field;
- * MAP_DECODE_SCENE_PARAM3 for the town-area rooms) and param_4 (= room[0x43]).
+/* Build the prologue config from the decode's param_2 (= room[0x44], the room
+ * type), param_3 (the scene field; MAP_DECODE_SCENE_PARAM3 for the town-area
+ * rooms) and param_4 (= room[0x43]).
  * Town/house (param_4=1) get the :49-52 defaults; errands (param_4=4) the case-4
  * banks.  Cases 5-13 keep the default tile banks; 5/6/8 swap bank_14
  * (0x84/0x85/0x86, 587e00.c:215-236) — their palette-remap table installs and
  * the runtime STRUCTURE bank write are PORT-DEBT(decode-prologue-header).
- * A "town default" cfg = (MAP_DECODE_SCENE_PARAM3, 1). */
-void map_decode_cfg_init(map_decode_cfg *cfg, int param_3, int param_4);
+ * A "town default" cfg = (4, MAP_DECODE_SCENE_PARAM3, 1). */
+void map_decode_cfg_init(map_decode_cfg *cfg, int param_2, int param_3, int param_4);
 
 /* Dispatch one cell at (x,y,z): read its record from `m` and issue the
  * map_grid_* recipe for its tile id (no-op for an empty / unhandled cell).

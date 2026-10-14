@@ -4080,6 +4080,20 @@ to run (`edb0`/`12a0`/`eab0`). Not colour/logic-bearing as far as observed; a po
 node. rhost neutralizes the class (uninit-fix site D: every SBH block + every HeapAlloc arena block
 is zeroed on allocation; `--no-uninit-fix` = raw retail). Found by `det rh-my-play` + `--watch-write`.
 
+### #131 — the map decode `0x587e00` writes into ONE persistent grid and clears only inside the new dims
+The runtime grid (`*(0x8a9b50)+0x1048`, 0x2cb044 bytes, allocated once by the world ctor `0x4017d0`) is
+reused by every room load. The prologue writes the dims (`0x2c1030..0x2c103c`), `0x2cb040 = 0`, the front
+header, then clears per cell INSIDE dim0 x dim1 only: each of the 4 region-A sub-slots = (bank 0, +2 0,
++4 = default flag 2/2/20/21 by slot, dx 0, dy 0), region B `+0` u16 / `+4` / `+8` / `+0xc` = 0 (B `+2` is
+not touched), region D = 0, then region C via `0x54c970`. Front header: `+0x00` u16 backdrop bank, `+0x04`
+u16 / `+0x06` u16 / `+0x08` u16 / `+0x0c` dword / `+0x10` u16 / `+0x12` u16 / `+0x14` u16 parallax strips,
+`+0x18` dword 0, `+0x1c` dword flag (1 for room types 6/8/9/12/13/16/19 and the no-parallax arms),
+`+0x20` dword flag (no-parallax arms), `+0x24`/`+0x26` u16 0, `+0x28` dword 0, `+0x2c` u16 = 0x0c (0x0a for
+room type 3). `+0x06/+0x08/+0x12/+0x14` are written only by arms that use them — otherwise the previous
+room's values persist. Room type = `param_2` (room[0x44]); the backdrop variant comes from the normalized
+scene value (`param_3`: 10/40 → 1, 50 → 2, 60 → 4, 61 → 5, else 0; 2 → 3 for the flag-0x1c types).
+Verified byte-exact over 13 loads (rhost `shadow:map_decode`).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

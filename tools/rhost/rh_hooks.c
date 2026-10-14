@@ -16,6 +16,8 @@
 #include "input.h"
 #include "collision.h"
 #include "entity_move.h"
+#include "map_data.h"
+#include "map_decode.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -25,7 +27,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -198,6 +200,81 @@ static int __attribute__((thiscall)) w_ent_v(void *self, wl_body *b, int32_t del
     return r;
 }
 
+/* ---- map decode (FUN_00587e00, thiscall on the grid) vs src/map_decode.c + parallax.c ----
+ * The parse (FUN_00587970, this = retail's 0x40-byte map object) is wrapped as a RECORDER of its
+ * (hModule, id): the decode wrapper re-reads that DATA resource through rhost's own resource
+ * overrides, parses it with map_data_parse, and runs the port's decode on the identical pre-state
+ * grid (the previous room's bytes — retail reuses the buffer). The whole 0x2cb044-byte grid is
+ * compared; the report breaks the differing bytes down by grid region. */
+#define GRID_BYTES 0x2cb044u
+static uint32_t g_map_hmod, g_map_id;
+typedef int (__attribute__((thiscall)) *map_parse_t)(void *, uint32_t, uint32_t);
+static int __attribute__((thiscall)) w_map_parse(void *mapobj, uint32_t hmod, uint32_t id)
+{
+    g_map_hmod = hmod; g_map_id = id & 0xffffu;
+    return ((map_parse_t)(uintptr_t)0x587970u)(mapobj, hmod, id);
+}
+static void rh_bank_dims(void *ctx, uint16_t bank, int32_t *w, int32_t *h)
+{
+    (void)ctx;
+    uint32_t p = G32(0x8a760cu + 4u * bank);        /* the sprite-bank pool (0x58c910) */
+    *w = p ? (int32_t)G32(p + 0x20) : 0; *h = p ? (int32_t)G32(p + 0x24) : 0;
+}
+static uint8_t *g_grid_pre, *g_grid_ret;
+typedef uint32_t (__attribute__((thiscall)) *map_decode_t)(void *, void *, int32_t, int32_t, int32_t);
+static uint32_t __attribute__((thiscall)) w_map_decode(void *grid, void *mapobj, int32_t p2, int32_t p3, int32_t p4)
+{
+    hook_t *h = &H[H_MAP_DECODE];
+    if (!g_grid_pre) { g_grid_pre = malloc(GRID_BYTES); g_grid_ret = malloc(GRID_BYTES); }
+    memcpy(g_grid_pre, grid, GRID_BYTES);
+    uint32_t r = ((map_decode_t)(uintptr_t)h->va)(grid, mapobj, p2, p3, p4);
+    if (!sample(h)) return r;
+    memcpy(g_grid_ret, grid, GRID_BYTES);
+    HRSRC (WINAPI *fr)(HMODULE, LPCSTR, LPCSTR) = iat_lookup("FindResourceA");
+    HGLOBAL (WINAPI *lr)(HMODULE, HRSRC) = iat_lookup("LoadResource");
+    DWORD (WINAPI *sr)(HMODULE, HRSRC) = iat_lookup("SizeofResource");
+    HMODULE hm = (HMODULE)(uintptr_t)g_map_hmod;
+    HRSRC rs = fr(hm, MAKEINTRESOURCEA(g_map_id), "DATA");
+    const uint8_t *bytes = rs ? LockResource(lr(hm, rs)) : NULL;
+    map_data md;
+    if (!bytes || map_data_parse(&md, bytes, sr(hm, rs)) != 0) {
+        h->skipped++; rh_log("map_decode f%u: map %u: resource/parse failed\n", g_frame, g_map_id); return r;
+    }
+    memcpy(grid, g_grid_pre, GRID_BYTES);
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    map_decode_cfg cfg; map_decode_cfg_init(&cfg, p2, p3, p4);
+    map_decode(&md, grid, &cfg, rh_bank_dims, NULL);
+    dead_restore(sp);
+    map_data_free(&md);
+    static const struct { const char *n; uint32_t lo; } RG[] = {
+        { "hdr", 0 }, { "A", 0x30 }, { "B", 0x140030 }, { "C", 0x195030 }, { "E", 0x1d1030 }, { "dims", 0x2c1030 }, { "D", 0x2c1040 } };
+    long nd[7] = { 0 }, tot = 0; uint32_t first[7];
+    const uint8_t *g = grid;
+    for (int k = 0; k < 7; k++) {
+        uint32_t hi = k < 6 ? RG[k + 1].lo : GRID_BYTES;
+        for (uint32_t o = RG[k].lo; o < hi; o++) if (g[o] != g_grid_ret[o]) { if (!nd[k]++) first[k] = o; }
+        tot += nd[k];
+    }
+    char b[512]; int n = 0;
+    for (int k = 0; k < 7; k++) if (nd[k])
+        n += snprintf(b + n, sizeof b - n, " %s=%ld@%x(r%02x/p%02x)", RG[k].n, nd[k], first[k], g_grid_ret[first[k]], g[first[k]]);
+    rh_log("map_decode f%u map %u p2=%d p3=%d p4=%d: %ld bytes differ%s\n", g_frame, g_map_id, p2, p3, p4, tot, n ? b : "");
+    h->compared++;
+    if (tot) {
+        diverged(h, "map %u p2=%d p3=%d p4=%d: %ld bytes differ%s", g_map_id, p2, p3, p4, tot, b);
+        if (h->diverge <= 4) {                          /* both grids, for offline diffing */
+            char path[MAX_PATH]; FILE *f;
+            snprintf(path, sizeof path, "%s\\grid_f%u_retail.bin", O.rundir, g_frame);
+            if ((f = fopen(path, "wb"))) { fwrite(g_grid_ret, 1, GRID_BYTES, f); fclose(f); }
+            snprintf(path, sizeof path, "%s\\grid_f%u_port.bin", O.rundir, g_frame);
+            if ((f = fopen(path, "wb"))) { fwrite(grid, 1, GRID_BYTES, f); fclose(f); }
+        }
+    }
+    memcpy(grid, g_grid_ret, GRID_BYTES);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -205,6 +282,7 @@ static hook_t H[H_N] = {
     [H_SWEEP_H] = { "sweep_h", 0x54ded0u, (void *)w_sweep_h, 0, 1, 0, 0, 0, 0, "" },
     [H_ENT_MOVE_H] = { "ent_move_h", 0x54db10u, (void *)w_ent_h, 0, 1, 0, 0, 0, 0, "" },
     [H_ENT_MOVE_V] = { "ent_move_v", 0x54e5c0u, (void *)w_ent_v, 0, 1, 0, 0, 0, 0, "" },
+    [H_MAP_DECODE] = { "map_decode", 0x587e00u, (void *)w_map_decode, 0, 1, 0, 0, 0, 0, "" },
 };
 
 void rh_hooks_install(void)
@@ -213,7 +291,7 @@ void rh_hooks_install(void)
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
-        H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = 0;
+        H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -227,6 +305,10 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
+        if (h == &H[H_MAP_DECODE]) {
+            if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
+            rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));
+        }
         int n = redirect_calls(h->va, h->wrapper);
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n) rh_fatal("hook %s: no direct call sites", name);

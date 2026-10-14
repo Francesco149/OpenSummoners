@@ -298,19 +298,19 @@ int test_map_decode_cfg_init(void)
 {
     map_decode_cfg c;
     /* param_4 = 1 (town/house) -> the 587e00.c:49-52 defaults */
-    map_decode_cfg_init(&c, MAP_DECODE_SCENE_PARAM3, 1);
+    map_decode_cfg_init(&c, 4, MAP_DECODE_SCENE_PARAM3, 1);
     T_ASSERT_EQ_U(c.bank_24, 0x17e); T_ASSERT_EQ_U(c.bank_1c, 0x17d);
     T_ASSERT_EQ_U(c.bank_20, 0x185); T_ASSERT_EQ_U(c.bank_18, 0x184);
     T_ASSERT_EQ_I(c.scene_frame, 0);   /* 0x14 normalizes to 0 */
     /* param_4 = 4 (errands) -> case 4: local_20/18 become 0x188/0x187 */
-    map_decode_cfg_init(&c, MAP_DECODE_SCENE_PARAM3, 4);
+    map_decode_cfg_init(&c, 4, MAP_DECODE_SCENE_PARAM3, 4);
     T_ASSERT_EQ_U(c.bank_24, 0x17e); T_ASSERT_EQ_U(c.bank_1c, 0x17d);
     T_ASSERT_EQ_U(c.bank_20, 0x188); T_ASSERT_EQ_U(c.bank_18, 0x187);
     /* the param_3 normalization ladder (587e00.c:64-80) */
-    map_decode_cfg_init(&c, 10,   1); T_ASSERT_EQ_I(c.scene_frame, 1);
-    map_decode_cfg_init(&c, 0x32, 1); T_ASSERT_EQ_I(c.scene_frame, 2);
-    map_decode_cfg_init(&c, 0x3c, 1); T_ASSERT_EQ_I(c.scene_frame, 4);
-    map_decode_cfg_init(&c, 0x3d, 1); T_ASSERT_EQ_I(c.scene_frame, 5);
+    map_decode_cfg_init(&c, 4, 10,   1); T_ASSERT_EQ_I(c.scene_frame, 1);
+    map_decode_cfg_init(&c, 4, 0x32, 1); T_ASSERT_EQ_I(c.scene_frame, 2);
+    map_decode_cfg_init(&c, 4, 0x3c, 1); T_ASSERT_EQ_I(c.scene_frame, 4);
+    map_decode_cfg_init(&c, 4, 0x3d, 1); T_ASSERT_EQ_I(c.scene_frame, 5);
     return 0;
 }
 
@@ -383,7 +383,7 @@ int test_map_decode_errands_arms(void)
     fixture f; fx_init(&f, 40, 40, 1);
     uint8_t *g = map_grid_alloc(); T_ASSERT(g != NULL);
     map_grid_set_dims(g, 40, 40);
-    map_decode_cfg cfg; map_decode_cfg_init(&cfg, MAP_DECODE_SCENE_PARAM3, 4);
+    map_decode_cfg cfg; map_decode_cfg_init(&cfg, 9, MAP_DECODE_SCENE_PARAM3, 4);
 
     /* 0x1b97c floor: slot 2, bank 0x17c, flag 0x14, frame = the CELL's arg_0c
      * (the per-cell tile variant — PROVEN off the errands cells vs retail's res

@@ -336,7 +336,7 @@ def print_results(results, names):
 # ---------------------------------------------------------------- commands
 def cmd_run(a):
     runs = resolve_runs(a.scenarios)
-    fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt") + (("state_*.rhs",) if a.dump_at else ())
+    fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt", "grid_*.bin") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
     print_results(res, [r[0] for r in runs])
     return 0 if all(res.get(r[0], {}).get("status") == "ok" for r in runs) else 1
@@ -345,7 +345,7 @@ def cmd_run(a):
 def cmd_boot(a):
     runs = [("boot", None, None, None)]
     a.frames = a.frames or 1500
-    fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt") + (("state_*.rhs",) if a.dump_at else ())
+    fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt", "grid_*.bin") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "boot", fetch=fetch)
     print_results(res, ["boot"])
     if not res.get("boot"):
@@ -425,7 +425,7 @@ def cmd_corpus(a):
     return 0 if done == len(names) else 1
 
 
-VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v"]
+VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_move_v", "map_decode"]
 
 
 def cmd_verify(a):
